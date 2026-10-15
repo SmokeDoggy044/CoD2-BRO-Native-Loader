@@ -17,8 +17,9 @@ license; they are kept as reference only.
 
 ## Third-party code
 
-`third_party/xbox-includes/` (github.com/mborgerson/xbox-includes, version in its
-`VERSION` file; its own `COPYING` is the GPL-2.0 text):
+`third_party/xbox-includes/` (a git submodule of github.com/mborgerson/xbox-includes,
+pinned at commit 0f8e252 of 2024-07-30; its own `COPYING` is the GPL-2.0 text; its
+`Makefile` and `xbox.cpp` are not built):
 
 | Files | License | Text |
 |---|---|---|

@@ -42,7 +42,7 @@ Details and next steps: [docs/status.md](docs/status.md).
 | `tests/` | Kernel-layer and audio tests (no game files needed) | Kept |
 | `assets/` | Game files in the final version (empty during development) | Kept, not in git |
 | `tools/` | Kernel export generator, Ghidra scripts, feature sweep, data files | Kept |
-| `third_party/xbox-includes/` | Xbox kernel/SDK headers (github.com/mborgerson/xbox-includes) | Reference |
+| `third_party/xbox-includes/` | Xbox kernel/SDK headers (git submodule of github.com/mborgerson/xbox-includes) | Reference |
 | `LICENSES/` | License texts and which applies where | - |
 
 Rules for portable code: no compiler extensions outside `platform/compiler.h`,
@@ -50,6 +50,10 @@ fixed-width types in structs that mirror Xbox memory (with `static_assert`s), an
 32-bit Xbox pointers stored as `xbox::XbPtr`.
 
 ## Building
+
+Clone with `git clone --recursive`, or run `git submodule update --init` in an
+existing clone, to get `third_party/xbox-includes` (needed only to regenerate the
+kernel exports).
 
 Fedora packages for the 32-bit loader build:
 
