@@ -9,11 +9,11 @@ Not chosen yet. Everything outside `third_party/` is original work of this proje
 and gets its license (file `LICENSE` at the repository root, plus the text here)
 before the repository goes public.
 
-Note for the choice: the GPL-2.0 headers below are compiled into the loader, so a
-build that includes them must be distributed under GPL-2.0-or-later terms. A
-GPL-compatible license for the port (GPL-2.0-or-later itself, or a permissive one
-such as MIT) keeps that possible; replacing those headers with our own would remove
-the constraint.
+Note for the choice: none of the headers below are compiled into any build; the
+port has its own (`audio/dsound.h`, `online/xonline.h`, `render/xbox_d3d.h`, ...).
+Only `xboxkrnl.h` (CC0) is read, by `tools/gen_kernel_exports.py`, to generate
+`xbox/kernel_exports.inc`. So the GPL/LGPL headers put no condition on the port's
+license; they are kept as reference only.
 
 ## Third-party code
 
