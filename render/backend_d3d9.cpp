@@ -3,6 +3,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -68,6 +69,7 @@ class D3D9Backend final : public Backend {
 public:
     ~D3D9Backend() override {
         overlay_.reset();
+        notice_.reset();
         draw_.reset();
         release(staging_);
         release(upload_);
@@ -146,6 +148,7 @@ public:
         back_buffer_data_ = config.back_buffer.data;
         draw_ = std::make_unique<D3D9Draw>(device_, config);
         overlay_ = std::make_unique<D3D9Overlay>(device_);
+        notice_ = std::make_unique<D3D9Overlay>(device_);
         LOG_INFO("render", "D3D9 device: %ux%u, rendering at %.2fx%.2f, window %ux%u", config.width, config.height,
                  static_cast<double>(config.render_scale_x()), static_cast<double>(config.render_scale),
                  pp.BackBufferWidth, pp.BackBufferHeight);
@@ -240,6 +243,10 @@ public:
             }
             device_->StretchRect(back_buffer, nullptr, swap_chain, &dest, D3DTEXF_LINEAR);
             overlay_->draw(swap_chain, overlay, 4, 4);
+            // Above the menus' button legend, the font 3 times larger at 960 lines.
+            const int scale = std::max(1, static_cast<int>(desc.Height) / 320);
+            notice_->draw(swap_chain, notice_lines_, D3D9Overlay::kCentre, static_cast<int>(desc.Height) * 7 / 10,
+                          scale);
             swap_chain->Release();
         }
         device_->Present(nullptr, nullptr, nullptr, nullptr);
@@ -259,6 +266,7 @@ public:
     }
 
     void set_overlay(std::vector<std::string> lines) override { overlay_lines_ = std::move(lines); }
+    void set_notice(std::vector<std::string> lines) override { notice_lines_ = std::move(lines); }
 
     std::optional<std::string> prompt(const std::vector<std::string>& heading) override {
         constexpr size_t kMaxText = 200, kLineChars = 76;
@@ -353,6 +361,8 @@ private:
     bool closed_ = false;
     std::unique_ptr<D3D9Overlay> overlay_;
     std::vector<std::string> overlay_lines_;
+    std::unique_ptr<D3D9Overlay> notice_;  // its own, so neither redraws its text every frame
+    std::vector<std::string> notice_lines_;
 };
 
 }  // namespace

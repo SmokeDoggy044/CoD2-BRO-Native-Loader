@@ -98,6 +98,20 @@ struct XbPresentParameters {
 };
 static_assert(sizeof(XbPresentParameters) == 0x44);
 
+struct XbDisplayMode {
+    uint32_t width;
+    uint32_t height;
+    uint32_t refresh_rate;
+    uint32_t flags;  // kPresentFlag*
+    uint32_t format;
+};
+static_assert(sizeof(XbDisplayMode) == 0x14);
+
+// D3DPRESENTFLAG_* (XbPresentParameters::flags, XbDisplayMode::flags).
+constexpr uint32_t kPresentFlagWidescreen = 0x10;
+constexpr uint32_t kPresentFlagProgressive = 0x40;
+constexpr uint32_t kPresentFlag10x11PixelAspect = 0x100;
+
 // D3DClear flags.
 constexpr uint32_t kClearTargetMask = 0xF0;  // R, G, B, A
 constexpr uint32_t kClearZBuffer = 0x01;

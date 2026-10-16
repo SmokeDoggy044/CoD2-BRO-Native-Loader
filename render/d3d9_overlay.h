@@ -22,9 +22,12 @@ public:
     D3D9Overlay(const D3D9Overlay&) = delete;
     D3D9Overlay& operator=(const D3D9Overlay&) = delete;
 
+    static constexpr int kCentre = -1;
+
     // Draws `lines` in a dark box at (x, y) on `target` (the swap chain's back buffer),
-    // leaving the device state as it was.
-    void draw(IDirect3DSurface9* target, const std::vector<std::string>& lines, int x, int y);
+    // `scale` times the font's size, leaving the device state as it was. x = kCentre
+    // centres the box horizontally.
+    void draw(IDirect3DSurface9* target, const std::vector<std::string>& lines, int x, int y, int scale = 1);
 
 private:
     bool render_text(const std::vector<std::string>& lines, uint32_t& width, uint32_t& height);

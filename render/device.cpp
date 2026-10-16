@@ -53,6 +53,10 @@ struct State {
     XbVBlankData* vblank_data = nullptr;
     std::atomic<uint32_t> vblank_count{0};
     std::atomic<uint32_t> vblank_callback{0};
+    XbDisplayMode display_mode{};  // from CreateDevice's parameters
+    std::mutex notice_mutex;  // show_notice may come from any title thread
+    std::vector<std::string> notice;
+    std::chrono::steady_clock::time_point notice_until;
 };
 State& g = *new State;  // the vertical blank thread uses it until exit: never destroyed
 
@@ -171,6 +175,10 @@ uint32_t XB_STDCALL Direct3D_CreateDevice(uint32_t /*adapter*/, uint32_t /*devic
     if (!g.backend) return kD3DErrInvalidCall;
 
     g.device = new uint8_t[kDeviceSize]{};
+    // Always progressive here: no interlaced or field modes.
+    g.display_mode = {backend_config.width, backend_config.height, 60,
+                      (pp->flags & (kPresentFlagWidescreen | kPresentFlag10x11PixelAspect)) | kPresentFlagProgressive,
+                      pp->back_buffer_format};
     device_field<XbPtr>(kDeviceBackBuffer) = to_xbox_ptr(g.back_buffer);
     device_field<XbPtr>(kDeviceRenderTarget) = to_xbox_ptr(g.back_buffer);
     device_field<XbPtr>(kDeviceDepthStencil) = to_xbox_ptr(g.depth_stencil);
@@ -465,6 +473,11 @@ uint32_t XB_STDCALL D3DDevice_Swap(uint32_t /*flags*/) {
     platform::HostFloatEnv float_env;
     upload_back_buffer_writes();
     if (!g.config.diag_dir.empty()) diagnostics();
+    {
+        std::lock_guard lock(g.notice_mutex);
+        if (!g.notice.empty() && std::chrono::steady_clock::now() >= g.notice_until) g.notice.clear();
+        g.backend->set_notice(g.notice);
+    }
     g_frames_shown.store(true, std::memory_order_relaxed);
     if (g.config.screenshot_interval && g.swap_count % g.config.screenshot_interval == 0) {
         const std::string path = g.config.screenshot_dir + "/frame_" + std::to_string(g.swap_count) + ".bmp";
@@ -480,6 +493,9 @@ uint32_t XB_STDCALL D3DDevice_Swap(uint32_t /*flags*/) {
 }
 
 void XB_STDCALL D3DDevice_SetVerticalBlankCallback(XbPtr callback) { g.vblank_callback = callback; }
+
+// The original reads it from the NV2A mode registers in the device.
+void XB_STDCALL D3DDevice_GetDisplayMode(XbPtr mode) { *from_xbox_ptr<XbDisplayMode>(mode) = g.display_mode; }
 
 void XB_STDCALL D3DDevice_GetDisplayFieldStatus(XbPtr status) {
     auto* s = from_xbox_ptr<XbFieldStatus>(status);
@@ -537,6 +553,7 @@ const xbox::KernelImpl kDeviceFunctions[] = {
     D3D_IMPL(D3DDevice_GetDepthStencilSurface2),
     D3D_IMPL(D3DDevice_GetDeviceCaps),
     D3D_IMPL(D3DDevice_GetDisplayFieldStatus),
+    D3D_IMPL(D3DDevice_GetDisplayMode),
     D3D_IMPL(D3DDevice_GetRenderTarget2),
     D3D_IMPL(D3DDevice_GetScissors),
     D3D_IMPL(D3DDevice_GetScreenSpaceOffset),
@@ -584,6 +601,13 @@ void texture_written(XbPtr resource) {
         platform::HostFloatEnv float_env;
         g.backend->forget_render_target(from_xbox_ptr<XbResource>(resource)->data);
     }
+}
+
+void show_notice(std::vector<std::string> lines, double seconds) {
+    std::lock_guard lock(g.notice_mutex);
+    g.notice = std::move(lines);
+    g.notice_until = std::chrono::steady_clock::now() +
+                     std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(seconds));
 }
 
 void configure(const D3DConfig& config) {

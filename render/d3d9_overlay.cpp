@@ -87,7 +87,7 @@ bool D3D9Overlay::render_text(const std::vector<std::string>& lines, uint32_t& w
     return true;
 }
 
-void D3D9Overlay::draw(IDirect3DSurface9* target, const std::vector<std::string>& lines, int x, int y) {
+void D3D9Overlay::draw(IDirect3DSurface9* target, const std::vector<std::string>& lines, int x, int y, int scale) {
     uint32_t width = 0, height = 0;
     if (lines.empty() || !saved_ || !render_text(lines, width, height)) return;
 
@@ -130,8 +130,9 @@ void D3D9Overlay::draw(IDirect3DSurface9* target, const std::vector<std::string>
     target->GetDesc(&desc);
     const D3DVIEWPORT9 viewport{0, 0, desc.Width, desc.Height, 0.0f, 1.0f};
     device_->SetViewport(&viewport);
+    if (x == kCentre) x = (static_cast<int>(desc.Width) - static_cast<int>(width) * scale) / 2;
     const float x0 = static_cast<float>(x) - 0.5f, y0 = static_cast<float>(y) - 0.5f;
-    const float x1 = x0 + width, y1 = y0 + height;
+    const float x1 = x0 + width * scale, y1 = y0 + height * scale;
     const float u1 = static_cast<float>(width) / texture_width_, v1 = static_cast<float>(height) / texture_height_;
     const Vertex quad[4] = {
         {x0, y0, 0, 1, 0, 0}, {x1, y0, 0, 1, u1, 0}, {x0, y1, 0, 1, 0, v1}, {x1, y1, 0, 1, u1, v1}};

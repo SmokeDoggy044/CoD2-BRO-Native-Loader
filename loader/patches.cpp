@@ -48,6 +48,31 @@ uint32_t XB_STDCALL mount_utility_drive(uint32_t format_clean) {
     return xbox::mount_utility_drive(format_clean & 0xFF) == 0 ? 1 : 0;
 }
 
+// Console command load_mp_exe (FUN_002cf920): shuts the game down and reboots into
+// codmp_xboxf.xbe. The Multiplayer and Xbox Live menus run it; multiplayer is not
+// ported, so the player stays in the menu and gets a notice instead.
+void XB_CDECL load_mp_exe() {
+    LOG_INFO("patches", "load_mp_exe: multiplayer is not available");
+    render::show_notice({"Multiplayer is not available", "This port plays the single-player campaign only."}, 4);
+}
+
+// Xbox Live sign-in (FUN_00221eb0, from the main menu and Xbox Live Options > Sign In;
+// online state in esi, always the object at 0x0095f6fc): clears the last logon result,
+// sets the state to 1 (signing in) and starts the XOnline sign-in UI, which draws its
+// account list with XFONT into the frame buffer's tiled view (0xF0000000, not mapped).
+// There is no Xbox Live: keep the state at 0, so the menu says "Not signed in".
+constexpr uint32_t kOnlineState = 0x0095f6fc;
+
+void XB_CDECL start_sign_in() {
+    const auto online = *reinterpret_cast<const uint32_t*>(uintptr_t{kOnlineState});
+    if (online) {
+        *reinterpret_cast<uint32_t*>(uintptr_t{online + 0x446c}) = 0;  // logon result
+        *reinterpret_cast<uint32_t*>(uintptr_t{online + 0x4470}) = 0;
+    }
+    LOG_INFO("patches", "Xbox Live sign-in: not available");
+    render::show_notice({"Xbox Live is not available", "This port plays the single-player campaign only."}, 4);
+}
+
 struct Patch {
     uint32_t address;
     const void* replacement;
@@ -57,6 +82,8 @@ struct Patch {
 const Patch kPatches[] = {
     {0x001ede5f, reinterpret_cast<const void*>(&restrict_code_selector), "XAPI code selector restriction"},
     {0x001e9b66, reinterpret_cast<const void*>(&mount_utility_drive), "XMountUtilityDrive: Z: = cache folder"},
+    {0x002cf920, reinterpret_cast<const void*>(&load_mp_exe), "load_mp_exe: no multiplayer reboot"},
+    {0x00221eb0, reinterpret_cast<const void*>(&start_sign_in), "Xbox Live sign-in: not available"},
 };
 
 // RDTSC sites in title code (Ghidra: every RDTSC outside the SDK sections) and how
@@ -523,6 +550,7 @@ const uint32_t kSdkKeepOriginal[] = {
 const char* const kSdkKeepOriginalNames[] = {
     "D3D_AllocContiguousMemory",  // XMemAlloc with D3D's attributes
     "D3D_FreeContiguousMemory",   // XMemFree
+    "D3DDevice_GetCreationParameters",  // constants plus a flag from the device block
 };
 
 const SymbolTable* g_symbols = nullptr;
