@@ -26,7 +26,9 @@
 #include "memory.h"
 #include "patches.h"
 #include "paths.h"
+#include "process.h"
 #include "script.h"
+#include "settings.h"
 #include "symbols.h"
 #include "thread_env.h"
 #include "xbe.h"
@@ -305,11 +307,34 @@ xbox::KernelConfig kernel_config(const Options& options, const fs::path& assets,
     return config;
 }
 
+// Without game files the player gets the launcher, which says where they go. Not when
+// the folder was named on the command line or in COD_BRO_ASSETS (development).
+bool start_launcher_for_assets(int argc, char** argv) {
+    if (const char* env = std::getenv("COD_BRO_ASSETS"); env && *env) return false;
+    for (int i = 1; i < argc; ++i)
+        if (option_name(argv[i]) == "--assets") return false;
+    const fs::path launcher = platform::sibling_executable("cod_bro_launcher");
+    if (!fs::exists(launcher)) return false;
+    LOG_INFO("loader", "no game files: starting %s", launcher.string().c_str());
+    return platform::start_program(launcher);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
-    const std::optional<Options> options = parse_args(argc, argv);
-    if (!options) return 2;
+    // settings.ini first, so the command line overrides it. A reboot re-reads it.
+    const platform::Settings settings = platform::load_settings();
+    std::vector<std::string> merged = settings.as_args();
+    merged.insert(merged.begin(), argv[0]);
+    merged.insert(merged.end(), argv + 1, argv + argc);
+    std::vector<char*> merged_argv;
+    for (std::string& arg : merged) merged_argv.push_back(arg.data());
+    const std::optional<Options> options = parse_args(static_cast<int>(merged_argv.size()), merged_argv.data());
+    if (!options) {
+        if (!settings.empty())
+            std::fprintf(stderr, "(options include %s)\n", platform::settings_path().string().c_str());
+        return 2;
+    }
     g_args.assign(argv, argv + argc);
     g_diag_dir = options->diag_dir;
     if (options->session_start_ns)
@@ -332,7 +357,10 @@ int main(int argc, char** argv) {
     }
 
     const auto assets = platform::resolve_asset_root(options->assets);
-    if (!assets) return 1;
+    if (!assets) {
+        start_launcher_for_assets(argc, argv);
+        return 1;
+    }
     LOG_INFO("loader", "assets: %s", assets->string().c_str());
 
     static loader::XbeImage image;

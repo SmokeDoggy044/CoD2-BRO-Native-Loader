@@ -1,6 +1,11 @@
-# Tests for the portable kernel layer (xbox/). Run with `ctest --preset <name>` or
+# Tests for platform/ and the portable kernel layer (xbox/). Run with `ctest --preset <name>` or
 # `ctest --test-dir <build dir>`.
 #
+# Portable tests (any build).
+add_executable(settings_test settings_test.cpp)
+target_link_libraries(settings_test PRIVATE platform)
+add_test(NAME settings_test COMMAND settings_test)
+
 # xbox/ stores the title's pointers as 32-bit values (XbPtr), which is only valid in a
 # 32-bit address space, so the tests are built for 32-bit targets only for now.
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)

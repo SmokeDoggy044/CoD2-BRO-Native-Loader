@@ -1,6 +1,8 @@
 add_library(platform STATIC
     log.cpp
     paths.cpp
+    process.cpp
+    settings.cpp
 )
 if(WIN32)
     target_sources(platform PRIVATE file_win32.cpp vmem_win32.cpp)

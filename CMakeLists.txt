@@ -88,6 +88,7 @@ add_subdirectory(render)
 add_subdirectory(input)
 add_subdirectory(online)
 add_subdirectory(game)
+add_subdirectory(launcher)
 
 if(COD_BRO_BUILD_TESTS)
     enable_testing()

@@ -39,7 +39,8 @@ Details and next steps: [docs/status.md](docs/status.md).
 | `input/` | Controllers, keyboard and mouse on SDL3; scripted presses | Kept, portable |
 | `online/` | Xbox Live stubs (always unavailable) | Kept, portable |
 | `game/` | Decompiled game code and the `cod_bro` executable | Kept, portable |
-| `tests/` | Kernel-layer and audio tests (no game files needed) | Kept |
+| `launcher/` | `cod_bro_launcher`: settings and game-file setup (Dear ImGui, fetched by CMake) | Kept, portable |
+| `tests/` | Settings, kernel-layer and audio tests (no game files needed) | Kept |
 | `assets/` | Game files in the final version (empty during development) | Kept, not in git |
 | `tools/` | Kernel export generator, Ghidra scripts, feature sweep, data files | Kept |
 | `third_party/xbox-includes/` | Xbox kernel/SDK headers (git submodule of github.com/mborgerson/xbox-includes) | Reference |
@@ -76,6 +77,13 @@ Builds use the release layout: executables in `build/<preset>/bin/`, next to an
 drive) goes to the per-user data folder: `~/.local/share/cod_bro` (Linux),
 `%APPDATA%\cod_bro` (Windows), or `--data DIR`. Override assets with `--assets DIR`
 or `COD_BRO_ASSETS`.
+
+Players use `cod_bro_launcher`: it shows where the game files go, sets the options
+below and starts the game. It saves them as `settings.ini` in the user data folder
+(always there, not under `--data`): `key = value` lines named after the options
+(`aspect = 4:3`, `silent = true`), which the game reads as options placed before its
+command line, so options given there win. Without game files and without
+`--assets`/`COD_BRO_ASSETS`, the game starts the launcher and exits.
 
 Common options: `--aspect 16:9|4:3`, `--scale N` (window size), `--render-scale X`,
 `--anisotropy N`, `--mouse-sensitivity DEG`, `--level N` (start a mission directly),

@@ -49,6 +49,13 @@ fs::path user_data_dir() {
     return executable_dir() / "data";
 }
 
+fs::path default_asset_dir() { return executable_dir() / "assets"; }
+
+bool has_game_files(const fs::path& dir) {
+    std::error_code ec;
+    return fs::is_regular_file(dir / "default.xbe", ec) && fs::is_directory(dir / "media", ec);
+}
+
 std::optional<fs::path> resolve_asset_root(const std::optional<fs::path>& cli_override) {
     if (cli_override) {
         if (has_assets(*cli_override)) return *cli_override;
@@ -59,7 +66,7 @@ std::optional<fs::path> resolve_asset_root(const std::optional<fs::path>& cli_ov
         if (has_assets(env)) return fs::path(env);
         LOG_WARN("paths", "COD_BRO_ASSETS=%s does not exist or is empty, ignoring", env);
     }
-    const fs::path bundled = executable_dir() / "assets";
+    const fs::path bundled = default_asset_dir();
     if (has_assets(bundled)) return bundled;
     LOG_ERROR("paths", "no game assets in %s (use --assets, COD_BRO_ASSETS or put them there)",
               bundled.string().c_str());

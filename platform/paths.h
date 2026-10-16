@@ -16,6 +16,13 @@ std::filesystem::path executable_dir();
 std::optional<std::filesystem::path> resolve_asset_root(
     const std::optional<std::filesystem::path>& cli_override);
 
+// <executable dir>/assets, where a release keeps the game files.
+std::filesystem::path default_asset_dir();
+
+// Whether `dir` holds a dump of the game's disc (what the launcher checks): the
+// executable and the media folder. Route C will not need default.xbe any more.
+bool has_game_files(const std::filesystem::path& dir);
+
 // Where the game writes (saves, cache): the per-user data folder, i.e.
 // $XDG_DATA_HOME/cod_bro or ~/.local/share/cod_bro on Linux, %APPDATA%\cod_bro on
 // Windows. Never inside the assets, which are read-only like the disc.

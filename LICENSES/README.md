@@ -28,6 +28,11 @@ pinned at commit 0f8e252 of 2024-07-30; its own `COPYING` is the GPL-2.0 text; i
 | `d3d8types_wine.h` (from Wine) | LGPL-2.1-or-later | `LGPL-2.1-or-later.txt` |
 | `xboxdef.h` | no notice in the file; the package's `COPYING` (GPL-2.0) | `GPL-2.0-or-later.txt` |
 
+Fetched by CMake at configure time, not stored here: Dear ImGui (MIT,
+github.com/ocornut/imgui, tag v1.91.9) for the launcher; on Windows also SDL3
+(zlib) and OpenAL Soft (LGPL-2.0-or-later). A release must include their license
+texts.
+
 ## Not in this repository
 
 Call of Duty 2: Big Red One and its files (XBE, assets) belong to their owners and
