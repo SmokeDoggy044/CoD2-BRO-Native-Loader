@@ -40,7 +40,7 @@ next steps: [docs/status.md](docs/status.md).
 ## Playing
 
 1. Download the archive for your system from the
-   [releases](https://github.com/SmokeDoggy044/CoD-2-Big-Red-One---Xbox-PC-Port/releases):
+   [releases](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases):
    `cod_bro-<version>-linux.tar.gz` or `cod_bro-<version>-windows.zip`.
 2. Unpack it anywhere and copy your game dump into its `assets/` folder.
 3. Start `cod_bro_launcher`: it checks the game files, sets the options and starts
