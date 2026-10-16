@@ -230,7 +230,7 @@ uint32_t output_temp(uint32_t address) {
 }
 
 void translate_instruction(Assembler& a, const Instruction& in, uint32_t attribute_mask) {
-    static std::once_flag exp_once, log_once, const_write_once;
+    static std::once_flag const_write_once;
     const uint32_t mac = in.get(1, 21, 4);
     const uint32_t ilu = in.get(1, 25, 3);
     const Src A = operand_a(in, attribute_mask), B = operand_b(in, attribute_mask), C = operand_c(in, attribute_mask);
@@ -272,13 +272,22 @@ void translate_instruction(Assembler& a, const Instruction& in, uint32_t attribu
             a.max(ilu_out, r(kIluResult), c(kVsRccLimits).y());
             break;
         case kIluRsq: a.op(kRsq, ilu_out, {C.first()}); break;
-        case kIluExp:
-            warn_once(exp_once, "vertex program EXP: using full-precision exp for every component");
-            a.op(kExp, ilu_out, {C.first()});
+        case kIluExp:  // like vs_1_1 expp: (2^floor(s), frac(s), 2^s, 1); titles use .y as a phase
+            a.op(kFrc, r_(kScratch, kX), {C.first()});
+            a.add(r_(kScratch, kY), C.first(), -r(kScratch).x());
+            a.op(kExp, r_(kIluResult, kX), {r(kScratch).y()});
+            a.mov(r_(kIluResult, kY), r(kScratch).x());
+            a.op(kExp, r_(kIluResult, kZ), {C.first()});
+            a.mov(r_(kIluResult, kW), c(kVsDefaults).w());
             break;
-        case kIluLog:
-            warn_once(log_once, "vertex program LOG: using full-precision log for every component");
-            a.op(kLog, ilu_out, {C.first()});
+        case kIluLog:  // like vs_1_1 logp: (exponent, mantissa in [1, 2), log2|s|, 1)
+            a.op(kAbs, r_(kScratch, kX), {C.first()});
+            a.op(kLog, r_(kIluResult, kZ), {r(kScratch).x()});
+            a.op(kFrc, r_(kScratch, kY), {r(kIluResult).z()});
+            a.add(r_(kIluResult, kX), r(kIluResult).z(), -r(kScratch).y());
+            a.op(kExp, r_(kScratch, kZ), {-r(kIluResult).x()});
+            a.mul(r_(kIluResult, kY), r(kScratch).x(), r(kScratch).z());
+            a.mov(r_(kIluResult, kW), c(kVsDefaults).w());
             break;
         case kIluLit: a.op(kLit, ilu_out, {C}); break;
         default: break;
