@@ -150,11 +150,11 @@ XBE's base address (0x10000) so that range and the kernel's are free, and
 
 Builds use the release layout: executables in `build/<preset>/bin/`, next to an
 `assets` link to the game files (`../unpacked` by default; CMake setting
-`COD_BRO_GAME_FILES`), so development needs no copy of the 3 GB. The game only reads
-there. In git, `assets/` holds only the players' README, which releases ship. What it writes (saves, the cache
-drive) goes to the per-user data folder: `~/.local/share/cod_bro` (Linux),
-`%APPDATA%\cod_bro` (Windows), or `--data DIR`. Override assets with `--assets DIR`
-or `COD_BRO_ASSETS`.
+`COD_BRO_GAME_FILES`), so development needs no copy of the 3 GB. In git, `assets/`
+holds only the players' README, which releases ship. The game only reads there.
+What it writes (saves, the cache drive) goes to the per-user data folder:
+`~/.local/share/cod_bro` (Linux), `%APPDATA%\cod_bro` (Windows), or `--data DIR`.
+Override assets with `--assets DIR` or `COD_BRO_ASSETS`.
 
 Players use `cod_bro_launcher`: it shows where the game files go, sets the options
 below and starts the game. It saves them as `settings.ini` in the user data folder
