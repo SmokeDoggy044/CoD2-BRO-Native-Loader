@@ -57,5 +57,7 @@ then wins over the file; @COD_BRO_README_HELP@ lists them.
 Licenses
 --------
 
-See LICENSES/. Call of Duty 2: Big Red One belongs to its owners; this port
-contains none of its code or data.
+The port is free software under the GNU General Public License, version 2 or
+later; its source code is on GitHub (SmokeDoggy044/CoD2-BRO-Native-Loader). The
+bundled libraries have their own licenses: see LICENSES/. Call of Duty 2: Big Red
+One belongs to its owners; this port contains none of its code or data.

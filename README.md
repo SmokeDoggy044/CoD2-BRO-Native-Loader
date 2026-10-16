@@ -73,6 +73,14 @@ Controls and options are in the `README.txt` inside the archive.
   Direct3D 9: DXVK on Linux, the system's on Windows. See
   [docs/rendering.md](docs/rendering.md).
 
+## License
+
+The port's own code is licensed under the GNU General Public License, version 2
+or (at your option) any later version: see [LICENSE](LICENSE) and
+[LICENSES/README.md](LICENSES/README.md), which also covers the third-party code.
+Call of Duty 2: Big Red One belongs to its owners; none of its code or data is
+part of this project.
+
 ## Documentation
 
 | File | Contents |
@@ -81,7 +89,7 @@ Controls and options are in the `README.txt` inside the archive.
 | [docs/rendering.md](docs/rendering.md) | Direct3D replacement: design, draw path, render scale, widescreen, frame dumps |
 | [docs/playtesting.md](docs/playtesting.md) | `--diag` sessions, scripted and unattended runs, the feature sweep |
 | [docs/comparison-harness.md](docs/comparison-harness.md) | Planned: checking decompiled functions against the original |
-| [assets/README.md](assets/README.md) | Where the game files go |
+| [assets/README.md](assets/README.md) | For players: where the game files go |
 | [LICENSES/README.md](LICENSES/README.md) | Licenses of everything in the repository |
 
 ## Layout
@@ -98,7 +106,7 @@ Controls and options are in the `README.txt` inside the archive.
 | `game/` | The full native build's `cod_bro` executable and, later, the decompiled game code (none yet) | Kept, portable |
 | `launcher/` | `cod_bro_launcher`: settings and game-file setup (Dear ImGui, fetched by CMake) | Kept, portable |
 | `tests/` | Settings, kernel-layer and audio tests (no game files needed) | Kept |
-| `assets/` | Game files in the final version (empty during development) | Kept, not in git |
+| `assets/` | Where players put the game files (only its README is in git) | Kept |
 | `tools/` | Kernel export generator, Ghidra scripts, feature sweep, data files | Kept |
 | `third_party/xbox-includes/` | Xbox kernel/SDK headers (git submodule of github.com/mborgerson/xbox-includes) | Reference |
 | `LICENSES/` | License texts and which applies where | - |
@@ -142,7 +150,8 @@ XBE's base address (0x10000) so that range and the kernel's are free, and
 
 Builds use the release layout: executables in `build/<preset>/bin/`, next to an
 `assets` link to the game files (`../unpacked` by default; CMake setting
-`COD_BRO_GAME_FILES`). The game only reads there. What it writes (saves, the cache
+`COD_BRO_GAME_FILES`), so development needs no copy of the 3 GB. The game only reads
+there. In git, `assets/` holds only the players' README, which releases ship. What it writes (saves, the cache
 drive) goes to the per-user data folder: `~/.local/share/cod_bro` (Linux),
 `%APPDATA%\cod_bro` (Windows), or `--data DIR`. Override assets with `--assets DIR`
 or `COD_BRO_ASSETS`.

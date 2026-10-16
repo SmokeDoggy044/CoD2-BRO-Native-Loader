@@ -1,17 +1,25 @@
-# Game assets
+# Game files go here
 
-In the finished version, copy the game's files here (the contents of the disc:
-`media/`, `sp/`, `mp/`, `textures/`, ...). The game looks for this folder next to
-its executable, so a release is just the executables plus `assets/`. The launcher
-(`cod_bro_launcher`) can point the game at another folder instead; it only tells
-players to copy their game dump here, deliberately without dumping instructions.
+Copy your game dump into this folder: the complete contents of your Call of Duty 2:
+Big Red One (Xbox) disc. `default.xbe` and the `media` folder must be directly in
+this folder, not in a subfolder:
 
-Development builds use the same layout without copying 3 GB: CMake links
-`build/<preset>/bin/assets` to the game files (`cod_bro/unpacked/` by default, CMake
-setting `COD_BRO_GAME_FILES`). `--assets DIR` or the `COD_BRO_ASSETS` environment
-variable override it.
+    assets/
+        default.xbe
+        media/
+        movies/
+        sp/
+        textures/
+        ... (the other files and folders from the disc)
 
-The game never writes here; saves and the cache drive go to the per-user data
-folder (see the main README).
+Then start `cod_bro_launcher`. It shows "Game files found." when everything is in
+place.
 
-Nothing in this folder except this README is tracked by git.
+Your game files can also stay somewhere else: in the launcher, choose "Choose
+another folder..." and pick the folder that contains `default.xbe`.
+
+The game only reads these files and never changes them. Your saves and settings go
+to your user folder instead:
+
+- Linux: `~/.local/share/cod_bro`
+- Windows: `%APPDATA%\cod_bro`
