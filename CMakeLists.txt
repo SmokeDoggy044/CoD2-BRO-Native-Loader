@@ -28,7 +28,7 @@ endif()
 if(NOT EXISTS "${assets_link}")
     if(NOT EXISTS "${game_files}")
         message(WARNING "COD_BRO_GAME_FILES (${game_files}) does not exist; no assets link created")
-    elseif(WIN32)
+    elseif(CMAKE_HOST_WIN32)
         # A junction needs no special rights, unlike a symbolic link.
         file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
         file(TO_NATIVE_PATH "${assets_link}" native_link)
@@ -46,10 +46,10 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 4 AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86|X8
 endif()
 
 set(COD_BRO_LOADER_DEFAULT OFF)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND COD_BRO_IS_X86_32)
+if((CMAKE_SYSTEM_NAME STREQUAL "Linux" OR WIN32) AND COD_BRO_IS_X86_32)
     set(COD_BRO_LOADER_DEFAULT ON)
 endif()
-option(COD_BRO_BUILD_LOADER "Build the route-B XBE loader (32-bit x86 Linux only)" ${COD_BRO_LOADER_DEFAULT})
+option(COD_BRO_BUILD_LOADER "Build the route-B XBE loader (32-bit x86 Linux or Windows)" ${COD_BRO_LOADER_DEFAULT})
 
 # Settings shared by every target.
 add_library(cod_bro_options INTERFACE)
@@ -102,9 +102,11 @@ if(COD_BRO_BUILD_TESTS)
 endif()
 
 if(COD_BRO_BUILD_LOADER)
-    if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND COD_BRO_IS_X86_32))
-        message(FATAL_ERROR "The loader needs a 32-bit x86 Linux build; use the linux-loader preset.")
+    if(NOT ((CMAKE_SYSTEM_NAME STREQUAL "Linux" OR WIN32) AND COD_BRO_IS_X86_32))
+        message(FATAL_ERROR "The loader needs a 32-bit x86 build; use the linux-loader or windows-mingw preset.")
     endif()
     add_subdirectory(loader)
-    include(cmake/release.cmake)  # the player release: cmake --install / cpack
+    if(NOT WIN32)
+        include(cmake/release.cmake)  # the player release: cmake --install / cpack
+    endif()
 endif()

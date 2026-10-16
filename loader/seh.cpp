@@ -27,7 +27,6 @@ namespace {
 using xbox::from_xbox_ptr;
 using xbox::to_xbox_ptr;
 
-constexpr uint32_t kEndOfChain = 0xFFFFFFFF;
 constexpr uint32_t kStatusUnwind = 0xC0000027;
 constexpr uint32_t kExceptionNoncontinuable = 0x01;
 constexpr uint32_t kExceptionUnwinding = 0x02;
@@ -64,7 +63,9 @@ struct Registration {  // EXCEPTION_REGISTRATION_RECORD
 using Handler = uint32_t(XB_CDECL*)(XbExceptionRecord* record, Registration* frame, XbContext* context,
                                     uint32_t* dispatcher_context);
 
-NtTib& tib() { return current_thread_env()->kpcr->tib; }
+// Where the title's part of the chain ends (on Windows the host thread's own
+// records follow, which must not see Xbox-format contexts).
+uint32_t chain_end() { return current_thread_env()->seh_chain_end; }
 
 // The arguments' addresses give the caller's ESP; -mstackrealign frames still keep the
 // saved EBP at the frame address.
@@ -97,8 +98,9 @@ uint32_t call_handler(const Registration* frame, XbExceptionRecord* record, XbCo
 // handler says to continue execution; C++ and __try handlers that catch it never
 // return here.
 void dispatch(XbExceptionRecord* record, XbContext* context) {
-    uint32_t frame = tib().exception_list;
-    while (frame != kEndOfChain && frame != 0) {
+    uint32_t frame = xbox_tib().exception_list;
+    const uint32_t end = chain_end();
+    while (frame != end && frame != 0) {
         const auto* registration = from_xbox_ptr<Registration>(frame);
         const uint32_t next = registration->next;
         switch (call_handler(registration, record, context)) {
@@ -152,9 +154,10 @@ PLATFORM_NOINLINE uint32_t XB_STDCALL RtlUnwind(xbox::XbPtr target_frame, xbox::
     }
     record->flags |= kExceptionUnwinding | (target_frame ? 0 : kExceptionExitUnwind);
 
-    NtTib& t = tib();
+    NtTib& t = xbox_tib();
+    const uint32_t end = chain_end();
     uint32_t frame;
-    while ((frame = t.exception_list) != kEndOfChain && frame != 0 && frame != target_frame) {
+    while ((frame = t.exception_list) != end && frame != 0 && frame != target_frame) {
         const auto* registration = from_xbox_ptr<Registration>(frame);
         const uint32_t disposition = call_handler(registration, record, &context);
         if (disposition != kContinueSearch && disposition != kCollidedUnwind)

@@ -1,13 +1,11 @@
 #include "xbe.h"
 
-#include <sys/mman.h>
-
 #include <algorithm>
-#include <cerrno>
 #include <cstring>
 #include <fstream>
 
 #include "log.h"
+#include "os.h"
 
 namespace loader {
 
@@ -51,10 +49,9 @@ bool XbeImage::load(const std::filesystem::path& path) {
 
     const uint32_t base = file_header.base_address;
     const uint32_t map_size = (file_header.size_of_image + kPageSize - 1) & ~(kPageSize - 1);
-    void* mapped = mmap(at<void>(base), map_size, PROT_READ | PROT_WRITE | PROT_EXEC,
-                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
-    if (mapped == MAP_FAILED || mapped != at<void>(base)) {
-        LOG_ERROR("xbe", "cannot map %08x-%08x: %s", base, base + map_size, std::strerror(errno));
+    void* mapped = os::map_image(base, map_size);
+    if (!mapped) {
+        LOG_ERROR("xbe", "cannot map %08x-%08x", base, base + map_size);
         return false;
     }
     std::memcpy(mapped, file_.data(), file_header.size_of_headers);

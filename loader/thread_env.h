@@ -47,6 +47,10 @@ struct ThreadEnv {
     uint32_t initial_esp;  // just below the TLS block, 16-byte aligned
     uint32_t depth;        // nesting of run_on_xbox_stack calls on this thread
     void* exit_jump[5];    // __builtin_setjmp buffer used by exit_xbox_thread
+    // The title's SEH chain ends at this record: 0xFFFFFFFF in the KPCR (Linux), the
+    // host thread's own handlers in the TEB (Windows).
+    uint32_t seh_chain_end;
+    uint32_t host_stack[2];  // Windows: the TEB's StackBase/StackLimit outside Xbox code
 };
 
 // Creates the Xbox-side state for one thread: its stack and, as the Xbox kernel
@@ -63,6 +67,21 @@ bool activate_thread_env(ThreadEnv* env);
 // The calling thread's environment, or null for threads that never run Xbox code.
 ThreadEnv* current_thread_env();
 
+// The NT_TIB title code reaches through FS: the KPCR's on Linux, the thread's own
+// TEB on Windows (same layout; the title only uses its SEH chain and StackBase).
+NtTib& xbox_tib();
+
+// Where title code reads KPCR.Irql (FS:[0x24]) on the calling thread, or null; the
+// kernel mirrors the IRQL there.
+uint8_t* current_irql_location();
+
+class XbeImage;
+
+// Windows: FS is the TEB, whose fields past the NT_TIB differ from the KPCR's, so
+// title code that reads those KPCR fields through FS is redirected to TEB TLS slots
+// holding the same values. Nothing to do on Linux. Before any title code runs.
+bool prepare_fs_access(const XbeImage& image);
+
 // Switches to the thread's Xbox stack and calls `entry` with `args` (pushed as for
 // stdcall/cdecl; the stack pointer is restored afterwards either way). Returns when
 // `entry` returns or the thread calls exit_xbox_thread(); the result says which.
@@ -74,5 +93,13 @@ XboxThreadEnd run_on_xbox_stack(uint32_t entry, ThreadEnv& env, std::span<const 
 // Leaves the Xbox code running on the calling thread: unwinds (without destructors)
 // back to its outermost run_on_xbox_stack call. For PsTerminateSystemThread.
 [[noreturn]] void exit_xbox_thread();
+
+namespace detail {
+// Per platform: point FS at what title code expects for `env` (activate_thread_env).
+bool activate_fs(ThreadEnv& env);
+// Per platform, around the outermost run_on_xbox_stack call of a thread.
+void enter_xbox_stack(ThreadEnv& env);
+void leave_xbox_stack(ThreadEnv& env);
+}  // namespace detail
 
 }  // namespace loader

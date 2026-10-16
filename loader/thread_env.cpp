@@ -1,26 +1,16 @@
 #include "thread_env.h"
 
-#include <asm/ldt.h>
-#include <sys/mman.h>
-#include <sys/syscall.h>
-#include <unistd.h>
-
 #include <algorithm>
-#include <atomic>
-#include <cerrno>
-#include <cstdlib>
 #include <cstring>
+#include <new>
 
 #include "log.h"
+#include "vmem.h"
 
 namespace loader {
 
 namespace {
 
-// glibc on i386 uses GS for its own TLS and leaves FS alone. We take one of the
-// per-thread GDT TLS slots: every thread uses the same selector, but the kernel
-// switches its base on each context switch.
-std::atomic<int> g_gdt_entry{-1};
 thread_local ThreadEnv* t_env = nullptr;
 
 constexpr uint32_t kGuardSize = 0x1000;
@@ -35,7 +25,7 @@ uint32_t addr(T* pointer) {
 }
 
 void* zalloc(size_t size, size_t alignment) {
-    void* p = std::aligned_alloc(alignment, (size + alignment - 1) / alignment * alignment);
+    void* p = ::operator new(size, std::align_val_t{alignment}, std::nothrow);
     if (p) std::memset(p, 0, size);
     return p;
 }
@@ -48,13 +38,13 @@ ThreadEnv* create_thread_env(uint32_t stack_size, uint32_t tls_size) {
         return nullptr;
     }
     stack_size = (std::max(stack_size, kMinStackSize) + tls_size + 0xFFF) & ~0xFFFu;
-    void* stack = mmap(nullptr, stack_size + kGuardSize, PROT_READ | PROT_WRITE,
-                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
-    if (stack == MAP_FAILED) {
+    using namespace platform;
+    void* stack = vmem::reserve(0, stack_size + kGuardSize);
+    if (!stack || !vmem::commit(static_cast<uint8_t*>(stack) + kGuardSize, stack_size, vmem::Protection::ReadWrite)) {
         LOG_ERROR("thread", "cannot allocate a %u byte stack", stack_size);
+        if (stack) vmem::release(stack, stack_size + kGuardSize);
         return nullptr;
     }
-    mprotect(stack, kGuardSize, PROT_NONE);
 
     auto* env = new ThreadEnv{};
     env->stack_limit = addr(stack) + kGuardSize;
@@ -63,6 +53,7 @@ ThreadEnv* create_thread_env(uint32_t stack_size, uint32_t tls_size) {
     env->initial_esp = (env->stack_base - tls_size) & ~0xFu;
     env->kpcr = static_cast<Kpcr*>(zalloc(sizeof(Kpcr), 16));
     env->kthread = static_cast<uint8_t*>(zalloc(kKThreadSize, 16));
+    env->seh_chain_end = 0xFFFFFFFF;
 
     Kpcr& kpcr = *env->kpcr;
     kpcr.tib.exception_list = 0xFFFFFFFF;
@@ -86,20 +77,7 @@ ThreadEnv* create_thread_env(uint32_t stack_size, uint32_t tls_size) {
 }
 
 bool activate_thread_env(ThreadEnv* env) {
-    user_desc desc{};
-    desc.entry_number = static_cast<unsigned>(g_gdt_entry.load());
-    desc.base_addr = addr(env->kpcr);
-    desc.limit = sizeof(Kpcr) - 1;
-    desc.seg_32bit = 1;
-    desc.contents = 0;  // data
-    desc.useable = 1;
-    if (syscall(SYS_set_thread_area, &desc) != 0) {
-        LOG_ERROR("thread", "set_thread_area failed: %s", std::strerror(errno));
-        return false;
-    }
-    g_gdt_entry.store(static_cast<int>(desc.entry_number));
-    const uint16_t selector = static_cast<uint16_t>((desc.entry_number << 3) | 3);
-    asm volatile("movw %0, %%fs" : : "r"(selector));
+    if (!detail::activate_fs(*env)) return false;
     t_env = env;
     return true;
 }
@@ -147,11 +125,14 @@ XboxThreadEnd run_on_xbox_stack(uint32_t entry, ThreadEnv& env, std::span<const 
     // compiler treats every register as clobbered when it returns a second time.
     // glibc's longjmp would refuse to jump from the Xbox stack to this one.
     if (__builtin_setjmp(env.exit_jump)) {
-        env.depth = 0;
+        detail::leave_xbox_stack(*t_env);
+        t_env->depth = 0;
         return XboxThreadEnd::Exited;
     }
     env.depth = 1;
+    detail::enter_xbox_stack(env);
     call_with_args(entry, env.initial_esp, args);
+    detail::leave_xbox_stack(env);
     env.depth = 0;
     return XboxThreadEnd::Returned;
 }

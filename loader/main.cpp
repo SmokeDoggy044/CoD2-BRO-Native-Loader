@@ -1,19 +1,16 @@
-// Route-B loader: runs the original default.xbe natively on 32-bit x86 Linux, with
-// the Xbox kernel (and, later, the SDK libraries) replaced by our own code.
+// Route-B loader: runs the original default.xbe natively on 32-bit x86 (Linux or
+// Windows), with the Xbox kernel and the SDK libraries replaced by our own code.
 
 #include <chrono>
 #include <cstdio>
-#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
+#include <thread>
 #include <vector>
-
-#include <sys/mman.h>
-#include <unistd.h>
 
 #include "crash.h"
 #include "diag_summary.h"
@@ -21,6 +18,7 @@
 #include "kernel_memory.h"
 #include "kernel_thunks.h"
 #include "log.h"
+#include "os.h"
 #include "patches.h"
 #include "paths.h"
 #include "program.h"
@@ -227,11 +225,6 @@ uint32_t current_kthread() {
     return env ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(env->kthread)) : 0;
 }
 
-uint8_t* current_irql() {
-    loader::ThreadEnv* env = loader::current_thread_env();
-    return env ? &env->kpcr->irql : nullptr;
-}
-
 void attach_kernel_thread() {
     loader::ThreadEnv* env = loader::create_thread_env(0, 0);
     if (!env || !loader::activate_thread_env(env)) LOG_ERROR("loader", "cannot prepare a kernel thread");
@@ -246,29 +239,16 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
     loader::run_on_xbox_stack(function, *env, std::span(args, count));
 }
 
-// The page the previous title left in LaunchDataPage, from the memory file
-// reboot_title passed on.
-std::vector<uint8_t> read_launch_data(int fd) {
-    std::vector<uint8_t> page(xbox::kLaunchDataPageSize);
-    const ssize_t got = pread(fd, page.data(), page.size(), 0);
-    close(fd);
-    if (got != static_cast<ssize_t>(page.size())) {
-        LOG_ERROR("loader", "launch data: read %zd of %zu bytes", got, page.size());
-        return {};
-    }
-    return page;
-}
-
 // HalReturnToFirmware(QuickReboot): the Xbox reboots into `xbe` with the launch data
 // page kept in memory. Here the loader replaces itself (exec) with the same command
-// line for `xbe`, passing the page in a memory file and the session start time (log
-// and --diag times continue). Scripted presses and --level are for the first boot only.
+// line for `xbe`, passing the page in a file and the session start time (log and
+// --diag times continue). Scripted presses and --level are for the first boot only.
 [[noreturn]] void reboot_title(const fs::path& xbe, std::span<const uint8_t> launch_data_page) {
     // Patches and symbols are for default.xbe (multiplayer is codmp_xboxf.xbe).
     if (fs::path(xbe).filename() != fs::path(g_xbe).filename()) {
         LOG_ERROR("loader", "reboot: %s is not supported, only %s", xbe.filename().string().c_str(),
                   g_xbe.filename().string().c_str());
-        _exit(1);
+        std::_Exit(1);
     }
     if (g_diag_dir) {
         // To repeat this boot: --launch-data 3 3<launch_data.bin
@@ -277,11 +257,10 @@ std::vector<uint8_t> read_launch_data(int fd) {
             std::fclose(file);
         }
     }
-    const int fd = memfd_create("cod_bro_launch_data", 0);  // inherited by the new image
-    if (fd < 0 || write(fd, launch_data_page.data(), launch_data_page.size()) !=
-                      static_cast<ssize_t>(launch_data_page.size())) {
+    const int fd = loader::os::pass_launch_data(launch_data_page);
+    if (fd < 0) {
         LOG_ERROR("loader", "reboot: cannot pass the launch data");
-        _exit(1);
+        std::_Exit(1);
     }
     std::vector<std::string> args = {g_args[0]};
     for (size_t i = 1; i < g_args.size(); ++i) {
@@ -296,13 +275,8 @@ std::vector<uint8_t> read_launch_data(int fd) {
     const auto start = platform::session_start().time_since_epoch();
     args.insert(args.end(), {"--xbe", xbe.string(), "--launch-data", std::to_string(fd), "--session-start",
                              std::to_string(std::chrono::duration_cast<std::chrono::nanoseconds>(start).count())});
-    std::vector<char*> argv;
-    for (std::string& arg : args) argv.push_back(arg.data());
-    argv.push_back(nullptr);
     LOG_INFO("loader", "reboot: starting %s", xbe.string().c_str());
-    execv("/proc/self/exe", argv.data());
-    LOG_ERROR("loader", "reboot: exec failed: %s", std::strerror(errno));
-    _exit(1);
+    loader::os::restart(args);
 }
 
 xbox::KernelConfig kernel_config(const Options& options, const fs::path& assets, const fs::path& xbe) {
@@ -312,14 +286,14 @@ xbox::KernelConfig kernel_config(const Options& options, const fs::path& assets,
     config.image_file_name = image_file_name.c_str();
     config.trace_calls = options.trace_kernel;
     config.current_thread = current_kthread;
-    config.current_irql = current_irql;
+    config.current_irql = loader::current_irql_location;
     config.attach_kernel_thread = attach_kernel_thread;
     config.call_guest = call_guest;
     config.memory.physical_bytes = options.memory_mb * 1024 * 1024;
     config.widescreen = options.widescreen;
     config.cdrom_root = assets;
     config.data_root = options.data.value_or(platform::user_data_dir());
-    if (options.launch_data_fd) config.launch_data_page = read_launch_data(*options.launch_data_fd);
+    if (options.launch_data_fd) config.launch_data_page = loader::os::read_launch_data(*options.launch_data_fd);
     config.reboot = reboot_title;
     return config;
 }
@@ -338,7 +312,7 @@ bool start_launcher_for_assets(int argc, char** argv) {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int loader_main(int argc, char** argv) {
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
     const platform::Settings settings = platform::load_settings();
     std::vector<std::string> merged = settings.as_args();
@@ -398,10 +372,12 @@ int main(int argc, char** argv) {
         LOG_WARN("loader", "no symbols at %s; backtraces will show addresses only", symbol_path.string().c_str());
 
     loader::install_crash_handler(image, symbols);
+    loader::os::release_reserved_ranges();
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return 1;
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
     loader::install_title_patches({options->mouse_sensitivity, options->start_level, options->aim_assist});
+    if (!loader::prepare_fs_access(image)) return 1;
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;
@@ -446,7 +422,7 @@ int main(int argc, char** argv) {
     // The entry point only starts the title's main thread and returns. Park this
     // thread; the process lives on until the title quits. It must not exit: once the
     // initial thread is gone, Linux no longer resolves /proc/self/exe, which DXVK
-    // and SDL read.
+    // and SDL read (and on Windows the stub's code it would return to is gone).
     LOG_INFO("loader", "title entry point returned");
-    for (;;) pause();
+    for (;;) std::this_thread::sleep_for(std::chrono::hours(24));
 }

@@ -28,7 +28,6 @@
 #include "xonline.h"
 
 #include <strings.h>
-#include <sys/mman.h>
 
 namespace loader {
 
@@ -119,9 +118,8 @@ void put_rel32(uint8_t* at, uint8_t opcode, const void* target) {
 // pop ecx; popfd; <the moved instructions>; jmp back.
 void install_rdtsc_patches() {
     constexpr size_t kTrampolineSize = 32;
-    auto* pool = static_cast<uint8_t*>(mmap(nullptr, std::size(kRdtscSites) * kTrampolineSize,
-                                            PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-    if (pool == MAP_FAILED) {
+    auto* pool = alloc_code(std::size(kRdtscSites) * kTrampolineSize);
+    if (!pool) {
         LOG_ERROR("patches", "no memory for the RDTSC trampolines; the title runs at the host's TSC rate");
         return;
     }
@@ -199,9 +197,8 @@ void install_mouse_look() {
         LOG_WARN("patches", "%08x: not the call to CL_MouseMove; no mouse look", kCallMouseMove);
         return;
     }
-    auto* thunk = static_cast<uint8_t*>(
-        mmap(nullptr, 64, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-    if (thunk == MAP_FAILED) return;
+    auto* thunk = alloc_code(64);
+    if (!thunk) return;
     uint8_t* t = thunk;
     *t++ = 0x60;  // pushad
     *t++ = 0x9C;  // pushfd
@@ -336,9 +333,8 @@ void install_start_level(int32_t level) {
         LOG_WARN("patches", "%08x: not the call to the client frame; --level ignored", kCallClientFrame);
         return;
     }
-    auto* thunk = static_cast<uint8_t*>(
-        mmap(nullptr, 64, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-    if (thunk == MAP_FAILED) return;
+    auto* thunk = alloc_code(64);
+    if (!thunk) return;
     uint8_t* t = thunk;
     *t++ = 0x60;  // pushad
     *t++ = 0x9C;  // pushfd
@@ -444,9 +440,8 @@ void install_menu_render_hooks() {
         LOG_WARN("patches", "%08x: not the menu render jump; in-game menus stay stretched", kMenuRenderJump);
         return;
     }
-    auto* thunks = static_cast<uint8_t*>(
-        mmap(nullptr, 128, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-    if (thunks == MAP_FAILED) return;
+    auto* thunks = alloc_code(128);
+    if (!thunks) return;
     // Called with the menu in ecx: begin; mov edx,[ecx]; call [edx+0x1c]; end; ret
     auto put_thunk = [](uint8_t* t, void (*begin)()) {
         t = put_preserving_call(t, begin);
@@ -513,9 +508,8 @@ void install_objectives_hook() {
         LOG_WARN("patches", "%08x: not the objectives draw call; objectives stay stretched", kObjectivesCall);
         return;
     }
-    auto* thunk = static_cast<uint8_t*>(
-        mmap(nullptr, 64, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-    if (thunk == MAP_FAILED) return;
+    auto* thunk = alloc_code(64);
+    if (!thunk) return;
     // begin; push dword [esp+4]; call FUN_0027e630; add esp,4; end; ret
     uint8_t* t = put_preserving_call(thunk, &objectives_begin);
     *t++ = 0xFF, *t++ = 0x74, *t++ = 0x24, *t++ = 0x04;

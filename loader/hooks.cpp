@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "log.h"
+#include "vmem.h"
 
 namespace loader {
 
@@ -14,6 +15,17 @@ void install_jump(uint32_t address, const void* replacement) {
     code[0] = 0xE9;  // JMP rel32
     std::memcpy(code + 1, &relative, 4);
     LOG_DEBUG("hooks", "%08x -> %08x", address, target);
+}
+
+uint8_t* alloc_code(size_t size) {
+    size = (size + platform::vmem::kPageSize - 1) & ~(platform::vmem::kPageSize - 1);
+    void* code = platform::vmem::reserve(0, size);
+    if (!code) return nullptr;
+    if (!platform::vmem::commit(code, size, platform::vmem::Protection::ReadWriteExecute)) {
+        platform::vmem::release(code, size);
+        return nullptr;
+    }
+    return static_cast<uint8_t*>(code);
 }
 
 }  // namespace loader

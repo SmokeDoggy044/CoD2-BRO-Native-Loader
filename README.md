@@ -69,12 +69,17 @@ The `linux` and `windows` presets build only the portable code (`cod_bro`), to k
 both platforms compiling from the start. Linux needs `openal-soft-devel`; on Windows
 OpenAL Soft is built from source (CMake FetchContent).
 
-`windows-mingw` cross-builds the Windows side on Linux with MinGW-w64 (32-bit, so
-the loader can follow) and runs its tests under Wine:
+`windows-mingw` cross-builds the Windows version on Linux with MinGW-w64 (32-bit,
+loader included) and runs its tests under Wine:
 
     sudo dnf install mingw32-gcc-c++ mingw32-winpthreads-static wine
     cmake --preset windows-mingw && cmake --build --preset windows-mingw
     ctest --preset windows-mingw
+    wine build/windows-mingw/bin/cod_bro_loader.exe
+
+On Windows the loader is two files: `cod_bro_loader.exe`, a small stub linked at the
+XBE's base address (0x10000) so that range and the kernel's are free, and
+`cod_bro_loader_core.dll` with everything else (`loader/win32_stub.c`).
 
 ## Running
 
