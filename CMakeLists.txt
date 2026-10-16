@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(cod_bro_port LANGUAGES C CXX)
+project(cod_bro_port VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,7 +57,9 @@ if(MSVC)
     target_compile_options(cod_bro_options INTERFACE /W4 /permissive- /utf-8)
     target_compile_definitions(cod_bro_options INTERFACE _CRT_SECURE_NO_WARNINGS NOMINMAX)
 else()
-    target_compile_options(cod_bro_options INTERFACE -Wall -Wextra -fno-omit-frame-pointer)
+    # Xbox structures are read through other types all over; MSVC never assumes
+    # strict aliasing, so optimized GCC/Clang builds must not either.
+    target_compile_options(cod_bro_options INTERFACE -Wall -Wextra -fno-omit-frame-pointer -fno-strict-aliasing)
     if(COD_BRO_IS_X86_32)
         # Xbox code calls into ours with only 4-byte stack alignment.
         target_compile_options(cod_bro_options INTERFACE -mstackrealign)
@@ -100,4 +102,5 @@ if(COD_BRO_BUILD_LOADER)
         message(FATAL_ERROR "The loader needs a 32-bit x86 Linux build; use the linux-loader preset.")
     endif()
     add_subdirectory(loader)
+    include(cmake/release.cmake)  # the player release: cmake --install / cpack
 endif()

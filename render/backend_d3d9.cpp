@@ -97,6 +97,9 @@ public:
 #ifndef _WIN32
         // dxvk-native supports several window systems; ours is SDL3.
         setenv("DXVK_WSI_DRIVER", "SDL3", 0);
+        // DXVK's messages still go to stderr, but no <exe>_d3d9.log files land in the
+        // working folder.
+        setenv("DXVK_LOG_PATH", "none", 0);
         // Present without waiting for the display (see BackendConfig::vsync) but without
         // tearing: DXVK then uses the mailbox mode. (Windows composes windowed swap
         // chains, which do not tear.)

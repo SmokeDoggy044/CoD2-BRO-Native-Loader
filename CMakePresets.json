@@ -17,6 +17,15 @@
       }
     },
     {
+      "name": "linux-loader-release",
+      "inherits": "linux-loader",
+      "displayName": "Linux 32-bit loader, optimized, for the player release",
+      "binaryDir": "${sourceDir}/build/linux-loader-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "linux",
       "displayName": "Linux native (portable code only)",
       "generator": "Ninja",
@@ -48,6 +57,10 @@
       "configurePreset": "linux-loader"
     },
     {
+      "name": "linux-loader-release",
+      "configurePreset": "linux-loader-release"
+    },
+    {
       "name": "linux",
       "configurePreset": "linux"
     },
@@ -66,6 +79,13 @@
       }
     },
     {
+      "name": "linux-loader-release",
+      "configurePreset": "linux-loader-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "linux",
       "configurePreset": "linux",
       "output": {
@@ -79,6 +99,15 @@
       "output": {
         "outputOnFailure": true
       }
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "linux-loader-release",
+      "configurePreset": "linux-loader-release",
+      "generators": [
+        "TGZ"
+      ]
     }
   ]
 }

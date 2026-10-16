@@ -1,0 +1,22 @@
+# Install step of release.cmake: finds the oldest glibc the installed binaries run on
+# (their newest GLIBC_x.y symbol version) and writes README.txt with it.
+
+set(prefix "$ENV{DESTDIR}${COD_BRO_RELEASE_PREFIX}")
+file(GLOB binaries "${prefix}/cod_bro_*" "${prefix}/lib/*.so*")
+set(glibc_min "2.0")
+foreach(binary ${binaries})
+    if(IS_SYMLINK "${binary}" OR NOT binary MATCHES "(cod_bro_[a-z]+|\\.so[.0-9]*)$")
+        continue()
+    endif()
+    execute_process(COMMAND objdump -T "${binary}" OUTPUT_VARIABLE symbols ERROR_QUIET)
+    string(REGEX MATCHALL "GLIBC_[0-9]+\\.[0-9]+(\\.[0-9]+)?" versions "${symbols}")
+    foreach(version ${versions})
+        string(REPLACE "GLIBC_" "" version "${version}")
+        if(version VERSION_GREATER glibc_min)
+            set(glibc_min "${version}")
+        endif()
+    endforeach()
+endforeach()
+message(STATUS "release: needs glibc ${glibc_min} or newer")
+set(COD_BRO_GLIBC_MIN "${glibc_min}")
+configure_file("${COD_BRO_README_IN}" "${prefix}/README.txt" @ONLY)

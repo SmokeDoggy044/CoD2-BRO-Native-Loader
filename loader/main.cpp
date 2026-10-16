@@ -72,7 +72,8 @@ void print_usage(const char* program) {
         "usage: %s [options]\n"
         "  --assets DIR     game files (default: COD_BRO_ASSETS, ./assets, or the dev folder)\n"
         "  --xbe FILE       executable to load (default: <assets>/default.xbe)\n"
-        "  --symbols FILE   Ghidra symbol export for readable backtraces\n"
+        "  --symbols FILE   Ghidra symbol export: SDK replacements and readable backtraces\n"
+        "                   (default: default_xbe_symbols.txt next to the loader, or tools/data)\n"
         "  --data DIR       where saves and the cache drive go (default: the user data folder)\n"
         "  --debug          debug logging\n"
         "  --trace          log every kernel call (implies --debug)\n"
@@ -369,7 +370,12 @@ int main(int argc, char** argv) {
     g_xbe = xbe;
 
     static loader::SymbolTable symbols;
-    const fs::path symbol_path = options->symbols.value_or(COD_BRO_DEFAULT_SYMBOLS);
+    // A release has it next to the loader; builds use the source tree's.
+    fs::path symbol_path = platform::executable_dir() / "default_xbe_symbols.txt";
+    if (options->symbols)
+        symbol_path = *options->symbols;
+    else if (!fs::exists(symbol_path))
+        symbol_path = COD_BRO_DEFAULT_SYMBOLS;
     if (symbols.load(symbol_path))
         LOG_INFO("loader", "%zu symbols from %s", symbols.size(), symbol_path.string().c_str());
     else

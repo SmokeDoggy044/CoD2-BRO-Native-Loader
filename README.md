@@ -112,3 +112,17 @@ tests build a fake disc in a temp folder and the audio test mixes on an OpenAL
 loopback device, so neither needs game files or a sound card). They need a 32-bit
 build because `xbox/` stores the title's pointers as 32-bit `XbPtr`; making `xbox/`
 64-bit-clean is part of route C.
+
+## Releasing
+
+    cmake --preset linux-loader-release && cmake --build --preset linux-loader-release
+    ctest --preset linux-loader-release
+    cpack --preset linux-loader-release   # build/linux-loader-release/package/cod_bro-<version>-linux.tar.gz
+
+The archive holds `cod_bro_launcher`, `cod_bro_loader`, the symbol file, an empty
+`assets/` (with its README), the player README (`packaging/README.txt.in`), the
+libraries in `lib/` (found through an `$ORIGIN/lib` RPATH) and `LICENSES/` with a
+license text for every bundled library (`cmake/release.cmake`). The version is
+`project(VERSION)` in CMakeLists.txt. The install step prints the oldest glibc the
+binaries run on and writes it into the README: binaries built on the development
+Fedora need that Fedora's glibc.
