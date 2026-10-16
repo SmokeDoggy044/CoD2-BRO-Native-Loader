@@ -1,7 +1,7 @@
 Call of Duty 2: Big Red One - PC port, prototype @PROJECT_VERSION@
 =================================================================
 
-Runs the original Xbox game natively on Linux. It needs your own copy of the
+Runs the original Xbox game natively on @COD_BRO_README_SYSTEM@. It needs your own copy of the
 game; no game files are included.
 
 This is a prototype: the single-player campaign is playable, missions 1 to 5
@@ -21,13 +21,7 @@ you use another folder instead, sets the options below, and starts the game.
 Requirements
 ------------
 
-- Linux on a 64-bit (or 32-bit) x86 PC, glibc @COD_BRO_GLIBC_MIN@ or newer.
-- 32-bit graphics and sound libraries, the same ones 32-bit games need (they come
-  with Steam on most distributions): a Vulkan driver (Mesa or NVIDIA, 32-bit),
-  the X11 or Wayland client libraries, and PulseAudio or PipeWire client libraries.
-- A GPU with Vulkan 1.3 support.
-
-The other libraries are in lib/ (see LICENSES/BUNDLED.txt).
+@COD_BRO_README_REQUIREMENTS@
 
 
 Controls
@@ -51,9 +45,9 @@ capture the mouse; Alt+Tab or F10 frees it.
 Options
 -------
 
-The launcher saves its settings in ~/.local/share/cod_bro/settings.ini, next to
+The launcher saves its settings in @COD_BRO_README_SETTINGS@, next to
 the saves. Every setting is also a command-line option of cod_bro_loader, which
-then wins over the file; ./cod_bro_loader --help lists them.
+then wins over the file; @COD_BRO_README_HELP@ lists them.
 
 
 Licenses

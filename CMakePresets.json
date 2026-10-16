@@ -75,6 +75,15 @@
       }
     },
     {
+      "name": "windows-mingw-release",
+      "inherits": "windows-mingw",
+      "displayName": "Windows 32-bit, optimized, for the player release (cross-built with MinGW-w64)",
+      "binaryDir": "${sourceDir}/build/windows-mingw-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "windows",
       "displayName": "Windows (portable code only)",
       "generator": "Visual Studio 17 2022",
@@ -106,6 +115,10 @@
     {
       "name": "windows-mingw",
       "configurePreset": "windows-mingw"
+    },
+    {
+      "name": "windows-mingw-release",
+      "configurePreset": "windows-mingw-release"
     },
     {
       "name": "windows",
@@ -150,6 +163,13 @@
       }
     },
     {
+      "name": "windows-mingw-release",
+      "configurePreset": "windows-mingw-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "windows",
       "configurePreset": "windows",
       "configuration": "Debug",
@@ -171,6 +191,13 @@
       "configurePreset": "sniper-release",
       "generators": [
         "TGZ"
+      ]
+    },
+    {
+      "name": "windows-mingw-release",
+      "configurePreset": "windows-mingw-release",
+      "generators": [
+        "ZIP"
       ]
     }
   ]

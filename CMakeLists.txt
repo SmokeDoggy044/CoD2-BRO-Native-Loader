@@ -106,7 +106,10 @@ if(COD_BRO_BUILD_LOADER)
         message(FATAL_ERROR "The loader needs a 32-bit x86 build; use the linux-loader or windows-mingw preset.")
     endif()
     add_subdirectory(loader)
-    if(NOT WIN32)
-        include(cmake/release.cmake)  # the player release: cmake --install / cpack
+    # The player release: cmake --install / cpack
+    if(WIN32)
+        include(cmake/release_windows.cmake)
+    else()
+        include(cmake/release.cmake)
     endif()
 endif()

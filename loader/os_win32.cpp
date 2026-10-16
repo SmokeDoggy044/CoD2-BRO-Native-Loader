@@ -7,6 +7,7 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -170,6 +171,12 @@ void restart(const std::vector<std::string>& args) {
 }  // namespace loader::os
 
 extern "C" __declspec(dllexport) void cod_bro_loader_main() {
+    // The stub is a GUI program: started from a console (cmd, PowerShell) without
+    // redirection it has no output; log to that console then.
+    if (GetFileType(GetStdHandle(STD_ERROR_HANDLE)) == FILE_TYPE_UNKNOWN && AttachConsole(ATTACH_PARENT_PROCESS)) {
+        std::freopen("CONOUT$", "w", stdout);
+        std::freopen("CONOUT$", "w", stderr);
+    }
     int count = 0;
     wchar_t** wide = CommandLineToArgvW(GetCommandLineW(), &count);
     std::vector<std::string> args;

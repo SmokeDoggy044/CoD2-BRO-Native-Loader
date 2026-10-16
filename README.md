@@ -146,3 +146,12 @@ The version is `project(VERSION)` in CMakeLists.txt.
 
 `cpack --preset linux-loader-release` packages the same layout from this
 machine's own libraries instead; it only runs on systems as new as this one.
+
+Windows (cross-built here with MinGW-w64, `cmake/release_windows.cmake`):
+
+    cmake --preset windows-mingw-release && cmake --build --preset windows-mingw-release
+    cpack --preset windows-mingw-release   # build/windows-mingw-release/package/cod_bro-<version>-windows.zip
+
+The zip holds the launcher, the loader stub and `cod_bro_loader_core.dll`,
+`OpenAL32.dll` (the only DLL; SDL3 and the GCC runtime are linked in), the symbol
+file, `assets/`, the README and `LICENSES/`. Direct3D 9 is the system's.
