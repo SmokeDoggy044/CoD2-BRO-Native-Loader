@@ -26,6 +26,26 @@
       }
     },
     {
+      "name": "sniper-release",
+      "displayName": "Player release inside the Steam Runtime sniper SDK (packaging/sniper/build.sh)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/sniper/release",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/sniper-i686.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/build/sniper/deps",
+        "COD_BRO_RELEASE_DEPS": "${sourceDir}/build/sniper/deps"
+      },
+      "environment": {
+        "PKG_CONFIG_PATH": "${sourceDir}/build/sniper/deps/lib/pkgconfig"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "linux",
       "displayName": "Linux native (portable code only)",
       "generator": "Ninja",
@@ -61,6 +81,10 @@
       "configurePreset": "linux-loader-release"
     },
     {
+      "name": "sniper-release",
+      "configurePreset": "sniper-release"
+    },
+    {
       "name": "linux",
       "configurePreset": "linux"
     },
@@ -86,6 +110,13 @@
       }
     },
     {
+      "name": "sniper-release",
+      "configurePreset": "sniper-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "linux",
       "configurePreset": "linux",
       "output": {
@@ -105,6 +136,13 @@
     {
       "name": "linux-loader-release",
       "configurePreset": "linux-loader-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "sniper-release",
+      "configurePreset": "sniper-release",
       "generators": [
         "TGZ"
       ]

@@ -115,14 +115,21 @@ build because `xbox/` stores the title's pointers as 32-bit `XbPtr`; making `xbo
 
 ## Releasing
 
-    cmake --preset linux-loader-release && cmake --build --preset linux-loader-release
-    ctest --preset linux-loader-release
-    cpack --preset linux-loader-release   # build/linux-loader-release/package/cod_bro-<version>-linux.tar.gz
+    packaging/sniper/build.sh   # build/sniper/release/package/cod_bro-<version>-linux.tar.gz
+
+This builds the release in the Steam Runtime 3 "sniper" SDK container (podman;
+Debian 11, glibc 2.31), so it runs on distributions since about 2020 (glibc 2.30+,
+checked on a bare 32-bit Debian 11). SDL3, OpenAL Soft and DXVK are built from
+source there (`packaging/sniper/inside.sh`, versions at its top), with
+`-mstackrealign` like our code: title threads call into them with 4-byte stack
+alignment. Everything is cached in `build/sniper/`; changing the script or
+`cmake/toolchains/sniper-i686.cmake` rebuilds the libraries.
 
 The archive holds `cod_bro_launcher`, `cod_bro_loader`, the symbol file, an empty
 `assets/` (with its README), the player README (`packaging/README.txt.in`), the
-libraries in `lib/` (found through an `$ORIGIN/lib` RPATH) and `LICENSES/` with a
-license text for every bundled library (`cmake/release.cmake`). The version is
-`project(VERSION)` in CMakeLists.txt. The install step prints the oldest glibc the
-binaries run on and writes it into the README: binaries built on the development
-Fedora need that Fedora's glibc.
+three libraries in `lib/` (found through an `$ORIGIN/lib` RPATH) and `LICENSES/`
+with every bundled library's license, version and source (`cmake/release.cmake`).
+The version is `project(VERSION)` in CMakeLists.txt.
+
+`cpack --preset linux-loader-release` packages the same layout from this
+machine's own libraries instead; it only runs on systems as new as this one.

@@ -20,7 +20,13 @@ if(WIN32)
     FetchContent_MakeAvailable(openal_soft)
     target_link_libraries(audio PUBLIC OpenAL::OpenAL)
 else()
-    find_package(OpenAL 1.22 REQUIRED)
+    # OpenAL Soft's own config first: it puts <prefix>/include before the system's,
+    # so <AL/...> comes from that copy (the sniper release builds a newer one). It
+    # has no version file, so no version here.
+    find_package(OpenAL CONFIG QUIET)
+    if(NOT OpenAL_FOUND)
+        find_package(OpenAL 1.22 REQUIRED MODULE)
+    endif()
     target_link_libraries(audio PUBLIC OpenAL::OpenAL)
 endif()
 
