@@ -351,6 +351,27 @@ void install_start_level(int32_t level) {
     g_start_level = level;
 }
 
+// Aim assist (sticky aim): the player movement code's view angle update
+// (FUN_002e5530, PM_UpdateViewAngles) calls FUN_002db7d0 every frame, __thiscall with
+// the playerState in ecx, caller-cleaned. It finds an enemy under the crosshair
+// (bg_stickyAimRender draws its boxes), remembers it at ps+0x500/+0x504 (target)
+// and +0x508 (point on it), and turns delta_angles to follow it as it moves. Turned
+// off, the function only does what it does when it finds no target:
+// mov dword [ecx+0x500], 0; ret.
+constexpr uint32_t kStickyAim = 0x002db7d0;
+
+void disable_aim_assist() {
+    auto* code = reinterpret_cast<uint8_t*>(uintptr_t{kStickyAim});
+    static constexpr uint8_t kOriginal[] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0};  // push ebp; mov ebp,esp; and esp,-16
+    if (std::memcmp(code, kOriginal, sizeof(kOriginal)) != 0) {
+        LOG_WARN("patches", "%08x: not the sticky aim function; aim assist stays on", kStickyAim);
+        return;
+    }
+    static constexpr uint8_t kNoTarget[] = {0xC7, 0x81, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC3};
+    std::memcpy(code, kNoTarget, sizeof(kNoTarget));
+    LOG_INFO("patches", "aim assist off");
+}
+
 // --- In-game menus in widescreen ------------------------------------------------------
 //
 // In 16:9 the game lays out only its HUD for the wider picture (each HUD component by
@@ -644,6 +665,7 @@ void install_title_patches(const TitlePatchConfig& config) {
     install_rdtsc_patches();
     install_mouse_look();
     install_start_level(config.start_level);
+    if (!config.aim_assist) disable_aim_assist();
     install_menu_render_hooks();
     install_objectives_hook();
     input::set_action_remap(&remap_keyboard_actions);

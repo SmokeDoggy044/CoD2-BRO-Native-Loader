@@ -36,6 +36,7 @@ struct Choices {
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     int anisotropy = 16;
     float mouse_sensitivity = 0.11f;
+    bool aim_assist = true;
     bool silent = false;
 };
 
@@ -55,6 +56,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
+    if (auto v = settings.get("aim-assist")) c.aim_assist = *v != "off";
     if (auto v = settings.get("silent")) c.silent = *v == "true";
     return c;
 }
@@ -75,6 +77,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
     put("anisotropy", c.anisotropy == d.anisotropy, std::to_string(c.anisotropy));
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
+    put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
     put("silent", c.silent == d.silent, c.silent ? "true" : "false");
 }
 
@@ -209,6 +212,9 @@ private:
         ImGui::SliderFloat("Mouse sensitivity", &choices_.mouse_sensitivity, 0.01f, 1.0f, "%.2f",
                            ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
         help_marker("Degrees the view turns per mouse count.");
+        ImGui::Checkbox("Aim assist", &choices_.aim_assist);
+        help_marker("The view follows an enemy under the crosshair, as on the Xbox. Applies to the "
+                    "controller and the mouse alike.");
         ImGui::Checkbox("Mute sound", &choices_.silent);
     }
 

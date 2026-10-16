@@ -55,6 +55,7 @@ struct Options {
     bool silent = false;
     std::string press_script;
     float mouse_sensitivity = 0.11f;
+    bool aim_assist = true;
     int32_t start_level = -1;
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
@@ -98,6 +99,7 @@ void print_usage(const char* program) {
         "                   and errors are marked by themselves; F11 shows draws that need\n"
         "                   missing features in magenta; DIR/summary.txt on exit\n"
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
+        "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n",
         program);
 }
@@ -180,6 +182,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 std::fprintf(stderr, "--mouse-sensitivity needs degrees per count (0-10)\n");
                 return std::nullopt;
             }
+        } else if (arg == "--aim-assist") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "on" && value != "off") {
+                std::fprintf(stderr, "--aim-assist needs on or off\n");
+                return std::nullopt;
+            }
+            options.aim_assist = value == "on";
         } else if (arg == "--level") {
             if (i + 1 >= argc || (options.start_level = std::atoi(argv[++i])) < 0 || options.start_level > 13) {
                 std::fprintf(stderr, "--level needs a mission number (0-13)\n");
@@ -392,7 +401,7 @@ int main(int argc, char** argv) {
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return 1;
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
-    loader::install_title_patches({options->mouse_sensitivity, options->start_level});
+    loader::install_title_patches({options->mouse_sensitivity, options->start_level, options->aim_assist});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;
