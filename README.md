@@ -1,20 +1,77 @@
-# Call of Duty 2: Big Red One - PC port
+# Call of Duty 2: Big Red One - native loader for PC
 
-A private project to run the original Xbox game natively on PC, from the owner's
-own disc.
+A **native loader** that runs the original Xbox version of *Call of Duty 2: Big Red
+One* on PC, on Linux and Windows. It needs your own copy of the game; this
+repository and its releases contain none of the game's code or data.
 
-**Route B (now):** `cod_bro_loader` maps the original `default.xbe` into a 32-bit
-Linux process and runs it directly on the CPU. Our code replaces the Xbox kernel
-and, step by step, the SDK libraries (Direct3D, DirectSound, input) and then the
-game's own functions, which are decompiled one at a time and hooked in.
+The Xbox has an x86 CPU, so the game's own code needs no translation: the loader
+maps the original `default.xbe` into memory and the PC's CPU runs it directly. What
+we wrote replaces everything around it: the Xbox kernel (files, memory, threads),
+the SDK libraries the game uses (Direct3D 8 on Direct3D 9, DirectSound on OpenAL
+Soft, controllers and keyboard/mouse on SDL3), and a few small patches to the
+game's code (timing, mouse look, an aim-assist switch).
 
-**Route C (goal):** once every function is decompiled, the loader is deleted and
-`cod_bro` is a standalone game for Linux and Windows that needs only the game's
-assets.
+What it is **not**:
 
-The single-player campaign is playable from the menus through the missions tested
-so far, at 30 fps, with widescreen, higher render resolutions and keyboard/mouse.
-Details and next steps: [docs/status.md](docs/status.md).
+- **Not a recompilation.** No machine code is translated ahead of time (as static
+  recompilers such as N64Recomp do for consoles with a different CPU); the
+  original code runs unmodified apart from the patches above.
+- **Not a decompilation (yet).** There is no source code of the game here, and no
+  game function has been decompiled so far.
+- **Not a CPU emulator.** Only the Xbox's system software is reimplemented, the way
+  Wine reimplements Windows; Cxbx-Reloaded works on the same model.
+
+This native loader is the **proof of concept for a full native build**. The plan:
+decompile the game's functions one at a time and hook them into the running game,
+until none of the original code is left. Then the loader goes away and `cod_bro`
+builds from source for Linux and Windows, needing only the game's assets. The
+docs call the two stages route B (the native loader, now) and route C (the full
+native build).
+
+## Status
+
+Prototype 0.1.0. The single-player campaign is playable from the menus through
+the missions: 1 to 5 tested through, 6 started. It runs at the game's 30 fps,
+with the game's own widescreen mode, higher render resolutions, borderless
+fullscreen, controllers, and keyboard and mouse. Multiplayer and Xbox Live are not
+supported. The Windows version has so far only been tested under Wine. Details and
+next steps: [docs/status.md](docs/status.md).
+
+## Playing
+
+1. Download the archive for your system from the
+   [releases](https://github.com/SmokeDoggy044/CoD-2-Big-Red-One---Xbox-PC-Port/releases):
+   `cod_bro-<version>-linux.tar.gz` or `cod_bro-<version>-windows.zip`.
+2. Unpack it anywhere and copy your game dump into its `assets/` folder.
+3. Start `cod_bro_launcher`: it checks the game files, sets the options and starts
+   the game.
+
+| | Linux | Windows |
+|---|---|---|
+| System | 64-bit or 32-bit x86, glibc 2.30 or newer | 64-bit Windows 10 or 11 |
+| Graphics | Vulkan 1.3 with 32-bit drivers (Mesa or NVIDIA), through the bundled DXVK | Direct3D 9 |
+| Other | 32-bit X11/Wayland and PulseAudio/PipeWire client libraries (as 32-bit Steam games need) | - |
+
+Controls and options are in the `README.txt` inside the archive.
+
+## How the native loader works
+
+- **Memory:** the XBE goes to its own base address (0x10000), the Xbox's
+  contiguous memory to 0x80000000, as the game expects. On Windows,
+  `cod_bro_loader.exe` is a small stub linked at 0x10000 that keeps those ranges
+  free and loads the loader proper from `cod_bro_loader_core.dll`.
+- **Kernel:** the game's kernel import table is filled with our implementations
+  (`xbox/`, `loader/kernel_thunks.cpp`).
+- **Per-thread state:** Xbox code finds its thread and processor data through the
+  FS segment. On Linux FS points at a fake Xbox KPCR for each thread; on Windows FS
+  stays the thread's own TEB, and the few game instructions that read Xbox-only
+  fields through it are patched to read TEB slots holding the same values.
+- **SDK libraries:** the game's statically linked copies of Direct3D, DirectSound,
+  the input library and Xbox Live are redirected to our code by name, using a symbol
+  file exported from Ghidra (`render/`, `audio/`, `input/`, `online/`).
+- **Rendering:** the game's Direct3D 8 calls and NV2A shaders are translated to
+  Direct3D 9: DXVK on Linux, the system's on Windows. See
+  [docs/rendering.md](docs/rendering.md).
 
 ## Documentation
 
@@ -31,14 +88,14 @@ Details and next steps: [docs/status.md](docs/status.md).
 
 | Folder | Contents | Fate |
 |---|---|---|
-| `loader/` | XBE mapping, fake Xbox `fs`/KPCR, kernel import table, title patches and hooks, crash reports, `--diag` | Route B only, Linux 32-bit |
+| `loader/` | The native loader: XBE mapping, per-thread FS state, kernel import table, title patches and hooks, crash reports, `--diag` | Native loader only (32-bit Linux and Windows) |
 | `xbox/` | Xbox kernel/XAPI functions on top of `platform/` | Shrinks into the game's platform code |
 | `platform/` | Logging, paths, files, virtual memory, threads | Kept, portable |
 | `render/` | Xbox Direct3D 8 replacement (D3D9/DXVK first, Vulkan later) | Kept, portable |
 | `audio/` | DirectSound replacement on OpenAL Soft | Kept, portable |
 | `input/` | Controllers, keyboard and mouse on SDL3; scripted presses | Kept, portable |
 | `online/` | Xbox Live stubs (always unavailable) | Kept, portable |
-| `game/` | Decompiled game code and the `cod_bro` executable | Kept, portable |
+| `game/` | The full native build's `cod_bro` executable and, later, the decompiled game code (none yet) | Kept, portable |
 | `launcher/` | `cod_bro_launcher`: settings and game-file setup (Dear ImGui, fetched by CMake) | Kept, portable |
 | `tests/` | Settings, kernel-layer and audio tests (no game files needed) | Kept |
 | `assets/` | Game files in the final version (empty during development) | Kept, not in git |
@@ -56,7 +113,7 @@ Clone with `git clone --recursive`, or run `git submodule update --init` in an
 existing clone, to get `third_party/xbox-includes` (needed only to regenerate the
 kernel exports).
 
-Fedora packages for the 32-bit loader build:
+Fedora packages for the 32-bit native loader build:
 
     sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686
 

@@ -1,11 +1,15 @@
-Call of Duty 2: Big Red One - PC port, prototype @PROJECT_VERSION@
-=================================================================
+Call of Duty 2: Big Red One - native loader for PC, prototype @PROJECT_VERSION@
+===================================================================
 
-Runs the original Xbox game natively on @COD_BRO_README_SYSTEM@. It needs your own copy of the
-game; no game files are included.
+A native loader for @COD_BRO_README_SYSTEM@: it runs the original Xbox game's code directly
+on your PC's CPU (the Xbox is an x86 machine too), with the Xbox's system
+software (kernel, Direct3D, DirectSound, controllers) replaced by our own code.
+The CPU is not emulated and nothing is recompiled. It needs your own copy of the
+game; no game code or data is included.
 
-This is a prototype: the single-player campaign is playable, missions 1 to 5
-have been tested through. Multiplayer is not supported.
+This is a prototype and the proof of concept for a full native build: the
+single-player campaign is playable, missions 1 to 5 have been tested through.
+Multiplayer and Xbox Live are not supported.
 
 
 Setup
