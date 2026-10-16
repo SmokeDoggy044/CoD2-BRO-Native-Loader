@@ -19,7 +19,7 @@
 #include "imgui_impl_sdlrenderer3.h"
 #include "log.h"
 #include "paths.h"
-#include "process.h"
+#include "program.h"
 #include "settings.h"
 
 namespace fs = std::filesystem;

@@ -1,4 +1,4 @@
-// Xbox Direct3D 8 replacement: device, frame and synchronization functions. See d3d.h.
+// Xbox Direct3D 8 replacement: device, frame and synchronization functions. See xbox_d3d_api.h.
 //
 // Semantics follow the XDK and what CoD2: BRO relies on:
 // - Everything the title submits is executed (or dropped) synchronously, so fences are
@@ -21,16 +21,16 @@
 #include <vector>
 
 #include "compiler.h"
-#include "d3d.h"
 #include "d3d_internal.h"
 #include "dispatcher.h"
 #include "draw.h"
 #include "float_env.h"
 #include "frame_pacing.h"
+#include "kernel_memory.h"
 #include "log.h"
-#include "memory.h"
 #include "nv2a.h"
 #include "xbox_d3d.h"
+#include "xbox_d3d_api.h"
 
 namespace render {
 

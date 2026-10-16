@@ -1,6 +1,6 @@
 // Xbox input replacement. See xinput.h.
 
-#include "xinput.h"
+#include "xbox_input.h"
 
 #include <atomic>
 #include <cstring>

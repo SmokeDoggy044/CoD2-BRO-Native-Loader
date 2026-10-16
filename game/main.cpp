@@ -8,7 +8,7 @@
 
 #include "log.h"
 #include "paths.h"
-#include "process.h"
+#include "program.h"
 #include "settings.h"
 
 int main(int argc, char** argv) {

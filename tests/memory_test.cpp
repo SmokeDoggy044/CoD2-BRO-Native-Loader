@@ -1,10 +1,10 @@
-// Virtual memory, contiguous memory and the page budget (xbox/memory.cpp), called
+// Virtual memory, contiguous memory and the page budget (xbox/kernel_memory.cpp), called
 // through the export table the way the title calls them. Uses the default layout:
 // 64 MB physical at 0x80000000, virtual memory at 0x10000000-0x50000000.
 
 #include <cstring>
 
-#include "memory.h"
+#include "kernel_memory.h"
 #include "test_support.h"
 #include "types.h"
 

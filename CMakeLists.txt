@@ -60,6 +60,10 @@ else()
     # Xbox structures are read through other types all over; MSVC never assumes
     # strict aliasing, so optimized GCC/Clang builds must not either.
     target_compile_options(cod_bro_options INTERFACE -Wall -Wextra -fno-omit-frame-pointer -fno-strict-aliasing)
+    if(MINGW)
+        # MinGW's own printf family: msvcrt's knows no %zu or %lld.
+        target_compile_definitions(cod_bro_options INTERFACE __USE_MINGW_ANSI_STDIO=1)
+    endif()
     if(COD_BRO_IS_X86_32)
         # Xbox code calls into ours with only 4-byte stack alignment.
         target_compile_options(cod_bro_options INTERFACE -mstackrealign)

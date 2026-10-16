@@ -9,13 +9,13 @@
 #include <string>
 #include <vector>
 
-#include "dsound.h"
 #include "filesystem.h"
 #include "format.h"
 #include "objects.h"
 #include "test_support.h"
 #include "types.h"
 #include "voice.h"
+#include "xbox_dsound.h"
 
 using namespace audio;
 using xbox::to_xbox_ptr;
@@ -369,6 +369,8 @@ void test_api(const std::filesystem::path& root) {
     const uint32_t tail_packet[6] = {to_xbox_ptr(chunk.data()), 4096, to_xbox_ptr(&got), to_xbox_ptr(&media_status), 0, 0};
     CHECK(media_process(media, nullptr, tail_packet) == 0 && got == 100, "short read at the end: %u", got);
     CHECK(method<uint32_t(XB_STDCALL*)(XbPtr)>(media, 1)(media) == 0, "released");
+    // Windows cannot delete an open file (the cleanup in main would fail).
+    test::find_export<uint32_t(XB_STDCALL*)(xbox::Handle)>("NtClose")(file);
 }
 
 }  // namespace

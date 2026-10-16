@@ -1,5 +1,5 @@
 // Xbox Direct3D 8 replacement: texture and surface layout, descriptions and locks.
-// See d3d.h.
+// See xbox_d3d_api.h.
 //
 // Layout rules (XDK 5849):
 // - Swizzled and compressed textures have power-of-two sizes stored as log2 in Format

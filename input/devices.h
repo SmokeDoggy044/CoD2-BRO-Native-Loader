@@ -1,6 +1,6 @@
 #pragma once
 
-// Host input devices behind the XPP replacement (xinput.cpp), on SDL3.
+// Host input devices behind the XPP replacement (xbox_input.cpp), on SDL3.
 //
 // Port 0 is always connected: it merges the keyboard and mouse with the first PC
 // gamepad, so the title always has a controller. Further gamepads take ports 1-3 in

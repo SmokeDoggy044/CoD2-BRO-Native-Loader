@@ -7,7 +7,7 @@ add_library(xbox STATIC
     settings.cpp
     sync.cpp
     kernel_exports.cpp
-    memory.cpp
+    kernel_memory.cpp
 )
 target_include_directories(xbox PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(xbox PUBLIC platform)

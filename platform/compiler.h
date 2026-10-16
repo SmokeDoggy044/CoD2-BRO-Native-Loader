@@ -18,7 +18,11 @@
 #define XB_CDECL
 #endif
 
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__MINGW32__)
+// MinGW builds use its C99 printf (__USE_MINGW_ANSI_STDIO), not msvcrt's.
+#define PLATFORM_PRINTF(fmt_index, args_index) __attribute__((format(gnu_printf, fmt_index, args_index)))
+#define PLATFORM_NOINLINE __attribute__((noinline))
+#elif defined(__GNUC__) || defined(__clang__)
 #define PLATFORM_PRINTF(fmt_index, args_index) __attribute__((format(printf, fmt_index, args_index)))
 #define PLATFORM_NOINLINE __attribute__((noinline))
 #elif defined(_MSC_VER)

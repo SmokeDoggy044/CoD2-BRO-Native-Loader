@@ -60,6 +60,21 @@
       }
     },
     {
+      "name": "windows-mingw",
+      "displayName": "Windows 32-bit, cross-built with MinGW-w64 on Linux (run under Wine)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-mingw",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/mingw-i686.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "windows",
       "displayName": "Windows (portable code only)",
       "generator": "Visual Studio 17 2022",
@@ -87,6 +102,10 @@
     {
       "name": "linux",
       "configurePreset": "linux"
+    },
+    {
+      "name": "windows-mingw",
+      "configurePreset": "windows-mingw"
     },
     {
       "name": "windows",
@@ -119,6 +138,13 @@
     {
       "name": "linux",
       "configurePreset": "linux",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-mingw",
+      "configurePreset": "windows-mingw",
       "output": {
         "outputOnFailure": true
       }

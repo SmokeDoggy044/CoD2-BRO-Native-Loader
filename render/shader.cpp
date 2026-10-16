@@ -1,5 +1,5 @@
 // Xbox Direct3D 8 replacement: shader state (vertex programs, constants, vertex input
-// layout, pixel shader programs). See d3d.h.
+// layout, pixel shader programs). See xbox_d3d_api.h.
 //
 // Vertex programs and their constants are NV2A state (nv2a.h): titles load microcode
 // into program slots and select a start address, and constants are written through

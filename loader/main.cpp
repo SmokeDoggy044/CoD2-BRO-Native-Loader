@@ -17,21 +17,21 @@
 
 #include "crash.h"
 #include "diag_summary.h"
-#include "d3d.h"
-#include "xinput.h"
-#include "dsound.h"
 #include "kernel.h"
+#include "kernel_memory.h"
 #include "kernel_thunks.h"
 #include "log.h"
-#include "memory.h"
 #include "patches.h"
 #include "paths.h"
-#include "process.h"
+#include "program.h"
 #include "script.h"
 #include "settings.h"
 #include "symbols.h"
 #include "thread_env.h"
 #include "xbe.h"
+#include "xbox_d3d_api.h"
+#include "xbox_dsound.h"
+#include "xbox_input.h"
 
 namespace fs = std::filesystem;
 

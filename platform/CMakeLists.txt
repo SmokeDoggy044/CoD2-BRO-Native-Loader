@@ -1,7 +1,7 @@
 add_library(platform STATIC
     log.cpp
     paths.cpp
-    process.cpp
+    program.cpp
     settings.cpp
 )
 if(WIN32)

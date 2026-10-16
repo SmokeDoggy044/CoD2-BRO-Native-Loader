@@ -1,4 +1,4 @@
-// Xbox Direct3D 8 replacement: resource bookkeeping (D3DResource_*). See d3d.h.
+// Xbox Direct3D 8 replacement: resource bookkeeping (D3DResource_*). See xbox_d3d_api.h.
 //
 // Resources live in title memory. The title creates most of them itself (XGSet*Header
 // fills the struct, Register points Data at its memory); the reference count is the

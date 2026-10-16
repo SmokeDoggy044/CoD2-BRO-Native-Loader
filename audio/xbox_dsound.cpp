@@ -13,7 +13,7 @@
 // - Coordinates: DirectSound is left-handed (+z forward), OpenAL right-handed, so z is
 //   negated on the way out.
 
-#include "dsound.h"
+#include "xbox_dsound.h"
 
 #include <algorithm>
 #include <array>

@@ -10,7 +10,7 @@
 // Every committed page - image, contiguous, virtual, kernel stacks - comes out of one
 // budget of physical_bytes, so allocations fail where they would on the console.
 
-#include "memory.h"
+#include "kernel_memory.h"
 
 #include <algorithm>
 #include <cstring>

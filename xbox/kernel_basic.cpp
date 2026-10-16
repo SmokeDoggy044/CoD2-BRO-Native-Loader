@@ -18,10 +18,10 @@
 #include <vector>
 
 #include "compiler.h"
-#include "kernel_internal.h"
-#include "log.h"
 #include "filesystem.h"
-#include "memory.h"
+#include "kernel_internal.h"
+#include "kernel_memory.h"
+#include "log.h"
 #include "types.h"
 
 namespace xbox {

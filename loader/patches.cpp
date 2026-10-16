@@ -14,11 +14,7 @@
 
 #include "compiler.h"
 #include "crash.h"
-#include "d3d.h"
-#include "xinput.h"
-#include "xonline.h"
 #include "devices.h"
-#include "dsound.h"
 #include "filesystem.h"
 #include "float_env.h"
 #include "hooks.h"
@@ -26,6 +22,10 @@
 #include "log.h"
 #include "symbols.h"
 #include "xbe.h"
+#include "xbox_d3d_api.h"
+#include "xbox_dsound.h"
+#include "xbox_input.h"
+#include "xonline.h"
 
 #include <strings.h>
 #include <sys/mman.h>

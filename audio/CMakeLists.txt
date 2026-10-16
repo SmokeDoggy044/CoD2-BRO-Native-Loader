@@ -1,6 +1,6 @@
 # Xbox DirectSound on OpenAL Soft (portable).
 add_library(audio STATIC
-    dsound.cpp
+    xbox_dsound.cpp
     format.cpp
     output.cpp
     voice.cpp
