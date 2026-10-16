@@ -26,8 +26,9 @@ public:
 
     // Draws `lines` in a dark box at (x, y) on `target` (the swap chain's back buffer),
     // `scale` times the font's size, leaving the device state as it was. x = kCentre
-    // centres the box horizontally.
-    void draw(IDirect3DSurface9* target, const std::vector<std::string>& lines, int x, int y, int scale = 1);
+    // centres the box horizontally in the first `area_width` pixels (0 = all).
+    void draw(IDirect3DSurface9* target, const std::vector<std::string>& lines, int x, int y, int scale = 1,
+              int area_width = 0);
 
 private:
     bool render_text(const std::vector<std::string>& lines, uint32_t& width, uint32_t& height);

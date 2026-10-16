@@ -85,7 +85,8 @@ below and starts the game. It saves them as `settings.ini` in the user data fold
 command line, so options given there win. Without game files and without
 `--assets`/`COD_BRO_ASSETS`, the game starts the launcher and exits.
 
-Common options: `--aspect 16:9|4:3`, `--scale N` (window size), `--render-scale X`,
+Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter switches
+while playing), `--scale N` (window size), `--render-scale X`,
 `--anisotropy N`, `--mouse-sensitivity DEG`, `--level N` (start a mission directly),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
 `--debug`/`--trace`. The keyboard layout is in `input/devices.h`: WASD, mouse look,

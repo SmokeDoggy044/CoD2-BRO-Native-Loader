@@ -96,6 +96,28 @@ public:
             LOG_ERROR("render", "window: %s", SDL_GetError());
             return false;
         }
+        if (config.fullscreen) {
+            SDL_SetWindowFullscreen(window_, true);  // borderless, at the desktop's mode
+            SDL_SyncWindow(window_);
+        }
+        int pixel_width = 0, pixel_height = 0;
+        SDL_GetWindowSizeInPixels(window_, &pixel_width, &pixel_height);
+        // The swap chain is as large as the largest display, and the window shows its
+        // top-left corner (Present's source rectangle): the window can change size or go
+        // fullscreen without a device Reset, which would lose every render target.
+        swap_width_ = static_cast<uint32_t>(std::max(pixel_width, 1));
+        swap_height_ = static_cast<uint32_t>(std::max(pixel_height, 1));
+        int display_count = 0;
+        if (SDL_DisplayID* displays = SDL_GetDisplays(&display_count)) {
+            for (int i = 0; i < display_count; ++i) {
+                if (const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(displays[i])) {
+                    const float density = mode->pixel_density > 0 ? mode->pixel_density : 1.0f;
+                    swap_width_ = std::max(swap_width_, static_cast<uint32_t>(std::lround(mode->w * density)));
+                    swap_height_ = std::max(swap_height_, static_cast<uint32_t>(std::lround(mode->h * density)));
+                }
+            }
+            SDL_free(displays);
+        }
 #ifndef _WIN32
         // dxvk-native supports several window systems; ours is SDL3.
         setenv("DXVK_WSI_DRIVER", "SDL3", 0);
@@ -120,11 +142,11 @@ public:
         if (SUCCEEDED(d3d_->GetAdapterIdentifier(D3DADAPTER_DEFAULT, 0, &id)))
             LOG_INFO("render", "D3D9 adapter: %s", id.Description);
 
-        // The swap chain is the window's size; the title's back buffer (render scale)
-        // is stretched onto it. Depth buffers are D3D9Draw's.
+        // The title's back buffer (render scale) is stretched onto the swap chain's
+        // window-sized corner. Depth buffers are D3D9Draw's.
         D3DPRESENT_PARAMETERS pp{};
-        pp.BackBufferWidth = window_width;
-        pp.BackBufferHeight = window_height;
+        pp.BackBufferWidth = swap_width_;
+        pp.BackBufferHeight = swap_height_;
         pp.BackBufferFormat = D3DFMT_X8R8G8B8;
         pp.BackBufferCount = 1;
         pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
@@ -144,14 +166,19 @@ public:
         }
         width_ = config.width;
         height_ = config.height;
+        aspect_ = config.display_aspect > 0 ? config.display_aspect : static_cast<float>(width_) / height_;
         pillarbox_ = config.pillarbox_flat_frames && config.display_aspect > 0;
         back_buffer_data_ = config.back_buffer.data;
-        draw_ = std::make_unique<D3D9Draw>(device_, config);
+        BackendConfig draw_config = config;
+        if (draw_config.render_scale <= 0)  // the window's (or the screen's) height
+            draw_config.render_scale = static_cast<float>(std::max(pixel_height, 1)) / height_;
+        draw_ = std::make_unique<D3D9Draw>(device_, draw_config);
         overlay_ = std::make_unique<D3D9Overlay>(device_);
         notice_ = std::make_unique<D3D9Overlay>(device_);
-        LOG_INFO("render", "D3D9 device: %ux%u, rendering at %.2fx%.2f, window %ux%u", config.width, config.height,
-                 static_cast<double>(config.render_scale_x()), static_cast<double>(config.render_scale),
-                 pp.BackBufferWidth, pp.BackBufferHeight);
+        LOG_INFO("render", "D3D9 device: %ux%u, rendering at %.2fx%.2f, window %dx%d%s, swap chain %ux%u",
+                 config.width, config.height, static_cast<double>(draw_config.render_scale_x()),
+                 static_cast<double>(draw_config.render_scale), pixel_width, pixel_height,
+                 config.fullscreen ? " (fullscreen)" : "", swap_width_, swap_height_);
         return true;
     }
 
@@ -223,8 +250,14 @@ public:
     }
 
     // The title's back buffer is a render target texture like any other; it is
-    // copied to the swap chain to be shown, with the overlay on top.
+    // copied to the swap chain's window-sized corner to be shown, at its own shape
+    // between black bars, with the overlay on top.
     void show(const std::vector<std::string>& overlay) {
+        int window_width = 0, window_height = 0;
+        SDL_GetWindowSizeInPixels(window_, &window_width, &window_height);
+        const LONG area_width = std::clamp<LONG>(window_width, 1, static_cast<LONG>(swap_width_));
+        const LONG area_height = std::clamp<LONG>(window_height, 1, static_cast<LONG>(swap_height_));
+        const RECT area{0, 0, area_width, area_height};
         IDirect3DSurface9* swap_chain = nullptr;
         IDirect3DSurface9* back_buffer = draw_->target_surface(back_buffer_data_);
         if (back_buffer && SUCCEEDED(device_->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &swap_chain))) {
@@ -232,24 +265,25 @@ public:
             // scene (a fade) does not jump.
             constexpr uint32_t kPillarboxAfter = 8;
             pillarboxed_ = pillarbox_ && draw_->frame_is_flat() && draw_->flat_frames_before() >= kPillarboxAfter;
-            D3DSURFACE_DESC desc{};
-            swap_chain->GetDesc(&desc);
-            RECT dest{0, 0, static_cast<LONG>(desc.Width), static_cast<LONG>(desc.Height)};
-            if (pillarboxed_) {
-                const LONG width = std::lround(static_cast<double>(desc.Height) * width_ / height_);
-                dest.left = (static_cast<LONG>(desc.Width) - width) / 2;
-                dest.right = dest.left + width;
-                device_->ColorFill(swap_chain, nullptr, D3DCOLOR_XRGB(0, 0, 0));
+            const double aspect = pillarboxed_ ? static_cast<double>(width_) / height_ : aspect_;
+            LONG width = area_width, height = std::lround(area_width / aspect);
+            if (height > area_height) {
+                height = area_height;
+                width = std::lround(area_height * aspect);
             }
+            const LONG left = (area_width - width) / 2, top = (area_height - height) / 2;
+            const RECT dest{left, top, left + width, top + height};
+            if (width != area_width || height != area_height)
+                device_->ColorFill(swap_chain, &area, D3DCOLOR_XRGB(0, 0, 0));
             device_->StretchRect(back_buffer, nullptr, swap_chain, &dest, D3DTEXF_LINEAR);
             overlay_->draw(swap_chain, overlay, 4, 4);
             // Above the menus' button legend, the font 3 times larger at 960 lines.
-            const int scale = std::max(1, static_cast<int>(desc.Height) / 320);
-            notice_->draw(swap_chain, notice_lines_, D3D9Overlay::kCentre, static_cast<int>(desc.Height) * 7 / 10,
-                          scale);
+            const int scale = std::max(1, static_cast<int>(area_height) / 320);
+            notice_->draw(swap_chain, notice_lines_, D3D9Overlay::kCentre, static_cast<int>(area_height) * 7 / 10,
+                          scale, static_cast<int>(area_width));
             swap_chain->Release();
         }
-        device_->Present(nullptr, nullptr, nullptr, nullptr);
+        device_->Present(&area, nullptr, nullptr, nullptr);
     }
 
     void present() override {
@@ -334,6 +368,12 @@ public:
                 mark_requested_ = true;
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F11 && !event.key.repeat)
                 highlight_toggled_ = true;
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && (event.key.mod & SDL_KMOD_ALT) &&
+                (event.key.scancode == SDL_SCANCODE_RETURN || event.key.scancode == SDL_SCANCODE_KP_ENTER)) {
+                const bool fullscreen = !(SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN);
+                SDL_SetWindowFullscreen(window_, fullscreen);
+                LOG_INFO("render", "%s (Alt+Enter)", fullscreen ? "fullscreen" : "windowed");
+            }
         }
         return true;
     }
@@ -353,6 +393,8 @@ private:
     IDirect3DSurface9* upload_ = nullptr;
     std::unique_ptr<D3D9Draw> draw_;
     uint32_t width_ = 0, height_ = 0;
+    float aspect_ = 4.0f / 3.0f;                      // the picture's shape (BackendConfig::display_aspect)
+    uint32_t swap_width_ = 0, swap_height_ = 0;     // the largest display's size
     uint32_t back_buffer_data_ = 0;
     bool pillarbox_ = false;    // BackendConfig::pillarbox_flat_frames
     bool pillarboxed_ = false;  // the frame shown last was

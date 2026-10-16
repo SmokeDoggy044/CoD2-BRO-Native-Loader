@@ -7,6 +7,7 @@
 #include <SDL3/SDL_main.h>  // WinMain on Windows
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <mutex>
@@ -30,8 +31,9 @@ namespace {
 struct Choices {
     std::string assets;  // empty: <executable dir>/assets
     bool widescreen = true;
+    bool fullscreen = false;
     int scale = 2;
-    float render_scale = 0;  // 0: the window scale
+    float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     int anisotropy = 16;
     float mouse_sensitivity = 0.11f;
     bool silent = false;
@@ -47,6 +49,7 @@ Choices read_choices(const platform::Settings& settings) {
     Choices c;
     if (auto v = settings.get("assets")) c.assets = *v;
     if (auto v = settings.get("aspect")) c.widescreen = *v != "4:3";
+    if (auto v = settings.get("fullscreen")) c.fullscreen = *v == "true";
     if (auto v = settings.get("scale")) c.scale = std::clamp(std::atoi(v->c_str()), 1, 8);
     if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
     if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
@@ -67,6 +70,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     };
     put("assets", c.assets.empty(), c.assets);
     put("aspect", c.widescreen == d.widescreen, c.widescreen ? "16:9" : "4:3");
+    put("fullscreen", c.fullscreen == d.fullscreen, c.fullscreen ? "true" : "false");
     put("scale", c.scale == d.scale, std::to_string(c.scale));
     put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
     put("anisotropy", c.anisotropy == d.anisotropy, std::to_string(c.anisotropy));
@@ -160,15 +164,27 @@ private:
         ImGui::Combo("Aspect ratio", &aspect, "16:9 (widescreen)\0" "4:3 (original)\0");
         choices_.widescreen = aspect == 0;
 
+        int mode = choices_.fullscreen ? 1 : 0;
+        ImGui::Combo("Display mode", &mode, "Window\0" "Fullscreen\0");
+        choices_.fullscreen = mode == 1;
+        help_marker("Alt+Enter switches between the two while playing.");
+
         const int height = 480 * choices_.scale;
         const int width = choices_.widescreen ? (height * 16 + 4) / 9 : 640 * choices_.scale;
+        ImGui::BeginDisabled(choices_.fullscreen);
         ImGui::SliderInt("Window size", &choices_.scale, 1, 8, "x%d", ImGuiSliderFlags_AlwaysClamp);
         ImGui::SameLine();
         ImGui::TextDisabled("%dx%d", width, height);
+        ImGui::EndDisabled();
 
+        // What "render at window/screen size" means in render scale (the game's 480 lines).
+        float native_scale = static_cast<float>(choices_.scale);
+        if (choices_.fullscreen)
+            if (const SDL_DisplayMode* display = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window_)))
+                native_scale = std::round(display->h * std::max(display->pixel_density, 1.0f) / 48.0f) / 10.0f;
         bool match = choices_.render_scale == 0;
-        if (ImGui::Checkbox("Render at window size", &match))
-            choices_.render_scale = match ? 0 : static_cast<float>(choices_.scale);
+        if (ImGui::Checkbox(choices_.fullscreen ? "Render at screen size" : "Render at window size", &match))
+            choices_.render_scale = match ? 0 : std::clamp(native_scale, 0.5f, 8.0f);
         help_marker("Off: choose the render resolution yourself. Above the window size it smooths edges "
                     "(supersampling), below it runs faster.");
         if (!match) {

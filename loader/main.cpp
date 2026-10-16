@@ -47,7 +47,8 @@ struct Options {
     uint32_t memory_mb = 64;
     uint32_t scale = 2;
     uint32_t anisotropy = 16;
-    float render_scale = 0;  // 0: the window scale
+    float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
+    bool fullscreen = false;
     bool widescreen = true;
     uint32_t screenshot_interval = 0;
     std::optional<fs::path> screenshot_dir;
@@ -79,9 +80,11 @@ void print_usage(const char* program) {
         "  --trace          log every kernel call (implies --debug)\n"
         "  --silent         no sound output (audio still runs, into a silent device)\n"
         "  --memory MB      Xbox memory budget (default 64, like a retail Xbox; devkit: 128)\n"
+        "  --fullscreen     borderless fullscreen (Alt+Enter switches while playing)\n"
+        "  --windowed       in a window (default; overrides fullscreen in settings.ini)\n"
         "  --scale N        window size as a multiple of the game's resolution (default 2)\n"
         "  --render-scale X render resolution as a multiple of the game's 640x480 (default: the\n"
-        "                   window scale; above it = supersampling anti-aliasing, e.g. 4)\n"
+        "                   window's or screen's height; above it = supersampling, e.g. 4)\n"
         "  --aspect A       16:9 (default: the game's widescreen mode, wider view and HUD) or 4:3\n"
         "  --anisotropy N   anisotropic filtering for mipmapped textures, 1-16 (default 16;\n"
         "                   1 = what the game asks for)\n"
@@ -127,6 +130,10 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 std::fprintf(stderr, "--memory needs a size in MB (16-1024)\n");
                 return std::nullopt;
             }
+        } else if (arg == "--fullscreen") {
+            options.fullscreen = true;
+        } else if (arg == "--windowed") {
+            options.fullscreen = false;
         } else if (arg == "--scale") {
             if (i + 1 >= argc || (options.scale = static_cast<uint32_t>(std::atoi(argv[++i]))) < 1 ||
                 options.scale > 8) {
@@ -395,8 +402,8 @@ int main(int argc, char** argv) {
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts
         d3d_config.backend.narrow_ui_draw = &loader::in_game_menu_draw;
     }
-    d3d_config.backend.render_scale =
-        options->render_scale > 0 ? options->render_scale : static_cast<float>(options->scale);
+    d3d_config.backend.fullscreen = options->fullscreen;
+    d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks
     d3d_config.screenshot_interval = options->screenshot_interval;
     if (options->diag_dir) {
         d3d_config.diag_dir = options->diag_dir->string();

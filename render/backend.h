@@ -31,10 +31,13 @@ struct BackendConfig {
     SurfaceDesc back_buffer;    // what present() shows
     SurfaceDesc depth_stencil;  // the device's own depth buffer (data 0 = none)
     uint32_t window_scale = 1;
+    // Borderless fullscreen on the window's display (Alt+Enter switches while playing).
+    bool fullscreen = false;
     // Render targets are this many times the size the title asked for (the title still
-    // sees its own sizes). Above window_scale it supersamples. Vertical; horizontally
-    // it grows with the display aspect.
-    float render_scale = 1;
+    // sees its own sizes). Above the window's size it supersamples. Vertical;
+    // horizontally it grows with the display aspect. 0 = the window's height (the
+    // screen's in fullscreen) over the title's.
+    float render_scale = 0;
     // The shape the title's picture is meant to be shown at: 0 = its back buffer's
     // own (4:3 for 640x480); 16/9 for a title rendering widescreen anamorphically.
     // The window and every render target are widened to it.
