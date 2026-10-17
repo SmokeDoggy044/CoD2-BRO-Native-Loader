@@ -44,6 +44,11 @@ struct D3DConfig {
 // Call before the title creates its device.
 void configure(const D3DConfig& config);
 
+// Frames shown in the last whole second (0 before the first), and frames shown so
+// far. Any thread (the profiler's automatic start reads them).
+uint32_t frames_last_second();
+uint32_t frames_shown();
+
 // Shows `lines` to the player over the game for `seconds` (first line as a heading),
 // replacing any notice shown before. Any thread.
 void show_notice(std::vector<std::string> lines, double seconds);

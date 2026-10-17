@@ -479,8 +479,28 @@ void diagnostics() {
     pacing.exclude(std::chrono::duration<double>(Clock::now() - now).count());
 }
 
+std::atomic<uint32_t> g_frames_last_second{0};
+std::atomic<uint32_t> g_frames_shown_count{0};
+
+// Frames per whole second of session time, for frames_last_second().
+void count_frame() {
+    static int64_t second = -1;
+    static uint32_t frames = 0;
+    const int64_t now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
+                                                                         platform::session_start())
+                            .count();
+    if (now != second) {
+        if (second >= 0) g_frames_last_second.store(now == second + 1 ? frames : 0, std::memory_order_relaxed);
+        second = now;
+        frames = 0;
+    }
+    ++frames;
+    g_frames_shown_count.fetch_add(1, std::memory_order_relaxed);
+}
+
 uint32_t XB_STDCALL D3DDevice_Swap(uint32_t /*flags*/) {
     platform::HostFloatEnv float_env;
+    count_frame();
     upload_back_buffer_writes();
     if (!g.config.diag_dir.empty()) diagnostics();
     {
@@ -612,6 +632,9 @@ void texture_written(XbPtr resource) {
         g.backend->forget_render_target(from_xbox_ptr<XbResource>(resource)->data);
     }
 }
+
+uint32_t frames_last_second() { return g_frames_last_second.load(std::memory_order_relaxed); }
+uint32_t frames_shown() { return g_frames_shown_count.load(std::memory_order_relaxed); }
 
 void show_notice(std::vector<std::string> lines, double seconds) {
     std::lock_guard lock(g.notice_mutex);

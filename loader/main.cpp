@@ -21,6 +21,7 @@
 #include "log.h"
 #include "os.h"
 #include "patches.h"
+#include "profiler.h"
 #include "paths.h"
 #include "program.h"
 #include "script.h"
@@ -439,6 +440,7 @@ int loader_main(int argc, char** argv) {
         LOG_WARN("loader", "no symbols at %s; backtraces will show addresses only", symbol_path.string().c_str());
 
     loader::install_crash_handler(image, symbols);
+    loader::start_profiler_from_env(image, symbols);
     loader::os::release_reserved_ranges();
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));

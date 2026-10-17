@@ -17,6 +17,10 @@ public:
     // "name+0x12", or the bare hex address if nothing precedes it.
     std::string describe(uint32_t address) const;
 
+    // "00012345 name" of the function `address` lies in (the nearest symbol at or
+    // before it), or the bare hex address if nothing precedes it.
+    std::string function_at(uint32_t address) const;
+
     // Addresses of functions called `name`, with or without their library prefix
     // ("DirectSoundCreate" finds "DSOUND::DirectSoundCreate").
     std::vector<uint32_t> find(const std::string& name) const;

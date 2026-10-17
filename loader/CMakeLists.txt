@@ -17,7 +17,7 @@ if(WIN32)
     # base address that keeps the Xbox address ranges free and loads it (win32_stub.c).
     # The stub is a GUI program, so starting it from the launcher opens no console;
     # from a console, the loader attaches to it (os_win32.cpp).
-    add_library(cod_bro_loader_core SHARED ${loader_sources} crash_win32.cpp os_win32.cpp thread_env_win32.cpp)
+    add_library(cod_bro_loader_core SHARED ${loader_sources} crash_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
     set_target_properties(cod_bro_loader_core PROPERTIES PREFIX "")
     target_link_libraries(cod_bro_loader_core PRIVATE audio input online render xbox platform shell32 user32)
     set(loader_core cod_bro_loader_core)
@@ -31,7 +31,7 @@ if(WIN32)
     target_link_libraries(cod_bro_loader PRIVATE kernel32 user32)
     add_dependencies(cod_bro_loader cod_bro_loader_core)
 else()
-    add_executable(cod_bro_loader ${loader_sources} crash_posix.cpp os_linux.cpp thread_env_linux.cpp)
+    add_executable(cod_bro_loader ${loader_sources} crash_posix.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)
     target_link_libraries(cod_bro_loader PRIVATE audio input online render xbox platform)
     set(loader_core cod_bro_loader)
 endif()

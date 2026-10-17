@@ -40,6 +40,19 @@ std::vector<uint32_t> SymbolTable::in_range(uint32_t start, uint32_t end) const 
     return found;
 }
 
+std::string SymbolTable::function_at(uint32_t address) const {
+    char buffer[32];
+    auto it = std::upper_bound(entries_.begin(), entries_.end(), address,
+                               [](uint32_t a, const Entry& e) { return a < e.address; });
+    if (it == entries_.begin()) {
+        std::snprintf(buffer, sizeof(buffer), "%08x", address);
+        return buffer;
+    }
+    --it;
+    std::snprintf(buffer, sizeof(buffer), "%08x ", it->address);
+    return buffer + it->name;
+}
+
 std::string SymbolTable::describe(uint32_t address) const {
     char buffer[32];
     std::snprintf(buffer, sizeof(buffer), "%08x", address);

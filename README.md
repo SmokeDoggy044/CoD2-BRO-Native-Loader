@@ -172,7 +172,11 @@ Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter swit
 while playing), `--scale N` (window size), `--render-scale X`,
 `--anisotropy N`, `--brightness X`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--level N` (start a mission directly),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
-`--debug`/`--trace`. The keyboard layout is in `input/devices.h`: WASD, mouse look,
+`--debug`/`--trace`. Playtests and performance checks use the optimized
+`linux-loader-release` build (`linux-loader` is a Debug build, several times slower
+in heavy scenes). Profiling (Linux): `XB_PROFILE=auto[,SECONDS]` samples every thread
+from the first second under 24 fps (or `XB_PROFILE=START,SECONDS`) and logs where
+the time went; `XB_PROFILE_OUT=FILE` adds every sampled address for `addr2line`. The keyboard layout is in `input/devices.h`: WASD, mouse look,
 Tab shows the objectives while held, Escape pauses. Click the window to capture the
 mouse; F10 or Alt+Tab frees it.
 
