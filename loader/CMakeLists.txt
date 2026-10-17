@@ -36,4 +36,4 @@ else()
     set(loader_core cod_bro_loader)
 endif()
 target_compile_definitions(${loader_core} PRIVATE
-    COD_BRO_DEFAULT_SYMBOLS="${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt")
+    COD_BRO_SYMBOLS_DIR="${PROJECT_SOURCE_DIR}/tools/data")

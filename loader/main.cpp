@@ -91,7 +91,7 @@ void print_usage(const char* program) {
         "  --assets DIR     game files (default: COD_BRO_ASSETS, ./assets, or the dev folder)\n"
         "  --xbe FILE       executable to load (default: <assets>/default.xbe)\n"
         "  --symbols FILE   Ghidra symbol export: SDK replacements and readable backtraces\n"
-        "                   (default: default_xbe_symbols.txt next to the loader, or tools/data)\n"
+        "                   (default: <xbe>_symbols.txt next to the loader, or tools/data)\n"
         "  --data DIR       where saves and the cache drive go (default: the user data folder)\n"
         "  --debug          debug logging\n"
         "  --trace          log every kernel call (implies --debug)\n"
@@ -291,10 +291,10 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
 // line for `xbe`, passing the page in a file and the session start time (log and
 // --diag times continue). Scripted presses and --level are for the first boot only.
 [[noreturn]] void reboot_title(const fs::path& xbe, std::span<const uint8_t> launch_data_page) {
-    // Patches and symbols are for default.xbe (multiplayer is codmp_xboxf.xbe).
-    if (fs::path(xbe).filename() != fs::path(g_xbe).filename()) {
-        LOG_ERROR("loader", "reboot: %s is not supported, only %s", xbe.filename().string().c_str(),
-                  g_xbe.filename().string().c_str());
+    // Patches and symbols exist for the disc's two titles only.
+    const bool same_title = fs::path(xbe).filename() == g_xbe.filename();
+    if (!loader::find_title(xbe.filename().string())) {
+        LOG_ERROR("loader", "reboot: %s is not supported", xbe.filename().string().c_str());
         std::_Exit(1);
     }
     if (g_diag_dir) {
@@ -313,7 +313,7 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
     for (size_t i = 1; i < g_args.size(); ++i) {
         const std::string name = option_name(g_args[i]);
         if (name == "--xbe" || name == "--launch-data" || name == "--session-start" || name == "--press" ||
-            name == "--level") {
+            name == "--level" || (name == "--symbols" && !same_title)) {
             ++i;  // dropped with its value
             continue;
         }
@@ -433,16 +433,19 @@ int loader_main(int argc, char** argv) {
 
     static loader::XbeImage image;
     const fs::path xbe = options->xbe.value_or(*assets / "default.xbe");
+    const loader::TitleInfo* title = loader::find_title(xbe.filename().string());
+    if (!title) return startup_failed(xbe.filename().string() + " is not one of the game's executables");
     if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
     g_xbe = xbe;
+    if (title->id != loader::TitleId::Campaign) LOG_WARN("loader", "multiplayer: work in progress");
 
     static loader::SymbolTable symbols;
     // A release has it next to the loader; builds use the source tree's.
-    fs::path symbol_path = platform::executable_dir() / "default_xbe_symbols.txt";
+    fs::path symbol_path = platform::executable_dir() / title->symbol_file;
     if (options->symbols)
         symbol_path = *options->symbols;
     else if (!fs::exists(symbol_path))
-        symbol_path = COD_BRO_DEFAULT_SYMBOLS;
+        symbol_path = fs::path(COD_BRO_SYMBOLS_DIR) / title->symbol_file;
     if (symbols.load(symbol_path))
         LOG_INFO("loader", "%zu symbols from %s", symbols.size(), symbol_path.string().c_str());
     else
@@ -454,7 +457,7 @@ int loader_main(int argc, char** argv) {
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
-    loader::install_title_patches({options->mouse_sensitivity, options->start_level, options->aim_assist,
+    loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
                                    options->frame_rate});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
@@ -466,7 +469,8 @@ int loader_main(int argc, char** argv) {
     if (options->widescreen) {
         d3d_config.backend.display_aspect = 16.0f / 9.0f;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts
-        d3d_config.backend.narrow_ui_draw = &loader::in_game_menu_draw;
+        if (title->id == loader::TitleId::Campaign)  // reads campaign addresses
+            d3d_config.backend.narrow_ui_draw = &loader::in_game_menu_draw;
     }
     d3d_config.backend.fullscreen = options->fullscreen;
     d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks
@@ -480,9 +484,9 @@ int loader_main(int argc, char** argv) {
         fs::create_directories(*options->screenshot_dir);
         d3d_config.screenshot_dir = options->screenshot_dir->string();
     }
-    d3d_config.device_pointer = loader::kTitleD3DDevicePointer;
-    d3d_config.render_state = loader::kTitleD3DRenderState;
-    d3d_config.texture_state = loader::kTitleD3DTextureState;
+    d3d_config.device_pointer = title->d3d_device_pointer;
+    d3d_config.render_state = title->d3d_render_state;
+    d3d_config.texture_state = title->d3d_texture_state;
     d3d_config.device_failed = [] {
         loader::run_fatal_exit_hook(false);
         tell_player(
@@ -491,11 +495,11 @@ int loader_main(int argc, char** argv) {
         std::_Exit(1);
     };
     render::configure(d3d_config);
-    input::configure({loader::kTitleGamepadType});
+    input::configure({title->gamepad_type});
     if (!options->press_script.empty() && !input::set_script(options->press_script)) return 1;
-    if (!loader::install_sdk_replacements(image, symbols)) {
+    if (!loader::install_sdk_replacements(image, symbols, *title)) {
         LOG_ERROR("loader", "SDK replacements need the symbol file (%s)", symbol_path.string().c_str());
-        return startup_failed("default_xbe_symbols.txt is missing or damaged");
+        return startup_failed(std::string(title->symbol_file) + " is missing or damaged");
     }
 
     // The title's initial thread. Like the Xbox's, it has no TLS block (TlsData is

@@ -139,7 +139,20 @@ uint32_t XB_STDCALL PsCreateSystemThread(xbox::Handle* thread_handle, uint32_t* 
     exit_xbox_thread();
 }
 
+// Resumes a thread created suspended (the only way a thread gets suspended here).
+uint32_t XB_STDCALL NtResumeThread(xbox::Handle handle, uint32_t* previous_suspend_count) {
+    const std::shared_ptr<xbox::Object> object = xbox::lookup_handle(handle);
+    if (!object) return xbox::kStatusInvalidHandle;
+    const auto thread = std::dynamic_pointer_cast<xbox::ThreadObject>(object);
+    if (!thread) return xbox::kStatusObjectTypeMismatch;
+    const uint32_t previous = thread->resume();
+    if (previous_suspend_count) *previous_suspend_count = previous;
+    LOG_DEBUG("thread", "NtResumeThread(thread %u): suspend count was %u", thread->id(), previous);
+    return xbox::kStatusSuccess;
+}
+
 const xbox::KernelImpl kLoaderImpls[] = {
+    {"NtResumeThread", reinterpret_cast<void*>(&NtResumeThread)},
     {"PsCreateSystemThread", reinterpret_cast<void*>(&PsCreateSystemThread)},
     {"PsCreateSystemThreadEx", reinterpret_cast<void*>(&PsCreateSystemThreadEx)},
     {"PsTerminateSystemThread", reinterpret_cast<void*>(&PsTerminateSystemThread)},

@@ -303,13 +303,37 @@ uint32_t XB_STDCALL RtlTimeFieldsToTime(const XbTimeFields* f, int64_t* time) {
     return 1;
 }
 
+// Thread priorities: threads run in parallel on the host, so priorities change
+// nothing; the base priority increment is only remembered per KTHREAD so it reads back.
+std::mutex g_priority_mutex;
+std::vector<std::pair<uint32_t, int32_t>> g_base_priorities;  // (KTHREAD, increment)
+
+int32_t XB_STDCALL KeQueryBasePriorityThread(XbPtr thread) {
+    std::lock_guard lock(g_priority_mutex);
+    for (const auto& [t, increment] : g_base_priorities)
+        if (t == thread) return increment;
+    return 0;
+}
+
+// Returns the previous increment.
+int32_t XB_STDCALL KeSetBasePriorityThread(XbPtr thread, int32_t increment) {
+    const int32_t previous = KeQueryBasePriorityThread(thread);
+    std::lock_guard lock(g_priority_mutex);
+    std::erase_if(g_base_priorities, [thread](const auto& e) { return e.first == thread; });
+    if (increment != 0) g_base_priorities.emplace_back(thread, increment);
+    KTRACE("KeSetBasePriorityThread(%08x, %d) -> %d", thread, increment, previous);
+    return previous;
+}
+
 const KernelImpl kImpls[] = {
     KIMPL(DbgPrint),
     KIMPL(HalRegisterShutdownNotification),
     KIMPL(HalReturnToFirmware),
+    KIMPL(KeQueryBasePriorityThread),
     KIMPL(KeQueryPerformanceCounter),
     KIMPL(KeQueryPerformanceFrequency),
     KIMPL(KeQuerySystemTime),
+    KIMPL(KeSetBasePriorityThread),
     KIMPL(RtlAnsiStringToUnicodeString),
     KIMPL(RtlEqualString),
     KIMPL(RtlInitAnsiString),

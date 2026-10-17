@@ -1,17 +1,26 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 namespace loader {
 
-// The title's D3D__pDevice global (CoD2: BRO, XDK 5849 LTCG).
-constexpr uint32_t kTitleD3DDevicePointer = 0x003f8318;
-// Its D3D__RenderState array.
-constexpr uint32_t kTitleD3DRenderState = 0x003f8328;
-// Its D3D_g_DeferredTextureState array.
-constexpr uint32_t kTitleD3DTextureState = 0x003f5c68;
-// XPP's g_DeviceType_Gamepad (XDEVICE_TYPE_GAMEPAD).
-constexpr uint32_t kTitleGamepadType = 0x007a9f78;
+// The disc's two titles: default.xbe (campaign) and codmp_xboxf.xbe (multiplayer).
+// Both are XDK 5849 builds of the same engine, at different addresses.
+enum class TitleId { Campaign, Multiplayer };
+
+struct TitleInfo {
+    TitleId id;
+    const char* xbe_name;
+    const char* symbol_file;  // Ghidra export (next to the loader, or tools/data)
+    uint32_t d3d_device_pointer;  // D3D__pDevice (D3D is LTCG)
+    uint32_t d3d_render_state;    // D3D__RenderState
+    uint32_t d3d_texture_state;   // D3D_g_DeferredTextureState
+    uint32_t gamepad_type;        // XPP g_DeviceType_Gamepad (XDEVICE_TYPE_GAMEPAD)
+};
+
+// The title with this XBE file name, or null.
+const TitleInfo* find_title(std::string_view xbe_name);
 
 struct TitlePatchConfig {
     float mouse_degrees_per_count = 0.11f;  // mouse look (PC CoD: sensitivity 5 * m_yaw 0.022)
@@ -22,8 +31,8 @@ struct TitlePatchConfig {
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,
 // direct kernel/hardware access) to replacements, and adds PC features (mouse look).
-// Call after the image is mapped.
-void install_title_patches(const TitlePatchConfig& config);
+// Call after the image is mapped. The PC features in `config` are campaign-only so far.
+void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config);
 
 // While the engine draws a scene an in-game menu or the objectives panel created this
 // frame (UI laid out for 4:3), the x to narrow it around as a fraction of the width;
@@ -36,6 +45,6 @@ class XbeImage;
 // Redirects the SDK libraries the port replaces (DirectSound, Direct3D), found by name
 // in the Ghidra symbols. Every other function in those libraries' sections traps with
 // its name when called. Returns false if a library is present but nothing was found.
-bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols);
+bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols, const TitleInfo& title);
 
 }  // namespace loader

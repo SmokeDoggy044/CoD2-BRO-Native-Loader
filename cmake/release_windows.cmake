@@ -2,7 +2,7 @@
 # windows-mingw-release presets): `cmake --install` / `cpack` lay out
 #
 #   cod_bro_launcher.exe, cod_bro_loader.exe (stub) + cod_bro_loader_core.dll,
-#   OpenAL32.dll, default_xbe_symbols.txt, README.txt
+#   OpenAL32.dll, default_xbe_symbols.txt, codmp_xbe_symbols.txt, README.txt
 #   dxvk/d3d9.dll             DXVK (Direct3D 9 on Vulkan); the game falls back to the
 #                             system's d3d9.dll without it or without Vulkan
 #   assets/README.md          the player copies the game dump here
@@ -12,7 +12,8 @@
 # DXVK comes from packaging/windows-dxvk/build.sh (run it once before the release).
 
 install(TARGETS cod_bro_loader cod_bro_loader_core cod_bro_launcher OpenAL RUNTIME DESTINATION .)
-install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt DESTINATION .)
+install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/assets/README.md DESTINATION assets)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
 

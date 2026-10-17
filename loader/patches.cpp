@@ -1,5 +1,6 @@
 // Title-specific patches: original functions that cannot run on a PC, replaced or
-// turned into no-ops. Addresses are for CoD2: BRO default.xbe (XDK 5849).
+// turned into no-ops. Addresses are for CoD2: BRO default.xbe (XDK 5849) unless a
+// table says codmp_xboxf.xbe (multiplayer).
 
 #include "patches.h"
 
@@ -7,6 +8,7 @@
 #include <iterator>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <span>
 #include <string>
@@ -33,7 +35,7 @@ namespace loader {
 
 namespace {
 
-// XAPI 001ede5f (unnamed in Ghidra), called during startup on retail (no debug
+// XAPI 001ede5f (MP 0015a84e; unnamed in Ghidra), called during startup on retail (no debug
 // monitor): finds the kernel's INIT section through its PE header at 0x80010000
 // and rewrites GDT entry 1 (code selector 0x08) with SGDT + a direct GDT write, to
 // limit code execution. Neither is possible or useful in user mode. With the saved
@@ -78,11 +80,16 @@ struct Patch {
     const char* what;
 };
 
-const Patch kPatches[] = {
+const Patch kCampaignPatches[] = {
     {0x001ede5f, reinterpret_cast<const void*>(&restrict_code_selector), "XAPI code selector restriction"},
     {0x001e9b66, reinterpret_cast<const void*>(&mount_utility_drive), "XMountUtilityDrive: Z: = cache folder"},
     {0x002cf920, reinterpret_cast<const void*>(&load_mp_exe), "load_mp_exe: no multiplayer reboot"},
     {0x00221eb0, reinterpret_cast<const void*>(&start_sign_in), "Xbox Live sign-in: not available"},
+};
+
+const Patch kMultiplayerPatches[] = {
+    {0x0015a84e, reinterpret_cast<const void*>(&restrict_code_selector), "XAPI code selector restriction"},
+    {0x0015656c, reinterpret_cast<const void*>(&mount_utility_drive), "XMountUtilityDrive: Z: = cache folder"},
 };
 
 // RDTSC sites in title code (Ghidra: every RDTSC outside the SDK sections) and how
@@ -95,7 +102,7 @@ struct RdtscSite {
     uint32_t address;
     uint8_t length;
 };
-const RdtscSite kRdtscSites[] = {
+const RdtscSite kCampaignRdtscSites[] = {
     {0x000643ad, 6}, {0x0006441a, 6}, {0x00064584, 6}, {0x0006469e, 6}, {0x00064f2e, 6}, {0x00064f98, 6},
     {0x00064fe8, 6}, {0x00065139, 6}, {0x000651ea, 6}, {0x00065329, 6},
     {0x001ed6ce, 7},  // XAPI QueryPerformanceCounter: mov [ecx],eax; mov [ecx+4],edx
@@ -103,6 +110,15 @@ const RdtscSite kRdtscSites[] = {
     {0x002981ae, 6}, {0x002b1caf, 6}, {0x002b1ce9, 6}, {0x0030ba24, 6}, {0x0030bc51, 6},
     {0x0032d893, 5},  // mov [esp],eax
     {0x0032ebca, 6}, {0x0032ec52, 6}, {0x00331fc5, 6}, {0x0033228a, 6},
+};
+
+// codmp_xboxf.xbe: the same engine timing code (all are mov [esp+N],eax after it).
+const RdtscSite kMultiplayerRdtscSites[] = {
+    {0x0006530d, 6}, {0x0006537a, 6}, {0x000654e4, 6}, {0x000655fe, 6}, {0x00065e8e, 6}, {0x00065ef8, 6},
+    {0x00065f48, 6}, {0x00066099, 6}, {0x0006614a, 6}, {0x00066289, 6},
+    {0x001544ff, 7},  // XAPI QueryPerformanceCounter
+    {0x002074fa, 6}, {0x00207523, 6}, {0x002095d5, 6}, {0x002095fe, 6}, {0x00223aff, 6}, {0x00223b39, 6},
+    {0x0027e754, 6}, {0x0027e981, 6}, {0x00298e9a, 6}, {0x00298f22, 6}, {0x0029a925, 6}, {0x0029abea, 6},
 };
 
 int64_t XB_CDECL title_rdtsc() { return xbox::cpu_time_stamp_counter(); }
@@ -116,16 +132,16 @@ void put_rel32(uint8_t* at, uint8_t opcode, const void* target) {
 
 // Each site: JMP to a trampoline that does pushfd; push ecx; call title_rdtsc;
 // pop ecx; popfd; <the moved instructions>; jmp back.
-void install_rdtsc_patches() {
+void install_rdtsc_patches(std::span<const RdtscSite> sites) {
     constexpr size_t kTrampolineSize = 32;
-    auto* pool = alloc_code(std::size(kRdtscSites) * kTrampolineSize);
+    auto* pool = alloc_code(sites.size() * kTrampolineSize);
     if (!pool) {
         LOG_ERROR("patches", "no memory for the RDTSC trampolines; the title runs at the host's TSC rate");
         return;
     }
     int installed = 0;
-    for (size_t i = 0; i < std::size(kRdtscSites); ++i) {
-        const RdtscSite& site = kRdtscSites[i];
+    for (size_t i = 0; i < sites.size(); ++i) {
+        const RdtscSite& site = sites[i];
         auto* code = reinterpret_cast<uint8_t*>(uintptr_t{site.address});
         if (code[0] != 0x0F || code[1] != 0x31) {
             LOG_WARN("patches", "%08x: not RDTSC; left alone", site.address);
@@ -623,6 +639,7 @@ struct SdkLibrary {
     const char* name;
     const char* section;  // XBE section holding the original library
     std::span<const xbox::KernelImpl> functions;
+    bool partial = false;  // titles link only the functions they use: missing ones are normal
 };
 
 // SDK functions XbSymbolDatabase leaves unnamed in this title, by their XDK name.
@@ -630,7 +647,7 @@ struct SdkAlias {
     uint32_t address;
     const char* name;
 };
-const SdkAlias kSdkAliases[] = {
+const SdkAlias kCampaignSdkAliases[] = {
     {0x003e6210, "D3DDevice_BlockOnFence"},  // BlockOnTime(fence, 4)
     {0x003e6ea0, "D3DDevice_LoadVertexShaderProgram"},
     {0x003e5f20, "D3DDevice_GetTexture2"},
@@ -638,11 +655,23 @@ const SdkAlias kSdkAliases[] = {
     {0x003e6950, "D3DDevice_GetScreenSpaceOffset"},
     {0x00379ebb, "XOnlineSilentLogon"},  // GetUsers, first account, Logon; 0x8015108x errors
 };
+// The same functions in codmp_xboxf.xbe (identical code, scripts/match_hashes.py).
+const SdkAlias kMultiplayerSdkAliases[] = {
+    {0x00318250, "D3DDevice_BlockOnFence"},
+    {0x00318ee0, "D3DDevice_LoadVertexShaderProgram"},
+    {0x00317f60, "D3DDevice_GetTexture2"},
+    {0x00318240, "D3DDevice_BlockUntilIdle"},
+    {0x00318990, "D3DDevice_GetScreenSpaceOffset"},
+};
 
 // SDK functions that are safe to run as they are (no hardware access), left untrapped.
-const uint32_t kSdkKeepOriginal[] = {
+const uint32_t kCampaignSdkKeepOriginal[] = {
     0x003ebb20,  // D3D: returns 1 (called before D3D_SetPushBufferSize)
     0x00396f5f,  // XONLINE: a static initializer (_cinit)
+};
+const uint32_t kMultiplayerSdkKeepOriginal[] = {
+    0x0031db60,  // D3D: returns 1
+    0x002db076,  // XONLINE: the static initializer
 };
 
 // The same, by SDK name (any title): thin wrappers around XAPI.
@@ -651,6 +680,35 @@ const char* const kSdkKeepOriginalNames[] = {
     "D3D_FreeContiguousMemory",   // XMemFree
     "D3DDevice_GetCreationParameters",  // constants plus a flag from the device block
 };
+
+// XAPI XLaunchNewImageA calls the first non-null entry of a launch hook table
+// (static data) instead of its own path. XONLINE puts its launch there (SP
+// FUN_0037da38 at 0x0089790c): the same plus Xbox Live dashboard handling and
+// cleanup. With the table cleared, XAPI writes the LaunchDataPage and calls
+// HalReturnToFirmware itself.
+struct TitleData {
+    TitleInfo info;
+    std::span<const Patch> patches;
+    std::span<const RdtscSite> rdtsc_sites;
+    std::span<const SdkAlias> sdk_aliases;
+    std::span<const uint32_t> sdk_keep_original;
+    uint32_t launch_hook_table, launch_hook_table_end;
+};
+
+const TitleData kTitles[] = {
+    {{TitleId::Campaign, "default.xbe", "default_xbe_symbols.txt", 0x003f8318, 0x003f8328, 0x003f5c68, 0x007a9f78},
+     kCampaignPatches, kCampaignRdtscSites, kCampaignSdkAliases, kCampaignSdkKeepOriginal, 0x00897908, 0x00897910},
+    {{TitleId::Multiplayer, "codmp_xboxf.xbe", "codmp_xbe_symbols.txt", 0x0032a358, 0x0032a368, 0x00327ca8,
+      0x003693d8},
+     kMultiplayerPatches, kMultiplayerRdtscSites, kMultiplayerSdkAliases, kMultiplayerSdkKeepOriginal, 0x003dd49c,
+     0x003dd4a4},
+};
+
+const TitleData& title_data(const TitleInfo& info) {
+    for (const TitleData& data : kTitles)
+        if (&data.info == &info) return data;
+    std::abort();  // only find_title hands out TitleInfo
+}
 
 const SymbolTable* g_symbols = nullptr;
 
@@ -677,14 +735,21 @@ void install_call(uint32_t address, const void* target) {
 
 }  // namespace
 
-bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols) {
+const TitleInfo* find_title(std::string_view xbe_name) {
+    for (const TitleData& data : kTitles)
+        if (strcasecmp(std::string(xbe_name).c_str(), data.info.xbe_name) == 0) return &data.info;
+    return nullptr;
+}
+
+bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols, const TitleInfo& title) {
+    const TitleData& data = title_data(title);
     g_symbols = &symbols;
     const SdkLibrary libraries[] = {
         {"DirectSound", "DSOUND", audio::dsound_functions()},
         {"Direct3D", "D3D", render::d3d_functions()},
         {"Input", "XPP", input::xpp_functions()},
         {"Xbox Live", "XONLINE", online::xonline_functions()},
-        {"Network", "XNET", {}},
+        {"Network", "XNET", online::xnet_functions(), true},
     };
     bool ok = true;
     for (const SdkLibrary& library : libraries) {
@@ -697,7 +762,7 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols)
         // shorter than a CALL are left alone (they would clobber their neighbour).
         const std::vector<uint32_t> entries =
             symbols.in_range(section->virtual_addr, section->virtual_addr + section->virtual_size);
-        std::vector<uint32_t> keep(std::begin(kSdkKeepOriginal), std::end(kSdkKeepOriginal));
+        std::vector<uint32_t> keep(data.sdk_keep_original.begin(), data.sdk_keep_original.end());
         for (const char* name : kSdkKeepOriginalNames)
             for (uint32_t address : symbols.find(name)) keep.push_back(address);
         for (size_t i = 0; i < entries.size(); ++i) {
@@ -709,10 +774,13 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols)
         int installed = 0, missing = 0;
         for (const xbox::KernelImpl& function : library.functions) {
             std::vector<uint32_t> addresses = symbols.find(function.name);
-            for (const SdkAlias& alias : kSdkAliases)
+            for (const SdkAlias& alias : data.sdk_aliases)
                 if (std::strcmp(alias.name, function.name) == 0) addresses.push_back(alias.address);
             if (addresses.empty()) {
-                LOG_WARN("patches", "%s: %s not found in the symbols; not replaced", library.name, function.name);
+                if (library.partial)
+                    LOG_DEBUG("patches", "%s: %s not linked into this title", library.name, function.name);
+                else
+                    LOG_WARN("patches", "%s: %s not found in the symbols; not replaced", library.name, function.name);
                 ++missing;
                 continue;
             }
@@ -726,21 +794,18 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols)
     return ok;
 }
 
-// XAPI XLaunchNewImageA calls the first non-null entry of a launch hook table
-// (0x00897908-0x00897910, static data) instead of its own path. XONLINE puts
-// FUN_0037da38 there: the same launch plus Xbox Live dashboard handling and cleanup.
-// Without it XAPI writes the LaunchDataPage and calls HalReturnToFirmware itself.
-constexpr uint32_t kLaunchHookTable = 0x00897908;
-constexpr uint32_t kLaunchHookTableEnd = 0x00897910;
-
-void install_title_patches(const TitlePatchConfig& config) {
-    g_mouse_degrees_per_count = config.mouse_degrees_per_count;
-    for (const Patch& patch : kPatches) {
+void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {
+    const TitleData& data = title_data(title);
+    for (const Patch& patch : data.patches) {
         install_jump(patch.address, patch.replacement);
         LOG_DEBUG("patches", "%08x: %s", patch.address, patch.what);
     }
-    std::memset(reinterpret_cast<void*>(uintptr_t{kLaunchHookTable}), 0, kLaunchHookTableEnd - kLaunchHookTable);
-    install_rdtsc_patches();
+    std::memset(reinterpret_cast<void*>(uintptr_t{data.launch_hook_table}), 0,
+                data.launch_hook_table_end - data.launch_hook_table);
+    install_rdtsc_patches(data.rdtsc_sites);
+    if (title.id != TitleId::Campaign) return;  // the PC features below use campaign addresses
+
+    g_mouse_degrees_per_count = config.mouse_degrees_per_count;
     install_mouse_look();
     install_start_level(config.start_level);
     if (!config.aim_assist) disable_aim_assist();
