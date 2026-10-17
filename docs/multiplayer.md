@@ -17,8 +17,22 @@ Mouse look and the keyboard's controller-style remap work in both titles (MP cli
 globals: same instructions in the twin functions CL_CreateCmd FUN_0024c130,
 CL_MouseMove FUN_002259f0, key label FUN_0027fa60; skill script DataRefs.java lists
 them in order). MP's pad bindings come from the same style_*.cfg files
-(default_mp.cfg is a PC keyboard leftover). The other PC features (60 fps,
-widescreen menus, --level, aim assist) use SP addresses and are off in MP.
+(default_mp.cfg is a PC keyboard leftover).
+
+60 fps, widescreen in-game menus and --aim-assist also work in MP (user-tested
+2026-10-17); per-title tables in loader/patches.cpp:
+- Frame pacing: the same code (setter FUN_00065520, vblanks 0x003e8850, late flag
+  0x004523d8, wait setup 0x000652d0, decoder vtable 0x0038e830). MP sets the interval
+  only in its intro movie player (FUN_0029ab90, mode 2, never reset), so the
+  original MP runs at 1 vblank (60) until that movie; the loader writes the chosen
+  rate at startup. Release build: 60.0 fps; accumulated game time 0x0041cdd8 runs
+  at 1.000x wall time at 60 and 30 (the -O0 Debug build only reaches 31-41 fps).
+- Menus: render functions FUN_002862d0/FUN_00286340/FUN_002863b0, render method in
+  vtable slot 0x24 (SP 0x1c), current scene 0x004520fc, frame allocator 0x00452108,
+  swap counter 0x00452440. No objectives panel in MP (Back shows the scoreboard).
+- Aim assist: FUN_0024c940 (no exact twin; found as the only function calling the
+  twins of all five callees of SP's FUN_002db7d0), target field +0x510 (SP +0x500).
+- --level stays campaign-only.
 
 ## System link
 
@@ -70,5 +84,5 @@ replaced, as in SP, by a notice; the menu stays at "Not signed in".
 
 ## Not done
 
-- Split screen (if the title has it), 60 fps / widescreen / aim assist for MP,
-  launcher and release, Windows test.
+- Split screen (if the title has it), launcher and release, Windows test.
+- MP's startup memory probing logs ~40 "budget exhausted" warnings (harmless).

@@ -386,17 +386,26 @@ void install_start_level(int32_t level) {
 // and +0x508 (point on it), and turns delta_angles to follow it as it moves. Turned
 // off, the function only does what it does when it finds no target:
 // mov dword [ecx+0x500], 0; ret.
-constexpr uint32_t kStickyAim = 0x002db7d0;
+// Per title: the sticky aim function and its target field in the player state
+// (MP FUN_0024c940, found by its callees; the field is +0x510 there).
+struct AimAssist {
+    uint32_t function;
+    uint32_t target_offset;
+};
+AimAssist g_aim_assist = {0x002db7d0, 0x500};
 
 void disable_aim_assist() {
+    const uint32_t kStickyAim = g_aim_assist.function;
     auto* code = reinterpret_cast<uint8_t*>(uintptr_t{kStickyAim});
     static constexpr uint8_t kOriginal[] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF0};  // push ebp; mov ebp,esp; and esp,-16
     if (std::memcmp(code, kOriginal, sizeof(kOriginal)) != 0) {
         LOG_WARN("patches", "%08x: not the sticky aim function; aim assist stays on", kStickyAim);
         return;
     }
-    static constexpr uint8_t kNoTarget[] = {0xC7, 0x81, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC3};
-    std::memcpy(code, kNoTarget, sizeof(kNoTarget));
+    // mov dword [ecx+target],0; ret
+    uint8_t no_target[] = {0xC7, 0x81, 0, 0, 0, 0, 0x00, 0x00, 0x00, 0x00, 0xC3};
+    std::memcpy(no_target + 2, &g_aim_assist.target_offset, 4);
+    std::memcpy(code, no_target, sizeof(no_target));
     LOG_INFO("patches", "aim assist off");
 }
 
@@ -409,8 +418,8 @@ void disable_aim_assist() {
 // by FUN_003153d0 while paused) and an open sub-menu (+0x30) through the object's
 // vtable (+0x1c); the HUD comes from other code (its own scenes). The
 // engine (NGL) queues 2D into scenes and draws them at the end of the frame
-// (FUN_00064ec0) with the current scene in kCurrentScene. Scenes come from a
-// per-frame bump allocator (kFrameAllocator), so the scenes the menu creates are
+// (FUN_00064ec0) with the current scene in current_scene. Scenes come from a
+// per-frame bump allocator (frame_allocator), so the scenes the menu creates are
 // exactly those allocated while it renders; a screen also draws into the scene the
 // caller created for it just before. The renderer narrows draws from these scenes
 // (in_game_menu_draw).
@@ -418,31 +427,40 @@ void disable_aim_assist() {
 // The render calls: screens "mov eax,[ecx]; add esp,0x10; call [eax+0x1c]", sub-menus
 // "mov edx,[ecx]; call [edx+0x1c]", and in FUN_003154b0 the tail jump
 // "mov ecx,eax; mov eax,[ecx]; jmp [eax+0x1c]".
-constexpr uint32_t kScreenRenderCalls[] = {0x00315414, 0x00315476};
-constexpr uint32_t kMenuRenderCalls[] = {0x00315433, 0x00315491};
-constexpr uint32_t kMenuRenderJump = 0x00315515;
-constexpr uint32_t kCurrentScene = 0x0090259c;
-constexpr uint32_t kFrameAllocator = 0x009025a8;
-constexpr uint32_t kEngineFrame = 0x009028e0;  // counts swaps (FUN_00064ec0)
+// MP: FUN_002862d0, FUN_00286340, FUN_002863b0, render method in vtable slot 0x24.
+struct MenuRenderSites {
+    uint32_t screen_calls[2];
+    uint32_t menu_calls[2];
+    uint32_t menu_jump;
+    uint8_t render_slot;        // vtable offset of the render method
+    uint32_t current_scene;
+    uint32_t frame_allocator;
+    uint32_t engine_frame;      // counts swaps (SP FUN_00064ec0, MP FUN_00065e20)
+};
+constexpr MenuRenderSites kCampaignMenus = {{0x00315414, 0x00315476}, {0x00315433, 0x00315491}, 0x00315515,
+                                            0x1c, 0x0090259c, 0x009025a8, 0x009028e0};
+constexpr MenuRenderSites kMultiplayerMenus = {{0x00286314, 0x00286376}, {0x00286333, 0x00286391}, 0x0028640e,
+                                               0x24, 0x004520fc, 0x00452108, 0x00452440};
+MenuRenderSites g_menus = kCampaignMenus;
 
 struct MenuScenes {
     uint32_t begin = 0, end = 0;  // allocated while the menu rendered
     uint32_t scene = 0;           // a screen's own scene
-    uint32_t frame = UINT32_MAX;  // kEngineFrame then
+    uint32_t frame = UINT32_MAX;  // engine_frame then
 };
 MenuScenes g_menu_scenes;
 
 void XB_CDECL menu_render_begin() {
-    const uint32_t allocator = title<uint32_t>(kFrameAllocator);
-    g_menu_scenes = {allocator, allocator, 0, title<uint32_t>(kEngineFrame)};
+    const uint32_t allocator = title<uint32_t>(g_menus.frame_allocator);
+    g_menu_scenes = {allocator, allocator, 0, title<uint32_t>(g_menus.engine_frame)};
 }
 
 void XB_CDECL screen_render_begin() {
     menu_render_begin();
-    g_menu_scenes.scene = title<uint32_t>(kCurrentScene);
+    g_menu_scenes.scene = title<uint32_t>(g_menus.current_scene);
 }
 
-void XB_CDECL menu_render_end() { g_menu_scenes.end = title<uint32_t>(kFrameAllocator); }
+void XB_CDECL menu_render_end() { g_menu_scenes.end = title<uint32_t>(g_menus.frame_allocator); }
 
 // pushad; pushfd; call function; popfd; popad
 uint8_t* put_preserving_call(uint8_t* t, void (*function)()) {
@@ -454,30 +472,31 @@ uint8_t* put_preserving_call(uint8_t* t, void (*function)()) {
 }
 
 void install_menu_render_hooks() {
-    const uint8_t screen_site[8] = {0x8B, 0x01, 0x83, 0xC4, 0x10, 0xFF, 0x50, 0x1C};
-    const uint8_t call_site[5] = {0x8B, 0x11, 0xFF, 0x52, 0x1C};
-    for (uint32_t address : kScreenRenderCalls)
+    const uint8_t slot = g_menus.render_slot;
+    const uint8_t screen_site[8] = {0x8B, 0x01, 0x83, 0xC4, 0x10, 0xFF, 0x50, slot};
+    const uint8_t call_site[5] = {0x8B, 0x11, 0xFF, 0x52, slot};
+    for (uint32_t address : g_menus.screen_calls)
         if (std::memcmp(reinterpret_cast<void*>(uintptr_t{address}), screen_site, sizeof(screen_site)) != 0) {
             LOG_WARN("patches", "%08x: not a screen render call; in-game menus stay stretched", address);
             return;
         }
-    const uint8_t jump_site[7] = {0x8B, 0xC8, 0x8B, 0x01, 0xFF, 0x60, 0x1C};
-    for (uint32_t address : kMenuRenderCalls)
+    const uint8_t jump_site[7] = {0x8B, 0xC8, 0x8B, 0x01, 0xFF, 0x60, slot};
+    for (uint32_t address : g_menus.menu_calls)
         if (std::memcmp(reinterpret_cast<void*>(uintptr_t{address}), call_site, sizeof(call_site)) != 0) {
             LOG_WARN("patches", "%08x: not a menu render call; in-game menus stay stretched", address);
             return;
         }
-    auto* jump = reinterpret_cast<uint8_t*>(uintptr_t{kMenuRenderJump});
+    auto* jump = reinterpret_cast<uint8_t*>(uintptr_t{g_menus.menu_jump});
     if (std::memcmp(jump, jump_site, sizeof(jump_site)) != 0) {
-        LOG_WARN("patches", "%08x: not the menu render jump; in-game menus stay stretched", kMenuRenderJump);
+        LOG_WARN("patches", "%08x: not the menu render jump; in-game menus stay stretched", g_menus.menu_jump);
         return;
     }
     auto* thunks = alloc_code(128);
     if (!thunks) return;
-    // Called with the menu in ecx: begin; mov edx,[ecx]; call [edx+0x1c]; end; ret
-    auto put_thunk = [](uint8_t* t, void (*begin)()) {
+    // Called with the menu in ecx: begin; mov edx,[ecx]; call [edx+slot]; end; ret
+    auto put_thunk = [slot](uint8_t* t, void (*begin)()) {
         t = put_preserving_call(t, begin);
-        *t++ = 0x8B, *t++ = 0x11, *t++ = 0xFF, *t++ = 0x52, *t++ = 0x1C;
+        *t++ = 0x8B, *t++ = 0x11, *t++ = 0xFF, *t++ = 0x52, *t++ = slot;
         t = put_preserving_call(t, &menu_render_end);
         *t++ = 0xC3;
         return t;
@@ -485,8 +504,8 @@ void install_menu_render_hooks() {
     uint8_t* const thunk = thunks;
     uint8_t* const screen_thunk = put_thunk(thunk, &menu_render_begin);
     put_thunk(screen_thunk, &screen_render_begin);
-    for (uint32_t address : kMenuRenderCalls) put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{address}), 0xE8, thunk);
-    for (uint32_t address : kScreenRenderCalls) {  // add esp,0x10; call thunk
+    for (uint32_t address : g_menus.menu_calls) put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{address}), 0xE8, thunk);
+    for (uint32_t address : g_menus.screen_calls) {  // add esp,0x10; call thunk
         auto* site = reinterpret_cast<uint8_t*>(uintptr_t{address});
         site[0] = 0x83, site[1] = 0xC4, site[2] = 0x10;
         put_rel32(site + 3, 0xE8, screen_thunk);
@@ -519,14 +538,14 @@ uint32_t call_title(uint32_t address, Args... args) {
 }
 
 void XB_CDECL objectives_begin() {
-    g_objectives_scene = title<uint32_t>(kCurrentScene) != 0 && call_title(kSceneCreate, 0) != 0;
+    g_objectives_scene = title<uint32_t>(g_menus.current_scene) != 0 && call_title(kSceneCreate, 0) != 0;
     if (g_objectives_scene) {
         call_title(kSceneSetClear, 0);
         call_title(kSceneSetFlag385, 0);
         call_title(kSceneSetFlag384, 0);
     }
-    g_objectives_scenes = {0, 0, g_objectives_scene ? title<uint32_t>(kCurrentScene) : 0,
-                           title<uint32_t>(kEngineFrame)};
+    g_objectives_scenes = {0, 0, g_objectives_scene ? title<uint32_t>(g_menus.current_scene) : 0,
+                           title<uint32_t>(g_menus.engine_frame)};
 }
 
 void XB_CDECL objectives_end() {
@@ -637,82 +656,93 @@ void install_multiplayer_heap_lock() {
 // wait is chosen where it is set up - FUN_00064580 (a D3D callback inserted by the
 // frame end) and 0x000649c0 both jump to 0x00064370 - with 2 vblanks while a movie
 // frame was decoded in the last few frames.
-constexpr uint32_t kSetFrameInterval = 0x000645c0;
-constexpr uint32_t kFrameVBlanks = 0x008a2cb0;
-constexpr uint32_t kFrameLateNoWait = 0x00902878;
-constexpr uint32_t kFrameWaitSetup = 0x00064370;
-constexpr uint32_t kFrameWaitJumps[] = {0x000645ad, 0x000649d8};
-constexpr uint32_t kMovieNextFrameSlot = 0x007cf398;
-constexpr uint32_t kMovieNextFrame = 0x000ce210;
+// MP: the same code (FUN_00065520, 0x000652d0, decoder vtable 0x0038e830).
+struct FramePacing {
+    uint32_t set_frame_interval;
+    uint32_t frame_vblanks;
+    uint32_t late_no_wait;
+    uint32_t wait_setup;
+    uint32_t wait_jumps[2];
+    uint32_t movie_next_frame_slot;
+    uint32_t movie_next_frame;
+};
+constexpr FramePacing kCampaignPacing = {0x000645c0, 0x008a2cb0, 0x00902878, 0x00064370,
+                                         {0x000645ad, 0x000649d8}, 0x007cf398, 0x000ce210};
+constexpr FramePacing kMultiplayerPacing = {0x00065520, 0x003e8850, 0x004523d8, 0x000652d0,
+                                            {0x0006550d, 0x00065938}, 0x0038e838, 0x000cf050};
+FramePacing g_pacing = kCampaignPacing;
 uint32_t g_frame_vblanks = 2;      // per frame outside movies
 bool g_frame_wait = true;          // false: the title asked for mode 0 (no wait)
-uint32_t g_movie_frame = 0;        // kEngineFrame at the last movie frame
+uint32_t g_movie_frame = 0;        // engine_frame at the last movie frame
 bool g_movie_seen = false;
 bool g_movie_pacing = false;
 
 void XB_CDECL set_frame_interval(uint32_t mode) {
     if (mode > 4) return;
     g_frame_wait = mode != 0;
-    title<uint32_t>(kFrameLateNoWait) = mode >= 3 ? 1 : 0;
-    title<uint32_t>(kFrameVBlanks) = g_frame_wait ? g_frame_vblanks : 0;
+    title<uint32_t>(g_pacing.late_no_wait) = mode >= 3 ? 1 : 0;
+    title<uint32_t>(g_pacing.frame_vblanks) = g_frame_wait ? g_frame_vblanks : 0;
 }
 
 void XB_CDECL movie_frame() {
-    g_movie_frame = title<uint32_t>(kEngineFrame);
+    g_movie_frame = title<uint32_t>(g_menus.engine_frame);
     g_movie_seen = true;
 }
 
 void XB_CDECL choose_frame_wait() {
     if (!g_frame_wait || g_frame_vblanks == 2) return;
-    const bool movie = g_movie_seen && title<uint32_t>(kEngineFrame) - g_movie_frame <= 2;
+    const bool movie = g_movie_seen && title<uint32_t>(g_menus.engine_frame) - g_movie_frame <= 2;
     if (movie != g_movie_pacing) {
         g_movie_pacing = movie;
         render::frame_rate_changed(movie ? 30 : 60 / g_frame_vblanks);
         LOG_INFO("patches", movie ? "movie: 30 fps while it plays" : "movie over: %u vertical blanks per frame again",
                  g_frame_vblanks);
     }
-    title<uint32_t>(kFrameVBlanks) = movie ? 2 : g_frame_vblanks;
+    title<uint32_t>(g_pacing.frame_vblanks) = movie ? 2 : g_frame_vblanks;
 }
 
 void install_frame_rate(int32_t frame_rate) {
     g_frame_vblanks = frame_rate == 60 ? 1 : 2;
-    install_jump(kSetFrameInterval, reinterpret_cast<const void*>(&set_frame_interval));
+    install_jump(g_pacing.set_frame_interval, reinterpret_cast<const void*>(&set_frame_interval));
+    // MP sets the interval only in its intro movie player (FUN_0029ab90, mode 2, never
+    // reset); before that its static 1 applies. Start at the chosen rate either way.
+    title<uint32_t>(g_pacing.frame_vblanks) = g_frame_vblanks;
     LOG_INFO("patches", "%d fps (%u vertical blanks per frame)", frame_rate, g_frame_vblanks);
     if (g_frame_vblanks == 2) return;
 
-    auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{kMovieNextFrameSlot});
-    for (uint32_t address : kFrameWaitJumps) {
+    auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{g_pacing.movie_next_frame_slot});
+    for (uint32_t address : g_pacing.wait_jumps) {
         auto* site = reinterpret_cast<uint8_t*>(uintptr_t{address});
         if (site[0] != 0xE9 || site + 5 + *reinterpret_cast<int32_t*>(site + 1) !=
-                                   reinterpret_cast<uint8_t*>(uintptr_t{kFrameWaitSetup})) {
+                                   reinterpret_cast<uint8_t*>(uintptr_t{g_pacing.wait_setup})) {
             LOG_WARN("patches", "%08x: not the frame wait jump; movies play too fast", address);
             return;
         }
     }
-    if (*slot != kMovieNextFrame) {
-        LOG_WARN("patches", "%08x: not the movie decoder's next-frame slot; movies play too fast", kMovieNextFrameSlot);
+    if (*slot != g_pacing.movie_next_frame) {
+        LOG_WARN("patches", "%08x: not the movie decoder's next-frame slot; movies play too fast", g_pacing.movie_next_frame_slot);
         return;
     }
     auto* thunks = alloc_code(64);
     if (!thunks) return;
     // choose_frame_wait; jmp 0x00064370
     uint8_t* t = put_preserving_call(thunks, &choose_frame_wait);
-    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kFrameWaitSetup}));
-    for (uint32_t address : kFrameWaitJumps) put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{address}), 0xE9, thunks);
+    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{g_pacing.wait_setup}));
+    for (uint32_t address : g_pacing.wait_jumps) put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{address}), 0xE9, thunks);
     // movie_frame; jmp 0x000ce210 (ecx = the decoder, kept by the preserving call)
     uint8_t* const movie_thunk = t + 5;
     t = put_preserving_call(movie_thunk, &movie_frame);
-    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kMovieNextFrame}));
+    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{g_pacing.movie_next_frame}));
     *slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(movie_thunk));
 }
 
 }  // namespace
 
 float in_game_menu_draw() {
-    const uint32_t scene = title<uint32_t>(kCurrentScene);
+    const uint32_t scene = title<uint32_t>(g_menus.current_scene);
     const MenuScenes& m = g_menu_scenes;
     const MenuScenes& o = g_objectives_scenes;
-    const uint32_t frame = title<uint32_t>(kEngineFrame);
+    const uint32_t frame = title<uint32_t>(g_menus.engine_frame);
     if (m.frame == frame && (scene == m.scene || (scene >= m.begin && scene < m.end))) return 0.5f;
     if (o.frame == frame && o.scene != 0 && scene == o.scene) return kObjectivesAnchor;
     return -1.0f;
@@ -895,13 +925,17 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     g_client = title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient;
     install_mouse_look();
     input::set_action_remap(&remap_keyboard_actions);
-    if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
-    if (title.id != TitleId::Campaign) return;  // the PC features below use campaign addresses
-
-    install_start_level(config.start_level);
+    const bool campaign = title.id == TitleId::Campaign;
+    g_aim_assist = campaign ? AimAssist{0x002db7d0, 0x500} : AimAssist{0x0024c940, 0x510};
+    g_menus = campaign ? kCampaignMenus : kMultiplayerMenus;
+    g_pacing = campaign ? kCampaignPacing : kMultiplayerPacing;
     if (!config.aim_assist) disable_aim_assist();
     install_frame_rate(config.frame_rate);
     install_menu_render_hooks();
+    if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
+    if (!campaign) return;  // the objectives panel and --level are campaign-only
+
+    install_start_level(config.start_level);
     install_objectives_hook();
 }
 
