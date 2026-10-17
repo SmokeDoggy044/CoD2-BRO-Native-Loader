@@ -69,5 +69,11 @@ int main() {
     done = run(p, now, frame, 1000.0 / 30, 2);
     CHECK(!done.empty() && done[0].hitches == 1);
 
+    // A deliberate switch from 60 to 30 fps (a movie) is no hitch.
+    run(p, now, frame, 1000.0 / 60, 2);
+    p.rate_changed();
+    done = run(p, now, frame, 1000.0 / 30, 2);
+    CHECK(!done.empty() && done[0].hitches == 0, "%u hitches", done.empty() ? 0 : done[0].hitches);
+
     return test::g_failures ? 1 : 0;
 }

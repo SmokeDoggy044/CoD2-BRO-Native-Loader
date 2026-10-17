@@ -49,6 +49,11 @@ void configure(const D3DConfig& config);
 uint32_t frames_last_second();
 uint32_t frames_shown();
 
+// The title now aims at `fps` frames per second (on purpose, e.g. a movie at 30 in a
+// 60 fps game): --diag counts neither the change as hitches nor the seconds at the
+// lower rate as slow. Any thread.
+void frame_rate_changed(uint32_t fps);
+
 // Shows `lines` to the player over the game for `seconds` (first line as a heading),
 // replacing any notice shown before. Any thread.
 void show_notice(std::vector<std::string> lines, double seconds);

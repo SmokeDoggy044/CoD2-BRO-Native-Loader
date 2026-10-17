@@ -335,6 +335,7 @@ constexpr uint32_t kMaxAutoMarks = 50;  // per run; later messages are only logg
 std::mutex g_auto_mutex;
 std::vector<std::string> g_auto_pending;  // "category: text", guarded by g_auto_mutex
 std::atomic<bool> g_frames_shown{false};
+std::atomic<bool> g_frame_rate_changed{false};
 
 void diag_observer(platform::LogLevel level, const char* category, const char* text) {
     if (!g_frames_shown.load(std::memory_order_relaxed)) return;
@@ -389,6 +390,7 @@ void diagnostics() {
     // Frame pacing: a "frames" line per second, and each stall (see FramePacing).
     static FramePacing pacing;
     static std::string fps_text;
+    if (g_frame_rate_changed.exchange(false)) pacing.rate_changed();
     if (auto second = pacing.frame(std::chrono::duration<double>(now - start).count(), g.swap_count)) {
         LOG_INFO("frames", "%llds: %u fps, worst %.0f ms (frame %u), %u hitches",
                  static_cast<long long>(second->second), second->frames, second->worst_ms, second->worst_frame,
@@ -635,6 +637,11 @@ void texture_written(XbPtr resource) {
 
 uint32_t frames_last_second() { return g_frames_last_second.load(std::memory_order_relaxed); }
 uint32_t frames_shown() { return g_frames_shown_count.load(std::memory_order_relaxed); }
+
+void frame_rate_changed(uint32_t fps) {
+    LOG_INFO("frames", "target %u fps", fps);
+    g_frame_rate_changed = true;
+}
 
 void show_notice(std::vector<std::string> lines, double seconds) {
     std::lock_guard lock(g.notice_mutex);

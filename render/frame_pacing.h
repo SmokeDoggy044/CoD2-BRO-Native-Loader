@@ -4,7 +4,9 @@
 // summed up per second of the session. A hitch is a frame over 1.4 times the average of
 // the 30 before it and at least 10 ms longer - at a vblank-locked 30 fps, a frame that
 // missed its vblank (50 ms). A gap of a second or more is a stall (loading, a
-// breakpoint) and stays out of the per-second numbers.
+// breakpoint) and stays out of the per-second numbers. After a deliberate change of
+// the frame rate (rate_changed: a movie at 30 fps in a 60 fps game) the frames are
+// judged against the new rate only.
 
 #include <cstdint>
 #include <optional>
@@ -60,6 +62,9 @@ public:
         last_ = now;
         return finished;
     }
+
+    // The title now waits a different number of vblanks per frame.
+    void rate_changed() { history_sum_ = 0, history_count_ = history_next_ = 0; }
 
     std::optional<Stall> take_stall() { return std::exchange(stall_, std::nullopt); }
 

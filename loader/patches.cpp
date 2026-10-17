@@ -566,6 +566,7 @@ void XB_CDECL choose_frame_wait() {
     const bool movie = g_movie_seen && title<uint32_t>(kEngineFrame) - g_movie_frame <= 2;
     if (movie != g_movie_pacing) {
         g_movie_pacing = movie;
+        render::frame_rate_changed(movie ? 30 : 60 / g_frame_vblanks);
         LOG_INFO("patches", movie ? "movie: 30 fps while it plays" : "movie over: %u vertical blanks per frame again",
                  g_frame_vblanks);
     }

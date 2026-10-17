@@ -1,6 +1,7 @@
 #include "diag_summary.h"
 
 #include <algorithm>
+#include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -58,6 +59,10 @@ struct FrameSecond {
 struct FrameStall {
     double at = 0, seconds = 0;
 };
+struct FrameTarget {
+    double at = 0;
+    unsigned fps = 0;  // what the title aims at from then on (a movie at 30 in a 60 fps game)
+};
 
 }  // namespace
 
@@ -91,6 +96,7 @@ void write_diag_summary(const fs::path& dir) {
     bool closed = false;
     std::vector<FrameSecond> frame_seconds;
     std::vector<FrameStall> stalls;
+    std::vector<FrameTarget> targets;
     for (const LogLine& line : lines) {
         if (line.category == "frames") {
             FrameSecond f;
@@ -100,6 +106,8 @@ void write_diag_summary(const fs::path& dir) {
                 frame_seconds.push_back(f);
             else if (std::sscanf(line.text.c_str(), "stall %lf s", &stall.seconds) == 1)
                 stall.at = line.seconds, stalls.push_back(stall);
+            else if (FrameTarget t; std::sscanf(line.text.c_str(), "target %u fps", &t.fps) == 1)
+                t.at = line.seconds, targets.push_back(t);
             continue;
         }
         if (line.category == "diag") {
@@ -199,9 +207,24 @@ void write_diag_summary(const fs::path& dir) {
         std::fprintf(out, "\nFrame rate: typical %u fps, average %.1f over %zu s\n", typical,
                      static_cast<double>(frames) / full.size(), full.size());
 
+        // The title's own target at time t (none = no limit); a second judged by the
+        // lower target at its start and end.
+        auto target_at = [&](double t) {
+            unsigned fps = UINT_MAX;
+            for (const FrameTarget& target : targets)
+                if (target.at <= t) fps = target.fps;
+            return fps;
+        };
         std::vector<FrameSecond> slow;
-        for (const FrameSecond& f : full)
-            if (f.fps < slow_below) slow.push_back(f);
+        unsigned lower_target_seconds = 0;
+        for (const FrameSecond& f : full) {
+            const unsigned target = std::min(target_at(static_cast<double>(f.second)), target_at(f.second + 1.0));
+            if (target < typical) ++lower_target_seconds;
+            if (f.fps < std::min(typical, target) * 4 / 5) slow.push_back(f);
+        }
+        if (lower_target_seconds)
+            std::fprintf(out, "  At a lower rate on purpose (movies): %u s, judged by that rate\n",
+                         lower_target_seconds);
         std::sort(slow.begin(), slow.end(), [](const auto& a, const auto& b) { return a.fps < b.fps; });
         std::fprintf(out, "  Slow seconds (under %u fps): %zu\n", slow_below, slow.size());
         if (!slow.empty()) std::fprintf(out, "  %7s  %5s  %8s  %s\n", "second", "fps", "worst ms", "screenshot");
