@@ -35,3 +35,19 @@ add_executable(frame_pacing_test frame_pacing_test.cpp)
 target_include_directories(frame_pacing_test PRIVATE ${PROJECT_SOURCE_DIR}/render)
 target_link_libraries(frame_pacing_test PRIVATE xbox)
 add_test(NAME frame_pacing_test COMMAND frame_pacing_test)
+
+# The comparison harness (Linux loader builds): its own copy of the harness and a
+# shared library standing in for the decompiled code.
+if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_library(compare_test_code SHARED compare_test_code.cpp)
+    target_include_directories(compare_test_code PRIVATE ${PROJECT_SOURCE_DIR}/platform)
+    target_link_libraries(compare_test_code PRIVATE cod_bro_options)
+    add_executable(compare_test compare_test.cpp ${PROJECT_SOURCE_DIR}/loader/compare_linux.cpp
+                   ${PROJECT_SOURCE_DIR}/loader/hooks.cpp)
+    target_include_directories(compare_test PRIVATE ${PROJECT_SOURCE_DIR}/loader ${PROJECT_SOURCE_DIR}/game/code)
+    set_source_files_properties(${PROJECT_SOURCE_DIR}/loader/compare_linux.cpp TARGET_DIRECTORY compare_test
+        PROPERTIES COMPILE_OPTIONS "-fno-stack-protector;$<$<CXX_COMPILER_ID:GNU>:-fno-tree-loop-distribute-patterns>")
+    target_link_libraries(compare_test PRIVATE compare_test_code xbox Threads::Threads)
+    add_test(NAME compare_test COMMAND compare_test)
+    set_tests_properties(compare_test PROPERTIES TIMEOUT 60)
+endif()

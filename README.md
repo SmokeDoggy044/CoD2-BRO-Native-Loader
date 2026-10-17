@@ -16,8 +16,10 @@ What it is **not**:
 - **Not a recompilation.** No machine code is translated ahead of time (as static
   recompilers such as N64Recomp do for consoles with a different CPU); the
   original code runs unmodified apart from the patches above.
-- **Not a decompilation (yet).** There is no source code of the game here, and no
-  game function has been decompiled so far.
+- **Not a decompilation (yet).** This repository is the decompilation fork of the
+  native loader: decompiled functions go in `game/code/` and are tested against
+  the originals while the game runs ([comparison harness](docs/comparison-harness.md)).
+  Only a handful exist so far.
 - **Not a CPU emulator.** Only the Xbox's system software is reimplemented, the way
   Wine reimplements Windows; Cxbx-Reloaded works on the same model.
 
@@ -93,7 +95,7 @@ part of this project.
 | [docs/rendering.md](docs/rendering.md) | Direct3D replacement: design, draw path, render scale, widescreen, frame dumps |
 | [docs/multiplayer.md](docs/multiplayer.md) | codmp_xboxf.xbe: per-title setup, system link on a virtual LAN, threads |
 | [docs/playtesting.md](docs/playtesting.md) | `--diag` sessions, scripted and unattended runs, the feature sweep |
-| [docs/comparison-harness.md](docs/comparison-harness.md) | Planned: checking decompiled functions against the original |
+| [docs/comparison-harness.md](docs/comparison-harness.md) | Checking decompiled functions against the originals while the game runs (`--compare`) |
 | [assets/README.md](assets/README.md) | For players: where the game files go |
 | [LICENSES/README.md](LICENSES/README.md) | Licenses of everything in the repository |
 

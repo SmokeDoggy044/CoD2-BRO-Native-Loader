@@ -1,0 +1,4 @@
+address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issue
+0011d5e0,ScriptString_Copy,compare,112412,1772,1772,0,0,0,""
+0011d7c0,ScriptString_Equals,compare,5714,105,105,0,0,0,""
+0011db70,ScriptKeyTable_Find,compare,23690,386,386,0,0,0,""

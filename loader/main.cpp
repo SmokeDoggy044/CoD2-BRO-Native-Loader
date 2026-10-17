@@ -13,8 +13,10 @@
 #include <thread>
 #include <vector>
 
+#include "compare.h"
 #include "crash.h"
 #include "diag_summary.h"
+#include "functions.h"
 #include "kernel.h"
 #include "kernel_memory.h"
 #include "kernel_thunks.h"
@@ -62,6 +64,7 @@ struct Options {
     int32_t frame_rate = 60;
     int32_t start_level = -1;
     bool multiplayer = false;    // start codmp_xboxf.xbe
+    bool compare = false;        // test decompiled functions against the originals
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
@@ -125,7 +128,9 @@ void print_usage(const char* program) {
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
-        "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n",
+        "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n"
+        "  --compare        test the decompiled functions against the originals while playing\n"
+        "                   (Linux; counts in tools/data/functions.csv, details in the log)\n",
         program);
 }
 
@@ -268,6 +273,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.session_start_ns = std::strtoll(argv[++i], nullptr, 10);
         } else if (arg == "--silent") {
             options.silent = true;
+        } else if (arg == "--compare") {
+            options.compare = true;
         } else if (arg == "--debug") {
             options.log_level = platform::LogLevel::Debug;
         } else if (arg == "--trace") {
@@ -318,6 +325,7 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
             std::fclose(file);
         }
     }
+    loader::compare::flush();
     const int fd = loader::os::pass_launch_data(launch_data_page);
     if (fd < 0) {
         LOG_ERROR("loader", "reboot: cannot pass the launch data");
@@ -417,6 +425,7 @@ int loader_main(int argc, char** argv) {
             std::fprintf(stderr, "cannot write %s\n", g_log_path.string().c_str());
     }
     loader::set_fatal_exit_hook([](bool error) {
+        loader::compare::flush();
         if (g_diag_dir) loader::write_diag_summary(*g_diag_dir);
         if (error) tell_player("The game stopped after an error.");
     });
@@ -514,6 +523,21 @@ int loader_main(int argc, char** argv) {
         LOG_ERROR("loader", "SDK replacements need the symbol file (%s)", symbol_path.string().c_str());
         return startup_failed(std::string(title->symbol_file) + " is missing or damaged");
     }
+    // After the title patches and SDK replacements: they must not hook the same code.
+    loader::compare::Config compare;
+    compare.enabled = options->compare;
+    compare.multiplayer = title->id == loader::TitleId::Multiplayer;
+    compare.image_begin = image.base();
+    compare.image_end = image.base() + image.size();
+    compare.stack_limit = [] {
+        const loader::ThreadEnv* env = loader::current_thread_env();
+        return env ? env->stack_limit : 0u;
+    };
+    compare.describe = loader::describe_address;
+    if (options->compare)
+        compare.results = fs::path(COD_BRO_SYMBOLS_DIR) / (compare.multiplayer ? "functions_mp.csv" : "functions.csv");
+    loader::compare::install(game::functions(), compare);
+    std::atexit([] { loader::compare::flush(); });
 
     // The title's initial thread. Like the Xbox's, it has no TLS block (TlsData is
     // null); XAPI only creates TLS for the threads it starts itself.

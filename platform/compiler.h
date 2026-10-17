@@ -8,14 +8,18 @@
 #define XB_STDCALL __stdcall
 #define XB_FASTCALL __fastcall
 #define XB_CDECL __cdecl
+#define XB_THISCALL __thiscall
 #elif defined(__i386__)
 #define XB_STDCALL __attribute__((stdcall))
 #define XB_FASTCALL __attribute__((fastcall))
 #define XB_CDECL __attribute__((cdecl))
+// `this` in ECX, the rest on the stack, callee pops; also on free functions.
+#define XB_THISCALL __attribute__((thiscall))
 #else
 #define XB_STDCALL
 #define XB_FASTCALL
 #define XB_CDECL
+#define XB_THISCALL
 #endif
 
 #if defined(__MINGW32__)
@@ -31,4 +35,10 @@
 #else
 #define PLATFORM_PRINTF(fmt_index, args_index)
 #define PLATFORM_NOINLINE
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+// Puts a function into the named code section (loader/compare_linux.cpp keeps that
+// section executable while everything else of ours is not).
+#define PLATFORM_SECTION(name) __attribute__((section(name), noinline))
 #endif

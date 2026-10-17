@@ -1,6 +1,7 @@
 # The player release (route B, 32-bit Linux): `cmake --install` / `cpack` lay out
 #
 #   cod_bro_launcher, cod_bro_loader, default_xbe_symbols.txt, codmp_xbe_symbols.txt, README.txt
+#   lib/libcod_bro_game.so     the decompiled game code
 #   assets/README.md          the player copies the game dump here
 #   lib/                      the libraries the executables need beyond glibc and
 #                             the system's 32-bit graphics/sound drivers
@@ -24,6 +25,8 @@ endforeach()
 install(TARGETS ${release_programs}
     RUNTIME_DEPENDENCY_SET release_libraries
     RUNTIME DESTINATION .)
+# The decompiled code is a shared library in Linux loader builds (game/code).
+install(TARGETS game_code LIBRARY DESTINATION lib)
 install(RUNTIME_DEPENDENCY_SET release_libraries
     DESTINATION lib
     DIRECTORIES ${COD_BRO_RELEASE_DEPS}/lib /usr/lib/i386-linux-gnu /usr/lib /lib

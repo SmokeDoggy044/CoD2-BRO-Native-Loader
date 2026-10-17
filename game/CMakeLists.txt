@@ -1,3 +1,5 @@
+add_subdirectory(code)
+
 add_executable(cod_bro
     main.cpp
 )
