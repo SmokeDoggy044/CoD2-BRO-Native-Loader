@@ -33,8 +33,7 @@ set(COD_BRO_README_REQUIREMENTS "- 64-bit Windows 10 or 11 (the game needs memor
 If the game does not start, a message names the log file to send:
 %APPDATA%\\cod_bro\\log.txt.
 
-The Windows version has so far only been tested under Wine. OpenAL32.dll and DXVK
-are included (see LICENSES/BUNDLED.txt).")
+OpenAL32.dll and DXVK are included (see LICENSES/BUNDLED.txt).")
 set(COD_BRO_README_SETTINGS "%APPDATA%\\cod_bro\\settings.ini")
 set(COD_BRO_README_HELP "cod_bro_loader --help (from a console)")
 configure_file(${PROJECT_SOURCE_DIR}/packaging/README.txt.in ${CMAKE_BINARY_DIR}/README.txt @ONLY NEWLINE_STYLE CRLF)

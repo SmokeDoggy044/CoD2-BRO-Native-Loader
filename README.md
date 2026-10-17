@@ -34,7 +34,7 @@ Prototype 0.1.0. The single-player campaign is playable from the menus through
 the missions: 1 to 5 tested through, 6 started. It runs at the game's 30 fps,
 with the game's own widescreen mode, higher render resolutions, borderless
 fullscreen, controllers, and keyboard and mouse. Multiplayer and Xbox Live are not
-supported. The Windows version has so far only been tested under Wine. Details and
+supported. The Windows version is tested on Windows and under Wine. Details and
 next steps: [docs/status.md](docs/status.md).
 
 ## Playing
