@@ -33,8 +33,9 @@ native build).
 Prototype 0.1.0. The single-player campaign is playable from the menus through
 the missions: 1 to 5 tested through, 6 started. It runs at the game's 30 fps,
 with the game's own widescreen mode, higher render resolutions, borderless
-fullscreen, controllers, and keyboard and mouse. Multiplayer and Xbox Live are not
-supported. The Windows version is tested on Windows and under Wine. Details and
+fullscreen, controllers, and keyboard and mouse. Multiplayer runs over System Link
+on the local network ([docs/multiplayer.md](docs/multiplayer.md)); Xbox Live is not
+available. The Windows version is tested on Windows and under Wine. Details and
 next steps: [docs/status.md](docs/status.md).
 
 ## Playing
@@ -172,6 +173,7 @@ command line, so options given there win. Without game files and without
 Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter switches
 while playing), `--scale N` (window size), `--render-scale X`,
 `--anisotropy N`, `--brightness X`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--level N` (start a mission directly),
+`--multiplayer` (start multiplayer), `--net-port N` (System Link UDP ports N..N+3),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
 `--debug`/`--trace`. Playtests and performance checks use the optimized
 `linux-loader-release` build (`linux-loader` is a Debug build, several times slower

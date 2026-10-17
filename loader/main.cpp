@@ -32,6 +32,7 @@
 #include "xbox_d3d_api.h"
 #include "xbox_dsound.h"
 #include "xbox_input.h"
+#include "xonline.h"
 
 namespace fs = std::filesystem;
 
@@ -60,6 +61,8 @@ struct Options {
     bool aim_assist = true;
     int32_t frame_rate = 60;
     int32_t start_level = -1;
+    bool multiplayer = false;    // start codmp_xboxf.xbe
+    uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
     // Set by a title reboot (see reboot_title), not by users.
@@ -90,6 +93,8 @@ void print_usage(const char* program) {
         "usage: %s [options]\n"
         "  --assets DIR     game files (default: COD_BRO_ASSETS, ./assets, or the dev folder)\n"
         "  --xbe FILE       executable to load (default: <assets>/default.xbe)\n"
+        "  --multiplayer    start multiplayer (<assets>/codmp_xboxf.xbe)\n"
+        "  --net-port N     system link: UDP ports N to N+3 (default 3074; the same on every PC)\n"
         "  --symbols FILE   Ghidra symbol export: SDK replacements and readable backtraces\n"
         "                   (default: <xbe>_symbols.txt next to the loader, or tools/data)\n"
         "  --data DIR       where saves and the cache drive go (default: the user data folder)\n"
@@ -209,6 +214,15 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.aim_assist = value == "on";
+        } else if (arg == "--multiplayer") {
+            options.multiplayer = true;
+        } else if (arg == "--net-port") {
+            const long port = i + 1 < argc ? std::strtol(argv[++i], nullptr, 10) : 0;
+            if (port < 1024 || port > 65532) {
+                std::fprintf(stderr, "--net-port needs a UDP port (1024-65532)\n");
+                return std::nullopt;
+            }
+            options.net_port = static_cast<uint16_t>(port);
         } else if (arg == "--fps") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             if (value != "30" && value != "60") {
@@ -313,7 +327,7 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
     for (size_t i = 1; i < g_args.size(); ++i) {
         const std::string name = option_name(g_args[i]);
         if (name == "--xbe" || name == "--launch-data" || name == "--session-start" || name == "--press" ||
-            name == "--level" || (name == "--symbols" && !same_title)) {
+            name == "--level" || name == "--multiplayer" || (name == "--symbols" && !same_title)) {
             ++i;  // dropped with its value
             continue;
         }
@@ -432,12 +446,11 @@ int loader_main(int argc, char** argv) {
     LOG_INFO("loader", "assets: %s", assets->string().c_str());
 
     static loader::XbeImage image;
-    const fs::path xbe = options->xbe.value_or(*assets / "default.xbe");
+    const fs::path xbe = options->xbe.value_or(*assets / (options->multiplayer ? "codmp_xboxf.xbe" : "default.xbe"));
     const loader::TitleInfo* title = loader::find_title(xbe.filename().string());
     if (!title) return startup_failed(xbe.filename().string() + " is not one of the game's executables");
     if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
     g_xbe = xbe;
-    if (title->id != loader::TitleId::Campaign) LOG_WARN("loader", "multiplayer: work in progress");
 
     static loader::SymbolTable symbols;
     // A release has it next to the loader; builds use the source tree's.
@@ -460,6 +473,7 @@ int loader_main(int argc, char** argv) {
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
                                    options->frame_rate});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
+    online::configure_network({options->net_port});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;

@@ -9,7 +9,8 @@ game; no game code or data is included.
 
 This is a prototype and the proof of concept for a full native build: the
 single-player campaign is playable, missions 1 to 5 have been tested through.
-Multiplayer and Xbox Live are not supported.
+Multiplayer works over System Link (your local network); Xbox Live is not
+available.
 
 
 Setup
@@ -39,11 +40,22 @@ Gamepads use their Xbox layout. Keyboard and mouse:
   R              reload               F              use
   G              grenade              V / middle     melee
   left Shift     sprint               Q / E          lean
-  wheel / 1      next weapon          Tab (hold)     objectives
+  wheel / 1      next weapon          Tab (hold)     objectives / scores
   Escape         pause                F10            free the mouse
 
 Menus: arrow keys, Return selects, Backspace goes back. Click the window to
 capture the mouse; Alt+Tab or F10 frees it.
+
+
+Multiplayer
+-----------
+
+Start it with the launcher's Multiplayer button, or from the game's own
+Multiplayer menu item. Play System Link: one player picks Create Match, the
+others Find Match. It works between PCs on the same local network and between
+two copies of the game on one PC. Every PC needs the same System Link port
+(launcher; default UDP 3074-3077), and a firewall has to let those ports
+through on the local network.
 
 
 Options

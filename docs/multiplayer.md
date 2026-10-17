@@ -84,5 +84,8 @@ replaced, as in SP, by a notice; the menu stays at "Not signed in".
 
 ## Not done
 
-- Split screen (if the title has it), launcher and release, Windows test.
+- Launcher (2026-10-17): Multiplayer button (`--multiplayer`) and the System Link
+  port (`net-port`, `--net-port`). Not yet in a release build.
+- Split screen (if the title has it), release, Windows test (Windows firewall
+  prompt for UDP 3074-3077 unverified).
 - MP's startup memory probing logs ~40 "budget exhausted" warnings (harmless).

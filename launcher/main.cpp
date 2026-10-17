@@ -13,6 +13,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
@@ -41,6 +42,7 @@ struct Choices {
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
     bool silent = false;
+    int net_port = 3074;  // system link: UDP net_port .. net_port + 3
 };
 
 std::string number(float value) {
@@ -64,6 +66,7 @@ Choices read_choices(const platform::Settings& settings) {
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
     if (auto v = settings.get("aim-assist")) c.aim_assist = *v != "off";
     if (auto v = settings.get("silent")) c.silent = *v == "true";
+    if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
     return c;
 }
 
@@ -88,9 +91,15 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
     put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
     put("silent", c.silent == d.silent, c.silent ? "true" : "false");
+    put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
 }
 
 fs::path asset_dir(const Choices& c) { return c.assets.empty() ? platform::default_asset_dir() : fs::path(c.assets); }
+
+bool has_multiplayer(const fs::path& dir) {
+    std::error_code ec;
+    return fs::is_regular_file(dir / "codmp_xboxf.xbe", ec);
+}
 
 void open_folder(const fs::path& dir) {
     std::error_code ec;
@@ -143,6 +152,7 @@ public:
         game_files();
         display();
         controls();
+        system_link();
         reporting();
         const bool keep_open = buttons();
         ImGui::End();
@@ -245,8 +255,23 @@ private:
         help_marker("Degrees the view turns per mouse count.");
         ImGui::Checkbox("Aim assist", &choices_.aim_assist);
         help_marker("The view follows an enemy under the crosshair, as on the Xbox. Applies to the "
-                    "controller and the mouse alike.");
+                    "controller and the mouse alike, in the campaign and in multiplayer.");
         ImGui::Checkbox("Mute sound", &choices_.silent);
+    }
+
+    // Multiplayer over the local network (online/lan.h): every game on the LAN has to use
+    // the same ports.
+    void system_link() {
+        ImGui::SeparatorText("Multiplayer");
+        ImGui::TextWrapped("System Link plays with other PCs on your local network, or with a second copy "
+                           "of the game on this PC. Xbox Live is not available.");
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7);
+        if (ImGui::InputInt("System Link port", &choices_.net_port, 1, 10))
+            choices_.net_port = std::clamp(choices_.net_port, 1024, 65532);
+        ImGui::SameLine();
+        ImGui::TextDisabled("UDP %d-%d", choices_.net_port, choices_.net_port + 3);
+        help_marker("Use the same port on every PC. A firewall has to let these UDP ports through on the "
+                    "local network (Windows asks the first time you play).");
     }
 
     // For bug reports: the log of the last run (and settings.ini next to it) and the
@@ -271,8 +296,13 @@ private:
         ImGui::Separator();
         const bool ready = platform::has_game_files(asset_dir(choices_));
         ImGui::BeginDisabled(!ready);
-        const bool play = ImGui::Button("Play", ImVec2(ImGui::GetFontSize() * 7, 0));
+        const bool campaign = ImGui::Button("Play", ImVec2(ImGui::GetFontSize() * 7, 0));
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!has_multiplayer(asset_dir(choices_)));
+        const bool multiplayer = ImGui::Button("Multiplayer", ImVec2(ImGui::GetFontSize() * 7, 0));
         ImGui::EndDisabled();
+        ImGui::EndDisabled();
+        const bool play = campaign || multiplayer;
         ImGui::SameLine();
         if (ImGui::Button("Reset to defaults")) {
             const std::string assets = choices_.assets;  // the game files stay where they are
@@ -292,7 +322,9 @@ private:
         }
         if (play) {
             const fs::path game = platform::sibling_executable(COD_BRO_GAME_EXECUTABLE);
-            if (!platform::start_program(game)) {
+            std::vector<std::string> args;
+            if (multiplayer) args.push_back("--multiplayer");
+            if (!platform::start_program(game, args)) {
                 error_ = "Cannot start " + game.string();
                 return true;
             }
@@ -315,7 +347,7 @@ int main(int, char**) {
     }
     const float ui_scale = std::max(1.0f, SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
     SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale),
-                                          static_cast<int>(500 * ui_scale), SDL_WINDOW_HIGH_PIXEL_DENSITY);
+                                          static_cast<int>(580 * ui_scale), SDL_WINDOW_HIGH_PIXEL_DENSITY);
     SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
     if (!renderer) {
         LOG_ERROR("launcher", "window: %s", SDL_GetError());
