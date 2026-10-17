@@ -36,6 +36,7 @@ struct Choices {
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     int anisotropy = 16;
     float brightness = 1.0f;
+    int fps = 30;
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
@@ -57,6 +58,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
     if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
     if (auto v = settings.get("brightness")) c.brightness = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 2.0f);
+    if (auto v = settings.get("fps")) c.fps = *v == "60" ? 60 : 30;
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
@@ -81,6 +83,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
     put("anisotropy", c.anisotropy == d.anisotropy, std::to_string(c.anisotropy));
     put("brightness", c.brightness == d.brightness, number(c.brightness));
+    put("fps", c.fps == d.fps, std::to_string(c.fps));
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
     put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
@@ -212,6 +215,12 @@ private:
         ImGui::Combo("Texture filtering", &index, "Original\0" "Anisotropic x2\0" "Anisotropic x4\0"
                      "Anisotropic x8\0" "Anisotropic x16\0");
         choices_.anisotropy = kAnisotropy[index];
+
+        int fps = choices_.fps == 60 ? 1 : 0;
+        ImGui::Combo("Frame rate", &fps, "30 fps (original)\0" "60 fps\0");
+        choices_.fps = fps == 1 ? 60 : 30;
+        help_marker("The game runs at the same speed either way; 60 fps needs about twice the "
+                    "processor and graphics time.");
 
         ImGui::SliderFloat("Brightness", &choices_.brightness, 0.5f, 2.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
         help_marker("1.00 looks as on the Xbox. Higher brightens the midtones (dark interiors, night "

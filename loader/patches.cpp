@@ -368,6 +368,32 @@ void disable_aim_assist() {
     LOG_INFO("patches", "aim assist off");
 }
 
+// --- Frame rate -------------------------------------------------------------------
+//
+// The title paces itself on the vertical blank: its callback (0x000643e0) counts
+// vblanks, and the end of each frame (FUN_00064ec0) busy-waits until the number in
+// 0x008a2cb0 has passed since the last frame. FUN_000645c0(mode), cdecl, sets that
+// number: 0 = none, 1, 2; modes 3/4 = 1/2 and also set 0x00902878 (a late frame does
+// not wait for the next vblank). Every caller (startup twice, the movie player) asks
+// for mode 2 = 30 fps. Game time comes from the clock (Com_Frame: msec from
+// Com_EventLoop), so a shorter frame only means more frames, not a faster game.
+constexpr uint32_t kSetFrameInterval = 0x000645c0;
+constexpr uint32_t kFrameVBlanks = 0x008a2cb0;
+constexpr uint32_t kFrameLateNoWait = 0x00902878;
+uint32_t g_frame_vblanks = 2;
+
+void XB_CDECL set_frame_interval(uint32_t mode) {
+    if (mode > 4) return;
+    title<uint32_t>(kFrameLateNoWait) = mode >= 3 ? 1 : 0;
+    title<uint32_t>(kFrameVBlanks) = mode == 0 ? 0 : g_frame_vblanks;
+}
+
+void install_frame_rate(int32_t frame_rate) {
+    g_frame_vblanks = frame_rate == 60 ? 1 : 2;
+    install_jump(kSetFrameInterval, reinterpret_cast<const void*>(&set_frame_interval));
+    LOG_INFO("patches", "%d fps (%u vertical blanks per frame)", frame_rate, g_frame_vblanks);
+}
+
 // --- In-game menus in widescreen ------------------------------------------------------
 //
 // In 16:9 the game lays out only its HUD for the wider picture (each HUD component by
@@ -660,6 +686,7 @@ void install_title_patches(const TitlePatchConfig& config) {
     install_mouse_look();
     install_start_level(config.start_level);
     if (!config.aim_assist) disable_aim_assist();
+    install_frame_rate(config.frame_rate);
     install_menu_render_hooks();
     install_objectives_hook();
     input::set_action_remap(&remap_keyboard_actions);

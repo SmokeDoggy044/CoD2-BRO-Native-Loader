@@ -58,6 +58,7 @@ struct Options {
     std::string press_script;
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
+    int32_t frame_rate = 30;
     int32_t start_level = -1;
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
@@ -118,6 +119,7 @@ void print_usage(const char* program) {
         "                   missing features in magenta; DIR/summary.txt on exit\n"
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
+        "  --fps 30|60      frame rate (default 30, as on the Xbox)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n",
         program);
 }
@@ -207,6 +209,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.aim_assist = value == "on";
+        } else if (arg == "--fps") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "30" && value != "60") {
+                std::fprintf(stderr, "--fps needs 30 or 60\n");
+                return std::nullopt;
+            }
+            options.frame_rate = std::stoi(value);
         } else if (arg == "--brightness") {
             options.brightness = i + 1 < argc ? std::strtof(argv[++i], nullptr) : 0.0f;
             if (!(options.brightness >= 0.5f && options.brightness <= 2.0f)) {
@@ -445,7 +454,8 @@ int loader_main(int argc, char** argv) {
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
-    loader::install_title_patches({options->mouse_sensitivity, options->start_level, options->aim_assist});
+    loader::install_title_patches({options->mouse_sensitivity, options->start_level, options->aim_assist,
+                                   options->frame_rate});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
     render::D3DConfig d3d_config;
