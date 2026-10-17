@@ -22,6 +22,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/ucontext.h>
 #include <sys/wait.h>
@@ -35,6 +36,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
+#include <initializer_list>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -464,9 +466,18 @@ bool prepare_maps(ChildArea& c) {
     return true;
 }
 
-[[noreturn]] void child_main(bool run_original, int out, int in, pid_t grandchild, const Hook& hook,
-                             const Context& context) {
+// `unused`: the other pipe ends this process inherited. They must be closed: a pipe
+// whose write end is still open somewhere never reports EOF, and a test process
+// waiting on it outlives the game (holding its window open).
+[[noreturn]] void child_main(bool run_original, int out, int in, pid_t grandchild, std::initializer_list<int> unused,
+                             const Hook& hook, const Context& context) {
     ChildArea& c = xbcmp_child;
+    for (int fd : unused) close(fd);
+    // Gone with the process that forked it, and in any case after a while.
+    const pid_t parent = getppid();
+    prctl(PR_SET_PDEATHSIG, SIGKILL);
+    if (getppid() != parent) _exit(1);
+    alarm(g_config.timeout_ms / 1000 * 2 + 5);
     c.out = out;
     c.in = in;
     c.grandchild = static_cast<uint32_t>(grandchild > 0 ? grandchild : 0);
@@ -787,8 +798,9 @@ Verdict run_test(Hook& hook, const Context& entry) {
     if (child == 0) {
         // Same memory for both: fork the second test process before anything runs.
         const pid_t grandchild = fork();
-        if (grandchild == 0) child_main(false, b_out[1], b_in[0], 0, hook, entry);
-        child_main(true, a_out[1], a_in[0], grandchild, hook, entry);
+        if (grandchild == 0) child_main(false, b_out[1], b_in[0], 0, {a_out[0], a_out[1], a_in[0], a_in[1], b_out[0], b_in[1]}, hook, entry);
+        child_main(true, a_out[1], a_in[0], grandchild, {a_out[0], a_in[1], b_out[0], b_out[1], b_in[0], b_in[1]}, hook,
+                   entry);
     }
     for (int fd : {a_out[1], a_in[0], b_out[1], b_in[0]}) close(fd);
     Side sides[2];

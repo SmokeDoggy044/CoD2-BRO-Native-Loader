@@ -3,6 +3,9 @@
 // "decompiled" versions (compare_test_code.cpp) that are right, wrong, hang, crash,
 // pop the wrong number of bytes or call host code.
 
+#include <signal.h>
+#include <sys/prctl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include <cstdio>
@@ -104,6 +107,41 @@ int main() {
     expect("hang", 0, 0, 1);
     expect("crash", 0, 1, 0);
     expect("square", 1, 0, 0);
+
+    // A test still running when the game is killed (Ctrl+C, a crash) leaves no test
+    // processes behind: they would keep the game's window and sockets open.
+    prctl(PR_SET_CHILD_SUBREAPER, 1);  // orphaned test processes come back to us
+    const pid_t game = fork();
+    if (game == 0) {
+        uint32_t data[2] = {37, 0};
+        reinterpret_cast<Add>(uintptr_t{slot(4)})(data, 5);  // "hang": tested, runs 500 ms
+        _exit(0);
+    }
+    usleep(200 * 1000);
+    kill(game, SIGKILL);
+    waitpid(game, nullptr, 0);
+    bool left = true;
+    for (int i = 0; i < 40 && left; ++i) {
+        while (waitpid(-1, nullptr, WNOHANG) > 0) {
+        }
+        left = waitpid(-1, nullptr, WNOHANG) == 0;  // -1 (ECHILD): none left
+        if (left) usleep(50 * 1000);
+    }
+    CHECK(!left, "test processes outlived the killed game");
+    // End our leftover children (subreaper), nothing else; a grandchild only becomes
+    // ours when its parent is gone, hence the rounds.
+    for (int round = 0; left && round < 20; ++round) {
+        for (const auto& entry : std::filesystem::directory_iterator("/proc")) {
+            std::ifstream stat(entry.path() / "stat");
+            std::string pid, comm, state;
+            pid_t ppid = 0;
+            if (stat >> pid >> comm >> state >> ppid && ppid == getpid()) kill(std::stoi(pid), SIGKILL);
+        }
+        usleep(50 * 1000);
+        while (waitpid(-1, nullptr, WNOHANG) > 0) {
+        }
+        left = waitpid(-1, nullptr, WNOHANG) == 0;
+    }
 
     // Counts add up across flushes (and runs).
     loader::compare::flush();
