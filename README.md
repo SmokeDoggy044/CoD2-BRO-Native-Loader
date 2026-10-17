@@ -30,9 +30,9 @@ native build).
 
 ## Status
 
-Prototype 0.1.0. The single-player campaign is playable from the menus through
-the missions: 1 to 5 tested through, 6 started. It runs at the game's 30 fps,
-with the game's own widescreen mode, higher render resolutions, borderless
+Prototype 0.1.1. The single-player campaign is playable from the menus through
+the missions: 1 to 5 tested through, 6 started. It runs at 60 fps (or the game's
+30), with the game's own widescreen mode, higher render resolutions, borderless
 fullscreen, controllers, and keyboard and mouse. Multiplayer runs over System Link
 on the local network ([docs/multiplayer.md](docs/multiplayer.md)); Xbox Live is not
 available. The Windows version is tested on Windows and under Wine. Details and
