@@ -5,7 +5,9 @@
 #include "patches.h"
 
 #include <algorithm>
+#include <array>
 #include <iterator>
+#include <mutex>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -537,6 +539,75 @@ void install_objectives_hook() {
     put_rel32(site, 0xE8, thunk);
 }
 
+// --- Multiplayer: a thread-safe game heap ---------------------------------------------
+//
+// codmp_xboxf.xbe's heap (dlmalloc-style, a "current heap" global at 0x00451648) has
+// no lock. While a level loads, MPLevelLoader::run (FUN_00189af0, "Level pump
+// thread", priority HIGHEST) pumps the network every 200 ms and allocates while the
+// main thread allocates too. On the single-core Xbox the pump only cuts in now and
+// then; with real parallelism the free lists got corrupted (crash in free
+// FUN_00043fc0 while joining). Every heap entry point now runs under one lock.
+
+// The original function starts with `length` bytes of position-independent
+// instructions, which move to a trampoline that continues after them. Returns the
+// trampoline (call it to run the original), or null if the bytes differ.
+const void* hook_with_original(uint32_t address, std::span<const uint8_t> expected, const void* replacement) {
+    auto* code = reinterpret_cast<uint8_t*>(uintptr_t{address});
+    if (expected.size() < 5 || std::memcmp(code, expected.data(), expected.size()) != 0) {
+        LOG_WARN("patches", "%08x: unexpected code; not hooked", address);
+        return nullptr;
+    }
+    uint8_t* trampoline = alloc_code(expected.size() + 5);
+    if (!trampoline) return nullptr;
+    std::memcpy(trampoline, code, expected.size());
+    put_rel32(trampoline + expected.size(), 0xE9, code + expected.size());
+    put_rel32(code, 0xE9, replacement);
+    std::memset(code + 5, 0xCC, expected.size() - 5);  // never reached: the jump leaves first
+    return trampoline;
+}
+
+std::recursive_mutex g_heap_mutex;
+using HeapAlloc = uint32_t(XB_CDECL*)(uint32_t);
+using HeapAlignedAlloc = uint32_t(XB_CDECL*)(uint32_t, uint32_t);
+using HeapFree = void(XB_CDECL*)(uint32_t);
+using HeapFreeIn = void(XB_CDECL*)(uint32_t, uint32_t);
+HeapAlloc g_heap_alloc;
+HeapAlignedAlloc g_heap_aligned_alloc;
+HeapFree g_heap_free;
+HeapFreeIn g_heap_free_in;
+
+uint32_t XB_CDECL locked_heap_alloc(uint32_t size) {
+    std::lock_guard lock(g_heap_mutex);
+    return g_heap_alloc(size);
+}
+uint32_t XB_CDECL locked_heap_aligned_alloc(uint32_t alignment, uint32_t size) {
+    std::lock_guard lock(g_heap_mutex);
+    return g_heap_aligned_alloc(alignment, size);
+}
+void XB_CDECL locked_heap_free(uint32_t pointer) {
+    std::lock_guard lock(g_heap_mutex);
+    g_heap_free(pointer);
+}
+void XB_CDECL locked_heap_free_in(uint32_t heap, uint32_t pointer) {
+    std::lock_guard lock(g_heap_mutex);
+    g_heap_free_in(heap, pointer);
+}
+
+void install_multiplayer_heap_lock() {
+    // push ebx; mov ebx,[esp+8]
+    g_heap_alloc = reinterpret_cast<HeapAlloc>(
+        hook_with_original(0x00043a10, std::to_array<uint8_t>({0x53, 0x8b, 0x5c, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_alloc)));
+    // mov eax,[0x00451638]
+    g_heap_aligned_alloc = reinterpret_cast<HeapAlignedAlloc>(hook_with_original(
+        0x00043850, std::to_array<uint8_t>({0xa1, 0x38, 0x16, 0x45, 0x00}), reinterpret_cast<const void*>(&locked_heap_aligned_alloc)));
+    // push esi; mov esi,[esp+8]
+    g_heap_free = reinterpret_cast<HeapFree>(
+        hook_with_original(0x00043630, std::to_array<uint8_t>({0x56, 0x8b, 0x74, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_free)));
+    // mov ecx,[esp+8]; mov eax,[esp+4]
+    g_heap_free_in = reinterpret_cast<HeapFreeIn>(hook_with_original(
+        0x00043470, std::to_array<uint8_t>({0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x04}), reinterpret_cast<const void*>(&locked_heap_free_in)));
+}
+
 // --- Frame rate -------------------------------------------------------------------
 //
 // The title paces itself on the vertical blank: its callback (0x000643e0) counts
@@ -803,6 +874,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     std::memset(reinterpret_cast<void*>(uintptr_t{data.launch_hook_table}), 0,
                 data.launch_hook_table_end - data.launch_hook_table);
     install_rdtsc_patches(data.rdtsc_sites);
+    if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
     if (title.id != TitleId::Campaign) return;  // the PC features below use campaign addresses
 
     g_mouse_degrees_per_count = config.mouse_degrees_per_count;

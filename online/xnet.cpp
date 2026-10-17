@@ -209,6 +209,13 @@ int32_t XB_STDCALL XNetInAddrToXnAddr(uint32_t ina, XbPtr xnaddr, XbPtr kid) {
 
 int32_t XB_STDCALL XNetUnregisterInAddr(uint32_t /*ina*/) { return 0; }
 
+// XNet's key exchange with a peer before the first packet: nothing to exchange here.
+constexpr uint32_t kConnectStatusConnected = 2;  // XNET_CONNECT_STATUS_CONNECTED
+
+int32_t XB_STDCALL XNetConnect(uint32_t /*ina*/) { return 0; }
+
+uint32_t XB_STDCALL XNetGetConnectStatus(uint32_t /*ina*/) { return kConnectStatusConnected; }
+
 int32_t XB_STDCALL XNetInAddrToString(uint32_t ina, XbPtr text, int32_t size) {
     const auto* b = reinterpret_cast<const uint8_t*>(&ina);
     std::snprintf(from_xbox_ptr<char>(text), static_cast<size_t>(size), "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
@@ -369,7 +376,9 @@ int32_t XB_STDCALL recvfrom(uint32_t handle, XbPtr buffer, int32_t length, uint3
 
 const xbox::KernelImpl kFunctions[] = {
     XNET(XNetCleanup),
+    XNET(XNetConnect),
     XNET(XNetCreateKey),
+    XNET(XNetGetConnectStatus),
     XNET(XNetGetEthernetLinkStatus),
     XNET(XNetGetTitleXnAddr),
     XNET(XNetInAddrToString),

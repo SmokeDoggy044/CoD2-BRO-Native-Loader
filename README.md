@@ -90,6 +90,7 @@ part of this project.
 |---|---|
 | [docs/status.md](docs/status.md) | What works per subsystem, playtest results, next steps |
 | [docs/rendering.md](docs/rendering.md) | Direct3D replacement: design, draw path, render scale, widescreen, frame dumps |
+| [docs/multiplayer.md](docs/multiplayer.md) | codmp_xboxf.xbe: per-title setup, system link on a virtual LAN, threads |
 | [docs/playtesting.md](docs/playtesting.md) | `--diag` sessions, scripted and unattended runs, the feature sweep |
 | [docs/comparison-harness.md](docs/comparison-harness.md) | Planned: checking decompiled functions against the original |
 | [assets/README.md](assets/README.md) | For players: where the game files go |

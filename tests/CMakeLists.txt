@@ -6,6 +6,13 @@ add_executable(settings_test settings_test.cpp)
 target_link_libraries(settings_test PRIVATE platform)
 add_test(NAME settings_test COMMAND settings_test)
 
+# The virtual Xbox LAN (system link) over loopback UDP.
+add_executable(lan_test lan_test.cpp ${PROJECT_SOURCE_DIR}/online/lan.cpp)
+target_include_directories(lan_test PRIVATE ${PROJECT_SOURCE_DIR}/online)
+target_link_libraries(lan_test PRIVATE platform)
+add_test(NAME lan_test COMMAND lan_test)
+set_tests_properties(lan_test PROPERTIES TIMEOUT 30)
+
 # xbox/ stores the title's pointers as 32-bit values (XbPtr), which is only valid in a
 # 32-bit address space, so the tests are built for 32-bit targets only for now.
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
