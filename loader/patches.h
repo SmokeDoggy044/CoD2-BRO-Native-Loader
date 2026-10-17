@@ -17,7 +17,7 @@ struct TitlePatchConfig {
     float mouse_degrees_per_count = 0.11f;  // mouse look (PC CoD: sensitivity 5 * m_yaw 0.022)
     int32_t start_level = -1;               // >= 0: start this mission once the menus are up (testing)
     bool aim_assist = true;                 // false: no sticky aim (the view following a target)
-    int32_t frame_rate = 30;                // 30 (as on the Xbox) or 60: frames per second
+    int32_t frame_rate = 60;                // 60 or 30 (as on the Xbox): frames per second
 };
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,

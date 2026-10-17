@@ -36,7 +36,7 @@ struct Choices {
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     int anisotropy = 16;
     float brightness = 1.0f;
-    int fps = 30;
+    int fps = 60;
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
@@ -58,7 +58,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
     if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
     if (auto v = settings.get("brightness")) c.brightness = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 2.0f);
-    if (auto v = settings.get("fps")) c.fps = *v == "60" ? 60 : 30;
+    if (auto v = settings.get("fps")) c.fps = *v == "30" ? 30 : 60;
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);

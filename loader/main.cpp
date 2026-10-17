@@ -58,7 +58,7 @@ struct Options {
     std::string press_script;
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
-    int32_t frame_rate = 30;
+    int32_t frame_rate = 60;
     int32_t start_level = -1;
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
@@ -119,7 +119,7 @@ void print_usage(const char* program) {
         "                   missing features in magenta; DIR/summary.txt on exit\n"
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
-        "  --fps 30|60      frame rate (default 30, as on the Xbox)\n"
+        "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n",
         program);
 }
