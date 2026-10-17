@@ -39,6 +39,13 @@ Spot checks (2026-10-17): Cbuf_AddText 0x002aabb0 (text in EAX), Com_sprintf
 0x00300b30 (a key-table store) and a graph guess that swapped COM_ParseExt
 (really 0x002b0250) with SkipWhitespace.
 
+## Applying
+
+`tools/ghidra/ApplyNames.java CSV` creates missing functions and renames only
+functions that still have a FUN_ name; then re-run `ExportSymbols.java` into
+`tools/data/default_xbe_symbols.txt`. Applied 2026-10-17: every proposal except the
+graph pass (CG_Printf kept, checked by hand), 96 names.
+
 ## Limits
 
 The release build stripped most messages (only ~1,200 of 9,200 `.text` functions
