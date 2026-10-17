@@ -26,7 +26,7 @@ void handle_signal(int signal, siginfo_t* info, void* context) {
               reg(REG_ECX), reg(REG_EDX), reg(REG_ESI), reg(REG_EDI));
     LOG_ERROR("crash", "esp=%08x ebp=%08x eflags=%08x", reg(REG_ESP), reg(REG_EBP), reg(REG_EFL));
     log_backtrace(reg(REG_EIP), reg(REG_EBP));
-    run_fatal_exit_hook();
+    run_fatal_exit_hook(true);
     _exit(128 + signal);
 }
 
@@ -36,7 +36,7 @@ void stop_signal_thread(sigset_t signals) {
     int signal = 0;
     sigwait(&signals, &signal);
     LOG_INFO("loader", "stopped by %s", strsignal(signal));
-    run_fatal_exit_hook();
+    run_fatal_exit_hook(false);
     _exit(128 + signal);
 }
 

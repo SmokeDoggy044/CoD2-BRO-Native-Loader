@@ -35,6 +35,7 @@ struct Choices {
     int scale = 2;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     int anisotropy = 16;
+    std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
     bool silent = false;
@@ -54,6 +55,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("scale")) c.scale = std::clamp(std::atoi(v->c_str()), 1, 8);
     if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
     if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
+    if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
     if (auto v = settings.get("aim-assist")) c.aim_assist = *v != "off";
@@ -76,6 +78,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("scale", c.scale == d.scale, std::to_string(c.scale));
     put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
     put("anisotropy", c.anisotropy == d.anisotropy, std::to_string(c.anisotropy));
+    put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
     put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
     put("silent", c.silent == d.silent, c.silent ? "true" : "false");
@@ -205,6 +208,17 @@ private:
         ImGui::Combo("Texture filtering", &index, "Original\0" "Anisotropic x2\0" "Anisotropic x4\0"
                      "Anisotropic x8\0" "Anisotropic x16\0");
         choices_.anisotropy = kAnisotropy[index];
+
+#ifdef _WIN32
+        static constexpr const char* kD3D9[] = {"auto", "dxvk", "system"};
+        int d3d9 = 0;
+        while (d3d9 < 2 && choices_.d3d9 != kD3D9[d3d9]) ++d3d9;
+        ImGui::Combo("Graphics", &d3d9, "Automatic\0" "Vulkan (DXVK)\0" "Direct3D 9 (Windows)\0");
+        choices_.d3d9 = kD3D9[d3d9];
+        help_marker("Automatic uses Vulkan through the included DXVK and falls back to the Direct3D 9 that "
+                    "comes with Windows when Vulkan is not available. Choose one yourself if the picture "
+                    "or the speed is wrong with the other.");
+#endif
     }
 
     void controls() {

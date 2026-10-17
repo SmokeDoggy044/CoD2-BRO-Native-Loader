@@ -49,7 +49,7 @@ next steps: [docs/status.md](docs/status.md).
 | | Linux | Windows |
 |---|---|---|
 | System | 64-bit or 32-bit x86, glibc 2.30 or newer | 64-bit Windows 10 or 11 |
-| Graphics | Vulkan 1.3 with 32-bit drivers (Mesa or NVIDIA), through the bundled DXVK | Any GPU with a current driver (Direct3D 9 is part of Windows; nothing to install) |
+| Graphics | Vulkan 1.3 with 32-bit drivers (Mesa or NVIDIA), through the bundled DXVK | Vulkan 1.3 through the bundled DXVK, or else any GPU through the Direct3D 9 that is part of Windows (picked by itself; nothing to install) |
 | Other | 32-bit X11/Wayland and PulseAudio/PipeWire client libraries (as 32-bit Steam games need) | - |
 
 Controls and options are in the `README.txt` inside the archive.
@@ -70,8 +70,10 @@ Controls and options are in the `README.txt` inside the archive.
   the input library and Xbox Live are redirected to our code by name, using a symbol
   file exported from Ghidra (`render/`, `audio/`, `input/`, `online/`).
 - **Rendering:** the game's Direct3D 8 calls and NV2A shaders are translated to
-  Direct3D 9: DXVK on Linux, the `d3d9.dll` that comes with Windows on Windows
-  (no DirectX runtime or D3DX needed; shaders are emitted as bytecode). See
+  Direct3D 9, implemented by DXVK on Vulkan. On Windows the bundled DXVK
+  (`dxvk/d3d9.dll`) is tried first and the `d3d9.dll` that comes with Windows is
+  the fallback (`--d3d9 auto|dxvk|system`, Graphics in the launcher); no DirectX
+  runtime or D3DX is needed (shaders are emitted as bytecode). See
   [docs/rendering.md](docs/rendering.md).
 
 ## License
@@ -155,6 +157,8 @@ Builds use the release layout: executables in `build/<preset>/bin/`, next to an
 holds only the players' README, which releases ship. The game only reads there.
 What it writes (saves, the cache drive) goes to the per-user data folder:
 `~/.local/share/cod_bro` (Linux), `%APPDATA%\cod_bro` (Windows), or `--data DIR`.
+Each run's log is `log.txt` in the user data folder (with `--diag`, in its folder);
+on Windows a message box points to it when the game cannot start or crashes.
 Override assets with `--assets DIR` or `COD_BRO_ASSETS`.
 
 Players use `cod_bro_launcher`: it shows where the game files go, sets the options
@@ -216,9 +220,12 @@ machine's own libraries instead; it only runs on systems as new as this one.
 
 Windows (cross-built here with MinGW-w64, `cmake/release_windows.cmake`):
 
+    packaging/windows-dxvk/build.sh        # once: DXVK's d3d9.dll (podman, Fedora container)
     cmake --preset windows-mingw-release && cmake --build --preset windows-mingw-release
     cpack --preset windows-mingw-release   # build/windows-mingw-release/package/cod_bro-<version>-windows.zip
 
 The zip holds the launcher, the loader stub and `cod_bro_loader_core.dll`,
 `OpenAL32.dll` (the only DLL; SDL3 and the GCC runtime are linked in), the symbol
-file, `assets/`, the README and `LICENSES/`. Direct3D 9 is the system's.
+file, `dxvk/d3d9.dll`, `assets/`, the README and `LICENSES/`. DXVK sits in its own
+folder so that only the loader picks it, and the system's `d3d9.dll` stays
+reachable as the fallback.

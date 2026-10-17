@@ -31,6 +31,10 @@ std::vector<uint8_t> read_launch_data(int id);
 // place of this process: exec on Linux; on Windows a new process, and this one ends.
 [[noreturn]] void restart(const std::vector<std::string>& args);
 
+// Windows: a message box, since the player has no console. Nothing on Linux, where
+// stderr and the log file have it. Any thread, also while crashing.
+void show_error(const std::string& title, const std::string& text);
+
 }  // namespace loader::os
 
 // The loader's main (main.cpp), called by the platform's entry point.

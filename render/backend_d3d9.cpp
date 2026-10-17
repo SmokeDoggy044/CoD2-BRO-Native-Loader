@@ -1,5 +1,6 @@
 // D3D9 back end: an SDL3 window and a Direct3D 9 device. On Linux d3d9 is DXVK
-// (dxvk-native, which takes the SDL_Window* as its HWND); on Windows it is the system's.
+// (dxvk-native, which takes the SDL_Window* as its HWND); on Windows it is loaded at
+// run time: DXVK's d3d9.dll from the release's dxvk/ folder, or the system's.
 
 #include <SDL3/SDL.h>
 
@@ -19,6 +20,7 @@
 #include "d3d9_draw.h"
 #include "d3d9_overlay.h"
 #include "log.h"
+#include "paths.h"
 
 namespace render {
 
@@ -36,6 +38,16 @@ HWND window_handle(SDL_Window* window) {
         SDL_GetPointerProperty(SDL_GetWindowProperties(window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
 #else
     return reinterpret_cast<HWND>(window);
+#endif
+}
+
+// Only where nothing set it already, unless `overwrite`.
+void set_env(const char* name, const std::string& value, bool overwrite) {
+    if (!overwrite && std::getenv(name)) return;
+#ifdef _WIN32
+    _putenv_s(name, value.c_str());
+#else
+    setenv(name, value.c_str(), 1);
 #endif
 }
 
@@ -90,8 +102,15 @@ public:
         const uint32_t window_width =
             config.display_aspect > 0 ? static_cast<uint32_t>(std::lround(window_height * config.display_aspect))
                                       : config.width * scale;
+#ifdef _WIN32
+        // DXVK on Windows draws into the HWND itself. SDL_WINDOW_VULKAN would make the
+        // window depend on a Vulkan driver, which the system's D3D9 does not need.
+        constexpr SDL_WindowFlags kWindowFlags = SDL_WINDOW_RESIZABLE;
+#else
+        constexpr SDL_WindowFlags kWindowFlags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
+#endif
         window_ = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(window_width),
-                                   static_cast<int>(window_height), SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+                                   static_cast<int>(window_height), kWindowFlags);
         if (!window_) {
             LOG_ERROR("render", "window: %s", SDL_GetError());
             return false;
@@ -120,27 +139,22 @@ public:
         }
 #ifndef _WIN32
         // dxvk-native supports several window systems; ours is SDL3.
-        setenv("DXVK_WSI_DRIVER", "SDL3", 0);
+        set_env("DXVK_WSI_DRIVER", "SDL3", false);
         // DXVK's messages still go to stderr, but no <exe>_d3d9.log files land in the
         // working folder.
-        setenv("DXVK_LOG_PATH", "none", 0);
+        set_env("DXVK_LOG_PATH", "none", false);
+#else
+        // DXVK on Windows logs only to files: keep them with the game's log.
+        set_env("DXVK_LOG_PATH", platform::user_data_dir().string(), false);
+#endif
         // Present without waiting for the display (see BackendConfig::vsync) but without
-        // tearing: DXVK then uses the mailbox mode. (Windows composes windowed swap
-        // chains, which do not tear.)
+        // tearing: DXVK then uses the mailbox mode. (The system's D3D9 on Windows
+        // composes windowed swap chains, which do not tear.)
         if (config.vsync) {
             const char* user = std::getenv("DXVK_CONFIG");
-            const std::string dxvk = std::string(user ? user : "") + (user && *user ? "; " : "") + "dxvk.tearFree = True";
-            setenv("DXVK_CONFIG", dxvk.c_str(), 1);
+            set_env("DXVK_CONFIG", std::string(user ? user : "") + (user && *user ? "; " : "") + "dxvk.tearFree = True",
+                    true);
         }
-#endif
-        d3d_ = Direct3DCreate9(D3D_SDK_VERSION);
-        if (!d3d_) {
-            LOG_ERROR("render", "Direct3DCreate9 failed");
-            return false;
-        }
-        D3DADAPTER_IDENTIFIER9 id{};
-        if (SUCCEEDED(d3d_->GetAdapterIdentifier(D3DADAPTER_DEFAULT, 0, &id)))
-            LOG_INFO("render", "D3D9 adapter: %s", id.Description);
 
         // The title's back buffer (render scale) is stretched onto the swap chain's
         // window-sized corner. Depth buffers are D3D9Draw's.
@@ -154,16 +168,19 @@ public:
         pp.Windowed = TRUE;
         pp.EnableAutoDepthStencil = FALSE;
         pp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
-        // The title calls D3D from more than one thread (its vertical blank callback
-        // and loading screens), so let the runtime serialize.
-        const HRESULT hr = d3d_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, pp.hDeviceWindow,
-                                              D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED |
-                                                  D3DCREATE_FPU_PRESERVE,
-                                              &pp, &device_);
-        if (FAILED(hr)) {
-            LOG_ERROR("render", "CreateDevice failed: %08x", static_cast<unsigned>(hr));
+#ifdef _WIN32
+        if (!open_device(config.d3d9, pp)) {
+            LOG_ERROR("render", "no Direct3D 9 device: update the graphics driver%s",
+                      config.d3d9 == BackendConfig::D3D9::Auto ? "" : ", or set Graphics to Automatic in the launcher");
             return false;
         }
+#else
+        d3d_ = Direct3DCreate9(D3D_SDK_VERSION);
+        if (!create_device("DXVK", pp)) {
+            LOG_ERROR("render", "no Direct3D 9 device: DXVK needs Vulkan 1.3 with 32-bit drivers");
+            return false;
+        }
+#endif
         width_ = config.width;
         height_ = config.height;
         aspect_ = config.display_aspect > 0 ? config.display_aspect : static_cast<float>(width_) / height_;
@@ -181,6 +198,67 @@ public:
                  config.fullscreen ? " (fullscreen)" : "", swap_width_, swap_height_);
         return true;
     }
+
+    // A device from d3d_ (which it releases on failure). Logged either way.
+    bool create_device(const char* name, D3DPRESENT_PARAMETERS pp) {
+        if (!d3d_) {
+            LOG_WARN("render", "%s: Direct3DCreate9 failed", name);
+            return false;
+        }
+        if (d3d_->GetAdapterCount() == 0) {
+            LOG_WARN("render", "%s: no graphics adapter", name);
+            release(d3d_);
+            return false;
+        }
+        D3DADAPTER_IDENTIFIER9 id{};
+        if (SUCCEEDED(d3d_->GetAdapterIdentifier(D3DADAPTER_DEFAULT, 0, &id)))
+            LOG_INFO("render", "%s, adapter: %s", name, id.Description);
+        // The title calls D3D from more than one thread (its vertical blank callback
+        // and loading screens), so let the runtime serialize.
+        const HRESULT hr = d3d_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, pp.hDeviceWindow,
+                                              D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED |
+                                                  D3DCREATE_FPU_PRESERVE,
+                                              &pp, &device_);
+        if (FAILED(hr)) {
+            LOG_WARN("render", "%s: CreateDevice failed: %08x", name, static_cast<unsigned>(hr));
+            release(d3d_);
+            return false;
+        }
+        return true;
+    }
+
+#ifdef _WIN32
+    // DXVK from <executable dir>/dxvk (not next to the loader, where every load of
+    // d3d9.dll would get it) and/or the system's, in that order. A library that loaded
+    // but gave no device stays loaded: its threads may still be winding down.
+    bool open_device(BackendConfig::D3D9 choice, const D3DPRESENT_PARAMETERS& pp) {
+        using Create = IDirect3D9*(WINAPI*)(UINT);
+        struct Library {
+            const char* name;
+            std::wstring path;
+            DWORD flags;
+        };
+        std::vector<Library> libraries;
+        if (choice != BackendConfig::D3D9::System)
+            libraries.push_back({"DXVK (Vulkan)", (platform::executable_dir() / "dxvk" / "d3d9.dll").wstring(),
+                                 LOAD_WITH_ALTERED_SEARCH_PATH});
+        if (choice != BackendConfig::D3D9::Dxvk)
+            libraries.push_back({"Windows Direct3D 9", L"d3d9.dll", LOAD_LIBRARY_SEARCH_SYSTEM32});
+        for (const Library& library : libraries) {
+            HMODULE module = LoadLibraryExW(library.path.c_str(), nullptr, library.flags);
+            if (!module) {
+                LOG_WARN("render", "%s: cannot load %ls (error %lu)", library.name, library.path.c_str(),
+                         static_cast<unsigned long>(GetLastError()));
+                continue;
+            }
+            const auto create =
+                reinterpret_cast<Create>(reinterpret_cast<void (*)()>(GetProcAddress(module, "Direct3DCreate9")));
+            d3d_ = create ? create(D3D_SDK_VERSION) : nullptr;
+            if (create_device(library.name, pp)) return true;
+        }
+        return false;
+    }
+#endif
 
     void set_render_target(const SurfaceDesc& color, const SurfaceDesc* depth) override {
         draw_->set_render_target(color, depth);

@@ -27,6 +27,8 @@ void* map_image(uint32_t base, uint32_t size) {
 
 void release_reserved_ranges() {}
 
+void show_error(const std::string&, const std::string&) {}
+
 int pass_launch_data(std::span<const uint8_t> page) {
     const int fd = memfd_create("cod_bro_launch_data", 0);  // inherited by the new image
     if (fd < 0 || write(fd, page.data(), page.size()) != static_cast<ssize_t>(page.size())) return -1;

@@ -172,7 +172,10 @@ uint32_t XB_STDCALL Direct3D_CreateDevice(uint32_t /*adapter*/, uint32_t /*devic
     backend_config.depth_stencil = surface_desc(g.depth_stencil);
     platform::HostFloatEnv float_env;
     g.backend = create_d3d9_backend(backend_config);
-    if (!g.backend) return kD3DErrInvalidCall;
+    if (!g.backend) {
+        if (g.config.device_failed) g.config.device_failed();
+        return kD3DErrInvalidCall;
+    }
 
     g.device = new uint8_t[kDeviceSize]{};
     // Always progressive here: no interlaced or field modes.

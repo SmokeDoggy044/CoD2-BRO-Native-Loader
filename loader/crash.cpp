@@ -18,7 +18,7 @@ namespace {
 
 const XbeImage* g_image = nullptr;
 const SymbolTable* g_symbols = nullptr;
-void (*g_exit_hook)() = nullptr;
+void (*g_exit_hook)(bool error) = nullptr;
 std::atomic<bool> g_exiting{false};
 
 bool on_xbox_stack(uint32_t address) {
@@ -33,10 +33,10 @@ void set_crash_context(const XbeImage& image, const SymbolTable& symbols) {
     g_symbols = &symbols;
 }
 
-void run_fatal_exit_hook() {
+void run_fatal_exit_hook(bool error) {
     if (g_exiting.exchange(true))
         for (;;) std::this_thread::sleep_for(std::chrono::hours(1));
-    if (g_exit_hook) g_exit_hook();
+    if (g_exit_hook) g_exit_hook(error);
 }
 
 std::string describe_address(uint32_t address) {
@@ -67,10 +67,10 @@ void log_backtrace(uint32_t eip, uint32_t ebp) {
 void fatal_with_backtrace(const char* message, uint32_t eip, uint32_t ebp) {
     LOG_ERROR("fatal", "%s", message);
     log_backtrace(eip, ebp);
-    run_fatal_exit_hook();
+    run_fatal_exit_hook(true);
     std::_Exit(1);
 }
 
-void set_fatal_exit_hook(void (*hook)()) { g_exit_hook = hook; }
+void set_fatal_exit_hook(void (*hook)(bool error)) { g_exit_hook = hook; }
 
 }  // namespace loader

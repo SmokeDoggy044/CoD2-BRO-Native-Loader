@@ -45,6 +45,7 @@ struct Options {
     uint32_t memory_mb = 64;
     uint32_t scale = 2;
     uint32_t anisotropy = 16;
+    render::BackendConfig::D3D9 d3d9 = render::BackendConfig::D3D9::Auto;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
     bool widescreen = true;
@@ -66,6 +67,19 @@ struct Options {
 std::vector<std::string> g_args;
 fs::path g_xbe;  // the running XBE
 std::optional<fs::path> g_diag_dir;
+fs::path g_log_path;           // this run's log file
+bool g_tell_player = false;    // error boxes (not in scripted runs)
+
+// What went wrong, for a player without a console (a message box on Windows).
+void tell_player(const std::string& what) {
+    if (!g_tell_player) return;
+    loader::os::show_error("Call of Duty 2: Big Red One", what + "\n\nDetails are in the log:\n" + g_log_path.string());
+}
+
+int startup_failed(const std::string& what) {
+    tell_player("The game could not start: " + what + ".");
+    return 1;
+}
 
 void print_usage(const char* program) {
     std::printf(
@@ -87,6 +101,8 @@ void print_usage(const char* program) {
         "  --aspect A       16:9 (default: the game's widescreen mode, wider view and HUD) or 4:3\n"
         "  --anisotropy N   anisotropic filtering for mipmapped textures, 1-16 (default 16;\n"
         "                   1 = what the game asks for)\n"
+        "  --d3d9 WHICH     Windows: auto (default: DXVK on Vulkan, else the system's), dxvk or\n"
+        "                   system (Linux always uses DXVK)\n"
         "  --screenshots N DIR  save every Nth frame as DIR/frame_<n>.bmp (debugging)\n"
         "  --press LIST     scripted presses on port 0, e.g. start@20,a@25.5,back@80+4 (seconds after\n"
         "                   start, +S holds the button S seconds;\n"
@@ -187,6 +203,18 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.aim_assist = value == "on";
+        } else if (arg == "--d3d9") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value == "auto")
+                options.d3d9 = render::BackendConfig::D3D9::Auto;
+            else if (value == "dxvk")
+                options.d3d9 = render::BackendConfig::D3D9::Dxvk;
+            else if (value == "system")
+                options.d3d9 = render::BackendConfig::D3D9::System;
+            else {
+                std::fprintf(stderr, "--d3d9 needs auto, dxvk or system\n");
+                return std::nullopt;
+            }
         } else if (arg == "--level") {
             if (i + 1 >= argc || (options.start_level = std::atoi(argv[++i])) < 0 || options.start_level > 13) {
                 std::fprintf(stderr, "--level needs a mission number (0-13)\n");
@@ -333,30 +361,44 @@ int loader_main(int argc, char** argv) {
             std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                 std::chrono::nanoseconds(*options->session_start_ns))));
     platform::log_set_level(options->log_level);
+    g_tell_player = options->press_script.empty() && !options->screenshot_dir;
     if (options->diag_dir) {
         fs::create_directories(*options->diag_dir);
-        const fs::path log = *options->diag_dir / "log.txt";
-        if (!platform::log_set_file(log.string().c_str())) {
-            std::fprintf(stderr, "cannot write %s\n", log.string().c_str());
+        g_log_path = *options->diag_dir / "log.txt";
+        if (!platform::log_set_file(g_log_path.string().c_str())) {
+            std::fprintf(stderr, "cannot write %s\n", g_log_path.string().c_str());
             return 1;
         }
         LOG_INFO("diag", "diagnostics in %s: a screenshot every %u s, F12 marks a problem",
                  options->diag_dir->string().c_str(), options->diag_seconds);
         // summary.txt when the process ends (not on a reboot: the session goes on).
         std::atexit([] { loader::write_diag_summary(*g_diag_dir); });
-        loader::set_fatal_exit_hook([] { loader::write_diag_summary(*g_diag_dir); });
+    } else {
+        // Always a log, so that a player without a console can send it: one run per
+        // file (a reboot continues it), in the user data folder.
+        std::error_code ec;
+        fs::create_directories(platform::user_data_dir(), ec);
+        g_log_path = platform::user_data_dir() / "log.txt";
+        if (!options->launch_data_fd) fs::remove(g_log_path, ec);
+        if (!platform::log_set_file(g_log_path.string().c_str()))
+            std::fprintf(stderr, "cannot write %s\n", g_log_path.string().c_str());
     }
+    loader::set_fatal_exit_hook([](bool error) {
+        if (g_diag_dir) loader::write_diag_summary(*g_diag_dir);
+        if (error) tell_player("The game stopped after an error.");
+    });
 
     const auto assets = platform::resolve_asset_root(options->assets);
     if (!assets) {
-        start_launcher_for_assets(argc, argv);
+        if (!start_launcher_for_assets(argc, argv))
+            return startup_failed("no game files (copy your game dump into the assets folder)");
         return 1;
     }
     LOG_INFO("loader", "assets: %s", assets->string().c_str());
 
     static loader::XbeImage image;
     const fs::path xbe = options->xbe.value_or(*assets / "default.xbe");
-    if (!image.load(xbe)) return 1;
+    if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
     g_xbe = xbe;
 
     static loader::SymbolTable symbols;
@@ -373,15 +415,16 @@ int loader_main(int argc, char** argv) {
 
     loader::install_crash_handler(image, symbols);
     loader::os::release_reserved_ranges();
-    if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return 1;
+    if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
     loader::install_title_patches({options->mouse_sensitivity, options->start_level, options->aim_assist});
-    if (!loader::prepare_fs_access(image)) return 1;
+    if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;
     d3d_config.backend.anisotropy = options->anisotropy;
+    d3d_config.backend.d3d9 = options->d3d9;
     if (options->widescreen) {
         d3d_config.backend.display_aspect = 16.0f / 9.0f;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts
@@ -402,18 +445,25 @@ int loader_main(int argc, char** argv) {
     d3d_config.device_pointer = loader::kTitleD3DDevicePointer;
     d3d_config.render_state = loader::kTitleD3DRenderState;
     d3d_config.texture_state = loader::kTitleD3DTextureState;
+    d3d_config.device_failed = [] {
+        loader::run_fatal_exit_hook(false);
+        tell_player(
+            "The game could not create a graphics device.\n\nUpdate the graphics driver. If that does not help, "
+            "choose another Graphics setting in the launcher.");
+        std::_Exit(1);
+    };
     render::configure(d3d_config);
     input::configure({loader::kTitleGamepadType});
     if (!options->press_script.empty() && !input::set_script(options->press_script)) return 1;
     if (!loader::install_sdk_replacements(image, symbols)) {
         LOG_ERROR("loader", "SDK replacements need the symbol file (%s)", symbol_path.string().c_str());
-        return 1;
+        return startup_failed("default_xbe_symbols.txt is missing or damaged");
     }
 
     // The title's initial thread. Like the Xbox's, it has no TLS block (TlsData is
     // null); XAPI only creates TLS for the threads it starts itself.
     loader::ThreadEnv* env = loader::create_thread_env(image.header().pe_stack_commit, 0);
-    if (!env || !loader::activate_thread_env(env)) return 1;
+    if (!env || !loader::activate_thread_env(env)) return startup_failed("cannot prepare the game's main thread");
 
     LOG_INFO("loader", "starting title at %08x", image.entry_point());
     // Four zero dwords stand in for arguments in case the entry point reads any.

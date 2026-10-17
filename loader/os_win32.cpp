@@ -168,6 +168,10 @@ void restart(const std::vector<std::string>& args) {
     std::_Exit(0);
 }
 
+void show_error(const std::string& title, const std::string& text) {
+    MessageBoxW(nullptr, widen(text).c_str(), widen(title).c_str(), MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+}
+
 }  // namespace loader::os
 
 extern "C" __declspec(dllexport) void cod_bro_loader_main() {

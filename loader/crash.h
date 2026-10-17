@@ -21,12 +21,14 @@ void log_backtrace(uint32_t eip, uint32_t ebp);
 // code, e.g. a call to an unimplemented kernel export.
 [[noreturn]] void fatal_with_backtrace(const char* message, uint32_t eip, uint32_t ebp);
 
-// Runs once before a crash or fatal error ends the process (diagnostics summary).
-void set_fatal_exit_hook(void (*hook)());
+// Runs once before a crash, a fatal error or a stop signal ends the process
+// (diagnostics summary, telling the player). `error`: a crash or fatal error, not a
+// stop (Ctrl+C, kill).
+void set_fatal_exit_hook(void (*hook)(bool error));
 
 // For the platform parts: runs the exit hook on the first call; later callers (other
 // threads crashing meanwhile) wait forever for the first to end the process.
-void run_fatal_exit_hook();
+void run_fatal_exit_hook(bool error);
 
 // `address` with its Ghidra symbol and section if it is in the XBE, else "[host]".
 std::string describe_address(uint32_t address);

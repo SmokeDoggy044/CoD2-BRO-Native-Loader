@@ -19,7 +19,7 @@ if(WIN32)
     # from a console, the loader attaches to it (os_win32.cpp).
     add_library(cod_bro_loader_core SHARED ${loader_sources} crash_win32.cpp os_win32.cpp thread_env_win32.cpp)
     set_target_properties(cod_bro_loader_core PROPERTIES PREFIX "")
-    target_link_libraries(cod_bro_loader_core PRIVATE audio input online render xbox platform shell32)
+    target_link_libraries(cod_bro_loader_core PRIVATE audio input online render xbox platform shell32 user32)
     set(loader_core cod_bro_loader_core)
 
     add_executable(cod_bro_loader win32_stub.c)

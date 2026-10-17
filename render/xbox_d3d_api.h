@@ -36,6 +36,9 @@ struct D3DConfig {
     std::string diag_dir;
     uint32_t diag_seconds = 10;
     void (*pause_audio)(bool paused) = nullptr;  // while a mark's note is typed
+    // When the window or device cannot be created (logged): the loader tells the
+    // player and ends the process. Null: CreateDevice returns an error to the title.
+    void (*device_failed)() = nullptr;
 };
 
 // Call before the title creates its device.

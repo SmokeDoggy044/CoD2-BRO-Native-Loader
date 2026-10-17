@@ -57,6 +57,11 @@ struct BackendConfig {
     // No tearing. Present never waits for the display either way: the title paces
     // itself on the vertical blank (device.cpp), which runs at the display's rate.
     bool vsync = true;
+    // Which Direct3D 9 to draw with on Windows: DXVK's (dxvk/d3d9.dll next to the
+    // loader, on Vulkan) or the system's. Auto tries DXVK first and falls back to the
+    // system's when it cannot create a device. Linux always uses DXVK.
+    enum class D3D9 { Auto, Dxvk, System };
+    D3D9 d3d9 = D3D9::Auto;
 };
 
 // One draw: float4 attributes and a primitive. The back end reads everything else

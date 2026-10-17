@@ -50,7 +50,7 @@ const char* exception_name(DWORD code) {
               c.Esi, c.Edi);
     LOG_ERROR("crash", "esp=%08lx ebp=%08lx eflags=%08lx", c.Esp, c.Ebp, c.EFlags);
     log_backtrace(c.Eip, c.Ebp);
-    run_fatal_exit_hook();
+    run_fatal_exit_hook(true);
     std::_Exit(3);
 }
 
@@ -71,7 +71,7 @@ BOOL WINAPI console_handler(DWORD event) {
                                                    : nullptr;
     if (!name) return FALSE;
     LOG_INFO("loader", "stopped by %s", name);
-    run_fatal_exit_hook();
+    run_fatal_exit_hook(false);
     std::_Exit(130);
 }
 
