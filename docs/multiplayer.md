@@ -1,7 +1,9 @@
 # Multiplayer (codmp_xboxf.xbe)
 
-The disc's second title. The same native loader runs it: `--xbe <assets>/codmp_xboxf.xbe`
-(the campaign's Multiplayer menu item does not reboot into it yet).
+The disc's second title. The same native loader runs it: the campaign's Multiplayer
+item reboots into it (console command `load_mp_exe`, SP FUN_002cf920) and its "Back
+to Single Player" back (MP FUN_0023fa90; MP FUN_00262020 restarts MP itself), or
+directly with `--xbe <assets>/codmp_xboxf.xbe`.
 
 ## How the loader tells the titles apart
 
@@ -56,10 +58,13 @@ host shows "Unknown Soldier Connected".
   (install_multiplayer_heap_lock). Other data the pump shares with the main thread
   is unchecked.
 
+## Xbox Live
+
+Play Xbox Live calls the sign-in starter FUN_0018edd0 (twin of SP FUN_00221eb0;
+online object at [0x004b2fec]), which would open the XOnline sign-in UI (XFONT):
+replaced, as in SP, by a notice; the menu stays at "Not signed in".
+
 ## Not done
 
-- The campaign's Multiplayer item -> reboot into codmp_xboxf.xbe (and back).
-- Play Xbox Live: starts the XOnline sign-in UI (XFONT, FUN_0002b710 -> trap at
-  Get2DSurfaceDesc); cut it off as in SP.
 - Split screen (if the title has it), mouse look / 60 fps / widescreen for MP,
   launcher and release, Windows test.

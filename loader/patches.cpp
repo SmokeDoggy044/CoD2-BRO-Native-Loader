@@ -51,29 +51,23 @@ uint32_t XB_STDCALL mount_utility_drive(uint32_t format_clean) {
     return xbox::mount_utility_drive(format_clean & 0xFF) == 0 ? 1 : 0;
 }
 
-// Console command load_mp_exe (FUN_002cf920): shuts the game down and reboots into
-// codmp_xboxf.xbe. The Multiplayer and Xbox Live menus run it; multiplayer is not
-// ported, so the player stays in the menu and gets a notice instead.
-void XB_CDECL load_mp_exe() {
-    LOG_INFO("patches", "load_mp_exe: multiplayer is not available");
-    render::show_notice({"Multiplayer is not available", "This port plays the single-player campaign only."}, 4);
-}
-
-// Xbox Live sign-in (FUN_00221eb0, from the main menu and Xbox Live Options > Sign In;
-// online state in esi, always the object at 0x0095f6fc): clears the last logon result,
-// sets the state to 1 (signing in) and starts the XOnline sign-in UI, which draws its
-// account list with XFONT into the frame buffer's tiled view (0xF0000000, not mapped).
-// There is no Xbox Live: keep the state at 0, so the menu says "Not signed in".
-constexpr uint32_t kOnlineState = 0x0095f6fc;
+// Xbox Live sign-in (SP FUN_00221eb0 from the main menu and Xbox Live Options > Sign
+// In; MP FUN_0018edd0 from Play Xbox Live; online state in esi, always the object
+// the title's online pointer holds): clears the last logon result, sets the state to
+// 1 (signing in) and starts the XOnline sign-in UI, which draws its account list with
+// XFONT into the frame buffer's tiled view (0xF0000000, not mapped). There is no Xbox
+// Live: keep the state at 0, so the menu says "Not signed in".
+uint32_t g_online_pointer = 0;  // per title: SP 0x0095f6fc, MP 0x004b2fec
 
 void XB_CDECL start_sign_in() {
-    const auto online = *reinterpret_cast<const uint32_t*>(uintptr_t{kOnlineState});
+    const auto online = *reinterpret_cast<const uint32_t*>(uintptr_t{g_online_pointer});
     if (online) {
         *reinterpret_cast<uint32_t*>(uintptr_t{online + 0x446c}) = 0;  // logon result
         *reinterpret_cast<uint32_t*>(uintptr_t{online + 0x4470}) = 0;
     }
     LOG_INFO("patches", "Xbox Live sign-in: not available");
-    render::show_notice({"Xbox Live is not available", "This port plays the single-player campaign only."}, 4);
+    render::show_notice({"Xbox Live is not available", "Play System Link instead: it works on your local network."},
+                        4);
 }
 
 struct Patch {
@@ -85,13 +79,13 @@ struct Patch {
 const Patch kCampaignPatches[] = {
     {0x001ede5f, reinterpret_cast<const void*>(&restrict_code_selector), "XAPI code selector restriction"},
     {0x001e9b66, reinterpret_cast<const void*>(&mount_utility_drive), "XMountUtilityDrive: Z: = cache folder"},
-    {0x002cf920, reinterpret_cast<const void*>(&load_mp_exe), "load_mp_exe: no multiplayer reboot"},
     {0x00221eb0, reinterpret_cast<const void*>(&start_sign_in), "Xbox Live sign-in: not available"},
 };
 
 const Patch kMultiplayerPatches[] = {
     {0x0015a84e, reinterpret_cast<const void*>(&restrict_code_selector), "XAPI code selector restriction"},
     {0x0015656c, reinterpret_cast<const void*>(&mount_utility_drive), "XMountUtilityDrive: Z: = cache folder"},
+    {0x0018edd0, reinterpret_cast<const void*>(&start_sign_in), "Xbox Live sign-in: not available"},
 };
 
 // RDTSC sites in title code (Ghidra: every RDTSC outside the SDK sections) and how
@@ -764,15 +758,17 @@ struct TitleData {
     std::span<const SdkAlias> sdk_aliases;
     std::span<const uint32_t> sdk_keep_original;
     uint32_t launch_hook_table, launch_hook_table_end;
+    uint32_t online_pointer;  // the title's Xbox Live state object (see start_sign_in)
 };
 
 const TitleData kTitles[] = {
     {{TitleId::Campaign, "default.xbe", "default_xbe_symbols.txt", 0x003f8318, 0x003f8328, 0x003f5c68, 0x007a9f78},
-     kCampaignPatches, kCampaignRdtscSites, kCampaignSdkAliases, kCampaignSdkKeepOriginal, 0x00897908, 0x00897910},
+     kCampaignPatches, kCampaignRdtscSites, kCampaignSdkAliases, kCampaignSdkKeepOriginal, 0x00897908, 0x00897910,
+     0x0095f6fc},
     {{TitleId::Multiplayer, "codmp_xboxf.xbe", "codmp_xbe_symbols.txt", 0x0032a358, 0x0032a368, 0x00327ca8,
       0x003693d8},
      kMultiplayerPatches, kMultiplayerRdtscSites, kMultiplayerSdkAliases, kMultiplayerSdkKeepOriginal, 0x003dd49c,
-     0x003dd4a4},
+     0x003dd4a4, 0x004b2fec},
 };
 
 const TitleData& title_data(const TitleInfo& info) {
@@ -867,6 +863,7 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
 
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {
     const TitleData& data = title_data(title);
+    g_online_pointer = data.online_pointer;
     for (const Patch& patch : data.patches) {
         install_jump(patch.address, patch.replacement);
         LOG_DEBUG("patches", "%08x: %s", patch.address, patch.what);
