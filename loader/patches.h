@@ -31,7 +31,8 @@ struct TitlePatchConfig {
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,
 // direct kernel/hardware access) to replacements, and adds PC features (mouse look).
-// Call after the image is mapped. The PC features in `config` are campaign-only so far.
+// Call after the image is mapped. Mouse look and keyboard actions work in both
+// titles; the other PC features in `config` are campaign-only so far.
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config);
 
 // While the engine draws a scene an in-game menu or the objectives panel created this

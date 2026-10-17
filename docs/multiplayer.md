@@ -13,8 +13,12 @@ with scripts/ExportSymbols.java), D3D/XPP globals, XAPI patches, RDTSC sites and
 unnamed SDK functions. MP addresses were found by matching function hashes against
 default.xbe (skill scripts FunctionHashes.java + match_hashes.py): about 80% of MP's
 engine functions have an identical twin in SP, the SDK sections nearly all.
-The campaign's PC features (mouse look, 60 fps, widescreen menus, --level, aim
-assist) use SP addresses and are off in MP.
+Mouse look and the keyboard's controller-style remap work in both titles (MP client
+globals: same instructions in the twin functions CL_CreateCmd FUN_0024c130,
+CL_MouseMove FUN_002259f0, key label FUN_0027fa60; skill script DataRefs.java lists
+them in order). MP's pad bindings come from the same style_*.cfg files
+(default_mp.cfg is a PC keyboard leftover). The other PC features (60 fps,
+widescreen menus, --level, aim assist) use SP addresses and are off in MP.
 
 ## System link
 
@@ -66,5 +70,5 @@ replaced, as in SP, by a notice; the menu stays at "Not signed in".
 
 ## Not done
 
-- Split screen (if the title has it), mouse look / 60 fps / widescreen for MP,
+- Split screen (if the title has it), 60 fps / widescreen / aim assist for MP,
   launcher and release, Windows test.

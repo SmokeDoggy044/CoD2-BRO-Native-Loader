@@ -169,8 +169,28 @@ void install_rdtsc_patches(std::span<const RdtscSite> sites) {
 // the mouse motion to cl.viewangles the way PC CoD does, under the same conditions
 // CL_MouseMove checks.
 
-constexpr uint32_t kCallMouseMove = 0x002c7ad7;  // in CL_CreateCmd FUN_002c7a90
-constexpr uint32_t kMouseMove = 0x002b39e0;
+// Client globals per title (MP: the same instructions in the twin functions,
+// CL_CreateCmd FUN_0024c130, CL_MouseMove FUN_002259f0, key label FUN_0027fa60).
+struct ClientAddresses {
+    uint32_t call_mouse_move;  // the call in CL_CreateCmd
+    uint32_t mouse_move;       // CL_MouseMove
+    uint32_t view_flags;       // player state: 0x4000 = view locked
+    uint32_t view_allow_flags; // ... unless one of 0x106000
+    uint32_t vehicle;          // non-zero in a vehicle
+    uint32_t sensitivity;      // cl.cgameSensitivity
+    uint32_t pitch, yaw;       // cl.viewangles
+    uint32_t freelook;         // non-zero: pitch always follows the mouse
+    uint32_t cl_freelook;      // cvar_t* pointers
+    uint32_t m_pitch;
+    uint32_t key_bindings;     // keys[] (see remap_keyboard_actions)
+};
+constexpr ClientAddresses kCampaignClient = {0x002c7ad7, 0x002b39e0, 0x009601ac, 0x00960240, 0x00933fb8,
+                                             0x00961774, 0x00961798, 0x0096179c, 0x009341b0, 0x0093f808,
+                                             0x00929c0c, 0x0093425c};
+constexpr ClientAddresses kMultiplayerClient = {0x0024c177, 0x002259f0, 0x004b3ddc, 0x004b3e84, 0x004834f8,
+                                                0x004b53b4, 0x004b53d8, 0x004b53dc, 0x004836f0, 0x0049221c,
+                                                0x00479124, 0x004848e4};
+ClientAddresses g_client = kCampaignClient;
 
 template <typename T>
 T& title(uint32_t address) {
@@ -187,26 +207,27 @@ void XB_CDECL mouse_look() {
     input::take_mouse_motion(dx, dy);
     if (dx == 0.0f && dy == 0.0f) return;
     // Player state: view locked (0x4000) unless one of 0x106000 allows looking.
-    if ((title<uint32_t>(0x009601ac) & 0x4000) && !(title<uint32_t>(0x00960240) & 0x106000)) return;
-    if (title<int32_t>(0x00933fb8) != 0) return;  // in a vehicle: its own controls
+    if ((title<uint32_t>(g_client.view_flags) & 0x4000) && !(title<uint32_t>(g_client.view_allow_flags) & 0x106000))
+        return;
+    if (title<int32_t>(g_client.vehicle) != 0) return;  // in a vehicle: its own controls
     platform::HostFloatEnv float_env;
     // cl.cgameSensitivity: cg.zoomSensitivity, set each frame by CG_DrawActiveFrame
     // (FUN_0028b340); lower while aiming down sights, 0 before the first frame.
-    const float scale = g_mouse_degrees_per_count * title<float>(0x00961774);
-    title<float>(0x0096179c) -= dx * scale;  // cl.viewangles[YAW]
-    if (title<int32_t>(0x009341b0) != 0 || cvar_integer(0x0093f808) != 0) {  // cl_freelook
-        const float invert = cvar_value(0x00929c0c) < 0.0f ? -1.0f : 1.0f;  // m_pitch sign = invert Y
-        title<float>(0x00961798) += dy * scale * invert;  // cl.viewangles[PITCH]
+    const float scale = g_mouse_degrees_per_count * title<float>(g_client.sensitivity);
+    title<float>(g_client.yaw) -= dx * scale;
+    if (title<int32_t>(g_client.freelook) != 0 || cvar_integer(g_client.cl_freelook) != 0) {
+        const float invert = cvar_value(g_client.m_pitch) < 0.0f ? -1.0f : 1.0f;  // m_pitch sign = invert Y
+        title<float>(g_client.pitch) += dy * scale * invert;
     }
 }
 
 // pushad; pushfd; call mouse_look; popfd; popad; jmp CL_MouseMove
 void install_mouse_look() {
-    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kCallMouseMove});
+    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_client.call_mouse_move});
     uint32_t relative;
     std::memcpy(&relative, site + 1, 4);
-    if (site[0] != 0xE8 || kCallMouseMove + 5 + relative != kMouseMove) {
-        LOG_WARN("patches", "%08x: not the call to CL_MouseMove; no mouse look", kCallMouseMove);
+    if (site[0] != 0xE8 || g_client.call_mouse_move + 5 + relative != g_client.mouse_move) {
+        LOG_WARN("patches", "%08x: not the call to CL_MouseMove; no mouse look", g_client.call_mouse_move);
         return;
     }
     auto* thunk = alloc_code(64);
@@ -218,7 +239,7 @@ void install_mouse_look() {
     t += 5;
     *t++ = 0x9D;  // popfd
     *t++ = 0x61;  // popad
-    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kMouseMove}));
+    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{g_client.mouse_move}));
     put_rel32(site, 0xE8, thunk);
     LOG_INFO("patches", "mouse look: %.3f degrees per count", g_mouse_degrees_per_count);
 }
@@ -226,10 +247,9 @@ void install_mouse_look() {
 // Keyboard actions follow the player's controller style. The keyboard gives the pad
 // buttons of the default layout (config/default.cfg); style_a..l.cfg bind the buttons
 // to other commands. The active binding of each key code is at keys[code].binding
-// (0x0093425c + code * 8, a string or null); the pad's key codes come from
-// FUN_002bdf10 and the key name table at 0x008d32e8.
-constexpr uint32_t kKeyBindings = 0x0093425c;
-
+// (SP 0x0093425c / MP 0x004848e4 + code * 8, a string or null); the pad's key codes
+// come from FUN_002bdf10 (MP FUN_00230d60) and the key name table at 0x008d32e8.
+// Both titles use the same style files.
 struct PadControl {
     uint16_t digital;     // DigitalButton bit, or 0 for an analog button
     uint8_t analog;       // AnalogButton index when digital == 0
@@ -267,7 +287,7 @@ const char* similar_command(const char* command) {
 }
 
 const char* key_binding(uint8_t key_code) {
-    const uint32_t binding = title<uint32_t>(kKeyBindings + key_code * 8u);
+    const uint32_t binding = title<uint32_t>(g_client.key_bindings + key_code * 8u);
     return binding ? reinterpret_cast<const char*>(uintptr_t{binding}) : "";
 }
 
@@ -871,17 +891,18 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     std::memset(reinterpret_cast<void*>(uintptr_t{data.launch_hook_table}), 0,
                 data.launch_hook_table_end - data.launch_hook_table);
     install_rdtsc_patches(data.rdtsc_sites);
+    g_mouse_degrees_per_count = config.mouse_degrees_per_count;
+    g_client = title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient;
+    install_mouse_look();
+    input::set_action_remap(&remap_keyboard_actions);
     if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
     if (title.id != TitleId::Campaign) return;  // the PC features below use campaign addresses
 
-    g_mouse_degrees_per_count = config.mouse_degrees_per_count;
-    install_mouse_look();
     install_start_level(config.start_level);
     if (!config.aim_assist) disable_aim_assist();
     install_frame_rate(config.frame_rate);
     install_menu_render_hooks();
     install_objectives_hook();
-    input::set_action_remap(&remap_keyboard_actions);
 }
 
 }  // namespace loader
