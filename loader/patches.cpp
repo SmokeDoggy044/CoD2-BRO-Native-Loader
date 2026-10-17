@@ -368,32 +368,6 @@ void disable_aim_assist() {
     LOG_INFO("patches", "aim assist off");
 }
 
-// --- Frame rate -------------------------------------------------------------------
-//
-// The title paces itself on the vertical blank: its callback (0x000643e0) counts
-// vblanks, and the end of each frame (FUN_00064ec0) busy-waits until the number in
-// 0x008a2cb0 has passed since the last frame. FUN_000645c0(mode), cdecl, sets that
-// number: 0 = none, 1, 2; modes 3/4 = 1/2 and also set 0x00902878 (a late frame does
-// not wait for the next vblank). Every caller (startup twice, the movie player) asks
-// for mode 2 = 30 fps. Game time comes from the clock (Com_Frame: msec from
-// Com_EventLoop), so a shorter frame only means more frames, not a faster game.
-constexpr uint32_t kSetFrameInterval = 0x000645c0;
-constexpr uint32_t kFrameVBlanks = 0x008a2cb0;
-constexpr uint32_t kFrameLateNoWait = 0x00902878;
-uint32_t g_frame_vblanks = 2;
-
-void XB_CDECL set_frame_interval(uint32_t mode) {
-    if (mode > 4) return;
-    title<uint32_t>(kFrameLateNoWait) = mode >= 3 ? 1 : 0;
-    title<uint32_t>(kFrameVBlanks) = mode == 0 ? 0 : g_frame_vblanks;
-}
-
-void install_frame_rate(int32_t frame_rate) {
-    g_frame_vblanks = frame_rate == 60 ? 1 : 2;
-    install_jump(kSetFrameInterval, reinterpret_cast<const void*>(&set_frame_interval));
-    LOG_INFO("patches", "%d fps (%u vertical blanks per frame)", frame_rate, g_frame_vblanks);
-}
-
 // --- In-game menus in widescreen ------------------------------------------------------
 //
 // In 16:9 the game lays out only its HUD for the wider picture (each HUD component by
@@ -545,6 +519,89 @@ void install_objectives_hook() {
     t = put_preserving_call(t, &objectives_end);
     *t++ = 0xC3;
     put_rel32(site, 0xE8, thunk);
+}
+
+// --- Frame rate -------------------------------------------------------------------
+//
+// The title paces itself on the vertical blank: its callback (0x000643e0) counts
+// vblanks, and the end of each frame (FUN_00064ec0) busy-waits until the number in
+// 0x008a2cb0 has passed since the last frame. FUN_000645c0(mode), cdecl, sets that
+// number: 0 = none, 1, 2; modes 3/4 = 1/2 and also set 0x00902878 (a late frame does
+// not wait for the next vblank). Every caller (startup twice, the movie player) asks
+// for mode 2 = 30 fps. Game time comes from the clock (Com_Frame: msec from
+// Com_EventLoop), so a shorter frame only means more frames, not a faster game.
+//
+// Movies (.xbv) are the exception: the decoder's next-frame method (vtable 0x007cf390
+// slot 2, 0x000ce210, thiscall) shows one movie frame per game frame. So each frame's
+// wait is chosen where it is set up - FUN_00064580 (a D3D callback inserted by the
+// frame end) and 0x000649c0 both jump to 0x00064370 - with 2 vblanks while a movie
+// frame was decoded in the last few frames.
+constexpr uint32_t kSetFrameInterval = 0x000645c0;
+constexpr uint32_t kFrameVBlanks = 0x008a2cb0;
+constexpr uint32_t kFrameLateNoWait = 0x00902878;
+constexpr uint32_t kFrameWaitSetup = 0x00064370;
+constexpr uint32_t kFrameWaitJumps[] = {0x000645ad, 0x000649d8};
+constexpr uint32_t kMovieNextFrameSlot = 0x007cf398;
+constexpr uint32_t kMovieNextFrame = 0x000ce210;
+uint32_t g_frame_vblanks = 2;      // per frame outside movies
+bool g_frame_wait = true;          // false: the title asked for mode 0 (no wait)
+uint32_t g_movie_frame = 0;        // kEngineFrame at the last movie frame
+bool g_movie_seen = false;
+bool g_movie_pacing = false;
+
+void XB_CDECL set_frame_interval(uint32_t mode) {
+    if (mode > 4) return;
+    g_frame_wait = mode != 0;
+    title<uint32_t>(kFrameLateNoWait) = mode >= 3 ? 1 : 0;
+    title<uint32_t>(kFrameVBlanks) = g_frame_wait ? g_frame_vblanks : 0;
+}
+
+void XB_CDECL movie_frame() {
+    g_movie_frame = title<uint32_t>(kEngineFrame);
+    g_movie_seen = true;
+}
+
+void XB_CDECL choose_frame_wait() {
+    if (!g_frame_wait || g_frame_vblanks == 2) return;
+    const bool movie = g_movie_seen && title<uint32_t>(kEngineFrame) - g_movie_frame <= 2;
+    if (movie != g_movie_pacing) {
+        g_movie_pacing = movie;
+        LOG_INFO("patches", movie ? "movie: 30 fps while it plays" : "movie over: %u vertical blanks per frame again",
+                 g_frame_vblanks);
+    }
+    title<uint32_t>(kFrameVBlanks) = movie ? 2 : g_frame_vblanks;
+}
+
+void install_frame_rate(int32_t frame_rate) {
+    g_frame_vblanks = frame_rate == 60 ? 1 : 2;
+    install_jump(kSetFrameInterval, reinterpret_cast<const void*>(&set_frame_interval));
+    LOG_INFO("patches", "%d fps (%u vertical blanks per frame)", frame_rate, g_frame_vblanks);
+    if (g_frame_vblanks == 2) return;
+
+    auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{kMovieNextFrameSlot});
+    for (uint32_t address : kFrameWaitJumps) {
+        auto* site = reinterpret_cast<uint8_t*>(uintptr_t{address});
+        if (site[0] != 0xE9 || site + 5 + *reinterpret_cast<int32_t*>(site + 1) !=
+                                   reinterpret_cast<uint8_t*>(uintptr_t{kFrameWaitSetup})) {
+            LOG_WARN("patches", "%08x: not the frame wait jump; movies play too fast", address);
+            return;
+        }
+    }
+    if (*slot != kMovieNextFrame) {
+        LOG_WARN("patches", "%08x: not the movie decoder's next-frame slot; movies play too fast", kMovieNextFrameSlot);
+        return;
+    }
+    auto* thunks = alloc_code(64);
+    if (!thunks) return;
+    // choose_frame_wait; jmp 0x00064370
+    uint8_t* t = put_preserving_call(thunks, &choose_frame_wait);
+    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kFrameWaitSetup}));
+    for (uint32_t address : kFrameWaitJumps) put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{address}), 0xE9, thunks);
+    // movie_frame; jmp 0x000ce210 (ecx = the decoder, kept by the preserving call)
+    uint8_t* const movie_thunk = t + 5;
+    t = put_preserving_call(movie_thunk, &movie_frame);
+    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kMovieNextFrame}));
+    *slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(movie_thunk));
 }
 
 }  // namespace
