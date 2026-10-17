@@ -62,6 +62,10 @@ struct BackendConfig {
     // system's when it cannot create a device. Linux always uses DXVK.
     enum class D3D9 { Auto, Dxvk, System };
     D3D9 d3d9 = D3D9::Auto;
+    // PC brightness on top of the title's gamma ramp (CoD2: BRO has no setting of its
+    // own): each value v becomes 255 * (ramp(v) / 255)^(1 / brightness), so black and
+    // white stay and the midtones move. 1 = as on the Xbox.
+    float brightness = 1.0f;
 };
 
 // One draw: float4 attributes and a primitive. The back end reads everything else
@@ -131,6 +135,10 @@ public:
     virtual uint32_t unsupported_draws() = 0;
     // Logs every draw of the next frame (see D3D9Draw::dump_draw).
     virtual void dump_next_frame() = 0;
+    // The title's gamma ramp (red, green, blue: 256 entries each), applied to the
+    // picture shown from the next present on (the Xbox applies it in the video DAC;
+    // CoD2: BRO's brightness setting). Any thread.
+    virtual void set_gamma_ramp(const uint8_t (&ramp)[3][256]) = 0;
 };
 
 // Null if the window or device cannot be created (logged).

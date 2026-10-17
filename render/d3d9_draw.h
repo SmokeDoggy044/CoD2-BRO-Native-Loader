@@ -29,6 +29,7 @@ public:
     void forget_render_target(uint32_t data);
     // The surface drawn into for `data` (null if none yet).
     IDirect3DSurface9* target_surface(uint32_t data);
+    IDirect3DTexture9* target_texture(uint32_t data);
     bool has_depth() const { return has_depth_; }
     void dump_next_frame() {
         dump_frame_ = frame_ + 1;

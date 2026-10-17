@@ -222,9 +222,16 @@ void XB_STDCALL D3DDevice_GetDeviceCaps(XbPtr caps) {
     std::memset(from_xbox_ptr<void>(caps), 0, 0xD4);
 }
 
-void XB_STDCALL D3DDevice_SetGammaRamp(uint32_t /*flags*/, XbPtr /*ramp*/) {
-    static std::once_flag once;
-    std::call_once(once, [] { LOG_WARN("render", "SetGammaRamp ignored"); });
+// D3DGAMMARAMP on the Xbox: BYTE red[256], green[256], blue[256]. The flags
+// (D3DSGR_IMMEDIATE: now instead of at the next vertical blank) make no difference here.
+void XB_STDCALL D3DDevice_SetGammaRamp(uint32_t /*flags*/, XbPtr ramp) {
+    if (!g.backend || !ramp) return;
+    uint8_t table[3][256];
+    std::memcpy(table, from_xbox_ptr<const void>(ramp), sizeof(table));
+    LOG_DEBUG("render", "SetGammaRamp: red %u %u %u, green %u %u %u, blue %u %u %u (0, 128, 255)", table[0][0],
+              table[0][128], table[0][255], table[1][0], table[1][128], table[1][255], table[2][0], table[2][128],
+              table[2][255]);
+    g.backend->set_gamma_ramp(table);
 }
 
 // --- Surfaces -------------------------------------------------------------------------
@@ -322,7 +329,7 @@ void upload_back_buffer_writes() {
 // (except known harmless ones) is marked by itself at the next Swap: a screenshot
 // (automark_<n>.bmp), its line in marks.txt ("A<n>"), and the next frame's draw dump.
 // Each message is marked once per diag folder.
-constexpr const char* kKnownHarmless[] = {"SetGammaRamp ignored", "vertex program EXP:", "vertex program LOG:"};
+constexpr const char* kKnownHarmless[] = {"vertex program EXP:", "vertex program LOG:"};
 constexpr uint32_t kMaxAutoMarks = 50;  // per run; later messages are only logged
 
 std::mutex g_auto_mutex;

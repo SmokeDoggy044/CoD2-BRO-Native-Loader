@@ -47,6 +47,7 @@ struct Options {
     uint32_t scale = 2;
     uint32_t anisotropy = 16;
     render::BackendConfig::D3D9 d3d9 = render::BackendConfig::D3D9::Auto;
+    float brightness = 1.0f;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
     bool widescreen = true;
@@ -102,6 +103,7 @@ void print_usage(const char* program) {
         "  --aspect A       16:9 (default: the game's widescreen mode, wider view and HUD) or 4:3\n"
         "  --anisotropy N   anisotropic filtering for mipmapped textures, 1-16 (default 16;\n"
         "                   1 = what the game asks for)\n"
+        "  --brightness X   0.5-2.0 (default 1: as on the Xbox; higher = brighter midtones)\n"
         "  --d3d9 WHICH     Windows: auto (default: DXVK on Vulkan, else the system's), dxvk or\n"
         "                   system (Linux always uses DXVK)\n"
         "  --screenshots N DIR  save every Nth frame as DIR/frame_<n>.bmp (debugging)\n"
@@ -204,6 +206,12 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.aim_assist = value == "on";
+        } else if (arg == "--brightness") {
+            options.brightness = i + 1 < argc ? std::strtof(argv[++i], nullptr) : 0.0f;
+            if (!(options.brightness >= 0.5f && options.brightness <= 2.0f)) {
+                std::fprintf(stderr, "--brightness needs a number (0.5-2.0)\n");
+                return std::nullopt;
+            }
         } else if (arg == "--d3d9") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             if (value == "auto")
@@ -442,6 +450,7 @@ int loader_main(int argc, char** argv) {
     d3d_config.backend.window_scale = options->scale;
     d3d_config.backend.anisotropy = options->anisotropy;
     d3d_config.backend.d3d9 = options->d3d9;
+    d3d_config.backend.brightness = options->brightness;
     if (options->widescreen) {
         d3d_config.backend.display_aspect = 16.0f / 9.0f;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts

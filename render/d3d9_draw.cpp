@@ -386,6 +386,11 @@ IDirect3DSurface9* D3D9Draw::target_surface(uint32_t data) {
     return it == caches_->targets.end() ? nullptr : it->second.surface;
 }
 
+IDirect3DTexture9* D3D9Draw::target_texture(uint32_t data) {
+    auto it = caches_->targets.find(data);
+    return it == caches_->targets.end() ? nullptr : it->second.texture;
+}
+
 D3D9Draw::~D3D9Draw() { release(magenta_); }
 
 float D3D9Draw::narrow_anchor(const DrawInput& input, uint32_t width) const {

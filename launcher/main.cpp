@@ -35,6 +35,7 @@ struct Choices {
     int scale = 2;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     int anisotropy = 16;
+    float brightness = 1.0f;
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
@@ -55,6 +56,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("scale")) c.scale = std::clamp(std::atoi(v->c_str()), 1, 8);
     if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
     if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
+    if (auto v = settings.get("brightness")) c.brightness = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 2.0f);
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
@@ -78,6 +80,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("scale", c.scale == d.scale, std::to_string(c.scale));
     put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
     put("anisotropy", c.anisotropy == d.anisotropy, std::to_string(c.anisotropy));
+    put("brightness", c.brightness == d.brightness, number(c.brightness));
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
     put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
@@ -137,6 +140,7 @@ public:
         game_files();
         display();
         controls();
+        reporting();
         const bool keep_open = buttons();
         ImGui::End();
         return keep_open;
@@ -209,6 +213,10 @@ private:
                      "Anisotropic x8\0" "Anisotropic x16\0");
         choices_.anisotropy = kAnisotropy[index];
 
+        ImGui::SliderFloat("Brightness", &choices_.brightness, 0.5f, 2.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+        help_marker("1.00 looks as on the Xbox. Higher brightens the midtones (dark interiors, night "
+                    "missions); black and white stay as they are.");
+
 #ifdef _WIN32
         static constexpr const char* kD3D9[] = {"auto", "dxvk", "system"};
         int d3d9 = 0;
@@ -230,6 +238,24 @@ private:
         help_marker("The view follows an enemy under the crosshair, as on the Xbox. Applies to the "
                     "controller and the mouse alike.");
         ImGui::Checkbox("Mute sound", &choices_.silent);
+    }
+
+    // For bug reports: the log of the last run (and settings.ini next to it) and the
+    // saves, so players can attach them to an issue.
+    void reporting() {
+        ImGui::SeparatorText("Reporting a problem");
+        ImGui::TextWrapped("Attach log.txt from the log folder (the last run) to your report; add the save "
+                           "folder if the problem depends on your progress.");
+        if (ImGui::Button("Open log folder")) open_folder(platform::user_data_dir());
+        help_marker("log.txt is replaced on every start, so copy it before playing again. settings.ini "
+                    "(these options) is in the same folder.");
+        ImGui::SameLine();
+        if (ImGui::Button("Open save folder")) {
+            // `data = DIR` in settings.ini (--data) moves the saves.
+            const std::optional<std::string> data = settings_.get("data");
+            open_folder((data ? fs::path(*data) : platform::user_data_dir()) / "E" / "UDATA");
+        }
+        help_marker("One folder per game profile with its saves, as on the Xbox hard disk.");
     }
 
     bool buttons() {
@@ -280,7 +306,7 @@ int main(int, char**) {
     }
     const float ui_scale = std::max(1.0f, SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
     SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale),
-                                          static_cast<int>(400 * ui_scale), SDL_WINDOW_HIGH_PIXEL_DENSITY);
+                                          static_cast<int>(500 * ui_scale), SDL_WINDOW_HIGH_PIXEL_DENSITY);
     SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
     if (!renderer) {
         LOG_ERROR("launcher", "window: %s", SDL_GetError());

@@ -54,6 +54,15 @@ the saves. Every setting is also a command-line option of cod_bro_loader, which
 then wins over the file; @COD_BRO_README_HELP@ lists them.
 
 
+Reporting a problem
+-------------------
+
+Every start writes log.txt next to settings.ini; the launcher's "Open log
+folder" button opens that folder, and "Open save folder" the saves. Attach
+log.txt to your report (copy it first: the next start replaces it), plus the
+save folder if the problem depends on your progress.
+
+
 Licenses
 --------
 

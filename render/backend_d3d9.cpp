@@ -14,11 +14,13 @@
 #include <vector>
 
 #include <memory>
+#include <mutex>
 
 #include "backend.h"
 #include "d3d9_api.h"
 #include "d3d9_draw.h"
 #include "d3d9_overlay.h"
+#include "d3d9_shader.h"
 #include "log.h"
 #include "paths.h"
 
@@ -83,6 +85,9 @@ public:
         overlay_.reset();
         notice_.reset();
         draw_.reset();
+        release(gamma_table_);
+        release(gamma_shader_);
+        release(gamma_state_);
         release(staging_);
         release(upload_);
         release(device_);
@@ -183,6 +188,13 @@ public:
 #endif
         width_ = config.width;
         height_ = config.height;
+        brightness_ = config.brightness > 0 ? config.brightness : 1.0f;
+        {  // the identity ramp until the title sets one (brightness applies from the start)
+            std::lock_guard lock(gamma_mutex_);
+            for (uint32_t i = 0; i < 256; ++i)
+                for (auto& channel : gamma_pending_) channel[i] = static_cast<uint8_t>(i);
+            gamma_changed_ = true;
+        }
         aspect_ = config.display_aspect > 0 ? config.display_aspect : static_cast<float>(width_) / height_;
         pillarbox_ = config.pillarbox_flat_frames && config.display_aspect > 0;
         back_buffer_data_ = config.back_buffer.data;
@@ -353,7 +365,8 @@ public:
             const RECT dest{left, top, left + width, top + height};
             if (width != area_width || height != area_height)
                 device_->ColorFill(swap_chain, &area, D3DCOLOR_XRGB(0, 0, 0));
-            device_->StretchRect(back_buffer, nullptr, swap_chain, &dest, D3DTEXF_LINEAR);
+            if (!draw_with_gamma(swap_chain, dest))
+                device_->StretchRect(back_buffer, nullptr, swap_chain, &dest, D3DTEXF_LINEAR);
             overlay_->draw(swap_chain, overlay, 4, 4);
             // Above the menus' button legend, the font 3 times larger at 960 lines.
             const int scale = std::max(1, static_cast<int>(area_height) / 320);
@@ -462,7 +475,112 @@ public:
     uint32_t unsupported_draws() override { return draw_->unsupported_draws(); }
     void dump_next_frame() override { draw_->dump_next_frame(); }
 
+    void set_gamma_ramp(const uint8_t (&ramp)[3][256]) override {
+        std::lock_guard lock(gamma_mutex_);
+        std::memcpy(gamma_pending_, ramp, sizeof(gamma_pending_));
+        gamma_changed_ = true;
+    }
+
 private:
+    // Copies the title's back buffer to `dest` through the gamma ramp. False (the
+    // caller copies it plainly) while the ramp is the identity or the pass fails.
+    bool draw_with_gamma(IDirect3DSurface9* swap_chain, const RECT& dest) {
+        {
+            std::lock_guard lock(gamma_mutex_);
+            if (gamma_changed_) {
+                gamma_changed_ = false;
+                if (brightness_ != 1.0f)
+                    for (auto& channel : gamma_pending_)
+                        for (uint8_t& value : channel)
+                            value = static_cast<uint8_t>(std::lround(
+                                255.0 * std::pow(value / 255.0, 1.0 / static_cast<double>(brightness_))));
+                gamma_identity_ = true;
+                for (uint32_t i = 0; i < 256; ++i)
+                    for (const auto& channel : gamma_pending_) gamma_identity_ = gamma_identity_ && channel[i] == i;
+                if (!gamma_identity_ && !upload_gamma_table()) gamma_identity_ = true;
+            }
+        }
+        IDirect3DTexture9* source = draw_->target_texture(back_buffer_data_);
+        if (gamma_identity_ || !source) return false;
+        if (!gamma_shader_) {
+            const std::vector<uint32_t> code = d3d9::gamma_ramp_pixel_shader();
+            if (FAILED(device_->CreatePixelShader(reinterpret_cast<const DWORD*>(code.data()), &gamma_shader_)) ||
+                FAILED(device_->CreateStateBlock(D3DSBT_ALL, &gamma_state_))) {
+                LOG_WARN("render", "gamma ramp: cannot create the pass; brightness stays unchanged");
+                gamma_identity_ = true;
+                return false;
+            }
+        }
+        IDirect3DSurface9* old_target = nullptr;
+        IDirect3DSurface9* old_depth = nullptr;
+        device_->GetRenderTarget(0, &old_target);
+        device_->GetDepthStencilSurface(&old_depth);
+        gamma_state_->Capture();
+
+        device_->SetRenderTarget(0, swap_chain);
+        device_->SetDepthStencilSurface(nullptr);
+        device_->SetVertexShader(nullptr);
+        device_->SetPixelShader(gamma_shader_);
+        device_->SetFVF(D3DFVF_XYZRHW | D3DFVF_TEX1);
+        device_->SetTexture(0, source);
+        device_->SetTexture(1, gamma_table_);
+        for (DWORD sampler = 0; sampler < 2; ++sampler) {
+            const DWORD filter = sampler == 0 ? D3DTEXF_LINEAR : D3DTEXF_POINT;
+            device_->SetSamplerState(sampler, D3DSAMP_MINFILTER, filter);
+            device_->SetSamplerState(sampler, D3DSAMP_MAGFILTER, filter);
+            device_->SetSamplerState(sampler, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+            device_->SetSamplerState(sampler, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+            device_->SetSamplerState(sampler, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+            device_->SetSamplerState(sampler, D3DSAMP_SRGBTEXTURE, FALSE);
+        }
+        device_->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+        device_->SetRenderState(D3DRS_STENCILENABLE, FALSE);
+        device_->SetRenderState(D3DRS_SCISSORTESTENABLE, FALSE);
+        device_->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+        device_->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+        device_->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+        device_->SetRenderState(D3DRS_FILLMODE, D3DFILL_SOLID);
+        device_->SetRenderState(D3DRS_COLORWRITEENABLE, 0xF);
+        device_->SetRenderState(D3DRS_SRGBWRITEENABLE, FALSE);
+        device_->SetRenderState(D3DRS_FOGENABLE, FALSE);
+        D3DSURFACE_DESC desc{};
+        swap_chain->GetDesc(&desc);
+        const D3DVIEWPORT9 viewport{0, 0, desc.Width, desc.Height, 0.0f, 1.0f};
+        device_->SetViewport(&viewport);
+
+        struct Vertex {
+            float x, y, z, rhw, u, v;
+        };
+        const float x0 = static_cast<float>(dest.left) - 0.5f, y0 = static_cast<float>(dest.top) - 0.5f;
+        const float x1 = static_cast<float>(dest.right) - 0.5f, y1 = static_cast<float>(dest.bottom) - 0.5f;
+        const Vertex quad[4] = {{x0, y0, 0, 1, 0, 0}, {x1, y0, 0, 1, 1, 0}, {x0, y1, 0, 1, 0, 1}, {x1, y1, 0, 1, 1, 1}};
+        device_->BeginScene();
+        const bool ok = SUCCEEDED(device_->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, quad, sizeof(Vertex)));
+        device_->EndScene();
+
+        gamma_state_->Apply();
+        device_->SetRenderTarget(0, old_target);
+        device_->SetDepthStencilSurface(old_depth);
+        release(old_target);
+        release(old_depth);
+        return ok;
+    }
+
+    // gamma_pending_ -> gamma_table_ (under gamma_mutex_).
+    bool upload_gamma_table() {
+        if (!gamma_table_ &&
+            FAILED(device_->CreateTexture(256, 1, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &gamma_table_, nullptr)))
+            return false;
+        D3DLOCKED_RECT locked{};
+        if (FAILED(gamma_table_->LockRect(0, &locked, nullptr, 0))) return false;
+        auto* texels = static_cast<uint32_t*>(locked.pBits);
+        for (uint32_t i = 0; i < 256; ++i)
+            texels[i] = 0xFF000000u | uint32_t{gamma_pending_[0][i]} << 16 | uint32_t{gamma_pending_[1][i]} << 8 |
+                        gamma_pending_[2][i];
+        gamma_table_->UnlockRect(0);
+        return true;
+    }
+
     bool sdl_started_ = false;
     SDL_Window* window_ = nullptr;
     IDirect3D9* d3d_ = nullptr;
@@ -483,6 +601,14 @@ private:
     std::vector<std::string> overlay_lines_;
     std::unique_ptr<D3D9Overlay> notice_;  // its own, so neither redraws its text every frame
     std::vector<std::string> notice_lines_;
+    std::mutex gamma_mutex_;
+    uint8_t gamma_pending_[3][256] = {};  // guarded by gamma_mutex_
+    bool gamma_changed_ = false;          // guarded by gamma_mutex_
+    bool gamma_identity_ = true;
+    float brightness_ = 1.0f;  // BackendConfig::brightness
+    IDirect3DTexture9* gamma_table_ = nullptr;
+    IDirect3DPixelShader9* gamma_shader_ = nullptr;
+    IDirect3DStateBlock9* gamma_state_ = nullptr;
 };
 
 }  // namespace

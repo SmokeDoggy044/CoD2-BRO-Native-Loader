@@ -170,7 +170,7 @@ command line, so options given there win. Without game files and without
 
 Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter switches
 while playing), `--scale N` (window size), `--render-scale X`,
-`--anisotropy N`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--level N` (start a mission directly),
+`--anisotropy N`, `--brightness X`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--level N` (start a mission directly),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
 `--debug`/`--trace`. The keyboard layout is in `input/devices.h`: WASD, mouse look,
 Tab shows the objectives while held, Escape pauses. Click the window to capture the

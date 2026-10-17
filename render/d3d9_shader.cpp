@@ -19,8 +19,9 @@ namespace {
 
 // --- Bytecode ---------------------------------------------------------------------------
 
+// kTexture: t<n> in pixel shaders, the same type number as kAddr.
 enum RegisterType : uint32_t {
-    kTemp = 0, kInput = 1, kConst = 2, kAddr = 3, kOutput = 6, kColorOut = 8, kSampler = 10,
+    kTemp = 0, kInput = 1, kConst = 2, kAddr = 3, kTexture = 3, kOutput = 6, kColorOut = 8, kSampler = 10,
 };
 
 enum Opcode : uint32_t {
@@ -32,6 +33,7 @@ enum Opcode : uint32_t {
 enum Usage : uint32_t { kUsagePosition = 0, kUsageTexcoord = 5, kUsageColor = 10, kUsageFog = 11 };
 
 constexpr uint32_t kVs30 = 0xFFFE0300;
+constexpr uint32_t kPs20 = 0xFFFF0200;
 constexpr uint32_t kPs30 = 0xFFFF0300;
 constexpr uint32_t kTexldProject = 1u << 16;
 
@@ -635,6 +637,27 @@ std::vector<uint32_t> solid_color_pixel_shader(float r, float g, float b, float 
     Assembler as(kPs30);
     as.def(kPsHelpers, r, g, b, a);
     as.mov(dst(kColorOut, 0), c(kPsHelpers));
+    return as.finish();
+}
+
+std::vector<uint32_t> gamma_ramp_pixel_shader() {
+    Assembler as(kPs20);
+    // Value v (k/255) -> the centre of table texel k.
+    as.def(0, 255.0f / 256.0f, 0.5f / 256.0f, 0.0f, 1.0f);
+    as.dcl(0x80000000u, dst(kTexture, 0, kX | kY));
+    as.dcl_sampler(2, 0);
+    as.dcl_sampler(2, 1);
+    as.op(kTexld, r_(0), {src(kTexture, 0), src(kSampler, 0)});
+    as.mad(r_(0), r(0), c(0).x(), c(0).y());
+    // ps_2_0's texld takes no swizzle: each channel's coordinate goes through a temp.
+    for (uint32_t channel = 0; channel < 3; ++channel) {
+        as.mov(r_(1 + channel), r(0).swz(replicate(channel)));
+        as.op(kTexld, r_(1 + channel), {r(1 + channel), src(kSampler, 1)});
+    }
+    as.mov(r_(1, kY), r(2));
+    as.mov(r_(1, kZ), r(3));
+    as.mov(r_(1, kW), c(0).w());
+    as.mov(dst(kColorOut, 0), r(1));
     return as.finish();
 }
 
