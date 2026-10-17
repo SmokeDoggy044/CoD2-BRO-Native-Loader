@@ -1,0 +1,100 @@
+address,name,source_file,pass,score,runner_up,evidence
+00058020,inflate,Quake-III-Arena/qcommon/unzip.c;RTCW-SP/qcommon/unzip.c,strings,5.00,,unknown compression method | need dictionary | incorrect data check | invalid window size
+0005a010,inflate_blocks_reset,Quake-III-Arena/qcommon/unzip.c;RTCW-SP/qcommon/unzip.c,graph,2.00,,in inflate
+0005a130,inflate_blocks,Quake-III-Arena/qcommon/unzip.c;RTCW-SP/qcommon/unzip.c,strings,4.00,,invalid block type | invalid bit length repeat | invalid stored block lengths | too many length or distance symbols
+0005d170,inflate_codes_free,Quake-III-Arena/qcommon/unzip.c;RTCW-SP/qcommon/unzip.c,graph,2.00,,in inflate_blocks_reset
+0005d190,huft_build,Quake-III-Arena/qcommon/unzip.c;RTCW-SP/qcommon/unzip.c,graph,4.00,,"in inflate_trees_bits, inflate_trees_dynamic"
+0005d680,inflate_trees_bits,Quake-III-Arena/qcommon/unzip.c;RTCW-SP/qcommon/unzip.c,strings,2.00,,incomplete dynamic bit lengths tree | oversubscribed dynamic bit lengths tree
+0005d730,inflate_trees_dynamic,Quake-III-Arena/qcommon/unzip.c;RTCW-SP/qcommon/unzip.c,strings,5.00,,empty distance tree with lengths | oversubscribed literal/length tree | incomplete distance tree | oversubscribed distance tree
+001f07e1,sscanf,Quake-III-Arena/game/bg_lib.c;RTCW-SP/game/bg_lib.c,args,3.00,,3 of 3 call sites agree (5 calls)
+00247980,GetRefAPI,Quake-III-Arena/renderer/tr_init.c;RTCW-SP/renderer/tr_init.c,strings,1.00,,"Mismatched REF_API_VERSION: expected %i, got %i\n"
+00248af0,G_Error,Quake-III-Arena/game/g_main.c;RTCW-SP/game/g_main.c,args,5.00,,5 of 5 call sites agree (12 calls)
+00249c00,G_AddSpawnVarToken,Quake-III-Arena/game/g_spawn.c;RTCW-SP/game/g_spawn.c,strings,1.00,,G_AddSpawnVarToken: MAX_SPAWN_VARS
+0024ac50,G_RunThink,Quake-III-Arena/game/g_main.c;RTCW-SP/game/g_main.c,strings,1.00,,NULL ent->think
+0024f9a0,SP_skyportal,RTCW-SP/game/g_props.c,strings,1.00,,%.2f %.2f %.2f %.1f %i %.2f %.2f %.2f %i %i
+00258ce0,RespawnItem,Quake-III-Arena/game/g_items.c;RTCW-SP/game/g_items.c,strings,1.00,,RespawnItem: bad teammaster
+00277630,CG_Error,Quake-III-Arena/cgame/cg_main.c;RTCW-SP/cgame/cg_main.c,args,13.00,,13 of 13 call sites agree (15 calls)
+00277660,CG_Printf,Quake-III-Arena/cgame/cg_main.c;RTCW-SP/cgame/cg_main.c,graph,2.00,,in CG_Viewpos_f
+00279fb0,CG_Viewpos_f,Quake-III-Arena/cgame/cg_consolecmds.c;RTCW-SP/cgame/cg_consolecmds.c,strings,1.00,,(%i %i %i) : %i\n
+0027afd0,CG_DrawSkyBoxPortal,RTCW-SP/cgame/cg_view.c,strings,1.00,,CG_DrawSkyBoxPortal: error parsing skybox configstring\n
+00285e70,CG_Item,Quake-III-Arena/cgame/cg_ents.c;RTCW-SP/cgame/cg_ents.c,strings,1.00,,Bad item index %i on entity
+00287ab0,CG_ServerCommand,Quake-III-Arena/cgame/cg_servercmds.c;RTCW-SP/cgame/cg_servercmds.c,strings,1.01,FS_NewDir_f,Unknown client game command: %s\n | %s\n
+0028b220,CG_ProcessSnapshots,Quake-III-Arena/cgame/cg_snapshot.c;RTCW-SP/cgame/cg_snapshot.c,strings,2.00,,CG_ProcessSnapshots: n < cg.latestSnapshotNum | CG_ProcessSnapshots: Server time went backwards
+0029c2d0,Cvar_Get,Quake-III-Arena/qcommon/cvar.c;RTCW-SP/qcommon/cvar.c,args,40.79,trap_Cvar_Set,65 of 65 call sites agree (131 calls)
+0029e3d0,Cvar_Set_f,Quake-III-Arena/qcommon/cvar.c;RTCW-SP/qcommon/cvar.c,handler,1.00,,registered as set
+0029e4d0,Cvar_Toggle_f,Quake-III-Arena/qcommon/cvar.c;RTCW-SP/qcommon/cvar.c,handler,1.00,,registered as toggle
+0029fc30,Cvar_Restart_f,Quake-III-Arena/qcommon/cvar.c;RTCW-SP/qcommon/cvar.c,handler,1.00,,registered as cvar_restart
+0029fcc0,Cvar_Reset_f,Quake-III-Arena/qcommon/cvar.c;RTCW-SP/qcommon/cvar.c,handler,1.00,,registered as reset
+0029fce0,Cvar_SetA_f,Quake-III-Arena/qcommon/cvar.c;RTCW-SP/qcommon/cvar.c,handler,1.00,,registered as seta
+0029fd20,Cvar_SetS_f,Quake-III-Arena/qcommon/cvar.c;RTCW-SP/qcommon/cvar.c,handler,1.00,,registered as sets
+002a1c50,FS_Startup,Quake-III-Arena/qcommon/files.c;RTCW-SP/qcommon/files.c,strings,1.99,FS_InitFilesystem,fs_basepath | fs_basegame | fs_debug | fs_copyfiles
+002a23b0,Cvar_Init,Quake-III-Arena/qcommon/cvar.c;RTCW-SP/qcommon/cvar.c,strings,1.58,Com_SafeMode,reset | seta | sets | cvar_restart
+002a3370,FS_Restart,Quake-III-Arena/qcommon/files.c;RTCW-SP/qcommon/files.c,strings,2.34,FS_InitFilesystem,Invalid game folder\n | fs_basepath | default.cfg | fs_gamedirvar
+002a6dc0,Com_Quit_f,Quake-III-Arena/qcommon/common.c;RTCW-SP/qcommon/common.c,handler,1.00,,registered as quit
+002a9460,Com_sprintf,Quake-III-Arena/game/q_shared.c;RTCW-SP/game/q_shared.c,args,10.17,va,13 of 13 call sites agree (25 calls)
+002aa2f0,NET_AdrToString,Quake-III-Arena/qcommon/net_chan.c;RTCW-SP/qcommon/net_chan.c,strings,2.67,,%i.%i.%i.%i:%i | %02x%02x%02x%02x.%02x%02x%02x%02x%02x%02x:%i | loopback
+002aa870,Cmd_List_f,Quake-III-Arena/qcommon/cmd.c;RTCW-SP/qcommon/cmd.c,handler,1.00,,registered as cmdlist
+002aaad0,Cmd_Echo_f,Quake-III-Arena/qcommon/cmd.c;RTCW-SP/qcommon/cmd.c,handler,1.00,,registered as echo
+002aac40,Cmd_Wait_f,Quake-III-Arena/qcommon/cmd.c;RTCW-SP/qcommon/cmd.c,handler,1.00,,registered as wait
+002ab7b0,CL_Disconnect_f,Quake-III-Arena/client/cl_main.c;RTCW-SP/client/cl_main.c,handler,1.00,,registered as disconnect
+002ab7c0,CL_Setenv_f,Quake-III-Arena/client/cl_main.c;RTCW-SP/client/cl_main.c,handler,1.00,,registered as setenv
+002ab980,Key_KeynumToString,Quake-III-Arena/client/cl_keys.c;RTCW-SP/client/cl_keys.c,strings,2.00,,<KEY NOT FOUND> | <OUT OF RANGE>
+002abe80,IN_CenterView,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as centerview
+002abeb0,IN_SprintUp,RTCW-SP/client/cl_input.c,handler,1.00,,registered as -sprint
+002abec0,IN_SprintDown,RTCW-SP/client/cl_input.c,handler,1.00,,registered as +sprint
+002ac060,IN_MLookUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -mlook
+002ac0b0,IN_MLookDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +mlook
+002b31f0,CL_ShellExecute_URL_f,RTCW-SP/client/cl_main.c,handler,1.00,,registered as shellExecute
+002b32b0,CL_ForwardToServer_f,Quake-III-Arena/client/cl_main.c;RTCW-SP/client/cl_main.c,handler,1.00,,registered as cmd
+002b3370,Key_Bindlist_f,Quake-III-Arena/client/cl_keys.c;RTCW-SP/client/cl_keys.c,handler,1.00,,registered as bindlist
+002b4650,IN_LeanRightUp,RTCW-SP/client/cl_input.c,handler,1.00,,registered as -leanright
+002b4660,IN_LeanRightDown,RTCW-SP/client/cl_input.c,handler,1.00,,registered as +leanright
+002b4670,IN_LeanLeftUp,RTCW-SP/client/cl_input.c,handler,1.00,,registered as -leanleft
+002b4680,IN_LeanLeftDown,RTCW-SP/client/cl_input.c,handler,1.00,,registered as +leanleft
+002b4690,IN_ReloadUp,RTCW-SP/client/cl_input.c,handler,1.00,,registered as -reload
+002b46a0,IN_ReloadDown,RTCW-SP/client/cl_input.c,handler,1.00,,registered as +reload
+002b46f0,IN_ActivateUp,RTCW-SP/client/cl_input.c,handler,1.00,,registered as -activate
+002b4700,IN_ActivateDown,RTCW-SP/client/cl_input.c,handler,1.00,,registered as +activate
+002b4790,IN_Button0Up,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -attack
+002b47a0,IN_Button0Down,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +attack
+002b47b0,IN_StrafeUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -strafe
+002b47c0,IN_StrafeDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +strafe
+002b47d0,IN_SpeedUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -speed
+002b47e0,IN_SpeedDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +speed
+002b47f0,IN_MoverightUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -moveright
+002b4800,IN_MoverightDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +moveright
+002b4810,IN_MoveleftUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -moveleft
+002b4820,IN_MoveleftDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +moveleft
+002b4830,IN_LookdownUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -lookdown
+002b4840,IN_LookdownDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +lookdown
+002b4850,IN_LookupUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -lookup
+002b4860,IN_LookupDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +lookup
+002b4870,IN_BackUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -back
+002b4880,IN_BackDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +back
+002b4890,IN_ForwardUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -forward
+002b48a0,IN_ForwardDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +forward
+002b48b0,IN_RightUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -right
+002b48c0,IN_RightDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +right
+002b48d0,IN_LeftUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -left
+002b48e0,IN_LeftDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +left
+002b48f0,IN_UpUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -moveup
+002ba5c0,Cmd_AddCommand,Quake-III-Arena/qcommon/cmd.c;RTCW-SP/qcommon/cmd.c,args,56.67,Q_stricmp,63 of 68 call sites agree (106 calls)
+002c0ce0,Netchan_Init,Quake-III-Arena/qcommon/net_chan.c;RTCW-SP/qcommon/net_chan.c,strings,1.58,,showdrop | showpackets
+002c0d30,Cmd_Vstr_f,Quake-III-Arena/qcommon/cmd.c;RTCW-SP/qcommon/cmd.c,handler,1.00,,registered as vstr
+002c1ae0,CM_LoadMap,Quake-III-Arena/qcommon/cm_load.c;RTCW-SP/qcommon/cm_load.c,strings,1.92,,cm_playerCurveClip | cm_noCurves
+002c1c20,Key_Bind_f,Quake-III-Arena/client/cl_keys.c;RTCW-SP/client/cl_keys.c,handler,1.00,,registered as bind
+002c1d60,Key_Unbindall_f,Quake-III-Arena/client/cl_keys.c;RTCW-SP/client/cl_keys.c,handler,1.00,,registered as unbindall
+002c1db0,Key_Unbind_f,Quake-III-Arena/client/cl_keys.c;RTCW-SP/client/cl_keys.c,handler,1.00,,registered as unbind
+002c7de0,IN_UpDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +moveup
+002cae20,Cmd_Exec_f,Quake-III-Arena/qcommon/cmd.c;RTCW-SP/qcommon/cmd.c,handler,1.00,,registered as exec
+002cd0c0,CL_KeyEvent,Quake-III-Arena/client/cl_keys.c;RTCW-SP/client/cl_keys.c,strings,1.73,CL_NextDemo,nextdemo | -%s %i %i\n | cameraInterrupt | %s %i %i\n
+002cd5f0,IN_DownUp,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as -movedown
+002cd640,IN_DownDown,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,handler,1.00,,registered as +movedown
+002d1460,Cmd_Init,Quake-III-Arena/qcommon/cmd.c;RTCW-SP/qcommon/cmd.c,strings,1.43,CL_ConnectionlessPacket,echo | wait | exec | vstr
+002e23b0,CL_InitInput,Quake-III-Arena/client/cl_input.c;RTCW-SP/client/cl_input.c,strings,13.20,,+left | -forward | +back | +leanright
+002f1e60,SCR_UpdateScreen,Quake-III-Arena/client/cl_scrn.c;RTCW-SP/client/cl_scrn.c,handler,1.00,,registered as updatescreen
+002f20a0,CL_Init,Quake-III-Arena/client/cl_main.c;RTCW-SP/client/cl_main.c,strings,14.61,CG_ShowResponseHead,cl_conXOffset | cl_shownet | cl_freelook | m_forward
+002f3de0,CheckReloadStatus,RTCW-SP/game/g_main.c,strings,1.83,CL_SystemInfoChanged,spmap %s\n | spdevmap %s\n
+002f3f40,SV_Map_f,Quake-III-Arena/server/sv_ccmds.c;RTCW-SP/server/sv_ccmds.c,handler,3.00,,"registered as devmap, map, spmap"
+002f4550,SV_LoadGame_f,RTCW-SP/server/sv_ccmds.c,handler,1.00,,registered as loadgame
+002f4770,SV_AddOperatorCommands,Quake-III-Arena/server/sv_ccmds.c;RTCW-SP/server/sv_ccmds.c,strings,1.28,SV_Map_f,spmap | loadgame | devmap | map_restart
