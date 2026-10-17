@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <optional>
 #include <span>
@@ -386,6 +387,22 @@ int loader_main(int argc, char** argv) {
     loader::set_fatal_exit_hook([](bool error) {
         if (g_diag_dir) loader::write_diag_summary(*g_diag_dir);
         if (error) tell_player("The game stopped after an error.");
+    });
+    // An uncaught C++ exception (e.g. std::thread failing to start one) would end the
+    // process without a word.
+    std::set_terminate([] {
+        const char* what = "unknown";
+        if (const std::exception_ptr current = std::current_exception()) {
+            try {
+                std::rethrow_exception(current);
+            } catch (const std::exception& e) {
+                what = e.what();
+            } catch (...) {
+            }
+        }
+        LOG_ERROR("fatal", "uncaught C++ exception: %s", what);
+        loader::run_fatal_exit_hook(true);
+        std::_Exit(3);
     });
 
     const auto assets = platform::resolve_asset_root(options->assets);

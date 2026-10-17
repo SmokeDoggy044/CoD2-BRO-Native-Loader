@@ -27,6 +27,8 @@ void* map_image(uint32_t base, uint32_t size) {
 
 void release_reserved_ranges() {}
 
+void keep_executable_headers(uint32_t) {}
+
 void show_error(const std::string&, const std::string&) {}
 
 int pass_launch_data(std::span<const uint8_t> page) {

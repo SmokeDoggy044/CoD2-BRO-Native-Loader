@@ -7,9 +7,11 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include "kernel.h"
 #include "log.h"
@@ -53,6 +55,12 @@ std::string narrow(const wchar_t* text) {
     return result;
 }
 
+// The stub's NT headers (signature, file and optional header, section table), saved
+// by map_image before the XBE replaces them, and where keep_executable_headers puts
+// them back: the last page of the stub's image, which the XBE does not reach.
+std::vector<uint8_t> g_nt_headers;
+constexpr uint32_t kNtHeadersCopy = COD_BRO_IMAGE_AREA_END - 0x1000;
+
 // One argument as CommandLineToArgvW and the C runtime split it again.
 void append_quoted(std::wstring& line, const std::wstring& arg) {
     if (!line.empty()) line += L' ';
@@ -85,6 +93,16 @@ void* map_image(uint32_t base, uint32_t size) {
         // The stub's own pages: made writable (copy-on-write) and cleared. Its code
         // is not running any more (the stub is waiting for us to return, which we
         // never do).
+        if (base + size > kNtHeadersCopy) {
+            LOG_ERROR("loader", "the XBE reaches the stub's header copy at %08x", kNtHeadersCopy);
+            return nullptr;
+        }
+        const auto* image = static_cast<const uint8_t*>(want);
+        const auto* nt =
+            reinterpret_cast<const IMAGE_NT_HEADERS32*>(image + reinterpret_cast<const IMAGE_DOS_HEADER*>(image)->e_lfanew);
+        const size_t nt_size = offsetof(IMAGE_NT_HEADERS32, OptionalHeader) + nt->FileHeader.SizeOfOptionalHeader +
+                               nt->FileHeader.NumberOfSections * sizeof(IMAGE_SECTION_HEADER);
+        g_nt_headers.assign(reinterpret_cast<const uint8_t*>(nt), reinterpret_cast<const uint8_t*>(nt) + nt_size);
         DWORD old = 0;
         if (!VirtualProtect(want, size, PAGE_EXECUTE_READWRITE, &old)) {
             LOG_ERROR("loader", "VirtualProtect at %08x: error %lu", base, GetLastError());
@@ -113,6 +131,21 @@ void release_reserved_ranges() {
             LOG_WARN("loader", "%08lx-%08lx was not held by the stub executable", range.start,
                      range.start + range.size);
     }
+}
+
+void keep_executable_headers(uint32_t base) {
+    if (g_nt_headers.empty()) return;  // the XBE was not mapped over the stub
+    auto* copy = reinterpret_cast<uint8_t*>(uintptr_t{kNtHeadersCopy});
+    std::memcpy(copy, g_nt_headers.data(), g_nt_headers.size());
+    // The stub's imports, resources etc. are gone: no directories at all.
+    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(copy);
+    std::memset(nt->OptionalHeader.DataDirectory, 0, sizeof(nt->OptionalHeader.DataDirectory));
+    auto* image = reinterpret_cast<uint8_t*>(uintptr_t{base});
+    const uint16_t magic = IMAGE_DOS_SIGNATURE;
+    const LONG offset = static_cast<LONG>(kNtHeadersCopy - base);
+    std::memcpy(image, &magic, sizeof(magic));
+    std::memcpy(image + offsetof(IMAGE_DOS_HEADER, e_lfanew), &offset, sizeof(offset));
+    LOG_DEBUG("loader", "executable headers kept at %08x for Windows", kNtHeadersCopy);
 }
 
 int pass_launch_data(std::span<const uint8_t> page) {

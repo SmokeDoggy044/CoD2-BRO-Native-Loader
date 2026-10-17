@@ -15,6 +15,13 @@ namespace loader::os {
 // (the XBE image). Null if the range is taken.
 void* map_image(uint32_t base, uint32_t size);
 
+// Called once the XBE's headers are in place at `base`. Windows: the XBE replaced
+// the executable's PE headers there, which Windows keeps reading (CreateThread takes
+// its default stack sizes from them and fails without them), so this points a DOS
+// header at a copy of them; the XBE fields it overwrites (the magic, part of the
+// signature) are not read at run time. Nothing on Linux.
+void keep_executable_headers(uint32_t base);
+
 // Windows: frees the ranges the stub executable held for the kernel's memory, just
 // before kernel_init reserves them for itself. Nothing on Linux.
 void release_reserved_ranges();

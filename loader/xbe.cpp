@@ -55,6 +55,7 @@ bool XbeImage::load(const std::filesystem::path& path) {
         return false;
     }
     std::memcpy(mapped, file_.data(), file_header.size_of_headers);
+    os::keep_executable_headers(base);
     header_ = at<const XbeImageHeader>(base);
 
     // Retail and debug XBEs scramble these with different keys; pick the one that
