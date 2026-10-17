@@ -49,7 +49,7 @@ next steps: [docs/status.md](docs/status.md).
 | | Linux | Windows |
 |---|---|---|
 | System | 64-bit or 32-bit x86, glibc 2.30 or newer | 64-bit Windows 10 or 11 |
-| Graphics | Vulkan 1.3 with 32-bit drivers (Mesa or NVIDIA), through the bundled DXVK | Direct3D 9 |
+| Graphics | Vulkan 1.3 with 32-bit drivers (Mesa or NVIDIA), through the bundled DXVK | Any GPU with a current driver (Direct3D 9 is part of Windows; nothing to install) |
 | Other | 32-bit X11/Wayland and PulseAudio/PipeWire client libraries (as 32-bit Steam games need) | - |
 
 Controls and options are in the `README.txt` inside the archive.
@@ -70,7 +70,8 @@ Controls and options are in the `README.txt` inside the archive.
   the input library and Xbox Live are redirected to our code by name, using a symbol
   file exported from Ghidra (`render/`, `audio/`, `input/`, `online/`).
 - **Rendering:** the game's Direct3D 8 calls and NV2A shaders are translated to
-  Direct3D 9: DXVK on Linux, the system's on Windows. See
+  Direct3D 9: DXVK on Linux, the `d3d9.dll` that comes with Windows on Windows
+  (no DirectX runtime or D3DX needed; shaders are emitted as bytecode). See
   [docs/rendering.md](docs/rendering.md).
 
 ## License
