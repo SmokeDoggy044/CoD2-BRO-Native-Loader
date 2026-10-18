@@ -78,11 +78,12 @@ The game also contains about 2,950 functions from Microsoft's Xbox libraries:
 Direct3D, DirectSound, Xbox Live and networking, and a few others. We're leaving
 them out on purpose:
 
-- They talk directly to the Xbox's own hardware and online services, so they
-  couldn't do anything useful on a PC anyway. The PC versions of graphics, sound,
-  input and networking we already wrote for the native loader take their place.
-- They're Microsoft's code, not the game's. Publishing a decompiled copy of them
-  would mean publishing Microsoft's code.
+- They talk directly to the Xbox's own hardware and online services, so a
+  rewritten version couldn't do anything useful on a PC anyway. The PC versions of
+  graphics, sound, input and networking we already wrote for the native loader
+  take their place.
+- They aren't part of the game itself. Every Xbox game was built with these same
+  libraries, so they say nothing about how *Big Red One* works.
 
 ## Building it yourself
 
