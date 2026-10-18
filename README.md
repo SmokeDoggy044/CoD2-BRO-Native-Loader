@@ -77,14 +77,9 @@ Controls and options are in the `README.txt` inside the archive.
 
 ## License
 
-The native loader's own code (everything outside `third_party/`) is
-
-    Copyright (C) 2026 the CoD2-BRO-Native-Loader contributors
-
-and licensed under the **GNU General Public License, version 2 or (at your
-option) any later version** ([LICENSE](LICENSE)). You may use, change and share it
-under those terms; anything built from it and distributed must be under the same
-license, with its source.
+The native loader's own code (everything outside `third_party/`) is licensed under
+the **GNU General Public License, version 2 or (at your option) any later
+version** ([LICENSE](LICENSE)).
 
 The releases bundle these libraries, each under its own license (texts and
 versions in `LICENSES/` inside every archive):
