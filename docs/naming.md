@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-18): 742 functions and 392 globals named, all applied in Ghidra and
+State (2026-10-18): 874 functions and 536 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -249,13 +249,20 @@ CoD-specific functions included, so later decompilation covers both kinds.
   The XAnim tree callees (0x002be5a0, 0x002aebf0, 0x002cf220, 0x002c4a00,
   0x002c3ed0; tree at 0x00928588, anim info 0x30 each at 0x00965cf0) are a module of
   their own - name them as one batch.
-- Cgame (2026-10-18, started from CG_DrawActiveFrame, Q3 cg_view.c order):
-  CG_UpdateCvars, CG_PredictPlayerState, CG_UpdateShellShock, CG_CalcViewValues,
-  CG_ShakeCamera, AnglesToAxis, CG_DrawActive; the 137 vmCvars. Open in the frame:
-  0x00278fa0 (after AnglesToAxis), 0x00289540 (gated by 0x008da6d4, many callees -
-  likely the entity/marks/local-entity adds), 0x00279650 (no-snapshot path, calls
-  SCR_UpdateScreen), 0x00277c50 (2D draw in CG_DrawActive), 0x000c65c0/0x000c6640
-  (listener-like origin/axis setters). Next: `CalleeTree.java CG_* 1 1` (60 unnamed).
+- Cgame (2026-10-18, from CG_DrawActiveFrame, Q3 cg_view.c order): the frame
+  (CG_UpdateCvars, CG_PredictPlayerState, CG_InterpolatePlayerState, CG_CalcViewValues,
+  CG_ShakeCamera, CG_DrawActive, CG_AddViewWeapon), the snapshot code (cg_snapshot.c:
+  CG_ReadNextSnapshot, CG_SetInitialSnapshot, CG_SetNextSnap, CG_TransitionSnapshot,
+  CG_CheckEvents/CG_CheckPlayerstateEvents -> CG_EntityEvent, plus a pre-event pass
+  with its own counter), CG_ConfigStringModified, CG_RegisterGraphics/Items, and the
+  2D pass (CG_Draw2D: crosshair, centre print, damage direction icons, fades, hud
+  elems, objectives); the 137 vmCvars; cg_t fields cg_snap/cg_time/... as labels.
+  Range 0x00275040-0x0028bc50: 220 functions, 73 named after this batch.
+  Open: CG_EntityEvent's body (0x00289790, big switch), 0x00285260 (2188 bytes, HUD),
+  0x0027ff20 (projects a view direction to a screen offset), 0x00283120/0x00285e00
+  (per-client model reload by name), 0x0027cad0 (cg state init: clears cg, parses
+  configstrings), 0x002764c0/0x00276530 (identical fade stubs).
+  Next: `CalleeTree.java CG_* 1 1` again, then the address-order sweep of the range.
 - Then the client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
   plus what the body does; `high` only when strings, tables or calls pin the role,
