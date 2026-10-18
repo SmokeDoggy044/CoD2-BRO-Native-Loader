@@ -293,7 +293,30 @@ CoD-specific functions included, so later decompilation covers both kinds.
   helpers (0x002808b0, 0x00280ed0), the weapon tag/pose helpers using the DObj
   (0x0027f8e0, 0x0027f920, 0x0027fa50, 0x00284d00, 0x00288510), configstring float
   readers (0x0027abb0, 0x0027ad70).
-- Then the client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
+- Client/UI (2026-10-18, started; SCR_DrawScreenField itself is only cvar + CG_DrawActiveFrame
+  + the in-game menu draws). The Q3 client is thin in this single-player build: CL_Frame ->
+  CL_CreateNewCommands, CL_WritePacket -> Netchan_Transmit (loopback inlined),
+  CL_ParseServerMessage (svc nop 1, serverCommand 5, snapshot 7, EOF 8; CL_ParseSnapshot
+  copies the player state from the local server, no delta), CL_ConfigstringModified /
+  CL_SystemInfoChanged, clc_* globals in Q3 order. cls_keyCatchers 0x0092bdf4 (2 UI, 8 cgame).
+  The rest of CL_Frame is CoD-specific per-frame work: sound (S_StopAllSounds,
+  S_CheckWaveBankNotifies 'wbk_loaded', S_UpdateCrossfade; sound handles are
+  index | generation << 12 into 0x00962860), CL_UpdateRumble, FX_UpdateEffects (effects of
+  vtable components; SOUND/PARTICLE/LIGHT/SHAKEANDRUMBLE.FX), the streaming loader
+  (0x00292c20 and 0x0028c000-0x00292000: AUDIO/VIDEO/ANIM streams, file extension table),
+  0x002ea4f0 (99 per-entity effect slots, state machine), 0x0024b140.
+  Front end (0x0030e000-0x0033a000, ~600 functions, mostly C++ vtable code): menus are
+  .panel files (Panel_Load / Panel_LoadNode_r: node 0x91 picture, 0x94 text), bound to their
+  screen by FE_SetupPanel, one FE_Setup<Screen> per panel (names from the panel file names);
+  Panel_FindPicture/Panel_FindText by element name; dialogs via UI_ShowDialog (MEM_* memory
+  unit dialogs at 0x00333000-0x0033a700 still unnamed). FE_CreateMenus (Com_Init) builds the
+  front-end (0xf8) and in-game (0x24) menu objects; SCR_UpdateScreen calls the UI object's
+  update (vtable +0xc) or 0x00315520/0x00315560. Open: the screen classes' vtables
+  (0x00828xxx-0x0082axxx tables, one per screen), the memory-unit flow, 0x0032f650 (Com_Frame,
+  'MOVIE'), the NGL 2D scene code at 0x0005d000-0x00066000 (loader names kSceneCreate etc.).
+  RTTI: the binary keeps 266 type descriptors, but only for the level-script runtime
+  (AeThreadFunctorN<...>, WaitTilOutputInstN<...>, Broc::entity) and std exceptions - a lever
+  for the script runtime's vtables, not for the UI.
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
   plus what the body does; `high` only when strings, tables or calls pin the role,
   else `medium`. Evidence column says which.
