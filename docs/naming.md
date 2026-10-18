@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 466 functions and 302 globals named, all applied in Ghidra and
+State (2026-10-17): 498 functions and 303 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -112,7 +112,8 @@ copy the repository version there first so it is not stale.
 - Entity callbacks are indices into one table per kind (entry 0 empty), not pointers:
   think +0x32c -> 0x008da788 (28), reached +0x330 -> 0x008da7fc, blocked +0x334 ->
   0x008da808, touch +0x338 -> 0x008da814, use +0x33c -> 0x008da840, pain +0x340 ->
-  0x008da874, die +0x344 -> 0x008da88c, then two more (+0x348/+0x34c, unknown).
+  0x008da874, die +0x344 -> 0x008da88c, +0x348 -> 0x008da8a4 (unknown, actors),
+  controller +0x34c -> 0x008da8b0 (turret/vehicle bone aiming).
   Entries are named from the SP_/Init function that stores the index where Q3 assigns
   that callback (SP_func_door: blocked[1] = Blocked_Door), or from their bodies.
   Mover states follow RTCW's enum (POS1 0, POS2 1, POS3 2, 1TO2 3, 2TO1 4, 2TO3 5,
@@ -134,6 +135,13 @@ copy the repository version there first so it is not stale.
   precompiled map zones (SP_worldspawn, then G_SpawnGEntityFromSpawnVars per entity,
   G_SpawnVehicleNode per vehicle node) between level.spawning set/clear. Entities are
   0x460-byte objects from a pool (G_Spawn), not a fixed g_entities array slot.
+- Entity sub-objects: +0x22c anim tree (XAnim), +0x23c gclient, +0x240 actor,
+  +0x244 sentient (team at +4), +0x248 vehicle (a g_vehicles record), +0x24c turret
+  info. Vehicles also have physics bodies (list 0x008feb70) stepped once per frame in
+  G_VehiclePhysicsFrame.
+- Correction (2026-10-17): 0x0095f694 / 0x00986000 are the vehicle pool and its slot
+  count (g_vehicles, g_vehicleSlotCount), not g_entities / level_num_entities: the
+  0x340-byte records hold an entity handle (+0x170) and a vehicle def index (+0x178).
 - `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
   function's unnamed callees with size, caller count and strings (where to look next).
 - `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
@@ -157,10 +165,11 @@ CoD-specific functions included, so later decompilation covers both kinds.
 
 - Game module (2026-10-17, from G_RunFrame): done for the entity runners,
   ClientThink_real, SP_func_door/trigger paths and the callback tables. Still open:
-  the CoD-only callback entries still unnamed (think[1, 4, 13, 14, 17, 22-24, 28],
-  touch[2, 4, 10], use[2-4, 6, 7, 10, 12], pain[1-5], die[2, 4, 5], +0x348/+0x34c), ClientEndFrame's
-  callees (turrets, bomber keyboard mode), G_RunFrame's AI/animation calls
-  (0x002cf530, 0x002d7f20, 0x002df880, 0x00233bd0); the rest of the 0x0097a6xx-8xx
+  the CoD-only callback entries still unnamed (think[1, 4, 13, 14, 17, 22, 28],
+  touch[2, 10], use[2, 6, 12], pain[4], +0x348 table), ClientEndFrame's
+  callees beyond P_DamageFeedback (0x00263c00, 0x00267e10, 0x002e38a0),
+  G_RunFrame's 0x002df880 (per-model bone/tag update) and 0x002be8f0 ('COD_Note'
+  list), the AI (Actor_*, 0x001fxxxx-0x0021xxxx); the rest of the 0x0097a6xx-8xx
   block (12 slots not stored by GScr_LoadConsts).
 - The game module from G_RunFrame (entities, clients, AI) and the cgame from
   CG_DrawActiveFrame; the client/UI from SCR_DrawScreenField.
