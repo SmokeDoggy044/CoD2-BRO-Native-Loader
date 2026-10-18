@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 424 functions and 166 globals named, all applied in Ghidra and
+State (2026-10-17): 426 functions and 166 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -142,6 +142,12 @@ copy the repository version there first so it is not stale.
 Decision (user, 2026-10-17): naming continues before step 2 (decompile + compare),
 CoD-specific functions included, so later decompilation covers both kinds.
 
+- Game module (2026-10-17, from G_RunFrame): done for the entity runners,
+  ClientThink_real, SP_func_door/trigger paths and the callback tables. Still open:
+  the rest of the callback-table entries (think[1-5, 8-11, 13-17, 22-28], touch,
+  use, pain, die - set through registers or by CoD-only code), ClientEndFrame's
+  callees (turrets, bomber keyboard mode), G_RunFrame's AI/animation calls
+  (0x002cf530, 0x002d7f20, 0x002df880, 0x00233bd0) and G_Damage's callees.
 - The game module from G_RunFrame (entities, clients, AI) and the cgame from
   CG_DrawActiveFrame; the client/UI from SCR_DrawScreenField.
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)

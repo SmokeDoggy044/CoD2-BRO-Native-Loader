@@ -416,3 +416,5 @@ address,name,kind,confidence,evidence
 008da840,entityUseFuncs,data,high,"use table (ent+0x33c)"
 008da874,entityPainFuncs,data,medium,"pain table (ent+0x340)"
 008da88c,entityDieFuncs,data,high,"die table (ent+0x344); [3] player_die"
+00249a40,multi_trigger,function,high,"activator (+0x378), returns while nextthink is set, wait > 0 -> think multi_wait with (wait + random * crandom()) * 1000, else touch 0 + think G_FreeEntity (Q3 body); called by Touch_Multi and Use_Multi only"
+002482e0,multi_wait,function,high,"think[18], set by multi_trigger (Q3)"
