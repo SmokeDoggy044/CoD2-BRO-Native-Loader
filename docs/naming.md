@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 321 functions and 149 globals named, all applied in Ghidra and
+State (2026-10-17): 322 functions and 149 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -58,7 +58,9 @@ copy the repository version there first so it is not stale.
   (g_reloading), 10 advances level.time, 0xc ConsoleCommand. CoD has no
   ClientUserinfoChanged export, so from 4 on Q3's numbers are off by one - each case
   was checked against its body.
-  Case 7 is not G_RunFrame: G_RunFrame is 0x00274660, called directly (SV_SpawnServer
+  Cases 0-6 were checked against their bodies or calls (pers.connected goes 1 in
+  ClientConnect, 2 in ClientBegin, 0 in ClientDisconnect; GAME_INIT is called with
+  levelTime, Com_Milliseconds(), restart). Case 7 is not G_RunFrame: G_RunFrame is 0x00274660, called directly (SV_SpawnServer
   settles a map with five 50 ms calls).
 - CG_vmMain: 0 CG_Init, 1 CG_Shutdown, 2 CG_ConsoleCommand, 3 CG_DrawActiveFrame;
   the rest are CoD's.
