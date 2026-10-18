@@ -77,11 +77,36 @@ Controls and options are in the `README.txt` inside the archive.
 
 ## License
 
-The port's own code is licensed under the GNU General Public License, version 2
-or (at your option) any later version: see [LICENSE](LICENSE) and
-[LICENSES/README.md](LICENSES/README.md), which also covers the third-party code.
-Call of Duty 2: Big Red One belongs to its owners; none of its code or data is
-part of this project.
+The native loader's own code (everything outside `third_party/`) is
+
+    Copyright (C) 2026 the CoD2-BRO-Native-Loader contributors
+
+and licensed under the **GNU General Public License, version 2 or (at your
+option) any later version** ([LICENSE](LICENSE)). You may use, change and share it
+under those terms; anything built from it and distributed must be under the same
+license, with its source.
+
+The releases bundle these libraries, each under its own license (texts and
+versions in `LICENSES/` inside every archive):
+
+| Component | Used for | License |
+|---|---|---|
+| [SDL3](https://github.com/libsdl-org/SDL) | Window, controllers, keyboard and mouse | zlib |
+| [OpenAL Soft](https://github.com/kcat/openal-soft) | Sound | LGPL-2.0-or-later (a separate library you can replace) |
+| [DXVK](https://github.com/doitsujin/dxvk) | Direct3D 9 on Vulkan | zlib |
+| [Dear ImGui](https://github.com/ocornut/imgui) | The launcher's interface | MIT |
+| GCC runtime, mingw-w64 (Windows only) | C/C++ runtime | GPL-3.0 with the GCC runtime library exception; mingw-w64 terms |
+
+The `third_party/xbox-includes` submodule (Xbox kernel and SDK headers; GPL-2.0,
+CC0 and LGPL-2.1 files) is not compiled into any build. File-by-file details are
+in [LICENSES/README.md](LICENSES/README.md).
+
+**The game is not included.** *Call of Duty 2: Big Red One* and all of its code and
+data belong to their owners; you need your own copy of the game. The symbol file
+in `tools/data/` holds only function addresses and names from our own analysis.
+This project is not affiliated with or endorsed by Activision, Treyarch or
+Microsoft. Call of Duty is a trademark of Activision Publishing, Inc.; Xbox is a
+trademark of Microsoft Corporation.
 
 ## Documentation
 
