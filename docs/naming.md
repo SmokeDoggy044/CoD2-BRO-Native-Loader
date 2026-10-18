@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 523 functions and 358 globals named, all applied in Ghidra and
+State (2026-10-17): 595 functions and 360 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -171,8 +171,23 @@ CoD-specific functions included, so later decompilation covers both kinds.
   helpers are named. Small leftovers: pain[4] (0x0024c5e0, unclear), the +0x348
   table (actors - do with the AI), 0x002df880 (per-model pose/tag update) and
   0x002be8f0 ('COD_Note' list), 0x0024c9f0 (entity list bookkeeping), the 12
-  scr_const slots GScr_LoadConsts does not fill. Next: the AI (Actor_*, 0x001fxxxx-
-  0x0021xxxx), starting from its state table at 0x00830c40 (0x24 per state).
+  scr_const slots GScr_LoadConsts does not fill.
+- AI (2026-10-17, started): the state machine is named. g_aiStateFuncs (0x00830c28)
+  is 13 states x 9 callbacks: Start (returns a state to chain to, 0 = none), Finish
+  (actor, next state), Suspend (default: Finish), Resume (default: Start), Think,
+  slot 5 (role unknown, Actor_CallStateSlot5 via the 0x0095f49c interface), Touch,
+  Pain, NodeClaimRevoked (Path_ClaimNode took the actor's node). States, from the
+  debug strings the thinks store at actor +0x13e8: 1 cover, 2 exposed, 3 turret,
+  4 lmg, 5 noncombat, 6 grenade, 7 death, 8 pain, 9 critical section,
+  10 animscripted, 11 animcustom, 12 negotiation (like CoD4's ai_state_t plus
+  cover/lmg/noncombat/critical section). actor_t: +0 ent, +4 sentient, +8 eState[]
+  with stateLevel +0x20, transitions {type 1 set/2 push/3 pop, state} at +0x38
+  (count +0xa0), simulated copy +0xa4/+0xbc; thinks queue transitions
+  (Actor_SetState/PushState/PopState), Actor_ThinkStateTransitions applies them next
+  frame. Next: the callees of the state thinks (cover/exposed sub-behaviours
+  0x0021d3c0, 0x0021e860, 0x0021d6e0, 0x0021fxxx; the per-think pair 0x002135d0 /
+  0x002185c0), the slot-5 role, then Actor_* outside the table (CalleeTree on
+  Actor_Think).
 - After the game module (AI included): the cgame from CG_DrawActiveFrame, then the
   client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
