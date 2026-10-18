@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 595 functions and 360 globals named, all applied in Ghidra and
+State (2026-10-17): 615 functions and 360 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -176,7 +176,8 @@ CoD-specific functions included, so later decompilation covers both kinds.
   is 13 states x 9 callbacks: Start (returns a state to chain to, 0 = none), Finish
   (actor, next state), Suspend (default: Finish), Resume (default: Start), Think,
   slot 5 (role unknown, Actor_CallStateSlot5 via the 0x0095f49c interface), Touch,
-  Pain, NodeClaimRevoked (Path_ClaimNode took the actor's node). States, from the
+  Pain, NodeClaimRevoked (releases the claimed node; Actor_DropClaimedNode asks the
+  states top down). States, from the
   debug strings the thinks store at actor +0x13e8: 1 cover, 2 exposed, 3 turret,
   4 lmg, 5 noncombat, 6 grenade, 7 death, 8 pain, 9 critical section,
   10 animscripted, 11 animcustom, 12 negotiation (like CoD4's ai_state_t plus
@@ -184,10 +185,13 @@ CoD-specific functions included, so later decompilation covers both kinds.
   with stateLevel +0x20, transitions {type 1 set/2 push/3 pop, state} at +0x38
   (count +0xa0), simulated copy +0xa4/+0xbc; thinks queue transitions
   (Actor_SetState/PushState/PopState), Actor_ThinkStateTransitions applies them next
-  frame. Next: the callees of the state thinks (cover/exposed sub-behaviours
-  0x0021d3c0, 0x0021e860, 0x0021d6e0, 0x0021fxxx; the per-think pair 0x002135d0 /
-  0x002185c0), the slot-5 role, then Actor_* outside the table (CalleeTree on
-  Actor_Think).
+  frame. Each state has sub-states in actor +0x28 (cover 100/101, exposed 200-0xd7,
+  death 400/401, grenade 600-0x25f, lmg 0x2bd/0x2be); the think's switch sets a
+  debug string per case, which named the cover/exposed/grenade sub-behaviours.
+  Next: the shared think helpers (the per-think pair 0x002135d0 / 0x002185c0,
+  0x00200050 enemy sighting record, 0x00203de0 / 0x00214c80 / 0x00201a10 / 0x00201a80
+  movement, 0x002198a0 path move, 0x0021c700, 0x00214bd0 death), the slot-5 role,
+  then Actor_* outside the table (`CalleeTree.java Actor_* 1 1`).
 - After the game module (AI included): the cgame from CG_DrawActiveFrame, then the
   client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
