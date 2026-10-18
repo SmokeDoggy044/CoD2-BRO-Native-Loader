@@ -1,8 +1,8 @@
 # Planned: comparison harness
 
 Automatic check that a decompiled function behaves like the original. Only needed
-if/when we start large-scale decompilation (route C); route B's handful of
-decompiled functions can be tested in-game. Roughly 500-800 lines in `loader/`.
+if/when we start large-scale decompilation (the full native build); the native
+loader's handful of decompiled functions can be tested in-game. Roughly 500-800 lines in `loader/`.
 
 **How it works.** When the game calls a function marked `compare`, the hook
 `fork()`s. The child runs the *original* on a copy-on-write copy of memory and sends

@@ -24,9 +24,7 @@ What it is **not**:
 This native loader is the **proof of concept for a full native build**. The plan:
 decompile the game's functions one at a time and hook them into the running game,
 until none of the original code is left. Then the loader goes away and `cod_bro`
-builds from source for Linux and Windows, needing only the game's assets. The
-docs call the two stages route B (the native loader, now) and route C (the full
-native build).
+builds from source for Linux and Windows, needing only the game's assets.
 
 ## Status
 
@@ -202,7 +200,7 @@ sections, dispatcher, memory, file system, crypto, time, frame pacing, audio; th
 tests build a fake disc in a temp folder and the audio test mixes on an OpenAL
 loopback device, so neither needs game files or a sound card). They need a 32-bit
 build because `xbox/` stores the title's pointers as 32-bit `XbPtr`; making `xbox/`
-64-bit-clean is part of route C.
+64-bit-clean is part of the full native build.
 
 ## Releasing
 
