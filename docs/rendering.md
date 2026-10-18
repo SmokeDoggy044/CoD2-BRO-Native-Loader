@@ -73,6 +73,16 @@ Everything else is a 4:3 layout:
 Checked: missions 1-2, pause menu and its Options, objectives (mission 4, against
 `--aspect 4:3`). Not checked: death/mission failed screens, dialogs.
 
+## Upscalers (assessment 2026-10-18, not started)
+
+- Spatial (FSR 1 / sharpening): one pass on the finished scene before the HUD/menu
+  draws (the widescreen code already tells them apart); shader as D3D9 bytecode. Small
+  gain: the render scale already supersamples and the game is cheap to draw.
+- Temporal (FSR 2/3, DLSS, XeSS): jitter is easy (clip offset), depth exists, but
+  motion vectors need each vertex program run with the previous frame's constants
+  and draws matched across frames; DLSS needs D3D11/12 or Vulkan, not D3D9. Better
+  after the renderer/cgame are decompiled (route C).
+
 ## Debugging a wrong picture
 
 `XB_DUMP_FRAME=n` logs every draw of frame n (shader keys, combiners, texture
