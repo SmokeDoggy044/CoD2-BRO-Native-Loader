@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-18): 699 functions and 388 globals named, all applied in Ghidra and
+State (2026-10-18): 711 functions and 388 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -208,6 +208,9 @@ CoD-specific functions included, so later decompilation covers both kinds.
   +0x3b4 (64..65536), dist to next node +0x3b8, flags +0x3bc, time +0x3c0, team
   +0x3c4, current segment length +0x3c8, current point +0x3cc. Named: Path_AStarAlgorithm (+ a
   NotCrossingPlanes copy), Path_GeneratePath, Path_FindPath*, Path_NearestNode,
+  Node types (Actor_IsCoverValidAgainst): 2 cover stand, 3 crouch, 4 prone, 5 right,
+  6 left, 7 wide right, 8 wide left, 9-11 concealment stand/crouch/prone, 0x10/0x11
+  negotiation begin/end (CoD4's list without cover crouch window).
   Path_AttemptDodge, Path_PredictionTrace, the lookahead updaters (Path_UpdateLookahead
   and helpers), Sentient_NearestNode (cached at sentient +0x58), Sentient_SetGoalNode
   (+0x50). Scr_Notify (0x002b75c0) queues notifies on 0x008dd200.
