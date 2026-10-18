@@ -173,8 +173,8 @@ CoD-specific functions included, so later decompilation covers both kinds.
   0x002be8f0 ('COD_Note' list), 0x0024c9f0 (entity list bookkeeping), the 12
   scr_const slots GScr_LoadConsts does not fill. Next: the AI (Actor_*, 0x001fxxxx-
   0x0021xxxx), starting from its state table at 0x00830c40 (0x24 per state).
-- The game module from G_RunFrame (entities, clients, AI) and the cgame from
-  CG_DrawActiveFrame; the client/UI from SCR_DrawScreenField.
+- After the game module (AI included): the cgame from CG_DrawActiveFrame, then the
+  client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
   plus what the body does; `high` only when strings, tables or calls pin the role,
   else `medium`. Evidence column says which.
