@@ -48,6 +48,9 @@ Run on a copy of the save folder (`--data COPY`) so the real saves stay untouche
   "a@4,start@5.5,a@7,start@8.5,a@10,start@11.5,a@15,a@18,a@21,a@24,a@27"` plus `a`
   every 4 s from 36 to 76 (profile -> Single Player -> New Game -> difficulty ->
   briefing). Standing still, the player dies at ~90 s.
+- `tools/smoke_test.sh OUT [MISSION] [SECONDS]`: one mission (default 4) into the level
+  with A presses, frames every 1200, `OUT/last.png` of the last three - the check after
+  renaming symbols or replacing a function.
 - `tools/feature_sweep.sh OUT [MISSIONS] [SECONDS]` runs each mission's start
   unattended and gathers every summary.txt into OUT/report.txt (mission 4's start: no
   new warnings; full sweep not run yet).

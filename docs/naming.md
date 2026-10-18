@@ -29,7 +29,11 @@ exported to `tools/data/default_xbe_symbols.txt`.
    ApplyNames never overwrites a name that is set: to correct an applied name, fix
    the CSV and rename that function by hand.
 3. Check no new function name equals a name the loader looks up (`grep -rw '"NAME"'`
-   over loader/, audio/, render/, input/, online/, xbox/), then a `--level 1` run.
+   over loader/, audio/, render/, input/, online/, xbox/), then
+   `tools/smoke_test.sh OUT` (mission 4, A presses past the movie and the briefing,
+   ~130 s) and look at `OUT/last.png`: the last frames must show the level with the
+   HUD. A run without presses only reaches the opening movie and the loading screen,
+   which does not exercise game code (runs before 2026-10-17 21:45 were like that).
 4. Commit the CSV, the symbol file and this document's state line.
 
 Running a script by name (`run_ghidra_script`) needs a copy in `~/ghidra_scripts/`;
