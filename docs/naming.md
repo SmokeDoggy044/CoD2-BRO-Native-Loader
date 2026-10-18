@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 392 functions and 157 globals named, all applied in Ghidra and
+State (2026-10-17): 424 functions and 166 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -109,9 +109,18 @@ copy the repository version there first so it is not stale.
   SV_LinkEntity, G_TouchTriggers, ClientImpacts, oldbuttons/latched buttons
   (0x40 = use). pm.trace is G_TraceCapsule; every G_ trace wrapper ends in SV_Trace
   (0x002e9af0, 11 arguments).
-- Entity callbacks are indices into function tables, not pointers: think +0x32c ->
-  0x008da788, reached +0x330 -> 0x008da7fc, blocked +0x334 -> 0x008da808, touch +0x338
-  -> 0x008da814 (layout of those tables not worked out yet).
+- Entity callbacks are indices into one table per kind (entry 0 empty), not pointers:
+  think +0x32c -> 0x008da788 (28), reached +0x330 -> 0x008da7fc, blocked +0x334 ->
+  0x008da808, touch +0x338 -> 0x008da814, use +0x33c -> 0x008da840, pain +0x340 ->
+  0x008da874, die +0x344 -> 0x008da88c, then two more (+0x348/+0x34c, unknown).
+  Entries are named from the SP_/Init function that stores the index where Q3 assigns
+  that callback (SP_func_door: blocked[1] = Blocked_Door). The skill's
+  scripts/HandlerStores.java lists every immediate store into these fields.
+- Spawn variables are looked up by key hash (Com_HashKeyNoCase, cached in static
+  guards next to each SP_ function): G_SpawnFloat/Int/Vector take the hash in EDX.
+- gentity_t (SP_func_door, InitMover): pos1 +0x2c0, pos2 +0x2d0, speed +0x2fc,
+  wait +0x384, movedir +0x310, moverState +0x298 (byte), spawnflags +0x2a0,
+  flags +0x2a4, takedamage +0x29c, nextthink +0x328.
 - `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
   function's unnamed callees with size, caller count and strings (where to look next).
 - `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
