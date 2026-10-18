@@ -218,7 +218,17 @@ CoD-specific functions included, so later decompilation covers both kinds.
   and helpers), Sentient_NearestNode (cached at sentient +0x58), Sentient_SetGoalNode
   (+0x50). Scr_Notify (0x002b75c0) queues notifies on 0x008dd200.
   Spawning: Actor_Spawn (actors bypass G_CallSpawn) with Actor_Alloc / Sentient_Alloc.
-  Next: the rest of `CalleeTree.java Actor_* 1 1` (~30 left, mostly small; skip ones
+  Awareness (2026-10-18): per-sentient records of 0x50 at actor +0x850 (one per
+  sentient, 33): +0x14 attacked-me time (Actor_WasAttackedBy, last attacker at actor
+  +0x12a4), +0x18 last-known time (Actor_UpdateLastKnownPos), +0x1c a threat-until
+  time. Point events (Actor_ReceivePointEvent) 2/3/6 notice, 4 learn from another
+  actor, 5 attacked, 8/9 grenade, 10 notice; line events (Actor_BroadcastLineEvent)
+  0x10 bullet, 0x11 attacked. Orient: mode at actor +0x12c (override record +0x140),
+  like CoD4's ai_orient_mode_t (Actor_UpdateOrient); sentient +0x20/+0x24 goal yaw
+  and arc (-1 = none).
+  Next: the rest of `CalleeTree.java Actor_* 1 1` (~20 left in range: 0x0021b390,
+  0x002198f0, 0x0021db00, 0x00211db0, the anim-script move slots 0x001fb8b0/
+  0x001fd5a0/0x001ffba0, 0x001fd6f0, 0x00212a20, 0x0021a260, 0x00212200; skip ones
   outside 0x001f0000-0x0021ffff that belong to other modules), 0x001fb3f0 (sets actor
   +0x12a4 = a sentient, unless entity flag 0x10000000), the slot-5 role, the level
   script module's interface (0x0095f49c, filled by five init functions) now that its
