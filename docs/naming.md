@@ -226,9 +226,15 @@ CoD-specific functions included, so later decompilation covers both kinds.
   0x10 bullet, 0x11 attacked. Orient: mode at actor +0x12c (override record +0x140),
   like CoD4's ai_orient_mode_t (Actor_UpdateOrient); sentient +0x20/+0x24 goal yaw
   and arc (-1 = none).
-  Next: the rest of `CalleeTree.java Actor_* 1 1` (~20 left in range: 0x0021b390,
-  0x002198f0, 0x0021db00, 0x00211db0, the anim-script move slots 0x001fb8b0/
-  0x001fd5a0/0x001ffba0, 0x001fd6f0, 0x00212a20, 0x0021a260, 0x00212200; skip ones
+  Actor physics (2026-10-18): a Pmove for actors like CoD4's actor_physics -
+  Actor_Physics on the record at actor +0x290 (g_pPhys, locals g_aiPhysLocals),
+  AIPhys_GroundTrace/WalkMove/AirMove/FlyMove/FootSteps/FoliageSounds; move mode
+  at actor +0x278 (1 path: Actor_MoveAlongPath, 7: 0x00212a20). Move history: 10
+  vec2 samples at +0x1398 (Actor_*MoveHistory).
+  Next: the rest of `CalleeTree.java Actor_* 1 1` (left in range: 0x00212a20 (move
+  mode 7), 0x002198f0/0x00218fa0/0x00219100 (grenade escape paths), 0x0021db00,
+  0x00211db0 (turn record, also corpses), 0x001fd6f0 (chain at +0x7c8),
+  0x0020d110, 0x002057b0, 0x0020ae40 (slide move), 0x00204c70; skip ones
   outside 0x001f0000-0x0021ffff that belong to other modules), 0x001fb3f0 (sets actor
   +0x12a4 = a sentient, unless entity flag 0x10000000), the slot-5 role, the level
   script module's interface (0x0095f49c, filled by five init functions) now that its
