@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-18): 665 functions and 388 globals named, all applied in Ghidra and
+State (2026-10-18): 686 functions and 388 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -202,16 +202,17 @@ CoD-specific functions included, so later decompilation covers both kinds.
   +0x44, radius +0x54, type +0x28 (0x10/0x11 = negotiation begin/end), A* transient
   fields +0x68..+0x7c. path_t sits at actor +0x3c0: 32 pathpoint_t of 0x1c (origin,
   dir2D, length, node), then wPathLen +0x380, wOrigPathLen +0x382, dodge count
-  +0x384, negotiation start +0x386, lookahead node +0x388, final goal +0x38c,
-  lookahead dir/amount +0x39c/+0x3b0, dist to next node +0x3b4, flags +0x3bc, time
-  +0x3c0, team +0x3c4, current point +0x3cc. Named: Path_AStarAlgorithm (+ a
+  +0x384, negotiation start +0x386, lookahead node +0x388, dodge entity +0x38c,
+  final goal +0x390,
+  lookahead dir +0x39c, forward dir2D +0x3a8, lookahead dist +0x3b0, lookahead amount
+  +0x3b4 (64..65536), dist to next node +0x3b8, flags +0x3bc, time +0x3c0, team
+  +0x3c4, current segment length +0x3c8, current point +0x3cc. Named: Path_AStarAlgorithm (+ a
   NotCrossingPlanes copy), Path_GeneratePath, Path_FindPath*, Path_NearestNode,
-  Path_AttemptDodge, Path_PredictionTrace, Sentient_NearestNode (cached at sentient
-  +0x58), Sentient_SetGoalNode (+0x50).
-  Next: the lookahead updaters 0x00212450 / 0x00213850 (call 0x002115b0, 0x001fe820,
-  0x0020c8b0), 0x001fb3f0 (sets actor +0x12a4 = a sentient, unless entity flag
-  0x10000000), 0x002b75c0 (73 callers: queues a 0x14-byte {name, entity} record on
-  0x008dd200, a notify?), who fills g_broFuncs, the slot-5 role, then the rest of
+  Path_AttemptDodge, Path_PredictionTrace, the lookahead updaters (Path_UpdateLookahead
+  and helpers), Sentient_NearestNode (cached at sentient +0x58), Sentient_SetGoalNode
+  (+0x50). Scr_Notify (0x002b75c0) queues notifies on 0x008dd200.
+  Next: 0x001fb3f0 (sets actor +0x12a4 = a sentient, unless entity flag
+  0x10000000), 0x00205c00 (turret release), who fills g_broFuncs, the slot-5 role, then the rest of
   `CalleeTree.java Actor_* 1 1`. 0x00201e90 has no effect (every path returns).
   The XAnim tree callees (0x002be5a0, 0x002aebf0, 0x002cf220, 0x002c4a00,
   0x002c3ed0; tree at 0x00928588, anim info 0x30 each at 0x00965cf0) are a module of
