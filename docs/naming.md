@@ -115,7 +115,13 @@ copy the repository version there first so it is not stale.
 
 ## Next
 
-- re slots 2, 9/14 and the never-filled 3/4/13 (look at their cgame callers).
-- The game module from G_InitGame / G_RunFrame, the cgame from CG_Init /
-  CG_DrawActiveFrame.
+Decision (user, 2026-10-17): naming continues before step 2 (decompile + compare),
+CoD-specific functions included, so later decompilation covers both kinds.
+
+- The game module from G_RunFrame (entities, clients, AI) and the cgame from
+  CG_DrawActiveFrame; the client/UI from SCR_DrawScreenField.
+- CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
+  plus what the body does; `high` only when strings, tables or calls pin the role,
+  else `medium`. Evidence column says which.
+- re slots 2, 9/14 and the never-filled 3/4/13; the unnamed pointer tables above.
 - 27 functions created for table entries are still unnamed (`FUN_`).
