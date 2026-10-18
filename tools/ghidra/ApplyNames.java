@@ -22,7 +22,7 @@ public class ApplyNames extends GhidraScript {
     public void run() throws Exception {
         String[] args = getScriptArgs();
         File csv = args.length > 0 ? new File(args[0]) : askFile("Names CSV", "Apply");
-        int renamed = 0, created = 0, skipped = 0, labels = 0;
+        int renamed = 0, created = 0, skipped = 0, labels = 0, already = 0;
         SymbolTable symbols = currentProgram.getSymbolTable();
         try (BufferedReader r = new BufferedReader(new FileReader(csv))) {
             String line = r.readLine(); // header
@@ -33,6 +33,10 @@ public class ApplyNames extends GhidraScript {
                 String name = cols[1];
                 if (cols.length > 2 && cols[2].equals("data")) {
                     Symbol sym = symbols.getPrimarySymbol(addr);
+                    if (sym != null && sym.getName().equals(name)) {
+                        already++;
+                        continue;
+                    }
                     if (sym != null && sym.getSource() != SourceType.DEFAULT
                             && sym.getSource() != SourceType.ANALYSIS) {
                         println("kept label " + sym.getName() + " at " + addr + " (proposed " + name + ")");
@@ -55,6 +59,10 @@ public class ApplyNames extends GhidraScript {
                     }
                     created++;
                 }
+                if (f.getName().equals(name)) {
+                    already++;
+                    continue;
+                }
                 if (!f.getName().startsWith("FUN_")) {
                     println("kept " + f.getName() + " at " + addr + " (proposed " + name + ")");
                     skipped++;
@@ -65,6 +73,6 @@ public class ApplyNames extends GhidraScript {
             }
         }
         println("Renamed " + renamed + " (" + created + " functions created), " + labels
-                + " globals named, skipped " + skipped);
+                + " globals named, " + already + " already named so, skipped " + skipped);
     }
 }
