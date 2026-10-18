@@ -89,6 +89,13 @@ copy the repository version there first so it is not stale.
   (0x00260220) uses it, refuses `actor_*`, then falls back to bg_itemlist. Other
   name tables may be built the same way: look for runs of `mov edx, str / call /
   mov [tbl], eax / mov [tbl+4], func`.
+- Function-pointer tables without names: five init functions (0x00309030-0x0030b00c,
+  ~640 stores) fill an object behind 0x0095f49c (`mov [reg+0x540..], func`;
+  G_InitGame calls slot +0x868). The level scripts call engine builtins through
+  another table (0x009221xx-0x009225xx, bss, never written through its own address).
+  Neither has names next to the pointers - only bodies identify them (not done).
+  Scanning all of .text for immediate code-pointer stores found no other name
+  tables than GetRefAPI, the spawn initializer and Swap_Init.
 - Game entities are reached through handle tables (index & 0xfff, generation >> 12;
   entities at 0x0097a968, 0x540 entries); ent->think is an index into a function
   table at 0x008da788.
