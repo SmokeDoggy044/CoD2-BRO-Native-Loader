@@ -145,6 +145,9 @@ copy the repository version there first so it is not stale.
 - Game vmCvars (vmCvar_t, Q3 layout, integer at +0xc) come from gameCvarTable
   (0x008da8e8, 57 entries); they are named vm_<cvar> because several cvars also have
   an engine cvar_t* global of the same name (sv_cheats, developer, g_reloading, ...).
+- Cgame vmCvars come from cgameCvarTable (0x008d9d60, 137 entries of 4 dwords,
+  CG_UpdateCvars); also named vm_<cvar>, vm_cg_<cvar> where the game table already
+  has that name (g_reloading, developer, cl_languagewarningsaserrors).
 - `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
   function's unnamed callees with size, caller count and strings (where to look next).
 - `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
@@ -231,19 +234,29 @@ CoD-specific functions included, so later decompilation covers both kinds.
   ActorMove_CheckGround/WalkMove/AirMove/FlyMove/FootSteps/FoliageSounds; move mode
   at actor +0x278 (1 path: Actor_MoveAlongPath, 7: 0x00212a20). Move history: 10
   vec2 samples at +0x1398 (Actor_*MoveHistory).
-  Next: the rest of `CalleeTree.java Actor_* 1 1` (left in range: 0x00212a20 (move
-  mode 7), 0x002198f0/0x00218fa0/0x00219100 (grenade escape paths), 0x0021db00,
-  0x00211db0 (turn record, also corpses), 0x001fd6f0 (chain at +0x7c8),
-  0x0020d110, 0x002057b0, 0x0020ae40 (slide move), 0x00204c70; skip ones
-  outside 0x001f0000-0x0021ffff that belong to other modules), 0x001fb3f0 (sets actor
-  +0x12a4 = a sentient, unless entity flag 0x10000000), the slot-5 role, the level
-  script module's interface (0x0095f49c, filled by five init functions) now that its
-  loader is known. 0x00201e90 and 0x001fd3d0 have no effect (every path returns).
+  Leftovers named (2026-10-18): ActorMove_SlideMove/StepSlideMove/AddTouchEnt (the
+  Pmove trio), move mode 7 = Actor_MoveOutOfTheWay (steps away from the entity at
+  actor +0x1390, which Actor_AskActorsToMoveAside sets on actors standing in the
+  way), the grenade escape searches (Actor_FindPathAwayFromGrenade and its
+  Path_*AwayFromGrenade* chain), Actor_Grenade_FindCover, corpse ground tilt
+  (G_UpdateGroundTilt), PathNode_CanSee (node visibility bit matrix).
+  Still open in the AI range (low value, unclear roles): 0x001fd6f0 (chain at
+  +0x7c8, from Actor_AvoidOthers), 0x0020d110 / 0x0020c6d0 (exposed reacquire),
+  0x002057b0, 0x00218890 / 0x00216080 (node search using PathNode_CanSee; callers
+  0x0021bc00, 0x002196d0), the slot-5 role, the level script module's interface
+  (0x0095f49c, filled by five init functions). 0x00201e90 and 0x001fd3d0 have no
+  effect (every path returns).
   The XAnim tree callees (0x002be5a0, 0x002aebf0, 0x002cf220, 0x002c4a00,
   0x002c3ed0; tree at 0x00928588, anim info 0x30 each at 0x00965cf0) are a module of
   their own - name them as one batch.
-- After the game module (AI included): the cgame from CG_DrawActiveFrame, then the
-  client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
+- Cgame (2026-10-18, started from CG_DrawActiveFrame, Q3 cg_view.c order):
+  CG_UpdateCvars, CG_PredictPlayerState, CG_UpdateShellShock, CG_CalcViewValues,
+  CG_ShakeCamera, AnglesToAxis, CG_DrawActive; the 137 vmCvars. Open in the frame:
+  0x00278fa0 (after AnglesToAxis), 0x00289540 (gated by 0x008da6d4, many callees -
+  likely the entity/marks/local-entity adds), 0x00279650 (no-snapshot path, calls
+  SCR_UpdateScreen), 0x00277c50 (2D draw in CG_DrawActive), 0x000c65c0/0x000c6640
+  (listener-like origin/axis setters). Next: `CalleeTree.java CG_* 1 1` (60 unnamed).
+- Then the client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
   plus what the body does; `high` only when strings, tables or calls pin the role,
   else `medium`. Evidence column says which.
