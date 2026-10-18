@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 640 functions and 385 globals named, all applied in Ghidra and
+State (2026-10-18): 665 functions and 388 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -196,10 +196,26 @@ CoD-specific functions included, so later decompilation covers both kinds.
   unknown). The states set actor +0x254 (attempted script record) and +0x27c (anim
   mode); Actor_UpdateAnimScript commits them and calls the record's +8 with the
   entity number. Turret weapons have their own records (g_turretAnimScripts).
-  Next: 0x00214050 (avoidance trace), 0x001fee70 (path progress before a clear),
-  0x0020c820 / 0x00219230 / 0x002095c0 (path search, probably Path_* in 0x002c-0x002d),
-  0x00201e90 (no visible effect), who fills g_broFuncs, the slot-5 role, then Actor_* outside
-  the table (`CalleeTree.java Actor_* 1 1`).
+- Pathfinding (2026-10-18): laid out like CoD's later pathnode/path_t code. Nodes
+  are 0x80-byte records reached by a ushort handle (block (h >> 9) - 1 of
+  g_pathNodeBlocks, index h & 0x1ff; 0 and 0xffff = none; PathNode_FromHandle), origin
+  +0x44, radius +0x54, type +0x28 (0x10/0x11 = negotiation begin/end), A* transient
+  fields +0x68..+0x7c. path_t sits at actor +0x3c0: 32 pathpoint_t of 0x1c (origin,
+  dir2D, length, node), then wPathLen +0x380, wOrigPathLen +0x382, dodge count
+  +0x384, negotiation start +0x386, lookahead node +0x388, final goal +0x38c,
+  lookahead dir/amount +0x39c/+0x3b0, dist to next node +0x3b4, flags +0x3bc, time
+  +0x3c0, team +0x3c4, current point +0x3cc. Named: Path_AStarAlgorithm (+ a
+  NotCrossingPlanes copy), Path_GeneratePath, Path_FindPath*, Path_NearestNode,
+  Path_AttemptDodge, Path_PredictionTrace, Sentient_NearestNode (cached at sentient
+  +0x58), Sentient_SetGoalNode (+0x50).
+  Next: the lookahead updaters 0x00212450 / 0x00213850 (call 0x002115b0, 0x001fe820,
+  0x0020c8b0), 0x001fb3f0 (sets actor +0x12a4 = a sentient, unless entity flag
+  0x10000000), 0x002b75c0 (73 callers: queues a 0x14-byte {name, entity} record on
+  0x008dd200, a notify?), who fills g_broFuncs, the slot-5 role, then the rest of
+  `CalleeTree.java Actor_* 1 1`. 0x00201e90 has no effect (every path returns).
+  The XAnim tree callees (0x002be5a0, 0x002aebf0, 0x002cf220, 0x002c4a00,
+  0x002c3ed0; tree at 0x00928588, anim info 0x30 each at 0x00965cf0) are a module of
+  their own - name them as one batch.
 - After the game module (AI included): the cgame from CG_DrawActiveFrame, then the
   client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
