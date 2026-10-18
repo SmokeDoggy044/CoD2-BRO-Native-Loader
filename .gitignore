@@ -8,3 +8,6 @@
 # Playtest diagnostics (--diag DIR) kept in the port folder.
 /diag*/
 tools/data/default_xbe_matchdata.tsv
+
+# Local naming notes (not published)
+tools/data/cod4_reference.csv

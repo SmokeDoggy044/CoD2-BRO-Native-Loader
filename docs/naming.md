@@ -180,11 +180,10 @@ CoD-specific functions included, so later decompilation covers both kinds.
   states top down). States, from the
   debug strings the thinks store at actor +0x13e8: 1 cover, 2 exposed, 3 turret,
   4 lmg, 5 noncombat, 6 grenade, 7 death, 8 pain, 9 critical section,
-  10 animscripted, 11 animcustom, 12 negotiation (like CoD4's ai_state_t plus
-  cover/lmg/noncombat/critical section). actor_t: +0 ent, +4 sentient, +8 eState[]
-  with stateLevel +0x20, transitions {type 1 set/2 push/3 pop, state} at +0x38
+  10 animscripted, 11 animcustom, 12 negotiation. actor_t: +0 ent, +4 sentient, +8 state stack
+  with its level at +0x20, transitions {type 1 set/2 push/3 pop, state} at +0x38
   (count +0xa0), simulated copy +0xa4/+0xbc; thinks queue transitions
-  (Actor_SetState/PushState/PopState), Actor_ThinkStateTransitions applies them next
+  (Actor_SetState/PushState/PopState), Actor_ApplyStateTransitions applies them next
   frame. Each state has sub-states in actor +0x28 (cover 100/101, exposed 200-0xd7,
   death 400/401, grenade 600-0x25f, lmg 0x2bd/0x2be); the think's switch sets a
   debug string per case, which named the cover/exposed/grenade sub-behaviours.
@@ -199,36 +198,37 @@ CoD-specific functions included, so later decompilation covers both kinds.
   unknown). The states set actor +0x254 (attempted script record) and +0x27c (anim
   mode); Actor_UpdateAnimScript commits them and calls the record's +8 with the
   entity number. Turret weapons have their own records (g_turretAnimScripts).
-- Pathfinding (2026-10-18): laid out like CoD's later pathnode/path_t code. Nodes
+- Pathfinding (2026-10-18): Nodes
   are 0x80-byte records reached by a ushort handle (block (h >> 9) - 1 of
   g_pathNodeBlocks, index h & 0x1ff; 0 and 0xffff = none; PathNode_FromHandle), origin
   +0x44, radius +0x54, type +0x28 (0x10/0x11 = negotiation begin/end), A* transient
-  fields +0x68..+0x7c. path_t sits at actor +0x3c0: 32 pathpoint_t of 0x1c (origin,
-  dir2D, length, node), then wPathLen +0x380, wOrigPathLen +0x382, dodge count
+  fields +0x68..+0x7c. the path record sits at actor +0x3c0: 32 path point of 0x1c (origin,
+  dir2D, length, node), then the point count +0x380, the original point count +0x382, dodge count
   +0x384, negotiation start +0x386, lookahead node +0x388, dodge entity +0x38c,
   final goal +0x390,
   lookahead dir +0x39c, forward dir2D +0x3a8, lookahead dist +0x3b0, lookahead amount
   +0x3b4 (64..65536), dist to next node +0x3b8, flags +0x3bc, time +0x3c0, team
-  +0x3c4, current segment length +0x3c8, current point +0x3cc. Named: Path_AStarAlgorithm (+ a
-  NotCrossingPlanes copy), Path_GeneratePath, Path_FindPath*, Path_NearestNode,
+  +0x3c4, current segment length +0x3c8, current point +0x3cc. Named: Path_AStarSearch (+ a
+  NotCrossingPlanes copy), Path_BuildFromNodes, Path_Route*, PathNode_FindNearest,
   Node types (Actor_IsCoverValidAgainst): 2 cover stand, 3 crouch, 4 prone, 5 right,
   6 left, 7 wide right, 8 wide left, 9-11 concealment stand/crouch/prone, 0x10/0x11
-  negotiation begin/end (CoD4's list without cover crouch window).
-  Path_AttemptDodge, Path_PredictionTrace, the lookahead updaters (Path_UpdateLookahead
-  and helpers), Sentient_NearestNode (cached at sentient +0x58), Sentient_SetGoalNode
+  negotiation begin/end.
+  Path_TryDodge, Path_TraceAhead, the lookahead updaters (Path_RefreshLookahead
+  and helpers), Sentient_CachedNearestNode (cached at sentient +0x58), Sentient_SetGoalNode
   (+0x50). Scr_Notify (0x002b75c0) queues notifies on 0x008dd200.
   Spawning: Actor_Spawn (actors bypass G_CallSpawn) with Actor_Alloc / Sentient_Alloc.
   Awareness (2026-10-18): per-sentient records of 0x50 at actor +0x850 (one per
   sentient, 33): +0x14 attacked-me time (Actor_WasAttackedBy, last attacker at actor
-  +0x12a4), +0x18 last-known time (Actor_UpdateLastKnownPos), +0x1c a threat-until
-  time. Point events (Actor_ReceivePointEvent) 2/3/6 notice, 4 learn from another
-  actor, 5 attacked, 8/9 grenade, 10 notice; line events (Actor_BroadcastLineEvent)
+  +0x12a4), +0x18 last-known time (Actor_RecordSentientPosition), +0x1c a threat-until
+  time. Point events (Actor_HandlePointEvent) 2/3/6 notice, 4 learn from another
+  actor, 5 attacked, 8/9 grenade, 10 notice; line events (Actor_SendLineEvent)
   0x10 bullet, 0x11 attacked. Orient: mode at actor +0x12c (override record +0x140),
-  like CoD4's ai_orient_mode_t (Actor_UpdateOrient); sentient +0x20/+0x24 goal yaw
+  named by the binary's ai_orient_* strings (Actor_UpdateOrient: 2 to_motion, 3 to_enemy,
+  4 to_enemy_or_motion, 5 to_goal); sentient +0x20/+0x24 goal yaw
   and arc (-1 = none).
-  Actor physics (2026-10-18): a Pmove for actors like CoD4's actor_physics -
-  Actor_Physics on the record at actor +0x290 (g_pPhys, locals g_aiPhysLocals),
-  AIPhys_GroundTrace/WalkMove/AirMove/FlyMove/FootSteps/FoliageSounds; move mode
+  Actor physics (2026-10-18): a Pmove-shaped movement step for actors -
+  Actor_RunMovement on the record at actor +0x290 (g_actorMove, locals g_actorMoveLocals),
+  ActorMove_CheckGround/WalkMove/AirMove/FlyMove/FootSteps/FoliageSounds; move mode
   at actor +0x278 (1 path: Actor_MoveAlongPath, 7: 0x00212a20). Move history: 10
   vec2 samples at +0x1398 (Actor_*MoveHistory).
   Next: the rest of `CalleeTree.java Actor_* 1 1` (left in range: 0x00212a20 (move
