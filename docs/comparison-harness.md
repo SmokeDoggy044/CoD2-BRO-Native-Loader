@@ -14,11 +14,16 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
    (`None`, `Al`, `Eax`, `EdxEax`, `St0`) and `Status::Compare`.
 3. Play or run unattended with `--compare` (`--level N` gets there fastest; the PC
    features are off, see below). Sampled
-   calls are tested: the first 16 of each function, then every 64th.
+   calls are tested: the first 16 of each function, then every 64th. A function with
+   100 matched tests over all runs (`functions.csv`) and no mismatch or drift is
+   *settled*: not hooked in later runs, and no longer tested in the run that reaches
+   it (`Config::enough_matches`). A mismatch or drift on record keeps it tested.
 4. Read `tools/data/functions.csv` (counts, merged over runs; `functions_mp.csv` for
    multiplayer) and the `compare` lines in the log (the first 5 issues per function,
    with the differing registers or bytes).
-5. A function with many tests, no mismatches and no drift becomes
+5. When a module is done, test it all once more: `--compare-all` tests the settled
+   functions too (final check; counts add to the same CSV). A function with many
+   tests, no mismatches and no drift then becomes
    `Status::Replaced`: from then on it runs instead of the original, in every build.
    Drift on a function that does float math can be accepted after reading it.
 
@@ -92,8 +97,10 @@ registers and calls the dispatcher. For a tested call:
 
 About 10 ms per test (two forks of the whole loader; Debug build). Mission 1 with
 the first three functions: about 2,200 tests in 110 s; the game stays playable but
-slower while many tested functions are called often. Tune `first_calls`/`every`
-in `compare::Config` if needed.
+slower while many tested functions are called often. Settling keeps that cost on the
+new functions: mission 1 with 104 functions (62 settled at start) ran 186 tests in
+60 s instead of about 75 per second. Tune `first_calls`/`every`/`enough_matches` in
+`compare::Config` if needed.
 
 ## Limits
 

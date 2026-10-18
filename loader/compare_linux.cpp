@@ -330,6 +330,8 @@ struct Hook {
     std::atomic<uint64_t> calls{0};
     Counts total;    // since install
     Counts pending;  // since the last flush (calls: unused)
+    Counts earlier;  // earlier runs (from the results file)
+    std::atomic<bool> settled{false};  // enough matched tests: no more this run
     uint64_t flushed_calls = 0;
     std::string last_issue;
     uint32_t reports = 0;  // details logged so far
@@ -936,6 +938,14 @@ void record(Hook& hook, uint64_t call, const Verdict& verdict) {
         case Outcome::Inconclusive: ++counts->inconclusive; break;
         }
     }
+    const Counts& e = hook.earlier;
+    const Counts& t = hook.total;
+    if (g_config.enough_matches && e.matched + t.matched >= g_config.enough_matches &&
+        e.mismatched + t.mismatched + e.drift + t.drift == 0 && !hook.settled) {
+        hook.settled = true;
+        LOG_INFO("compare", "%s: %llu matched tests, none mismatched; not tested any more", hook.function->name,
+                 static_cast<unsigned long long>(e.matched + t.matched));
+    }
     if (verdict.outcome == Outcome::Matched) return;
     hook.last_issue = verdict.details;
     if (hook.reports >= 5) return;
@@ -969,7 +979,7 @@ extern "C" [[noreturn]] void xbcmp_dispatch(EntryFrame* frame) {
     context.target = hook.trampoline;
 
     const uint64_t call = hook.calls.fetch_add(1, std::memory_order_relaxed);
-    if (should_test(call) && g_busy.try_lock()) {
+    if (!hook.settled.load(std::memory_order_relaxed) && should_test(call) && g_busy.try_lock()) {
         {
             platform::HostFloatEnv host_float;
             const auto start = Clock::now();
@@ -986,78 +996,6 @@ extern "C" [[noreturn]] void xbcmp_dispatch(EntryFrame* frame) {
 }
 
 namespace loader::compare {
-
-void install(std::span<const game::Function> functions, const Config& config) {
-    g_config = config;
-    xbcmp_child_stack_top = addr(xbcmp_child.stack + sizeof(xbcmp_child.stack));
-    int replaced = 0;
-    for (const game::Function& function : functions) {
-        const uint32_t address = config.multiplayer ? function.multiplayer : function.campaign;
-        if (!address) continue;
-        if (function.status == game::Status::Replaced) {
-            install_jump(address, function.code);
-            g_replaced.push_back(&function);
-            ++replaced;
-            continue;
-        }
-        if (!config.enabled) continue;
-
-        auto* entry = reinterpret_cast<uint8_t*>(uintptr_t{address});
-        uint32_t moved = 0;
-        bool movable = true;
-        while (moved < 5) {
-            uint32_t length = instruction_length(entry + moved), target = 0;
-            // A conditional branch moves too, unless it jumps back into the bytes
-            // the hook overwrites.
-            if (!length && (!conditional_branch(entry + moved, length, target) ||
-                            (target >= address && target < address + 5))) {
-                movable = false;
-                break;
-            }
-            moved += length;
-        }
-        if (!movable) {
-            LOG_WARN("compare", "%s: cannot move the instruction at %08x; not tested", function.name, address + moved);
-            continue;
-        }
-        uint8_t* code = alloc_code(moved * 3 + 5 + 16);  // a 2-byte branch becomes 6
-        if (!code) continue;
-        auto hook = std::make_unique<Hook>();
-        hook->function = &function;
-        hook->address = address;
-        hook->code = addr(function.code);
-        hook->trampoline = addr(code);
-        std::memcpy(hook->original, entry, 5);
-        const uint32_t copied = copy_entry(code, entry, moved);
-        put_rel32(code + copied, 0xE9, address + moved);
-        uint8_t* stub = code + copied + 5;
-        stub[0] = 0x68;  // push index
-        const auto index = static_cast<uint32_t>(g_hooks.size());
-        std::memcpy(stub + 1, &index, 4);
-        put_rel32(stub + 5, 0xE9, addr(reinterpret_cast<const void*>(&xbcmp_entry)));
-        install_jump(address, stub);
-        g_hooks.push_back(std::move(hook));
-    }
-    if (config.enabled) {
-        // A test process that dies while we write to it must not take the game along.
-        signal(SIGPIPE, SIG_IGN);
-        LOG_INFO("compare", "testing %zu decompiled functions against the originals; %d replaced", g_hooks.size(),
-                 replaced);
-    } else if (replaced) {
-        LOG_INFO("compare", "%d decompiled functions replace the originals", replaced);
-    }
-}
-
-Counts counts(const char* name) {
-    std::lock_guard lock(g_stats);
-    for (const auto& hook : g_hooks)
-        if (std::strcmp(hook->function->name, name) == 0) {
-            Counts c = hook->total;
-            c.calls = hook->calls.load();
-            return c;
-        }
-    return {};
-}
 
 namespace {
 
@@ -1101,23 +1039,115 @@ std::vector<std::string> csv_split(const std::string& line) {
     return fields;
 }
 
+std::map<uint32_t, Row> read_rows(const std::filesystem::path& path) {
+    std::map<uint32_t, Row> rows;
+    if (path.empty()) return rows;
+    std::ifstream in(path);
+    std::string line;
+    std::getline(in, line);  // header
+    while (std::getline(in, line)) {
+        const std::vector<std::string> f = csv_split(line);
+        if (f.size() < 10) continue;
+        Row row{f[1], f[2], std::stoull(f[3]), std::stoull(f[4]), std::stoull(f[5]),
+                std::stoull(f[6]), std::stoull(f[7]), std::stoull(f[8]), f[9]};
+        rows[static_cast<uint32_t>(std::stoul(f[0], nullptr, 16))] = row;
+    }
+    return rows;
+}
+
 }  // namespace
+
+void install(std::span<const game::Function> functions, const Config& config) {
+    g_config = config;
+    xbcmp_child_stack_top = addr(xbcmp_child.stack + sizeof(xbcmp_child.stack));
+    int replaced = 0, settled = 0;
+    const std::map<uint32_t, Row> earlier =
+        config.enabled && config.enough_matches ? read_rows(config.results) : std::map<uint32_t, Row>{};
+    for (const game::Function& function : functions) {
+        const uint32_t address = config.multiplayer ? function.multiplayer : function.campaign;
+        if (!address) continue;
+        if (function.status == game::Status::Replaced) {
+            install_jump(address, function.code);
+            g_replaced.push_back(&function);
+            ++replaced;
+            continue;
+        }
+        if (!config.enabled) continue;
+        Counts before;
+        if (const auto row = earlier.find(address); row != earlier.end() && row->second.name == function.name) {
+            const Row& r = row->second;
+            before = {r.calls, r.tested, r.matched, r.drift, r.mismatched, r.inconclusive};
+            if (r.matched >= config.enough_matches && r.mismatched == 0 && r.drift == 0) {
+                ++settled;
+                continue;
+            }
+        }
+
+        auto* entry = reinterpret_cast<uint8_t*>(uintptr_t{address});
+        uint32_t moved = 0;
+        bool movable = true;
+        while (moved < 5) {
+            uint32_t length = instruction_length(entry + moved), target = 0;
+            // A conditional branch moves too, unless it jumps back into the bytes
+            // the hook overwrites.
+            if (!length && (!conditional_branch(entry + moved, length, target) ||
+                            (target >= address && target < address + 5))) {
+                movable = false;
+                break;
+            }
+            moved += length;
+        }
+        if (!movable) {
+            LOG_WARN("compare", "%s: cannot move the instruction at %08x; not tested", function.name, address + moved);
+            continue;
+        }
+        uint8_t* code = alloc_code(moved * 3 + 5 + 16);  // a 2-byte branch becomes 6
+        if (!code) continue;
+        auto hook = std::make_unique<Hook>();
+        hook->function = &function;
+        hook->earlier = before;
+        hook->address = address;
+        hook->code = addr(function.code);
+        hook->trampoline = addr(code);
+        std::memcpy(hook->original, entry, 5);
+        const uint32_t copied = copy_entry(code, entry, moved);
+        put_rel32(code + copied, 0xE9, address + moved);
+        uint8_t* stub = code + copied + 5;
+        stub[0] = 0x68;  // push index
+        const auto index = static_cast<uint32_t>(g_hooks.size());
+        std::memcpy(stub + 1, &index, 4);
+        put_rel32(stub + 5, 0xE9, addr(reinterpret_cast<const void*>(&xbcmp_entry)));
+        install_jump(address, stub);
+        g_hooks.push_back(std::move(hook));
+    }
+    if (config.enabled) {
+        // A test process that dies while we write to it must not take the game along.
+        signal(SIGPIPE, SIG_IGN);
+        LOG_INFO("compare",
+                 "testing %zu decompiled functions against the originals; %d settled (%u+ matched tests, "
+                 "--compare-all tests them too); %d replaced",
+                 g_hooks.size(), settled, config.enough_matches, replaced);
+    } else if (replaced) {
+        LOG_INFO("compare", "%d decompiled functions replace the originals", replaced);
+    }
+}
+
+Counts counts(const char* name) {
+    std::lock_guard lock(g_stats);
+    for (const auto& hook : g_hooks)
+        if (std::strcmp(hook->function->name, name) == 0) {
+            Counts c = hook->total;
+            c.calls = hook->calls.load();
+            return c;
+        }
+    return {};
+}
+
 
 void flush() {
     std::lock_guard lock(g_stats);
     if (g_config.results.empty() || (g_hooks.empty() && g_replaced.empty())) return;
-    std::map<uint32_t, Row> rows;
-    if (std::ifstream in(g_config.results); in) {
-        std::string line;
-        std::getline(in, line);  // header
-        while (std::getline(in, line)) {
-            const std::vector<std::string> f = csv_split(line);
-            if (f.size() < 10) continue;
-            Row row{f[1], f[2], std::stoull(f[3]), std::stoull(f[4]), std::stoull(f[5]),
-                    std::stoull(f[6]), std::stoull(f[7]), std::stoull(f[8]), f[9]};
-            rows[static_cast<uint32_t>(std::stoul(f[0], nullptr, 16))] = row;
-        }
-    }
+    std::map<uint32_t, Row> rows = read_rows(g_config.results);
     for (const auto& hook : g_hooks) {
         Row& row = rows[hook->address];
         row.name = hook->function->name;

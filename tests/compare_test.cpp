@@ -58,6 +58,7 @@ int main() {
     for (int i = 0; i < 6; ++i) std::memcpy(image + 32 * i, kAdd, sizeof(kAdd));
     std::memcpy(image + 32 * 6, kSquare, sizeof(kSquare));
     std::memcpy(image + 32 * 7, kAddBranch, sizeof(kAddBranch));
+    std::memcpy(image + 32 * 8, kAdd, sizeof(kAdd));
 
     const void* code[7];
     compare_test_code(code);
@@ -70,6 +71,7 @@ int main() {
         {"crash", slot(5), 0, code[5], 4, Result::Eax, Status::Compare},
         {"square", slot(6), 0, code[6], 4, Result::St0, Status::Compare},
         {"branch_at_entry", slot(7), 0, code[0], 4, Result::Eax, Status::Compare},
+        {"settled", slot(8), 0, code[1], 4, Result::Eax, Status::Compare},  // off by one, not tested
     };
     const std::filesystem::path results =
         std::filesystem::temp_directory_path() / ("compare_test_" + std::to_string(getpid()) + ".csv");
@@ -80,6 +82,14 @@ int main() {
     config.libraries = {"libcompare_test_code", "libc.so", "libm.so", "ld-linux"};
     config.results = results;
     config.timeout_ms = 500;
+    // Earlier runs matched "settled" often enough: it is not even hooked.
+    config.enough_matches = 2;
+    {
+        std::ofstream out(results);
+        char line[96];
+        std::snprintf(line, sizeof(line), "%08x,settled,compare,9,2,2,0,0,0,\"\"\n", slot(8));
+        out << "address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issue\n" << line;
+    }
     loader::compare::install(functions, config);
 
     // The originals keep running for the caller, whatever the test found. From a
@@ -96,6 +106,10 @@ int main() {
     auto* data = new uint32_t[2]{37, 0};
     const uint32_t sum = reinterpret_cast<Add>(uintptr_t{slot(7)})(data, 5);  // through the moved jne
     CHECK(sum == 42 && data[1] == 42, "branch_at_entry: %u, %u", sum, data[1]);
+    delete[] data;
+    data = new uint32_t[2]{37, 0};
+    const uint32_t settled = reinterpret_cast<Add>(uintptr_t{slot(8)})(data, 5);
+    CHECK(settled == 42 && data[1] == 42, "settled: %u, %u", settled, data[1]);
     delete[] data;
     const float square = reinterpret_cast<Square>(uintptr_t{slot(6)})(1.5f);
     CHECK(square == 2.25f, "%f", static_cast<double>(square));
@@ -118,6 +132,7 @@ int main() {
     expect("crash", 0, 1, 0);
     expect("square", 1, 0, 0);
     expect("branch_at_entry", 1, 0, 0);
+    CHECK(loader::compare::counts("settled").calls == 0, "settled: hooked");
 
     // A test still running when the game is killed (Ctrl+C, a crash) leaves no test
     // processes behind: they would keep the game's window and sockets open.
@@ -154,10 +169,13 @@ int main() {
         left = waitpid(-1, nullptr, WNOHANG) == 0;
     }
 
-    // Counts add up across flushes (and runs).
+    // Counts add up across flushes (and runs). "good" settles at its second match:
+    // the third call is not tested.
     loader::compare::flush();
-    uint32_t data[2] = {1, 0};
-    reinterpret_cast<Add>(uintptr_t{slot(0)})(data, 2);
+    for (int i = 0; i < 2; ++i) {
+        uint32_t data[2] = {1, 0};
+        reinterpret_cast<Add>(uintptr_t{slot(0)})(data, 2);
+    }
     loader::compare::flush();
     std::string row;
     {
@@ -165,7 +183,7 @@ int main() {
         for (std::string line; std::getline(in, line);)
             if (line.find(",good,") != std::string::npos) row = line;
     }
-    CHECK(row.find(",good,compare,2,2,2,0,0,0,") != std::string::npos, "row: %s", row.c_str());
+    CHECK(row.find(",good,compare,3,2,2,0,0,0,") != std::string::npos, "row: %s", row.c_str());
     std::filesystem::remove(results);
 
     if (test::g_failures) return 1;

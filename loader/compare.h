@@ -39,6 +39,10 @@ struct Config {
     // Which calls are tested: the first `first_calls`, then every `every`-th.
     uint32_t first_calls = 16;
     uint32_t every = 64;
+    // A function with this many matched tests (results, over all runs) and no mismatch
+    // or drift is settled: not tested any more until a run with 0 (--compare-all), the
+    // final check of a module. Settled ones are not hooked at all.
+    uint32_t enough_matches = 100;
 };
 
 // Hooks `functions`: Replaced ones always, Compare ones only when testing is enabled.

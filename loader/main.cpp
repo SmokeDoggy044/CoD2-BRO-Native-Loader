@@ -67,6 +67,7 @@ struct Options {
     int32_t start_level = -1;
     bool multiplayer = false;    // start codmp_xboxf.xbe
     bool compare = false;        // test decompiled functions against the originals
+    bool compare_all = false;    // ... settled ones too
     std::optional<bool> pc_patches;  // unset: on, except with --compare
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
@@ -136,7 +137,9 @@ void print_usage(const char* program) {
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n"
         "  --compare        test the decompiled functions against the originals while playing\n"
         "                   (Linux; counts in tools/data/functions.csv, details in the log);\n"
-        "                   implies --pc-patches off unless that is given\n"
+        "                   implies --pc-patches off unless that is given; functions with\n"
+        "                   100 matched tests and no mismatch or drift are no longer tested\n"
+        "  --compare-all    --compare, testing every function (a module's final check)\n"
         "  --pc-patches on|off  the PC changes to the game's code: 60 fps pacing, mouse look,\n"
         "                   aim assist off, widescreen menus and objectives (default on); off\n"
         "                   keeps only what the game needs to run on a PC (and --level)\n",
@@ -289,8 +292,9 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.session_start_ns = std::strtoll(argv[++i], nullptr, 10);
         } else if (arg == "--silent") {
             options.silent = true;
-        } else if (arg == "--compare") {
+        } else if (arg == "--compare" || arg == "--compare-all") {
             options.compare = true;
+            options.compare_all |= arg == "--compare-all";
         } else if (arg == "--pc-patches") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             if (value != "on" && value != "off") {
@@ -560,6 +564,7 @@ int loader_main(int argc, char** argv) {
         return env ? env->stack_limit : 0u;
     };
     compare.describe = loader::describe_address;
+    if (options->compare_all) compare.enough_matches = 0;
     if (options->compare)
         compare.results = fs::path(COD_BRO_SYMBOLS_DIR) / (compare.multiplayer ? "functions_mp.csv" : "functions.csv");
     loader::compare::install(game::functions(), compare);
