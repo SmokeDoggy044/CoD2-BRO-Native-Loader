@@ -80,9 +80,11 @@ in `compare::Config` if needed.
 
 ## Limits
 
-- Functions whose first 5 bytes hold a relative branch or an instruction the
-  decoder does not know are not hooked (logged). Code that jumps back into those
-  bytes would break the trampoline; MSVC prologues do not.
+- Functions whose first 5 bytes hold a call, a jump or an instruction the decoder
+  does not know are not hooked (logged). Conditional branches there are moved
+  (re-encoded as near branches in the trampoline) unless they jump back into those
+  5 bytes. Code elsewhere that jumps back into those bytes would break the
+  trampoline; MSVC prologues do not.
 - A decompiled function taken by address in the loader executable would get its
   PLT entry, which is host code to the harness: take addresses inside the library
   (`game::functions()` does).

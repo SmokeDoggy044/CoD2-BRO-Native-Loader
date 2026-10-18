@@ -34,6 +34,10 @@ using Square = float(XB_CDECL*)(float);
 
 // mov eax,[ecx]; add eax,[esp+4]; mov [ecx+4],eax; ret 4
 constexpr uint8_t kAdd[] = {0x8B, 0x01, 0x03, 0x44, 0x24, 0x04, 0x89, 0x41, 0x04, 0xC2, 0x04, 0x00};
+// kAdd with a conditional branch inside the bytes the hook overwrites:
+// mov eax,[ecx]; test eax,eax; jne +0; add eax,[esp+4]; mov [ecx+4],eax; ret 4
+constexpr uint8_t kAddBranch[] = {0x8B, 0x01, 0x85, 0xC0, 0x75, 0x00, 0x03, 0x44,
+                                  0x24, 0x04, 0x89, 0x41, 0x04, 0xC2, 0x04, 0x00};
 // fld dword [esp+4]; fmul dword [esp+4]; ret
 constexpr uint8_t kSquare[] = {0xD9, 0x44, 0x24, 0x04, 0xD8, 0x4C, 0x24, 0x04, 0xC3};
 
@@ -53,6 +57,7 @@ int main() {
     const auto slot = [&](int i) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(image + 32 * i)); };
     for (int i = 0; i < 6; ++i) std::memcpy(image + 32 * i, kAdd, sizeof(kAdd));
     std::memcpy(image + 32 * 6, kSquare, sizeof(kSquare));
+    std::memcpy(image + 32 * 7, kAddBranch, sizeof(kAddBranch));
 
     const void* code[7];
     compare_test_code(code);
@@ -64,6 +69,7 @@ int main() {
         {"hang", slot(4), 0, code[4], 4, Result::Eax, Status::Compare},
         {"crash", slot(5), 0, code[5], 4, Result::Eax, Status::Compare},
         {"square", slot(6), 0, code[6], 4, Result::St0, Status::Compare},
+        {"branch_at_entry", slot(7), 0, code[0], 4, Result::Eax, Status::Compare},
     };
     const std::filesystem::path results =
         std::filesystem::temp_directory_path() / ("compare_test_" + std::to_string(getpid()) + ".csv");
@@ -87,6 +93,10 @@ int main() {
         CHECK(sum == 42 && data[1] == 42, "%s: %u, %u", functions[i].name, sum, data[1]);
         delete[] data;
     }
+    auto* data = new uint32_t[2]{37, 0};
+    const uint32_t sum = reinterpret_cast<Add>(uintptr_t{slot(7)})(data, 5);  // through the moved jne
+    CHECK(sum == 42 && data[1] == 42, "branch_at_entry: %u, %u", sum, data[1]);
+    delete[] data;
     const float square = reinterpret_cast<Square>(uintptr_t{slot(6)})(1.5f);
     CHECK(square == 2.25f, "%f", static_cast<double>(square));
     }).join();
@@ -107,6 +117,7 @@ int main() {
     expect("hang", 0, 0, 1);
     expect("crash", 0, 1, 0);
     expect("square", 1, 0, 0);
+    expect("branch_at_entry", 1, 0, 0);
 
     // A test still running when the game is killed (Ctrl+C, a crash) leaves no test
     // processes behind: they would keep the game's window and sockets open.

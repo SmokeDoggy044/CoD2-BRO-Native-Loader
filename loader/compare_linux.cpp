@@ -407,6 +407,46 @@ void put_rel32(uint8_t* at, uint8_t opcode, uint32_t target) {
     std::memcpy(at + 1, &relative, 4);
 }
 
+// A conditional branch (short or near) at `code`: its length and target, so that
+// the trampoline can re-encode it as a near branch. False for anything else.
+bool conditional_branch(const uint8_t* code, uint32_t& length, uint32_t& target) {
+    if (code[0] >= 0x70 && code[0] <= 0x7F) {
+        length = 2;
+        target = addr(code) + 2 + static_cast<uint32_t>(static_cast<int8_t>(code[1]));
+        return true;
+    }
+    if (code[0] == 0x0F && code[1] >= 0x80 && code[1] <= 0x8F) {
+        int32_t relative;
+        std::memcpy(&relative, code + 2, 4);
+        length = 6;
+        target = addr(code) + 6 + static_cast<uint32_t>(relative);
+        return true;
+    }
+    return false;
+}
+
+// Copies the entry instructions [entry, entry + moved) into `out`, re-encoding
+// conditional branches as near branches to the same targets. Returns the bytes
+// written.
+uint32_t copy_entry(uint8_t* out, const uint8_t* entry, uint32_t moved) {
+    uint32_t in = 0, written = 0;
+    while (in < moved) {
+        uint32_t length, target;
+        if (conditional_branch(entry + in, length, target)) {
+            const uint8_t condition = entry[in] == 0x0F ? entry[in + 1] & 0x0F : entry[in] & 0x0F;
+            out[written] = 0x0F;
+            put_rel32(out + written + 1, static_cast<uint8_t>(0x80 | condition), target);
+            written += 6;
+        } else {
+            length = instruction_length(entry + in);
+            std::memcpy(out + written, entry + in, length);
+            written += length;
+        }
+        in += length;
+    }
+    return written;
+}
+
 std::string describe(uint32_t address) {
     if (g_config.describe) return g_config.describe(address);
     char text[16];
@@ -964,16 +1004,23 @@ void install(std::span<const game::Function> functions, const Config& config) {
 
         auto* entry = reinterpret_cast<uint8_t*>(uintptr_t{address});
         uint32_t moved = 0;
+        bool movable = true;
         while (moved < 5) {
-            const uint32_t length = instruction_length(entry + moved);
-            if (!length) break;
+            uint32_t length = instruction_length(entry + moved), target = 0;
+            // A conditional branch moves too, unless it jumps back into the bytes
+            // the hook overwrites.
+            if (!length && (!conditional_branch(entry + moved, length, target) ||
+                            (target >= address && target < address + 5))) {
+                movable = false;
+                break;
+            }
             moved += length;
         }
-        if (moved < 5) {
+        if (!movable) {
             LOG_WARN("compare", "%s: cannot move the instruction at %08x; not tested", function.name, address + moved);
             continue;
         }
-        uint8_t* code = alloc_code(moved + 5 + 16);
+        uint8_t* code = alloc_code(moved * 3 + 5 + 16);  // a 2-byte branch becomes 6
         if (!code) continue;
         auto hook = std::make_unique<Hook>();
         hook->function = &function;
@@ -981,9 +1028,9 @@ void install(std::span<const game::Function> functions, const Config& config) {
         hook->code = addr(function.code);
         hook->trampoline = addr(code);
         std::memcpy(hook->original, entry, 5);
-        std::memcpy(code, entry, moved);
-        put_rel32(code + moved, 0xE9, address + moved);
-        uint8_t* stub = code + moved + 5;
+        const uint32_t copied = copy_entry(code, entry, moved);
+        put_rel32(code + copied, 0xE9, address + moved);
+        uint8_t* stub = code + copied + 5;
         stub[0] = 0x68;  // push index
         const auto index = static_cast<uint32_t>(g_hooks.size());
         std::memcpy(stub + 1, &index, 4);
