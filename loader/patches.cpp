@@ -761,7 +761,10 @@ void install_frame_rate(int32_t frame_rate) {
 // middle taps left/right, in the middle A, and the wheel steps left/right.
 // Selecting waits while the screen is locked (+0x30). Dialogs are drawn over the other
 // screens and take the mouse while theirs are shown. The front end keeps the cursor on
-// screens without items too (the title screen), where a click taps A.
+// screens without items too (the title screen), where a click taps A, and so does the
+// in-game manager's screen after a level loads ("Press A to start the game", vtable
+// 0x008295a0, in-game screen 5) once it is ready (+0x38; its A handler 0x00335b10
+// checks the same).
 struct MenuPointerSites {
     uint32_t screen_poll;
     std::array<uint8_t, 6> poll_prologue;
@@ -771,16 +774,17 @@ struct MenuPointerSites {
     uint32_t text_widget_vtable;
     uint32_t front_end, dialogs;   // manager pointers
     uint8_t sound_slot, select_slot;  // screen vtable
+    uint32_t press_start_vtable;      // the screen after loading a level (0: none)
 };
 // MP: the same classes with longer screen and item vtables (FUN_0028d080, FUN_0028e5d0).
 constexpr MenuPointerSites kCampaignMenuPointer = {
     0x0031fc10, {0x53, 0x55, 0x56, 0x57, 0x8b, 0xe9},  // push ebx; push ebp; push esi; push edi; mov ebp,ecx
     0x00321160, {0x83, 0xec, 0x10, 0x53, 0x55}, 5,      // sub esp,0x10; push ebx; push ebp
-    0x008298b8, 0x0095f8f8, 0x0095f900, 0x10, 0x88};
+    0x008298b8, 0x0095f8f8, 0x0095f900, 0x10, 0x88, 0x008295a0};
 constexpr MenuPointerSites kMultiplayerMenuPointer = {
     0x0028d080, {0x53, 0x55, 0x56, 0x57, 0x8b, 0xe9},
     0x0028e5d0, {0x81, 0xec, 0x20, 0x01, 0x00, 0x00, 0x53, 0x55}, 8,  // sub esp,0x120; push ebx; push ebp
-    0x003bc8f8, 0x004b31f8, 0x004b3200, 0x18, 0x98};
+    0x003bc8f8, 0x004b31f8, 0x004b3200, 0x18, 0x98, 0};
 MenuPointerSites g_menu_pointer = kCampaignMenuPointer;
 
 std::mutex g_drawn_mutex;
@@ -871,7 +875,9 @@ void XB_CDECL menu_pointer(uint32_t manager) {
         g_dialog_shown = true;
     } else if (g_dialog_shown && frame - g_dialog_frame <= 2) {
         return;  // a dialog over this screen has the mouse
-    } else if (items.empty() && (!g_menu_pointer.front_end || manager != title<uint32_t>(g_menu_pointer.front_end))) {
+    } else if (items.empty() && (!g_menu_pointer.front_end || manager != title<uint32_t>(g_menu_pointer.front_end)) &&
+               !(menu && g_menu_pointer.press_start_vtable && title<uint32_t>(menu) == g_menu_pointer.press_start_vtable &&
+                 title<uint8_t>(menu + 0x38))) {
         return;  // in a level without a menu
     }
 
