@@ -95,6 +95,7 @@ part of this project.
 | [docs/rendering.md](docs/rendering.md) | Direct3D replacement: design, draw path, render scale, widescreen, frame dumps |
 | [docs/multiplayer.md](docs/multiplayer.md) | codmp_xboxf.xbe: per-title setup, system link on a virtual LAN, threads |
 | [docs/playtesting.md](docs/playtesting.md) | `--diag` sessions, scripted and unattended runs, the feature sweep |
+| [docs/naming.md](docs/naming.md) | Naming engine functions in Ghidra after Quake 3 / RTCW: workflow, findings, state |
 | [docs/comparison-harness.md](docs/comparison-harness.md) | Checking decompiled functions against the originals while the game runs (`--compare`) |
 | [assets/README.md](assets/README.md) | For players: where the game files go |
 | [LICENSES/README.md](LICENSES/README.md) | Licenses of everything in the repository |
