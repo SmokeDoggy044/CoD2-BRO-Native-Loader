@@ -44,7 +44,7 @@ Spot checks (2026-10-17): Cbuf_AddText 0x002aabb0 (text in EAX), Com_sprintf
 `tools/ghidra/ApplyNames.java CSV` creates missing functions and renames only
 functions that still have a FUN_ name; then re-run `ExportSymbols.java` into
 `tools/data/default_xbe_symbols.txt`. Applied 2026-10-17: every proposal except the
-graph pass (CG_Printf kept, checked by hand), 96 names.
+graph pass (CG_Printf kept, checked individually), 96 names.
 
 ## Limits
 

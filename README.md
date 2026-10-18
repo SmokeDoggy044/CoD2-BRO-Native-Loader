@@ -23,14 +23,14 @@ loader goes away.
 | 2. Decompiling | **3/9511** | `.text` functions decompiled into `game/code/` and matched against the originals - [docs/comparison-harness.md](docs/comparison-harness.md) |
 
 The count is over the `.text` section (engine and game code), the code to decompile
-by hand. The XBE's other code sections are not counted:
+function by function. The XBE's other code sections are not counted:
 
 - **Microsoft libraries** (XGRPH, XONLINE, DSOUND, XNET, D3DX, D3D, XPP: 2,954
   functions): replaced by the loader's own platform code (`render/`, `audio/`,
   `input/`, `online/`), not decompiled.
 - **Level sections** (PROLOGUE, ORAN, ... DRAGEETH, one per mission: 4,977
-  compiler-generated level-script functions): to be handled by a translator, not
-  by hand.
+  compiler-generated level-script functions): to be converted by a translator,
+  not one function at a time.
 
 Current state and next steps: [docs/status.md](docs/status.md) (top entry) and
 [docs/naming.md](docs/naming.md) ("Next").

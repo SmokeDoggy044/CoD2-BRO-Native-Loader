@@ -12,7 +12,7 @@ exported to `tools/data/default_xbe_symbols.txt`.
 | File | What |
 |---|---|
 | `tools/data/q3_name_proposals.csv` | Automatic proposals from [tools/q3match](../tools/q3match/README.md) (96 applied) |
-| `tools/data/manual_names.csv` | Names found by hand: address, name, kind (`function`/`data`), confidence (`high`/`medium`), evidence |
+| `tools/data/manual_names.csv` | Names from reading the function bodies: address, name, kind (`function`/`data`), confidence (`high`/`medium`), evidence |
 | `tools/data/cvar_globals.csv` | cvar_t* globals named after their cvars (`tools/ghidra/CvarGlobals.java`) |
 | `tools/ghidra/ApplyNames.java` | Applies a CSV: creates missing functions, renames only `FUN_`/default names, `data` rows become labels |
 | `tools/ghidra/ExportMatchData.java` | Per-function strings and callees for q3match |
@@ -27,7 +27,7 @@ exported to `tools/data/default_xbe_symbols.txt`.
    named by convention (`Cmd_UFO_f`).
 2. Run `ApplyNames.java` with the CSV, save the program, run `ExportSymbols.java`.
    ApplyNames never overwrites a name that is set: to correct an applied name, fix
-   the CSV and rename that function by hand.
+   the CSV and rename that function directly in Ghidra.
 3. Check no new function name equals a name the loader looks up (`grep -rw '"NAME"'`
    over loader/, audio/, render/, input/, online/, xbox/), then
    `tools/smoke_test.sh OUT` (mission 4, A presses past the movie and the briefing,
