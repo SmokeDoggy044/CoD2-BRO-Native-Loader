@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 426 functions and 166 globals named, all applied in Ghidra and
+State (2026-10-17): 436 functions and 298 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -121,6 +121,12 @@ copy the repository version there first so it is not stale.
 - gentity_t (SP_func_door, InitMover): pos1 +0x2c0, pos2 +0x2d0, speed +0x2fc,
   wait +0x384, movedir +0x310, moverState +0x298 (byte), spawnflags +0x2a0,
   flags +0x2a4, takedamage +0x29c, nextthink +0x328.
+- Notify names, classnames and other script constants are string hashes
+  (Com_HashKeyNoCase) kept in globals: GScr_LoadConsts (0x002557c0) fills 132 of them
+  (scr_const_*, 0x0097a650-0x0097a888) once; entities keep their classname hash at
+  +0x260. Extracted with the skill's scripts/hashinit.py. G_Damage keeps Q3's
+  knockback and splits the rest (health, die/pain, the "damage"/"death" notifies) into
+  G_ApplyDamage; there is no armor code.
 - `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
   function's unnamed callees with size, caller count and strings (where to look next).
 - `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
@@ -147,7 +153,8 @@ CoD-specific functions included, so later decompilation covers both kinds.
   the rest of the callback-table entries (think[1-5, 8-11, 13-17, 22-28], touch,
   use, pain, die - set through registers or by CoD-only code), ClientEndFrame's
   callees (turrets, bomber keyboard mode), G_RunFrame's AI/animation calls
-  (0x002cf530, 0x002d7f20, 0x002df880, 0x00233bd0) and G_Damage's callees.
+  (0x002cf530, 0x002d7f20, 0x002df880, 0x00233bd0); the rest of the 0x0097a6xx-8xx
+  block (12 slots not stored by GScr_LoadConsts).
 - The game module from G_RunFrame (entities, clients, AI) and the cgame from
   CG_DrawActiveFrame; the client/UI from SCR_DrawScreenField.
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
