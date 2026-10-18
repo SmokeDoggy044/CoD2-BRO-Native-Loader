@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-18): 737 functions and 390 globals named, all applied in Ghidra and
+State (2026-10-18): 742 functions and 392 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -189,8 +189,11 @@ CoD-specific functions included, so later decompilation covers both kinds.
   death 400/401, grenade 600-0x25f, lmg 0x2bd/0x2be); the think's switch sets a
   debug string per case, which named the cover/exposed/grenade sub-behaviours.
 - AI animation: the anim scripts are compiled script functions ("BroFunc"), found
-  by name hash in g_broFuncs (0x00927170, 0x34 x {hash, function}; no direct
-  writes - probably filled through a pointer, filler not found yet). G_InitAnimScripts (0x0024a070) stores "anim_main_<name>" at +8 of a
+  by name hash in g_broFuncs (0x00927170, 0x34 x {hash, function}). Filled by the
+  level's compiled script module itself: G_LoadLevelScriptModule (0x0030b960) passes
+  it an import table (g_levelScriptImports, 0x009270d0) with BroFunc_Clear (+0x90)
+  and BroFunc_Register (+0x94), plus the engine interface 0x0095f49c; pathnodes get
+  their animscript functions the same way (PathNode_ResolveAnimScripts). G_InitAnimScripts (0x0024a070) stores "anim_main_<name>" at +8 of a
   0x10-byte record per script (g_animScript_combat ... _walk, 0x00987a98-0x00987bf7)
   and a second function at +0xc, looked up by a precomputed hash (no string; name
   unknown). The states set actor +0x254 (attempted script record) and +0x27c (anim
@@ -214,9 +217,12 @@ CoD-specific functions included, so later decompilation covers both kinds.
   Path_AttemptDodge, Path_PredictionTrace, the lookahead updaters (Path_UpdateLookahead
   and helpers), Sentient_NearestNode (cached at sentient +0x58), Sentient_SetGoalNode
   (+0x50). Scr_Notify (0x002b75c0) queues notifies on 0x008dd200.
-  Next: 0x001fb3f0 (sets actor +0x12a4 = a sentient, unless entity flag
-  0x10000000), 0x00205c00 (turret release), who fills g_broFuncs, the slot-5 role, then the rest of
-  `CalleeTree.java Actor_* 1 1`. 0x00201e90 has no effect (every path returns).
+  Spawning: Actor_Spawn (actors bypass G_CallSpawn) with Actor_Alloc / Sentient_Alloc.
+  Next: the rest of `CalleeTree.java Actor_* 1 1` (~30 left, mostly small; skip ones
+  outside 0x001f0000-0x0021ffff that belong to other modules), 0x001fb3f0 (sets actor
+  +0x12a4 = a sentient, unless entity flag 0x10000000), the slot-5 role, the level
+  script module's interface (0x0095f49c, filled by five init functions) now that its
+  loader is known. 0x00201e90 and 0x001fd3d0 have no effect (every path returns).
   The XAnim tree callees (0x002be5a0, 0x002aebf0, 0x002cf220, 0x002c4a00,
   0x002c3ed0; tree at 0x00928588, anim info 0x30 each at 0x00965cf0) are a module of
   their own - name them as one batch.
