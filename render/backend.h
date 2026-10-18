@@ -152,6 +152,11 @@ public:
     // picture shown from the next present on (the Xbox applies it in the video DAC;
     // CoD2: BRO's brightness setting). Any thread.
     virtual void set_gamma_ramp(const uint8_t (&ramp)[3][256]) = 0;
+    // Maps a point in the window (pixels) to the title's 4:3 screen coordinates
+    // (width x height), where its menus are laid out: they are shown pillarboxed or
+    // narrowed into the middle of a wider picture, at the picture's height. False
+    // before the first frame. Any thread.
+    virtual bool window_to_screen(float x, float y, float& screen_x, float& screen_y) = 0;
 };
 
 // Null if the window or device cannot be created (logged).

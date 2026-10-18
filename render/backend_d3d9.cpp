@@ -363,6 +363,10 @@ public:
             }
             const LONG left = (area_width - width) / 2, top = (area_height - height) / 2;
             const RECT dest{left, top, left + width, top + height};
+            {
+                std::lock_guard lock(picture_mutex_);
+                picture_ = dest;
+            }
             if (width != area_width || height != area_height)
                 device_->ColorFill(swap_chain, &area, D3DCOLOR_XRGB(0, 0, 0));
             if (!draw_with_gamma(swap_chain, dest))
@@ -481,6 +485,20 @@ public:
         gamma_changed_ = true;
     }
 
+    bool window_to_screen(float x, float y, float& screen_x, float& screen_y) override {
+        RECT picture;
+        {
+            std::lock_guard lock(picture_mutex_);
+            picture = picture_;
+        }
+        const float height = static_cast<float>(picture.bottom - picture.top);
+        if (height <= 0.0f) return false;
+        const float scale = static_cast<float>(height_) / height;
+        screen_x = static_cast<float>(width_) / 2 + (x - static_cast<float>(picture.left + picture.right) / 2) * scale;
+        screen_y = (y - static_cast<float>(picture.top)) * scale;
+        return true;
+    }
+
 private:
     // Copies the title's back buffer to `dest` through the gamma ramp. False (the
     // caller copies it plainly) while the ramp is the identity or the pass fails.
@@ -594,6 +612,8 @@ private:
     uint32_t back_buffer_data_ = 0;
     bool pillarbox_ = false;    // BackendConfig::pillarbox_flat_frames
     bool pillarboxed_ = false;  // the frame shown last was
+    std::mutex picture_mutex_;
+    RECT picture_{};  // where the last frame was shown in the window; guarded by picture_mutex_
     bool mark_requested_ = false;
     bool highlight_toggled_ = false;
     bool closed_ = false;

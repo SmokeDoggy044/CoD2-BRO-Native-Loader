@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <iterator>
 #include <mutex>
 #include <cstdint>
@@ -14,6 +15,7 @@
 #include <cstring>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "compiler.h"
@@ -736,6 +738,175 @@ void install_frame_rate(int32_t frame_rate) {
     *slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(movie_thunk));
 }
 
+// --- Menus with the mouse --------------------------------------------------------------
+//
+// The UI is run by managers - front end 0x0095f8f8 (null in a level), in-game 0x0095f8fc
+// (pause menu; the HUD is a screen without items), dialogs 0x0095f900 - each with
+// screens (+4 array, +0xc the active one) that are menus of items. Every frame each
+// manager polls the pad (FUN_0031fc10, vtable +0x14, ecx = manager) and sends the first
+// new press to its active screen (D-pad: move the selection, A: activate it).
+// Screen: +4 items, +0x22 selected index (int16), +0x26 item count (int16), +0x30 set
+// while it is locked (animating), +0x31 plays the move sound; vtable +0x10 the move
+// sound, +0x88 select(index, 1) (thiscall). Item: +0x10 its text widget, +0x16 disabled.
+// Text widget (vtable 0x008298b8, draw FUN_00321160): +0x10 bit 2 visible, +0x2c x and
+// +0x30 y in 640x480, +0x5c alignment (0x10 left, 0x20 right, else centred; 0x40 top,
+// 0x80 bottom, else centred; FUN_0030fa60); vtable +0xd0 width, +0xd4 height.
+//
+// The poll goes through a thunk that lets the mouse point while the manager's active
+// screen has items on screen (their widgets were drawn): hovering selects an item, a
+// left click selects it and taps A, a right click taps B, the wheel taps up/down.
+// Selecting waits while the screen is locked (+0x30). Dialogs are drawn over the other
+// screens and take the mouse while theirs are shown. The front end keeps the cursor on
+// screens without items too (the title screen), where a click taps A.
+struct MenuPointerSites {
+    uint32_t screen_poll;
+    std::array<uint8_t, 6> poll_prologue;
+    uint32_t text_draw;
+    std::array<uint8_t, 8> draw_prologue;
+    uint8_t draw_prologue_length;
+    uint32_t text_widget_vtable;
+    uint32_t front_end, dialogs;   // manager pointers
+    uint8_t sound_slot, select_slot;  // screen vtable
+};
+// MP: the same classes with longer screen and item vtables (FUN_0028d080, FUN_0028e5d0).
+constexpr MenuPointerSites kCampaignMenuPointer = {
+    0x0031fc10, {0x53, 0x55, 0x56, 0x57, 0x8b, 0xe9},  // push ebx; push ebp; push esi; push edi; mov ebp,ecx
+    0x00321160, {0x83, 0xec, 0x10, 0x53, 0x55}, 5,      // sub esp,0x10; push ebx; push ebp
+    0x008298b8, 0x0095f8f8, 0x0095f900, 0x10, 0x88};
+constexpr MenuPointerSites kMultiplayerMenuPointer = {
+    0x0028d080, {0x53, 0x55, 0x56, 0x57, 0x8b, 0xe9},
+    0x0028e5d0, {0x81, 0xec, 0x20, 0x01, 0x00, 0x00, 0x53, 0x55}, 8,  // sub esp,0x120; push ebx; push ebp
+    0x003bc8f8, 0x004b31f8, 0x004b3200, 0x18, 0x98};
+MenuPointerSites g_menu_pointer = kCampaignMenuPointer;
+
+std::mutex g_drawn_mutex;
+std::unordered_map<uint32_t, uint32_t> g_text_drawn;  // text widget -> engine frame of its last draw
+uint32_t g_dialog_frame = 0;                          // engine frame a dialog's items were last shown
+bool g_dialog_shown = false;
+
+uint32_t engine_frame() { return title<uint32_t>(g_menus.engine_frame); }
+
+void XB_CDECL text_drawn(uint32_t widget) {
+    if (!(title<uint8_t>(widget + 0x10) & 4)) return;  // hidden: the draw does nothing
+    const uint32_t frame = engine_frame();
+    std::lock_guard lock(g_drawn_mutex);
+    if (g_text_drawn.size() > 1024) std::erase_if(g_text_drawn, [frame](const auto& e) { return frame - e.second > 2; });
+    g_text_drawn[widget] = frame;
+}
+
+bool drawn_lately(uint32_t widget, uint32_t frame) {
+    std::lock_guard lock(g_drawn_mutex);
+    const auto it = g_text_drawn.find(widget);
+    return it != g_text_drawn.end() && frame - it->second <= 2;  // the poll runs before this frame's draws
+}
+
+struct ItemBox {
+    int16_t index;
+    float left, top, right, bottom;
+};
+
+// The active screen's enabled items that are on screen, with their text's box.
+std::vector<ItemBox> shown_items(uint32_t menu) {
+    using FloatMethod = float(XB_FASTCALL*)(uint32_t);
+    std::vector<ItemBox> boxes;
+    const uint32_t frame = engine_frame();
+    const int16_t count = title<int16_t>(menu + 0x26);
+    const uint32_t items = title<uint32_t>(menu + 4);
+    for (int16_t i = 0; items && i < count; ++i) {
+        const uint32_t item = title<uint32_t>(items + i * 4u);
+        if (!item || title<uint8_t>(item + 0x16)) continue;
+        const uint32_t widget = title<uint32_t>(item + 0x10);
+        if (!widget || title<uint32_t>(widget) != g_menu_pointer.text_widget_vtable || !drawn_lately(widget, frame)) continue;
+        const float width = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(g_menu_pointer.text_widget_vtable + 0xd0)})(widget);
+        const float height = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(g_menu_pointer.text_widget_vtable + 0xd4)})(widget);
+        if (!(width > 0.0f && height > 0.0f)) continue;  // no text
+        const uint8_t align = title<uint8_t>(widget + 0x5c);
+        float left = title<float>(widget + 0x2c), top = title<float>(widget + 0x30);
+        left -= (align & 0x20) ? width : (align & 0x10) ? 0.0f : width / 2;
+        top -= (align & 0x80) ? height : (align & 0x40) ? 0.0f : height / 2;
+        constexpr float kMargin = 3.0f;  // a little around the letters
+        boxes.push_back({i, left - kMargin, top - kMargin, left + width + kMargin, top + height + kMargin});
+    }
+    return boxes;
+}
+
+void tap_button(input::AnalogButton button) {
+    input::PadState pad;
+    pad.analog_buttons[button] = 0xFF;
+    input::tap(pad);
+}
+
+void tap_digital(uint16_t button) {
+    input::PadState pad;
+    pad.buttons = button;
+    input::tap(pad);
+}
+
+void XB_CDECL menu_pointer(uint32_t manager) {
+    const uint32_t screens = title<uint32_t>(manager + 4);
+    const int32_t active = title<int32_t>(manager + 0xc);
+    const uint32_t menu = screens && active >= 0 ? title<uint32_t>(screens + active * 4u) : 0;
+    const std::vector<ItemBox> items = menu ? shown_items(menu) : std::vector<ItemBox>{};
+    const uint32_t frame = engine_frame();
+    if (g_menu_pointer.dialogs && manager == title<uint32_t>(g_menu_pointer.dialogs)) {
+        if (items.empty()) return;
+        g_dialog_frame = frame;
+        g_dialog_shown = true;
+    } else if (g_dialog_shown && frame - g_dialog_frame <= 2) {
+        return;  // a dialog over this screen has the mouse
+    } else if (items.empty() && (!g_menu_pointer.front_end || manager != title<uint32_t>(g_menu_pointer.front_end))) {
+        return;  // in a level without a menu
+    }
+
+    input::set_menu_pointer();
+    const input::PointerState pointer = input::take_pointer();
+    float x = 0, y = 0;
+    if (!pointer.inside || !render::window_to_screen(pointer.x, pointer.y, x, y)) return;
+    // Text boxes of close lines overlap: the nearest line's.
+    const ItemBox* hit = nullptr;
+    for (const ItemBox& box : items)
+        if (x >= box.left && x < box.right && y >= box.top && y < box.bottom &&
+            (!hit || std::abs(y - (box.top + box.bottom) / 2) < std::abs(y - (hit->top + hit->bottom) / 2)))
+            hit = &box;
+    const bool on_item = hit != nullptr;
+    if (on_item && title<uint8_t>(menu + 0x30) == 0 && (pointer.moved || pointer.left_clicks) && hit->index != title<int16_t>(menu + 0x22)) {
+        using Method = void(XB_FASTCALL*)(uint32_t);
+        using Select = void(XB_FASTCALL*)(uint32_t, uint32_t, int32_t, int32_t);  // thiscall (index, 1)
+        const uint32_t vtable = title<uint32_t>(menu);
+        if (title<uint8_t>(menu + 0x31))
+            reinterpret_cast<Method>(uintptr_t{title<uint32_t>(vtable + g_menu_pointer.sound_slot)})(menu);
+        reinterpret_cast<Select>(uintptr_t{title<uint32_t>(vtable + g_menu_pointer.select_slot)})(menu, 0, hit->index, 1);
+    }
+    const bool no_items = !menu || title<int16_t>(menu + 0x26) <= 0;
+    if (pointer.left_clicks && (on_item || no_items)) tap_button(input::kA);
+    else if (pointer.right_clicks) tap_button(input::kB);
+    else if (pointer.wheel) tap_digital(pointer.wheel > 0 ? input::kDpadUp : input::kDpadDown);
+}
+
+// pushad; pushfd; push ecx; call function; add esp,4; popfd; popad; jmp original
+uint8_t* put_hook_thunk(uint8_t* t, void (XB_CDECL* function)(uint32_t), uint32_t address,
+                        std::span<const uint8_t> prologue) {
+    uint8_t* const thunk = t;
+    *t++ = 0x60, *t++ = 0x9C, *t++ = 0x51;
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(function));
+    t += 5;
+    *t++ = 0x83, *t++ = 0xC4, *t++ = 0x04, *t++ = 0x9D, *t++ = 0x61;
+    const void* original = hook_with_original(address, prologue, thunk);
+    if (!original) return nullptr;
+    put_rel32(t, 0xE9, original);
+    return t + 5;
+}
+
+void install_menu_pointer() {
+    const MenuPointerSites& sites = g_menu_pointer;
+    auto* thunks = alloc_code(64);
+    if (!thunks) return;
+    uint8_t* t = put_hook_thunk(thunks, &text_drawn, sites.text_draw,
+                                std::span(sites.draw_prologue.data(), sites.draw_prologue_length));
+    if (!t || !put_hook_thunk(t, &menu_pointer, sites.screen_poll, sites.poll_prologue))
+        LOG_WARN("patches", "no mouse in the menus");
+}
+
 }  // namespace
 
 float in_game_menu_draw() {
@@ -932,6 +1103,8 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     if (!config.aim_assist) disable_aim_assist();
     install_frame_rate(config.frame_rate);
     install_menu_render_hooks();
+    g_menu_pointer = campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer;
+    install_menu_pointer();
     if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
     if (!campaign) return;  // the objectives panel and --level are campaign-only
 

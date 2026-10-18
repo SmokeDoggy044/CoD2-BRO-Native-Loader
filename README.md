@@ -202,8 +202,10 @@ while playing), `--scale N` (window size), `--render-scale X`,
 in heavy scenes). Profiling (Linux): `XB_PROFILE=auto[,SECONDS]` samples every thread
 from the first second under 24 fps (or `XB_PROFILE=START,SECONDS`) and logs where
 the time went; `XB_PROFILE_OUT=FILE` adds every sampled address for `addr2line`. The keyboard layout is in `input/devices.h`: WASD, mouse look,
-Tab shows the objectives while held, Escape pauses. Click the window to capture the
-mouse; F10 or Alt+Tab frees it.
+Tab shows the objectives while held, Escape pauses. The menus take the mouse (point,
+click, right click = back, wheel = up/down; `install_menu_pointer` in
+`loader/patches.cpp`). In a level, click the window to capture the mouse; F10 or
+Alt+Tab frees it.
 
 ## Tools
 

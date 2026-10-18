@@ -43,8 +43,9 @@ Gamepads use their Xbox layout. Keyboard and mouse:
   wheel / 1      next weapon          Tab (hold)     objectives / scores
   Escape         pause                F10            free the mouse
 
-Menus: arrow keys, Return selects, Backspace goes back. Click the window to
-capture the mouse; Alt+Tab or F10 frees it.
+Menus: point with the mouse and click (right click goes back, the wheel
+moves), or arrow keys, Return selects, Backspace goes back. In a level, click
+the window to capture the mouse; Alt+Tab or F10 frees it.
 
 
 Multiplayer

@@ -58,6 +58,11 @@ void frame_rate_changed(uint32_t fps);
 // replacing any notice shown before. Any thread.
 void show_notice(std::vector<std::string> lines, double seconds);
 
+// Maps a point in the window (pixels) to the title's 4:3 screen coordinates (its
+// 640x480 menus, wherever they are shown). False without a window or frame yet.
+// Any thread.
+bool window_to_screen(float x, float y, float& screen_x, float& screen_y);
+
 // The replacements, by SDK function name (as XbSymbolDatabase/Ghidra name them,
 // without the library prefix). The loader redirects each function it finds.
 std::span<const xbox::KernelImpl> d3d_functions();
