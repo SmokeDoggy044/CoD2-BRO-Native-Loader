@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-18): 874 functions and 536 globals named, all applied in Ghidra and
+State (2026-10-18): 954 functions and 546 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -262,7 +262,21 @@ CoD-specific functions included, so later decompilation covers both kinds.
   0x0027ff20 (projects a view direction to a screen offset), 0x00283120/0x00285e00
   (per-client model reload by name), 0x0027cad0 (cg state init: clears cg, parses
   configstrings), 0x002764c0/0x00276530 (identical fade stubs).
-  Next: `CalleeTree.java CG_* 1 1` again, then the address-order sweep of the range.
+  Sweep of the range (2026-10-18, 80 more): CG_AddPacketEntities -> CG_AddCEntity and
+  one adder per eType (the binary's ET_* name table at 0x008d5090: 0 general, 1 player,
+  2 item, 3 missile, 4 mover, 5 portal, 6 invisible, 7 script mover, 8 sound blend,
+  9 loop fx, 10 mg42, 11 actor, 12 actor spawner, 13 actor corpse, 14 vehicle,
+  15 vehicle corpse, 16 vehicle collmap), CG_Trace/CG_ClipMoveToEntities, the view
+  (CG_OffsetFirst/ThirdPersonView, tank/vehicle/linked views, CG_CalcFov, CG_StepOffset),
+  the view weapon (CG_RegisterWeapon, CG_CalculateWeaponPosition/Angles, bob, sway,
+  gun move/rot offsets pinned by the cg_gun_* cvars, CG_AddPlayerWeapon), weapon
+  events (CG_FireWeapon, tracers, whizby), local entities, camera shake, hud element
+  drawers and timers, shellshock sound/view, CG_RegisterCvars, CG_ParseServerinfo,
+  objectives configstrings. Still open in the range (~65): the big HUD/compass draws
+  (0x00285260, 0x00282620, 0x002824f0), CG_CalcViewValues' 0x002812d0, the view weapon
+  anim helpers (0x002808b0, 0x00280ed0), weapon cycle helpers, save/restore of cg
+  state (0x00276b10, 0x00278cb0), configstring sound/fx registration (0x0027b9a0).
+  Next: the remaining range in address order, or the XAnim batch.
 - Then the client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
   plus what the body does; `high` only when strings, tables or calls pin the role,
