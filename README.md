@@ -16,6 +16,8 @@ where the decompilation happens, and there's nothing here to play yet.
 You'll need your own copy of the game either way. None of the game's code or data is
 included here.
 
+Developed with AI: see [Made with AI](#made-with-ai).
+
 ## How it works
 
 The Xbox runs on an ordinary x86 processor, much like a PC. That's what makes this
@@ -133,6 +135,16 @@ For the details:
 - [docs/rendering.md](docs/rendering.md), [docs/multiplayer.md](docs/multiplayer.md)
   and [docs/playtesting.md](docs/playtesting.md): graphics, multiplayer and testing
   in the native loader
+
+## Made with AI
+
+This project is developed with AI. The function names, the decompiled code and the
+tools around them were produced by Claude, Anthropic's AI model, working in Claude
+Code, with the evidence for each name recorded in `tools/data/manual_names.csv` and
+every rewritten function checked against the original by the in-game comparison
+harness before it replaces it. The maintainer directs the work, playtests the
+builds, and reviews and publishes the results. Mistakes are the project's own:
+please report them as issues.
 
 ## License
 
