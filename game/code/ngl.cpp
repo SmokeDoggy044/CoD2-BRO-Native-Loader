@@ -98,6 +98,37 @@ void XB_CDECL nglSetQuadVertexColor(NglQuad* quad, int32_t vertex, uint32_t colo
     quad->verts[vertex].color = color;
 }
 
+namespace {
+
+// The original takes sine and cosine on the x87 and does the rest in SSE.
+void rotate_pairs(float* pair, float cx, float cy, float angle) {
+    const float s = platform_x87_sin(angle);
+    const float c = platform_x87_cos(angle);
+    for (int i = 0; i < 4; ++i, pair += sizeof(NglQuadVertex) / sizeof(float)) {
+        const float dx = pair[0] - cx;
+        const float dy = pair[1] - cy;
+        pair[0] = (c * dx - s * dy) + cx;
+        pair[1] = (s * dx + c * dy) + cy;
+    }
+}
+
+}  // namespace
+
+void XB_CDECL nglRotateQuadVerts(NglQuad* quad, float cx, float cy, float angle) {
+    rotate_pairs(&quad->verts[0].x, cx, cy, angle);
+}
+
+void XB_CDECL nglScaleQuadVerts(NglQuad* quad, float cx, float cy, float sx, float sy) {
+    for (NglQuadVertex& vertex : quad->verts) {
+        vertex.x = (vertex.x - cx) * sx + cx;
+        vertex.y = (vertex.y - cy) * sy + cy;
+    }
+}
+
+void XB_CDECL nglRotateQuad(NglQuad* quad, float cu, float cv, float angle) {
+    rotate_pairs(&quad->verts[0].u, cu, cv, angle);
+}
+
 void XB_CDECL nglSetClearFlags(uint32_t flags) { current_scene()->clear_flags = flags; }
 
 void XB_CDECL nglSetClearDepth(float depth) { current_scene()->clear_depth = depth; }
@@ -328,6 +359,16 @@ void XB_CDECL nglSetRenderTarget(NglRenderTarget* target) {
 }
 
 void XB_CDECL nglSetSceneFlags(uint32_t flags) { current_scene()->flags = flags; }
+
+void XB_CDECL nglMeshBuilder_SetBounds(const float* center, float radius) {
+    NglMeshBuilder*& builder = title_global<NglMeshBuilder*>(0x00902920);
+    for (int i = 0; i < 4; ++i) builder->center[i] = center[i];
+    builder->radius = radius;
+    for (uint32_t i = 0; i < builder->section_count; ++i) {
+        for (int j = 0; j < 4; ++j) builder->sections[i].section->center[j] = center[j];
+        builder->sections[i].section->radius = radius;
+    }
+}
 
 void XB_CDECL nglSwapRedBlue(uint8_t* pixels, uint32_t count) {
     for (uint32_t i = 0; i < count; ++i) {

@@ -28,6 +28,18 @@ static_assert(sizeof(RFrameList) == 16);
 // 0x002352c0: out = a * b (4x4, row vectors); EAX = a, EDX = out, ECX = b.
 void XB_REGS3 myGLMultMatrix(const float* a, float* out, const float* b);
 
+// 0x00235ad0: fills the renderer's glconfig_t with fixed values (no GL here).
+void XB_CDECL GLimp_Init();
+// 0x00235cc0: string length without ^0..^9 colour codes; EDX = string. Unlike Q3
+// the character after a code is skipped uncounted too (and a code at the very end
+// reads one byte past the terminator), as in the original.
+int32_t XB_REGS2 Q_PrintStrlen(uint32_t eax_unused, const char* string);
+// 0x00236230: points the world at the collision map's.
+void XB_CDECL RE_LoadWorldMap();
+// 0x002387e0: appends the view model's entity to the second frame list (when the
+// view model is drawn).
+void XB_CDECL R_AddViewModelRefEntity(uint8_t* entity);
+
 // 0x00234cc0: the next scene starts after what the last one added (three scene
 // lists; Q3: r_firstSceneDlight/Entity/Poly).
 void XB_CDECL RE_ClearScene();

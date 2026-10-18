@@ -1999,3 +1999,4 @@ address,name,kind,confidence,evidence
 0009ba90,apsMemoryPool_Alloc,function,high,"string 'apsMemory : pool(size=%d, count=%d) is empty': takes the pool's free-list head, tracks count/peak/size range"
 0009d000,apsLog_Printf,function,medium,"(log, level, fmt, ...): vsprintf into the next of 8 0x104-byte message slots; apsGroup_Create, apsEffect_Create, apsMemoryPool_Alloc"
 00094120,apsAlloc,function,medium,"Mem_AlignedAlloc(size, align) unless size is 0; 86 callers in the particle library"
+0005e040,nglScaleQuadVerts,function,high,"(quad, cx, cy, sx, sy): x = (x - cx) * sx + cx per vertex; between nglRotateQuadVerts and nglRotateQuad, no direct callers"

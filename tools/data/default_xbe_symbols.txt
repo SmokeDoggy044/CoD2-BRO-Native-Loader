@@ -1316,6 +1316,7 @@
 0005df60 nglSetQuadVertexUV
 0005df90 nglSetQuadVertexColor
 0005dfb0 nglRotateQuadVerts
+0005e040 nglScaleQuadVerts
 0005e110 nglRotateQuad
 0005e270 nglListAddQuad
 0005e3f0 nglSceneAddRenderTarget

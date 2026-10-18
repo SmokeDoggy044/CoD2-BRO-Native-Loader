@@ -1,5 +1,7 @@
 #include "functions.h"
 
+#include "dobj.h"
+#include "fx.h"
 #include "ngl.h"
 #include "script_string.h"
 #include "tr_main.h"
@@ -26,6 +28,9 @@ const Function kFunctions[] = {
     {"nglSetQuadVertexPos", 0x0005df30, 0, code(&nglSetQuadVertexPos), 16, Result::None, Status::Compare},
     {"nglSetQuadVertexUV", 0x0005df60, 0, code(&nglSetQuadVertexUV), 16, Result::None, Status::Compare},
     {"nglSetQuadVertexColor", 0x0005df90, 0, code(&nglSetQuadVertexColor), 12, Result::None, Status::Compare},
+    {"nglRotateQuadVerts", 0x0005dfb0, 0, code(&nglRotateQuadVerts), 16, Result::None, Status::Compare},
+    {"nglScaleQuadVerts", 0x0005e040, 0, code(&nglScaleQuadVerts), 20, Result::None, Status::Compare},
+    {"nglRotateQuad", 0x0005e110, 0, code(&nglRotateQuad), 16, Result::None, Status::Compare},
     {"nglSceneAddRenderTarget", 0x0005e3f0, 0, code(&nglSceneAddRenderTarget), 4, Result::None, Status::Compare},
     {"nglSetClearFlags", 0x0005e430, 0, code(&nglSetClearFlags), 4, Result::None, Status::Compare},
     {"nglSetClearDepth", 0x0005e450, 0, code(&nglSetClearDepth), 4, Result::None, Status::Compare},
@@ -48,6 +53,7 @@ const Function kFunctions[] = {
     {"nglSetVBlankMode", 0x000645c0, 0, code(&nglSetVBlankMode), 4, Result::None, Status::Compare},
     {"nglGetScreenWidth", 0x00064640, 0, code(&nglGetScreenWidth), 0, Result::Eax, Status::Compare},
     {"nglGetScreenHeight", 0x00064650, 0, code(&nglGetScreenHeight), 0, Result::Eax, Status::Compare},
+    {"nglMeshBuilder_SetBounds", 0x00066a40, 0, code(&nglMeshBuilder_SetBounds), 8, Result::None, Status::Compare},
     {"nglAllocFrameGpu", 0x00066ad0, 0, code(&nglAllocFrameGpu), 8, Result::Eax, Status::Compare},
     {"nglColorToVec4", 0x0006e780, 0, code(&nglColorToVec4), 8, Result::None, Status::Compare},
     {"nglDepthToZValue", 0x0006e860, 0, code(&nglDepthToZValue), 4, Result::St0, Status::Compare},
@@ -75,8 +81,16 @@ const Function kFunctions[] = {
     {"RE_ClearScene", 0x00234cc0, 0, code(&RE_ClearScene), 0, Result::None, Status::Compare},
     {"R_ClearFrameLists", 0x00234cf0, 0, code(&R_ClearFrameLists), 0, Result::None, Status::Compare},
     {"myGLMultMatrix", 0x002352c0, 0, code(&myGLMultMatrix), 0, Result::None, Status::Compare},
+    {"GLimp_Init", 0x00235ad0, 0, code(&GLimp_Init), 0, Result::None, Status::Compare},
+    {"Q_PrintStrlen", 0x00235cc0, 0, code(&Q_PrintStrlen), 0, Result::Eax, Status::Compare},
     {"RE_SetFarCullDist", 0x00235dc0, 0, code(&RE_SetFarCullDist), 4, Result::None, Status::Compare},
     {"RE_GetFarCullDist", 0x00235e90, 0, code(&RE_GetFarCullDist), 0, Result::St0, Status::Compare},
+    {"RE_LoadWorldMap", 0x00236230, 0, code(&RE_LoadWorldMap), 0, Result::None, Status::Compare},
+    {"DObj_GetBoneBasePose", 0x00237cd0, 0, code(&DObj_GetBoneBasePose), 8, Result::Eax, Status::Compare},
+    {"R_AddViewModelRefEntity", 0x002387e0, 0, code(&R_AddViewModelRefEntity), 4, Result::None, Status::Compare},
+    {"DObj_GetBoneParent", 0x0023a2a0, 0, code(&DObj_GetBoneParent), 8, Result::Eax, Status::Compare},
+    {"DObj_GetBoneIndex", 0x0023a440, 0, code(&DObj_GetBoneIndex), 4, Result::Eax, Status::Compare},
+    {"FX_AllocEffect", 0x0023b970, 0, code(&FX_AllocEffect), 0, Result::Eax, Status::Compare},
 };
 
 }  // namespace

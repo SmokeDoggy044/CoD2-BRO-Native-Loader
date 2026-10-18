@@ -2,7 +2,9 @@
 # loader runs it in place of the original functions or compares the two
 # (functions.h, loader/compare.h).
 set(game_code_sources
+    dobj.cpp
     functions.cpp
+    fx.cpp
     ngl.cpp
     script_string.cpp
     tr_main.cpp

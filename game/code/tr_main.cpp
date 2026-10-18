@@ -68,4 +68,65 @@ float XB_CDECL RE_GetFarCullDist() {
     return far_cull > zfar ? far_cull : zfar;
 }
 
+void XB_CDECL GLimp_Init() {
+    // glconfig_t; the strings are the title's own (pointers, not Q3's arrays).
+    auto set = [](uint32_t address, uint32_t value) { title_global<uint32_t>(address) = value; };
+    set(0x0095e760, 24);  // colorBits
+    set(0x0095e764, 24);  // depthBits
+    title_global<float>(0x0095e774) = title_global<float>(0x0083eb20);  // 1.0
+    set(0x0095e740, 0x0083c0e8);  // "porting to NGL"
+    set(0x0095e744, 0x0083c0d8);
+    set(0x0095e748, 0x0083c0cc);  // "whatever"
+    set(0x0095e74c, 0x0083c0a8);
+    set(0x0095e750, 0x0083c0a0);
+    set(0x0095e754, 0x200);  // maxTextureSize
+    set(0x0095e758, 2);      // maxActiveTextures
+    set(0x0095e75c, 8);
+    set(0x0095e768, 8);      // stencilBits
+    set(0x0095e76c, 0);
+    set(0x0095e770, 0);
+    for (uint32_t address = 0x0095e778; address <= 0x0095e7c0; address += 4) set(address, 0);
+    set(0x0095e7c4, 640);         // vidWidth
+    set(0x0095e7c8, 480);         // vidHeight
+    set(0x0095e7cc, 0x3faaaaab);  // windowAspect 4/3
+    set(0x0095e7d0, 60);          // displayFrequency
+    set(0x0095e7d4, 0);
+    set(0x0095e7d8, 0);
+    set(0x0095e7dc, 0);
+}
+
+int32_t XB_REGS2 Q_PrintStrlen(uint32_t, const char* string) {
+    int32_t length = 0;
+    if (!*string) return 0;
+    char next;
+    do {
+        if (string[0] == '^' && string[1] && string[1] != '^' && string[1] >= '0' && string[1] <= '9')
+            string += 2;
+        else
+            ++length;
+        next = string[1];
+        ++string;
+    } while (next);
+    return length;
+}
+
+void XB_CDECL RE_LoadWorldMap() {
+    title_global<uint32_t>(0x0095e608) = 0x00988bd8;  // the world
+    title_global<uint32_t>(0x00988cd8) = title_global<uint32_t>(0x0095f6b8);  // cm
+}
+
+void XB_CDECL R_AddViewModelRefEntity(uint8_t* entity) {
+    if (!title_global<uint32_t>(0x0095e390)) return;
+    // The list node sits 0x80 bytes before the entity.
+    auto* node = reinterpret_cast<void**>(entity - 0x80);
+    entity[0x6c] = 0;
+    *reinterpret_cast<uint32_t*>(entity + 0x70) = 0;
+    RFrameList& list = title_global<RFrameList*>(0x008db128)[1];
+    node[0] = &list.tail;
+    node[1] = list.tail_prev;
+    *static_cast<void**>(list.tail_prev) = node;
+    list.tail_prev = node;
+    ++list.count;
+}
+
 }  // namespace game

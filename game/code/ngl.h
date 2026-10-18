@@ -110,7 +110,32 @@ struct NglScene {
     float far_z;              // +0x3c8
 };
 
+// A section of a mesh: only its bounding sphere is known.
+struct NglMeshSection {
+    uint8_t unknown00[0x10];
+    float center[4];  // +0x10
+    float radius;     // +0x20
+};
+
+struct NglMeshSectionEntry {
+    uint32_t unknown0;
+    NglMeshSection* section;
+};
+
+// The mesh nglMeshBuilder_* fills (one at a time, global 0x00902920).
+struct NglMeshBuilder {
+    uint8_t unknown00[0x08];
+    uint32_t section_count;         // +0x08
+    NglMeshSectionEntry* sections;  // +0x0c
+    uint8_t unknown10[0x20 - 0x10];
+    float center[4];                // +0x20
+    float radius;                   // +0x30
+};
+
 #if UINTPTR_MAX == 0xFFFFFFFF  // the title's layout (32-bit pointers)
+static_assert(offsetof(NglMeshBuilder, center) == 0x20);
+static_assert(offsetof(NglMeshBuilder, radius) == 0x30);
+static_assert(sizeof(NglMeshSectionEntry) == 8);
 static_assert(sizeof(NglQuadVertex) == 0x14);
 static_assert(sizeof(NglQuad) == 0x64);
 static_assert(offsetof(NglQuad, texture) == 0x60);
@@ -152,6 +177,12 @@ void XB_CDECL nglSetQuadVertexPos(NglQuad* quad, int32_t vertex, float x, float 
 void XB_CDECL nglSetQuadVertexUV(NglQuad* quad, int32_t vertex, float u, float v);
 // 0x0005df90
 void XB_CDECL nglSetQuadVertexColor(NglQuad* quad, int32_t vertex, uint32_t color);
+// 0x0005dfb0: rotates the vertex positions by `angle` (radians) around (cx, cy).
+void XB_CDECL nglRotateQuadVerts(NglQuad* quad, float cx, float cy, float angle);
+// 0x0005e040: scales the vertex positions by (sx, sy) around (cx, cy).
+void XB_CDECL nglScaleQuadVerts(NglQuad* quad, float cx, float cy, float sx, float sy);
+// 0x0005e110: rotates the texture coordinates by `angle` around (cu, cv).
+void XB_CDECL nglRotateQuad(NglQuad* quad, float cu, float cv, float angle);
 
 // Setters on the current scene (nglPushScene's).
 // 0x0005e430
@@ -239,6 +270,9 @@ void XB_CDECL nglSetRenderTarget(NglRenderTarget* target);
 // 0x00073ae0
 void XB_CDECL nglSetSceneFlags(uint32_t flags);
 // 0x0007b220: swaps bytes 0 and 2 of `count` 32-bit pixels.
+// 0x00066a40: the bounding sphere of the mesh being built, copied to each of its
+// sections.
+void XB_CDECL nglMeshBuilder_SetBounds(const float* center, float radius);
 void XB_CDECL nglSwapRedBlue(uint8_t* pixels, uint32_t count);
 
 }  // namespace game
