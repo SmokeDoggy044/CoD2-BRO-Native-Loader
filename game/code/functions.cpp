@@ -2,6 +2,7 @@
 
 #include "ngl.h"
 #include "script_string.h"
+#include "tr_main.h"
 
 namespace game {
 
@@ -33,9 +34,14 @@ const Function kFunctions[] = {
     {"nglSetCurrentScene", 0x0005e750, 0, code(&nglSetCurrentScene), 4, Result::Eax, Status::Compare},
     {"nglSetClearColor", 0x0005eaa0, 0, code(&nglSetClearColor), 16, Result::None, Status::Compare},
     {"nglSetFogColor", 0x0005eb60, 0, code(&nglSetFogColor), 12, Result::None, Status::Compare},
+    {"nglMatrixPerspective", 0x0005ec20, 0, code(&nglMatrixPerspective), 20, Result::None, Status::Compare},
+    {"nglMatrixOrtho", 0x0005ed60, 0, code(&nglMatrixOrtho), 20, Result::None, Status::Compare},
+    {"nglMatrixScreenToClip", 0x0005f010, 0, code(&nglMatrixScreenToClip), 4, Result::None, Status::Compare},
+    {"nglMatrixViewport", 0x0005f1b0, 0, code(&nglMatrixViewport), 20, Result::None, Status::Compare},
     {"nglGetScreenWidth", 0x00064640, 0, code(&nglGetScreenWidth), 0, Result::Eax, Status::Compare},
     {"nglGetScreenHeight", 0x00064650, 0, code(&nglGetScreenHeight), 0, Result::Eax, Status::Compare},
     {"nglColorToVec4", 0x0006e780, 0, code(&nglColorToVec4), 8, Result::None, Status::Compare},
+    {"nglDepthToZValue", 0x0006e860, 0, code(&nglDepthToZValue), 4, Result::St0, Status::Compare},
     {"nglSetRenderTarget", 0x00073a70, 0, code(&nglSetRenderTarget), 4, Result::None, Status::Compare},
     {"nglSetSceneFlags", 0x00073ae0, 0, code(&nglSetSceneFlags), 4, Result::None, Status::Compare},
     {"nglSwapRedBlue", 0x0007b220, 0, code(&nglSwapRedBlue), 8, Result::None, Status::Compare},
@@ -50,6 +56,11 @@ const Function kFunctions[] = {
     {"ScriptString_Equals", 0x0011d7c0, 0, code(&ScriptString_Equals), 8, Result::Al, Status::Compare},
     {"ScriptString_EqualsString", 0x0011d820, 0, code(&ScriptString_EqualsString), 8, Result::Al, Status::Compare},
     {"ScriptKeyTable_Find", 0x0011db70, 0, code(&ScriptKeyTable_Find), 4, Result::Eax, Status::Compare},
+    {"RE_ClearScene", 0x00234cc0, 0, code(&RE_ClearScene), 0, Result::None, Status::Compare},
+    {"R_ClearFrameLists", 0x00234cf0, 0, code(&R_ClearFrameLists), 0, Result::None, Status::Compare},
+    {"myGLMultMatrix", 0x002352c0, 0, code(&myGLMultMatrix), 0, Result::None, Status::Compare},
+    {"RE_SetFarCullDist", 0x00235dc0, 0, code(&RE_SetFarCullDist), 4, Result::None, Status::Compare},
+    {"RE_GetFarCullDist", 0x00235e90, 0, code(&RE_GetFarCullDist), 0, Result::St0, Status::Compare},
 };
 
 }  // namespace

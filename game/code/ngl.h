@@ -13,6 +13,15 @@ namespace game {
 
 struct NglTexture;
 
+// Only the fields the decompiled functions use so far.
+struct NglRenderTarget {
+    uint8_t unknown00[0x10];
+    uint32_t width;   // +0x10
+    uint32_t height;  // +0x14
+    uint8_t unknown18[0x28 - 0x18];
+    uint32_t flags;   // +0x28, 4 = the 640x480 screen whatever the size fields say
+};
+
 struct NglQuadVertex {
     float x, y;
     float u, v;
@@ -35,12 +44,13 @@ struct NglScene {
     uint8_t unknown000[0x4];
     uint32_t flags;           // +0x004
     uint32_t unknown008;      // +0x008, nglSetRenderTarget stores 6
-    uint8_t unknown00c[0x150 - 0xc];
+    uint8_t unknown00c[0x110 - 0xc];
+    float projection[16];     // +0x110, row vectors (nglDepthToZValue uses rows 2 and 3)
     float view_matrix[16];    // +0x150
     uint8_t unknown190[0x2d0 - 0x190];
     NglScene* parent;         // +0x2d0, the scene nglPopScene returns to
     uint8_t unknown2d4[0x2f8 - 0x2d4];
-    void* render_target;      // +0x2f8
+    NglRenderTarget* render_target; // +0x2f8
     uint8_t unknown2fc[0x360 - 0x2fc];
     uint32_t clear_flags;     // +0x360
     float clear_depth;        // +0x364
@@ -54,7 +64,8 @@ struct NglScene {
     uint8_t unknown3b0[0x3bc - 0x3b0];
     float aspect;             // +0x3bc
     uint8_t unknown3c0[0x3c4 - 0x3c0];
-    float fog_start_min;      // +0x3c4, nglSetFog clamps fog[0] to at least this
+    float near_z;             // +0x3c4
+    float far_z;              // +0x3c8
 };
 
 #if UINTPTR_MAX == 0xFFFFFFFF  // the title's layout (32-bit pointers)
@@ -67,7 +78,9 @@ static_assert(offsetof(NglScene, render_target) == 0x2f8);
 static_assert(offsetof(NglScene, clear_color) == 0x370);
 static_assert(offsetof(NglScene, fog) == 0x388);
 static_assert(offsetof(NglScene, fog_color) == 0x3a0);
-static_assert(offsetof(NglScene, fog_start_min) == 0x3c4);
+static_assert(offsetof(NglScene, projection) == 0x110);
+static_assert(offsetof(NglScene, near_z) == 0x3c4);
+static_assert(offsetof(NglRenderTarget, flags) == 0x28);
 #endif
 
 // 0x0005ddb0: white, untextured, UVs 0..1, flags 0xc2, blend mode 2.
@@ -100,7 +113,7 @@ void XB_CDECL nglSetClearFlags(uint32_t flags);
 void XB_CDECL nglSetClearDepth(float depth);
 // 0x0005e470
 void XB_CDECL nglSetColorWriteMask(uint32_t mask);
-// 0x0005e4d0: fog[0] no lower than the scene's fog_start_min.
+// 0x0005e4d0: the fog start no nearer than the near plane.
 void XB_CDECL nglSetFog(float start, float value1, float value2, float value3);
 // 0x0005e730: makes the parent current; returns the scene left.
 NglScene* XB_CDECL nglPopScene();
@@ -110,13 +123,25 @@ NglScene* XB_CDECL nglSetCurrentScene(NglScene* scene);
 void XB_CDECL nglSetClearColor(float r, float g, float b, float a);
 // 0x0005eb60: alpha 1.
 void XB_CDECL nglSetFogColor(float r, float g, float b);
+// Matrices are 4x4 row-vector matrices (16 floats, row by row). The title's quirks
+// are kept (see nglMatrixViewport).
+// 0x0005ec20: x_scale, y_scale on the diagonal, depth mapped to 0..1 over near..far.
+void XB_CDECL nglMatrixPerspective(float* out, float x_scale, float y_scale, float near_z, float far_z);
+// 0x0005ed60: the same with a linear depth.
+void XB_CDECL nglMatrixOrtho(float* out, float x_scale, float y_scale, float near_z, float far_z);
+// 0x0005f010: screen pixels of the current scene's render target to -1..1.
+void XB_CDECL nglMatrixScreenToClip(float* out);
+// 0x0005f1b0: -1..1 to the rectangle x0, y0 .. x1, y1.
+void XB_CDECL nglMatrixViewport(float* out, float x0, float y0, float x1, float y1);
+// 0x0006e860: a view depth (clamped to near..far) to the 24-bit depth buffer value.
+float XB_CDECL nglDepthToZValue(float depth);
 // 0x00064640 / 0x00064650: the title's fixed 640x480 screen.
 int32_t XB_CDECL nglGetScreenWidth();
 int32_t XB_CDECL nglGetScreenHeight();
 // 0x0006e780: ARGB bytes to r, g, b, a floats in 0..1.
 void XB_CDECL nglColorToVec4(float* out, uint32_t color);
 // 0x00073a70
-void XB_CDECL nglSetRenderTarget(void* target);
+void XB_CDECL nglSetRenderTarget(NglRenderTarget* target);
 // 0x00073ae0
 void XB_CDECL nglSetSceneFlags(uint32_t flags);
 // 0x0007b220: swaps bytes 0 and 2 of `count` 32-bit pixels.

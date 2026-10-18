@@ -9,17 +9,22 @@
 #define XB_FASTCALL __fastcall
 #define XB_CDECL __cdecl
 #define XB_THISCALL __thiscall
+#define XB_REGS3
 #elif defined(__i386__)
 #define XB_STDCALL __attribute__((stdcall))
 #define XB_FASTCALL __attribute__((fastcall))
 #define XB_CDECL __attribute__((cdecl))
 // `this` in ECX, the rest on the stack, callee pops; also on free functions.
 #define XB_THISCALL __attribute__((thiscall))
+// The title's whole-program-optimized (LTCG) functions may take their first three
+// arguments in EAX, EDX, ECX, caller pops: GCC's regparm(3).
+#define XB_REGS3 __attribute__((regparm(3)))
 #else
 #define XB_STDCALL
 #define XB_FASTCALL
 #define XB_CDECL
 #define XB_THISCALL
+#define XB_REGS3
 #endif
 
 #if defined(__MINGW32__)
