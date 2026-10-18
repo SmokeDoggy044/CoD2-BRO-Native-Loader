@@ -21,6 +21,14 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
    `Status::Replaced`: from then on it runs instead of the original, in every build.
    Drift on a function that does float math can be accepted after reading it.
 
+Conventions in `game/code/`: the title's globals are reached with `title_global<T>(address)`
+(title_data.h; such functions stay campaign-only until their multiplayer addresses are
+known); functions taking arguments in EAX/EDX/ECX use `XB_REGS3` (platform/compiler.h);
+the library is built with `-msse -mfpmath=sse` so float math rounds like the title's SSE
+code (keep the original's operation order; `0 - x` is not `-x` for x = 0). Before adding a
+function, grep `loader/` for its address: a function the loader already patches (e.g. the
+frame pacing's nglSetVBlankMode) cannot be compared.
+
 ## How a test runs
 
 The function's entry jumps to a stub (`push index; jmp xbcmp_entry`) that saves all
