@@ -99,11 +99,12 @@ CC0 and LGPL-2.1 files) is not compiled into any build. File-by-file details are
 in [LICENSES/README.md](LICENSES/README.md).
 
 **The game is not included.** *Call of Duty 2: Big Red One* and all of its code and
-data belong to their owners; you need your own copy of the game. The symbol file
-in `tools/data/` holds only function addresses and names from our own analysis.
-This project is not affiliated with or endorsed by Activision, Treyarch or
-Microsoft. Call of Duty is a trademark of Activision Publishing, Inc.; Xbox is a
-trademark of Microsoft Corporation.
+data belong to Activision Publishing, Inc., a subsidiary of Microsoft Corporation,
+and their respective copyright holders. You need your own legally obtained copy of
+the game; piracy is illegal. The symbol file in `tools/data/` holds only function
+addresses and names from our own analysis. This project is not affiliated with or
+endorsed by Microsoft, Activision or Treyarch. Call of Duty is a trademark of
+Activision Publishing, Inc.; Xbox is a trademark of Microsoft Corporation.
 
 ## Documentation
 
