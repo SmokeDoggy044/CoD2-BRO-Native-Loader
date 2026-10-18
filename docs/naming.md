@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 519 functions and 357 globals named, all applied in Ghidra and
+State (2026-10-17): 523 functions and 358 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -166,14 +166,13 @@ copy the repository version there first so it is not stale.
 Decision (user, 2026-10-17): naming continues before step 2 (decompile + compare),
 CoD-specific functions included, so later decompilation covers both kinds.
 
-- Game module (2026-10-17, from G_RunFrame): done for the entity runners,
-  ClientThink_real, SP_func_door/trigger paths and the callback tables. Still open:
-  the CoD-only callback entries still unnamed (think[1, 4, 13, 14, 17, 22, 28],
-  touch[2, 10], use[2, 6, 12], pain[4], +0x348 table), ClientEndFrame's
-  callees beyond P_DamageFeedback (0x00263c00, 0x00267e10, 0x002e38a0),
-  G_RunFrame's 0x002df880 (per-model bone/tag update) and 0x002be8f0 ('COD_Note'
-  list), the AI (Actor_*, 0x001fxxxx-0x0021xxxx); the rest of the 0x0097a6xx-8xx
-  block (12 slots not stored by GScr_LoadConsts).
+- Game module (2026-10-17, from G_RunFrame): entity runners, ClientThink_real,
+  ClientEndFrame, spawn/mover/trigger paths, the callback tables and the G_RunFrame
+  helpers are named. Small leftovers: pain[4] (0x0024c5e0, unclear), the +0x348
+  table (actors - do with the AI), 0x002df880 (per-model pose/tag update) and
+  0x002be8f0 ('COD_Note' list), 0x0024c9f0 (entity list bookkeeping), the 12
+  scr_const slots GScr_LoadConsts does not fill. Next: the AI (Actor_*, 0x001fxxxx-
+  0x0021xxxx), starting from its state table at 0x00830c40 (0x24 per state).
 - The game module from G_RunFrame (entities, clients, AI) and the cgame from
   CG_DrawActiveFrame; the client/UI from SCR_DrawScreenField.
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)

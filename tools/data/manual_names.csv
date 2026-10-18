@@ -703,3 +703,8 @@ address,name,kind,confidence,evidence
 00264060,Player_GetUseList,function,medium,"CoD1 name: usable entities around the player, sorted; Player_UpdateCursorHints"
 002e38a0,G_ClientUpdateLinkTo,function,medium,"CoD: ClientEndFrame for a player with a tag parent: origin from the parent's tag, view angle deltas, SV_LinkEntity"
 0024fe60,G_TrimCorpseQueue,function,medium,"CoD: G_RunFrame; clamps ai_corpseCount to 1-16 and frees queued corpses (0x009881c8, 0x1c each) beyond it"
+002b8450,G_UpdateEntityLOD,function,medium,"CoD: G_RunFrame per entity with an anim tree: LOD 0/1/2 by squared distance to the player (480/720 units, field-of-view scale 0x008da6d8), DObj_SetLod"
+0001d0f0,DObj_SetLod,function,medium,"CoD: picks the requested LOD or the nearest one the model has (5 slots), stores it at +0x90"
+00205a70,G_ExpireBadPlaces,function,medium,"CoD: G_RunFrame; 32 bad places (g_badplaces, 0x28 each) whose time passed: arc/cylinder ones undone with Path_UpdateBadPlaceCountArc, name released"
+002d0db0,Path_UpdateBadPlaceCountArc,function,medium,"CoD: (pathData, arc {origin, radius, height, angle range}, team mask, delta): adds delta to the per-team bad-place count of every path node link inside the arc/cylinder"
+0098a570,g_badplaces,data,medium,"32 bad places, 0x28 each (G_ExpireBadPlaces; cleared in G_InitGame)"
