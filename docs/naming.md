@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 356 functions and 153 globals named, all applied in Ghidra and
+State (2026-10-17): 380 functions and 157 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -83,7 +83,7 @@ copy the repository version there first so it is not stale.
 - Command tables: cgame `cg_commands` (0x0082f420), game cheat commands
   (0x008ddb70) and developer commands (0x008ddae0), all `{name, function}`.
 - Spawn table g_spawns (0x009885e0): `{classname handle, SP_ function}` x32, built by a
-  C++ static initializer (0x00377330) that interns each classname with 0x00292fe0 -
+  C++ static initializer (0x00377330) that hashes each classname with Com_HashKeyNoCase (0x00292fe0) -
   not a data table, so pointer-pair scans miss it; parse the initializer (MSVC loads
   the next classname into EDX before storing the previous result). G_CallSpawn
   (0x00260220) uses it, refuses `actor_*`, then falls back to bg_itemlist. Other
@@ -99,6 +99,13 @@ copy the repository version there first so it is not stale.
 - Game entities are reached through handle tables (index & 0xfff, generation >> 12;
   entities at 0x0097a968, 0x540 entries); ent->think is an index into a function
   table at 0x008da788.
+- G_RunEntity dispatches like Q3's G_RunFrame loop: eType 3 G_RunMissile, then
+  physicsObject (+0x294) G_RunItem, eType 4 (also 7, 0xb) G_RunMover, else G_RunThink;
+  an entity with a tag parent (+0x3cc) runs its parent first and is placed by
+  G_GeneralLink. gentity_t: inuse +0x224, currentOrigin +0x140, s.pos +0x0c,
+  teamchain +0x37c. level_locals: framenum, time, previousTime at 0x00985408.. (Q3 order).
+- `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
+  function's unnamed callees with size, caller count and strings (where to look next).
 - `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
   few functions: cl_cgame, sv_game, common, cm_load, com_files, tr_dpvs.
 
