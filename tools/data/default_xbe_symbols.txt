@@ -6303,7 +6303,7 @@
 001fa6e0 Actor_GetPathPlanes
 001fa7c0 FUN_001fa7c0
 001fa7f0 FUN_001fa7f0
-001fa860 FUN_001fa860
+001fa860 Actor_ExpirePathPlanes
 001fa950 FUN_001fa950
 001fab10 Actor_Noncombat_Resume
 001fab20 Actor_Noncombat_Suspend
@@ -6312,8 +6312,8 @@
 001fac60 Path_TrimCompletedPath
 001faec0 FUN_001faec0
 001faee0 Path_DecreaseLookaheadAmount
-001faf40 FUN_001faf40
-001fb1f0 FUN_001fb1f0
+001faf40 Path_LengthGreaterThan
+001fb1f0 Actor_ClearLookAt
 001fb270 Actor_Lmg_Finish
 001fb280 Actor_Grenade_Resume
 001fb330 Actor_DefaultPain
@@ -6337,16 +6337,16 @@
 001fbec0 FUN_001fbec0
 001fbed0 Actor_Touch
 001fbf10 FUN_001fbf10
-001fbfb0 FUN_001fbfb0
+001fbfb0 Actor_IsInState
 001fc020 Actor_StartState
 001fc060 Actor_NextOfTeams
 001fc0c0 Actor_FirstOfTeams
 001fc130 FUN_001fc130
-001fc210 FUN_001fc210
+001fc210 Actor_SetSentientVisibility
 001fc2b0 FUN_001fc2b0
 001fc2f0 Sentient_Alloc
 001fc360 FUN_001fc360
-001fc3f0 FUN_001fc3f0
+001fc3f0 Actor_ScoreEnemyByDistance
 001fc480 Actor_InitSpawner
 001fc520 Actor_Negotiation_Start
 001fc540 FUN_001fc540
@@ -6379,7 +6379,7 @@
 001fe1a0 FUN_001fe1a0
 001fe270 FUN_001fe270
 001fe370 FUN_001fe370
-001fe3c0 FUN_001fe3c0
+001fe3c0 Path_GetNegotiationEndNode
 001fe4f0 FUN_001fe4f0
 001fe670 FUN_001fe670
 001fe710 FUN_001fe710
@@ -6422,7 +6422,7 @@
 00201430 Actor_Cover_NodeClaimRevoked
 002014a0 Actor_Cover_Pain
 002014f0 Actor_Cover_Finish
-00201520 FUN_00201520
+00201520 Actor_IsOnClaimedNode
 00201990 Actor_AnimCustom_Start
 002019d0 Actor_AnimScripted_Start
 00201a10 Actor_AnimMoveRun
@@ -6502,7 +6502,7 @@
 00206580 Actor_GetEyePosition
 002065b0 FUN_002065b0
 002066e0 Sentient_GetEyePosition
-002067b0 FUN_002067b0
+002067b0 Actor_UpdateLookAt
 00206dc0 FUN_00206dc0
 002072d0 FUN_002072d0
 002076e0 FUN_002076e0
@@ -6653,7 +6653,7 @@
 0021d8b0 Actor_Cover_Start
 0021db00 FUN_0021db00
 0021dbd0 FUN_0021dbd0
-0021dc80 FUN_0021dc80
+0021dc80 Actor_MoveByAnimMode
 0021dfc0 FUN_0021dfc0
 0021e120 Actor_Grenade_ChooseReaction
 0021e4b0 Actor_Exposed_MoveToGoalMove
