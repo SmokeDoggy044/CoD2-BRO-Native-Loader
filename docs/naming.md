@@ -322,6 +322,13 @@ CoD-specific functions included, so later decompilation covers both kinds.
   Still open in NGL: scene bytes +0x384/+0x385 (0x0005e490/0x0005e4b0, default 1, cleared by
   R_ClearAlpha: probably depth test/write), the frame-memory pools (0x000778b0, 0x00077b50), the
   container destructors (0x00069b00.., 0x0007bd20..), the debug shape draws 0x0006cb80/cc50/cd30.
+  Shader classes: vtable = [Draw, nglShader_Nop | Register, GetName, AddToList, LoadTexture,
+  ReleaseTexture, Relocate] (the class pointer is the Register slot); the texture slots are shared
+  between classes (nglMaterial_*). The 45/47-byte pairs next to each class (a vtable call that makes
+  an object, and a Z_Malloc copy of {vtable, a, b}) are functor clone boilerplate - left unnamed.
+  Particle library: only three strings (apsEffect pool/create, apsGroup particles, apsMemory pool);
+  the ~40 tiny constructors at 0x000a08c0-0x000a0e00 make its memory pools (0x0009c520). Not named
+  further: body reading only, and outside the renderer proper.
   Size (2026-10-18): shader classes 241 functions (138 named), NGL core 0x5dd00-0x7c000 307 (146),
   tr_* 149 (100), particle library 0x94000-0xa8000 324 (5). Open: the memory heap at
   0x00042000-0x00044200 (Z_Malloc's debug heap - not renderer), NGL's dynamic vertex buffers
