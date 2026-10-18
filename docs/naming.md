@@ -246,9 +246,18 @@ CoD-specific functions included, so later decompilation covers both kinds.
   0x0021bc00, 0x002196d0), the slot-5 role, the level script module's interface
   (0x0095f49c, filled by five init functions). 0x00201e90 and 0x001fd3d0 have no
   effect (every path returns).
-  The XAnim tree callees (0x002be5a0, 0x002aebf0, 0x002cf220, 0x002c4a00,
-  0x002c3ed0; tree at 0x00928588, anim info 0x30 each at 0x00965cf0) are a module of
-  their own - name them as one batch.
+  XAnim trees (2026-10-18, 20 functions, AnimTree_*/AnimData_*): a tree
+  (AnimTree_Create: anim list +8, owner +0xc, heap +0x10, info count +0x14, ushort info
+  index per anim +0x18) points at an anim list (+4 count, +8 entries of 0x38: +0x20
+  child count, +0x22 parent, +0x24 data, +0x28 notetracks {name, time} of 0xc, +0x2c
+  load generation, +0x34 flags, +0x36 first child). Per-anim playback state is a
+  0x30-byte info from the pool at 0x00965cf0 (free list +0xa/+0xc; +2 next notetrack,
+  +0x10 sync time, +0x14 time, +0x18/+0x1a cycles, +0x1c blend rate, +0x20 goal
+  weight, +0x24 weight, +0x28 rate, +0x2c playback object). The current tree for the
+  recursive walkers is 0x00928588. Open: 0x002bf7d0 (goal-time check in
+  AnimTree_AdvanceTimeForModel), 0x002b7e40 (notetrack build, "COD_Note"/"fakeroot"),
+  0x002b7c60, 0x002af080, and the memory-context push/pop pair 0x0028f6c0/0x0028c690
+  (stack of 0x80 at +0x374 of the 0x0095f5d0 record).
 - Cgame (2026-10-18, from CG_DrawActiveFrame, Q3 cg_view.c order): the frame
   (CG_UpdateCvars, CG_PredictPlayerState, CG_InterpolatePlayerState, CG_CalcViewValues,
   CG_ShakeCamera, CG_DrawActive, CG_AddViewWeapon), the snapshot code (cg_snapshot.c:
@@ -276,7 +285,14 @@ CoD-specific functions included, so later decompilation covers both kinds.
   (0x00285260, 0x00282620, 0x002824f0), CG_CalcViewValues' 0x002812d0, the view weapon
   anim helpers (0x002808b0, 0x00280ed0), weapon cycle helpers, save/restore of cg
   state (0x00276b10, 0x00278cb0), configstring sound/fx registration (0x0027b9a0).
-  Next: the remaining range in address order, or the XAnim batch.
+  Leftovers (2026-10-18, 24 more): CG_AddLocalEntities with the tracer (CG_Tracer)
+  and near-culled types, CG_PointContents, CG_Save/LoadViewModelAnimTrees (their
+  debug strings) and the save-state pair (CG_vmMain 0xf/0x10), CG_ReadShellShockCvars,
+  CG_GetViewFov, bob cycles, gun kick, weapon cycling helpers. Still open (~40, low
+  value): the big HUD/compass draws, CG_CalcViewValues' 0x002812d0, view weapon anim
+  helpers (0x002808b0, 0x00280ed0), the weapon tag/pose helpers using the DObj
+  (0x0027f8e0, 0x0027f920, 0x0027fa50, 0x00284d00, 0x00288510), configstring float
+  readers (0x0027abb0, 0x0027ad70).
 - Then the client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
   plus what the body does; `high` only when strings, tables or calls pin the role,
