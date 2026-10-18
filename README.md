@@ -4,6 +4,8 @@ A **native loader** that runs the original Xbox version of *Call of Duty 2: Big 
 One* on PC, on Linux and Windows. It needs your own copy of the game; this
 repository and its releases contain none of the game's code or data.
 
+Developed with AI: see [Made with AI](#made-with-ai).
+
 The Xbox has an x86 CPU, so the game's own code needs no translation: the loader
 maps the original `default.xbe` into memory and the PC's CPU runs it directly. What
 we wrote replaces everything around it: the Xbox kernel (files, memory, threads),
@@ -74,6 +76,15 @@ Controls and options are in the `README.txt` inside the archive.
   the fallback (`--d3d9 auto|dxvk|system`, Graphics in the launcher); no DirectX
   runtime or D3DX is needed (shaders are emitted as bytecode). See
   [docs/rendering.md](docs/rendering.md).
+
+## Made with AI
+
+This project is developed with AI. Most of its code, the reverse engineering of the
+game (the Ghidra analysis behind every patch and replaced library) and its
+documentation were written by Claude, Anthropic's AI model, working in Claude Code.
+The maintainer directs the work, decides what gets built, playtests the builds, and
+reviews and publishes the results. Mistakes are the project's own: please report
+them as issues.
 
 ## License
 
