@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 308 functions and 147 globals named, all applied in Ghidra and
+State (2026-10-17): 321 functions and 149 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -54,20 +54,26 @@ copy the repository version there first so it is not stale.
   calls engine functions directly), CL_CgameSystemCalls has no callers (the cgame
   calls the renderer through `re`).
 - G_vmMain: 0 G_InitGame, 1 G_ShutdownGame, 2 ClientConnect, 3 ClientBegin,
-  4 ClientDisconnect, 5 ClientCommand, 6 ClientThink, 7 G_RunFrame, 8 reload
+  4 ClientDisconnect, 5 ClientCommand, 6 ClientThink, 7 unknown, 8 reload
   (g_reloading), 10 advances level.time, 0xc ConsoleCommand. CoD has no
   ClientUserinfoChanged export, so from 4 on Q3's numbers are off by one - each case
   was checked against its body.
+  Case 7 is not G_RunFrame: G_RunFrame is 0x00274660, called directly (SV_SpawnServer
+  settles a map with five 50 ms calls).
 - CG_vmMain: 0 CG_Init, 1 CG_Shutdown, 2 CG_ConsoleCommand, 3 CG_DrawActiveFrame;
   the rest are CoD's.
 - Renderer interface: CL_InitRef (0x002f10d0) builds refimport_t in Q3 order
   (Printf, Error, Milliseconds, Hunk x3, Malloc/Free, Cvar_Get at slot 8, CoD adds
   Cvar_FindVar before Cvar_Set) and copies GetRefAPI's 40-slot refexport_t into
-  `re` (0x009284e8). Known re slots: 0 RE_Shutdown, 1 RE_BeginRegistration,
-  5 RE_LoadWorldMap, 11 RE_ClearScene, 12 RE_AddPolyToScene, 15 RE_RenderScene,
-  17 RE_SetColor, 18 RE_StretchPic, 34-39 text (width, height, draw). The dead
-  cgame syscall cases give each slot's argument count, which confirmed them. Several
-  slots are not filled by GetRefAPI (3, 4, 6-8, 10, 13, 14, 16, 19-23, ...).
+  `re` (0x009284e8). re slots: 0 RE_Shutdown, 1 RE_BeginRegistration, 2 ?,
+  5 RE_LoadWorldMap, 9/14 a float get/set pair (unknown), 11 RE_ClearScene,
+  12 RE_AddPolyToScene, 15 RE_RenderScene, 17 RE_SetColor, 18 RE_StretchPic,
+  20 RE_StretchPicRotate, 21 RE_DrawQuadPic, 24 RE_BeginFrame, 25 RE_EndFrame,
+  34 RE_TextWidth, 35 RE_TextHeight, 36 RE_DrawText, 37 RE_TextWidthWithIcons,
+  38 RE_DrawTextWithIcons, 39 RE_DrawTextExt. Empty stubs: 10, 26, 30-33. Never
+  filled by GetRefAPI: 3, 4, 6-8, 13, 16, 19, 22, 23, 27-29 (3, 4 and 13 are still
+  called - from the dead syscall code and two cgame functions; unresolved). The dead
+  cgame syscall cases give each slot's argument count, which confirmed them.
 - Command tables: cgame `cg_commands` (0x0082f420), game cheat commands
   (0x008ddb70) and developer commands (0x008ddae0), all `{name, function}`.
 - Game entities are reached through handle tables (index & 0xfff, generation >> 12;
@@ -81,13 +87,15 @@ copy the repository version there first so it is not stale.
 - 0x00929c04 is `cl_disable_ads`, not `cl_run` (0x00934c70); CL_Init showed it.
 - FS_FOpenFileWrite / FS_FOpenFileAppend were swapped until FS_FOpenFileByMode and the
   `"wb"`/`"ab"` mode strings settled them.
+- 0x00272760 (G_vmMain case 7) was named G_RunFrame (medium) by position; the real one
+  is 0x00274660. Reset to its default name.
 - 0x0029ea80 is FS_ListFilteredFiles; FS_ListFiles (0x002a1fb0) is its wrapper.
 - q3match proposals rejected: Q_stricmp for 0x00300b30 (a key-table store), a graph
   guess swapping COM_ParseExt (0x002b0250) and SkipWhitespace (0x002a9b30).
 
 ## Next
 
-- The remaining `re` slots one by one (callers in the cgame show their arguments).
+- re slots 2, 9/14 and the never-filled 3/4/13 (look at their cgame callers).
 - The game module from G_InitGame / G_RunFrame, the cgame from CG_Init /
   CG_DrawActiveFrame.
 - 27 functions created for table entries are still unnamed (`FUN_`).
