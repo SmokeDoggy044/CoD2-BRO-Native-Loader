@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 322 functions and 149 globals named, all applied in Ghidra and
+State (2026-10-17): 356 functions and 153 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -82,6 +82,13 @@ copy the repository version there first so it is not stale.
   cgame syscall cases give each slot's argument count, which confirmed them.
 - Command tables: cgame `cg_commands` (0x0082f420), game cheat commands
   (0x008ddb70) and developer commands (0x008ddae0), all `{name, function}`.
+- Spawn table g_spawns (0x009885e0): `{classname handle, SP_ function}` x32, built by a
+  C++ static initializer (0x00377330) that interns each classname with 0x00292fe0 -
+  not a data table, so pointer-pair scans miss it; parse the initializer (MSVC loads
+  the next classname into EDX before storing the previous result). G_CallSpawn
+  (0x00260220) uses it, refuses `actor_*`, then falls back to bg_itemlist. Other
+  name tables may be built the same way: look for runs of `mov edx, str / call /
+  mov [tbl], eax / mov [tbl+4], func`.
 - Game entities are reached through handle tables (index & 0xfff, generation >> 12;
   entities at 0x0097a968, 0x540 entries); ent->think is an index into a function
   table at 0x008da788.
