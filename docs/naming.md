@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 634 functions and 384 globals named, all applied in Ghidra and
+State (2026-10-17): 640 functions and 385 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -196,8 +196,9 @@ CoD-specific functions included, so later decompilation covers both kinds.
   unknown). The states set actor +0x254 (attempted script record) and +0x27c (anim
   mode); Actor_UpdateAnimScript commits them and calls the record's +8 with the
   entity number. Turret weapons have their own records (g_turretAnimScripts).
-  Next: 0x00214050 (avoidance trace), 0x0021a180 (find path), 0x001ffdb0 / 0x001fee70
-  (path clear/stop), 0x001fe0c0, who fills g_broFuncs, the slot-5 role, then Actor_* outside
+  Next: 0x00214050 (avoidance trace), 0x001fee70 (path progress before a clear),
+  0x0020c820 / 0x00219230 / 0x002095c0 (path search, probably Path_* in 0x002c-0x002d),
+  0x00201e90 (no visible effect), who fills g_broFuncs, the slot-5 role, then Actor_* outside
   the table (`CalleeTree.java Actor_* 1 1`).
 - After the game module (AI included): the cgame from CG_DrawActiveFrame, then the
   client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
