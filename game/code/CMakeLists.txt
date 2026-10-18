@@ -3,6 +3,7 @@
 # (functions.h, loader/compare.h).
 set(game_code_sources
     functions.cpp
+    ngl.cpp
     script_string.cpp
 )
 # Linux loader builds: a shared library, so that the comparison harness can tell this
@@ -19,3 +20,8 @@ target_include_directories(game_code PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Only platform's headers (compiler.h): its library is not built for a shared object.
 target_include_directories(game_code PRIVATE ${PROJECT_SOURCE_DIR}/platform)
 target_link_libraries(game_code PRIVATE cod_bro_options)
+# The title does its float math in SSE (single precision); x87 code would round and
+# quiet NaNs differently. Pentium III level: SSE only, no SSE2.
+if(CMAKE_SIZEOF_VOID_P EQUAL 4 AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86|X86)$")
+    target_compile_options(game_code PRIVATE -msse -mfpmath=sse)
+endif()
