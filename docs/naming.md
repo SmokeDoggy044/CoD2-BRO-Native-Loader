@@ -312,6 +312,16 @@ CoD-specific functions included, so later decompilation covers both kinds.
   ('aps*': apsEffect_Create/Init, apsGroup_Create), Q3's myGLMultMatrix and R_RotateForEntity, the
   scene draw (nglRenderSceneTree: pre-callback, opaque list, mid-callback, translucent list,
   post-callback, then nglGenerateRenderTargetMips), refexport slots 9/14 (RE_Get/SetFarCullDist).
+  Third pass (2026-10-18): NGL's matrix builders (perspective/ortho/viewport/screen-to-clip, the scene's
+  matrix block: +0x10 projection, +0x50 viewport, +0xd0 view, +0x1d0, +0x210), the depth-fog pass
+  (0x00073380 = nglDrawFogPass, R_RenderView's mid-scene callback: depth buffer read as a texture + fog
+  lookup texture, fog range at scene +0x388..0x394, colour +0x3a0), the light sets (point/directional
+  records, object-light constants, shadow projectors), the mesh builder (Begin/AddSection/SetBounds/End,
+  also used by RE_AddPolyToScene), debug lines/axes, the draw-list sorts' std::sort helpers (opaque:
+  uint key, translucent: float depth), render-target and palette helpers, the FX pool helpers.
+  Still open in NGL: scene bytes +0x384/+0x385 (0x0005e490/0x0005e4b0, default 1, cleared by
+  R_ClearAlpha: probably depth test/write), the frame-memory pools (0x000778b0, 0x00077b50), the
+  container destructors (0x00069b00.., 0x0007bd20..), the debug shape draws 0x0006cb80/cc50/cd30.
   Size (2026-10-18): shader classes 241 functions (138 named), NGL core 0x5dd00-0x7c000 307 (146),
   tr_* 149 (100), particle library 0x94000-0xa8000 324 (5). Open: the memory heap at
   0x00042000-0x00044200 (Z_Malloc's debug heap - not renderer), NGL's dynamic vertex buffers
