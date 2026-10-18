@@ -9,6 +9,26 @@ namespace game {
 namespace {
 
 NglScene*& current_scene() { return title_global<NglScene*>(0x0090259c); }
+NglLightSet*& current_light_set() { return title_global<NglLightSet*>(0x00902e44); }
+
+// The frame's scene memory (16-byte aligned blocks, bumped; no end check here).
+template <typename T>
+T* alloc_scene_memory(uint32_t size) {
+    uintptr_t& next = title_global<uintptr_t>(0x009025a8);
+    const uintptr_t block = (next + 15) & ~uintptr_t{15};
+    next = block + size;
+    return reinterpret_cast<T*>(block);
+}
+
+void* alloc_frame(uintptr_t& next, uint32_t size, uint32_t align) {
+    const uintptr_t block = (next + align - 1) & ~uintptr_t{align - 1};
+    next = block + size;
+    return reinterpret_cast<void*>(block);
+}
+
+const NglTexture* resolve(const NglTexture* texture) {
+    return (texture->flags & 0xff) == 0x10 ? texture->target : texture;
+}
 
 }  // namespace
 
@@ -183,6 +203,105 @@ float XB_CDECL nglDepthToZValue(float depth) {
     if (0.0f > z) return 0.0f;
     if (z > 16777215.0f) return 16777215.0f;
     return z;
+}
+
+void XB_CDECL nglSceneAddRenderTarget(NglTexture* texture) {
+    if (!(texture->flags & 0x400)) return;
+    NglTexture* target = (texture->flags & 0xff) == 0x10 ? texture->target : texture;
+    auto* link = alloc_scene_memory<NglRenderTargetLink>(sizeof(NglRenderTargetLink));
+    if (!link) return;
+    link->texture = target;
+    link->next = current_scene()->render_targets;
+    current_scene()->render_targets = link;
+}
+
+void XB_CDECL nglSetSceneCallback(uint32_t which, void* function, void* arg) {
+    if (which > 2) return;
+    current_scene()->callbacks[which].function = function;
+    current_scene()->callbacks[which].arg = arg;
+}
+
+void XB_CDECL nglSetTextureManager(void* manager) { title_global<void*>(0x009025f0) = manager; }
+
+void* XB_CDECL nglGetTextureManager() { return title_global<void*>(0x009025f0); }
+
+void XB_CDECL nglAddRef(uint32_t* refs) { ++*refs; }
+
+bool XB_CDECL nglTextureIsStale(const NglTexture* texture) {
+    // Wraps around like the original's add.
+    const auto next = static_cast<int32_t>(static_cast<uint32_t>(resolve(texture)->last_used_frame) + 1);
+    return next < title_global<int32_t>(0x009028e0);
+}
+
+uint32_t XB_CDECL nglIsPAL50() { return title_global<uint8_t>(0x009028bc) == 1 ? 1 : 0; }
+
+void* XB_CDECL nglAllocFrameGpu(uint32_t size, uint32_t align) {
+    return alloc_frame(title_global<uintptr_t>(0x00903c50), size, align);
+}
+
+void* XB_CDECL nglAllocFrameScratch(uint32_t size, uint32_t align) {
+    return alloc_frame(title_global<uintptr_t>(0x00903c34), size, align);
+}
+
+void XB_CDECL nglSetSceneLightSet(NglLightSet* set) { current_scene()->light_set = set; }
+
+NglLight* XB_CDECL nglLightSetAddLight(uint32_t type, float* data, uint32_t flags) {
+    NglLight* light = alloc_scene_memory<NglLight>(sizeof(NglLight));
+    if (!light) return nullptr;
+    light->data = data;
+    light->type = type;
+    light->flags = flags;
+    for (int list = 0; list < 8; ++list) {
+        if (!(flags & (0x01000000u << list))) continue;
+        light->next[list] = current_light_set()->lists[list];
+        current_light_set()->lists[list] = light;
+    }
+    return light;
+}
+
+NglLightSet* XB_CDECL nglCreateLightSet() {
+    auto* set = alloc_scene_memory<NglLightSet>(sizeof(NglLightSet));
+    if (!set) return nullptr;
+    std::memset(set, 0, sizeof(*set));
+    for (void*& entry : set->unknown30) entry = &set->unknown30;
+    // An empty list ends at the set itself.
+    for (NglLight*& list : set->lists) list = reinterpret_cast<NglLight*>(set);
+    const float* white = &title_global<const float>(0x007beae0);
+    for (int i = 0; i < 4; ++i) set->ambient[i] = white[i];
+    current_light_set() = set;
+    return set;
+}
+
+float* XB_CDECL nglLightVectorWorld(float* out, const NglLight* light, const float* position) {
+    switch (light->type) {
+    case 0:
+        return light->data;
+    case 1: {
+        const float* direction = light->data;
+        for (int i = 0; i < 4; ++i) out[i] = position[i] - direction[i] * 1e12f;
+        out[9] = 1e24f;
+        out[8] = 1e24f;
+        for (int i = 0; i < 4; ++i) out[4 + i] = direction[4 + i];
+        return out;
+    }
+    default:
+        return nullptr;
+    }
+}
+
+void XB_CDECL nglSetAmbientColor(float r, float g, float b) {
+    // max then min in the order of the original's maxps/minps (a NaN becomes 0 by the
+    // max, which returns its second operand then).
+    const float color[4] = {r, g, b, 1.0f};
+    float* ambient = current_light_set()->ambient;
+    for (int i = 0; i < 4; ++i) {
+        float c = color[i] > 0.0f ? color[i] : 0.0f;
+        ambient[i] = c < 1.0f ? c : 1.0f;
+    }
+}
+
+void XB_THISCALL nglPaletteSetEntry(uint32_t** self, uint32_t index, uint32_t color) {
+    (*self)[index] = color;
 }
 
 int32_t XB_CDECL nglGetScreenWidth() { return 640; }

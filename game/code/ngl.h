@@ -11,7 +11,42 @@
 
 namespace game {
 
-struct NglTexture;
+// Only the fields the decompiled functions use so far.
+struct NglTexture {
+    uint8_t unknown00[0x4];
+    uint32_t flags;          // +0x04, low byte = kind (0x10: a reference to `target`),
+                             // 0x400 = render target
+    uint8_t unknown08[0x2c - 0x8];
+    int32_t last_used_frame; // +0x2c
+    uint8_t unknown30[0x4c - 0x30];
+    NglTexture* target;      // +0x4c, kind 0x10
+};
+
+// Allocated from the per-frame scene memory.
+struct NglRenderTargetLink {
+    NglTexture* texture;
+    NglRenderTargetLink* next;
+};
+
+struct NglLight;
+
+// One list per light category (flag bits 24..31 of a light), each ending at the
+// set itself; the current set is where nglLightSetAddLight adds.
+struct alignas(16) NglLightSet {
+    NglLight* lists[8];
+    uint8_t unknown20[0x30 - 0x20];
+    void* unknown30[8];      // +0x30, all start pointing at unknown30
+    uint8_t unknown50[0x60 - 0x50];
+    float ambient[4];        // +0x60, r g b 1, each 0..1
+};
+
+struct alignas(16) NglLight {
+    NglLight* next[8];       // per list in NglLightSet::lists
+    uint8_t unknown20[0x24 - 0x20];
+    uint32_t flags;          // +0x24, bits 24..31: the lists it is on
+    uint32_t type;           // +0x28, 0 or 1 (see nglLightVectorWorld)
+    float* data;             // +0x2c
+};
 
 // Only the fields the decompiled functions use so far.
 struct NglRenderTarget {
@@ -41,7 +76,7 @@ struct NglQuad {
 
 // Only the fields the decompiled functions use so far.
 struct NglScene {
-    uint8_t unknown000[0x4];
+    NglRenderTargetLink* render_targets; // +0x000
     uint32_t flags;           // +0x004
     uint32_t unknown008;      // +0x008, nglSetRenderTarget stores 6
     uint8_t unknown00c[0x110 - 0xc];
@@ -49,9 +84,16 @@ struct NglScene {
     float view_matrix[16];    // +0x150
     uint8_t unknown190[0x2d0 - 0x190];
     NglScene* parent;         // +0x2d0, the scene nglPopScene returns to
-    uint8_t unknown2d4[0x2f8 - 0x2d4];
+    uint8_t unknown2d4[0x2e0 - 0x2d4];
+    struct Callback {
+        void* function;
+        void* arg;
+    } callbacks[3];           // +0x2e0, nglSetSceneCallback's (nglRenderSceneTree calls
+                              // three: before, between and after its two draw lists)
     NglRenderTarget* render_target; // +0x2f8
-    uint8_t unknown2fc[0x360 - 0x2fc];
+    uint8_t unknown2fc[0x314 - 0x2fc];
+    NglLightSet* light_set;   // +0x314
+    uint8_t unknown318[0x360 - 0x318];
     uint32_t clear_flags;     // +0x360
     float clear_depth;        // +0x364
     uint8_t unknown368[0x370 - 0x368];
@@ -74,7 +116,12 @@ static_assert(sizeof(NglQuad) == 0x64);
 static_assert(offsetof(NglQuad, texture) == 0x60);
 static_assert(offsetof(NglScene, view_matrix) == 0x150);
 static_assert(offsetof(NglScene, parent) == 0x2d0);
+static_assert(offsetof(NglScene, callbacks) == 0x2e0);
 static_assert(offsetof(NglScene, render_target) == 0x2f8);
+static_assert(offsetof(NglScene, light_set) == 0x314);
+static_assert(offsetof(NglTexture, target) == 0x4c);
+static_assert(sizeof(NglLightSet) == 0x70);
+static_assert(offsetof(NglLight, data) == 0x2c);
 static_assert(offsetof(NglScene, clear_color) == 0x370);
 static_assert(offsetof(NglScene, fog) == 0x388);
 static_assert(offsetof(NglScene, fog_color) == 0x3a0);
@@ -135,6 +182,48 @@ void XB_CDECL nglMatrixScreenToClip(float* out);
 void XB_CDECL nglMatrixViewport(float* out, float x0, float y0, float x1, float y1);
 // 0x0006e860: a view depth (clamped to near..far) to the 24-bit depth buffer value.
 float XB_CDECL nglDepthToZValue(float depth);
+// 0x0005e3f0: render targets the scene draws into (flag 0x400) get a link in the
+// scene's list, from the frame's scene memory.
+void XB_CDECL nglSceneAddRenderTarget(NglTexture* texture);
+// 0x0005e5c0: which = 0..2 (others are ignored).
+void XB_CDECL nglSetSceneCallback(uint32_t which, void* function, void* arg);
+
+// Textures.
+// 0x000633b0 / 0x000633c0
+void XB_CDECL nglSetTextureManager(void* manager);
+void* XB_CDECL nglGetTextureManager();
+// 0x00063520
+void XB_CDECL nglAddRef(uint32_t* refs);
+// 0x00063600: not used in the last frame (references are followed first).
+bool XB_CDECL nglTextureIsStale(const NglTexture* texture);
+// 0x00064560: 1 when the video mode is PAL 50 Hz, else 0.
+uint32_t XB_CDECL nglIsPAL50();
+
+// Per-frame bump allocators (no null check; `align` a power of two).
+// 0x00066ad0: GPU memory.
+void* XB_CDECL nglAllocFrameGpu(uint32_t size, uint32_t align);
+// 0x00077b30: CPU scratch memory.
+void* XB_CDECL nglAllocFrameScratch(uint32_t size, uint32_t align);
+
+// Lights.
+// 0x0006f550
+void XB_CDECL nglSetSceneLightSet(NglLightSet* set);
+// 0x0006f580: a light on the current light set's lists named by flags bits 24..31;
+// null when the frame's scene memory is exhausted.
+NglLight* XB_CDECL nglLightSetAddLight(uint32_t type, float* data, uint32_t flags);
+// 0x0006f7c0: an empty light set (white ambient), made current; null when the frame's
+// scene memory is exhausted.
+NglLightSet* XB_CDECL nglCreateLightSet();
+// 0x0006f850: type 0 returns the light's own data; type 1 (directional) writes a
+// far-away point light into `out` (position - direction * 1e12, range 1e24) and
+// returns it; other types null.
+float* XB_CDECL nglLightVectorWorld(float* out, const NglLight* light, const float* position);
+// 0x0006f8d0: each clamped to 0..1.
+void XB_CDECL nglSetAmbientColor(float r, float g, float b);
+
+// 0x0007b1b0: entries[index] = color; `self` points at the entry array pointer.
+void XB_THISCALL nglPaletteSetEntry(uint32_t** self, uint32_t index, uint32_t color);
+
 // 0x00064640 / 0x00064650: the title's fixed 640x480 screen.
 int32_t XB_CDECL nglGetScreenWidth();
 int32_t XB_CDECL nglGetScreenHeight();
