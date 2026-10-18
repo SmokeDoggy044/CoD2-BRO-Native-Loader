@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-18): 954 functions and 546 globals named, all applied in Ghidra and
+State (2026-10-18): 1360 functions and 624 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -293,7 +293,21 @@ CoD-specific functions included, so later decompilation covers both kinds.
   helpers (0x002808b0, 0x00280ed0), the weapon tag/pose helpers using the DObj
   (0x0027f8e0, 0x0027f920, 0x0027fa50, 0x00284d00, 0x00288510), configstring float
   readers (0x0027abb0, 0x0027ad70).
-- Renderer next (user decision 2026-10-18, see status.md), then back to the client/UI.
+- Renderer (user decision 2026-10-18, see status.md; started 2026-10-18), then back to the client/UI.
+  Three layers: (1) the Q3-shaped tr_* side at 0x00234a00-0x00247ad0 (RE_* exports, R_Init/R_Register
+  with 48 r_* cvars, R_RenderView -> R_RotateForViewer/R_SetupFrustum/R_SetupProjection, the
+  cell-and-portal world walk of tr_dpvs.cpp: R_AddWorldSurfaces -> R_VisitCell_r -> R_AddCellSurfaces/
+  Models, R_AddEntitySurfaces; tr.viewParms at 0x0095e3a0 is Q3's viewParms_t); (2) NGL, Treyarch's
+  scene library (the binary's own 'ngl*' names: nglwhite, nglSysFont, nglFrontBuffer) at
+  0x0005dd00-0x0007c000: frame (nglBeginFrame/nglEndFrame), a scene stack (nglPushScene/PopScene,
+  setters on the current scene 0x0090259c), 2D quads (nglInitQuad, nglSetQuad*, nglListAddQuad), meshes
+  (.xbmesh, nglListAddMesh), textures (DDS loader, managers), fonts, render-state caches; (3) the shader
+  classes at 0x00045790-0x00055400 ('cdWorld' .. 'cdGlass' and 'PCUV'): singletons with a 9-slot vtable
+  (Register, GetName, AddToList, Load/ReleaseTexture, Relocate) and a Draw each, toggled by
+  nglToggleShaderByName (disable mask 0x00901e8c). Open: the ocean/river/sky draws, the shared slots
+  3-5 of a few classes, NGL's light sets (0x0006f580-0x0006fa00), the draw-list traversal
+  (0x00075280/0x00075370), the particle library 'aps*' (0x00092000-0x000a0000, effects), the
+  remaining tr_* functions (models 0x00243770-0x00245a20, test shadow 0x00241290, sprites).
 - Client/UI (2026-10-18, started; SCR_DrawScreenField itself is only cvar + CG_DrawActiveFrame
   + the in-game menu draws). The Q3 client is thin in this single-player build: CL_Frame ->
   CL_CreateNewCommands, CL_WritePacket -> Netchan_Transmit (loopback inlined),
