@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 615 functions and 360 globals named, all applied in Ghidra and
+State (2026-10-17): 634 functions and 384 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -188,10 +188,17 @@ CoD-specific functions included, so later decompilation covers both kinds.
   frame. Each state has sub-states in actor +0x28 (cover 100/101, exposed 200-0xd7,
   death 400/401, grenade 600-0x25f, lmg 0x2bd/0x2be); the think's switch sets a
   debug string per case, which named the cover/exposed/grenade sub-behaviours.
-  Next: the shared think helpers (the per-think pair 0x002135d0 / 0x002185c0,
-  0x00200050 enemy sighting record, 0x00203de0 / 0x00214c80 / 0x00201a10 / 0x00201a80
-  movement, 0x002198a0 path move, 0x0021c700, 0x00214bd0 death), the slot-5 role,
-  then Actor_* outside the table (`CalleeTree.java Actor_* 1 1`).
+- AI animation: the anim scripts are compiled script functions ("BroFunc"), found
+  by name hash in g_broFuncs (0x00927170, 0x34 x {hash, function}; no direct
+  writes - probably filled through a pointer, filler not found yet). G_InitAnimScripts (0x0024a070) stores "anim_main_<name>" at +8 of a
+  0x10-byte record per script (g_animScript_combat ... _walk, 0x00987a98-0x00987bf7)
+  and a second function at +0xc, looked up by a precomputed hash (no string; name
+  unknown). The states set actor +0x254 (attempted script record) and +0x27c (anim
+  mode); Actor_UpdateAnimScript commits them and calls the record's +8 with the
+  entity number. Turret weapons have their own records (g_turretAnimScripts).
+  Next: 0x00214050 (avoidance trace), 0x0021a180 (find path), 0x001ffdb0 / 0x001fee70
+  (path clear/stop), 0x001fe0c0, who fills g_broFuncs, the slot-5 role, then Actor_* outside
+  the table (`CalleeTree.java Actor_* 1 1`).
 - After the game module (AI included): the cgame from CG_DrawActiveFrame, then the
   client/UI from SCR_DrawScreenField (user, 2026-10-17: module by module).
 - CoD-specific names: Q3-style prefix by module (G_, CG_, CL_, SV_, RE_, Scr_, AI_ ...)
