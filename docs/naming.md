@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 380 functions and 157 globals named, all applied in Ghidra and
+State (2026-10-17): 392 functions and 157 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -104,6 +104,14 @@ copy the repository version there first so it is not stale.
   an entity with a tag parent (+0x3cc) runs its parent first and is placed by
   G_GeneralLink. gentity_t: inuse +0x224, currentOrigin +0x140, s.pos +0x0c,
   teamchain +0x37c. level_locals: framenum, time, previousTime at 0x00985408.. (Q3 order).
+- ClientThink_real follows Q3 call for call: Pmove (pmove_msec chunks), then
+  BG_PlayerStateToEntityStateExtraPolate, pm.mins/maxs copied, ClientEvents,
+  SV_LinkEntity, G_TouchTriggers, ClientImpacts, oldbuttons/latched buttons
+  (0x40 = use). pm.trace is G_TraceCapsule; every G_ trace wrapper ends in SV_Trace
+  (0x002e9af0, 11 arguments).
+- Entity callbacks are indices into function tables, not pointers: think +0x32c ->
+  0x008da788, reached +0x330 -> 0x008da7fc, blocked +0x334 -> 0x008da808, touch +0x338
+  -> 0x008da814 (layout of those tables not worked out yet).
 - `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
   function's unnamed callees with size, caller count and strings (where to look next).
 - `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
