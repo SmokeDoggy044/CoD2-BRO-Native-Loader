@@ -747,7 +747,8 @@ void install_frame_rate(int32_t frame_rate) {
 // new press to its active screen (D-pad: move the selection, A: activate it).
 // Screen: +4 items, +0x22 selected index (int16), +0x26 item count (int16), +0x30 set
 // while it is locked (animating), +0x31 plays the move sound; vtable +0x10 the move
-// sound, +0x88 select(index, 1) (thiscall). Item: +0x10 its text widget, +0x16 disabled.
+// sound, +0x88 select(index, 1) (thiscall). Item: +0x8/+0xa/+0xc/+0xe the neighbour
+// up/down/left/right (int16, -1 none), +0x10 its text widget, +0x16 disabled.
 // Text widget (vtable 0x008298b8, draw FUN_00321160): +0x10 bit 2 visible, +0x2c x and
 // +0x30 y in 640x480, +0x5c alignment (0x10 left, 0x20 right, else centred; 0x40 top,
 // 0x80 bottom, else centred; FUN_0030fa60); vtable +0xd0 width, +0xd4 height.
@@ -755,6 +756,9 @@ void install_frame_rate(int32_t frame_rate) {
 // The poll goes through a thunk that lets the mouse point while the manager's active
 // screen has items on screen (their widgets were drawn): hovering selects an item, a
 // left click selects it and taps A, a right click taps B, the wheel taps up/down.
+// Pickers that step left/right through pictures (difficulty: arrows around a chevron;
+// their items' text is not what is shown) have no boxes: a click left or right of the
+// middle taps left/right, in the middle A, and the wheel steps left/right.
 // Selecting waits while the screen is locked (+0x30). Dialogs are drawn over the other
 // screens and take the mouse while theirs are shown. The front end keeps the cursor on
 // screens without items too (the title screen), where a click taps A.
@@ -830,6 +834,19 @@ std::vector<ItemBox> shown_items(uint32_t menu) {
     return boxes;
 }
 
+// Items linked only left/right: a picker.
+bool horizontal(uint32_t menu) {
+    bool sideways = false;
+    const uint32_t items = title<uint32_t>(menu + 4);
+    for (int16_t i = 0; items && i < title<int16_t>(menu + 0x26); ++i) {
+        const uint32_t item = title<uint32_t>(items + i * 4u);
+        if (!item) continue;
+        if (title<int16_t>(item + 0x8) >= 0 || title<int16_t>(item + 0xa) >= 0) return false;
+        sideways = sideways || title<int16_t>(item + 0xc) >= 0 || title<int16_t>(item + 0xe) >= 0;
+    }
+    return sideways;
+}
+
 void tap_button(input::AnalogButton button) {
     input::PadState pad;
     pad.analog_buttons[button] = 0xFF;
@@ -878,9 +895,18 @@ void XB_CDECL menu_pointer(uint32_t manager) {
         reinterpret_cast<Select>(uintptr_t{title<uint32_t>(vtable + g_menu_pointer.select_slot)})(menu, 0, hit->index, 1);
     }
     const bool no_items = !menu || title<int16_t>(menu + 0x26) <= 0;
-    if (pointer.left_clicks && (on_item || no_items)) tap_button(input::kA);
-    else if (pointer.right_clicks) tap_button(input::kB);
-    else if (pointer.wheel) tap_digital(pointer.wheel > 0 ? input::kDpadUp : input::kDpadDown);
+    const bool picker = menu && horizontal(menu);
+    constexpr float kPickerMiddle = 64.0f;  // half the middle's width, around x = 320
+    if (pointer.left_clicks && picker && items.empty() && std::abs(x - 320.0f) > kPickerMiddle)
+        tap_digital(x < 320.0f ? input::kDpadLeft : input::kDpadRight);
+    else if (pointer.left_clicks && (on_item || no_items || (picker && items.empty())))
+        tap_button(input::kA);
+    else if (pointer.right_clicks)
+        tap_button(input::kB);
+    else if (pointer.wheel && picker)
+        tap_digital(pointer.wheel > 0 ? input::kDpadLeft : input::kDpadRight);
+    else if (pointer.wheel)
+        tap_digital(pointer.wheel > 0 ? input::kDpadUp : input::kDpadDown);
 }
 
 // pushad; pushfd; push ecx; call function; add esp,4; popfd; popad; jmp original
