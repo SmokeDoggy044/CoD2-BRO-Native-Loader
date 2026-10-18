@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-18): 1360 functions and 624 globals named, all applied in Ghidra and
+State (2026-10-18): 1450 functions and 625 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -304,10 +304,19 @@ CoD-specific functions included, so later decompilation covers both kinds.
   (.xbmesh, nglListAddMesh), textures (DDS loader, managers), fonts, render-state caches; (3) the shader
   classes at 0x00045790-0x00055400 ('cdWorld' .. 'cdGlass' and 'PCUV'): singletons with a 9-slot vtable
   (Register, GetName, AddToList, Load/ReleaseTexture, Relocate) and a Draw each, toggled by
-  nglToggleShaderByName (disable mask 0x00901e8c). Open: the ocean/river/sky draws, the shared slots
-  3-5 of a few classes, NGL's light sets (0x0006f580-0x0006fa00), the draw-list traversal
-  (0x00075280/0x00075370), the particle library 'aps*' (0x00092000-0x000a0000, effects), the
-  remaining tr_* functions (models 0x00243770-0x00245a20, test shadow 0x00241290, sprites).
+  nglToggleShaderByName (disable mask 0x00901e8c).
+  Second pass (2026-10-18): lighting (R_SetupEntityLighting with a per-entity cache, R_SampleLightGrid,
+  NGL light sets), models (R_RegisterModel, DObj_Create/CreateSkeleton/Free, XModel_CalcSkeleton),
+  the cell links (CM_CellForPoint, R_AddEntitiesToCells, R_LinkEntityToCell), the effect pool
+  (FX_InitEffectPool, FX_SpawnEffect, FX_DrawEffects) and the particle library's entry points
+  ('aps*': apsEffect_Create/Init, apsGroup_Create), Q3's myGLMultMatrix and R_RotateForEntity, the
+  scene draw (nglRenderSceneTree: pre-callback, opaque list, mid-callback, translucent list,
+  post-callback, then nglGenerateRenderTargetMips), refexport slots 9/14 (RE_Get/SetFarCullDist).
+  Size (2026-10-18): shader classes 241 functions (138 named), NGL core 0x5dd00-0x7c000 307 (146),
+  tr_* 149 (100), particle library 0x94000-0xa8000 324 (5). Open: the memory heap at
+  0x00042000-0x00044200 (Z_Malloc's debug heap - not renderer), NGL's dynamic vertex buffers
+  (0x00066da0..), the skinned-mesh constants (0x00076620, cdChar), the draw-node sorts' helpers,
+  0x00073380 (R_RenderView's mid-scene callback), the particle actions.
 - Client/UI (2026-10-18, started; SCR_DrawScreenField itself is only cvar + CG_DrawActiveFrame
   + the in-game menu draws). The Q3 client is thin in this single-player build: CL_Frame ->
   CL_CreateNewCommands, CL_WritePacket -> Netchan_Transmit (loopback inlined),

@@ -45,7 +45,7 @@ are named by working out what they do.
 
 | Section | What it is | Functions | Named | Rewritten |
 |---|---|---:|---:|---:|
-| `.text` | The engine and game code | 9562 | 1360 | 8 |
+| `.text` | The engine and game code | 9562 | 1450 | 8 |
 | PROLOGUE | Mission scripts for `sp/prologue` | 618 | 0 | 0 |
 | ORAN | Mission scripts for `sp/oran` | 435 | 0 | 0 |
 | TUNISIA | Mission scripts for `sp/tunisia` | 278 | 0 | 0 |
@@ -60,11 +60,11 @@ are named by working out what they do.
 | EILEDORF | Mission scripts for `sp/eilndrf` | 153 | 0 | 0 |
 | BUCHHOLZ | Mission scripts for `sp/buchholz` | 443 | 0 | 0 |
 | DRAGEETH | Mission scripts for `sp/dragonth` | 144 | 0 | 0 |
-| **Total** | | **14539** | **1360** | **8** |
+| **Total** | | **14539** | **1450** | **8** |
 
 **Rewritten** means the function has been turned into C++ and passed the in-game
 comparison. A function counts as named once we know what it does. We've also named
-624 of the game's global variables.
+625 of the game's global variables.
 
 Each mission has its own section of code: its level scripts (the objectives,
 enemy waves, scripted events and dialogue) compiled down to machine code. There are
