@@ -26,6 +26,7 @@
 #include "program.h"
 #include "script.h"
 #include "settings.h"
+#include "sharp_text.h"
 #include "symbols.h"
 #include "thread_env.h"
 #include "xbe.h"
@@ -50,6 +51,7 @@ struct Options {
     uint32_t anisotropy = 16;
     render::BackendConfig::D3D9 d3d9 = render::BackendConfig::D3D9::Auto;
     float brightness = 1.0f;
+    bool sharp_text = true;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
     bool widescreen = true;
@@ -111,6 +113,8 @@ void print_usage(const char* program) {
         "  --anisotropy N   anisotropic filtering for mipmapped textures, 1-16 (default 16;\n"
         "                   1 = what the game asks for)\n"
         "  --brightness X   0.5-2.0 (default 1: as on the Xbox; higher = brighter midtones)\n"
+        "  --sharp-text on|off  the game's text drawn again at the render resolution from free\n"
+        "                   look-alike fonts (fonts/ next to the loader; default on)\n"
         "  --d3d9 WHICH     Windows: auto (default: DXVK on Vulkan, else the system's), dxvk or\n"
         "                   system (Linux always uses DXVK)\n"
         "  --screenshots N DIR  save every Nth frame as DIR/frame_<n>.bmp (debugging)\n"
@@ -214,6 +218,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.aim_assist = value == "on";
+        } else if (arg == "--sharp-text") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "on" && value != "off") {
+                std::fprintf(stderr, "--sharp-text needs on or off\n");
+                return std::nullopt;
+            }
+            options.sharp_text = value == "on";
         } else if (arg == "--multiplayer") {
             options.multiplayer = true;
         } else if (arg == "--net-port") {
@@ -480,6 +491,8 @@ int loader_main(int argc, char** argv) {
     d3d_config.backend.anisotropy = options->anisotropy;
     d3d_config.backend.d3d9 = options->d3d9;
     d3d_config.backend.brightness = options->brightness;
+    if (options->sharp_text && text::prepare_sharp_text(*assets, platform::executable_dir() / "fonts") > 0)
+        d3d_config.backend.replace_texture = &text::sharp_text_replacement;
     if (options->widescreen) {
         d3d_config.backend.display_aspect = 16.0f / 9.0f;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts

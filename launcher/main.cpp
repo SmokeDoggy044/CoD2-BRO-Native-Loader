@@ -37,6 +37,7 @@ struct Choices {
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     int anisotropy = 16;
     float brightness = 1.0f;
+    bool sharp_text = true;
     int fps = 60;
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
@@ -60,6 +61,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
     if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
     if (auto v = settings.get("brightness")) c.brightness = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 2.0f);
+    if (auto v = settings.get("sharp-text")) c.sharp_text = *v != "off";
     if (auto v = settings.get("fps")) c.fps = *v == "30" ? 30 : 60;
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
@@ -86,6 +88,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
     put("anisotropy", c.anisotropy == d.anisotropy, std::to_string(c.anisotropy));
     put("brightness", c.brightness == d.brightness, number(c.brightness));
+    put("sharp-text", c.sharp_text == d.sharp_text, c.sharp_text ? "on" : "off");
     put("fps", c.fps == d.fps, std::to_string(c.fps));
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
@@ -235,6 +238,10 @@ private:
         ImGui::SliderFloat("Brightness", &choices_.brightness, 0.5f, 2.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
         help_marker("1.00 looks as on the Xbox. Higher brightens the midtones (dark interiors, night "
                     "missions); black and white stay as they are.");
+
+        ImGui::Checkbox("Sharper text", &choices_.sharp_text);
+        help_marker("Draws the game's text again at the render resolution, from free fonts that look like "
+                    "the original ones (included with the game). Off: the original low-resolution letters.");
 
 #ifdef _WIN32
         static constexpr const char* kD3D9[] = {"auto", "dxvk", "system"};

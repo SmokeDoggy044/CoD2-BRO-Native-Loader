@@ -90,6 +90,8 @@ versions in `LICENSES/` inside every archive):
 | [OpenAL Soft](https://github.com/kcat/openal-soft) | Sound | LGPL-2.0-or-later (a separate library you can replace) |
 | [DXVK](https://github.com/doitsujin/dxvk) | Direct3D 9 on Vulkan | zlib |
 | [Dear ImGui](https://github.com/ocornut/imgui) | The launcher's interface | MIT |
+| [stb_truetype](https://github.com/nothings/stb) | Drawing fonts for sharper text | MIT / public domain |
+| EB Garamond, Jost, Liberation Serif, Anton (`fonts/`) | Sharper text: stand-ins for the game's bitmap fonts | SIL Open Font License 1.1 ([fonts/README.md](fonts/README.md)) |
 | GCC runtime, mingw-w64 (Windows only) | C/C++ runtime | GPL-3.0 with the GCC runtime library exception; mingw-w64 terms |
 
 The `third_party/xbox-includes` submodule (Xbox kernel and SDK headers; GPL-2.0,
@@ -126,6 +128,8 @@ trademark of Microsoft Corporation.
 | `audio/` | DirectSound replacement on OpenAL Soft | Kept, portable |
 | `input/` | Controllers, keyboard and mouse on SDL3; scripted presses | Kept, portable |
 | `online/` | Xbox Live stubs (always unavailable) | Kept, portable |
+| `text/` | Sharper text: the game's packs and font tables, font atlases drawn again with stb_truetype | Kept, portable |
+| `fonts/` | Free stand-in fonts for sharper text (SIL OFL) | Kept |
 | `game/` | The full native build's `cod_bro` executable and, later, the decompiled game code (none yet) | Kept, portable |
 | `launcher/` | `cod_bro_launcher`: settings and game-file setup (Dear ImGui, fetched by CMake) | Kept, portable |
 | `tests/` | Settings, kernel-layer and audio tests (no game files needed) | Kept |
@@ -190,7 +194,7 @@ command line, so options given there win. Without game files and without
 
 Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter switches
 while playing), `--scale N` (window size), `--render-scale X`,
-`--anisotropy N`, `--brightness X`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--level N` (start a mission directly),
+`--anisotropy N`, `--brightness X`, `--sharp-text on|off`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--level N` (start a mission directly),
 `--multiplayer` (start multiplayer), `--net-port N` (System Link UDP ports N..N+3),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
 `--debug`/`--trace`. Playtests and performance checks use the optimized

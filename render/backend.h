@@ -5,6 +5,7 @@
 // implementation, others (Vulkan) can follow behind the same interface.
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -18,6 +19,14 @@ struct SurfaceDesc {
     uint32_t data = 0;  // physical address of its memory
     uint32_t width = 0, height = 0;
     uint32_t format = 0;  // Xbox D3DFORMAT
+};
+
+// A picture shown in place of one of the title's textures (PC improvements: sharper
+// fonts). Any size: the title addresses its textures in 0-1 coordinates (linear formats
+// excepted, which are never replaced), so a larger copy with the same layout fits.
+struct TextureReplacement {
+    uint32_t width = 0, height = 0;
+    std::vector<uint32_t> pixels;  // A8R8G8B8, width * height; mipmaps are made from it
 };
 
 struct BackendConfig {
@@ -66,6 +75,10 @@ struct BackendConfig {
     // own): each value v becomes 255 * (ramp(v) / 255)^(1 / brightness), so black and
     // white stay and the midtones move. 1 = as on the Xbox.
     float brightness = 1.0f;
+    // Asked once per texture content the title shows (render/texture_hash.h; swizzled
+    // and DXT formats only) with the render scale: a replacement, or null for the
+    // title's own. Called on the drawing thread.
+    std::function<std::shared_ptr<const TextureReplacement>(uint64_t content, float render_scale)> replace_texture;
 };
 
 // One draw: float4 attributes and a primitive. The back end reads everything else

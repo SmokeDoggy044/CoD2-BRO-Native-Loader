@@ -18,6 +18,7 @@
 #include "nv2a.h"
 #include "shader_state.h"
 #include "texture_decode.h"
+#include "texture_hash.h"
 #include "xbox_d3d.h"
 
 namespace render {
@@ -28,19 +29,6 @@ using xbox::from_xbox_ptr;
 
 void warn_once(std::once_flag& once, const char* message) {
     std::call_once(once, [message] { LOG_WARN("render", "%s", message); });
-}
-
-uint64_t hash_bytes(const void* data, size_t size, uint64_t seed = 0xCBF29CE484222325ull) {
-    const auto* p = static_cast<const uint8_t*>(data);
-    uint64_t h = seed ^ (size * 0x9E3779B97F4A7C15ull);
-    for (; size >= 8; size -= 8, p += 8) {
-        uint64_t v;
-        std::memcpy(&v, p, 8);
-        h = (h ^ v) * 0x100000001B3ull;
-        h ^= h >> 29;
-    }
-    for (; size; --size, ++p) h = (h ^ *p) * 0x100000001B3ull;
-    return h;
 }
 
 template <typename T>
@@ -243,6 +231,7 @@ struct D3D9Draw::CachedTexture {
     uint64_t content = 0;
     uint32_t checked_frame = 0;
     float scale[2] = {1.0f, 1.0f};  // texel -> normalized coordinates for linear formats
+    bool replaced = false;          // holds a BackendConfig::replace_texture picture
 };
 
 struct D3D9Draw::Target {
@@ -291,7 +280,7 @@ D3D9Draw::D3D9Draw(IDirect3DDevice9* device, const BackendConfig& config)
       render_scale_y_(config.render_scale > 0 ? config.render_scale : 1),
       narrow_factor_(config.display_aspect > 0 ? static_cast<float>(config.width) / config.height / config.display_aspect
                                                : 1.0f),
-      narrow_ui_draw_(config.narrow_ui_draw), caches_(std::make_unique<Caches>()) {
+      narrow_ui_draw_(config.narrow_ui_draw), replace_texture_(config.replace_texture), caches_(std::make_unique<Caches>()) {
     D3DCAPS9 caps{};
     if (SUCCEEDED(device_->GetDeviceCaps(&caps))) anisotropy_ = std::min<uint32_t>(anisotropy_, caps.MaxAnisotropy);
     device_->SetRenderState(D3DRS_LIGHTING, FALSE);
@@ -474,6 +463,17 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
     if (entry.texture && entry.content == content) return &entry;
     entry.content = content;
 
+    // A replacement has a size of its own, so the texture is made again whenever the
+    // title's memory switches between a replaced picture and another.
+    std::shared_ptr<const TextureReplacement> replacement;
+    if (replace_texture_ && !layout.linear && !palette) replacement = replace_texture_(content, render_scale_y_);
+    if (entry.texture && (replacement || entry.replaced)) {
+        entry.texture->Release();
+        entry.texture = nullptr;
+    }
+    entry.replaced = replacement && upload_replacement(entry, *replacement, layout.levels > 1);
+    if (entry.replaced) return &entry;
+
     if (!entry.texture) {
         D3DFORMAT d3d_format = D3DFMT_A8R8G8B8;
         switch (layout.kind) {
@@ -501,6 +501,50 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
         entry.texture->UnlockRect(level);
     }
     return &entry;
+}
+
+bool D3D9Draw::upload_replacement(CachedTexture& entry, const TextureReplacement& replacement, bool mipmaps) {
+    if (FAILED(device_->CreateTexture(replacement.width, replacement.height, mipmaps ? 0 : 1, 0, D3DFMT_A8R8G8B8,
+                                      D3DPOOL_MANAGED, &entry.texture, nullptr))) {
+        LOG_ERROR("render", "CreateTexture %ux%u for a replacement failed", replacement.width, replacement.height);
+        entry.texture = nullptr;
+        return false;
+    }
+    // Each level a 2x2 box filter of the one before.
+    std::vector<uint32_t> level = replacement.pixels, next;
+    uint32_t width = replacement.width, height = replacement.height;
+    const DWORD levels = entry.texture->GetLevelCount();
+    for (DWORD i = 0; i < levels; ++i) {
+        if (i > 0) {
+            const uint32_t w = std::max(width / 2, 1u), h = std::max(height / 2, 1u);
+            next.assign(static_cast<size_t>(w) * h, 0);
+            for (uint32_t y = 0; y < h; ++y)
+                for (uint32_t x = 0; x < w; ++x) {
+                    const uint32_t x0 = std::min(x * 2, width - 1), x1 = std::min(x * 2 + 1, width - 1);
+                    const uint32_t y0 = std::min(y * 2, height - 1), y1 = std::min(y * 2 + 1, height - 1);
+                    const uint32_t texels[4] = {level[y0 * width + x0], level[y0 * width + x1], level[y1 * width + x0],
+                                                level[y1 * width + x1]};
+                    uint32_t out = 0;
+                    for (int shift = 0; shift < 32; shift += 8) {
+                        uint32_t sum = 2;
+                        for (uint32_t t : texels) sum += (t >> shift) & 0xFF;
+                        out |= (sum / 4) << shift;
+                    }
+                    next[static_cast<size_t>(y) * w + x] = out;
+                }
+            level.swap(next);
+            width = w;
+            height = h;
+        }
+        D3DLOCKED_RECT locked;
+        if (FAILED(entry.texture->LockRect(i, &locked, nullptr, 0))) continue;
+        for (uint32_t y = 0; y < height; ++y)
+            std::memcpy(static_cast<uint8_t*>(locked.pBits) + static_cast<size_t>(y) * locked.Pitch,
+                        level.data() + static_cast<size_t>(y) * width, width * 4);
+        entry.texture->UnlockRect(i);
+    }
+    entry.scale[0] = entry.scale[1] = 1.0f;
+    return true;
 }
 
 namespace {

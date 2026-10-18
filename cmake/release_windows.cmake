@@ -23,6 +23,8 @@ if(NOT EXISTS "${dxvk_dir}/d3d9.dll")
 endif()
 file(STRINGS "${dxvk_dir}/VERSION" dxvk_version)
 install(FILES "${dxvk_dir}/d3d9.dll" DESTINATION dxvk)
+# Fonts for sharper text (SIL OFL; their licenses and sources in fonts/).
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/fonts/ DESTINATION fonts)
 
 set(COD_BRO_README_SYSTEM "Windows")
 set(COD_BRO_README_REQUIREMENTS "- 64-bit Windows 10 or 11 (the game needs memory above 2 GB, which a 32-bit
@@ -43,6 +45,7 @@ install(FILES ${CMAKE_BINARY_DIR}/README.txt DESTINATION .)
 # License texts of the bundled components: from the fetched sources and the Fedora
 # MinGW packages the release is built with.
 FetchContent_GetProperties(imgui SOURCE_DIR imgui_dir)
+FetchContent_GetProperties(stb SOURCE_DIR stb_dir)
 FetchContent_GetProperties(sdl3 SOURCE_DIR sdl3_dir)
 FetchContent_GetProperties(openal_soft SOURCE_DIR openal_dir)
 file(GLOB openal_fmt_license "${openal_dir}/fmt-*/LICENSE")
@@ -50,6 +53,7 @@ file(GLOB openal_fmt_license "${openal_dir}/fmt-*/LICENSE")
 set(bundled_licenses
     "${sdl3_dir}/LICENSE.txt|SDL3|SDL3 3.2.10 (built into cod_bro_loader_core.dll and cod_bro_launcher.exe)|https://github.com/libsdl-org/SDL"
     "${imgui_dir}/LICENSE.txt|Dear-ImGui|Dear ImGui v1.91.9 (built into cod_bro_launcher.exe)|https://github.com/ocornut/imgui"
+    "${stb_dir}/LICENSE|stb|stb_truetype (built into cod_bro_loader_core.dll)|https://github.com/nothings/stb"
     "${openal_dir}/COPYING|OpenAL-Soft|OpenAL Soft 1.24.2 (OpenAL32.dll, LGPL: can be replaced with any compatible build)|https://github.com/kcat/openal-soft"
     "${openal_dir}/BSD-3Clause|OpenAL-Soft-BSD-3-Clause|OpenAL Soft, BSD-3-Clause parts|"
     "${openal_dir}/LICENSE-pffft|OpenAL-Soft-pffft|OpenAL Soft, pffft|"
