@@ -17,19 +17,35 @@ loader goes away.
 
 ## Progress
 
-| Step | Done | What |
-|---|---:|---|
-| 1. Naming | **640/14488** | Functions named in Ghidra after their Quake 3 / RTCW counterparts, CoD-specific ones from their bodies (plus 385 globals) - [docs/naming.md](docs/naming.md) |
-| 2. Decompiling | **3/14488** (engine 3/9511, levels 0/4977) | Functions decompiled into `game/code/` and matched against the originals - [docs/comparison-harness.md](docs/comparison-harness.md) |
+**Named** = named in Ghidra after their Quake 3 / RTCW counterparts, CoD-specific
+ones from their bodies ([docs/naming.md](docs/naming.md); plus 385 globals).
+**Matched** = decompiled into `game/code/` and matched against the originals
+([docs/comparison-harness.md](docs/comparison-harness.md)).
 
-The total covers the code the full native build needs from the XBE:
+| Section | Contents | Functions | Named | Matched |
+|---|---|---:|---:|---:|
+| `.text` | Engine and game code, with the C runtime and SDK helpers linked into it | 9511 | 640 | 3 |
+| PROLOGUE | Level scripts for `sp/prologue` | 618 | 0 | 0 |
+| ORAN | Level scripts for `sp/oran` | 435 | 0 | 0 |
+| TUNISIA | Level scripts for `sp/tunisia` | 278 | 0 | 0 |
+| KASSPASS | Level scripts for `sp/kasspass` | 495 | 0 | 0 |
+| KASSRINE | Level scripts for `sp/kassrine` | 232 | 0 | 0 |
+| LIBEATOR | Level scripts for `sp/liberatr` | 319 | 0 | 0 |
+| GELA | Level scripts for `sp/gela` | 401 | 0 | 0 |
+| PIANLUPO | Level scripts for `sp/piano` | 402 | 0 | 0 |
+| TROINA | Level scripts for `sp/troina` | 228 | 0 | 0 |
+| OMAHEACH | Level scripts for `sp/omaha` | 312 | 0 | 0 |
+| MONS1 | Level scripts for `sp/mons` | 517 | 0 | 0 |
+| EILEDORF | Level scripts for `sp/eilndrf` | 153 | 0 | 0 |
+| BUCHHOLZ | Level scripts for `sp/buchholz` | 443 | 0 | 0 |
+| DRAGEETH | Level scripts for `sp/dragonth` | 144 | 0 | 0 |
+| **Total** | | **14488** | **640** | **3** |
 
-- **`.text`** (9,511 functions): the engine and game code, including the C runtime
-  and SDK helpers linked into it.
-- **Level sections** (PROLOGUE, ORAN, ... DRAGEETH, one per mission: 4,977
-  functions): the missions' compiled level scripts. They are to be converted by a
-  translator rather than one function at a time, and count as done once the
-  translated code matches the originals like any other function.
+Function counts are what Ghidra finds in `default.xbe`
+(`tools/data/default_xbe_symbols.txt`) and grow a little as more functions are
+found. The level sections hold the missions' compiled level scripts. They are to be
+converted by a translator rather than one function at a time, and count as matched
+once the translated code matches the originals like any other function.
 
 **Not counted: the Microsoft library sections** (XGRPH, XONLINE, DSOUND, XNET,
 D3DX, D3D, XPP: 2,954 functions), for two reasons:
