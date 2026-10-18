@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 436 functions and 298 globals named, all applied in Ghidra and
+State (2026-10-17): 457 functions and 298 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -114,7 +114,10 @@ copy the repository version there first so it is not stale.
   0x008da808, touch +0x338 -> 0x008da814, use +0x33c -> 0x008da840, pain +0x340 ->
   0x008da874, die +0x344 -> 0x008da88c, then two more (+0x348/+0x34c, unknown).
   Entries are named from the SP_/Init function that stores the index where Q3 assigns
-  that callback (SP_func_door: blocked[1] = Blocked_Door). The skill's
+  that callback (SP_func_door: blocked[1] = Blocked_Door), or from their bodies.
+  Mover states follow RTCW's enum (POS1 0, POS2 1, POS3 2, 1TO2 3, 2TO1 4, 2TO3 5,
+  3TO2 6, rotate POS1/POS2/1TO2/2TO1 7-10). ~27 entries had no function in Ghidra
+  (reached only through the tables) and were created on 2026-10-17. The skill's
   scripts/HandlerStores.java lists every immediate store into these fields.
 - Spawn variables are looked up by key hash (Com_HashKeyNoCase, cached in static
   guards next to each SP_ function): G_SpawnFloat/Int/Vector take the hash in EDX.
@@ -150,8 +153,8 @@ CoD-specific functions included, so later decompilation covers both kinds.
 
 - Game module (2026-10-17, from G_RunFrame): done for the entity runners,
   ClientThink_real, SP_func_door/trigger paths and the callback tables. Still open:
-  the rest of the callback-table entries (think[1-5, 8-11, 13-17, 22-28], touch,
-  use, pain, die - set through registers or by CoD-only code), ClientEndFrame's
+  the CoD-only callback entries still unnamed (think[1, 4, 13, 14, 17, 22-24, 28],
+  touch[2, 4, 10], use[2-4, 6, 7, 10, 12], pain[1-5], die[2, 4, 5], +0x348/+0x34c), ClientEndFrame's
   callees (turrets, bomber keyboard mode), G_RunFrame's AI/animation calls
   (0x002cf530, 0x002d7f20, 0x002df880, 0x00233bd0); the rest of the 0x0097a6xx-8xx
   block (12 slots not stored by GScr_LoadConsts).
