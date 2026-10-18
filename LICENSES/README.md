@@ -40,8 +40,14 @@ pinned at commit 0f8e252 of 2024-07-30; its own `COPYING` is the GPL-2.0 text; i
 | `d3d8types_wine.h` (from Wine) | LGPL-2.1-or-later | `LGPL-2.1-or-later.txt` |
 | `xboxdef.h` | no notice in the file; the package's `COPYING` (GPL-2.0) | `GPL-2.0-or-later.txt` |
 
+`fonts/`: unmodified fonts under the SIL Open Font License 1.1 (EB Garamond, Jost,
+Liberation Serif, Anton); sources and license texts in `fonts/README.md` and
+`fonts/licenses/`. They are shipped as separate files next to the programs, which
+the OFL allows alongside software under any license.
+
 Fetched by CMake at configure time, not stored here: Dear ImGui (MIT,
-github.com/ocornut/imgui, tag v1.91.9) for the launcher; on Windows also SDL3
+github.com/ocornut/imgui, tag v1.91.9) for the launcher; stb_truetype (MIT or
+public domain, github.com/nothings/stb) for sharper text; on Windows also SDL3
 (zlib) and OpenAL Soft (LGPL-2.0-or-later). Releases include their license texts
 and those of every other bundled library (`LICENSES/BUNDLED.txt` in an archive).
 

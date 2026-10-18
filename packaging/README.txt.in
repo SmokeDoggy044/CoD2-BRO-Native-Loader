@@ -80,5 +80,7 @@ Licenses
 
 The port is free software under the GNU General Public License, version 2 or
 later; its source code is on GitHub (SmokeDoggy044/CoD2-BRO-Native-Loader). The
-bundled libraries have their own licenses: see LICENSES/. Call of Duty 2: Big Red
+bundled libraries have their own licenses: see LICENSES/. The fonts in fonts/
+(used by the launcher's "Sharper text" option) are free fonts under the SIL Open
+Font License; their licenses are in fonts/licenses/. Call of Duty 2: Big Red
 One belongs to its owners; this port contains none of its code or data.

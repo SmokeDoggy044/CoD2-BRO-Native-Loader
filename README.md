@@ -26,13 +26,11 @@ What it is **not**:
 This native loader is the **proof of concept for a full native build**. The plan:
 decompile the game's functions one at a time and hook them into the running game,
 until none of the original code is left. Then the loader goes away and `cod_bro`
-builds from source for Linux and Windows, needing only the game's assets. The
-docs call the two stages route B (the native loader, now) and route C (the full
-native build).
+builds from source for Linux and Windows, needing only the game's assets.
 
 ## Status
 
-Prototype 0.1.1. The single-player campaign is playable from the menus through
+Prototype 0.1.2. The single-player campaign is playable from the menus through
 the missions: 1 to 5 tested through, 6 started. It runs at 60 fps (or the game's
 30), with the game's own widescreen mode, higher render resolutions, borderless
 fullscreen, controllers, and keyboard and mouse. Multiplayer runs over System Link
@@ -81,11 +79,33 @@ Controls and options are in the `README.txt` inside the archive.
 
 ## License
 
-The port's own code is licensed under the GNU General Public License, version 2
-or (at your option) any later version: see [LICENSE](LICENSE) and
-[LICENSES/README.md](LICENSES/README.md), which also covers the third-party code.
-Call of Duty 2: Big Red One belongs to its owners; none of its code or data is
-part of this project.
+The native loader's own code (everything outside `third_party/`) is licensed under
+the **GNU General Public License, version 2 or (at your option) any later
+version** ([LICENSE](LICENSE)).
+
+The releases bundle these libraries, each under its own license (texts and
+versions in `LICENSES/` inside every archive):
+
+| Component | Used for | License |
+|---|---|---|
+| [SDL3](https://github.com/libsdl-org/SDL) | Window, controllers, keyboard and mouse | zlib |
+| [OpenAL Soft](https://github.com/kcat/openal-soft) | Sound | LGPL-2.0-or-later (a separate library you can replace) |
+| [DXVK](https://github.com/doitsujin/dxvk) | Direct3D 9 on Vulkan | zlib |
+| [Dear ImGui](https://github.com/ocornut/imgui) | The launcher's interface | MIT |
+| [stb_truetype](https://github.com/nothings/stb) | Drawing fonts for sharper text | MIT / public domain |
+| EB Garamond, Jost, Liberation Serif, Anton (`fonts/`) | Sharper text: stand-ins for the game's bitmap fonts | SIL Open Font License 1.1 ([fonts/README.md](fonts/README.md)) |
+| GCC runtime, mingw-w64 (Windows only) | C/C++ runtime | GPL-3.0 with the GCC runtime library exception; mingw-w64 terms |
+
+The `third_party/xbox-includes` submodule (Xbox kernel and SDK headers; GPL-2.0,
+CC0 and LGPL-2.1 files) is not compiled into any build. File-by-file details are
+in [LICENSES/README.md](LICENSES/README.md).
+
+**The game is not included.** *Call of Duty 2: Big Red One* and all of its code and
+data belong to their owners; you need your own copy of the game. The symbol file
+in `tools/data/` holds only function addresses and names from our own analysis.
+This project is not affiliated with or endorsed by Activision, Treyarch or
+Microsoft. Call of Duty is a trademark of Activision Publishing, Inc.; Xbox is a
+trademark of Microsoft Corporation.
 
 ## Documentation
 
@@ -111,6 +131,8 @@ part of this project.
 | `audio/` | DirectSound replacement on OpenAL Soft | Kept, portable |
 | `input/` | Controllers, keyboard and mouse on SDL3; scripted presses | Kept, portable |
 | `online/` | Xbox Live stubs (always unavailable) | Kept, portable |
+| `text/` | Sharper text: the game's packs and font tables, font atlases drawn again with stb_truetype | Kept, portable |
+| `fonts/` | Free stand-in fonts for sharper text (SIL OFL) | Kept |
 | `game/` | The full native build's `cod_bro` executable and, later, the decompiled game code (none yet) | Kept, portable |
 | `launcher/` | `cod_bro_launcher`: settings and game-file setup (Dear ImGui, fetched by CMake) | Kept, portable |
 | `tests/` | Settings, kernel-layer and audio tests (no game files needed) | Kept |
@@ -175,7 +197,7 @@ command line, so options given there win. Without game files and without
 
 Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter switches
 while playing), `--scale N` (window size), `--render-scale X`,
-`--anisotropy N`, `--brightness X`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--level N` (start a mission directly),
+`--anisotropy N`, `--brightness X`, `--sharp-text on|off`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--level N` (start a mission directly),
 `--multiplayer` (start multiplayer), `--net-port N` (System Link UDP ports N..N+3),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
 `--debug`/`--trace`. Playtests and performance checks use the optimized
@@ -205,7 +227,7 @@ sections, dispatcher, memory, file system, crypto, time, frame pacing, audio; th
 tests build a fake disc in a temp folder and the audio test mixes on an OpenAL
 loopback device, so neither needs game files or a sound card). They need a 32-bit
 build because `xbox/` stores the title's pointers as 32-bit `XbPtr`; making `xbox/`
-64-bit-clean is part of route C.
+64-bit-clean is part of the full native build.
 
 ## Releasing
 

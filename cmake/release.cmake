@@ -42,6 +42,8 @@ install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/assets/README.md DESTINATION assets)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
+# Fonts for sharper text (SIL OFL; their licenses and sources in fonts/).
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/fonts/ DESTINATION fonts)
 
 # Oldest glibc that runs the release: the newest GLIBC_ symbol version the shipped
 # binaries use, found after install (see release_glibc.cmake). The README gets it
@@ -56,7 +58,9 @@ install(SCRIPT ${PROJECT_SOURCE_DIR}/cmake/release_glibc.cmake)
 # packages they come from (so they match the shipped versions).
 FetchContent_GetProperties(imgui SOURCE_DIR imgui_source_dir)
 install(FILES "${imgui_source_dir}/LICENSE.txt" DESTINATION LICENSES/bundled RENAME Dear-ImGui.txt)
-set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\n")
+FetchContent_GetProperties(stb SOURCE_DIR stb_source_dir)
+install(FILES "${stb_source_dir}/LICENSE" DESTINATION LICENSES/bundled RENAME stb.txt)
+set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype (built into cod_bro_loader)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nFonts in fonts/: SIL Open Font License 1.1, see fonts/README.md and fonts/licenses/\n")
 if(COD_BRO_RELEASE_DEPS)
     file(GLOB dep_licenses "${COD_BRO_RELEASE_DEPS}/licenses/*.txt")
     list(FILTER dep_licenses EXCLUDE REGEX "/BUNDLED\\.txt$")

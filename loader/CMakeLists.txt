@@ -19,7 +19,7 @@ if(WIN32)
     # from a console, the loader attaches to it (os_win32.cpp).
     add_library(cod_bro_loader_core SHARED ${loader_sources} compare_win32.cpp crash_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
     set_target_properties(cod_bro_loader_core PROPERTIES PREFIX "")
-    target_link_libraries(cod_bro_loader_core PRIVATE game_code audio input online render xbox platform shell32 user32)
+    target_link_libraries(cod_bro_loader_core PRIVATE game_code audio input online render text xbox platform shell32 user32)
     set(loader_core cod_bro_loader_core)
 
     add_executable(cod_bro_loader win32_stub.c)
@@ -32,7 +32,7 @@ if(WIN32)
     add_dependencies(cod_bro_loader cod_bro_loader_core)
 else()
     add_executable(cod_bro_loader ${loader_sources} compare_linux.cpp crash_posix.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)
-    target_link_libraries(cod_bro_loader PRIVATE game_code audio input online render xbox platform)
+    target_link_libraries(cod_bro_loader PRIVATE game_code audio input online render text xbox platform)
     set(loader_core cod_bro_loader)
     # Code that runs in the harness's test processes must not call anything the
     # compiler adds (stack checks, memcpy for loops).

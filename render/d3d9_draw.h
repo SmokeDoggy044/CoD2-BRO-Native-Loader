@@ -52,6 +52,9 @@ private:
     struct Target;
     // The texture bound to a stage as a D3D9 texture (created or updated), or null.
     CachedTexture* texture_for_stage(uint32_t stage);
+    // Makes `entry` hold `replacement` (BackendConfig::replace_texture), with a full
+    // mipmap chain if `mipmaps`. False if the texture cannot be created.
+    bool upload_replacement(CachedTexture& entry, const TextureReplacement& replacement, bool mipmaps);
     bool magenta_shader();  // creates magenta_ once; false if that failed
     // Where the draw, UI to narrow to the back buffer's shape, is narrowed around (a
     // fraction of the width), or negative if it is not (BackendConfig::narrow_ui_draw).
@@ -64,6 +67,7 @@ private:
     float render_scale_x_, render_scale_y_;  // BackendConfig::render_scale_x(), render_scale
     float narrow_factor_;                    // back buffer aspect / display aspect
     float (*narrow_ui_draw_)();               // BackendConfig::narrow_ui_draw
+    decltype(BackendConfig::replace_texture) replace_texture_;
     // The current target: its size as the title sees it and the D3D9 surface's.
     uint32_t target_data_ = 0, target_width_ = 0, target_height_ = 0;
     uint32_t target_surface_width_ = 0, target_surface_height_ = 0;
