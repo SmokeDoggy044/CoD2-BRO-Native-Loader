@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 498 functions and 303 globals named, all applied in Ghidra and
+State (2026-10-17): 519 functions and 357 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -142,6 +142,9 @@ copy the repository version there first so it is not stale.
 - Correction (2026-10-17): 0x0095f694 / 0x00986000 are the vehicle pool and its slot
   count (g_vehicles, g_vehicleSlotCount), not g_entities / level_num_entities: the
   0x340-byte records hold an entity handle (+0x170) and a vehicle def index (+0x178).
+- Game vmCvars (vmCvar_t, Q3 layout, integer at +0xc) come from gameCvarTable
+  (0x008da8e8, 57 entries); they are named vm_<cvar> because several cvars also have
+  an engine cvar_t* global of the same name (sv_cheats, developer, g_reloading, ...).
 - `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
   function's unnamed callees with size, caller count and strings (where to look next).
 - `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
