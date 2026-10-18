@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-17): 457 functions and 298 globals named, all applied in Ghidra and
+State (2026-10-17): 466 functions and 302 globals named, all applied in Ghidra and
 exported to `tools/data/default_xbe_symbols.txt`.
 
 ## Files
@@ -130,6 +130,10 @@ copy the repository version there first so it is not stale.
   +0x260. Extracted with the skill's scripts/hashinit.py. G_Damage keeps Q3's
   knockback and splits the rest (health, die/pain, the "damage"/"death" notifies) into
   G_ApplyDamage; there is no armor code.
+- Maps are not spawned from an entity string: G_SpawnEntitiesFromString walks 99
+  precompiled map zones (SP_worldspawn, then G_SpawnGEntityFromSpawnVars per entity,
+  G_SpawnVehicleNode per vehicle node) between level.spawning set/clear. Entities are
+  0x460-byte objects from a pool (G_Spawn), not a fixed g_entities array slot.
 - `tools/ghidra` has no tree view; the skill's scripts/CalleeTree.java lists a
   function's unnamed callees with size, caller count and strings (where to look next).
 - `__FILE__` strings survive in Z_MallocDebug calls (`c:\cod\code\game\*.cpp`) in a
