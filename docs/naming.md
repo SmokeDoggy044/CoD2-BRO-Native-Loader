@@ -293,6 +293,7 @@ CoD-specific functions included, so later decompilation covers both kinds.
   helpers (0x002808b0, 0x00280ed0), the weapon tag/pose helpers using the DObj
   (0x0027f8e0, 0x0027f920, 0x0027fa50, 0x00284d00, 0x00288510), configstring float
   readers (0x0027abb0, 0x0027ad70).
+- Renderer next (user decision 2026-10-18, see status.md), then back to the client/UI.
 - Client/UI (2026-10-18, started; SCR_DrawScreenField itself is only cvar + CG_DrawActiveFrame
   + the in-game menu draws). The Q3 client is thin in this single-player build: CL_Frame ->
   CL_CreateNewCommands, CL_WritePacket -> Netchan_Transmit (loopback inlined),
