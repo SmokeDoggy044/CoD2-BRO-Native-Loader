@@ -199,6 +199,11 @@ bool XB_CDECL nglTextureIsStale(const NglTexture* texture);
 // 0x00064560: 1 when the video mode is PAL 50 Hz, else 0.
 uint32_t XB_CDECL nglIsPAL50();
 
+// 0x000645c0: vertical blanks per frame (mode 0..2 = 0, 1, 2; 3 and 4 = 1 and 2 plus a
+// flag at 0x00902878); other modes are ignored. The loader's 60 fps pacing replaces
+// it (--pc-patches).
+void XB_CDECL nglSetVBlankMode(uint32_t mode);
+
 // Per-frame bump allocators (no null check; `align` a power of two).
 // 0x00066ad0: GPU memory.
 void* XB_CDECL nglAllocFrameGpu(uint32_t size, uint32_t align);

@@ -67,6 +67,7 @@ struct Options {
     int32_t start_level = -1;
     bool multiplayer = false;    // start codmp_xboxf.xbe
     bool compare = false;        // test decompiled functions against the originals
+    std::optional<bool> pc_patches;  // unset: on, except with --compare
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
@@ -134,7 +135,11 @@ void print_usage(const char* program) {
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n"
         "  --compare        test the decompiled functions against the originals while playing\n"
-        "                   (Linux; counts in tools/data/functions.csv, details in the log)\n",
+        "                   (Linux; counts in tools/data/functions.csv, details in the log);\n"
+        "                   implies --pc-patches off unless that is given\n"
+        "  --pc-patches on|off  the PC changes to the game's code: 60 fps pacing, mouse look,\n"
+        "                   aim assist off, widescreen menus and objectives (default on); off\n"
+        "                   keeps only what the game needs to run on a PC (and --level)\n",
         program);
 }
 
@@ -286,6 +291,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.silent = true;
         } else if (arg == "--compare") {
             options.compare = true;
+        } else if (arg == "--pc-patches") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "on" && value != "off") {
+                std::fprintf(stderr, "--pc-patches needs on or off\n");
+                return std::nullopt;
+            }
+            options.pc_patches = value == "on";
         } else if (arg == "--debug") {
             options.log_level = platform::LogLevel::Debug;
         } else if (arg == "--trace") {
@@ -491,7 +503,8 @@ int loader_main(int argc, char** argv) {
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
-                                   options->frame_rate});
+                                           options->frame_rate,
+                                           options->pc_patches.value_or(!options->compare)});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});

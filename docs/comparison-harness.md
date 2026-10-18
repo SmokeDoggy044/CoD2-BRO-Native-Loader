@@ -12,7 +12,8 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
 2. Add it to `kFunctions` in `game/code/functions.cpp`: name, default.xbe address,
    codmp_xboxf.xbe address (0 until matched), stack argument bytes, result kind
    (`None`, `Al`, `Eax`, `EdxEax`, `St0`) and `Status::Compare`.
-3. Play or run unattended with `--compare` (`--level N` gets there fastest). Sampled
+3. Play or run unattended with `--compare` (`--level N` gets there fastest; the PC
+   features are off, see below). Sampled
    calls are tested: the first 16 of each function, then every 64th.
 4. Read `tools/data/functions.csv` (counts, merged over runs; `functions_mp.csv` for
    multiplayer) and the `compare` lines in the log (the first 5 issues per function,
@@ -25,9 +26,14 @@ Conventions in `game/code/`: the title's globals are reached with `title_global<
 (title_data.h; such functions stay campaign-only until their multiplayer addresses are
 known); functions taking arguments in EAX/EDX/ECX use `XB_REGS3` (platform/compiler.h);
 the library is built with `-msse -mfpmath=sse` so float math rounds like the title's SSE
-code (keep the original's operation order; `0 - x` is not `-x` for x = 0). Before adding a
-function, grep `loader/` for its address: a function the loader already patches (e.g. the
-frame pacing's nglSetVBlankMode) cannot be compared.
+code (keep the original's operation order; `0 - x` is not `-x` for x = 0). `--compare`
+implies `--pc-patches off`: the loader's PC changes to the game's code (60 fps pacing,
+mouse look, aim assist off, widescreen menu/objectives hooks) stay out, so compared
+functions run as on the Xbox (30 fps) and patched ones such as nglSetVBlankMode can be
+tested. Only what the game needs on a PC stays (privileged code, RDTSC, SDK replacements,
+the MP heap lock, `--level`). `--compare --pc-patches on` plays with them; then grep
+`loader/` before adding a function - a patched one is not compared. A function the PC
+features patch cannot become `Replaced` until that patch calls the decompiled version.
 
 ## How a test runs
 

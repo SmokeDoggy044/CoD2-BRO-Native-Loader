@@ -235,6 +235,12 @@ bool XB_CDECL nglTextureIsStale(const NglTexture* texture) {
 
 uint32_t XB_CDECL nglIsPAL50() { return title_global<uint8_t>(0x009028bc) == 1 ? 1 : 0; }
 
+void XB_CDECL nglSetVBlankMode(uint32_t mode) {
+    if (mode > 4) return;
+    title_global<uint32_t>(0x008a2cb0) = mode >= 3 ? mode - 2 : mode;  // vertical blanks
+    title_global<uint32_t>(0x00902878) = mode >= 3 ? 1 : 0;
+}
+
 void* XB_CDECL nglAllocFrameGpu(uint32_t size, uint32_t align) {
     return alloc_frame(title_global<uintptr_t>(0x00903c50), size, align);
 }

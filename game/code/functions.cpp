@@ -45,6 +45,7 @@ const Function kFunctions[] = {
     {"nglAddRef", 0x00063520, 0, code(&nglAddRef), 4, Result::None, Status::Compare},
     {"nglTextureIsStale", 0x00063600, 0, code(&nglTextureIsStale), 4, Result::Al, Status::Compare},
     {"nglIsPAL50", 0x00064560, 0, code(&nglIsPAL50), 0, Result::Eax, Status::Compare},
+    {"nglSetVBlankMode", 0x000645c0, 0, code(&nglSetVBlankMode), 4, Result::None, Status::Compare},
     {"nglGetScreenWidth", 0x00064640, 0, code(&nglGetScreenWidth), 0, Result::Eax, Status::Compare},
     {"nglGetScreenHeight", 0x00064650, 0, code(&nglGetScreenHeight), 0, Result::Eax, Status::Compare},
     {"nglAllocFrameGpu", 0x00066ad0, 0, code(&nglAllocFrameGpu), 8, Result::Eax, Status::Compare},

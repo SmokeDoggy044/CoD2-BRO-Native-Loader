@@ -923,20 +923,24 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     install_rdtsc_patches(data.rdtsc_sites);
     g_mouse_degrees_per_count = config.mouse_degrees_per_count;
     g_client = title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient;
-    install_mouse_look();
-    input::set_action_remap(&remap_keyboard_actions);
     const bool campaign = title.id == TitleId::Campaign;
     g_aim_assist = campaign ? AimAssist{0x002db7d0, 0x500} : AimAssist{0x0024c940, 0x510};
     g_menus = campaign ? kCampaignMenus : kMultiplayerMenus;
     g_pacing = campaign ? kCampaignPacing : kMultiplayerPacing;
-    if (!config.aim_assist) disable_aim_assist();
-    install_frame_rate(config.frame_rate);
-    install_menu_render_hooks();
     if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
+    input::set_action_remap(&remap_keyboard_actions);  // input side, not the game's code
+    if (config.pc_features) {
+        install_mouse_look();
+        if (!config.aim_assist) disable_aim_assist();
+        install_frame_rate(config.frame_rate);
+        install_menu_render_hooks();
+    } else {
+        LOG_INFO("patches", "PC features off: the game's code runs as on the Xbox (30 fps)");
+    }
     if (!campaign) return;  // the objectives panel and --level are campaign-only
 
     install_start_level(config.start_level);
-    install_objectives_hook();
+    if (config.pc_features) install_objectives_hook();
 }
 
 }  // namespace loader
