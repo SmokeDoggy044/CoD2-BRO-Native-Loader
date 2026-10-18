@@ -68,8 +68,25 @@ inline float platform_x87_cos(float x) {
     __asm__("fcos" : "=t"(result) : "0"(x));
     return result;
 }
+// FPTAN (it also pushes 1.0, popped here).
+inline float platform_x87_tan(float x) {
+    float result;
+    __asm__("fptan\n\tfstp %%st(0)" : "=t"(result) : "0"(x));
+    return result;
+}
 #else
 #include <cmath>
 inline float platform_x87_sin(float x) { return std::sin(x); }
 inline float platform_x87_cos(float x) { return std::cos(x); }
+inline float platform_x87_tan(float x) { return std::tan(x); }
+#endif
+
+// SSE RSQRTSS, the title's reciprocal square root estimate (its precision is the
+// CPU's: it differs between vendors, so only results on the same CPU compare).
+#if defined(__SSE__) || defined(_M_IX86_FP) || defined(_M_X64)
+#include <xmmintrin.h>
+inline float platform_rsqrt_estimate(float x) { return _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(x))); }
+#else
+#include <cmath>
+inline float platform_rsqrt_estimate(float x) { return 1.0f / std::sqrt(x); }
 #endif

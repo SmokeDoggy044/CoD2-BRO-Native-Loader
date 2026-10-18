@@ -99,7 +99,9 @@ struct NglScene {
     uint8_t unknown368[0x370 - 0x368];
     float clear_color[4];     // +0x370, r g b a
     uint32_t color_write_mask; // +0x380, 0x01000000 alpha .. 0x00010101 rgb
-    uint8_t unknown384[0x388 - 0x384];
+    uint8_t depth_enable;     // +0x384, nglBeginSceneRender: Z enable when this or
+    uint8_t depth_test;       // +0x385  depth_test is set; depth_test picks the depth function
+    uint8_t unknown386[0x388 - 0x386];
     float fog[4];             // +0x388, nglSetFog's arguments (fog[0] = start)
     uint8_t unknown398[0x3a0 - 0x398];
     float fog_color[4];       // +0x3a0, r g b, 1
@@ -108,6 +110,7 @@ struct NglScene {
     uint8_t unknown3c0[0x3c4 - 0x3c0];
     float near_z;             // +0x3c4
     float far_z;              // +0x3c8
+    float time;               // +0x3cc, nglBeginSceneRender derives +0x3d0 from it
 };
 
 // A section of a mesh: only its bounding sphere is known.
@@ -152,6 +155,8 @@ static_assert(offsetof(NglScene, fog) == 0x388);
 static_assert(offsetof(NglScene, fog_color) == 0x3a0);
 static_assert(offsetof(NglScene, projection) == 0x110);
 static_assert(offsetof(NglScene, near_z) == 0x3c4);
+static_assert(offsetof(NglScene, depth_enable) == 0x384);
+static_assert(offsetof(NglScene, time) == 0x3cc);
 static_assert(offsetof(NglRenderTarget, flags) == 0x28);
 #endif
 
@@ -269,10 +274,77 @@ void XB_CDECL nglColorToVec4(float* out, uint32_t color);
 void XB_CDECL nglSetRenderTarget(NglRenderTarget* target);
 // 0x00073ae0
 void XB_CDECL nglSetSceneFlags(uint32_t flags);
-// 0x0007b220: swaps bytes 0 and 2 of `count` 32-bit pixels.
 // 0x00066a40: the bounding sphere of the mesh being built, copied to each of its
 // sections.
 void XB_CDECL nglMeshBuilder_SetBounds(const float* center, float radius);
+// 0x0007b220: swaps bytes 0 and 2 of `count` 32-bit pixels.
 void XB_CDECL nglSwapRedBlue(uint8_t* pixels, uint32_t count);
+
+// 0x0005e490 / 0x0005e4b0 / 0x0005e550: current scene's depth_enable, depth_test, time.
+void XB_CDECL nglSetSceneDepthEnable(uint8_t enable);
+void XB_CDECL nglSetSceneDepthTest(uint8_t test);
+void XB_CDECL nglSetSceneTime(float time);
+// 0x0005e650: called by nglEndFrame before the swap; 0x0005e670: last in nglEndFrame.
+void XB_CDECL nglSetPreSwapCallback(void* function, void* arg);
+void XB_CDECL nglSetEndFrameCallback(void* function, void* arg);
+
+// Mesh managers (objects with a vtable; the game chains its own in front, like
+// nglSetTextureManager). 0x000673c0 / 0x000673d0: the mesh file manager
+// (nglLoadMeshFile); 0x000673e0 / 0x000673f0: the mesh manager (nglFindMesh).
+void XB_CDECL nglSetMeshFileManager(void* manager);
+void* XB_CDECL nglGetMeshFileManager();
+void XB_CDECL nglSetMeshManager(void* manager);
+void* XB_CDECL nglGetMeshManager();
+// 0x00067470: a mesh file's first mesh (null file: null); 0x000674b0: the next mesh.
+uint8_t* XB_CDECL nglMeshFileFirstMesh(const uint8_t* file);
+uint8_t* XB_CDECL nglMeshNext(const uint8_t* mesh);
+// 0x000677b0 / 0x0007a450: a mesh image moved from `old_base` to `new_base`: every
+// non-null pointer of the mesh, its tables and its sections moves along.
+void XB_CDECL nglRelocateMesh(uint8_t* new_base, uint8_t* old_base, uint8_t* mesh);
+void XB_CDECL nglRelocateMeshSection(uint8_t* new_base, uint8_t* old_base, uint8_t* section);
+
+// Shader handles in the shader classes' Register functions.
+// 0x000761f0: shader[0] = program, shader[1] = declaration.
+void XB_CDECL nglVertexShader_Init(uint32_t* shader, uint32_t declaration, uint32_t program);
+// 0x00076210
+void XB_CDECL nglPixelShader_Init(uint32_t* shader, uint32_t definition);
+
+// A buffer of 16-bit indices that is just a pointer (`self`). Offsets are halved
+// as in the original. 0x0007a3c0: returns 1; the size is unused.
+uint8_t XB_THISCALL nglIndexBuffer_Init(uint8_t** self, uint8_t* data, uint32_t size);
+// 0x0007a3f0
+void XB_THISCALL nglIndexBuffer_Clear(uint8_t** self);
+// 0x0007a400
+uint8_t* XB_THISCALL nglIndexBuffer_Lock(uint8_t** self, uint32_t offset, uint32_t flags);
+// 0x0007a420
+void XB_THISCALL nglIndexBuffer_Write(uint8_t** self, const void* source, uint32_t size, uint32_t offset);
+
+// 0x0006ffc0: a point light (position +0x00, colour +0x10, falloff start +0x20 and
+// end +0x24) at `position`: out[0..3] = the direction to the point (unit, from rsqrt
+// and one Newton step), out[4..7] = colour * linear falloff (clamped to 0..1).
+// Returns 0 when the falloff clamped at 0 or the point is at the light (then
+// direction 0,1,0,0 and the full colour), else 1.
+uint8_t XB_CDECL nglEvalPointLight(float* out, const float* light, const float* position);
+
+// The draw lists' std::sort helpers; elements are {value, key}, opaque lists sort
+// by unsigned key ascending, translucent ones by float key descending, then value.
+struct NglOpaqueNode {
+    uint32_t value;
+    uint32_t key;
+};
+struct NglTranslucentNode {
+    uint32_t value;
+    float key;
+};
+// 0x000744f0 / 0x00074600: std::_Push_heap.
+void XB_CDECL std_PushHeap_OpaqueNodes(NglOpaqueNode* first, int32_t hole, int32_t top, NglOpaqueNode value);
+void XB_CDECL std_PushHeap_TranslucentNodes(NglTranslucentNode* first, int32_t hole, int32_t top,
+                                            NglTranslucentNode value);
+// 0x00074540: std::_Rotate (random access, gcd cycles) of 8-byte elements.
+void XB_CDECL std_Rotate_NodeKeys(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last);
+// 0x00074970 / 0x000749e0: std::_Med3.
+void XB_CDECL std_Med3_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last);
+void XB_CDECL std_Med3_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* mid,
+                                        NglTranslucentNode* last);
 
 }  // namespace game

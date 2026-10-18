@@ -45,7 +45,7 @@ are named by working out what they do.
 
 | Section | What it is | Functions | Named | Rewritten |
 |---|---|---:|---:|---:|
-| `.text` | The engine and game code | 9563 | 1549 | 61 |
+| `.text` | The engine and game code | 9563 | 1571 | 86 |
 | PROLOGUE | Mission scripts for `sp/prologue` | 618 | 0 | 0 |
 | ORAN | Mission scripts for `sp/oran` | 435 | 0 | 0 |
 | TUNISIA | Mission scripts for `sp/tunisia` | 278 | 0 | 0 |
@@ -60,7 +60,7 @@ are named by working out what they do.
 | EILEDORF | Mission scripts for `sp/eilndrf` | 153 | 0 | 0 |
 | BUCHHOLZ | Mission scripts for `sp/buchholz` | 443 | 0 | 0 |
 | DRAGEETH | Mission scripts for `sp/dragonth` | 144 | 0 | 0 |
-| **Total** | | **14540** | **1549** | **61** |
+| **Total** | | **14540** | **1571** | **86** |
 
 **Rewritten** means the function has been turned into C++ and passed the in-game
 comparison. A function counts as named once we know what it does. We've also named

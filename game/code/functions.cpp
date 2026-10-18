@@ -5,6 +5,7 @@
 #include "ngl.h"
 #include "script_string.h"
 #include "tr_main.h"
+#include "unzip.h"
 
 namespace game {
 
@@ -17,6 +18,7 @@ const void* code(F* function) {
 
 // Sorted by campaign address.
 const Function kFunctions[] = {
+    {"inflate_trees_fixed", 0x0005d8c0, 0, code(&inflate_trees_fixed), 20, Result::Eax, Status::Compare},
     {"nglInitQuad", 0x0005ddb0, 0, code(&nglInitQuad), 4, Result::None, Status::Compare},
     {"nglSetQuadTexture", 0x0005de20, 0, code(&nglSetQuadTexture), 8, Result::None, Status::Compare},
     {"nglSetQuadFlags", 0x0005de30, 0, code(&nglSetQuadFlags), 8, Result::None, Status::Compare},
@@ -35,8 +37,13 @@ const Function kFunctions[] = {
     {"nglSetClearFlags", 0x0005e430, 0, code(&nglSetClearFlags), 4, Result::None, Status::Compare},
     {"nglSetClearDepth", 0x0005e450, 0, code(&nglSetClearDepth), 4, Result::None, Status::Compare},
     {"nglSetColorWriteMask", 0x0005e470, 0, code(&nglSetColorWriteMask), 4, Result::None, Status::Compare},
+    {"nglSetSceneDepthEnable", 0x0005e490, 0, code(&nglSetSceneDepthEnable), 4, Result::None, Status::Compare},
+    {"nglSetSceneDepthTest", 0x0005e4b0, 0, code(&nglSetSceneDepthTest), 4, Result::None, Status::Compare},
     {"nglSetFog", 0x0005e4d0, 0, code(&nglSetFog), 16, Result::None, Status::Compare},
+    {"nglSetSceneTime", 0x0005e550, 0, code(&nglSetSceneTime), 4, Result::None, Status::Compare},
     {"nglSetSceneCallback", 0x0005e5c0, 0, code(&nglSetSceneCallback), 12, Result::None, Status::Compare},
+    {"nglSetPreSwapCallback", 0x0005e650, 0, code(&nglSetPreSwapCallback), 8, Result::None, Status::Compare},
+    {"nglSetEndFrameCallback", 0x0005e670, 0, code(&nglSetEndFrameCallback), 8, Result::None, Status::Compare},
     {"nglPopScene", 0x0005e730, 0, code(&nglPopScene), 0, Result::Eax, Status::Compare},
     {"nglSetCurrentScene", 0x0005e750, 0, code(&nglSetCurrentScene), 4, Result::Eax, Status::Compare},
     {"nglSetClearColor", 0x0005eaa0, 0, code(&nglSetClearColor), 16, Result::None, Status::Compare},
@@ -55,6 +62,13 @@ const Function kFunctions[] = {
     {"nglGetScreenHeight", 0x00064650, 0, code(&nglGetScreenHeight), 0, Result::Eax, Status::Compare},
     {"nglMeshBuilder_SetBounds", 0x00066a40, 0, code(&nglMeshBuilder_SetBounds), 8, Result::None, Status::Compare},
     {"nglAllocFrameGpu", 0x00066ad0, 0, code(&nglAllocFrameGpu), 8, Result::Eax, Status::Compare},
+    {"nglSetMeshFileManager", 0x000673c0, 0, code(&nglSetMeshFileManager), 4, Result::None, Status::Compare},
+    {"nglGetMeshFileManager", 0x000673d0, 0, code(&nglGetMeshFileManager), 0, Result::Eax, Status::Compare},
+    {"nglSetMeshManager", 0x000673e0, 0, code(&nglSetMeshManager), 4, Result::None, Status::Compare},
+    {"nglGetMeshManager", 0x000673f0, 0, code(&nglGetMeshManager), 0, Result::Eax, Status::Compare},
+    {"nglMeshFileFirstMesh", 0x00067470, 0, code(&nglMeshFileFirstMesh), 4, Result::Eax, Status::Compare},
+    {"nglMeshNext", 0x000674b0, 0, code(&nglMeshNext), 4, Result::Eax, Status::Compare},
+    {"nglRelocateMesh", 0x000677b0, 0, code(&nglRelocateMesh), 12, Result::None, Status::Compare},
     {"nglColorToVec4", 0x0006e780, 0, code(&nglColorToVec4), 8, Result::None, Status::Compare},
     {"nglDepthToZValue", 0x0006e860, 0, code(&nglDepthToZValue), 4, Result::St0, Status::Compare},
     {"nglSetSceneLightSet", 0x0006f550, 0, code(&nglSetSceneLightSet), 4, Result::None, Status::Compare},
@@ -62,9 +76,22 @@ const Function kFunctions[] = {
     {"nglCreateLightSet", 0x0006f7c0, 0, code(&nglCreateLightSet), 0, Result::Eax, Status::Compare},
     {"nglLightVectorWorld", 0x0006f850, 0, code(&nglLightVectorWorld), 12, Result::Eax, Status::Compare},
     {"nglSetAmbientColor", 0x0006f8d0, 0, code(&nglSetAmbientColor), 12, Result::None, Status::Compare},
+    {"nglEvalPointLight", 0x0006ffc0, 0, code(&nglEvalPointLight), 12, Result::Al, Status::Compare},
     {"nglSetRenderTarget", 0x00073a70, 0, code(&nglSetRenderTarget), 4, Result::None, Status::Compare},
     {"nglSetSceneFlags", 0x00073ae0, 0, code(&nglSetSceneFlags), 4, Result::None, Status::Compare},
+    {"std_PushHeap_OpaqueNodes", 0x000744f0, 0, code(&std_PushHeap_OpaqueNodes), 20, Result::None, Status::Compare},
+    {"std_Rotate_NodeKeys", 0x00074540, 0, code(&std_Rotate_NodeKeys), 12, Result::None, Status::Compare},
+    {"std_PushHeap_TranslucentNodes", 0x00074600, 0, code(&std_PushHeap_TranslucentNodes), 20, Result::None, Status::Compare},
+    {"std_Med3_OpaqueNodes", 0x00074970, 0, code(&std_Med3_OpaqueNodes), 12, Result::None, Status::Compare},
+    {"std_Med3_TranslucentNodes", 0x000749e0, 0, code(&std_Med3_TranslucentNodes), 12, Result::None, Status::Compare},
+    {"nglVertexShader_Init", 0x000761f0, 0, code(&nglVertexShader_Init), 12, Result::None, Status::Compare},
+    {"nglPixelShader_Init", 0x00076210, 0, code(&nglPixelShader_Init), 8, Result::None, Status::Compare},
     {"nglAllocFrameScratch", 0x00077b30, 0, code(&nglAllocFrameScratch), 8, Result::Eax, Status::Compare},
+    {"nglIndexBuffer_Init", 0x0007a3c0, 0, code(&nglIndexBuffer_Init), 8, Result::Al, Status::Compare},
+    {"nglIndexBuffer_Clear", 0x0007a3f0, 0, code(&nglIndexBuffer_Clear), 0, Result::None, Status::Compare},
+    {"nglIndexBuffer_Lock", 0x0007a400, 0, code(&nglIndexBuffer_Lock), 8, Result::Eax, Status::Compare},
+    {"nglIndexBuffer_Write", 0x0007a420, 0, code(&nglIndexBuffer_Write), 12, Result::None, Status::Compare},
+    {"nglRelocateMeshSection", 0x0007a450, 0, code(&nglRelocateMeshSection), 12, Result::None, Status::Compare},
     {"nglPaletteSetEntry", 0x0007b1b0, 0, code(&nglPaletteSetEntry), 8, Result::None, Status::Compare},
     {"nglSwapRedBlue", 0x0007b220, 0, code(&nglSwapRedBlue), 8, Result::None, Status::Compare},
     {"ScriptStringRep_Init", 0x0011d540, 0, code(&ScriptStringRep_Init), 12, Result::Eax, Status::Compare},
@@ -84,13 +111,17 @@ const Function kFunctions[] = {
     {"GLimp_Init", 0x00235ad0, 0, code(&GLimp_Init), 0, Result::None, Status::Compare},
     {"Q_PrintStrlen", 0x00235cc0, 0, code(&Q_PrintStrlen), 0, Result::Eax, Status::Compare},
     {"RE_SetFarCullDist", 0x00235dc0, 0, code(&RE_SetFarCullDist), 4, Result::None, Status::Compare},
+    {"R_CullPortal", 0x00235e30, 0, code(&R_CullPortal), 0, Result::Eax, Status::Compare},
     {"RE_GetFarCullDist", 0x00235e90, 0, code(&RE_GetFarCullDist), 0, Result::St0, Status::Compare},
     {"RE_LoadWorldMap", 0x00236230, 0, code(&RE_LoadWorldMap), 0, Result::None, Status::Compare},
+    {"R_SetupProjection", 0x00236fb0, 0, code(&R_SetupProjection), 0, Result::None, Status::Compare},
+    {"R_CopyFrustumPlanes", 0x00237940, 0, code(&R_CopyFrustumPlanes), 0, Result::None, Status::Compare},
     {"DObj_GetBoneBasePose", 0x00237cd0, 0, code(&DObj_GetBoneBasePose), 8, Result::Eax, Status::Compare},
     {"R_AddViewModelRefEntity", 0x002387e0, 0, code(&R_AddViewModelRefEntity), 4, Result::None, Status::Compare},
     {"DObj_GetBoneParent", 0x0023a2a0, 0, code(&DObj_GetBoneParent), 8, Result::Eax, Status::Compare},
     {"DObj_GetBoneIndex", 0x0023a440, 0, code(&DObj_GetBoneIndex), 4, Result::Eax, Status::Compare},
     {"FX_AllocEffect", 0x0023b970, 0, code(&FX_AllocEffect), 0, Result::Eax, Status::Compare},
+    {"R_ClipPolygonToPlane", 0x0023bb70, 0, code(&R_ClipPolygonToPlane), 12, Result::Eax, Status::Compare},
 };
 
 }  // namespace

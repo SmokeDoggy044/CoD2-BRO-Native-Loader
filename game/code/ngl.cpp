@@ -378,4 +378,194 @@ void XB_CDECL nglSwapRedBlue(uint8_t* pixels, uint32_t count) {
     }
 }
 
+void XB_CDECL nglSetSceneDepthEnable(uint8_t enable) { current_scene()->depth_enable = enable; }
+
+void XB_CDECL nglSetSceneDepthTest(uint8_t test) { current_scene()->depth_test = test; }
+
+void XB_CDECL nglSetSceneTime(float time) { current_scene()->time = time; }
+
+void XB_CDECL nglSetPreSwapCallback(void* function, void* arg) {
+    title_global<void*>(0x009025c0) = function;
+    title_global<void*>(0x009025c4) = arg;
+}
+
+void XB_CDECL nglSetEndFrameCallback(void* function, void* arg) {
+    title_global<void*>(0x009025c8) = function;
+    title_global<void*>(0x009025cc) = arg;
+}
+
+void XB_CDECL nglSetMeshFileManager(void* manager) { title_global<void*>(0x00902a84) = manager; }
+
+void* XB_CDECL nglGetMeshFileManager() { return title_global<void*>(0x00902a84); }
+
+void XB_CDECL nglSetMeshManager(void* manager) { title_global<void*>(0x00902a80) = manager; }
+
+void* XB_CDECL nglGetMeshManager() { return title_global<void*>(0x00902a80); }
+
+namespace {
+
+template <typename T>
+T& field(const uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(const_cast<uint8_t*>(base) + offset);
+}
+
+void relocate(uint8_t*& pointer, intptr_t delta) {
+    if (pointer) pointer += delta;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL nglMeshFileFirstMesh(const uint8_t* file) {
+    return file ? field<uint8_t*>(file, 0x138) : nullptr;
+}
+
+uint8_t* XB_CDECL nglMeshNext(const uint8_t* mesh) { return mesh ? field<uint8_t*>(mesh, 0x38) : nullptr; }
+
+void XB_CDECL nglRelocateMesh(uint8_t* new_base, uint8_t* old_base, uint8_t* mesh) {
+    const intptr_t delta = new_base - old_base;
+    relocate(field<uint8_t*>(mesh, 0x14), delta);
+    relocate(field<uint8_t*>(mesh, 0x1c), delta);
+    relocate(field<uint8_t*>(mesh, 0x0c), delta);
+    for (uint32_t i = 0; i < field<uint32_t>(mesh, 0x18); ++i)
+        relocate(field<uint8_t**>(mesh, 0x1c)[i * 2], delta);
+    for (uint32_t i = 0; i < field<uint32_t>(mesh, 0x08); ++i) {
+        relocate(field<uint8_t**>(mesh, 0x0c)[i * 2 + 1], delta);
+        nglRelocateMeshSection(new_base, old_base, field<uint8_t**>(mesh, 0x0c)[i * 2 + 1]);
+    }
+}
+
+void XB_CDECL nglRelocateMeshSection(uint8_t* new_base, uint8_t* old_base, uint8_t* section) {
+    const intptr_t delta = new_base - old_base;
+    // Not a range-for over a braced list: at -O0 that calls std::initializer_list's
+    // members out of line, and the loader's copies of them win (host code in a test).
+    static const uint32_t kPointers[] = {0x0c, 0x44, 0x30, 0x38, 0x04, 0x5c};
+    for (uint32_t i = 0; i < 6; ++i) relocate(field<uint8_t*>(section, kPointers[i]), delta);
+    uint8_t** table = field<uint8_t**>(section, 0x5c);
+    if (table) relocate(*table, delta);
+}
+
+void XB_CDECL nglVertexShader_Init(uint32_t* shader, uint32_t declaration, uint32_t program) {
+    shader[0] = program;
+    shader[1] = declaration;
+}
+
+void XB_CDECL nglPixelShader_Init(uint32_t* shader, uint32_t definition) { shader[0] = definition; }
+
+uint8_t XB_THISCALL nglIndexBuffer_Init(uint8_t** self, uint8_t* data, uint32_t /*size*/) {
+    *self = data;
+    return 1;
+}
+
+void XB_THISCALL nglIndexBuffer_Clear(uint8_t** self) { *self = nullptr; }
+
+uint8_t* XB_THISCALL nglIndexBuffer_Lock(uint8_t** self, uint32_t offset, uint32_t /*flags*/) {
+    return *self + (offset >> 1);
+}
+
+void XB_THISCALL nglIndexBuffer_Write(uint8_t** self, const void* source, uint32_t size, uint32_t offset) {
+    std::memcpy(*self + (offset >> 1), source, size);
+}
+
+uint8_t XB_CDECL nglEvalPointLight(float* out, const float* light, const float* position) {
+    float d[4];
+    for (int i = 0; i < 4; ++i) d[i] = position[i] - light[i];
+    const float dist2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    if (1e-6f > dist2) {
+        for (int i = 0; i < 4; ++i) out[4 + i] = light[4 + i];
+        out[0] = 0.0f;
+        out[1] = 1.0f;
+        out[2] = 0.0f;
+        out[3] = 0.0f;
+        return 0;
+    }
+    const float estimate = platform_rsqrt_estimate(dist2);
+    const float inv_dist = (3.0f - estimate * estimate * dist2) * estimate * 0.5f;
+    const float dist = dist2 * inv_dist;
+    float falloff = 1.0f - (dist - light[8]) / (light[9] - light[8]);
+    uint8_t lit = 1;
+    if (0.0f > falloff) {
+        falloff = 0.0f;
+        lit = 0;
+    } else if (falloff > 1.0f) {
+        falloff = 1.0f;
+    }
+    for (int i = 0; i < 4; ++i) out[4 + i] = light[4 + i] * falloff;
+    for (int i = 0; i < 4; ++i) out[i] = d[i] * inv_dist;
+    return lit;
+}
+
+namespace {
+
+bool less(const NglTranslucentNode& a, const NglTranslucentNode& b) {
+    if (a.key > b.key) return true;
+    if (b.key > a.key) return false;
+    return a.value < b.value;
+}
+
+template <typename Node>
+void swap_nodes(Node& a, Node& b) {
+    const Node t = a;
+    a = b;
+    b = t;
+}
+
+}  // namespace
+
+void XB_CDECL std_PushHeap_OpaqueNodes(NglOpaqueNode* first, int32_t hole, int32_t top, NglOpaqueNode value) {
+    for (int32_t parent = (hole - 1) / 2; top < hole && first[parent].key < value.key; parent = (hole - 1) / 2) {
+        first[hole] = first[parent];
+        hole = parent;
+    }
+    first[hole] = value;
+}
+
+void XB_CDECL std_PushHeap_TranslucentNodes(NglTranslucentNode* first, int32_t hole, int32_t top,
+                                            NglTranslucentNode value) {
+    for (int32_t parent = (hole - 1) / 2; top < hole && less(first[parent], value); parent = (hole - 1) / 2) {
+        first[hole] = first[parent];
+        hole = parent;
+    }
+    first[hole] = value;
+}
+
+void XB_CDECL std_Rotate_NodeKeys(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last) {
+    const int32_t shift = static_cast<int32_t>(mid - first);
+    const int32_t count = static_cast<int32_t>(last - first);
+    int32_t factor = count;
+    for (int32_t b = shift; b != 0;) {
+        const int32_t r = factor % b;
+        factor = b;
+        b = r;
+    }
+    if (factor >= count || factor <= 0) return;
+    for (; factor > 0; --factor) {
+        NglOpaqueNode* hole = first + factor;
+        const NglOpaqueNode value = *hole;
+        NglOpaqueNode* next1 = hole;
+        NglOpaqueNode* next2 = hole + shift == last ? first : hole + shift;
+        while (next2 != hole) {
+            *next1 = *next2;
+            next1 = next2;
+            if (shift < last - next2)
+                next2 += shift;
+            else
+                next2 = first + (shift - (last - next2));
+        }
+        *next1 = value;
+    }
+}
+
+void XB_CDECL std_Med3_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last) {
+    if (mid->key < first->key) swap_nodes(*mid, *first);
+    if (last->key < mid->key) swap_nodes(*last, *mid);
+    if (mid->key < first->key) swap_nodes(*mid, *first);
+}
+
+void XB_CDECL std_Med3_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* mid,
+                                        NglTranslucentNode* last) {
+    if (less(*mid, *first)) swap_nodes(*mid, *first);
+    if (less(*last, *mid)) swap_nodes(*last, *mid);
+    if (less(*mid, *first)) swap_nodes(*mid, *first);
+}
+
 }  // namespace game

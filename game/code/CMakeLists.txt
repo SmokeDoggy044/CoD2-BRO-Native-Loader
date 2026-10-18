@@ -8,6 +8,7 @@ set(game_code_sources
     ngl.cpp
     script_string.cpp
     tr_main.cpp
+    unzip.cpp
 )
 # Linux loader builds: a shared library, so that the comparison harness can tell this
 # code apart from the loader's (its test processes keep only this library, the C

@@ -26,7 +26,10 @@ Conventions in `game/code/`: the title's globals are reached with `title_global<
 (title_data.h; such functions stay campaign-only until their multiplayer addresses are
 known); functions taking arguments in EAX/EDX/ECX use `XB_REGS3` (platform/compiler.h);
 the library is built with `-msse -mfpmath=sse` so float math rounds like the title's SSE
-code (keep the original's operation order; `0 - x` is not `-x` for x = 0). `--compare`
+code (keep the original's operation order; `0 - x` is not `-x` for x = 0). No range-for
+over a braced list (`for (int i : {1, 2})`): the Debug build calls
+`std::initializer_list` members out of line, the loader's copies win, and every test
+ends inconclusive ("called host code"); use a static array. `--compare`
 implies `--pc-patches off`: the loader's PC changes to the game's code (60 fps pacing,
 mouse look, aim assist off, widescreen menu/objectives hooks) stay out, so compared
 functions run as on the Xbox (30 fps) and patched ones such as nglSetVBlankMode can be

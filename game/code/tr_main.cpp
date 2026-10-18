@@ -1,5 +1,7 @@
 #include "tr_main.h"
 
+#include <cstring>
+
 #include "title_data.h"
 
 namespace game {
@@ -129,4 +131,130 @@ void XB_CDECL R_AddViewModelRefEntity(uint8_t* entity) {
     ++list.count;
 }
 
+int32_t XB_REGS3 R_CullPortal(const uint8_t* portal, const float* planes, int32_t count) {
+    const float* points = *reinterpret_cast<const float* const*>(portal + 0x18);
+    const int32_t point_count = *reinterpret_cast<const int32_t*>(portal + 0x1c);
+    for (; count != 0; --count, planes += 5) {
+        int32_t i = 0;
+        for (; i != point_count; ++i) {
+            const float* p = points + i * 4;
+            if (p[2] * planes[2] + p[1] * planes[1] + p[0] * planes[0] > planes[3]) break;
+        }
+        if (i == point_count) return 1;
+    }
+    return 0;
+}
+
+void XB_CDECL R_SetupProjection() {
+    float zfar;
+    if (title_global<uint8_t>(0x0095e600) & 1) {
+        zfar = 2048.0f;
+    } else {
+        zfar = cvar_value(title_global<const Cvar*>(0x0095e378));
+        if (zfar == 0.0f) zfar = 524288.0f;
+    }
+    title_global<float>(0x0095e514) = zfar;
+
+    float* m = &title_global<float>(0x0095e4d4);
+    const float pi_over_360 = 0x1.1df46ap-7f;  // 0x3c0efa35
+    const float xmax = platform_x87_tan(title_global<float>(0x0095e5f8) * pi_over_360);
+    const float znear = cvar_value(title_global<const Cvar*>(0x0095e7e0));
+    static const int kZero[] = {4, 12, 1, 13, 2, 6, 3, 7, 15};  // no braced-list range-for (ngl.cpp)
+    for (int i = 0; i < 9; ++i) m[kZero[i]] = 0.0f;
+    m[14] = znear * -2.0f;
+    const float xmin = 0.0f - xmax;
+    const float width = xmax - xmin;
+    const float x_sum = xmin + xmax;
+    const float ymax = platform_x87_tan(title_global<float>(0x0095e5f4) * pi_over_360);
+    const float ymin = 0.0f - ymax;
+    const float height = ymax - ymin;
+    const float y_sum = ymin + ymax;
+    const float inv_height = 1.0f / height;
+    m[8] = y_sum * inv_height;
+    const float inv_width = 1.0f / width;
+    m[9] = x_sum * inv_width;
+    m[0] = inv_height * 2.0f;
+    m[5] = inv_width * 2.0f;
+    m[10] = -1.0f;
+    m[11] = -1.0f;
+}
+
+void XB_CDECL R_CopyFrustumPlanes() {
+    const float* view_planes = &title_global<float>(0x0095e518);
+    RCullPlane* planes = &title_global<RCullPlane>(0x0095e24c);
+    for (int i = 0; i < 4; ++i) {
+        const float* source = view_planes + i * 5;
+        RCullPlane& plane = planes[i];
+        for (int axis = 0; axis < 3; ++axis) plane.normal[axis] = source[axis];
+        plane.dist = source[3] - 0.005f;
+        for (int axis = 0; axis < 3; ++axis) {
+            int32_t bits;
+            std::memcpy(&bits, &plane.normal[axis], sizeof bits);
+            plane.box_offset[axis] = static_cast<uint8_t>((bits > 0 ? 12 : 0) + 4 * axis);
+        }
+    }
+}
+
+float* XB_REGS1 XB_CDECL R_ClipPolygonToPlane(const float* plane, float* in, int32_t* count, float* out) {
+    enum { kFront, kBack, kOn };
+    int32_t sides[64];
+    float dists[64];
+    int32_t front = 0;
+    int32_t back = 0;
+    int32_t i = 0;
+    for (; i < *count; ++i) {
+        const float* p = in + i * 4;
+        const float d = p[2] * plane[2] + p[0] * plane[0] + p[1] * plane[1] - plane[3];
+        dists[i] = d;
+        sides[i] = kOn;
+        if (-0.005f > d) {
+            sides[i] = kBack;
+            ++back;
+        } else if (d > 0.005f) {
+            sides[i] = kFront;
+            ++front;
+        }
+    }
+    if (front == 0) {
+        *count = 0;
+        return nullptr;
+    }
+    if (back == 0) return in;
+    sides[i] = sides[0];
+    dists[i] = dists[0];
+
+    int32_t out_count = 0;
+    float* o = out;
+    for (i = 0; i < *count; ++i) {
+        const float* p = in + i * 4;
+        const int32_t side = sides[i];
+        if (side == kOn) {
+            o[0] = p[0];
+            o[1] = p[1];
+            o[2] = p[2];
+            o += 4;
+            ++out_count;
+            continue;
+        }
+        if (side == kFront) {
+            o[0] = p[0];
+            o[1] = p[1];
+            o[2] = p[2];
+            o += 4;
+            ++out_count;
+        }
+        if (sides[i + 1] == kOn || sides[i + 1] == side) continue;
+        const float* q = in + ((i + 1) % *count) * 4;
+        const float t = dists[i] / (dists[i] - dists[i + 1]);
+        o[0] = (q[0] - p[0]) * t + p[0];
+        o[1] = (q[1] - p[1]) * t + p[1];
+        o[2] = (q[2] - p[2]) * t + p[2];
+        o += 4;
+        if (++out_count == 32) break;
+    }
+    *count = out_count;
+    return out;
+}
+
 }  // namespace game
+

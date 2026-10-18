@@ -50,4 +50,31 @@ void XB_CDECL RE_SetFarCullDist(float distance);
 // 0x00235e90: the larger of r_zfar and the far cull distance.
 float XB_CDECL RE_GetFarCullDist();
 
+// 0x00235e30: 1 when one of `count` planes (normal, dist; 20 bytes each) has every
+// point of the portal's winding (points at +0x18, 16 bytes each, count at +0x1c) on
+// or behind it, else 0. EAX = portal, EDX = planes, ECX = count.
+int32_t XB_REGS3 R_CullPortal(const uint8_t* portal, const float* planes, int32_t count);
+// 0x00236fb0: the view's projection matrix (Q3's R_SetupProjection, infinite far
+// plane; tan via the x87 FPTAN) and its far distance (2048 with the flag at 0x0095e600
+// bit 0, else r_zfar, 0 = 524288).
+void XB_CDECL R_SetupProjection();
+
+// Q3's cplane_t, with byte offsets into a {mins, maxs} box instead of signbits.
+struct RCullPlane {
+    float normal[3];
+    float dist;
+    uint8_t box_offset[3];  // per axis: 4 * axis, + 12 (maxs) when the normal's bits
+                            // as an integer are > 0 (so -0.0 and +0.0 pick mins)
+    uint8_t unknown13;
+};
+static_assert(sizeof(RCullPlane) == 20);
+// 0x00237940: the view's four side planes (0x0095e518) into the cull planes
+// (0x0095e24c), each pushed out by 0.005.
+void XB_CDECL R_CopyFrustumPlanes();
+// 0x0023bb70: Q3's ChopWinding-style clip of `*count` points (16 bytes apart, xyz
+// used) to the front of `plane` (EAX; normal, dist), with a 0.005 epsilon. Returns
+// `in` when nothing is behind, null (and *count = 0) when nothing is in front, else
+// `out` with *count set (at most 32 points, the check is after clip points only).
+float* XB_REGS1 XB_CDECL R_ClipPolygonToPlane(const float* plane, float* in, int32_t* count, float* out);
+
 }  // namespace game
