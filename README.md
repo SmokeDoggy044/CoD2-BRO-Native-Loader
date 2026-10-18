@@ -19,18 +19,27 @@ loader goes away.
 
 | Step | Done | What |
 |---|---:|---|
-| 1. Naming | **640/9511** | `.text` functions named in Ghidra after their Quake 3 / RTCW counterparts, CoD-specific ones from their bodies (plus 385 globals) - [docs/naming.md](docs/naming.md) |
-| 2. Decompiling | **3/9511** | `.text` functions decompiled into `game/code/` and matched against the originals - [docs/comparison-harness.md](docs/comparison-harness.md) |
+| 1. Naming | **640/14488** | Functions named in Ghidra after their Quake 3 / RTCW counterparts, CoD-specific ones from their bodies (plus 385 globals) - [docs/naming.md](docs/naming.md) |
+| 2. Decompiling | **3/14488** (engine 3/9511, levels 0/4977) | Functions decompiled into `game/code/` and matched against the originals - [docs/comparison-harness.md](docs/comparison-harness.md) |
 
-The count is over the `.text` section (engine and game code), the code to decompile
-function by function. The XBE's other code sections are not counted:
+The total covers the code the full native build needs from the XBE:
 
-- **Microsoft libraries** (XGRPH, XONLINE, DSOUND, XNET, D3DX, D3D, XPP: 2,954
-  functions): replaced by the loader's own platform code (`render/`, `audio/`,
-  `input/`, `online/`), not decompiled.
+- **`.text`** (9,511 functions): the engine and game code, including the C runtime
+  and SDK helpers linked into it.
 - **Level sections** (PROLOGUE, ORAN, ... DRAGEETH, one per mission: 4,977
-  compiler-generated level-script functions): to be converted by a translator,
-  not one function at a time.
+  functions): the missions' compiled level scripts. They are to be converted by a
+  translator rather than one function at a time, and count as done once the
+  translated code matches the originals like any other function.
+
+**Not counted: the Microsoft library sections** (XGRPH, XONLINE, DSOUND, XNET,
+D3DX, D3D, XPP: 2,954 functions), for two reasons:
+
+- They drive the Xbox hardware and services (the NV2A GPU, the audio processor,
+  the Xbox network stack and Xbox Live), so their code is of no use on PC. The
+  native build replaces them with its own platform code (`render/`, `audio/`,
+  `input/`, `online/`), which the native loader already uses.
+- They are Microsoft's Xbox SDK, not the game's code; publishing a decompilation
+  of them would mean republishing Microsoft's code.
 
 Current state and next steps: [docs/status.md](docs/status.md) (top entry) and
 [docs/naming.md](docs/naming.md) ("Next").
