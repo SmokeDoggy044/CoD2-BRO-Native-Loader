@@ -922,6 +922,155 @@ void XB_CDECL R_LinkEntityToCells_r(const uint8_t* owner, const uint8_t* node, u
     if (n->cell >= 0) R_LinkEntityToCell(owner, static_cast<uint32_t>(n->cell), model);
 }
 
+void XB_CDECL R_AddEntityToCells_r(const uint8_t* node, void* entity, const float* mins, const float* maxs) {
+    // R_LinkEntityToCells_r's walk, linking the entity's bounds instead of a model.
+    const RCellNode* n = reinterpret_cast<const RCellNode*>(node);
+    while (n->cell == -2) {
+        const float* plane = n->plane;
+        const Lanes zero = lanes(&title_global<float>(0x0082e680));
+        Lanes far_corner;
+        Lanes near_corner;
+        for (int i = 0; i < 4; ++i) {
+            far_corner.v[i] = zero.v[i] <= plane[i] ? maxs[i] : mins[i];
+            near_corner.v[i] = plane[i] <= zero.v[i] ? maxs[i] : mins[i];
+        }
+        const Lanes fp = mul(far_corner, lanes(plane));
+        const Lanes np = mul(near_corner, lanes(plane));
+        platform_keep(fp);
+        platform_keep(np);
+        const float far_dist = fp.v[0] + fp.v[1] + fp.v[2];
+        const float near_dist = np.v[0] + np.v[1] + np.v[2];
+        uint32_t sides = 0;
+        if (far_dist >= plane[3]) sides = 1;
+        if (plane[3] > near_dist) sides |= 2;
+        if (sides == 3) {
+            R_AddEntityToCells_r(reinterpret_cast<const uint8_t*>(n->children[0]), entity, mins, maxs);
+            n = n->children[1];
+        } else {
+            n = reinterpret_cast<const RCellNode* const*>(&n->plane)[sides];
+        }
+    }
+    if (n->cell < 0) return;
+    const uint8_t* world = *reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095e608) + 0x100);
+    uint32_t index = static_cast<uint32_t>(n->cell);
+    if (index >= *reinterpret_cast<const uint32_t*>(world + 0x18)) index = 0;
+    R_AddCellEntityLink(*reinterpret_cast<uint8_t* const*>(world + 0x1c) + index * 0x50, mins, maxs, entity);
+}
+
+void XB_CDECL R_AddEntitiesToCells(const RCullPlane* planes, int32_t count) {
+    const int32_t enabled = *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x0095e234) + 0x20);
+    const auto cell_at = [](uint32_t index) {
+        const uint8_t* world = *reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095e608) + 0x100);
+        if (index >= *reinterpret_cast<const uint32_t*>(world + 0x18)) index = 0;
+        return *reinterpret_cast<uint8_t* const*>(world + 0x1c) + index * 0x50;
+    };
+    for (uint32_t i = 0;
+         i < *reinterpret_cast<const uint32_t*>(
+                 *reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095e608) + 0x100) + 0x18);
+         ++i)
+        *reinterpret_cast<uint32_t*>(cell_at(i) + 0x38) = 0;
+    title_global<int32_t>(0x0095e2d4) = 0;
+    uint8_t* list = title_global<uint8_t*>(0x008db128);
+    uint8_t* entity = *reinterpret_cast<uint8_t**>(list + 4);
+    uint8_t* next = entity ? *reinterpret_cast<uint8_t**>(entity) : nullptr;
+    if (entity == list + 8 || !next) return;
+    // Like the original's stack locals, the box and the model bounds carry over from the
+    // previous entity when this one has no model (or no bounds).
+    float box[6] = {};     // mins, maxs
+    float bounds[6] = {};  // the model's, before scaling
+    for (;;) {
+        entity[0xec] = 0;
+        if (*reinterpret_cast<const int32_t*>(entity + 0x80) == 1 && enabled) {
+            // Radius: the longest of the three axis vectors.
+            const float* axis = reinterpret_cast<const float*>(entity + 0x94);
+            const float a = axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2];
+            const float b = axis[3] * axis[3] + axis[4] * axis[4] + axis[5] * axis[5];
+            const float c = axis[6] * axis[6] + axis[7] * axis[7] + axis[8] * axis[8];
+            float longest = a;
+            if (b > longest) longest = b;
+            if (c > longest) longest = c;
+            const float radius = platform_x87_sqrt(longest);
+            const uint8_t* model = *reinterpret_cast<uint8_t* const*>(entity + 0xd4);
+            if (model) {
+                const float* model_bounds = *reinterpret_cast<const float* const*>(model + 0x38);
+                if (model_bounds) {
+                    for (int k = 0; k < 3; ++k) {
+                        bounds[k] = model_bounds[k];
+                        bounds[3 + k] = model_bounds[4 + k];
+                    }
+                }
+                const float* origin = reinterpret_cast<const float*>(entity + 0xbc);
+                for (int k = 0; k < 6; ++k) box[k] = bounds[k] * radius + origin[k % 3];
+            }
+            bool culled = false;
+            const auto dist = [&box](const RCullPlane& plane, bool reversed) {
+                const auto at = [&box](uint8_t offset) { return box[offset / 4]; };
+                if (!reversed)
+                    return at(plane.box_offset[0]) * plane.normal[0] + at(plane.box_offset[1]) * plane.normal[1] +
+                           at(plane.box_offset[2]) * plane.normal[2];
+                return at(plane.box_offset[2]) * plane.normal[2] + at(plane.box_offset[1]) * plane.normal[1] +
+                       at(plane.box_offset[0]) * plane.normal[0];
+            };
+            for (int32_t p = 0; p < count && !culled; ++p) culled = planes[p].dist > dist(planes[p], false);
+            if (!culled) {
+                const RCullPlane& near_plane = *title_global<const RCullPlane*>(0x0095e2c4);
+                culled = near_plane.dist > dist(near_plane, true);
+            }
+            if (!culled) {
+                const RCullPlane* far_plane = title_global<const RCullPlane*>(0x0095e2c8);
+                culled = far_plane && far_plane->dist > dist(*far_plane, true);
+            }
+            if (culled) {
+                entity[0xec] = 2;
+            } else {
+                // Boxes over the limit along two axes are not linked.
+                const float limit = title_global<float>(0x0083eb84);
+                const bool wide_x = box[3] - box[0] > limit;
+                const bool wide_y = box[4] - box[1] > limit;
+                bool skip;
+                if (wide_x)
+                    skip = wide_y || box[5] - box[2] > limit;
+                else
+                    skip = wide_y && box[5] - box[2] > limit;
+                if (!skip) {
+                    alignas(16) float mins[4] = {box[0], box[1], box[2], box[0]};
+                    alignas(16) float maxs[4] = {box[3], box[4], box[5], box[3]};
+                    const uint8_t* light = *reinterpret_cast<uint8_t* const*>(entity + 0xd8);
+                    const float range = *reinterpret_cast<const float*>(light + 0x12c) - title_global<float>(0x0083ece8);
+                    bool linked = false;
+                    if (range > 0.0f) {
+                        const Lanes d = sub(lanes(reinterpret_cast<const float*>(light + 0x120)),
+                                            lanes(reinterpret_cast<const float*>(light + 0x140)));
+                        const Lanes d2 = mul(d, d);
+                        platform_keep(d2);
+                        if (range * range > d2.v[0] + d2.v[1] + d2.v[2]) {
+                            // Within range of its light's origin: just the light's cell.
+                            const uint8_t* tree = title_global<const uint8_t*>(0x0095f6b8);
+                            uint32_t index = *reinterpret_cast<const uint32_t*>(light + 0x130);
+                            if (index >= *reinterpret_cast<const uint32_t*>(tree + 8)) index = 0;
+                            const int16_t cell = *reinterpret_cast<const int16_t*>(
+                                *reinterpret_cast<uint8_t* const*>(tree + 0xc) + index * 16 + 2);
+                            if (cell != -2) {
+                                if (cell >= 0) R_AddCellEntityLink(cell_at(static_cast<uint32_t>(cell)), mins, maxs, entity);
+                                linked = true;
+                            }
+                        }
+                    }
+                    if (!linked) {
+                        const uint8_t* world = *reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095e608) + 0x100);
+                        R_AddEntityToCells_r(*reinterpret_cast<uint8_t* const*>(world + 0xc), entity, mins, maxs);
+                    }
+                }
+                entity[0xec] = 0;
+            }
+        }
+        // The last entity (its next is null) is not visited.
+        entity = next;
+        next = *reinterpret_cast<uint8_t**>(entity);
+        if (!next) break;
+    }
+}
+
 void XB_REGS1 XB_CDECL R_AddCellModels(const uint8_t* cell) {
     for (const RCellModelLink* link = *reinterpret_cast<RCellModelLink* const*>(cell + 0x34); link;
          link = link->next) {
@@ -1019,7 +1168,7 @@ RPlane* XB_REGS1 XB_CDECL R_ClipPortalWinding(int32_t n, int32_t* count, const f
         // The winding's bounds in the projected view (rows at 0x0095e2d8, w row +0x30).
         const float* m = &title_global<float>(0x0095e2d8);
         float a_min = one;
-        float a_max = title_global<float>(0x0083eb34);  // -100
+        float a_max = title_global<float>(0x0083eb34);  // -1
         float b_min = one;
         float b_max = a_max;
         for (int32_t i = 0; i < n; ++i) {
@@ -1174,6 +1323,468 @@ void XB_CDECL R_VisitCell_r(uint8_t* cell, const uint8_t* from_portal, const uin
         title_function<void XB_CDECL(void*)>(0x000428d0)(clipped);  // Z_Free
         visiting = 0;
     }
+}
+
+namespace {
+
+// The plane's box corner offsets: 4 * axis, + 12 when the component's bits as an
+// integer are > 0 (R_CopyFrustumPlanes does the same).
+void set_box_offsets(RCullPlane& plane) {
+    for (int axis = 0; axis < 3; ++axis) {
+        int32_t bits;
+        std::memcpy(&bits, &plane.normal[axis], sizeof bits);
+        plane.box_offset[axis] = static_cast<uint8_t>((bits > 0 ? 12 : 0) + 4 * axis);
+    }
+}
+
+}  // namespace
+
+void XB_CDECL R_SetupFrustum() {
+    // Q3's R_SetupFrustum: the side planes from the view axes (0x0095e3ac, three rows)
+    // and the half field of view angles (0x0095e4c4 x, 0x0095e4c8 y, degrees).
+    const auto sin_cos = title_function<void XB_REGS3(float*, uint32_t, float*, float)>(0x000110f0);  // FastSinCos
+    const float* axis = &title_global<float>(0x0095e3ac);
+    float* frustum = &title_global<float>(0x0095e518);  // 4 planes, 0x14 bytes apart
+    const float to_half_radians = title_global<float>(0x0083ed0c);  // pi / 2
+    float s, c;
+    sin_cos(&s, 0, &c, platform_x87_div_mul(title_global<float>(0x0095e4c4), 180.0f, to_half_radians));
+    for (int i = 0; i < 3; ++i) frustum[i] = axis[3 + i] * c + axis[i] * s;
+    float neg = 0.0f - c;
+    for (int i = 0; i < 3; ++i) frustum[5 + i] = neg * axis[3 + i] + axis[i] * s;
+    sin_cos(&s, 0, &c, platform_x87_div_mul(title_global<float>(0x0095e4c8), 180.0f, to_half_radians));
+    for (int i = 0; i < 3; ++i) frustum[10 + i] = axis[6 + i] * c + axis[i] * s;
+    neg = 0.0f - c;
+    for (int i = 0; i < 3; ++i) frustum[15 + i] = neg * axis[6 + i] + axis[i] * s;
+    const float* origin = &title_global<float>(0x0095e3a0);
+    for (int i = 0; i < 4; ++i) {
+        float* plane = frustum + i * 5;
+        uint8_t* bytes = reinterpret_cast<uint8_t*>(plane + 4);
+        bytes[0] = 3;  // PLANE_NON_AXIAL
+        plane[3] = plane[2] * origin[2] + plane[1] * origin[1] + origin[0] * plane[0];
+        uint8_t bits = 0;
+        for (int axis_index = 0; axis_index < 3; ++axis_index)
+            if (0.0f > plane[axis_index]) bits |= static_cast<uint8_t>(1 << axis_index);
+        bytes[1] = bits;
+    }
+}
+
+void XB_CDECL R_RotateForViewer() {
+    // Q3's R_RotateForViewer: tr.or (0x0095e568, 31 floats) is the identity at the view
+    // origin, its model matrix the view axes transposed with -origin, times the flip matrix
+    // (0x008db150); viewParms.world (0x0095e41c) gets a copy.
+    uint32_t* orientation = &title_global<uint32_t>(0x0095e568);
+    for (int i = 0; i < 31; ++i) orientation[i] = 0;
+    float* o = reinterpret_cast<float*>(orientation);
+    const float one = title_global<float>(0x0083eb20);
+    o[3] = one;
+    o[7] = one;
+    o[11] = one;
+    const float* view_origin = &title_global<float>(0x0095e3a0);
+    for (int i = 0; i < 3; ++i) o[12 + i] = view_origin[i];
+    const float origin[3] = {view_origin[0], view_origin[1], view_origin[2]};
+    // The axes as three 16-byte rows (each read 4 floats from its start), adjusted by
+    // 0x002c9270 (0x00964b80 as `this`).
+    alignas(16) float axis[3][4];
+    for (int row = 0; row < 3; ++row)
+        std::memcpy(axis[row], &title_global<float>(0x0095e3ac + row * 12), sizeof axis[row]);
+    title_function<void XB_THISCALL(void*, float*)>(0x002c9270)(&title_global<uint8_t>(0x00964b80), axis[0]);
+    alignas(16) float viewer[16];
+    for (int row = 0; row < 3; ++row) {
+        viewer[row] = axis[row][0];
+        viewer[4 + row] = axis[row][1];
+        viewer[8 + row] = axis[row][2];
+        viewer[12 + row] = 0.0f - (axis[row][2] * origin[2] + axis[row][1] * origin[1] + axis[row][0] * origin[0]);
+    }
+    viewer[3] = 0.0f;
+    viewer[7] = 0.0f;
+    viewer[11] = 0.0f;
+    viewer[15] = one;
+    myGLMultMatrix(viewer, o + 15, &title_global<float>(0x008db150));
+    std::memcpy(&title_global<uint32_t>(0x0095e41c), orientation, 31 * 4);
+}
+
+void XB_REGS3 MatrixInverse4x4(const float* m, uint32_t /*unused*/, float* dst) {
+    // Cofactors in MSVC's evaluation order (lifted from the SSE code: each sum runs
+    // differently from the textbook formula).
+    dst[0] = ((((m[13] * (m[6] * m[11])) + (m[9] * (m[7] * m[14]))) + (m[5] * (m[15] * m[10]))) - (((m[13] * (m[7] * m[10])) + (m[9] * (m[6] * m[15]))) + (m[5] * (m[11] * m[14]))));
+    dst[1] = ((((m[13] * (m[3] * m[10])) + (m[9] * (m[2] * m[15]))) + (m[1] * (m[11] * m[14]))) - (((m[13] * (m[2] * m[11])) + (m[9] * (m[3] * m[14]))) + (m[1] * (m[15] * m[10]))));
+    dst[2] = ((((m[13] * (m[2] * m[7])) + (m[5] * (m[3] * m[14]))) + (m[1] * (m[6] * m[15]))) - (((m[13] * (m[3] * m[6])) + (m[5] * (m[2] * m[15]))) + (m[1] * (m[7] * m[14]))));
+    dst[3] = ((((m[9] * (m[3] * m[6])) + (m[5] * (m[2] * m[11]))) + (m[1] * (m[7] * m[10]))) - (((m[9] * (m[2] * m[7])) + (m[5] * (m[3] * m[10]))) + (m[1] * (m[6] * m[11]))));
+    dst[4] = ((((m[12] * (m[7] * m[10])) + (m[8] * (m[6] * m[15]))) + (m[4] * (m[11] * m[14]))) - (((m[12] * (m[6] * m[11])) + (m[8] * (m[7] * m[14]))) + (m[4] * (m[15] * m[10]))));
+    dst[5] = ((((m[12] * (m[2] * m[11])) + (m[0] * (m[15] * m[10]))) + (m[8] * (m[3] * m[14]))) - (((m[12] * (m[3] * m[10])) + (m[0] * (m[11] * m[14]))) + (m[8] * (m[2] * m[15]))));
+    dst[6] = ((((m[12] * (m[3] * m[6])) + (m[0] * (m[7] * m[14]))) + (m[4] * (m[2] * m[15]))) - (((m[12] * (m[2] * m[7])) + (m[0] * (m[6] * m[15]))) + (m[4] * (m[3] * m[14]))));
+    dst[7] = ((((m[0] * (m[6] * m[11])) + (m[8] * (m[2] * m[7]))) + (m[4] * (m[3] * m[10]))) - (((m[0] * (m[7] * m[10])) + (m[8] * (m[3] * m[6]))) + (m[4] * (m[2] * m[11]))));
+    dst[8] = (((((m[12] * m[5]) * m[11]) + (m[7] * (m[8] * m[13]))) + ((m[4] * m[9]) * m[15])) - (((m[7] * (m[12] * m[9])) + ((m[4] * m[13]) * m[11])) + ((m[8] * m[5]) * m[15])));
+    dst[9] = ((((m[3] * (m[12] * m[9])) + ((m[0] * m[13]) * m[11])) + ((m[8] * m[1]) * m[15])) - ((((m[12] * m[1]) * m[11]) + (m[3] * (m[8] * m[13]))) + ((m[0] * m[9]) * m[15])));
+    dst[10] = (((((m[12] * m[1]) * m[7]) + (m[3] * (m[4] * m[13]))) + ((m[0] * m[5]) * m[15])) - (((m[3] * (m[12] * m[5])) + ((m[0] * m[13]) * m[7])) + ((m[4] * m[1]) * m[15])));
+    dst[11] = ((((m[3] * (m[8] * m[5])) + ((m[0] * m[9]) * m[7])) + ((m[4] * m[1]) * m[11])) - (((m[3] * (m[4] * m[9])) + ((m[8] * m[1]) * m[7])) + ((m[0] * m[5]) * m[11])));
+    dst[12] = (((((m[8] * m[5]) * m[14]) + (m[6] * (m[12] * m[9]))) + ((m[4] * m[13]) * m[10])) - ((((m[4] * m[9]) * m[14]) + (m[6] * (m[8] * m[13]))) + ((m[12] * m[5]) * m[10])));
+    dst[13] = (((((m[0] * m[9]) * m[14]) + (m[2] * (m[8] * m[13]))) + ((m[12] * m[1]) * m[10])) - ((((m[8] * m[1]) * m[14]) + (m[2] * (m[12] * m[9]))) + ((m[0] * m[13]) * m[10])));
+    dst[14] = ((((m[2] * (m[12] * m[5])) + ((m[0] * m[13]) * m[6])) + ((m[4] * m[1]) * m[14])) - ((((m[12] * m[1]) * m[6]) + (m[2] * (m[4] * m[13]))) + ((m[0] * m[5]) * m[14])));
+    dst[15] = ((((m[2] * (m[4] * m[9])) + ((m[8] * m[1]) * m[6])) + ((m[0] * m[5]) * m[10])) - (((m[2] * (m[8] * m[5])) + ((m[0] * m[9]) * m[6])) + ((m[4] * m[1]) * m[10])));
+    const float det = dst[2] * m[8] + dst[3] * m[12] + m[0] * dst[0] + dst[1] * m[4];
+    const float inv = title_global<float>(0x0083eb20) / det;  // 1
+    for (int i = 0; i < 16; ++i) dst[i] = dst[i] * inv;
+}
+
+void XB_CDECL R_SetupPortalBevels() {
+    // The world's model matrix (0x0095e458) times the projection (0x0095e4d4).
+    const float* a = &title_global<float>(0x0095e458);
+    const float* b = &title_global<float>(0x0095e4d4);
+    float product[16];
+    for (int j = 0; j < 4; ++j)
+        for (int i = 0; i < 4; ++i)
+            product[i * 4 + j] = a[i * 4 + 3] * b[12 + j] + a[i * 4] * b[j] + a[i * 4 + 1] * b[4 + j] + b[8 + j] * a[i * 4 + 2];
+    MatrixInverse4x4(product, 0, &title_global<float>(0x0095e318));
+    float* transposed = &title_global<float>(0x0095e2d8);
+    for (int k = 0; k < 4; ++k)
+        for (int i = 0; i < 4; ++i) transposed[k * 4 + i] = product[i * 4 + k];
+}
+
+void XB_CDECL R_SetupCullPlanes() {
+    uint32_t& unlock = title_global<uint32_t>(0x008ff018);
+    if (!unlock && *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x0095e6cc) + 0x20)) return;  // r_lockpvs
+    unlock = 0;
+    R_CopyFrustumPlanes();
+    const float* origin = &title_global<float>(0x0095e3a0);
+    const float* forward = &title_global<float>(0x0095e3ac);
+    float* view_origin = &title_global<float>(0x0095e240);
+    for (int axis = 0; axis < 3; ++axis) view_origin[axis] = origin[axis];
+    RCullPlane& near_plane = title_global<RCullPlane>(0x0095e29c);
+    for (int axis = 0; axis < 3; ++axis) near_plane.normal[axis] = forward[axis];
+    set_box_offsets(near_plane);
+    near_plane.dist = forward[2] * origin[2] + forward[1] * origin[1] + forward[0] * origin[0] - 0.1f - 0.005f;
+    title_global<uint32_t>(0x0095e2c4) = title_global<uint32_t>(0x0095e4a8) ? 0x0095e4b0 : 0x0095e29c;
+    const float far_cull = title_global<float>(0x0095e2cc);
+    float zfar = cvar_value(title_global<const Cvar*>(0x0095e378));
+    if (far_cull > zfar) zfar = far_cull;
+    if (zfar > 0.0f) {
+        RCullPlane& far_plane = title_global<RCullPlane>(0x0095e2b0);
+        for (int axis = 0; axis < 3; ++axis) far_plane.normal[axis] = forward[axis] * title_global<float>(0x0083eb34);  // -1, a MULSS
+        set_box_offsets(far_plane);
+        far_plane.dist = far_plane.normal[2] * origin[2] + far_plane.normal[1] * origin[1] +
+                         far_plane.normal[0] * origin[0] - zfar - 0.005f;
+        title_global<uint32_t>(0x0095e2c8) = 0x0095e2b0;
+    } else {
+        title_global<uint32_t>(0x0095e2c8) = 0;
+    }
+    if (cvar_value(title_global<const Cvar*>(0x0095e6e0)) > 0.0f)  // r_portalbevels
+        R_SetupPortalBevels();
+}
+
+// The original reserves the cell entity link buffer (0x2000 bytes) right below its
+// return address and stores its address in 0x0095e2d0: the entry does the same, so the
+// global gets the same value.
+PLATFORM_ASM_ENTRY(R_AddWorldSurfaces_entry,
+                   "subl $0x2000, %esp\n"
+                   "pushl %esp\n" PLATFORM_ASM_CALL(R_AddWorldSurfaces) "addl $0x2004, %esp\n"
+                   "ret")
+
+void XB_CDECL R_AddWorldSurfaces(void* link_buffer) {
+    if (title_global<uint8_t>(0x0095e600) & 1) return;
+    const uint32_t pass = (1u << title_global<uint8_t>(0x0095e604)) - 1;
+    title_global<void*>(0x0095e2d0) = link_buffer;
+    R_SetupCullPlanes();
+    const uint8_t* planes = &title_global<uint8_t>(0x0095e24c);
+    R_AddEntitiesToCells(reinterpret_cast<const RCullPlane*>(planes), 4);
+    const auto world = [] { return *reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095e608) + 0x100); };
+    const auto cell_at = [&](uint32_t index) {
+        const uint8_t* w = world();
+        if (index >= *reinterpret_cast<const uint32_t*>(w + 0x18)) index = 0;
+        return *reinterpret_cast<uint8_t* const*>(w + 0x1c) + index * 0x50;
+    };
+    const int32_t view_cell = R_CellForViewOrigin();
+    if (view_cell >= 0) {
+        uint8_t* cell = cell_at(static_cast<uint32_t>(view_cell));
+        if (*reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x0095e6d4) + 0x20)) {  // r_singlecell
+            title_global<uint32_t>(0x0095e2c8) = 0;
+            R_AddCellSurfaces(cell, planes, 4);
+            R_AddCellModels(cell);
+        } else {
+            R_VisitCell_r(cell, &title_global<uint8_t>(0x0095e29c), planes, 4, pass);
+        }
+        return;
+    }
+    // Outside the map: every cell, their models with outsideMapEnts.
+    const bool models = *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x0095e720) + 0x20);
+    for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(world() + 0x18); ++i) {
+        R_AddCellSurfaces(cell_at(i), planes, 4);
+        if (models) R_AddCellModels(cell_at(i));
+    }
+}
+
+void XB_CDECL R_AddEntitySurfaces() {
+    if (!*reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x0095e36c) + 0x20)) return;  // r_drawentities
+    uint8_t* list = title_global<uint8_t*>(0x008db128);
+    uint8_t* entity = *reinterpret_cast<uint8_t**>(list + 4);
+    uint8_t* next = entity ? *reinterpret_cast<uint8_t**>(entity) : nullptr;
+    alignas(16) float matrix[16];
+    if (entity != list + 8 && next) {
+        for (;;) {
+            entity[0xed] &= 0xfe;
+            ++title_global<int32_t>(0x0094d570);
+            nglGetMatrix(matrix, 0);
+            bool skip = false;
+            if (title_global<uint32_t>(0x0095f550)) {
+                // Too far from the view in the horizontal plane (squared, the camera's
+                // translation row against the entity's origin).
+                const Lanes d = sub(lanes(matrix + 12), lanes(reinterpret_cast<const float*>(entity + 0xbc)));
+                const Lanes sq = mul(d, d);
+                const float x2 = d.v[0] * d.v[0];
+                const Lanes sum = {{x2 + sq.v[1], d.v[1] + sq.v[1], d.v[2] + sq.v[1], d.v[3] + sq.v[1]}};
+                platform_keep(sq);
+                platform_keep(sum);
+                skip = sum.v[0] > title_global<float>(0x0083f150);
+            }
+            if (!skip) {
+                ++title_global<int32_t>(0x00954e90);
+                if (!(entity[0x84] & 4) || !title_global<uint32_t>(0x0095e4a4)) {
+                    const uint32_t kind = *reinterpret_cast<const uint32_t*>(entity + 0x80);
+                    if (kind == 1) {
+                        title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x00245a20)(entity);  // R_AddEntityModel
+                        ++title_global<int32_t>(0x0094cb00);
+                    } else if (kind == 2) {
+                        title_function<void XB_CDECL()>(0x00042460)();  // breaks into a debugger when one is attached
+                    } else if (kind == 3 || kind > 15) {
+                        title_function<void XB_CDECL(int32_t, const char*, ...)>(title_global<uint32_t>(0x0095e634))(
+                            1, reinterpret_cast<const char*>(uintptr_t{0x0083bf38}));
+                    }
+                }
+            }
+            // The last entity (its next is null) is not visited.
+            entity = next;
+            next = *reinterpret_cast<uint8_t**>(entity);
+            if (!next) break;
+        }
+    }
+    // The animated objects (handles: index in the low 12 bits, a use count above).
+    for (int32_t i = 0; i < title_global<int32_t>(0x00960070); ++i) {
+        ++title_global<int32_t>(0x0094cb98);
+        const uint32_t handle = (&title_global<uint32_t>(0x00960074))[i];
+        ++title_global<int32_t>(0x00954e90);
+        const int32_t index = static_cast<int32_t>(handle & 0xfff);
+        if (index >= 0x540) continue;
+        const uint32_t* slot = &title_global<uint32_t>(0x0097a968 + index * 8);
+        if ((handle >> 12) != slot[1]) continue;
+        uint8_t* object = reinterpret_cast<uint8_t*>(uintptr_t{slot[0]});
+        if (!object) continue;
+        uint8_t* model = *reinterpret_cast<uint8_t**>(object + 0x22c);
+        if (!model) continue;
+        float* object_matrix = title_function<float* XB_STDCALL(uint8_t*, float*)>(0x002de120)(object, matrix);
+        title_function<void XB_CDECL(uint8_t*, uint8_t*, float*, int32_t, int32_t, int32_t)>(0x00244020)(  // R_AddDObjSurfaces
+            model, object, object_matrix, 1, 0xff, 0);
+    }
+}
+
+// Calls `function` with ESP at `top` minus its stack arguments (args[0] pushed last),
+// EAX = eax and ESI = esi; returns its EAX. Callers that rebuild the original's frame
+// use it so that each callee runs where the original's call puts it: some title
+// functions store addresses of their stack locals, or copy uninitialized ones.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_at(uint32_t top, uint32_t function, uint32_t eax,
+                                                          uint32_t esi, uint32_t count, const uint32_t* args);
+PLATFORM_ASM_ENTRY(title_call_at,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "movl 8(%ebp), %edx\n"
+                   "movl 24(%ebp), %ecx\n"
+                   "movl 28(%ebp), %edi\n"
+                   "1:\n"
+                   "testl %ecx, %ecx\n"
+                   "jz 2f\n"
+                   "decl %ecx\n"
+                   "subl $4, %edx\n"
+                   "movl (%edi,%ecx,4), %eax\n"
+                   "movl %eax, (%edx)\n"
+                   "jmp 1b\n"
+                   "2:\n"
+                   "movl 16(%ebp), %eax\n"
+                   "movl 20(%ebp), %esi\n"
+                   "movl 12(%ebp), %ecx\n"
+                   "movl %edx, %esp\n"
+                   "call *%ecx\n"
+                   "leal -12(%ebp), %esp\n"
+                   "popl %ebx\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebp\n"
+                   "ret")
+
+namespace {
+
+// Calls from a rebuilt original frame: `frame` is the original's ESP after its
+// prologue, `pending` the words its code still had pushed at that call.
+struct OriginalFrame {
+    uint32_t frame;
+    template <typename F>
+    static uint32_t address(F* function) {
+        return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function));
+    }
+    uint32_t operator()(uint32_t pending, uint32_t function, uint32_t count = 0, const uint32_t* args = nullptr,
+                        uint32_t eax = 0, uint32_t esi = 0) const {
+        return title_call_at(frame - 4 * pending, function, eax, esi, count, args);
+    }
+    // Our own functions leave other values on the dead stack than the originals, and
+    // title code called later may read uninitialized locals from there (the sky mesh's
+    // nglUpdateScene, then a later caller: a mismatch until this). The stack they used
+    // (16 KB below the call) is zeroed again, as the harness has it at a test's start.
+    template <typename F>
+    uint32_t operator()(uint32_t pending, F* function, uint32_t count = 0, const uint32_t* args = nullptr,
+                        uint32_t eax = 0) const {
+        const uint32_t top = frame - 4 * pending;
+        const uint32_t result = title_call_at(top, address(function), eax, 0, count, args);
+        constexpr uint32_t kScrub = 16 * 1024;
+        const uint32_t below = top - 4 * count - 4;  // the return address's slot
+        std::memset(reinterpret_cast<void*>(uintptr_t{below - kScrub}), 0, kScrub);
+        return result;
+    }
+};
+
+uint32_t float_bits(float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, sizeof bits);
+    return bits;
+}
+
+}  // namespace
+
+// The original's frame (aligned to 16, 0xa0 bytes: its locals - the view matrix copy at
+// +0x60, the sky matrix at +0x20 - and two saved registers) is rebuilt, with 128 KB
+// below it kept free: every call runs at the original's stack position from there.
+PLATFORM_ASM_ENTRY(R_RenderView_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "andl $-16, %esp\n"
+                   "subl $0xa0, %esp\n"
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %eax\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(R_RenderView) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
+    const OriginalFrame at{static_cast<uint32_t>(reinterpret_cast<uintptr_t>(frame))};
+    int32_t& view_count = title_global<int32_t>(0x0095e39c);
+    ++view_count;
+    std::memcpy(&title_global<uint8_t>(0x0095e3a0), parms, 0x72 * 4);  // tr.viewParms
+    title_global<uint32_t>(0x0095e4ac) = title_global<uint32_t>(0x0095e398);
+    ++view_count;
+    at(0, &R_RotateForViewer);
+    at(0, &R_SetupFrustum);
+    static const uint32_t kOne[] = {1};
+    static const uint32_t kZero[] = {0};
+    at(0, &nglPushScene, 1, kOne);
+    at(0, &R_SetupFog);
+    const uint32_t aspect[] = {float_bits(title_global<uint32_t>(0x00948f64) ? title_global<float>(0x0083f254)
+                                                                             : title_global<float>(0x0083eb80))};
+    at(0, &nglSetAspect, 1, aspect);
+    float far_z = *reinterpret_cast<const float*>(parms + 0x174);
+    if (far_z == 0.0f) far_z = title_global<float>(0x00830bd8);
+    const uint32_t fov = *reinterpret_cast<const uint32_t*>(parms + 0x128);
+    const uint32_t perspective[] = {fov, float_bits(cvar_value(title_global<const Cvar*>(0x0095e7e0))),  // r_znear
+                                    float_bits(far_z)};
+    at(0, &nglSetPerspective, 3, perspective);
+    float* view_matrix = reinterpret_cast<float*>(frame + 0x60);
+    std::memcpy(view_matrix, &title_global<float>(0x0095e458), 64);  // viewParms.world's
+    const uint32_t view_matrix_arg[] = {at.frame + 0x60};
+    at(3, &nglSetViewMatrix, 1, view_matrix_arg);
+    if (*reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095e608) + 0x108) &&
+        title_global<uint32_t>(0x008db138)) {
+        // The sky mesh around the view origin, without depth.
+        at(0, &nglPushScene, 1, kOne);
+        at(1, &nglSetSceneDepthEnable, 1, kZero);
+        at(2, &nglSetSceneDepthTest, 1, kZero);
+        const float* scale = &title_global<float>(0x0082e140);
+        float* matrix = reinterpret_cast<float*>(frame + 0x20);
+        for (int row = 0; row < 3; ++row)
+            for (int i = 0; i < 4; ++i) matrix[row * 4 + i] = (&title_global<float>(0x0082e160 + row * 16))[i] * scale[0];
+        const float* origin = &title_global<float>(0x0095e3a0);
+        float* scratch = reinterpret_cast<float*>(frame + 0x10);  // the original builds row 3 here first
+        scratch[0] = origin[0];
+        scratch[1] = origin[1];
+        scratch[2] = origin[2];
+        scratch[3] = origin[0];
+        std::memcpy(matrix + 12, scratch, 16);  // its w lane is x, as in the original
+        const uint32_t mesh_args[] = {
+            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                *reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095e608) + 0x108))),
+            at.frame + 0x20, 0, 0};
+        at(3, &nglListAddMesh, 4, mesh_args);
+        at(0, &nglPopScene);
+    }
+    at(0, &nglPushScene, 1, kOne);
+    static const uint32_t kOpaqueCallback[] = {0, 0x00045690, 0};
+    at(1, &nglSetSceneCallback, 3, kOpaqueCallback);
+    const auto cvar_integer = [](uint32_t address) {
+        return *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(address) + 0x20);
+    };
+    if (cvar_integer(0x0095e700)) at(0, 0x00241290);  // R_RenderTestShadow
+    static const uint32_t kFogCallback[] = {1, 0x00073380, 0};  // nglDrawFogPass
+    at(0, &nglSetSceneCallback, 3, kFogCallback);
+    if (title_global<uint32_t>(0x008db13c)) at(0, 0x00282040);  // CG_AddLocalEntities
+    at(0, 0x0028a760);                                           // CG_AddPacketEntities
+    if (title_global<uint32_t>(0x008db134)) at(0, 0x00246810);  // FX_DrawEffects
+    if (title_global<uint32_t>(0x008db130)) {
+        at(0, &R_SetupProjection);
+        const uint8_t* world = title_global<const uint8_t*>(0x0095e608);
+        if (world && *reinterpret_cast<const uint32_t*>(world + 0x100)) at(0, &R_AddWorldSurfaces_entry);
+        if (title_global<uint32_t>(0x008db148)) at(0, &R_AddEntitySurfaces);
+    }
+    const uint32_t effects_arg[] = {title_global<uint32_t>(0x0095f4f8)};
+    at(0, 0x002a8d30, 1, effects_arg);
+    if (title_global<uint32_t>(0x008db144)) {
+        const uint32_t* callbacks = &title_global<uint32_t>(0x00988784);
+        const uint32_t* end = callbacks + title_global<int32_t>(0x00988780);
+        for (; callbacks != end; ++callbacks) at(1, *callbacks);
+    }
+    at(1, &nglPopScene);
+    at(1, &R_ClearAlpha);
+    // The view model (gun) scene: entities of the list at 0x008db128 with the cvar at
+    // 0x0095e700 cleared and 0x0095f6d2 set.
+    uint8_t* shadow_cvar = title_global<uint8_t*>(0x0095e700);
+    const int32_t saved = *reinterpret_cast<const int32_t*>(shadow_cvar + 0x20);
+    *reinterpret_cast<int32_t*>(shadow_cvar + 0x20) = 0;
+    title_global<uint8_t>(0x0095f6d2) = 1;
+    at(1, &nglPushScene, 1, kOne);
+    const uint32_t view_model_perspective[] = {fov, 0x3f000000, 0x43000000};  // 0.5, 128
+    at(2, &nglSetPerspective, 3, view_model_perspective);
+    static const uint32_t kClearFlags[] = {3};
+    at(5, &nglSetClearFlags, 1, kClearFlags);
+    uint8_t* list = title_global<uint8_t*>(0x008db128);
+    uint8_t* node = *reinterpret_cast<uint8_t**>(list + 0x14);
+    uint8_t* next = node ? *reinterpret_cast<uint8_t**>(node) : nullptr;
+    if (node != list + 0x18 && next) {
+        // The last node (its next is null) is not visited.
+        for (;;) {
+            if (*reinterpret_cast<const int32_t*>(node + 0x80) != 1) {
+                static const uint32_t kMessage[] = {1, 0x0083bf20};
+                at(0, title_global<uint32_t>(0x0095e634), 2, kMessage);
+            } else {
+                at(0, 0x00245a20, 0, nullptr, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)));  // R_AddEntityModel
+            }
+            if (!next) break;
+            node = next;
+            next = *reinterpret_cast<uint8_t**>(next);
+            if (!next) break;
+        }
+    }
+    *reinterpret_cast<int32_t*>(title_global<uint8_t*>(0x0095e700) + 0x20) = saved;
+    title_global<uint8_t>(0x0095f6d2) = 0;
+    at(0, &nglPopScene);
+    at(0, &nglPopScene);
+    at(0, 0x003154b0, 0, nullptr, 0, 0x0095f8d0);  // ESI = 0x0095f8d0
+    uint32_t* table = title_global<uint32_t*>(0x00909908);
+    const int32_t count = static_cast<int32_t>(table[0]);
+    for (int32_t i = 0; i < count; ++i) {
+        if (*reinterpret_cast<const int32_t*>(table[1] + i * 0x104) == 2) {
+            at(0, 0x00042460);  // breaks into a debugger when one is attached
+            table = title_global<uint32_t*>(0x00909908);
+        }
+    }
+    table[0] = 0;
 }
 
 }  // namespace game

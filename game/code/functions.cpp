@@ -390,6 +390,16 @@ const Function kFunctions[] = {
     {"R_AddStaticModel", 0x002438b0, 0, code(&R_AddStaticModel), 0, Result::None, Status::Compare},
     {"R_AddCellModels", 0x00243fd0, 0, code(&R_AddCellModels), 0, Result::None, Status::Compare},
     {"R_VisitCell_r", 0x00245930, 0, code(&R_VisitCell_r), 20, Result::None, Status::Compare},
+    {"R_SetupFrustum", 0x0023f130, 0, code(&R_SetupFrustum), 0, Result::None, Status::Compare},
+    {"R_RotateForViewer", 0x0023f380, 0, code(&R_RotateForViewer), 0, Result::None, Status::Compare},
+    {"R_RenderView", 0x00247350, 0, code(&R_RenderView_entry), 0, Result::None, Status::Compare},
+    {"R_AddEntityToCells_r", 0x0023d8f0, 0, code(&R_AddEntityToCells_r), 16, Result::None, Status::Compare},
+    {"R_AddEntitiesToCells", 0x0023ffb0, 0, code(&R_AddEntitiesToCells), 8, Result::None, Status::Compare},
+    {"R_AddEntitySurfaces", 0x00246d60, 0, code(&R_AddEntitySurfaces), 0, Result::None, Status::Compare},
+    {"MatrixInverse4x4", 0x00294610, 0, code(&MatrixInverse4x4), 0, Result::None, Status::Compare},
+    {"R_SetupPortalBevels", 0x002377d0, 0, code(&R_SetupPortalBevels), 0, Result::None, Status::Compare},
+    {"R_SetupCullPlanes", 0x002388c0, 0, code(&R_SetupCullPlanes), 0, Result::None, Status::Compare},
+    {"R_AddWorldSurfaces", 0x00246fa0, 0, code(&R_AddWorldSurfaces_entry), 0, Result::None, Status::Compare},
 };
 
 }  // namespace

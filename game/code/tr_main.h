@@ -237,6 +237,14 @@ extern "C" void R_LinkEntityToCell_entry(void);
 // 0x0023d690: links a model into every cell its box touches, from a node of the cell tree.
 void XB_CDECL R_LinkEntityToCells_r(const uint8_t* owner, const uint8_t* node, uint8_t* model, const float* mins,
                                     const float* maxs);
+// 0x0023d8f0: links an entity's bounds (16-byte aligned) into every cell they touch,
+// from a node of the world's cell tree (R_AddCellEntityLink).
+void XB_CDECL R_AddEntityToCells_r(const uint8_t* node, void* entity, const float* mins, const float* maxs);
+// 0x0023ffb0: clears the cells' entity counts (+0x38) and links each model entity of
+// the list at 0x008db128 (with the cvar at 0x0095e234 set) into the cells its box
+// touches - or its light's cell when within the light's range - unless the frustum
+// `planes`, the near or the far plane cull it (+0xec = 2).
+void XB_CDECL R_AddEntitiesToCells(const RCullPlane* planes, int32_t count);
 // 0x00243fd0: the cell's linked static models not added this frame (stamp +0xe4, a
 // float). EAX = cell.
 void XB_REGS1 XB_CDECL R_AddCellModels(const uint8_t* cell);
@@ -269,5 +277,41 @@ RPlane* XB_REGS3 R_ClipFrustumToPortal(int32_t* count, const uint8_t* portal, co
 // with the frustum clipped to it (R_ClipFrustumToPortal, 0x0023cb30).
 void XB_CDECL R_VisitCell_r(uint8_t* cell, const uint8_t* from_portal, const uint8_t* planes, int32_t count,
                             uint32_t pass);
+
+// 0x0023f130: Q3's R_SetupFrustum: the view's four side planes (0x0095e518) from its
+// axes and field of view (FastSinCos of fov / 180 * pi / 2 on the x87).
+void XB_CDECL R_SetupFrustum();
+// 0x0023f380: Q3's R_RotateForViewer: tr.or and viewParms.world from the view's origin
+// and axes (the axes adjusted by 0x002c9270 first).
+void XB_CDECL R_RotateForViewer();
+// 0x00294610: the inverse of a 4x4 matrix (cofactors over the determinant). EAX = m,
+// ECX = dst.
+void XB_REGS3 MatrixInverse4x4(const float* m, uint32_t unused, float* dst);
+// 0x002377d0: the world's model matrix times the projection, transposed into 0x0095e2d8
+// (R_ClipPortalWinding projects with it) and inverted into 0x0095e318.
+void XB_CDECL R_SetupPortalBevels();
+// 0x002388c0: (unless r_lockpvs, 0x008ff018 overriding it once) the cull planes: the
+// frustum sides, the view origin (0x0095e240), a near plane 0.1 ahead along the view
+// axis, a far plane (0x0095e2c8, null for 0) at max(r_zfar, the far cull distance), then
+// R_SetupPortalBevels with r_portalbevels above 0.
+void XB_CDECL R_SetupCullPlanes();
+// 0x00246fa0: the world's surfaces and models for the frame (skipped with 0x0095e600
+// bit 0): the portal walk from the view's cell (just that cell with r_singlecell), or
+// every cell outside the map. The cell entity link buffer (0x2000 bytes) is on its stack:
+// entered through R_AddWorldSurfaces_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddWorldSurfaces(void* link_buffer);
+extern "C" void R_AddWorldSurfaces_entry(void);
+
+// 0x00246d60: with r_drawentities, the model entities of the list at 0x008db128
+// (unless too far away horizontally while 0x0095f550 is set), then the live animated
+// objects of the handle table at 0x00960070 (R_AddDObjSurfaces).
+void XB_CDECL R_AddEntitySurfaces();
+// 0x00247350: Q3's R_RenderView: the view parameters (EBX, 0x1c8 bytes) into
+// tr.viewParms, orientation and frustum, then the NGL scenes: the world view (sky mesh,
+// effects, local/packet entities, world surfaces, entity surfaces), then the view
+// model scene. Entered through R_RenderView_entry, which rebuilds the original's frame:
+// every call runs at the original's stack position (title_call_at).
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame);
+extern "C" void R_RenderView_entry(void);
 
 }  // namespace game
