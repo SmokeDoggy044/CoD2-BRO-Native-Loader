@@ -18,7 +18,8 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
    100 matched tests over all runs (`functions.csv`) and no mismatch or drift is
    *settled*: not hooked in later runs, and no longer tested in the run that reaches
    it (`Config::enough_matches`). A mismatch or drift on record keeps it tested.
-4. Read `tools/data/functions.csv` (counts, merged over runs; `functions_mp.csv` for
+4. Read `tools/data/functions.csv` (counts, merged over runs - also over runs at the
+   same time: each flush merges under a lock (`functions.csv.lock`); `functions_mp.csv` for
    multiplayer) and the `compare` lines in the log (the first 5 issues per function,
    with the differing registers or bytes).
 5. When a module is done, test it all once more: `--compare-all` tests the settled

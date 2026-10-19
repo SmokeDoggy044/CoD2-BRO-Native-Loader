@@ -26,6 +26,7 @@
 #include <linux/fs.h>
 #include <poll.h>
 #include <signal.h>
+#include <sys/file.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
@@ -1544,6 +1545,17 @@ namespace {
 void flush_rows() {
     std::lock_guard lock(g_stats);
     if (g_config.results.empty() || (g_hooks.empty() && g_replaced.empty())) return;
+    // Several runs may share the file (missions in parallel): read, merge and replace it
+    // under an exclusive lock, through a temporary file of this process's own.
+    const std::string lock_path = g_config.results.string() + ".lock";
+    const int lock_fd = ::open(lock_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+    if (lock_fd >= 0) ::flock(lock_fd, LOCK_EX);
+    struct Unlock {
+        int fd;
+        ~Unlock() {
+            if (fd >= 0) ::close(fd);  // releases the lock
+        }
+    } unlock{lock_fd};
     std::map<uint32_t, Row> rows = read_rows(g_config.results);
     for (const auto& hook : g_hooks) {
         Row& row = rows[hook->address];
@@ -1565,7 +1577,7 @@ void flush_rows() {
         row.name = function->name;
         row.status = "replaced";
     }
-    const std::filesystem::path temporary = g_config.results.string() + ".tmp";
+    const std::filesystem::path temporary = g_config.results.string() + "." + std::to_string(::getpid()) + ".tmp";
     {
         std::ofstream out(temporary, std::ios::trunc);
         out << kHeader << '\n';

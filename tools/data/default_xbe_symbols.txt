@@ -1050,7 +1050,7 @@
 00049220 FUN_00049220
 00049280 FUN_00049280
 000495d0 nglNode_CalcWorldMatrix
-00049750 nglNode_GetWorldViewProj
+00049750 nglNode_GetWorldInverse
 00049b70 cdSimpleAlpha_Toggle
 00049b90 cdSimpleAlpha_Register
 00049bf0 cdSimpleAlpha_Init

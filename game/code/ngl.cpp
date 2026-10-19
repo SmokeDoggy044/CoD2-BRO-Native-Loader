@@ -1673,4 +1673,213 @@ void XB_CDECL nglAddShadowProjector(uint32_t flags, const float* matrix, const f
     nglLightSetAddProjector(2, p, flags);
 }
 
+int32_t XB_CDECL nglListAddMesh(uint8_t* mesh, const float* matrix, const uint32_t* params, const uint32_t* extra) {
+    if (!mesh) return -1;
+    const uint32_t flags = params ? params[0] : 0;
+    float scale = 1.0f;
+    float radius = *reinterpret_cast<const float*>(mesh + 0x30);
+    if (flags & 2) {
+        matrix = nglScaleMeshMatrix(matrix, reinterpret_cast<const uint8_t*>(params), &scale);
+        radius = scale * radius;
+    }
+    // The bounding sphere's centre in world space (all four lanes, as packed).
+    const float* c = reinterpret_cast<const float*>(mesh + 0x20);
+    alignas(16) float center[4];
+    store(center, add(add(add(lanes(matrix + 12), mul(lanes(matrix), c[0])), mul(lanes(matrix + 4), c[1])),
+                      mul(lanes(matrix + 8), c[2])));
+    if (current_scene()->stale) nglUpdateScene(0);
+    if (*reinterpret_cast<const uint32_t*>(mesh + 0x18))
+        mesh = nglSelectMeshLod(mesh, static_cast<int8_t>(flags), reinterpret_cast<const uint8_t*>(params), center);
+
+    uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
+    const uintptr_t arena_start = arena;
+    auto* node = static_cast<NglMeshDrawNode*>(alloc_frame(arena, sizeof(NglMeshDrawNode), 64));
+    node->mesh = mesh;
+    std::memcpy(node->world, matrix, 64);
+
+    // world * view_projection (row vectors), stored transposed.
+    const float* vp = current_scene()->view_projection;
+    const Lanes s0 = lanes(vp), s1 = lanes(vp + 4), s2 = lanes(vp + 8), s3 = lanes(vp + 12);
+    Lanes r[4];
+    for (int i = 0; i < 3; ++i) {
+        const float* m = matrix + i * 4;
+        r[i] = add(add(mul(s0, m[0]), mul(s1, m[1])), mul(s2, m[2]));
+    }
+    r[3] = add(add(add(s3, mul(s0, matrix[12])), mul(s1, matrix[13])), mul(s2, matrix[14]));
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) node->world_view_projection[i * 4 + j] = r[j].v[i];
+    }
+    node->world_inverse = nullptr;
+    node->unknown84 = 0;
+    node->scale = scale;
+    if (!params) {
+        node->params = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(0x00902a90));
+    } else if (static_cast<int32_t>(flags) < 0) {
+        node->params = params;  // flag bit 31: the caller's block lives through the frame
+    } else {
+        auto* copy = static_cast<uint32_t*>(alloc_frame(arena, 0x30, 16));
+        std::memcpy(copy, params, 0x30);
+        node->params = copy;
+    }
+    node->extra = extra ? extra[0] : 0x009028f8;
+
+    if (!(flags & 0x40) && !nglSphereInFrustum(center, radius)) {
+        arena = arena_start;
+        return 0;
+    }
+    for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(mesh + 0x8); ++i) {
+        const NglMeshSectionEntry* entries = *reinterpret_cast<NglMeshSectionEntry* const*>(mesh + 0xc);
+        uint8_t* section = reinterpret_cast<uint8_t*>(entries[i].section);
+        title_global<uint32_t>(0x00902bec) += *reinterpret_cast<const uint32_t*>(section + 0x40);
+        uint8_t* material = *reinterpret_cast<uint8_t**>(section + 4);
+        void* shader = *reinterpret_cast<void**>(material + 4);
+        using AddSection = void XB_THISCALL (*)(void*, NglMeshDrawNode*, uint8_t*, uint8_t*);
+        reinterpret_cast<AddSection>((*static_cast<void***>(shader))[2])(shader, node, section, material);
+    }
+    title_global<uint32_t>(0x00902be8) += *reinterpret_cast<const uint32_t*>(mesh + 0x3c);
+    if (uint8_t* owner = *reinterpret_cast<uint8_t**>(mesh + 0x34))
+        *reinterpret_cast<int32_t*>(owner + 0x144) = title_global<int32_t>(0x009028e0);
+    return 1;
+}
+
+float* XB_THISCALL nglNode_GetWorldInverse(NglMeshDrawNode* self, float* out) {
+    if (!self->world_inverse) {
+        self->world_inverse = static_cast<float*>(alloc_frame(title_global<uintptr_t>(0x009025a8), 64, 64));
+        float world[16];
+        const float* m = nglNode_CalcWorldMatrix(reinterpret_cast<const uint8_t*>(self), world);
+        // The rotation transposed, lane 3 repeating lane 2 (SHUFPS), then -t * R^T.
+        const Lanes c0 = {{m[0], m[4], m[8], m[8]}};
+        const Lanes c1 = {{m[1], m[5], m[9], m[9]}};
+        const Lanes c2 = {{m[2], m[6], m[10], m[10]}};
+        const Lanes t = neg(lanes(m + 12));
+        float* inverse = self->world_inverse;
+        store(inverse, c0);
+        store(inverse + 4, c1);
+        store(inverse + 8, c2);
+        store(inverse + 12, add(add(mul(c0, t.v[0]), mul(c1, t.v[1])), mul(c2, t.v[2])));
+    }
+    std::memcpy(out, self->world_inverse, 64);
+    return out;
+}
+
+void XB_CDECL nglComputeObjectLights(NglMeshDrawNode* node, float* directions, float* colors) {
+    const float* m = node->world;
+    const float* c = reinterpret_cast<const float*>(node->mesh + 0x20);
+    alignas(16) float center[4];
+    store(center, add(add(add(lanes(m + 12), mul(lanes(m), c[0])), mul(lanes(m + 4), c[1])), mul(lanes(m + 8), c[2])));
+    NglLightSet* set = current_light_set();
+    int count = 0;
+    for (const NglLight* light = set->object_lights; light && light != reinterpret_cast<const NglLight*>(set);) {
+        alignas(16) float evaluated[8];
+        const float* data = nglEvalLight(evaluated, light, center);
+        const Lanes toward = neg(lanes(data));
+        float inverse[16];
+        const float* w = nglNode_GetWorldInverse(node, inverse);
+        // The light direction in object space; lane 3 replaced by 0.
+        const Lanes d = add(add(mul(lanes(w), toward.v[0]), mul(lanes(w + 4), toward.v[1])),
+                            mul(lanes(w + 8), toward.v[2]));
+        platform_keep(d);
+        directions[count * 4 + 0] = d.v[0];
+        directions[count * 4 + 1] = d.v[1];
+        directions[count * 4 + 2] = d.v[2];
+        directions[count * 4 + 3] = 0.0f;
+        colors[count] = data[4];
+        colors[4 + count] = data[5];
+        colors[8 + count] = data[6];
+        if (++count == 4) break;
+        light = light->next_object;
+    }
+    for (; count < 4; ++count) {
+        std::memset(directions + count * 4, 0, 16);
+        colors[count] = 0.0f;
+        colors[4 + count] = 0.0f;
+        colors[8 + count] = 0.0f;
+    }
+    std::memcpy(colors + 12, set->ambient, 16);
+}
+
+void XB_THISCALL nglSetDecalZBias(uint8_t* self, uint32_t bias) {
+    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
+    const float b = platform_x87_unsigned_to_float(bias);
+    float& cached_bias = *reinterpret_cast<float*>(self + 0x80);
+    float& cached_factor = *reinterpret_cast<float*>(self + 0x84);
+    const float offset_bias = 0.0f - b;
+    if (!(cached_bias == offset_bias)) {
+        uint32_t bits;
+        std::memcpy(&bits, &offset_bias, 4);
+        title_function<SetRenderStateSimple>(0x003e89f0)(0x00040388, bits);  // polygon offset bias
+        cached_bias = offset_bias;
+    }
+    const float factor = b * -0.25f;
+    if (!(cached_factor == factor)) {
+        uint32_t bits;
+        std::memcpy(&bits, &factor, 4);
+        title_function<SetRenderStateSimple>(0x003e89f0)(0x00040384, bits);  // polygon offset factor
+        cached_factor = factor;
+    }
+}
+
+void* XB_CDECL nglMaterialFindTexture(const char* name) {
+    if (*reinterpret_cast<const uint32_t*>(name) == 0) return nullptr;
+    return nglFindTextureAddRef(name);
+}
+
+void* XB_CDECL nglMaterialFindTextureOrDefault(const char* name) {
+    void* texture = *reinterpret_cast<const uint32_t*>(name) ? nglFindTextureAddRef(name) : nullptr;
+    return texture == title_global<void*>(0x009026f8) ? nullptr : texture;
+}
+
+namespace {
+
+// Material fields: texture names (32 bytes each, offsets to them once relocated) at
+// +0x18 / +0x20, the textures found for them at +0x1c / +0x24.
+const char*& material_name(uint8_t* material, uint32_t offset) {
+    return *reinterpret_cast<const char**>(material + offset);
+}
+void*& material_texture(uint8_t* material, uint32_t offset) { return *reinterpret_cast<void**>(material + offset); }
+
+}  // namespace
+
+void XB_STDCALL nglMaterial_LoadTextureRef(uint8_t* material) {
+    material_texture(material, 0x1c) = nglFindTextureAddRef(material_name(material, 0x18));
+}
+
+void XB_STDCALL nglMaterial_ReleaseTexture(uint8_t* material) {
+    nglReleaseTexture(material_texture(material, 0x1c));
+    material_texture(material, 0x1c) = nullptr;
+}
+
+void XB_STDCALL nglMaterial_ReleaseTwoTextures(uint8_t* material) {
+    nglReleaseTexture(material_texture(material, 0x1c));
+    nglReleaseTexture(material_texture(material, 0x24));
+}
+
+void XB_STDCALL nglMaterial_LoadBaseAndOptional(uint8_t* material) {
+    material_texture(material, 0x1c) = nglMaterialFindTexture(material_name(material, 0x18));
+    void* second = nglMaterialFindTextureOrDefault(material_name(material, 0x20));
+    material_texture(material, 0x24) = second;
+    if (!second || second == title_global<void*>(0x009026f8)) material_texture(material, 0x24) = nullptr;
+}
+
+void XB_STDCALL nglMaterial_ReleaseBaseAndOptional(uint8_t* material) {
+    nglReleaseTexture(material_texture(material, 0x1c));
+    if (void* second = material_texture(material, 0x24)) nglReleaseTexture(second);
+}
+
+void XB_STDCALL nglMaterial_LoadTexture(uint8_t* material) {
+    material_texture(material, 0x1c) = nglMaterialFindTexture(material_name(material, 0x18));
+}
+
+void XB_STDCALL nglMaterial_LoadTwoTextures(uint8_t* material) {
+    material_texture(material, 0x1c) = nglMaterialFindTexture(material_name(material, 0x18));
+    material_texture(material, 0x24) = nglMaterialFindTexture(material_name(material, 0x20));
+}
+
+void XB_STDCALL nglMaterial_ReleaseTwoTexturesClear(uint8_t* material) {
+    nglReleaseTexture(material_texture(material, 0x1c));
+    material_texture(material, 0x1c) = nullptr;
+    nglReleaseTexture(material_texture(material, 0x24));
+    material_texture(material, 0x24) = nullptr;
+}
+
 }  // namespace game

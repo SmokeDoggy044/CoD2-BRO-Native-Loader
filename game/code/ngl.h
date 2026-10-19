@@ -44,7 +44,7 @@ struct alignas(16) NglLightSet {
 
 struct alignas(16) NglLight {
     NglLight* next[8];       // per list in NglLightSet::lists
-    uint8_t unknown20[0x24 - 0x20];
+    NglLight* next_object;   // +0x20, NglLightSet::object_lights' link
     uint32_t flags;          // +0x24, bits 24..31: the lists it is on
     uint32_t type;           // +0x28, 0 or 1 (see nglLightVectorWorld)
     float* data;             // +0x2c
@@ -503,6 +503,42 @@ uint8_t* XB_REGS1 XB_CDECL nglSelectMeshLod(uint8_t* table, int8_t flags, const 
 // scale's |x|, |y|, |z| (MAXPS order).
 float* XB_CDECL nglScaleMeshMatrix(const float* matrix, const uint8_t* instance, float* max_scale);
 
+// A mesh instance in the frame's scene memory (0xa0 bytes, 64-byte aligned), made by
+// nglListAddMesh and handed to each section's shader.
+struct NglMeshDrawNode {
+    float world[16];                 // +0x00, the instance matrix (scaled rows when flag 2)
+    float world_view_projection[16]; // +0x40, world * the scene's view_projection, transposed
+    float* world_inverse;            // +0x80, nglNode_GetWorldInverse's cache (scene memory)
+    uint32_t unknown84;              // +0x84, zeroed
+    uint8_t* mesh;                   // +0x88, after the LOD pick
+    uint32_t extra;                  // +0x8c, *extra or the address 0x009028f8
+    const uint32_t* params;          // +0x90, the instance block (0x30 bytes; copied unless
+                                     // flag bit 31) or the default at 0x00902a90
+    float scale;                     // +0x94, nglScaleMeshMatrix's max scale, else 1
+    uint8_t unknown98[0xa0 - 0x98];
+};
+#if UINTPTR_MAX == 0xFFFFFFFF
+static_assert(sizeof(NglMeshDrawNode) == 0xa0);
+static_assert(offsetof(NglMeshDrawNode, params) == 0x90);
+#endif
+
+// 0x00068850: adds a mesh instance to the current scene: params (flags first; 2 =
+// scaled, 0x40 = no frustum cull, bit 31 = keep the caller's block) may be null. Makes
+// an NglMeshDrawNode, picks the LOD (mesh +0x18), culls the bounding sphere (+0x20,
+// radius +0x30; culled: the scene memory is given back, returns 0) and calls each
+// section's shader (section +4 = material, material +4 = shader; vtable slot 2,
+// thiscall (node, section, material)), adding to the frame statistics. Null mesh: -1.
+int32_t XB_CDECL nglListAddMesh(uint8_t* mesh, const float* matrix, const uint32_t* params, const uint32_t* extra);
+// 0x00049750: the inverse of the node's world matrix (nglNode_CalcWorldMatrix, a rigid
+// one: rotation transposed with lane 3 repeating lane 2, then -t * R^T), made once per
+// frame into scene memory (+0x80) and copied to out. Returns out.
+float* XB_THISCALL nglNode_GetWorldInverse(NglMeshDrawNode* self, float* out);
+// 0x00070200: up to four object lights of the current light set for the node, at its
+// bounding sphere's centre: directions[i] = -light direction in object space (lane 3
+// 0), colors = r[4], g[4], b[4] (one lane per light), then the set's ambient; unused
+// slots zero.
+void XB_CDECL nglComputeObjectLights(NglMeshDrawNode* node, float* directions, float* colors);
+
 // 0x00070b00: six planes (n, d as 4 floats; 0x60 bytes) of the box spanned by
 // points[0..2] (edge vectors) at points[3] (a corner): normals cross(p0, p1),
 // cross(p1, p2), cross(p2, p0) through the corner, each with its opposite plane
@@ -579,6 +615,33 @@ void* XB_CDECL nglFindTextureAddRef(const char* name);
 void* XB_CDECL nglFindFontAddRef(const char* name);
 // 0x00063630 / 0x00067720 / 0x000659f0
 void XB_CDECL nglReleaseTexture(void* texture);
+// 0x000456a0 / 0x000456c0: nglFindTextureAddRef for a material's texture name, null
+// for an empty one (first word 0); OrDefault also gives null for the default texture
+// (0x009026f8).
+void* XB_CDECL nglMaterialFindTexture(const char* name);
+void* XB_CDECL nglMaterialFindTextureOrDefault(const char* name);
+// The shaders' material load/release slots (vtable slots 3 and 4): textures named at
+// +0x18 / +0x20 into +0x1c / +0x24.
+// 0x00047670: +0x1c = nglFindTextureAddRef(+0x18) (no empty-name check).
+void XB_STDCALL nglMaterial_LoadTextureRef(uint8_t* material);
+// 0x000485e0: releases +0x1c and clears it.
+void XB_STDCALL nglMaterial_ReleaseTexture(uint8_t* material);
+// 0x00049130: releases +0x1c and +0x24 (left set).
+void XB_STDCALL nglMaterial_ReleaseTwoTextures(uint8_t* material);
+// 0x0004c6e0: +0x1c, and +0x24 unless it is only the default texture.
+void XB_STDCALL nglMaterial_LoadBaseAndOptional(uint8_t* material);
+// 0x0004c720: releases +0x1c, and +0x24 if set.
+void XB_STDCALL nglMaterial_ReleaseBaseAndOptional(uint8_t* material);
+// 0x0004e710: +0x1c only.
+void XB_STDCALL nglMaterial_LoadTexture(uint8_t* material);
+// 0x00051510: +0x1c and +0x24.
+void XB_STDCALL nglMaterial_LoadTwoTextures(uint8_t* material);
+// 0x00051540: releases and clears +0x1c and +0x24.
+void XB_STDCALL nglMaterial_ReleaseTwoTexturesClear(uint8_t* material);
+// 0x00047590: the decal depth bias through a render-state cache (self +0x80 / +0x84):
+// polygon offset bias -bias and factor bias * -0.25, each sent (SetRenderState_Simple)
+// only when it changed (NaN always).
+void XB_THISCALL nglSetDecalZBias(uint8_t* self, uint32_t bias);
 void XB_CDECL nglReleaseMeshFile(void* file);
 void XB_CDECL nglReleaseFont(void* font);
 
