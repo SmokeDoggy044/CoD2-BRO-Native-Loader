@@ -41,6 +41,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <initializer_list>
@@ -112,6 +113,8 @@ struct SdkArg {
 
 struct SdkSpec {
     uint32_t host_address;
+    SdkStandIn stand_in;
+    const uint32_t* value;
     uint32_t stack_slots;  // popped on return (stdcall/fastcall)
     uint32_t arg_count;
     SdkArg args[kMaxSdkArgs];
@@ -419,6 +422,36 @@ XBCMP_CODE bool sdk_log_put(ChildArea& c, uint32_t value) {
     return true;
 }
 
+// A recorded call's stand-in (SdkStandIn) on its first argument; false for a case it
+// does not cover (the test then ends as inconclusive).
+XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* values, uint32_t& result) {
+    constexpr uint32_t kRefcountMask = 0x0000FFFF;
+    uint32_t resource = spec.arg_count ? values[0] : 0;
+    if (spec.stand_in == SdkStandIn::ReturnAddRef) {
+        resource = *spec.value;
+        result = resource;
+        if (!resource) return true;
+    }
+    if (!resource || !readable(c, resource, 4)) return false;
+    auto& common = *reinterpret_cast<uint32_t*>(uintptr_t{resource});
+    const uint32_t count = common & kRefcountMask;
+    switch (spec.stand_in) {
+    case SdkStandIn::AddRef:
+        if (count == 0) return false;  // would add a reference to a parent surface too
+        result = (++common) & kRefcountMask;
+        return true;
+    case SdkStandIn::Release:
+        if (count <= 1) return false;  // would release a parent or destroy the resource
+        result = (--common) & kRefcountMask;
+        return true;
+    case SdkStandIn::ReturnAddRef:
+        ++common;  // render's add_ref: no parent check
+        return true;
+    case SdkStandIn::None: break;
+    }
+    return false;
+}
+
 // A fault on the entry of a recorded SDK replacement: log the call and return to the
 // caller as the replacement would (EAX = 0, stack arguments popped). False if `eip`
 // is not one (or the caller's stack cannot be read): the test then ends as usual.
@@ -461,10 +494,12 @@ XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
         }
     }
     if (!ok) c.report.sdk_overflow = 1;
+    uint32_t result = 0;
+    if (spec.stand_in != SdkStandIn::None && !sdk_stand_in(c, spec, values, result)) return false;
     ++c.report.sdk_calls;
     gregs[REG_EIP] = static_cast<greg_t>(stack[0]);
     gregs[REG_ESP] = static_cast<greg_t>(esp + 4 + spec.stack_slots * 4);
-    gregs[REG_EAX] = 0;
+    gregs[REG_EAX] = static_cast<greg_t>(result);
     return true;
 }
 
@@ -1110,6 +1145,11 @@ void compare_memory(const Hook& hook, const Context& entry, uint32_t limit, cons
             if (skip.contains(address)) return true;
         return false;
     };
+    // XBCMP_SHOW=N lists N runs of differences per report (default 6).
+    static const int show = [] {
+        const char* value = std::getenv("XBCMP_SHOW");
+        return value ? std::atoi(value) : 6;
+    }();
     int shown = 0, hidden = 0;
     for (size_t i = 0; i < pages.size(); ++i) {
         const uint8_t* x = a.pages.data() + i * kPage;
@@ -1143,7 +1183,7 @@ void compare_memory(const Hook& hook, const Context& entry, uint32_t limit, cons
                 std::memcpy(&g, y + word, 4);
                 drift = std::memcmp(&f, &g, 4) == 0 || floats_close(f, g);
             }
-            if (shown < 6) {
+            if (shown < show) {
                 v.add(drift ? Outcome::Drift : Outcome::Mismatched,
                       describe(address) + " [" + std::to_string(end - offset) + "] " + bytes_text(x + offset, end - offset) +
                           " vs " + bytes_text(y + offset, end - offset));
@@ -1156,6 +1196,11 @@ void compare_memory(const Hook& hook, const Context& entry, uint32_t limit, cons
         }
     }
     if (hidden) v.details += " (+" + std::to_string(hidden) + " more)";
+    if (shown && show > 6) {  // XBCMP_SHOW: where the caller's stack was
+        char where[64];
+        std::snprintf(where, sizeof where, " [esp %08x, stack limit %08x]", entry.esp, limit);
+        v.details += where;
+    }
 }
 
 // In the coordinator: forks the two test processes and compares their results.
@@ -1295,7 +1340,8 @@ void record(Hook& hook, uint64_t call, const Verdict& verdict) {
     }
     const Counts& e = hook.earlier;
     const Counts& t = hook.total;
-    if (g_config.enough_matches && e.matched + t.matched >= g_config.enough_matches &&
+    static const char* const only = std::getenv("XBCMP_ONLY");  // listed ones keep being tested
+    if (g_config.enough_matches && !only && e.matched + t.matched >= g_config.enough_matches &&
         e.mismatched + t.mismatched + e.drift + t.drift == 0 && !hook.settled) {
         hook.settled = true;
         LOG_INFO("compare", "%s: %llu matched tests, none mismatched; not tested any more", hook.function->name,
@@ -1648,15 +1694,32 @@ bool parse_sdk_args(const char* text, SdkSpec& spec) {
     return true;
 }
 
+// Whether `name` is one of the comma-separated names in `list`.
+bool listed_in(const char* list, const char* name) {
+    const std::string_view names(list), wanted(name);
+    for (size_t at = 0; at <= names.size();) {
+        const size_t comma = std::min(names.find(',', at), names.size());
+        if (names.substr(at, comma - at) == wanted) return true;
+        at = comma + 1;
+    }
+    return false;
+}
+
 void install(std::span<const game::Function> functions, const Config& config) {
     g_config = config;
+    // XBCMP_EVERY=N: test every N-th call after the first ones (with XBCMP_ONLY, to
+    // reach calls the default sampling skips).
+    if (const char* every = std::getenv("XBCMP_EVERY")) g_config.every = static_cast<uint32_t>(std::atoi(every));
     xbcmp_child_stack_top = addr(xbcmp_child.stack + sizeof(xbcmp_child.stack));
     g_sdk_spec_count = 0;
     g_sdk_names.clear();
     for (const SdkCall& call : config.sdk_calls) {
         SdkSpec spec{};
         spec.host_address = call.host_address;
-        if (!call.host_address || g_sdk_spec_count == kMaxSdkSpecs || !parse_sdk_args(call.args, spec)) {
+        spec.stand_in = call.stand_in;
+        spec.value = call.value;
+        if (!call.host_address || g_sdk_spec_count == kMaxSdkSpecs || !parse_sdk_args(call.args, spec) ||
+            (call.stand_in == SdkStandIn::ReturnAddRef && !call.value)) {
             LOG_WARN("compare", "%s: bad SDK call spec \"%s\"; not recorded", call.name, call.args);
             continue;
         }
@@ -1676,11 +1739,15 @@ void install(std::span<const game::Function> functions, const Config& config) {
             continue;
         }
         if (!config.enabled) continue;
+        // XBCMP_ONLY=name,name: hook just these, settled or not (a closer look at one).
+        static const char* const only = std::getenv("XBCMP_ONLY");
+        const bool listed = only && listed_in(only, function.name);
+        if (only && !listed) continue;
         Counts before;
         if (const auto row = earlier.find(address); row != earlier.end() && row->second.name == function.name) {
             const Row& r = row->second;
             before = {r.calls, r.tested, r.matched, r.drift, r.mismatched, r.inconclusive};
-            if (r.matched >= config.enough_matches && r.mismatched == 0 && r.drift == 0) {
+            if (!listed && r.matched >= config.enough_matches && r.mismatched == 0 && r.drift == 0) {
                 ++settled;
                 continue;
             }

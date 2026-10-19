@@ -62,4 +62,8 @@ void show_notice(std::vector<std::string> lines, double seconds);
 // without the library prefix). The loader redirects each function it finds.
 std::span<const xbox::KernelImpl> d3d_functions();
 
+// Where the back buffer's address is kept (D3DDevice_GetBackBuffer2's result): the
+// comparison harness's stand-in reads it in test processes.
+const uint32_t* back_buffer_slot();
+
 }  // namespace render

@@ -658,6 +658,11 @@ void configure(const D3DConfig& config) {
     install_draw_handlers();
 }
 
+const uint32_t* back_buffer_slot() {
+    static_assert(sizeof(XbSurface*) == sizeof(uint32_t), "a 32-bit host: pointers are title addresses");
+    return reinterpret_cast<const uint32_t*>(&g.back_buffer);
+}
+
 std::span<const xbox::KernelImpl> d3d_functions() {
     static const std::vector<xbox::KernelImpl> all = [] {
         std::vector<xbox::KernelImpl> v(kDeviceFunctions, kDeviceFunctions + kDeviceFunctionCount);

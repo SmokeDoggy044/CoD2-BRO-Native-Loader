@@ -802,8 +802,13 @@ const char* const kSdkKeepOriginalNames[] = {
 struct RecordedCall {
     const char* name;
     const char* args;
+    compare::SdkStandIn stand_in = compare::SdkStandIn::None;
 };
 const RecordedCall kRecordedD3dCalls[] = {
+    // Reference counts and the back buffer (nglGetBackBufferTexture), emulated.
+    {"D3DResource_AddRef", "s", compare::SdkStandIn::AddRef},
+    {"D3DResource_Release", "s", compare::SdkStandIn::Release},
+    {"D3DDevice_GetBackBuffer2", "s", compare::SdkStandIn::ReturnAddRef},
     {"D3DDevice_SetRenderState_Simple", "ecx edx"},
     {"D3DDevice_SetRenderState_FogColor", "s"},
     {"D3DDevice_SetRenderState_PSTextureModes", "s"},
@@ -968,7 +973,9 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
             if (std::strcmp(function.name, call.name) == 0)
                 host = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function.address));
         if (!host) LOG_WARN("patches", "%s: recorded SDK call without a replacement", call.name);
-        calls.push_back({call.name, host, call.args});
+        const uint32_t* value =
+            call.stand_in == compare::SdkStandIn::ReturnAddRef ? render::back_buffer_slot() : nullptr;
+        calls.push_back({call.name, host, call.args, call.stand_in, value});
     }
     return calls;
 }

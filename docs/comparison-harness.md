@@ -131,6 +131,33 @@ The arguments are compared as values; pointers to data on the stack are recorded
 content, since the two sides' stack frames differ. `tests/compare_test.cpp` checks a
 right and a wrong recorded call.
 
+Stand-ins: a few recorded calls also do what the replacement would, so that code reading
+the result back stays testable (`compare::SdkStandIn`, `kRecordedD3dCalls`):
+D3DResource_AddRef/Release change the resource's reference count (the low 16 bits of its
+first word, title memory) and return it, D3DDevice_GetBackBuffer2 returns the back buffer
+(read from render's host global) after an AddRef. Cases they do not cover (a count reaching
+0, a parent surface) end the test as inconclusive. This made nglGetBackBufferTexture's
+callers (R_ClearAlpha, nglPushScene's nglSetDefaultSceneParams) testable.
+
+## Callers that rebuild the original's frame
+
+A decompiled caller runs its callees deeper on the stack than the original, and some title
+code depends on its stack position: it stores addresses of stack buffers (R_AddWorldSurfaces'
+link buffer in 0x0095e2d0) or copies locals it never set (stale stack). R_RenderView shows
+the remedy: its asm entry rebuilds the original's frame (the same aligned ESP, locals passed
+by pointer at the original's offsets) with 128 KB kept free below it, and every call goes
+through `title_call_at` with ESP where the original's call has it (frame minus the words it
+still had pushed). After calls into our own functions the 16 KB below are zeroed again (the
+title's later reads of uninitialized locals then see what a fresh test has). Stale-stack
+reads inside title callees can still differ (R_AddEntityModel's subtree): bisect by calling
+original addresses instead of ours for groups of callees.
+
+Debugging variables: `XBCMP_ONLY=name,name` hooks only those functions and keeps testing
+them past 100 matches (settled ones too); `XBCMP_EVERY=N` tests every N-th call instead of
+every 64th (reaches calls the sampling skips); `XBCMP_SHOW=N` lists N runs of differences
+per report (default 6; above 6 also the entry ESP and the stack limit). Reports are capped at
+PIPE_BUF, so static debug buffers in host memory crowd them out: keep debug data on the stack.
+
 ## What is compared
 
 - Registers: the result (by kind; `Al` = low byte only), EBX/ESI/EDI/EBP, ESP after

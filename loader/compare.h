@@ -23,10 +23,24 @@ namespace loader::compare {
 // `args`: one word per argument, in order: where it is (`ecx`, `edx` or `s` for the
 // next stack slot), optionally `:N` = a pointer whose N bytes are recorded instead of
 // its value, or `:aK*N` = the same with the value of argument K times N bytes.
+// What a recorded call does besides being logged: most return 0 and change nothing.
+// The reference-count stand-ins work on the resource's count (the low 16 bits of its
+// first word, in title memory) so that code reading counts or buffers back stays
+// testable; a case they do not cover (a count reaching 0, a parent surface) ends the
+// test as inconclusive.
+enum class SdkStandIn : uint8_t {
+    None,
+    AddRef,        // D3DResource_AddRef(resource): count + 1, returns it
+    Release,       // D3DResource_Release(resource): count - 1 (above 1 only), returns it
+    ReturnAddRef,  // returns *value (a resource or null) after AddRef on it
+};
+
 struct SdkCall {
     const char* name;
     uint32_t host_address;  // the replacement's entry: where a test process faults
     const char* args;
+    SdkStandIn stand_in = SdkStandIn::None;
+    const uint32_t* value = nullptr;  // ReturnAddRef: host memory read at the call
 };
 
 struct Config {
