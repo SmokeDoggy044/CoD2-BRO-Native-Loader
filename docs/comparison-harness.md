@@ -41,7 +41,12 @@ ends inconclusive ("called host code"); use a static array. `--compare`
 implies `--pc-patches off`: the loader's PC changes to the game's code (60 fps pacing,
 mouse look, aim assist off, widescreen menu/objectives hooks) stay out, so compared
 functions run as on the Xbox (30 fps) and patched ones such as nglSetVBlankMode can be
-tested. Only what the game needs on a PC stays (privileged code, RDTSC, SDK replacements,
+tested. The presentation is the Xbox's as well: settings.ini is ignored and, unless
+given explicitly, 4:3 (no EEPROM widescreen flag, which changes the game's own code
+paths), the game's fonts (no sharper text), render scale 1, no anisotropic filtering,
+brightness 1 (user, 2026-10-18: test with nothing but what the test needs). Before
+that date every run had the widescreen flag and sharper text on; the counts were
+re-checked with `--compare-all` in the corrected setup. Only what the game needs on a PC stays (privileged code, RDTSC, SDK replacements,
 the MP heap lock, `--level`). `--compare --pc-patches on` plays with them; then grep
 `loader/` before adding a function - a patched one is not compared. A function the PC
 features patch cannot become `Replaced` until that patch calls the decompiled version.

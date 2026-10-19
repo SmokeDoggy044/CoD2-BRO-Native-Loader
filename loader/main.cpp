@@ -8,6 +8,7 @@
 #include <exception>
 #include <filesystem>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <thread>
@@ -69,6 +70,7 @@ struct Options {
     bool compare = false;        // test decompiled functions against the originals
     bool compare_all = false;    // ... settled ones too
     std::optional<bool> pc_patches;  // unset: on, except with --compare
+    std::set<std::string> given;     // options named on the command line or in settings.ini
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
@@ -137,12 +139,15 @@ void print_usage(const char* program) {
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n"
         "  --compare        test the decompiled functions against the originals while playing\n"
         "                   (Linux; counts in tools/data/functions.csv, details in the log);\n"
-        "                   implies --pc-patches off unless that is given; functions with\n"
-        "                   100 matched tests and no mismatch or drift are no longer tested\n"
+        "                   implies --pc-patches off unless that is given, ignores settings.ini;\n"
+        "                   functions with 100 matched tests and no mismatch or drift are no\n"
+        "                   longer tested\n"
         "  --compare-all    --compare, testing every function (a module's final check)\n"
         "  --pc-patches on|off  the PC changes to the game's code: 60 fps pacing, mouse look,\n"
         "                   aim assist off, widescreen menus and objectives (default on); off\n"
-        "                   keeps only what the game needs to run on a PC (and --level)\n",
+        "                   keeps only what the game needs to run on a PC (and --level), and\n"
+        "                   defaults to 4:3, the game's fonts, render scale 1, no anisotropic\n"
+        "                   filtering and brightness 1\n",
         program);
 }
 
@@ -155,6 +160,7 @@ std::optional<Options> parse_args(int argc, char** argv) {
     Options options;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = option_name(argv[i]);
+        options.given.insert(arg);
         auto value = [&]() -> std::optional<fs::path> {
             if (i + 1 < argc) return fs::path(argv[++i]);
             std::fprintf(stderr, "%s needs a value\n", arg.c_str());
@@ -410,18 +416,37 @@ bool start_launcher_for_assets(int argc, char** argv) {
 
 int loader_main(int argc, char** argv) {
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
-    const platform::Settings settings = platform::load_settings();
+    // Not with --compare: the comparison runs the game as on the Xbox, whatever the
+    // player chose in the launcher.
+    bool comparing = false;
+    for (int i = 1; i < argc; ++i)
+        comparing |= option_name(argv[i]) == "--compare" || option_name(argv[i]) == "--compare-all";
+    const platform::Settings settings = comparing ? platform::Settings{} : platform::load_settings();
     std::vector<std::string> merged = settings.as_args();
     merged.insert(merged.begin(), argv[0]);
     merged.insert(merged.end(), argv + 1, argv + argc);
     std::vector<char*> merged_argv;
     for (std::string& arg : merged) merged_argv.push_back(arg.data());
-    const std::optional<Options> options = parse_args(static_cast<int>(merged_argv.size()), merged_argv.data());
-    if (!options) {
+    std::optional<Options> parsed = parse_args(static_cast<int>(merged_argv.size()), merged_argv.data());
+    if (!parsed) {
         if (!settings.empty())
             std::fprintf(stderr, "(options include %s)\n", platform::settings_path().string().c_str());
         return 2;
     }
+    if (!parsed->pc_patches.value_or(!parsed->compare)) {
+        // PC features off: the presentation is the Xbox's too (4:3 without the EEPROM
+        // widescreen flag, the game's own fonts, 640x480, its texture filtering), unless
+        // an option asks for one of them explicitly.
+        const auto unless_given = [&](const char* name, auto& field, auto value) {
+            if (!parsed->given.count(name)) field = value;
+        };
+        unless_given("--aspect", parsed->widescreen, false);
+        unless_given("--sharp-text", parsed->sharp_text, false);
+        unless_given("--render-scale", parsed->render_scale, 1.0f);
+        unless_given("--anisotropy", parsed->anisotropy, uint32_t{1});
+        unless_given("--brightness", parsed->brightness, 1.0f);
+    }
+    const std::optional<Options>& options = parsed;
     g_args.assign(argv, argv + argc);
     g_diag_dir = options->diag_dir;
     if (options->session_start_ns)
