@@ -82,7 +82,10 @@ struct Report {
     uint32_t status;
     uint32_t signal, eip, fault_address, esp, stack_word;  // kSignal
     uint32_t dirty_count;
-    uint32_t pad;
+    uint32_t scan_pages;  // pages the dirty scan read from pagemap
+    // CLOCK_MONOTONIC ns: process started, maps read, bits cleared, function returned,
+    // dirty pages collected (0 where not reached).
+    uint64_t t_entered, t_mapped, t_cleared, t_landed, t_collected;
 };
 
 struct Range {
@@ -205,6 +208,14 @@ XBCMP_CODE int32_t sys5(uint32_t number, uint32_t a, uint32_t b, uint32_t c, uin
     return result;
 }
 
+XBCMP_CODE uint64_t raw_now_ns() {
+    struct {
+        int64_t seconds, nanoseconds;
+    } t{};
+    sys3(SYS_clock_gettime64, CLOCK_MONOTONIC, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&t)), 0);
+    return static_cast<uint64_t>(t.seconds) * 1000000000u + static_cast<uint64_t>(t.nanoseconds);
+}
+
 XBCMP_CODE uint32_t addr_of(const void* pointer) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pointer)); }
 
 XBCMP_CODE bool write_all(int32_t fd, uint32_t data, uint32_t size) {
@@ -243,6 +254,7 @@ XBCMP_CODE void collect_dirty(ChildArea& c) {
     uint32_t count = 0;
     for (uint32_t r = 0; r < c.scan_count; ++r) {
         const uint32_t end = c.scan[r].end / kPage;
+        c.report.scan_pages += end - c.scan[r].begin / kPage;
         for (uint32_t page = c.scan[r].begin / kPage; page < end;) {
             uint32_t n = end - page;
             if (n > kPagemapChunk) n = kPagemapChunk;
@@ -301,8 +313,10 @@ extern "C" XBCMP_CODE void xbcmp_child_signal(int signal, siginfo_t* info, void*
 
 extern "C" [[noreturn]] XBCMP_CODE void xbcmp_child_finish() {
     ChildArea& c = xbcmp_child;
+    c.report.t_landed = raw_now_ns();
     c.report.status = kOk;
     collect_dirty(c);
+    c.report.t_collected = raw_now_ns();
     child_send(c);
 }
 
@@ -312,6 +326,7 @@ extern "C" [[noreturn]] XBCMP_CODE void xbcmp_child_finish() {
     // Clear the soft-dirty bits: from here on, the pages written are the function's.
     c.clear_command = '4';
     sys3(SYS_write, static_cast<uint32_t>(c.clear_refs_fd), addr_of(&c.clear_command), 1);
+    c.report.t_cleared = raw_now_ns();
     xbcmp_resume(&c.start);
 }
 
@@ -347,6 +362,33 @@ std::mutex g_busy;   // one test at a time
 std::mutex g_stats;  // counts and the results file
 std::atomic<uint64_t> g_test_ns{0};
 std::atomic<uint64_t> g_tests{0};
+
+uint64_t now_ns() {
+    timespec t{};
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return static_cast<uint64_t>(t.tv_sec) * 1000000000u + static_cast<uint64_t>(t.tv_nsec);
+}
+
+// Where a test's time goes (completed tests only), logged by flush().
+enum Phase { kFork, kStartOriginal, kStartNew, kMaps, kClear, kRun, kCollect, kReports, kPages, kReap, kCompare,
+             kTotal, kPhases };
+constexpr const char* kPhaseNames[kPhases] = {"fork", "start-orig", "start-new", "maps", "protect+clear", "run",
+                                             "collect", "reports", "pages", "reap", "compare", "total"};
+struct Timing {
+    uint64_t tests = 0;
+    uint64_t sum[kPhases] = {}, max[kPhases] = {};
+    uint64_t scan_pages = 0, dirty_pages = 0;
+};
+Timing g_timing;  // under g_busy (one test at a time)
+
+void add_ns(Phase phase, uint64_t ns) {
+    g_timing.sum[phase] += ns;
+    g_timing.max[phase] = std::max(g_timing.max[phase], ns);
+}
+
+uint64_t span(uint64_t from, uint64_t to) { return from && to > from ? to - from : 0; }
+
+void add_phase(Phase phase, uint64_t from, uint64_t to) { add_ns(phase, span(from, to)); }
 
 // Length of the instruction at `code` if it can run from a trampoline (no relative
 // operands), else 0. Covers what MSVC puts at function entries.
@@ -528,6 +570,7 @@ bool prepare_maps(ChildArea& c) {
     c.in = in;
     c.grandchild = static_cast<uint32_t>(grandchild > 0 ? grandchild : 0);
     c.report = {};
+    c.report.t_entered = now_ns();
     const uint32_t pid = static_cast<uint32_t>(getpid());
     if (!write_all(out, addr(&pid), 4)) _exit(1);
 
@@ -557,6 +600,7 @@ bool prepare_maps(ChildArea& c) {
         c.report.status = kHarnessError;
         child_send(c);
     }
+    c.report.t_mapped = now_ns();
     std::memcpy(&c.start, &context, sizeof(Context));
     c.start.target = run_original ? hook.address : hook.code;
     *reinterpret_cast<uint32_t*>(uintptr_t{c.start.esp}) = addr(reinterpret_cast<const void*>(&xbcmp_landing));
@@ -840,6 +884,7 @@ Verdict run_test(Hook& hook, const Context& entry) {
         verdict.add(Outcome::Inconclusive, "no pipes");
         return verdict;
     }
+    const uint64_t t_fork = now_ns();
     const pid_t child = fork();
     if (child == 0) {
         // Same memory for both: fork the second test process before anything runs.
@@ -848,6 +893,7 @@ Verdict run_test(Hook& hook, const Context& entry) {
         child_main(true, a_out[1], a_in[0], grandchild, {a_out[0], a_in[1], b_out[0], b_out[1], b_in[0], b_in[1]}, hook,
                    entry);
     }
+    const uint64_t t_forked = now_ns();
     for (int fd : {a_out[1], a_in[0], b_out[1], b_in[0]}) close(fd);
     Side sides[2];
     sides[0].what = "original";
@@ -873,6 +919,7 @@ Verdict run_test(Hook& hook, const Context& entry) {
     bool complete = true;
     for (Side& side : sides) complete &= read_until(side.from, &side.pid, 4, deadline);
     for (Side& side : sides) complete &= complete && receive_report(side, deadline);
+    const uint64_t t_reports = now_ns();
     if (!complete) {
         // A test process that hangs (a wait for another thread, which does not exist
         // there) or died without a report.
@@ -904,7 +951,9 @@ Verdict run_test(Hook& hook, const Context& entry) {
         side.pages.resize(pages.size() * kPage);
         complete &= complete && read_until(side.from, side.pages.data(), side.pages.size(), deadline);
     }
+    const uint64_t t_pages = now_ns();
     finish();
+    const uint64_t t_reaped = now_ns();
 
     if (a.report.status != kOk) {
         verdict.add(Outcome::Inconclusive, signal_text(a));
@@ -924,6 +973,25 @@ Verdict run_test(Hook& hook, const Context& entry) {
     }
     compare_registers(hook, entry, a.result, b.result, verdict);
     compare_memory(hook, entry, pages, a, b, verdict);
+    const uint64_t t_compared = now_ns();
+    const Report& ra = a.report;
+    const Report& rb = b.report;
+    ++g_timing.tests;
+    add_phase(kFork, t_fork, t_forked);
+    add_phase(kStartOriginal, t_fork, ra.t_entered);
+    add_phase(kStartNew, t_fork, rb.t_entered);  // includes the second fork
+    // The two sides run side by side: the slower one counts.
+    add_ns(kMaps, std::max(span(ra.t_entered, ra.t_mapped), span(rb.t_entered, rb.t_mapped)));
+    add_ns(kClear, std::max(span(ra.t_mapped, ra.t_cleared), span(rb.t_mapped, rb.t_cleared)));
+    add_ns(kRun, std::max(span(ra.t_cleared, ra.t_landed), span(rb.t_cleared, rb.t_landed)));
+    add_ns(kCollect, std::max(span(ra.t_landed, ra.t_collected), span(rb.t_landed, rb.t_collected)));
+    add_phase(kReports, std::max(ra.t_collected, rb.t_collected), t_reports);
+    add_phase(kPages, t_reports, t_pages);
+    add_phase(kReap, t_pages, t_reaped);
+    add_phase(kCompare, t_reaped, t_compared);
+    add_phase(kTotal, t_fork, t_compared);
+    g_timing.scan_pages += ra.scan_pages;
+    g_timing.dirty_pages += pages.size();
     return verdict;
 }
 
@@ -1204,6 +1272,30 @@ void flush() {
         LOG_INFO("compare", "%llu tests, %.1f ms each; counts in %s", static_cast<unsigned long long>(tests),
                  static_cast<double>(g_test_ns.load()) / 1e6 / static_cast<double>(tests),
                  g_config.results.string().c_str());
+    const Timing& t = g_timing;
+    if (t.tests) {
+        std::string line;
+        char part[96];
+        for (int p = 0; p < kPhases; ++p) {
+            std::snprintf(part, sizeof(part), " %s %.2f", kPhaseNames[p],
+                          static_cast<double>(t.sum[p]) / 1e6 / static_cast<double>(t.tests));
+            line += part;
+            if (t.max[p]) {
+                std::snprintf(part, sizeof(part), " (max %.1f)", static_cast<double>(t.max[p]) / 1e6);
+                line += part;
+            }
+            line += ',';
+        }
+        std::string vm;
+        if (std::ifstream status("/proc/self/status"); status)
+            for (std::string l; std::getline(status, l);)
+                if (l.starts_with("VmSize") || l.starts_with("VmRSS") || l.starts_with("VmPTE"))
+                    vm += " " + l.substr(0, l.find(':')) + l.substr(l.find_first_not_of(" \t", l.find(':') + 1) - 1);
+        LOG_INFO("compare", "timing over %llu completed tests, ms mean:%s scanned %.0f pages, dirty %.1f pages;%s",
+                 static_cast<unsigned long long>(t.tests), line.c_str(),
+                 static_cast<double>(t.scan_pages) / static_cast<double>(t.tests),
+                 static_cast<double>(t.dirty_pages) / static_cast<double>(t.tests), vm.c_str());
+    }
 }
 
 }  // namespace loader::compare

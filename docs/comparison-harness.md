@@ -114,6 +114,21 @@ new functions: mission 1 with 104 functions (62 settled at start) ran 186 tests 
 60 s instead of about 75 per second. Tune `first_calls`/`every`/`enough_matches` in
 `compare::Config` if needed.
 
+Each flush logs a `timing` line: mean and max ms per phase of the completed tests,
+pages scanned and written, and the game's VmSize/VmRSS/VmPTE. Mission 4, Debug build,
+`--compare-all`, 130 s (2026-10-18): 10,880 tests at 11.1 ms, i.e. the game spent about
+93% of the run waiting on tests. The function itself took 0.01 ms; the rest:
+
+| phase | ms | what |
+|---|---|---|
+| fork | 1.8 | the parent's fork (1.9 GB mapped, 280 MB resident, 1 MB page tables) |
+| start | 3.8 | until both test processes run: includes the child's fork of the second |
+| maps | 1.0 | each test process reads and parses /proc/self/maps |
+| protect+clear | 1.1 | mprotect of host code + clear_refs over the whole process |
+| collect | 0.9 | pagemap read over ~90,900 pages to find ~3.5 written ones |
+| reap | 4.2 | waitpid: the parent waits for both processes to tear down their copies |
+| reports, pages, compare | 0.2 | |
+
 ## Limits
 
 - Functions whose first 5 bytes hold a call, a jump or an instruction the decoder
