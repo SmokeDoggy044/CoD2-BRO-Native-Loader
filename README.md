@@ -127,6 +127,12 @@ the original game files for its maps, models, sounds and textures.
 - **Our Ghidra scripts** (`tools/ghidra/`): apply names from our name lists, export
   the symbol file the rest of the tools use, name settings variables after the
   settings they hold, and export per-function data for matching.
+- **`tools/fnpack.py`**: one compact text per function from the XBE and the symbol
+  file: callers, callees, globals and constants, strings, which registers and stack
+  slots it takes, and the traps to watch for (float instructions, code the harness
+  cannot hook), with the disassembly named inline.
+- **`tools/compare_batch.py`**: builds the loader, runs the comparison in several
+  missions at once and prints one line per function.
 - **The Quake III Arena and Return to Castle Wolfenstein source code** (GPL), the
   engine's ancestors, plus **q3match** (`tools/q3match/`), which matches the game's
   functions to them by their strings and calls.

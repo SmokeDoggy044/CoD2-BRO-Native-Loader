@@ -12,3 +12,4 @@ tools/data/default_xbe_matchdata.tsv
 # Local naming notes (not published)
 tools/data/cod4_reference.csv
 tools/data/*.csv.lock
+__pycache__/

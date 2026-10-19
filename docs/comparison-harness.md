@@ -23,6 +23,10 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
    multiplayer) and the `compare` lines in the log (the first 5 issues per function,
    with the differing registers or bytes; inconclusive tests and mismatches/drift have
    separate caps of 5, so front-end inconclusive calls do not hide the first mismatches).
+   `tools/compare_batch.py [FUNCTION...]` does steps 3 and 4 in one go: builds, runs
+   missions 1, 4, 5 and 6 (5 s apart, 170 s each, empty data folders), and prints what
+   the runs added per function (default: the kFunctions entries changed since HEAD)
+   with the first issue of each kind; `--all`, `--only`, `--every N` as below.
 5. When a module is done, test it all once more: `--compare-all` tests the settled
    functions too (final check; counts add to the same CSV). A function with many
    tests, no mismatches and no drift then becomes
