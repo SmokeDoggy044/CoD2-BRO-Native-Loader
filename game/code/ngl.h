@@ -116,6 +116,7 @@ struct NglMeshSection;
 struct NglMeshNode : NglNode {
     const float* world_matrix;      // +0x0c
     const NglMeshSection* section;  // +0x10
+    const uint8_t* material;        // +0x14, the shader classes' AddToList store it
 };
 
 // Only the fields the decompiled functions use so far.
@@ -649,6 +650,15 @@ void XB_CDECL nglReleaseFont(void* font);
 // made pointers by adding the file's base; zero stays zero.
 void XB_STDCALL nglMaterial_Relocate(uint8_t* material, uint32_t base);
 void XB_STDCALL nglMaterial_Relocate2(uint8_t* material, uint32_t base);
+
+// 0x00052730: nglMaterial_LoadBaseAndOptional plus a third texture: +0x2c from the name
+// at +0x28 (null for the default texture).
+void XB_STDCALL cdWorldBlend_LoadTextures(uint8_t* material);
+// 0x00052780: releases +0x1c, +0x24 and (when set) +0x2c.
+void XB_STDCALL cdWorldBlend_ReleaseTextures(uint8_t* material);
+// 0x000490f0: nglMaterial_LoadTwoTextures; a second texture other than the default one
+// sets material flag 2 (+0x30).
+void XB_STDCALL cdGlass_LoadTextures(uint8_t* material);
 
 // 0x00046cd0: onto the current scene's opaque or translucent list, by the node's
 // own sort key (vtable slot 1).

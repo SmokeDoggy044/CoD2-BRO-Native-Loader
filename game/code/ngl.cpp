@@ -1875,6 +1875,27 @@ void XB_STDCALL nglMaterial_LoadTwoTextures(uint8_t* material) {
     material_texture(material, 0x24) = nglMaterialFindTexture(material_name(material, 0x20));
 }
 
+void XB_STDCALL cdWorldBlend_LoadTextures(uint8_t* material) {
+    material_texture(material, 0x1c) = nglMaterialFindTexture(material_name(material, 0x18));
+    material_texture(material, 0x24) = nglMaterialFindTexture(material_name(material, 0x20));
+    void* third = nglMaterialFindTextureOrDefault(material_name(material, 0x28));
+    material_texture(material, 0x2c) = third;
+    if (!third || third == title_global<void*>(0x009026f8)) material_texture(material, 0x2c) = nullptr;
+}
+
+void XB_STDCALL cdWorldBlend_ReleaseTextures(uint8_t* material) {
+    nglReleaseTexture(material_texture(material, 0x1c));
+    nglReleaseTexture(material_texture(material, 0x24));
+    if (void* third = material_texture(material, 0x2c)) nglReleaseTexture(third);
+}
+
+void XB_STDCALL cdGlass_LoadTextures(uint8_t* material) {
+    material_texture(material, 0x1c) = nglMaterialFindTexture(material_name(material, 0x18));
+    void* second = nglMaterialFindTexture(material_name(material, 0x20));
+    material_texture(material, 0x24) = second;
+    if (second && second != title_global<void*>(0x009026f8)) *reinterpret_cast<uint32_t*>(material + 0x30) |= 2;
+}
+
 void XB_STDCALL nglMaterial_ReleaseTwoTexturesClear(uint8_t* material) {
     nglReleaseTexture(material_texture(material, 0x1c));
     material_texture(material, 0x1c) = nullptr;

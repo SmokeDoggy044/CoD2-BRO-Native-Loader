@@ -7,6 +7,7 @@ set(game_code_sources
     fx.cpp
     ngl.cpp
     script_string.cpp
+    shaders.cpp
     tr_main.cpp
     unzip.cpp
 )
