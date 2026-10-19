@@ -85,4 +85,24 @@ float* XB_REGS1 XB_CDECL R_ClipPolygonToPlane(const float* plane, float* in, int
 // the cell's index at +0xf0. NaN distances count as in front, as in the original.
 void XB_CDECL R_AddCellEntities(const uint8_t* cell, const uint8_t* planes, int32_t count);
 
+// 0x002369c0: the world fog (when 0x008db100 is set) into the current NGL scene: the
+// fog distances (0x0095f698, 0x0095f69c and 0x008db104/0x008db108, the last halved)
+// and colour (0x008db10c).
+void XB_CDECL R_SetupFog();
+// 0x002361a0: the 2D colour (0x0095e6d0) as ARGB from 0..1 floats; null = white.
+void XB_CDECL RE_SetColor(const float* rgba);
+// 0x002360f0: a 2D quad x, y, w, h with texture coordinates s0 t0 s1 t1 in the 2D
+// colour, when a scene is current.
+void XB_CDECL RE_StretchPic(float x, float y, float w, float h, float s0, float t0, float s1, float t1,
+                            void* shader);
+// 0x00235ff0: a 2D quad from four corners (x, y; clockwise from top left) and their
+// texture coordinates, in the 2D colour, when a scene is current.
+void XB_CDECL RE_DrawQuadPic(const float* points, const float* coords, void* shader);
+// 0x00237590: RE_StretchPic of the whole texture after the client's 640x480 adjust
+// (function pointer 0x0095e6b0).
+void XB_CDECL R_DrawPic(float x, float y, float w, float h, void* shader);
+// 0x00237770: the height of "LltygI" in `font` at `scale` (times the global text
+// scale 0x008db12c); the font's handle comes from the pointer at 0x0095e6b4.
+uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale);
+
 }  // namespace game

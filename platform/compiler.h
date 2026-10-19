@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 // Compiler-specific spellings live here and nowhere else, so game code stays portable.
 
 // Xbox calling conventions. They only exist on 32-bit x86; elsewhere they expand to
@@ -107,6 +109,11 @@ inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
     return t - std::sqrt(a * b) >= limit;
 }
 #endif
+
+// MSVC's _ftol: truncates through a 64-bit integer and keeps the low half, so NaN and
+// values outside int64 give 0 (the low half of 0x8000000000000000). GCC on i386
+// converts float to int64 with FISTP under a chopping control word the same way.
+inline std::int32_t platform_ftol(float x) { return static_cast<std::int32_t>(static_cast<std::int64_t>(x)); }
 
 // SSE RSQRTSS, the title's reciprocal square root estimate (its precision is the
 // CPU's: it differs between vendors, so only results on the same CPU compare).

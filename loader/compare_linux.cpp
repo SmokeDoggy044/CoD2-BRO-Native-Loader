@@ -119,6 +119,9 @@ using loader::compare::EntryFrame;
 extern "C" {
 ChildArea xbcmp_child;
 uint32_t xbcmp_child_stack_top;
+// Set in test processes: a hooked function reached there (a callee of the tested one)
+// runs its original straight from the stub, since the dispatcher is not executable.
+uint8_t xbcmp_in_test;
 extern char __start_xbcmp_text[];
 extern char __stop_xbcmp_text[];
 void xbcmp_entry();
@@ -520,6 +523,7 @@ bool prepare_maps(ChildArea& c) {
     prctl(PR_SET_PDEATHSIG, SIGKILL);
     if (getppid() != parent) _exit(1);
     alarm(g_config.timeout_ms / 1000 * 2 + 5);
+    xbcmp_in_test = 1;
     c.out = out;
     c.in = in;
     c.grandchild = static_cast<uint32_t>(grandchild > 0 ? grandchild : 0);
@@ -1101,7 +1105,7 @@ void install(std::span<const game::Function> functions, const Config& config) {
             LOG_WARN("compare", "%s: cannot move the instruction at %08x; not tested", function.name, address + moved);
             continue;
         }
-        uint8_t* code = alloc_code(moved * 3 + 5 + 16);  // a 2-byte branch becomes 6
+        uint8_t* code = alloc_code(moved * 3 + 5 + 32);  // a 2-byte branch becomes 6
         if (!code) continue;
         auto hook = std::make_unique<Hook>();
         hook->function = &function;
@@ -1113,10 +1117,19 @@ void install(std::span<const game::Function> functions, const Config& config) {
         const uint32_t copied = copy_entry(code, entry, moved);
         put_rel32(code + copied, 0xE9, address + moved);
         uint8_t* stub = code + copied + 5;
-        stub[0] = 0x68;  // push index
+        stub[0] = 0x80;  // cmp byte [xbcmp_in_test], 0
+        stub[1] = 0x3D;
+        const uint32_t flag = addr(&xbcmp_in_test);
+        std::memcpy(stub + 2, &flag, 4);
+        stub[6] = 0;
+        stub[7] = 0x0F;  // jne trampoline
+        stub[8] = 0x85;
+        const int32_t back = static_cast<int32_t>(addr(code) - (addr(stub) + 13));
+        std::memcpy(stub + 9, &back, 4);
+        stub[13] = 0x68;  // push index
         const auto index = static_cast<uint32_t>(g_hooks.size());
-        std::memcpy(stub + 1, &index, 4);
-        put_rel32(stub + 5, 0xE9, addr(reinterpret_cast<const void*>(&xbcmp_entry)));
+        std::memcpy(stub + 14, &index, 4);
+        put_rel32(stub + 18, 0xE9, addr(reinterpret_cast<const void*>(&xbcmp_entry)));
         install_jump(address, stub);
         g_hooks.push_back(std::move(hook));
     }

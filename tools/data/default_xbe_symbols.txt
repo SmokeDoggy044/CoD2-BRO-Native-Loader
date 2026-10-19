@@ -1342,7 +1342,7 @@
 0005f1b0 nglMatrixViewport
 0005f310 nglMatrixSceneClipToScreen
 0005fc90 nglUpdateScene
-00061940 nglSetSceneVec328
+00061940 nglSetSceneViewportRect
 000619a0 nglSetViewportNormalized
 00061b70 nglSetViewportRect
 00061cc0 nglSetAspect

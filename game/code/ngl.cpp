@@ -11,6 +11,9 @@ namespace {
 NglScene*& current_scene() { return title_global<NglScene*>(0x0090259c); }
 NglLightSet*& current_light_set() { return title_global<NglLightSet*>(0x00902e44); }
 
+// 0x0005fc90: rebuilds the current scene's matrices (projection, view, clip-to-screen).
+void nglUpdateScene(int32_t force) { title_function<void XB_CDECL(int32_t)>(0x0005fc90)(force); }
+
 // The frame's scene memory (16-byte aligned blocks, bumped; no end check here).
 template <typename T>
 T* alloc_scene_memory(uint32_t size) {
@@ -910,6 +913,170 @@ void XB_CDECL nglBuildProjectorPlanes(float* out, const float* points) {
     store(out + 16, out + 20, n0, points + 8);
     store(out + 8, out + 12, n1, points);
     store(out + 4, out, n2, points + 4);
+}
+
+void XB_CDECL nglSetSceneViewportRect(float x0, float y0, float x1, float y1) {
+    current_scene()->viewport_rect[0] = x0;
+    current_scene()->viewport_rect[1] = y0;
+    current_scene()->viewport_rect[2] = x1;
+    current_scene()->viewport_rect[3] = y1;
+    nglUpdateScene(1);
+}
+
+void XB_CDECL nglSetViewportRect(float x0, float y0, float x1, float y1) {
+    NglScene* scene = current_scene();
+    float width;
+    float height;
+    if (scene->render_target->flags & 4) {
+        width = static_cast<float>(nglGetScreenWidth());
+        height = static_cast<float>(nglGetScreenHeight());
+    } else {
+        // Unsigned to float as MSVC does it: signed conversion, plus 2^32 when negative.
+        const int32_t w = static_cast<int32_t>(scene->render_target->width);
+        width = static_cast<float>(w);
+        if (w < 0) width += 4294967296.0f;
+        const int32_t h = static_cast<int32_t>(scene->render_target->height);
+        height = static_cast<float>(h);
+        if (h < 0) height += 4294967296.0f;
+    }
+    const float inv_width = 1.0f / width;
+    const float nx0 = inv_width * x0 * 2.0f - 1.0f;
+    scene->viewport_rect[0] = nx0;
+    const float inv_height = 1.0f / height;
+    const float ny0 = inv_height * y0 * 2.0f - 1.0f;
+    current_scene()->viewport_rect[1] = ny0;
+    const float nx1 = (x1 + 1.0f) * inv_width * 2.0f - 1.0f;
+    current_scene()->viewport_rect[2] = nx1;
+    const float ny1 = (y1 + 1.0f) * inv_height * 2.0f - 1.0f;
+    current_scene()->viewport_rect[3] = ny1;
+    nglUpdateScene(1);
+    title_function<void XB_CDECL(float, float, float, float)>(0x000619a0)(nx0, ny0, nx1, ny1);
+}
+
+void XB_CDECL nglSetAspect(float aspect) {
+    current_scene()->aspect = aspect;
+    nglUpdateScene(1);
+}
+
+void XB_CDECL nglSetPerspective(float fov, float near_z, float far_z) {
+    current_scene()->projection_kind = 1;
+    current_scene()->fov = fov;
+    current_scene()->near_z = near_z;
+    current_scene()->far_z = far_z;
+    nglUpdateScene(1);
+}
+
+void XB_CDECL nglSetOrthographic(float near_z, float far_z) {
+    current_scene()->projection_kind = 0;
+    current_scene()->fov = 0.0f;
+    current_scene()->near_z = near_z;
+    current_scene()->far_z = far_z;
+    nglUpdateScene(1);
+}
+
+void XB_CDECL nglSetViewMatrix(const float* matrix) {
+    std::memcpy(current_scene()->view_matrix, matrix, sizeof(current_scene()->view_matrix));
+    nglUpdateScene(1);
+}
+
+void XB_CDECL nglSetCameraMatrix(const float* camera) {
+    // The view matrix is the camera's inverse for an orthonormal rotation: rows 0..2
+    // transposed, translation -t * R^T. As in the original (SHUFPS), each row's fourth
+    // lane is a copy of its third, and the translation row computes all four lanes.
+    const float* r0 = camera;
+    const float* r1 = camera + 4;
+    const float* r2 = camera + 8;
+    const float* t = camera + 12;
+    float view[16] = {
+        r0[0], r1[0], r2[0], r2[0],
+        r0[1], r1[1], r2[1], r2[1],
+        r0[2], r1[2], r2[2], r2[2],
+    };
+    const float tx = -t[0];
+    const float ty = -t[1];
+    const float tz = -t[2];
+    for (int i = 0; i < 4; ++i) view[12 + i] = view[i] * tx + view[4 + i] * ty + view[8 + i] * tz;
+    std::memcpy(current_scene()->view_matrix, view, sizeof(view));
+    nglUpdateScene(1);
+}
+
+const float* XB_CDECL nglGetViewMatrix() {
+    if (current_scene()->stale) nglUpdateScene(0);
+    return current_scene()->matrix0d0;
+}
+
+void XB_CDECL nglListAddQuad(const NglQuad* quad) {
+    if (!quad) return;
+    struct Node {
+        uint32_t vtable;
+        Node* next;
+        uint32_t key;
+        NglQuad quad;
+    };
+    Node* node = alloc_scene_memory<Node>(0x70);
+    if (!node) return;
+    node->vtable = 0x007bc410;
+    if (current_scene()->stale) nglUpdateScene(0);
+    std::memcpy(&node->quad, quad, sizeof(NglQuad));
+    uint8_t* scene = reinterpret_cast<uint8_t*>(current_scene());
+    if ((1u << (quad->blend_mode & 31)) & 3) {
+        node->key = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(quad->texture));
+        node->next = *reinterpret_cast<Node**>(scene + 0x304);
+        *reinterpret_cast<Node**>(scene + 0x304) = node;
+        ++*reinterpret_cast<uint32_t*>(scene + 0x30c);
+    } else {
+        std::memcpy(&node->key, &quad->z, 4);
+        node->next = *reinterpret_cast<Node**>(scene + 0x308);
+        *reinterpret_cast<Node**>(scene + 0x308) = node;
+        ++*reinterpret_cast<uint32_t*>(scene + 0x310);
+    }
+}
+
+void XB_CDECL nglGetMatrixCopy(float* out, int32_t which) {
+    alignas(16) float local[16];
+    const float* matrix = title_function<const float* XB_CDECL(float*, int32_t)>(0x00061f30)(local, which);
+    std::memcpy(out, matrix, 64);
+}
+
+void XB_CDECL nglProjectPointCopy(float* out, const float* point) {
+    alignas(16) float local[4];
+    const float* projected =
+        title_function<const float* XB_CDECL(float*, const float*)>(0x00062310)(local, point);
+    std::memcpy(out, projected, 16);
+}
+
+void XB_CDECL nglAddDirectionalLight(uint32_t flags, const float* direction, const float* color) {
+    float* data = alloc_scene_memory<float>(0x20);
+    if (!data) return;
+    data[0] = direction[0];
+    data[1] = direction[1];
+    data[2] = direction[2];
+    data[3] = direction[3];
+    data[4] = color[0];
+    data[5] = color[1];
+    data[6] = color[2];
+    data[7] = 1.0f;
+    nglLightSetAddLight(1, data, flags);
+}
+
+const float* XB_CDECL nglEvalLight(float* out, const NglLight* light, const float* position) {
+    if (light->type == 0) {
+        nglEvalPointLight(out, light->data, position);
+        return out;
+    }
+    if (light->type == 1) return light->data;
+    return nullptr;
+}
+
+const float* XB_CDECL nglEvalFirstObjectLight(float* out, const float* position) {
+    NglLightSet* set = current_light_set();
+    const NglLight* light = set->object_lights;
+    if (light == reinterpret_cast<const NglLight*>(set)) {
+        static const float kNone[8] = {0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        std::memcpy(out, kNone, sizeof(kNone));
+        return out;
+    }
+    return nglEvalLight(out, light, position);
 }
 
 }  // namespace game

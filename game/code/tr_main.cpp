@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "ngl.h"
 #include "title_data.h"
 
 namespace game {
@@ -300,6 +301,73 @@ void XB_CDECL R_AddCellEntities(const uint8_t* cell, const uint8_t* planes, int3
         *reinterpret_cast<int32_t*>(entity + 0xf0) =
             static_cast<int32_t>(reinterpret_cast<intptr_t>(cell) - reinterpret_cast<intptr_t>(cells)) / 0x50;
     }
+}
+
+void XB_CDECL R_SetupFog() {
+    if (title_global<int32_t>(0x008db100) == 0) return;
+    nglSetFog(title_global<float>(0x0095f698), title_global<float>(0x008db104), title_global<float>(0x0095f69c),
+              title_global<float>(0x008db108) * 0.5f);
+    nglSetFogColor(title_global<float>(0x008db10c), title_global<float>(0x008db110), title_global<float>(0x008db114));
+}
+
+void XB_CDECL RE_SetColor(const float* rgba) {
+    uint32_t& color = title_global<uint32_t>(0x0095e6d0);
+    if (!rgba) {
+        color = 0xffffffff;
+        return;
+    }
+    uint32_t argb = static_cast<uint32_t>(platform_ftol(rgba[3] * 255.0f));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(rgba[0] * 255.0f));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(rgba[1] * 255.0f));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(rgba[2] * 255.0f));
+    color = argb;
+}
+
+void XB_CDECL RE_StretchPic(float x, float y, float w, float h, float s0, float t0, float s1, float t1,
+                            void* shader) {
+    if (!title_global<NglScene*>(0x0090259c)) return;
+    NglQuad quad;
+    nglInitQuad(&quad);
+    nglSetQuadRect(&quad, x, y, x + w, y + h);
+    nglSetQuadUV(&quad, s0, t0, s1, t1);
+    nglSetQuadColor(&quad, title_global<uint32_t>(0x0095e6d0));
+    quad.texture = static_cast<NglTexture*>(shader);
+    nglListAddQuad(&quad);
+}
+
+void XB_CDECL RE_DrawQuadPic(const float* points, const float* coords, void* shader) {
+    if (!title_global<NglScene*>(0x0090259c)) return;
+    NglQuad quad;
+    nglInitQuad(&quad);
+    nglSetQuadColor(&quad, title_global<uint32_t>(0x0095e6d0));
+    static const int kVertex[4] = {0, 1, 3, 2};  // clockwise corners -> quad order
+    for (int i = 0; i < 4; ++i) {
+        NglQuadVertex& vertex = quad.verts[kVertex[i]];
+        vertex.x = points[2 * i];
+        vertex.y = points[2 * i + 1];
+    }
+    for (int i = 0; i < 4; ++i) {
+        NglQuadVertex& vertex = quad.verts[kVertex[i]];
+        vertex.u = coords[2 * i];
+        vertex.v = coords[2 * i + 1];
+    }
+    quad.texture = static_cast<NglTexture*>(shader);
+    nglListAddQuad(&quad);
+}
+
+void XB_CDECL R_DrawPic(float x, float y, float w, float h, void* shader) {
+    title_function<void XB_CDECL(float*, float*, float*, float*)>(title_global<uint32_t>(0x0095e6b0))(&x, &y, &w, &h);
+    RE_StretchPic(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
+}
+
+uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale) {
+    const float size = title_global<float>(0x008db12c) * scale;
+    const uint32_t handle = title_function<uint32_t XB_CDECL(uint32_t, float)>(title_global<uint32_t>(0x0095e6b4))(font, size);
+    uint32_t width;
+    uint32_t height;
+    title_function<void XB_CDECL(uint32_t, uint32_t*, uint32_t*, float, float, const char*, ...)>(0x00066310)(
+        handle, &width, &height, size, size, "LltygI");
+    return height;
 }
 
 }  // namespace game

@@ -1566,7 +1566,7 @@ address,name,kind,confidence,evidence
 0005e730,nglPopScene,function,high,"current scene = its parent (+0x2d0); pairs with nglPushScene (loader kScenePop)"
 0005e750,nglSetCurrentScene,function,medium,"sets 0x0090259c to the argument, returns the previous scene"
 00062fc0,nglPushScene,function,high,"creates a child scene of the current one from the per-frame arena and makes it current (loader kSceneCreate)"
-00061940,nglSetSceneVec328,function,medium,"current scene +0x328..+0x334 (four floats), then nglUpdateScene(1); role unclear (the test-shadow pass only)"
+00061940,nglSetSceneViewportRect,function,high,"current scene +0x328..+0x334 = the viewport rectangle in -1..1 (nglSetViewportRect writes the same four floats from pixels), then nglUpdateScene(1)"
 00061cc0,nglSetAspect,function,medium,"current scene +0x3bc; R_RenderView passes 16/9 with cg_widescreen, else 4/3"
 00061ce0,nglSetPerspective,function,medium,"(fov, znear, zfar) into +0x3c0..+0x3c8 with +0x300 = 1 (perspective); R_RenderView passes the view fov, r_znear, zfar"
 00061d40,nglSetOrthographic,function,medium,"(znear, zfar) with +0x300 = 0 and fov 0"

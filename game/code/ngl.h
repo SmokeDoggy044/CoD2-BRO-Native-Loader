@@ -34,7 +34,8 @@ struct NglLight;
 // set itself; the current set is where nglLightSetAddLight adds.
 struct alignas(16) NglLightSet {
     NglLight* lists[8];
-    uint8_t unknown20[0x30 - 0x20];
+    NglLight* object_lights; // +0x20, ends at the set itself (nglEvalFirstObjectLight)
+    uint8_t unknown24[0x30 - 0x24];
     NglLight* projectors[8]; // +0x30, shadow projectors (same layout as lights), per
                              // flag bit 24..31; empty lists end at `projectors`
     uint8_t unknown50[0x60 - 0x50];
@@ -127,7 +128,9 @@ struct NglScene {
     uint32_t projection_kind; // +0x300, 1 = perspective
     uint8_t unknown304[0x314 - 0x304];
     NglLightSet* light_set;   // +0x314
-    uint8_t unknown318[0x360 - 0x318];
+    uint8_t unknown318[0x328 - 0x318];
+    float viewport_rect[4];   // +0x328, x0 y0 x1 y1 in -1..1 (nglSetViewportRect)
+    uint8_t unknown338[0x360 - 0x338];
     uint32_t clear_flags;     // +0x360
     float clear_depth;        // +0x364
     uint8_t unknown368[0x370 - 0x368];
@@ -139,9 +142,11 @@ struct NglScene {
     float fog[4];             // +0x388, nglSetFog's arguments (fog[0] = start)
     uint8_t unknown398[0x3a0 - 0x398];
     float fog_color[4];       // +0x3a0, r g b, 1
-    uint8_t unknown3b0[0x3bc - 0x3b0];
+    uint8_t unknown3b0[0x3b8 - 0x3b0];
+    uint8_t stale;            // +0x3b8, matrices need nglUpdateScene
+    uint8_t unknown3b9[0x3bc - 0x3b9];
     float aspect;             // +0x3bc
-    uint8_t unknown3c0[0x3c4 - 0x3c0];
+    float fov;                // +0x3c0, 0 for orthographic
     float near_z;             // +0x3c4
     float far_z;              // +0x3c8
     float time;               // +0x3cc, nglBeginSceneRender derives +0x3d0 from it
@@ -184,6 +189,9 @@ static_assert(offsetof(NglScene, parent) == 0x2d0);
 static_assert(offsetof(NglScene, callbacks) == 0x2e0);
 static_assert(offsetof(NglScene, render_target) == 0x2f8);
 static_assert(offsetof(NglScene, light_set) == 0x314);
+static_assert(offsetof(NglScene, viewport_rect) == 0x328);
+static_assert(offsetof(NglScene, stale) == 0x3b8);
+static_assert(offsetof(NglScene, fov) == 0x3c0);
 static_assert(offsetof(NglTexture, target) == 0x4c);
 static_assert(sizeof(NglLightSet) == 0x70);
 static_assert(sizeof(NglSkipList) == 0x10);
@@ -448,5 +456,45 @@ float* XB_CDECL nglScaleMeshMatrix(const float* matrix, const uint8_t* instance,
 // through the matching edge; nglAddShadowProjector's projector box.
 void XB_CDECL nglBuildProjectorPlanes(float* out, const float* points);
 
-}  // namespace game
+// The current scene's camera and viewport setters; each ends in nglUpdateScene
+// (0x0005fc90, not decompiled yet).
+// 0x00061940: the viewport rectangle in -1..1 (x0 y0 x1 y1).
+void XB_CDECL nglSetSceneViewportRect(float x0, float y0, float x1, float y1);
+// 0x00061b70: the viewport rectangle in pixels of the scene's render target (the
+// screen's 640x480 for flags & 4), inclusive x1/y1, then nglSetViewportNormalized
+// (0x000619a0) with the -1..1 values.
+void XB_CDECL nglSetViewportRect(float x0, float y0, float x1, float y1);
+// 0x00061cc0
+void XB_CDECL nglSetAspect(float aspect);
+// 0x00061ce0
+void XB_CDECL nglSetPerspective(float fov, float near_z, float far_z);
+// 0x00061d40
+void XB_CDECL nglSetOrthographic(float near_z, float far_z);
+// 0x00061d90
+void XB_CDECL nglSetViewMatrix(const float* matrix);
+// 0x00061dc0: the view matrix as the inverse of a camera matrix (rotation rows 0..2,
+// position in row 3; 16-byte aligned).
+void XB_CDECL nglSetCameraMatrix(const float* camera);
+// 0x00062250: the scene's matrix at +0xd0, updated first when stale.
+const float* XB_CDECL nglGetViewMatrix();
 
+// 0x0005e270: a copy of `quad` on the current scene's draw lists (frame scene memory,
+// 0x70 bytes: vtable 0x007bc410, next, sort key, the quad): blend modes 0 and 1 go on
+// the opaque list (+0x304, count +0x30c) keyed by texture, the others on the
+// translucent list (+0x308, count +0x310) keyed by z. Updates a stale scene first.
+void XB_CDECL nglListAddQuad(const NglQuad* quad);
+// 0x00062d80: nglGetMatrix (0x00061f30) through a local copy.
+void XB_CDECL nglGetMatrixCopy(float* out, int32_t which);
+// 0x00062db0: nglProjectPoint (0x00062310) through a local copy.
+void XB_CDECL nglProjectPointCopy(float* out, const float* point);
+// 0x0006f960: a directional light (direction, colour r g b with 1) on the current
+// light set; nothing when the frame's scene memory is exhausted.
+void XB_CDECL nglAddDirectionalLight(uint32_t flags, const float* direction, const float* color);
+// 0x00070120: a light's contribution at `position`: type 0 (point) evaluated into
+// `out`, type 1 its own data, else null.
+const float* XB_CDECL nglEvalLight(float* out, const NglLight* light, const float* position);
+// 0x00070160: nglEvalLight for the current light set's first object light; with none,
+// `out` = {0, 1, 0, 0, 0, 0, 0, 0}.
+const float* XB_CDECL nglEvalFirstObjectLight(float* out, const float* position);
+
+}  // namespace game

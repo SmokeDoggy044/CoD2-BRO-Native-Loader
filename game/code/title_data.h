@@ -13,4 +13,11 @@ T& title_global(uint32_t address) {
     return *reinterpret_cast<T*>(static_cast<uintptr_t>(address));
 }
 
+// A title function not decompiled yet, called at its default.xbe address. F carries
+// the calling convention (XB_CDECL etc.).
+template <typename F>
+F* title_function(uint32_t address) {
+    return reinterpret_cast<F*>(static_cast<uintptr_t>(address));
+}
+
 }  // namespace game

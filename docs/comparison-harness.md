@@ -68,6 +68,10 @@ registers and calls the dispatcher. For a tested call:
   in `/proc/self/pagemap` (private anonymous mappings).
 - Both report over pipes; the parent asks both for every page either one wrote and
   compares.
+- Calls the tested function makes into other hooked functions run their originals:
+  each stub checks `xbcmp_in_test` (set in test processes) and jumps straight to the
+  trampoline, since the dispatcher is not executable there. Decompiled code reaches
+  title functions not decompiled yet with `title_function<F>(address)`.
 - After the mprotect a test process runs only `xbcmp_text` code, with raw system
   calls: no C runtime, no compiler-added calls (`-fno-stack-protector`,
   `-fno-tree-loop-distribute-patterns` for that file). Check after changes:
