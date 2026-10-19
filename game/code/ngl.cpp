@@ -13,9 +13,6 @@ NglLightSet*& current_light_set() { return title_global<NglLightSet*>(0x00902e44
 NglScene*& root_scene() { return title_global<NglScene*>(0x009025a0); }
 uint32_t scene_slot_count() { return title_global<uint32_t>(0x00902900); }
 
-// 0x0005fc90: rebuilds the current scene's matrices (projection, view, clip-to-screen).
-void nglUpdateScene(int32_t force) { title_function<void XB_CDECL(int32_t)>(0x0005fc90)(force); }
-
 // The frame's scene memory (16-byte aligned blocks, bumped; no end check here).
 template <typename T>
 T* alloc_scene_memory(uint32_t size) {
@@ -303,6 +300,194 @@ Lanes sub(const Lanes& a, const Lanes& b) {
 Lanes neg(const Lanes& a) { return {{-a.v[0], -a.v[1], -a.v[2], -a.v[3]}}; }
 
 }  // namespace
+
+namespace {
+
+float from_bits(uint32_t bits) {
+    float f;
+    std::memcpy(&f, &bits, 4);
+    return f;
+}
+
+// |x| by clearing the sign bit (ANDNPS; std::fabs is called out of line at -O0).
+float abs_bits(float x) {
+    uint32_t bits;
+    std::memcpy(&bits, &x, 4);
+    return from_bits(bits & 0x7fffffffu);
+}
+
+// The title's packed sine polynomial (one lane): the angle folded into a quarter
+// period by rounding with 1.5 * 2^23, then an odd polynomial of degree 9.
+float scene_sine_poly(float angle) {
+    const float y = -abs_bits(angle) * from_bits(0x3e22f983);  // 1 / (2 pi)
+    const float magic = from_bits(0x4b400000);
+    const float z = abs_bits(((y - magic) + magic) - y - 0.5f) - 0.25f;
+    const float z2 = z * z;
+    const float z4 = z2 * z2;
+    const float z3 = z * z2;
+    const float z5 = z * z4;
+    float sum = z5 * z4 * from_bits(0x421ed7b7) + z3 * z4 * from_bits(0xc2992661);
+    sum = sum + z5 * from_bits(0x42a33457);
+    sum = sum + z3 * from_bits(0xc2255de0);
+    return sum + z * from_bits(0x40c90fda);
+}
+
+// a * m as row vector times matrix, four packed lanes, added in the title's order.
+Lanes row_times(const Lanes& a, const float* m) {
+    Lanes r = add(mul(lanes(m), a.v[0]), mul(lanes(m + 4), a.v[1]));
+    r = add(r, mul(lanes(m + 8), a.v[2]));
+    return add(r, mul(lanes(m + 12), a.v[3]));
+}
+
+void store(float* out, const Lanes& a) { std::memcpy(out, a.v, 16); }
+
+}  // namespace
+
+void XB_CDECL nglUpdateScene(uint8_t mark_stale) {
+    if (mark_stale) {
+        current_scene()->stale = 1;
+        return;
+    }
+    NglScene* scene = current_scene();
+    if (!scene->stale) return;
+    scene->stale = 0;
+
+    // The clamped viewport mapped into the viewport rectangle's -1..1.
+    float x0 = scene->viewport_rect[0];
+    float y0 = scene->viewport_rect[1];
+    float x1 = scene->viewport_rect[2];
+    float y1 = scene->viewport_rect[3];
+    const float* clamped = scene->viewport_clamped;
+    float inv = 1.0f / (x1 - x0);
+    const float sum_x = x1 + x0;
+    float offset = 0.0f - sum_x * inv;
+    float scale = inv * 2.0f;
+    const float ndc2 = clamped[2] * scale + offset;
+    const float ndc0 = clamped[0] * scale + offset;
+    inv = 1.0f / (y1 - y0);
+    const float sum_y = y1 + y0;
+    offset = 0.0f - sum_y * inv;
+    scale = inv * 2.0f;
+    const float ndc1 = clamped[1] * scale + offset;
+    const float ndc3 = clamped[3] * scale + offset;
+    scene->viewport_ndc[0] = ndc0;
+    scene->viewport_ndc[2] = ndc2;
+    scene->viewport_ndc[1] = ndc1;
+    scene->viewport_ndc[3] = ndc3;
+
+    alignas(16) float m[16];
+    Lanes planes[6];  // view space: left, right, two in y, near, far
+    if (scene->projection_kind == 1) {
+        // f = cos / sin of half the field of view (degrees), from the polynomial.
+        const float angle = scene->fov * from_bits(0x3c0efa35);  // pi / 360
+        const float f = scene_sine_poly(angle + from_bits(0x4096cbe2)) / scene_sine_poly(angle + 0.0f);
+        const float af = scene->aspect * f;
+        const float ax = abs_bits(ndc0) > abs_bits(ndc2) ? abs_bits(ndc0) : abs_bits(ndc2);
+        const float ay = abs_bits(ndc1) > abs_bits(ndc3) ? abs_bits(ndc1) : abs_bits(ndc3);
+        const float sx = ax * af;
+        const float sy = f * ay;
+        scene->frustum_scale[0] = sx;
+        scene->frustum_scale[1] = sy;
+        // The rectangle widened by the same extents around its centre.
+        const float mid_x = sum_x * 0.5f;
+        x0 = (x0 - mid_x) * ax + mid_x;
+        x1 = (x1 - mid_x) * ax + mid_x;
+        const float mid_y = sum_y * 0.5f;
+        y0 = (y0 - mid_y) * ay + mid_y;
+        y1 = (y1 - mid_y) * ay + mid_y;
+        nglMatrixPerspective(m, 1.0f / sx, 1.0f / sy, scene->near_z, scene->far_z);
+        std::memcpy(scene->base_projection, m, 64);
+        planes[4] = {{0.0f, 0.0f, 1.0f, scene->near_z}};
+        planes[5] = {{0.0f, 0.0f, -1.0f, 0.0f - scene->far_z}};
+        const float v0 = af * ndc0;
+        float s = platform_x87_rcp_sqrt_sq_plus_one(v0);
+        planes[0] = {{s, 0.0f, 0.0f - s * v0, 0.0f}};
+        const float v2 = af * ndc2;
+        s = platform_x87_rcp_sqrt_sq_plus_one(v2);
+        planes[1] = {{0.0f - s, 0.0f, s * v2, 0.0f}};
+        const float v1 = f * ndc1;
+        s = platform_x87_rcp_sqrt_sq_plus_one(v1);
+        planes[2] = {{0.0f, 0.0f - s, 0.0f - s * v1, 0.0f}};
+        const float v3 = f * ndc3;
+        s = platform_x87_rcp_sqrt_sq_plus_one(v3);
+        planes[3] = {{0.0f, s, s * v3, 0.0f}};
+    } else {
+        nglMatrixOrtho(m, 1.0f / scene->aspect, 1.0f, scene->near_z, scene->far_z);
+        std::memcpy(scene->base_projection, m, 64);
+        planes[4] = {{0.0f, 0.0f, 1.0f, scene->near_z}};
+        planes[5] = {{0.0f, 0.0f, -1.0f, 0.0f - scene->far_z}};
+        planes[0] = {{1.0f, 0.0f, 0.0f, ndc0 * scene->aspect}};
+        planes[1] = {{-1.0f, 0.0f, 0.0f, 0.0f - ndc2 * scene->aspect}};
+        planes[2] = {{0.0f, -1.0f, 0.0f, ndc1}};
+        planes[3] = {{0.0f, 1.0f, 0.0f, 0.0f - ndc3}};
+    }
+    nglMatrixViewport(m, x0, y0, x1, y1);
+    std::memcpy(scene->viewport, m, 64);
+    std::memcpy(scene->target_scale, title_function<float* XB_CDECL(float*)>(0x00073e90)(m), 64);
+
+    // projection = base rows times the viewport (lane 3 kept from the base row), then
+    // times the target scale.
+    for (int i = 0; i < 4; ++i) {
+        const Lanes base = lanes(scene->base_projection + i * 4);
+        Lanes t = row_times(base, scene->viewport);
+        platform_keep(t);
+        t.v[3] = base.v[3];
+        store(scene->projection + i * 4, row_times(t, scene->target_scale));
+    }
+
+    // The camera: the view matrix inverted as a rigid transform.
+    const float* v = scene->view_matrix;
+    float camera[16] = {
+        v[0], v[4], v[8], v[8],
+        v[1], v[5], v[9], v[9],
+        v[2], v[6], v[10], v[10],
+    };
+    {
+        const Lanes t = neg(lanes(v + 12));
+        Lanes row = add(mul(lanes(camera), t.v[0]), mul(lanes(camera + 4), t.v[1]));
+        store(camera + 12, add(row, mul(lanes(camera + 8), t.v[2])));
+    }
+    std::memcpy(scene->matrix0d0, camera, 64);
+
+    // view_projection = view * projection (rows 0..2 without, row 3 with translation).
+    const float* p = scene->projection;
+    for (int i = 0; i < 3; ++i) {
+        Lanes row = add(mul(lanes(p), v[i * 4]), mul(lanes(p + 4), v[i * 4 + 1]));
+        store(scene->view_projection + i * 4, add(row, mul(lanes(p + 8), v[i * 4 + 2])));
+    }
+    {
+        Lanes row = add(lanes(p + 12), mul(lanes(p), v[12]));
+        row = add(row, mul(lanes(p + 4), v[13]));
+        store(scene->view_projection + 12, add(row, mul(lanes(p + 8), v[14])));
+    }
+
+    nglMatrixSceneClipToScreen(m);
+    std::memcpy(scene->clip_to_screen, m, 64);
+
+    // The frustum planes into world space: normal through the camera rotation (lane 3
+    // of the rows 0), distance plus the camera position's offset.
+    const float* c = scene->matrix0d0;
+    const Lanes r0 = {{c[0], c[1], c[2], 0.0f}};
+    const Lanes r1 = {{c[4], c[5], c[6], 0.0f}};
+    const Lanes r2 = {{c[8], c[9], c[10], 0.0f}};
+    const Lanes pos = {{c[12], c[13], c[14], 1.0f}};
+    for (int i = 0; i < 6; ++i) {
+        const Lanes& n = planes[i];
+        Lanes world = add(mul(r0, n.v[0]), mul(r1, n.v[1]));
+        world = add(world, mul(r2, n.v[2]));
+        Lanes q = {{world.v[0] * pos.v[0], world.v[1] * pos.v[1], world.v[2] * pos.v[2], world.v[3] * pos.v[3]}};
+        q.v[0] = q.v[0] + q.v[1] + q.v[2];
+        Lanes d = {{q.v[0] + n.v[3], q.v[1] + n.v[3], q.v[2] + n.v[3], q.v[3] + n.v[3]}};
+        platform_keep(d);
+        world.v[3] = d.v[0];
+        store(scene->frustum[i], world);
+    }
+    std::memcpy(scene->camera_position, c + 12, 16);
+    std::memcpy(scene->camera_forward, c + 8, 16);
+
+    nglMatrixScreenToClip(m);
+    for (int i = 0; i < 4; ++i) store(scene->screen_to_target + i * 4, row_times(lanes(m + i * 4), scene->target_scale));
+}
 
 void XB_CDECL nglMatrixSceneClipToScreen(float* out) {
     const NglScene* scene = current_scene();
@@ -899,14 +1084,6 @@ uint8_t* XB_REGS1 XB_CDECL nglSelectMeshLod(uint8_t* table, int8_t flags, const 
 }
 
 namespace {
-
-float abs_bits(float value) {
-    uint32_t bits;
-    std::memcpy(&bits, &value, 4);
-    bits &= 0x7fffffff;
-    std::memcpy(&value, &bits, 4);
-    return value;
-}
 
 // MAXPS: the second operand unless the first is greater (NaN picks the second).
 float maxps(float a, float b) { return a > b ? a : b; }

@@ -56,6 +56,7 @@ const Function kFunctions[] = {
     {"nglMatrixScreenToClip", 0x0005f010, 0, code(&nglMatrixScreenToClip), 4, Result::None, Status::Compare},
     {"nglMatrixViewport", 0x0005f1b0, 0, code(&nglMatrixViewport), 20, Result::None, Status::Compare},
     {"nglMatrixSceneClipToScreen", 0x0005f310, 0, code(&nglMatrixSceneClipToScreen), 4, Result::None, Status::Compare},
+    {"nglUpdateScene", 0x0005fc90, 0, code(&nglUpdateScene), 4, Result::None, Status::Compare},
     {"nglSetSceneViewportRect", 0x00061940, 0, code(&nglSetSceneViewportRect), 16, Result::None, Status::Compare},
     {"nglSetViewportNormalized", 0x000619a0, 0, code(&nglSetViewportNormalized), 16, Result::None, Status::Compare},
     {"nglSetViewportRect", 0x00061b70, 0, code(&nglSetViewportRect), 16, Result::None, Status::Compare},

@@ -111,11 +111,20 @@ struct NglScene {
     uint8_t unknown00c[0x10 - 0xc];
     float base_projection[16]; // +0x010, nglMatrixPerspective/Ortho's (kind at +0x300)
     float viewport[16];       // +0x050, nglMatrixViewport's
-    uint8_t unknown090[0xd0 - 0x90];
-    float matrix0d0[16];      // +0x0d0, the last factor of nglMatrixSceneClipToScreen
-    float projection[16];     // +0x110, row vectors (nglDepthToZValue uses rows 2 and 3)
+    float target_scale[16];   // +0x090, the render target's sample scale (0x00073e90)
+    float matrix0d0[16];      // +0x0d0, the camera: the view matrix's inverse (rotation
+                              // rows with lane 3 = lane 2, then the position); the last
+                              // factor of nglMatrixSceneClipToScreen
+    float projection[16];     // +0x110, base projection * viewport * target scale; row
+                              // vectors (nglDepthToZValue uses rows 2 and 3)
     float view_matrix[16];    // +0x150
-    uint8_t unknown190[0x2d0 - 0x190];
+    float view_projection[16]; // +0x190, view * projection
+    float clip_to_screen[16]; // +0x1d0, nglMatrixSceneClipToScreen's
+    float screen_to_target[16]; // +0x210, nglMatrixScreenToClip's * target scale
+    float camera_position[4]; // +0x250, camera row 3
+    float camera_forward[4];  // +0x260, camera row 2
+    float frustum[6][4];      // +0x270, world-space planes (normal, distance; inside when
+                              // dot(p, n) - d >= 0): left, right, two in y, near, far
     NglScene* parent;         // +0x2d0, the scene nglPopScene returns to
     NglScene* next_sibling;   // +0x2d4, the scene tree nglPushScene builds
     NglScene* first_child;    // +0x2d8
@@ -133,7 +142,8 @@ struct NglScene {
     int32_t viewport_pixels[4]; // +0x318, x0 y0 x1 y1 (nglSetViewportNormalized)
     float viewport_rect[4];   // +0x328, x0 y0 x1 y1 in -1..1 (nglSetViewportRect)
     float viewport_clamped[4]; // +0x338, nglSetViewportNormalized's, clamped to -1..1
-    uint8_t unknown348[0x360 - 0x348];
+    float viewport_ndc[4];    // +0x348, viewport_clamped mapped into viewport_rect's -1..1
+    float frustum_scale[2];   // +0x358, perspective: the field of view's x and y extents
     uint32_t clear_flags;     // +0x360
     float clear_depth;        // +0x364
     uint8_t unknown368[0x370 - 0x368];
@@ -193,6 +203,9 @@ static_assert(offsetof(NglScene, matrix0d0) == 0xd0);
 static_assert(offsetof(NglScene, view_matrix) == 0x150);
 static_assert(offsetof(NglScene, projection_kind) == 0x300);
 static_assert(offsetof(NglScene, viewport_pixels) == 0x318);
+static_assert(offsetof(NglScene, frustum) == 0x270);
+static_assert(offsetof(NglScene, viewport_ndc) == 0x348);
+static_assert(offsetof(NglScene, clear_flags) == 0x360);
 static_assert(offsetof(NglScene, last_child) == 0x2dc);
 static_assert(offsetof(NglScene, slots) == 0x3d8);
 static_assert(sizeof(NglScene) == 0x3e0);
@@ -478,8 +491,10 @@ float* XB_CDECL nglScaleMeshMatrix(const float* matrix, const uint8_t* instance,
 // through the matching edge; nglAddShadowProjector's projector box.
 void XB_CDECL nglBuildProjectorPlanes(float* out, const float* points);
 
-// The current scene's camera and viewport setters; each ends in nglUpdateScene
-// (0x0005fc90, not decompiled yet).
+// The current scene's camera and viewport setters; each ends in nglUpdateScene(1).
+// 0x0005fc90: rebuilds the current scene's matrices and world-space frustum planes
+// when it is stale; with `mark_stale` only marks it stale (what every setter does).
+void XB_CDECL nglUpdateScene(uint8_t mark_stale);
 // 0x00061940: the viewport rectangle in -1..1 (x0 y0 x1 y1).
 void XB_CDECL nglSetSceneViewportRect(float x0, float y0, float x1, float y1);
 // 0x00061b70: the viewport rectangle in pixels of the scene's render target (the

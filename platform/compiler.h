@@ -100,6 +100,13 @@ inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
             : "cc", "st");
     return result;
 }
+// 1 / sqrt(v * v + 1) on the x87 (FMUL/FADD/FSQRT/FDIVR), stored as float.
+inline float platform_x87_rcp_sqrt_sq_plus_one(float v) {
+    static const float one = 1.0f;
+    float result;
+    __asm__("flds %1\n\tfmuls %1\n\tfadds %2\n\tfsqrt\n\tfdivrs %2" : "=t"(result) : "m"(v), "m"(one));
+    return result;
+}
 #else
 #include <cmath>
 inline float platform_x87_sin(float x) { return std::sin(x); }
@@ -108,6 +115,7 @@ inline float platform_x87_tan(float x) { return std::tan(x); }
 inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
     return t - std::sqrt(a * b) >= limit;
 }
+inline float platform_x87_rcp_sqrt_sq_plus_one(float v) { return 1.0f / std::sqrt(v * v + 1.0f); }
 #endif
 
 // MSVC's _ftol: truncates through a 64-bit integer and keeps the low half, so NaN and
