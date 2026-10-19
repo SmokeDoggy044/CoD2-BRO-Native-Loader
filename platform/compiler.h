@@ -55,6 +55,19 @@
 #define PLATFORM_SECTION(name) __attribute__((section(name), noinline))
 #endif
 
+// Makes the compiler compute `value` although nothing reads it: the title's packed
+// SSE code computes unused lanes too, and their exception flags (MXCSR) are part of
+// what the comparison harness checks.
+#if defined(__GNUC__) || defined(__clang__)
+template <typename T>
+inline void platform_keep(const T& value) {
+    __asm__ volatile("" : : "m"(value));
+}
+#else
+template <typename T>
+inline void platform_keep(const T&) {}
+#endif
+
 // The x87 FSIN/FCOS the title uses, rounded by the caller's precision control and
 // stored as float like the title does. Other builds use the C library (route C).
 #if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
@@ -74,11 +87,25 @@ inline float platform_x87_tan(float x) {
     __asm__("fptan\n\tfstp %%st(0)" : "=t"(result) : "0"(x));
     return result;
 }
+// t - sqrt(a * b) >= limit, all on the x87 (FMUL/FSQRT/FSUBR/FCOMIP); false when
+// unordered.
+inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
+    bool result;
+    __asm__("flds %1\n\tfmuls %2\n\tfsqrt\n\tfsubrs %3\n\tflds %4\n\tfxch %%st(1)\n\t"
+            "fcomip %%st(1), %%st\n\tfstp %%st(0)\n\tsetae %0"
+            : "=q"(result)
+            : "m"(a), "m"(b), "m"(t), "m"(limit)
+            : "cc", "st");
+    return result;
+}
 #else
 #include <cmath>
 inline float platform_x87_sin(float x) { return std::sin(x); }
 inline float platform_x87_cos(float x) { return std::cos(x); }
 inline float platform_x87_tan(float x) { return std::tan(x); }
+inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
+    return t - std::sqrt(a * b) >= limit;
+}
 #endif
 
 // SSE RSQRTSS, the title's reciprocal square root estimate (its precision is the

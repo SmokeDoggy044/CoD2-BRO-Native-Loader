@@ -19,6 +19,7 @@ const void* code(F* function) {
 // Sorted by campaign address.
 const Function kFunctions[] = {
     {"inflate_trees_fixed", 0x0005d8c0, 0, code(&inflate_trees_fixed), 20, Result::Eax, Status::Compare},
+    {"inflate_fast", 0x0005da20, 0, code(&inflate_fast), 24, Result::Eax, Status::Compare},
     {"nglInitQuad", 0x0005ddb0, 0, code(&nglInitQuad), 4, Result::None, Status::Compare},
     {"nglSetQuadTexture", 0x0005de20, 0, code(&nglSetQuadTexture), 8, Result::None, Status::Compare},
     {"nglSetQuadFlags", 0x0005de30, 0, code(&nglSetQuadFlags), 8, Result::None, Status::Compare},
@@ -52,6 +53,7 @@ const Function kFunctions[] = {
     {"nglMatrixOrtho", 0x0005ed60, 0, code(&nglMatrixOrtho), 20, Result::None, Status::Compare},
     {"nglMatrixScreenToClip", 0x0005f010, 0, code(&nglMatrixScreenToClip), 4, Result::None, Status::Compare},
     {"nglMatrixViewport", 0x0005f1b0, 0, code(&nglMatrixViewport), 20, Result::None, Status::Compare},
+    {"nglMatrixSceneClipToScreen", 0x0005f310, 0, code(&nglMatrixSceneClipToScreen), 4, Result::None, Status::Compare},
     {"nglSetTextureManager", 0x000633b0, 0, code(&nglSetTextureManager), 4, Result::None, Status::Compare},
     {"nglGetTextureManager", 0x000633c0, 0, code(&nglGetTextureManager), 0, Result::Eax, Status::Compare},
     {"nglAddRef", 0x00063520, 0, code(&nglAddRef), 4, Result::None, Status::Compare},
@@ -87,6 +89,7 @@ const Function kFunctions[] = {
     {"nglLightVectorWorld", 0x0006f850, 0, code(&nglLightVectorWorld), 12, Result::Eax, Status::Compare},
     {"nglSetAmbientColor", 0x0006f8d0, 0, code(&nglSetAmbientColor), 12, Result::None, Status::Compare},
     {"nglEvalPointLight", 0x0006ffc0, 0, code(&nglEvalPointLight), 12, Result::Al, Status::Compare},
+    {"nglBuildProjectorPlanes", 0x00070b00, 0, code(&nglBuildProjectorPlanes), 8, Result::None, Status::Compare},
     {"nglSetRenderTarget", 0x00073a70, 0, code(&nglSetRenderTarget), 4, Result::None, Status::Compare},
     {"nglSetSceneFlags", 0x00073ae0, 0, code(&nglSetSceneFlags), 4, Result::None, Status::Compare},
     {"nglGetTargetSampleScale", 0x00073c20, 0, code(&nglGetTargetSampleScale), 8, Result::Eax, Status::Compare},
@@ -134,6 +137,7 @@ const Function kFunctions[] = {
     {"R_AddCellEntities", 0x00238ae0, 0, code(&R_AddCellEntities), 12, Result::None, Status::Compare},
     {"DObj_GetBoneParent", 0x0023a2a0, 0, code(&DObj_GetBoneParent), 8, Result::Eax, Status::Compare},
     {"DObj_GetBoneIndex", 0x0023a440, 0, code(&DObj_GetBoneIndex), 4, Result::Eax, Status::Compare},
+    {"DObj_TraceBoneBoxes", 0x0023a590, 0, code(&DObj_TraceBoneBoxes), 24, Result::None, Status::Compare},
     {"XModel_GetBoneCount", 0x0023b1e0, 0, code(&XModel_GetBoneCount), 4, Result::Eax, Status::Compare},
     {"FX_AllocEffect", 0x0023b970, 0, code(&FX_AllocEffect), 0, Result::Eax, Status::Compare},
     {"R_ClipPolygonToPlane", 0x0023bb70, 0, code(&R_ClipPolygonToPlane), 12, Result::Eax, Status::Compare},

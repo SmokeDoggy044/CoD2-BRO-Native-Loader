@@ -222,6 +222,77 @@ void XB_CDECL nglMatrixViewport(float* out, float x0, float y0, float x1, float 
                    centre_x, (y0 + y1) * 0.5f, 0, centre_x});
 }
 
+namespace {
+
+struct Lanes {
+    float v[4];
+};
+
+Lanes lanes(const float* p) { return {{p[0], p[1], p[2], p[3]}}; }
+
+Lanes mul(const Lanes& a, float s) { return {{a.v[0] * s, a.v[1] * s, a.v[2] * s, a.v[3] * s}}; }
+
+Lanes add(const Lanes& a, const Lanes& b) {
+    return {{a.v[0] + b.v[0], a.v[1] + b.v[1], a.v[2] + b.v[2], a.v[3] + b.v[3]}};
+}
+
+Lanes sub(const Lanes& a, const Lanes& b) {
+    return {{a.v[0] - b.v[0], a.v[1] - b.v[1], a.v[2] - b.v[2], a.v[3] - b.v[3]}};
+}
+
+Lanes neg(const Lanes& a) { return {{-a.v[0], -a.v[1], -a.v[2], -a.v[3]}}; }
+
+}  // namespace
+
+void XB_CDECL nglMatrixSceneClipToScreen(float* out) {
+    const NglScene* scene = current_scene();
+    const float* vp = scene->viewport;
+    const float* proj = scene->base_projection;
+    // The original divides whole rows (DIVPS) and uses one lane of each quotient.
+    auto divide_rows = [](const float* a, const float* b) {
+        Lanes q;
+        for (int i = 0; i < 4; ++i) q.v[i] = -a[i] / b[i];
+        platform_keep(q);
+        return q;
+    };
+    const Lanes vp_offset = divide_rows(vp + 12, vp + 4);
+    // The viewport's inverse (only the columns the product reads).
+    const Lanes inv_vp[4] = {
+        {{1.0f / vp[0], 0.0f, 0.0f, 0.0f}},
+        {{0.0f, 1.0f / vp[5], 0.0f, 0.0f}},
+        {{0.0f, 0.0f, 1.0f, 0.0f}},
+        {{-vp[12] / vp[0], vp_offset.v[1], 0.0f, 0.0f}},
+    };
+    Lanes inv_proj[4];
+    inv_proj[0] = {{1.0f / proj[0], 0.0f, 0.0f, 0.0f}};
+    inv_proj[1] = {{0.0f, 1.0f / proj[5], 0.0f, 0.0f}};
+    if (scene->projection_kind == 1) {
+        inv_proj[2] = {{0.0f, 0.0f, 0.0f, 1.0f / proj[14]}};
+        inv_proj[3] = {{0.0f, 0.0f, 1.0f, divide_rows(proj + 8, proj + 12).v[2]}};
+    } else {
+        inv_proj[2] = {{0.0f, 0.0f, 1.0f / proj[10], 0.0f}};
+        inv_proj[3] = {{0.0f, 0.0f, divide_rows(proj + 12, proj + 8).v[2], 1.0f}};
+    }
+    Lanes left[4];
+    for (int i = 0; i < 4; ++i) {
+        const float* r = inv_vp[i].v;
+        Lanes row = i == 3 ? add(inv_proj[3], mul(inv_proj[0], r[0])) : mul(inv_proj[0], r[0]);
+        row = add(row, mul(inv_proj[1], r[1]));
+        left[i] = add(row, mul(inv_proj[2], r[2]));
+    }
+    const float* m = scene->matrix0d0;
+    for (int i = 0; i < 4; ++i) {
+        const float* r = left[i].v;
+        Lanes row = add(mul(lanes(m), r[0]), mul(lanes(m + 4), r[1]));
+        row = add(row, mul(lanes(m + 8), r[2]));
+        row = add(row, mul(lanes(m + 12), r[3]));
+        out[i * 4 + 0] = row.v[0];
+        out[i * 4 + 1] = row.v[1];
+        out[i * 4 + 2] = row.v[2];
+        out[i * 4 + 3] = r[3];
+    }
+}
+
 float XB_CDECL nglDepthToZValue(float depth) {
     const NglScene* scene = current_scene();
     if (scene->near_z > depth) depth = scene->near_z;
@@ -795,6 +866,50 @@ float* XB_CDECL nglScaleMeshMatrix(const float* matrix, const uint8_t* instance,
     }
     std::memcpy(out + 12, matrix + 12, 16);
     return out;
+}
+
+namespace {
+
+// The title's packed cross product: (a * yzx(b) - yzx(a) * b), rotated (w unused).
+Lanes cross3(const Lanes& a, const Lanes& b) {
+    const float* x = a.v;
+    const float* y = b.v;
+    return {{x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0], 0.0f}};
+}
+
+float dot3(const Lanes& a, const float* b) { return (a.v[0] * b[0] + a.v[1] * b[1]) + a.v[2] * b[2]; }
+
+// 1 / |v| from RSQRTSS and one Newton step; 0 for a zero vector.
+float inverse_length(const Lanes& v) {
+    const float sum = (v.v[0] * v.v[0] + v.v[1] * v.v[1]) + v.v[2] * v.v[2];
+    if (sum == 0.0f) return 0.0f;
+    const float a = abs_bits(sum);
+    const float r = platform_rsqrt_estimate(a);
+    return ((3.0f - (r * r) * a) * r) * 0.5f;
+}
+
+}  // namespace
+
+void XB_CDECL nglBuildProjectorPlanes(float* out, const float* points) {
+    const Lanes p0 = lanes(points);
+    const Lanes p1 = lanes(points + 4);
+    const Lanes p2 = lanes(points + 8);
+    const float* corner = points + 12;
+    static const Lanes kW = {{0.0f, 0.0f, 0.0f, 1.0f}};
+    // Plane (n, -n.corner) and the opposite one through `far`, as packed ops.
+    auto store = [&](float* plane, float* opposite, const Lanes& raw, const float* far) {
+        const Lanes n = mul(raw, inverse_length(raw));
+        const Lanes front = sub({{n.v[0], n.v[1], n.v[2], 0.0f}}, mul(kW, dot3(n, corner)));
+        const Lanes back = add(neg(front), mul(kW, dot3(n, far)));
+        std::memcpy(plane, front.v, 16);
+        std::memcpy(opposite, back.v, 16);
+    };
+    const Lanes n0 = cross3(p0, p1);
+    const Lanes n1 = cross3(p1, p2);
+    const Lanes n2 = cross3(p2, p0);
+    store(out + 16, out + 20, n0, points + 8);
+    store(out + 8, out + 12, n1, points);
+    store(out + 4, out, n2, points + 4);
 }
 
 }  // namespace game

@@ -1298,12 +1298,12 @@
 0005ca10 FUN_0005ca10
 0005ca50 FUN_0005ca50
 0005d170 FUN_0005d170
-0005d190 FUN_0005d190
+0005d190 huft_build
 0005d680 inflate_trees_bits
 0005d730 inflate_trees_dynamic
 0005d8c0 inflate_trees_fixed
 0005d8f0 FUN_0005d8f0
-0005da20 FUN_0005da20
+0005da20 inflate_fast
 0005ddb0 nglInitQuad
 0005de20 nglSetQuadTexture
 0005de30 nglSetQuadFlags
@@ -1514,7 +1514,7 @@
 00070160 nglEvalFirstObjectLight
 00070200 nglComputeObjectLights
 000704f0 nglAddShadowProjector
-00070b00 FUN_00070b00
+00070b00 nglBuildProjectorPlanes
 000728d0 nglUpdateFogTable
 00072b10 nglAllocFogTextures
 00072ba0 nglInitDepthTextureView
@@ -6922,7 +6922,7 @@
 0023a340 FUN_0023a340
 0023a440 DObj_GetBoneIndex
 0023a560 DObj_AnyModelHasFlags
-0023a590 FUN_0023a590
+0023a590 DObj_TraceBoneBoxes
 0023aea0 DObj_GetTagIndex
 0023aff0 FUN_0023aff0
 0023b1e0 XModel_GetBoneCount

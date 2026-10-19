@@ -107,7 +107,11 @@ struct NglScene {
     NglRenderTargetLink* render_targets; // +0x000
     uint32_t flags;           // +0x004
     uint32_t unknown008;      // +0x008, nglSetRenderTarget stores 6
-    uint8_t unknown00c[0x110 - 0xc];
+    uint8_t unknown00c[0x10 - 0xc];
+    float base_projection[16]; // +0x010, nglMatrixPerspective/Ortho's (kind at +0x300)
+    float viewport[16];       // +0x050, nglMatrixViewport's
+    uint8_t unknown090[0xd0 - 0x90];
+    float matrix0d0[16];      // +0x0d0, the last factor of nglMatrixSceneClipToScreen
     float projection[16];     // +0x110, row vectors (nglDepthToZValue uses rows 2 and 3)
     float view_matrix[16];    // +0x150
     uint8_t unknown190[0x2d0 - 0x190];
@@ -119,7 +123,9 @@ struct NglScene {
     } callbacks[3];           // +0x2e0, nglSetSceneCallback's (nglRenderSceneTree calls
                               // three: before, between and after its two draw lists)
     NglRenderTarget* render_target; // +0x2f8
-    uint8_t unknown2fc[0x314 - 0x2fc];
+    uint8_t unknown2fc[0x300 - 0x2fc];
+    uint32_t projection_kind; // +0x300, 1 = perspective
+    uint8_t unknown304[0x314 - 0x304];
     NglLightSet* light_set;   // +0x314
     uint8_t unknown318[0x360 - 0x318];
     uint32_t clear_flags;     // +0x360
@@ -170,7 +176,10 @@ static_assert(sizeof(NglMeshSectionEntry) == 8);
 static_assert(sizeof(NglQuadVertex) == 0x14);
 static_assert(sizeof(NglQuad) == 0x64);
 static_assert(offsetof(NglQuad, texture) == 0x60);
+static_assert(offsetof(NglScene, base_projection) == 0x10);
+static_assert(offsetof(NglScene, matrix0d0) == 0xd0);
 static_assert(offsetof(NglScene, view_matrix) == 0x150);
+static_assert(offsetof(NglScene, projection_kind) == 0x300);
 static_assert(offsetof(NglScene, parent) == 0x2d0);
 static_assert(offsetof(NglScene, callbacks) == 0x2e0);
 static_assert(offsetof(NglScene, render_target) == 0x2f8);
@@ -247,6 +256,10 @@ void XB_CDECL nglMatrixOrtho(float* out, float x_scale, float y_scale, float nea
 void XB_CDECL nglMatrixScreenToClip(float* out);
 // 0x0005f1b0: -1..1 to the rectangle x0, y0 .. x1, y1.
 void XB_CDECL nglMatrixViewport(float* out, float x0, float y0, float x1, float y1);
+// 0x0005f310: the inverse of the current scene's viewport times the inverse of its
+// projection (both affine products: the w columns of the left factor's rows are
+// skipped), times its matrix at +0xd0; each output row keeps the left product's w.
+void XB_CDECL nglMatrixSceneClipToScreen(float* out);
 // 0x0006e860: a view depth (clamped to near..far) to the 24-bit depth buffer value.
 float XB_CDECL nglDepthToZValue(float depth);
 // 0x0005e3f0: render targets the scene draws into (flag 0x400) get a link in the
@@ -429,4 +442,11 @@ uint8_t* XB_REGS1 XB_CDECL nglSelectMeshLod(uint8_t* table, int8_t flags, const 
 // scale's |x|, |y|, |z| (MAXPS order).
 float* XB_CDECL nglScaleMeshMatrix(const float* matrix, const uint8_t* instance, float* max_scale);
 
+// 0x00070b00: six planes (n, d as 4 floats; 0x60 bytes) of the box spanned by
+// points[0..2] (edge vectors) at points[3] (a corner): normals cross(p0, p1),
+// cross(p1, p2), cross(p2, p0) through the corner, each with its opposite plane
+// through the matching edge; nglAddShadowProjector's projector box.
+void XB_CDECL nglBuildProjectorPlanes(float* out, const float* points);
+
 }  // namespace game
+
