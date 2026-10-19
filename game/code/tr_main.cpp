@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "dobj.h"
+#include "lanes.h"
 #include "ngl.h"
 #include "title_data.h"
 
@@ -458,6 +460,292 @@ void XB_CDECL R_SetInstanceColor(uint32_t* const* params, const float* colour) {
     uint32_t* block_words = *params;
     block_words[0] |= 1u << (slot & 31);
     block_words[2 + slot] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy));
+}
+
+PLATFORM_ASM_ENTRY(R_ApplyCachedLighting_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(R_ApplyCachedLighting) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL R_ApplyCachedLighting(const RCachedLighting* lighting) {
+    nglSetAmbientColor(lighting->ambient[0], lighting->ambient[1], lighting->ambient[2]);
+    // The title copies four floats of each direction (12 bytes apart) to the stack: the
+    // fourth is the next direction's x, or the count after the last.
+    for (int32_t i = 0; i < lighting->count; ++i)
+        nglAddDirectionalLight(0xffffffff, lighting->directions[i], lighting->colors[i]);
+}
+
+PLATFORM_ASM_ENTRY(R_AddRefEntityToScene_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(R_AddRefEntityToScene) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL R_AddRefEntityToScene(uint8_t* ref_entity, int32_t cell) {
+    if (!title_global<uint32_t>(0x0095e390)) return;
+    const int32_t type = *reinterpret_cast<const int32_t*>(ref_entity);
+    if (type < 0 || type >= 16)
+        title_function<void XB_CDECL(int32_t, const char*, ...)>(title_global<uint32_t>(0x0095e634))(
+            1, reinterpret_cast<const char*>(0x0083bef8), type);
+    uint8_t* entity = ref_entity - 0x80;
+    auto* node = reinterpret_cast<void**>(entity);
+    *reinterpret_cast<int32_t*>(entity + 0xf0) = cell;
+    entity[0xec] = 0;
+    RFrameList& list = *title_global<RFrameList*>(0x008db128);
+    node[0] = &list.tail;
+    node[1] = list.tail_prev;
+    *static_cast<void**>(list.tail_prev) = node;
+    list.tail_prev = node;
+    ++list.count;
+}
+
+PLATFORM_ASM_ENTRY(R_AddCellEntityLink_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(R_AddCellEntityLink) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL R_AddCellEntityLink(uint8_t* cell, const float* mins, const float* maxs, void* entity) {
+    int32_t& count = title_global<int32_t>(0x0095e2d4);
+    if (count >= 256) {
+        title_function<void XB_CDECL()>(0x00042460)();  // an assert that does nothing here
+        return;
+    }
+    RCellEntityLink*& first = *reinterpret_cast<RCellEntityLink**>(cell + 0x38);
+    for (RCellEntityLink* link = first; link; link = link->next) {
+        if (link->entity != entity) continue;
+        // Grow the box; NaN comparisons keep the old bound, as comiss/jbe does.
+        if (link->mins[0] > mins[0]) link->mins[0] = mins[0];
+        if (maxs[0] > link->maxs[0]) link->maxs[0] = maxs[0];
+        if (link->mins[1] > mins[1]) link->mins[1] = mins[1];
+        if (maxs[1] > link->maxs[1]) link->maxs[1] = maxs[1];
+        if (link->mins[2] > mins[2]) link->mins[2] = mins[2];
+        if (maxs[2] > link->maxs[2]) link->maxs[2] = maxs[2];
+        return;
+    }
+    RCellEntityLink* link = title_global<RCellEntityLink*>(0x0095e2d0) + count;
+    ++count;
+    link->entity = entity;
+    std::memcpy(link->mins, mins, sizeof(link->mins));
+    std::memcpy(link->maxs, maxs, sizeof(link->maxs));
+    link->next = first;
+    first = link;
+}
+
+PLATFORM_ASM_ENTRY(R_RotateForEntity_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_RotateForEntity) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL R_RotateForEntity(const uint8_t* entity, ROrientation* orientation, const uint8_t* view_parms) {
+    // The view parameters start with the viewer's orientation; the world's follows at +0x7c.
+    const float* view_origin = reinterpret_cast<const float*>(view_parms);
+    const auto* world = reinterpret_cast<const ROrientation*>(view_parms + 0x7c);
+    std::memcpy(orientation->origin, entity + 0xbc, 12);
+    std::memcpy(orientation->axis, entity + 0x94, 36);
+    const float(*axis)[3] = orientation->axis;
+    const float* origin = orientation->origin;
+    alignas(16) float matrix[16];
+    matrix[0] = axis[0][0];
+    matrix[4] = axis[1][0];
+    matrix[8] = axis[2][0];
+    matrix[12] = origin[0];
+    matrix[1] = axis[0][1];
+    matrix[5] = axis[1][1];
+    matrix[9] = axis[2][1];
+    matrix[13] = origin[1];
+    matrix[2] = axis[0][2];
+    matrix[6] = axis[1][2];
+    matrix[10] = axis[2][2];
+    matrix[14] = origin[2];
+    matrix[3] = 0.0f;
+    matrix[7] = 0.0f;
+    matrix[11] = 0.0f;
+    matrix[15] = title_global<float>(0x0083eb20);  // 1
+    myGLMultMatrix(matrix, orientation->model_matrix, world->model_matrix);
+    // The view origin in the entity's frame.
+    const float d0 = view_origin[0] - origin[0];
+    const float d2 = view_origin[2] - origin[2];
+    const float d1 = view_origin[1] - origin[1];
+    orientation->view_origin[0] = axis[0][0] * d0 + axis[0][2] * d2 + d1 * axis[0][1];
+    orientation->view_origin[1] = axis[1][1] * d1 + axis[1][0] * d0 + d2 * axis[1][2];
+    orientation->view_origin[2] = axis[2][2] * d2 + axis[2][1] * d1 + axis[2][0] * d0;
+}
+
+void XB_REGS3 R_SetupEntityOrientation(const uint8_t* entity, ROrientation* orientation, const uint8_t* view_parms) {
+    const int32_t type = *reinterpret_cast<const int32_t*>(entity + 0x80);
+    if (type == 1 || type == 2 || type == 0)
+        R_RotateForEntity(entity, orientation, view_parms);
+    else
+        std::memcpy(orientation, view_parms + 0x7c, sizeof(ROrientation));  // the view's world orientation
+}
+
+// Three stack arguments copied below the two register ones.
+PLATFORM_ASM_ENTRY(R_LayoutTextWithIcons_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_LayoutTextWithIcons) "addl $20, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL R_LayoutTextWithIcons(char** out, float* colour, const uint16_t* text, int32_t* count,
+                                       const uint16_t** rest) {
+    char* buffer = &title_global<char>(0x0098b5d8);
+    *out = buffer;
+    if (*count > 255) *count = 255;
+    buffer[0] = 0;
+    int32_t pos = 0;
+    int32_t trailing_space = -1;
+    int32_t i = 0;
+    uint32_t code = 7;
+    int32_t stopped = 0;
+    if (*count > 0) {
+        const float scale = title_global<float>(0x0083eb30);
+        do {
+            const uint16_t ch = text[i];
+            const uint32_t kind = ch >> 8;
+            if (kind != code) {
+                if (kind == 0x0d || kind == 0x10 || kind == 0x11 || kind == 0x12) {
+                    // An icon: the caller draws it and continues after it.
+                    *rest = &text[i];
+                    trailing_space = -1;
+                    stopped = 1;
+                    break;
+                }
+                if (kind == 0x0a || kind == 0x0b || kind == 0x0c) {
+                    // Red, green, blue of the text colour.
+                    if (colour) colour[kind - 0x0a] = static_cast<float>(static_cast<int32_t>(ch & 0xff)) * scale;
+                    continue;
+                }
+                buffer[pos++] = '^';
+                code = kind;
+                buffer[pos++] = static_cast<char>(kind + '0');
+            }
+            const char c = static_cast<char>(text[i]);
+            buffer[pos] = c;
+            if (c != ' ')
+                trailing_space = -1;
+            else if (trailing_space == -1)
+                trailing_space = pos;
+            ++pos;
+        } while (++i < *count);
+    }
+    buffer[pos] = 0;
+    if (trailing_space >= 0) buffer[trailing_space] = 0;
+    *rest = i == *count ? nullptr : &text[i];
+    *count -= i;
+    return stopped;
+}
+
+namespace {
+
+const XModelLod* first_lod(const XModel* model) {
+    const XModelLod* const* lod = model->lods;
+    while (!*lod) ++lod;
+    return *lod;
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model) {
+    const XModel* xmodel = model->xmodel;
+    const XModelParts* parts = first_lod(xmodel)->parts;
+    if (parts && static_cast<int32_t>(first_lod(xmodel)->parts->bone_count) > 32) return;
+
+    // The bone matrices, a function-static array of 32 (constructed on first use).
+    uint32_t& guards = title_global<uint32_t>(0x0098e420);
+    float* bones = &title_global<float>(0x0098dc20);
+    if (!(guards & 1)) {
+        guards |= 1;
+        title_function<void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x00011240)(bones, 0x40, 0x20,
+                                                                                      0x0001b920);
+    }
+    title_function<void XB_CDECL(const XModel*, float*)>(0x00241ff0)(xmodel, bones);
+
+    const float one = title_global<float>(0x0083eb20);
+    const Lanes m0 = {{model->axis[0][0], model->axis[0][1], model->axis[0][2], 0.0f}};
+    const Lanes m1 = {{model->axis[1][0], model->axis[1][1], model->axis[1][2], 0.0f}};
+    const Lanes m2 = {{model->axis[2][0], model->axis[2][1], model->axis[2][2], 0.0f}};
+    const Lanes m3 = {{model->origin[0], model->origin[1], model->origin[2], one}};
+
+    NglLightSet* light_set = nglCreateLightSet();
+    alignas(16) const float position[4] = {model->origin[0], model->origin[1], model->origin[2], model->origin[0]};
+    if (model->lighting_state == 0) {
+        model->lighting_state = 1;
+        int32_t index;
+        auto get_cell_lighting =
+            title_function<void* XB_REGS3(const float*, uint32_t, int32_t*)>(0x0023e510);  // EAX, ECX
+        void* grid = get_cell_lighting(position, 0, &index);
+        // Not in a cell: try a little higher, then higher still.
+        const uint32_t raises[2] = {0x0083f0d8, 0x0083ef04};
+        for (int i = 0; !grid && i < 2; ++i) {
+            const Lanes raise = {{0.0f, 0.0f, title_global<float>(raises[i]), 0.0f}};
+            alignas(16) const Lanes raised = add(lanes(position), raise);
+            grid = get_cell_lighting(raised.v, 0, &index);
+        }
+        if (!grid) model->lighting_state = 0;
+        if (grid && index >= 0) {
+            title_function<void XB_REGS1 XB_STDCALL(int32_t, void*, const float*, RStaticModel*)>(0x00242e90)(
+                index, grid, position, model);
+            model->lighting_state = 2;
+        } else {
+            // No light grid there: full red ambient.
+            model->lighting.ambient[0] = one;
+            model->lighting.ambient[1] = 0.0f;
+            model->lighting.ambient[2] = 0.0f;
+        }
+    } else if (model->lighting_state == 2) {
+        R_ApplyCachedLighting(&model->lighting);
+    }
+
+    const uint32_t* scale_params = nullptr;
+    if (model->scale != title_global<float>(0x0083eb20)) {
+        // A function-static instance parameter block {2, ..., scale x4 at +0x10}.
+        uint32_t* block = &title_global<uint32_t>(0x0098dbe0);
+        if (!(guards & 2)) {
+            guards |= 2;
+            block[0] = 2;
+        }
+        float* scale = reinterpret_cast<float*>(block + 4);
+        scale[0] = model->scale;
+        scale[1] = model->scale;
+        scale[2] = model->scale;
+        scale[3] = model->scale;
+        scale_params = block;
+    }
+
+    // The instance parameters: a 64-bit slot mask, then a word per slot (0x00902904
+    // slots), from the frame allocator; the light set goes into slot 0x00902914.
+    uintptr_t& next = title_global<uintptr_t>(0x009025a8);
+    uint32_t* params = reinterpret_cast<uint32_t*>((next + 7) & ~uintptr_t{7});
+    params[0] = 0;
+    params[1] = 0;
+    next = reinterpret_cast<uintptr_t>(params + 2 + title_global<uint32_t>(0x00902904));
+    const uint32_t slot = title_global<uint32_t>(0x00902914);
+    params[0] |= 1u << (slot & 31);
+    params[1] |= 0;
+    params[2 + slot] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(light_set));
+
+    for (uint32_t i = 0;; ++i) {
+        const XModelParts* p = first_lod(xmodel)->parts;
+        if (static_cast<int32_t>(i) >= (p ? static_cast<int32_t>(p->bone_count) : 0)) return;
+        p = first_lod(xmodel)->parts;
+        uint8_t* mesh = p->meshes[i < p->mesh_count ? i : 0];
+        if (!mesh) continue;
+        // The bone's matrix times the model's (rows; the bone's w column unused).
+        const float* bone = bones + i * 16;
+        alignas(16) Lanes matrix[4];
+        for (int r = 0; r < 3; ++r) {
+            const float* b = bone + r * 4;
+            matrix[r] = add(add(mul(m0, b[0]), mul(m1, b[1])), mul(m2, b[2]));
+        }
+        const float* b = bone + 12;
+        matrix[3] = add(add(add(m3, mul(m0, b[0])), mul(m1, b[1])), mul(m2, b[2]));
+        // The instance block is handed over by the address of the pointer to it.
+        const uint32_t params_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(params));
+        nglListAddMesh(mesh, matrix[0].v, scale_params, &params_word);
+    }
 }
 
 }  // namespace game

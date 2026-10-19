@@ -34,7 +34,9 @@ struct XModelParts {
     XBoneInfo* bones;       // +0x14
     uint32_t class_count;   // +0x18
     uint8_t* classes;       // +0x1c, each bone's hit class (1 = its parent's)
-    uint8_t unknown20[0x30 - 0x20];
+    uint8_t unknown20[0x28 - 0x20];
+    uint32_t mesh_count;    // +0x28
+    uint8_t** meshes;       // +0x2c, one per bone (NGL meshes, may be null)
     int32_t root_count;     // +0x30, bones that hang from the model's attach bone
 };
 

@@ -341,11 +341,15 @@ const Function kFunctions[] = {
     {"R_SetupFog", 0x002369c0, 0, code(&R_SetupFog), 0, Result::None, Status::Compare},
     {"FX_FindEvictableEffect", 0x00236b40, 0, code(&FX_FindEvictableEffect), 4, Result::Eax, Status::Compare},
     {"R_SetupProjection", 0x00236fb0, 0, code(&R_SetupProjection), 0, Result::None, Status::Compare},
+    {"R_RotateForEntity", 0x00237120, 0, code(&R_RotateForEntity_entry), 0, Result::None, Status::Compare},
     {"R_DrawPic", 0x00237590, 0, code(&R_DrawPic), 20, Result::None, Status::Compare},
+    {"R_LayoutTextWithIcons", 0x002375e0, 0, code(&R_LayoutTextWithIcons_entry), 12, Result::Eax, Status::Compare},
     {"RE_TextHeight", 0x00237770, 0, code(&RE_TextHeight), 8, Result::Eax, Status::Compare},
     {"R_CopyFrustumPlanes", 0x00237940, 0, code(&R_CopyFrustumPlanes), 0, Result::None, Status::Compare},
     {"DObj_GetBoneBasePose", 0x00237cd0, 0, code(&DObj_GetBoneBasePose), 8, Result::Eax, Status::Compare},
     {"R_AddViewModelRefEntity", 0x002387e0, 0, code(&R_AddViewModelRefEntity), 4, Result::None, Status::Compare},
+    {"R_AddRefEntityToScene", 0x00238820, 0, code(&R_AddRefEntityToScene_entry), 4, Result::None, Status::Compare},
+    {"R_SetupEntityOrientation", 0x00238880, 0, code(&R_SetupEntityOrientation), 0, Result::None, Status::Compare},
     {"R_AddCellEntities", 0x00238ae0, 0, code(&R_AddCellEntities), 12, Result::None, Status::Compare},
     {"DObj_GetBoneParent", 0x0023a2a0, 0, code(&DObj_GetBoneParent), 8, Result::Eax, Status::Compare},
     {"DObj_GetBoneIndex", 0x0023a440, 0, code(&DObj_GetBoneIndex), 4, Result::Eax, Status::Compare},
@@ -355,8 +359,11 @@ const Function kFunctions[] = {
     {"R_DrawFilledRect", 0x0023b230, 0, code(&R_DrawFilledRect_entry), 20, Result::None, Status::Compare},
     {"R_SetInstanceColor", 0x0023b2e0, 0, code(&R_SetInstanceColor_entry), 0, Result::None, Status::Compare},
     {"FX_AllocEffect", 0x0023b970, 0, code(&FX_AllocEffect), 0, Result::Eax, Status::Compare},
+    {"R_AddCellEntityLink", 0x0023ba90, 0, code(&R_AddCellEntityLink_entry), 4, Result::None, Status::Compare},
     {"R_ClipPolygonToPlane", 0x0023bb70, 0, code(&R_ClipPolygonToPlane), 12, Result::Eax, Status::Compare},
     {"DObj_GetBounds", 0x0023be90, 0, code(&DObj_GetBounds), 4, Result::None, Status::Compare},
+    {"R_ApplyCachedLighting", 0x0023c380, 0, code(&R_ApplyCachedLighting_entry), 0, Result::None, Status::Compare},
+    {"R_AddStaticModel", 0x002438b0, 0, code(&R_AddStaticModel), 0, Result::None, Status::Compare},
 };
 
 }  // namespace

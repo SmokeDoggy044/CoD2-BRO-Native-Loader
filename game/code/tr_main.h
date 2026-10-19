@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "dobj.h"
 
 namespace game {
 
@@ -127,5 +128,91 @@ extern "C" void R_DrawFilledRect_entry(void);
 // pointer is, ECX = colour: entered through R_SetInstanceColor_entry.
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_SetInstanceColor(uint32_t* const* params, const float* colour);
 extern "C" void R_SetInstanceColor_entry(void);
+
+// The lighting an entity or static model keeps between frames: ambient, then up to
+// three directional lights.
+struct RCachedLighting {
+    float ambient[3];
+    float colors[3][4];
+    float directions[3][3];
+    int32_t count;
+};
+static_assert(sizeof(RCachedLighting) == 0x64);
+// 0x0023c380: the cached lighting into the current NGL light set (ambient and each
+// directional light). ESI = lighting: entered through R_ApplyCachedLighting_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_ApplyCachedLighting(const RCachedLighting* lighting);
+extern "C" void R_ApplyCachedLighting_entry(void);
+
+// 0x00238820: links a render entity (the record starts 0x80 bytes before the
+// refEntity, which ESI points at) into the first frame list with its cell, when the
+// renderer is registered; reType outside 0..15 is an ERR_DROP. Entered through
+// R_AddRefEntityToScene_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddRefEntityToScene(uint8_t* ref_entity, int32_t cell);
+extern "C" void R_AddRefEntityToScene_entry(void);
+
+// A per-frame entity link of a cell (the cell's list at +0x38).
+struct RCellEntityLink {
+    void* entity;
+    float mins[3];
+    float maxs[3];
+    RCellEntityLink* next;
+};
+#if UINTPTR_MAX == 0xFFFFFFFF
+static_assert(sizeof(RCellEntityLink) == 0x20);
+#endif
+// 0x0023ba90: links `entity` with its bounds into a cell, or grows the bounds of its
+// link there; at most 256 links a frame (0x0095e2d0, count 0x0095e2d4). EDI = cell,
+// ECX = mins, EDX = maxs: entered through R_AddCellEntityLink_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddCellEntityLink(uint8_t* cell, const float* mins, const float* maxs,
+                                                             void* entity);
+extern "C" void R_AddCellEntityLink_entry(void);
+
+// Q3's orientationr_t.
+struct ROrientation {
+    float origin[3];
+    float axis[3][3];
+    float view_origin[3];
+    float model_matrix[16];
+};
+static_assert(sizeof(ROrientation) == 0x7c);
+// 0x00237120: Q3's R_RotateForEntity (without the axis length): the entity's origin
+// (+0xbc) and axis (+0x94), its model matrix times the world's, and the viewer's
+// origin in its frame. EAX = entity, ESI = orientation, EDI = view parameters
+// (viewer orientation, world orientation at +0x7c): entered through R_RotateForEntity_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_RotateForEntity(const uint8_t* entity, ROrientation* orientation,
+                                                           const uint8_t* view_parms);
+extern "C" void R_RotateForEntity_entry(void);
+// 0x00238880: reType (+0x80) 0..2 get R_RotateForEntity, the rest the world's
+// orientation. EAX = entity, EDX = orientation, ECX = view parameters.
+void XB_REGS3 R_SetupEntityOrientation(const uint8_t* entity, ROrientation* orientation, const uint8_t* view_parms);
+
+// 0x002375e0: lays out up to 255 characters of icon text (16-bit: high byte a kind,
+// low byte the character) into the shared buffer 0x0098b5d8 (*out): colour kinds
+// change with ^N codes, kinds 10-12 set the red/green/blue of `colour` (optional) to
+// value / 255, kinds 13 and 16-18 are icons, where it stops. Trailing spaces are cut;
+// *rest = where to continue (null at the end), *count -= characters used; returns 1
+// when an icon stopped it. EAX = out, EBX = colour: entered through R_LayoutTextWithIcons_entry.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL R_LayoutTextWithIcons(char** out, float* colour, const uint16_t* text,
+                                                                  int32_t* count, const uint16_t** rest);
+extern "C" void R_LayoutTextWithIcons_entry(void);
+
+// A static model placed in a cell.
+struct RStaticModel {
+    RCachedLighting lighting;
+    int32_t lighting_state;  // +0x64: 0 = not looked up yet, 1 = none (or default), 2 = cached
+    XModel* xmodel;          // +0x68
+    float axis[3][3];        // +0x6c
+    float origin[3];         // +0x90
+    float scale;             // +0x9c
+};
+#if UINTPTR_MAX == 0xFFFFFFFF
+static_assert(sizeof(RStaticModel) == 0xa0);
+#endif
+// 0x002438b0: adds a static model's meshes (one per bone of its first LOD, at most 32
+// bones) to the scene: bone matrices (0x00241ff0) times the model's, its lighting
+// (looked up in the light grid once - at the origin, then raised twice; red ambient
+// when there is none - then the cached copy), a scale parameter block when the scale
+// is not 1, and an instance block with the light set. EAX = model.
+void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model);
 
 }  // namespace game
