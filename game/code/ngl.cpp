@@ -423,7 +423,7 @@ void XB_CDECL nglUpdateScene(uint8_t mark_stale) {
     }
     nglMatrixViewport(m, x0, y0, x1, y1);
     std::memcpy(scene->viewport, m, 64);
-    std::memcpy(scene->target_scale, title_function<float* XB_CDECL(float*)>(0x00073e90)(m), 64);
+    std::memcpy(scene->target_scale, nglGetSceneTargetScale(m), 64);
 
     // projection = base rows times the viewport (lane 3 kept from the base row), then
     // times the target scale.
@@ -1447,6 +1447,230 @@ const float* XB_CDECL nglEvalFirstObjectLight(float* out, const float* position)
         return out;
     }
     return nglEvalLight(out, light, position);
+}
+
+namespace {
+
+// The resource managers (textures, meshes, mesh files, fonts) are title C++ objects;
+// their vtable slots are called as the original does.
+struct NglResourceManager {
+    void** vtable;
+};
+
+template <typename F>
+F* manager_slot(NglResourceManager* manager, int slot) {
+    return reinterpret_cast<F*>(manager->vtable[slot]);
+}
+
+using ManagerFind = void* XB_THISCALL(NglResourceManager*, const char*);
+using ManagerRelease = void XB_THISCALL(NglResourceManager*, void*, uint32_t, uint32_t);
+
+NglResourceManager* texture_manager() { return title_global<NglResourceManager*>(0x009025f0); }
+NglResourceManager* mesh_manager() { return title_global<NglResourceManager*>(0x00902a80); }
+NglResourceManager* mesh_file_manager() { return title_global<NglResourceManager*>(0x00902a84); }
+NglResourceManager* font_manager() { return title_global<NglResourceManager*>(0x009028d0); }
+
+}  // namespace
+
+void* XB_CDECL nglFindTexture(const char* name) {
+    return manager_slot<ManagerFind>(texture_manager(), 2)(texture_manager(), name);
+}
+
+void* XB_CDECL nglFindTextureAddRef(const char* name) {
+    uint32_t* texture = static_cast<uint32_t*>(manager_slot<ManagerFind>(texture_manager(), 2)(texture_manager(), name));
+    if (texture) {
+        ++texture[0];
+        return texture;
+    }
+    return manager_slot<ManagerFind>(texture_manager(), 7)(texture_manager(), name);
+}
+
+void XB_CDECL nglReleaseTexture(void* texture) {
+    manager_slot<ManagerRelease>(texture_manager(), 8)(texture_manager(), texture, 0, 0);
+}
+
+void* XB_CDECL nglFindMesh(const char* name) {
+    return manager_slot<ManagerFind>(mesh_manager(), 2)(mesh_manager(), name);
+}
+
+void XB_CDECL nglReleaseMeshFile(void* file) {
+    manager_slot<ManagerRelease>(mesh_file_manager(), 8)(mesh_file_manager(), file, 0, 0);
+}
+
+void* XB_CDECL nglFindFontAddRef(const char* name) {
+    uint8_t* font = static_cast<uint8_t*>(manager_slot<ManagerFind>(font_manager(), 2)(font_manager(), name));
+    if (font) {
+        ++*reinterpret_cast<uint32_t*>(font + 0x20);
+        return font;
+    }
+    return manager_slot<ManagerFind>(font_manager(), 7)(font_manager(), name);
+}
+
+void XB_CDECL nglReleaseFont(void* font) {
+    manager_slot<ManagerRelease>(font_manager(), 8)(font_manager(), font, 0, 0);
+}
+
+void XB_STDCALL nglMaterial_Relocate(uint8_t* material, uint32_t base) {
+    uint32_t& texture = *reinterpret_cast<uint32_t*>(material + 0x18);
+    if (texture) texture += base;
+}
+
+void XB_STDCALL nglMaterial_Relocate2(uint8_t* material, uint32_t base) {
+    uint32_t& first = *reinterpret_cast<uint32_t*>(material + 0x18);
+    if (first) first += base;
+    uint32_t& second = *reinterpret_cast<uint32_t*>(material + 0x20);
+    if (second) second += base;
+}
+
+void XB_CDECL nglListAddNode(NglNode* node) {
+    uint32_t key[2];
+    reinterpret_cast<void XB_THISCALL (*)(NglNode*, uint32_t*)>(node->vtable[1])(node, key);
+    node->sort_key = key[1];
+    if (key[0] == 1) {
+        node->next = current_scene()->translucent_nodes;
+        current_scene()->translucent_nodes = node;
+        ++current_scene()->translucent_count;
+    } else {
+        node->next = current_scene()->opaque_nodes;
+        current_scene()->opaque_nodes = node;
+        ++current_scene()->opaque_count;
+    }
+}
+
+float XB_THISCALL nglNode_ViewDepth(const NglMeshNode* node) {
+    const float* m = node->world_matrix;
+    const float* center = node->section->center;
+    const Lanes world = add(add(add(lanes(m + 12), mul(lanes(m), center[0])), mul(lanes(m + 4), center[1])),
+                            mul(lanes(m + 8), center[2]));
+    platform_keep(world);
+    const float* v = current_scene()->view_matrix;
+    const Lanes view = add(add(add(lanes(v + 12), mul(lanes(v), world.v[0])), mul(lanes(v + 4), world.v[1])),
+                           mul(lanes(v + 8), world.v[2]));
+    platform_keep(view);
+    return view.v[2] + node->section->radius;
+}
+
+float* XB_THISCALL nglNode_CalcWorldMatrix(const uint8_t* self, float* out) {
+    const uint8_t* instance = *reinterpret_cast<uint8_t* const*>(self + 0x90);
+    if (!(instance[0] & 2)) {
+        std::memcpy(out, self, 64);
+        return out;
+    }
+    // 1 / scale: the RCPPS estimate and one Newton step, all four lanes.
+    const float* scale = reinterpret_cast<const float*>(instance + 0x10);
+    Lanes inv;
+    for (int i = 0; i < 4; ++i) {
+        const float r = platform_rcp_estimate(scale[i]);
+        inv.v[i] = (2.0f - r * scale[i]) * r;
+    }
+    platform_keep(inv);
+    const float* m = reinterpret_cast<const float*>(self);
+    float result[16];
+    store(result, mul(lanes(m), inv.v[0]));
+    store(result + 4, mul(lanes(m + 4), inv.v[1]));
+    store(result + 8, mul(lanes(m + 8), inv.v[2]));
+    std::memcpy(result + 12, m + 12, 16);
+    std::memcpy(out, result, 64);
+    return out;
+}
+
+float* XB_CDECL nglMatrixTargetScale(float* out, const NglRenderTarget* target, const float* scale) {
+    float width;
+    float height;
+    if (target->flags & 4) {
+        width = static_cast<float>(nglGetScreenWidth());
+        height = static_cast<float>(nglGetScreenHeight());
+    } else {
+        // Unsigned to float as MSVC does it (on the x87 here, rounded to float).
+        const int32_t w = static_cast<int32_t>(target->width);
+        width = static_cast<float>(w);
+        if (w < 0) width += 4294967296.0f;
+        const int32_t h = static_cast<int32_t>(target->height);
+        height = static_cast<float>(h);
+        if (h < 0) height += 4294967296.0f;
+    }
+    const float sy = scale[1] * height * 0.5f;
+    const float sx = scale[0] * width * 0.5f;
+    const float m[16] = {
+        sx, 0.0f, 0.0f, 0.0f,
+        0.0f, sy, 0.0f, 0.0f,
+        0.0f, 0.0f, 16777215.0f, 0.0f,
+        scale[2] + sx, scale[2] + sy, 0.0f, 1.0f,
+    };
+    std::memcpy(out, m, 64);
+    return out;
+}
+
+float* XB_CDECL nglGetSceneTargetScale(float* out) {
+    const NglRenderTarget* target = current_scene()->render_target;
+    float scale[4];
+    return nglMatrixTargetScale(out, current_scene()->render_target, nglGetTargetSampleScale(scale, target));
+}
+
+namespace {
+
+Lanes mul(const Lanes& a, const Lanes& b) {
+    return {{a.v[0] * b.v[0], a.v[1] * b.v[1], a.v[2] * b.v[2], a.v[3] * b.v[3]}};
+}
+
+}  // namespace
+
+void XB_CDECL nglAddShadowProjector(uint32_t flags, const float* matrix, const float* scale, uint32_t param_a,
+                                    uint32_t param_b, uint32_t param_c) {
+    float* p = alloc_scene_memory<float>(0x140);
+    if (!p) return;
+    uint32_t* words = reinterpret_cast<uint32_t*>(p);
+    words[0x20] = param_a;  // +0x80
+    words[0x21] = param_b;
+    if (param_c) words[0x22] = param_c;
+
+    const Lanes r0 = lanes(matrix);
+    const Lanes r1 = lanes(matrix + 4);
+    const Lanes r2 = lanes(matrix + 8);
+    const Lanes r3 = lanes(matrix + 12);
+    const Lanes s = lanes(scale);
+    store(p + 0x24, s);   // +0x90
+    store(p + 0x28, r3);  // +0xa0
+    store(p + 0x2c, r0);  // +0xb0, the matrix again (+0xb0..+0xef)
+    store(p + 0x30, r1);
+    store(p + 0x34, r2);
+
+    const Lanes half = {{0.5f, 0.5f, 0.0f, 0.5f}};
+    const Lanes neg_half = neg(half);
+    const Lanes neg_r3 = neg(r3);
+    // The rotation transposed, lane 3 repeating lane 2 (SHUFPS).
+    const Lanes c0 = {{r0.v[0], r1.v[0], r2.v[0], r2.v[0]}};
+    const Lanes c1 = {{r0.v[1], r1.v[1], r2.v[1], r2.v[1]}};
+    const Lanes c2 = {{r0.v[2], r1.v[2], r2.v[2], r2.v[2]}};
+    // 1 / scale: RCPPS and one Newton step.
+    Lanes inv;
+    for (int i = 0; i < 4; ++i) {
+        const float r = platform_rcp_estimate(s.v[i]);
+        inv.v[i] = (2.0f - r * s.v[i]) * r;
+    }
+
+    // +0x00: world to projector texture space (inverse rotation over the scale, then
+    // the half offset).
+    store(p, mul(c0, inv));
+    store(p + 4, mul(c1, inv));
+    store(p + 8, mul(c2, inv));
+    {
+        Lanes t = add(add(mul(c0, neg_r3.v[0]), mul(c1, neg_r3.v[1])), mul(c2, neg_r3.v[2]));
+        store(p + 12, add(mul(t, inv), half));
+    }
+
+    // +0x40: the projector box, edges = rows scaled, corner = r3 - half extent.
+    store(p + 0x10, mul(r0, s.v[0]));
+    store(p + 0x14, mul(r1, s.v[1]));
+    store(p + 0x18, mul(r2, s.v[2]));
+    {
+        const Lanes t = mul(neg_half, s);
+        platform_keep(t);
+        store(p + 0x1c, add(add(add(mul(r0, t.v[0]), mul(r1, t.v[1])), mul(r2, t.v[2])), r3));
+    }
+
+    nglBuildProjectorPlanes(p + 0x38, p + 0x10);
+    nglLightSetAddProjector(2, p, flags);
 }
 
 }  // namespace game

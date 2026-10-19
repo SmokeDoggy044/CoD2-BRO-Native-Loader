@@ -103,6 +103,21 @@ struct NglQuad {
     NglTexture* texture;
 };
 
+// A draw-list node (meshes, text, custom nodes): a title C++ object.
+struct NglNode {
+    void** vtable;      // slot 1: (out[2]) -> list (1 = translucent, else opaque), sort key
+    NglNode* next;      // +0x04
+    uint32_t sort_key;  // +0x08
+};
+
+struct NglMeshSection;
+
+// A mesh instance's node.
+struct NglMeshNode : NglNode {
+    const float* world_matrix;      // +0x0c
+    const NglMeshSection* section;  // +0x10
+};
+
 // Only the fields the decompiled functions use so far.
 struct NglScene {
     NglRenderTargetLink* render_targets; // +0x000
@@ -137,7 +152,10 @@ struct NglScene {
     NglRenderTarget* render_target; // +0x2f8
     uint8_t unknown2fc[0x300 - 0x2fc];
     uint32_t projection_kind; // +0x300, 1 = perspective
-    uint8_t unknown304[0x314 - 0x304];
+    NglNode* opaque_nodes;    // +0x304, nglListAddNode's lists (newest first)
+    NglNode* translucent_nodes; // +0x308
+    uint32_t opaque_count;    // +0x30c
+    uint32_t translucent_count; // +0x310
     NglLightSet* light_set;   // +0x314
     int32_t viewport_pixels[4]; // +0x318, x0 y0 x1 y1 (nglSetViewportNormalized)
     float viewport_rect[4];   // +0x328, x0 y0 x1 y1 in -1..1 (nglSetViewportRect)
@@ -551,5 +569,46 @@ const float* XB_CDECL nglEvalLight(float* out, const NglLight* light, const floa
 // 0x00070160: nglEvalLight for the current light set's first object light; with none,
 // `out` = {0, 1, 0, 0, 0, 0, 0, 0}.
 const float* XB_CDECL nglEvalFirstObjectLight(float* out, const float* position);
+
+// Resource managers (title objects; vtable slot 2 finds, 7 loads, 8 releases).
+// 0x00063530 / 0x00067450: find by name, null if not loaded.
+void* XB_CDECL nglFindTexture(const char* name);
+void* XB_CDECL nglFindMesh(const char* name);
+// 0x00063570 / 0x000658c0: find and add a reference (texture +0, font +0x20), or load.
+void* XB_CDECL nglFindTextureAddRef(const char* name);
+void* XB_CDECL nglFindFontAddRef(const char* name);
+// 0x00063630 / 0x00067720 / 0x000659f0
+void XB_CDECL nglReleaseTexture(void* texture);
+void XB_CDECL nglReleaseMeshFile(void* file);
+void XB_CDECL nglReleaseFont(void* font);
+
+// 0x0004dfb0 / 0x0004d0b0: a loaded material's texture offsets (+0x18, and +0x20)
+// made pointers by adding the file's base; zero stays zero.
+void XB_STDCALL nglMaterial_Relocate(uint8_t* material, uint32_t base);
+void XB_STDCALL nglMaterial_Relocate2(uint8_t* material, uint32_t base);
+
+// 0x00046cd0: onto the current scene's opaque or translucent list, by the node's
+// own sort key (vtable slot 1).
+void XB_CDECL nglListAddNode(NglNode* node);
+// 0x00046df0: the view-space depth of the section's centre, plus its radius.
+float XB_THISCALL nglNode_ViewDepth(const NglMeshNode* node);
+// 0x000495d0: the node's matrix (+0); when its instance (+0x90) has flag 2, rows 0..2
+// divided by the instance's scale (+0x10, RCPPS + one Newton step). Returns out.
+float* XB_THISCALL nglNode_CalcWorldMatrix(const uint8_t* self, float* out);
+
+// 0x00073ce0: the render target's pixel mapping: x, y scaled by size * scale / 2 and
+// offset by scale[2] (+ that half size), z by 2^24 - 1. Returns out.
+float* XB_CDECL nglMatrixTargetScale(float* out, const NglRenderTarget* target, const float* scale);
+// 0x00073e90: nglMatrixTargetScale for the current scene's target and its sample scale.
+float* XB_CDECL nglGetSceneTargetScale(float* out);
+
+// 0x000704f0: a box shadow projector (0x140 bytes of scene memory) for `matrix` (rows
+// 0..2 the box axes, row 3 its centre) and `scale` (its size per axis): +0x00 world to
+// projector space (0..1 over the box), +0x40 the box (edges, corner), +0x80 the three
+// words given (the third only when nonzero), +0x90 scale, +0xa0 centre, +0xb0 the
+// matrix, +0xe0 the box planes (nglBuildProjectorPlanes); added with
+// nglLightSetAddProjector(2, ..., flags).
+void XB_CDECL nglAddShadowProjector(uint32_t flags, const float* matrix, const float* scale, uint32_t param_a,
+                                    uint32_t param_b, uint32_t param_c);
 
 }  // namespace game

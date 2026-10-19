@@ -128,7 +128,10 @@ inline std::int32_t platform_ftol(float x) { return static_cast<std::int32_t>(st
 #if defined(__SSE__) || defined(_M_IX86_FP) || defined(_M_X64)
 #include <xmmintrin.h>
 inline float platform_rsqrt_estimate(float x) { return _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(x))); }
+// RCPSS/RCPPS, the reciprocal estimate (per CPU vendor as well).
+inline float platform_rcp_estimate(float x) { return _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(x))); }
 #else
 #include <cmath>
 inline float platform_rsqrt_estimate(float x) { return 1.0f / std::sqrt(x); }
+inline float platform_rcp_estimate(float x) { return 1.0f / x; }
 #endif

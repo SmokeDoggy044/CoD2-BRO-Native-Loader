@@ -1526,8 +1526,8 @@
 00073ad0 FUN_00073ad0
 00073ae0 nglSetSceneFlags
 00073c20 nglGetTargetSampleScale
-00073ce0 FUN_00073ce0
-00073e90 FUN_00073e90
+00073ce0 nglMatrixTargetScale
+00073e90 nglGetSceneTargetScale
 00073ed0 nglBeginSceneRender
 00074330 nglRenderSceneTree
 000744f0 std_PushHeap_OpaqueNodes
