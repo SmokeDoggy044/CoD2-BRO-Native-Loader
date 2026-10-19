@@ -9,8 +9,12 @@
 // clears the soft-dirty bits. A call into any other host code faults and ends the
 // test as inconclusive. The function returns to xbcmp_landing, which saves the
 // registers; the process reports them with the pages it wrote (soft-dirty bits in
-// /proc/self/pagemap) over a pipe and sends the pages either side wrote. The parent
-// compares and continues with the original through a trampoline.
+// /proc/self/pagemap) over a pipe and sends the pages either side wrote.
+//
+// The game does not wait for that: the dispatcher forks a coordinator and goes on with
+// the original through a trampoline at once. The coordinator (the snapshot of the
+// call) forks the two test processes, compares their results and sends the verdict to
+// the collector thread, which records it. Several tests run at once.
 //
 // Everything a test process runs after the mprotect is in xbcmp_text and makes raw
 // system calls only: no C runtime, no calls the compiler adds (memcpy, stack checks).
@@ -43,6 +47,7 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <string_view>
 #include <thread>
 
 #include "compiler.h"
@@ -414,9 +419,8 @@ struct Hook {
 Config g_config;
 std::vector<std::unique_ptr<Hook>> g_hooks;
 std::vector<const Function*> g_replaced;
-std::mutex g_busy;   // one test at a time
 std::mutex g_stats;  // counts and the results file
-std::atomic<uint64_t> g_test_ns{0};
+std::atomic<uint64_t> g_test_ns{0};  // the game's waits (stall)
 std::atomic<uint64_t> g_tests{0};
 
 // Test processes are reaped here: tearing down their copy of the address space takes
@@ -456,26 +460,33 @@ uint64_t now_ns() {
     return static_cast<uint64_t>(t.tv_sec) * 1000000000u + static_cast<uint64_t>(t.tv_nsec);
 }
 
-// Where a test's time goes (completed tests only), logged by flush().
-enum Phase { kFork, kStartOriginal, kStartNew, kMaps, kClear, kRun, kCollect, kReports, kPages, kReap, kCompare,
-             kTotal, kPhases };
-constexpr const char* kPhaseNames[kPhases] = {"fork", "start-orig", "start-new", "maps", "protect+clear", "run",
-                                             "collect", "reports", "pages", "reap", "compare", "total"};
+// Where a test's time goes (completed tests only), logged by flush(). "stall" is the
+// game's wait (its fork of the coordinator); "total" the coordinator's work; "latency"
+// from the call to the collector having the verdict.
+enum Phase { kStall, kFork, kStartOriginal, kStartNew, kMaps, kClear, kRun, kCollect, kReports, kPages, kCompare,
+             kTotal, kLatency, kPhases };
+constexpr const char* kPhaseNames[kPhases] = {"stall", "fork", "start-orig", "start-new", "maps", "protect+clear",
+                                             "run", "collect", "reports", "pages", "compare", "total", "latency"};
+// One test's phases (ns), measured in the coordinator.
+struct TestTiming {
+    uint64_t ns[kPhases] = {};
+    uint64_t scan_pages = 0, dirty_pages = 0;
+    uint32_t complete = 0;  // all phases measured
+};
 struct Timing {
     uint64_t tests = 0;
     uint64_t sum[kPhases] = {}, max[kPhases] = {};
     uint64_t scan_pages = 0, dirty_pages = 0;
 };
-Timing g_timing;  // under g_busy (one test at a time)
-
-void add_ns(Phase phase, uint64_t ns) {
-    g_timing.sum[phase] += ns;
-    g_timing.max[phase] = std::max(g_timing.max[phase], ns);
-}
+Timing g_timing;  // under g_stats
+std::atomic<uint64_t> g_skipped_busy{0};  // sampled calls not tested: all slots busy
 
 uint64_t span(uint64_t from, uint64_t to) { return from && to > from ? to - from : 0; }
 
-void add_phase(Phase phase, uint64_t from, uint64_t to) { add_ns(phase, span(from, to)); }
+// In a coordinator: its verdict pipe (test processes close it) and the read end of the
+// pipe that ends when the game does (-1 in the game).
+int g_verdict_fd = -1;
+int g_game_alive_fd = -1;
 
 // Length of the instruction at `code` if it can run from a trampoline (no relative
 // operands), else 0. Covers what MSVC puts at function entries.
@@ -647,6 +658,7 @@ bool prepare_maps(ChildArea& c) {
                              const Hook& hook, const Context& context) {
     ChildArea& c = xbcmp_child;
     for (int fd : unused) close(fd);
+    if (g_verdict_fd >= 0) close(g_verdict_fd);
     // Gone with the process that forked it, and in any case after a while.
     const pid_t parent = getppid();
     prctl(PR_SET_PDEATHSIG, SIGKILL);
@@ -703,10 +715,12 @@ bool read_until(int fd, void* data, size_t size, Clock::time_point deadline) {
     while (size > 0) {
         const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count();
         if (left <= 0) return false;
-        pollfd poll_fd{fd, POLLIN, 0};
-        const int ready = poll(&poll_fd, 1, static_cast<int>(left));
+        pollfd poll_fds[2] = {{fd, POLLIN, 0}, {g_game_alive_fd, POLLIN, 0}};
+        const int ready = poll(poll_fds, g_game_alive_fd >= 0 ? 2 : 1, static_cast<int>(left));
         if (ready < 0 && errno == EINTR) continue;
         if (ready <= 0) return false;
+        if (poll_fds[1].revents) _exit(0);  // the game is gone: so is this coordinator
+        if (!poll_fds[0].revents) continue;
         const ssize_t got = read(fd, p, size);
         if (got < 0 && errno == EINTR) continue;
         if (got <= 0) return false;
@@ -757,6 +771,7 @@ enum class Outcome { Matched, Drift, Mismatched, Inconclusive };
 struct Verdict {
     Outcome outcome = Outcome::Matched;
     std::string details;
+    TestTiming timing;
     void add(Outcome o, const std::string& text) {
         outcome = std::max(outcome, o);
         if (text.empty()) return;
@@ -902,11 +917,11 @@ std::vector<Skip> thread_runtime_block() {
 
 thread_local std::vector<Skip> t_runtime_skips;
 
-void compare_memory(const Hook& hook, const Context& entry, const std::vector<uint32_t>& pages, const Side& a,
-                    const Side& b, Verdict& v) {
+// `limit`: the calling thread's lowest stack address, or 0.
+void compare_memory(const Hook& hook, const Context& entry, uint32_t limit, const std::vector<uint32_t>& pages,
+                    const Side& a, const Side& b, Verdict& v) {
     // Below the caller's stack pointer is the callee's scratch space; the return
     // address and the arguments belong to the callee too.
-    const uint32_t limit = g_config.stack_limit ? g_config.stack_limit() : 0;
     std::vector<Skip> skips = t_runtime_skips;
     skips.push_back({limit ? limit : entry.esp - std::min<uint32_t>(entry.esp, 0x10000),
                      entry.esp + 4 + hook.function->arg_bytes});
@@ -963,9 +978,9 @@ void compare_memory(const Hook& hook, const Context& entry, const std::vector<ui
     if (hidden) v.details += " (+" + std::to_string(hidden) + " more)";
 }
 
-Verdict run_test(Hook& hook, const Context& entry) {
+// In the coordinator: forks the two test processes and compares their results.
+Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
     Verdict verdict;
-    if (t_runtime_skips.empty()) t_runtime_skips = thread_runtime_block();
     int a_out[2], a_in[2], b_out[2], b_in[2];
     if (pipe2(a_out, O_CLOEXEC) || pipe2(a_in, O_CLOEXEC) || pipe2(b_out, O_CLOEXEC) || pipe2(b_in, O_CLOEXEC)) {
         verdict.add(Outcome::Inconclusive, "no pipes");
@@ -994,7 +1009,7 @@ Verdict run_test(Hook& hook, const Context& entry) {
             close(side.from);
             close(side.to);
         }
-        if (child > 0) reap_later(child);
+        // The coordinator exits right after; the test processes go with it (PDEATHSIG).
     };
     if (child < 0) {
         finish();
@@ -1040,7 +1055,6 @@ Verdict run_test(Hook& hook, const Context& entry) {
     }
     const uint64_t t_pages = now_ns();
     finish();
-    const uint64_t t_reaped = now_ns();
 
     if (a.report.status != kOk) {
         verdict.add(Outcome::Inconclusive, signal_text(a));
@@ -1059,26 +1073,26 @@ Verdict run_test(Hook& hook, const Context& entry) {
         return verdict;
     }
     compare_registers(hook, entry, a.result, b.result, verdict);
-    compare_memory(hook, entry, pages, a, b, verdict);
+    compare_memory(hook, entry, stack_limit, pages, a, b, verdict);
     const uint64_t t_compared = now_ns();
     const Report& ra = a.report;
     const Report& rb = b.report;
-    ++g_timing.tests;
-    add_phase(kFork, t_fork, t_forked);
-    add_phase(kStartOriginal, t_fork, ra.t_entered);
-    add_phase(kStartNew, t_fork, rb.t_entered);  // includes the second fork
+    TestTiming& t = verdict.timing;
+    t.complete = 1;
+    t.ns[kFork] = span(t_fork, t_forked);
+    t.ns[kStartOriginal] = span(t_fork, ra.t_entered);
+    t.ns[kStartNew] = span(t_fork, rb.t_entered);  // includes the second fork
     // The two sides run side by side: the slower one counts.
-    add_ns(kMaps, std::max(span(ra.t_entered, ra.t_mapped), span(rb.t_entered, rb.t_mapped)));
-    add_ns(kClear, std::max(span(ra.t_mapped, ra.t_cleared), span(rb.t_mapped, rb.t_cleared)));
-    add_ns(kRun, std::max(span(ra.t_cleared, ra.t_landed), span(rb.t_cleared, rb.t_landed)));
-    add_ns(kCollect, std::max(span(ra.t_landed, ra.t_collected), span(rb.t_landed, rb.t_collected)));
-    add_phase(kReports, std::max(ra.t_collected, rb.t_collected), t_reports);
-    add_phase(kPages, t_reports, t_pages);
-    add_phase(kReap, t_pages, t_reaped);
-    add_phase(kCompare, t_reaped, t_compared);
-    add_phase(kTotal, t_fork, t_compared);
-    g_timing.scan_pages += ra.scan_pages;
-    g_timing.dirty_pages += pages.size();
+    t.ns[kMaps] = std::max(span(ra.t_entered, ra.t_mapped), span(rb.t_entered, rb.t_mapped));
+    t.ns[kClear] = std::max(span(ra.t_mapped, ra.t_cleared), span(rb.t_mapped, rb.t_cleared));
+    t.ns[kRun] = std::max(span(ra.t_cleared, ra.t_landed), span(rb.t_cleared, rb.t_landed));
+    t.ns[kCollect] = std::max(span(ra.t_landed, ra.t_collected), span(rb.t_landed, rb.t_collected));
+    t.ns[kReports] = span(std::max(ra.t_collected, rb.t_collected), t_reports);
+    t.ns[kPages] = span(t_reports, t_pages);
+    t.ns[kCompare] = span(t_pages, t_compared);
+    t.ns[kTotal] = span(t_fork, t_compared);
+    t.scan_pages = ra.scan_pages;
+    t.dirty_pages = pages.size();
     return verdict;
 }
 
@@ -1115,6 +1129,208 @@ void record(Hook& hook, uint64_t call, const Verdict& verdict) {
                  kWhat[static_cast<int>(verdict.outcome)], verdict.details.c_str());
 }
 
+void flush_rows();
+
+// --- Tests beside the game: the coordinator and the collector ----------------------
+
+// What a coordinator sends back; one write under PIPE_BUF, so it arrives whole.
+struct VerdictMessage {
+    uint32_t outcome;
+    uint32_t details_size;
+    TestTiming timing;
+};
+constexpr size_t kMaxDetails = 3072;
+static_assert(sizeof(VerdictMessage) + kMaxDetails <= PIPE_BUF);
+
+struct InFlight {
+    int fd;  // the coordinator's verdict pipe
+    pid_t pid;
+    Hook* hook;
+    uint64_t call;
+    uint64_t t_call;
+    uint64_t stall;  // the game's fork
+    uint64_t deadline;
+};
+
+// Per process (a fork of the game that tests needs its own). Never destroyed: the
+// collector thread waits on it until the process ends.
+struct Collector {
+    pid_t owner;
+    int game_alive[2];  // the coordinators watch the read end: EOF = the game is gone
+    int wake[2];        // new tests for the collector
+    std::mutex lock;
+    std::condition_variable idle;
+    std::vector<InFlight> added;
+    uint32_t in_flight = 0;  // under lock
+};
+Collector* g_collector;
+std::mutex g_collector_setup;
+
+uint32_t parallel_limit() {
+    if (g_config.parallel) return g_config.parallel;
+    return std::max(1u, std::thread::hardware_concurrency() / 2);
+}
+
+void finish_test(Collector& collector, const InFlight& test, const Verdict& verdict) {
+    close(test.fd);
+    reap_later(test.pid);
+    {
+        std::lock_guard lock(g_stats);
+        const TestTiming& t = verdict.timing;
+        if (t.complete) {
+            Timing& total = g_timing;
+            ++total.tests;
+            for (int p = 0; p < kPhases; ++p) {
+                const uint64_t ns = p == kLatency ? span(test.t_call, now_ns()) : p == kStall ? test.stall : t.ns[p];
+                total.sum[p] += ns;
+                total.max[p] = std::max(total.max[p], ns);
+            }
+            total.scan_pages += t.scan_pages;
+            total.dirty_pages += t.dirty_pages;
+        }
+    }
+    record(*test.hook, test.call, verdict);
+    if (++g_tests % 64 == 0) flush_rows();
+    std::lock_guard lock(collector.lock);
+    --collector.in_flight;
+    collector.idle.notify_all();
+}
+
+Verdict read_verdict(int fd) {
+    Verdict verdict;
+    alignas(8) char buffer[PIPE_BUF];
+    ssize_t got;
+    do got = read(fd, buffer, sizeof(buffer));
+    while (got < 0 && errno == EINTR);
+    VerdictMessage m;
+    if (got < static_cast<ssize_t>(sizeof(m))) {
+        verdict.add(Outcome::Inconclusive, "coordinator failed");
+        return verdict;
+    }
+    std::memcpy(&m, buffer, sizeof(m));
+    verdict.outcome = static_cast<Outcome>(std::min<uint32_t>(m.outcome, static_cast<uint32_t>(Outcome::Inconclusive)));
+    verdict.details.assign(buffer + sizeof(m), std::min<size_t>(m.details_size, static_cast<size_t>(got) - sizeof(m)));
+    verdict.timing = m.timing;
+    return verdict;
+}
+
+[[noreturn]] void collect(Collector* collector) {
+    std::vector<InFlight> tests;
+    std::vector<pollfd> fds;
+    for (;;) {
+        fds.assign(1, {collector->wake[0], POLLIN, 0});
+        uint64_t next = UINT64_MAX;
+        for (const InFlight& test : tests) {
+            fds.push_back({test.fd, POLLIN, 0});
+            next = std::min(next, test.deadline);
+        }
+        const uint64_t now = now_ns();
+        const int wait_ms = next == UINT64_MAX ? -1 : next <= now ? 0 : static_cast<int>((next - now) / 1000000 + 1);
+        if (poll(fds.data(), fds.size(), wait_ms) < 0 && errno != EINTR) continue;
+        if (fds[0].revents) {
+            char drop[64];
+            while (read(collector->wake[0], drop, sizeof(drop)) > 0) {
+            }
+            std::lock_guard lock(collector->lock);
+            tests.insert(tests.end(), collector->added.begin(), collector->added.end());
+            collector->added.clear();
+        }
+        const uint64_t after = now_ns();
+        size_t kept = 0;
+        for (size_t i = 0; i < tests.size(); ++i) {
+            const InFlight& test = tests[i];
+            const bool ready = i + 1 < fds.size() && fds[i + 1].fd == test.fd && fds[i + 1].revents;
+            if (ready) {
+                finish_test(*collector, test, read_verdict(test.fd));
+            } else if (after >= test.deadline) {
+                kill(test.pid, SIGKILL);  // its test processes follow (PDEATHSIG)
+                Verdict verdict;
+                verdict.add(Outcome::Inconclusive, "coordinator timed out");
+                finish_test(*collector, test, verdict);
+            } else {
+                tests[kept++] = test;
+            }
+        }
+        tests.resize(kept);
+    }
+}
+
+Collector& collector() {
+    std::lock_guard lock(g_collector_setup);
+    if (!g_collector || g_collector->owner != getpid()) {
+        auto* c = new Collector;
+        c->owner = getpid();
+        if (pipe2(c->game_alive, O_CLOEXEC) || pipe2(c->wake, O_CLOEXEC | O_NONBLOCK)) {
+            LOG_ERROR("compare", "cannot create the collector's pipes");
+            std::abort();
+        }
+        std::thread(collect, c).detach();
+        g_collector = c;
+    }
+    return *g_collector;
+}
+
+bool take_slot(Collector& collector) {
+    std::lock_guard lock(collector.lock);
+    if (collector.in_flight >= parallel_limit()) return false;
+    ++collector.in_flight;
+    return true;
+}
+
+void release_slot(Collector& collector) {
+    std::lock_guard lock(collector.lock);
+    --collector.in_flight;
+    collector.idle.notify_all();
+}
+
+[[noreturn]] void coordinate(const Hook& hook, const Context& entry, uint32_t stack_limit, int verdict_fd) {
+    // The game's crash handlers must not run here (they log and flush the results).
+    for (int number : {SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT, SIGTRAP}) signal(number, SIG_DFL);
+    alarm(g_config.timeout_ms / 1000 * 2 + 5);  // in case the collector never kills it
+    const Verdict verdict = run_test(hook, entry, stack_limit);
+    alignas(8) char buffer[PIPE_BUF];
+    VerdictMessage m{};
+    m.outcome = static_cast<uint32_t>(verdict.outcome);
+    m.details_size = static_cast<uint32_t>(std::min(verdict.details.size(), kMaxDetails));
+    m.timing = verdict.timing;
+    std::memcpy(buffer, &m, sizeof(m));
+    std::memcpy(buffer + sizeof(m), verdict.details.data(), m.details_size);
+    write_full(verdict_fd, buffer, sizeof(m) + m.details_size);
+    _exit(0);
+}
+
+// In the game: forks the coordinator for a test of this call. False if none started.
+bool start_test(Collector& collector, Hook& hook, uint64_t call, const Context& entry) {
+    if (t_runtime_skips.empty()) t_runtime_skips = thread_runtime_block();
+    const uint32_t stack_limit = g_config.stack_limit ? g_config.stack_limit() : 0;
+    int verdict[2];
+    if (pipe2(verdict, O_CLOEXEC)) return false;
+    const uint64_t t_call = now_ns();
+    const pid_t pid = fork();
+    if (pid == 0) {
+        close(verdict[0]);
+        close(collector.game_alive[1]);
+        g_game_alive_fd = collector.game_alive[0];
+        g_verdict_fd = verdict[1];
+        coordinate(hook, entry, stack_limit, verdict[1]);
+    }
+    close(verdict[1]);
+    if (pid < 0) {
+        close(verdict[0]);
+        return false;
+    }
+    const uint64_t stall = now_ns() - t_call;
+    g_test_ns += stall;
+    {
+        std::lock_guard lock(collector.lock);
+        collector.added.push_back({verdict[0], pid, &hook, call, t_call, stall,
+                                   t_call + (g_config.timeout_ms + 3000ull) * 1000000ull});
+    }
+    const char wake = 1;
+    (void)!write(collector.wake[1], &wake, 1);
+    return true;
+}
+
 thread_local Context* t_context;
 
 }  // namespace
@@ -1138,18 +1354,13 @@ extern "C" [[noreturn]] void xbcmp_dispatch(EntryFrame* frame) {
     context.target = hook.trampoline;
 
     const uint64_t call = hook.calls.fetch_add(1, std::memory_order_relaxed);
-    if (!hook.settled.load(std::memory_order_relaxed) && should_test(call) && g_busy.try_lock()) {
-        {
-            platform::HostFloatEnv host_float;
-            const auto start = Clock::now();
-            const Verdict verdict = run_test(hook, context);
-            g_test_ns += static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - start).count());
-            const uint64_t tests = ++g_tests;
-            record(hook, call, verdict);
-            if (tests % 64 == 0) flush();
-        }
-        g_busy.unlock();
+    if (!hook.settled.load(std::memory_order_relaxed) && should_test(call)) {
+        platform::HostFloatEnv host_float;
+        Collector& c = collector();
+        if (!take_slot(c))
+            ++g_skipped_busy;
+        else if (!start_test(c, hook, call, context))
+            release_slot(c);
     }
     xbcmp_resume(&context);
 }
@@ -1315,8 +1526,22 @@ Counts counts(const char* name) {
     return {};
 }
 
+void drain() {
+    Collector* c = g_collector;
+    if (!c || c->owner != getpid()) return;
+    std::unique_lock lock(c->lock);
+    c->idle.wait_for(lock, std::chrono::milliseconds(g_config.timeout_ms + 2000),
+                     [c] { return c->in_flight == 0; });
+}
 
 void flush() {
+    drain();
+    flush_rows();
+}
+
+namespace {
+
+void flush_rows() {
     std::lock_guard lock(g_stats);
     if (g_config.results.empty() || (g_hooks.empty() && g_replaced.empty())) return;
     std::map<uint32_t, Row> rows = read_rows(g_config.results);
@@ -1360,9 +1585,11 @@ void flush() {
     std::filesystem::rename(temporary, g_config.results, ec);
     const uint64_t tests = g_tests.load();
     if (tests)
-        LOG_INFO("compare", "%llu tests, %.1f ms each; counts in %s", static_cast<unsigned long long>(tests),
-                 static_cast<double>(g_test_ns.load()) / 1e6 / static_cast<double>(tests),
-                 g_config.results.string().c_str());
+        LOG_INFO("compare", "%llu tests, the game waited %.1f ms per test, up to %u at once (%llu sampled calls "
+                 "not tested: all busy); counts in %s",
+                 static_cast<unsigned long long>(tests),
+                 static_cast<double>(g_test_ns.load()) / 1e6 / static_cast<double>(tests), parallel_limit(),
+                 static_cast<unsigned long long>(g_skipped_busy.load()), g_config.results.string().c_str());
     const Timing& t = g_timing;
     if (t.tests) {
         std::string line;
@@ -1388,5 +1615,7 @@ void flush() {
                  static_cast<double>(t.dirty_pages) / static_cast<double>(t.tests), vm.c_str());
     }
 }
+
+}  // namespace
 
 }  // namespace loader::compare

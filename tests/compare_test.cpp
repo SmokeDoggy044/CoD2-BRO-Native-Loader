@@ -82,6 +82,7 @@ int main() {
     config.libraries = {"libcompare_test_code", "libc.so", "libm.so", "ld-linux"};
     config.results = results;
     config.timeout_ms = 500;
+    config.parallel = 16;  // every call tested ("hang" holds its slot for 500 ms)
     // Earlier runs matched "settled" often enough: it is not even hooked.
     config.enough_matches = 2;
     {
@@ -114,6 +115,8 @@ int main() {
     const float square = reinterpret_cast<Square>(uintptr_t{slot(6)})(1.5f);
     CHECK(square == 2.25f, "%f", static_cast<double>(square));
     }).join();
+    // Tests run beside the caller (and outlive its thread): wait for the verdicts.
+    loader::compare::drain();
 
     const auto expect = [](const char* name, uint64_t matched, uint64_t mismatched, uint64_t inconclusive) {
         const loader::compare::Counts c = loader::compare::counts(name);
@@ -170,11 +173,12 @@ int main() {
     }
 
     // Counts add up across flushes (and runs). "good" settles at its second match:
-    // the third call is not tested.
+    // the third call is not tested (once the second's verdict is in).
     loader::compare::flush();
     for (int i = 0; i < 2; ++i) {
         uint32_t data[2] = {1, 0};
         reinterpret_cast<Add>(uintptr_t{slot(0)})(data, 2);
+        loader::compare::drain();
     }
     loader::compare::flush();
     std::string row;

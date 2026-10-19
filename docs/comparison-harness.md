@@ -56,25 +56,35 @@ features patch cannot become `Replaced` until that patch calls the decompiled ve
 The function's entry jumps to a stub (`push index; jmp xbcmp_entry`) that saves all
 registers and calls the dispatcher. For a tested call:
 
-- The loader forks a child, which forks a grandchild before anything runs, so that
-  both start from the same copy of memory: the child runs the **original**, the
-  grandchild the **decompiled** version. The parent waits (one test at a time) and
-  then runs the original itself, through a trampoline, so the game always goes on
-  with the original's results.
+- The game forks a **coordinator** - a copy of its memory at the call - and goes on
+  at once with the original, through a trampoline, so it always continues with the
+  original's results. Up to `Config::parallel` tests (default: half the CPUs) run at
+  once; a sampled call that finds them all busy is not tested.
+- The coordinator forks a child, which forks a grandchild before anything runs, so
+  that both start from the same copy of memory: the child runs the **original**, the
+  grandchild the **decompiled** version.
 - Each test process first makes every host mapping **non-executable** except the
   title's code, the harness's section (`xbcmp_text`), `libcod_bro_game.so` and the C
   runtime (libc, libm, libstdc++, libgcc_s, ld.so). Any call into other host code -
   a kernel export, an SDK replacement, the window, GPU or sound - faults, and the
   test ends as *inconclusive* with the caller named. So a test process can never
-  touch the parent's devices, sockets or files.
+  touch the game's devices, sockets or files.
 - Then it clears the soft-dirty bits (`/proc/self/clear_refs`) and runs the function
   with the caller's registers and a return address of `xbcmp_landing`, which saves
   the registers and x87/SSE state (FXSAVE). Pages written are the soft-dirty ones
   found with the PAGEMAP_SCAN ioctl on `/proc/self/pagemap` (private anonymous
   mappings; per-page pagemap reads where the kernel lacks it).
-- Both report over pipes; the parent asks both for every page either one wrote and
-  compares. A reaper thread waits for the test processes to exit, so the game goes on
-  as soon as it has the pages.
+- Both report over pipes; the coordinator asks both for every page either one wrote,
+  compares, and sends the verdict (one pipe write) to the game's collector thread,
+  which records it, logs and flushes the CSV every 64 tests. A reaper thread waits
+  for the coordinators to exit. `compare::drain()` waits for the tests in flight;
+  `flush()` (exit, reboot) drains first.
+- Lifetimes: test processes die with their coordinator (PDEATHSIG). Coordinators
+  cannot use PDEATHSIG, which fires when the forking *thread* ends (title threads
+  may end before their test does): they watch a pipe whose write end only the game
+  holds and exit at its EOF. The collector kills a coordinator still silent after
+  `timeout_ms` + 3 s. Coordinators run with the default crash signals (not the
+  game's handlers, which log and flush) and do not log.
 - Calls the tested function makes into other hooked functions run their originals:
   each stub checks `xbcmp_in_test` (set in test processes) and jumps straight to the
   trampoline, since the dispatcher is not executable there. Decompiled code reaches
@@ -109,7 +119,8 @@ registers and calls the dispatcher. For a tested call:
 
 ## Cost
 
-About 10 ms per test (two forks of the whole loader; Debug build). Mission 1 with
+The numbers in this paragraph are from the first version (the game waited about 10 ms
+per test, two forks of the whole loader; Debug build). Mission 1 with
 the first three functions: about 2,200 tests in 110 s; the game stays playable but
 slower while many tested functions are called often. Settling keeps that cost on the
 new functions: mission 1 with 104 functions (62 settled at start) ran 186 tests in
@@ -130,6 +141,22 @@ pages scanned and written, and the game's VmSize/VmRSS/VmPTE. Mission 4, Debug b
 | reap | 4.2 | 0.01 | waiting for the test processes to exit (now a reaper thread does) |
 | reports, pages, compare | 0.2 | 0.15 | |
 | total | 11.1 | 5.7 | 10,880 tests in the run before, 20,304 now |
+
+Then tests moved beside the game (coordinator + collector, 4 at once on 8 CPUs): the
+game waits only for its fork of the coordinator, 2.1 ms per test ("stall"). The
+coordinator's own work rose to 8.4 ms (4 tests sharing the CPUs with the game), and
+"latency" (call to verdict) is about 12 ms. Same run, 130 s: 29,531 tests; 163,291
+sampled calls found all slots busy. Frame rate, mission 4, 100 s (`--diag`), mean from
+30 s on:
+
+| mode | game waits for tests | tests beside the game |
+|---|---|---|
+| `--compare-all` | 4.0 fps, 13,583 tests | 14.5 fps, 21,926 tests |
+| `--compare` (most functions settled) | 30 fps, 20 tests | 30 fps, 19 tests |
+
+What is left for the game is the fork itself: with every function tested
+(`--compare-all`) it still waits about half the time. Lower `first_calls`/`every`
+for hot functions or fewer slots would trade tests for frame rate.
 
 PAGEMAP_SCAN (Linux 6.7+; the pagemap read stays as the fallback) was checked against the
 pagemap read in every test of three runs: they differed twice, both times by the page of

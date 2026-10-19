@@ -43,6 +43,9 @@ struct Config {
     // or drift is settled: not tested any more until a run with 0 (--compare-all), the
     // final check of a module. Settled ones are not hooked at all.
     uint32_t enough_matches = 100;
+    // Tests running at once (0: half the CPUs). A sampled call that finds them all busy
+    // is not tested.
+    uint32_t parallel = 0;
 };
 
 // Hooks `functions`: Replaced ones always, Compare ones only when testing is enabled.
@@ -61,8 +64,12 @@ struct Counts {
 // Counts of the tested function named `name` since install (zero if not tested).
 Counts counts(const char* name);
 
-// Adds the counts since the last flush to config.results. Any thread, any time;
-// call it before the process exits or re-execs.
+// Waits until the tests in flight have reported (at most timeout_ms + 2 s). Tests run
+// beside the game: a call's verdict arrives a few ms after the call.
+void drain();
+
+// Waits for the tests in flight (drain), then adds the counts since the last flush to
+// config.results. Any thread, any time; call it before the process exits or re-execs.
 void flush();
 
 }  // namespace loader::compare
