@@ -4,9 +4,8 @@
 changing that: we're turning the original Xbox game back into C++ source code that
 can be built and run natively on Linux and Windows.
 
-It's early days. Most of the work so far has been figuring out what the game's
-functions do and giving them proper names, which is the groundwork for everything
-that follows.
+It's early days: about one function in seven has a name, and the first 203 have
+been rewritten in C++. The renderer is the part we're working on now.
 
 **Just want to play?** Use the
 [native loader](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader) instead.
@@ -20,57 +19,66 @@ Developed with AI: see [Made with AI](#made-with-ai).
 
 ## How it works
 
-The Xbox runs on an ordinary x86 processor, much like a PC. That's what makes this
-project possible. The native loader runs the original game code directly on your
-PC and swaps in PC versions of everything around it: graphics, sound, controllers,
-saving.
+The Xbox## Progress
 
-This project builds on top of that. We rewrite the game one function at a time,
-and each rewritten function is checked against the original *while the game is
-running*. The game runs both versions from exactly the same starting point and
-compares the results down to the last byte. Once a function has passed enough of
-these tests, the game starts using our version instead of the original.
+*As of 2026-10-19. The numbers come from `tools/progress.py`, which tracks every
+function of the game.*
 
-Keep doing that until every function has been replaced, and the original game code
-is no longer needed. What's left is a game that builds from source and only needs
-the original game files for its maps, models, sounds and textures.
+| | Functions | Named | Rewritten | Left to rewrite |
+|---|---:|---:|---:|---:|
+| Engine and game code (`.text`) | 9,563 | 1,612 | 203 | 9,360 |
+| Mission scripts (14 level sections) | 4,977 | 0 | 0 | 4,977 |
+| **Total** | **14,540** | **1,612** | **203** | **14,337** |
 
-Before we rewrite a part of the game, we name its functions. The game files contain
-no names at all, just numbered addresses. *Big Red One* is built on an engine that
-traces back to Quake III Arena, whose source code is public, so many functions can
-be matched with their Quake III counterparts. The rest, like the AI and the vehicles,
-are named by working out what they do.
+**Named** means we know what the function does and it has a proper name.
+**Rewritten** means it has been turned into C++ and passed the in-game comparison
+(below). We've also named 628 of the game's global variables.
 
-## Progress
+### By part of the game
 
-| Section | What it is | Functions | Named | Rewritten |
-|---|---|---:|---:|---:|
-| `.text` | The engine and game code | 9563 | 1615 | 203 |
-| PROLOGUE | Mission scripts for `sp/prologue` | 618 | 0 | 0 |
-| ORAN | Mission scripts for `sp/oran` | 435 | 0 | 0 |
-| TUNISIA | Mission scripts for `sp/tunisia` | 278 | 0 | 0 |
-| KASSPASS | Mission scripts for `sp/kasspass` | 495 | 0 | 0 |
-| KASSRINE | Mission scripts for `sp/kassrine` | 232 | 0 | 0 |
-| LIBEATOR | Mission scripts for `sp/liberatr` | 319 | 0 | 0 |
-| GELA | Mission scripts for `sp/gela` | 401 | 0 | 0 |
-| PIANLUPO | Mission scripts for `sp/piano` | 402 | 0 | 0 |
-| TROINA | Mission scripts for `sp/troina` | 228 | 0 | 0 |
-| OMAHEACH | Mission scripts for `sp/omaha` | 312 | 0 | 0 |
-| MONS1 | Mission scripts for `sp/mons` | 517 | 0 | 0 |
-| EILEDORF | Mission scripts for `sp/eilndrf` | 153 | 0 | 0 |
-| BUCHHOLZ | Mission scripts for `sp/buchholz` | 443 | 0 | 0 |
-| DRAGEETH | Mission scripts for `sp/dragonth` | 144 | 0 | 0 |
-| **Total** | | **14540** | **1615** | **203** |
+| Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
+|---|---:|---:|---:|---:|---:|
+| Renderer (scenes, materials, shaders, models, effects) | 796 | 195 | 103 | 245 | 251 |
+| Game logic (entities, AI, weapons, level-script runtime) | 385 | 0 | 0 | 385 | 0 |
+| Client game (HUD, view, effects on screen) | 171 | 0 | 0 | 171 | 0 |
+| Engine core (memory, files, settings, commands) | 137 | 0 | 1 | 131 | 0 |
+| Client and menus | 132 | 0 | 0 | 132 | 0 |
+| Server, collision, compression | 40 | 0 | 2 | 38 | 0 |
+| Not sorted into a part yet | 7,902 | 8 | 3 | 196 | 7,386 |
 
-**Rewritten** means the function has been turned into C++ and passed the in-game
-comparison. A function counts as named once we know what it does. We've also named
-628 of the game's global variables.
+Most functions aren't sorted into a part yet. That happens as they get named: until
+then, nothing tells us which part they belong to. A part of the game switches over to
+the rewritten code once all of its functions pass the comparison; until then the
+original keeps running and the rewritten functions are only tested.
 
-Each mission has its own section of code: its level scripts (the objectives,
-enemy waves, scripted events and dialogue) compiled down to machine code. There are
-nearly 5,000 of these functions, all generated by the game's script compiler, so
-rather than rewriting them one by one, the plan is to build a translator that converts
-them automatically.
+The renderer comes first. It's the part of the game that talks to the Xbox's graphics
+chip most directly, so a rewritten renderer that uses a PC graphics API is what a
+native PC version needs most.
+
+### The mission scripts
+
+Each mission has its own section of code: its level scripts (the objectives, enemy
+waves, scripted events and dialogue) compiled down to machine code. All nearly 5,000
+of these functions were generated by the game's script compiler, so rather than
+rewriting them one by one, the plan is to build a translator that converts them
+automatically.
+
+| Section | Mission | Functions |
+|---|---|---:|
+| PROLOGUE | `sp/prologue` | 618 |
+| ORAN | `sp/oran` | 435 |
+| TUNISIA | `sp/tunisia` | 278 |
+| KASSPASS | `sp/kasspass` | 495 |
+| KASSRINE | `sp/kassrine` | 232 |
+| LIBEATOR | `sp/liberatr` | 319 |
+| GELA | `sp/gela` | 401 |
+| PIANLUPO | `sp/piano` | 402 |
+| TROINA | `sp/troina` | 228 |
+| OMAHEACH | `sp/omaha` | 312 |
+| MONS1 | `sp/mons` | 517 |
+| EILEDORF | `sp/eilndrf` | 153 |
+| BUCHHOLZ | `sp/buchholz` | 443 |
+| DRAGEETH | `sp/dragonth` | 144 |
 
 The totals can still grow a little as more functions turn up during the analysis.
 
@@ -87,7 +95,57 @@ them out on purpose:
 - They aren't part of the game itself. Every Xbox game was built with these same
   libraries, so they say nothing about how *Big Red One* works.
 
-## Building it yourself
+## How it works
+
+The Xbox runs on an ordinary x86 processor, much like a PC. That's what makes this
+project possible. The [native loader](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader)
+runs the original game code directly on your PC and swaps in PC versions of
+everything around it: graphics, sound, controllers, saving.
+
+This project builds on top of that, one part of the game at a time:
+
+1. **Name.** The game files contain no names at all, just numbered addresses. *Big
+   Red One* is built on an engine that traces back to Quake III Arena, whose source
+   code is public, so many functions can be matched with their Quake III
+   counterparts. The rest, like the AI and the vehicles, are named by working out
+   what they do.
+2. **Rewrite.** Each function is turned into C++ that behaves exactly like the
+   original, down to the order of floating-point operations.
+3. **Compare.** While the game runs, it runs both versions from exactly the same
+   starting point and compares the results down to the last byte.
+4. **Replace.** Once every function of a part has passed enough of these tests, the
+   game uses our code for that part instead of the original.
+
+Keep doing that until every function has been replaced, and the original game code
+is no longer needed. What's left is a game that builds from source and only needs
+the original game files for its maps, models, sounds and textures.
+
+## Tools we use
+
+- **[Ghidra](https://ghidra-sre.org/)**, the NSA's open-source reverse-engineering
+  suite, for disassembling and exploring the game. The AI works in it through
+  an MCP server for Ghidra, decompiling functions and running analysis scripts
+  directly.
+- **Our Ghidra scripts** (`tools/ghidra/`): apply names from our name lists, export
+  the symbol file the rest of the tools use, name settings variables after the
+  settings they hold, and export per-function data for matching.
+- **The Quake III Arena and Return to Castle Wolfenstein source code** (GPL), the
+  engine's ancestors, plus **q3match** (`tools/q3match/`), which matches the game's
+  functions to them by their strings and calls.
+- **The native loader**, which runs the original game on Linux and Windows. It's
+  what lets us test rewritten code inside the real game instead of in isolation.
+- **The comparison harness** (`--compare`), built into the loader. For each tested
+  call it copies the running game, runs the original and our version side by side,
+  and compares registers and every byte of memory they write. Calls into graphics
+  code are recorded and compared too, so drawing code can be tested. Results go to
+  `tools/data/functions.csv`.
+- **`tools/progress.py`**, which tracks every function's state (unnamed, named,
+  decompiled, tested, rewritten) by part of the game, and lists what's left.
+- **`tools/smoke_test.sh`**, a quick unattended play-through run after every batch
+  to make sure the game still works.
+- **[Claude Code](https://claude.com/claude-code)** with Claude, Anthropic's AI
+  model, which does the naming and decompiling (see [Made with AI](#made-with-ai)).
+- GCC and CMake for building, and objdump for checking the compiled code.
 
 This is for people who want to help with the decompilation or try it out. If you
 just want to play, see the native loader above.
@@ -118,10 +176,10 @@ the [native loader's README](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Lo
 ## Finding your way around
 
 - `game/code/` is where the rewritten game code lives.
-- `tools/` has the scripts for naming functions in Ghidra, the Quake III matcher,
-  and a quick gameplay test that's run after every batch of changes.
-- `tools/data/` holds the list of function names and the results of the in-game
-  comparisons.
+- `tools/` has the Ghidra scripts, the Quake III matcher, the progress tracker and
+  the quick gameplay test.
+- `tools/data/` holds the function names with the evidence for each, the in-game
+  comparison results and the per-function progress list (`progress.csv`).
 - `loader/`, `xbox/`, `platform/`, `render/`, `audio/` and `input/` come from the
   native loader: the PC replacements for the Xbox and its libraries.
 
