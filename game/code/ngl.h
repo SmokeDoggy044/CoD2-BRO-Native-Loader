@@ -117,7 +117,9 @@ struct NglScene {
     float view_matrix[16];    // +0x150
     uint8_t unknown190[0x2d0 - 0x190];
     NglScene* parent;         // +0x2d0, the scene nglPopScene returns to
-    uint8_t unknown2d4[0x2e0 - 0x2d4];
+    NglScene* next_sibling;   // +0x2d4, the scene tree nglPushScene builds
+    NglScene* first_child;    // +0x2d8
+    NglScene* last_child;     // +0x2dc
     struct Callback {
         void* function;
         void* arg;
@@ -128,9 +130,10 @@ struct NglScene {
     uint32_t projection_kind; // +0x300, 1 = perspective
     uint8_t unknown304[0x314 - 0x304];
     NglLightSet* light_set;   // +0x314
-    uint8_t unknown318[0x328 - 0x318];
+    int32_t viewport_pixels[4]; // +0x318, x0 y0 x1 y1 (nglSetViewportNormalized)
     float viewport_rect[4];   // +0x328, x0 y0 x1 y1 in -1..1 (nglSetViewportRect)
-    uint8_t unknown338[0x360 - 0x338];
+    float viewport_clamped[4]; // +0x338, nglSetViewportNormalized's, clamped to -1..1
+    uint8_t unknown348[0x360 - 0x348];
     uint32_t clear_flags;     // +0x360
     float clear_depth;        // +0x364
     uint8_t unknown368[0x370 - 0x368];
@@ -150,6 +153,10 @@ struct NglScene {
     float near_z;             // +0x3c4
     float far_z;              // +0x3c8
     float time;               // +0x3cc, nglBeginSceneRender derives +0x3d0 from it
+    uint8_t unknown3d0[0x3d8 - 0x3d0];
+    uint32_t* slots;          // +0x3d8, 2 + scene slot count (0x00902900) words of
+                              // frame memory, copied from the source scene
+    uint8_t unknown3dc[0x3e0 - 0x3dc];
 };
 
 // A section of a mesh: only its bounding sphere is known.
@@ -185,6 +192,11 @@ static_assert(offsetof(NglScene, base_projection) == 0x10);
 static_assert(offsetof(NglScene, matrix0d0) == 0xd0);
 static_assert(offsetof(NglScene, view_matrix) == 0x150);
 static_assert(offsetof(NglScene, projection_kind) == 0x300);
+static_assert(offsetof(NglScene, viewport_pixels) == 0x318);
+static_assert(offsetof(NglScene, last_child) == 0x2dc);
+static_assert(offsetof(NglScene, slots) == 0x3d8);
+static_assert(sizeof(NglScene) == 0x3e0);
+static_assert(offsetof(NglScene, viewport_clamped) == 0x338);
 static_assert(offsetof(NglScene, parent) == 0x2d0);
 static_assert(offsetof(NglScene, callbacks) == 0x2e0);
 static_assert(offsetof(NglScene, render_target) == 0x2f8);
@@ -248,6 +260,16 @@ void XB_CDECL nglSetColorWriteMask(uint32_t mask);
 void XB_CDECL nglSetFog(float start, float value1, float value2, float value3);
 // 0x0005e730: makes the parent current; returns the scene left.
 NglScene* XB_CDECL nglPopScene();
+// 0x00062df0: makes `scene` current, initialised by `mode` (0 cleared + defaults,
+// 1 a copy of the current scene, 2 of the root scene, else left as it is) with its
+// own slot block (frame memory, copied for 1 and 2); the tree links, render
+// targets, callbacks and draw lists are cleared and the parent is the previous
+// current scene, which is returned.
+NglScene* XB_CDECL nglInitScene(NglScene* scene, int32_t mode);
+// 0x00062fc0: a new scene from frame memory, appended to the current scene's
+// children (the root when there is none), then nglInitScene; null when the frame
+// memory is exhausted.
+NglScene* XB_CDECL nglPushScene(int32_t mode);
 // 0x0005e750: returns the previous current scene.
 NglScene* XB_CDECL nglSetCurrentScene(NglScene* scene);
 // 0x0005eaa0
@@ -464,6 +486,9 @@ void XB_CDECL nglSetSceneViewportRect(float x0, float y0, float x1, float y1);
 // screen's 640x480 for flags & 4), inclusive x1/y1, then nglSetViewportNormalized
 // (0x000619a0) with the -1..1 values.
 void XB_CDECL nglSetViewportRect(float x0, float y0, float x1, float y1);
+// 0x000619a0: the viewport rectangle in -1..1, kept clamped and as rounded pixels of
+// the render target (the screen's size for flags & 4).
+void XB_CDECL nglSetViewportNormalized(float x0, float y0, float x1, float y1);
 // 0x00061cc0
 void XB_CDECL nglSetAspect(float aspect);
 // 0x00061ce0
@@ -483,12 +508,27 @@ const float* XB_CDECL nglGetViewMatrix();
 // the opaque list (+0x304, count +0x30c) keyed by texture, the others on the
 // translucent list (+0x308, count +0x310) keyed by z. Updates a stale scene first.
 void XB_CDECL nglListAddQuad(const NglQuad* quad);
+// 0x00061f30: one of the current scene's matrices into `out` (returned): 0 the one
+// at +0xd0 and 2 the view matrix, as 4x3 with the fourth column 0 0 0 1; 1 the
+// projection (+0x110), 3 the one at +0x190; others the identity. Updates a stale
+// scene first.
+float* XB_CDECL nglGetMatrix(float* out, int32_t which);
+// 0x00062310: `point` (16-byte aligned) through the view, projection and viewport
+// matrices into `out` (returned): screen x y, view-space z, and w's own screen x.
+float* XB_CDECL nglProjectPoint(float* out, const float* point);
 // 0x00062d80: nglGetMatrix (0x00061f30) through a local copy.
 void XB_CDECL nglGetMatrixCopy(float* out, int32_t which);
 // 0x00062db0: nglProjectPoint (0x00062310) through a local copy.
 void XB_CDECL nglProjectPointCopy(float* out, const float* point);
 // 0x0006f960: a directional light (direction, colour r g b with 1) on the current
 // light set; nothing when the frame's scene memory is exhausted.
+// 0x00029200: a sphere against the current scene's six frustum planes (+0x270,
+// inward normals and distance); false as soon as it lies behind one.
+bool XB_CDECL nglSphereInFrustum(const float* center, float radius);
+// 0x0006f9f0: a point light (position, colour r g b with 1, inner and outer radius)
+// on the current light set when its sphere is in the frustum.
+void XB_CDECL nglAddPointLight(uint32_t flags, const float* position, float inner, float radius,
+                               const float* color);
 void XB_CDECL nglAddDirectionalLight(uint32_t flags, const float* direction, const float* color);
 // 0x00070120: a light's contribution at `position`: type 0 (point) evaluated into
 // `out`, type 1 its own data, else null.

@@ -360,6 +360,30 @@ void XB_CDECL R_DrawPic(float x, float y, float w, float h, void* shader) {
     RE_StretchPic(x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
 }
 
+void XB_CDECL R_ClearAlpha() {
+    // Bit 7 of the shader disable mask turns the pass off.
+    if (title_global<int8_t>(0x00901e8c) < 0) return;
+    // Alpha 0 everywhere, then alpha 0x80 where the depth test passes at 0.9 * zfar.
+    for (int pass = 0; pass < 2; ++pass) {
+        nglPushScene(1);
+        nglSetClearFlags(0);
+        nglSetColorWriteMask(0x01000000);
+        nglSetSceneDepthEnable(0);
+        nglSetSceneDepthTest(pass);
+        NglQuad quad;
+        nglInitQuad(&quad);
+        const float height = static_cast<float>(nglGetScreenHeight());
+        const float width = static_cast<float>(nglGetScreenWidth());
+        nglSetQuadRect(&quad, 0.0f, 0.0f, width, height);
+        if (pass == 1) nglSetQuadZ(&quad, title_global<float>(0x008db194) * title_global<float>(0x0095e514));
+        nglSetQuadColor(&quad, pass == 0 ? 0x00000000u : 0x80000000u);
+        nglSetQuadBlend(&quad, 0, 0);
+        nglListAddQuad(&quad);
+        nglPopScene();
+    }
+    title_function<void XB_CDECL()>(0x00045ef0)();
+}
+
 uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale) {
     const float size = title_global<float>(0x008db12c) * scale;
     const uint32_t handle = title_function<uint32_t XB_CDECL(uint32_t, float)>(title_global<uint32_t>(0x0095e6b4))(font, size);

@@ -89,6 +89,10 @@ void XB_CDECL R_AddCellEntities(const uint8_t* cell, const uint8_t* planes, int3
 // fog distances (0x0095f698, 0x0095f69c and 0x008db104/0x008db108, the last halved)
 // and colour (0x008db10c).
 void XB_CDECL R_SetupFog();
+// 0x00234d90: two full-screen quads that write only alpha: 0, then 0x80 where the
+// depth test passes at 0.9 * zfar; then 0x00045ef0's custom scene. Off when bit 7 of
+// the shader disable mask (0x00901e8c) is set.
+void XB_CDECL R_ClearAlpha();
 // 0x002361a0: the 2D colour (0x0095e6d0) as ARGB from 0..1 floats; null = white.
 void XB_CDECL RE_SetColor(const float* rgba);
 // 0x002360f0: a 2D quad x, y, w, h with texture coordinates s0 t0 s1 t1 in the 2D
