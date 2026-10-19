@@ -1048,7 +1048,7 @@ address,name,section,module,state,tested,matched
 00049150,cdGlass_AddToList,.text,renderer,settled,201,201
 000491f0,FUN_000491f0,.text,renderer,unnamed,0,0
 00049220,FUN_00049220,.text,renderer,unnamed,0,0
-00049280,FUN_00049280,.text,renderer,unnamed,0,0
+00049280,nglNode_GetWorldViewRotation,.text,renderer,named,0,0
 000495d0,nglNode_CalcWorldMatrix,.text,renderer,settled,5346,5346
 00049750,nglNode_GetWorldInverse,.text,renderer,settled,9444,9444
 00049b70,cdSimpleAlpha_Toggle,.text,renderer,untested,0,0
@@ -1111,7 +1111,7 @@ address,name,section,module,state,tested,matched
 0004d400,cdSimpleUVAnim_Register,.text,renderer,named,0,0
 0004d4a0,cdSimpleUVAnim_AddToList,.text,renderer,settled,100,100
 0004d520,cdSimpleUVAnim_Init,.text,renderer,untested,0,0
-0004d560,FUN_0004d560,.text,renderer,settled,286,286
+0004d560,cdSimpleUVAnim_GetUVParams,.text,renderer,settled,286,286
 0004d610,cdSimpleUVAnim_Draw,.text,renderer,settled,287,287
 0004d8c0,cdSimpleUVAnim_GetName,.text,renderer,untested,0,0
 0004d8e0,FUN_0004d8e0,.text,renderer,unnamed,0,0
@@ -1152,7 +1152,7 @@ address,name,section,module,state,tested,matched
 0004f2a0,cdOcean_Register,.text,renderer,named,0,0
 0004f320,cdOcean_Init,.text,renderer,untested,0,0
 0004f370,FUN_0004f370,.text,renderer,unnamed,0,0
-0004f810,FUN_0004f810,.text,renderer,unnamed,0,0
+0004f810,cdOcean_SetWaveConstants,.text,renderer,named,0,0
 000505c0,cdOcean_Draw,.text,renderer,settled,100,100
 000508e0,cdOcean_InitPixelShaders,.text,renderer,untested,0,0
 00050910,FUN_00050910,.text,renderer,unnamed,0,0

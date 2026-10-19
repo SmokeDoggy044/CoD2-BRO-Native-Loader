@@ -1048,7 +1048,7 @@
 00049150 cdGlass_AddToList
 000491f0 FUN_000491f0
 00049220 FUN_00049220
-00049280 FUN_00049280
+00049280 nglNode_GetWorldViewRotation
 000495d0 nglNode_CalcWorldMatrix
 00049750 nglNode_GetWorldInverse
 00049b70 cdSimpleAlpha_Toggle
@@ -1111,7 +1111,7 @@
 0004d400 cdSimpleUVAnim_Register
 0004d4a0 cdSimpleUVAnim_AddToList
 0004d520 cdSimpleUVAnim_Init
-0004d560 FUN_0004d560
+0004d560 cdSimpleUVAnim_GetUVParams
 0004d610 cdSimpleUVAnim_Draw
 0004d8c0 cdSimpleUVAnim_GetName
 0004d8e0 FUN_0004d8e0
@@ -1152,7 +1152,7 @@
 0004f2a0 cdOcean_Register
 0004f320 cdOcean_Init
 0004f370 FUN_0004f370
-0004f810 FUN_0004f810
+0004f810 cdOcean_SetWaveConstants
 000505c0 cdOcean_Draw
 000508e0 cdOcean_InitPixelShaders
 00050910 FUN_00050910

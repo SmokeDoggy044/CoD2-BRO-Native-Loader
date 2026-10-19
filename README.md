@@ -26,9 +26,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 9,563 | 1,613 | 219 | 9,344 |
+| Engine and game code (`.text`) | 9,563 | 1,615 | 219 | 9,344 |
 | Mission scripts (14 level sections) | 4,977 | 0 | 0 | 4,977 |
-| **Total** | **14,540** | **1,613** | **219** | **14,321** |
+| **Total** | **14,540** | **1,615** | **219** | **14,321** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
