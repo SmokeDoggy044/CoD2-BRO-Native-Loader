@@ -1541,7 +1541,7 @@ void XB_CDECL R_AddEntitySurfaces() {
                 if (!(entity[0x84] & 4) || !title_global<uint32_t>(0x0095e4a4)) {
                     const uint32_t kind = *reinterpret_cast<const uint32_t*>(entity + 0x80);
                     if (kind == 1) {
-                        title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x00245a20)(entity);  // R_AddEntityModel
+                        reinterpret_cast<void XB_REGS1 XB_CDECL (*)(uint8_t*)>(&R_AddEntityModel_entry)(entity);
                         ++title_global<int32_t>(0x0094cb00);
                     } else if (kind == 2) {
                         title_function<void XB_CDECL()>(0x00042460)();  // breaks into a debugger when one is attached
@@ -1571,8 +1571,8 @@ void XB_CDECL R_AddEntitySurfaces() {
         uint8_t* model = *reinterpret_cast<uint8_t**>(object + 0x22c);
         if (!model) continue;
         float* object_matrix = title_function<float* XB_STDCALL(uint8_t*, float*)>(0x002de120)(object, matrix);
-        title_function<void XB_CDECL(uint8_t*, uint8_t*, float*, int32_t, int32_t, int32_t)>(0x00244020)(  // R_AddDObjSurfaces
-            model, object, object_matrix, 1, 0xff, 0);
+        reinterpret_cast<uint32_t XB_CDECL (*)(uint8_t*, uint8_t*, float*, int32_t, int32_t, int32_t)>(
+            &R_AddDObjSurfaces_entry)(model, object, object_matrix, 1, 0xff, 0);
     }
 }
 
@@ -1649,6 +1649,438 @@ uint32_t float_bits(float value) {
 }
 
 }  // namespace
+
+// Calls a title function that takes EAX, ESI and EDI (and no stack arguments); returns
+// its EAX.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
+                                                            uint32_t edi);
+PLATFORM_ASM_ENTRY(title_call_regs,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "movl 12(%ebp), %eax\n"
+                   "movl 16(%ebp), %esi\n"
+                   "movl 20(%ebp), %edi\n"
+                   "call *8(%ebp)\n"
+                   "leal -12(%ebp), %esp\n"
+                   "popl %ebx\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebp\n"
+                   "ret")
+
+namespace {
+
+uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+template <typename T>
+T field(const void* base, uint32_t offset) {
+    T value;
+    std::memcpy(&value, static_cast<const uint8_t*>(base) + offset, sizeof value);
+    return value;
+}
+
+// Sets one word of an instance parameter block (a 64-bit slot mask, then a word per
+// slot); the original rewrites the mask's high word unchanged.
+void set_param_slot(uint32_t* params, uint32_t slot, uint32_t value) {
+    params[0] |= 1u << (slot & 31);
+    params[1] |= 0;
+    params[2 + slot] = value;
+}
+
+// ((t + r0 * p.x) + r1 * p.y) + r2 * p.z over all four lanes (rows of 4 floats).
+Lanes transform_point(const float* r0, const float* r1, const float* r2, const float* t, const Lanes& p) {
+    return add(add(add(lanes(t), mul(lanes(r0), p.v[0])), mul(lanes(r1), p.v[1])), mul(lanes(r2), p.v[2]));
+}
+
+// A mesh's bounding sphere centre (+0x20) through `matrix`: the shadow copy is made
+// only within the height band around the camera unless the entity is animated.
+bool outside_shadow_band(const uint8_t* mesh, const float* matrix, float band_center, float band_half) {
+    const Lanes center = transform_point(matrix, matrix + 4, matrix + 8, matrix + 12,
+                                         lanes(reinterpret_cast<const float*>(mesh + 0x20)));
+    platform_keep(center);
+    const float offset = center.v[2] - band_center;
+    return abs_bits(offset) > band_half;
+}
+
+// The parts of an LOD of a model; -1 = the first one it has.
+const XModelParts* lod_parts(const XModel* model, int32_t lod) {
+    if (lod < 0) {
+        lod = 0;
+        while (!model->lods[lod]) ++lod;
+    }
+    return model->lods[lod]->parts;
+}
+
+uint8_t* part_mesh(const XModelParts* parts, uint32_t index) {
+    return parts->meshes[index < parts->mesh_count ? index : 0];
+}
+
+}  // namespace
+
+// The original: push ebp, align to 16, 0x574 bytes of locals, then EBX/ESI/EDI. The C
+// version runs below that frame (where the original's callees run).
+PLATFORM_ASM_ENTRY(R_AddDObjSurfaces_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "andl $-16, %esp\n"
+                   "subl $0x574, %esp\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "movl %esp, %eax\n"
+                   "pushl %eax\n"
+                   "pushl 28(%ebp)\n"
+                   "pushl 24(%ebp)\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n" PLATFORM_ASM_CALL(R_AddDObjSurfaces) "addl $28, %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebx\n"
+                   "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* matrix, uint8_t limit_depth,
+                                    uint8_t alpha, uint8_t cast_shadow, uint8_t* frame) {
+    const auto cvar_integer = [](uint32_t address) {
+        return *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(address) + 0x20);
+    };
+    const auto scene = [] { return title_global<NglScene*>(0x0090259c); };
+    if (obj->client_index != -1) {
+        const uint8_t* client =
+            *reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095f638) + 0x38 + obj->client_index * 4);
+        if (!client || field<uint32_t>(client, 0xdc) != 0) return 0;
+    }
+    if (scene()->stale) nglUpdateScene(0);
+    if (entity)
+        title_function<void XB_CDECL(uint8_t*, DObj*, void*)>(title_global<uint32_t>(0x0095e6ac))(entity, obj,
+                                                                                                frame + 0x570);
+    uint32_t result = 0;
+
+    // Lighting at the origin (or the parent's, for an entity linked to another).
+    alignas(16) float origin[4] = {matrix[12], matrix[13], matrix[14], matrix[15]};
+    NglLightSet* light_set = nglCreateLightSet();
+    uint32_t flags = 0;
+    if (entity) {
+        flags = field<uint32_t>(entity, 0x2a4);
+        uint8_t* const* parent = field<uint8_t* const*>(entity, 0x3cc);
+        if (parent) {
+            const uint8_t* p = *parent;
+            flags = field<uint32_t>(p, 0x2a4);
+            origin[0] = field<float>(p, 0x140);
+            origin[1] = field<float>(p, 0x144);
+            origin[2] = field<float>(p, 0x148);
+        }
+    }
+    uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
+    uint32_t* params = reinterpret_cast<uint32_t*>((arena + 7) & ~uintptr_t{7});
+    params[0] = 0;
+    params[1] = 0;
+    arena = reinterpret_cast<uintptr_t>(params + 2 + title_global<uint32_t>(0x00902904));
+    const bool lit = !((flags >> 23) & 1);
+    if (lit) {
+        if (flags & 0x200000) {
+            R_SetDefaultLighting();
+        } else if (entity) {
+            const uint32_t ref = title_call_regs(0x002be200, 0, address_of(entity), 0);  // CG_GetEntityRefEntity
+            title_call_regs(0x00243770, ref + 8, address_of(entity), address_of(origin));  // R_SetupEntityLighting
+        } else {
+            int32_t cell;
+            void* grid = R_GetCellLighting(origin, 0, &cell);
+            if (grid && cell >= 0)
+                title_function<void XB_REGS1 XB_STDCALL(int32_t, void*, const float*, void*)>(0x00242e90)(  // R_SampleLightGrid
+                    cell, grid, origin, nullptr);
+            else
+                R_SetDefaultLighting();
+        }
+    }
+    for (uint8_t* light = field<uint8_t*>(scene()->light_set, 0x18);
+         light != reinterpret_cast<uint8_t*>(scene()->light_set); light = field<uint8_t*>(light, 0x18))
+        nglLightSetAddLight(field<uint32_t>(light, 0x28), field<float*>(light, 0x2c), 0xffffffff);
+    set_param_slot(params, title_global<uint32_t>(0x00902914), address_of(light_set));
+
+    const uint32_t extra_slot = title_global<uint32_t>(0x00902908);
+    bool animated = false;
+    if (entity && field<uint32_t>(entity, 0x248)) {
+        animated = true;
+        float time = static_cast<float>(field<int32_t>(entity, 0xa0));
+        if (time != 0.0f) {
+            time *= title_global<float>(0x0083eb4c);  // 0.001
+            const float one = title_global<float>(0x0083eb20);
+            const float w = title_global<float>(0x0082eca0);
+            float* m = reinterpret_cast<float*>((arena + 15) & ~uintptr_t{15});
+            const float rows[16] = {one, 0.0f, 0.0f, w,    0.0f, one,  0.0f, w,
+                                    0.0f, 0.0f, one, w,    time, 0.0f, 0.0f, title_global<float>(0x0082ecb0)};
+            std::memcpy(m, rows, sizeof rows);
+            arena = reinterpret_cast<uintptr_t>(m + 16);
+            set_param_slot(params, extra_slot, address_of(m));
+        }
+    }
+    if (alpha != 0xff) {
+        const float value = alpha == 0   ? title_global<float>(0x0083eb20)
+                            : alpha == 1 ? title_global<float>(0x0083eb24)
+                                         : static_cast<float>(static_cast<int32_t>(alpha)) * title_global<float>(0x0083eb30);
+        set_param_slot(params, extra_slot, float_bits(value));
+    }
+    float band_center = 0.0f;
+    float band_half = 0.0f;
+    if (cast_shadow) {
+        if (!lit || !cvar_integer(0x0095e700) || title_global<uint8_t>(0x0095f6b4)) {  // r_testshadow
+            cast_shadow = 0;
+        } else if (!animated) {
+            const float z = scene()->camera_position[2];
+            const float top = z + title_global<float>(0x008db120);
+            band_center = ((z - title_global<float>(0x008db124)) + top) * title_global<float>(0x0083eb24);
+            band_half = top - band_center;
+        }
+    }
+
+    if (!cvar_integer(0x0095e7f0)) {  // r_showSkeletons
+        auto& rigid = *reinterpret_cast<RDObjRigidParams*>(frame + 0xf0);
+        auto& skinned = *reinterpret_cast<RDObjSkinnedParams*>(frame + 0x130);
+        const uint32_t params_word = address_of(params);
+        obj->cull_flags |= 1;
+        const uint32_t owner_flags = obj->owner ? field<uint32_t>(obj->owner, 0x2a4) : 0;
+        bool limited = false;
+        if (!(owner_flags & 0x40000000) && obj->lod_limit) {
+            const int32_t lod = obj->forced_lod >= 0 ? obj->forced_lod : obj->lod;
+            const int32_t limit = field<int32_t>(obj->lod_limit, 4);
+            if (lod < limit) {
+                title_function<void XB_REGS2 XB_CDECL(int32_t, DObj*)>(0x00029490)(limit, obj);  // DObj_SetMinLod
+                limited = true;
+            }
+        }
+        if (!limited) obj->min_lod = -1;
+
+        for (int32_t m = 0; m < static_cast<int32_t>(obj->model_count); ++m) {
+            const uint8_t* bones =
+                obj->bone_matrices ? obj->bone_matrices + (&obj->matrix_offset)[m] * 0x40 + 0x30 : nullptr;
+            const XModel* model = obj->models[m];
+            int32_t lod = -1;
+            if (m == 0) {
+                lod = obj->forced_lod >= 0 ? obj->forced_lod : obj->min_lod >= 0 ? obj->min_lod : obj->lod;
+                if (lod >= 5) {
+                    // Too far for meshes: only the bounding sphere's visibility.
+                    const Lanes mins = lanes(model->mins);
+                    const Lanes maxs = lanes(model->maxs);
+                    const Lanes center = add(mul(sub(maxs, mins), title_global<float>(0x0083eb24)), mins);
+                    const Lanes d = sub(center, mins);
+                    const Lanes sq = mul(d, d);
+                    platform_keep(sq);
+                    const float r2 = (sq.v[0] + sq.v[1]) + sq.v[2];
+                    float radius = r2;
+                    if (r2 == r2 && r2 != title_global<float>(0x0082e680)) {
+                        const float y = platform_rsqrt_estimate(r2);
+                        const float a = r2 * y;
+                        radius = ((title_global<float>(0x0082e660) - a * y) * a) * title_global<float>(0x0082e670);
+                    }
+                    alignas(16) const Lanes world = transform_point(matrix, matrix + 4, matrix + 8, matrix + 12, center);
+                    if (nglSphereInFrustum(world.v, radius)) obj->cull_flags &= ~1u;
+                    continue;
+                }
+            }
+            for (uint32_t i = 0;; ++i) {
+                const XModelParts* parts = lod_parts(model, lod);
+                if (static_cast<int32_t>(i) >= (parts ? static_cast<int32_t>(parts->bone_count) : 0)) break;
+                uint8_t* mesh = part_mesh(lod_parts(model, lod), i);
+                if (!mesh) continue;
+                if (field<uint32_t>(mesh, 0x10)) {
+                    // Skinned: the model's bone matrices go with it.
+                    skinned.flags = 8;
+                    skinned.skin = field<uint32_t>(mesh, 0x10);
+                    skinned.bones = bones;
+                    if (entity) {
+                        const uint32_t tint = field<uint8_t*>(entity, 0x250)[0xee];
+                        if (tint != 0xff) set_param_slot(params, title_global<uint32_t>(0x00902918), tint);
+                    }
+                    if (nglListAddMesh(mesh, matrix, &skinned.flags, &params_word) <= 0) continue;
+                    obj->cull_flags &= ~1u;
+                    result = 1;
+                    if (!cast_shadow) continue;
+                    if (!animated && outside_shadow_band(mesh, matrix, band_center, band_half)) continue;
+                    NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
+                    const int32_t coarsest =
+                        title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, DObj*)>(0x00029520)(0, obj);  // DObj_GetCoarsestLod
+                    nglListAddMesh(part_mesh(lod_parts(model, coarsest), i), matrix, &skinned.flags, &params_word);
+                    nglSetCurrentScene(saved);
+                    continue;
+                }
+
+                // Rigid: the bone's matrix (rows of x y z; lane 3 repeats x) times `matrix`.
+                const uintptr_t bone = reinterpret_cast<uintptr_t>(bones) + i * 0x40;
+                Lanes r[4];
+                for (int k = 0; k < 4; ++k) {
+                    const float* row = reinterpret_cast<const float*>(bone + k * 0x10);
+                    r[k] = {{row[0], row[1], row[2], row[0]}};
+                }
+                rigid.unknown04 = 0;
+                rigid.unknown08 = 0;
+                rigid.distance = title_global<float>(0x008da6d8);
+                rigid.flags = 0x80;
+                const Lanes m0 = lanes(matrix);
+                const Lanes m1 = lanes(matrix + 4);
+                const Lanes m2 = lanes(matrix + 8);
+                alignas(16) Lanes world[4];
+                for (int k = 0; k < 3; ++k)
+                    world[k] = add(add(mul(m0, r[k].v[0]), mul(m1, r[k].v[1])), mul(m2, r[k].v[2]));
+                world[3] = transform_point(matrix, matrix + 4, matrix + 8, matrix + 12, r[3]);
+                if (limit_depth) {
+                    // Pull the mesh in to end at the far distance, shrunk to look the same.
+                    const float* c = reinterpret_cast<const float*>(mesh + 0x20);
+                    const float radius = c[4];
+                    const Lanes center = add(add(add(world[3], mul(world[0], c[0])), mul(world[1], c[1])),
+                                             mul(world[2], c[2]));
+                    const float* view = scene()->view_matrix;
+                    const Lanes v = transform_point(view, view + 4, view + 8, view + 12, center);
+                    const Lanes depth = add(Lanes{{radius, radius, radius, radius}},
+                                            Lanes{{v.v[2], v.v[2], v.v[2], v.v[2]}});
+                    platform_keep(depth);
+                    const float far_z = title_global<float>(0x0095e514);
+                    if (depth.v[0] > far_z) {
+                        const float target = far_z - radius;
+                        const float s = target / v.v[2];
+                        const Lanes sv = mul(v, s);
+                        platform_keep(sv);
+                        // The view rotation transposed (lane 3 repeats lane 2).
+                        const Lanes t0 = {{view[0], view[4], view[8], view[8]}};
+                        const Lanes t1 = {{view[1], view[5], view[9], view[9]}};
+                        const Lanes t2 = {{view[2], view[6], view[10], view[10]}};
+                        const Lanes p = {{sv.v[0], sv.v[1], target, sv.v[0]}};
+                        const Lanes d = sub(p, lanes(view + 12));
+                        const Lanes offset =
+                            mul(add(add(mul(world[0], c[0]), mul(world[1], c[1])), mul(world[2], c[2])), s);
+                        world[3] = sub(add(add(mul(t0, d.v[0]), mul(t1, d.v[1])), mul(t2, d.v[2])), offset);
+                        rigid.flags |= 2;
+                        for (float& lane : rigid.scale) lane = s;
+                    }
+                }
+                if (entity && !field<uint32_t>(entity, 0x248)) {
+                    const float one = title_global<float>(0x0083eb20);
+                    const uint8_t* ref = field<const uint8_t*>(entity, 0x250);
+                    float scale = ref ? field<float>(ref, 0xf4) : one;
+                    const uintptr_t info = 0x0096bd10 + uintptr_t{field<uint16_t>(entity, 6)} * 0x34;
+                    bool scaled = scale != one;
+                    if (info && field<int32_t>(reinterpret_cast<const void*>(info), 0x24) == 1 &&
+                        field<uint32_t>(entity, 0x260) != title_global<uint32_t>(0x0097a788)) {
+                        scale = title_global<float>(0x008ff01c);
+                        scaled = true;
+                    }
+                    if (scaled) {
+                        rigid.flags |= 2;
+                        for (float& lane : rigid.scale) lane = scale;
+                    }
+                }
+                if (nglListAddMesh(mesh, world[0].v, &rigid.flags, &params_word) <= 0) continue;
+                obj->cull_flags &= ~1u;
+                result = 1;
+                if (!cast_shadow) continue;
+                if (!animated && outside_shadow_band(mesh, matrix, band_center, band_half)) continue;
+                NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
+                title_function<void XB_REGS2 XB_CDECL(int32_t, DObj*)>(0x00014610)(4, obj);  // DObj_SetForcedLod
+                const int32_t shadow_lod = m != 0                ? -1
+                                           : obj->forced_lod >= 0 ? obj->forced_lod
+                                           : obj->min_lod >= 0    ? obj->min_lod
+                                                                  : obj->lod;
+                rigid.flags |= 0x80;
+                rigid.distance = title_global<float>(0x0083f0dc);  // 100000
+                nglListAddMesh(part_mesh(lod_parts(model, shadow_lod), i), matrix, &rigid.flags, &params_word);
+                obj->forced_lod = -1;
+                nglSetCurrentScene(saved);
+            }
+        }
+    }
+    if (cvar_integer(0x0095e7f0)) {
+        // The skeleton instead: `matrix` as rows of x y z, in the frame where the
+        // skinned block lives.
+        obj->cull_flags &= ~1u;
+        float* axes = reinterpret_cast<float*>(frame + 0x130);
+        for (int k = 0; k < 3; ++k) std::memcpy(axes + k * 3, matrix + k * 4, 12);
+        std::memcpy(axes + 9, matrix + 12, 12);
+        title_function<void XB_REGS1 XB_CDECL(float*, DObj*)>(0x00241b40)(axes, obj);  // R_DrawDObjSkeleton
+    }
+    return result;
+}
+
+// The original: push ebp, align to 16, 0x108 bytes of locals, then ESI/EDI; the C
+// version runs 64 KB below, R_AddDObjSurfaces where the original calls it.
+PLATFORM_ASM_ENTRY(R_AddEntityModel_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "andl $-16, %esp\n"
+                   "subl $0x108, %esp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "movl %esp, %ecx\n"
+                   "subl $0x10000, %esp\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_AddEntityModel) "addl $0x10008, %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL R_AddEntityModel(uint8_t* entity, uint8_t* frame) {
+    DObj* obj = field<DObj*>(entity, 0xd4);
+    uint8_t* owner = field<uint8_t*>(entity, 0xd8);
+    if (owner && (field<uint32_t>(owner, 0x2a4) & 0x200000)) return;
+    if (!obj) return;
+    // The axis (+0x94, rows of 3) and origin (+0xbc) as rows (lane 3 repeats x), at the
+    // original's +0x60.
+    float* matrix = reinterpret_cast<float*>(frame + 0x60);
+    for (int k = 0; k < 4; ++k) {
+        const float* row = reinterpret_cast<const float*>(entity + (k < 3 ? 0x94 + k * 0xc : 0xbc));
+        matrix[k * 4 + 0] = row[0];
+        matrix[k * 4 + 1] = row[1];
+        matrix[k * 4 + 2] = row[2];
+        matrix[k * 4 + 3] = row[0];
+    }
+    const uint8_t before = entity[0xed];
+    const uint32_t args[] = {address_of(obj), address_of(owner), address_of(matrix), 0, entity[0xef],
+                             static_cast<uint32_t>(!(before & 2))};
+    const uint8_t drawn = static_cast<uint8_t>(
+        title_call_at(address_of(frame), address_of(reinterpret_cast<const void*>(&R_AddDObjSurfaces_entry)),
+                      address_of(obj), address_of(entity), 6, args));
+    const uint8_t after = entity[0xed];
+    entity[0xed] = static_cast<uint8_t>(after ^ ((after ^ drawn) & 1));
+    if (entity[0xed] & 2) return;
+    if (!*reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x0095e700) + 0x20)) return;  // r_testshadow
+    if (!title_global<uint8_t>(0x0095f6b4)) return;
+
+    // A red quad at the origin's screen position, in the shadow scene.
+    NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
+    const NglScene* s = title_global<NglScene*>(0x0090259c);
+    const float* vm = s->view_matrix;
+    const Lanes v1 = transform_point(vm, vm + 4, vm + 8, vm + 12, lanes(matrix + 12));
+    const float* pm = s->base_projection;
+    const Lanes v2 = transform_point(pm, pm + 4, pm + 8, pm + 12, v1);
+    const float* sm = s->viewport;
+    const Lanes v3 = add(add(add(mul(lanes(sm), v2.v[0]), mul(lanes(sm + 4), v2.v[1])), mul(lanes(sm + 8), v2.v[2])),
+                         mul(lanes(sm + 12), v2.v[3]));
+    const uint8_t* target = reinterpret_cast<const uint8_t*>(s->render_target);
+    const float width = platform_x87_unsigned_to_float(field<uint32_t>(target, 0x10));
+    const float height = platform_x87_unsigned_to_float(field<uint32_t>(target, 0x14));
+    const float* half = &title_global<float>(0x00830160);
+    const float k = title_global<float>(0x0082ecb0);
+    const Lanes q = {{v3.v[0], v3.v[1], v3.v[2], v2.v[3]}};
+    const Lanes scale = {{half[0], half[1], half[2], k}};
+    const Lanes bias = {{half[0], half[1], half[2], title_global<float>(0x00830190)}};
+    const Lanes size = {{width, height, title_global<float>(0x0083eafc), k}};
+    const Lanes p = mul(add(mul(q, scale), bias), size);
+    platform_keep(p);
+    NglQuad quad;
+    nglInitQuad(&quad);
+    const float r = title_global<float>(0x0083ebb8);
+    nglSetQuadRect(&quad, p.v[0] - r, p.v[1] - r, p.v[0] + r, p.v[1] + r);
+    nglSetQuadColor(&quad, 0xffff0000);
+    nglListAddQuad(&quad);
+    nglSetCurrentScene(saved);
+}
 
 // The original's frame (aligned to 16, 0xa0 bytes: its locals - the view matrix copy at
 // +0x60, the sky matrix at +0x20 - and two saved registers) is rebuilt, with 128 KB
@@ -1763,7 +2195,7 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
                 static const uint32_t kMessage[] = {1, 0x0083bf20};
                 at(0, title_global<uint32_t>(0x0095e634), 2, kMessage);
             } else {
-                at(0, 0x00245a20, 0, nullptr, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)));  // R_AddEntityModel
+                at(0, &R_AddEntityModel_entry, 0, nullptr, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)));
             }
             if (!next) break;
             node = next;

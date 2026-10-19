@@ -62,10 +62,20 @@ struct DObj {
     uint8_t model_count;  // +0x2e
     uint8_t unknown2f;
     uint32_t hidden_models;  // +0x30, a bit per model
-    uint8_t unknown34[0x38 - 0x34];
+    int32_t client_index;    // +0x34, -1 = none; else drawn only while that slot of the
+                             // table at 0x0095f638 (+0x38) is set and its +0xdc is 0
     XModel* models[8];    // +0x38
     uint8_t attach_bones[8];  // +0x58: the bone each model hangs from (not the first)
-    uint8_t matrix_offset;    // +0x60
+    uint8_t matrix_offset;    // +0x60, the first model's; one byte per model follows
+    uint8_t matrix_offsets_rest[7];
+    const uint8_t* lod_limit; // +0x68, +4: the finest LOD allowed (DObj_SetMinLod)
+    uint8_t unknown6c[0x88 - 0x6c];
+    const uint8_t* owner;     // +0x88, an entity: its +0x2a4 flag 0x40000000 lifts lod_limit
+    uint8_t unknown8c[0x90 - 0x8c];
+    int32_t lod;              // +0x90, the distance LOD
+    int32_t forced_lod;       // +0x94, -1 = none (DObj_SetForcedLod)
+    int32_t min_lod;          // +0x98, -1 = none (DObj_SetMinLod)
+    uint32_t cull_flags;      // +0x9c, bit 0: nothing of it was drawn this frame
 };
 
 // What DObj_TraceBoneBoxes found.
@@ -91,6 +101,9 @@ static_assert(offsetof(XModel, maxs) == 0x10);
 static_assert(offsetof(XModel, flags) == 0x40);
 static_assert(offsetof(DObj, models) == 0x38);
 static_assert(offsetof(DObj, attach_bones) == 0x58);
+static_assert(offsetof(DObj, lod_limit) == 0x68);
+static_assert(offsetof(DObj, owner) == 0x88);
+static_assert(offsetof(DObj, cull_flags) == 0x9c);
 #endif
 
 // 0x00237cd0: the base pose (0x30 bytes) of a bone; the first model's fallback

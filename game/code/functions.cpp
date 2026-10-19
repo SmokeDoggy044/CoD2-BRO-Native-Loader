@@ -395,6 +395,8 @@ const Function kFunctions[] = {
     {"R_RenderView", 0x00247350, 0, code(&R_RenderView_entry), 0, Result::None, Status::Compare},
     {"R_AddEntityToCells_r", 0x0023d8f0, 0, code(&R_AddEntityToCells_r), 16, Result::None, Status::Compare},
     {"R_AddEntitiesToCells", 0x0023ffb0, 0, code(&R_AddEntitiesToCells), 8, Result::None, Status::Compare},
+    {"R_AddDObjSurfaces", 0x00244020, 0, code(&R_AddDObjSurfaces_entry), 24, Result::Eax, Status::Compare},
+    {"R_AddEntityModel", 0x00245a20, 0, code(&R_AddEntityModel_entry), 0, Result::None, Status::Compare},
     {"R_AddEntitySurfaces", 0x00246d60, 0, code(&R_AddEntitySurfaces), 0, Result::None, Status::Compare},
     {"MatrixInverse4x4", 0x00294610, 0, code(&MatrixInverse4x4), 0, Result::None, Status::Compare},
     {"R_SetupPortalBevels", 0x002377d0, 0, code(&R_SetupPortalBevels), 0, Result::None, Status::Compare},

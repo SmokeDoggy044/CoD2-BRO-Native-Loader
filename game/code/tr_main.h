@@ -302,6 +302,51 @@ void XB_CDECL R_SetupCullPlanes();
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddWorldSurfaces(void* link_buffer);
 extern "C" void R_AddWorldSurfaces_entry(void);
 
+// The instance blocks R_AddDObjSurfaces hands nglListAddMesh, at +0xf0 and +0x130 of
+// its frame. nglListAddMesh copies all 0x30 bytes, and the original leaves some of them
+// unset (whatever earlier calls left on the stack), so they stay at those addresses.
+struct RDObjRigidParams {
+    uint32_t flags;      // 0x80, | 2 = scaled, | 0x80 again for the shadow copy
+    uint32_t unknown04;  // 0
+    uint32_t unknown08;  // 0
+    uint32_t unset0c;
+    float scale[4];      // +0x10, written only when scaled
+    float distance;      // +0x20, 0x008da6d8's value; 100000 for the shadow copy
+    uint32_t unset24[3];
+};
+struct RDObjSkinnedParams {
+    uint32_t flags;         // 8
+    uint32_t skin;          // +0x04, the mesh's +0x10
+    const uint8_t* bones;   // +0x08, the model's first bone matrix
+    uint32_t unset0c[9];
+};
+#if UINTPTR_MAX == 0xFFFFFFFF
+static_assert(sizeof(RDObjRigidParams) == 0x30);
+static_assert(sizeof(RDObjSkinnedParams) == 0x30);
+#endif
+
+// 0x00244020: adds the meshes of a DObj's models (current LODs; the first model alone
+// is only sphere-culled from LOD 5 on) to the current NGL scene, lit by the entity's
+// cached lighting, the cell's light grid or the default, plus the scene's lights of
+// category 6. Rigid meshes take their bone's matrix times `matrix`; with limit_depth
+// they are pulled in and shrunk to end at the far distance 0x0095e514. With an entity:
+// its animation time (+0x248/+0xa0) as an extra matrix, its scale. alpha (0xff =
+// none) goes into the slot 0x00902908. cast_shadow (with r_testshadow) adds each drawn
+// mesh again, coarsest LOD, to the shadow scene 0x0095f6cc. Returns whether anything
+// was drawn. Entered through R_AddDObjSurfaces_entry, which rebuilds the original's
+// frame (the instance blocks above live in it).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* matrix,
+                                                              uint8_t limit_depth, uint8_t alpha, uint8_t cast_shadow,
+                                                              uint8_t* frame);
+extern "C" void R_AddDObjSurfaces_entry(void);
+// 0x00245a20: a model entity (EAX; the record starts 0x80 before its refEntity): its
+// DObj (+0xd4) with the axis (+0x94) and origin (+0xbc) unless its owner (+0xd8) is
+// flagged 0x200000; bit 0 of +0xed = drawn. With r_testshadow and 0x0095f6b4, a red
+// 32-pixel quad at its projected origin in the shadow scene. Entered through
+// R_AddEntityModel_entry (the original's frame, R_AddDObjSurfaces at its position).
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddEntityModel(uint8_t* entity, uint8_t* frame);
+extern "C" void R_AddEntityModel_entry(void);
+
 // 0x00246d60: with r_drawentities, the model entities of the list at 0x008db128
 // (unless too far away horizontally while 0x0095f550 is set), then the live animated
 // objects of the handle table at 0x00960070 (R_AddDObjSurfaces).

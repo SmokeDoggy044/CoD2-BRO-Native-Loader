@@ -2080,3 +2080,8 @@ address,name,kind,confidence,evidence
 0023b2e0,R_SetInstanceColor,function,medium,"ESI = pointer to an instance parameter block pointer, ECX = colour; copies the colour into 16 bytes of scene memory (0x009025a8) and stores it in slot 0x00902908 (the colour slot cdSimpleAlpha/cdSimple read), setting its mask bit; called by the mesh-builder draw 0x002d0680"
 0023be90,DObj_GetBounds,function,medium,"stack DObj, EDX mins, ECX maxs; copies the first model's (DObj +0x38) bounds +0x00/+0x10; called by the entity clip test 0x002e79c0"
 00294610,MatrixInverse4x4,function,high,"4x4 inverse by cofactors over the determinant (1 / det times each), EAX = source, ECX = destination; only caller R_SetupPortalBevels, which inverts the world-times-projection matrix with it"
+00029490,DObj_SetMinLod,function,medium,"EAX = LOD, EDX = DObj: +0x98 = that LOD if the first model has it, else the next coarser one it has, else the next finer; R_AddDObjSurfaces with the DObj's LOD limit (+0x68 +4)"
+00014610,DObj_SetForcedLod,function,medium,"EAX = LOD, EDX = DObj: the same search as DObj_SetMinLod into +0x94; R_AddDObjSurfaces forces 4 for the shadow copy and resets +0x94 to -1 after"
+00029520,DObj_GetCoarsestLod,function,medium,"EDX = DObj: the highest LOD index (4..0) the first model has, else breaks into the debugger and returns -1; R_AddDObjSurfaces' skinned shadow copy"
+00014260,XModel_GetLodParts,function,medium,"EAX = LOD (-1 = first present), EDX = model: lods[LOD]->parts; R_AddDObjSurfaces' rigid shadow copy"
+00241b40,R_DrawDObjSkeleton,function,medium,"called only from R_AddDObjSurfaces while r_showSkeletons (0x0095e7f0) is set, with EAX = the object's axes and origin (rows of 3) and the DObj, instead of its meshes"
