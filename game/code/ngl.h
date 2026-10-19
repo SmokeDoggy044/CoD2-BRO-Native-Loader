@@ -471,6 +471,42 @@ void XB_CDECL std_Rotate_NodeKeys(NglOpaqueNode* first, NglOpaqueNode* mid, NglO
 void XB_CDECL std_Med3_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last);
 void XB_CDECL std_Med3_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* mid,
                                         NglTranslucentNode* last);
+// std::_Unguarded_partition's result: the range equal to the pivot.
+template <typename Node>
+struct NglNodeRange {
+    Node* first;
+    Node* second;
+};
+// The rest of std::sort, per node type; `pred` is the (empty) comparison object.
+// 0x00074670 / 0x000746f0: std::_Adjust_heap.
+void XB_CDECL std_AdjustHeap_OpaqueNodes(NglOpaqueNode* first, int32_t hole, int32_t bottom, NglOpaqueNode value,
+                                         uint32_t pred);
+void XB_CDECL std_AdjustHeap_TranslucentNodes(NglTranslucentNode* first, int32_t hole, int32_t bottom,
+                                              NglTranslucentNode value, uint32_t pred);
+// 0x00074790 / 0x000747e0: std::_Make_heap (two unused tag arguments follow).
+void XB_CDECL std_MakeHeap_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t pred);
+void XB_CDECL std_MakeHeap_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred);
+// 0x00074a90 / 0x00074af0: std::sort_heap.
+void XB_CDECL std_SortHeap_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t pred);
+void XB_CDECL std_SortHeap_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred);
+// 0x00074830 / 0x000748b0: std::_Insertion_sort (moves with std::_Rotate).
+void XB_CDECL std_InsertionSort_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t pred);
+void XB_CDECL std_InsertionSort_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred);
+// 0x00074b50 / 0x00074bf0: std::_Median (ninther above 40 elements).
+void XB_CDECL std_Median_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last, uint32_t pred);
+void XB_CDECL std_Median_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* mid, NglTranslucentNode* last,
+                                          uint32_t pred);
+// 0x00074c90 / 0x00074e50: std::_Unguarded_partition (result by hidden pointer).
+NglNodeRange<NglOpaqueNode>* XB_CDECL std_UnguardedPartition_OpaqueNodes(NglNodeRange<NglOpaqueNode>* result,
+                                                                         NglOpaqueNode* first, NglOpaqueNode* last,
+                                                                         uint32_t pred);
+NglNodeRange<NglTranslucentNode>* XB_CDECL std_UnguardedPartition_TranslucentNodes(
+    NglNodeRange<NglTranslucentNode>* result, NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred);
+// 0x00075280 / 0x00075370: std::_Sort (quicksort to 32 elements, heap sort when
+// `ideal` runs out, then insertion sort).
+void XB_CDECL nglSortOpaqueNodes_r(NglOpaqueNode* first, NglOpaqueNode* last, int32_t ideal, uint32_t pred);
+void XB_CDECL nglSortTranslucentNodes_r(NglTranslucentNode* first, NglTranslucentNode* last, int32_t ideal,
+                                        uint32_t pred);
 
 
 // 0x00064080: the object whose 32-byte name equals `key` (compared as 8 unsigned

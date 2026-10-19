@@ -834,6 +834,260 @@ void XB_CDECL std_Med3_TranslucentNodes(NglTranslucentNode* first, NglTranslucen
     if (less(*mid, *first)) swap_nodes(*mid, *first);
 }
 
+namespace {
+
+// The rest of MSVC's std::sort (Dinkumware, VC7) over both node types; each template
+// calls the per-type title-named helpers, as the instantiations do.
+bool node_less(const NglOpaqueNode& a, const NglOpaqueNode& b) { return a.key < b.key; }
+bool node_less(const NglTranslucentNode& a, const NglTranslucentNode& b) { return less(a, b); }
+
+void push_heap(NglOpaqueNode* first, int32_t hole, int32_t top, NglOpaqueNode value) {
+    std_PushHeap_OpaqueNodes(first, hole, top, value);
+}
+void push_heap(NglTranslucentNode* first, int32_t hole, int32_t top, NglTranslucentNode value) {
+    std_PushHeap_TranslucentNodes(first, hole, top, value);
+}
+void med3(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last) { std_Med3_OpaqueNodes(first, mid, last); }
+void med3(NglTranslucentNode* first, NglTranslucentNode* mid, NglTranslucentNode* last) {
+    std_Med3_TranslucentNodes(first, mid, last);
+}
+void adjust_heap(NglOpaqueNode* first, int32_t hole, int32_t bottom, NglOpaqueNode value, uint32_t pred) {
+    std_AdjustHeap_OpaqueNodes(first, hole, bottom, value, pred);
+}
+void adjust_heap(NglTranslucentNode* first, int32_t hole, int32_t bottom, NglTranslucentNode value, uint32_t pred) {
+    std_AdjustHeap_TranslucentNodes(first, hole, bottom, value, pred);
+}
+void make_heap(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t pred) { std_MakeHeap_OpaqueNodes(first, last, pred); }
+void make_heap(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred) {
+    std_MakeHeap_TranslucentNodes(first, last, pred);
+}
+void sort_heap(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t pred) { std_SortHeap_OpaqueNodes(first, last, pred); }
+void sort_heap(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred) {
+    std_SortHeap_TranslucentNodes(first, last, pred);
+}
+void insertion_sort(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t pred) {
+    std_InsertionSort_OpaqueNodes(first, last, pred);
+}
+void insertion_sort(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred) {
+    std_InsertionSort_TranslucentNodes(first, last, pred);
+}
+void median(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last, uint32_t pred) {
+    std_Median_OpaqueNodes(first, mid, last, pred);
+}
+void median(NglTranslucentNode* first, NglTranslucentNode* mid, NglTranslucentNode* last, uint32_t pred) {
+    std_Median_TranslucentNodes(first, mid, last, pred);
+}
+template <typename Node>
+NglNodeRange<Node>* unguarded_partition(NglNodeRange<Node>* result, Node* first, Node* last, uint32_t pred);
+template <>
+NglNodeRange<NglOpaqueNode>* unguarded_partition(NglNodeRange<NglOpaqueNode>* result, NglOpaqueNode* first,
+                                                 NglOpaqueNode* last, uint32_t pred) {
+    return std_UnguardedPartition_OpaqueNodes(result, first, last, pred);
+}
+template <>
+NglNodeRange<NglTranslucentNode>* unguarded_partition(NglNodeRange<NglTranslucentNode>* result,
+                                                      NglTranslucentNode* first, NglTranslucentNode* last,
+                                                      uint32_t pred) {
+    return std_UnguardedPartition_TranslucentNodes(result, first, last, pred);
+}
+void sort_r(NglOpaqueNode* first, NglOpaqueNode* last, int32_t ideal, uint32_t pred) {
+    nglSortOpaqueNodes_r(first, last, ideal, pred);
+}
+void sort_r(NglTranslucentNode* first, NglTranslucentNode* last, int32_t ideal, uint32_t pred) {
+    nglSortTranslucentNodes_r(first, last, ideal, pred);
+}
+
+template <typename Node>
+void adjust_heap_impl(Node* first, int32_t hole, int32_t bottom, Node value, uint32_t pred) {
+    const int32_t top = hole;
+    int32_t child = 2 * hole + 2;
+    for (; child < bottom; child = 2 * child + 2) {
+        if (node_less(first[child], first[child - 1])) --child;
+        first[hole] = first[child];
+        hole = child;
+    }
+    if (child == bottom) {
+        first[hole] = first[bottom - 1];
+        hole = bottom - 1;
+    }
+    (void)pred;
+    push_heap(first, hole, top, value);
+}
+
+template <typename Node>
+void make_heap_impl(Node* first, Node* last, uint32_t pred) {
+    const int32_t bottom = static_cast<int32_t>(last - first);
+    for (int32_t hole = bottom / 2; hole > 0;) {
+        --hole;
+        adjust_heap(first, hole, bottom, first[hole], pred);
+    }
+}
+
+template <typename Node>
+void sort_heap_impl(Node* first, Node* last, uint32_t pred) {
+    for (; last - first > 1; --last) {
+        const Node value = last[-1];
+        last[-1] = first[0];
+        adjust_heap(first, 0, static_cast<int32_t>(last - 1 - first), value, pred);
+    }
+}
+
+// With std::rotate instead of copy_backward, as this STL does.
+template <typename Node>
+void insertion_sort_impl(Node* first, Node* last) {
+    if (first == last) return;
+    for (Node* next = first + 1; next != last; ++next) {
+        Node* hole;
+        if (node_less(*next, *first)) {
+            hole = first;
+        } else {
+            hole = next;
+            for (Node* previous = next - 1; node_less(*next, *previous); --previous) hole = previous;
+        }
+        if (hole != next) std_Rotate_NodeKeys(reinterpret_cast<NglOpaqueNode*>(hole), reinterpret_cast<NglOpaqueNode*>(next),
+                                              reinterpret_cast<NglOpaqueNode*>(next + 1));
+    }
+}
+
+template <typename Node>
+void median_impl(Node* first, Node* mid, Node* last) {
+    const int32_t count = static_cast<int32_t>(last - first);
+    if (count > 40) {
+        const int32_t step = (count + 1) / 8;
+        med3(first, first + step, first + 2 * step);
+        med3(mid - step, mid, mid + step);
+        med3(last - 2 * step, last - step, last);
+        med3(first + step, mid, last - step);
+    } else {
+        med3(first, mid, last);
+    }
+}
+
+template <typename Node>
+void iter_swap(Node* a, Node* b) {
+    const Node t = *a;
+    *a = *b;
+    *b = t;
+}
+
+template <typename Node>
+NglNodeRange<Node>* unguarded_partition_impl(NglNodeRange<Node>* result, Node* first, Node* last, uint32_t pred) {
+    Node* mid = first + (last - first) / 2;
+    median(first, mid, last - 1, pred);
+    Node* pfirst = mid;
+    Node* plast = pfirst + 1;
+    while (first < pfirst && !node_less(pfirst[-1], *pfirst) && !node_less(*pfirst, pfirst[-1])) --pfirst;
+    while (plast < last && !node_less(*plast, *pfirst) && !node_less(*pfirst, *plast)) ++plast;
+    Node* gfirst = plast;
+    Node* glast = pfirst;
+    for (;;) {
+        for (; gfirst < last; ++gfirst) {
+            if (node_less(*pfirst, *gfirst)) continue;
+            if (node_less(*gfirst, *pfirst)) break;
+            iter_swap(plast++, gfirst);
+        }
+        for (; first < glast; --glast) {
+            if (node_less(glast[-1], *pfirst)) continue;
+            if (node_less(*pfirst, glast[-1])) break;
+            iter_swap(--pfirst, glast - 1);
+        }
+        if (glast == first && gfirst == last) {
+            result->first = pfirst;
+            result->second = plast;
+            return result;
+        }
+        if (glast == first) {
+            if (plast != gfirst) iter_swap(pfirst, plast);
+            ++plast;
+            iter_swap(pfirst++, gfirst++);
+        } else if (gfirst == last) {
+            if (--glast != --pfirst) iter_swap(glast, pfirst);
+            iter_swap(pfirst, --plast);
+        } else {
+            iter_swap(gfirst++, --glast);
+        }
+    }
+}
+
+template <typename Node>
+void sort_r_impl(Node* first, Node* last, int32_t ideal, uint32_t pred) {
+    int32_t count = static_cast<int32_t>(last - first);
+    for (; count > 32 && ideal > 0; count = static_cast<int32_t>(last - first)) {
+        NglNodeRange<Node> range;
+        unguarded_partition(&range, first, last, pred);
+        ideal = ideal / 2 + ideal / 2 / 2;
+        // Recurse into the smaller side (byte distances rounded down to whole nodes).
+        const int32_t low = static_cast<int32_t>(reinterpret_cast<uintptr_t>(range.first) - reinterpret_cast<uintptr_t>(first)) & ~7;
+        const int32_t high = static_cast<int32_t>(reinterpret_cast<uintptr_t>(last) - reinterpret_cast<uintptr_t>(range.second)) & ~7;
+        if (low < high) {
+            sort_r(first, range.first, ideal, pred);
+            first = range.second;
+        } else {
+            sort_r(range.second, last, ideal, pred);
+            last = range.first;
+        }
+    }
+    if (count > 32) {
+        if ((static_cast<int32_t>(reinterpret_cast<uintptr_t>(last) - reinterpret_cast<uintptr_t>(first)) & ~7) > 8)
+            make_heap(first, last, pred);
+        sort_heap(first, last, pred);
+    } else if (count > 1) {
+        insertion_sort(first, last, pred);
+    }
+}
+
+}  // namespace
+
+void XB_CDECL std_AdjustHeap_OpaqueNodes(NglOpaqueNode* first, int32_t hole, int32_t bottom, NglOpaqueNode value,
+                                         uint32_t pred) {
+    adjust_heap_impl(first, hole, bottom, value, pred);
+}
+void XB_CDECL std_AdjustHeap_TranslucentNodes(NglTranslucentNode* first, int32_t hole, int32_t bottom,
+                                              NglTranslucentNode value, uint32_t pred) {
+    adjust_heap_impl(first, hole, bottom, value, pred);
+}
+void XB_CDECL std_MakeHeap_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t pred) {
+    make_heap_impl(first, last, pred);
+}
+void XB_CDECL std_MakeHeap_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred) {
+    make_heap_impl(first, last, pred);
+}
+void XB_CDECL std_SortHeap_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t pred) {
+    sort_heap_impl(first, last, pred);
+}
+void XB_CDECL std_SortHeap_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred) {
+    sort_heap_impl(first, last, pred);
+}
+void XB_CDECL std_InsertionSort_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* last, uint32_t) {
+    insertion_sort_impl(first, last);
+}
+void XB_CDECL std_InsertionSort_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* last, uint32_t) {
+    insertion_sort_impl(first, last);
+}
+void XB_CDECL std_Median_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last, uint32_t) {
+    median_impl(first, mid, last);
+}
+void XB_CDECL std_Median_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* mid, NglTranslucentNode* last,
+                                          uint32_t) {
+    median_impl(first, mid, last);
+}
+NglNodeRange<NglOpaqueNode>* XB_CDECL std_UnguardedPartition_OpaqueNodes(NglNodeRange<NglOpaqueNode>* result,
+                                                                         NglOpaqueNode* first, NglOpaqueNode* last,
+                                                                         uint32_t pred) {
+    return unguarded_partition_impl(result, first, last, pred);
+}
+NglNodeRange<NglTranslucentNode>* XB_CDECL std_UnguardedPartition_TranslucentNodes(
+    NglNodeRange<NglTranslucentNode>* result, NglTranslucentNode* first, NglTranslucentNode* last, uint32_t pred) {
+    return unguarded_partition_impl(result, first, last, pred);
+}
+void XB_CDECL nglSortOpaqueNodes_r(NglOpaqueNode* first, NglOpaqueNode* last, int32_t ideal, uint32_t pred) {
+    sort_r_impl(first, last, ideal, pred);
+}
+void XB_CDECL nglSortTranslucentNodes_r(NglTranslucentNode* first, NglTranslucentNode* last, int32_t ideal,
+                                        uint32_t pred) {
+    sort_r_impl(first, last, ideal, pred);
+}
+
 const uint32_t* XB_THISCALL nglSkipList_Find(const NglSkipList* self, const uint32_t* key) {
     const NglSkipListNode* current = self->head;
     if (!current) return nullptr;

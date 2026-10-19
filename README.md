@@ -4,7 +4,7 @@
 changing that: we're turning the original Xbox game back into C++ source code that
 can be built and run natively on Linux and Windows.
 
-It's early days: about one function in seven has a name, and the first 233 have
+It's early days: about one function in seven has a name, and the first 241 have
 been rewritten in C++. The renderer is the part we're working on now.
 
 **Just want to play?** Use the
@@ -24,9 +24,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 9,563 | 1,621 | 233 | 9,330 |
+| Engine and game code (`.text`) | 9,563 | 1,621 | 241 | 9,322 |
 | Mission scripts (14 level sections) | 4,977 | 0 | 0 | 4,977 |
-| **Total** | **14,540** | **1,621** | **233** | **14,307** |
+| **Total** | **14,540** | **1,621** | **241** | **14,299** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -36,7 +36,7 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 799 | 224 | 107 | 223 | 245 |
+| Renderer (scenes, materials, shaders, models, effects) | 799 | 232 | 113 | 209 | 245 |
 | Game logic (entities, AI, weapons, level-script runtime) | 385 | 0 | 0 | 385 | 0 |
 | Client game (HUD, view, effects on screen) | 171 | 0 | 0 | 171 | 0 |
 | Engine core (memory, files, settings, commands) | 137 | 0 | 1 | 131 | 0 |
