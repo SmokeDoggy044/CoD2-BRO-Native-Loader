@@ -186,7 +186,8 @@ struct NglScene {
     float near_z;             // +0x3c4
     float far_z;              // +0x3c8
     float time;               // +0x3cc, nglBeginSceneRender derives +0x3d0 from it
-    uint8_t unknown3d0[0x3d8 - 0x3d0];
+    uint8_t unknown3d0[0x3d4 - 0x3d0];
+    uint32_t frame_counter;   // +0x3d4, the default texture animation frame
     uint32_t* slots;          // +0x3d8, 2 + scene slot count (0x00902900) words of
                               // frame memory, copied from the source scene
     uint8_t unknown3dc[0x3e0 - 0x3dc];
@@ -262,6 +263,7 @@ static_assert(offsetof(NglLight, data) == 0x2c);
 static_assert(offsetof(NglScene, clear_color) == 0x370);
 static_assert(offsetof(NglScene, fog) == 0x388);
 static_assert(offsetof(NglScene, fog_color) == 0x3a0);
+static_assert(offsetof(NglScene, frame_counter) == 0x3d4);
 static_assert(offsetof(NglScene, projection) == 0x110);
 static_assert(offsetof(NglScene, near_z) == 0x3c4);
 static_assert(offsetof(NglScene, depth_enable) == 0x384);

@@ -2069,3 +2069,4 @@ address,name,kind,confidence,evidence
 00049000,nglStateCache_SetDestBlend,function,high,"cache +0x64; NV2A 0x348 blend destination factor (0x303, 1, 0x8004)"
 00049030,nglStateCache_SetBlendOp,function,high,"cache +0x70; NV2A 0x350 blend equation (0x8006 ADD, 0x800b REVSUBTRACT)"
 00076050,nglStateCache_SetBlendColor,function,high,"cache +0x6c; NV2A 0x34c blend colour, also D3D render state 0x003f8454; modes 5-7 pass alpha << 24"
+000476b0,nglSetTextureAnimFrame,function,high,"thiscall node; writes 0x009026fc (nglSetTexture frame pick) from the instance parameter slot 0x00902918 or scene +0x3d4; called first by ShaderPCUV_Draw and cdChar_Draw"

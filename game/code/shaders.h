@@ -188,4 +188,36 @@ void XB_CDECL cdWorld_InitVertexShaders2(uint32_t declaration);
 void XB_CDECL cdWorld_InitPixelShaders();
 void XB_CDECL cdWorld_InitPixelShaders2();
 
+// Draw (thiscall, the list node; vtable slot 0 of the node): render states through
+// NGL's state cache (0x00902f08), the node's world * view * projection (vertex
+// constants 6..9), the material's texture on stage 0, the class's shaders, the fog
+// constants and colour, then the section; the blend-mode cache is reset afterwards
+// (the states were set directly).
+// 0x00052c50: alpha blended, no alpha test, no culling.
+void XB_THISCALL cdWorldVertexLit_Draw(const NglMeshNode* node);
+// 0x000544a0: alpha tested (>= 0x80 with function 0x206), not blended, no culling.
+void XB_THISCALL cdBackground_Draw(const NglMeshNode* node);
+// 0x0004dd50: alpha tested (0x204, 0x80), not blended; culled unless the material's
+// +0x20 is 2 (two-sided).
+void XB_THISCALL cdSimplePrelit_Draw(const NglMeshNode* node);
+
+// 0x0004c450: no alpha test, not blended, no culling; the material's second texture
+// (+0x24) on stage 1 when set; fog off.
+void XB_THISCALL cdPrelit_Draw(const NglMeshNode* node);
+// 0x000472e0: the material's blend mode (+0x20) and texture address flags (+0x24; bit
+// 6 / bit 7 pick wrap modes for stage 0), the instance's decal bias when its
+// parameter mask has the bias slot, no culling, fog on.
+void XB_THISCALL ShaderPCUV_Draw(const NglMeshNode* node);
+// 0x000476b0: the texture animation frame (0x009026fc, nglSetTexture's frame pick):
+// the instance parameter in slot 0x00902918 when its mask (64 bits) has that slot,
+// else the scene's frame counter (+0x3d4).
+void XB_THISCALL nglSetTextureAnimFrame(const NglMeshNode* node);
+
+// 0x00047b10 / 0x00048320 / 0x0004e450: the lit, alpha-tested (0x204, 0x80) classes:
+// culled unless two-sided, the node's four object lights (nglComputeObjectLights)
+// after the matrix as constants 6..17, fog on; they differ only in their shaders.
+void XB_THISCALL cdGunSight_Draw(const NglMeshNode* node);
+void XB_THISCALL cdGun_Draw(const NglMeshNode* node);
+void XB_THISCALL cdSimple_Draw(const NglMeshNode* node);
+
 }  // namespace game

@@ -1011,7 +1011,7 @@
 00047590 nglSetDecalZBias
 00047650 ShaderPCUV_GetName
 00047670 nglMaterial_LoadTextureRef
-000476b0 FUN_000476b0
+000476b0 nglSetTextureAnimFrame
 000479b0 cdGunSight_AddToList
 00047a30 cdGunSight_Toggle
 00047a50 cdGunSight_Register
