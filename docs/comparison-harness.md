@@ -70,9 +70,11 @@ registers and calls the dispatcher. For a tested call:
 - Then it clears the soft-dirty bits (`/proc/self/clear_refs`) and runs the function
   with the caller's registers and a return address of `xbcmp_landing`, which saves
   the registers and x87/SSE state (FXSAVE). Pages written are the soft-dirty ones
-  in `/proc/self/pagemap` (private anonymous mappings).
+  found with the PAGEMAP_SCAN ioctl on `/proc/self/pagemap` (private anonymous
+  mappings; per-page pagemap reads where the kernel lacks it).
 - Both report over pipes; the parent asks both for every page either one wrote and
-  compares.
+  compares. A reaper thread waits for the test processes to exit, so the game goes on
+  as soon as it has the pages.
 - Calls the tested function makes into other hooked functions run their originals:
   each stub checks `xbcmp_in_test` (set in test processes) and jumps straight to the
   trampoline, since the dispatcher is not executable there. Decompiled code reaches
@@ -116,18 +118,23 @@ new functions: mission 1 with 104 functions (62 settled at start) ran 186 tests 
 
 Each flush logs a `timing` line: mean and max ms per phase of the completed tests,
 pages scanned and written, and the game's VmSize/VmRSS/VmPTE. Mission 4, Debug build,
-`--compare-all`, 130 s (2026-10-18): 10,880 tests at 11.1 ms, i.e. the game spent about
-93% of the run waiting on tests. The function itself took 0.01 ms; the rest:
+`--compare-all`, 130 s (2026-10-18; the function itself took 0.01 ms):
 
-| phase | ms | what |
-|---|---|---|
-| fork | 1.8 | the parent's fork (1.9 GB mapped, 280 MB resident, 1 MB page tables) |
-| start | 3.8 | until both test processes run: includes the child's fork of the second |
-| maps | 1.0 | each test process reads and parses /proc/self/maps |
-| protect+clear | 1.1 | mprotect of host code + clear_refs over the whole process |
-| collect | 0.9 | pagemap read over ~90,900 pages to find ~3.5 written ones |
-| reap | 4.2 | waitpid: the parent waits for both processes to tear down their copies |
-| reports, pages, compare | 0.2 | |
+| phase | ms before | ms now | what |
+|---|---|---|---|
+| fork | 1.8 | 1.9 | the parent's fork (1.9 GB mapped, 280 MB resident, 1 MB page tables) |
+| start | 3.8 | 3.8 | until both test processes run: includes the child's fork of the second |
+| maps | 1.0 | 0.7 | each test process reads and parses /proc/self/maps |
+| protect+clear | 1.1 | 0.8 | mprotect of host code + clear_refs over the whole process |
+| collect | 0.9 | 0.25 | written pages out of ~93,000 scanned (PAGEMAP_SCAN now, pagemap read before) |
+| reap | 4.2 | 0.01 | waiting for the test processes to exit (now a reaper thread does) |
+| reports, pages, compare | 0.2 | 0.15 | |
+| total | 11.1 | 5.7 | 10,880 tests in the run before, 20,304 now |
+
+PAGEMAP_SCAN (Linux 6.7+; the pagemap read stays as the fallback) was checked against the
+pagemap read in every test of three runs: they differed twice, both times by the page of
+the calling thread's rseq area, which the kernel wrote between the two reads (it is not
+compared anyway).
 
 ## Limits
 
