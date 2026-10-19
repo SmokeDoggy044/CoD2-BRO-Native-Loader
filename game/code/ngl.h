@@ -558,6 +558,12 @@ float* XB_THISCALL nglNode_GetWorldInverse(NglMeshDrawNode* self, float* out);
 // 0), colors = r[4], g[4], b[4] (one lane per light), then the set's ambient; unused
 // slots zero.
 void XB_CDECL nglComputeObjectLights(NglMeshDrawNode* node, float* directions, float* colors);
+// 0x0006fe00: makes the instance's light set (its parameter slot 0x00902914, else the
+// scene's) current and rebuilds its object-light list from the mesh's category list
+// (mesh +7, minus one; 0 = none): directional lights (type 1) always, point lights
+// (type 0) whose radius (data +0x24) plus the mesh's (+0x30) reaches the mesh centre
+// (+0x20, in world space); each one goes in front.
+void XB_CDECL nglSelectMeshLightSet(NglMeshDrawNode* node);
 
 // 0x00070b00: six planes (n, d as 4 floats; 0x60 bytes) of the box spanned by
 // points[0..2] (edge vectors) at points[3] (a corner): normals cross(p0, p1),
@@ -679,6 +685,9 @@ void XB_THISCALL nglStateCache_SetSrcBlend(uint8_t* self, uint32_t factor);
 void XB_THISCALL nglStateCache_SetDestBlend(uint8_t* self, uint32_t factor);
 void XB_THISCALL nglStateCache_SetBlendOp(uint8_t* self, uint32_t op);
 void XB_THISCALL nglStateCache_SetBlendColor(uint8_t* self, uint32_t color);
+// 0x00046d50: fog on or off (+0x8b): D3D's D3DRS_FOGENABLE (0x003f8498) and its dirty
+// bit (0x003f8320 bit 13), no NV2A command of its own.
+void XB_THISCALL nglStateCache_SetFogEnable(uint8_t* self, uint8_t enable);
 // 0x00075ac0: blend mode 0..8 (+0xe8) with its alpha (+0xec, modes 5..7: the blend
 // colour's alpha) and alpha reference (+0xf0, mode 1: alpha test only); unchanged
 // modes return at once except mode 1. 0 opaque, 1 alpha test, 2 alpha blend, 3

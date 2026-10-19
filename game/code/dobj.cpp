@@ -15,6 +15,17 @@ const XModelParts* model_parts(const XModel* model) {
 
 }  // namespace
 
+PLATFORM_ASM_ENTRY(DObj_AnyModelHasFlags_entry,
+                   "pushl %edi\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(DObj_AnyModelHasFlags) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL DObj_AnyModelHasFlags(const DObj* obj, uint32_t flags) {
+    for (int i = 0; i < obj->model_count; ++i)
+        if (obj->models[i]->flags & flags) return 1;
+    return 0;
+}
+
 uint8_t* XB_STDCALL DObj_GetBoneBasePose(const DObj* obj, int32_t bone) {
     int32_t first = 0;
     for (int i = 0; i < obj->model_count; ++i) {
@@ -233,6 +244,14 @@ uint32_t XB_CDECL XModel_GetBoneCount(const XModel* model) {
     while (!model->lods[i]) ++i;
     const XModelParts* parts = model->lods[i]->parts;
     return parts ? parts->bone_count : 0;
+}
+
+void XB_REGS3 DObj_GetBounds(uint32_t, float* mins, float* maxs, const DObj* obj) {
+    const XModel* model = obj->models[0];
+    for (int i = 0; i < 3; ++i) {
+        mins[i] = model ? model->mins[i] : 0.0f;
+        maxs[i] = model ? model->maxs[i] : 0.0f;
+    }
 }
 
 }  // namespace game

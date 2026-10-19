@@ -109,4 +109,23 @@ void XB_CDECL R_DrawPic(float x, float y, float w, float h, void* shader);
 // scale 0x008db12c); the font's handle comes from the pointer at 0x0095e6b4.
 uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale);
 
+// 0x00235890: Q3's R_CullPointAndRadius against the view's four side planes
+// (0x0095e518): 0 inside, 1 crossing a plane, 2 outside; always 1 with r_nocull
+// (0x0095e6c8). ECX = point, XMM2 = radius: entered through R_CullPointAndRadius_entry.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL R_CullPointAndRadius(const float* point, float radius);
+extern "C" void R_CullPointAndRadius_entry(void);
+
+// 0x0023b230: one coloured quad x0, y0 - x1, y1 at depth z; ESI = colour (four 0..1
+// floats): entered through R_DrawFilledRect_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_DrawFilledRect(const float* colour, float x0, float y0, float x1, float y1,
+                                                          float z);
+extern "C" void R_DrawFilledRect_entry(void);
+
+// 0x0023b2e0: the instance colour slot (0x00902908) of an instance parameter block (a
+// 64-bit slot mask, then a word per slot): a copy of `colour` in scene memory (null
+// when the frame allocator's next block would be at 0). ESI = where the block's
+// pointer is, ECX = colour: entered through R_SetInstanceColor_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_SetInstanceColor(uint32_t* const* params, const float* colour);
+extern "C" void R_SetInstanceColor_entry(void);
+
 }  // namespace game

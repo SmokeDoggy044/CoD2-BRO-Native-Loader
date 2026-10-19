@@ -44,7 +44,10 @@ struct XModelLod {
 };
 
 struct XModel {
-    uint8_t unknown00[0x20];
+    float mins[3];        // bounds
+    uint32_t unknown0c;
+    float maxs[3];        // +0x10
+    uint32_t unknown1c;
     XModelParts* default_parts;  // +0x20
     XModelLod* lods[7];   // +0x24, the first non-null one has the parts
     uint32_t flags;       // +0x40
@@ -82,6 +85,7 @@ static_assert(offsetof(XModelParts, root_count) == 0x30);
 static_assert(offsetof(DObj, hidden_models) == 0x30);
 static_assert(offsetof(DObj, matrix_offset) == 0x60);
 static_assert(offsetof(DObjTrace, all_solid) == 0x1d);
+static_assert(offsetof(XModel, maxs) == 0x10);
 static_assert(offsetof(XModel, flags) == 0x40);
 static_assert(offsetof(DObj, models) == 0x38);
 static_assert(offsetof(DObj, attach_bones) == 0x58);
@@ -95,6 +99,16 @@ uint8_t* XB_STDCALL DObj_GetBoneBasePose(const DObj* obj, int32_t bone);
 int32_t XB_STDCALL DObj_GetBoneParent(const DObj* obj, int32_t bone);
 // 0x0023a440: the index of the bone named `name`, -1 if none; EAX = obj.
 int32_t XB_REGS1 XB_STDCALL DObj_GetBoneIndex(const DObj* obj, uint32_t name);
+
+// 0x0023a560: whether any of the object's models (hidden ones too) has one of `flags`
+// in XModel::flags; ECX = obj, EDI = flags: entered through DObj_AnyModelHasFlags_entry.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL DObj_AnyModelHasFlags(const DObj* obj, uint32_t flags);
+extern "C" void DObj_AnyModelHasFlags_entry(void);
+
+// 0x0023be90: the bounds of the object's first model; without one the original copies
+// uninitialized stack slots (zeros here and in --compare test processes). EDX = mins,
+// ECX = maxs, the object on the stack (EAX unused).
+void XB_REGS3 DObj_GetBounds(uint32_t unused_eax, float* mins, float* maxs, const DObj* obj);
 
 // 0x0023a590: traces the segment start..end, widened by radius, against the hit
 // boxes of the object's visible models (bone matrices: 4x4, row vectors). Classes

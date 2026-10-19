@@ -394,4 +394,70 @@ uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale) {
     return height;
 }
 
+PLATFORM_ASM_ENTRY(R_CullPointAndRadius_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm2, (%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(R_CullPointAndRadius) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL R_CullPointAndRadius(const float* point, float radius) {
+    const uint8_t* nocull = title_global<const uint8_t*>(0x0095e6c8);
+    if (*reinterpret_cast<const int32_t*>(nocull + 0x20)) return 1;
+    const float negative = 0.0f - radius;
+    bool clipped = false;
+    const float* plane = &title_global<float>(0x0095e518);  // normal, dist, type/signbits
+    for (int i = 0; i < 4; ++i, plane += 5) {
+        float dist = plane[0] * point[0] + plane[2] * point[2];
+        dist = dist + point[1] * plane[1];
+        dist = dist - plane[3];
+        if (negative > dist) return 2;
+        if (radius >= dist) clipped = true;
+    }
+    return clipped;
+}
+
+// Five stack arguments copied below the colour.
+PLATFORM_ASM_ENTRY(R_DrawFilledRect_entry,
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(R_DrawFilledRect) "addl $24, %esp\n"
+                   "ret")
+
+void XB_CDECL R_DrawFilledRect(const float* colour, float x0, float y0, float x1, float y1, float z) {
+    NglQuad quad;
+    nglInitQuad(&quad);
+    nglSetQuadZ(&quad, z);
+    nglSetQuadRect(&quad, x0, y0, x1, y1);
+    const float scale = title_global<float>(0x0083eb8c);  // 255
+    uint32_t argb = static_cast<uint32_t>(platform_ftol(colour[3] * scale));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(colour[0] * scale));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(colour[1] * scale));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(colour[2] * scale));
+    nglSetQuadColor(&quad, argb);
+    nglListAddQuad(&quad);
+}
+
+PLATFORM_ASM_ENTRY(R_SetInstanceColor_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(R_SetInstanceColor) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL R_SetInstanceColor(uint32_t* const* params, const float* colour) {
+    uintptr_t& next = title_global<uintptr_t>(0x009025a8);
+    const uintptr_t block = (next + 15) & ~uintptr_t{15};
+    next = block + 16;
+    float* copy = nullptr;
+    if (block) {
+        copy = reinterpret_cast<float*>(block);
+        std::memcpy(copy, colour, 16);
+    }
+    const uint32_t slot = title_global<uint32_t>(0x00902908);
+    uint32_t* block_words = *params;
+    block_words[0] |= 1u << (slot & 31);
+    block_words[2 + slot] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy));
+}
+
 }  // namespace game

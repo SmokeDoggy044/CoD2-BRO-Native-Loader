@@ -102,6 +102,18 @@ registers and calls the dispatcher. For a tested call:
   `objdump -d -j xbcmp_text build/linux-loader/bin/cod_bro_loader | grep call`
   must show only calls inside the section.
 
+## Register arguments
+
+Arguments in ESI, EDI or EBX, or floats in XMM registers, have no C spelling. Such a
+function gets an entry in assembly (`PLATFORM_ASM_ENTRY(name, body)`, platform/compiler.h)
+that pushes them, copies any stack arguments below them (`pushl 4*N(%esp)` N times for N
+of them), calls the C version (`PLATFORM_ASM_CALL`: an `extern "C" PLATFORM_HIDDEN`
+function, so the call in the shared library needs no PLT), pops and returns as the
+original does; `functions.cpp` registers the entry. The harness hands it the caller's
+registers, XMM included (FXRSTOR in `xbcmp_resume`). Example: cdSimpleAlpha_PulseColor
+(EAX out, ECX colour, XMM1 speed, five stack floats) in game/code/shaders.cpp. Checked
+with a planted bug in its XMM1 argument (caught in the helper and its caller).
+
 ## Recorded SDK calls
 
 Code that draws calls the D3D replacements (state setters, draws), which are host

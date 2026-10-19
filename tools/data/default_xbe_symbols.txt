@@ -1000,7 +1000,7 @@
 00046bb0 FUN_00046bb0
 00046ca0 FUN_00046ca0
 00046cd0 nglListAddNode
-00046d50 FUN_00046d50
+00046d50 nglStateCache_SetFogEnable
 00046dd0 cdDebug_GetName
 00046df0 nglNode_ViewDepth
 00047200 FUN_00047200
@@ -1054,8 +1054,8 @@
 00049b70 cdSimpleAlpha_Toggle
 00049b90 cdSimpleAlpha_Register
 00049bf0 cdSimpleAlpha_Init
-00049c30 FUN_00049c30
-00049cd0 FUN_00049cd0
+00049c30 cdSimpleAlpha_ClampDebugPulse
+00049cd0 cdSimpleAlpha_PulseColor
 00049e40 cdSimpleAlpha_Draw
 0004a7e0 cdSimpleAlpha_AddToList
 0004a8a0 cdSimpleAlpha_InitVertexShaders
@@ -6872,7 +6872,7 @@
 00234d90 R_ClearAlpha
 00234ef0 FUN_00234ef0
 002352c0 myGLMultMatrix
-00235890 FUN_00235890
+00235890 R_CullPointAndRadius
 00235910 FUN_00235910
 00235ad0 GLimp_Init
 00235c50 FUN_00235c50
@@ -6927,7 +6927,7 @@
 0023aff0 FUN_0023aff0
 0023b1e0 XModel_GetBoneCount
 0023b230 R_DrawFilledRect
-0023b2e0 FUN_0023b2e0
+0023b2e0 R_SetInstanceColor
 0023b360 R_InitDebugMeshes
 0023b420 FX_FreeFinishedEffects
 0023b5c0 FX_KillEffectsOnEntity
@@ -6938,7 +6938,7 @@
 0023ba90 R_AddCellEntityLink
 0023bb70 R_ClipPolygonToPlane
 0023bd90 RE_BeginFrame
-0023be90 FUN_0023be90
+0023be90 DObj_GetBounds
 0023bf30 R_DrawTextWithShadow
 0023c040 FX_SpawnEffect
 0023c300 FX_SortEffects

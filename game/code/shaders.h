@@ -241,6 +241,21 @@ void XB_THISCALL cdWater_Draw(const NglMeshNode* node);
 void XB_THISCALL cdOcean_Draw(const NglMeshNode* node);
 // 0x0004ad60: alpha blended, the lit template with the blade angle as constant 18.
 void XB_THISCALL cdPropeller_Draw(const NglMeshNode* node);
+// 0x00049c30: clamps the debug override's pulse ranges (0x0089b020..0x0089b02c) to 0..1.
+void XB_CDECL cdSimpleAlpha_ClampDebugPulse();
+// 0x00049cd0: the pulsing colour: w = (sine(speed * time * 2 pi) + 1) / 2 (the title's
+// packed sine polynomial), t0 = lo0..hi0 at w and t1 = lo1..hi1 at w (each clamped to
+// 0..1); out = (rgb * t0 + 1 - t0, a * t1). EAX = out (returned), ECX = colour, XMM1 =
+// speed: entered through cdSimpleAlpha_PulseColor_entry.
+extern "C" PLATFORM_HIDDEN float* XB_CDECL cdSimpleAlpha_PulseColor(float* out, const float* colour, float speed,
+                                                                    float lo0, float hi0, float lo1, float hi1,
+                                                                    float time);
+extern "C" void cdSimpleAlpha_PulseColor_entry(void);
+// 0x00049e40: the material's colour (or the instance's alpha, or the debug override at
+// 0x0089aff0), optionally pulsing, as constant 20 after the matrix and lights (8..19); a
+// depth-only pre-pass for material flag 1, then the blended pass (material +0x24: 1
+// add-alpha, 2 add-one, 3 alpha-tested, else alpha blend).
+void XB_THISCALL cdSimpleAlpha_Draw(const NglMeshNode* node);
 // 0x00053440: the world geometry: lightmap (+0x24) and the first shadow projector
 // reaching the mesh, fog, then an additive pass for up to four dynamic lights.
 void XB_THISCALL cdWorld_Draw(const NglMeshNode* node);

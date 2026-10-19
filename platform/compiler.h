@@ -57,6 +57,29 @@
 #define PLATFORM_SECTION(name) __attribute__((section(name), noinline))
 #endif
 
+// Entry points for title functions whose arguments sit where C cannot name them (ESI,
+// EDI, EBX, an XMM register): PLATFORM_ASM_ENTRY(name, body) defines `name` from AT&T
+// assembly that moves them to the stack and calls the C version - an extern "C"
+// PLATFORM_HIDDEN function (no PLT in a shared object), called with
+// PLATFORM_ASM_CALL(c_name). Declare the entry as extern "C" void name(void).
+// Only 32-bit x86 builds need them (route B runs the title's callers).
+#if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+#if defined(_WIN32)
+#define PLATFORM_HIDDEN
+#define PLATFORM_ASM_SYMBOL(name) "_" #name
+#define PLATFORM_ASM_ENTRY(name, body)                                                        \
+    __asm__(".text\n.p2align 4\n.globl " PLATFORM_ASM_SYMBOL(name) "\n" PLATFORM_ASM_SYMBOL( \
+        name) ":\n" body "\n");
+#else
+#define PLATFORM_HIDDEN __attribute__((visibility("hidden")))
+#define PLATFORM_ASM_SYMBOL(name) #name
+#define PLATFORM_ASM_ENTRY(name, body)                                                   \
+    __asm__(".pushsection .text\n.p2align 4\n.globl " #name "\n.type " #name ",@function\n" #name \
+            ":\n" body "\n.size " #name ",.-" #name "\n.popsection\n");
+#endif
+#define PLATFORM_ASM_CALL(name) "call " PLATFORM_ASM_SYMBOL(name) "\n"
+#endif
+
 // Makes the compiler compute `value` although nothing reads it: the title's packed
 // SSE code computes unused lanes too, and their exception flags (MXCSR) are part of
 // what the comparison harness checks.

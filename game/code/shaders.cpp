@@ -576,7 +576,7 @@ bool has_param(const uint32_t* params, uint32_t slot) {
 void set_object_lights(const NglMeshNode* node) {
     alignas(16) float constants[48];
     NglMeshDrawNode* draw = draw_node(node);
-    title_function<void XB_CDECL(NglMeshDrawNode*)>(0x0006fe00)(draw);  // nglSelectMeshLightSet
+    nglSelectMeshLightSet(draw);
     nglComputeObjectLights(draw, constants + 16, constants + 32);
     std::memcpy(constants, draw->world_view_projection, 64);
     using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
@@ -741,7 +741,7 @@ namespace {
 // matrix at 0.
 void compute_object_lights(const NglMeshNode* node, float* constants) {
     NglMeshDrawNode* draw = draw_node(node);
-    title_function<void XB_CDECL(NglMeshDrawNode*)>(0x0006fe00)(draw);  // nglSelectMeshLightSet
+    nglSelectMeshLightSet(draw);
     nglComputeObjectLights(draw, constants + 16, constants + 32);
     std::memcpy(constants, draw->world_view_projection, 64);
 }
@@ -784,7 +784,7 @@ void XB_THISCALL cdChar_Draw(const NglMeshNode* node) {
     set_cull_mode(0);
     set_alpha_tested_opaque();
     NglMeshDrawNode* draw = draw_node(node);
-    title_function<void XB_CDECL(NglMeshDrawNode*)>(0x0006fe00)(draw);  // nglSelectMeshLightSet
+    nglSelectMeshLightSet(draw);
     nglSetTextureAnimFrame(node);
     set_material_texture(node);
     nglSetVertexShaderCached(shader_ref(0x00902054));
@@ -1083,7 +1083,7 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
     }
     NglMeshDrawNode* draw = draw_node(node);
     *reinterpret_cast<uint32_t*>(draw->mesh + 4) |= 0x07000000;
-    title_function<void XB_CDECL(NglMeshDrawNode*)>(0x0006fe00)(draw);  // nglSelectMeshLightSet
+    nglSelectMeshLightSet(draw);
 
     // The mesh's bounding-sphere centre (+0x20) in world space.
     const auto world_center = [draw] { return transform_point(draw->world, reinterpret_cast<const float*>(draw->mesh + 0x20)); };
@@ -1253,7 +1253,7 @@ void XB_THISCALL cdAirplaneMetal_Draw(const NglMeshNode* node) {
     nglSetVertexShaderCached(shader_ref(0x00902080));
     nglSetPixelShaderProgramCached(shader_ref(0x00902078));
     NglMeshDrawNode* draw = draw_node(node);
-    title_function<void XB_CDECL(NglMeshDrawNode*)>(0x0006fe00)(draw);  // nglSelectMeshLightSet
+    nglSelectMeshLightSet(draw);
     title_function<void XB_CDECL(int32_t, NglMeshDrawNode*)>(0x000765c0)(-0x53, draw);  // nglSetObjectLightConstants
     alignas(16) float light_out[4];
     const float* light = nglEvalFirstObjectLight(light_out, draw->world + 12);
@@ -1391,7 +1391,7 @@ void XB_THISCALL cdGlass_Draw(const NglMeshNode* node) {
     nglSetVertexShaderCached(shader_ref(0x00901fd8 + (variant + lit * 2) * 8));
     nglSetPixelShaderProgramCached(shader_ref(0x00901fd0 + variant * 4));
     NglMeshDrawNode* draw = draw_node(node);
-    title_function<void XB_CDECL(NglMeshDrawNode*)>(0x0006fe00)(draw);  // nglSelectMeshLightSet
+    nglSelectMeshLightSet(draw);
     if (lit) title_function<void XB_CDECL(int32_t, NglMeshDrawNode*)>(0x000765c0)(-0x4f, draw);  // nglSetObjectLightConstants
 
     // Constants 6..16: the matrix, the world-view rotation's rows (w 0, the last w 1),
@@ -1448,6 +1448,224 @@ void XB_THISCALL nglDebugShader_Draw(const NglMeshNode* node) {
     nglSetVertexShaderCached(shader_ref(0x00903d68));
     nglSetPixelShaderProgramCached(shader_ref(0x00903d64));
     nglDrawMeshSection(node->section);
+}
+
+namespace {
+
+// 0 below zero, `max` above it (NaN stays), as the title's COMISS pairs test.
+float clamp_to(float value, float max) {
+    if (0.0f > value) return 0.0f;
+    if (value > max) return max;
+    return value;
+}
+
+// States the title sets inline through the cache: +0x74 depth writes (0x35c), +0x7c
+// depth function (0x354), +0xa0 colour write mask (0x358).
+template <typename T>
+void set_inline_state(uint32_t address, uint32_t method, T value) {
+    T& cached = title_global<T>(address);
+    if (cached == value) return;
+    title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(method, value);  // SetRenderState_Simple
+    cached = value;
+}
+
+void set_z_write(uint8_t enable) { set_inline_state<uint8_t>(0x00902f7c, 0x0004035c, enable); }
+void set_z_func(uint32_t func) { set_inline_state<uint32_t>(0x00902f84, 0x00040354, func); }
+void set_color_write(uint32_t mask) { set_inline_state<uint32_t>(0x00902fa8, 0x00040358, mask); }
+
+float material_float(const uint8_t* material, uint32_t offset) {
+    return *reinterpret_cast<const float*>(material + offset);
+}
+
+uint32_t material_word(const uint8_t* material, uint32_t offset) {
+    return *reinterpret_cast<const uint32_t*>(material + offset);
+}
+
+}  // namespace
+
+void XB_CDECL cdSimpleAlpha_ClampDebugPulse() {
+    float* range = &title_global<float>(0x0089b020);
+    for (int i = 0; i < 4; ++i) range[i] = clamp_to(range[i], 1.0f);
+}
+
+// Five stack arguments copied below the speed, the colour and out.
+PLATFORM_ASM_ENTRY(cdSimpleAlpha_PulseColor_entry,
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm1, (%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(cdSimpleAlpha_PulseColor) "addl $32, %esp\n"
+                   "ret")
+
+float* XB_CDECL cdSimpleAlpha_PulseColor(float* out, const float* colour, float speed, float lo0, float hi0, float lo1,
+                                         float hi1, float time) {
+    const float angle = speed * time * title_global<float>(0x0083edac);  // 2 pi
+    const float w = (scene_sine_poly(angle) + 1.0f) * title_global<float>(0x0083eb24);  // 0.5
+    const float t0 = clamp_to((hi0 - lo0) * w + lo0, 1.0f);
+    const Lanes c = lanes(colour);
+    const float rest = 1.0f - t0;
+    const Lanes mixed = add(mul(c, t0), Lanes{{rest, rest, rest, rest}});
+    const float t1 = clamp_to((hi1 - lo1) * w + lo1, 1.0f);
+    const Lanes scaled = mul(c, t1);
+    platform_keep(mixed);
+    platform_keep(scaled);
+    out[0] = mixed.v[0];
+    out[1] = mixed.v[1];
+    out[2] = mixed.v[2];
+    out[3] = scaled.v[3];
+    return out;
+}
+
+void XB_THISCALL cdSimpleAlpha_Draw(const NglMeshNode* node) {
+    uint8_t* cache = state_cache();
+    const float time = title_global<float>(0x00901e90);
+    // Constants 8..20: the matrix, the object lights (directions, colours + ambient),
+    // the colour.
+    alignas(16) float constants[52] = {};
+    NglMeshDrawNode* draw = draw_node(node);
+    nglSelectMeshLightSet(draw);
+    nglComputeObjectLights(draw, constants + 16, constants + 32);
+    std::memcpy(constants, draw->world_view_projection, 64);
+
+    alignas(16) float colour[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    uint32_t flags;      // 1 depth pre-pass, 2 colour, 4 pulse
+    uint32_t blend;
+    uint32_t two_sided;  // 2 = no culling
+    int32_t alpha_ref;
+    if (title_global<uint32_t>(0x0089aff0)) {
+        // The debug override.
+        const uint32_t use_colour = title_global<uint32_t>(0x0089b000);
+        flags = use_colour * 2 | title_global<uint32_t>(0x0089affc);
+        two_sided = title_global<uint32_t>(0x0089aff8) ? 0 : 2;
+        int32_t& mode = title_global<int32_t>(0x0089aff4);
+        if (mode >= 0x28) mode = 0x1e;
+        blend = static_cast<uint32_t>(mode / 10);
+        if (use_colour) {
+            float* rgb = &title_global<float>(0x0089b008);
+            for (int i = 0; i < 3; ++i) {
+                rgb[i] = clamp_to(rgb[i], title_global<float>(0x007b4c64));  // 2
+                colour[i] = rgb[i];
+            }
+        }
+        float& alpha = title_global<float>(0x0089b014);
+        alpha = clamp_to(alpha, 1.0f);
+        colour[3] = alpha;
+        if (title_global<uint32_t>(0x0089b004)) {
+            cdSimpleAlpha_ClampDebugPulse();
+            const float* range = &title_global<float>(0x0089b020);
+            alignas(16) float pulsed[4];
+            cdSimpleAlpha_PulseColor(pulsed, colour, title_global<float>(0x0089b01c), range[0], range[1], range[2],
+                                     range[3], time);
+            std::memcpy(colour, pulsed, 16);
+        }
+        alpha_ref = static_cast<int32_t>(title_global<float>(0x0089b018) * title_global<float>(0x0083eb8c));
+    } else {
+        const uint8_t* material = node->material;
+        flags = material_word(material, 0x28);
+        blend = material_word(material, 0x24);
+        two_sided = material_word(material, 0x20);
+        if (flags & 2)
+            for (int i = 0; i < 3; ++i) colour[i] = material_float(material, 0x2c + 4 * i);
+        colour[3] = material_float(material, 0x38);
+        if (flags & 4) {
+            const float lo0 = clamp_to(material_float(material, 0x44), 1.0f);
+            const float hi0 = clamp_to(material_float(material, 0x48), 1.0f);
+            const float lo1 = clamp_to(material_float(material, 0x4c), 1.0f);
+            const float hi1 = clamp_to(material_float(material, 0x50), 1.0f);
+            alignas(16) float pulsed[4];
+            cdSimpleAlpha_PulseColor(pulsed, colour, material_float(material, 0x40), lo0, hi0, lo1, hi1, time);
+            std::memcpy(colour, pulsed, 16);
+        }
+        alpha_ref = static_cast<int32_t>(material_float(material, 0x3c) * title_global<float>(0x0083eb8c));
+    }
+
+    // The instance's colour slot holds an alpha here: white at that alpha.
+    const uint32_t slot = title_global<uint32_t>(0x00902908);
+    const uint32_t* params = instance_params(node);
+    if (has_param(params, slot)) {
+        // The title tests the mask twice; the second test's failure (impossible) would
+        // take the two-sided word.
+        const float alpha = from_bits(has_param(params, slot) ? params[2 + slot] : two_sided);
+        if (alpha == 1.0f) blend = 0;
+        colour[0] = colour[1] = colour[2] = 1.0f;
+        colour[3] = alpha;
+    }
+    if (colour[3] == 1.0f && blend == 0) {
+        flags &= ~1u;
+        blend = 3;
+    }
+    const Lanes scaled = mul(lanes(colour), title_global<float>(0x0083eb24));  // 0.5
+    std::memcpy(constants + 48, scaled.v, 16);
+
+    set_material_texture(node);
+    set_transform_constants(-0x5a, node);
+    set_scene_fog(0);
+    set_cull_mode(two_sided == 2 ? 0 : 0x900);
+    nglStateCache_SetAlphaTestEnable(cache, 1);
+    nglStateCache_SetAlphaFunc(cache, 0x204);
+    nglStateCache_SetAlphaRef(cache, static_cast<uint32_t>(alpha_ref));
+    const uint32_t saved_color_write = title_global<uint32_t>(0x00902fa8);
+    const uint32_t saved_z_func = title_global<uint32_t>(0x00902f84);
+    const uint8_t saved_z_write = title_global<uint8_t>(0x00902f7c);
+    const bool variant = title_function<uint32_t XB_CDECL()>(0x00045620)() == 1;
+
+    if (flags & 1) {
+        // Depth only, then less-or-equal against it.
+        set_z_write(1);
+        set_color_write(0);
+        nglStateCache_SetBlendEnable(cache, 0);
+        reset_blend_cache();
+        nglSetVertexShaderCached(shader_ref(0x00902000));
+        nglSetPixelShaderProgramCached(shader_ref(variant ? 0x00902018 : 0x00902010));
+        set_vertex_constants(8, constants, 52);
+        nglDrawMeshSection(node->section);
+        set_z_func(0x203);
+        set_z_write(0);
+        set_color_write(0x01010101);
+    }
+
+    nglStateCache_SetAlphaTestEnable(cache, 0);
+    nglStateCache_SetFogEnable(cache, 1);
+    nglStateCache_SetAlphaRef(cache, 0);
+    uint8_t blend_enable = 1;
+    const auto blend_onto = [cache](uint32_t op) {
+        nglStateCache_SetBlendOp(cache, op);
+        nglStateCache_SetSrcBlend(cache, 0x302);
+        nglStateCache_SetDestBlend(cache, 1);
+    };
+    switch (blend) {
+    case 1:
+        blend_onto(0x8006);
+        break;
+    case 2:
+        blend_onto(0x800b);
+        break;
+    case 3:
+        blend_enable = 0;
+        set_z_write(1);
+        nglStateCache_SetAlphaTestEnable(cache, 1);
+        nglStateCache_SetFogEnable(cache, 1);
+        nglStateCache_SetAlphaRef(cache, 0x80);
+        break;
+    default:
+        nglStateCache_SetBlendOp(cache, 0x8006);
+        nglStateCache_SetSrcBlend(cache, 0x302);
+        nglStateCache_SetDestBlend(cache, 0x303);
+        break;
+    }
+    nglStateCache_SetBlendEnable(cache, blend_enable);
+    reset_blend_cache();
+    nglSetVertexShaderCached(shader_ref(0x00902008));
+    nglSetPixelShaderProgramCached(shader_ref(variant ? 0x0090201c : 0x00902014));
+    set_vertex_constants(8, constants, 52);
+    nglDrawMeshSection(node->section);
+    set_z_write(saved_z_write);
+    set_color_write(saved_color_write);
+    set_z_func(saved_z_func);
 }
 
 }  // namespace game

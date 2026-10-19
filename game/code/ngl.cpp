@@ -282,35 +282,6 @@ void XB_CDECL nglMatrixViewport(float* out, float x0, float y0, float x1, float 
 
 namespace {
 
-float from_bits(uint32_t bits) {
-    float f;
-    std::memcpy(&f, &bits, 4);
-    return f;
-}
-
-// |x| by clearing the sign bit (ANDNPS; std::fabs is called out of line at -O0).
-float abs_bits(float x) {
-    uint32_t bits;
-    std::memcpy(&bits, &x, 4);
-    return from_bits(bits & 0x7fffffffu);
-}
-
-// The title's packed sine polynomial (one lane): the angle folded into a quarter
-// period by rounding with 1.5 * 2^23, then an odd polynomial of degree 9.
-float scene_sine_poly(float angle) {
-    const float y = -abs_bits(angle) * from_bits(0x3e22f983);  // 1 / (2 pi)
-    const float magic = from_bits(0x4b400000);
-    const float z = abs_bits(((y - magic) + magic) - y - 0.5f) - 0.25f;
-    const float z2 = z * z;
-    const float z4 = z2 * z2;
-    const float z3 = z * z2;
-    const float z5 = z * z4;
-    float sum = z5 * z4 * from_bits(0x421ed7b7) + z3 * z4 * from_bits(0xc2992661);
-    sum = sum + z5 * from_bits(0x42a33457);
-    sum = sum + z3 * from_bits(0xc2255de0);
-    return sum + z * from_bits(0x40c90fda);
-}
-
 // a * m as row vector times matrix, four packed lanes, added in the title's order.
 Lanes row_times(const Lanes& a, const float* m) {
     Lanes r = add(mul(lanes(m), a.v[0]), mul(lanes(m + 4), a.v[1]));
@@ -1586,14 +1557,6 @@ float* XB_CDECL nglGetSceneTargetScale(float* out) {
     return nglMatrixTargetScale(out, current_scene()->render_target, nglGetTargetSampleScale(scale, target));
 }
 
-namespace {
-
-Lanes mul(const Lanes& a, const Lanes& b) {
-    return {{a.v[0] * b.v[0], a.v[1] * b.v[1], a.v[2] * b.v[2], a.v[3] * b.v[3]}};
-}
-
-}  // namespace
-
 void XB_CDECL nglAddShadowProjector(uint32_t flags, const float* matrix, const float* scale, uint32_t param_a,
                                     uint32_t param_b, uint32_t param_c) {
     float* p = alloc_scene_memory<float>(0x140);
@@ -1739,6 +1702,58 @@ float* XB_THISCALL nglNode_GetWorldInverse(NglMeshDrawNode* self, float* out) {
     }
     std::memcpy(out, self->world_inverse, 64);
     return out;
+}
+
+void XB_CDECL nglSelectMeshLightSet(NglMeshDrawNode* node) {
+    const uint32_t slot = title_global<uint32_t>(0x00902914);
+    const uint32_t* params = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(node->extra));
+    // The 64-bit slot mask, the bit as a sign-extended 32-bit shift (cdq).
+    const auto has_slot = [params, slot] {
+        const uint32_t low = 1u << (slot & 31);
+        const uint32_t high = static_cast<int32_t>(low) < 0 ? 0xffffffff : 0;
+        return (params[0] & low) == low && (params[1] & high) == high;
+    };
+    NglLightSet* set;
+    if (has_slot()) {
+        // The title tests the mask twice; the second test's failure (impossible) would
+        // read an uninitialized stack slot.
+        set = has_slot() ? reinterpret_cast<NglLightSet*>(static_cast<uintptr_t>(params[2 + slot])) : nullptr;
+    } else {
+        set = current_scene()->light_set;
+    }
+    current_light_set() = set;
+    NglLight* const end = reinterpret_cast<NglLight*>(set);
+    set->object_lights = end;
+    const uint8_t* mesh = node->mesh;
+    const int32_t list = static_cast<int32_t>(mesh[7]) - 1;
+    if (list == -1) return;
+    const float* local = reinterpret_cast<const float*>(mesh + 0x20);
+    Lanes center = add(lanes(node->world + 12), mul(lanes(node->world), local[0]));
+    center = add(center, mul(lanes(node->world + 4), local[1]));
+    center = add(center, mul(lanes(node->world + 8), local[2]));
+    const float mesh_radius = *reinterpret_cast<const float*>(mesh + 0x30);
+    // The list links sit at word `list` of the set and of each light (past the eight
+    // lists too, as in the original).
+    NglLight* light = reinterpret_cast<NglLight* const*>(set)[list];
+    while (light != end) {
+        bool add_light = false;
+        if (light->type == 0) {
+            const float radius = light->data[9] + mesh_radius;
+            const Lanes d = sub(lanes(light->data), center);
+            const Lanes sq = mul(d, d);
+            platform_keep(sq);
+            float dist = sq.v[0] + sq.v[1];
+            dist = dist + sq.v[2];
+            add_light = radius * radius >= dist;
+        } else if (light->type == 1) {
+            add_light = true;
+        }
+        if (add_light) {
+            light->next_object = set->object_lights;
+            set->object_lights = light;
+        }
+        light = reinterpret_cast<NglLight* const*>(light)[list];
+    }
 }
 
 void XB_CDECL nglComputeObjectLights(NglMeshDrawNode* node, float* directions, float* colors) {
@@ -1903,6 +1918,13 @@ void set_cached(uint8_t* self, uint32_t offset, uint32_t method, T value) {
 
 void XB_THISCALL nglStateCache_SetAlphaTestEnable(uint8_t* self, uint8_t enable) {
     set_cached<uint8_t>(self, 0x50, 0x00040300, enable);
+}
+
+void XB_THISCALL nglStateCache_SetFogEnable(uint8_t* self, uint8_t enable) {
+    if (self[0x8b] == enable) return;
+    title_global<uint32_t>(0x003f8320) |= 0x2000;
+    title_global<uint32_t>(0x003f8498) = enable;
+    self[0x8b] = enable;
 }
 
 void XB_THISCALL nglStateCache_SetAlphaFunc(uint8_t* self, uint32_t func) {
