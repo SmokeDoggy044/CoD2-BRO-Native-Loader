@@ -19,6 +19,7 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <linux/fs.h>
 #include <poll.h>
 #include <signal.h>
 #include <sys/mman.h>
@@ -31,6 +32,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -41,6 +43,7 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <thread>
 
 #include "compiler.h"
 #include "float_env.h"
@@ -75,6 +78,7 @@ constexpr uint32_t kPage = 4096;
 constexpr uint32_t kMaxRanges = 2048;
 constexpr uint32_t kMaxDirty = 32768;  // 128 MB written by one call
 constexpr uint32_t kPagemapChunk = 2048;
+constexpr uint32_t kScanRegions = 512;  // runs of written pages per PAGEMAP_SCAN call
 
 enum ReportStatus : uint32_t { kOk, kSignal, kTooManyWrites, kHarnessError };
 
@@ -108,6 +112,8 @@ struct alignas(4096) ChildArea {
     uint32_t wanted_count;
     uint32_t wanted[2 * kMaxDirty];
     uint32_t pagemap[2 * kPagemapChunk];
+    pm_scan_arg scan_arg;
+    page_region regions[kScanRegions];
     uint8_t signal_stack[64 * 1024];
     uint8_t stack[64 * 1024];
 };
@@ -247,10 +253,60 @@ XBCMP_CODE bool in_scan_range(const ChildArea& c, uint32_t address, uint32_t siz
     return false;
 }
 
+// The same with the PAGEMAP_SCAN ioctl (Linux 6.7+), which returns only the runs of
+// written pages instead of an entry per page. False if the kernel lacks it.
+XBCMP_CODE bool collect_dirty_scan(ChildArea& c, uint32_t own_begin, uint32_t own_end) {
+    pm_scan_arg& a = c.scan_arg;
+    uint32_t count = 0;
+    for (uint32_t r = 0; r < c.scan_count; ++r) {
+        c.report.scan_pages += (c.scan[r].end - c.scan[r].begin) / kPage;
+        for (uint32_t start = c.scan[r].begin; start < c.scan[r].end;) {
+            a.size = sizeof(pm_scan_arg);
+            a.flags = 0;
+            a.start = start;
+            a.end = c.scan[r].end;
+            a.walk_end = 0;
+            a.vec = addr_of(c.regions);
+            a.vec_len = kScanRegions;
+            a.max_pages = 0;
+            a.category_inverted = 0;
+            a.category_mask = PAGE_IS_SOFT_DIRTY;
+            a.category_anyof_mask = 0;
+            a.return_mask = PAGE_IS_SOFT_DIRTY;
+            const int32_t n = sys3(SYS_ioctl, static_cast<uint32_t>(c.pagemap_fd), PAGEMAP_SCAN, addr_of(&a));
+            if (n < 0) {
+                if (r == 0 && start == c.scan[r].begin) return false;
+                c.report.status = kHarnessError;
+                return true;
+            }
+            for (int32_t i = 0; i < n; ++i) {
+                const auto end = static_cast<uint32_t>(c.regions[i].end / kPage);
+                for (auto p = static_cast<uint32_t>(c.regions[i].start / kPage); p < end; ++p) {
+                    if (p >= own_begin && p < own_end) continue;
+                    if (count == kMaxDirty) {
+                        c.report.status = kTooManyWrites;
+                        return true;
+                    }
+                    c.dirty[count++] = p;
+                }
+            }
+            if (a.walk_end <= start) {
+                c.report.status = kHarnessError;
+                return true;
+            }
+            start = static_cast<uint32_t>(a.walk_end);
+        }
+    }
+    c.report.dirty_count = count;
+    return true;
+}
+
 // Pages written since the soft-dirty bits were cleared, outside the area itself.
 XBCMP_CODE void collect_dirty(ChildArea& c) {
     const uint32_t own_begin = addr_of(&c) / kPage;
     const uint32_t own_end = own_begin + sizeof(ChildArea) / kPage;
+    if (collect_dirty_scan(c, own_begin, own_end)) return;
+    c.report.scan_pages = 0;
     uint32_t count = 0;
     for (uint32_t r = 0; r < c.scan_count; ++r) {
         const uint32_t end = c.scan[r].end / kPage;
@@ -362,6 +418,37 @@ std::mutex g_busy;   // one test at a time
 std::mutex g_stats;  // counts and the results file
 std::atomic<uint64_t> g_test_ns{0};
 std::atomic<uint64_t> g_tests{0};
+
+// Test processes are reaped here: tearing down their copy of the address space takes
+// milliseconds, and the game need not wait for it once it has their reports. Never
+// destroyed: exit() would destroy the condition variable the thread waits on (glibc
+// blocks there).
+struct Reaper {
+    std::mutex lock;
+    std::condition_variable wake;
+    std::vector<pid_t> pids;
+};
+Reaper* g_reaper;
+
+void reap_later(pid_t pid) {
+    {
+        std::lock_guard lock(g_reaper->lock);
+        g_reaper->pids.push_back(pid);
+    }
+    g_reaper->wake.notify_one();
+}
+
+void reaper(Reaper* r) {
+    for (;;) {
+        std::vector<pid_t> pids;
+        {
+            std::unique_lock lock(r->lock);
+            r->wake.wait(lock, [r] { return !r->pids.empty(); });
+            pids.swap(r->pids);
+        }
+        for (const pid_t pid : pids) waitpid(pid, nullptr, 0);
+    }
+}
 
 uint64_t now_ns() {
     timespec t{};
@@ -907,7 +994,7 @@ Verdict run_test(Hook& hook, const Context& entry) {
             close(side.from);
             close(side.to);
         }
-        if (child > 0) waitpid(child, nullptr, 0);
+        if (child > 0) reap_later(child);
     };
     if (child < 0) {
         finish();
@@ -1204,6 +1291,10 @@ void install(std::span<const game::Function> functions, const Config& config) {
     if (config.enabled) {
         // A test process that dies while we write to it must not take the game along.
         signal(SIGPIPE, SIG_IGN);
+        if (!g_reaper) {
+            g_reaper = new Reaper;
+            std::thread(reaper, g_reaper).detach();
+        }
         LOG_INFO("compare",
                  "testing %zu decompiled functions against the originals; %d settled (%u+ matched tests, "
                  "--compare-all tests them too); %d replaced",
