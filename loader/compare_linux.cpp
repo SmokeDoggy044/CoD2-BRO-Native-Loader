@@ -562,7 +562,8 @@ struct Hook {
     std::atomic<bool> settled{false};  // enough matched tests: no more this run
     uint64_t flushed_calls = 0;
     std::string last_issue;
-    uint32_t reports = 0;  // details logged so far
+    uint32_t reports = 0;          // inconclusive details logged so far
+    uint32_t issue_reports = 0;    // mismatch / drift details logged so far
 };
 
 Config g_config;
@@ -1349,8 +1350,10 @@ void record(Hook& hook, uint64_t call, const Verdict& verdict) {
     }
     if (verdict.outcome == Outcome::Matched) return;
     hook.last_issue = verdict.details;
-    if (hook.reports >= 5) return;
-    ++hook.reports;
+    // Separate caps, so front-end inconclusive tests do not hide the first mismatches.
+    uint32_t& reports = verdict.outcome == Outcome::Inconclusive ? hook.reports : hook.issue_reports;
+    if (reports >= 5) return;
+    ++reports;
     static const char* const kWhat[] = {"matched", "float drift", "MISMATCH", "inconclusive"};
     const auto level = verdict.outcome == Outcome::Mismatched ? platform::LogLevel::Warn : platform::LogLevel::Info;
     PLATFORM_LOG(level, "compare", "%s call %llu: %s: %s", hook.function->name, static_cast<unsigned long long>(call),

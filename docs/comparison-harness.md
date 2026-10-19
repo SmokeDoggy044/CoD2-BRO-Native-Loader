@@ -21,7 +21,8 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
 4. Read `tools/data/functions.csv` (counts, merged over runs - also over runs at the
    same time: each flush merges under a lock (`functions.csv.lock`); `functions_mp.csv` for
    multiplayer) and the `compare` lines in the log (the first 5 issues per function,
-   with the differing registers or bytes).
+   with the differing registers or bytes; inconclusive tests and mismatches/drift have
+   separate caps of 5, so front-end inconclusive calls do not hide the first mismatches).
 5. When a module is done, test it all once more: `--compare-all` tests the settled
    functions too (final check; counts add to the same CSV). A function with many
    tests, no mismatches and no drift then becomes

@@ -35,4 +35,22 @@ FxEffect* XB_CDECL FX_AllocEffect();
 // active effects (the single entry is never looked at, as in the original).
 uint8_t* XB_CDECL FX_FindEvictableEffect(const uint8_t* effect);
 
+// 0x00238540: an effect back onto the free list (at most 240 entries): its handle is
+// released first (FX_ReleaseEffectHandle), then its first word, with the free count in the low
+// half, becomes the entry. ESI = effect (may be null): entered through
+// FX_FreeEffect_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_FreeEffect(FxEffect* effect);
+extern "C" void FX_FreeEffect_entry(void);
+
+// 0x00238390: quicksort (median of three, down to 5 entries) of the active effects
+// 0x00988804[lo..hi] by their definition's flags (+0x50, unsigned; no definition =
+// 0xffffffff), recursing on the left part.
+void XB_CDECL FX_SortEffects_r(int32_t lo, int32_t hi);
+
+// 0x0023b420: the effect lights of the list 0x00988714 (count 0x0098871c): a lit one
+// (+0xc) adds a point light at its position (radius 0x008db380, inner 0x0095f6ec,
+// colour 1, 0x0083eb58, 0) and is cleared for the next frame; the rest are freed
+// (Z_Free) and removed from the list.
+void XB_CDECL FX_FreeFinishedEffects();
+
 }  // namespace game

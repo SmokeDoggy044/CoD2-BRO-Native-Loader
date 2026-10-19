@@ -792,8 +792,7 @@ void XB_THISCALL cdChar_Draw(const NglMeshNode* node) {
     nglComputeObjectLights(draw, constants + 16, constants + 32);
     nglSetPixelShaderProgramCached(pick_shader(0x00902050, 0x0090204c));
     set_vertex_constants(6, constants, 48);
-    using SetSkinning = void XB_CDECL(int32_t, NglMeshDrawNode*, const NglMeshSection*);
-    title_function<SetSkinning>(0x00076620)(-0x4c, draw, node->section);  // nglSetSkinningConstants
+    nglSetSkinningConstants(-0x4c, draw, node->section);
     set_transform_constants(-0x4e, node);
     set_scene_fog();
     nglDrawMeshSection(node->section);
@@ -1254,7 +1253,7 @@ void XB_THISCALL cdAirplaneMetal_Draw(const NglMeshNode* node) {
     nglSetPixelShaderProgramCached(shader_ref(0x00902078));
     NglMeshDrawNode* draw = draw_node(node);
     nglSelectMeshLightSet(draw);
-    title_function<void XB_CDECL(int32_t, NglMeshDrawNode*)>(0x000765c0)(-0x53, draw);  // nglSetObjectLightConstants
+    nglSetObjectLightConstants(-0x53, draw);
     alignas(16) float light_out[4];
     const float* light = nglEvalFirstObjectLight(light_out, draw->world + 12);
     std::memcpy(c, draw->world_view_projection, 64);
@@ -1392,7 +1391,7 @@ void XB_THISCALL cdGlass_Draw(const NglMeshNode* node) {
     nglSetPixelShaderProgramCached(shader_ref(0x00901fd0 + variant * 4));
     NglMeshDrawNode* draw = draw_node(node);
     nglSelectMeshLightSet(draw);
-    if (lit) title_function<void XB_CDECL(int32_t, NglMeshDrawNode*)>(0x000765c0)(-0x4f, draw);  // nglSetObjectLightConstants
+    if (lit) nglSetObjectLightConstants(-0x4f, draw);
 
     // Constants 6..16: the matrix, the world-view rotation's rows (w 0, the last w 1),
     // the first object light's vector in object space (w 0), the camera in object

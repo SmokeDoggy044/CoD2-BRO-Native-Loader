@@ -684,8 +684,7 @@ void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model) {
         }
         if (!grid) model->lighting_state = 0;
         if (grid && index >= 0) {
-            title_function<void XB_REGS1 XB_STDCALL(int32_t, void*, const float*, RStaticModel*)>(0x00242e90)(
-                index, grid, position, model);
+            R_SampleLightGrid(index, static_cast<const RLightGrid*>(grid), position, &model->lighting);
             model->lighting_state = 2;
         } else {
             // No light grid there: full red ambient.
@@ -846,6 +845,219 @@ void* XB_REGS3 R_GetCellLighting(const float* position, uint32_t, int32_t* cell_
     void* grid = reinterpret_cast<void* const*>(title_global<uint8_t*>(0x0095f6a0) + 4)[grid_index];
     if (!grid) nglSetAmbientColor(0.0f, 0.0f, 1.0f);  // no grid loaded: blue ambient
     return grid;
+}
+
+void XB_REGS1 XB_STDCALL R_SampleLightGrid(int32_t cell, const RLightGrid* grid, const float* point,
+                                           RCachedLighting* out) {
+    const RLightGridArea* area = nullptr;
+    for (int32_t i = 0; i < grid->area_count; ++i) {
+        if (grid->areas[i].cell == cell) {
+            area = &grid->areas[i];
+            break;
+        }
+    }
+    if (!area) {
+        nglSetAmbientColor(0.0f, 0.0f, 1.0f);
+        if (out) {
+            out->ambient[0] = 0.0f;
+            out->ambient[1] = 0.0f;
+            out->count = 0;
+            out->ambient[2] = title_global<float>(0x0083eb20);
+        }
+        return;
+    }
+
+    // The sample cell and the point's place in it.
+    const Lanes offset = sub(lanes(point), lanes(area->origin));
+    platform_keep(offset);
+    float fx = offset.v[0] / area->cell_size[0];
+    float fy = offset.v[1] / area->cell_size[1];
+    int32_t x = static_cast<int32_t>(fx);
+    int32_t y = static_cast<int32_t>(fy);
+    if (x < 0) {
+        fx = 0.0f;
+        x = 0;
+    }
+    if (x >= area->width - 1) {
+        x = area->width - 2;
+        fx = static_cast<float>(x);
+    }
+    if (y < 0) {
+        fy = 0.0f;
+        y = 0;
+    }
+    if (y >= area->height - 1) {
+        y = area->height - 2;
+        fy = static_cast<float>(y);
+    }
+    const float one = title_global<float>(0x0083eb20);
+    fx = fx - static_cast<float>(x);
+    fy = fy - static_cast<float>(y);
+    const int32_t index = area->width * y + area->first + x;
+    const uint32_t* corners[4] = {grid->samples + index, grid->samples + index + 1,
+                                  grid->samples + area->width + index, grid->samples + area->width + index + 1};
+    const float gx = one - fx;
+    const float weights[4] = {gx * (one - fy), (one - fy) * fx, gx * fy, fy * fx};
+
+    // The ambient: the corners' 5-bit colours (r, g, b, r) / 31, blended.
+    const float to_unit = title_global<float>(0x0083f040);
+    Lanes colors[4];
+    for (int i = 0; i < 4; ++i) {
+        const uint32_t sample = *corners[i];
+        const float r = platform_x87_int_mul(static_cast<int32_t>(sample & 0x1f), to_unit);
+        const float b = platform_x87_int_mul(static_cast<int32_t>((sample >> 10) & 0x1f), to_unit);
+        const float g = platform_x87_int_mul(static_cast<int32_t>((sample >> 5) & 0x1f), to_unit);
+        colors[i] = {{r, g, b, r}};
+    }
+    RCachedLighting local;
+    if (!out) out = &local;
+    const Lanes ambient = add(add(add(mul(colors[0], weights[0]), mul(colors[1], weights[1])), mul(colors[2], weights[2])),
+                              mul(colors[3], weights[3]));
+    platform_keep(ambient);
+    out->ambient[0] = ambient.v[0];
+    out->ambient[1] = ambient.v[1];
+    out->count = 0;
+    out->ambient[2] = ambient.v[2];
+
+    // The corners' light references, merged: {light, weight} with blended weights.
+    struct Reference {
+        uint16_t light;
+        uint16_t weight;
+    } merged[12];
+    int32_t merged_count = 0;
+    for (int c = 0; c < 4; ++c) {
+        const uint32_t sample = *corners[c];
+        const uint32_t count = (sample >> 15) & 3;
+        if (count == 0) continue;
+        const uint16_t* reference = grid->references + (sample >> 17) * 2;
+        for (uint32_t r = 0; r < count; ++r, reference += 2) {
+            int32_t i = 0;
+            for (; i < merged_count; ++i) {
+                if (merged[i].light == reference[0]) {
+                    merged[i].weight = static_cast<uint16_t>(
+                        platform_x87_mul_add_ftol(reference[1], weights[c], merged[i].weight, true));
+                    break;
+                }
+            }
+            if (i != merged_count) continue;
+            merged[merged_count].light = reference[0];
+            merged[merged_count].weight =
+                static_cast<uint16_t>(platform_x87_mul_add_ftol(reference[1], weights[c], 0, false));
+            ++merged_count;
+        }
+    }
+
+    // The three strongest as directional lights.
+    for (int32_t n = 0; n < (merged_count < 3 ? merged_count : 3); ++n) {
+        int32_t best = 0;
+        int32_t strongest = 0;
+        for (int32_t i = 0; i < merged_count; ++i) {
+            if (merged[i].weight > strongest) {
+                strongest = merged[i].weight;
+                best = i;
+            }
+        }
+        merged[best].weight = 0;
+        const RGridLight& light = grid->lights[merged[best].light];
+        float* color = out->colors[out->count];
+        float* direction = out->directions[out->count];
+        const float weight = static_cast<float>(strongest) * title_global<float>(0x0083f03c);  // / 65535
+        color[0] = light.color[0] * weight;
+        color[1] = light.color[1] * weight;
+        color[2] = light.color[2] * weight;
+        color[3] = weight;
+        alignas(16) float light_color[4];
+        std::memcpy(light_color, color, sizeof(light_color));
+        alignas(16) float to_light[4];
+        if (light.point != 0.0f) {
+            // From the light to the point, normalized (RSQRTSS + one Newton step).
+            const Lanes d = sub(lanes(point), Lanes{{light.origin[0], light.origin[1], light.origin[2], light.origin[0]}});
+            const Lanes sq = mul(d, d);
+            platform_keep(sq);
+            const float length_sq = (sq.v[0] + sq.v[1]) + sq.v[2];
+            float scale;
+            if (length_sq == 0.0f) {
+                scale = title_global<float>(0x0082e6a0);
+            } else {
+                const float a = abs_bits(length_sq);
+                const float r = platform_rsqrt_estimate(a);
+                scale = ((title_global<float>(0x0082e660) - r * r * a) * r) * title_global<float>(0x0082e670);
+            }
+            const Lanes scaled = mul(d, scale);
+            platform_keep(scaled);
+            std::memcpy(to_light, scaled.v, sizeof(to_light));
+        } else {
+            const float origin[4] = {light.origin[0], light.origin[1], light.origin[2], light.origin[0]};
+            std::memcpy(to_light, origin, sizeof(to_light));
+        }
+        nglAddDirectionalLight(0xffffffff, to_light, light_color);
+        direction[0] = to_light[0];
+        direction[1] = to_light[1];
+        direction[2] = to_light[2];
+        const float ambient_scale = title_global<float>(0x008db118);
+        const Lanes add_ambient = {{color[0] * ambient_scale, ambient_scale * color[1], color[2] * ambient_scale,
+                                    color[0] * ambient_scale}};
+        // The fourth lane is the first colour's red (the word after the ambient).
+        const Lanes sum = add(Lanes{{out->ambient[0], out->ambient[1], out->ambient[2], out->colors[0][0]}}, add_ambient);
+        platform_keep(sum);
+        out->ambient[0] = sum.v[0];
+        out->ambient[1] = sum.v[1];
+        out->ambient[2] = sum.v[2];
+        ++out->count;
+    }
+    nglSetAmbientColor(out->ambient[0], out->ambient[1], out->ambient[2]);
+}
+
+void XB_CDECL RE_BeginFrame() {
+    if (!title_global<uint32_t>(0x0095e390)) return;
+    alignas(16) const float color[4] = {title_global<float>(0x0095e41c), title_global<float>(0x0095e420),
+                                        title_global<float>(0x0095e424), title_global<float>(0x0095e41c)};
+    ++title_global<uint32_t>(0x0095e398);
+    title_function<void XB_CDECL()>(0x00064690)();  // nglBeginFrame
+    nglAdvanceShaderTime(color, title_global<float>(0x008ddaa0));
+    nglSetClearFlags(3);
+    alignas(16) float fog[4];
+    nglGetSceneFogColor(fog);
+    nglSetClearColor(fog[0], fog[1], fog[2], 0.0f);
+    nglSetClearDepth(1.0f);
+    const float one = title_global<float>(0x0083eb20);
+    const float bottom = static_cast<float>(nglGetScreenHeight()) - one;
+    const float right = static_cast<float>(nglGetScreenWidth()) - one;
+    nglSetViewportRect(0.0f, 0.0f, right, bottom);
+}
+
+PLATFORM_ASM_ENTRY(R_SetupEntityLighting_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_SetupEntityLighting) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL R_SetupEntityLighting(REntityLighting* cache, const float* origin) {
+    const float timer = cache->timer - title_global<float>(0x008ddaa0);
+    alignas(16) float position[4];
+    std::memcpy(position, origin, sizeof(position));
+    cache->timer = timer;
+    if (cache->valid && (timer > title_global<float>(0x0083eafc) ||
+                         (cache->origin[0] == origin[0] && cache->origin[1] == origin[1] &&
+                          cache->origin[2] == origin[2]))) {
+        R_ApplyCachedLighting(&cache->lighting);
+        return;
+    }
+    int32_t cell;
+    void* grid = R_GetCellLighting(position, 0, &cell);
+    if (!grid || cell < 0) {
+        R_SetDefaultLighting();
+        return;
+    }
+    R_SampleLightGrid(cell, static_cast<const RLightGrid*>(grid), position, &cache->lighting);
+    cache->valid = 1;
+    uint32_t& seed = title_global<uint32_t>(0x008d5a70);
+    seed = seed * 0x343fd + 0x269ec3;
+    cache->origin[0] = origin[0];
+    cache->origin[1] = origin[1];
+    cache->origin[2] = origin[2];
+    // The next look-up in 0.14 + 0.08 * random seconds, on the x87.
+    cache->timer = platform_x87_mul_div_add(platform_x87_unsigned_to_float(seed >> 17), title_global<float>(0x0083f0d4),
+                                            title_global<float>(0x0083ebc8), title_global<float>(0x0083f0d0));
 }
 
 void XB_CDECL R_UnlinkEntityFromCells(const void* owner) {
@@ -1788,13 +2000,12 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
             R_SetDefaultLighting();
         } else if (entity) {
             const uint32_t ref = title_call_regs(0x002be200, 0, address_of(entity), 0);  // CG_GetEntityRefEntity
-            title_call_regs(0x00243770, ref + 8, address_of(entity), address_of(origin));  // R_SetupEntityLighting
+            R_SetupEntityLighting(reinterpret_cast<REntityLighting*>(ref + 8), origin);
         } else {
             int32_t cell;
             void* grid = R_GetCellLighting(origin, 0, &cell);
             if (grid && cell >= 0)
-                title_function<void XB_REGS1 XB_STDCALL(int32_t, void*, const float*, void*)>(0x00242e90)(  // R_SampleLightGrid
-                    cell, grid, origin, nullptr);
+                R_SampleLightGrid(cell, static_cast<const RLightGrid*>(grid), origin, nullptr);
             else
                 R_SetDefaultLighting();
         }
@@ -1851,7 +2062,7 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
             const int32_t lod = obj->forced_lod >= 0 ? obj->forced_lod : obj->lod;
             const int32_t limit = field<int32_t>(obj->lod_limit, 4);
             if (lod < limit) {
-                title_function<void XB_REGS2 XB_CDECL(int32_t, DObj*)>(0x00029490)(limit, obj);  // DObj_SetMinLod
+                DObj_SetMinLod(limit, obj);
                 limited = true;
             }
         }
@@ -1905,7 +2116,7 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                     if (!animated && outside_shadow_band(mesh, matrix, band_center, band_half)) continue;
                     NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
                     const int32_t coarsest =
-                        title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, DObj*)>(0x00029520)(0, obj);  // DObj_GetCoarsestLod
+                        DObj_GetCoarsestLod(0, obj);
                     nglListAddMesh(part_mesh(lod_parts(model, coarsest), i), matrix, &skinned.flags, &params_word);
                     nglSetCurrentScene(saved);
                     continue;
@@ -1981,7 +2192,7 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                 if (!cast_shadow) continue;
                 if (!animated && outside_shadow_band(mesh, matrix, band_center, band_half)) continue;
                 NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
-                title_function<void XB_REGS2 XB_CDECL(int32_t, DObj*)>(0x00014610)(4, obj);  // DObj_SetForcedLod
+                DObj_SetForcedLod(4, obj);
                 const int32_t shadow_lod = m != 0                ? -1
                                            : obj->forced_lod >= 0 ? obj->forced_lod
                                            : obj->min_lod >= 0    ? obj->min_lod

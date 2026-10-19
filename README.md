@@ -24,9 +24,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 9,563 | 1,621 | 241 | 9,322 |
+| Engine and game code (`.text`) | 9,563 | 1,633 | 288 | 9,275 |
 | Mission scripts (14 level sections) | 4,977 | 0 | 0 | 4,977 |
-| **Total** | **14,540** | **1,621** | **241** | **14,299** |
+| **Total** | **14,540** | **1,633** | **288** | **14,252** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -36,13 +36,13 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 799 | 232 | 113 | 209 | 245 |
+| Renderer (scenes, materials, shaders, models, effects) | 807 | 277 | 114 | 174 | 242 |
 | Game logic (entities, AI, weapons, level-script runtime) | 385 | 0 | 0 | 385 | 0 |
 | Client game (HUD, view, effects on screen) | 171 | 0 | 0 | 171 | 0 |
 | Engine core (memory, files, settings, commands) | 137 | 0 | 1 | 131 | 0 |
 | Client and menus | 132 | 0 | 0 | 132 | 0 |
-| Server, collision, compression | 40 | 0 | 2 | 38 | 0 |
-| Not sorted into a part yet | 7,899 | 9 | 2 | 196 | 7,383 |
+| Server, collision, compression | 40 | 1 | 2 | 37 | 0 |
+| Not sorted into a part yet | 7,891 | 10 | 2 | 196 | 7,374 |
 
 Most functions aren't sorted into a part yet. That happens as they get named: until
 then, nothing tells us which part they belong to. A part of the game switches over to

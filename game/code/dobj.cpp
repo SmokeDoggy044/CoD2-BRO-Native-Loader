@@ -1,6 +1,7 @@
 #include "dobj.h"
 
 #include "compiler.h"
+#include "title_data.h"
 
 namespace game {
 
@@ -11,6 +12,33 @@ const XModelParts* model_parts(const XModel* model) {
     const XModelLod* const* lod = model->lods;
     while (!*lod) ++lod;
     return (*lod)->parts;
+}
+
+// lods[index] without bounds, as in the original (its loops stop at 5; callers pass
+// 0..4).
+const XModelLod* lod_entry(const XModel* model, int32_t index) {
+    return *reinterpret_cast<XModelLod* const*>(reinterpret_cast<const uint8_t*>(model) + 0x24 + index * 4);
+}
+
+// DObj_SetForcedLod and DObj_SetMinLod: the LOD, else coarser, else finer.
+void set_nearest_lod(const DObj* obj, int32_t lod, int32_t& out) {
+    out = -1;
+    if (lod < 5 && lod_entry(obj->models[0], lod)) {
+        out = lod;
+        return;
+    }
+    for (int32_t i = lod + 1; i < 5; ++i) {
+        if (lod_entry(obj->models[0], i)) {
+            out = i;
+            return;
+        }
+    }
+    for (int32_t i = lod - 1; i >= 0; --i) {
+        if (i < 5 && lod_entry(obj->models[0], i)) {
+            out = i;
+            return;
+        }
+    }
 }
 
 }  // namespace
@@ -251,6 +279,105 @@ void XB_REGS3 DObj_GetBounds(uint32_t, float* mins, float* maxs, const DObj* obj
     for (int i = 0; i < 3; ++i) {
         mins[i] = model ? model->mins[i] : 0.0f;
         maxs[i] = model ? model->maxs[i] : 0.0f;
+    }
+}
+
+XModelParts* XB_REGS2 XModel_GetLodParts(int32_t lod, const XModel* model) {
+    if (lod < 0) {
+        lod = 0;
+        while (!model->lods[lod]) ++lod;
+    }
+    return model->lods[lod]->parts;
+}
+
+void XB_REGS2 DObj_SetForcedLod(int32_t lod, DObj* obj) { set_nearest_lod(obj, lod, obj->forced_lod); }
+
+void XB_REGS2 DObj_SetMinLod(int32_t lod, DObj* obj) { set_nearest_lod(obj, lod, obj->min_lod); }
+
+int32_t XB_REGS2 DObj_GetCoarsestLod(uint32_t, const DObj* obj) {
+    for (int32_t i = 4; i >= 0; --i)
+        if (obj->models[0]->lods[i]) return i;
+    title_function<void XB_CDECL()>(0x00042460)();  // breaks into a debugger when one is attached
+    return -1;
+}
+
+namespace {
+
+uint8_t* bone_matrix(const DObj* obj, uint32_t index) { return obj->bone_matrices + index * 0x40 + 0x30; }
+
+uint8_t* attach_matrix(const DObj* obj, int model) {
+    const uint8_t attach = obj->attach_bones[model];
+    return attach == 0xff ? nullptr : bone_matrix(obj, attach);
+}
+
+const uint8_t& matrix_offset(const DObj* obj, int model) { return (&obj->matrix_offset)[model]; }
+
+using CalcSkeleton = void XB_CDECL(const XModel*, uint8_t*, const uint8_t*);
+
+}  // namespace
+
+void XB_CDECL DObj_CalcBasePose(const DObj* obj) {
+    for (int m = 0; m < obj->model_count; ++m) {
+        uint8_t* parent = attach_matrix(obj, m);
+        title_function<CalcSkeleton>(0x0023df00)(obj->models[m], bone_matrix(obj, matrix_offset(obj, m)),
+                                                 parent);  // XModel_CalcSkeleton
+    }
+}
+
+void XB_CDECL DObj_CalcAnimatedSkeleton(const DObj* obj, int32_t bone) {
+    const int count = obj->model_count;
+    int found = 0;
+    int32_t first = 0;
+    for (int m = 0; m < count; ++m) {
+        const XModelParts* parts = model_parts(obj->models[m]);
+        const int32_t bones = parts ? static_cast<int32_t>(parts->bone_count) : 0;
+        if (bone < first + bones) {
+            found = m;
+            break;
+        }
+        first += bones;
+    }
+    for (int m = found; m < obj->model_count; ++m) {
+        uint8_t* parent = attach_matrix(obj, m);
+        uint8_t* matrices = bone_matrix(obj, matrix_offset(obj, m));
+        if (m == found)
+            title_function<void XB_CDECL(const XModel*, uint8_t*, int32_t)>(0x0023db60)(obj->models[m], matrices,
+                                                                                    bone - first);  // XModel_CalcBoneChildren
+        else
+            title_function<CalcSkeleton>(0x0023df00)(obj->models[m], matrices, parent);  // XModel_CalcSkeleton
+    }
+}
+
+PLATFORM_ASM_ENTRY(DObj_SetLod_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(DObj_SetLod) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL DObj_SetLod(DObj* obj, int32_t lod) {
+    const XModel* model = obj->models[0];
+    if (!model) return;
+    const uint8_t* table = *reinterpret_cast<const uint8_t* const*>(reinterpret_cast<const uint8_t*>(model_parts(model)) + 0x38);
+    if (table && *reinterpret_cast<const uint32_t*>(table) == title_global<uint32_t>(0x00903fdc) &&
+        lod == *reinterpret_cast<const int32_t*>(table + 0x60) - 1) {
+        obj->lod = lod;
+        return;
+    }
+    obj->lod = -1;
+    if (lod < 5 && lod_entry(model, lod)) {
+        obj->lod = lod;
+        return;
+    }
+    for (int32_t i = lod - 1; i >= 0; --i) {
+        if (i < 5 && lod_entry(model, i)) {
+            obj->lod = i;
+            return;
+        }
+    }
+    for (int32_t i = lod + 1; i < 5; ++i) {
+        if (lod_entry(model, i)) {
+            obj->lod = i;
+            return;
+        }
     }
 }
 

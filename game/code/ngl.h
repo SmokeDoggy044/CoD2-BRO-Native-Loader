@@ -86,7 +86,8 @@ struct NglRenderTarget {
     uint8_t unknown00[0x10];
     uint32_t width;   // +0x10
     uint32_t height;  // +0x14
-    uint8_t unknown18[0x28 - 0x18];
+    uint32_t levels;  // +0x18, mip levels (nglRenderSceneTree makes the rest after drawing)
+    uint8_t unknown1c[0x28 - 0x1c];
     uint32_t flags;   // +0x28, 4 = the 640x480 screen whatever the size fields say
 };
 
@@ -172,7 +173,8 @@ struct NglScene {
     uint8_t unknown368[0x370 - 0x368];
     float clear_color[4];     // +0x370, r g b a
     uint32_t color_write_mask; // +0x380, 0x01000000 alpha .. 0x00010101 rgb
-    uint8_t depth_enable;     // +0x384, nglBeginSceneRender: Z enable when this or
+    uint8_t depth_enable;     // +0x384, depth writes (nglRenderSceneTree's opaque list);
+                              // nglBeginSceneRender: Z enable when this or
     uint8_t depth_test;       // +0x385  depth_test is set; depth_test picks the depth function
     uint8_t unknown386[0x388 - 0x386];
     float fog[4];             // +0x388, nglSetFog's arguments (fog[0] = start)
@@ -195,7 +197,9 @@ struct NglScene {
 
 // A section of a mesh: only its bounding sphere is known.
 struct NglMeshSection {
-    uint8_t unknown00[0x10];
+    uint8_t unknown00[0x8];
+    uint32_t bone_count;      // +0x08, skinned sections: the bones their vertices use
+    const uint16_t* bones;    // +0x0c, indices into the mesh's and instance's bone tables
     float center[4];          // +0x10
     float radius;             // +0x20
     uint8_t unknown24[0x28 - 0x24];
@@ -799,5 +803,47 @@ float* XB_CDECL nglGetSceneTargetScale(float* out);
 // nglLightSetAddProjector(2, ..., flags).
 void XB_CDECL nglAddShadowProjector(uint32_t flags, const float* matrix, const float* scale, uint32_t param_a,
                                     uint32_t param_b, uint32_t param_c);
+
+// 0x000765c0: nglComputeObjectLights' directions and colours as 8 vertex shader
+// constants from slot + 0x60.
+void XB_CDECL nglSetObjectLightConstants(int32_t slot, NglMeshDrawNode* node);
+// 0x00076620: the skinning matrices of a section (3 transposed rows each, at 0x00903000,
+// sent from slot + 0x60) and constant 0 = (765.003, slot, 0x00903c70, 0x00903c74). Per
+// bone index b: instance flag 4 = mesh bone b (mesh +0x14) * instance bone b (params[2])
+// * the node's world inverse, 8 = mesh bone * instance bone, 0x10 = the instance bone,
+// else identity.
+void XB_CDECL nglSetSkinningConstants(int32_t slot, NglMeshDrawNode* node, const NglMeshSection* section);
+// 0x00045640: the shaders' clock (0x00901e90) advanced by `seconds` (x87) and made the
+// scene time; `color` (4 floats) kept at 0x00901ea0.
+void XB_CDECL nglAdvanceShaderTime(const float* color, float seconds);
+// 0x000456f0: the current scene's fog colour (+0x3a0), kept at 0x00901eb0 and copied
+// to out.
+void XB_CDECL nglGetSceneFogColor(float* out);
+// 0x0001b930: `size` bytes of the frame's scene memory (0x009025a8) at an `align`
+// (power of two) boundary.
+void* XB_CDECL nglAllocSceneMemory(uint32_t size, uint32_t align);
+// 0x00046ca0: onto the current scene's translucent list, whatever its sort key.
+void XB_CDECL nglListAddTranslucent(NglNode* node);
+// 0x000661c0: a text node (0x2c bytes of scene memory, vtable 0x007bd0cc, drawn by
+// nglRenderTextNode): a copy of the text, the font, position x/y (+0x14/+0x18), depth
+// (+0x1c, also the sort key), colour word (+0x28) and the two scales (+0x20/+0x24),
+// onto the translucent list. Nothing for empty text or a font without glyphs (+0x24).
+void XB_CDECL nglListAddText(const uint8_t* font, const char* text, float x, float y, float z, uint32_t color,
+                             float scale_x, float scale_y);
+// 0x00062a10: a custom draw node (0x20 bytes of scene memory, vtable 0x007bc6a0: +0xc
+// = 1, +0x10 and +0x14 the two words, +0x18 the two words at `data`) onto the current
+// scene's lists, after bringing its matrices up to date.
+void XB_CDECL nglListAddCustomNode(uint32_t a, uint32_t b, const uint32_t* data);
+// 0x00075460 / 0x000754f0: a draw list sorted (std::sort of {node, key} pairs in scene
+// memory) and relinked in that order, then each node drawn (vtable slot 0) with
+// 0x009025b4 = the last one drawn.
+void XB_CDECL nglRenderOpaqueList(NglNode* nodes, uint32_t count, uint32_t pred);
+void XB_CDECL nglRenderTranslucentList(NglNode* nodes, uint32_t count, uint32_t pred);
+// 0x00074330: draws the current scene after its child scenes (each made current in
+// turn): render targets, matrices, nglBeginSceneRender, the three callbacks around
+// the opaque list (depth writes as depth_enable) and the translucent list (depth
+// writes off), then the render target's mips. The frame allocator (0x00903c34) is
+// given back afterwards.
+void XB_CDECL nglRenderSceneTree();
 
 }  // namespace game

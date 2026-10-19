@@ -2409,4 +2409,232 @@ void XB_CDECL nglSetTransformConstants(int32_t slot, NglMeshDrawNode* node, floa
     title_function<SetConstants>(0x003e7490)(static_cast<uint32_t>(slot + 0x60), constants, 8);  // NotInlineFast
 }
 
+void XB_CDECL nglSetObjectLightConstants(int32_t slot, NglMeshDrawNode* node) {
+    alignas(16) float constants[32];  // directions[16], colours[16]
+    nglComputeObjectLights(node, constants, constants + 16);
+    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
+    title_function<SetConstants>(0x003e7490)(static_cast<uint32_t>(slot + 0x60), constants, 32);  // NotInlineFast
+}
+
+namespace {
+
+// A row vector times a matrix (rows m[0..3]): ((m0 x + m1 y) + m2 z), with the
+// translation row first for a point, all four lanes as the title's MULPS/ADDPS.
+Lanes row_times(const Lanes& v, const float* m, bool point) {
+    Lanes sum = mul(lanes(m), v.v[0]);
+    if (point) sum = add(lanes(m + 12), sum);
+    sum = add(sum, mul(lanes(m + 4), v.v[1]));
+    return add(sum, mul(lanes(m + 8), v.v[2]));
+}
+
+// a * b (4x4, rows 0..2 without translation, row 3 with).
+void matrix_times(const float* a, const float* b, Lanes* out) {
+    for (int i = 0; i < 4; ++i) {
+        out[i] = row_times(lanes(a + i * 4), b, i == 3);
+        platform_keep(out[i]);
+    }
+}
+
+// The first three columns of a row-vector matrix as rows.
+void store_transposed(const Lanes* m, float* out) {
+    for (int r = 0; r < 3; ++r)
+        for (int i = 0; i < 4; ++i) out[r * 4 + i] = m[i].v[r];
+}
+
+}  // namespace
+
+void XB_CDECL nglSetSkinningConstants(int32_t slot, NglMeshDrawNode* node, const NglMeshSection* section) {
+    // A function-static array of 64 matrices (3 rows), constructed on first use.
+    uint32_t& guards = title_global<uint32_t>(0x00903c00);
+    float* const matrices = &title_global<float>(0x00903000);
+    if (!(guards & 1)) {
+        guards |= 1;
+        for (int i = 0; i < 64; ++i)
+            title_function<void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x00011240)(matrices + i * 12, 0x10, 3,
+                                                                                          0x0001b920);
+    }
+    const float* mesh_bones = *reinterpret_cast<float* const*>(node->mesh + 0x14);
+    const uint32_t* params = node->params;
+    const float* instance_bones = reinterpret_cast<const float*>(static_cast<uintptr_t>(params[2]));
+    alignas(16) const float info[4] = {title_global<float>(0x007bf6d4), static_cast<float>(slot),
+                                       title_global<float>(0x00903c70), title_global<float>(0x00903c74)};
+    using SetConstant1 = void XB_FASTCALL(uint32_t, const float*);
+    title_function<SetConstant1>(0x003e7440)(0, info);  // SetVertexShaderConstant1Fast
+    const uint32_t flags = params[0];
+    for (uint32_t i = 0; i < section->bone_count; ++i) {
+        float* out = matrices + i * 12;
+        const uint32_t bone = section->bones[i];
+        const float* a = mesh_bones + bone * 16;
+        const float* b = instance_bones + bone * 16;
+        if (flags & 4) {
+            alignas(16) float buffer[16];
+            const float* inverse = nglNode_GetWorldInverse(node, buffer);
+            Lanes ab[4];
+            matrix_times(a, b, ab);
+            Lanes abw[4];
+            for (int r = 0; r < 4; ++r) {
+                abw[r] = row_times(ab[r], inverse, r == 3);
+                platform_keep(abw[r]);
+            }
+            store_transposed(abw, out);
+        } else if (flags & 8) {
+            Lanes ab[4];
+            matrix_times(a, b, ab);
+            store_transposed(ab, out);
+        } else if (flags & 0x10) {
+            const Lanes rows[4] = {lanes(b), lanes(b + 4), lanes(b + 8), lanes(b + 12)};
+            store_transposed(rows, out);
+        } else {
+            static const float identity[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+            std::memcpy(out, identity, sizeof(identity));
+        }
+    }
+    const uint32_t count = section->bone_count * 3;
+    if (count == 1) {
+        title_function<SetConstant1>(0x003e7440)(static_cast<uint32_t>(slot + 0x60), matrices);
+    } else {
+        using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
+        title_function<SetConstants>(0x003e7490)(static_cast<uint32_t>(slot + 0x60), matrices, count * 4);  // NotInlineFast
+    }
+}
+
+void XB_CDECL nglAdvanceShaderTime(const float* color, float seconds) {
+    float& clock = title_global<float>(0x00901e90);
+    clock = platform_x87_add(clock, seconds);
+    std::memcpy(&title_global<float>(0x00901ea0), color, 16);
+    nglSetSceneTime(clock);
+}
+
+void XB_CDECL nglGetSceneFogColor(float* out) {
+    float* kept = &title_global<float>(0x00901eb0);
+    std::memcpy(kept, current_scene()->fog_color, 16);
+    std::memcpy(out, kept, 16);
+}
+
+void* XB_CDECL nglAllocSceneMemory(uint32_t size, uint32_t align) {
+    return alloc_frame(title_global<uintptr_t>(0x009025a8), size, align);
+}
+
+void XB_CDECL nglListAddTranslucent(NglNode* node) {
+    node->next = current_scene()->translucent_nodes;
+    current_scene()->translucent_nodes = node;
+    ++current_scene()->translucent_count;
+}
+
+void XB_CDECL nglListAddText(const uint8_t* font, const char* text, float x, float y, float z, uint32_t color,
+                             float scale_x, float scale_y) {
+    if (current_scene()->stale) nglUpdateScene(0);
+    if (!text || !*text || !font || !*reinterpret_cast<const uint32_t*>(font + 0x24)) return;
+    auto* node = alloc_scene_memory<uint32_t>(0x2c);
+    if (!node) return;
+    node[0] = 0x007bd0cc;  // vtable
+    const uint32_t size = static_cast<uint32_t>(std::strlen(text)) + 1;
+    char* copy = static_cast<char*>(nglAllocSceneMemory(size, 0x10));
+    node[3] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy));
+    std::memcpy(copy, text, size);
+    auto set_float = [node](int index, float value) { std::memcpy(&node[index], &value, 4); };
+    set_float(5, x);
+    set_float(6, y);
+    set_float(8, scale_x);
+    node[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(font));
+    node[10] = color;
+    set_float(7, z);
+    set_float(9, scale_y);
+    set_float(2, z);
+    nglListAddTranslucent(reinterpret_cast<NglNode*>(node));
+}
+
+void XB_CDECL nglListAddCustomNode(uint32_t a, uint32_t b, const uint32_t* data) {
+    nglUpdateScene(0);
+    auto* node = alloc_scene_memory<uint32_t>(0x20);
+    if (!node) return;
+    node[0] = 0x007bc6a0;  // vtable
+    node[6] = data[0];
+    node[7] = data[1];
+    node[3] = 1;
+    node[4] = a;
+    node[5] = b;
+    nglListAddNode(reinterpret_cast<NglNode*>(node));
+}
+
+namespace {
+
+template <typename Entry>
+void render_list(NglNode* nodes, uint32_t count, uint32_t pred,
+                 void XB_CDECL (*sort)(Entry*, Entry*, int32_t, uint32_t)) {
+    Entry* const first = alloc_scene_memory<Entry>(count * sizeof(Entry));
+    Entry* const last = first + count;
+    Entry* entry = first;
+    for (NglNode* node = nodes; node; node = node->next, ++entry) {
+        entry->value = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node));
+        std::memcpy(&entry->key, &node->sort_key, 4);
+    }
+    sort(first, last, static_cast<int32_t>(last - first), pred);
+    NglNode* head = nullptr;
+    entry = last;
+    for (uint32_t i = count; i != 0; --i) {
+        --entry;
+        NglNode* node = reinterpret_cast<NglNode*>(static_cast<uintptr_t>(entry->value));
+        node->next = head;
+        head = node;
+    }
+    for (NglNode* node = head; node; node = node->next) {
+        reinterpret_cast<void XB_THISCALL (*)(NglNode*)>(node->vtable[0])(node);
+        title_global<NglNode*>(0x009025b4) = node;
+    }
+}
+
+}  // namespace
+
+void XB_CDECL nglRenderOpaqueList(NglNode* nodes, uint32_t count, uint32_t pred) {
+    render_list<NglOpaqueNode>(nodes, count, pred, &nglSortOpaqueNodes_r);
+}
+
+void XB_CDECL nglRenderTranslucentList(NglNode* nodes, uint32_t count, uint32_t pred) {
+    render_list<NglTranslucentNode>(nodes, count, pred, &nglSortTranslucentNodes_r);
+}
+
+void XB_CDECL nglRenderSceneTree() {
+    uintptr_t& frame_memory = title_global<uintptr_t>(0x00903c34);
+    const uintptr_t saved_frame_memory = frame_memory;
+    title_function<void XB_CDECL()>(0x0006ab10)();  // nglAllocSceneRenderTargets
+    NglScene* const scene = current_scene();
+    for (NglScene* child = scene->first_child; child; child = child->next_sibling) {
+        current_scene() = child;
+        nglRenderSceneTree();
+    }
+    current_scene() = scene;
+    if (scene->stale) nglUpdateScene(0);
+    title_function<void XB_CDECL(NglScene*)>(0x00073ed0)(current_scene());  // nglBeginSceneRender
+    using Callback = void XB_CDECL(void*);
+    auto run_callback = [](int which) {
+        const NglScene::Callback& callback = current_scene()->callbacks[which];
+        if (callback.function) reinterpret_cast<Callback*>(callback.function)(callback.arg);
+    };
+    run_callback(0);
+    // Depth writes (render-state cache +0x74, the pushed state at 0x003f8428).
+    uint8_t& z_write = title_global<uint8_t>(0x00902f7c);
+    const uint8_t depth_write = current_scene()->depth_enable;
+    if (z_write != depth_write) {
+        title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(0x0004035c, depth_write);  // SetRenderState_Simple
+        title_global<uint32_t>(0x003f8428) = depth_write;
+        z_write = depth_write;
+    }
+    nglRenderOpaqueList(current_scene()->opaque_nodes, current_scene()->opaque_count, 0);
+    run_callback(1);
+    if (current_scene()->translucent_count != 0) {
+        if (z_write != 0) {
+            title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(0x0004035c, 0);  // SetRenderState_Simple
+            title_global<uint32_t>(0x003f8428) = 0;
+            z_write = 0;
+        }
+        nglRenderTranslucentList(current_scene()->translucent_nodes, current_scene()->translucent_count, 0);
+    }
+    run_callback(2);
+    title_function<void XB_CDECL()>(0x0006acb0)();  // nglFreeSceneRenderTargets
+    frame_memory = saved_frame_memory;
+    NglRenderTarget* target = current_scene()->render_target;
+    if (target->levels > 1) title_function<void XB_CDECL(NglRenderTarget*)>(0x00063870)(target);  // nglGenerateRenderTargetMips
+}
+
 }  // namespace game

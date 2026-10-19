@@ -136,4 +136,33 @@ void XB_CDECL DObj_TraceBoneBoxes(const DObj* obj, const float* start, const flo
 // lods, unbounded as in the original), 0 when it has no parts.
 uint32_t XB_CDECL XModel_GetBoneCount(const XModel* model);
 
+// 0x00014260: the parts of an LOD of a model; lod < 0 = the first LOD it has. EAX =
+// lod, EDX = model.
+XModelParts* XB_REGS2 XModel_GetLodParts(int32_t lod, const XModel* model);
+// 0x00014610 / 0x00029490: forced_lod / min_lod = the first model's LOD `lod` when it
+// has one, else the nearest coarser one, else the nearest finer one; -1 when none
+// (from 5 on nothing is looked up). EAX = lod, EDX = obj.
+void XB_REGS2 DObj_SetForcedLod(int32_t lod, DObj* obj);
+void XB_REGS2 DObj_SetMinLod(int32_t lod, DObj* obj);
+// 0x00029520: the coarsest LOD (4 down to 0) the first model has; without one the
+// debug break 0x00042460, then -1. EDX = obj (EAX unused).
+int32_t XB_REGS2 DObj_GetCoarsestLod(uint32_t unused_eax, const DObj* obj);
+// 0x00240f00: every model's base skeleton (XModel_CalcSkeleton) into the object's bone
+// matrices (+0x20, from +0x30 + matrix offset * 0x40), each model hanging from its
+// attach bone's matrix (none for 0xff).
+void XB_CDECL DObj_CalcBasePose(const DObj* obj);
+// 0x00240d70: the skeleton again after bone `bone` (counted over all models) changed:
+// its model recomputes the bone's descendants (XModel_CalcBoneChildren, with the bone
+// index in that model), the models after it their whole skeletons. A bone past the
+// last model counts as model 0's (as in the original).
+void XB_CDECL DObj_CalcAnimatedSkeleton(const DObj* obj, int32_t bone);
+
+// 0x0001d0f0: the distance LOD (lod) of an object, taken as given when it is the last
+// of the first model's LOD table at parts +0x38 (whose first word is 0x00903fdc), else
+// the first model's LOD `lod`, the nearest finer one or the nearest coarser one (-1
+// when none). Nothing without a first model. EDI = obj, ESI = lod: entered through
+// DObj_SetLod_entry (from G_UpdateEntityLOD).
+extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_SetLod(DObj* obj, int32_t lod);
+extern "C" void DObj_SetLod_entry(void);
+
 }  // namespace game

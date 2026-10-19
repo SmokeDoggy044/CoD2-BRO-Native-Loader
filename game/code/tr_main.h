@@ -215,6 +215,62 @@ static_assert(sizeof(RStaticModel) == 0xa0);
 // is not 1, and an instance block with the light set. EAX = model.
 void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model);
 
+// The world's light grid (one per level): areas of samples (one word per point: 5-bit
+// r, g, b, then a count of light references in bits 15..16 and their first index from
+// bit 17) and the lights they refer to.
+struct RGridLight {
+    float origin[3];      // the position, or the direction of a directional light
+    float point;          // +0x0c, 0 = directional
+    float color[3];       // +0x10
+};
+struct RLightGridArea {
+    float origin[3];
+    float cell_size[2];   // +0x0c
+    uint16_t width;       // +0x14
+    uint16_t height;      // +0x16
+    int32_t first;        // +0x18, its first sample
+    int32_t cell;         // +0x1c
+};
+struct RLightGrid {
+    RGridLight* lights;
+    uint32_t unknown04;
+    const uint32_t* samples;    // +0x08
+    uint32_t unknown0c;
+    const uint16_t* references; // +0x10, pairs {light, weight 0..65535}
+    uint32_t unknown14;
+    RLightGridArea* areas;      // +0x18
+    int32_t area_count;         // +0x1c
+};
+#if UINTPTR_MAX == 0xFFFFFFFF
+static_assert(sizeof(RGridLight) == 0x1c);
+static_assert(sizeof(RLightGridArea) == 0x20);
+static_assert(sizeof(RLightGrid) == 0x20);
+#endif
+// 0x00242e90: the lighting at a point (16 bytes, 16-byte aligned) of the cell's light
+// grid area: the four samples around it blended (bilinear) as the ambient, then their
+// light references merged (weights blended the same way, x87 + _ftol) and up to the
+// three strongest added as directional lights (a point light's direction from the
+// point, normalized with RSQRTSS and a Newton step), each colour times its weight /
+// 65535 also added to the ambient (times 0x008db118). Without an area for the cell:
+// blue ambient. Everything goes into `out` (optional) as well. EAX = cell.
+void XB_REGS1 XB_STDCALL R_SampleLightGrid(int32_t cell, const RLightGrid* grid, const float* point,
+                                           RCachedLighting* out);
+
+// An entity's lighting cache (the refEntity's +8).
+struct REntityLighting {
+    int32_t valid;
+    float timer;          // +0x04, seconds until the next look-up (counted down by 0x008ddaa0)
+    float origin[3];      // +0x08, where it was looked up
+    RCachedLighting lighting; // +0x14
+};
+static_assert(sizeof(REntityLighting) == 0x78);
+// 0x00243770: an entity's lighting: the cached copy while its timer runs or it has not
+// moved, else the light grid at origin (cached again for 0.14..0.22 s, picked with
+// the title's LCG at 0x008d5a70), else the default lighting. EAX = cache, EDI = origin
+// (16 bytes): entered through R_SetupEntityLighting_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_SetupEntityLighting(REntityLighting* cache, const float* origin);
+extern "C" void R_SetupEntityLighting_entry(void);
+
 // 0x0023cc80: the cell containing a point (16-byte aligned, 4 lanes: the w lane is
 // multiplied too), down the world's cell tree (0x0095f6b8 +0xc); -1 outside. EDX = point.
 int32_t XB_REGS2 CM_CellForPoint(uint32_t unused, const float* point);
@@ -351,6 +407,11 @@ extern "C" void R_AddEntityModel_entry(void);
 // (unless too far away horizontally while 0x0095f550 is set), then the live animated
 // objects of the handle table at 0x00960070 (R_AddDObjSurfaces).
 void XB_CDECL R_AddEntitySurfaces();
+// 0x0023bd90: once the renderer is registered (0x0095e390): the frame count
+// (0x0095e398) up, nglBeginFrame, the shader clock advanced by the frame time with the
+// colour at 0x0095e41c (r g b r), colour and depth clears with the fog colour, and the
+// full-screen viewport.
+void XB_CDECL RE_BeginFrame();
 // 0x00247350: Q3's R_RenderView: the view parameters (EBX, 0x1c8 bytes) into
 // tr.viewParms, orientation and frustum, then the NGL scenes: the world view (sky mesh,
 // effects, local/packet entities, world surfaces, entity surfaces), then the view
