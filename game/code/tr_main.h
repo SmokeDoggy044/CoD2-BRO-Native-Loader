@@ -215,4 +215,39 @@ static_assert(sizeof(RStaticModel) == 0xa0);
 // is not 1, and an instance block with the light set. EAX = model.
 void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model);
 
+// 0x0023cc80: the cell containing a point (16-byte aligned, 4 lanes: the w lane is
+// multiplied too), down the world's cell tree (0x0095f6b8 +0xc); -1 outside. EDX = point.
+int32_t XB_REGS2 CM_CellForPoint(uint32_t unused, const float* point);
+// 0x0023cd30: the cell of the view origin (0x0095e240); ERR_DROP without a world.
+int32_t XB_CDECL R_CellForViewOrigin();
+// 0x0023cda0: a fixed directional light (function statics: direction (0, a, a) and a
+// colour, times 0x0083ef60) and the colour times 0x008db118 as ambient.
+void XB_CDECL R_SetDefaultLighting();
+// 0x0023e510: the light grid of the cell at position + 0x0083eb94 up (then once more
+// higher), or null (no cell, or the cell has none; blue ambient when its grid is not
+// loaded). *cell_out (optional) = the cell. EAX = position, ECX = cell_out.
+void* XB_REGS3 R_GetCellLighting(const float* position, uint32_t unused, int32_t* cell_out);
+// 0x00236d30: removes every cell model link whose model's +0xe0 is `owner`.
+void XB_CDECL R_UnlinkEntityFromCells(const void* owner);
+// 0x00236dc0: links a model into a cell of the owner's world (+0x100) unless it is
+// already the cell's first link. EAX = owner, ECX = cell, EDI = model: entered through
+// R_LinkEntityToCell_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_LinkEntityToCell(const uint8_t* owner, uint32_t cell, uint8_t* model);
+extern "C" void R_LinkEntityToCell_entry(void);
+// 0x0023d690: links a model into every cell its box touches, from a node of the cell tree.
+void XB_CDECL R_LinkEntityToCells_r(const uint8_t* owner, const uint8_t* node, uint8_t* model, const float* mins,
+                                    const float* maxs);
+// 0x00243fd0: the cell's linked static models not added this frame (stamp +0xe4, a
+// float). EAX = cell.
+void XB_REGS1 XB_CDECL R_AddCellModels(const uint8_t* cell);
+// 0x0023fee0: once a frame, the cell's world meshes (+0x44, count +0x40) and, with the
+// cvar at 0x0095e36c set, its entities. ESI = cell: entered through R_AddCellSurfaces_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddCellSurfaces(uint8_t* cell, const uint8_t* planes, int32_t count);
+extern "C" void R_AddCellSurfaces_entry(void);
+// 0x00245930: adds a cell, then recurses through each portal (0x24 bytes: plane,
+// target cell +0x14, visiting flag +0x20) facing the viewer and inside the frustum,
+// with the frustum clipped to it (R_ClipFrustumToPortal, 0x0023cb30).
+void XB_CDECL R_VisitCell_r(uint8_t* cell, const uint8_t* from_portal, const uint8_t* planes, int32_t count,
+                            uint32_t pass);
+
 }  // namespace game

@@ -354,6 +354,8 @@ const Function kFunctions[] = {
     {"RE_LoadWorldMap", 0x00236230, 0, code(&RE_LoadWorldMap), 0, Result::None, Status::Compare},
     {"R_SetupFog", 0x002369c0, 0, code(&R_SetupFog), 0, Result::None, Status::Compare},
     {"FX_FindEvictableEffect", 0x00236b40, 0, code(&FX_FindEvictableEffect), 4, Result::Eax, Status::Compare},
+    {"R_UnlinkEntityFromCells", 0x00236d30, 0, code(&R_UnlinkEntityFromCells), 4, Result::None, Status::Compare},
+    {"R_LinkEntityToCell", 0x00236dc0, 0, code(&R_LinkEntityToCell_entry), 0, Result::None, Status::Compare},
     {"R_SetupProjection", 0x00236fb0, 0, code(&R_SetupProjection), 0, Result::None, Status::Compare},
     {"R_RotateForEntity", 0x00237120, 0, code(&R_RotateForEntity_entry), 0, Result::None, Status::Compare},
     {"R_DrawPic", 0x00237590, 0, code(&R_DrawPic), 20, Result::None, Status::Compare},
@@ -377,7 +379,15 @@ const Function kFunctions[] = {
     {"R_ClipPolygonToPlane", 0x0023bb70, 0, code(&R_ClipPolygonToPlane), 12, Result::Eax, Status::Compare},
     {"DObj_GetBounds", 0x0023be90, 0, code(&DObj_GetBounds), 4, Result::None, Status::Compare},
     {"R_ApplyCachedLighting", 0x0023c380, 0, code(&R_ApplyCachedLighting_entry), 0, Result::None, Status::Compare},
+    {"CM_CellForPoint", 0x0023cc80, 0, code(&CM_CellForPoint), 0, Result::Eax, Status::Compare},
+    {"R_CellForViewOrigin", 0x0023cd30, 0, code(&R_CellForViewOrigin), 0, Result::Eax, Status::Compare},
+    {"R_SetDefaultLighting", 0x0023cda0, 0, code(&R_SetDefaultLighting), 0, Result::None, Status::Compare},
+    {"R_LinkEntityToCells_r", 0x0023d690, 0, code(&R_LinkEntityToCells_r), 20, Result::None, Status::Compare},
+    {"R_GetCellLighting", 0x0023e510, 0, code(&R_GetCellLighting), 0, Result::Eax, Status::Compare},
+    {"R_AddCellSurfaces", 0x0023fee0, 0, code(&R_AddCellSurfaces_entry), 8, Result::None, Status::Compare},
     {"R_AddStaticModel", 0x002438b0, 0, code(&R_AddStaticModel), 0, Result::None, Status::Compare},
+    {"R_AddCellModels", 0x00243fd0, 0, code(&R_AddCellModels), 0, Result::None, Status::Compare},
+    {"R_VisitCell_r", 0x00245930, 0, code(&R_VisitCell_r), 20, Result::None, Status::Compare},
 };
 
 }  // namespace

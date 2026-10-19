@@ -674,15 +674,13 @@ void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model) {
     if (model->lighting_state == 0) {
         model->lighting_state = 1;
         int32_t index;
-        auto get_cell_lighting =
-            title_function<void* XB_REGS3(const float*, uint32_t, int32_t*)>(0x0023e510);  // EAX, ECX
-        void* grid = get_cell_lighting(position, 0, &index);
+        void* grid = R_GetCellLighting(position, 0, &index);
         // Not in a cell: try a little higher, then higher still.
         const uint32_t raises[2] = {0x0083f0d8, 0x0083ef04};
         for (int i = 0; !grid && i < 2; ++i) {
             const Lanes raise = {{0.0f, 0.0f, title_global<float>(raises[i]), 0.0f}};
             alignas(16) const Lanes raised = add(lanes(position), raise);
-            grid = get_cell_lighting(raised.v, 0, &index);
+            grid = R_GetCellLighting(raised.v, 0, &index);
         }
         if (!grid) model->lighting_state = 0;
         if (grid && index >= 0) {
@@ -745,6 +743,248 @@ void XB_REGS1 XB_CDECL R_AddStaticModel(RStaticModel* model) {
         // The instance block is handed over by the address of the pointer to it.
         const uint32_t params_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(params));
         nglListAddMesh(mesh, matrix[0].v, scale_params, &params_word);
+    }
+}
+
+namespace {
+
+// The world's cells (0x0095f6b8, or +0x100 of the client's world record): count at +0x18,
+// 0x50-byte cells at +0x1c; an index past the end reads cell 0.
+uint8_t* world_cell(const uint8_t* world, uint32_t index) {
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(world + 0x18);
+    uint8_t* cells = *reinterpret_cast<uint8_t* const*>(world + 0x1c);
+    return cells + (index < count ? index : 0) * 0x50;
+}
+
+// A cell's model links (+0x34), from the pool at 0x0095f6d4.
+struct RCellModelLink {
+    uint8_t* model;
+    RCellModelLink* next;
+};
+
+// A BSP node of the cell tree: -1 at +0 with a negative +2 is a split, else +2 is the cell.
+struct RCellNode {
+    int16_t kind;
+    int16_t cell;
+    const float* plane;  // normal, dist (16-byte aligned)
+    RCellNode* children[2];
+};
+
+}  // namespace
+
+int32_t XB_REGS2 CM_CellForPoint(uint32_t, const float* point) {
+    const RCellNode* node = *reinterpret_cast<RCellNode* const*>(title_global<uint8_t*>(0x0095f6b8) + 0xc);
+    if (node->kind == -1) {
+        while (node->cell < 0) {
+            const Lanes products = mul(lanes(point), lanes(node->plane));
+            platform_keep(products);
+            const float d = products.v[0] + products.v[1] + products.v[2] - node->plane[3];
+            node = node->children[d > 0.0f ? 0 : 1];
+            if (node->kind != -1) break;
+        }
+    }
+    return node->cell;
+}
+
+int32_t XB_CDECL R_CellForViewOrigin() {
+    const float* view = &title_global<float>(0x0095e240);
+    alignas(16) const float point[4] = {view[0], view[1], view[2], view[0]};
+    if (!title_global<uint32_t>(0x0095e608))
+        title_function<void XB_CDECL(int32_t, const char*, ...)>(title_global<uint32_t>(0x0095e634))(
+            1, reinterpret_cast<const char*>(0x0083c4dc));
+    return CM_CellForPoint(0, point);
+}
+
+void XB_CDECL R_SetDefaultLighting() {
+    // Function statics: a direction (0, a, a) and a colour, built on first use.
+    uint32_t& guards = title_global<uint32_t>(0x0098bc80);
+    float* direction = &title_global<float>(0x0098bc70);
+    float* colour = &title_global<float>(0x0098bc60);
+    if (!(guards & 1)) {
+        guards |= 1;
+        const float a = title_global<float>(0x0083ef70);
+        direction[0] = 0.0f;
+        direction[1] = a;
+        direction[2] = a;
+        direction[3] = 0.0f;
+    }
+    if (!(guards & 2)) {
+        guards |= 2;
+        colour[0] = title_global<float>(0x0083ef64);
+        colour[1] = title_global<float>(0x0083ef68);
+        colour[2] = title_global<float>(0x0083ef6c);
+        colour[3] = 0.0f;
+    }
+    alignas(16) const Lanes light = mul(lanes(colour), title_global<float>(0x0083ef60));
+    nglAddDirectionalLight(0xffffffff, direction, light.v);
+    const Lanes ambient = mul(lanes(colour), title_global<float>(0x008db118));
+    platform_keep(ambient);
+    nglSetAmbientColor(ambient.v[0], ambient.v[1], ambient.v[2]);
+}
+
+void* XB_REGS3 R_GetCellLighting(const float* position, uint32_t, int32_t* cell_out) {
+    int32_t local;
+    int32_t* cell = cell_out ? cell_out : &local;
+    const Lanes up = {{0.0f, 0.0f, title_global<float>(0x0083eb94), 0.0f}};
+    alignas(16) Lanes point = add(lanes(position), up);
+    *cell = CM_CellForPoint(0, point.v);
+    if (*cell == -1) {
+        // Not in a cell: try again a little higher.
+        const Lanes higher = {{0.0f, 0.0f, title_global<float>(0x0083ec30), 0.0f}};
+        point = add(point, higher);
+        *cell = CM_CellForPoint(0, point.v);
+    }
+    if (*cell == -1) return nullptr;
+    const uint8_t* bsp = title_global<uint8_t*>(0x0095f640);
+    const uint8_t* level = *reinterpret_cast<uint8_t* const*>(bsp + 4 + *reinterpret_cast<const int32_t*>(bsp + 0x1cc) * 4);
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(level + 0x1c);
+    const uint8_t* const* entries = *reinterpret_cast<uint8_t* const* const*>(level + 0x20);
+    const uint8_t* entry = entries[static_cast<uint32_t>(*cell) < count ? *cell : 0];
+    const uint8_t* info = *reinterpret_cast<uint8_t* const*>(*reinterpret_cast<uint8_t* const*>(entry + 0x2c) + 0x24);
+    const int32_t grid_index = *reinterpret_cast<const int32_t*>(info + 0x28);
+    if (grid_index == -1) return nullptr;
+    void* grid = reinterpret_cast<void* const*>(title_global<uint8_t*>(0x0095f6a0) + 4)[grid_index];
+    if (!grid) nglSetAmbientColor(0.0f, 0.0f, 1.0f);  // no grid loaded: blue ambient
+    return grid;
+}
+
+void XB_CDECL R_UnlinkEntityFromCells(const void* owner) {
+    const uint8_t* world = title_global<uint8_t*>(0x0095f6b8);
+    if (!world) return;
+    auto free_link = title_function<void XB_THISCALL(void*, void*)>(0x00044910);
+    for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(world + 0x18); ++i) {
+        RCellModelLink*& head = *reinterpret_cast<RCellModelLink**>(world_cell(world, i) + 0x34);
+        RCellModelLink* prev = nullptr;
+        for (RCellModelLink* link = head; link;) {
+            // The pool is handed every link: null for the ones kept.
+            RCellModelLink* freed = nullptr;
+            if (*reinterpret_cast<void* const*>(link->model + 0xe0) == owner) {
+                freed = link;
+                (prev ? prev->next : head) = link->next;
+            } else {
+                prev = link;
+            }
+            RCellModelLink* next = link->next;
+            free_link(title_global<void*>(0x0095f6d4), freed);
+            link = next;
+        }
+        world = title_global<uint8_t*>(0x0095f6b8);
+    }
+}
+
+PLATFORM_ASM_ENTRY(R_LinkEntityToCell_entry,
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_LinkEntityToCell) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL R_LinkEntityToCell(const uint8_t* owner, uint32_t cell, uint8_t* model) {
+    uint8_t* c = world_cell(*reinterpret_cast<uint8_t* const*>(owner + 0x100), cell);
+    RCellModelLink*& head = *reinterpret_cast<RCellModelLink**>(c + 0x34);
+    if (head && head->model == model) return;  // only the first link is checked
+    auto* link = static_cast<RCellModelLink*>(
+        title_function<void* XB_THISCALL(void*, uint32_t, uint32_t)>(0x00044850)(title_global<void*>(0x0095f6d4), 8, 0));
+    link->model = model;
+    link->next = head;
+    head = link;
+}
+
+void XB_CDECL R_LinkEntityToCells_r(const uint8_t* owner, const uint8_t* node, uint8_t* model, const float* mins,
+                                    const float* maxs) {
+    const RCellNode* n = reinterpret_cast<const RCellNode*>(node);
+    while (n->cell == -2) {
+        const float* plane = n->plane;
+        const Lanes zero = lanes(&title_global<float>(0x0082e680));
+        // The box corner furthest along the normal (CMPLEPS selects: NaN lanes take mins).
+        Lanes far_corner;
+        Lanes near_corner;
+        for (int i = 0; i < 4; ++i) {
+            far_corner.v[i] = zero.v[i] <= plane[i] ? maxs[i] : mins[i];
+            near_corner.v[i] = plane[i] <= zero.v[i] ? maxs[i] : mins[i];
+        }
+        const Lanes fp = mul(far_corner, lanes(plane));
+        const Lanes np = mul(near_corner, lanes(plane));
+        platform_keep(fp);
+        platform_keep(np);
+        const float far_dist = fp.v[0] + fp.v[1] + fp.v[2];
+        const float near_dist = np.v[0] + np.v[1] + np.v[2];
+        uint32_t sides = 0;
+        if (far_dist >= plane[3]) sides = 1;
+        if (plane[3] > near_dist) sides |= 2;
+        if (sides == 3) {
+            R_LinkEntityToCells_r(owner, reinterpret_cast<const uint8_t*>(n->children[0]), model, mins, maxs);
+            n = n->children[1];
+        } else {
+            // Side 0 (only with NaNs) reads the plane pointer as a node, as the title does.
+            n = reinterpret_cast<const RCellNode* const*>(&n->plane)[sides];
+        }
+    }
+    if (n->cell >= 0) R_LinkEntityToCell(owner, static_cast<uint32_t>(n->cell), model);
+}
+
+void XB_REGS1 XB_CDECL R_AddCellModels(const uint8_t* cell) {
+    for (const RCellModelLink* link = *reinterpret_cast<RCellModelLink* const*>(cell + 0x34); link;
+         link = link->next) {
+        float& stamp = *reinterpret_cast<float*>(link->model + 0xe4);
+        const float frame = static_cast<float>(title_global<int32_t>(0x0095e39c));
+        if (stamp != frame) {
+            stamp = frame;
+            R_AddStaticModel(reinterpret_cast<RStaticModel*>(link->model));
+            ++title_global<int32_t>(0x0095c190);
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(R_AddCellSurfaces_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(R_AddCellSurfaces) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL R_AddCellSurfaces(uint8_t* cell, const uint8_t* planes, int32_t count) {
+    int32_t& stamp = *reinterpret_cast<int32_t*>(cell + 0x30);
+    if (stamp == title_global<int32_t>(0x0095e39c)) return;
+    stamp = title_global<int32_t>(0x0095e39c);
+    // The world matrix: three scaled rows and a fixed fourth.
+    const float scale = title_global<float>(0x0082e140);
+    alignas(16) float matrix[16];
+    const uint32_t rows[3] = {0x0082e160, 0x0082e170, 0x0082e180};
+    for (int r = 0; r < 3; ++r) {
+        const Lanes row = mul(lanes(&title_global<float>(rows[r])), scale);
+        std::memcpy(matrix + r * 4, row.v, 16);
+    }
+    std::memcpy(matrix + 12, &title_global<uint32_t>(0x0082e290), 16);
+    const uint32_t& mesh_count = *reinterpret_cast<const uint32_t*>(cell + 0x40);
+    for (uint32_t i = 0; i < mesh_count; ++i) {
+        uint8_t* const* meshes = *reinterpret_cast<uint8_t* const* const*>(cell + 0x44);
+        nglListAddMesh(meshes[i < mesh_count ? i : 0], matrix, nullptr, nullptr);
+    }
+    if (*reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x0095e36c) + 0x20))
+        R_AddCellEntities(cell, planes, count);
+}
+
+void XB_CDECL R_VisitCell_r(uint8_t* cell, const uint8_t* from_portal, const uint8_t* planes, int32_t count,
+                            uint32_t pass) {
+    R_AddCellSurfaces(cell, planes, count);
+    R_AddCellModels(cell);
+    uint8_t* portal = *reinterpret_cast<uint8_t* const*>(cell + 0x20);
+    const float* view = &title_global<float>(0x0095e240);
+    for (int32_t n = *reinterpret_cast<const int32_t*>(cell + 0x24); n; --n, portal += 0x24) {
+        int32_t& visiting = *reinterpret_cast<int32_t*>(portal + 0x20);
+        if (visiting) continue;
+        const float* plane = reinterpret_cast<const float*>(portal);
+        const float d = plane[2] * view[2] + plane[1] * view[1] + plane[0] * view[0];
+        if (d > plane[3]) continue;  // facing away
+        if (R_CullPortal(portal, reinterpret_cast<const float*>(planes), count)) continue;
+        int32_t clipped_count;
+        auto* clipped = title_function<uint8_t* XB_REGS3(int32_t*, const uint8_t*, const uint8_t*, const uint8_t*,
+                                                         int32_t)>(0x0023cb30)(&clipped_count, portal, planes,
+                                                                               from_portal, count);
+        if (!clipped_count) continue;
+        visiting = 1;
+        R_VisitCell_r(*reinterpret_cast<uint8_t* const*>(portal + 0x14), portal, clipped, clipped_count, pass);
+        title_function<void XB_CDECL(void*)>(0x000428d0)(clipped);  // Z_Free
+        visiting = 0;
     }
 }
 
