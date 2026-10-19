@@ -1040,8 +1040,8 @@ address,name,section,module,state,tested,matched
 00048fd0,nglStateCache_SetSrcBlend,.text,renderer,settled,183,183
 00049000,nglStateCache_SetDestBlend,.text,renderer,settled,142,142
 00049030,nglStateCache_SetBlendOp,.text,renderer,settled,193,193
-00049060,cdGlass_InitVertexShaders,.text,renderer,matched,32,32
-000490a0,cdGlass_InitPixelShaders,.text,renderer,matched,32,32
+00049060,cdGlass_InitVertexShaders,.text,renderer,matched,36,36
+000490a0,cdGlass_InitPixelShaders,.text,renderer,matched,36,36
 000490d0,cdGlass_GetName,.text,renderer,settled,103,103
 000490f0,cdGlass_LoadTextures,.text,renderer,settled,105,105
 00049130,nglMaterial_ReleaseTwoTextures,.text,renderer,matched,85,85
@@ -1058,8 +1058,8 @@ address,name,section,module,state,tested,matched
 00049cd0,cdSimpleAlpha_PulseColor,.text,renderer,settled,139,139
 00049e40,cdSimpleAlpha_Draw,.text,renderer,settled,139,139
 0004a7e0,cdSimpleAlpha_AddToList,.text,renderer,settled,100,100
-0004a8a0,cdSimpleAlpha_InitVertexShaders,.text,renderer,matched,7,7
-0004a8e0,cdSimpleAlpha_InitPixelShaders,.text,renderer,matched,4,4
+0004a8a0,cdSimpleAlpha_InitVertexShaders,.text,renderer,matched,11,11
+0004a8e0,cdSimpleAlpha_InitPixelShaders,.text,renderer,matched,8,8
 0004a910,cdSimpleAlpha_InitPixelShaders2,.text,renderer,matched,2,2
 0004a940,cdSimpleAlpha_GetName,.text,renderer,settled,108,108
 0004a960,FUN_0004a960,.text,renderer,unnamed,0,0
@@ -1093,7 +1093,7 @@ address,name,section,module,state,tested,matched
 0004c380,cdPrelit_Register,.text,renderer,named,0,0
 0004c410,cdPrelit_Init,.text,renderer,untested,0,0
 0004c450,cdPrelit_Draw,.text,renderer,settled,100,100
-0004c6c0,cdPrelit_GetName,.text,renderer,matched,38,38
+0004c6c0,cdPrelit_GetName,.text,renderer,matched,39,39
 0004c6e0,nglMaterial_LoadBaseAndOptional,.text,renderer,settled,108,108
 0004c720,nglMaterial_ReleaseBaseAndOptional,.text,renderer,settled,106,106
 0004c750,FUN_0004c750,.text,renderer,unnamed,0,0
@@ -1438,7 +1438,7 @@ address,name,section,module,state,tested,matched
 000674b0,nglMeshNext,.text,renderer,settled,171,171
 000674c0,FUN_000674c0,.text,renderer,unnamed,0,0
 00067510,nglMeshFileFindMesh,.text,renderer,settled,277,277
-00067720,nglReleaseMeshFile,.text,renderer,inconclusive,830,0
+00067720,nglReleaseMeshFile,.text,renderer,inconclusive,849,0
 000677b0,nglRelocateMesh,.text,renderer,settled,253,207
 00067880,nglInitMeshManagers,.text,renderer,named,0,0
 00067950,nglParseMesh,.text,renderer,named,0,0
@@ -1529,7 +1529,7 @@ address,name,section,module,state,tested,matched
 00073ce0,nglMatrixTargetScale,.text,renderer,settled,200,200
 00073e90,nglGetSceneTargetScale,.text,renderer,settled,251,251
 00073ed0,nglBeginSceneRender,.text,renderer,named,0,0
-00074330,nglRenderSceneTree,.text,renderer,inconclusive,18183,0
+00074330,nglRenderSceneTree,.text,renderer,inconclusive,20186,0
 000744f0,std_PushHeap_OpaqueNodes,.text,renderer,untested,0,0
 00074540,std_Rotate_NodeKeys,.text,renderer,settled,4032,4032
 00074600,std_PushHeap_TranslucentNodes,.text,renderer,untested,0,0
@@ -1550,7 +1550,7 @@ address,name,section,module,state,tested,matched
 00075280,nglSortOpaqueNodes_r,.text,renderer,settled,280,280
 00075370,nglSortTranslucentNodes_r,.text,renderer,settled,281,281
 00075460,nglRenderOpaqueList,.text,renderer,settled,360,297
-000754f0,nglRenderTranslucentList,.text,renderer,mismatched,7974,572
+000754f0,nglRenderTranslucentList,.text,renderer,mismatched,8840,624
 00075780,nglSetDefaultRenderStates,.text,renderer,named,0,0
 00075ac0,nglSetBlendMode,.text,renderer,settled,284,284
 00075d90,nglRestoreRenderStates,.text,renderer,named,0,0
@@ -1601,7 +1601,7 @@ address,name,section,module,state,tested,matched
 0007b1a0,FUN_0007b1a0,.text,renderer,unnamed,0,0
 0007b1b0,nglPaletteSetEntry,.text,renderer,untested,0,0
 0007b1d0,nglSetPaletteCached,.text,renderer,untested,0,0
-0007b220,nglSwapRedBlue,.text,renderer,matched,78,78
+0007b220,nglSwapRedBlue,.text,renderer,matched,79,79
 0007b250,FUN_0007b250,.text,renderer,unnamed,0,0
 0007b2a0,nglSwizzleTextureLevels,.text,renderer,named,0,0
 0007b670,nglDebugShader_Draw,.text,renderer,untested,0,0
@@ -6937,7 +6937,7 @@ address,name,section,module,state,tested,matched
 0023ba80,FUN_0023ba80,.text,unassigned,unnamed,0,0
 0023ba90,R_AddCellEntityLink,.text,renderer,settled,300,300
 0023bb70,R_ClipPolygonToPlane,.text,renderer,settled,1021,1021
-0023bd90,RE_BeginFrame,.text,renderer,inconclusive,389,0
+0023bd90,RE_BeginFrame,.text,renderer,inconclusive,619,0
 0023be90,DObj_GetBounds,.text,renderer,settled,400,400
 0023bf30,R_DrawTextWithShadow,.text,renderer,named,0,0
 0023c040,FX_SpawnEffect,.text,renderer,named,0,0
@@ -6983,7 +6983,7 @@ address,name,section,module,state,tested,matched
 00240c00,DObj_CreateSkeleton,.text,renderer,named,0,0
 00240ce0,DObj_Free,.text,renderer,named,0,0
 00240d70,DObj_CalcAnimatedSkeleton,.text,renderer,untested,0,0
-00240f00,DObj_CalcBasePose,.text,renderer,matched,8,8
+00240f00,DObj_CalcBasePose,.text,renderer,matched,13,13
 00240f70,FUN_00240f70,.text,unassigned,unnamed,0,0
 00241200,FX_PlayEffectAt,.text,renderer,named,0,0
 00241290,R_RenderTestShadow,.text,renderer,named,0,0
@@ -7011,7 +7011,7 @@ address,name,section,module,state,tested,matched
 00246d60,R_AddEntitySurfaces,.text,renderer,settled,204,204
 00246fa0,R_AddWorldSurfaces,.text,renderer,settled,313,313
 00247190,FX_PlayBoltedEffect,.text,renderer,named,0,0
-00247350,R_RenderView,.text,renderer,mismatched,2416,596
+00247350,R_RenderView,.text,renderer,mismatched,2637,652
 002476b0,RE_RenderScene,.text,renderer,named,0,0
 00247980,GetRefAPI,.text,unassigned,named,0,0
 00247ad0,FUN_00247ad0,.text,unassigned,unnamed,0,0

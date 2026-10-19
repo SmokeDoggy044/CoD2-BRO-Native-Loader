@@ -13,11 +13,14 @@ usage: tools/compare_batch.py [FUNCTION ...] [options]
                  added or changed in game/code/functions.cpp since HEAD; with none,
                  every function whose counts changed)
   --missions L   comma-separated missions (default 1,4,5,6)
-  --seconds S    length of each run (default 170)
+  --seconds S    length of each run (default 200: mission 1's intro ends at ~95 s)
   --all          --compare-all (also tests settled functions: a module's final check)
   --only         XBCMP_ONLY=the reported functions (keeps testing past 100 matches)
   --every N      XBCMP_EVERY=N (test every N-th call instead of every 64th)
-  --press LIST   scripted presses for every run (default none)
+  --press LIST   scripted presses for every run (default A every 4 s from 10 s to 86 s:
+                 past the movie and "Press A to start" into the level, checked for
+                 missions 1/4/5/6 on 2026-10-19; 'none' for no presses)
+  --screenshots N  save every N-th frame as DIR/m<N>/frame_<n>.bmp
   --preset P     build preset (default linux-loader)
   --out DIR      run folders (default build/compare/<date-time>)
   --no-build     skip the build
@@ -118,8 +121,10 @@ def start_runs(args, out, reported):
         (folder / "data").mkdir(parents=True)
         command = ["timeout", "-s", "INT", "-k", "15", str(args.seconds), str(loader), "--data", str(folder / "data"),
                    "--silent", "--level", str(mission), "--compare-all" if args.all else "--compare"]
-        if args.press:
+        if args.press != "none":
             command += ["--press", args.press]
+        if args.screenshots:
+            command += ["--screenshots", str(args.screenshots), str(folder)]
         if i:
             time.sleep(args.stagger)
         log = open(folder / "stdout.txt", "w")
@@ -216,12 +221,13 @@ def main():
     parser = argparse.ArgumentParser(usage=__doc__)
     parser.add_argument("functions", nargs="*")
     parser.add_argument("--missions", default="1,4,5,6")
-    parser.add_argument("--seconds", type=int, default=170)
+    parser.add_argument("--seconds", type=int, default=200)
     parser.add_argument("--stagger", type=float, default=5)
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--only", action="store_true")
     parser.add_argument("--every", type=int)
-    parser.add_argument("--press")
+    parser.add_argument("--press", default=",".join(f"a@{t}" for t in range(10, 90, 4)))
+    parser.add_argument("--screenshots", type=int)
     parser.add_argument("--preset", default="linux-loader")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--no-build", action="store_true")
