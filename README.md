@@ -131,6 +131,9 @@ the original game files for its maps, models, sounds and textures.
   file: callers, callees, globals and constants, strings, which registers and stack
   slots it takes, and the traps to watch for (float instructions, code the harness
   cannot hook), with the disassembly named inline.
+- **`tools/scaffold.py`**: writes a batch's declarations, stubs (with the asm entry
+  for register arguments and the callees as ready calls) and registrations from the
+  same analysis; an `#error` in each stub marks the body still to write.
 - **`tools/compare_batch.py`**: builds the loader, runs the comparison in several
   missions at once and prints one line per function.
 - **The Quake III Arena and Return to Castle Wolfenstein source code** (GPL), the

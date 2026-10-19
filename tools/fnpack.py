@@ -161,7 +161,10 @@ def disassemble(image, va, length):
         elif m and rows:  # continuation of a long instruction's bytes
             address, size, text = rows[-1]
             rows[-1] = (address, size + len(m.group(2).split()), text)
-    while rows and rows[-1][2] in ("int3", "nop", "xchg ax,ax", "lea esi,[esi+0x0]"):
+    pad = next((i for i, row in enumerate(rows) if row[2] == "int3"), None)
+    if pad:  # MSVC pads between functions with int3: an unnamed next function starts after it
+        rows = rows[:pad]
+    while rows and rows[-1][2] in ("nop", "xchg ax,ax", "lea esi,[esi+0x0]"):
         rows.pop()
     return rows
 
@@ -189,18 +192,31 @@ def regs_in(operand):
     return found
 
 
-def convention(rows):
-    """Registers read before written, stack arguments, ret N, the result's last writes."""
+def convention(rows, callee_pops=None):
+    """Registers read before written, stack arguments, ret N, the result's last writes.
+    callee_pops(address) -> bytes a callee pops (ret N), or None when unknown: keeps
+    counting stack slots past calls; without it the count stops at the first call."""
     written, read_first, saved = set(), [], set()
-    stack_args, esp_delta, before_call, ebp_delta = set(), 0, True, None
+    stack_args, esp_delta, ebp_delta, esp_aligned = set(), 0, None, False
     ret_sizes, result_writes, last_eax = set(), [], None
+    known = {}  # esp distance at branch targets, for the code after a ret or jmp
     for address, _, text in rows:
         mnemonic, ops = split_operands(text)
         mnemonic = mnemonic.replace("rep", "").strip() or mnemonic
+        if esp_delta is None:
+            esp_delta = known.get(address)
+        if mnemonic.startswith("j") and ops and esp_delta is not None:
+            try:
+                known.setdefault(int(ops[0].split()[0], 16), esp_delta)
+            except ValueError:
+                pass
         if mnemonic.startswith("ret"):
             ret_sizes.add(int(ops[0], 16) if ops else 0)
             result_writes.append(last_eax)
+            esp_delta = None
             continue
+        if re.fullmatch(r"(mov (\w+),\2|lea (\w+),\[\3\+0x0\]|xchg ax,ax|nop.*)", text):
+            continue  # alignment padding (mov edi,edi; lea ebx,[ebx+0x0])
         reads, writes = set(), set()
         same = len(ops) == 2 and ops[0] == ops[1] and mnemonic in ("xor", "sub", "xorps", "pxor", "subps", "sbb")
         for i, op in enumerate(ops):
@@ -210,8 +226,9 @@ def convention(rows):
             if "[" in op:
                 reads |= regs_in(op)
                 m = re.search(r"\[(esp|ebp)(?:\+(0x[0-9a-f]+))?\]", op)
-                base = esp_delta if m and m.group(1) == "esp" else ebp_delta
-                if m and base is not None and (before_call or m.group(1) == "ebp"):
+                base = esp_delta if m and m.group(1) == "esp" and esp_aligned is False else \
+                    ebp_delta if m and m.group(1) == "ebp" else None
+                if m and base is not None and esp_delta is not None:
                     offset = int(m.group(2) or "0", 16) - base
                     if offset >= 4:
                         stack_args.add((offset - 4) // 4)
@@ -237,16 +254,45 @@ def convention(rows):
             last_eax = f"{address:08x} {text}"
         if mnemonic == "mov" and ops == ["ebp", "esp"]:
             ebp_delta = esp_delta
-        if mnemonic == "push":
+        elif ops and ops[0] == "esp" and mnemonic in ("and", "mov", "lea"):
+            esp_aligned = True  # esp no longer a known distance from the entry
+        elif ops and ops[0] == "ebp" and ebp_delta is not None and not (mnemonic == "push"):
+            ebp_delta = None  # ebp reused as a general register
+        if esp_delta is None:
+            pass
+        elif mnemonic == "jmp":
+            esp_delta = None
+        elif mnemonic == "push":
             esp_delta += 4
         elif mnemonic == "pop":
             esp_delta -= 4
         elif mnemonic in ("sub", "add") and ops and ops[0] == "esp" and re.match(r"0x[0-9a-f]+$", ops[1]):
             esp_delta += int(ops[1], 16) * (1 if mnemonic == "sub" else -1)
         elif mnemonic == "call":
-            before_call = False
+            if esp_delta is not None:
+                try:
+                    pops = callee_pops(int(ops[0].split()[0], 16)) if callee_pops else None
+                except ValueError:
+                    pops = None  # indirect: unknown
+                esp_delta = None if pops is None else esp_delta - pops
+        if mnemonic == "call":
             written |= {"eax", "ecx", "edx"} | {f"xmm{i}" for i in range(8)}
     return read_first, sorted(stack_args), ret_sizes, result_writes
+
+
+def pops_reader(image, starts):
+    """callee_pops for convention(): a callee's ret N, from its own disassembly."""
+    cache = {}
+
+    def pops(target):
+        if target not in cache:
+            i = bisect.bisect_right(starts, target)
+            end = starts[i] if i < len(starts) else target + 0x400
+            rets = {int(split_operands(t)[1][0], 16) if split_operands(t)[1] else 0
+                    for _, _, t in disassemble(image, target, min(end - target, 0x4000)) if t.startswith("ret")}
+            cache[target] = rets.pop() if len(rets) == 1 else None
+        return cache[target]
+    return pops
 
 
 def hook_problem(rows, va):
@@ -366,7 +412,7 @@ def pack(image, functions, data, sorted_starts, states, ours, patch_sites, va, a
     if strings:
         out.append("strings: " + "; ".join(f"{a:08x} \"{s}\"" for a, s in sorted(strings.items())[:10]))
 
-    read_first, stack_args, ret_sizes, result_writes = convention(rows)
+    read_first, stack_args, ret_sizes, result_writes = convention(rows, POPS)
     regs = [f"{r}{' (pushed first: saved, maybe not an argument)' if s else ''}" for r, s in read_first]
     out.append("register inputs (read before written, linear scan): " + (", ".join(regs) or "none"))
     odd = [r for r, s in read_first if r in ("ebx", "esi", "edi") or r.startswith("xmm")]
@@ -378,7 +424,7 @@ def pack(image, functions, data, sorted_starts, states, ours, patch_sites, va, a
         out.append("  EAX/EDX/ECX in order = XB_REGS3/regparm; EDX-only = regparm(2) with a dummy first")
     ret_text = ", ".join(f"ret {n:#x}" if n else "ret" for n in sorted(ret_sizes)) or "no ret (tail jump?)"
     args_text = ", ".join(f"[esp+{4 + 4 * n:#x}]" for n in stack_args) or "none seen"
-    out.append(f"stack: {ret_text}; argument slots read ([esp] before the first call, [ebp] frames): {args_text}")
+    out.append(f"stack: {ret_text}; argument slots read: {args_text}")
     distinct = sorted({w for w in result_writes if w})
     if distinct:
         out.append("last eax/st0 write before each ret: " + "; ".join(distinct[:4]))
@@ -409,6 +455,7 @@ def pack(image, functions, data, sorted_starts, states, ours, patch_sites, va, a
 
 
 CALLERS = {}
+POPS = None
 
 
 def main():
@@ -430,6 +477,8 @@ def main():
                 sys.exit(f"{item}: no such symbol")
     image = Image()
     CALLERS.update(image.code_refs(targets))
+    global POPS
+    POPS = pops_reader(image, sorted(functions))
     states, ours = load_states()
     starts = sorted(functions)
     sites = loader_patch_sites()
