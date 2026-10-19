@@ -244,6 +244,26 @@ void XB_REGS1 XB_CDECL R_AddCellModels(const uint8_t* cell);
 // cvar at 0x0095e36c set, its entities. ESI = cell: entered through R_AddCellSurfaces_entry.
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddCellSurfaces(uint8_t* cell, const uint8_t* planes, int32_t count);
 extern "C" void R_AddCellSurfaces_entry(void);
+// A clip plane of the portal walk: normal, dist, then the byte offsets (0/4/8, +0xc for
+// a positive component) of the box corner furthest along the normal.
+struct RPlane {
+    float normal[3];
+    float dist;
+    uint8_t corner[3];
+    uint8_t pad;
+};
+static_assert(sizeof(RPlane) == 20);
+// 0x00238c50: the planes from the view origin through the edges of a winding of `n`
+// points (16 bytes apart), Z_Malloc'd, pushed 0.005 back; *count = how many. With
+// r_portalbevels (0x0095e6e0, default 0.7) above 0 also the edges of its projected bounds
+// (bevels), unless within that much of an edge plane. EAX = n.
+RPlane* XB_REGS1 XB_CDECL R_ClipPortalWinding(int32_t n, int32_t* count, const float* points);
+// 0x0023cb30: the frustum (planes, Z_Malloc'd) through a portal's winding clipped to
+// `clip_plane`, the near plane (0x0095e2c8) and the current frustum; null with *count =
+// 0 when nothing is left, a copy of the frustum when the view is within 1 of the portal.
+// EAX = count, EDX = portal, ECX = planes.
+RPlane* XB_REGS3 R_ClipFrustumToPortal(int32_t* count, const uint8_t* portal, const RPlane* planes,
+                                       const float* clip_plane, int32_t plane_count);
 // 0x00245930: adds a cell, then recurses through each portal (0x24 bytes: plane,
 // target cell +0x14, visiting flag +0x20) facing the viewer and inside the frustum,
 // with the frustum clipped to it (R_ClipFrustumToPortal, 0x0023cb30).

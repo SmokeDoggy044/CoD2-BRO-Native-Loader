@@ -963,6 +963,194 @@ void XB_CDECL R_AddCellSurfaces(uint8_t* cell, const uint8_t* planes, int32_t co
         R_AddCellEntities(cell, planes, count);
 }
 
+namespace {
+
+void* z_malloc_debug(int32_t size, uint32_t file, uint32_t text, int32_t line) {
+    return title_function<void* XB_CDECL(int32_t, const char*, const char*, int32_t)>(0x00042c20)(
+        size, reinterpret_cast<const char*>(file), reinterpret_cast<const char*>(text), line);
+}
+
+// Q3's Q_rsqrt: one Newton step from the 0x5f3759df guess.
+float q_rsqrt(float x) {
+    int32_t i;
+    std::memcpy(&i, &x, 4);
+    const float y = from_bits(static_cast<uint32_t>(0x5f3759df - (i >> 1)));
+    return (title_global<float>(0x0083eaf4) - y * y * (x * title_global<float>(0x0083eb24))) * y;
+}
+
+// The byte offsets of a box corner's coordinates along a plane normal: +0xc (the
+// maxs) where the component's bits are a positive integer, i.e. above +0.
+uint8_t corner_offset(float v, uint8_t base) {
+    int32_t i;
+    std::memcpy(&i, &v, 4);
+    return static_cast<uint8_t>((i > 0 ? 0xc : 0) + base);
+}
+
+void cross(float* out, const float* a, const float* b) {
+    out[0] = a[1] * b[2] - a[2] * b[1];
+    out[1] = a[2] * b[0] - a[0] * b[2];
+    out[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+void set_plane(RPlane* plane, float dist) {
+    plane->dist = dist - title_global<float>(0x0083eb88);  // 0.005
+    plane->corner[0] = corner_offset(plane->normal[0], 0);
+    plane->corner[1] = corner_offset(plane->normal[1], 4);
+    plane->corner[2] = corner_offset(plane->normal[2], 8);
+}
+
+}  // namespace
+
+// MSVC unrolled the loops four times (with a one-at-a-time loop for the rest) and
+// summed in a different order in some of the copies: `unrolled_first(i, n)` is true for
+// the first point of each unrolled group, `unrolled(i, n)` for every point in a group.
+static bool unrolled(int32_t i, int32_t n) { return n >= 4 && i < (((n - 4) >> 2) + 1) * 4; }
+static bool unrolled_first(int32_t i, int32_t n) { return unrolled(i, n) && (i & 3) == 0; }
+
+RPlane* XB_REGS1 XB_CDECL R_ClipPortalWinding(int32_t n, int32_t* count, const float* points) {
+    const float* view = &title_global<float>(0x0095e240);
+    const float threshold = cvar_value(title_global<const Cvar*>(0x0095e6e0));
+    const float zero = title_global<float>(0x0083eafc);
+    const float one = title_global<float>(0x0083eb20);
+    RPlane* planes;
+    float corners[4][3];
+    if (threshold > zero) {
+        planes = static_cast<RPlane*>(z_malloc_debug((n + 4) * 20, 0x0083c4f8, 0x0083c504, 0x17f));
+        // The winding's bounds in the projected view (rows at 0x0095e2d8, w row +0x30).
+        const float* m = &title_global<float>(0x0095e2d8);
+        float a_min = one;
+        float a_max = title_global<float>(0x0083eb34);  // -100
+        float b_min = one;
+        float b_max = a_max;
+        for (int32_t i = 0; i < n; ++i) {
+            const float* p = points + i * 4;
+            const bool yzx = !unrolled(i, n) || unrolled_first(i, n);
+            auto dot = [p, yzx](const float* r) {
+                return yzx ? p[1] * r[1] + p[2] * r[2] + p[0] * r[0] + r[3] : p[0] * r[0] + p[2] * r[2] + p[1] * r[1] + r[3];
+            };
+            const float w = dot(m + 12);
+            if (w > zero) continue;
+            const float inv = one / w;
+            const float a = dot(m) * inv;
+            const float b = dot(m + 4) * inv;
+            if (a_min > a) a_min = a;
+            if (a > a_max) a_max = a;
+            if (b_min > b) b_min = b;
+            if (b > b_max) b_max = b;
+        }
+        // Its corners back in the world (inverse at 0x0095e318).
+        const float* q = &title_global<float>(0x0095e318);
+        for (int i = 0; i < 4; ++i) {
+            const float s = i >= 2 ? a_max : a_min;
+            const float t = i == 1 || i == 2 ? b_min : b_max;
+            const float x = q[4] * t + q[0] * s + q[12];
+            const float y = q[5] * t + q[1] * s + q[13];
+            const float z = q[6] * t + q[2] * s + q[14];
+            const float inv = one / (q[7] * t + q[3] * s + q[15]);
+            corners[i][0] = x * inv;
+            corners[i][1] = y * inv;
+            corners[i][2] = z * inv;
+        }
+    } else {
+        planes = static_cast<RPlane*>(z_malloc_debug(n * 20, 0x0083534c, 0x0083c504, 0x1b4));
+    }
+
+    // The winding's edges seen from the view origin.
+    float d[33][3];
+    for (int32_t i = 0; i < n; ++i) {
+        d[i][0] = points[i * 4] - view[0];
+        d[i][1] = points[i * 4 + 1] - view[1];
+        d[i][2] = points[i * 4 + 2] - view[2];
+    }
+    std::memcpy(d[n], d[0], 12);
+    float normals[32][3];
+    for (int32_t i = 0; i < n; ++i) {
+        float* nm = normals[i];
+        cross(nm, d[i + 1], d[i]);
+        const float len2 = unrolled_first(i, n) ? nm[2] * nm[2] + nm[1] * nm[1] + nm[0] * nm[0]
+                                                : nm[0] * nm[0] + nm[2] * nm[2] + nm[1] * nm[1];
+        const float r = q_rsqrt(len2);
+        nm[0] *= r;
+        nm[1] *= r;
+        nm[2] *= r;
+    }
+
+    int32_t out = 0;
+    if (threshold > zero) {
+        // The projected bounds' edges, unless one is within the threshold of an edge plane.
+        float e[5][3];
+        for (int i = 0; i < 4; ++i) {
+            e[i][0] = corners[i][0] - view[0];
+            e[i][1] = corners[i][1] - view[1];
+            e[i][2] = corners[i][2] - view[2];
+        }
+        std::memcpy(e[4], e[0], 12);
+        for (int j = 0; j < 4; ++j) {
+            // Written in place: a rejected plane stays in the next slot.
+            RPlane* plane = &planes[out];
+            float* pn = plane->normal;
+            cross(pn, e[j + 1], e[j]);
+            const float r = q_rsqrt(pn[1] * pn[1] + pn[0] * pn[0] + pn[2] * pn[2]);
+            pn[0] = r * pn[0];
+            pn[1] = r * pn[1];
+            pn[2] = r * pn[2];
+            bool rejected = false;
+            for (int32_t s = 0; s < n; ++s) {
+                const float* nm = normals[s];
+                if (nm[0] * pn[0] + nm[2] * pn[2] + nm[1] * pn[1] > threshold) {
+                    rejected = true;
+                    break;
+                }
+            }
+            if (rejected) continue;
+            set_plane(plane, view[2] * pn[2] + view[1] * pn[1] + view[0] * pn[0]);
+            ++out;
+        }
+    }
+    for (int32_t s = 0; s < n; ++s) {
+        const float* nm = normals[s];
+        const bool middle = unrolled(s, n) && !unrolled_first(s, n);
+        const float len2 = unrolled_first(s, n) ? nm[2] * nm[2] + nm[0] * nm[0] + nm[1] * nm[1]
+                                                : nm[2] * nm[2] + nm[1] * nm[1] + nm[0] * nm[0];
+        if (len2 == 0.0f) continue;
+        RPlane* plane = &planes[out];
+        std::memcpy(plane->normal, nm, 12);
+        set_plane(plane, middle ? nm[2] * view[2] + nm[1] * view[1] + nm[0] * view[0]
+                                : nm[2] * view[2] + nm[0] * view[0] + nm[1] * view[1]);
+        ++out;
+    }
+    *count = out;
+    return planes;
+}
+
+RPlane* XB_REGS3 R_ClipFrustumToPortal(int32_t* count, const uint8_t* portal, const RPlane* planes,
+                                       const float* clip_plane, int32_t plane_count) {
+    alignas(16) float buffers[2][128];
+    auto other = [&buffers](const float* points) { return points == buffers[0] ? buffers[1] : buffers[0]; };
+    *count = *reinterpret_cast<const int32_t*>(portal + 0x1c);
+    float* points = R_ClipPolygonToPlane(clip_plane, *reinterpret_cast<float* const*>(portal + 0x18), count, buffers[0]);
+    if (!*count) return nullptr;
+    const float* view = &title_global<float>(0x0095e240);
+    const float* normal = reinterpret_cast<const float*>(portal);
+    const float d = normal[3] - (normal[2] * view[2] + normal[1] * view[1] + normal[0] * view[0]);
+    if (title_global<float>(0x0083eb20) > d) {
+        // The view is (nearly) in the portal: keep the frustum as it is.
+        *count = plane_count;
+        auto* copy = static_cast<RPlane*>(z_malloc_debug(plane_count * 20, 0x0083534c, 0x0083c504, 0x32e));
+        std::memcpy(copy, planes, static_cast<size_t>(plane_count) * 20);
+        return copy;
+    }
+    if (const float* near_plane = title_global<const float*>(0x0095e2c8)) {
+        points = R_ClipPolygonToPlane(near_plane, points, count, other(points));
+        if (!*count) return nullptr;
+    }
+    for (int32_t i = 0; i < plane_count; ++i) {
+        points = R_ClipPolygonToPlane(planes[i].normal, points, count, other(points));
+        if (!*count) return nullptr;
+    }
+    return R_ClipPortalWinding(*count, count, points);
+}
+
 void XB_CDECL R_VisitCell_r(uint8_t* cell, const uint8_t* from_portal, const uint8_t* planes, int32_t count,
                             uint32_t pass) {
     R_AddCellSurfaces(cell, planes, count);
@@ -977,12 +1165,12 @@ void XB_CDECL R_VisitCell_r(uint8_t* cell, const uint8_t* from_portal, const uin
         if (d > plane[3]) continue;  // facing away
         if (R_CullPortal(portal, reinterpret_cast<const float*>(planes), count)) continue;
         int32_t clipped_count;
-        auto* clipped = title_function<uint8_t* XB_REGS3(int32_t*, const uint8_t*, const uint8_t*, const uint8_t*,
-                                                         int32_t)>(0x0023cb30)(&clipped_count, portal, planes,
-                                                                               from_portal, count);
+        RPlane* clipped = R_ClipFrustumToPortal(&clipped_count, portal, reinterpret_cast<const RPlane*>(planes),
+                                                reinterpret_cast<const float*>(from_portal), count);
         if (!clipped_count) continue;
         visiting = 1;
-        R_VisitCell_r(*reinterpret_cast<uint8_t* const*>(portal + 0x14), portal, clipped, clipped_count, pass);
+        R_VisitCell_r(*reinterpret_cast<uint8_t* const*>(portal + 0x14), portal, reinterpret_cast<const uint8_t*>(clipped),
+                      clipped_count, pass);
         title_function<void XB_CDECL(void*)>(0x000428d0)(clipped);  // Z_Free
         visiting = 0;
     }
