@@ -86,11 +86,41 @@ constexpr uint32_t kMaxDirty = 32768;  // 128 MB written by one call
 constexpr uint32_t kPagemapChunk = 2048;
 constexpr uint32_t kScanRegions = 512;  // runs of written pages per PAGEMAP_SCAN call
 
+constexpr uint32_t kSdkLogBytes = 64 * 1024;
+constexpr uint32_t kMaxSdkSpecs = 128;
+constexpr uint32_t kMaxSdkArgs = 6;
+constexpr uint32_t kMaxSdkData = 4096;  // per pointer argument
+
+// Config::sdk_calls, parsed for the test processes. Each recorded call is logged as
+// its spec index, then per argument its value, or for a pointer the byte count and
+// the bytes (padded to 4); a null pointer logs kSdkNull, an unreadable one kSdkBad.
+enum SdkArgWhere : uint8_t { kSdkEcx, kSdkEdx, kSdkStack };
+enum SdkArgKind : uint8_t { kSdkValue, kSdkBytes, kSdkScaledBytes };
+constexpr uint32_t kSdkNull = 0xFFFFFFFE;
+constexpr uint32_t kSdkBad = 0xFFFFFFFF;
+
+struct SdkArg {
+    SdkArgWhere where;
+    SdkArgKind kind;
+    uint8_t slot;        // kSdkStack: stack slot (0 = first argument)
+    uint8_t count_from;  // kSdkScaledBytes: the argument holding the count
+    uint32_t bytes;      // kSdkBytes: size; kSdkScaledBytes: bytes per count
+};
+
+struct SdkSpec {
+    uint32_t host_address;
+    uint32_t stack_slots;  // popped on return (stdcall/fastcall)
+    uint32_t arg_count;
+    SdkArg args[kMaxSdkArgs];
+};
+
 enum ReportStatus : uint32_t { kOk, kSignal, kTooManyWrites, kHarnessError };
 
 struct Report {
     uint32_t status;
     uint32_t signal, eip, fault_address, esp, stack_word;  // kSignal
+    uint32_t sdk_log_bytes, sdk_calls;
+    uint32_t sdk_overflow;  // the log was full: the test is inconclusive
     uint32_t dirty_count;
     uint32_t scan_pages;  // pages the dirty scan read from pagemap
     // CLOCK_MONOTONIC ns: process started, maps read, bits cleared, function returned,
@@ -120,9 +150,14 @@ struct alignas(4096) ChildArea {
     uint32_t pagemap[2 * kPagemapChunk];
     pm_scan_arg scan_arg;
     page_region regions[kScanRegions];
+    uint32_t image_begin, image_end;  // the title, readable for recorded SDK calls
+    uint32_t sdk_log[kSdkLogBytes / 4];
     uint8_t signal_stack[64 * 1024];
     uint8_t stack[64 * 1024];
 };
+
+SdkSpec g_sdk_specs[kMaxSdkSpecs];
+uint32_t g_sdk_spec_count = 0;
 
 }  // namespace
 }  // namespace loader::compare
@@ -345,9 +380,10 @@ XBCMP_CODE void collect_dirty(ChildArea& c) {
 
 // Report, results and dirty pages; then the pages the parent asks for.
 [[noreturn]] XBCMP_CODE void child_send(ChildArea& c) {
-    if (c.report.status != kOk) c.report.dirty_count = 0;
+    if (c.report.status != kOk) c.report.dirty_count = c.report.sdk_log_bytes = 0;
     if (write_all(c.out, addr_of(&c.report), sizeof(Report)) &&
         write_all(c.out, addr_of(&c.result), sizeof(Context)) &&
+        write_all(c.out, addr_of(c.sdk_log), c.report.sdk_log_bytes) &&
         write_all(c.out, addr_of(c.dirty), c.report.dirty_count * 4) &&
         read_all(c.in, addr_of(&c.wanted_count), 4) && c.wanted_count <= 2 * kMaxDirty &&
         read_all(c.in, addr_of(c.wanted), c.wanted_count * 4)) {
@@ -358,9 +394,73 @@ XBCMP_CODE void collect_dirty(ChildArea& c) {
     for (;;) sys3(SYS_exit_group, 0, 0, 0);
 }
 
+XBCMP_CODE bool readable(const ChildArea& c, uint32_t address, uint32_t size) {
+    if (address >= c.image_begin && address - c.image_begin <= c.image_end - c.image_begin - size) return true;
+    return in_scan_range(c, address, size);
+}
+
+XBCMP_CODE bool sdk_log_put(ChildArea& c, uint32_t value) {
+    if (c.report.sdk_log_bytes + 4 > kSdkLogBytes) return false;
+    c.sdk_log[c.report.sdk_log_bytes / 4] = value;
+    c.report.sdk_log_bytes += 4;
+    return true;
+}
+
+// A fault on the entry of a recorded SDK replacement: log the call and return to the
+// caller as the replacement would (EAX = 0, stack arguments popped). False if `eip`
+// is not one (or the caller's stack cannot be read): the test then ends as usual.
+XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
+    const auto eip = static_cast<uint32_t>(gregs[REG_EIP]);
+    uint32_t index = 0;
+    while (index < g_sdk_spec_count && g_sdk_specs[index].host_address != eip) ++index;
+    if (index == g_sdk_spec_count) return false;
+    const SdkSpec& spec = g_sdk_specs[index];
+    const auto esp = static_cast<uint32_t>(gregs[REG_ESP]);
+    if (!in_scan_range(c, esp, 4 + spec.stack_slots * 4)) return false;
+    const auto* stack = reinterpret_cast<const uint32_t*>(uintptr_t{esp});
+    uint32_t values[kMaxSdkArgs];
+    for (uint32_t i = 0; i < spec.arg_count; ++i) {
+        const SdkArg& arg = spec.args[i];
+        values[i] = arg.where == kSdkEcx   ? static_cast<uint32_t>(gregs[REG_ECX])
+                    : arg.where == kSdkEdx ? static_cast<uint32_t>(gregs[REG_EDX])
+                                           : stack[1 + arg.slot];
+    }
+    bool ok = sdk_log_put(c, index);
+    for (uint32_t i = 0; i < spec.arg_count && ok; ++i) {
+        const SdkArg& arg = spec.args[i];
+        if (arg.kind == kSdkValue) {
+            ok = sdk_log_put(c, values[i]);
+            continue;
+        }
+        const uint32_t bytes = arg.kind == kSdkBytes ? arg.bytes : values[arg.count_from] * arg.bytes;
+        if (values[i] == 0) {
+            ok = sdk_log_put(c, kSdkNull);
+        } else if (bytes > kMaxSdkData || !readable(c, values[i], bytes)) {
+            ok = sdk_log_put(c, kSdkBad);
+        } else {
+            ok = sdk_log_put(c, bytes);
+            const auto* data = reinterpret_cast<const uint8_t*>(uintptr_t{values[i]});
+            for (uint32_t at = 0; at < bytes && ok; at += 4) {
+                uint32_t word = 0;
+                for (uint32_t k = 0; k < 4 && at + k < bytes; ++k) word |= uint32_t{data[at + k]} << (8 * k);
+                ok = sdk_log_put(c, word);
+            }
+        }
+    }
+    if (!ok) c.report.sdk_overflow = 1;
+    ++c.report.sdk_calls;
+    gregs[REG_EIP] = static_cast<greg_t>(stack[0]);
+    gregs[REG_ESP] = static_cast<greg_t>(esp + 4 + spec.stack_slots * 4);
+    gregs[REG_EAX] = 0;
+    return true;
+}
+
 extern "C" XBCMP_CODE void xbcmp_child_signal(int signal, siginfo_t* info, void* context) {
     ChildArea& c = xbcmp_child;
-    const auto& gregs = static_cast<const ucontext_t*>(context)->uc_mcontext.gregs;
+    auto& gregs = static_cast<ucontext_t*>(context)->uc_mcontext.gregs;
+    if (signal == SIGSEGV && addr_of(info->si_addr) == static_cast<uint32_t>(gregs[REG_EIP]) &&
+        record_sdk_call(c, gregs))
+        return;
     c.report.status = kSignal;
     c.report.signal = static_cast<uint32_t>(signal);
     c.report.eip = static_cast<uint32_t>(gregs[REG_EIP]);
@@ -671,6 +771,8 @@ bool prepare_maps(ChildArea& c) {
     c.grandchild = static_cast<uint32_t>(grandchild > 0 ? grandchild : 0);
     c.report = {};
     c.report.t_entered = now_ns();
+    c.image_begin = g_config.image_begin;
+    c.image_end = g_config.image_end;
     const uint32_t pid = static_cast<uint32_t>(getpid());
     if (!write_all(out, addr(&pid), 4)) _exit(1);
 
@@ -752,6 +854,7 @@ struct Side {
     Context result{};
     std::vector<uint32_t> dirty;
     std::vector<uint8_t> pages;
+    std::vector<uint32_t> sdk_log;
 };
 
 bool receive_report(Side& side, Clock::time_point deadline) {
@@ -759,6 +862,9 @@ bool receive_report(Side& side, Clock::time_point deadline) {
         !read_until(side.from, &side.result, sizeof(Context), deadline))
         return false;
     if (side.report.status == kOk) {
+        if (side.report.sdk_log_bytes > kSdkLogBytes || side.report.sdk_log_bytes % 4) return false;
+        side.sdk_log.resize(side.report.sdk_log_bytes / 4);
+        if (!read_until(side.from, side.sdk_log.data(), side.report.sdk_log_bytes, deadline)) return false;
         if (side.report.dirty_count > kMaxDirty) return false;
         side.dirty.resize(side.report.dirty_count);
         if (!read_until(side.from, side.dirty.data(), side.dirty.size() * 4, deadline)) return false;
@@ -825,6 +931,60 @@ uint32_t mxcsr(const Context& c) {
     uint32_t value;
     std::memcpy(&value, c.fx + 24, 4);
     return value;
+}
+
+std::vector<std::string> g_sdk_names;  // per g_sdk_specs entry
+
+// One recorded call's length in log words at `at`, or 0 if the log is damaged.
+size_t sdk_record_words(const std::vector<uint32_t>& log, size_t at) {
+    if (at >= log.size() || log[at] >= g_sdk_spec_count) return 0;
+    const SdkSpec& spec = g_sdk_specs[log[at]];
+    size_t p = at + 1;
+    for (uint32_t i = 0; i < spec.arg_count; ++i) {
+        if (p >= log.size()) return 0;
+        const uint32_t word = log[p++];
+        if (spec.args[i].kind != kSdkValue && word != kSdkNull && word != kSdkBad) p += (word + 3) / 4;
+    }
+    return p <= log.size() ? p - at : 0;
+}
+
+// The two sides' recorded SDK calls must be the same calls with the same arguments.
+void compare_sdk_logs(const Side& a, const Side& b, Verdict& v) {
+    if (a.report.sdk_overflow || b.report.sdk_overflow) {
+        v.add(Outcome::Inconclusive, "SDK call log full");
+        return;
+    }
+    if (a.sdk_log == b.sdk_log) return;
+    size_t pa = 0, pb = 0;
+    for (uint32_t call = 0;; ++call) {
+        const bool a_end = pa >= a.sdk_log.size(), b_end = pb >= b.sdk_log.size();
+        if (a_end || b_end) {
+            v.add(Outcome::Mismatched, "SDK calls: original made " + std::to_string(a.report.sdk_calls) + ", new " +
+                                           std::to_string(b.report.sdk_calls));
+            return;
+        }
+        const size_t na = sdk_record_words(a.sdk_log, pa), nb = sdk_record_words(b.sdk_log, pb);
+        if (!na || !nb) {
+            v.add(Outcome::Mismatched, "SDK call log damaged");
+            return;
+        }
+        if (a.sdk_log[pa] != b.sdk_log[pb]) {
+            v.add(Outcome::Mismatched, "SDK call " + std::to_string(call) + ": original " + g_sdk_names[a.sdk_log[pa]] +
+                                           ", new " + g_sdk_names[b.sdk_log[pb]]);
+            return;
+        }
+        if (na != nb || !std::equal(a.sdk_log.begin() + pa, a.sdk_log.begin() + pa + na, b.sdk_log.begin() + pb)) {
+            size_t k = 1;
+            while (k < na && k < nb && a.sdk_log[pa + k] == b.sdk_log[pb + k]) ++k;
+            v.add(Outcome::Mismatched, "SDK call " + std::to_string(call) + " " + g_sdk_names[a.sdk_log[pa]] +
+                                           ": arguments differ at word " + std::to_string(k) + " (" +
+                                           hex(k < na ? a.sdk_log[pa + k] : 0) + " / " +
+                                           hex(k < nb ? b.sdk_log[pb + k] : 0) + ")");
+            return;
+        }
+        pa += na;
+        pb += nb;
+    }
 }
 
 void compare_registers(const Hook& hook, const Context& entry, const Context& a, const Context& b, Verdict& v) {
@@ -1075,6 +1235,7 @@ Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
     }
     compare_registers(hook, entry, a.result, b.result, verdict);
     compare_memory(hook, entry, stack_limit, pages, a, b, verdict);
+    compare_sdk_logs(a, b, verdict);
     const uint64_t t_compared = now_ns();
     const Report& ra = a.report;
     const Report& rb = b.report;
@@ -1428,9 +1589,60 @@ std::map<uint32_t, Row> read_rows(const std::filesystem::path& path) {
 
 }  // namespace
 
+// SdkCall::args -> SdkSpec; false if malformed.
+bool parse_sdk_args(const char* text, SdkSpec& spec) {
+    std::istringstream words(text);
+    spec.arg_count = spec.stack_slots = 0;
+    for (std::string word; words >> word;) {
+        if (spec.arg_count == kMaxSdkArgs) return false;
+        SdkArg& arg = spec.args[spec.arg_count];
+        arg = {};
+        const std::string where = word.substr(0, word.find(':'));
+        if (where == "ecx") {
+            arg.where = kSdkEcx;
+        } else if (where == "edx") {
+            arg.where = kSdkEdx;
+        } else if (where == "s") {
+            arg.where = kSdkStack;
+            arg.slot = static_cast<uint8_t>(spec.stack_slots++);
+        } else {
+            return false;
+        }
+        if (const size_t colon = word.find(':'); colon != std::string::npos) {
+            const std::string size = word.substr(colon + 1);
+            unsigned from = 0, bytes = 0;
+            if (std::sscanf(size.c_str(), "a%u*%u", &from, &bytes) == 2) {
+                arg.kind = kSdkScaledBytes;
+                arg.count_from = static_cast<uint8_t>(from);
+            } else if (std::sscanf(size.c_str(), "%u", &bytes) == 1) {
+                arg.kind = kSdkBytes;
+            } else {
+                return false;
+            }
+            arg.bytes = bytes;
+        }
+        ++spec.arg_count;
+    }
+    for (uint32_t i = 0; i < spec.arg_count; ++i)
+        if (spec.args[i].kind == kSdkScaledBytes && spec.args[i].count_from >= spec.arg_count) return false;
+    return true;
+}
+
 void install(std::span<const game::Function> functions, const Config& config) {
     g_config = config;
     xbcmp_child_stack_top = addr(xbcmp_child.stack + sizeof(xbcmp_child.stack));
+    g_sdk_spec_count = 0;
+    g_sdk_names.clear();
+    for (const SdkCall& call : config.sdk_calls) {
+        SdkSpec spec{};
+        spec.host_address = call.host_address;
+        if (!call.host_address || g_sdk_spec_count == kMaxSdkSpecs || !parse_sdk_args(call.args, spec)) {
+            LOG_WARN("compare", "%s: bad SDK call spec \"%s\"; not recorded", call.name, call.args);
+            continue;
+        }
+        g_sdk_specs[g_sdk_spec_count++] = spec;
+        g_sdk_names.push_back(call.name);
+    }
     int replaced = 0, settled = 0;
     const std::map<uint32_t, Row> earlier =
         config.enabled && config.enough_matches ? read_rows(config.results) : std::map<uint32_t, Row>{};

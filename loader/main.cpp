@@ -590,6 +590,7 @@ int loader_main(int argc, char** argv) {
     };
     compare.describe = loader::describe_address;
     if (options->compare_all) compare.enough_matches = 0;
+    if (options->compare) compare.sdk_calls = loader::recorded_sdk_calls();
     if (options->compare)
         compare.results = fs::path(COD_BRO_SYMBOLS_DIR) / (compare.multiplayer ? "functions_mp.csv" : "functions.csv");
     loader::compare::install(game::functions(), compare);

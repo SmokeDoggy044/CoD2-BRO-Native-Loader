@@ -1017,10 +1017,10 @@
 00047a50 cdGunSight_Register
 00047ad0 cdGunSight_Init
 00047b10 cdGunSight_Draw
-00047dc0 FUN_00047dc0
-00047df0 FUN_00047df0
-00047e20 FUN_00047e20
-00047e50 FUN_00047e50
+00047dc0 nglStateCache_SetAlphaTestEnable
+00047df0 nglStateCache_SetAlphaFunc
+00047e20 nglStateCache_SetAlphaRef
+00047e50 nglStateCache_SetBlendEnable
 00047e80 cdGunSight_GetName
 00047ea0 FUN_00047ea0
 00047ed0 FUN_00047ed0
@@ -1037,9 +1037,9 @@
 00048920 cdGlass_Register
 00048990 cdGlass_Init
 00048a10 cdGlass_Draw
-00048fd0 FUN_00048fd0
-00049000 FUN_00049000
-00049030 FUN_00049030
+00048fd0 nglStateCache_SetSrcBlend
+00049000 nglStateCache_SetDestBlend
+00049030 nglStateCache_SetBlendOp
 00049060 cdGlass_InitVertexShaders
 000490a0 cdGlass_InitPixelShaders
 000490d0 cdGlass_GetName
@@ -1555,7 +1555,7 @@
 00075ac0 nglSetBlendMode
 00075d90 nglRestoreRenderStates
 00075ed0 nglInitRenderStates
-00076050 FUN_00076050
+00076050 nglStateCache_SetBlendColor
 000760a0 nglSetPixelShaderProgramCached
 000760c0 nglSetVertexShaderCached
 00076120 nglAssemblePixelShader

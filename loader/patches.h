@@ -2,6 +2,9 @@
 
 #include <cstdint>
 #include <string_view>
+#include <vector>
+
+#include "compare.h"
 
 namespace loader {
 
@@ -51,5 +54,9 @@ class XbeImage;
 // in the Ghidra symbols. Every other function in those libraries' sections traps with
 // its name when called. Returns false if a library is present but nothing was found.
 bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols, const TitleInfo& title);
+
+// The Direct3D replacements that --compare's test processes record instead of calling
+// (state setters and draws: the title reads nothing back from them).
+std::vector<compare::SdkCall> recorded_sdk_calls();
 
 }  // namespace loader

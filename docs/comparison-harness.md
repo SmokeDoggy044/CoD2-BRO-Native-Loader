@@ -96,6 +96,23 @@ registers and calls the dispatcher. For a tested call:
   `objdump -d -j xbcmp_text build/linux-loader/bin/cod_bro_loader | grep call`
   must show only calls inside the section.
 
+## Recorded SDK calls
+
+Code that draws calls the D3D replacements (state setters, draws), which are host
+code. For the ones listed in `kRecordedD3dCalls` (loader/patches.cpp: name and argument
+layout) a test process does not end the test there: the fault on the replacement's
+entry is caught in the signal handler, which logs the call - its index and arguments,
+for a pointer argument the bytes it points to (a fixed size, or another argument times
+a size: constant counts, stream counts) - and returns to the caller as the
+replacement would (EAX = 0, stack arguments popped). Both sides must make the same
+calls with the same arguments in the same order; the first difference is reported
+("SDK call 3 D3DDevice_SetTexture: arguments differ at word 2"). Only functions the
+title reads nothing back from are listed (no getters, no Lock), and the replacement's
+own writes (D3D's render-state block in title memory) are skipped on both sides alike.
+The arguments are compared as values; pointers to data on the stack are recorded by
+content, since the two sides' stack frames differ. `tests/compare_test.cpp` checks a
+right and a wrong recorded call.
+
 ## What is compared
 
 - Registers: the result (by kind; `Al` = low byte only), EBX/ESI/EDI/EBP, ESP after
@@ -174,8 +191,8 @@ compared anyway).
 - A decompiled function taken by address in the loader executable would get its
   PLT entry, which is host code to the harness: take addresses inside the library
   (`game::functions()` does).
-- Calls into kernel exports and SDK replacements end a test, so functions that need
-  them (files, locks, D3D) stay inconclusive. Possible later: pure stand-ins for
+- Calls into kernel exports and SDK replacements not recorded (above) end a test, so
+  functions that need them (files, locks, D3D getters and Lock) stay inconclusive. Possible later: pure stand-ins for
   common ones inside the test processes (critical sections without contention,
   Rtl string functions).
 - Later, optional: record a function's inputs during play and replay them offline

@@ -23,7 +23,9 @@
 
 extern "C" {
 extern void (*compare_test_host_function)();
-// Good, off by one, no pop, host call, hang, crash, square (compare_test_code.cpp).
+extern uint32_t(XB_STDCALL* compare_test_recorded_function)(uint32_t, const uint32_t*);
+// Good, off by one, no pop, host call, hang, crash, square, recorded call, recorded
+// call with a wrong argument (compare_test_code.cpp).
 void compare_test_code(const void** out);
 }
 
@@ -43,12 +45,26 @@ constexpr uint8_t kSquare[] = {0xD9, 0x44, 0x24, 0x04, 0xD8, 0x4C, 0x24, 0x04, 0
 
 void host_function() { std::printf("host code ran in a test process\n"); }
 
+// An "SDK replacement": test processes record its calls (value, then 8 bytes at the
+// pointer) instead of running it.
+uint32_t XB_STDCALL recorded_function(uint32_t, const uint32_t*) { return 0; }
+uint32_t (XB_STDCALL* g_recorded)(uint32_t, const uint32_t*) = recorded_function;
+
+// mov eax,[ecx]; add eax,[esp+4]; push ecx; push eax; call [g_recorded]; ret 4
+void put_recorded_caller(uint8_t* out) {
+    const uint8_t code[] = {0x8B, 0x01, 0x03, 0x44, 0x24, 0x04, 0x51, 0x50, 0xFF, 0x15, 0, 0, 0, 0, 0xC2, 0x04, 0x00};
+    std::memcpy(out, code, sizeof(code));
+    const auto slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_recorded));
+    std::memcpy(out + 10, &slot, 4);
+}
+
 }  // namespace
 
 int main() {
     using game::Result;
     using game::Status;
     compare_test_host_function = host_function;
+    compare_test_recorded_function = recorded_function;
 
     // The "title": one original per slot, 32 bytes apart.
     uint8_t* image = loader::alloc_code(4096);
@@ -59,8 +75,10 @@ int main() {
     std::memcpy(image + 32 * 6, kSquare, sizeof(kSquare));
     std::memcpy(image + 32 * 7, kAddBranch, sizeof(kAddBranch));
     std::memcpy(image + 32 * 8, kAdd, sizeof(kAdd));
+    put_recorded_caller(image + 32 * 9);
+    put_recorded_caller(image + 32 * 10);
 
-    const void* code[7];
+    const void* code[9];
     compare_test_code(code);
     static const game::Function functions[] = {
         {"good", slot(0), 0, code[0], 4, Result::Eax, Status::Compare},
@@ -72,6 +90,8 @@ int main() {
         {"square", slot(6), 0, code[6], 4, Result::St0, Status::Compare},
         {"branch_at_entry", slot(7), 0, code[0], 4, Result::Eax, Status::Compare},
         {"settled", slot(8), 0, code[1], 4, Result::Eax, Status::Compare},  // off by one, not tested
+        {"recorded", slot(9), 0, code[7], 4, Result::Eax, Status::Compare},
+        {"recorded_wrong", slot(10), 0, code[8], 4, Result::Eax, Status::Compare},
     };
     const std::filesystem::path results =
         std::filesystem::temp_directory_path() / ("compare_test_" + std::to_string(getpid()) + ".csv");
@@ -81,6 +101,8 @@ int main() {
     config.image_end = slot(0) + 4096;
     config.libraries = {"libcompare_test_code", "libc.so", "libm.so", "ld-linux"};
     config.results = results;
+    config.sdk_calls = {{"recorded_function", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&recorded_function)),
+                         "s s:8"}};
     config.timeout_ms = 500;
     config.parallel = 16;  // every call tested ("hang" holds its slot for 500 ms)
     // Earlier runs matched "settled" often enough: it is not even hooked.
@@ -112,6 +134,11 @@ int main() {
     const uint32_t settled = reinterpret_cast<Add>(uintptr_t{slot(8)})(data, 5);
     CHECK(settled == 42 && data[1] == 42, "settled: %u, %u", settled, data[1]);
     delete[] data;
+    for (int i = 9; i <= 10; ++i) {
+        data = new uint32_t[2]{37, 0};
+        reinterpret_cast<Add>(uintptr_t{slot(i)})(data, 5);
+        delete[] data;
+    }
     const float square = reinterpret_cast<Square>(uintptr_t{slot(6)})(1.5f);
     CHECK(square == 2.25f, "%f", static_cast<double>(square));
     }).join();
@@ -135,6 +162,8 @@ int main() {
     expect("crash", 0, 1, 0);
     expect("square", 1, 0, 0);
     expect("branch_at_entry", 1, 0, 0);
+    expect("recorded", 1, 0, 0);
+    expect("recorded_wrong", 0, 1, 0);
     CHECK(loader::compare::counts("settled").calls == 0, "settled: hooked");
 
     // A test still running when the game is killed (Ctrl+C, a crash) leaves no test

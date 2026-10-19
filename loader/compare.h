@@ -16,8 +16,21 @@
 
 namespace loader::compare {
 
+// An SDK replacement that test processes record instead of calling: the call returns
+// at once (EAX = 0, its stack arguments popped) and its arguments go into a log that
+// both sides must agree on - so functions that draw (D3D state setters, draws) are
+// testable. Only for functions whose results the title does not read back.
+// `args`: one word per argument, in order: where it is (`ecx`, `edx` or `s` for the
+// next stack slot), optionally `:N` = a pointer whose N bytes are recorded instead of
+// its value, or `:aK*N` = the same with the value of argument K times N bytes.
+struct SdkCall {
+    const char* name;
+    uint32_t host_address;  // the replacement's entry: where a test process faults
+    const char* args;
+};
+
 struct Config {
-    bool enabled = false;      // test Compare functions (otherwise their originals run untouched)
+    bool enabled = false;     // test Compare functions (otherwise their originals run untouched)
     bool multiplayer = false;  // use the functions' codmp_xboxf.xbe addresses
     // The title's code, which stays executable in the test processes.
     uint32_t image_begin = 0;
@@ -46,6 +59,8 @@ struct Config {
     // Tests running at once (0: half the CPUs). A sampled call that finds them all busy
     // is not tested.
     uint32_t parallel = 0;
+    // SDK replacements recorded in test processes (any other ends a test as inconclusive).
+    std::vector<SdkCall> sdk_calls;
 };
 
 // Hooks `functions`: Replaced ones always, Compare ones only when testing is enabled.

@@ -18,8 +18,12 @@ struct NglTexture {
                              // 0x400 = render target
     uint8_t unknown08[0x2c - 0x8];
     int32_t last_used_frame; // +0x2c
-    uint8_t unknown30[0x4c - 0x30];
-    NglTexture* target;      // +0x4c, kind 0x10
+    uint8_t* d3d_texture;    // +0x30, the D3D texture (its +4 and +0xc feed SwitchTexture)
+    uint8_t unknown34[0x3c - 0x34];
+    uint8_t* palette;        // +0x3c, an NGL palette (its D3D palette at +0xc) or null
+    uint8_t unknown40[0x4c - 0x40];
+    NglTexture* target;      // +0x4c, kind 0x10; kind 0x0f (animated): the frame count
+    NglTexture** frames;     // +0x50, kind 0x0f
 };
 
 // Allocated from the per-frame scene memory.
@@ -191,8 +195,18 @@ struct NglScene {
 // A section of a mesh: only its bounding sphere is known.
 struct NglMeshSection {
     uint8_t unknown00[0x10];
-    float center[4];  // +0x10
-    float radius;     // +0x20
+    float center[4];          // +0x10
+    float radius;             // +0x20
+    uint8_t unknown24[0x28 - 0x24];
+    uint32_t primitive;       // +0x28, D3DPRIMITIVETYPE
+    uint32_t index_count;     // +0x2c, 0: not indexed
+    uint32_t indices;         // +0x30, Xbox address of the index data
+    uint32_t push_buffer;     // +0x34, a recorded push buffer, run instead when +0x38 is set
+    uint32_t has_push_buffer; // +0x38
+    uint8_t unknown3c[0x40 - 0x3c];
+    uint32_t vertex_count;    // +0x40
+    uint8_t vertex_buffer[0xc]; // +0x44, an NGL vertex buffer (the D3D buffer at its +8)
+    uint32_t stride;          // +0x50
 };
 
 struct NglMeshSectionEntry {
@@ -214,6 +228,9 @@ struct NglMeshBuilder {
 static_assert(offsetof(NglMeshBuilder, center) == 0x20);
 static_assert(offsetof(NglMeshBuilder, radius) == 0x30);
 static_assert(sizeof(NglMeshSectionEntry) == 8);
+static_assert(offsetof(NglMeshSection, primitive) == 0x28);
+static_assert(offsetof(NglMeshSection, vertex_count) == 0x40);
+static_assert(offsetof(NglMeshSection, stride) == 0x50);
 static_assert(sizeof(NglQuadVertex) == 0x14);
 static_assert(sizeof(NglQuad) == 0x64);
 static_assert(offsetof(NglQuad, texture) == 0x60);
@@ -643,6 +660,58 @@ void XB_STDCALL nglMaterial_ReleaseTwoTexturesClear(uint8_t* material);
 // polygon offset bias -bias and factor bias * -0.25, each sent (SetRenderState_Simple)
 // only when it changed (NaN always).
 void XB_THISCALL nglSetDecalZBias(uint8_t* self, uint32_t bias);
+
+// NGL's render-state cache (0x00902f08; the shader classes' Draw slots also test its
+// fields inline): each setter sends its NV2A state with SetRenderState_Simple only when
+// it changed.
+// 0x00047dc0 +0x50 alpha test enable (0x300), 0x00047df0 +0x54 alpha function (0x33c),
+// 0x00047e20 +0x58 alpha reference (0x340), 0x00047e50 +0x5c blend enable (0x304),
+// 0x00048fd0 +0x60 source blend (0x344), 0x00049000 +0x64 destination blend (0x348),
+// 0x00049030 +0x70 blend equation (0x350), 0x00076050 +0x6c blend colour (0x34c; also
+// D3D's render state at 0x003f8454).
+void XB_THISCALL nglStateCache_SetAlphaTestEnable(uint8_t* self, uint8_t enable);
+void XB_THISCALL nglStateCache_SetAlphaFunc(uint8_t* self, uint32_t func);
+void XB_THISCALL nglStateCache_SetAlphaRef(uint8_t* self, uint32_t ref);
+void XB_THISCALL nglStateCache_SetBlendEnable(uint8_t* self, uint8_t enable);
+void XB_THISCALL nglStateCache_SetSrcBlend(uint8_t* self, uint32_t factor);
+void XB_THISCALL nglStateCache_SetDestBlend(uint8_t* self, uint32_t factor);
+void XB_THISCALL nglStateCache_SetBlendOp(uint8_t* self, uint32_t op);
+void XB_THISCALL nglStateCache_SetBlendColor(uint8_t* self, uint32_t color);
+// 0x00075ac0: blend mode 0..8 (+0xe8) with its alpha (+0xec, modes 5..7: the blend
+// colour's alpha) and alpha reference (+0xf0, mode 1: alpha test only); unchanged
+// modes return at once except mode 1. 0 opaque, 1 alpha test, 2 alpha blend, 3
+// additive, 4 reverse subtract, 5..7 constant-alpha variants, 8 modulate.
+void XB_THISCALL nglSetBlendMode(uint8_t* self, uint32_t mode, uint32_t alpha, uint32_t alpha_ref);
+
+// A shader program reference: the vertex or pixel program, then (vertex) its input
+// format (null: the cached one stays).
+struct NglShaderRef {
+    uint32_t program;
+    uint32_t format;
+};
+// 0x000760a0: SetPixelShaderProgram when it is not the cached one (0x00903c10).
+void XB_CDECL nglSetPixelShaderProgramCached(const NglShaderRef* shader);
+// 0x000760c0: LoadVertexShaderProgram + SelectVertexShaderDirect unless program and
+// format are the cached ones (0x00903c08 / 0x00903c0c); a cached format is not sent again.
+void XB_CDECL nglSetVertexShaderCached(const NglShaderRef* shader);
+// 0x0007b1d0: SetPalette for a stage when the NGL palette changed (cache 0x00903d48).
+void XB_CDECL nglSetPaletteCached(uint32_t stage, uint8_t* palette);
+// 0x0006a6c0: no palettes and textures on stages 0..3; the caches reset.
+void XB_CDECL nglUnbindTextures();
+// 0x0006a760: a texture on a stage: an animated texture's current frame, a reference's
+// target; marks it used this frame, SetTexture (or SwitchTexture when only the data
+// changed within the same format) when the stage's texture changed, its palette, then
+// the address mode (nglSetTextureAddressMode).
+void XB_CDECL nglSetTexture(uint32_t stage, NglTexture* texture, uint8_t address_flags, uint32_t border);
+// 0x00078790: vertex stream 0 (SetVertexShaderInputDirect with the cached format) when
+// buffer, stride or offset (start * stride) changed.
+void XB_CDECL nglSetVertexStreams(const uint8_t* vertex_buffer, uint32_t stride, uint32_t start);
+// 0x00078890: draws a mesh section: indexed, as a list, or its push buffer.
+void XB_CDECL nglDrawMeshSection(const NglMeshSection* section);
+// 0x000776f0: two vertex constants at slot + 0x60: (fog[2], fog[0], 1 / (fog[1] -
+// fog[0]), fog[3] - fog[2]) and the camera position in the node's object space, w 1.
+void XB_CDECL nglSetTransformConstants(int32_t slot, NglMeshDrawNode* node, float fog0, float fog1, float fog2,
+                                       float fog3);
 void XB_CDECL nglReleaseMeshFile(void* file);
 void XB_CDECL nglReleaseFont(void* font);
 

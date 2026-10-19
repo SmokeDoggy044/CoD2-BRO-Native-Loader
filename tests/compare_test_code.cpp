@@ -42,6 +42,18 @@ uint32_t XB_THISCALL compare_test_add_crash(uint32_t*, uint32_t) {
     return 0;
 }
 
+// Set by the test to a host function the harness records instead of calling.
+uint32_t(XB_STDCALL* compare_test_recorded_function)(uint32_t, const uint32_t*);
+
+// The original (compare_test.cpp): recorded(self[0] + v, self); thiscall.
+uint32_t XB_THISCALL compare_test_add_recorded(uint32_t* self, uint32_t v) {
+    return compare_test_recorded_function(self[0] + v, self);
+}
+
+uint32_t XB_THISCALL compare_test_add_recorded_wrong(uint32_t* self, uint32_t v) {
+    return compare_test_recorded_function(self[0] + v + 1, self);
+}
+
 // The original: x * x on the x87 stack; cdecl.
 float XB_CDECL compare_test_square(float x) { return x * x; }
 
@@ -52,7 +64,8 @@ void compare_test_code(const void** out) {
         reinterpret_cast<const void*>(&compare_test_add),       reinterpret_cast<const void*>(&compare_test_add_off_by_one),
         reinterpret_cast<const void*>(&compare_test_add_no_pop), reinterpret_cast<const void*>(&compare_test_add_host_call),
         reinterpret_cast<const void*>(&compare_test_add_hang),  reinterpret_cast<const void*>(&compare_test_add_crash),
-        reinterpret_cast<const void*>(&compare_test_square),
+        reinterpret_cast<const void*>(&compare_test_square),    reinterpret_cast<const void*>(&compare_test_add_recorded),
+        reinterpret_cast<const void*>(&compare_test_add_recorded_wrong),
     };
     for (const void* function : all) *out++ = function;
 }

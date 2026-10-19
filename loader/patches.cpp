@@ -796,6 +796,55 @@ const char* const kSdkKeepOriginalNames[] = {
     "D3DDevice_GetCreationParameters",  // constants plus a flag from the device block
 };
 
+// Argument layouts of the recorded D3D replacements (compare::SdkCall::args). A
+// vertex attribute format is 16 attributes of 16 bytes, a stream input 12 bytes, a
+// pixel shader constant 4 floats.
+struct RecordedCall {
+    const char* name;
+    const char* args;
+};
+const RecordedCall kRecordedD3dCalls[] = {
+    {"D3DDevice_SetRenderState_Simple", "ecx edx"},
+    {"D3DDevice_SetRenderState_FogColor", "s"},
+    {"D3DDevice_SetRenderState_PSTextureModes", "s"},
+    {"D3DDevice_SetRenderState_ZBias", "s"},
+    {"D3DDevice_SetRenderState_BackFillMode", "s"},
+    {"D3DDevice_SetRenderState_CullMode", "s"},
+    {"D3DDevice_SetRenderState_EdgeAntiAlias", "s"},
+    {"D3DDevice_SetRenderState_FillMode", "s"},
+    {"D3DDevice_SetRenderState_FrontFace", "s"},
+    {"D3DDevice_SetRenderState_LogicOp", "s"},
+    {"D3DDevice_SetRenderState_MultiSampleAntiAlias", "s"},
+    {"D3DDevice_SetRenderState_MultiSampleMask", "s"},
+    {"D3DDevice_SetRenderState_RopZCmpAlwaysRead", "s"},
+    {"D3DDevice_SetRenderState_StencilEnable", "s"},
+    {"D3DDevice_SetRenderState_StencilFail", "s"},
+    {"D3DDevice_SetRenderState_TextureFactor", "s"},
+    {"D3DDevice_SetRenderState_YuvEnable", "s"},
+    {"D3DDevice_SetRenderState_ZEnable", "s"},
+    {"D3DDevice_SetTexture", "s s"},
+    {"D3DDevice_SetPalette", "s s"},
+    {"D3DDevice_SwitchTexture", "ecx edx s"},
+    {"D3DDevice_SetTextureState_BorderColor", "s s"},
+    {"D3DDevice_SetTextureState_TexCoordIndex", "s s"},
+    {"D3DDevice_SetTextureState_ColorKeyColor", "s s"},
+    {"D3DDevice_SetTextureState_BumpEnv", "s s s"},
+    {"D3DDevice_SetVertexShaderConstant1Fast", "ecx edx:16"},
+    {"D3DDevice_SetVertexShaderConstantNotInlineFast", "ecx edx:a2*4 s"},
+    {"D3DDevice_SetVertexShaderConstantNotInline", "ecx edx:a2*4 s"},
+    {"D3DDevice_SetVertexShaderInputDirect", "s:256 s s:a1*12"},
+    {"D3DDevice_SetVertexShaderInput", "s s s:a1*12"},
+    {"D3DDevice_SelectVertexShaderDirect", "s:256 s"},
+    {"D3DDevice_LoadVertexShaderProgram", "s s"},
+    {"D3DDevice_SetVertexShader", "s"},
+    {"D3DDevice_SetPixelShader", "s"},
+    {"D3DDevice_SetPixelShaderProgram", "s"},
+    {"D3DDevice_SetPixelShaderConstant", "s s:a2*16 s"},
+    {"D3DDevice_SetShaderConstantMode", "s"},
+    {"D3DDevice_DrawVertices", "s s s"},
+    {"D3DDevice_DrawIndexedVertices", "s s s"},
+};
+
 // XAPI XLaunchNewImageA calls the first non-null entry of a launch hook table
 // (static data) instead of its own path. XONLINE puts its launch there (SP
 // FUN_0037da38 at 0x0089790c): the same plus Xbox Live dashboard handling and
@@ -909,6 +958,19 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
         if (installed == 0 && !library.functions.empty()) ok = false;
     }
     return ok;
+}
+
+std::vector<compare::SdkCall> recorded_sdk_calls() {
+    std::vector<compare::SdkCall> calls;
+    for (const RecordedCall& call : kRecordedD3dCalls) {
+        uint32_t host = 0;
+        for (const xbox::KernelImpl& function : render::d3d_functions())
+            if (std::strcmp(function.name, call.name) == 0)
+                host = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function.address));
+        if (!host) LOG_WARN("patches", "%s: recorded SDK call without a replacement", call.name);
+        calls.push_back({call.name, host, call.args});
+    }
+    return calls;
 }
 
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {

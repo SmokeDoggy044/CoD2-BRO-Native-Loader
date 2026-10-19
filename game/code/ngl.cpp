@@ -1903,4 +1903,255 @@ void XB_STDCALL nglMaterial_ReleaseTwoTexturesClear(uint8_t* material) {
     material_texture(material, 0x24) = nullptr;
 }
 
+namespace {
+
+// The D3D functions the state code calls (replaced by the port's own in route B).
+void set_render_state_simple(uint32_t method, uint32_t value) {
+    title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(method, value);
+}
+
+uint32_t address_of(const void* pointer) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pointer)); }
+
+template <typename T>
+void set_cached(uint8_t* self, uint32_t offset, uint32_t method, T value) {
+    T& cached = *reinterpret_cast<T*>(self + offset);
+    if (cached == value) return;
+    set_render_state_simple(method, value);
+    cached = value;
+}
+
+}  // namespace
+
+void XB_THISCALL nglStateCache_SetAlphaTestEnable(uint8_t* self, uint8_t enable) {
+    set_cached<uint8_t>(self, 0x50, 0x00040300, enable);
+}
+
+void XB_THISCALL nglStateCache_SetAlphaFunc(uint8_t* self, uint32_t func) {
+    set_cached<uint32_t>(self, 0x54, 0x0004033c, func);
+}
+
+void XB_THISCALL nglStateCache_SetAlphaRef(uint8_t* self, uint32_t ref) {
+    set_cached<uint32_t>(self, 0x58, 0x00040340, ref);
+}
+
+void XB_THISCALL nglStateCache_SetBlendEnable(uint8_t* self, uint8_t enable) {
+    set_cached<uint8_t>(self, 0x5c, 0x00040304, enable);
+}
+
+void XB_THISCALL nglStateCache_SetSrcBlend(uint8_t* self, uint32_t factor) {
+    set_cached<uint32_t>(self, 0x60, 0x00040344, factor);
+}
+
+void XB_THISCALL nglStateCache_SetDestBlend(uint8_t* self, uint32_t factor) {
+    set_cached<uint32_t>(self, 0x64, 0x00040348, factor);
+}
+
+void XB_THISCALL nglStateCache_SetBlendOp(uint8_t* self, uint32_t op) {
+    set_cached<uint32_t>(self, 0x70, 0x00040350, op);
+}
+
+void XB_THISCALL nglStateCache_SetBlendColor(uint8_t* self, uint32_t color) {
+    uint32_t& cached = *reinterpret_cast<uint32_t*>(self + 0x6c);
+    if (cached == color) return;
+    set_render_state_simple(0x0004034c, color);
+    title_global<uint32_t>(0x003f8454) = color;  // D3D's D3DRS_BLENDCOLOR
+    cached = color;
+}
+
+void XB_THISCALL nglSetBlendMode(uint8_t* self, uint32_t mode, uint32_t alpha, uint32_t alpha_ref) {
+    uint32_t& cached_mode = *reinterpret_cast<uint32_t*>(self + 0xe8);
+    uint32_t& cached_alpha = *reinterpret_cast<uint32_t*>(self + 0xec);
+    if (cached_mode == mode && cached_alpha == alpha && mode != 1) return;
+    constexpr uint32_t kGreaterEqual = 0x204, kAdd = 0x8006, kReverseSubtract = 0x800b;
+    constexpr uint32_t kSrcAlpha = 0x302, kInvSrcAlpha = 0x303, kOne = 1, kZero = 0;
+    constexpr uint32_t kConstantAlpha = 0x8003, kInvConstantAlpha = 0x8004;
+    // Every blending mode: alpha test on (>= 0), blending on.
+    const auto blending = [self] {
+        nglStateCache_SetAlphaTestEnable(self, 1);
+        nglStateCache_SetAlphaFunc(self, kGreaterEqual);
+        nglStateCache_SetAlphaRef(self, 0);
+        nglStateCache_SetBlendEnable(self, 1);
+    };
+    const auto blend = [self](uint32_t op, uint32_t src, uint32_t dst) {
+        nglStateCache_SetBlendOp(self, op);
+        nglStateCache_SetSrcBlend(self, src);
+        nglStateCache_SetDestBlend(self, dst);
+    };
+    switch (mode) {
+    case 0:
+        nglStateCache_SetAlphaTestEnable(self, 0);
+        nglStateCache_SetBlendEnable(self, 0);
+        break;
+    case 1:
+        nglStateCache_SetAlphaTestEnable(self, 1);
+        nglStateCache_SetAlphaFunc(self, kGreaterEqual);
+        nglStateCache_SetAlphaRef(self, alpha_ref);
+        nglStateCache_SetBlendEnable(self, 0);
+        break;
+    case 2:
+        blending();
+        blend(kAdd, kSrcAlpha, kInvSrcAlpha);
+        break;
+    case 3:
+        blending();
+        blend(kAdd, kSrcAlpha, kOne);
+        break;
+    case 4:
+        blending();
+        blend(kReverseSubtract, kSrcAlpha, kOne);
+        break;
+    case 5:
+        blending();
+        blend(kAdd, kConstantAlpha, kInvConstantAlpha);
+        nglStateCache_SetBlendColor(self, alpha << 24);
+        break;
+    case 6:
+        blending();
+        blend(kAdd, kConstantAlpha, kOne);
+        nglStateCache_SetBlendColor(self, alpha << 24);
+        break;
+    case 7:
+        blending();
+        blend(kReverseSubtract, kConstantAlpha, kOne);
+        nglStateCache_SetBlendColor(self, alpha << 24);
+        break;
+    case 8:
+        blending();
+        blend(kAdd, kZero, kSrcAlpha);
+        break;
+    default:
+        break;
+    }
+    *reinterpret_cast<uint32_t*>(self + 0xf0) = alpha_ref;
+    cached_mode = mode;
+    cached_alpha = alpha;
+}
+
+void XB_CDECL nglSetPixelShaderProgramCached(const NglShaderRef* shader) {
+    uint32_t& cached = title_global<uint32_t>(0x00903c10);
+    if (shader->program == cached) return;
+    title_function<void XB_STDCALL(uint32_t)>(0x003e77e0)(shader->program);  // SetPixelShaderProgram
+    cached = shader->program;
+}
+
+void XB_CDECL nglSetVertexShaderCached(const NglShaderRef* shader) {
+    using LoadProgram = void XB_STDCALL(uint32_t, uint32_t);
+    using SelectDirect = void XB_STDCALL(uint32_t, uint32_t);
+    uint32_t& cached_program = title_global<uint32_t>(0x00903c08);
+    uint32_t& cached_format = title_global<uint32_t>(0x00903c0c);
+    if (shader->program == cached_program && shader->format == cached_format) return;
+    title_function<LoadProgram>(0x003e6ea0)(shader->program, 0);  // LoadVertexShaderProgram
+    if (shader->format == cached_format) {
+        title_function<SelectDirect>(0x003e6f40)(0, 0);  // SelectVertexShaderDirect
+    } else {
+        title_function<SelectDirect>(0x003e6f40)(shader->format, 0);
+        cached_format = shader->format;
+    }
+    cached_program = shader->program;
+}
+
+void XB_CDECL nglSetPaletteCached(uint32_t stage, uint8_t* palette) {
+    uint8_t*& cached = title_global<uint8_t* [4]>(0x00903d48)[stage];
+    if (palette == cached) return;
+    title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e6160)(stage, *reinterpret_cast<uint32_t*>(palette + 0xc));
+    cached = palette;
+}
+
+void XB_CDECL nglUnbindTextures() {
+    using SetStageObject = void XB_STDCALL(uint32_t, uint32_t);
+    for (uint32_t stage = 0; stage < 4; ++stage) title_function<SetStageObject>(0x003e6160)(stage, 0);  // SetPalette
+    uint32_t* palettes = title_global<uint32_t[4]>(0x00903d48);
+    for (uint32_t stage = 0; stage < 4; ++stage) palettes[stage] = 0;
+    for (uint32_t stage = 0; stage < 4; ++stage) title_function<SetStageObject>(0x003e5f70)(stage, 0);  // SetTexture
+    uint32_t* textures = title_global<uint32_t[4]>(0x008a2e60);
+    uint32_t* formats = title_global<uint32_t[4]>(0x008a2e70);
+    uint32_t* address_modes = title_global<uint32_t[4]>(0x008a2e80);
+    for (uint32_t stage = 0; stage < 4; ++stage) {
+        textures[stage] = 0;
+        formats[stage] = 0xffffffff;
+        address_modes[stage] = 0xffffffff;
+    }
+}
+
+void XB_CDECL nglSetTexture(uint32_t stage, NglTexture* texture, uint8_t address_flags, uint32_t border) {
+    NglTexture* t = texture;
+    if (static_cast<uint8_t>(texture->flags) == 0x0f) {
+        const uint32_t frame_count = address_of(texture->target);
+        t = texture->frames[title_global<uint32_t>(0x009026fc) % frame_count];
+    }
+    if (static_cast<uint8_t>(t->flags) == 0x10) t = t->target;
+    t->last_used_frame = title_global<int32_t>(0x009028e0);
+    uint32_t* textures = title_global<uint32_t[4]>(0x008a2e60);
+    uint32_t* formats = title_global<uint32_t[4]>(0x008a2e70);
+    if (textures[stage] != address_of(t->d3d_texture)) {
+        const uint32_t format = t->flags & 0xf0000f00;
+        const uint8_t* d3d = t->d3d_texture;
+        if ((t->flags & 0x100) && format == formats[stage]) {
+            // Same format: only the texture's data and format words change.
+            using SwitchTexture = void XB_FASTCALL(uint32_t, uint32_t, uint32_t);
+            title_function<SwitchTexture>(0x003e6130)(title_global<uint32_t[4]>(0x00831600)[stage],
+                                                     *reinterpret_cast<const uint32_t*>(d3d + 4),
+                                                     *reinterpret_cast<const uint32_t*>(d3d + 0xc));
+        } else {
+            title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e5f70)(stage, address_of(d3d));  // SetTexture
+        }
+        formats[stage] = format;
+        textures[stage] = address_of(t->d3d_texture);
+    }
+    if (texture->palette) nglSetPaletteCached(stage, texture->palette);
+    nglSetTextureAddressMode(&title_global<uint8_t>(0x008a2e60), stage, address_flags, border);
+}
+
+void XB_CDECL nglSetVertexStreams(const uint8_t* vertex_buffer, uint32_t stride, uint32_t start) {
+    struct Stream {
+        uint32_t buffer, stride, offset;
+    };
+    const uint32_t offset = stride * start;
+    const uint32_t& buffer = *reinterpret_cast<const uint32_t*>(vertex_buffer + 8);
+    uint32_t& cached_buffer = title_global<uint32_t>(0x00903c88);
+    uint32_t& cached_stride = title_global<uint32_t>(0x00903c8c);
+    uint32_t& cached_offset = title_global<uint32_t>(0x00903c90);
+    if (buffer == cached_buffer && stride == cached_stride && offset == cached_offset) return;
+    const Stream stream = {buffer, stride, offset};
+    using InputDirect = void XB_STDCALL(uint32_t, uint32_t, const Stream*);
+    title_function<InputDirect>(0x003e75e0)(title_global<uint32_t>(0x00903c0c), 1, &stream);  // SetVertexShaderInputDirect
+    cached_buffer = buffer;
+    cached_stride = stride;
+    cached_offset = offset;
+}
+
+void XB_CDECL nglDrawMeshSection(const NglMeshSection* section) {
+    using Draw = void XB_STDCALL(uint32_t, uint32_t, uint32_t);
+    nglSetVertexStreams(section->vertex_buffer, section->stride, 0);
+    if (!section->index_count) {
+        title_function<Draw>(0x003e98c0)(section->primitive, 0, section->vertex_count);  // DrawVertices
+    } else if (section->has_push_buffer) {
+        title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003ebf10)(section->push_buffer, 0);  // RunPushBuffer
+    } else {
+        title_function<Draw>(0x003e9990)(section->primitive, section->index_count, section->indices);  // DrawIndexedVertices
+    }
+}
+
+void XB_CDECL nglSetTransformConstants(int32_t slot, NglMeshDrawNode* node, float fog0, float fog1, float fog2,
+                                       float fog3) {
+    alignas(16) float constants[8];
+    constants[3] = fog3 - fog2;
+    constants[2] = 1.0f / (fog1 - fog0);
+    constants[1] = fog0;
+    constants[0] = fog2;
+    alignas(16) float buffer[16];
+    const float* inverse = nglNode_GetWorldInverse(node, buffer);
+    // The camera position (the camera matrix's row 3) in the node's object space.
+    const float* camera = current_scene()->matrix0d0 + 12;
+    const Lanes p = add(add(add(lanes(inverse + 12), mul(lanes(inverse), camera[0])), mul(lanes(inverse + 4), camera[1])),
+                        mul(lanes(inverse + 8), camera[2]));
+    platform_keep(p);
+    constants[4] = p.v[0];
+    constants[5] = p.v[1];
+    constants[6] = p.v[2];
+    constants[7] = 1.0f;
+    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
+    title_function<SetConstants>(0x003e7490)(static_cast<uint32_t>(slot + 0x60), constants, 8);  // NotInlineFast
+}
+
 }  // namespace game
