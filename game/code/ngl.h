@@ -417,4 +417,16 @@ void XB_THISCALL nglSetTextureAddressMode(uint8_t* self, uint32_t stage, uint8_t
 // title's constant blocks.
 void XB_CDECL nglInitShaderConstantTable();
 
+// 0x00068560: the LOD for a mesh at `position` (16-byte aligned): its view depth
+// (current scene's view matrix, column z), times `params` +0x20 when `flags` bit 7 is
+// set, is compared from the last entry down with the table's {mesh, min depth}
+// entries (count +0x18, array +0x1c); the first one it is beyond gives its mesh.
+// None (or NaN): returns `table` itself, as the original leaves EAX. EAX = table.
+uint8_t* XB_REGS1 XB_CDECL nglSelectMeshLod(uint8_t* table, int8_t flags, const uint8_t* params,
+                                            const float* position);
+// 0x00068680: `matrix` with rows 0..2 scaled by the instance scale (`instance` + 0x10),
+// in a static matrix (0x00902af0) that is returned; *max_scale = the largest of the
+// scale's |x|, |y|, |z| (MAXPS order).
+float* XB_CDECL nglScaleMeshMatrix(const float* matrix, const uint8_t* instance, float* max_scale);
+
 }  // namespace game

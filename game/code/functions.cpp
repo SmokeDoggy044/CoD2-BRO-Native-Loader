@@ -73,6 +73,8 @@ const Function kFunctions[] = {
     {"nglMeshNext", 0x000674b0, 0, code(&nglMeshNext), 4, Result::Eax, Status::Compare},
     {"nglMeshFileFindMesh", 0x00067510, 0, code(&nglMeshFileFindMesh), 8, Result::Eax, Status::Compare},
     {"nglRelocateMesh", 0x000677b0, 0, code(&nglRelocateMesh), 12, Result::None, Status::Compare},
+    {"nglSelectMeshLod", 0x00068560, 0, code(&nglSelectMeshLod), 12, Result::Eax, Status::Compare},
+    {"nglScaleMeshMatrix", 0x00068680, 0, code(&nglScaleMeshMatrix), 12, Result::Eax, Status::Compare},
     {"nglTextureSetPixel", 0x0006a900, 0, code(&nglTextureSetPixel), 16, Result::None, Status::Compare},
     {"nglSetTextureAddressMode", 0x0006ad00, 0, code(&nglSetTextureAddressMode), 12, Result::None, Status::Compare},
     {"nglResetFrameStats", 0x0006bad0, 0, code(&nglResetFrameStats), 0, Result::None, Status::Compare},

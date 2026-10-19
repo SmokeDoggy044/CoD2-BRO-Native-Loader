@@ -750,4 +750,51 @@ void XB_CDECL nglInitShaderConstantTable() {
     for (const auto& entry : kStored) title_global<uint32_t>(entry[0]) = entry[1];
 }
 
+uint8_t* XB_REGS1 XB_CDECL nglSelectMeshLod(uint8_t* table, int8_t flags, const uint8_t* params,
+                                            const float* position) {
+    // Lane z of row3 + row0 * x + row1 * y + row2 * z, summed in that order.
+    const float* view = current_scene()->view_matrix;
+    float depth = view[12 + 2] + view[0 + 2] * position[0];
+    depth = depth + view[4 + 2] * position[1];
+    depth = depth + view[8 + 2] * position[2];
+    if (flags < 0) depth = *reinterpret_cast<const float*>(params + 0x20) * depth;
+    const int32_t count = *reinterpret_cast<const int32_t*>(table + 0x18);
+    const uint8_t* entries = *reinterpret_cast<uint8_t* const*>(table + 0x1c);
+    for (int32_t i = count - 1; i >= 0; --i) {
+        if (depth > *reinterpret_cast<const float*>(entries + i * 8 + 4))
+            return *reinterpret_cast<uint8_t* const*>(entries + i * 8);
+    }
+    return table;
+}
+
+namespace {
+
+float abs_bits(float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    bits &= 0x7fffffff;
+    std::memcpy(&value, &bits, 4);
+    return value;
+}
+
+// MAXPS: the second operand unless the first is greater (NaN picks the second).
+float maxps(float a, float b) { return a > b ? a : b; }
+
+}  // namespace
+
+float* XB_CDECL nglScaleMeshMatrix(const float* matrix, const uint8_t* instance, float* max_scale) {
+    const float* scale = reinterpret_cast<const float*>(instance + 0x10);
+    const float x = abs_bits(scale[0]);
+    const float y = abs_bits(scale[1]);
+    const float z = abs_bits(scale[2]);
+    *max_scale = maxps(maxps(z, y), x);
+    title_global<uint32_t>(0x00902b30) |= 1;  // the static's construction guard
+    float* out = &title_global<float>(0x00902af0);
+    for (int row = 0; row < 3; ++row) {
+        for (int i = 0; i < 4; ++i) out[row * 4 + i] = matrix[row * 4 + i] * scale[row];
+    }
+    std::memcpy(out + 12, matrix + 12, 16);
+    return out;
+}
+
 }  // namespace game

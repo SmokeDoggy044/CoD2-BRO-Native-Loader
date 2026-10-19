@@ -2037,3 +2037,5 @@ address,name,kind,confidence,evidence
 00903c70,ngl_multisampleScale,data,low,"4 floats written by nglInitMultisample, read for the screen target"
 0006ad00,nglSetTextureAddressMode,function,medium,"thiscall (stage, flags, border): per-stage cached mode at self+0x20 -> D3D texture stage ADDRESSU/V/W (0x003f5c74 + stage*0x80) + border colour, dirty mask 0x003f8320; caller nglSetTexture"
 00076360,nglInitShaderConstantTable,function,low,"fills 0x00903c9c..0x00903d08 with pointers to constant blocks in .data; caller nglInitShaderConstants"
+00068560,nglSelectMeshLod,function,medium,"EAX = LOD table {count +0x18, {mesh, min depth}[] +0x1c}; view-space depth of the position against the thresholds from the last down; nglListAddMesh uses the result as the mesh"
+00068680,nglScaleMeshMatrix,function,medium,"(matrix, instance, &max): rows 0..2 times the instance scale (+0x10) into a static matrix, max |scale| out; nglListAddMesh when the instance is scaled"
