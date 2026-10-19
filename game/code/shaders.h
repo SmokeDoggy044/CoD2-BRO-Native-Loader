@@ -220,4 +220,45 @@ void XB_THISCALL cdGunSight_Draw(const NglMeshNode* node);
 void XB_THISCALL cdGun_Draw(const NglMeshNode* node);
 void XB_THISCALL cdSimple_Draw(const NglMeshNode* node);
 
+// 0x0004bd00: the skinned characters: no culling, alpha tested (0x204, 0x80), the
+// texture animation frame, object lights as constants 6..17, then the skinning
+// constants (nglSetSkinningConstants, slot -0x4c).
+void XB_THISCALL cdChar_Draw(const NglMeshNode* node);
+// 0x0004d560: the UV animation parameters - the vec4 at +0x30 of the instance's
+// object in slot 0x00902908, else the default at 0x007b5b80.
+void XB_THISCALL cdSimpleUVAnim_GetUVParams(const NglMeshNode* node, float* out);
+// 0x0004d610: the lit alpha-tested template with the UV parameters as constant 18.
+void XB_THISCALL cdSimpleUVAnim_Draw(const NglMeshNode* node);
+// 0x000469b0: one colour (constant 12; the instance's, else white), blend mode 2.
+void XB_THISCALL cdDebug_Draw(const NglMeshNode* node);
+// 0x0004b560: alpha blended with decal bias 10; the matrix's depth row offset by the
+// material's +0x20 over the view depth.
+void XB_THISCALL cdDecal_Draw(const NglMeshNode* node);
+// 0x000511c0: alpha blended, two textures, the scroll offsets as constant 10.
+void XB_THISCALL cdWater_Draw(const NglMeshNode* node);
+// 0x000505c0: up to four textures; shaders and the transform slot from the node
+// class's vtable, the wave constants from 0x0004f810.
+void XB_THISCALL cdOcean_Draw(const NglMeshNode* node);
+// 0x0004ad60: alpha blended, the lit template with the blade angle as constant 18.
+void XB_THISCALL cdPropeller_Draw(const NglMeshNode* node);
+// 0x00053440: the world geometry: lightmap (+0x24) and the first shadow projector
+// reaching the mesh, fog, then an additive pass for up to four dynamic lights.
+void XB_THISCALL cdWorld_Draw(const NglMeshNode* node);
+// 0x00051b10: cdWorld's draw with two blended textures, the lightmap on stage 2 and
+// the projector on stage 3.
+void XB_THISCALL cdWorldBlend_Draw(const NglMeshNode* node);
+// 0x0004cbf0: two textures, the first object light and the camera in object space,
+// scrolling UVs, a shine constant for the pixel shader.
+void XB_THISCALL cdAirplaneMetal_Draw(const NglMeshNode* node);
+// 0x00054ad0: the sky, turning about z with the time, scrolling UVs; no fog, depth
+// test or depth writes (restored after); blended when the material's +0x20 is set.
+void XB_THISCALL cdSky_Draw(const NglMeshNode* node);
+// 0x00048a10: additive-over (ONE, INVSRCALPHA) glass: the world-view rotation, the
+// first object light and the camera in object space; lit when the material's flags
+// (+0x30) have bit 0.
+void XB_THISCALL cdGlass_Draw(const NglMeshNode* node);
+// 0x0007b670: NGL's own debug shader: one colour (constant 10; the instance's, else
+// white), blend mode 2, no fog change.
+void XB_THISCALL nglDebugShader_Draw(const NglMeshNode* node);
+
 }  // namespace game

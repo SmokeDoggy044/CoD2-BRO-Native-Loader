@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "lanes.h"
 #include "title_data.h"
 
 namespace game {
@@ -278,28 +279,6 @@ void XB_CDECL nglMatrixViewport(float* out, float x0, float y0, float x1, float 
                    0, 0, 1, 0,
                    centre_x, (y0 + y1) * 0.5f, 0, centre_x});
 }
-
-namespace {
-
-struct Lanes {
-    float v[4];
-};
-
-Lanes lanes(const float* p) { return {{p[0], p[1], p[2], p[3]}}; }
-
-Lanes mul(const Lanes& a, float s) { return {{a.v[0] * s, a.v[1] * s, a.v[2] * s, a.v[3] * s}}; }
-
-Lanes add(const Lanes& a, const Lanes& b) {
-    return {{a.v[0] + b.v[0], a.v[1] + b.v[1], a.v[2] + b.v[2], a.v[3] + b.v[3]}};
-}
-
-Lanes sub(const Lanes& a, const Lanes& b) {
-    return {{a.v[0] - b.v[0], a.v[1] - b.v[1], a.v[2] - b.v[2], a.v[3] - b.v[3]}};
-}
-
-Lanes neg(const Lanes& a) { return {{-a.v[0], -a.v[1], -a.v[2], -a.v[3]}}; }
-
-}  // namespace
 
 namespace {
 

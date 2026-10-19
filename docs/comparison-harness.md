@@ -70,6 +70,12 @@ registers and calls the dispatcher. For a tested call:
   a kernel export, an SDK replacement, the window, GPU or sound - faults, and the
   test ends as *inconclusive* with the caller named. So a test process can never
   touch the game's devices, sockets or files.
+- The dead stack below the caller's stack pointer (up to 16 KB, within the thread's
+  stack) is zeroed as the function starts (`xbcmp_resume`), on both sides. Code that
+  sends uninitialized locals - shader constant blocks whose unused lanes the title
+  never sets (cdWorld_Draw, cdPropeller_Draw) - then sends the same bytes, and the
+  decompiled version writes zeros there. Without it those calls mismatch on stack
+  garbage (checked: cdWorld_Draw 839 of 1,344 tests).
 - Then it clears the soft-dirty bits (`/proc/self/clear_refs`) and runs the function
   with the caller's registers and a return address of `xbcmp_landing`, which saves
   the registers and x87/SSE state (FXSAVE). Pages written are the soft-dirty ones

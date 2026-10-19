@@ -66,10 +66,12 @@ struct alignas(16) Context {
     uint32_t eax, ecx, edx, ebx, esp, ebp, esi, edi;
     uint32_t eflags;
     uint32_t target;  // where xbcmp_resume continues
-    uint32_t pad[2];
+    uint32_t zero_below;  // bytes below ESP that xbcmp_resume clears (test processes)
+    uint32_t pad;
 };
 static_assert(offsetof(Context, eax) == 512 && offsetof(Context, esp) == 528 && offsetof(Context, edi) == 540);
-static_assert(offsetof(Context, eflags) == 544 && offsetof(Context, target) == 548 && sizeof(Context) == 560);
+static_assert(offsetof(Context, eflags) == 544 && offsetof(Context, target) == 548 &&
+              offsetof(Context, zero_below) == 552 && sizeof(Context) == 560);
 
 // What xbcmp_entry leaves on the stack: pushad, pushfd, the stub's index, the
 // caller's return address.
@@ -88,6 +90,7 @@ constexpr uint32_t kScanRegions = 512;  // runs of written pages per PAGEMAP_SCA
 
 constexpr uint32_t kSdkLogBytes = 64 * 1024;
 constexpr uint32_t kMaxSdkSpecs = 128;
+constexpr uint32_t kZeroedStack = 16 * 1024;  // below the caller's ESP in test processes
 constexpr uint32_t kMaxSdkArgs = 6;
 constexpr uint32_t kMaxSdkData = 4096;  // per pointer argument
 
@@ -183,7 +186,8 @@ void xbcmp_landing();
 
 // xbcmp_entry: [esp] = function index (pushed by its stub), [esp+4] = return address.
 // xbcmp_resume(context): loads every register from `context` and jumps to
-// context->target with ESP = context->esp.
+// context->target with ESP = context->esp, after zeroing context->zero_below bytes
+// below that ESP (a multiple of 4).
 // xbcmp_landing: where a test process's function returns; saves the registers into
 // xbcmp_child.result, switches to the area's stack and reports.
 asm(R"(
@@ -204,6 +208,15 @@ xbcmp_resume:
     movl 4(%esp), %eax
     fxrstor (%eax)
     movl 528(%eax), %esp
+    movl %eax, %edx
+    movl 552(%edx), %ecx
+    movl %esp, %edi
+    subl %ecx, %edi
+    shrl $2, %ecx
+    xorl %eax, %eax
+    cld
+    rep stosl
+    movl %edx, %eax
     pushl 548(%eax)
     pushl 544(%eax)
     movl 516(%eax), %ecx
@@ -756,7 +769,7 @@ bool prepare_maps(ChildArea& c) {
 // whose write end is still open somewhere never reports EOF, and a test process
 // waiting on it outlives the game (holding its window open).
 [[noreturn]] void child_main(bool run_original, int out, int in, pid_t grandchild, std::initializer_list<int> unused,
-                             const Hook& hook, const Context& context) {
+                             const Hook& hook, const Context& context, uint32_t stack_limit) {
     ChildArea& c = xbcmp_child;
     for (int fd : unused) close(fd);
     if (g_verdict_fd >= 0) close(g_verdict_fd);
@@ -805,6 +818,12 @@ bool prepare_maps(ChildArea& c) {
     c.report.t_mapped = now_ns();
     std::memcpy(&c.start, &context, sizeof(Context));
     c.start.target = run_original ? hook.address : hook.code;
+    // The dead stack below the caller's ESP reads as zeros on both sides: code that
+    // sends uninitialized locals (unused lanes of a shader constant block) sends the
+    // same bytes then, and the decompiled version writes zeros there.
+    c.start.zero_below = 0;
+    if (stack_limit && c.start.esp > stack_limit)
+        c.start.zero_below = std::min<uint32_t>(kZeroedStack, (c.start.esp - stack_limit) & ~3u);
     *reinterpret_cast<uint32_t*>(uintptr_t{c.start.esp}) = addr(reinterpret_cast<const void*>(&xbcmp_landing));
     child_run(c);
 }
@@ -1152,9 +1171,10 @@ Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
     if (child == 0) {
         // Same memory for both: fork the second test process before anything runs.
         const pid_t grandchild = fork();
-        if (grandchild == 0) child_main(false, b_out[1], b_in[0], 0, {a_out[0], a_out[1], a_in[0], a_in[1], b_out[0], b_in[1]}, hook, entry);
+        if (grandchild == 0) child_main(false, b_out[1], b_in[0], 0, {a_out[0], a_out[1], a_in[0], a_in[1], b_out[0], b_in[1]}, hook, entry,
+                                        stack_limit);
         child_main(true, a_out[1], a_in[0], grandchild, {a_out[0], a_in[1], b_out[0], b_out[1], b_in[0], b_in[1]}, hook,
-                   entry);
+                   entry, stack_limit);
     }
     const uint64_t t_forked = now_ns();
     for (int fd : {a_out[1], a_in[0], b_out[1], b_in[0]}) close(fd);

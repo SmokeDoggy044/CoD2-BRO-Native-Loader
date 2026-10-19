@@ -107,6 +107,14 @@ inline float platform_x87_rcp_sqrt_sq_plus_one(float v) {
     __asm__("flds %1\n\tfmuls %1\n\tfadds %2\n\tfsqrt\n\tfdivrs %2" : "=t"(result) : "m"(v), "m"(one));
     return result;
 }
+// The cosine and sine of a * b * c, all on the x87 (FMUL twice, FCOS of a copy, FSIN),
+// each stored as float: no MXCSR flags for the products.
+inline void platform_x87_sin_cos_of_product(float a, float b, float c, float* sine, float* cosine) {
+    __asm__("flds %2\n\tfmuls %3\n\tfmuls %4\n\tfld %%st(0)\n\tfcos\n\tfstps %1\n\tfsin\n\tfstps %0"
+            : "=m"(*sine), "=m"(*cosine)
+            : "m"(a), "m"(b), "m"(c)
+            : "st", "st(1)");
+}
 // MSVC's unsigned to float on the x87: FILD of the value as signed, FADD 2^32 when
 // negative (rounded by the caller's precision control), FSTP as float. No MXCSR flags.
 inline float platform_x87_unsigned_to_float(std::uint32_t value) {
@@ -128,6 +136,10 @@ inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
     return t - std::sqrt(a * b) >= limit;
 }
 inline float platform_x87_rcp_sqrt_sq_plus_one(float v) { return 1.0f / std::sqrt(v * v + 1.0f); }
+inline void platform_x87_sin_cos_of_product(float a, float b, float c, float* sine, float* cosine) {
+    *sine = std::sin(a * b * c);
+    *cosine = std::cos(a * b * c);
+}
 #endif
 
 // MSVC's _ftol: truncates through a 64-bit integer and keeps the low half, so NaN and

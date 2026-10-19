@@ -4,7 +4,7 @@
 changing that: we're turning the original Xbox game back into C++ source code that
 can be built and run natively on Linux and Windows.
 
-It's early days: about one function in seven has a name, and the first 203 have
+It's early days: about one function in seven has a name, and the first 219 have
 been rewritten in C++. The renderer is the part we're working on now.
 
 **Just want to play?** Use the
@@ -26,9 +26,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 9,563 | 1,612 | 203 | 9,360 |
+| Engine and game code (`.text`) | 9,563 | 1,613 | 219 | 9,344 |
 | Mission scripts (14 level sections) | 4,977 | 0 | 0 | 4,977 |
-| **Total** | **14,540** | **1,612** | **203** | **14,337** |
+| **Total** | **14,540** | **1,613** | **219** | **14,321** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison

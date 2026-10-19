@@ -2070,3 +2070,6 @@ address,name,kind,confidence,evidence
 00049030,nglStateCache_SetBlendOp,function,high,"cache +0x70; NV2A 0x350 blend equation (0x8006 ADD, 0x800b REVSUBTRACT)"
 00076050,nglStateCache_SetBlendColor,function,high,"cache +0x6c; NV2A 0x34c blend colour, also D3D render state 0x003f8454; modes 5-7 pass alpha << 24"
 000476b0,nglSetTextureAnimFrame,function,high,"thiscall node; writes 0x009026fc (nglSetTexture frame pick) from the instance parameter slot 0x00902918 or scene +0x3d4; called first by ShaderPCUV_Draw and cdChar_Draw"
+0004d560,cdSimpleUVAnim_GetUVParams,function,medium,"thiscall node, out vec4, ret 4; the vec4 at +0x30 of the instance parameter object in slot 0x00902908, else 0x007b5b80; only cdSimpleUVAnim_Draw calls it, which sends it as the constant after the lights"
+0004f810,cdOcean_SetWaveConstants,function,medium,"thiscall node; only cdOcean_Draw calls it before the transform constants; builds wave constants from 0x00902138.. and the time 0x00901e90, ends in SetVertexShaderConstantNotInlineFast and SetPixelShaderConstant"
+00049280,nglNode_GetWorldViewRotation,function,medium,"thiscall draw node, out matrix; the node's world rotation rows (0..2) times the scene's view matrix (+0x150) rows 0..2, all packed; cdGlass_Draw sends its rows as constants 10..13"
