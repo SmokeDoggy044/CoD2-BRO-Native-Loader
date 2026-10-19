@@ -22,4 +22,23 @@ FxEffect* XB_CDECL FX_AllocEffect() {
     return effect;
 }
 
+uint8_t* XB_CDECL FX_FindEvictableEffect(const uint8_t* effect) {
+    const uint32_t count = title_global<uint32_t>(0x0098880c);
+    uint8_t** const first = title_global<uint8_t**>(0x00988804);
+    if (!count) return nullptr;
+    uint8_t** entry = first + count - 1;
+    if (entry == first) return nullptr;
+    const int32_t priority = *reinterpret_cast<const int32_t*>(effect + 0x68);
+    for (;;) {
+        uint8_t* active = *entry;
+        const uint8_t* definition = *reinterpret_cast<uint8_t* const*>(active + 4);
+        if (definition) {
+            const uint32_t flags = *reinterpret_cast<const uint32_t*>(definition + 0x50);
+            if (static_cast<int32_t>(flags >> 25) <= priority) return nullptr;
+            if (flags & 0x1000000) return active;
+        }
+        if (entry-- == first) return nullptr;
+    }
+}
+
 }  // namespace game

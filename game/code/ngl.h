@@ -35,7 +35,8 @@ struct NglLight;
 struct alignas(16) NglLightSet {
     NglLight* lists[8];
     uint8_t unknown20[0x30 - 0x20];
-    void* unknown30[8];      // +0x30, all start pointing at unknown30
+    NglLight* projectors[8]; // +0x30, shadow projectors (same layout as lights), per
+                             // flag bit 24..31; empty lists end at `projectors`
     uint8_t unknown50[0x60 - 0x50];
     float ambient[4];        // +0x60, r g b 1, each 0..1
 };
@@ -46,6 +47,33 @@ struct alignas(16) NglLight {
     uint32_t flags;          // +0x24, bits 24..31: the lists it is on
     uint32_t type;           // +0x28, 0 or 1 (see nglLightVectorWorld)
     float* data;             // +0x2c
+};
+
+// A skip list keyed by 32-byte names (nglSkipList_Find); nodes are {key, next[]}.
+struct NglSkipListNode {
+    const uint32_t* key;          // the object, whose first 32 bytes are its name
+    NglSkipListNode* next[1];     // one per level up to the node's height
+};
+
+struct NglSkipList {
+    uint32_t seed;                // rand() at creation
+    uint32_t max_level;           // 7 for the font manager
+    NglSkipListNode* head;        // +0x08
+    int32_t level;                // +0x0c, highest level in use
+};
+
+// A video mode (nglSelectVideoMode builds one and copies it to the current mode).
+struct NglVideoMode {
+    uint32_t width;
+    uint32_t height;
+    uint8_t progressive;          // +0x08
+    uint8_t widescreen;           // +0x09
+    uint8_t unknown0a;
+    uint8_t unknown0b;            // always 0
+    uint32_t unknown0c[9];        // +0x0c..+0x2c
+    uint8_t unknown30;            // always 0
+    float unknown34;              // 1.0
+    float unknown38;              // 1.0
 };
 
 // Only the fields the decompiled functions use so far.
@@ -149,6 +177,9 @@ static_assert(offsetof(NglScene, render_target) == 0x2f8);
 static_assert(offsetof(NglScene, light_set) == 0x314);
 static_assert(offsetof(NglTexture, target) == 0x4c);
 static_assert(sizeof(NglLightSet) == 0x70);
+static_assert(sizeof(NglSkipList) == 0x10);
+static_assert(sizeof(NglVideoMode) == 0x3c);
+static_assert(offsetof(NglVideoMode, unknown30) == 0x30);
 static_assert(offsetof(NglLight, data) == 0x2c);
 static_assert(offsetof(NglScene, clear_color) == 0x370);
 static_assert(offsetof(NglScene, fog) == 0x388);
@@ -346,5 +377,44 @@ void XB_CDECL std_Rotate_NodeKeys(NglOpaqueNode* first, NglOpaqueNode* mid, NglO
 void XB_CDECL std_Med3_OpaqueNodes(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last);
 void XB_CDECL std_Med3_TranslucentNodes(NglTranslucentNode* first, NglTranslucentNode* mid,
                                         NglTranslucentNode* last);
+
+
+// 0x00064080: the object whose 32-byte name equals `key` (compared as 8 unsigned
+// words, the first different word deciding), null if none.
+const uint32_t* XB_THISCALL nglSkipList_Find(const NglSkipList* self, const uint32_t* key);
+// 0x00067510: the mesh of a mesh file (list at +0x13c, next at +0x0c) whose 32-byte
+// name equals `key`, null if none.
+uint8_t* XB_CDECL nglMeshFileFindMesh(const uint32_t* key, const uint8_t* file);
+// 0x00065380: returns self.
+NglVideoMode* XB_THISCALL nglVideoMode_Init(NglVideoMode* self, uint32_t width, uint32_t height,
+                                            uint8_t progressive, uint8_t widescreen,
+                                            uint8_t unknown0a, uint32_t u0, uint32_t u1,
+                                            uint32_t u2, uint32_t u3, uint32_t u4, uint32_t u5,
+                                            uint32_t u6, uint32_t u7, uint32_t u8);
+// 0x00065420: field-wise copy (padding stays); returns self.
+NglVideoMode* XB_THISCALL nglVideoMode_Copy(NglVideoMode* self, const NglVideoMode* other);
+// 0x0006bad0: clears the frame statistics nglBeginFrame/nglEndFrame and the fps
+// counter keep (0x00902b60..0x00902c90).
+void XB_CDECL nglResetFrameStats();
+// 0x0006a900: writes one byte of an 8-bit swizzled texture (pixels at +0x20): x and
+// y are spread over the current swizzle masks (0x00902b44 / 0x00902b48); the two
+// offsets are left in 0x00902b50 / 0x00902b54 as in the original.
+void XB_CDECL nglTextureSetPixel(const uint8_t* texture, uint32_t x, uint32_t y, uint8_t value);
+// 0x0006f6a0: a shadow projector on the current light set's projector lists named by
+// flags bits 24..31; null when the frame's scene memory is exhausted.
+NglLight* XB_CDECL nglLightSetAddProjector(uint32_t type, float* data, uint32_t flags);
+// 0x00073c20: 4 floats for the target: the multisample scale (0x00903c70, set by
+// nglInitMultisample) for the screen (flags & 4), else a constant 1, 1, 0.53125, 0
+// (a function-local static in title memory). Returns out.
+float* XB_CDECL nglGetTargetSampleScale(float* out, const NglRenderTarget* target);
+
+// 0x0006ad00: a texture stage's address mode from texture flags, through a cache of
+// the last mode per stage (`self` + 0x20): 2 -> U/V mirror, W wrap; 4 -> all mirror;
+// 8 -> U/V clamp, W mirror, plus the border colour (set every time); else all wrap.
+// Writes D3D's texture stage state (0x003f5c74 + stage * 0x80) and dirty mask.
+void XB_THISCALL nglSetTextureAddressMode(uint8_t* self, uint32_t stage, uint8_t flags, uint32_t border);
+// 0x00076360: points the shader constant table (0x00903c9c..0x00903d08) at the
+// title's constant blocks.
+void XB_CDECL nglInitShaderConstantTable();
 
 }  // namespace game

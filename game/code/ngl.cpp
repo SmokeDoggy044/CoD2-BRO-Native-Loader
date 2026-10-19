@@ -300,7 +300,7 @@ NglLightSet* XB_CDECL nglCreateLightSet() {
     auto* set = alloc_scene_memory<NglLightSet>(sizeof(NglLightSet));
     if (!set) return nullptr;
     std::memset(set, 0, sizeof(*set));
-    for (void*& entry : set->unknown30) entry = &set->unknown30;
+    for (NglLight*& list : set->projectors) list = reinterpret_cast<NglLight*>(&set->projectors);
     // An empty list ends at the set itself.
     for (NglLight*& list : set->lists) list = reinterpret_cast<NglLight*>(set);
     const float* white = &title_global<const float>(0x007beae0);
@@ -566,6 +566,188 @@ void XB_CDECL std_Med3_TranslucentNodes(NglTranslucentNode* first, NglTranslucen
     if (less(*mid, *first)) swap_nodes(*mid, *first);
     if (less(*last, *mid)) swap_nodes(*last, *mid);
     if (less(*mid, *first)) swap_nodes(*mid, *first);
+}
+
+const uint32_t* XB_THISCALL nglSkipList_Find(const NglSkipList* self, const uint32_t* key) {
+    const NglSkipListNode* current = self->head;
+    if (!current) return nullptr;
+    int32_t level = self->level;
+    const NglSkipListNode* node;
+    do {
+        node = current->next[level];
+        while (node) {
+            int i = 0;
+            while (node->key[i] == key[i]) {
+                if (++i >= 8) return node->key;
+            }
+            if (key[i] < node->key[i]) break;  // down a level
+            current = node;
+            node = current->next[level];
+        }
+    } while (--level >= 0);
+    // The original compares the node it last stopped at once more.
+    if (node) {
+        for (int i = 0; node->key[i] == key[i];) {
+            if (++i >= 8) return node->key;
+        }
+    }
+    return nullptr;
+}
+
+uint8_t* XB_CDECL nglMeshFileFindMesh(const uint32_t* key, const uint8_t* file) {
+    for (uint8_t* mesh = *reinterpret_cast<uint8_t* const*>(file + 0x13c); mesh;
+         mesh = *reinterpret_cast<uint8_t**>(mesh + 0xc)) {
+        const uint32_t* name = *reinterpret_cast<const uint32_t* const*>(mesh);
+        for (int i = 0; name[i] == key[i];) {
+            if (++i >= 8) return mesh;
+        }
+    }
+    return nullptr;
+}
+
+NglVideoMode* XB_THISCALL nglVideoMode_Init(NglVideoMode* self, uint32_t width, uint32_t height,
+                                            uint8_t progressive, uint8_t widescreen,
+                                            uint8_t unknown0a, uint32_t u0, uint32_t u1,
+                                            uint32_t u2, uint32_t u3, uint32_t u4, uint32_t u5,
+                                            uint32_t u6, uint32_t u7, uint32_t u8) {
+    self->width = width;
+    self->height = height;
+    self->progressive = progressive;
+    self->widescreen = widescreen;
+    self->unknown0a = unknown0a;
+    self->unknown0b = 0;
+    const uint32_t values[9] = {u0, u1, u2, u3, u4, u5, u6, u7, u8};
+    for (int i = 0; i < 9; ++i) self->unknown0c[i] = values[i];
+    self->unknown30 = 0;
+    self->unknown34 = 1.0f;
+    self->unknown38 = 1.0f;
+    return self;
+}
+
+NglVideoMode* XB_THISCALL nglVideoMode_Copy(NglVideoMode* self, const NglVideoMode* other) {
+    self->width = other->width;
+    self->height = other->height;
+    self->progressive = other->progressive;
+    self->widescreen = other->widescreen;
+    self->unknown0a = other->unknown0a;
+    self->unknown0b = other->unknown0b;
+    for (int i = 0; i < 9; ++i) self->unknown0c[i] = other->unknown0c[i];
+    self->unknown30 = other->unknown30;
+    self->unknown34 = other->unknown34;
+    self->unknown38 = other->unknown38;
+    return self;
+}
+
+void XB_CDECL nglResetFrameStats() {
+    static const uint32_t kCounters[] = {0x00902b60, 0x00902b68, 0x00902b6c, 0x00902b70,
+                                         0x00902b74, 0x00902bf8, 0x00902bfc, 0x00902c00,
+                                         0x00902c04, 0x00902c08, 0x00902c0c};
+    for (uint32_t address : kCounters) title_global<uint32_t>(address) = 0;
+    for (int i = 0; i < 0x20; ++i) {
+        title_global<uint32_t>(0x00902b78 + i * 4) = 0;
+        title_global<uint32_t>(0x00902c10 + i * 4) = 0;
+    }
+    title_global<uint32_t>(0x00902b64) = 0xff00;
+}
+
+namespace {
+
+// Spreads the bits of `value` over the set bits of `mask` (lowest first), as the
+// original's loop does.
+uint32_t swizzle(uint32_t value, uint32_t mask) {
+    uint32_t result = 0;
+    for (uint32_t bit = 1; bit <= mask; bit <<= 1) {
+        if (bit & mask)
+            result |= bit & value;
+        else
+            value <<= 1;
+    }
+    return -(-result & mask) & mask;
+}
+
+}  // namespace
+
+void XB_CDECL nglTextureSetPixel(const uint8_t* texture, uint32_t x, uint32_t y, uint8_t value) {
+    uint8_t* pixels = *reinterpret_cast<uint8_t* const*>(texture + 0x20);
+    const uint32_t offset_x = swizzle(x, title_global<uint32_t>(0x00902b44));
+    const uint32_t offset_y = swizzle(y, title_global<uint32_t>(0x00902b48));
+    title_global<uint32_t>(0x00902b54) = offset_y;
+    title_global<uint32_t>(0x00902b50) = offset_x;
+    pixels[offset_y | offset_x] = value;
+}
+
+NglLight* XB_CDECL nglLightSetAddProjector(uint32_t type, float* data, uint32_t flags) {
+    NglLight* projector = alloc_scene_memory<NglLight>(0x30);
+    if (!projector) return nullptr;
+    projector->data = data;
+    projector->type = type;
+    projector->flags = flags;
+    for (int list = 0; list < 8; ++list) {
+        if (!(flags & (0x01000000u << list))) continue;
+        projector->next[list] = current_light_set()->projectors[list];
+        current_light_set()->projectors[list] = projector;
+    }
+    return projector;
+}
+
+float* XB_CDECL nglGetTargetSampleScale(float* out, const NglRenderTarget* target) {
+    uint32_t& guard = title_global<uint32_t>(0x00902f00);
+    float* fallback = &title_global<float>(0x00902ef0);
+    if (!(guard & 1)) {
+        guard |= 1;
+        fallback[0] = 1.0f;
+        fallback[1] = 1.0f;
+        fallback[2] = 0.53125f;
+        fallback[3] = 0.0f;
+    }
+    // Copied as words, like the original.
+    const float* source = (target->flags & 4) ? &title_global<float>(0x00903c70) : fallback;
+    std::memcpy(out, source, 16);
+    return out;
+}
+
+void XB_THISCALL nglSetTextureAddressMode(uint8_t* self, uint32_t stage, uint8_t flags, uint32_t border) {
+    uint32_t& cached = *reinterpret_cast<uint32_t*>(self + 0x20 + stage * 4);
+    uint32_t& dirty = title_global<uint32_t>(0x003f8320);
+    uint32_t* state = &title_global<uint32_t>(0x003f5c74 + (stage << 7));
+    const uint32_t bit = 1u << (stage & 31);
+    auto set = [&](uint32_t mode, uint32_t u, uint32_t v, uint32_t w) {
+        state[0] = u;
+        state[1] = v;
+        state[2] = w;
+        dirty |= bit;
+        cached = mode;
+    };
+    if (flags & 2) {
+        if (cached != 2) set(2, 2, 2, 1);
+    } else if (flags & 4) {
+        if (cached != 4) set(4, 2, 2, 2);
+    } else if (flags & 8) {
+        if (cached != 8) set(8, 3, 3, 2);
+        dirty |= bit;
+        state[5] = border;  // +0x14
+    } else if (cached != 1) {
+        set(1, 1, 1, 1);
+    }
+}
+
+void XB_CDECL nglInitShaderConstantTable() {
+    // {table entry, title word it is loaded from}; 0 = an address stored as is.
+    static const uint32_t kLoaded[][2] = {
+        {0x00903c9c, 0x008a362c}, {0x00903cd0, 0x008a36ac}, {0x00903ca8, 0x008a3664},
+        {0x00903cbc, 0x008a3714}, {0x00903ce8, 0x008a3c14}, {0x00903cf0, 0x008a3c18},
+        {0x00903cf8, 0x008a3c1c}, {0x00903d00, 0x008a3c20}, {0x00903cc4, 0x008a3d18},
+        {0x00903cb4, 0x008a3e10}, {0x00903d08, 0x008a3f08}, {0x00903cd8, 0x008a45b8},
+        {0x00903cdc, 0x008a45bc}, {0x00903ce0, 0x008a45c0}, {0x00903ce4, 0x008a45c4},
+        {0x00903cb0, 0x008a4000}, {0x00903cb8, 0x008a40f8}, {0x00903ca4, 0x008a41f0},
+    };
+    static const uint32_t kStored[][2] = {
+        {0x00903cd4, 0x008a33a0}, {0x00903cac, 0x008a33a0}, {0x00903ca0, 0x008a32a0},
+        {0x00903cc0, 0x008a31a0}, {0x00903cec, 0}, {0x00903cf4, 0}, {0x00903cfc, 0},
+        {0x00903d04, 0},
+    };
+    for (const auto& entry : kLoaded) title_global<uint32_t>(entry[0]) = title_global<uint32_t>(entry[1]);
+    for (const auto& entry : kStored) title_global<uint32_t>(entry[0]) = entry[1];
 }
 
 }  // namespace game

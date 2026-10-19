@@ -62,4 +62,8 @@ int32_t XB_STDCALL DObj_GetBoneParent(const DObj* obj, int32_t bone);
 // 0x0023a440: the index of the bone named `name`, -1 if none; EAX = obj.
 int32_t XB_REGS1 XB_STDCALL DObj_GetBoneIndex(const DObj* obj, uint32_t name);
 
+// 0x0023b1e0: the bone count of the model's first LOD (the first non-null entry of
+// lods, unbounded as in the original), 0 when it has no parts.
+uint32_t XB_CDECL XModel_GetBoneCount(const XModel* model);
+
 }  // namespace game

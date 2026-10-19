@@ -57,4 +57,11 @@ int32_t XB_REGS1 XB_STDCALL DObj_GetBoneIndex(const DObj* obj, uint32_t name) {
     return -1;
 }
 
+uint32_t XB_CDECL XModel_GetBoneCount(const XModel* model) {
+    int i = 0;
+    while (!model->lods[i]) ++i;
+    const XModelParts* parts = model->lods[i]->parts;
+    return parts ? parts->bone_count : 0;
+}
+
 }  // namespace game

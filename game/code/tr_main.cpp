@@ -256,5 +256,50 @@ float* XB_REGS1 XB_CDECL R_ClipPolygonToPlane(const float* plane, float* in, int
     return out;
 }
 
-}  // namespace game
+namespace {
 
+// The box corner picked by the plane's byte offsets (+0x10..0x12, into the link's
+// mins/maxs at +4), in the original's operation order for portal planes...
+float portal_plane_distance(const uint8_t* link, const uint8_t* plane) {
+    auto corner = [&](int axis) { return *reinterpret_cast<const float*>(link + 4 + plane[0x10 + axis]); };
+    const float* normal = reinterpret_cast<const float*>(plane);
+    return corner(0) * normal[0] + corner(1) * normal[1] + corner(2) * normal[2];
+}
+
+// ...and for the view's near and far planes (summed from z down).
+float view_plane_distance(const uint8_t* link, const uint8_t* plane) {
+    auto corner = [&](int axis) { return *reinterpret_cast<const float*>(link + 4 + plane[0x10 + axis]); };
+    const float* normal = reinterpret_cast<const float*>(plane);
+    return corner(2) * normal[2] + corner(1) * normal[1] + corner(0) * normal[0];
+}
+
+bool behind(const uint8_t* plane, float distance) {
+    return reinterpret_cast<const float*>(plane)[3] > distance;
+}
+
+}  // namespace
+
+void XB_CDECL R_AddCellEntities(const uint8_t* cell, const uint8_t* planes, int32_t count) {
+    for (const uint8_t* link = *reinterpret_cast<uint8_t* const*>(cell + 0x38); link;
+         link = *reinterpret_cast<uint8_t* const*>(link + 0x1c)) {
+        uint8_t* entity = *reinterpret_cast<uint8_t* const*>(link);
+        if (!entity[0xec]) continue;
+        bool culled = false;
+        for (int32_t i = 0; i < count && !culled; ++i) {
+            const uint8_t* plane = planes + i * 20;
+            culled = behind(plane, portal_plane_distance(link, plane));
+        }
+        if (culled) continue;
+        const uint8_t* near_plane = title_global<const uint8_t*>(0x0095e2c4);
+        const uint8_t* far_plane = title_global<const uint8_t*>(0x0095e2c8);
+        if (behind(near_plane, view_plane_distance(link, near_plane))) continue;
+        if (far_plane && behind(far_plane, view_plane_distance(link, far_plane))) continue;
+        entity[0xec] = 0;
+        const uint8_t* world = *reinterpret_cast<uint8_t* const*>(title_global<uint8_t*>(0x0095e608) + 0x100);
+        const uint8_t* cells = *reinterpret_cast<uint8_t* const*>(world + 0x1c);
+        *reinterpret_cast<int32_t*>(entity + 0xf0) =
+            static_cast<int32_t>(reinterpret_cast<intptr_t>(cell) - reinterpret_cast<intptr_t>(cells)) / 0x50;
+    }
+}
+
+}  // namespace game

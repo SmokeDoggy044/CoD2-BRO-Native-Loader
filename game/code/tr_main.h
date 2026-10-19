@@ -77,4 +77,12 @@ void XB_CDECL R_CopyFrustumPlanes();
 // `out` with *count set (at most 32 points, the check is after clip points only).
 float* XB_REGS1 XB_CDECL R_ClipPolygonToPlane(const float* plane, float* in, int32_t* count, float* out);
 
+// 0x00238ae0: marks the entities linked into a cell (links at +0x38: {entity, mins[3],
+// maxs[3], next}) that are not yet added this frame (entity +0xec) and whose box is
+// on the front side of all `count` portal planes (20 bytes each: normal, dist, three
+// byte offsets into mins/maxs picking the box's furthest corner) and of the near
+// plane (0x0095e2c4) and the optional far plane (0x0095e2c8): clears +0xec and stores
+// the cell's index at +0xf0. NaN distances count as in front, as in the original.
+void XB_CDECL R_AddCellEntities(const uint8_t* cell, const uint8_t* planes, int32_t count);
+
 }  // namespace game
