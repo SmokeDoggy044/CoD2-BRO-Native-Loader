@@ -1,0 +1,12 @@
+kind,pattern,module,note
+# A function's module: the first matching name prefix (regex at the start of the name), else the first address range it falls in, else "unassigned".
+prefix,(ngl|cd[A-Z]|Shader|R_|RE_|RB_|GLimp|myGL|DObj|XModel|FX_|tr_),renderer,NGL scenes/state/textures/meshes, shader classes, tr_* refexport side, models, effects
+prefix,(CG_|cg_),cgame,
+prefix,(CL_|UI_|FE_|Con_|Key_|IN_|SCR_|Menu_|Field_),client,client and front-end UI
+prefix,XAnim,xanim,animation trees
+prefix,(G_|SP_|Actor_|AI_|ai_|Scr_|scr_|BG_|PM_|Vehicle_|Sentient_|Path_|Bullet_|Turret_|Player_|ClientThink|Weapon_|Fire_),game,game module incl. AI and level-script runtime
+prefix,(SV_|SVC_),server,
+prefix,(CM_|Trace_),collision,
+prefix,(Com_|Cvar_|Cmd_|FS_|Q_|Z_|Hunk_|Sys_|MSG_|NET_|Info_|COM_|Huff|Mem_|va$|Swap_),qcommon,common/cvar/cmd/files/memory/net
+prefix,(inflate|huft|unz|zcalloc|adler|crc32),zlib,
+range,0x00045000-0x00080100,renderer,the NGL/shader-class block (status.md)
