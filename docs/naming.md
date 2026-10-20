@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-20): 1739 functions named by us (counter), 628+ globals, plus 3008 Microsoft
+State (2026-10-20): 2109 functions named by us (counter), 628+ globals, plus 3008 Microsoft
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
@@ -404,11 +404,17 @@ CoD-specific functions included, so later decompilation covers both kinds.
   origin 0x44, angles 0x50, radius 0x54, spawnflags 0x2c, type 0x28); vehicle-node
   fields at 0x008d3a40 (targetname 0, target 4, speed 8, lookahead 0xc,
   script_noteworthy 0x10, origin 0x14, angles 0x2c; nodes in table 0x0095c228).
-  Accessor slots 598-830ish (code 0x00015f50-0x0001c000): pairs getter/setter; a setter
-  is `void f(uint handle, value)`, a getter returns the value or writes it through
-  param_1 (strings, vectors) with the handle in param_2; per-field debug hooks at
-  0x008d20e8-0x008d2170 (no names). No actor/sentient field table: those accessors
-  (actor +0xcc..+0x138c, sentient +4..+0x50) need the actor_t notes above.
+  Accessor slots 590-827 (code 0x00015dd0-0x0001b580) are named (2026-10-20): even slot =
+  getter, odd = setter. Getters return the value (float10/uint) or, for strings, vectors
+  and handles, write through param_1 with the handle in param_2; setters are
+  `void f(handle, value)`. Prefixes by object: ScrHudElem_ (590-597, byte fields of the
+  color dword +0x1c of the 0x7c hud records at 0x0094cc88), ScrPathNode_, ScrVehNode_
+  (616-629), ScrEnt_ (field names from the tables above), ScrActor_ (entity +0x240) and
+  ScrSentient_ (entity +0x244). Actor/sentient fields have no table: named by type and
+  offset (ScrActor_GetFloat_d4, ScrSentient_GetRef_48); Team (+4) and GoalNode (+0x50),
+  GoalArc (+0x24) from the AI notes. Rename those when a decompile shows what the field
+  is. Per-field debug hooks at 0x008d20e8-0x008d2170 (no names). Slots with no pair in
+  the dump (638/639, 646-651, 658/659, ...) are unfilled.
   Compiled scripts: each level module entry (LevelScript_<level>_ModuleEntry, via
   G_FindLevelScriptModule) registers the 48 shared anim/negotiation scripts by name
   (BroFuncRegs.java -> Bro_*); thread starts pass null file/name except the 14
