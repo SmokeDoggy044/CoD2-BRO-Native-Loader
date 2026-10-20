@@ -4,8 +4,9 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-19): 1615 functions and 628+ globals named, all applied in Ghidra and
-exported to `tools/data/default_xbe_symbols.txt`.
+State (2026-10-20): 1710 functions named by us (counter), 628+ globals, plus 3008 Microsoft
+library functions named by signature; all applied in Ghidra and exported to
+`tools/data/default_xbe_symbols.txt`.
 
 ## Files
 
@@ -17,6 +18,7 @@ exported to `tools/data/default_xbe_symbols.txt`.
 | `tools/ghidra/ApplyNames.java` | Applies a CSV: creates missing functions, renames only `FUN_`/default names, `data` rows become labels |
 | `tools/ghidra/ExportMatchData.java` | Per-function strings and callees for q3match |
 | `tools/ghidra/ExportSymbols.java` | Re-export the symbol file after renaming |
+| `tools/data/library_names.csv` | Microsoft library code in the title's own sections, matched byte for byte (relocations masked) against the XDK 5849 .lib files (the XBE's library table says 5849) with the skill's `scripts/libmatch.py` + `libnames.py`: libcmt, xapilib, uix, xvoice, xgraphics, d3dx8, dsound, xonlines. Applied by `tools/ghidra/ApplyLibNames.java` into the library's namespace (UIX::CPopupScreen_Output); state `library` in progress.py, left out of the counter's total |
 
 ## Workflow per batch
 

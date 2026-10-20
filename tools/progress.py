@@ -143,7 +143,8 @@ def main():
     summary(lambda r: r[3] if r[2] == ".text" else "levels")
     named = sum(1 for r in rows if r[2] == ".text" and r[4] not in ("unnamed", "library"))
     done = sum(1 for r in rows if r[4] in REWRITTEN)
-    print(f"\ncounter: named {named}/{len(rows)} · matched {done}/{len(rows)}")
+    total = sum(1 for r in rows if r[4] != "library")  # Microsoft library code is never ours
+    print(f"\ncounter: named {named}/{total} · matched {done}/{total}")
 
 
 if __name__ == "__main__":
