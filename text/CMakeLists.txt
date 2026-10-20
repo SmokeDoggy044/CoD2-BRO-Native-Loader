@@ -1,5 +1,6 @@
-# Sharper game text (PC option): the game's bitmap fonts drawn again from the fonts in
-# fonts/ (see sharp_text.h). Portable.
+# Sharper game text and keyboard button prompts (PC options): the game's bitmap fonts
+# drawn again from the fonts in fonts/ (see sharp_text.h), its button icons as keycaps
+# (key_prompts.h). Portable.
 
 # stb_truetype (public domain / MIT), fetched at configure time.
 include(FetchContent)
@@ -10,6 +11,7 @@ FetchContent_MakeAvailable(stb)
 
 add_library(text STATIC
     kapf.cpp
+    key_prompts.cpp
     sharp_text.cpp
 )
 target_include_directories(text PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

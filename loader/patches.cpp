@@ -24,6 +24,7 @@
 #include "filesystem.h"
 #include "float_env.h"
 #include "hooks.h"
+#include "key_prompts.h"
 #include "kernel.h"
 #include "log.h"
 #include "symbols.h"
@@ -306,7 +307,10 @@ void set_control(input::PadState& state, const PadControl& control, uint8_t valu
     }
 }
 
+void update_button_prompts();
+
 void remap_keyboard_actions(const input::PadState& default_layout, input::PadState& active_layout) {
+    update_button_prompts();  // on the same polls, so the prompts follow the layout
     const bool bound = std::any_of(std::begin(kPadControls), std::end(kPadControls),
                                    [](const PadControl& control) { return *key_binding(control.key_code) != 0; });
     if (!bound) {  // no bindings yet: keep the default layout
@@ -335,6 +339,79 @@ void remap_keyboard_actions(const input::PadState& default_layout, input::PadSta
         }
         if (to) set_control(active_layout, *to, value);
     }
+}
+
+// Button prompts: the keys that give each of the title's pad controls in its active
+// layout - the inverse of remap_keyboard_actions - shown in place of its button icons
+// (text/key_prompts.h) while the keyboard and mouse are in use. In menus A and B are
+// Return and Backspace (the menu keys), and the D-pad the arrow keys.
+TitlePatchConfig::ButtonPrompts g_button_prompts = TitlePatchConfig::ButtonPrompts::Auto;
+
+// The keyboard's and mouse's control for each of kPadControls in the default layout
+// (input/devices.h).
+constexpr const char* kDefaultKeys[] = {"F", "C", "R", "Space", "V", "G", "@rmb", "@lmb", "X", "Shift", "1", "", "Q", "E"};
+static_assert(std::size(kDefaultKeys) == std::size(kPadControls));
+
+text::PromptIcon prompt_icon(const PadControl& control) {
+    using text::PromptIcon;
+    switch (control.digital) {
+        case input::kDpadUp: return PromptIcon::DpadUp;
+        case input::kDpadDown: return PromptIcon::DpadDown;
+        case input::kDpadLeft: return PromptIcon::DpadLeft;
+        case input::kDpadRight: return PromptIcon::DpadRight;
+        case 0: break;
+        default: return PromptIcon::Count;  // stick clicks: no icon
+    }
+    static constexpr PromptIcon kAnalog[] = {PromptIcon::A,     PromptIcon::B,           PromptIcon::X,
+                                             PromptIcon::Y,     PromptIcon::Black,       PromptIcon::White,
+                                             PromptIcon::LeftTrigger, PromptIcon::RightTrigger};
+    return kAnalog[control.analog];
+}
+
+void update_button_prompts() {
+    using text::PromptIcon;
+    const bool keyboard = g_button_prompts == TitlePatchConfig::ButtonPrompts::Keyboard ||
+                          (g_button_prompts == TitlePatchConfig::ButtonPrompts::Auto &&
+                           input::last_device() == input::Device::Keyboard);
+    if (!keyboard) {
+        text::set_key_labels(std::nullopt);
+        return;
+    }
+    text::KeyLabels labels;
+    auto label = [&](PromptIcon icon) -> std::string& { return labels[static_cast<size_t>(icon)]; };
+    const bool bound = std::any_of(std::begin(kPadControls), std::end(kPadControls),
+                                   [](const PadControl& control) { return *key_binding(control.key_code) != 0; });
+    for (size_t i = 0; i < std::size(kPadControls); ++i) {
+        const PadControl& from = kPadControls[i];
+        if (!*kDefaultKeys[i]) continue;
+        // Where remap_keyboard_actions sends this key's control.
+        const PadControl* to = bound ? nullptr : &from;
+        for (const char* command : {from.command, similar_command(from.command)}) {
+            if (to || !command || !*command) break;
+            for (const PadControl& candidate : kPadControls)
+                if (strcasecmp(key_binding(candidate.key_code), command) == 0) to = &candidate;
+        }
+        if (!to) continue;
+        const PromptIcon icon = prompt_icon(*to);
+        if (icon != PromptIcon::Count && label(icon).empty()) label(icon) = kDefaultKeys[i];
+    }
+    // The fixed keys (menu keys, Escape, Tab) give their buttons in every layout.
+    const bool menu = input::in_menu();
+    if (menu || label(PromptIcon::DpadUp).empty()) label(PromptIcon::DpadUp) = "@up";
+    if (menu || label(PromptIcon::DpadDown).empty()) label(PromptIcon::DpadDown) = "@down";
+    if (menu || label(PromptIcon::DpadLeft).empty()) label(PromptIcon::DpadLeft) = "@left";
+    if (menu || label(PromptIcon::DpadRight).empty()) label(PromptIcon::DpadRight) = "@right";
+    label(PromptIcon::DpadLeftRight) = menu || label(PromptIcon::DpadLeft) == "@left" ? "@leftright"
+                                       : label(PromptIcon::DpadLeft) + "/" + label(PromptIcon::DpadRight);
+    label(PromptIcon::DpadUpDown) = "@updown";
+    label(PromptIcon::Dpad) = "@arrows";
+    label(PromptIcon::Start) = "Esc";
+    label(PromptIcon::Back) = "Tab";
+    if (menu) {
+        label(PromptIcon::A) = "Enter";
+        label(PromptIcon::B) = "Bksp";
+    }
+    text::set_key_labels(labels);
 }
 
 // --level N starts mission N without the menus. The client frame FUN_002f1e60 (called
@@ -811,11 +888,28 @@ bool drawn_lately(uint32_t widget, uint32_t frame) {
 struct ItemBox {
     int16_t index;
     float left, top, right, bottom;
+    uint32_t widget = 0;
 };
+
+// A text widget's box in 640x480, with a little around the letters. False if it has
+// no text.
+bool widget_box(uint32_t widget, ItemBox& box) {
+    using FloatMethod = float(XB_FASTCALL*)(uint32_t);
+    const float width = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(g_menu_pointer.text_widget_vtable + 0xd0)})(widget);
+    const float height = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(g_menu_pointer.text_widget_vtable + 0xd4)})(widget);
+    if (!(width > 0.0f && height > 0.0f)) return false;
+    const uint8_t align = title<uint8_t>(widget + 0x5c);
+    float left = title<float>(widget + 0x2c), top = title<float>(widget + 0x30);
+    left -= (align & 0x20) ? width : (align & 0x10) ? 0.0f : width / 2;
+    top -= (align & 0x80) ? height : (align & 0x40) ? 0.0f : height / 2;
+    constexpr float kMargin = 3.0f;
+    box.left = left - kMargin, box.top = top - kMargin, box.right = left + width + kMargin, box.bottom = top + height + kMargin;
+    box.widget = widget;
+    return true;
+}
 
 // The active screen's enabled items that are on screen, with their text's box.
 std::vector<ItemBox> shown_items(uint32_t menu) {
-    using FloatMethod = float(XB_FASTCALL*)(uint32_t);
     std::vector<ItemBox> boxes;
     const uint32_t frame = engine_frame();
     const int16_t count = title<int16_t>(menu + 0x26);
@@ -825,17 +919,51 @@ std::vector<ItemBox> shown_items(uint32_t menu) {
         if (!item || title<uint8_t>(item + 0x16)) continue;
         const uint32_t widget = title<uint32_t>(item + 0x10);
         if (!widget || title<uint32_t>(widget) != g_menu_pointer.text_widget_vtable || !drawn_lately(widget, frame)) continue;
-        const float width = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(g_menu_pointer.text_widget_vtable + 0xd0)})(widget);
-        const float height = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(g_menu_pointer.text_widget_vtable + 0xd4)})(widget);
-        if (!(width > 0.0f && height > 0.0f)) continue;  // no text
-        const uint8_t align = title<uint8_t>(widget + 0x5c);
-        float left = title<float>(widget + 0x2c), top = title<float>(widget + 0x30);
-        left -= (align & 0x20) ? width : (align & 0x10) ? 0.0f : width / 2;
-        top -= (align & 0x80) ? height : (align & 0x40) ? 0.0f : height / 2;
-        constexpr float kMargin = 3.0f;  // a little around the letters
-        boxes.push_back({i, left - kMargin, top - kMargin, left + width + kMargin, top + height + kMargin});
+        ItemBox box{i, 0, 0, 0, 0};
+        if (widget_box(widget, box)) boxes.push_back(box);
     }
     return boxes;
+}
+
+// Option rows ("Invert Aim  < off >", sliders) show their value right of the label,
+// changed with left/right. The x of the value's middle: the middle of the texts drawn
+// on the item's line right of its label (the value and, in the front end, its arrows),
+// else that of the other rows whose labels start in the same column (sliders have no
+// text), else for a label in the left half halfway to the screen's right edge (a
+// lone slider); negative for none.
+float value_middle(const std::vector<ItemBox>& items, const ItemBox& row) {
+    std::vector<uint32_t> drawn;
+    const uint32_t frame = engine_frame();
+    {
+        std::lock_guard lock(g_drawn_mutex);
+        for (const auto& [widget, at] : g_text_drawn)
+            if (frame - at <= 2) drawn.push_back(widget);
+    }
+    float own = -1, others = 0;
+    int other_count = 0;
+    for (const ItemBox& item : items) {
+        if (item.index != row.index && std::abs(item.left - row.left) >= 4.0f) continue;  // another column
+        const float middle = (item.top + item.bottom) / 2;
+        float left = 1e9f, right = -1e9f;
+        for (uint32_t widget : drawn) {
+            ItemBox text{};
+            if (title<uint32_t>(widget) != g_menu_pointer.text_widget_vtable || !widget_box(widget, text)) continue;
+            const float text_middle = (text.top + text.bottom) / 2;
+            if (std::abs(text_middle - middle) > (item.bottom - item.top) / 2 || text.left < item.right) continue;
+            left = std::min(left, text.left);
+            right = std::max(right, text.right);
+        }
+        if (right < left) continue;
+        if (item.index == row.index)
+            own = (left + right) / 2;
+        else
+            others += (left + right) / 2, ++other_count;
+    }
+    if (own >= 0) return own;
+    if (other_count) return others / other_count;
+    constexpr float kScreenMiddle = 320.0f, kScreenRight = 640.0f;
+    if (row.right > kScreenMiddle) return -1.0f;  // a menu item, not an option's label
+    return (row.right + kScreenRight) / 2;
 }
 
 // Items linked only left/right: a picker.
@@ -882,15 +1010,29 @@ void XB_CDECL menu_pointer(uint32_t manager) {
     }
 
     input::set_menu_pointer();
-    const input::PointerState pointer = input::take_pointer();
+    input::PointerState pointer = input::take_pointer();
     float x = 0, y = 0;
     if (!pointer.inside || !render::window_to_screen(pointer.x, pointer.y, x, y)) return;
+    // A click that could not select its item yet (the screen was locked) waits a little.
+    static int held_clicks = 0;
+    static uint32_t held_since = 0;
+    const bool was_held = held_clicks && frame - held_since <= 30;
+    if (was_held) pointer.left_clicks += held_clicks;
+    held_clicks = 0;
     // Text boxes of close lines overlap: the nearest line's.
     const ItemBox* hit = nullptr;
+    const auto nearer = [&](const ItemBox& box) {
+        return !hit || std::abs(y - (box.top + box.bottom) / 2) < std::abs(y - (hit->top + hit->bottom) / 2);
+    };
     for (const ItemBox& box : items)
-        if (x >= box.left && x < box.right && y >= box.top && y < box.bottom &&
-            (!hit || std::abs(y - (box.top + box.bottom) / 2) < std::abs(y - (hit->top + hit->bottom) / 2)))
-            hit = &box;
+        if (x >= box.left && x < box.right && y >= box.top && y < box.bottom && nearer(box)) hit = &box;
+    // Right of a label on its line: the row's value (arrows, a slider).
+    float value_x = -1;
+    if (!hit) {
+        for (const ItemBox& box : items)
+            if (x >= box.right && y >= box.top && y < box.bottom && nearer(box)) hit = &box;
+        if (hit && (value_x = value_middle(items, *hit)) < 0) hit = nullptr;
+    }
     const bool on_item = hit != nullptr;
     if (on_item && title<uint8_t>(menu + 0x30) == 0 && (pointer.moved || pointer.left_clicks) && hit->index != title<int16_t>(menu + 0x22)) {
         using Method = void(XB_FASTCALL*)(uint32_t);
@@ -899,6 +1041,23 @@ void XB_CDECL menu_pointer(uint32_t manager) {
         if (title<uint8_t>(menu + 0x31))
             reinterpret_cast<Method>(uintptr_t{title<uint32_t>(vtable + g_menu_pointer.sound_slot)})(menu);
         reinterpret_cast<Select>(uintptr_t{title<uint32_t>(vtable + g_menu_pointer.select_slot)})(menu, 0, hit->index, 1);
+    }
+    if (pointer.left_clicks && on_item && hit->index != title<int16_t>(menu + 0x22)) {
+        if (!was_held) held_since = frame;
+        held_clicks = pointer.left_clicks;
+        LOG_DEBUG("input", "menu click on item %d held (selected %d, locked %d)", hit->index,
+                  title<int16_t>(menu + 0x22), title<uint8_t>(menu + 0x30));
+        pointer.left_clicks = 0;
+    }
+    if (pointer.left_clicks && value_x >= 0)
+        LOG_DEBUG("input", "menu click at %.0f,%.0f: on a value (its middle at x %.0f)", x, y, value_x);
+    else if (pointer.left_clicks)
+        LOG_DEBUG("input", "menu click at %.0f,%.0f: %s", x, y,
+                  on_item ? "on an item" : items.empty() ? "screen without items" : "beside the items");
+    if (pointer.left_clicks && value_x >= 0) {  // left or right of the value's middle steps it
+        constexpr float kValueMiddle = 10.0f;
+        tap_digital(x < value_x - kValueMiddle ? input::kDpadLeft : input::kDpadRight);
+        return;
     }
     const bool no_items = !menu || title<int16_t>(menu + 0x26) <= 0;
     const bool picker = menu && horizontal(menu);
@@ -1128,6 +1287,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     g_client = title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient;
     install_mouse_look();
     input::set_action_remap(&remap_keyboard_actions);
+    g_button_prompts = config.button_prompts;
     const bool campaign = title.id == TitleId::Campaign;
     g_aim_assist = campaign ? AimAssist{0x002db7d0, 0x500} : AimAssist{0x0024c940, 0x510};
     g_menus = campaign ? kCampaignMenus : kMultiplayerMenus;

@@ -79,6 +79,10 @@ struct BackendConfig {
     // and DXT formats only) with the render scale: a replacement, or null for the
     // title's own. Called on the drawing thread.
     std::function<std::shared_ptr<const TextureReplacement>(uint64_t content, float render_scale)> replace_texture;
+    // For replacements that change while the title shows the same texture: a number
+    // that changes whenever replace_texture's answer for `content` may have (0 = never),
+    // asked once per frame for each texture in use. Null: answers never change.
+    std::function<uint32_t(uint64_t content)> replacement_version;
 };
 
 // One draw: float4 attributes and a primitive. The back end reads everything else

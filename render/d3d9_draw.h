@@ -68,6 +68,7 @@ private:
     float narrow_factor_;                    // back buffer aspect / display aspect
     float (*narrow_ui_draw_)();               // BackendConfig::narrow_ui_draw
     decltype(BackendConfig::replace_texture) replace_texture_;
+    decltype(BackendConfig::replacement_version) replacement_version_;
     // The current target: its size as the title sees it and the D3D9 surface's.
     uint32_t target_data_ = 0, target_width_ = 0, target_height_ = 0;
     uint32_t target_surface_width_ = 0, target_surface_height_ = 0;

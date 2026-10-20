@@ -61,6 +61,9 @@ struct KernelConfig {
     // The console's video settings say widescreen (16:9 TV). Titles that support it
     // render 16:9 anamorphically into their 4:3 back buffer.
     bool widescreen = false;
+    // The console's language (XC_LANGUAGE: 1 English, 2 Japanese, 3 German, 4 French,
+    // 5 Spanish, 6 Italian, 7 Korean, 8 Chinese, 9 Portuguese).
+    uint32_t language = 1;
     // Host folders behind the Xbox devices. Empty = device not available.
     std::filesystem::path cdrom_root;  // \Device\CdRom0 (D:), read-only: the game's files
     std::filesystem::path data_root;   // writable: <data>/E = partition 1 (E:, T:, U:), <data>/Z = cache (Z:)

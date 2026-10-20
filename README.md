@@ -140,7 +140,7 @@ Activision Publishing, Inc.; Xbox is a trademark of Microsoft Corporation.
 | `audio/` | DirectSound replacement on OpenAL Soft | Kept, portable |
 | `input/` | Controllers, keyboard and mouse on SDL3; scripted presses | Kept, portable |
 | `online/` | Xbox Live stubs (always unavailable) | Kept, portable |
-| `text/` | Sharper text: the game's packs and font tables, font atlases drawn again with stb_truetype | Kept, portable |
+| `text/` | Sharper text and keyboard button prompts: the game's packs and font tables, font atlases and button icons drawn again with stb_truetype | Kept, portable |
 | `fonts/` | Free stand-in fonts for sharper text (SIL OFL) | Kept |
 | `game/` | The full native build's `cod_bro` executable and, later, the decompiled game code (none yet) | Kept, portable |
 | `launcher/` | `cod_bro_launcher`: settings and game-file setup (Dear ImGui, fetched by CMake) | Kept, portable |
@@ -206,7 +206,7 @@ command line, so options given there win. Without game files and without
 
 Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter switches
 while playing), `--scale N` (window size), `--render-scale X`,
-`--anisotropy N`, `--brightness X`, `--sharp-text on|off`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--level N` (start a mission directly),
+`--anisotropy N`, `--brightness X`, `--sharp-text on|off`, `--button-prompts auto|keyboard|controller`, `--language L`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--level N` (start a mission directly),
 `--multiplayer` (start multiplayer), `--net-port N` (System Link UDP ports N..N+3),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
 `--debug`/`--trace`. Playtests and performance checks use the optimized

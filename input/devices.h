@@ -87,6 +87,14 @@ void tap(const PadState& buttons);
 using ActionRemap = void (*)(const PadState& default_layout, PadState& active_layout);
 void set_action_remap(ActionRemap remap);
 
+// The device the player used last: keys, mouse buttons and mouse motion count as the
+// keyboard; gamepad buttons and sticks/triggers past a dead zone as a gamepad.
+enum class Device { Keyboard, Gamepad };
+Device last_device();
+
+// The title shows a menu (set_menu_pointer was called in the last 0.25 s).
+bool in_menu();
+
 // Sets a port's rumble motors (0-65535; left is the low-frequency one).
 void set_rumble(uint32_t port, uint16_t left, uint16_t right);
 
