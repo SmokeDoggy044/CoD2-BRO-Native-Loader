@@ -79,6 +79,10 @@ struct BackendConfig {
     // and DXT formats only) with the render scale: a replacement, or null for the
     // title's own. Called on the drawing thread.
     std::function<std::shared_ptr<const TextureReplacement>(uint64_t content, float render_scale)> replace_texture;
+    // For replacements that change while the title shows the same texture: a number
+    // that changes whenever replace_texture's answer for `content` may have (0 = never),
+    // asked once per frame for each texture in use. Null: answers never change.
+    std::function<uint32_t(uint64_t content)> replacement_version;
 };
 
 // One draw: float4 attributes and a primitive. The back end reads everything else
@@ -152,6 +156,11 @@ public:
     // picture shown from the next present on (the Xbox applies it in the video DAC;
     // CoD2: BRO's brightness setting). Any thread.
     virtual void set_gamma_ramp(const uint8_t (&ramp)[3][256]) = 0;
+    // Maps a point in the window (pixels) to the title's 4:3 screen coordinates
+    // (width x height), where its menus are laid out: they are shown pillarboxed or
+    // narrowed into the middle of a wider picture, at the picture's height. False
+    // before the first frame. Any thread.
+    virtual bool window_to_screen(float x, float y, float& screen_x, float& screen_y) = 0;
 };
 
 // Null if the window or device cannot be created (logged).

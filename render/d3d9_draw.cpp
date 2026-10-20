@@ -229,6 +229,7 @@ D3DPRIMITIVETYPE primitive_type(DrawInput::Primitive primitive) {
 struct D3D9Draw::CachedTexture {
     IDirect3DTexture9* texture = nullptr;
     uint64_t content = 0;
+    uint32_t replacement_version = 0;  // BackendConfig::replacement_version when made
     uint32_t checked_frame = 0;
     float scale[2] = {1.0f, 1.0f};  // texel -> normalized coordinates for linear formats
     bool replaced = false;          // holds a BackendConfig::replace_texture picture
@@ -280,7 +281,8 @@ D3D9Draw::D3D9Draw(IDirect3DDevice9* device, const BackendConfig& config)
       render_scale_y_(config.render_scale > 0 ? config.render_scale : 1),
       narrow_factor_(config.display_aspect > 0 ? static_cast<float>(config.width) / config.height / config.display_aspect
                                                : 1.0f),
-      narrow_ui_draw_(config.narrow_ui_draw), replace_texture_(config.replace_texture), caches_(std::make_unique<Caches>()) {
+      narrow_ui_draw_(config.narrow_ui_draw), replace_texture_(config.replace_texture),
+      replacement_version_(config.replacement_version), caches_(std::make_unique<Caches>()) {
     D3DCAPS9 caps{};
     if (SUCCEEDED(device_->GetDeviceCaps(&caps))) anisotropy_ = std::min<uint32_t>(anisotropy_, caps.MaxAnisotropy);
     device_->SetRenderState(D3DRS_LIGHTING, FALSE);
@@ -460,8 +462,10 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
     const auto* memory = from_xbox_ptr<uint8_t>(data | 0x80000000u);
     uint64_t content = hash_bytes(memory, layout.total_size);
     if (palette) content = hash_bytes(palette, 256 * 4, content);
-    if (entry.texture && entry.content == content) return &entry;
+    const uint32_t version = replacement_version_ ? replacement_version_(content) : 0;
+    if (entry.texture && entry.content == content && entry.replacement_version == version) return &entry;
     entry.content = content;
+    entry.replacement_version = version;
 
     // A replacement has a size of its own, so the texture is made again whenever the
     // title's memory switches between a replaced picture and another.

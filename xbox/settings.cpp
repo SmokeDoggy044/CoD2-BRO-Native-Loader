@@ -130,6 +130,7 @@ void settings_init(const KernelConfig& config) {
     std::memcpy(&video, &g_eeprom.bytes[0x94], 4);
     video = config.widescreen ? video | kVideoWidescreen : video & ~kVideoWidescreen;
     std::memcpy(&g_eeprom.bytes[0x94], &video, 4);
+    std::memcpy(&g_eeprom.bytes[0x90], &config.language, 4);
 }
 
 }  // namespace xbox

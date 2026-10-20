@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
+#include <cstdlib>
 #include <iterator>
 #include <utility>
 #include <mutex>
@@ -60,10 +62,27 @@ std::atomic<int64_t> g_wheel_until_ms{0};
 std::atomic<ActionRemap> g_action_remap{nullptr};
 constexpr int64_t kWheelPressMs = 80;  // long enough for the title's next poll
 
+// Menu mode (set_menu_pointer): clicks and wheel steps since take_pointer, guarded by
+// g_mouse_mutex like the motion.
+std::atomic<int64_t> g_menu_until_ms{0};
+constexpr int64_t kMenuLingerMs = 250;
+bool g_pointer_moved = false;
+int g_left_clicks = 0, g_right_clicks = 0, g_wheel_steps = 0;
+// Capture the mouse when menu mode ends: it was captured before (or clicked into the
+// window); F10 or focus loss clear it.
+std::atomic<bool> g_recapture{false};
+std::atomic<Device> g_last_device{Device::Keyboard};
+constexpr int kStickDeadZone = 12000, kTriggerDeadZone = 8000;  // SDL axis units
+std::mutex g_tap_mutex;
+PadState g_tap;  // guarded by g_tap_mutex
+int64_t g_tap_until_ms = 0;
+
 int64_t now_ms() {
     using namespace std::chrono;
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
+
+bool menu_mode() { return now_ms() < g_menu_until_ms.load(); }
 
 void set_captured(SDL_Window* window, bool captured) {
     if (window && SDL_GetWindowRelativeMouseMode(window) != captured) {
@@ -72,30 +91,95 @@ void set_captured(SDL_Window* window, bool captured) {
     }
 }
 
+// Frees the mouse in menu mode and captures it again after; on the mouse's own events,
+// so that it happens on the thread that pumps them.
+void follow_menu_mode(SDL_Window* window) {
+    if (!window) return;
+    const bool captured = SDL_GetWindowRelativeMouseMode(window);
+    if (menu_mode()) {
+        if (captured) {
+            set_captured(window, false);
+            g_recapture = true;
+        }
+    } else if (!captured && g_recapture && (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS)) {
+        set_captured(window, true);
+    }
+}
+
 // Runs on the thread that pumps window events (the renderer's).
 bool SDLCALL watch_event(void*, SDL_Event* event) {
     switch (event->type) {
+        case SDL_EVENT_KEY_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_WHEEL:
+            g_last_device = Device::Keyboard;
+            break;
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+            g_last_device = Device::Gamepad;
+            break;
+        case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
+            const bool trigger = event->gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER ||
+                                 event->gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
+            if (std::abs(static_cast<int>(event->gaxis.value)) > (trigger ? kTriggerDeadZone : kStickDeadZone))
+                g_last_device = Device::Gamepad;
+            break;
+        }
+        default: break;
+    }
+    switch (event->type) {
         case SDL_EVENT_MOUSE_MOTION:
-            if (SDL_Window* window = SDL_GetWindowFromID(event->motion.windowID);
-                window && SDL_GetWindowRelativeMouseMode(window)) {
+            if (std::abs(event->motion.xrel) + std::abs(event->motion.yrel) >= 4.0f) g_last_device = Device::Keyboard;
+            if (SDL_Window* window = SDL_GetWindowFromID(event->motion.windowID)) {
+                follow_menu_mode(window);
                 std::lock_guard lock(g_mouse_mutex);
-                g_mouse_dx += event->motion.xrel;
-                g_mouse_dy += event->motion.yrel;
+                if (SDL_GetWindowRelativeMouseMode(window)) {
+                    g_mouse_dx += event->motion.xrel;
+                    g_mouse_dy += event->motion.yrel;
+                } else {
+                    g_pointer_moved = true;
+                }
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            set_captured(SDL_GetWindowFromID(event->button.windowID), true);
+            LOG_DEBUG("input", "mouse button %d down: %s, %s, %s", event->button.button, menu_mode() ? "menu" : "playing",
+                      SDL_GetWindowRelativeMouseMode(SDL_GetWindowFromID(event->button.windowID)) ? "captured" : "free",
+                      SDL_GetWindowFlags(SDL_GetWindowFromID(event->button.windowID)) & SDL_WINDOW_INPUT_FOCUS
+                          ? "focused"
+                          : "not focused");
+            if (menu_mode()) {
+                follow_menu_mode(SDL_GetWindowFromID(event->button.windowID));
+                std::lock_guard lock(g_mouse_mutex);
+                if (event->button.button == SDL_BUTTON_LEFT) ++g_left_clicks;
+                if (event->button.button == SDL_BUTTON_RIGHT) ++g_right_clicks;
+                g_recapture = true;  // a mouse player: look with it once the menu closes
+            } else {
+                set_captured(SDL_GetWindowFromID(event->button.windowID), true);
+                g_recapture = true;
+            }
             break;
         case SDL_EVENT_MOUSE_WHEEL:
-            if (event->wheel.y != 0.0f) g_wheel_until_ms = now_ms() + kWheelPressMs;
+            if (menu_mode()) {
+                std::lock_guard lock(g_mouse_mutex);
+                g_wheel_steps += event->wheel.y > 0.0f ? 1 : event->wheel.y < 0.0f ? -1 : 0;
+            } else if (event->wheel.y != 0.0f) {
+                g_wheel_until_ms = now_ms() + kWheelPressMs;
+            }
+            break;
+        case SDL_EVENT_WINDOW_FOCUS_GAINED:
+            LOG_DEBUG("input", "window focus gained");
             break;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
+            LOG_DEBUG("input", "window focus lost");
             set_captured(SDL_GetWindowFromID(event->window.windowID), false);
+            g_recapture = false;
             break;
         case SDL_EVENT_KEY_DOWN:
             if (event->key.scancode == SDL_SCANCODE_F10 && !event->key.repeat)
-                if (SDL_Window* window = SDL_GetWindowFromID(event->key.windowID))
-                    set_captured(window, !SDL_GetWindowRelativeMouseMode(window));
+                if (SDL_Window* window = SDL_GetWindowFromID(event->key.windowID)) {
+                    const bool capture = !SDL_GetWindowRelativeMouseMode(window);
+                    set_captured(window, capture);
+                    g_recapture = capture;
+                }
             break;
         default: break;
     }
@@ -160,9 +244,10 @@ void read_keyboard_mouse(PadState& state) {
     state.analog_buttons[kA] = std::max(state.analog_buttons[kA], analog(key(SDL_SCANCODE_RETURN)));
     state.analog_buttons[kB] = std::max(state.analog_buttons[kB], analog(key(SDL_SCANCODE_BACKSPACE)));
 
-    // Action keys, in the default layout.
+    // Action keys, in the default layout. In menu mode the mouse points instead.
     PadState actions;
-    const bool wheel = now_ms() < g_wheel_until_ms.load();
+    const bool menus = menu_mode();
+    const bool wheel = !menus && now_ms() < g_wheel_until_ms.load();
     const std::pair<bool, uint16_t> digital[] = {
         {key(SDL_SCANCODE_1) || wheel, kDpadUp},
         {key(SDL_SCANCODE_Q), kDpadLeft},
@@ -173,7 +258,7 @@ void read_keyboard_mouse(PadState& state) {
     for (auto [pressed, bit] : digital)
         if (pressed) actions.buttons |= bit;
 
-    const SDL_MouseButtonFlags mouse = SDL_GetMouseState(nullptr, nullptr);
+    const SDL_MouseButtonFlags mouse = menus ? 0 : SDL_GetMouseState(nullptr, nullptr);
     const std::pair<bool, AnalogButton> buttons[] = {
         {key(SDL_SCANCODE_F), kA},
         {key(SDL_SCANCODE_C) || key(SDL_SCANCODE_LCTRL), kB},
@@ -194,6 +279,12 @@ void read_keyboard_mouse(PadState& state) {
     state.buttons |= actions.buttons;
     for (int i = 0; i < 8; ++i)
         state.analog_buttons[i] = std::max(state.analog_buttons[i], actions.analog_buttons[i]);
+
+    std::lock_guard lock(g_tap_mutex);
+    if (now_ms() < g_tap_until_ms) {
+        state.buttons |= g_tap.buttons;
+        for (int i = 0; i < 8; ++i) state.analog_buttons[i] = std::max(state.analog_buttons[i], g_tap.analog_buttons[i]);
+    }
 }
 
 }  // namespace
@@ -213,6 +304,48 @@ bool init_devices() {
 }
 
 void set_action_remap(ActionRemap remap) { g_action_remap = remap; }
+
+Device last_device() { return g_last_device.load(); }
+
+bool in_menu() { return menu_mode(); }
+
+void set_menu_pointer() { g_menu_until_ms = now_ms() + kMenuLingerMs; }
+
+PointerState take_pointer() {
+    platform::HostFloatEnv host_env;
+    PointerState pointer;
+    {
+        std::lock_guard lock(g_mouse_mutex);
+        pointer.moved = std::exchange(g_pointer_moved, false);
+        pointer.left_clicks = std::exchange(g_left_clicks, 0);
+        pointer.right_clicks = std::exchange(g_right_clicks, 0);
+        pointer.wheel = std::exchange(g_wheel_steps, 0);
+    }
+    SDL_Window* window = SDL_GetMouseFocus();
+    if (!menu_mode() || !window || !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) ||
+        SDL_GetWindowRelativeMouseMode(window)) {
+        if (pointer.left_clicks || pointer.right_clicks)
+            LOG_DEBUG("input", "menu clicks dropped: %s",
+                      !menu_mode()   ? "no menu"
+                      : !window      ? "the mouse is not over the window"
+                      : !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) ? "the window has no focus"
+                                                                             : "the mouse is captured");
+        return PointerState{};
+    }
+    SDL_GetMouseState(&pointer.x, &pointer.y);
+    const float density = SDL_GetWindowPixelDensity(window);
+    pointer.x *= density;
+    pointer.y *= density;
+    pointer.inside = true;
+    return pointer;
+}
+
+void tap(const PadState& buttons) {
+    constexpr int64_t kTapMs = 100;  // a few frames even at 30 fps
+    std::lock_guard lock(g_tap_mutex);
+    g_tap = buttons;
+    g_tap_until_ms = now_ms() + kTapMs;
+}
 
 void take_mouse_motion(float& dx, float& dy) {
     std::lock_guard lock(g_mouse_mutex);

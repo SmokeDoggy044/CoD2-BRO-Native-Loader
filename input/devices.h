@@ -21,6 +21,10 @@
 // the default layout; a title can move them to the buttons its active layout uses
 // for the same actions (set_action_remap).
 // Clicking into the window captures the mouse; focus loss (Alt+Tab) or F10 frees it.
+// While the title shows a menu (set_menu_pointer), the mouse is free and points
+// instead: its buttons and wheel no longer give pad buttons, the title reads them with
+// take_pointer. When the menu closes, a mouse that was captured before is captured
+// again.
 // Gamepads use their Xbox-style layout; LB is white, RB is black.
 //
 // Every function may be called from any thread. SDL updates the devices while the
@@ -59,11 +63,37 @@ bool read_port(uint32_t port, PadState& state);
 // Titles take it where they turn the view (a title-specific hook).
 void take_mouse_motion(float& dx, float& dy);
 
+// The title shows a menu that the mouse can point at; call every frame while it is
+// up (menu mode ends 0.25 s after the last call).
+void set_menu_pointer();
+
+// The mouse in menu mode. Position in window pixels; clicks and wheel steps (up is
+// positive) since the last call. Empty outside menu mode.
+struct PointerState {
+    bool inside = false;  // over the window, which has the input focus
+    float x = 0, y = 0;
+    bool moved = false;
+    int left_clicks = 0, right_clicks = 0, wheel = 0;
+};
+PointerState take_pointer();
+
+// Presses the given buttons of port 0 for a moment (long enough for the title's next
+// polls), as if on the pad.
+void tap(const PadState& buttons);
+
 // Rewrites the pad state produced by the keyboard's and mouse's action keys (in the
 // default layout above) into the title's active layout. Called from read_port on the
 // title's polling thread; null (the default) keeps the default layout.
 using ActionRemap = void (*)(const PadState& default_layout, PadState& active_layout);
 void set_action_remap(ActionRemap remap);
+
+// The device the player used last: keys, mouse buttons and mouse motion count as the
+// keyboard; gamepad buttons and sticks/triggers past a dead zone as a gamepad.
+enum class Device { Keyboard, Gamepad };
+Device last_device();
+
+// The title shows a menu (set_menu_pointer was called in the last 0.25 s).
+bool in_menu();
 
 // Sets a port's rumble motors (0-65535; left is the low-frequency one).
 void set_rumble(uint32_t port, uint16_t left, uint16_t right);

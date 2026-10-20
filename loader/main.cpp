@@ -1,17 +1,21 @@
 // Route-B loader: runs the original default.xbe natively on 32-bit x86 (Linux or
 // Windows), with the Xbox kernel and the SDK libraries replaced by our own code.
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <iterator>
 #include <optional>
 #include <set>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "compare.h"
@@ -29,6 +33,8 @@
 #include "program.h"
 #include "script.h"
 #include "settings.h"
+#include "kapf.h"
+#include "key_prompts.h"
 #include "sharp_text.h"
 #include "symbols.h"
 #include "thread_env.h"
@@ -55,9 +61,11 @@ struct Options {
     render::BackendConfig::D3D9 d3d9 = render::BackendConfig::D3D9::Auto;
     float brightness = 1.0f;
     bool sharp_text = true;
+    loader::TitlePatchConfig::ButtonPrompts button_prompts = loader::TitlePatchConfig::ButtonPrompts::Auto;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
     bool widescreen = true;
+    uint32_t language = 1;  // XC_LANGUAGE
     uint32_t screenshot_interval = 0;
     std::optional<fs::path> screenshot_dir;
     bool silent = false;
@@ -120,8 +128,13 @@ void print_usage(const char* program) {
         "  --anisotropy N   anisotropic filtering for mipmapped textures, 1-16 (default 16;\n"
         "                   1 = what the game asks for)\n"
         "  --brightness X   0.5-2.0 (default 1: as on the Xbox; higher = brighter midtones)\n"
+        "  --language L     english (default), german, french, spanish or italian: the console\n"
+        "                   language; the game uses it where its disc has that language\n"
         "  --sharp-text on|off  the game's text drawn again at the render resolution from free\n"
         "                   look-alike fonts (fonts/ next to the loader; default on)\n"
+        "  --button-prompts auto|keyboard|controller  the game's button pictures as keys and\n"
+        "                   mouse buttons while the keyboard/mouse is used (auto, default),\n"
+        "                   always, or the original controller buttons\n"
         "  --d3d9 WHICH     Windows: auto (default: DXVK on Vulkan, else the system's), dxvk or\n"
         "                   system (Linux always uses DXVK)\n"
         "  --screenshots N DIR  save every Nth frame as DIR/frame_<n>.bmp (debugging)\n"
@@ -237,6 +250,30 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.aim_assist = value == "on";
+        } else if (arg == "--language") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            static constexpr std::pair<std::string_view, uint32_t> kLanguages[] = {
+                {"english", 1}, {"german", 3}, {"french", 4}, {"spanish", 5}, {"italian", 6}};
+            const auto* found = std::find_if(std::begin(kLanguages), std::end(kLanguages),
+                                             [&](const auto& l) { return l.first == value; });
+            if (found == std::end(kLanguages)) {
+                std::fprintf(stderr, "--language needs english, german, french, spanish or italian\n");
+                return std::nullopt;
+            }
+            options.language = found->second;
+        } else if (arg == "--button-prompts") {
+            using Prompts = loader::TitlePatchConfig::ButtonPrompts;
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value == "auto") {
+                options.button_prompts = Prompts::Auto;
+            } else if (value == "keyboard") {
+                options.button_prompts = Prompts::Keyboard;
+            } else if (value == "controller") {
+                options.button_prompts = Prompts::Controller;
+            } else {
+                std::fprintf(stderr, "--button-prompts needs auto, keyboard or controller\n");
+                return std::nullopt;
+            }
         } else if (arg == "--sharp-text") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             if (value != "on" && value != "off") {
@@ -381,6 +418,26 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
     loader::os::restart(args);
 }
 
+// The languages the game's text is on the disc in (Global.<code>.stb in the packs), for
+// the log: the title picks its language from the console's and the disc's region (a
+// European disc has no English text), so the language setting only chooses among these.
+void log_disc_languages(const fs::path& assets, uint32_t language) {
+    std::string codes;
+    for (const char* name : {"sp/global.cod", "mp/global.cod"}) {
+        const auto pack = text::KapfPack::open(assets / name);
+        if (!pack) continue;
+        for (const auto& entry : pack->entries()) {
+            const std::string_view file = entry.name;
+            if (!file.starts_with("Global.") || !file.ends_with(".stb") || file.size() <= 11) continue;
+            const std::string code(file.substr(7, file.size() - 11));
+            if (codes.find(code) == std::string::npos) codes += (codes.empty() ? "" : " ") + code;
+        }
+        break;
+    }
+    LOG_INFO("loader", "console language %u; text languages on the disc: %s", language,
+             codes.empty() ? "unknown" : codes.c_str());
+}
+
 xbox::KernelConfig kernel_config(const Options& options, const fs::path& assets, const fs::path& xbe) {
     static std::string image_file_name;
     image_file_name = "\\Device\\CdRom0\\" + xbe.filename().string();
@@ -393,6 +450,7 @@ xbox::KernelConfig kernel_config(const Options& options, const fs::path& assets,
     config.call_guest = call_guest;
     config.memory.physical_bytes = options.memory_mb * 1024 * 1024;
     config.widescreen = options.widescreen;
+    config.language = options.language;
     config.cdrom_root = assets;
     config.data_root = options.data.value_or(platform::user_data_dir());
     if (options.launch_data_fd) config.launch_data_page = loader::os::read_launch_data(*options.launch_data_fd);
@@ -435,13 +493,14 @@ int loader_main(int argc, char** argv) {
     }
     if (!parsed->pc_patches.value_or(!parsed->compare)) {
         // PC features off: the presentation is the Xbox's too (4:3 without the EEPROM
-        // widescreen flag, the game's own fonts, 640x480, its texture filtering), unless
+        // widescreen flag, the game's own fonts and button icons, 640x480, its texture filtering), unless
         // an option asks for one of them explicitly.
         const auto unless_given = [&](const char* name, auto& field, auto value) {
             if (!parsed->given.count(name)) field = value;
         };
         unless_given("--aspect", parsed->widescreen, false);
         unless_given("--sharp-text", parsed->sharp_text, false);
+        unless_given("--button-prompts", parsed->button_prompts, loader::TitlePatchConfig::ButtonPrompts::Controller);
         unless_given("--render-scale", parsed->render_scale, 1.0f);
         unless_given("--anisotropy", parsed->anisotropy, uint32_t{1});
         unless_given("--brightness", parsed->brightness, 1.0f);
@@ -528,11 +587,12 @@ int loader_main(int argc, char** argv) {
     loader::install_crash_handler(image, symbols);
     loader::start_profiler_from_env(image, symbols);
     loader::os::release_reserved_ranges();
+    log_disc_languages(*assets, options->language);
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
-                                           options->frame_rate,
+                                           options->frame_rate, options->button_prompts,
                                            options->pc_patches.value_or(!options->compare)});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
@@ -542,8 +602,18 @@ int loader_main(int argc, char** argv) {
     d3d_config.backend.anisotropy = options->anisotropy;
     d3d_config.backend.d3d9 = options->d3d9;
     d3d_config.backend.brightness = options->brightness;
-    if (options->sharp_text && text::prepare_sharp_text(*assets, platform::executable_dir() / "fonts") > 0)
-        d3d_config.backend.replace_texture = &text::sharp_text_replacement;
+    const bool sharp_text =
+        options->sharp_text && text::prepare_sharp_text(*assets, platform::executable_dir() / "fonts") > 0;
+    const bool key_prompts = options->button_prompts != loader::TitlePatchConfig::ButtonPrompts::Controller &&
+                             text::prepare_key_prompts(*assets, platform::executable_dir() / "fonts") > 0;
+    if (sharp_text || key_prompts)
+        d3d_config.backend.replace_texture = [sharp_text, key_prompts](uint64_t content, float render_scale) {
+            std::shared_ptr<const render::TextureReplacement> replacement;
+            if (key_prompts) replacement = text::key_prompt_replacement(content, render_scale);
+            if (!replacement && sharp_text) replacement = text::sharp_text_replacement(content, render_scale);
+            return replacement;
+        };
+    if (key_prompts) d3d_config.backend.replacement_version = &text::key_prompt_version;
     if (options->widescreen) {
         d3d_config.backend.display_aspect = 16.0f / 9.0f;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts

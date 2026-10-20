@@ -650,6 +650,10 @@ void show_notice(std::vector<std::string> lines, double seconds) {
                      std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(seconds));
 }
 
+bool window_to_screen(float x, float y, float& screen_x, float& screen_y) {
+    return g.backend && g.backend->window_to_screen(x, y, screen_x, screen_y);
+}
+
 void configure(const D3DConfig& config) {
     g.config = config;
     if (!config.diag_dir.empty()) platform::log_set_observer(diag_observer);

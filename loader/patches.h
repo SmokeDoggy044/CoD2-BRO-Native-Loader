@@ -30,6 +30,10 @@ struct TitlePatchConfig {
     int32_t start_level = -1;               // >= 0: start this mission once the menus are up (testing)
     bool aim_assist = true;                 // false: no sticky aim (the view following a target)
     int32_t frame_rate = 60;                // 60 or 30 (as on the Xbox): frames per second
+    // The game's button icons: keycaps while the keyboard/mouse is used (Auto), always
+    // (Keyboard) or never (Controller). See text/key_prompts.h.
+    enum class ButtonPrompts { Auto, Keyboard, Controller };
+    ButtonPrompts button_prompts = ButtonPrompts::Auto;
     // false: only the patches the game needs to run here (privileged code, RDTSC,
     // the MP heap lock, --level); none of the PC features above, so the game's code
     // runs as on the Xbox (for --compare: a patched function cannot be compared).

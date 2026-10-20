@@ -42,7 +42,9 @@ struct Choices {
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
+    std::string button_prompts = "auto";  // auto, keyboard, controller
     bool silent = false;
+    std::string language = "english";  // the console's: english, german, french, spanish, italian
     int net_port = 3074;  // system link: UDP net_port .. net_port + 3
 };
 
@@ -67,7 +69,9 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
     if (auto v = settings.get("aim-assist")) c.aim_assist = *v != "off";
+    if (auto v = settings.get("button-prompts"); v && (*v == "keyboard" || *v == "controller")) c.button_prompts = *v;
     if (auto v = settings.get("silent")) c.silent = *v == "true";
+    if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
     return c;
 }
@@ -93,7 +97,9 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
     put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
+    put("button-prompts", c.button_prompts == d.button_prompts, c.button_prompts);
     put("silent", c.silent == d.silent, c.silent ? "true" : "false");
+    put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
 }
 
@@ -263,7 +269,23 @@ private:
         ImGui::Checkbox("Aim assist", &choices_.aim_assist);
         help_marker("The view follows an enemy under the crosshair, as on the Xbox. Applies to the "
                     "controller and the mouse alike, in the campaign and in multiplayer.");
+        static constexpr const char* kPrompts[] = {"auto", "keyboard", "controller"};
+        int prompts = 0;
+        while (prompts < 2 && choices_.button_prompts != kPrompts[prompts]) ++prompts;
+        ImGui::Combo("Button prompts", &prompts, "Follow the last used device\0" "Keyboard and mouse\0" "Controller\0");
+        choices_.button_prompts = kPrompts[prompts];
+        help_marker("The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox "
+                    "controller's. They follow the controller style chosen in the game's options.");
         ImGui::Checkbox("Mute sound", &choices_.silent);
+
+        static constexpr const char* kLanguages[] = {"english", "german", "french", "spanish", "italian"};
+        int language = 0;
+        while (language < 4 && choices_.language != kLanguages[language]) ++language;
+        ImGui::Combo("Language", &language, "English\0" "German\0" "French\0" "Spanish\0" "Italian\0");
+        choices_.language = kLanguages[language];
+        help_marker("The Xbox's language setting. The game can only use languages that are on your disc: "
+                    "the US/world disc is English only, a European disc has its own languages (and may "
+                    "have no English). The log lists the disc's languages.");
     }
 
     // Multiplayer over the local network (online/lan.h): every game on the LAN has to use
