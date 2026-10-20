@@ -34,6 +34,11 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
    `Status::Replaced`: from then on it runs instead of the original, in every build.
    Drift on a function that does float math can be accepted after reading it.
 
+A static check without a game run: `tools/vc71match/vc71match.py` compiles
+`game/code/` with the title's own compiler (Visual C++ 7.1 from XDK 5849, under Wine)
+and scores each function's instructions against default.xbe (see its README.md;
+LTCG register arguments and inlining are expected misses).
+
 Conventions in `game/code/`: the title's globals are reached with `title_global<T>(address)`
 (title_data.h; such functions stay campaign-only until their multiplayer addresses are
 known); functions taking arguments in EAX/EDX/ECX use `XB_REGS3` (platform/compiler.h);
