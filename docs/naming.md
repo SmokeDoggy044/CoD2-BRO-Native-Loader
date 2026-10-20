@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-20): 1710 functions named by us (counter), 628+ globals, plus 3008 Microsoft
+State (2026-10-20): 1739 functions named by us (counter), 628+ globals, plus 3008 Microsoft
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
@@ -365,3 +365,20 @@ CoD-specific functions included, so later decompilation covers both kinds.
   else `medium`. Evidence column says which.
 - re slots 2, 9/14 and the never-filled 3/4/13; the unnamed pointer tables above.
 - 27 functions created for table entries are still unnamed (`FUN_`).
+- Session 2026-10-20: library pass (tools/data/library_names.csv, 3008 functions) took
+  .text unnamed from 7616 to 6243. Then zlib 1.1.4 (deflate, trees, inflate helpers),
+  minizip, the gamepad layer IN_Pad* (per-pad 0x58 records at 0x00902400: +0x1c pressed,
+  +0x26 released edges), the effect-file stream readers, bad places (BadPlace_*: 32
+  records of 0x28 at 0x0098a574) and grenade-throw checks (Actor_CheckGrenadeThrow and
+  its solvers: the method compares at 0x00984b88/90/94 are script strings, mapping of
+  the three solvers medium). Where the rest is (unnamed .text, 2026-10-20): compiled
+  common scripts 0x110000-0x1e3fff (~1,900; no bulk lever yet - ~20 carry their own
+  "file::function" string, e.g. 0x0019b440 _spawner_gmi::Allies_Death), engine
+  0x1fa000-0x340000 (~1,970; dump with the skill's DumpUnnamed.java and read in slices),
+  0x10000-0x45000 (~950: front-end bonus screens, STL instantiations, Z_Malloc's heap),
+  XAnim key decoders 0x7c000-0x8a000 (vtable classes, bit-packed channels), the particle
+  library 0x94000-0xa8000, NSL sound 0xb0000-0xd0000. Libmatch with --min 5 adds ~50
+  more but short patterns false-match (YaccSetStream at 8 places): not applied.
+  Pre-existing clashes to fix with RenameFromMap: MSG_ReadString twice in
+  manual_names.csv (0x002aa480/0x002aa4f0), Z_Malloc/Z_Free/Mem_AlignedAlloc/
+  Mem_AlignedFree each on two addresses.
