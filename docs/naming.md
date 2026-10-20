@@ -382,3 +382,36 @@ CoD-specific functions included, so later decompilation covers both kinds.
   Pre-existing clashes to fix with RenameFromMap: MSG_ReadString twice in
   manual_names.csv (0x002aa480/0x002aa4f0), Z_Malloc/Z_Free/Mem_AlignedAlloc/
   Mem_AlignedFree each on two addresses.
+
+- Script engine interface (2026-10-20, later): DAT_0095f49c is the level module's import
+  block at 0x00922140 (`*param_1 = &DAT_00922140` in each module entry), so every
+  runtime pointer 0x00922xxx is slot (addr - 0x00922140) / 4. Filled by 0x0030adb0 and
+  its sub-inits 0x003094a0, 0x00301df0, 0x003088b0 (632 slots; the skill's
+  SlotStores.java dumps slot -> function). Named so far: 36 slot pointers pScr_<name>,
+  string-anchored builtins GScr_*, runtime hubs (ScriptString_*, Scr_Alloc/Free,
+  SmallHeap_*, DynArray_*, Scr_Wait/WaitTill, Scr_CreateThread = slot 11, 3972 call
+  sites). Call-site evidence per slot: SlotCallStrings.java (e.g. slot 33 called with
+  "trigger"/"targetname" = GetEntArray 0x00307d40, slot 35 "targetname" = GetNode
+  0x002faf40, slot 25 notify names = queued notify 0x002fbe00, slots 103-107 cvar
+  get/set with "r_zfar", slot 164 GScr_GetAI "axis"/"allies").
+  Field tables: entity spawn fields at 0x0082ff38 {name, offset, type, 0}: classname
+  0x25c, origin 0x140, model 0x258, spawnflags 0x2a0, speed/time 0x2fc, closespeed 0x300,
+  target 0x26c, targetname 0x264, teamname 0x2f8, wait 0x384, random 0x388, count/shard
+  0x370, health 0x350, dmg 0x358, angles 0x150, rotate 0x390, degrees 0x2f4, key 0x3b4,
+  delay 0x38c, spawnitem 0x3b8, groupname 0x274, script_noteworthy 0x27c, maxhealth
+  0x354, animname 0x284, persistent_index 0x290, takedamage 0x29c. Path-node fields at
+  0x008d3990 (targetname 0x30, script_noteworthy 0x34, target 0x38, animscript 0x3c,
+  origin 0x44, angles 0x50, radius 0x54, spawnflags 0x2c, type 0x28); vehicle-node
+  fields at 0x008d3a40 (targetname 0, target 4, speed 8, lookahead 0xc,
+  script_noteworthy 0x10, origin 0x14, angles 0x2c; nodes in table 0x0095c228).
+  Accessor slots 598-830ish (code 0x00015f50-0x0001c000): pairs getter/setter; a setter
+  is `void f(uint handle, value)`, a getter returns the value or writes it through
+  param_1 (strings, vectors) with the handle in param_2; per-field debug hooks at
+  0x008d20e8-0x008d2170 (no names). No actor/sentient field table: those accessors
+  (actor +0xcc..+0x138c, sentient +4..+0x50) need the actor_t notes above.
+  Compiled scripts: each level module entry (LevelScript_<level>_ModuleEntry, via
+  G_FindLevelScriptModule) registers the 48 shared anim/negotiation scripts by name
+  (BroFuncRegs.java -> Bro_*); thread starts pass null file/name except the 14
+  "InternalMain" ones, but BroThreadSites.java still lists the 2110 thread targets and
+  their functor RTTI signature (AeThreadFunctorN<entity, ...>). Gela's entry is split
+  at 0x0060201b (function boundary to fix).
