@@ -2658,3 +2658,360 @@ address,name,kind,confidence,evidence
 00015e70,ScrHudElem_GetColorByte1,function,medium,"script iface slots 594/595: hud element (0x7c records at 0x0094cc88) byte +0x1d of the color dword at +0x1c (GScr_HudFadeOverTime copies it); getter"
 00015e90,ScrHudElem_SetColorByte2,function,medium,"script iface slots 596/597: hud element (0x7c records at 0x0094cc88) byte +0x1e of the color dword at +0x1c (GScr_HudFadeOverTime copies it); setter"
 00015eb0,ScrHudElem_GetColorByte2,function,medium,"script iface slots 596/597: hud element (0x7c records at 0x0094cc88) byte +0x1e of the color dword at +0x1c (GScr_HudFadeOverTime copies it); getter"
+000142f0,Scr_RandomInt,function,high,"script iface slot 59: LCG (x*0x343fd+0x269ec3) >> 17 scaled to [0,max); next to Scr_RandomFloatRange (62)"
+00014320,Scr_RandomFloat,function,high,"script iface slot 60: same LCG scaled to [0,max) as float"
+00014370,Scr_RandomIntRange,function,high,"script iface slot 61: same LCG scaled to [min,max)"
+00014440,Scr_SinCosDegrees,function,medium,"script iface slot 63: FastSinCos(x * deg-to-rad)"
+00011020,Scr_Sin,function,high,"script iface slot 64: fsin"
+00011000,Scr_Cos,function,high,"script iface slot 65: fcos"
+00011030,Scr_Tan,function,high,"script iface slot 66: fptan"
+000139f0,Scr_Asin,function,high,"script iface slot 67: __CIasin"
+000139e0,Scr_Acos,function,high,"script iface slot 68: __CIacos"
+00013a00,Scr_Atan,function,high,"script iface slot 69: fpatan(x, 1)"
+00013a10,Scr_Atan2,function,medium,"script iface slot 70: (y, x) polynomial arctangent approximation"
+00014470,Scr_Log,function,high,"script iface slot 71: ln 2 * log2(x)"
+00011010,Scr_Abs,function,high,"script iface slot 72: fabs"
+002f62c0,Scr_Sqrt,function,high,"script iface slot 73: sqrt"
+00013ef0,Scr_Distance,function,high,"script iface slot 74: sqrt of the squared difference of two vec3"
+00013f50,Scr_DistanceSquared,function,high,"script iface slot 75: squared difference of two vec3"
+00013e70,Scr_Length,function,high,"script iface slot 76: sqrt(v.v)"
+00013ea0,Scr_LengthSquared,function,medium,"script iface slot 77: 35 bytes between Length (76) and Closer (78); decompiler loses the x87 return"
+00013fa0,Scr_Closer,function,high,"script iface slot 78: true if point a is closer to b than to c"
+00013ed0,Scr_VectorDot,function,high,"script iface slot 79: dot product of two vec3"
+00014030,Scr_VectorNormalize,function,high,"script iface slot 80: out = v / |v|"
+000140b0,Scr_VectorToAngles,function,high,"script iface slot 81: vectoangles"
+000140d0,Scr_AnglesToUp,function,medium,"script iface slot 82: FastSinCos of pitch and roll into a vec3; order up/right/forward as the slot order of the angle helpers"
+00014150,Scr_AnglesToRight,function,medium,"script iface slot 83: FastSinCos of yaw and roll into a vec3"
+000141e0,Scr_AnglesToForward,function,high,"script iface slot 84: (cp*cy, cp*sy, -sp)"
+002fdab0,GScr_GetCvar,function,high,"script iface slot 102: Cvar_FindVar, copies the string value (127 chars) into the result"
+002fda90,GScr_GetCvarInt,function,high,"script iface slot 103: Cvar_FindVar -> integer +0x20"
+002fda60,GScr_GetCvarFloat,function,high,"script iface slot 104: Cvar_FindVar -> value +0x1c; called with timescale"
+002ff950,GScr_SetCvar,function,high,"script iface slot 105: quotes replaced, Cvar_Get(name, value, 0x1000) + Cvar_Set2; called with r_zfar"
+002ff8d0,GScr_SetCvarInt,function,high,"script iface slot 106: sprintf %d then Cvar_Get + Cvar_Set2"
+002ff850,GScr_SetCvarFloat,function,high,"script iface slot 107: sprintf %f then Cvar_Get + Cvar_Set2"
+003061e0,GScr_Spawn,function,high,"script iface slot 108: G_Spawn, classname, origin, spawnflags 0, G_CallSpawn, 'unable to spawn ""%s"" entity'; called with script_origin/script_model"
+00306120,GScr_SpawnWithFlags,function,medium,"script iface slot 109: GScr_Spawn with a spawnflags argument (+0x2a0)"
+003038a0,GScr_SpawnBoxEntity,function,medium,"script iface slot 110: sorts mins/maxs, G_Spawn with a fixed classname, absmin/absmax +0xe0/+0xf0"
+00306030,GScr_SpawnVehicle,function,high,"script iface slot 111: G_Spawn, model, origin, angles, Vehicle_Init(type)"
+00305330,GScr_SpawnTurret,function,high,"script iface slot 112: G_Spawn, classname, origin, Turret_ParseInfo(weapon)"
+00305280,GScr_SpawnTurretWithAngles,function,high,"script iface slot 113: GScr_SpawnTurret plus angles +0x150"
+00300780,GScr_MusicPlay,function,medium,"script iface slot 114: called with BG_GELA_PATH, BG_Troina_Urban, BG_Mons_4_Battle (music cue names)"
+002ce520,Music_Play,function,medium,"called by GScr_MusicPlay with the cue name; stops the playing handle first"
+003006d0,GScr_SoundBankUnload,function,medium,"script iface slot 119: hashes a bank name (buch_foot, omaha_land, artillery_dirt) and releases its wave banks (S_CheckWaveBankNotifies)"
+00300710,GScr_SoundBankLoad,function,medium,"script iface slot 118: hashes a bank name (buch_tank, omaha_water) and loads it; pair of 119"
+002fba20,GScr_GetWeaponClassname,function,high,"script iface slot 170: error text 'unknown weapon '%s' in getWeaponClassname'"
+002fb970,GScr_GetWeaponClassname2,function,medium,"script iface slot 171: copy of slot 170 with the same getWeaponClassname errors"
+002fbad0,GScr_GetWeaponDisplayName,function,medium,"script iface slot 169: weapon by index, returns the string at weaponDef +0x57c"
+003043c0,GScr_TransformLocalOffset,function,medium,"script iface slot 175: origin + AnglesToAxis(angles) * offset"
+00306fd0,GScr_RadiusDamage,function,high,"script iface slot 186: G_RadiusDamage(origin, ..., range, max, min) with the level's world entity as inflictor/attacker"
+00306f60,GScr_RadiusDamageFromEntity,function,medium,"script iface slot 187: G_RadiusDamage with an entity handle as inflictor and attacker"
+002f5220,GScr_SetRadiusDamageFlag,function,medium,"script iface slot 188: byte stored in the global the two radius-damage builtins pass on"
+002fb890,GScr_MissionSuccess,function,medium,"script iface slot 189: player alive -> sets the next map (gamefinished sets the end flag); called with level names"
+00300630,GScr_MissionFailed,function,medium,"script iface slot 190: ClientDeathReload with a localized reason (NEED_LOVE, ..._MISSIONFAIL_..., INGAME_PLAYER_DIED)"
+002fb7f0,GScr_ChangeLevelWithDelay,function,medium,"script iface slot 191: next map name + delay in ms"
+002fb7a0,GScr_ChangeLevel,function,medium,"script iface slot 192: next map name, no delay"
+00302320,GScr_Earthquake,function,high,"script iface slot 193: CG_StartShakeCamera(duration ms, ...)"
+002ff5a0,GScr_RandomTracer,function,medium,"script iface slot 197: CG_SpawnTracer when rand() & 0x1f is under a weapon-dependent chance"
+003022e0,GScr_GetModelBoneCount,function,high,"script iface slot 201: R_RegisterModel + XModel_GetBoneCount"
+00302210,GScr_GetModelBoneName,function,high,"script iface slot 202: 'index out of range (0 - %d)' against XModel_GetBoneCount, returns the bone's name"
+002fb620,GScr_WeaponType,function,medium,"script iface slot 207: weapon by name, returns the type string table ('bullet', ...) by weaponDef +0x94"
+002fb750,GScr_WeaponGetFloat_5dc,function,medium,"script iface slot 203: weapon by name, int weaponDef +0x5dc * 0.001 (ms to s)"
+002fb700,GScr_WeaponGetTableValue_5a0,function,medium,"script iface slot 204: weapon by name, table 0x00935338 indexed by weaponDef +0x5a0"
+002fb6c0,GScr_WeaponGet_6d4,function,medium,"script iface slot 205: weapon by name, weaponDef +0x6d4"
+002fb680,GScr_WeaponGet_6d8,function,medium,"script iface slot 206: weapon by name, weaponDef +0x6d8"
+00303880,GScr_BadPlace_Delete,function,high,"script iface slot 208: BadPlace_Delete(name); next to BadPlace_Cylinder/Arc (209/210)"
+003005a0,GScr_HudSetText,function,medium,"script iface slot 490: hud element (0x7c records at 0x0094cc88) text = configstring index of a localized string"
+002fd7b0,GScr_HudSetTimer,function,medium,"script iface slot 493: hud element type 5 with end time level.time + ceil(seconds * 1000)"
+002f6010,GScr_HudSetValue,function,medium,"script iface slot 498: hud element type 2 with a value +0x64"
+002f5e40,GScr_HudDestroy,function,medium,"script iface slot 503: hud element type = 0"
+002f62d0,ScrIface_Malloc,function,medium,"script iface slot 504: SmallHeap_Alloc when it fits, else the general allocator; breaks on failure"
+002f5440,ScrIface_Free,function,medium,"script iface slot 505: SmallHeap_Free if SmallHeap_Owns, else the general free; pair of 504"
+002f5400,ScrIface_SmallFree,function,medium,"script iface slot 507: SmallHeap_Free; pair of ScrIface_Alloc (506)"
+002f5340,ScrIface_atof,function,medium,"script iface slot 551: atof"
+002f5470,ScrIface_HashStringNoCase,function,medium,"script iface slot 571: rotate-left-5 xor hash of the lowercased string"
+00307d40,GScr_GetEntArray,function,high,"script iface slot 33: called with (""trigger"", ""targetname"") pairs, 2788 sites; key hashes compared per entity"
+002fafb0,GScr_GetEntByNum,function,medium,"script iface slot 34: entity number < 0x540 -> its script handle +0x224"
+002faf40,GScr_GetNode,function,high,"script iface slot 35: PathNode_FindByKey(value, key); called with targetname"
+002faf10,GScr_GetVehicleNode,function,high,"script iface slot 36: VehicleNode_FindByKey; called with targetname"
+002fbe00,Scr_QueueNotify,function,high,"script iface slot 25: queues {entity, notify name} on 0x008dd200; 2241 sites with notify names"
+002fbcd0,Scr_QueueNotifyWithString,function,medium,"script iface slot 27: Scr_QueueNotify with a string argument (ScriptString_Copy into the arg record)"
+002fbba0,Scr_QueueNotifyWith2Args,function,medium,"script iface slot 28: Scr_QueueNotify with a two-word argument record"
+002b30d0,DebugDraw_AddString,function,medium,"queues a {origin, color, text} record (0x84 bytes, up to 0x100) for the debug draw; script iface slot 4 passes a string"
+002b2f20,DebugDraw_AddLine,function,medium,"queues a two-point record (up to 0x400) for the debug draw; script iface slot 5"
+002fbf80,GScr_Print3D,function,medium,"script iface slot 4: DebugDraw_AddString(origin, text)"
+002fbf20,GScr_DebugLine,function,medium,"script iface slot 5: DebugDraw_AddLine(start, end, color)"
+003007b0,Scr_EndOn,function,medium,"script iface slot 18 (1102 sites): adds an entity-notify wait record (FUN_002ffa60) to the current thread's list without yielding; breaks when the thread waits on itself"
+00300390,GScr_PlaySoundWithNotify,function,medium,"script iface slot 51: plays a sound alias at the entity (690 sites with dialogue aliases SQD_HAW_SIT_01_Armor ...) and Scr_Notify when it has no entity"
+002fae30,GScr_IsAlive,function,medium,"script iface slot 52: actor (+0x240) -> actor +0x2d0 == 0, else health +0x350 > 0"
+002fae90,Scr_EntityHandleIsValid,function,medium,"script iface slot 53 (1375 sites): true if the handle resolves to an entity"
+002fadf0,GScr_IsPlayer,function,medium,"script iface slot 54: entity has a client (+0x23c)"
+002fadb0,GScr_IsAI,function,medium,"script iface slot 55: entity has an actor (+0x240); call sites pass 'Can only call this function on an AI character'"
+002fad70,GScr_IsSentient,function,medium,"script iface slot 56: entity has a sentient (+0x244)"
+002f9550,GScr_SetForcedLod,function,high,"script iface slot 130: DObj_SetForcedLod on the entity's DObj (+0x22c)"
+00307460,GScr_AnimScripted,function,medium,"script iface slot 225: pushes the animscripted state (Actor_PushState) and starts the anim with an optional notify"
+00307cf0,GScr_AnimScriptedNoNotify,function,medium,"script iface slot 224 (447 sites): slot 225 with an empty notify string"
+00301ba0,GScr_StopAnimScripted,function,medium,"script iface slot 226: Actor_PopState when the top state is 10 (animscripted), frees the anim record +0x3d4"
+00303330,GScr_LinkTo,function,high,"script iface slot 239 (206 sites): 'entity %s: does not support linkTo', links to the other entity without a tag"
+00303400,GScr_LinkToTag,function,medium,"script iface slot 238: GScr_LinkTo with a tag name (tag_weapon_left, tag_weapon_right)"
+003034e0,GScr_LinkToTagWithOffset,function,medium,"script iface slot 237: link with tag, origin and angles offsets"
+003031d0,GScr_LinkToTagUnchecked,function,medium,"script iface slot 241: slot 238 without the linkTo support check"
+00303150,GScr_LinkToUnchecked,function,medium,"script iface slot 242: slot 239 without the linkTo support check"
+00303260,GScr_PlayerLinkTo,function,medium,"script iface slot 240: stores a view vector in the client (+0x23c +0x614) and links"
+002fabf0,GScr_Unlink,function,high,"script iface slot 243: G_EntUnlink"
+00308df0,GScr_DoSpawnNamed,function,medium,"script iface slot 245: Actor_SpawnFromSpawner(spawner, name, 0, target) for type-12 spawners, once per frame"
+00308ff0,GScr_DoSpawn,function,high,"script iface slot 246: 'dospawn can only be called on actor spawners'; slot 245 with an empty name"
+00308cc0,GScr_ForceSpawnNamed,function,medium,"script iface slot 247: slot 245 with the force flag (Actor_SpawnFromSpawner(..., 1, ...))"
+00308fb0,GScr_ForceSpawn,function,medium,"script iface slot 248 (386 sites): slot 247 with an empty name; same dospawn error text"
+002faa30,GScr_GetOrigin,function,medium,"script iface slot 249: brush entities -> centre of absmin/absmax, else origin +0x140"
+003050b0,GScr_GetEye,function,high,"script iface slot 250: Sentient_EyeOrigin"
+002ff320,GScr_UseBy,function,medium,"script iface slot 251: G_NotifyWithEntity(trigger, user) and the entity's use callback"
+00305050,GScr_DoorLock,function,medium,"script iface slot 253: func_door/func_door_rotating key (+0x3b4) = 1"
+00304ff0,GScr_DoorUnlock,function,medium,"script iface slot 254: func_door/func_door_rotating key (+0x3b4) = 0"
+002fa9d0,GScr_DoorIsLocked,function,medium,"script iface slot 255: func_door/func_door_rotating with key (+0x3b4) set"
+002fd520,GScr_Delete,function,high,"script iface slot 256 (1177 sites): Scr_Notify(death) then G_FreeEntity"
+00304570,GScr_SetModel,function,high,"script iface slot 258 (477 sites, model names v_m13_d1, flak88_d1): sets the model and SV_LinkEntity"
+002fa960,GScr_GetNormalHealth,function,high,"script iface slot 260: health / maxhealth (client max for players); pair of GScr_SetNormalHealth (261)"
+002ff1a0,GScr_DoDamage,function,medium,"script iface slot 262: G_Damage(entity, amount) from a source point"
+002fa7f0,GScr_SetTakeDamage,function,high,"script iface slot 263: takedamage +0x29c (spawn field) = byte"
+003029b0,GScr_SetContents,function,medium,"script iface slot 267: swaps contents +0x134, relinks, returns the old value"
+002fa6c0,GScr_Turret_SetFlag4,function,medium,"script iface slot 270: 'entity type '%s' is not a turret'; turret info (+0x24c) flags |= 4"
+002fa650,GScr_Turret_ClearFlag4,function,medium,"script iface slot 271: turret info flags &= ~4; pair of 270"
+002fa580,GScr_Turret_SetMode,function,high,"script iface slot 273: auto_ai / manual / manual_ai / auto_nonai turret flags"
+002fa420,GScr_Turret_SetTargetEntity,function,medium,"script iface slot 276: turret info +8 = target entity"
+002fa3b0,GScr_Turret_ClearTargetEntity,function,medium,"script iface slot 277: turret info +8 = 0"
+002fa2c0,GScr_Turret_SetTeam,function,medium,"script iface slot 278: turret team from axis/allies strings"
+002fa0e0,GScr_Turret_SetMaxRange,function,medium,"script iface slot 282: turret info +0x48 = range squared"
+002fa070,GScr_Turret_GetMaxRange,function,medium,"script iface slot 283: sqrt(turret info +0x48)"
+002f9ff0,GScr_Turret_GetOwner,function,medium,"script iface slot 284: handle of turret info +0xc when flag 0x40 is set"
+002f9ef0,GScr_SetCursorHint,function,high,"script iface slot 285: '%s is not a valid hint type', HINT_NONE / HINT_ACTIVATE"
+002feff0,GScr_GetAnimLength,function,medium,"script iface slot 291: AnimData_EnsureLoaded, returns the anim's float +0x38 (1.0 if none)"
+00301af0,GScr_ClearAnim,function,medium,"script iface slot 293: creates the anim tree if needed, AnimTree_ClearGoalWeight_r"
+00301910,GScr_SetAnim,function,medium,"script iface slot 295: sets the anim's goal weight/time/rate (FUN_002cf090), no notify"
+00301a50,GScr_SetAnimKnob,function,medium,"script iface slot 294: AnimTree_ClearSiblingGoalWeights then sets the anim"
+00301650,GScr_SetFlaggedAnim,function,medium,"script iface slot 298: slot 295 with a notify name"
+00301790,GScr_SetFlaggedAnimKnob,function,medium,"script iface slot 296: slot 294 with a notify name"
+00304f50,GScr_UseAnimTree,function,high,"script iface slot 300: 'cannot change the animtree of classname '%s''; called with panzerIV, generic_human"
+00304e60,GScr_ClearAnimTree,function,medium,"script iface slot 301: same check, clears the entity's anim tree +0x254"
+002f9d90,GScr_GetStance,function,medium,"script iface slot 304: client flags +0x2c bit 1 / bit 2 / else -> three stance strings"
+00307350,GScr_MagicGrenade,function,medium,"script iface slot 305: actor grenade trajectory (Actor_GrenadeThrow_MinEnergy/ByTime/Fallback) then launches with a fuse"
+00307ca0,GScr_MagicGrenadeDefaultFuse,function,medium,"script iface slot 306: slot 305 with a 5 s fuse"
+00304e00,GScr_MagicGrenadeManual,function,medium,"script iface slot 307: launches the grenade with the given velocity and fuse, no trajectory search"
+00305610,GScr_MagicGrenadeManualDefaultFuse,function,medium,"script iface slot 308: slot 307 with a 5 s fuse"
+002fd420,GScr_SetGoalNode,function,high,"script iface slot 310: sentient +0x4a = node, Sentient_SetGoalNode for AI"
+00303cc0,GScr_GetTagOrigin,function,medium,"script iface slot 311 (435 sites): tag lookup (FUN_00303aa0) -> origin +0x30"
+00303c70,GScr_GetTagAngles,function,medium,"script iface slot 312 (310 sites): same tag lookup -> angles"
+00302060,GScr_LocalToWorldCoords,function,medium,"script iface slot 319: entity origin + AnglesToAxis(entity angles) * vector"
+002f9900,GScr_SetSpawnerTeam,function,medium,"script iface slot 326: spawners (type 12): axis/allies/neutral -> +0x3b4; 'unknown team '%s''"
+002f98a0,GScr_Turret_SetArc_30,function,medium,"script iface slot 327: turret info +0x30 = -arc (clamped to <= 0)"
+002f9850,GScr_Turret_SetArc_38,function,medium,"script iface slot 328: turret info +0x38 = arc (clamped to >= 0)"
+002f9800,GScr_Turret_SetArc_2c,function,medium,"script iface slot 329: turret info +0x2c = -arc"
+002f97b0,GScr_Turret_SetArc_34,function,medium,"script iface slot 330: turret info +0x34 = arc (clamped to >= 0)"
+002f4c20,GScr_GetPadStick,function,medium,"script iface slot 85: IN_PadCreate + IN_PadGetStick, scaled to floats"
+002fec10,GScr_ObjectiveAdd,function,medium,"script iface slot 89: 'index %i is an illegal objective index', objective configstring (0x10 + n) state and text"
+002fef50,GScr_ObjectiveAddNoText,function,medium,"script iface slot 87: slot 89 with an empty text"
+002fe6f0,GScr_ObjectiveAddWithPosition,function,medium,"script iface slot 91: slot 89 plus a position"
+002fee50,GScr_ObjectiveAddLocalized,function,medium,"script iface slot 92: localized text lookup (FUN_002984f0) then slot 89; called with done/active"
+002feaf0,GScr_ObjectiveAddLocalizedWithPosition,function,medium,"script iface slot 93: localized text lookup then slot 91"
+002fe5e0,GScr_ObjectiveState,function,high,"script iface slot 95 (199 sites): sets the state key; called with done/current/active"
+002fc7f0,GScr_ObjectivePosition,function,high,"script iface slot 99: '%i %i %i' position key in the objective configstring"
+002fe250,GScr_ObjectiveCurrent,function,medium,"script iface slot 100: sets state 4 on the given objective, updates the others"
+002fc8a0,GScr_ObjectiveDelete,function,medium,"script iface slot 94: resets the objective configstring"
+00307090,GScr_Vehicle_AttachPath,function,medium,"script iface slot 463: 'Vehicle is invalid on path after it's been used'; places the vehicle at the start node"
+002f7120,GScr_Vehicle_SetSwitchNode,function,medium,"script iface slot 465: two vehicle nodes -> path switch"
+002f6fb0,GScr_Vehicle_SetSpeed,function,medium,"script iface slot 468: speed and acceleration (mph scale), mode 1"
+00307010,GScr_Vehicle_Kill,function,medium,"script iface slot 471: vehicle becomes type 0xf with a new classname, Scr_Notify(death)"
+002f6de0,GScr_Vehicle_GetSpeedMPH,function,medium,"script iface slot 473: speed +0x2fc times a unit scale"
+002f6ca0,GScr_Vehicle_MakeUnusable,function,medium,"script iface slot 477: spawnflags |= 1, contents |= 0x200000"
+002f6c10,GScr_Vehicle_MakeUsable,function,medium,"script iface slot 478: 'Vehicle is already in use'; clears both flags of slot 477"
+002f6ac0,GScr_Vehicle_SetTurretTargetVec,function,medium,"script iface slot 482: 'Vehicle must have health to control the turret'; turret target point"
+002f69d0,GScr_Vehicle_SetTurretTargetEnt,function,medium,"script iface slot 483: same error; turret target entity + offset"
+002f6950,GScr_Vehicle_ClearTurretTarget,function,medium,"script iface slot 484: clears the turret target fields"
+00015c50,ScrHudElem_Set_04,function,medium,"script iface slot 578: hud element (0x7c records at 0x0094cc88) dword +0x04 setter"
+00015c70,ScrHudElem_Get_04,function,medium,"script iface slot 579: hud element +0x04 getter"
+00015c90,ScrHudElem_Set_08,function,medium,"script iface slot 580: hud element +0x08 setter"
+00015cb0,ScrHudElem_Get_08,function,medium,"script iface slot 581: hud element +0x08 getter"
+00015cd0,ScrHudElem_Set_14,function,medium,"script iface slot 582: hud element +0x14 setter"
+00015cf0,ScrHudElem_Get_14,function,medium,"script iface slot 583: hud element +0x14 getter"
+00015d10,ScrHudElem_Set_18,function,medium,"script iface slot 584: hud element +0x18 setter"
+00015d30,ScrHudElem_Get_18,function,medium,"script iface slot 585: hud element +0x18 getter"
+00015d50,ScrHudElem_SetFloat_6c,function,medium,"script iface slot 586: hud element float +0x6c setter"
+00015d70,ScrHudElem_GetFloat_6c,function,medium,"script iface slot 587: hud element float +0x6c getter"
+00015d90,ScrHudElem_SetFloat_0c,function,medium,"script iface slot 588: hud element float +0x0c setter"
+00015db0,ScrHudElem_GetFloat_0c,function,medium,"script iface slot 589: hud element float +0x0c getter"
+0092222c,pScr_Scr_RandomInt,data,high,script iface slot 59 pointer (0x00922140 + 4*59) -> Scr_RandomInt
+00922230,pScr_Scr_RandomFloat,data,high,script iface slot 60 pointer (0x00922140 + 4*60) -> Scr_RandomFloat
+00922234,pScr_Scr_RandomIntRange,data,high,script iface slot 61 pointer (0x00922140 + 4*61) -> Scr_RandomIntRange
+0092223c,pScr_Scr_SinCosDegrees,data,medium,script iface slot 63 pointer (0x00922140 + 4*63) -> Scr_SinCosDegrees
+00922240,pScr_Scr_Sin,data,high,script iface slot 64 pointer (0x00922140 + 4*64) -> Scr_Sin
+00922244,pScr_Scr_Cos,data,high,script iface slot 65 pointer (0x00922140 + 4*65) -> Scr_Cos
+00922248,pScr_Scr_Tan,data,high,script iface slot 66 pointer (0x00922140 + 4*66) -> Scr_Tan
+0092224c,pScr_Scr_Asin,data,high,script iface slot 67 pointer (0x00922140 + 4*67) -> Scr_Asin
+00922250,pScr_Scr_Acos,data,high,script iface slot 68 pointer (0x00922140 + 4*68) -> Scr_Acos
+00922254,pScr_Scr_Atan,data,high,script iface slot 69 pointer (0x00922140 + 4*69) -> Scr_Atan
+00922258,pScr_Scr_Atan2,data,medium,script iface slot 70 pointer (0x00922140 + 4*70) -> Scr_Atan2
+0092225c,pScr_Scr_Log,data,high,script iface slot 71 pointer (0x00922140 + 4*71) -> Scr_Log
+00922260,pScr_Scr_Abs,data,high,script iface slot 72 pointer (0x00922140 + 4*72) -> Scr_Abs
+00922264,pScr_Scr_Sqrt,data,high,script iface slot 73 pointer (0x00922140 + 4*73) -> Scr_Sqrt
+00922268,pScr_Scr_Distance,data,high,script iface slot 74 pointer (0x00922140 + 4*74) -> Scr_Distance
+0092226c,pScr_Scr_DistanceSquared,data,high,script iface slot 75 pointer (0x00922140 + 4*75) -> Scr_DistanceSquared
+00922270,pScr_Scr_Length,data,high,script iface slot 76 pointer (0x00922140 + 4*76) -> Scr_Length
+00922274,pScr_Scr_LengthSquared,data,medium,script iface slot 77 pointer (0x00922140 + 4*77) -> Scr_LengthSquared
+00922278,pScr_Scr_Closer,data,high,script iface slot 78 pointer (0x00922140 + 4*78) -> Scr_Closer
+0092227c,pScr_Scr_VectorDot,data,high,script iface slot 79 pointer (0x00922140 + 4*79) -> Scr_VectorDot
+00922280,pScr_Scr_VectorNormalize,data,high,script iface slot 80 pointer (0x00922140 + 4*80) -> Scr_VectorNormalize
+00922284,pScr_Scr_VectorToAngles,data,high,script iface slot 81 pointer (0x00922140 + 4*81) -> Scr_VectorToAngles
+00922288,pScr_Scr_AnglesToUp,data,medium,script iface slot 82 pointer (0x00922140 + 4*82) -> Scr_AnglesToUp
+0092228c,pScr_Scr_AnglesToRight,data,medium,script iface slot 83 pointer (0x00922140 + 4*83) -> Scr_AnglesToRight
+00922290,pScr_Scr_AnglesToForward,data,high,script iface slot 84 pointer (0x00922140 + 4*84) -> Scr_AnglesToForward
+009222d8,pScr_GScr_GetCvar,data,high,script iface slot 102 pointer (0x00922140 + 4*102) -> GScr_GetCvar
+009222dc,pScr_GScr_GetCvarInt,data,high,script iface slot 103 pointer (0x00922140 + 4*103) -> GScr_GetCvarInt
+009222e0,pScr_GScr_GetCvarFloat,data,high,script iface slot 104 pointer (0x00922140 + 4*104) -> GScr_GetCvarFloat
+009222e4,pScr_GScr_SetCvar,data,high,script iface slot 105 pointer (0x00922140 + 4*105) -> GScr_SetCvar
+009222e8,pScr_GScr_SetCvarInt,data,high,script iface slot 106 pointer (0x00922140 + 4*106) -> GScr_SetCvarInt
+009222ec,pScr_GScr_SetCvarFloat,data,high,script iface slot 107 pointer (0x00922140 + 4*107) -> GScr_SetCvarFloat
+009222f0,pScr_GScr_Spawn,data,high,script iface slot 108 pointer (0x00922140 + 4*108) -> GScr_Spawn
+009222f4,pScr_GScr_SpawnWithFlags,data,medium,script iface slot 109 pointer (0x00922140 + 4*109) -> GScr_SpawnWithFlags
+009222f8,pScr_GScr_SpawnBoxEntity,data,medium,script iface slot 110 pointer (0x00922140 + 4*110) -> GScr_SpawnBoxEntity
+009222fc,pScr_GScr_SpawnVehicle,data,high,script iface slot 111 pointer (0x00922140 + 4*111) -> GScr_SpawnVehicle
+00922300,pScr_GScr_SpawnTurret,data,high,script iface slot 112 pointer (0x00922140 + 4*112) -> GScr_SpawnTurret
+00922304,pScr_GScr_SpawnTurretWithAngles,data,high,script iface slot 113 pointer (0x00922140 + 4*113) -> GScr_SpawnTurretWithAngles
+00922308,pScr_GScr_MusicPlay,data,medium,script iface slot 114 pointer (0x00922140 + 4*114) -> GScr_MusicPlay
+0092231c,pScr_GScr_SoundBankUnload,data,medium,script iface slot 119 pointer (0x00922140 + 4*119) -> GScr_SoundBankUnload
+00922318,pScr_GScr_SoundBankLoad,data,medium,script iface slot 118 pointer (0x00922140 + 4*118) -> GScr_SoundBankLoad
+009223e8,pScr_GScr_GetWeaponClassname,data,high,script iface slot 170 pointer (0x00922140 + 4*170) -> GScr_GetWeaponClassname
+009223ec,pScr_GScr_GetWeaponClassname2,data,medium,script iface slot 171 pointer (0x00922140 + 4*171) -> GScr_GetWeaponClassname2
+009223e4,pScr_GScr_GetWeaponDisplayName,data,medium,script iface slot 169 pointer (0x00922140 + 4*169) -> GScr_GetWeaponDisplayName
+009223fc,pScr_GScr_TransformLocalOffset,data,medium,script iface slot 175 pointer (0x00922140 + 4*175) -> GScr_TransformLocalOffset
+00922428,pScr_GScr_RadiusDamage,data,high,script iface slot 186 pointer (0x00922140 + 4*186) -> GScr_RadiusDamage
+0092242c,pScr_GScr_RadiusDamageFromEntity,data,medium,script iface slot 187 pointer (0x00922140 + 4*187) -> GScr_RadiusDamageFromEntity
+00922430,pScr_GScr_SetRadiusDamageFlag,data,medium,script iface slot 188 pointer (0x00922140 + 4*188) -> GScr_SetRadiusDamageFlag
+00922434,pScr_GScr_MissionSuccess,data,medium,script iface slot 189 pointer (0x00922140 + 4*189) -> GScr_MissionSuccess
+00922438,pScr_GScr_MissionFailed,data,medium,script iface slot 190 pointer (0x00922140 + 4*190) -> GScr_MissionFailed
+0092243c,pScr_GScr_ChangeLevelWithDelay,data,medium,script iface slot 191 pointer (0x00922140 + 4*191) -> GScr_ChangeLevelWithDelay
+00922440,pScr_GScr_ChangeLevel,data,medium,script iface slot 192 pointer (0x00922140 + 4*192) -> GScr_ChangeLevel
+00922444,pScr_GScr_Earthquake,data,high,script iface slot 193 pointer (0x00922140 + 4*193) -> GScr_Earthquake
+00922454,pScr_GScr_RandomTracer,data,medium,script iface slot 197 pointer (0x00922140 + 4*197) -> GScr_RandomTracer
+00922464,pScr_GScr_GetModelBoneCount,data,high,script iface slot 201 pointer (0x00922140 + 4*201) -> GScr_GetModelBoneCount
+00922468,pScr_GScr_GetModelBoneName,data,high,script iface slot 202 pointer (0x00922140 + 4*202) -> GScr_GetModelBoneName
+0092247c,pScr_GScr_WeaponType,data,medium,script iface slot 207 pointer (0x00922140 + 4*207) -> GScr_WeaponType
+0092246c,pScr_GScr_WeaponGetFloat_5dc,data,medium,script iface slot 203 pointer (0x00922140 + 4*203) -> GScr_WeaponGetFloat_5dc
+00922470,pScr_GScr_WeaponGetTableValue_5a0,data,medium,script iface slot 204 pointer (0x00922140 + 4*204) -> GScr_WeaponGetTableValue_5a0
+00922474,pScr_GScr_WeaponGet_6d4,data,medium,script iface slot 205 pointer (0x00922140 + 4*205) -> GScr_WeaponGet_6d4
+00922478,pScr_GScr_WeaponGet_6d8,data,medium,script iface slot 206 pointer (0x00922140 + 4*206) -> GScr_WeaponGet_6d8
+00922480,pScr_GScr_BadPlace_Delete,data,high,script iface slot 208 pointer (0x00922140 + 4*208) -> GScr_BadPlace_Delete
+009228e8,pScr_GScr_HudSetText,data,medium,script iface slot 490 pointer (0x00922140 + 4*490) -> GScr_HudSetText
+009228f4,pScr_GScr_HudSetTimer,data,medium,script iface slot 493 pointer (0x00922140 + 4*493) -> GScr_HudSetTimer
+00922908,pScr_GScr_HudSetValue,data,medium,script iface slot 498 pointer (0x00922140 + 4*498) -> GScr_HudSetValue
+0092291c,pScr_GScr_HudDestroy,data,medium,script iface slot 503 pointer (0x00922140 + 4*503) -> GScr_HudDestroy
+00922920,pScr_ScrIface_Malloc,data,medium,script iface slot 504 pointer (0x00922140 + 4*504) -> ScrIface_Malloc
+00922924,pScr_ScrIface_Free,data,medium,script iface slot 505 pointer (0x00922140 + 4*505) -> ScrIface_Free
+0092292c,pScr_ScrIface_SmallFree,data,medium,script iface slot 507 pointer (0x00922140 + 4*507) -> ScrIface_SmallFree
+009229dc,pScr_ScrIface_atof,data,medium,script iface slot 551 pointer (0x00922140 + 4*551) -> ScrIface_atof
+00922a2c,pScr_ScrIface_HashStringNoCase,data,medium,script iface slot 571 pointer (0x00922140 + 4*571) -> ScrIface_HashStringNoCase
+009221c4,pScr_GScr_GetEntArray,data,high,script iface slot 33 pointer (0x00922140 + 4*33) -> GScr_GetEntArray
+009221c8,pScr_GScr_GetEntByNum,data,medium,script iface slot 34 pointer (0x00922140 + 4*34) -> GScr_GetEntByNum
+009221cc,pScr_GScr_GetNode,data,high,script iface slot 35 pointer (0x00922140 + 4*35) -> GScr_GetNode
+009221d0,pScr_GScr_GetVehicleNode,data,high,script iface slot 36 pointer (0x00922140 + 4*36) -> GScr_GetVehicleNode
+009221a4,pScr_Scr_QueueNotify,data,high,script iface slot 25 pointer (0x00922140 + 4*25) -> Scr_QueueNotify
+009221ac,pScr_Scr_QueueNotifyWithString,data,medium,script iface slot 27 pointer (0x00922140 + 4*27) -> Scr_QueueNotifyWithString
+009221b0,pScr_Scr_QueueNotifyWith2Args,data,medium,script iface slot 28 pointer (0x00922140 + 4*28) -> Scr_QueueNotifyWith2Args
+00922150,pScr_GScr_Print3D,data,medium,script iface slot 4 pointer (0x00922140 + 4*4) -> GScr_Print3D
+00922154,pScr_GScr_DebugLine,data,medium,script iface slot 5 pointer (0x00922140 + 4*5) -> GScr_DebugLine
+00922188,pScr_Scr_EndOn,data,medium,script iface slot 18 pointer (0x00922140 + 4*18) -> Scr_EndOn
+0092220c,pScr_GScr_PlaySoundWithNotify,data,medium,script iface slot 51 pointer (0x00922140 + 4*51) -> GScr_PlaySoundWithNotify
+00922210,pScr_GScr_IsAlive,data,medium,script iface slot 52 pointer (0x00922140 + 4*52) -> GScr_IsAlive
+00922214,pScr_Scr_EntityHandleIsValid,data,medium,script iface slot 53 pointer (0x00922140 + 4*53) -> Scr_EntityHandleIsValid
+00922218,pScr_GScr_IsPlayer,data,medium,script iface slot 54 pointer (0x00922140 + 4*54) -> GScr_IsPlayer
+0092221c,pScr_GScr_IsAI,data,medium,script iface slot 55 pointer (0x00922140 + 4*55) -> GScr_IsAI
+00922220,pScr_GScr_IsSentient,data,medium,script iface slot 56 pointer (0x00922140 + 4*56) -> GScr_IsSentient
+00922348,pScr_GScr_SetForcedLod,data,high,script iface slot 130 pointer (0x00922140 + 4*130) -> GScr_SetForcedLod
+009224c4,pScr_GScr_AnimScripted,data,medium,script iface slot 225 pointer (0x00922140 + 4*225) -> GScr_AnimScripted
+009224c0,pScr_GScr_AnimScriptedNoNotify,data,medium,script iface slot 224 pointer (0x00922140 + 4*224) -> GScr_AnimScriptedNoNotify
+009224c8,pScr_GScr_StopAnimScripted,data,medium,script iface slot 226 pointer (0x00922140 + 4*226) -> GScr_StopAnimScripted
+009224fc,pScr_GScr_LinkTo,data,high,script iface slot 239 pointer (0x00922140 + 4*239) -> GScr_LinkTo
+009224f8,pScr_GScr_LinkToTag,data,medium,script iface slot 238 pointer (0x00922140 + 4*238) -> GScr_LinkToTag
+009224f4,pScr_GScr_LinkToTagWithOffset,data,medium,script iface slot 237 pointer (0x00922140 + 4*237) -> GScr_LinkToTagWithOffset
+00922504,pScr_GScr_LinkToTagUnchecked,data,medium,script iface slot 241 pointer (0x00922140 + 4*241) -> GScr_LinkToTagUnchecked
+00922508,pScr_GScr_LinkToUnchecked,data,medium,script iface slot 242 pointer (0x00922140 + 4*242) -> GScr_LinkToUnchecked
+00922500,pScr_GScr_PlayerLinkTo,data,medium,script iface slot 240 pointer (0x00922140 + 4*240) -> GScr_PlayerLinkTo
+0092250c,pScr_GScr_Unlink,data,high,script iface slot 243 pointer (0x00922140 + 4*243) -> GScr_Unlink
+00922514,pScr_GScr_DoSpawnNamed,data,medium,script iface slot 245 pointer (0x00922140 + 4*245) -> GScr_DoSpawnNamed
+00922518,pScr_GScr_DoSpawn,data,high,script iface slot 246 pointer (0x00922140 + 4*246) -> GScr_DoSpawn
+0092251c,pScr_GScr_ForceSpawnNamed,data,medium,script iface slot 247 pointer (0x00922140 + 4*247) -> GScr_ForceSpawnNamed
+00922520,pScr_GScr_ForceSpawn,data,medium,script iface slot 248 pointer (0x00922140 + 4*248) -> GScr_ForceSpawn
+00922524,pScr_GScr_GetOrigin,data,medium,script iface slot 249 pointer (0x00922140 + 4*249) -> GScr_GetOrigin
+00922528,pScr_GScr_GetEye,data,high,script iface slot 250 pointer (0x00922140 + 4*250) -> GScr_GetEye
+0092252c,pScr_GScr_UseBy,data,medium,script iface slot 251 pointer (0x00922140 + 4*251) -> GScr_UseBy
+00922534,pScr_GScr_DoorLock,data,medium,script iface slot 253 pointer (0x00922140 + 4*253) -> GScr_DoorLock
+00922538,pScr_GScr_DoorUnlock,data,medium,script iface slot 254 pointer (0x00922140 + 4*254) -> GScr_DoorUnlock
+0092253c,pScr_GScr_DoorIsLocked,data,medium,script iface slot 255 pointer (0x00922140 + 4*255) -> GScr_DoorIsLocked
+00922540,pScr_GScr_Delete,data,high,script iface slot 256 pointer (0x00922140 + 4*256) -> GScr_Delete
+00922548,pScr_GScr_SetModel,data,high,script iface slot 258 pointer (0x00922140 + 4*258) -> GScr_SetModel
+00922550,pScr_GScr_GetNormalHealth,data,high,script iface slot 260 pointer (0x00922140 + 4*260) -> GScr_GetNormalHealth
+00922558,pScr_GScr_DoDamage,data,medium,script iface slot 262 pointer (0x00922140 + 4*262) -> GScr_DoDamage
+0092255c,pScr_GScr_SetTakeDamage,data,high,script iface slot 263 pointer (0x00922140 + 4*263) -> GScr_SetTakeDamage
+0092256c,pScr_GScr_SetContents,data,medium,script iface slot 267 pointer (0x00922140 + 4*267) -> GScr_SetContents
+00922578,pScr_GScr_Turret_SetFlag4,data,medium,script iface slot 270 pointer (0x00922140 + 4*270) -> GScr_Turret_SetFlag4
+0092257c,pScr_GScr_Turret_ClearFlag4,data,medium,script iface slot 271 pointer (0x00922140 + 4*271) -> GScr_Turret_ClearFlag4
+00922584,pScr_GScr_Turret_SetMode,data,high,script iface slot 273 pointer (0x00922140 + 4*273) -> GScr_Turret_SetMode
+00922590,pScr_GScr_Turret_SetTargetEntity,data,medium,script iface slot 276 pointer (0x00922140 + 4*276) -> GScr_Turret_SetTargetEntity
+00922594,pScr_GScr_Turret_ClearTargetEntity,data,medium,script iface slot 277 pointer (0x00922140 + 4*277) -> GScr_Turret_ClearTargetEntity
+00922598,pScr_GScr_Turret_SetTeam,data,medium,script iface slot 278 pointer (0x00922140 + 4*278) -> GScr_Turret_SetTeam
+009225a8,pScr_GScr_Turret_SetMaxRange,data,medium,script iface slot 282 pointer (0x00922140 + 4*282) -> GScr_Turret_SetMaxRange
+009225ac,pScr_GScr_Turret_GetMaxRange,data,medium,script iface slot 283 pointer (0x00922140 + 4*283) -> GScr_Turret_GetMaxRange
+009225b0,pScr_GScr_Turret_GetOwner,data,medium,script iface slot 284 pointer (0x00922140 + 4*284) -> GScr_Turret_GetOwner
+009225b4,pScr_GScr_SetCursorHint,data,high,script iface slot 285 pointer (0x00922140 + 4*285) -> GScr_SetCursorHint
+009225cc,pScr_GScr_GetAnimLength,data,medium,script iface slot 291 pointer (0x00922140 + 4*291) -> GScr_GetAnimLength
+009225d4,pScr_GScr_ClearAnim,data,medium,script iface slot 293 pointer (0x00922140 + 4*293) -> GScr_ClearAnim
+009225dc,pScr_GScr_SetAnim,data,medium,script iface slot 295 pointer (0x00922140 + 4*295) -> GScr_SetAnim
+009225d8,pScr_GScr_SetAnimKnob,data,medium,script iface slot 294 pointer (0x00922140 + 4*294) -> GScr_SetAnimKnob
+009225e8,pScr_GScr_SetFlaggedAnim,data,medium,script iface slot 298 pointer (0x00922140 + 4*298) -> GScr_SetFlaggedAnim
+009225e0,pScr_GScr_SetFlaggedAnimKnob,data,medium,script iface slot 296 pointer (0x00922140 + 4*296) -> GScr_SetFlaggedAnimKnob
+009225f0,pScr_GScr_UseAnimTree,data,high,script iface slot 300 pointer (0x00922140 + 4*300) -> GScr_UseAnimTree
+009225f4,pScr_GScr_ClearAnimTree,data,medium,script iface slot 301 pointer (0x00922140 + 4*301) -> GScr_ClearAnimTree
+00922600,pScr_GScr_GetStance,data,medium,script iface slot 304 pointer (0x00922140 + 4*304) -> GScr_GetStance
+00922604,pScr_GScr_MagicGrenade,data,medium,script iface slot 305 pointer (0x00922140 + 4*305) -> GScr_MagicGrenade
+00922608,pScr_GScr_MagicGrenadeDefaultFuse,data,medium,script iface slot 306 pointer (0x00922140 + 4*306) -> GScr_MagicGrenadeDefaultFuse
+0092260c,pScr_GScr_MagicGrenadeManual,data,medium,script iface slot 307 pointer (0x00922140 + 4*307) -> GScr_MagicGrenadeManual
+00922610,pScr_GScr_MagicGrenadeManualDefaultFuse,data,medium,script iface slot 308 pointer (0x00922140 + 4*308) -> GScr_MagicGrenadeManualDefaultFuse
+00922618,pScr_GScr_SetGoalNode,data,high,script iface slot 310 pointer (0x00922140 + 4*310) -> GScr_SetGoalNode
+0092261c,pScr_GScr_GetTagOrigin,data,medium,script iface slot 311 pointer (0x00922140 + 4*311) -> GScr_GetTagOrigin
+00922620,pScr_GScr_GetTagAngles,data,medium,script iface slot 312 pointer (0x00922140 + 4*312) -> GScr_GetTagAngles
+0092263c,pScr_GScr_LocalToWorldCoords,data,medium,script iface slot 319 pointer (0x00922140 + 4*319) -> GScr_LocalToWorldCoords
+00922658,pScr_GScr_SetSpawnerTeam,data,medium,script iface slot 326 pointer (0x00922140 + 4*326) -> GScr_SetSpawnerTeam
+0092265c,pScr_GScr_Turret_SetArc_30,data,medium,script iface slot 327 pointer (0x00922140 + 4*327) -> GScr_Turret_SetArc_30
+00922660,pScr_GScr_Turret_SetArc_38,data,medium,script iface slot 328 pointer (0x00922140 + 4*328) -> GScr_Turret_SetArc_38
+00922664,pScr_GScr_Turret_SetArc_2c,data,medium,script iface slot 329 pointer (0x00922140 + 4*329) -> GScr_Turret_SetArc_2c
+00922668,pScr_GScr_Turret_SetArc_34,data,medium,script iface slot 330 pointer (0x00922140 + 4*330) -> GScr_Turret_SetArc_34
+00922294,pScr_GScr_GetPadStick,data,medium,script iface slot 85 pointer (0x00922140 + 4*85) -> GScr_GetPadStick
+009222a4,pScr_GScr_ObjectiveAdd,data,medium,script iface slot 89 pointer (0x00922140 + 4*89) -> GScr_ObjectiveAdd
+0092229c,pScr_GScr_ObjectiveAddNoText,data,medium,script iface slot 87 pointer (0x00922140 + 4*87) -> GScr_ObjectiveAddNoText
+009222ac,pScr_GScr_ObjectiveAddWithPosition,data,medium,script iface slot 91 pointer (0x00922140 + 4*91) -> GScr_ObjectiveAddWithPosition
+009222b0,pScr_GScr_ObjectiveAddLocalized,data,medium,script iface slot 92 pointer (0x00922140 + 4*92) -> GScr_ObjectiveAddLocalized
+009222b4,pScr_GScr_ObjectiveAddLocalizedWithPosition,data,medium,script iface slot 93 pointer (0x00922140 + 4*93) -> GScr_ObjectiveAddLocalizedWithPosition
+009222bc,pScr_GScr_ObjectiveState,data,high,script iface slot 95 pointer (0x00922140 + 4*95) -> GScr_ObjectiveState
+009222cc,pScr_GScr_ObjectivePosition,data,high,script iface slot 99 pointer (0x00922140 + 4*99) -> GScr_ObjectivePosition
+009222d0,pScr_GScr_ObjectiveCurrent,data,medium,script iface slot 100 pointer (0x00922140 + 4*100) -> GScr_ObjectiveCurrent
+009222b8,pScr_GScr_ObjectiveDelete,data,medium,script iface slot 94 pointer (0x00922140 + 4*94) -> GScr_ObjectiveDelete
+0092287c,pScr_GScr_Vehicle_AttachPath,data,medium,script iface slot 463 pointer (0x00922140 + 4*463) -> GScr_Vehicle_AttachPath
+00922884,pScr_GScr_Vehicle_SetSwitchNode,data,medium,script iface slot 465 pointer (0x00922140 + 4*465) -> GScr_Vehicle_SetSwitchNode
+00922890,pScr_GScr_Vehicle_SetSpeed,data,medium,script iface slot 468 pointer (0x00922140 + 4*468) -> GScr_Vehicle_SetSpeed
+0092289c,pScr_GScr_Vehicle_Kill,data,medium,script iface slot 471 pointer (0x00922140 + 4*471) -> GScr_Vehicle_Kill
+009228a4,pScr_GScr_Vehicle_GetSpeedMPH,data,medium,script iface slot 473 pointer (0x00922140 + 4*473) -> GScr_Vehicle_GetSpeedMPH
+009228b4,pScr_GScr_Vehicle_MakeUnusable,data,medium,script iface slot 477 pointer (0x00922140 + 4*477) -> GScr_Vehicle_MakeUnusable
+009228b8,pScr_GScr_Vehicle_MakeUsable,data,medium,script iface slot 478 pointer (0x00922140 + 4*478) -> GScr_Vehicle_MakeUsable
+009228c8,pScr_GScr_Vehicle_SetTurretTargetVec,data,medium,script iface slot 482 pointer (0x00922140 + 4*482) -> GScr_Vehicle_SetTurretTargetVec
+009228cc,pScr_GScr_Vehicle_SetTurretTargetEnt,data,medium,script iface slot 483 pointer (0x00922140 + 4*483) -> GScr_Vehicle_SetTurretTargetEnt
+009228d0,pScr_GScr_Vehicle_ClearTurretTarget,data,medium,script iface slot 484 pointer (0x00922140 + 4*484) -> GScr_Vehicle_ClearTurretTarget
+00922a48,pScr_ScrHudElem_Set_04,data,medium,script iface slot 578 pointer (0x00922140 + 4*578) -> ScrHudElem_Set_04
+00922a4c,pScr_ScrHudElem_Get_04,data,medium,script iface slot 579 pointer (0x00922140 + 4*579) -> ScrHudElem_Get_04
+00922a50,pScr_ScrHudElem_Set_08,data,medium,script iface slot 580 pointer (0x00922140 + 4*580) -> ScrHudElem_Set_08
+00922a54,pScr_ScrHudElem_Get_08,data,medium,script iface slot 581 pointer (0x00922140 + 4*581) -> ScrHudElem_Get_08
+00922a58,pScr_ScrHudElem_Set_14,data,medium,script iface slot 582 pointer (0x00922140 + 4*582) -> ScrHudElem_Set_14
+00922a5c,pScr_ScrHudElem_Get_14,data,medium,script iface slot 583 pointer (0x00922140 + 4*583) -> ScrHudElem_Get_14
+00922a60,pScr_ScrHudElem_Set_18,data,medium,script iface slot 584 pointer (0x00922140 + 4*584) -> ScrHudElem_Set_18
+00922a64,pScr_ScrHudElem_Get_18,data,medium,script iface slot 585 pointer (0x00922140 + 4*585) -> ScrHudElem_Get_18
+00922a68,pScr_ScrHudElem_SetFloat_6c,data,medium,script iface slot 586 pointer (0x00922140 + 4*586) -> ScrHudElem_SetFloat_6c
+00922a6c,pScr_ScrHudElem_GetFloat_6c,data,medium,script iface slot 587 pointer (0x00922140 + 4*587) -> ScrHudElem_GetFloat_6c
+00922a70,pScr_ScrHudElem_SetFloat_0c,data,medium,script iface slot 588 pointer (0x00922140 + 4*588) -> ScrHudElem_SetFloat_0c
+00922a74,pScr_ScrHudElem_GetFloat_0c,data,medium,script iface slot 589 pointer (0x00922140 + 4*589) -> ScrHudElem_GetFloat_0c

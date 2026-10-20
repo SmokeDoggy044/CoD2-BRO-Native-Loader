@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-20): 2109 functions named by us (counter), 628+ globals, plus 3008 Microsoft
+State (2026-10-20): 2289 functions named by us (counter), 805+ globals, plus 3008 Microsoft
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
@@ -415,6 +415,15 @@ CoD-specific functions included, so later decompilation covers both kinds.
   GoalArc (+0x24) from the AI notes. Rename those when a decompile shows what the field
   is. Per-field debug hooks at 0x008d20e8-0x008d2170 (no names). Slots with no pair in
   the dump (638/639, 646-651, 658/659, ...) are unfilled.
+  Builtin slots by body (2026-10-20, later): 180 more named from their bodies and call-site
+  strings (GScr_*/Scr_*, each slot pointer labelled pScr_<name>): math 59-84 (random,
+  trig, vector helpers; the angle-vector order up/right/forward is by slot order), cvars
+  102-107, spawns 108-113, objectives 87-101 (configstring 0x10 + index), mission end
+  189-192, links 237-243, doors 253-255, turrets 270-330 (turret info at entity +0x24c),
+  anims 290-301, vehicles 463-484 (+0x248), hud 490-503 and 578-589 (fields by offset).
+  Left open (~210): empty stubs, one-line wrappers into unnamed engine code, the
+  thread/wait primitives 10/12/15-17 (wait records with vtables 0x00831800-0x00831824)
+  and the 0x0095f8f0 setters 132-151 - name them with their callees.
   Compiled scripts: each level module entry (LevelScript_<level>_ModuleEntry, via
   G_FindLevelScriptModule) registers the 48 shared anim/negotiation scripts by name
   (BroFuncRegs.java -> Bro_*); thread starts pass null file/name except the 14
