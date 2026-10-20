@@ -18,7 +18,7 @@ library functions named by signature; all applied in Ghidra and exported to
 | `tools/ghidra/ApplyNames.java` | Applies a CSV: creates missing functions, renames only `FUN_`/default names, `data` rows become labels |
 | `tools/ghidra/ExportMatchData.java` | Per-function strings and callees for q3match |
 | `tools/ghidra/ExportSymbols.java` | Re-export the symbol file after renaming |
-| `tools/data/library_names.csv` | Microsoft library code in the title's own sections, matched byte for byte (relocations masked) against the XDK 5849 .lib files (the XBE's library table says 5849) with the skill's `scripts/libmatch.py` + `libnames.py`: libcmt, xapilib, uix, xvoice, xgraphics, d3dx8, dsound, xonlines. Applied by `tools/ghidra/ApplyLibNames.java` into the library's namespace (UIX::CPopupScreen_Output); state `library` in progress.py, left out of the counter's total |
+| `tools/data/library_names.csv` | Microsoft library code in the title's own sections, matched byte for byte (relocations masked) against the XDK 5849 .lib files (the XBE's library table says 5849) with the skill's `scripts/libmatch.py` + `libnames.py`: libcmt, xapilib, uix, xvoice, xgraphics, d3dx8, dsound, xonlines. Applied by `tools/ghidra/ApplyLibNames.java` into the library's namespace (UIX::CPopupScreen_Output); state `library` in progress.py (still counted in the total, user decision 2026-10-18) |
 
 ## Workflow per batch
 
