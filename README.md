@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 52% of the functions have a name, and 286 have been
+It's early days: about 53% of the functions have a name, and 286 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,179 | 5,671 | 286 | 10,893 |
-| Mission scripts (15 level sections) | 5,324 | 2,965 | 0 | 5,324 |
-| **Total** | **16,503** | **8,636** | **286** | **16,217** |
+| Engine and game code (`.text`) | 11,179 | 5,688 | 286 | 10,893 |
+| Mission scripts (15 level sections) | 5,324 | 2,977 | 0 | 5,324 |
+| **Total** | **16,503** | **8,665** | **286** | **16,217** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -39,13 +39,13 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 791 | 275 | 116 | 234 | 166 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 690 | 0 | 0 | 688 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 794 | 275 | 116 | 238 | 165 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 691 | 0 | 0 | 689 | 0 |
 | Client game (HUD, view, effects on screen) | 178 | 0 | 0 | 178 | 0 |
-| Engine core (memory, files, settings, commands) | 162 | 0 | 1 | 153 | 0 |
+| Engine core (memory, files, settings, commands) | 163 | 0 | 1 | 154 | 0 |
 | Client and menus | 209 | 0 | 0 | 209 | 0 |
 | Server, collision, compression | 90 | 1 | 2 | 87 | 0 |
-| Not sorted into a part yet | 9,059 | 10 | 2 | 3,715 | 3,715 |
+| Not sorted into a part yet | 9,054 | 10 | 2 | 3,726 | 3,699 |
 
 1,617 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
@@ -73,20 +73,20 @@ automatically.
 
 | Section | Mission | Functions | Named |
 |---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 617 | 342 |
+| PROLOGUE | `sp/prologue` | 617 | 346 |
 | ORAN | `sp/oran` | 443 | 223 |
 | TUNISIA | `sp/tunisia` | 307 | 174 |
 | KASSPASS | `sp/kasspass` | 498 | 279 |
 | KASSRINE | `sp/kassrine` | 237 | 121 |
 | LIBEATOR | `sp/liberatr` | 321 | 147 |
-| GELA | `sp/gela` | 403 | 240 |
+| GELA | `sp/gela` | 403 | 243 |
 | PIANLUPO | `sp/piano` | 400 | 234 |
 | TROINA | `sp/troina` | 235 | 105 |
 | OMAHEACH | `sp/omaha` | 322 | 205 |
 | MONS1 | `sp/mons` | 518 | 298 |
 | EILEDORF | `sp/eilndrf` | 184 | 111 |
-| BUCHHOLZ | `sp/buchholz` | 441 | 195 |
-| DRAGEETH | `sp/dragonth` | 179 | 72 |
+| BUCHHOLZ | `sp/buchholz` | 441 | 198 |
+| DRAGEETH | `sp/dragonth` | 179 | 74 |
 <!-- levels:end -->
 
 The totals can still grow a little as more functions turn up during the analysis.

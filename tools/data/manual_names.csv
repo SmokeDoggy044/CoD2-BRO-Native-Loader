@@ -10871,3 +10871,32 @@ address,name,kind,confidence,evidence
 0076ffe0,BroLvl_buchholz_Ev2Barn1Clear,function,low,"ev2_barn1_clear, kick_door, _area_cleared"
 00770900,BroLvl_buchholz_TrainCars,function,low,"buchholz_zone11, train_cars, o_prp_fuelcar_d1"
 00771d50,BroLvl_buchholz_Ev4FinalTriggers,function,low,"buchholz_zone05, ev4_final_triggers"
+00761b90,BroLvl_buchholz_GetEntArray,function,medium,"returns GScr_GetEntArray(value, key) into *out; level-local copy"
+00764e40,BroLvl_buchholz_GetEntArrayCall_1,function,medium,default-arg wrapper over 00761b90; 62 callers
+00791420,BroLvl_dragons_teeth_GetEntArray,function,medium,"returns GScr_GetEntArray(value, key) into *out; level-local copy"
+007942f0,BroLvl_dragons_teeth_GetEntArrayCall_1,function,medium,default-arg wrapper over 00791420; 29 callers
+0077f700,BroLvl_buchholz_SpawnPathFollowersCall_1,function,medium,default-arg wrapper over BroLvl_buchholz_SpawnPathFollowers; 19 callers
+005bd800,BroLvl_gela_FindZoneAndWait,function,low,"GScr_FindZone(name), ZoneSetField34(zone, 0), Scr_WaitOnObject(zone); 34 callers"
+0045e450,HashMap_LowerBound_PROLOGUE,function,medium,"(key ^ 0xdeadbeef) & mask bucket walk, first node with key >= k, else end; called by every HashMap_Index copy"
+0045e7b0,HashMap_GetStringOrEmpty_PROLOGUE,function,low,"key -1 or missing -> empty ScriptString, else copy of node+0xc"
+00464a90,HashMap_SetString_PROLOGUE,function,low,key != -1: map[key] = string via HashMap_Index
+0045ca80,HashMap_AllocHeadNode_PROLOGUE,function,medium,Scr_Alloc(0x34) node linked to itself; called by every HashMap ctor copy
+006029c0,ScriptKeyTable_AddArray,function,medium,"Scr_Alloc 12-byte {data,capacity,count}, assign from arg, ScriptKeyTable_Set"
+00602a40,ScriptKeyTable_GetOrAddArray_5,function,medium,"ScriptKeyTable_Find, else ScriptKeyTable_AddArray; returns the array; field accessors call it"
+002ac7e0,PM_StartLegsAnim,function,low,ps+0x4ec = (~old & 0x200 toggle bit) | anim like Q3 PM_StartLegsAnim; pm_type < 4 check; 18 pmove callers
+00042de0,Heap_AllocFromHeap,function,medium,"(heap, size, align): fails if heap+0x488 used + size > limit +0x484, else switches current heap, Heap_AllocAligned, switches back; Scr_Alloc/ScrIface_Malloc"
+00043fb0,Mem_AllocPhysicalPools,function,medium,"GlobalMemoryStatus, XPhysicalAlloc 0x232b000 contiguous pool + a second 0x3ac000 write-combined one; ranges in 0x00901af0.."
+00042470,Heap_Init,function,medium,"(heap, start, end, ?): zero 0x125 dwords, start/end at +0x474..+0x480; Sys_Main, Stream_AddFreeBlock"
+00042860,Heap_GetCurrent,function,high,returns the current heap 0x00901ae8
+00042f00,Heap_EnsureInit,function,medium,"first use (*heap == 0): 127 empty free-list bins at +0x34, then sizes; called before every alloc/free"
+00042680,Heap_Free,function,medium,"debug-checks pointer against guarded ranges (int3), then Heap_FreeBlock; Z_Free, Heap_FreeIn"
+00043260,Heap_FreeBlock,function,medium,"dlmalloc-style free into the current heap: small bins by size>>3, coalescing"
+00043500,Heap_Malloc,function,medium,dlmalloc-style malloc in the current heap; > 0xffffffdf sets errno 12 (ENOMEM); Z_Malloc
+001f0ac5,_errno,function,high,libcmt: _getptd() + 8 (ptd->_terrno); 29 CRT callers
+0006a820,nglTexture_Lock,function,medium,"D3DTexture_LockRect(tex+0x30) into +0x1c, Swizzler_Init when flag 0x100 (swizzled); nglCreateWhiteTexture/WriteTGA/UpdateFogTable"
+000c58b0,SndVoice_Resolve,function,low,"handle: slot (h>>16)%12 in 0x008bd770 (32-byte records, state 3), index h&0xffff below count -> record + idx*0x28; sound code"
+000c59b0,SndVoice_GetParam,function,medium,"resolve voice, param index < 0x2e (as SndVoice_SetParam), returns the float; S_SetHandleVolume, Music_Play"
+0009d200,nglQuadBatch_Reserve,function,low,"n quads: flush/fail when the batch is full, else returns the vertex write pointer; 9 FX draw callers"
+0009d240,nglQuadBatch_Draw,function,low,"nglSetVertexStreams(stride 0x18) + DrawIndexedVertices(quads, n*6 indices), advances 0x60 bytes per quad"
+0009d5b0,nglQuadBatch_SetMaterial,function,low,"nglSetTexture(0, tex), blend/cull render states for the FX quad batch"
+0001c3b0,Quat_Slerp,function,low,"two quats (dot, sign flip when < 0) and t; DObj/anim callers"
