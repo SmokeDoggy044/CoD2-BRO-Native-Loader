@@ -710,7 +710,19 @@ CoD-specific functions included, so later decompilation covers both kinds.
   00100000-00280000, 00280000-007b3000; the older overlapping range files deleted), then 188 names from the
   top ~200 string-ranked level functions (skiptos, mortar/artillery events, squad LOD model swaps, jeep
   crashes, bunker explosions, mons1 Event11_88Controller from its error string). Mostly low confidence.
-  Next: ~2,340 unnamed level functions left (rerun `namepack.py rank --range 0041a220-007a9e84`;
-  the string-ranked rows were worked down to ~row 200 of that list). The many tiny wrappers around
+  ~2,340 unnamed level functions are left, deliberately (see below).
+- Priority change (user, 2026-10-21): no more string-only sweeps of leaf functions - a leaf's name helps
+  no other decompile and its body gets read anyway when decompiled. Name hubs only (HubRank over the whole
+  XBE: 93 unnamed functions with 10+ callers, 353 with 5+), then decompile modules, renderer first; level-
+  script leaves get named when their level's script module is decompiled. First hub batch (29): heap
+  internals (Heap_Malloc/FreeBlock/Free/EnsureInit/Init/GetCurrent/AllocFromHeap, Mem_AllocPhysicalPools),
+  script HashMap helpers (LowerBound, AllocHeadNode, Get/SetString), ScriptKeyTable_AddArray/GetOrAddArray_5,
+  level GetEntArray wrappers (62 and 29 callers), the FX quad batch (nglQuadBatch_Reserve/Draw/SetMaterial),
+  SndVoice_Resolve/GetParam, PM_StartLegsAnim, Quat_Slerp, _errno.
+  Left on purpose: unmatched library helpers inside XVOICE/XONLINES/DSOUND/LIBCMT/XAPILIB (not our code),
+  and the front-end widget hubs (00315210 ctor, vtables 0x0082a628/0x008297f0, 0032ea00, 00314c30,
+  00310010/00310070, 0031f4b0, 00314b20): one class hierarchy - name it per class (vtable slots) during
+  the client/UI phase, not hub by hub. Most remaining hubs (collision traces 002c6630/002cb0f0, FX math
+  0x0009d900-0x000a7670, DObj 0x0001cae0) need their bodies read, so they come with their module's decompile. The many tiny wrappers around
   still-unnamed common-script functions (0016ce40/0016cf80 scripted anim loops, 00135590/001354f0,
   0046b200/00470f70) wait for those targets; then the ~250 common-script leftovers in 0x120000-0x1e4000.
