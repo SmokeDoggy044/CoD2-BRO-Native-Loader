@@ -622,3 +622,23 @@ CoD-specific functions included, so later decompilation covers both kinds.
   fallback spawners, minefield/friendly-fire mission fails, dead quotes, traverses 11-18).
   Next: the remaining ~550 unnamed functions in 0x120000-0x1e4000 with hash words or strings
   (namepack + the immediate words), then the same accessor-template pass over the level sections.
+- Functor RTTI and anim handles (2026-10-21, late night): the 297 vtables with an RTTI type
+  descriptor (COL at vtable-4) are the script runtime's AeThreadFunctorN<args> (2 slots: deleting
+  dtor, invoke), WaitTilOutputInstN<...> (3 slots) and <level>_wad::Level/Anim (dtor only). Each
+  class names its invoke slot (176 were not functions yet), its dtor, its constructor (the function
+  storing the vtable) and the thread-start helpers that build it: Scr_StartThread_<args>
+  (ScrIface_Alloc + Scr_CreateThread), Scr_CallThread_<args> (Scr_BeginThread, then WaitFrames(0)
+  when in a thread), Scr_BeginThread_<args>; args abbreviated (ent, str, vec, f, i, b, anim, hash,
+  arr<type>); level copies carry the section (_ORAN). 254 helpers, 95 ctors, ~230 invokes, ~100 dtors;
+  classes the demangler cannot read (enums, hash_map, static_array, function pointers) keep
+  _vt<vtable>. ScrClass_*_DeletingDtor renamed to <level>_wad_Level_DeletingDtor.
+  Anim handles: BroScr_AnimHandle_GetSet(tree hash, anim hash, out, value) dispatches by tree name
+  hash to one table per anim tree (BroScr_AnimHandles_<tree>: anim hash -> global; out set reads,
+  else stores); each level has its own dispatcher falling back to the common one
+  (LevelScript_<level>_AnimHandle_GetSet, _AnimHandles_<tree>), 120 functions. The anim-handle
+  globals (008cd2xx, per tree) are not named yet - the anim name hashes would name them.
+  Plus 76 common-script functions from their now-known referrers (RefsToFile.java lists functor
+  references that the naming export's callers miss): turret fire loops, plane crash/wing turret
+  threads, vehicle rider death watches, tank health/stun threads, gib launches, empty stubs.
+  Next: ~1,050 unnamed left in 0x120000-0x1e4000 (423 with no references at all); the anim-handle
+  globals; the WaitTilOutputInst slots (named _VFunc1/_VFunc2 for now).
