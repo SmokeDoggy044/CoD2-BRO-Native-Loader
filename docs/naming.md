@@ -652,5 +652,9 @@ CoD-specific functions included, so later decompilation covers both kinds.
   accessor slots (ScrPathNodeField_*/ScrVehNodeField_*, getter + isdefined pairs in field order),
   key-table isdefineds, default-argument wrappers (*Call_N), vehicle-by-targetname helpers,
   follower/path_pos helpers, flak automation, mortar/stuka/plane-bomb helpers.
-  Next: ~600 unnamed left in 0x120000-0x1e4000 - the remaining wrappers depend on naming their
-  big targets first (001706b0, 00170a90, 00171f80, 001728b0, 00173040, 0016ce40/0016cf80).
+  Next: 741 unnamed left in 0x120000-0x1e4000 (first 161, below 0x173c50, were skimmed once; the
+  rest not yet) - unnamed left in 0x120000-0x1e4000 - the remaining wrappers depend on naming their
+  big targets first (drone path: 00170200/001706b0/00171f80/00172150 'drone_path_array';
+  scripted anims: 00176720 'loops' (looping anim), 00177450 'single_anim' with their entry
+  wrappers 00178080/00178280/001784c0 (23 callers)/00178710; 00170a90, 00170a90, 00171f80, 001728b0, 00173040, 0016ce40/0016cf80).
+  Tool: the skill's scripts/leanpack.sh N ADDR... reads them with hash words.
