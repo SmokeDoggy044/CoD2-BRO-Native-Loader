@@ -45,7 +45,8 @@ next steps: [docs/status.md](docs/status.md).
    `cod_bro-<version>-linux.tar.gz` or `cod_bro-<version>-windows.zip`.
 2. Unpack it anywhere and copy your game dump into its `assets/` folder.
 3. Start `cod_bro_launcher`: it checks the game files, sets the options and starts
-   the game.
+   the game. When it opens it asks GitHub for the newest release and links to it if
+   it is newer (only a notice: nothing is downloaded; Check for updates turns it off).
 
 | | Linux | Windows |
 |---|---|---|
@@ -201,7 +202,8 @@ Players use `cod_bro_launcher`: it shows where the game files go, sets the optio
 below and starts the game. It saves them as `settings.ini` in the user data folder
 (always there, not under `--data`): `key = value` lines named after the options
 (`aspect = 4:3`, `silent = true`), which the game reads as options placed before its
-command line, so options given there win. Without game files and without
+command line, so options given there win. `check-updates = false` is the launcher's
+own (the game skips keys set to false). Without game files and without
 `--assets`/`COD_BRO_ASSETS`, the game starts the launcher and exits.
 
 Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter switches

@@ -22,6 +22,7 @@
 #include "paths.h"
 #include "program.h"
 #include "settings.h"
+#include "update_check.h"
 
 namespace fs = std::filesystem;
 
@@ -46,6 +47,8 @@ struct Choices {
     bool silent = false;
     std::string language = "english";  // the console's: english, german, french, spanish, italian
     int net_port = 3074;  // system link: UDP net_port .. net_port + 3
+    // Launcher only: saved as "false" (which the game skips) when off.
+    bool check_updates = true;
 };
 
 std::string number(float value) {
@@ -73,6 +76,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("silent")) c.silent = *v == "true";
     if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
+    if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
     return c;
 }
 
@@ -101,6 +105,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("silent", c.silent == d.silent, c.silent ? "true" : "false");
     put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
+    put("check-updates", c.check_updates == d.check_updates, "false");
 }
 
 fs::path asset_dir(const Choices& c) { return c.assets.empty() ? platform::default_asset_dir() : fs::path(c.assets); }
@@ -142,7 +147,9 @@ void help_marker(const char* text) {
 class Launcher {
 public:
     explicit Launcher(SDL_Window* window)
-        : window_(window), settings_(platform::load_settings()), choices_(read_choices(settings_)) {}
+        : window_(window), settings_(platform::load_settings()), choices_(read_choices(settings_)) {
+        if (choices_.check_updates) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+    }
 
     // One frame of the UI. Returns false once the launcher should close.
     bool frame() {
@@ -158,17 +165,50 @@ public:
         ImGui::SetNextWindowSize(viewport->WorkSize);
         ImGui::Begin("launcher", nullptr,
                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+        update_notice();
         game_files();
         display();
         controls();
         system_link();
         reporting();
+        updates();
         const bool keep_open = buttons();
         ImGui::End();
         return keep_open;
     }
 
 private:
+    // At the top while a newer release is out.
+    void update_notice() {
+        if (!update_) return;
+        const launcher::UpdateCheck::Result r = update_->result();
+        if (r.status != launcher::UpdateCheck::Status::Available) return;
+        ImGui::TextColored(ImVec4(0.45f, 0.75f, 1.0f, 1), "Version %s is available (this is %s).", r.version.c_str(),
+                           COD_BRO_VERSION);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Download page") && !SDL_OpenURL(r.url.c_str()))
+            LOG_WARN("launcher", "cannot open %s: %s", r.url.c_str(), SDL_GetError());
+    }
+
+    void updates() {
+        ImGui::SeparatorText("Updates");
+        if (ImGui::Checkbox("Check for updates", &choices_.check_updates) && choices_.check_updates && !update_)
+            update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+        help_marker("When the launcher opens, asks GitHub for the newest release and shows a link to it "
+                    "if it is newer. Nothing is downloaded or installed by itself.");
+        ImGui::SameLine();
+        const char* status = "";
+        if (update_ && choices_.check_updates) {
+            switch (update_->result().status) {
+                case launcher::UpdateCheck::Status::Checking: status = ": checking..."; break;
+                case launcher::UpdateCheck::Status::UpToDate: status = ": up to date"; break;
+                case launcher::UpdateCheck::Status::Available: status = ": an update is available"; break;
+                case launcher::UpdateCheck::Status::Failed: status = ": could not check"; break;
+            }
+        }
+        ImGui::TextDisabled("Version %s%s", COD_BRO_VERSION, status);
+    }
+
     void game_files() {
         ImGui::SeparatorText("Game files");
         const fs::path dir = asset_dir(choices_);
@@ -365,6 +405,7 @@ private:
     platform::Settings settings_;
     Choices choices_;
     std::string error_;
+    std::optional<launcher::UpdateCheck> update_;
 };
 
 }  // namespace
@@ -375,8 +416,12 @@ int main(int, char**) {
         return 1;
     }
     const float ui_scale = std::max(1.0f, SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
-    SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale),
-                                          static_cast<int>(580 * ui_scale), SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    // Tall enough for every option; on a short screen the rest scrolls.
+    int height = static_cast<int>(690 * ui_scale);
+    if (SDL_Rect usable; SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable))
+        height = std::min(height, usable.h - static_cast<int>(40 * ui_scale));
+    SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale), height,
+                                          SDL_WINDOW_HIGH_PIXEL_DENSITY);
     SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
     if (!renderer) {
         LOG_ERROR("launcher", "window: %s", SDL_GetError());

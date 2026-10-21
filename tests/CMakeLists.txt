@@ -6,6 +6,10 @@ add_executable(settings_test settings_test.cpp)
 target_link_libraries(settings_test PRIVATE platform)
 add_test(NAME settings_test COMMAND settings_test)
 
+add_executable(update_check_test update_check_test.cpp)
+target_link_libraries(update_check_test PRIVATE launcher_update)
+add_test(NAME update_check_test COMMAND update_check_test)
+
 # The virtual Xbox LAN (system link) over loopback UDP.
 add_executable(lan_test lan_test.cpp ${PROJECT_SOURCE_DIR}/online/lan.cpp)
 target_include_directories(lan_test PRIVATE ${PROJECT_SOURCE_DIR}/online)
