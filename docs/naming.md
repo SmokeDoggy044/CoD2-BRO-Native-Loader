@@ -642,3 +642,15 @@ CoD-specific functions included, so later decompilation covers both kinds.
   threads, vehicle rider death watches, tank health/stun threads, gib launches, empty stubs.
   Next: ~1,050 unnamed left in 0x120000-0x1e4000 (423 with no references at all); the anim-handle
   globals; the WaitTilOutputInst slots (named _VFunc1/_VFunc2 for now).
+- Interface slots and script helpers (2026-10-21, continued): 90 more script-interface slot pointers
+  named after their already-named engine targets (the actor/mover/goal fillers 00302360,
+  00303bb0, 00309030 had been missed); 43 of their targets were not functions yet (created), and
+  31 player/global builtins named from their bodies (give/take/switch weapon, weaponslot
+  ammo/clip get/set, setorigin/angles, noclip toggle, reverb). Slots 512-550 are in BSS with no
+  static filler found; 518-532 are named from use only (path/vehicle-node key getters, low).
+  Script side: 74 empty functions (BroScr_EmptyFunc_N), the path-node and vehicle-node field
+  accessor slots (ScrPathNodeField_*/ScrVehNodeField_*, getter + isdefined pairs in field order),
+  key-table isdefineds, default-argument wrappers (*Call_N), vehicle-by-targetname helpers,
+  follower/path_pos helpers, flak automation, mortar/stuka/plane-bomb helpers.
+  Next: ~600 unnamed left in 0x120000-0x1e4000 - the remaining wrappers depend on naming their
+  big targets first (001706b0, 00170a90, 00171f80, 001728b0, 00173040, 0016ce40/0016cf80).

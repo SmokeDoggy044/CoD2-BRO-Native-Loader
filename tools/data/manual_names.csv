@@ -7100,3 +7100,453 @@ address,name,kind,confidence,evidence
 005658d0,AeThreadFunctor5_ent_arrent_hash_vec_vec_KASSRINE_Ctor,function,high,"stores vtable 0x00802d60 (RTTI AeThreadFunctor5_ent_arrent_hash_vec_vec) and copies the args"
 00564d40,AeThreadFunctor4_ent_i_str_b_KASSRINE_Ctor,function,high,"stores vtable 0x008023b0 (RTTI AeThreadFunctor4_ent_i_str_b) and copies the args"
 0045d240,AeThreadFunctor4_ent_arrvec_hash_hash_PROLOGUE_Ctor,function,high,"stores vtable 0x007f5f78 (RTTI AeThreadFunctor4_ent_arrvec_hash_hash) and copies the args"
+00120000,BroScr_EmptyFunc_6,function,high,"empty compiled-script function (ret only)"
+00120010,BroScr_EmptyFunc_7,function,high,"empty compiled-script function (ret only)"
+00120020,BroScr_EmptyFunc_8,function,high,"empty compiled-script function (ret only)"
+00120340,BroScr_EmptyFunc_9,function,high,"empty compiled-script function (ret only)"
+00120430,BroScr_EmptyFunc_10,function,high,"empty compiled-script function (ret only)"
+00120440,BroScr_EmptyFunc_11,function,high,"empty compiled-script function (ret only)"
+00120450,BroScr_EmptyFunc_12,function,high,"empty compiled-script function (ret only)"
+00120470,BroScr_EmptyFunc_13,function,high,"empty compiled-script function (ret only)"
+00120490,BroScr_EmptyFunc_14,function,high,"empty compiled-script function (ret only)"
+00120830,BroScr_EmptyFunc_15,function,high,"empty compiled-script function (ret only)"
+00120840,BroScr_EmptyFunc_16,function,high,"empty compiled-script function (ret only)"
+00120850,BroScr_EmptyFunc_17,function,high,"empty compiled-script function (ret only)"
+00120e50,BroScr_EmptyFunc_18,function,high,"empty compiled-script function (ret only)"
+00121310,BroScr_EmptyFunc_19,function,high,"empty compiled-script function (ret only)"
+00121520,BroScr_EmptyFunc_20,function,high,"empty compiled-script function (ret only)"
+00121530,BroScr_EmptyFunc_21,function,high,"empty compiled-script function (ret only)"
+001217a0,BroScr_EmptyFunc_22,function,high,"empty compiled-script function (ret only)"
+001219f0,BroScr_EmptyFunc_23,function,high,"empty compiled-script function (ret only)"
+00121c60,BroScr_EmptyFunc_24,function,high,"empty compiled-script function (ret only)"
+00121c70,BroScr_EmptyFunc_25,function,high,"empty compiled-script function (ret only)"
+00121c80,BroScr_EmptyFunc_26,function,high,"empty compiled-script function (ret only)"
+00121c90,BroScr_EmptyFunc_27,function,high,"empty compiled-script function (ret only)"
+00121ca0,BroScr_EmptyFunc_28,function,high,"empty compiled-script function (ret only)"
+00121cb0,BroScr_EmptyFunc_29,function,high,"empty compiled-script function (ret only)"
+00121ec0,BroScr_EmptyFunc_30,function,high,"empty compiled-script function (ret only)"
+00122230,BroScr_EmptyFunc_31,function,high,"empty compiled-script function (ret only)"
+00122430,BroScr_EmptyFunc_32,function,high,"empty compiled-script function (ret only)"
+00122ac0,BroScr_EmptyFunc_33,function,high,"empty compiled-script function (ret only)"
+00122d00,BroScr_EmptyFunc_34,function,high,"empty compiled-script function (ret only)"
+00122db0,BroScr_EmptyFunc_35,function,high,"empty compiled-script function (ret only)"
+00123660,BroScr_EmptyFunc_36,function,high,"empty compiled-script function (ret only)"
+00123d60,BroScr_EmptyFunc_37,function,high,"empty compiled-script function (ret only)"
+00125280,BroScr_EmptyFunc_38,function,high,"empty compiled-script function (ret only)"
+001816b0,BroScr_EmptyFunc_39,function,high,"empty compiled-script function (ret only)"
+001816c0,BroScr_EmptyFunc_40,function,high,"empty compiled-script function (ret only)"
+001816f0,BroScr_EmptyFunc_41,function,high,"empty compiled-script function (ret only)"
+00181b00,BroScr_EmptyFunc_42,function,high,"empty compiled-script function (ret only)"
+00181c70,BroScr_EmptyFunc_43,function,high,"empty compiled-script function (ret only)"
+00181c80,BroScr_EmptyFunc_44,function,high,"empty compiled-script function (ret only)"
+00182070,BroScr_EmptyFunc_45,function,high,"empty compiled-script function (ret only)"
+00182080,BroScr_EmptyFunc_46,function,high,"empty compiled-script function (ret only)"
+00182930,BroScr_EmptyFunc_47,function,high,"empty compiled-script function (ret only)"
+00183160,BroScr_EmptyFunc_48,function,high,"empty compiled-script function (ret only)"
+00183280,BroScr_EmptyFunc_49,function,high,"empty compiled-script function (ret only)"
+00183490,BroScr_EmptyFunc_50,function,high,"empty compiled-script function (ret only)"
+001836f0,BroScr_EmptyFunc_51,function,high,"empty compiled-script function (ret only)"
+00183730,BroScr_EmptyFunc_52,function,high,"empty compiled-script function (ret only)"
+00183780,BroScr_EmptyFunc_53,function,high,"empty compiled-script function (ret only)"
+001837f0,BroScr_EmptyFunc_54,function,high,"empty compiled-script function (ret only)"
+00183800,BroScr_EmptyFunc_55,function,high,"empty compiled-script function (ret only)"
+001838b0,BroScr_EmptyFunc_56,function,high,"empty compiled-script function (ret only)"
+001838e0,BroScr_EmptyFunc_57,function,high,"empty compiled-script function (ret only)"
+00183910,BroScr_EmptyFunc_58,function,high,"empty compiled-script function (ret only)"
+00183920,BroScr_EmptyFunc_59,function,high,"empty compiled-script function (ret only)"
+00183bf0,BroScr_EmptyFunc_60,function,high,"empty compiled-script function (ret only)"
+00183c00,BroScr_EmptyFunc_61,function,high,"empty compiled-script function (ret only)"
+00183c10,BroScr_EmptyFunc_62,function,high,"empty compiled-script function (ret only)"
+00183cd0,BroScr_EmptyFunc_63,function,high,"empty compiled-script function (ret only)"
+00183da0,BroScr_EmptyFunc_64,function,high,"empty compiled-script function (ret only)"
+00183e90,BroScr_EmptyFunc_65,function,high,"empty compiled-script function (ret only)"
+00183f40,BroScr_EmptyFunc_66,function,high,"empty compiled-script function (ret only)"
+00184080,BroScr_EmptyFunc_67,function,high,"empty compiled-script function (ret only)"
+00184450,BroScr_EmptyFunc_68,function,high,"empty compiled-script function (ret only)"
+00184460,BroScr_EmptyFunc_69,function,high,"empty compiled-script function (ret only)"
+00184470,BroScr_EmptyFunc_70,function,high,"empty compiled-script function (ret only)"
+00184480,BroScr_EmptyFunc_71,function,high,"empty compiled-script function (ret only)"
+00184490,BroScr_EmptyFunc_72,function,high,"empty compiled-script function (ret only)"
+00184b20,BroScr_EmptyFunc_73,function,high,"empty compiled-script function (ret only)"
+00184c10,BroScr_EmptyFunc_74,function,high,"empty compiled-script function (ret only)"
+00184c40,BroScr_EmptyFunc_75,function,high,"empty compiled-script function (ret only)"
+00184c50,BroScr_EmptyFunc_76,function,high,"empty compiled-script function (ret only)"
+0018b080,BroScr_EmptyFunc_77,function,high,"empty compiled-script function (ret only)"
+0018c180,BroScr_EmptyFunc_78,function,high,"empty compiled-script function (ret only)"
+0018d9a0,BroScr_EmptyFunc_79,function,high,"empty compiled-script function (ret only)"
+009227ec,pScr_GScr_GetWeaponAmmoFraction,data,medium,script iface slot 427 pointer (0x00922140 + 4*427) -> GScr_GetWeaponAmmoFraction
+00922858,pScr_GScr_PlayLocalSound,data,medium,script iface slot 454 pointer (0x00922140 + 4*454) -> GScr_PlayLocalSound
+00922864,pScr_GScr_CheckWeaponSlot,data,medium,script iface slot 457 pointer (0x00922140 + 4*457) -> GScr_CheckWeaponSlot
+00922794,pScr_GScr_MoveTo,data,medium,script iface slot 405 pointer (0x00922140 + 4*405) -> GScr_MoveTo
+00922798,pScr_GScr_MoveX,data,medium,script iface slot 406 pointer (0x00922140 + 4*406) -> GScr_MoveX
+0092279c,pScr_GScr_MoveY,data,medium,script iface slot 407 pointer (0x00922140 + 4*407) -> GScr_MoveY
+009227a0,pScr_GScr_MoveZ,data,medium,script iface slot 408 pointer (0x00922140 + 4*408) -> GScr_MoveZ
+009227a4,pScr_GScr_MoverMoveGravity,data,medium,script iface slot 409 pointer (0x00922140 + 4*409) -> GScr_MoverMoveGravity
+009227a8,pScr_GScr_RotateTo,data,medium,script iface slot 410 pointer (0x00922140 + 4*410) -> GScr_RotateTo
+009227ac,pScr_GScr_RotatePitch,data,medium,script iface slot 411 pointer (0x00922140 + 4*411) -> GScr_RotatePitch
+009227b0,pScr_GScr_RotateYaw,data,medium,script iface slot 412 pointer (0x00922140 + 4*412) -> GScr_RotateYaw
+009227b4,pScr_GScr_RotateRoll,data,medium,script iface slot 413 pointer (0x00922140 + 4*413) -> GScr_RotateRoll
+009227b8,pScr_GScr_RotateVelocity,data,medium,script iface slot 414 pointer (0x00922140 + 4*414) -> GScr_RotateVelocity
+009227bc,pScr_GScr_MoverSolid,data,medium,script iface slot 415 pointer (0x00922140 + 4*415) -> GScr_MoverSolid
+009227c0,pScr_GScr_MoverNotSolid,data,medium,script iface slot 416 pointer (0x00922140 + 4*416) -> GScr_MoverNotSolid
+00922680,pScr_GScr_SetGoalPosAndYaw,data,medium,script iface slot 336 pointer (0x00922140 + 4*336) -> GScr_SetGoalPosAndYaw
+00922684,pScr_GScr_SetGoalPos,data,medium,script iface slot 337 pointer (0x00922140 + 4*337) -> GScr_SetGoalPos
+00922688,pScr_GScr_SetGoalPosFromNode,data,medium,script iface slot 338 pointer (0x00922140 + 4*338) -> GScr_SetGoalPosFromNode
+0092268c,pScr_GScr_SetGoalEntity,data,medium,script iface slot 339 pointer (0x00922140 + 4*339) -> GScr_SetGoalEntity
+00922694,pScr_GScr_AnimScriptedFlag0,data,medium,script iface slot 341 pointer (0x00922140 + 4*341) -> GScr_AnimScriptedFlag0
+00922698,pScr_GScr_ActorShootAt,data,medium,script iface slot 342 pointer (0x00922140 + 4*342) -> GScr_ActorShootAt
+0092269c,pScr_GScr_ActorShoot,data,medium,script iface slot 343 pointer (0x00922140 + 4*343) -> GScr_ActorShoot
+009226a4,pScr_Actor_CallStateSlot5,data,medium,script iface slot 345 pointer (0x00922140 + 4*345) -> Actor_CallStateSlot5
+009226d0,pScr_GScr_ActorCanShootWithOffset,data,medium,script iface slot 356 pointer (0x00922140 + 4*356) -> GScr_ActorCanShootWithOffset
+009226d4,pScr_GScr_ActorCanShoot,data,medium,script iface slot 357 pointer (0x00922140 + 4*357) -> GScr_ActorCanShoot
+009226d8,pScr_GScr_ActorCanSee,data,medium,script iface slot 358 pointer (0x00922140 + 4*358) -> GScr_ActorCanSee
+009226dc,pScr_GScr_ActorCanSeeDefaultAge,data,medium,script iface slot 359 pointer (0x00922140 + 4*359) -> GScr_ActorCanSeeDefaultAge
+009226e0,pScr_GScr_ActorCanSeeEnemy,data,medium,script iface slot 360 pointer (0x00922140 + 4*360) -> GScr_ActorCanSeeEnemy
+009226e4,pScr_GScr_ActorCanSeeEnemyDefaultAge,data,medium,script iface slot 361 pointer (0x00922140 + 4*361) -> GScr_ActorCanSeeEnemyDefaultAge
+009226e8,pScr_GScr_ActorFindBetterCover,data,medium,script iface slot 362 pointer (0x00922140 + 4*362) -> GScr_ActorFindBetterCover
+009226f0,pScr_GScr_DropWeapon,data,medium,script iface slot 364 pointer (0x00922140 + 4*364) -> GScr_DropWeapon
+009226fc,pScr_GScr_ActorBeginCriticalSection,data,medium,script iface slot 367 pointer (0x00922140 + 4*367) -> GScr_ActorBeginCriticalSection
+00922700,pScr_GScr_ActorEndCriticalSection,data,medium,script iface slot 368 pointer (0x00922140 + 4*368) -> GScr_ActorEndCriticalSection
+00922704,pScr_GScr_ActorInCriticalSection,data,medium,script iface slot 369 pointer (0x00922140 + 4*369) -> GScr_ActorInCriticalSection
+00922714,pScr_GScr_ActorIsStanceAllowed,data,medium,script iface slot 373 pointer (0x00922140 + 4*373) -> GScr_ActorIsStanceAllowed
+00922718,pScr_GScr_ActorStartReacquire,data,medium,script iface slot 374 pointer (0x00922140 + 4*374) -> GScr_ActorStartReacquire
+00922720,pScr_GScr_CheckGrenadeThrow,data,medium,script iface slot 376 pointer (0x00922140 + 4*376) -> GScr_CheckGrenadeThrow
+00922724,pScr_GScr_ActorThrowGrenade,data,medium,script iface slot 377 pointer (0x00922140 + 4*377) -> GScr_ActorThrowGrenade
+0092272c,pScr_GScr_ActorUseTurret,data,medium,script iface slot 379 pointer (0x00922140 + 4*379) -> GScr_ActorUseTurret
+00922730,pScr_GScr_ActorLeaveTurret,data,medium,script iface slot 380 pointer (0x00922140 + 4*380) -> GScr_ActorLeaveTurret
+00922734,pScr_GScr_ActorCanUseTurret,data,medium,script iface slot 381 pointer (0x00922140 + 4*381) -> GScr_ActorCanUseTurret
+0092273c,pScr_GScr_ActorSetAnimMode,data,medium,script iface slot 383 pointer (0x00922140 + 4*383) -> GScr_ActorSetAnimMode
+00922740,pScr_GScr_ActorSetOrientMode,data,medium,script iface slot 384 pointer (0x00922140 + 4*384) -> GScr_ActorSetOrientMode
+0092274c,pScr_GScr_ActorGetTurret,data,medium,script iface slot 387 pointer (0x00922140 + 4*387) -> GScr_ActorGetTurret
+00922750,pScr_Sys_DebugBreak_388,data,medium,script iface slot 388 pointer (0x00922140 + 4*388) -> Sys_DebugBreak
+00922754,pScr_Sys_DebugBreak_389,data,medium,script iface slot 389 pointer (0x00922140 + 4*389) -> Sys_DebugBreak
+00922758,pScr_GScr_ActorTeleport,data,medium,script iface slot 390 pointer (0x00922140 + 4*390) -> GScr_ActorTeleport
+0092275c,pScr_GScr_ActorApplyAnimMove,data,medium,script iface slot 391 pointer (0x00922140 + 4*391) -> GScr_ActorApplyAnimMove
+00922760,pScr_GScr_ActorAdvanceAnimTime,data,medium,script iface slot 392 pointer (0x00922140 + 4*392) -> GScr_ActorAdvanceAnimTime
+00922774,pScr_GScr_EmptyStub397,data,medium,script iface slot 397 pointer (0x00922140 + 4*397) -> GScr_EmptyStub397
+00922778,pScr_GScr_EmptyStub398,data,medium,script iface slot 398 pointer (0x00922140 + 4*398) -> GScr_EmptyStub398
+0092277c,pScr_GScr_EmptyStub399,data,medium,script iface slot 399 pointer (0x00922140 + 4*399) -> GScr_EmptyStub399
+00922784,pScr_GScr_ActorUpdateNearestNode,data,medium,script iface slot 401 pointer (0x00922140 + 4*401) -> GScr_ActorUpdateNearestNode
+0092278c,pScr_GScr_ActorMayMoveToPoint,data,medium,script iface slot 403 pointer (0x00922140 + 4*403) -> GScr_ActorMayMoveToPoint
+009226c4,pScr_GScr_ActorLookAt,data,medium,script iface slot 353 pointer (0x00922140 + 4*353) -> GScr_ActorLookAt
+009226c8,pScr_GScr_ActorSetLookRates,data,medium,script iface slot 354 pointer (0x00922140 + 4*354) -> GScr_ActorSetLookRates
+009226cc,pScr_GScr_ActorStopLookAt,data,medium,script iface slot 355 pointer (0x00922140 + 4*355) -> GScr_ActorStopLookAt
+009229fc,pScr_GScr_EmptyStub559,data,medium,script iface slot 559 pointer (0x00922140 + 4*559) -> GScr_EmptyStub559
+00922a00,pScr_GScr_EmptyStub560,data,medium,script iface slot 560 pointer (0x00922140 + 4*560) -> GScr_EmptyStub560
+00922a04,pScr_GScr_EmptyStub561,data,medium,script iface slot 561 pointer (0x00922140 + 4*561) -> GScr_EmptyStub561
+002fcda0,GScr_PlayerGiveWeapon,function,high,"script iface slot 417 target; gives the named weapon (BG_GivePlayerWeapon) and tops its ammo up to the weapon's max (Add_Ammo)"
+009227c4,pScr_GScr_PlayerGiveWeapon,data,high,script iface slot 417 pointer (0x00922140 + 4*417) -> GScr_PlayerGiveWeapon
+002fcce0,GScr_PlayerGiveWeaponWithAmmo,function,medium,"script iface slot 418 target; gives the named weapon plus a given ammo count"
+009227c8,pScr_GScr_PlayerGiveWeaponWithAmmo,data,medium,script iface slot 418 pointer (0x00922140 + 4*418) -> GScr_PlayerGiveWeaponWithAmmo
+002f8360,GScr_PlayerTakeWeapon,function,high,"script iface slot 419 target; zeroes ammo and clip of the named weapon, BG_RemoveWeaponFromSlot"
+009227cc,pScr_GScr_PlayerTakeWeapon,data,high,script iface slot 419 pointer (0x00922140 + 4*419) -> GScr_PlayerTakeWeapon
+002f82a0,GScr_PlayerTakeAllWeapons,function,high,"script iface slot 420 target; loops every weapon index: zero ammo/clip, BG_RemoveWeaponFromSlot; clears current weapon"
+009227d0,pScr_GScr_PlayerTakeAllWeapons,data,high,script iface slot 420 pointer (0x00922140 + 4*420) -> GScr_PlayerTakeAllWeapons
+002f8230,GScr_PlayerGetCurrentWeapon,function,high,"script iface slot 421 target; returns ps weapon's name string or """
+009227d4,pScr_GScr_PlayerGetCurrentWeapon,data,high,script iface slot 421 pointer (0x00922140 + 4*421) -> GScr_PlayerGetCurrentWeapon
+002f80d0,GScr_PlayerHasWeapon,function,high,"script iface slot 422 target; tests the named weapon's bit in ps+0x3f0"
+009227d8,pScr_GScr_PlayerHasWeapon,data,high,script iface slot 422 pointer (0x00922140 + 4*422) -> GScr_PlayerHasWeapon
+002f8160,GScr_PlayerGetWeaponTotalAmmo,function,medium,"script iface slot 423 target; ammo + clip of the named weapon into out param"
+009227dc,pScr_GScr_PlayerGetWeaponTotalAmmo,data,medium,script iface slot 423 pointer (0x00922140 + 4*423) -> GScr_PlayerGetWeaponTotalAmmo
+002ffc00,GScr_PlayerSwitchToWeapon,function,high,"script iface slot 424 target; 'unknown weapon' error, CG_SelectWeapon when owned"
+009227e0,pScr_GScr_PlayerSwitchToWeapon,data,high,script iface slot 424 pointer (0x00922140 + 4*424) -> GScr_PlayerSwitchToWeapon
+002fcc20,GScr_PlayerGiveMaxAmmo,function,high,"script iface slot 425 target; tops ammo up to weaponDef max (+0x590) via Add_Ammo"
+009227e4,pScr_GScr_PlayerGiveMaxAmmo,data,high,script iface slot 425 pointer (0x00922140 + 4*425) -> GScr_PlayerGiveMaxAmmo
+002fcb60,GScr_PlayerGiveMaxAmmoByAmmoType,function,medium,"script iface slot 426 target; tops ammo up to the per-ammo-index max table 00929818"
+009227e8,pScr_GScr_PlayerGiveMaxAmmoByAmmoType,data,medium,script iface slot 426 pointer (0x00922140 + 4*426) -> GScr_PlayerGiveMaxAmmoByAmmoType
+002f7ef0,GScr_PlayerGetWeaponMaxAmmoFraction,function,low,"script iface slot 428 target; float ammo fraction like slot 427, other max source"
+009227f0,pScr_GScr_PlayerGetWeaponMaxAmmoFraction,data,low,script iface slot 428 pointer (0x00922140 + 4*428) -> GScr_PlayerGetWeaponMaxAmmoFraction
+002fcb20,GScr_PlayerSetOrigin,function,high,"script iface slot 429 target; TeleportPlayer"
+009227f4,pScr_GScr_PlayerSetOrigin,data,high,script iface slot 429 pointer (0x00922140 + 4*429) -> GScr_PlayerSetOrigin
+002fcae0,GScr_PlayerSetAngles,function,high,"script iface slot 431 target; SetClientViewAngle"
+009227fc,pScr_GScr_PlayerSetAngles,data,high,script iface slot 431 pointer (0x00922140 + 4*431) -> GScr_PlayerSetAngles
+002f7e20,GScr_PlayerGetAngles,function,medium,"script iface slot 432 target; returns ps+0x9c vector"
+00922800,pScr_GScr_PlayerGetAngles,data,medium,script iface slot 432 pointer (0x00922140 + 4*432) -> GScr_PlayerGetAngles
+00301ee0,GScr_PlayerSetViewModel,function,medium,"script iface slot 438 target; R_RegisterModel into ps+0x98"
+00922818,pScr_GScr_PlayerSetViewModel,data,medium,script iface slot 438 pointer (0x00922140 + 4*438) -> GScr_PlayerSetViewModel
+002f7c80,GScr_PlayerAllowEFlag100000,function,low,"script iface slot 439 target; true clears / false sets ent+0x2a4 bit 0x100000"
+0092281c,pScr_GScr_PlayerAllowEFlag100000,data,low,script iface slot 439 pointer (0x00922140 + 4*439) -> GScr_PlayerAllowEFlag100000
+002f7c20,GScr_PlayerAllowPmFlag80000,function,low,"script iface slot 440 target; true clears / false sets ps+0x2c bit 0x80000"
+00922820,pScr_GScr_PlayerAllowPmFlag80000,data,low,script iface slot 440 pointer (0x00922140 + 4*440) -> GScr_PlayerAllowPmFlag80000
+002f7bc0,GScr_PlayerAllowPmFlag100000,function,low,"script iface slot 441 target; ps+0x2c bit 0x100000"
+00922824,pScr_GScr_PlayerAllowPmFlag100000,data,low,script iface slot 441 pointer (0x00922140 + 4*441) -> GScr_PlayerAllowPmFlag100000
+002f7b60,GScr_PlayerAllowPmFlag200000,function,low,"script iface slot 442 target; ps+0x2c bit 0x200000"
+00922828,pScr_GScr_PlayerAllowPmFlag200000,data,low,script iface slot 442 pointer (0x00922140 + 4*442) -> GScr_PlayerAllowPmFlag200000
+002f7b00,GScr_PlayerAllowPmFlag400000,function,low,"script iface slot 443 target; ps+0x2c bit 0x400000"
+0092282c,pScr_GScr_PlayerAllowPmFlag400000,data,low,script iface slot 443 pointer (0x00922140 + 4*443) -> GScr_PlayerAllowPmFlag400000
+002f7aa0,GScr_PlayerAllowPmFlag800000,function,low,"script iface slot 444 target; ps+0x2c bit 0x800000"
+00922830,pScr_GScr_PlayerAllowPmFlag800000,data,low,script iface slot 444 pointer (0x00922140 + 4*444) -> GScr_PlayerAllowPmFlag800000
+002fca10,GScr_ToggleNoclip,function,high,"script iface slot 451 target; GAME_NOCLIPON/GAME_NOCLIPOFF toggle of ps+0x584"
+0092284c,pScr_GScr_ToggleNoclip,data,high,script iface slot 451 pointer (0x00922140 + 4*451) -> GScr_ToggleNoclip
+002fc9d0,GScr_SetReverb,function,high,"script iface slot 452 target; sends reverb "%s" %g %g"
+00922850,pScr_GScr_SetReverb,data,high,script iface slot 452 pointer (0x00922140 + 4*452) -> GScr_SetReverb
+002f78a0,GScr_PlayerGetWeaponSlotWeapon,function,high,"script iface slot 456 target; weaponslot name lookup, returns the slot weapon's name"
+00922860,pScr_GScr_PlayerGetWeaponSlotWeapon,data,high,script iface slot 456 pointer (0x00922140 + 4*456) -> GScr_PlayerGetWeaponSlotWeapon
+002f75e0,GScr_PlayerGetWeaponSlotAmmo,function,high,"script iface slot 458 target; slot weapon's ammo (+0x110[ammoIndex], clip for clip-only weapons)"
+00922868,pScr_GScr_PlayerGetWeaponSlotAmmo,data,high,script iface slot 458 pointer (0x00922140 + 4*458) -> GScr_PlayerGetWeaponSlotAmmo
+002f74a0,GScr_PlayerSetWeaponSlotAmmo,function,high,"script iface slot 459 target; sets +0x110[ammoIndex] (clip for clip-only weapons)"
+0092286c,pScr_GScr_PlayerSetWeaponSlotAmmo,data,high,script iface slot 459 pointer (0x00922140 + 4*459) -> GScr_PlayerSetWeaponSlotAmmo
+002f73c0,GScr_PlayerGetWeaponSlotClipAmmo,function,high,"script iface slot 460 target; returns +0x280[clipIndex]"
+00922870,pScr_GScr_PlayerGetWeaponSlotClipAmmo,data,high,script iface slot 460 pointer (0x00922140 + 4*460) -> GScr_PlayerGetWeaponSlotClipAmmo
+002f72d0,GScr_PlayerSetWeaponSlotClipAmmo,function,high,"script iface slot 461 target; sets +0x280[clipIndex]"
+00922874,pScr_GScr_PlayerSetWeaponSlotClipAmmo,data,high,script iface slot 461 pointer (0x00922140 + 4*461) -> GScr_PlayerSetWeaponSlotClipAmmo
+002f7210,GScr_PlayerGetWeaponSlotClipSize,function,medium,"script iface slot 462 target; returns weaponDef+0x5a8 of the slot weapon"
+00922878,pScr_GScr_PlayerGetWeaponSlotClipSize,data,medium,script iface slot 462 pointer (0x00922140 + 4*462) -> GScr_PlayerGetWeaponSlotClipSize
+002f8c20,GScr_ActorAllowedStances,function,medium,"script iface slot 372 target; stand/crouch/prone constants into actor+0x244"
+00922710,pScr_GScr_ActorAllowedStances,data,medium,script iface slot 372 pointer (0x00922140 + 4*372) -> GScr_ActorAllowedStances
+00922958,pScr_ScrPathNode_GetStringKey,data,low,"script iface slot 518 pointer; filler not found statically (BSS), named from its use by the path/vehicle-node field accessors"
+00922960,pScr_ScrPathNode_GetIntKey,data,low,"script iface slot 520 pointer; filler not found statically (BSS), named from its use by the path/vehicle-node field accessors"
+00922968,pScr_ScrPathNode_GetFloatKey,data,low,"script iface slot 522 pointer; filler not found statically (BSS), named from its use by the path/vehicle-node field accessors"
+00922978,pScr_ScrVehNode_GetStringKey,data,low,"script iface slot 526 pointer; filler not found statically (BSS), named from its use by the path/vehicle-node field accessors"
+00922980,pScr_ScrVehNode_GetIntKey,data,low,"script iface slot 528 pointer; filler not found statically (BSS), named from its use by the path/vehicle-node field accessors"
+00922988,pScr_ScrVehNode_GetFloatKey,data,low,"script iface slot 530 pointer; filler not found statically (BSS), named from its use by the path/vehicle-node field accessors"
+00922990,pScr_ScrVehNode_GetNodeKey,data,low,"script iface slot 532 pointer; filler not found statically (BSS), named from its use by the path/vehicle-node field accessors"
+00121360,BroScr_AnimScriptedThenNotify,function,medium,"AnimScriptedNoNotify with its own notify, waits for it, then queues a second notify"
+00122af0,BroScr_AnimScriptedThenNotify_2,function,medium,byte twin of 00121360
+00122d50,BroScr_AnimScriptedThenNotify_3,function,medium,byte twin of 00121360
+001213c0,BroScr_VehicleFireIfAlive,function,medium,health > 0 -> Vehicle_FireWeapon
+001219d0,BroScr_VehicleFireIfAlive_2,function,medium,twin of 001213c0
+00122ad0,BroScr_VehicleFireIfAlive_3,function,medium,twin of 001213c0
+00121320,BroScr_VehicleFireAnimIfAlive,function,medium,health > 0 -> Vehicle_FireWeapon + SetAnimKnob (fire anim)
+00122d10,BroScr_VehicleFireAnimIfAlive_2,function,medium,twin of 00121320
+001213e0,BroScr_VectorSubtract,function,high,out = a - b
+00121420,BroScr_TraceGroundPos,function,medium,"LocationalTraceSurface down from a point, returns the hit position"
+00121b30,BroScr_TraceGroundPos_2,function,medium,same with +1000 start height and a content mask
+00121ac0,BroScr_WaitTillNotifyCount,function,medium,waits for the same notify N times
+00122a60,BroScr_RestoreHealthOnDamage,function,medium,waits for 'damage' and resets health while alive (invulnerable)
+001233d0,BroScr_WaitPoint15,function,high,Scr_Wait(0.15)
+001233e0,BroScr_WaitZero,function,high,Scr_Wait(0)
+001235f0,BroScr_IdleUntilEnd,function,medium,"endon death + endon string, then waits 0.05 forever"
+0018b130,ScrPathNodeField_script_door,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b150,ScrPathNodeField_script_delay,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b170,ScrPathNodeField_spawnflags,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b180,ScrPathNodeField_script_noteworthy,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b1a0,ScrPathNodeField_script_noteworthy_IsDefined,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b240,ScrPathNodeField_origin,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b280,ScrPathNodeField_origin_IsDefined,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b2c0,ScrPathNodeField_script_chain,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b2e0,ScrPathNodeField_script_fallback,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b300,ScrPathNodeField_targetname,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b320,ScrPathNodeField_targetname_IsDefined,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b360,ScrPathNodeField_script_waittill,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b380,ScrPathNodeField_target,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b3a0,ScrPathNodeField_target_IsDefined,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b3e0,ScrPathNodeField_animscript,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b400,ScrPathNodeField_animscript_IsDefined,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b440,ScrPathNodeField_script_mg42,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b460,ScrPathNodeField_type,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b480,ScrPathNodeField_type_IsDefined,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b4c0,ScrPathNodeField_angles,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b500,ScrPathNodeField_angles_IsDefined,function,medium,path-node field accessor slot (getter/isdefined pairs in field order; key-based fields read through iface slots 518/520/522)
+0018b540,ScrVehNodeField_script_delay,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b560,ScrVehNodeField_endswitch,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b590,ScrVehNodeField_script_noteworthy,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b5b0,ScrVehNodeField_script_noteworthy_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b5f0,ScrVehNodeField_detourstart,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b610,ScrVehNodeField_hfefdb41b,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b630,ScrVehNodeField_detoured,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b650,ScrVehNodeField_script_uniquename,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b670,ScrVehNodeField_target,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b690,ScrVehNodeField_target_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b6d0,ScrVehNodeField_speed,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b6f0,ScrVehNodeField_speed_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b730,ScrVehNodeField_playerhasbeenhere,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b750,ScrVehNodeField_lookahead,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b770,ScrVehNodeField_lookahead_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b7b0,ScrVehNodeField_friendlywait,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b7d0,ScrVehNodeField_h93dff1d7,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b7f0,ScrVehNodeField_origin,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b830,ScrVehNodeField_origin_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b870,ScrVehNodeField_startswitch,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b8a0,ScrVehNodeField_crash_path_target,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b8d0,ScrVehNodeField_detourpath,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b8f0,ScrVehNodeField_h37ff641a,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b910,ScrVehNodeField_derailed,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b930,ScrVehNodeField_targetname,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b950,ScrVehNodeField_targetname_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b990,ScrVehNodeField_angles,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+0018b9d0,ScrVehNodeField_angles_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198c40,ScrVehNodeField_endswitch_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198c90,ScrVehNodeField_detourstart_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198ce0,ScrVehNodeField_hfefdb41b_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198d30,ScrVehNodeField_detoured_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198d80,ScrVehNodeField_script_uniquename_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198dc0,ScrVehNodeField_playerhasbeenhere_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198e10,ScrVehNodeField_friendlywait_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198e60,ScrVehNodeField_h93dff1d7_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198eb0,ScrVehNodeField_startswitch_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198f00,ScrVehNodeField_crash_path_target_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198f50,ScrVehNodeField_detourpath_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198fa0,ScrVehNodeField_h37ff641a_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00198ff0,ScrVehNodeField_derailed_IsDefined,function,medium,vehicle-node field accessor (ScrVehNode_* engine getters or key reads through iface slots 526-532)
+00181170,ScrPathNodeField_animscript_Copy,function,medium,string copy of the path-node field (called by the getter slot)
+001811e0,ScrPathNodeField_type_Copy,function,medium,string copy of the path-node field (called by the getter slot)
+00181250,ScrPathNodeField_script_waittill_Copy,function,medium,string copy of the path-node field (called by the getter slot)
+001812d0,ScrPathNodeField_script_chain_Copy,function,medium,string copy of the path-node field (called by the getter slot)
+00181350,ScrPathNodeField_script_door_Copy,function,medium,string copy of the path-node field (called by the getter slot)
+001813d0,ScrVehNodeField_script_uniquename_Copy,function,medium,string copy of the vehicle-node key (slot 526)
+00181450,ScrActor_GetString_f8_Copy,function,medium,string copy of ScrActor_GetString_f8
+001814e0,BroScr_GetEyePos,function,medium,GScr_GetEye into a vector
+0018b0d0,BroScr_ReturnFalse,function,high,return 0
+0018b0e0,BroScr_ReturnTrue,function,high,return 1
+00123670,BroScr_LerpPlayerAngles,function,medium,"pitch folded into +-90, steps the player's view angles toward a target over frames"
+00123900,BroScr_LerpPlayerAngles_2,function,medium,twin of 00123670
+00128eb0,BroScr_LerpPlayerAnglesCall,function,medium,forwards to BroScr_LerpPlayerAngles
+00128ef0,BroScr_LerpPlayerAnglesCall_2,function,medium,forwards to BroScr_LerpPlayerAngles_2
+00123be0,BroScr_VehicleFireIfAlive_4,function,medium,twin of 001213c0
+00124f70,BroScr_TraceGroundPos_3,function,medium,LocationalTraceSurface down from a point (BroScr_WallHopMove)
+00125060,BroScr_DeleteAndCountDown,function,medium,deletes a valid entity and decrements level counter +0x508
+001285e0,BroScr_DeathPhysicsLaunchNoForce,function,medium,BroScr_DeathPhysicsLaunch with a zero vector
+00128640,BroScr_DeathPhysicsLaunchFromTag,function,medium,tag origin -> BroScr_DeathPhysicsLaunch
+0012aeb0,ScrField_thread_killer_IsDefined,function,high,"key-table isdefined, key thread_killer"
+0012afa0,ScrField_size_InitUndefined,function,medium,sets key 'size' to undefined when missing
+0012afe0,ScrField_size_IsDefined,function,high,"key-table isdefined, key size"
+0012b130,ScrField_notetrack_wait_IsDefined,function,high,"key-table isdefined, key notetrack_wait"
+0012b520,ScrField_path_IsDefined,function,high,"key-table isdefined, key path"
+0012c2b0,ScrField_next_node_IsDefined,function,high,"key-table isdefined, key next_node"
+0012c5f0,ScrField_dead_IsDefined,function,high,"key-table isdefined, key dead"
+0012e240,ScrField_he86f599a_IsDefined,function,medium,"key-table isdefined (string), key unknown"
+0012e210,ScrField_he86f599a,function,medium,"key-table string getter, key unknown"
+00193040,ScrField_hf8b8e073_IsDefined,function,medium,"key-table isdefined (bool), key unknown"
+001949d0,ScrField_ha78b2c24_IsDefined,function,medium,"key-table isdefined (bool), key unknown"
+0012e790,ScrField_mount_node_IsDefined,function,high,"key-table isdefined (entity handle), key mount_node"
+0012f6c0,BroScr_AttachDroneGun,function,medium,"attaches the drone_gun model key, spawns a script_model"
+0012f990,ScrField_targets_groupname_2,function,medium,"key-table string getter, key targets_groupname"
+0012fa00,BroScr_SetTargetsGroupAndEnt,function,medium,stores targets_groupname and target_ent keys
+001308e0,BroScr_ThrowGrenadeRightHand,function,medium,BroScr_ThrowGrenadeAtTarget_2 with hand 'right'
+00130950,BroScr_ThrowGrenadeByPose,function,medium,"picks grenade anim/speed by stand/crouch pose, then BroScr_ThrowGrenadeAtTarget"
+001318b0,BroScr_PlayExplodeSounds,function,medium,plays explode1.. sound keys at the entity with short waits
+00131f00,BroScr_PlayExplodeSounds_2,function,medium,twin of 001318b0
+001327e0,ScrField_follow_ent_Set,function,medium,"key-table setter, key follow_ent"
+00132830,BroScr_SetFollowEnt,function,medium,stores follow_ent and follow_ent_pos (clamped >= 0)
+001328c0,BroScr_SetLagDistance,function,medium,stores lag_distance (default 0) and related keys
+00132a00,ScrField_follow_ent_pos_Set,function,medium,"key-table setter (clamped >= 0), key follow_ent_pos"
+00132bb0,BroScr_DeathPhysicsLaunch_2FromTag,function,medium,tag origin -> BroScr_DeathPhysicsLaunch_2
+00132c80,BroScr_DeathPhysicsLaunch_2FromTag_2,function,medium,twin of 00132bb0
+00132d50,BroScr_DeathPhysicsLaunch_2Call,function,medium,forwards to BroScr_DeathPhysicsLaunch_2
+00133eb0,BroScr_SpawnVehicleFromEnt,function,medium,GScr_SpawnVehicle at the entity's origin/angles with its model key and vehicletype
+00133fc0,BroScr_ReplaceWithVehicle,function,medium,"BroScr_SpawnVehicleFromEnt, then deletes the placeholder entity"
+00134100,BroScr_ReplaceWithScriptModel,function,medium,"BroScr_SpawnScriptModelAt, then deletes the placeholder entity"
+00135020,BroScr_WaitForever,function,medium,loops Scr_Wait(0.075) forever
+00135130,BroScr_StartVehicleTurretFireLoop_8,function,medium,starts BroScr_VehicleTurretFireLoop_8 as a thread
+00135370,ScrField_root_IsDefined,function,medium,"key-table isdefined, key root"
+00135470,BroScr_RandomArrayElement,function,medium,"RandomInt(count) index into an array, frees the array copy"
+001366b0,BroScr_FindLevelVehicleByTargetname,function,medium,searches the level vehicle list (+0x784) for a targetname; 13 vehicle helpers use it
+0013a560,BroScr_FindInLevelList798ByTargetname,function,low,same search over the level list at +0x790
+001367d0,BroScr_GetVehicleTargetsGroupByName,function,low,"finds the vehicle by name, reads its targets_groupname"
+00136870,BroScr_SetVehicleTargetsByName,function,medium,"finds the vehicle by name, BroScr_SetTargetsGroupAndEnt"
+00136900,BroScr_SetTargetsByTargetname,function,medium,GetEntArray(targetname) then BroScr_SetTargetsGroupAndEnt
+00136990,BroScr_SetVehicleUsableByName,function,medium,"finds the vehicle by name, Vehicle_MakeUsable / unusable"
+00136a20,BroScr_SetVehicleCanShootLowByName,function,medium,"finds the vehicle by name, sets can_shoot_low"
+00137230,BroScr_WaitTillVehicleByName,function,medium,"finds the vehicle by name, waits for a notify on it"
+001372b0,BroScr_TryThrowGrenadeRightHand,function,medium,stand/crouch pose -> BroScr_ThrowGrenadeRightHand
+00137370,BroScr_ThrowGrenadeByPoseCall,function,medium,forwards to BroScr_ThrowGrenadeByPose
+00139f30,BroScr_VehicleRiderUnload,function,medium,"waits 'unload', puts gun in hand, plays the exit anim at the exittag, unlinks, allows stances"
+0013dc30,BroScr_VehicleRiderUnload_2,function,medium,byte twin of 00139f30
+0013e900,BroScr_VehicleRiderUnload_3,function,medium,byte twin of 00139f30
+0013bfc0,BroScr_StopManagerEntsByName,function,low,copies two names and calls BroScr_StopManagerEnts
+0013c040,BroScr_StopManagerEntsByName_2,function,low,variant of 0013bfc0
+0013c0d0,BroScr_StopManagerEntsByName_3,function,low,variant of 0013bfc0
+0013cc40,BroScr_WaitTriggerClearFlag,function,medium,"waits 'trigger', clears byte n of the level flag array +0x548"
+0013d270,BroScr_SmokeWhenHalfHealth,function,medium,below half health starts BroScr_EngineSmokeTrail and notifies 'damaged'
+0013d580,BroScr_ReduceDamage,function,medium,gives back 88% of each damage under 900 while alive
+00142ff0,BroScr_InitWingTurret,function,medium,"health 300, starts BroScr_WingTurretDamageWatch"
+00143430,BroScr_InitWingTurret_2,function,medium,"health 300, starts BroScr_WingTurretDamageWatch_2"
+00145c80,BroScr_InitWingTurret_3,function,medium,"health param or 300, starts BroScr_WingTurretDamageWatch_3"
+00141840,BroScr_TryThrowGrenadeRightHandCall,function,medium,forwards to BroScr_TryThrowGrenadeRightHand
+0013f550,BroScr_TurretStutterCall,function,low,forwards to BroScr_TurretStutter (repeats two args)
+00145d60,BroScr_WillyJeepSetup,function,medium,"willyjeep anim tree, random health 500-1500"
+00146880,ScrField_path_pos,function,medium,"key-table typed getter, key path_pos"
+00146920,ScrField_guys,function,medium,"key-table array getter, key guys"
+00146420,ScrField_h677e856b,function,medium,"key-table typed getter (0017c280), key unknown"
+001466a0,ScrField_h512d9463,function,medium,"key-table typed getter (0017c280), key unknown"
+00146560,ScrField_h4f7c0a56,function,medium,"key-table typed getter (00602a40), key unknown"
+00146740,ScrField_hb89aec99,function,medium,"key-table typed getter (00602a40), key unknown"
+001467e0,ScrField_h85644aaa,function,medium,"key-table typed getter (00602a40), key unknown"
+00146a60,ScrField_he337f297,function,medium,"key-table array getter (0017c6c0), key unknown"
+00148c90,BroScr_TryThrowGrenadeRightHandCall_2,function,medium,forwards to BroScr_TryThrowGrenadeRightHand
+001499a0,BroScr_NotifyRiders,function,medium,queues a notify on every entity in the riders key array
+00149a80,ScrField_he104fd5c_PushBack,function,medium,appends to the key array he104fd5c
+0014a160,BroScr_GetCurrentPathPos,function,medium,path_pos[current_pos] (0x18-byte records)
+0014a200,BroScr_RemoveFollower,function,medium,removes an entity from the followers array and notifies it
+0014a2f0,BroScr_WaitForFollowers,function,medium,waits for one notify per follower (capped at the followers count)
+0014a670,BroScr_RemoveFollowerOnDeath,function,medium,"waits for the follower's death, removes it from followers"
+0014efc0,BroScr_VehicleRandomHealthInit,function,medium,"health 500-1500, starts BroScr_VehicleHealthThink"
+00150890,BroScr_VehicleRandomHealthInit_2,function,medium,twin of 0014efc0
+00151230,BroScr_VehicleRandomHealthInit_3,function,medium,twin of 0014efc0
+00151200,BroScr_VehicleHealth2500Init,function,medium,"health 2500, starts BroScr_VehicleHealthThink"
+001504e0,BroScr_VehicleGunnersByName,function,low,"finds the vehicle by name, then 001485f0 (gunners)"
+00150c10,BroScr_InList798ByNameCall,function,low,"finds by name in the +0x790 list, then 00149ab0"
+00151c90,BroScr_WaitForFollowersCall,function,medium,followers array -> BroScr_WaitForFollowers
+001522a0,BroScr_StartPathPosThreads,function,medium,starts the two path_pos threads 0014a910/0014a9c0
+00153ed0,BroScr_WillyJeepSetup_2,function,medium,"willyjeep anim tree, random health 500-1500 (like 00145d60)"
+00151bb0,BroScr_RemoveAllFollowers,function,medium,"notifies, then BroScr_RemoveFollower for each entry"
+001553b0,BroScr_HalftrackSetup,function,medium,"halftrack anim tree, random health 500-1500, thread setup"
+001555e0,BroScr_HalftrackAttachAllPassengers,function,medium,BroScr_HalftrackAttachPassengers for seats 1-5
+001566c0,BroScr_PanzerIVSetup_3,function,medium,"panzerIV anim tree, random health, BroScr_VehicleInit_PanzerIV"
+001577d0,BroScr_PanzerIVSetup_4,function,medium,"panzerIV anim tree, BroScr_TankDefaultHealthThink_2"
+00156970,BroScr_PanzerIVStartThreads,function,medium,starts BroScr_VehicleDeath_PanzerIV and BroScr_VehicleTurretFireLoop
+001569c0,BroScr_StartFollowEnt,function,medium,"stores follow_ent/follow_ent_pos, then the follow routine 00151370"
+00157ab0,BroScr_PlaneSpawnWingTurretsCall,function,medium,BroScr_PlaneSpawnWingTurrets with flag 1
+00159cf0,BroScr_PlaneSpawnWingTurretsCall_2,function,medium,BroScr_PlaneSpawnWingTurrets with undefined third arg
+00153420,BroScr_TankHullGunnerThink,function,medium,"starts BroScr_TankAttachMgTurret, script_accuracy/script_team, turret_fire loop"
+00157ae0,BroScr_TankHullGunnerAtGunhull,function,medium,BroScr_TankHullGunnerThink with tag_gunhull
+00159e40,BroScr_FlakAutomatedThink,function,medium,"automated flak: gunners, target_ent/targets_groupname, flak_dist, can_shoot_low, turret_fire at tag_flash"
+0015aae0,BroScr_SetFlakAutomated,function,medium,"sets automated; true starts BroScr_FlakAutomatedThink, false notifies the stop"
+0015aa80,BroScr_SetFlakManned,function,low,"true starts BroScr_FlakAutomatedThink, false notifies and handles gunners (001485f0)"
+00158420,BroScr_FlakGunnerRespawnLoop,function,low,gunners array upkeep loop with BroScr_VehicleSpawnRider (started by BroScr_FlakAutomatedThink)
+00159d20,BroScr_FindAllFlakvierlings,function,medium,BroScr_FindFlakvierlings with no filters
+00159d50,BroScr_SpawnFlakvierlingCall,function,medium,forwards to BroScr_SpawnFlakvierling
+00159de0,BroScr_VehicleSpawnRiderCall,function,medium,BroScr_VehicleSpawnRider with default args
+00159e10,BroScr_VehicleSpawnRiderCall_2,function,medium,BroScr_VehicleSpawnRider with flag 0
+0015ab50,BroScr_VehicleSpawnRiderByName,function,medium,"finds the vehicle by name, BroScr_VehicleSpawnRider"
+0015abe0,BroScr_SetFlakMannedByName,function,low,"finds the vehicle by name, BroScr_SetFlakManned"
+0015ac70,BroScr_SetFlakAutomatedByName,function,medium,"finds the vehicle by name, BroScr_SetFlakAutomated"
+0015ad00,BroScr_VehicleSpawnRiderByNameCall,function,medium,forwards to BroScr_VehicleSpawnRiderByName
+0015bcf0,BroScr_PlaySoundOn,function,medium,GScr_PlaySound on the entity with an alias argument
+0015e450,BroScr_SetWheelSmokeFxCall,function,low,default-argument wrapper of BroScr_SetWheelSmokeFx
+0015fef0,BroScr_SetWheelSmokeFxCall_2,function,low,default-argument wrapper of BroScr_SetWheelSmokeFx
+00160030,BroScr_SetWheelSmokeFxCall_3,function,low,default-argument wrapper of BroScr_SetWheelSmokeFx
+001600a0,BroScr_SetWheelSmokeFxCall_4,function,low,default-argument wrapper of BroScr_SetWheelSmokeFx
+00163980,BroScr_SetWheelSmokeFxCall_5,function,low,default-argument wrapper of BroScr_SetWheelSmokeFx
+00160010,BroScr_PlayShellIncomingCall,function,medium,BroScr_PlayShellIncoming with a default argument
+00164f20,BroScr_FxCreationSoundCall,function,medium,BroScr_FxCreationSound with undefined vectors/float
+00164fb0,BroScr_FxCreationSoundCall_2,function,medium,BroScr_FxCreationSound with one undefined vector
+00165030,BroScr_FxCreationSoundCall_3,function,medium,BroScr_FxCreationSound with one undefined vector and a float
+001650a0,BroScr_FxCreationSoundCall_4,function,medium,BroScr_FxCreationSound at the entity origin
+00165210,BroScr_FxCreationSoundThinkCall,function,medium,default-argument wrapper of BroScr_FxCreationSoundThink
+00165290,BroScr_FxCreationSoundThinkCall_2,function,medium,default-argument wrapper of BroScr_FxCreationSoundThink
+001652f0,BroScr_FxCreationSoundThinkCall_3,function,medium,default-argument wrapper of BroScr_FxCreationSoundThink
+00165350,BroScr_FxCreationSoundThinkCall_4,function,medium,default-argument wrapper of BroScr_FxCreationSoundThink
+001653b0,BroScr_SpawnLoopSoundOrigin,function,medium,spawns a script_origin and starts the 0015bde0 sound thread on it
+00166450,BroScr_SpawnLoopSoundOriginCall,function,medium,default-argument wrapper of BroScr_SpawnLoopSoundOrigin
+001664d0,BroScr_SpawnLoopSoundOriginCall_2,function,medium,default-argument wrapper of BroScr_SpawnLoopSoundOrigin
+00166550,BroScr_SpawnLoopSoundOriginCall_3,function,medium,default-argument wrapper of BroScr_SpawnLoopSoundOrigin
+001665c0,BroScr_SpawnLoopSoundOriginCall_4,function,medium,default-argument wrapper of BroScr_SpawnLoopSoundOrigin
+001660e0,BroScr_SpawnFxCreationOriginCall,function,medium,default-argument wrapper of BroScr_SpawnFxCreationOrigin
+00166170,BroScr_SpawnFxCreationOriginCall_2,function,medium,default-argument wrapper of BroScr_SpawnFxCreationOrigin
+001661d0,BroScr_SpawnFxCreationOrigin_2Call,function,medium,default-argument wrapper of BroScr_SpawnFxCreationOrigin_2
+00166260,BroScr_SpawnFxCreationOrigin_2Call_2,function,medium,default-argument wrapper of BroScr_SpawnFxCreationOrigin_2
+001662d0,BroScr_SpawnFxCreationOrigin_2Call_3,function,medium,default-argument wrapper of BroScr_SpawnFxCreationOrigin_2
+00166350,BroScr_SpawnFxCreationOrigin_2Call_4,function,medium,default-argument wrapper of BroScr_SpawnFxCreationOrigin_2
+001663e0,BroScr_SpawnFxCreationOrigin_2Call_5,function,medium,default-argument wrapper of BroScr_SpawnFxCreationOrigin_2
+001660b0,BroScr_StartFxLoopingThread,function,medium,starts the _fx_looping thread 00164750
+00167340,BroScr_Sdkfz222Init,function,medium,"health (default 600), starts BroScr_VehicleDeath_Sdkfz222, BroScr_SpawnWheelOrigins, BroScr_SmokeWhenHalfHealth"
+00167660,BroScr_PanzerIVTankInitStart,function,medium,"panzerIV anim tree, starts BroScr_TankInit_2"
+001683e0,BroScr_PanzerIVGunHullStart,function,medium,"panzerIV anim tree, starts BroScr_TankGunHull_5"
+00168500,BroScr_PanzerIVGunHullStart_2,function,medium,"panzerIV anim tree, starts BroScr_TankGunHull_3"
+0016fa40,BroScr_MortarThinkWithDefaults,function,medium,"fills undefined args from level settings, then BroScr_MortarThink"
+00170600,BroScr_MortarThinkWithDefaultsCall,function,medium,BroScr_MortarThinkWithDefaults with all-undefined args
+00171450,BroScr_ShellIncomingThenImpact_2,function,medium,"BroScr_PlayShellIncoming, then BroScr_MortarThinkWithDefaults if the entity still exists"
+001714e0,BroScr_ShellIncomingAtPos,function,medium,"sets origin, drops to ground (00128360), BroScr_ShellIncomingThenImpact_2"
+00128360,BroScr_DropToGround,function,medium,"BroScr_TraceGroundPos below the origin, sets origin"
+00170670,BroScr_PlaneDropBombCall,function,medium,BroScr_PlaneDropBomb with flag 1
+00171920,BroScr_PlaneDropBombCall_2,function,medium,BroScr_PlaneDropBomb with undefined float and flag 1
+0016cb40,BroScr_StukaBombExplode,function,medium,"spawns a script_origin, sound, earthquake and radius damage (defaults 0x300/400/25); piano_lupo special case"
+00169e50,BroScr_DroneMain,function,low,"drone thread (drone_gun, notifies, rider threads)"
+0016d390,BroScr_DroneMainCall,function,low,BroScr_DroneMain with flag 0
+0016f650,BroScr_DroneMainDelayed,function,medium,"waits RandomFloatRange(a, b), then starts BroScr_DroneMainCall"
+0016f6b0,BroScr_DroneVehicleRidersCall,function,low,wrapper of BroScr_DroneVehicleRiders
+0016f790,BroScr_DroneVehicleRidersCall_2,function,low,wrapper of BroScr_DroneVehicleRiders
+0016f870,BroScr_DroneVehicleRidersCall_3,function,low,wrapper of BroScr_DroneVehicleRiders
+00171f00,BroScr_PlaneBombLoop,function,medium,"endon death, BroScr_PlaneDropBomb forever"
