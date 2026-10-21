@@ -39,3 +39,9 @@ add_executable(frame_pacing_test frame_pacing_test.cpp)
 target_include_directories(frame_pacing_test PRIVATE ${PROJECT_SOURCE_DIR}/render)
 target_link_libraries(frame_pacing_test PRIVATE xbox)
 add_test(NAME frame_pacing_test COMMAND frame_pacing_test)
+
+# The D3D9 shader translator (token assembly only; no D3D9 needed).
+add_executable(d3d9_shader_test d3d9_shader_test.cpp ${PROJECT_SOURCE_DIR}/render/d3d9_shader.cpp)
+target_include_directories(d3d9_shader_test PRIVATE ${PROJECT_SOURCE_DIR}/render)
+target_link_libraries(d3d9_shader_test PRIVATE xbox)
+add_test(NAME d3d9_shader_test COMMAND d3d9_shader_test)

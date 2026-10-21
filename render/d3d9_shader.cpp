@@ -339,8 +339,10 @@ std::vector<uint32_t> translate_vertex_program(const uint32_t (*instructions)[4]
     a.op(kAbs, r_(kEpilogueW, kX), {pos.w()});
     a.op(kSge, r_(kEpilogueW, kX), {-r(kEpilogueW).x(), c(kVsDefaults).x()});
     a.add(r_(kEpilogueW, kX), pos.w(), r(kEpilogueW).x());
-    a.mad(r_(kEpilogue, kX | kY), pos, c(kVsScreenToClip), c(kVsScreenToClip + 1));
-    a.mul(r_(kEpilogue, kZ), pos, c(kVsScreenToClip));
+    // vs_3_0 reads one constant register per instruction (Windows' runtime rejects
+    // more; DXVK does not check), so no mad with c192 and c193.
+    a.mul(r_(kEpilogue, kXyz), pos, c(kVsScreenToClip));
+    a.add(r_(kEpilogue, kX | kY), r(kEpilogue), c(kVsScreenToClip + 1));
     a.mul(r_(kEpilogue, kXyz), r(kEpilogue), r(kEpilogueW).x());
     a.mov(r_(kEpilogue, kW), r(kEpilogueW).x());
     a.mov(dst(kOutput, kOPos), r(kEpilogue));
