@@ -284,7 +284,7 @@ private:
         ImGui::Combo("Language", &language, "English\0" "German\0" "French\0" "Spanish\0" "Italian\0");
         choices_.language = kLanguages[language];
         help_marker("The Xbox's language setting. The game can only use languages that are on your disc: "
-                    "the US/world disc is English only, a European disc has its own languages (and may "
+                    "the North American Standard Edition disc is English only, a European disc has its own languages (and may "
                     "have no English). The log lists the disc's languages.");
     }
 
