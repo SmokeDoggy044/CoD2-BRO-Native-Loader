@@ -10286,3 +10286,400 @@ address,name,kind,confidence,evidence
 00613e30,BroLvl_piano_lupo_Ev5MedicMoveUp,function,low,"'medic moveup 1..4', ev5_medic_node1..4"
 006253c0,BroLvl_piano_lupo_SetupEvent5Dia03,function,low,"ev5_dia_03 trigger -> piano_lupo::event5_dia_03, PIA_E05L03_HAW_AnItalianB"
 00636810,BroLvl_piano_lupo_Ev6SceneAnimNodes,function,low,"ev6_sceneanim_node1..4, ev6_naval_goal3"
+006397f0,BroLvl_piano_lupo_VehicleEventThread,function,low,"7.5 KB: stuka/stuka_flying, wave2/wave3, wave_on_the_way, truck_killer ...; callers event5_stuka_bomb_run, falling_ruins, event6_think"
+0047c050,BroLvl_oran_FollowCrashPath,function,low,"<name>crash_path; callers Event4StukaTaxiCrash, Event6PlaneCrash"
+004a6060,BroLvl_oran_AttachHalftrackCrew,function,medium,driver_/gunner_/passenger script_models c_1stInfafr_Multi_4 on v_m3a1_halftrack_troop_desert; 6 callers
+005a06c0,BroLvl_liberator_SpawnConvoyPlanes,function,low,"8.8 KB: ME323/ME109 script_models with _NOSE/_LWING/_RWING/_TAIL parts, convoy; 3 callers"
+00613190,BroLvl_piano_lupo_SetupCutsceneActors,function,low,"piano_lupo_Cutscene hawkins/bloomfield/denley lod0 models, soldier; callers Ev1/Ev6 scene anims"
+007478e0,BroLvl_eilendorf_FlakvierlingExplode,function,low,"vehicle_explode, exp_dirt; callers Flakvierling1..3"
+00773040,BroLvl_buchholz_BarnDoorsOpen,function,low,targetname doors with script_origin; callers Ev2Barn1/Ev2Barn3
+00779540,BroLvl_buchholz_FlakGunCrew,function,medium,buchholz_flakgun::GuyDeath/GuyPain callbacks; 3 callers
+004205b0,BroLvl_prologue_ClearDeathCallbacksAndDelete,function,low,"drops the Axis_Death/Allies_Death/KillFriends/Vehicle_TankDeath death callbacks, then deletes"
+004ad500,BroLvl_oran_HandleSkipto,function,medium,"skipto skip1.. -> checkpoints barracks_start, hangers_start, hangers_half, supply_depot, flakvierling; from InternalMain"
+005d6620,BroLvl_gela_Event00VehicleEndNodes,function,low,"nod_event00_DukwA/B_end, pos_event01_prop_vehc_end_6..; callers beach checkpoints"
+00724650,BroLvl_mons1_DroneMountVehicle,function,low,"tag_driver, tag_enter_driver/passenger, tag_popout"
+0041be80,BroLvl_prologue_FriendlyChainThink,function,low,"3.7 KB: active, event4_use_bomb; 8 callers (event3/4 chains, flak)"
+00692d20,BroLvl_omaha_beach_SetSquadGoalNode,function,medium,targetname node -> SetGoalNode on the level squad ent; 4 callers
+00742070,BroLvl_eilendorf_SetLod0Characters,function,low,"Eilendorf_LOD0_Characters c_kellyeur1_lod0, c_schmiteur1_lod0"
+007427c0,BroLvl_eilendorf_SetLod0Characters_2,function,low,Eilendorf_LOD0_Characters lod0 models (outro)
+00432200,BroLvl_prologue_Event1JeepAndAA,function,low,"v_willysjeep_nogun event1_jeep1, quad50_prolg AA_fast, event1_aa_1/2"
+0044e120,BroLvl_prologue_SpawnVehicleDrone,function,low,"3 KB: v_p47, v_willysjeep, stuka_prologue with wing parts ...; 8 callers"
+0048e320,BroLvl_oran_PlaneStrafeRun,function,low,stuka/spitfire; 5 callers
+004940d0,BroLvl_oran_Event4Hangar3,function,low,"oran_zone08a, trigger_event4_hanger3_moveup_0, skip3, ENTERED_HANGER_3"
+0049bcd0,BroLvl_oran_Event4StartHangars,function,low,"trigger_event4_start_hangers, hangers_start, door_dinning_0, ORA_E04L01_HAW_SeeThoseHa"
+004a04b0,BroLvl_oran_Event4Hangar1Stairs,function,low,"trigger_event4_hanger1_moveup_stairs, hanger1_retreat/attack, oran_zone06b"
+004a1450,BroLvl_oran_Event4Hangar2,function,low,"trigger_event4_hanger2_moveup_0, spawner_hanger2, hanger2_retreat/attack"
+004ad970,BroLvl_oran_Event4Hangar4,function,low,"6 KB: hanger4_flood_spawners, trigger_event4_hanger4_moveup_0, door_hanger4_0"
+004b4aa0,BroLvl_tunisia_Event2DkramerNodes,function,low,dkramer_67/80/82
+004ca580,BroLvl_tunisia_Event8Planes,function,low,"event8_plane_start1..3, dkramer_114..148"
+004d61f0,BroLvl_tunisia_ReinforcementStuarts,function,low,"stuart_tunisia v_stuart, friendlytank_<n>"
+004eb560,BroLvl_kasserine_pass_FollowDenleyObjectives,function,low,"'meet tank commander objective complete', 'activate follow denley to engineers objective'"
+004f4900,BroLvl_kasserine_pass_PlayDialogWithNotify,function,low,"sets an ent flag, PlaySoundWithNotify, optional wait; 9 callers (dialogue)"
+005405d0,BroLvl_kasserine_Ev02SeekPlayer,function,low,"ev02_seek_player_nodes, ev02_player_seek_cancelled_baddy_goto_node"
+005c8930,BroLvl_gela_SpawnHigginsProp,function,low,gela_dyn_vehicles1 v_higgins_lcvp_intro script_model
+005cdc90,BroLvl_gela_Event3BunkerBEnd,function,low,"trig_evnt03_bunkerB_end/bomb, GEL_E04L01/01a/02"
+005d8410,BroLvl_gela_Event2BeforeIgc,function,low,"'event 2 mg D neutralized', trig_evnt02_trigs_before_igc, npc_event02_brbwire_spawners"
+005e47e0,BroLvl_gela_Event2IgcStart,function,low,"trig_evnt02_igc_start, GEL_ADDL01_HAW_Wehavetocl, nod_event02_igc_*"
+005fe850,BroLvl_gela_SetupEvent1Dukws,function,low,"5 KB: posDukw/entDukw_evnt01_A/B, v_dukw, gela_zone01"
+006669a0,BroLvl_troina_Ev5MortarHouse,function,low,"trig_in_mortar_house, ev5_hawkins_1, ev5_chain_1, NickM30/35"
+006abc90,BroLvl_omaha_beach_Bunker2Explosions,function,low,"bunker2_anim3..5, bunker2_right_delete, origin_bunker_4_exp"
+006cd5c0,BroLvl_omaha_beach_BoatLandingDone,function,low,"stop_mortars, player_boat_done, c_hawkomh1/c_schmitomh1/c_brookomh1, beach"
+006da9d0,BroLvl_mons1_NotifyObjectivesComplete,function,medium,"notifies 'objective <n> complete' for 1..n, 0.5 s apart; 6 callers"
+006dd740,BroLvl_mons1_GetMillDoors,function,low,event5_mill_backDoor/frontDoor/sideDoor
+006e7190,BroLvl_mons1_WaitFinished,function,low,waits for the 'finished' output
+006f2d50,BroLvl_mons1_AnimLoopGuysCall,function,low,wrapper to the scripted anim loop (0016ce40); 6 callers (kick doors/fences)
+007073e0,BroLvl_mons1_SetupJeepDrones,function,low,jeep1..3 driver/passenger/gunner drone script_models
+00708f00,BroLvl_mons1_InitDialogue,function,low,MON_E02..E06 Hawkins/Delaney lines
+007098d0,BroLvl_mons1_InitDialogue_2,function,low,"MON_E05L06_BLO, MON_E06L09_SMI"
+0070d7d0,BroLvl_mons1_SetupDrones_2,function,low,mons1_drones (second group)
+00736af0,BroLvl_mons1_Intro,function,low,"r_zfar, drone_jeep paths, MONS_SOLDIER_WALLA_1/2, MON_E01_L/R"
+00741de0,BroLvl_eilendorf_RaftPaddlers,function,low,"genguy*raftc/d, paddle_a_raft_b, paddle_smith"
+007421e0,BroLvl_eilendorf_SetLod2Characters,function,low,"c_kellyeur1_lod2, c_schmiteur2_lod2, Eilendorf_LOD0_Characters"
+0074a790,BroLvl_eilendorf_SetTargetnamesFromOrigins,function,low,GetEntArray + BroScr_SetTargetnamesFromOrigins; 7 callers
+00773860,BroLvl_buchholz_HouseCrashPlayerClip,function,low,"buchholz_zone01, ev3_house_player_clip"
+007a3070,BroLvl_dragons_teeth_FlakGunCrew,function,medium,dragons_teeth_flakgun::GuyDeath/GuyPain callbacks
+0047ace0,BroLvl_oran_UnloadPassenger,function,low,"tag_passenger; callers HangarDismountDenley, Out_Of_Convoy_2"
+0047ccc0,BroLvl_oran_FindVehicleByTargetname,function,medium,searches the level array +0x790 by targetname; 19 callers
+004b54d0,BroLvl_tunisia_GetVierlingFakeTargets_2,function,low,event6_vierling_faketarget_1..3
+004c0310,BroLvl_tunisia_CrossroadsInfantry,function,low,"crossroads_infantry, halftrack_crossroads; 4 callers"
+004c6550,BroLvl_tunisia_OnRampNoteworthy,function,low,script_noteworthy onramp
+004c7710,BroLvl_tunisia_HalftrackCrew,function,low,"halftrack_spawner, halftrackguy_1..5 at tag_gunner/tag_driver"
+004cdcf0,BroLvl_tunisia_Event5WaitHere,function,low,event5_waithere_a..c
+005bd570,BroLvl_gela_SetFriendlyChain,function,medium,"BroScr_GetFriendlyChainNode -> SetGoalNode of the level player squad (+0x7f8), chain triggers; 48 callers"
+005bf690,BroLvl_gela_StopShrimpBeachMortars,function,low,"stop mortars, path_event03_shrimp_beach_"
+005c30f0,BroLvl_gela_DelayedTriggerOff,function,low,"waits, then trigger off by targetname; 20 callers"
+0067c1c0,BroLvl_troina_Event5DoorShoulderOpen,function,low,"event5_door_shoulderopen, event5_door_kicknode, SQD_HAW_MVT_04_LetsGo"
+00727650,BroLvl_mons1_Event11WarpToNode,function,low,"event11_warpToNode, event9_exitGate parts"
+00742ad0,BroLvl_eilendorf_ShowStopwatch,function,medium,"hud stopwatch timer for N seconds, then destroys it; 3 callers"
+00749ae0,BroLvl_eilendorf_KillGroup,function,low,"groupname array, each alive member ...; 11 callers"
+007735d0,BroLvl_buchholz_Ev3MortarTeamFlakBomb,function,low,"ev3_mortar_team, event3_flak1_bomb(_trigger)"
+00786690,BroLvl_buchholz_BuchFootTank,function,low,"buch_foot, buch_tank, barnes359"
+004929c0,BroLvl_oran_OfficeRoom1Door,function,low,"door_office_room1_1, office_kick_room1_1, node_office_1_surprise"
+005bd600,BroLvl_gela_WaitTriggerOff,function,medium,"waits for the targetname trigger, then trigger off; 51 callers"
+005d5570,BroLvl_gela_AnimGuysCall,function,low,wrapper with an ent array + anim name; 10 callers
+005e1dd0,BroLvl_gela_AddTankTargets,function,low,pushes ents into the array field 0xfe9bb316; 4 callers
+005e4e00,BroLvl_gela_Event3PillboxC_2,function,low,"trig_evnt03_pillboxC, SQD_HAW_TAC_09, door_event03_5"
+0064ed50,BroLvl_piano_lupo_Ev8Bunkers,function,low,"ev8_bunker1..3, ev8_wall1/2"
+006599b0,BroLvl_piano_lupo_Ev8LeaveMainBunker,function,low,"ev8_bunker_trig3, ev8_leave_main_bunker_trig, ev8_front_door"
+006641f0,BroLvl_troina_SetLod0Characters,function,low,Troina_LOD0_Characters lod0 models
+00666de0,BroLvl_troina_Event4Rubble,function,low,"rubble_start/end, event4_rubble"
+00667ab0,BroLvl_troina_DenleyShot,function,low,"day_489, denley_flesh, Script_KAR98_Fire/Ring"
+00668600,BroLvl_troina_BellRing,function,low,day_922 script_origin bell_ring
+00692770,BroLvl_omaha_beach_B1CeilingDust,function,low,"trigger_b1_dust_1, dust_ceiling_lg, origin_dust_1..5"
+00693ff0,BroLvl_omaha_beach_SetCutsceneModels,function,low,omaha_beach_cutscene lod0 models
+00695cf0,BroLvl_omaha_beach_StreetTank,function,low,"street_tank_start, ShermanTank street_tank v_sherman, gate_node"
+00695ee0,BroLvl_omaha_beach_RaftMortars,function,low,"raft_mortar1/2, artillery_water"
+006981f0,BroLvl_omaha_beach_Building1Mg,function,low,"building_1_squad_1, mg_building_1"
+00698320,BroLvl_omaha_beach_Building4Mg,function,low,"building_4_squad_2, mg_building_4"
+00698450,BroLvl_omaha_beach_SquadMortarNodes,function,low,node_bloomfield/kelly/smith/hawkins_mortar
+00698a00,BroLvl_omaha_beach_First88MortarShell,function,low,"origin_1st_88_plume, g_gravity, o_mil_mortarshell at tag_weapon_left"
+00699fd0,BroLvl_omaha_beach_BeachShrimpL,function,low,beach_shrimp_L_0..2
+006ca110,BroLvl_omaha_beach_InitDialogueEvent1,function,low,OMA_E01 Hawkins lines
+006dc3c0,BroLvl_mons1_StukaBombDrop_2,function,low,"stuka_bomb, artillery_dirt"
+006dd1a0,BroLvl_mons1_Event5Lines,function,low,"SQD_SMI_SIT_16, MON_E05LAD, MON_E06L01"
+006dd5c0,BroLvl_mons1_SpawnMillTank,function,low,"ss_585, PanzerIV mill_tank1 v_panzerIV"
+006e3690,BroLvl_mons1_MillTankDeath,function,low,"mill_tank1 -> v_panzerIV_d1, vehicle_explode"
+006e77c0,BroLvl_mons1_Waterwheel,function,low,waterwheel pitch until stop_mill
+0071df70,BroLvl_mons1_Event5Battle2GateKick,function,low,"event5_battle2_gateKick(_node), event5_chain4a"
+00725090,BroLvl_mons1_Event3AiTrig5,function,low,event3_ai_trig5(_delete)
+00735750,BroLvl_mons1_JesseNodes,function,low,jesse14/17/18 until reached_wait_node
+0073fcf0,BroLvl_eilendorf_SetupRaftGuys,function,low,"genguy*raftb..d, redshirtsergeant"
+00740270,BroLvl_eilendorf_SetupEventTriggers1,function,low,"event2/3_rally_area, start_mortar_walk, t_e6_spawn_cemetary_guys, bridge_pontoon1..4"
+00740740,BroLvl_eilendorf_SetupCemeteryTriggers,function,low,"cemetary_germans2a_trigger, t_e7_move_friendlies_into_cemetary, spawn_cemetary3"
+00740960,BroLvl_eilendorf_SetupTrenchTriggers,function,low,"spawn_cemetary5, spawn_trench1(b)_guys, trench_T_approach, trench3_start, CP279/CP371"
+00740bc0,BroLvl_eilendorf_SetupFv1Triggers,function,low,"setup_fv1, leaving_fv1_bunker, spawn_fv1_guys, post_fv1_branch, going_for_fv2"
+00740de0,BroLvl_eilendorf_SetupFv3Triggers,function,low,"approaching_fv3, close_to_fv3, enter_right_bunker, right_branch_approach"
+007410c0,BroLvl_eilendorf_SetupCommBunkerTriggers,function,low,enter/mid/exit_comm_bunker
+007411d0,BroLvl_eilendorf_SetupNorthTrenchTriggers,function,low,north_trench_trig1..7
+00752f40,BroLvl_eilendorf_VierlingsKilledObjective,function,low,"active, killed_vierling1..3"
+0075c680,BroLvl_eilendorf_Event4SquadSpots,function,low,"kelly_event4_spot, smith_event4_spot; 2 callers"
+00760540,BroLvl_buchholz_SetCharacterModels,function,low,"buchholz_Characters lod2 models, buchholz_Cutscene"
+007681a0,BroLvl_buchholz_Ev1IgcSound,function,low,"sound_ev1_igc_left/right, BUC_E01_L/R"
+00768a00,BroLvl_buchholz_Ev3CoWaitForTank,function,low,"ev3_co_wait_for_tank, event3_flak1, BUC_ADDL06_DEL_Sergeantt"
+007695c0,BroLvl_buchholz_Ev6IgcSound,function,low,"sound_ev6_igc_left/right, BUC_E06_L/R"
+0076e470,BroLvl_buchholz_Ev4Mg42Nest2,function,low,"ev4_mg42_guy2, ev4_mg42nest2(_gun/_sandbags)"
+00773770,BroLvl_buchholz_Event3Flak1BombTrigger,function,low,"event3_flak1_bomb(_trigger), plant_bomb"
+007748b0,BroLvl_buchholz_AddObjective,function,medium,"ObjectiveAddLocalized(index, 'active', origin or none); 8 callers"
+00774ac0,BroLvl_buchholz_Event4Chain6,function,low,"player_tank, BUC_E04L04_BLO_ComeOnCome, event4_chain6"
+0077e260,BroLvl_buchholz_Ev3BarnAttackers,function,low,"ev3_barn_attackers, ev3_mortar_targets2, SQD_BLO_FRF_02/INA_02"
+0077e8f0,BroLvl_buchholz_SpawnPathFollowers,function,low,BroLvl_buchholz_SpawnAndFollowPath per spawner; 14 callers incl. event9 SpawnPathFollowers
+0077f0c0,BroLvl_buchholz_Ev3BarnAttackersLine,function,low,"ev3_barn_attackers, BUC_ADDL03_SMI_Werepinne; caller event3 PlayerEnteredBarn"
+0077f780,BroLvl_buchholz_Event1Mg42Guy,function,low,"ev1_mg42_guy, event1; from InternalMain"
+00790200,BroLvl_dragons_teeth_UsPlaneFlyover,function,low,"'Usplane flyover', P47_By_1..3"
+00790560,BroLvl_dragons_teeth_ShermanFire,function,low,"tag_flash, BUC_SHERMAN_FIRE, artillery_snow"
+00790810,BroLvl_dragons_teeth_ShermanFire_2,function,low,"tag_flash, BUC_SHERMAN_FIRE, artillery_snow (second copy)"
+00791c10,BroLvl_dragons_teeth_SetCharacterModels,function,low,"dragons_teeth_characters lod2 models, dragons_teeth_cutscene"
+007970d0,BroLvl_dragons_teeth_Event18V2Bombs,function,low,"dragons_teeth_zone5, event18_V2_1/2_bomb"
+0079a710,BroLvl_dragons_teeth_LineClearItOut,function,low,'CLEAR IT OUT!' BUC_E13L03_DEL_ClearItOut
+0079a800,BroLvl_dragons_teeth_LineWeCantStayHere,function,low,"\We can't stay here! Move!!\"" BUC_E14L03_DEL_WeCantSta"""
+0079a8f0,BroLvl_dragons_teeth_LineFindCover,function,low,'FIND COVER!' BUC_E14L07_DEL_FindCover
+0079ab40,BroLvl_dragons_teeth_LineKeepMoving,function,low,'Keep moving.' BUC_E16L01_DEL_KeepMoving
+0079aed0,BroLvl_dragons_teeth_LineLookOut,function,low,'Look out!' BUC_E17L04_KEL_LookOut
+0079b3d0,BroLvl_dragons_teeth_LineOnlyOneLeft,function,low,'Thats one of them.' / 'Only one left.'
+0079b640,BroLvl_dragons_teeth_PillboxDoorsAndChains_2,function,low,"pillbox1/2_doortrig, FirstMortarLookat, e15_mortar_attack_stop, friendlychain0..2"
+0079dc00,BroLvl_dragons_teeth_ObjectivesThrough15,function,low,objective_13..15(a)_complete
+0079de00,BroLvl_dragons_teeth_Event18V2BombTriggers,function,low,"event18_V2_1/2_bomb_trigger, p47_bridge"
+007a6b30,BroLvl_dragons_teeth_ObjectivesThrough14a,function,low,objective_13/14/14a_complete
+007a6c00,BroLvl_dragons_teeth_ObjectivesThrough16,function,low,objective_13..16_complete
+007a7030,BroLvl_dragons_teeth_BloomfieldLookat,function,low,"bloomfieldnode, TurnOnLookat, dragons_teeth_zone5"
+00421ce0,BroLvl_prologue_RedshirtCallLines,function,low,"PRO_ADDL01..03_RED_Sarge*, GEN_ING_CUNNINGHAM_01..; 2 callers"
+00422250,BroLvl_prologue_KellyAllClearLines,function,low,SQD_KEL_ALC_01..06
+00422490,BroLvl_prologue_AllenCallLines,function,low,PRO_ADDL04..06_ALL_Sarge*
+00422580,BroLvl_prologue_BloomfieldGrenadeLines,function,low,"PRO_E03LAA_BLO_CmonSarge, SQD_BLO_ING_01..05"
+004258c0,BroLvl_prologue_FlakVierlingFire,function,low,"FlakVierling flak_burst, flakvierling_mf_1, tracer_flak_single_wflash at tag_flash_*"
+004269c0,BroLvl_prologue_Event1DozerBlade,function,low,"event1_dozer_blade, prologue::Vehicle_TankDeath"
+00427aa0,BroLvl_prologue_FlakBurstAt,function,low,flak_burst on a script_origin
+00427d50,BroLvl_prologue_TankTurretFire,function,low,"panzer_turret_fire / sherman_turret_fire, tank_generic at tag_turret"
+00429940,BroLvl_prologue_MapGuys,function,low,map_guy1/2
+00429e70,BroLvl_prologue_StukaFlyby,function,low,"stuka_prologue noturrets, leftwing part, Stuka_FlyBy_1/2"
+0042af40,BroLvl_prologue_Event2Battle,function,low,"event2_axis_group1, event2_axis_forward, event2_allies_group1, event2_sherman1"
+0042bef0,BroLvl_prologue_CeilingDust,function,low,dust_ceiling_lg on a script_origin
+0042da60,BroLvl_prologue_Man1bAnim,function,low,"'play anim man1b', PRO_E04L07_BLO_AwChristFA"
+00433750,BroLvl_prologue_Event1Mortar2,function,low,event1_mortar2_trigger
+00434fb0,BroLvl_prologue_Event4TigerChargers,function,low,"event4_tiger_charge_spawner, tiger_charger1..3 to event4_charger*_spot1"
+00436a40,BroLvl_prologue_Event4Scene,function,low,"black, g_gravity, md_977..983, spawner death callbacks"
+0043f490,BroLvl_prologue_Md1044Scene,function,low,"md_1044, prone/crouch, g_gravity"
+00441880,BroLvl_prologue_Event1Panzer1,function,low,event1_panzer1(_allies/_invisible_dude/_trigger/_path/_dudes)
+004424c0,BroLvl_prologue_Event3TankInBuilding,function,low,"event3_tank_in_building, PanzerIV event3_panzer1 v_panzeriv no_turret"
+00442b60,BroLvl_prologue_Event3HilltopShermans,function,low,"event3_hilltop_sherman1, event3_sheman1/2_top paths/targets"
+00443570,BroLvl_prologue_Event4Tiger,function,low,"event4_tiger1 tiger_nodam v_tiger_europe on event4_tiger1_path1, targets"
+004443a0,BroLvl_prologue_Event3House1,function,low,"event3_axis_group1, event3_first_battle_mortar, event3_house1_spawner/explosion"
+00444fc0,BroLvl_prologue_Event5Bombers,function,low,"event5_building, Bombers_Main/Detail/Bombs, v_a20, Bomber_Dive"
+00447700,BroLvl_prologue_ArtilleryImpact,function,low,artillery_water / artillery_dirt
+004492c0,BroLvl_prologue_Event3To5Flow,function,low,"event5_killspawner, event3_mg_chain, event3_chain6, event4_mg42_door_blocker, Pro_E04L01"
+00449f80,BroLvl_prologue_Event2To4Flow,function,low,"event2_axis_group1, PRO_E02LAG, event3_chain1, event3_random_stukas, event4_start"
+0044b2c0,BroLvl_prologue_Event1Flow,function,low,"7.4 KB: crashpath, event1_sherman, event1_aa_1, event1_panzer1(_allies) ..."
+0044d390,BroLvl_prologue_Event1Dozer,function,low,"event1_dozer(_path), event1_dozerpanzer, v_dozerblade, event1_dozer_blade"
+004513b0,BroLvl_prologue_Event1Jeep1,function,low,"event1_jeep1 driver/passenger(_ai), event1_drones1b"
+00456050,BroLvl_prologue_Event2Start,function,low,"event1_ai, event1_jeep2, prologue_zone04, event2_chain1, event2_kick_door"
+004566a0,BroLvl_prologue_Event1Drones,function,low,"event1_drones1/1b/2/3a..3c, event1_sherman_attack"
+0045c9c0,ScrStringArray_Free_PROLOGUE,function,low,"releases each string of a {data, capacity, count} array, then frees; 6 callers in several level sections"
+00466ea0,BroLvl_oran_SpawnSpitfire,function,low,oran_Vehicles Spitfire_noturret v_spitfire_flying; 2 callers
+00466f80,BroLvl_oran_SpawnStuka,function,low,oran_Vehicles stuka_noturret stuka_flying; 2 callers
+0046cd00,BroLvl_oran_SquadExitSpots,function,low,kelly/bloomfield/hawkins/denley_exit_spot
+00471cf0,BroLvl_oran_Event2GateExplode,function,low,"event2_gate_left/right, Halftrack_Fence, fence_explode"
+004729a0,BroLvl_oran_BigExplosion,function,low,"bigexplosion, plane_explosion"
+00474080,BroLvl_oran_FlakvierlingGuys,function,low,flakvierling_guy_<n>
+00479410,BroLvl_oran_DeleteHangarEntities,function,low,event4_hanger<n>_entities; 3 callers (hangar events)
+00479520,BroLvl_oran_Event5Motorpool_2,function,low,"trigger_event5_enter_moterpool, event5_tower_gunners"
+0047a250,BroLvl_oran_FlakvierlingGuys_2,function,low,flakvierling_guy_0/1
+0047c3a0,BroLvl_oran_PlaneStrafeImpacts,function,low,"tag_gunleft/right, strafe_*_hit per surface"
+0047ded0,BroLvl_oran_Event1Axis,function,low,"event1_axis_group1/2, event1_panzers"
+0047e1b0,BroLvl_oran_ConvoyPlayerRide,function,low,"convoy1 tag_passenger2/5, tag_player, tag_gunner"
+004837c0,BroLvl_oran_NewtonSniperShot,function,low,"sound_newton_shot, Oran_Sniper_shot/hit, newton_hit, convoy0..3"
+00485140,BroLvl_oran_SpawnSpitfire_2,function,low,oran_Vehicles Spitfire_noturret v_spitfire_flying; 5 callers
+00485240,BroLvl_oran_SpawnStuka_2,function,low,oran_Vehicles stuka_noturret stuka_flying; 5 callers
+004853f0,BroLvl_oran_StukaAttackRun,function,low,"start/stop_shooting, oran_planes::Crash_Wait, downed_stuka_explode, drop_bombs"
+004885b0,BroLvl_oran_Event7StrafePlanes,function,low,"event7_strafe_planes_, event7_planes_, crash paths"
+00489f40,BroLvl_oran_SpawnFriendlyFighters,function,low,"friendly_plane_<n>, event6_friendly_fighters"
+0048a650,BroLvl_oran_SpawnFlybyPlanes,function,low,"flyby_plane_<n>, flyby_planes"
+0048ed30,BroLvl_oran_Hangar3Squad,function,low,"spawner_hanger3, bloomfield/kelly/red_shirt, oran_zone06a..d"
+00490360,BroLvl_oran_NameScriptVehicles,function,low,"script_vehicle, temp_name_<n>"
+004915b0,BroLvl_oran_ZoneOverrideRelease,function,low,"door_hanger1_0, zone_override_release1a/b, section_1a/1b, oran zones"
+00493090,BroLvl_oran_Event7Door,function,low,"event7_door_end, ORA_E05L07, door_event7_0, event7_kick_0, trigger_event7_run_to_flak"
+004938c0,BroLvl_oran_Event3Barracks,function,low,"node_event3_barrack_0, door_barracks_0, barracks_kick_0, ORA_E03L07/08, trigger_event3_enter_barracks"
+00494f70,BroLvl_oran_OutroNodes,function,low,outro_<n> targetnames
+0049afb0,BroLvl_oran_Event3HawkinsBrief,function,low,event3_hawkins_brief_0
+0049cac0,BroLvl_oran_HangarDismountHawkins,function,low,"tag_driver, hanger_dismount_hawkins"
+0049f4c0,BroLvl_oran_UnloadPassenger_2,function,low,passenger at tag_passenger
+0049f720,BroLvl_oran_Event3DiningRoom,function,low,"flood_spawner_event3_dinning, trigger_breach_dinning, spawner_office, door_dinning_0, event3_table_friendly"
+004a25d0,BroLvl_oran_AttachVehicleDrones,function,low,"drone_driver/drone_gunner script_models at tag_driver/tag_gunner, newton; 3 callers"
+004a3900,BroLvl_oran_Event3BreachOffice,function,low,"trigger_event3_breach_office, node_event3_breach_, office_0_soldier, door_office_room1_0"
+004a4f10,BroLvl_oran_Event4HalftrackDrop,function,low,"ORA_E04L18_HAW_GetOutOfTh, event4_halftrack_drop"
+004a50b0,BroLvl_oran_Event5ControlTower,function,low,"trigger_event5_control_moveup_0, node_control_tower_kick_roll, door_event5_1, spawner_event5_control"
+004a7180,BroLvl_oran_CheckpointHangars,function,low,"spawner_hanger1, squad hawkins/bloomfield/kelly/red_shirt, node_hawkins_at_hangers; caller skipto"
+004a7b90,BroLvl_oran_CheckpointEvent5,function,low,"spawner_event5, squad, oran_zone03/04 ...; caller skipto"
+004a89f0,BroLvl_oran_CheckpointControlTower,function,low,"spawner_event5_control, squad, oran_zone09/11/12; caller skipto"
+004a9e20,BroLvl_oran_Event3Start,function,low,"convoy2 -> oran_event3::Out_Of_Convoy_2, event2_gate_guys, event3_hawkins_brief_0"
+004aad10,BroLvl_oran_Event4SupplyDepot,function,low,"trigger_event4_garage_run_1, supply_attack, supply_depot_spawner_0/2"
+004ab870,BroLvl_oran_CheckpointBarracks,function,low,"5.6 KB: squad, event3_hawkins_brief_0, node_event3_outside_1 ...; caller skipto"
+004ace50,BroLvl_oran_IntroCutscene,function,low,"oran_Cutscene, artillery_dirt"
+004b4790,BroLvl_tunisia_DuststormFx,function,low,duststorm_heavy_lc on a script_origin; caller SetupTanks
+004b4e30,BroLvl_tunisia_SetupEvent3Mg42Death,function,low,finished spawning -> tunisia2::event3_NotifyMG42Death
+004bb720,BroLvl_tunisia_Event2Guys,function,low,"event2_panzerschreck_guy1..3, event2_rifle_guy1..3"
+004bbe80,BroLvl_tunisia_Event2DeadTanks,function,low,event2_tank1/2_dead v_m13_d1 script_models
+004beea0,BroLvl_tunisia_KubelwagenDeath,function,low,"v_kubelwagen_desert_d1, vehicle_explode"
+004c0190,BroLvl_tunisia_StopSpawning,function,low,stop_spawning by targetname
+004c0960,BroLvl_tunisia_Event2RoofguyTraverse,function,low,event2_roofguy_traverse_node/end_node
+004c3270,BroLvl_tunisia_Event6Extras,function,low,"event6_extra_01..04, event6_trenchschreck_spawner, event6_truckguy"
+004c3b20,BroLvl_tunisia_Event7Flak3Target,function,low,"event7_flak3, vierling_target1"
+004c55a0,BroLvl_tunisia_KubelwagenDeath_2,function,low,"v_kubelwagen_desert_d1, vehicle_explode (second)"
+004c8230,BroLvl_tunisia_Event7FlakObjective,function,low,"active, event7_flak1..3"
+004c9250,BroLvl_tunisia_Event7Flak3,function,low,"event7_flak3, stopthink"
+004cb260,BroLvl_tunisia_FakeTarget,function,low,fake_target script_origin
+004ceff0,BroLvl_tunisia_TurretThink,function,low,"death/stopthink/triggeredthink, novistarget, turret_fire"
+004d1ae0,BroLvl_tunisia_SetupEvent4Panzer1Targets,function,low,event4_panzer_1 -> tunisia2::event4_AddFriendlyTargetsToTank
+004d1c00,BroLvl_tunisia_SetupEvent4Panzer2Targets,function,low,event4_panzer_2 -> tunisia2::event4_AddFriendlyTargetsToTank
+004d2c20,BroLvl_tunisia_Event7Panzers,function,low,"event7_panzer1/2 at their nodes, tunisia_utility::CommendPlayer"
+004d52d0,BroLvl_tunisia_TankPathSwitches,function,low,"pathexitswitch, offramp*, eventwait*"
+004d6db0,BroLvl_tunisia_SkipToDropoff1,function,low,"dkramer_17/18/59/60, tunisia_zone03..05"
+004d7a90,BroLvl_tunisia_SkipToDropoff2,function,low,"skipto_dropoff2, tunisia_zone06..08, r_zfar 11000, player_tank"
+004d8460,BroLvl_tunisia_SkipToDropoff4,function,low,"event6_dropoff4, tunisia_zone08..10, r_zfar 11000, player_tank"
+004dc0a0,BroLvl_tunisia_FlakGunCrew,function,medium,tunisia_flakgun::GuyDeath/GuyPain callbacks
+004dd220,BroLvl_tunisia_SetupFlak88s,function,low,Flak88/flak88 classnames
+004de2a0,BroLvl_tunisia_SkipToEvent7,function,low,"dkramer_105..107, tunisia_zone11, r_zfar, event7_startnode, notank"
+004e75a0,BroLvl_tunisia_Event6Vehicles,function,low,"event6_shreck/driver/tanker_spawner, event6_tank1_start, event6_carstart, m1340"
+004eade0,BroLvl_kasserine_pass_HowitzerFire,function,low,"howitzer_turret tag_flash, howitzer_fire"
+004eb3c0,BroLvl_kasserine_pass_ObjectivesDestroyTanksFoxholes,function,low,activate destroy tanks / get to foxholes objectives and their completes
+004eeb40,BroLvl_kasserine_pass_ObjectivesMeetCommander,function,low,activate meet tank commander / follow denley to engineers objectives; 2 callers
+004eeca0,BroLvl_kasserine_pass_Event3TigerDeath,function,low,"e3_tiger v_tiger_desert -> v_tiger_desert_d1, smoke"
+004ef890,BroLvl_kasserine_pass_PanzerIVTurretFlash,function,low,panzerIV_turret tag_flash
+004f03e0,BroLvl_kasserine_pass_FrontGateWarn,function,low,e4_frontgate(_warn)
+004f0830,BroLvl_kasserine_pass_RocketExplosion,function,low,weapons_rocket_explosion
+004f0de0,BroLvl_kasserine_pass_GetNewUser,function,low,'get new user' by targetname
+004f15b0,BroLvl_kasserine_pass_Event5Fences_3,function,low,"fence_middle, e5_fence_left/right"
+004f2630,BroLvl_kasserine_pass_HowitzerShell,function,low,Howitzer105_shell at Tag_Weapon_Right
+004f5be0,BroLvl_kasserine_pass_Event4SecondMgNest,function,low,e4_second_mg_nest_germans_0
+004f7890,BroLvl_kasserine_pass_JeepToEndNode,function,low,willyjeep until reached_end_node
+004f99f0,BroLvl_kasserine_pass_ForceKillOnDeath,function,low,"death, force_kill; 2 callers"
+004fab60,BroLvl_kasserine_pass_TankHatchSpawner,function,low,"tankspawner, tag_hatch"
+004fb0e0,BroLvl_kasserine_pass_VehicleExplode,function,low,"explo_metal_rand, vehicle_explode"
+00500220,BroLvl_kasserine_pass_StopScriptedTargetting,function,low,"'stop scripted targetting', e3_tiger_targets"
+00500850,BroLvl_kasserine_pass_EmplacedStuartCoax,function,low,"tag_guncoax, e2_emplaced_stuart_target"
+005009d0,BroLvl_kasserine_pass_ThrowPlayer,function,low,"throw_player_start, KPA_E02L04_DEN_ATigerWhat, KPA_E02L04a_HAW_Findafoxh"
+00502d80,BroLvl_kasserine_pass_SniperKillPlayer,function,low,"e6_sniper_kill_player, e7andbeyond_mission_fail"
+005032f0,BroLvl_kasserine_pass_StopPacifism,function,low,"allies, stop_pacifism"
+00503bd0,BroLvl_kasserine_pass_Event7Lines,function,low,KPA_E07L01..03
+00504780,BroLvl_kasserine_pass_Event8Charge,function,low,"e8_charge, e8_vic/kelly_ob_cover, e8_obryant_plant/cover_node, archdoor"
+00505a80,BroLvl_kasserine_pass_Event9PanzerIV,function,low,"e9_panzeriv_path(_early), e9_panzeriv_poo, v_panzeriv_desert_lean"
+00509920,BroLvl_kasserine_pass_Event5PanzerTargets,function,low,"death, e5_panzeriv_target_<n>"
+0050c2b0,BroLvl_kasserine_pass_Event1RoadGuy,function,low,"e1_guy_on_the_damn_road, event1_drones_running"
+0050dc40,BroLvl_kasserine_pass_P38Rockets,function,low,"p38_rocket at tag_rocket_l/r, v_p-38_wrockets"
+0050f4a0,BroLvl_kasserine_pass_JeepPassengerUntilEnd,function,low,tag_passenger until 'end jeep'
+0050f760,BroLvl_kasserine_pass_JeepDriverUntilEnd,function,low,tag_driver until 'end jeep'
+0050fa20,BroLvl_kasserine_pass_JeepPassenger2UntilEnd,function,low,tag_passenger2 until 'end jeep'
+005105e0,BroLvl_kasserine_pass_TigerFightMortars,function,low,"tiger_fight_mortars, artillery_dirt"
+00514fb0,BroLvl_kasserine_pass_SpawnConvoyGroup,function,low,"_convoy_group, _convoy_vehicle_<n>, stuart v_stuart_lean, willyjeep_nogun"
+00515de0,BroLvl_kasserine_pass_Event4CampBattle,function,low,"e4_camp_battle_guys, e4_camp_germans"
+00517060,BroLvl_kasserine_pass_Event3TankCommander,function,low,"e3_hawkins/denley_tank_commander, tag_player, 'activate meet tank commander objective'"
+0051de00,BroLvl_kasserine_pass_Event3ManTheGun,function,low,"KPA_E02L01_HAW_ManThatGun, event3_co_spot, event3_denley_spot"
+0051e910,BroLvl_kasserine_pass_Event8HawkinsJeep,function,low,"hawkins1, e8_hawkins_jeep_start, jeep1, KPA_Jeep_HawkNKelly"
+0051f760,BroLvl_kasserine_pass_Event9HawkinsJeep,function,low,"hawkins2, KPAEvt9, e9_hawkins_jeep"
+005211b0,BroLvl_kasserine_pass_Event9Lines,function,low,KPA_E09L06/07
+00522d50,BroLvl_kasserine_pass_Event9P38Crash,function,low,"e9_p38_crash(er), P38_Approach, p-38_crashed_air"
+00523600,BroLvl_kasserine_pass_Event9RandomP38s,function,low,"rocket_explode_p38, P38_Over_1..3, e9_p38_random"
+00524f80,BroLvl_kasserine_pass_Event1JeepReturn,function,low,e1_jeep_return_path
+005251f0,BroLvl_kasserine_pass_Event2Tank,function,low,"event2_path_tank, event2_tank panzeriv, panzeriv_targets_"
+00525910,BroLvl_kasserine_pass_Event7ConvoyVehicles,function,low,"stuart5, e7_convoy_0/1 convoy vehicles"
+00526840,BroLvl_kasserine_pass_Event3TankBattle,function,low,"wait_node(_and_fire), event3_co_spot, destroyme_stuart/halftrack"
+005272d0,BroLvl_kasserine_pass_Event6EngineersDone,function,low,e6_engineer_done_<n>
+005284c0,BroLvl_kasserine_pass_Event6Snipers,function,low,"e6_german_snipers, e6_sniper_kill_player"
+005291f0,BroLvl_kasserine_pass_SpringfieldPickup,function,low,"nophysics, the_springfield, e6_sniper_kill_player"
+00529820,BroLvl_kasserine_pass_Event6SniperJeep,function,low,"KPA_E06_L/R, e6_sniper, e6_sniper_jeep_path"
+00532520,BroLvl_kasserine_SpawnDroneModel,function,low,"c_1stInfafr_Multi_2M script_model, kasserine_drones; 2 callers"
+00535630,BroLvl_kasserine_MimiDestructionTriggers,function,low,mimi00/01_destruction_trigger
+00535dc0,BroLvl_kasserine_GetPanzerAndHanomag,function,low,"kasserine_panzer, kasserine_hanomag"
+00538220,BroLvl_kasserine_OverwatchReached,function,low,overwatch0/1_time_or_death_count_reached
+0053b080,BroLvl_kasserine_FriendlyChainTriggers,function,low,"trigger_friendlychain, kass_friendly_chain_triggers"
+0053c8f0,BroLvl_kasserine_Event2Dialogue,function,low,9 KB of KAS_E02 lines; 2 callers
+0053f700,BroLvl_kasserine_Ev02Buddies,function,low,"ev02_buddy0, ev02_buddies_goto_node0, pvt_kelly/bloomfield goto nodes"
+00540090,BroLvl_kasserine_Ev02RoofBaddieCheckers,function,low,ev02_roof_baddie_checker00/01
+00540f60,BroLvl_kasserine_Ev03FirstHouseRoofy,function,low,"ev03_first_house_cleared, roofy"
+00542850,BroLvl_kasserine_Ev05FirstLedgeRoofy,function,low,"ev05_first_ledge, roofy"
+00543ea0,BroLvl_kasserine_Ev06TankGauntlet,function,low,"ev06_tanks_slow_down01, ev06_tank_target_gauntlet00, ev06_blow_up_building_target"
+005446e0,BroLvl_kasserine_Ev06PanzerPath,function,low,ev06_panzer_path
+00544fd0,BroLvl_kasserine_Ev06PinchedGermans,function,low,ev06_pinched_germans
+00545720,BroLvl_kasserine_Ev07PlayerClimbIntoHalftrack,function,low,"ev07_player_climb_into_halftrack, tag_passenger2"
+00546f10,BroLvl_kasserine_HidingFromTank,function,low,"tag_turret, bldg_exp_a, Building_explo, KASSERINE_HIDING_FROM_TANK"
+0054de00,BroLvl_kasserine_MedicScene,function,low,"5.4 KB: medic_truck, medic_wounded00..02, wounded_soldier, wounded_prone00.."
+0054fe50,BroLvl_kasserine_Ev04TrucksBoneOut,function,low,"gmctruck mash_truck_boning_out00, v_gmctruck_cover, ev04_vehicles_bone_out00, gmctruck_driver"
+00550560,BroLvl_kasserine_JumpOff,function,low,"jump_off, stop magic bullet shield"
+00552480,BroLvl_kasserine_Ev02GermanTruck,function,low,"ev02_german_truck00 halftrack v_hanomag_desert, hanomag_dude passengers"
+005546a0,BroLvl_kasserine_Ev06LastRun,function,low,"6 KB: ev06_tank_trigger03, ev06_last_run_baddie_trigger00/01, squad names, friendly_chain_4500"
+00555ea0,BroLvl_kasserine_Ev06RunningAway,function,low,"ev06_running_away_enemy_spawn02/03, ev06_tanks_start_moving, ev07_triggers"
+005566c0,BroLvl_kasserine_Event6,function,low,6.6 KB: ev06_cowardice_warning/fail_trigger -> kasserine::curiosity_killed_the_cat_* callbacks
+005580d0,BroLvl_kasserine_Ev06SquadAndTanks,function,low,"pvt_bloomfield/denley/sgt_hawkins/pvt_kelly_for_ev06, kasserine_panzer/hanomag"
+00558ec0,BroLvl_kasserine_Event3Part2,function,low,"7 KB: ev03_cowardice_warning/fail_trigger01, curiosity_killed_the_cat callbacks"
+0055b020,BroLvl_kasserine_Ev03Medic,function,low,"8.3 KB: ev03_medic_use_trigger, kass_woundedA_short/medic_stand, KAS_E03L10_MED_AlrightTak"
+0055d0b0,BroLvl_kasserine_Event3,function,low,"8.6 KB: door_from_ev02_to_ev03, kasserine_ev03_anims, ev03_cowardice_*_trigger00"
+0055f240,BroLvl_kasserine_Ev03HawkinsGetShot,function,low,"pvt_kelly/bloomfield/sgt_hawkins/pvt_denley_for_ev03, ev03_hawkins_get_shot_node01"
+00560500,BroLvl_kasserine_Event2,function,low,"7.5 KB: ev02_buddies_go, ev02_phase1_*_cover_node, ev02_first_flood_trigger"
+005622d0,BroLvl_kasserine_Event1,function,low,"kasserine_gmc_truck/willysjeep, ev01_cowardice_warning/fail_trigger"
+00569a20,BroLvl_liberator_GetDirectionNodes,function,low,direction_<n> targetnames
+0056f680,BroLvl_liberator_FighterFireTrail,function,low,"tag_tankspawn, tag_engine, fire_trail_fighter_pushed_b_lc"
+0056fd40,BroLvl_liberator_BombWaterImpact,function,low,impact_bomb_water_ns on a script_origin
+00570f20,BroLvl_liberator_BombWaterImpact_2,function,low,impact_bomb_water_ns on a script_origin (second)
+005715f0,BroLvl_liberator_CreateFw190WingTurrets,function,medium,"fw190_wing_turret misc_turret at tag_gunLeft/Right, TURRET CREATE ABORTED"
+00575220,BroLvl_liberator_CrouchAtOrigin,function,low,"crouch, script_origin"
+0057b1b0,BroLvl_liberator_PlaneExplode,function,low,"lib_plane_explode_a/b, fire_trail_fighter_pushed_b_lc, proppanzer.xmp"
+0057d520,BroLvl_liberator_SetupShipsAndTurrets,function,low,"liberator_debug_turrets, g_gameskill, destroyer/tanker(.xmp/_anim), v_b-24_bomb_right"
+005838f0,BroLvl_liberator_SetupBombTargets,function,low,"9.8 KB: tag_target01_oiltanks, tag_target02_Aaguns, 0-railroad, 1-tanks_3, 2-aaguns1 ..."
+00587d60,BroLvl_liberator_FighterExplode_2,function,low,"lib_plane_explode_a/b, smk/fire_trail_fighter_pushed_a_lc; 2 callers"
+00590eb0,BroLvl_liberator_Fw190Attack,function,low,"5.9 KB: FW190, lib_plane_explode*, trails"
+00593830,BroLvl_liberator_IntroDialogue,function,low,"8 KB: LIB_E01L01_BRO_DearBrothe, LIB_E01L02_ELL_AlrightGuy ...; from InternalMain"
+00595c00,BroLvl_liberator_BomberDamageZones,function,low,"8 KB: rwing/lwing, nose/wing/bomb bay/waist/tail right/left ..."
+0059a930,BroLvl_liberator_GetShips,function,low,"zerstorer, tanker2"
+0059ad50,BroLvl_liberator_LiberatorsDescend,function,medium,error string names it: 'THISNODE NOT DEFINED INSIDE LIBERATORS_DECEND'; bombing_descent_player
+0059b390,BroLvl_liberator_BombImpacts,function,low,"impact_bomb_water, impact_bomb_lg_hit, impact_bomb_sm_hit"
+005a2970,BroLvl_liberator_SetupBomberParts,function,low,27 KB: v_b-24_nose/wing-left/right ... liberator_ part models
+005ad710,BroLvl_liberator_SetupBomberModels,function,low,9 KB: v_b24_front/lwing/rwing/rear/turret_chin/dorsal/belly .xmp
+005b22c0,BroLvl_liberator_GeneratorUse,function,low,"HINT_NONE/HINT_ACTIVATE, liberator_generator_ground, cl_disable_ads, Flak_Hit"
+005bca20,BroLvl_gela_ObjectiveThread,function,low,active; 7 callers
+005bf290,BroLvl_gela_BazookaPickup,function,low,"ent_event02_wpn_bazooka, w_usROKT_WORLD_glow, gela_Weapons"
+005c1ec0,BroLvl_gela_TankTurretFire,function,low,"panzer_turret_fire, mf_20_mortar_w, tank_generic"
+005c3560,BroLvl_gela_Event5UpBridge,function,low,"trig_evnt05_upbridge, kcheck510, SQD_HAW_MVT_07_MoveUp"
+005c5e10,BroLvl_gela_EndScene,function,low,"gela_Char_end, c_hawksic1_Lod1_BodyA1, hawkins, tillman, eventEnd, Gel_E11_L/R_ent"
+005c79a0,BroLvl_gela_BredaTurret_2,function,low,bm37_tripod misc_turret w_itmg
+005c8670,BroLvl_gela_SpawnDukwProp,function,low,gela_dyn_vehicles1 v_dukw script_model
+005c87d0,BroLvl_gela_SpawnDukwPropCovered,function,low,gela_dyn_vehicles1 v_dukw_prop_covered script_model
+005c9eb0,BroLvl_gela_Event1DukwLanding,function,low,"entDukw_evnt01_A, BG_GELA_BEACH, dukw_driver_spawner, Saunders, Blackburn, GEL_E01L08"
+005cb570,BroLvl_gela_Event2DevTeam,function,low,npc_evnt02_dev_team spawn
+005cb9f0,BroLvl_gela_Event2bIgc,function,low,"gela_e2b, nod_event02_igc_saunders_end/splode, blackburn_splode"
+005cccd0,BroLvl_gela_Event2DronesRunning,function,low,drones_running until 'stop event 2 drone death'
+005cce80,BroLvl_gela_Event3TrenchBCharge,function,low,"trig_evnt03_trenchB_charge, ent_evnt03_trenchB_charge"
+005cd100,BroLvl_gela_Event3MortarExplode,function,low,"trig_event03_mortar_exp, ent_event03_mortar_ammo/team"
+005d0340,BroLvl_gela_Event6GliderCrash,function,low,"trig_evnt06_vista_plane, Glider ent_event06_planecrash p_sta_sicily_v_waco_glider01"
+005d26e0,BroLvl_gela_Event9ThirdBalcony,function,low,event9_friendlies_third_balcony
+005d3040,BroLvl_gela_Event9cScene,function,low,"hawkins/bloomfield/kelly/delaney/denley, tag_player, event9c"
+005d7680,BroLvl_gela_Event2MgNest3,function,low,"trig_evnt02_mg_nest_3, npc_event02_beach_mgnest_AI, higgins drone"
+005d8f90,BroLvl_gela_Event2BeachMg42s,function,low,"pos_event02_drone_, mg42_event02_A..D, 'event 2 mg B neutralized'"
+005db1c0,BroLvl_gela_Event5TopBridge,function,low,"trig_evnt05_topbridge, pvt_parker, nod_event05_bridge_flee, kcheck520"
+005dc640,BroLvl_gela_Event8SecondStoryDrones,function,low,"path_event08_drone_second_story, event9_drones_walking"
+005dcae0,BroLvl_gela_HanomagPassengers,function,low,hano_passenger at tag_passenger6
+005de860,BroLvl_gela_CheckpointIntroEnd,function,low,"checkpoint, event00_igc_end"
+005df6a0,BroLvl_gela_IntroGunnerDie_2,function,low,"GEL_Event1_Gunner_Die, stop magic bullet shield"
+005e10b0,BroLvl_gela_Event11Wave3Infantry,function,low,"event11_wave3_infantry, sometimes"
+005e5d90,BroLvl_gela_Event8TankWayBack,function,low,"e08_tank_mg_target3, m1340 event8_tank_wayback_tank1, event8_tank_way_back1"
+005e6de0,BroLvl_gela_Event11UseBomb,function,low,"event11_bomb, event11_use_bomb"
+005e8e30,BroLvl_gela_Event10CeilingParticles,function,low,"dust_ceiling_lg, event10_cieling_particles"
+005e9610,BroLvl_gela_Event3PillboxA,function,low,"ent_evnt03_pillboxA, door_event03_2, pos_objective_6, bunker_wall_exp, exp_barbwire"
+005ebb60,BroLvl_gela_Event3TrenchDPosCheck,function,low,"trig_evnt03_trenchD_pos_check, trig_evnt03_bunkerB, door_event03_6"
+005ed520,BroLvl_gela_DukwPassenger1,function,low,tag_passenger1 until reached_end_node
+005ed700,BroLvl_gela_DukwPassenger2,function,low,tag_passenger2 until reached_end_node
+005ed8e0,BroLvl_gela_DukwPassenger3,function,low,tag_passenger3 until reached_end_node
+005edac0,BroLvl_gela_DukwPassenger4,function,low,tag_passenger4 until reached_end_node
+005edca0,BroLvl_gela_DukwDriver_2,function,low,dukw_driver at tag_driver
+005eef70,BroLvl_gela_SetupDrones,function,low,"gela_drone c_1stInfsic_01/02, worldmodel_m1"
+005f02f0,BroLvl_gela_DroneDriver,function,low,gela_drone at tag_driver
+005f04b0,BroLvl_gela_DroneGunner,function,low,gela_drone at tag_gunner
+005f0670,BroLvl_gela_DroneDriver_2,function,low,gela_drone at tag_driver (second)
+005f0820,BroLvl_gela_DroneGunner_2,function,low,gela_drone at tag_gunner (second)
+005f1020,BroLvl_gela_Event1DukwSquad,function,low,"hawkins/denley/bloomfield/kelly, entDukw_evnt01_A, dukw_driver/gunner"
+005f1e80,BroLvl_gela_SpawnDukwPropCovered_2,function,low,v_dukw_prop_covered script_model
+005f20a0,BroLvl_gela_SpawnHigginsProp_2,function,low,v_higgins_lcvp_intro script_model
+005f2970,BroLvl_gela_DukwUnload,function,low,"reached_end_node, tag_detatch, rutherford, dukw_gunner/driver, m1garand"
+005f3110,BroLvl_gela_Event5To6Lines,function,low,"GEL_E05L02, SQD_KEL_ENE_10, GEL_E06L04/05, BLOOMFIELD subtitles"
+005f4570,BroLvl_gela_Event9Friendlies3,function,low,"event9_friendlies_3, GEN_ALC_RMCALL_02"
+005f4780,BroLvl_gela_Event9RangerPatrol,function,low,"ent_evnt09_ranger_patrol, gela_zone18, event9_deleny, ranger_talker, GEL_E09L02/03"
+005f5d70,BroLvl_gela_TillmanDialogue,function,low,"tillman_dialogue1, tillman, gela zones"
+005f83e0,BroLvl_gela_Event3PillboxB,function,low,"trig_evnt03_pillbxB, GEL_ADDL05, ent_event03_beachB_bait, mortar positions"
+005f9330,BroLvl_gela_Event9Balcony1,function,low,"event9_friendly_door1, event9_friendlies_balcony/1, ranger_balcony1"
+00606620,BroLvl_piano_lupo_InitDebugCvars,function,low,"skipto, artist; from InternalMain"
+00608a60,BroLvl_piano_lupo_GiveDefaultWeapons,function,low,"m1garand, thompson, fraggrenade"
+0060a5e0,BroLvl_piano_lupo_Ev8BunkerDestroy,function,low,"piano_lupo_zone15, ev8_bunker1..3 p_lvl_bkr_destroy_4, bunker_idle_3, ev8_wall1_sbm"
+0060b920,BroLvl_piano_lupo_FenceKick,function,low,Fence_Kick until animdone
+0060c8d0,BroLvl_piano_lupo_Ev4BridgeDestroy,function,low,"piano_lupo_zone07, ev4_bridge(_d), ev4_bridge_chunk1.., sbm27/28"
+0060d760,BroLvl_piano_lupo_OrchardTrees,function,low,"block_hax_orchard, tree_hax1/2, p_env_olivesplited"
+00611330,BroLvl_piano_lupo_SpawnPanzerIVModel,function,low,script_model PanzerIV
+00611e40,BroLvl_piano_lupo_DeleteOnTrigger,function,low,"trigger, delete"
+006153d0,BroLvl_piano_lupo_Ev8DoorOpenGoals,function,low,"ev8_dooropen_goal1..5, 'naval guy move up 9b'"
+0061a7f0,BroLvl_piano_lupo_SkipToEvent8,function,low,"BG_PIANO_EXT_3, r_zfar 10000, ev8_skipto_playerstart, ev6_navmed_move2/3"
+0061b300,BroLvl_piano_lupo_Ev1Redshirts,function,low,"ev1_redshirts_runner/1..3, ev1_runner_node, ev1_redshirts_2_goal"
+0061d170,BroLvl_piano_lupo_Ev3FenceKick_2,function,low,"ev3_fence1_kick_node, 'gate kick done', SQD_HAW_MVT_03, SQD_BLO_MVT_05"
+0061db20,BroLvl_piano_lupo_GateKickJM1,function,low,"JM1_openit, 'gate kick done', SQD_HAW_MVT_03, SQD_BLO_MVT_05"
+0061ed10,BroLvl_piano_lupo_Ev4BridgeRunners,function,low,runner1..4 to ev4_bridge_spawners_goal1..4
+0061f9f0,BroLvl_piano_lupo_Ev5AlliedFighters,function,low,ev5_allied_fighters
+00622f80,BroLvl_piano_lupo_Ev8BunkerTouchTriggers,function,low,"ev8_bunker1..3(_touch_trig), death"
+006241a0,BroLvl_piano_lupo_StukaBreakApart,function,low,"stop mg42s, v_stuka_nose/wingL/wingr/tail_d1, plane_explode_a_effect, plane_hit"
+00627360,BroLvl_piano_lupo_PrintScriptMessage,function,medium,"prints by kind: event, dialogue, '^3Hint: ', '^1TODO: ', 'No-Namer( '"
+0062a130,BroLvl_piano_lupo_Ev4BridgeSpawners,function,low,ev4_bridge_spawners
