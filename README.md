@@ -25,9 +25,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 10,234 | 2,990 | 286 | 9,948 |
+| Engine and game code (`.text`) | 10,234 | 3,061 | 286 | 9,948 |
 | Mission scripts (14 level sections) | 5,026 | 55 | 0 | 5,026 |
-| **Total** | **15,260** | **3,045** | **286** | **14,974** |
+| **Total** | **15,260** | **3,116** | **286** | **14,974** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -37,15 +37,15 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 784 | 275 | 116 | 227 | 166 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 601 | 0 | 0 | 599 | 0 |
-| Client game (HUD, view, effects on screen) | 174 | 0 | 0 | 174 | 0 |
-| Engine core (memory, files, settings, commands) | 156 | 0 | 1 | 147 | 0 |
-| Client and menus | 202 | 0 | 0 | 202 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 789 | 275 | 116 | 232 | 166 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 616 | 0 | 0 | 614 | 0 |
+| Client game (HUD, view, effects on screen) | 177 | 0 | 0 | 177 | 0 |
+| Engine core (memory, files, settings, commands) | 157 | 0 | 1 | 148 | 0 |
+| Client and menus | 204 | 0 | 0 | 204 | 0 |
 | Server, collision, compression | 88 | 1 | 2 | 85 | 0 |
-| Not sorted into a part yet | 8,229 | 10 | 2 | 1,149 | 5,461 |
+| Not sorted into a part yet | 8,203 | 10 | 2 | 1,194 | 5,388 |
 
-1,607 of the unsorted functions are Microsoft's own library code that was built into
+1,609 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
 codec). We recognise them by comparing their bytes with the Xbox SDK's libraries, so
 they have their real names; they still count towards the total.
