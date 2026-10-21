@@ -6,7 +6,8 @@ applied q3_name_proposals.csv), game/code/functions.cpp (decompiled functions) a
 functions.csv (comparison results); modules come from tools/data/modules.csv.
 Writes tools/data/progress.csv (one row per function) and prints a summary.
 
-usage: tools/progress.py [--module NAME [--state STATE]]
+usage: tools/progress.py [--module NAME [--state STATE]] [--readme]
+  --readme       also rewrite README.md's progress block (between the progress markers)
   --module NAME  list that module's functions not rewritten yet (address, name, state)
   --state STATE  only those in one state (unnamed, named, decompiled, untested, ...)
 
@@ -62,6 +63,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--module")
     ap.add_argument("--state")
+    ap.add_argument("--readme", action="store_true")
     args = ap.parse_args()
 
     syms = {}
@@ -141,10 +143,69 @@ def main():
     summary(lambda r: r[2])
     print()
     summary(lambda r: r[3] if r[2] == ".text" else "levels")
-    named = sum(1 for r in rows if r[2] == ".text" and r[4] not in ("unnamed", "library"))
+    named = sum(1 for r in rows if r[4] not in ("unnamed", "library"))
     done = sum(1 for r in rows if r[4] in REWRITTEN)
     total = len(rows)  # library functions in .text stay counted (user decision 2026-10-18)
     print(f"\ncounter: named {named}/{total} · matched {done}/{total}")
+    if args.readme:
+        write_readme(rows)
+
+
+# README "By part of the game" rows: label -> progress.py modules
+PARTS = [
+    ("Renderer (scenes, materials, shaders, models, effects)", {"renderer"}),
+    ("Game logic (entities, AI, animation, weapons, level-script runtime)", {"game", "xanim"}),
+    ("Client game (HUD, view, effects on screen)", {"cgame"}),
+    ("Engine core (memory, files, settings, commands)", {"qcommon"}),
+    ("Client and menus", {"client"}),
+    ("Server, collision, compression", {"server", "collision", "zlib"}),
+]
+
+
+def write_readme(rows):
+    import datetime
+    n = lambda x: f"{x:,}"
+    named_ = lambda rs: sum(1 for r in rs if r[4] not in ("unnamed", "library"))
+    done_ = lambda rs: sum(1 for r in rs if r[4] in REWRITTEN)
+    text = [r for r in rows if r[2] == ".text"]
+    levels = [r for r in rows if r[2] == "levels"]
+    nlevels = len({r[3] for r in levels})
+    out = [f"*As of {datetime.date.today().isoformat()}. The numbers come from `tools/progress.py`, which tracks every",
+           "function of the game.*", "",
+           "| | Functions | Named | Rewritten | Left to rewrite |", "|---|---:|---:|---:|---:|"]
+    for label, rs in ((f"Engine and game code (`.text`)", text), (f"Mission scripts ({nlevels} level sections)", levels)):
+        out.append(f"| {label} | {n(len(rs))} | {n(named_(rs))} | {n(done_(rs))} | {n(len(rs) - done_(rs))} |")
+    out.append(f"| **Total** | **{n(len(rows))}** | **{n(named_(rows))}** | **{n(done_(rows))}** | **{n(len(rows) - done_(rows))}** |")
+    globals_ = set()
+    for f in ("manual_names.csv", "cvar_globals.csv"):
+        globals_ |= {int(r["address"], 16) for r in csv.DictReader(open(DATA / f)) if r["kind"] == "data"}
+    out += ["", "**Named** means we know what the function does and it has a proper name.",
+            "**Rewritten** means it has been turned into C++ and passed the in-game comparison",
+            f"(below). We've also named {n(len(globals_))} of the game's global variables.", "",
+            "### By part of the game", "",
+            "| Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |",
+            "|---|---:|---:|---:|---:|---:|"]
+    assigned = set()
+    for label, mods in PARTS + [("Not sorted into a part yet", None)]:
+        if mods is None:
+            rs = [r for r in text if r[3] not in assigned]
+        else:
+            assigned |= mods
+            rs = [r for r in text if r[3] in mods]
+        c = collections.Counter(r[4] for r in rs)
+        waiting = c["untested"] + c["inconclusive"] + c["mismatched"]
+        out.append(f"| {label} | {n(len(rs))} | {n(done_(rs))} | {n(waiting)} | {n(c['named'])} | {n(c['unnamed'])} |")
+    lib = sum(1 for r in text if r[3] not in assigned and r[4] == "library")
+    out += ["", f"{n(lib)} of the unsorted functions are Microsoft's own library code that was built into",
+            "the game (the C runtime, the Xbox system library, the UIX menu library, the voice",
+            "codec). We recognise them by comparing their bytes with the Xbox SDK's libraries, so",
+            "they have their real names; they still count towards the total."]
+    readme = ROOT / "README.md"
+    s = readme.read_text()
+    a = s.index("\n", s.index("<!-- progress:start")) + 1
+    b = s.index("<!-- progress:end -->")
+    readme.write_text(s[:a] + "\n".join(out) + "\n" + s[b:])
+    print("README.md progress block updated")
 
 
 if __name__ == "__main__":

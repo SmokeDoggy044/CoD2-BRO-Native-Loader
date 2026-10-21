@@ -19,35 +19,37 @@ Developed with AI: see [Made with AI](#made-with-ai).
 
 ## Progress
 
+<!-- progress:start (tools/progress.py --readme) -->
 *As of 2026-10-20. The numbers come from `tools/progress.py`, which tracks every
 function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 9,565 | 1,739 | 286 | 9,279 |
-| Mission scripts (14 level sections) | 4,977 | 0 | 0 | 4,977 |
-| **Total** | **14,542** | **1,739** | **286** | **14,256** |
+| Engine and game code (`.text`) | 10,145 | 2,384 | 286 | 9,859 |
+| Mission scripts (14 level sections) | 5,026 | 55 | 0 | 5,026 |
+| **Total** | **15,171** | **2,439** | **286** | **14,885** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below). We've also named 628 of the game's global variables.
+(below). We've also named 844 of the game's global variables.
 
 ### By part of the game
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 774 | 275 | 116 | 216 | 167 |
-| Game logic (entities, AI, weapons, level-script runtime) | 406 | 0 | 0 | 406 | 0 |
-| Client game (HUD, view, effects on screen) | 171 | 0 | 0 | 171 | 0 |
-| Engine core (memory, files, settings, commands) | 138 | 0 | 1 | 132 | 0 |
-| Client and menus | 144 | 0 | 0 | 144 | 0 |
-| Server, collision, compression | 63 | 1 | 2 | 60 | 0 |
-| Not sorted into a part yet | 7,869 | 10 | 2 | 203 | 6,047 |
+| Renderer (scenes, materials, shaders, models, effects) | 778 | 275 | 116 | 220 | 167 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 509 | 0 | 0 | 508 | 0 |
+| Client game (HUD, view, effects on screen) | 172 | 0 | 0 | 172 | 0 |
+| Engine core (memory, files, settings, commands) | 148 | 0 | 1 | 141 | 0 |
+| Client and menus | 152 | 0 | 0 | 152 | 0 |
+| Server, collision, compression | 80 | 1 | 2 | 77 | 0 |
+| Not sorted into a part yet | 8,306 | 10 | 2 | 707 | 5,980 |
 
-1,612 of the unsorted functions are Microsoft's own library code that was built into
+1,607 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
 codec). We recognise them by comparing their bytes with the Xbox SDK's libraries, so
 they have their real names; they still count towards the total.
+<!-- progress:end -->
 
 Most functions aren't sorted into a part yet. That happens as they get named: until
 then, nothing tells us which part they belong to. A part of the game switches over to
