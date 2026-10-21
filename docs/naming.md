@@ -602,3 +602,23 @@ CoD-specific functions included, so later decompilation covers both kinds.
   Next: the anim-script mains that start with InitAnimScript + ApplyDesiredAnimPose ('pose be
   wounded': 0x001dbb90, 0x001dd3c0, 0x001dd750) need their script names; then
   `namepack.py rank --range 00120000-001e4000` as before.
+- Uncovered code and hash words (2026-10-21, night): the anim-script mains pass their script name
+  to BroScr_InitAnimScript as the same rol5/xor hash (cover_prone, concealment_stand, grenadecower,
+  reacquire, ...); 20 entries named BroScr_AnimScript_<Name> (FlankLeft/FlankRight, PainOrDeathAnim
+  and MgBurstFire_2/_3 were these mains and were renamed). Five of them were not functions: the
+  script range had 881 more function entries Ghidra never created (16-byte aligned starts after int3
+  padding, reached only through thread/functor pointers); all created, so the total grew to 16,284.
+  The engine .text still has ~3,800 such gaps (many C++ unwind funclets above 0x340000) and the
+  level sections ~2,700: left as they are for now.
+  Every 32-bit immediate in a function that is not an address was hashed against the XBEs' string
+  tokens + cracked field names (single tokens only, so near-certain): 2,171 unnamed functions got
+  readable notify/endon/value words. Accessor bodies are byte-identical per kind apart from the key
+  (call displacements made absolute): 36 templates from the named ScrField_* accessors named 399
+  of the new functions (ScrField_<key>[_IsDefined]), 68 more keys cracked as word pairs.
+  Call-by-name dispatcher hashes cover "file::function"; a crack with file prefixes from the known
+  names gives noise for two-token names (32-bit hash, ~36 false hits per hash); only one-token hits
+  are usable (dragons_teeth_15::mortarattackend).
+  Plus 61 string-anchored common-script functions (Combat::rechamber, hide::main, plane crashes,
+  fallback spawners, minefield/friendly-fire mission fails, dead quotes, traverses 11-18).
+  Next: the remaining ~550 unnamed functions in 0x120000-0x1e4000 with hash words or strings
+  (namepack + the immediate words), then the same accessor-template pass over the level sections.
