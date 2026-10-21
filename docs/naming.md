@@ -430,3 +430,21 @@ CoD-specific functions included, so later decompilation covers both kinds.
   "InternalMain" ones, but BroThreadSites.java still lists the 2110 thread targets and
   their functor RTTI signature (AeThreadFunctorN<entity, ...>). Gela's entry is split
   at 0x0060201b (function boundary to fix).
+
+- Engine hubs (2026-10-20, night): HubRank.java over 0x1fa000-0x30c000 (1,559 unnamed, 209
+  with 3+ callers) -> 95 names. Pinned: bg_weaponDefs (0x0095f4d8, def +4 name hash, +0x98
+  type, +0x9c inventory slot type, +0x598 ammo index, +0x5a0 clip index, +0x718 alternate
+  weapon, +0x800 AI range) with bg_lastWeaponIndex and BG_FindWeaponIndexForHash; playerState
+  weapon bits +0x3f0, slot bytes +0x3f8, ammo +0x110, clip +0x280; the memory contexts
+  (MemContext_Push/Pop/Alloc_r/Free_r on the 0x0095f5d0 record); Q3 collision/server names
+  (CM_BoxTrace, CM_TransformedBoxTrace, CM_TempBoxModel, CM_PointContents,
+  CM_AdjustAreaPortalState, SV_AreaEntities_r, SV_ClipToEntity, SV_ClipHandleForEntity);
+  game helpers (G_SetOrigin/G_SetAngle - each has a byte-identical copy named ...2,
+  G_SetModel, G_EntLinkTo, G_TryPushingEntity, TeleportPlayer, SetClientViewAngle,
+  SaveRegisteredItems, G_RegisterWeapon, Add_Ammo, Drop_Weapon, fire_grenade); pmove
+  (PM_AddEvent, PM_AddTouchEnt, PM_CmdScale, PM_WeaponUseAmmo); RTCW's AddLeanToPosition;
+  sound channels (S_StopChannel, S_StopSoundHandle, S_Pause/ResumeAllChannels). Left open
+  among the hubs: 002ac7e0 (pm anim with toggle bit 0x200 - torso or weapon anim), the
+  0x0095f5b4 0x210-byte record pool (002a5a40, filled as type 3/4 with a name), the vehicle
+  physics body 0026a3c0, the SIMD box gathers 002c6630/002cb0f0, the trace helpers
+  002e95b0/002e84d0/002e88d0, AnimTree/vectoangles variants (002a0ea0/002a11f0/002a1540).
