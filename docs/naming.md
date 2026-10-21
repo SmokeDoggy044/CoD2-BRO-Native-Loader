@@ -690,3 +690,16 @@ CoD-specific functions included, so later decompilation covers both kinds.
   named by the anims they play. Correction to commit 7f32377: it named 1,070 globals, not 1,101.
   Next: 302 unnamed left in 0x120000-0x1e4000 (50 above 0x1b4000; all skimmed at least once, the
   rest need per-function reads); the level sections (accessor templates + anim names now help).
+- Level-script functions (2026-10-21, evening): ExportNaming now also covers the level sections
+  (0x41a220-0x7a9e84; rerun it there after big renames). Scheme for our descriptive names of level-script
+  functions whose source name is unknown: `BroLvl_<level>_<Descriptive>` (level as in
+  LevelScript_<level>_*: KASSPASS = kasserine_pass, KASSRINE = kasserine, OMAHEACH = omaha_beach);
+  `Bro_<file>__<function>` stays reserved for names recovered from the binary. Named from their strings
+  (targetnames, dialogue aliases, fx, debug prints): per-level drone-group setups (<level>_drones),
+  skipto handlers, dialogue alias tables per speaker (InitDialogue<Speaker>), squad setups, persistent
+  save/restore of engineers/redshirts (kasserine_pass), door kicks, mortar loops, event scripts. Debug
+  strings gave three source names: _event3::liberators_ascend, ThrowAIs_FromSpot (mons1), the FLYBY ad
+  check. Most are low confidence (name from strings, not a full read). 50 same-code-shape copies of
+  named functions in the level sections (std_list, DynArray, a few BroScr helpers) named with _<SECTION>.
+  Next: the rest of the ~3,400 unnamed level functions (`namepack.py rank --range 0041a220-007a9e84`,
+  string-less ones from their now-named callers), then the common-script leftovers.

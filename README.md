@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 43% of the functions have a name, and 286 have been
+It's early days: about 46% of the functions have a name, and 286 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,179 | 5,667 | 286 | 10,893 |
-| Mission scripts (15 level sections) | 5,324 | 1,502 | 0 | 5,324 |
-| **Total** | **16,503** | **7,169** | **286** | **16,217** |
+| Engine and game code (`.text`) | 11,179 | 5,671 | 286 | 10,893 |
+| Mission scripts (15 level sections) | 5,324 | 1,939 | 0 | 5,324 |
+| **Total** | **16,503** | **7,610** | **286** | **16,217** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -45,7 +45,7 @@ function of the game.*
 | Engine core (memory, files, settings, commands) | 162 | 0 | 1 | 153 | 0 |
 | Client and menus | 209 | 0 | 0 | 209 | 0 |
 | Server, collision, compression | 90 | 1 | 2 | 87 | 0 |
-| Not sorted into a part yet | 9,059 | 10 | 2 | 3,711 | 3,719 |
+| Not sorted into a part yet | 9,059 | 10 | 2 | 3,715 | 3,715 |
 
 1,617 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
@@ -73,20 +73,20 @@ automatically.
 
 | Section | Mission | Functions | Named |
 |---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 617 | 239 |
-| ORAN | `sp/oran` | 443 | 94 |
-| TUNISIA | `sp/tunisia` | 307 | 83 |
-| KASSPASS | `sp/kasspass` | 498 | 124 |
-| KASSRINE | `sp/kassrine` | 237 | 54 |
-| LIBEATOR | `sp/liberatr` | 321 | 97 |
-| GELA | `sp/gela` | 403 | 40 |
-| PIANLUPO | `sp/piano` | 400 | 117 |
-| TROINA | `sp/troina` | 235 | 44 |
-| OMAHEACH | `sp/omaha` | 322 | 74 |
-| MONS1 | `sp/mons` | 518 | 125 |
-| EILEDORF | `sp/eilndrf` | 184 | 43 |
-| BUCHHOLZ | `sp/buchholz` | 441 | 113 |
-| DRAGEETH | `sp/dragonth` | 179 | 36 |
+| PROLOGUE | `sp/prologue` | 617 | 284 |
+| ORAN | `sp/oran` | 443 | 128 |
+| TUNISIA | `sp/tunisia` | 307 | 104 |
+| KASSPASS | `sp/kasspass` | 498 | 191 |
+| KASSRINE | `sp/kassrine` | 237 | 73 |
+| LIBEATOR | `sp/liberatr` | 321 | 120 |
+| GELA | `sp/gela` | 403 | 102 |
+| PIANLUPO | `sp/piano` | 400 | 158 |
+| TROINA | `sp/troina` | 235 | 57 |
+| OMAHEACH | `sp/omaha` | 322 | 133 |
+| MONS1 | `sp/mons` | 518 | 158 |
+| EILEDORF | `sp/eilndrf` | 184 | 46 |
+| BUCHHOLZ | `sp/buchholz` | 441 | 127 |
+| DRAGEETH | `sp/dragonth` | 179 | 39 |
 <!-- levels:end -->
 
 The totals can still grow a little as more functions turn up during the analysis.
