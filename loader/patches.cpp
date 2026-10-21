@@ -1210,6 +1210,12 @@ const RecordedCall kRecordedD3dCalls[] = {
     {"D3DDevice_SetShaderConstantMode", "s"},
     {"D3DDevice_DrawVertices", "s s s"},
     {"D3DDevice_DrawIndexedVertices", "s s s"},
+    // Render targets, waits and Register (Data += base: decided by its arguments).
+    {"D3DDevice_SetRenderTarget", "s s"},
+    {"D3DDevice_SetRenderTargetFast", "s s s"},
+    {"D3DDevice_BlockUntilIdle", ""},
+    {"D3DResource_BlockUntilNotBusy", "s"},
+    {"D3DResource_Register", "s s"},
 };
 
 // XAPI XLaunchNewImageA calls the first non-null entry of a launch hook table

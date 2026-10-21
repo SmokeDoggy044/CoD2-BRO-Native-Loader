@@ -5,6 +5,7 @@
 #include "ngl.h"
 #include "script_string.h"
 #include "shaders.h"
+#include "stream.h"
 #include "tr_main.h"
 #include "unzip.h"
 
@@ -135,9 +136,28 @@ const Function kFunctions[] = {
     {"cdAirplaneMetal_Draw", 0x0004cbf0, 0, code(&cdAirplaneMetal_Draw), 0, Result::None, Status::Compare},
     {"cdSky_Draw", 0x00054ad0, 0, code(&cdSky_Draw), 0, Result::None, Status::Compare},
     {"cdGlass_Draw", 0x00048a10, 0, code(&cdGlass_Draw), 0, Result::None, Status::Compare},
+    {"MemStream_Init", 0x000554b0, 0, code(&MemStream_Init), 8, Result::Eax, Status::Compare},
+    {"MemStream_Read", 0x00055590, 0, code(&MemStream_Read), 8, Result::None, Status::Compare},
+    {"Stream_ReadInt", 0x000557c0, 0, code(&Stream_ReadInt), 0, Result::Eax, Status::Compare},
+    {"Stream_ReadUInt", 0x00055800, 0, code(&Stream_ReadUInt), 0, Result::Eax, Status::Compare},
+    {"Stream_ReadFloat", 0x00055840, 0, code(&Stream_ReadFloat), 0, Result::St0, Status::Compare},
+    {"Stream_ReadString", 0x00055880, 0, code(&Stream_ReadString), 12, Result::None, Status::Compare},
     {"nglListAddCustomNode", 0x00062a10, 0, code(&nglListAddCustomNode), 12, Result::None, Status::Compare},
+    {"nglResetDeviceBindings", 0x00064660, 0, code(&nglResetDeviceBindings), 0, Result::None, Status::Compare},
     {"nglListAddText", 0x000661c0, 0, code(&nglListAddText), 32, Result::None, Status::Compare},
+    {"nglListAddTextf", 0x00066490, 0, code(&nglListAddTextf), 36, Result::None, Status::Compare},
+    {"nglResourceManager_Find", 0x000666f0, 0, code(&nglResourceManager_Find), 4, Result::Eax, Status::Compare},
+    {"nglLockVertexBuffer", 0x00066940, 0, code(&nglLockVertexBuffer), 8, Result::Eax, Status::Compare},
+    {"nglVertexBuffer_Free", 0x000669a0, 0, code(&nglVertexBuffer_Free), 4, Result::None, Status::Compare},
+    {"nglVertexBuffer_Destroy", 0x000669e0, 0, code(&nglVertexBuffer_Destroy), 0, Result::None, Status::Compare},
+    {"nglRegisterTexture", 0x0006a560, 0, code(&nglRegisterTexture), 4, Result::None, Status::Compare},
+    {"nglTexture_Lock", 0x0006a820, 0, code(&nglTexture_Lock), 8, Result::None, Status::Compare},
+    {"nglTextureGetPixel", 0x0006a9a0, 0, code(&nglTextureGetPixel), 12, Result::Eax, Status::Compare},
+    {"nglGetFrontBufferTexture", 0x0006aab0, 0, code(&nglGetFrontBufferTexture), 0, Result::Eax, Status::Compare},
+    {"nglGetBackBufferTexture", 0x0006aae0, 0, code(&nglGetBackBufferTexture), 0, Result::Eax, Status::Compare},
+    {"nglReleaseTextureMemory", 0x0006ab70, 0, code(&nglReleaseTextureMemory), 0, Result::None, Status::Compare},
     {"nglSelectMeshLightSet", 0x0006fe00, 0, code(&nglSelectMeshLightSet), 4, Result::None, Status::Compare},
+    {"nglInitDepthTextureView", 0x00072ba0, 0, code(&nglInitDepthTextureView), 0, Result::None, Status::Compare},
     {"nglRenderSceneTree", 0x00074330, 0, code(&nglRenderSceneTree), 0, Result::None, Status::Compare},
     {"std_AdjustHeap_OpaqueNodes", 0x00074670, 0, code(&std_AdjustHeap_OpaqueNodes), 24, Result::None, Status::Compare},
     {"std_AdjustHeap_TranslucentNodes", 0x000746f0, 0, code(&std_AdjustHeap_TranslucentNodes), 24, Result::None, Status::Compare},
@@ -157,6 +177,9 @@ const Function kFunctions[] = {
     {"nglRenderTranslucentList", 0x000754f0, 0, code(&nglRenderTranslucentList), 12, Result::None, Status::Compare},
     {"nglSetObjectLightConstants", 0x000765c0, 0, code(&nglSetObjectLightConstants), 8, Result::None, Status::Compare},
     {"nglSetSkinningConstants", 0x00076620, 0, code(&nglSetSkinningConstants), 12, Result::None, Status::Compare},
+    {"nglSetRenderTargetCached", 0x00078810, 0, code(&nglSetRenderTargetCached), 16, Result::None, Status::Compare},
+    {"nglFreePalette", 0x0007b130, 0, code(&nglFreePalette), 4, Result::None, Status::Compare},
+    {"nglLockPalette", 0x0007b180, 0, code(&nglLockPalette), 0, Result::None, Status::Compare},
     {"nglDebugShader_Draw", 0x0007b670, 0, code(&nglDebugShader_Draw), 0, Result::None, Status::Compare},
     {"cdSimple_GetName", 0x0004e6f0, 0, code(&cdSimple_GetName), 4, Result::Eax, Status::Compare},
     {"nglMaterial_LoadTexture", 0x0004e710, 0, code(&nglMaterial_LoadTexture), 4, Result::None, Status::Compare},
@@ -343,6 +366,9 @@ const Function kFunctions[] = {
     {"nglSetPaletteCached", 0x0007b1d0, 0, code(&nglSetPaletteCached), 8, Result::None, Status::Compare},
     {"nglSwapRedBlue", 0x0007b220, 0, code(&nglSwapRedBlue), 8, Result::None, Status::Compare},
     {"nglDebugShader_GetName", 0x0007b780, 0, code(&nglDebugShader_GetName), 4, Result::Eax, Status::Compare},
+    {"nglGetFreeMemory", 0x000939f0, 0, code(&nglGetFreeMemory), 0, Result::Eax, Status::Compare},
+    {"nglFreeFileBuffer", 0x00093b90, 0, code(&nglFreeFileBuffer), 4, Result::None, Status::Compare},
+    {"nglQuadBatch_Draw", 0x0009d240, 0, code(&nglQuadBatch_Draw), 0, Result::None, Status::Compare},
     {"ScriptStringRep_Init", 0x0011d540, 0, code(&ScriptStringRep_Init), 12, Result::Eax, Status::Compare},
     {"ScriptStringRep_Append", 0x0011d580, 0, code(&ScriptStringRep_Append), 8, Result::None, Status::Compare},
     {"ScriptString_FromRep", 0x0011d5d0, 0, code(&ScriptString_FromRep), 4, Result::Eax, Status::Compare},
@@ -426,6 +452,11 @@ const Function kFunctions[] = {
     {"R_SetupPortalBevels", 0x002377d0, 0, code(&R_SetupPortalBevels), 0, Result::None, Status::Compare},
     {"R_SetupCullPlanes", 0x002388c0, 0, code(&R_SetupCullPlanes), 0, Result::None, Status::Compare},
     {"R_AddWorldSurfaces", 0x00246fa0, 0, code(&R_AddWorldSurfaces_entry), 0, Result::None, Status::Compare},
+    {"FX_StopEffectById", 0x00296ab0, 0, code(&FX_StopEffectById), 0, Result::None, Status::Compare},
+    {"FX_SetEffectParamById", 0x00296b00, 0, code(&FX_SetEffectParamById), 12, Result::None, Status::Compare},
+    {"FX_UpdateFadingComponents", 0x00296c00, 0, code(&FX_UpdateFadingComponents_entry), 4, Result::None, Status::Compare},
+    {"FX_FreeEffectComponents", 0x00296d10, 0, code(&FX_FreeEffectComponents), 4, Result::None, Status::Compare},
+    {"FX_IsEffectActive", 0x00299150, 0, code(&FX_IsEffectActive_entry), 0, Result::Al, Status::Compare},
 };
 
 }  // namespace

@@ -387,6 +387,7 @@ NglLightSet* XB_CDECL nglCreateLightSet();
 // 0x0006f850: type 0 returns the light's own data; type 1 (directional) writes a
 // far-away point light into `out` (position - direction * 1e12, range 1e24) and
 // returns it; other types null.
+// out: a 0x28-byte light record (10 floats), filled for directional lights.
 float* XB_CDECL nglLightVectorWorld(float* out, const NglLight* light, const float* position);
 // 0x0006f8d0: each clamped to 0..1.
 void XB_CDECL nglSetAmbientColor(float r, float g, float b);
@@ -845,5 +846,47 @@ void XB_CDECL nglRenderTranslucentList(NglNode* nodes, uint32_t count, uint32_t 
 // writes off), then the render target's mips. The frame allocator (0x00903c34) is
 // given back afterwards.
 void XB_CDECL nglRenderSceneTree();
+
+// 0x000666f0: the manager's skip list (+4) looked up by name (tail jump, not hookable).
+const uint32_t* XB_THISCALL nglResourceManager_Find(const uint8_t* manager, const uint32_t* name);
+// 0x00066940: locks the D3D buffer (+8) no-overwrite, returns the pointer at offset.
+uint8_t* XB_THISCALL nglLockVertexBuffer(const uint8_t* buffer, uint32_t offset, uint32_t unused);
+// 0x0007b180: locks the D3D palette (+0xc), the entries pointer to +0.
+void XB_THISCALL nglLockPalette(uint8_t* palette);
+// 0x000939f0: GlobalMemoryStatus' available physical memory.
+uint32_t XB_CDECL nglGetFreeMemory();
+// 0x0006aab0: the front-buffer texture (0x00902cd8) with a fresh GetBackBuffer2(-1) surface.
+NglTexture* XB_CDECL nglGetFrontBufferTexture();
+// 0x0006aae0: the back-buffer texture (0x00902d50) with a fresh GetBackBuffer2(0) surface.
+NglTexture* XB_CDECL nglGetBackBufferTexture();
+// 0x00064660: clears the vertex input and texture/palette bindings; frame counter += 2.
+void XB_CDECL nglResetDeviceBindings();
+// 0x000669e0: {memory, size, D3D buffer}: waits for the GPU, frees both, clears all three.
+void XB_THISCALL nglVertexBuffer_Destroy(uint32_t* buffer);
+// 0x0006a820: LockRect of level 0 into +0x1c; swizzled textures (flag 0x100) set up the swizzler.
+void XB_CDECL nglTexture_Lock(NglTexture* texture, uint32_t flags);
+// 0x000669a0: frees the D3D object, optionally re-protects the memory (kept).
+void XB_THISCALL nglVertexBuffer_Free(uint32_t* buffer, uint32_t protect);
+
+// 0x00093b90: frees a loaded file's buffer {memory} through the installed hooks or by kind.
+void XB_CDECL nglFreeFileBuffer(uint32_t* buffer);
+// 0x0007b130: waits for the GPU, unbinds, frees the entries (unless borrowed), the D3D palette and the record.
+void XB_CDECL nglFreePalette(uint32_t* palette);
+// 0x0006a560: attaches pixel memory to the texture's D3D resource.
+void XB_THISCALL nglRegisterTexture(NglTexture* texture, uint32_t data);
+// 0x0006ab70: frees/detaches the pixel memory (+0x24).
+void XB_THISCALL nglReleaseTextureMemory(NglTexture* texture);
+// 0x00078810: SetRenderTarget with the last colour/depth pair cached (SetRenderTargetFast when unchanged).
+void XB_CDECL nglSetRenderTargetCached(NglTexture* target, uint32_t level, NglTexture* depth, uint32_t face);
+// 0x0006a9a0: a locked 32-bit texture's pixel.
+uint32_t XB_CDECL nglTextureGetPixel(const NglTexture* texture, uint32_t x, uint32_t y);
+
+// 0x00072ba0: points the depth-view texture (0x00902e88) at the depth buffer as linear 32-bit pixels.
+void XB_CDECL nglInitDepthTextureView();
+// 0x00066490: nglListAddText with printf formatting (1 KB buffer).
+void XB_CDECL nglListAddTextf(const uint8_t* font, float x, float y, float z, uint32_t color, float scale_x,
+                              float scale_y, const char* format, ...);
+// 0x0009d240: draws the batched quads and advances the batch.
+void XB_CDECL nglQuadBatch_Draw();
 
 }  // namespace game

@@ -53,4 +53,26 @@ void XB_CDECL FX_SortEffects_r(int32_t lo, int32_t hi);
 // (Z_Free) and removed from the list.
 void XB_CDECL FX_FreeFinishedEffects();
 
+// Effect instances by id (sounds, rumble): {count, instance[]}; an instance is
+// {component count, component[]} with its id at +0x4c and flags at +0x50.
+struct FxIdList {
+    uint32_t count;
+    uint8_t* items[1];
+};
+
+// 0x00299150 (list in ESI, id in EDI): whether the first instance with the id is
+// still flagged or has components.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL FX_IsEffectActive(const FxIdList* list, uint32_t id);
+extern "C" void FX_IsEffectActive_entry(void);
+// 0x00296ab0: stops (component slot 3) the first instance with the id.
+void XB_REGS3 XB_CDECL FX_StopEffectById(uint32_t id, uint32_t unused_edx, FxIdList* list);
+// 0x00296b00: component slot 5 (value) on every instance with the id.
+void XB_STDCALL FX_SetEffectParamById(FxIdList* list, uint32_t id, uint32_t value);
+// 0x00296d10: releases pooled components to the free list (0x0095f5b4), deletes the rest.
+void XB_STDCALL FX_FreeEffectComponents(uint32_t* components);
+
+// 0x00296c00 (pool in EDI): updates the fading released components, deletes the faded ones.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_UpdateFadingComponents(uint8_t* pool, uint32_t delta);
+extern "C" void FX_UpdateFadingComponents_entry(void);
+
 }  // namespace game

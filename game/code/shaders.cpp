@@ -1090,11 +1090,12 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
     for (NglLight* light = title_global<NglLightSet*>(0x00902e44)->object_lights;
          light != reinterpret_cast<NglLight*>(title_global<NglLightSet*>(0x00902e44));) {
         alignas(16) float center[4];
-        alignas(16) float out[4];
+        alignas(16) float out[10];  // a whole light record (nglLightVectorWorld writes 0x28 bytes)
         std::memcpy(center, world_center().v, 16);
         const float* v = nglLightVectorWorld(out, light, center);
+        // w is the record's +0x24 (a point light's range, 1e24 for a directional one).
         std::memcpy(lights + light_count * 4, v, 12);
-        std::memcpy(lights + light_count * 4 + 3, &light->flags, 4);
+        lights[light_count * 4 + 3] = v[9];
         light = light->next_object;
         if (++light_count >= 4) break;
     }

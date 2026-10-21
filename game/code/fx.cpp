@@ -44,6 +44,13 @@ uint8_t* XB_CDECL FX_FindEvictableEffect(const uint8_t* effect) {
 
 namespace {
 
+uint8_t* address_to_pointer(uint32_t address) { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(address)); }
+
+// Slot `slot` of a title object's vtable.
+uint32_t vtable_slot(uint32_t object, int slot) {
+    return reinterpret_cast<const uint32_t*>(address_to_pointer(*reinterpret_cast<const uint32_t*>(address_to_pointer(object))))[slot];
+}
+
 uint32_t effect_order(const uint8_t* effect) {
     const uint8_t* definition = *reinterpret_cast<uint8_t* const*>(effect + 4);
     return definition ? *reinterpret_cast<const uint32_t*>(definition + 0x50) : 0xffffffffu;
@@ -128,6 +135,93 @@ void XB_CDECL FX_FreeFinishedEffects() {
     }
     uint32_t& count = title_global<uint32_t>(0x0098871c);
     if (out != last) count -= static_cast<uint32_t>(last - out);
+}
+
+PLATFORM_ASM_ENTRY(FX_IsEffectActive_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FX_IsEffectActive) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL FX_IsEffectActive(const FxIdList* list, uint32_t id) {
+    // The first instance with the id is active while flagged (bit 1 of +0x50) or
+    // while it still has components.
+    for (uint32_t i = 0; i < list->count; ++i) {
+        const uint8_t* instance = list->items[i];
+        if (*reinterpret_cast<const uint32_t*>(instance + 0x4c) != id) continue;
+        if ((*reinterpret_cast<const uint32_t*>(instance + 0x50) >> 1) & 1) return 1;
+        return *reinterpret_cast<const uint32_t*>(instance) != 0;
+    }
+    return 0;
+}
+
+void XB_REGS3 XB_CDECL FX_StopEffectById(uint32_t id, uint32_t, FxIdList* list) {
+    // Stops every component (slot 3) of the first instance with the id.
+    for (uint32_t i = 0; i < list->count; ++i) {
+        uint8_t* instance = list->items[i];
+        if (*reinterpret_cast<uint32_t*>(instance + 0x4c) != id) continue;
+        uint32_t* components = reinterpret_cast<uint32_t*>(instance);
+        for (uint32_t c = 0; c < components[0]; ++c) {
+            const uint32_t component = components[1 + c];
+            title_function<void XB_THISCALL(uint32_t)>(vtable_slot(component, 3))(component);
+        }
+        return;
+    }
+}
+
+void XB_STDCALL FX_SetEffectParamById(FxIdList* list, uint32_t id, uint32_t value) {
+    // Every instance with the id hands `value` to all its components (slot 5).
+    for (uint32_t i = 0; i < list->count; ++i) {
+        uint32_t* components = reinterpret_cast<uint32_t*>(list->items[i]);
+        if (components[0x4c / 4] != id) continue;
+        for (uint32_t c = 0; c < components[0]; ++c) {
+            const uint32_t component = components[1 + c];
+            title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(component, 5))(component, value);
+        }
+    }
+}
+
+void XB_STDCALL FX_FreeEffectComponents(uint32_t* components) {
+    // {count, component[]}: pooled components (flag bit 3 of +0x10) are released
+    // (slot 7, 2.0f) and go back to the free list (up to 0x40), the others are deleted.
+    for (uint32_t c = 0; c < components[0]; ++c) {
+        const uint32_t component = components[1 + c];
+        if ((*reinterpret_cast<const uint32_t*>(address_to_pointer(component) + 0x10) >> 3) & 1) {
+            uint8_t* pool = title_global<uint8_t*>(0x0095f5b4);
+            title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(component, 7))(component, 0x40000000);
+            int32_t& free_count = *reinterpret_cast<int32_t*>(pool + 0x804);
+            if (free_count < 0x40) {
+                reinterpret_cast<uint32_t*>(pool + 0x808)[free_count] = component;
+                ++free_count;
+            }
+        } else if (component) {
+            title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(component, 0))(component, 1);  // deleting dtor
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(FX_UpdateFadingComponents_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(FX_UpdateFadingComponents) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL FX_UpdateFadingComponents(uint8_t* pool, uint32_t delta) {
+    // The released components on the pool's free list {count +0x804, +0x808...} that
+    // still fade (bit 0 of +0x2a) update (slot 1, delta); once faded below 0.001
+    // (+0x1c) they are deleted and the list's last entry takes their place.
+    uint32_t& count = *reinterpret_cast<uint32_t*>(pool + 0x804);
+    uint32_t* entries = reinterpret_cast<uint32_t*>(pool + 0x808);
+    for (uint32_t i = 0; i < count; ++i) {
+        if (!(address_to_pointer(entries[i])[0x2a] & 1)) continue;
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(entries[i], 1))(entries[i], delta);
+        const uint32_t component = entries[i];
+        if (!(address_to_pointer(component)[0x2a] & 1)) continue;
+        const float level = *reinterpret_cast<const float*>(address_to_pointer(component) + 0x1c);
+        if (!(title_global<float>(0x0083eb4c) > level)) continue;  // comiss/jbe: NaN keeps it
+        if (component) title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(component, 0))(component, 1);
+        entries[i] = entries[count - 1];
+        if (count) --count;
+        --i;
+    }
 }
 
 }  // namespace game

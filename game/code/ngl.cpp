@@ -1,5 +1,6 @@
 #include "ngl.h"
 
+#include <cstdarg>
 #include <cstring>
 
 #include "lanes.h"
@@ -2635,6 +2636,237 @@ void XB_CDECL nglRenderSceneTree() {
     frame_memory = saved_frame_memory;
     NglRenderTarget* target = current_scene()->render_target;
     if (target->levels > 1) title_function<void XB_CDECL(NglRenderTarget*)>(0x00063870)(target);  // nglGenerateRenderTargetMips
+}
+
+const uint32_t* XB_THISCALL nglResourceManager_Find(const uint8_t* manager, const uint32_t* name) {
+    return nglSkipList_Find(reinterpret_cast<const NglSkipList*>(manager + 4), name);
+}
+
+uint8_t* XB_THISCALL nglLockVertexBuffer(const uint8_t* buffer, uint32_t offset, uint32_t) {
+    using Lock = uint8_t* XB_STDCALL(uint32_t, uint32_t);
+    // D3DVertexBuffer_Lock2(D3DLOCK_NOOVERWRITE)
+    return title_function<Lock>(0x003ebb30)(*reinterpret_cast<const uint32_t*>(buffer + 8), 0x20) + offset;
+}
+
+void XB_THISCALL nglLockPalette(uint8_t* palette) {
+    using Lock = uint32_t XB_STDCALL(uint32_t, uint32_t);
+    // D3DPalette_Lock2; the entries pointer goes to +0.
+    *reinterpret_cast<uint32_t*>(palette) = title_function<Lock>(0x003ebbc0)(*reinterpret_cast<uint32_t*>(palette + 0xc), 0);
+}
+
+uint32_t XB_CDECL nglGetFreeMemory() {
+    // MEMORYSTATUS, left uninitialized like the original; dwAvailPhys at +0xc.
+    uint32_t status[8];
+    title_function<void XB_STDCALL(uint32_t*)>(0x001e7c35)(status);  // GlobalMemoryStatus
+    return status[3];
+}
+
+NglTexture* XB_CDECL nglGetFrontBufferTexture() {
+    // The texture's D3D surface slot (0x00902d0c) gets the current front buffer.
+    uint32_t* slot = title_global<uint32_t*>(0x00902d0c);
+    title_function<uint32_t XB_STDCALL(uint32_t)>(0x003e7ef0)(*slot);  // D3DResource_Release
+    *title_global<uint32_t*>(0x00902d0c) = title_function<uint32_t XB_STDCALL(int32_t)>(0x003e5720)(-1);  // GetBackBuffer2
+    return &title_global<NglTexture>(0x00902cd8);
+}
+
+NglTexture* XB_CDECL nglGetBackBufferTexture() {
+    uint32_t* slot = title_global<uint32_t*>(0x00902d84);
+    title_function<uint32_t XB_STDCALL(uint32_t)>(0x003e7ef0)(*slot);  // D3DResource_Release
+    *title_global<uint32_t*>(0x00902d84) = title_function<uint32_t XB_STDCALL(int32_t)>(0x003e5720)(0);  // GetBackBuffer2
+    return &title_global<NglTexture>(0x00902d50);
+}
+
+void XB_CDECL nglResetDeviceBindings() {
+    title_global<uint32_t>(0x00903c88) = 0;
+    title_global<uint32_t>(0x00903c8c) = 0;
+    title_global<uint32_t>(0x00903c90) = 0;
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    nglUnbindTextures();
+    title_function<void XB_CDECL()>(0x003e6200)();
+    title_global<uint32_t>(0x009028e0) += 2;  // ngl_frameCount
+}
+
+void XB_THISCALL nglVertexBuffer_Destroy(uint32_t* buffer) {
+    // {memory, size, D3D vertex buffer}
+    title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(buffer[2]);  // D3DResource_BlockUntilNotBusy
+    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffer[2]);    // Mem_AlignedFree
+    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffer[0]);
+    buffer[0] = 0;
+    buffer[1] = 0;
+    buffer[2] = 0;
+}
+
+void XB_CDECL nglTexture_Lock(NglTexture* texture, uint32_t flags) {
+    uint8_t* t = reinterpret_cast<uint8_t*>(texture);
+    using LockRect = void XB_STDCALL(uint8_t*, uint32_t, uint8_t*, uint32_t, uint32_t);
+    title_function<LockRect>(0x003ebd40)(texture->d3d_texture, 0, t + 0x1c, 0, flags);  // D3DTexture_LockRect
+    if (texture->flags & 0x100) {
+        // Swizzled: set up the swizzler (0x00902b38) for width (+0x10) x height (+0x14).
+        using SwizzlerInit = void XB_THISCALL(uint32_t, uint32_t, uint32_t, uint32_t);
+        title_function<SwizzlerInit>(0x003f9a3e)(0x00902b38, *reinterpret_cast<uint32_t*>(t + 0x10),
+                                                 *reinterpret_cast<uint32_t*>(t + 0x14), 0);
+    }
+}
+
+void XB_THISCALL nglVertexBuffer_Free(uint32_t* buffer, uint32_t protect) {
+    // Frees the D3D object only; the memory gets the protection `protect` when nonzero.
+    title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(buffer[2]);  // D3DResource_BlockUntilNotBusy
+    if (protect) title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e76aa)(buffer[0], buffer[1], protect);  // XPhysicalProtect
+    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffer[2]);  // Mem_AlignedFree
+    buffer[1] = 0;
+    buffer[2] = 0;
+}
+
+void XB_CDECL nglFreeFileBuffer(uint32_t* buffer) {
+    // An installed free hook (0x009098dc) takes the whole buffer; else the count of
+    // live buffers drops and the memory goes to the second hook (0x009098ec), or to
+    // XPhysicalFree (physical memory: the address's top bit set) or _aligned_free.
+    using Free = void XB_CDECL(uint32_t);
+    if (const uint32_t hook = title_global<uint32_t>(0x009098dc)) {
+        title_function<void XB_CDECL(uint32_t*)>(hook)(buffer);
+        return;
+    }
+    const uint32_t memory = *buffer;
+    --title_global<int32_t>(0x009098c4);
+    if (const uint32_t hook = title_global<uint32_t>(0x009098ec)) {
+        title_function<Free>(hook)(memory);
+        return;
+    }
+    if (static_cast<int32_t>(memory) < 0) {
+        title_function<void XB_STDCALL(uint32_t)>(0x001e76ba)(memory);  // XPhysicalFree
+        return;
+    }
+    title_function<Free>(0x001f113a)(memory);  // _aligned_free
+}
+
+void XB_CDECL nglFreePalette(uint32_t* palette) {
+    // {entries, -, borrowed entries flag (byte +8), D3D palette}
+    if (!palette) return;
+    title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(palette[3]);  // D3DResource_BlockUntilNotBusy
+    nglUnbindTextures();
+    using Free = void XB_CDECL(uint32_t);
+    if (!reinterpret_cast<uint8_t*>(palette)[8]) {
+        title_function<Free>(0x000939b0)(palette[0]);  // Mem_AlignedFree
+        palette[0] = 0;
+    }
+    title_function<Free>(0x000939b0)(palette[3]);
+    palette[3] = 0;
+    title_function<Free>(0x000939b0)(address_of(palette));
+}
+
+void XB_THISCALL nglRegisterTexture(NglTexture* texture, uint32_t data) {
+    // Points the D3D resource (+0x34 for a surface, flag 0x2000; else the texture at
+    // +0x30) at `data`, with a reference count of 1 and its type bits.
+    uint8_t* t = reinterpret_cast<uint8_t*>(texture);
+    const bool surface = texture->flags & 0x2000;
+    uint32_t* resource = *reinterpret_cast<uint32_t**>(t + (surface ? 0x34 : 0x30));
+    resource[2] = 0;
+    title_function<void XB_STDCALL(uint32_t*, uint32_t)>(0x003e7fd0)(resource, data);  // D3DResource_Register
+    resource = *reinterpret_cast<uint32_t**>(t + (surface ? 0x34 : 0x30));
+    resource[0] = surface ? 0x00050001 : 0x00040001;
+    *reinterpret_cast<uint32_t*>(t + 0x24) = data;
+}
+
+void XB_THISCALL nglReleaseTextureMemory(NglTexture* texture) {
+    // Frees the pixel memory (+0x24) unless borrowed (flag 0x400) and detaches it from
+    // the D3D resource (surface +0x34 with flag 0x2000, else the texture +0x30).
+    uint8_t* t = reinterpret_cast<uint8_t*>(texture);
+    uint32_t& memory = *reinterpret_cast<uint32_t*>(t + 0x24);
+    if (!memory) return;
+    const uint32_t resource_offset = (texture->flags & 0x2000) ? 0x34 : 0x30;
+    nglUnbindTextures();
+    if (!(texture->flags & 0x400)) title_function<void XB_CDECL(uint32_t)>(0x000939b0)(memory);  // Mem_AlignedFree
+    uint32_t* resource = *reinterpret_cast<uint32_t**>(t + resource_offset);
+    memory = 0;
+    resource[1] = 0;
+}
+
+void XB_CDECL nglSetRenderTargetCached(NglTexture* target, uint32_t level, NglTexture* depth, uint32_t face) {
+    // The colour surface: level `level` of the target's surface list (+0x34), or of
+    // its face list `face` (cube maps; 6 = not a cube). The depth surface: `depth`'s,
+    // else the target's own depth texture's (+0x38), else none.
+    uint8_t* t = reinterpret_cast<uint8_t*>(target);
+    const uint32_t* surfaces = face == 6 ? *reinterpret_cast<uint32_t* const*>(t + 0x34)
+                                         : (*reinterpret_cast<uint32_t* const* const*>(t + 0x34))[face];
+    const uint32_t color = surfaces[level];
+    uint32_t depth_surface = 0;
+    if (depth) {
+        depth_surface = *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(depth) + 0x34);
+    } else if (const uint8_t* own = *reinterpret_cast<uint8_t* const*>(t + 0x38)) {
+        depth_surface = *reinterpret_cast<const uint32_t*>(own + 0x34);
+    }
+    uint32_t& cached_color = title_global<uint32_t>(0x00903c80);
+    uint32_t& cached_depth = title_global<uint32_t>(0x00903c84);
+    if (cached_color == color && cached_depth == depth_surface) {
+        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e55b0)(cached_color, cached_depth, 0);  // SetRenderTargetFast
+    } else {
+        title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e52b0)(color, depth_surface);  // SetRenderTarget
+    }
+    cached_color = color;
+    cached_depth = depth_surface;
+}
+
+uint32_t XB_CDECL nglTextureGetPixel(const NglTexture* texture, uint32_t x, uint32_t y) {
+    // 32-bit pixels at +0x20: linear (flag 0x200) with the pitch at +0x1c, else
+    // swizzled through the swizzler (0x00902b38) and the masks of nglTexture_Lock.
+    const uint8_t* t = reinterpret_cast<const uint8_t*>(texture);
+    const uint8_t* pixels = *reinterpret_cast<uint8_t* const*>(t + 0x20);
+    if (texture->flags & 0x200)
+        return reinterpret_cast<const uint32_t*>(pixels + *reinterpret_cast<const uint32_t*>(t + 0x1c) * y)[x];
+    title_global<uint32_t>(0x00902b50) = 0;
+    title_global<uint32_t>(0x00902b54) = 0;
+    using Swizzle = uint32_t XB_THISCALL(uint32_t, uint32_t);
+    uint32_t v = title_function<Swizzle>(0x003f9ac8)(0x00902b38, y);  // Swizzler_SwizzleV
+    uint32_t u = title_function<Swizzle>(0x003f9a9f)(0x00902b38, x);  // Swizzler_SwizzleU
+    const uint32_t mask_x = title_global<uint32_t>(0x00902b44), mask_y = title_global<uint32_t>(0x00902b48);
+    u = (0u - ((0u - u) & mask_x)) & mask_x;
+    v = (0u - ((0u - v) & mask_y)) & mask_y;
+    title_global<uint32_t>(0x00902b54) = v;
+    title_global<uint32_t>(0x00902b50) = u;
+    return reinterpret_cast<const uint32_t*>(pixels)[v | u];
+}
+
+void XB_CDECL nglInitDepthTextureView() {
+    // A linear A8R8G8B8 (0x12) texture header (0x00902e50) over the depth buffer's
+    // memory, the back buffer's size; the view texture (0x00902e88) gets the same
+    // size fields as the back-buffer texture (0x00902d60/64) and the header.
+    const uint32_t width = title_global<uint32_t>(0x00902dd8);
+    using SetHeader = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    title_function<SetHeader>(0x003f9994)(width, title_global<uint32_t>(0x00902ddc), 1, 0, 0x12, 0, 0x00902e50,
+                                          title_global<uint32_t*>(0x00902dfc)[1], width * 4);  // XGSetTextureHeader
+    title_global<uint32_t>(0x00902ea8) = 0x00902e50;
+    title_global<uint32_t>(0x00902e88) = title_global<uint32_t>(0x00902d60);
+    title_global<uint32_t>(0x00902e8c) = title_global<uint32_t>(0x00902d64);
+}
+
+void XB_CDECL nglListAddTextf(const uint8_t* font, float x, float y, float z, uint32_t color, float scale_x,
+                              float scale_y, const char* format, ...) {
+    char text[0x400];
+    va_list args;
+    va_start(args, format);
+    title_function<int XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    va_end(args);
+    nglListAddText(font, text, x, y, z, color, scale_x, scale_y);
+}
+
+void XB_CDECL nglQuadBatch_Draw() {
+    // Draws the quads written since the last draw (count 0x00909f30) from the current
+    // buffer (index 0x00909f2c: vertex bases 0x00909f20, starts 0x00909f18), then
+    // advances the index start (0x00909f38), the write pointer (0x00909f3c, 0x60 bytes
+    // a quad) and the frame's quad count (0x00909f48), and keeps the high-water mark
+    // of quads used in a buffer (0x00909f40).
+    const uint32_t buffer = title_global<uint32_t>(0x00909f2c);
+    nglSetVertexStreams(title_global<const uint8_t* [2]>(0x00909f20)[buffer], 0x18, 0);
+    const uint8_t* indices = *title_global<uint8_t**>(0x00909f28) + title_global<int32_t>(0x00909f38) * 2;
+    using Draw = void XB_STDCALL(uint32_t, uint32_t, const uint8_t*);
+    title_function<Draw>(0x003e9990)(5, title_global<int32_t>(0x00909f30) * 6, indices);  // DrawIndexedVertices, triangle list
+    const int32_t quads = title_global<int32_t>(0x00909f30);
+    title_global<int32_t>(0x00909f38) += quads * 6;
+    title_global<int32_t>(0x00909f48) += quads;
+    int32_t& write = title_global<int32_t>(0x00909f3c);
+    write += quads * 0x60;
+    const int32_t used = (write - title_global<int32_t[2]>(0x00909f18)[title_global<uint32_t>(0x00909f2c)]) / 0x18 / 4;
+    if (used > title_global<int32_t>(0x00909f40)) title_global<int32_t>(0x00909f40) = used;
 }
 
 }  // namespace game

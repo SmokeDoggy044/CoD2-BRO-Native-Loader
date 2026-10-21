@@ -8,6 +8,7 @@ set(game_code_sources
     ngl.cpp
     script_string.cpp
     shaders.cpp
+    stream.cpp
     tr_main.cpp
     unzip.cpp
 )
