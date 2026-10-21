@@ -4845,22 +4845,22 @@ address,name,kind,confidence,evidence
 001957e0,ScrField_hc786fa48,function,medium,"entity script-field accessor, key hash 0xc786fa48 not reversed yet: &ent.<0xc786fa48>, inserted as undefined when missing"
 0018fe60,ScrField_haff9c3b8,function,medium,"entity script-field accessor, key hash 0xaff9c3b8 not reversed yet: &ent.<0xaff9c3b8>, inserted as undefined when missing"
 00196c70,ScrField_h6937c3b9,function,medium,"entity script-field accessor, key hash 0x6937c3b9 not reversed yet: &ent.<0x6937c3b9>, inserted as undefined when missing"
-001951f0,ScrField_h2861269a,function,medium,"entity script-field accessor, key hash 0x2861269a not reversed yet: &ent.<0x2861269a>, inserted as undefined when missing"
-001a3e30,ScrField_h66a44409,function,medium,"entity script-field accessor, key hash 0x66a44409 not reversed yet: &ent.<0x66a44409>, inserted as undefined when missing"
+001951f0,ScrField_hasweapon,function,medium,"entity script-field accessor, key = HashKeyNoCase(hasweapon) (recovered from the hash): &ent.hasweapon, inserted as undefined when missing"
+001a3e30,ScrField_anim_combatrunanim,function,medium,"entity script-field accessor, key = HashKeyNoCase(anim_combatrunanim) (recovered from the hash, three-part guess): &ent.anim_combatrunanim, inserted as undefined when missing"
 001a4010,ScrField_h93348a05,function,medium,"entity script-field accessor, key hash 0x93348a05 not reversed yet: &ent.<0x93348a05>, inserted as undefined when missing"
-001a42c0,ScrField_h682ea6e9,function,medium,"entity script-field accessor, key hash 0x682ea6e9 not reversed yet: &ent.<0x682ea6e9>, inserted as undefined when missing"
+001a42c0,ScrField_anim_crouchrunanim,function,medium,"entity script-field accessor, key = HashKeyNoCase(anim_crouchrunanim) (recovered from the hash, three-part guess): &ent.anim_crouchrunanim, inserted as undefined when missing"
 001920a0,ScrField_h77123d19,function,medium,"entity script-field accessor, key hash 0x77123d19 not reversed yet: &ent.<0x77123d19>, inserted as undefined when missing"
 001929d0,ScrField_hed6f4ccc,function,medium,"entity script-field accessor, key hash 0xed6f4ccc not reversed yet: &ent.<0xed6f4ccc>, inserted as undefined when missing"
-001930a0,ScrField_h2d4a70b5,function,medium,"entity script-field accessor, key hash 0x2d4a70b5 not reversed yet: &ent.<0x2d4a70b5>, inserted as undefined when missing"
+001930a0,ScrField_script_suppression,function,medium,"entity script-field accessor, key = HashKeyNoCase(script_suppression) (recovered from the hash): &ent.script_suppression, inserted as undefined when missing"
 00194de0,ScrField_h77123c0f,function,medium,"entity script-field accessor, key hash 0x77123c0f not reversed yet: &ent.<0x77123c0f>, inserted as undefined when missing"
 00194e80,ScrField_h6a80ec39,function,medium,"entity script-field accessor, key hash 0x6a80ec39 not reversed yet: &ent.<0x6a80ec39>, inserted as undefined when missing"
 001967e0,ScrField_h66db43f0,function,medium,"entity script-field accessor, key hash 0x66db43f0 not reversed yet: &ent.<0x66db43f0>, inserted as undefined when missing"
 001353d0,ScrField_h2d7db3f6,function,medium,"entity script-field accessor, key hash 0x2d7db3f6 not reversed yet: &ent.<0x2d7db3f6>, inserted as undefined when missing"
-001352d0,ScrField_h9af3e4c4_IsDefined,function,medium,"entity script-field accessor, key hash 0x9af3e4c4 not reversed yet: isdefined(ent.<0x9af3e4c4>)"
-001933f0,ScrField_hcbfba6d8,function,medium,"entity script-field accessor, key hash 0xcbfba6d8 not reversed yet: &ent.<0xcbfba6d8>, inserted as undefined when missing"
-001968c0,ScrField_h02f1dfc6,function,medium,"entity script-field accessor, key hash 0x02f1dfc6 not reversed yet: &ent.<0x02f1dfc6>, inserted as undefined when missing"
-0012d900,ScrField_h2f68c7a5_IsDefined,function,medium,"entity script-field accessor, key hash 0x2f68c7a5 not reversed yet: isdefined(ent.<0x2f68c7a5>)"
-0012d8b0,ScrField_h2f68c7a5,function,medium,"entity script-field accessor, key hash 0x2f68c7a5 not reversed yet: &ent.<0x2f68c7a5>, inserted as undefined when missing"
+001352d0,ScrField_currentanim_IsDefined,function,medium,"entity script-field accessor, key = HashKeyNoCase(currentanim) (recovered from the hash): isdefined(ent.currentanim)"
+001933f0,ScrField_script_offradius,function,medium,"entity script-field accessor, key = HashKeyNoCase(script_offradius) (recovered from the hash): &ent.script_offradius, inserted as undefined when missing"
+001968c0,ScrField_script_offtime,function,medium,"entity script-field accessor, key = HashKeyNoCase(script_offtime) (recovered from the hash): &ent.script_offtime, inserted as undefined when missing"
+0012d900,ScrField_mgturret_IsDefined,function,medium,"entity script-field accessor, key = HashKeyNoCase(mgturret) (recovered from the hash): isdefined(ent.mgturret)"
+0012d8b0,ScrField_mgturret,function,medium,"entity script-field accessor, key = HashKeyNoCase(mgturret) (recovered from the hash): &ent.mgturret, inserted as undefined when missing"
 001944f0,ScrField_h629afc27,function,medium,"entity script-field accessor, key hash 0x629afc27 not reversed yet: &ent.<0x629afc27>, inserted as undefined when missing"
 0012ce20,ScrField_h0718b2c3,function,medium,"entity script-field accessor, key hash 0x0718b2c3 not reversed yet: &ent.<0x0718b2c3>, inserted as undefined when missing"
 00129350,ScrField_h19738af8,function,medium,"entity script-field accessor, key hash 0x19738af8 not reversed yet: &ent.<0x19738af8>, inserted as undefined when missing"
@@ -4868,7 +4868,7 @@ address,name,kind,confidence,evidence
 0012b970,ScrField_h384ad510,function,medium,"entity script-field accessor, key hash 0x384ad510 not reversed yet: &ent.<0x384ad510>, inserted as undefined when missing"
 0012ec30,ScrField_h095a5675,function,medium,"entity script-field accessor, key hash 0x095a5675 not reversed yet: &ent.<0x095a5675>, inserted as undefined when missing"
 001970c0,ScrField_h8177124f,function,medium,"entity script-field accessor, key hash 0x8177124f not reversed yet: &ent.<0x8177124f>, inserted as undefined when missing"
-001981d0,ScrField_h7954a99e,function,medium,"entity script-field accessor, key hash 0x7954a99e not reversed yet: &ent.<0x7954a99e>, inserted as undefined when missing"
+001981d0,ScrField_script_min_friendlies,function,medium,"entity script-field accessor, key = HashKeyNoCase(script_min_friendlies) (recovered from the hash, three-part guess): &ent.script_min_friendlies, inserted as undefined when missing"
 00129bc0,ScrField_h8166d37c,function,medium,"entity script-field accessor, key hash 0x8166d37c not reversed yet: &ent.<0x8166d37c>, inserted as undefined when missing"
 00129ed0,ScrField_ha22fa6ba,function,medium,"entity script-field accessor, key hash 0xa22fa6ba not reversed yet: &ent.<0xa22fa6ba>, inserted as undefined when missing"
 0012a9e0,ScrField_h35ee66af,function,medium,"entity script-field accessor, key hash 0x35ee66af not reversed yet: &ent.<0x35ee66af>, inserted as undefined when missing"
@@ -4899,7 +4899,7 @@ address,name,kind,confidence,evidence
 00196a40,ScrField_h9a44df1e,function,medium,"entity script-field accessor, key hash 0x9a44df1e not reversed yet: &ent.<0x9a44df1e>, inserted as undefined when missing"
 00198490,ScrField_h9cad0b77,function,medium,"entity script-field accessor, key hash 0x9cad0b77 not reversed yet: &ent.<0x9cad0b77>, inserted as undefined when missing"
 00194140,ScrField_h60a41c54,function,medium,"entity script-field accessor, key hash 0x60a41c54 not reversed yet: &ent.<0x60a41c54>, inserted as undefined when missing"
-001959a0,ScrField_h8cb5047a,function,medium,"entity script-field accessor, key hash 0x8cb5047a not reversed yet: &ent.<0x8cb5047a>, inserted as undefined when missing"
+001959a0,ScrField_desired_anim_pose,function,medium,"entity script-field accessor, key = HashKeyNoCase(desired_anim_pose) (recovered from the hash, three-part guess): &ent.desired_anim_pose, inserted as undefined when missing"
 00194b70,ScrField_h73623f0d,function,medium,"entity script-field accessor, key hash 0x73623f0d not reversed yet: &ent.<0x73623f0d>, inserted as undefined when missing"
 001943b0,ScrField_h31aaf853,function,medium,"entity script-field accessor, key hash 0x31aaf853 not reversed yet: &ent.<0x31aaf853>, inserted as undefined when missing"
 00194400,ScrField_h31aaf853_IsDefined,function,medium,"entity script-field accessor, key hash 0x31aaf853 not reversed yet: isdefined(ent.<0x31aaf853>)"
@@ -4908,16 +4908,16 @@ address,name,kind,confidence,evidence
 0018f650,ScrField_h236fc839_IsDefined,function,medium,"entity script-field accessor, key hash 0x236fc839 not reversed yet: isdefined(ent.<0x236fc839>)"
 00191920,ScrField_h01757a0e,function,medium,"entity script-field accessor, key hash 0x01757a0e not reversed yet: &ent.<0x01757a0e>, inserted as undefined when missing"
 001a4050,ScrField_h93348a05_IsDefined,function,medium,"entity script-field accessor, key hash 0x93348a05 not reversed yet: isdefined(ent.<0x93348a05>)"
-001a4400,ScrField_h230139de,function,medium,"entity script-field accessor, key hash 0x230139de not reversed yet: &ent.<0x230139de>, inserted as undefined when missing"
-001a4440,ScrField_h230139de_IsDefined,function,medium,"entity script-field accessor, key hash 0x230139de not reversed yet: isdefined(ent.<0x230139de>)"
+001a4400,ScrField_run_combatanim,function,medium,"entity script-field accessor, key = HashKeyNoCase(run_combatanim) (recovered from the hash, three-part guess): &ent.run_combatanim, inserted as undefined when missing"
+001a4440,ScrField_run_combatanim_IsDefined,function,medium,"entity script-field accessor, key = HashKeyNoCase(run_combatanim) (recovered from the hash, three-part guess): isdefined(ent.run_combatanim)"
 00196320,ScrField_h7b1e85ba,function,medium,"entity script-field accessor, key hash 0x7b1e85ba not reversed yet: &ent.<0x7b1e85ba>, inserted as undefined when missing"
 0018fa70,ScrField_h03375c37,function,medium,"entity script-field accessor, key hash 0x03375c37 not reversed yet: &ent.<0x03375c37>, inserted as undefined when missing"
 001937b0,ScrField_hfd6181bd,function,medium,"entity script-field accessor, key hash 0xfd6181bd not reversed yet: &ent.<0xfd6181bd>, inserted as undefined when missing"
 001947b0,ScrField_haa35a0b5,function,medium,"entity script-field accessor, key hash 0xaa35a0b5 not reversed yet: &ent.<0xaa35a0b5>, inserted as undefined when missing"
 00194ad0,ScrField_h257acba4,function,medium,"entity script-field accessor, key hash 0x257acba4 not reversed yet: &ent.<0x257acba4>, inserted as undefined when missing"
 00196f80,ScrField_hbb50e708,function,medium,"entity script-field accessor, key hash 0xbb50e708 not reversed yet: &ent.<0xbb50e708>, inserted as undefined when missing"
-001a40f0,ScrField_hb1812439_IsDefined,function,medium,"entity script-field accessor, key hash 0xb1812439 not reversed yet: isdefined(ent.<0xb1812439>)"
-001a43a0,ScrField_h9a7145f5_IsDefined,function,medium,"entity script-field accessor, key hash 0x9a7145f5 not reversed yet: isdefined(ent.<0x9a7145f5>)"
+001a40f0,ScrField_walk_combatanim_IsDefined,function,medium,"entity script-field accessor, key = HashKeyNoCase(walk_combatanim) (recovered from the hash, three-part guess): isdefined(ent.walk_combatanim)"
+001a43a0,ScrField_standanim_IsDefined,function,medium,"entity script-field accessor, key = HashKeyNoCase(standanim) (recovered from the hash): isdefined(ent.standanim)"
 001a44e0,ScrField_h9dc74345_IsDefined,function,medium,"entity script-field accessor, key hash 0x9dc74345 not reversed yet: isdefined(ent.<0x9dc74345>)"
 00197e20,ScrField_ha31c116e,function,medium,"entity script-field accessor, key hash 0xa31c116e not reversed yet: &ent.<0xa31c116e>, inserted as undefined when missing"
 00192f60,ScrField_h32222d6e,function,medium,"entity script-field accessor, key hash 0x32222d6e not reversed yet: &ent.<0x32222d6e>, inserted as undefined when missing"
@@ -4931,7 +4931,7 @@ address,name,kind,confidence,evidence
 001950a0,ScrField_hbe944753,function,medium,"entity script-field accessor, key hash 0xbe944753 not reversed yet: &ent.<0xbe944753>, inserted as undefined when missing"
 00197990,ScrField_had8f34a0,function,medium,"entity script-field accessor, key hash 0xad8f34a0 not reversed yet: &ent.<0xad8f34a0>, inserted as undefined when missing"
 0018e820,ScrField_h8ef2ad7c,function,medium,"entity script-field accessor, key hash 0x8ef2ad7c not reversed yet: &ent.<0x8ef2ad7c>, inserted as undefined when missing"
-00197f50,ScrField_h32292cf8,function,medium,"entity script-field accessor, key hash 0x32292cf8 not reversed yet: &ent.<0x32292cf8>, inserted as undefined when missing"
+00197f50,ScrField_anim_woundedtime,function,medium,"entity script-field accessor, key = HashKeyNoCase(anim_woundedtime) (recovered from the hash): &ent.anim_woundedtime, inserted as undefined when missing"
 001a3f70,ScrField_h66973bee,function,medium,"entity script-field accessor, key hash 0x66973bee not reversed yet: &ent.<0x66973bee>, inserted as undefined when missing"
 001a3fb0,ScrField_h66973bee_IsDefined,function,medium,"entity script-field accessor, key hash 0x66973bee not reversed yet: isdefined(ent.<0x66973bee>)"
 00197c10,ScrField_h77749be9,function,medium,"entity script-field accessor, key hash 0x77749be9 not reversed yet: &ent.<0x77749be9>, inserted as undefined when missing"
@@ -4940,14 +4940,14 @@ address,name,kind,confidence,evidence
 0018e510,ScrField_h18cd6af8,function,medium,"entity script-field accessor, key hash 0x18cd6af8 not reversed yet: &ent.<0x18cd6af8>, inserted as undefined when missing"
 00191290,ScrField_hec299128,function,medium,"entity script-field accessor, key hash 0xec299128 not reversed yet: &ent.<0xec299128>, inserted as undefined when missing"
 00198850,ScrField_h88c31fb5,function,medium,"entity script-field accessor, key hash 0x88c31fb5 not reversed yet: &ent.<0x88c31fb5>, inserted as undefined when missing"
-001a3ed0,ScrField_haeb1527d,function,medium,"entity script-field accessor, key hash 0xaeb1527d not reversed yet: &ent.<0xaeb1527d>, inserted as undefined when missing"
+001a3ed0,ScrField_deathanim,function,medium,"entity script-field accessor, key = HashKeyNoCase(deathanim) (recovered from the hash): &ent.deathanim, inserted as undefined when missing"
 00191150,ScrField_h6067ece3,function,medium,"entity script-field accessor, key hash 0x6067ece3 not reversed yet: &ent.<0x6067ece3>, inserted as undefined when missing"
 0012b790,ScrField_hc3f4bdfc,function,medium,"entity script-field accessor, key hash 0xc3f4bdfc not reversed yet: &ent.<0xc3f4bdfc>, inserted as undefined when missing"
 0012ef10,ScrField_he29137e5,function,medium,"entity script-field accessor, key hash 0xe29137e5 not reversed yet: &ent.<0xe29137e5>, inserted as undefined when missing"
 0012fd50,ScrField_can_shoot_low_2,function,high,"entity script-field accessor, key = HashKeyNoCase(""can_shoot_low"") (name recovered from the hash): &ent.<0x185dadca>, inserted as undefined when missing"
 00470420,ScrField_he3889522_ORAN,function,medium,"entity script-field accessor, key hash 0xe3889522 not reversed yet: &ent.<0xe3889522>, inserted as undefined when missing"
-00470010,ScrField_h1e04c0eb_ORAN,function,medium,"entity script-field accessor, key hash 0x1e04c0eb not reversed yet: &ent.<0x1e04c0eb>, inserted as undefined when missing"
-00470060,ScrField_h1e04c0eb_IsDefined_ORAN,function,medium,"entity script-field accessor, key hash 0x1e04c0eb not reversed yet: isdefined(ent.<0x1e04c0eb>)"
+00470010,ScrField_chase_target_ORAN,function,medium,"entity script-field accessor, key = HashKeyNoCase(chase_target) (recovered from the hash): &ent.chase_target, inserted as undefined when missing"
+00470060,ScrField_chase_target_IsDefined_ORAN,function,medium,"entity script-field accessor, key = HashKeyNoCase(chase_target) (recovered from the hash): isdefined(ent.chase_target)"
 00470100,ScrField_h85ae1ddc_ORAN,function,medium,"entity script-field accessor, key hash 0x85ae1ddc not reversed yet: &ent.<0x85ae1ddc>, inserted as undefined when missing"
 00470140,ScrField_h85ae1ddc_IsDefined_ORAN,function,medium,"entity script-field accessor, key hash 0x85ae1ddc not reversed yet: isdefined(ent.<0x85ae1ddc>)"
 00470290,ScrField_h44af95a3_ORAN,function,medium,"entity script-field accessor, key hash 0x44af95a3 not reversed yet: &ent.<0x44af95a3>, inserted as undefined when missing"
@@ -4967,14 +4967,14 @@ address,name,kind,confidence,evidence
 004f2e90,ScrField_hc8ce86d6_KASSPASS,function,medium,"entity script-field accessor, key hash 0xc8ce86d6 not reversed yet: &ent.<0xc8ce86d6>, inserted as undefined when missing"
 00129e30,ScrField_h56aed3da,function,medium,"entity script-field accessor, key hash 0x56aed3da not reversed yet: &ent.<0x56aed3da>, inserted as undefined when missing"
 0012ec70,ScrField_h086550be,function,medium,"entity script-field accessor, key hash 0x086550be not reversed yet: &ent.<0x086550be>, inserted as undefined when missing"
-00134e60,ScrField_h2f68c7a5_2,function,medium,"entity script-field accessor, key hash 0x2f68c7a5 not reversed yet: &ent.<0x2f68c7a5>, inserted as undefined when missing"
-0012a620,ScrField_h6e688ecd,function,medium,"entity script-field accessor, key hash 0x6e688ecd not reversed yet: &ent.<0x6e688ecd>, inserted as undefined when missing"
+00134e60,ScrField_mgturret_2,function,medium,"entity script-field accessor, key = HashKeyNoCase(mgturret) (recovered from the hash): &ent.mgturret, inserted as undefined when missing"
+0012a620,ScrField_startenemy,function,medium,"entity script-field accessor, key = HashKeyNoCase(startenemy) (recovered from the hash): &ent.startenemy, inserted as undefined when missing"
 004f3120,ScrField_hfd2768ea_IsDefined_KASSPASS,function,medium,"entity script-field accessor, key hash 0xfd2768ea not reversed yet: isdefined(ent.<0xfd2768ea>)"
 00195150,ScrField_had6d6fd5,function,medium,"entity script-field accessor, key hash 0xad6d6fd5 not reversed yet: &ent.<0xad6d6fd5>, inserted as undefined when missing"
 00537730,ScrField_hf928fa88_KASSRINE,function,medium,"entity script-field accessor, key hash 0xf928fa88 not reversed yet: &ent.<0xf928fa88>, inserted as undefined when missing"
 00537780,ScrField_ha1635522_KASSRINE,function,medium,"entity script-field accessor, key hash 0xa1635522 not reversed yet: &ent.<0xa1635522>, inserted as undefined when missing"
 00195b80,ScrField_hce8a66f4,function,medium,"entity script-field accessor, key hash 0xce8a66f4 not reversed yet: &ent.<0xce8a66f4>, inserted as undefined when missing"
-0056ac20,ScrField_h83353d6b_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x83353d6b not reversed yet: &ent.<0x83353d6b>, inserted as undefined when missing"
+0056ac20,ScrField_bombpitch_LIBEATOR,function,medium,"entity script-field accessor, key = HashKeyNoCase(bombpitch) (recovered from the hash): &ent.bombpitch, inserted as undefined when missing"
 0056aed0,ScrField_hc51bb6d1_LIBEATOR,function,medium,"entity script-field accessor, key hash 0xc51bb6d1 not reversed yet: &ent.<0xc51bb6d1>, inserted as undefined when missing"
 0056a9c0,ScrField_h06ed1731_IsDefined_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x06ed1731 not reversed yet: isdefined(ent.<0x06ed1731>)"
 0056aab0,ScrField_h06ed1732_IsDefined_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x06ed1732 not reversed yet: isdefined(ent.<0x06ed1732>)"
@@ -4989,7 +4989,7 @@ address,name,kind,confidence,evidence
 0056bbf0,ScrField_h00000c44_IsDefined_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x00000c44 not reversed yet: isdefined(ent.<0x00000c44>)"
 0056a8e0,ScrField_h49aa371a_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x49aa371a not reversed yet: &ent.<0x49aa371a>, inserted as undefined when missing"
 0056b770,ScrField_h9eab50e1_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x9eab50e1 not reversed yet: &ent.<0x9eab50e1>, inserted as undefined when missing"
-0056b940,ScrField_h56615e5c_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x56615e5c not reversed yet: &ent.<0x56615e5c>, inserted as undefined when missing"
+0056b940,ScrField_curhealth_LIBEATOR,function,medium,"entity script-field accessor, key = HashKeyNoCase(curhealth) (recovered from the hash): &ent.curhealth, inserted as undefined when missing"
 0056baf0,ScrField_h890b89de_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x890b89de not reversed yet: &ent.<0x890b89de>, inserted as undefined when missing"
 0056b060,ScrField_h58d2a901_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x58d2a901 not reversed yet: &ent.<0x58d2a901>, inserted as undefined when missing"
 0056b0b0,ScrField_h58d2a901_IsDefined_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x58d2a901 not reversed yet: isdefined(ent.<0x58d2a901>)"
@@ -5000,7 +5000,7 @@ address,name,kind,confidence,evidence
 0056b6c0,ScrField_hd41bea7e_IsDefined_LIBEATOR,function,medium,"entity script-field accessor, key hash 0xd41bea7e not reversed yet: isdefined(ent.<0xd41bea7e>)"
 005c2760,ScrField_hc8ce86d6_GELA,function,medium,"entity script-field accessor, key hash 0xc8ce86d6 not reversed yet: &ent.<0xc8ce86d6>, inserted as undefined when missing"
 0061a730,ScrField_h881dcafa_PIANLUPO,function,medium,"entity script-field accessor, key hash 0x881dcafa not reversed yet: &ent.<0x881dcafa>, inserted as undefined when missing"
-0061a7b0,ScrField_h875c95e1_PIANLUPO,function,medium,"entity script-field accessor, key hash 0x875c95e1 not reversed yet: &ent.<0x875c95e1>, inserted as undefined when missing"
+0061a7b0,ScrField_old_runcombat_PIANLUPO,function,medium,"entity script-field accessor, key = HashKeyNoCase(old_runcombat) (recovered from the hash, three-part guess): &ent.old_runcombat, inserted as undefined when missing"
 006125f0,ScrField_h8ecbbb75_PIANLUPO,function,medium,"entity script-field accessor, key hash 0x8ecbbb75 not reversed yet: &ent.<0x8ecbbb75>, inserted as undefined when missing"
 00612640,ScrField_h8ecbbb75_IsDefined_PIANLUPO,function,medium,"entity script-field accessor, key hash 0x8ecbbb75 not reversed yet: isdefined(ent.<0x8ecbbb75>)"
 006127c0,ScrField_hfd2768ea_PIANLUPO,function,medium,"entity script-field accessor, key hash 0xfd2768ea not reversed yet: &ent.<0xfd2768ea>, inserted as undefined when missing"
@@ -5024,7 +5024,7 @@ address,name,kind,confidence,evidence
 0056b3e0,ScrField_hfd2768ea_LIBEATOR,function,medium,"entity script-field accessor, key hash 0xfd2768ea not reversed yet: &ent.<0xfd2768ea>, inserted as undefined when missing"
 0056b680,ScrField_hd41bea7e_LIBEATOR,function,medium,"entity script-field accessor, key hash 0xd41bea7e not reversed yet: &ent.<0xd41bea7e>, inserted as undefined when missing"
 0018ff40,ScrField_h0bfd0e20,function,medium,"entity script-field accessor, key hash 0x0bfd0e20 not reversed yet: &ent.<0x0bfd0e20>, inserted as undefined when missing"
-0018f750,ScrField_hc6c08c3f,function,medium,"entity script-field accessor, key hash 0xc6c08c3f not reversed yet: &ent.<0xc6c08c3f>, inserted as undefined when missing"
+0018f750,ScrField_script_vehiclegroup,function,medium,"entity script-field accessor, key = HashKeyNoCase(script_vehiclegroup) (recovered from the hash): &ent.script_vehiclegroup, inserted as undefined when missing"
 0012a6d0,ScrField_h7212d405,function,medium,"entity script-field accessor, key hash 0x7212d405 not reversed yet: &ent.<0x7212d405>, inserted as undefined when missing"
 0012d370,ScrField_h7212d513,function,medium,"entity script-field accessor, key hash 0x7212d513 not reversed yet: &ent.<0x7212d513>, inserted as undefined when missing"
 00196600,ScrField_h747cde6c,function,medium,"entity script-field accessor, key hash 0x747cde6c not reversed yet: &ent.<0x747cde6c>, inserted as undefined when missing"
@@ -5055,10 +5055,10 @@ address,name,kind,confidence,evidence
 001a4230,ScrField_h30248704_IsDefined,function,medium,"entity script-field accessor, key hash 0x30248704 not reversed yet: isdefined(ent.<0x30248704>)"
 001a4190,ScrField_h3d130364_IsDefined,function,medium,"entity script-field accessor, key hash 0x3d130364 not reversed yet: isdefined(ent.<0x3d130364>)"
 0056ef10,ScrField_h003768b8_LIBEATOR_2,function,medium,"entity script-field accessor, key hash 0x003768b8 not reversed yet: &ent.<0x003768b8>, inserted as undefined when missing"
-001a40b0,ScrField_hb1812439,function,medium,"entity script-field accessor, key hash 0xb1812439 not reversed yet: &ent.<0xb1812439>, inserted as undefined when missing"
+001a40b0,ScrField_walk_combatanim,function,medium,"entity script-field accessor, key = HashKeyNoCase(walk_combatanim) (recovered from the hash, three-part guess): &ent.walk_combatanim, inserted as undefined when missing"
 001911f0,ScrField_h05a82fed,function,medium,"entity script-field accessor, key hash 0x05a82fed not reversed yet: &ent.<0x05a82fed>, inserted as undefined when missing"
 00198270,ScrField_h27ed5a85,function,medium,"entity script-field accessor, key hash 0x27ed5a85 not reversed yet: &ent.<0x27ed5a85>, inserted as undefined when missing"
-001a3f10,ScrField_haeb1527d_IsDefined,function,medium,"entity script-field accessor, key hash 0xaeb1527d not reversed yet: isdefined(ent.<0xaeb1527d>)"
+001a3f10,ScrField_deathanim_IsDefined,function,medium,"entity script-field accessor, key = HashKeyNoCase(deathanim) (recovered from the hash): isdefined(ent.deathanim)"
 004701a0,ScrField_h2def95a4_ORAN,function,medium,"entity script-field accessor, key hash 0x2def95a4 not reversed yet: &ent.<0x2def95a4>, inserted as undefined when missing"
 00190110,ScrField_he057503b,function,medium,"entity script-field accessor, key hash 0xe057503b not reversed yet: &ent.<0xe057503b>, inserted as undefined when missing"
 006e08c0,ScrField_hed4f70c4_MONS1,function,medium,"entity script-field accessor, key hash 0xed4f70c4 not reversed yet: &ent.<0xed4f70c4>, inserted as undefined when missing"
@@ -5335,7 +5335,7 @@ address,name,kind,confidence,evidence
 00129c10,ScrField_h8166d37c_IsDefined,function,medium,isdefined(ent.h8166d37c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8166d37c) compared with undefined [section .text]
 00129cf0,ScrField_h2297b461_IsDefined,function,medium,isdefined(ent.h2297b461): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2297b461) compared with undefined [section .text]
 00129f20,ScrField_ha22fa6ba_IsDefined,function,medium,isdefined(ent.ha22fa6ba): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xa22fa6ba) compared with undefined [section .text]
-0012a140,ScrField_h78063481_IsDefined,function,medium,isdefined(ent.h78063481): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x78063481) compared with undefined [section .text]
+0012a140,ScrField_new_count_IsDefined,function,medium,isdefined(ent.new_count): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x78063481) compared with undefined [section .text]
 0012a1a0,ScrField_lead_pos,function,medium,"ent.h846e4eea (vector): GetEntScriptObject + ScriptKeyTable_Find(0x846e4eea), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
 0012a200,ScrField_lead_pos_IsDefined,function,medium,isdefined(ent.h846e4eea): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x846e4eea) compared with undefined [section .text]
 0012a2c0,ScrField_hcc045c84,function,medium,"ent.hcc045c84 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xcc045c84), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
@@ -5384,9 +5384,9 @@ address,name,kind,confidence,evidence
 0018efd0,ScrField_turret_use_time_IsDefined,function,high,isdefined(ent.turret_use_time): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x1751689c) compared with undefined; name recovered from the hash [section .text]
 0018f100,ScrField_script_panzer_IsDefined,function,high,isdefined(ent.script_panzer): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2663b762) compared with undefined; name recovered from the hash [section .text]
 0018f450,ScrField_script_exploder_IsDefined,function,high,isdefined(ent.script_exploder): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xf3b8dce5) compared with undefined; name recovered from the hash [section .text]
-0018f790,ScrField_hc6c08c3f_IsDefined,function,medium,isdefined(ent.hc6c08c3f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc6c08c3f) compared with undefined [section .text]
+0018f790,ScrField_script_vehiclegroup_IsDefined,function,medium,isdefined(ent.script_vehiclegroup): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc6c08c3f) compared with undefined [section .text]
 0018f8d0,ScrField_hce29c482_IsDefined,function,medium,isdefined(ent.hce29c482): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xce29c482) compared with undefined [section .text]
-0018f970,ScrField_hd66dcf8c_IsDefined,function,medium,isdefined(ent.hd66dcf8c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd66dcf8c) compared with undefined [section .text]
+0018f970,ScrField_drophealth_IsDefined,function,medium,isdefined(ent.drophealth): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd66dcf8c) compared with undefined [section .text]
 0018fab0,ScrField_h03375c37_IsDefined,function,medium,isdefined(ent.h03375c37): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x03375c37) compared with undefined [section .text]
 0018fb60,ScrField_script_delay_max_IsDefined,function,high,isdefined(ent.script_delay_max): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6c663f49) compared with undefined; name recovered from the hash [section .text]
 0018fcd0,ScrField_script_battle_IsDefined,function,medium,isdefined(ent.h026e8e55): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x026e8e55) compared with undefined [section .text]
@@ -5421,11 +5421,11 @@ address,name,kind,confidence,evidence
 00192bf0,ScrField_h4b1fafe5_IsDefined,function,medium,isdefined(ent.h4b1fafe5): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x4b1fafe5) compared with undefined [section .text]
 00192c90,ScrField_hbe5f9a9f_IsDefined,function,medium,isdefined(ent.hbe5f9a9f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xbe5f9a9f) compared with undefined [section .text]
 00192d30,ScrField_radius_IsDefined,function,high,isdefined(ent.radius): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xe223aad3) compared with undefined; name recovered from the hash [section .text]
-001930f0,ScrField_h2d4a70b5_IsDefined,function,medium,isdefined(ent.h2d4a70b5): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2d4a70b5) compared with undefined [section .text]
+001930f0,ScrField_script_suppression_IsDefined,function,medium,isdefined(ent.script_suppression): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2d4a70b5) compared with undefined [section .text]
 001931d0,ScrField_is_firing_IsDefined,function,high,isdefined(ent.is_firing): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0aa8c328) compared with undefined; name recovered from the hash [section .text]
 00193280,ScrField_h6e62eedd_IsDefined,function,medium,isdefined(ent.h6e62eedd): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6e62eedd) compared with undefined [section .text]
 00193360,ScrField_script_burst_max_IsDefined,function,high,isdefined(ent.script_burst_max): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc8b639ce) compared with undefined; name recovered from the hash [section .text]
-00193430,ScrField_hcbfba6d8_IsDefined,function,medium,isdefined(ent.hcbfba6d8): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xcbfba6d8) compared with undefined [section .text]
+00193430,ScrField_script_offradius_IsDefined,function,medium,isdefined(ent.script_offradius): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xcbfba6d8) compared with undefined [section .text]
 00193570,ScrField_script_random_IsDefined,function,medium,isdefined(ent.h2263ce3d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2263ce3d) compared with undefined [section .text]
 00193620,ScrField_finished_spawning_IsDefined,function,high,isdefined(ent.finished_spawning): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc0bb2676) compared with undefined; name recovered from the hash [section .text]
 001938e0,ScrField_hd91b375d,function,medium,"ent.hd91b375d (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd91b375d), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
@@ -5447,12 +5447,12 @@ address,name,kind,confidence,evidence
 00194d80,ScrField_ha7ad4a18_IsDefined,function,medium,isdefined(ent.ha7ad4a18): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xa7ad4a18) compared with undefined [section .text]
 00194e20,ScrField_h77123c0f_IsDefined,function,medium,isdefined(ent.h77123c0f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x77123c0f) compared with undefined [section .text]
 00194ed0,ScrField_h6a80ec39_IsDefined,function,medium,isdefined(ent.h6a80ec39): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6a80ec39) compared with undefined [section .text]
-00195040,ScrField_hd4133af2_IsDefined,function,medium,isdefined(ent.hd4133af2): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd4133af2) compared with undefined [section .text]
+00195040,ScrField_script_sightrange_IsDefined,function,medium,isdefined(ent.script_sightrange): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd4133af2) compared with undefined [section .text]
 00195190,ScrField_had6d6fd5_IsDefined,function,medium,isdefined(ent.had6d6fd5): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xad6d6fd5) compared with undefined [section .text]
-00195230,ScrField_h2861269a_IsDefined,function,medium,isdefined(ent.h2861269a): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2861269a) compared with undefined [section .text]
+00195230,ScrField_hasweapon_IsDefined,function,medium,isdefined(ent.hasweapon): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2861269a) compared with undefined [section .text]
 001955d0,ScrField_hee885a52_IsDefined,function,medium,isdefined(ent.hee885a52): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xee885a52) compared with undefined [section .text]
-001959e0,ScrField_h8cb5047a_IsDefined,function,medium,isdefined(ent.h8cb5047a): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8cb5047a) compared with undefined [section .text]
-00195a80,ScrField_h0f865995_IsDefined,function,medium,isdefined(ent.h0f865995): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0f865995) compared with undefined [section .text]
+001959e0,ScrField_desired_anim_pose_IsDefined,function,medium,isdefined(ent.desired_anim_pose): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8cb5047a) compared with undefined [section .text]
+00195a80,ScrField_script_ignoreme_IsDefined,function,medium,isdefined(ent.script_ignoreme): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0f865995) compared with undefined [section .text]
 00195bd0,ScrField_hce8a66f4_IsDefined,function,medium,isdefined(ent.hce8a66f4): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xce8a66f4) compared with undefined [section .text]
 00196360,ScrField_h7b1e85ba_IsDefined,function,medium,isdefined(ent.h7b1e85ba): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7b1e85ba) compared with undefined [section .text]
 001964e0,ScrField_hb217897f,function,medium,"ent.hb217897f (vector): GetEntScriptObject + ScriptKeyTable_Find(0xb217897f), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
@@ -5460,7 +5460,7 @@ address,name,kind,confidence,evidence
 00196640,ScrField_h747cde6c_IsDefined,function,medium,isdefined(ent.h747cde6c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x747cde6c) compared with undefined [section .text]
 00196780,ScrField_script_health_IsDefined,function,high,isdefined(ent.script_health): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x16246d58) compared with undefined; name recovered from the hash [section .text]
 00196830,ScrField_h66db43f0_IsDefined,function,medium,isdefined(ent.h66db43f0): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x66db43f0) compared with undefined [section .text]
-00196900,ScrField_h02f1dfc6_IsDefined,function,medium,isdefined(ent.h02f1dfc6): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x02f1dfc6) compared with undefined [section .text]
+00196900,ScrField_script_offtime_IsDefined,function,medium,isdefined(ent.script_offtime): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x02f1dfc6) compared with undefined [section .text]
 00196cc0,ScrField_h6937c3b9_IsDefined,function,medium,isdefined(ent.h6937c3b9): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6937c3b9) compared with undefined [section .text]
 00196e70,ScrField_script_grenades_IsDefined,function,medium,isdefined(ent.h599fdcf6): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x599fdcf6) compared with undefined [section .text]
 00196fc0,ScrField_hbb50e708_IsDefined,function,medium,isdefined(ent.hbb50e708): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xbb50e708) compared with undefined [section .text]
@@ -5474,16 +5474,16 @@ address,name,kind,confidence,evidence
 00197d00,ScrField_script_grenadeawareness_IsDefined,function,high,isdefined(ent.script_grenadeawareness): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x3dba7dea) compared with undefined; name recovered from the hash [section .text]
 00197e60,ScrField_ha31c116e_IsDefined,function,medium,isdefined(ent.ha31c116e): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xa31c116e) compared with undefined [section .text]
 00198030,ScrField_balcony_node_IsDefined,function,high,isdefined(ent.balcony_node): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x474f5086) compared with undefined; name recovered from the hash [section .text]
-00198210,ScrField_h7954a99e_IsDefined,function,medium,isdefined(ent.h7954a99e): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7954a99e) compared with undefined [section .text]
+00198210,ScrField_script_min_friendlies_IsDefined,function,medium,isdefined(ent.script_min_friendlies): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7954a99e) compared with undefined [section .text]
 001982b0,ScrField_h27ed5a85_IsDefined,function,medium,isdefined(ent.h27ed5a85): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x27ed5a85) compared with undefined [section .text]
 00198360,ScrField_script_wait_IsDefined,function,high,isdefined(ent.script_wait): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xec0a1800) compared with undefined; name recovered from the hash [section .text]
 001984d0,ScrField_h9cad0b77_IsDefined,function,medium,isdefined(ent.h9cad0b77): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x9cad0b77) compared with undefined [section .text]
 00198570,ScrField_script_mg42_IsDefined,function,high,isdefined(ent.script_mg42): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xec070be6) compared with undefined; name recovered from the hash [section .text]
 004bac20,ScrField_hefb05f93_IsDefined_TUNISIA,function,medium,isdefined(ent.hefb05f93): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xefb05f93) compared with undefined [section TUNISIA]
-0056ac70,ScrField_h83353d6b_IsDefined_LIBEATOR,function,medium,isdefined(ent.h83353d6b): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x83353d6b) compared with undefined [section LIBEATOR]
+0056ac70,ScrField_bombpitch_IsDefined_LIBEATOR,function,medium,isdefined(ent.bombpitch): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x83353d6b) compared with undefined [section LIBEATOR]
 0056ada0,ScrField_h226a4d8b_LIBEATOR,function,medium,"ent.h226a4d8b (vector): GetEntScriptObject + ScriptKeyTable_Find(0x226a4d8b), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
 0056af50,ScrField_h226a09bf_LIBEATOR,function,medium,"ent.h226a09bf (vector): GetEntScriptObject + ScriptKeyTable_Find(0x226a09bf), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
-0056b5d0,ScrField_hd8f3b227_LIBEATOR,function,medium,"ent.hd8f3b227 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd8f3b227), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
+0056b5d0,ScrField_oldorg_LIBEATOR,function,medium,"ent.oldorg (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd8f3b227), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
 0056b8e0,ScrField_hd8f389a7_LIBEATOR,function,medium,"ent.hd8f389a7 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd8f389a7), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
 0056bc50,ScrField_hc51bbe06_LIBEATOR,function,medium,"ent.hc51bbe06 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xc51bbe06), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
 00763630,ScrField_end_pos_BUCHHOLZ,function,medium,"ent.h9a6e4d8a (vector): GetEntScriptObject + ScriptKeyTable_Find(0x9a6e4d8a), else ScriptKeyTable_SetVector(undefined vector) [section BUCHHOLZ]"
@@ -5498,9 +5498,9 @@ address,name,kind,confidence,evidence
 0017c080,ScriptKeyTable_GetStruct1c,function,medium,"thiscall(hash): ScriptKeyTable_Find, else Scr_Alloc 0x1c zeroed bytes and ScriptKeyTable_Set (get-or-create of a 0x1c-byte value)"
 00458e10,ScriptKeyTable_SetValue,function,medium,"ScriptKeyTable_Set(hash, *value): jumps to Set with the dereferenced value argument"
 001294d0,ScrField_targets_groupname_IsDefined,function,high,isdefined(ent.targets_groupname) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x46861906) non-empty; name recovered from the hash [section .text]
-00129610,ScrField_h55576ed6,function,medium,ent.h55576ed6: GetEntScriptObject + typed get-or-create of key 0x55576ed6 (FUN_00458da0) [section .text]
-00129640,ScrField_h55576ed6_IsDefined,function,medium,isdefined(ent.h55576ed6) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x55576ed6) non-empty [section .text]
-0012ad40,ScrField_hb6abdc5e,function,medium,ent.hb6abdc5e: GetEntScriptObject + typed get-or-create of key 0xb6abdc5e (FUN_00458da0) [section .text]
+00129610,ScrField_oldanimname,function,medium,ent.oldanimname: GetEntScriptObject + typed get-or-create of key 0x55576ed6 (FUN_00458da0) [section .text]
+00129640,ScrField_oldanimname_IsDefined,function,medium,isdefined(ent.oldanimname) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x55576ed6) non-empty [section .text]
+0012ad40,ScrField_exittag,function,medium,ent.exittag: GetEntScriptObject + typed get-or-create of key 0xb6abdc5e (FUN_00458da0) [section .text]
 0012b1c0,ScrField_burst_notify_IsDefined,function,high,isdefined(ent.burst_notify) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x2a11980e) non-empty; name recovered from the hash [section .text]
 0012b660,ScrField_drone_gun,function,high,ent.drone_gun: GetEntScriptObject + typed get-or-create of key 0x1a7e7545 (FUN_00458da0); name recovered from the hash [section .text]
 0012b690,ScrField_drone_gun_IsDefined,function,high,isdefined(ent.drone_gun) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x1a7e7545) non-empty; name recovered from the hash [section .text]
@@ -5509,11 +5509,11 @@ address,name,kind,confidence,evidence
 0012c840,ScrField_h062bea65,function,medium,ent.h062bea65: GetEntScriptObject + typed get-or-create of key 0x062bea65 (FUN_00458da0) [section .text]
 0012cbb0,ScrField_pos_tag,function,high,ent.pos_tag: GetEntScriptObject + typed get-or-create of key 0xd91e5c5b (FUN_00458da0); name recovered from the hash [section .text]
 0012cc40,ScrField_h1cc418a4,function,medium,ent.h1cc418a4: GetEntScriptObject + typed get-or-create of key 0x1cc418a4 (FUN_00458da0) [section .text]
-0012cf80,ScrField_hd6eafad9,function,medium,ent.hd6eafad9: GetEntScriptObject + typed get-or-create of key 0xd6eafad9 (FUN_00458da0) [section .text]
-0012cfb0,ScrField_hd6eafad9_IsDefined,function,medium,isdefined(ent.hd6eafad9) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xd6eafad9) non-empty [section .text]
+0012cf80,ScrField_deathmodel,function,medium,ent.deathmodel: GetEntScriptObject + typed get-or-create of key 0xd6eafad9 (FUN_00458da0) [section .text]
+0012cfb0,ScrField_deathmodel_IsDefined,function,medium,isdefined(ent.deathmodel) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xd6eafad9) non-empty [section .text]
 0012db50,ScrField_hf203df5e,function,medium,ent.hf203df5e: GetEntScriptObject + typed get-or-create of key 0xf203df5e (FUN_00458da0) [section .text]
 0012db80,ScrField_hf203df5e_IsDefined,function,medium,isdefined(ent.hf203df5e) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xf203df5e) non-empty [section .text]
-0012e570,ScrField_hd70abfb1,function,medium,ent.hd70abfb1: GetEntScriptObject + typed get-or-create of key 0xd70abfb1 (FUN_00458da0) [section .text]
+0012e570,ScrField_deathsound,function,medium,ent.deathsound: GetEntScriptObject + typed get-or-create of key 0xd70abfb1 (FUN_00458da0) [section .text]
 0012e990,ScrField_hdfe2186c,function,medium,ent.hdfe2186c: GetEntScriptObject + typed get-or-create of key 0xdfe2186c (FUN_00458da0) [section .text]
 00140090,ScrField_hc4813666,function,medium,ent.hc4813666: GetEntScriptObject + typed get-or-create of key 0xc4813666 (FUN_0017c080) [section .text]
 00146450,ScrField_h677e856b_IsDefined,function,medium,"isdefined(ent.h677e856b) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x677e856b, freed [section .text]"
@@ -5530,7 +5530,7 @@ address,name,kind,confidence,evidence
 00146a90,ScrField_he337f297_IsDefined,function,medium,"isdefined(ent.he337f297) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xe337f297, freed [section .text]"
 00146b00,ScrField_h4ced49f6,function,medium,ent.h4ced49f6: GetEntScriptObject + typed get-or-create of key 0x4ced49f6 (FUN_0045cd50) [section .text]
 00146b30,ScrField_h4ced49f6_IsDefined,function,medium,"isdefined(ent.h4ced49f6) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x4ced49f6, freed [section .text]"
-00146bd0,ScrField_hef260d98_IsDefined,function,medium,"isdefined(ent.hef260d98) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xef260d98, freed [section .text]"
+00146bd0,ScrField_scriptmodel_IsDefined,function,medium,"isdefined(ent.scriptmodel) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xef260d98, freed [section .text]"
 00146c40,ScrField_riders,function,high,ent.riders: GetEntScriptObject + typed get-or-create of key 0xe2a39a33 (FUN_0045cd50); name recovered from the hash [section .text]
 00146c70,ScrField_riders_IsDefined,function,high,"isdefined(ent.riders) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xe2a39a33, freed; name recovered from the hash [section .text]"
 00146ce0,ScrField_he104fd5c,function,medium,ent.he104fd5c: GetEntScriptObject + typed get-or-create of key 0xe104fd5c (FUN_0045cd50) [section .text]
@@ -5573,8 +5573,8 @@ address,name,kind,confidence,evidence
 00192dc0,ScrField_h9e8b61c4_IsDefined,function,medium,isdefined(ent.h9e8b61c4) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x9e8b61c4) non-empty [section .text]
 00193680,ScrField_hd1c52a4f,function,medium,ent.hd1c52a4f: GetEntScriptObject + typed get-or-create of key 0xd1c52a4f (FUN_00458da0) [section .text]
 001936b0,ScrField_hd1c52a4f_IsDefined,function,medium,isdefined(ent.hd1c52a4f) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xd1c52a4f) non-empty [section .text]
-00193850,ScrField_haff32d79,function,medium,ent.haff32d79: GetEntScriptObject + typed get-or-create of key 0xaff32d79 (FUN_00458da0) [section .text]
-00193880,ScrField_haff32d79_IsDefined,function,medium,isdefined(ent.haff32d79) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xaff32d79) non-empty [section .text]
+00193850,ScrField_script_mantle_type,function,medium,ent.script_mantle_type: GetEntScriptObject + typed get-or-create of key 0xaff32d79 (FUN_00458da0) [section .text]
+00193880,ScrField_script_mantle_type_IsDefined,function,medium,isdefined(ent.script_mantle_type) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xaff32d79) non-empty [section .text]
 00193ad0,ScrField_h81ea0dd3_IsDefined,function,medium,isdefined(ent.h81ea0dd3) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x81ea0dd3) non-empty [section .text]
 00193d10,ScrField_ha264fbf5,function,medium,ent.ha264fbf5: GetEntScriptObject + typed get-or-create of key 0xa264fbf5 (FUN_00458da0) [section .text]
 00193da0,ScrField_script_objective,function,high,ent.script_objective: GetEntScriptObject + typed get-or-create of key 0xe5d3a68d (FUN_00458da0); name recovered from the hash [section .text]
@@ -5626,3 +5626,98 @@ address,name,kind,confidence,evidence
 0076dc20,ScrField_hb527d7f6_BUCHHOLZ,function,medium,ent.hb527d7f6: GetEntScriptObject + typed get-or-create of key 0xb527d7f6 (FUN_0045cd50) [section BUCHHOLZ]
 0076dc50,ScrField_hb527d7f6_IsDefined_BUCHHOLZ,function,medium,"isdefined(ent.hb527d7f6) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xb527d7f6, freed [section BUCHHOLZ]"
 00798020,ScrField_flakers_IsDefined_DRAGEETH,function,high,"isdefined(ent.flakers) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x5e241a2a, freed; name recovered from the hash [section DRAGEETH]"
+001a2260,BroScr_ApplyDesiredAnimPose,function,medium,"23 traverse anim scripts: desired_anim_pose defaults to the actor pose (actor int +0x184; back -> prone unless anim_script is pain/death), prone/other pose setters via iface slots, then pose = desired_anim_pose and the field is cleared"
+001a1f50,BroScr_InitAnimScript,function,medium,"called first by the anim scripts with their name: unlinks the melee pair, clears anims, anim_special -> none (old value kept), anim_script = name (hash 0x2181000b = anim_script), calls the entity's stored exit callback field 0xe057503b"
+001a1290,BroScr_DelayTimerOnScriptChange,function,medium,"(ent, anim script hash): for combat/cover_crouch/cover_stand/... pushes ent field 0x900ed884 to now + level +0x18c + random(level +8) if later; run/stop/walk/pain/death leave it"
+001a00c0,BroScr_SetPoseMovement,function,medium,"29 anim-script callers; (ent, pose, movement): records pose/movement history fields, picks one of 9 transition functions from a pose (stand/crouch/prone) x movement (stop/walk/run) table at level +0x168 and calls it; 'bad input' check"
+001a19a0,BroScr_MeleePair_Link,function,medium,"Bro_combat__MeleeCombat: both ents must have no partner ('bad parameter: crap_out_now + please'), then b.h236fc839 = a, a.h31aaf853 = b"
+001a1aa0,BroScr_MeleePair_Unlink,function,medium,"checks a.h31aaf853 == b and b.h236fc839 == a (crap_out_now asserts) and removes both fields; called by BroScr_InitAnimScript"
+001b2c80,BroScr_MeleePair_Relink,function,medium,"MeleeCombat: unlinks the existing partners of both ents through BroScr_MeleePair_Unlink before relinking"
+001a0f70,BroScr_GetWeaponType,function,medium,"30 anim-script callers; record[1] is compared with panzerfaust/panzerschreck/bazooka hashes: actor weapon (int +0xf0) looked up in the level table +0x130 (0x18-byte records, count +0x138), returns record[1]; none when no weapon, hasweapon false or no model"
+0017baa0,DynArray_ResizeBytes,function,medium,"thiscall {data, capacity, count} with 1-byte elements: Scr_Alloc/copy/Scr_Free on growth, new bytes = default 0x00922ed0 (DynArray_Resize for bytes)"
+00181810,BroScr_MgBurstModeFactor,function,medium,"mg burst scripts: string hash burst -> 0.5, delay -> 1.0, 0xf88dfb93 -> 0.8, else 1.5"
+00135fb0,Scr_ReleaseStringArrayAndString,function,medium,"releases each ScriptString of an array (data, count), Scr_Free, then one more ScriptString; level InternalMain locals cleanup"
+0014b780,BroScr_DeleteUndroppedBombs,function,medium,"vehicle death/follow-path scripts: for each ent in self.bomb that is valid with dropped == 0, GScr_Delete"
+001c9fc0,BroScr_TryGrenadeThrow,function,medium,"cover_crouch/cover_stand/RangedCombat/corner: strings 'grenadeattack', 'min energy', 'min time', 'max time'; throw offsets by pose and anim_special (cover_crouch), waits on the throw notetracks"
+001c99f0,BroScr_TryReload,function,medium,"26 anim-script callers: weapon anim entry (BroScr_GetWeaponAnimEntry), returns unless the clip check 0x001abb70 says reload; launcher entry -> BroScr_ReloadLauncher; else reload anims by anim_script/pose with BroScr_RefillClip"
+001c98d0,BroScr_ReloadLauncher,function,medium,"weapon anim entry panzerschreck/bazooka/0xa39d17dd: weapon = actor int +0xf4 (other weapon), gun to the right hand, BroScr_RefillClip; other entries start two reload threads and wait for notify 0x5e12d3d2"
+001c4360,BroScr_CheckCanShoot,function,medium,"BroScr_GetMuzzleOrigin trace result -> bool; counts failures in ent field 0xa31c116e, more than 4 calls iface 0x009226e8 and resets the count; cover scripts"
+001c6ea0,BroScr_AimUntilCanShoot,function,medium,"cover scripts: blends three aim knobs (SetAnimKnob, 0.25 s steps) until BroScr_CheckCanShoot or the time limit"
+001c5c60,BroScr_PlayIdleAnim,function,medium,"cover/combat: picks the idle by pose (actor int +0x184) and anim_idleset ('a'/'b'/'w'), crouch+cover_crouch special via 0x001c1230, then BroScr_PlayAnimWithNoteTracks"
+001c5f20,BroScr_KeepAimingAtTarget,function,medium,"target point from ent fields 0x33a4ea6c/0x7aeb941a, else the origin of the entity in field 0x27cc2178, else 0x001a1680; then Bro_aim__keep_aiming"
+001a1680,BroScr_GetEnemyEyePos,function,medium,"sentient ref +0x3c valid: its eye (GScr_GetEye) is stored in ent field 0x8b05303f with the time in 0x60a41c54 and returned; else the last stored position"
+001abb70,BroScr_NeedsReload,function,medium,"(ent, fraction): not while anim_movement is run; true when ent field 0x0feddbea (rounds left) <= clip size (BroScr_GetWeaponClipSize) x fraction"
+001a11c0,BroScr_GetWeaponClipSize,function,medium,"actor weapon (int +0xf0) looked up in the level weapon table +0x130 (0x18-byte records), returns record[5]; used by BroScr_RefillClip and BroScr_NeedsReload"
+001c1230,BroScr_PlayCrouchIdleAnim,function,medium,"cover_crouch: anim_special -> none and a crouch/stop anim through BroScr_PlayAnimWithNoteTracks, picked by weapon entry (0xa39d17dd launcher), ent field 0xbfc60f36 and anim_idleset"
+0018c430,BroScr_SetAimBlendTimes,function,medium,"stores two floats in 0x009230ec (default 0.1) and 0x0092379c (default 2.0, at least the first), which BroScr_KeepAimingAtTarget passes to Bro_aim__keep_aiming"
+001814c0,BroScr_GetSentientRef3c,function,medium,"thiscall: *out = ScrSentient ref +0x3c of the entity in *this (the reference BroScr_GetEnemyEyePos reads the eye of)"
+0018b200,BroScr_IsValidHandle,function,high,"handle != 0 and != -1 and GScr_IsValidHandle -> bool"
+0018b1e0,BroScr_GetNodeRadius,function,high,"*out = ScrPathNode_GetRadius(node)"
+001c9550,BroScr_FallbackSelectActors,function,medium,"BroScr_FallbackThink: walks an actor array, living ones (GScr_IsAlive) chosen with a level timer (level +0xe0, now + 2500 + random 2000) and a 0.4 share; dawnville special case by group name ('dawnville_defensive_german_1'..'_5')"
+001d4a40,BroScr_CoverShootBehavior,function,medium,"cover_crouch/cover_stand/RangedCombat: strings 'forceShoot'/'dontForceShoot'; range check against level +0x9c, rounds left (0x0feddbea), aim/fire knobs, Scr_QueueNotify"
+00138230,BroScr_InitFriendlyChainNodes,function,medium,"thread (no direct callers): all path nodes without spawnflag 2, their target/targetname chains, strings 'chain', 'allies', distances to the allies (GScr_GetAI)"
+0013b880,BroScr_FollowNodeChain,function,medium,"thread: walks a node chain by target (goal radius from the node, ScrSentient float +0x18), uses misc_mg42/misc_turret found by targetname, script_noteworthy 'no_last_goal'/'sometimes', script_panzer, 'player'"
+001e2a60,BroScr_InitMg42CoverSpots,function,medium,"thread (no callers): cvar check, entities by targetname 'mg42cover'/'mg42cover_cow'/'crater', one thread each (Scr_CreateThread)"
+00137780,BroScr_SetupPlayerWeapons,function,medium,"thread (no callers): weapon strings 'stielhandgranate', 'grenade', 'pistol', 'primary', 'primaryb' and their slot setters, Scr_QueueNotify"
+001819c0,BroScr_GetPlayerStanceOffset,function,medium,"BroScr_MgTurretThink: vector (0, 0, 5 prone / 25 crouch / 50 stand) from GScr_GetStance of the entity in 0x009236dc"
+0018bab0,BroScr_MgTurretCanTargetStance,function,medium,"BroScr_MgTurretThink: false without the level entity +400; prone never, crouch only with the level setting at +0x1c8"
+00152970,BroScr_TankInitHealth,function,medium,"tank inits: health 500 + random(1000) when undefined, then a tank thread (0x0014d0a0)"
+0017b9a0,DynArray_ResizeInt,function,medium,"thiscall {data, capacity, count} of 4-byte elements, new ones = g_scrUndefinedInt (DynArray_Resize variant)"
+0017bfb0,DynArray_Resize8,function,medium,"thiscall {data, capacity, count} of 8-byte elements (Scr_Free on growth); vehicle rider arrays"
+0017c660,ScriptKeyTable_GetOrAddArray,function,medium,"ScriptKeyTable_Find(key), else inserts an empty {0,0,0} array via 0x0017c590; returns the slot value (ScrField_gunners)"
+001837e0,ScrLocal_ReleaseString,function,medium,"tail call to ScriptString_Release (local cleanup in the flak scripts)"
+001a1510,BroScr_UpdateCombatDelay,function,medium,"pushes ent field 0x900ed884 to now + level +0x18c + random(level +8) when sentient ref +0x3c is valid; returns now < field (same timer as BroScr_DelayTimerOnScriptChange)"
+0017b150,Scr_StartThreadFunctorN,function,medium,"thiscall: allocates a 0x1c functor (ScrIface_Alloc) filled by 0x0017a650 and starts it with Scr_CreateThread"
+00181530,ScrCall_SetFlaggedAnimKnobByRef,function,high,"GScr_SetFlaggedAnimKnob(*ent, *anim, a, b, c, d, 0)"
+0018e1b0,BroScr_GetCoverNodeOrOrigin,function,medium,"node from 0x00184230; none (0/-1) -> the entity origin, else the node origin"
+001a1040,BroScr_GetWeaponFireType,function,medium,"actor weapon looked up in the level weapon table +0x130, returns record[2]; compared with the hashes 'auto'/'semi'"
+001a1ce0,BroScr_GetAbsYawToTarget,function,medium,"|AngleNormalize180(ent yaw - yaw from 0x001a18c0)|"
+0013b400,BroScr_RandomRotateLoop,function,medium,"thread, endon 'death': random angle/time (RandomFloat 20/3/0.5) rotations through 0x00132da0, waits 'rotatedone', ent field 0x07355c08"
+00147000,BroScr_WallHopGetScriptOrigins,function,medium,"BroScr_WallHopTrigger: entities by targetname = the trigger's target, keeps the 'script_origin' ones (their origins)"
+001508d0,BroScr_HalftrackAttachPassengers,function,medium,"BroScr_HalftrackSpawnGuys: per rider array entry 'tag_passenger' + N (ScriptString_FromCStringPlusInt), Scr_QueueNotify"
+001d78a0,BroScr_CoverStandIdle,function,medium,"cover_stand: BroScr_MiscCombatTimer, 'face direction', Bro_cover_crouch__idle, BroScr_TryReload"
+00164e20,BroScr_SpawnFxCreationOrigin,function,medium,"spawns a 'script_origin' named <name>'_fx_creation' (ScrEnt_SetTargetname) and runs BroScr_FxCreationSound on it"
+00165120,BroScr_SpawnFxCreationOrigin_2,function,medium,"as BroScr_SpawnFxCreationOrigin with BroScr_FxCreationSoundThink"
+001a5100,BroScr_CycleTargetsThread,function,medium,"thread, endon 'death': random pick from a used-flag byte array (DynArray_ResizeBytes), waits 'next_target'"
+001e1f60,BroScr_SpawnerFinishSpawn,function,medium,"BroScr_SpawnedThink: BroScr_SpawnerSetupAI, then if alive finished_spawning = 1 and Scr_QueueNotify 'finished spawning'"
+0012f840,BroScr_TankShellReadySetHealth,function,medium,"BroScr_TankShellReadyHud: endon 'death', ent field 0xa027aabf = 1, health 600"
+00134400,BroScr_DeleteVehicleTurrets,function,high,"vehicle death/follow path: GScr_Delete on self.leftturret and self.rightturret when defined"
+0017bf40,DynArray_ResizeBytesNoFill,function,medium,"thiscall {data, capacity, count} of bytes: grows with Scr_Alloc/copy/Scr_Free, no default fill"
+0017c590,ScriptKeyTable_SetNewArray,function,medium,"Scr_Alloc(0xc) array copied from the argument (0x0045c8e0) and stored under the key (ScriptKeyTable_Set); used by ScriptKeyTable_GetOrAddArray"
+00182670,BroScr_PlayLevelMusic,function,medium,"level mains: GScr_MusicStop, iface 0x00922314(1.0), wait 0.1, GScr_MusicPlay(name), level fields +0x150/+0xcc/+0x68"
+001a94c0,BroScr_GetClosestAI,function,medium,"AI list from GScr_GetAIAll (no team) or GScr_GetAI(team), empty -> undefined, else the pick of 0x001a8a90 (closest to a point)"
+001b7060,BroScr_CoverCrouchIdleTwitch,function,medium,"Bro_cover_crouch__idle: 'face angle', random anim from a set (RandomInt/RandomFloat), SetFlaggedAnimKnobAll + BroScr_HandleNoteTracks"
+001b7230,BroScr_CoverCrouchIdleTwitch_2,function,medium,"as BroScr_CoverCrouchIdleTwitch with another anim set"
+001e3430,BroScr_BipodGunnerStateMain,function,medium,"script state entry ('Script state called without reason.', 'Dist < ProneRangeSq'): starts BroScr_BipodGunner and waits"
+001225b0,BroScr_EndSequenceOnDeath,function,high,"health = 1, waittill 'death', then Scr_QueueNotify(owner, 'end_sequence')"
+00132da0,BroScr_RandomRotateStep,function,medium,"BroScr_RandomRotateLoop: endon 'death', pitch defaults to the current angles, random offset (RandomFloat 5), ent field 0x07355c08"
+0013c710,BroScr_FlakDied,function,medium,"thread: 'flak died with flaknum ' + N (debug string), anim knob, key-table bookkeeping of the flak number"
+0014b940,BroScr_UpdateAliveDeadCount,function,medium,"compares the 'special' string field, then fields 0xaa7e54b7/0x846e35f4 and updates alive_num/dead_num arrays"
+00154190,BroScr_FlakvierlingInit,function,medium,"BroScr_FindFlakvierlings/SpawnFlakvierling: field 0xb330b301 = 0, health (default when undefined), optional field 0x93c3cf6c, starts a thread"
+001579d0,BroScr_TunisiaPanzerIVInit,function,medium,"tunisia InternalMain: GScr_UseAnimTree('panzerIV'), BroScr_SetHealthByDifficulty_5, starts a functor thread"
+00168050,BroScr_PanzerIVSetup,function,medium,"GScr_UseAnimTree('panzerIV'), BroScr_TankInitHealth, BroScr_SetWheelSmokeFx, functor threads"
+00182060,ScrLocal_ReleaseString_2,function,medium,"tail call to ScriptString_Release (local cleanup)"
+001a8840,BroScr_AppendIfValidEnt,function,high,"Scr_EntityHandleIsValid(ent) -> DynArray_PushBack(array, ent)"
+001c1770,BroScr_FaceEnemyAnim,function,medium,"BroScr_CoverStandIdle: 'face enemy' (iface 0x00922740), BroScr_PlayAnimWithNoteTracks, anim_special -> none"
+001c3d80,BroScr_IdleFaceCurrent,function,medium,"'face current', 50% chance branch on ent field 0xbfc60f36, idle anim via SetAnimKnobAll + BroScr_PlayAnimWithNoteTracks"
+0012f460,BroScr_DecrementCounterOnNotify,function,medium,"thread: endon 'death' of the second ent, waittill (owner, notify), then ent field 0x06f63273 -= 1"
+00134010,BroScr_SpawnScriptModelAt,function,medium,"GScr_Spawn('script_model') at an entity origin, GScr_SetModel from a string field, ScrEnt_SetTargetname"
+0013be00,BroScr_StopManagerEnts,function,medium,"entities by targetname <name> + '_manager' (ScriptString_ConcatCString) or a fixed key: Scr_QueueNotify and GScr_Delete each"
+0014c260,BroScr_GetAIByGroupField,function,medium,"BroScr_SquadManagerSpawnSquad: GScr_GetAIAll filtered by string field 0x2dae9972 == name"
+0014c400,BroScr_GetSpawnersByGroupField,function,medium,"BroScr_SquadManagerSpawnSquad: GScr_GetSpawnerArray filtered by string field 0x2dae9972 == name"
+00154100,BroScr_SetupWallHopTrigger,function,high,"BroScr_SetupSpawnerTriggers: script_mantle_type equal to a fixed string -> thread BroScr_WallHopTrigger"
+00184310,BroScr_GetNodeOrActorYaw,function,medium,"node from 0x00184230 (as BroScr_GetCoverNodeOrOrigin): node yaw, else actor float +0x154"
+0019ce50,BroScr_WaitFinishedSpawning,function,medium,"alive and finished_spawning undefined -> waittill 'finished spawning'; returns true when the AI is dead"
+001a2840,BroScr_GetShotInterval,function,medium,"by BroScr_GetWeaponFireType: 'auto' (and 0x0001bdc7) with a rate from 0x001a10c0 -> 1/rate, else a random interval (RandomFloat 0.4 + ...)"
+00184230,BroScr_GetNodeAtPosition,function,medium,"sentient ref +0x48 node, else iface 0x00922784(ent); kept only within 16 units of the entity origin (Scr_Distance), else 0"
+001a18c0,BroScr_GetYawToEnemy,function,medium,"yaw of VectorToAngles(BroScr_GetEnemyEyePos - entity origin)"
+001a10c0,BroScr_GetWeaponFireRate,function,medium,"level weapon table record[3]; BroScr_GetShotInterval uses 1/value for auto weapons"
+001a1140,BroScr_GetWeaponTableField4,function,medium,"level weapon table record[4] (role unknown; BroScr_GetShotInterval)"
+0017c4e0,ScriptKeyTable_GetArrayCopyOrEmpty,function,medium,"ScriptKeyTable_Find(key): a copy of the stored array (0x0045c860), else an empty {0,0,0}"
+0017ca10,ScrField_he337f297_GetArrayCopy,function,medium,"ScriptKeyTable_GetArrayCopyOrEmpty(key 0xe337f297); flak scripts"
+001a8a90,BroScr_GetClosestFromArray,function,medium,"BroScr_GetClosestAI: alive/valid entries of an array, closest to a point by Scr_Distance (optional exclude list, used-flag bytes)"
+00131ad0,BroScr_DeleteVehicleTurrets_2,function,medium,"copy of BroScr_DeleteVehicleTurrets (self.leftturret/rightturret GScr_Delete) for BroScr_VehicleFollowPathToEnd"
+00132120,BroScr_DeleteVehicleTurrets_3,function,medium,"copy of BroScr_DeleteVehicleTurrets for BroScr_VehicleFollowPathToEnd_2"
+00145cd0,BroScr_TankAttachHullMg,function,high,"BroScr_TankAttachMgTurret(tank, 'tag_gunhull', ...)"
+00120750,BroScr_PlaySoundAtTempOrigin,function,medium,"spawns a 'script_origin', GScr_PlaySoundAtPosition, waits, GScr_Delete"
+001a5830,BroScr_SetTargetnameFromOrigin,function,medium,"targetname = format('null ', origin x/y) (0x0011a880), key-table field, then a functor thread"

@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-21): 4558 functions named by us (counter), 900+ globals, plus 3008 Microsoft
+State (2026-10-21): 4653 functions named by us (counter), 900+ globals, plus 3008 Microsoft
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
@@ -587,3 +587,18 @@ CoD-specific functions included, so later decompilation covers both kinds.
   Next: same as before - the string-less common-script functions from their callers; the
   'face current/default/angle' anim helpers around Bro_stop__main/Bro_cover_crouch__idle and the
   'bad parameter: crap_out_now + please' family (001a19a0/001a1aa0/001b2c80) are the next clusters.
+- Anim-script helpers (2026-10-21, late): 32 more field hashes cracked with a meet-in-the-middle
+  over an AI/anim vocabulary (one- and two-word hits are near-certain with a 32-bit hash, three-part
+  ones are medium; 49 accessors renamed: desired_anim_pose, anim_woundedtime, deathanim, standanim,
+  script_sightrange, script_suppression, ...). Script strings are stored as the same hash, so
+  compared constants read as words: poses stand/crouch/prone/back/wounded (actor int +0x184 is the
+  pose), movement stop/walk/run, fire types auto/semi, weapon types panzerfaust/panzerschreck/bazooka.
+  95 bodies named from that: the anim-script entry (BroScr_InitAnimScript: anim_script = name, exit
+  callback), BroScr_SetPoseMovement (3x3 pose x movement transition table at level +0x168), the
+  melee pair link/unlink, reload/clip helpers, the level weapon table (+0x130, 0x18-byte records:
+  [1] weapon type, [2] fire type, [5] clip size), cover idle/aim/shoot helpers, vehicle/flak/spawner
+  helpers. Function-hash twins inside the XBE were tried and dropped: the hash masks immediates, so
+  field accessors that differ only by key collide.
+  Next: the anim-script mains that start with InitAnimScript + ApplyDesiredAnimPose ('pose be
+  wounded': 0x001dbb90, 0x001dd3c0, 0x001dd750) need their script names; then
+  `namepack.py rank --range 00120000-001e4000` as before.
