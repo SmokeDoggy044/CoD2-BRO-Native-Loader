@@ -138,6 +138,14 @@ the original game files for its maps, models, sounds and textures.
   file: callers, callees, globals and constants, strings, which registers and stack
   slots it takes, and the traps to watch for (float instructions, code the harness
   cannot hook), with the disassembly named inline.
+- **`tools/namepack.py`**: naming packets. It ranks unnamed functions by how much
+  there is to go on (strings, named callers and callees, Q3 matches, known struct
+  fields) and prints each one's context with its decompile in one text, from an
+  export by `tools/ghidra/ExportNaming.java`. Its `fields` report lists every offset
+  of a struct that the code uses, with the functions that use it.
+- **`tools/data/structs.txt`**: the struct layouts found so far (entities, cvars,
+  actors, ...). `tools/ghidra/ApplyStructs.java` creates them in Ghidra and types the
+  globals and parameters listed there, so the decompiler shows field names.
 - **`tools/scaffold.py`**: writes a batch's declarations, stubs (with the asm entry
   for register arguments and the callees as ready calls) and registrations from the
   same analysis; an `#error` in each stub marks the body still to write.

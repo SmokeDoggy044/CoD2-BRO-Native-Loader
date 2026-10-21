@@ -1,0 +1,126 @@
+# Struct layouts for Ghidra (tools/ghidra/ApplyStructs.java, category /bro) and
+# the field-usage reports (tools/namepack.py fields). Only verified fields; the
+# rest stays undefined so Ghidra shows field_0x<offset> and the export records it.
+#
+#   struct NAME SIZE                 starts a struct (size in hex)
+#     OFFSET NAME TYPE  # evidence   a field; TYPE: int, uint, short, ushort, char,
+#                                    uchar, float, pointer, another struct, NAME*,
+#                                    TYPE[N]
+#   global ADDRESS|NAME TYPE         types a global
+#   globals CSV TYPE                 types every row of a CSV (address column)
+#   param FUNCTION INDEX TYPE        types a stack parameter (0 = first)
+#   param FUNCTION REGISTER TYPE     types a register argument (custom storage; fnpack
+#                                    shows the register inputs)
+#   return FUNCTION TYPE             types a return value
+#
+# Names are neutral (Q3/RTCW names are fine, no later-title identifiers).
+
+struct trajectory_t 0x24          # Q3 layout; not yet placed in gentity_t
+  0x00 trType int
+  0x04 trTime int
+  0x08 trDuration int
+  0x0c trBase float[3]
+  0x18 trDelta float[3]
+
+struct cvar_t 0x2c                # Q3 layout (Cvar_Get, Cvar_Set2, Cvar_FindVar)
+  0x00 name char*
+  0x04 string char*
+  0x08 resetString char*
+  0x0c latchedString char*
+  0x10 flags int
+  0x14 modified int
+  0x18 modificationCount int
+  0x1c value float
+  0x20 integer int
+  0x24 next cvar_t*
+  0x28 hashNext cvar_t*
+
+struct vmCvar_t 0x10              # Q3 order; integer at +0xc (gameCvarTable users); string after is unverified
+  0x00 handle int
+  0x04 modificationCount int
+  0x08 value float
+  0x0c integer int
+
+struct sentient_t 0x60            # g_sentients, 33 records
+  0x04 team int
+
+struct vehicle_t 0x340            # g_vehicles records (G_SetupVehiclePool)
+  0x170 entityHandle int
+  0x178 defIndex int              # into 0x00950a28
+
+struct actor_t 0x1400             # g_actors, 32 records (Actor_Spawn)
+  0x3c0 path uchar[0x40]          # path record; size unverified
+
+struct pathnode_t 0x80            # by ushort handle; types 2-11 cover/concealment
+
+struct gclient_t 0x2000           # size unknown: placeholder past the largest offset seen (fields report)
+
+struct gentity_t 0x460            # pool objects (G_Spawn); offsets from naming.md
+  0x00 eType uchar                # G_RunEntity: 3 missile, 4/7/0xb mover, 0 with flags 0x20000000
+  0x10 eFlags int                 # G_RunEntity sets 0x80 (flags 0x400), 0x100 (sentient team 1); not Q3's s.pos
+  0x140 currentOrigin float[3]
+  0x224 inuse int
+  0x22c animTree pointer          # XAnim tree
+  0x23c client gclient_t*
+  0x240 actor actor_t*
+  0x244 sentient sentient_t*
+  0x248 vehicle vehicle_t*
+  0x24c turret pointer
+  0x260 classname int             # Com_HashKeyNoCase hash
+  0x294 physicsObject uchar       # G_RunEntity -> G_RunItem
+  0x298 moverState uchar
+  0x29c takedamage int
+  0x2a0 spawnflags int
+  0x2a4 flags int
+  0x2c0 pos1 float[3]
+  0x2d0 pos2 float[3]
+  0x2fc speed float
+  0x310 movedir float[3]
+  0x328 nextthink int
+  0x32c think int                 # index into entityThinkFuncs
+  0x330 reached int
+  0x334 blocked int
+  0x338 touch int
+  0x33c use int
+  0x340 pain int
+  0x344 die int
+  0x348 actorCallback int         # index into 0x008da8a4 (unknown role)
+  0x34c controller int
+  0x37c teamchain gentity_t*
+  0x384 wait float
+  0x3cc tagParent int             # G_RunEntity runs the parent first
+
+struct cg_t 0x2010                # CG_Init clears 0x804 dwords
+
+global cg cg_t
+global g_sentients sentient_t*
+global g_actors actor_t*
+global g_vehicles vehicle_t*
+globals tools/data/cvar_globals.csv cvar_t*
+
+return Cvar_Get cvar_t*
+return Cvar_FindVar cvar_t*
+return G_Spawn gentity_t*
+return G_TempEntity gentity_t*
+param G_FreeEntity 0 gentity_t*
+param G_RunThink esi gentity_t*
+param G_RunMissile ebx gentity_t*
+param G_RunItem eax gentity_t*
+param G_RunMover eax gentity_t*
+param G_RunEntity eax gentity_t*
+param G_Damage 0 gentity_t*
+param G_Damage 1 gentity_t*
+param G_Damage 2 gentity_t*
+param G_SetModel 0 gentity_t*
+param G_AddEvent 0 gentity_t*
+param SP_func_door 0 gentity_t*
+param InitMover esi gentity_t*
+param G_GeneralLink eax gentity_t*
+param ClientThink_real 0 gentity_t*
+param ClientEndFrame eax gentity_t*
+param G_SetOrigin 0 gentity_t*
+param G_TouchTriggers 0 gentity_t*
+param SV_LinkEntity edi gentity_t*
+param G_EntLinkTo 0 gentity_t*
+param TeleportPlayer 0 gentity_t*
+param Actor_Spawn eax gentity_t*
