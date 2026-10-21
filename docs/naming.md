@@ -516,3 +516,21 @@ CoD-specific functions included, so later decompilation covers both kinds.
   the wrapper managers at 0x00838118/0x0083824c (globals 0x00909828/0x00909830), the
   read path (0x00291960, 0x00292220, 0x0028f2f0) and the zone priority code (0x0028c870,
   0x0028d150, 0x0028e460).
+- Naming packets, 2026-10-21 (218 names in three batches, `namepack.py rank/pack` after a fresh
+  ExportNaming): the string- and caller-ranked engine leftovers (map restart, subtitles
+  Subtitle_Start/Draw, player death, bonus-screen image loaders FE_Bonus*LoadImage/FreeImage, pause
+  and profile screens, CL_PlayMovie, IN_Frame), low-range hubs (Heap_* on the heap list 0x008ff638 +
+  n*0x494 with current heap 0x00901ae8; HashStr_Hash/Loc_HashKey; StringMap_Find/UintMap_Find =
+  implicit binary trees in arrays; IntHashMap_Find = 0xdeadbeef-keyed buckets), the file layer
+  (File_OpenRead/GetSize/ReadAt/Close over HandlePool_Resolve, File_PumpRequests), sound voices
+  (0xf8-byte records in pool 0x0090a8b4, SndVoice_SetParam marks 0x2e params dirty; mix groups
+  'NSL_MASTER'/'NSL_LISTENER'), and the streaming loader's open list from the 2026-10-20 note:
+  the pak (0x0095f638) keeps a zone graph (children +0x1c/+0x20, id +0x28, refcount +0x2c,
+  distance +0x30/+0x34, priority +0x3c), load requests at pak +0x38[id] (state +0xdc: 0 idle,
+  1 reading, 2 unloading, 3 done; chunk state +0xe0), and stream memory as slot sets (two bitsets
+  +0/+8: both bits = free full slot, one = half slot; StreamMem_*). Pak_ParseFli sets the region
+  (0x0095f5dc from 'de'/'eu' + XGetLanguage) and the collector's-edition flag 0x0095e7f8 from the
+  pack name. Still open there: 0x0028ef90, 0x00290350/0x002904b0 (finders by resource kind),
+  0x0028ea20/0x0028eaa0 (a per-zone named-entry map at +0xd8). Compiled common scripts
+  (0x110000-0x1e3fff) now top the rank by strings; 0x00148d10 is the shared level setup every
+  LevelScript_*_InternalMain calls (left unnamed: needs a naming scheme for script threads).
