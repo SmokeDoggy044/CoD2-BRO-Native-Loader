@@ -476,3 +476,17 @@ CoD-specific functions included, so later decompilation covers both kinds.
   Save_CheckVersion). Left: ~30 MEM_* memory-unit dialogs (one per error case; name them from
   their callers' state machine 0x0033a530/0x003381c0), duplicate UI_Highlight/UI_Select
   sound hooks (one per screen class - name with the class vtables), and the string-less rest.
+- Streaming loader (2026-10-20, later): Stream_GetLoadHandler (0x00292420) picks a loader by
+  the HashStr hash (rol-5/xor, lowercase) of the file extension without the dot; hashing the
+  binary's extension strings named all 31 handlers Stream_Load<Ext> (19 had no function in
+  Ghidra). dds/ddsmp/ifl share Stream_LoadTexture (modes 0/1/3; was R_LoadFogRamp, low),
+  xbmesh/xbcell Stream_LoadMeshFile. Per frame Stream_Update runs Stream_UpdateLoad (type 1)
+  or Stream_UpdateUnload (type 2: state 4 notify the resource managers in 0x009719fc, 5 release
+  the zone's meshes/fonts/textures/anims, 6 free memory). Zones are memory contexts; the loaded
+  resources go into per-zone hash maps through wrapper managers (vtables 0x0083813c texture,
+  0x00838184 mesh file, 0x008382b8 mesh, 0x008382dc anim, 0x008381a8 skeleton; slot 3 = Add)
+  and are found again by Stream_Find<Type> over Stream_ListSearchZones. Open: what btr, atrb,
+  aitb, xmpb, xmb, zbb, spg, scn, dcg, cg, db, ib, dlg hold (handlers named by extension only),
+  the wrapper managers at 0x00838118/0x0083824c (globals 0x00909828/0x00909830), the
+  read path (0x00291960, 0x00292220, 0x0028f2f0) and the zone priority code (0x0028c870,
+  0x0028d150, 0x0028e460).

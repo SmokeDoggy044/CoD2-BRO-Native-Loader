@@ -3084,7 +3084,6 @@ address,name,kind,confidence,evidence
 00306b60,GScr_DropWeapon,function,high,"'unknown weapon '%s' in dropWeapon', tag_weapon_left/right"
 002c4310,AnimTree_DebugDraw_r,function,medium,"recursive, R_DrawTextWithShadow of each anim's weight/time ('%s w %.2f:%.2f t %.2f:%.2f')"
 002b7e40,XAnim_BuildNotetracks,function,medium,"'COD_Note'/'fakeroot' notetrack list per anim; callers AnimTree_AllocInfo, AnimData_EnsureLoaded"
-00290860,R_LoadFogRamp,function,low,"loads the 'fogramp' texture inside a memory context ('no_' prefix rewritten)"
 0028f620,ZoneGraph_Init,function,low,"constructs the zone graph object (vtable 0x00838214, registered in the 0x009719fc list) and adds the ZoneGraph command; called from Com_Init"
 002c2aa0,BG_InitDefaultWeapon,function,low,"builds the default weapon def from the field table (displayName.., 0x10a fields) before 'WEAPONFILE' parsing; called from BG_InitWeapons"
 001ffac0,Actor_MainCharacterPriority,function,low,"returns 5000 when the actor's name (after the first space) is in the 'Kelly', 'Hawkins'... list at 0x008db468"
@@ -3327,3 +3326,80 @@ address,name,kind,confidence,evidence
 00332e20,CL_ApplyProfileSettings,function,medium,"sets cl_sensitivityX/Y, m_pitch, g_vehControlMode, cl_run, controller config and sound volumes from the profile; Com_Init/SV_SpawnServer"
 00331340,FE_ApplyControlSettings,function,medium,"options menu: writes sensitivity, invert pitch, vehicle control mode, cl_run cvars and executes the controller config"
 00331030,CL_ExecControllerConfig,function,medium,sets cg_controllerconfig and executes its config file (Cbuf_AddText/Cbuf_Execute)
+00292420,Stream_GetLoadHandler,function,high,"hashes the file extension (HashStr rol-5/xor, no dot) and returns the loader for it: 31 extensions matched by hashing the binary's extension strings (dds, ddsmp, ifl, xbmesh, xbcell, xbanim, xbskel, panel, cfgstr, btr, ...)"
+00292650,Stream_RunLoadHandler,function,medium,"finds the extension of the loaded file, calls Stream_GetLoadHandler's result inside a memory context; Stream_UpdateLoad per file"
+002926c0,Stream_UpdateLoad,function,medium,"Stream_Update type 1: per-stream load state machine (+0xe0), runs the load handler per finished file, S_LoadSoundBank, Scr_NotifyLoaded; 'AUDIO | VIDEO'"
+00290f70,Stream_UpdateUnload,function,medium,"Stream_Update type 2: state 4 notify managers, 5 release resources, 6 free memory + Scr_NotifyUnloaded"
+00290f00,Stream_UnloadNotifyManagers,function,medium,"calls slot 1 of every resource manager in the list 0x009719fc with the zone id, then FX_KillEffectsOnEntity; Stream_UpdateUnload state 4"
+00290e70,Stream_ReleaseZoneResources,function,medium,"Stream_UpdateUnload state 5: releases the zone's mesh files, fonts, textures, anims and the rest, clears its slot at +0x5c"
+0028ce60,Stream_ReleaseMeshFiles,function,medium,nglReleaseMeshFile per zone entry; Stream_ReleaseZoneResources
+0028cef0,Stream_ReleaseFonts,function,medium,nglReleaseFont per zone entry; Stream_ReleaseZoneResources
+0028cf40,Stream_ReleaseTextures,function,medium,nglReleaseTexture per zone entry; Stream_ReleaseZoneResources
+00290c00,Stream_ReleaseAnims,function,medium,"AnimData_Purge on every anim of the zone record (+0x90/+0x94 list), clears the entries; Stream_ReleaseZoneResources"
+00290860,Stream_LoadTexture,function,medium,"loader for dds (mode 0), ddsmp (1) and ifl (3): nglLoadTexture inside the zone's memory context, 'no_' prefix rewritten; the 'fogramp' hash is only a static (was R_LoadFogRamp, low)"
+00290e50,Stream_LoadDds,function,high,Stream_GetLoadHandler 'dds': Stream_LoadTexture mode 0
+00290e30,Stream_LoadDdsmp,function,high,Stream_GetLoadHandler 'ddsmp': Stream_LoadTexture mode 1
+00290e10,Stream_LoadIfl,function,high,Stream_GetLoadHandler 'ifl': Stream_LoadTexture mode 3
+00290920,Stream_LoadMeshFile,function,high,"Stream_GetLoadHandler 'xbmesh' and 'xbcell': nglLoadMeshFile inside the zone's memory context, flags every mesh 0x1000000"
+00290760,Stream_LoadXbanim,function,high,Stream_GetLoadHandler 'xbanim'
+002907f0,Stream_LoadXbskel,function,high,Stream_GetLoadHandler 'xbskel'
+0028bea0,Stream_LoadSpace,function,high,Stream_GetLoadHandler 'space' (empty)
+0028d0e0,Stream_LoadLgrid,function,high,"Stream_GetLoadHandler 'lgrid': relocates the light grid, stores it per zone in 0x0095f6a0"
+00290df0,Stream_LoadZpth,function,high,Stream_GetLoadHandler 'zpth': path nodes of a zone (g_pathNodeBlocks)
+002906f0,Stream_LoadLpth,function,high,"Stream_GetLoadHandler 'lpth': relocates the level path header, type 9 -> g_pathNodeBlocks+0x194"
+002aeb70,Stream_LoadAtrb,function,high,Stream_GetLoadHandler 'atrb'
+00291300,Stream_LoadXmpb,function,high,Stream_GetLoadHandler 'xmpb'
+002caba0,Stream_LoadDcg,function,high,Stream_GetLoadHandler 'dcg'
+002d0d40,Stream_LoadCg,function,high,Stream_GetLoadHandler 'cg'
+0023a1b0,Stream_LoadBtr,function,high,"Stream_GetLoadHandler 'btr': sets cm, copies the map name (CM_LoadMap-like)"
+0028fc60,Stream_LoadFdf,function,high,Stream_GetLoadHandler 'fdf': Stream_RegisterFont
+0028e030,Stream_LoadFli,function,high,Stream_GetLoadHandler 'fli'
+002ee680,Stream_LoadScn,function,high,Stream_GetLoadHandler 'scn'
+002b7010,Stream_LoadSpg,function,high,"Stream_GetLoadHandler 'spg': first free of 32 slots in 0x0095f564"
+0028ee00,Stream_LoadStb,function,high,Stream_GetLoadHandler 'stb': StringTable_Load
+00291920,Stream_LoadZbb,function,high,Stream_GetLoadHandler 'zbb'
+0028d120,Stream_LoadAitb,function,high,"Stream_GetLoadHandler 'aitb': stores per zone in 0x0095f718"
+0028ee80,Stream_LoadBmips,function,high,Stream_GetLoadHandler 'bmips'
+00298570,Stream_LoadCfgstr,function,high,"Stream_GetLoadHandler 'cfgstr': stores per zone in 0x0095f5d4"
+00290730,Stream_LoadXmb,function,high,Stream_GetLoadHandler 'xmb'
+002911c0,Stream_LoadBpe,function,high,Stream_GetLoadHandler 'bpe': FX_LoadEffectFromStream in the zone's memory context
+0028ee20,Stream_LoadDb,function,high,"Stream_GetLoadHandler 'db': stores per zone in 0x0095f5a8"
+0028ee50,Stream_LoadIb,function,high,"Stream_GetLoadHandler 'ib': stores per zone at 0x0095f630+0x5c"
+00299250,Stream_LoadDlg,function,high,"Stream_GetLoadHandler 'dlg': stores per zone in 0x0095f5ac"
+00291140,FX_LoadEffectFromStream,function,medium,"MemStream over the file, FX_LoadEffectFile, stores the effect in the zone's effect map; Stream_LoadBpe"
+0028fbe0,Stream_RegisterFont,function,medium,"nglLoadFont, stores it in the zone's font map and in the font slot table 0x0095f8d4; Stream_LoadFdf"
+002963f0,StringTable_Load,function,medium,"Stream_LoadStb: finds the 'STRING' section of the zone (0..0x62) and fills the table"
+0028eeb0,Stream_HashFileName,function,medium,"HashStr of the current stream file's base name; every load handler and the per-type lookups"
+00055b00,Pack_RelocateTable,function,medium,"adds the file base to +4 and fixes up each entry (0x00055ab0); called after every load handler's own fixup"
+00290150,Stream_FindEffect,function,medium,"searches the active zones' effect maps (the map Stream_LoadBpe fills); FX_LoadEffectFile, FX_AddParticleComponents"
+00290620,Stream_FindTexture,function,medium,"searches the active zones' texture maps, off when 0x0095f634 is set; RE_RegisterShader"
+0028fb10,Stream_ListSearchZones,function,medium,"builds the list (max 32) of zone ids the per-type Stream_Find* lookups search"
+002920c0,Stream_QueueLoad,function,medium,"allocates a 0xe4-byte stream request (SmallHeap_Alloc, StreamRequest_Init) for a file, UI_ShowDamagedDiscScreen when the open fails; Stream_LoadSync"
+00291fd0,StreamRequest_Init,function,medium,"clears a stream request: name copy at +8 (0x3f), memory context +0x48, read handle +0x50 = -1"
+00292d70,Stream_StartRequest,function,medium,"starts a queued zone request (Stream_QueueLoad) after first starting the requests it depends on (recursive); Com_Init, SV_SpawnServer"
+0028f1a0,Stream_FreeZoneMemory,function,medium,"Stream_UpdateUnload state 6: frees the zone's buffers (MemContext_Free_r or Z_Free) and its free blocks"
+00291b00,Stream_BeginZoneLoad,function,medium,"allocates the zone's buffers ('stream_alloc: out of memory! %d'), then starts the reads; Stream_UpdateLoad"
+0028c1c0,Stream_AddFreeBlock,function,medium,"turns an unused buffer tail over 0x2000 bytes into a heap block (0x494 header, max 11 at +0x90)"
+0028c050,Stream_RemoveFreeBlocks,function,medium,"removes the zone's free blocks (+0x8c count, +0x90) from the global list 0x008ff4a8; Stream_FreeZoneMemory"
+00025b50,ZoneTextureManager_Add,function,medium,"slot 3 of the texture manager wrapper (vtable 0x0083813c, its destructor calls nglSetTextureManager): records the texture in the current zone (Stream_AddTextureToZone), then forwards to the wrapped ngl manager +0xc"
+0028e930,Stream_AddTextureToZone,function,medium,"adds a texture to the zone on top of the zone stack (0x0095f638 +0x374/+0x378); ZoneTextureManager_Add"
+00025bf0,ZoneMeshFileManager_Add,function,medium,"slot 3 of the mesh-file manager wrapper (vtable 0x00838184, destructor calls nglSetMeshFileManager); Stream_AddMeshFileToZone"
+0028e7e0,Stream_AddMeshFileToZone,function,medium,adds a mesh file to the current zone; ZoneMeshFileManager_Add
+00025c90,ZoneMeshManager_Add,function,medium,"slot 3 of the mesh manager wrapper (vtable 0x008382b8, destructor calls nglSetMeshManager); Stream_AddMeshToZone"
+0028e880,Stream_AddMeshToZone,function,medium,adds a mesh to the current zone; ZoneMeshManager_Add
+00025e70,ZoneAnimManager_Add,function,medium,"slot 3 of the anim manager wrapper (vtable 0x008382dc; its destructor restores 0x0090982c, the manager Stream_LoadXbanim's loader calls)"
+0028e790,Stream_AddAnimToZone,function,medium,stores the anim in the current zone's anim map (ZoneAnimMap_Lookup); ZoneAnimManager_Add
+00025f10,ZoneSkelManager_Add,function,medium,"slot 3 of the skeleton manager wrapper (vtable 0x008381a8; destructor restores 0x00909838, the manager Stream_LoadXbskel's loader calls)"
+0028e690,Stream_AddSkelToZone,function,medium,stores the skeleton in the current zone's map (ZoneSkelMap_Lookup); ZoneSkelManager_Add
+000258d0,ZoneTextureManager_Destruct,function,medium,"vtable 0x0083813c slot 0: nglSetTextureManager(previous), Mem_AlignedFree"
+00025930,ZoneMeshFileManager_Destruct,function,medium,"vtable 0x00838184 slot 0: nglSetMeshFileManager(previous), Mem_AlignedFree"
+00025990,ZoneMeshManager_Destruct,function,medium,"vtable 0x008382b8 slot 0: nglSetMeshManager(previous), Mem_AlignedFree"
+00025a90,ZoneAnimManager_Destruct,function,medium,"vtable 0x008382dc slot 0: restores the anim manager 0x0090982c"
+00025ae0,ZoneSkelManager_Destruct,function,medium,"vtable 0x008381a8 slot 0: restores the skeleton manager 0x00909838"
+00024ed0,ZoneTextureMap_Lookup,function,medium,hash map lookup in a zone record; Stream_FindTexture
+00024f20,ZoneFontMap_Lookup,function,medium,hash map lookup in a zone record; Stream_RegisterFont stores the font into the slot
+00025150,ZoneEffectMap_Lookup,function,medium,hash map lookup in a zone record; FX_LoadEffectFromStream stores the effect into the slot
+00025010,ZoneAnimMap_Lookup,function,medium,hash map lookup in a zone record; Stream_AddAnimToZone and Stream_FindAnim
+00025100,ZoneSkelMap_Lookup,function,medium,hash map lookup in a zone record; Stream_AddSkelToZone and Stream_FindSkel
+002902a0,Stream_FindAnim,function,medium,"searches the active zones' anim maps (ZoneAnimMap_Lookup), off when 0x0095f636 is set"
+002901f0,Stream_FindSkel,function,medium,searches the active zones' skeleton maps (ZoneSkelMap_Lookup); the xmpb loader looks up a name at +0x34 with it
