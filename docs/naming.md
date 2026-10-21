@@ -670,3 +670,23 @@ CoD-specific functions included, so later decompilation covers both kinds.
   (BroScr_Mortar*), scripted anims (BroScr_AnimLoop*/AnimSingle* + wrappers), trigger off/on
   (key hash 0xd91b375d = "realorigin"), cover left/right anim sets, ~120 small leaves.
   Next: the rest of 0x1b4000-0x1e4000 (todo from brief.py), then the level sections.
+- Anim handles and interface-slot targets (2026-10-21, late): the 101 anim-handle tables
+  (BroScr_AnimHandles_<tree>, LevelScript_<level>_AnimHandles_<tree>) map the HashStr of an anim
+  name to one global per anim; the .cod packs list every anim file (`<name>.xbanim`), so hashing their
+  tokens named 1,045 of the 1,133 handle globals (g_anim_[<level>_][<tree>__]<anim>; skill scripts
+  AnimHandleTables.java + animhandle_names.py; the generic_human B table at 0x00184c60 is too big for
+  the decompiler, hence the instruction scan). 88 hashes stay uncracked. Script code now reads by anim
+  (prone_legsstraight, crouch2prone_gunsupport, corner_run2alert_right ...).
+  The "~115 open slots" of the 2026-10-20 note mostly had a static filler after all (0x00309030,
+  0x00302360, 0x0030adb0, 0x003094a0 store immediates into them); only their targets were unnamed.
+  25 named from their bodies (GScr_ActorTryTeleport = slot 366 with 222 call sites: refuses while the
+  player sees either end unless forced; GScr_ActorSetTraverseMode gravity/nogravity/noclip;
+  GScr_ActorSetPitchBlendAnims -45..45 over three leg anims; player client (+0x23c) flag getters;
+  music track, subtitles, zone +0x34). ~45 slot targets stay unnamed (offset setters, math at
+  0x00044bc0+ used only by piano_lupo, stream/fx at 0x002c4110/0x002a8260 used by falling ruins).
+  Entity layout seen in all of them: +0x23c client, +0x240 actor, +0x244 sentient.
+  Pose x movement table (level +0x168, BroScr_InitPoseMovementTable 0x001dab60): pose-major
+  stand/crouch/prone x stop/walk/run, BroScr_PoseMove_<Pose><Move>; their transition helpers are
+  named by the anims they play. Correction to commit 7f32377: it named 1,070 globals, not 1,101.
+  Next: 302 unnamed left in 0x120000-0x1e4000 (50 above 0x1b4000; all skimmed at least once, the
+  rest need per-function reads); the level sections (accessor templates + anim names now help).
