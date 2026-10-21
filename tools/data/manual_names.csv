@@ -10917,3 +10917,4 @@ address,name,kind,confidence,evidence
 00135590,BroScr_ActorArray_SetFlag2000000,function,medium,"for each entity in the array: GScr_ActorSetFlag2000000(ent, 1)"
 005bd7b0,BroLvl_gela_WaitOnZone,function,medium,"GScr_FindZone(name) then Scr_WaitOnObject(zone)"
 00531b70,BroLvl_kasserine_GoToNodeUntilNear,function,low,"AI flags on, sets the goal to the node every 0.5 s until within the distance, notify, AI flags off"
+00093c30,ShaderCache_RandomLevel,function,high,"skip-list level: counts low 2-bit zero pairs of a cached rand() (7 pairs per rand), capped at 15; only caller ShaderCache_FindOrAdd"

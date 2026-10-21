@@ -6,6 +6,7 @@ set(game_code_sources
     functions.cpp
     fx.cpp
     ngl.cpp
+    qcommon.cpp
     script_string.cpp
     shaders.cpp
     stream.cpp

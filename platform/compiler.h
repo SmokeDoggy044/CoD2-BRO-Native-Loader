@@ -202,6 +202,49 @@ inline float platform_x87_mul_add(float a, float b, float c) {
     __asm__("flds %1\n\tfmuls %2\n\tfadds %3\n\tfstps %0" : "=m"(result) : "m"(a), "m"(b), "m"(c) : "st");
     return result;
 }
+// a * b * c + d on the x87 (FLD/FMUL/FMUL/FADD, the caller's precision and rounding
+// control), stored as float: no MXCSR flags.
+inline float platform_x87_mul_mul_add(float a, float b, float c, float d) {
+    float result;
+    __asm__("flds %1\n\tfmuls %2\n\tfmuls %3\n\tfadds %4\n\tfstps %0"
+            : "=m"(result)
+            : "m"(a), "m"(b), "m"(c), "m"(d)
+            : "st");
+    return result;
+}
+// MSVC's unsigned to float (FILD, FADD 2^32 when negative) times b times c, all on the
+// x87 without storing in between, stored as float: no MXCSR flags.
+inline float platform_x87_unsigned_mul_mul(std::uint32_t value, float b, float c) {
+    static const float two32 = 4294967296.0f;
+    float result;
+    if (static_cast<std::int32_t>(value) < 0)
+        __asm__("fildl %1\n\tfadds %2\n\tfmuls %3\n\tfmuls %4\n\tfstps %0"
+                : "=m"(result)
+                : "m"(value), "m"(two32), "m"(b), "m"(c)
+                : "st");
+    else
+        __asm__("fildl %1\n\tfmuls %2\n\tfmuls %3\n\tfstps %0" : "=m"(result) : "m"(value), "m"(b), "m"(c) : "st");
+    return result;
+}
+// MSVC's _ftol of ((a + b) * c * d + e) computed on the x87: FLD, FADD, FMUL, FMUL,
+// FADD, then a chopping FISTP through 64 bits, low half.
+inline std::int32_t platform_x87_add_mul_mul_add_ftol(float a, float b, float c, float d, float e) {
+    std::int64_t result;
+    std::uint16_t control, chop;
+    __asm__("fnstcw %0" : "=m"(control));
+    chop = static_cast<std::uint16_t>(control | 0x0c00);
+    __asm__("flds %1\n\tfadds %2\n\tfmuls %3\n\tfmuls %4\n\tfadds %5\n\tfldcw %6\n\tfistpll %0\n\tfldcw %7"
+            : "=m"(result)
+            : "m"(a), "m"(b), "m"(c), "m"(d), "m"(e), "m"(chop), "m"(control)
+            : "st");
+    return static_cast<std::int32_t>(result);
+}
+// FLD/FRNDINT/FISTP: a float rounded to an integer by the caller's rounding control.
+inline std::int32_t platform_x87_round_to_int(float x) {
+    std::int32_t result;
+    __asm__("flds %1\n\tfrndint\n\tfistpl %0" : "=m"(result) : "m"(x) : "st");
+    return result;
+}
 // MSVC's unsigned to float on the x87: FILD of the value as signed, FADD 2^32 when
 // negative (rounded by the caller's precision control), FSTP as float. No MXCSR flags.
 inline float platform_x87_unsigned_to_float(std::uint32_t value) {
@@ -227,6 +270,14 @@ inline float platform_x87_div_mul(float a, float b, float c) { return a / b * c;
 inline float platform_x87_mul_div_add(float a, float b, float c, float d) { return a * b / c + d; }
 inline float platform_x87_add(float a, float b) { return a + b; }
 inline float platform_x87_mul_add(float a, float b, float c) { return a * b + c; }
+inline float platform_x87_mul_mul_add(float a, float b, float c, float d) { return a * b * c + d; }
+inline float platform_x87_unsigned_mul_mul(std::uint32_t value, float b, float c) {
+    return static_cast<float>(value) * b * c;
+}
+inline std::int32_t platform_x87_add_mul_mul_add_ftol(float a, float b, float c, float d, float e) {
+    return static_cast<std::int32_t>(static_cast<std::int64_t>((a + b) * c * d + e));
+}
+inline std::int32_t platform_x87_round_to_int(float x) { return static_cast<std::int32_t>(std::nearbyint(x)); }
 inline float platform_x87_int_mul(std::int32_t value, float factor) { return static_cast<float>(value) * factor; }
 inline std::int32_t platform_x87_mul_add_ftol(std::int32_t value, float factor, std::int32_t addend, bool add) {
     const float product = static_cast<float>(value) * factor;

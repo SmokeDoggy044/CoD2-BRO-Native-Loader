@@ -127,7 +127,7 @@ struct NglMeshNode : NglNode {
 // Only the fields the decompiled functions use so far.
 struct NglScene {
     NglRenderTargetLink* render_targets; // +0x000
-    uint32_t flags;           // +0x004
+    uint32_t flags;           // +0x004, also the stencil clear value
     uint32_t unknown008;      // +0x008, nglSetRenderTarget stores 6
     uint8_t unknown00c[0x10 - 0xc];
     float base_projection[16]; // +0x010, nglMatrixPerspective/Ortho's (kind at +0x300)
@@ -156,7 +156,7 @@ struct NglScene {
     } callbacks[3];           // +0x2e0, nglSetSceneCallback's (nglRenderSceneTree calls
                               // three: before, between and after its two draw lists)
     NglRenderTarget* render_target; // +0x2f8
-    uint8_t unknown2fc[0x300 - 0x2fc];
+    uint32_t render_target_level; // +0x2fc
     uint32_t projection_kind; // +0x300, 1 = perspective
     NglNode* opaque_nodes;    // +0x304, nglListAddNode's lists (newest first)
     NglNode* translucent_nodes; // +0x308
@@ -188,7 +188,7 @@ struct NglScene {
     float near_z;             // +0x3c4
     float far_z;              // +0x3c8
     float time;               // +0x3cc, nglBeginSceneRender derives +0x3d0 from it
-    uint8_t unknown3d0[0x3d4 - 0x3d0];
+    float frame_time;         // +0x3d0, seconds: time, or when 0 the frame interval
     uint32_t frame_counter;   // +0x3d4, the default texture animation frame
     uint32_t* slots;          // +0x3d8, 2 + scene slot count (0x00902900) words of
                               // frame memory, copied from the source scene
@@ -917,5 +917,27 @@ struct NglTextRun {
 // returns the glyph count.
 uint32_t XB_CDECL nglBuildTextGlyphs(const uint8_t* font, NglTextRun** runs, float x, float y, float scale_x,
                                      float scale_y, uint32_t color, const char* text, uint32_t* run_count);
+
+// Index buffers need no unlock on the Xbox: an empty function.
+void XB_CDECL nglIndexBuffer_Unlock();
+// The shader classes' empty vtable slot (one argument).
+void XB_STDCALL nglShader_Nop(uint32_t unused);
+// A vtable slot that returns 1.
+uint32_t XB_CDECL WaitTilOutputInst1_str_VFunc2();
+// Frees the two fog textures (0x00902e64/68) once made (0x00902e6c).
+void XB_CDECL nglFreeFogTextures();
+// Frees the current scene's render targets (and a depth texture at +0x38 of targets
+// with flags 0x5000).
+void XB_CDECL nglFreeSceneRenderTargets();
+// Sets every field of the render state cache to its default, then sends them all to
+// D3D (nglSetDefaultRenderStates).
+void XB_THISCALL nglInitRenderStates(uint8_t* self);
+// The size in pixels of a text with control codes (nglBuildTextGlyphs'): the widest
+// line, and the lines' heights (font height x the line's largest y scale) summed.
+void XB_CDECL nglGetTextExtent(const uint8_t* font, const char* text, int32_t* width, int32_t* height,
+                               float scale_x, float scale_y);
+// Before a scene's draw lists: its frame time, depth and stencil states, render
+// target, viewport and clear.
+void XB_CDECL nglBeginSceneRender(NglScene* scene);
 
 }  // namespace game

@@ -2606,7 +2606,7 @@ void XB_CDECL nglRenderSceneTree() {
     }
     current_scene() = scene;
     if (scene->stale) nglUpdateScene(0);
-    title_function<void XB_CDECL(NglScene*)>(0x00073ed0)(current_scene());  // nglBeginSceneRender
+    nglBeginSceneRender(current_scene());
     using Callback = void XB_CDECL(void*);
     auto run_callback = [](int which) {
         const NglScene::Callback& callback = current_scene()->callbacks[which];
@@ -2632,7 +2632,7 @@ void XB_CDECL nglRenderSceneTree() {
         nglRenderTranslucentList(current_scene()->translucent_nodes, current_scene()->translucent_count, 0);
     }
     run_callback(2);
-    title_function<void XB_CDECL()>(0x0006acb0)();  // nglFreeSceneRenderTargets
+    nglFreeSceneRenderTargets();
     frame_memory = saved_frame_memory;
     NglRenderTarget* target = current_scene()->render_target;
     if (target->levels > 1) title_function<void XB_CDECL(NglRenderTarget*)>(0x00063870)(target);  // nglGenerateRenderTargetMips
@@ -3276,6 +3276,281 @@ uint32_t XB_CDECL nglBuildTextGlyphs(const uint8_t* font, NglTextRun** runs, flo
     }
     run->next = nullptr;
     return total;
+}
+
+void XB_CDECL nglIndexBuffer_Unlock() {}
+
+void XB_STDCALL nglShader_Nop(uint32_t) {}
+
+uint32_t XB_CDECL WaitTilOutputInst1_str_VFunc2() { return 1; }
+
+void XB_CDECL nglFreeFogTextures() {
+    uint8_t& made = title_global<uint8_t>(0x00902e6c);
+    if (!made) return;
+    static const uint32_t kFogTextures[2] = {0x00902e64, 0x00902e68};
+    for (const uint32_t address : kFogTextures) {
+        NglTexture* texture = title_global<NglTexture*>(address);
+        nglReleaseTextureSurfaces(texture);
+        nglReleaseTextureMemory(texture);
+    }
+    made = 0;
+}
+
+void XB_CDECL nglFreeSceneRenderTargets() {
+    for (NglRenderTargetLink* link = current_scene()->render_targets; link; link = link->next) {
+        NglTexture* texture = link->texture;
+        if (!texture) continue;
+        nglReleaseTextureSurfaces(texture);
+        nglReleaseTextureMemory(texture);
+        if ((texture->flags & 0x1000) && (texture->flags & 0x4000))
+            nglReleaseTextureMemory(*reinterpret_cast<NglTexture**>(reinterpret_cast<uint8_t*>(texture) + 0x38));
+    }
+}
+
+void XB_THISCALL nglInitRenderStates(uint8_t* self) {
+    auto u32 = [self](uint32_t offset, uint32_t value) { *reinterpret_cast<uint32_t*>(self + offset) = value; };
+    auto u8 = [self](uint32_t offset, uint8_t value) { self[offset] = value; };
+    auto f32 = [self](uint32_t offset, float value) { *reinterpret_cast<float*>(self + offset) = value; };
+    const float one = title_global<float>(0x0083eb20);
+    static const uint32_t kAllOnes[4] = {0x18, 0x1c, 0x4c, 0x8c};
+    static const uint32_t kKeep[3] = {0x4, 0x8, 0x10};
+    for (const uint32_t offset : kAllOnes) u32(offset, 0xffffffff);
+    for (const uint32_t offset : kKeep) u32(offset, 0x1e00);  // D3DSTENCILOP_KEEP
+    u32(0xb0, 0x1b02);
+    u32(0xa8, 0x1b02);
+    u8(0x0, 0);
+    u32(0xc, 0x207);
+    u32(0x14, 0);
+    u8(0x20, 0);
+    f32(0x24, one);
+    f32(0x28, 0.0f);
+    f32(0x38, one);
+    u8(0x21, 0);
+    f32(0x2c, one);
+    f32(0x30, one);
+    f32(0x34, one);
+    u8(0x3c, 0);
+    u32(0x40, 0);
+    u32(0x44, 0);
+    u32(0x48, 0);
+    u8(0x50, 0);
+    u32(0x54, 0x204);
+    u32(0x58, 0x80);
+    u8(0x5c, 1);
+    u32(0x60, 0x302);
+    u32(0x64, 0x303);
+    u32(0x68, 0);
+    u32(0x6c, 0);
+    u32(0x70, 0x8006);
+    u8(0x74, 0);
+    u32(0x78, 1);
+    u32(0x7c, 0x203);
+    f32(0x84, 0.0f);
+    f32(0x80, 0.0f);
+    for (uint32_t offset = 0x88; offset < 0x8c; ++offset) u8(offset, 0);
+    u32(0x94, 1);
+    u32(0xa0, 0x1010101);
+    u8(0xb4, 0);
+    u32(0xa4, 0);
+    u32(0xac, 0x1d01);
+    u32(0xcc, 0x900);
+    u32(0xd0, 0x200);
+    u32(0xd4, 1);
+    f32(0xd8, one);
+    u32(0xdc, 4);
+    u8(0xe0, 1);
+    u8(0xe1, 0);
+    u8(0xe2, 1);
+    u8(0xe3, 0);
+    u8(0xe4, 0);
+    u8(0xe5, 1);
+    u8(0xc8, 0);
+    u8(0xc9, 1);
+    u8(0xe6, 1);
+    u8(0x90, 1);
+    nglSetDefaultRenderStates(self);
+}
+
+void XB_CDECL nglGetTextExtent(const uint8_t* font, const char* text, int32_t* width, int32_t* height,
+                               float scale_x, float scale_y) {
+    using StrToUl = uint32_t XB_CDECL(const char*, const char**, int32_t);
+    using StrToD = float XB_CDECL(const char*, const char**);  // the double, stored by FSTP
+    const uint8_t* glyphs = *reinterpret_cast<const uint8_t* const*>(font + 0x28);  // 0x1c bytes each
+    const int32_t first_char = *reinterpret_cast<const int32_t*>(font + 0x38);
+    const int32_t line_height = *reinterpret_cast<const int32_t*>(font + 0x30);
+    auto field = [&](uint32_t c, uint32_t offset) {
+        return *reinterpret_cast<const uint32_t*>(glyphs + (static_cast<int32_t>(c) - first_char) * 0x1c + offset);
+    };
+    // A line's last glyph counts with its drawn extent (+0x10 - +0x18 + +0x8) instead of
+    // its advance (+0x18).
+    auto finish_line = [&](uint8_t last, float x) {
+        const int32_t extent = static_cast<int32_t>(field(last, 0x10) - field(last, 0x18) + field(last, 0x8));
+        return static_cast<float>(extent) * scale_x + x;
+    };
+    float x = 0.0f;
+    float widest = 0.0f;
+    float total = 0.0f;
+    float line_scale = scale_y;
+    uint8_t last = 0;
+    const char* p = text;
+    if (*p != 0) {
+        do {
+            const uint8_t c = static_cast<uint8_t>(*p++);
+            switch (c) {
+            case 1:  // colour: no size
+                title_function<StrToUl>(0x001f0ee6)(p + 1, &p, 16);  // strtoul
+                ++p;
+                break;
+            case 2:
+                scale_x = title_function<StrToD>(0x001f0efd)(p + 1, &p);  // strtod
+                ++p;
+                scale_y = scale_x;
+                if (scale_x > line_scale) line_scale = scale_x;
+                break;
+            case 3:
+                scale_x = title_function<StrToD>(0x001f0efd)(p + 1, &p);
+                scale_y = title_function<StrToD>(0x001f0efd)(p + 1, &p);
+                ++p;
+                if (scale_y > line_scale) line_scale = scale_y;
+                break;
+            case 9:  // tab: four spaces
+                x = platform_x87_mul_mul_add(platform_x87_unsigned_to_float(field(' ', 0x18)), scale_x,
+                                             title_global<float>(0x007bd0c8), x);
+                last = ' ';
+                break;
+            case 10:
+                if (last) x = finish_line(last, x);
+                if (x > widest) widest = x;
+                total = static_cast<float>(line_height) * line_scale + total;
+                line_scale = scale_y;
+                x = 0.0f;
+                last = 0;
+                break;
+            default:
+                x = platform_x87_mul_add(platform_x87_unsigned_to_float(field(c, 0x18)), scale_x, x);
+                last = c;
+                break;
+            }
+        } while (*p != 0);
+        if (last) x = finish_line(last, x);
+    }
+    if (width) *width = static_cast<int32_t>(static_cast<int64_t>(x > widest ? x : widest));
+    if (height)
+        *height = static_cast<int32_t>(
+            static_cast<int64_t>(platform_x87_add(platform_x87_int_mul(line_height, line_scale), total)));
+}
+
+void XB_CDECL nglBeginSceneRender(NglScene* target_scene) {
+    using SetState = void XB_STDCALL(uint32_t);
+    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
+    // A render state through the title's cache (cache) and D3D's shadow table (shadow).
+    auto simple = [](uint32_t method, uint32_t value, uint32_t shadow, uint32_t cache) {
+        if (title_global<uint32_t>(cache) == value) return;
+        title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+        title_global<uint32_t>(shadow) = value;
+        title_global<uint32_t>(cache) = value;
+    };
+    auto f = [](uint32_t address) { return title_global<float>(address); };
+    NglScene* scene = current_scene();
+    if (scene->time == 0.0f) {
+        const float frame = static_cast<uint8_t>(nglIsPAL50()) ? f(0x0083eb5c) : f(0x007bc670);  // ms per field
+        scene->frame_time = platform_x87_unsigned_mul_mul(title_global<uint32_t>(0x009028e8), frame, f(0x0083eb4c));
+    } else {
+        scene->frame_time = scene->time;
+    }
+
+    uint32_t& z_enable = title_global<uint32_t>(0x00902f80);
+    uint8_t& stencil_enable = title_global<uint8_t>(0x00902f08);
+    if (!target_scene->depth_enable && !target_scene->depth_test) {
+        if (z_enable != 0) {
+            title_function<SetState>(0x003e8210)(0);  // SetRenderState_ZEnable
+            z_enable = 0;
+        }
+    } else {
+        if (z_enable != 1) {
+            title_function<SetState>(0x003e8210)(1);
+            z_enable = 1;
+        }
+        if (target_scene->depth_test) {
+            simple(0x00040354, 0x203, 0x003f840c, 0x00902f84);  // depth function
+            title_function<SetState>(0x003e8650)(0);  // SetRenderState_RopZCmpAlwaysRead
+            title_global<uint8_t>(0x00902feb) = 0;
+        } else {
+            if (!stencil_enable) {
+                title_function<SetState>(0x003e82b0)(1);  // SetRenderState_StencilEnable
+                stencil_enable = 1;
+                simple(0x00040364, 0x207, 0x003f8440, 0x00902f14);  // stencil function
+                simple(0x0004036c, 0xff, 0x003f8448, 0x00902f20);
+                simple(0x00040378, 0, 0x003f843c, 0x00902f10);
+            } else {
+                title_function<SetState>(0x003e82b0)(0);
+                stencil_enable = 0;
+            }
+            simple(0x00040354, 0x207, 0x003f840c, 0x00902f84);
+            title_function<SetState>(0x003e8650)(1);
+            title_global<uint8_t>(0x00902feb) = 1;
+        }
+    }
+
+    scene = current_scene();
+    NglRenderTarget* target = scene->render_target;
+    nglSetRenderTargetCached(reinterpret_cast<NglTexture*>(target), scene->render_target_level, nullptr,
+                             scene->unknown008);
+    float target_width;
+    float target_height;
+    if (static_cast<uint8_t>(target->flags) & 4) {
+        target_width = static_cast<float>(nglGetScreenWidth());
+        target_height = static_cast<float>(nglGetScreenHeight());
+    } else {
+        target_width = platform_x87_unsigned_to_float(target->width);
+        target_height = platform_x87_unsigned_to_float(target->height);
+    }
+    scene = current_scene();
+    const float one = f(0x0083eb20);
+    const float half = f(0x0083eb24);
+    const float* clamped = scene->viewport_clamped;
+    const int32_t x0 = platform_x87_add_mul_mul_add_ftol(clamped[0], one, half, target_width, half);
+    const int32_t y0 = platform_x87_add_mul_mul_add_ftol(clamped[1], one, half, target_height, half);
+    const int32_t x1 = platform_x87_add_mul_mul_add_ftol(clamped[2], one, half, target_width, half);
+    const int32_t y1 = platform_x87_add_mul_mul_add_ftol(clamped[3], one, half, target_height, half);
+    struct {
+        int32_t x, y, width, height;
+        float min_z, max_z;
+    } viewport;
+    if (reinterpret_cast<NglTexture*>(target)->flags & 0x100) {
+        viewport.x = 0;
+        viewport.y = 0;
+        viewport.width = static_cast<int32_t>(static_cast<int64_t>(target_width));
+        viewport.height = static_cast<int32_t>(static_cast<int64_t>(target_height));
+    } else {
+        viewport.x = x0;
+        viewport.y = y0;
+        viewport.width = x1 - x0;
+        viewport.height = y1 - y0;
+    }
+    viewport.min_z = 0.0f;
+    viewport.max_z = one;
+    title_function<void XB_STDCALL(const void*)>(0x003e5cc0)(&viewport);  // SetViewport
+
+    scene = current_scene();
+    if (scene->clear_flags) {
+        simple(0x00040358, 0x1010101, 0x003f8434, 0x00902fa8);  // colour write mask: all
+        scene = current_scene();
+        const float scale = f(0x0083eb8c);
+        float c[4];
+        for (int32_t i = 0; i < 4; ++i) c[i] = scene->clear_color[i] * scale;
+        auto ftol = [](float v) { return static_cast<uint32_t>(static_cast<int32_t>(static_cast<int64_t>(v))); };
+        uint32_t color = ftol(c[3]) << 8;
+        color = (color | ftol(c[0])) << 8;
+        color = (color | ftol(c[1])) << 8;
+        color |= ftol(c[2]);
+        title_function<void XB_STDCALL(uint32_t, const void*, uint32_t, uint32_t, float, uint32_t)>(0x003ead90)(
+            0, nullptr, scene->clear_flags, color, scene->clear_depth, scene->flags);  // Clear
+        scene = current_scene();
+    }
+    simple(0x00040358, scene->color_write_mask, 0x003f8434, 0x00902fa8);
+    const float frames = current_scene()->frame_time * title_global<float>(0x008a2978);
+    current_scene()->frame_counter = static_cast<uint32_t>(platform_x87_round_to_int(frames));
 }
 
 }  // namespace game

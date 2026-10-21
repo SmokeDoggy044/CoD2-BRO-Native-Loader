@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "lanes.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -1680,6 +1681,233 @@ float* XB_THISCALL nglNode_GetWorldViewRotation(const float* world, float* out) 
     rows[3] = add(add(add(v3, mul(v0, world[12])), mul(v1, world[13])), mul(v2, world[14]));
     for (int r = 0; r < 4; ++r) std::memcpy(out + r * 4, rows[r].v, 16);
     return out;
+}
+
+int32_t XB_THISCALL ShaderCache_RandomLevel(ShaderCache* self) {
+    int32_t level = 0;
+    int32_t pair;
+    do {
+        const int32_t bits = self->random_bits;
+        pair = bits & 3;
+        if (pair == 0) ++level;
+        self->random_bits = bits >> 2;
+        if (--self->bits_left == 0) {
+            self->random_bits = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // rand
+            self->bits_left = 7;
+        }
+    } while (pair == 0);
+    return level > 15 ? 15 : level;
+}
+
+ShaderCacheNode* XB_THISCALL ShaderCache_FindOrAdd(ShaderCache* self, const NglHashedName* key, void* value) {
+    // Keys compare as eight unsigned words, the first difference deciding.
+    auto compare = [key](const ShaderCacheNode* node) {
+        const uint32_t* a = reinterpret_cast<const uint32_t*>(key);
+        const uint32_t* b = reinterpret_cast<const uint32_t*>(&node->key);
+        for (int32_t i = 0; i < 8; ++i)
+            if (a[i] != b[i]) return a[i] < b[i] ? 1 : -1;
+        return 0;
+    };
+    ShaderCacheNode* update[17];
+    ShaderCacheNode* x = self->head;
+    ShaderCacheNode* node = nullptr;
+    for (int32_t level = self->level; level >= 0; --level) {
+        for (;;) {
+            node = x->next[level];
+            if (compare(node) >= 0) break;
+            x = node;
+        }
+        update[level] = x;
+    }
+    if (compare(node) == 0) {
+        ++node->references;
+        return node;
+    }
+    int32_t level = ShaderCache_RandomLevel(self);
+    if (level > self->level) {
+        level = self->level + 1;
+        self->level = level;
+        update[level] = self->head;
+    }
+    node = static_cast<ShaderCacheNode*>(Mem_AlignedAlloc(level * 4 + 0x2c, 4, 0));
+    node->key = *key;
+    node->value = value;
+    node->references = 1;
+    for (; level >= 0; --level) {
+        node->next[level] = update[level]->next[level];
+        update[level]->next[level] = node;
+    }
+    return nullptr;
+}
+
+namespace {
+
+// Register's common part: the next sort id (0x009028ec) and the shader cache entry.
+// GetName runs twice; the first result is unused.
+void register_class(NglShaderClass* self) {
+    using GetName = NglHashedName* XB_THISCALL(const NglShaderClass*, NglHashedName*);
+    self->id = title_global<uint32_t>(0x009028ec)++;
+    GetName* get_name = reinterpret_cast<GetName*>(self->vtable[1]);
+    NglHashedName name;
+    get_name(self, &name);
+    ShaderCache_FindOrAdd(&title_global<ShaderCache>(0x00902ac0), get_name(self, &name), self);
+}
+
+}  // namespace
+
+void XB_THISCALL cdDebug_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00901f88), 0x00897ad0, title_global<uint32_t>(0x008996e4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00901f90), title_global<uint32_t>(0x008997d8));
+}
+
+void XB_THISCALL ShaderPCUV_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00901f98), 0x00897c00, title_global<uint32_t>(0x008998d4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00901fa0), title_global<uint32_t>(0x008999c8));
+}
+
+void XB_THISCALL cdGunSight_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00901fac), 0x00897d30, title_global<uint32_t>(0x00899b44));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00901fb4), title_global<uint32_t>(0x00899c38));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00901fa8), title_global<uint32_t>(0x00899d30));
+}
+
+void XB_THISCALL cdGun_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00901fc0), 0x00897e70, title_global<uint32_t>(0x00899eb4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00901fbc), title_global<uint32_t>(0x00899fa8));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00901fc8), title_global<uint32_t>(0x0089a0a0));
+}
+
+void XB_THISCALL cdGlass_Register(NglShaderClass* self) {
+    register_class(self);
+    cdGlass_InitVertexShaders(0x00897fb0);
+    cdGlass_InitPixelShaders();
+    nglPixelShader_Init(&title_global<uint32_t>(0x00901ff8), title_global<uint32_t>(0x0089a9c8));
+}
+
+void XB_THISCALL cdSimpleAlpha_Register(NglShaderClass* self) {
+    register_class(self);
+    cdSimpleAlpha_InitVertexShaders(0x008980f0);
+    cdSimpleAlpha_InitPixelShaders();
+    cdSimpleAlpha_InitPixelShaders2();
+}
+
+void XB_THISCALL cdPropeller_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00902024), 0x00898230, title_global<uint32_t>(0x0089b2a4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902030), title_global<uint32_t>(0x0089b398));
+    nglPixelShader_Init(&title_global<uint32_t>(0x0090202c), title_global<uint32_t>(0x0089b490));
+}
+
+void XB_THISCALL cdDecal_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00902040), 0x00898370, title_global<uint32_t>(0x0089b594));
+    nglPixelShader_Init(&title_global<uint32_t>(0x0090203c), title_global<uint32_t>(0x0089b688));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902038), title_global<uint32_t>(0x0089b780));
+}
+
+void XB_THISCALL cdChar_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00902054), 0x008984b0, title_global<uint32_t>(0x0089baa4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x0090204c), title_global<uint32_t>(0x0089bb98));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902050), title_global<uint32_t>(0x0089bc90));
+}
+
+void XB_THISCALL cdPrelit_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00902064), 0x008985f0, title_global<uint32_t>(0x0089bd94));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902060), title_global<uint32_t>(0x0089be88));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902070), title_global<uint32_t>(0x0089bf80));
+    nglPixelShader_Init(&title_global<uint32_t>(0x0090206c), title_global<uint32_t>(0x0089c078));
+}
+
+void XB_THISCALL cdAirplaneMetal_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00902080), 0x00898730, title_global<uint32_t>(0x0089c2a4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902078), title_global<uint32_t>(0x0089c398));
+    nglPixelShader_Init(&title_global<uint32_t>(0x0090207c), title_global<uint32_t>(0x0089c490));
+}
+
+void XB_THISCALL cdSimpleUVAnim_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00902090), 0x00898870, title_global<uint32_t>(0x0089c624));
+    nglPixelShader_Init(&title_global<uint32_t>(0x0090208c), title_global<uint32_t>(0x0089c718));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902098), title_global<uint32_t>(0x0089c810));
+}
+
+void XB_THISCALL cdSimplePrelit_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x009020a4), 0x008989b0, title_global<uint32_t>(0x0089c914));
+    nglPixelShader_Init(&title_global<uint32_t>(0x009020a0), title_global<uint32_t>(0x0089ca08));
+}
+
+void XB_THISCALL cdSimple_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x009020b8), 0x00898af0, title_global<uint32_t>(0x0089cb84));
+    nglPixelShader_Init(&title_global<uint32_t>(0x009020b4), title_global<uint32_t>(0x0089cc78));
+    nglPixelShader_Init(&title_global<uint32_t>(0x009020b0), title_global<uint32_t>(0x0089cd70));
+}
+
+void XB_THISCALL cdRiver_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x009020e8), 0x00898c30, title_global<uint32_t>(0x0089d174));
+    cdRiver_InitPixelShaders();
+    nglPixelShader_Init(&title_global<uint32_t>(0x009020c4), title_global<uint32_t>(0x0089da08));
+}
+
+void XB_THISCALL cdOcean_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x00902118), 0x00898d70, title_global<uint32_t>(0x0089de04));
+    cdOcean_InitPixelShaders();
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902114), title_global<uint32_t>(0x0089e698));
+}
+
+void XB_THISCALL cdWater_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x009021a4), 0x00898eb0, title_global<uint32_t>(0x0089e7f4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x009021a0), title_global<uint32_t>(0x0089e8e8));
+    nglPixelShader_Init(&title_global<uint32_t>(0x009021ac), title_global<uint32_t>(0x0089e9e0));
+}
+
+void XB_THISCALL cdWorldBlend_Register(NglShaderClass* self) {
+    register_class(self);
+    cdWorldBlend_InitVertexShaders(0x00898ff0);
+    cdWorldBlend_InitVertexShaders2(0x00898ff0);
+    cdWorldBlend_InitPixelShaders();
+    cdWorldBlend_InitPixelShaders2();
+    nglPixelShader_Init(&title_global<uint32_t>(0x009021ec), title_global<uint32_t>(0x0089f738));
+}
+
+void XB_THISCALL cdWorldVertexLit_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x009021f8), 0x00899130, title_global<uint32_t>(0x0089f834));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902200), title_global<uint32_t>(0x0089f928));
+    nglPixelShader_Init(&title_global<uint32_t>(0x009021f4), title_global<uint32_t>(0x0089fa20));
+}
+
+void XB_THISCALL cdWorld_Register(NglShaderClass* self) {
+    register_class(self);
+    cdWorld_InitVertexShaders(0x00899270);
+    cdWorld_InitVertexShaders2(0x00899270);
+    cdWorld_InitPixelShaders();
+    cdWorld_InitPixelShaders2();
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902218), title_global<uint32_t>(0x008a0748));
+}
+
+void XB_THISCALL cdBackground_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x0090224c), 0x008993b0, title_global<uint32_t>(0x008a0844));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902248), title_global<uint32_t>(0x008a0938));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902254), title_global<uint32_t>(0x008a0a30));
+}
+
+void XB_THISCALL cdSky_Register(NglShaderClass* self) {
+    register_class(self);
+    nglVertexShader_Init(&title_global<uint32_t>(0x0090225c), 0x008994f0, title_global<uint32_t>(0x008a0ae4));
+    nglPixelShader_Init(&title_global<uint32_t>(0x00902264), title_global<uint32_t>(0x008a0bd8));
 }
 
 }  // namespace game

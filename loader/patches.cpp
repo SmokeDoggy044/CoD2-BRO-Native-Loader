@@ -1217,6 +1217,9 @@ const RecordedCall kRecordedD3dCalls[] = {
     {"D3DDevice_BlockUntilIdle", ""},
     {"D3DResource_BlockUntilNotBusy", "s"},
     {"D3DResource_Register", "s s"},
+    // Viewport {x, y, width, height, min z, max z}; Clear's rectangles (count x 16).
+    {"D3DDevice_SetViewport", "s:24"},
+    {"D3DDevice_Clear", "s s:a0*16 s s s s"},
 };
 
 // XAPI XLaunchNewImageA calls the first non-null entry of a launch hook table

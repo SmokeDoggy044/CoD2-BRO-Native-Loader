@@ -279,4 +279,58 @@ void XB_THISCALL nglDebugShader_Draw(const NglMeshNode* node);
 // 0x00049280: a mesh draw's world matrix (at its start) times the scene's view matrix.
 float* XB_THISCALL nglNode_GetWorldViewRotation(const float* world, float* out);
 
+// A skip list of reference-counted entries keyed by a hashed name (the shader cache at
+// 0x00902ac0). The head is a node whose next[] start at the same offset; the list ends
+// at a node whose key compares above every name.
+struct ShaderCacheNode {
+    NglHashedName key;
+    void* value;               // +0x20
+    int32_t references;        // +0x24
+    ShaderCacheNode* next[1];  // +0x28, one per level up to the node's level
+};
+
+struct ShaderCache {
+    uint8_t unknown00[0x4];
+    ShaderCacheNode* head;     // +0x04
+    int32_t bits_left;         // +0x08, 2-bit pairs left in random_bits
+    int32_t random_bits;       // +0x0c, a rand() consumed two bits at a time
+    int32_t level;             // +0x10, the highest level in use
+};
+
+#if UINTPTR_MAX == 0xFFFFFFFF
+static_assert(offsetof(ShaderCacheNode, next) == 0x28);
+static_assert(sizeof(ShaderCache) == 0x14);
+#endif
+
+// A new node's level: one more per zero 2-bit pair (chance 1/4 each), at most 15.
+int32_t XB_THISCALL ShaderCache_RandomLevel(ShaderCache* self);
+// The node with the key gets one more reference and is returned; otherwise a node
+// {key, value, 1 reference} is added and the result is null.
+ShaderCacheNode* XB_THISCALL ShaderCache_FindOrAdd(ShaderCache* self, const NglHashedName* key, void* value);
+
+// Register (vtable slot 0, startup): the class gets its sort id and its shader cache
+// entry under its name, then makes its vertex and pixel shaders.
+void XB_THISCALL cdDebug_Register(NglShaderClass* self);
+void XB_THISCALL ShaderPCUV_Register(NglShaderClass* self);
+void XB_THISCALL cdGunSight_Register(NglShaderClass* self);
+void XB_THISCALL cdGun_Register(NglShaderClass* self);
+void XB_THISCALL cdGlass_Register(NglShaderClass* self);
+void XB_THISCALL cdSimpleAlpha_Register(NglShaderClass* self);
+void XB_THISCALL cdPropeller_Register(NglShaderClass* self);
+void XB_THISCALL cdDecal_Register(NglShaderClass* self);
+void XB_THISCALL cdChar_Register(NglShaderClass* self);
+void XB_THISCALL cdPrelit_Register(NglShaderClass* self);
+void XB_THISCALL cdAirplaneMetal_Register(NglShaderClass* self);
+void XB_THISCALL cdSimpleUVAnim_Register(NglShaderClass* self);
+void XB_THISCALL cdSimplePrelit_Register(NglShaderClass* self);
+void XB_THISCALL cdSimple_Register(NglShaderClass* self);
+void XB_THISCALL cdRiver_Register(NglShaderClass* self);
+void XB_THISCALL cdOcean_Register(NglShaderClass* self);
+void XB_THISCALL cdWater_Register(NglShaderClass* self);
+void XB_THISCALL cdWorldBlend_Register(NglShaderClass* self);
+void XB_THISCALL cdWorldVertexLit_Register(NglShaderClass* self);
+void XB_THISCALL cdWorld_Register(NglShaderClass* self);
+void XB_THISCALL cdBackground_Register(NglShaderClass* self);
+void XB_THISCALL cdSky_Register(NglShaderClass* self);
+
 }  // namespace game
