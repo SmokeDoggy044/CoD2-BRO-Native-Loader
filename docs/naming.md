@@ -706,7 +706,11 @@ CoD-specific functions included, so later decompilation covers both kinds.
   kasserine cowardice triggers (kasserine::curiosity_killed_the_cat_* callbacks), hub helpers named from
   their bodies (gela BroLvl_gela_SetFriendlyChain 48 callers, WaitTriggerOff 51, oran
   FindVehicleByTargetname 19, mons1 NotifyObjectivesComplete). Port repo's symbol file refreshed.
-  Next: 2,532 unnamed level functions left, 1,097 with strings (rerun `namepack.py rank --range
-  0041a220-007a9e84`; the ranked list was worked down to ~row 420 of 2,929). The many tiny wrappers around
+- Level scripts, 2026-10-21 (evening 2): fresh whole-program ExportNaming (three chunks 00011000-00100000,
+  00100000-00280000, 00280000-007b3000; the older overlapping range files deleted), then 188 names from the
+  top ~200 string-ranked level functions (skiptos, mortar/artillery events, squad LOD model swaps, jeep
+  crashes, bunker explosions, mons1 Event11_88Controller from its error string). Mostly low confidence.
+  Next: ~2,340 unnamed level functions left (rerun `namepack.py rank --range 0041a220-007a9e84`;
+  the string-ranked rows were worked down to ~row 200 of that list). The many tiny wrappers around
   still-unnamed common-script functions (0016ce40/0016cf80 scripted anim loops, 00135590/001354f0,
   0046b200/00470f70) wait for those targets; then the ~250 common-script leftovers in 0x120000-0x1e4000.

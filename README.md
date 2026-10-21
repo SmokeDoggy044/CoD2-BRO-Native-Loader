@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 51% of the functions have a name, and 286 have been
+It's early days: about 52% of the functions have a name, and 286 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -28,8 +28,8 @@ function of the game.*
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
 | Engine and game code (`.text`) | 11,179 | 5,671 | 286 | 10,893 |
-| Mission scripts (15 level sections) | 5,324 | 2,777 | 0 | 5,324 |
-| **Total** | **16,503** | **8,448** | **286** | **16,217** |
+| Mission scripts (15 level sections) | 5,324 | 2,965 | 0 | 5,324 |
+| **Total** | **16,503** | **8,636** | **286** | **16,217** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -73,19 +73,19 @@ automatically.
 
 | Section | Mission | Functions | Named |
 |---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 617 | 341 |
-| ORAN | `sp/oran` | 443 | 217 |
-| TUNISIA | `sp/tunisia` | 307 | 173 |
-| KASSPASS | `sp/kasspass` | 498 | 276 |
-| KASSRINE | `sp/kassrine` | 237 | 120 |
+| PROLOGUE | `sp/prologue` | 617 | 342 |
+| ORAN | `sp/oran` | 443 | 223 |
+| TUNISIA | `sp/tunisia` | 307 | 174 |
+| KASSPASS | `sp/kasspass` | 498 | 279 |
+| KASSRINE | `sp/kassrine` | 237 | 121 |
 | LIBEATOR | `sp/liberatr` | 321 | 147 |
-| GELA | `sp/gela` | 403 | 236 |
-| PIANLUPO | `sp/piano` | 400 | 209 |
-| TROINA | `sp/troina` | 235 | 76 |
-| OMAHEACH | `sp/omaha` | 322 | 176 |
-| MONS1 | `sp/mons` | 518 | 238 |
-| EILEDORF | `sp/eilndrf` | 184 | 95 |
-| BUCHHOLZ | `sp/buchholz` | 441 | 182 |
+| GELA | `sp/gela` | 403 | 240 |
+| PIANLUPO | `sp/piano` | 400 | 234 |
+| TROINA | `sp/troina` | 235 | 105 |
+| OMAHEACH | `sp/omaha` | 322 | 205 |
+| MONS1 | `sp/mons` | 518 | 298 |
+| EILEDORF | `sp/eilndrf` | 184 | 111 |
+| BUCHHOLZ | `sp/buchholz` | 441 | 195 |
 | DRAGEETH | `sp/dragonth` | 179 | 72 |
 <!-- levels:end -->
 
