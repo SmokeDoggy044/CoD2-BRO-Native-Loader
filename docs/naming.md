@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-20): 2593 functions named by us (counter), 805+ globals, plus 3008 Microsoft
+State (2026-10-20): 2625 functions named by us (counter), 805+ globals, plus 3008 Microsoft
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
@@ -470,4 +470,9 @@ CoD-specific functions included, so later decompilation covers both kinds.
   usable flag 0x10, physics launch/stop, music stop). ~115 slots stay open: one-line flag
   setters on entity +0x2a4/+0x10 bits, UI-state setters on 0x0095f8f0, hud timer variants
   (0x002fb500 kind 4/6/7), vehicle path/speed setters - name them when those fields are known.
-  Next: the front end 0x30c000-0x340000.
+  Front end 0x30c000-0x340000 (same night): its 495 unnamed functions dumped; the 32 with
+  distinctive strings named (FE_Bonus* labels/texts, FE_DrawLoadingQuote, Hud_Setup* panel
+  hooks, CL_TogglePause/ResumeFromPause, CL_ApplyProfileSettings, SCR_DrawLoadingScreen,
+  Save_CheckVersion). Left: ~30 MEM_* memory-unit dialogs (one per error case; name them from
+  their callers' state machine 0x0033a530/0x003381c0), duplicate UI_Highlight/UI_Select
+  sound hooks (one per screen class - name with the class vtables), and the string-less rest.

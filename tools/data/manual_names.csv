@@ -3295,3 +3295,35 @@ address,name,kind,confidence,evidence
 00014590,GScr_PhysicsStop,function,medium,script builtin slot 488: G_FreeEntityPhysics on the entity
 009228e0,pScr_GScr_PhysicsStop,data,medium,script builtin slot 488 pointer
 002e91f0,G_EntDetachAll,function,medium,clears the 7 attachment slots (+0x3d8) and G_DObjUpdate; GScr_DetachAll
+0030c070,FE_BonusArtCategoryLabel,function,medium,returns the BONUS_ART_DIR/CHAR_CONCEPT/LEVEL_CONCEPT/... string for an index
+0030c130,FE_BonusMovieLabel,function,medium,returns BONUS_BRINGING/VETERANS/MP_MAP/BEHIND/CE_ARTS for an index
+003330f0,FE_BonusMovieFileName,function,medium,switch to the bonus movie names Bringing/TheMen/MPKass/MPMaub/MPTroina/Behind
+0030c240,Save_CheckVersion,function,medium,compares the save header against the version strings 9-21-05 / 9-21-05CE
+0030cd70,FE_FormatPlayTime,function,medium,"va(""%s%i:%s%i:%s%i"") of hours/minutes/seconds with leading zeros"
+0030d0b0,FE_FormatPlayTime2,function,medium,"same formatting as FE_FormatPlayTime, other caller"
+0030dbc0,FE_BonusCharacterSetText,function,medium,sprintf BONUS_CHAR_%i_NAME/_STATS/_BIO into the panel texts
+0030dfd0,FE_AspectOptionLabel,function,medium,FEMENU_COP_16X9 or FEMENU_COP_4X3 for the widescreen option
+0030e0f0,FE_CommandDisplayName,function,medium,"maps bound commands (+attack, +speed, +melee, toggle cl_run, +sprint, ...) to FEMENU_CMD_* labels"
+00312bd0,FE_BonusLevelLabel,function,medium,BONUS_BONUS_LEVEL_%i or BONUS_LOCKED
+00319b40,Key_GetKeyNameForCommand,function,medium,"searches key_bindings for the command (+activate, toggle cl_run, +speed) and returns Key_KeynumToString"
+0031af60,FE_DrawLoadingQuote,function,medium,draws FEMENU_CHAPTER_%i and FEMENU_QUOTE_%i on the loading screen
+0031be80,FE_BonusVehicleSetText,function,medium,BONUS_VEH_%i_%i_NAME/_INFO and the %i / %i page counter
+0031cc30,FE_BonusWeaponSetText,function,medium,BONUS_WEAP_%i_%i_NAME/_INFO and the %i / %i page counter
+0031c5d0,FE_BonusVehicleCategoryLabel,function,medium,BONUS_BONUS_LAND/AIR/SEA/ARTILLERY/ANTI_AIR/ROCKET or BONUS_LOCKED
+0031d250,FE_BonusWeaponCategoryLabel,function,medium,BONUS_BONUS_SMG/RIFLE/HMG/PISTOL/GRENADE/ASSAULT/SNIPER/... or BONUS_LOCKED
+0031d880,FE_BonusCharacterLabel,function,medium,BONUS_BONUS_CHAR_1..7 or BONUS_LOCKED
+0031de10,FE_BonusMenuLabel,function,medium,BONUS_CREDITS/MOVIES/CHARACTERS/WEAPONS/VEHICLES/ARTS or BONUS_LOCKED
+00324330,Hud_SetupGrenadeCook,function,medium,finds the GrenadeCook1..6 and GrenadeCookring pictures in the hud panel
+00324480,Hud_SetupGrenadeIcon,function,medium,finds the us_grenade/german_grenade pictures and the count text
+003244c0,Hud_SetupAmmo,function,medium,finds the hudammo picture and texts
+00325d60,FE_SetDifficultyPicture,function,medium,"sprintf difficulty%i, Panel_FindPicture"
+0032a0e0,UIScrollBar_Construct,function,medium,"builds scroll_back, scroll_arrow_top/bottom and scroll_indicator pictures"
+0032d130,MemDlg_FormatNotEnoughBlocks,function,medium,formats MEM_ERROR_NOT_ENOUGH_BLOCKS2 with the block count (%s %d %s)
+0032d660,UI_PlayTypeSound,function,medium,S_PlaySoundAlias UI_Type
+0032dde0,CL_TogglePause,function,medium,CL_KeyEvent: toggles cl_paused and pauses all sound channels
+0032dec0,CL_PauseForDialog,function,medium,UI_ShowDialog: sets cl_paused
+0032df90,CL_ResumeFromPause,function,medium,"clears cl_paused, S_ResumeAllChannels"
+0032eac0,SCR_DrawLoadingScreen,function,medium,"SV_Map_f: draws the level loading screen (zone text, quads, nglEndFrame)"
+00332e20,CL_ApplyProfileSettings,function,medium,"sets cl_sensitivityX/Y, m_pitch, g_vehControlMode, cl_run, controller config and sound volumes from the profile; Com_Init/SV_SpawnServer"
+00331340,FE_ApplyControlSettings,function,medium,"options menu: writes sensitivity, invert pitch, vehicle control mode, cl_run cvars and executes the controller config"
+00331030,CL_ExecControllerConfig,function,medium,sets cg_controllerconfig and executes its config file (Cbuf_AddText/Cbuf_Execute)
