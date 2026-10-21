@@ -276,4 +276,7 @@ void XB_THISCALL cdGlass_Draw(const NglMeshNode* node);
 // white), blend mode 2, no fog change.
 void XB_THISCALL nglDebugShader_Draw(const NglMeshNode* node);
 
+// 0x00049280: a mesh draw's world matrix (at its start) times the scene's view matrix.
+float* XB_THISCALL nglNode_GetWorldViewRotation(const float* world, float* out);
+
 }  // namespace game

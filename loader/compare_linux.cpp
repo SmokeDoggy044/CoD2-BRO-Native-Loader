@@ -99,7 +99,7 @@ constexpr uint32_t kMaxSdkData = 4096;  // per pointer argument
 // its spec index, then per argument its value, or for a pointer the byte count and
 // the bytes (padded to 4); a null pointer logs kSdkNull, an unreadable one kSdkBad.
 enum SdkArgWhere : uint8_t { kSdkEcx, kSdkEdx, kSdkStack };
-enum SdkArgKind : uint8_t { kSdkValue, kSdkBytes, kSdkScaledBytes };
+enum SdkArgKind : uint8_t { kSdkValue, kSdkBytes, kSdkScaledBytes, kSdkProductBytes };
 constexpr uint32_t kSdkNull = 0xFFFFFFFE;
 constexpr uint32_t kSdkBad = 0xFFFFFFFF;
 
@@ -107,7 +107,8 @@ struct SdkArg {
     SdkArgWhere where;
     SdkArgKind kind;
     uint8_t slot;        // kSdkStack: stack slot (0 = first argument)
-    uint8_t count_from;  // kSdkScaledBytes: the argument holding the count
+    uint8_t count_from;  // kSdkScaledBytes/kSdkProductBytes: the argument holding the count
+    uint8_t size_from;   // kSdkProductBytes: the argument holding the bytes per count
     uint32_t bytes;      // kSdkBytes: size; kSdkScaledBytes: bytes per count
 };
 
@@ -478,7 +479,9 @@ XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
             ok = sdk_log_put(c, values[i]);
             continue;
         }
-        const uint32_t bytes = arg.kind == kSdkBytes ? arg.bytes : values[arg.count_from] * arg.bytes;
+        const uint32_t bytes = arg.kind == kSdkBytes          ? arg.bytes
+                               : arg.kind == kSdkScaledBytes ? values[arg.count_from] * arg.bytes
+                                                             : values[arg.count_from] * values[arg.size_from];
         if (values[i] == 0) {
             ok = sdk_log_put(c, kSdkNull);
         } else if (bytes > kMaxSdkData || !readable(c, values[i], bytes)) {
@@ -1679,8 +1682,12 @@ bool parse_sdk_args(const char* text, SdkSpec& spec) {
         }
         if (const size_t colon = word.find(':'); colon != std::string::npos) {
             const std::string size = word.substr(colon + 1);
-            unsigned from = 0, bytes = 0;
-            if (std::sscanf(size.c_str(), "a%u*%u", &from, &bytes) == 2) {
+            unsigned from = 0, bytes = 0, size_from = 0;
+            if (std::sscanf(size.c_str(), "a%u*a%u", &from, &size_from) == 2) {
+                arg.kind = kSdkProductBytes;
+                arg.count_from = static_cast<uint8_t>(from);
+                arg.size_from = static_cast<uint8_t>(size_from);
+            } else if (std::sscanf(size.c_str(), "a%u*%u", &from, &bytes) == 2) {
                 arg.kind = kSdkScaledBytes;
                 arg.count_from = static_cast<uint8_t>(from);
             } else if (std::sscanf(size.c_str(), "%u", &bytes) == 1) {
@@ -1693,7 +1700,9 @@ bool parse_sdk_args(const char* text, SdkSpec& spec) {
         ++spec.arg_count;
     }
     for (uint32_t i = 0; i < spec.arg_count; ++i)
-        if (spec.args[i].kind == kSdkScaledBytes && spec.args[i].count_from >= spec.arg_count) return false;
+        if ((spec.args[i].kind == kSdkScaledBytes || spec.args[i].kind == kSdkProductBytes) &&
+            (spec.args[i].count_from >= spec.arg_count || spec.args[i].size_from >= spec.arg_count))
+            return false;
     return true;
 }
 

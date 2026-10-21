@@ -54,4 +54,7 @@ int32_t XB_CDECL inflate_trees_fixed(uint32_t* bl, uint32_t* bd, void** tl, void
 int32_t XB_CDECL inflate_fast(uint32_t bl, uint32_t bd, const InflateHuft* tl, const InflateHuft* td,
                               InflateBlocksState* s, ZStream* z);
 
+// 0x00056b80: case-insensitive compare of two file names.
+int32_t XB_REGS2 XB_CDECL strcmpcasenosensitive_internal(const char* name1, const char* name2);
+
 }  // namespace game

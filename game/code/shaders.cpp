@@ -1401,8 +1401,7 @@ void XB_THISCALL cdGlass_Draw(const NglMeshNode* node) {
     alignas(16) float c[44] = {};
     std::memcpy(c, draw->world_view_projection, 64);
     alignas(16) float buffer[16];
-    using GetMatrix = const float* XB_THISCALL(NglMeshDrawNode*, float*);
-    const float* world_view = title_function<GetMatrix>(0x00049280)(draw, buffer);  // nglNode_GetWorldViewRotation
+    const float* world_view = nglNode_GetWorldViewRotation(reinterpret_cast<const float*>(draw), buffer);
     const float w0 = title_global<float>(0x007b47c0);
     const float w1 = title_global<float>(0x007b47d0);
     for (int r = 0; r < 4; ++r) {
@@ -1666,6 +1665,21 @@ void XB_THISCALL cdSimpleAlpha_Draw(const NglMeshNode* node) {
     set_z_write(saved_z_write);
     set_color_write(saved_color_write);
     set_z_func(saved_z_func);
+}
+
+float* XB_THISCALL nglNode_GetWorldViewRotation(const float* world, float* out) {
+    // world * the current scene's view matrix, rows 0-2 as directions (no translation
+    // term), row 3 as a point.
+    const float* view = current_scene()->view_matrix;
+    const Lanes v0 = lanes(view), v1 = lanes(view + 4), v2 = lanes(view + 8), v3 = lanes(view + 12);
+    Lanes rows[4];
+    for (int r = 0; r < 3; ++r) {
+        const float* m = world + r * 4;
+        rows[r] = add(add(mul(v0, m[0]), mul(v1, m[1])), mul(v2, m[2]));
+    }
+    rows[3] = add(add(add(v3, mul(v0, world[12])), mul(v1, world[13])), mul(v2, world[14]));
+    for (int r = 0; r < 4; ++r) std::memcpy(out + r * 4, rows[r].v, 16);
+    return out;
 }
 
 }  // namespace game

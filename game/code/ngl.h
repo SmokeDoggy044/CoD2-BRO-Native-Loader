@@ -888,5 +888,34 @@ void XB_CDECL nglListAddTextf(const uint8_t* font, float x, float y, float z, ui
                               float scale_y, const char* format, ...);
 // 0x0009d240: draws the batched quads and advances the batch.
 void XB_CDECL nglQuadBatch_Draw();
+// 0x0009d5b0: a particle quad batch's texture and render states (blend 0-3).
+void XB_CDECL nglQuadBatch_SetMaterial(NglTexture* texture, uint32_t blend, uint8_t fog, uint32_t alpha_ref);
+
+// 0x00062a70: TODO.
+void XB_CDECL nglSetDefaultSceneParams();
+// 0x00075d90: TODO.
+void XB_THISCALL nglRestoreRenderStates(uint8_t* self);
+// 0x00076470: TODO.
+void XB_CDECL nglInitShaderConstants(uint8_t init_table);
+// 0x0006abe0: TODO.
+void XB_THISCALL nglReleaseTextureSurfaces(NglTexture* texture);
+// 0x00063870: TODO.
+void XB_CDECL nglGenerateRenderTargetMips(NglTexture* texture);
+// 0x00075780: TODO.
+void XB_THISCALL nglSetDefaultRenderStates(uint8_t* self);
+// A run of glyphs with one position, scale and colour (frame memory, nglBuildTextGlyphs).
+struct NglTextRun {
+    NglTextRun* next;
+    const char* text;
+    uint32_t length;      // characters
+    uint32_t glyph_count;
+    float x, y;
+    float scale_x, scale_y;
+    uint32_t color;       // ARGB
+};
+// 0x00065b60: splits text into runs (the list at *runs, their count in *run_count);
+// returns the glyph count.
+uint32_t XB_CDECL nglBuildTextGlyphs(const uint8_t* font, NglTextRun** runs, float x, float y, float scale_x,
+                                     float scale_y, uint32_t color, const char* text, uint32_t* run_count);
 
 }  // namespace game

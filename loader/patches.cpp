@@ -1210,6 +1210,7 @@ const RecordedCall kRecordedD3dCalls[] = {
     {"D3DDevice_SetShaderConstantMode", "s"},
     {"D3DDevice_DrawVertices", "s s s"},
     {"D3DDevice_DrawIndexedVertices", "s s s"},
+    {"D3DDevice_DrawVerticesUP", "s s s:a1*a3 s"},
     // Render targets, waits and Register (Data += base: decided by its arguments).
     {"D3DDevice_SetRenderTarget", "s s"},
     {"D3DDevice_SetRenderTargetFast", "s s s"},

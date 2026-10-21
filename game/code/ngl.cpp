@@ -2869,4 +2869,413 @@ void XB_CDECL nglQuadBatch_Draw() {
     if (used > title_global<int32_t>(0x00909f40)) title_global<int32_t>(0x00909f40) = used;
 }
 
+void XB_CDECL nglQuadBatch_SetMaterial(NglTexture* texture, uint32_t blend, uint8_t fog, uint32_t alpha_ref) {
+    // The particle quads' states through the state cache (0x00902f08): alpha test with
+    // `alpha_ref` unless 0x00909f50 is set (then alpha test and blending off), culling
+    // off, fog, and a blend: 0/3 alpha, 1 additive (src alpha, one), 2 reverse subtract.
+    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
+    uint8_t* cache = &title_global<uint8_t>(0x00902f08);
+    auto set_byte = [cache](uint32_t offset, uint8_t value, uint32_t method) {
+        if (cache[offset] != value) {
+            title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+            cache[offset] = value;
+        }
+    };
+    auto set = [cache](uint32_t offset, uint32_t value, uint32_t method) {
+        uint32_t& field = *reinterpret_cast<uint32_t*>(cache + offset);
+        if (field != value) {
+            title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+            field = value;
+        }
+    };
+    nglSetTexture(0, texture, 2, 3);
+    title_global<uint32_t>(0x003f8320) |= 1;
+    title_global<uint32_t>(0x003f5c68) = 3;
+    title_global<uint32_t>(0x003f5c6c) = 3;
+    if (title_global<uint32_t>(0x00909f50) != 0) {
+        set_byte(0x5c, 0, 0x00040304);  // alpha blend enable
+        set_byte(0x50, 0, 0x00040300);  // alpha test enable
+    } else {
+        set_byte(0x5c, 1, 0x00040304);
+        set_byte(0x50, 1, 0x00040300);
+        set(0x54, 0x204, 0x0004033c);       // alpha func GREATER
+        set(0x58, alpha_ref, 0x00040340);   // alpha ref
+    }
+    uint32_t& cull_mode = *reinterpret_cast<uint32_t*>(cache + 0xa4);
+    if (cull_mode != 0) {
+        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // SetRenderState_CullMode
+        cull_mode = 0;
+    }
+    *reinterpret_cast<int32_t*>(cache + 0xec) = -1;
+    *reinterpret_cast<int32_t*>(cache + 0xf0) = -1;
+    *reinterpret_cast<uint32_t*>(cache + 0xe8) = 9;
+    if (cache[0x8b] != fog) {
+        title_global<uint32_t>(0x003f8320) |= 0x2000;  // D3DRS_FOGENABLE
+        title_global<uint32_t>(0x003f8498) = fog;
+        cache[0x8b] = fog;
+    }
+    switch (blend) {
+    case 0:
+    case 3:
+        set(0x70, 0x8006, 0x00040350);  // blend op ADD
+        set(0x60, 0x302, 0x00040344);   // src SRCALPHA
+        set(0x64, 0x303, 0x00040348);   // dest INVSRCALPHA
+        break;
+    case 1:
+        set(0x70, 0x8006, 0x00040350);
+        set(0x60, 0x302, 0x00040344);
+        set(0x64, 1, 0x00040348);       // dest ONE
+        break;
+    case 2:
+        set(0x70, 0x800b, 0x00040350);  // REVSUBTRACT
+        set(0x60, 0x302, 0x00040344);
+        nglStateCache_SetDestBlend(cache, 1);
+        break;
+    default:
+        break;
+    }
+}
+
+void XB_CDECL nglSetDefaultSceneParams() {
+    nglSetRenderTarget(reinterpret_cast<NglRenderTarget*>(nglGetBackBufferTexture()));
+    const float bottom = static_cast<float>(nglGetScreenHeight() - 1);
+    const float right = static_cast<float>(nglGetScreenWidth() - 1);
+    nglSetViewportRect(0.0f, 0.0f, right, bottom);
+    current_scene()->aspect = title_global<uint8_t>(0x00902899)  // ngl_widescreen
+                                  ? title_global<float>(0x0083f254)   // 16/9
+                                  : title_global<float>(0x0083eb80);  // 4/3
+    nglUpdateScene(1);
+    NglScene* scene = current_scene();
+    scene->projection_kind = 1;
+    scene->fov = title_global<float>(0x0083ec30);    // 50
+    scene->near_z = title_global<float>(0x0083ebf8); // 0.1
+    scene->far_z = title_global<float>(0x0083f010);  // 10000
+    nglUpdateScene(1);
+    // An identity camera: rows 0-2 scaled by a broadcast 1 (mulps), row 3 copied.
+    const float scale = title_global<float>(0x007bc4b0);
+    float camera[16];
+    for (int row = 0; row < 3; ++row) {
+        const float* source = &title_global<float>(0x007bc4d0 + row * 0x10);
+        for (int i = 0; i < 4; ++i) camera[row * 4 + i] = source[i] * scale;
+    }
+    std::memcpy(camera + 12, &title_global<float>(0x007bc600), 16);
+    nglSetCameraMatrix(camera);
+    scene = current_scene();
+    scene->clear_flags = 3;
+    for (float& c : scene->clear_color) c = 0.0f;
+    scene->clear_depth = title_global<float>(0x0083eb20);  // 1
+    nglSetSceneFlags(0);
+    scene = current_scene();
+    scene->color_write_mask = 0x01010101;
+    scene->depth_enable = 1;
+    scene->depth_test = 1;
+    uint8_t* raw = reinterpret_cast<uint8_t*>(scene);
+    raw[0x386] = 0;
+    *reinterpret_cast<uint32_t*>(raw + 0x2f0) = 0;
+    *reinterpret_cast<uint32_t*>(raw + 0x2f4) = 0;
+    scene->fog[0] = 0.0f > scene->near_z ? 0.0f : scene->near_z;
+    scene->fog[1] = title_global<float>(0x0083f010);  // 10000
+    scene->fog[2] = 0.0f;
+    scene->fog[3] = title_global<float>(0x0083eb20);  // 1
+    for (float& c : scene->fog_color) c = title_global<float>(0x0083eb20);
+    raw[0x3b0] = 0;
+    *reinterpret_cast<uint32_t*>(raw + 0x2f0) = 0;
+    *reinterpret_cast<uint32_t*>(raw + 0x2f4) = 0;
+    *reinterpret_cast<float*>(raw + 0x3b4) = 0.0f;
+    scene->time = 0.0f;
+    nglSetSceneLightSet(title_global<NglLightSet*>(0x00902e40));
+    nglUpdateScene(1);
+}
+
+void XB_THISCALL nglRestoreRenderStates(uint8_t* self) {
+    using SetState = void XB_STDCALL(uint32_t);
+    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
+    auto field = [self](uint32_t offset) { return *reinterpret_cast<uint32_t*>(self + offset); };
+    // Simple states also go into D3D's render-state shadow (title memory).
+    auto simple = [](uint32_t method, uint32_t value, uint32_t shadow) {
+        title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+        title_global<uint32_t>(shadow) = value;
+    };
+    title_function<SetState>(0x003e88a0)(field(0xa8));  // SetRenderState_FillMode
+    title_function<SetState>(0x003e80f0)(field(0xa4));  // SetRenderState_CullMode
+    simple(0x00040310, self[0xc9], 0x003f842c);
+    simple(0x00040300, self[0x50], 0x003f8418);
+    simple(0x00040304, self[0x5c], 0x003f8414);
+    title_function<SetState>(0x003e82b0)(self[0]);      // SetRenderState_StencilEnable
+    title_function<SetState>(0x003e8800)(field(0x4c));  // SetRenderState_MultiSampleMask
+    simple(0x00040358, field(0xa0), 0x003f8434);
+    title_global<uint32_t>(0x003f8320) |= 0x2000;       // D3DRS_FOGENABLE dirty
+    title_global<uint32_t>(0x003f8498) = self[0x8b];
+    title_function<SetState>(0x003e8010)(self[0xc8]);   // SetRenderState_EdgeAntiAlias
+    title_function<SetState>(0x003e88f0)(field(0xb0));  // SetRenderState_BackFillMode
+    title_function<SetState>(0x003e8840)(field(0x68));  // SetRenderState_LogicOp
+    title_function<SetState>(0x003e8530)(self[0xb4]);   // SetRenderState_YuvEnable
+    simple(0x00040384, field(0x84), 0x003f845c);        // polygon offset factor
+    simple(0x00040388, field(0x80), 0x003f8460);        // polygon offset bias
+    // Forget the blend mode (nglStateCache_SetBlendMode's +0xe8/+0xec/+0xf0).
+    *reinterpret_cast<int32_t*>(self + 0xec) = -1;
+    *reinterpret_cast<int32_t*>(self + 0xf0) = -1;
+    *reinterpret_cast<uint32_t*>(self + 0xe8) = 9;
+    title_global<uint32_t>(0x00903c08) = 0;
+    title_global<uint32_t>(0x00903c0c) = 0;
+    title_global<uint32_t>(0x00903c10) = 0;
+}
+
+void XB_CDECL nglInitShaderConstants(uint8_t init_table) {
+    using SetConstant1 = void XB_FASTCALL(uint32_t, const float*);
+    title_function<void XB_STDCALL(uint32_t)>(0x003e7050)(0x11);  // SetShaderConstantMode
+    auto f = [](uint32_t address) { return title_global<float>(address); };
+    // c1: 0, 0.5, 1, 2; c2: pi, 0.5, 2pi, 1/2pi; c3/c4: the cos/sin Taylor coefficients.
+    alignas(16) float c[4] = {0.0f, f(0x0083eb24), f(0x0083eb20), f(0x0083eba8)};
+    title_function<SetConstant1>(0x003e7440)(1, c);  // SetVertexShaderConstant1Fast
+    c[0] = f(0x0083ed00); c[1] = f(0x0083eb24); c[2] = f(0x0083edac); c[3] = f(0x0083f118);
+    title_function<SetConstant1>(0x003e7440)(2, c);
+    c[0] = f(0x0083eb20); c[1] = f(0x0083eb28); c[2] = f(0x007bf6cc); c[3] = f(0x007bf6d0);
+    title_function<SetConstant1>(0x003e7440)(3, c);
+    c[0] = f(0x0083eb20); c[1] = f(0x007bf6c4); c[2] = f(0x0083ed98); c[3] = f(0x007bf6c8);
+    title_function<SetConstant1>(0x003e7440)(4, c);
+    if (init_table) nglInitShaderConstantTable();
+}
+
+void XB_THISCALL nglReleaseTextureSurfaces(NglTexture* texture) {
+    // Releases the per-level surfaces (+0x34, +0x18 levels; cube maps 0x10000000: six
+    // face lists) and frees the lists; textures with flag 0x2000 hold memory instead.
+    if (texture->flags & 0x2000) {
+        nglReleaseTextureMemory(texture);
+        return;
+    }
+    uint8_t* t = reinterpret_cast<uint8_t*>(texture);
+    uint32_t*& surfaces = *reinterpret_cast<uint32_t**>(t + 0x34);
+    const uint32_t& levels = *reinterpret_cast<uint32_t*>(t + 0x18);
+    using Release = uint32_t XB_STDCALL(uint32_t);
+    using Free = void XB_CDECL(void*);
+    if (texture->flags & 0x10000000) {
+        for (uint32_t face = 0; face < 6; ++face) {
+            for (uint32_t level = 0; level < levels; ++level) {
+                uint32_t*& list = reinterpret_cast<uint32_t**>(surfaces)[face];
+                if (list[level]) {
+                    title_function<Release>(0x003e7ef0)(list[level]);  // D3DResource_Release
+                    reinterpret_cast<uint32_t**>(surfaces)[face][level] = 0;
+                }
+            }
+            title_function<Free>(0x000939b0)(reinterpret_cast<uint32_t**>(surfaces)[face]);  // Mem_AlignedFree
+            reinterpret_cast<uint32_t**>(surfaces)[face] = nullptr;
+        }
+    } else {
+        for (uint32_t level = 0; level < levels; ++level) {
+            if (surfaces[level]) {
+                title_function<Release>(0x003e7ef0)(surfaces[level]);
+                surfaces[level] = 0;
+            }
+        }
+    }
+    title_function<Free>(0x000939b0)(surfaces);
+    surfaces = nullptr;
+}
+
+void XB_CDECL nglGenerateRenderTargetMips(NglTexture* texture) {
+    // Render targets with mips (flag 0x1000): draws each level from the texture with a
+    // screen-sized quad of {x, y, z, u, v}, the texture coordinates scaled for
+    // multisampling.
+    uint8_t* t = reinterpret_cast<uint8_t*>(texture);
+    const uint32_t& levels = *reinterpret_cast<uint32_t*>(t + 0x18);
+    if (levels <= 1 || !(texture->flags & 0x1000)) return;
+    uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
+    if (cull_mode != 0) {
+        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // SetRenderState_CullMode
+        cull_mode = 0;
+    }
+    nglSetBlendMode(&title_global<uint8_t>(0x00902f08), 0, 0, 0);
+    nglSetTexture(0, texture, 2, 3);
+    // D3D's texture stage shadows (title memory): stage 0 address modes, then +0x7c.
+    title_global<uint32_t>(0x003f5c68) = 3;
+    title_global<uint32_t>(0x003f8320) |= 1;
+    title_global<uint32_t>(0x003f5c6c) = 3;
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903ca8));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903d08));
+    title_global<uint32_t>(0x003f8320) |= 1;
+    title_global<uint32_t>(0x003f5c7c) = 0;
+    const float u = title_global<float>(0x00903c70);  // ngl_multisampleScale
+    const float v = title_global<float>(0x00903c74);
+    float quad[4][5] = {{0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
+                        {0.0f, 0.0f, 0.0f, u, 0.0f},
+                        {0.0f, 0.0f, 0.0f, 0.0f, v},
+                        {0.0f, 0.0f, 0.0f, u, v}};
+    for (uint32_t level = 1; level < levels; ++level) {
+        nglSetRenderTargetCached(texture, level, nullptr, 6);
+        const float width = platform_x87_unsigned_to_float(*reinterpret_cast<uint32_t*>(t + 0x10) >> level);
+        const float height = platform_x87_unsigned_to_float(*reinterpret_cast<uint32_t*>(t + 0x14) >> level);
+        quad[1][0] = width;
+        quad[2][1] = height;
+        quad[3][0] = width;
+        quad[3][1] = height;
+        title_global<uint32_t>(0x00903c88) = 0;
+        title_global<uint32_t>(0x00903c8c) = 0;
+        title_global<uint32_t>(0x00903c90) = 0;
+        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+        title_function<void XB_STDCALL(uint32_t, uint32_t, const void*, uint32_t)>(0x003e9710)(
+            6, 4, quad, sizeof(quad[0]));  // DrawVerticesUP: a quad list
+    }
+    // Forget the cached texture stage states.
+    for (uint32_t i = 0; i < 4; ++i) {
+        title_global<uint32_t>(0x008a2e60 + i * 4) = 0;
+        title_global<int32_t>(0x008a2e70 + i * 4) = -1;
+        title_global<int32_t>(0x008a2e80 + i * 4) = -1;
+    }
+}
+
+void XB_THISCALL nglSetDefaultRenderStates(uint8_t* self) {
+    // Sends every state of the cache to D3D (nglInitRenderStates' tail).
+    using SetState = void XB_STDCALL(uint32_t);
+    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
+    auto field = [self](uint32_t offset) { return *reinterpret_cast<uint32_t*>(self + offset); };
+    auto simple = [](uint32_t method, uint32_t value, uint32_t shadow) {
+        title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+        title_global<uint32_t>(shadow) = value;
+    };
+    title_function<SetState>(0x003e82b0)(self[0x0]);  // SetRenderState_StencilEnable
+    simple(0x00040374, field(0x4), 0x003f8438);
+    simple(0x00040378, field(0x8), 0x003f843c);
+    simple(0x00040364, field(0xc), 0x003f8440);
+    title_function<SetState>(0x003e8360)(field(0x10));  // SetRenderState_StencilFail
+    simple(0x00040368, field(0x14), 0x003f8444);
+    simple(0x0004036c, field(0x18), 0x003f8448);
+    simple(0x00040360, field(0x1c), 0x003f844c);
+    // Inlined setters: D3D's dirty bits (0x003f8320) and render-state shadows.
+    title_global<uint32_t>(0x003f8320) |= 0x900;
+    title_global<uint32_t>(0x003f8500) = self[0x20];
+    title_global<uint32_t>(0x003f8504) = self[0x21];
+    title_global<uint32_t>(0x003f84f8) = field(0x24);
+    title_global<uint32_t>(0x003f84fc) = field(0x28);
+    title_global<uint32_t>(0x003f8508) = field(0x2c);
+    title_global<uint32_t>(0x003f850c) = field(0x30);
+    title_global<uint32_t>(0x003f8510) = field(0x34);
+    title_global<uint32_t>(0x003f8514) = field(0x38);
+    title_function<SetState>(0x003e87c0)(self[0x3c]);  // SetRenderState_MultiSampleAntiAlias
+    title_function<SetState>(0x003e8800)(field(0x4c));  // SetRenderState_MultiSampleMask
+    simple(0x00040300, self[0x50], 0x003f8418);
+    simple(0x0004033c, field(0x54), 0x003f8410);
+    simple(0x00040340, field(0x58), 0x003f841c);
+    simple(0x00040304, self[0x5c], 0x003f8414);
+    simple(0x00040344, field(0x60), 0x003f8420);
+    simple(0x00040348, field(0x64), 0x003f8424);
+    simple(0x00040350, field(0x70), 0x003f8450);
+    simple(0x0004035c, self[0x74], 0x003f8428);
+    title_function<SetState>(0x003e8210)(field(0x78));  // SetRenderState_ZEnable
+    simple(0x00040354, field(0x7c), 0x003f840c);
+    simple(0x00040384, field(0x84), 0x003f845c);
+    simple(0x00040388, field(0x80), 0x003f8460);
+    title_global<uint32_t>(0x003f8320) |= 0x2000;  // D3DRS_FOGENABLE
+    title_global<uint32_t>(0x003f8498) = self[0x8b];
+    title_function<SetState>(0x003e8090)(field(0x8c));  // SetRenderState_FogColor
+    simple(0x00040358, field(0xa0), 0x003f8434);
+    title_function<SetState>(0x003e80f0)(field(0xa4));  // SetRenderState_CullMode
+    title_function<SetState>(0x003e88a0)(field(0xa8));  // SetRenderState_FillMode
+    simple(0x0004037c, field(0xac), 0x003f8430);
+    title_function<SetState>(0x003e8010)(self[0xc8]);  // SetRenderState_EdgeAntiAlias
+    simple(0x00040310, self[0xc9], 0x003f842c);
+    title_global<uint32_t>(0x003f8320) |= 0x3000;
+    title_global<uint32_t>(0x003f84c4) = self[0xe6];
+    simple(0x00040338, self[0x90], 0x003f846c);
+    title_global<uint32_t>(0x00903c08) = 0;
+    title_global<uint32_t>(0x00903c0c) = 0;
+    title_global<uint32_t>(0x00903c10) = 0;
+    *reinterpret_cast<uint32_t*>(self + 0xe8) = 9;
+    *reinterpret_cast<int32_t*>(self + 0xec) = -1;
+    *reinterpret_cast<int32_t*>(self + 0xf0) = -1;
+}
+
+uint32_t XB_CDECL nglBuildTextGlyphs(const uint8_t* font, NglTextRun** runs, float x, float y, float scale_x,
+                                     float scale_y, uint32_t color, const char* text, uint32_t* run_count) {
+    // Splits the text into runs of glyphs that share position, scale and colour. Codes:
+    // 1 colour (hex RRGGBBAA, then one character), 2 scale (one number), 3 scale x and
+    // y, 9 tab (4 spaces), 10 newline (the line advance uses the largest y scale of the
+    // line), 32 space; a run also ends after 85 glyphs (its 8 KB of vertices).
+    using StrToUl = uint32_t XB_CDECL(const char*, const char**, int32_t);
+    using StrToD = float XB_CDECL(const char*, const char**);  // the double, stored by FSTP
+    const uint8_t* glyphs = *reinterpret_cast<const uint8_t* const*>(font + 0x28);  // 0x1c bytes each
+    const int32_t first_char = *reinterpret_cast<const int32_t*>(font + 0x38);
+    auto glyph_width = [&](uint32_t c) {
+        return *reinterpret_cast<const uint32_t*>(glyphs + (static_cast<int32_t>(c) - first_char) * 0x1c + 0x18);
+    };
+    float line_scale = scale_y;
+    const float space_width = platform_x87_unsigned_to_float(glyph_width(' '));
+    const float start_x = x;
+    const float line_height = static_cast<float>(*reinterpret_cast<const int32_t*>(font + 0x30));
+    uint32_t total = 0;
+    *run_count = 0;
+    const char* p = text;
+    if (*p == 0) {
+        *runs = nullptr;
+        return 0;
+    }
+    NglTextRun** link = runs;
+    NglTextRun* run = nullptr;
+    uint8_t c = static_cast<uint8_t>(*p);
+    for (;;) {
+        ++p;
+        // Control codes, then a run from the first other character.
+        while (c >= 1 && c <= 32) {
+            if (c == 1) {
+                const uint32_t v = title_function<StrToUl>(0x001f0ee6)(p + 1, &p, 16);  // strtoul
+                ++p;
+                color = (v << 24) | (v >> 8);
+            } else if (c == 2) {
+                scale_x = title_function<StrToD>(0x001f0efd)(p + 1, &p);  // strtod
+                ++p;
+                scale_y = scale_x;
+                if (scale_y > line_scale) line_scale = scale_y;
+            } else if (c == 3) {
+                scale_x = title_function<StrToD>(0x001f0efd)(p + 1, &p);
+                scale_y = title_function<StrToD>(0x001f0efd)(p + 1, &p);
+                ++p;
+                if (scale_y > line_scale) line_scale = scale_y;
+            } else if (c == 9) {
+                x = space_width * scale_x * title_global<float>(0x007bd0c8) + x;
+            } else if (c == 10) {
+                x = start_x;
+                y = line_height * line_scale + y;
+                line_scale = scale_y;
+            } else if (c == 32) {
+                x = space_width * scale_x + x;
+            } else {
+                break;  // 4-8, 11-31: drawn as glyphs
+            }
+            c = static_cast<uint8_t>(*p);
+            ++p;
+        }
+        --p;
+        run = alloc_scene_memory<NglTextRun>(sizeof(NglTextRun));
+        *link = run;
+        ++*run_count;
+        run->x = x;
+        run->y = y;
+        run->scale_x = scale_x;
+        run->text = p;
+        run->scale_y = scale_y;
+        run->color = color;
+        link = &run->next;
+        uint32_t count = 0;
+        uint32_t vertex_bytes = 0x60;
+        for (;;) {
+            const uint8_t g = static_cast<uint8_t>(*p++);
+            if (g <= 3 || g == 9 || g == 10 || g == 32) {
+                --p;
+                break;
+            }
+            x = platform_x87_mul_add(platform_x87_unsigned_to_float(glyph_width(g)), scale_x, x);
+            vertex_bytes += 0x60;
+            ++count;
+            if ((vertex_bytes & ~3u) > 0x1ffc) break;
+        }
+        run->length = static_cast<uint32_t>(p - run->text);
+        run->glyph_count = count;
+        total += count;
+        c = static_cast<uint8_t>(*p);
+        if (c == 0) break;
+    }
+    run->next = nullptr;
+    return total;
+}
+
 }  // namespace game

@@ -22,7 +22,8 @@ namespace loader::compare {
 // testable. Only for functions whose results the title does not read back.
 // `args`: one word per argument, in order: where it is (`ecx`, `edx` or `s` for the
 // next stack slot), optionally `:N` = a pointer whose N bytes are recorded instead of
-// its value, or `:aK*N` = the same with the value of argument K times N bytes.
+// its value, `:aK*N` = the same with the value of argument K times N bytes, or `:aK*aM`
+// = argument K times argument M bytes.
 // What a recorded call does besides being logged: most return 0 and change nothing.
 // The reference-count stand-ins work on the resource's count (the low 16 bits of its
 // first word, in title memory) so that code reading counts or buffers back stays

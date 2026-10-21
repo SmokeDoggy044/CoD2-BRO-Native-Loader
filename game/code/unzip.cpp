@@ -151,4 +151,19 @@ int32_t XB_CDECL inflate_fast(uint32_t bl, uint32_t bd, const InflateHuft* tl, c
     return finish(0);
 }
 
+int32_t XB_REGS2 XB_CDECL strcmpcasenosensitive_internal(const char* name1, const char* name2) {
+    // minizip's, with the characters compared as signed and the result from name2's
+    // side: -1 when name2 sorts first.
+    for (;;) {
+        int8_t c2 = static_cast<int8_t>(*name2++);
+        int8_t c1 = static_cast<int8_t>(*name1++);
+        if (c2 >= 'a' && c2 <= 'z') c2 = static_cast<int8_t>(c2 - 0x20);
+        if (c1 >= 'a' && c1 <= 'z') c1 = static_cast<int8_t>(c1 - 0x20);
+        if (c2 == 0) return c1 != 0 ? -1 : 0;
+        if (c1 == 0) return 1;
+        if (c2 < c1) return -1;
+        if (c2 > c1) return 1;
+    }
+}
+
 }  // namespace game
