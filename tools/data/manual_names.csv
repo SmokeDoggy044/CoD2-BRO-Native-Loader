@@ -3641,3 +3641,157 @@ address,name,kind,confidence,evidence
 009229e8,pScr_GScr_GetEntScriptObject,data,medium,script iface slot 554 pointer (0x00922140 + 4*554) -> GScr_GetEntScriptObject
 009229ec,pScr_GScr_GetLevelEnt8Handle,data,medium,script iface slot 555 pointer (0x00922140 + 4*555) -> GScr_GetLevelEnt8Handle
 009229f0,pScr_GScr_GetPlayerHandle,data,medium,script iface slot 556 pointer (0x00922140 + 4*556) -> GScr_GetPlayerHandle
+002f76c0,GScr_CheckWeaponSlot,function,medium,"(ent, weapon name, slot name): 'Unknown weaponslot name %s', 'Unknown weapon %s.', 'Weapon %s goes in the %s weaponslot, not the %s weaponslot.'; slot names table 0x008d23a8 (7); calls BG_GivePlayerWeapon"
+002fb1c0,ScrEnt_SetHealthField,function,high,"body of ScrEnt_SetHealth: 'self.health must be greater than 0', stores +0x350 and maxhealth +0x354 when unset"
+00303aa0,G_GetCachedTagMatrix,function,medium,"(entnum, tag name): DObj_GetTagIndex + G_DObjGetWorldTagMatrix, cached by entnum/level_time/tag in 0x00986020-0x0098602c; GScr_GetTagOrigin/GScr_GetTagAngles"
+00302a00,ScrEnt_SetOriginField,function,high,"body of ScrEnt_SetOrigin: pos.trBase and currentOrigin = v, clears trDelta, sentient +0x5a, relinks"
+00307550,G_FindEntsByGroupname,function,high,"G_FindEntsByField(0x278 = groupname hash, G_UpdateEntityStringHashes); GScr_GetEntArray"
+00307590,G_FindEntsByScriptNoteworthy,function,high,G_FindEntsByField(0x280 = script_noteworthy hash); GScr_GetEntArray
+003075d0,G_FindEntsByClassname,function,high,G_FindEntsByField(0x260 = classname hash); GScr_GetEntArray
+00307650,G_FindEntsByTarget,function,high,G_FindEntsByField(0x270 = target hash); GScr_GetEntArray
+00307610,G_FindEntsByTargetname,function,high,"G_FindEntsByField(0x268 = targetname hash), same shape as its neighbours"
+002fb020,ScrEnt_SetAnimnameField,function,high,"body of ScrEnt_SetAnimname: assigns the string, hash into +0x288"
+002fb060,ScrEnt_SetScriptNoteworthyField,function,high,body of ScrEnt_SetScriptNoteworthy: hash into +0x280
+002fb0a0,ScrEnt_SetTargetField,function,high,body of ScrEnt_SetTarget: hash into +0x270
+002fb0e0,ScrEnt_SetTargetnameField,function,high,body of ScrEnt_SetTargetname: hash into +0x268
+002fb120,ScrEnt_SetGroupnameField,function,high,body of ScrEnt_SetGroupname: hash into +0x278
+002fb160,ScrEnt_SetAnglesField,function,high,"body of ScrEnt_SetAngles: apos.trBase and +0x150 = v, clears apos.trDelta"
+002f5c10,ScrField_SetSecondsAsMs,function,high,"(obj, offset, float*): int(v * 1000 + 0.5) at obj + offset"
+002f4e00,ScrField_GetMsAsSeconds,function,high,"(obj, offset, out): ms at obj + offset * 0.001"
+002f96c0,ScrField_SetWeaponIndex,function,high,"(obj, offset, string): BG_FindWeaponIndexForHash of the name, byte at obj + offset"
+002f4dd0,ScrField_GetWeaponName,function,high,"(obj, offset): weaponDef(obj + offset) +8 name string"
+002f4eb0,ScrField_GetByte,function,high,"(obj, offset, out): byte at obj + offset"
+002f4ed0,ScrField_SetByte,function,high,"(obj, offset, in): byte at obj + offset"
+002f4d90,ScrActor_GetString2c0Field,function,medium,"body of ScrActor_GetString_2c0: name table 0x008d4d08 (stride 16, 1..22), else 'default'"
+002f4ce0,ScrSentient_GetTeamField,function,high,body of ScrSentient_GetTeam: team (+4) 1-4 -> the four team name strings 0x00984cd0-dc
+002f4d50,ScrPathNode_GetTypeField,function,high,body of ScrPathNode_GetType: type +0x28 indexes the name table 0x008d3948 ('BAD NODE' first)
+002f4d70,ScrField_SetNone,function,medium,empty setter (ScrPathNode_SetType: read-only field)
+002f4d80,ScrPathNode_SetAnglesField,function,high,body of ScrPathNode_SetAngles: yaw (v[1]) at +0x50
+002f5b60,ScrPathNode_GetAnglesField,function,high,"body of ScrPathNode_GetAngles: (0, yaw +0x50, 0)"
+002faff0,ScrEnt_GetModelField,function,high,body of ScrEnt_GetModel: DObj (+0x22c) model +0x38 name +0x48
+002f4ca0,ScrSentient_SetFloat18Field,function,medium,"body of ScrSentient_SetFloat_18: clamps to >= 4, stores v at +0x18 and v*v at +0x1c (a radius)"
+002f5ad0,ScrSentient_SetGoalArcField,function,high,body of ScrSentient_SetGoalArc: |v| clamped to 180 at +0x24
+002f5b10,ScrSentient_GetRef3cField,function,medium,body of ScrSentient_GetRef_3c: entnum (+0x224) of the entity behind sentient +0x3c
+002f5b80,ScrActor_GetRef12a0Field,function,medium,body of ScrActor_GetRef_12a0: entnum of the sentient at actor +4's entity
+002f9660,ScrActor_SetRef12a0Field,function,medium,body of ScrActor_SetRef_12a0: entity's sentient (+0x244) into actor +0x12a0
+002f5bb0,ScrActor_SetInt184Field,function,medium,"body of ScrActor_SetInt_184: stance-like value, scr_const_prone allowed only when +0x19c/+0x198/+0x1a0 permit"
+002fd3c0,ScrSentient_GetPathNode48Field,function,medium,body of ScrSentient_GetRef_48: path node handle at +0x48 when it is valid (g_pathNodeBlocks)
+00302c90,GScr_RotateVelocity,function,medium,"script iface slot 414 (after rotateTo 410, rotatePitch/Yaw/Roll 411-413): script mover check, velocity vector -> ScriptMover_RotateVelocity"
+00302740,ScriptMover_RotateVelocity,function,medium,"ScriptMover_SetupRotateVelocity on the angle fields (+0x150, +0x3a0), relinks; GScr_RotateVelocity"
+00300f20,ScriptMover_SetupRotateVelocity,function,low,angular move setup with accel/decel for GScr_RotateVelocity
+00302ee0,GScr_MoveTo,function,high,"script iface slot 405 (194 call sites): script mover check, target origin -> ScriptMover_MoveTo"
+00302870,ScriptMover_MoveTo,function,medium,"ScriptMover_SetupMove with pos1/pos2/speed/wait fields, relinks; GScr_MoveTo, GScr_MoveAxis"
+00303080,GScr_MoveAxis,function,high,origin (+0x140) with one axis (0/1/2 from GScr_MoveX/Y/Z) + delta -> ScriptMover_MoveTo
+00302fb0,GScr_RotateAxis,function,high,angles (+0x150) with one axis (0/1/2 from GScr_RotatePitch/Yaw/Roll) + delta -> ScriptMover_RotateTo
+00302d60,GScr_RotateTo,function,medium,"script iface slot 410: script mover check, target angles reduced to the nearest turn (fmod per component) -> ScriptMover_RotateTo"
+003027a0,ScriptMover_RotateTo,function,medium,"ScriptMover_SetupMove on the angle fields, relinks; GScr_RotateTo, GScr_RotateAxis"
+00301240,ScriptMover_SetupMove,function,low,"shared move setup (target, time, accel, decel -> trajectory fields), used for origin and angle moves"
+00302800,ScriptMover_MoveGravity,function,medium,"trType 5 (TR_GRAVITY), trTime = level_time, trDuration = time * 1000, trBase = currentOrigin, trDelta = velocity; GScr_MoveGravity (slot 409)"
+002fb500,HudElem_SetTimerKind,function,medium,"(hud index EAX, type, seconds): 'time %g should be > 0', end time = level_time + ms; types 4/6/7 from the GScr_HudSetTimer* wrappers"
+002fd770,GScr_HudSetTimer7,function,medium,"script iface slot 495: HudElem_SetTimerKind(7, time)"
+002fd790,GScr_HudSetTimer6,function,medium,"slot 494: HudElem_SetTimerKind(6, time)"
+002fd820,GScr_HudSetTimer4,function,medium,"slot 492: HudElem_SetTimerKind(4, time)"
+00301d30,HudElem_SetShaderTimer,function,medium,"(hud index EAX, type, shader, time, duration, w, h): RE_RegisterShader + end time; types 8/9"
+00302190,GScr_HudSetShaderTimer9,function,medium,"slot 497: HudElem_SetShaderTimer(9, shader name, ...)"
+003021d0,GScr_HudSetShaderTimer8,function,medium,"slot 496: HudElem_SetShaderTimer(8, shader name, ...)"
+002f6080,HudElem_SetDefaults,function,medium,"hud elem record in EAX: type 1, alpha 1.0, +0x1c = -1, everything else 0"
+00308bb0,GScr_TurretCall272,function,low,"script iface slot 272 (24 sites): entity +0x24c turret -> FUN_00271b20, else ""entity type '%s' is not a turret"""
+002f5790,G_FindAnimTreeByName,function,medium,"stricmp over the anim tree list (0x0095f524 +4, 12-byte entries); G_InitAnimTrees, GScr_UseAnimTree"
+002f8000,GScr_GetWeaponAmmoFraction,function,medium,"script builtin (player, weapon name): ammo (ps +0x110[def+0x598]) / def +0x590 when the weapon bit (+0x3f0) is set"
+002974a0,Q_fmod,function,low,thunk to LIBCMT __CIfmod
+000442e0,Q_strncpyLen,function,low,"(dst, out len, max, src): copies up to max chars, writes the length"
+002f53f0,GScr_EmptyStub0,function,medium,script iface slot 0: empty body
+002f53e0,GScr_EmptyStub1,function,medium,script iface slot 1: empty body
+002f5330,GScr_EmptyStub14,function,medium,script iface slot 14: empty body
+002f5310,GScr_EmptyStub21,function,medium,script iface slot 21: empty body
+002f5320,GScr_EmptyStub22,function,medium,script iface slot 22: empty body
+002f5240,GScr_EmptyStub183,function,medium,script iface slot 183: empty body
+002f5230,GScr_EmptyStub184,function,medium,script iface slot 184: empty body
+002f51e0,GScr_EmptyStub199,function,medium,script iface slot 199: empty body
+002f51d0,GScr_EmptyStub200,function,medium,script iface slot 200: empty body
+002f51c0,GScr_EmptyStub222,function,medium,script iface slot 222: empty body
+002f51b0,GScr_EmptyStub223,function,medium,script iface slot 223: empty body
+002f51a0,GScr_EmptyStub220,function,medium,script iface slot 220: empty body
+002f5190,GScr_EmptyStub221,function,medium,script iface slot 221: empty body
+00234ae0,GScr_EmptyStub173,function,medium,script iface slot 173: empty body
+00234ad0,GScr_EmptyStub174,function,medium,script iface slot 174: empty body
+002f4ba0,GScr_EmptyStub397,function,medium,script iface slot 397: empty body
+002f87a0,GScr_EmptyStub398,function,medium,script iface slot 398: empty body
+002f4b90,GScr_EmptyStub399,function,medium,script iface slot 399: empty body
+002f4b80,GScr_EmptyStub559,function,medium,script iface slot 559: empty body
+002f4b70,GScr_EmptyStub560,function,medium,script iface slot 560: empty body
+002f4b60,GScr_EmptyStub561,function,medium,script iface slot 561: empty body
+002f5300,GScr_ReturnFalse509,function,medium,script iface slot 509: xor al and ret
+002f52f0,GScr_ReturnFalse510,function,medium,script iface slot 510: xor al and ret
+002f52e0,GScr_ReturnFalse511,function,medium,script iface slot 511: xor al and ret
+00303a70,GScr_MoveX,function,high,"script iface slot 406 (after moveTo 405): GScr_MoveAxis(0, ...)"
+00303a40,GScr_MoveY,function,high,"slot 407: GScr_MoveAxis(1, ...)"
+00303a10,GScr_MoveZ,function,high,"slot 408: GScr_MoveAxis(2, ...)"
+00302e60,GScr_MoverMoveGravity,function,medium,"slot 409 (not the entity GScr_MoveGravity of slot 318): script mover check, then ScriptMover_MoveGravity (trType 5 = TR_GRAVITY)"
+003039e0,GScr_RotatePitch,function,high,"slot 411: GScr_RotateAxis(0, ...)"
+003039b0,GScr_RotateYaw,function,high,"slot 412: GScr_RotateAxis(1, ...)"
+00303980,GScr_RotateRoll,function,high,"slot 413: GScr_RotateAxis(2, ...)"
+002f52b0,GScr_GetDifficulty,function,high,"script iface slot 163: string table 0x008d20d0 ('easy', 'medium', 'hard', 'fu') indexed by the skill (0x00950b3c, written by G_InitSkillCvars)"
+00950b3c,g_skillLevel,data,medium,"0-3 index into 'easy'/'medium'/'hard'/'fu'; written by G_InitSkillCvars, read by Actor_ComputeHitChance and GScr_GetDifficulty"
+00236a70,GScr_SetFogDistances,function,medium,"script iface slot 562: two values into 0x0095f698/0x008db104, read only by R_SetupFog"
+00238350,GScr_SetFogColorBytes,function,medium,"slot 563: three ints * (1/255) into the fog color 0x008db10c (R_SetupFog)"
+00236a20,GScr_SetFogColor,function,medium,"slot 564: three floats into the fog color 0x008db10c (R_SetupFog)"
+008db10c,r_fogColor,data,medium,"vec3 read by R_SetupFog, set by GScr_SetFogColor/GScr_SetFogColorBytes"
+002f5140,GScr_SetHudVisible,function,low,"slot 489: 0x0095f91f = !arg; flag read by CG_Draw2D, also set by Vehicle_EnterPlayer"
+002fdc40,Scr_BeginThread,function,low,"slot 10 (86 call sites): allocates a 0x34 thread record, links it into the thread list 0x008dd1f0, makes it the newest thread (0x008dda30), flag 0x800"
+00300a40,Scr_BeginThreadEndOn,function,low,"slot 12 (46 sites): like Scr_BeginThread plus an end-on wait record (Scr_InitWaitRecord)"
+002ffa60,Scr_InitWaitRecord,function,low,"(kind EAX, ...): wait record with vtable 0x00831800; kind 3 on an entity registers it in the entity's notify list (+0x230); Scr_EndOn, Scr_BeginThreadEndOn"
+002fddb0,Scr_WaitRecord15,function,low,"slot 15: 0x18 wait record (vtable 0x00831824, kind 2) on the current thread (0x008dda2c), thread flags |= 0x212, then yields"
+002fde40,Scr_WaitRecord16,function,low,"slot 16: same with vtable 0x00831808"
+00300850,Scr_WaitRecord17,function,low,"slot 17: 0x1c wait record (vtable 0x0083181c) with two values, same linking"
+002fbea0,Scr_SaveThreadLocals,function,low,"slot 13: ScrThread_AppendData into the current thread's +0x2c block list"
+002f6670,ScrThread_AppendData,function,low,"copies a byte range into a chain of 0x100-byte SmallHeap blocks (0xfc data each)"
+002fbd70,Scr_QueueNotifyCallback26,function,low,"slot 26: notify record (0x14) with a 0x10 functor (vtable 0x008317d8) appended to the notify queue 0x008dd200"
+002fbc40,Scr_QueueNotifyCallback29,function,low,"slot 29: same with functor vtable 0x008317ec"
+002fdb70,GScr_SetEntVar,function,low,"slot 31 (102 sites, level-script names as keys): creates the entity's variable store (+0x234, 0x3c bytes) and sets a value"
+002fdb20,GScr_GetEntVar,function,low,"slot 32 (260 sites): reads from the entity's variable store (+0x234)"
+002fbec0,GScr_EntHasNotifyListener,function,low,"slot 30: entity notify list (+0x230) lookup via FUN_0029acb0"
+002fb4e0,GScr_HudClear,function,medium,"slot 502 (between HudMoveOverTime and HudDestroy): HudElem_SetDefaults"
+002fb5a0,GScr_GetEntZone,function,medium,"slot 214: memory context of the entity's zone (+0x220, -1 = current 0x0095f638 +0x34)"
+002ff500,GScr_GetZoneAtPoint,function,medium,"slot 215: CM_CellForPoint -> cell's zone, else the current zone"
+002fb600,GScr_GetCurrentZoneId,function,low,"slot 211: FUN_002f6160 or the default 0x008dda38"
+002f53b0,GScr_PushToList95fdf0,function,low,"slot 557: appends a value to the bounded array 0x0095fdf0 (count 0x0095fdf6, max 0x0095fdf4)"
+002f5350,GScr_CopyStringFromEngine,function,low,"slot 558: engine iface +0x870 string -> strncpy into (buf, size)"
+002b74c0,GScr_ClearEntFlag4000000,function,low,"slot 577: entity +0x2a4 &= ~0x4000000"
+002cead0,GScr_SetEntFlag4000000,function,low,"slot 576: entity +0x2a4 |= 0x4000000, clears every anim tree node of its DObj"
+001ef6a0,memset2,function,medium,"slot 508: byte fill, dword loop for > 3 bytes (CRT memset shape, second copy)"
+002fffa0,GScr_SetGoalPosAndYaw,function,medium,"script iface slot 336: Sentient_SetGoalPos on the entity's sentient (+0x244), yaw wrapped into [0, 360) at sentient +0x20"
+002fff10,GScr_SetGoalPos,function,medium,"slot 337 (41 sites): Sentient_SetGoalPos on the entity's sentient"
+002ffe40,GScr_SetGoalPosFromNode,function,medium,"slot 338 (624 sites): path node handle -> Sentient_SetGoalPos, plus Sentient_SetGoalYaw when the node has flag 0x80 at +0x2d"
+00307c10,GScr_SetGoalEntity,function,medium,"slot 339: Sentient_SetGoalEntity(sentient, other entity)"
+00307cc0,GScr_AnimScriptedFlag0,function,low,"slot 341: GScr_AnimScripted(..., 0)"
+00308a90,GScr_ActorShootAt,function,low,"slot 342: Actor_ShootWeapon(actor, 1.0, target, 1)"
+00308a30,GScr_ActorShoot,function,low,"slot 343: Actor_ShootWeapon(actor, accuracy arg, 0, 1)"
+002f8710,GScr_ActorLookAt,function,low,"slot 353: look target point at actor +0x1ec, turn rate +0x200 (minimum clamp)"
+002f8540,GScr_ActorSetLookRates,function,low,"slot 354: ramps actor +0x208/+0x20c towards new values over time"
+002f86b0,GScr_ActorStopLookAt,function,low,"slot 355: rate +0x200, clears look-at state +0x1e8"
+00306db0,GScr_ActorCanShootWithOffset,function,medium,"slot 356: Actor_GetMuzzleInfo + offset arg, Actor_IsShotClear"
+003072d0,GScr_ActorCanShoot,function,medium,"slot 357: GScr_ActorCanShootWithOffset with a zero offset"
+00307ed0,GScr_ActorCanSee,function,medium,"slot 358: (actor, entity, max age s): Actor_UpdateVisibilityIfStale for sentients, Actor_UpdateVisibility otherwise"
+003080e0,GScr_ActorCanSeeDefaultAge,function,medium,"slot 359: GScr_ActorCanSee with the actor's default age (+0x830 ms)"
+00308070,GScr_ActorCanSeeEnemy,function,medium,"slot 360: Actor_UpdateVisibilityIfStale on the enemy (sentient +0x3c) with an age arg"
+00308010,GScr_ActorCanSeeEnemyDefaultAge,function,medium,"slot 361: same with the default age +0x830"
+00308c50,GScr_ActorFindBetterCover,function,medium,"slot 362: Actor_Cover_FindBetterCover when in state 1 (or +0xa4 = 1)"
+002fd100,GScr_ActorBeginCriticalSection,function,low,"slot 367: works on state 9 (CriticalSection) in the state stack (+0xa4, top +0xbc)"
+002f8e70,GScr_ActorEndCriticalSection,function,medium,"slot 368: Actor_PopState when the top state is 9 (CriticalSection)"
+002f8e00,GScr_ActorInCriticalSection,function,medium,"slot 369: true when state 9 is anywhere in the state stack"
+002fcf80,GScr_ActorIsStanceAllowed,function,medium,"slot 373: stand/crouch/prone (scr_const_*) against the sentient's allowed-stance bits (+0x46)"
+002fcf20,GScr_ActorStartReacquire,function,medium,"slot 374: Actor_Exposed_StartReacquire when in state 2 with substate 200"
+00303b70,GScr_ActorLeaveTurret,function,medium,"slot 380: Actor_LeaveTurret"
+002f89a0,GScr_ActorGetTurret,function,medium,"slot 387: Actor_IsUsingTurret -> entnum of the turret at +0x136c"
+00307690,GScr_ActorUseTurret,function,low,"slot 379: turret entity into +0x136c when FUN_0026c4d0 accepts it, else 0"
+00307250,GScr_ActorCanUseTurret,function,low,"slot 381: FUN_0026c4d0(actor, turret) != 0"
+002f8a40,GScr_ActorSetAnimMode,function,medium,"slot 383: anim mode name (scr_const_nophysics -> 8 with entity flag 0x10000, gravity -> 4, ...) into the attempted anim mode (+0x280)"
+00308f20,GScr_ActorApplyAnimMove,function,low,"slot 391: anim mode +0x278 from +0x280 (default 4), Actor_MoveByAnimMode + Actor_ApplyMove now"
+00300bf0,GScr_ActorSetOrientMode,function,medium,"slot 384: orient mode name (scr_const_face_angle, ...) into +0x140 with angles +0x144/+0x148"
+002f87f0,GScr_ActorTeleport,function,low,"slot 390: entity angles (+0x150) and actor desired angles from the angles arg, origin from the point arg"
+00302be0,GScr_ActorAdvanceAnimTime,function,low,"slot 392: AnimTree_AdvanceTimeForModel on the actor's DObj by the frame time (0x008dda9c ms)"
+00305470,GScr_ActorMayMoveToPoint,function,low,"slot 403: capsule trace (g_actorMaxs, G_TraceCapsule/G_Trace) from the actor to the point"
+003062a0,GScr_ActorUpdateNearestNode,function,low,"slot 401: Sentient_CachedNearestNode (radius 192) into actor +0x7e0"
+003026c0,GScr_MoverSolid,function,medium,"script iface slot 415: script_brushmodel/script_model: +0x134 = 1, clears eFlags 2, relinks"
+00302640,GScr_MoverNotSolid,function,medium,"slot 416: +0x134 = 0, sets eFlags 2, relinks"

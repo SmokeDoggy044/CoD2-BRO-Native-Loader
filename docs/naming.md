@@ -421,6 +421,21 @@ CoD-specific functions included, so later decompilation covers both kinds.
   102-107, spawns 108-113, objectives 87-101 (configstring 0x10 + index), mission end
   189-192, links 237-243, doors 253-255, turrets 270-330 (turret info at entity +0x24c),
   anims 290-301, vehicles 463-484 (+0x248), hud 490-503 and 578-589 (fields by offset).
+  Slot bodies, fourth pass (2026-10-21, 152 + 2 globals): SlotStores.java on the four init
+  functions plus 0x00303bb0 (script movers) and 0x00309030 (actor builtins) - 69 slot targets
+  had no function; created them first. Movers follow the builtin order: 405 moveTo, 406-408
+  moveX/Y/Z (GScr_MoveAxis 0/1/2), 409 moveGravity (trType 5), 410 rotateTo, 411-413
+  rotatePitch/Yaw/Roll, 414 rotateVelocity, 415/416 solid/notsolid. Actor slots 336-404:
+  goal pos/node/entity, canSee/canShoot, critical section (state 9), stance, turret, anim
+  and orient modes. Hud elements: 0x0094cc88, 16 records of 0x7c, type at +0 (3 shader,
+  5 timer, 4/6/7 other timer kinds, 8/9 shader timers). Entity string hashes: groupname
+  +0x278, script_noteworthy +0x280, classname +0x260, target +0x270, targetname +0x268,
+  animname +0x288 (G_FindEntsBy*). Empty slots -> GScr_EmptyStub<slot>, 509-511
+  GScr_ReturnFalse<slot>. Thread/wait primitives 10/12/13/15-17/26/29 are `low` (record
+  kinds by vtable, meaning unread). Open in the slots: 176-179 (vector math via
+  FUN_002e6710), 185 (configstring 9 "%g"), 340/344/346-352/363/365/366/370/372/375-378/
+  382/385/393-396/400/402/404, 565-568 (setters of 0x00897954-60, read by NGL code at
+  0x45xxx), 572-575 (a list at 0x008dda50), 828-838 (0x00044bc0 range).
   Slot bodies, third pass (2026-10-21, 137 + 100 slot pointers): every slot the four init
   functions fill with a direct store now has a name. Sound slots 39-47 build commands on the
   0x0095f5b4 queue (FXCmd_*: type at +0x1b4, 3 = sound alias by name, 4 = weapon sound by
