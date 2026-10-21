@@ -584,7 +584,7 @@ address,name,section,module,state,tested,matched
 000232b0,FUN_000232b0,.text,unassigned,unnamed,0,0
 000232d0,FUN_000232d0,.text,unassigned,unnamed,0,0
 000232f0,FUN_000232f0,.text,unassigned,unnamed,0,0
-00023320,FUN_00023320,.text,unassigned,unnamed,0,0
+00023320,std_string_CompareSubstr,.text,unassigned,named,0,0
 00023390,FUN_00023390,.text,unassigned,unnamed,0,0
 000233f0,FUN_000233f0,.text,unassigned,unnamed,0,0
 00023480,FUN_00023480,.text,unassigned,unnamed,0,0
@@ -753,7 +753,7 @@ address,name,section,module,state,tested,matched
 0002a620,FUN_0002a620,.text,unassigned,unnamed,0,0
 0002a910,FUN_0002a910,.text,unassigned,unnamed,0,0
 0002ab10,FUN_0002ab10,.text,unassigned,unnamed,0,0
-0002ac30,FUN_0002ac30,.text,unassigned,unnamed,0,0
+0002ac30,Mat44_TransformVector,.text,unassigned,named,0,0
 0002ad30,FUN_0002ad30,.text,unassigned,unnamed,0,0
 0002ade0,FUN_0002ade0,.text,unassigned,unnamed,0,0
 0002ae40,FUN_0002ae40,.text,unassigned,unnamed,0,0
@@ -2170,7 +2170,7 @@ address,name,section,module,state,tested,matched
 000979d0,FUN_000979d0,.text,unassigned,unnamed,0,0
 00097a10,apsGroup_Create,.text,unassigned,named,0,0
 00097b60,FUN_00097b60,.text,unassigned,unnamed,0,0
-00097ba0,FUN_00097ba0,.text,unassigned,unnamed,0,0
+00097ba0,Mat44_TransformPoint,.text,unassigned,named,0,0
 00097c90,FUN_00097c90,.text,unassigned,unnamed,0,0
 00097cd0,apsParseActions,.text,unassigned,named,0,0
 000985d0,FUN_000985d0,.text,unassigned,unnamed,0,0
@@ -4792,8 +4792,8 @@ address,name,section,module,state,tested,matched
 001353d0,ScrField_h2d7db3f6,.text,unassigned,named,0,0
 00135410,ScrField_h2d7db3f6_IsDefined,.text,unassigned,named,0,0
 00135470,BroScr_RandomArrayElement,.text,unassigned,named,0,0
-001354f0,FUN_001354f0,.text,unassigned,unnamed,0,0
-00135590,FUN_00135590,.text,unassigned,unnamed,0,0
+001354f0,BroScr_ActorArray_ClearFlag2000000,.text,unassigned,named,0,0
+00135590,BroScr_ActorArray_SetFlag2000000,.text,unassigned,named,0,0
 00135630,BroScr_WaitTillFinished,.text,unassigned,named,0,0
 001356f0,BroScr_WallHopRotate,.text,unassigned,named,0,0
 00135870,BroScr_PlayerHopSplineMath,.text,unassigned,named,0,0
@@ -7151,7 +7151,7 @@ address,name,section,module,state,tested,matched
 001ef4d0,LIBCMT::_strcpy,.text,unassigned,library,0,0
 001ef5e0,_strchr,.text,unassigned,library,0,0
 001ef6a0,memset2,.text,unassigned,named,0,0
-001ef700,FUN_001ef700,.text,unassigned,unnamed,0,0
+001ef700,std_exception_Ctor,.text,unassigned,named,0,0
 001ef711,LIBCMT::exception_ctor,.text,unassigned,library,0,0
 001ef760,??1exception@@UAE@XZ,.text,unassigned,library,0,0
 001ef783,FUN_001ef783,.text,unassigned,unnamed,0,0
@@ -11610,7 +11610,7 @@ address,name,section,module,state,tested,matched
 0045ceb0,FUN_0045ceb0,levels,prologue,unnamed,0,0
 0045cee0,FUN_0045cee0,levels,prologue,unnamed,0,0
 0045cf10,FUN_0045cf10,levels,prologue,unnamed,0,0
-0045cf40,FUN_0045cf40,levels,prologue,unnamed,0,0
+0045cf40,Scr_WaitTillOutput2_PROLOGUE,levels,game,named,0,0
 0045cfd0,FUN_0045cfd0,levels,prologue,unnamed,0,0
 0045d030,FUN_0045d030,levels,prologue,unnamed,0,0
 0045d090,AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Ctor,levels,prologue,named,0,0
@@ -11624,8 +11624,8 @@ address,name,section,module,state,tested,matched
 0045d530,DynArray_Assign4_PROLOGUE_3,levels,prologue,named,0,0
 0045d5a0,FUN_0045d5a0,levels,prologue,unnamed,0,0
 0045d5f0,FUN_0045d5f0,levels,prologue,unnamed,0,0
-0045d6e0,FUN_0045d6e0,levels,prologue,unnamed,0,0
-0045d710,FUN_0045d710,levels,prologue,unnamed,0,0
+0045d6e0,std_UninitializedFillN4_PROLOGUE,levels,prologue,named,0,0
+0045d710,anim_wad_Anim_Ctor_PROLOGUE,levels,prologue,named,0,0
 0045db80,FUN_0045db80,levels,prologue,unnamed,0,0
 0045dbc0,AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Invoke,levels,prologue,named,0,0
 0045dc50,AeThreadFunctor4_ent_arrent_vec_i_Invoke,levels,prologue,named,0,0
@@ -11652,7 +11652,7 @@ address,name,section,module,state,tested,matched
 0045e450,HashMap_LowerBound_PROLOGUE,levels,prologue,named,0,0
 0045e4f0,FUN_0045e4f0,levels,prologue,unnamed,0,0
 0045e540,FUN_0045e540,levels,prologue,unnamed,0,0
-0045e5d0,FUN_0045e5d0,levels,prologue,unnamed,0,0
+0045e5d0,std_UninitializedFillN4Ret_PROLOGUE,levels,prologue,named,0,0
 0045e600,FUN_0045e600,levels,prologue,unnamed,0,0
 0045e660,FUN_0045e660,levels,prologue,unnamed,0,0
 0045e6b0,FUN_0045e6b0,levels,prologue,unnamed,0,0
@@ -11668,7 +11668,7 @@ address,name,section,module,state,tested,matched
 0045ea10,FUN_0045ea10,levels,prologue,unnamed,0,0
 0045ea30,std_list_BuyNodeKeyArray_PROLOGUE,levels,prologue,named,0,0
 0045ead0,std_list_IncSize_PROLOGUE,levels,prologue,named,0,0
-0045eb70,FUN_0045eb70,levels,prologue,unnamed,0,0
+0045eb70,std_vector_Xlen_PROLOGUE,levels,prologue,named,0,0
 0045ebe0,HashMap_Dtor_PROLOGUE,levels,prologue,named,0,0
 0045ec50,HashMap_Dtor_PROLOGUE_2,levels,prologue,named,0,0
 0045ecc0,std_vector_InsertN4_PROLOGUE,levels,prologue,named,0,0
@@ -11740,7 +11740,7 @@ address,name,section,module,state,tested,matched
 004613c0,FUN_004613c0,levels,prologue,unnamed,0,0
 00461400,FUN_00461400,levels,prologue,unnamed,0,0
 00461450,FUN_00461450,levels,prologue,unnamed,0,0
-00461490,FUN_00461490,levels,prologue,unnamed,0,0
+00461490,std_list_Clear_PROLOGUE,levels,prologue,named,0,0
 004614d0,FUN_004614d0,levels,prologue,unnamed,0,0
 004614e0,FUN_004614e0,levels,prologue,unnamed,0,0
 004614f0,FUN_004614f0,levels,prologue,unnamed,0,0
@@ -11848,7 +11848,7 @@ address,name,section,module,state,tested,matched
 00465830,HashMap_Dtor_PROLOGUE_25,levels,prologue,named,0,0
 004658a0,HashMap_Ctor_PROLOGUE_31,levels,prologue,named,0,0
 00465920,FUN_00465920,levels,prologue,unnamed,0,0
-00465bd0,FUN_00465bd0,levels,prologue,unnamed,0,0
+00465bd0,util_wad_Level_Ctor_PROLOGUE,levels,prologue,named,0,0
 00466240,FUN_00466240,levels,prologue,unnamed,0,0
 004663d0,FUN_004663d0,levels,oran,unnamed,0,0
 00466420,FUN_00466420,levels,oran,unnamed,0,0
@@ -12194,7 +12194,7 @@ address,name,section,module,state,tested,matched
 004af630,LevelScript_oran_InternalMain,levels,oran,library,0,0
 004af640,LevelScript_oran_Main,levels,oran,named,0,0
 004af780,LevelScript_oran_ModuleEntry,levels,oran,named,0,0
-004afb70,FUN_004afb70,levels,oran,unnamed,0,0
+004afb70,DynArray_Erase_ORAN,levels,oran,named,0,0
 004afba0,FUN_004afba0,levels,oran,unnamed,0,0
 004afbc0,AeThreadFunctor2_ent_vehiclenode_Invoke,levels,oran,named,0,0
 004afbe0,AeThreadFunctor7_ent_pathnode_ent_f_ent_f_pathnode_Invoke,levels,oran,named,0,0
@@ -13070,7 +13070,7 @@ address,name,section,module,state,tested,matched
 0052d430,AeThreadFunctor3_ent_str_b_KASSPASS_DeletingDtor,levels,kasspass,named,0,0
 0052d450,AeThreadFunctor3_ent_str_b_KASSPASS_Dtor,levels,kasspass,named,0,0
 0052d4a0,DynArray_AssignString_KASSPASS,levels,kasspass,named,0,0
-0052d530,FUN_0052d530,levels,kasspass,unnamed,0,0
+0052d530,DynArray_Reserve_KASSPASS,levels,kasspass,named,0,0
 0052d600,DynArray_Assign4_KASSPASS,levels,kasspass,named,0,0
 0052d670,FUN_0052d670,levels,kasspass,unnamed,0,0
 0052d6e0,FUN_0052d6e0,levels,kasspass,unnamed,0,0
@@ -13158,7 +13158,7 @@ address,name,section,module,state,tested,matched
 00531690,FUN_00531690,levels,kassrine,unnamed,0,0
 005317c0,FUN_005317c0,levels,kassrine,unnamed,0,0
 00531aa0,FUN_00531aa0,levels,kassrine,unnamed,0,0
-00531b70,FUN_00531b70,levels,kassrine,unnamed,0,0
+00531b70,BroLvl_kasserine_GoToNodeUntilNear,levels,kassrine,named,0,0
 00531c60,FUN_00531c60,levels,kassrine,unnamed,0,0
 00531e10,FUN_00531e10,levels,kassrine,unnamed,0,0
 00531fb0,FUN_00531fb0,levels,kassrine,unnamed,0,0
@@ -13773,7 +13773,7 @@ address,name,section,module,state,tested,matched
 005bd600,BroLvl_gela_WaitTriggerOff,levels,gela,named,0,0
 005bd690,FUN_005bd690,levels,gela,unnamed,0,0
 005bd720,FUN_005bd720,levels,gela,unnamed,0,0
-005bd7b0,FUN_005bd7b0,levels,gela,unnamed,0,0
+005bd7b0,BroLvl_gela_WaitOnZone,levels,gela,named,0,0
 005bd800,BroLvl_gela_FindZoneAndWait,levels,gela,named,0,0
 005bd860,FUN_005bd860,levels,gela,unnamed,0,0
 005bd8d0,FUN_005bd8d0,levels,gela,unnamed,0,0

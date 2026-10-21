@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,179 | 5,688 | 286 | 10,893 |
-| Mission scripts (15 level sections) | 5,324 | 2,977 | 0 | 5,324 |
-| **Total** | **16,503** | **8,665** | **286** | **16,217** |
+| Engine and game code (`.text`) | 11,179 | 5,694 | 286 | 10,893 |
+| Mission scripts (15 level sections) | 5,324 | 2,988 | 0 | 5,324 |
+| **Total** | **16,503** | **8,682** | **286** | **16,217** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -45,7 +45,7 @@ function of the game.*
 | Engine core (memory, files, settings, commands) | 163 | 0 | 1 | 154 | 0 |
 | Client and menus | 209 | 0 | 0 | 209 | 0 |
 | Server, collision, compression | 90 | 1 | 2 | 87 | 0 |
-| Not sorted into a part yet | 9,054 | 10 | 2 | 3,726 | 3,699 |
+| Not sorted into a part yet | 9,054 | 10 | 2 | 3,732 | 3,693 |
 
 1,617 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
@@ -73,13 +73,13 @@ automatically.
 
 | Section | Mission | Functions | Named |
 |---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 617 | 346 |
-| ORAN | `sp/oran` | 443 | 223 |
+| PROLOGUE | `sp/prologue` | 616 | 352 |
+| ORAN | `sp/oran` | 443 | 224 |
 | TUNISIA | `sp/tunisia` | 307 | 174 |
-| KASSPASS | `sp/kasspass` | 498 | 279 |
-| KASSRINE | `sp/kassrine` | 237 | 121 |
+| KASSPASS | `sp/kasspass` | 498 | 280 |
+| KASSRINE | `sp/kassrine` | 237 | 122 |
 | LIBEATOR | `sp/liberatr` | 321 | 147 |
-| GELA | `sp/gela` | 403 | 243 |
+| GELA | `sp/gela` | 403 | 244 |
 | PIANLUPO | `sp/piano` | 400 | 234 |
 | TROINA | `sp/troina` | 235 | 105 |
 | OMAHEACH | `sp/omaha` | 322 | 205 |

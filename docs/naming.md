@@ -723,6 +723,12 @@ CoD-specific functions included, so later decompilation covers both kinds.
   and the front-end widget hubs (00315210 ctor, vtables 0x0082a628/0x008297f0, 0032ea00, 00314c30,
   00310010/00310070, 0031f4b0, 00314b20): one class hierarchy - name it per class (vtable slots) during
   the client/UI phase, not hub by hub. Most remaining hubs (collision traces 002c6630/002cb0f0, FX math
-  0x0009d900-0x000a7670, DObj 0x0001cae0) need their bodies read, so they come with their module's decompile. The many tiny wrappers around
+  0x0009d900-0x000a7670, DObj 0x0001cae0) need their bodies read, so they come with their module's decompile. Second hub batch (17, from the 123
+  unnamed functions with 7+ callers outside the groups above): std exception/string/vector helpers and their
+  PROLOGUE copies, anim_wad_Anim/util_wad_Level ctors, Mat44_TransformPoint/Vector, actor-array flag setters.
+  The rest of that list was read and left: XVOICE/LIBCMT/XGRAPHICS helpers in .text (0x00038xxx fixed point,
+  0x000f2b2b-0x000f4d7d, 0x001ee8xx-0x001f3e9c), level-script class dtors/copy ctors (per class later) and
+  hubs whose role needs the module (temp-buffer scope 0x00086da0/0x00087ad0, handle pool 0x000c9db0).
+  Hubs are dry for string/shape naming: next is the renderer decomp. The many tiny wrappers around
   still-unnamed common-script functions (0016ce40/0016cf80 scripted anim loops, 00135590/001354f0,
   0046b200/00470f70) wait for those targets; then the ~250 common-script leftovers in 0x120000-0x1e4000.
