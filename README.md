@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 39% of the functions have a name, and 286 have been
+It's early days: about 42% of the functions have a name, and 286 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,179 | 5,187 | 286 | 10,893 |
-| Mission scripts (15 level sections) | 5,324 | 1,198 | 0 | 5,324 |
-| **Total** | **16,503** | **6,385** | **286** | **16,217** |
+| Engine and game code (`.text`) | 11,179 | 5,503 | 286 | 10,893 |
+| Mission scripts (15 level sections) | 5,324 | 1,502 | 0 | 5,324 |
+| **Total** | **16,503** | **7,005** | **286** | **16,217** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -42,12 +42,12 @@ function of the game.*
 | Renderer (scenes, materials, shaders, models, effects) | 791 | 275 | 116 | 234 | 166 |
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 690 | 0 | 0 | 688 | 0 |
 | Client game (HUD, view, effects on screen) | 178 | 0 | 0 | 178 | 0 |
-| Engine core (memory, files, settings, commands) | 161 | 0 | 1 | 152 | 0 |
+| Engine core (memory, files, settings, commands) | 162 | 0 | 1 | 153 | 0 |
 | Client and menus | 209 | 0 | 0 | 209 | 0 |
 | Server, collision, compression | 90 | 1 | 2 | 87 | 0 |
-| Not sorted into a part yet | 9,060 | 10 | 2 | 3,232 | 4,205 |
+| Not sorted into a part yet | 9,059 | 10 | 2 | 3,547 | 3,883 |
 
-1,611 of the unsorted functions are Microsoft's own library code that was built into
+1,617 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
 codec). We recognise them by comparing their bytes with the Xbox SDK's libraries, so
 they have their real names; they still count towards the total.
@@ -73,19 +73,19 @@ automatically.
 
 | Section | Mission | Functions | Named |
 |---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 617 | 110 |
-| ORAN | `sp/oran` | 445 | 78 |
-| TUNISIA | `sp/tunisia` | 307 | 80 |
-| KASSPASS | `sp/kasspass` | 499 | 85 |
-| KASSRINE | `sp/kassrine` | 237 | 48 |
-| LIBEATOR | `sp/liberatr` | 322 | 75 |
-| GELA | `sp/gela` | 403 | 34 |
-| PIANLUPO | `sp/piano` | 400 | 108 |
-| TROINA | `sp/troina` | 235 | 39 |
-| OMAHEACH | `sp/omaha` | 322 | 66 |
-| MONS1 | `sp/mons` | 518 | 112 |
-| EILEDORF | `sp/eilndrf` | 184 | 41 |
-| BUCHHOLZ | `sp/buchholz` | 441 | 71 |
+| PROLOGUE | `sp/prologue` | 617 | 239 |
+| ORAN | `sp/oran` | 443 | 94 |
+| TUNISIA | `sp/tunisia` | 307 | 83 |
+| KASSPASS | `sp/kasspass` | 498 | 124 |
+| KASSRINE | `sp/kassrine` | 237 | 54 |
+| LIBEATOR | `sp/liberatr` | 321 | 97 |
+| GELA | `sp/gela` | 403 | 40 |
+| PIANLUPO | `sp/piano` | 400 | 117 |
+| TROINA | `sp/troina` | 235 | 44 |
+| OMAHEACH | `sp/omaha` | 322 | 74 |
+| MONS1 | `sp/mons` | 518 | 125 |
+| EILEDORF | `sp/eilndrf` | 184 | 43 |
+| BUCHHOLZ | `sp/buchholz` | 441 | 113 |
 | DRAGEETH | `sp/dragonth` | 179 | 36 |
 <!-- levels:end -->
 

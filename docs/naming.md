@@ -658,3 +658,15 @@ CoD-specific functions included, so later decompilation covers both kinds.
   key loops; 00177450 single_anim; entry wrappers 00178080/00178280/001784c0 (23 callers)/00178710),
   then 00170a90, 001728b0, 00173040, 0016ce40/0016cf80.
   Tool: the skill's scripts/leanpack.sh N ADDR... reads them with hash words.
+- Containers and script-range pass (2026-10-21, evening): the script runtime's container templates are
+  VC7.1 STL plus the script DynArray {data, capacity, count}: stdext::hash_map keyed by hash
+  (bucket = (key ^ 0xdeadbeef) & mask; list at +4/+8/+0xc, bucket vector +0x10..+0x1c, mask +0x20,
+  maxidx +0x24), std::list, std::vector<list iterator>. One read per template shape in .text
+  0x17b000-0x181600 named the copies in PROLOGUE/ORAN/KASSPASS/LIBEATOR/BUCHHOLZ by code shape
+  (FunctionHashes, shapes of 30+ instructions only; level copies get the _<SECTION> suffix):
+  HashMap_Find/Insert/Index/Ctor/CopyCtor/CopyFrom/Dtor, std_list_*, std_vector_*, DynArray_*
+  (Assign4/Resize4/At/Shuffle...), 331 names. Plus 100 functor non-deleting dtors (only caller
+  is the class's _DeletingDtor). Script side: drone paths (BroScr_DronePath*), mortar groups
+  (BroScr_Mortar*), scripted anims (BroScr_AnimLoop*/AnimSingle* + wrappers), trigger off/on
+  (key hash 0xd91b375d = "realorigin"), cover left/right anim sets, ~120 small leaves.
+  Next: the rest of 0x1b4000-0x1e4000 (todo from brief.py), then the level sections.

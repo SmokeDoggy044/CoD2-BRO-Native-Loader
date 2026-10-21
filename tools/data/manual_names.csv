@@ -5428,8 +5428,8 @@ address,name,kind,confidence,evidence
 00193430,ScrField_script_offradius_IsDefined,function,medium,isdefined(ent.script_offradius): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xcbfba6d8) compared with undefined [section .text]
 00193570,ScrField_script_random_IsDefined,function,medium,isdefined(ent.h2263ce3d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2263ce3d) compared with undefined [section .text]
 00193620,ScrField_finished_spawning_IsDefined,function,high,isdefined(ent.finished_spawning): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc0bb2676) compared with undefined; name recovered from the hash [section .text]
-001938e0,ScrField_hd91b375d,function,medium,"ent.hd91b375d (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd91b375d), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
-00193940,ScrField_hd91b375d_IsDefined,function,medium,isdefined(ent.hd91b375d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd91b375d) compared with undefined [section .text]
+001938e0,ScrField_realorigin,function,medium,"ent.realorigin (key hash 0xd91b375d = realorigin) (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd91b375d), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+00193940,ScrField_realorigin_IsDefined,function,medium,isdefined(ent.realorigin): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd91b375d) compared with undefined [section .text]
 00193a40,ScrField_h5e1a2a0c_IsDefined,function,medium,isdefined(ent.h5e1a2a0c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x5e1a2a0c) compared with undefined [section .text]
 00193b70,ScrField_hb61a7388_IsDefined,function,medium,isdefined(ent.hb61a7388): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xb61a7388) compared with undefined [section .text]
 00193cb0,ScrField_ai_mode_IsDefined,function,medium,isdefined(ent.h97c730fd): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x97c730fd) compared with undefined [section .text]
@@ -7550,3 +7550,623 @@ address,name,kind,confidence,evidence
 0016f790,BroScr_DroneVehicleRidersCall_2,function,low,wrapper of BroScr_DroneVehicleRiders
 0016f870,BroScr_DroneVehicleRidersCall_3,function,low,wrapper of BroScr_DroneVehicleRiders
 00171f00,BroScr_PlaneBombLoop,function,medium,"endon death, BroScr_PlaneDropBomb forever"
+00013d90,std_exception_CtorString,function,medium,"base ctor, vtable 007f6748, copies a std::string message (used by the length_error throws)"
+00014ce0,std_string_AssignSubstr,function,medium,"assign(str, pos, n) with range checks"
+00094140,Mem_AlignedFreeCall,function,high,only calls Mem_AlignedFree
+0017ab70,DynArray_Alloc24_FillUndefined,function,medium,Scr_Alloc(n*0x18) filled with the undefined-float marker
+0017ac00,DynArray_AllocInt_FillUndefined,function,high,Scr_Alloc(n*4) filled with g_scrUndefinedInt
+0017ac40,DynArray_AllocBool_FillUndefined,function,high,Scr_Alloc(n) filled with the undefined-bool byte
+0017b630,std_Fill4,function,high,for(first..last) *p=val
+0017b650,std_CopyBackward4,function,high,copy_backward of dwords
+0017ba30,DynArray_Assign4,function,high,"free old, alloc capacity, copy count dwords (operator=)"
+0017bb40,DynArray_AssignBytes,function,high,operator= for byte elements
+0017bbb0,std_UninitializedCopy4,function,high,uninitialized_copy of dwords (null-checked placement)
+0017bc40,std_list_BuyNode16,function,medium,"Scr_Alloc(0x18) {next,prev,16-byte value}"
+0017bc80,std_list_BuyHead,function,high,"Scr_Alloc node, next=prev=self (list head)"
+0017bca0,DynArray_Resize4,function,high,"grow capacity to param_3 (copy), set count"
+0017bd20,DynArray_Resize24,function,medium,Resize for 0x18-byte elements
+0017be40,DynArray_At24,function,medium,"element 0x18, grows on out-of-range index"
+0017be80,DynArray_PushBack24,function,medium,"append one 0x18-byte element, grow by 4"
+0017c050,DynArray_At,function,high,"index with grow (Resize(i+1,i+4))"
+0017c100,ScriptKeyTable_SetArrayBytes,function,medium,"new DynArray copy of a byte array, ScriptKeyTable_Set"
+0017c180,std_UninitializedFillN4,function,high,uninitialized_fill_n of dwords
+0017c200,ScriptKeyTable_SetArray_2,function,medium,"new DynArray copy, ScriptKeyTable_Set (like ScriptKeyTable_SetArray)"
+0017c280,ScriptKeyTable_GetOrAddArray_2,function,medium,"Find, else Set an empty array; returns it"
+0017c330,ScriptKeyTable_SetArray_3,function,medium,"new DynArray copy, ScriptKeyTable_Set"
+0017c3b0,ScriptKeyTable_GetArrayCopyOrEmpty_2,function,medium,"Find -> copy, else empty array"
+0017c400,ScriptKeyTable_GetOrAddArray_3,function,medium,"Find, else Set an empty array"
+0017c460,ScriptKeyTable_SetArray_4,function,medium,"new DynArray copy, ScriptKeyTable_Set"
+0017c530,ScriptKeyTable_GetOrAddArray_4,function,medium,"Find, else Set an empty array"
+0017c610,ScriptKeyTable_GetArrayCopyOrEmpty_3,function,medium,"Find -> copy, else empty array"
+0017c6c0,ScriptKeyTable_GetOrAddArrayBytes,function,medium,"Find, else SetArrayBytes empty"
+0017c720,ScriptKeyTable_GetArrayCopyOrEmptyBytes,function,medium,"Find -> byte array copy, else empty"
+0017cb40,HashMap_Find,function,high,"hash_map find: bucket (key^0xdeadbeef)&mask, returns end on miss"
+0017cbe0,std_vector_UfillN4,function,medium,vector::_Ufill: uninitialized_fill_n then returns end
+0017cd50,std_vector_Erase4,function,high,"erase(first,last): move tail down, set _Mylast"
+0017cd90,std_list_BuyNodeKeyArray,function,medium,"Scr_Alloc(0x18) node {key, DynArray copy}"
+0017ce30,std_vector_Xlen,function,high,"throws length_error ""vector<T> too long"""
+0017cea0,std_list_Erase,function,high,"unlink node, destroy value, free, --size"
+0017cef0,std_vector_InsertN4,function,high,vector::_Insert_n for dwords (0x3fffffff max)
+0017d140,std_vector_InsertN4_2,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0017d390,std_vector_InsertN4_3,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0017d5e0,std_list_IncSize,function,high,"throws ""list<T> too long"", else size+=n"
+0017d680,std_vector_InsertN4_4,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0017d8d0,std_list_IncSize_2,function,high,"throws ""list<T> too long"", else size+=n"
+0017d970,std_vector_InsertN4_5,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0017dbc0,std_vector_Resize4,function,high,"resize(n,val): _Insert_n or erase tail"
+0017dc30,std_vector_Resize4_2,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0017dca0,std_vector_Resize4_3,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0017dd10,std_vector_Resize4_4,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0017dd80,std_vector_Buy4,function,high,vector::_Buy: allocate capacity n dwords
+0017ddd0,std_vector_Resize4_5,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0017de40,std_vector_InsertN4_6,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0017e090,std_vector_ConstructN4,function,high,"vector(n,val): _Buy + uninitialized_fill_n"
+0017e110,std_vector_ConstructN4_2,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+0017e190,std_vector_ConstructN4_3,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+0017e210,std_list_InsertRange,function,high,"insert [first,last) at end via _Buynode + _Incsize"
+0017e2c0,std_list_InsertRange_2,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0017e370,std_vector_Resize4_6,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0017e3e0,HashMap_Ctor,function,high,"list head, bucket vector(9, head), mask 1, maxidx 1"
+0017e460,HashMap_CopyFrom,function,high,copies buckets/list and rebinds bucket iterators
+0017e570,HashMap_CopyFrom_2,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0017e680,HashMap_Insert_2,function,high,"hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0017e8d0,HashMap_Insert_3,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0017eb20,HashMap_CopyCtor,function,high,empty init then HashMap_CopyFrom
+0017eb90,HashMap_CopyCtor_2,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+0017ec50,DynArray_AllocHashMap,function,medium,Scr_Alloc(n*0x28) + HashMap_Ctor each
+0017ece0,DynArray_AllocHashMap_2,function,medium,same code shape as 0017ec50 (DynArray_AllocHashMap): Scr_Alloc(n*0x28) + HashMap_Ctor each
+0017ed70,HashMap_Index,function,high,"operator[]: Find, else Insert default; returns &value"
+0017edf0,HashMap_Index_2,function,high,"operator[]: Find, else Insert a default value; returns &value"
+0017eec0,DynArray_ResizeHashMap,function,medium,Resize for 0x28-byte hash_map elements
+0017f020,DynArray_AssignHashMap,function,medium,operator= for hash_map elements
+0017f0d0,DynArray_ResizeHashMap_2,function,medium,same code shape as 0017eec0 (DynArray_ResizeHashMap): Resize for 0x28-byte hash_map elements
+0017f230,DynArray_AssignHashMap_2,function,medium,same code shape as 0017f020 (DynArray_AssignHashMap): operator= for hash_map elements
+0017f2e0,DynArray_AtHashMap,function,medium,"element 0x28, grows on out-of-range index"
+0017f320,std_list_BuyNodeHashMap,function,medium,"Scr_Alloc(0x34) node {key, hash_map copy}"
+0017f3b0,std_list_BuyNodeHashMap_2,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+0017f4e0,std_list_InsertRange_3,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0017f590,HashMap_Ctor_2,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0017f750,HashMap_CopyFrom_3,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0017f860,std_list_InsertRange_4,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0017f910,std_list_InsertRange_5,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0017f9c0,HashMap_CopyCtor_3,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+0017fa30,HashMap_Insert_4,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0017fc80,HashMap_Insert_5,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0017fed0,HashMap_Ctor_3,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0017ff50,HashMap_Index_4,function,high,"operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00180020,HashMap_Index_5,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+001800f0,HashMap_CopyFrom_4,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+00180200,HashMap_CopyFrom_5,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+00180310,HashMap_CopyCtor_4,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00180380,HashMap_Insert_6,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+001805d0,HashMap_Insert_7,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00180820,HashMap_CopyCtor_5,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00180890,HashMap_Index_8,function,high,"operator[]: Find, else Insert a default value; returns &value"
+00180950,HashMap_Index_9,function,high,"same code shape as 00180890 (HashMap_Index): operator[]: Find, else Insert a default value; returns &value"
+00180a10,std_list_BuyNodeHashMap_3,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+00180aa0,std_list_BuyNodeHashMap_4,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+00180b30,HashMap_Insert_8,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00180d80,HashMap_Insert_9,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00180fd0,HashMap_Index_6,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+001810a0,HashMap_Index_7,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00181560,ScrCall_GScr_SetFlaggedAnimKnobAll_2,function,high,forwards to pScr_GScr_SetFlaggedAnimKnobAll
+001815a0,ScrCall_GScr_GetWeaponDisplayName,function,high,pScr_GScr_GetWeaponDisplayName wrapper returning a string copy
+001a95e0,DynArray_Shuffle,function,medium,swaps each element with a RandomInt(count) one
+001a96d0,DynArray_Shuffle_2,function,medium,same code shape as 001a95e0 (DynArray_Shuffle): swaps each element with a RandomInt(count) one
+001a99d0,DynArray_Shuffle_3,function,medium,same code shape as 001a95e0 (DynArray_Shuffle): swaps each element with a RandomInt(count) one
+001e48f0,DynArray_PushBack24_2,function,medium,"same code shape as 0017be80 (DynArray_PushBack24): append one 0x18-byte element, grow by 4"
+001e6510,std_vector_InsertN4_7,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+001e6760,std_vector_Resize4_7,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+001e67d0,std_list_InsertRange_6,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+001e6880,HashMap_CopyFrom_6,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+001e6990,HashMap_CopyCtor_6,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+001e6c50,HashMap_Index_3,function,high,"same code shape as 0017edf0 (HashMap_Index): operator[]: Find, else Insert a default value; returns &value"
+0045a2a0,DynArray_Alloc24_FillUndefined_PROLOGUE,function,medium,same code shape as 0017ab70 (DynArray_Alloc24_FillUndefined): Scr_Alloc(n*0x18) filled with the undefined-float marker
+0045c270,DynArray_Assign4_PROLOGUE,function,high,"same code shape as 0017ba30 (DynArray_Assign4): free old, alloc capacity, copy count dwords (operator=)"
+0045c2e0,DynArray_ReserveString_PROLOGUE,function,medium,grow capacity with ScriptString element copies
+0045c410,DynArray_Assign12_PROLOGUE,function,medium,operator= for 12-byte (vector) elements
+0045c4a0,DynArray_ReserveIntNeg1_PROLOGUE,function,medium,"grow capacity, new slots -1"
+0045c5b0,DynArray_Assign4_PROLOGUE_2,function,high,"same code shape as 0017ba30 (DynArray_Assign4): free old, alloc capacity, copy count dwords (operator=)"
+0045ca60,std_list_BuyHead_PROLOGUE,function,high,"Scr_Alloc node, next=prev=self (list head)"
+0045cad0,DynArray_Resize4_PROLOGUE,function,high,"same code shape as 0017bca0 (DynArray_Resize4): grow capacity to param_3 (copy), set count"
+0045cb70,DynArray_At_PROLOGUE,function,high,"index with grow (Resize(i+1,i+4))"
+0045cde0,DynArray_Reserve12_PROLOGUE,function,medium,grow capacity for 12-byte (vector) elements
+0045d480,DynArray_ReserveInt0_PROLOGUE,function,medium,"grow capacity, new slots zeroed"
+0045d530,DynArray_Assign4_PROLOGUE_3,function,high,"same code shape as 0017ba30 (DynArray_Assign4): free old, alloc capacity, copy count dwords (operator=)"
+0045e6d0,HashMap_Find_PROLOGUE,function,high,"same code shape as 0017cb40 (HashMap_Find): hash_map find: bucket (key^0xdeadbeef)&mask, returns end on miss"
+0045ebe0,HashMap_Dtor_PROLOGUE,function,high,"free bucket vector, clear list, free head"
+0045ec50,HashMap_Dtor_PROLOGUE_2,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0045ecc0,std_vector_InsertN4_PROLOGUE,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0045f0a0,HashMap_Dtor_PROLOGUE_3,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0045f150,std_vector_Buy4_PROLOGUE,function,high,same code shape as 0017dd80 (std_vector_Buy4): vector::_Buy: allocate capacity n dwords
+0045f1a0,HashMap_Dtor_PROLOGUE_4,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0045f250,std_vector_Resize4_PROLOGUE,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0045f2c0,std_vector_ConstructN4_PROLOGUE,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+0045f3e0,std_list_InsertRange_PROLOGUE,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0045f490,std_list_InsertRange_PROLOGUE_2,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0045f540,std_list_InsertRange_PROLOGUE_3,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0045f650,HashMap_CopyFrom_PROLOGUE,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0045f760,HashMap_CopyFrom_PROLOGUE_2,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0045f8b0,HashMap_Ctor_PROLOGUE,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045f930,HashMap_Ctor_PROLOGUE_2,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045f9b0,HashMap_Ctor_PROLOGUE_3,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045fa30,HashMap_Ctor_PROLOGUE_4,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045fab0,HashMap_Ctor_PROLOGUE_5,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045fb30,HashMap_Ctor_PROLOGUE_6,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045fbb0,HashMap_Ctor_PROLOGUE_7,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045fc30,HashMap_Ctor_PROLOGUE_8,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045fcb0,HashMap_Ctor_PROLOGUE_9,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045fd30,HashMap_CopyFrom_PROLOGUE_3,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0045fe40,HashMap_Dtor_PROLOGUE_5,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0045feb0,HashMap_Ctor_PROLOGUE_10,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0045ff30,HashMap_CopyCtor_PROLOGUE,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+0045ffa0,HashMap_Ctor_PROLOGUE_11,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00460020,HashMap_CopyCtor_PROLOGUE_2,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00460090,HashMap_Ctor_PROLOGUE_12,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00460110,HashMap_CopyCtor_PROLOGUE_3,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00460180,HashMap_Ctor_PROLOGUE_13,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00460200,HashMap_CopyCtor_PROLOGUE_4,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00460270,HashMap_Ctor_PROLOGUE_14,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+004602f0,HashMap_CopyCtor_PROLOGUE_5,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00460400,HashMap_Insert_PROLOGUE,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+004608a0,HashMap_Insert_PROLOGUE_2,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00460af0,HashMap_Insert_PROLOGUE_3,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00460d40,HashMap_CopyCtor_PROLOGUE_6,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00460db0,HashMap_CopyCtor_PROLOGUE_7,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00460e20,HashMap_CopyCtor_PROLOGUE_8,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00460e90,HashMap_CopyCtor_PROLOGUE_9,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+00460f10,HashMap_Dtor_PROLOGUE_6,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00460f80,HashMap_Index_PROLOGUE_14,function,high,"operator[]: Find, else Insert default; returns &value"
+00461030,HashMap_Index_PROLOGUE_13,function,high,"operator[]: Find, else Insert a zero value; returns &value"
+00461120,HashMap_Index_PROLOGUE_11,function,high,"operator[]: Find, else Insert a default (ScriptString) value; returns &value; 204 callers"
+00461230,HashMap_Index_PROLOGUE_12,function,high,"same code shape as 00461120 (HashMap_Index): operator[]: Find, else Insert a default (ScriptString) value; returns &value; 204 callers"
+004612f0,HashMap_Index_PROLOGUE,function,high,"same code shape as 0017edf0 (HashMap_Index): operator[]: Find, else Insert a default value; returns &value"
+00461510,std_list_BuyNodeHashMap_PROLOGUE,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+004615a0,std_list_BuyNodeHashMap_PROLOGUE_2,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+00461630,std_list_BuyNodeHashMap_PROLOGUE_3,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+004616c0,std_list_BuyNodeHashMap_PROLOGUE_4,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+00461750,std_list_BuyNodeHashMap_PROLOGUE_5,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+00461840,std_list_BuyNodeHashMap_PROLOGUE_6,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+004618d0,std_list_BuyNodeHashMap_PROLOGUE_7,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+00461960,std_list_BuyNodeHashMap_PROLOGUE_8,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+004619f0,std_list_BuyNodeHashMap_PROLOGUE_9,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+00461ae0,HashMap_Dtor_PROLOGUE_7,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00461b50,HashMap_Dtor_PROLOGUE_8,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00461bc0,HashMap_Dtor_PROLOGUE_9,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00461c30,HashMap_Ctor_PROLOGUE_15,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00461cb0,HashMap_Ctor_PROLOGUE_16,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00461d30,HashMap_Ctor_PROLOGUE_17,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00461db0,HashMap_Dtor_PROLOGUE_10,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00461e20,HashMap_Dtor_PROLOGUE_11,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00461e90,HashMap_Dtor_PROLOGUE_12,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00461f00,HashMap_Dtor_PROLOGUE_13,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00461f70,HashMap_Dtor_PROLOGUE_14,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00461fe0,HashMap_Ctor_PROLOGUE_18,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00462060,HashMap_Ctor_PROLOGUE_19,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+004620e0,HashMap_Ctor_PROLOGUE_20,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00462160,HashMap_Ctor_PROLOGUE_21,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+004621e0,HashMap_Ctor_PROLOGUE_22,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00462320,HashMap_Dtor_PROLOGUE_15,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00462390,HashMap_Ctor_PROLOGUE_23,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00462490,HashMap_Dtor_PROLOGUE_16,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00462500,HashMap_Dtor_PROLOGUE_17,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00463100,HashMap_Ctor_PROLOGUE_24,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00463180,HashMap_Ctor_PROLOGUE_25,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00463200,HashMap_Dtor_PROLOGUE_18,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00463270,HashMap_Insert_PROLOGUE_4,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+004634c0,HashMap_Insert_PROLOGUE_5,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00463710,HashMap_Insert_PROLOGUE_6,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00463960,HashMap_Ctor_PROLOGUE_26,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+004639e0,HashMap_Insert_PROLOGUE_7,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00463c70,HashMap_Dtor_PROLOGUE_19,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00463d00,HashMap_Index_PROLOGUE_2,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00463dd0,HashMap_Index_PROLOGUE_3,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00463ea0,HashMap_Index_PROLOGUE_4,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00463f70,HashMap_Index_PROLOGUE_5,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00464040,HashMap_Index_PROLOGUE_6,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00464110,HashMap_Index_PROLOGUE_7,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+004641e0,HashMap_Index_PROLOGUE_8,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+004642b0,HashMap_Index_PROLOGUE_9,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00464380,HashMap_Index_PROLOGUE_10,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+00464a20,HashMap_Dtor_PROLOGUE_20,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00464b00,HashMap_Dtor_PROLOGUE_21,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00464b70,HashMap_Dtor_PROLOGUE_22,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00464c00,HashMap_Ctor_PROLOGUE_27,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00464c80,HashMap_Ctor_PROLOGUE_28,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+004652a0,HashMap_Dtor_PROLOGUE_23,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00465310,HashMap_Ctor_PROLOGUE_29,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00465720,HashMap_Dtor_PROLOGUE_24,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+00465790,HashMap_Ctor_PROLOGUE_30,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+00465830,HashMap_Dtor_PROLOGUE_25,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+004658a0,HashMap_Ctor_PROLOGUE_31,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+004b14f0,Scr_WaitTillOutputStr_ORAN,function,medium,WaitTill with a WaitTilOutputInst1<str>; assigns the notify's string argument
+004b1590,Scr_WaitTillOutputEnt_ORAN,function,medium,WaitTill with a WaitTilOutputInst1<ent>; stores the notify's entity argument
+004b19e0,HashMap_Find_ORAN,function,high,"same code shape as 0017cb40 (HashMap_Find): hash_map find: bucket (key^0xdeadbeef)&mask, returns end on miss"
+004b1da0,HashMap_Dtor_ORAN,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+004b1eb0,std_vector_InsertN4_ORAN,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+004b21a0,std_vector_InsertN4_ORAN_2,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+004b23f0,std_vector_Buy4_ORAN,function,high,same code shape as 0017dd80 (std_vector_Buy4): vector::_Buy: allocate capacity n dwords
+004b2440,std_vector_Resize4_ORAN,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+004b24b0,std_vector_Resize4_ORAN_2,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+004b2520,std_vector_ConstructN4_ORAN,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+004b25a0,HashMap_Ctor_ORAN,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+004b2620,HashMap_Insert_ORAN,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+004b2870,HashMap_Insert_ORAN_2,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0052d4a0,DynArray_AssignString_KASSPASS,function,medium,operator= for ScriptString elements
+0052d600,DynArray_Assign4_KASSPASS,function,high,"same code shape as 0017ba30 (DynArray_Assign4): free old, alloc capacity, copy count dwords (operator=)"
+0052d850,DynArray_Assign4_KASSPASS_2,function,high,"same code shape as 0017ba30 (DynArray_Assign4): free old, alloc capacity, copy count dwords (operator=)"
+0052d8c0,Scr_WaitTillOutputEnt_KASSPASS,function,medium,same code shape as 004b1590 (Scr_WaitTillOutputEnt): WaitTill with a WaitTilOutputInst1<ent>; stores the notify's entity argument
+0052db90,HashMap_Find_KASSPASS,function,high,"same code shape as 0017cb40 (HashMap_Find): hash_map find: bucket (key^0xdeadbeef)&mask, returns end on miss"
+0052dfd0,HashMap_Dtor_KASSPASS,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0052e0e0,std_vector_InsertN4_KASSPASS,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0052e3d0,std_vector_InsertN4_KASSPASS_2,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0052e710,std_vector_Buy4_KASSPASS,function,high,same code shape as 0017dd80 (std_vector_Buy4): vector::_Buy: allocate capacity n dwords
+0052e780,std_vector_Resize4_KASSPASS,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0052e7f0,std_vector_Resize4_KASSPASS_2,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0052e860,std_vector_ConstructN4_KASSPASS,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+0052e8e0,std_vector_ConstructN4_KASSPASS_2,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+0052e960,std_list_InsertRange_KASSPASS,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0052ea10,std_list_InsertRange_KASSPASS_2,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0052eac0,HashMap_Dtor_KASSPASS_2,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0052eb30,HashMap_Ctor_KASSPASS,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0052ebb0,HashMap_CopyFrom_KASSPASS,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0052ecc0,HashMap_Ctor_KASSPASS_2,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0052ed40,HashMap_Ctor_KASSPASS_3,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0052edc0,HashMap_CopyFrom_KASSPASS_2,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0052eed0,HashMap_CopyCtor_KASSPASS,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+0052ef40,HashMap_Insert_KASSPASS,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0052f190,HashMap_Insert_KASSPASS_2,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0052f3e0,HashMap_Insert_KASSPASS_3,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0052f630,HashMap_CopyCtor_KASSPASS_2,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+0052f760,HashMap_Index_KASSPASS,function,high,"same code shape as 0017edf0 (HashMap_Index): operator[]: Find, else Insert a default value; returns &value"
+0052f830,HashMap_Index_KASSPASS_2,function,high,"same code shape as 0017edf0 (HashMap_Index): operator[]: Find, else Insert a default value; returns &value"
+0052fdb0,std_list_BuyNodeHashMap_KASSPASS,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+0052fe40,HashMap_Insert_KASSPASS_4,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+00530090,HashMap_Index_KASSPASS_3,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+005b45b0,ScrCall_SendGameMessageBoldCStr_LIBEATOR,function,medium,"C string -> ScriptString, pScr_GScr_SendGameMessageBold"
+005b4b20,DynArray_Resize4_LIBEATOR,function,high,"same code shape as 0017bca0 (DynArray_Resize4): grow capacity to param_3 (copy), set count"
+005b4da0,Scr_WaitTillOutputEnt_LIBEATOR,function,medium,same code shape as 004b1590 (Scr_WaitTillOutputEnt): WaitTill with a WaitTilOutputInst1<ent>; stores the notify's entity argument
+005b5020,HashMap_Dtor_LIBEATOR,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+005b5130,std_vector_InsertN4_LIBEATOR,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+005b5420,std_vector_Buy4_LIBEATOR,function,high,same code shape as 0017dd80 (std_vector_Buy4): vector::_Buy: allocate capacity n dwords
+005b54a0,std_vector_Resize4_LIBEATOR,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+005b5510,std_vector_ConstructN4_LIBEATOR,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+005b55b0,std_list_InsertRange_LIBEATOR,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+005b5660,HashMap_Ctor_LIBEATOR,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+005b56e0,HashMap_CopyFrom_LIBEATOR,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+005b5a40,HashMap_CopyCtor_LIBEATOR,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+005b5b70,std_list_BuyNodeHashMap_LIBEATOR,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+005b5c00,std_list_BuyNodeHashMap_LIBEATOR_2,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+005b5c90,HashMap_Dtor_LIBEATOR_2,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+005b5d00,HashMap_Dtor_LIBEATOR_3,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+005b5d70,HashMap_Ctor_LIBEATOR_2,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+005b5df0,HashMap_Ctor_LIBEATOR_3,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+005b6310,HashMap_Index_LIBEATOR,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+005b63e0,HashMap_Index_LIBEATOR_2,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+006025b0,ScrCall_SendGameMessageBoldCStr_GELA,function,medium,"C string -> ScriptString, pScr_GScr_SendGameMessageBold"
+0078b0a0,DynArray_Assign12_BUCHHOLZ,function,medium,same code shape as 0045c410 (DynArray_Assign12): operator= for 12-byte (vector) elements
+0078b600,HashMap_Find_BUCHHOLZ,function,high,"same code shape as 0017cb40 (HashMap_Find): hash_map find: bucket (key^0xdeadbeef)&mask, returns end on miss"
+0078b9d0,HashMap_Dtor_BUCHHOLZ,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0078bae0,std_vector_InsertN4_BUCHHOLZ,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0078bfb0,std_vector_Buy4_BUCHHOLZ,function,high,same code shape as 0017dd80 (std_vector_Buy4): vector::_Buy: allocate capacity n dwords
+0078c0e0,std_vector_Resize4_BUCHHOLZ,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0078c150,std_vector_InsertN4_BUCHHOLZ_2,function,high,same code shape as 0017cef0 (std_vector_InsertN4): vector::_Insert_n for dwords (0x3fffffff max)
+0078c3a0,std_vector_ConstructN4_BUCHHOLZ,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+0078c420,std_vector_ConstructN4_BUCHHOLZ_2,function,high,"same code shape as 0017e090 (std_vector_ConstructN4): vector(n,val): _Buy + uninitialized_fill_n"
+0078c4d0,std_list_InsertRange_BUCHHOLZ,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0078c580,std_list_InsertRange_BUCHHOLZ_2,function,high,"same code shape as 0017e210 (std_list_InsertRange): insert [first,last) at end via _Buynode + _Incsize"
+0078c630,std_vector_Resize4_BUCHHOLZ_2,function,high,"same code shape as 0017dbc0 (std_vector_Resize4): resize(n,val): _Insert_n or erase tail"
+0078c6a0,HashMap_Ctor_BUCHHOLZ,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0078c720,HashMap_Ctor_BUCHHOLZ_2,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0078c7a0,HashMap_CopyFrom_BUCHHOLZ,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0078c8b0,HashMap_Ctor_BUCHHOLZ_3,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0078c930,HashMap_Ctor_BUCHHOLZ_4,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0078c9b0,HashMap_CopyCtor_BUCHHOLZ,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+0078ca20,HashMap_CopyFrom_BUCHHOLZ_2,function,high,same code shape as 0017e460 (HashMap_CopyFrom): copies buckets/list and rebinds bucket iterators
+0078cb30,HashMap_CopyCtor_BUCHHOLZ_2,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+0078cba0,HashMap_Insert_BUCHHOLZ,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0078cdf0,HashMap_Insert_BUCHHOLZ_2,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0078d290,HashMap_CopyCtor_BUCHHOLZ_3,function,high,same code shape as 0017eb20 (HashMap_CopyCtor): empty init then HashMap_CopyFrom
+0078d680,std_list_BuyNodeHashMap_BUCHHOLZ,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+0078d710,std_list_BuyNodeHashMap_BUCHHOLZ_2,function,medium,"same code shape as 0017f320 (std_list_BuyNodeHashMap): Scr_Alloc(0x34) node {key, hash_map copy}"
+0078d830,HashMap_Dtor_BUCHHOLZ_2,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0078d8a0,HashMap_Dtor_BUCHHOLZ_3,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0078d910,HashMap_Dtor_BUCHHOLZ_4,function,high,"same code shape as 0045ebe0 (HashMap_Dtor): free bucket vector, clear list, free head"
+0078d980,HashMap_Ctor_BUCHHOLZ_5,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0078da00,HashMap_Ctor_BUCHHOLZ_6,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0078da80,HashMap_Ctor_BUCHHOLZ_7,function,high,"same code shape as 0017e3e0 (HashMap_Ctor): list head, bucket vector(9, head), mask 1, maxidx 1"
+0078db90,HashMap_Insert_BUCHHOLZ_3,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0078dde0,HashMap_Insert_BUCHHOLZ_4,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0078e030,HashMap_Insert_BUCHHOLZ_5,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0078e280,HashMap_Index_BUCHHOLZ,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+0078e350,HashMap_Index_BUCHHOLZ_2,function,high,"same code shape as 0017ff50 (HashMap_Index): operator[]: Find, else Insert a default (nested hash_map) value; returns &value"
+0078e4f0,HashMap_Insert_BUCHHOLZ_6,function,high,"same code shape as 0017e680 (HashMap_Insert): hash_map insert: grows buckets ((key^0xdeadbeef)&mask), links node"
+0017b6a0,AeThreadFunctor4_ent_ent_str_vec_Dtor,function,high,only caller is AeThreadFunctor4_ent_ent_str_vec_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017b710,AeThreadFunctor5_ent_ent_i_str_b_Dtor,function,high,only caller is AeThreadFunctor5_ent_ent_i_str_b_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017b780,AeThreadFunctor3_ent_str_vec_Dtor,function,high,only caller is AeThreadFunctor3_ent_str_vec_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017b7f0,AeThreadFunctor5_ent_vec_str_vec_f_Dtor,function,high,only caller is AeThreadFunctor5_ent_vec_str_vec_f_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017b860,AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Dtor,function,high,only caller is AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017b8e0,AeThreadFunctor2_ent_RespawnerAttributes_Dtor,function,high,only caller is AeThreadFunctor2_ent_RespawnerAttributes_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017b950,AeThreadFunctor4_ent_str_i_str_Dtor,function,high,only caller is AeThreadFunctor4_ent_str_i_str_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017c8d0,AeThreadFunctor4_ent_ent_arrf_i_Dtor,function,high,only caller is AeThreadFunctor4_ent_ent_arrf_i_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017c940,AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Dtor,function,high,only caller is AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0017c9c0,AeThreadFunctor4_ent_ent_ent_arrent_Dtor,function,high,only caller is AeThreadFunctor4_ent_ent_ent_arrent_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+001e5680,AeThreadFunctor5_ent_ent_str_ent_ent_Dtor,function,high,only caller is AeThreadFunctor5_ent_ent_str_ent_ent_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+001e56f0,AeThreadFunctor_Dtor_2,function,high,only caller is AeThreadFunctor_DeletingDtor_2 (non-deleting destructor: resets the vtable to the base functor)
+001e5740,AeThreadFunctor_Dtor,function,high,only caller is AeThreadFunctor_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+001e5770,AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Dtor,function,high,only caller is AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+001e57e0,AeThreadFunctor4_ent_str_hash_hash_Dtor,function,high,only caller is AeThreadFunctor4_ent_str_hash_hash_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+001e5850,AeThreadFunctor5_vt00825c50_Dtor,function,high,only caller is AeThreadFunctor5_vt00825c50_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00458fc0,WaitTilOutputInst2_i_ent_PROLOGUE_Dtor,function,high,only caller is WaitTilOutputInst2_i_ent_PROLOGUE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0045be00,AeThreadFunctor7_ent_ent_hash_str_ent_ent_b_PROLOGUE_Dtor,function,high,only caller is AeThreadFunctor7_ent_ent_hash_str_ent_ent_b_PROLOGUE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0045be50,AeThreadFunctor_PROLOGUE_Dtor_4,function,high,only caller is AeThreadFunctor_PROLOGUE_DeletingDtor_4 (non-deleting destructor: resets the vtable to the base functor)
+0045bea0,AeThreadFunctor6_ent_str_str_i_str_str_PROLOGUE_Dtor,function,high,only caller is AeThreadFunctor6_ent_str_str_i_str_str_PROLOGUE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0045bf10,AeThreadFunctor_PROLOGUE_Dtor,function,high,only caller is AeThreadFunctor_PROLOGUE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0045bf80,AeThreadFunctor_PROLOGUE_Dtor_2,function,high,only caller is AeThreadFunctor_PROLOGUE_DeletingDtor_2 (non-deleting destructor: resets the vtable to the base functor)
+0045bfd0,AeThreadFunctor_PROLOGUE_Dtor_3,function,high,only caller is AeThreadFunctor_PROLOGUE_DeletingDtor_3 (non-deleting destructor: resets the vtable to the base functor)
+0045c060,AeThreadFunctor_PROLOGUE_Dtor_5,function,high,only caller is AeThreadFunctor_PROLOGUE_DeletingDtor_5 (non-deleting destructor: resets the vtable to the base functor)
+0045c0d0,AeThreadFunctor3_ent_vec_str_PROLOGUE_Dtor,function,high,only caller is AeThreadFunctor3_ent_vec_str_PROLOGUE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0045e380,AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_Dtor,function,high,only caller is AeThreadFunctor7_ent_arrent_str_i_f_f_b_PROLOGUE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0045e3e0,AeThreadFunctor_PROLOGUE_Dtor_6,function,high,only caller is AeThreadFunctor_PROLOGUE_DeletingDtor_6 (non-deleting destructor: resets the vtable to the base functor)
+004b0df0,AeThreadFunctor_ORAN_Dtor_3,function,high,only caller is AeThreadFunctor_ORAN_DeletingDtor_3 (non-deleting destructor: resets the vtable to the base functor)
+004b0e00,AeThreadFunctor_ORAN_Dtor_2,function,high,only caller is AeThreadFunctor_ORAN_DeletingDtor_2 (non-deleting destructor: resets the vtable to the base functor)
+004b0e70,AeThreadFunctor5_ent_str_str_f_f_ORAN_Dtor,function,high,only caller is AeThreadFunctor5_ent_str_str_f_f_ORAN_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+004b0ee0,AeThreadFunctor_ORAN_Dtor,function,high,only caller is AeThreadFunctor_ORAN_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+004b1990,AeThreadFunctor_ORAN_Dtor_4,function,high,only caller is AeThreadFunctor_ORAN_DeletingDtor_4 (non-deleting destructor: resets the vtable to the base functor)
+004e9710,AeThreadFunctor_TUNISIA_Dtor_2,function,high,only caller is AeThreadFunctor_TUNISIA_DeletingDtor_2 (non-deleting destructor: resets the vtable to the base functor)
+004e9780,AeThreadFunctor_TUNISIA_Dtor,function,high,only caller is AeThreadFunctor_TUNISIA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+004e98b0,AeThreadFunctor7_ent_vec_vec_str_str_arrent_vec_TUNISIA_Dtor,function,high,only caller is AeThreadFunctor7_ent_vec_vec_str_str_arrent_vec_TUNISIA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0052bd70,WaitTilOutputInst1_f_KASSPASS_Dtor,function,high,only caller is WaitTilOutputInst1_f_KASSPASS_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0052d260,AeThreadFunctor4_ent_ent_i_str_KASSPASS_Dtor,function,high,only caller is AeThreadFunctor4_ent_ent_i_str_KASSPASS_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0052d2f0,AeThreadFunctor_KASSPASS_Dtor_2,function,high,only caller is AeThreadFunctor_KASSPASS_DeletingDtor_2 (non-deleting destructor: resets the vtable to the base functor)
+0052d300,AeThreadFunctor_KASSPASS_Dtor,function,high,only caller is AeThreadFunctor_KASSPASS_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0052d370,AeThreadFunctor3_ent_str_RespawnerAttributes_KASSPASS_Dtor,function,high,only caller is AeThreadFunctor3_ent_str_RespawnerAttributes_KASSPASS_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0052d3e0,AeThreadFunctor7_ent_i_i_i_i_i_str_KASSPASS_Dtor,function,high,only caller is AeThreadFunctor7_ent_i_i_i_i_i_str_KASSPASS_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0052d450,AeThreadFunctor3_ent_str_b_KASSPASS_Dtor,function,high,only caller is AeThreadFunctor3_ent_str_b_KASSPASS_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0052daa0,AeThreadFunctor9_ent_arrent_str_i_f_f_f_f_b_KASSPASS_Dtor,function,high,only caller is AeThreadFunctor9_ent_arrent_str_i_f_f_f_f_b_KASSPASS_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0052f9f0,AeThreadFunctor_KASSPASS_Dtor_3,function,high,only caller is AeThreadFunctor_KASSPASS_DeletingDtor_3 (non-deleting destructor: resets the vtable to the base functor)
+00565750,AeThreadFunctor_KASSRINE_Dtor_2,function,high,only caller is AeThreadFunctor_KASSRINE_DeletingDtor_2 (non-deleting destructor: resets the vtable to the base functor)
+005657a0,AeThreadFunctor_KASSRINE_Dtor,function,high,only caller is AeThreadFunctor_KASSRINE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+005657f0,AeThreadFunctor4_ent_i_i_str_KASSRINE_Dtor,function,high,only caller is AeThreadFunctor4_ent_i_i_str_KASSRINE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00565880,AeThreadFunctor7_ent_vec_f_str_i_ent_i_KASSRINE_Dtor,function,high,only caller is AeThreadFunctor7_ent_vec_f_str_i_ent_i_KASSRINE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00565df0,AeThreadFunctor_KASSRINE_Dtor_3,function,high,only caller is AeThreadFunctor_KASSRINE_DeletingDtor_3 (non-deleting destructor: resets the vtable to the base functor)
+00565e60,AeThreadFunctor7_ent_arrent_hash_vec_vec_b_str_KASSRINE_Dtor,function,high,only caller is AeThreadFunctor7_ent_arrent_hash_vec_vec_b_str_KASSRINE_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+005b4220,WaitTilOutputInst1_i_LIBEATOR_Dtor,function,high,only caller is WaitTilOutputInst1_i_LIBEATOR_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+005b4ac0,AeThreadFunctor4_ent_vehiclenode_str_ent_LIBEATOR_Dtor,function,high,only caller is AeThreadFunctor4_ent_vehiclenode_str_ent_LIBEATOR_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+005b4b10,AeThreadFunctor_LIBEATOR_Dtor,function,high,only caller is AeThreadFunctor_LIBEATOR_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00602640,AeThreadFunctor_GELA_Dtor,function,high,only caller is AeThreadFunctor_GELA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00602670,AeThreadFunctor7_ent_ent_str_i_f_f_b_GELA_Dtor,function,high,only caller is AeThreadFunctor7_ent_ent_str_i_f_f_b_GELA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00602c90,AeThreadFunctor6_ent_arrent_f_f_str_hash_GELA_Dtor,function,high,only caller is AeThreadFunctor6_ent_arrent_f_f_str_hash_GELA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00602d10,AeThreadFunctor4_ent_arrent_str_hash_GELA_Dtor,function,high,only caller is AeThreadFunctor4_ent_arrent_str_hash_GELA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00602d90,AeThreadFunctor6_ent_arrent_f_f_hash_hash_GELA_Dtor,function,high,only caller is AeThreadFunctor6_ent_arrent_f_f_hash_hash_GELA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0065fa70,WaitTilOutputInst2_f_ent_PIANLUPO_Dtor,function,high,only caller is WaitTilOutputInst2_f_ent_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006606a0,AeThreadFunctor4_ent_str_str_hash_PIANLUPO_Dtor,function,high,only caller is AeThreadFunctor4_ent_str_str_hash_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00660710,AeThreadFunctor4_ent_ent_str_hash_PIANLUPO_Dtor,function,high,only caller is AeThreadFunctor4_ent_ent_str_hash_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00660780,AeThreadFunctor4_ent_ent_str_str_PIANLUPO_Dtor,function,high,only caller is AeThreadFunctor4_ent_ent_str_str_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006607f0,AeThreadFunctor7_ent_str_i_i_str_f_Function_PIANLUPO_Dtor,function,high,only caller is AeThreadFunctor7_ent_str_i_i_str_f_Function_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00660860,AeThreadFunctor4_ent_str_f_str_PIANLUPO_Dtor,function,high,only caller is AeThreadFunctor4_ent_str_f_str_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006608d0,AeThreadFunctor_PIANLUPO_Dtor,function,high,only caller is AeThreadFunctor_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00660d70,AeThreadFunctor4_ent_arrvec_TracerSweepAttributes_hash_PIANLUPO_Dtor,function,high,only caller is AeThreadFunctor4_ent_arrvec_TracerSweepAttributes_hash_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00660de0,AeThreadFunctor7_ent_arrent_str_arr_i_i_i_PIANLUPO_Dtor,function,high,only caller is AeThreadFunctor7_ent_arrent_str_arr_i_i_i_PIANLUPO_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00690f70,AeThreadFunctor_TROINA_Dtor,function,high,only caller is AeThreadFunctor_TROINA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00690fa0,AeThreadFunctor5_ent_ent_str_anim_b_TROINA_Dtor,function,high,only caller is AeThreadFunctor5_ent_ent_str_anim_b_TROINA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00691010,AeThreadFunctor5_ent_ent_str_anim_str_TROINA_Dtor,function,high,only caller is AeThreadFunctor5_ent_ent_str_anim_str_TROINA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00691080,AeThreadFunctor5_ent_str_str_str_i_TROINA_Dtor,function,high,only caller is AeThreadFunctor5_ent_str_str_str_i_TROINA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00691100,AeThreadFunctor5_ent_ent_ent_f_str_TROINA_Dtor,function,high,only caller is AeThreadFunctor5_ent_ent_ent_f_str_TROINA_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006d1400,AeThreadFunctor_OMAHEACH_Dtor,function,high,only caller is AeThreadFunctor_OMAHEACH_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006d1490,AeThreadFunctor3_ent_b_pathnode_OMAHEACH_Dtor,function,high,only caller is AeThreadFunctor3_ent_b_pathnode_OMAHEACH_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006d14c0,AeThreadFunctor4_ent_ent_str_i_OMAHEACH_Dtor,function,high,only caller is AeThreadFunctor4_ent_ent_str_i_OMAHEACH_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006d1530,AeThreadFunctor6_ent_vec_str_vec_str_str_OMAHEACH_Dtor,function,high,only caller is AeThreadFunctor6_ent_vec_str_vec_str_str_OMAHEACH_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006d15b0,AeThreadFunctor5_ent_f_f_str_hash_OMAHEACH_Dtor,function,high,only caller is AeThreadFunctor5_ent_f_f_str_hash_OMAHEACH_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006d1620,AeThreadFunctor4_ent_vec_str_vec_OMAHEACH_Dtor,function,high,only caller is AeThreadFunctor4_ent_vec_str_vec_OMAHEACH_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006d17d0,AeThreadFunctor7_ent_arrent_f_f_str_hash_ent_OMAHEACH_Dtor,function,high,only caller is AeThreadFunctor7_ent_arrent_f_f_str_hash_ent_OMAHEACH_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+006d1850,AeThreadFunctor5_ent_arrent_str_arr_i_OMAHEACH_Dtor,function,high,only caller is AeThreadFunctor5_ent_arrent_str_arr_i_OMAHEACH_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b280,AeThreadFunctor6_ent_ent_b_str_ent_str_MONS1_Dtor,function,high,only caller is AeThreadFunctor6_ent_ent_b_str_ent_str_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b310,AeThreadFunctor10_vt0081a360_MONS1_Dtor,function,high,only caller is AeThreadFunctor10_vt0081a360_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b380,AeThreadFunctor_MONS1_Dtor_2,function,high,only caller is AeThreadFunctor_MONS1_DeletingDtor_2 (non-deleting destructor: resets the vtable to the base functor)
+0073b3f0,AeThreadFunctor6_ent_str_str_f_b_str_MONS1_Dtor,function,high,only caller is AeThreadFunctor6_ent_str_str_f_b_str_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b490,AeThreadFunctor7_ent_str_str_i_f_ent_b_MONS1_Dtor,function,high,only caller is AeThreadFunctor7_ent_str_str_i_f_ent_b_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b4e0,AeThreadFunctor_MONS1_Dtor,function,high,only caller is AeThreadFunctor_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b530,AeThreadFunctor_MONS1_Dtor_4,function,high,only caller is AeThreadFunctor_MONS1_DeletingDtor_4 (non-deleting destructor: resets the vtable to the base functor)
+0073b5c0,AeThreadFunctor7_ent_str_str_RespawnerAttributes_i_str_str_MONS1_Dtor,function,high,only caller is AeThreadFunctor7_ent_str_str_RespawnerAttributes_i_str_str_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b660,AeThreadFunctor4_ent_str_ent_str_MONS1_Dtor,function,high,only caller is AeThreadFunctor4_ent_str_ent_str_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b6d0,AeThreadFunctor5_ent_vec_vec_vec_str_MONS1_Dtor,function,high,only caller is AeThreadFunctor5_ent_vec_vec_vec_str_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b740,AeThreadFunctor6_ent_ent_i_b_str_str_MONS1_Dtor,function,high,only caller is AeThreadFunctor6_ent_ent_i_b_str_str_MONS1_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0073b7b0,AeThreadFunctor_MONS1_Dtor_3,function,high,only caller is AeThreadFunctor_MONS1_DeletingDtor_3 (non-deleting destructor: resets the vtable to the base functor)
+0073bc40,AeThreadFunctor_MONS1_Dtor_5,function,high,only caller is AeThreadFunctor_MONS1_DeletingDtor_5 (non-deleting destructor: resets the vtable to the base functor)
+0075ed30,AeThreadFunctor_EILEDORF_Dtor,function,high,only caller is AeThreadFunctor_EILEDORF_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0075ed60,AeThreadFunctor4_ent_str_i_hash_EILEDORF_Dtor,function,high,only caller is AeThreadFunctor4_ent_str_i_hash_EILEDORF_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0078ac10,AeThreadFunctor6_ent_str_str_f_i_str_BUCHHOLZ_Dtor,function,high,only caller is AeThreadFunctor6_ent_str_str_f_i_str_BUCHHOLZ_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0078acb0,AeThreadFunctor_BUCHHOLZ_Dtor,function,high,only caller is AeThreadFunctor_BUCHHOLZ_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0078acc0,AeThreadFunctor_BUCHHOLZ_Dtor_2,function,high,only caller is AeThreadFunctor_BUCHHOLZ_DeletingDtor_2 (non-deleting destructor: resets the vtable to the base functor)
+0078b360,AeThreadFunctor7_ent_arrent_hash_str_pathnode_ent_b_BUCHHOLZ_Dtor,function,high,only caller is AeThreadFunctor7_ent_arrent_hash_str_pathnode_ent_b_BUCHHOLZ_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+0078b3e0,AeThreadFunctor5_ent_arrent_str_ent_ent_BUCHHOLZ_Dtor,function,high,only caller is AeThreadFunctor5_ent_arrent_str_ent_ent_BUCHHOLZ_DeletingDtor (non-deleting destructor: resets the vtable to the base functor)
+00170200,BroScr_DronePathSpawnOne,function,medium,"drone_path_array key; BroScr_SpawnDrone, sets targetname/animname '_drone', death thread, BroScr_DroneMainDelayed"
+001706b0,BroScr_DronePathSpawnLoop,function,medium,"stores min_delay/max_delay/min_death_delay/max_death_delay/just_delete/using_shrimps keys, spawns N drones (BroScr_DronePathSpawnOne) with random waits"
+00171f80,BroScr_DronePathsStartAll,function,medium,"for each drone_path_array entry starts BroScr_DronePathSpawnLoop thread, WaitFrames(0)"
+00172150,BroScr_DronePathsStartAllStaggered,function,medium,as DronePathsStartAll with a random wait between paths
+00170fb0,BroScr_MortarLoopNearPlayer,function,medium,"defaults min 400 / max 1200 range to level+0x7f8 entity; PlayShellIncoming + MortarThinkWithDefaults, random delay from the group's min/max maps"
+001728b0,BroScr_StartMortarLoopsNearPlayer,function,medium,per array entity: thread FUN_00149f60 then BroScr_MortarLoopNearPlayer
+00172a10,BroScr_RandomMortarsAroundEnt,function,medium,"spawns script_origin, random spot right/forward of an entity, TraceGroundPos, shell incoming + mortar, random wait"
+00170a90,BroScr_MortarGroupShuffledLoop,function,medium,"shuffles the group's mortar entities, ShellIncomingThenImpact thread on each, random delay from the group's min/max hash maps"
+00171530,BroScr_MortarGroupNearEntLoop,function,medium,"collects group mortars within [min,max] distance of an entity, fires random ones (ShellIncomingThenImpact_2) 0.5-1 s apart"
+00173040,BroScr_StartMortarGroupNearEnt,function,medium,"per array entity FUN_00149f60, then thread BroScr_MortarGroupNearEntLoop"
+00149f60,BroScr_MortarEntInit,function,low,per-mortar key setup run as a thread before each mortar loop
+001723b0,BroScr_DronePathSpawnLoopCall_1,function,medium,default-argument wrapper of BroScr_DronePathSpawnLoop
+00172440,BroScr_DronePathSpawnLoopCall_2,function,medium,default-argument wrapper of BroScr_DronePathSpawnLoop
+001724d0,BroScr_DronePathSpawnLoopCall_3,function,medium,default-argument wrapper of BroScr_DronePathSpawnLoop
+00172560,BroScr_DronePathSpawnLoopCall_4,function,medium,default-argument wrapper of BroScr_DronePathSpawnLoop
+001725f0,BroScr_DronePathSpawnLoopCall_5,function,medium,default-argument wrapper of BroScr_DronePathSpawnLoop
+00172680,BroScr_DronePathSpawnLoopCall_6,function,medium,default-argument wrapper of BroScr_DronePathSpawnLoop
+00173320,BroScr_DronePathsStartAllCall_1,function,medium,default-argument wrapper of BroScr_DronePathsStartAll
+001733f0,BroScr_DronePathsStartAllCall_2,function,medium,default-argument wrapper of BroScr_DronePathsStartAll
+001734b0,BroScr_DronePathsStartAllCall_3,function,medium,default-argument wrapper of BroScr_DronePathsStartAll
+00173580,BroScr_DronePathsStartAllCall_4,function,medium,default-argument wrapper of BroScr_DronePathsStartAll
+00173640,BroScr_DronePathsStartAllCall_5,function,medium,default-argument wrapper of BroScr_DronePathsStartAll
+00173710,BroScr_DronePathsStartAllCall_6,function,medium,default-argument wrapper of BroScr_DronePathsStartAll
+001737e0,BroScr_DronePathsStartAllStaggeredCall,function,medium,wrapper of BroScr_DronePathsStartAllStaggered
+00172710,BroScr_MortarGroupShuffledLoopCall_1,function,medium,wrapper of BroScr_MortarGroupShuffledLoop
+00172770,BroScr_MortarGroupShuffledLoopCall_2,function,medium,wrapper of BroScr_MortarGroupShuffledLoop
+001727d0,BroScr_MortarGroupShuffledLoopCall_3,function,medium,wrapper of BroScr_MortarGroupShuffledLoop
+00172840,BroScr_MortarGroupShuffledLoopCall_4,function,medium,wrapper of BroScr_MortarGroupShuffledLoop
+001738b0,BroScr_StartMortarLoopsNearPlayerCall_1,function,medium,wrapper of BroScr_StartMortarLoopsNearPlayer
+00173950,BroScr_StartMortarLoopsNearPlayerCall_2,function,medium,wrapper of BroScr_StartMortarLoopsNearPlayer
+00173a00,BroScr_StartMortarLoopsNearPlayerCall_3,function,medium,wrapper of BroScr_StartMortarLoopsNearPlayer
+00173ad0,BroScr_StartMortarLoopsNearPlayerCall_4,function,medium,wrapper of BroScr_StartMortarLoopsNearPlayer
+00173b80,BroScr_StartMortarLoopsNearPlayerCall_5,function,medium,wrapper of BroScr_StartMortarLoopsNearPlayer
+00174250,BroScr_StartMortarGroupNearEntCall_1,function,medium,wrapper of BroScr_StartMortarGroupNearEnt
+00174310,BroScr_StartMortarGroupNearEntCall_2,function,medium,wrapper of BroScr_StartMortarGroupNearEnt
+001743c0,BroScr_StartMortarGroupNearEntCall_3,function,medium,wrapper of BroScr_StartMortarGroupNearEnt
+00174480,BroScr_StartMortarGroupNearEntCall_4,function,medium,wrapper of BroScr_StartMortarGroupNearEnt
+00174530,BroScr_StartMortarGroupNearEntCall_5,function,medium,wrapper of BroScr_StartMortarGroupNearEnt
+001745f0,BroScr_StartMortarGroupNearEntCall_6,function,medium,wrapper of BroScr_StartMortarGroupNearEnt
+001746a0,BroScr_StartMortarGroupNearEntCall_7,function,medium,wrapper of BroScr_StartMortarGroupNearEnt
+00174760,BroScr_StartMortarGroupNearEntCall_8,function,medium,wrapper of BroScr_StartMortarGroupNearEnt
+00176720,BroScr_AnimLoopGuys,function,medium,"loops key (hash word), per-guy animname lookups, WaitTill/endon loop over an array of guys"
+00177450,BroScr_AnimSingleGuys,function,medium,"single_anim key (hash word), tag/node origin+angles, plays one anim on an array of guys (script_origin helper)"
+00178080,BroScr_AnimLoopAtEnt,function,medium,"origin/angles from an entity (or its tag), then BroScr_AnimLoopGuys"
+00178280,BroScr_AnimLoopAtNode,function,medium,"origin/angles from a path node (or entity tag), then BroScr_AnimLoopGuys"
+001784c0,BroScr_AnimSingleAtNode,function,medium,"origin/angles from a path node (or entity tag), then BroScr_AnimSingleGuys; 23 callers incl. BroScr_WaitAnimSoloFinished"
+00178710,BroScr_AnimSingleAtEnt,function,medium,"origin/angles from an entity (or its tag), then BroScr_AnimSingleGuys"
+00178960,BroScr_AnimSingleSoloAtNode,function,medium,"one-element guy array, then BroScr_AnimSingleAtNode (BroScr_ShermanTankAnim callers)"
+00178a30,BroScr_AnimSingleSoloAtNode_2,function,medium,"one-element guy array + default string, then BroScr_AnimSingleAtNode"
+00179650,BroScr_AnimLoopAtNodeArrayCall,function,low,array copy then BroScr_AnimLoopAtNodeCall_2
+00178e70,BroScr_AnimLoopAtEntCall_1,function,medium,default-argument wrapper of BroScr_AnimLoopAtEnt
+00178ed0,BroScr_AnimLoopAtEntCall_2,function,medium,default-argument wrapper of BroScr_AnimLoopAtEnt
+00178f30,BroScr_AnimLoopAtEntCall_3,function,medium,default-argument wrapper of BroScr_AnimLoopAtEnt
+00178fd0,BroScr_AnimLoopAtEntCall_4,function,medium,default-argument wrapper of BroScr_AnimLoopAtEnt
+00179070,BroScr_AnimLoopAtEntCall_5,function,medium,default-argument wrapper of BroScr_AnimLoopAtEnt
+00179110,BroScr_AnimLoopAtEntCall_6,function,medium,default-argument wrapper of BroScr_AnimLoopAtEnt
+001791a0,BroScr_AnimLoopAtNodeCall_1,function,medium,default-argument wrapper of BroScr_AnimLoopAtNode
+00179230,BroScr_AnimLoopAtNodeCall_2,function,medium,default-argument wrapper of BroScr_AnimLoopAtNode
+001792c0,BroScr_AnimSingleAtNodeCall_1,function,medium,default-argument wrapper of BroScr_AnimSingleAtNode
+00179310,BroScr_AnimSingleAtNodeCall_2,function,medium,default-argument wrapper of BroScr_AnimSingleAtNode
+00179360,BroScr_AnimSingleAtNodeCall_3,function,medium,default-argument wrapper of BroScr_AnimSingleAtNode
+001793f0,BroScr_AnimSingleAtNodeCall_4,function,medium,default-argument wrapper of BroScr_AnimSingleAtNode
+00179480,BroScr_AnimSingleAtNodeCall_5,function,medium,default-argument wrapper of BroScr_AnimSingleAtNode
+00179510,BroScr_AnimSingleAtEntCall_1,function,medium,default-argument wrapper of BroScr_AnimSingleAtEnt
+001795b0,BroScr_AnimSingleAtEntCall_2,function,medium,default-argument wrapper of BroScr_AnimSingleAtEnt
+00174f60,BroScr_SpawnEventDronesCall_1,function,medium,default-argument wrapper of BroScr_SpawnEventDrones
+00175020,BroScr_SpawnEventDronesCall_2,function,medium,default-argument wrapper of BroScr_SpawnEventDrones
+001750f0,BroScr_SpawnEventDronesCall_3,function,medium,default-argument wrapper of BroScr_SpawnEventDrones
+001751b0,BroScr_SpawnEventDronesCall_4,function,medium,default-argument wrapper of BroScr_SpawnEventDrones
+00175270,BroScr_SpawnEventDronesCall_5,function,medium,default-argument wrapper of BroScr_SpawnEventDrones
+00181610,BroScr_SetGoalRadius64UntilNotify,function,medium,"sentient float 18 is the goal radius (node radius elsewhere); saves sentient float 18, sets 64, waits a level notify (0x11066c4), restores"
+00181670,BroScr_NotifyWhenOtherDies,function,medium,endon/notify 0x455955a2 on self after the other entity's death
+001816d0,BroScr_GetUseGearCvar,function,high,"GetCvarInt(""g_useGear"")"
+00181700,BroScr_TrackTriggerTouch,function,low,"loop: level+400 = 0, waittill trigger, while IsTouching sets level+400 = ent"
+001817b0,BroScr_TurretAutoAiOnNotify,function,medium,"waits ""auto_ai"", notifies turret ""stopfiring"", turret mode auto_ai, target entity"
+00181b10,BroScr_LoadGmiInitLevelVars,function,medium,only caller Bro__load_gmi__main; zeroes/sets level fields (0x88 = 10)
+00181b70,BroScr_SetAIFlagsUntilNotify,function,low,"endon death, SetAIFlags(1,1,0) until a notify, then (0,0,0)"
+00181ce0,BroScr_WaitFrame,function,high,Scr_Wait(0.05)
+00181df0,BroScr_NotifyMg42FinishedOnDeath,function,medium,endon/notify friendly_finished_using_mg42 after an entity's death
+001821f0,BroScr_DeleteOnNotify,function,medium,"EndOnString, WaitTillString, GScr_Delete"
+00182270,BroScr_VectorScale,function,high,out = v * s
+001823a0,BroScr_PlaySoundOnTempOrigin_4,function,medium,"spawns script_origin, waits sounddone, deletes"
+00182640,BroScr_WaitForever_2,function,high,loop Scr_Wait(0)
+00182650,BroScr_MusicStopThenPlay,function,high,"MusicStop(0), wait 0.2, MusicPlay"
+00182700,BroScr_TurretStateChangeAfterTime,function,medium,"endon killanimscript/turretstatechange, wait t, notify turret turretstatechange"
+00182750,BroScr_TurretIdleAnimLoop,function,low,"endon death/killanimscript/turretstatechange; SetAnimKnob, TurretCall272 every 0.1 s"
+00182830,BroScr_TurretIdleAnimLoop_2,function,low,as BroScr_TurretIdleAnimLoop without the turret death endon
+00182950,BroScr_GetPerTeamValue_d8,function,low,team hash (neutral/allies/axis) selects level+0xd8 entry (BroScr_ChooseFlankOrCoverMe)
+00182a60,BroScr_GetPerTeamValue_dc,function,low,team-indexed level+0xdc (BroScr_GrenadeDangerThink)
+00182b80,BroScr_GetPerTeamValue_d0,function,low,team-indexed level+0xd0 (BroScr_ChatterEnemySighted)
+00182c90,BroScr_GetPerTeamValue_d4,function,low,team-indexed level+0xd4 (BroScr_ChooseFlankOrCoverMe)
+00182da0,BroScr_SetPerTeamValue_d4,function,low,team-indexed store level+0xd4
+00182e90,BroScr_SetPerTeamValue_d8,function,low,team-indexed store level+0xd8
+00182f80,BroScr_SetPerTeamValue_d0,function,low,team-indexed store level+0xd0
+00183070,BroScr_SetPerTeamValue_dc,function,low,team-indexed store level+0xdc
+00183170,BroScr_CornerPlayAnimForTime,function,low,"SetAnimKnobAll, notify 0x281d9462, wait t (BroScr_CornerBehavior)"
+00183220,BroScr_SetAimAnimKnobs,function,low,three SetAnimKnob/SetFlaggedAnimKnob calls with shared weights (BroScr_CoverAttack)
+00183290,BroScr_CoverCrouchPlayIdle_1,function,low,"SetFlaggedAnimKnobAll ""idleanim"" with one idle anim, wait (Bro_cover_crouch__idle)"
+001832d0,BroScr_CoverCrouchPlayIdle_2,function,low,as _1 with the second idle anim
+00184120,BroScr_CoverCrouchPlayIdle_3,function,low,same body as _1 (other caller)
+00184160,BroScr_CoverCrouchPlayIdle_4,function,low,same body as _2 (other caller)
+001841a0,BroScr_CoverCrouchPlayIdle_5,function,low,same body as _1 (other caller)
+001841e0,BroScr_CoverCrouchPlayIdle_6,function,low,same body as _2 (other caller)
+001833d0,BroScr_StandAnimForTime,function,low,"if stance stand allowed: SetAnimKnobAll, wait"
+00183430,BroScr_StandAnimForTime_2,function,low,same body
+001834a0,BroScr_RandomTumble,function,low,random RotateRoll 3000-9000 deg plus random push (thrown object)
+00183710,BroScr_GetDefaultString,function,low,returns the ScriptString global 00922ea8
+00183810,BroScr_NotifyOnNotify,function,medium,"endon killanimscript/death/ender, waittill a, notify b"
+00183ea0,BroScr_NotifyOnNotify_2,function,medium,same body
+00183860,BroScr_NotifyAfterTime,function,medium,"endon killanimscript/death/ender, wait t, notify"
+00183ef0,BroScr_NotifyAfterTime_2,function,medium,same body
+00184b30,BroScr_NotifyAfterTime_3,function,medium,"endon death/ender, wait t, notify"
+00183930,BroScr_TurretStateChangeAfterTime_2,function,medium,"WaitFrames(0), wait t, notify turret turretstatechange"
+00183ad0,BroScr_TurretStateChangeAfterTime_3,function,medium,also endon turret death
+00183d70,BroScr_ActorAdvanceAnimAndTeleport,function,medium,"ActorAdvanceAnimTime, ActorTeleport(origin, angles), wait 0.05"
+00184020,BroScr_WaitKillAnimScript,function,low,"endon end_sequence, waittill killanimscript"
+00184090,BroScr_DeleteAfter300,function,medium,"wait 300, delete"
+00184390,BroScr_GetCoverNodeForward,function,medium,"BroScr_GetNodeAtPosition, AnglesToForward of the node angles (cover_stand)"
+00184a20,BroScr_YawToDirectionName,function,medium,yaw mod 360 -> front/left/back/right hash
+0018bff0,BroScr_SetGoalRadiusFromNodeOnNotify,function,medium,"after a notify: goal radius = node radius, else 512"
+0018c090,BroScr_DeleteAfterFrame,function,high,"wait 0.05, delete"
+0018c130,BroScr_DeleteOnOtherDeath,function,medium,"endon other death, waittill self death, delete other"
+0018c650,BroScr_GetFloatOrDefault500,function,low,"import call 00922690, undefined -> 500"
+0018c6a0,BroScr_NotifyAfterTimeChecked,function,medium,"""time must be > 0""; endon msg/killanimscript/death, wait t, notify msg"
+0018cfe0,BroScr_CoverLeftInitAnimSets,function,medium,once-guarded; fills 7 anim-set structs (only caller BroScr_AnimScript_CoverLeft)
+0018c800,BroScr_CoverLeftAnimSet_1,function,low,"anim-set struct filler (yaw 180, offsets, anim globals) from BroScr_CoverLeftInitAnimSets"
+0018c990,BroScr_CoverLeftAnimSet_2,function,low,anim-set struct filler from BroScr_CoverLeftInitAnimSets
+0018cb20,BroScr_CoverLeftAnimSet_3,function,low,anim-set struct filler from BroScr_CoverLeftInitAnimSets
+0018cc90,BroScr_CoverLeftAnimSet_4,function,low,anim-set struct filler from BroScr_CoverLeftInitAnimSets
+0018cef0,BroScr_CoverLeftAnimSet_5,function,low,anim-set struct filler from BroScr_CoverLeftInitAnimSets
+0018c710,BroScr_CoverLeftAnimSet_6,function,low,anim-set struct filler from BroScr_CoverLeftInitAnimSets
+0018ce00,BroScr_CoverLeftAnimSet_7,function,low,anim-set struct filler from BroScr_CoverLeftInitAnimSets
+0018d930,BroScr_CoverRightInitAnimSets,function,medium,once-guarded; fills 7 anim-set structs (only caller BroScr_AnimScript_CoverRight)
+0018d050,BroScr_CoverRightAnimSet_1,function,low,anim-set struct filler from BroScr_CoverRightInitAnimSets
+0018d1e0,BroScr_CoverRightAnimSet_2,function,low,anim-set struct filler from BroScr_CoverRightInitAnimSets
+0018d370,BroScr_CoverRightAnimSet_3,function,low,anim-set struct filler from BroScr_CoverRightInitAnimSets
+0018d4f0,BroScr_CoverRightAnimSet_4,function,low,anim-set struct filler from BroScr_CoverRightInitAnimSets
+0018d840,BroScr_CoverRightAnimSet_5,function,low,anim-set struct filler from BroScr_CoverRightInitAnimSets
+0018d750,BroScr_CoverRightAnimSet_6,function,low,anim-set struct filler from BroScr_CoverRightInitAnimSets
+0018d660,BroScr_CoverRightAnimSet_7,function,low,anim-set struct filler from BroScr_CoverRightInitAnimSets
+0018d9b0,BroScr_ActorMayMoveToPointForStance,function,medium,"ActorMayMoveToPoint(ent, pos, prone = stance int 184 == ""prone"")"
+0018def0,BroScr_ActorMayMoveToPointForStance_2,function,medium,"same body, bool out"
+0018da20,BroScr_Mg42AnimThenShootLoop,function,medium,"sets the mg42 anim knob, then BroScr_Mg42ShootLoop (no return)"
+0018dad0,BroScr_Mg42AnimThenShootLoop_2,function,medium,"endon killanimscript, knob, BroScr_Mg42ShootLoop_2"
+0018dbc0,BroScr_PainAnimByHitLocation,function,medium,"""Unexpected_hit_location + self.damagelocation""; switch over hit-location hashes"
+0018e090,BroScr_ActorWeaponInLevelTable,function,low,actor int f0 found in level+0x130 table (BroScr_RefillClip)
+0018e220,BroScr_IsAnimDebugTarget,function,medium,animDebug cvar == 1 or level+0x128 entity == ent
+0018e2b0,BroScr_SetOrientFaceMotionIf,function,low,"on one hash: ActorSetOrientMode(""face motion"")"
+00198a80,BroScr_PathNodeHasScriptDelay,function,high,"ScrPathNode_GetFloatKey(node, ""script_delay"") defined"
+00198b10,BroScr_PathNodeHasScriptFallback,function,high,"ScrPathNode_GetIntKey(node, ""script_fallback"") defined"
+00198ba0,BroScr_PathNodeHasScriptMg42,function,high,"ScrPathNode_GetIntKey(node, ""script_mg42"") defined"
+00198bf0,BroScr_VehNodeHasScriptDelay,function,high,"ScrVehNode_GetFloatKey(node, ""script_delay"") defined"
+00199120,BroScr_ActorRunToEntIgnoringAll,function,low,"NotifyWhenOtherDies thread, SetAIFlags(1,1,1), goal = ent origin, wait goal, flags off"
+00199200,BroScr_ActorRunToEntIgnoringAll_2,function,low,"as _1 with SetAIFlags(1,1,0)"
+0019b0d0,BroScr_RestoreGoalRadiusOnGoal,function,low,"after goal notify: goal radius from a key, at least 400 when under 32"
+0019b830,BroScr_TriggerOff,function,high,"saves origin in realorigin (key hash 0xd91b375d = ""realorigin"") once, moves the entity down by a constant; 47 callers"
+0019b940,BroScr_TriggerOn,function,high,restores origin from realorigin when defined; 41 callers
+0019bab0,BroScr_DecrementAiSizeOnDeath,function,medium,"waits death of another entity, ai_size key - 1"
+0019bd80,BroScr_InitScriptRadius,function,low,script_radius key default 128
+0019c660,BroScr_ScriptDelayConnectPaths,function,low,"waits script_delay, spawnflags & 1 -> ConnectPaths"
+0019f9d0,BroScr_SetAnimMovementStopAfter,function,medium,"endon killanimscript/death, wait t, anim_movement key = ""stop"""
+0019fa40,BroScr_UpdateWoundedTime,function,low,"damage/health * 5 clamped, anim_woundedtime key (BroScr_AnimScript_Pain)"
+001a07d0,BroScr_PlayStanceTransitionAnim,function,low,"SetFlaggedAnimKnobAll animdone, half-way sets stance int 184 and anim_movement"
+001a14d0,BroScr_DelayTimerOnScriptChangeBoth,function,low,BroScr_DelayTimerOnScriptChange for one or two entities
+001a1600,BroScr_HasWeapon,function,medium,hasweapon key defined and non-zero
+001a1dd0,BroScr_GetAllowedMovePose,function,low,current pose (int 184) checked against ActorIsStanceAllowed crouch/stand/prone (walk/run/stop scripts)
+001a2740,BroScr_IsWeaponFireTypeLmg,function,high,"BroScr_GetWeaponFireType == ""lmg"""
+001a2770,BroScr_IsWeaponFireTypeAuto,function,high,"BroScr_GetWeaponFireType == ""auto"" (hash 0x315aef)"
+001a27a0,BroScr_IsWeaponFireTypeSemi,function,high,"BroScr_GetWeaponFireType == ""semi"""
+001a27d0,BroScr_GetShotInterval_2,function,medium,"""auto"": fire rate * 0.1, else 0.2"
+001a2930,BroScr_SetAimAnimsForWeapon,function,low,per weapon type stores six aim anims in level+0x3c..0x50 (Bro_aim__keep_aiming)
+001a2af0,BroScr_SetAimAnimsForWeapon_2,function,low,second anim set of the same shape (Bro_aim__keep_aiming)
+001a2e30,BroScr_GetClipSizeOrZero,function,low,"weapon int f0 == none -> 0, else BroScr_GetWeaponClipSize"
+001a4620,BroScr_SetRandomModel,function,medium,SetModel(models[RandomInt(n)])
+001a4700,BroScr_RandomArrayString,function,medium,copy of strings[RandomInt(n)]
+001a53c0,BroScr_SetCreditsNameDefault,function,low,"BroScr_SetCreditsName(ent, default string)"
+001a97c0,DynArray_Shuffle12,function,medium,DynArray_Shuffle for 12-byte (vector) elements
+001a98e0,DynArray_ShuffleInt,function,medium,DynArray_Shuffle for dword elements (DynArray_Resize4)
+001a9ac0,DynArray_ShuffleString,function,medium,DynArray_Shuffle for ScriptString elements
+001ac2c0,BroScr_GetCoverLeftAnimSet,function,medium,"weapon type/pose -> one of the structs BroScr_CoverLeftInitAnimSets fills (009232b8, 00923188, ...)"
+001ac360,BroScr_GetCoverRightAnimSet,function,medium,"weapon type/pose -> one of the structs BroScr_CoverRightInitAnimSets fills (00923518, 00923648, ...)"
+001b3250,BroScr_BuildTargetChain,function,low,"follows targets, appends each to the chain key array"
+001b5880,BroScr_SetFriendlyWaveTrigger,function,medium,"sets the trigger callback ""_spawner_gmi::friendly_wave_callback"", starts BroScr_FriendlyWaveSpawn once (level+0x1cc)"
+001b6a50,BroScr_AnimScript_TurretCall_1,function,medium,"BroScr_AnimScript_Turret_2 with fixed callbacks (0018c4e0, 0019cf40, 0018c540)"
+001b6a80,BroScr_AnimScript_TurretCall_2,function,medium,"BroScr_AnimScript_Turret_2 with fixed callbacks (0018c5a0, none, 0018c5f0)"
+001b9310,BroScr_AnimScript_TurretCall_3,function,medium,"BroScr_AnimScript_Turret_3 with fixed callbacks (BroScr_Mg42AnimThenShootLoop, ...)"
+001b9710,BroScr_AnimScript_TurretCall_4,function,medium,"BroScr_AnimScript_Turret with fixed callbacks (BroScr_Mg42AnimThenShootLoop_2, ...)"
+001b9740,BroScr_AnimScript_TurretCall_5,function,medium,BroScr_AnimScript_Turret with fixed callbacks
+001ba930,BroScr_GetMuzzleOriginCall,function,medium,BroScr_GetMuzzleOrigin with zero defaults
