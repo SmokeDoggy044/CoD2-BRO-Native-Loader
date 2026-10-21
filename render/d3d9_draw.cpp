@@ -256,6 +256,7 @@ struct D3D9Draw::Caches {
     std::unordered_map<uint64_t, IDirect3DPixelShader9*> pixel_shaders;
     std::unordered_map<uint64_t, D3D9Draw::CachedTexture> textures;
     std::set<uint32_t> unsupported_formats;  // warned about once each
+    std::set<uint64_t> failed_shaders;       // vertex/pixel shader keys the device refused (logged once)
     std::unordered_map<uint32_t, Target> targets;      // by Xbox address
     std::unordered_map<uint32_t, DepthBuffer> depths;  // by Xbox address
 
@@ -284,7 +285,17 @@ D3D9Draw::D3D9Draw(IDirect3DDevice9* device, const BackendConfig& config)
       narrow_ui_draw_(config.narrow_ui_draw), replace_texture_(config.replace_texture),
       replacement_version_(config.replacement_version), caches_(std::make_unique<Caches>()) {
     D3DCAPS9 caps{};
-    if (SUCCEEDED(device_->GetDeviceCaps(&caps))) anisotropy_ = std::min<uint32_t>(anisotropy_, caps.MaxAnisotropy);
+    if (SUCCEEDED(device_->GetDeviceCaps(&caps))) {
+        anisotropy_ = std::min<uint32_t>(anisotropy_, caps.MaxAnisotropy);
+        const auto major = [](DWORD version) { return static_cast<unsigned>(D3DSHADER_VERSION_MAJOR(version)); };
+        const auto minor = [](DWORD version) { return static_cast<unsigned>(D3DSHADER_VERSION_MINOR(version)); };
+        LOG_INFO("render", "D3D9 caps: vs %u.%u (%u constants, %d temps, %u slots), ps %u.%u (%u slots), %s vertex processing",
+                 major(caps.VertexShaderVersion), minor(caps.VertexShaderVersion),
+                 static_cast<unsigned>(caps.MaxVertexShaderConst), caps.VS20Caps.NumTemps,
+                 static_cast<unsigned>(caps.MaxVertexShader30InstructionSlots), major(caps.PixelShaderVersion),
+                 minor(caps.PixelShaderVersion), static_cast<unsigned>(caps.MaxPixelShader30InstructionSlots),
+                 device_->GetSoftwareVertexProcessing() ? "software" : "hardware");
+    }
     device_->SetRenderState(D3DRS_LIGHTING, FALSE);
     device_->SetRenderState(D3DRS_FOGENABLE, FALSE);
     device_->SetRenderState(D3DRS_SCISSORTESTENABLE, TRUE);
@@ -570,14 +581,14 @@ IDirect3DVertexDeclaration9* vertex_declaration(IDirect3DDevice9* device,
     return entry;
 }
 
-void log_tokens(const char* what, const std::vector<uint32_t>& tokens) {
+void log_tokens(const char* what, HRESULT hr, const std::vector<uint32_t>& tokens) {
     std::string text;
     for (size_t i = 0; i < tokens.size() && i < 256; ++i) {
         char buf[12];
         std::snprintf(buf, sizeof buf, "%08x ", tokens[i]);
         text += buf;
     }
-    LOG_ERROR("render", "%s failed; tokens: %s", what, text.c_str());
+    LOG_ERROR("render", "%s failed (%08x); tokens: %s", what, static_cast<unsigned>(hr), text.c_str());
 }
 
 }  // namespace
@@ -627,9 +638,10 @@ void D3D9Draw::dump_draw(const DrawInput& input, const XbPixelShaderDef& def, ui
 bool D3D9Draw::magenta_shader() {
     if (magenta_) return true;
     const auto tokens = d3d9::solid_color_pixel_shader(1.0f, 0.0f, 1.0f, 1.0f);
-    if (FAILED(device_->CreatePixelShader(reinterpret_cast<const DWORD*>(tokens.data()), &magenta_))) {
+    if (const HRESULT hr = device_->CreatePixelShader(reinterpret_cast<const DWORD*>(tokens.data()), &magenta_);
+        FAILED(hr)) {
         static std::once_flag once;
-        std::call_once(once, [&] { log_tokens("highlight CreatePixelShader", tokens); });
+        std::call_once(once, [&] { log_tokens("highlight CreatePixelShader", hr, tokens); });
         magenta_ = nullptr;
     }
     return magenta_ != nullptr;
@@ -653,14 +665,17 @@ void D3D9Draw::draw(const DrawInput& input) {
     const d3d9::FogMode fog = fog_mode();
     const uint64_t vs_key =
         hash_bytes(nv.program[start].data(), count * 16, input.attribute_mask | static_cast<uint64_t>(fog) << 32);
+    if (caches.failed_shaders.contains(vs_key)) return;
     IDirect3DVertexShader9*& vs = caches.vertex_shaders[vs_key];
     if (!vs) {
         const auto tokens = d3d9::translate_vertex_program(
             reinterpret_cast<const uint32_t(*)[4]>(nv.program[start].data()), count, input.attribute_mask, fog);
-        if (FAILED(device_->CreateVertexShader(reinterpret_cast<const DWORD*>(tokens.data()), &vs))) {
-            log_tokens("CreateVertexShader", tokens);
+        if (const HRESULT hr = device_->CreateVertexShader(reinterpret_cast<const DWORD*>(tokens.data()), &vs);
+            FAILED(hr)) {
+            log_tokens("CreateVertexShader", hr, tokens);
             vs = nullptr;
             caches.vertex_shaders.erase(vs_key);
+            caches.failed_shaders.insert(vs_key);
             return;
         }
     }
@@ -676,13 +691,16 @@ void D3D9Draw::draw(const DrawInput& input) {
     std::memset(ps_key.def.constant1, 0, sizeof(ps_key.def.constant1));
     ps_key.def.final_constant0 = ps_key.def.final_constant1 = 0;
     const uint64_t ps_hash = hash_bytes(&ps_key, sizeof(ps_key));
+    if (caches.failed_shaders.contains(ps_hash)) return;
     IDirect3DPixelShader9*& ps = caches.pixel_shaders[ps_hash];
     if (!ps) {
         const auto tokens = d3d9::translate_pixel_shader(ps_key);
-        if (FAILED(device_->CreatePixelShader(reinterpret_cast<const DWORD*>(tokens.data()), &ps))) {
-            log_tokens("CreatePixelShader", tokens);
+        if (const HRESULT hr = device_->CreatePixelShader(reinterpret_cast<const DWORD*>(tokens.data()), &ps);
+            FAILED(hr)) {
+            log_tokens("CreatePixelShader", hr, tokens);
             ps = nullptr;
             caches.pixel_shaders.erase(ps_hash);
+            caches.failed_shaders.insert(ps_hash);
             return;
         }
     }

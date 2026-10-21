@@ -225,11 +225,22 @@ public:
         D3DADAPTER_IDENTIFIER9 id{};
         if (SUCCEEDED(d3d_->GetAdapterIdentifier(D3DADAPTER_DEFAULT, 0, &id)))
             LOG_INFO("render", "%s, adapter: %s", name, id.Description);
+        // Translated vertex programs are vs_3_0 and use constants up to c202; an adapter
+        // whose hardware can't run them gets the runtime's software vertex processing.
+        DWORD vertex_processing = D3DCREATE_HARDWARE_VERTEXPROCESSING;
+        D3DCAPS9 caps{};
+        if (SUCCEEDED(d3d_->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps)) &&
+            (caps.VertexShaderVersion < D3DVS_VERSION(3, 0) || caps.MaxVertexShaderConst < 256)) {
+            LOG_WARN("render", "%s: hardware vertex shaders %u.%u with %u constants; using software vertex processing",
+                     name, static_cast<unsigned>(D3DSHADER_VERSION_MAJOR(caps.VertexShaderVersion)),
+                     static_cast<unsigned>(D3DSHADER_VERSION_MINOR(caps.VertexShaderVersion)),
+                     static_cast<unsigned>(caps.MaxVertexShaderConst));
+            vertex_processing = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+        }
         // The title calls D3D from more than one thread (its vertical blank callback
         // and loading screens), so let the runtime serialize.
         const HRESULT hr = d3d_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, pp.hDeviceWindow,
-                                              D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED |
-                                                  D3DCREATE_FPU_PRESERVE,
+                                              vertex_processing | D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE,
                                               &pp, &device_);
         if (FAILED(hr)) {
             LOG_WARN("render", "%s: CreateDevice failed: %08x", name, static_cast<unsigned>(hr));
