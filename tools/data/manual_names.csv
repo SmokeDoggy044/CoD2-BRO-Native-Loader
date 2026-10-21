@@ -3112,3 +3112,186 @@ address,name,kind,confidence,evidence
 002f4e60,ScrField_SetFloat01,function,medium,"stores the float clamped to [0,1] at object + field offset; setter of several actor float fields"
 002e6420,G_DObjTryGetTagMatrix,function,medium,"DObj_GetTagIndex, then G_DObjGetWorldTagMatrix when the tag exists; returns whether it did"
 003051c0,GScr_Detach,function,low,"script builtin (entity, model, tag strings) -> 002e9230 attachment lookup and 002e9370"
+001fb7f0,ActorBlockList_RemoveEntity,function,medium,"removes every {ent a, ent b, score, time} record (6 dwords, count +0x78) referencing the entity in EBX; called by G_FreeEntityContents"
+001fd500,ActorBlockList_Bump,function,medium,"finds the {a,b} pair in either order and adds a score step + level.time, else appends one (max 5)"
+00200e20,Path_CrossesBadPlace,function,medium,walks the path's node pairs backwards and asks PathNode_IsLinkInBadPlace for each
+002b96c0,PathNode_IsLinkInBadPlace,function,medium,"finds the link to the next node in the node's link list (+0x62 count, +0x64 array, 0xc each) and returns its per-bad-place byte"
+00201e00,BadPlace_ClearCrossingPaths,function,medium,for every actor with a path that crosses the new bad place: Path_AccumulateTrim and clear the path; called after BadPlace_Alloc
+00206020,BadPlace_Create,function,medium,"BadPlace_Alloc, copies the 7-dword shape, sets team/active bytes, PathNode_AdjustBadPlaceArc, BadPlace_ClearCrossingPaths; called by GScr_BadPlace_Arc/Cylinder"
+00203610,Actor_RegisterSuppression,function,high,"stores time/attacker/dir per sentient slot, then notifies 'movesuppressed' (clears the path) or 'suppressed' with the attacker"
+002031e0,Actor_FreeAllCorpses,function,high,G_FreeEntity on every handle in g_actorCorpses
+001fb860,Actor_GetSquadSlot,function,medium,"returns actor +0x1382 for allied (team 2) actors with the squad flag +0x137c set, else -1"
+0021bae0,Actor_UpdateBlockingPairs,function,medium,for every pair of actors closer than a constant: ActorBlockList_Bump; then Actor_ResolveBlockingPairs
+0021b8b0,Actor_ResolveBlockingPairs,function,medium,"walks the {actor a, actor b, score} list: drops dead pairs, past a score threshold moves the lower Actor_MainCharacterPriority actor aside (Actor_FindStepAsideNode)"
+00203e60,Actor_FindStepAsideNode,function,medium,"picks the lower-priority of two actors, PathNode_ListInCylinder around it, searches the node graph (depth 9) for a free node"
+00202ce0,PathNode_FindFreeNeighbor_r,function,medium,recursive (depth counter 0x0095f70c < 9) walk over node links for an unclaimed node; called by Actor_FindStepAsideNode
+00218890,Sentient_FindVisibleNodeToward,function,medium,"nearest nodes of both sentients (or a node record in EBX), A* between them; returns the first route node visible from the start"
+002196d0,Actor_FaceNearestEnemyRoute,function,medium,"no enemy: nearest sentient of an enemy team (players weighted), Sentient_FindVisibleNodeToward, sets the desired angles toward that node"
+0021bc00,Actor_ChooseIdleOrient,function,low,no enemy -> Actor_FaceNearestEnemyRoute; enemy not seen for a while -> face the route node toward it; else face the enemy; caller Actor_UpdateOrient
+00211970,Actor_Grenade_FindThrowbackVelocity,function,medium,"sorts the global throwback spot list by distance, solves a ballistic launch velocity per spot and accepts the first Actor_GrenadeThrow_TestArc passes"
+0020fe20,Actor_ComputeHitChance,function,medium,weapon AI range near/far (+0x800/+0x804) and actor accuracy (+0xd4/+0xd8) give a hit fraction; player targets add a movement factor
+00211cb0,Actor_RollHit,function,medium,"Actor_ComputeHitChance * scale stored at +0xe4, rand < it"
+00219390,Actor_ShootWeapon,function,medium,"weapon def lookup, hit roll, miss/hit aim points, Weapon_FireProjectile and Actor_SendPointEvent; reached from the shoot builtin"
+00207c60,Player_RecordEyeHistory,function,medium,called from Pmove: every N ms stores the player's eye origin and time into a 2-entry ring (0x0095f42c)
+00207c00,Sentient_GetLaggedEyeOrigin,function,medium,players: the older entry of the eye-origin history ring; others: Sentient_EyeOrigin
+00221090,Live_RequestMutelist,function,medium,"XOnlineMutelistGet for a controller into its 0xfe8 record, marks the task slot busy"
+002219e0,Voice_RemoveRemoteTalker,function,medium,"finds the talker by XUID in 15 0x48 records, XHVEngine_UnregisterRemoteTalker"
+00221a80,Voice_AddRemoteTalker,function,medium,"takes a free 0x48 talker record, copies the XUID, XHVEngine_RegisterRemoteTalker, mix bin mapping, playback priorities"
+002217d0,Voice_IsTalkerTalking,function,medium,"XHVEngine_IsTalking for a XUID, then finds the talker record"
+00220e60,Net_RegisterSessionKey,function,medium,"stores a key ID in one of 3 slots at +0x44dc (replacing a matching one), XNetRegisterKey"
+00220de0,Net_UnregisterSessionKeys,function,medium,XNetUnregisterKey for each of the 3 key slots at +0x44dc
+00224a50,Live_Init,function,medium,"called from Sys_Main: XOnlineStartup, XGetLanguage, UIXCreateLiveEngine (damaged-disc screen on failure), UIXCreateUIPlugin"
+00224970,Live_Render,function,medium,"called from Sys_Main: resets shaders/textures, CLiveEngine_Render when the Live UI is active"
+00223730,Live_Frame,function,medium,"CLiveEngine_DoWork, then handles exit (flag 8), reboot (flag 4), voice priorities"
+002235e0,Live_HandleExit,function,medium,"CLiveEngine_GetExitInfo switch: 1 Voice_InitEngine, 2 voice shutdown + log off, ..."
+002233b0,Voice_Shutdown,function,medium,"removes every remote talker, CXHVEngine_Release"
+00223380,Live_LogOff,function,medium,"CLiveEngine_LogOff, re-registers local talkers, vtable +0x4c"
+00222aa0,Voice_RegisterLocalTalkers,function,medium,"XOnlineGetLogonUsers, CXHVEngine_RegisterLocalTalker per controller, notifies user changes"
+002228e0,Live_PollNotifications,function,medium,"CLiveEngine_GetNotifications for the active controller, maps 0x20000/0x10000 bits"
+002253b0,Phys_FindBodyForEntity,function,medium,"searches the physics object list 0x008fccf0 ({?, entity, body}) for the entity, returns the body"
+00225ae0,Phys_RemoveEntity,function,medium,for each physics record of the entity: clears entity flag 0x400000 and frees its body
+00225b30,G_KillEntityOutright,function,medium,"health set to -1, calls the entity's die callback with the world entity as attacker"
+00226720,Vehicle_InitWheelTags,function,medium,"looks up the 8 wheel tags (tag_wheel_back_left, ...) in the DObj and their base poses"
+00230350,Ragdoll_UpdateAll,function,medium,calls Ragdoll_Update for every ragdoll in the 0x008f02e0 list; from G_VehiclePhysicsFrame
+002301f0,Ragdoll_Update,function,medium,"advances the ragdoll blend time; at the end frees it, notifies 'physicsdone'"
+00230930,PhysObj_UpdateAll,function,medium,"walks the physics object list 0x008fccf0, copies body transforms to entities, notifies 'physicsdone' and removes settled ones"
+002303f0,PhysObj_Create,function,medium,"takes a record from the 30-entry physics object pool 0x008fccf0, sets it up from the entity's model bounds and matrix"
+002345a0,G_PhysicsLaunch,function,medium,"starts physics for an entity with an impulse (ragdoll for actors via the ragdoll pool, else PhysObj_Create); callers include Actor_Die"
+00234930,Ragdoll_Alloc,function,medium,"takes a ragdoll from the 0x30-entry pool 0x008f02e0, Ragdoll_BindBones; called from Actor_InitStateMachine"
+002348e0,Ragdoll_Free,function,medium,"releases the ragdoll's body (+0x568) and bones, clears entity +0x294; from G_FreeEntityContents"
+00231670,G_FreeEntityPhysics,function,medium,"frees a sentient's ragdoll, a vehicle's physics body (+0x300) or the entity's physics objects; from G_FreeEntityContents/ClientSpawn"
+00234450,Phys_Init,function,medium,"Com_Init: sets FPU/SSE control words, configures the physics world (pool sizes 0x5a, 0x96, ...)"
+00236c80,Mem_InitSmallBlockPools,function,medium,"Sys_Main: sets heap sizes and registers {count, block size} pools (400x0x10, 400x0x20, ...)"
+00249e70,Vehicle_FreeDefs,function,medium,"G_ShutdownGame: Z_Free on every vehicle def pointer (0x00950a28, count 0x0095e228)"
+00950a28,g_vehicleDefs,data,medium,array of vehicle def pointers indexed by vehicle +0x178; freed by Vehicle_FreeDefs
+0095e228,g_vehicleDefCount,data,medium,count of g_vehicleDefs
+002487d0,Vehicle_FindDefIndex,function,medium,stricmp of the name in EDI against each vehicle def; returns the index; called by Vehicle_Init
+0024ad30,HudElem_ClearAll,function,medium,G_ReloadLevel: clears the 16 0x7c-byte hud element records at 0x0094cc88
+0024bc70,Vehicle_ResetPool,function,medium,G_InitGame/G_SetupVehiclePool: resets the path state of every g_vehicles slot
+0024bc00,Vehicle_ClearEntityRefs,function,medium,clears every g_vehicles slot field (+0x204) that refers to the given entity
+0024c0e0,AngleWrapNear,function,medium,"adds/subtracts 360 until (a - ref) lies in [-180, 180]"
+0024c1d0,AngleWrapNear2,function,medium,byte-identical role to AngleWrapNear with the reference in XMM1
+0024d250,ConcatArgs,function,high,"joins cmd_argv from the start index with spaces into a static buffer, like Q3 ConcatArgs; Cmd_Give_f/Cmd_Take_f"
+0024d700,G_FindEntityByIntField,function,medium,scans the entity list at +0x2ab0 (count +0x2aac) for the first whose field at offset EDI equals the value
+0024c2c0,Vehicle_FindCollmap,function,medium,finds the script_vehicle_collmap entity whose name matches; Vehicle_Init/Vehicle_InitBrushModels
+00251140,G_FindSpawnFunc,function,medium,walks g_spawns comparing the classname handle; G_CallSpawn
+00251c10,VehNode_LinkAll,function,medium,"G_InitGame: resolves target/targetname links of every vehicle node (0x0095c228, count 0x0094d4d8), computes segment lengths"
+0024f860,G_FindHintStringIndex,function,medium,"GScr_SetHintString: finds the hint string among the configstrings or adds it (SV_SetConfigstring), errors past the limit"
+0025cc60,G_ReleaseTurretUser,function,medium,G_FreeEntityContents: a turret's user (+0x1a0) stops using it (G_ClientStopUsingTurret / Actor_LeaveTurret)
+0025dfc0,Door_UpdatePaths,function,medium,GScr_DoorLock/Unlock: Path_Connect/DisconnectPathsForEntity depending on the door state
+0025daf0,Vehicle_SetupEntity,function,medium,"Vehicle_Init: sets die/pain/think callback indices, registers the vehicle weapon, links the entity"
+0025a600,Vehicle_InitRecord,function,medium,"Vehicle_Init: resets the g_vehicles record, stores the entity handle +0x170, origin/angles, tag indices"
+00253cb0,Bullet_RandomSpread,function,medium,"random spread inside a cone (tan of the spread angle, FastSinCos); Weapon_FireBullet and others"
+002500a0,Pickup_Ammo,function,high,"Touch_Item case 2 (Q3 IT_AMMO): Add_Ammo for the item's weapon, pickup message, 'trigger'/'pickup' notifies, returns the respawn time"
+00253440,LookAtKiller,function,high,"player_die: dead yaw from the attacker/inflictor direction (vectoyaw), else the player's own yaw - Q3 LookAtKiller"
+00259090,Player_GetViewOrigin,function,medium,"origin + client viewheight (+0xac), AddLeanToPosition"
+0025b780,Player_GetViewOriginAndAxis,function,medium,"view angles from the client -> AnglesToAxis, then Player_GetViewOrigin; Player_UpdateLookAtEntity/FireWeapon"
+00254800,Door_ChooseRotateDirection,function,medium,Use_BinaryMover for func_door_rotating: picks the opening direction from the activator's side of the door
+00258a10,Turret_IsUsableBy,function,medium,"turret flag 0x10, not in use, takedamage, angle check (0x00254bd0) and client not already on a turret"
+0025ff10,weapon_grenadelauncher_fire,function,medium,"FireWeapon: launch velocity from the weapon def (+0x730/+0x734) and view axis, fire_grenade - Q3's weapon_grenadelauncher_fire"
+00265500,TossClientItems,function,medium,"drops the client's current weapon with Drop_Item; player_die path and ClientDisconnect, like Q3"
+0026a230,Vehicle_FreePhysics,function,medium,G_FreeEntityContents/GScr_Vehicle_Kill: frees the vehicle's physics body (+0x300) and stops its engine sound
+0026a3c0,Vehicle_UpdatePhysics,function,medium,"5.4 KB per-frame vehicle movement: wheel tags, ground traces, angle wrapping; from Vehicle_Think/Vehicle_ThinkInit/GScr_Vehicle_AttachPath"
+00272360,Player_UpdateTurretUse,function,medium,ClientEndFrame: runs the turret the player uses (+0x1a0) or stops using it
+00272760,G_SpawnFinished,function,medium,"G_vmMain: sets the spawned flag, post-spawn passes, clears level.spawning, registers models"
+00270f90,Vehicle_UpdateTurret,function,medium,Vehicle_Think: vehicle weapon (+0x1a4) aiming and firing for its user
+0026e810,G_SimulateGrenadePath,function,medium,"steps a temporary entity along the grenade trajectory (BG_EvaluateTrajectory, missile traces) to predict where it settles; used by the AI grenade notice"
+00272f20,G_BounceMissile,function,medium,"G_MissileImpact: reflects the trajectory velocity, applies bounce damping, settles the grenade and tells actors"
+00262ce0,G_MissileTrace,function,medium,G_LocationalTrace with missile-specific surface flag handling; G_RunMissile and the grenade simulation
+0027f860,CG_DObjEnsureSkeleton,function,medium,"allocates the DObj skeleton (Z_MallocDebug from cl_cgame.cpp, bones*0x40+0x30) when missing, DObj_CreateSkeleton; FX_GetBoltMatrix"
+0028ec30,ResourceManager_Construct,function,medium,"Com_Init: base vtable 0x00838220, adds itself to the manager list 0x009719fc (max 20), installs the ngl mesh/texture/meshfile managers"
+0028d7d0,ResourceManager_Destruct,function,medium,restores the base vtable 0x00838220 and removes the object from the manager list 0x009719fc
+00293e10,Rand_StepSeed,function,medium,advances the private LCG seed 0x008d5a70 (x*0x343fd + 0x269ec3)
+00297800,Vec2Distance,function,medium,sqrt of the 2D difference of two points; Path_TrimAtGoal
+00292cb0,Stream_WaitForLoad,function,medium,starts a stream request (0x00291280) and runs Stream_Update until it leaves the loading state
+00292d10,Stream_LoadSync,function,medium,Com_Init: queues a load (0x002920c0) and loops Stream_Update until it completes
+00298d30,IN_StopAllRumble,function,medium,SV_Shutdown: for both pads IN_PadCreate and IN_SetRumbleMotor off
+002a5a40,FXCmd_Alloc,function,medium,"takes the next 0x210-byte command record in the queue at 0x0095f5b4 (+0x920, count +0x910, max 0x40, flushes when full), clears it and makes it current (+0x8d20)"
+00298e90,FXCmd_Commit,function,medium,"hands the current command record to its entity (SmallHeap 0x54 node, id at +0x4c) or drops it; ends every FXCmd_* builder"
+0029fe40,Cvar_SetByVmIndex,function,medium,Cvar_Set2 on cvar_indexes[*index] then Cvar_Update; many cgame callers
+002a8a40,COM_SkipPath,function,high,returns the part after the last '/' or '\\' - Q3 COM_SkipPath
+002af280,VM_Clear,function,medium,"clears every vmTable entry (0x8c bytes each) and currentVM, like Q3 VM_Clear"
+002b2200,CM_FloodAreaConnections,function,high,increments cm floodvalid (+0x5c) and floods every unflooded area with CM_FloodArea_r; called by CM_AdjustAreaPortalState - Q3
+002b5df0,BG_AllocWeaponDef,function,medium,"Z_Malloc(0x870) weapon def, zeroes fields, stores the name hash (Com_HashKeyNoCase); BG_InitDefaultWeapon"
+002bc5e0,PM_ClipIsEmpty,function,medium,pm->ps clip ammo (+0x280 indexed by the weapon def's clip index +0x5a0) == 0
+002bc610,PM_GetClipAmmo,function,medium,pm->ps clip ammo (+0x280) for the weapon def's clip index
+002bffb0,SV_AdjustAreaPortalState,function,high,"returns unless the entity has a second area (+0x200 != -1), then CM_AdjustAreaPortalState - Q3"
+002ba530,NET_OutOfBandPrint,function,medium,"0xffffffff header + vsprintf into a 2 KB buffer, sent on the loopback; SV_PacketEvent - Q3 NET_OutOfBandPrint"
+002ba2a0,Sentient_ClearNodeClaim,function,medium,"clears the sentient's claimed node and expiry (+4, +8) and releases the node's claim; Sentient_Dissociate"
+002ba360,Sentient_ClaimNodeIndefinitely,function,medium,claims a node for the sentient with expiry 0x7fffffff
+002ba1c0,Sentient_ClaimNodeTimed,function,medium,claims the sentient's node with an expiry of level.time + 5000
+002b7780,G_ClearEntityReferences,function,medium,"clears references to a freed entity from actors, clients and vehicles (Vehicle_ClearEntityRefs); Sentient_Free/Actor_Free/G_FreeEntityContents"
+002c3870,G_FreeAllEntities,function,medium,G_InitGame/G_ShutdownGame: G_FreeEntity on every entity in the active list 0x0097d370
+002c4e50,SV_UpdateInfoConfigstrings,function,medium,"SV_Frame/SV_SpawnServer: when cvar_modifiedFlags has the serverinfo bit, SV_SetConfigstring(0, Cvar_InfoString) and the systeminfo string - Q3 SV_Frame's infostring update"
+002ce9c0,S_WaitForWaveBanks,function,medium,Com_Init/SV_SpawnServer: loops S_CheckWaveBankNotifies until no bank is pending
+002ce8f0,S_LoadSoundBank,function,medium,GScr_SoundBankLoad/SV_SpawnServer: finds or takes a bank slot and starts loading it (0x002ce830)
+002ce760,S_UnloadSoundBank,function,medium,GScr_SoundBankUnload: finds the bank by name and releases its wave bank
+002cdca0,Checkpoint_Init,function,medium,Com_Init: clears the 6 checkpoint name slots and sets the 'checkpoint' cvar
+002ca430,Loc_LoadStringDir_r,function,medium,"Loc_LoadStrings: FS_ListFilteredFiles in a directory, recurses into subdirectories, loads each string file"
+002d7290,SV_DObjEnsureSkeleton,function,medium,"allocates the server DObj skeleton (Z_MallocDebug from sv_game.cpp, bones*0x40+0x30) when missing; twin of CG_DObjEnsureSkeleton"
+002db500,CM_TransformedPointContents,function,high,"local = p - origin, rotated by AnglesToAxis unless the box model (0x1ff), then CM_PointContents - Q3; CG_/SV_PointContents"
+002e4750,SV_SendClientMessages,function,medium,"builds the snapshot message (0x800 buffer), game VM_Call, Netchan_Transmit; from SV_Frame/SV_SpawnServer"
+002e44b0,G_EntLinkToWithOffset,function,medium,"G_EntLinkTo, then stores the origin offset and AnglesToAxis of the angle offset; GScr_LinkToTagWithOffset/Vehicle_EnterPlayer"
+002e8bb0,G_FreeAllDObjs,function,medium,G_ReloadLevel: G_FreeEntityDObj on every active entity
+002e8b40,G_FreeEntityDObj,function,medium,"DObj_Free of the entity's DObj (+0x22c), optionally its ragdoll and anim list entries"
+002e9120,Path_DisconnectAllEntities,function,medium,G_SpawnFinished: Path_DisconnectPathsForEntity for every active entity with flag 0x1000
+002e9230,G_EntAttach,function,medium,"attaches a model (strips 'xmodel/') to a tag in the entity's 7 attachment slots (+0x3d8); Actor_Grenade_AttachToTag, G_ExplodeMissile, GScr_Detach"
+002e9370,G_EntDetach,function,medium,"finds the model/tag attachment, clears the slot, G_DObjUpdate; GScr_Detach"
+002f2e40,SV_RunGameFrame,function,medium,SV_Frame: bumps the server frame counter (never 0) and calls G_RunFrame
+002f52d0,GScr_GetTime,function,medium,script builtin slot body: returns level.time
+002b68f0,BG_CanItemBeGrabbed,function,high,Touch_Item asks it first (Q3 order); checks the item index (<0x88) and per item type whether the player can take it; Player_GetUseList
+002feea0,GScr_ObjectiveAddIntText,function,medium,"script builtin slot 88: formats the integer as text, validates it as a localized reference, GScr_ObjectiveAdd"
+009222a0,pScr_GScr_ObjectiveAddIntText,data,medium,script builtin slot 88 pointer
+002feb50,GScr_ObjectiveAddIntTextWithPosition,function,medium,script builtin slot 90: as slot 88 but GScr_ObjectiveAddWithPosition
+009222a8,pScr_GScr_ObjectiveAddIntTextWithPosition,data,medium,script builtin slot 90 pointer
+002ff840,GScr_MusicStop,function,medium,script builtin slot 115: S_StopSoundHandle on the music handle; next to GScr_MusicPlay (114); call sites push real_music
+0092230c,pScr_GScr_MusicStop,data,medium,script builtin slot 115 pointer
+00300750,GScr_AmbientPlay,function,medium,"script builtin slot 116: plays the ambient alias (call sites push BG_GELA_INT_1, BG_ORAN_END, ...)"
+00922310,pScr_GScr_AmbientPlay,data,medium,script builtin slot 116 pointer
+002f5830,GScr_GetPersistentVector,function,medium,"script builtin slot 122: looks the key up in the persistent value list (0x0095f4e0 +0x560, 3 dwords each), returns 3 values; call sites push level_jeep_angles"
+00922328,pScr_GScr_GetPersistentVector,data,medium,script builtin slot 122 pointer
+002f5920,GScr_GetPersistentInt,function,medium,"script builtin slot 123: same list, returns the int value (or a sentinel)"
+0092232c,pScr_GScr_GetPersistentInt,data,medium,script builtin slot 123 pointer
+002f58d0,GScr_GetPersistentFloat,function,medium,"script builtin slot 124: same list, returns the float value"
+00922330,pScr_GScr_GetPersistentFloat,data,medium,script builtin slot 124 pointer
+002f5960,GScr_SetPersistentVector,function,medium,script builtin slot 125: stores a vector under the key (0x002b49a0); call sites push level_jeep_origin/angles
+00922334,pScr_GScr_SetPersistentVector,data,medium,script builtin slot 125 pointer
+002f61f0,GScr_GetFrameTime,function,medium,script builtin slot 162: returns the frame time in seconds (0x008ddaa0)
+009223c8,pScr_GScr_GetFrameTime,data,medium,script builtin slot 162 pointer
+002ff810,GScr_GetAIAll,function,medium,script builtin slot 165: GScr_GetAI with an empty team string
+009223d4,pScr_GScr_GetAIAll,data,medium,script builtin slot 165 pointer
+002ff760,GScr_GetSpawnerArray,function,medium,script builtin slot 166: collects every spawner entity (eType 12) into a script array; next to GScr_GetSpawnerTeamArray (167)
+009223d8,pScr_GScr_GetSpawnerArray,data,medium,script builtin slot 166 pointer
+002fd840,GScr_FindZone,function,medium,"script builtin slot 213: looks the zone name up in the pack index; call sites push oran_zone06b, ..."
+00922494,pScr_GScr_FindZone,data,medium,script builtin slot 213 pointer
+002f6130,GScr_IsZoneLoaded,function,medium,script builtin slot 216: zone state (+0xdc) == 0
+009224a0,pScr_GScr_IsZoneLoaded,data,medium,script builtin slot 216 pointer
+00307fa0,GScr_LoadZoneSync,function,medium,script builtin slot 219: requests the zone and runs Stream_Update until it is loaded (up to 10000 steps)
+009224ac,pScr_GScr_LoadZoneSync,data,medium,script builtin slot 219 pointer
+00305150,GScr_Attach,function,medium,script builtin slot 230: G_EntAttach with model and tag; call sites push xmodel/... and tag_weapon_right
+009224d8,pScr_GScr_Attach,data,medium,script builtin slot 230 pointer
+00305630,GScr_AttachNoTag,function,medium,script builtin slot 231: GScr_Attach with an empty tag
+009224dc,pScr_GScr_AttachNoTag,data,medium,script builtin slot 231 pointer
+00305110,GScr_DetachAll,function,medium,script builtin slot 232: G_EntDetachAll on the entity
+009224e0,pScr_GScr_DetachAll,data,medium,script builtin slot 232 pointer
+002fad20,GScr_GetAttachSize,function,medium,"script builtin slot 233: counts the used attachment slots (+0x3d8, 7 max)"
+009224e4,pScr_GScr_GetAttachSize,data,medium,script builtin slot 233 pointer
+002facd0,GScr_GetAttachModelName,function,medium,script builtin slot 234: name of the model in attachment slot n
+009224e8,pScr_GScr_GetAttachModelName,data,medium,script builtin slot 234 pointer
+002fac80,GScr_GetAttachTagName,function,medium,script builtin slot 235: tag name string of attachment slot n (+0x3dc)
+009224ec,pScr_GScr_GetAttachTagName,data,medium,script builtin slot 235 pointer
+002fa500,GScr_Turret_GetUser,function,medium,"script builtin slot 274: turret check, returns the user handle (+0x1a0) while in use (+0x297)"
+00922588,pScr_GScr_Turret_GetUser,data,medium,script builtin slot 274 pointer
+002fa250,GScr_Turret_MakeUsable,function,medium,script builtin slot 279: sets turret info flag 0x10 (tested by Turret_IsUsableBy)
+0092259c,pScr_GScr_Turret_MakeUsable,data,medium,script builtin slot 279 pointer
+002fa1e0,GScr_Turret_MakeUnusable,function,medium,script builtin slot 280: clears turret info flag 0x10
+009225a0,pScr_GScr_Turret_MakeUnusable,data,medium,script builtin slot 280 pointer
+00301860,GScr_GetAnimTime,function,medium,"script builtin slot 299: creates the actor anim tree if needed, returns the anim info time (0x00965d00 +uVar*0x30)"
+009225ec,pScr_GScr_GetAnimTime,data,medium,script builtin slot 299 pointer
+002f9ad0,GScr_GetEntityNumber,function,medium,script builtin slot 320: returns the entity handle (+0x224)
+00922640,pScr_GScr_GetEntityNumber,data,medium,script builtin slot 320 pointer
+000144d0,GScr_PhysicsLaunch,function,medium,script builtin slot 487: G_PhysicsLaunch with point and force vectors
+009228dc,pScr_GScr_PhysicsLaunch,data,medium,script builtin slot 487 pointer
+00014590,GScr_PhysicsStop,function,medium,script builtin slot 488: G_FreeEntityPhysics on the entity
+009228e0,pScr_GScr_PhysicsStop,data,medium,script builtin slot 488 pointer
+002e91f0,G_EntDetachAll,function,medium,clears the 7 attachment slots (+0x3d8) and G_DObjUpdate; GScr_DetachAll

@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-20): 2289 functions named by us (counter), 805+ globals, plus 3008 Microsoft
+State (2026-10-20): 2593 functions named by us (counter), 805+ globals, plus 3008 Microsoft
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
@@ -448,3 +448,26 @@ CoD-specific functions included, so later decompilation covers both kinds.
   0x0095f5b4 0x210-byte record pool (002a5a40, filled as type 3/4 with a name), the vehicle
   physics body 0026a3c0, the SIMD box gathers 002c6630/002cb0f0, the trace helpers
   002e95b0/002e84d0/002e88d0, AnimTree/vectoangles variants (002a0ea0/002a11f0/002a1540).
+- Engine range, address-order pass (2026-10-20, late night): DumpUnnamed over
+  0x1fa000-0x2f6d30, 126 names + 2 globals (manual_names.csv). Pinned: actor blocking pairs
+  (ActorBlockList_*, Actor_ResolveBlockingPairs, step-aside node search), bad places
+  (BadPlace_Create, Path_CrossesBadPlace), AI shooting (Actor_ComputeHitChance/RollHit/
+  ShootWeapon), the Live/voice wrapper (Live_Init/Frame/Render, Voice_*), ragdoll and
+  physics-object pools (Ragdoll_Alloc/Update/Free, PhysObj_Create/UpdateAll,
+  G_PhysicsLaunch), vehicles (g_vehicleDefs, Vehicle_UpdatePhysics/Turret/FreePhysics),
+  Q3 names by body (ConcatArgs, LookAtKiller, TossClientItems, Pickup_Ammo,
+  BG_CanItemBeGrabbed, COM_SkipPath, CM_FloodAreaConnections, CM_TransformedPointContents,
+  SV_AdjustAreaPortalState, NET_OutOfBandPrint, SV_SendClientMessages), sound banks, the
+  FX command queue (FXCmd_Alloc/Commit; the 0x0095f5b4 0x210-byte records are FX commands,
+  type 3/4/8 = component kinds, not yet told apart). Still open in that range: the
+  streaming/pack loader internals (0x28bc50-0x2926c0), pmove weapon-state helpers, the
+  collision trace internals (0x2c6-0x2e8), the cgame view-weapon code - each needs a
+  per-module decompile rather than a skim.
+  Builtin bodies by slot (same night): SlotStores.java on 0x0030adb0/0x003094a0/0x00301df0/
+  0x003088b0 + SlotCallStrings.java at base 0x00922140, joined per slot, then DecompToFile on
+  the 145 unnamed bodies: 27 more named (GScr_Attach/DetachAll/GetAttach*, persistent values
+  0x0095f4e0+0x560 that carry level_jeep_origin across levels, zone load/query, turret
+  usable flag 0x10, physics launch/stop, music stop). ~115 slots stay open: one-line flag
+  setters on entity +0x2a4/+0x10 bits, UI-state setters on 0x0095f8f0, hud timer variants
+  (0x002fb500 kind 4/6/7), vehicle path/speed setters - name them when those fields are known.
+  Next: the front end 0x30c000-0x340000.
