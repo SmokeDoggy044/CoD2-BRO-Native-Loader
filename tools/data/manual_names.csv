@@ -3403,3 +3403,241 @@ address,name,kind,confidence,evidence
 00025100,ZoneSkelMap_Lookup,function,medium,hash map lookup in a zone record; Stream_AddSkelToZone and Stream_FindSkel
 002902a0,Stream_FindAnim,function,medium,"searches the active zones' anim maps (ZoneAnimMap_Lookup), off when 0x0095f636 is set"
 002901f0,Stream_FindSkel,function,medium,searches the active zones' skeleton maps (ZoneSkelMap_Lookup); the xmpb loader looks up a name at +0x34 with it
+002faf00,GScr_EmptyStub38,function,medium,script iface slot 38: empty body
+002a6990,FXCmd_PlaySoundAlias,function,medium,"command type 3 (+0x1b4) with the alias name at +0x134 (flag 0x40); callers pass aliases HEALTH_PICKUP, SHELL_INCOMING, MP_Artillery_Fire, Body_Bushes; arg 2 sets flag 2 (loop), last arg flag 8"
+002a6740,FXCmd_PlaySoundAliasAtPoint,function,medium,"command type 3 like FXCmd_PlaySoundAlias plus an origin at +0x1d0 (flag 1 of +0x20c)"
+002a6880,FXCmd_PlaySoundAliasMode7,function,low,"command type 3, alias name, always flags 2|8, +0x200 = arg, +0x208 = 7"
+002a62d0,FXCmd_PlayWeaponSound,function,medium,"command type 4: weapon name (weaponDef +8) at +0x18 and a sound index at +0x128 (0x28/0x29/0x2a from turret/overheat/fire callers); bone +0x20e none"
+002a63d0,FXCmd_PlayWeaponSoundLoop,function,low,"FXCmd_PlayWeaponSound with flag 2 (loop) from arg 3 and +0x208 = 6"
+002a64e0,FXCmd_PlayWeaponSoundAtBone,function,medium,"FXCmd_PlayWeaponSound with a bone index at +0x20e (none on vehicles, ent +0x248), +0x208 = 5; CG_FireWeapon"
+002a6600,FXCmd_PlayWeaponSoundAtBoneEx,function,medium,"FXCmd_PlayWeaponSoundAtBone plus +0xa0 = arg 5 (flag 0x800), +0x208 = 4; CG_FireWeapon"
+002a5fd0,FXCmd_Type7AtTransform,function,low,"command type 7: name at +0x18 and a 0x30-byte transform at +0x1c0; CG_EntityEvent"
+002a60e0,FXCmd_Type6AtTransform,function,low,"command type 6: name at +0x18 and a 0x30-byte transform at +0x1c0; CG_EntityEvent"
+002a5ee0,FXCmd_Type8,function,low,"command type 8: name at +0xa8, index +0x128; Vehicle_UpdateEngineSound"
+002a5c40,FXCmd_Type8AtTag,function,low,"command type 8 at a DObj tag (DObj_GetTagIndex) with a transform"
+002a5bb0,FXCmd_Type9,function,low,"command type 9 with index +0x128; CG_PlayWeaponFireSound"
+002a61f0,FXCmd_Type5AtTransform,function,low,"command type 5: index +0x12c and a transform; CG_Bullet"
+002a6ab0,FXCmd_Type2AtTransform,function,low,"command type 2: transform only"
+002a6b70,FXCmd_Type1AtTransform,function,low,"command type 1: index +0xa4 and transform; skipped for clients with +0x58c set; CG_EntityEvent"
+002a6c40,FXCmd_Type0AtTransform,function,low,"command type 0: like type 1 (index +0xa4, transform)"
+002be3e0,G_SetSoundDoneNotify,function,medium,"notifies and clears the pending notify at ent +0x3c4, then stores the new one (EBX); the sound slots 39-41 call it when given a notify"
+00305f00,GScr_PlaySound,function,medium,"slot 39: entity handle + alias script string, optional notify (G_SetSoundDoneNotify), FXCmd_PlaySoundAlias non-looping; refuses while ent +0x3c4 is set; returns the effect id"
+00305e70,GScr_PlaySoundAtPosition,function,medium,"slot 40: FXCmd_PlaySoundAliasAtPoint with a position argument"
+00305de0,GScr_PlayLoopSound,function,medium,"slot 41: FXCmd_PlaySoundAlias with the loop flag"
+00305d80,GScr_PlaySoundMode7,function,low,slot 42: FXCmd_PlaySoundAliasMode7
+00296ab0,FX_StopEffectById,function,medium,"finds the effect with id +0x4c in the list and calls vtable +0xc on each component"
+00299150,FX_IsEffectActive,function,medium,"effect with the id exists and is flagged (+0x50 bit 1) or has components"
+00296b00,FX_SetEffectParamById,function,low,"calls component vtable +0x14 with arg on every effect with the id"
+002faef0,GScr_StopSound,function,medium,slot 43: FX_StopEffectById
+002fd630,GScr_IsSoundPlaying,function,medium,slot 44: FX_IsEffectActive
+002ff3c0,GScr_FreeSound,function,medium,slot 45: FX_FreeEffectsById
+002faed0,GScr_SetSoundParam,function,low,slot 46: FX_SetEffectParamById
+00305f90,GScr_PlayerWeaponSound,function,low,"slot 47: entity with a client (+0x23c), mode 0/1/2 each FXCmd_PlayWeaponSound"
+002a8e90,G_EntList190_Enable,function,low,"sets +8 = 1 in the 0xc-byte entry of ent +0x190's list whose +4 matches"
+002a8e40,G_EntList190_Disable,function,low,"sets +8 = 0, as G_EntList190_Enable"
+002f5c90,GScr_EntList190_Enable,function,low,slot 48: G_EntList190_Enable
+002f5c70,GScr_EntList190_Disable,function,low,slot 49: G_EntList190_Disable
+002f4ea0,GScr_Set95f4b4,function,low,slot 50: stores a byte in 0x0095f4b4
+002f5c50,GScr_IsValidHandle,function,low,slot 57: arg not 0 and not -1
+002f5c40,GScr_IsNotMinusOne,function,low,slot 58: arg != -1
+002f4c00,GScr_Set8d20e0,function,low,slot 86: stores arg in 0x008d20e0
+002fe3b0,G_SetObjectiveString,function,high,"'index %i is an illegal objective index', 'Objective strings is too long'; configstring 0x10 + index, Info_SetValueForKey, G_SendObjectiveUpdate; arg 2 = localized"
+002ffb70,GScr_ObjectiveStringLocalized,function,medium,slot 96: G_SetObjectiveString(str 1)
+00300ba0,GScr_ObjectiveStringByHash,function,medium,slot 97: Zone_FindByHash text then G_SetObjectiveString(1)
+002ffb50,GScr_ObjectiveString,function,medium,slot 98: G_SetObjectiveString(str 0)
+002cd750,G_SaveCheckpoint,function,medium,"G_ProcessCheckpointTriggers calls it; stores the checkpoint trigger's script_noteworthy (+0x27c) and origin in the save record; letterbox_enabled check"
+00300140,GScr_SaveCheckpoint,function,medium,slot 120: G_SaveCheckpoint(1)
+002d5ad0,G_RestorePlayerLoadout,function,medium,"copies the saved ammo (ps +0x110), clips (+0x280), weapon bits (+0x3f0) and slots (+0x3f8) into the player's client"
+00301640,GScr_RestorePlayerLoadout,function,medium,slot 121: G_RestorePlayerLoadout
+002b49a0,Persistent_SetValue,function,medium,"replaces the {key, ...} entry in the persistent list at +0x560 (count +0x568) and appends the value words; GScr_SetPersistentVector calls it"
+002f59d0,GScr_SetPersistentInt,function,medium,slot 126 (after SetPersistentVector 125): Persistent_SetValue one word
+002f59a0,GScr_SetPersistentFloat,function,medium,slot 127: Persistent_SetValue one word
+002f4bf0,GScr_Set8db198,function,low,slot 128: stores arg in 0x008db198
+002f4be0,GScr_Set8db19c,function,low,slot 129: stores arg in 0x008db19c
+002f9510,GScr_SetEntFlag2000000,function,low,slot 131: ent +0x2a4 |= 0x2000000
+0095f8f0,g_hudManager,data,medium,"C++ object (100 bytes, 0x0031a020) made in Com_Init, drawn by SCR_UpdateScreen through vtable +0xc; holds HUD components (+4 .. +0x38) with vtable +0x14 = show; +4 holds the objective-update state"
+0031a020,HudManager_Create,function,medium,constructor of g_hudManager (Com_Init): allocates the components
+00319d50,HudManager_LayoutDefault,function,medium,"hud mode 0: shows/hides each component (vtable +0x14)"
+00319cb0,HudManager_HideAll,function,medium,hud mode 1: every component hidden
+00319c20,HudManager_Layout2,function,medium,hud mode 2: component visibility set
+003246c0,HudManager_Layout3,function,medium,hud mode 3: default layout then some components swapped
+002fefa0,GScr_SetHudMode,function,medium,"slot 136: hud mode at g_hudManager +0x5c, 0 default, 1 hidden, 2/3 layouts"
+0032ced0,HudText_SetStringByHash,function,medium,"Zone_FindByHash text into the text element (vtable +0x140), 'STRING NOT FOUND!' otherwise"
+002fef80,GScr_HudSetTextByHash,function,low,slot 137: HudText_SetStringByHash on a g_hudManager component
+00311090,HudMeter_SetCount,function,medium,"12 pairs of elements: the first n show the 'on' element; FE_SetupLiberatorMenu also calls it"
+002f94a0,GScr_HudSetMeterCount,function,low,slot 138: HudMeter_SetCount on the g_hudManager +0x... meter
+002f5a30,GScr_HudObjectives_Set13d0,function,low,slot 132: two shorts at +0x13d0 of g_hudManager's +4 component
+002f5a10,GScr_SuppressObjectiveUpdateMessage,function,medium,"slot 133: sets +0x13d4 flag / +0x13d8 index of g_hudManager +4; G_SendObjectiveUpdate skips 'GAME_OBJECTIVESUPDATED' for that index"
+002f94c0,GScr_HasVisibleModel,function,low,"slot 134: entity DObj (+0x22c) set and its +0x9c bit 0 clear"
+002f59f0,GScr_Set964b84,function,low,slot 135: stores two args at 0x00964b84/88
+002f9480,GScr_HudComp24_SetE0,function,low,"slot 139: g_hudManager +0x24 component: byte +0xe0, clears +0xec"
+002f9460,GScr_HudComp24_SetEcTwo,function,low,slot 140: g_hudManager +0x24 component +0xec = 2.0
+002f9410,GScr_HudComp24_Push,function,low,"slot 141: values 0/1 into a 3-entry list (+0xa4, count +0xe4), others into a 12-entry list (+0xb0, count +0xe8)"
+002f93f0,GScr_HudComp24_Clear,function,low,slot 142: clears both counts of the +0x24 component
+00317ac0,HudManager_SetComponentColor,function,low,"builds a colour block (0xff/0x7d) for component index arg"
+002fd3a0,GScr_HudSetComponentColor,function,low,slot 143: HudManager_SetComponentColor
+002f93e0,GScr_HudComp20_Set10,function,low,slot 144: g_hudManager +0x20 component +0x10 = arg
+002f93d0,GScr_HudComp20_Enable,function,low,slot 145: +0x20 component byte +0x14 = 1
+002f93c0,GScr_HudComp20_Disable,function,low,slot 146: +0x20 component byte +0x14 = 0
+002f93a0,GScr_HudComp20_EnableWith,function,low,slot 147: +0x20 component +0x14 = 1 and +0x18 = arg
+002f9380,GScr_HudComp1c_SetMode0,function,low,"slot 148: g_hudManager +0x1c component mode +0x44 = 0, +0x54 = 1.0"
+002f9360,GScr_HudComp1c_SetMode1,function,low,slot 149: +0x1c component mode 1
+002f9340,GScr_HudComp1c_SetMode2,function,low,slot 150: +0x1c component mode 2
+002f9320,GScr_HudComp1c_Off,function,low,"slot 151: +0x1c component mode -1, +0x54 = 0"
+00308af0,GScr_SetAIFlags,function,low,"slot 152: ent +0x2a4 bits 0x10000000/0x8000000 from two bools; third bool drops the sentient's claimed node (+0x3c) and delays the actor"
+002f92b0,GScr_SetEntFlag20000000,function,low,"slot 153: ent +0x2a4 bit 0x20000000 and a short at +0xf8 of the +0x250 record"
+002f9260,GScr_SetEnt250Field_f4,function,low,slot 155: +0xf4 of the ent +0x250 record
+00301f60,GScr_SwapEntField_dc,function,low,"slot 156: swaps +0xdc between two entities in the same +0x220 group and relinks both"
+0029b1f0,ShakeRumble_Start,function,low,"two channels (strength > 0 each) queued as 0x30-byte records on the 0x0095f5c4 manager; CG_DamageFeedback; the binary has SHAKEANDRUMBLE.FX"
+000146a0,ShakeRumbleDesc_Init,function,low,"clears the two-channel descriptor (scales 1.0) passed to ShakeRumble_Start"
+002fd1e0,GScr_ShakeRumble,function,low,slot 157: ShakeRumbleDesc_Init + ShakeRumble_Start
+002fd2d0,GScr_ShakeRumbleNamed,function,low,"slot 158: as slot 157 with two script strings when the strength > 0"
+003000e0,GScr_SetIntMapValue,function,low,"slot 159: finds or inserts the key in the map at 0x0095f4e0 (end +0x358) and stores the value at node +0xc"
+00300090,GScr_GetIntMapValue,function,low,slot 160: same map lookup; returns node +0xc
+003056c0,GScr_LocationalTraceSurface,function,low,"slot 181: G_LocationalTrace with cell lookup; surface name ('default')"
+00303600,GScr_TraceSurfaceType,function,low,"slot 182: CM_BoxTrace mask 0x2820011, returns the surface name ('default' when none)"
+003056a0,GScr_DetachEx,function,medium,slot 228: GScr_Detach with its fourth argument 0 and the caller's fourth passed last
+00305660,GScr_DetachNoTag,function,medium,"slot 229: GScr_Detach with an empty tag (pairs with GScr_AttachNoTag 231)"
+002fac30,GScr_TestEntBit299,function,low,slot 236: bit n of byte ent +0x299
+003045f0,GScr_IsTouching,function,medium,"slot 252: SV_ClipToEntity of one entity's box against the other; returns bool"
+002fd4d0,GScr_SetRefEntFlag_ef,function,low,slot 257: CG_GetEntityRefEntity +0xef = bool
+002fd490,GScr_SetRefEntByte_ee,function,low,slot 259: CG_GetEntityRefEntity +0xee = arg
+002b7500,G_SetEntityInList960070,function,low,"adds/removes ent +0x224 in the list at 0x00960074 (count 0x00960070), flag 0x200000 of ent +0x2a4"
+002fa7b0,GScr_SetEntInList960070,function,low,slot 264: G_SetEntityInList960070
+002fa770,GScr_ClearEntFlag400,function,low,slot 265: ent +0x2a4 &= ~0x400
+002fa730,GScr_SetEntFlag400,function,low,slot 266: ent +0x2a4 |= 0x400
+002fa4c0,GScr_GetOwnerHandle,function,low,slot 275: returns ent +0x1a0
+002fa160,GScr_Turret_Set54,function,low,"slot 281: turret info (+0x24c) +0x54 = arg; 'entity type %s is not a turret'"
+002f9e80,GScr_ResetHintCache,function,low,"slot 286: trigger_use: +5 = 0xff; resets the user's cached hint (+0x240 record +0x1380)"
+002f9e20,GScr_SetHintString28c,function,low,slot 288: ent +0x28c = arg and the hint cache reset as slot 286
+003019b0,GScr_SetAnimKnobAll,function,low,"slot 290 (between the anim slots): makes the actor's anim tree if needed (AnimTree_Create), then 0x002cf330 without a notify"
+003016f0,GScr_SetFlaggedAnimKnobAll,function,low,slot 297: as slot 290 with a notify argument
+002fd570,GScr_CheckScriptAnimTreeCvars,function,low,"slot 303: reads cvars script_animtree and script_name"
+002f9d30,GScr_Turret_GetFlag1,function,low,slot 309: turret info byte +1 as bool
+002f9cd0,GScr_ClearClientVec4f4,function,low,slot 314 (between ShellShock and ViewKick): zeroes client +0x4f4..+0x4fc
+002f9bb0,GScr_SetEFlag8000,function,low,slot 316: ent eFlags |= 0x8000
+002f9b70,GScr_ClearEFlag8000,function,low,slot 317: ent eFlags &= ~0x8000
+002f9b10,GScr_MoveGravity,function,medium,"slot 318: trajectory type 5 (Q3 TR_GRAVITY) from level_time with the velocity argument as trDelta (+0x2c)"
+002f9a90,GScr_SetEntFlag40000,function,low,slot 321: ent +0x2a4 |= 0x40000
+002f9a50,GScr_ClearEntFlag40000,function,low,slot 322
+002f9a10,GScr_ClearEntFlag80000,function,low,slot 323
+002f99d0,GScr_SetEntFlag80000,function,low,slot 324
+003028d0,GScr_ScriptMover_SetActorBox,function,low,"slot 325: script mover (eType 7, flag 0x20000) gets the actor mins/maxs, contents, relinked"
+002f9760,GScr_Turret_Set3c,function,low,slot 331: turret info +0x3c = arg (next to the arc setters)
+002f9710,GScr_Turret_Set40,function,low,slot 332: turret info +0x40 = arg
+00304dc0,GScr_SetModelNoFlag,function,low,slot 333: GScr_SetModel with third argument 0
+002fd740,GScr_GetLocalizedString,function,medium,slot 335: Zone_FindByHash text as a script string
+002f70b0,GScr_Vehicle_SetWaitNode,function,low,"slot 466 (after SetSwitchNode): vehicle +0x17a = node index, clears +0x2f8"
+002f7040,GScr_Vehicle_SetMaxSpeed,function,low,"slot 467: vehicle +0x17c = mph * 17.6"
+002f6f40,GScr_Vehicle_SetSpeedMode2,function,low,"slot 469: vehicle +0x1b0 = 2, +0x1b8 = mph * 17.6"
+00302a80,GScr_Vehicle_PushFromPoint,function,low,"slot 470: direction from a point to the vehicle, 0x0025a400 with speed * 17.6"
+002f6e20,GScr_Vehicle_GetWheelSurface,function,low,"slot 472: wheel by front_left/front_right/back_left/...; 'Vehicle type [%s] has no wheels'; surface name ('default')"
+002f6d70,GScr_Vehicle_GetOwnerHandle,function,low,slot 474: ent +0x1a0 if it is a valid entity
+002f6d30,GScr_Vehicle_Set200,function,low,slot 475: vehicle +0x200 = 1
+002f6cf0,GScr_Vehicle_Clear200,function,low,slot 476: vehicle +0x200 = 0
+002f6bc0,GScr_Vehicle_Set190,function,low,"slot 480: vehicle +0x190 = 1, +0x194 = byte arg"
+002f6b80,GScr_Vehicle_Clear190,function,low,slot 481: vehicle +0x190 = 0
+002f68f0,GScr_Vehicle_Is180Clear,function,low,"slot 486: 'Must be called on a player controlled vehicle'; vehicle +0x180 < 1"
+002fb230,GScr_GetEntScriptObject,function,low,"slot 554: ent +0x428, made on first use by interface slot 513"
+002fb2a0,GScr_GetLevelEnt8Handle,function,low,slot 555: (*(0x0095f534 + 8)) +0x224
+002fb290,GScr_GetPlayerHandle,function,low,"slot 556: (*(0x0095f534 + 4)) +0x224; +4 is the player entity (its client restores the loadout)"
+009221d8,pScr_GScr_EmptyStub38,data,medium,script iface slot 38 pointer (0x00922140 + 4*38) -> GScr_EmptyStub38
+009221dc,pScr_GScr_PlaySound,data,medium,script iface slot 39 pointer (0x00922140 + 4*39) -> GScr_PlaySound
+009221e0,pScr_GScr_PlaySoundAtPosition,data,medium,script iface slot 40 pointer (0x00922140 + 4*40) -> GScr_PlaySoundAtPosition
+009221e4,pScr_GScr_PlayLoopSound,data,medium,script iface slot 41 pointer (0x00922140 + 4*41) -> GScr_PlayLoopSound
+009221e8,pScr_GScr_PlaySoundMode7,data,medium,script iface slot 42 pointer (0x00922140 + 4*42) -> GScr_PlaySoundMode7
+009221ec,pScr_GScr_StopSound,data,medium,script iface slot 43 pointer (0x00922140 + 4*43) -> GScr_StopSound
+009221f0,pScr_GScr_IsSoundPlaying,data,medium,script iface slot 44 pointer (0x00922140 + 4*44) -> GScr_IsSoundPlaying
+009221f4,pScr_GScr_FreeSound,data,medium,script iface slot 45 pointer (0x00922140 + 4*45) -> GScr_FreeSound
+009221f8,pScr_GScr_SetSoundParam,data,medium,script iface slot 46 pointer (0x00922140 + 4*46) -> GScr_SetSoundParam
+009221fc,pScr_GScr_PlayerWeaponSound,data,medium,script iface slot 47 pointer (0x00922140 + 4*47) -> GScr_PlayerWeaponSound
+00922200,pScr_GScr_EntList190_Enable,data,medium,script iface slot 48 pointer (0x00922140 + 4*48) -> GScr_EntList190_Enable
+00922204,pScr_GScr_EntList190_Disable,data,medium,script iface slot 49 pointer (0x00922140 + 4*49) -> GScr_EntList190_Disable
+00922208,pScr_GScr_Set95f4b4,data,medium,script iface slot 50 pointer (0x00922140 + 4*50) -> GScr_Set95f4b4
+00922224,pScr_GScr_IsValidHandle,data,medium,script iface slot 57 pointer (0x00922140 + 4*57) -> GScr_IsValidHandle
+00922228,pScr_GScr_IsNotMinusOne,data,medium,script iface slot 58 pointer (0x00922140 + 4*58) -> GScr_IsNotMinusOne
+00922298,pScr_GScr_Set8d20e0,data,medium,script iface slot 86 pointer (0x00922140 + 4*86) -> GScr_Set8d20e0
+009222c0,pScr_GScr_ObjectiveStringLocalized,data,medium,script iface slot 96 pointer (0x00922140 + 4*96) -> GScr_ObjectiveStringLocalized
+009222c4,pScr_GScr_ObjectiveStringByHash,data,medium,script iface slot 97 pointer (0x00922140 + 4*97) -> GScr_ObjectiveStringByHash
+009222c8,pScr_GScr_ObjectiveString,data,medium,script iface slot 98 pointer (0x00922140 + 4*98) -> GScr_ObjectiveString
+00922320,pScr_GScr_SaveCheckpoint,data,medium,script iface slot 120 pointer (0x00922140 + 4*120) -> GScr_SaveCheckpoint
+00922324,pScr_GScr_RestorePlayerLoadout,data,medium,script iface slot 121 pointer (0x00922140 + 4*121) -> GScr_RestorePlayerLoadout
+00922338,pScr_GScr_SetPersistentInt,data,medium,script iface slot 126 pointer (0x00922140 + 4*126) -> GScr_SetPersistentInt
+0092233c,pScr_GScr_SetPersistentFloat,data,medium,script iface slot 127 pointer (0x00922140 + 4*127) -> GScr_SetPersistentFloat
+00922340,pScr_GScr_Set8db198,data,medium,script iface slot 128 pointer (0x00922140 + 4*128) -> GScr_Set8db198
+00922344,pScr_GScr_Set8db19c,data,medium,script iface slot 129 pointer (0x00922140 + 4*129) -> GScr_Set8db19c
+0092234c,pScr_GScr_SetEntFlag2000000,data,medium,script iface slot 131 pointer (0x00922140 + 4*131) -> GScr_SetEntFlag2000000
+00922350,pScr_GScr_HudObjectives_Set13d0,data,medium,script iface slot 132 pointer (0x00922140 + 4*132) -> GScr_HudObjectives_Set13d0
+00922354,pScr_GScr_SuppressObjectiveUpdateMessage,data,medium,script iface slot 133 pointer (0x00922140 + 4*133) -> GScr_SuppressObjectiveUpdateMessage
+00922358,pScr_GScr_HasVisibleModel,data,medium,script iface slot 134 pointer (0x00922140 + 4*134) -> GScr_HasVisibleModel
+0092235c,pScr_GScr_Set964b84,data,medium,script iface slot 135 pointer (0x00922140 + 4*135) -> GScr_Set964b84
+00922360,pScr_GScr_SetHudMode,data,medium,script iface slot 136 pointer (0x00922140 + 4*136) -> GScr_SetHudMode
+00922364,pScr_GScr_HudSetTextByHash,data,medium,script iface slot 137 pointer (0x00922140 + 4*137) -> GScr_HudSetTextByHash
+00922368,pScr_GScr_HudSetMeterCount,data,medium,script iface slot 138 pointer (0x00922140 + 4*138) -> GScr_HudSetMeterCount
+0092236c,pScr_GScr_HudComp24_SetE0,data,medium,script iface slot 139 pointer (0x00922140 + 4*139) -> GScr_HudComp24_SetE0
+00922370,pScr_GScr_HudComp24_SetEcTwo,data,medium,script iface slot 140 pointer (0x00922140 + 4*140) -> GScr_HudComp24_SetEcTwo
+00922374,pScr_GScr_HudComp24_Push,data,medium,script iface slot 141 pointer (0x00922140 + 4*141) -> GScr_HudComp24_Push
+00922378,pScr_GScr_HudComp24_Clear,data,medium,script iface slot 142 pointer (0x00922140 + 4*142) -> GScr_HudComp24_Clear
+0092237c,pScr_GScr_HudSetComponentColor,data,medium,script iface slot 143 pointer (0x00922140 + 4*143) -> GScr_HudSetComponentColor
+00922380,pScr_GScr_HudComp20_Set10,data,medium,script iface slot 144 pointer (0x00922140 + 4*144) -> GScr_HudComp20_Set10
+00922384,pScr_GScr_HudComp20_Enable,data,medium,script iface slot 145 pointer (0x00922140 + 4*145) -> GScr_HudComp20_Enable
+00922388,pScr_GScr_HudComp20_Disable,data,medium,script iface slot 146 pointer (0x00922140 + 4*146) -> GScr_HudComp20_Disable
+0092238c,pScr_GScr_HudComp20_EnableWith,data,medium,script iface slot 147 pointer (0x00922140 + 4*147) -> GScr_HudComp20_EnableWith
+00922390,pScr_GScr_HudComp1c_SetMode0,data,medium,script iface slot 148 pointer (0x00922140 + 4*148) -> GScr_HudComp1c_SetMode0
+00922394,pScr_GScr_HudComp1c_SetMode1,data,medium,script iface slot 149 pointer (0x00922140 + 4*149) -> GScr_HudComp1c_SetMode1
+00922398,pScr_GScr_HudComp1c_SetMode2,data,medium,script iface slot 150 pointer (0x00922140 + 4*150) -> GScr_HudComp1c_SetMode2
+0092239c,pScr_GScr_HudComp1c_Off,data,medium,script iface slot 151 pointer (0x00922140 + 4*151) -> GScr_HudComp1c_Off
+009223a0,pScr_GScr_SetAIFlags,data,medium,script iface slot 152 pointer (0x00922140 + 4*152) -> GScr_SetAIFlags
+009223a4,pScr_GScr_SetEntFlag20000000,data,medium,script iface slot 153 pointer (0x00922140 + 4*153) -> GScr_SetEntFlag20000000
+009223ac,pScr_GScr_SetEnt250Field_f4,data,medium,script iface slot 155 pointer (0x00922140 + 4*155) -> GScr_SetEnt250Field_f4
+009223b0,pScr_GScr_SwapEntField_dc,data,medium,script iface slot 156 pointer (0x00922140 + 4*156) -> GScr_SwapEntField_dc
+009223b4,pScr_GScr_ShakeRumble,data,medium,script iface slot 157 pointer (0x00922140 + 4*157) -> GScr_ShakeRumble
+009223b8,pScr_GScr_ShakeRumbleNamed,data,medium,script iface slot 158 pointer (0x00922140 + 4*158) -> GScr_ShakeRumbleNamed
+009223bc,pScr_GScr_SetIntMapValue,data,medium,script iface slot 159 pointer (0x00922140 + 4*159) -> GScr_SetIntMapValue
+009223c0,pScr_GScr_GetIntMapValue,data,medium,script iface slot 160 pointer (0x00922140 + 4*160) -> GScr_GetIntMapValue
+00922414,pScr_GScr_LocationalTraceSurface,data,medium,script iface slot 181 pointer (0x00922140 + 4*181) -> GScr_LocationalTraceSurface
+00922418,pScr_GScr_TraceSurfaceType,data,medium,script iface slot 182 pointer (0x00922140 + 4*182) -> GScr_TraceSurfaceType
+009224d0,pScr_GScr_DetachEx,data,medium,script iface slot 228 pointer (0x00922140 + 4*228) -> GScr_DetachEx
+009224d4,pScr_GScr_DetachNoTag,data,medium,script iface slot 229 pointer (0x00922140 + 4*229) -> GScr_DetachNoTag
+009224f0,pScr_GScr_TestEntBit299,data,medium,script iface slot 236 pointer (0x00922140 + 4*236) -> GScr_TestEntBit299
+00922530,pScr_GScr_IsTouching,data,medium,script iface slot 252 pointer (0x00922140 + 4*252) -> GScr_IsTouching
+00922544,pScr_GScr_SetRefEntFlag_ef,data,medium,script iface slot 257 pointer (0x00922140 + 4*257) -> GScr_SetRefEntFlag_ef
+0092254c,pScr_GScr_SetRefEntByte_ee,data,medium,script iface slot 259 pointer (0x00922140 + 4*259) -> GScr_SetRefEntByte_ee
+00922560,pScr_GScr_SetEntInList960070,data,medium,script iface slot 264 pointer (0x00922140 + 4*264) -> GScr_SetEntInList960070
+00922564,pScr_GScr_ClearEntFlag400,data,medium,script iface slot 265 pointer (0x00922140 + 4*265) -> GScr_ClearEntFlag400
+00922568,pScr_GScr_SetEntFlag400,data,medium,script iface slot 266 pointer (0x00922140 + 4*266) -> GScr_SetEntFlag400
+0092258c,pScr_GScr_GetOwnerHandle,data,medium,script iface slot 275 pointer (0x00922140 + 4*275) -> GScr_GetOwnerHandle
+009225a4,pScr_GScr_Turret_Set54,data,medium,script iface slot 281 pointer (0x00922140 + 4*281) -> GScr_Turret_Set54
+009225b8,pScr_GScr_ResetHintCache,data,medium,script iface slot 286 pointer (0x00922140 + 4*286) -> GScr_ResetHintCache
+009225c0,pScr_GScr_SetHintString28c,data,medium,script iface slot 288 pointer (0x00922140 + 4*288) -> GScr_SetHintString28c
+009225c8,pScr_GScr_SetAnimKnobAll,data,medium,script iface slot 290 pointer (0x00922140 + 4*290) -> GScr_SetAnimKnobAll
+009225e4,pScr_GScr_SetFlaggedAnimKnobAll,data,medium,script iface slot 297 pointer (0x00922140 + 4*297) -> GScr_SetFlaggedAnimKnobAll
+009225fc,pScr_GScr_CheckScriptAnimTreeCvars,data,medium,script iface slot 303 pointer (0x00922140 + 4*303) -> GScr_CheckScriptAnimTreeCvars
+00922614,pScr_GScr_Turret_GetFlag1,data,medium,script iface slot 309 pointer (0x00922140 + 4*309) -> GScr_Turret_GetFlag1
+00922628,pScr_GScr_ClearClientVec4f4,data,medium,script iface slot 314 pointer (0x00922140 + 4*314) -> GScr_ClearClientVec4f4
+00922630,pScr_GScr_SetEFlag8000,data,medium,script iface slot 316 pointer (0x00922140 + 4*316) -> GScr_SetEFlag8000
+00922634,pScr_GScr_ClearEFlag8000,data,medium,script iface slot 317 pointer (0x00922140 + 4*317) -> GScr_ClearEFlag8000
+00922638,pScr_GScr_MoveGravity,data,medium,script iface slot 318 pointer (0x00922140 + 4*318) -> GScr_MoveGravity
+00922644,pScr_GScr_SetEntFlag40000,data,medium,script iface slot 321 pointer (0x00922140 + 4*321) -> GScr_SetEntFlag40000
+00922648,pScr_GScr_ClearEntFlag40000,data,medium,script iface slot 322 pointer (0x00922140 + 4*322) -> GScr_ClearEntFlag40000
+0092264c,pScr_GScr_ClearEntFlag80000,data,medium,script iface slot 323 pointer (0x00922140 + 4*323) -> GScr_ClearEntFlag80000
+00922650,pScr_GScr_SetEntFlag80000,data,medium,script iface slot 324 pointer (0x00922140 + 4*324) -> GScr_SetEntFlag80000
+00922654,pScr_GScr_ScriptMover_SetActorBox,data,medium,script iface slot 325 pointer (0x00922140 + 4*325) -> GScr_ScriptMover_SetActorBox
+0092266c,pScr_GScr_Turret_Set3c,data,medium,script iface slot 331 pointer (0x00922140 + 4*331) -> GScr_Turret_Set3c
+00922670,pScr_GScr_Turret_Set40,data,medium,script iface slot 332 pointer (0x00922140 + 4*332) -> GScr_Turret_Set40
+00922674,pScr_GScr_SetModelNoFlag,data,medium,script iface slot 333 pointer (0x00922140 + 4*333) -> GScr_SetModelNoFlag
+0092267c,pScr_GScr_GetLocalizedString,data,medium,script iface slot 335 pointer (0x00922140 + 4*335) -> GScr_GetLocalizedString
+00922888,pScr_GScr_Vehicle_SetWaitNode,data,medium,script iface slot 466 pointer (0x00922140 + 4*466) -> GScr_Vehicle_SetWaitNode
+0092288c,pScr_GScr_Vehicle_SetMaxSpeed,data,medium,script iface slot 467 pointer (0x00922140 + 4*467) -> GScr_Vehicle_SetMaxSpeed
+00922894,pScr_GScr_Vehicle_SetSpeedMode2,data,medium,script iface slot 469 pointer (0x00922140 + 4*469) -> GScr_Vehicle_SetSpeedMode2
+00922898,pScr_GScr_Vehicle_PushFromPoint,data,medium,script iface slot 470 pointer (0x00922140 + 4*470) -> GScr_Vehicle_PushFromPoint
+009228a0,pScr_GScr_Vehicle_GetWheelSurface,data,medium,script iface slot 472 pointer (0x00922140 + 4*472) -> GScr_Vehicle_GetWheelSurface
+009228a8,pScr_GScr_Vehicle_GetOwnerHandle,data,medium,script iface slot 474 pointer (0x00922140 + 4*474) -> GScr_Vehicle_GetOwnerHandle
+009228ac,pScr_GScr_Vehicle_Set200,data,medium,script iface slot 475 pointer (0x00922140 + 4*475) -> GScr_Vehicle_Set200
+009228b0,pScr_GScr_Vehicle_Clear200,data,medium,script iface slot 476 pointer (0x00922140 + 4*476) -> GScr_Vehicle_Clear200
+009228c0,pScr_GScr_Vehicle_Set190,data,medium,script iface slot 480 pointer (0x00922140 + 4*480) -> GScr_Vehicle_Set190
+009228c4,pScr_GScr_Vehicle_Clear190,data,medium,script iface slot 481 pointer (0x00922140 + 4*481) -> GScr_Vehicle_Clear190
+009228d8,pScr_GScr_Vehicle_Is180Clear,data,medium,script iface slot 486 pointer (0x00922140 + 4*486) -> GScr_Vehicle_Is180Clear
+009229e8,pScr_GScr_GetEntScriptObject,data,medium,script iface slot 554 pointer (0x00922140 + 4*554) -> GScr_GetEntScriptObject
+009229ec,pScr_GScr_GetLevelEnt8Handle,data,medium,script iface slot 555 pointer (0x00922140 + 4*555) -> GScr_GetLevelEnt8Handle
+009229f0,pScr_GScr_GetPlayerHandle,data,medium,script iface slot 556 pointer (0x00922140 + 4*556) -> GScr_GetPlayerHandle

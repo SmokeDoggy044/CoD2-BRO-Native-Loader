@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-20): 2625 functions named by us (counter), 805+ globals, plus 3008 Microsoft
+State (2026-10-21): 2838 functions named by us (counter), 900+ globals, plus 3008 Microsoft
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
@@ -421,7 +421,18 @@ CoD-specific functions included, so later decompilation covers both kinds.
   102-107, spawns 108-113, objectives 87-101 (configstring 0x10 + index), mission end
   189-192, links 237-243, doors 253-255, turrets 270-330 (turret info at entity +0x24c),
   anims 290-301, vehicles 463-484 (+0x248), hud 490-503 and 578-589 (fields by offset).
-  Left open (~210): empty stubs, one-line wrappers into unnamed engine code, the
+  Slot bodies, third pass (2026-10-21, 137 + 100 slot pointers): every slot the four init
+  functions fill with a direct store now has a name. Sound slots 39-47 build commands on the
+  0x0095f5b4 queue (FXCmd_*: type at +0x1b4, 3 = sound alias by name, 4 = weapon sound by
+  weapon name + index; the ids they return feed FX_StopEffectById / FX_IsEffectActive);
+  objective strings 96-98 (G_SetObjectiveString); checkpoint 120 (G_SaveCheckpoint);
+  persistent setters 126/127; g_hudManager (0x0095f8f0, made in Com_Init, drawn from
+  SCR_UpdateScreen) with hud modes (slot 136) and component setters 132-151; shake/rumble
+  157/158 (SHAKEANDRUMBLE.FX); TR_GRAVITY move 318. Many are `low` with field/offset names
+  (GScr_SetEntFlag400, GScr_Vehicle_Set200): rename when the field is understood. Unnamed
+  callees left: 0x002ae080, 0x00271b20/0x002712a0, 0x002cf330 (anim knob set), 0x0032f650,
+  0x0024b700, 0x002c9b30, 0x002028a0; slots 154, 272, 289, 292, 302, 334 unnamed.
+  Earlier note - left open (~210): empty stubs, one-line wrappers into unnamed engine code, the
   thread/wait primitives 10/12/15-17 (wait records with vtables 0x00831800-0x00831824)
   and the 0x0095f8f0 setters 132-151 - name them with their callees.
   Compiled scripts: each level module entry (LevelScript_<level>_ModuleEntry, via
