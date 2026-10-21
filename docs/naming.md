@@ -534,3 +534,16 @@ CoD-specific functions included, so later decompilation covers both kinds.
   0x0028ea20/0x0028eaa0 (a per-zone named-entry map at +0xd8). Compiled common scripts
   (0x110000-0x1e3fff) now top the rank by strings; 0x00148d10 is the shared level setup every
   LevelScript_*_InternalMain calls (left unnamed: needs a naming scheme for script threads).
+- Compiled script functions by name hash (2026-10-21): each level module stores a
+  dispatcher in import slot +0x80 (LevelScript_<level>_CallFunctionByHash, 14) that maps the
+  HashStr hash of a "file::function" name to the compiled function (called or thread-started).
+  The binary keeps ~235 such names as string values (death/damage callbacks, trigger funcs:
+  `self.deathfunc = "prologue::Vehicle_TankDeath"`), so hashing them named 209 targets
+  (skill scripts BroHashDispatch.java + broname_hash.py; 139 were not functions yet).
+  Scheme: `Bro_<file>__<function>` (double underscore between file and function; the
+  file keeps its leading underscore: Bro__spawner_gmi__tanksquish). 10 are low guesses from
+  file x identifier combinations (piano_lupo CheckPoint_N, ...); the hash is weak, so a
+  guess needs a single candidate (tunisia_utility "JJ20" was rejected). 0x00148d10 is
+  Bro__load_gmi__main (file name from the MP XBE's "_load_gmi::main_trigger"). Left: 380
+  dispatcher entries whose names have no string (hash only) and the ~1,750 other compiled
+  script functions; name those from their callers now that the callbacks read.

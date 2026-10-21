@@ -25,9 +25,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 10,234 | 3,153 | 286 | 9,948 |
-| Mission scripts (14 level sections) | 5,026 | 55 | 0 | 5,026 |
-| **Total** | **15,260** | **3,208** | **286** | **14,974** |
+| Engine and game code (`.text`) | 10,240 | 3,164 | 286 | 9,954 |
+| Mission scripts (14 level sections) | 5,159 | 268 | 0 | 5,159 |
+| **Total** | **15,399** | **3,432** | **286** | **15,113** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -43,7 +43,7 @@ function of the game.*
 | Engine core (memory, files, settings, commands) | 161 | 0 | 1 | 152 | 0 |
 | Client and menus | 209 | 0 | 0 | 209 | 0 |
 | Server, collision, compression | 90 | 1 | 2 | 87 | 0 |
-| Not sorted into a part yet | 8,180 | 10 | 2 | 1,263 | 5,296 |
+| Not sorted into a part yet | 8,186 | 10 | 2 | 1,274 | 5,291 |
 
 1,609 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
