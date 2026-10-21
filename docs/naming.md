@@ -4,7 +4,7 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-21): 2838 functions named by us (counter), 900+ globals, plus 3008 Microsoft
+State (2026-10-21): 4558 functions named by us (counter), 900+ globals, plus 3008 Microsoft
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
@@ -574,3 +574,16 @@ CoD-specific functions included, so later decompilation covers both kinds.
   BroScr_<Descriptive> = our name for a common-script function whose source name is unknown.
   Next: the ~1,300 string-less common-script functions, best from their now-named callers
   (`namepack.py next N --range 00120000-001e4000`).
+- Typed field accessors (2026-10-21, evening): besides the int ones, compiled scripts read
+  fields through typed key-table helpers - ScriptKeyTable_GetString/GetStringCopy (string),
+  GetArray/GetArrayCopy (12-byte {data, capacity, count}), SetVector (12-byte vector, undefined =
+  g 0x00922eb8 x3), GetStruct1c. A scan of every small unnamed function by its call/push shape
+  named 288 more accessors (isdefined for float/string/array fields, vector/string/array getters);
+  cracking their key hashes (keyhash_crack.py + pick) gave 57 new field names (script_team,
+  script_chain, riders, gunners, flakers, lead_pos, end_pos, squad_name, ...); 20 already-applied
+  ScrField_h names were renamed. Also 56 string-anchored common-script functions (battle chatter
+  BroScr_BattleChatter + its event callers, flak crew/death threads, vehicle rider tags, traverse
+  anims BroScr_Traverse_N, flank/pose choosers, tank inits _5-_8).
+  Next: same as before - the string-less common-script functions from their callers; the
+  'face current/default/angle' anim helpers around Bro_stop__main/Bro_cover_crouch__idle and the
+  'bad parameter: crap_out_now + please' family (001a19a0/001a1aa0/001b2c80) are the next clusters.

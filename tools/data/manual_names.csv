@@ -4882,7 +4882,7 @@ address,name,kind,confidence,evidence
 00191340,ScrField_h02d62a20,function,medium,"entity script-field accessor, key hash 0x02d62a20 not reversed yet: &ent.<0x02d62a20>, inserted as undefined when missing"
 00193230,ScrField_h6e62eedd,function,medium,"entity script-field accessor, key hash 0x6e62eedd not reversed yet: &ent.<0x6e62eedd>, inserted as undefined when missing"
 0012ac60,ScrField_h4225d5c5_IsDefined,function,medium,"entity script-field accessor, key hash 0x4225d5c5 not reversed yet: isdefined(ent.<0x4225d5c5>)"
-0012a940,ScrField_hd553f35a,function,medium,"entity script-field accessor, key hash 0xd553f35a not reversed yet: &ent.<0xd553f35a>, inserted as undefined when missing"
+0012a940,ScrField_alive_ai,function,medium,"entity script-field accessor, key hash 0xd553f35a not reversed yet: &ent.<0xd553f35a>, inserted as undefined when missing"
 0012c310,ScrField_haa3cddde,function,medium,"entity script-field accessor, key hash 0xaa3cddde not reversed yet: &ent.<0xaa3cddde>, inserted as undefined when missing"
 0012acc0,ScrField_hc511e266,function,medium,"entity script-field accessor, key hash 0xc511e266 not reversed yet: &ent.<0xc511e266>, inserted as undefined when missing"
 0012efc0,ScrField_h75c85f71,function,medium,"entity script-field accessor, key hash 0x75c85f71 not reversed yet: &ent.<0x75c85f71>, inserted as undefined when missing"
@@ -5273,3 +5273,356 @@ address,name,kind,confidence,evidence
 0015f720,BroScr_FxCreationSoundThink,function,medium,'_fx_creation' sound at position by distance
 0015f380,BroScr_FxCreationSound,function,medium,'_fx_creation'
 001b2990,BroScr_GetMuzzleOrigin,function,medium,'tag_flash' origin of the enemy's weapon
+005b41b0,ScriptKeyTable_SetVector,function,high,"allocates a 12-byte value, copies the vector, ScriptKeyTable_Set(hash, value) (thiscall on the key table)"
+00123470,BroScr_NormalizeTeamName,function,medium,'friendly'/'enemy'/'allies'/'neutral' compares then assigns; called by vehicle/tank init
+00136ab0,BroScr_SetRiderAnimForTag,function,medium,tag_gunner/tag_passenger1/2 -> SetFlaggedAnimKnobAll with a per-tag anim; called by BroScr_VehicleMountRiders
+00122600,BroScr_FlakWaitDeath,function,medium,"waittill 'death' of the target, 'flak died with flaknum ' notify"
+001227d0,BroScr_FlakWaitDeath_2,function,medium,'flak died with flaknum ' + '_null'
+001336e0,BroScr_FlakSoundBlend,function,medium,'sound_blend' + 'flak died with flaknum '
+0013c530,BroScr_FlakStopMovingOnDeath,function,medium,"'death', 'flak died with flaknum ', 'stop_moving'"
+0013c810,BroScr_FlakDeathTrigger,function,medium,"'trigger_damage', 'deathtrig', 'player_tank', 'flak died with flaknum '"
+00138760,BroScr_FriendlyChatTriggers,function,medium,walks trigger_multiple/once/use/damage/lookat entities targeting 'friendly_chat'
+0013cf40,BroScr_FlakLoaderAmmoAnim,function,medium,"'end_sequence', attaches xmodel/panzerflak_ammo to tag_weapon_left"
+00143cb0,BroScr_FlakCrewAnim,function,medium,"'bad animname passed in', ammo 'clip on'/'clip off' notetracks, 'flak_anim_done'"
+0014bdf0,BroScr_FlakGunnerFireAnim,function,medium,"'fire_turret', 'twitch', 'flak_anim_done'"
+00147cf0,BroScr_VehicleRiderAttach,function,medium,"rider tag (tag_gunner/passenger1/2) origin/angles, BroScr_PutGunInHand"
+00148080,BroScr_VehicleRiderMount,function,medium,"rider tag origin/angles, sets targetname, waits frames; calls BroScr_SetRiderAnimForTag"
+001580a0,BroScr_VehicleSpawnRider,function,medium,"rider tags tag_passenger2/1/tag_gunner, sets targetname"
+00150180,BroScr_VehicleRiderWait,function,medium,waittill per rider tag (tag_gunner/passenger1/2)
+001655f0,BroScr_SpawnWheelOrigins,function,medium,script_origin entities at tag_wheel_back_right/left
+001346f0,BroScr_SpawnWheelOrigins_2,function,medium,script_origin entities at tag_wheel_back_right/left
+001cb7b0,BroScr_ChatterEnemySighted,function,medium,"'enemysighted' by team 'allies', calls BroScr_BattleChatter"
+001c70a0,BroScr_BattleChatter,function,medium,"alias from nationality ('german'/'american'/'french'/'italian' or 'generic_') + event + entity number; events 'death', 'giveupposition'; called by grenade/melee/pain/enemy-sighted code"
+001c76a0,BroScr_ChatterGrenadeAttack,function,medium,"'grenadeattack' -> BroScr_BattleChatter, 'face current'/'face default'"
+001d5f70,BroScr_ChooseFlankOrCoverMe,function,medium,"'flankLeft'/'flankRight'/'coverme' by distance, team and time"
+001dd180,BroScr_FlankRight,function,medium,"'flankright', 'pose be wounded', 'from main'"
+001dd510,BroScr_FlankLeft,function,medium,"'flankleft', 'pose be wounded', 'from main'"
+001dbc90,BroScr_ChoosePoseRandom,function,medium,"'killanimscript' endon, 'canStand && rand passed'/'canCrouch && rand passed'"
+001dbeb0,BroScr_ChoosePoseRandom_2,function,medium,"'killanimscript' endon, 'canStand && rand passed'/'canCrouch && rand passed'"
+001bb230,BroScr_PlayFaceAnim,function,medium,'face current'/'face default' around BroScr_PlayAnimWithNoteTracks
+001bb610,BroScr_PlayFaceAnim_2,function,medium,'face current'/'face default' around BroScr_PlayAnimWithNoteTracks
+001bad70,BroScr_PlayFaceAnim_3,function,medium,'face current'/'face default' around BroScr_PlayAnimWithNoteTracks
+001aee80,BroScr_Traverse,function,medium,traverse anim: 'nogravity'/'noclip' notetracks via BroScr_HandleNoteTracks
+001af0a0,BroScr_Traverse_2,function,medium,traverse anim: 'nogravity'/'noclip'/'gravity' notetracks
+001af480,BroScr_Traverse_3,function,medium,traverse anim: 'nogravity'/'noclip'/'gravity' notetracks
+001af860,BroScr_Traverse_4,function,medium,traverse anim: 'nogravity'/'noclip'/'gravity' notetracks
+001b0070,BroScr_Traverse_5,function,medium,traverse anim: 'nogravity'/'noclip'/'gravity on'/'gravity' notetracks
+001b0790,BroScr_Traverse_6,function,medium,traverse anim: 'nogravity'/'noclip'/'gravity on'/'gravity' notetracks
+001b12c0,BroScr_Traverse_7,function,medium,traverse anim: 'nogravity'/'noclip'/'gravity' notetracks
+001b1ee0,BroScr_Traverse_8,function,medium,traverse anim: 'nogravity'/'gravity on'/'gravity' notetracks
+001b2150,BroScr_Traverse_9,function,medium,traverse anim: 'nogravity'/'noclip'/'gravity' notetracks
+001b2380,BroScr_TraverseDiveWall,function,medium,traverse anim with 'dive_wall' plus gravity/noclip notetracks
+001b26c0,BroScr_Traverse_10,function,medium,traverse anim: 'nogravity'/'noclip'/'gravity on'/'gravity' notetracks
+001639f0,BroScr_StoneBreakFx,function,medium,'stone_break' entities with 'impact_lmg_concrete' fx
+001654a0,BroScr_MinefieldTriggers,function,medium,'minefield' entities with 'artillery_generic' fx
+00166620,BroScr_TankInit_5,function,medium,"'panzerIV' / 'mg30cal_sherman_tank', BroScr_SetWheelSmokeFx, BroScr_NormalizeTeamName (like BroScr_TankInit)"
+001668e0,BroScr_TankInit_6,function,medium,"'panzerIV' / 'mg30cal_sherman_tank', BroScr_SetWheelSmokeFx (like BroScr_TankInit)"
+001679b0,BroScr_TankInit_7,function,medium,"'allies'/'panzerIV', BroScr_SetWheelSmokeFx (like BroScr_TankInit)"
+00167bd0,BroScr_TankInit_8,function,medium,"'allies'/'panzerIV', BroScr_SetWheelSmokeFx (like BroScr_TankInit)"
+0016c7c0,BroScr_VehicleGetPassengers,function,medium,collects 'passenger' entities per 'tag_passenger'<n>
+0016f920,BroScr_HalftrackSpawnGuys,function,medium,'halftrackguy_'<n> per 'tag_passenger'<n>
+001799a0,BroScr_ShermanTankAnim,function,medium,"'sherman_tank' anim, 'stopanim' notify"
+00179ca0,BroScr_ShermanTankAnim_2,function,medium,"'sherman_tank' anim, 'stopanim' notify"
+00179fa0,BroScr_ShermanTankAnim_3,function,medium,"'sherman_tank' anim, 'stopanim' notify"
+001a5f10,BroScr_FloodSpawnerDeleteWatch,function,medium,"'flood_spawner', BroScr_DeleteFloodSpawner, 'DELETED'"
+001b5280,BroScr_GoToBalconyNode,function,medium,"script_balcony / balcony_node, 'stop_going_to_node', misc_mg42/misc_turret"
+001824d0,BroScr_SoundBlendDebug,function,medium,'sound_blend' with cvar 'scr_debug_blender'
+00134c40,BroScr_TurretVisTargetWait,function,medium,"waittill 'turret_on_vistarget', endon 'novistarget'"
+00145ac0,BroScr_VehicleExplodeSound,function,medium,'explo_metal_rand' / 'vehicle_explode' by model
+00129250,ScrField_dropped_IsDefined,function,high,isdefined(ent.dropped): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xe2c9ccdd) compared with undefined; name recovered from the hash [section .text]
+00129830,ScrField_triggeredthink_IsDefined,function,high,isdefined(ent.triggeredthink): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x9a652fcd) compared with undefined; name recovered from the hash [section .text]
+00129970,ScrField_lag_distance_IsDefined,function,medium,isdefined(ent.h96f9883f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x96f9883f) compared with undefined [section .text]
+00129c10,ScrField_h8166d37c_IsDefined,function,medium,isdefined(ent.h8166d37c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8166d37c) compared with undefined [section .text]
+00129cf0,ScrField_h2297b461_IsDefined,function,medium,isdefined(ent.h2297b461): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2297b461) compared with undefined [section .text]
+00129f20,ScrField_ha22fa6ba_IsDefined,function,medium,isdefined(ent.ha22fa6ba): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xa22fa6ba) compared with undefined [section .text]
+0012a140,ScrField_h78063481_IsDefined,function,medium,isdefined(ent.h78063481): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x78063481) compared with undefined [section .text]
+0012a1a0,ScrField_lead_pos,function,medium,"ent.h846e4eea (vector): GetEntScriptObject + ScriptKeyTable_Find(0x846e4eea), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+0012a200,ScrField_lead_pos_IsDefined,function,medium,isdefined(ent.h846e4eea): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x846e4eea) compared with undefined [section .text]
+0012a2c0,ScrField_hcc045c84,function,medium,"ent.hcc045c84 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xcc045c84), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+0012a320,ScrField_hcc045c84_IsDefined,function,medium,isdefined(ent.hcc045c84): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xcc045c84) compared with undefined [section .text]
+0012a440,ScrField_hb9766e80_IsDefined,function,medium,isdefined(ent.hb9766e80): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xb9766e80) compared with undefined [section .text]
+0012a500,ScrField_h6ff72745,function,medium,"ent.h6ff72745 (vector): GetEntScriptObject + ScriptKeyTable_Find(0x6ff72745), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+0012a560,ScrField_h6ff72745_IsDefined,function,medium,isdefined(ent.h6ff72745): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6ff72745) compared with undefined [section .text]
+0012a710,ScrField_h7212d405_IsDefined,function,medium,isdefined(ent.h7212d405): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7212d405) compared with undefined [section .text]
+0012a980,ScrField_alive_ai_IsDefined,function,medium,isdefined(ent.hd553f35a): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd553f35a) compared with undefined [section .text]
+0012aa30,ScrField_h35ee66af_IsDefined,function,medium,isdefined(ent.h35ee66af): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x35ee66af) compared with undefined [section .text]
+0012ab00,ScrField_attack_range_IsDefined,function,high,isdefined(ent.attack_range): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x484fd687) compared with undefined; name recovered from the hash [section .text]
+0012ae10,ScrField_hb42c3b83_IsDefined,function,medium,isdefined(ent.hb42c3b83): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xb42c3b83) compared with undefined [section .text]
+0012b3a0,ScrField_rollingdeath_IsDefined,function,high,isdefined(ent.rollingdeath): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x70c2e5bb) compared with undefined; name recovered from the hash [section .text]
+0012b450,ScrField_hdf09fd77_IsDefined,function,medium,isdefined(ent.hdf09fd77): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xdf09fd77) compared with undefined [section .text]
+0012b730,ScrField_h5f01d656_IsDefined,function,medium,isdefined(ent.h5f01d656): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x5f01d656) compared with undefined [section .text]
+0012b7d0,ScrField_hc3f4bdfc_IsDefined,function,medium,isdefined(ent.hc3f4bdfc): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc3f4bdfc) compared with undefined [section .text]
+0012b870,ScrField_h8473dd9d_IsDefined,function,medium,isdefined(ent.h8473dd9d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8473dd9d) compared with undefined [section .text]
+0012bbd0,ScrField_pitch_IsDefined,function,high,isdefined(ent.pitch): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x07355c08) compared with undefined; name recovered from the hash [section .text]
+0012bcf0,ScrField_he2e8d8a5,function,medium,"ent.he2e8d8a5 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xe2e8d8a5), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+0012bd50,ScrField_he2e8d8a5_IsDefined,function,medium,isdefined(ent.he2e8d8a5): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xe2e8d8a5) compared with undefined [section .text]
+0012c1e0,ScrField_hbe149b8c_IsDefined,function,medium,isdefined(ent.hbe149b8c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xbe149b8c) compared with undefined [section .text]
+0012c360,ScrField_haa3cddde_IsDefined,function,medium,isdefined(ent.haa3cddde): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xaa3cddde) compared with undefined [section .text]
+0012cd20,ScrField_hd57e151d_IsDefined,function,medium,isdefined(ent.hd57e151d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd57e151d) compared with undefined [section .text]
+0012ce70,ScrField_h0718b2c3_IsDefined,function,medium,isdefined(ent.h0718b2c3): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0718b2c3) compared with undefined [section .text]
+0012d100,ScrField_follow_ent_pos_IsDefined,function,high,isdefined(ent.follow_ent_pos): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x5cd3d8b8) compared with undefined; name recovered from the hash [section .text]
+0012d300,ScrField_h05374cc6_IsDefined,function,medium,isdefined(ent.h05374cc6): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x05374cc6) compared with undefined [section .text]
+0012d3b0,ScrField_h7212d513_IsDefined,function,medium,isdefined(ent.h7212d513): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7212d513) compared with undefined [section .text]
+0012d4f0,ScrField_haee44119_IsDefined,function,medium,isdefined(ent.haee44119): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xaee44119) compared with undefined [section .text]
+0012d7a0,ScrField_h1ccaaaf3_IsDefined,function,medium,isdefined(ent.h1ccaaaf3): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x1ccaaaf3) compared with undefined [section .text]
+0012da50,ScrField_h147beb00_IsDefined,function,medium,isdefined(ent.h147beb00): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x147beb00) compared with undefined [section .text]
+0012dc30,ScrField_custom_kill_IsDefined,function,high,isdefined(ent.custom_kill): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x1e46f957) compared with undefined; name recovered from the hash [section .text]
+0012e100,ScrField_loops_IsDefined,function,medium,isdefined(ent.h06f63273): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x06f63273) compared with undefined [section .text]
+0012e2f0,ScrField_h515816fa_IsDefined,function,medium,isdefined(ent.h515816fa): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x515816fa) compared with undefined [section .text]
+0012e470,ScrField_stunned_IsDefined,function,high,isdefined(ent.stunned): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2f66b4d8) compared with undefined; name recovered from the hash [section .text]
+0012e510,ScrField_hc904bb71_IsDefined,function,medium,isdefined(ent.hc904bb71): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc904bb71) compared with undefined [section .text]
+0012eb20,ScrField_is_paused_IsDefined,function,medium,isdefined(ent.h262b2a4b): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x262b2a4b) compared with undefined [section .text]
+0012ebd0,ScrField_hb2f8556f_IsDefined,function,medium,isdefined(ent.hb2f8556f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xb2f8556f) compared with undefined [section .text]
+0012ecb0,ScrField_h086550be_IsDefined,function,medium,isdefined(ent.h086550be): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x086550be) compared with undefined [section .text]
+0012f0c0,ScrField_hc54b0523_IsDefined,function,medium,isdefined(ent.hc54b0523): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc54b0523) compared with undefined [section .text]
+0018e360,ScrField_script_increment_IsDefined,function,high,isdefined(ent.script_increment): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8bbf13fe) compared with undefined; name recovered from the hash [section .text]
+0018e400,ScrField_h2ebdbc24_IsDefined,function,medium,isdefined(ent.h2ebdbc24): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2ebdbc24) compared with undefined [section .text]
+0018e900,ScrField_hfbac8485_IsDefined,function,medium,isdefined(ent.hfbac8485): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xfbac8485) compared with undefined [section .text]
+0018eae0,ScrField_h81f1fdcb_IsDefined,function,medium,isdefined(ent.h81f1fdcb): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x81f1fdcb) compared with undefined [section .text]
+0018ed50,ScrField_hc07c63aa_IsDefined,function,medium,isdefined(ent.hc07c63aa): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc07c63aa) compared with undefined [section .text]
+0018edf0,ScrField_script_pacifist_IsDefined,function,medium,isdefined(ent.h95ec6a8d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x95ec6a8d) compared with undefined [section .text]
+0018efd0,ScrField_turret_use_time_IsDefined,function,high,isdefined(ent.turret_use_time): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x1751689c) compared with undefined; name recovered from the hash [section .text]
+0018f100,ScrField_script_panzer_IsDefined,function,high,isdefined(ent.script_panzer): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2663b762) compared with undefined; name recovered from the hash [section .text]
+0018f450,ScrField_script_exploder_IsDefined,function,high,isdefined(ent.script_exploder): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xf3b8dce5) compared with undefined; name recovered from the hash [section .text]
+0018f790,ScrField_hc6c08c3f_IsDefined,function,medium,isdefined(ent.hc6c08c3f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc6c08c3f) compared with undefined [section .text]
+0018f8d0,ScrField_hce29c482_IsDefined,function,medium,isdefined(ent.hce29c482): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xce29c482) compared with undefined [section .text]
+0018f970,ScrField_hd66dcf8c_IsDefined,function,medium,isdefined(ent.hd66dcf8c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd66dcf8c) compared with undefined [section .text]
+0018fab0,ScrField_h03375c37_IsDefined,function,medium,isdefined(ent.h03375c37): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x03375c37) compared with undefined [section .text]
+0018fb60,ScrField_script_delay_max_IsDefined,function,high,isdefined(ent.script_delay_max): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6c663f49) compared with undefined; name recovered from the hash [section .text]
+0018fcd0,ScrField_script_battle_IsDefined,function,medium,isdefined(ent.h026e8e55): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x026e8e55) compared with undefined [section .text]
+0018fe00,ScrField_script_fallback_IsDefined,function,medium,isdefined(ent.h8bbe4822): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8bbe4822) compared with undefined [section .text]
+0018feb0,ScrField_haff9c3b8_IsDefined,function,medium,isdefined(ent.haff9c3b8): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xaff9c3b8) compared with undefined [section .text]
+0018ff80,ScrField_h0bfd0e20_IsDefined,function,medium,isdefined(ent.h0bfd0e20): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0bfd0e20) compared with undefined [section .text]
+00190490,ScrField_script_radius_IsDefined,function,high,isdefined(ent.script_radius): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2266f963) compared with undefined; name recovered from the hash [section .text]
+00190540,ScrField_script_delay_min_IsDefined,function,high,isdefined(ent.script_delay_min): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6c663e5f) compared with undefined; name recovered from the hash [section .text]
+00190610,ScrField_h0feddbea_IsDefined,function,medium,isdefined(ent.h0feddbea): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0feddbea) compared with undefined [section .text]
+001909a0,ScrField_wounded_anim_IsDefined,function,high,isdefined(ent.wounded_anim): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xb7f3f874) compared with undefined; name recovered from the hash [section .text]
+00190a40,ScrField_script_killspawner_IsDefined,function,high,isdefined(ent.script_killspawner): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x460bf109) compared with undefined; name recovered from the hash [section .text]
+00190ec0,ScrField_script_delay_IsDefined,function,high,isdefined(ent.script_delay): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x807116c4) compared with undefined; name recovered from the hash [section .text]
+00191190,ScrField_h6067ece3_IsDefined,function,medium,isdefined(ent.h6067ece3): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6067ece3) compared with undefined [section .text]
+00191230,ScrField_h05a82fed_IsDefined,function,medium,isdefined(ent.h05a82fed): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x05a82fed) compared with undefined [section .text]
+00191380,ScrField_h02d62a20_IsDefined,function,medium,isdefined(ent.h02d62a20): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x02d62a20) compared with undefined [section .text]
+00191420,ScrField_h7599373d_IsDefined,function,medium,isdefined(ent.h7599373d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7599373d) compared with undefined [section .text]
+00191680,ScrField_h33a4ea6c_IsDefined,function,medium,isdefined(ent.h33a4ea6c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x33a4ea6c) compared with undefined [section .text]
+00191800,ScrField_h8b05303f,function,medium,"ent.h8b05303f (vector): GetEntScriptObject + ScriptKeyTable_Find(0x8b05303f), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+00191860,ScrField_h8b05303f_IsDefined,function,medium,isdefined(ent.h8b05303f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8b05303f) compared with undefined [section .text]
+00191b70,ScrField_script_explode_IsDefined,function,high,isdefined(ent.script_explode): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xbf9dc6e4) compared with undefined; name recovered from the hash [section .text]
+00191c10,ScrField_hdd7e1820_IsDefined,function,medium,isdefined(ent.hdd7e1820): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xdd7e1820) compared with undefined [section .text]
+00191cb0,ScrField_hf56955a1_IsDefined,function,medium,isdefined(ent.hf56955a1): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xf56955a1) compared with undefined [section .text]
+00191f20,ScrField_h7fa1fc35_IsDefined,function,medium,isdefined(ent.h7fa1fc35): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7fa1fc35) compared with undefined [section .text]
+001920e0,ScrField_h77123d19_IsDefined,function,medium,isdefined(ent.h77123d19): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x77123d19) compared with undefined [section .text]
+00192140,ScrField_org,function,medium,"ent.h0001b227 (vector): GetEntScriptObject + ScriptKeyTable_Find(0x0001b227), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+001921a0,ScrField_org_IsDefined,function,medium,isdefined(ent.h0001b227): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0001b227) compared with undefined [section .text]
+00192550,ScrField_hee367afa_IsDefined,function,medium,isdefined(ent.hee367afa): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xee367afa) compared with undefined [section .text]
+00192680,ScrField_ha8cd6cb7_IsDefined,function,medium,isdefined(ent.ha8cd6cb7): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xa8cd6cb7) compared with undefined [section .text]
+001927c0,ScrField_script_accuracy_IsDefined,function,high,isdefined(ent.script_accuracy): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x14264808) compared with undefined; name recovered from the hash [section .text]
+00192970,ScrField_script_damage_IsDefined,function,medium,isdefined(ent.h0e625b35): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0e625b35) compared with undefined [section .text]
+00192ac0,ScrField_habc1df0a_IsDefined,function,medium,isdefined(ent.habc1df0a): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xabc1df0a) compared with undefined [section .text]
+00192bf0,ScrField_h4b1fafe5_IsDefined,function,medium,isdefined(ent.h4b1fafe5): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x4b1fafe5) compared with undefined [section .text]
+00192c90,ScrField_hbe5f9a9f_IsDefined,function,medium,isdefined(ent.hbe5f9a9f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xbe5f9a9f) compared with undefined [section .text]
+00192d30,ScrField_radius_IsDefined,function,high,isdefined(ent.radius): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xe223aad3) compared with undefined; name recovered from the hash [section .text]
+001930f0,ScrField_h2d4a70b5_IsDefined,function,medium,isdefined(ent.h2d4a70b5): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2d4a70b5) compared with undefined [section .text]
+001931d0,ScrField_is_firing_IsDefined,function,high,isdefined(ent.is_firing): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0aa8c328) compared with undefined; name recovered from the hash [section .text]
+00193280,ScrField_h6e62eedd_IsDefined,function,medium,isdefined(ent.h6e62eedd): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6e62eedd) compared with undefined [section .text]
+00193360,ScrField_script_burst_max_IsDefined,function,high,isdefined(ent.script_burst_max): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc8b639ce) compared with undefined; name recovered from the hash [section .text]
+00193430,ScrField_hcbfba6d8_IsDefined,function,medium,isdefined(ent.hcbfba6d8): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xcbfba6d8) compared with undefined [section .text]
+00193570,ScrField_script_random_IsDefined,function,medium,isdefined(ent.h2263ce3d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2263ce3d) compared with undefined [section .text]
+00193620,ScrField_finished_spawning_IsDefined,function,high,isdefined(ent.finished_spawning): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc0bb2676) compared with undefined; name recovered from the hash [section .text]
+001938e0,ScrField_hd91b375d,function,medium,"ent.hd91b375d (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd91b375d), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+00193940,ScrField_hd91b375d_IsDefined,function,medium,isdefined(ent.hd91b375d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd91b375d) compared with undefined [section .text]
+00193a40,ScrField_h5e1a2a0c_IsDefined,function,medium,isdefined(ent.h5e1a2a0c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x5e1a2a0c) compared with undefined [section .text]
+00193b70,ScrField_hb61a7388_IsDefined,function,medium,isdefined(ent.hb61a7388): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xb61a7388) compared with undefined [section .text]
+00193cb0,ScrField_ai_mode_IsDefined,function,medium,isdefined(ent.h97c730fd): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x97c730fd) compared with undefined [section .text]
+00193e70,ScrField_h4a3b5a6c_IsDefined,function,medium,isdefined(ent.h4a3b5a6c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x4a3b5a6c) compared with undefined [section .text]
+00194180,ScrField_h60a41c54_IsDefined,function,medium,isdefined(ent.h60a41c54): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x60a41c54) compared with undefined [section .text]
+00194220,ScrField_he5f891d2_IsDefined,function,medium,isdefined(ent.he5f891d2): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xe5f891d2) compared with undefined [section .text]
+001942c0,ScrField_script_speed_IsDefined,function,high,isdefined(ent.script_speed): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x810bb259) compared with undefined; name recovered from the hash [section .text]
+00194530,ScrField_h629afc27_IsDefined,function,medium,isdefined(ent.h629afc27): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x629afc27) compared with undefined [section .text]
+00194680,ScrField_script_burst_min_IsDefined,function,high,isdefined(ent.script_burst_min): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xc8b638d8) compared with undefined; name recovered from the hash [section .text]
+00194750,ScrField_h227464a0_IsDefined,function,medium,isdefined(ent.h227464a0): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x227464a0) compared with undefined [section .text]
+00194930,ScrField_script_delete_IsDefined,function,medium,isdefined(ent.h0e22c955): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0e22c955) compared with undefined [section .text]
+00194a70,ScrField_h99ccf0cc_IsDefined,function,medium,isdefined(ent.h99ccf0cc): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x99ccf0cc) compared with undefined [section .text]
+00194bb0,ScrField_h73623f0d_IsDefined,function,medium,isdefined(ent.h73623f0d): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x73623f0d) compared with undefined [section .text]
+00194c50,ScrField_h95b9edc3_IsDefined,function,medium,isdefined(ent.h95b9edc3): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x95b9edc3) compared with undefined [section .text]
+00194d80,ScrField_ha7ad4a18_IsDefined,function,medium,isdefined(ent.ha7ad4a18): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xa7ad4a18) compared with undefined [section .text]
+00194e20,ScrField_h77123c0f_IsDefined,function,medium,isdefined(ent.h77123c0f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x77123c0f) compared with undefined [section .text]
+00194ed0,ScrField_h6a80ec39_IsDefined,function,medium,isdefined(ent.h6a80ec39): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6a80ec39) compared with undefined [section .text]
+00195040,ScrField_hd4133af2_IsDefined,function,medium,isdefined(ent.hd4133af2): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xd4133af2) compared with undefined [section .text]
+00195190,ScrField_had6d6fd5_IsDefined,function,medium,isdefined(ent.had6d6fd5): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xad6d6fd5) compared with undefined [section .text]
+00195230,ScrField_h2861269a_IsDefined,function,medium,isdefined(ent.h2861269a): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x2861269a) compared with undefined [section .text]
+001955d0,ScrField_hee885a52_IsDefined,function,medium,isdefined(ent.hee885a52): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xee885a52) compared with undefined [section .text]
+001959e0,ScrField_h8cb5047a_IsDefined,function,medium,isdefined(ent.h8cb5047a): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8cb5047a) compared with undefined [section .text]
+00195a80,ScrField_h0f865995_IsDefined,function,medium,isdefined(ent.h0f865995): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x0f865995) compared with undefined [section .text]
+00195bd0,ScrField_hce8a66f4_IsDefined,function,medium,isdefined(ent.hce8a66f4): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xce8a66f4) compared with undefined [section .text]
+00196360,ScrField_h7b1e85ba_IsDefined,function,medium,isdefined(ent.h7b1e85ba): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7b1e85ba) compared with undefined [section .text]
+001964e0,ScrField_hb217897f,function,medium,"ent.hb217897f (vector): GetEntScriptObject + ScriptKeyTable_Find(0xb217897f), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+00196540,ScrField_hb217897f_IsDefined,function,medium,isdefined(ent.hb217897f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xb217897f) compared with undefined [section .text]
+00196640,ScrField_h747cde6c_IsDefined,function,medium,isdefined(ent.h747cde6c): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x747cde6c) compared with undefined [section .text]
+00196780,ScrField_script_health_IsDefined,function,high,isdefined(ent.script_health): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x16246d58) compared with undefined; name recovered from the hash [section .text]
+00196830,ScrField_h66db43f0_IsDefined,function,medium,isdefined(ent.h66db43f0): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x66db43f0) compared with undefined [section .text]
+00196900,ScrField_h02f1dfc6_IsDefined,function,medium,isdefined(ent.h02f1dfc6): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x02f1dfc6) compared with undefined [section .text]
+00196cc0,ScrField_h6937c3b9_IsDefined,function,medium,isdefined(ent.h6937c3b9): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x6937c3b9) compared with undefined [section .text]
+00196e70,ScrField_script_grenades_IsDefined,function,medium,isdefined(ent.h599fdcf6): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x599fdcf6) compared with undefined [section .text]
+00196fc0,ScrField_hbb50e708_IsDefined,function,medium,isdefined(ent.hbb50e708): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xbb50e708) compared with undefined [section .text]
+00197100,ScrField_h8177124f_IsDefined,function,medium,isdefined(ent.h8177124f): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x8177124f) compared with undefined [section .text]
+00197350,ScrField_h7aeb941a,function,medium,"ent.h7aeb941a (vector): GetEntScriptObject + ScriptKeyTable_Find(0x7aeb941a), else ScriptKeyTable_SetVector(undefined vector) [section .text]"
+001973b0,ScrField_h7aeb941a_IsDefined,function,medium,isdefined(ent.h7aeb941a): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7aeb941a) compared with undefined [section .text]
+001975f0,ScrField_script_balcony_IsDefined,function,high,isdefined(ent.script_balcony): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x4c5a47b9) compared with undefined; name recovered from the hash [section .text]
+001976a0,ScrField_ha3b8e90e_IsDefined,function,medium,isdefined(ent.ha3b8e90e): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xa3b8e90e) compared with undefined [section .text]
+00197930,ScrField_generic_dialogue_IsDefined,function,medium,isdefined(ent.hec5d0f65): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xec5d0f65) compared with undefined [section .text]
+001979d0,ScrField_had8f34a0_IsDefined,function,medium,isdefined(ent.had8f34a0): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xad8f34a0) compared with undefined [section .text]
+00197d00,ScrField_script_grenadeawareness_IsDefined,function,high,isdefined(ent.script_grenadeawareness): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x3dba7dea) compared with undefined; name recovered from the hash [section .text]
+00197e60,ScrField_ha31c116e_IsDefined,function,medium,isdefined(ent.ha31c116e): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xa31c116e) compared with undefined [section .text]
+00198030,ScrField_balcony_node_IsDefined,function,high,isdefined(ent.balcony_node): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x474f5086) compared with undefined; name recovered from the hash [section .text]
+00198210,ScrField_h7954a99e_IsDefined,function,medium,isdefined(ent.h7954a99e): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x7954a99e) compared with undefined [section .text]
+001982b0,ScrField_h27ed5a85_IsDefined,function,medium,isdefined(ent.h27ed5a85): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x27ed5a85) compared with undefined [section .text]
+00198360,ScrField_script_wait_IsDefined,function,high,isdefined(ent.script_wait): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xec0a1800) compared with undefined; name recovered from the hash [section .text]
+001984d0,ScrField_h9cad0b77_IsDefined,function,medium,isdefined(ent.h9cad0b77): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x9cad0b77) compared with undefined [section .text]
+00198570,ScrField_script_mg42_IsDefined,function,high,isdefined(ent.script_mg42): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xec070be6) compared with undefined; name recovered from the hash [section .text]
+004bac20,ScrField_hefb05f93_IsDefined_TUNISIA,function,medium,isdefined(ent.hefb05f93): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0xefb05f93) compared with undefined [section TUNISIA]
+0056ac70,ScrField_h83353d6b_IsDefined_LIBEATOR,function,medium,isdefined(ent.h83353d6b): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_Find(0x83353d6b) compared with undefined [section LIBEATOR]
+0056ada0,ScrField_h226a4d8b_LIBEATOR,function,medium,"ent.h226a4d8b (vector): GetEntScriptObject + ScriptKeyTable_Find(0x226a4d8b), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
+0056af50,ScrField_h226a09bf_LIBEATOR,function,medium,"ent.h226a09bf (vector): GetEntScriptObject + ScriptKeyTable_Find(0x226a09bf), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
+0056b5d0,ScrField_hd8f3b227_LIBEATOR,function,medium,"ent.hd8f3b227 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd8f3b227), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
+0056b8e0,ScrField_hd8f389a7_LIBEATOR,function,medium,"ent.hd8f389a7 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xd8f389a7), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
+0056bc50,ScrField_hc51bbe06_LIBEATOR,function,medium,"ent.hc51bbe06 (vector): GetEntScriptObject + ScriptKeyTable_Find(0xc51bbe06), else ScriptKeyTable_SetVector(undefined vector) [section LIBEATOR]"
+00763630,ScrField_end_pos_BUCHHOLZ,function,medium,"ent.h9a6e4d8a (vector): GetEntScriptObject + ScriptKeyTable_Find(0x9a6e4d8a), else ScriptKeyTable_SetVector(undefined vector) [section BUCHHOLZ]"
+00763d00,ScrField_end_angles_BUCHHOLZ,function,medium,"ent.h04def1e4 (vector): GetEntScriptObject + ScriptKeyTable_Find(0x04def1e4), else ScriptKeyTable_SetVector(undefined vector) [section BUCHHOLZ]"
+00458da0,ScriptKeyTable_GetString,function,medium,"thiscall(hash): ScriptKeyTable_Find, else stores an empty ScriptString through 00458d40 and returns it (get-or-create of a string value)"
+00458d40,ScriptKeyTable_SetString,function,medium,stores a ScriptString value under a hash (called by ScriptKeyTable_GetString with an empty string)
+0052bd10,ScriptKeyTable_GetStringCopy,function,medium,"thiscall(out, hash): copies the found ScriptString into out, else empty (FromRep 0)"
+0045cd00,ScriptKeyTable_GetArrayCopy,function,medium,"thiscall(out, hash): copies the found 12-byte array {data, capacity, count} through 0045c270, else zeroes out"
+0017c2e0,ScriptKeyTable_GetArrayCopy_2,function,medium,same as ScriptKeyTable_GetArrayCopy with another element copy (0045c410)
+0045cd50,ScriptKeyTable_GetArray,function,medium,"thiscall(hash): ScriptKeyTable_Find, else creates an empty 12-byte array through 0045cc80 (get-or-create)"
+0045cc80,ScriptKeyTable_SetArray,function,medium,stores an array value under a hash (called by ScriptKeyTable_GetArray with an empty array)
+0017c080,ScriptKeyTable_GetStruct1c,function,medium,"thiscall(hash): ScriptKeyTable_Find, else Scr_Alloc 0x1c zeroed bytes and ScriptKeyTable_Set (get-or-create of a 0x1c-byte value)"
+00458e10,ScriptKeyTable_SetValue,function,medium,"ScriptKeyTable_Set(hash, *value): jumps to Set with the dereferenced value argument"
+001294d0,ScrField_targets_groupname_IsDefined,function,high,isdefined(ent.targets_groupname) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x46861906) non-empty; name recovered from the hash [section .text]
+00129610,ScrField_h55576ed6,function,medium,ent.h55576ed6: GetEntScriptObject + typed get-or-create of key 0x55576ed6 (FUN_00458da0) [section .text]
+00129640,ScrField_h55576ed6_IsDefined,function,medium,isdefined(ent.h55576ed6) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x55576ed6) non-empty [section .text]
+0012ad40,ScrField_hb6abdc5e,function,medium,ent.hb6abdc5e: GetEntScriptObject + typed get-or-create of key 0xb6abdc5e (FUN_00458da0) [section .text]
+0012b1c0,ScrField_burst_notify_IsDefined,function,high,isdefined(ent.burst_notify) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x2a11980e) non-empty; name recovered from the hash [section .text]
+0012b660,ScrField_drone_gun,function,high,ent.drone_gun: GetEntScriptObject + typed get-or-create of key 0x1a7e7545 (FUN_00458da0); name recovered from the hash [section .text]
+0012b690,ScrField_drone_gun_IsDefined,function,high,isdefined(ent.drone_gun) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x1a7e7545) non-empty; name recovered from the hash [section .text]
+0012baf0,ScrField_dynamic_model,function,high,ent.dynamic_model: GetEntScriptObject + typed get-or-create of key 0x05d2529a (FUN_00458da0); name recovered from the hash [section .text]
+0012bc60,ScrField_hcc2baca1,function,medium,ent.hcc2baca1: GetEntScriptObject + typed get-or-create of key 0xcc2baca1 (FUN_00458da0) [section .text]
+0012c840,ScrField_h062bea65,function,medium,ent.h062bea65: GetEntScriptObject + typed get-or-create of key 0x062bea65 (FUN_00458da0) [section .text]
+0012cbb0,ScrField_pos_tag,function,high,ent.pos_tag: GetEntScriptObject + typed get-or-create of key 0xd91e5c5b (FUN_00458da0); name recovered from the hash [section .text]
+0012cc40,ScrField_h1cc418a4,function,medium,ent.h1cc418a4: GetEntScriptObject + typed get-or-create of key 0x1cc418a4 (FUN_00458da0) [section .text]
+0012cf80,ScrField_hd6eafad9,function,medium,ent.hd6eafad9: GetEntScriptObject + typed get-or-create of key 0xd6eafad9 (FUN_00458da0) [section .text]
+0012cfb0,ScrField_hd6eafad9_IsDefined,function,medium,isdefined(ent.hd6eafad9) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xd6eafad9) non-empty [section .text]
+0012db50,ScrField_hf203df5e,function,medium,ent.hf203df5e: GetEntScriptObject + typed get-or-create of key 0xf203df5e (FUN_00458da0) [section .text]
+0012db80,ScrField_hf203df5e_IsDefined,function,medium,isdefined(ent.hf203df5e) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xf203df5e) non-empty [section .text]
+0012e570,ScrField_hd70abfb1,function,medium,ent.hd70abfb1: GetEntScriptObject + typed get-or-create of key 0xd70abfb1 (FUN_00458da0) [section .text]
+0012e990,ScrField_hdfe2186c,function,medium,ent.hdfe2186c: GetEntScriptObject + typed get-or-create of key 0xdfe2186c (FUN_00458da0) [section .text]
+00140090,ScrField_hc4813666,function,medium,ent.hc4813666: GetEntScriptObject + typed get-or-create of key 0xc4813666 (FUN_0017c080) [section .text]
+00146450,ScrField_h677e856b_IsDefined,function,medium,"isdefined(ent.h677e856b) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x677e856b, freed [section .text]"
+001464f0,ScrField_followers_IsDefined,function,high,"isdefined(ent.followers) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xdeca7f50, freed; name recovered from the hash [section .text]"
+00146590,ScrField_h4f7c0a56_IsDefined,function,medium,"isdefined(ent.h4f7c0a56) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x4f7c0a56, freed [section .text]"
+00146630,ScrField_hc548bcb7_IsDefined,function,medium,"isdefined(ent.hc548bcb7) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xc548bcb7, freed [section .text]"
+001466d0,ScrField_h512d9463_IsDefined,function,medium,"isdefined(ent.h512d9463) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x512d9463, freed [section .text]"
+00146770,ScrField_hb89aec99_IsDefined,function,medium,"isdefined(ent.hb89aec99) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xb89aec99, freed [section .text]"
+00146810,ScrField_h85644aaa_IsDefined,function,medium,"isdefined(ent.h85644aaa) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x85644aaa, freed [section .text]"
+001468b0,ScrField_path_pos_IsDefined,function,high,"isdefined(ent.path_pos) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xaeae4e0b, freed; name recovered from the hash [section .text]"
+00146950,ScrField_guys_IsDefined,function,high,"isdefined(ent.guys) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x00325b53, freed; name recovered from the hash [section .text]"
+001469c0,ScrField_bomb,function,high,ent.bomb: GetEntScriptObject + typed get-or-create of key 0x0030b1c2 (FUN_0045cd50); name recovered from the hash [section .text]
+001469f0,ScrField_bomb_IsDefined,function,high,"isdefined(ent.bomb) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x0030b1c2, freed; name recovered from the hash [section .text]"
+00146a90,ScrField_he337f297_IsDefined,function,medium,"isdefined(ent.he337f297) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xe337f297, freed [section .text]"
+00146b00,ScrField_h4ced49f6,function,medium,ent.h4ced49f6: GetEntScriptObject + typed get-or-create of key 0x4ced49f6 (FUN_0045cd50) [section .text]
+00146b30,ScrField_h4ced49f6_IsDefined,function,medium,"isdefined(ent.h4ced49f6) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x4ced49f6, freed [section .text]"
+00146bd0,ScrField_hef260d98_IsDefined,function,medium,"isdefined(ent.hef260d98) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xef260d98, freed [section .text]"
+00146c40,ScrField_riders,function,high,ent.riders: GetEntScriptObject + typed get-or-create of key 0xe2a39a33 (FUN_0045cd50); name recovered from the hash [section .text]
+00146c70,ScrField_riders_IsDefined,function,high,"isdefined(ent.riders) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xe2a39a33, freed; name recovered from the hash [section .text]"
+00146ce0,ScrField_he104fd5c,function,medium,ent.he104fd5c: GetEntScriptObject + typed get-or-create of key 0xe104fd5c (FUN_0045cd50) [section .text]
+00146d10,ScrField_he104fd5c_IsDefined,function,medium,"isdefined(ent.he104fd5c) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xe104fd5c, freed [section .text]"
+00146db0,ScrField_h05c4ceb7_IsDefined,function,medium,"isdefined(ent.h05c4ceb7) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x05c4ceb7, freed [section .text]"
+00146e20,ScrField_h9ecce58a,function,medium,ent.h9ecce58a: GetEntScriptObject + typed get-or-create of key 0x9ecce58a (FUN_0045cd50) [section .text]
+00146e50,ScrField_h9ecce58a_IsDefined,function,medium,"isdefined(ent.h9ecce58a) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x9ecce58a, freed [section .text]"
+00146ec0,ScrField_gunners,function,high,ent.gunners: GetEntScriptObject + typed get-or-create of key 0x2cd69a2a (FUN_0017c660); name recovered from the hash [section .text]
+00146ef0,ScrField_gunners_IsDefined,function,high,"isdefined(ent.gunners) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x2cd69a2a, freed; name recovered from the hash [section .text]"
+00146f60,ScrField_hb0996bdc,function,medium,ent.hb0996bdc: GetEntScriptObject + typed get-or-create of key 0xb0996bdc (FUN_0045cd50) [section .text]
+00146f90,ScrField_hb0996bdc_IsDefined,function,medium,"isdefined(ent.hb0996bdc) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xb0996bdc, freed [section .text]"
+0018e790,ScrField_script_uniquename,function,high,ent.script_uniquename: GetEntScriptObject + typed get-or-create of key 0x976440c4 (FUN_00458da0); name recovered from the hash [section .text]
+0018eb40,ScrField_haee61f94,function,medium,ent.haee61f94: GetEntScriptObject + typed get-or-create of key 0xaee61f94 (FUN_00458da0) [section .text]
+0018eb70,ScrField_haee61f94_IsDefined,function,medium,isdefined(ent.haee61f94) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xaee61f94) non-empty [section .text]
+0018ec80,ScrField_vehicletype,function,high,ent.vehicletype: GetEntScriptObject + typed get-or-create of key 0x1fbf2135 (FUN_00458da0); name recovered from the hash [section .text]
+0018ecb0,ScrField_vehicletype_IsDefined,function,high,isdefined(ent.vehicletype) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x1fbf2135) non-empty; name recovered from the hash [section .text]
+0018f2a0,ScrField_script_waittill,function,high,ent.script_waittill: GetEntScriptObject + typed get-or-create of key 0x8035694d (FUN_00458da0); name recovered from the hash [section .text]
+0018f2d0,ScrField_script_waittill_IsDefined,function,high,isdefined(ent.script_waittill) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x8035694d) non-empty; name recovered from the hash [section .text]
+0018fd30,ScrField_script_animname,function,high,ent.script_animname: GetEntScriptObject + typed get-or-create of key 0x41a849d7 (FUN_00458da0); name recovered from the hash [section .text]
+0018fd60,ScrField_script_animname_IsDefined,function,high,isdefined(ent.script_animname) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x41a849d7) non-empty; name recovered from the hash [section .text]
+001901e0,ScrField_script_chain,function,high,ent.script_chain: GetEntScriptObject + typed get-or-create of key 0x8007a3d3 (FUN_00458da0); name recovered from the hash [section .text]
+00190210,ScrField_script_chain_IsDefined,function,high,isdefined(ent.script_chain) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x8007a3d3) non-empty; name recovered from the hash [section .text]
+00190700,ScrField_script_sound,function,high,ent.script_sound: GetEntScriptObject + typed get-or-create of key 0x81047339 (FUN_00458da0); name recovered from the hash [section .text]
+00190730,ScrField_script_sound_IsDefined,function,high,isdefined(ent.script_sound) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x81047339) non-empty; name recovered from the hash [section .text]
+001907c0,ScrField_h0aedcb08_IsDefined,function,medium,isdefined(ent.h0aedcb08) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x0aedcb08) non-empty [section .text]
+00190aa0,ScrField_h0c4d3fa0,function,medium,ent.h0c4d3fa0: GetEntScriptObject + typed get-or-create of key 0x0c4d3fa0 (FUN_00458da0) [section .text]
+00190ad0,ScrField_h0c4d3fa0_IsDefined,function,medium,isdefined(ent.h0c4d3fa0) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x0c4d3fa0) non-empty [section .text]
+00190b30,ScrField_h3bfcf651,function,medium,ent.h3bfcf651: GetEntScriptObject + typed get-or-create of key 0x3bfcf651 (FUN_00458da0) [section .text]
+00190b60,ScrField_h3bfcf651_IsDefined,function,medium,isdefined(ent.h3bfcf651) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x3bfcf651) non-empty [section .text]
+001916e0,ScrField_h16e6cf7e,function,medium,ent.h16e6cf7e: GetEntScriptObject + typed get-or-create of key 0x16e6cf7e (FUN_00458da0) [section .text]
+00191710,ScrField_h16e6cf7e_IsDefined,function,medium,isdefined(ent.h16e6cf7e) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x16e6cf7e) non-empty [section .text]
+00191770,ScrField_he5d3774f,function,medium,ent.he5d3774f: GetEntScriptObject + typed get-or-create of key 0xe5d3774f (FUN_00458da0) [section .text]
+001917a0,ScrField_he5d3774f_IsDefined,function,medium,isdefined(ent.he5d3774f) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xe5d3774f) non-empty [section .text]
+00191a30,ScrField_ambient_IsDefined,function,high,isdefined(ent.ambient) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x9c1519ac) non-empty; name recovered from the hash [section .text]
+00191e80,ScrField_h210b183c_IsDefined,function,medium,isdefined(ent.h210b183c) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x210b183c) non-empty [section .text]
+001925b0,ScrField_script_team,function,high,ent.script_team: GetEntScriptObject + typed get-or-create of key 0xec0b8919 (FUN_00458da0); name recovered from the hash [section .text]
+001925e0,ScrField_script_team_IsDefined,function,high,isdefined(ent.script_team) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xec0b8919) non-empty; name recovered from the hash [section .text]
+00192b20,ScrField_h83048760,function,medium,ent.h83048760: GetEntScriptObject + typed get-or-create of key 0x83048760 (FUN_00458da0) [section .text]
+00192b50,ScrField_h83048760_IsDefined,function,medium,isdefined(ent.h83048760) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x83048760) non-empty [section .text]
+00192dc0,ScrField_h9e8b61c4_IsDefined,function,medium,isdefined(ent.h9e8b61c4) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x9e8b61c4) non-empty [section .text]
+00193680,ScrField_hd1c52a4f,function,medium,ent.hd1c52a4f: GetEntScriptObject + typed get-or-create of key 0xd1c52a4f (FUN_00458da0) [section .text]
+001936b0,ScrField_hd1c52a4f_IsDefined,function,medium,isdefined(ent.hd1c52a4f) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xd1c52a4f) non-empty [section .text]
+00193850,ScrField_haff32d79,function,medium,ent.haff32d79: GetEntScriptObject + typed get-or-create of key 0xaff32d79 (FUN_00458da0) [section .text]
+00193880,ScrField_haff32d79_IsDefined,function,medium,isdefined(ent.haff32d79) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xaff32d79) non-empty [section .text]
+00193ad0,ScrField_h81ea0dd3_IsDefined,function,medium,isdefined(ent.h81ea0dd3) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x81ea0dd3) non-empty [section .text]
+00193d10,ScrField_ha264fbf5,function,medium,ent.ha264fbf5: GetEntScriptObject + typed get-or-create of key 0xa264fbf5 (FUN_00458da0) [section .text]
+00193da0,ScrField_script_objective,function,high,ent.script_objective: GetEntScriptObject + typed get-or-create of key 0xe5d3a68d (FUN_00458da0); name recovered from the hash [section .text]
+00193dd0,ScrField_script_objective_IsDefined,function,high,isdefined(ent.script_objective) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xe5d3a68d) non-empty; name recovered from the hash [section .text]
+00193f80,ScrField_h2dae9972,function,medium,ent.h2dae9972: GetEntScriptObject + typed get-or-create of key 0x2dae9972 (FUN_00458da0) [section .text]
+00193fb0,ScrField_h2dae9972_IsDefined,function,medium,isdefined(ent.h2dae9972) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x2dae9972) non-empty [section .text]
+00194490,ScrField_scripted_dialogue_IsDefined,function,high,isdefined(ent.scripted_dialogue) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xbf1ecaaa) non-empty; name recovered from the hash [section .text]
+00195780,ScrField_h9f19950c_IsDefined,function,medium,isdefined(ent.h9f19950c) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x9f19950c) non-empty [section .text]
+001958b0,ScrField_script_hint_IsDefined,function,high,isdefined(ent.script_hint) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xec05b8e0) non-empty; name recovered from the hash [section .text]
+00195910,ScrField_hc25f482c,function,medium,ent.hc25f482c: GetEntScriptObject + typed get-or-create of key 0xc25f482c (FUN_00458da0) [section .text]
+001963c0,ScrField_ha1763cc1,function,medium,ent.ha1763cc1: GetEntScriptObject + typed get-or-create of key 0xa1763cc1 (FUN_00458da0) [section .text]
+001963f0,ScrField_ha1763cc1_IsDefined,function,medium,isdefined(ent.ha1763cc1) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xa1763cc1) non-empty [section .text]
+00197520,ScrField_script_fxid,function,high,ent.script_fxid: GetEntScriptObject + typed get-or-create of key 0xec02fc10 (FUN_00458da0); name recovered from the hash [section .text]
+00197550,ScrField_script_fxid_IsDefined,function,high,isdefined(ent.script_fxid) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xec02fc10) non-empty; name recovered from the hash [section .text]
+00197ef0,ScrField_h7a6bf1dd_IsDefined,function,medium,isdefined(ent.h7a6bf1dd) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x7a6bf1dd) non-empty [section .text]
+001b3090,ScrField_h8969d6d6_IsDefined,function,medium,"isdefined(ent.h8969d6d6) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x8969d6d6, freed [section .text]"
+001b3130,ScrField_chain_IsDefined,function,high,"isdefined(ent.chain) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x0605894e, freed; name recovered from the hash [section .text]"
+001bbf70,ScrField_h053fe992,function,medium,ent.h053fe992: GetEntScriptObject + typed get-or-create of key 0x053fe992 (FUN_001e6070) [section .text]
+001bc040,ScrField_fallback_IsDefined,function,high,"isdefined(ent.fallback) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x9ef08b23, freed; name recovered from the hash [section .text]"
+001bc0e0,ScrField_h1791f035_IsDefined,function,medium,"isdefined(ent.h1791f035) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x1791f035, freed [section .text]"
+00432d30,ScrField_tank_targets_IsDefined_PROLOGUE,function,high,"isdefined(ent.tank_targets) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xfe9bb316, freed; name recovered from the hash [section PROLOGUE]"
+0046ffe0,ScrField_path_name_ORAN,function,high,ent.path_name: GetEntScriptObject + typed get-or-create of key 0xd5c6fad0 (FUN_00458da0); name recovered from the hash [section ORAN]
+004c9bc0,ScrField_flakers_IsDefined_TUNISIA,function,high,"isdefined(ent.flakers) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x5e241a2a, freed; name recovered from the hash [section TUNISIA]"
+004c9c90,ScrField_hb527d7f6_IsDefined_TUNISIA,function,medium,"isdefined(ent.hb527d7f6) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xb527d7f6, freed [section TUNISIA]"
+004f31b0,ScrField_fire_sound_IsDefined_KASSPASS,function,high,isdefined(ent.fire_sound) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xf90af32d) non-empty; name recovered from the hash [section KASSPASS]
+005375d0,ScrField_halftrack_tag_KASSRINE,function,high,ent.halftrack_tag: GetEntScriptObject + typed get-or-create of key 0x31a2ebc9 (FUN_00458da0); name recovered from the hash [section KASSRINE]
+0056bb60,ScrField_h6229c1e2_IsDefined_LIBEATOR,function,medium,isdefined(ent.h6229c1e2) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x6229c1e2) non-empty [section LIBEATOR]
+005d54c0,ScrField_tank_targets_IsDefined_GELA,function,high,"isdefined(ent.tank_targets) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xfe9bb316, freed; name recovered from the hash [section GELA]"
+00612200,ScrField_squad_name_PIANLUPO,function,high,ent.squad_name: GetEntScriptObject + typed get-or-create of key 0x8dc89b75 (FUN_00458da0); name recovered from the hash [section PIANLUPO]
+00612230,ScrField_squad_name_IsDefined_PIANLUPO,function,high,isdefined(ent.squad_name) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x8dc89b75) non-empty; name recovered from the hash [section PIANLUPO]
+0062fc10,ScrField_artillery_ents_IsDefined_PIANLUPO,function,high,"isdefined(ent.artillery_ents) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x6c6ad902, freed; name recovered from the hash [section PIANLUPO]"
+0062fc80,ScrField_howitzer_guys_PIANLUPO,function,high,ent.howitzer_guys: GetEntScriptObject + typed get-or-create of key 0x17930c9c (FUN_0045cd50); name recovered from the hash [section PIANLUPO]
+00675a80,ScrField_flakers_IsDefined_TROINA,function,high,"isdefined(ent.flakers) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x5e241a2a, freed; name recovered from the hash [section TROINA]"
+00675b20,ScrField_targets_IsDefined_TROINA,function,high,"isdefined(ent.targets) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xc5121aee, freed; name recovered from the hash [section TROINA]"
+00699bf0,ScrField_crash_sound_IsDefined_OMAHEACH,function,high,isdefined(ent.crash_sound) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xb8847b26) non-empty; name recovered from the hash [section OMAHEACH]
+006b4b10,ScrField_artillery_ents_IsDefined_OMAHEACH,function,high,"isdefined(ent.artillery_ents) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x6c6ad902, freed; name recovered from the hash [section OMAHEACH]"
+006b4b80,ScrField_flakers_OMAHEACH,function,high,ent.flakers: GetEntScriptObject + typed get-or-create of key 0x5e241a2a (FUN_0045cd50); name recovered from the hash [section OMAHEACH]
+006b4bb0,ScrField_flakers_IsDefined_OMAHEACH,function,high,"isdefined(ent.flakers) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x5e241a2a, freed; name recovered from the hash [section OMAHEACH]"
+006b4c50,ScrField_terrain_IsDefined_OMAHEACH,function,high,"isdefined(ent.terrain) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xcd188953, freed; name recovered from the hash [section OMAHEACH]"
+006dfa30,ScrField_squad_name_IsDefined_MONS1,function,high,isdefined(ent.squad_name) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x8dc89b75) non-empty; name recovered from the hash [section MONS1]
+006dff00,ScrField_crash_sound_IsDefined_MONS1,function,high,isdefined(ent.crash_sound) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0xb8847b26) non-empty; name recovered from the hash [section MONS1]
+006e0580,ScrField_event_id_IsDefined_MONS1,function,high,isdefined(ent.event_id) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x4cdb7271) non-empty; name recovered from the hash [section MONS1]
+006e0870,ScrField_anim_type_IsDefined_MONS1,function,high,isdefined(ent.anim_type) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x9fcb880f) non-empty; name recovered from the hash [section MONS1]
+006f31c0,ScrField_occupants_MONS1,function,high,ent.occupants: GetEntScriptObject + typed get-or-create of key 0x2d315af3 (FUN_0045cd50); name recovered from the hash [section MONS1]
+006f3220,ScrField_flakers_IsDefined_MONS1,function,high,"isdefined(ent.flakers) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x5e241a2a, freed; name recovered from the hash [section MONS1]"
+006f32c0,ScrField_targets_IsDefined_MONS1,function,high,"isdefined(ent.targets) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xc5121aee, freed; name recovered from the hash [section MONS1]"
+00763cb0,ScrField_death_dialog_IsDefined_BUCHHOLZ,function,high,isdefined(ent.death_dialog) (string): EntityHandleIsValid + GetEntScriptObject + ScriptKeyTable_GetStringCopy(0x3d396ad0) non-empty; name recovered from the hash [section BUCHHOLZ]
+0076db80,ScrField_flakers_IsDefined_BUCHHOLZ,function,high,"isdefined(ent.flakers) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x5e241a2a, freed; name recovered from the hash [section BUCHHOLZ]"
+0076dc20,ScrField_hb527d7f6_BUCHHOLZ,function,medium,ent.hb527d7f6: GetEntScriptObject + typed get-or-create of key 0xb527d7f6 (FUN_0045cd50) [section BUCHHOLZ]
+0076dc50,ScrField_hb527d7f6_IsDefined_BUCHHOLZ,function,medium,"isdefined(ent.hb527d7f6) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0xb527d7f6, freed [section BUCHHOLZ]"
+00798020,ScrField_flakers_IsDefined_DRAGEETH,function,high,"isdefined(ent.flakers) (array): EntityHandleIsValid + GetEntScriptObject + array copy of key 0x5e241a2a, freed; name recovered from the hash [section DRAGEETH]"
