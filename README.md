@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 42% of the functions have a name, and 286 have been
+It's early days: about 43% of the functions have a name, and 286 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,13 +27,13 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,179 | 5,503 | 286 | 10,893 |
+| Engine and game code (`.text`) | 11,179 | 5,621 | 286 | 10,893 |
 | Mission scripts (15 level sections) | 5,324 | 1,502 | 0 | 5,324 |
-| **Total** | **16,503** | **7,005** | **286** | **16,217** |
+| **Total** | **16,503** | **7,123** | **286** | **16,217** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below). We've also named 1,336 of the game's global variables.
+(below). We've also named 2,406 of the game's global variables.
 
 ### By part of the game
 
@@ -45,7 +45,7 @@ function of the game.*
 | Engine core (memory, files, settings, commands) | 162 | 0 | 1 | 153 | 0 |
 | Client and menus | 209 | 0 | 0 | 209 | 0 |
 | Server, collision, compression | 90 | 1 | 2 | 87 | 0 |
-| Not sorted into a part yet | 9,059 | 10 | 2 | 3,547 | 3,883 |
+| Not sorted into a part yet | 9,059 | 10 | 2 | 3,665 | 3,765 |
 
 1,617 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
