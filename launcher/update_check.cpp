@@ -49,6 +49,7 @@ UpdateCheck::UpdateCheck(std::string repository, std::string current_version) {
             result.status = *newest > *have ? Status::Available : Status::UpToDate;
             result.version = std::to_string((*newest)[0]) + "." + std::to_string((*newest)[1]) + "." +
                              std::to_string((*newest)[2]);
+            result.tag = *tag;
             result.url = "https://github.com/" + repository + "/releases/tag/" + *tag;
             LOG_INFO("launcher", "update check: newest release %s, this is %s", tag->c_str(), current.c_str());
         } else {

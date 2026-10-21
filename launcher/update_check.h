@@ -1,8 +1,8 @@
 #pragma once
 
 // The launcher's update check: the newest release on GitHub (pre-releases included,
-// as every build so far is one) against this build's version. Notifies only; the
-// player downloads the new build from the release page.
+// as every build so far is one) against this build's version. Installing it is
+// updater.h's job.
 
 #include <array>
 #include <memory>
@@ -23,6 +23,7 @@ public:
     struct Result {
         Status status = Status::Checking;
         std::string version;  // the newest release's ("0.1.6"), when Available or UpToDate
+        std::string tag;      // its tag ("v0.1.6")
         std::string url;      // its release page
     };
 

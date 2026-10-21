@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <winhttp.h>
 
+#include <algorithm>
 #include <vector>
 
 namespace platform {
@@ -25,7 +26,7 @@ struct Handle {
 
 }  // namespace
 
-std::optional<std::string> https_get(const std::string& url, const std::string& user_agent) {
+std::optional<std::string> https_get(const std::string& url, const std::string& user_agent, long timeout_seconds) {
     const std::wstring wide_url = widen(url);
     URL_COMPONENTS parts{};
     parts.dwStructSize = sizeof(parts);
@@ -38,7 +39,8 @@ std::optional<std::string> https_get(const std::string& url, const std::string& 
     Handle session{WinHttpOpen(widen(user_agent).c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME,
                                WINHTTP_NO_PROXY_BYPASS, 0)};
     if (!session.h) return {};
-    WinHttpSetTimeouts(session.h, 5000, 5000, 5000, 5000);
+    const int timeout_ms = static_cast<int>(std::min(timeout_seconds, 60L) * 1000);
+    WinHttpSetTimeouts(session.h, timeout_ms, timeout_ms, timeout_ms, timeout_ms);
     Handle connection{WinHttpConnect(session.h, host.c_str(), parts.nPort, 0)};
     if (!connection.h) return {};
     Handle request{WinHttpOpenRequest(connection.h, L"GET", path.c_str(), nullptr, WINHTTP_NO_REFERER,

@@ -23,6 +23,7 @@
 #include "program.h"
 #include "settings.h"
 #include "update_check.h"
+#include "updater.h"
 
 namespace fs = std::filesystem;
 
@@ -148,6 +149,7 @@ class Launcher {
 public:
     explicit Launcher(SDL_Window* window)
         : window_(window), settings_(platform::load_settings()), choices_(read_choices(settings_)) {
+        launcher::remove_update_leftovers(platform::executable_dir());
         if (choices_.check_updates) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
     }
 
@@ -174,11 +176,12 @@ public:
         updates();
         const bool keep_open = buttons();
         ImGui::End();
-        return keep_open;
+        return keep_open && !restart_after_update();
     }
 
 private:
-    // At the top while a newer release is out.
+    // At the top while a newer release is out: a link to it and, in an installed
+    // release (not a dev build), Update now.
     void update_notice() {
         if (!update_) return;
         const launcher::UpdateCheck::Result r = update_->result();
@@ -188,6 +191,34 @@ private:
         ImGui::SameLine();
         if (ImGui::SmallButton("Download page") && !SDL_OpenURL(r.url.c_str()))
             LOG_WARN("launcher", "cannot open %s: %s", r.url.c_str(), SDL_GetError());
+        if (!updater_ && launcher::is_release_install(platform::executable_dir())) {
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Update now"))
+                updater_.emplace(COD_BRO_RELEASES, r.tag, r.version, COD_BRO_PACKAGE, platform::executable_dir());
+        }
+        if (!updater_) return;
+        const launcher::Updater::Result u = updater_->result();
+        if (u.status == launcher::Updater::Status::Failed)
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "Update failed: %s", u.message.c_str());
+        else
+            ImGui::TextColored(ImVec4(0.45f, 0.75f, 1.0f, 1), "%s", u.message.c_str());
+    }
+
+    // While an update downloads or installs, the game must not start.
+    bool updating() const {
+        return updater_ && updater_->result().status != launcher::Updater::Status::Failed;
+    }
+
+    // Once an update is installed: saves the options and starts the new launcher.
+    // Returns true when this one should close.
+    bool restart_after_update() {
+        if (!updater_ || restarted_ || updater_->result().status != launcher::Updater::Status::Installed) return false;
+        restarted_ = true;
+        write_choices(choices_, settings_);
+        platform::save_settings(settings_);
+        if (platform::start_program(platform::sibling_executable("cod_bro_launcher"))) return true;
+        error_ = "The update is installed; start the launcher again to use it.";
+        return false;
     }
 
     void updates() {
@@ -195,7 +226,8 @@ private:
         if (ImGui::Checkbox("Check for updates", &choices_.check_updates) && choices_.check_updates && !update_)
             update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
         help_marker("When the launcher opens, asks GitHub for the newest release and shows a link to it "
-                    "if it is newer. Nothing is downloaded or installed by itself.");
+                    "if it is newer. Update now downloads and installs it, then restarts the launcher; your "
+                    "game files, saves and settings stay as they are. Nothing is installed by itself.");
         ImGui::SameLine();
         const char* status = "";
         if (update_ && choices_.check_updates) {
@@ -363,7 +395,7 @@ private:
 
     bool buttons() {
         ImGui::Separator();
-        const bool ready = platform::has_game_files(asset_dir(choices_));
+        const bool ready = platform::has_game_files(asset_dir(choices_)) && !updating();
         ImGui::BeginDisabled(!ready);
         const bool campaign = ImGui::Button("Play", ImVec2(ImGui::GetFontSize() * 7, 0));
         ImGui::SameLine();
@@ -406,6 +438,8 @@ private:
     Choices choices_;
     std::string error_;
     std::optional<launcher::UpdateCheck> update_;
+    std::optional<launcher::Updater> updater_;
+    bool restarted_ = false;
 };
 
 }  // namespace

@@ -46,7 +46,10 @@ next steps: [docs/status.md](docs/status.md).
 2. Unpack it anywhere and copy your game dump into its `assets/` folder.
 3. Start `cod_bro_launcher`: it checks the game files, sets the options and starts
    the game. When it opens it asks GitHub for the newest release and links to it if
-   it is newer (only a notice: nothing is downloaded; Check for updates turns it off).
+   it is newer; Update now downloads it, checks it against the release's
+   SHA256SUMS.txt, installs it and restarts the launcher (`assets/`, saves and
+   settings stay; Windows 10 1803 or later, for its tar). Nothing is installed
+   unless you click it; Check for updates turns the check off.
 
 | | Linux | Windows |
 |---|---|---|

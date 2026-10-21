@@ -45,7 +45,7 @@ size_t append(char* data, size_t size, size_t count, void* body) {
 
 }  // namespace
 
-std::optional<std::string> https_get(const std::string& url, const std::string& user_agent) {
+std::optional<std::string> https_get(const std::string& url, const std::string& user_agent, long timeout_seconds) {
     if (url.rfind("https://", 0) != 0) return {};
     const Library* l = curl();
     if (!l) return {};
@@ -57,7 +57,7 @@ std::optional<std::string> https_get(const std::string& url, const std::string& 
     l->easy_setopt(c, kOptUserAgent, user_agent.c_str());
     l->easy_setopt(c, kOptWriteFunction, static_cast<WriteFunction>(append));
     l->easy_setopt(c, kOptWriteData, static_cast<void*>(&body));
-    l->easy_setopt(c, kOptTimeout, 10L);
+    l->easy_setopt(c, kOptTimeout, timeout_seconds);
     l->easy_setopt(c, kOptFollowLocation, 1L);
     l->easy_setopt(c, kOptNoSignal, 1L);
     long status = 0;
