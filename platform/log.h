@@ -10,8 +10,10 @@ namespace platform {
 enum class LogLevel { Trace, Debug, Info, Warn, Error };
 
 void log_set_level(LogLevel level);
-// Also writes every line to `path` (appending). False if it cannot be opened.
-bool log_set_file(const char* path);
+// Also writes every line to `path` (appending). False if it cannot be opened. With
+// max_bytes, stops writing to the file (stderr goes on) once it reaches that size, so
+// one message repeated every frame can't fill a player's disk.
+bool log_set_file(const char* path, long max_bytes = 0);
 // Time origin of log timestamps and other "seconds since start" values. A relaunched
 // process (the title rebooting into another XBE) sets it to the first one's.
 std::chrono::steady_clock::time_point session_start();

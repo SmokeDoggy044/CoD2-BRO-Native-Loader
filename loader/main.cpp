@@ -482,7 +482,8 @@ int loader_main(int argc, char** argv) {
         fs::create_directories(platform::user_data_dir(), ec);
         g_log_path = platform::user_data_dir() / "log.txt";
         if (!options->launch_data_fd) fs::remove(g_log_path, ec);
-        if (!platform::log_set_file(g_log_path.string().c_str()))
+        constexpr long kPlayerLogLimit = 8l << 20;
+        if (!platform::log_set_file(g_log_path.string().c_str(), kPlayerLogLimit))
             std::fprintf(stderr, "cannot write %s\n", g_log_path.string().c_str());
     }
     loader::set_fatal_exit_hook([](bool error) {
