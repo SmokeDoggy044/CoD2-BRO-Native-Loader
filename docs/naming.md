@@ -547,3 +547,24 @@ CoD-specific functions included, so later decompilation covers both kinds.
   Bro__load_gmi__main (file name from the MP XBE's "_load_gmi::main_trigger"). Left: 380
   dispatcher entries whose names have no string (hash only) and the ~1,750 other compiled
   script functions; name those from their callers now that the callbacks read.
+- Compiled-script runtime and field accessors (2026-10-21, later): the 257 still unlabeled slot
+  pointers of the script interface (slots 0-838 at 0x00922140) got `pScr_<target>` labels, which
+  made the runtime 0x119a00-0x121000 readable: 76 one-slot wrappers `ScrCall_<target>`, the
+  ScriptString operations (Append*/Concat/Substring/FromInt/FromFloat/Trim*), the key table
+  (ScriptKeyTable_Set/Remove/Clear/Clone/FromPairs; values copied/released through the type
+  lookup g_scrValueTypeLookup 0x00922e70), the wait family (Scr_WaitExact, Scr_WaitFrames,
+  Scr_WaitTillTimeout/Args, Scr_WaitOnObject over wait records 15/16/17; Scr_Suspend* save the
+  thread locals and trap with int3), the undefined sentinels g_scrUndefinedFloat/Int, and 18
+  script-class destructors (ScrClass_<vtable>_Dtor; 0x007f8b00 is the base of most).
+  Entity script fields (`ent.name` in the source) live in a per-entity key table keyed by
+  Com_HashKeyNoCase(name); every compiled function reads them through tiny accessors
+  (GetEntScriptObject + ScriptKeyTable_Find(hash) [+ Set(hash, undefined)]) or
+  isdefined checks. Collecting the key of every ScriptKeyTable_Find call (KeyHashSites.java) and
+  reversing the hashes against the XBEs' strings + English words (skill scripts keyhash_*.py: the
+  hash is linear, so word pairs/triples are a meet-in-the-middle) recovered 214 of 487 field names
+  (anim_movement, script_accuracy, goalnode, script_delay_min/max, last_shot_time, ...). Named
+  ScrField_<name> / ScrField_<name>_IsDefined (level copies suffixed with the section), 223 more
+  as ScrField_h<hash> until their names are found (rename with RenameFromMap.java). Also
+  BroScr_MagicBulletShield, BroScr_Exploder, BroScr_GetFriendlyChainNode, BroScr_HandleNoteTracks.
+  Next: the ~1,500 other common-script functions by packet (`namepack.py next N --range
+  00120000-001e4000`), now that fields and runtime calls read.
