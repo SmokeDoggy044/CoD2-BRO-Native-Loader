@@ -701,5 +701,12 @@ CoD-specific functions included, so later decompilation covers both kinds.
   strings gave three source names: _event3::liberators_ascend, ThrowAIs_FromSpot (mons1), the FLYBY ad
   check. Most are low confidence (name from strings, not a full read). 50 same-code-shape copies of
   named functions in the level sections (std_list, DynArray, a few BroScr helpers) named with _<SECTION>.
-  Next: the rest of the ~3,400 unnamed level functions (`namepack.py rank --range 0041a220-007a9e84`,
-  string-less ones from their now-named callers), then the common-script leftovers.
+  Same evening, three more batches (1,279 names in all this session, 7169 -> 8448): checkpoints and
+  skipto handlers per level, liberator bomber/fighter part setups (_event3 liberators_descend too),
+  kasserine cowardice triggers (kasserine::curiosity_killed_the_cat_* callbacks), hub helpers named from
+  their bodies (gela BroLvl_gela_SetFriendlyChain 48 callers, WaitTriggerOff 51, oran
+  FindVehicleByTargetname 19, mons1 NotifyObjectivesComplete). Port repo's symbol file refreshed.
+  Next: 2,532 unnamed level functions left, 1,097 with strings (rerun `namepack.py rank --range
+  0041a220-007a9e84`; the ranked list was worked down to ~row 420 of 2,929). The many tiny wrappers around
+  still-unnamed common-script functions (0016ce40/0016cf80 scripted anim loops, 00135590/001354f0,
+  0046b200/00470f70) wait for those targets; then the ~250 common-script leftovers in 0x120000-0x1e4000.
