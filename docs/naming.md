@@ -566,5 +566,11 @@ CoD-specific functions included, so later decompilation covers both kinds.
   ScrField_<name> / ScrField_<name>_IsDefined (level copies suffixed with the section), 223 more
   as ScrField_h<hash> until their names are found (rename with RenameFromMap.java). Also
   BroScr_MagicBulletShield, BroScr_Exploder, BroScr_GetFriendlyChainNode, BroScr_HandleNoteTracks.
-  Next: the ~1,500 other common-script functions by packet (`namepack.py next N --range
-  00120000-001e4000`), now that fields and runtime calls read.
+  Then 211 string-anchored common-script functions (same day): vehicle init/death per model
+  (BroScr_VehicleInit_*/VehicleDeath_*), turret burst fire (script_burst_min/max), flak/stuka/
+  drone/tree-burst systems, spawner/fallback/friendly-chain logic, and the anim scripts whose
+  debug strings carry their own "file::function" (Bro_cover_crouch__idle, Bro_combat__MeleeCombat,
+  Bro_run__main, Bro_stop__main, Bro_aim__keep_aiming, Bro__treeburst_gmi__tree_burst_playBurst).
+  BroScr_<Descriptive> = our name for a common-script function whose source name is unknown.
+  Next: the ~1,300 string-less common-script functions, best from their now-named callers
+  (`namepack.py next N --range 00120000-001e4000`).

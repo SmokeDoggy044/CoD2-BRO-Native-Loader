@@ -4840,7 +4840,7 @@ address,name,kind,confidence,evidence
 0015d170,BroScr_SetWheelSmokeFx,function,medium,"assigns 'generic_wheelsmoke' to six surface-type hashes"
 00135ed0,BroScr_NotifyEntsByTargetname,function,medium,"Scr_GetEntArray(name,'targetname') and notify each with hash 0x78b19de2"
 00191ee0,ScrField_h7fa1fc35,function,medium,"entity script-field accessor, key hash 0x7fa1fc35 not reversed yet: &ent.<0x7fa1fc35>, inserted as undefined when missing"
-0012e6a0,ScrField_h185dadca,function,medium,"entity script-field accessor, key hash 0x185dadca not reversed yet: &ent.<0x185dadca>, inserted as undefined when missing"
+0012e6a0,ScrField_can_shoot_low,function,high,"entity script-field accessor, key = HashKeyNoCase(""can_shoot_low"") (name recovered from the hash): &ent.<0x185dadca>, inserted as undefined when missing"
 001941e0,ScrField_he5f891d2,function,medium,"entity script-field accessor, key hash 0xe5f891d2 not reversed yet: &ent.<0xe5f891d2>, inserted as undefined when missing"
 001957e0,ScrField_hc786fa48,function,medium,"entity script-field accessor, key hash 0xc786fa48 not reversed yet: &ent.<0xc786fa48>, inserted as undefined when missing"
 0018fe60,ScrField_haff9c3b8,function,medium,"entity script-field accessor, key hash 0xaff9c3b8 not reversed yet: &ent.<0xaff9c3b8>, inserted as undefined when missing"
@@ -4864,7 +4864,7 @@ address,name,kind,confidence,evidence
 001944f0,ScrField_h629afc27,function,medium,"entity script-field accessor, key hash 0x629afc27 not reversed yet: &ent.<0x629afc27>, inserted as undefined when missing"
 0012ce20,ScrField_h0718b2c3,function,medium,"entity script-field accessor, key hash 0x0718b2c3 not reversed yet: &ent.<0x0718b2c3>, inserted as undefined when missing"
 00129350,ScrField_h19738af8,function,medium,"entity script-field accessor, key hash 0x19738af8 not reversed yet: &ent.<0x19738af8>, inserted as undefined when missing"
-0012ad00,ScrField_h6bd99abb,function,medium,"entity script-field accessor, key hash 0x6bd99abb not reversed yet: &ent.<0x6bd99abb>, inserted as undefined when missing"
+0012ad00,ScrField_drone_path_array,function,high,"entity script-field accessor, key = HashKeyNoCase(""drone_path_array"") (name recovered from the hash): &ent.<0x6bd99abb>, inserted as undefined when missing"
 0012b970,ScrField_h384ad510,function,medium,"entity script-field accessor, key hash 0x384ad510 not reversed yet: &ent.<0x384ad510>, inserted as undefined when missing"
 0012ec30,ScrField_h095a5675,function,medium,"entity script-field accessor, key hash 0x095a5675 not reversed yet: &ent.<0x095a5675>, inserted as undefined when missing"
 001970c0,ScrField_h8177124f,function,medium,"entity script-field accessor, key hash 0x8177124f not reversed yet: &ent.<0x8177124f>, inserted as undefined when missing"
@@ -4892,8 +4892,8 @@ address,name,kind,confidence,evidence
 0018f890,ScrField_hce29c482,function,medium,"entity script-field accessor, key hash 0xce29c482 not reversed yet: &ent.<0xce29c482>, inserted as undefined when missing"
 0012edc0,ScrField_h28667a5b,function,medium,"entity script-field accessor, key hash 0x28667a5b not reversed yet: &ent.<0x28667a5b>, inserted as undefined when missing"
 0012ee10,ScrField_h28667a5b_IsDefined,function,medium,"entity script-field accessor, key hash 0x28667a5b not reversed yet: isdefined(ent.<0x28667a5b>)"
-00193310,ScrField_hc8b639ce,function,medium,"entity script-field accessor, key hash 0xc8b639ce not reversed yet: &ent.<0xc8b639ce>, inserted as undefined when missing"
-00194630,ScrField_hc8b638d8,function,medium,"entity script-field accessor, key hash 0xc8b638d8 not reversed yet: &ent.<0xc8b638d8>, inserted as undefined when missing"
+00193310,ScrField_script_burst_max,function,high,"entity script-field accessor, key = HashKeyNoCase(""script_burst_max"") (name recovered from the hash): &ent.<0xc8b639ce>, inserted as undefined when missing"
+00194630,ScrField_script_burst_min,function,high,"entity script-field accessor, key = HashKeyNoCase(""script_burst_min"") (name recovered from the hash): &ent.<0xc8b638d8>, inserted as undefined when missing"
 001913e0,ScrField_h7599373d,function,medium,"entity script-field accessor, key hash 0x7599373d not reversed yet: &ent.<0x7599373d>, inserted as undefined when missing"
 00197200,ScrField_heeadf3f2,function,medium,"entity script-field accessor, key hash 0xeeadf3f2 not reversed yet: &ent.<0xeeadf3f2>, inserted as undefined when missing"
 00196a40,ScrField_h9a44df1e,function,medium,"entity script-field accessor, key hash 0x9a44df1e not reversed yet: &ent.<0x9a44df1e>, inserted as undefined when missing"
@@ -4944,7 +4944,7 @@ address,name,kind,confidence,evidence
 00191150,ScrField_h6067ece3,function,medium,"entity script-field accessor, key hash 0x6067ece3 not reversed yet: &ent.<0x6067ece3>, inserted as undefined when missing"
 0012b790,ScrField_hc3f4bdfc,function,medium,"entity script-field accessor, key hash 0xc3f4bdfc not reversed yet: &ent.<0xc3f4bdfc>, inserted as undefined when missing"
 0012ef10,ScrField_he29137e5,function,medium,"entity script-field accessor, key hash 0xe29137e5 not reversed yet: &ent.<0xe29137e5>, inserted as undefined when missing"
-0012fd50,ScrField_h185dadca_2,function,medium,"entity script-field accessor, key hash 0x185dadca not reversed yet: &ent.<0x185dadca>, inserted as undefined when missing"
+0012fd50,ScrField_can_shoot_low_2,function,high,"entity script-field accessor, key = HashKeyNoCase(""can_shoot_low"") (name recovered from the hash): &ent.<0x185dadca>, inserted as undefined when missing"
 00470420,ScrField_he3889522_ORAN,function,medium,"entity script-field accessor, key hash 0xe3889522 not reversed yet: &ent.<0xe3889522>, inserted as undefined when missing"
 00470010,ScrField_h1e04c0eb_ORAN,function,medium,"entity script-field accessor, key hash 0x1e04c0eb not reversed yet: &ent.<0x1e04c0eb>, inserted as undefined when missing"
 00470060,ScrField_h1e04c0eb_IsDefined_ORAN,function,medium,"entity script-field accessor, key hash 0x1e04c0eb not reversed yet: isdefined(ent.<0x1e04c0eb>)"
@@ -4954,7 +4954,7 @@ address,name,kind,confidence,evidence
 00470330,ScrField_h94ce1ddc_ORAN,function,medium,"entity script-field accessor, key hash 0x94ce1ddc not reversed yet: &ent.<0x94ce1ddc>, inserted as undefined when missing"
 00470370,ScrField_h94ce1ddc_IsDefined_ORAN,function,medium,"entity script-field accessor, key hash 0x94ce1ddc not reversed yet: isdefined(ent.<0x94ce1ddc>)"
 00470610,ScrField_h16257847_ORAN,function,medium,"entity script-field accessor, key hash 0x16257847 not reversed yet: &ent.<0x16257847>, inserted as undefined when missing"
-00129b20,ScrField_hb5b3a1f8,function,medium,"entity script-field accessor, key hash 0xb5b3a1f8 not reversed yet: &ent.<0xb5b3a1f8>, inserted as undefined when missing"
+00129b20,ScrField_min_check_dist,function,high,"entity script-field accessor, key = HashKeyNoCase(""min_check_dist"") (name recovered from the hash): &ent.<0xb5b3a1f8>, inserted as undefined when missing"
 0012b830,ScrField_h8473dd9d,function,medium,"entity script-field accessor, key hash 0x8473dd9d not reversed yet: &ent.<0x8473dd9d>, inserted as undefined when missing"
 0018eee0,ScrField_h602384d4,function,medium,"entity script-field accessor, key hash 0x602384d4 not reversed yet: &ent.<0x602384d4>, inserted as undefined when missing"
 0012a050,ScrField_h4c9e9556,function,medium,"entity script-field accessor, key hash 0x4c9e9556 not reversed yet: &ent.<0x4c9e9556>, inserted as undefined when missing"
@@ -5039,7 +5039,7 @@ address,name,kind,confidence,evidence
 004f3240,ScrField_hf1fea246_KASSPASS,function,medium,"entity script-field accessor, key hash 0xf1fea246 not reversed yet: &ent.<0xf1fea246>, inserted as undefined when missing"
 004f32e0,ScrField_h0726affb_KASSPASS,function,medium,"entity script-field accessor, key hash 0x0726affb not reversed yet: &ent.<0x0726affb>, inserted as undefined when missing"
 004f2ee0,ScrField_h801b0287_KASSPASS,function,medium,"entity script-field accessor, key hash 0x801b0287 not reversed yet: &ent.<0x801b0287>, inserted as undefined when missing"
-004f2ff0,ScrField_hc5dc77e2_KASSPASS,function,medium,"entity script-field accessor, key hash 0xc5dc77e2 not reversed yet: &ent.<0xc5dc77e2>, inserted as undefined when missing"
+004f2ff0,ScrField_in_dialog_anim_KASSPASS,function,high,"entity script-field accessor, key = HashKeyNoCase(""in_dialog_anim"") (name recovered from the hash): &ent.<0xc5dc77e2>, inserted as undefined when missing"
 00537640,ScrField_h5597ae36_KASSRINE,function,medium,"entity script-field accessor, key hash 0x5597ae36 not reversed yet: &ent.<0x5597ae36>, inserted as undefined when missing"
 005376e0,ScrField_h4a61e3fb_KASSRINE,function,medium,"entity script-field accessor, key hash 0x4a61e3fb not reversed yet: &ent.<0x4a61e3fb>, inserted as undefined when missing"
 0056b1b0,ScrField_h96613d9e_LIBEATOR,function,medium,"entity script-field accessor, key hash 0x96613d9e not reversed yet: &ent.<0x96613d9e>, inserted as undefined when missing"
@@ -5062,3 +5062,214 @@ address,name,kind,confidence,evidence
 004701a0,ScrField_h2def95a4_ORAN,function,medium,"entity script-field accessor, key hash 0x2def95a4 not reversed yet: &ent.<0x2def95a4>, inserted as undefined when missing"
 00190110,ScrField_he057503b,function,medium,"entity script-field accessor, key hash 0xe057503b not reversed yet: &ent.<0xe057503b>, inserted as undefined when missing"
 006e08c0,ScrField_hed4f70c4_MONS1,function,medium,"entity script-field accessor, key hash 0xed4f70c4 not reversed yet: &ent.<0xed4f70c4>, inserted as undefined when missing"
+001a2cd0,BroScr_RefillClip,function,high,"errors 'Self.weapon is not defined', 'anim.AIWeapon clip is zero', 'RefillClip failed'"
+00120b80,BroScr_InitLevelCvars,function,medium,"called by Bro__load_gmi__main; sets timescale, cg_drawgun, cg_hudcompassvisible, cg_atmos, bg_viewheight_standing, ..."
+00122240,BroScr_ObjectiveTrackerManager,function,medium,"strings '_manager', 'objective', '_tracker_complete'; ObjectiveAdd/StringLocalized/Current"
+00122470,BroScr_FlakPanzerStopLoopSounds,function,medium,"notifies 'flakpanzer_loopoff', 'flakpanzer_loop_fastoff' per 'flak died with flaknum '"
+00122910,BroScr_FlakPanzerLoopSounds,function,medium,"switches 'flakpanzer_loopon/off', 'flakpanzer_loop_faston/fastoff'"
+001258a0,BroScr_ThrowGrenadeAtTarget,function,medium,"g_gravity, 'grenadeattack' anim, tag 'Bip01 R Hand', MagicGrenadeManual"
+00133950,BroScr_EngineSmokeTrail,function,medium,"spawns script_origin on 'tag_engine', fx 'smk_trail_thick_lg_black_a'"
+00137d60,BroScr_SetupExploders,function,medium,"walks script_exploder ents: 'exploder', 'exploderchunk', 'exploderchunk visible', 'notsolid', 'item_health', ConnectPaths/Delete"
+0013a250,BroScr_DroneShoot,function,medium,"'tag_flash', fx 'drone_muzzleflash', RandomTracer, sound at position"
+0013d2e0,BroScr_VehicleDeath_Sdkfz222,function,medium,"mons1 'v_sdkfz222_mons_d1', 'vehicle_explode', RadiusDamage, Earthquake, 'unload'"
+0013d9a0,BroScr_VehicleDeath_Tank,function,medium,"panzerIV/v_sherman/_snow models -> _d1, 'vehicle_explode', 'explo_metal_rand', Earthquake"
+0013f570,BroScr_VehicleDeath_Jeep,function,medium,"'nokill', willyjeep -> 'v_willysjeep_d1(_mons)', 'explo_metal_rand'"
+0013f6f0,BroScr_VehicleInit_Jeep,function,medium,willyjeep UseAnimTree and death thread
+0013a0f0,BroScr_VehicleDeath_Halftrack,function,medium,"'nokill', halftrack -> 'v_M3A1_Halftrack_troop_d1_desert'"
+00142ee0,BroScr_VehicleInit_Halftrack,function,medium,halftrack UseAnimTree and death thread
+00142d50,BroScr_VehicleInit_M13,function,medium,"'v_m13' death thread: 'v_m13_d1', 'vehicle_explode'"
+00143870,BroScr_VehicleInit_PanzerIV,function,medium,'panzerIV' UseAnimTree + death thread
+00145080,BroScr_VehicleInit_Sherman,function,medium,"v_sherman variants (snow, buchholz, bulldozer) death thread"
+0014ca20,BroScr_VehicleDeath_Stuka,function,medium,"'stuka_flying' -> 'stuka_flying_d1' (piano_lupo), explosion"
+0014ffd0,BroScr_VehicleDeath_Flakvierling,function,medium,"'v_flakvierling' -> 'v_flakvierling_base_d1', 'artillery_generic', RadiusDamage"
+00148760,BroScr_FlakvierlingThink,function,medium,"'v_flakvierling' Vehicle_FireWeapon loop, Earthquake, DoDamage"
+00157e60,BroScr_SpawnFlakvierling,function,medium,SpawnVehicle 'flakvierling'/'FlakVierling'
+00157b40,BroScr_FindFlakvierlings,function,medium,Scr_GetEntArray 'script_vehicle' filtered by model v_flakvierling(_base)
+0013f190,BroScr_TankAttachMgTurret,function,medium,"SpawnTurret 'misc_turret' 'mg42_panzerIV_tank' model 'v_gunturret', LinkToTagWithOffset; 'no_turret'"
+00141c00,BroScr_HalftrackGunnerGrenadeHint,function,medium,"'SCRIPT_HINT_SWITCHTOGRENADE', 'weaponslot grenade', 'get halftrack gunner'"
+00142800,BroScr_InfinitePanzerfaust,function,high,"respawns 'weapon_panzerfaust' at script_origin; 'picked up infinite panzerfaust', 'respawn'"
+00145e80,BroScr_SpawnWoodGibs,function,medium,script_model 'wood_gib_a/b/c' at random offsets
+001455e0,BroScr_SpawnStoneGibs,function,medium,"script_model 'xmodel/gib_stone1', 'xmodel/gib_brick'"
+001478f0,BroScr_DroneSplineMath,function,high,"error 'Drone_Spline_Math():  Spline File Not Found, '; 'drones_spline_name', 'create_spline_files', level.no_spl_data"
+0014c5a0,BroScr_SquadManagerSpawnSquad,function,medium,"'SQUAD MANAGER:  Could not find spawners/target nodes for squad ', ForceSpawn/DoSpawn"
+0014fb70,BroScr_WallHopTrigger,function,medium,'Press Activate to Hop over wall.' trigger
+0015bee0,BroScr_PlayBloodImpactFx,function,medium,"cg_blood check, 'impact_flesh', 'flesh small', 'impact_smg_generic'"
+0015def0,Bro__treeburst_gmi__tree_burst_playBurst,function,high,own error strings '_treeburst_gmi.bro::tree_burst_playBurst(): Using default tree burst' / 'model type could not be re...'
+001609f0,BroScr_PlantBombObjective,function,medium,"'SCRIPT_HINTSTR_PLANTEXPLOSIVES', 'xmodel/bomb_objective_incomplete' -> 'xmodel/bomb', 'SCRIPT_EXPLOSIVESPLANTED', 'bomb placed', BadPlace_Cylinder"
+00166ff0,BroScr_TankInit,function,medium,"'xmodel/v_us_lnd_sherman', panzerIV, 'mg34_german_tank', BroScr_SetWheelSmokeFx, health"
+001673c0,BroScr_TankInit_2,function,medium,"panzerIV/'mg30cal_sherman_tank' variant, BroScr_SetWheelSmokeFx"
+001676f0,BroScr_TankInit_3,function,medium,same shape as BroScr_TankInit_2
+00167dc0,BroScr_TankInit_4,function,medium,same shape as BroScr_TankInit_2
+001992e0,BroScr_MgBurstFire,function,medium,"script_delay_min/max + script_burst_min/max, 'delay', 'delay_range', 'burst', 'burst_range', Turret_GetFlag1"
+001b6600,BroScr_MgBurstFire_2,function,medium,"same burst settings, 'start', 'recover'"
+001b8ec0,BroScr_MgBurstFire_3,function,medium,identical copy of BroScr_MgBurstFire_2
+001a4d30,BroScr_MgBurstFireThink,function,medium,burst loop toggling Turret_SetFlag4/ClearFlag4 with the delay/burst settings
+0019f550,BroScr_MgBurstSettings,function,medium,"reads script_delay_min/max, script_burst_min/max into 'delay', 'delay_range', 'burst', 'burst_range'"
+0019a9a0,BroScr_FallbackNodeThink,function,medium,"'fallback', 'fallback_arrived', GetNode targetname, node radius as goal"
+001bec70,BroScr_FallbackerSetup,function,medium,"'fallbacker_trigger', 'fallback', 'fallback_firstspawn', 'fallbacker_died'"
+001a4f40,BroScr_TurretManualTargetThink,function,medium,"waits 'StartFiring'/'StopFiring', manual_target, is_firing, script_origin target"
+001a63a0,BroScr_MgGetNewUser,function,medium,"misc_mg42/misc_turret, notify 'get new user'"
+001be170,BroScr_MgUserGoToNode,function,medium,"script_mg42, 'get new user', 'stop_going_to_node', GetNode(target)"
+001a6b10,BroScr_FriendlyWaveSpawn,function,medium,"'friendly_wave', '_spawned', DoSpawn allies, SetTargetname/Groupname"
+001a7010,BroScr_SetupFriendlyFireMissionFail,function,medium,"threads _spawner_gmi::KillFriends_Damage_Think / _MissionFail_OnDeath / _OnDamage, 'missionfail_death', 'pavlov'"
+001c0c10,Bro_cover_crouch__idle,function,high,own errors 'cover_crouch::idle: Not in crouch pose.' / 'Not in cover_crouch pose.'
+001d6610,BroScr_CornerBehavior,function,medium,"'Entered corner behavior', 'undersuppression', 'Suppressed', 'Rand > rambo'"
+001e1cf0,BroScr_TurretSetAIMode,function,medium,"'auto_ai'/'manual_ai' Turret_SetMode, Set/ClearTargetEntity"
+0015b990,BroScr_TankShellReadyHud,function,medium,"hud 'gfx/hud/hud@fire_ready_shell.tga', 'player not on turret'"
+0015eed0,BroScr_TankShellReadyHud_2,function,medium,same hud as BroScr_TankShellReadyHud
+0015c390,BroScr_PlayShellIncoming,function,medium,'shell_incoming' / 'shell_incoming_muffled' when 'interior'
+0019cc40,BroScr_PlayLoopSoundOnTag,function,medium,"script_origin linked to a tag, until 'stop sound' or 'death'"
+0019ca70,BroScr_PlaySoundOnTag,function,medium,"script_origin linked to a tag, waits 'sounddone', deletes it"
+0019d4e0,BroScr_LookAtPosition,function,high,"own errors 'LookAtPosition called on AI that lookThread was not called on', 'lookSpeed must be casual or alert'"
+00127ef0,BroScr_PlayShellExploSound,function,medium,random 'SHELL_EXPLO_MAINIMP_1..4' ('interior' variant)
+00121ed0,BroScr_SetRandomVictoryQuote,function,high,"picks one of the '@VICTORYQUOTE_*' strings with RandomInt, SetCvar; called by Bro__load_gmi__main"
+00122f50,BroScr_InitTankDebugCvars,function,medium,"'debug_drawcone', 'debug_tankque', 'debug_tanksamples', 'debug_tankall', 'debug_tanknone'"
+00126a30,BroScr_SetupLevelInfo,function,medium,"per-map 'cg_victoryscreen_levelname', 'cg_deadscreen_levelname', levelshots, weapons; called by Bro__load_gmi__main"
+001373b0,BroScr_SetIntroScreenCvars,function,medium,"'introScreen', 'checkpoint' per level name (mons1, liberator, piano_lupo, prologue, kasserine, ...)"
+00141890,BroScr_LetterboxFade,function,medium,"'letterbox_enabled', 'cg_drawgun', 'black' hud elems, SetHudVisible; called by 00148ce0"
+00121010,BroScr_ExploderTriggerThink,function,medium,"waittill 'trigger', BroScr_Exploder(script_exploder), endon 'killexplodertriggers'"
+00121270,BroScr_SetAmericanScreens,function,medium,"sets cg_deadscreen/victoryscreen backdrops 'defeat_american'/'victory_american', 'ui_campaign', 'viewmodel_hands_us'"
+00125290,BroScr_ThrowGrenadeAtTarget_2,function,medium,same as BroScr_ThrowGrenadeAtTarget with tag_weapon_left
+0012f8b0,BroScr_FlakFireAndReload,function,medium,"waittill 'turret_fire', Vehicle_FireWeapon, 'flak_reload' sound"
+001301d0,BroScr_StrafeImpacts,function,medium,"traces from 'tag_flash', 'strafe_<surface>_hit' fx per LocationalTraceSurface"
+00137c50,BroScr_PlayerWeaponSounds,function,medium,PlayerWeaponSound 'weapsound0..4'
+00138a40,BroScr_GetPanzerfaustRespawns,function,medium,Scr_GetEntArray 'weapon_panzerfaust' / 'respawn'; called by BroScr_InfinitePanzerfaust
+00138ba0,BroScr_PanzerfaustAmmoBox,function,medium,"'xmodel/ammo_panzerfaust_box2(_objective)', 'DAWNVILLE_PANZER' hint, 'picked up infinite panzerfaust'"
+00139da0,BroScr_VehicleDeath_M13,function,medium,"SetModel 'v_m13_d1', 'vehicle_explode', 'explo_metal_rand', Earthquake"
+0013b200,BroScr_VehicleDeath_PanzerIV,function,medium,"'panzerIV' death: model swap, 'vehicle_explode', DoDamage"
+0013d650,BroScr_RocketExplosion,function,medium,"'weapons_rocket_explosion' sound, RadiusDamage, Earthquake, ViewKick"
+0013e770,BroScr_VehicleDeath_Stuart,function,medium,"SetModel 'v_stuart_d1', 'vehicle_explode', 'explo_metal_rand'"
+001441c0,BroScr_FlakCrewAnims,function,medium,"'bad animname passed in', 'old flak', 'fireA', 'clip_1 on', 'tag_clip_1', 'xmodel/panzerflak_ammo'"
+0014aaa0,BroScr_StukaDropBombs,function,medium,'stuka_bomb' script_models on 'tag_bombleft/right/mid' of stuka/stuka_flying/stuka_prologue
+0014cbf0,BroScr_VehicleFollowPath,function,medium,"Vehicle_AttachPath/StartPath on ent.path, 'noturrets', 'no_delete', Vehicle_Kill"
+00150ca0,BroScr_VehicleFollowPathToEnd,function,medium,"AttachPath/StartPath, waittill 'reached_end_node', 'noturrets'"
+00150f50,BroScr_VehicleFollowPathToEnd_2,function,medium,identical copy
+001529c0,BroScr_PlaneSpawnWingTurrets,function,medium,"'stuka_wing_turret'/'me109_wing_turret_nosound' misc_turret on 'tag_gunLeft/Right', leftturret/rightturret"
+00155610,BroScr_PlaneSpawnWingTurrets_50cal,function,medium,'mg50cal_air_single' 'w_50cal' on tag_gunLeft/Right
+00155e50,BroScr_PlaneSpawnWingTurrets_P47,function,medium,'P47_WING_TURRET' 'v_p47_guns' on tag_gunLeft/Right
+001542b0,BroScr_VehicleMountRiders,function,medium,"'tag_gunner', 'tag_entry_gunner', 'tag_entry_loaderL/R', 'no_mount_anim'"
+00154990,BroScr_SetupSpawnerTriggers,function,medium,"'friendly_wave', 'flood_spawner', 'grenade_spawner(_once)', 'friendly_wave_off', 'friendly_chat', 'axis_touching', 'axis_dead'"
+0015d650,Bro__treeburst_gmi__tree_burst_getUndamagedModel,function,high,own error '_treeburst_gmi.bro::tree_burst_getUndamagedModel(): modelname is undef'
+0015d7b0,BroScr_TreeBurstSetup,function,medium,"'treeburst', 'tree_to_die_' script_models; calls Bro__treeburst_gmi__tree_burst_getUndamagedModel"
+0015e7f0,BroScr_SetupFlak88s,function,medium,"'xmodel/turret_flak88(_sno/_d)', 'flak88', 'flakair', 'flakairlow'"
+00160d40,BroScr_FlakPanzerThink,function,medium,"'xmodel/vehicle_tank_flakpanzer', 'flakpanzer', 'flakair', 'flaktank', 'start_turret'"
+00162960,BroScr_Flak88Think,function,medium,"'xmodel/turret_flak88', 'start_turret', 'controlled', 'preidle', 'fire_turret', 'No function ptr!'"
+00163b40,BroScr_TreadFx,function,high,"error 'Tread effects are undefined. Add _treadfx::main(); to this level', 'scr_gmi_fast'"
+00165960,BroScr_SetupTreeBursts,function,medium,Scr_GetEntArray 'tree_burst' / 'tree_burst_scripted'
+00165d30,BroScr_VehicleInit_JeepAllies,function,medium,"'willyjeep' allies, BroScr_SetWheelSmokeFx, health"
+00166d90,BroScr_VehicleInit_HalftrackAllies,function,medium,"'halftrack' allies, BroScr_SetWheelSmokeFx, health"
+00169810,BroScr_SpawnDrone,function,medium,"script_model 'drone', SetForcedLod, Groupname"
+0016dae0,BroScr_DroneVehicleRiders,function,medium,'drone_driver'/'drone_gunner' models on 'tag_driver'/'tag_gunner'/'tag_passenger'
+0016e760,BroScr_MortarThink,function,medium,"'debug_mortars', 'Boom!', 'No FX!', BroScr_Exploder"
+0016f040,BroScr_StukaBombImpact,function,medium,"'_stuka_bomb', '_explosion', LocationalTraceSurface"
+0019db90,BroScr_HelmetPop,function,medium,script_model at 'TAG_HELMETSIDE' (GetModelBoneName)
+001a2510,BroScr_PlayStepSounds,function,medium,'misc_step1'/'misc_step2'
+001ab050,BroScr_ShootAtTarget,function,medium,"'numshots must be > 0', 'forceShoot', GetEye"
+001ab530,BroScr_ShootAtTarget_2,function,medium,"same errors, waittill args variant"
+001bf8b0,Bro_aim__keep_aiming,function,high,own debug strings 'aim::keep_aiming and anim_movement != stop' / 'anim_alertness != aiming'
+001c7be0,BroScr_PainOrDeathAnim,function,medium,"'Unexpected_anim_pose_value + self.anim_pose', wounded_anim, anim_movement"
+001cbc70,BroScr_CoverAttack,function,medium,"'Waiting to see enemy', 'Cover attack - forgot to rechamber first!'"
+001d3980,BroScr_FallbackThink,function,medium,"'fallbacker_trigger', 'fallback initiated ', 'fallback_reached_goal'"
+001d6a10,Bro_cover_crouch__cover_crouch,function,high,own debug strings 'cover_crouch::cover_crouch: About to call aim/ShootVolley ...'
+001d99e0,Bro_run__main,function,high,own debug string 'run::main'
+001dc0c0,Bro_cover_stand__cover_stand,function,high,"own debug string 'cover_stand::cover_stand: About to call ShootVolley but not aiming', 'Bottom of CoverStand'"
+001dd8d0,Bro_combat__MeleeCombat,function,high,"own debug string 'combat::MeleeCombat - not in range!', ""Can't melee - I don't have an enemy."""
+001de080,Bro_combat__RangedCombat,function,high,"own debug string 'combat::RangedCombat: About to call aim, movement is bad', 'TryMeleeCharge passed'"
+001deab0,BroScr_MgTurretThink,function,medium,"'auto_ai', 'MANUAL', 'mg42_target', 'StartFiring', Turret_SetMode"
+001e09e0,BroScr_DropHealth,function,medium,"'g_gameskill', spawns 'item_health_medium'"
+001e0c90,BroScr_SpawnerSetupAI,function,medium,"'_spawner_gmi::tanksquish', script_accuracy, 'grenade_spawner(_auto)', 'friendly_wave', 'g_gameskill'"
+001e2e10,BroScr_BipodGunner,function,medium,"'mg30cal_bipod_prone', 'mg34_bipod_prone', 'w_ge_mg42', misc_turret"
+001e3520,Bro_stop__main,function,high,"own debug string 'stop::main', 'StopStart', 'At cover left/right node'"
+00120e70,BroScr_StartFxOnTrigger,function,medium,"waittill 'trigger', notify 'start fx'"
+00125d30,BroScr_CheckpointFade,function,medium,"'checkpoint' cvar, 'black' hud fade (HudFadeOverTime), 'tunisia'"
+0013e180,BroScr_SpawnConcreteGibs,function,medium,'xmodel/m_gib_concrete_a/b'
+0013f990,BroScr_SpawnWoodGibsSmall,function,medium,'wood_gib_a/b/c_small'
+00153210,BroScr_VehicleDeadStop,function,medium,"'deadstop', 'reached_end_node', Vehicle_SetSpeed"
+001822e0,BroScr_ShellShockUntilDeath,function,medium,"ShellShock, waittill 'death', 'r_texturebits'"
+00199630,BroScr_TurretRandomSpread,function,medium,"endon 'stop random_spread'/'StopFiring', moves the target origin randomly"
+001b0ab0,BroScr_PlayStepRunSound,function,medium,'step_run_dirt' / 'undefined'
+001e1b80,BroScr_SpawnGlobalAmbient,function,medium,script_origin targetname 'global_ambient'
+00120650,BroScr_PlayFlakSound,function,medium,"script_origin at the position, 'flak_generic' with notify, delete"
+00121630,BroScr_StukaSiren,function,medium,PlaySound 'stuka_siren' until 'stop_mg42s'
+001218a0,BroScr_StukaSiren_2,function,medium,identical copy
+00122eb0,BroScr_StukaSiren_3,function,medium,identical copy
+00135030,BroScr_TurretStutter,function,medium,Turret_SetMode with random waits until 'stop_stutter'
+00136120,BroScr_VehicleDeath_Flak88,function,medium,"'xmodel/turret_flak88_d', 'explo_metal_rand', RadiusDamage"
+001216d0,BroScr_StukaTakeoff,function,medium,"'stuka' anim tree, waittill 'takeoff', SetAnim"
+001abe30,BroScr_UpdateOrientToEntity,function,high,"own error 'UpdateOrientToEntity() called without an entity to look at', 'face point'"
+00121cc0,BroScr_DeathPhysicsLaunch,function,medium,"Axis_Death/Allies_Death callbacks, PhysicsLaunch along the damage dir"
+00128430,BroScr_DeathPhysicsLaunch_2,function,medium,same with AnglesToForward
+00132280,BroScr_PlaneTurretsFire,function,medium,leftturret/rightturret SetTargetEntity until 'stop firing'
+0013b5f0,BroScr_StopRespawning,function,medium,notify '_stopped_respawning' on the spawners
+00142070,BroScr_SpawnGuyDiedThink,function,medium,"'spawn guy died', GetSpawnerTeamArray, PtrArray_RemoveValue"
+0014ea50,BroScr_StunnedWait,function,medium,"waittill 'stundone', attack_range"
+00156e70,BroScr_RespawnerThink,function,medium,"using_respawner, 'finished spawning', ForceSpawn/DoSpawn"
+0015afe0,BroScr_DeleteModel,function,high,"error ""Tried to remove a model with delete model before it was create model'd"""
+0015ad70,BroScr_CreateModel,function,medium,'create model': script_model at a tag (pairs with BroScr_DeleteModel)
+0015b8d0,BroScr_TankShellHudHideOnDeath,function,medium,"waits 'death'/'player not on turret', hud alpha 0"
+0015d2c0,BroScr_TreadFxSurfaceThink,function,medium,"Vehicle_GetWheelSurface, 'grass'; called by BroScr_TreadFx"
+0015d480,BroScr_TreeBurstModelFor,function,medium,'p_env_oak_grn_med_b' -> 'p_env_oak_grn_med_b_d_anim_stnd'
+001682c0,BroScr_TreeBurstInit,function,medium,"threads 'treeburst', 'artillery_treeburst'"
+0016ace0,BroScr_VehicleRidersThink,function,medium,"'tag_gunner'/'tag_driver' AnimScripted riders, alert_state"
+0016fc30,BroScr_PlaneDropBomb,function,medium,"'Bomb_Whistle', bomb_count, dropped, Unlink"
+00171970,BroScr_DroneDeathThink,function,medium,"min/max_delay, min/max_death_delay, 'no_shrimps', FreeSound"
+00178cd0,BroScr_WaitAnimSoloFinished,function,medium,waittill 'finished anim solo'
+00182490,BroScr_PlayerFeelsImportant,function,medium,"endon 'stop player feels important' / 'death', SetHealth"
+0019ceb0,BroScr_PlayerFeelsImportant_2,function,medium,"same endons, keeps health"
+0018bba0,BroScr_SetPrivateName,function,medium,'Pvt. ' + localized random name
+0019a400,BroScr_MgWaitNewUser,function,medium,"waittill 'get new user', used_an_mg42"
+0019c800,BroScr_NotSolidThrow,function,medium,"'notsolid_throw' ents, script_delay, Delete"
+0019c6c0,BroScr_NotSolidAfterDelay,function,medium,"'notsolid' script_noteworthy, script_delay, ConnectPaths"
+0019cfc0,BroScr_Mg30calAnimTree,function,medium,'30cal' UseAnimTree/ClearAnimTree
+0019d180,BroScr_Mg30calAnimTree_2,function,medium,'30cal' UseAnimTree/ClearAnimTree
+001a7a00,BroScr_GetFriendlyChainTriggers,function,medium,Scr_GetEntArray 'trigger_friendlychain'
+001a7b70,BroScr_MoveFriendlyChainTrigger,function,medium,"'trigger_friendlychain', SetOrigin"
+001a7d10,BroScr_DeleteFriendlyChainTrigger,function,medium,"'trigger_friendlychain', Delete"
+001ad3f0,BroScr_PutGunInHand,function,medium,anim_gunhand: Attach/DetachEx the weapon model on 'tag_weapon_left' or the right hand; 70 callers
+001b58e0,BroScr_FriendlyUseMg42,function,medium,"'friendly_finished_using_mg42', saves/restores goal radius and accuracy"
+00181f20,BroScr_NotifyFinishedUsingMg42,function,medium,notify 'friendly_finished_using_mg42'
+001b64a0,BroScr_TempEventText,function,medium,Scr_GetEntArray 'temp_event_text'
+001be660,BroScr_GrenadeThrowTrigger,function,medium,"waittill 'throw', MagicGrenadeManual at target"
+001c51a0,BroScr_GrenadeThrowTriggers,function,medium,"'trigger_multiple', 'throw'"
+001c6840,BroScr_RechamberRifle,function,medium,'weap_kar98k_rechamber' sound with the rechamber anim
+001c7ad0,BroScr_MeleeAttackAnim,function,medium,'meleeattack' flagged anim + notetracks; called by Bro_combat__MeleeCombat
+001d46c0,BroScr_FallbackerTriggerThink,function,medium,'fallbacker_trigger' notify
+001d5890,BroScr_ForceShootThink,function,medium,'forceShoot'
+001d5e30,BroScr_MiscCombatTimer,function,medium,'misccombat' + GetTime
+001d93b0,BroScr_CoverProne,function,medium,'Cover Prone' debug string
+001d9750,BroScr_CoverProne_2,function,medium,'Cover Prone' debug string
+001dba80,BroScr_ConcealmentCrouch,function,high,debug string 'Concealment_crouch called'
+001dca00,BroScr_AnimScriptEntInit,function,medium,"'animscriptent', 'abcdefghijklmnopqrstuvwxyz' (names by letter)"
+001e25d0,BroScr_SpawnedThink,function,medium,'SPAWNED'
+00134ec0,BroScr_TurretSetAlliesTeam,function,medium,Turret_SetMode + Turret_SetTeam 'allies'
+00136450,BroScr_FlakvierlingAnimTree,function,medium,'flakvierling' UseAnimTree
+00136580,BroScr_FlakvierlingBaseAnimTree,function,medium,'flakvierling_base' UseAnimTree
+00138650,BroScr_NotifySpawnGuyDied,function,medium,notify 'spawn guy died'
+001400c0,BroScr_PlayerHopOverWall,function,medium,"script_origin mover, PlayerLinkTo, 'movedone'; called by BroScr_WallHopTrigger"
+00165f90,BroScr_GetWindowBreaks,function,medium,Scr_GetEntArray 'window_break'
+00181bc0,BroScr_NotifyFallbackReachedGoal,function,medium,notify 'fallback_reached_goal'
+001a6a40,BroScr_NotifyFallbackerDied,function,medium,notify 'fallbacker_died'
+00199a20,BroScr_SetCreditsName,function,medium,'credits' name string on the actor
+001a2e70,BroScr_WeaponClassFor,function,medium,"maps weapon names (kar98, gewehr43, panzerfaust, ...) to 'rifle'/'pistol'/..."
+0014ee50,BroScr_SetHealthByDifficulty,function,medium,GetDifficulty 'medium' -> SetHealth
+00150560,BroScr_SetHealthByDifficulty_2,function,medium,identical copy
+00150720,BroScr_SetHealthByDifficulty_3,function,medium,identical copy
+001523e0,BroScr_SetHealthByDifficulty_4,function,medium,identical copy
+00152800,BroScr_SetHealthByDifficulty_5,function,medium,identical copy
+0018c320,BroScr_AmbientPlayOutside,function,medium,AmbientPlay 'outside'
+001266f0,BroScr_FadeHudBlack,function,medium,"'black' shader hud elem faded with GetFrameTime, HudDestroy"
+00120890,BroScr_FadeFromBlack,function,medium,"'black' fullscreen hud elems (640x480), fade"
+001319d0,BroScr_PlaneCrashSound,function,medium,'Plane_crash' at origin
+00132020,BroScr_PlaneCrashSound_2,function,medium,identical copy
+00134300,BroScr_PlaneCrashSound_3,function,medium,identical copy
+001839a0,BroScr_Mg42ShootLoop,function,medium,'mg42_shoot' sound + turret fire
+00183b30,BroScr_Mg42ShootLoop_2,function,medium,'mg42_shoot'
+00183c20,BroScr_Mg42ShootLoop_3,function,medium,'mg42_shoot'
+0018be70,BroScr_DeleteFloodSpawner,function,medium,targetname 'flood_spawner' Delete
+00122540,BroScr_EarthquakeUntilBroken,function,medium,Earthquake loop until 'broken'
+0014f560,BroScr_SetupStackers,function,medium,'stacker' script_noteworthy
+0014f000,BroScr_SetupStackers_2,function,medium,"'stacker', 'worldspawn', script_health"
+0015c510,BroScr_RespawnerThink_2,function,medium,"using_respawner, ForceSpawn (like BroScr_RespawnerThink)"
+0015f720,BroScr_FxCreationSoundThink,function,medium,'_fx_creation' sound at position by distance
+0015f380,BroScr_FxCreationSound,function,medium,'_fx_creation'
+001b2990,BroScr_GetMuzzleOrigin,function,medium,'tag_flash' origin of the enemy's weapon
