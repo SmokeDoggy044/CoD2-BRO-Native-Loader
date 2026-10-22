@@ -1182,6 +1182,13 @@ const RecordedCall kRecordedD3dCalls[] = {
     {"D3DBaseTexture_GetLevelCount", "s", compare::SdkStandIn::LevelCount},
     {"D3DTexture_GetSurfaceLevel2", "s s", compare::SdkStandIn::SurfaceLevel},
     {"D3DCubeTexture_GetCubeMapSurface2", "s s s", compare::SdkStandIn::SurfaceLevel},
+    // Locks: on the Xbox a pointer into the resource's own memory, computed from it; the
+    // D3DLOCKED_RECT output is not logged (it may be on the caller's stack), the RECT by
+    // content.
+    {"D3DTexture_LockRect", "s s x s:16 s", compare::SdkStandIn::TextureLock},
+    {"D3DSurface_LockRect", "s x s:16 s", compare::SdkStandIn::SurfaceLock},
+    {"D3DVertexBuffer_Lock2", "s s", compare::SdkStandIn::BufferLock},
+    {"D3DPalette_Lock2", "s s", compare::SdkStandIn::BufferLock},
     // Raw NV2A commands: the space and what the title wrote into it (nglRenderTextNode).
     {"D3DDevice_BeginPush_4", "s", compare::SdkStandIn::PushBegin},
     {"D3DDevice_EndPush", "s", compare::SdkStandIn::PushEnd},

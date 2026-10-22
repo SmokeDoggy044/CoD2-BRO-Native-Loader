@@ -110,7 +110,7 @@ constexpr uint32_t kSurfaceCommon = 0x00050000 | 0x01000000 | 1;  // surface, D3
 // its spec index, then per argument its value, or for a pointer the byte count and
 // the bytes (padded to 4); a null pointer logs kSdkNull, an unreadable one kSdkBad.
 enum SdkArgWhere : uint8_t { kSdkEcx, kSdkEdx, kSdkStack };
-enum SdkArgKind : uint8_t { kSdkValue, kSdkBytes, kSdkScaledBytes, kSdkProductBytes };
+enum SdkArgKind : uint8_t { kSdkValue, kSdkBytes, kSdkScaledBytes, kSdkProductBytes, kSdkUnlogged };
 constexpr uint32_t kSdkNull = 0xFFFFFFFE;
 constexpr uint32_t kSdkBad = 0xFFFFFFFF;
 
@@ -448,10 +448,83 @@ XBCMP_CODE bool sdk_log_put(ChildArea& c, uint32_t value) {
     return true;
 }
 
+// A resource the stand-ins may touch: title memory or a pool surface. Null otherwise.
+XBCMP_CODE uint32_t* stand_in_resource(const ChildArea& c, uint32_t address, uint32_t size) {
+    if (!address) return nullptr;
+    const uint32_t pool = addr_of(c.surfaces);
+    if (address >= pool && address - pool <= sizeof(c.surfaces) - size) return reinterpret_cast<uint32_t*>(uintptr_t{address});
+    return readable(c, address, size) ? reinterpret_cast<uint32_t*>(uintptr_t{address}) : nullptr;
+}
+
+constexpr uint32_t kRefcountMask = 0x0000FFFF;
+constexpr uint32_t kInternalRefMask = 0x00780000;  // references held by the GPU / D3D
+constexpr uint32_t kTypeMask = 0x00070000;
+constexpr uint32_t kTypeSurface = 0x00050000;
+
+// A surface's parent texture (Parent, +0x14), or 0; false if it cannot be read.
+XBCMP_CODE bool stand_in_parent(const ChildArea& c, const uint32_t* resource, uint32_t& parent) {
+    parent = 0;
+    if ((resource[0] & kTypeMask) != kTypeSurface) return true;
+    if (!stand_in_resource(c, addr_of(resource), 24)) return false;
+    parent = resource[5];
+    return true;
+}
+
+// render's D3DResource_AddRef: a surface's first reference adds one to its texture.
+XBCMP_CODE bool stand_in_add_ref(ChildArea& c, uint32_t address, uint32_t& result) {
+    uint32_t* resource = stand_in_resource(c, address, 4);
+    if (!resource) return false;
+    if ((resource[0] & kRefcountMask) == 0) {
+        uint32_t parent = 0, ignored = 0;
+        if (!stand_in_parent(c, resource, parent)) return false;
+        if (parent && !stand_in_add_ref(c, parent, ignored)) return false;
+    }
+    result = ++resource[0] & kRefcountMask;
+    return true;
+}
+
+// render's D3DResource_Release: the last reference releases a surface's texture and,
+// without internal references, destroys the resource (count 0; render then frees its
+// own level surfaces and host copies, nothing in title memory).
+XBCMP_CODE bool stand_in_release(ChildArea& c, uint32_t address, uint32_t& result) {
+    uint32_t* resource = stand_in_resource(c, address, 4);
+    if (!resource) return false;
+    if ((resource[0] & kRefcountMask) == 1) {
+        uint32_t parent = 0, ignored = 0;
+        if (!stand_in_parent(c, resource, parent)) return false;
+        if (parent && !stand_in_release(c, parent, ignored)) return false;
+        if ((resource[0] & kInternalRefMask) == 0) {
+            resource[0] &= ~kRefcountMask;
+            result = 0;
+            return true;
+        }
+    }
+    result = --resource[0] & kRefcountMask;
+    return true;
+}
+
+// render's lock(): D3DLOCKED_RECT {pitch, bits} for a face/level of a pixel container,
+// bits offset by the optional RECT {left, top, right, bottom}.
+XBCMP_CODE bool stand_in_lock_rect(ChildArea& c, uint32_t container, uint32_t level, uint32_t locked_address,
+                                   uint32_t rect_address) {
+    const uint32_t* pixels = stand_in_resource(c, container, 20);  // Common, Data, Lock, Format, Size
+    auto* locked = reinterpret_cast<uint32_t*>(uintptr_t{locked_address});
+    if (!pixels || !readable(c, locked_address, 8) || (rect_address && !readable(c, rect_address, 16))) return false;
+    namespace layout = render::surface_layout;
+    const layout::SurfaceLevel surface = layout::surface_level(pixels[1], pixels[3], pixels[4], 0, level);
+    uint32_t bits = surface.address;
+    if (rect_address) {
+        const auto* rect = reinterpret_cast<const int32_t*>(uintptr_t{rect_address});
+        bits += rect[1] * surface.pitch + layout::bits_per_pixel(layout::format_of(pixels[3])) * rect[0] / 8;
+    }
+    locked[0] = surface.pitch;
+    locked[1] = bits;
+    return true;
+}
+
 // A recorded call's stand-in (SdkStandIn) on its first argument; false for a case it
 // does not cover (the test then ends as inconclusive).
 XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* values, uint32_t& result) {
-    constexpr uint32_t kRefcountMask = 0x0000FFFF;
     if (spec.stand_in == SdkStandIn::PushBegin) {
         // The replacement's space is dwords + 1, zeroed; the title writes its NV2A
         // commands there (our own pages: not compared as writes).
@@ -497,29 +570,27 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
         result = addr_of(&surface);
         return true;
     }
-    uint32_t resource = spec.arg_count ? values[0] : 0;
-    if (spec.stand_in == SdkStandIn::ReturnAddRef) {
-        resource = *spec.value;
-        result = resource;
-        if (!resource) return true;
-    }
-    const bool pooled = resource >= addr_of(c.surfaces) &&
-                        resource - addr_of(c.surfaces) <= sizeof(c.surfaces) - sizeof(StandInSurface);
-    if (!resource || !(pooled || readable(c, resource, 4))) return false;
-    auto& common = *reinterpret_cast<uint32_t*>(uintptr_t{resource});
-    const uint32_t count = common & kRefcountMask;
     switch (spec.stand_in) {
-    case SdkStandIn::AddRef:
-        if (count == 0) return false;  // would add a reference to a parent surface too
-        result = (++common) & kRefcountMask;
+    case SdkStandIn::AddRef: return spec.arg_count && stand_in_add_ref(c, values[0], result);
+    case SdkStandIn::Release: return spec.arg_count && stand_in_release(c, values[0], result);
+    case SdkStandIn::ReturnAddRef: {
+        result = *spec.value;
+        if (!result) return true;
+        uint32_t* resource = stand_in_resource(c, result, 4);
+        if (!resource) return false;
+        ++resource[0];  // render's add_ref: no parent check
         return true;
-    case SdkStandIn::Release:
-        if (count <= 1) return false;  // would release a parent or destroy the resource
-        result = (--common) & kRefcountMask;
+    }
+    case SdkStandIn::TextureLock:  // (texture, level, locked, rect, flags)
+        return spec.arg_count == 5 && stand_in_lock_rect(c, values[0], values[1], values[2], values[3]);
+    case SdkStandIn::SurfaceLock:  // (surface, locked, rect, flags)
+        return spec.arg_count == 4 && stand_in_lock_rect(c, values[0], 0, values[1], values[2]);
+    case SdkStandIn::BufferLock: {  // (buffer, flags): its memory's CPU address
+        const uint32_t* buffer = spec.arg_count ? stand_in_resource(c, values[0], 8) : nullptr;
+        if (!buffer) return false;
+        result = buffer[1] | 0x80000000;
         return true;
-    case SdkStandIn::ReturnAddRef:
-        ++common;  // render's add_ref: no parent check
-        return true;
+    }
     case SdkStandIn::PushBegin:
     case SdkStandIn::PushEnd:
     case SdkStandIn::LevelCount:
@@ -551,6 +622,7 @@ XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
     bool ok = sdk_log_put(c, index);
     for (uint32_t i = 0; i < spec.arg_count && ok; ++i) {
         const SdkArg& arg = spec.args[i];
+        if (arg.kind == kSdkUnlogged) continue;
         if (arg.kind == kSdkValue) {
             ok = sdk_log_put(c, values[i]);
             continue;
@@ -1776,9 +1848,10 @@ bool parse_sdk_args(const char* text, SdkSpec& spec) {
             arg.where = kSdkEcx;
         } else if (where == "edx") {
             arg.where = kSdkEdx;
-        } else if (where == "s") {
+        } else if (where == "s" || where == "x") {
             arg.where = kSdkStack;
             arg.slot = static_cast<uint8_t>(spec.stack_slots++);
+            if (where == "x") arg.kind = kSdkUnlogged;
         } else {
             return false;
         }

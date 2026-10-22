@@ -4384,7 +4384,7 @@ void XB_CDECL nglUpdateFogTable() {
             nglTextureSetPixel(reinterpret_cast<const uint8_t*>(title_global<NglTexture*>(0x00902e70)), x, y,
                                static_cast<uint8_t>(0xff - level));
             ++y;
-            if (y % title_global<NglTexture*>(0x00902e70)->width == 0) {
+            if (y % title_global<NglTexture*>(0x00902e70)->height == 0) {  // the height (+0x14), as the title has it
                 ++x;
                 y = 0;
             }

@@ -24,16 +24,17 @@ namespace loader::compare {
 // `args`: one word per argument, in order: where it is (`ecx`, `edx` or `s` for the
 // next stack slot), optionally `:N` = a pointer whose N bytes are recorded instead of
 // its value, `:aK*N` = the same with the value of argument K times N bytes, or `:aK*aM`
-// = argument K times argument M bytes.
+// = argument K times argument M bytes; `x` = a stack slot that is not logged (an output
+// pointer, maybe into the caller's stack frame, which differs between the two sides).
 // What a recorded call does besides being logged: most return 0 and change nothing.
 // The reference-count stand-ins work on the resource's count (the low 16 bits of its
-// first word, in title memory) so that code reading counts or buffers back stays
-// testable; a case they do not cover (a count reaching 0, a parent surface) ends the
-// test as inconclusive.
+// first word, in title memory, or of a pool surface) as render does, a surface's first
+// and last references forwarded to its texture, so that code reading counts or buffers
+// back stays testable; a resource they cannot read ends the test as inconclusive.
 enum class SdkStandIn : uint8_t {
     None,
     AddRef,        // D3DResource_AddRef(resource): count + 1, returns it
-    Release,       // D3DResource_Release(resource): count - 1 (above 1 only), returns it
+    Release,       // D3DResource_Release(resource): count - 1 (0: destroyed), returns it
     ReturnAddRef,  // returns *value (a resource or null) after AddRef on it
     PushBegin,     // D3DDevice_BeginPush_4(dwords): returns space in the test process
     PushEnd,       // D3DDevice_EndPush(end): logs the dwords written since PushBegin
@@ -42,6 +43,11 @@ enum class SdkStandIn : uint8_t {
     // texture, face, level): a surface from a pool in the test process's own area,
     // filled as render's create_level_surface does (count 1, a reference on the texture).
     SurfaceLevel,
+    // D3DTexture_LockRect(texture, level, locked, rect, flags) / D3DSurface_LockRect(
+    // surface, locked, rect, flags): {pitch, bits} into *locked as render's lock() does.
+    TextureLock,
+    SurfaceLock,
+    BufferLock,  // D3DVertexBuffer_Lock2 / D3DPalette_Lock2(buffer, flags): Data | 0x80000000
 };
 
 struct SdkCall {
