@@ -438,7 +438,7 @@ address,name,section,module,state,tested,matched
 0001c290,FUN_0001c290,.text,unassigned,unnamed,0,0
 0001c2d0,FUN_0001c2d0,.text,unassigned,unnamed,0,0
 0001c320,FUN_0001c320,.text,unassigned,unnamed,0,0
-0001c340,FUN_0001c340,.text,unassigned,settled,120,120
+0001c340,SoundRef_GetParam0,.text,unassigned,settled,120,120
 0001c360,FUN_0001c360,.text,unassigned,unnamed,0,0
 0001c3b0,Quat_Slerp,.text,unassigned,named,0,0
 0001c5b0,FUN_0001c5b0,.text,unassigned,unnamed,0,0
@@ -608,7 +608,7 @@ address,name,section,module,state,tested,matched
 00023cf0,FUN_00023cf0,.text,unassigned,unnamed,0,0
 00023d80,FUN_00023d80,.text,unassigned,unnamed,0,0
 00023e00,PakRender_Shutdown,.text,unassigned,named,0,0
-00023e50,FUN_00023e50,.text,unassigned,settled,124,124
+00023e50,SoundRef_GetParam1a,.text,unassigned,settled,124,124
 00023e70,FUN_00023e70,.text,unassigned,unnamed,0,0
 00023ed0,FUN_00023ed0,.text,unassigned,unnamed,0,0
 00023f30,FUN_00023f30,.text,unassigned,unnamed,0,0
@@ -2753,8 +2753,8 @@ address,name,section,module,state,tested,matched
 000c8310,FUN_000c8310,.text,unassigned,unnamed,0,0
 000c8320,FUN_000c8320,.text,unassigned,unnamed,0,0
 000c8380,FUN_000c8380,.text,unassigned,unnamed,0,0
-000c8450,FUN_000c8450,.text,unassigned,settled,190,190
-000c8470,FUN_000c8470,.text,unassigned,settled,270,270
+000c8450,SndVoice_GetCount,.text,unassigned,settled,190,190
+000c8470,SndVoice_Get,.text,unassigned,settled,270,270
 000c84b0,FUN_000c84b0,.text,unassigned,unnamed,0,0
 000c8580,FUN_000c8580,.text,unassigned,unnamed,0,0
 000c85c0,FUN_000c85c0,.text,unassigned,unnamed,0,0
@@ -8942,7 +8942,7 @@ address,name,section,module,state,tested,matched
 00292ee0,Key_TranslateButtonName,.text,client,named,0,0
 00292fe0,Com_HashKeyNoCase,.text,qcommon,settled,305,305
 002931c0,FUN_002931c0,.text,unassigned,unnamed,0,0
-00293310,FUN_00293310,.text,unassigned,unnamed,0,0
+00293310,Snd_CountBusyVoices,.text,unassigned,named,0,0
 00293410,FUN_00293410,.text,unassigned,unnamed,0,0
 00293450,FUN_00293450,.text,unassigned,unnamed,0,0
 00293720,SCR_RedrawFrontBuffer,.text,client,named,0,0
@@ -9061,8 +9061,8 @@ address,name,section,module,state,tested,matched
 0029b1f0,ShakeRumble_Start,.text,unassigned,settled,112,112
 0029b320,FUN_0029b320,.text,unassigned,settled,207,207
 0029b620,FX_FreeEffectsById,.text,renderer,settled,120,120
-0029b680,FUN_0029b680,.text,unassigned,settled,123,123
-0029b7f0,FUN_0029b7f0,.text,unassigned,settled,149,149
+0029b680,FX_LimitSoundComponents,.text,renderer,settled,123,123
+0029b7f0,Entity_EndSoundNotify,.text,unassigned,settled,149,149
 0029b860,FX_FreeAllEffects,.text,renderer,matched,47,47
 0029b8f0,FX_UpdateEffect,.text,renderer,named,0,0
 0029b9f0,FUN_0029b9f0,.text,unassigned,settled,207,207
@@ -9085,8 +9085,8 @@ address,name,section,module,state,tested,matched
 0029d4a0,FS_FileExists,.text,qcommon,named,0,0
 0029d500,FUN_0029d500,.text,unassigned,unnamed,0,0
 0029d5f0,Loc_GetString,.text,unassigned,named,0,0
-0029d7c0,FUN_0029d7c0,.text,unassigned,settled,347,347
-0029df60,FUN_0029df60,.text,unassigned,settled,130,130
+0029d7c0,FxSoundComponent_Update,.text,unassigned,settled,347,347
+0029df60,FxSoundComponent_Create,.text,unassigned,settled,130,130
 0029e1c0,FX_CollectTriggers,.text,renderer,settled,219,219
 0029e2d0,FUN_0029e2d0,.text,unassigned,unnamed,0,0
 0029e3d0,Cvar_Set_f,.text,qcommon,named,0,0
@@ -9290,8 +9290,8 @@ address,name,section,module,state,tested,matched
 002ad770,FUN_002ad770,.text,unassigned,unnamed,0,0
 002ad810,FUN_002ad810,.text,unassigned,unnamed,0,0
 002ad9d0,FUN_002ad9d0,.text,unassigned,unnamed,0,0
-002add40,FUN_002add40,.text,unassigned,settled,341,341
-002adea0,FUN_002adea0,.text,unassigned,settled,200,200
+002add40,SoundRef_IsState3,.text,unassigned,settled,341,341
+002adea0,SoundRef_SetVolumeScale,.text,unassigned,settled,200,200
 002adfe0,FUN_002adfe0,.text,unassigned,unnamed,0,0
 002ae040,FUN_002ae040,.text,unassigned,unnamed,0,0
 002ae080,FUN_002ae080,.text,unassigned,unnamed,0,0
@@ -9443,8 +9443,8 @@ address,name,section,module,state,tested,matched
 002b6a70,BG_FindItem,.text,game,named,0,0
 002b6ba0,S_ResumeAllChannels,.text,unassigned,named,0,0
 002b6be0,S_PauseAllChannels,.text,unassigned,named,0,0
-002b6c80,FUN_002b6c80,.text,unassigned,settled,125,125
-002b6cd0,FUN_002b6cd0,.text,unassigned,settled,359,359
+002b6c80,SoundRef_IsBusy,.text,unassigned,settled,125,125
+002b6cd0,SoundRef_IsDone,.text,unassigned,settled,359,359
 002b6d60,FUN_002b6d60,.text,unassigned,unnamed,0,0
 002b6de0,FUN_002b6de0,.text,unassigned,unnamed,0,0
 002b6e50,FUN_002b6e50,.text,unassigned,unnamed,0,0
@@ -9537,7 +9537,7 @@ address,name,section,module,state,tested,matched
 002bcf90,FUN_002bcf90,.text,unassigned,unnamed,0,0
 002bd140,S_SetHandleVolume,.text,unassigned,named,0,0
 002bd3b0,FUN_002bd3b0,.text,unassigned,unnamed,0,0
-002bd4e0,FUN_002bd4e0,.text,unassigned,settled,100,100
+002bd4e0,SoundRef_SetSource,.text,unassigned,settled,100,100
 002bd520,S_StartAliasVoice,.text,unassigned,named,0,0
 002bd770,S_StartAliasVoice2,.text,unassigned,named,0,0
 002bda60,FUN_002bda60,.text,unassigned,unnamed,0,0
@@ -9605,7 +9605,7 @@ address,name,section,module,state,tested,matched
 002c2e80,FUN_002c2e80,.text,unassigned,unnamed,0,0
 002c2f60,FUN_002c2f60,.text,unassigned,unnamed,0,0
 002c30a0,S_PlaySoundAlias,.text,unassigned,named,0,0
-002c3120,FUN_002c3120,.text,unassigned,matched,29,29
+002c3120,S_PlaySoundAlias2,.text,unassigned,matched,29,29
 002c31a0,FUN_002c31a0,.text,unassigned,unnamed,0,0
 002c3400,S_StopChannel,.text,unassigned,named,0,0
 002c3500,FUN_002c3500,.text,unassigned,unnamed,0,0
