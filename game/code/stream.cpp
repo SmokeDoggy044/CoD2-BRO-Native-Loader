@@ -433,6 +433,59 @@ uint32_t XB_CDECL Stream_FindSkel(uint32_t active, uint32_t streams, uint32_t zo
                        [](uint32_t hash, const char* key, const uint8_t* z) { return ZoneSkelMap_Lookup(hash, key, z); });
 }
 
+uint32_t XB_CDECL Stream_LoadMeshFile(const char* name, uint8_t* data, uint32_t size, uint32_t context_id) {
+    uint8_t& loading = title_global<uint8_t>(0x0095f5d0);
+    uint8_t saved = 0;
+    if (context_id != 0xffffffff) {
+        saved = loading;
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        loading = 1;
+        MemContext_Push(global_context(), context_id);
+    }
+    uint32_t hashed[8];
+    Stream_HashFileName(name, hashed);
+    title_function<void XB_STDCALL(uint8_t*, uint32_t, uint32_t)>(0x001e76aa)(data, size, 0x400);  // XPhysicalProtect
+    const uint8_t* file = nglLoadMeshFile(hashed, address_of(data));
+    uint32_t result = 0;
+    for (uint32_t mesh = *reinterpret_cast<const uint32_t*>(file + 0x138); mesh;
+         mesh = *reinterpret_cast<const uint32_t*>(uintptr_t{mesh + 0x38}))
+        *reinterpret_cast<uint32_t*>(uintptr_t{mesh + 4}) |= 0x1000000;
+    if (context_id != 0xffffffff) {
+        loading = saved;
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        result = MemContext_Pop(global_context());
+    }
+    return result;
+}
+
+PLATFORM_ASM_ENTRY(Stream_RegisterFont_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Stream_RegisterFont) "addl $16, %esp\n"
+                   "ret $12")
+
+uint32_t XB_CDECL Stream_RegisterFont(const char* name, uint32_t streams, char* text, uint32_t zone_id) {
+    uint32_t hashed[8];
+    Stream_HashFileName(name, hashed);
+    NglFont* font = nglLoadFont(reinterpret_cast<const NglHashedName*>(hashed), text);
+    if (!font) return 0;
+    const auto* zone = reinterpret_cast<const uint8_t*>(uintptr_t{
+        *reinterpret_cast<const uint32_t*>(uintptr_t{streams + 0x5c + zone_id * 4})});
+    *reinterpret_cast<uint32_t*>(uintptr_t{ZoneFontMap_Lookup(hashed[0], reinterpret_cast<const char*>(hashed + 1),
+                                                                zone)}) = address_of(font);
+    char short_name[0x20];
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(short_name, name, 0x1f);  // _strncpy
+    short_name[0x1f] = 0;
+    using FindFont = int32_t XB_REGS1 XB_STDCALL(const char*, uint32_t);
+    const int32_t index = title_function<FindFont>(0x0030f2b0)(short_name, 1);  // R_FindFont
+    if (index != 8) {
+        title_global<uint32_t>(0x0095f8d4 + index * 4) = address_of(font);
+        title_global<uint8_t>(0x0095f90c + index) = 1;
+    }
+    return static_cast<uint32_t>(index);
+}
+
 PLATFORM_ASM_ENTRY(Stream_LoadTexture_entry,
                    "pushl 16(%esp)\n"
                    "pushl 16(%esp)\n"

@@ -124,6 +124,15 @@ extern "C" void Stream_FindSkel_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_LoadTexture(char* name, uint8_t* data, uint32_t size,
                                                                 uint32_t context_id, uint32_t kind);
 extern "C" void Stream_LoadTexture_entry(void);
+// 0x00290920 (data, size, context id or -1 as Stream_LoadTexture): the mesh file (memory
+// XPhysicalProtect 0x400, nglLoadMeshFile under its base name), its meshes flagged 0x1000000.
+uint32_t XB_CDECL Stream_LoadMeshFile(const char* name, uint8_t* data, uint32_t size, uint32_t context_id);
+// 0x0028fbe0 (name in EBX; streams, font text, zone id): the font loaded (nglLoadFont) and
+// stored in the zone font map; its slot in the renderer font table (R_FindFont of the
+// first 31 chars) set and marked. Returns that slot (8 = none), 0 when not loaded.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_RegisterFont(const char* name, uint32_t streams, char* text,
+                                                                 uint32_t zone_id);
+extern "C" void Stream_RegisterFont_entry(void);
 // 0x00025330 (was FUN_00025330; src in EAX, dst in ESI, flag on the stack; returns dst):
 // FixedStr_BaseName for 0x200-byte fixed strings (u16 length at +0x1fe).
 extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr512_BaseName(const char* src, char* dst, uint32_t flag);
