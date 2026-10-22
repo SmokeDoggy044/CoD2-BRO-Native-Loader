@@ -3,6 +3,10 @@
 #include <cstring>
 
 #include "compiler.h"
+#include "lanes.h"
+#include "nal_anim.h"
+#include "nal_pose.h"
+#include "nal_math.h"
 #include "qcommon.h"
 #include "title_data.h"
 
@@ -732,6 +736,221 @@ void XB_CDECL DObj_Create(uint32_t entry, uint32_t tree0, uint32_t flags, const 
             obj->lod = k;
             return;
         }
+    }
+}
+
+void XB_CDECL DObj_GetAnimRootTransform(uint32_t* out, const DObj* obj) {
+    // Identity {quaternion, position}; the eighth word is never set (the test stack's 0).
+    const float one = title_global<float>(0x0083eb20);
+    const float identity[8] = {0.0f, 0.0f, 0.0f, one, 0.0f, 0.0f, 0.0f, 0.0f};
+    std::memcpy(out, identity, 32);
+    if (!obj->bone_matrices) return;
+    const XModel* model = obj->models[0];
+    int32_t lod = 0;
+    while (!model->lods[lod]) ++lod;
+    const uint8_t* skeleton = *reinterpret_cast<uint8_t* const*>(reinterpret_cast<const uint8_t*>(model->lods[lod]->parts) + 0x38);
+    const uint32_t generic = title_global<uint32_t>(0x00903fdc);  // the generic clip's vtable
+    if (!skeleton || *reinterpret_cast<const uint32_t*>(skeleton) != generic) return;
+    const AnimState* state = reinterpret_cast<const AnimState*>(obj->lod_limit);
+    if (!state || !state->clip || *reinterpret_cast<const uint32_t*>(state->clip) != generic) return;
+    NAL_GenericAnim_GetRootTransform(state->clip, state, out);
+}
+
+void XB_CDECL XModel_TransformBones(const XModel* model, uint8_t* bones, const uint8_t* parent) {
+    int32_t lod = 0;
+    while (!model->lods[lod]) ++lod;
+    const int32_t count = static_cast<int32_t>(model->lods[lod]->parts->bone_count);
+    alignas(16) float p[16];
+    BoneMatrix_Load(reinterpret_cast<const uint32_t*>(parent), 0, reinterpret_cast<uint32_t*>(p));
+    for (int32_t i = 0; i < count; ++i, bones += 0x40) {
+        alignas(16) float b[16];
+        BoneMatrix_Load(reinterpret_cast<const uint32_t*>(bones), 0, reinterpret_cast<uint32_t*>(b));
+        alignas(16) float out[16];
+        for (int row = 0; row < 3; ++row) {
+            const float* r = b + row * 4;
+            const Lanes v = add(add(mul(lanes(p), r[0]), mul(lanes(p + 4), r[1])), mul(lanes(p + 8), r[2]));
+            std::memcpy(out + row * 4, v.v, 16);
+        }
+        const Lanes v3 = add(add(add(lanes(p + 12), mul(lanes(p), b[12])), mul(lanes(p + 4), b[13])), mul(lanes(p + 8), b[14]));
+        std::memcpy(out + 12, v3.v, 16);
+        BoneMatrix_Store(reinterpret_cast<uint32_t*>(bones), 0, reinterpret_cast<const uint32_t*>(out));
+    }
+}
+
+namespace {
+
+// Calls a title function with EAX, ECX and EDX set and one stack word pushed (popped
+// again here: the callees are cdecl or take no stack argument).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL dobj_call_regs(uint32_t function, uint32_t eax, uint32_t ecx, uint32_t edx,
+                                                            uint32_t arg);
+PLATFORM_ASM_ENTRY(dobj_call_regs,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl 24(%ebp)\n"
+                   "movl 12(%ebp), %eax\n"
+                   "movl 16(%ebp), %ecx\n"
+                   "movl 20(%ebp), %edx\n"
+                   "call *8(%ebp)\n"
+                   "leal -12(%ebp), %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebx\n"
+                   "popl %ebp\n"
+                   "ret")
+
+uint32_t addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+// The skeleton clip of a model's first LOD (parts +0x38) when it is a generic NAL clip.
+uint8_t* generic_skeleton(const XModel* model) {
+    int32_t lod = 0;
+    while (!model->lods[lod]) ++lod;
+    uint8_t* clip = *reinterpret_cast<uint8_t* const*>(reinterpret_cast<const uint8_t*>(model->lods[lod]->parts) + 0x38);
+    if (clip && *reinterpret_cast<const uint32_t*>(clip) == title_global<uint32_t>(0x00903fdc)) return clip;
+    return nullptr;
+}
+
+// q * ((3 - r*r*s) * r * 0.5), r = RSQRTSS(s), s = |q|^2 (lanes summed (0+2)+(1+3)).
+void normalize_quat(float* q) {
+    const Lanes v = lanes(q);
+    const Lanes sq = mul(v, v);
+    const Lanes t = add(sq, {{sq.v[2], sq.v[3], sq.v[0], sq.v[0]}});
+    platform_keep(t);
+    const float s = t.v[0] + t.v[1];
+    const float r = platform_rsqrt_estimate(s);
+    const float f = (title_global<float>(0x0082e660) - r * r * s) * r * title_global<float>(0x0082e670);
+    const Lanes out = mul(v, f);
+    std::memcpy(q, out.v, 16);
+}
+
+}  // namespace
+
+void XB_CDECL DObj_UpdateSkeletons(DObj* obj) {
+    uint8_t* bones = obj->bone_matrices;
+    if (!bones) return;
+    uint8_t* ent = const_cast<uint8_t*>(obj->owner);
+    if (ent && ((*reinterpret_cast<const uint32_t*>(ent + 0x2a4) & 0x80400000) || *reinterpret_cast<const uint32_t*>(ent + 0x3b0)))
+        return;
+    const float one = title_global<float>(0x0083eb20);
+    for (int32_t i = 0; i < obj->model_count; ++i) {
+        XModel* model = obj->models[i];
+        uint8_t* skeleton = generic_skeleton(model);
+        // Per model: its anim tree (+0 + 4i) and clip state (+0x68 + 4i).
+        const uint8_t* tree = reinterpret_cast<uint8_t* const*>(obj)[i];
+        uint8_t* matrices = bones + (&obj->matrix_offset)[i] * 0x40 + 0x30;
+        const uint8_t parent_bone = obj->attach_bones[i];
+        const uint8_t* attach = parent_bone == 0xff ? nullptr : bones + parent_bone * 0x40 + 0x30;
+        const bool no_anim = !tree || (ent && (*reinterpret_cast<const uint32_t*>(ent + 0x248) || *reinterpret_cast<const uint32_t*>(ent + 0x24c)) &&
+                                       !*reinterpret_cast<const uint32_t*>(tree + 0x14));
+        if (no_anim) {
+            XModel_CalcSkeleton(model, matrices, attach);
+            continue;
+        }
+        if (!*reinterpret_cast<const uint32_t*>(tree + 0x14)) continue;
+        if (!skeleton) {
+            // Models without a generic skeleton share the one named "simple".
+            alignas(4) uint8_t name[0x20];
+            title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(name, &title_global<char>(0x00832a28));
+            int32_t lod = 0;
+            while (!model->lods[lod]) ++lod;
+            *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(model->lods[lod]->parts) + 0x38) =
+                NAL_FindSkeleton(addr(name));
+            skeleton = generic_skeleton(model);
+        }
+        AnimState*& clip_state = reinterpret_cast<AnimState**>(reinterpret_cast<uint8_t*>(obj) + 0x68)[i];
+        if (!clip_state) clip_state = Anim_CreateClipState(obj->client_index, skeleton);
+        title_global<uint32_t>(0x00928588) = addr(tree);
+        AnimState* state = clip_state;
+        if (!state || !state->clip || *reinterpret_cast<const uint32_t*>(state->clip) != title_global<uint32_t>(0x00903fdc))
+            state = nullptr;
+        uint8_t root_motion = 0;
+        if (title_global<uint32_t>(0x00928588)) {
+            const int32_t lod = obj->forced_lod >= 0 ? obj->forced_lod : obj->lod;
+            root_motion = AnimTree_CalcPose_r(0, state, reinterpret_cast<AnimState*>(skeleton + 0xc8), 1, 0, lod);
+        }
+        int32_t lod = 0;
+        while (!model->lods[lod]) ++lod;
+        const XModelParts* parts = model->lods[lod]->parts;
+        const uint32_t bone_count = parts ? parts->bone_count : 0;
+        const uint8_t* ranges = *reinterpret_cast<uint8_t* const*>(state->clip + 0x64);
+        if (bone_count >= *reinterpret_cast<const uint32_t*>(ranges + state->range * 20)) {
+            NAL_GenericAnim_EvaluatePose(state->clip, reinterpret_cast<uint8_t*>(state), reinterpret_cast<float*>(matrices),
+                                         static_cast<uint32_t>(state->range));
+            if (attach) XModel_TransformBones(model, matrices, attach);
+        }
+        if (!ent || !(*reinterpret_cast<const uint32_t*>(ent + 0x2a4) & 0x1000000)) continue;
+        // Root motion moves the entity.
+        alignas(16) uint32_t record[8];
+        alignas(16) float origin[3];
+        alignas(16) float angles[3];
+        alignas(16) float product[16];
+        uint8_t* link = *reinterpret_cast<uint8_t**>(ent + 0x3cc);
+        uint8_t* accumulated = *reinterpret_cast<uint8_t**>(ent + 0x3d4);
+        if (link) {
+            // Tag-linked: the root motion moves the link's local matrix (4x3 at +0x10).
+            DObj_GetAnimRootTransform(record, obj);
+            alignas(16) float m[16];
+            QuatTrans_ToMat44(m, 0, reinterpret_cast<const float*>(record));
+            const float* local = reinterpret_cast<const float*>(link + 0x10);
+            alignas(16) float t[16] = {local[0], local[1], local[2], 0.0f, local[3], local[4], local[5], 0.0f,
+                                       local[6], local[7], local[8], 0.0f, local[9], local[10], local[11], one};
+            Mat44_MultiplyInPlace(t, product, m);
+            const int rows[12] = {0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14};
+            for (int k = 0; k < 12; ++k)
+                reinterpret_cast<float*>(*reinterpret_cast<uint8_t**>(ent + 0x3cc) + 0x10)[k] = t[rows[k]];
+            alignas(16) float parent[12];
+            dobj_call_regs(0x002df3e0, addr(ent), addr(parent), 0, addr(parent));  // G_GetTagParentMatrix
+            alignas(16) float world[12];
+            dobj_call_regs(0x002954a0, addr(parent), 0, addr(world), addr(*reinterpret_cast<uint8_t**>(ent + 0x3cc) + 0x10));  // MatrixMultiply43
+            origin[0] = world[9];
+            origin[1] = world[10];
+            origin[2] = world[11];
+            dobj_call_regs(0x002a27f0, addr(angles), addr(world), 0, 0);  // AxisToAngles
+        } else if (root_motion) {
+            DObj_GetAnimRootTransform(record, obj);
+            alignas(16) float m[16];
+            QuatTrans_ToMat44(m, 0, reinterpret_cast<const float*>(record));
+            std::memcpy(origin, record + 4, 12);
+            dobj_call_regs(0x002a26a0, addr(angles), addr(m), 0, 0);  // MatrixToAngles
+        } else if (accumulated) {
+            // The root delta accumulated into the entity's record (+0x20), renormalized.
+            DObj_GetAnimRootTransform(record, obj);
+            alignas(16) float concat[8] = {};
+            std::memcpy(accumulated + 0x20, QuatTrans_Concat(concat, reinterpret_cast<const float*>(record),
+                                                             reinterpret_cast<const float*>(accumulated + 0x20)),
+                        32);
+            normalize_quat(reinterpret_cast<float*>(accumulated + 0x20));
+            alignas(16) float base[8] = {};
+            std::memcpy(record, QuatTrans_Concat(base, reinterpret_cast<const float*>(accumulated + 0x20),
+                                                 reinterpret_cast<const float*>(accumulated)),
+                        32);
+            normalize_quat(reinterpret_cast<float*>(record));
+            alignas(16) float m[16];
+            QuatTrans_ToMat44(m, 0, reinterpret_cast<const float*>(record));
+            origin[0] = m[12];
+            origin[1] = m[13];
+            origin[2] = m[14];
+            dobj_call_regs(0x002a26a0, addr(angles), addr(m), 0, 0);  // MatrixToAngles
+        } else {
+            // The delta applied to the entity's current axis and origin.
+            DObj_GetAnimRootTransform(record, obj);
+            alignas(16) float m[16];
+            QuatTrans_ToMat44(m, 0, reinterpret_cast<const float*>(record));
+            float axis[9];
+            dobj_call_regs(0x002a4610, addr(ent + 0x150), 0, 0, addr(axis));  // AnglesToAxisLeft
+            const float* position = reinterpret_cast<const float*>(ent + 0x140);
+            alignas(16) float b[16] = {axis[0], axis[1], axis[2], 0.0f, axis[3], axis[4], axis[5], 0.0f,
+                                       axis[6], axis[7], axis[8], 0.0f, position[0], position[1], position[2], one};
+            Mat44_MultiplyInPlace(b, product, m);
+            origin[0] = b[12];
+            origin[1] = b[13];
+            origin[2] = b[14];
+            dobj_call_regs(0x002a26a0, addr(angles), addr(b), 0, 0);  // MatrixToAngles
+        }
+        dobj_call_regs(0x002b7730, addr(ent), addr(origin), 0, 0);  // G_SetOrigin2
+        dobj_call_regs(0x002b7690, addr(ent), addr(angles), 0, 0);  // G_SetAngle2
     }
 }
 

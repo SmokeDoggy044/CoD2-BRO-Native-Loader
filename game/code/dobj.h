@@ -56,19 +56,21 @@ struct XModel {
 };
 
 struct DObj {
-    uint8_t unknown00[0x20];
+    uint8_t unknown00[0x20];  // +0: each model's anim tree (DObj_UpdateSkeletons)
     uint8_t* bone_matrices;  // +0x20, 0x40 bytes each, from +0x30 + matrix_offset * 0x40
     uint8_t unknown24[0x2e - 0x24];
     uint8_t model_count;  // +0x2e
     uint8_t bone_count;  // +0x2f, over all models
     uint32_t hidden_models;  // +0x30, a bit per model
     int32_t client_index;    // +0x34, -1 = none; else drawn only while that slot of the
-                             // table at 0x0095f638 (+0x38) is set and its +0xdc is 0
+                             // table at 0x0095f638 (+0x38) is set and its +0xdc is 0;
+                             // also the memory context of the clip states
     XModel* models[8];    // +0x38
     uint8_t attach_bones[8];  // +0x58: the bone each model hangs from (not the first)
     uint8_t matrix_offset;    // +0x60, the first model's; one byte per model follows
     uint8_t matrix_offsets_rest[7];
-    const uint8_t* lod_limit; // +0x68, +4: the finest LOD allowed (DObj_SetMinLod)
+    const uint8_t* lod_limit; // +0x68: the first model's NAL clip state (one per model, 8);
+                              // its +4 (group range) is the finest LOD allowed (DObj_SetMinLod)
     uint8_t unknown6c[0x88 - 0x6c];
     const uint8_t* owner;     // +0x88, an entity: its +0x2a4 flag 0x40000000 lifts lod_limit
     uint8_t unknown8c[0x90 - 0x8c];
@@ -229,5 +231,21 @@ struct DObjModelInfo {
 extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_Create(uint32_t entry, uint32_t tree0, uint32_t flags,
                                                      const DObjModelInfo* infos, uint32_t count, DObj* obj);
 extern "C" void DObj_Create_entry(void);
+
+// 0x002b7ba0: the skeleton's root motion {quaternion, position} (32 bytes) from the clip
+// state at +0x68 when the first model's skeleton and the state's clip are generic NAL
+// clips; identity otherwise.
+void XB_CDECL DObj_GetAnimRootTransform(uint32_t* out, const DObj* obj);
+
+// 0x00242540: the model's bones (first LOD's count, 0x40 bytes each) moved under the
+// parent bone's matrix: bone = bone * parent (rows, packed SSE).
+void XB_CDECL XModel_TransformBones(const XModel* model, uint8_t* bones, const uint8_t* parent);
+
+// 0x002df880: every model's skeleton: animated ones through their anim tree (+0, one per
+// model) into their clip state (+0x68, one per model) and NAL_GenericAnim_EvaluatePose (moved under the attach bone),
+// others XModel_CalcSkeleton. An owner entity with flag 0x1000000 (+0x2a4) then takes the
+// root motion: into its tag link's local matrix (+0x3cc), straight from the anim tree,
+// accumulated in its record (+0x3d4), or applied to its axis and origin.
+void XB_CDECL DObj_UpdateSkeletons(DObj* obj);
 
 }  // namespace game

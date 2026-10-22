@@ -52,10 +52,36 @@ Plain classes (SignalCounter, Float3, Float4, Quaternion, PositionOrientation) s
   Evaluate dequantizes with value * range +8 + range +4 (8-byte {bias, scale} record per channel).
 - Cached frame sizes: Float1 4, Float3 12, Packed8Float3 3, Packed16Float3 6, Float4 16 bytes per channel.
 
+## Track sampling and the block cache (decompiled: game/code/nal_anim.cpp)
+- `NAL_AnimTrack_Sample` (0x000881c0): time and previous time are fractions of the clip (clip +0x34 bit 0 = looping:
+  wrapped into [0, 1), else clamped). Nearest frame (flags bit 0) or the two frames around the time sampled into two
+  temporary states and blended (`NAL_AnimState_Blend(dst, fraction, a, b)` - weight is the *second* argument). The
+  track's own state (+0x14, time +0x24) follows the previous time first. Then channel slot 11 over the static groups
+  with the wrap count; the track keeps a copy of the result.
+- A clip's frames are stored in blocks of clip +0x68 frames (clip +0x44 frames in all). `NAL_AnimTrack_SampleFrame`
+  (0x00087810) finds block `time / +0x68` in the clip's block table (+0x60), decodes it if needed
+  (`NAL_AnimTrack_DecodeBlock` 0x000874b0: slot 7 decodes, slot 8 skips the levels already there) and evaluates frame
+  `time % +0x68` (`NAL_AnimTrack_EvaluateFrame` 0x00087690: slot 9 per channel).
+- LOD levels: skeleton (clip +0x30) +0x60 level count; level i covers groups from range record i's +0xc up to the
+  finer level's; the coarsest level's data sits in the block at +0x20, the finer levels in a chain of sub-blocks
+  (+0x14; sub-block +0 next, +4 size, data at +0x10). Frame size per level: clip +0x5c.
+- Block cache 0x00903f9c: +0 allocator (vtable slot 1 alloc(size), slot 2 free(ptr, size)), +4 LRU back, +8 front.
+  Block: +0 owner's pointer to it, +4 prev, +8 next, +0xc size, +0x10 finest level decoded (-1 = none), +0x14 chain.
+  Allocation evicts from the back until it succeeds (0x0008f1a0 free, 0x0008f220 touch, 0x0008f280 alloc,
+  0x0008f380 extend).
+- `AnimTree_CalcPose_r` (0x002beb60): leaves sample their track at the anim info's times (0x00965d00 + index * 0x30:
+  +0/+8 time as float + int16, +4/+0xa previous time, +0x14 weight, +0x1c track); other nodes evaluate their children
+  with a non-zero weight: the normal ones blended into dst (weights normalized, folded from the last child back),
+  then the additive ones (node flag 0x10) on top of that pose. Returns the normal children's root-motion flag.
+
 ## Not done yet
-Slots 2/3, the Quaternion / PositionOrientation / Trajectory / IKSpin classes (0x00081c80..0x00086850), the manager
-methods (0x00083c60..0x00085aa0) and the driver functions 0x00086d30..0x000886f0 and 0x0008d950..0x0008ee80.
-No caller of slots 5 and 6 through the vtable has been found yet.
+The channel classes (0x0007c2b0..0x00086850: Begin/Decode/Skip/Evaluate/Static methods), the entropy mode decoders
+(table 0x008bb4a0, 32 entries 0x0008f440..: prefix codes of zero runs and small values; each returns the zero run
+left over), the manager methods (0x00083c60..0x00085aa0), 0x0008d3f0 (root-motion delta: QuatTrans_Concat chains,
+called from the PositionOrientation class's slot 11) and the IK matrix builder 0x00093250.
+Known unmatchable lanes: the w word (+0x1c) of PositionOrientation records is never set by the title - its value is
+stale stack from 0x0008d3f0's frame, so NAL_AnimTrack_Sample / AnimTree_CalcPose_r differ from the original there
+(the only difference in every logged test) once their callees are C code.
 
 ## DObj_UpdateSkeletons and its callees (calling conventions)
 

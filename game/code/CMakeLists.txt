@@ -7,6 +7,8 @@ set(game_code_sources
     dobj.cpp
     functions.cpp
     fx.cpp
+    nal_anim.cpp
+    nal_codec.cpp
     nal_math.cpp
     nal_pose.cpp
     ngl.cpp
