@@ -660,6 +660,8 @@ const Function kFunctions[] = {
     {"R_RegisterModel", 0x00241f40, 0, code(&R_RegisterModel), 12, Result::Eax, Status::Compare},
     {"R_Register", 0x0023c4e0, 0, code(&R_Register), 0, Result::Eax, Status::Compare},
     {"Stream_RegisterFont", 0x0028fbe0, 0, code(&Stream_RegisterFont_entry), 12, Result::Eax, Status::Compare},
+    {"Stream_LoadLgrid", 0x0028d0e0, 0, code(&Stream_LoadLgrid), 16, Result::Eax, Status::Compare},
+    {"Stream_LoadAitb", 0x0028d120, 0, code(&Stream_LoadAitb), 16, Result::Eax, Status::Compare},
     {"Stream_LoadStb", 0x0028ee00, 0, code(&Stream_LoadStb), 16, Result::Eax, Status::Compare},
     {"Stream_LoadDb", 0x0028ee20, 0, code(&Stream_LoadDb), 16, Result::Eax, Status::Compare},
     {"Stream_LoadIb", 0x0028ee50, 0, code(&Stream_LoadIb), 16, Result::Eax, Status::Compare},

@@ -147,6 +147,11 @@ uint32_t XB_CDECL Stream_LoadStb(char* name, uint8_t* data, uint32_t size, uint3
 uint32_t XB_CDECL Stream_LoadDb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint32_t XB_CDECL Stream_LoadIb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint32_t XB_CDECL Stream_LoadBmips(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+// 0x0028d120 Aitb: pack (+0x18) relocated, stored in 0x0095f718 +4 + zone * 4; returns the
+// zone. 0x0028d0e0 Lgrid: +0/+8/+0x10/+0x18 made absolute, stored in 0x0095f6a0 +4 +
+// zone * 4; returns the data.
+uint32_t XB_CDECL Stream_LoadAitb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint8_t* XB_CDECL Stream_LoadLgrid(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 // 0x00290730 Xmb: pack relocated, registered (0x0023cfb0, EBX = data), stored in
 // 0x0095f6ac +4 + zone * 4. 0x002906f0 Lpth: +0x10..+0x1c made absolute; type 9 = the path
 // nodes (g_pathNodeBlocks +0x194, Path_InitAfterLoad). 0x002907f0 Xbskel: 0x0008e130(data)

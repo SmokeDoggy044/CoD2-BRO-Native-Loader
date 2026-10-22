@@ -533,6 +533,19 @@ uint32_t XB_CDECL Stream_LoadIb(char*, uint8_t* data, uint32_t, uint32_t zone) {
     return zone;
 }
 
+uint32_t XB_CDECL Stream_LoadAitb(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    relocate_pack(data, 0x18);
+    title_global<uint32_t>(title_global<uint32_t>(0x0095f718) + 4 + zone * 4) = address_of(data);
+    return zone;
+}
+
+uint8_t* XB_CDECL Stream_LoadLgrid(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    auto* words = reinterpret_cast<uint32_t*>(data);
+    for (int i = 0; i <= 6; i += 2) words[i] += address_of(data);
+    title_global<uint32_t>(title_global<uint32_t>(0x0095f6a0) + 4 + zone * 4) = address_of(data);
+    return data;
+}
+
 uint32_t XB_CDECL Stream_LoadBmips(char*, uint8_t* data, uint32_t, uint32_t zone) {
     relocate_pack(data, 0x14);
     *reinterpret_cast<uint32_t*>(data + 8) = zone;
