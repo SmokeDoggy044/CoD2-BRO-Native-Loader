@@ -60,7 +60,7 @@ struct DObj {
     uint8_t* bone_matrices;  // +0x20, 0x40 bytes each, from +0x30 + matrix_offset * 0x40
     uint8_t unknown24[0x2e - 0x24];
     uint8_t model_count;  // +0x2e
-    uint8_t unknown2f;
+    uint8_t bone_count;  // +0x2f, over all models
     uint32_t hidden_models;  // +0x30, a bit per model
     int32_t client_index;    // +0x34, -1 = none; else drawn only while that slot of the
                              // table at 0x0095f638 (+0x38) is set and its +0xdc is 0
@@ -176,5 +176,14 @@ int32_t XB_STDCALL DObj_FindBoneIndex2(const DObj* obj, const char* name);
 // a missing "tag_origin" is bone 0 (its hash cached in 0x0098b83c, guard bit 0x0098b840).
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL DObj_GetTagIndex(const DObj* obj, uint32_t name);
 extern "C" void DObj_GetTagIndex_entry(void);
+
+// 0x00240c00: allocates the bone matrices (header 0x30 bytes cleared, 0x40 per bone;
+// the client's memory context 0x0095f638 +0x38 first, else the heap) and computes the
+// base pose of every model (as DObj_CalcBasePose).
+void XB_CDECL DObj_CreateSkeleton(DObj* obj);
+// 0x00241ea0 (parts in ESI): when the first bone has no script name yet, every bone's
+// name text is hashed (ScrIface_HashStringNoCase) and added to the name map.
+extern "C" PLATFORM_HIDDEN void XB_CDECL XModel_ResolveBoneNames(XModelParts* parts);
+extern "C" void XModel_ResolveBoneNames_entry(void);
 
 }  // namespace game

@@ -87,4 +87,18 @@ void XB_CDECL FX_StopEffect(uint8_t* effect, uint32_t immediate);
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin);
 extern "C" void FX_PlayEffectAt_entry(void);
 
+// 0x0023c300: the draw list (0x00988804) rebuilt from the effects (0x00988ce8) that
+// have a definition (+4), then sorted (FX_SortEffects_r); clears 0x0095f6e8.
+void XB_CDECL FX_SortEffects();
+// 0x0023b6d0: every effect back to the free list (FX_FreeEffect), then both lists
+// emptied and their memory freed.
+void XB_CDECL FX_ClearEffects();
+// 0x00236aa0: Z_Free of every effect light (0x00988714), the list emptied.
+void XB_CDECL FX_FreeAllEffectLights();
+// 0x0029b860 (instances in ESI): frees every instance (components, then the small heap
+// 0x0095f5bc), deletes every object of the second list at +0x804 (vtable slot 0, 1),
+// then FX_ClearEffects.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_FreeAllEffects(FxIdList* instances);
+extern "C" void FX_FreeAllEffects_entry(void);
+
 }  // namespace game

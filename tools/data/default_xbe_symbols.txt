@@ -1221,15 +1221,16 @@
 00044e90 FUN_00044e90
 00044eb0 FUN_00044eb0
 00044ee0 Water_GetHeight
-00045610 FUN_00045610
-00045620 FUN_00045620
+00045610 R_SetDebugViewMode
+00045620 R_GetDebugViewMode
 00045630 FUN_00045630
 00045640 nglAdvanceShaderTime
 000456a0 nglMaterialFindTexture
 000456c0 nglMaterialFindTextureOrDefault
 000456f0 nglGetSceneFogColor
 00045790 nglInitShaders
-00045ef0 FUN_00045ef0
+00045850 R_DrawFogPass
+00045ef0 R_AddFogPass
 00045f40 nglToggleShaderByName
 000462f0 FUN_000462f0
 00046300 cdSimpleInstance_Toggle
@@ -1250,7 +1251,7 @@
 00046d50 nglStateCache_SetFogEnable
 00046dd0 cdDebug_GetName
 00046df0 nglNode_ViewDepth
-00047200 FUN_00047200
+00047200 ShaderPCUV_InitMaterial
 00047230 ShaderPCUV_Register
 000472a0 ShaderPCUV_Init
 000472e0 ShaderPCUV_Draw
@@ -1471,7 +1472,7 @@
 00055800 Stream_ReadUInt
 00055840 Stream_ReadFloat
 00055880 Stream_ReadString
-00055a60 FUN_00055a60
+00055a60 Map_EmptyKey
 00055ab0 Pack_RelocateChain
 00055b00 Pack_RelocateTable
 00055b40 Pack_DecodeRelocWord
@@ -1626,7 +1627,7 @@
 00063c40 FUN_00063c40
 00063d60 FUN_00063d60
 00063f10 FUN_00063f10
-00064040 FUN_00064040
+00064040 nglSkipList_RandomLevel
 00064080 nglSkipList_Find
 000641a0 FUN_000641a0
 000641d0 FUN_000641d0
@@ -1661,7 +1662,7 @@
 00066500 nglInitFontManager
 000665d0 FUN_000665d0
 000666f0 nglResourceManager_Find
-00066760 FUN_00066760
+00066760 nglSkipList_InitHead
 000667a0 FUN_000667a0
 00066850 nglCreateVertexBuffer
 000668d0 nglCreateVertexBufferPhysical
@@ -1708,7 +1709,7 @@
 0006a280 FUN_0006a280
 0006a340 nglTextureGetSurfaces
 0006a410 nglInitTextureHeader
-0006a520 FUN_0006a520
+0006a520 nglTexture_FreeHeaders
 0006a560 nglRegisterTexture
 0006a5c0 nglAllocTextureMemory
 0006a6c0 nglUnbindTextures
@@ -1731,7 +1732,7 @@
 0006b7e0 nglLoadTextureFile
 0006bad0 nglResetFrameStats
 0006bb50 nglDrawFrameTimeBar
-0006bf70 FUN_0006bf70
+0006bf70 nglFlushDebugLineBatch
 0006c2b0 FUN_0006c2b0
 0006cb80 FUN_0006cb80
 0006cc50 FUN_0006cc50
@@ -1832,7 +1833,7 @@
 00079fc0 nglRenderTextNode
 0007a3a0 nglIndexBuffer_Alloc
 0007a3c0 nglIndexBuffer_Init
-0007a3d0 FUN_0007a3d0
+0007a3d0 nglIndexBuffer_Free
 0007a3f0 nglIndexBuffer_Clear
 0007a400 nglIndexBuffer_Lock
 0007a410 nglIndexBuffer_Unlock
@@ -8053,7 +8054,7 @@
 002369c0 R_SetupFog
 00236a20 GScr_SetFogColor
 00236a70 GScr_SetFogDistances
-00236aa0 FX_FreeAllEffects
+00236aa0 FX_FreeAllEffectLights
 00236ae0 FUN_00236ae0
 00236b40 FX_FindEvictableEffect
 00236ba0 FUN_00236ba0

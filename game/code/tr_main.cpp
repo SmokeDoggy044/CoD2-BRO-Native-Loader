@@ -384,7 +384,7 @@ void XB_CDECL R_ClearAlpha() {
         nglListAddQuad(&quad);
         nglPopScene();
     }
-    title_function<void XB_CDECL()>(0x00045ef0)();
+    R_AddFogPass();
 }
 
 uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale) {
@@ -2630,6 +2630,16 @@ int32_t XB_REGS1 XB_STDCALL R_FindFont(const char* name, uint32_t strip_extensio
 void XB_CDECL RE_DrawText(float x, float y, uint32_t font_name, float scale, const float* rgba, const char* text,
                           uint32_t a6, uint32_t a7, uint32_t a8) {
     RE_DrawTextExt(x, y, font_name, scale, rgba, text, -1, 0, a6, a7, a8);
+}
+
+void XB_CDECL R_AddFogPass() {
+    static const uint32_t kData[2] = {1, 0};  // {1, 0.0f}
+    nglPushScene(0);
+    nglSetClearFlags(0);
+    nglSetSceneDepthTest(0);
+    nglSetSceneDepthEnable(0);
+    nglListAddCustomNode(0x00045850, 0, kData);  // R_DrawFogPass
+    nglPopScene();
 }
 
 }  // namespace game

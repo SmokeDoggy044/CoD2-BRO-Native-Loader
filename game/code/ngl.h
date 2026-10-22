@@ -70,8 +70,8 @@ struct NglSkipListNode {
 };
 
 struct NglSkipList {
-    uint32_t seed;                // rand() at creation
-    uint32_t max_level;           // 7 for the font manager
+    int32_t random_bits;          // a rand() consumed two bits at a time
+    int32_t bits_left;            // +0x04, 2-bit pairs left in random_bits (7 after a refill)
     NglSkipListNode* head;        // +0x08
     int32_t level;                // +0x0c, highest level in use
 };
@@ -1104,5 +1104,22 @@ void XB_CDECL nglCreateWhiteTexture();
 // 0x00072c00: the fog textures: one fog_width x fog_height (0x00902e70), two width x
 // height (0x00902e64), and a texture header over the 0x00902dfc memory (0x00902e50).
 void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog_width, uint32_t fog_height);
+
+// 0x00055a60: a static zeroed 0x20-byte key (0x0090226c, cleared on first use) for the
+// map finders; sizes over 0x20 break into a debugger first.
+uint8_t* XB_CDECL Map_EmptyKey(int32_t size);
+// 0x00064040: a new node's level (as ShaderCache_RandomLevel): one more per zero 2-bit
+// pair, at most 15.
+int32_t XB_THISCALL nglSkipList_RandomLevel(NglSkipList* self);
+// 0x00066760: level 0 and a head node (0x44 bytes) with its 16 links cleared.
+void XB_THISCALL nglSkipList_InitHead(NglSkipList* self);
+// 0x0006bf70: the pending debug line node (0x00902ca0) onto the current scene's opaque
+// list with the batch key (0x008a2f08/0c), the pending node cleared; nothing pending:
+// nothing to do.
+void XB_CDECL nglFlushDebugLineBatch();
+// 0x0006a520: frees and clears the texture's D3D header (+0x30) and surface table (+0x34).
+void XB_THISCALL nglTexture_FreeHeaders(NglTexture* texture);
+// 0x0007a3d0: frees the buffer (*self) and clears it.
+void XB_THISCALL nglIndexBuffer_Free(uint8_t** self);
 
 }  // namespace game

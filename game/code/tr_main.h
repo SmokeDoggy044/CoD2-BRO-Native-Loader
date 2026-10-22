@@ -448,4 +448,8 @@ int32_t XB_REGS1 XB_STDCALL R_FindFont(const char* name, uint32_t strip_extensio
 void XB_CDECL RE_DrawText(float x, float y, uint32_t font_name, float scale, const float* rgba, const char* text,
                           uint32_t a6, uint32_t a7, uint32_t a8);
 
+// 0x00045ef0: the end of R_ClearAlpha: a scene (no clear, no depth test or write) with
+// one custom node that calls R_DrawFogPass (0x00045850) with {1, 0.0}.
+void XB_CDECL R_AddFogPass();
+
 }  // namespace game

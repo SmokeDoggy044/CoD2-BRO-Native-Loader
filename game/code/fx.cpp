@@ -269,4 +269,111 @@ void XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin) {
         effect, matrix, 0, 0, 0xffffffff, 0);  // FX_SpawnEffect
 }
 
+namespace {
+
+// PtrVector {data, capacity, count}: PtrVector_Resize (0x00013970) takes the vector in
+// ESI and the count in EBX, PtrVector_PushBack (0x000138c0) the vector in ESI and a
+// pointer to the value on the stack (stdcall).
+struct PtrVector {
+    uint8_t** data;
+    uint32_t capacity;
+    uint32_t count;
+};
+
+extern "C" PLATFORM_HIDDEN void XB_CDECL PtrVector_Resize_call(PtrVector* vector, uint32_t count);
+PLATFORM_ASM_ENTRY(PtrVector_Resize_call,
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "movl 12(%esp), %esi\n"
+                   "movl 16(%esp), %ebx\n"
+                   "movl $0x00013970, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "popl %ebx\n"
+                   "ret")
+
+extern "C" PLATFORM_HIDDEN void XB_CDECL PtrVector_PushBack_call(PtrVector* vector, uint8_t* const* value);
+PLATFORM_ASM_ENTRY(PtrVector_PushBack_call,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x000138c0, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+PtrVector& draw_list() { return title_global<PtrVector>(0x00988804); }
+PtrVector& effect_list() { return title_global<PtrVector>(0x00988ce8); }
+PtrVector& effect_lights() { return title_global<PtrVector>(0x00988714); }
+
+}  // namespace
+
+void XB_CDECL FX_SortEffects() {
+    uint8_t** entry = effect_list().data;
+    uint8_t** const end = entry + effect_list().count;
+    PtrVector_Resize_call(&draw_list(), 0);
+    for (; entry != end; ++entry) {
+        uint8_t* effect = *entry;
+        if (effect && *reinterpret_cast<const uint32_t*>(effect + 4)) PtrVector_PushBack_call(&draw_list(), &effect);
+    }
+    const uint32_t count = draw_list().count;
+    if (count) FX_SortEffects_r(0, static_cast<int32_t>(count - 1));
+    uint32_t& flag = title_global<uint32_t>(0x0095f6e8);
+    if (flag) flag = 0;
+}
+
+void XB_CDECL FX_ClearEffects() {
+    uint8_t** const end = effect_list().data + effect_list().count;
+    for (uint8_t** entry = effect_list().data; entry != end; ++entry) {
+        if (*entry) FX_FreeEffect(reinterpret_cast<FxEffect*>(*entry));
+    }
+    PtrVector_Resize_call(&effect_list(), 0);
+    PtrVector_Resize_call(&draw_list(), 0);
+    using Free = void XB_CDECL(void*);
+    if (effect_list().data) title_function<Free>(0x000939b0)(effect_list().data);  // Mem_AlignedFree
+    effect_list() = PtrVector{};
+    if (draw_list().data) title_function<Free>(0x000939b0)(draw_list().data);  // Mem_AlignedFree
+    draw_list() = PtrVector{};
+}
+
+void XB_CDECL FX_FreeAllEffectLights() {
+    uint8_t** const end = effect_lights().data + effect_lights().count;
+    for (uint8_t** entry = effect_lights().data; entry != end; ++entry) {
+        if (*entry) title_function<void XB_CDECL(void*)>(0x000428d0)(*entry);  // Z_Free
+    }
+    PtrVector_Resize_call(&effect_lights(), 0);
+}
+
+PLATFORM_ASM_ENTRY(FX_FreeAllEffects_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FX_FreeAllEffects) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL FX_FreeAllEffects(FxIdList* instances) {
+    // Both lists take their last entry into slot 0 while they shrink.
+    uint32_t* words = &instances->count;
+    while (instances->count) {
+        uint8_t* item = instances->items[0];
+        if (item) {
+            FX_FreeEffectComponents(reinterpret_cast<uint32_t*>(item));
+            title_function<void XB_THISCALL(uint32_t, void*)>(0x00044910)(title_global<uint32_t>(0x0095f5bc),
+                                                                          item);  // SmallHeap_Free
+        }
+        instances->items[0] = reinterpret_cast<uint8_t*>(words[instances->count]);
+        if (instances->count) --instances->count;
+    }
+    // A second list at +0x804 of objects deleted through their vtable (slot 0, flag 1).
+    auto* objects = reinterpret_cast<FxIdList*>(reinterpret_cast<uint8_t*>(instances) + 0x804);
+    words = &objects->count;
+    while (objects->count) {
+        uint8_t* object = objects->items[0];
+        if (object) {
+            const uint32_t destroy = vtable_slot(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object)), 0);
+            title_function<void XB_THISCALL(uint8_t*, uint32_t)>(destroy)(object, 1);
+        }
+        objects->items[0] = reinterpret_cast<uint8_t*>(words[objects->count]);
+        if (objects->count) --objects->count;
+    }
+    FX_ClearEffects();
+}
+
 }  // namespace game

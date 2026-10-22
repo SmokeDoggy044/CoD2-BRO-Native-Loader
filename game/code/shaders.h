@@ -333,4 +333,12 @@ void XB_THISCALL cdWorld_Register(NglShaderClass* self);
 void XB_THISCALL cdBackground_Register(NglShaderClass* self);
 void XB_THISCALL cdSky_Register(NglShaderClass* self);
 
+// 0x00045610 / 0x00045620: the debug view mode (0x00901e94); console toggles set it,
+// the cd* Draws pick program variants by it (== 1).
+void XB_CDECL R_SetDebugViewMode(uint32_t mode);
+uint32_t XB_CDECL R_GetDebugViewMode();
+// 0x00047200: a PCUV material: (a, b, c) to +0x1c/+0x20 (the mode ShaderPCUV_AddToList
+// reads)/+0x24, the PCUV shader class to +4; returns the material.
+uint8_t* XB_THISCALL ShaderPCUV_InitMaterial(uint8_t* material, uint32_t a, uint32_t b, uint32_t c);
+
 }  // namespace game

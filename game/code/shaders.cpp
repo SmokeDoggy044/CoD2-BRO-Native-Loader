@@ -553,9 +553,9 @@ void set_material_texture(const NglMeshNode* node) {
 
 const NglShaderRef* shader_ref(uint32_t address) { return &title_global<NglShaderRef>(address); }
 
-// The pixel program variant: 0x00045620 returns the flag at 0x00901e94.
+// The pixel program variant by the debug view mode.
 const NglShaderRef* pick_shader(uint32_t if_one, uint32_t otherwise) {
-    return shader_ref(title_function<uint32_t XB_CDECL()>(0x00045620)() == 1 ? if_one : otherwise);
+    return shader_ref(R_GetDebugViewMode() == 1 ? if_one : otherwise);
 }
 
 // The instance parameter block (the draw node's +0x8c): a 64-bit mask of the slots
@@ -908,7 +908,7 @@ void XB_THISCALL cdWater_Draw(const NglMeshNode* node) {
     title_global<uint32_t>(0x003f5cec) = 3;
     nglSetVertexShaderCached(shader_ref(0x009021a4));
     const bool reflective = *reinterpret_cast<NglTexture* const*>(node->material + 0x24) != nullptr &&
-                            title_function<uint32_t XB_CDECL()>(0x00045620)() != 1;
+                            R_GetDebugViewMode() != 1;
     nglSetPixelShaderProgramCached(shader_ref(reflective ? 0x009021a0 : 0x009021ac));
     set_transform_constants(-0x56, node);
     set_scene_fog();
@@ -980,7 +980,7 @@ void XB_THISCALL cdOcean_Draw(const NglMeshNode* node) {
     void** vtable = node->vtable;
     nglSetVertexShaderCached(reinterpret_cast<GetShader*>(vtable[2])(node));
     const NglShaderRef* pixel_shader =
-        title_function<uint32_t XB_CDECL()>(0x00045620)() == 1
+        R_GetDebugViewMode() == 1
             ? reinterpret_cast<GetShader*>(vtable[4])(node)
             : reinterpret_cast<GetPixelShader*>(vtable[3])(node, stages & 1, stages >> 1 & 1, stages >> 2 & 1);
     nglSetPixelShaderProgramCached(pixel_shader);
@@ -1134,7 +1134,7 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
     bool lightmap = false;
     bool projected = false;
     k.textures(node, projector_texture, lightmap, projected);
-    if (title_function<uint32_t XB_CDECL()>(0x00045620)() == 1) lightmap = false;
+    if (R_GetDebugViewMode() == 1) lightmap = false;
     nglSetVertexShaderCached(shader_ref(k.vertex_shaders + projected * 8));
     nglSetPixelShaderProgramCached(shader_ref(k.pixel_shaders + (projected + lightmap * 2) * 4));
 
@@ -1611,7 +1611,7 @@ void XB_THISCALL cdSimpleAlpha_Draw(const NglMeshNode* node) {
     const uint32_t saved_color_write = title_global<uint32_t>(0x00902fa8);
     const uint32_t saved_z_func = title_global<uint32_t>(0x00902f84);
     const uint8_t saved_z_write = title_global<uint8_t>(0x00902f7c);
-    const bool variant = title_function<uint32_t XB_CDECL()>(0x00045620)() == 1;
+    const bool variant = R_GetDebugViewMode() == 1;
 
     if (flags & 1) {
         // Depth only, then less-or-equal against it.
@@ -1908,6 +1908,19 @@ void XB_THISCALL cdSky_Register(NglShaderClass* self) {
     register_class(self);
     nglVertexShader_Init(&title_global<uint32_t>(0x0090225c), 0x008994f0, title_global<uint32_t>(0x008a0ae4));
     nglPixelShader_Init(&title_global<uint32_t>(0x00902264), title_global<uint32_t>(0x008a0bd8));
+}
+
+void XB_CDECL R_SetDebugViewMode(uint32_t mode) { title_global<uint32_t>(0x00901e94) = mode; }
+
+uint32_t XB_CDECL R_GetDebugViewMode() { return title_global<uint32_t>(0x00901e94); }
+
+uint8_t* XB_THISCALL ShaderPCUV_InitMaterial(uint8_t* material, uint32_t a, uint32_t b, uint32_t c) {
+    auto* words = reinterpret_cast<uint32_t*>(material);
+    words[0x1c / 4] = a;
+    words[0x20 / 4] = b;
+    words[0x24 / 4] = c;
+    words[1] = title_global<uint32_t>(0x00901ecc);  // the PCUV shader class
+    return material;
 }
 
 }  // namespace game

@@ -4236,4 +4236,68 @@ void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog
     title_global<uint32_t>(0x00902e8c) = title_global<uint32_t>(0x00902d64);
 }
 
+uint8_t* XB_CDECL Map_EmptyKey(int32_t size) {
+    if (size > 0x20) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    uint8_t& ready = title_global<uint8_t>(0x0090228c);
+    if (!ready) {
+        for (uint32_t offset = 0; offset < 0x20; offset += 4) title_global<uint32_t>(0x0090226c + offset) = 0;
+        ready = 1;
+    }
+    return &title_global<uint8_t>(0x0090226c);
+}
+
+int32_t XB_THISCALL nglSkipList_RandomLevel(NglSkipList* self) {
+    int32_t level = 0;
+    int32_t pair;
+    do {
+        const int32_t bits = self->random_bits;
+        pair = bits & 3;
+        if (pair == 0) ++level;
+        self->random_bits = bits >> 2;
+        if (--self->bits_left == 0) {
+            self->random_bits = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // rand
+            self->bits_left = 7;
+        }
+    } while (pair == 0);
+    return level > 15 ? 15 : level;
+}
+
+void XB_THISCALL nglSkipList_InitHead(NglSkipList* self) {
+    self->level = 0;
+    self->head = static_cast<NglSkipListNode*>(Mem_AlignedAlloc(0x44, 4, 0));
+    for (int i = 0; i < 16; ++i) self->head->next[i] = nullptr;
+}
+
+void XB_CDECL nglFlushDebugLineBatch() {
+    if (!title_global<uint8_t*>(0x00902ca0)) return;
+    if (current_scene()->stale) nglUpdateScene(0);
+    uint8_t* node = title_global<uint8_t*>(0x00902ca0);
+    field<uint32_t>(node, 0x14) = title_global<uint32_t>(0x00902ca4);
+    field<uint32_t>(node, 0x18) = title_global<uint32_t>(0x008a2f08);
+    field<uint32_t>(node, 0x1c) = title_global<uint32_t>(0x008a2f0c);
+    field<int32_t>(node, 0x8) = -1;
+    field<NglNode*>(node, 0x4) = current_scene()->opaque_nodes;
+    current_scene()->opaque_nodes = reinterpret_cast<NglNode*>(node);
+    ++current_scene()->opaque_count;
+    title_global<uint8_t*>(0x00902ca0) = nullptr;
+    title_global<uint32_t>(0x00902ca4) = 0;
+}
+
+void XB_THISCALL nglTexture_FreeHeaders(NglTexture* texture) {
+    using Free = void XB_CDECL(void*);
+    if (texture->d3d_texture) {
+        title_function<Free>(0x000939b0)(texture->d3d_texture);  // Mem_AlignedFree
+        texture->d3d_texture = nullptr;
+    }
+    if (texture->surfaces) {
+        title_function<Free>(0x000939b0)(texture->surfaces);  // Mem_AlignedFree
+        texture->surfaces = nullptr;
+    }
+}
+
+void XB_THISCALL nglIndexBuffer_Free(uint8_t** self) {
+    title_function<void XB_CDECL(void*)>(0x000939b0)(*self);  // Mem_AlignedFree
+    *self = nullptr;
+}
+
 }  // namespace game

@@ -423,4 +423,47 @@ int32_t XB_CDECL DObj_GetTagIndex(const DObj* obj, uint32_t name) {
     return bone;
 }
 
+void XB_CDECL DObj_CreateSkeleton(DObj* obj) {
+    // 0x40 bytes per bone after a 0x30-byte header, from the client's memory context
+    // when there is one, else the heap.
+    const uint32_t size = obj->bone_count * 0x40u + 0x30;
+    uint8_t* memory = nullptr;
+    if (obj->client_index != -1) {
+        const int32_t client = obj->client_index;
+        uint32_t context = 0;
+        if (client >= 0 && client < 0x63)
+            context = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x38 + client * 4);
+        memory = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x0028c0f0)(context, 0x20,
+                                                                                            size);  // MemContext_Alloc_r
+    }
+    if (!memory) memory = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x20, size);  // Heap_AllocAligned
+    obj->bone_matrices = memory;
+    auto* header = reinterpret_cast<uint32_t*>(memory);
+    for (int i = 0; i < 12; ++i) header[i] = 0;
+    for (int m = 0; m < obj->model_count; ++m) {
+        uint8_t* parent = attach_matrix(obj, m);
+        title_function<CalcSkeleton>(0x0023df00)(obj->models[m], bone_matrix(obj, matrix_offset(obj, m)),
+                                                 parent);  // XModel_CalcSkeleton
+    }
+}
+
+PLATFORM_ASM_ENTRY(XModel_ResolveBoneNames_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(XModel_ResolveBoneNames) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL XModel_ResolveBoneNames(XModelParts* parts) {
+    if (!parts || parts->bones[0].name) return;
+    // The bone accessor falls back to bone 0 for an index out of range.
+    auto bone = [parts](uint32_t i) -> XBoneInfo& { return parts->bones[i < parts->bone_count ? i : 0]; };
+    for (uint32_t i = 0; i < parts->bone_count; ++i) {
+        const char* text = bone(i).text;
+        uint32_t name = 0;
+        if (text) {
+            name = title_function<uint32_t XB_CDECL(const char*)>(0x002f5470)(text);  // ScrIface_HashStringNoCase
+            title_function<void XB_CDECL(uint32_t, const char*)>(0x00300b30)(name, text);  // NameMap_Insert
+        }
+        bone(i).name = name;
+    }
+}
+
 }  // namespace game
