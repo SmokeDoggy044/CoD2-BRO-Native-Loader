@@ -538,7 +538,7 @@ namespace {
 // Stream_Add*ToZone: the object (its hashed name at +name_offset) stored in the zone map
 // at +map_offset of the zone on top of the global context's stack (-1 when empty); returns
 // the entry's previous value.
-uint32_t add_to_zone(uint32_t streams, uint32_t object, uint32_t name_offset, uint32_t map_offset, bool checked) {
+uint32_t add_to_zone(uint32_t streams, uint32_t object, uint32_t name, uint32_t map_offset, bool checked) {
     uint8_t* context = global_context();
     const uint32_t count = context_word(context, 0x374);
     uint32_t id = 0xffffffff;
@@ -547,10 +547,10 @@ uint32_t add_to_zone(uint32_t streams, uint32_t object, uint32_t name_offset, ui
         id = context_word(context, 0x378 + (top > 0 ? top : 0) * 4);
     }
     const uint32_t zone = *reinterpret_cast<const uint32_t*>(uintptr_t{streams + 0x5c + id * 4});
-    uint32_t hash = *reinterpret_cast<const uint32_t*>(uintptr_t{object + name_offset});
+    uint32_t hash = *reinterpret_cast<const uint32_t*>(uintptr_t{name});
     if (!hash)
         hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x0001d830)(  // HashStr_Hash
-            reinterpret_cast<const char*>(uintptr_t{object + name_offset + 4}));
+            reinterpret_cast<const char*>(uintptr_t{name + 4}));
     const uint32_t* index = UintMap_Find(reinterpret_cast<const uint32_t*>(uintptr_t{zone + map_offset}), &hash);
     volatile uint32_t* slot = nullptr;
     if (index && *index != 0xffffffff) {
@@ -568,11 +568,33 @@ uint32_t add_to_zone(uint32_t streams, uint32_t object, uint32_t name_offset, ui
 }  // namespace
 
 uint32_t XB_STDCALL Stream_AddTextureToZone(uint32_t streams, uint32_t texture) {
-    return add_to_zone(streams, texture, 0x54, 0x08, true);
+    return add_to_zone(streams, texture, texture + 0x54, 0x08, true);
+}
+
+uint32_t XB_STDCALL Stream_AddMeshToZone(uint32_t streams, uint32_t mesh) {
+    return add_to_zone(streams, mesh, *reinterpret_cast<const uint32_t*>(uintptr_t{mesh}), 0x28, false);
+}
+
+PLATFORM_ASM_ENTRY(Stream_AddAnimToZone_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Stream_AddAnimToZone) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Stream_AddAnimToZone(uint32_t anim, uint32_t streams) {
+    return add_to_zone(streams, anim, anim + 0x10, 0x88, false);
+}
+
+PLATFORM_ASM_ENTRY(Stream_AddSkelToZone_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Stream_AddSkelToZone) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Stream_AddSkelToZone(uint32_t skel, uint32_t streams) {
+    return add_to_zone(streams, skel, skel + 8, 0xb8, false);
 }
 
 uint32_t XB_STDCALL Stream_AddMeshFileToZone(uint32_t streams, uint32_t file) {
-    return add_to_zone(streams, file, 0, 0x38, false);
+    return add_to_zone(streams, file, file, 0x38, false);
 }
 
 uint32_t XB_CDECL Stream_LoadAitb(char*, uint8_t* data, uint32_t, uint32_t zone) {

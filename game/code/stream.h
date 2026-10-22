@@ -155,6 +155,14 @@ uint32_t XB_CDECL Stream_LoadBmips(char* name, uint8_t* data, uint32_t size, uin
 // returns the previous entry (texture: 0 when the name is not in the map).
 uint32_t XB_STDCALL Stream_AddTextureToZone(uint32_t streams, uint32_t texture);
 uint32_t XB_STDCALL Stream_AddMeshFileToZone(uint32_t streams, uint32_t file);
+// 0x0028e880: meshes (name where +0 points, map +0x28). 0x0028e790 / 0x0028e690 (object in
+// ESI, streams on the stack): anims (name +0x10, map +0x88) / skeletons (name +8, map +0xb8).
+// These store unchecked (a missing name writes through null, as the original).
+uint32_t XB_STDCALL Stream_AddMeshToZone(uint32_t streams, uint32_t mesh);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddAnimToZone(uint32_t anim, uint32_t streams);
+extern "C" void Stream_AddAnimToZone_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddSkelToZone(uint32_t skel, uint32_t streams);
+extern "C" void Stream_AddSkelToZone_entry(void);
 uint32_t XB_CDECL Stream_LoadAitb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint8_t* XB_CDECL Stream_LoadLgrid(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 // 0x00290730 Xmb: pack relocated, registered (0x0023cfb0, EBX = data), stored in
