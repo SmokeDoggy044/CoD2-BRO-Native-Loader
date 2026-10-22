@@ -455,6 +455,34 @@ FxEffect* XB_CDECL FX_SpawnEffect(uint8_t* definition, const float* matrix, uint
     return effect;
 }
 
+void XB_CDECL FX_KillEffectsOnEntity(int32_t id) {
+    for (int32_t i = 0; i < static_cast<int32_t>(effect_list().count); ++i) {
+        FxEffect* effect = reinterpret_cast<FxEffect*>(effect_list().data[i]);
+        if (!effect || effect->unknown18 != id) continue;
+        FX_FreeEffect(effect);
+        effect_list().data[i] = nullptr;
+    }
+    // The particle library's active systems (0x009099ac, count 0x00909b8c) with that id
+    // (+0x64): stopped under it, the last one taking each one's place.
+    int32_t& active = title_global<int32_t>(0x00909b8c);
+    for (int32_t i = 0; i < active; ++i) {
+        uint8_t* system = title_global<uint8_t*>(0x009099ac + i * 4);
+        const int32_t system_id = *reinterpret_cast<const int32_t*>(system + 0x64);
+        if (system_id != id) continue;
+        title_global<int32_t>(0x008bb764) = system_id;
+        title_global<uint32_t>(0x00909948) = 1;
+        FxRandom_Reset();
+        FX_StopEffect(system, 1);
+        FxRandom_Restore();
+        title_global<int32_t>(0x008bb764) = -1;
+        title_global<uint32_t>(0x00909948) = 0;
+        --active;
+        if (i == active) break;
+        title_global<uint32_t>(0x009099ac + i * 4) = title_global<uint32_t>(0x009099ac + active * 4);
+        --i;
+    }
+}
+
 void XB_CDECL FX_SortEffects() {
     uint8_t** entry = effect_list().data;
     uint8_t** const end = entry + effect_list().count;
