@@ -74,4 +74,11 @@ extern "C" void CG_ProjectViewDirToScreen_entry(void);
 // (0x00928518, shader 0x00975c4c); nothing when the line points at the view.
 void XB_REGS3 XB_CDECL CG_Tracer(uint32_t unused, const float* start, const float* end, float width);
 
+// 0x0027fe10 (origin in EAX, scale in XMM0, cdecl (duration ms, radius)): a camera shake
+// into the first of the four slots (0x0097300c, 0x24 bytes) that has not started or has
+// ended, else over the weakest one (+0x1c) if the new one is stronger. Needs scale > 0 and
+// shakes on (0x009496b4).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_StartShakeCamera(const float* origin, float scale, int32_t duration, float radius);
+extern "C" void CG_StartShakeCamera_entry(void);
+
 }  // namespace game

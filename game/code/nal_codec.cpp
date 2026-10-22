@@ -310,4 +310,150 @@ uint32_t XB_STDCALL NAL_EntropyFloat1_Evaluate(const uint32_t* context, uint8_t*
     return context[1];
 }
 
+namespace {
+
+// The entropy stream as a bit position (LSB first in little-endian words; the reader keeps
+// the byte address and the bit in that byte).
+struct BitStream {
+    uint64_t pos;  // the byte address * 8 overflows 32 bits
+    explicit BitStream(const EntropyReader* r) : pos(static_cast<uint64_t>(r->ptr) * 8 + r->bit) {}
+    uint32_t peek(uint32_t n) const {
+        uint32_t value = 0;
+        for (uint32_t k = 0; k < n; ++k) {
+            const uint8_t byte = *reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>((pos + k) >> 3));
+            value |= ((byte >> ((pos + k) & 7)) & 1u) << k;
+        }
+        return value;
+    }
+    uint32_t read(uint32_t n) {
+        const uint32_t value = peek(n);
+        pos += n;
+        return value;
+    }
+    void store(EntropyReader* r) const {
+        r->ptr = static_cast<uint32_t>(pos >> 3);
+        r->bit = static_cast<uint8_t>(pos & 7);
+    }
+};
+
+// A 32-bit raw value (flag 1) or a 16-bit one biased by 0x8000.
+int32_t read_value(BitStream& bits) {
+    if (bits.read(1)) return static_cast<int32_t>(bits.read(32));
+    return static_cast<int32_t>(bits.read(16)) - 0x8000;
+}
+
+}  // namespace
+
+void XB_THISCALL NAL_EntropyReader_DecodeFloats(EntropyReader* reader, float* dst, int32_t stride, uint32_t count, float scale) {
+    if (!count) return;
+    int32_t* prev = reinterpret_cast<int32_t*>(reinterpret_cast<uint8_t*>(reader) + 8);  // v[n-2], v[n-1]
+    const auto advance = [stride](float* p) {
+        return reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(p) + stride);
+    };
+    if (reader->mode == 0xff) {
+        // Header: the residual mode (5 bits; + 0x20 for a negative scale), the first value
+        // and the first delta.
+        BitStream bits(reader);
+        reader->mode = static_cast<uint8_t>(bits.read(5));
+        if (0.0f > scale) {
+            reader->mode = static_cast<uint8_t>(reader->mode + 0x20);
+            scale = 0.0f - scale;
+        }
+        prev[0] = read_value(bits);
+        int32_t delta;
+        if (reader->mode & 0x20) {
+            delta = read_value(bits);
+        } else {
+            const int32_t code = static_cast<int32_t>(bits.peek(12));
+            if (!(code & 0x1f)) {
+                int32_t m = code >> 9;
+                if (!(m & 4)) m -= 7;
+                delta = m << (((code >> 5) & 0xf) + 0x11);
+                bits.pos += 12;
+            } else if (code & 1) {
+                int32_t m = (code >> 5) & 7;
+                if (!(m & 4)) m -= 7;
+                delta = m << (((code >> 1) & 0xf) + 1);
+                bits.pos += 8;
+            } else {
+                delta = ((code >> 1) & 0xf) - 8;
+                bits.pos += 5;
+            }
+        }
+        prev[1] = static_cast<int32_t>(static_cast<uint32_t>(prev[0]) + static_cast<uint32_t>(delta));
+        bits.store(reader);
+        *dst = static_cast<float>(prev[0]) * scale;
+        if (count == 1) {
+            reader->mode |= 0x80;  // the second value is still to come
+            return;
+        }
+        dst = advance(dst);
+        *dst = static_cast<float>(prev[1]) * scale;
+        dst = advance(dst);
+        count -= 2;
+        if (!count) return;
+    } else {
+        if (0.0f > scale) scale = 0.0f - scale;
+        if (reader->mode & 0x80) {
+            *dst = static_cast<float>(prev[1]) * scale;
+            dst = advance(dst);
+            --count;
+            reader->mode &= 0x7f;
+            if (!count) return;
+        }
+    }
+    // The residuals, then v[n] = 2 v[n-1] - v[n-2] + residual.
+    NAL_EntropyReader_Decode(reader, reinterpret_cast<uint32_t*>(dst), stride, count);
+    int32_t a = prev[0], b = prev[1];
+    for (; count; --count) {
+        const int32_t v = static_cast<int32_t>(static_cast<uint32_t>(b) + static_cast<uint32_t>(b) - static_cast<uint32_t>(a) +
+                                               *reinterpret_cast<const uint32_t*>(dst));
+        *dst = static_cast<float>(v) * scale;
+        dst = advance(dst);
+        a = b;
+        b = v;
+    }
+    prev[0] = a;
+    prev[1] = b;
+}
+
+void XB_CDECL NAL_EntropyFloat3_DecodeChannelBlock(float* dst, uint8_t** stream, uint32_t count, int32_t stride, uint32_t,
+                                                   const float* block_scale, const float* channel_scale, uint32_t) {
+    // x, y and z each from its own length-prefixed stream with a fresh reader.
+    for (uint32_t c = 0; c < 3; ++c) {
+        const uint8_t length = **stream;
+        ++*stream;
+        EntropyReader reader;
+        reader.ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream));
+        reader.bit = 0;
+        reader.mode = 0xff;
+        reader.zeros = 0;
+        NAL_EntropyReader_DecodeFloats(&reader, dst + c, stride, count, *block_scale * *channel_scale);
+        *stream += length;
+    }
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat3_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                  int32_t frame_size) {
+    uint8_t** stream_a = reinterpret_cast<uint8_t**>(static_cast<uintptr_t>(context[2]));
+    uint8_t** stream_b = reinterpret_cast<uint8_t**>(static_cast<uintptr_t>(context[3]));
+    *data = align4(*data);
+    const uint8_t* block_scale = align4(*stream_b);  // one float for the block
+    *stream_b = const_cast<uint8_t*>(block_scale);
+    const uint32_t first_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_a));
+    *stream_b += 4;
+    *stream_a = align4(*stream_a);  // one float per channel
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            NAL_EntropyFloat3_DecodeChannelBlock(reinterpret_cast<float*>(*data), stream, frames, frame_size, first_a,
+                                                 reinterpret_cast<const float*>(block_scale),
+                                                 reinterpret_cast<const float*>(*stream_a),
+                                                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_b)));
+            *data += 12;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
 }  // namespace game

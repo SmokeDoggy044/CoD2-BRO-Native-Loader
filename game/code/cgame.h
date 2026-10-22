@@ -107,4 +107,53 @@ void XB_CDECL CG_DrawCenterString();
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CG_ShareWeaponTagBModels(uint8_t* model);
 extern "C" void CG_ShareWeaponTagBModels_entry(void);
 
+// 0x00279fb0: prints the view origin and yaw as integers ("(%i %i %i) : %i").
+void XB_CDECL CG_Viewpos_f();
+// 0x002795d0: a zeroed local entity (0x9c bytes) linked in as the newest; without a free one
+// the oldest active one is freed first.
+uint32_t* XB_CDECL CG_AllocLocalEntity();
+// 0x00279530 (entity in EDI): frees the entity once the view is nearer than its cull
+// distance (+0x34; origin +0x78), else adds its refEntity (+0x3c) to the scene.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_AddNearCulledLocalEntity(uint32_t* le);
+extern "C" void CG_AddNearCulledLocalEntity_entry(void);
+
+// 0x00277700 (element in EAX, cdecl (arg, style)): the element's text (+0) drawn through the
+// text call in 0x00928578, aligned in its box by style +0x18 (0 left, 1 centre, 2 right);
+// nothing while 0x0095f919 is set.
+void XB_REGS1 XB_CDECL CG_DrawHudElemAlignedText(const uint8_t* elem, uint32_t arg, const uint8_t* style);
+
+// 0x0027f040 (hud element in ESI, rect in EBX): the element's material (+0x38) at its size
+// (+0x30/+0x34, fading from +0x3c/+0x40 over +0x48 ms from +0x44; 0 = the rect's +0x28),
+// aligned vertically in the rect by +0x18, rotated by +0x78 degrees; colour from rect +0x30.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawHudElemMaterial(const uint8_t* he, const uint8_t* rect);
+extern "C" void CG_DrawHudElemMaterial_entry(void);
+
+// 0x00278ae0: the gun's bob angles (0x00972fcc lateral, 0x00972fd0 pitch, 0x00972fd4 roll -
+// the downward half only) from the bob cycle and speed, scaled per stance and capped,
+// damped by 0x009725d8 against the player's +0x644.
+void XB_CDECL CG_CalcWeaponBob();
+
+// 0x00279500: Cvar_Update for every vmCvar of cgameCvarTable (0x89 entries).
+void XB_CDECL CG_UpdateCvars();
+// 0x0027f860 (obj in ESI): the DObj's skeleton when it has none (DObj_CreateSkeleton; a hunk
+// block of the same size is allocated first and never used).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DObjEnsureSkeleton(struct DObj* obj);
+extern "C" void CG_DObjEnsureSkeleton_entry(void);
+// 0x0027cc80 (index in EAX): "" for 0, else the translated hud element string (config
+// string 0x293 + index, "hudelem").
+const char* XB_REGS1 XB_CDECL CG_GetHudElemText(int32_t index);
+// 0x0027af70: +scores: starts the score display (0x00973a78, time 0x00973a7c) unless the
+// letterbox is on while 0x0093fcd8 +0x20 is clear.
+void XB_CDECL CG_ScoresDown_f();
+// 0x00277e70: the whole screen black at alpha 0x00972f70 (when above 0, with a snapshot).
+void XB_CDECL CG_DrawScreenBlackout();
+
+// 0x002bc750: the weapon definition in use: the turret's (flags 0x6000, entity handle
+// 0x009729b8) or the vehicle's (0x100000) weapon (entity +3), else the player's
+// (0x009725d0); 0 when the entity is gone.
+uint32_t XB_CDECL CG_GetCurrentWeaponDef();
+// 0x002780a0: the red damage flash over the screen (alpha from the time left until
+// 0x00972f7c, capped).
+void XB_CDECL CG_DrawDamageBlend();
+
 }  // namespace game

@@ -230,6 +230,15 @@ inline bool platform_x87_greater(float a, float b) {
             : "st", "st(1)", "cc");
     return result;
 }
+// a >= b compared on the x87 (FLD/FCOMIP: no MXCSR flags; false when unordered).
+inline bool platform_x87_greater_equal(float a, float b) {
+    bool result;
+    __asm__("flds %2\n\tflds %1\n\tfcomip %%st(1), %%st\n\tfstp %%st(0)\n\tsetae %0"
+            : "=q"(result)
+            : "m"(a), "m"(b)
+            : "st", "st(1)", "cc");
+    return result;
+}
 // a * b on the x87 (FLD/FMUL, the caller's precision and rounding control), stored as
 // float: no MXCSR flags.
 inline float platform_x87_mul(float a, float b) {
@@ -291,11 +300,45 @@ inline float platform_x87_sqrt_one_minus_sq(float a, float one) {
     __asm__("flds %1\n\tfmuls %1\n\tfsubrs %2\n\tfsqrt\n\tfstps %0" : "=m"(result) : "m"(a), "m"(one) : "st");
     return result;
 }
+// limit > sqrt((dz*dz + dy*dy) + dx*dx), d = a - b per axis, all on the x87 (FSUB, FMUL,
+// FADDP, FSQRT, FCOMIP; the caller's precision control); false when unordered.
+inline bool platform_x87_greater_than_dist3(float limit, float ax, float bx, float ay, float by, float az, float bz) {
+    bool result;
+    __asm__("flds %1\n\tfsubs %2\n\tflds %3\n\tfsubs %4\n\tflds %5\n\tfsubs %6\n\t"
+            "fld %%st(0)\n\tfmul %%st(1), %%st\n\tfld %%st(2)\n\tfmul %%st(3), %%st\n\tfaddp\n\t"
+            "fld %%st(3)\n\tfmul %%st(4), %%st\n\tfaddp\n\tfsqrt\n\t"
+            "fstp %%st(3)\n\tfstp %%st(0)\n\tfstp %%st(0)\n\t"
+            "flds %7\n\tfcomip %%st(1), %%st\n\tfstp %%st(0)\n\tseta %0"
+            : "=q"(result)
+            : "m"(ax), "m"(bx), "m"(ay), "m"(by), "m"(az), "m"(bz), "m"(limit)
+            : "st", "st(1)", "st(2)", "st(3)", "st(4)", "cc");
+    return result;
+}
+// ((a * b) + c) + d on the x87 (FLD/FMUL/FADD/FADD, the caller's precision control),
+// stored as float.
+inline float platform_x87_mul_add_add(float a, float b, float c, float d) {
+    float result;
+    __asm__("flds %1\n\tfmuls %2\n\tfadds %3\n\tfadds %4\n\tfstps %0"
+            : "=m"(result)
+            : "m"(a), "m"(b), "m"(c), "m"(d)
+            : "st");
+    return result;
+}
 // FILD + FMUL + FSTP: an integer times a float on the x87 (the caller's precision and
 // rounding control), stored as float. No MXCSR flags.
 inline float platform_x87_int_mul(std::int32_t value, float factor) {
     float result;
     __asm__("fildl %1\n\tfmuls %2\n\tfstps %0" : "=m"(result) : "m"(value), "m"(factor) : "st");
+    return result;
+}
+// |value * a * b| on the x87 (FILD, FMUL, FMUL, FABS; the caller's precision control),
+// stored as float.
+inline float platform_x87_abs_int_mul_mul(std::int32_t value, float a, float b) {
+    float result;
+    __asm__("fildl %1\n\tfmuls %2\n\tfmuls %3\n\tfabs\n\tfstps %0"
+            : "=m"(result)
+            : "m"(value), "m"(a), "m"(b)
+            : "st");
     return result;
 }
 // MSVC's _ftol of value * factor (+ addend with FIADD) computed on the x87: FILD, FMUL,

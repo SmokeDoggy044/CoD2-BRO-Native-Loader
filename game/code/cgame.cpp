@@ -3,6 +3,7 @@
 #include <cstdarg>
 #include <cstring>
 
+#include "dobj.h"
 #include "qcommon.h"
 #include "title_data.h"
 #include "tr_main.h"
@@ -515,6 +516,269 @@ int32_t XB_CDECL CG_ShareWeaponTagBModels(uint8_t* model) {
             !model_slot(i))
             model_slot(i) = shared;
     return static_cast<int32_t>(word(0x10));
+}
+
+void XB_CDECL CG_Viewpos_f() {
+    const float* origin = &title_global<float>(0x00972bb0);
+    CG_Printf(&title_global<char>(0x00839c0c), static_cast<int32_t>(origin[0]), static_cast<int32_t>(origin[1]),
+              static_cast<int32_t>(origin[2]), static_cast<int32_t>(title_global<float>(0x00972bf4)));
+}
+
+namespace {
+
+// Local entities: {prev, next, ...} 0x9c bytes; the active list's sentinel is
+// 0x0095f748 {prev = oldest, next = newest}, the free list 0x0094c9d8 (next at +4).
+uint32_t*& free_local_entities() { return title_global<uint32_t*>(0x0094c9d8); }
+
+void free_local_entity(uint32_t* le) {
+    if (!le[0]) CG_Error(&title_global<char>(0x00839910));
+    reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(le[0]))[1] = le[1];
+    reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(le[1]))[0] = le[0];
+    le[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(free_local_entities()));
+    free_local_entities() = le;
+}
+
+}  // namespace
+
+uint32_t* XB_CDECL CG_AllocLocalEntity() {
+    uint32_t* sentinel = &title_global<uint32_t>(0x0095f748);
+    if (!free_local_entities()) {
+        // None free: the oldest active one is reused.
+        free_local_entity(reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(sentinel[0])));
+    }
+    uint32_t* le = free_local_entities();
+    free_local_entities() = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(le[1]));
+    std::memset(le, 0, 0x9c);
+    le[1] = sentinel[1];
+    le[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(sentinel));
+    reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(sentinel[1]))[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(le));
+    sentinel[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(le));
+    return le;
+}
+
+PLATFORM_ASM_ENTRY(CG_AddNearCulledLocalEntity_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CG_AddNearCulledLocalEntity) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_AddNearCulledLocalEntity(uint32_t* le) {
+    // Freed once the view comes nearer than its cull distance (+0x34), else drawn.
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(le);
+    const float* origin = reinterpret_cast<const float*>(bytes + 0x78);
+    const float* view = &title_global<float>(0x00972bb0);
+    if (platform_x87_greater_than_dist3(*reinterpret_cast<const float*>(bytes + 0x34), origin[0], view[0], origin[1], view[1],
+                                        origin[2], view[2])) {
+        free_local_entity(le);
+        return;
+    }
+    R_AddRefEntityToScene(reinterpret_cast<uint8_t*>(le) + 0x3c, -1);
+}
+
+void XB_REGS1 XB_CDECL CG_DrawHudElemAlignedText(const uint8_t* elem, uint32_t arg, const uint8_t* style) {
+    if (title_global<uint8_t>(0x0095f919)) return;
+    // Aligned in the element's box (x +4, width +0xc) by the text width (+0x28).
+    const float x = *reinterpret_cast<const float*>(elem + 4);
+    const float box = *reinterpret_cast<const float*>(elem + 0xc);
+    const float width = *reinterpret_cast<const float*>(elem + 0x28);
+    float offset;
+    switch (*reinterpret_cast<const int32_t*>(style + 0x18)) {
+    case 0: offset = x; break;
+    case 1: offset = (box - width) * title_global<float>(0x0083eb24) + x; break;
+    case 2: offset = (box + x) - width; break;
+    default: offset = 0.0f; break;
+    }
+    const uint32_t* e = reinterpret_cast<const uint32_t*>(elem);
+    title_function<void XB_CDECL(uint32_t, float, uint32_t, uint32_t, const uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t)>(
+        title_global<uint32_t>(0x00928578))(e[0], width + offset, e[8], e[9], elem + 0x30, arg, e[11], 0, 3);
+}
+
+PLATFORM_ASM_ENTRY(CG_DrawHudElemMaterial_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_DrawHudElemMaterial) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawHudElemMaterial(const uint8_t* he, const uint8_t* rect) {
+    if (*reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0093fcd8) + 0x20)) return;
+    const uint32_t material = *reinterpret_cast<const uint32_t*>(he + 0x38);
+    if (!material) return;
+    const float fallback = *reinterpret_cast<const float*>(rect + 0x28);
+    const auto size = [&](uint32_t offset) {
+        const int32_t v = *reinterpret_cast<const int32_t*>(he + offset);
+        return v ? static_cast<float>(v) : fallback;
+    };
+    // Width (+0x30) and height (+0x34), scaled from +0x3c/+0x40 over the fade (+0x44 start, +0x48 ms).
+    const int32_t now = title_global<int32_t>(0x0097253c);
+    const int32_t fade = *reinterpret_cast<const int32_t*>(he + 0x48);
+    const int32_t start = *reinterpret_cast<const int32_t*>(he + 0x44);
+    const float one = title_global<float>(0x0083eb20);
+    const bool fading = fade > 0 && now - start < fade;
+    float width = size(0x30);
+    if (fading) {
+        const float from = size(0x3c);
+        width = one / static_cast<float>(fade) * static_cast<float>(now - start) * (width - from) + from;
+    }
+    float height = size(0x34);
+    if (fading) {
+        const float from = size(0x40);
+        height = one / static_cast<float>(fade) * static_cast<float>(now - start) * (height - from) + from;
+    }
+    // Vertical alignment in the rect (y +4, height +0xc) by style +0x18.
+    const float y = *reinterpret_cast<const float*>(rect + 4);
+    const float box = *reinterpret_cast<const float*>(rect + 0xc);
+    float top;
+    switch (*reinterpret_cast<const int32_t*>(he + 0x18)) {
+    case 0: top = y; break;
+    case 1: top = (box - height) * title_global<float>(0x0083eb24) + y; break;
+    case 2: top = (box + y) - height; break;
+    default: top = 0.0f; break;
+    }
+    const auto set_color = title_function<void XB_CDECL(const void*)>(title_global<uint32_t>(0x0092852c));
+    set_color(rect + 0x30);
+    const float x = *reinterpret_cast<const float*>(rect);
+    const float angle = *reinterpret_cast<const float*>(he + 0x78);
+    if (angle == title_global<float>(0x0083eafc))
+        CG_DrawPic(material, x, top, width, height);
+    else
+        CG_DrawRotatedPic(x, top, width, height, material, angle);
+    set_color(nullptr);
+}
+
+void XB_CDECL CG_CalcWeaponBob() {
+    // The gun's bob angles 0x00972fcc/fd0/fd4 from the bob cycle (0x00973a80) and speed
+    // (0x00973a84), each scale capped by 0x0094ba58, per stance (0x009725f8).
+    const float cap = title_global<float>(0x0094ba58);
+    const float cycle = platform_x87_mul_add_add(title_global<float>(0x0094bc98), title_global<float>(0x0083ed00),
+                                                 title_global<float>(0x00973a80), title_global<float>(0x0083edac));
+    const float speed = platform_x87_mul(title_global<float>(0x0094b308), title_global<float>(0x00973a84));
+    title_global<float>(0x00972fcc) = -CG_BobCycleLateral(cycle, speed, cap);
+    const int32_t stance = title_global<int32_t>(0x009725f8);
+    const auto stance_scale = [stance]() {
+        if (stance == title_global<int32_t>(0x00972970)) return title_global<float>(0x0094aa90);
+        if (stance == title_global<int32_t>(0x00972974)) return title_global<float>(0x00947e80);
+        return title_global<float>(0x0094a6a0);
+    };
+    float pitch_scale = stance_scale() * speed;
+    if (pitch_scale > cap) pitch_scale = cap;
+    const float roll_cycle = cycle - title_global<float>(0x0083ee4c);
+    const float roll_speed = title_global<float>(0x0094a450) * speed;
+    title_global<float>(0x00972fd0) = -platform_x87_sin_mul(cycle, pitch_scale);
+    float roll_scale = stance_scale() * roll_speed;
+    if (roll_scale > cap) roll_scale = cap;
+    // Only the downward half of the roll cycle.
+    const float sine = platform_x87_sin(roll_cycle);
+    float roll = 0.0f;
+    if (platform_x87_greater(0.0f, platform_x87_sin_mul(roll_cycle, roll_scale))) {
+        float scale = stance_scale() * roll_speed;
+        if (scale > cap) scale = cap;
+        roll = sine * scale;
+    }
+    title_global<float>(0x00972fd4) = roll;
+    const float damp = title_global<float>(0x009725d8);
+    if (!(damp == 0.0f)) {
+        const float one = title_global<float>(0x0083eb20);
+        const uint8_t* player = title_global<uint8_t*>(0x00972acc);
+        const float f = one - (one - *reinterpret_cast<const float*>(player + 0x644)) * damp;
+        title_global<float>(0x00972fcc) = title_global<float>(0x00972fcc) * f;
+        title_global<float>(0x00972fd0) = title_global<float>(0x00972fd0) * f;
+        title_global<float>(0x00972fd4) = roll * f;
+    }
+}
+
+namespace {
+
+// Cvar_Update (0x00296ec0) takes the vmCvar in EBX.
+extern "C" PLATFORM_HIDDEN void XB_CDECL cg_cvar_update(uint32_t vm_cvar);
+PLATFORM_ASM_ENTRY(cg_cvar_update,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "movl $0x00296ec0, %eax\n"
+                   "call *%eax\n"
+                   "popl %ebx\n"
+                   "ret")
+
+}  // namespace
+
+void XB_CDECL CG_UpdateCvars() {
+    // The 0x89 entries of cgameCvarTable (0x008d9d60, 16 bytes: vmCvar first).
+    const uint32_t* entry = &title_global<uint32_t>(0x008d9d60);
+    for (uint32_t i = 0; i < 0x89; ++i, entry += 4)
+        if (entry[0]) cg_cvar_update(entry[0]);
+}
+
+PLATFORM_ASM_ENTRY(CG_DObjEnsureSkeleton_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_DObjEnsureSkeleton) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DObjEnsureSkeleton(DObj* obj) {
+    if (obj->bone_matrices) return;
+    // The block from the hunk is handed on but DObj_CreateSkeleton never reads it.
+    title_function<void* XB_CDECL(uint32_t, const char*, const char*, uint32_t)>(0x00042c20)(  // Z_MallocDebug
+        obj->bone_count * 0x40u + 0x30, &title_global<char>(0x0083534c), &title_global<char>(0x00835354), 0x21c);
+    DObj_CreateSkeleton(obj);
+}
+
+const char* XB_REGS1 XB_CDECL CG_GetHudElemText(int32_t index) {
+    if (!index) return &title_global<char>(0x0082dfeb);
+    const auto translate = title_function<const char* XB_REGS1 XB_CDECL(const char*, const char*)>(0x0027b9f0);
+    const int32_t slot = index + 0x293;  // the hud element strings in the config strings
+    const char* text = nullptr;
+    if (slot >= 0 && slot < 0x400) text = title_global<const char*>(0x009606b8 + slot * 4);
+    return translate(text ? text + 6 : nullptr, &title_global<char>(0x00838cfc));
+}
+
+void XB_CDECL CG_ScoresDown_f() {
+    const uint8_t* letterbox = title_function<uint8_t* XB_CDECL(const char*, const char*, uint32_t)>(0x0029c2d0)(  // Cvar_Get
+        &title_global<char>(0x00835390), &title_global<char>(0x0082e098), 0);
+    if (!(*reinterpret_cast<const float*>(letterbox + 0x1c) == title_global<float>(0x0083eafc)) &&
+        !*reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0093fcd8) + 0x20))
+        return;
+    if (title_global<uint32_t>(0x00973a78)) return;
+    title_global<uint32_t>(0x00973a78) = 1;
+    title_global<int32_t>(0x00973a7c) = title_global<int32_t>(0x0097253c);
+}
+
+void XB_CDECL CG_DrawScreenBlackout() {
+    const float alpha = title_global<float>(0x00972f70);
+    if (platform_x87_greater_equal(0.0f, alpha) || !title_global<uint32_t>(0x00971aa8)) return;
+    const float color[4] = {0.0f, 0.0f, 0.0f, alpha};
+    title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0)(  // CG_FillRect
+        color, 0.0f, 0.0f, 640.0f, 480.0f);
+}
+
+uint32_t XB_CDECL CG_GetCurrentWeaponDef() {
+    const uint32_t flags = title_global<uint32_t>(0x00972610);  // the player state's flags
+    const uint32_t* weapon_defs = title_global<uint32_t*>(0x0095f4d8);
+    const uint8_t* ent;
+    if (flags & 0x6000) {
+        // Using a turret: the entity of the handle in 0x009729b8 (index, generation << 12).
+        const uint32_t handle = title_global<uint32_t>(0x009729b8);
+        const uint32_t index = handle & 0xfff;
+        if (static_cast<int32_t>(index) >= 0x540) return 0;
+        if ((handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return 0;
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    } else if (flags & 0x100000) {
+        const uint8_t* vehicle = title_global<uint8_t*>(0x0095f534);
+        const uint32_t owner = *reinterpret_cast<const uint32_t*>(vehicle + 4);
+        if (!owner) return 0;
+        ent = title_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t)>(0x00013860)(owner + 0x1a0);  // G_EntHandleToEnt
+    } else {
+        return weapon_defs[title_global<uint32_t>(0x009725d0)];
+    }
+    if (!ent) return 0;
+    return weapon_defs[ent[3]];
+}
+
+void XB_CDECL CG_DrawDamageBlend() {
+    if (!title_global<uint32_t>(0x00971aa8)) return;  // cg_snap
+    const int32_t end = title_global<int32_t>(0x00972f7c);
+    const int32_t now = title_global<int32_t>(0x0097253c);
+    if (end <= now) return;
+    const float cap = title_global<float>(0x0083ece8);
+    const float fade = platform_x87_abs_int_mul_mul(end - now, title_global<float>(0x0083ec1c), title_global<float>(0x00972f80));
+    const float level = platform_x87_greater(fade, cap) ? cap : fade;
+    const float red = title_global<float>(0x0083eca0);
+    const float color[4] = {red, 0.0f, 0.0f, level * red * title_global<float>(0x0083ed28)};
+    title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0)(  // CG_FillRect
+        color, -10.0f, -10.0f, 650.0f, 490.0f);
 }
 
 }  // namespace game

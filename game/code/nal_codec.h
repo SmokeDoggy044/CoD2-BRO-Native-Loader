@@ -22,6 +22,7 @@ struct EntropyReader {
     uint8_t bit;
     uint8_t mode;
     uint16_t zeros;
+    int32_t prev[2];  // NAL_EntropyReader_DecodeFloats: the last two values
 };
 
 // 0x0007c260 (reader in ECX, callee pops 0xc): `count` bytes from the RLE stream to dst,
@@ -102,5 +103,21 @@ uint32_t XB_STDCALL NAL_SignalCounter_SkipBlock(const uint32_t* context, uint8_t
 // at the same offset; the cursor moves 4 per active channel, stream A 4 per channel.
 uint32_t XB_STDCALL NAL_EntropyFloat1_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
                                                const int32_t* offsets);
+
+// 0x0007cb10 (reader in ECX, callee pops 0x10: dst, stride, count, scale): `count` floats
+// of a second-order predicted stream: the first call reads a header (5-bit residual mode,
+// + 0x20 for a negative scale; the first value; the first delta), then residuals
+// (NAL_EntropyReader_Decode) give v[n] = 2 v[n-1] - v[n-2] + r; out = v * |scale|.
+void XB_THISCALL NAL_EntropyReader_DecodeFloats(EntropyReader* reader, float* dst, int32_t stride, uint32_t count, float scale);
+
+// 0x0007de50 (cdecl, 8 words): one Float3 channel's block - x, y, z (dst + 0/4/8, `stride`
+// apart) each from a length-prefixed entropy stream, scale *block_scale * *channel_scale.
+void XB_CDECL NAL_EntropyFloat3_DecodeChannelBlock(float* dst, uint8_t** stream, uint32_t count, int32_t stride, uint32_t,
+                                                   const float* block_scale, const float* channel_scale, uint32_t);
+// 0x0007dd80 (stdcall: context, &data, &stream, frames, frame size): channel slot 7 of the
+// entropy Float3 class: each active channel decoded into the next 12 bytes of the cache
+// entry; stream B holds the block's scale, stream A one scale per channel.
+uint32_t XB_STDCALL NAL_EntropyFloat3_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                  int32_t frame_size);
 
 }  // namespace game

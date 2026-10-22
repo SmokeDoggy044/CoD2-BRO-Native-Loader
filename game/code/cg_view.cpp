@@ -523,4 +523,53 @@ void XB_REGS3 XB_CDECL CG_Tracer(uint32_t, const float* start, const float* end,
     reinterpret_cast<AddPoly*>(title_global<uintptr_t>(0x00928518))(title_global<uint32_t>(0x00975c4c), 4, verts);
 }
 
+PLATFORM_ASM_ENTRY(CG_StartShakeCamera_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_StartShakeCamera) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_StartShakeCamera(const float* origin, float scale, int32_t duration, float radius) {
+    if (0.0f >= scale) return;
+    if (!title_global<uint32_t>(0x009496b4)) return;
+    // The new shake: {start, scale, duration, radius, origin, strength, time part}.
+    alignas(4) uint8_t shake[0x24] = {};
+    const int32_t now = title_global<int32_t>(0x0097253c);  // cg_time
+    const float length = static_cast<float>(duration);
+    std::memcpy(shake, &now, 4);
+    std::memcpy(shake + 4, &scale, 4);
+    std::memcpy(shake + 8, &length, 4);
+    std::memcpy(shake + 0xc, &radius, 4);
+    std::memcpy(shake + 0x10, origin, 12);
+    CG_CalcCameraShakeSlot(shake);
+    // A slot not started yet or finished, else the weakest one if weaker than this.
+    uint8_t* slots = &title_global<uint8_t>(0x0097300c);
+    int32_t slot = 0;
+    for (; slot < 4; ++slot) {
+        const uint8_t* s = slots + slot * 0x24;
+        const int32_t start = *reinterpret_cast<const int32_t*>(s);
+        if (start > now) break;
+        const float end = static_cast<float>(start) + *reinterpret_cast<const float*>(s + 8);
+        if (static_cast<float>(now) >= end) break;
+    }
+    if (slot == 4) {
+        float strength;
+        std::memcpy(&strength, shake + 0x1c, 4);
+        for (int32_t i = 0; i < 3; ++i) {
+            const float other = *reinterpret_cast<const float*>(slots + i * 0x24 + 0x1c);
+            if (strength > other) {
+                strength = other;
+                slot = i;
+            }
+        }
+        if (strength > *reinterpret_cast<const float*>(slots + 3 * 0x24 + 0x1c))
+            slot = 3;
+        else if (slot == 4)
+            return;
+    }
+    std::memcpy(slots + slot * 0x24, shake, 0x24);
+}
+
 }  // namespace game
