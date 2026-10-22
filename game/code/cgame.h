@@ -156,4 +156,11 @@ uint32_t XB_CDECL CG_GetCurrentWeaponDef();
 // 0x00972f7c, capped).
 void XB_CDECL CG_DrawDamageBlend();
 
+// 0x0027abe0: a progress bar: a grey box, then the white bar inset 2 and scaled by fraction.
+void XB_CDECL CG_DrawProgressBar(float x, float y, float w, float h, float fraction);
+// 0x0027c060 (forward in EAX, need ammo in EBX): selects the next usable weapon slot
+// (CG_SelectWeapon); 0 when there is none.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CG_CycleWeaponSlot(uint32_t forward, uint32_t need_ammo);
+extern "C" void CG_CycleWeaponSlot_entry(void);
+
 }  // namespace game

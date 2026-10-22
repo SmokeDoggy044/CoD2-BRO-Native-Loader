@@ -8,6 +8,10 @@
 #include "title_data.h"
 #include "tr_main.h"
 
+// Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
+                                                            uint32_t edi);
+
 namespace game {
 
 namespace {
@@ -779,6 +783,49 @@ void XB_CDECL CG_DrawDamageBlend() {
     const float color[4] = {red, 0.0f, 0.0f, level * red * title_global<float>(0x0083ed28)};
     title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0)(  // CG_FillRect
         color, -10.0f, -10.0f, 650.0f, 490.0f);
+}
+
+void XB_CDECL CG_DrawProgressBar(float x, float y, float w, float h, float fraction) {
+    const auto fill = title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0);  // CG_FillRect
+    const float one = title_global<float>(0x0083eb20), half = title_global<float>(0x0083eb24);
+    const float alpha = title_global<float>(0x0083066c);
+    const float back[4] = {half, half, half, alpha};
+    const float bar[4] = {one, one, one, alpha};
+    fill(back, x, y, w, h);
+    const float border = title_global<float>(0x0083100c), inset = title_global<float>(0x0083eba8);
+    fill(bar, x + inset, y + inset, (w - border) * fraction, h - border);
+}
+
+PLATFORM_ASM_ENTRY(CG_CycleWeaponSlot_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_CycleWeaponSlot) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL CG_CycleWeaponSlot(uint32_t forward, uint32_t need_ammo) {
+    // Weapon slots 1-6 (bytes at 0x00972948), up or down from the end; slot 4 is skipped
+    // while 0x00929cd0 +0x20 is set. Selects the first usable one.
+    const int32_t step = forward ? 1 : -1;
+    const uint32_t* weapon_defs = title_global<uint32_t*>(0x0095f4d8);
+    for (int32_t slot = forward ? 1 : 6;; ) {
+        const int8_t weapon = title_global<int8_t>(0x00972948 + slot);
+        bool usable = false;
+        if (weapon && !(*reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00929cd0) + 0x20) && slot == 4)) {
+            if (!need_ammo) {
+                usable = true;
+            } else {
+                const uint8_t* def = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(weapon_defs[weapon]));
+                const uint32_t ammo = title_global<uint32_t>(0x009727d0 + *reinterpret_cast<const uint32_t*>(def + 0x5a0) * 4) +
+                                      title_global<uint32_t>(0x00972660 + *reinterpret_cast<const uint32_t*>(def + 0x598) * 4);
+                usable = ammo != 0;
+            }
+        }
+        if (usable) {
+            title_call_regs(0x002cde20, 0, static_cast<uint32_t>(static_cast<int32_t>(weapon)), 0);  // CG_SelectWeapon
+            return 1;
+        }
+        slot += step;
+        if (slot == 0 || slot == 7) return 0;
+    }
 }
 
 }  // namespace game
