@@ -458,6 +458,7 @@ const Function kFunctions[] = {
     {"nglSkipList_RemoveTexture", 0x00063c40, 0, code(&nglSkipList_RemoveTexture), 4, Result::Al, Status::Compare},
     {"nglSkipList_RemoveIndirect", 0x00069b40, 0, code(&nglSkipList_RemoveIndirect), 4, Result::Al, Status::Compare},
     {"nglCreateMeshFromFile", 0x00068190, 0, code(&nglCreateMeshFromFile), 12, Result::Eax, Status::Compare},
+    {"nglParseMesh", 0x00067950, 0, code(&nglParseMesh), 12, Result::Al, Status::Compare},
     {"nglLoadMeshFile", 0x00068230, 0, code(&nglLoadMeshFile), 8, Result::Eax, Status::Compare},
     {"nglInitFontManager", 0x00066500, 0, code(&nglInitFontManager), 0, Result::None, Status::Compare},
     {"nglInitMeshManagers", 0x00067880, 0, code(&nglInitMeshManagers), 0, Result::None, Status::Compare},
