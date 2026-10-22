@@ -816,8 +816,7 @@ void XB_THISCALL FxEmitter_TransformBounds(uint8_t* emitter) {
     Lanes high = neg(low);
     for (const float* corner : corners) {
         alignas(16) float point[4];
-        const float* moved = title_function<float* XB_CDECL(float*, const float*, const float*)>(0x00097ba0)(  // Mat44_TransformPoint
-            point, &at<float>(emitter, 0x10), corner);
+        const float* moved = Mat44_TransformPoint(point, &at<float>(emitter, 0x10), corner);
         low = lanes_min(low, lanes(moved));
         high = lanes_max(high, lanes(moved));
     }
@@ -935,18 +934,17 @@ void XB_THISCALL FxEmitterList_Remove(uint8_t* list, uint8_t* emitter, uint32_t 
     if (at<uint16_t>(list, 0xa)) --at<uint16_t>(list, 0xa);
 }
 
-uint8_t* XB_THISCALL FxEmitterList_Add(uint8_t* list, uint32_t type, uint32_t renderer, uint8_t* block, uint32_t flag) {
-    uint8_t* emitter = title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(0x0009ba90)(emitter_pool(), 0xd0);  // apsMemoryPool_Alloc
+uint8_t* XB_THISCALL FxEmitterList_Add(uint8_t* list, uint32_t capacity, uint32_t renderer, uint8_t* block, uint32_t flag) {
+    uint8_t* emitter = apsMemoryPool_Alloc(emitter_pool(), 0xd0);
     if (!emitter) return nullptr;
-    using Create = uint32_t XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t);
-    if (!title_function<Create>(0x00097a10)(emitter, type, renderer, block, flag)) {  // apsGroup_Create
+    if (!apsGroup_Create(emitter, capacity, renderer, reinterpret_cast<const uint32_t*>(block), flag)) {
         FxEmitter_FreeParticles(emitter, 0);
         apsMemoryPool_Free(emitter_pool(), emitter);
         return nullptr;
     }
     at<int16_t>(emitter, 0xac) = at<int16_t>(list, 0xa);
-    uint8_t* item = emitter;
-    title_function<void XB_THISCALL(uint8_t*, uint8_t**)>(0x0009f570)(list + 4, &item);  // the list's push_back
+    const uint32_t item = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(emitter));
+    apsPtrVector_PushBack(&at<ApsArray>(list, 4), &item);
     return emitter;
 }
 
@@ -1490,6 +1488,360 @@ void XB_CDECL FX_UpdateEffects_body(uint32_t entry, FxIdList* list, uint32_t del
         at.call(0x002a5810, TitleRegs{queued, spawn, 0, 0, i, list_address}, spawn);  // FX_SpawnQueuedEffect
     }
     queued = 0;
+}
+
+namespace {
+
+// The particle heap (0x008bb760): slot 1 Alloc(size, align), slot 2 Free(ptr), slot 3
+// Resize(ptr, size, align) in place (nonzero on success).
+uint32_t particle_heap() { return title_global<uint32_t>(0x008bb760); }
+
+// A heap call with the effect id (0x008bb764) -1 and the seeded flag (0x00909948) 1
+// meanwhile: the effect arrays' storage.
+template <typename F>
+uint32_t untracked(F call) {
+    const uint32_t id = title_global<uint32_t>(0x008bb764);
+    const uint32_t seeded = title_global<uint32_t>(0x00909948);
+    title_global<uint32_t>(0x008bb764) = 0xffffffffu;
+    title_global<uint32_t>(0x00909948) = 1;
+    const uint32_t result = call();
+    title_global<uint32_t>(0x00909948) = seeded;
+    title_global<uint32_t>(0x008bb764) = id;
+    return result;
+}
+
+void apsLog(const char* format, uint32_t a = 0, uint32_t b = 0) {
+    title_function<void XB_CDECL(uint32_t, int32_t, const char*, ...)>(0x0009d000)(  // apsLog_Printf
+        title_global<uint32_t>(0x00909908), 1, format, a, b);
+}
+
+// The arrays' bodies, one per element size (4: apsPtrArray_*, 12: apsParamArray_*).
+template <uint32_t Size>
+uint8_t* array_alloc(uint32_t count) {
+    const uint32_t heap = particle_heap();
+    return reinterpret_cast<uint8_t*>(untracked([&] {
+        return title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(vtable_slot(heap, 1))(
+            heap, count * Size, 4);
+    }));
+}
+
+template <uint32_t Size>
+uint32_t array_resize(ApsArray* array, uint32_t count) {
+    if (!array->data) return 0;
+    const uint32_t heap = particle_heap();
+    return untracked([&] {
+        return title_function<uint32_t XB_THISCALL(uint32_t, uint8_t*, uint32_t, uint32_t)>(vtable_slot(heap, 3))(
+            heap, array->data, count * Size, 4);
+    });
+}
+
+// Moved to new storage of `capacity` (count kept); 0 when the heap is out.
+template <uint32_t Size>
+uint32_t array_regrow(ApsArray* array, int32_t capacity, int32_t count, int32_t used) {
+    uint8_t* data = array_alloc<Size>(capacity);
+    if (!data) return 0;
+    std::memcpy(data, array->data, static_cast<uint32_t>(count > 0 ? count : 0) * Size);
+    apsArray_Free(array);
+    array->data = data;
+    array->capacity = static_cast<int16_t>(capacity);
+    array->count = static_cast<int16_t>(used);
+    return 1;
+}
+
+template <uint32_t Size>
+uint32_t array_reserve(ApsArray* array, int32_t capacity) {
+    if (capacity <= array->capacity) return 1;
+    const int32_t count = array->count;
+    if (array_resize<Size>(array, capacity)) {
+        array->capacity = static_cast<int16_t>(capacity);
+        return 1;
+    }
+    return array_regrow<Size>(array, capacity, count, count);
+}
+
+template <uint32_t Size>
+uint32_t array_push_back(ApsArray* array, const void* item) {
+    if (array->count >= array->capacity) {
+        const int32_t count = array->count;
+        const int32_t capacity = count > 3 ? count + 4 : count + 1;
+        if (array_resize<Size>(array, capacity)) {
+            array->capacity = static_cast<int16_t>(capacity);
+        } else {
+            if (!array_regrow<Size>(array, capacity, count, count)) return 0;
+            std::memcpy(array->data + count * Size, item, Size);
+            ++array->count;
+            return 1;
+        }
+    }
+    if (!array->data) return 0;
+    std::memcpy(array->data + array->count * Size, item, Size);
+    ++array->count;
+    return 1;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL apsMemoryPool_Alloc(uint8_t* pool, uint32_t size) {
+    const int32_t index = at<int16_t>(pool, 0x20);
+    if (index == -1) {
+        apsLog("apsMemory : pool(size=%d, count=%d) is empty", at<uint32_t>(pool, 0x14), at<uint32_t>(pool, 0));
+        return nullptr;
+    }
+    uint8_t* slot = pointer_at(pool, 0x1c) + index * 8;
+    at<uint16_t>(pool, 0x20) = at<uint16_t>(slot, 2);
+    at<uint32_t>(slot, 4) ^= (at<uint32_t>(slot, 4) ^ size) & 0xffffffu;
+    at<uint16_t>(slot, 2) = 0xffff;
+    slot[7] = 1;
+    const int32_t used = ++at<int32_t>(pool, 4);
+    if (used > at<int32_t>(pool, 8)) at<int32_t>(pool, 8) = used;
+    if (static_cast<int32_t>(size) < at<int32_t>(pool, 0xc)) at<uint32_t>(pool, 0xc) = size;
+    if (at<int32_t>(pool, 0x10) < static_cast<int32_t>(size)) at<uint32_t>(pool, 0x10) = size;
+    return pointer_at(pool, 0x18) + at<int32_t>(pool, 0x14) * index;
+}
+
+uint32_t XB_THISCALL apsPtrVector_PushBack(ApsArray* array, const uint32_t* item) {
+    if (array->count < array->capacity) {
+        reinterpret_cast<uint32_t*>(array->data)[array->count] = *item;
+        ++array->count;
+        return 1;
+    }
+    const int32_t count = array->count;
+    const int32_t capacity = count > 3 ? count + 4 : count + 1;
+    const uint32_t heap = particle_heap();
+    uint32_t seeded = title_global<uint32_t>(0x00909948);
+    title_global<uint32_t>(0x00909948) = 0;
+    uint8_t* data = reinterpret_cast<uint8_t*>(title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(
+        vtable_slot(heap, 1))(heap, static_cast<uint32_t>(capacity) * 4, 4));
+    title_global<uint32_t>(0x00909948) = seeded;
+    if (!data) return 0;
+    for (int32_t i = 0; i < count; ++i)
+        reinterpret_cast<uint32_t*>(data)[i] = reinterpret_cast<const uint32_t*>(array->data)[i];
+    if (array->data) {
+        seeded = title_global<uint32_t>(0x00909948);
+        const uint32_t heap_now = particle_heap();
+        title_global<uint32_t>(0x00909948) = 0;
+        title_function<void XB_THISCALL(uint32_t, uint8_t*)>(vtable_slot(heap_now, 2))(heap_now, array->data);
+        title_global<uint32_t>(0x00909948) = seeded;
+        array->data = nullptr;
+        array->capacity = 0;
+        array->count = 0;
+    }
+    array->capacity = static_cast<int16_t>(capacity);
+    array->count = static_cast<int16_t>(count);
+    array->data = data;
+    reinterpret_cast<uint32_t*>(data)[count] = *item;
+    ++array->count;
+    return 1;
+}
+
+void XB_THISCALL apsArray_Free(ApsArray* array) {
+    if (!array->data) return;
+    const uint32_t heap = particle_heap();
+    untracked([&] {
+        title_function<void XB_THISCALL(uint32_t, uint8_t*)>(vtable_slot(heap, 2))(heap, array->data);
+        return 0u;
+    });
+    array->data = nullptr;
+    array->capacity = 0;
+    array->count = 0;
+}
+
+uint8_t* XB_THISCALL apsPtrArray_Alloc(ApsArray*, uint32_t count, uint32_t) { return array_alloc<4>(count); }
+uint32_t XB_THISCALL apsPtrArray_Resize(ApsArray* array, uint32_t count, uint32_t) {
+    return array_resize<4>(array, count);
+}
+uint32_t XB_THISCALL apsPtrArray_Reserve(ApsArray* array, int32_t capacity) { return array_reserve<4>(array, capacity); }
+uint32_t XB_THISCALL apsPtrArray_PushBack(ApsArray* array, const uint32_t* item) {
+    return array_push_back<4>(array, item);
+}
+uint8_t* XB_THISCALL apsParamArray_Alloc(ApsArray*, uint32_t count, uint32_t) { return array_alloc<12>(count); }
+uint32_t XB_THISCALL apsParamArray_Resize(ApsArray* array, uint32_t count, uint32_t) {
+    return array_resize<12>(array, count);
+}
+uint32_t XB_THISCALL apsParamArray_Reserve(ApsArray* array, int32_t capacity) {
+    return array_reserve<12>(array, capacity);
+}
+uint32_t XB_THISCALL apsParamArray_PushBack(ApsArray* array, const uint32_t* item) {
+    return array_push_back<12>(array, item);
+}
+
+uint32_t XB_THISCALL apsGroup_Create(uint8_t* emitter, uint32_t capacity, uint32_t renderer, const uint32_t* block,
+                                     uint32_t flag) {
+    at<uint32_t>(emitter, 0) = renderer;
+    at<float>(emitter, 0x80) = 0.0f;
+    std::memcpy(emitter + 0x84, block, 9 * 4);
+    at<uint32_t>(emitter, 0xa8) = capacity;
+    at<uint32_t>(emitter, 0xc0) = 0;
+    at<uint32_t>(emitter, 0xc4) = 0;
+    at<float>(emitter, 0x58) = 0.0f;
+    at<float>(emitter, 0x54) = 0.0f;
+    at<float>(emitter, 0x50) = 0.0f;
+    // An empty box: min = FLT_MAX, max = -FLT_MAX (sign flipped with XORPS).
+    const uint32_t big = title_global<uint32_t>(0x007c5000);
+    for (int i = 0; i < 4; ++i) {
+        at<uint32_t>(emitter, 0x60 + i * 4) = big;
+        at<uint32_t>(emitter, 0x70 + i * 4) = big ^ 0x80000000u;
+    }
+    const uint32_t size = at<uint32_t>(emitter, 0x88) * at<uint32_t>(emitter, 0xa8);
+    at<uint16_t>(emitter, 0xac) = 0xffff;
+    at<uint16_t>(emitter, 0xae) = flag ? 3 : 1;
+    const uint32_t heap = particle_heap();
+    at<uint32_t>(emitter, 0xbc) =
+        title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(vtable_slot(heap, 1))(heap, size, 0x80);
+    if (!at<uint32_t>(emitter, 0xbc)) {
+        apsLog("apsGroup : failed to create particles");
+        return 0;
+    }
+    title_function<void XB_CDECL(float*)>(0x0001c140)(&at<float>(emitter, 0x10));  // Matrix_Identity
+    at<float>(emitter, 0xb0) = 0.0f;
+    at<float>(emitter, 0xb4) = 0.0f;
+    at<float>(emitter, 0xb8) = 0.0f;
+    return 1;
+}
+
+float* XB_CDECL Mat44_TransformPoint(float* out, const float* matrix, const float* point) {
+    const Lanes p = lanes(point);
+    const Lanes r = add(add(add(lanes(matrix + 12), mul(lanes(matrix), p.v[0])), mul(lanes(matrix + 4), p.v[1])),
+                        mul(lanes(matrix + 8), p.v[2]));
+    for (int i = 0; i < 4; ++i) out[i] = r.v[i];
+    return out;
+}
+
+uint32_t XB_THISCALL apsEffect_Init(uint8_t* system, uint8_t* definition, float time) {
+    at<float>(system, 0x40) = time;
+    at<uint32_t>(system, 0x4c) &= 0xffff0000u;
+    at<uint32_t>(system, 0x64) = title_global<uint32_t>(0x008bb764);
+    at<float>(system, 0x44) = 0.0f;
+    at<uint8_t*>(system, 0x48) = definition;
+    at<uint16_t>(system, 0x4e) = 0;
+    title_function<void XB_CDECL(float*)>(0x0001c140)(reinterpret_cast<float*>(system));  // Matrix_Identity
+    uint8_t* def = pointer_at(system, 0x48);
+    int32_t emitters = at<int16_t>(def, 0x56);
+    ApsArray* const emitter_array = &at<ApsArray>(system, 0x54);
+    if (emitters == 0) {
+        apsLog("apsEffect : effect %s has no elements", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(def + 0x6c)));
+    } else if (!apsPtrArray_Reserve(emitter_array, emitters)) {
+        ++at<uint32_t>(pointer_at(system, 0x48), 0xb8);
+        return 0;
+    }
+    for (; emitters > 0; --emitters) {
+        const uint32_t none = 0;
+        apsPtrArray_PushBack(emitter_array, &none);
+    }
+    const int32_t overrides = at<int16_t>(pointer_at(system, 0x48), 0x5e);
+    if (overrides) {
+        ApsArray* const params = &at<ApsArray>(system, 0x5c);
+        if (!apsParamArray_Reserve(params, overrides)) {
+            ++at<uint32_t>(pointer_at(system, 0x48), 0xbc);
+            return 0;
+        }
+        for (int32_t i = 0; i < overrides; ++i) {
+            uint8_t* d = pointer_at(system, 0x48);
+            uint8_t* entry = pointer_at(d, 0x58) + i * 0x2c;
+            uint8_t* element = pointer_at(d, 0x50) + at<uint32_t>(entry, 0x20) * 0x3c;
+            uint8_t* block = at<uint8_t**>(pointer_at(element, 0x14), 0)[at<uint32_t>(entry, 0x24)];
+            const uint32_t index = at<uint32_t>(entry, 0x28);
+            uint32_t record[3] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(block)), index,
+                                  at<uint32_t*>(block, 4)[index]};
+            apsParamArray_PushBack(params, record);
+        }
+    }
+    uint8_t* stats = pointer_at(system, 0x48) + 0xac;
+    ++at<uint32_t>(stats, 0);
+    ++at<uint32_t>(stats, 0);
+    const int32_t live = ++at<int32_t>(stats, 4);
+    if (live > at<int32_t>(stats, 8)) at<int32_t>(stats, 8) = live;
+    return 1;
+}
+
+uint8_t* XB_CDECL apsEffect_Create(uint8_t* definition, float time) {
+    uint8_t* system = apsMemoryPool_Alloc(title_global<uint8_t*>(0x00909994) + 8, 0x70);
+    if (!system) {
+        apsLog("apsEffect : pool is empty");
+        return nullptr;
+    }
+    if (apsEffect_Init(system, definition, time)) return system;
+    apsLog("apsEffect : failed to create effect %s", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(definition + 0x6c)));
+    FxSystem_Destroy(system);
+    return nullptr;
+}
+
+uint8_t* XB_THISCALL apsPoolSet_Alloc(ApsArray* set, int32_t size, uint32_t) {
+    if (!size) return nullptr;
+    uint8_t* const base = reinterpret_cast<uint8_t*>(set);
+    if (size > at<int32_t>(base, 0x18)) at<int32_t>(base, 0x18) = size;
+    // The pool with exactly this item size and free items, else the closest bigger one.
+    uint8_t** pool = reinterpret_cast<uint8_t**>(set->data);
+    uint8_t** const end = pool + set->count;
+    uint8_t* best = nullptr;
+    int32_t slack = 0x40000000;
+    for (; pool != end; ++pool) {
+        uint8_t* candidate = *pool;
+        const int32_t diff = at<int32_t>(candidate, 0x14) - size;
+        if (diff == 0) {
+            if (best && at<int32_t>(best, 0) != at<int32_t>(best, 4)) continue;
+        } else {
+            if (diff < 0 || diff >= slack) continue;
+            slack = diff;
+        }
+        best = candidate;
+    }
+    if (!best) return nullptr;
+    uint8_t* item = apsMemoryPool_Alloc(best, static_cast<uint32_t>(size));
+    if (!item) {
+        ++at<int32_t>(base, 0x14);
+        at<int32_t>(base, 0xc) += size;
+        return nullptr;
+    }
+    ++at<int32_t>(base, 0x10);
+    at<int32_t>(base, 8) += size;
+    return item;
+}
+
+uint8_t* XB_CDECL apsAlloc(int32_t size, uint32_t unused) {
+    return apsPoolSet_Alloc(title_global<ApsArray*>(0x00909f08), size, unused);
+}
+
+void XB_CDECL Mat44_FromQuatTranslation(float* out, const float* quat, const float* translation) {
+    const float scale = title_global<float>(0x0083f1f0);  // sqrt 2
+    const float one = title_global<float>(0x0083eb20);
+    const float a = quat[0] * scale, b = quat[1] * scale, c = quat[2] * scale, d = quat[3] * scale;
+    const float aa = a * a, bb = b * b, cc = c * c;
+    const float ab = a * b, ac = a * c, bc = c * b;
+    const float da = d * a, db = d * b, dc = d * c;
+    // The rows' last lanes repeat their first (the original's stack temporaries).
+    const float row0_x = one - bb - cc;
+    const float row1[4] = {dc + ab, one - aa - cc, bc - da, dc + ab};
+    const float row2[4] = {ac - db, da + bc, one - aa - bb, ac - db};
+    const float row0[4] = {row0_x, ab - dc, db + ac, row0_x};
+    for (int i = 0; i < 4; ++i) out[4 + i] = row1[i];
+    for (int i = 0; i < 4; ++i) out[8 + i] = row2[i];
+    for (int i = 0; i < 4; ++i) out[i] = row0[i];
+    for (int i = 0; i < 4; ++i) out[12 + i] = translation[i];
+}
+
+uint8_t* XB_CDECL apsEffect_Spawn(const float* quat, const float* position, uint8_t* definition, float time) {
+    uint32_t& count = title_global<uint32_t>(0x00909b8c);
+    if (static_cast<int32_t>(count) >= 0x78) return nullptr;
+    uint8_t* system = apsEffect_Create(definition, time);
+    if (!system) return nullptr;
+    if (title_global<uint32_t>(0x009099a8) || count == 0x78) {
+        at<uint16_t>(system, 0x4e) |= 4;
+        FxSystem_Destroy(system);
+        apsMemoryPool_Free(title_global<uint8_t*>(0x00909994) + 8, system);
+        return nullptr;
+    }
+    (&title_global<uint8_t*>(0x009099ac))[count] = system;
+    ++count;
+    alignas(16) float matrix[16];
+    std::memcpy(matrix, system, sizeof(matrix));
+    if (quat) {
+        Mat44_FromQuatTranslation(matrix, quat, position);
+    } else {
+        for (int i = 0; i < 4; ++i) matrix[12 + i] = position[i];
+    }
+    FxSystem_SetMatrix(system, matrix);
+    return system;
 }
 
 }  // namespace game

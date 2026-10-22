@@ -176,7 +176,7 @@ void XB_THISCALL FxEmitter_UpdateVisibility(uint8_t* emitter);
 void XB_THISCALL FxEmitterList_Remove(uint8_t* list, uint8_t* emitter, uint32_t unused);
 // 0x0009f2d0: a new emitter (0xd0 bytes from the pool, apsGroup_Create) appended to the
 // emitter list; 0 when either fails.
-uint8_t* XB_THISCALL FxEmitterList_Add(uint8_t* list, uint32_t type, uint32_t renderer, uint8_t* block, uint32_t flag);
+uint8_t* XB_THISCALL FxEmitterList_Add(uint8_t* list, uint32_t capacity, uint32_t renderer, uint8_t* block, uint32_t flag);
 // 0x0009b9c0 / 0x0009bec0: the particle random index (0x0090993c) to 0 for a seeded
 // update, and back (0x00909f04) after it.
 void XB_CDECL FxRandom_Reset();
@@ -254,5 +254,68 @@ void XB_CDECL FX_InitEffectPool();
 // position (title_call_at_regs).
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_UpdateEffects_body(uint32_t entry, FxIdList* list, uint32_t delta);
 extern "C" void FX_UpdateEffects_entry(void);
+
+// The particle library's growable arrays: storage from the particle heap (0x008bb760).
+struct ApsArray {  // 8 bytes
+    uint8_t* data;
+    int16_t capacity;
+    int16_t count;
+};
+// 0x0009ba90: an item of a fixed-size pool taken from the free list (+0x20), its slot
+// marked used with `size`; the pool's used count (+4), peak (+8) and smallest/largest
+// size (+0xc/+0x10) updated; null with a log line when the pool is empty.
+uint8_t* XB_THISCALL apsMemoryPool_Alloc(uint8_t* pool, uint32_t size);
+// 0x0009f570: a pointer appended to an array grown by 4 (by 1 below 4 items) with the
+// seeded flag (0x00909948) 0 meanwhile; 0 when the heap is out.
+uint32_t XB_THISCALL apsPtrVector_PushBack(ApsArray* array, const uint32_t* item);
+// 0x000957d0: an array's storage back to the heap (effect id -1, seeded flag 1 meanwhile)
+// and the array emptied.
+void XB_THISCALL apsArray_Free(ApsArray* array);
+// The effect arrays of pointers (0x00095830 Alloc, 0x00095880 Resize in place,
+// 0x00095a90 Reserve, 0x00095b10 PushBack: grows by 4, by 1 below 4 items) and of
+// 12-byte parameter overrides (0x000958e0, 0x00095930, 0x00095bc0, 0x00095c70): heap
+// calls with effect id -1 and seeded flag 1 meanwhile; the Alloc/Resize count argument
+// after the first is unread. 0 when the heap is out (PushBack: also without storage).
+uint8_t* XB_THISCALL apsPtrArray_Alloc(ApsArray* array, uint32_t count, uint32_t unused);
+uint32_t XB_THISCALL apsPtrArray_Resize(ApsArray* array, uint32_t count, uint32_t unused);
+uint32_t XB_THISCALL apsPtrArray_Reserve(ApsArray* array, int32_t capacity);
+uint32_t XB_THISCALL apsPtrArray_PushBack(ApsArray* array, const uint32_t* item);
+uint8_t* XB_THISCALL apsParamArray_Alloc(ApsArray* array, uint32_t count, uint32_t unused);
+uint32_t XB_THISCALL apsParamArray_Resize(ApsArray* array, uint32_t count, uint32_t unused);
+uint32_t XB_THISCALL apsParamArray_Reserve(ApsArray* array, int32_t capacity);
+uint32_t XB_THISCALL apsParamArray_PushBack(ApsArray* array, const uint32_t* item);
+// 0x00097a10: an emitter set up: renderer +0, the 9-word block at +0x84 (stride +0x88),
+// capacity +0xa8, empty box, flags +0xae (1, or 3 with `flag`), capacity * stride bytes
+// of particles (+0xbc, 128-aligned) and an identity matrix (+0x10); 0 with a log line
+// when the heap is out.
+uint32_t XB_THISCALL apsGroup_Create(uint8_t* emitter, uint32_t capacity, uint32_t renderer, const uint32_t* block,
+                                     uint32_t flag);
+// 0x00097ba0: out = row 3 + p.x * row 0 + p.y * row 1 + p.z * row 2 (packed, every lane).
+float* XB_CDECL Mat44_TransformPoint(float* out, const float* matrix, const float* point);
+// 0x00095470: a particle system started from its definition at `time`: identity matrix,
+// effect id (0x008bb764) +0x64, one empty emitter slot (+0x54) per element (+0x56), the
+// parameter overrides (+0x5c) with each block's current value; the definition's created
+// (+0xac, counted twice), live and peak counts (+0xb0/+0xb4) raised. 0 when an array
+// can't grow (failure counts +0xb8/+0xbc).
+uint32_t XB_THISCALL apsEffect_Init(uint8_t* system, uint8_t* definition, float time);
+// 0x00095670: a particle system (0x70 bytes from the pool 0x00909994 + 8) started with
+// apsEffect_Init; destroyed again and null when that fails.
+uint8_t* XB_CDECL apsEffect_Create(uint8_t* definition, float time);
+
+// 0x0009bba0: `size` bytes from a set of pools ({pools, count}; largest request +0x18):
+// the pool with exactly that item size (+0x14) unless it is full and another was found,
+// else the one with the least slack; counts and bytes of successes (+0x10/+8) and
+// failures (+0x14/+0xc). Null for size 0 or no fitting pool; the 2nd argument is unread.
+uint8_t* XB_THISCALL apsPoolSet_Alloc(ApsArray* set, int32_t size, uint32_t unused);
+// 0x0009be80: apsPoolSet_Alloc from the global pool set (0x00909f08).
+uint8_t* XB_CDECL apsAlloc(int32_t size, uint32_t unused);
+
+// 0x0009fa80: a matrix from a unit quaternion {x, y, z, w} (scaled by sqrt 2 first) and
+// a translation (4 floats, row 3); each rotation row's 4th lane repeats its first.
+void XB_CDECL Mat44_FromQuatTranslation(float* out, const float* quat, const float* translation);
+// 0x000956e0: a particle system created (apsEffect_Create) into the active list
+// (0x009099ac, count 0x00909b8c, at most 0x78) and placed with a quaternion (or none:
+// identity) and position; destroyed again while 0x009099a8 is set. Null on failure.
+uint8_t* XB_CDECL apsEffect_Spawn(const float* quat, const float* position, uint8_t* definition, float time);
 
 }  // namespace game
