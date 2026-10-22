@@ -149,6 +149,13 @@ first word, title memory) and return it, D3DDevice_GetBackBuffer2 returns the ba
 (read from render's host global) after an AddRef. Cases they do not cover (a count reaching
 0, a parent surface) end the test as inconclusive. This made nglGetBackBufferTexture's
 callers (R_ClearAlpha, nglPushScene's nglSetDefaultSceneParams) testable.
+Raw pushbuffer data: the D3DDevice_BeginPush_4 stand-in returns space in the test
+process's own area (8192 dwords, zeroed like the replacement's; those pages are not
+compared as writes), and the D3DDevice_EndPush one logs the dword count and every dword
+written, so two sides that build different NV2A commands differ at that call ("SDK call
+4 D3DDevice_EndPush: arguments differ at word 4"). Checked with a planted bug in
+nglRenderTextNode's begin word. More space than that, or an EndPush outside the space,
+ends the test as inconclusive.
 
 ## Callers that rebuild the original's frame
 

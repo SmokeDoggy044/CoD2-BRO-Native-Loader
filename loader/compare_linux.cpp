@@ -94,6 +94,7 @@ constexpr uint32_t kMaxSdkSpecs = 128;
 constexpr uint32_t kZeroedStack = 16 * 1024;  // below the caller's ESP in test processes
 constexpr uint32_t kMaxSdkArgs = 6;
 constexpr uint32_t kMaxSdkData = 4096;  // per pointer argument
+constexpr uint32_t kPushDwords = 8192;  // the BeginPush stand-in's space
 
 // Config::sdk_calls, parsed for the test processes. Each recorded call is logged as
 // its spec index, then per argument its value, or for a pointer the byte count and
@@ -159,6 +160,8 @@ struct alignas(4096) ChildArea {
     page_region regions[kScanRegions];
     uint32_t image_begin, image_end;  // the title, readable for recorded SDK calls
     uint32_t sdk_log[kSdkLogBytes / 4];
+    uint32_t push_dwords;  // the space the last PushBegin gave (0 = none open)
+    uint32_t push_buffer[kPushDwords];
     uint8_t signal_stack[64 * 1024];
     uint8_t stack[64 * 1024];
 };
@@ -427,6 +430,27 @@ XBCMP_CODE bool sdk_log_put(ChildArea& c, uint32_t value) {
 // does not cover (the test then ends as inconclusive).
 XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* values, uint32_t& result) {
     constexpr uint32_t kRefcountMask = 0x0000FFFF;
+    if (spec.stand_in == SdkStandIn::PushBegin) {
+        // The replacement's space is dwords + 1, zeroed; the title writes its NV2A
+        // commands there (our own pages: not compared as writes).
+        const uint32_t dwords = values[0];
+        if (dwords >= kPushDwords) return false;
+        for (uint32_t i = 0; i <= dwords; ++i) c.push_buffer[i] = 0;
+        c.push_dwords = dwords + 1;
+        result = addr_of(c.push_buffer);
+        return true;
+    }
+    if (spec.stand_in == SdkStandIn::PushEnd) {
+        const uint32_t begin = addr_of(c.push_buffer);
+        const uint32_t end = values[0];
+        if (!c.push_dwords || end < begin || (end - begin) % 4 || (end - begin) / 4 > c.push_dwords) return false;
+        const uint32_t dwords = (end - begin) / 4;
+        c.push_dwords = 0;
+        bool ok = sdk_log_put(c, dwords);
+        for (uint32_t i = 0; i < dwords && ok; ++i) ok = sdk_log_put(c, c.push_buffer[i]);
+        if (!ok) c.report.sdk_overflow = 1;
+        return true;
+    }
     uint32_t resource = spec.arg_count ? values[0] : 0;
     if (spec.stand_in == SdkStandIn::ReturnAddRef) {
         resource = *spec.value;
@@ -448,6 +472,8 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
     case SdkStandIn::ReturnAddRef:
         ++common;  // render's add_ref: no parent check
         return true;
+    case SdkStandIn::PushBegin:
+    case SdkStandIn::PushEnd:
     case SdkStandIn::None: break;
     }
     return false;
@@ -822,6 +848,7 @@ bool prepare_maps(ChildArea& c) {
     c.in = in;
     c.grandchild = static_cast<uint32_t>(grandchild > 0 ? grandchild : 0);
     c.report = {};
+    c.push_dwords = 0;
     c.report.t_entered = now_ns();
     c.image_begin = g_config.image_begin;
     c.image_end = g_config.image_end;
@@ -1002,6 +1029,11 @@ size_t sdk_record_words(const std::vector<uint32_t>& log, size_t at) {
         if (p >= log.size()) return 0;
         const uint32_t word = log[p++];
         if (spec.args[i].kind != kSdkValue && word != kSdkNull && word != kSdkBad) p += (word + 3) / 4;
+    }
+    // PushEnd's stand-in appends the dword count and the dwords written.
+    if (spec.stand_in == SdkStandIn::PushEnd) {
+        if (p >= log.size()) return 0;
+        p += 1 + size_t{log[p]};
     }
     return p <= log.size() ? p - at : 0;
 }

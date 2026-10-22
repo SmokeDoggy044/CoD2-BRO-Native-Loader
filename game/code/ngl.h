@@ -346,6 +346,9 @@ void XB_CDECL nglSetFogColor(float r, float g, float b);
 void XB_CDECL nglMatrixPerspective(float* out, float x_scale, float y_scale, float near_z, float far_z);
 // 0x0005ed60: the same with a linear depth.
 void XB_CDECL nglMatrixOrtho(float* out, float x_scale, float y_scale, float near_z, float far_z);
+// 0x0005eea0: left..right and bottom..top to -1..1, depth kept (z row 0 0 1 0); returns
+// `out`. No direct callers.
+float* XB_CDECL nglMatrixOrthoOffCenter(float* out, float left, float bottom, float right, float top);
 // 0x0005f010: screen pixels of the current scene's render target to -1..1.
 void XB_CDECL nglMatrixScreenToClip(float* out);
 // 0x0005f1b0: -1..1 to the rectangle x0, y0 .. x1, y1.
@@ -661,6 +664,10 @@ float* XB_CDECL nglGetMatrix(float* out, int32_t which);
 // 0x00062310: `point` (16-byte aligned) through the view, projection and viewport
 // matrices into `out` (returned): screen x y, view-space z, and w's own screen x.
 float* XB_CDECL nglProjectPoint(float* out, const float* point);
+// 0x00062690: a screen point (16-byte aligned: pixels x y, view depth z) back through
+// the current scene's clip-to-screen matrix (+0x1d0) into `out` (returned, unaligned).
+// No direct callers.
+float* XB_CDECL nglUnprojectPoint(float* out, const float* point);
 // 0x00062d80: nglGetMatrix (0x00061f30) through a local copy.
 void XB_CDECL nglGetMatrixCopy(float* out, int32_t which);
 // 0x00062db0: nglProjectPoint (0x00062310) through a local copy.
@@ -840,6 +847,21 @@ void XB_CDECL nglListAddTranslucent(NglNode* node);
 // onto the translucent list. Nothing for empty text or a font without glyphs (+0x24).
 void XB_CDECL nglListAddText(const uint8_t* font, const char* text, float x, float y, float z, uint32_t color,
                              float scale_x, float scale_y);
+struct NglFont;
+struct NglTextNode : NglNode {
+    const char* text;  // +0x0c
+    NglFont* font;     // +0x10
+    float x, y;        // +0x14
+    float z;           // +0x1c
+    float scale_x;     // +0x20
+    float scale_y;     // +0x24
+    uint32_t color;    // +0x28
+};
+// 0x00079fc0 (vtable 0x007bd0cc slot 0): the text's glyphs as one raw pushbuffer of
+// quads (x y z colour u v per vertex), no culling, with the font's blend mode and
+// texture; positions scaled by 0x009028c4/c8 when 0x009028c0 is set and the target
+// is the screen.
+void XB_THISCALL nglRenderTextNode(NglTextNode* node);
 // 0x00062a10: a custom draw node (0x20 bytes of scene memory, vtable 0x007bc6a0: +0xc
 // = 1, +0x10 and +0x14 the two words, +0x18 the two words at `data`) onto the current
 // scene's lists, after bringing its matrices up to date.
@@ -1003,6 +1025,8 @@ uint32_t* XB_CDECL nglCreateDDSPalette(const uint8_t* header, uint32_t** out, ui
 int32_t XB_REGS2 XB_CDECL nglFontParseKeyInt(const char* key, char** cursor, int32_t base);
 // No-op: texture memory needs no unlocking on the Xbox.
 void XB_CDECL nglTexture_Unlock();
+// 0x0007b1a0: no-op: palettes need no unlocking either (nglCreateTexture).
+void XB_CDECL nglPalette_Unlock();
 // No-op called from nglBeginFrame.
 void XB_CDECL nglBeginFrame_Nop();
 // Pixel memory and surfaces for the two fog textures (0x00902e64/68) that have none;
@@ -1040,9 +1064,10 @@ struct NglFont {
     int32_t ascent;         // +0x34
     int32_t first_glyph;    // +0x38
     int32_t glyph_count;    // +0x3c
-    uint32_t unknown40;     // +0x40, 2 when loaded
-    uint32_t unknown44;     // +0x44, 2 when loaded
-    uint8_t unknown48[0x4];
+    uint32_t texture_flags; // +0x40, 2 when loaded: nglSetTexture's address flags (0x40
+                            // and 0x80 also pick two D3D texture stage states)
+    uint32_t blend_mode;    // +0x44, 2 when loaded (nglSetBlendMode)
+    uint32_t blend_alpha;   // +0x48
     float (*uvs)[4];        // +0x4c, per glyph in file order: u0 v0 u1 v1
     uint8_t unknown50[0x4];
 };

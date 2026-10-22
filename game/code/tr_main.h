@@ -417,6 +417,13 @@ void XB_CDECL RE_BeginFrame();
 // effects, local/packet entities, world surfaces, entity surfaces), then the view
 // model scene. Entered through R_RenderView_entry, which rebuilds the original's frame:
 // every call runs at the original's stack position (title_call_at).
+// 0x00296350 (stdcall, out buffer in EBX): the text before the first "{name}" whose
+// name Key_TranslateButtonName (0x00292ee0) knows into `out`, *icon = that button's
+// name and *next past the '}' (returns 1); otherwise out empty, *next = text, *icon
+// null (returns 0).
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL RE_ParseButtonToken(char* out, uint32_t table, const char* text,
+                                                                const char** next, const char** icon);
+extern "C" void RE_ParseButtonToken_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame);
 extern "C" void R_RenderView_entry(void);
 

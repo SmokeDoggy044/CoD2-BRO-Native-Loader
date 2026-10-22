@@ -257,6 +257,16 @@ void XB_CDECL nglMatrixOrtho(float* out, float x_scale, float y_scale, float nea
                    0, 0, 0.0f - q * near_z, 1});
 }
 
+float* XB_CDECL nglMatrixOrthoOffCenter(float* out, float left, float bottom, float right, float top) {
+    const float height = top - bottom;
+    const float width = right - left;
+    set_rows(out, {2.0f / width, 0, 0, 0,
+                   0, 2.0f / height, 0, 0,
+                   0, 0, 1, 0,
+                   0.0f - (left + right) / width, 0.0f - (bottom + top) / height, 0, 1});
+    return out;
+}
+
 void XB_CDECL nglMatrixScreenToClip(float* out) {
     const NglRenderTarget* target = current_scene()->render_target;
     float half_width = 320.0f;
@@ -1580,6 +1590,36 @@ float* XB_CDECL nglProjectPoint(float* out, const float* point) {
     return out;
 }
 
+float* XB_CDECL nglUnprojectPoint(float* out, const float* point) {
+    nglUpdateScene(0);
+    const NglScene* scene = current_scene();
+    const Lanes xy = {{point[0], point[1], 0.0f, 0.0f}};
+    // The depth through the projection's z and w rows, all four lanes (MXCSR flags).
+    const Lanes t = sub(mul(neg(lanes(point)), lanes(scene->base_projection + 8)), lanes(scene->base_projection + 12));
+    // w: the point's z for a perspective projection, 1 otherwise.
+    const float w = scene->projection_kind == 1 ? point[2] : 1.0f;
+    const Lanes clip_w = {{w, w, t.v[2], 0.0f - w}};
+    Lanes size = {{0.0f, 0.0f, 1.0f, 1.0f}};
+    if (scene->render_target->flags & 4) {
+        size.v[1] = static_cast<float>(nglGetScreenHeight());
+        size.v[0] = static_cast<float>(nglGetScreenWidth());
+    } else {
+        size.v[1] = platform_x87_unsigned_to_float(scene->render_target->height);
+        size.v[0] = platform_x87_unsigned_to_float(scene->render_target->width);
+    }
+    // 1 / size by RCPPS and one Newton step: r * (2 - r * size).
+    Lanes r;
+    for (int i = 0; i < 4; ++i) r.v[i] = platform_rcp_estimate(size.v[i]);
+    const Lanes inverse = mul(sub(Lanes{{2.0f, 2.0f, 2.0f, 2.0f}}, mul(r, size)), r);
+    const Lanes v = sub(mul(mul(clip_w, add(xy, xy)), inverse), clip_w);
+    const float* m = scene->clip_to_screen;
+    Lanes result = add(mul(lanes(m), v.v[0]), mul(lanes(m + 4), v.v[1]));
+    result = add(result, mul(lanes(m + 8), v.v[2]));
+    result = add(result, mul(lanes(m + 12), v.v[3]));
+    std::memcpy(out, result.v, 16);
+    return out;
+}
+
 void XB_CDECL nglGetMatrixCopy(float* out, int32_t which) {
     alignas(16) float local[16];
     std::memcpy(out, nglGetMatrix(local, which), 64);
@@ -2544,6 +2584,91 @@ void XB_CDECL nglListAddText(const uint8_t* font, const char* text, float x, flo
     set_float(9, scale_y);
     set_float(2, z);
     nglListAddTranslucent(reinterpret_cast<NglNode*>(node));
+}
+
+void XB_THISCALL nglRenderTextNode(NglTextNode* node) {
+    if (!node->text) return;
+    NglFont* font = node->font;
+    const uint32_t texture_flags = font->texture_flags;
+    if (!font->texture) return;
+    uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
+    if (cull_mode) {
+        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // D3DDevice_SetRenderState_CullMode
+        cull_mode = 0;
+    }
+    nglSetBlendMode(&title_global<uint8_t>(0x00902f08), font->blend_mode, font->blend_alpha, 0x80);
+    // D3D's deferred texture stage states, stage 0 (dirty bit 1).
+    title_global<uint32_t>(0x003f8320) |= 1;
+    title_global<uint32_t>(0x003f5c68) = (texture_flags & 0x40) ? 3 : 1;
+    title_global<uint32_t>(0x003f8320) |= 1;
+    title_global<uint32_t>(0x003f5c6c) = (texture_flags & 0x80) ? 3 : 1;
+    nglSetTexture(0, font->texture, static_cast<uint8_t>(texture_flags), 3);
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903c9c));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903cc4));
+    float x = node->x;
+    float y = node->y;
+    const float z = nglDepthToZValue(node->z);
+    if (title_global<uint8_t>(0x009028c0) && (current_scene()->render_target->flags & 4)) {
+        x = title_global<float>(0x009028c4) * x;
+        y = title_global<float>(0x009028c8) * y;
+    }
+    NglTextRun*& runs = title_global<NglTextRun*>(0x00903d18);
+    uint32_t run_count;
+    const uint32_t glyphs = nglBuildTextGlyphs(reinterpret_cast<const uint8_t*>(node->font), &runs, x, y,
+                                               node->scale_x, node->scale_y, node->color, node->text, &run_count);
+    NglTextRun* run = runs;
+    title_global<uint32_t>(0x00903c88) = 0;
+    title_global<uint32_t>(0x00903c8c) = 0;
+    title_global<uint32_t>(0x00903c90) = 0;
+    // D3DDevice_SetVertexShaderInputDirect
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);
+    // 24 dwords per glyph, a begin/end pair and one header per run.
+    const uint32_t dwords = ((glyphs * 3) << 5 >> 2) + run_count + 5;
+    auto* push = reinterpret_cast<uint32_t*>(
+        static_cast<uintptr_t>(title_function<uint32_t XB_STDCALL(uint32_t)>(0x003eba40)(dwords)));  // BeginPush
+    push[0] = 0x000417fc;  // begin: quads
+    push[1] = 8;
+    push += 2;
+    for (; run; run = run->next) {
+        const uint32_t color = run->color;
+        float pen_x = run->x;
+        const float pen_y = run->y;
+        const float scale_x = run->scale_x;
+        const float scale_y = run->scale_y;
+        *push++ = run->glyph_count * 0x600000 + 0x40001818;  // vertex data, 24 dwords a glyph
+        for (uint32_t left = run->length; left; --left) {
+            const uint8_t code = static_cast<uint8_t>(*run->text);
+            font = node->font;
+            const NglFontGlyph glyph = font->glyphs[code - font->first_glyph];
+            const float* uv = node->font->uvs[static_cast<uint8_t>(code - static_cast<uint8_t>(node->font->first_glyph))];
+            const float x0 = static_cast<float>(glyph.offset_x) * scale_x + pen_x;
+            const float y0 = static_cast<float>(glyph.offset_y) * scale_y + pen_y;
+            const float x1 = static_cast<float>(glyph.width) * scale_x + x0;
+            const float y1 = static_cast<float>(glyph.height) * scale_y + y0;
+            const float u0 = uv[0];
+            const float v0 = uv[1];
+            const float v1 = (uv[3] - uv[1]) + v0;
+            const float u1 = (uv[2] - u0) + u0;
+            const float vertices[4][4] = {{x0, y0, u0, v0}, {x1, y0, u1, v0}, {x1, y1, u1, v1}, {x0, y1, u0, v1}};
+            for (const auto& v : vertices) {
+                std::memcpy(&push[0], &v[0], 4);
+                std::memcpy(&push[1], &v[1], 4);
+                std::memcpy(&push[2], &z, 4);
+                push[3] = color;
+                std::memcpy(&push[4], &v[2], 4);
+                std::memcpy(&push[5], &v[3], 4);
+                push += 6;
+            }
+            const NglFontGlyph& original = node->font->glyphs[code - node->font->first_glyph];
+            ++run->text;
+            pen_x = platform_x87_unsigned_mul_add(static_cast<uint32_t>(original.advance), run->scale_x, pen_x);
+        }
+    }
+    push[0] = 0x000417fc;  // end
+    push[1] = 0;
+    title_function<void XB_STDCALL(uint32_t)>(0x003ebaa0)(  // EndPush
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(push + 2)));
+    runs = nullptr;
 }
 
 void XB_CDECL nglListAddCustomNode(uint32_t a, uint32_t b, const uint32_t* data) {
@@ -3842,6 +3967,8 @@ int32_t XB_REGS2 XB_CDECL nglFontParseKeyInt(const char* key, char** cursor, int
 
 void XB_CDECL nglTexture_Unlock() {}
 
+void XB_CDECL nglPalette_Unlock() {}
+
 void XB_CDECL nglBeginFrame_Nop() {}
 
 namespace {
@@ -3938,8 +4065,8 @@ NglFont* XB_CDECL nglLoadFontFile(const NglHashedName* name, char* text) {
     NglFont* font = static_cast<NglFont*>(Mem_AlignedAlloc(sizeof(NglFont), 4, 0));
     std::memset(font, 0, sizeof(NglFont));
     font->refs = 1;
-    font->unknown40 = 2;
-    font->unknown44 = 2;
+    font->texture_flags = 2;
+    font->blend_mode = 2;
     std::memcpy(font->name, name, sizeof(font->name));
     font->texture = static_cast<NglTexture*>(nglFindTextureAddRef(reinterpret_cast<const char*>(name)));
     nglParseFontFile(font, text);
@@ -4069,7 +4196,7 @@ NglTexture* XB_CDECL nglCreateTexture(uint32_t flags, uint32_t width, uint32_t h
         nglLockPalette(reinterpret_cast<uint8_t*>(palette));
         for (uint32_t i = 0; i < 0x100; ++i)
             nglPaletteSetEntry(reinterpret_cast<uint32_t**>(texture->palette), i, 0xffffffff);
-        // nglPalette_Unlock (0x0007b1a0) is a bare ret.
+        nglPalette_Unlock();
     }
     texture->last_used_frame = -1;
     return texture;

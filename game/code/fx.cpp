@@ -245,4 +245,28 @@ void XB_CDECL FX_FreeEffectsById(FxIdList* list, uint32_t id) {
     }
 }
 
+void XB_CDECL FX_StopEffect(uint8_t* effect, uint32_t immediate) {
+    if (!effect) return;
+    if (immediate) *reinterpret_cast<uint16_t*>(effect + 0x4e) |= 4;
+    title_function<void XB_THISCALL(uint8_t*)>(0x00094ad0)(effect);
+    title_function<void XB_THISCALL(uint32_t, uint8_t*)>(0x0009b770)(title_global<uint32_t>(0x00909994) + 8, effect);
+}
+
+PLATFORM_ASM_ENTRY(FX_PlayEffectAt_entry,
+                   "pushl %esi\n"
+                   "pushl 8(%esp)\n" PLATFORM_ASM_CALL(FX_PlayEffectAt) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin) {
+    alignas(16) float matrix[16];
+    title_function<void XB_CDECL(float*)>(0x0001c140)(matrix);  // Matrix_Identity
+    // Row 3 = the origin, with x again in its w lane.
+    matrix[12] = origin[0];
+    matrix[13] = origin[1];
+    matrix[14] = origin[2];
+    matrix[15] = origin[0];
+    title_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0023c040)(
+        effect, matrix, 0, 0, 0xffffffff, 0);  // FX_SpawnEffect
+}
+
 }  // namespace game

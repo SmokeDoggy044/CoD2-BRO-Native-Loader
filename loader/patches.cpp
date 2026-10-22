@@ -1171,6 +1171,9 @@ const RecordedCall kRecordedD3dCalls[] = {
     {"D3DResource_AddRef", "s", compare::SdkStandIn::AddRef},
     {"D3DResource_Release", "s", compare::SdkStandIn::Release},
     {"D3DDevice_GetBackBuffer2", "s", compare::SdkStandIn::ReturnAddRef},
+    // Raw NV2A commands: the space and what the title wrote into it (nglRenderTextNode).
+    {"D3DDevice_BeginPush_4", "s", compare::SdkStandIn::PushBegin},
+    {"D3DDevice_EndPush", "s", compare::SdkStandIn::PushEnd},
     {"D3DDevice_SetRenderState_Simple", "ecx edx"},
     {"D3DDevice_SetRenderState_FogColor", "s"},
     {"D3DDevice_SetRenderState_PSTextureModes", "s"},

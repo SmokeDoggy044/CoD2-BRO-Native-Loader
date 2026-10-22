@@ -79,5 +79,12 @@ extern "C" void FX_UpdateFadingComponents_entry(void);
 // small heap 0x0095f5bc); the last entry takes its place.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_FreeEffectsById(FxIdList* list, uint32_t id);
 extern "C" void FX_FreeEffectsById_entry(void);
+// 0x00095210: the effect (flag 4 at +0x4e first when `immediate`) through 0x00094ad0,
+// then handed to 0x0009b770 on the effect system (0x00909994) + 8.
+void XB_CDECL FX_StopEffect(uint8_t* effect, uint32_t immediate);
+// 0x00241200 (origin in ESI): FX_SpawnEffect (0x0023c040) of `effect` with an identity
+// matrix moved to the origin.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin);
+extern "C" void FX_PlayEffectAt_entry(void);
 
 }  // namespace game

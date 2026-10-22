@@ -34,6 +34,8 @@ enum class SdkStandIn : uint8_t {
     AddRef,        // D3DResource_AddRef(resource): count + 1, returns it
     Release,       // D3DResource_Release(resource): count - 1 (above 1 only), returns it
     ReturnAddRef,  // returns *value (a resource or null) after AddRef on it
+    PushBegin,     // D3DDevice_BeginPush_4(dwords): returns space in the test process
+    PushEnd,       // D3DDevice_EndPush(end): logs the dwords written since PushBegin
 };
 
 struct SdkCall {

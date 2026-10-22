@@ -2487,6 +2487,45 @@ PLATFORM_ASM_ENTRY(RE_ParseButtonToken_call,
                    "popl %ebx\n"
                    "ret")
 
+PLATFORM_ASM_ENTRY(RE_ParseButtonToken_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(RE_ParseButtonToken) "addl $20, %esp\n"
+                   "ret $16")
+
+uint8_t XB_CDECL RE_ParseButtonToken(char* out, uint32_t table, const char* text, const char** next,
+                                     const char** icon) {
+    const auto strchr = title_function<const char* XB_CDECL(const char*, int)>(0x001ef5e0);
+    const auto strncpy = title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80);
+    if (text) {
+        const char* open = strchr(text, '{');
+        if (open) {
+            const char* close = strchr(open, '}');
+            if (close && static_cast<uint32_t>(close - open) > 1) {
+                const uint32_t length = static_cast<uint32_t>(close - open) - 1;
+                strncpy(out, open + 1, length);
+                out[length] = '\0';
+                // Key_TranslateButtonName (name in EAX, table in ECX)
+                const char* name =
+                    title_function<const char* XB_REGS3(const char*, uint32_t, uint32_t)>(0x00292ee0)(out, 0, table);
+                *icon = name;
+                if (name) {
+                    strncpy(out, text, static_cast<uint32_t>(open - text));
+                    out[open - text] = '\0';
+                    *next = close + 1;
+                    return 1;
+                }
+            }
+        }
+    }
+    *out = '\0';
+    *next = text;
+    *icon = nullptr;
+    return 0;
+}
+
 namespace {
 
 // One run of text at (x, y - its height), the text's height and width out.
