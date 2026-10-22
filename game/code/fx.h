@@ -438,4 +438,65 @@ void XB_THISCALL apsActionOrientedMove_Apply(uint8_t* self, uint8_t* begin, uint
 // bounce: velocity -= normal * (1 + bounce (+0x20)) * speed into the plane.
 void XB_THISCALL apsActionPlaneBounce_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
 
+
+// 0x000a4d30: out = matrix rows 0-2 times v's x, y, z (no translation; all four lanes).
+float* XB_CDECL Mat44_TransformVector(float* out, const float* matrix, const float* v);
+// 0x0009fc20: a rotation matrix with row 0 = forward (unit), row 2 = normalize(forward x up)
+// times 0x00909984, row 1 = normalize(row 2 x forward) (before that scale), row 3 = {0, 0, 0, 1};
+// returns out + 12.
+float* XB_CDECL Mat44_FromDirection(float* out, const float* forward, const float* up);
+// 0x000a0340: the unit quaternion {x, y, z, w} of a rotation matrix (trace or largest-diagonal
+// case, square roots on the x87).
+float* XB_CDECL Quat_FromMat44(float* out, const float* m);
+// 0x000a4460: every particle's rotation quaternion (+0x91) turned to face along its velocity
+// (in the emitter's space with emitter flag 2), -z as the up vector.
+void XB_CDECL apsOrientToVelocity(uint8_t* begin, uint8_t* end, uint8_t* emitter);
+// 0x000a4640 'AngT': with emitter flag 0x20 the rotations face along the velocities
+// (apsOrientToVelocity), else each angle (+0x92) is the velocity's view heading like ATEX.
+void XB_THISCALL apsActionAngleToVelocity_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+
+// 0x000a3f00 'LAtr': velocities pulled toward the line through two points (+8, +0x14; in the
+// emitter's space unless emitter flag 2) by strength (+0x20) * delta / distance^2 (at least 0.001).
+void XB_THISCALL apsActionLineAttract_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a41c0 'DLAt': the same, the pull fading from the first point to 0 at the second.
+void XB_THISCALL apsActionDecayLineAttract_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+
+// 0x000a2300 'KTau': Frenet-frame motion - velocity = tangent * speed (+8); the tangent turns
+// by curvature, the binormal by torsion (both * delta, renormalised), normal = tangent x
+// binormal; curvature/torsion drift by random rates in [+0xc, +0x10) / [+0x1c, +0x20) and are
+// clamped to [+0x14, +0x18] / [+0x24, +0x28].
+void XB_THISCALL apsActionFrenetMove_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+
+// 0x000a2900: the segment of a point list (3 floats each, ended by a -1 word) `*distance` along
+// from *cursor: cursor, the distance into it, its length and both ends ({x, y, z, x}) stored,
+// 1; 0 past the end (nothing stored).
+uint32_t XB_STDCALL apsPath_FindSegment(uint8_t** cursor, float* distance, float* length, float* start, float* finish);
+// 0x000a2aa0 'Traj': particles moved along a path (looked up by id +8 through 0x00909940, speed
+// +0xc) and turned to its heading; queued for removal at its end.
+void XB_THISCALL apsActionTrajectory_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+
+// 0x000a06e0: sin and cos of `angle` by the packed sine polynomial (scene_sine_poly); returns `sine`.
+float* XB_CDECL apsSinCos(float angle, float* sine, float* cosine);
+// 0x0009fe70: the unit quaternion of a rotation by `angle` about `axis` (renormalised on the x87).
+float* XB_THISCALL Quat_FromAxisAngle(float* out, const float* axis, float angle);
+// 0x000a00f0: the quaternion of Euler angles: about z, then x, then y.
+float* XB_CDECL Quat_FromEuler(float* out, float x_angle, float y_angle, float z_angle);
+// 0x00097b60: a box {min, max} (aligned) grown by `amount` on every side.
+void XB_THISCALL FxBox_Expand(float* box, float amount);
+// 0x00097810: a particle copied into the emitter's next slot (+0xbc, count +0xc0 below +0xa8;
+// high-water marks +0xc4 and 0x00909ec0/c4) and its bounds (by size with flag 2, else 1) added
+// to the emitter's box (+0x60).
+uintptr_t XB_THISCALL FxEmitter_AddParticle(uint8_t* emitter, const uint8_t* particle);
+
+
+// 0x000a2e40, the Apply of the emitters SrcA/Brst/RSpn: their count (slot 5) of new particles,
+// at most up to the emitter's capacity, spread along the emitter's path since the last frame;
+// each filled from the 16 generators (self +0xc, vtable slot 1, called in a fixed order) for
+// the fields the emitter flags (+0x84) enable, then FxEmitter_AddParticle.
+void XB_THISCALL apsActionEmitter_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
 }  // namespace game

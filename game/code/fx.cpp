@@ -2060,7 +2060,9 @@ uint32_t XB_THISCALL FxSystemList_DestroyAll(uint8_t* list) {
 // The particle actions. A particle's fields sit at byte offsets the emitter keeps:
 // +0x8d size, +0x8e width, +0x90 alpha, +0x91 rotation, +0x92 angle, +0x93 height,
 // +0x94 texture frame, +0x95 age, +0x96 lifetime, +0x97 velocity, +0x98 peak alpha,
-// +0x99 angular velocity, +0x9a angular velocity vector, +0xa0 spawn timer; stride +0x88.
+// +0x99 angular velocity, +0x9a angular velocity vector, +0x9b-0x9f the KTau frame (tangent,
+// normal, binormal, curvature, torsion), +0xa0 spawn timer, +0xa3-0xa5 the Traj path (point
+// list, speed, distance travelled); stride +0x88.
 namespace {
 
 uint32_t field(uint8_t* emitter, uint32_t offset) { return emitter[offset]; }
@@ -2567,6 +2569,594 @@ void XB_THISCALL apsActionPlaneBounce_Apply(uint8_t* self, uint8_t* begin, uint8
         if (!(0.0f > speed)) continue;
         const Lanes result = sub(v, mul(unit, (bounce + one) * speed));
         for (int i = 0; i < 3; ++i) at<float>(velocity, i * 4) = result.v[i];
+    }
+}
+
+
+namespace {
+
+// The lanes {y, z, x, w} (SHUFPS 0xc9).
+Lanes yzxw(const Lanes& a) { return {{a.v[1], a.v[2], a.v[0], a.v[3]}}; }
+
+// cross(a, b) in the title's packed order: (a * b.yzx - a.yzx * b).yzx, every lane computed.
+Lanes cross_lanes(const Lanes& a, const Lanes& b) { return yzxw(sub(mul(a, yzxw(b)), mul(yzxw(a), b))); }
+
+// 1 / |v.xyz| as RSQRTSS and one Newton step (3.0 and 0.5 read from `three`/`half`); 0 for a zero
+// vector. The squares' unused lanes are computed too (MXCSR flags).
+float unit_scale(const Lanes& v, uint32_t three, uint32_t half) {
+    const Lanes squares = mul(v, v);
+    platform_keep(squares);
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    if (sum == 0.0f) return 0.0f;
+    const float a = abs_bits(sum);
+    const float r = platform_rsqrt_estimate(a);
+    return ((title_global<float>(three) - (r * r) * a) * r) * title_global<float>(half);
+}
+
+void store_lanes(float* out, const Lanes& v) {
+    for (int i = 0; i < 4; ++i) out[i] = v.v[i];
+}
+
+}  // namespace
+
+float* XB_CDECL Mat44_TransformVector(float* out, const float* matrix, const float* v) {
+    const Lanes r = add(add(mul(lanes(matrix), v[0]), mul(lanes(matrix + 4), v[1])), mul(lanes(matrix + 8), v[2]));
+    store_lanes(out, r);
+    return out;
+}
+
+float* XB_CDECL Mat44_FromDirection(float* out, const float* forward, const float* up) {
+    const Lanes a = lanes(forward);
+    const Lanes c = cross_lanes(a, lanes(up));
+    const Lanes side = mul(c, unit_scale(c, 0x007c8740, 0x007c8750));
+    const Lanes d = cross_lanes(side, a);
+    const Lanes second = mul(d, unit_scale(d, 0x007c8740, 0x007c8750));
+    std::memcpy(out, forward, 16);
+    store_lanes(out + 8, mul(side, title_global<float>(0x00909984)));
+    store_lanes(out + 4, second);
+    std::memcpy(out + 12, &title_global<float>(0x007c88e0), 16);  // {0, 0, 0, 1}
+    return out + 12;
+}
+
+float* XB_CDECL Quat_FromMat44(float* out, const float* m) {
+    const Lanes r0 = lanes(m), r1 = lanes(m + 4), r2 = lanes(m + 8);
+    const Lanes trace = add(add(r0, splat(r1.v[1])), splat(r2.v[2]));
+    platform_keep(trace);
+    const float half = title_global<float>(0x0083eb24);
+    const float one = title_global<float>(0x0083eb20);
+    if (trace.v[0] > title_global<float>(0x0083eafc)) {
+        const float s = platform_x87_add_sqrt(trace.v[0], one);
+        const float r = half / s;
+        const Lanes a = mul(sub(r2, splat(r1.v[2])), r);
+        const Lanes b = mul(sub(splat(r0.v[2]), r2), r);
+        const Lanes c = mul(sub(r1, splat(r0.v[1])), r);
+        platform_keep(a);
+        platform_keep(b);
+        platform_keep(c);
+        out[0] = a.v[1];
+        out[1] = b.v[0];
+        out[2] = c.v[0];
+        out[3] = platform_x87_mul(s, half);
+        return out;
+    }
+    // The largest diagonal element picks the first component (q = {w, x, y, z} here).
+    int i = 0, j = 1, k = 2;
+    if (!(m[5] <= m[0])) i = 1, j = 2, k = 0;
+    if (m[10] > m[i * 5]) i = 2, j = 0, k = 1;
+    const float s = platform_x87_sub_sub_add_sqrt(m[i * 5], m[j * 5], m[k * 5], one);
+    float q[4];
+    q[1 + i] = platform_x87_mul(s, half);
+    const float r = s == 0.0f ? s : half / s;
+    q[0] = (m[k * 4 + j] - m[j * 4 + k]) * r;
+    q[1 + j] = (m[j * 4 + i] + m[i * 4 + j]) * r;
+    q[1 + k] = (m[k * 4 + i] + m[i * 4 + k]) * r;
+    out[0] = q[1];
+    out[1] = q[2];
+    out[2] = q[3];
+    out[3] = q[0];
+    return out;
+}
+
+void XB_CDECL apsOrientToVelocity(uint8_t* begin, uint8_t* end, uint8_t* emitter) {
+    const int32_t stride = stride_of(emitter);
+    uint8_t* const last = end + field(emitter, 0x97);
+    uint8_t* rotation = begin + field(emitter, 0x91);
+    for (uint8_t* velocity = begin + field(emitter, 0x97); velocity != last; velocity += stride, rotation += stride) {
+        alignas(16) float v[4];
+        std::memcpy(v, velocity, sizeof(v));  // w = the next field
+        if (emitter[0xae] & 2) {
+            alignas(16) float moved[4];
+            std::memcpy(v, Mat44_TransformVector(moved, &at<float>(emitter, 0x10), v), sizeof(v));
+        }
+        const Lanes direction = lanes(v);
+        alignas(16) float forward[4], up[4], matrix[16], q[4];
+        store_lanes(forward, mul(direction, unit_scale(direction, 0x007c8be0, 0x007c8bf0)));
+        store_lanes(up, mul(lanes(&title_global<float>(0x007c8c70)), title_global<float>(0x007c8c40)));  // -z
+        Mat44_FromDirection(matrix, forward, up);
+        std::memcpy(rotation, Quat_FromMat44(q, matrix), sizeof(q));
+    }
+}
+
+void XB_THISCALL apsActionAngleToVelocity_Apply(uint8_t*, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                                float, float) {
+    if (emitter[0x84] & 0x20) {
+        apsOrientToVelocity(begin, end, emitter);
+        return;
+    }
+    const bool local = emitter[0xae] & 2;
+    const float offset = title_global<float>(0x00909980) - title_global<float>(0x0083ed0c);
+    const float scale = title_global<float>(0x00909984);
+    const int32_t stride = stride_of(emitter);
+    for (uint8_t* p = begin; p != end; p += stride) {
+        alignas(16) float v[4];
+        std::memcpy(v, p + field(emitter, 0x97), sizeof(v));
+        if (local) {
+            alignas(16) float moved[4];
+            std::memcpy(v, Mat44_TransformVector(moved, &at<float>(emitter, 0x10), v), sizeof(v));
+        }
+        const Lanes axis = lanes(v);
+        const Lanes y_dot = mul(axis, lanes(&title_global<float>(0x00909960)));
+        const float y = (y_dot.v[0] + y_dot.v[1]) + y_dot.v[2];
+        const Lanes x_dot = mul(axis, lanes(&title_global<float>(0x00909970)));
+        const float x = (x_dot.v[0] + x_dot.v[1]) + x_dot.v[2];
+        if (y == 0.0f && x == 0.0f) continue;
+        at<float>(p + field(emitter, 0x92), 0) = platform_x87_add_mul(apsAtan2(y, x), offset, scale);
+    }
+}
+
+
+namespace {
+
+// The two config points of LAtr/DLAt (+8, +0x14; each 4th lane repeats x), in the emitter's
+// space unless emitter flag 2.
+void line_points(uint8_t* config, uint8_t* emitter, float* a, float* b) {
+    const float a_init[4] = {at<float>(config, 8), at<float>(config, 0xc), at<float>(config, 0x10), at<float>(config, 8)};
+    const float b_init[4] = {at<float>(config, 0x14), at<float>(config, 0x18), at<float>(config, 0x1c),
+                             at<float>(config, 0x14)};
+    std::memcpy(a, a_init, 16);
+    std::memcpy(b, b_init, 16);
+    if (emitter[0xae] & 2) return;
+    alignas(16) float moved[4];
+    std::memcpy(a, Mat44_TransformPoint(moved, &at<float>(emitter, 0x10), a), 16);
+    std::memcpy(b, Mat44_TransformPoint(moved, &at<float>(emitter, 0x10), b), 16);
+}
+
+// velocity -= offset / |offset| * factor (all lanes; xyz stored), |offset|^2 = `distance2`.
+void pull_velocity(uint8_t* velocity, const Lanes& offset, float distance2, float factor) {
+    const float distance = platform_x87_sqrt(distance2);
+    const Lanes direction = {{offset.v[0] / distance, offset.v[1] / distance, offset.v[2] / distance,
+                              offset.v[3] / distance}};
+    const Lanes result = sub(lanes(reinterpret_cast<float*>(velocity)), mul(direction, factor));
+    platform_keep(result);
+    for (int i = 0; i < 3; ++i) at<float>(velocity, i * 4) = result.v[i];
+}
+
+}  // namespace
+
+void XB_THISCALL apsActionLineAttract_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                            float, float delta) {
+    uint8_t* const config = action_config(self);
+    const float strength = at<float>(config, 0x20) * delta;
+    alignas(16) float a[4], b[4];
+    line_points(config, emitter, a, b);
+    const Lanes origin = lanes(a);
+    const Lanes dir = sub(lanes(b), origin);
+    const Lanes unit = mul(dir, unit_scale(dir, 0x007c8be0, 0x007c8bf0));
+    const float closest = title_global<float>(0x0083eb4c);
+    const int32_t stride = stride_of(emitter);
+    uint8_t* velocity = begin + field(emitter, 0x97);
+    for (uint8_t* p = begin + field(emitter, 0x8c); p < end; p += stride, velocity += stride) {
+        const Lanes position = lanes(reinterpret_cast<float*>(p));
+        const Lanes along = mul(sub(position, origin), unit);
+        const float projection = (along.v[0] + along.v[1]) + along.v[2];
+        const Lanes offset = sub(position, add(origin, mul(unit, projection)));
+        const Lanes squares = mul(offset, offset);
+        float distance2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+        if (closest > distance2) distance2 = closest;
+        pull_velocity(velocity, offset, distance2, strength / distance2);
+    }
+}
+
+void XB_THISCALL apsActionDecayLineAttract_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                                 uint8_t*, float, float delta) {
+    uint8_t* const config = action_config(self);
+    const float strength = at<float>(config, 0x20) * delta;
+    alignas(16) float a[4], b[4];
+    line_points(config, emitter, a, b);
+    const Lanes origin = lanes(a);
+    const Lanes dir = sub(lanes(b), origin);
+    // 1 / length as packed RSQRTPS + one Newton step over {sum, y^2, z^2, w^2} (no abs, no zero test).
+    Lanes squares = mul(dir, dir);
+    squares.v[0] = (squares.v[0] + squares.v[1]) + squares.v[2];
+    Lanes estimate;
+    for (int i = 0; i < 4; ++i) estimate.v[i] = platform_rsqrt_estimate(squares.v[i]);
+    const Lanes inverse_lanes = mul(mul(sub(lanes(&title_global<float>(0x007c8be0)), mul(mul(estimate, estimate), squares)),
+                                        estimate),
+                                    lanes(&title_global<float>(0x007c8bf0)));
+    platform_keep(inverse_lanes);
+    const float inverse = inverse_lanes.v[0];
+    const Lanes unit = mul(dir, inverse);
+    const float one = title_global<float>(0x0083eb20);
+    const float closest = title_global<float>(0x0083eb4c);
+    const int32_t stride = stride_of(emitter);
+    uint8_t* velocity = begin + field(emitter, 0x97);
+    for (uint8_t* p = begin + field(emitter, 0x8c); p < end; p += stride, velocity += stride) {
+        const Lanes position = lanes(reinterpret_cast<float*>(p));
+        const Lanes along = mul(sub(position, origin), unit);
+        const float projection = (along.v[0] + along.v[1]) + along.v[2];
+        // The pull fades from 1 at the first point to 0 at the second (clamped fraction).
+        const float t = inverse * projection;
+        float clamped;
+        if (0.0f > t) clamped = 0.0f;
+        else if (t > one) clamped = one;
+        else clamped = t;
+        const float weight = one - clamped;
+        const Lanes offset = sub(position, add(origin, mul(unit, projection)));
+        const Lanes offset_squares = mul(offset, offset);
+        float distance2 = (offset_squares.v[0] + offset_squares.v[1]) + offset_squares.v[2];
+        if (closest > distance2) distance2 = closest;
+        pull_velocity(velocity, offset, distance2, (weight / distance2) * strength);
+    }
+}
+
+
+namespace {
+
+// The particle actions' random number (seed 0x00909f6c): seed = (12345 - seed * 0x3e39b193)
+// & 0x7fffffff, its top 23 bits as the mantissa of a float in [1, 2), minus 1.
+float action_random(float one) {
+    uint32_t& seed = title_global<uint32_t>(0x00909f6c);
+    seed = (0x3039u - seed * 0x3e39b193u) & 0x7fffffffu;
+    return from_bits((seed >> 8) | 0x3f800000u) - one;
+}
+
+Lanes vec(uint8_t* p) { return lanes(reinterpret_cast<float*>(p)); }
+
+void store_xyz(uint8_t* p, const Lanes& v) {
+    for (int i = 0; i < 3; ++i) at<float>(p, i * 4) = v.v[i];
+}
+
+}  // namespace
+
+void XB_THISCALL apsActionFrenetMove_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                           float, float delta) {
+    uint8_t* const config = action_config(self);
+    const float speed = at<float>(config, 8);
+    const float curvature_min = at<float>(config, 0xc);
+    const float curvature_low = at<float>(config, 0x14), curvature_high = at<float>(config, 0x18);
+    const float torsion_min = at<float>(config, 0x1c);
+    const float torsion_low = at<float>(config, 0x24), torsion_high = at<float>(config, 0x28);
+    const float one = title_global<float>(0x0083eb20);
+    const int32_t stride = stride_of(emitter);
+    uint8_t* velocity = begin + field(emitter, 0x97);
+    if (!(velocity < end)) return;
+    const float torsion_range = at<float>(config, 0x20) - torsion_min;
+    const float curvature_range = at<float>(config, 0x10) - curvature_min;
+    uint8_t* tangent = begin + field(emitter, 0x9b);
+    uint8_t* normal = begin + field(emitter, 0x9c);
+    uint8_t* binormal = begin + field(emitter, 0x9d);
+    uint8_t* curvature = begin + field(emitter, 0x9e);
+    uint8_t* torsion = begin + field(emitter, 0x9f);
+    for (; velocity < end; velocity += stride, tangent += stride, normal += stride, binormal += stride,
+                           curvature += stride, torsion += stride) {
+        store_xyz(velocity, mul(vec(tangent), speed));
+        store_xyz(tangent, add(vec(tangent), mul(mul(vec(normal), at<float>(curvature, 0)), delta)));
+        store_xyz(binormal, sub(vec(binormal), mul(mul(vec(normal), at<float>(torsion, 0)), delta)));
+        const Lanes t = vec(tangent);
+        store_xyz(tangent, mul(t, unit_scale(t, 0x007c8be0, 0x007c8bf0)));
+        const Lanes b = vec(binormal);
+        store_xyz(binormal, mul(b, unit_scale(b, 0x007c8be0, 0x007c8bf0)));
+        store_xyz(normal, cross_lanes(vec(tangent), vec(binormal)));
+        // Curvature and torsion drift by a random rate in [min, max) * delta, then are clamped.
+        float k = ((action_random(one) * curvature_range) + curvature_min) * delta + at<float>(curvature, 0);
+        at<float>(curvature, 0) = k;
+        float tau = ((action_random(one) * torsion_range) + torsion_min) * delta + at<float>(torsion, 0);
+        at<float>(torsion, 0) = tau;
+        if (curvature_low > k) k = curvature_low;
+        else if (k > curvature_high) k = curvature_high;
+        at<float>(curvature, 0) = k;
+        if (torsion_low > tau) tau = torsion_low;
+        else if (tau > torsion_high) tau = torsion_high;
+        at<float>(torsion, 0) = tau;
+    }
+}
+
+
+uint32_t XB_STDCALL apsPath_FindSegment(uint8_t** cursor, float* distance, float* length, float* start,
+                                        float* finish) {
+    uint8_t* point = *cursor;
+    float remaining = *distance;
+    if (at<int32_t>(point, 0) == -1) return 0;
+    for (;;) {
+        if (at<int32_t>(point, 0xc) == -1) return 0;
+        // Both points with x repeated in the 4th lane (the original's stack temporaries).
+        alignas(16) const float a[4] = {at<float>(point, 0), at<float>(point, 4), at<float>(point, 8),
+                                        at<float>(point, 0)};
+        alignas(16) const float b[4] = {at<float>(point, 0xc), at<float>(point, 0x10), at<float>(point, 0x14),
+                                        at<float>(point, 0xc)};
+        const Lanes d = sub(lanes(b), lanes(a));
+        const Lanes squares = mul(d, d);
+        platform_keep(squares);
+        const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+        float segment = sum;  // 0 (or NaN) as it is
+        if (!(sum == 0.0f || sum != sum)) {
+            // sqrt(sum) as sum * RSQRTSS with one Newton step.
+            const float r = platform_rsqrt_estimate(sum);
+            const float root = sum * r;
+            segment = ((title_global<float>(0x007c8be0) - root * r) * root) * title_global<float>(0x007c8bf0);
+        }
+        if (segment > remaining) {
+            *cursor = point;
+            *length = segment;
+            *distance = remaining;
+            std::memcpy(start, a, 16);
+            std::memcpy(finish, b, 16);
+            return 1;
+        }
+        point += 0xc;
+        remaining = remaining - segment;
+        if (at<int32_t>(point, 0) == -1) return 0;
+    }
+}
+
+void XB_THISCALL apsActionTrajectory_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                           float, float delta) {
+    using PathLookup = uint8_t* XB_CDECL(uint32_t);
+    PathLookup* const lookup = title_global<PathLookup*>(0x00909940);
+    const float scale = title_global<float>(0x00909984);
+    uint8_t* const config = action_config(self);
+    const uint32_t path_id = at<uint32_t>(config, 8);
+    const float path_speed = at<float>(config, 0xc);
+    const int32_t stride = stride_of(emitter);
+    const float half = title_global<float>(0x0083eb24);
+    const float two_pi = title_global<float>(0x0083edac);
+    for (uint8_t* p = begin; p != end; p += stride) {
+        uint8_t*& path = at<uint8_t*>(p, field(emitter, 0xa3));
+        float& speed = at<float>(p, field(emitter, 0xa4));
+        float& travelled = at<float>(p, field(emitter, 0xa5));
+        uint8_t* cursor = path;
+        if (!cursor) {
+            if (!lookup) continue;
+            cursor = lookup(path_id);
+            path = cursor;
+            speed = path_speed;
+            if (!cursor) continue;
+        }
+        float remaining = speed * delta + travelled;
+        float length = 0.0f;
+        alignas(16) float a[4], b[4];
+        if (!apsPath_FindSegment(&cursor, &remaining, &length, a, b)) {
+            path = nullptr;
+            travelled = 0.0f;
+            FxEmitter_QueueParticleKill(emitter, p);
+            continue;
+        }
+        path = cursor;
+        travelled = remaining;
+        Lanes direction = sub(lanes(b), lanes(a));
+        const Lanes position = add(lanes(a), mul(direction, remaining / length));
+        // The heading of the segment in the xy plane.
+        direction.v[2] = 0.0f;
+        const Lanes unit = mul(direction, unit_scale(direction, 0x007c8be0, 0x007c8bf0));
+        platform_keep(unit);
+        const float x = abs_bits(unit.v[0]);
+        float angle = platform_x87_greater(half, x) ? asin_series(x) : asin_upper(x);
+        if (0.0f > unit.v[0]) angle = 0.0f - angle;
+        float heading = title_global<float>(0x0083ed0c) - angle;
+        if (0.0f > unit.v[1]) heading = two_pi - heading;
+        heading = heading * scale;
+        if (0.0f > heading) heading = heading + two_pi;
+        at<float>(p, field(emitter, 0x92)) = heading;
+        store_xyz(p, position);
+    }
+}
+
+
+float* XB_CDECL apsSinCos(float angle, float* sine, float* cosine) {
+    // Lanes {angle + 3 pi / 2, angle + 0, ...} through the packed polynomial (the other two lanes
+    // repeat these).
+    const float offset = title_global<float>(0x0083efe0);
+    *sine = scene_sine_poly(angle + offset);
+    *cosine = scene_sine_poly(angle + 0.0f);
+    return sine;
+}
+
+float* XB_THISCALL Quat_FromAxisAngle(float* out, const float* axis, float angle) {
+    float sine, cosine;
+    apsSinCos(angle * title_global<float>(0x0083eb24), &sine, &cosine);
+    const Lanes v = mul(lanes(axis), sine);
+    platform_keep(v);
+    const float inverse = platform_x87_rcp_norm4(v.v[2], v.v[1], v.v[0], cosine, title_global<float>(0x0083eb20));
+    out[0] = platform_x87_mul(v.v[0], inverse);
+    out[1] = platform_x87_mul(v.v[1], inverse);
+    out[2] = platform_x87_mul(v.v[2], inverse);
+    out[3] = platform_x87_mul(inverse, cosine);
+    return out;
+}
+
+float* XB_CDECL Quat_FromEuler(float* out, float x_angle, float y_angle, float z_angle) {
+    const Lanes one = splat(title_global<float>(0x007c8790));
+    alignas(16) float axis[4];
+    float z[4], y[4], x[4];
+    store_lanes(axis, mul(lanes(&title_global<float>(0x007c87d0)), one));
+    Quat_FromAxisAngle(z, axis, z_angle);
+    store_lanes(axis, mul(lanes(&title_global<float>(0x007c87b0)), one));
+    Quat_FromAxisAngle(x, axis, x_angle);
+    store_lanes(axis, mul(lanes(&title_global<float>(0x007c87c0)), one));
+    Quat_FromAxisAngle(y, axis, y_angle);
+    // y * (x * z), in the original's operation order.
+    const float a = (((x[1] * z[3]) - (x[2] * z[0])) + (z[1] * x[3])) + (z[2] * x[0]);
+    const float b = (((x[2] * z[1]) + (z[3] * x[0])) + (x[3] * z[0])) - (z[2] * x[1]);
+    const float c = (((x[3] * z[3]) - (x[0] * z[0])) - (x[1] * z[1])) - (x[2] * z[2]);
+    const float d = (((x[2] * z[3]) + (x[1] * z[0])) - (z[1] * x[0])) + (z[2] * x[3]);
+    out[0] = (((y[2] * a) + (y[3] * b)) + (c * y[0])) - (y[1] * d);
+    out[1] = (((y[1] * c) - (y[2] * b)) + (y[3] * a)) + (d * y[0]);
+    out[2] = (((y[2] * c) + (y[1] * b)) - (a * y[0])) + (y[3] * d);
+    out[3] = (((y[3] * c) - (b * y[0])) - (y[1] * a)) - (y[2] * d);
+    return out;
+}
+
+void XB_THISCALL FxBox_Expand(float* box, float amount) {
+    const Lanes r = splat(amount);
+    store_lanes(box, sub(lanes(box), r));
+    store_lanes(box + 4, add(r, lanes(box + 4)));
+}
+
+uintptr_t XB_THISCALL FxEmitter_AddParticle(uint8_t* emitter, const uint8_t* particle) {
+    uint8_t* const memory = pointer_at(emitter, 0xbc);
+    if (!memory) return 0;
+    const int32_t count = at<int32_t>(emitter, 0xc0);
+    if (count >= at<int32_t>(emitter, 0xa8)) return reinterpret_cast<uintptr_t>(memory);
+    const uint32_t stride = at<uint32_t>(emitter, 0x88);
+    uint8_t* const slot = memory + stride * static_cast<uint32_t>(count);
+    for (uint32_t i = 0; i < stride; ++i) slot[i] = particle[i];
+    // The particle's bounds: its position grown by its size (emitter flag 2) or by 1.
+    alignas(16) float box[8];
+    const Lanes position = position_xyzz(particle);
+    store_lanes(box, position);
+    store_lanes(box + 4, position);
+    FxBox_Expand(box, (emitter[0x84] & 2) ? at<float>(const_cast<uint8_t*>(particle), field(emitter, 0x8d)) : 1.0f);
+    store_lanes(&at<float>(emitter, 0x60), lanes_min(lanes(&at<float>(emitter, 0x60)), lanes(box)));
+    store_lanes(&at<float>(emitter, 0x70), lanes_max(lanes(&at<float>(emitter, 0x70)), lanes(box + 4)));
+    const int32_t added = count + 1;
+    at<int32_t>(emitter, 0xc0) = added;
+    if (added > at<int32_t>(emitter, 0xc4)) at<int32_t>(emitter, 0xc4) = added;
+    const int32_t total = title_global<int32_t>(0x00909ec0) + 1;
+    title_global<int32_t>(0x00909ec0) = total;
+    if (total > title_global<int32_t>(0x00909ec4)) title_global<int32_t>(0x00909ec4) = total;
+    return static_cast<uint32_t>(total);
+}
+
+
+namespace {
+
+// A particle generator (emitter config +0xc, 16 of them): vtable slot 1 fills `count` floats.
+// Without one, `fallback` fills them.
+float generate1(uint8_t* generator, float* out, float fallback) {
+    if (!generator) return fallback;
+    using Generate = void XB_THISCALL(uint8_t*, int32_t, float*);
+    title_function<Generate>(vtable_slot(reinterpret_cast<uintptr_t>(generator), 1))(generator, 1, out);
+    return *out;
+}
+
+// Three floats (a 4-float buffer; without a generator `fallback` fills all four).
+void generate3(uint8_t* generator, float* out, float fallback) {
+    if (generator) {
+        using Generate = void XB_THISCALL(uint8_t*, int32_t, float*);
+        title_function<Generate>(vtable_slot(reinterpret_cast<uintptr_t>(generator), 1))(generator, 3, out);
+        return;
+    }
+    for (int i = 0; i < 4; ++i) out[i] = fallback;
+}
+
+}  // namespace
+
+void XB_THISCALL apsActionEmitter_Apply(uint8_t* self, uint8_t*, uint8_t*, uint8_t* emitter, uint8_t*, float,
+                                        float delta) {
+    using Count = int32_t XB_THISCALL(uint8_t*, uint8_t*, float);
+    int32_t n = title_function<Count>(vtable_slot(reinterpret_cast<uintptr_t>(self), 5))(self, emitter, delta);
+    if (n <= 0) return;
+    const int32_t count = at<int32_t>(emitter, 0xc0);
+    const int32_t capacity = at<int32_t>(emitter, 0xa8);
+    if (!(count + n < capacity)) n = capacity - count;
+    if (n <= 0) return;
+    uint8_t** const g = reinterpret_cast<uint8_t**>(pointer_at(self, 0xc));
+    uint8_t* gen[16];
+    for (int i = 0; i < 16; ++i) gen[i] = g[i];
+    const uint32_t stride = at<uint32_t>(emitter, 0x88);
+    alignas(16) uint8_t particle[0x140];
+    for (uint32_t i = 0; i < stride; ++i) particle[i] = 0;
+    alignas(16) float matrix[16];
+    std::memcpy(matrix, &at<float>(emitter, 0x10), sizeof(matrix));
+    // The emitter's path since the last frame (+0x50 -> matrix row 3), split into n steps.
+    Lanes position = lanes(matrix + 12);
+    Lanes step = lanes(&title_global<float>(0x007c8c00));
+    if (n > 1) {
+        step = mul(sub(position, lanes(&at<float>(emitter, 0x50))), title_global<float>(0x0083eb20) / static_cast<float>(n));
+        position = add(lanes(&at<float>(emitter, 0x50)), step);
+    }
+    const uint32_t flags = at<uint32_t>(emitter, 0x84);
+    const bool world = emitter[0xae] & 2;
+    const float one = title_global<float>(0x0083eb20);
+    for (int32_t left = n; left != 0; --left) {
+        store_lanes(matrix + 12, position);
+        position = add(position, step);
+        // A generator fills three lanes; the 4th is 0 as in the original's (zeroed) stack slot.
+        alignas(16) float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        alignas(16) float moved[4];
+        float scalar;
+        generate3(gen[0], v, 0.0f);
+        if (!world) std::memcpy(v, Mat44_TransformPoint(moved, matrix, v), sizeof(v));
+        store_xyz(particle, lanes(v));
+        const float size = generate1(gen[1], &scalar, one);
+        if (flags & 2) at<float>(particle, field(emitter, 0x8d)) = size;
+        const float width = generate1(gen[2], &scalar, one);
+        if (flags & 4) at<float>(particle, field(emitter, 0x8e)) = width;
+        if (flags & 8) {
+            alignas(16) float colour[4];
+            generate3(gen[3], colour, one);
+            store_xyz(particle + field(emitter, 0x8f), lanes(colour));
+        }
+        if (flags & 0x10) at<float>(particle, field(emitter, 0x90)) = generate1(gen[4], &scalar, one);
+        if (flags & 0x20) {
+            float* const rotation = &at<float>(particle, field(emitter, 0x91));
+            if (gen[5]) {
+                float euler[4];
+                generate3(gen[5], euler, 0.0f);
+                float q[4];
+                std::memcpy(rotation, Quat_FromEuler(q, euler[0], euler[1], euler[2]), sizeof(q));
+            } else {
+                rotation[0] = 0.0f;
+                rotation[1] = 0.0f;
+                rotation[2] = 0.0f;
+                rotation[3] = one;
+            }
+        }
+        const float angle = generate1(gen[6], &scalar, one);
+        if (flags & 0x40) at<float>(particle, field(emitter, 0x92)) = angle;
+        const float height = generate1(gen[7], &scalar, one);
+        if (flags & 0x80) at<float>(particle, field(emitter, 0x93)) = height;
+        const float frame = generate1(gen[8], &scalar, 0.0f);
+        if (flags & 0x100) at<float>(particle, field(emitter, 0x94)) = frame;
+        at<float>(particle, field(emitter, 0x95)) = 0.0f;
+        at<float>(particle, field(emitter, 0x96)) = generate1(gen[9], &scalar, one);
+        const float peak = generate1(gen[10], &scalar, one);
+        if (flags & 0x1000) at<float>(particle, field(emitter, 0x98)) = peak;
+        if (flags & 0x800) {
+            alignas(16) float velocity[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            generate3(gen[11], velocity, 0.0f);
+            if (!world) std::memcpy(velocity, Mat44_TransformVector(moved, matrix, velocity), sizeof(velocity));
+            store_xyz(particle + field(emitter, 0x97), lanes(velocity));
+            if (flags & 0x8000) {
+                // The KTau frame: tangent along the velocity, a normal across it, their cross.
+                const Lanes direction = lanes(velocity);
+                const Lanes tangent = mul(direction, unit_scale(direction, 0x007c8be0, 0x007c8bf0));
+                const Lanes negated = neg(tangent);
+                const Lanes across = tangent.v[2] == 0.0f
+                                         ? Lanes{{tangent.v[1], negated.v[0], 0.0f, tangent.v[1]}}
+                                         : Lanes{{tangent.v[2], 0.0f, negated.v[0], tangent.v[2]}};
+                const Lanes normal = mul(across, unit_scale(across, 0x007c8be0, 0x007c8bf0));
+                store_xyz(particle + field(emitter, 0x9b), tangent);
+                store_xyz(particle + field(emitter, 0x9c), normal);
+                store_xyz(particle + field(emitter, 0x9d), cross_lanes(tangent, normal));
+            }
+        }
+        if (flags & 0x4000) {
+            alignas(16) float spin[4];
+            generate3(gen[13], spin, 0.0f);
+            if (!world) std::memcpy(spin, Mat44_TransformVector(moved, matrix, spin), sizeof(spin));
+            store_xyz(particle + field(emitter, 0x9a), lanes(spin));
+        }
+        const float angular = generate1(gen[12], &scalar, 0.0f);
+        if (flags & 0x2000) at<float>(particle, field(emitter, 0x99)) = angular;
+        const float curvature = generate1(gen[14], &scalar, 0.0f);
+        if (flags & 0x40000) at<float>(particle, field(emitter, 0x9e)) = curvature;
+        const float torsion = generate1(gen[15], &scalar, 0.0f);
+        if (flags & 0x80000) at<float>(particle, field(emitter, 0x9f)) = torsion;
+        if (flags & 0x800000) at<float>(particle, field(emitter, 0xa3)) = 0.0f;
+        if (flags & 0x2000000) at<float>(particle, field(emitter, 0xa5)) = 0.0f;
+        if (flags & 0x100000) at<float>(particle, field(emitter, 0xa0)) = 0.0f;
+        FxEmitter_AddParticle(emitter, particle);
     }
 }
 
