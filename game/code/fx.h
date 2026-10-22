@@ -340,21 +340,71 @@ uint32_t XB_THISCALL apsPtrVector_PushFront(ApsArray* array, const uint32_t* ite
 // first when its +0x14 is 0, else last; an 'SpDe' element (vtable slot 1 type) is
 // remembered at +8 (when put first, or when none is yet).
 void XB_THISCALL apsElementList_Add(uint8_t* list, uint8_t* element);
-// 0x0009c9e0: the referenced effect (+8 -> +4 -> +8) spawned at `position`/`quat` at
+// 0x0009c9e0: the list's spawn-on-death element's effect (+8 -> +4 -> +8) spawned at `position`/`quat` at
 // the effect time (0x00909998); null without one.
-uint8_t* XB_THISCALL apsEffectRef_Spawn(uint8_t* self, const float* quat, const float* position);
+uint8_t* XB_THISCALL apsElementList_SpawnDeathEffect(uint8_t* self, const float* quat, const float* position);
 // 0x000a1730 (vtable 0x007c907c slot 0): every particle's timer (particle byte offset
 // emitter +0xa0; started with config +0x10 while the +0x95 field is 0) counts down by
 // `delta`; at 0 the config's effect (+0xc) spawns at the particle (rotation at +0x91
 // with emitter flag 0x20) and the timer restarts with the period (+8).
 void XB_THISCALL apsActionSpawnTimed_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
                                            uint8_t* system, float time, float delta);
-// 0x000a1850 (vtable 0x007c9090 slot 0): on the birth pass (delta 8888.89) the config's
+// 0x000a1850 (vtable 0x007c9090 slot 0): on the death pass (delta 8888.89) the config's
 // effect (+8) spawned at each particle.
-void XB_THISCALL apsActionSpawnOnBirth_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+void XB_THISCALL apsActionSpawnOnDeath_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
                                              uint8_t* system, float time, float delta);
 // 0x00095300 (CG_Shutdown's tail): every system of a list destroyed and freed to the
 // pool (0x00909994 +8), the list emptied.
 uint32_t XB_THISCALL FxSystemList_DestroyAll(uint8_t* list);
+
+// 0x000971d0: a particle queued for removal (ring of 200 at 0x00909ba0, next 0x00909ed4)
+// when the emitter has particle memory (+0xbc); returns the next index (0 without).
+uint32_t XB_THISCALL FxEmitter_QueueParticleKill(uint8_t* emitter, uint8_t* particle);
+// 0x0009bee0: a pool's separately allocated slots (+0x1c, not the inline ones at +0x24)
+// back to the heap; slots and items (+0x18) cleared.
+void XB_THISCALL apsMemoryPool_FreeSlots(uint8_t* pool);
+// 0x0009bff0: every pool of a set freed (slots, then the block), the set emptied.
+uint32_t XB_THISCALL apsPoolSet_Clear(ApsArray* set);
+
+// The particle action classes (vtables 0x007c8df0-0x007c90a4; slot 1 returns the
+// class's four-character type, slot 0 is Apply). The three emitters (SrcA/Brst/RSpn)
+// share Apply 0x000a2e40 and add slot 5, the number of particles to emit this frame
+// (emitter +0x80 = their accumulator).
+// 0x000a0e50 'SrcA': rate (+8) * delta particles, the fraction carried over.
+int32_t XB_THISCALL apsActionSource_Count(uint8_t* self, uint8_t* emitter, float delta);
+// 0x000a0e90 'Brst': config +8 particles once (accumulator -1 after).
+int32_t XB_THISCALL apsActionBurst_Count(uint8_t* self, uint8_t* emitter, float unused);
+// 0x000a0ec0 'RSpn': one particle per random interval (+0xc -> +0x40, slot 1) elapsed.
+int32_t XB_THISCALL apsActionRandomSpawn_Count(uint8_t* self, uint8_t* emitter, float delta);
+// Apply(begin, end, emitter, system, time, delta) of the others (particle fields: fx.cpp):
+// 0x000a0970 'Life': particles past their lifetime queued for removal, the element
+// list's (0x00909f10) spawn-on-death effect spawned at each first.
+void XB_THISCALL apsActionLife_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a0f30 'AlFd': alpha = peak (+8) until lifetime * hold (+0xc), then fading to 0.
+void XB_THISCALL apsActionAlphaFade_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a0fe0 'AFIO': alpha fading in to peak (+0xc) until +8, out from +0x10 (age fractions).
+void XB_THISCALL apsActionAlphaFadeInOut_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a10a0 'RFIO': the same with each particle's own peak.
+void XB_THISCALL apsActionRandomFadeInOut_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a1190 'LnSc' / 0x000a1260 'LScW' / 0x000a1330 'LScH': size / width / height += rate * delta.
+void XB_THISCALL apsActionLinearScale_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+void XB_THISCALL apsActionLinearScaleWidth_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+void XB_THISCALL apsActionLinearScaleHeight_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a11e0 'ExSc' / 0x000a12b0 'EScW' / 0x000a1380 'EScH': times rate ^ delta (series on the x87).
+void XB_THISCALL apsActionExpScale_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+void XB_THISCALL apsActionExpScaleWidth_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+void XB_THISCALL apsActionExpScaleHeight_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a1400 'Move': position += velocity * delta, angle += angular velocity * delta.
+void XB_THISCALL apsActionMove_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a1b60 'PsMv': position += velocity * delta.
+void XB_THISCALL apsActionPositionMove_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a14d0 'VlDr' / 0x000a1580 'AVDr' / 0x000a1600 'VAVD': velocity / angular velocity /
+// angular velocity vector times exp(-rate * delta) (third-order series).
+void XB_THISCALL apsActionVelocityDrag_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+void XB_THISCALL apsActionAngularDrag_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+void XB_THISCALL apsActionVectorAngularDrag_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a16b0 'UVFr': texture frame advanced by rate (+0x10) * delta, wrapped into
+// [first (+8), limit (+0xc)).
+void XB_THISCALL apsActionUVFrame_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
 
 }  // namespace game

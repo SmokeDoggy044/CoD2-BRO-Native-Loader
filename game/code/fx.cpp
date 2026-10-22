@@ -1991,7 +1991,7 @@ void XB_THISCALL apsElementList_Add(uint8_t* list, uint8_t* element) {
     }
 }
 
-uint8_t* XB_THISCALL apsEffectRef_Spawn(uint8_t* self, const float* quat, const float* position) {
+uint8_t* XB_THISCALL apsElementList_SpawnDeathEffect(uint8_t* self, const float* quat, const float* position) {
     uint8_t* const ref = pointer_at(self, 8);
     if (!ref) return nullptr;
     uint8_t* const definition = pointer_at(pointer_at(ref, 4), 8);
@@ -2025,10 +2025,10 @@ void XB_THISCALL apsActionSpawnTimed_Apply(uint8_t* self, uint8_t* begin, uint8_
     }
 }
 
-void XB_THISCALL apsActionSpawnOnBirth_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+void XB_THISCALL apsActionSpawnOnDeath_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
                                              float, float delta) {
     const int32_t stride = at<int32_t>(emitter, 0x88);
-    if (!(delta == title_global<float>(0x007c90bc))) return;  // 8888.89: the birth pass
+    if (!(delta == title_global<float>(0x007c90bc))) return;  // 8888.89: the death pass
     uint8_t* const definition = pointer_at(pointer_at(self, 4), 8);
     if (!definition) return;
     uint8_t* quat = (emitter[0x84] & 0x20) ? begin + emitter[0x91] : nullptr;
@@ -2055,6 +2055,283 @@ uint32_t XB_THISCALL FxSystemList_DestroyAll(uint8_t* list) {
     }
     count = 0;
     return static_cast<uint32_t>(last);
+}
+
+// The particle actions. A particle's fields sit at byte offsets the emitter keeps:
+// +0x8d size, +0x8e width, +0x90 alpha, +0x91 rotation, +0x92 angle, +0x93 height,
+// +0x94 texture frame, +0x95 age, +0x96 lifetime, +0x97 velocity, +0x98 peak alpha,
+// +0x99 angular velocity, +0x9a angular velocity vector, +0xa0 spawn timer; stride +0x88.
+namespace {
+
+uint32_t field(uint8_t* emitter, uint32_t offset) { return emitter[offset]; }
+int32_t stride_of(uint8_t* emitter) { return at<int32_t>(emitter, 0x88); }
+uint8_t* action_config(uint8_t* self) { return pointer_at(self, 4); }
+
+// `value` += rate * delta for the float at `offset` of every particle.
+void add_rate(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint32_t offset,
+              float delta) {
+    const float step = at<float>(action_config(self), 8) * delta;
+    const int32_t stride = stride_of(emitter);
+    uint8_t* const last = end + field(emitter, offset);
+    for (uint8_t* p = begin + field(emitter, offset); p != last; p += stride) at<float>(p, 0) = at<float>(p, 0) + step;
+}
+
+// The float at `offset` of every particle times rate ^ delta (a second-order series on the x87).
+void mul_exp_rate(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint32_t offset,
+                  float delta) {
+    const float factor = platform_x87_exp2_series(at<float>(action_config(self), 8), delta,
+                                                  title_global<float>(0x0083eb24), title_global<float>(0x0083eb20));
+    const int32_t stride = stride_of(emitter);
+    uint8_t* const last = end + field(emitter, offset);
+    for (uint8_t* p = begin + field(emitter, offset); p != last; p += stride) at<float>(p, 0) = at<float>(p, 0) * factor;
+}
+
+// exp(-rate * delta) as the drags' third-order series.
+float drag_factor(uint8_t* self, float delta) {
+    const float x = 0.0f - at<float>(action_config(self), 8) * delta;
+    const float one = title_global<float>(0x0083eb20);
+    return ((x * title_global<float>(0x007c90b8) + title_global<float>(0x0083eb24)) * x + one) * x + one;
+}
+
+// The xyz of the vector at `offset` times `factor` (every lane computed, w not stored).
+void scale_vectors(uint8_t* begin, uint8_t* end, uint8_t* emitter, uint32_t offset, float factor) {
+    const int32_t stride = stride_of(emitter);
+    uint8_t* const last = end + field(emitter, offset);
+    for (uint8_t* p = begin + field(emitter, offset); p != last; p += stride) {
+        const Lanes scaled = mul(lanes(reinterpret_cast<float*>(p)), factor);
+        for (int i = 0; i < 3; ++i) at<float>(p, i * 4) = scaled.v[i];
+    }
+}
+
+// The xyz of the position += velocity * delta (every lane computed, w kept).
+void move_position(uint8_t* p, uint8_t* emitter, float delta) {
+    const Lanes step = mul(lanes(reinterpret_cast<float*>(p + field(emitter, 0x97))), delta);
+    const float w = at<float>(p, 0xc);
+    const Lanes moved = add(lanes(reinterpret_cast<float*>(p)), step);
+    for (int i = 0; i < 4; ++i) at<float>(p, i * 4) = moved.v[i];
+    at<float>(p, 0xc) = w;
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL FxEmitter_QueueParticleKill(uint8_t* emitter, uint8_t* particle) {
+    if (!pointer_at(emitter, 0xbc)) return 0;
+    uint32_t index = title_global<uint32_t>(0x00909ed4);
+    if (index == 200) index = 0;
+    (&title_global<uint8_t*>(0x00909ba0))[index] = particle;
+    title_global<uint32_t>(0x00909ed4) = ++index;
+    return index;
+}
+
+void XB_THISCALL apsMemoryPool_FreeSlots(uint8_t* pool) {
+    if (uint8_t* const slots = pointer_at(pool, 0x1c)) {
+        if (slots != pool + 0x24) {
+            const uint32_t heap = particle_heap();
+            title_function<void XB_THISCALL(uint32_t, uint8_t*)>(vtable_slot(heap, 2))(heap, slots);
+        }
+        at<uint8_t*>(pool, 0x1c) = nullptr;
+    }
+    at<uint8_t*>(pool, 0x18) = nullptr;
+}
+
+uint32_t XB_THISCALL apsPoolSet_Clear(ApsArray* set) {
+    uint8_t** const pools = reinterpret_cast<uint8_t**>(set->data);
+    uint8_t** const last = pools + set->count;
+    for (uint8_t** item = pools; item != last; ++item) {
+        apsMemoryPool_FreeSlots(*item);
+        const uint32_t heap = particle_heap();
+        title_function<void XB_THISCALL(uint32_t, uint8_t*)>(vtable_slot(heap, 2))(heap, *item);
+    }
+    return apsPtrVector_Resize(set, 0);
+}
+
+int32_t XB_THISCALL apsActionSource_Count(uint8_t* self, uint8_t* emitter, float delta) {
+    const float total = at<float>(action_config(self), 8) * delta + at<float>(emitter, 0x80);
+    const int32_t count = static_cast<int32_t>(total);
+    at<float>(emitter, 0x80) = total - static_cast<float>(count);
+    return count;
+}
+
+int32_t XB_THISCALL apsActionBurst_Count(uint8_t* self, uint8_t* emitter, float) {
+    if (0.0f > at<float>(emitter, 0x80)) return 0;
+    at<float>(emitter, 0x80) = title_global<float>(0x0083eb34);  // -1: done
+    return static_cast<int32_t>(at<float>(action_config(self), 8));
+}
+
+int32_t XB_THISCALL apsActionRandomSpawn_Count(uint8_t* self, uint8_t* emitter, float delta) {
+    uint8_t* const interval = pointer_at(pointer_at(self, 0xc), 0x40);
+    float wait = at<float>(emitter, 0x80) - delta;
+    int32_t count = 0;
+    if (wait <= 0.0f) {
+        do {
+            ++count;
+            float next;
+            title_function<void XB_THISCALL(uint8_t*, uint32_t, float*)>(
+                vtable_slot(reinterpret_cast<uintptr_t>(interval), 1))(interval, 1, &next);
+            wait = next + wait;
+        } while (wait <= 0.0f);
+    }
+    at<float>(emitter, 0x80) = wait;
+    return count;
+}
+
+void XB_THISCALL apsActionLife_Apply(uint8_t*, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*, float,
+                                     float) {
+    const int32_t stride = stride_of(emitter);
+    const uint32_t age = field(emitter, 0x95), life = field(emitter, 0x96);
+    // Without a rotation the death effect gets the position as its quaternion.
+    const uint32_t rotation = (emitter[0x84] & 0x20) ? field(emitter, 0x91) : 0;
+    const bool spawns = pointer_at(title_global<uint8_t*>(0x00909f10), 8) != nullptr;
+    for (uint8_t* p = begin; p != end; p += stride) {
+        if (!(at<float>(p, age) > at<float>(p, life))) continue;
+        if (spawns)
+            apsElementList_SpawnDeathEffect(title_global<uint8_t*>(0x00909f10), reinterpret_cast<float*>(p + rotation),
+                                            reinterpret_cast<float*>(p));
+        FxEmitter_QueueParticleKill(emitter, p);
+    }
+}
+
+void XB_THISCALL apsActionAlphaFade_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                          float, float) {
+    const float peak = at<float>(action_config(self), 8);
+    const float hold = at<float>(action_config(self), 0xc);
+    const float scale = peak / (title_global<float>(0x0083eb20) - hold);
+    const int32_t stride = stride_of(emitter);
+    const uint32_t age_at = field(emitter, 0x95), life_at = field(emitter, 0x96), alpha_at = field(emitter, 0x90);
+    for (uint8_t* p = begin; p != end; p += stride) {
+        const float life = at<float>(p, life_at), age = at<float>(p, age_at);
+        float alpha = 0.0f;
+        if (life * hold > age)
+            alpha = peak;
+        else if (life > age)
+            alpha = (1.0f - age / life) * scale;
+        at<float>(p, alpha_at) = alpha;
+    }
+}
+
+void XB_THISCALL apsActionAlphaFadeInOut_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                               uint8_t*, float, float) {
+    const float fade_in = at<float>(action_config(self), 8);
+    const float peak = at<float>(action_config(self), 0xc);
+    const float fade_out = at<float>(action_config(self), 0x10);
+    const float in_scale = peak / fade_in;
+    const float out_scale = peak / (title_global<float>(0x0083eb20) - fade_out);
+    const int32_t stride = stride_of(emitter);
+    const uint32_t age_at = field(emitter, 0x95), life_at = field(emitter, 0x96), alpha_at = field(emitter, 0x90);
+    for (uint8_t* p = begin; p != end; p += stride) {
+        const float age = at<float>(p, age_at), life = at<float>(p, life_at);
+        const float t = age / life;
+        float alpha;
+        if (fade_in > t)
+            alpha = t * in_scale;
+        else if (fade_out > t)
+            alpha = peak;
+        else if (life > age)
+            alpha = (title_global<float>(0x0083eb20) - t) * out_scale;
+        else
+            alpha = 0.0f;
+        at<float>(p, alpha_at) = alpha;
+    }
+}
+
+void XB_THISCALL apsActionRandomFadeInOut_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                                uint8_t*, float, float) {
+    const float fade_in = at<float>(action_config(self), 8);
+    const float fade_out = at<float>(action_config(self), 0xc);
+    const float one = title_global<float>(0x0083eb20);
+    const float in_scale = one / fade_in;
+    const float out_scale = one / (one - fade_out);
+    const int32_t stride = stride_of(emitter);
+    const uint32_t age_at = field(emitter, 0x95), life_at = field(emitter, 0x96), peak_at = field(emitter, 0x98),
+                   alpha_at = field(emitter, 0x90);
+    for (uint8_t* p = begin; p != end; p += stride) {
+        const float age = at<float>(p, age_at), life = at<float>(p, life_at), peak = at<float>(p, peak_at);
+        const float t = age / life;
+        float alpha;
+        if (fade_in > t)
+            alpha = t * peak * in_scale;
+        else if (fade_out > t)
+            alpha = peak;
+        else if (life > age)
+            alpha = (one - t) * peak * out_scale;
+        else
+            alpha = 0.0f;
+        at<float>(p, alpha_at) = alpha;
+    }
+}
+
+void XB_THISCALL apsActionLinearScale_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                            float, float delta) {
+    add_rate(self, begin, end, emitter, 0x8d, delta);
+}
+void XB_THISCALL apsActionExpScale_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                         float, float delta) {
+    mul_exp_rate(self, begin, end, emitter, 0x8d, delta);
+}
+void XB_THISCALL apsActionLinearScaleWidth_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                                 uint8_t*, float, float delta) {
+    add_rate(self, begin, end, emitter, 0x8e, delta);
+}
+void XB_THISCALL apsActionExpScaleWidth_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                              uint8_t*, float, float delta) {
+    mul_exp_rate(self, begin, end, emitter, 0x8e, delta);
+}
+void XB_THISCALL apsActionLinearScaleHeight_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                                  uint8_t*, float, float delta) {
+    add_rate(self, begin, end, emitter, 0x93, delta);
+}
+void XB_THISCALL apsActionExpScaleHeight_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                               uint8_t*, float, float delta) {
+    mul_exp_rate(self, begin, end, emitter, 0x93, delta);
+}
+
+void XB_THISCALL apsActionMove_Apply(uint8_t*, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*, float,
+                                     float delta) {
+    const int32_t stride = stride_of(emitter);
+    const uint32_t angle_at = field(emitter, 0x92), spin_at = field(emitter, 0x99);
+    for (uint8_t* p = begin; p < end; p += stride) {
+        move_position(p, emitter, delta);
+        at<float>(p, angle_at) = at<float>(p, spin_at) * delta + at<float>(p, angle_at);
+    }
+}
+
+void XB_THISCALL apsActionPositionMove_Apply(uint8_t*, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                             float, float delta) {
+    const int32_t stride = stride_of(emitter);
+    for (uint8_t* p = begin; p != end; p += stride) move_position(p, emitter, delta);
+}
+
+void XB_THISCALL apsActionVelocityDrag_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                             float, float delta) {
+    scale_vectors(begin, end, emitter, 0x97, drag_factor(self, delta));
+}
+
+void XB_THISCALL apsActionAngularDrag_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                            float, float delta) {
+    const float factor = drag_factor(self, delta);
+    const int32_t stride = stride_of(emitter);
+    uint8_t* const last = end + field(emitter, 0x99);
+    for (uint8_t* p = begin + field(emitter, 0x99); p != last; p += stride) at<float>(p, 0) = at<float>(p, 0) * factor;
+}
+
+void XB_THISCALL apsActionVectorAngularDrag_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                                  uint8_t*, float, float delta) {
+    scale_vectors(begin, end, emitter, 0x9a, drag_factor(self, delta));
+}
+
+void XB_THISCALL apsActionUVFrame_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                        float, float delta) {
+    const float step = at<float>(action_config(self), 0x10) * delta;
+    const float first = at<float>(action_config(self), 8);
+    const float limit = at<float>(action_config(self), 0xc);
+    const int32_t stride = stride_of(emitter);
+    uint8_t* const last = end + field(emitter, 0x94);
+    for (uint8_t* p = begin + field(emitter, 0x94); p != last; p += stride) {
+        float frame = at<float>(p, 0) + step;
+        if (frame >= limit) frame = frame - limit + first;
+        if (first > frame) frame = limit - (first - frame);
+        at<float>(p, 0) = frame;
+    }
 }
 
 }  // namespace game

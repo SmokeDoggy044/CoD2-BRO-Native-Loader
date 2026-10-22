@@ -199,6 +199,17 @@ inline float platform_x87_mul_div_add(float a, float b, float c, float d) {
             : "st");
     return result;
 }
+// y = ln(k) * t (FLDLN2/FYL2X, FMUL), then (half * y + one) * y + one - a second-order
+// exp(y) - all on the x87 (the caller's precision control), stored as float.
+inline float platform_x87_exp2_series(float k, float t, float half, float one) {
+    float result;
+    __asm__("flds %1\n\tfldln2\n\tfxch %%st(1)\n\tfyl2x\n\tfmuls %2\n\tflds %3\n\tfmul %%st(1), %%st\n\t"
+            "fadds %4\n\tfmul %%st(1), %%st\n\tfadds %4\n\tfstps %0\n\tfstp %%st(0)"
+            : "=m"(result)
+            : "m"(k), "m"(t), "m"(half), "m"(one)
+            : "st", "st(1)");
+    return result;
+}
 // FILD + FMUL + FSTP: an integer times a float on the x87 (the caller's precision and
 // rounding control), stored as float. No MXCSR flags.
 inline float platform_x87_int_mul(std::int32_t value, float factor) {
