@@ -15,11 +15,19 @@ namespace game {
 struct NglTexture {
     uint8_t unknown00[0x4];
     uint32_t flags;          // +0x04, low byte = kind (0x10: a reference to `target`),
-                             // 0x400 = render target
-    uint8_t unknown08[0x2c - 0x8];
+                             // 0x400 = render target, 0x2000 = a plain surface,
+                             // 0x10000000 = cube map
+    uint32_t format;         // +0x08, D3D format
+    uint8_t unknown0c[0x4];
+    uint32_t width;          // +0x10 (cube maps: the edge length)
+    uint32_t height;         // +0x14
+    uint32_t levels;         // +0x18
+    uint8_t unknown1c[0x2c - 0x1c];
     int32_t last_used_frame; // +0x2c
     uint8_t* d3d_texture;    // +0x30, the D3D texture (its +4 and +0xc feed SwitchTexture)
-    uint8_t unknown34[0x3c - 0x34];
+    uint32_t* surfaces;      // +0x34, the D3D surface per level (cube maps: per face a
+                             // list; flag 0x2000: the surface itself)
+    uint8_t unknown38[0x3c - 0x38];
     uint8_t* palette;        // +0x3c, an NGL palette (its D3D palette at +0xc) or null
     uint8_t unknown40[0x4c - 0x40];
     NglTexture* target;      // +0x4c, kind 0x10; kind 0x0f (animated): the frame count
@@ -939,5 +947,72 @@ void XB_CDECL nglGetTextExtent(const uint8_t* font, const char* text, int32_t* w
 // Before a scene's draw lists: its frame time, depth and stencil states, render
 // target, viewport and clear.
 void XB_CDECL nglBeginSceneRender(NglScene* scene);
+
+// printf-style nglGetTextExtent at scale 1.
+void XB_CDECL nglGetTextExtentf(const uint8_t* font, int32_t* width, int32_t* height, const char* format, ...);
+// printf-style nglGetTextExtent.
+void XB_CDECL nglGetTextSizef(const uint8_t* font, int32_t* width, int32_t* height, float scale_x, float scale_y,
+                              const char* format, ...);
+// An NGL vertex buffer {data, size, D3D vertex buffer}: `size` bytes of write-combined
+// memory. 0 when an allocation fails. The second argument is unused.
+uint8_t XB_THISCALL nglCreateVertexBuffer(uint32_t* self, uint32_t size, uint32_t unused);
+// The same over memory the caller owns; `protect` != 0 is applied with XPhysicalProtect.
+uint8_t XB_THISCALL nglCreateVertexBufferPhysical(uint32_t* self, uint32_t data, uint32_t size, uint32_t protect);
+// Allocates the texture's D3D header (surface, cube or texture by its flags) and fills it.
+void XB_THISCALL nglInitTextureHeader(NglTexture* self);
+// Reads the level count and the surface of each level (each face's for cube maps).
+void XB_THISCALL nglTextureGetSurfaces(NglTexture* self);
+// Pixel memory for every level (and face) of the texture; render targets take it from
+// the per-frame scratch memory.
+void* XB_THISCALL nglAllocTextureMemory(const NglTexture* self);
+// An NGL palette {entries, entry count, borrowed flag (byte), D3D palette} over `entries`
+// (or new memory when null). The first argument is unused.
+uint32_t* XB_CDECL nglCreatePalette(uint32_t unused, uint32_t count, uint32_t entries);
+// Starts building a mesh (0x00902920) with `section_count` empty sections and a copy of
+// the 0x40-byte material records; flag 0x40000 allocates from the frame's GPU memory.
+void XB_CDECL nglMeshBuilder_Begin(uint32_t flags, uint32_t section_count, uint32_t material_count,
+                                   const void* materials);
+// Fills the builder's next section (0x00902924 of the mesh at 0x00902920; last one at
+// 0x00902930): material (which gets the section at +4), primitive type, a vertex buffer
+// of `vertex_count` x `stride` (GPU-frame meshes: a slice of the shared buffer at
+// 0x00902970, offset 0x0090295c aligned to the stride) and a copy of the 16-bit indices.
+// Returns the new section count.
+uint32_t XB_CDECL nglMeshBuilder_AddSection(uint32_t* material, uint32_t primitive_type, uint32_t vertex_count,
+                                            uint32_t unused, uint32_t index_count, const uint16_t* indices,
+                                            uint32_t stride);
+// No-op: vertex memory needs no unlocking on the Xbox.
+void XB_THISCALL nglVertexBuffer_Unlock(uint32_t* self);
+// The D3D vertex buffer (+8) of an NGL vertex buffer.
+uint32_t XB_THISCALL nglVertexBuffer_GetD3D(const uint32_t* self);
+// Double-buffered dynamic vertex memory: two NGL vertex buffers (+0, +0xc) with their
+// capacities (+0x18), per-frame counters +0x20..+0x2c, the buffer index +0x30, the
+// current capacity +0x34 and a copy of the current buffer, locked, at +0x38.
+void XB_THISCALL nglDynamicVB_BeginFrame(uint32_t* self);
+// Clears the counters, flips to the other buffer and unlocks the current one.
+void XB_THISCALL nglDynamicVB_EndFrame(uint32_t* self);
+// Room for `quads` more quads this frame (limit 0x00909f34)? Yes: sets the pending
+// count and returns the write pointer. No: flags the overflow (0x00909f44), returns null.
+uint8_t* XB_CDECL nglQuadBatch_Reserve(int32_t quads);
+// *self = `size` bytes of index memory; false when that fails.
+uint8_t XB_THISCALL nglIndexBuffer_Alloc(uint8_t** self, uint32_t size);
+// *out = an NGL palette over `entries` with the DDS header's entry count (word +0xc).
+uint32_t* XB_CDECL nglCreateDDSPalette(const uint8_t* header, uint32_t** out, uint32_t entries);
+// Finds `key` from *cursor on, moves the cursor past it and parses the number after it
+// (strtol, the cursor ends behind it). 0 when the key is not found.
+int32_t XB_REGS2 XB_CDECL nglFontParseKeyInt(const char* key, char** cursor, int32_t base);
+// No-op: texture memory needs no unlocking on the Xbox.
+void XB_CDECL nglTexture_Unlock();
+// No-op called from nglBeginFrame.
+void XB_CDECL nglBeginFrame_Nop();
+// Pixel memory and surfaces for the two fog textures (0x00902e64/68) that have none;
+// sets 0x00902e6c.
+void XB_CDECL nglAllocFogTextures();
+// Pixel memory and surfaces for the current scene's render targets (and their depth
+// textures, flags 0x1000 | 0x4000).
+void XB_CDECL nglAllocSceneRenderTargets();
+// Finishes the builder's mesh: unless it lives in frame GPU memory, each section's
+// indices (+0x30, count +0x2c) move into an index buffer of their own, rebased to the
+// first section's first index. Returns the mesh.
+uint32_t* XB_CDECL nglMeshBuilder_End();
 
 }  // namespace game

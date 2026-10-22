@@ -722,7 +722,7 @@
 00029000 FUN_00029000
 000290d0 FUN_000290d0
 00029130 FUN_00029130
-00029170 FUN_00029170
+00029170 DObj_FindNameNoCase
 000291d0 FUN_000291d0
 00029200 nglSphereInFrustum
 000292a0 FUN_000292a0
@@ -1646,7 +1646,7 @@
 00064ec0 nglEndFrame
 00065380 nglVideoMode_Init
 00065420 nglVideoMode_Copy
-000654e0 FUN_000654e0
+000654e0 nglFontParseKeyInt
 00065590 nglParseFontFile
 000657b0 nglLoadFontFile
 000658c0 nglFindFontAddRef
@@ -1666,10 +1666,10 @@
 00066850 nglCreateVertexBuffer
 000668d0 nglCreateVertexBufferPhysical
 00066940 nglLockVertexBuffer
-00066960 FUN_00066960
+00066960 nglVertexBuffer_Unlock
 000669a0 nglVertexBuffer_Free
 000669e0 nglVertexBuffer_Destroy
-00066a10 FUN_00066a10
+00066a10 nglVertexBuffer_GetD3D
 00066a40 nglMeshBuilder_SetBounds
 00066ad0 nglAllocFrameGpu
 00066af0 Mem_AlignedAlloc
@@ -1714,7 +1714,7 @@
 0006a6c0 nglUnbindTextures
 0006a760 nglSetTexture
 0006a820 nglTexture_Lock
-0006a860 FUN_0006a860
+0006a860 nglTexture_Unlock
 0006a900 nglTextureSetPixel
 0006a9a0 nglTextureGetPixel
 0006aab0 nglGetFrontBufferTexture
@@ -1825,12 +1825,12 @@
 00078890 nglDrawMeshSection
 00078b90 FUN_00078b90
 00079020 nglParseDDSPalette
-000794a0 FUN_000794a0
+000794a0 nglBeginFrame_Nop
 000795c0 nglDumpCamera
 00079950 nglDumpSceneMeshes
 00079f60 nglCreateSysFont
 00079fc0 nglRenderTextNode
-0007a3a0 FUN_0007a3a0
+0007a3a0 nglIndexBuffer_Alloc
 0007a3c0 nglIndexBuffer_Init
 0007a3d0 FUN_0007a3d0
 0007a3f0 nglIndexBuffer_Clear
@@ -1851,7 +1851,7 @@
 0007b1b0 nglPaletteSetEntry
 0007b1d0 nglSetPaletteCached
 0007b220 nglSwapRedBlue
-0007b250 FUN_0007b250
+0007b250 nglCreateDDSPalette
 0007b2a0 nglSwizzleTextureLevels
 0007b670 nglDebugShader_Draw
 0007b780 nglDebugShader_GetName

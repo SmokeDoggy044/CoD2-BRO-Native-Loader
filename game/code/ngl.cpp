@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "lanes.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -3551,6 +3552,347 @@ void XB_CDECL nglBeginSceneRender(NglScene* target_scene) {
     simple(0x00040358, scene->color_write_mask, 0x003f8434, 0x00902fa8);
     const float frames = current_scene()->frame_time * title_global<float>(0x008a2978);
     current_scene()->frame_counter = static_cast<uint32_t>(platform_x87_round_to_int(frames));
+}
+
+void XB_CDECL nglGetTextExtentf(const uint8_t* font, int32_t* width, int32_t* height, const char* format, ...) {
+    char text[0x400];
+    va_list args;
+    va_start(args, format);
+    title_function<int XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    va_end(args);
+    nglGetTextExtent(font, text, width, height, 1.0f, 1.0f);
+}
+
+void XB_CDECL nglGetTextSizef(const uint8_t* font, int32_t* width, int32_t* height, float scale_x, float scale_y,
+                              const char* format, ...) {
+    char text[0x400];
+    va_list args;
+    va_start(args, format);
+    title_function<int XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    va_end(args);
+    nglGetTextExtent(font, text, width, height, scale_x, scale_y);
+}
+
+namespace {
+
+using SetVertexBufferHeader = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+using ResourceRegister = void XB_STDCALL(uint32_t, uint32_t);
+
+// The D3D vertex buffer header (self[2]) over self[0], with a reference count of 1.
+void register_vertex_buffer(uint32_t* self, uint32_t data) {
+    title_function<SetVertexBufferHeader>(0x003f99e6)(0, 0, 0, 0, self[2], 0);  // XGSetVertexBufferHeader
+    title_function<ResourceRegister>(0x003e7fd0)(self[2], data);                // D3DResource_Register
+    *reinterpret_cast<uint32_t*>(self[2]) = 1;
+}
+
+}  // namespace
+
+uint8_t XB_THISCALL nglCreateVertexBuffer(uint32_t* self, uint32_t size, uint32_t) {
+    self[1] = size;
+    self[0] = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(size, 1, 0x30000));
+    if (!self[0]) return 0;
+    self[2] = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0xc, 4, 0));
+    if (!self[2]) {
+        title_function<void XB_CDECL(uint32_t)>(0x000939b0)(self[0]);  // Mem_AlignedFree
+        return 0;
+    }
+    register_vertex_buffer(self, self[0]);
+    return 1;
+}
+
+uint8_t XB_THISCALL nglCreateVertexBufferPhysical(uint32_t* self, uint32_t data, uint32_t size, uint32_t protect) {
+    self[0] = data;
+    self[1] = size;
+    self[2] = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0xc, 4, 0));
+    if (!self[2]) return 0;
+    if (protect) title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e76aa)(data, size, protect);  // XPhysicalProtect
+    register_vertex_buffer(self, data);
+    return 1;
+}
+
+void XB_THISCALL nglInitTextureHeader(NglTexture* self) {
+    if (self->flags & 0x2000) {
+        const uint32_t surface = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0x18, 4, 0));
+        self->surfaces = reinterpret_cast<uint32_t*>(surface);
+        using SetSurfaceHeader = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+        title_function<SetSurfaceHeader>(0x003f9953)(self->width, self->height, self->format, surface, 0, 0);  // XGSetSurfaceHeader
+    } else if (self->flags & 0x10000000) {
+        const uint32_t cube = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0x14, 4, 0));
+        self->d3d_texture = reinterpret_cast<uint8_t*>(cube);
+        using SetCubeHeader = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+        title_function<SetCubeHeader>(0x003f99be)(self->width, self->levels, 0, self->format, 0, cube, 0, 0);  // XGSetCubeTextureHeader
+    } else {
+        const uint32_t texture = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0x14, 4, 0));
+        self->d3d_texture = reinterpret_cast<uint8_t*>(texture);
+        using SetTextureHeader =
+            void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+        title_function<SetTextureHeader>(0x003f9994)(self->width, self->height, self->levels, 0, self->format, 0,
+                                                     texture, 0, 0);  // XGSetTextureHeader
+    }
+}
+
+void XB_THISCALL nglTextureGetSurfaces(NglTexture* self) {
+    if (self->flags & 0x2000) return;
+    const uint32_t texture = reinterpret_cast<uint32_t>(self->d3d_texture);
+    self->levels = title_function<uint32_t XB_STDCALL(uint32_t)>(0x003ebcc0)(texture);  // D3DBaseTexture_GetLevelCount
+    if (self->flags & 0x10000000) {
+        self->surfaces = static_cast<uint32_t*>(Mem_AlignedAlloc(0x18, 4, 0));
+        for (uint32_t face = 0; face < 6; ++face) {
+            self->surfaces[face] = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(self->levels * 4, 4, 0));
+            for (uint32_t level = 0; level < self->levels; ++level) {
+                uint32_t* slot = reinterpret_cast<uint32_t*>(self->surfaces[face]) + level;
+                *slot = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003ebd70)(
+                    reinterpret_cast<uint32_t>(self->d3d_texture), face, level);  // D3DCubeTexture_GetCubeMapSurface2
+            }
+        }
+    } else {
+        self->surfaces = static_cast<uint32_t*>(Mem_AlignedAlloc(self->levels * 4, 4, 0));
+        for (uint32_t level = 0; level < self->levels; ++level) {
+            uint32_t* slot = self->surfaces + level;
+            *slot = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x003ebcf0)(
+                reinterpret_cast<uint32_t>(self->d3d_texture), level);  // D3DTexture_GetSurfaceLevel2
+        }
+    }
+}
+
+void* XB_THISCALL nglAllocTextureMemory(const NglTexture* self) {
+    const uint32_t flags = self->flags;
+    if (flags & 0x2000) {
+        const uint32_t size = self->height * self->width * 4;
+        if (flags & 0x400) return nglAllocFrameScratch(size, 0x40);
+        return Mem_AlignedAlloc(size, 0x40, 0x30000);
+    }
+    const uint32_t bytes_per_pixel =
+        (title_function<uint32_t XB_STDCALL(uint32_t)>(0x003fa187)(self->format) << 3) >> 3;  // XGBytesPerPixelFromFormat
+    uint32_t size = 0;
+    if (flags & 0x10000000) {
+        for (int face = 6; face; --face) {
+            uint32_t width = self->width, height = self->height;
+            for (uint32_t level = self->levels; level; --level) {
+                size += height * width * bytes_per_pixel;
+                width >>= 1;
+                height >>= 1;
+            }
+            size += size & 0x7f;
+        }
+    } else {
+        uint32_t width = self->width, height = self->height;
+        for (uint32_t level = self->levels; level; --level) {
+            size += height * width * bytes_per_pixel;
+            width >>= 1;
+            height >>= 1;
+        }
+    }
+    if (flags & 0x400) return nglAllocFrameScratch(size, 0x80);
+    return Mem_AlignedAlloc(size, 0x80, 0x30000);
+}
+
+uint32_t* XB_CDECL nglCreatePalette(uint32_t, uint32_t count, uint32_t entries) {
+    uint32_t* palette = static_cast<uint32_t*>(Mem_AlignedAlloc(0x10, 4, 0));
+    palette[0] = palette[1] = palette[2] = palette[3] = 0;
+    palette[1] = count;
+    uint32_t size = 0;  // D3DPALETTE_256; also any other count
+    switch (count) {
+    case 0x20: size = 3; break;
+    case 0x40: size = 2; break;
+    case 0x80: size = 1; break;
+    case 0x100: size = 0; break;
+    }
+    if (entries) {
+        reinterpret_cast<uint8_t*>(palette)[8] = 1;
+    } else {
+        entries = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(count * 4, 0x40, 0x30000));
+        reinterpret_cast<uint8_t*>(palette)[8] = 0;
+    }
+    palette[0] = entries;
+    palette[3] = reinterpret_cast<uint32_t>(Mem_AlignedAlloc(0xc, 4, 0));
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003f99fe)(size, palette[3], 0);  // XGSetPaletteHeader
+    title_function<ResourceRegister>(0x003e7fd0)(palette[3], palette[0]);                      // D3DResource_Register
+    *reinterpret_cast<uint32_t*>(palette[3]) = 0x00030001;
+    return palette;
+}
+
+void XB_CDECL nglMeshBuilder_Begin(uint32_t flags, uint32_t section_count, uint32_t material_count,
+                                   const void* materials) {
+    // Allocator (0x00902928): nglAllocFrameGpu or the Mem_AlignedAlloc wrapper at 0x00066af0.
+    // Mesh: +4 flags | 0x20000, +8 section count, +0xc sections {1, 0x60-byte section},
+    // +0x10 material count, +0x14 materials.
+    using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
+    uint32_t& allocator = title_global<uint32_t>(0x00902928);
+    allocator = (flags & 0x40000) ? 0x00066ad0 : 0x00066af0;
+    uint32_t* mesh = reinterpret_cast<uint32_t*>(title_function<Alloc>(allocator)(0x40, 0x10, 0));
+    std::memset(mesh, 0, 0x40);
+    mesh[1] = flags | 0x20000;
+    mesh[2] = section_count;
+    mesh[3] = title_function<Alloc>(allocator)(section_count * 8, 0x10, 0);
+    uint32_t* sections = reinterpret_cast<uint32_t*>(mesh[3]);
+    for (uint32_t i = 0; i < section_count; ++i) {
+        sections[i * 2 + 1] = title_function<Alloc>(allocator)(0x60, 0x10, 0);
+        std::memset(reinterpret_cast<void*>(sections[i * 2 + 1]), 0, 0x60);
+        sections[i * 2] = 1;
+    }
+    if (material_count) {
+        mesh[4] = material_count;
+        mesh[5] = title_function<Alloc>(allocator)(material_count << 6, 0x10, 0);
+        std::memcpy(reinterpret_cast<void*>(mesh[5]), materials, material_count << 6);
+    }
+    alignas(16) float center[4];
+    std::memcpy(center, &title_global<float>(0x007bda20), sizeof(center));
+    title_global<uint32_t*>(0x00902920) = mesh;
+    title_global<uint32_t>(0x00902924) = 0;
+    nglMeshBuilder_SetBounds(center, from_bits(0x749dc5ae));
+}
+
+uint32_t XB_CDECL nglMeshBuilder_AddSection(uint32_t* material, uint32_t primitive_type, uint32_t vertex_count,
+                                            uint32_t, uint32_t index_count, const uint16_t* indices,
+                                            uint32_t stride) {
+    uint32_t* mesh = title_global<uint32_t*>(0x00902920);
+    uint32_t& current = title_global<uint32_t>(0x00902924);
+    uint8_t* section = reinterpret_cast<uint8_t*>(reinterpret_cast<uint32_t*>(mesh[3])[current * 2 + 1]);
+    auto field = [section](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(section + offset); };
+    material[1] = reinterpret_cast<uint32_t>(section);
+    field(0x5c) = reinterpret_cast<uint32_t>(material);
+    field(0x4) = primitive_type;
+    field(0x28) = 6;
+    field(0x50) = stride;
+    field(0x30) = title_global<uint32_t>(0x0090296c) + title_global<uint32_t>(0x00902964) * 2;
+    if (title_global<uint32_t*>(0x00902920)[1] & 0x40000) {
+        field(0x24) = 0x40000;
+        uint32_t& offset = title_global<uint32_t>(0x0090295c);
+        const uint32_t misalign = offset % stride;
+        if (misalign) offset += stride - misalign;
+        title_global<uint32_t>(0x00902960) = offset;
+        field(0x54) = offset;
+        field(0x44) = title_global<uint32_t>(0x00902970);
+        field(0x48) = title_global<uint32_t>(0x00902974);
+        field(0x4c) = title_global<uint32_t>(0x00902978);
+        offset += vertex_count * stride;
+    } else {
+        nglCreateVertexBuffer(&field(0x44), vertex_count * stride, 0);
+    }
+    if (index_count) {
+        using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
+        field(0xc) = title_function<Alloc>(title_global<uint32_t>(0x00902928))(index_count * 2, 0x10, 0);
+        std::memcpy(reinterpret_cast<void*>(field(0xc)), indices, index_count * 2);
+        field(0x8) = index_count;
+    }
+    title_global<uint8_t*>(0x00902930) = section;
+    return ++current;
+}
+
+void XB_THISCALL nglVertexBuffer_Unlock(uint32_t*) {}
+
+uint32_t XB_THISCALL nglVertexBuffer_GetD3D(const uint32_t* self) { return self[2]; }
+
+void XB_THISCALL nglDynamicVB_BeginFrame(uint32_t* self) {
+    const uint32_t index = self[0x30 / 4];
+    uint32_t* current = self + 0x38 / 4;
+    current[0] = self[index * 3];
+    current[1] = self[index * 3 + 1];
+    current[2] = self[index * 3 + 2];
+    self[0x34 / 4] = self[0x18 / 4 + index];
+    if (nglVertexBuffer_GetD3D(current))
+        current[0] = reinterpret_cast<uint32_t>(nglLockVertexBuffer(reinterpret_cast<uint8_t*>(current), 0, 0));
+}
+
+void XB_THISCALL nglDynamicVB_EndFrame(uint32_t* self) {
+    self[0x24 / 4] = 0;
+    self[0x28 / 4] = 0;
+    self[0x20 / 4] = 0;
+    self[0x2c / 4] = 0;
+    self[0x30 / 4] ^= 1;
+    nglVertexBuffer_Unlock(self + 0x38 / 4);
+}
+
+uint8_t* XB_CDECL nglQuadBatch_Reserve(int32_t quads) {
+    if (title_global<int32_t>(0x00909f48) + quads > title_global<int32_t>(0x00909f34)) {
+        nglVertexBuffer_Unlock(title_global<uint32_t* [2]>(0x00909f20)[title_global<uint32_t>(0x00909f2c)]);
+        title_global<uint32_t>(0x00909f44) = 1;
+        return nullptr;
+    }
+    title_global<int32_t>(0x00909f30) = quads;
+    return title_global<uint8_t*>(0x00909f3c);
+}
+
+uint8_t XB_THISCALL nglIndexBuffer_Alloc(uint8_t** self, uint32_t size) {
+    *self = static_cast<uint8_t*>(Mem_AlignedAlloc(size, 4, 0));
+    return *self != nullptr;
+}
+
+uint32_t* XB_CDECL nglCreateDDSPalette(const uint8_t* header, uint32_t** out, uint32_t entries) {
+    uint32_t* palette = nglCreatePalette(0, *reinterpret_cast<const uint16_t*>(header + 0xc), entries);
+    *out = palette;
+    return palette;
+}
+
+int32_t XB_REGS2 XB_CDECL nglFontParseKeyInt(const char* key, char** cursor, int32_t base) {
+    const uint32_t length = static_cast<uint32_t>(std::strlen(key));
+    while (**cursor) {
+        uint32_t i = 0;
+        const char* text = *cursor;
+        while (i < length && text[i] && text[i] == key[i]) ++i;
+        if (i == length) {
+            *cursor += length;
+            return title_function<int32_t XB_CDECL(const char*, char**, int32_t)>(0x001f0ecf)(*cursor, cursor, base);  // _strtol
+        }
+        ++*cursor;
+    }
+    return 0;
+}
+
+void XB_CDECL nglTexture_Unlock() {}
+
+void XB_CDECL nglBeginFrame_Nop() {}
+
+namespace {
+
+void alloc_texture(NglTexture* texture) {
+    nglRegisterTexture(texture, reinterpret_cast<uint32_t>(nglAllocTextureMemory(texture)));
+}
+
+}  // namespace
+
+void XB_CDECL nglAllocFogTextures() {
+    title_global<uint8_t>(0x00902e6c) = 1;
+    static const uint32_t kSlots[2] = {0x00902e64, 0x00902e68};
+    for (int i = 0; i < 2; ++i) {
+        NglTexture* texture = title_global<NglTexture*>(kSlots[i]);
+        if (*reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(texture) + 0x24)) continue;
+        alloc_texture(texture);
+        nglTextureGetSurfaces(texture);
+    }
+}
+
+void XB_CDECL nglAllocSceneRenderTargets() {
+    for (NglRenderTargetLink* link = current_scene()->render_targets; link; link = link->next) {
+        NglTexture* texture = link->texture;
+        if (!texture) continue;
+        alloc_texture(texture);
+        if ((texture->flags & 0x1000) && (texture->flags & 0x4000))
+            alloc_texture(*reinterpret_cast<NglTexture**>(reinterpret_cast<uint8_t*>(texture) + 0x38));
+        nglTextureGetSurfaces(texture);
+    }
+}
+
+uint32_t* XB_CDECL nglMeshBuilder_End() {
+    uint32_t* mesh = title_global<uint32_t*>(0x00902920);
+    if (mesh[1] & 0x40000) return mesh;
+    const uint32_t* sections = reinterpret_cast<uint32_t*>(mesh[3]);
+    const uint16_t* base = *reinterpret_cast<uint16_t* const*>(reinterpret_cast<uint8_t*>(sections[1]) + 0x30);
+    for (uint32_t i = 0; i < mesh[2]; ++i) {
+        uint8_t* section = reinterpret_cast<uint8_t*>(reinterpret_cast<uint32_t*>(mesh[3])[i * 2 + 1]);
+        const uint32_t count = *reinterpret_cast<uint32_t*>(section + 0x2c);
+        uint8_t** buffer = reinterpret_cast<uint8_t**>(section + 0x30);
+        const uint8_t* indices = *buffer;
+        nglIndexBuffer_Alloc(buffer, count * 2);
+        nglIndexBuffer_Lock(buffer, 0, 0);
+        nglIndexBuffer_Write(buffer, indices, count * 2, 0);
+        nglIndexBuffer_Unlock();
+        uint16_t* out = reinterpret_cast<uint16_t*>(nglIndexBuffer_Lock(buffer, 0, 0));
+        for (uint32_t j = 0; j < *reinterpret_cast<uint32_t*>(section + 0x2c); ++j) out[j] -= *base;
+        nglIndexBuffer_Unlock();
+    }
+    return title_global<uint32_t*>(0x00902920);
 }
 
 }  // namespace game

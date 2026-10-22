@@ -381,4 +381,30 @@ void XB_CDECL DObj_SetLod(DObj* obj, int32_t lod) {
     }
 }
 
+PLATFORM_ASM_ENTRY(XModelParts_FindBone_entry,
+                   "pushl %esi\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(XModelParts_FindBone) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL XModelParts_FindBone(const char* name, const XModelParts* parts) {
+    if (!name) return -1;
+    for (uint32_t i = 0; i < parts->bone_count; ++i) {
+        const char* text = parts->bones[i].text;
+        if (text && title_function<int XB_CDECL(const char*, const char*)>(0x001f1443)(text, name) == 0)  // _stricmp
+            return static_cast<int32_t>(i);
+    }
+    return -1;
+}
+
+int32_t XB_STDCALL DObj_FindBoneIndex2(const DObj* obj, const char* name) {
+    int32_t first = 0;
+    for (int i = 0; i < obj->model_count; ++i) {
+        const int32_t bone = XModelParts_FindBone(name, model_parts(obj->models[i]));
+        if (bone >= 0) return bone + first;
+        const XModelParts* parts = model_parts(obj->models[i]);
+        first += parts ? static_cast<int32_t>(parts->bone_count) : 0;
+    }
+    return -1;
+}
+
 }  // namespace game

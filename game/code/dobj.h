@@ -11,7 +11,7 @@
 namespace game {
 
 struct XBoneInfo {
-    uint32_t unknown0;
+    const char* text; // the bone name (XModelParts_FindBone)
     uint32_t name;    // +4, a script string
     int32_t parent;   // +8
 };
@@ -164,5 +164,12 @@ void XB_CDECL DObj_CalcAnimatedSkeleton(const DObj* obj, int32_t bone);
 // DObj_SetLod_entry (from G_UpdateEntityLOD).
 extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_SetLod(DObj* obj, int32_t lod);
 extern "C" void DObj_SetLod_entry(void);
+// The index of the bone named `name` (case-insensitive) in `parts`, -1 if none or
+// `name` is null. EBX = name, ESI = parts: entered through XModelParts_FindBone_entry.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL XModelParts_FindBone(const char* name, const XModelParts* parts);
+extern "C" void XModelParts_FindBone_entry(void);
+// The DObj-wide index of the bone named `name`: the first model that has it, counting
+// the bones of the models before it. -1 if none has it.
+int32_t XB_STDCALL DObj_FindBoneIndex2(const DObj* obj, const char* name);
 
 }  // namespace game
