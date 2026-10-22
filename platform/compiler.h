@@ -552,3 +552,50 @@ inline float platform_rcp_estimate(float x) { return _mm_cvtss_f32(_mm_rcp_ss(_m
 inline float platform_rsqrt_estimate(float x) { return 1.0f / std::sqrt(x); }
 inline float platform_rcp_estimate(float x) { return 1.0f / x; }
 #endif
+
+// ---- Game module (g_scr_math.cpp): x87 operations whose result stays in extended precision
+// (script builtins return it in ST0 unrounded). Plain long double arithmetic covers
+// FADD/FMUL/FDIV (the title's precision control applies alike); these are the operations
+// without a C spelling that would stay inline in -O0 builds.
+#if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+inline long double platform_x87_sin_ext(long double x) {
+    long double result;
+    __asm__("fsin" : "=t"(result) : "0"(x));
+    return result;
+}
+inline long double platform_x87_cos_ext(long double x) {
+    long double result;
+    __asm__("fcos" : "=t"(result) : "0"(x));
+    return result;
+}
+inline long double platform_x87_sqrt_ext(long double x) {
+    long double result;
+    __asm__("fsqrt" : "=t"(result) : "0"(x));
+    return result;
+}
+inline long double platform_x87_abs_ext(long double x) {
+    long double result;
+    __asm__("fabs" : "=t"(result) : "0"(x));
+    return result;
+}
+// FLD1; FPATAN: atan(x / 1).
+inline long double platform_x87_atan_ext(long double x) {
+    long double result;
+    __asm__("fld1\n\tfpatan" : "=t"(result) : "0"(x));
+    return result;
+}
+// FLDLN2; FXCH; FYL2X: ln 2 * log2(x).
+inline long double platform_x87_ln_ext(long double x) {
+    long double result;
+    __asm__("fldln2\n\tfxch %%st(1)\n\tfyl2x" : "=t"(result) : "0"(x));
+    return result;
+}
+#else
+#include <cmath>
+inline long double platform_x87_sin_ext(long double x) { return std::sin(x); }
+inline long double platform_x87_cos_ext(long double x) { return std::cos(x); }
+inline long double platform_x87_sqrt_ext(long double x) { return std::sqrt(x); }
+inline long double platform_x87_abs_ext(long double x) { return std::fabs(x); }
+inline long double platform_x87_atan_ext(long double x) { return std::atan(x); }
+inline long double platform_x87_ln_ext(long double x) { return std::log(x); }
+#endif

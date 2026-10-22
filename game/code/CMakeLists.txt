@@ -2,11 +2,16 @@
 # loader runs it in place of the original functions or compares the two
 # (functions.h, loader/compare.h).
 set(game_code_sources
+    actor.cpp
+    bg_misc.cpp
     cg_view.cpp
     cgame.cpp
     dobj.cpp
     functions.cpp
     fx.cpp
+    g_scr_math.cpp
+    g_scr_runtime.cpp
+    g_utils.cpp
     nal_anim.cpp
     nal_codec.cpp
     nal_math.cpp
