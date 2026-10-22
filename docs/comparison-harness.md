@@ -168,8 +168,21 @@ uses too, compiled a second time into the harness's section), Parent = the textu
 add a reference to the texture (title memory, compared). What the title reads from them
 is the real surface's content; the calls' arguments are logged, so a wrong level differs
 at the call ("SDK call 1 D3DTexture_GetSurfaceLevel2: arguments differ at word 2", a
-planted level + 1 in nglTextureGetSurfaces). AddRef/Release accept pool surfaces;
-releasing one to 0 (destroying it) still ends the test as inconclusive.
+planted level + 1 in nglTextureGetSurfaces). AddRef/Release work on pool and title
+resources alike as render's do: a surface's first reference adds one to its texture, its
+last releases it, and a resource without D3D-internal references released to 0 is
+destroyed (count 0; render's other work then - freeing its own level surfaces, host
+copies - leaves title memory alone). This made nglReleaseTextureSurfaces/nglFreeTexture
+testable.
+Locks: on the Xbox a lock returns a pointer into the resource's own memory, so the
+stand-ins compute it. D3DTexture_LockRect / D3DSurface_LockRect write {pitch, bits} into
+the D3DLOCKED_RECT as render's lock() does (surface_layout.h, RECT offset), and
+D3DVertexBuffer_Lock2 / D3DPalette_Lock2 return Data | 0x80000000. The D3DLOCKED_RECT
+pointer is an `x` argument (a stack slot that is not logged: it often points into the
+caller's frame, which differs between the sides); what is written there is compared like
+any other write. The first test through the lock path found a real bug
+(nglUpdateFogTable wrapped its columns at the width instead of the height); a planted
+0xfe in its texels was caught (4 of 53 calls, the ones that refill the table).
 
 ## Callers that rebuild the original's frame
 
