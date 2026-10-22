@@ -318,4 +318,43 @@ void XB_CDECL Mat44_FromQuatTranslation(float* out, const float* quat, const flo
 // identity) and position; destroyed again while 0x009099a8 is set. Null on failure.
 uint8_t* XB_CDECL apsEffect_Spawn(const float* quat, const float* position, uint8_t* definition, float time);
 
+// 0x0009c210: `count` free pool slots (8 bytes: index, next = 0xffff, size, used flag)
+// from the particle heap, aligned to `align`.
+uint8_t* XB_CDECL apsMemoryPool_AllocSlots(int32_t count, uint32_t align);
+// 0x0009b9d0: a pool of `count` items of `item_size` bytes at `items`: slots (+0x1c,
+// allocated when missing) chained into the free list (+0x20). Returns the slots (null
+// for count 0).
+uint8_t* XB_THISCALL apsMemoryPool_Init(uint8_t* pool, int32_t count, uint32_t item_size, uint8_t* items);
+// 0x0009bf50: a pool of `count` items of `item_size` bytes in one heap block (header and
+// slots 128-aligned, then the items) added to a pool set; 0 for no bytes or out of heap.
+uint32_t XB_THISCALL apsPoolSet_AddPool(ApsArray* set, int32_t count, int32_t item_size);
+// 0x0009c050: apsPoolSet_AddPool to the global pool set (0x00909f08).
+uint32_t XB_CDECL apsAddPool(int32_t count, int32_t item_size);
+// 0x0009c620: a pointer array set to `count` items (storage grown to exactly that when
+// needed; seeded flag 0 around heap calls); 0 when the heap is out.
+uint32_t XB_THISCALL apsPtrVector_Resize(ApsArray* array, int32_t count);
+// 0x0009cb60: a pointer put first in an array grown by one. With room left the original
+// only moves the items up one place (item not stored, count unchanged).
+uint32_t XB_THISCALL apsPtrVector_PushFront(ApsArray* array, const uint32_t* item);
+// 0x0009cb00: an effect element added to a list ({array, +8 first 'SpDe' element}):
+// first when its +0x14 is 0, else last; an 'SpDe' element (vtable slot 1 type) is
+// remembered at +8 (when put first, or when none is yet).
+void XB_THISCALL apsElementList_Add(uint8_t* list, uint8_t* element);
+// 0x0009c9e0: the referenced effect (+8 -> +4 -> +8) spawned at `position`/`quat` at
+// the effect time (0x00909998); null without one.
+uint8_t* XB_THISCALL apsEffectRef_Spawn(uint8_t* self, const float* quat, const float* position);
+// 0x000a1730 (vtable 0x007c907c slot 0): every particle's timer (particle byte offset
+// emitter +0xa0; started with config +0x10 while the +0x95 field is 0) counts down by
+// `delta`; at 0 the config's effect (+0xc) spawns at the particle (rotation at +0x91
+// with emitter flag 0x20) and the timer restarts with the period (+8).
+void XB_THISCALL apsActionSpawnTimed_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                           uint8_t* system, float time, float delta);
+// 0x000a1850 (vtable 0x007c9090 slot 0): on the birth pass (delta 8888.89) the config's
+// effect (+8) spawned at each particle.
+void XB_THISCALL apsActionSpawnOnBirth_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter,
+                                             uint8_t* system, float time, float delta);
+// 0x00095300 (CG_Shutdown's tail): every system of a list destroyed and freed to the
+// pool (0x00909994 +8), the list emptied.
+uint32_t XB_THISCALL FxSystemList_DestroyAll(uint8_t* list);
+
 }  // namespace game
