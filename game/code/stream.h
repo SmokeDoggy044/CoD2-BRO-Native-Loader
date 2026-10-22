@@ -133,6 +133,20 @@ uint32_t XB_CDECL Stream_LoadMeshFile(const char* name, uint8_t* data, uint32_t 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_RegisterFont(const char* name, uint32_t streams, char* text,
                                                                  uint32_t zone_id);
 extern "C" void Stream_RegisterFont_entry(void);
+// File-type load handlers (name, data, size, zone or context id): 0x00290e10 Ifl /
+// 0x00290e30 Ddsmp / 0x00290e50 Dds = Stream_LoadTexture kind 3 / 1 / 0; 0x0028fc60 Fdf =
+// Stream_RegisterFont; 0x0028ee00 Stb = StringTable_Load(0x0095f5d8, data, zone); 0x0028ee20
+// Db / 0x0028ee50 Ib / 0x0028ee80 Bmips: the pack relocated (table at +0x18 / +0xe8 / +0x14)
+// and stored (0x0095f5a8 +4 + zone * 4 / streams +0x5c + zone * 4 / streams +0x58, zone at
+// +8); these return the zone.
+uint32_t XB_CDECL Stream_LoadIfl(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadDdsmp(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadDds(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadFdf(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadStb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadDb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadIb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadBmips(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 // 0x00025330 (was FUN_00025330; src in EAX, dst in ESI, flag on the stack; returns dst):
 // FixedStr_BaseName for 0x200-byte fixed strings (u16 length at +0x1fe).
 extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr512_BaseName(const char* src, char* dst, uint32_t flag);

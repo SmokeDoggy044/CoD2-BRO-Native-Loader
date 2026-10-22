@@ -486,6 +486,60 @@ uint32_t XB_CDECL Stream_RegisterFont(const char* name, uint32_t streams, char* 
     return static_cast<uint32_t>(index);
 }
 
+// --- File-type load handlers (name, data, size, zone or context id) ---
+
+uint32_t XB_CDECL Stream_LoadIfl(char* name, uint8_t* data, uint32_t size, uint32_t zone) {
+    return Stream_LoadTexture(name, data, size, zone, 3);
+}
+
+uint32_t XB_CDECL Stream_LoadDdsmp(char* name, uint8_t* data, uint32_t size, uint32_t zone) {
+    return Stream_LoadTexture(name, data, size, zone, 1);
+}
+
+uint32_t XB_CDECL Stream_LoadDds(char* name, uint8_t* data, uint32_t size, uint32_t zone) {
+    return Stream_LoadTexture(name, data, size, zone, 0);
+}
+
+uint32_t XB_CDECL Stream_LoadFdf(char* name, uint8_t* data, uint32_t, uint32_t zone) {
+    return Stream_RegisterFont(name, title_global<uint32_t>(0x0095f630), reinterpret_cast<char*>(data), zone);
+}
+
+uint32_t XB_CDECL Stream_LoadStb(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    return title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*, uint32_t)>(0x002963f0)(  // StringTable_Load
+        title_global<uint32_t>(0x0095f5d8), data, zone);
+}
+
+namespace {
+
+// The pack's relocation table at +table_offset (stored relative to the data) made absolute
+// and applied.
+void relocate_pack(uint8_t* data, uint32_t table_offset) {
+    uint32_t& table = *reinterpret_cast<uint32_t*>(data + table_offset);
+    table += address_of(data);
+    Pack_RelocateTable(reinterpret_cast<PackRelocTable*>(uintptr_t{table}), address_of(data));
+}
+
+}  // namespace
+
+uint32_t XB_CDECL Stream_LoadDb(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    relocate_pack(data, 0x18);
+    title_global<uint32_t>(title_global<uint32_t>(0x0095f5a8) + 4 + zone * 4) = address_of(data);
+    return zone;
+}
+
+uint32_t XB_CDECL Stream_LoadIb(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    relocate_pack(data, 0xe8);
+    title_global<uint32_t>(title_global<uint32_t>(0x0095f630) + 0x5c + zone * 4) = address_of(data);
+    return zone;
+}
+
+uint32_t XB_CDECL Stream_LoadBmips(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    relocate_pack(data, 0x14);
+    *reinterpret_cast<uint32_t*>(data + 8) = zone;
+    title_global<uint32_t>(title_global<uint32_t>(0x0095f630) + 0x58) = address_of(data);
+    return zone;
+}
+
 PLATFORM_ASM_ENTRY(Stream_LoadTexture_entry,
                    "pushl 16(%esp)\n"
                    "pushl 16(%esp)\n"
