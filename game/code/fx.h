@@ -660,4 +660,30 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_AddParticleComponents(uint32_t e
                                                                       uint32_t* out, float distance);
 extern "C" void FX_AddParticleComponents_entry(void);
 
+// 0x000c8450: the number of voice records (0x008bed00).
+uint32_t XB_CDECL SndVoice_GetCount();
+// 0x000c8470: voice record `index` (0x00911548, 0xe0 bytes; handle at +0xcc).
+uint8_t* XB_CDECL SndVoice_Get(uint32_t index);
+
+// 0x0029df60 (component in ESI, returned): a sound component (0x70 bytes, vtable 0x00837674)
+// from the spawn parameters FX_AddSoundComponents leaves in 0x0096d8e8-0x0096d92c (floats
+// +0x40-+0x54, placement copy +0x30 with flag 0x40, the sound S_FindSoundByHash of the name
+// 0x0096d8f8 in +0x68, its name hash in +4, also given to the entity's +0x3c8 when +0x3c4 is
+// set and +0x3c8 not), then its first Update (FxSoundComponent_Update 0x0029d7c0, delta 0).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL FxSoundComponent_Create(uint8_t* component);
+extern "C" void FxSoundComponent_Create_entry(void);
+
+// 0x0029eea0 (stdcall, 4 words; the first unread): FX_AddParticleComponents' pattern for the
+// "SOUND.FX" triggers (caches 0x0096f8a8 / 0x00971840, weapon hands at bg_weaponDefs +0xac;
+// only single-choice lists are cached): skipped for modes 0-3 beyond 0x008fef68 squared and for
+// modes 1-3 with more than 15 busy voices. A source with its own aliased sound (flags 1 and
+// 0x40, +0x1b4 == 3; ZoneAliasList_NextVariant of its name's hash) makes one component and no
+// trigger is read; otherwise only the first trigger with choices makes components, one per
+// choice with a sound name (parameter 0x19, base name; 0x0096d8f8 = its stack address in the
+// original: entry ESP - 4, 8-aligned, - 0x6b0). Clears flag 2 of source +0x20c after the
+// triggers. Returns the number of components.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_AddSoundComponents(uint32_t entry, uint32_t unused, uint8_t* source,
+                                                                   uint32_t* out, float distance);
+extern "C" void FX_AddSoundComponents_entry(void);
+
 }  // namespace game

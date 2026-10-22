@@ -4367,4 +4367,317 @@ uint32_t XB_CDECL FX_AddParticleComponents(uint32_t entry, uint32_t, const uint8
     return added;
 }
 
+uint32_t XB_CDECL SndVoice_GetCount() { return title_global<uint32_t>(0x008bed00); }
+
+uint8_t* XB_CDECL SndVoice_Get(uint32_t index) { return &title_global<uint8_t>(0x00911548 + index * 0xe0); }
+
+namespace {
+
+// 0x00293310 (CALL in its first 5 bytes: not hookable): the voices whose state is nonzero.
+int32_t Snd_CountBusyVoices() {
+    const uint32_t count = SndVoice_GetCount();
+    int32_t busy = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t handle = *reinterpret_cast<const uint32_t*>(SndVoice_Get(i) + 0xcc);
+        if (title_function<uint32_t XB_CDECL(uint32_t)>(0x000c4400)(handle)) ++busy;  // SndVoice_GetState
+    }
+    return busy;
+}
+
+// FxSoundComponent_Create with the sound name passed in (FX_AddSoundComponents' own buffer;
+// 0x0096d8f8 then holds the original's stack address of it).
+uint8_t* sound_component_create(uint8_t* component, uint32_t name) {
+    uint32_t* w = reinterpret_cast<uint32_t*>(component);
+    float* f = reinterpret_cast<float*>(component);
+    w[3] = 0;
+    *reinterpret_cast<uint16_t*>(component + 0x2a) = 0;
+    f[8] = title_global<float>(0x0096d8f4);  // delay
+    w[2] = title_global<uint32_t>(0x0096d8e8);
+    w[3] = title_global<uint32_t>(0x0096d8ec);
+    w[4] = title_global<uint32_t>(0x0096d8f0);
+    w[5] = 0;
+    f[9] = 0.0f;
+    *reinterpret_cast<uint16_t*>(component + 0x28) = 0;
+    w[1] = 0;
+    *reinterpret_cast<uint16_t*>(component + 0x2a) = 0;
+    w[0] = 0x00837674;
+    w[25] = 0;
+    f[16] = title_global<float>(0x0096d904);
+    f[17] = title_global<float>(0x0096d908);
+    f[18] = title_global<float>(0x0096d90c);
+    f[19] = title_global<float>(0x0096d910);
+    f[20] = title_global<float>(0x0096d914);
+    f[21] = title_global<float>(0x0096d900);
+    *reinterpret_cast<uint16_t*>(component + 0x5c) = 0;
+    w[24] = title_global<uint32_t>(0x0096d92c);
+    if (const uint8_t* placement = title_global<const uint8_t*>(0x0096d8fc)) {
+        component[0x2a] |= 0x40;
+        std::memcpy(component + 0x30, placement, 0x10);
+    }
+    if (title_global<uint32_t>(0x0096d91c)) component[0x2a] |= 0x10;
+    if (title_global<uint8_t>(0x0096d920)) component[0x2a] |= 8;
+    component[0x2a] |= 4;
+    *reinterpret_cast<uint16_t*>(component + 0x5e) = static_cast<uint16_t>(title_global<uint32_t>(0x0096d918));
+    w[1] = title_global<uint32_t>(0x0096d924);
+    w[26] = title_function<uint32_t XB_CDECL(uint32_t)>(0x000c5810)(name);  // S_FindSoundByHash
+    uint8_t* entity = handle_object(title_global<uint32_t>(0x0096d8ec), 0x0097a968);
+    uint32_t* sound_ids = reinterpret_cast<uint32_t*>(entity + 0x3c4);
+    if (sound_ids[0] && !sound_ids[1]) sound_ids[1] = w[1];
+    title_function<void XB_THISCALL(uint8_t*, float)>(0x0029d7c0)(component, 0.0f);  // FxSoundComponent_Update
+    return component;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FxSoundComponent_Create_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FxSoundComponent_Create) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL FxSoundComponent_Create(uint8_t* component) {
+    return sound_component_create(component, title_global<uint32_t>(0x0096d8f8));
+}
+
+PLATFORM_ASM_ENTRY(FX_AddSoundComponents_entry,
+                   "movl %esp, %eax\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FX_AddSoundComponents) "addl $20, %esp\n"
+                   "ret $16")
+
+uint32_t XB_CDECL FX_AddSoundComponents(uint32_t entry, uint32_t, uint8_t* source, uint32_t* out, float distance) {
+    const int32_t mode = *reinterpret_cast<const int32_t*>(source + 0x208);
+    if (mode == 0 || mode == 1 || mode == 2 || mode == 3) {
+        const float range = title_global<float>(0x008fef68);
+        if (distance > range * range) {
+            out[0x14] &= ~2u;
+            return 0;
+        }
+    }
+    const int32_t busy = Snd_CountBusyVoices();
+    const int32_t mode2 = *reinterpret_cast<const int32_t*>(source + 0x208);
+    if ((mode2 == 1 || mode2 == 2 || mode2 == 3) && busy > 0xf) {
+        out[0x14] &= ~2u;
+        return 0;
+    }
+    using Alloc = uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t);
+    const auto alloc = title_function<Alloc>(0x00044850);  // SmallHeap_Alloc
+    const auto append = [out](uint8_t* component) {
+        if (static_cast<int32_t>(out[0]) < 0x10) out[1 + out[0]++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(component));
+    };
+    // An alias of the source's own sound name: one component, no triggers.
+    const uint32_t flags0 = *reinterpret_cast<const uint32_t*>(source);
+    if ((flags0 & 1) && *reinterpret_cast<const int32_t*>(source + 0x1b4) == 3 && ((flags0 >> 6) & 1) &&
+        !title_global<uint8_t>(0x0095f5b0)) {
+        const uint32_t key = title_function<uint32_t XB_REGS1 XB_CDECL(const uint8_t*)>(0x0001d830)(source + 0x134);  // HashStr_Hash
+        const uint32_t alias = ZoneAliasList_NextVariant(title_global<const uint32_t*>(0x0095f5ac), key);
+        if (alias) {
+            title_global<float>(0x0096d904) = title_global<float>(0x0083eb34);  // -1
+            title_global<uint32_t>(0x0096d8e8) = *reinterpret_cast<const uint32_t*>(source + 0x1f4);
+            title_global<uint32_t>(0x0096d8ec) = *reinterpret_cast<const uint32_t*>(source + 0x1f0);
+            title_global<uint32_t>(0x0096d8f8) = alias;
+            title_global<uint32_t>(0x0096d91c) = (source[0x20c] >> 1) & 1;
+            title_global<uint32_t>(0x0096d924) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{alias}));
+            title_global<uint32_t>(0x0096d8fc) =
+                source[0x20c] & 4 ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(source + 0x1c0)) : 0;
+            const float minus_one = title_global<float>(0x0083eb34);
+            title_global<uint32_t>(0x0096d918) = 2;
+            title_global<float>(0x0096d908) = minus_one;
+            title_global<float>(0x0096d90c) = 0.0f;
+            title_global<float>(0x0096d910) = minus_one;
+            title_global<float>(0x0096d914) = minus_one;
+            title_global<float>(0x0096d8f4) = 0.0f;
+            title_global<float>(0x0096d900) = minus_one;
+            title_global<uint32_t>(0x0096d8f0) = 0;
+            title_global<uint8_t>(0x0096d920) = (source[0x20c] >> 3) & 1;
+            title_global<uint32_t>(0x0096d928) = *reinterpret_cast<const uint32_t*>(source + 0x200);
+            if (*reinterpret_cast<const int32_t*>(source + 0x208) == 7) title_global<uint8_t>(0x0096d920) = 1;
+            uint8_t* component = alloc(title_global<uint32_t>(0x0095f5cc), 0x70, 0);
+            if (!component) return 0;
+            component = sound_component_create(component, alias);
+            if (!component) return 0;
+            append(component);
+            return 1;
+        }
+    }
+    const ScriptString* source_name = reinterpret_cast<const ScriptString*>(source + 0x1fc);
+    const int32_t cache_size = title_global<int32_t>(0x008d5a78);
+    uint32_t added = 0;
+    uint32_t triggers[17];
+    triggers[0] = 0;
+    FX_CollectTriggers(triggers, *reinterpret_cast<const uint32_t*>(source + 0x1f4), nullptr, "SOUND.FX");
+    bool done = false;  // only the first trigger with choices makes components
+    for (uint32_t t = 0; t < triggers[0]; ++t) {
+        if (done) continue;
+        // Per-trigger caches as in FX_AddParticleComponents: A at 0x0096f8a8, B at 0x00971840.
+        uint8_t* cache_a = &title_global<uint8_t>(0x0096f8a8 + t * 0xf9c);
+        uint8_t* cache_b = &title_global<uint8_t>(0x00971840 + t * 0x60);
+        ScriptString* names_a = reinterpret_cast<ScriptString*>(cache_a);
+        ScriptString* names_b = reinterpret_cast<ScriptString*>(cache_b);
+        uint16_t* uses_a = reinterpret_cast<uint16_t*>(cache_a + 0xf78);
+        uint16_t* uses_b = reinterpret_cast<uint16_t*>(cache_b + 0x3c);
+        int32_t& next_a = *reinterpret_cast<int32_t*>(cache_a + 0xf98);
+        int32_t& next_b = *reinterpret_cast<int32_t*>(cache_b + 0x5c);
+        ParamSet set;
+        param_set_open(&set, triggers[1 + t]);
+        ParamSet_AddFxOverrides(source, &set);
+        uint32_t lists[0x83];
+        lists[0] = lists[0x41] = lists[0x82] = 0;
+        uint32_t choices[0x41];
+        const auto resolve = [&] {
+            title_function<void XB_THISCALL(ParamSet*, uint32_t*)>(
+                vtable_slot(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&set)), 1))(&set, lists);
+        };
+        bool have_choices = false;
+        bool skip = false;
+        if (title_global<uint32_t>(0x008d5110)) {
+            const uint16_t hand = *reinterpret_cast<const uint16_t*>(source + 0x20e);
+            const uint8_t* entity = nullptr;
+            if (hand != 0xffff) entity = handle_object(*reinterpret_cast<const uint32_t*>(source + 0x1f0), 0x0097a968);
+            if (hand != 0xffff && entity[3]) {
+                const uint8_t* weapon = title_global<const uint8_t* const*>(0x0095f4d8)[entity[3]];  // bg_weaponDefs
+                uint32_t* cached = reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(weapon) + 0xac + static_cast<int16_t>(hand) * 0x104);
+                if (weapon && cached[0] == 0) {
+                    resolve();
+                    copy_choice_list(choices, lists);
+                    ParamChoiceList_PickPerGroup(choices);
+                    copy_choice_list(reinterpret_cast<uint32_t*>(const_cast<uint8_t*>(weapon) + 0xac +
+                                                                 *reinterpret_cast<const int16_t*>(source + 0x20e) * 0x104),
+                                     choices);
+                } else {
+                    copy_choice_list(choices, cached);
+                }
+                have_choices = true;
+            } else if (script_string_set(source_name)) {
+                for (int32_t i = 0; i < cache_size; ++i) {
+                    if (ScriptString_EqualsString(&names_b[i], source_name)) {
+                        ++uses_b[i];
+                        skip = true;
+                        break;
+                    }
+                }
+                if (!skip) {
+                    for (int32_t i = 0; i < cache_size; ++i) {
+                        if (ScriptString_EqualsString(&names_a[i], source_name)) {
+                            ++uses_a[i];
+                            copy_choice_list(choices, reinterpret_cast<uint32_t*>(cache_a + 0x3c + i * 0x104));
+                            have_choices = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
+        const auto assign = title_function<Assign>(0x0011d600);  // ScriptString_Assign
+        if (!skip && !have_choices) {
+            resolve();
+            if (lists[0] == 0) {
+                if (title_global<uint32_t>(0x008d5110) && script_string_set(source_name)) {
+                    const int32_t last = next_b ? next_b : cache_size - 1;
+                    if (ScriptString_EqualsString(&names_b[last], source_name)) {
+                        ParamSet_Destruct(&set);
+                        continue;
+                    }
+                    assign(&names_b[next_b], source_name);
+                    uses_b[next_b] = 0;
+                    if (++next_b == cache_size) next_b = 0;
+                }
+                skip = true;
+            } else {
+                copy_choice_list(choices, lists);
+                const uint32_t count = choices[0];
+                ParamChoiceList_PickPerGroup(choices);
+                // Only single-choice lists are cached here.
+                if (title_global<uint32_t>(0x008d5110) && count == 1 && script_string_set(source_name)) {
+                    assign(&names_a[next_a], source_name);
+                    copy_choice_list(reinterpret_cast<uint32_t*>(cache_a + 0x3c + next_a * 0x104), choices);
+                    uses_a[next_a] = 0;
+                    if (++next_a == cache_size) next_a = 0;
+                }
+                have_choices = true;
+            }
+        }
+        if (have_choices) {
+            for (uint32_t i = 0; i < choices[0]; ++i) {
+                done = true;
+                const uint8_t* choice = reinterpret_cast<const uint8_t*>(uintptr_t{choices[1 + i]});
+                const uint32_t* file_value = ParamChoice_GetValue(choice, 0x19);
+                char file[0x40];  // FixedStr: length in the last byte
+                int32_t length = 0;
+                Q_strncpyLen(file, &length, 0x3f, reinterpret_cast<const char*>(uintptr_t{file_value ? *file_value : 0}));
+                file[0x3f] = static_cast<char>(length);
+                if (!file[0]) continue;
+                title_global<float>(0x0096d904) = choice_float_or(choice, 0x1c, title_global<float>(0x0083eb34));
+                title_global<uint32_t>(0x0096d8e8) = *reinterpret_cast<const uint32_t*>(source + 0x1f4);
+                title_global<uint32_t>(0x0096d8ec) = *reinterpret_cast<const uint32_t*>(source + 0x1f0);
+                title_global<uint32_t>(0x0096d91c) = (source[0x20c] >> 1) & 1;
+                using BaseName = void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t);
+                using Copy = void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t);
+                const auto base_name = title_function<BaseName>(0x00044500);  // Path_BaseName
+                const auto fixed_copy = title_function<Copy>(0x00044370);     // FixedStr_Copy
+                // The sound name (its stack address goes to 0x0096d8f8) and, the same again,
+                // the name hashed into 0x0096d924.
+                char stem[0x40];
+                int32_t stem_length = 0;
+                stem[0x3f] = 0;
+                stem[0] = 0;
+                base_name(stem, &stem_length, file, static_cast<uint8_t>(length), 1);
+                stem[0x3f] = static_cast<char>(stem_length);
+                char name[0x40];
+                int32_t name_length = 0;
+                fixed_copy(name, &name_length, 0x3f, stem, static_cast<uint8_t>(stem_length));
+                name[0x3f] = static_cast<char>(name_length);
+                title_global<uint32_t>(0x0096d8f8) = ((entry - 4) & ~7u) - 0x6b0;
+                char stem2[0x40];
+                int32_t stem2_length = 0;
+                stem2[0x3f] = 0;
+                stem2[0] = 0;
+                base_name(stem2, &stem2_length, file, static_cast<uint8_t>(file[0x3f]), 1);
+                stem2[0x3f] = static_cast<char>(stem2_length);
+                char name2[0x40];
+                int32_t name2_length = 0;
+                fixed_copy(name2, &name2_length, 0x3f, stem2, static_cast<uint8_t>(stem2_length));
+                name2[0x3f] = static_cast<char>(name2_length);
+                uint32_t hash = 0;
+                for (const char* c = name2; *c; ++c) {
+                    int8_t ch = *c;
+                    if (ch >= 'A' && ch <= 'Z') ch = static_cast<int8_t>(ch + 0x20);
+                    hash = ((hash << 5) | (hash >> 27)) ^ static_cast<uint32_t>(static_cast<int32_t>(ch));
+                }
+                title_global<uint32_t>(0x0096d924) = hash;
+                title_global<uint32_t>(0x0096d8fc) =
+                    source[0x20c] & 4 ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(source + 0x1c0)) : 0;
+                const uint32_t* channel = ParamChoice_GetValue(choice, 0x26);
+                title_global<uint32_t>(0x0096d918) = channel ? *channel : 2;
+                const float minus_one = title_global<float>(0x0083eb34);
+                title_global<float>(0x0096d908) = choice_float_or(choice, 0x1a, minus_one);
+                title_global<float>(0x0096d90c) = choice_float_or(choice, 0x1b, 0.0f);
+                title_global<float>(0x0096d910) = choice_float_or(choice, 0x1d, minus_one);
+                title_global<float>(0x0096d914) = choice_float_or(choice, 0x1e, minus_one);
+                title_global<float>(0x0096d8f4) = choice_float_or(choice, 0x10, 0.0f);
+                title_global<float>(0x0096d900) = choice_float_or(choice, 0x23, minus_one);
+                title_global<uint32_t>(0x0096d8f0) = ParamChoice_GetFlags(choice);
+                title_global<uint8_t>(0x0096d920) = (source[0x20c] >> 3) & 1;
+                title_global<uint32_t>(0x0096d928) = *reinterpret_cast<const uint32_t*>(source + 0x200);
+                const uint32_t* text_value = ParamChoice_GetValue(choice, 0x27);
+                const uint32_t text = text_value ? *text_value : title_global<uint32_t>(0x008d5a74);
+                title_global<uint32_t>(0x0096d92c) = *reinterpret_cast<const char*>(uintptr_t{text}) ? text : 0;
+                const int32_t mode3 = *reinterpret_cast<const int32_t*>(source + 0x208);
+                if (mode3 == 4 || mode3 == 6 || mode3 == 7) title_global<uint8_t>(0x0096d920) = 1;
+                uint8_t* component = alloc(title_global<uint32_t>(0x0095f5cc), 0x70, 0);
+                if (!component) continue;
+                component = sound_component_create(component, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(name)));
+                if (!component) continue;
+                append(component);
+                ++added;
+            }
+        }
+        param_set_close(&set);
+    }
+    source[0x20c] &= ~2;
+    return added;
+}
+
 }  // namespace game
