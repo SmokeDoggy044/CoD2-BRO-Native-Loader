@@ -206,7 +206,9 @@ void xbcmp_landing();
 // xbcmp_entry: [esp] = function index (pushed by its stub), [esp+4] = return address.
 // xbcmp_resume(context): loads every register from `context` and jumps to
 // context->target with ESP = context->esp, after zeroing context->zero_below bytes
-// below that ESP (a multiple of 4).
+// below that ESP (a multiple of 4). The EFLAGS word it pops is zeroed again (MOV keeps
+// the flags): code reading never-written locals there (CoD BRO 0x0008d3f0's result w)
+// would see EFLAGS on the original's side only. The target word at ESP - 4 stays.
 // xbcmp_landing: where a test process's function returns; saves the registers into
 // xbcmp_child.result, switches to the area's stack and reports.
 asm(R"(
@@ -246,6 +248,7 @@ xbcmp_resume:
     movl 540(%eax), %edi
     movl 512(%eax), %eax
     popfl
+    movl $0, -4(%esp)
     ret
 
     .globl xbcmp_landing

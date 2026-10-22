@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "nal_entropy.h"
+#include "nal_math.h"
 #include "title_data.h"
 
 namespace game {
@@ -451,6 +452,248 @@ uint32_t XB_STDCALL NAL_EntropyFloat3_DecodeBlock(const uint32_t* context, uint8
             *data += 12;
         }
         *stream_a += 4;
+    }
+    return context[1];
+}
+
+namespace {
+
+uint8_t* align16(uint8_t* p) {
+    return reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(p) + 15) & ~static_cast<uintptr_t>(15));
+}
+uint8_t** context_stream(const uint32_t* context, int32_t i) {
+    return reinterpret_cast<uint8_t**>(static_cast<uintptr_t>(context[i]));
+}
+int32_t channel_index(const uint32_t* context, int32_t i) {
+    return *reinterpret_cast<const int32_t*>(context_group(context) + 0x24) + i;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL NAL_PosOri_TypeId() { return 0x00909824; }
+
+uint32_t XB_CDECL NAL_PosOri_ValueSize() { return 0x20; }
+
+void XB_STDCALL NAL_PosOri_Blend(int32_t count, float* dst, const float* a, const float* b, float t) {
+    const float one_minus = title_global<float>(0x0083eb20) - t;
+    platform_keep(one_minus);  // computed before the count test (MXCSR flags)
+    for (; count > 0; --count) {
+        dst[4] = a[4] * one_minus + b[4] * t;
+        dst[5] = a[5] * one_minus + b[5] * t;
+        dst[6] = a[6] * one_minus + b[6] * t;
+        alignas(16) float q[4];
+        Quat_Slerp(q, a, b, t);
+        std::memcpy(dst, q, 16);
+        dst += 8;
+        a += 8;
+        b += 8;
+    }
+}
+
+void XB_STDCALL NAL_PosOri_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights) {
+    for (; count > 0; --count) {
+        const float t = *(*weights)++;
+        const float one_minus = title_global<float>(0x0083eb20) - t;
+        dst[4] = a[4] * one_minus + b[4] * t;
+        dst[5] = a[5] * one_minus + b[5] * t;
+        dst[6] = a[6] * one_minus + b[6] * t;
+        alignas(16) float q[4];
+        Quat_Slerp(q, a, b, t);
+        std::memcpy(dst, q, 16);
+        dst += 8;
+        a += 8;
+        b += 8;
+    }
+}
+
+uint8_t** XB_STDCALL NAL_PosOri_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t) {
+    *cursor = align16(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += 0x20;
+    return cursor;
+}
+
+uint32_t XB_STDCALL NAL_PosOri_InitState(const uint8_t* group, uint8_t** cursor) {
+    uint8_t* start = align16(*cursor);
+    *cursor = start + channel_count(group) * 0x20;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(start));
+}
+
+uint8_t** XB_STDCALL NAL_PosOri_FreeState(const uint8_t* group, uint8_t** cursor) {
+    *cursor = align16(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += 0x20;
+    return cursor;
+}
+
+uint32_t XB_CDECL NAL_PosOri_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src) {
+    *dst = align16(*dst);
+    *src = align16(*src);
+    return copy_advance(dst, src, channel_count(group) * 0x20);
+}
+
+uint32_t XB_STDCALL NAL_PosOri_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
+    *cursor = align16(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i)
+        if (channel_active(context, i)) *cursor += 0x20;
+    return context[1];
+}
+
+uint8_t** XB_STDCALL NAL_Cursor_Align4(uint8_t** cursor) {
+    *cursor = align4(*cursor);
+    return cursor;
+}
+
+uint8_t** XB_STDCALL NAL_Cursor_Skip8(uint8_t** cursor) {
+    *cursor += 8;
+    return cursor;
+}
+
+uint8_t** XB_STDCALL NAL_Cursor_Skip4(uint8_t** cursor) {
+    *cursor += 4;
+    return cursor;
+}
+
+uint8_t** XB_STDCALL NAL_Cursor_Align16(uint8_t** cursor) {
+    *cursor = align16(*cursor);
+    return cursor;
+}
+
+uint8_t** XB_STDCALL NAL_Cursor_Skip32(uint8_t** cursor) {
+    *cursor += 0x20;
+    return cursor;
+}
+
+uint8_t** XB_CDECL NAL_SkipPrefixedStreams4(uint8_t** stream) {
+    for (int32_t i = 0; i < 4; ++i) *stream += **stream + 1;
+    return stream;
+}
+
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align16(*cursor);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            NAL_SkipPrefixedStreams4(stream);
+            *cursor += 0x20;
+            *stream_b += 0x20;
+        }
+        *stream_a += 8;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                   const uint8_t* defaults, const int32_t* offsets) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align16(*cursor);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0) std::memcpy(pose + offset, active ? *cursor : defaults + offset, 0x20);
+        if (active) {
+            *cursor += 0x20;
+            *stream_b += 0x20;
+        }
+        *stream_a += 8;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_ApplyStatic(const uint32_t* context, uint8_t* pose, bool skip, const int32_t* offsets) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0 && active && !skip) std::memcpy(pose + offset, *stream_b, 0x20);
+        if (active) *stream_b += 0x20;
+        *stream_a += 8;
+    }
+    return context[1];
+}
+
+uint32_t XB_CDECL NAL_EntropyTrajPosOri_ApplyWraps(const uint32_t* context, uint8_t* dst, uint8_t* current, int32_t wraps,
+                                                   bool skip, const int32_t* offsets) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    uint8_t* word = align4(*stream_b);
+    *stream_b = word + 4;
+    const uint32_t first_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_a));
+    *stream_a = align4(*stream_a);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0 && active) {
+            NAL_Trajectory_AccumulateRoot(reinterpret_cast<float*>(dst + offset), reinterpret_cast<const float*>(current + offset),
+                                          wraps, first_a, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(word)),
+                                          static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_a)),
+                                          reinterpret_cast<const float*>(*stream_b), skip);
+        }
+        if (active) *stream_b += 0x20;
+        *stream_a += 8;
+    }
+    return context[1];
+}
+
+void XB_CDECL NAL_Trajectory_AccumulateRoot(float* dst, const float* current, int32_t wraps, uint32_t, uint32_t, uint32_t,
+                                            const float* loop, bool skip) {
+    if (skip) return;
+    alignas(16) float inverse[8] = {};
+    alignas(16) float moved[8] = {};
+    alignas(16) float result[8] = {};
+    QuatTrans_Inverse(current, inverse);
+    if (wraps == 0) {
+        QuatTrans_Concat(result, dst, inverse);
+    } else if (wraps == 1) {
+        QuatTrans_Concat(moved, dst, loop);
+        QuatTrans_Concat(result, moved, inverse);
+    } else {
+        alignas(16) float power[8] = {};
+        if (wraps > 0) {
+            QuatTrans_Power(power, loop, wraps);
+        } else {
+            alignas(16) float forward[8] = {};
+            QuatTrans_Power(forward, loop, -wraps);
+            QuatTrans_Inverse(forward, power);
+        }
+        QuatTrans_Concat(moved, dst, power);
+        QuatTrans_Concat(result, moved, inverse);
+    }
+    std::memcpy(dst, result, 0x20);
+}
+
+void XB_CDECL NAL_Trajectory_AccumulateRoot2(float* dst, const float* current, int32_t wraps, uint32_t a, uint32_t b, uint32_t c,
+                                             const float* loop, bool skip) {
+    NAL_Trajectory_AccumulateRoot(dst, current, wraps, a, b, c, loop, skip);
+}
+
+uint32_t XB_CDECL NAL_TrajPosOri_ApplyWraps(const uint32_t* context, uint8_t* dst, uint8_t* current, int32_t wraps, bool skip,
+                                            const int32_t* offsets) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    const uint32_t first_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_a));
+    const uint32_t first_b = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_b));
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0 && active) {
+            NAL_Trajectory_AccumulateRoot2(reinterpret_cast<float*>(dst + offset), reinterpret_cast<const float*>(current + offset),
+                                           wraps, first_a, first_b, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_a)),
+                                           reinterpret_cast<const float*>(*stream_b), skip);
+        }
+        if (active) *stream_b += 0x20;
     }
     return context[1];
 }

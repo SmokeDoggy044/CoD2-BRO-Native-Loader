@@ -120,4 +120,68 @@ void XB_CDECL NAL_EntropyFloat3_DecodeChannelBlock(float* dst, uint8_t** stream,
 uint32_t XB_STDCALL NAL_EntropyFloat3_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
                                                   int32_t frame_size);
 
+// The position + orientation classes (32-byte values: quaternion, position, an unused w).
+// Shared by all four vtables (0x007c2a98, 0x007c2b00, 0x007c2b68, 0x007c2bd0):
+// 0x0007be80 / 0x0007be90: slot 0 (type tag 0x00909824) and slot 1 (value size 0x20).
+uint32_t XB_CDECL NAL_PosOri_TypeId();
+uint32_t XB_CDECL NAL_PosOri_ValueSize();
+// 0x0008c9e0 (stdcall: count, dst, a, b, t): positions a * (1 - t) + b * t, quaternions
+// Quat_Slerp(a, b, t); 0x0008cb10 takes each pair's weight from *weights (advanced by 4).
+void XB_STDCALL NAL_PosOri_Blend(int32_t count, float* dst, const float* a, const float* b, float t);
+void XB_STDCALL NAL_PosOri_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights);
+// 0x000829c0 (stdcall: group, &cursor, -): the cursor aligned to 16, then 0x20 per channel.
+uint8_t** XB_STDCALL NAL_PosOri_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
+// 0x00082920 (stdcall: group, &cursor): state space - the cursor aligned to 16 (returned)
+// and moved over 0x20 per channel; 0x00082e80 the same as a loop, returns &cursor.
+uint32_t XB_STDCALL NAL_PosOri_InitState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_PosOri_FreeState(const uint8_t* group, uint8_t** cursor);
+// 0x00082960 (behind the slot 14 wrapper 0x00082940): NAL_Float3_CopyState with 0x20-byte
+// values and both cursors aligned to 16.
+uint32_t XB_CDECL NAL_PosOri_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src);
+// 0x000832f0 (stdcall): one cached frame, 0x20 per active channel (cursor aligned to 16).
+uint32_t XB_STDCALL NAL_PosOri_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+// Small cursor helpers in many vtables (stdcall, &cursor; return &cursor): 0x000834b0
+// align to 4, 0x0007d250 + 8, 0x0007db60 + 4, 0x00082fe0 align to 16, 0x000829b0 + 0x20.
+uint8_t** XB_STDCALL NAL_Cursor_Align4(uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Cursor_Skip8(uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Cursor_Skip4(uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Cursor_Align16(uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Cursor_Skip32(uint8_t** cursor);
+// 0x000809d0 (cdecl, only the first word read): four length-prefixed byte streams skipped.
+// Returns stream.
+uint8_t** XB_CDECL NAL_SkipPrefixedStreams4(uint8_t** stream);
+// The entropy trajectory class (vtable 0x007c2bd0). Static data: stream A 8 bytes per
+// channel, stream B one word, then (aligned to 16) a 32-byte pair per active channel - the
+// clip's whole-loop root motion.
+// 0x00083000 (stdcall: context, &cursor, &stream, -): slot 8, a block skipped - per active
+// channel its four component streams, cursor + 0x20.
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+// 0x000830e0 (stdcall: context, pose, &cursor, defaults, offsets): slot 9,
+// NAL_EntropyFloat1_Evaluate for 32-byte values (cursor aligned to 16; stream B + 0x20
+// per active channel).
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                   const uint8_t* defaults, const int32_t* offsets);
+// 0x00083200 (stdcall: context, pose, skip, offsets): slot 10, each active channel with a
+// pose offset gets its static pair (unless skip).
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_ApplyStatic(const uint32_t* context, uint8_t* pose, bool skip, const int32_t* offsets);
+// 0x00083380 (behind the slot 11 wrapper 0x00083350; cdecl: context, dst pose, current
+// pose, wraps, skip, offsets): NAL_Trajectory_AccumulateRoot per active channel with a pose
+// offset.
+uint32_t XB_CDECL NAL_EntropyTrajPosOri_ApplyWraps(const uint32_t* context, uint8_t* dst, uint8_t* current, int32_t wraps,
+                                                   bool skip, const int32_t* offsets);
+// 0x0008d3f0 (cdecl, 8 words; words 4-6 unused): unless skip, dst = dst, then the loop's
+// root motion `wraps` times (inverted for negative counts), then the inverse of current.
+// The original's result w is a never-written temporary (0 in a fresh test); ours writes 0.
+void XB_CDECL NAL_Trajectory_AccumulateRoot(float* dst, const float* current, int32_t wraps, uint32_t, uint32_t, uint32_t,
+                                            const float* loop, bool skip);
+
+// 0x0008d2d0: an identical copy of NAL_Trajectory_AccumulateRoot, called by 0x00082ee0.
+void XB_CDECL NAL_Trajectory_AccumulateRoot2(float* dst, const float* current, int32_t wraps, uint32_t, uint32_t, uint32_t,
+                                             const float* loop, bool skip);
+// 0x00082ee0 (behind the slot 11 wrapper 0x00082ec0 of vtable 0x007c2b68; cdecl):
+// NAL_EntropyTrajPosOri_ApplyWraps for the plain trajectory class - only stream B (aligned
+// to 16, 0x20 per active channel) is used.
+uint32_t XB_CDECL NAL_TrajPosOri_ApplyWraps(const uint32_t* context, uint8_t* dst, uint8_t* current, int32_t wraps, bool skip,
+                                            const int32_t* offsets);
+
 }  // namespace game

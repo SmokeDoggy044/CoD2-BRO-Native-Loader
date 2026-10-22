@@ -101,6 +101,34 @@ float* XB_CDECL QuatTrans_Concat(float* out, const float* a, const float* b) {
     return out;
 }
 
+float* XB_THISCALL QuatTrans_Inverse(const float* qt, float* out) {
+    alignas(16) float conjugate[4];
+    std::memcpy(conjugate, mul(lanes(qt), lanes(&title_global<float>(0x007c3460))).v, 16);
+    alignas(16) float rotation[16];
+    Quat_ToMat33(rotation, conjugate);
+    // SUBSS from zero: 0 - 0 stays +0 (not a negation).
+    const float negated[3] = {0.0f - qt[4], 0.0f - qt[5], 0.0f - qt[6]};
+    float moved[3];
+    Vec3_MulMat44(moved, negated, rotation);
+    std::memcpy(out, conjugate, 16);
+    std::memcpy(out + 4, moved, 12);
+    return out;
+}
+
+float* XB_CDECL QuatTrans_Power(float* out, const float* a, int32_t n) {
+    alignas(16) float result[8] = {};
+    alignas(16) float base[8] = {};
+    std::memcpy(result, &title_global<float>(0x00909850), 28);
+    std::memcpy(base, a, 28);
+    while (n) {
+        if (n & 1) QuatTrans_Concat(result, result, base);
+        n >>= 1;
+        QuatTrans_Concat(base, base, base);
+    }
+    std::memcpy(out, result, 28);
+    return out;
+}
+
 float* XB_THISCALL Mat44_FromRows(float* out, const float* r0, const float* r1, const float* r2, const float* r3) {
     std::memcpy(out, r0, 16);
     std::memcpy(out + 4, r1, 16);

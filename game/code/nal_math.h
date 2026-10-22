@@ -26,6 +26,13 @@ void XB_REGS3 XB_CDECL QuatTrans_ToMat44(float* out, uint32_t unused_edx, const 
 // quaternion product, a's position rotated by b and moved by b's; out may be a or b.
 // Returns out.
 float* XB_CDECL QuatTrans_Concat(float* out, const float* a, const float* b);
+// 0x0008d730 (pair in ECX, callee pops 4): the inverse of a {quat, position} pair - the
+// conjugate (q * (-1, -1, -1, 1)) and (0 - position) rotated by it. Seven words written
+// (not the position's w). Returns out.
+float* XB_THISCALL QuatTrans_Inverse(const float* qt, float* out);
+// 0x0008d7e0: `a` concatenated with itself n times (n > 0; square and multiply, starting
+// from the identity pair 0x00909850). Seven words written. Returns out.
+float* XB_CDECL QuatTrans_Power(float* out, const float* a, int32_t n);
 // 0x000260d0 (out in ECX, callee pops 0x10): out's four rows copied from r0..r3. Returns out.
 float* XB_THISCALL Mat44_FromRows(float* out, const float* r0, const float* r1, const float* r2, const float* r3);
 // 0x0001c9f0: out = (v.x, v.y, v.z, 1) * m, three floats written. Returns out.

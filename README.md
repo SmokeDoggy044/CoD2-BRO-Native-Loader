@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 54% of the functions have a name, and 560 have been
+It's early days: about 55% of the functions have a name, and 928 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 5,872 | 560 | 10,633 |
+| Engine and game code (`.text`) | 11,193 | 6,146 | 928 | 10,265 |
 | Mission scripts (15 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **8,860** | **560** | **15,957** |
+| **Total** | **16,517** | **9,134** | **928** | **15,589** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -39,15 +39,15 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 800 | 408 | 146 | 103 | 143 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 691 | 0 | 0 | 689 | 0 |
-| Client game (HUD, view, effects on screen) | 178 | 0 | 0 | 178 | 0 |
-| Engine core (memory, files, settings, commands) | 164 | 4 | 1 | 151 | 0 |
-| Client and menus | 209 | 0 | 0 | 209 | 0 |
-| Server, collision, compression | 90 | 1 | 2 | 87 | 0 |
-| Not sorted into a part yet | 9,061 | 147 | 26 | 3,720 | 3,551 |
+| Renderer (scenes, materials, shaders, models, effects) | 779 | 487 | 158 | 128 | 6 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 694 | 142 | 30 | 520 | 0 |
+| Client game (HUD, view, effects on screen) | 178 | 40 | 16 | 122 | 0 |
+| Engine core (memory, files, settings, commands) | 165 | 4 | 1 | 152 | 0 |
+| Client and menus | 210 | 0 | 0 | 210 | 0 |
+| Server, collision, compression | 126 | 1 | 2 | 123 | 0 |
+| Not sorted into a part yet | 9,041 | 254 | 41 | 3,715 | 3,413 |
 
-1,617 of the unsorted functions are Microsoft's own library code that was built into
+1,618 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
 codec). We recognise them by comparing their bytes with the Xbox SDK's libraries, so
 they have their real names; they still count towards the total.

@@ -81,13 +81,25 @@ Plain classes (SignalCounter, Float3, Float4, Quaternion, PositionOrientation) s
   with a non-zero weight: the normal ones blended into dst (weights normalized, folded from the last child back),
   then the additive ones (node flag 0x10) on top of that pose. Returns the normal children's root-motion flag.
 
+## Position + orientation classes (decompiled: game/code/nal_codec.cpp)
+Four vtables share the PosOri methods (0x007c2a98, 0x007c2b00, 0x007c2b68, 0x007c2bd0; values are 32-byte
+{quaternion, position, unused w} pairs): slot 2 Blend (lerp + Quat_Slerp), slot 3 BlendWeighted (per-pair weights
+from a float cursor), 4 Fixup, 12-15 state/copy/skip, all 16-byte aligned. 0x007c2b68 and 0x007c2bd0 are the
+trajectory classes (slots 22/23 used); 0x007c2bd0 is the entropy one. Static data of the entropy trajectory class:
+stream A 8 bytes per channel, stream B one word, then (aligned to 16) one pair per active channel - the clip's
+whole-loop root motion. Slot 11 (thunk 0x00083350 -> 0x00083380; plain class 0x00082ec0 -> 0x00082ee0) calls
+`NAL_Trajectory_AccumulateRoot` (0x0008d3f0, copy at 0x0008d2d0): dst = dst * loop^wraps * inverse(current), with
+`QuatTrans_Power` (square and multiply) and `QuatTrans_Inverse` (conjugate, -position rotated).
+
 ## Not done yet
-The channel classes (0x0007c2b0..0x00086850: Begin/Decode/Skip/Evaluate/Static methods), the manager
-methods (0x00083c60..0x00085aa0), 0x0008d3f0 (root-motion delta: QuatTrans_Concat chains, called from the
-PositionOrientation class's slot 11) and the IK matrix builder 0x00093250.
-Known unmatchable lanes: the w word (+0x1c) of PositionOrientation records is never set by the title - its value is
-stale stack from 0x0008d3f0's frame, so NAL_AnimTrack_Sample / AnimTree_CalcPose_r differ from the original there
-(the only difference in every logged test) once their callees are C code.
+The entropy PosOri block methods (slots 5-7: 0x00085600 BeginBlock with 0x000856e0, 0x000857b0 DecodeFrames with
+0x00084970, 0x00085930 with 0x00085480) - they share the quaternion entropy readers (0x000843c0 ...), so they go
+with the quaternion class (0x007c2a30) and the position class (0x007c2620); the other channel classes' methods
+(0x0007c2b0..0x00086850); the manager methods (0x00083c60..0x00085aa0); the IK matrix builder 0x00093250.
+Known unmatchable lanes: the w word (+0x1c) of PositionOrientation pairs is never written by the title (Blend,
+AccumulateRoot and the codecs write seven words), so it carries stale stack - in NAL_AnimTrack_Sample's temporary
+states, too. NAL_AnimTrack_Sample / AnimTree_CalcPose_r / DObj_UpdateSkeletons differ from the original only there
+(every logged mismatch ≡ 0xc mod 16), also with AccumulateRoot in C: matching them needs the original's frames.
 
 ## DObj_UpdateSkeletons and its callees (calling conventions)
 

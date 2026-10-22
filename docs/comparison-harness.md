@@ -89,6 +89,10 @@ registers and calls the dispatcher. For a tested call:
   never sets (cdWorld_Draw, cdPropeller_Draw) - then sends the same bytes, and the
   decompiled version writes zeros there. Without it those calls mismatch on stack
   garbage (checked: cdWorld_Draw 839 of 1,344 tests).
+  xbcmp_resume pops EFLAGS and returns through two words it pushes below that ESP; it zeroes
+  the EFLAGS word again afterwards (MOV), else the original's never-written locals there read
+  0x00200246 on one side only (0x0008d3f0's result w: 156 false mismatches). The target word at
+  ESP - 4 stays.
 - Then it clears the soft-dirty bits (`/proc/self/clear_refs`) and runs the function
   with the caller's registers and a return address of `xbcmp_landing`, which saves
   the registers and x87/SSE state (FXSAVE). Pages written are the soft-dirty ones
