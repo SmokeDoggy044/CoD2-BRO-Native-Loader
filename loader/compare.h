@@ -37,6 +37,11 @@ enum class SdkStandIn : uint8_t {
     ReturnAddRef,  // returns *value (a resource or null) after AddRef on it
     PushBegin,     // D3DDevice_BeginPush_4(dwords): returns space in the test process
     PushEnd,       // D3DDevice_EndPush(end): logs the dwords written since PushBegin
+    LevelCount,    // D3DBaseTexture_GetLevelCount(texture): the mip count in its Format
+    // D3DTexture_GetSurfaceLevel2(texture, level) / D3DCubeTexture_GetCubeMapSurface2(
+    // texture, face, level): a surface from a pool in the test process's own area,
+    // filled as render's create_level_surface does (count 1, a reference on the texture).
+    SurfaceLevel,
 };
 
 struct SdkCall {

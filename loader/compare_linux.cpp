@@ -95,6 +95,16 @@ constexpr uint32_t kZeroedStack = 16 * 1024;  // below the caller's ESP in test 
 constexpr uint32_t kMaxSdkArgs = 6;
 constexpr uint32_t kMaxSdkData = 4096;  // per pointer argument
 constexpr uint32_t kPushDwords = 8192;  // the BeginPush stand-in's space
+constexpr uint32_t kStandInSurfaces = 64;  // the GetSurfaceLevel2 stand-in's pool
+
+// A D3DSurface as render's create_level_surface makes it (XbSurface: Common, Data,
+// Lock, Format, Size, Parent). The pool lives in ChildArea: the same address in both
+// test processes, and skipped by the dirty-page scan (the title's writes to it are
+// not compared; what it reads from it is).
+struct StandInSurface {
+    uint32_t common, data, lock, format, size, parent;
+};
+constexpr uint32_t kSurfaceCommon = 0x00050000 | 0x01000000 | 1;  // surface, D3D-created, count 1
 
 // Config::sdk_calls, parsed for the test processes. Each recorded call is logged as
 // its spec index, then per argument its value, or for a pointer the byte count and
@@ -162,6 +172,8 @@ struct alignas(4096) ChildArea {
     uint32_t sdk_log[kSdkLogBytes / 4];
     uint32_t push_dwords;  // the space the last PushBegin gave (0 = none open)
     uint32_t push_buffer[kPushDwords];
+    uint32_t surface_count;  // stand-in surfaces handed out
+    StandInSurface surfaces[kStandInSurfaces];
     uint8_t signal_stack[64 * 1024];
     uint8_t stack[64 * 1024];
 };
@@ -262,6 +274,16 @@ namespace {
 // --- Test-process side after the mprotect: xbcmp_text only -----------------------
 
 #define XBCMP_CODE PLATFORM_SECTION("xbcmp_text")
+
+}  // namespace
+}  // namespace loader::compare
+
+// render's texture layout, compiled into xbcmp_text for the GetSurfaceLevel2 stand-in.
+#define SURFACE_LAYOUT_FN static XBCMP_CODE
+#include "surface_layout.h"
+
+namespace loader::compare {
+namespace {
 
 XBCMP_CODE int32_t sys3(uint32_t number, uint32_t a, uint32_t b, uint32_t c) {
     int32_t result;
@@ -451,13 +473,39 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
         if (!ok) c.report.sdk_overflow = 1;
         return true;
     }
+    if (spec.stand_in == SdkStandIn::LevelCount) {
+        if (!spec.arg_count || !readable(c, values[0], 20)) return false;
+        const uint32_t format = reinterpret_cast<const uint32_t*>(uintptr_t{values[0]})[3];
+        result = (format >> render::surface_layout::kFormatMipmapShift) & 0xF;
+        return true;
+    }
+    if (spec.stand_in == SdkStandIn::SurfaceLevel) {
+        if (spec.arg_count < 2 || !readable(c, values[0], 20) || c.surface_count >= kStandInSurfaces) return false;
+        auto* texture = reinterpret_cast<uint32_t*>(uintptr_t{values[0]});  // Common, Data, Lock, Format, Size
+        const uint32_t face = spec.arg_count == 3 ? values[1] : 0;
+        const uint32_t level = values[spec.arg_count - 1];
+        const render::surface_layout::SurfaceLevel layout =
+            render::surface_layout::surface_level(texture[1], texture[3], texture[4], face, level);
+        StandInSurface& surface = c.surfaces[c.surface_count++];
+        surface.common = kSurfaceCommon;
+        surface.data = layout.address & 0x0FFFFFFF;
+        surface.lock = 0;
+        surface.format = layout.format;
+        surface.size = layout.size_field;
+        surface.parent = values[0];
+        ++texture[0];  // the surface's reference on its texture
+        result = addr_of(&surface);
+        return true;
+    }
     uint32_t resource = spec.arg_count ? values[0] : 0;
     if (spec.stand_in == SdkStandIn::ReturnAddRef) {
         resource = *spec.value;
         result = resource;
         if (!resource) return true;
     }
-    if (!resource || !readable(c, resource, 4)) return false;
+    const bool pooled = resource >= addr_of(c.surfaces) &&
+                        resource - addr_of(c.surfaces) <= sizeof(c.surfaces) - sizeof(StandInSurface);
+    if (!resource || !(pooled || readable(c, resource, 4))) return false;
     auto& common = *reinterpret_cast<uint32_t*>(uintptr_t{resource});
     const uint32_t count = common & kRefcountMask;
     switch (spec.stand_in) {
@@ -474,6 +522,8 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
         return true;
     case SdkStandIn::PushBegin:
     case SdkStandIn::PushEnd:
+    case SdkStandIn::LevelCount:
+    case SdkStandIn::SurfaceLevel:
     case SdkStandIn::None: break;
     }
     return false;
@@ -860,6 +910,7 @@ bool prepare_maps(ChildArea& c) {
     c.grandchild = static_cast<uint32_t>(grandchild > 0 ? grandchild : 0);
     c.report = {};
     c.push_dwords = 0;
+    c.surface_count = 0;
     c.report.t_entered = now_ns();
     c.image_begin = g_config.image_begin;
     c.image_end = g_config.image_end;

@@ -158,6 +158,18 @@ written, so two sides that build different NV2A commands differ at that call ("S
 4 D3DDevice_EndPush: arguments differ at word 4"). Checked with a planted bug in
 nglRenderTextNode's begin word. More space than that, or an EndPush outside the space,
 ends the test as inconclusive.
+Texture levels (nglTextureGetSurfaces, reached from nglCreateTexture and the per-frame
+nglAllocFogTextures): D3DBaseTexture_GetLevelCount returns the mip count from the
+texture's Format; D3DTexture_GetSurfaceLevel2 / D3DCubeTexture_GetCubeMapSurface2 hand
+out surfaces from a 64-entry pool in the test process's own area (the same address in
+both test processes; not compared as writes), filled as render's create_level_surface
+does - count 1, Data/Format/Size from `render/surface_layout.h` (the layout code render
+uses too, compiled a second time into the harness's section), Parent = the texture - and
+add a reference to the texture (title memory, compared). What the title reads from them
+is the real surface's content; the calls' arguments are logged, so a wrong level differs
+at the call ("SDK call 1 D3DTexture_GetSurfaceLevel2: arguments differ at word 2", a
+planted level + 1 in nglTextureGetSurfaces). AddRef/Release accept pool surfaces;
+releasing one to 0 (destroying it) still ends the test as inconclusive.
 
 ## Callers that rebuild the original's frame
 

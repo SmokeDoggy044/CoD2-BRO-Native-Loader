@@ -1,13 +1,8 @@
 // Xbox Direct3D 8 replacement: texture and surface layout, descriptions and locks.
 // See xbox_d3d_api.h.
 //
-// Layout rules (XDK 5849):
-// - Swizzled and compressed textures have power-of-two sizes stored as log2 in Format
-//   (U, V, P = width, height, depth). Mip level n halves each down to 1; compressed
-//   formats (DXT) never go below a 4x4 block. Levels follow each other without
-//   padding; cube faces are the whole mip chain each, rounded up to 128 bytes.
-// - Linear textures (Size != 0) have one level with the pitch in Size.
-// - Data is the physical address; the CPU address is Data | 0x80000000.
+// Layout rules (XDK 5849): surface_layout.h (shared with the compare harness). Data is
+// the physical address; the CPU address is Data | 0x80000000.
 
 #include <algorithm>
 #include <cstring>
@@ -17,6 +12,7 @@
 #include "compiler.h"
 #include "d3d_internal.h"
 #include "log.h"
+#include "surface_layout.h"
 #include "xbox_d3d.h"
 
 namespace render {
@@ -26,25 +22,12 @@ namespace {
 using xbox::from_xbox_ptr;
 using xbox::to_xbox_ptr;
 
-// D3D's per-format table (XDK 5849, D3DFORMAT 0x00..0x41): bits 2-5 bits per pixel,
-// 0x80 usable as a render target, 0x40 as a depth buffer.
-const uint8_t kFormatInfo[] = {
-    0x09, 0x09, 0x11, 0x91, 0x11, 0x91, 0xa1, 0xa1, 0x00, 0x00, 0x00, 0x09, 0x04, 0x00, 0x08, 0x08,
-    0x12, 0x92, 0xa2, 0x8a, 0x00, 0x00, 0x12, 0x92, 0x00, 0x09, 0x11, 0x0a, 0x92, 0x12, 0xa2, 0x0a,
-    0x12, 0x00, 0x00, 0x00, 0x12, 0x12, 0x00, 0x11, 0x11, 0x11, 0x61, 0x61, 0x51, 0x51, 0x62, 0x62,
-    0x52, 0x52, 0x11, 0x21, 0x00, 0x12, 0x00, 0x12, 0x11, 0x11, 0x21, 0x21, 0x21, 0x12, 0x12, 0x22,
-    0x22, 0x22,
-};
+using surface_layout::bits_per_pixel;
+using surface_layout::format_flags;
+using surface_layout::is_compressed;
+using surface_layout::SurfaceLevel;
 
-uint32_t format_of(const XbPixelContainer& pixels) { return (pixels.format & kFormatFormatMask) >> kFormatFormatShift; }
-
-uint32_t bits_per_pixel(uint32_t format) {
-    return format < std::size(kFormatInfo) ? kFormatInfo[format] & 0x3C : 0;
-}
-
-bool is_compressed(uint32_t format) { return format == 0x0C || format == 0x0E || format == 0x0F; }
-
-uint32_t format_flags(uint32_t format) { return format < std::size(kFormatInfo) ? kFormatInfo[format] : 0; }
+uint32_t format_of(const XbPixelContainer& pixels) { return surface_layout::format_of(pixels.format); }
 
 struct LevelLayout {
     uint32_t width, height, depth;
@@ -84,58 +67,9 @@ LevelLayout level_layout(const XbPixelContainer& pixels, uint32_t level) {
     return out;
 }
 
-struct SurfaceLevel {
-    uint32_t address;  // CPU address
-    uint32_t pitch;
-    uint32_t size;     // one slice
-    uint32_t format;   // Format field for a surface of this level
-    uint32_t size_field;
-};
-
 // Where a face/level of a texture lives (D3D's internal helper at 003ee960).
 SurfaceLevel surface_level(const XbPixelContainer& pixels, uint32_t face, uint32_t level) {
-    SurfaceLevel out{};
-    out.address = pixels.resource.data | 0x80000000;
-    if (pixels.size != 0) {
-        out.pitch = ((pixels.size >> kSizePitchShift) + 1) * 64;
-        out.size = (((pixels.size & kSizeHeightMask) >> kSizeHeightShift) + 1) * out.pitch;
-        out.format = pixels.format;
-        out.size_field = pixels.size;
-        return out;
-    }
-    const uint32_t format = format_of(pixels);
-    const uint32_t bpp = bits_per_pixel(format);
-    const uint32_t min_log = is_compressed(format) ? 2 : 0;
-    uint32_t u = (pixels.format >> kFormatUSizeShift) & 0xF;
-    uint32_t v = (pixels.format >> kFormatVSizeShift) & 0xF;
-    uint32_t p = pixels.format >> kFormatPSizeShift;
-    if (face != 0) {
-        const uint32_t levels = (pixels.format >> kFormatMipmapShift) & 0xF;
-        uint32_t face_size = 0, fu = u, fv = v;
-        for (uint32_t i = 0; i < levels; ++i) {
-            face_size += (1u << (std::max(fv, min_log) + std::max(fu, min_log))) * bpp / 8;
-            if (fu) --fu;
-            if (fv) --fv;
-        }
-        out.address += ((face_size + 0x7F) & ~0x7Fu) * face;
-    }
-    for (uint32_t i = 0; i < level; ++i) {
-        out.address += (1u << (std::max(v, min_log) + std::max(u, min_log) + p)) * bpp / 8;
-        if (u) --u;
-        if (v) --v;
-        if (p) --p;
-    }
-    const uint32_t pu = std::max(u, min_log), pv = std::max(v, min_log);
-    if (format == 0x0C)
-        out.pitch = (1u << pu) * 2;
-    else if (is_compressed(format))
-        out.pitch = (1u << pu) * 4;
-    else
-        out.pitch = (1u << pu) * bpp / 8;
-    out.size = (1u << (pv + pu)) * bpp / 8;
-    out.format = (((p << 4 | v) << 4 | u) << kFormatUSizeShift) | (pixels.format & 0xFFFFF);
-    out.size_field = pixels.size;
-    return out;
+    return surface_layout::surface_level(pixels.resource.data, pixels.format, pixels.size, face, level);
 }
 
 // Surfaces we create for texture levels; deleted when released to zero.

@@ -1177,6 +1177,11 @@ const RecordedCall kRecordedD3dCalls[] = {
     {"D3DResource_AddRef", "s", compare::SdkStandIn::AddRef},
     {"D3DResource_Release", "s", compare::SdkStandIn::Release},
     {"D3DDevice_GetBackBuffer2", "s", compare::SdkStandIn::ReturnAddRef},
+    // Texture levels (nglTextureGetSurfaces): the mip count, and level surfaces made
+    // from a pool in the test process.
+    {"D3DBaseTexture_GetLevelCount", "s", compare::SdkStandIn::LevelCount},
+    {"D3DTexture_GetSurfaceLevel2", "s s", compare::SdkStandIn::SurfaceLevel},
+    {"D3DCubeTexture_GetCubeMapSurface2", "s s s", compare::SdkStandIn::SurfaceLevel},
     // Raw NV2A commands: the space and what the title wrote into it (nglRenderTextNode).
     {"D3DDevice_BeginPush_4", "s", compare::SdkStandIn::PushBegin},
     {"D3DDevice_EndPush", "s", compare::SdkStandIn::PushEnd},

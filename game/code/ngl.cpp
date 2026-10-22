@@ -3519,10 +3519,6 @@ void set_cached_simple_state(uint32_t cache, uint32_t method, uint32_t shadow, T
 
 }  // namespace
 
-// Not verified yet: every test ends inconclusive. The fog textures have no pixel memory
-// at this point of each frame, so nglAllocFogTextures runs nglTextureGetSurfaces, whose
-// D3DBaseTexture_GetLevelCount and D3DTexture_GetSurfaceLevel2 (a new surface object)
-// have no stand-ins in test processes.
 void XB_CDECL nglDrawFogPass() {
     using SetState = void XB_STDCALL(uint32_t);
     nglAllocFogTextures();
