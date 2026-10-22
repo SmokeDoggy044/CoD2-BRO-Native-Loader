@@ -68,4 +68,23 @@ extern "C" void ParamSet_AddFxOverrides_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL ParamChoice_GetValue(const uint8_t* choice, uint32_t id);
 extern "C" void ParamChoice_GetValue_entry(void);
 
+// 0x00296e50 (out in EAX, node in ECX): a leaf node's choices (+0, count +4) appended to the
+// out lists {count, [64]}: every one to list 0, those of the highest priority (+0xa, int16;
+// best so far in out[0x82], a higher one empties list 1) to list 1.
+void XB_REGS3 XB_CDECL ParamNode_CollectChoices(uint32_t* out, uint32_t unused_edx, const uint8_t* node);
+// 0x00299310 (set in EAX, id in EDX, value in ECX): the set's record for `id` tested against a
+// node value by the record's operator (byte 1): integers (types 0/6/8) and floats (2/0xb) with
+// ==, >, <, >=, <=, != (ops 0, 2, 3, 4, 5, 8); strings (4) with strcmp (op 0) or _stricmp (op
+// 9); type 9 with == only. Other types break into the debugger.
+uint8_t XB_REGS3 XB_CDECL ParamSet_TestCondition(const ParamSet* set, uint32_t id, const uint32_t* value);
+// 0x002994f0 (set in EAX, id in EDX, value in ECX): the node value compared with the set's
+// record: -1, 0, 1 (integers 0/6/8/9, floats 2/0xb, strings 4: strcmp or _stricmp by op 9).
+int32_t XB_REGS3 XB_CDECL ParamSet_CompareValue(const ParamSet* set, uint32_t id, const uint32_t* value);
+// 0x0029b9f0 (vtable 0x008376b8 slot 1): the definition's decision tree (root +0x2c) walked with
+// the set's values: a node (+0 children, +4 count, +8 u16 value indices, +0xc parameter; 0x8000
+// = leaf) whose parameter the set lacks takes every child; otherwise the children whose value
+// matches (binary search for kinds 0/9, ParamSet_TestCondition for the rest) and the valueless
+// ones when the parameter is flagged. Leaves feed ParamNode_CollectChoices. Nothing when failed.
+void XB_THISCALL ParamSet_Resolve(ParamSet* set, uint32_t* out);
+
 }  // namespace game

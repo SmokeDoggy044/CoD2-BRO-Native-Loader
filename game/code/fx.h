@@ -642,4 +642,22 @@ void XB_THISCALL FxParticleComponent_Update(uint8_t* component, float delta);
 // [16]}. Returns the number of components made.
 uint32_t XB_STDCALL FX_AddLightComponents(uint32_t unused, const uint8_t* source, uint32_t* out);
 
+// 0x002a3820 (stdcall; the first argument unread): FX_AddLightComponents' pattern for the
+// "SHAKEANDRUMBLE.FX" triggers: every choice becomes a shake/rumble component (0x68 bytes,
+// vtable 0x008376d0) from parameters 0x10 (delay), 0x32-0x39, 0x3c (clamped to >= 0.01),
+// 0x3a/0x3b (bytes), 0x4/0x5 (ranges, squared), 0x17, then its first Update (delta 0).
+uint32_t XB_STDCALL FX_AddShakeRumbleComponents(uint32_t unused, const uint8_t* source, uint32_t* out);
+
+// 0x002a4ec0 (stdcall, 4 words; the first unread): FX_AddLightComponents' pattern for the
+// "PARTICLE.FX" triggers, skipped (flag 2 of out +0x50 cleared) for modes 1-3 beyond
+// 0x008fef64 squared. Choices (list 0, per group) come from per-weapon-hand caches
+// (bg_weaponDefs +0x2b4) or per-trigger caches keyed by the source's name (0x0096d970, 0x00971910;
+// 0x008d5a78 entries) when 0x008d5110 is set. Each choice's effect file (parameter 0x11) is
+// looked up (Stream_FindEffect of its base name) and the spawn parameters go to the globals
+// 0x009717f0-0x00971838 that FxParticleComponent_Update reads; 0x00971800 = the file name's
+// stack address (the C version writes the original's: entry ESP - 4, 8-aligned, - 0x770).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_AddParticleComponents(uint32_t entry, uint32_t unused, const uint8_t* source,
+                                                                      uint32_t* out, float distance);
+extern "C" void FX_AddParticleComponents_entry(void);
+
 }  // namespace game

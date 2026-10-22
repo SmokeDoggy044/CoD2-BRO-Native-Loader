@@ -176,4 +176,211 @@ uint32_t* XB_CDECL ParamChoice_GetValue(const uint8_t* choice, uint32_t id) {
     return values + static_cast<uint16_t>(selected);
 }
 
+namespace {
+
+const uint8_t* record_of(const ParamSet* set, uint32_t id) {
+    return set->list.records[set->list.slot_of_id[id]];
+}
+
+int32_t Stricmp(const char* a, const char* b) {
+    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(a, b);  // _stricmp
+}
+
+// MSVC's inline strcmp: 0, or -1/1 by the first differing byte (unsigned).
+int32_t inline_strcmp(const char* a, const char* b) {
+    for (;; ++a, ++b) {
+        const uint8_t x = static_cast<uint8_t>(*a), y = static_cast<uint8_t>(*b);
+        if (x != y) return x < y ? -1 : 1;
+        if (!x) return 0;
+    }
+}
+
+void debug_break() { title_function<void XB_CDECL()>(0x00042460)(); }  // Sys_DebugBreak
+
+// The definition's entry for parameter `id` (entries[-1] when missing, as the original reads).
+const uint8_t* param_entry(const uint8_t* definition, uint16_t id) {
+    const uint32_t count = *reinterpret_cast<const uint16_t*>(definition + 0x1e);
+    const uint8_t* const* entries = *reinterpret_cast<const uint8_t* const* const*>(definition + 0x20);
+    int16_t index = -1;
+    for (uint32_t i = 0; i < count; ++i) {
+        if (*reinterpret_cast<const uint16_t*>(entries[i]) == id) {
+            index = static_cast<int16_t>(i);
+            break;
+        }
+    }
+    return entries[index];
+}
+
+// A node's value `index` (u16) of its parameter: entry +8 + index * stride (+4); null for -1.
+const uint32_t* node_value(const uint8_t* definition, uint16_t id, uint16_t index) {
+    const uint8_t* entry = param_entry(definition, id);
+    return reinterpret_cast<const uint32_t*>(*reinterpret_cast<const uint32_t*>(entry + 8) +
+                                             index * *reinterpret_cast<const uint32_t*>(entry + 4));
+}
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL ParamNode_CollectChoices(uint32_t* out, uint32_t, const uint8_t* node) {
+    const uint32_t count = *reinterpret_cast<const uint16_t*>(node + 4);
+    uint32_t* const* children = *reinterpret_cast<uint32_t* const* const*>(node);
+    int32_t& best = reinterpret_cast<int32_t&>(out[0x82]);
+    for (uint32_t i = 0; i < count; ++i) {
+        const int32_t priority = *reinterpret_cast<const int16_t*>(reinterpret_cast<const uint8_t*>(children[i]) + 0xa);
+        if (priority >= best) {
+            if (priority > best) {
+                best = priority;
+                out[0x41] = 0;
+            }
+            if (static_cast<int32_t>(out[0x41]) < 0x40) out[0x42 + out[0x41]++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(children[i]));
+        }
+        if (static_cast<int32_t>(out[0]) < 0x40) out[1 + out[0]++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(children[i]));
+    }
+}
+
+uint8_t XB_REGS3 XB_CDECL ParamSet_TestCondition(const ParamSet* set, uint32_t id, const uint32_t* value) {
+    const uint8_t* record = record_of(set, id);
+    const uint8_t op = record[1];
+    switch (record[0]) {
+    case 0: case 6: case 8: {
+        const int32_t r = *reinterpret_cast<const int32_t*>(record + 4), v = static_cast<int32_t>(*value);
+        switch (op) {
+        case 0: return r == v;
+        case 2: return r > v;
+        case 3: return r < v;
+        case 4: return r >= v;
+        case 5: return r <= v;
+        case 8: return r != v;
+        default: return 0;
+        }
+    }
+    case 2: case 0xb: {
+        float r, v;
+        std::memcpy(&r, record + 4, 4);
+        std::memcpy(&v, value, 4);
+        switch (op) {
+        case 0: return r == v;
+        case 2: return r > v;
+        case 3: return v > r;
+        case 4: return r >= v;
+        case 5: return v >= r;
+        case 8: return r != v;
+        default: return 0;
+        }
+    }
+    case 4: {
+        const char* text = reinterpret_cast<const char*>(record + 4);
+        const char* other = reinterpret_cast<const char*>(uintptr_t{*value});
+        if (op == 0) return inline_strcmp(text, other) == 0;
+        if (op == 9) return Stricmp(text, other) == 0;
+        return 0;
+    }
+    case 9:
+        return op == 0 && *reinterpret_cast<const uint32_t*>(record + 4) == *value;
+    default:
+        debug_break();
+        return 0;
+    }
+}
+
+int32_t XB_REGS3 XB_CDECL ParamSet_CompareValue(const ParamSet* set, uint32_t id, const uint32_t* value) {
+    const uint8_t* record = record_of(set, id);
+    switch (record[0]) {
+    case 0: case 6: case 8: case 9: {
+        const int32_t v = static_cast<int32_t>(*value), r = *reinterpret_cast<const int32_t*>(record + 4);
+        if (v < r) return -1;
+        return v > r;
+    }
+    case 2: case 0xb: {
+        float v, r;
+        std::memcpy(&v, value, 4);
+        std::memcpy(&r, record + 4, 4);
+        if (r > v) return -1;
+        return v > r ? 1 : 0;
+    }
+    case 4: {
+        const char* text = reinterpret_cast<const char*>(record + 4);
+        const char* other = reinterpret_cast<const char*>(uintptr_t{*value});
+        if (record[1] == 9) return -Stricmp(text, other);
+        return -inline_strcmp(text, other);
+    }
+    default:
+        debug_break();
+        return 0;
+    }
+}
+
+void XB_THISCALL ParamSet_Resolve(ParamSet* set, uint32_t* out) {
+    if (set->failed) return;
+    const uint8_t* definition = set->definition;
+    // State per child: 0 = taken, 1 = not taken, 2 = to be tested.
+    const uint8_t* stack[0x80];
+    uint32_t state[0x100];
+    stack[0] = *reinterpret_cast<const uint8_t* const*>(definition + 0x2c);
+    int32_t depth = 1;
+    do {
+        const int32_t top = depth - 1;
+        const uint8_t* node = stack[top > 0 ? top : 0];
+        if (depth != 0) depth = top;
+        const uint16_t word = *reinterpret_cast<const uint16_t*>(node + 0xc);
+        if (word & 0x8000) {
+            ParamNode_CollectChoices(out, 0, node);
+            continue;
+        }
+        const uint32_t id = word & 0x7fff;
+        const uint8_t* const* children = *reinterpret_cast<const uint8_t* const* const*>(node);
+        const uint16_t* values = *reinterpret_cast<const uint16_t* const*>(node + 8);
+        bool take_all = false;
+        if (!(set->list.id_present[id >> 5] & (1u << (id & 0x1f)))) {
+            take_all = true;
+        } else {
+            const int32_t count = *reinterpret_cast<const uint16_t*>(node + 4);
+            for (int16_t i = 0; i < count; ++i) {
+                const int32_t index = static_cast<int16_t>(values[static_cast<uint16_t>(i)]);
+                const bool flagged = set->list.id_flag[id >> 5] & (1u << (id & 0x1f));
+                if (static_cast<uint16_t>(index) == 0xffff || !node_value(definition, word, static_cast<uint16_t>(index)))
+                    state[i] = flagged ? 0 : 1;
+                else
+                    state[i] = 2;
+            }
+            const uint8_t* types = *reinterpret_cast<const uint8_t* const*>(definition + 0x30);
+            const uint8_t kind = (*reinterpret_cast<const uint8_t* const*>(types + 8))[id];
+            if (kind == 0 || kind == 9) {
+                // Sorted values: a binary search for the set's value.
+                int32_t low = 0, high = count, mid = count / 2;
+                if (mid != -1) for (;;) {
+                    const uint16_t index = values[static_cast<uint16_t>(mid)];
+                    const uint32_t* value = index == 0xffff ? nullptr : node_value(definition, word, index);
+                    if (!value) {
+                        --high;
+                    } else {
+                        const int32_t order = ParamSet_CompareValue(set, id, value);
+                        if (order == 0) {
+                            state[mid] = 0;
+                            break;
+                        }
+                        if (order > 0)
+                            high = mid;
+                        else
+                            low = mid;
+                    }
+                    const int32_t next = (low + high) / 2;
+                    if (next == mid) break;
+                    mid = next;
+                }
+            } else {
+                for (uint32_t i = 0; i < *reinterpret_cast<const uint16_t*>(node + 4); ++i) {
+                    if (state[i] != 2) continue;
+                    const uint16_t index = values[static_cast<uint16_t>(i)];
+                    const uint32_t* value = index == 0xffff ? nullptr : node_value(definition, word, index);
+                    state[i] = ParamSet_TestCondition(set, word & 0x7fff, value) ? 0 : 1;
+                }
+            }
+        }
+        const uint32_t count = *reinterpret_cast<const uint16_t*>(node + 4);
+        for (uint32_t i = 0; i < count; ++i) {
+            if ((take_all || state[i] == 0) && depth < 0x80) stack[depth++] = children[static_cast<uint16_t>(i)];
+        }
+    } while (depth != 0);
+}
+
 }  // namespace game
