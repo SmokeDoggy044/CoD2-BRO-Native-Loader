@@ -47,7 +47,14 @@ Plain classes (SignalCounter, Float3, Float4, Quaternion, PositionOrientation) s
 - Entropy: per component a byte-length-prefixed bit stream; reader `{u32 ptr | byte offset in low 2 bits, u8 bit pos,
   s8 mode (0xff = read a 5-bit header), u16 zero run}`. `NAL_EntropyReader_DecodeFloats` (0x0007cb10) bit-unpacks values
   times a per-channel scale; `NAL_EntropyReader_Decode` (0x0007cea0) emits the zero run then dispatches on the mode
-  through the table 0x008bb4a0 (0x0008f440..).
+  through the table 0x008bb4a0: 64 entries, 46 distinct decoders (decompiled: game/code/nal_entropy.cpp). Modes
+  0x20-0x3f are the negative-scale header modes (5-bit mode + 0x20): 0x20-0x2e reuse 0x00-0x0e, 0x2f-0x3d have
+  their own (wider fields up to 0x3b-0x3d: 16 and 24 fixed bits, raw 32-bit words); 0x00, 0x1e/0x1f, 0x3e/0x3f
+  write zeros and read nothing. Each decoder peeks its longest code, walks a prefix tree over the low bits and
+  emits either a value or a zero run (a run longer than the count left is returned and kept in the reader). Value
+  fields: plain biased fields, sign-folded ones (top bit clear: value - (2^bits - 1)) and those shifted by an
+  exponent field. Bits are read LSB first from aligned words, two words held at a time; the reader keeps only the
+  byte address and bit afterwards. tests/nal_entropy_test.cpp runs the title's own bytes against them.
 - Packed8 / Packed16: entropy-decoded values clamped to -127..127 / -32767..32767 and cached as int8 / int16;
   Evaluate dequantizes with value * range +8 + range +4 (8-byte {bias, scale} record per channel).
 - Cached frame sizes: Float1 4, Float3 12, Packed8Float3 3, Packed16Float3 6, Float4 16 bytes per channel.
@@ -75,10 +82,9 @@ Plain classes (SignalCounter, Float3, Float4, Quaternion, PositionOrientation) s
   then the additive ones (node flag 0x10) on top of that pose. Returns the normal children's root-motion flag.
 
 ## Not done yet
-The channel classes (0x0007c2b0..0x00086850: Begin/Decode/Skip/Evaluate/Static methods), the entropy mode decoders
-(table 0x008bb4a0, 32 entries 0x0008f440..: prefix codes of zero runs and small values; each returns the zero run
-left over), the manager methods (0x00083c60..0x00085aa0), 0x0008d3f0 (root-motion delta: QuatTrans_Concat chains,
-called from the PositionOrientation class's slot 11) and the IK matrix builder 0x00093250.
+The channel classes (0x0007c2b0..0x00086850: Begin/Decode/Skip/Evaluate/Static methods), the manager
+methods (0x00083c60..0x00085aa0), 0x0008d3f0 (root-motion delta: QuatTrans_Concat chains, called from the
+PositionOrientation class's slot 11) and the IK matrix builder 0x00093250.
 Known unmatchable lanes: the w word (+0x1c) of PositionOrientation records is never set by the title - its value is
 stale stack from 0x0008d3f0's frame, so NAL_AnimTrack_Sample / AnimTree_CalcPose_r differ from the original there
 (the only difference in every logged test) once their callees are C code.

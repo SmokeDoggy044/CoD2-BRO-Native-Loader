@@ -14,6 +14,7 @@ set(game_code_sources
     g_utils.cpp
     nal_anim.cpp
     nal_codec.cpp
+    nal_entropy.cpp
     nal_math.cpp
     nal_pose.cpp
     ngl.cpp

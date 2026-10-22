@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "nal_entropy.h"
 #include "title_data.h"
 
 namespace game {
@@ -35,9 +36,7 @@ void XB_THISCALL NAL_EntropyReader_Decode(EntropyReader* reader, uint32_t* dst, 
         }
     }
     if (count) {
-        const uint32_t decoder = title_global<uint32_t>(0x008bb4a0 + reader->mode * 4);
-        reader->zeros = static_cast<uint16_t>(
-            title_function<uint32_t XB_CDECL(EntropyReader*, uint32_t*, int32_t, uint32_t)>(decoder)(reader, dst, stride, count));
+        reader->zeros = static_cast<uint16_t>(kEntropyModeDecoders[reader->mode](reader, dst, stride, count));
     }
 }
 

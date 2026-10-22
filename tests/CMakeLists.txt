@@ -36,6 +36,18 @@ target_include_directories(frame_pacing_test PRIVATE ${PROJECT_SOURCE_DIR}/rende
 target_link_libraries(frame_pacing_test PRIVATE xbox)
 add_test(NAME frame_pacing_test COMMAND frame_pacing_test)
 
+# The NAL entropy mode decoders against the title's own code (runs default.xbe's bytes;
+# skipped without the game files).
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(nal_entropy_test nal_entropy_test.cpp ${PROJECT_SOURCE_DIR}/game/code/nal_entropy.cpp)
+    target_include_directories(nal_entropy_test PRIVATE ${PROJECT_SOURCE_DIR}/game/code ${PROJECT_SOURCE_DIR}/platform)
+    target_compile_definitions(nal_entropy_test PRIVATE
+        COD_BRO_DEFAULT_XBE="${PROJECT_SOURCE_DIR}/../unpacked/default.xbe")
+    target_link_libraries(nal_entropy_test PRIVATE cod_bro_options)
+    add_test(NAME nal_entropy_test COMMAND nal_entropy_test)
+    set_tests_properties(nal_entropy_test PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+endif()
+
 # The comparison harness (Linux loader builds): its own copy of the harness and a
 # shared library standing in for the decompiled code.
 if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
