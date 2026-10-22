@@ -8,5 +8,5 @@ prefix,(G_|SP_|Actor_|AI_|ai_|Scr_|scr_|BG_|PM_|Vehicle_|Sentient_|Path_|Bullet_
 prefix,(SV_|SVC_),server,
 prefix,(CM_|Trace_),collision,
 prefix,(Com_|Cvar_|Cmd_|FS_|Q_|Z_|Hunk_|Sys_|MSG_|NET_|Info_|COM_|Huff|Mem_|va$|Swap_),qcommon,common/cvar/cmd/files/memory/net
-prefix,(inflate|huft|unz|zcalloc|adler|crc32),zlib,
+prefix,(inflate|huft|unz|zcalloc|adler|crc32|deflate|compress|uncompress|putShortMSB|flush_pending|lm_init|longest_match|fill_window|init_block|pqdownheap|gen_bitlen|scan_tree|send_tree|send_all_trees|compress_block|set_data_type|bi_flush|bi_windup|copy_block|_tr_|gen_codes|build_tree|build_bl_tree),zlib,
 range,0x00045000-0x00080100,renderer,the NGL/shader-class block (status.md)

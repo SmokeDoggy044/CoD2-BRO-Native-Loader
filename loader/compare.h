@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "functions.h"
@@ -58,6 +59,9 @@ struct Config {
     // inconclusive, so that a test process never touches the parent's devices or files.
     std::vector<std::string> libraries = {"libcod_bro_game", "libc.so", "libm.so", "libstdc++", "libgcc_s",
                                           "ld-linux"};
+    // Host code pages the test processes may run as well (begin, end): generated
+    // trampolines whose calls into the host are recorded SDK calls (the RDTSC ones).
+    std::vector<std::pair<uint32_t, uint32_t>> host_code;
     // Lowest address of the calling thread's stack, or 0 if unknown. The stack below
     // the caller's frame is scratch space and is not compared.
     uint32_t (*stack_limit)() = nullptr;

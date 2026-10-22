@@ -6,6 +6,7 @@
 #include "lanes.h"
 #include "ngl.h"
 #include "qcommon.h"
+#include "shaders.h"
 #include "title_data.h"
 
 namespace game {
@@ -338,6 +339,87 @@ void XB_CDECL RE_StretchPic(float x, float y, float w, float h, float s0, float 
     nglListAddQuad(&quad);
 }
 
+void XB_CDECL RE_StretchPicRotate(float x, float y, float w, float h, float s0, float t0, float s1, float t1,
+                                  float angle, void* shader) {
+    if (!title_global<NglScene*>(0x0090259c)) return;
+    float sine, cosine;
+    FastSinCos(&sine, 0, &cosine, angle * title_global<float>(0x0083ed00) * title_global<float>(0x0083ecfc));
+    const float half = title_global<float>(0x0083eb24);
+    const float half_w = w * half;
+    const float half_h = h * half;
+    const float cx = half_w + x;
+    const float cy = half_h + y;
+    NglQuad quad;
+    nglInitQuad(&quad);
+    nglSetQuadUV(&quad, s0, t0, s1, t1);
+    nglSetQuadColor(&quad, title_global<uint32_t>(0x0095e6d0));
+    // The corners rotated about the centre, grouped as the original adds them.
+    const float a = 0.0f - half_h * sine;
+    const float b = half_w * cosine;
+    const float c = half_w * sine;
+    const float d = half_h * cosine;
+    quad.verts[0].x = (cx - b) - a;
+    quad.verts[0].y = (cy - c) - d;
+    quad.verts[1].x = (b + cx) - a;
+    quad.verts[1].y = (c + cy) - d;
+    quad.verts[2].x = (cx - b) + a;
+    quad.verts[2].y = (cy - c) + d;
+    quad.verts[3].x = (a + b) + cx;
+    quad.verts[3].y = (d + c) + cy;
+    quad.texture = static_cast<NglTexture*>(shader);
+    nglListAddQuad(&quad);
+}
+
+void XB_CDECL RE_AddPolyToScene(void* shader, int32_t vertex_count, const uint8_t* verts) {
+    if (vertex_count != 4) return;
+    // The PCUV material from the frame arena (16-aligned, 0x28 bytes).
+    uint32_t& arena = title_global<uint32_t>(0x009025a8);
+    const uint32_t material_address = (arena + 0xf) & ~0xfu;
+    arena = material_address + 0x28;
+    uint8_t* material = material_address
+                            ? ShaderPCUV_InitMaterial(reinterpret_cast<uint8_t*>(uintptr_t{material_address}),
+                                                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(shader)), 3, 2)
+                            : nullptr;
+    nglMeshBuilder_Begin(0x40000, 1, 0, nullptr);
+    using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
+    uint32_t* owner = reinterpret_cast<uint32_t*>(uintptr_t{title_function<Alloc>(title_global<uint32_t>(0x00902928))(8, 4, 0)});
+    if (owner) owner[0] = 0x0083be78;  // vtable
+    nglMeshBuilder_AddSection(owner, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(material)), 4, 1, 0, nullptr,
+                              0x18);
+    const auto section = [owner] { return reinterpret_cast<uint8_t*>(uintptr_t{owner[1]}); };
+    const auto gpu_frame = [&] { return *reinterpret_cast<const uint32_t*>(section() + 0x24) & 0x40000; };
+    if (!gpu_frame()) {
+        uint8_t* buffer = section() + 0x44;
+        *reinterpret_cast<uint32_t*>(buffer) =
+            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(nglLockVertexBuffer(buffer, 0, 0)));
+    }
+    uint32_t builder[3] = {0x0083be3c, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(owner)), 0};
+    nglMeshBuilder_AddStrip(4, 0x18);
+    // polyVert_t (0x20 bytes): xyz, st, then the modulate bytes r g b a as ARGB. The
+    // corners go in strip order 0, 1, 3, 2.
+    const auto word = [verts](int vertex, uint32_t offset) {
+        return *reinterpret_cast<const uint32_t*>(verts + vertex * 0x20 + offset);
+    };
+    const auto color = [verts](int vertex) {
+        const uint8_t* rgba = verts + vertex * 0x20 + 0x1c;
+        return (uint32_t{rgba[3]} << 24) | (uint32_t{rgba[0]} << 16) | (uint32_t{rgba[1]} << 8) | rgba[2];
+    };
+    static const int kVertex[4] = {0, 1, 3, 2};
+    for (uint32_t i = 0; i < 4; ++i) {
+        const int v = kVertex[i];
+        builder[2] = i;
+        nglPolyBuilder_SetVertex(builder, word(v, 0), word(v, 4), word(v, 8), color(v), word(v, 0xc), word(v, 0x10));
+    }
+    if (!gpu_frame()) nglVertexBuffer_Unlock(reinterpret_cast<uint32_t*>(section() + 0x44));
+    // The identity rows (0x0082e160/170/180, each times 1.0f) and the origin row 0x0082e290.
+    const float one = title_global<float>(0x0082e140);
+    alignas(16) float matrix[16];
+    for (int row = 0; row < 3; ++row)
+        for (int lane = 0; lane < 4; ++lane) matrix[row * 4 + lane] = title_global<float>(0x0082e160 + row * 0x10 + lane * 4) * one;
+    std::memcpy(matrix + 12, &title_global<float>(0x0082e290), 4 * sizeof(float));
+    nglListAddMesh(reinterpret_cast<uint8_t*>(nglMeshBuilder_End()), matrix, nullptr, nullptr);
+}
+
 void XB_CDECL RE_DrawQuadPic(const float* points, const float* coords, void* shader) {
     if (!title_global<NglScene*>(0x0090259c)) return;
     NglQuad quad;
@@ -655,6 +737,65 @@ int32_t XB_CDECL R_LayoutTextWithIcons(char** out, float* colour, const uint16_t
     *rest = i == *count ? nullptr : &text[i];
     *count -= i;
     return stopped;
+}
+
+PLATFORM_ASM_ENTRY(R_ParseTextIcon_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %ebx\n"
+                   "pushl 0x1c(%esp)\n" PLATFORM_ASM_CALL(R_ParseTextIcon) "addl $36, %esp\n"
+                   "ret")
+
+void XB_CDECL R_ParseTextIcon(float scale, const uint16_t* text, int32_t* consumed, int32_t* count, float* width,
+                              float* height, uint32_t* shader, float* colour) {
+    const float size = scale * title_global<float>(0x0083ecd8);
+    *width = size;
+    *height = size;
+    *shader = 0;
+    char name[0x200];
+    std::memset(name, 0, 0x80);
+    for (int32_t i = 0; i < *count; ++i) {
+        const uint32_t kind = text[i] >> 8;
+        const uint32_t value = text[i] & 0xff;
+        switch (kind) {
+        case 0x0d:
+        case 0x0e:
+        case 0x0f:
+            if (colour) colour[kind - 0x0d] = static_cast<float>(static_cast<int32_t>(value)) * title_global<float>(0x0083eb30);
+            break;
+        case 0x10:
+        case 0x11: {
+            float* extent = kind == 0x10 ? width : height;
+            *extent = static_cast<float>(static_cast<int32_t>(value)) * title_global<float>(0x0083f004) * *extent;
+            break;
+        }
+        case 0x12: {
+            // The shader name: characters of kind 0x12 up to a zero or the last one.
+            char* out = name;
+            uint32_t c = value;
+            while (c && i < *count - 1) {
+                *out++ = static_cast<char>(c);
+                *consumed += 2;
+                const uint16_t next = text[i + 1];
+                ++i;
+                c = next & 0xff;
+                if ((next & 0xff00) != 0x1200) break;
+            }
+            *shader = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(RE_RegisterShader(0, name)));
+            *count -= i;
+            return;
+        }
+        default:
+            continue;
+        }
+        *consumed += 2;
+    }
 }
 
 namespace {
@@ -2349,6 +2490,85 @@ void XB_CDECL R_AddEntityModel(uint8_t* entity, uint8_t* frame) {
 // The original's frame (aligned to 16, 0xa0 bytes: its locals - the view matrix copy at
 // +0x60, the sky matrix at +0x20 - and two saved registers) is rebuilt, with 128 KB
 // below it kept free: every call runs at the original's stack position from there.
+// RE_RenderScene (0x002476b0): the view parameters live at the original's frame offset
+// and R_RenderView runs at the original's ESP (it rebuilds its own frame from there).
+PLATFORM_ASM_ENTRY(RE_RenderScene_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "leal 4(%ebp), %ecx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(RE_RenderScene) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL RE_RenderScene(uint32_t entry, const uint8_t* refdef) {
+    if (!title_global<uint32_t>(0x0095e390)) return;
+    if (*reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0095e238) + 0x20)) return;  // r_norefresh
+    // Every call runs at the original's ESP (push ebp; and esp,-8; sub esp,0x1cc; three
+    // pushes): what the clock read leaves below it is read later as stale locals in
+    // R_RenderView's subtree.
+    const uint32_t top = ((entry - 4) & ~7u) - 0x1cc - 12;
+    const TitleRegs no_regs{};
+    title_call_at_regs(top, title_global<uint32_t>(0x0095e638), &no_regs, 0, nullptr);  // ri.Milliseconds
+    const auto word = [refdef](uint32_t offset) { return *reinterpret_cast<const uint32_t*>(refdef + offset); };
+    if (!title_global<uint32_t>(0x0095e608) && !(refdef[0x58] & 1)) {
+        const uint32_t args[] = {1, 0x0083bed8};
+        title_call_at_regs(top, title_global<uint32_t>(0x0095e634), &no_regs, 2, args);  // ri.Error
+    }
+    for (uint32_t i = 0; i < 6; ++i) title_global<uint32_t>(0x0095e5e4 + i * 4) = word(i * 4);  // tr.refdef x/y/w/h, fov
+    title_global<uint32_t>(0x0095e5fc) = word(0x54);
+    title_global<uint32_t>(0x0095e600) = word(0x58);
+    if (refdef[0x58] & 8) title_global<uint32_t>(0x0095e7e8) = 1;
+    title_global<uint32_t>(0x0095e364) = static_cast<uint32_t>(static_cast<int32_t>(static_cast<int8_t>(refdef[0x58])) & 0x10) >> 4;
+    uint16_t lights = static_cast<uint16_t>(title_global<uint32_t>(0x0095e628) - title_global<uint32_t>(0x0095e6bc));
+    title_global<uint16_t>(0x0095e604) = lights;
+    title_global<uint16_t>(0x0095e606) = lights;
+    const uint8_t* dynamic_light = title_global<const uint8_t*>(0x0095e6ec);
+    const auto mode = [dynamic_light] { return *reinterpret_cast<const int32_t*>(dynamic_light + 0x20); };
+    if (!mode()) title_global<uint16_t>(0x0095e606) = 0;
+    if (mode() != 1) {
+        lights = 0;
+        title_global<uint16_t>(0x0095e604) = 0;
+    }
+    if (mode() == 3) {
+        const uint32_t args[] = {0, 0x0083bebc, static_cast<uint32_t>(static_cast<int32_t>(static_cast<int16_t>(lights)))};
+        title_call_at_regs(top, title_global<uint32_t>(0x0095e630), &no_regs, 3, args);  // ri.Printf
+    }
+
+    // The view parameters (0x1c8 bytes) at the original's ESP + 0x10.
+    uint8_t* parms = reinterpret_cast<uint8_t*>(uintptr_t{top + 0x10});
+    std::memset(parms, 0, 0x72 * 4);
+    const auto field = [parms](uint32_t offset) -> float& { return *reinterpret_cast<float*>(parms + offset); };
+    const auto cvar_value = [](uint32_t cvar) { return *reinterpret_cast<const float*>(title_global<const uint8_t*>(cvar) + 0x1c); };
+    const float fov_x = title_global<float>(0x0095e5f4);
+    const float fov_y = title_global<float>(0x0095e5f8);
+    field(0x124) = fov_x;
+    field(0x128) = fov_y;
+    const float lod_scale = cvar_value(0x0095e620);
+    const float lod_limit = title_global<float>(0x0083100c);
+    field(0x130) = lod_scale > lod_limit ? lod_limit : lod_scale;
+    const float lod_bias = cvar_value(0x0095e384);
+    field(0x12c) = lod_bias > 0.0f ? 0.0f : lod_bias;
+    field(0x174) = cvar_value(0x0095e378);  // r_zfar
+    const float fov = fov_y >= fov_x ? fov_x : fov_y;
+    std::memcpy(parms, refdef + 0x20, 3 * 4);       // origin
+    std::memcpy(parms + 0xc, refdef + 0x30, 9 * 4);  // axis
+    std::memcpy(parms + 0xf8, refdef + 0x20, 3 * 4);
+    // The LOD scale and bias by tan(fov / 2) / tan(c), the ratio kept on the x87.
+    const long double ratio = platform_x87_tan_ext(fov * title_global<float>(0x0083ecf0)) /
+                              platform_x87_tan_ext(title_global<double>(0x0083f260));
+    field(0x130) = static_cast<float>(field(0x130) * ratio);
+    field(0x12c) = static_cast<float>(ratio * field(0x12c));
+
+    const TitleRegs regs{0, top + 0x10, 0, 0, 0, 0};
+    // By its title address: R_RenderView is ours in the game (the hook), the original in
+    // tests, where ours still mismatches on stale-stack lanes.
+    title_call_at_regs(top, 0x00247350, &regs, 0, nullptr);  // R_RenderView
+    title_global<uint32_t>(0x0095e6bc) = title_global<uint32_t>(0x0095e628);
+    title_global<uint32_t>(0x0095e6f4) = title_global<uint32_t>(0x0095e738);
+}
+
 PLATFORM_ASM_ENTRY(R_RenderView_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
@@ -2731,6 +2951,62 @@ int32_t XB_CDECL RE_TextWidth(const char* text, uint32_t font_name, float scale)
     s = title_global<float>(0x008db12c) * scale;
     nglGetTextExtent(font, cursor, &width, &height, s, s);
     return total + width;
+}
+
+void XB_CDECL RE_DrawTextWithIcons(float x, float y, uint32_t font_name, float scale, const float* rgba,
+                                   const uint16_t* text, uint32_t arg7, int32_t count, uint32_t arg9) {
+    float colour[4] = {rgba[0], rgba[1], rgba[2], rgba[3]};
+    float advance = 0.0f;
+    while (text) {
+        char* line = nullptr;
+        const int32_t icon = R_LayoutTextWithIcons(&line, colour, text, &count, &text);
+        if (line && *line) {
+            RE_DrawTextExt(advance + x, y, font_name, scale, colour, line, -1, 0, arg7, 0, arg9);
+            if (icon) advance = static_cast<float>(RE_TextWidth(line, font_name, scale)) + advance;
+        }
+        if (!icon) continue;
+        float width, height;
+        uint32_t shader;
+        int32_t consumed = 0;  // the original steps the text pointer itself
+        R_ParseTextIcon(scale, text, &consumed, &count, &width, &height, &shader, colour);
+        text += consumed / 2;
+        RE_SetColor(colour);
+        // Centred on the line (38.4 * scale high), through the client's 640x480 adjust.
+        float pic_x = advance + x;
+        float pic_y = y - (scale * title_global<float>(0x0083f038) + height) * title_global<float>(0x0083eb24);
+        float pic_w = width;
+        float pic_h = height;
+        title_function<void XB_CDECL(float*, float*, float*, float*)>(title_global<uint32_t>(0x0095e6b0))(
+            &pic_x, &pic_y, &pic_w, &pic_h);
+        RE_StretchPic(pic_x, pic_y, pic_w, pic_h, 0.0f, 0.0f, 1.0f, 1.0f, reinterpret_cast<void*>(uintptr_t{shader}));
+        advance = width + advance;
+    }
+}
+
+int32_t XB_CDECL RE_TextWidthWithIcons(const uint16_t* text, uint32_t font_name, float scale, float char_width,
+                                       int32_t count) {
+    float width = 0.0f;
+    while (text) {
+        char* line = nullptr;
+        const int32_t icon = R_LayoutTextWithIcons(&line, nullptr, text, &count, &text);
+        if (line && *line) {
+            if (char_width == 0.0f)
+                width = static_cast<float>(RE_TextWidth(line, font_name, scale)) + width;
+            else
+                width = static_cast<float>(Q_PrintStrlen(0, line)) * char_width + width;
+        }
+        if (icon) {
+            // The original hands R_ParseTextIcon the text pointer itself as the byte count it
+            // steps (2 per code).
+            float icon_width, icon_height;
+            uint32_t shader;
+            int32_t consumed = 0;
+            R_ParseTextIcon(scale, text, &consumed, &count, &icon_width, &icon_height, &shader, nullptr);
+            text += consumed / 2;
+            width = icon_width + width;
+        }
+    }
+    return static_cast<int32_t>(width);
 }
 
 void XB_CDECL R_AddFogPass() {

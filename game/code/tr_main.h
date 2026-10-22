@@ -100,6 +100,14 @@ void XB_CDECL RE_SetColor(const float* rgba);
 // colour, when a scene is current.
 void XB_CDECL RE_StretchPic(float x, float y, float w, float h, float s0, float t0, float s1, float t1,
                             void* shader);
+// 0x00240590: RE_StretchPic turned by `angle` degrees about the rectangle's centre
+// (FastSinCos of angle * pi / 180).
+void XB_CDECL RE_StretchPicRotate(float x, float y, float w, float h, float s0, float t0, float s1, float t1,
+                                  float angle, void* shader);
+// 0x0023ee60: Q3's RE_AddPolyToScene for quads only (vertex_count 4): a one-section strip
+// mesh in frame GPU memory with a PCUV material (frame arena) for `shader`, added with
+// the identity matrix.
+void XB_CDECL RE_AddPolyToScene(void* shader, int32_t vertex_count, const uint8_t* verts);
 // 0x00235ff0: a 2D quad from four corners (x, y; clockwise from top left) and their
 // texture coordinates, in the 2D colour, when a scene is current.
 void XB_CDECL RE_DrawQuadPic(const float* points, const float* coords, void* shader);
@@ -199,6 +207,15 @@ void XB_REGS3 R_SetupEntityOrientation(const uint8_t* entity, ROrientation* orie
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL R_LayoutTextWithIcons(char** out, float* colour, const uint16_t* text,
                                                                   int32_t* count, const uint16_t** rest);
 extern "C" void R_LayoutTextWithIcons_entry(void);
+// 0x0023fab0: the icon codes at the start of icon text (kind = high byte): 13-15 set the
+// red/green/blue of `colour` (optional) to value / 255, 16/17 scale *width / *height (both
+// first scale * 48) by value / 32, and a run of kind 18 is a shader name, registered into
+// *shader (first 0); *consumed += 2 per code, *count -= the name's end index. XMM0 = scale,
+// EBX = text, EDX = consumed: entered through R_ParseTextIcon_entry.
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_ParseTextIcon(float scale, const uint16_t* text, int32_t* consumed,
+                                                         int32_t* count, float* width, float* height, uint32_t* shader,
+                                                         float* colour);
+extern "C" void R_ParseTextIcon_entry(void);
 
 // A static model placed in a cell.
 struct RStaticModel {
@@ -431,6 +448,13 @@ extern "C" void RE_ParseButtonToken_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame);
 extern "C" void R_RenderView_entry(void);
 
+// 0x002476b0: Q3's RE_RenderScene: the refdef into tr.refdef (0x0095e5e4: rect, fov,
+// time +0x54, rdflags +0x58), the dynamic light count, then the view parameters (fov,
+// LOD scale <= 4 and bias <= 0 scaled by tan(fov/2) / tan(c), zfar, origin and axis) for
+// R_RenderView. Entered through RE_RenderScene_entry (refdef on the stack, cdecl).
+extern "C" PLATFORM_HIDDEN void XB_CDECL RE_RenderScene(uint32_t entry, const uint8_t* refdef);
+extern "C" void RE_RenderScene_entry(void);
+
 // 0x002374a0 (integral flag in EAX, cvar in ESI): warns and resets a cvar that is not
 // integral (to its integer) or outside [minimum, maximum] (to the bound).
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_CheckCvarRange(uint32_t integral, const uint8_t* cvar, float minimum,
@@ -455,6 +479,17 @@ void XB_CDECL RE_DrawText(float x, float y, uint32_t font_name, float scale, con
 // "{...}" in it, the runs between button tokens plus each icon's shader width scaled
 // to the last run's height (or the token's name as text without a shader).
 int32_t XB_CDECL RE_TextWidth(const char* text, uint32_t font_name, float scale);
+// 0x00241a30: the width of icon text (count 16-bit characters): each laid-out run by
+// RE_TextWidth, or by its printable length * char_width when that is not 0, plus each
+// icon's width (R_ParseTextIcon at size `scale`); truncated to an integer.
+// 0x00241860: icon text (count 16-bit characters) at x, y: each laid-out run with
+// RE_DrawTextExt in the running colour (starting as rgba), each icon (R_ParseTextIcon) as a
+// picture centred on the line, through the 640x480 adjust (0x0095e6b0); arg7 and arg9
+// go to RE_DrawTextExt's ninth and eleventh arguments.
+void XB_CDECL RE_DrawTextWithIcons(float x, float y, uint32_t font_name, float scale, const float* rgba,
+                                   const uint16_t* text, uint32_t arg7, int32_t count, uint32_t arg9);
+int32_t XB_CDECL RE_TextWidthWithIcons(const uint16_t* text, uint32_t font_name, float scale, float char_width,
+                                       int32_t count);
 // 0x0023ec30 (name in EDX): the texture for a shader name: the name up to its first '.',
 // after its last '@'/'$' and last '/', hashed and looked up with Stream_FindTexture -
 // first in the "FrontEnd" zone's bank (when the zone table 0x0095f638 +0x18 has that

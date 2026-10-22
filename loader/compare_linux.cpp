@@ -818,8 +818,17 @@ bool prepare_maps(ChildArea& c) {
         for (const std::string& library : g_config.libraries) allowed |= contains(name, library.c_str());
         if (allowed) continue;
         const uint32_t protection = PROT_READ | (writable ? PROT_WRITE : 0);
-        const auto add = [&](uint32_t from, uint32_t to) {
+        const auto protect = [&](uint32_t from, uint32_t to) {
             if (from < to && c.protect_count < kMaxRanges) c.protect[c.protect_count++] = {from, to, protection};
+        };
+        // Allowed host code pages (Config::host_code) inside the mapping stay executable.
+        const auto add = [&](uint32_t from, uint32_t to) {
+            for (const auto& [begin, end] : g_config.host_code) {
+                if (begin >= end || begin >= to || end <= from) continue;
+                protect(from, std::max(from, begin));
+                from = std::min(to, end);
+            }
+            protect(from, to);
         };
         if (section_begin < e && section_end > b) {
             add(b, section_begin);

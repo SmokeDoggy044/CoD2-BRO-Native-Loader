@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "compare.h"
@@ -62,5 +63,7 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
 // The Direct3D replacements that --compare's test processes record instead of calling
 // (state setters and draws: the title reads nothing back from them).
 std::vector<compare::SdkCall> recorded_sdk_calls();
+// The pages of the RDTSC trampolines (begin, end; 0, 0 before install_title_patches).
+std::pair<uint32_t, uint32_t> rdtsc_trampolines();
 
 }  // namespace loader

@@ -3956,6 +3956,69 @@ uint32_t XB_CDECL nglMeshBuilder_AddSection(uint32_t* material, uint32_t primiti
     return ++current;
 }
 
+uint32_t XB_CDECL nglMeshBuilder_AddIndexRun(uint16_t* indices, uint32_t count, uint32_t base) {
+    uint32_t i = 0;
+    for (; i < count; ++i) {
+        uint32_t& written = title_global<uint32_t>(0x00902964);
+        indices[written] = static_cast<uint16_t>(base + i);
+        ++written;
+    }
+    return i;
+}
+
+void XB_CDECL nglMeshBuilder_AddStrip(uint32_t count, uint32_t stride) {
+    uint8_t* section = title_global<uint8_t*>(0x00902930);
+    auto field = [section](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(section + offset); };
+    const uint32_t base = title_global<uint32_t>(0x00902960) / stride + field(0x40);
+    uint16_t* indices = title_global<uint16_t*>(0x0090296c);
+    uint32_t added = count;
+    if (field(0x2c)) {
+        // Joined to the previous strip by degenerate triangles: repeat its last index and
+        // this strip's first, once more after a strip of odd length (keeps the winding).
+        const bool even = !(title_global<uint8_t>(0x00902958) & 1);
+        added = even ? count + 2 : count + 3;
+        uint32_t& written = title_global<uint32_t>(0x00902964);
+        indices[written] = indices[written - 1];
+        ++written;
+        indices[written] = static_cast<uint16_t>(base);
+        ++written;
+        if (!even) {
+            indices[written] = static_cast<uint16_t>(base);
+            ++written;
+        }
+    }
+    nglMeshBuilder_AddIndexRun(indices, count, base);
+    title_global<uint32_t>(0x00902958) = count;
+    field(0x2c) += added;
+    field(0x40) += count;
+}
+
+PLATFORM_ASM_ENTRY(nglPolyBuilder_SetVertex_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x18(%esp)\n"
+                   "pushl 0x14(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(nglPolyBuilder_SetVertex) "addl $32, %esp\n"
+                   "ret $20")
+
+void XB_CDECL nglPolyBuilder_SetVertex(const uint32_t* builder, uint32_t x, uint32_t y, uint32_t z, uint32_t color,
+                                       uint32_t u, uint32_t v) {
+    const uint8_t* section = reinterpret_cast<const uint8_t*>(
+        uintptr_t{*reinterpret_cast<const uint32_t*>(uintptr_t{builder[1] + 4})});
+    const auto field = [section](uint32_t offset) { return *reinterpret_cast<const uint32_t*>(section + offset); };
+    uint32_t* vertex = reinterpret_cast<uint32_t*>(uintptr_t{field(0x54) + builder[2] * 0x18 + field(0x44)});
+    vertex[0] = x;
+    vertex[1] = y;
+    vertex[2] = z;
+    vertex[5] = color;
+    vertex[3] = u;
+    vertex[4] = v;
+}
+
 void XB_THISCALL nglVertexBuffer_Unlock(uint32_t*) {}
 
 uint32_t XB_THISCALL nglVertexBuffer_GetD3D(const uint32_t* self) { return self[2]; }

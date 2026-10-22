@@ -1011,6 +1011,18 @@ void XB_CDECL nglMeshBuilder_Begin(uint32_t flags, uint32_t section_count, uint3
 uint32_t XB_CDECL nglMeshBuilder_AddSection(uint32_t* material, uint32_t primitive_type, uint32_t vertex_count,
                                             uint32_t unused, uint32_t index_count, const uint16_t* indices,
                                             uint32_t stride);
+// 0x0001d230: count indices base, base + 1, ... at the builder's index count (0x00902964).
+uint32_t XB_CDECL nglMeshBuilder_AddIndexRun(uint16_t* indices, uint32_t count, uint32_t base);
+// 0x0001d280: a triangle strip of `count` vertices at the builder's vertex offset
+// (0x00902960 / stride + the last section's +0x40) into the index buffer (0x0090296c);
+// after the first strip of the section joined by degenerate triangles. Section +0x2c =
+// index count, +0x40 = vertex count; 0x00902958 = the strip's length.
+void XB_CDECL nglMeshBuilder_AddStrip(uint32_t count, uint32_t stride);
+// 0x000295d0 (builder in EAX, x in XMM0; stdcall): vertex builder[2] (24 bytes: x y z u v
+// colour) of the section at builder[1] + 4.
+extern "C" PLATFORM_HIDDEN void XB_CDECL nglPolyBuilder_SetVertex(const uint32_t* builder, uint32_t x, uint32_t y,
+                                                                  uint32_t z, uint32_t color, uint32_t u, uint32_t v);
+extern "C" void nglPolyBuilder_SetVertex_entry(void);
 // No-op: vertex memory needs no unlocking on the Xbox.
 void XB_THISCALL nglVertexBuffer_Unlock(uint32_t* self);
 // The D3D vertex buffer (+8) of an NGL vertex buffer.

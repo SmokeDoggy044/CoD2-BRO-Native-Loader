@@ -100,13 +100,31 @@ void swap_effects(int32_t a, int32_t b) {
 
 }  // namespace
 
+void XB_THISCALL FX_ReleaseEffectHandle(FxEffect* effect) {
+    uint8_t* const system = reinterpret_cast<uint8_t*>(uintptr_t{effect->unknown04});
+    if (!system) return;
+    if (effect->unknown18 == -1) {
+        FX_StopEffect(system, 0);
+        effect->unknown04 = 0;
+        return;
+    }
+    title_global<int32_t>(0x008bb764) = effect->unknown18;
+    title_global<uint32_t>(0x00909948) = 1;
+    FxRandom_Reset();
+    FX_StopEffect(reinterpret_cast<uint8_t*>(uintptr_t{effect->unknown04}), 0);
+    FxRandom_Restore();
+    effect->unknown04 = 0;
+    title_global<int32_t>(0x008bb764) = -1;
+    title_global<uint32_t>(0x00909948) = 0;
+}
+
 PLATFORM_ASM_ENTRY(FX_FreeEffect_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(FX_FreeEffect) "addl $4, %esp\n"
                    "ret")
 
 void XB_CDECL FX_FreeEffect(FxEffect* effect) {
     if (!effect) return;
-    title_function<void XB_THISCALL(FxEffect*)>(0x00029560)(effect);  // FX_ReleaseEffectHandle
+    FX_ReleaseEffectHandle(effect);
     uint32_t& free_count = title_global<uint32_t>(0x00988810);
     *reinterpret_cast<uint16_t*>(effect) = static_cast<uint16_t>(free_count);
     if (static_cast<int32_t>(free_count) >= 0xf0) return;
@@ -342,6 +360,101 @@ PtrVector& effect_lights() { return title_global<PtrVector>(0x00988714); }
 
 }  // namespace
 
+uint32_t XB_THISCALL apsPool_HasRoom(uint32_t, int32_t count) {
+    const uint8_t* pool = title_global<const uint8_t*>(0x00909f64);
+    return static_cast<int32_t>(*reinterpret_cast<const uint32_t*>(pool + 8) - *reinterpret_cast<const uint32_t*>(pool + 0xc)) >=
+           count;
+}
+
+uint32_t XB_CDECL FX_HasParticleRoom(const uint8_t* definition) {
+    const uint8_t* systems = title_global<const uint8_t*>(0x00909994);
+    if (*reinterpret_cast<const uint32_t*>(systems + 8) == *reinterpret_cast<const uint32_t*>(systems + 0xc)) return 0;
+    return apsPool_HasRoom(title_global<uint32_t>(0x00909f60), *reinterpret_cast<const int16_t*>(definition + 0x56)) != 0;
+}
+
+void XB_THISCALL FxEffectDef_SetElementValue(uint8_t* definition, uint32_t element, float value) {
+    *reinterpret_cast<float*>(*reinterpret_cast<uint8_t**>(definition + 0x50) + element * 0x3c + 8) = value;
+}
+
+FxEffect* XB_CDECL FX_SpawnEffect(uint8_t* definition, const float* matrix, uint32_t owner_a, uint32_t owner_b,
+                                  uint32_t owner_c, uint8_t owner_flag) {
+    if (!definition) return nullptr;
+    const bool no_slot = !title_global<uint32_t>(0x0095f6e4) || !title_global<uint32_t>(0x00988810);
+    // Over budget: more than 80% of the manager's limit (+0x484) in use (+0x488).
+    const uint8_t* manager = title_global<const uint8_t*>(0x0095f6d8);  // via 0x00042e50 (returns ECX)
+    const float limit = platform_x87_unsigned_to_float(*reinterpret_cast<const uint32_t*>(manager + 0x484));
+    const float used = platform_x87_unsigned_to_float(*reinterpret_cast<const uint32_t*>(manager + 0x488));
+    const bool over_budget = used > limit * title_global<float>(0x0083ebc0);
+    if (!FX_HasParticleRoom(definition) || no_slot || over_budget) {
+        uint8_t* victim = FX_FindEvictableEffect(definition);
+        if (victim) {
+            FxEffect* evicted = reinterpret_cast<FxEffect*>(victim);
+            if (evicted->unknown18 != -1) {
+                FxRandom_Reset();
+                title_global<int32_t>(0x008bb764) = evicted->unknown18;
+                title_global<uint32_t>(0x00909948) = 1;
+                FX_StopEffect(address_to_pointer(evicted->unknown04), 1);
+                FxRandom_Restore();
+                title_global<int32_t>(0x008bb764) = -1;
+                title_global<uint32_t>(0x00909948) = 0;
+            } else {
+                FX_StopEffect(address_to_pointer(evicted->unknown04), 1);
+            }
+            evicted->unknown04 = 0;
+        }
+        if (no_slot) return nullptr;
+    }
+    FxEffect* effect = FX_AllocEffect();
+    if (!effect) return nullptr;
+    const int32_t id = title_global<int32_t>(0x009717f0);
+    effect->unknown18 = id;
+    uint8_t* system;
+    if (id != -1) {
+        title_global<int32_t>(0x008bb764) = id;
+        title_global<uint32_t>(0x00909948) = 1;
+        FxRandom_Reset();
+        system = apsEffect_Create(definition, title_global<float>(0x0095f6e0));
+        FxRandom_Restore();
+        title_global<int32_t>(0x008bb764) = -1;
+        title_global<uint32_t>(0x00909948) = 0;
+    } else {
+        system = apsEffect_Create(definition, title_global<float>(0x0095f6e0));
+    }
+    if (!system) {
+        FX_FreeEffect(effect);
+        return nullptr;
+    }
+    effect->unknown04 = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(system));
+    FxSystem_SetMatrix(system, matrix);
+    if (owner_a || owner_b) {
+        effect->unknown0c = owner_a;
+        effect->unknown10 = owner_b;
+        effect->unknown14 = static_cast<uint16_t>(owner_c);
+        if (owner_flag) effect->unknown16 |= 1;
+    }
+    // Elements whose value (+8 of each 0x3c-byte element) is still FLT_MAX get the largest
+    // finite value of the definition (truncated), 10 when there is none.
+    const float unset = title_global<float>(0x0082eed0);
+    for (int32_t i = 0; i < *reinterpret_cast<const int16_t*>(definition + 0x56); ++i) {
+        const uint8_t* elements = *reinterpret_cast<uint8_t* const*>(definition + 0x50);
+        if (!(*reinterpret_cast<const float*>(elements + i * 0x3c + 8) == unset)) continue;
+        int32_t largest = 0;
+        bool none = true;
+        for (int32_t k = *reinterpret_cast<const int16_t*>(definition + 0x56), j = 0; k > 0; --k, ++j) {
+            const float value = *reinterpret_cast<const float*>(elements + j * 0x3c + 8);
+            if (!(unset > value)) continue;
+            if (value > static_cast<float>(largest)) largest = static_cast<int32_t>(value);
+            none = false;
+        }
+        if (none) largest = 10;
+        FxEffectDef_SetElementValue(definition, static_cast<uint32_t>(i), static_cast<float>(largest));
+    }
+    uint8_t* pushed = reinterpret_cast<uint8_t*>(effect);
+    PtrVector_PushBack_call(&effect_list(), &pushed);
+    effect->unknown18 = title_global<int32_t>(0x009717f0);
+    return effect;
+}
+
 void XB_CDECL FX_SortEffects() {
     uint8_t** entry = effect_list().data;
     uint8_t** const end = entry + effect_list().count;
@@ -412,18 +525,6 @@ void XB_CDECL FX_FreeAllEffects(FxIdList* instances) {
 
 namespace {
 
-// 0x00284a80 (obj EAX, origin ECX, axis EBX): the placement of the DObj's owner.
-extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_GetOwnerPlacement_call(uint8_t* obj, float* origin, float* axis);
-PLATFORM_ASM_ENTRY(DObj_GetOwnerPlacement_call,
-                   "pushl %ebx\n"
-                   "movl 8(%esp), %eax\n"
-                   "movl 12(%esp), %ecx\n"
-                   "movl 16(%esp), %ebx\n"
-                   "movl $0x00284a80, %edx\n"
-                   "call *%edx\n"
-                   "popl %ebx\n"
-                   "ret")
-
 // CG_DObjEnsureSkeleton (0x0027f860): obj in ESI.
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DObjEnsureSkeleton_call(uint8_t* obj);
 PLATFORM_ASM_ENTRY(CG_DObjEnsureSkeleton_call,
@@ -453,6 +554,29 @@ PLATFORM_ASM_ENTRY(DebugDraw_AddLine_call,
 
 }  // namespace
 
+PLATFORM_ASM_ENTRY(DObj_GetOwnerPlacement_entry,
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DObj_GetOwnerPlacement) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL DObj_GetOwnerPlacement(const uint8_t* obj, float* origin, float* axis) {
+    const uint8_t* owner = *reinterpret_cast<uint8_t* const*>(obj + 0x88);
+    if (!owner) {
+        std::memcpy(origin, &title_global<float>(0x00972fd8), 3 * sizeof(float));
+        std::memcpy(axis, &title_global<float>(0x00972fe4), 9 * sizeof(float));
+        return;
+    }
+    std::memcpy(origin, owner + 0x60, 3 * sizeof(float));
+    // AnglesToAxis(angles +0x70, forward = axis[0]) with right in a local, up = axis[2]; the
+    // left axis is 0 - right.
+    uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(owner + 0x70)),
+                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(axis))};
+    float right[3];
+    AnglesToAxis(args, right, axis + 6);
+    for (int i = 0; i < 3; ++i) axis[3 + i] = 0.0f - right[i];
+}
+
 PLATFORM_ASM_ENTRY(FX_GetBoltMatrix_entry,
                    "pushl 8(%esp)\n"
                    "pushl 8(%esp)\n"
@@ -467,7 +591,7 @@ uint8_t XB_CDECL FX_GetBoltMatrix(float* out, uint32_t handle, int32_t bone) {
     uint8_t* obj = reinterpret_cast<uint8_t*>(uintptr_t{slot[0]});
     if (!obj) return 0;
     float origin[3], axis[9];
-    DObj_GetOwnerPlacement_call(obj, origin, axis);
+    DObj_GetOwnerPlacement(obj, origin, axis);
     if (bone < 0) {
         std::memcpy(out, origin, sizeof origin);
         std::memcpy(out + 3, axis, sizeof axis);
@@ -1492,6 +1616,150 @@ void XB_CDECL FX_UpdateEffects_body(uint32_t entry, FxIdList* list, uint32_t del
     for (uint32_t i = 0; i < queued; ++i) {
         const uint32_t spawn = list_address + 0x920 + i * 0x210;
         at.call(0x002a5810, TitleRegs{queued, spawn, 0, 0, i, list_address}, spawn);  // FX_SpawnQueuedEffect
+    }
+    queued = 0;
+}
+
+namespace {
+
+// Deletes component i of an effect's {count, component[]} list; the last one takes its place.
+void remove_component(uint32_t* components, uint32_t i) {
+    const uint32_t component = components[1 + i];
+    if (component)
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(component, 0))(component, 1);  // deleting dtor
+    components[1 + i] = components[components[0]];
+    if (components[0]) --components[0];
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FX_PruneComponents_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FX_PruneComponents) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL FX_PruneComponents(uint32_t* components) {
+    for (uint32_t i = 0; i < components[0]; ++i) {
+        const uint32_t component = components[1 + i];
+        if (!(title_function<uint8_t XB_THISCALL(uint32_t)>(vtable_slot(component, 8))(component) & 0xff)) continue;
+        if (*reinterpret_cast<const uint8_t*>(address_to_pointer(component) + 0x10) & 1) continue;
+        remove_component(components, i);
+        --i;
+    }
+}
+
+PLATFORM_ASM_ENTRY(FX_UpdateEffect_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(FX_UpdateEffect) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL FX_UpdateEffect(uint32_t* effect, uint32_t delta) {
+    const uint32_t flags = effect[0x14];
+    if ((flags >> 1) & 1) return;
+    if (flags & 1) FX_PruneComponents(effect);
+    uint32_t count = effect[0];
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t component = effect[1 + i];
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(component, 1))(component, delta);  // Update
+        if (static_cast<int32_t>(count) > static_cast<int32_t>(effect[0])) {
+            // The component removed itself: the same index again.
+            --i;
+            --count;
+            continue;
+        }
+        component = effect[1 + i];
+        if (!(title_function<uint8_t XB_THISCALL(uint32_t)>(vtable_slot(component, 6))(component) & 0xff)) continue;
+        Entity_EndSoundNotify(FxComponent_GetEntity(address_to_pointer(component)));
+        remove_component(effect, i);
+        --i;
+        --count;
+    }
+}
+
+// FX_SpawnQueuedEffect (0x002a5810): list in EDI, the spawn record on the stack (stdcall);
+// the callees run where the original's calls put them (four pushes below the entry), as
+// in FX_UpdateEffects.
+PLATFORM_ASM_ENTRY(FX_SpawnQueuedEffect_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "leal 4(%ebp), %ecx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(FX_SpawnQueuedEffect_body) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret $4")
+
+void XB_CDECL FX_SpawnQueuedEffect_body(uint32_t entry, FxIdList* list, uint8_t* spawn) {
+    const EffectsFrame at{entry - 16};
+    const uint32_t key = *reinterpret_cast<const uint32_t*>(spawn + 0x1f8);
+    uint32_t i = 0;
+    while (i < list->count && *reinterpret_cast<const uint32_t*>(list->items[i] + 0x4c) != key) ++i;
+    if (i == list->count) return;
+    uint8_t* const item = list->items[i];
+    if (!item) return;
+    const uint32_t handle = *reinterpret_cast<const uint32_t*>(spawn + 0x1f0);
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && title_global<uint32_t>(0x0097a96c + index * 8) == handle >> 12) {
+        const uint32_t entity = title_global<uint32_t>(0x0097a968 + index * 8);
+        if (entity) {
+            const uint32_t view = *reinterpret_cast<const uint32_t*>(uintptr_t{title_global<uint32_t>(0x0095f534) + 4});
+            const auto coord = [](uint32_t base, uint32_t offset) {
+                return *reinterpret_cast<const float*>(uintptr_t{base + offset});
+            };
+            const float dx = coord(entity, 0x140) - coord(view, 0x140);
+            const float dy = coord(entity, 0x144) - coord(view, 0x144);
+            const float dz = coord(entity, 0x148) - coord(view, 0x148);
+            const float distance = dz * dz + dy * dy + dx * dx;
+            uint32_t distance_bits;
+            std::memcpy(&distance_bits, &distance, 4);
+            const uint32_t list_address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list));
+            const uint32_t spawn_address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(spawn));
+            const uint32_t item_address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(item));
+            const TitleRegs regs{0, spawn_address, 0, 0, item_address, list_address};
+            const uint32_t args4[] = {list_address, spawn_address, item_address, distance_bits};
+            const auto call = [&](uint32_t function, uint32_t count) {
+                const uint32_t added = title_call_at_regs(at.top, function, &regs, count, args4);
+                constexpr uint32_t kScrub = 16 * 1024;
+                std::memset(reinterpret_cast<void*>(uintptr_t{at.top - 8 - kScrub}), 0, kScrub);
+                return added;
+            };
+            const auto stdcall3 = [](uint32_t (XB_STDCALL *function)(uint32_t, const uint8_t*, uint32_t*)) {
+                return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function));
+            };
+            uint32_t added = call(code_address(&FX_AddSoundComponents_entry), 4);
+            added += call(code_address(&FX_AddParticleComponents_entry), 4);
+            added += call(stdcall3(&FX_AddLightComponents), 3);
+            added += call(stdcall3(&FX_AddShakeRumbleComponents), 3);
+            if (!added) {
+                const TitleRegs notify{entity, spawn_address, 0, 0, item_address, list_address};
+                title_call_at_regs(at.top, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&Entity_EndSoundNotify)),
+                                   &notify, 0, nullptr);
+            }
+        }
+    }
+    *reinterpret_cast<uint32_t*>(item + 0x50) &= ~2u;
+}
+
+// 0x002a5940 (list in EAX): FX_SpawnQueuedEffect of each queued spawn, three pushes below
+// the entry.
+PLATFORM_ASM_ENTRY(FX_FlushSpawnQueue_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "leal 4(%ebp), %ecx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(FX_FlushSpawnQueue_body) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL FX_FlushSpawnQueue_body(uint32_t entry, uint8_t* list) {
+    const EffectsFrame at{entry - 12};
+    const uint32_t list_address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list));
+    uint32_t& queued = *reinterpret_cast<uint32_t*>(list + 0x910);
+    for (uint32_t i = 0; i < queued; ++i) {
+        const uint32_t spawn = list_address + 0x920 + i * 0x210;
+        at.call_ours(code_address(&FX_SpawnQueuedEffect_entry), TitleRegs{queued, spawn, 0, 0, i, list_address},
+                     spawn);
     }
     queued = 0;
 }

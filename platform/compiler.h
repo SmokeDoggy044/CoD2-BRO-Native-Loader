@@ -112,6 +112,12 @@ inline float platform_x87_tan(float x) {
     __asm__("fptan\n\tfstp %%st(0)" : "=t"(result) : "0"(x));
     return result;
 }
+// FPTAN kept in extended precision (the title divides two of them on the x87).
+inline long double platform_x87_tan_ext(long double x) {
+    long double result;
+    __asm__("fptan\n\tfstp %%st(0)" : "=t"(result) : "0"(x));
+    return result;
+}
 // t - sqrt(a * b) >= limit, all on the x87 (FMUL/FSQRT/FSUBR/FCOMIP); false when
 // unordered.
 inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
@@ -366,6 +372,7 @@ inline float platform_x87_div_by_unsigned(float numerator, std::uint32_t value) 
 inline float platform_x87_sin(float x) { return std::sin(x); }
 inline float platform_x87_cos(float x) { return std::cos(x); }
 inline float platform_x87_tan(float x) { return std::tan(x); }
+inline long double platform_x87_tan_ext(long double x) { return std::tan(x); }
 inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
     return t - std::sqrt(a * b) >= limit;
 }

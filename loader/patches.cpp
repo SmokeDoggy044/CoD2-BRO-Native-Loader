@@ -131,6 +131,10 @@ void put_rel32(uint8_t* at, uint8_t opcode, const void* target) {
 
 // Each site: JMP to a trampoline that does pushfd; push ecx; call title_rdtsc;
 // pop ecx; popfd; <the moved instructions>; jmp back.
+// The RDTSC trampolines' pages (alloc_code rounds up to whole pages).
+uint32_t g_rdtsc_pool_begin = 0;
+uint32_t g_rdtsc_pool_end = 0;
+
 void install_rdtsc_patches(std::span<const RdtscSite> sites) {
     constexpr size_t kTrampolineSize = 32;
     auto* pool = alloc_code(sites.size() * kTrampolineSize);
@@ -138,6 +142,8 @@ void install_rdtsc_patches(std::span<const RdtscSite> sites) {
         LOG_ERROR("patches", "no memory for the RDTSC trampolines; the title runs at the host's TSC rate");
         return;
     }
+    g_rdtsc_pool_begin = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pool));
+    g_rdtsc_pool_end = g_rdtsc_pool_begin + static_cast<uint32_t>((sites.size() * kTrampolineSize + 0xfff) & ~size_t{0xfff});
     int installed = 0;
     for (size_t i = 0; i < sites.size(); ++i) {
         const RdtscSite& site = sites[i];
@@ -1352,8 +1358,13 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
             call.stand_in == compare::SdkStandIn::ReturnAddRef ? render::back_buffer_slot() : nullptr;
         calls.push_back({call.name, host, call.args, call.stand_in, value});
     }
+    // The RDTSC trampolines' clock (Sys_Milliseconds and the frame timers): 0 on both sides
+    // (the trampolines themselves stay executable: rdtsc_trampolines).
+    calls.push_back({"title_rdtsc", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&title_rdtsc)), ""});
     return calls;
 }
+
+std::pair<uint32_t, uint32_t> rdtsc_trampolines() { return {g_rdtsc_pool_begin, g_rdtsc_pool_end}; }
 
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {
     const TitleData& data = title_data(title);

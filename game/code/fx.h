@@ -25,9 +25,30 @@ struct FxEffect {
 static_assert(sizeof(FxEffect) == 0x1c);
 #endif
 
+// 0x00029560 (thiscall): stops the effect's system (+0x04, FX_StopEffect, not immediate) and
+// clears it; with an id (+0x18 not -1) under that id (0x008bb764) and the particle random
+// reset (FxRandom_Reset/Restore).
+void XB_THISCALL FX_ReleaseEffectHandle(FxEffect* effect);
+
 // 0x0023b970: takes an effect off the free list and clears it; null when the pool
 // is not set up or empty.
 FxEffect* XB_CDECL FX_AllocEffect();
+// 0x0009f220 (thiscall; ECX unread): whether the particle pool 0x00909f64 has `count`
+// free items (+8 - +0xc).
+uint32_t XB_THISCALL apsPool_HasRoom(uint32_t unused, int32_t count);
+// 0x00094890: whether a particle system (pool 0x00909994) and the definition's elements
+// (+0x56) fit.
+uint32_t XB_CDECL FX_HasParticleRoom(const uint8_t* definition);
+// 0x00096460 (thiscall, stdcall): the value (+8) of the definition's element (0x3c bytes
+// each at +0x50).
+void XB_THISCALL FxEffectDef_SetElementValue(uint8_t* definition, uint32_t element, float value);
+// 0x0023c040: a new effect running `definition` at `matrix`: without a free effect slot,
+// room for the particles, or over 80% of the manager's budget, an evictable effect is
+// stopped first (none spawned without a slot); the system is created under the current
+// effect id (0x009717f0), the owner (+0xc/+0x10/+0x14, flag 1 of +0x16) set when given,
+// FLT_MAX element values resolved and the effect added to the effect list (0x00988ce8).
+FxEffect* XB_CDECL FX_SpawnEffect(uint8_t* definition, const float* matrix, uint32_t owner_a, uint32_t owner_b,
+                                  uint32_t owner_c, uint8_t owner_flag);
 
 // 0x00236b40: walks the active effects (0x00988804, count 0x0098880c) from the
 // newest down and returns the first one whose definition (+4) has a priority
@@ -255,6 +276,34 @@ void XB_CDECL FX_InitEffectPool();
 // position (title_call_at_regs).
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_UpdateEffects_body(uint32_t entry, FxIdList* list, uint32_t delta);
 extern "C" void FX_UpdateEffects_entry(void);
+
+// 0x00296c90 (components in ESI): deletes the components of a {count, component[]} list
+// whose slot 8 reports them finished, unless flag 1 of their +0x10 keeps them (the last
+// takes the place of each).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_PruneComponents(uint32_t* components);
+extern "C" void FX_PruneComponents_entry(void);
+// 0x0029b8f0 (effect in EBX, delta on the stack, stdcall): unless flag 2 of +0x50, pruned
+// first with flag 1, every component's Update (slot 1, delta); one that then reports done
+// (slot 6) ends its entity's sound notify (Entity_EndSoundNotify) and is deleted.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_UpdateEffect(uint32_t* effect, uint32_t delta);
+extern "C" void FX_UpdateEffect_entry(void);
+
+// 0x00284a80 (obj EAX, origin ECX, axis EBX): the placement of the DObj's owner (+0x88:
+// origin +0x60, angles +0x70 -> forward/left/up); without an owner the identity placement
+// at 0x00972fd8.
+extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_GetOwnerPlacement(const uint8_t* obj, float* origin, float* axis);
+extern "C" void DObj_GetOwnerPlacement_entry(void);
+
+// 0x002a5810 (list in EDI, spawn record on the stack, stdcall): finds the list item whose
+// +0x4c equals the record's +0x1f8; when the record's entity handle (+0x1f0: index in the low
+// 12 bits, generation above; table 0x0097a968, 8 bytes each) is live, the four
+// FX_Add*Components run with the squared distance to the view entity (0x0095f534 + 4,
+// origin +0x140); none added -> Entity_EndSoundNotify. Clears flag 2 of the item's +0x50.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_SpawnQueuedEffect_body(uint32_t entry, FxIdList* list, uint8_t* spawn);
+extern "C" void FX_SpawnQueuedEffect_entry(void);
+// 0x002a5940 (list in EAX; called by FXCmd_Alloc): the queue part of FX_UpdateEffects.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_FlushSpawnQueue_body(uint32_t entry, uint8_t* list);
+extern "C" void FX_FlushSpawnQueue_entry(void);
 
 // The particle library's growable arrays: storage from the particle heap (0x008bb760).
 struct ApsArray {  // 8 bytes
