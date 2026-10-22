@@ -335,6 +335,104 @@ uint32_t XB_CDECL Stream_FindMeshFile(const uint32_t* hashed, uint32_t streams, 
     return stream_find(streams, zone, hashed, static_cast<uint8_t>(active), mesh_file_lookup);
 }
 
+namespace {
+
+uint32_t anim_lookup(uint32_t hash, const char* key, const uint8_t* zone) { return ZoneAnimMap_Lookup(hash, key, zone); }
+uint32_t a8_lookup(uint32_t hash, const char* key, const uint8_t* zone) { return ZoneMapA8_Lookup(hash, key, zone); }
+
+// Pak_CollectLoadedZoneIds (0x0028ccf0): appends the loaded zones' ids to the list in ESI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Pak_CollectLoadedZoneIds_call(uint32_t* list);
+PLATFORM_ASM_ENTRY(Pak_CollectLoadedZoneIds_call,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "movl $0x0028ccf0, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+uint32_t search_list(uint32_t streams, const uint32_t* list, uint32_t count, const uint32_t* hashed,
+                     uint32_t (*lookup)(uint32_t, const char*, const uint8_t*)) {
+    for (int32_t i = 0; i < static_cast<int32_t>(count); ++i) {
+        const uint32_t id = list[1 + i];
+        if (id == 0xffffffff) continue;
+        const uint32_t zone_data = *reinterpret_cast<const uint32_t*>(uintptr_t{streams + 0x5c + id * 4});
+        if (!zone_data) continue;
+        const uint32_t entry = lookup(hashed[0], reinterpret_cast<const char*>(hashed + 1),
+                                      reinterpret_cast<const uint8_t*>(uintptr_t{zone_data}));
+        if (entry) return *reinterpret_cast<const uint32_t*>(uintptr_t{entry});
+    }
+    return 0;
+}
+
+}  // namespace
+
+#define STREAM_FIND_EBX_ENTRY(name)                                                                  \
+    PLATFORM_ASM_ENTRY(name##_entry, "pushl 16(%esp)\n"                                             \
+                                     "pushl 16(%esp)\n"                                             \
+                                     "pushl 16(%esp)\n"                                             \
+                                     "pushl 16(%esp)\n"                                             \
+                                     "pushl %ebx\n" PLATFORM_ASM_CALL(name) "addl $20, %esp\n"      \
+                                     "ret $16")
+
+STREAM_FIND_EBX_ENTRY(Stream_FindAnim)
+uint32_t XB_CDECL Stream_FindAnim(const uint32_t* hashed, uint32_t streams, uint32_t zone, uint32_t active, uint32_t) {
+    if (title_global<uint8_t>(0x0095f636)) return 0;
+    return stream_find(streams, zone, hashed, static_cast<uint8_t>(active), anim_lookup);
+}
+
+STREAM_FIND_EBX_ENTRY(Stream_FindMapA8)
+uint32_t XB_CDECL Stream_FindMapA8(const uint32_t* hashed, uint32_t streams, uint32_t zone, uint32_t active,
+                                   uint32_t) {
+    if (title_global<uint8_t>(0x0095f636)) return 0;
+    return stream_find(streams, zone, hashed, static_cast<uint8_t>(active), a8_lookup);
+}
+
+STREAM_FIND_EBX_ENTRY(Stream_FindEffect)
+uint32_t XB_CDECL Stream_FindEffect(const uint32_t* hashed, uint32_t streams, uint32_t zone, uint32_t active,
+                                    uint32_t) {
+    uint32_t list[0x21];
+    list[0] = 0;
+    Pak_CollectLoadedZoneIds_call(list);
+    if (static_cast<uint8_t>(active)) {
+        if (global_context()) MemContext_ListActive(global_context(), list);
+    } else {
+        Stream_ListSearchZones(zone, list);
+    }
+    return search_list(streams, list, list[0], hashed,
+                       [](uint32_t hash, const char* key, const uint8_t* z) { return ZoneEffectMap_Lookup(hash, key, z); });
+}
+
+PLATFORM_ASM_ENTRY(Stream_FindSkel_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Stream_FindSkel) "addl $20, %esp\n"
+                   "ret $16")
+
+uint32_t XB_CDECL Stream_FindSkel(uint32_t active, uint32_t streams, uint32_t zone, const uint32_t* hashed, uint32_t) {
+    uint32_t list[0x21];
+    list[0] = 0;
+    bool collect = false;
+    if (static_cast<uint8_t>(active)) {
+        if (global_context()) {
+            MemContext_ListActive(global_context(), list);
+            collect = static_cast<int32_t>(list[0]) <= 2;
+        } else {
+            collect = true;
+        }
+    } else {
+        Stream_ListSearchZones(zone, list);
+        collect = static_cast<int32_t>(list[0]) <= 2;
+    }
+    if (collect) {
+        list[0] = 0;
+        Pak_CollectLoadedZoneIds_call(list);
+    }
+    return search_list(streams, list, list[0], hashed,
+                       [](uint32_t hash, const char* key, const uint8_t* z) { return ZoneSkelMap_Lookup(hash, key, z); });
+}
+
 PLATFORM_ASM_ENTRY(Stream_LoadTexture_entry,
                    "pushl 16(%esp)\n"
                    "pushl 16(%esp)\n"

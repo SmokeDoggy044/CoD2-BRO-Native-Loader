@@ -102,6 +102,22 @@ uint32_t XB_STDCALL Stream_FindTexture(uint32_t streams, uint32_t zone, const ch
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_FindMeshFile(const uint32_t* hashed, uint32_t streams,
                                                                  uint32_t zone, uint32_t active, uint32_t unused);
 extern "C" void Stream_FindMeshFile_entry(void);
+// 0x002902a0 / 0x00290350 (was FUN_00290350): the same for anims / the +0xa8 map (0x0095f636).
+// 0x00290150 (hashed in EBX): effects, no guard; the loaded zones (Pak_CollectLoadedZoneIds)
+// first, then the active or searched ones. 0x002901f0 (active flag in EAX; streams, zone, hashed,
+// ?): skeletons; the loaded zones instead when the list has at most two.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_FindAnim(const uint32_t* hashed, uint32_t streams, uint32_t zone,
+                                                             uint32_t active, uint32_t unused);
+extern "C" void Stream_FindAnim_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_FindMapA8(const uint32_t* hashed, uint32_t streams, uint32_t zone,
+                                                              uint32_t active, uint32_t unused);
+extern "C" void Stream_FindMapA8_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_FindEffect(const uint32_t* hashed, uint32_t streams, uint32_t zone,
+                                                               uint32_t active, uint32_t unused);
+extern "C" void Stream_FindEffect_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_FindSkel(uint32_t active, uint32_t streams, uint32_t zone,
+                                                             const uint32_t* hashed, uint32_t unused);
+extern "C" void Stream_FindSkel_entry(void);
 // 0x00290860 (name in EBX; data, size, memory context id or -1, kind): the texture file
 // loaded under its base name (nglLoadTexture), "no_" names loaded as "po_"; with a context
 // id, inside that context (0x0095f5d0 set meanwhile; returns MemContext_Pop then).
