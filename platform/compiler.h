@@ -210,6 +210,23 @@ inline float platform_x87_exp2_series(float k, float t, float half, float one) {
             : "st", "st(1)");
     return result;
 }
+// (a + b) * c on the x87 (the caller's precision control), stored as float.
+inline float platform_x87_add_mul(float a, float b, float c) {
+    float result;
+    __asm__("flds %1\n\tfadds %2\n\tfmuls %3\n\tfstps %0" : "=m"(result) : "m"(a), "m"(b), "m"(c) : "st");
+    return result;
+}
+// one / sqrt(((a*a + b*b) + c*c) + d*d) on the x87 (the caller's precision control),
+// stored as float.
+inline float platform_x87_rcp_norm4(float a, float b, float c, float d, float one) {
+    float result;
+    __asm__("flds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %3\n\tfmuls %3\n\tfaddp\n\t"
+            "flds %4\n\tfmuls %4\n\tfaddp\n\tfsqrt\n\tfdivrs %5\n\tfstps %0"
+            : "=m"(result)
+            : "m"(a), "m"(b), "m"(c), "m"(d), "m"(one)
+            : "st", "st(1)");
+    return result;
+}
 // FILD + FMUL + FSTP: an integer times a float on the x87 (the caller's precision and
 // rounding control), stored as float. No MXCSR flags.
 inline float platform_x87_int_mul(std::int32_t value, float factor) {
@@ -345,6 +362,14 @@ inline float platform_x87_sqrt_abs_sub_mul(float one, float x, float half) {
 inline float platform_x87_div_mul(float a, float b, float c) { return a / b * c; }
 inline float platform_x87_mul_div_add(float a, float b, float c, float d) { return a * b / c + d; }
 inline float platform_x87_add(float a, float b) { return a + b; }
+inline float platform_x87_add_mul(float a, float b, float c) { return (a + b) * c; }
+inline float platform_x87_rcp_norm4(float a, float b, float c, float d, float one) {
+    return one / std::sqrt(((a * a + b * b) + c * c) + d * d);
+}
+inline float platform_x87_exp2_series(float k, float t, float half, float one) {
+    const float y = std::log(k) * t;
+    return (half * y + one) * y + one;
+}
 inline float platform_x87_mul_add(float a, float b, float c) { return a * b + c; }
 inline float platform_x87_mul_mul_add(float a, float b, float c, float d) { return a * b * c + d; }
 inline float platform_x87_unsigned_mul_mul(std::uint32_t value, float b, float c) {

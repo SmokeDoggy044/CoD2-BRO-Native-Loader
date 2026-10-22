@@ -2334,4 +2334,240 @@ void XB_THISCALL apsActionUVFrame_Apply(uint8_t* self, uint8_t* begin, uint8_t* 
     }
 }
 
+float XB_CDECL apsAtan2(float y, float x) {
+    const float abs_y = abs_float(y);
+    const float abs_x = abs_float(x);
+    if (platform_x87_add(abs_y, abs_x) == 0.0f) return 0.0f;
+    const float inverse = platform_x87_rcp_hypot(y, x, title_global<float>(0x0083eb20));
+    const float half = title_global<float>(0x0083eb24);
+    float angle;
+    if (abs_y > abs_x) {
+        const float t = inverse * abs_x;
+        angle = title_global<float>(0x0083ed0c) - (half > t ? asin_series(t) : asin_upper(t));
+    } else {
+        const float t = inverse * abs_y;
+        angle = half > t ? asin_series(t) : asin_upper(t);
+    }
+    if (0.0f > x) angle = title_global<float>(0x007c8cc0) - angle;
+    if (0.0f > y) angle = 0.0f - angle;
+    return angle;
+}
+
+namespace {
+
+// The ATEX/ATEY/ATEZ body: every particle's angle set to the view heading (0x00909980)
+// of the emitter matrix's row at `Row` (dots with the view columns 0x00909960/70; kept
+// when both are 0), scaled by 0x00909984.
+template <uint32_t Row>
+void angle_to_emitter_axis(uint8_t* begin, uint8_t* end, uint8_t* emitter) {
+    const float offset = title_global<float>(0x00909980) - title_global<float>(0x0083ed0c);
+    const float scale = title_global<float>(0x00909984);
+    const int32_t stride = stride_of(emitter);
+    const Lanes axis = lanes(&at<float>(emitter, Row));
+    const Lanes y_dot = mul(axis, lanes(&title_global<float>(0x00909960)));
+    const float y = (y_dot.v[0] + y_dot.v[1]) + y_dot.v[2];
+    const Lanes x_dot = mul(axis, lanes(&title_global<float>(0x00909970)));
+    const float x = (x_dot.v[0] + x_dot.v[1]) + x_dot.v[2];
+    if (y == 0.0f && x == 0.0f) return;
+    const float angle = platform_x87_add_mul(apsAtan2(y, x), offset, scale);
+    for (uint8_t* p = begin + field(emitter, 0x92); p < end; p += stride) at<float>(p, 0) = angle;
+}
+
+}  // namespace
+
+void XB_THISCALL apsActionAngleToEmitterX_Apply(uint8_t*, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                                float, float) {
+    angle_to_emitter_axis<0x10>(begin, end, emitter);
+}
+void XB_THISCALL apsActionAngleToEmitterY_Apply(uint8_t*, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                                float, float) {
+    angle_to_emitter_axis<0x20>(begin, end, emitter);
+}
+void XB_THISCALL apsActionAngleToEmitterZ_Apply(uint8_t*, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                                float, float) {
+    angle_to_emitter_axis<0x30>(begin, end, emitter);
+}
+
+void XB_THISCALL apsActionPointAttract_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                             float, float delta) {
+    uint8_t* const config = action_config(self);
+    const float strength = at<float>(config, 0x14) * delta;
+    // The point's 4th lane repeats x (the original's stack temporary).
+    alignas(16) float point[4] = {at<float>(config, 8), at<float>(config, 0xc), at<float>(config, 0x10),
+                                  at<float>(config, 8)};
+    if (!(emitter[0xae] & 2)) {  // in the emitter's space
+        alignas(16) float moved[4];
+        std::memcpy(point, Mat44_TransformPoint(moved, &at<float>(emitter, 0x10), point), sizeof(point));
+    }
+    const float closest = title_global<float>(0x0083eb4c);
+    const int32_t stride = stride_of(emitter);
+    uint8_t* velocity = begin + field(emitter, 0x97);
+    for (uint8_t* p = begin + field(emitter, 0x8c); p < end; p += stride, velocity += stride) {
+        const Lanes offset = sub(lanes(reinterpret_cast<float*>(p)), lanes(point));
+        const Lanes squares = mul(offset, offset);
+        float distance2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+        if (closest > distance2) distance2 = closest;
+        const float distance = platform_x87_sqrt(distance2);
+        const float pull = strength / distance2;
+        const Lanes direction = {{offset.v[0] / distance, offset.v[1] / distance, offset.v[2] / distance,
+                                  offset.v[3] / distance}};
+        const Lanes result = sub(lanes(reinterpret_cast<float*>(velocity)), mul(direction, pull));
+        for (int i = 0; i < 3; ++i) at<float>(velocity, i * 4) = result.v[i];
+    }
+}
+
+void XB_THISCALL apsActionColorShift_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                           float, float) {
+    uint8_t* const config = action_config(self);
+    // The colours' 4th lanes are never-set stack words (zeroed in test processes).
+    const Lanes from = {{at<float>(config, 0xc), at<float>(config, 0x10), at<float>(config, 0x14), 0.0f}};
+    const Lanes to = {{at<float>(config, 0x1c), at<float>(config, 0x20), at<float>(config, 0x24), 0.0f}};
+    const float start = at<float>(config, 8);
+    const float stop = at<float>(config, 0x18);
+    const Lanes range = sub(to, from);
+    const float scale = title_global<float>(0x0083eb20) / (stop - start);
+    const float zero = title_global<float>(0x0083eafc);
+    const float one = title_global<float>(0x0083eb20);
+    const int32_t stride = stride_of(emitter);
+    const uint32_t age_at = field(emitter, 0x95), life_at = field(emitter, 0x96), color_at = field(emitter, 0x8f);
+    for (uint8_t* p = begin; p != end; p += stride) {
+        const float life = at<float>(p, life_at), age = at<float>(p, age_at);
+        const float begins = life * start;
+        if (!(age >= begins)) continue;
+        if (!(life * stop >= age)) continue;
+        const float t = (age - begins) / life * scale;
+        const Lanes color = add(from, mul(range, t));
+        for (int i = 0; i < 4; ++i) {
+            const float low = zero > color.v[i] ? zero : color.v[i];  // MAXPS: NaN passes
+            const float clamped = one < low ? one : low;              // MINPS
+            if (i < 3) at<float>(p, color_at + i * 4) = clamped;
+        }
+    }
+}
+
+namespace {
+
+// v times the transpose of the emitter matrix's rotation (+0x10, packed: the 4th lane
+// takes the translation row).
+Lanes rotate_into_emitter(uint8_t* emitter, const Lanes& v) {
+    const float* const m = &at<float>(emitter, 0x10);
+    const Lanes x_column = {{m[0], m[4], m[8], m[12]}};
+    const Lanes y_column = {{m[1], m[5], m[9], m[13]}};
+    const Lanes z_column = {{m[2], m[6], m[10], m[14]}};
+    return add(add(mul(x_column, v.v[0]), mul(y_column, v.v[1])), mul(z_column, v.v[2]));
+}
+
+// The xyz of the vector at `offset` of every particle += step.
+void add_step(uint8_t* begin, uint8_t* end, uint8_t* emitter, uint32_t offset, const Lanes& step) {
+    const int32_t stride = stride_of(emitter);
+    uint8_t* const last = end + offset;
+    for (uint8_t* p = begin + offset; p != last; p += stride)
+        for (int i = 0; i < 3; ++i) at<float>(p, i * 4) = step.v[i] + at<float>(p, i * 4);
+}
+
+// The config's vector (+8, 4th lane repeating x) and its "in emitter space" flag (+0x14).
+Lanes config_vector(uint8_t* config) {
+    return {{at<float>(config, 8), at<float>(config, 0xc), at<float>(config, 0x10), at<float>(config, 8)}};
+}
+
+}  // namespace
+
+void XB_THISCALL apsActionMoveFixed_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                          float, float delta) {
+    uint8_t* const config = action_config(self);
+    Lanes velocity = config_vector(config);
+    if (at<uint32_t>(config, 0x14)) velocity = rotate_into_emitter(emitter, velocity);
+    add_step(begin, end, emitter, 0, mul(velocity, delta));
+}
+
+void XB_THISCALL apsActionForce_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*, float,
+                                      float delta) {
+    uint8_t* const config = action_config(self);
+    Lanes step = mul(config_vector(config), delta);
+    if (at<uint32_t>(config, 0x14)) step = rotate_into_emitter(emitter, step);
+    add_step(begin, end, emitter, field(emitter, 0x97), step);
+}
+
+void XB_THISCALL Quat_RotateVector(const float* q, float* v) {
+    const float z = 0.0f;  // the vector's w
+    const float v0 = v[0], v1 = v[1], v2 = v[2];
+    const float nq0 = z - q[0], nq1 = z - q[1], nq2 = z - q[2];
+    const float a = (((v1 * q[3]) - (q[0] * v2)) + (q[2] * v0)) + (q[1] * z);
+    const float b = (((v0 * q[3]) + (v2 * q[1])) + (q[0] * z)) - (q[2] * v1);
+    const float c = (((q[3] * z) - (q[0] * v0)) - (v1 * q[1])) - (q[2] * v2);
+    const float d = (((q[0] * v1) + (v2 * q[3])) - (v0 * q[1])) + (q[2] * z);
+    v[0] = (((a * nq2) + (q[3] * b)) + (c * nq0)) - (d * nq1);
+    v[1] = (((c * nq1) - (nq2 * b)) + (q[3] * a)) + (d * nq0);
+    v[2] = (((c * nq2) + (nq1 * b)) - (a * nq0)) + (q[3] * d);
+}
+
+void XB_THISCALL apsActionOrientedMove_Apply(uint8_t*, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                             float, float delta) {
+    const int32_t stride = stride_of(emitter);
+    uint8_t* velocity = begin + field(emitter, 0x97);
+    uint8_t* spin = begin + field(emitter, 0x9a);
+    uint8_t* rotation = begin + field(emitter, 0x91);
+    const float half_delta = delta * title_global<float>(0x0083eb24);
+    const float one = title_global<float>(0x0083eb20);
+    for (uint8_t* p = begin; p != end; p += stride, velocity += stride, spin += stride, rotation += stride) {
+        const Lanes moved = add(lanes(reinterpret_cast<float*>(p)), mul(lanes(reinterpret_cast<float*>(velocity)), delta));
+        for (int i = 0; i < 3; ++i) at<float>(p, i * 4) = moved.v[i];
+        alignas(16) float w[4];
+        std::memcpy(w, spin, sizeof(w));
+        float* const q = reinterpret_cast<float*>(rotation);
+        Quat_RotateVector(q, w);
+        const float z = 0.0f;
+        const float e0 = (((q[2] * w[1]) + (q[3] * w[0])) + (q[0] * z)) - (q[1] * w[2]);
+        const float e1 = (((q[1] * z) - (q[2] * w[0])) + (q[0] * w[2])) + (q[3] * w[1]);
+        const float e2 = (((q[1] * w[0]) + (q[2] * z)) - (q[0] * w[1])) + (q[3] * w[2]);
+        const float e3 = (((q[3] * z) - (q[0] * w[0])) - (q[1] * w[1])) - (q[2] * w[2]);
+        const float n0 = q[0] + e0 * half_delta;
+        const float n1 = q[1] + e1 * half_delta;
+        const float n2 = q[2] + e2 * half_delta;
+        const float n3 = q[3] + e3 * half_delta;
+        const float inverse = platform_x87_rcp_norm4(n0, n3, n1, n2, one);
+        q[0] = n0 * inverse;
+        q[1] = n1 * inverse;
+        q[2] = n2 * inverse;
+        q[3] = n3 * inverse;
+    }
+}
+
+void XB_THISCALL apsActionPlaneBounce_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t*,
+                                            float, float) {
+    uint8_t* const config = action_config(self);
+    // The normal's 4th lane is a never-set stack word (zeroed in test processes).
+    const Lanes normal = {{at<float>(config, 8), at<float>(config, 0xc), at<float>(config, 0x10), 0.0f}};
+    const Lanes squares = mul(normal, normal);
+    const float length2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float inverse = 0.0f;   // a zero normal: the constant 0 vector
+    float point_w = 0.0f;   // the 4th lane of whichever vector was copied
+    if (!(length2 == 0.0f)) {
+        const float a = abs_float(length2);
+        const float r = platform_rsqrt_estimate(a);
+        inverse = ((title_global<float>(0x007c8be0) - r * r * a) * r) * title_global<float>(0x007c8bf0);
+        point_w = title_global<float>(0x007c8bec);  // 3.0
+    }
+    const Lanes unit = mul(normal, inverse);
+    const Lanes point = {{at<float>(config, 0x14), at<float>(config, 0x18), at<float>(config, 0x1c), point_w}};
+    const Lanes products = mul(neg(unit), point);
+    const float offset = (products.v[0] + products.v[1]) + products.v[2];
+    const float bounce = at<float>(config, 0x20);
+    const float one = title_global<float>(0x0083eb20);
+    const int32_t stride = stride_of(emitter);
+    uint8_t* position = begin + field(emitter, 0x8c);
+    uint8_t* const last = end + field(emitter, 0x97);
+    for (uint8_t* velocity = begin + field(emitter, 0x97); velocity != last; velocity += stride, position += stride) {
+        const Lanes along = mul(lanes(reinterpret_cast<float*>(position)), unit);
+        const float distance = ((along.v[0] + along.v[1]) + along.v[2]) + offset;
+        if (!(0.0f > distance)) continue;
+        const Lanes v = lanes(reinterpret_cast<float*>(velocity));
+        const Lanes toward = mul(v, unit);
+        const float speed = (toward.v[0] + toward.v[1]) + toward.v[2];
+        if (!(0.0f > speed)) continue;
+        const Lanes result = sub(v, mul(unit, (bounce + one) * speed));
+        for (int i = 0; i < 3; ++i) at<float>(velocity, i * 4) = result.v[i];
+    }
+}
+
 }  // namespace game

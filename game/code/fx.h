@@ -407,4 +407,35 @@ void XB_THISCALL apsActionVectorAngularDrag_Apply(uint8_t* self, uint8_t* begin,
 // [first (+8), limit (+0xc)).
 void XB_THISCALL apsActionUVFrame_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
 
+// 0x000a4ac0: atan2(y, x) by the particle code's asin series (0 for 0, 0).
+float XB_CDECL apsAtan2(float y, float x);
+// 0x000a1fa0 'ATEX' / 0x000a20c0 'ATEY' / 0x000a21e0 'ATEZ': every particle's angle set to the
+// screen heading of the emitter matrix's x / y / z row (none when it points at the view).
+void XB_THISCALL apsActionAngleToEmitterX_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+void XB_THISCALL apsActionAngleToEmitterY_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+void XB_THISCALL apsActionAngleToEmitterZ_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+// 0x000a3d80 'PAtr': velocities pulled toward a point (+8, in the emitter's space unless
+// emitter flag 2) by strength (+0x14) * delta / distance^2 (distance^2 at least 0.001).
+void XB_THISCALL apsActionPointAttract_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a1bc0 'ClSh': colour (+0x8f) shifted from +0xc to +0x1c between the age fractions
+// +8 and +0x18, clamped to [0, 1]; outside that window unchanged.
+void XB_THISCALL apsActionColorShift_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+// 0x000a39f0 'MFxV': positions moved by a fixed velocity (+8) * delta; with +0x14 set the
+// velocity is in the emitter's space (times its rotation's transpose).
+void XB_THISCALL apsActionMoveFixed_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+// 0x000a3bb0 'Forc': velocities += force (+8) * delta, likewise in the emitter's space with +0x14.
+void XB_THISCALL apsActionForce_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+// 0x0009f6c0: v (xyz) rotated in place by the unit quaternion q {x, y, z, w}.
+void XB_THISCALL Quat_RotateVector(const float* q, float* v);
+// 0x000a18f0 'OMov': position += velocity * delta; the rotation quaternion (+0x91)
+// advanced by the angular velocity vector (+0x9a, rotated by it) * delta / 2 and renormalised.
+void XB_THISCALL apsActionOrientedMove_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+// 0x000a1d20 'WPRf': particles behind a plane (normal +8, point +0x14) moving into it
+// bounce: velocity -= normal * (1 + bounce (+0x20)) * speed into the plane.
+void XB_THISCALL apsActionPlaneBounce_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
 }  // namespace game
