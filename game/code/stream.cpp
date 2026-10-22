@@ -170,6 +170,206 @@ ZONE_MAP_LOOKUP(ZoneMapA8_Lookup, 0xa8)
 ZONE_MAP_LOOKUP(ZoneSkelMap_Lookup, 0xb8)
 ZONE_MAP_LOOKUP(ZoneEffectMap_Lookup, 0xc8)
 
+// --- Memory-context id stack (+0x374 count, +0x378 ids, at most 0x80; -1 = a frame mark) ---
+
+namespace {
+
+uint32_t& context_word(uint8_t* context, uint32_t offset) { return *reinterpret_cast<uint32_t*>(context + offset); }
+
+uint8_t* global_context() { return title_global<uint8_t*>(0x0095f638); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(MemContext_Push_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(MemContext_Push) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL MemContext_Push(uint8_t* context, uint32_t id) {
+    uint32_t& count = context_word(context, 0x374);
+    auto* ids = reinterpret_cast<uint32_t*>(context + 0x378);
+    if (static_cast<int32_t>(count) < 0x80) ids[count++] = 0xffffffff;
+    bool listed = false;
+    for (int32_t i = 0; i < static_cast<int32_t>(count); ++i) {
+        if (ids[i] == id) {
+            listed = true;
+            break;
+        }
+    }
+    if (!listed && context_word(context, 0x18)) {
+        const uint32_t found =
+            title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x0028e550)(context, id);  // MemContext_FindById
+        if (!found) return 0;
+        return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x0028bc50)(context, found);  // Pak_PushZoneIds_r
+    }
+    const uint32_t old = count;
+    if (static_cast<int32_t>(count) < 0x80) ids[count++] = id;
+    return old;
+}
+
+PLATFORM_ASM_ENTRY(MemContext_Pop_entry,
+                   "pushl %edx\n" PLATFORM_ASM_CALL(MemContext_Pop) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL MemContext_Pop(uint8_t* context) {
+    uint32_t& count = context_word(context, 0x374);
+    const auto* ids = reinterpret_cast<const uint32_t*>(context + 0x378);
+    const auto top = [&count]() {
+        const int32_t i = static_cast<int32_t>(count) - 1;
+        return i > 0 ? i : 0;
+    };
+    const uint32_t last = ids[top()];
+    do {
+        if (count) --count;
+    } while (ids[top()] != 0xffffffff);
+    if (count) --count;
+    return last;
+}
+
+PLATFORM_ASM_ENTRY(MemContext_ListActive_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(MemContext_ListActive) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL MemContext_ListActive(uint8_t* context, uint32_t* out) {
+    MemContext_Push(global_context(), context_word(context, 0x28));
+    MemContext_Push(global_context(), context_word(context, 0x2c));
+    uint32_t seen[4] = {};
+    const auto* ids = reinterpret_cast<const uint32_t*>(context + 0x378);
+    for (int32_t i = static_cast<int32_t>(context_word(context, 0x374)) - 1; i >= 0; --i) {
+        const uint32_t id = ids[i];
+        if (id == 0xffffffff) continue;
+        const uint32_t bit = 1u << (id & 31);
+        uint32_t& word = seen[static_cast<int32_t>(id) >> 5];
+        if (word & bit) continue;
+        word |= bit;
+        if (static_cast<int32_t>(out[0]) < 0x20) out[1 + out[0]++] = id;
+    }
+    MemContext_Pop(global_context());
+    return MemContext_Pop(global_context());
+}
+
+PLATFORM_ASM_ENTRY(Stream_ListSearchZones_entry,
+                   "pushl %esi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Stream_ListSearchZones) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Stream_ListSearchZones(uint32_t zone, uint32_t* out) {
+    uint8_t* context = global_context();
+    if (!context) {
+        const uint32_t old = out[0];
+        if (static_cast<int32_t>(old) < 0x20) out[1 + out[0]++] = zone;
+        return old;
+    }
+    uint32_t seen[4] = {};
+    title_function<void XB_THISCALL(uint8_t*, uint32_t, uint32_t*, uint32_t*)>(0x0028f850)(  // Stream_CollectSearchZones_r
+        context, zone, out, seen);
+    context = global_context();
+    for (uint32_t offset = 0x28; offset <= 0x2c; offset += 4) {
+        const uint32_t id = context_word(context, offset);
+        if (id == 0xffffffff || (seen[static_cast<int32_t>(id) >> 5] & (1u << (id & 31)))) continue;
+        if (static_cast<int32_t>(out[0]) < 0x20) out[1 + out[0]++] = id;
+    }
+    return context_word(context, 0x2c);
+}
+
+namespace {
+
+// Stream_FindTexture/FindMeshFile: the zones to search (the active contexts' when `active`,
+// else the zone's search list), each zone's map looked up with the hashed name.
+uint32_t stream_find(uint32_t streams, uint32_t zone, const uint32_t* hashed, uint8_t active,
+                     uint32_t (*lookup)(uint32_t, const char*, const uint8_t*)) {
+    uint32_t list[0x21];
+    list[0] = 0;
+    uint32_t count = 0;
+    if (active) {
+        if (global_context()) {
+            MemContext_ListActive(global_context(), list);
+            count = list[0];
+        }
+    } else {
+        Stream_ListSearchZones(zone, list);
+        count = list[0];
+    }
+    for (int32_t i = 0; i < static_cast<int32_t>(count); ++i) {
+        const uint32_t id = list[1 + i];
+        if (id == 0xffffffff) continue;
+        const uint32_t zone_data = *reinterpret_cast<const uint32_t*>(uintptr_t{streams + 0x5c + id * 4});
+        if (!zone_data) continue;
+        const uint32_t entry = lookup(hashed[0], reinterpret_cast<const char*>(hashed + 1),
+                                      reinterpret_cast<const uint8_t*>(uintptr_t{zone_data}));
+        if (entry) return *reinterpret_cast<const uint32_t*>(uintptr_t{entry});
+    }
+    return 0;
+}
+
+uint32_t texture_lookup(uint32_t hash, const char* key, const uint8_t* zone) {
+    return ZoneTextureMap_Lookup(hash, key, zone);
+}
+
+uint32_t mesh_file_lookup(uint32_t hash, const char* key, const uint8_t* zone) {
+    return ZoneMeshFileMap_Lookup(hash, key, zone);
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL Stream_FindTexture(uint32_t streams, uint32_t zone, const char* name, uint32_t active,
+                                       uint32_t) {
+    if (title_global<uint8_t>(0x0095f634)) return 0;
+    uint32_t hashed[8];
+    Stream_HashFileName(name + 4, hashed);
+    return stream_find(streams, zone, hashed, static_cast<uint8_t>(active), texture_lookup);
+}
+
+PLATFORM_ASM_ENTRY(Stream_FindMeshFile_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Stream_FindMeshFile) "addl $20, %esp\n"
+                   "ret $16")
+
+uint32_t XB_CDECL Stream_FindMeshFile(const uint32_t* hashed, uint32_t streams, uint32_t zone, uint32_t active,
+                                      uint32_t) {
+    if (title_global<uint8_t>(0x0095f635)) return 0;
+    return stream_find(streams, zone, hashed, static_cast<uint8_t>(active), mesh_file_lookup);
+}
+
+PLATFORM_ASM_ENTRY(Stream_LoadTexture_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Stream_LoadTexture) "addl $20, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Stream_LoadTexture(char* name, uint8_t* data, uint32_t size, uint32_t context_id, uint32_t kind) {
+    uint8_t& loading = title_global<uint8_t>(0x0095f5d0);
+    uint8_t saved = 0;
+    if (context_id != 0xffffffff) {
+        saved = loading;
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        loading = 1;
+        MemContext_Push(global_context(), context_id);
+    }
+    if (!title_function<int XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(name, "no_", 3))  // _strncmp
+        name[0] = 'p';
+    uint32_t hashed[8];
+    Stream_HashFileName(name, hashed);
+    uint32_t& once = title_global<uint32_t>(0x0098bcb8);
+    if (!(once & 1)) {
+        once |= 1;
+        title_function<void XB_THISCALL(uint32_t, const char*)>(0x00011060)(0x0098bc98, "fogramp");  // HashStr_Init
+    }
+    uint32_t result = address_of(nglLoadTexture(reinterpret_cast<const uint8_t*>(hashed), kind, data, size));
+    if (context_id != 0xffffffff) {
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        loading = saved;
+        result = MemContext_Pop(global_context());
+    }
+    return result;
+}
+
 PLATFORM_ASM_ENTRY(FixedStr512_BaseName_entry,
                    "pushl 4(%esp)\n"
                    "pushl %esi\n"

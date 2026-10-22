@@ -76,6 +76,38 @@ ZONE_MAP_LOOKUP_DECL(ZoneSkelMap_Lookup)      // 0x00025100, +0xb8
 ZONE_MAP_LOOKUP_DECL(ZoneEffectMap_Lookup)    // 0x00025150, +0xc8
 #undef ZONE_MAP_LOOKUP_DECL
 
+// Memory contexts keep a stack of zone ids (+0x374 count, +0x378 ids, at most 0x80; -1
+// marks a frame). 0x0028f6c0 (context ESI, id EDI): a frame mark, then the id (or, when
+// not listed and the context has packs (+0x18), the pack's ids: MemContext_FindById +
+// Pak_PushZoneIds_r). 0x0028c690 (context EDX): drops the top frame, returns its last id.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL MemContext_Push(uint8_t* context, uint32_t id);
+extern "C" void MemContext_Push_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL MemContext_Pop(uint8_t* context);
+extern "C" void MemContext_Pop_entry(void);
+// 0x0028ff70 (context EAX, out on the stack): the context's +0x28/+0x2c ids pushed on the
+// global context (0x0095f638), then every distinct id on its stack, top first, appended
+// to out {count, ids[0x20]}; both frames popped.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL MemContext_ListActive(uint8_t* context, uint32_t* out);
+extern "C" void MemContext_ListActive_entry(void);
+// 0x0028fb10 (zone EDX, out ESI): without a global context just the zone; else the zones
+// Stream_CollectSearchZones_r finds, then the global context's +0x28/+0x2c ids not seen.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_ListSearchZones(uint32_t zone, uint32_t* out);
+extern "C" void Stream_ListSearchZones_entry(void);
+// 0x00290620 (stdcall streams, zone, name (text at +4), active, unused): the texture
+// value from the first zone whose texture map has the file's hashed name: the zones of
+// the active memory contexts when `active` (byte), else the zone's search list; 0 while
+// 0x0095f634 is set. 0x00290400 (hashed name in EBX): the same for mesh files (0x0095f635).
+uint32_t XB_STDCALL Stream_FindTexture(uint32_t streams, uint32_t zone, const char* name, uint32_t active,
+                                       uint32_t unused);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_FindMeshFile(const uint32_t* hashed, uint32_t streams,
+                                                                 uint32_t zone, uint32_t active, uint32_t unused);
+extern "C" void Stream_FindMeshFile_entry(void);
+// 0x00290860 (name in EBX; data, size, memory context id or -1, kind): the texture file
+// loaded under its base name (nglLoadTexture), "no_" names loaded as "po_"; with a context
+// id, inside that context (0x0095f5d0 set meanwhile; returns MemContext_Pop then).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_LoadTexture(char* name, uint8_t* data, uint32_t size,
+                                                                uint32_t context_id, uint32_t kind);
+extern "C" void Stream_LoadTexture_entry(void);
 // 0x00025330 (was FUN_00025330; src in EAX, dst in ESI, flag on the stack; returns dst):
 // FixedStr_BaseName for 0x200-byte fixed strings (u16 length at +0x1fe).
 extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr512_BaseName(const char* src, char* dst, uint32_t flag);
