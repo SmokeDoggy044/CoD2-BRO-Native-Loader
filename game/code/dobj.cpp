@@ -1,5 +1,7 @@
 #include "dobj.h"
 
+#include <cstring>
+
 #include "compiler.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -313,15 +315,12 @@ uint8_t* attach_matrix(const DObj* obj, int model) {
 
 const uint8_t& matrix_offset(const DObj* obj, int model) { return (&obj->matrix_offset)[model]; }
 
-using CalcSkeleton = void XB_CDECL(const XModel*, uint8_t*, const uint8_t*);
-
 }  // namespace
 
 void XB_CDECL DObj_CalcBasePose(const DObj* obj) {
     for (int m = 0; m < obj->model_count; ++m) {
         uint8_t* parent = attach_matrix(obj, m);
-        title_function<CalcSkeleton>(0x0023df00)(obj->models[m], bone_matrix(obj, matrix_offset(obj, m)),
-                                                 parent);  // XModel_CalcSkeleton
+        XModel_CalcSkeleton(obj->models[m], bone_matrix(obj, matrix_offset(obj, m)), parent);
     }
 }
 
@@ -342,11 +341,101 @@ void XB_CDECL DObj_CalcAnimatedSkeleton(const DObj* obj, int32_t bone) {
         uint8_t* parent = attach_matrix(obj, m);
         uint8_t* matrices = bone_matrix(obj, matrix_offset(obj, m));
         if (m == found)
-            title_function<void XB_CDECL(const XModel*, uint8_t*, int32_t)>(0x0023db60)(obj->models[m], matrices,
-                                                                                    bone - first);  // XModel_CalcBoneChildren
+            XModel_CalcBoneChildren(obj->models[m], matrices, bone - first);
         else
-            title_function<CalcSkeleton>(0x0023df00)(obj->models[m], matrices, parent);  // XModel_CalcSkeleton
+            XModel_CalcSkeleton(obj->models[m], matrices, parent);
     }
+}
+
+void XB_REGS3 XB_CDECL BoneMatrix_Load(const uint32_t* src, uint32_t, uint32_t* dst) {
+    for (int row = 0; row < 4; ++row) {
+        dst[row * 4 + 0] = src[row * 4 + 0];
+        dst[row * 4 + 1] = src[row * 4 + 1];
+        dst[row * 4 + 2] = src[row * 4 + 2];
+        dst[row * 4 + 3] = src[row * 4 + 0];
+    }
+}
+
+uint32_t* XB_REGS3 XB_CDECL BoneMatrix_Store(uint32_t* dst, uint32_t, const uint32_t* src) {
+    for (int row = 0; row < 4; ++row)
+        for (int i = 0; i < 3; ++i) dst[row * 4 + i] = src[row * 4 + i];
+    return dst;
+}
+
+namespace {
+
+// A bone's matrix from its parent's (rows as BoneMatrix_Load reads them) and its base
+// pose (rotation rows 0-2, translation 9-11), in the original's operation order. The
+// packed code's fourth lanes repeat the first (BoneMatrix_Load), so three are enough.
+void compose_bone(const uint32_t* parent_bits, const float* pose, float* out) {
+    float parent[16];
+    std::memcpy(parent, parent_bits, sizeof parent);
+    for (int row = 0; row < 3; ++row) {
+        const float a = pose[row * 3], b = pose[row * 3 + 1], c = pose[row * 3 + 2];
+        for (int i = 0; i < 3; ++i) out[row * 4 + i] = (parent[i] * a + parent[4 + i] * b) + parent[8 + i] * c;
+    }
+    for (int i = 0; i < 3; ++i)
+        out[12 + i] = ((parent[12 + i] + parent[i] * pose[9]) + parent[4 + i] * pose[10]) + parent[8 + i] * pose[11];
+}
+
+const float* base_pose(const XModelParts* parts, uint32_t bone) {
+    return reinterpret_cast<const float*>(parts->base_poses + (bone < parts->pose_count ? bone : 0) * 0x30);
+}
+
+int32_t bone_parent(const XModelParts* parts, uint32_t bone) {
+    return parts->bones[bone < parts->bone_count ? bone : 0].parent;
+}
+
+// The base pose alone (a root bone): its rows into the matrix.
+void store_pose(uint8_t* out, const float* pose) {
+    uint32_t rows[16] = {};
+    for (int row = 0; row < 4; ++row) std::memcpy(&rows[row * 4], pose + row * 3, 12);
+    BoneMatrix_Store(reinterpret_cast<uint32_t*>(out), 0, rows);
+}
+
+void store_child(uint8_t* out, const uint8_t* parent, const float* pose) {
+    uint32_t loaded[16];
+    BoneMatrix_Load(reinterpret_cast<const uint32_t*>(parent), 0, loaded);
+    float composed[16] = {};
+    compose_bone(loaded, pose, composed);
+    uint32_t bits[16];
+    std::memcpy(bits, composed, sizeof bits);
+    BoneMatrix_Store(reinterpret_cast<uint32_t*>(out), 0, bits);
+}
+
+}  // namespace
+
+int32_t XB_CDECL XModel_CalcSkeleton(const XModel* model, uint8_t* matrices, const uint8_t* attach) {
+    const XModelParts* parts = model_parts(model);
+    const int32_t count = static_cast<int32_t>(parts->bone_count);
+    for (int32_t bone = 0; bone < count; ++bone) {
+        uint8_t* out = matrices + bone * 0x40;
+        const int32_t parent = bone_parent(parts, static_cast<uint32_t>(bone));
+        if (parent >= 0)
+            store_child(out, matrices + parent * 0x40, base_pose(parts, static_cast<uint32_t>(bone)));
+        else if (attach)
+            store_child(out, attach, base_pose(parts, static_cast<uint32_t>(bone)));
+        else
+            store_pose(out, base_pose(parts, static_cast<uint32_t>(bone)));
+    }
+    return count;
+}
+
+int32_t XB_CDECL XModel_CalcBoneChildren(const XModel* model, uint8_t* matrices, int32_t parent) {
+    const XModelParts* parts = model_parts(model);
+    const int32_t count = static_cast<int32_t>(parts->bone_count);
+    for (int32_t bone = parent + 1; bone < count; ++bone) {
+        const int32_t bone_parent_index = bone_parent(parts, static_cast<uint32_t>(bone));
+        if (bone_parent_index != parent) continue;
+        uint8_t* out = matrices + bone * 0x40;
+        if (bone_parent_index < 0) {
+            store_pose(out, base_pose(parts, static_cast<uint32_t>(bone)));
+            continue;
+        }
+        store_child(out, matrices + bone_parent_index * 0x40, base_pose(parts, static_cast<uint32_t>(bone)));
+        XModel_CalcBoneChildren(model, matrices, bone);
+    }
+    return count;
 }
 
 PLATFORM_ASM_ENTRY(DObj_SetLod_entry,
@@ -442,8 +531,7 @@ void XB_CDECL DObj_CreateSkeleton(DObj* obj) {
     for (int i = 0; i < 12; ++i) header[i] = 0;
     for (int m = 0; m < obj->model_count; ++m) {
         uint8_t* parent = attach_matrix(obj, m);
-        title_function<CalcSkeleton>(0x0023df00)(obj->models[m], bone_matrix(obj, matrix_offset(obj, m)),
-                                                 parent);  // XModel_CalcSkeleton
+        XModel_CalcSkeleton(obj->models[m], bone_matrix(obj, matrix_offset(obj, m)), parent);
     }
 }
 

@@ -147,6 +147,20 @@ void XB_REGS2 DObj_SetMinLod(int32_t lod, DObj* obj);
 // 0x00029520: the coarsest LOD (4 down to 0) the first model has; without one the
 // debug break 0x00042460, then -1. EDX = obj (EAX unused).
 int32_t XB_REGS2 DObj_GetCoarsestLod(uint32_t unused_eax, const DObj* obj);
+// 0x0029c790 (src EAX, dst ECX): a bone matrix (four rows of x y z, 16 bytes apart)
+// into four 16-byte rows {x, y, z, x}.
+void XB_REGS3 XB_CDECL BoneMatrix_Load(const uint32_t* src, uint32_t unused_edx, uint32_t* dst);
+// 0x0029c9e0 (dst EAX, src ECX): x y z of four 16-byte rows into a bone matrix (the
+// fourth dwords stay); returns dst.
+uint32_t* XB_REGS3 XB_CDECL BoneMatrix_Store(uint32_t* dst, uint32_t unused_edx, const uint32_t* src);
+// 0x0023df00: a model's base skeleton into `matrices` (0x40 bytes per bone): each bone's
+// base pose (0x30 bytes: rotation rows, translation) times its parent's matrix; root
+// bones hang from `attach` (a bone matrix) or, without one, take the pose alone.
+// Returns the bone count.
+int32_t XB_CDECL XModel_CalcSkeleton(const XModel* model, uint8_t* matrices, const uint8_t* attach);
+// 0x0023db60: the same for the descendants of bone `parent` (recursive, children in
+// index order after it); returns the bone count.
+int32_t XB_CDECL XModel_CalcBoneChildren(const XModel* model, uint8_t* matrices, int32_t parent);
 // 0x00240f00: every model's base skeleton (XModel_CalcSkeleton) into the object's bone
 // matrices (+0x20, from +0x30 + matrix offset * 0x40), each model hanging from its
 // attach bone's matrix (none for 0xff).

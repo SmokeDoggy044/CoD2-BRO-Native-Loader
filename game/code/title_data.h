@@ -6,6 +6,8 @@
 
 #include <cstdint>
 
+#include "compiler.h"
+
 namespace game {
 
 template <typename T>
@@ -20,4 +22,17 @@ F* title_function(uint32_t address) {
     return reinterpret_cast<F*>(static_cast<uintptr_t>(address));
 }
 
+// Register inputs for title_call_at_regs.
+struct TitleRegs {
+    uint32_t eax, ebx, ecx, edx, esi, edi;
+};
+
 }  // namespace game
+
+// Calls `function` with ESP at `top` minus its stack arguments (args[0] pushed last) and
+// the registers in `regs`; returns its EAX. For callers that run each callee where the
+// original's call puts it (an asm entry moves the C frame below a gap): title code stores
+// addresses of its stack locals in globals (CoD BRO FX_AddParticleComponents: 0x00971800).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_at_regs(uint32_t top, uint32_t function,
+                                                            const game::TitleRegs* regs, uint32_t count,
+                                                            const uint32_t* args);

@@ -100,6 +100,57 @@ void XB_CDECL FX_FreeAllEffectLights();
 // then FX_ClearEffects.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_FreeAllEffects(FxIdList* instances);
 extern "C" void FX_FreeAllEffects_entry(void);
+// 0x00095fd0: out = a * b for 4x4 row matrices with an affine last column (rows 0-2
+// rotate by b, row 3 moved by b's row 3); packed, all four lanes.
+void XB_CDECL FxMatrix_Multiply(float* out, const float* a, const float* b);
+// 0x00094800: sets bit 0 of +0x4c (stopping).
+void XB_THISCALL FxSystem_Stop(uint8_t* system);
+// 0x00094ef0: 1 when a stopping system has no live particles (emitters' +0xc0), or when
+// none of its definition's key times (+0x48 -> +0x50, 0x3c each, +8) lies past its age
+// (+0x44).
+uint32_t XB_THISCALL FxSystem_IsFinished(const uint8_t* system);
+// 0x00094fc0: the draw sort key (+0x50): nearest emitter depth (+0xb8) in the low 24
+// bits, bit 24 = not bit 1 of +0x4e, |definition +0x68| from bit 25.
+void XB_THISCALL FxSystem_UpdateSortKey(uint8_t* system);
+// 0x000972c0: an emitter's matrix (+0x10, 64 bytes); +0x50 keeps the previous position
+// (+0x40), or takes the new one when x y z were all 0.
+void XB_THISCALL FxEmitter_SetMatrix(uint8_t* emitter, const float* matrix);
+// 0x00095600: a particle system placed: its matrix (+0) = its local one (+0x48) times
+// `matrix`, then every emitter (+0x54, count int16 +0x5a) gets it.
+void XB_THISCALL FxSystem_SetMatrix(uint8_t* system, const float* matrix);
+// 0x00095990: the centre of a box {min[4], max[4]}: (max + min) * 0.5, packed; returns out.
+float* XB_THISCALL FxBox_Center(const float* box, float* out);
+// 0x00095d60: half the box's diagonal (RSQRTSS + a Newton step; 0 for an empty box).
+float XB_THISCALL FxBox_Radius(const float* box);
+// 0x00095e20: {centre, radius} of a box; returns out.
+float* XB_THISCALL FxBox_Sphere(const float* box, float* out);
+// 0x00095e80: draws an emitter through its renderer (+0, vtable slot 1) with its
+// particles (+0xbc, count +0xc0), bounds (+0x60 box) and, with flag 2 of +0xae, its
+// matrix (+0x10); 3 without a renderer, 2 when empty, hidden (flag 1 clear) or flag 4.
+uint32_t XB_THISCALL FxEmitter_Draw(uint8_t* emitter, uint32_t lights);
+// 0x00094f60: every emitter's FxEmitter_Draw; bit 1 of +0x4e = one of them returned 1.
+void XB_THISCALL FxSystem_Draw(uint8_t* system, uint32_t lights);
+// 0x0009d2f0: the particle code's double-buffered block (0x00909f18, index 0x00909f2c)
+// flipped: the other one current (0x00909f3c), its fill counters (0x00909f38/48) 0.
+void XB_CDECL FxBuffers_Flip();
+// 0x000941b0: the particle code's camera from a view matrix: its columns (x times
+// `scale`, -1 from FX_DrawEffects) into 0x00909950..0x0090997c, the heading (0x00909980,
+// an atan2 series: kept when both inputs are 0), then FxBuffers_Flip.
+void XB_CDECL FxSystem_SetView(const float* view, float scale);
+// 0x00246810: R_RenderView's effects pass: finished effects freed, the effect clock
+// (0x0095f6e0) advanced by the frame step (clamped to 0.05; 0 while paused), the view
+// matrix to the particle code, then per live effect (0x00988ce8, count 0x00988cf0): a
+// finished particle system releases the effect; otherwise the system is placed (its own
+// matrix, a bolt, or the owner entity), updated (seeded per effect id when +0x18 is
+// set) and drawn with a fresh light set. Then the global systems, the freed entries
+// dropped and the list sorted.
+void XB_CDECL FX_DrawEffects();
+// 0x002463c0 (out in EDI; AL): the placement {origin, axis[3]} of bone `bone` of the
+// DObj in slot `handle` (0x00981418, generation in the upper bits; 0 for a stale one):
+// the owner's placement (0x00284a80) for bone < 0, else the bone matrix (skeleton made
+// if missing) times it; 0 past the bone count. A debug cvar (0x0092e9e0) draws the axes.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL FX_GetBoltMatrix(float* out, uint32_t handle, int32_t bone);
+extern "C" void FX_GetBoltMatrix_entry(void);
 // 0x00247190 (origin in EAX): FX_SpawnEffect with the entity's bone matrix
 // (FX_GetBoltMatrix, origin preset to `origin`, axes zero) when `entity` is set; 0 when
 // the bone is not found. The matrix rows are rotated: axes first, origin last, each
@@ -122,6 +173,9 @@ void XB_CDECL FX_InitEffectPool();
 // (0x0029b8f0) of every instance; one without flag 2 at +0x50 whose first word is 0 is
 // freed (the last entry takes its place). Then FX_SpawnQueuedEffect (0x002a5810) of
 // each queued spawn (+0x920, 0x210 each, count +0x910), and the queue emptied.
-void XB_REGS1 XB_STDCALL FX_UpdateEffects(FxIdList* list, uint32_t delta);
+// Entered through FX_UpdateEffects_entry: every call runs at the original's stack
+// position (title_call_at_regs).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_UpdateEffects_body(uint32_t entry, FxIdList* list, uint32_t delta);
+extern "C" void FX_UpdateEffects_entry(void);
 
 }  // namespace game

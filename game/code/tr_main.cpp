@@ -1843,6 +1843,40 @@ PLATFORM_ASM_ENTRY(title_call_at,
                    "popl %ebp\n"
                    "ret")
 
+PLATFORM_ASM_ENTRY(title_call_at_regs,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "movl 8(%ebp), %edx\n"
+                   "movl 20(%ebp), %ecx\n"
+                   "movl 24(%ebp), %edi\n"
+                   "1:\n"
+                   "testl %ecx, %ecx\n"
+                   "jz 2f\n"
+                   "decl %ecx\n"
+                   "subl $4, %edx\n"
+                   "movl (%edi,%ecx,4), %eax\n"
+                   "movl %eax, (%edx)\n"
+                   "jmp 1b\n"
+                   "2:\n"
+                   "movl 16(%ebp), %eax\n"
+                   "movl %edx, %esp\n"
+                   "movl 4(%eax), %ebx\n"
+                   "movl 8(%eax), %ecx\n"
+                   "movl 12(%eax), %edx\n"
+                   "movl 16(%eax), %esi\n"
+                   "movl 20(%eax), %edi\n"
+                   "movl 0(%eax), %eax\n"
+                   "call *12(%ebp)\n"
+                   "leal -12(%ebp), %esp\n"
+                   "popl %ebx\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebp\n"
+                   "ret")
+
 namespace {
 
 // Calls from a rebuilt original frame: `frame` is the original's ESP after its

@@ -130,6 +130,20 @@ inline float platform_x87_rcp_sqrt_sq_plus_one(float v) {
     __asm__("flds %1\n\tfmuls %1\n\tfadds %2\n\tfsqrt\n\tfdivrs %2" : "=t"(result) : "m"(v), "m"(one));
     return result;
 }
+// one / sqrt(a * a + b * b) on the x87 (FMUL, FMUL, FADDP, FSQRT, FDIVR), as float.
+inline float platform_x87_rcp_hypot(float a, float b, float one) {
+    float result;
+    __asm__("flds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tfsqrt\n\tfdivrs %3"
+            : "=t"(result)
+            : "m"(a), "m"(b), "m"(one));
+    return result;
+}
+// sqrt(|(one - x) * half|) on the x87 (FSUB, FMUL, FABS, FSQRT), as float.
+inline float platform_x87_sqrt_abs_sub_mul(float one, float x, float half) {
+    float result;
+    __asm__("flds %1\n\tfsubs %2\n\tfmuls %3\n\tfabs\n\tfsqrt" : "=t"(result) : "m"(one), "m"(x), "m"(half));
+    return result;
+}
 // The cosine and sine of a * b * c, all on the x87 (FMUL twice, FCOS of a copy, FSIN),
 // each stored as float: no MXCSR flags for the products.
 inline void platform_x87_sin_cos_of_product(float a, float b, float c, float* sine, float* cosine) {
@@ -297,6 +311,10 @@ inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
     return t - std::sqrt(a * b) >= limit;
 }
 inline float platform_x87_rcp_sqrt_sq_plus_one(float v) { return 1.0f / std::sqrt(v * v + 1.0f); }
+inline float platform_x87_rcp_hypot(float a, float b, float one) { return one / std::sqrt(a * a + b * b); }
+inline float platform_x87_sqrt_abs_sub_mul(float one, float x, float half) {
+    return std::sqrt(std::fabs((one - x) * half));
+}
 inline float platform_x87_div_mul(float a, float b, float c) { return a / b * c; }
 inline float platform_x87_mul_div_add(float a, float b, float c, float d) { return a * b / c + d; }
 inline float platform_x87_add(float a, float b) { return a + b; }
