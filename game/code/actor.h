@@ -245,6 +245,32 @@ extern "C" void Actor_StopAnimScript_entry(void);
 // +0x34).
 extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_Exposed_StartReacquire(uint32_t mode, uint8_t* actor);
 extern "C" void Actor_Exposed_StartReacquire_entry(void);
+// 0x00200960 (callee pops 8): moves the sentient's node claim (+0x48 handle) to node -
+// the old node's claim times out, the new one is claimed indefinitely.
+void XB_STDCALL Sentient_SetClaimedNode(uint8_t* sentient, uint32_t node);
+// 0x002014a0 (actor in ECX, attacker entity in EDX, callee pops 0x14): the cover state's Pain
+// - an allied actor (team 1) hurt by a non-ally marks its claimed node dangerous for 5 s
+// (node +0x14 + team * 4).
+void XB_REGS3 XB_STDCALL Actor_Cover_Pain(uint32_t, const uint8_t* attacker, const uint8_t* actor, uint32_t,
+                                          uint32_t, uint32_t, uint32_t, uint32_t);
+// 0x002053b0 (actor in EAX, pitch in XMM0, callee pops 4): the desired angles (+0x100, +0x104,
+// through 16-bit angles) and their axis (+0x108 forward, +0x114 right, +0x120 up).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_SetDesiredAngles(uint8_t* actor, float pitch, float yaw);
+extern "C" void Actor_SetDesiredAngles_entry(void);
+// 0x001fc480 (entity in ESI): an actor spawner's entity (type 0xc, no contents / clip, ...);
+// +0x370 = 1 unless the spawn vars have "count" (hash cached in 0x0098b5d0). Returns 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_InitSpawner(uint8_t* ent);
+extern "C" void Actor_InitSpawner_entry(void);
+// 0x00200360 (memory context index in EAX, -1 = none): a zeroed actor (0x1400 bytes, 16-byte
+// aligned; context 0x0095f638 +0x38 list, else the heap) in the first free g_actors slot
+// (+0x1382 = slot, -1 when full), spawn time +0x1360, Actor_InitDefaults. 0 when out of memory.
+uint8_t* XB_REGS1 XB_CDECL Actor_Alloc(int32_t context);
+// 0x00200e20 (path in EAX, callee pops 4): one of the path's links (consecutive points' nodes,
+// +0x18) lies in the bad place (PathNode_IsLinkInBadPlace).
+uint32_t XB_REGS1 XB_STDCALL Path_CrossesBadPlace(const uint8_t* path, uint32_t bad_place);
+// 0x00205a70: ends the bad places (32 at 0x0098a570, 0x28 bytes: expiry +0, name +4, kind +8,
+// +9, arc +0xc) whose time is up - arcs (kind 1) taken off the nodes, the name cleared.
+void XB_CDECL G_ExpireBadPlaces();
 // 0x001fc130: empties g_actors; 0x0095ee0c = 0x00987a94, 0x0095f44c = -1.
 void XB_CDECL Actor_ClearAll();
 // 0x001fd990 (actor in EAX): default tuning (ranges, accuracy, timers; state stack base 5).

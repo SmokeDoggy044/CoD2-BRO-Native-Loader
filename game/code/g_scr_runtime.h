@@ -52,6 +52,16 @@ uint32_t* XB_CDECL Scr_Alloc(uint32_t size, uint32_t flags);
 // 0x002fbe00: Scr_Notify by entity handle (the record keeps the handle); the handler runs when
 // the handle is live and the entity has a script object.
 void XB_CDECL Scr_QueueNotify(uint32_t handle, uint32_t notify);
+// 0x002fbd70 / 0x002fbc40: queue a notify for a handle with one value (kinds 0x008317d8 /
+// 0x008317ec); no handler run.
+void XB_CDECL Scr_QueueNotifyCallback26(uint32_t handle, uint32_t notify, uint32_t value);
+void XB_CDECL Scr_QueueNotifyCallback29(uint32_t handle, uint32_t notify, uint32_t value);
+// 0x002fdbf0: the running thread's handle (+0x14), given one from the pool on first use.
+uint32_t XB_CDECL Scr_GetCurrentThreadHandle();
+// 0x002f5250 (script string in ESI): the team mask of a team name (script strings 0x00984cd0,
+// 0x00984cd4, 0x00984cd8 -> 2, 4, 8); anything else breaks into the debugger and gives 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_TeamFromString(const void* name);
+extern "C" void Scr_TeamFromString_entry(void);
 // 0x0011f660 (callee pops 8): count zeroed pointers from Scr_Alloc.
 uint32_t* XB_STDCALL Scr_AllocPtrArray(uint32_t count, uint32_t unused);
 // 0x002f5e10: frees script memory to the heap that owns it.

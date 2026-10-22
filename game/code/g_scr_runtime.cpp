@@ -180,6 +180,82 @@ void XB_CDECL Scr_QueueNotify(uint32_t handle, uint32_t notify) {
         title_function<NotifyHandler>(0x002b6de0)(ent, notify, nullptr);
 }
 
+namespace {
+
+// A queued notify carrying one value of the given kind (vtable) - {0, 0, notify, handle,
+// value record from heap 0x0095f574}.
+void queue_notify_with_value(uint32_t kind, uint32_t handle, uint32_t notify, uint32_t value) {
+    uint32_t* node = small_heap_alloc(0x0095f56c, 0x14);
+    if (node) {
+        uint32_t* argument = small_heap_alloc(0x0095f574, 0x10);
+        if (argument) {
+            argument[1] = 0;
+            argument[2] = 0;
+            argument[0] = kind;
+            argument[3] = value;
+        }
+        node[0] = 0;
+        node[1] = 0;
+        node[2] = notify;
+        node[3] = handle;
+        node[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(argument));
+    }
+    queue_notify(node);
+}
+
+}  // namespace
+
+void XB_CDECL Scr_QueueNotifyCallback26(uint32_t handle, uint32_t notify, uint32_t value) {
+    queue_notify_with_value(0x008317d8, handle, notify, value);
+}
+
+void XB_CDECL Scr_QueueNotifyCallback29(uint32_t handle, uint32_t notify, uint32_t value) {
+    queue_notify_with_value(0x008317ec, handle, notify, value);
+}
+
+namespace {
+
+// 0x000147e0: takes a free slot of the thread handle pool (EAX = 0x008dd208) and writes its
+// handle to the word EBX points to.
+extern "C" PLATFORM_HIDDEN void XB_CDECL thread_handle_alloc_call(uint32_t* out);
+PLATFORM_ASM_ENTRY(thread_handle_alloc_call,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "movl $0x008dd208, %eax\n"
+                   "movl $0x000147e0, %ecx\n"
+                   "call *%ecx\n"
+                   "popl %ebx\n"
+                   "ret")
+
+}  // namespace
+
+uint32_t XB_CDECL Scr_GetCurrentThreadHandle() {
+    uint8_t* thread = title_global<uint8_t*>(0x008dda2c);
+    if (!thread) return 0;
+    uint32_t& handle = *reinterpret_cast<uint32_t*>(thread + 0x14);
+    if (!handle) {
+        uint32_t allocated;
+        thread_handle_alloc_call(&allocated);
+        const uint32_t index = allocated & 0xff;
+        title_global<uint8_t*>(0x008dd228 + index * 8) = thread;
+        handle = allocated;
+    }
+    return handle;
+}
+
+PLATFORM_ASM_ENTRY(Scr_TeamFromString_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Scr_TeamFromString) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Scr_TeamFromString(const void* name) {
+    static const uint32_t kTeams[3][2] = {{0x00984cd0, 2}, {0x00984cd4, 4}, {0x00984cd8, 8}};
+    const auto equals = title_function<uint32_t XB_CDECL(const void*, uint32_t)>(0x0011d820);  // ScriptString_EqualsString
+    for (const auto& team : kTeams)
+        if (static_cast<uint8_t>(equals(name, team[0]))) return team[1];
+    title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    return 0;
+}
+
 PLATFORM_ASM_ENTRY(G_SetSoundDoneNotify_entry,
                    "pushl %ebx\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(G_SetSoundDoneNotify) "addl $8, %esp\n"

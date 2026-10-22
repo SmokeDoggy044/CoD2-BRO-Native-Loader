@@ -39,12 +39,52 @@ void XB_CDECL G_TraceCapsule(uint32_t results, uint32_t start, uint32_t mins, ui
                              uint32_t pass, uint32_t mask);
 // 0x002600c0: a point trace (bounds {0, 0, 0, 1}, 16-byte aligned) - SV_Trace (results, EBX =
 // start, zero, zero, end, pass, mask, 0, 1, a6, 1, a7).
-void XB_CDECL G_LocationalTrace(uint32_t results, uint32_t start, uint32_t end, uint32_t pass, uint32_t mask,
-                                uint32_t a6, uint32_t a7);
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_LocationalTrace(uint32_t entry, uint32_t results, uint32_t start,
+                                                            uint32_t end, uint32_t pass, uint32_t mask, uint32_t a6,
+                                                            uint32_t a7, uint32_t edi);
+extern "C" void G_LocationalTrace_entry(void);
 // 0x0024c5a0 (field table in EAX, object in EBX): releases the object's script-string fields
 // (type 0x10 in the {offset, type} table, 0-terminated by type) and clears them.
 extern "C" PLATFORM_HIDDEN void XB_CDECL G_FreeFieldStrings(const uint32_t* fields, uint8_t* object);
 extern "C" void G_FreeFieldStrings_entry(void);
+// 0x002b7500 (flag in DL, entity in ECX): adds the entity number to the list at 0x00960074
+// (count 0x00960070, 32 at most; flag 0x200000 at +0x2a4 marks members) or, with flag 0,
+// removes it (the last member moves into its place; the mark stays).
+void XB_REGS3 XB_CDECL G_SetEntityInList960070(uint32_t, uint32_t flag, uint8_t* ent);
+// 0x002f5cb0 (out in EDI): the entities (list 0x0097d370, count 0x0097d36c) whose int field
+// at offset equals value - their numbers into out, returning the count; without out, the
+// first one's number (its vehicle, +0x248, gets +0x200 = 1).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindEntsByField(uint32_t* out, uint32_t offset, uint32_t value);
+extern "C" void G_FindEntsByField_entry(void);
+// 0x0024acc0 (weapon in ECX): marks the weapon and its alternate chain (+0x718) registered
+// (0x00950230) once; 0x0098601c = 1, and with precache set 0x00986004 = 1.
+void XB_REGS3 XB_CDECL G_RegisterWeapon(uint32_t, uint32_t, uint32_t weapon, uint32_t precache);
+// 0x002511c0 (entity in EAX): frees the vehicle's effects (4 or 6 ids at +0x21c by its def's
+// +0x20, and +0x234), setting them to -1.
+void XB_REGS1 XB_CDECL Vehicle_StopEffects(const uint8_t* ent);
+// 0x0024abb0: for every turret weapon (class 7) the anim script record (0x00987bf8, 16 bytes
+// per weapon) cleared and its script function looked up by name (+0x864) in g_broFuncs.
+void XB_CDECL G_InitTurretAnimScripts();
+// 0x0024e620 / 0x0024e5b0: info_notnull(_big) spawns - the entity stays where it is
+// (G_SetOrigin to its current origin, inlined). Two identical copies.
+void XB_CDECL SP_info_notnull(uint8_t* ent);
+void XB_CDECL SP_info_notnull_big(uint8_t* ent);
+// 0x0024bc00 (entity in EDX): clears every live vehicle's references to the entity (+0x204,
+// +0x208, +0x1cc; vehicles 0x340 bytes from g_vehicles, live with +0x170 set).
+void XB_REGS2 XB_CDECL Vehicle_ClearEntityRefs(uint32_t, const uint8_t* ent);
+// 0x002489f0: sound_blend spawn - type 8, no contents, static trajectories, +0xd4 flag 0x20.
+void XB_CDECL SP_sound_blend(uint8_t* ent);
+// 0x002485f0: script_vehicle_collmap spawn - type 0x10, no contents.
+void XB_CDECL SP_script_vehicle_collmap(uint8_t* ent);
+// 0x0024bc70: clears every vehicle slot's physics body (PhysBody_Clear, EDI) and use flag
+// (+0x170); 0x0098537c = g_vehicles.
+void XB_CDECL Vehicle_ResetPool();
+// 0x0024c2c0: the script_vehicle_collmap entity whose targetname (+0x264 script string) is
+// name (case-insensitive), or 0.
+uint8_t* XB_CDECL Vehicle_FindCollmap(const char* name);
+// 0x0024c330: the script_vehicle entity a handle names; the error texts are only formatted
+// (va), never printed. 0 for a stale handle.
+uint8_t* XB_CDECL Vehicle_FromEntityHandle(uint32_t handle);
 // 0x002a8e40 / 0x002a8e90 (entity in EAX, key in EBX): clears / sets the enabled word of the
 // keyed record in the entity's list (+0x190 -> {count, records of {?, key, enabled}}).
 extern "C" PLATFORM_HIDDEN void XB_CDECL G_EntList190_Disable(const uint8_t* ent, uint32_t key);

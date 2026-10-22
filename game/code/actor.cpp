@@ -3,6 +3,7 @@
 #include "bg_misc.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -914,16 +915,18 @@ uint32_t XB_THISCALL Actor_Lmg_Start(uint8_t* actor) {
 }
 
 // The Finish callbacks run at the original's ESP (no pushes before the call).
+// EBP is saved below the gap: the callbacks' return address goes to entry ESP - 4.
 PLATFORM_ASM_ENTRY(Actor_ForceState_entry,
-                   "pushl %ebp\n"
-                   "movl %esp, %ebp\n"
+                   "movl %esp, %eax\n"
                    "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
                    "pushl %ebx\n"
                    "pushl %edi\n"
                    "pushl %esi\n"
-                   "leal 4(%ebp), %eax\n"
-                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_ForceState) "movl %ebp, %esp\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ForceState) "addl $16, %esp\n"
                    "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
                    "ret")
 
 void XB_CDECL Actor_ForceState(uint32_t entry, uint8_t* actor, uint32_t state, uint32_t ebx) {
@@ -981,6 +984,144 @@ void XB_CDECL Actor_Exposed_StartReacquire(uint32_t mode, uint8_t* actor) {
     field<uint32_t>(actor, 0x28) = 0xca;
     field<int32_t>(actor, 0x2c) = level_time() + 1;
     field<int32_t>(actor, 0x34) = level_time() + 0x1f5;
+}
+
+namespace {
+
+// PathNode_HandleIsValid (0x00014480) / PathNode_FromHandle2 (0x002ba010): handle pointer in EAX.
+bool node_handle_valid(const uint16_t* handle) {
+    return static_cast<uint8_t>(title_function<uint32_t XB_REGS1 XB_CDECL(const uint16_t*)>(0x00014480)(handle)) != 0;
+}
+uint8_t* node_from_handle(const uint16_t* handle) {
+    return title_function<uint8_t* XB_REGS1 XB_CDECL(const uint16_t*)>(0x002ba010)(handle);
+}
+
+}  // namespace
+
+void XB_STDCALL Sentient_SetClaimedNode(uint8_t* sentient, uint32_t node) {
+    uint16_t* claimed = &field<uint16_t>(sentient, 0x48);
+    if (static_cast<uint16_t>(node) == *claimed) return;
+    if (node_handle_valid(claimed)) Sentient_ClaimNodeTimed(0, node_from_handle(claimed));
+    *claimed = static_cast<uint16_t>(node);
+    if (node_handle_valid(claimed))
+        Sentient_ClaimNodeIndefinitely(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(sentient)), 0,
+                                       node_from_handle(claimed));
+}
+
+void XB_REGS3 XB_STDCALL Actor_Cover_Pain(uint32_t, const uint8_t* attacker, const uint8_t* actor, uint32_t, uint32_t,
+                                          uint32_t, uint32_t, uint32_t) {
+    const uint8_t* sentient = field<const uint8_t*>(actor, 4);
+    if (field<int32_t>(sentient, 4) != 1) return;
+    const uint8_t* other = field<const uint8_t*>(attacker, 0x244);
+    if (other && field<int32_t>(other, 4) == 1) return;
+    const uint16_t* claimed = &field<uint16_t>(const_cast<uint8_t*>(sentient), 0x48);
+    if (!node_handle_valid(claimed)) return;
+    const int32_t until = level_time() + 5000;
+    uint8_t* node = node_from_handle(claimed);
+    field<int32_t>(node, 0x14 + field<uint32_t>(sentient, 4) * 4) = until;
+}
+
+PLATFORM_ASM_ENTRY(Actor_SetDesiredAngles_entry,
+                   "pushl 4(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_SetDesiredAngles) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Actor_SetDesiredAngles(uint8_t* actor, float pitch, float yaw) {
+    const float to_short = title_global<float>(0x0083ebd8), to_angle = title_global<float>(0x0083ebd4);
+    float angles[3];
+    angles[0] = static_cast<float>(static_cast<int32_t>(pitch * to_short) & 0xffff) * to_angle;
+    field<float>(actor, 0x100) = angles[0];
+    angles[1] = static_cast<float>(static_cast<int32_t>(yaw * to_short) & 0xffff) * to_angle;
+    field<float>(actor, 0x104) = angles[1];
+    angles[2] = 0.0f;
+    uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles)),
+                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(actor + 0x108))};
+    AnglesToAxis(args, reinterpret_cast<float*>(actor + 0x114), reinterpret_cast<float*>(actor + 0x120));
+}
+
+PLATFORM_ASM_ENTRY(Actor_InitSpawner_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Actor_InitSpawner) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_InitSpawner(uint8_t* ent) {
+    const uint8_t guard = title_global<uint8_t>(0x0098b5d4);
+    field<uint32_t>(ent, 0x2a8) = 0;
+    field<uint32_t>(ent, 0x134) = 0;
+    field<uint32_t>(ent, 0xd4) = 1;
+    ent[0] = 0xc;
+    field<int32_t>(ent, 0x2f0) = -1;
+    field<uint32_t>(ent, 0x3b4) = 0;
+    uint32_t hash;
+    if (!(guard & 1)) {
+        title_global<uint32_t>(0x0098b5d4) |= 1;
+        hash = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x0083ae84}));  // "count"
+        title_global<uint32_t>(0x0098b5d0) = hash;
+    } else {
+        hash = title_global<uint32_t>(0x0098b5d0);
+    }
+    if (field<uint32_t>(ent, 0x370)) return 1;
+    field<uint32_t>(ent, 0x370) = 1;
+    const int32_t count = title_global<int32_t>(0x00985420);  // level_numSpawnVars
+    for (int32_t i = 0; i < count; ++i) {
+        if (title_global<uint32_t>(0x00985424 + i * 8) == hash) {
+            field<uint32_t>(ent, 0x370) = 0;
+            break;
+        }
+    }
+    return 1;
+}
+
+uint8_t* XB_REGS1 XB_CDECL Actor_Alloc(int32_t context) {
+    uint8_t* actor = nullptr;
+    if (context != -1) {
+        const uint32_t memory =
+            context >= 0 && context < 0x63 ? field<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x38 + context * 4) : 0;
+        // MemContext_Alloc_r (0x0028c0f0): context in ECX, alignment and size, callee pops.
+        actor = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x0028c0f0)(memory, 0x10, 0x1400);
+    }
+    if (!actor) actor = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x1400);  // Heap_AllocAligned
+    if (!actor) return nullptr;
+    for (uint32_t i = 0; i < 0x500; ++i) field<uint32_t>(actor, i * 4) = 0;
+    field<uint16_t>(actor, 0x1382) = 0xffff;
+    for (uint16_t slot = 0; slot < 0x20; ++slot) {
+        if (title_global<uint8_t*>(0x00985384 + slot * 4)) continue;  // g_actors
+        title_global<uint8_t*>(0x00985384 + slot * 4) = actor;
+        field<uint16_t>(actor, 0x1382) = slot;
+        break;
+    }
+    field<int32_t>(actor, 0x1360) = level_time();
+    Actor_InitDefaults(actor);
+    return actor;
+}
+
+uint32_t XB_REGS1 XB_STDCALL Path_CrossesBadPlace(const uint8_t* path, uint32_t bad_place) {
+    const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);  // g_pathNodeBlocks
+    for (int32_t i = field<int16_t>(path, 0x380) - 2; i >= 0; --i) {
+        const uint16_t* from = &field<uint16_t>(const_cast<uint8_t*>(path), 0x18 + i * 0x1c);
+        const uint16_t* to = &field<uint16_t>(const_cast<uint8_t*>(path), 0x34 + i * 0x1c);
+        if (!node_handle_set(*from) || !node_handle_set(*to)) continue;
+        // PathNode_IsLinkInBadPlace (0x002b96c0): EAX = to, EDX = blocks, ECX = from; from and
+        // the bad place on the stack (callee pops).
+        const uint32_t in = title_function<uint32_t XB_REGS3 XB_STDCALL(const uint16_t*, uint32_t, const uint16_t*,
+                                                                         const uint16_t*, uint32_t)>(0x002b96c0)(
+            to, blocks, from, from, bad_place);
+        if (static_cast<uint8_t>(in)) return 1;
+    }
+    return 0;
+}
+
+void XB_CDECL G_ExpireBadPlaces() {
+    for (uint32_t i = 0; i < 0x20; ++i) {
+        uint8_t* place = &title_global<uint8_t>(0x0098a570 + i * 0x28);
+        if (!place[8] || level_time() < field<int32_t>(place, 0)) continue;
+        if (place[8] == 1)
+            title_function<void XB_STDCALL(uint32_t, uint8_t*, uint32_t, int32_t)>(0x002d0db0)(  // AdjustBadPlaceArc
+                title_global<uint32_t>(0x0095f4f4), place + 0xc, place[9], -1);
+        place[8] = 0;
+        title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(place + 4);  // ScriptString_Clear
+    }
 }
 
 void XB_CDECL Actor_ClearAll() {

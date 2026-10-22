@@ -1,5 +1,7 @@
 #include "g_utils.h"
 
+#include "fx.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -135,13 +137,41 @@ void XB_CDECL G_TraceCapsule(uint32_t results, uint32_t start, uint32_t mins, ui
     sv_trace_call(results, mins, maxs, end, pass, mask, 1, 0, 0, 0, 0, start);
 }
 
-void XB_CDECL G_LocationalTrace(uint32_t results, uint32_t start, uint32_t end, uint32_t pass, uint32_t mask,
-                                uint32_t a6, uint32_t a7) {
-    // SV_Trace reads the bounds with MOVAPS.
-    alignas(16) uint32_t mins[4], maxs[4];
-    for (uint32_t i = 0; i < 4; ++i) mins[i] = maxs[i] = title_global<uint32_t>(0x0082e290 + i * 4);
-    const auto address = [](const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); };
-    sv_trace_call(results, address(maxs), address(mins), end, pass, mask, 0, 1, a6, 1, a7, start);
+// SV_Trace keeps pointers derived from its stack (results by address 0x50 apart otherwise): it
+// runs at the original's ESP with the two bound vectors where the original's aligned frame
+// has them (push ebp; and esp,-16; sub esp,0x28: vectors at -0x20 and -0x10 from the aligned
+// base; push ebx, esi).
+PLATFORM_ASM_ENTRY(G_LocationalTrace_entry,
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl 28(%ebp)\n"
+                   "pushl 24(%ebp)\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_LocationalTrace) "addl $36, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+void XB_CDECL G_LocationalTrace(uint32_t entry, uint32_t results, uint32_t start, uint32_t end, uint32_t pass,
+                                uint32_t mask, uint32_t a6, uint32_t a7, uint32_t edi) {
+    const uint32_t base = (entry - 4) & ~15u;  // after push ebp; and esp,-16
+    const uint32_t frame = base - 0x28;
+    const uint32_t maxs = frame + 8, mins = frame + 0x18;
+    for (uint32_t i = 0; i < 4; ++i) {
+        const uint32_t value = title_global<uint32_t>(0x0082e290 + i * 4);  // {0, 0, 0, 1}
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(maxs + i * 4)) = value;
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(mins + i * 4)) = value;
+    }
+    const TitleRegs regs = {mins, start, results, maxs, title_global<uint32_t>(0x0082e29c), edi};
+    const uint32_t args[11] = {results, mins, maxs, end, pass, mask, 0, 1, a6, 1, a7};
+    title_call_at_regs(frame - 8, 0x002e9af0, &regs, 11, args);  // SV_Trace
 }
 
 PLATFORM_ASM_ENTRY(G_FreeFieldStrings_entry,
@@ -157,6 +187,191 @@ void XB_CDECL G_FreeFieldStrings(const uint32_t* fields, uint8_t* object) {
         title_function<void XB_THISCALL(uint32_t)>(0x0011d5b0)(*slot);  // ScriptStringRep_Release
         *slot = 0;
     }
+}
+
+void XB_REGS3 XB_CDECL G_SetEntityInList960070(uint32_t, uint32_t flag, uint8_t* ent) {
+    uint32_t* list = &title_global<uint32_t>(0x00960074);
+    int32_t& count = title_global<int32_t>(0x00960070);
+    const bool member = word_at(ent, 0x2a4) & 0x200000;
+    if (static_cast<uint8_t>(flag)) {
+        if (member) return;
+        word_at(ent, 0x2a4) |= 0x200000;
+        if (count >= 0x20) return;
+        list[count] = word_at(ent, 0x224);
+        ++count;
+        return;
+    }
+    if (!member) return;
+    const uint32_t number = word_at(ent, 0x224);
+    int32_t remaining = count;
+    for (int32_t i = 0; i < remaining; ++i) {
+        if (list[i] != number) continue;
+        if (remaining) count = --remaining;
+        const uint32_t last = list[remaining];
+        if (i != remaining) {
+            list[i] = last;
+            return;
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(G_FindEntsByField_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(G_FindEntsByField) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_FindEntsByField(uint32_t* out, uint32_t offset, uint32_t value) {
+    uint8_t* const* ents = &title_global<uint8_t*>(0x0097d370);
+    const uint32_t total = title_global<uint32_t>(0x0097d36c);
+    uint32_t found = 0;
+    for (uint32_t i = 0; i < total; ++i) {
+        uint8_t* ent = ents[i];
+        if (!ent || word_at(ent, offset) != value) continue;
+        if (!out) {
+            if (uint8_t* vehicle = *reinterpret_cast<uint8_t**>(ent + 0x248)) word_at(vehicle, 0x200) = 1;
+            return word_at(ent, 0x224);
+        }
+        out[found++] = word_at(ent, 0x224);
+    }
+    return found;
+}
+
+void XB_REGS3 XB_CDECL G_RegisterWeapon(uint32_t, uint32_t, uint32_t weapon, uint32_t precache) {
+    uint32_t* registered = &title_global<uint32_t>(0x00950230);
+    if (registered[weapon]) return;
+    const uint32_t chained = title_global<uint32_t>(0x0096bd34 + weapon * 0x34);
+    title_global<uint32_t>(0x0098601c) = 1;
+    registered[weapon] = 1;
+    if (chained == 1) {
+        const uint8_t* const* defs = title_global<const uint8_t* const*>(0x0095f4d8);  // bg_weaponDefs
+        uint32_t current = weapon;
+        do {
+            registered[current] = 1;
+            current = *reinterpret_cast<const uint32_t*>(defs[current] + 0x718);
+        } while (current && current != weapon);
+    }
+    if (precache) title_global<uint32_t>(0x00986004) = 1;
+}
+
+void XB_REGS1 XB_CDECL Vehicle_StopEffects(const uint8_t* ent) {
+    uint8_t* vehicle = *reinterpret_cast<uint8_t* const*>(ent + 0x248);
+    const int16_t def_index = *reinterpret_cast<const int16_t*>(vehicle + 0x178);
+    const uint8_t* def = title_global<const uint8_t*>(0x00950a28 + def_index * 4);  // g_vehicleDefs
+    const int32_t count = *reinterpret_cast<const uint16_t*>(def + 0x20) != 1 ? 6 : 4;
+    const auto free_effect = [](uint32_t& id) {
+        if (id == 0xffffffff) return;
+        FX_FreeEffectsById(title_global<FxIdList*>(0x0095f5b4), id);
+        id = 0xffffffff;
+    };
+    for (int32_t i = 0; i < count; ++i) free_effect(word_at(vehicle, 0x21c + i * 4));
+    free_effect(word_at(vehicle, 0x234));
+}
+
+void XB_CDECL G_InitTurretAnimScripts() {
+    const int32_t last = title_global<int32_t>(0x0095f4d4);  // bg_lastWeaponIndex
+    const uint8_t* const* defs = title_global<const uint8_t* const*>(0x0095f4d8);
+    for (int32_t i = 0; i <= last; ++i) {
+        const uint8_t* def = defs[i];
+        if (*reinterpret_cast<const int32_t*>(def + 0x98) != 7) continue;
+        uint32_t* record = &title_global<uint32_t>(0x00987bf8 + i * 0x10);
+        record[0] = record[1] = record[2] = record[3] = 0;
+        const char* name = *reinterpret_cast<const char* const*>(def + 0x864);
+        if (!*name) continue;
+        const uint32_t hash = Com_HashKeyNoCase(0, name);
+        uint32_t function = 0;
+        for (uint32_t j = 0; j < 0x34; ++j) {
+            if (title_global<uint32_t>(0x00927170 + j * 8) == hash) {  // g_broFuncs {hash, function}
+                function = title_global<uint32_t>(0x00927174 + j * 8);
+                break;
+            }
+        }
+        record[2] = function;
+    }
+}
+
+void XB_CDECL SP_info_notnull(uint8_t* ent) {
+    set_trajectory(ent, reinterpret_cast<const float*>(ent + 0x140), 0x20, 0x14, 0x2c, 0x140);
+}
+void XB_CDECL SP_info_notnull_big(uint8_t* ent) {
+    set_trajectory(ent, reinterpret_cast<const float*>(ent + 0x140), 0x20, 0x14, 0x2c, 0x140);
+}
+
+void XB_REGS2 XB_CDECL Vehicle_ClearEntityRefs(uint32_t, const uint8_t* ent) {
+    for (uint32_t i = 0; i < title_global<uint16_t>(0x00986000); ++i) {  // g_vehicleSlotCount
+        uint8_t* vehicle = title_global<uint8_t*>(0x0095f694) + i * 0x340;  // g_vehicles
+        if (!word_at(vehicle, 0x170)) continue;
+        if (word_at(vehicle, 0x204) == *reinterpret_cast<const uint32_t*>(ent + 0x224)) word_at(vehicle, 0x204) = 0;
+        if (word_at(vehicle, 0x208) == *reinterpret_cast<const uint32_t*>(ent + 0x224)) word_at(vehicle, 0x208) = 0;
+        if (word_at(vehicle, 0x1cc) == *reinterpret_cast<const uint32_t*>(ent + 0x224)) word_at(vehicle, 0x1cc) = 0;
+    }
+}
+
+void XB_CDECL SP_sound_blend(uint8_t* ent) {
+    word_at(ent, 0x134) = 0;
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x38) = 0;
+    ent[4] = 0;
+    ent[5] = 0;
+    ent[0] = 8;
+    word_at(ent, 0xbc) = 0;  // 0.0f
+    word_at(ent, 0xd4) |= 0x20;
+}
+
+void XB_CDECL SP_script_vehicle_collmap(uint8_t* ent) {
+    word_at(ent, 0x134) = 0;
+    ent[0] = 0x10;
+}
+
+namespace {
+
+// PhysBody_Clear (0x002492f0): body in EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL phys_body_clear_call(uint8_t* body);
+PLATFORM_ASM_ENTRY(phys_body_clear_call,
+                   "pushl %edi\n"
+                   "movl 8(%esp), %edi\n"
+                   "movl $0x002492f0, %eax\n"
+                   "call *%eax\n"
+                   "popl %edi\n"
+                   "ret")
+
+}  // namespace
+
+void XB_CDECL Vehicle_ResetPool() {
+    for (int16_t i = 0; i < title_global<uint16_t>(0x00986000); ++i) {  // g_vehicleSlotCount
+        phys_body_clear_call(title_global<uint8_t*>(0x0095f694) + i * 0x340);
+        word_at(title_global<uint8_t*>(0x0095f694) + i * 0x340, 0x170) = 0;
+    }
+    title_global<uint32_t>(0x0098537c) = title_global<uint32_t>(0x0095f694);
+}
+
+uint8_t* XB_CDECL Vehicle_FindCollmap(const char* name) {
+    uint8_t* const* ents = &title_global<uint8_t*>(0x0097d370);
+    const uint32_t total = title_global<uint32_t>(0x0097d36c);
+    for (uint32_t i = 0; i < total; ++i) {
+        uint8_t* ent = ents[i];
+        if (!ent || word_at(ent, 0x260) != title_global<uint32_t>(0x0097a798)) continue;  // script_vehicle_collmap
+        const uint8_t* rep = *reinterpret_cast<const uint8_t* const*>(ent + 0x264);
+        const char* text = rep ? reinterpret_cast<const char*>(rep + 6) : nullptr;
+        if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(text, name)) return ent;  // __stricmp
+    }
+    return nullptr;
+}
+
+uint8_t* XB_CDECL Vehicle_FromEntityHandle(uint32_t handle) {
+    const auto va = title_function<const char* XB_CDECL(const char*)>(0x002a93d0);
+    const uint32_t index = handle & 0xfff;
+    uint8_t* ent = nullptr;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (!ent) {
+        va(reinterpret_cast<const char*>(uintptr_t{0x0083a110}));  // "Is not a valid entity handle"
+        return nullptr;
+    }
+    if (word_at(ent, 0x260) != title_global<uint32_t>(0x0097a790))  // script_vehicle
+        va(reinterpret_cast<const char*>(uintptr_t{0x0083a158}));
+    if (!word_at(ent, 0x248)) va(reinterpret_cast<const char*>(uintptr_t{0x0083a130}));
+    return ent;
 }
 
 PLATFORM_ASM_ENTRY(G_EntList190_Disable_entry,
