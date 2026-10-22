@@ -945,6 +945,162 @@ void XB_THISCALL cdWater_Draw(const NglMeshNode* node) {
     nglDrawMeshSection(node->section);
 }
 
+namespace {
+
+Lanes splat(float x) { return {{x, x, x, x}}; }
+
+// The nearest integer per lane through 1.5 * 2^23 (0x00898ea0): (v + magic) - magic.
+Lanes round_lanes(const Lanes& v) {
+    const Lanes magic = lanes(&title_global<float>(0x00898ea0));
+    return sub(add(v, magic), magic);
+}
+
+// MAXPS / MINPS: the second operand when either is NaN.
+Lanes max_lanes(const Lanes& a, const Lanes& b) {
+    Lanes r;
+    for (int i = 0; i < 4; ++i) r.v[i] = a.v[i] > b.v[i] ? a.v[i] : b.v[i];
+    return r;
+}
+
+Lanes min_lanes(const Lanes& a, const Lanes& b) {
+    Lanes r;
+    for (int i = 0; i < 4; ++i) r.v[i] = a.v[i] < b.v[i] ? a.v[i] : b.v[i];
+    return r;
+}
+
+// 1 / v per lane: RCPPS and one Newton step (2.0 from 0x007b6710).
+Lanes reciprocal_lanes(const Lanes& v) {
+    Lanes estimate;
+    for (int i = 0; i < 4; ++i) estimate.v[i] = platform_rcp_estimate(v.v[i]);
+    return mul(sub(lanes(&title_global<float>(0x007b6710)), mul(estimate, v)), estimate);
+}
+
+Lanes sine_lanes(const Lanes& angles) {
+    Lanes r;
+    for (int i = 0; i < 4; ++i) r.v[i] = scene_sine_poly(angles.v[i]);
+    return r;
+}
+
+// Rows 0..2 of a matrix with lane 3 replaced.
+void store_row_w(float* out, const float* row, float w) {
+    out[0] = row[0];
+    out[1] = row[1];
+    out[2] = row[2];
+    out[3] = w;
+}
+
+void store_lanes(float* out, const Lanes& v) { std::memcpy(out, v.v, 16); }
+
+}  // namespace
+
+void XB_THISCALL cdOcean_SetWaveConstants(const NglMeshNode* node) {
+    const float one = title_global<float>(0x0083eb20);
+    const float wave_scale = title_global<float>(0x00901e90);
+    const float quarter = title_global<float>(0x0083ec24);
+    int32_t& selected = title_global<int32_t>(0x00902128);
+    if (selected >= 4) selected = 3;
+    const int32_t index = selected;
+    const int32_t material_set = *reinterpret_cast<const int32_t*>(node->material + 0x3c);
+    // The wave set's rows; rows 1 and 2 feed three offset vectors.
+    Lanes r[13];
+    Lanes offset_a, offset_b, offset_c;
+    alignas(16) float pixel[4];
+    float wave_z;
+    if (title_global<uint32_t>(0x00902124) && index == material_set) {
+        if (index != title_global<int32_t>(0x0089e6d0)) {
+            title_global<int32_t>(0x0089e6d0) = index;
+            cdOcean_LoadWaveSet(index);
+        } else {
+            cdOcean_StoreWaveSet(index);
+        }
+        if (title_global<uint32_t>(0x0090212c)) title_global<uint32_t>(0x0090212c) = 0;
+        const auto g = [](uint32_t address) { return title_global<float>(address); };
+        const auto row = [](uint32_t address) { return lanes(&title_global<float>(address)); };
+        wave_z = g(0x0089e6e0);
+        const float z = wave_z * quarter;
+        r[0] = {{g(0x00902134), g(0x0089e6dc), z, wave_scale}};
+        pixel[0] = 0.0f;
+        pixel[1] = one;
+        pixel[2] = z;
+        pixel[3] = g(0x0089e6dc);
+        offset_a = {{g(0x00902138), g(0x0090213c), 0.0f, 0.0f}};
+        offset_b = {{g(0x00902140), g(0x00902144), 0.0f, 0.0f}};
+        offset_c = {{g(0x00902148), g(0x0090214c), 0.0f, 0.0f}};
+        r[3] = row(0x0089e6e4);
+        r[4] = {{g(0x0089e6f4), g(0x0089e6f8), one, one}};
+        r[5] = row(0x00902150);
+        r[6] = row(0x00902160);
+        r[7] = row(0x00902170);
+        r[8] = row(0x0089e6fc);
+        r[9] = row(0x0089e70c);
+        r[10] = row(0x00902180);
+        r[11] = row(0x00902190);
+        r[12] = row(0x0089e71c);
+    } else {
+        if (index == material_set) title_global<int32_t>(0x0089e6d0) = -1;
+        const float* set = &title_global<float>(0x00901b30 + material_set * 0xd0);
+        for (int i = 0; i < 13; ++i) r[i] = lanes(set + i * 4);
+        // Row 2 twice (the tweak path has row 1's zw in the middle one).
+        offset_a = r[1];
+        offset_b = r[2];
+        offset_c = r[2];
+        const Lanes quarters = mul(r[0], quarter);
+        platform_keep(quarters);
+        pixel[0] = 0.0f;
+        pixel[1] = one;
+        pixel[2] = quarters.v[2];
+        pixel[3] = r[0].v[1];
+        wave_z = r[0].v[2];
+    }
+
+    NglMeshDrawNode* draw = draw_node(node);
+    alignas(16) float c[25 * 4];
+    std::memcpy(c, draw->world_view_projection, 64);
+    const float w0 = title_global<float>(0x007b6760);  // 0
+    const float w1 = title_global<float>(0x007b6770);  // 1
+    for (int i = 0; i < 4; ++i) store_row_w(c + 16 + i * 4, draw->world + i * 4, i < 3 ? w0 : w1);
+    alignas(16) float inverse[16];
+    nglNode_GetScaledWorldInverse(draw, inverse);
+    for (int i = 0; i < 4; ++i) store_row_w(c + 32 + i * 4, inverse + i * 4, i < 3 ? w0 : w1);
+    store_lanes(c + 48, r[0]);
+    // The fractional wave offsets, less the section's rounded offset (+0x10).
+    const Lanes s = splat(wave_scale);
+    const Lanes a = sub(mul(offset_a, s), round_lanes(offset_a));
+    const Lanes b = sub(mul(offset_b, s), round_lanes(offset_b));
+    const Lanes cc = sub(mul(offset_c, s), round_lanes(offset_c));
+    const Lanes ones = splat(one);
+    const Lanes inverse3 = reciprocal_lanes(max_lanes(ones, r[3]));
+    const Lanes inverse4 = reciprocal_lanes(max_lanes(ones, r[4]));
+    const Lanes section_offset =
+        round_lanes(lanes(reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(node->section) + 0x10)));
+    const Lanes da = sub(a, section_offset);
+    const Lanes db = sub(b, section_offset);
+    const Lanes dc = sub(cc, section_offset);
+    store_lanes(c + 52, {{inverse3.v[0], inverse3.v[1], da.v[0], da.v[1]}});
+    store_lanes(c + 56, {{inverse3.v[2], inverse3.v[3], db.v[0], db.v[1]}});
+    store_lanes(c + 60, {{inverse4.v[0], inverse4.v[1], dc.v[0], dc.v[1]}});
+    store_lanes(c + 64, r[5]);
+    store_lanes(c + 68, r[6]);
+    // Row 7 in degrees: sin and sin(+ 3 pi / 2) of each.
+    const Lanes angles = mul(r[7], splat(title_global<float>(0x0083edd8)));
+    const float phase = title_global<float>(0x0083efe0);  // 3 pi / 2
+    const Lanes phases = {{phase, 0.0f, phase, 0.0f}};
+    store_lanes(c + 72, sine_lanes(add({{angles.v[0], angles.v[0], angles.v[1], angles.v[1]}}, phases)));
+    store_lanes(c + 76, sine_lanes(add({{angles.v[2], angles.v[2], angles.v[3], angles.v[3]}}, phases)));
+    store_lanes(c + 80, reciprocal_lanes(max_lanes(ones, r[8])));
+    store_lanes(c + 84, mul(splat(title_global<float>(0x0083edac)), reciprocal_lanes(max_lanes(ones, r[9]))));  // 2 pi
+    store_lanes(c + 88, r[10]);
+    const Lanes blend = min_lanes(ones, max_lanes(splat(0.0f), round_lanes(r[10])));
+    store_lanes(c + 92, mul(mul(add(r[11], mul(r[12], s)), splat(title_global<float>(0x0083eba8))),  // 2
+                            splat(title_global<float>(0x007b6800))));                                // pi
+    store_lanes(c + 96, mul(mul(splat(wave_z), blend), splat(quarter)));
+    using GetSlot = int32_t XB_THISCALL(const NglMeshNode*);
+    const int32_t slot = reinterpret_cast<GetSlot*>(node->vtable[6])(node);
+    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
+    title_function<SetConstants>(0x003e7490)(slot + 0x60, c, 100);  // NotInlineFast
+    title_function<void XB_STDCALL(uint32_t, const float*, uint32_t)>(0x003e7a50)(0, pixel, 1);  // SetPixelShaderConstant
+}
+
 void XB_THISCALL cdOcean_Draw(const NglMeshNode* node) {
     title_global<uint32_t>(0x009026fc) = current_scene()->frame_counter;
     set_cull_mode(0x900);
@@ -1014,7 +1170,7 @@ void XB_THISCALL cdOcean_Draw(const NglMeshNode* node) {
             ? reinterpret_cast<GetShader*>(vtable[4])(node)
             : reinterpret_cast<GetPixelShader*>(vtable[3])(node, stages & 1, stages >> 1 & 1, stages >> 2 & 1);
     nglSetPixelShaderProgramCached(pixel_shader);
-    title_function<void XB_THISCALL(const NglMeshNode*)>(0x0004f810)(node);  // cdOcean_SetWaveConstants
+    cdOcean_SetWaveConstants(node);
     const float* fog = current_scene()->fog;
     nglSetTransformConstants(reinterpret_cast<GetSlot*>(vtable[5])(node), draw_node(node), fog[0], fog[1], fog[2],
                              fog[3]);

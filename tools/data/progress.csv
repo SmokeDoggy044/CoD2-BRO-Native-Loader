@@ -1229,7 +1229,7 @@ address,name,section,module,state,tested,matched
 000456c0,nglMaterialFindTextureOrDefault,.text,renderer,settled,119,119
 000456f0,nglGetSceneFogColor,.text,renderer,settled,350,350
 00045790,nglInitShaders,.text,renderer,named,0,0
-00045850,R_DrawFogPass,.text,renderer,named,0,0
+00045850,R_DrawFogPass,.text,renderer,settled,157,157
 00045ef0,R_AddFogPass,.text,renderer,settled,387,387
 00045f40,nglToggleShaderByName,.text,renderer,named,0,0
 000462f0,FUN_000462f0,.text,renderer,unnamed,0,0
@@ -1400,10 +1400,10 @@ address,name,section,module,state,tested,matched
 0004f2a0,cdOcean_Register,.text,renderer,matched,1,1
 0004f320,cdOcean_Init,.text,renderer,untested,0,0
 0004f370,cdOcean_StoreWaveSet,.text,renderer,untested,0,0
-0004f810,cdOcean_SetWaveConstants,.text,renderer,named,0,0
+0004f810,cdOcean_SetWaveConstants,.text,renderer,settled,4764,4764
 000505c0,cdOcean_Draw,.text,renderer,settled,124,124
 000508e0,cdOcean_InitPixelShaders,.text,renderer,matched,1,1
-00050910,FUN_00050910,.text,renderer,unnamed,0,0
+00050910,FUN_00050910,.text,renderer,settled,4763,4763
 00050d80,FUN_00050d80,.text,renderer,unnamed,0,0
 00051070,cdWater_AddToList,.text,renderer,untested,0,0
 000510e0,cdWater_Toggle,.text,renderer,untested,0,0
@@ -1770,7 +1770,7 @@ address,name,section,module,state,tested,matched
 00072ba0,nglInitDepthTextureView,.text,renderer,settled,100,100
 00072c00,nglCreateFogTextures,.text,renderer,inconclusive,182,0
 00073340,nglFreeFogTextures,.text,renderer,settled,778,103
-00073380,nglDrawFogPass,.text,renderer,named,0,0
+00073380,nglDrawFogPass,.text,renderer,inconclusive,220,0
 00073750,FUN_00073750,.text,renderer,unnamed,0,0
 00073a70,nglSetRenderTarget,.text,renderer,settled,1445,1445
 00073ad0,FUN_00073ad0,.text,renderer,unnamed,0,0
@@ -8165,7 +8165,7 @@ address,name,section,module,state,tested,matched
 00240f00,DObj_CalcBasePose,.text,renderer,settled,102,102
 00240f70,FUN_00240f70,.text,unassigned,unnamed,0,0
 00241200,FX_PlayEffectAt,.text,renderer,untested,0,0
-00241290,R_RenderTestShadow,.text,renderer,named,0,0
+00241290,R_RenderTestShadow,.text,renderer,settled,157,155
 00241860,RE_DrawTextWithIcons,.text,renderer,untested,0,0
 00241a30,RE_TextWidthWithIcons,.text,renderer,untested,0,0
 00241b40,R_DrawDObjSkeleton,.text,renderer,named,0,0

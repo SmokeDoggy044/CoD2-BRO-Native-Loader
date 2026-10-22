@@ -582,7 +582,7 @@ struct NglMeshDrawNode {
     float world[16];                 // +0x00, the instance matrix (scaled rows when flag 2)
     float world_view_projection[16]; // +0x40, world * the scene's view_projection, transposed
     float* world_inverse;            // +0x80, nglNode_GetWorldInverse's cache (scene memory)
-    uint32_t unknown84;              // +0x84, zeroed
+    float* scaled_world_inverse;     // +0x84, nglNode_GetScaledWorldInverse's cache
     uint8_t* mesh;                   // +0x88, after the LOD pick
     uint32_t extra;                  // +0x8c, *extra or the address 0x009028f8
     const uint32_t* params;          // +0x90, the instance block (0x30 bytes; copied unless
@@ -606,6 +606,12 @@ int32_t XB_CDECL nglListAddMesh(uint8_t* mesh, const float* matrix, const uint32
 // one: rotation transposed with lane 3 repeating lane 2, then -t * R^T), made once per
 // frame into scene memory (+0x80) and copied to out. Returns out.
 float* XB_THISCALL nglNode_GetWorldInverse(NglMeshDrawNode* self, float* out);
+// 0x00050910: the inverse of the node's own world rows (no nglNode_CalcWorldMatrix):
+// the rotation transposed (lane 3 repeating lane 2), then -t * R^T; for a scaled
+// instance (params flag 2) every row times 1 / scale^2 per lane (the params' +0x10,
+// RCPPS and one Newton step). Made once per frame into scene memory (+0x84) and copied
+// to out. Returns out.
+float* XB_THISCALL nglNode_GetScaledWorldInverse(NglMeshDrawNode* self, float* out);
 // 0x00070200: up to four object lights of the current light set for the node, at its
 // bounding sphere's centre: directions[i] = -light direction in object space (lane 3
 // 0), colors = r[4], g[4], b[4] (one lane per light), then the set's ambient; unused
@@ -965,6 +971,15 @@ void XB_STDCALL nglShader_Nop(uint32_t unused);
 uint32_t XB_CDECL WaitTilOutputInst1_str_VFunc2();
 // Frees the two fog textures (0x00902e64/68) once made (0x00902e6c).
 void XB_CDECL nglFreeFogTextures();
+// 0x00073380: R_RenderView's fog scene callback. The fog table updated, depth test and
+// writes off, alpha test > 0 and blending one, 1 - source alpha (cache +0x50..+0x70,
+// with D3D's render-state shadows),
+// solid fill, no culling; a full-target strip (0x00902e88 x 0x00902e8c) sampling the
+// depth buffer view (0x00902e78, stage 0) and the fog table texture (0x00902e70, stage
+// 1) at those sizes times 0x008a3510/14, coloured with the scene's fog colour (+0x3a0,
+// times 255). Depth writes and the depth test restored, then 0x00902ff0 = 9 and
+// 0x00902ff4/f8 = -1.
+void XB_CDECL nglDrawFogPass();
 // Frees the current scene's render targets (and a depth texture at +0x38 of targets
 // with flags 0x5000).
 void XB_CDECL nglFreeSceneRenderTargets();

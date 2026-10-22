@@ -2487,6 +2487,96 @@ void XB_CDECL R_AddEntityModel(uint8_t* entity, uint8_t* frame) {
     nglSetCurrentScene(saved);
 }
 
+namespace {
+
+// 1 / |v.xyz| as RSQRTSS and one Newton step (3.0 and 0.5 from 0x0082e660/0x0082e670);
+// 0 for a zero vector (the zero vector 0x0082e6a0). Every lane of the squares is
+// computed (MXCSR flags).
+float unit_scale(const Lanes& v) {
+    const Lanes squares = mul(v, v);
+    platform_keep(squares);
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    if (sum == 0.0f) return 0.0f;
+    const float a = abs_bits(sum);
+    const float r = platform_rsqrt_estimate(a);
+    return ((title_global<float>(0x0082e660) - (r * r) * a) * r) * title_global<float>(0x0082e670);
+}
+
+// The lanes {y, z, x, w} (SHUFPS 0xc9).
+Lanes yzxw(const Lanes& a) { return {{a.v[1], a.v[2], a.v[0], a.v[3]}}; }
+
+void store_lanes(float* out, const Lanes& v) {
+    for (int i = 0; i < 4; ++i) out[i] = v.v[i];
+}
+
+}  // namespace
+
+void XB_CDECL R_RenderTestShadow() {
+    NglTexture*& texture = title_global<NglTexture*>(0x0095f6c8);
+    if (!texture) texture = nglCreateTexture(0x1101, 0x200, 0x200, 0, 0);
+    float view[16];
+    std::memcpy(view, nglGetViewMatrix(), sizeof view);
+    // The camera: the view's rows 2 and 0 flattened (w lane = x, as in the original).
+    const Lanes forward = {{view[8], view[9], 0.0f, view[8]}};
+    const Lanes f = mul(forward, unit_scale(forward));
+    const Lanes side = {{view[0], view[1], 0.0f, view[0]}};
+    const Lanes g = mul(side, unit_scale(side));
+    const Lanes h = add(neg(g), f);
+    const Lanes down = {{0.0f, 0.0f, title_global<float>(0x0083eb34), 0.0f}};  // -1
+    float* camera = &title_global<float>(0x00988730);
+    store_lanes(camera + 8, down);
+    const Lanes up = mul(h, unit_scale(h));
+    store_lanes(camera + 4, up);
+    // cross(up, down) in the packed order: (up * down.yzx - up.yzx * down).yzx.
+    const Lanes across = yzxw(sub(mul(up, yzxw(down)), mul(yzxw(up), down)));
+    store_lanes(camera, across);
+    const float reach = title_global<float>(0x008db19c) * title_global<float>(0x0083f034);  // 0.45
+    const Lanes lift = {{0.0f, 0.0f, title_global<float>(0x008db1a0), 0.0f}};
+    store_lanes(camera + 12, add(add(sub(lanes(view + 12), mul(across, reach)), mul(up, reach)), lift));
+
+    // Clear the texture.
+    nglSceneAddRenderTarget(texture);
+    nglPushScene(0);
+    nglSetSceneDepthEnable(0);
+    nglSetSceneDepthTest(0);
+    nglSetRenderTarget(reinterpret_cast<NglRenderTarget*>(texture));
+    nglSetViewportRect(0.0f, 0.0f, platform_x87_unsigned_to_float(texture->width),
+                       platform_x87_unsigned_to_float(texture->height));
+    nglSetClearFlags(0xf0);
+    nglSetClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    nglPopScene();
+
+    // The shadow scene, filled by the entities drawn after this.
+    title_global<NglScene*>(0x0095f6cc) = nglPushScene(0);
+    nglSetSceneDepthEnable(0);
+    nglSetSceneDepthTest(0);
+    nglSetRenderTarget(reinterpret_cast<NglRenderTarget*>(texture));
+    nglSetViewportRect(1.0f, 1.0f, platform_x87_unsigned_to_float(texture->width - 2),
+                       platform_x87_unsigned_to_float(texture->height - 2));
+    nglSetClearFlags(0);
+    nglSetColorWriteMask(0x1000000);
+    nglSetAspect(1.0f);
+    nglSetCameraMatrix(camera);
+    nglSetOrthographic(0.1f, title_global<float>(0x008db1a4));
+    const float inverse = title_global<float>(0x0083eb20) / title_global<float>(0x008db19c);
+    const float extent = inverse * title_global<float>(0x0083eba8);           // 2
+    const float negative_extent = inverse * title_global<float>(0x0083ec5c);  // -2
+    nglSetSceneViewportRect(negative_extent, negative_extent, extent, extent);
+    nglUpdateScene(0);
+    if (title_global<uint8_t>(0x0095f6d0)) {
+        NglQuad quad;
+        nglInitQuad(&quad);
+        nglSetQuadRect(&quad, 192.0f, 192.0f, 320.0f, 320.0f);
+        nglSetQuadColor(&quad, 0xff000000);
+        nglListAddQuad(&quad);
+    }
+    nglPopScene();
+
+    const float radius = title_global<float>(0x008db19c);
+    alignas(16) const float scale[4] = {radius, 0.0f - radius, title_global<float>(0x0083ebec), radius};  // 500
+    nglAddShadowProjector(0xffffffff, camera, scale, 2, 0, address_of(texture));
+}
+
 // The original's frame (aligned to 16, 0xa0 bytes: its locals - the view matrix copy at
 // +0x60, the sky matrix at +0x20 - and two saved registers) is rebuilt, with 128 KB
 // below it kept free: every call runs at the original's stack position from there.
@@ -2637,7 +2727,7 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
     const auto cvar_integer = [](uint32_t address) {
         return *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(address) + 0x20);
     };
-    if (cvar_integer(0x0095e700)) at(0, 0x00241290);  // R_RenderTestShadow
+    if (cvar_integer(0x0095e700)) at(0, &R_RenderTestShadow);
     static const uint32_t kFogCallback[] = {1, 0x00073380, 0};  // nglDrawFogPass
     at(0, &nglSetSceneCallback, 3, kFogCallback);
     if (title_global<uint32_t>(0x008db13c)) at(0, 0x00282040);  // CG_AddLocalEntities
@@ -3007,6 +3097,130 @@ int32_t XB_CDECL RE_TextWidthWithIcons(const uint16_t* text, uint32_t font_name,
         }
     }
     return static_cast<int32_t>(width);
+}
+
+namespace {
+
+// A packed alpha (top byte) from a 0..1 float: truncated times 128, at most 0xff.
+uint32_t fog_pass_alpha(float alpha) {
+    int32_t a = static_cast<int32_t>(alpha * title_global<float>(0x0083ebe8));  // 128
+    if (a > 0xff) a = 0xff;
+    return static_cast<uint32_t>(a) << 24;
+}
+
+// Vertex stream 0 from the vertices themselves, then 4 vertices.
+void fog_pass_draw(uint32_t primitive, const void* vertices, uint32_t stride) {
+    title_global<uint32_t>(0x00903c88) = 0;
+    title_global<uint32_t>(0x00903c8c) = 0;
+    title_global<uint32_t>(0x00903c90) = 0;
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    title_function<void XB_STDCALL(uint32_t, uint32_t, const void*, uint32_t)>(0x003e9710)(
+        primitive, 4, vertices, stride);  // DrawVerticesUP
+}
+
+// {x, y, z, colour, u, v}; texture coordinates in texels.
+struct FogQuadVertex {
+    float x, y, z;
+    uint32_t color;
+    float u, v;
+};
+
+// {x, y, z, colour}, then u, v for stages 0..3.
+struct FogPassVertex {
+    float x, y, z;
+    uint32_t color;
+    float uv[4][2];
+};
+
+}  // namespace
+
+void XB_CDECL R_DrawFogPass() {
+    if (!title_global<uint32_t>(0x00897950) || !title_global<int32_t>(0x00897960)) return;
+    nglAllocFogTextures();
+    NglTexture** fog = &title_global<NglTexture*>(0x00901e7c);
+    fog[0] = title_global<NglTexture*>(0x00902e64);
+    fog[1] = title_global<NglTexture*>(0x00902e68);
+    const float size = platform_x87_unsigned_to_float(fog[0]->width);
+    using SetState = void XB_STDCALL(uint32_t);
+    uint32_t& fill_mode = title_global<uint32_t>(0x00902fb0);
+    if (fill_mode != 0x1b02) {
+        title_function<SetState>(0x003e88a0)(0x1b02);  // SetRenderState_FillMode: solid
+        fill_mode = 0x1b02;
+    }
+    uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
+    if (cull_mode != 0) {
+        title_function<SetState>(0x003e80f0)(0);  // SetRenderState_CullMode
+        cull_mode = 0;
+    }
+    NglTexture* back_buffer = nglGetBackBufferTexture();
+    // D3D's texture stage shadows (title memory): stages 0..3 clamp in u and v.
+    title_global<uint32_t>(0x003f8320) |= 0xf;
+    for (uint32_t stage = 0; stage < 4; ++stage) {
+        title_global<uint32_t>(0x003f5c68 + stage * 0x80) = 3;
+        title_global<uint32_t>(0x003f5c6c + stage * 0x80) = 3;
+    }
+    uint8_t* const blend = &title_global<uint8_t>(0x00902f08);
+    nglSetBlendMode(blend, 0, 0, 0);
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903c9c));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00901e70));
+    nglSetTexture(0, back_buffer, 2, 3);
+    nglSetRenderTargetCached(fog[0], 0, nullptr, 6);
+    float width = platform_x87_unsigned_to_float(back_buffer->width);
+    float height = platform_x87_unsigned_to_float(back_buffer->height);
+    // The back buffer into the first fog texture (a quad list).
+    const FogQuadVertex copy[4] = {{0.0f, 0.0f, 0.0f, 0xffffffff, 0.0f, 0.0f},
+                                   {size, 0.0f, 0.0f, 0xffffffff, width, 0.0f},
+                                   {size, size, 0.0f, 0xffffffff, width, height},
+                                   {0.0f, size, 0.0f, 0xffffffff, 0.0f, height}};
+    fog_pass_draw(8, copy, sizeof copy[0]);
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00901e84));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00901e74));
+
+    // Each pass samples the last result at four offsets (a strip over the texture).
+    FogPassVertex quad[4] = {};
+    quad[1].x = size;
+    quad[2].y = size;
+    quad[3].x = size;
+    quad[3].y = size;
+    NglTexture* last = nullptr;
+    for (int32_t pass = 0; pass < title_global<int32_t>(0x00897960); ++pass) {
+        NglTexture* target = fog[(pass + 1) & 1];
+        last = target;
+        nglSetRenderTargetCached(target, 0, nullptr, 6);
+        const float d = static_cast<float>(pass + 1) * title_global<float>(0x00897958);
+        const float n = 0.0f - d;
+        const float dx[4] = {n, n, d, d};
+        const float dy[4] = {n, d, n, d};
+        const uint32_t color = fog_pass_alpha(title_global<float>(0x0089795c));
+        for (uint32_t stage = 0; stage < 4; ++stage) {
+            nglSetTexture(stage, fog[pass & 1], 2, 3);
+            for (FogPassVertex& v : quad) v.color = color;
+            quad[0].uv[stage][0] = dx[stage];
+            quad[0].uv[stage][1] = dy[stage];
+            quad[1].uv[stage][0] = dx[stage] + size;
+            quad[1].uv[stage][1] = dy[stage];
+            quad[2].uv[stage][0] = dx[stage];
+            quad[2].uv[stage][1] = dy[stage] + size;
+            quad[3].uv[stage][0] = dx[stage] + size;
+            quad[3].uv[stage][1] = dy[stage] + size;
+        }
+        fog_pass_draw(6, quad, sizeof quad[0]);
+    }
+
+    // The result over the back buffer.
+    nglSetBlendMode(blend, 6, 0xff, 0);
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903c9c));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00901e78));
+    nglSetTexture(0, last, 2, 3);
+    nglSetRenderTargetCached(back_buffer, 0, nullptr, 6);
+    width = platform_x87_unsigned_to_float(back_buffer->width);
+    height = platform_x87_unsigned_to_float(back_buffer->height);
+    const uint32_t color = fog_pass_alpha(title_global<float>(0x00897954));
+    const FogQuadVertex result[4] = {{0.0f, 0.0f, 0.0f, color, 0.0f, 0.0f},
+                                     {width, 0.0f, 0.0f, color, size, 0.0f},
+                                     {width, height, 0.0f, color, size, size},
+                                     {0.0f, height, 0.0f, color, 0.0f, size}};
+    fog_pass_draw(8, result, sizeof result[0]);
 }
 
 void XB_CDECL R_AddFogPass() {

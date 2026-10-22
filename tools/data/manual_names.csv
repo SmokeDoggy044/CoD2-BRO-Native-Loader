@@ -11061,3 +11061,4 @@ address,name,kind,confidence,evidence
 00096460,FxEffectDef_SetElementValue,function,high,"definition +0x50 element (0x3c bytes) +8 = value; FX_SpawnEffect"
 0009f220,apsPool_HasRoom,function,high,"pool 0x00909f64 free items (+8 - +0xc) >= count"
 00042e50,ThisCall_ReturnThis,function,high,"mov eax,ecx; ret (FX_SpawnEffect on 0x0095f6d8)"
+00050910,nglNode_GetScaledWorldInverse,function,high,"thiscall draw node (ECX), out (ret 4): like nglNode_GetWorldInverse but from the node's own world rows, cached at +0x84; params flag 2 multiplies every row by 1 / scale^2 (RCPPS + Newton on params +0x10); only caller cdOcean_SetWaveConstants (decompiled and matched)"

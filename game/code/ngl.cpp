@@ -1999,7 +1999,7 @@ int32_t XB_CDECL nglListAddMesh(uint8_t* mesh, const float* matrix, const uint32
         for (int j = 0; j < 4; ++j) node->world_view_projection[i * 4 + j] = r[j].v[i];
     }
     node->world_inverse = nullptr;
-    node->unknown84 = 0;
+    node->scaled_world_inverse = nullptr;
     node->scale = scale;
     if (!params) {
         node->params = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(0x00902a90));
@@ -2048,6 +2048,38 @@ float* XB_THISCALL nglNode_GetWorldInverse(NglMeshDrawNode* self, float* out) {
         store(inverse + 12, add(add(mul(c0, t.v[0]), mul(c1, t.v[1])), mul(c2, t.v[2])));
     }
     std::memcpy(out, self->world_inverse, 64);
+    return out;
+}
+
+float* XB_THISCALL nglNode_GetScaledWorldInverse(NglMeshDrawNode* self, float* out) {
+    if (!self->scaled_world_inverse) {
+        self->scaled_world_inverse = static_cast<float*>(alloc_frame(title_global<uintptr_t>(0x009025a8), 64, 64));
+        const float* m = self->world;
+        const Lanes c0 = {{m[0], m[4], m[8], m[8]}};
+        const Lanes c1 = {{m[1], m[5], m[9], m[9]}};
+        const Lanes c2 = {{m[2], m[6], m[10], m[10]}};
+        const Lanes t = neg(lanes(m + 12));
+        const Lanes p = add(add(mul(c0, t.v[0]), mul(c1, t.v[1])), mul(c2, t.v[2]));
+        float* inverse = self->scaled_world_inverse;
+        if (*reinterpret_cast<const uint8_t*>(self->params) & 2) {
+            // 1 / scale per lane: RCPPS and one Newton step (2.0 from 0x007b6710).
+            const Lanes scale = lanes(reinterpret_cast<const float*>(self->params + 4));
+            Lanes estimate;
+            for (int i = 0; i < 4; ++i) estimate.v[i] = platform_rcp_estimate(scale.v[i]);
+            const Lanes reciprocal = mul(sub(lanes(&title_global<float>(0x007b6710)), mul(estimate, scale)), estimate);
+            const Lanes squared = mul(reciprocal, reciprocal);
+            store(inverse, mul(c0, squared));
+            store(inverse + 4, mul(c1, squared));
+            store(inverse + 8, mul(c2, squared));
+            store(inverse + 12, mul(p, squared));
+        } else {
+            store(inverse, c0);
+            store(inverse + 4, c1);
+            store(inverse + 8, c2);
+            store(inverse + 12, p);
+        }
+    }
+    std::memcpy(out, self->scaled_world_inverse, 64);
     return out;
 }
 
@@ -3471,6 +3503,98 @@ void XB_CDECL nglFreeFogTextures() {
         nglReleaseTextureMemory(texture);
     }
     made = 0;
+}
+
+namespace {
+
+// A cached render state set through SetRenderState_Simple, its D3D shadow written too.
+template <typename T>
+void set_cached_simple_state(uint32_t cache, uint32_t method, uint32_t shadow, T value) {
+    T& cached = title_global<T>(cache);
+    if (cached == value) return;
+    title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(method, value);  // SetRenderState_Simple
+    title_global<uint32_t>(shadow) = value;
+    cached = value;
+}
+
+}  // namespace
+
+// Not verified yet: every test ends inconclusive. The fog textures have no pixel memory
+// at this point of each frame, so nglAllocFogTextures runs nglTextureGetSurfaces, whose
+// D3DBaseTexture_GetLevelCount and D3DTexture_GetSurfaceLevel2 (a new surface object)
+// have no stand-ins in test processes.
+void XB_CDECL nglDrawFogPass() {
+    using SetState = void XB_STDCALL(uint32_t);
+    nglAllocFogTextures();
+    nglUpdateFogTable();
+    uint32_t& z_enable = title_global<uint32_t>(0x00902f80);
+    if (z_enable != 0) {
+        title_function<SetState>(0x003e8210)(0);  // SetRenderState_ZEnable
+        z_enable = 0;
+    }
+    const uint8_t saved_z_write = title_global<uint8_t>(0x00902f7c);
+    if (saved_z_write) set_cached_simple_state<uint8_t>(0x00902f7c, 0x0004035c, 0x003f8428, 0);
+    // Alpha test (greater than 0), blending one + (1 - source alpha) * destination.
+    set_cached_simple_state<uint8_t>(0x00902f58, 0x00040300, 0x003f8418, 1);
+    set_cached_simple_state<uint32_t>(0x00902f60, 0x00040340, 0x003f841c, 0);
+    set_cached_simple_state<uint32_t>(0x00902f5c, 0x0004033c, 0x003f8410, 0x204);
+    set_cached_simple_state<uint8_t>(0x00902f64, 0x00040304, 0x003f8414, 1);
+    set_cached_simple_state<uint32_t>(0x00902f78, 0x00040350, 0x003f8450, 0x8006);
+    set_cached_simple_state<uint32_t>(0x00902f68, 0x00040344, 0x003f8420, 1);
+    set_cached_simple_state<uint32_t>(0x00902f6c, 0x00040348, 0x003f8424, 0x303);
+    uint32_t& fill_mode = title_global<uint32_t>(0x00902fb0);
+    if (fill_mode != 0x1b02) {
+        title_function<SetState>(0x003e88a0)(0x1b02);  // SetRenderState_FillMode: solid
+        fill_mode = 0x1b02;
+    }
+    uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
+    if (cull_mode != 0) {
+        title_function<SetState>(0x003e80f0)(0);  // SetRenderState_CullMode
+        cull_mode = 0;
+    }
+    nglSetTexture(0, &title_global<NglTexture>(0x00902e78), 1, 3);
+    nglSetTexture(1, title_global<NglTexture*>(0x00902e70), 1, 3);
+    // D3D's texture stage shadows (title memory): stages 0 and 1 clamp in u and v.
+    title_global<uint32_t>(0x003f5c68) = 3;
+    title_global<uint32_t>(0x003f5c6c) = 3;
+    title_global<uint32_t>(0x003f5ce8) = 3;
+    title_global<uint32_t>(0x003f8320) |= 3;
+    title_global<uint32_t>(0x003f5cec) = 3;
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903c9c));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903cb8));
+    const float width = platform_x87_unsigned_to_float(title_global<uint32_t>(0x00902e88));
+    const float height = platform_x87_unsigned_to_float(title_global<uint32_t>(0x00902e8c));
+    const float u = platform_x87_mul(title_global<float>(0x008a3510), width);
+    const float v = platform_x87_mul(title_global<float>(0x008a3514), height);
+    const Lanes color = mul(lanes(current_scene()->fog_color), title_global<float>(0x0083eb8c));  // 255
+    uint32_t argb = static_cast<uint32_t>(platform_ftol(color.v[3]));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color.v[0]));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color.v[1]));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color.v[2]));
+    // {x, y, z, colour, u, v} as a strip.
+    struct Vertex {
+        float x, y, z;
+        uint32_t color;
+        float u, v;
+    };
+    const Vertex strip[4] = {{0.0f, 0.0f, 0.0f, argb, 0.0f, 0.0f},
+                             {width, 0.0f, 0.0f, argb, u, 0.0f},
+                             {0.0f, height, 0.0f, argb, 0.0f, v},
+                             {width, height, 0.0f, argb, u, v}};
+    title_global<uint32_t>(0x00903c88) = 0;
+    title_global<uint32_t>(0x00903c8c) = 0;
+    title_global<uint32_t>(0x00903c90) = 0;
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    title_function<void XB_STDCALL(uint32_t, uint32_t, const void*, uint32_t)>(0x003e9710)(
+        6, 4, strip, sizeof(strip[0]));  // DrawVerticesUP
+    set_cached_simple_state<uint8_t>(0x00902f7c, 0x0004035c, 0x003f8428, saved_z_write);
+    if (z_enable != 1) {
+        title_function<SetState>(0x003e8210)(1);
+        z_enable = 1;
+    }
+    title_global<uint32_t>(0x00902ff0) = 9;
+    title_global<int32_t>(0x00902ff4) = -1;
+    title_global<int32_t>(0x00902ff8) = -1;
 }
 
 void XB_CDECL nglFreeSceneRenderTargets() {

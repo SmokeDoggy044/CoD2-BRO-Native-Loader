@@ -446,6 +446,16 @@ extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL RE_ParseButtonToken(char* out, uint3
                                                                 const char** next, const char** icon);
 extern "C" void RE_ParseButtonToken_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame);
+// 0x00241290: R_RenderView's r_testshadow pass. Once, a 512x512 render texture
+// (0x0095f6c8, nglCreateTexture 0x1101). A camera looking straight down (0x00988730):
+// row 1 the normalized difference of the view matrix's rows 2 and 0 (x and y only,
+// each normalized first), row 2 -z, row 0 their cross product, row 3 the view
+// matrix's row 3 plus 0.45 * 0x008db19c times (row 1 - row 0) plus 0x008db1a0 in z.
+// A scene that clears the texture, then the shadow scene (0x0095f6cc): no depth, a
+// 1-pixel border, colour write mask 0x1000000, orthographic 0.1..0x008db1a4 over
+// +-2 / 0x008db19c, a black test quad with 0x0095f6d0. Ends in a shadow projector of
+// that matrix sized {r, -r, 500, r} (r = 0x008db19c) sampling the texture.
+void XB_CDECL R_RenderTestShadow();
 extern "C" void R_RenderView_entry(void);
 
 // 0x002476b0: Q3's RE_RenderScene: the refdef into tr.refdef (0x0095e5e4: rect, fov,
@@ -503,6 +513,14 @@ uint8_t* XB_REGS2 XB_CDECL RE_RegisterShader(uint32_t unused, const char* name);
 // mesh of them into the slots in order.
 void XB_CDECL R_LoadCellMeshes(uint32_t cell, uint32_t release);
 
+// 0x00045850: R_AddFogPass' custom node (arguments not read). With the fog passes on
+// (0x00897950) and a pass count (0x00897960): solid fill, no culling, the back buffer
+// copied into the first fog texture (0x00902e64; both kept at 0x00901e7c/80), then per
+// pass n = 1..count the other texture sampled on stages 0..3 at offsets of
+// +-n * 0x00897958 texels into texture n & 1 (alpha 0x0089795c * 128, at most 0xff),
+// and the last one drawn over the back buffer with blend mode 6 (alpha 0x00897954 *
+// 128). Each a 4-vertex DrawVerticesUP.
+void XB_CDECL R_DrawFogPass();
 // 0x00045ef0: the end of R_ClearAlpha: a scene (no clear, no depth test or write) with
 // one custom node that calls R_DrawFogPass (0x00045850) with {1, 0.0}.
 void XB_CDECL R_AddFogPass();
