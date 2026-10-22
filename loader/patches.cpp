@@ -1189,6 +1189,9 @@ const RecordedCall kRecordedD3dCalls[] = {
     {"D3DSurface_LockRect", "s x s:16 s", compare::SdkStandIn::SurfaceLock},
     {"D3DVertexBuffer_Lock2", "s s", compare::SdkStandIn::BufferLock},
     {"D3DPalette_Lock2", "s s", compare::SdkStandIn::BufferLock},
+    // Descriptions (nglSwizzleTextureLevels): computed from the surface; the output (on the
+    // caller's stack) is not logged, what is written there is compared.
+    {"D3DSurface_GetDesc", "s x", compare::SdkStandIn::SurfaceDesc},
     // Raw NV2A commands: the space and what the title wrote into it (nglRenderTextNode).
     {"D3DDevice_BeginPush_4", "s", compare::SdkStandIn::PushBegin},
     {"D3DDevice_EndPush", "s", compare::SdkStandIn::PushEnd},
@@ -1369,6 +1372,19 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         const uint32_t* value =
             call.stand_in == compare::SdkStandIn::ReturnAddRef ? render::back_buffer_slot() : nullptr;
         calls.push_back({call.name, host, call.args, call.stand_in, value});
+    }
+    // Kernel exports that only set state nothing in title memory reads back: page
+    // protection (XPhysicalProtect: nglCreateVertexBufferPhysical, nglVertexBuffer_Free).
+    static const RecordedCall kRecordedKernelCalls[] = {
+        {"MmSetAddressProtect", "s s s"},
+    };
+    for (const RecordedCall& call : kRecordedKernelCalls) {
+        uint32_t host = 0;
+        for (const xbox::KernelImpl& function : xbox::kernel_impls())
+            if (std::strcmp(function.name, call.name) == 0)
+                host = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function.address));
+        if (!host) LOG_WARN("patches", "%s: recorded kernel call without an implementation", call.name);
+        calls.push_back({call.name, host, call.args, call.stand_in, nullptr});
     }
     // The RDTSC trampolines' clock (Sys_Milliseconds and the frame timers): 0 on both sides
     // (the trampolines themselves stay executable: rdtsc_trampolines).

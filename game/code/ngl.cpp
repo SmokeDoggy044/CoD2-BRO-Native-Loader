@@ -1,10 +1,12 @@
 #include "ngl.h"
 
 #include <cstdarg>
+#include <cmath>
 #include <cstring>
 
 #include "lanes.h"
 #include "qcommon.h"
+#include "shaders.h"
 #include "title_data.h"
 
 namespace game {
@@ -4468,7 +4470,7 @@ void XB_CDECL nglInitTextureManager() {
     nglCreateWhiteTexture();
 }
 
-void XB_CDECL nglCreateSysFont() { load_builtin_texture("nglSysFont", 0x008a56e0, 0x155d6); }
+uint8_t* XB_CDECL nglCreateSysFont() { return load_builtin_texture("nglSysFont", 0x008a56e0, 0x155d6); }
 
 void XB_CDECL nglCreateWhiteTexture() {
     NglTexture*& white = title_global<NglTexture*>(0x00902700);
@@ -4581,6 +4583,783 @@ void XB_THISCALL nglTexture_FreeHeaders(NglTexture* texture) {
 void XB_THISCALL nglIndexBuffer_Free(uint8_t** self) {
     title_function<void XB_CDECL(void*)>(0x000939b0)(*self);  // Mem_AlignedFree
     *self = nullptr;
+}
+
+// --- Texture loading (DDS files, animated lists) --------------------------------------
+
+namespace {
+
+uint32_t& texture_word(NglTexture* texture, uint32_t offset) {
+    return *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(texture) + offset);
+}
+
+void title_free(uint32_t memory) { title_function<void XB_CDECL(uint32_t)>(0x000939b0)(memory); }  // Mem_AlignedFree
+
+}  // namespace
+
+void XB_CDECL nglSwizzleTextureLevels(NglTexture* texture, uint32_t* data) {
+    const uint32_t format = texture->format;
+    if (format == 0xc || format == 0xe || format == 0xf) return;  // DXT: stored as they are
+    const uint32_t cube = texture->flags & 0x10000000;
+    const uint32_t d3d_texture = address_of(texture->d3d_texture);
+    for (uint32_t level = 0; level < texture->levels; ++level) {
+        uint32_t surface;
+        if (cube)
+            surface = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003ebd70)(
+                d3d_texture, 0, level);  // D3DCubeTexture_GetCubeMapSurface2
+        else
+            surface = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x003ebcf0)(
+                d3d_texture, level);  // D3DTexture_GetSurfaceLevel2
+        uint32_t desc[7];  // D3DSURFACE_DESC: Format, Type, Usage, Size, MultiSampleType, Width, Height
+        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003ebe30)(surface, desc);  // D3DSurface_GetDesc
+        const uint32_t bytes_per_pixel =
+            title_function<uint32_t XB_STDCALL(uint32_t)>(0x003fa187)(desc[0]);  // XGBytesPerPixelFromFormat
+        title_function<uint32_t XB_STDCALL(uint32_t)>(0x003e7ef0)(surface);  // D3DResource_Release
+        const uint32_t buffer = address_of(Mem_AlignedAlloc(desc[3] + 0x10, 4, 0));
+        const uint32_t aligned = (buffer + 0xf) & ~0xfu;
+        using SwizzleRect = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                            uint32_t);
+        title_function<SwizzleRect>(0x003fa203)(*data, 0, 0, aligned, desc[5], desc[6], 0,
+                                                bytes_per_pixel);  // XGSwizzleRect
+        std::memcpy(reinterpret_cast<void*>(uintptr_t{*data}), reinterpret_cast<const void*>(uintptr_t{aligned}),
+                    desc[3]);
+        title_free(buffer);
+        *data += desc[3];
+    }
+}
+
+bool XB_CDECL nglLoadDDS(NglTexture* texture, uint8_t* dds) {
+    const auto* header = reinterpret_cast<const uint32_t*>(dds);
+    const uint32_t magic = header[0];
+    const bool multi = magic == 0x4d534444;  // "DDSM": a palette per frame
+    if ((magic != 0x20534444 && !multi) || header[1] != 0x7c) return false;
+    if (header[0x1c] & 0xfe00) {  // caps2: cube map faces
+        texture->flags |= 0x10000000;
+        if (header[0x1c] != 0xfe00) return false;
+    }
+    uint32_t data = address_of(dds) + 0x80;
+    uint32_t palette_count = 0;
+    if (multi) {
+        palette_count = *reinterpret_cast<const uint16_t*>(dds + 0x80);
+        uint32_t records = address_of(dds) + 0x82;
+        records += 8 - ((records - address_of(dds)) & 7);
+        const uint32_t end = records + palette_count * 0x20;
+        data = end + (0x80 - ((end - address_of(dds)) & 0x7f));
+        texture_word(texture, 0x50) = address_of(Mem_AlignedAlloc(palette_count * 0x74, 4, 0));
+        for (uint32_t i = 0; i < palette_count; ++i) {
+            if (dds[0x7f] != 'M') nglSwapRedBlue(reinterpret_cast<uint8_t*>(uintptr_t{data}), 0x100);
+            auto* frame = reinterpret_cast<NglTexture*>(uintptr_t{texture_word(texture, 0x50) + i * 0x74});
+            std::memcpy(frame, texture, 0x74);
+            frame->flags = 0x10;
+            std::memcpy(frame->name, reinterpret_cast<const void*>(uintptr_t{records + i * 0x20}), 0x20);
+            texture_word(frame, 0x4c) = address_of(texture);
+            texture_word(frame, 0x50) = i;
+            frame->palette = reinterpret_cast<uint8_t*>(nglCreatePalette(0, 0x100, data));
+            manager_slot<void XB_THISCALL(NglResourceManager*, void*)>(texture_manager(), 3)(texture_manager(), frame);
+            data += 0x400;
+        }
+    } else {
+        texture_word(texture, 0x4c) = 0;
+        texture_word(texture, 0x50) = 0;
+    }
+    texture->width = header[4];
+    texture->height = header[3];
+    texture->levels = header[7];
+    texture_word(texture, 0x4c) = palette_count & 0xffff;
+    const uint32_t flags = texture->flags | 0x100;
+    texture->format = 0xffffffff;
+    texture->flags = flags;
+    uint32_t bits = texture_word(texture, 0x28);
+    bits ^= ((header[8] << 4) ^ bits) & 0x10;
+    bits ^= ((header[8] << 4) ^ bits) & 0x20;
+    texture_word(texture, 0x28) = bits;
+    if (!texture->levels) texture->levels = 1;
+    const uint32_t depth = (header[2] & 0x800000) ? header[6] : 0;
+    bool compressed = false;
+    if (!depth) {
+        compressed = true;
+        switch (header[0x15]) {  // FourCC
+        case 0x31545844: texture->format = 0xc; break;  // DXT1
+        case 0x32545844:                                // DXT2
+        case 0x33545844: texture->format = 0xe; break;  // DXT3
+        case 0x34545844:                                // DXT4
+        case 0x35545844: texture->format = 0xf; break;  // DXT5
+        default: compressed = false; break;
+        }
+        if (compressed) texture->flags = flags | 1;
+    }
+    if (!compressed) {
+        const uint32_t pixel_flags = header[0x14];
+        const uint32_t bit_count = header[0x16];
+        if (pixel_flags == 0x41 && bit_count == 0x20 && header[0x1a] == 0xff000000) {
+            texture->format = 6;
+            texture->flags = flags | 1;
+        } else if (pixel_flags == 0x40 && bit_count == 0x10 && header[0x18] == 0x7e0) {
+            texture->format = 5;
+            texture->flags = flags | 5;
+        } else if (pixel_flags == 0x41 && bit_count == 0x10 && header[0x1a] == 0x8000) {
+            texture->format = 2;
+            texture->flags = flags | 3;
+        } else if (pixel_flags == 0x41 && bit_count == 0x10 && header[0x1a] == 0xf000) {
+            texture->format = 4;
+            texture->flags = flags | 2;
+        } else {
+            if (bit_count != 8) return false;
+            if (pixel_flags == 0x20000) {
+                texture->format = 0;
+                texture->flags = flags | 9;
+            } else if (pixel_flags == 2) {
+                texture->format = 0x19;
+                texture->flags = flags | 0xa;
+            } else if (pixel_flags == 0x20001) {
+                texture->format = 1;
+                texture->flags = flags | 0xb;
+            } else {
+                texture->flags = flags | 7;
+                texture->format = 0xb;
+                if (!multi) {
+                    if (dds[0x7f] != 'M') nglSwapRedBlue(reinterpret_cast<uint8_t*>(uintptr_t{data}), 0x100);
+                    texture->palette = reinterpret_cast<uint8_t*>(nglCreatePalette(0, 0x100, data));
+                    data += 0x400;
+                }
+            }
+        }
+        if (depth) return false;
+    }
+    if (texture->flags & 0x10000000) {
+        nglInitTextureHeader(texture);
+        nglRegisterTexture(texture, data);
+        if (dds[0x7f] != 'M') {
+            for (int face = 6; face; --face) {
+                nglSwizzleTextureLevels(texture, &data);
+                data += data & 0x7f;
+            }
+        }
+    } else {
+        nglInitTextureHeader(texture);
+        nglRegisterTexture(texture, data);
+        if (dds[0x7f] != 'M') nglSwizzleTextureLevels(texture, &data);
+    }
+    dds[0x7f] = 'M';  // swizzled: a second load of the same file skips it
+    return true;
+}
+
+bool XB_CDECL nglLoadDDSTexture(NglTexture* texture, uint8_t* dds) {
+    if (!nglLoadDDS(texture, dds)) return false;
+    nglTextureGetSurfaces(texture);
+    texture->last_used_frame = -1;
+    return true;
+}
+
+int32_t XB_THISCALL nglTextCursor_NextToken(NglTextCursor* self, char* out, int32_t size) {
+    const auto isspace = title_function<int XB_CDECL(int)>(0x001eefa0);  // _isspace
+    while (self->cursor - self->begin < self->length && isspace(*self->cursor) && *self->cursor != '\n')
+        ++self->cursor;
+    const char* start = self->cursor;
+    while (self->cursor - self->begin < self->length && !isspace(*self->cursor)) ++self->cursor;
+    int32_t length = static_cast<int32_t>(self->cursor - start);
+    if (length >= size - 1) length = size - 1;
+    title_function<char* XB_CDECL(char*, const char*, int32_t)>(0x001eed80)(out, start, length);  // _strncpy
+    out[length] = 0;
+    return length;
+}
+
+bool XB_CDECL nglLoadAnimatedTextureList(NglTexture* texture, const char* text, int32_t size) {
+    uint8_t name[0x20] = {};
+    auto* list = static_cast<uint32_t*>(Mem_AlignedAlloc(0x1000, 4, 0));
+    uint8_t& busy = title_global<uint8_t>(0x00902704);
+    if (busy) return false;
+    busy = 1;
+    int32_t count = 0;
+    NglTextCursor cursor{text, text, size};
+    if (size > 0) {
+        do {
+            char token[0x20];
+            if (nglTextCursor_NextToken(&cursor, token, 0x1f)) {
+                char* dot = title_function<char* XB_CDECL(const char*, int)>(0x001ef5e0)(token, '.');  // _strchr
+                if (dot) *dot = 0;
+                uint8_t hashed[0x20];
+                std::memcpy(name,
+                            title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, token),
+                            0x20);  // HashStr_Init
+                int32_t repeat = 1;
+                char number[0x40];
+                if (nglTextCursor_NextToken(&cursor, number, 0x20)) {
+                    const int32_t value = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(number);  // _atol
+                    repeat = value <= 0 ? 0 : value;
+                }
+                const int32_t total = repeat + count;
+                if (total > 0x400) break;
+                using Find = uint32_t* XB_THISCALL(NglResourceManager*, const uint8_t*);
+                uint32_t* frame = manager_slot<Find>(texture_manager(), 2)(texture_manager(), name);
+                if (frame)
+                    ++frame[0];
+                else
+                    frame = manager_slot<Find>(texture_manager(), 7)(texture_manager(), name);
+                if (repeat > 0) {
+                    for (int32_t i = 0; i < repeat; ++i) list[count + i] = address_of(frame);
+                    count = total;
+                }
+            }
+            int32_t offset = static_cast<int32_t>(cursor.cursor - cursor.begin);
+            while (offset < cursor.length && *cursor.cursor != '\n') {
+                ++cursor.cursor;
+                ++offset;
+            }
+            ++cursor.cursor;
+        } while (cursor.cursor - cursor.begin < cursor.length);
+        if (count) {
+            texture->flags = 0xf;
+            texture_word(texture, 0x4c) = static_cast<uint32_t>(count);
+            auto* frames = static_cast<uint32_t*>(Mem_AlignedAlloc(static_cast<uint32_t>(count) * 4, 4, 0));
+            texture_word(texture, 0x50) = address_of(frames);
+            std::memcpy(frames, list, static_cast<uint32_t>(count) * 4);
+            texture->width = reinterpret_cast<const NglTexture*>(uintptr_t{frames[0]})->width;
+            texture->height = reinterpret_cast<const NglTexture*>(uintptr_t{frames[0]})->height;
+        }
+    }
+    busy = 0;
+    title_free(address_of(list));
+    return count != 0;
+}
+
+NglTexture* XB_CDECL nglLoadTextureFile(const uint8_t* name, uint32_t kind, uint8_t* data, uint32_t size) {
+    auto* texture = static_cast<NglTexture*>(Mem_AlignedAlloc(0x74, 4, 0));
+    std::memset(texture, 0, 0x74);
+    *reinterpret_cast<uint32_t*>(texture) = 1;
+    std::memcpy(texture->name, name, 0x20);
+    texture_word(texture, 0xc) = kind;
+    bool loaded = false;
+    switch (kind) {
+    case 0:
+    case 1: loaded = nglLoadDDSTexture(texture, data); break;
+    case 2:
+        title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*, uint32_t, uint8_t**)>(0x003acbbc)(
+            title_global<uint32_t>(0x00902874), data, size, &texture->d3d_texture);  // D3DXCreateTextureFromFileInMemory
+        return texture;
+    case 3: loaded = nglLoadAnimatedTextureList(texture, reinterpret_cast<const char*>(data), size); break;
+    default: break;
+    }
+    if (loaded) return texture;
+    title_free(address_of(texture));
+    return nullptr;
+}
+
+NglTexture* XB_CDECL nglLoadTexture(const uint8_t* name, uint32_t kind, uint8_t* data, uint32_t size) {
+    using Find = NglTexture* XB_THISCALL(NglResourceManager*, const uint8_t*);
+    NglTexture* texture = manager_slot<Find>(texture_manager(), 2)(texture_manager(), name);
+    if (texture) {
+        ++*reinterpret_cast<uint32_t*>(texture);
+        texture_word(texture, 0x28) |= 1;
+        return texture;
+    }
+    texture = nglLoadTextureFile(name, kind, data, size);
+    if (!texture) return title_global<NglTexture*>(0x009026f8);  // ngl_defaultTexture
+    manager_slot<void XB_THISCALL(NglResourceManager*, void*)>(texture_manager(), 3)(texture_manager(), texture);
+    texture_word(texture, 0x28) |= 1;
+    return texture;
+}
+
+uint32_t XB_THISCALL nglVec4ToColor(const float* color) {
+    const auto channel = [](float x) -> uint32_t {
+        if (x >= 1.0f) return 0xff;
+        if (0.0f >= x) return 0;
+        return static_cast<uint32_t>(platform_ftol(platform_x87_mul_add(x, 255.0f, 0.5f)));
+    };
+    const uint32_t r = channel(color[0]);
+    const uint32_t g = channel(color[1]);
+    const uint32_t b = channel(color[2]);
+    const uint32_t a = channel(color[3]);
+    return ((((a << 8) | r) << 8 | g) << 8) | b;
+}
+
+uint32_t* XB_THISCALL nglMaterial_Relocate4(uint8_t* material, uint32_t delta) {
+    uint32_t value = 0;
+    for (uint32_t offset = 0x1c; offset <= 0x34; offset += 8) {
+        uint32_t& word = *reinterpret_cast<uint32_t*>(material + offset);
+        value = word;
+        if (value) word = value += delta;
+    }
+    return reinterpret_cast<uint32_t*>(uintptr_t{value});
+}
+
+uint32_t XB_THISCALL nglMaterial_LoadThreeTexturesAndOptional(uint8_t* material) {
+    auto* words = reinterpret_cast<uint32_t*>(material);
+    for (int i = 0; i < 3; ++i) {
+        const uint32_t name = words[0x1c / 4 + 2 * i];
+        words[0x20 / 4 + 2 * i] =
+            name ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                       nglMaterialFindTexture(reinterpret_cast<const char*>(uintptr_t{name}))))
+                 : 0;
+    }
+    const uint32_t name = words[0x34 / 4];
+    const uint32_t texture = name ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(nglMaterialFindTextureOrDefault(
+                                        reinterpret_cast<const char*>(uintptr_t{name}))))
+                                  : 0;
+    words[0x38 / 4] = texture;
+    if (texture == title_global<uint32_t>(0x009026f8)) words[0x38 / 4] = 0;  // ngl_defaultTexture
+    return texture;
+}
+
+void XB_THISCALL nglMaterial_ReleaseThreeTexturesAndOptional(uint8_t* material) {
+    auto* words = reinterpret_cast<uint32_t*>(material);
+    for (int i = 0; i < 3; ++i) {
+        if (words[0x20 / 4 + 2 * i]) {
+            nglReleaseTexture(reinterpret_cast<void*>(uintptr_t{words[0x20 / 4 + 2 * i]}));
+            words[0x20 / 4 + 2 * i] = 0;
+        }
+    }
+    if (words[0x38 / 4]) {
+        nglReleaseTexture(reinterpret_cast<void*>(uintptr_t{words[0x38 / 4]}));
+        words[0x38 / 4] = 0;
+    }
+}
+
+void XB_CDECL nglInitMeshFileCache() {
+    auto* cache = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
+    if (!cache) {
+        title_global<uint32_t>(0x00903d40) = 0;
+        return;
+    }
+    cache[0] = 0x007c1284;                                          // vtable
+    cache[1] = title_function<uint32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    cache[2] = 7;
+    cache[3] = 0;
+    title_global<uint32_t>(0x00903d40) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cache));
+}
+
+void* XB_CDECL nglFindMeshPreferFile(const uint32_t* name, const uint8_t* file) {
+    for (const uint8_t* mesh = *reinterpret_cast<uint8_t* const*>(file + 0x138); mesh;
+         mesh = *reinterpret_cast<uint8_t* const*>(mesh + 0x38)) {
+        const uint32_t* mesh_name = *reinterpret_cast<const uint32_t* const*>(mesh);
+        int i = 0;
+        while (i < 8 && mesh_name[i] == name[i]) ++i;
+        if (i == 8) return const_cast<uint8_t*>(mesh);
+    }
+    return manager_slot<ManagerFind>(mesh_manager(), 2)(mesh_manager(), reinterpret_cast<const char*>(name));
+}
+
+namespace {
+
+// nglSkipList_Insert/InsertTexture: the 32-byte name at `name_offset` in each object.
+const uint32_t* skip_list_insert(NglSkipList* self, const uint32_t* object, uint32_t name_offset) {
+    if (!self->head) nglSkipList_InitHead(self);
+    const auto name_of = [name_offset](const uint32_t* o) {
+        return reinterpret_cast<const uint32_t*>(reinterpret_cast<const uint8_t*>(o) + name_offset);
+    };
+    const uint32_t* key = name_of(object);
+    NglSkipListNode* update[17];
+    NglSkipListNode* current = self->head;
+    NglSkipListNode* node;
+    int32_t level = self->level;
+    do {
+        node = current->next[level];
+        while (node) {
+            const uint32_t* other = name_of(node->key);
+            int i = 0;
+            while (i < 8 && other[i] == key[i]) ++i;
+            if (i == 8 || key[i] < other[i]) break;
+            current = node;
+            node = current->next[level];
+        }
+        update[level] = current;
+    } while (--level >= 0);
+    if (node) {
+        const uint32_t* other = name_of(node->key);
+        for (int i = 0; other[i] == key[i];) {
+            if (++i >= 8) return node->key;
+        }
+    }
+    int32_t height = nglSkipList_RandomLevel(self);
+    if (height > self->level) {
+        height = self->level + 1;
+        self->level = height;
+        update[height] = self->head;
+    }
+    auto* fresh = static_cast<NglSkipListNode*>(Mem_AlignedAlloc(static_cast<uint32_t>(height) * 4 + 8, 4, 0));
+    fresh->key = object;
+    for (int32_t i = height; i >= 0; --i) {
+        fresh->next[i] = update[i]->next[i];
+        update[i]->next[i] = fresh;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+const uint32_t* XB_THISCALL nglSkipList_Insert(NglSkipList* self, const uint32_t* object) {
+    return skip_list_insert(self, object, 0);
+}
+
+const uint32_t* XB_THISCALL nglSkipList_InsertTexture(NglSkipList* self, const uint32_t* texture) {
+    return skip_list_insert(self, texture, 0x54);
+}
+
+namespace {
+
+// The name of a listed object: its first 32 bytes, at +0x54 (textures), or what its first
+// word points to (indirect).
+enum class SkipName { Direct, Texture, Indirect };
+
+const uint32_t* skip_name(const uint32_t* object, SkipName kind) {
+    switch (kind) {
+    case SkipName::Texture: return object + 0x54 / 4;
+    case SkipName::Indirect: return reinterpret_cast<const uint32_t*>(uintptr_t{object[0]});
+    case SkipName::Direct: break;
+    }
+    return object;
+}
+
+bool skip_list_remove(NglSkipList* self, const uint32_t* object, SkipName kind) {
+    if (!self->head) return false;
+    const uint32_t* key = skip_name(object, kind);
+    NglSkipListNode* update[17];
+    NglSkipListNode* current = self->head;
+    NglSkipListNode* node;
+    const int32_t top = self->level;
+    for (int32_t level = top; level >= 0; --level) {
+        node = current->next[level];
+        while (node) {
+            const uint32_t* other = skip_name(node->key, kind);
+            int i = 0;
+            while (i < 8 && other[i] == key[i]) ++i;
+            if (i == 8 || key[i] < other[i]) break;
+            current = node;
+            node = current->next[level];
+        }
+        update[level] = current;
+    }
+    if (!node || node->key != object) return false;
+    for (int32_t i = 0; i <= top && update[i]->next[i] == node; ++i) update[i]->next[i] = node->next[i];
+    title_function<void XB_CDECL(void*)>(0x000939b0)(node);  // Mem_AlignedFree
+    int32_t level = top;
+    while (level > 0 && !self->head->next[level]) --level;
+    self->level = level;
+    return true;
+}
+
+}  // namespace
+
+bool XB_THISCALL nglSkipList_Remove(NglSkipList* self, const uint32_t* object) {
+    return skip_list_remove(self, object, SkipName::Direct);
+}
+
+void XB_CDECL nglInitFontManager() {
+    auto* manager = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
+    if (manager) {
+        manager[0] = 0x007bd0f8;                                          // vtable
+        manager[1] = title_function<uint32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        manager[2] = 7;
+        manager[3] = 0;
+    }
+    title_global<uint32_t>(0x009028d0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(manager));
+    *reinterpret_cast<uint32_t*>(nglCreateSysFont() + 0x28) |= 2;
+    NglHashedName name;
+    title_function<uint8_t* XB_THISCALL(NglHashedName*, const char*)>(0x00011060)(&name, "nglSysFont");  // HashStr_Init
+    using Find = uint8_t* XB_THISCALL(NglResourceManager*, const NglHashedName*);
+    uint8_t* font = manager_slot<Find>(font_manager(), 2)(font_manager(), &name);
+    uint8_t*& sys_font = title_global<uint8_t*>(0x009028d4);
+    if (font) {
+        ++*reinterpret_cast<uint32_t*>(font + 0x20);
+    } else {
+        font = reinterpret_cast<uint8_t*>(nglLoadFontFile(&name, reinterpret_cast<char*>(uintptr_t{0x008a4690})));
+        if (!font) {
+            font = sys_font;
+        } else {
+            manager_slot<void XB_THISCALL(NglResourceManager*, void*)>(font_manager(), 3)(font_manager(), font);
+        }
+    }
+    sys_font = font;
+    font[0x50] = 1;
+}
+
+void XB_CDECL nglInitMeshManagers() {
+    title_global<uint8_t>(0x00902980) = 0;
+    // The three managers: skip lists with their own vtables, seeded from rand().
+    static const uint32_t kManagers[3][2] = {
+        {0x00902a84, 0x007bdf84},  // mesh files
+        {0x00902a80, 0x007bdfd0},  // meshes
+        {0x00902a88, 0x007be01c},  // section-3 records
+    };
+    for (const auto& manager : kManagers) {
+        auto* object = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
+        if (object) {
+            object[0] = manager[1];
+            object[1] = title_function<uint32_t XB_CDECL()>(0x001efcc0)();  // _rand
+            object[2] = 7;
+            object[3] = 0;
+        }
+        title_global<uint32_t>(manager[0]) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object));
+    }
+    ShaderCache_Init(reinterpret_cast<ShaderCache*>(uintptr_t{0x00902ad4}));
+    ShaderCache_Init(reinterpret_cast<ShaderCache*>(uintptr_t{0x00902ac0}));
+    nglInitMeshFileCache();
+}
+
+namespace {
+
+uint32_t& word_at(uint32_t address, uint32_t offset) {
+    return *reinterpret_cast<uint32_t*>(uintptr_t{address + offset});
+}
+
+// HashStrMap_Find (0x00093f10, thiscall map) with a stack copy of the 32-byte name.
+uint32_t hash_map_find(uint32_t map, uint32_t name) {
+    uint32_t key[8];
+    for (int i = 0; i < 8; ++i) key[i] = word_at(name, i * 4);
+    return title_function<uint32_t XB_THISCALL(uint32_t, const uint32_t*)>(0x00093f10)(map, key);
+}
+
+uint32_t vtable_slot(uint32_t object, int slot) { return word_at(word_at(object, 0), slot * 4); }
+
+// nglParseMesh's bounds pass: each mesh's bone matrices (+0x14, count +0x10) inverted in
+// place as rigid transforms (packed: rows 0..2 transposed with lane 3 = lane 2, then
+// -t * R^T), the bounding box of the meshes' spheres (+0x20 centre, +0x30 radius), and
+// the LOD list (+0x1c, count +0x18) resolved to meshes.
+void parse_mesh_bounds(uint8_t* file) {
+    Lanes mins = {{from_bits(0x749dc5ae), from_bits(0x749dc5ae), from_bits(0x749dc5ae), from_bits(0x749dc5ae)}};
+    Lanes maxs;
+    for (int k = 0; k < 4; ++k) maxs.v[k] = from_bits(0xf49dc5ae);
+    bool any = false;
+    for (uint32_t mesh = texture_word(reinterpret_cast<NglTexture*>(file), 0x138); mesh; mesh = word_at(mesh, 0x38)) {
+        if (word_at(mesh, 4) & 0x10000) continue;
+        if (!word_at(mesh, 0x10)) {
+            word_at(mesh, 4) |= 0x10000;
+        } else {
+            for (uint32_t i = 0; i < word_at(mesh, 0x10); ++i) {
+                float* m = reinterpret_cast<float*>(uintptr_t{word_at(mesh, 0x14) + i * 0x40});
+                const Lanes t0 = {{m[0], m[4], m[8], m[8]}};
+                const Lanes t1 = {{m[1], m[5], m[9], m[9]}};
+                const Lanes t2 = {{m[2], m[6], m[10], m[10]}};
+                Lanes nt;
+                for (int k = 0; k < 4; ++k) {
+                    uint32_t bits;
+                    std::memcpy(&bits, &m[12 + k], 4);
+                    nt.v[k] = from_bits(bits ^ 0x80000000u);
+                }
+                const Lanes row3 = add(add(mul(t0, nt.v[0]), mul(t1, nt.v[1])), mul(t2, nt.v[2]));
+                for (int k = 0; k < 4; ++k) {
+                    m[k] = t0.v[k];
+                    m[4 + k] = t1.v[k];
+                    m[8 + k] = t2.v[k];
+                    m[12 + k] = row3.v[k];
+                }
+            }
+            const float* sphere = reinterpret_cast<const float*>(uintptr_t{mesh + 0x20});
+            const float radius = sphere[4];
+            const Lanes r = {{radius, radius, radius, radius}};
+            const Lanes low = sub(lanes(sphere), r);
+            const Lanes high = add(r, lanes(sphere));
+            for (int k = 0; k < 4; ++k) {
+                mins.v[k] = low.v[k] < mins.v[k] ? low.v[k] : mins.v[k];    // MINPS
+                maxs.v[k] = high.v[k] > maxs.v[k] ? high.v[k] : maxs.v[k];  // MAXPS
+            }
+            any = true;
+        }
+        for (uint32_t i = 0; i < word_at(mesh, 0x18); ++i) {
+            const uint32_t lods = word_at(mesh, 0x1c);
+            const uint32_t found = address_of(nglFindMeshPreferFile(
+                reinterpret_cast<const uint32_t*>(uintptr_t{word_at(lods, i * 8)}), file));
+            word_at(lods, i * 8) = found;
+            if (!word_at(word_at(mesh, 0x1c), i * 8)) {
+                --i;
+                --word_at(mesh, 0x18);
+            }
+        }
+    }
+    if (!any) return;
+    const Lanes center = mul(add(mins, maxs), from_bits(0x3f000000));
+    const Lanes d = sub(center, mins);
+    const Lanes dd = mul(d, d);
+    const float s = (dd.v[0] + dd.v[1]) + dd.v[2];
+    float radius = s;
+    if (!(s == 0.0f || std::isunordered(s, 0.0f))) {
+        const float y = platform_rsqrt_estimate(s);
+        const float sy = s * y;
+        radius = ((from_bits(0x40400000) - sy * y) * sy) * from_bits(0x3f000000);
+    }
+    for (uint32_t mesh = texture_word(reinterpret_cast<NglTexture*>(file), 0x138); mesh; mesh = word_at(mesh, 0x38)) {
+        if (word_at(mesh, 4) & 0x10000) continue;
+        float* sphere = reinterpret_cast<float*>(uintptr_t{mesh + 0x20});
+        for (int k = 0; k < 4; ++k) sphere[k] = center.v[k];
+        sphere[4] = radius;
+        word_at(mesh, 4) |= 0x10000;
+    }
+}
+
+}  // namespace
+
+bool XB_CDECL nglParseMesh(const uint32_t* name, uint8_t* file, const char* extension) {
+    (void)name;
+    (void)extension;
+    const uint32_t header = texture_word(reinterpret_cast<NglTexture*>(file), 0x124);
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x134) = header;
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x144) = 0xffffffff;
+    using Strncmp = int XB_CDECL(const char*, const char*, uint32_t);
+    if (title_function<Strncmp>(0x001eeaf0)(reinterpret_cast<const char*>(uintptr_t{header}),
+                                            reinterpret_cast<const char*>(uintptr_t{0x007be06c}), 4) ||  // "XBXM"
+        word_at(header, 4) != 0x601 || !word_at(header, 8))
+        return false;
+    const uint32_t file_address = address_of(file);
+    const uint32_t delta = texture_word(reinterpret_cast<NglTexture*>(file), 0x124) - word_at(header, 0x10);
+    if (word_at(header, 0xc)) word_at(header, 0xc) += delta;
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x138) = 0;
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x13c) = 0;
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x140) = 0;
+    uint32_t previous_mesh = 0, previous_material = 0;
+    if (word_at(header, 8)) {
+        for (uint32_t i = 0; i < word_at(header, 8); ++i) {
+            const uint32_t section = word_at(header, 0xc) + i * 0xc;
+            if (word_at(section, 4)) word_at(section, 4) += delta;
+            if (word_at(section, 8)) word_at(section, 8) += delta;
+            const uint8_t type = *reinterpret_cast<const uint8_t*>(uintptr_t{section + 3});
+            if (type == 1) {
+                const uint32_t record = word_at(section, 4);
+                if (word_at(record, 0)) word_at(record, 0) += delta;
+                if (word_at(record, 4)) word_at(record, 4) += delta;
+                word_at(record, 8) = file_address;
+                if (!texture_word(reinterpret_cast<NglTexture*>(file), 0x13c))
+                    texture_word(reinterpret_cast<NglTexture*>(file), 0x13c) = record;
+                if (previous_material) word_at(previous_material, 0xc) = record;
+                previous_material = record;
+                if (!word_at(header, 0x10)) {
+                    const uint32_t node = hash_map_find(0x00902ac0, word_at(record, 4));
+                    if (node && title_function<uint8_t XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(word_at(node, 0x20), 6))(
+                                    word_at(node, 0x20), record))
+                        word_at(record, 4) = word_at(node, 0x20);
+                    else
+                        word_at(record, 4) = 0x008a2e20;
+                }
+                title_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t)>(vtable_slot(word_at(record, 4), 5))(
+                    word_at(record, 4), record, delta);
+                title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(word_at(record, 4), 3))(
+                    word_at(record, 4), record);
+            } else if (type == 2) {
+                const uint32_t mesh = word_at(section, 4);
+                if (word_at(mesh, 0)) word_at(mesh, 0) += delta;
+                manager_slot<void XB_THISCALL(NglResourceManager*, uint32_t)>(mesh_manager(), 3)(mesh_manager(), mesh);
+                word_at(mesh, 0x34) = file_address;
+                if (!texture_word(reinterpret_cast<NglTexture*>(file), 0x138))
+                    texture_word(reinterpret_cast<NglTexture*>(file), 0x138) = mesh;
+                if (previous_mesh) word_at(previous_mesh, 0x38) = mesh;
+                previous_mesh = mesh;
+                if (!(word_at(mesh, 4) & 0x10000))
+                    nglRelocateMesh(reinterpret_cast<uint8_t*>(uintptr_t{delta}), nullptr,
+                                    reinterpret_cast<uint8_t*>(uintptr_t{mesh}));
+                for (uint32_t j = 0; j < word_at(mesh, 8); ++j) {
+                    word_at(word_at(mesh, 0xc), j * 8) = 1;
+                    const uint32_t part = word_at(word_at(mesh, 0xc), j * 8 + 4);
+                    if (word_at(part, 0)) word_at(part, 0) += delta;
+                    uint32_t key[8];
+                    for (int k = 0; k < 8; ++k) key[k] = word_at(word_at(part, 0), k * 4);
+                    const uint32_t found = address_of(nglMeshFileFindMesh(key, file));
+                    word_at(part, 4) = found;
+                    const uint32_t material = word_at(found, 4);
+                    if (!title_function<uint8_t XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(material, 7))(material, part)) {
+                        uint8_t scratch[0x40] = {};
+                        const uint32_t object = word_at(word_at(part, 4), 4);
+                        title_function<void XB_THISCALL(uint32_t, uint8_t*)>(vtable_slot(object, 1))(object, scratch);
+                        word_at(word_at(part, 4), 4) = 0x008a2e20;
+                    }
+                    nglCreateVertexBufferPhysical(reinterpret_cast<uint32_t*>(uintptr_t{part + 0x44}), word_at(part, 0x44),
+                                                  word_at(part, 0x48), 0x404);
+                    if (word_at(part, 0x38)) {
+                        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e76aa)(  // XPhysicalProtect
+                            word_at(part, 0x38), word_at(part, 0x3c), 0x404);
+                        auto* resource = static_cast<uint32_t*>(Mem_AlignedAlloc(0x18, 4, 0));
+                        word_at(part, 0x34) = address_of(resource);
+                        for (int k = 0; k < 6; ++k) resource[k] = 0;
+                        word_at(word_at(part, 0x34), 0) = 0x20001;
+                        word_at(word_at(part, 0x34), 0xc) = word_at(part, 0x3c);
+                        word_at(word_at(part, 0x34), 0x10) = word_at(part, 0x3c);
+                        title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e7fd0)(  // D3DResource_Register
+                            word_at(part, 0x34), word_at(part, 0x38));
+                    }
+                    if (word_at(part, 0x5c)) {
+                        const uint32_t node = hash_map_find(0x00902ad4, word_at(word_at(part, 0x5c), 0));
+                        if (node) {
+                            word_at(word_at(part, 0x5c), 4) = part;
+                            title_function<void XB_CDECL(uint32_t)>(word_at(node, 0x20))(word_at(part, 0x5c));
+                        } else {
+                            word_at(part, 0x5c) = 0;
+                        }
+                    }
+                    if (word_at(part, 4) && word_at(word_at(part, 4), 4)) {
+                        const uint32_t object = word_at(word_at(part, 4), 4);
+                        title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(object, 8))(object, part);
+                    }
+                }
+            } else if (type == 3) {
+                nglMeshFile_RelocateSection3(file, reinterpret_cast<const uint32_t*>(uintptr_t{section}), delta);
+            }
+        }
+        if (previous_mesh) word_at(previous_mesh, 0x38) = 0;
+        if (previous_material) word_at(previous_material, 0xc) = 0;
+    }
+    parse_mesh_bounds(file);
+    word_at(header, 0x10) = texture_word(reinterpret_cast<NglTexture*>(file), 0x124);
+    return true;
+}
+
+uint8_t* XB_CDECL nglCreateMeshFromFile(const uint32_t* name, uint32_t data, const char* extension) {
+    auto* file = static_cast<uint8_t*>(Mem_AlignedAlloc(0x148, 4, 0));
+    file[0x20] = 0;
+    std::memcpy(file, name, 0x20);
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x120) = 1;  // reference count
+    file[0x130] = 1;
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x124) = data;
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x128) = 0;
+    texture_word(reinterpret_cast<NglTexture*>(file), 0x12c) = 0;
+    using ParseMesh = uint8_t XB_CDECL(const uint32_t*, uint8_t*, const char*);
+    if (title_function<ParseMesh>(0x00067950)(name, file, extension)) return file;  // nglParseMesh
+    title_free(address_of(file));
+    return nullptr;
+}
+
+uint8_t* XB_CDECL nglLoadMeshFile(const uint32_t* name, uint32_t data) {
+    using Find = uint8_t* XB_THISCALL(NglResourceManager*, const uint32_t*);
+    uint8_t* file = manager_slot<Find>(mesh_file_manager(), 2)(mesh_file_manager(), name);
+    if (file) {
+        ++texture_word(reinterpret_cast<NglTexture*>(file), 0x120);
+        return file;
+    }
+    file = nglCreateMeshFromFile(name, data, reinterpret_cast<const char*>(uintptr_t{0x008386b8}));  // ".xbmesh"
+    if (!file) return nullptr;
+    manager_slot<void XB_THISCALL(NglResourceManager*, void*)>(mesh_file_manager(), 3)(mesh_file_manager(), file);
+    return file;
+}
+
+uint32_t* XB_CDECL nglMeshFile_RelocateSection3(uint8_t* file, const uint32_t* section, uint32_t base) {
+    auto* record = reinterpret_cast<uint32_t*>(uintptr_t{section[1]});
+    for (int i = 0; i <= 4; i += 2)
+        if (record[i]) record[i] += base;
+    using Add = void XB_THISCALL(NglResourceManager*, void*);
+    auto* manager = title_global<NglResourceManager*>(0x00902a88);
+    manager_slot<Add>(manager, 3)(manager, record);
+    record[3] = address_of(file);
+    if (!texture_word(reinterpret_cast<NglTexture*>(file), 0x140))
+        texture_word(reinterpret_cast<NglTexture*>(file), 0x140) = address_of(record);
+    for (uint32_t i = 0; i < record[1]; ++i) {
+        auto* group = reinterpret_cast<uint32_t*>(uintptr_t{record[2]}) + i * 3;  // {?, count, entries}
+        if (group[2]) group[2] += base;
+        for (uint32_t j = 0; j < group[1]; ++j) {
+            auto* entry = reinterpret_cast<uint32_t*>(uintptr_t{group[2] + j * 0x88 + 8});
+            for (int k = 0; k < 8; ++k, entry += 4) {
+                for (int w = 0; w < 3; ++w)
+                    if (entry[w]) entry[w] += base;
+            }
+        }
+    }
+    auto* first = reinterpret_cast<uint32_t*>(uintptr_t{record[2]});
+    first[0] = 2;
+    return first;
+}
+
+bool XB_THISCALL nglSkipList_RemoveTexture(NglSkipList* self, const uint32_t* texture) {
+    return skip_list_remove(self, texture, SkipName::Texture);
+}
+
+bool XB_THISCALL nglSkipList_RemoveIndirect(NglSkipList* self, const uint32_t* object) {
+    return skip_list_remove(self, object, SkipName::Indirect);
 }
 
 }  // namespace game

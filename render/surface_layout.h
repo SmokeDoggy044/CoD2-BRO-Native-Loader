@@ -109,4 +109,52 @@ SURFACE_LAYOUT_FN SurfaceLevel surface_level(uint32_t data, uint32_t format_fiel
     return out;
 }
 
+// D3DSURFACE_DESC {Format, Type, Usage, Size, MultiSampleType, Width, Height} of one level
+// of a pixel container (its Common, Format and Size fields): render's D3DTexture_GetLevelDesc
+// and D3DSurface_GetDesc (level 0), and the harness's GetDesc stand-in.
+SURFACE_LAYOUT_FN void describe_level(uint32_t common, uint32_t format_field, uint32_t size_field, uint32_t level,
+                                      uint32_t* desc) {
+    const uint32_t format = format_of(format_field);
+    const bool volume = (format_field & 0xF0) > (2u << 4);
+    uint32_t type = 10;
+    switch (common & 0x00070000) {
+    case 0x00000000: type = 6; break;  // vertex buffer
+    case 0x00010000: type = 7; break;  // index buffer
+    case 0x00020000: type = 8; break;  // push buffer
+    case 0x00030000: type = 9; break;  // palette
+    case 0x00040000: type = (format_field & 0x4) ? 5 : volume ? 4 : 3; break;  // texture (cube, volume)
+    case 0x00050000: type = volume ? 2 : 1; break;  // surface
+    default: break;
+    }
+    uint32_t usage = 0;
+    if (level == 0) {
+        if (format_flags(format) & 0x80)
+            usage = 1;  // D3DUSAGE_RENDERTARGET
+        else if (format_flags(format) & 0x40)
+            usage = 2;  // D3DUSAGE_DEPTHSTENCIL
+    }
+    uint32_t width, height, slice_size;
+    if (size_field != 0) {
+        width = (size_field & 0x00000FFF) + 1;
+        height = ((size_field & kSizeHeightMask) >> kSizeHeightShift) + 1;
+        slice_size = height * (((size_field >> kSizePitchShift) + 1) * 64);
+    } else {
+        const int32_t u = static_cast<int32_t>((format_field >> kFormatUSizeShift) & 0xF) - static_cast<int32_t>(level);
+        const int32_t v = static_cast<int32_t>((format_field >> kFormatVSizeShift) & 0xF) - static_cast<int32_t>(level);
+        const int32_t min_log = is_compressed(format) ? 2 : 0;
+        width = 1u << (u > 0 ? u : 0);
+        height = 1u << (v > 0 ? v : 0);
+        const uint32_t padded_width = 1u << (u > min_log ? u : min_log);
+        const uint32_t padded_height = 1u << (v > min_log ? v : min_log);
+        slice_size = padded_height * padded_width * bits_per_pixel(format) / 8;
+    }
+    desc[0] = format;
+    desc[1] = type;
+    desc[2] = usage;
+    desc[3] = slice_size;
+    desc[4] = 0x11;  // D3DMULTISAMPLE_NONE
+    desc[5] = width;
+    desc[6] = height;
+}
+
 }  // namespace render::surface_layout

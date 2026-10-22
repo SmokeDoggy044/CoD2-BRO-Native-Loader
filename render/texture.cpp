@@ -29,44 +29,6 @@ using surface_layout::SurfaceLevel;
 
 uint32_t format_of(const XbPixelContainer& pixels) { return surface_layout::format_of(pixels.format); }
 
-struct LevelLayout {
-    uint32_t width, height, depth;
-    uint32_t pitch;       // bytes per row (of blocks, for compressed formats)
-    uint32_t slice_size;  // bytes per depth slice
-};
-
-// One mip level's size (D3D's internal helper at 003ee760).
-LevelLayout level_layout(const XbPixelContainer& pixels, uint32_t level) {
-    LevelLayout out{};
-    if (pixels.size != 0) {
-        out.width = (pixels.size & kSizeWidthMask) + 1;
-        out.height = ((pixels.size & kSizeHeightMask) >> kSizeHeightShift) + 1;
-        out.depth = 1;
-        out.pitch = ((pixels.size >> kSizePitchShift) + 1) * 64;
-        out.slice_size = out.height * out.pitch;
-        return out;
-    }
-    const uint32_t format = format_of(pixels);
-    const uint32_t bpp = bits_per_pixel(format);
-    const int32_t u = static_cast<int32_t>((pixels.format >> kFormatUSizeShift) & 0xF) - static_cast<int32_t>(level);
-    const int32_t v = static_cast<int32_t>((pixels.format >> kFormatVSizeShift) & 0xF) - static_cast<int32_t>(level);
-    const int32_t p = static_cast<int32_t>(pixels.format >> kFormatPSizeShift) - static_cast<int32_t>(level);
-    out.width = 1u << std::max(u, 0);
-    out.height = 1u << std::max(v, 0);
-    out.depth = 1u << std::max(p, 0);
-    const int32_t min_log = is_compressed(format) ? 2 : 0;
-    const uint32_t padded_width = 1u << std::max(u, min_log);
-    const uint32_t padded_height = 1u << std::max(v, min_log);
-    if (format == 0x0C)
-        out.pitch = padded_width * 2;  // DXT1: 8 bytes per 4x4 block
-    else if (is_compressed(format))
-        out.pitch = padded_width * 4;  // DXT3/5: 16 bytes per block
-    else
-        out.pitch = padded_width * bpp / 8;
-    out.slice_size = padded_height * padded_width * bpp / 8;
-    return out;
-}
-
 // Where a face/level of a texture lives (D3D's internal helper at 003ee960).
 SurfaceLevel surface_level(const XbPixelContainer& pixels, uint32_t face, uint32_t level) {
     return surface_layout::surface_level(pixels.resource.data, pixels.format, pixels.size, face, level);
@@ -92,37 +54,11 @@ XbSurface* create_level_surface(XbPtr texture, const SurfaceLevel& level) {
 
 // --- Descriptions ------------------------------------------------------------------------
 
-struct XbSurfaceDesc {  // D3DSURFACE_DESC
-    uint32_t format;
-    uint32_t type;
-    uint32_t usage;
-    uint32_t size;
-    uint32_t multisample_type;
-    uint32_t width;
-    uint32_t height;
-};
-static_assert(sizeof(XbSurfaceDesc) == 28);
-
-constexpr uint32_t kMultiSampleNone = 0x11;
-
+// D3DSURFACE_DESC (7 dwords) of a level: surface_layout.h (shared with the compare harness).
 void describe(XbPtr container, uint32_t level, XbPtr desc_address) {
     const auto& pixels = *from_xbox_ptr<XbPixelContainer>(container);
-    auto* desc = from_xbox_ptr<XbSurfaceDesc>(desc_address);
-    const uint32_t format = format_of(pixels);
-    desc->format = format;
-    desc->type = d3d_resource_type(container);
-    desc->usage = 0;
-    if (level == 0) {
-        if (format_flags(format) & 0x80)
-            desc->usage = 1;  // D3DUSAGE_RENDERTARGET
-        else if (format_flags(format) & 0x40)
-            desc->usage = 2;  // D3DUSAGE_DEPTHSTENCIL
-    }
-    desc->multisample_type = kMultiSampleNone;
-    const LevelLayout layout = level_layout(pixels, level);
-    desc->size = layout.slice_size;
-    desc->width = layout.width;
-    desc->height = layout.height;
+    surface_layout::describe_level(pixels.resource.common, pixels.format, pixels.size, level,
+                                   from_xbox_ptr<uint32_t>(desc_address));
 }
 
 uint32_t XB_STDCALL D3DBaseTexture_GetLevelCount(XbPtr texture) {

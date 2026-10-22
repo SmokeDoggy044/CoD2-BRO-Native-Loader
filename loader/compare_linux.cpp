@@ -591,6 +591,14 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
         result = buffer[1] | 0x80000000;
         return true;
     }
+    case SdkStandIn::SurfaceDesc: {  // (surface, desc): render's describe(surface, 0)
+        const uint32_t* pixels = spec.arg_count == 2 ? stand_in_resource(c, values[0], 20) : nullptr;
+        if (!pixels || !readable(c, values[1], 28)) return false;
+        render::surface_layout::describe_level(pixels[0], pixels[3], pixels[4], 0,
+                                               reinterpret_cast<uint32_t*>(uintptr_t{values[1]}));
+        result = 0;
+        return true;
+    }
     case SdkStandIn::PushBegin:
     case SdkStandIn::PushEnd:
     case SdkStandIn::LevelCount:

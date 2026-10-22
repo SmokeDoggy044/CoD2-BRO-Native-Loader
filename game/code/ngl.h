@@ -1143,7 +1143,7 @@ void XB_CDECL nglCreateWhiteTexture();
 void XB_CDECL nglInitTextureManager();
 // 0x00079f60: the texture "nglSysFont" loaded from a copy of the built-in DDS at
 // 0x008a56e0.
-void XB_CDECL nglCreateSysFont();
+uint8_t* XB_CDECL nglCreateSysFont();
 // 0x00072c00: the fog textures: one fog_width x fog_height (0x00902e70), two width x
 // height (0x00902e64), and a texture header over the 0x00902dfc memory (0x00902e50).
 void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog_width, uint32_t fog_height);
@@ -1167,5 +1167,94 @@ void XB_CDECL nglFlushDebugLineBatch();
 void XB_THISCALL nglTexture_FreeHeaders(NglTexture* texture);
 // 0x0007a3d0: frees the buffer (*self) and clears it.
 void XB_THISCALL nglIndexBuffer_Free(uint8_t** self);
+
+// Texture loading. Kinds (NglTexture +0xc): 0/1 DDS, 2 any format through D3DX, 3 an
+// animated list (text: "name [count]" per line).
+struct NglTextCursor {
+    const char* cursor;
+    const char* begin;
+    int32_t length;
+};
+// 0x0007b2a0: swizzles each level of the texture in place at *data (XGSwizzleRect through
+// an aligned copy) and advances *data past it; DXT formats stay as they are.
+void XB_CDECL nglSwizzleTextureLevels(NglTexture* texture, uint32_t* data);
+// 0x0006b070: a DDS/"DDSM" file (DDSM: per-frame palettes, each frame a kind-0x10 copy at
+// +0x50 registered with the texture manager) into the texture: size, levels, format from
+// the pixel format, palette, header, registration, swizzle (cube maps: six faces). Marks
+// the file as swizzled (byte 0x7f = 'M') so a second load skips the swizzle.
+bool XB_CDECL nglLoadDDS(NglTexture* texture, uint8_t* dds);
+// 0x0006b4f0: nglLoadDDS, then the level surfaces; +0x2c = -1.
+bool XB_CDECL nglLoadDDSTexture(NglTexture* texture, uint8_t* dds);
+// 0x00063b80: skips blanks (not past a newline), copies the next word (at most size - 1
+// chars) into out; returns its length.
+int32_t XB_THISCALL nglTextCursor_NextToken(NglTextCursor* self, char* out, int32_t size);
+// 0x00063650: "name [count]" lines -> up to 0x400 frame references (found or created by
+// the texture manager) in +0x50, the count in +0x4c, kind 0xf; reentrancy flag 0x00902704.
+bool XB_CDECL nglLoadAnimatedTextureList(NglTexture* texture, const char* text, int32_t size);
+// 0x0006b7e0: a new texture (count 1, name) loaded by kind; null (freed) on failure.
+NglTexture* XB_CDECL nglLoadTextureFile(const uint8_t* name, uint32_t kind, uint8_t* data, uint32_t size);
+// 0x000635a0: the texture by name (AddRef) or loaded and registered; the default texture
+// (0x009026f8) when the load fails. Marks it used (+0x28 bit 0).
+NglTexture* XB_CDECL nglLoadTexture(const uint8_t* name, uint32_t kind, uint8_t* data, uint32_t size);
+
+// 0x00073750: an RGBA float colour (ECX) as A8R8G8B8: each channel 255 at >= 1, 0 at
+// <= 0, else x87 x * 255 + 0.5 truncated (NaN takes that path).
+uint32_t XB_THISCALL nglVec4ToColor(const float* color);
+// 0x0004ea50: material slot: the four pointers at +0x1c/+0x24/+0x2c/+0x34 moved by delta
+// when set; returns the last one.
+uint32_t* XB_THISCALL nglMaterial_Relocate4(uint8_t* material, uint32_t delta);
+// 0x0004eaa0: the textures named at +0x1c/+0x24/+0x2c into +0x20/+0x28/+0x30
+// (nglMaterialFindTexture), the optional one at +0x34 into +0x38 (OrDefault; the
+// default texture stored as null). Returns what OrDefault returned.
+uint32_t XB_THISCALL nglMaterial_LoadThreeTexturesAndOptional(uint8_t* material);
+// 0x0004eb10: releases and clears those four textures.
+void XB_THISCALL nglMaterial_ReleaseThreeTexturesAndOptional(uint8_t* material);
+// 0x0007acf0: the mesh file cache object (vtable 0x007c1284, a random seed, 7, 0) in
+// 0x00903d40 (null when the allocation fails).
+void XB_CDECL nglInitMeshFileCache();
+// 0x000674c0: the mesh named `name` (8 words) among the file's own meshes (+0x138, linked
+// by +0x38), else the mesh manager's lookup.
+void* XB_CDECL nglFindMeshPreferFile(const uint32_t* name, const uint8_t* file);
+// 0x00069e00: adds the object (name = its first 32 bytes) unless one with that name is
+// listed: then returns that one (else null). Node height from nglSkipList_RandomLevel, at
+// most one above the list's level.
+const uint32_t* XB_THISCALL nglSkipList_Insert(NglSkipList* self, const uint32_t* object);
+// 0x00063f10: the same for textures (name at +0x54).
+const uint32_t* XB_THISCALL nglSkipList_InsertTexture(NglSkipList* self, const uint32_t* texture);
+// 0x0007ad80: unlinks and frees the node of this object (found by its name, then compared
+// by pointer); the list's level drops past empty top levels. False when not listed.
+bool XB_THISCALL nglSkipList_Remove(NglSkipList* self, const uint32_t* object);
+// 0x00063c40 / 0x00069b40: the same with the name at +0x54 (textures) / where the object's
+// first word points (indirect).
+bool XB_THISCALL nglSkipList_RemoveTexture(NglSkipList* self, const uint32_t* texture);
+bool XB_THISCALL nglSkipList_RemoveIndirect(NglSkipList* self, const uint32_t* object);
+// 0x00066500: the font manager (0x009028d0, vtable 0x007bd0f8), the system font texture
+// (flag 2), and the font "nglSysFont" (found: one more reference; else loaded from the
+// built-in text at 0x008a4690 and added; failing that the current one) as the system
+// font (0x009028d4), its +0x50 set.
+void XB_CDECL nglInitFontManager();
+// 0x00067880: the mesh file, mesh and section-3 managers (0x00902a84/80/88), the two
+// shader caches (0x00902ad4, 0x00902ac0), then the mesh file cache.
+void XB_CDECL nglInitMeshManagers();
+// 0x00067950: the mesh file's data (+0x124, "XBXM" version 0x601) relocated from the
+// address it was saved at (header +0x10) and registered: section table entries {type byte
+// +3, +4, +8}; type 1 = material records (class from the shader cache 0x00902ac0 by
+// name, else 0x008a2e20; linked +0xc, first in file +0x13c), 2 = meshes (mesh manager,
+// linked +0x38, first in +0x138; each part's material, vertex buffer, index buffer
+// resource, an optional callback from the 0x00902ad4 map), 3 = nglMeshFile_RelocateSection3.
+// Then each new mesh's bone matrices inverted in place and one shared bounding sphere
+// (centre of the spheres' box, radius from RSQRTSS) for them all; the LOD lists resolved.
+bool XB_CDECL nglParseMesh(const uint32_t* name, uint8_t* file, const char* extension);
+// 0x00068190: a mesh file object (0x148 bytes: name, +0x120 references 1, +0x124 data,
+// +0x130 = 1) parsed by nglParseMesh (0x00067950); null (freed) when that fails.
+uint8_t* XB_CDECL nglCreateMeshFromFile(const uint32_t* name, uint32_t data, const char* extension);
+// 0x00068230: the mesh file by name from the mesh file manager (one more reference), or
+// created (".xbmesh") and added to it.
+uint8_t* XB_CDECL nglLoadMeshFile(const uint32_t* name, uint32_t data);
+// 0x0007a860 (was FUN_0007a860; nglParseMesh's section type 3): the section's record
+// (section[1]) relocated by base (+0, +8, +0x10; each group {?, count, entries} at +8: its
+// entries of 0x88 bytes, eight {3 pointers, ?} each), added to the 0x00902a88 manager,
+// +0xc = the file, the file's +0x140 = the first such record; the first group word = 2.
+uint32_t* XB_CDECL nglMeshFile_RelocateSection3(uint8_t* file, const uint32_t* section, uint32_t base);
 
 }  // namespace game
