@@ -136,6 +136,19 @@ void XB_THISCALL cdOcean_AddToList(const NglShaderClass* self, NglMeshDrawNode* 
 // storing pads the rows with 0 or 1.0 where no global maps.
 void XB_REGS1 XB_CDECL cdOcean_LoadWaveSet(uint32_t index);
 void XB_REGS1 XB_CDECL cdOcean_StoreWaveSet(uint32_t index);
+// 0x0004f810: cdOcean_Draw's wave constants. The wave set is the material's (+0x3c,
+// rows of 0x00901b30), or with the tweak switch 0x00902124 on and the selected set
+// (0x00902128, at most 3) being the material's, the tweak globals (loaded from the set
+// when the selection changed, else stored back into it; the first row's z then a
+// quarter, its w 0x00901e90). Vertex constants from slot 0x60 + vtable slot 6 (25
+// rows): world * view * projection, the world rows and nglNode_GetScaledWorldInverse's
+// (lane 3 = 0, 0, 0, 1), the first row, 1 / max(1, rows 3 and 4) interleaved with the
+// fractional wave offsets (rows 1 and 2 times 0x00901e90 less their rounding, less the
+// section's rounded +0x10), rows 5 and 6, sin of row 7's degrees and their + 3 pi / 2,
+// 1 / max(1, row 8), 2 pi / max(1, row 9), row 10, (row 11 + row 12 * 0x00901e90) *
+// 2 pi, and the first row's z * clamp(round(row 10), 0, 1) / 4. Pixel constant 0:
+// {0, 1, the first row's z / 4, its y}.
+void XB_THISCALL cdOcean_SetWaveConstants(const NglMeshNode* node);
 
 void XB_CDECL cdWater_Toggle();
 void XB_CDECL cdWater_Init();

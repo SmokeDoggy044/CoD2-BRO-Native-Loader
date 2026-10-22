@@ -11051,3 +11051,4 @@ address,name,kind,confidence,evidence
 002bd4e0,SoundRef_SetSource,function,low,"(EAX source, ECX ref): ref +0x28 = source; voice != -1: 0x000c4690(voice, source +0x30 xyz)"
 002c3120,S_PlaySoundAlias2,function,low,"S_PlaySoundAlias with S_StartAliasVoice2 (EAX alias, ECX table, out + 9 words, ret 0x28); FxSoundComponent_Update"
 0029b680,FX_LimitSoundComponents,function,medium,"stdcall (lists {count, list*}, name hash, entity, limit): counts sound components (flag 4 of +0x2a) of the entity with the hash; at the limit the oldest (+0x28) is stopped (vtable +0x10), destroyed and removed (last moved in); returns the count"
+00050910,nglNode_GetScaledWorldInverse,function,high,"thiscall draw node (ECX), out (ret 4): like nglNode_GetWorldInverse but from the node's own world rows, cached at +0x84; params flag 2 multiplies every row by 1 / scale^2 (RCPPS + Newton on params +0x10); only caller cdOcean_SetWaveConstants (decompiled and matched)"
