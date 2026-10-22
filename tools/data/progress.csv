@@ -8587,8 +8587,8 @@ address,name,section,module,state,tested,matched
 00273ef0,G_RunMissile,.text,game,named,0,0
 002744e0,G_RunEntity,.text,game,named,0,0
 00274660,G_RunFrame,.text,game,named,0,0
-00275040,CG_CalcGunRotOffset,.text,cgame,named,0,0
-00275380,CG_CalcGunMoveOffset,.text,cgame,named,0,0
+00275040,CG_CalcGunRotOffset,.text,cgame,settled,113,113
+00275380,CG_CalcGunMoveOffset,.text,cgame,settled,113,113
 002757d0,CG_StretchPicRotate,.text,cgame,settled,156,156
 00275a30,CG_InitLocalEntities,.text,cgame,matched,8,8
 00275b60,HudElem_SubstituteLabel,.text,unassigned,named,0,0
@@ -8612,9 +8612,9 @@ address,name,section,module,state,tested,matched
 00276c70,FUN_00276c70,.text,unassigned,unnamed,0,0
 00276d00,CG_BobCycleVertical,.text,cgame,untested,0,0
 00276d50,CG_BobCycleLateral,.text,cgame,settled,316,316
-00276dd0,CG_UpdateGunKick,.text,cgame,named,0,0
-00276f70,CG_ShellShockViewKick,.text,cgame,named,0,0
-002770f0,CG_ReadShellShockCvars,.text,cgame,named,0,0
+00276dd0,CG_UpdateGunKick,.text,cgame,settled,394,394
+00276f70,CG_ShellShockViewKick,.text,cgame,matched,47,47
+002770f0,CG_ReadShellShockCvars,.text,cgame,matched,7,7
 002774a0,FUN_002774a0,.text,unassigned,unnamed,0,0
 002775f0,FUN_002775f0,.text,unassigned,unnamed,0,0
 00277630,CG_Error,.text,cgame,untested,0,0
@@ -8641,8 +8641,8 @@ address,name,section,module,state,tested,matched
 00278d80,CG_ShareWeaponTagBModels,.text,cgame,named,0,0
 00278e30,FUN_00278e30,.text,unassigned,settled,106,106
 00278e50,CG_StepOffset,.text,cgame,settled,309,309
-00278ed0,CG_ShellShockScreenParams,.text,cgame,named,0,0
-00278fa0,CG_TiltViewAxis,.text,cgame,named,0,0
+00278ed0,CG_ShellShockScreenParams,.text,cgame,matched,47,47
+00278fa0,CG_TiltViewAxis,.text,cgame,settled,388,388
 00279380,CG_BuildSolidList,.text,cgame,settled,352,352
 002793f0,CG_CheckAmmo,.text,cgame,settled,354,354
 002794b0,CG_Argv,.text,cgame,matched,52,52
@@ -8673,7 +8673,7 @@ address,name,section,module,state,tested,matched
 0027af30,FUN_0027af30,.text,unassigned,unnamed,0,0
 0027af70,CG_ScoresDown_f,.text,cgame,named,0,0
 0027afd0,CG_DrawSkyBoxPortal,.text,cgame,named,0,0
-0027b3c0,CG_CalcCubemapViewValues,.text,cgame,named,0,0
+0027b3c0,CG_CalcCubemapViewValues,.text,cgame,untested,0,0
 0027b860,CG_StopShellShockSound,.text,cgame,named,0,0
 0027b9a0,CG_PrecacheConfigStringAssets,.text,cgame,matched,8,8
 0027b9f0,CG_TranslateString,.text,cgame,named,0,0
@@ -8700,12 +8700,12 @@ address,name,section,module,state,tested,matched
 0027cdc0,CG_DrawRotatedQuadPic,.text,cgame,named,0,0
 0027cf40,CG_DrawRotatedPic,.text,cgame,named,0,0
 0027d180,FUN_0027d180,.text,unassigned,unnamed,0,0
-0027d2f0,CG_CalcCameraShakeSlot,.text,cgame,named,0,0
+0027d2f0,CG_CalcCameraShakeSlot,.text,cgame,settled,1214,1214
 0027d450,CG_DrawCenterString,.text,cgame,named,0,0
 0027d6d0,CG_ShellShockSave_f,.text,cgame,named,0,0
 0027d730,CG_ShellShockLoad_f,.text,cgame,named,0,0
 0027d780,CG_ShellShock_f,.text,cgame,named,0,0
-0027d850,CG_Tracer,.text,cgame,named,0,0
+0027d850,CG_Tracer,.text,cgame,settled,278,278
 0027dcb0,CG_CycleWeapon,.text,cgame,named,0,0
 0027df30,CG_OutOfAmmoChange,.text,cgame,named,0,0
 0027e0d0,CG_PrevWeapon_f,.text,cgame,named,0,0
@@ -8727,7 +8727,7 @@ address,name,section,module,state,tested,matched
 0027fac0,CG_AdjustPositionForMover,.text,cgame,named,0,0
 0027fc40,CG_ShakeCamera,.text,cgame,named,0,0
 0027fe10,CG_StartShakeCamera,.text,cgame,named,0,0
-0027ff20,CG_ProjectViewDirToScreen,.text,cgame,named,0,0
+0027ff20,CG_ProjectViewDirToScreen,.text,cgame,settled,114,114
 002800a0,CG_CenterPrint,.text,cgame,named,0,0
 002803d0,FUN_002803d0,.text,unassigned,unnamed,0,0
 002807a0,FUN_002807a0,.text,unassigned,unnamed,0,0
