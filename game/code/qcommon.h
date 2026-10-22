@@ -20,5 +20,12 @@ uint32_t XB_REGS2 XB_CDECL Com_HashKeyNoCase(uint32_t unused, const char* text);
 // The title's polynomial sine of angle + 3 pi / 2 into *sine and of angle into
 // *cosine (the names as the callers use them; EDX unused).
 void XB_REGS3 XB_CDECL FastSinCos(float* sine, uint32_t unused, float* cosine, float angle);
+// 0x000442e0: copies at most max characters of src (null: none) and a NUL; *length =
+// the characters copied.
+void XB_CDECL Q_strncpyLen(char* dst, int32_t* length, int32_t max, const char* src);
+// 0x000443e0: src[start .. min(start + count, size - 1)) up to a NUL into dst with a
+// NUL, *length = the characters copied; nothing at all when start >= size.
+void XB_CDECL Q_strncpySubLen(char* dst, int32_t* length, const char* src, int32_t start, int32_t count,
+                              int32_t size);
 
 }  // namespace game

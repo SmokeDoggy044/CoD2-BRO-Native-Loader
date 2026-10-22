@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 53% of the functions have a name, and 365 have been
+It's early days: about 53% of the functions have a name, and 385 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,179 | 5,703 | 365 | 10,814 |
+| Engine and game code (`.text`) | 11,179 | 5,707 | 385 | 10,794 |
 | Mission scripts (15 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,503** | **8,691** | **365** | **16,138** |
+| **Total** | **16,503** | **8,695** | **385** | **16,118** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -39,13 +39,13 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 796 | 353 | 135 | 150 | 158 |
+| Renderer (scenes, materials, shaders, models, effects) | 796 | 369 | 139 | 133 | 155 |
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 691 | 0 | 0 | 689 | 0 |
 | Client game (HUD, view, effects on screen) | 178 | 0 | 0 | 178 | 0 |
-| Engine core (memory, files, settings, commands) | 163 | 1 | 1 | 153 | 0 |
+| Engine core (memory, files, settings, commands) | 164 | 4 | 1 | 151 | 0 |
 | Client and menus | 209 | 0 | 0 | 209 | 0 |
 | Server, collision, compression | 90 | 1 | 2 | 87 | 0 |
-| Not sorted into a part yet | 9,052 | 10 | 2 | 3,732 | 3,691 |
+| Not sorted into a part yet | 9,051 | 11 | 2 | 3,731 | 3,690 |
 
 1,617 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice

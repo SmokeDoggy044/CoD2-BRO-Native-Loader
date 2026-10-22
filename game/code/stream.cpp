@@ -92,4 +92,46 @@ MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t fla
     return stream;
 }
 
+void XB_CDECL Pack_DecodeRelocWord(uint32_t word, uint32_t bits, uint32_t* delta, uint32_t* next) {
+    const uint32_t shift = 31 - bits;
+    if (word & 0x80000000) {
+        if (!(word & 0x40000000)) word &= 0x7fffffff;
+        *delta = word;
+        *next = 0;
+        return;
+    }
+    // SHL/SHR use the low five bits of the count.
+    const uint32_t sign = ~((1u << ((shift - 1) & 31)) - 1);
+    uint32_t low = ((1u << (shift & 31)) - 1) & word;
+    if (low & sign) low |= sign;
+    *delta = low;
+    *next = (word & 0x7fffffff) >> (shift & 31);
+}
+
+PLATFORM_ASM_ENTRY(Pack_RelocateChain_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Pack_RelocateChain) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Pack_RelocateChain(uint32_t* word, uint32_t bits) {
+    uint32_t next;
+    do {
+        uint32_t delta = 0;
+        next = 0;
+        Pack_DecodeRelocWord(*word, bits, &delta, &next);
+        *word = delta + address_of(word);
+        word = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(word) + next);
+    } while (next != 0);
+}
+
+uint32_t XB_THISCALL Pack_RelocateTable(PackRelocTable* self, uint32_t base) {
+    self->entries += base;
+    const uint32_t bits = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(self->entries));
+    for (uint32_t i = 1; i < self->count; ++i)
+        Pack_RelocateChain(reinterpret_cast<uint32_t*>(
+                               static_cast<uintptr_t>(reinterpret_cast<const uint32_t*>(self->entries)[i] + base)),
+                           bits);
+    return self->count;
+}
+
 }  // namespace game

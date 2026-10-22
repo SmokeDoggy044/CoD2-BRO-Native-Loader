@@ -10926,3 +10926,7 @@ address,name,kind,confidence,evidence
 000654e0,nglFontParseKeyInt,function,high,"EAX key, EDX char** cursor, stack base: finds the key, moves the cursor past it, strtol(cursor, cursor, base); 0 if absent; nglParseFontFile x12"
 0006a860,nglTexture_Unlock,function,medium,"bare ret; called after writing/reading a texture's pixels: nglCreateWhiteTexture, nglWriteTGA, nglUpdateFogTable"
 000794a0,nglBeginFrame_Nop,function,medium,"bare ret called from nglBeginFrame (a hook compiled out of the release build)"
+00055ab0,Pack_RelocateChain,function,high,"EAX chain start, EBX bit count: per word Pack_DecodeRelocWord -> word becomes (low field, sign-extended) + its own address, next word at +high field bytes, until 0; only caller Pack_RelocateTable"
+00055b40,Pack_DecodeRelocWord,function,high,"(word, bits, &delta, &next): sign bit set = last word (delta = word, bit 31 kept only with bit 30), else delta = sign-extended low (31-bits) bits, next = word >> (31-bits); only caller Pack_RelocateChain"
+0007b1a0,nglPalette_Unlock,function,medium,"bare ret called after nglPaletteSetEntry x256 in nglCreateTexture (palette counterpart of nglTexture_Unlock)"
+000443e0,Q_strncpySubLen,function,high,"(dst, int* len, src, start, count, size): copies src[start .. min(start+count, size-1)) up to a NUL, *len = chars copied, NUL-terminated; nothing when start >= size; R_FindFont strips the extension with it"

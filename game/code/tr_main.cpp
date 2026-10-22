@@ -5,6 +5,7 @@
 #include "dobj.h"
 #include "lanes.h"
 #include "ngl.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -2470,11 +2471,126 @@ uint32_t XB_CDECL RE_RegisterModel(uint32_t handle, const char* name, uint32_t f
     return handle;
 }
 
-void XB_CDECL RE_DrawText(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
-                          uint32_t a7, uint32_t a8) {
-    using DrawTextExt = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int32_t, uint32_t,
-                                      uint32_t, uint32_t, uint32_t);
-    title_function<DrawTextExt>(0x0023f570)(a0, a1, a2, a3, a4, a5, -1, 0, a6, a7, a8);  // RE_DrawTextExt
+// RE_ParseButtonToken (0x00296350): stdcall, the text before the next "{name}" copied
+// to EBX = out; *icon = the translated button name (null when none), *next = past '}'.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL RE_ParseButtonToken_call(uint32_t table, const char* text,
+                                                                    const char** next, const char** icon, char* out);
+PLATFORM_ASM_ENTRY(RE_ParseButtonToken_call,
+                   "pushl %ebx\n"
+                   "movl 24(%esp), %ebx\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "movl $0x00296350, %eax\n"
+                   "call *%eax\n"
+                   "popl %ebx\n"
+                   "ret")
+
+namespace {
+
+// One run of text at (x, y - its height), the text's height and width out.
+void draw_text_run(const uint8_t* font, const char* text, float x, float y, float s, uint32_t color,
+                   int32_t* width, int32_t* height) {
+    nglGetTextExtent(font, text, width, height, s, s);
+    nglListAddText(font, text, x, y - platform_x87_unsigned_to_float(static_cast<uint32_t>(*height)), 0, color, s,
+                   s);
+}
+
+}  // namespace
+
+void XB_CDECL RE_DrawTextExt(float x, float y, uint32_t font_name, float scale, const float* rgba, const char* text,
+                             int32_t, uint32_t, uint32_t, uint32_t, uint32_t) {
+    if (!text) return;
+    char buffer[0x400];
+    const float* colour = rgba;
+    if (text[0] == '^' && text[1] - '0' < 10 && text[1] - '0' > 0) {
+        const int index = text[1] - '0';
+        std::strcpy(buffer, text);
+        static const uint32_t kColours[11] = {0x0082eacc, 0x0082eadc, 0x0082eaec, 0x0082eb1c, 0x0082eb0c, 0x0082eb5c,
+                                              0x0082eb4c, 0x0082eb9c, 0x0082ebdc, 0x0082eafc, 0x0082ebec};
+        colour = &title_global<float>(kColours[index]);
+        text = buffer + 2;
+        char* end = buffer + std::strlen(buffer) - 2;
+        if (end[0] == '^' && end[1] == '7') end[0] = 0;
+    }
+    uint32_t color = static_cast<uint32_t>(platform_ftol(colour[3] * 255.0f));
+    color = (color << 8) | static_cast<uint32_t>(platform_ftol(colour[0] * 255.0f));
+    color = (color << 8) | static_cast<uint32_t>(platform_ftol(colour[1] * 255.0f));
+    color = (color << 8) | static_cast<uint32_t>(platform_ftol(colour[2] * 255.0f));
+    const float size = title_global<float>(0x008db12c) * scale;
+    using FindFont = const uint8_t* XB_CDECL(uint32_t, float);
+    const uint8_t* font = title_function<FindFont>(title_global<uint32_t>(0x0095e6b4))(font_name, size);
+    if (!font) return;
+    int32_t width, height;
+    const auto strchr = title_function<const char* XB_CDECL(const char*, int)>(0x001ef5e0);
+    const char* open = strchr(text, '{');
+    if (!open || !strchr(open, '}')) {
+        draw_text_run(font, text, x, y, title_global<float>(0x008db12c) * scale, color, &width, &height);
+        return;
+    }
+    // Icons are as high as a space of this font.
+    const float s = title_global<float>(0x008db12c) * scale;
+    nglGetTextExtent(font, " ", &width, &height, s, s);
+    const uint32_t table = title_global<uint32_t>(0x0095f5e0);
+    const char* cursor = text;
+    const char* icon;
+    if (RE_ParseButtonToken_call(table, text, &cursor, &icon, buffer)) {
+        do {
+            if (buffer[0]) {
+                draw_text_run(font, buffer, x, y, title_global<float>(0x008db12c) * scale, color, &width, &height);
+                x += platform_x87_unsigned_to_float(static_cast<uint32_t>(width));
+            }
+            if (icon) {
+                using RegisterShader = const uint8_t* XB_REGS2 XB_CDECL(uint32_t, const char*);
+                const uint8_t* shader = title_function<RegisterShader>(0x0023ec30)(0, icon);  // RE_RegisterShader
+                if (shader) {
+                    const float shader_height = platform_x87_unsigned_to_float(field<uint32_t>(shader, 0x14));
+                    const float ratio =
+                        platform_x87_unsigned_to_float(static_cast<uint32_t>(height)) / shader_height;
+                    const float h = shader_height * ratio;
+                    const float w = platform_x87_unsigned_to_float(field<uint32_t>(shader, 0x10)) * ratio;
+                    R_DrawPic(x, y - h, w, h, const_cast<uint8_t*>(shader));
+                    x = platform_x87_mul_add(platform_x87_unsigned_to_float(field<uint32_t>(shader, 0x10)), ratio, x);
+                } else {
+                    draw_text_run(font, icon, x, y, title_global<float>(0x008db12c) * scale, color, &width,
+                                  &height);
+                    x += platform_x87_unsigned_to_float(static_cast<uint32_t>(width));
+                }
+            }
+        } while (RE_ParseButtonToken_call(table, cursor, &cursor, &icon, buffer));
+    }
+    if (cursor) draw_text_run(font, cursor, x, y, title_global<float>(0x008db12c) * scale, color, &width, &height);
+}
+
+int32_t XB_REGS1 XB_STDCALL R_FindFont(const char* name, uint32_t strip_extension) {
+    // A 31-character name with its length in the last byte, as the font table has them.
+    char key[0x20];
+    int32_t length;
+    Q_strncpyLen(key, &length, 0x1f, name);
+    const uint8_t count = static_cast<uint8_t>(length);
+    key[0x1f] = static_cast<char>(count);
+    if (static_cast<uint8_t>(strip_extension)) {
+        for (int32_t dot = 0; dot < count; ++dot) {
+            if (key[dot] != '.') continue;
+            char stripped[0x20];
+            stripped[0x1f] = 0;
+            stripped[0] = 0;
+            Q_strncpySubLen(stripped, &length, key, 0, dot, 0x1f);
+            stripped[0x1f] = static_cast<char>(length);
+            std::memcpy(key, stripped, sizeof key);
+            break;
+        }
+    }
+    const auto stricmp = title_function<int XB_CDECL(const char*, const char*)>(0x001f1443);  // _stricmp
+    for (int32_t i = 0; i < 7; ++i)
+        if (stricmp(key, &title_global<char>(0x0095f7e8 + i * 0x20)) == 0) return i;
+    return 8;
+}
+
+void XB_CDECL RE_DrawText(float x, float y, uint32_t font_name, float scale, const float* rgba, const char* text,
+                          uint32_t a6, uint32_t a7, uint32_t a8) {
+    RE_DrawTextExt(x, y, font_name, scale, rgba, text, -1, 0, a6, a7, a8);
 }
 
 }  // namespace game

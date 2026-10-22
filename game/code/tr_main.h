@@ -427,8 +427,18 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL R_CheckCvarRange(uint32_t integral, con
 extern "C" void R_CheckCvarRange_entry(void);
 // 0x00243fb0: R_RegisterModel(name, 0x0095f6ac, handle, flags); returns `handle`.
 uint32_t XB_CDECL RE_RegisterModel(uint32_t handle, const char* name, uint32_t flags);
+// 0x0023f570: text at (x, y - its height) in the font found by name at size
+// 0x008db12c * scale, coloured rgba or "^1".."^9" (a trailing "^7" dropped); "{name}"
+// tokens become button icons (R_DrawPic, as high as a space) or the button's name.
+// The last five arguments are not read.
+void XB_CDECL RE_DrawTextExt(float x, float y, uint32_t font_name, float scale, const float* rgba, const char* text,
+                             int32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+// 0x0030f2b0: the index of the named font in the 7-entry font table (0x0095f7e8),
+// compared without case after the first '.' and what follows when strip_extension;
+// 8 when absent. EAX = name.
+int32_t XB_REGS1 XB_STDCALL R_FindFont(const char* name, uint32_t strip_extension);
 // 0x0023fc30: RE_DrawTextExt with the arguments 6 and 7 = -1, 0 inserted after the sixth.
-void XB_CDECL RE_DrawText(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
-                          uint32_t a7, uint32_t a8);
+void XB_CDECL RE_DrawText(float x, float y, uint32_t font_name, float scale, const float* rgba, const char* text,
+                          uint32_t a6, uint32_t a7, uint32_t a8);
 
 }  // namespace game

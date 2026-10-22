@@ -27,11 +27,12 @@ struct NglTexture {
     uint8_t* d3d_texture;    // +0x30, the D3D texture (its +4 and +0xc feed SwitchTexture)
     uint32_t* surfaces;      // +0x34, the D3D surface per level (cube maps: per face a
                              // list; flag 0x2000: the surface itself)
-    uint8_t unknown38[0x3c - 0x38];
+    NglTexture* companion;   // +0x38, a plain surface of the same size (nglCreateTexture)
     uint8_t* palette;        // +0x3c, an NGL palette (its D3D palette at +0xc) or null
     uint8_t unknown40[0x4c - 0x40];
     NglTexture* target;      // +0x4c, kind 0x10; kind 0x0f (animated): the frame count
     NglTexture** frames;     // +0x50, kind 0x0f
+    uint8_t name[0x20];      // +0x54, an NglHashedName
 };
 
 // Allocated from the per-frame scene memory.
@@ -1065,5 +1066,18 @@ uint8_t XB_CDECL nglParseDDSPalette(uint32_t unused, uint8_t* texture);
 // near..far range, density fog[2] before fog[0], fog[3] past fog[1], linear between,
 // stored as 255 - density * 255.
 void XB_CDECL nglUpdateFogTable();
+
+// 0x0006eea0: a texture named "created texture N" with mip_levels + 1 levels; flags
+// 0x100/0x200 pick the D3D format from the low byte (two tables), 0x400 (render
+// target) leaves the memory to the caller, else `data` or new memory. Flags 0x1000
+// and 0x4000 together add a companion plain surface (+0x38), kind 7 a white palette.
+NglTexture* XB_CDECL nglCreateTexture(uint32_t flags, uint32_t width, uint32_t height, uint32_t mip_levels,
+                                     uint32_t data);
+
+// 0x000633e0: the 1x1 white texture "nglwhite" (0x00902700), added to the texture manager.
+void XB_CDECL nglCreateWhiteTexture();
+// 0x00072c00: the fog textures: one fog_width x fog_height (0x00902e70), two width x
+// height (0x00902e64), and a texture header over the 0x00902dfc memory (0x00902e50).
+void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog_width, uint32_t fog_height);
 
 }  // namespace game

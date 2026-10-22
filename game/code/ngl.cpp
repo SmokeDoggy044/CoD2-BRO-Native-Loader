@@ -4032,4 +4032,81 @@ void XB_CDECL nglUpdateFogTable() {
     nglTexture_Unlock();
 }
 
+NglTexture* XB_CDECL nglCreateTexture(uint32_t flags, uint32_t width, uint32_t height, uint32_t mip_levels,
+                                     uint32_t data) {
+    NglTexture* texture = static_cast<NglTexture*>(Mem_AlignedAlloc(0x74, 4, 0));
+    if (!texture) return nullptr;
+    std::memset(texture, 0, 0x74);
+    char text[0x80];
+    title_function<int XB_CDECL(char*, const char*, uint32_t)>(0x001ee901)(  // _sprintf
+        text, "created texture %d", title_global<uint32_t>(0x00902e3c)++);
+    *reinterpret_cast<uint32_t*>(texture) = 1;
+    uint8_t hashed[0x20];
+    const uint8_t* name =
+        title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, text);  // HashStr_Init
+    std::memcpy(texture->name, name, 0x20);
+    const bool bit12 = (flags >> 12) & 1;
+    const bool bit14 = (flags >> 14) & 1;
+    texture->width = width;
+    texture->height = height;
+    texture->flags = flags;
+    texture->levels = mip_levels + 1;
+    if (flags & 0x100)
+        texture->format = title_global<uint32_t>(0x008a2f88 + (flags & 0xff) * 4);
+    else if (flags & 0x200)
+        texture->format = title_global<uint32_t>(0x008a2f48 + (flags & 0xff) * 4);
+    nglInitTextureHeader(texture);
+    const uint32_t render_target = flags & 0x400;
+    if (!render_target) {
+        if (!data) data = reinterpret_cast<uint32_t>(nglAllocTextureMemory(texture));
+        nglRegisterTexture(texture, data);
+        nglTextureGetSurfaces(texture);
+    }
+    if (bit12 && bit14) texture->companion = nglCreateTexture(render_target ? 0x260d : 0x220d, width, height, 0, 0);
+    if ((flags & 0xff) == 7) {
+        uint32_t* palette = nglCreatePalette(0, 0x100, 0);
+        texture->palette = reinterpret_cast<uint8_t*>(palette);
+        nglLockPalette(reinterpret_cast<uint8_t*>(palette));
+        for (uint32_t i = 0; i < 0x100; ++i)
+            nglPaletteSetEntry(reinterpret_cast<uint32_t**>(texture->palette), i, 0xffffffff);
+        // nglPalette_Unlock (0x0007b1a0) is a bare ret.
+    }
+    texture->last_used_frame = -1;
+    return texture;
+}
+
+void XB_CDECL nglCreateWhiteTexture() {
+    NglTexture*& white = title_global<NglTexture*>(0x00902700);
+    white = nglCreateTexture(0x109, 1, 1, 0, 0);
+    nglTexture_Lock(white, 0);
+    nglTextureSetPixel(reinterpret_cast<const uint8_t*>(white), 0, 0, 0xff);
+    nglTexture_Unlock();
+    uint8_t hashed[0x20];
+    const uint8_t* name =
+        title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, "nglwhite");  // HashStr_Init
+    std::memcpy(white->name, name, 0x20);
+    reinterpret_cast<uint32_t*>(white)[0x28 / 4] |= 2;
+    using Add = void XB_THISCALL(NglResourceManager*, void*);
+    manager_slot<Add>(texture_manager(), 3)(texture_manager(), white);
+}
+
+void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog_width, uint32_t fog_height) {
+    title_global<uint32_t>(0x00902e7c) = 0x201;
+    title_global<NglTexture*>(0x00902e70) = nglCreateTexture(0x109, fog_width, fog_height, 0, 0);
+    for (uint32_t slot = 0x00902e64; slot < 0x00902e6c; slot += 4) {
+        NglTexture* texture = nglCreateTexture(0x1601, width, height, 0, 0);
+        title_global<NglTexture*>(slot) = texture;
+        reinterpret_cast<uint32_t*>(texture)[0x28 / 4] |= 2;
+    }
+    const uint32_t texture_width = title_global<uint32_t>(0x00902dd8);
+    using SetTextureHeader =
+        void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    title_function<SetTextureHeader>(0x003f9994)(texture_width, title_global<uint32_t>(0x00902ddc), 1, 0, 0x12, 0,
+                                                 0x00902e50, title_global<uint32_t*>(0x00902dfc)[1],
+                                                 texture_width * 4);  // XGSetTextureHeader
+    title_global<uint32_t>(0x00902ea8) = 0x00902e50;
+    title_global<uint32_t>(0x00902e88) = title_global<uint32_t>(0x00902d60);
+    title_global<uint32_t>(0x00902e8c) = title_global<uint32_t>(0x00902d64);
+}
+
 }  // namespace game

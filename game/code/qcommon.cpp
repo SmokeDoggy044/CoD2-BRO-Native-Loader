@@ -37,4 +37,28 @@ void XB_REGS3 XB_CDECL FastSinCos(float* sine, uint32_t, float* cosine, float an
     *cosine = scene_sine_poly(plain);
 }
 
+void XB_CDECL Q_strncpyLen(char* dst, int32_t* length, int32_t max, const char* src) {
+    int32_t count = 0;
+    if (src && *src) {
+        while (count < max) {
+            *dst++ = *src;
+            ++count;
+            if (!*++src) break;
+        }
+    }
+    *dst = 0;
+    *length = count;
+}
+
+void XB_CDECL Q_strncpySubLen(char* dst, int32_t* length, const char* src, int32_t start, int32_t count,
+                              int32_t size) {
+    if (start >= size) return;
+    int32_t end = size - 1;
+    if (end >= start + count) end = start + count;
+    int32_t copied = 0;
+    for (int32_t i = start; i < end && src[i]; ++i) dst[copied++] = src[i];
+    *length = copied;
+    dst[copied] = 0;
+}
+
 }  // namespace game
