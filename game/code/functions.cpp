@@ -7,6 +7,7 @@
 #include "qcommon.h"
 #include "script_string.h"
 #include "shaders.h"
+#include "snd.h"
 #include "stream.h"
 #include "tr_main.h"
 #include "unzip.h"
@@ -28,6 +29,7 @@ const Function kFunctions[] = {
     {"ShakeRumbleDesc_Init", 0x000146a0, 0, code(&ShakeRumbleDesc_Init_entry), 0, Result::Eax, Status::Compare},
     {"ShakeRumbleDesc_Destroy", 0x00014710, 0, code(&ShakeRumbleDesc_Destroy), 0, Result::None, Status::Compare},
     {"nglAllocSceneMemory", 0x0001b930, 0, code(&nglAllocSceneMemory), 8, Result::Eax, Status::Compare},
+    {"SoundRef_GetParam0", 0x0001c340, 0, code(&SoundRef_GetParam0), 0, Result::St0, Status::Compare},
     {"DObj_SetLod", 0x0001d0f0, 0, code(&DObj_SetLod_entry), 0, Result::None, Status::Compare},
     {"UintMap_Find", 0x000231f0, 0, code(&UintMap_Find), 8, Result::Eax, Status::Compare},
     {"FXTriggerTable_Find", 0x00023640, 0, code(&FXTriggerTable_Find_entry), 4, Result::Eax, Status::Compare},
@@ -38,6 +40,7 @@ const Function kFunctions[] = {
     {"ParamSet_Destruct", 0x00023870, 0, code(&ParamSet_Destruct), 0, Result::None, Status::Compare},
     {"ParamSet_Delete", 0x000238b0, 0, code(&ParamSet_Delete), 4, Result::Eax, Status::Compare},
     {"ParamSet_AddFxOverrides", 0x00023b20, 0, code(&ParamSet_AddFxOverrides_entry), 0, Result::None, Status::Compare},
+    {"SoundRef_GetParam1a", 0x00023e50, 0, code(&SoundRef_GetParam1a), 0, Result::St0, Status::Compare},
     {"ShakeRumbleRecord_Init", 0x00024110, 0, code(&ShakeRumbleRecord_Init_entry), 28, Result::Eax, Status::Compare},
     {"FxComponent_GetEntity", 0x000241d0, 0, code(&FxComponent_GetEntity), 0, Result::Eax, Status::Compare},
     {"DObjHandle_Resolve", 0x000244c0, 0, code(&DObjHandle_Resolve), 0, Result::Eax, Status::Compare},
@@ -739,6 +742,8 @@ const Function kFunctions[] = {
     {"ShakeRumble_Start", 0x0029b1f0, 0, code(&ShakeRumble_Start), 12, Result::Eax, Status::Compare},
     {"ParamChoiceList_PickPerGroup", 0x0029b320, 0, code(&ParamChoiceList_PickPerGroup), 0, Result::None, Status::Compare},
     {"FX_FreeEffectsById", 0x0029b620, 0, code(&FX_FreeEffectsById_entry), 4, Result::None, Status::Compare},
+    {"FX_LimitSoundComponents", 0x0029b680, 0, code(&FX_LimitSoundComponents), 16, Result::Eax, Status::Compare},
+    {"Entity_EndSoundNotify", 0x0029b7f0, 0, code(&Entity_EndSoundNotify), 0, Result::None, Status::Compare},
     {"FX_FreeAllEffects", 0x0029b860, 0, code(&FX_FreeAllEffects_entry), 0, Result::None, Status::Compare},
     {"ParamSet_Resolve", 0x0029b9f0, 0, code(&ParamSet_Resolve), 4, Result::None, Status::Compare},
     {"BoneMatrix_Load", 0x0029c790, 0, code(&BoneMatrix_Load), 0, Result::None, Status::Compare},
@@ -756,8 +761,14 @@ const Function kFunctions[] = {
     {"FX_AddParticleComponents", 0x002a4ec0, 0, code(&FX_AddParticleComponents_entry), 16, Result::Eax, Status::Compare},
     {"FX_UpdateEffects", 0x002a5980, 0, code(&FX_UpdateEffects_entry), 4, Result::None, Status::Compare},
     {"CameraShake_AllocSlot", 0x002a7f70, 0, code(&CameraShake_AllocSlot), 0, Result::Eax, Status::Compare},
+    {"SoundRef_IsState3", 0x002add40, 0, code(&SoundRef_IsState3), 0, Result::Al, Status::Compare},
+    {"SoundRef_SetVolumeScale", 0x002adea0, 0, code(&SoundRef_SetVolumeScale_entry), 4, Result::None, Status::Compare},
     {"CameraShake_SetAmplitude", 0x002ae740, 0, code(&CameraShake_SetAmplitude_entry), 4, Result::None, Status::Compare},
     {"CameraShake_InitSlot", 0x002ae780, 0, code(&CameraShake_InitSlot_entry), 4, Result::None, Status::Compare},
+    {"SoundRef_IsBusy", 0x002b6c80, 0, code(&SoundRef_IsBusy_entry), 0, Result::Eax, Status::Compare},
+    {"SoundRef_IsDone", 0x002b6cd0, 0, code(&SoundRef_IsDone), 0, Result::Al, Status::Compare},
+    {"SoundRef_SetSource", 0x002bd4e0, 0, code(&SoundRef_SetSource), 0, Result::None, Status::Compare},
+    {"S_PlaySoundAlias2", 0x002c3120, 0, code(&S_PlaySoundAlias2), 40, Result::Eax, Status::Compare},
     {"CameraShake_SetDistanceScale", 0x002c94d0, 0, code(&CameraShake_SetDistanceScale_entry), 8, Result::None, Status::Compare},
     {"CameraShake_Start", 0x002c9620, 0, code(&CameraShake_Start), 24, Result::Eax, Status::Compare},
     {"R_FindFont", 0x0030f2b0, 0, code(&R_FindFont), 4, Result::Eax, Status::Compare},

@@ -9,6 +9,7 @@
 #include "param_set.h"
 #include "qcommon.h"
 #include "script_string.h"
+#include "snd.h"
 #include "stream.h"
 #include "title_data.h"
 
@@ -4367,22 +4368,7 @@ uint32_t XB_CDECL FX_AddParticleComponents(uint32_t entry, uint32_t, const uint8
     return added;
 }
 
-uint32_t XB_CDECL SndVoice_GetCount() { return title_global<uint32_t>(0x008bed00); }
-
-uint8_t* XB_CDECL SndVoice_Get(uint32_t index) { return &title_global<uint8_t>(0x00911548 + index * 0xe0); }
-
 namespace {
-
-// 0x00293310 (CALL in its first 5 bytes: not hookable): the voices whose state is nonzero.
-int32_t Snd_CountBusyVoices() {
-    const uint32_t count = SndVoice_GetCount();
-    int32_t busy = 0;
-    for (uint32_t i = 0; i < count; ++i) {
-        const uint32_t handle = *reinterpret_cast<const uint32_t*>(SndVoice_Get(i) + 0xcc);
-        if (title_function<uint32_t XB_CDECL(uint32_t)>(0x000c4400)(handle)) ++busy;  // SndVoice_GetState
-    }
-    return busy;
-}
 
 // FxSoundComponent_Create with the sound name passed in (FX_AddSoundComponents' own buffer;
 // 0x0096d8f8 then holds the original's stack address of it).
@@ -4678,6 +4664,66 @@ uint32_t XB_CDECL FX_AddSoundComponents(uint32_t entry, uint32_t, uint8_t* sourc
     }
     source[0x20c] &= ~2;
     return added;
+}
+
+uint32_t XB_STDCALL FX_LimitSoundComponents(uint32_t* lists, uint32_t hash, const uint8_t* entity, int32_t limit) {
+    int32_t count = 0;
+    bool full = false;
+    uint8_t* oldest = nullptr;
+    int32_t oldest_age = 0;
+    uint32_t oldest_list = 0;
+    uint32_t oldest_index = 0;
+    for (uint32_t l = 0; l < lists[0]; ++l) {
+        const uint32_t* list = reinterpret_cast<const uint32_t*>(uintptr_t{lists[1 + l]});
+        for (uint32_t i = 0; i < list[0]; ++i) {
+            uint8_t* component = reinterpret_cast<uint8_t*>(uintptr_t{list[1 + i]});
+            if (!component || !(component[0x2a] & 4)) continue;
+            if (handle_object(*reinterpret_cast<const uint32_t*>(component + 0xc), 0x0097a968) != entity) continue;
+            if (*reinterpret_cast<const uint32_t*>(component + 4) != hash) continue;
+            if (++count >= limit) full = true;
+            const int32_t age = *reinterpret_cast<const int16_t*>(component + 0x28);
+            if (oldest && age <= oldest_age) continue;
+            oldest = component;
+            oldest_age = age;
+            oldest_list = l;
+            oldest_index = i;
+        }
+    }
+    if (full) {
+        title_function<void XB_THISCALL(uint8_t*)>(vtable_slot(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(oldest)), 4))(oldest);
+        uint32_t* list = reinterpret_cast<uint32_t*>(uintptr_t{lists[1 + oldest_list]});
+        if (const uint32_t victim = list[1 + oldest_index]) {
+            title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(victim, 0))(victim, 1);  // deleting destructor
+        }
+        list = reinterpret_cast<uint32_t*>(uintptr_t{lists[1 + oldest_list]});
+        list[1 + oldest_index] = list[list[0]];
+        if (list[0]) --list[0];
+    }
+    return static_cast<uint32_t>(count);
+}
+
+namespace {
+
+// Scr_Notify (0x002b75c0): entity in ESI, the notify on the stack (ret 4).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_Notify_call(uint8_t* entity, uint32_t notify);
+PLATFORM_ASM_ENTRY(Scr_Notify_call,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x002b75c0, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL Entity_EndSoundNotify(uint8_t* entity) {
+    if (!entity) return;
+    uint32_t* notify = reinterpret_cast<uint32_t*>(entity + 0x3c4);
+    if (!notify[0]) return;
+    Scr_Notify_call(entity, notify[0]);
+    notify[0] = 0;
+    notify[1] = 0;
 }
 
 }  // namespace game

@@ -660,11 +660,6 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_AddParticleComponents(uint32_t e
                                                                       uint32_t* out, float distance);
 extern "C" void FX_AddParticleComponents_entry(void);
 
-// 0x000c8450: the number of voice records (0x008bed00).
-uint32_t XB_CDECL SndVoice_GetCount();
-// 0x000c8470: voice record `index` (0x00911548, 0xe0 bytes; handle at +0xcc).
-uint8_t* XB_CDECL SndVoice_Get(uint32_t index);
-
 // 0x0029df60 (component in ESI, returned): a sound component (0x70 bytes, vtable 0x00837674)
 // from the spawn parameters FX_AddSoundComponents leaves in 0x0096d8e8-0x0096d92c (floats
 // +0x40-+0x54, placement copy +0x30 with flag 0x40, the sound S_FindSoundByHash of the name
@@ -685,5 +680,14 @@ extern "C" void FxSoundComponent_Create_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_AddSoundComponents(uint32_t entry, uint32_t unused, uint8_t* source,
                                                                    uint32_t* out, float distance);
 extern "C" void FX_AddSoundComponents_entry(void);
+
+// 0x0029b680 (stdcall: lists {count, list*}, name hash, entity, limit): counts the sound
+// components (flag 4 of +0x2a) of `entity` with the name hash; at the limit the oldest one (age
+// +0x28; the first of equals) is stopped (vtable slot 4), destroyed and replaced by its list's
+// last item. Returns the count.
+uint32_t XB_STDCALL FX_LimitSoundComponents(uint32_t* lists, uint32_t hash, const uint8_t* entity, int32_t limit);
+// 0x0029b7f0 (entity in EAX, may be null): a pending sound notify (+0x3c4) is sent
+// (Scr_Notify) and +0x3c4/+0x3c8 cleared.
+void XB_REGS1 XB_CDECL Entity_EndSoundNotify(uint8_t* entity);
 
 }  // namespace game
