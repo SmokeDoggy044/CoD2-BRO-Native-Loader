@@ -598,6 +598,67 @@ uint32_t XB_CDECL Stream_LoadXbskel(char*, uint8_t* data, uint32_t, uint32_t con
     return MemContext_Pop(global_context());
 }
 
+uint32_t XB_CDECL Stream_LoadXbanim(char* name, uint8_t* data, uint32_t, uint32_t context_id) {
+    uint8_t& loading = title_global<uint8_t>(0x0095f5d0);
+    uint8_t saved = 0;
+    if (context_id != 0xffffffff) {
+        saved = loading;
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        loading = 1;
+        MemContext_Push(global_context(), context_id);
+    }
+    ++title_global<uint32_t>(0x008d508c);
+    uint32_t hashed[8];
+    Stream_HashFileName(name, hashed);
+    uint32_t result = title_function<uint32_t XB_CDECL(const uint32_t*, uint8_t*)>(0x0008dbb0)(hashed, data);
+    if (context_id != 0xffffffff) {
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        loading = saved;
+        result = MemContext_Pop(global_context());
+    }
+    return result;
+}
+
+uint32_t XB_CDECL Stream_LoadZbb(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    return title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*, uint32_t)>(0x00291610)(  // Stream_ParseZbb
+        title_global<uint32_t>(0x0095f640), data, zone);
+}
+
+// The effect loader copies stack locals it never sets (stale stack): the C frame runs
+// 128 KB below the entry and the calls run where the original makes them (entry - 0x14
+// for MemContext_Push after its push esi, entry - 0x10 for FX_LoadEffectFromStream).
+PLATFORM_ASM_ENTRY(Stream_LoadBpe_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Stream_LoadBpe) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+uint32_t XB_CDECL Stream_LoadBpe(uint32_t entry, char* name, uint8_t* data, uint32_t size, uint32_t context_id) {
+    uint8_t& loading = title_global<uint8_t>(0x0095f5d0);
+    uint8_t saved = 0;
+    if (context_id != 0xffffffff) {
+        saved = loading;
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        loading = 1;
+        const TitleRegs push{0, 0, 0, 0, address_of(global_context()), context_id};
+        title_call_at_regs(entry - 0x14, 0x0028f6c0, &push, 0, nullptr);  // MemContext_Push
+    }
+    const TitleRegs load{size, context_id, address_of(data), 0, 0, context_id};
+    const uint32_t args[2] = {title_global<uint32_t>(0x0095f630), address_of(name)};
+    const uint32_t result = title_call_at_regs(entry - 0x10, 0x00291140, &load, 2, args);  // FX_LoadEffectFromStream
+    if (context_id == 0xffffffff) return result;
+    loading = saved;
+    title_global<uint8_t>(0x0095f5d1) = 0;
+    return MemContext_Pop(global_context());
+}
+
 PLATFORM_ASM_ENTRY(Stream_LoadTexture_entry,
                    "pushl 16(%esp)\n"
                    "pushl 16(%esp)\n"

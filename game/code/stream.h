@@ -154,6 +154,14 @@ uint32_t XB_CDECL Stream_LoadBmips(char* name, uint8_t* data, uint32_t size, uin
 uint32_t XB_CDECL Stream_LoadXmb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint32_t XB_CDECL Stream_LoadLpth(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint32_t XB_CDECL Stream_LoadXbskel(char* name, uint8_t* data, uint32_t size, uint32_t context_id);
+// 0x00290760 Xbanim: 0x0008dbb0(hashed base name, data) in the memory context, counter
+// 0x008d508c + 1. 0x00291920 Zbb: Stream_ParseZbb(0x0095f640, data, zone). 0x002911c0 Bpe:
+// FX_LoadEffectFromStream (EAX size, ECX data, EBX context; streams, name) in the context.
+uint32_t XB_CDECL Stream_LoadXbanim(char* name, uint8_t* data, uint32_t size, uint32_t context_id);
+uint32_t XB_CDECL Stream_LoadZbb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_LoadBpe(uint32_t entry, char* name, uint8_t* data, uint32_t size,
+                                                            uint32_t context_id);
+extern "C" void Stream_LoadBpe_entry(void);
 // 0x00025330 (was FUN_00025330; src in EAX, dst in ESI, flag on the stack; returns dst):
 // FixedStr_BaseName for 0x200-byte fixed strings (u16 length at +0x1fe).
 extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr512_BaseName(const char* src, char* dst, uint32_t flag);
