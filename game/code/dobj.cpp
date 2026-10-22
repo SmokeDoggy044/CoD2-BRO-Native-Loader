@@ -554,4 +554,185 @@ void XB_CDECL XModel_ResolveBoneNames(XModelParts* parts) {
     }
 }
 
+namespace {
+
+// Memory from a client's memory context (0x0095f638 +0x38, index 0..0x62; -1 = the zone
+// heap): MemContext_Free_r, Z_Free when that context does not own it.
+void free_in_context(void* memory, int32_t context) {
+    if (context != -1) {
+        const uint32_t owner =
+            context >= 0 && context < 0x63 ? title_global<uint32_t*>(0x0095f638)[0x38 / 4 + context] : 0;
+        if (title_function<uint8_t XB_THISCALL(uint32_t, void*)>(0x0028bfc0)(owner, memory)) return;  // MemContext_Free_r
+    }
+    title_function<void XB_CDECL(void*)>(0x000428d0)(memory);  // Z_Free
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(AnimTree_Free_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(AnimTree_Free) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_Free(uint32_t* tree) {
+    // Unlinked from the live list (0x008dda40, count 0x008dda3c) when found before its last
+    // node; tree[0] = next, tree[1] = previous.
+    uint32_t* node = title_global<uint32_t*>(0x008dda40);
+    for (uint32_t* next = reinterpret_cast<uint32_t*>(uintptr_t{node[0]}); next;
+         node = next, next = reinterpret_cast<uint32_t*>(uintptr_t{next[0]})) {
+        if (node != tree) continue;
+        if (tree[0]) {
+            reinterpret_cast<uint32_t*>(uintptr_t{tree[0]})[1] = tree[1];
+            reinterpret_cast<uint32_t*>(uintptr_t{tree[1]})[0] = tree[0];
+            tree[0] = 0;
+            tree[1] = 0;
+            --title_global<int32_t>(0x008dda3c);
+        }
+        break;
+    }
+    free_in_context(tree, static_cast<int32_t>(tree[4]));
+}
+
+PLATFORM_ASM_ENTRY(DObj_Free_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(DObj_Free) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL DObj_Free(DObj* obj, uint32_t free_trees) {
+    uint8_t* const base = reinterpret_cast<uint8_t*>(obj);
+    free_in_context(obj->bone_matrices, obj->client_index);
+    uint32_t* const trees = reinterpret_cast<uint32_t*>(base);
+    for (uint32_t i = 0; i < obj->model_count; ++i) {
+        uint32_t* tree = reinterpret_cast<uint32_t*>(uintptr_t{trees[i]});
+        if (!tree) continue;
+        if (free_trees) {
+            title_function<void XB_CDECL(uint32_t*, uint32_t)>(0x002c3ae0)(tree, 0);  // AnimTree_ClearNode_r
+            AnimTree_Free(tree);
+        }
+        trees[i] = 0;
+    }
+    uint16_t& flags = *reinterpret_cast<uint16_t*>(base + 0x2c);
+    if (flags) flags = 0;
+}
+
+PLATFORM_ASM_ENTRY(XModelParts_FindBoneByName_entry,
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(XModelParts_FindBoneByName) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL XModelParts_FindBoneByName(const XModelParts* parts, uint32_t name) {
+    for (uint32_t i = 0; i < parts->bone_count; ++i)
+        if (parts->bones[i].name == name) return static_cast<int32_t>(i);
+    return -1;
+}
+
+namespace {
+
+// The model's first LOD (the original scans without a bound).
+const XModelLod* first_lod(const XModel* model) {
+    const XModelLod* const* lod = model->lods;
+    while (!*lod) ++lod;
+    return *lod;
+}
+
+}  // namespace
+
+// The calls run where the original's put them (its frame: sub esp,0x10 and three pushes,
+// ebx pushed around the model loop): DObj_UpdateSkeletons reads stack its callees left.
+PLATFORM_ASM_ENTRY(DObj_Create_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DObj_Create) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL DObj_Create(uint32_t entry, uint32_t tree0, uint32_t flags, const DObjModelInfo* infos, uint32_t count,
+                          DObj* obj) {
+    const uint32_t top = entry - 0x1c;  // after sub esp,0x10 and push ebp/esi/edi
+    const auto address = [](const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); };
+    uint8_t* const base = reinterpret_cast<uint8_t*>(obj);
+    auto word = [base](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(base + offset); };
+    word(0) = tree0;
+    word(0x20) = 0;
+    word(0x28) = flags & 0xffff;
+    *reinterpret_cast<uint16_t*>(base + 0x2c) = 0;
+    obj->hidden_models = 0;
+    count &= 0xffff;
+    uint32_t models = 0;
+    uint32_t bones = 0;
+    for (; models < count; ++models) {
+        const DObjModelInfo& info = infos[models];
+        XModel* model = info.model;
+        if (!model) break;
+        obj->models[models] = model;
+        obj->attach_bones[models] = 0xff;
+        (&obj->matrix_offset)[models] = static_cast<uint8_t>(bones);
+        if (info.hidden) obj->hidden_models |= 1u << models;
+        if (info.tree) word(models * 4) = info.tree;
+        // Attached to the first earlier model with a bone of that name.
+        const char* bone_name = info.bone ? reinterpret_cast<const char*>(info.bone) + 6 : nullptr;
+        if (models && bone_name && *bone_name) {
+            const TitleRegs at_hash{models, address(model), models, address(bone_name), address(obj->models),
+                                    address(&infos[models].hidden) + 4};
+            const uint32_t hash = title_call_at_regs(top - 4, 0x00292fe0, &at_hash, 0, nullptr);  // Com_HashKeyNoCase
+            if (hash) {
+                for (uint32_t j = 0; j < models; ++j) {
+                    const XModelParts* parts = first_lod(obj->models[j])->parts;
+                    if (!parts) break;
+                    const TitleRegs at_find{0, hash, address(first_lod(obj->models[j])), address(parts),
+                                            address(&obj->models[j]), j};
+                    const int32_t bone = static_cast<int32_t>(
+                        title_call_at_regs(top - 4, 0x000291d0, &at_find, 0, nullptr));  // XModelParts_FindBoneByName
+                    if (bone < 0) continue;
+                    obj->attach_bones[models] = static_cast<uint8_t>((&obj->matrix_offset)[j] + bone);
+                    break;
+                }
+            }
+        }
+        const XModelParts* parts = first_lod(model)->parts;
+        const uint32_t total = (parts ? parts->bone_count : 0) + bones;
+        if (static_cast<int32_t>(total) >= 0x80) {
+            title_function<void XB_CDECL(int32_t, uint32_t, uint32_t, int32_t)>(0x002938f0)(  // Com_Error
+                1, 0x0083c580, *reinterpret_cast<const uint32_t*>(reinterpret_cast<const uint8_t*>(obj->models[0]) + 0x48),
+                0x7f);
+            break;
+        }
+        bones = total;
+    }
+    obj->model_count = static_cast<uint8_t>(models);
+    obj->bone_count = static_cast<uint8_t>(bones);
+    const TitleRegs at_skeleton{0, 0, 0, 0, 0, address(&infos[models])};
+    const uint32_t create_args[] = {address(obj), 0};
+    title_call_at_regs(top, 0x00240c00, &at_skeleton, 2, create_args);  // DObj_CreateSkeleton
+    const uint32_t update_args[] = {address(obj), address(obj), 0};  // its arguments are still there
+    title_call_at_regs(top, 0x002df880, &at_skeleton, 3, update_args);  // DObj_UpdateSkeletons
+    // The distance LOD: 0 for a model whose first LOD's surface (+0x38 of its parts) is of the
+    // kind at 0x00903fdc with +0x60 == 1; else the first LOD the model has among 0-4 (-1 = none).
+    const XModel* model = obj->models[0];
+    if (!model) return;
+    const uint32_t* surface =
+        *reinterpret_cast<const uint32_t* const*>(reinterpret_cast<const uint8_t*>(first_lod(model)->parts) + 0x38);
+    if (surface && surface[0] == title_global<uint32_t>(0x00903fdc) && surface[0x60 / 4] == 1) {
+        obj->lod = 0;
+        return;
+    }
+    obj->lod = -1;
+    if (model->lods[0]) {
+        obj->lod = 0;
+        return;
+    }
+    for (int32_t k = 1; k < 5; ++k) {
+        if (model->lods[k]) {
+            obj->lod = k;
+            return;
+        }
+    }
+}
+
 }  // namespace game

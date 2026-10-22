@@ -33,6 +33,9 @@ void XB_THISCALL FX_ReleaseEffectHandle(FxEffect* effect);
 // 0x0023b970: takes an effect off the free list and clears it; null when the pool
 // is not set up or empty.
 FxEffect* XB_CDECL FX_AllocEffect();
+// 0x0023b5c0: frees every effect of the effect list (0x00988ce8) with id (+0x18) `id`,
+// then stops the particle library's active systems with that id.
+void XB_CDECL FX_KillEffectsOnEntity(int32_t id);
 // 0x0009f220 (thiscall; ECX unread): whether the particle pool 0x00909f64 has `count`
 // free items (+8 - +0xc).
 uint32_t XB_THISCALL apsPool_HasRoom(uint32_t unused, int32_t count);

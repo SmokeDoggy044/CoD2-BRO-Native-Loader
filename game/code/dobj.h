@@ -200,4 +200,34 @@ void XB_CDECL DObj_CreateSkeleton(DObj* obj);
 extern "C" PLATFORM_HIDDEN void XB_CDECL XModel_ResolveBoneNames(XModelParts* parts);
 extern "C" void XModel_ResolveBoneNames_entry(void);
 
+// 0x002af200 (tree in ESI): unlinks an animation tree from the live list (0x008dda40) and
+// frees it from its memory context (+0x10, -1 = the zone heap).
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_Free(uint32_t* tree);
+extern "C" void AnimTree_Free_entry(void);
+// 0x00240ce0 (obj in EDI, flag on the stack, cdecl): frees the bone matrices (+0x20) from
+// the client's memory context (+0x34); with free_trees each model's animation tree (the
+// first model_count words) cleared and freed; the trees are forgotten and +0x2c cleared.
+extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_Free(DObj* obj, uint32_t free_trees);
+extern "C" void DObj_Free_entry(void);
+
+// 0x000291d0 (parts in EDX, name in EBX): the index of the bone with that script name, -1
+// when none.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL XModelParts_FindBoneByName(const XModelParts* parts, uint32_t name);
+extern "C" void XModelParts_FindBoneByName_entry(void);
+// One model of a DObj_Create call (16 bytes).
+struct DObjModelInfo {
+    XModel* model;
+    const uint8_t* bone;  // a script string (text at +6): the earlier model's bone it hangs from
+    uint32_t hidden;
+    uint32_t tree;        // the model's animation tree, 0 = keep
+};
+// 0x00245ff0 (tree0 EAX, flags CX, models EDX; count and obj on the stack, cdecl): fills a
+// DObj from up to `count` models (stops at a null one): attach bones by name, matrix
+// offsets, hidden bits; at most 0x7f bones (Com_Error); then DObj_CreateSkeleton and
+// DObj_UpdateSkeletons, and the distance LOD.
+// Entered through DObj_Create_entry (entry = the original's entry ESP).
+extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_Create(uint32_t entry, uint32_t tree0, uint32_t flags,
+                                                     const DObjModelInfo* infos, uint32_t count, DObj* obj);
+extern "C" void DObj_Create_entry(void);
+
 }  // namespace game
