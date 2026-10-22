@@ -533,6 +533,48 @@ uint32_t XB_CDECL Stream_LoadIb(char*, uint8_t* data, uint32_t, uint32_t zone) {
     return zone;
 }
 
+namespace {
+
+// Stream_Add*ToZone: the object (its hashed name at +name_offset) stored in the zone map
+// at +map_offset of the zone on top of the global context's stack (-1 when empty); returns
+// the entry's previous value.
+uint32_t add_to_zone(uint32_t streams, uint32_t object, uint32_t name_offset, uint32_t map_offset, bool checked) {
+    uint8_t* context = global_context();
+    const uint32_t count = context_word(context, 0x374);
+    uint32_t id = 0xffffffff;
+    if (count) {
+        const int32_t top = static_cast<int32_t>(count) - 1;
+        id = context_word(context, 0x378 + (top > 0 ? top : 0) * 4);
+    }
+    const uint32_t zone = *reinterpret_cast<const uint32_t*>(uintptr_t{streams + 0x5c + id * 4});
+    uint32_t hash = *reinterpret_cast<const uint32_t*>(uintptr_t{object + name_offset});
+    if (!hash)
+        hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x0001d830)(  // HashStr_Hash
+            reinterpret_cast<const char*>(uintptr_t{object + name_offset + 4}));
+    const uint32_t* index = UintMap_Find(reinterpret_cast<const uint32_t*>(uintptr_t{zone + map_offset}), &hash);
+    volatile uint32_t* slot = nullptr;
+    if (index && *index != 0xffffffff) {
+        uint32_t i = *index;
+        if (i >= *reinterpret_cast<const uint32_t*>(uintptr_t{zone + map_offset + 8})) i = 0;
+        slot = reinterpret_cast<uint32_t*>(
+            uintptr_t{*reinterpret_cast<const uint32_t*>(uintptr_t{zone + map_offset + 0xc}) + i * 8 + 4});
+    }
+    if (checked && !slot) return 0;
+    const uint32_t old = *slot;  // unchecked (mesh files): the original reads address 0 as well
+    *slot = object;
+    return old;
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL Stream_AddTextureToZone(uint32_t streams, uint32_t texture) {
+    return add_to_zone(streams, texture, 0x54, 0x08, true);
+}
+
+uint32_t XB_STDCALL Stream_AddMeshFileToZone(uint32_t streams, uint32_t file) {
+    return add_to_zone(streams, file, 0, 0x38, false);
+}
+
 uint32_t XB_CDECL Stream_LoadAitb(char*, uint8_t* data, uint32_t, uint32_t zone) {
     relocate_pack(data, 0x18);
     title_global<uint32_t>(title_global<uint32_t>(0x0095f718) + 4 + zone * 4) = address_of(data);

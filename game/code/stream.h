@@ -150,6 +150,11 @@ uint32_t XB_CDECL Stream_LoadBmips(char* name, uint8_t* data, uint32_t size, uin
 // 0x0028d120 Aitb: pack (+0x18) relocated, stored in 0x0095f718 +4 + zone * 4; returns the
 // zone. 0x0028d0e0 Lgrid: +0/+8/+0x10/+0x18 made absolute, stored in 0x0095f6a0 +4 +
 // zone * 4; returns the data.
+// 0x0028e930 / 0x0028e7e0: the texture (name +0x54) / mesh file (name +0) stored in the
+// texture (+8) / mesh file (+0x38) map of the zone on top of the global memory context;
+// returns the previous entry (texture: 0 when the name is not in the map).
+uint32_t XB_STDCALL Stream_AddTextureToZone(uint32_t streams, uint32_t texture);
+uint32_t XB_STDCALL Stream_AddMeshFileToZone(uint32_t streams, uint32_t file);
 uint32_t XB_CDECL Stream_LoadAitb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint8_t* XB_CDECL Stream_LoadLgrid(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 // 0x00290730 Xmb: pack relocated, registered (0x0023cfb0, EBX = data), stored in

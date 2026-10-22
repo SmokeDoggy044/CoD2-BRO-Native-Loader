@@ -668,6 +668,8 @@ const Function kFunctions[] = {
     {"Stream_LoadBmips", 0x0028ee80, 0, code(&Stream_LoadBmips), 16, Result::Eax, Status::Compare},
     {"Stream_LoadFdf", 0x0028fc60, 0, code(&Stream_LoadFdf), 16, Result::Eax, Status::Compare},
     {"Stream_HashFileName", 0x0028eeb0, 0, code(&Stream_HashFileName_entry), 0, Result::Eax, Status::Compare},
+    {"Stream_AddMeshFileToZone", 0x0028e7e0, 0, code(&Stream_AddMeshFileToZone), 8, Result::Eax, Status::Compare},
+    {"Stream_AddTextureToZone", 0x0028e930, 0, code(&Stream_AddTextureToZone), 8, Result::Eax, Status::Compare},
     {"MemContext_Pop", 0x0028c690, 0, code(&MemContext_Pop_entry), 0, Result::Eax, Status::Compare},
     {"MemContext_Push", 0x0028f6c0, 0, code(&MemContext_Push_entry), 0, Result::Eax, Status::Compare},
     {"Stream_ListSearchZones", 0x0028fb10, 0, code(&Stream_ListSearchZones_entry), 0, Result::Eax, Status::Compare},
