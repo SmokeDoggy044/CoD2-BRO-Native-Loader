@@ -11265,3 +11265,4 @@ address,name,kind,confidence,evidence
 00315210,UIMenu_Init,function,medium,"ESI = widget, EDI = item count, (owner, a, b, short, flags): base vtable 0x0082a628, Heap_Alloc16 item array (+4), selection -1 (+0x22), flags +0x2a, owner +8; 35 derived constructors"
 0032ea00,UIMenu_FreeItems,function,medium,"ESI = widget: deletes each item (count +0x26, array +4), Z_Free, stops the widget's sound handle +0x2c (S_StopChannel) and clears the fields"
 00331fb0,SCR_LoadingPump,function,medium,"when not paused (0x0095f916) and a loading screen is up (0x0095f454): advances its timer from rdtsc (0x0095f45c), updates it (0x00331f70) and File_PumpRequests; Movie_Open, CL_PlayMovie, memory-unit dialogs"
+000260d0,Mat44_FromRows,function,high,"thiscall out in ECX, four row pointers copied (16 bytes each), ret 0x10; FUN_00093250, CG_CalcViewValues"

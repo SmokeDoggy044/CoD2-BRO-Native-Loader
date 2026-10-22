@@ -5,6 +5,7 @@
 #include "dobj.h"
 #include "fx.h"
 #include "nal_math.h"
+#include "nal_pose.h"
 #include "ngl.h"
 #include "param_set.h"
 #include "qcommon.h"
@@ -59,6 +60,7 @@ const Function kFunctions[] = {
     {"ParamSet_AddString", 0x00024630, 0, code(&ParamSet_AddString), 12, Result::None, Status::Compare},
     {"ParamSet_AddValue", 0x00024730, 0, code(&ParamSet_AddValue), 12, Result::None, Status::Compare},
     {"ParamChoice_GetValue", 0x00024940, 0, code(&ParamChoice_GetValue_entry), 0, Result::Eax, Status::Compare},
+    {"Mat44_FromRows", 0x000260d0, 0, code(&Mat44_FromRows), 16, Result::Eax, Status::Compare},
     {"Quat_FromAxis3", 0x000262a0, 0, code(&Quat_FromAxis3), 8, Result::Eax, Status::Compare},
     {"XModelParts_FindBoneByName", 0x000291d0, 0, code(&XModelParts_FindBoneByName_entry), 0, Result::Eax, Status::Compare},
     {"nglSphereInFrustum", 0x00029200, 0, code(&nglSphereInFrustum), 8, Result::Al, Status::Compare},
@@ -506,6 +508,8 @@ const Function kFunctions[] = {
     {"WaitTilOutputInst1_str_VFunc2", 0x0007be10, 0, code(&WaitTilOutputInst1_str_VFunc2), 0, Result::Eax, Status::Compare},
     {"nglShader_Nop", 0x00080060, 0, code(&nglShader_Nop), 4, Result::None, Status::Compare},
     {"Mat44_InverseRigid", 0x00086ae0, 0, code(&Mat44_InverseRigid), 4, Result::Eax, Status::Compare},
+    {"NAL_GenericAnim_EvaluatePose", 0x000886f0, 0, code(&NAL_GenericAnim_EvaluatePose), 12, Result::None, Status::Compare},
+    {"NAL_IK_TwoBoneAngles", 0x000930b0, 0, code(&NAL_IK_TwoBoneAngles_entry), 52, Result::None, Status::Compare},
     {"Mem_AlignedAlloc", 0x00093950, 0, code(&Mem_AlignedAlloc), 12, Result::Eax, Status::Compare},
     {"nglGetFreeMemory", 0x000939f0, 0, code(&nglGetFreeMemory), 0, Result::Eax, Status::Compare},
     {"nglFreeFileBuffer", 0x00093b90, 0, code(&nglFreeFileBuffer), 4, Result::None, Status::Compare},

@@ -30,8 +30,6 @@ float* XB_THISCALL Mat44_MultiplyInPlace(float* a, float* out, const float* b) {
     return out;
 }
 
-namespace {
-
 // The rotation rows of Quat_ToMat33 / QuatTrans_ToMat44 (identical code): lanes 0-2 of
 // rows 0-2, then the zero vector's lane 0 (0x0082e6a0) as each row's w.
 void quat_rotation_rows(const float* q, float* out) {
@@ -57,8 +55,6 @@ void quat_rotation_rows(const float* q, float* out) {
     out[7] = zero;
     out[11] = zero;
 }
-
-}  // namespace
 
 float* XB_THISCALL Quat_ToMat33(float* out, const float* q) {
     out[7] = 0.0f;
@@ -102,6 +98,14 @@ float* XB_CDECL QuatTrans_Concat(float* out, const float* a, const float* b) {
     out[4] = x;
     out[5] = y;
     out[6] = z;
+    return out;
+}
+
+float* XB_THISCALL Mat44_FromRows(float* out, const float* r0, const float* r1, const float* r2, const float* r3) {
+    std::memcpy(out, r0, 16);
+    std::memcpy(out + 4, r1, 16);
+    std::memcpy(out + 8, r2, 16);
+    std::memcpy(out + 12, r3, 16);
     return out;
 }
 
@@ -233,6 +237,45 @@ float* XB_CDECL Quat_FromAxis3(float* out, const float* m) {
     const Lanes result = mul(q, platform_x87_half_over_sqrt(radicand, half));
     std::memcpy(out, result.v, 16);
     return out;
+}
+
+PLATFORM_ASM_ENTRY(NAL_IK_TwoBoneAngles_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(NAL_IK_TwoBoneAngles) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL NAL_IK_TwoBoneAngles(IkTwoBoneArgs* args) {
+    float* origin = args->origin;
+    float* dir = args->dir;
+    Vec3_MulMat44(origin, args->point, args->matrix);
+    dir[0] = args->target[0] - origin[0];
+    dir[1] = args->target[1] - origin[1];
+    dir[2] = args->target[2] - origin[2];
+    const float one = title_global<float>(0x0083eb20);
+    const float minus_one = title_global<float>(0x0083eb34);
+    const float length = platform_x87_norm3(dir[0], dir[1], dir[2]);
+    // The original keeps the length in its `origin` argument slot.
+    std::memcpy(&args->origin, &length, 4);
+    const float inverse = one / length;
+    dir[0] = dir[0] * inverse;
+    dir[1] = dir[1] * inverse;
+    dir[2] = dir[2] * inverse;
+    *args->cos_a = length * args->scale_a + inverse * args->bias_a;
+    *args->cos_b = length * args->scale_b + inverse * args->bias_b;
+    float c = *args->cos_a;
+    if (c > one)
+        c = one;
+    else if (minus_one > c)
+        c = minus_one;
+    *args->cos_a = c;
+    c = *args->cos_b;
+    if (c > one)
+        c = one;
+    else if (minus_one > c)
+        c = minus_one;
+    *args->cos_b = c;
+    *args->sin_a = platform_x87_sqrt_one_minus_sq(*args->cos_a, one);
+    *args->sin_b = platform_x87_sqrt_one_minus_sq(*args->cos_b, one);
 }
 
 }  // namespace game

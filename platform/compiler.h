@@ -275,6 +275,22 @@ inline float platform_x87_rcp_norm4(float a, float b, float c, float d, float on
             : "st", "st(1)");
     return result;
 }
+// sqrt((a*a + b*b) + c*c) and sqrt(one - a*a) on the x87 (the caller's precision
+// control), stored as float: no MXCSR flags.
+inline float platform_x87_norm3(float a, float b, float c) {
+    float result;
+    __asm__("flds %1\n\tfmuls %1\n\tflds %2\n\tfmuls %2\n\tfaddp\n\tflds %3\n\tfmuls %3\n\tfaddp\n\t"
+            "fsqrt\n\tfstps %0"
+            : "=m"(result)
+            : "m"(a), "m"(b), "m"(c)
+            : "st", "st(1)");
+    return result;
+}
+inline float platform_x87_sqrt_one_minus_sq(float a, float one) {
+    float result;
+    __asm__("flds %1\n\tfmuls %1\n\tfsubrs %2\n\tfsqrt\n\tfstps %0" : "=m"(result) : "m"(a), "m"(one) : "st");
+    return result;
+}
 // FILD + FMUL + FSTP: an integer times a float on the x87 (the caller's precision and
 // rounding control), stored as float. No MXCSR flags.
 inline float platform_x87_int_mul(std::int32_t value, float factor) {

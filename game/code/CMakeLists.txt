@@ -8,6 +8,7 @@ set(game_code_sources
     functions.cpp
     fx.cpp
     nal_math.cpp
+    nal_pose.cpp
     ngl.cpp
     param_set.cpp
     qcommon.cpp
