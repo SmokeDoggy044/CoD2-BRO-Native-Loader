@@ -2430,4 +2430,51 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
     table[0] = 0;
 }
 
+PLATFORM_ASM_ENTRY(R_CheckCvarRange_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_CheckCvarRange) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL R_CheckCvarRange(uint32_t integral, const uint8_t* cvar, float minimum, float maximum) {
+    using Printf = void XB_CDECL(int32_t, const char*, ...);
+    using Va = const char* XB_CDECL(const char*, ...);
+    using CvarSet = void XB_CDECL(const char*, const char*);
+    const auto printf = title_function<Printf>(title_global<uint32_t>(0x0095e630));  // ri.Printf
+    const auto va = title_function<Va>(0x002a93d0);
+    const auto cvar_set = [](const char* name, const char* value) {
+        title_function<CvarSet>(title_global<uint32_t>(0x0095e658))(name, value);  // ri.Cvar_Set
+    };
+    const char* const& name = *reinterpret_cast<const char* const*>(cvar);
+    const float& value = *reinterpret_cast<const float*>(cvar + 0x1c);
+    const int32_t& integer = *reinterpret_cast<const int32_t*>(cvar + 0x20);
+    if (integral && static_cast<int32_t>(value) != integer) {
+        printf(2, "WARNING: cvar '%s' must be integral (%f)\n", name, static_cast<double>(value));
+        cvar_set(name, va("%d", integer));
+    }
+    if (minimum > value) {
+        printf(2, "WARNING: cvar '%s' out of range (%f < %f)\n", name, static_cast<double>(value),
+               static_cast<double>(minimum));
+        cvar_set(name, va("%f", static_cast<double>(minimum)));
+    } else if (value > maximum) {
+        printf(2, "WARNING: cvar '%s' out of range (%f > %f)\n", name, static_cast<double>(value),
+               static_cast<double>(maximum));
+        cvar_set(name, va("%f", static_cast<double>(maximum)));
+    }
+}
+
+uint32_t XB_CDECL RE_RegisterModel(uint32_t handle, const char* name, uint32_t flags) {
+    using RegisterModel = void XB_REGS1 XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t);
+    title_function<RegisterModel>(0x00241f40)(name, title_global<uint32_t>(0x0095f6ac), handle, flags);  // R_RegisterModel
+    return handle;
+}
+
+void XB_CDECL RE_DrawText(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                          uint32_t a7, uint32_t a8) {
+    using DrawTextExt = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int32_t, uint32_t,
+                                      uint32_t, uint32_t, uint32_t);
+    title_function<DrawTextExt>(0x0023f570)(a0, a1, a2, a3, a4, a5, -1, 0, a6, a7, a8);  // RE_DrawTextExt
+}
+
 }  // namespace game

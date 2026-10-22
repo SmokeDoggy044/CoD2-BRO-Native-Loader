@@ -420,4 +420,15 @@ void XB_CDECL RE_BeginFrame();
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame);
 extern "C" void R_RenderView_entry(void);
 
+// 0x002374a0 (integral flag in EAX, cvar in ESI): warns and resets a cvar that is not
+// integral (to its integer) or outside [minimum, maximum] (to the bound).
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_CheckCvarRange(uint32_t integral, const uint8_t* cvar, float minimum,
+                                                          float maximum);
+extern "C" void R_CheckCvarRange_entry(void);
+// 0x00243fb0: R_RegisterModel(name, 0x0095f6ac, handle, flags); returns `handle`.
+uint32_t XB_CDECL RE_RegisterModel(uint32_t handle, const char* name, uint32_t flags);
+// 0x0023fc30: RE_DrawTextExt with the arguments 6 and 7 = -1, 0 inserted after the sixth.
+void XB_CDECL RE_DrawText(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                          uint32_t a7, uint32_t a8);
+
 }  // namespace game

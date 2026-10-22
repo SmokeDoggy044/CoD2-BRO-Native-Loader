@@ -75,4 +75,9 @@ void XB_STDCALL FX_FreeEffectComponents(uint32_t* components);
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_UpdateFadingComponents(uint8_t* pool, uint32_t delta);
 extern "C" void FX_UpdateFadingComponents_entry(void);
 
+// 0x0029b620 (list in ESI): frees every instance with the id (components, then the
+// small heap 0x0095f5bc); the last entry takes its place.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_FreeEffectsById(FxIdList* list, uint32_t id);
+extern "C" void FX_FreeEffectsById_entry(void);
+
 }  // namespace game

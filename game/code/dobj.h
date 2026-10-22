@@ -172,4 +172,9 @@ extern "C" void XModelParts_FindBone_entry(void);
 // the bones of the models before it. -1 if none has it.
 int32_t XB_STDCALL DObj_FindBoneIndex2(const DObj* obj, const char* name);
 
+// 0x0023aea0 (obj in EAX, the tag's name hash in ESI): DObj_GetBoneIndex, -1 for hash 0;
+// a missing "tag_origin" is bone 0 (its hash cached in 0x0098b83c, guard bit 0x0098b840).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL DObj_GetTagIndex(const DObj* obj, uint32_t name);
+extern "C" void DObj_GetTagIndex_entry(void);
+
 }  // namespace game

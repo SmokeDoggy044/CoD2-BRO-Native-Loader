@@ -1015,4 +1015,55 @@ void XB_CDECL nglAllocSceneRenderTargets();
 // first section's first index. Returns the mesh.
 uint32_t* XB_CDECL nglMeshBuilder_End();
 
+struct NglHashedName;
+
+// One glyph of an NGL font (.fdf): the cell in the atlas and its placement.
+struct NglFontGlyph {
+    int32_t x;         // +0x00
+    int32_t y;         // +0x04
+    int32_t width;     // +0x08, gw
+    int32_t height;    // +0x0c, gh
+    int32_t offset_x;  // +0x10, gx
+    int32_t offset_y;  // +0x14, gy
+    int32_t advance;   // +0x18, w
+};
+static_assert(sizeof(NglFontGlyph) == 0x1c);
+
+struct NglFont {
+    uint8_t name[0x20];     // an NglHashedName
+    uint32_t refs;          // +0x20
+    NglTexture* texture;    // +0x24, the atlas (same name)
+    NglFontGlyph* glyphs;   // +0x28, indexed by code - first_glyph
+    int32_t version;        // +0x2c
+    int32_t cell_height;    // +0x30
+    int32_t ascent;         // +0x34
+    int32_t first_glyph;    // +0x38
+    int32_t glyph_count;    // +0x3c
+    uint32_t unknown40;     // +0x40, 2 when loaded
+    uint32_t unknown44;     // +0x44, 2 when loaded
+    uint8_t unknown48[0x4];
+    float (*uvs)[4];        // +0x4c, per glyph in file order: u0 v0 u1 v1
+    uint8_t unknown50[0x4];
+};
+static_assert(sizeof(NglFont) == 0x54);
+
+// 0x00065590 (font in EDI): the .fdf text's header keys (version in hex), then per glyph
+// "<code> x y w gx gy gh gw"; texture coordinates from the atlas size. Returns the count.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL nglParseFontFile(NglFont* font, char* text);
+extern "C" void nglParseFontFile_entry(void);
+// 0x000657b0: a new font (refs 1) over the texture of the same name, parsed from `text`.
+NglFont* XB_CDECL nglLoadFontFile(const NglHashedName* name, char* text);
+// 0x000658f0: the font manager's font (one more reference), else a loaded and added
+// one; the system font when loading fails.
+NglFont* XB_CDECL nglLoadFont(const NglHashedName* name, char* text);
+// 0x00079020: a DDSP palette file (texture +0x128, version 1): per palette (count word
+// +8, stride word +0xa) an NGL palette into the array +0x13c; the entries (64-byte
+// aligned after the 16-byte header) are swapped to BGR once (byte +0xf).
+uint8_t XB_CDECL nglParseDDSPalette(uint32_t unused, uint8_t* texture);
+// 0x000728d0: when a fog value changed (only the first changed one is taken over, cache
+// 0x008a30fc), refills the fog table texture 0x00902e70: per texel the depth along the
+// near..far range, density fog[2] before fog[0], fog[3] past fog[1], linear between,
+// stored as 255 - density * 255.
+void XB_CDECL nglUpdateFogTable();
+
 }  // namespace game

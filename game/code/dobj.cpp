@@ -1,6 +1,7 @@
 #include "dobj.h"
 
 #include "compiler.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -405,6 +406,21 @@ int32_t XB_STDCALL DObj_FindBoneIndex2(const DObj* obj, const char* name) {
         first += parts ? static_cast<int32_t>(parts->bone_count) : 0;
     }
     return -1;
+}
+
+PLATFORM_ASM_ENTRY(DObj_GetTagIndex_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DObj_GetTagIndex) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL DObj_GetTagIndex(const DObj* obj, uint32_t name) {
+    const int32_t bone = name ? DObj_GetBoneIndex(obj, name) : -1;
+    if (!(title_global<uint8_t>(0x0098b840) & 1)) {
+        title_global<uint32_t>(0x0098b840) |= 1;
+        title_global<uint32_t>(0x0098b83c) = Com_HashKeyNoCase(1, "tag_origin");
+    }
+    if (bone < 0 && name == title_global<uint32_t>(0x0098b83c)) return 0;
+    return bone;
 }
 
 }  // namespace game

@@ -79,4 +79,17 @@ void XB_THISCALL Stream_ReadString(uint32_t* stream, char* out, int32_t* length,
     if (i < capacity) out[i] = 0;
 }
 
+void XB_THISCALL MemStream_Destroy(MemStream* stream) {
+    stream->vtable = 0x007bad98;
+    if (stream->flag && stream->data)
+        title_function<void XB_CDECL(const uint8_t*)>(0x000428d0)(stream->data);  // Z_Free
+    stream->vtable = 0x007bad80;
+}
+
+MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t flags) {
+    MemStream_Destroy(stream);
+    if (flags & 1) title_function<void XB_CDECL(MemStream*)>(0x000428d0)(stream);  // Z_Free
+    return stream;
+}
+
 }  // namespace game

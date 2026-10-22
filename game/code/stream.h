@@ -35,4 +35,10 @@ float XB_THISCALL Stream_ReadFloat(uint32_t* stream);
 // up to `capacity` and null-terminated when there is room.
 void XB_THISCALL Stream_ReadString(uint32_t* stream, char* out, int32_t* length, int32_t capacity);
 
+// 0x000554e0: frees the data when the stream owns it (+0x10), then the vtable becomes
+// the base stream's (0x007bad80).
+void XB_THISCALL MemStream_Destroy(MemStream* stream);
+// 0x000555f0 (vtable slot 0): MemStream_Destroy, then Z_Free of the stream with flag 1.
+MemStream* XB_THISCALL MemStream_DeletingDestroy(MemStream* stream, uint32_t flags);
+
 }  // namespace game

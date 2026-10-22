@@ -224,4 +224,25 @@ void XB_CDECL FX_UpdateFadingComponents(uint8_t* pool, uint32_t delta) {
     }
 }
 
+PLATFORM_ASM_ENTRY(FX_FreeEffectsById_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FX_FreeEffectsById) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL FX_FreeEffectsById(FxIdList* list, uint32_t id) {
+    uint32_t* const words = &list->count;
+    for (uint32_t i = 0; i < list->count; ++i) {
+        uint8_t* item = list->items[i];
+        if (*reinterpret_cast<const uint32_t*>(item + 0x4c) != id) continue;
+        if (item) {
+            FX_FreeEffectComponents(reinterpret_cast<uint32_t*>(item));
+            title_function<void XB_THISCALL(uint32_t, void*)>(0x00044910)(title_global<uint32_t>(0x0095f5bc),
+                                                                          item);  // SmallHeap_Free
+        }
+        list->items[i] = reinterpret_cast<uint8_t*>(words[list->count]);
+        if (list->count) --list->count;
+        --i;
+    }
+}
+
 }  // namespace game

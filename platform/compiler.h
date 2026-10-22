@@ -256,9 +256,26 @@ inline float platform_x87_unsigned_to_float(std::uint32_t value) {
         __asm__("fildl %1\n\tfstps %0" : "=m"(result) : "m"(value) : "st");
     return result;
 }
+// numerator / (float)value with the unsigned conversion above, the division on the x87
+// too (FILD, FADD 2^32 when negative, FDIVR, FSTP). No MXCSR flags.
+inline float platform_x87_div_by_unsigned(float numerator, std::uint32_t value) {
+    static const float two32 = 4294967296.0f;
+    float result;
+    if (static_cast<std::int32_t>(value) < 0)
+        __asm__("fildl %1\n\tfadds %2\n\tfdivrs %3\n\tfstps %0"
+                : "=m"(result)
+                : "m"(value), "m"(two32), "m"(numerator)
+                : "st");
+    else
+        __asm__("fildl %1\n\tfdivrs %2\n\tfstps %0" : "=m"(result) : "m"(value), "m"(numerator) : "st");
+    return result;
+}
 #else
 #include <cmath>
 inline float platform_x87_unsigned_to_float(std::uint32_t value) { return static_cast<float>(value); }
+inline float platform_x87_div_by_unsigned(float numerator, std::uint32_t value) {
+    return numerator / static_cast<float>(value);
+}
 inline float platform_x87_sin(float x) { return std::sin(x); }
 inline float platform_x87_cos(float x) { return std::cos(x); }
 inline float platform_x87_tan(float x) { return std::tan(x); }

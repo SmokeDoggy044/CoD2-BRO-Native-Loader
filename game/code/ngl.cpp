@@ -3895,4 +3895,141 @@ uint32_t* XB_CDECL nglMeshBuilder_End() {
     return title_global<uint32_t*>(0x00902920);
 }
 
+PLATFORM_ASM_ENTRY(nglParseFontFile_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(nglParseFontFile) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL nglParseFontFile(NglFont* font, char* text) {
+    font->version = nglFontParseKeyInt("version", &text, 0x10);
+    font->cell_height = nglFontParseKeyInt("cellheight", &text, 10);
+    font->ascent = nglFontParseKeyInt("ascent", &text, 10);
+    font->first_glyph = nglFontParseKeyInt("firstglyph", &text, 10);
+    font->glyph_count = nglFontParseKeyInt("numglyphs", &text, 10);
+    font->glyphs = static_cast<NglFontGlyph*>(Mem_AlignedAlloc(font->glyph_count * sizeof(NglFontGlyph), 4, 0));
+    font->uvs = static_cast<float(*)[4]>(Mem_AlignedAlloc(font->glyph_count * 16, 4, 0));
+    const float one = title_global<float>(0x0083eb20);
+    const float scale_u = platform_x87_div_by_unsigned(one, font->texture->width);
+    const float scale_v = platform_x87_div_by_unsigned(one, font->texture->height);
+    using Strtol = int32_t XB_CDECL(const char*, char**, int32_t);
+    for (int32_t i = 0; i < font->glyph_count; ++i) {
+        while (*text && (*text < '0' || *text > '9')) ++text;
+        const int32_t code = title_function<Strtol>(0x001f0ecf)(text, &text, 10);  // _strtol
+        NglFontGlyph* glyph = font->glyphs + (code - font->first_glyph);
+        glyph->x = nglFontParseKeyInt("x", &text, 10);
+        glyph->y = nglFontParseKeyInt("y", &text, 10);
+        glyph->advance = nglFontParseKeyInt("w", &text, 10);
+        glyph->offset_x = nglFontParseKeyInt("gx", &text, 10);
+        glyph->offset_y = nglFontParseKeyInt("gy", &text, 10);
+        glyph->width = nglFontParseKeyInt("gw", &text, 10);
+        glyph->height = nglFontParseKeyInt("gh", &text, 10);
+        float* uv = font->uvs[i];
+        const float u0 = static_cast<float>(glyph->x) * scale_u;
+        const float v0 = static_cast<float>(glyph->y) * scale_v;
+        uv[0] = u0;
+        uv[1] = v0;
+        uv[2] = static_cast<float>(glyph->width) * scale_u + u0;
+        uv[3] = static_cast<float>(glyph->height) * scale_v + v0;
+    }
+    return static_cast<uint32_t>(font->glyph_count);
+}
+
+NglFont* XB_CDECL nglLoadFontFile(const NglHashedName* name, char* text) {
+    NglFont* font = static_cast<NglFont*>(Mem_AlignedAlloc(sizeof(NglFont), 4, 0));
+    std::memset(font, 0, sizeof(NglFont));
+    font->refs = 1;
+    font->unknown40 = 2;
+    font->unknown44 = 2;
+    std::memcpy(font->name, name, sizeof(font->name));
+    font->texture = static_cast<NglTexture*>(nglFindTextureAddRef(reinterpret_cast<const char*>(name)));
+    nglParseFontFile(font, text);
+    return font;
+}
+
+NglFont* XB_CDECL nglLoadFont(const NglHashedName* name, char* text) {
+    using Add = void XB_THISCALL(NglResourceManager*, void*);
+    NglFont* font = static_cast<NglFont*>(
+        manager_slot<ManagerFind>(font_manager(), 2)(font_manager(), reinterpret_cast<const char*>(name)));
+    if (font) {
+        ++font->refs;
+        return font;
+    }
+    font = nglLoadFontFile(name, text);
+    if (!font) return title_global<NglFont*>(0x009028d4);  // ngl_sysFont
+    manager_slot<Add>(font_manager(), 3)(font_manager(), font);
+    return font;
+}
+
+uint8_t XB_CDECL nglParseDDSPalette(uint32_t, uint8_t* texture) {
+    uint8_t* const data = *reinterpret_cast<uint8_t**>(texture + 0x128);
+    uint8_t*& header = *reinterpret_cast<uint8_t**>(texture + 0x134);
+    uint8_t*& entries = *reinterpret_cast<uint8_t**>(texture + 0x138);
+    uint32_t*& palettes = *reinterpret_cast<uint32_t**>(texture + 0x13c);
+    header = data;
+    entries = data + 0x10;
+    using Strncmp = int32_t XB_CDECL(const void*, const char*, uint32_t);
+    if (title_function<Strncmp>(0x001eeaf0)(data, "DDSP", 4) || *reinterpret_cast<uint32_t*>(data + 4) != 1)
+        return 0;
+    const uint16_t& count = *reinterpret_cast<uint16_t*>(data + 8);
+    palettes = static_cast<uint32_t*>(Mem_AlignedAlloc(count * 4u, 4, 0));
+    uint32_t pad = reinterpret_cast<uintptr_t>(entries) & 0x3f;
+    if (pad) pad = 0x40 - pad;
+    if (!data[0xf]) {
+        nglSwapRedBlue(entries + pad, static_cast<uint32_t>(*reinterpret_cast<uint16_t*>(data + 0xc)) * count);
+        data[0xf] = 1;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+        const uint32_t stride = *reinterpret_cast<uint16_t*>(data + 0xa);
+        nglCreateDDSPalette(data, reinterpret_cast<uint32_t**>(palettes + i),
+                            reinterpret_cast<uintptr_t>(entries + stride * i + pad));
+    }
+    return 1;
+}
+
+void XB_CDECL nglUpdateFogTable() {
+    NglScene* scene = current_scene();
+    float* const cached = &title_global<float>(0x008a30fc);
+    // Only the first changed fog value is taken over; the rest follow on later frames.
+    int changed = -1;
+    for (int k = 0; k < 4; ++k) {
+        if (!(cached[k] == scene->fog[k])) {
+            changed = k;
+            break;
+        }
+    }
+    if (changed < 0) return;
+    cached[changed] = scene->fog[changed];
+    NglTexture* table = title_global<NglTexture*>(0x00902e70);
+    const int32_t count = static_cast<int32_t>(table->height * table->width);
+    const float start = scene->fog[0];
+    const float end = scene->fog[1];
+    uint32_t x = 0;
+    uint32_t y = 0;
+    nglTexture_Lock(table, 0);
+    if (count > 0) {
+        const float total = static_cast<float>(count);
+        for (int32_t i = 0; i < count; ++i) {
+            const NglScene* s = current_scene();
+            const float t = (s->far_z - s->near_z) / s->far_z * (static_cast<float>(i) / total);
+            const float z = s->near_z / (title_global<float>(0x0083eb20) - t);
+            float density;
+            if (start > z)
+                density = s->fog[2];
+            else if (z > end)
+                density = s->fog[3];
+            else
+                density = (z - start) / (end - start) * (s->fog[3] - s->fog[2]) + s->fog[2];
+            const uint8_t level = static_cast<uint8_t>(platform_x87_round_to_int(density * title_global<float>(0x0083eb8c)));
+            nglTextureSetPixel(reinterpret_cast<const uint8_t*>(title_global<NglTexture*>(0x00902e70)), x, y,
+                               static_cast<uint8_t>(0xff - level));
+            ++y;
+            if (y % title_global<NglTexture*>(0x00902e70)->width == 0) {
+                ++x;
+                y = 0;
+            }
+        }
+    }
+    nglTexture_Unlock();
+}
+
 }  // namespace game
