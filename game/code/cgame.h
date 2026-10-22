@@ -75,4 +75,36 @@ void XB_CDECL CG_CheckAmmo();
 // 0x400 into cg_solidEntities (0x00974810).
 void XB_CDECL CG_BuildSolidList();
 
+// 0x00279e50: Q3's CG_Fade_f ("fade r g b a seconds", 6 words): the CG_SetFade of alpha a
+// over the seconds from cg.time; the colour words are parsed and dropped.
+void XB_CDECL CG_Fade_f();
+// 0x00278150: the screen fade (0x009730b8 target, 0x009730bc current, start 0x009730c0,
+// duration 0x009730c4) stepped towards its target by the time since the last call
+// (0x0098ad54; steps of 500 ms or more skip), drawn as a black full-screen rectangle.
+void XB_CDECL CG_DrawFlashFade();
+// 0x0027cf40 (angle in XMM0, degrees): a 640x480 picture rotated about its centre (import
+// 0x0092853c with the texture coordinates at 0x00839a3c).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawRotatedPic(float x, float y, float w, float h, uint32_t shader,
+                                                            float angle);
+extern "C" void CG_DrawRotatedPic_entry(void);
+// 0x0027cdc0 (points in ESI, angle in XMM0): four 640x480 offsets rotated and placed at x, y
+// (import 0x0092853c).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawRotatedQuadPic(float x, float y, const float* st, uint32_t shader,
+                                                                const float* points, float angle);
+extern "C" void CG_DrawRotatedQuadPic_entry(void);
+// 0x00276060 (style flag EAX, screen_coords EDX, colour ECX, scale XMM1): text in font 5
+// (import 0x00928578) at scale / 48, lowered by 0.8 * scale; 640x480 positions are divided
+// by the screen scale unless screen_coords; white without a colour; style 3 when set.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawTextScaled(float x, float y, const char* text, float width,
+                                                            uint32_t arg4, uint32_t style, uint32_t screen_coords,
+                                                            const float* color, float scale);
+extern "C" void CG_DrawTextScaled_entry(void);
+// 0x0027d450: Q3's CG_DrawCenterString: cg.centerPrint (0x00972c7c) line by line (newline
+// or "\n", 40 characters at most), centred, fading over cg_centertime (0x00949a10).
+void XB_CDECL CG_DrawCenterString();
+// 0x00278d80 (model in ESI): every "tag_b*" tag without a model gets the last "tag_b" tag's;
+// returns the tag count.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CG_ShareWeaponTagBModels(uint8_t* model);
+extern "C" void CG_ShareWeaponTagBModels_entry(void);
+
 }  // namespace game

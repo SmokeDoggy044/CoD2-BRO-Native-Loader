@@ -180,6 +180,18 @@ inline float platform_x87_sqrt(float x) {
     __asm__("flds %1\n\tfsqrt\n\tfstps %0" : "=m"(result) : "m"(x) : "st");
     return result;
 }
+// half / sqrt(x) and sqrt((one - x) * half) on the x87 (FSQRT/FDIVR, FSUB/FMUL/FSQRT;
+// the caller's precision control), stored as float: no MXCSR flags.
+inline float platform_x87_half_over_sqrt(float x, float half) {
+    float result;
+    __asm__("flds %1\n\tfsqrt\n\tfdivrs %2\n\tfstps %0" : "=m"(result) : "m"(x), "m"(half) : "st");
+    return result;
+}
+inline float platform_x87_sqrt_sub_mul(float one, float x, float half) {
+    float result;
+    __asm__("flds %1\n\tfsubs %2\n\tfmuls %3\n\tfsqrt\n\tfstps %0" : "=m"(result) : "m"(one), "m"(x), "m"(half) : "st");
+    return result;
+}
 // sqrt(a + b) and sqrt(((a - b) - c) + d) wholly on the x87 (FLD/FADD/FSUB/FSQRT/FSTP,
 // the caller's precision control), stored as float: no MXCSR flags.
 inline float platform_x87_add_sqrt(float a, float b) {
@@ -454,6 +466,8 @@ inline std::int32_t platform_x87_mul_add_ftol(std::int32_t value, float factor, 
     return static_cast<std::int32_t>(static_cast<std::int64_t>(add ? product + static_cast<float>(addend) : product));
 }
 inline float platform_x87_sqrt(float x) { return std::sqrt(x); }
+inline float platform_x87_half_over_sqrt(float x, float half) { return half / std::sqrt(x); }
+inline float platform_x87_sqrt_sub_mul(float one, float x, float half) { return std::sqrt((one - x) * half); }
 inline float platform_x87_add_sqrt(float a, float b) { return std::sqrt(a + b); }
 inline float platform_x87_sub_sub_add_sqrt(float a, float b, float c, float d) { return std::sqrt(((a - b) - c) + d); }
 inline void platform_x87_sin_cos_of_product(float a, float b, float c, float* sine, float* cosine) {

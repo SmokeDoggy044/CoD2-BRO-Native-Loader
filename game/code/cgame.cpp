@@ -3,7 +3,9 @@
 #include <cstdarg>
 #include <cstring>
 
+#include "qcommon.h"
 #include "title_data.h"
+#include "tr_main.h"
 
 namespace game {
 
@@ -270,6 +272,249 @@ void XB_CDECL CG_BuildSolidList() {
         ++found;
     }
     solid_count = found;
+}
+
+void XB_CDECL CG_Fade_f() {
+    // Q3's "fade r g b a seconds": the colour words are parsed and dropped.
+    if (title_global<uint32_t>(0x00934248) < 6) return;  // cmd_argc
+    const auto atol = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81);
+    for (uint32_t arg = 1; arg < 4; ++arg) atol(CG_Argv(arg));
+    const int32_t alpha = atol(CG_Argv(4));
+    const int32_t duration = atol(CG_Argv(5)) * 1000;
+    const int32_t time = cg_time();
+    const float value = static_cast<float>(alpha) * title_global<float>(0x0083eb30);
+    title_global<int32_t>(0x009730c4) = duration;
+    title_global<float>(0x009730b8) = value;
+    title_global<int32_t>(0x009730c0) = time;
+    if (static_cast<int32_t>(static_cast<uint32_t>(duration) + static_cast<uint32_t>(time)) <= time)
+        title_global<float>(0x009730bc) = value;
+}
+
+void XB_CDECL CG_DrawFlashFade() {
+    const int32_t time = cg_time();
+    int32_t& last = title_global<int32_t>(0x0098ad54);
+    if (last > time) last = 0;
+    const int32_t duration = title_global<int32_t>(0x009730c4);
+    const float target = title_global<float>(0x009730b8);
+    float& current = title_global<float>(0x009730bc);
+    if (title_global<int32_t>(0x009730c0) + duration < time) {
+        current = target;
+    } else if (!(current == target)) {  // unordered goes on
+        const int32_t elapsed = time - last;
+        last = time;
+        if (elapsed < 500 && elapsed > 0) {
+            const float step = static_cast<float>(elapsed) / static_cast<float>(duration);
+            if (current > target) {
+                current = current - step;
+                if (target > current) current = target;
+            } else {
+                current = step + current;
+                if (current > target) current = target;
+            }
+        }
+    }
+    if (!platform_x87_greater(current, 0.0f)) return;
+    const float color[4] = {0.0f, 0.0f, 0.0f, current};
+    const auto set_color = title_function<void XB_CDECL(const float*)>(title_global<uint32_t>(0x0092852c));
+    set_color(color);
+    draw_stretch_pic(0.0f, 0.0f, title_global<float>(0x0083ec0c), title_global<float>(0x0083ec08), 0.0f, 0.0f, 0.0f,
+                     1.0f, title_global<uint32_t>(0x00975c3c));  // 640x480, white
+    set_color(nullptr);
+}
+
+namespace {
+
+// angle (degrees) * pi * (1 / 180) through FastSinCos.
+void sin_cos_degrees(float angle, float* sine, float* cosine) {
+    angle = angle * title_global<float>(0x0083ed00);
+    angle = angle * title_global<float>(0x0083ecfc);
+    FastSinCos(sine, 0, cosine, angle);
+}
+
+using DrawQuad = void XB_CDECL(const float*, const float*, uint32_t);
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CG_DrawRotatedPic_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n" PLATFORM_ASM_CALL(CG_DrawRotatedPic) "addl $24, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawRotatedPic(float x, float y, float w, float h, uint32_t shader, float angle) {
+    float sine, cosine;
+    sin_cos_degrees(angle, &sine, &cosine);
+    const float xs = title_global<float>(0x009758b8);  // cgs.screenXScale
+    const float ys = title_global<float>(0x009758bc);
+    const float half = title_global<float>(0x0083eb24);
+    const float one = title_global<float>(0x0083eb20);
+    const float minus_one = title_global<float>(0x0083eb34);
+    const float hw = xs * w * half;
+    const float cx = xs * x + hw;
+    const float hh = ys * h * half;
+    const float cy = ys * y + hh;
+    // The corners (-1,-1), (1,-1), (1,1), (-1,1) of the half extents, rotated.
+    const float ws = hw * sine, wc = hw * cosine, hs = hh * sine, hc = hh * cosine;
+    const float left = cx - wc * one, right = wc + cx;
+    const float ws_neg = ws * minus_one, hc_neg = hc * minus_one, hs_neg = hs * minus_one;
+    const float verts[8] = {left - ws_neg,  (hs_neg + hc_neg) + cy, right - ws_neg, (hs + hc_neg) + cy,
+                            right - ws,     (hc + hs) + cy,         left - ws,      (hc + hs_neg) + cy};
+    title_function<DrawQuad>(title_global<uint32_t>(0x0092853c))(verts, &title_global<float>(0x00839a3c), shader);
+}
+
+PLATFORM_ASM_ENTRY(CG_DrawRotatedQuadPic_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %esi\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n" PLATFORM_ASM_CALL(CG_DrawRotatedQuadPic) "addl $24, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawRotatedQuadPic(float x, float y, const float* st, uint32_t shader, const float* points,
+                                    float angle) {
+    float sine, cosine;
+    sin_cos_degrees(angle, &sine, &cosine);
+    const float xs = title_global<float>(0x009758b8);
+    const float ys = title_global<float>(0x009758bc);
+    const float xsin = xs * sine, ysin = ys * sine, xcos = xs * cosine, ycos = ys * cosine;
+    const float ox = xs * x, oy = ys * y;
+    // The four points rotated (operand order as the original's, first point apart).
+    float verts[8];
+    verts[0] = (points[0] * xcos + ox) - xsin * points[1];
+    verts[1] = (points[0] * ysin + ycos * points[1]) + oy;
+    for (uint32_t i = 2; i < 8; i += 2) {
+        verts[i] = (points[i] * xcos + ox) - points[i + 1] * xsin;
+        verts[i + 1] = (points[i + 1] * ycos + points[i] * ysin) + oy;
+    }
+    title_function<DrawQuad>(title_global<uint32_t>(0x0092853c))(verts, st, shader);
+}
+
+PLATFORM_ASM_ENTRY(CG_DrawTextScaled_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm1, (%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n" PLATFORM_ASM_CALL(CG_DrawTextScaled) "addl $36, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawTextScaled(float x, float y, const char* text, float width, uint32_t arg4, uint32_t style,
+                                uint32_t screen_coords, const float* color, float scale) {
+    const float one = title_global<float>(0x0083eb20);
+    const float white[4] = {one, one, one, one};
+    y = scale * title_global<float>(0x0083ebc0) + y;  // 0.8
+    float text_scale = scale * title_global<float>(0x0083ebbc);  // 1 / 48
+    if (!screen_coords) {
+        const float inv_x = one / title_global<float>(0x009758b8);
+        const float inv_y = one / title_global<float>(0x009758bc);
+        x = inv_x * x;
+        width = inv_x * width;
+        y = inv_y * y;
+        text_scale = inv_y * text_scale;
+    }
+    if (!color) color = white;
+    using Draw = void XB_CDECL(float, float, uint32_t, float, const float*, const char*, float, uint32_t, uint32_t);
+    title_function<Draw>(title_global<uint32_t>(0x00928578))(x, y, 5, text_scale, color, text, width, arg4,
+                                                             style ? 3 : 0);
+}
+
+void XB_CDECL CG_DrawCenterString() {
+    int32_t& start_time = title_global<int32_t>(0x00972c70);  // cg.centerPrintTime
+    if (!start_time) return;
+    const int32_t total = static_cast<int32_t>(title_global<float>(0x00949a10) * title_global<float>(0x0083eb9c));
+    const int32_t elapsed = cg_time() - start_time;
+    if (elapsed >= total) {
+        start_time = 0;
+        title_global<int32_t>(0x00972e80) = 0;
+        return;
+    }
+    // CG_FadeColor inlined.
+    const float one = title_global<float>(0x0083eb20);
+    const int32_t left = total - elapsed;
+    const float fade = left < 100 ? static_cast<float>(left) * title_global<float>(0x0083eb94) : one;
+    float* color = &title_global<float>(0x0098ad68);
+    color[2] = one;
+    color[1] = one;
+    color[0] = one;
+    color[3] = title_global<float>(0x0094b5d8) * fade;
+    const auto set_color = title_function<void XB_CDECL(const float*)>(title_global<uint32_t>(0x0092852c));
+    set_color(color);
+    const float scale = static_cast<float>(title_global<int32_t>(0x00972c74)) * title_global<float>(0x0083f004);
+    const int32_t height = title_function<int32_t XB_CDECL(uint32_t, float)>(title_global<uint32_t>(0x00928574))(0, scale);
+    const float line_height = static_cast<float>(height);
+    float y = static_cast<float>(title_global<int32_t>(0x00972c78)) -
+              line_height * title_global<float>(0x0083eb24) * static_cast<float>(title_global<int32_t>(0x00972e7c));
+    y = y - line_height;
+    const float advance = line_height * title_global<float>(0x00830f60);  // 1.2
+    using Draw = void XB_CDECL(float, float, uint32_t, float, const float*, const char*, uint32_t, uint32_t, uint32_t);
+    const auto draw = title_function<Draw>(title_global<uint32_t>(0x00928578));
+    const char* start = &title_global<char>(0x00972c7c);  // cg.centerPrint
+    for (;;) {
+        // A line ends at the end, a newline or a backslash (strncmp(.., "\\n", 1)); 40 at most.
+        char line[0x400];
+        int32_t length = 0;
+        while (length < 0x28 && start[length] && start[length] != '\n' && start[length] != '\\') {
+            line[length] = start[length];
+            ++length;
+        }
+        line[length] = 0;
+        const int32_t width = RE_TextWidth(line, 0, scale);
+        const float x = (title_global<float>(0x0083ec0c) - static_cast<float>(width)) * title_global<float>(0x0083eb24);
+        draw(x, y, 0, scale, color, line, 0, 0, 3);
+        y = advance + y;
+        // Past the newline, or past "\" and the character after it.
+        for (;;) {
+            if (!*start) {
+                set_color(nullptr);
+                return;
+            }
+            if (*start == '\n') break;
+            if (*start++ == '\\') break;
+        }
+        if (!*start) break;
+        ++start;
+    }
+    set_color(nullptr);
+}
+
+PLATFORM_ASM_ENTRY(CG_ShareWeaponTagBModels_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_ShareWeaponTagBModels) "addl $4, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL CG_ShareWeaponTagBModels(uint8_t* model) {
+    // Tags (+0x10 count, +0x14 12-byte entries, name first) and their models (+0x28 count,
+    // +0x2c): every "tag_b*" tag without a model gets the last "tag_b" tag's. Indexes past a
+    // vector's count read element 0.
+    const auto word = [model](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(model + offset); };
+    const auto tag_name = [&](uint32_t i) {
+        const uint32_t index = i < word(0x10) ? i : 0;
+        return *reinterpret_cast<const char* const*>(word(0x14) + index * 12);
+    };
+    const auto model_slot = [&](uint32_t i) -> uint32_t& {
+        const uint32_t index = i < word(0x28) ? i : 0;
+        return reinterpret_cast<uint32_t*>(word(0x2c))[index];
+    };
+    const char* const tag_b = reinterpret_cast<const char*>(uintptr_t{0x0083898c});
+    uint32_t shared = 0;
+    for (int32_t i = 0; i < static_cast<int32_t>(word(0x10)); ++i)
+        if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(tag_name(i), tag_b))  // __stricmp
+            shared = model_slot(i);
+    if (!shared) return static_cast<int32_t>(word(0x10));
+    for (int32_t i = 0; i < static_cast<int32_t>(word(0x10)); ++i)
+        if (!title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(tag_name(i), tag_b, 5) &&
+            !model_slot(i))
+            model_slot(i) = shared;
+    return static_cast<int32_t>(word(0x10));
 }
 
 }  // namespace game

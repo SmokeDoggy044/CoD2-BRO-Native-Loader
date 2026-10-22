@@ -4,6 +4,7 @@
 #include "cgame.h"
 #include "dobj.h"
 #include "fx.h"
+#include "nal_math.h"
 #include "ngl.h"
 #include "param_set.h"
 #include "qcommon.h"
@@ -32,6 +33,12 @@ const Function kFunctions[] = {
     {"ShakeRumbleDesc_Destroy", 0x00014710, 0, code(&ShakeRumbleDesc_Destroy), 0, Result::None, Status::Compare},
     {"nglAllocSceneMemory", 0x0001b930, 0, code(&nglAllocSceneMemory), 8, Result::Eax, Status::Compare},
     {"SoundRef_GetParam0", 0x0001c340, 0, code(&SoundRef_GetParam0), 0, Result::St0, Status::Compare},
+    {"Quat_Slerp", 0x0001c3b0, 0, code(&Quat_Slerp), 16, Result::Eax, Status::Compare},
+    {"Mat44_MultiplyInPlace", 0x0001c5b0, 0, code(&Mat44_MultiplyInPlace), 8, Result::Eax, Status::Compare},
+    {"Quat_ToMat33", 0x0001c890, 0, code(&Quat_ToMat33), 4, Result::Eax, Status::Compare},
+    {"Vec3_MulMat44", 0x0001c9f0, 0, code(&Vec3_MulMat44), 12, Result::Eax, Status::Compare},
+    {"QuatTrans_Concat", 0x0001cae0, 0, code(&QuatTrans_Concat), 12, Result::Eax, Status::Compare},
+    {"QuatTrans_ToMat44", 0x0001cbe0, 0, code(&QuatTrans_ToMat44), 0, Result::None, Status::Compare},
     {"DObj_SetLod", 0x0001d0f0, 0, code(&DObj_SetLod_entry), 0, Result::None, Status::Compare},
     {"nglMeshBuilder_AddIndexRun", 0x0001d230, 0, code(&nglMeshBuilder_AddIndexRun), 0, Result::Eax, Status::Compare},
     {"nglMeshBuilder_AddStrip", 0x0001d280, 0, code(&nglMeshBuilder_AddStrip), 8, Result::None, Status::Compare},
@@ -52,6 +59,7 @@ const Function kFunctions[] = {
     {"ParamSet_AddString", 0x00024630, 0, code(&ParamSet_AddString), 12, Result::None, Status::Compare},
     {"ParamSet_AddValue", 0x00024730, 0, code(&ParamSet_AddValue), 12, Result::None, Status::Compare},
     {"ParamChoice_GetValue", 0x00024940, 0, code(&ParamChoice_GetValue_entry), 0, Result::Eax, Status::Compare},
+    {"Quat_FromAxis3", 0x000262a0, 0, code(&Quat_FromAxis3), 8, Result::Eax, Status::Compare},
     {"XModelParts_FindBoneByName", 0x000291d0, 0, code(&XModelParts_FindBoneByName_entry), 0, Result::Eax, Status::Compare},
     {"nglSphereInFrustum", 0x00029200, 0, code(&nglSphereInFrustum), 8, Result::Al, Status::Compare},
     {"XModelParts_FindBone", 0x00029170, 0, code(&XModelParts_FindBone_entry), 0, Result::Eax, Status::Compare},
@@ -497,6 +505,7 @@ const Function kFunctions[] = {
     {"nglDebugShader_GetName", 0x0007b780, 0, code(&nglDebugShader_GetName), 4, Result::Eax, Status::Compare},
     {"WaitTilOutputInst1_str_VFunc2", 0x0007be10, 0, code(&WaitTilOutputInst1_str_VFunc2), 0, Result::Eax, Status::Compare},
     {"nglShader_Nop", 0x00080060, 0, code(&nglShader_Nop), 4, Result::None, Status::Compare},
+    {"Mat44_InverseRigid", 0x00086ae0, 0, code(&Mat44_InverseRigid), 4, Result::Eax, Status::Compare},
     {"Mem_AlignedAlloc", 0x00093950, 0, code(&Mem_AlignedAlloc), 12, Result::Eax, Status::Compare},
     {"nglGetFreeMemory", 0x000939f0, 0, code(&nglGetFreeMemory), 0, Result::Eax, Status::Compare},
     {"nglFreeFileBuffer", 0x00093b90, 0, code(&nglFreeFileBuffer), 4, Result::None, Status::Compare},
@@ -627,6 +636,7 @@ const Function kFunctions[] = {
     {"CG_StretchPicRotate", 0x002757d0, 0, code(&CG_StretchPicRotate), 36, Result::None, Status::Compare},
     {"CG_InitLocalEntities", 0x00275a30, 0, code(&CG_InitLocalEntities), 0, Result::None, Status::Compare},
     {"CG_FadeColor", 0x00275e50, 0, code(&CG_FadeColor), 0, Result::Eax, Status::Compare},
+    {"CG_DrawTextScaled", 0x00276060, 0, code(&CG_DrawTextScaled_entry), 20, Result::None, Status::Compare},
     {"CG_SetFade", 0x002765b0, 0, code(&CG_SetFade), 4, Result::None, Status::Compare},
     {"CG_GetAdsOverlayFraction", 0x002765f0, 0, code(&CG_GetAdsOverlayFraction), 0, Result::Eax, Status::Compare},
     {"CG_ScoresUp_f", 0x002766a0, 0, code(&CG_ScoresUp_f), 0, Result::None, Status::Compare},
@@ -641,6 +651,8 @@ const Function kFunctions[] = {
     {"CG_Printf", 0x00277660, 0, code(&CG_Printf), 8, Result::None, Status::Compare},
     {"CG_DrawPic", 0x002779e0, 0, code(&CG_DrawPic), 16, Result::None, Status::Compare},
     {"CG_DrawShellShockBlur", 0x00277c50, 0, code(&CG_DrawShellShockBlur), 0, Result::None, Status::Compare},
+    {"CG_DrawFlashFade", 0x00278150, 0, code(&CG_DrawFlashFade), 0, Result::None, Status::Compare},
+    {"CG_ShareWeaponTagBModels", 0x00278d80, 0, code(&CG_ShareWeaponTagBModels_entry), 0, Result::Eax, Status::Compare},
     {"WeaponModel_GetDObjHandle", 0x00278e30, 0, code(&WeaponModel_GetDObjHandle), 0, Result::None, Status::Compare},
     {"CG_StepOffset", 0x00278e50, 0, code(&CG_StepOffset), 0, Result::None, Status::Compare},
     {"CG_ShellShockScreenParams", 0x00278ed0, 0, code(&CG_ShellShockScreenParams), 4, Result::None, Status::Compare},
@@ -648,10 +660,14 @@ const Function kFunctions[] = {
     {"CG_BuildSolidList", 0x00279380, 0, code(&CG_BuildSolidList), 0, Result::None, Status::Compare},
     {"CG_CheckAmmo", 0x002793f0, 0, code(&CG_CheckAmmo), 0, Result::None, Status::Compare},
     {"CG_Argv", 0x002794b0, 0, code(&CG_Argv), 0, Result::Eax, Status::Compare},
+    {"CG_Fade_f", 0x00279e50, 0, code(&CG_Fade_f), 0, Result::None, Status::Compare},
     {"CG_PrecacheConfigStringAsset", 0x0027ad40, 0, code(&CG_PrecacheConfigStringAsset), 0, Result::None, Status::Compare},
     {"CG_CalcCubemapViewValues", 0x0027b3c0, 0, code(&CG_CalcCubemapViewValues), 0, Result::None, Status::Compare},
     {"CG_PrecacheConfigStringAssets", 0x0027b9a0, 0, code(&CG_PrecacheConfigStringAssets), 0, Result::None, Status::Compare},
+    {"CG_DrawRotatedQuadPic", 0x0027cdc0, 0, code(&CG_DrawRotatedQuadPic_entry), 16, Result::None, Status::Compare},
+    {"CG_DrawRotatedPic", 0x0027cf40, 0, code(&CG_DrawRotatedPic_entry), 20, Result::None, Status::Compare},
     {"CG_CalcCameraShakeSlot", 0x0027d2f0, 0, code(&CG_CalcCameraShakeSlot), 0, Result::Eax, Status::Compare},
+    {"CG_DrawCenterString", 0x0027d450, 0, code(&CG_DrawCenterString), 0, Result::None, Status::Compare},
     {"CG_Tracer", 0x0027d850, 0, code(&CG_Tracer), 4, Result::None, Status::Compare},
     {"CG_ProjectViewDirToScreen", 0x0027ff20, 0, code(&CG_ProjectViewDirToScreen_entry), 0, Result::None, Status::Compare},
     {"DObj_GetOwnerPlacement", 0x00284a80, 0, code(&DObj_GetOwnerPlacement_entry), 0, Result::None, Status::Compare},

@@ -7,6 +7,7 @@ set(game_code_sources
     dobj.cpp
     functions.cpp
     fx.cpp
+    nal_math.cpp
     ngl.cpp
     param_set.cpp
     qcommon.cpp
