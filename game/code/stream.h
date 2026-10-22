@@ -147,6 +147,13 @@ uint32_t XB_CDECL Stream_LoadStb(char* name, uint8_t* data, uint32_t size, uint3
 uint32_t XB_CDECL Stream_LoadDb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint32_t XB_CDECL Stream_LoadIb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint32_t XB_CDECL Stream_LoadBmips(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+// 0x00290730 Xmb: pack relocated, registered (0x0023cfb0, EBX = data), stored in
+// 0x0095f6ac +4 + zone * 4. 0x002906f0 Lpth: +0x10..+0x1c made absolute; type 9 = the path
+// nodes (g_pathNodeBlocks +0x194, Path_InitAfterLoad). 0x002907f0 Xbskel: 0x0008e130(data)
+// inside the memory context (as Stream_LoadTexture).
+uint32_t XB_CDECL Stream_LoadXmb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadLpth(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadXbskel(char* name, uint8_t* data, uint32_t size, uint32_t context_id);
 // 0x00025330 (was FUN_00025330; src in EAX, dst in ESI, flag on the stack; returns dst):
 // FixedStr_BaseName for 0x200-byte fixed strings (u16 length at +0x1fe).
 extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr512_BaseName(const char* src, char* dst, uint32_t flag);

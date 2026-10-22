@@ -540,6 +540,64 @@ uint32_t XB_CDECL Stream_LoadBmips(char*, uint8_t* data, uint32_t, uint32_t zone
     return zone;
 }
 
+namespace {
+
+// 0x0023cfb0: data in EBX, the zone on the stack (stdcall).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Xmb_Register_call(uint8_t* data, uint32_t zone);
+PLATFORM_ASM_ENTRY(Xmb_Register_call,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x0023cfb0, %eax\n"
+                   "call *%eax\n"
+                   "popl %ebx\n"
+                   "ret")
+
+// Path_InitAfterLoad (0x002c0b80): the path node blocks in ESI.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_InitAfterLoad_call(uint32_t blocks);
+PLATFORM_ASM_ENTRY(Path_InitAfterLoad_call,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "movl $0x002c0b80, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+}  // namespace
+
+uint32_t XB_CDECL Stream_LoadXmb(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    relocate_pack(data, 0x18);
+    const uint32_t models = title_global<uint32_t>(0x0095f6ac);
+    const uint32_t result = Xmb_Register_call(data, zone);
+    title_global<uint32_t>(models + 4 + zone * 4) = address_of(data);
+    return result;
+}
+
+uint32_t XB_CDECL Stream_LoadLpth(char*, uint8_t* data, uint32_t, uint32_t) {
+    auto* words = reinterpret_cast<uint32_t*>(data);
+    for (int i = 4; i < 8; ++i) words[i] += address_of(data);
+    if (words[0] != 9) return address_of(data);
+    const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);  // g_pathNodeBlocks
+    title_global<uint32_t>(blocks + 0x194) = address_of(data);
+    return Path_InitAfterLoad_call(blocks);
+}
+
+uint32_t XB_CDECL Stream_LoadXbskel(char*, uint8_t* data, uint32_t, uint32_t context_id) {
+    uint8_t& loading = title_global<uint8_t>(0x0095f5d0);
+    uint8_t saved = 0;
+    if (context_id != 0xffffffff) {
+        saved = loading;
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        loading = 1;
+        MemContext_Push(global_context(), context_id);
+    }
+    const uint32_t result = title_function<uint32_t XB_CDECL(uint8_t*)>(0x0008e130)(data);
+    if (context_id == 0xffffffff) return result;
+    loading = saved;
+    title_global<uint8_t>(0x0095f5d1) = 0;
+    return MemContext_Pop(global_context());
+}
+
 PLATFORM_ASM_ENTRY(Stream_LoadTexture_entry,
                    "pushl 16(%esp)\n"
                    "pushl 16(%esp)\n"
