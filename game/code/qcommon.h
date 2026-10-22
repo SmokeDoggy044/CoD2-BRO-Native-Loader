@@ -28,4 +28,14 @@ void XB_CDECL Q_strncpyLen(char* dst, int32_t* length, int32_t max, const char* 
 void XB_CDECL Q_strncpySubLen(char* dst, int32_t* length, const char* src, int32_t start, int32_t count,
                               int32_t size);
 
+// 0x002a2af0 (right in EDI, up in ESI; angles, forward on the stack): Q3's AngleVectors with
+// FastSinCos (x87 degree-to-radian products); the original keeps the pitch and roll sines in
+// its two argument slots, so the C version gets their address.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnglesToAxis(uint32_t* args, float* right, float* up);
+extern "C" void AnglesToAxis_entry(void);
+
+// 0x00295060 (a in EAX, out in EDX, b in ECX): a 4x3 matrix (rows of 3 floats, translation
+// last) times a 4x4 one into a 4x4 with last column {0, 0, 0, 1}.
+void XB_REGS3 XB_CDECL MatrixMultiply43To44(const float* a, float* out, const float* b);
+
 }  // namespace game

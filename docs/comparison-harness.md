@@ -11,7 +11,9 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
    `#if UINTPTR_MAX == 0xFFFFFFFF`).
 2. Add it to `kFunctions` in `game/code/functions.cpp`: name, default.xbe address,
    codmp_xboxf.xbe address (0 until matched), stack argument bytes, result kind
-   (`None`, `Al`, `Eax`, `EdxEax`, `St0`) and `Status::Compare`.
+   (`None`, `Al`, `Eax`, `EdxEax`, `St0`, `Xmm0`) and `Status::Compare`. `Xmm0` is for LTCG
+   functions that return a float in XMM0: the C version returns it on the x87 and an asm
+   entry moves it (FX_RandomInOctaves_entry in game/code/fx.cpp).
 3. Play or run unattended with `--compare` (`--level N` gets there fastest; the PC
    features are off, see below). Sampled
    calls are tested: the first 16 of each function, then every 64th. A function with
@@ -178,7 +180,7 @@ PIPE_BUF, so static debug buffers in host memory crowd them out: keep debug data
 
 ## What is compared
 
-- Registers: the result (by kind; `Al` = low byte only), EBX/ESI/EDI/EBP, ESP after
+- Registers: the result (by kind; `Al` = low byte only, `Xmm0` = XMM0's low lane), EBX/ESI/EDI/EBP, ESP after
   the return (a wrong calling convention or pop size), EFLAGS.DF, x87 control word,
   MXCSR, x87 stack depth and its values.
 - Memory: every byte of every page either side wrote, except the stack below the

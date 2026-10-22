@@ -2,6 +2,7 @@
 
 // The effect pool (FX_*): effects of 0x1c bytes, handed out from a free list.
 
+#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
 
@@ -83,8 +84,8 @@ extern "C" void FX_FreeEffectsById_entry(void);
 // then handed to 0x0009b770 on the effect system (0x00909994) + 8.
 void XB_CDECL FX_StopEffect(uint8_t* effect, uint32_t immediate);
 // 0x00241200 (origin in ESI): FX_SpawnEffect (0x0023c040) of `effect` with an identity
-// matrix moved to the origin.
-extern "C" PLATFORM_HIDDEN void XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin);
+// matrix moved to the origin; returns FX_SpawnEffect's result.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin);
 extern "C" void FX_PlayEffectAt_entry(void);
 
 // 0x0023c300: the draw list (0x00988804) rebuilt from the effects (0x00988ce8) that
@@ -498,5 +499,147 @@ uintptr_t XB_THISCALL FxEmitter_AddParticle(uint8_t* emitter, const uint8_t* par
 // each filled from the 16 generators (self +0xc, vtable slot 1, called in a fixed order) for
 // the fields the emitter flags (+0x84) enable, then FxEmitter_AddParticle.
 void XB_THISCALL apsActionEmitter_Apply(uint8_t* self, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time, float delta);
+
+// 0x000241d0: the entity of a component's handle (+0xc; G_EntHandleToEnt's table 0x0097a968).
+uint8_t* XB_REGS1 XB_CDECL FxComponent_GetEntity(const uint8_t* component);
+// 0x000244c0: the DObj of a handle (table 0x00981418, 0x540 slots {object, generation}).
+uint8_t* XB_REGS1 XB_CDECL DObjHandle_Resolve(const uint32_t* handle);
+// 0x00278e30 (out in EAX, index in ECX): the DObj handle (+0x8c) of weapon model `index`
+// (0x00975fa8, 0xc4 each; 0 without a model).
+void XB_REGS3 XB_CDECL WeaponModel_GetDObjHandle(uint32_t* out, uint32_t unused_edx, uint32_t index);
+// 0x0029af30 (out in EAX, component in ECX): the component entity's origin (+0x140, 16 bytes).
+void XB_REGS3 XB_CDECL FxComponent_GetEntityOrigin(uint32_t* out, uint32_t unused_edx, const uint8_t* component);
+// 0x0029b0f0 (out in EAX, component in EDX): the placement's (+0x14) translation row (+0x30),
+// else the entity origin {x, y, z, x}.
+void XB_REGS2 XB_CDECL FxComponent_GetPosition(float* out, const uint8_t* component);
+// 0x00298ba0 (manager in EDX, scale in XMM0, id on the stack, ret 4): the scale (+0x10) of the
+// rumble `id` in either of the manager's lists (+8, +0x18; their last node is never checked).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Rumble_SetScale(uint8_t* manager, uint32_t id, float scale);
+extern "C" void Rumble_SetScale_entry(void);
+// 0x002ae740 (shake in ECX, rotation in XMM0, position on the stack, ret 4): non-zero amplitudes
+// stored (rotation +0x18/+0x28, position +0x14/+0x24).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CameraShake_SetAmplitude(uint8_t* shake, float rotation, float position);
+extern "C" void CameraShake_SetAmplitude_entry(void);
+// 0x002a7f70 (manager in EDX): the first of 5 free shake slots (+0xc, 0x40 each, in use +0x3c)
+// cleared and marked in use; null when all are taken.
+uint8_t* XB_REGS2 XB_CDECL CameraShake_AllocSlot(uint32_t unused_eax, uint8_t* manager);
+
+// 0x002990d0 (choice in EAX): bits 0-4 = parameters 0xd, 0xe, 0x12, 0x16, 0x20 selected and non-zero.
+uint32_t XB_REGS1 XB_CDECL ParamChoice_GetFlags(const uint8_t* choice);
+// 0x00298f50: one choice of a list {count, choice*[count]} picked at random by weight (parameter
+// 0x21, default 1; the particle code's rand 0x008d5a70, 15 bits); the last one when nothing hits.
+const uint8_t* XB_CDECL ParamChoiceList_PickRandom(const uint32_t* list);
+
+// 0x0029b320: a list {count, choice*[64]} reduced to one choice per group (parameter 0x22, a
+// name compared with _stricmp): ungrouped choices first, then per group in list order one picked
+// by ParamChoiceList_PickRandom. Unchanged when no choice has a group.
+void XB_CDECL ParamChoiceList_PickPerGroup(uint32_t* list);
+
+// 0x0029a430 (forward in EDI, right out in ESI, up out in EBX): right = {f.z, -f.x, f.y} made
+// perpendicular to forward and normalized (unless zero), up = right x forward.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_AxesFromForward(const float* forward, float* right, float* up);
+extern "C" void FX_AxesFromForward_entry(void);
+// 0x002969a0: a random value between value / 2^octaves and value * 2^octaves (the particle
+// code's rand 0x008d5a70).
+// The result is in XMM0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL FX_RandomInOctaves(float value, float* octaves);
+extern "C" void FX_RandomInOctaves_entry(void);
+// 0x002ae780 (type in EAX, slot in ESI, duration on the stack, ret 4): a shake slot from the
+// shake type's row (0x008d5138, 0x20 each, int16 type first): two random phases (rand % 16384),
+// amplitudes from the row (+8, +0xc), duration = the argument unless 0, else the row's (+4).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CameraShake_InitSlot(int32_t type, uint8_t* slot, float duration);
+extern "C" void CameraShake_InitSlot_entry(void);
+
+// 0x00023640 (table in ESI, name on the stack, ret 4): the trigger entry (+0x20, 0x34 bytes each,
+// count +0x24) whose name (first) equals `name` (_stricmp), or null.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL FXTriggerTable_Find(const uint8_t* table, const char* name);
+extern "C" void FXTriggerTable_Find_entry(void);
+// 0x000244f0 (out in ESI; format, ... on the stack): vsprintf into a 32-byte string whose last
+// byte holds the length; returns out.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr32_Format(char* out, const char* format, va_list args);
+extern "C" void FixedStr32_Format_entry(void);
+
+// 0x0029e1c0 (list in EDI; zones, prefix, suffix on the stack, ret 12): the "TRIGGERS" entries
+// (FXTriggerTable_Find) of the trigger tables named `suffix` in the two global zone sets
+// (0x0095f638 +0x2c, +0x34; the second only when it is another table) and, with a prefix, of
+// "prefix-suffix" in `zones`, appended to a list {count, entries[16]}.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_CollectTriggers(uint32_t* list, uint32_t zones, const char* prefix, const char* suffix);
+extern "C" void FX_CollectTriggers_entry(void);
+
+// 0x002c94d0 (origin in EBX or null; slot, falloff on the stack, ret 8): the slot's distance
+// scale (+0x2c) = base (0x00964b80) / max(camera distance * falloff, 2 * base) (Newton-refined
+// RSQRTSS), base / (2 * base) without an origin, base when the range is 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CameraShake_SetDistanceScale(const float* origin, uint8_t* slot, float falloff);
+extern "C" void CameraShake_SetDistanceScale_entry(void);
+// 0x002c9620: a camera shake of `type` (row of 0x008d5138) started unless the type's cooldown
+// (+0x18, set when not -1) since its last start (+0x1c, cg_time / 1000) has not passed: a slot
+// (CameraShake_AllocSlot) with the strength (1 for 0 in distance-scaled types, row +2 == 0) and
+// duration (row +4 unless given), scaled by the manager's +4 unless the player (0x0095f534 +4)
+// lacks flag 0x20 and the manager's +8 is set; CameraShake_InitSlot. Null when not started.
+uint8_t* XB_STDCALL CameraShake_Start(uint8_t* manager, int32_t type, const float* origin, float strength, float duration, float cooldown);
+
+// 0x002a22d0 (component in ESI; result in XMM0): 1 inside the component's near range (+0x44),
+// fading to 0 at the far range (+0x48), both against the squared distance from the player
+// (0x0095f534 +4, origin +0x140) to the component's entity; 1 without an entity or a valid range.
+extern "C" PLATFORM_HIDDEN float XB_CDECL FxShakeRumble_GetFalloff(const uint8_t* component);
+extern "C" void FxShakeRumble_GetFalloff_entry(void);
+
+struct ScriptString;
+// 0x00024110 (record in ESI, fade out in XMM1; 7 stack words, ret 0x1c): a shake/rumble record
+// {links, id +8, -start +0xc, +0x10, strength +0x14, hold +0x18, end of fade-out +0x1c, end
+// +0x20, fade out +0x24, name +0x28, named +0x2c}; the name is passed by value and released.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ShakeRumbleRecord_Init(uint8_t* record, float fade_out, uint32_t id, float start,
+                                                                    float a3, float strength, float hold, float fade_in,
+                                                                    ScriptString* name);
+extern "C" void ShakeRumbleRecord_Init_entry(void);
+// 0x0029b1f0: the two channels of a descriptor (+4, 0x20 each; strength > 0) queued as 0x30-byte
+// records (the small heap 0x0095f5c8) on the manager's lists under the manager's next id;
+// *out_id = the id, returns out_id.
+uint32_t* XB_THISCALL ShakeRumble_Start(const uint8_t* desc, uint8_t* manager, uint32_t* out_id, float a3);
+
+// 0x000146a0 (desc in ESI): a shake/rumble descriptor cleared: both channel names empty,
+// strengths and fade-outs 1, the rest 0. Returns desc.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ShakeRumbleDesc_Init(uint8_t* desc);
+extern "C" void ShakeRumbleDesc_Init_entry(void);
+// 0x00014710 (desc in EAX): both channel names released (second first).
+void XB_REGS1 XB_CDECL ShakeRumbleDesc_Destroy(uint8_t* desc);
+// 0x002a3570 (vtable 0x008376d0 slot 1): a shake/rumble component's update. After its delay
+// (+0x20; age +0x24): once (flag 2 of +0x2a) a camera shake (amplitudes +0x30/+0x34 scaled by
+// FxShakeRumble_GetFalloff, duration +0x2c, cooldown +0x38; kept in +0x64) and with +0x59 a
+// rumble (strength +0x3c clamped to 0..1, channel 0 on with +0x58; id kept in +0x60); later
+// calls rescale both by the falloff.
+void XB_THISCALL FxShakeRumbleComponent_Update(uint8_t* component, float delta);
+
+// 0x00299280 (zones in EAX: 99 tables at +4; key on the stack, ret 4): the first zone table
+// whose map (+8, UintMap_Find; lists +0x14, count +0x10) has `key`: its list's next item
+// round-robin ({count, items, position}; the only item for one), 0 for an empty list.
+uint32_t XB_REGS1 XB_STDCALL ZoneAliasList_NextVariant(const uint32_t* zones, uint32_t key);
+
+// 0x0029ff50 (translation in EAX or null = {0, 0, 0, 1}, angles in ECX (radians), out on the
+// stack): a 4x4 rotation from the angles (the title CRT's __CIsin/__CIcos) with the translation
+// as row 3; each row's 4th lane repeats its first.
+void XB_REGS3 XB_CDECL FX_AnglesToMatrix(const float* translation, uint32_t unused_edx, const float* angles, float* out);
+
+// 0x0023d5a0 (axis[3] in EAX, origin in ECX, effect on the stack): FX_SpawnEffect with the
+// matrix {axis rows, origin} (4th lanes repeat the first), no entity, bone -1.
+uint32_t XB_REGS3 XB_CDECL FX_PlayEffectWithAxis(const float* axis, uint32_t unused_edx, const float* origin, uint32_t effect);
+// 0x0023e620 (direction in EAX; effect, origin on the stack): FX_PlayEffectWithAxis with the
+// axes FX_AxesFromForward builds around the direction (forward = axis 2).
+uint32_t XB_REGS1 XB_CDECL FX_PlayEffectAlongDir(const float* direction, uint32_t effect, const float* origin);
+
+// 0x002a46d0 (vtable 0x008375e0 slot 1): a particle component's update. Once past its delay
+// (+0x20; age +0x24) it spawns its effect from the parameters FX_AddParticleComponents left in
+// globals (0x009717f4-0x00971838): bolted to a tag of the entity's or its weapon model's DObj,
+// at a matrix (+0x14), at the entity's angles or an identity (flags 0x80/0x200), along a
+// placement's direction (0x40, 0x100), or at the entity origin; the effect in +0x2c.
+void XB_THISCALL FxParticleComponent_Update(uint8_t* component, float delta);
+
+// 0x002a4bc0 (stdcall; the first argument unread): for each "LIGHT.FX" trigger of the source's
+// zones (FX_CollectTriggers) a ParamSet with the source's overrides, resolved (vtable slot 1)
+// and reduced per group; every choice with a texture (parameter 0x17) becomes a light component
+// (0x30 bytes, vtable 0x008376fc; delay = parameter 0x10, flags = ParamChoice_GetFlags) with a
+// light (Z_Malloc 0x10, placed by 0x002462b0, added to 0x00988714), appended to out {count,
+// [16]}. Returns the number of components made.
+uint32_t XB_STDCALL FX_AddLightComponents(uint32_t unused, const uint8_t* source, uint32_t* out);
 
 }  // namespace game

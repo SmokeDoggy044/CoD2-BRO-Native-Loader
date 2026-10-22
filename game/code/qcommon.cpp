@@ -1,5 +1,7 @@
 #include "qcommon.h"
 
+#include <cstring>
+
 #include "lanes.h"
 #include "title_data.h"
 
@@ -59,6 +61,59 @@ void XB_CDECL Q_strncpySubLen(char* dst, int32_t* length, const char* src, int32
     for (int32_t i = start; i < end && src[i]; ++i) dst[copied++] = src[i];
     *length = copied;
     dst[copied] = 0;
+}
+
+PLATFORM_ASM_ENTRY(AnglesToAxis_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AnglesToAxis) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL AnglesToAxis(uint32_t* args, float* right, float* up) {
+    // args = the original's argument slots {angles, forward}; it keeps two of its sines there.
+    const float* angles = reinterpret_cast<const float*>(uintptr_t{args[0]});
+    float* forward = reinterpret_cast<float*>(uintptr_t{args[1]});
+    const float to_radians = title_global<float>(0x0083edd8);
+    float yaw_s, yaw_c, pitch_s, pitch_c, roll_s, roll_c;
+    FastSinCos(&yaw_s, 0, &yaw_c, platform_x87_mul(angles[1], to_radians));
+    FastSinCos(&pitch_s, 0, &pitch_c, platform_x87_mul(angles[0], to_radians));
+    forward[1] = pitch_c * yaw_s;
+    forward[0] = pitch_c * yaw_c;
+    forward[2] = 0.0f - pitch_s;
+    FastSinCos(&roll_s, 0, &roll_c, platform_x87_mul(angles[2], to_radians));
+    std::memcpy(&args[0], &pitch_s, 4);
+    std::memcpy(&args[1], &roll_s, 4);
+    const float minus_one = -1.0f;
+    const float rs_ps = roll_s * pitch_s;
+    right[0] = roll_c * yaw_s - rs_ps * yaw_c;
+    right[1] = roll_c * yaw_c * minus_one - rs_ps * yaw_s;
+    right[2] = roll_s * pitch_c * minus_one;
+    const float rc_ps = roll_c * pitch_s;
+    up[0] = rc_ps * yaw_c + roll_s * yaw_s;
+    up[1] = rc_ps * yaw_s - roll_s * yaw_c;
+    up[2] = roll_c * pitch_c;
+}
+
+void XB_REGS3 XB_CDECL MatrixMultiply43To44(const float* a, float* out, const float* b) {
+    // out = a (4x3: rows of 3, translation a[9..11]) applied to b's rotation rows and
+    // translation (b rows of 4); sums in the original's order (ssesym.py).
+    out[0] = ((b[0] * a[0]) + (b[1] * a[3])) + (a[6] * b[2]);
+    out[4] = ((b[5] * a[3]) + (b[4] * a[0])) + (b[6] * a[6]);
+    out[8] = ((b[9] * a[3]) + (b[8] * a[0])) + (b[10] * a[6]);
+    out[1] = ((b[1] * a[4]) + (a[7] * b[2])) + (a[1] * b[0]);
+    out[5] = ((b[6] * a[7]) + (b[5] * a[4])) + (b[4] * a[1]);
+    out[9] = ((b[10] * a[7]) + (b[9] * a[4])) + (b[8] * a[1]);
+    out[2] = ((b[0] * a[2]) + (b[1] * a[5])) + (a[8] * b[2]);
+    out[6] = ((b[6] * a[8]) + (b[5] * a[5])) + (b[4] * a[2]);
+    out[10] = ((b[10] * a[8]) + (b[9] * a[5])) + (b[8] * a[2]);
+    out[3] = 0.0f;
+    out[7] = 0.0f;
+    out[11] = 0.0f;
+    out[12] = (((b[12] * a[0]) + (a[6] * b[14])) + (b[13] * a[3])) + a[9];
+    out[13] = (((a[7] * b[14]) + (a[4] * b[13])) + (a[1] * b[12])) + a[10];
+    out[14] = (((b[12] * a[2]) + (b[14] * a[8])) + (b[13] * a[5])) + a[11];
+    out[15] = 1.0f;
 }
 
 }  // namespace game

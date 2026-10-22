@@ -4331,6 +4331,21 @@ uint8_t* XB_CDECL Map_EmptyKey(int32_t size) {
     return &title_global<uint8_t>(0x0090226c);
 }
 
+uint32_t* XB_STDCALL UintMap_Find(const uint32_t* map, const uint32_t* key) {
+    // {count, entries {key, value}}: an implicit binary tree (children 2i+1 below, 2i+2 above);
+    // an empty-key entry ends the search.
+    uint32_t i = 0;
+    while (i < map[0]) {
+        uint32_t* entries = reinterpret_cast<uint32_t*>(uintptr_t{map[1]});
+        if (entries[i * 2] == *key) return &entries[i * 2 + 1];
+        i = entries[i * 2] >= *key ? i * 2 + 1 : i * 2 + 2;
+        if (i >= map[0]) break;
+        const uint32_t* empty = reinterpret_cast<const uint32_t*>(Map_EmptyKey(8));
+        if (entries[i * 2] == empty[0] && entries[i * 2 + 1] == empty[1]) break;
+    }
+    return nullptr;
+}
+
 int32_t XB_THISCALL nglSkipList_RandomLevel(NglSkipList* self) {
     int32_t level = 0;
     int32_t pair;

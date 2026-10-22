@@ -6,6 +6,7 @@ set(game_code_sources
     functions.cpp
     fx.cpp
     ngl.cpp
+    param_set.cpp
     qcommon.cpp
     script_string.cpp
     shaders.cpp

@@ -719,7 +719,9 @@ uint32_t instruction_length(const uint8_t* code) {
     if (op == 0x0F) {
         const uint8_t op2 = p[1];
         if (op2 == 0xB6 || op2 == 0xB7 || op2 == 0xBE || op2 == 0xBF || op2 == 0xAF || (op2 >= 0x40 && op2 <= 0x4F) ||
-            op2 == 0x10 || op2 == 0x11 || op2 == 0x28 || op2 == 0x29 || op2 == 0x57)
+            op2 == 0x10 || op2 == 0x11 || op2 == 0x28 || op2 == 0x29 || (op2 >= 0x12 && op2 <= 0x17) ||
+            (op2 >= 0x2A && op2 <= 0x2F) || (op2 >= 0x51 && op2 <= 0x5F) || op2 == 0x6E || op2 == 0x6F ||
+            op2 == 0x7E || op2 == 0x7F)  // SSE moves/arithmetic/compares: no immediates
             return prefix + 2 + modrm(p + 2);
     }
     return 0;
@@ -1012,6 +1014,11 @@ long double x87_st(const Context& c, int i) {
     return value;
 }
 uint16_t x87_control(const Context& c) { return static_cast<uint16_t>(c.fx[0] | c.fx[1] << 8); }
+uint32_t xmm0_low(const Context& c) {
+    uint32_t value;
+    std::memcpy(&value, c.fx + 160, 4);
+    return value;
+}
 uint32_t mxcsr(const Context& c) {
     uint32_t value;
     std::memcpy(&value, c.fx + 24, 4);
@@ -1094,6 +1101,9 @@ void compare_registers(const Hook& hook, const Context& entry, const Context& a,
     case Result::EdxEax:
         reg("eax", a.eax, b.eax);
         reg("edx", a.edx, b.edx);
+        break;
+    case Result::Xmm0:
+        reg("xmm0", xmm0_low(a), xmm0_low(b));
         break;
     }
     reg("ebx", a.ebx, b.ebx);

@@ -16,6 +16,7 @@ enum class Result : uint8_t {
     Eax,     // 32-bit value or pointer
     EdxEax,  // 64-bit value
     St0,     // float or double on the x87 stack
+    Xmm0,    // float in XMM0's low lane (LTCG-internal functions; the C version needs an asm entry)
 };
 
 enum class Status : uint8_t {

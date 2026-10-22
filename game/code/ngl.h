@@ -1124,6 +1124,9 @@ void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog
 // 0x00055a60: a static zeroed 0x20-byte key (0x0090226c, cleared on first use) for the
 // map finders; sizes over 0x20 break into a debugger first.
 uint8_t* XB_CDECL Map_EmptyKey(int32_t size);
+// 0x000231f0: the value of `key` in a sorted uint32 map {count, entries {key, value}} (implicit
+// binary tree, empty keys end the search), or null; the zone maps' finder.
+uint32_t* XB_STDCALL UintMap_Find(const uint32_t* map, const uint32_t* key);
 // 0x00064040: a new node's level (as ShaderCache_RandomLevel): one more per zero 2-bit
 // pair, at most 15.
 int32_t XB_THISCALL nglSkipList_RandomLevel(NglSkipList* self);

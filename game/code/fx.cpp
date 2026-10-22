@@ -1,9 +1,14 @@
 #include "fx.h"
 
+#include <cstdarg>
 #include <cstring>
 
+#include "dobj.h"
 #include "lanes.h"
 #include "ngl.h"
+#include "param_set.h"
+#include "qcommon.h"
+#include "script_string.h"
 #include "stream.h"
 #include "title_data.h"
 
@@ -285,7 +290,7 @@ PLATFORM_ASM_ENTRY(FX_PlayEffectAt_entry,
                    "pushl 8(%esp)\n" PLATFORM_ASM_CALL(FX_PlayEffectAt) "addl $8, %esp\n"
                    "ret")
 
-void XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin) {
+uint32_t XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin) {
     alignas(16) float matrix[16];
     title_function<void XB_CDECL(float*)>(0x0001c140)(matrix);  // Matrix_Identity
     // Row 3 = the origin, with x again in its w lane.
@@ -293,7 +298,7 @@ void XB_CDECL FX_PlayEffectAt(uint32_t effect, const float* origin) {
     matrix[13] = origin[1];
     matrix[14] = origin[2];
     matrix[15] = origin[0];
-    title_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0023c040)(
+    return title_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0023c040)(
         effect, matrix, 0, 0, 0xffffffff, 0);  // FX_SpawnEffect
 }
 
@@ -3158,6 +3163,871 @@ void XB_THISCALL apsActionEmitter_Apply(uint8_t* self, uint8_t*, uint8_t*, uint8
         if (flags & 0x100000) at<float>(particle, field(emitter, 0xa0)) = 0.0f;
         FxEmitter_AddParticle(emitter, particle);
     }
+}
+
+// The FX component helpers (FX_Add*Components and the component Updates).
+
+uint8_t* XB_REGS1 XB_CDECL FxComponent_GetEntity(const uint8_t* component) {
+    return handle_object(*reinterpret_cast<const uint32_t*>(component + 0xc), 0x0097a968);
+}
+
+uint8_t* XB_REGS1 XB_CDECL DObjHandle_Resolve(const uint32_t* handle) {
+    return handle_object(*handle, 0x00981418);
+}
+
+void XB_REGS3 XB_CDECL WeaponModel_GetDObjHandle(uint32_t* out, uint32_t, uint32_t index) {
+    const uint8_t* model = title_global<const uint8_t*>(0x00975fa8 + index * 0xc4);
+    *out = model ? *reinterpret_cast<const uint32_t*>(model + 0x8c) : 0;
+}
+
+void XB_REGS3 XB_CDECL FxComponent_GetEntityOrigin(uint32_t* out, uint32_t, const uint8_t* component) {
+    const uint8_t* entity = FxComponent_GetEntity(component);
+    std::memcpy(out, entity + 0x140, 16);
+}
+
+void XB_REGS2 XB_CDECL FxComponent_GetPosition(float* out, const uint8_t* component) {
+    if (const uint8_t* placement = *reinterpret_cast<uint8_t* const*>(component + 0x14)) {
+        std::memcpy(out, placement + 0x30, 16);
+        return;
+    }
+    const float* origin = reinterpret_cast<const float*>(FxComponent_GetEntity(component) + 0x140);
+    out[0] = origin[0];
+    out[1] = origin[1];
+    out[2] = origin[2];
+    out[3] = origin[0];
+}
+
+PLATFORM_ASM_ENTRY(Rumble_SetScale_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Rumble_SetScale) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Rumble_SetScale(uint8_t* manager, uint32_t id, float scale) {
+    for (int list = 0; list < 2; ++list) {
+        uint32_t* head = reinterpret_cast<uint32_t*>(manager + 8 + list * 0x10);
+        uint32_t* node = reinterpret_cast<uint32_t*>(uintptr_t{*head});
+        uint32_t* next = node ? reinterpret_cast<uint32_t*>(uintptr_t{node[0]}) : nullptr;
+        if (node == head + 1 || !next) continue;
+        for (;;) {
+            if (node[2] == id) {
+                std::memcpy(&node[4], &scale, 4);
+                break;
+            }
+            node = next;
+            next = reinterpret_cast<uint32_t*>(uintptr_t{next[0]});
+            if (!next) break;
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(CameraShake_SetAmplitude_entry,
+                   "pushl 4(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(CameraShake_SetAmplitude) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL CameraShake_SetAmplitude(uint8_t* shake, float rotation, float position) {
+    if (rotation != 0.0f) {
+        std::memcpy(shake + 0x18, &rotation, 4);
+        std::memcpy(shake + 0x28, &rotation, 4);
+    }
+    if (position != 0.0f) {
+        std::memcpy(shake + 0x14, &position, 4);
+        std::memcpy(shake + 0x24, &position, 4);
+    }
+}
+
+uint8_t* XB_REGS2 XB_CDECL CameraShake_AllocSlot(uint32_t, uint8_t* manager) {
+    int32_t i = 0;
+    while (*reinterpret_cast<const uint32_t*>(manager + 0x48 + i * 0x40) != 0) {
+        if (++i >= 5) return nullptr;
+    }
+    uint8_t* slot = manager + 0xc + i * 0x40;
+    if (!slot) return nullptr;
+    std::memset(slot, 0, 0x40);
+    *reinterpret_cast<uint32_t*>(slot + 0x3c) = 1;
+    return slot;
+}
+
+uint32_t XB_REGS1 XB_CDECL ParamChoice_GetFlags(const uint8_t* choice) {
+    static const uint16_t kIds[] = {0xd, 0xe, 0x12, 0x16, 0x20};
+    uint32_t flags = 0;
+    for (uint32_t i = 0; i < 5; ++i) {
+        const uint32_t* value = ParamChoice_GetValue(choice, kIds[i]);
+        if (value && *value) flags |= 1u << i;
+    }
+    return flags;
+}
+
+const uint8_t* XB_CDECL ParamChoiceList_PickRandom(const uint32_t* list) {
+    // Weights (parameter 0x21, default 1) of the first 32 choices; the original reads past them
+    // into its other locals for longer lists (none seen).
+    float weights[32];
+    int32_t stored = 0;
+    float total = 0.0f;
+    for (uint32_t i = 0; i < list[0]; ++i) {
+        const uint8_t* choice = reinterpret_cast<const uint8_t*>(uintptr_t{list[1 + i]});
+        const uint32_t* value = ParamChoice_GetValue(choice, 0x21);
+        float weight = 1.0f;
+        if (value) std::memcpy(&weight, value, 4);
+        if (stored < 32) weights[stored++] = weight;
+        total = weight + total;
+    }
+    uint32_t& seed = title_global<uint32_t>(0x008d5a70);
+    seed = seed * 0x343fd + 0x269ec3;
+    const float random = platform_x87_unsigned_to_float(seed >> 17);
+    const float pick = platform_x87_mul_div_add(total, random, 32768.0f, 0.0f);  // (total - 0) * r / 32768 + 0
+    const uint32_t last = list[0] - 1;
+    float sum = 0.0f;
+    for (uint32_t i = 0; i < last; ++i) {
+        if (pick >= sum && weights[i] + sum > pick)
+            return reinterpret_cast<const uint8_t*>(uintptr_t{list[1 + i]});
+        sum = weights[i] + sum;
+    }
+    return reinterpret_cast<const uint8_t*>(uintptr_t{list[list[0]]});
+}
+
+namespace {
+
+// Parameter 0x22 of a choice: its group name, or null.
+const char* choice_group(const uint8_t* choice) {
+    const uint32_t* value = ParamChoice_GetValue(choice, 0x22);
+    return value ? reinterpret_cast<const char*>(uintptr_t{*value}) : nullptr;
+}
+
+}  // namespace
+
+void XB_CDECL ParamChoiceList_PickPerGroup(uint32_t* list) {
+    if (list[0] == 0) return;
+    uint32_t i = 0;
+    for (;;) {
+        const char* group = choice_group(reinterpret_cast<const uint8_t*>(uintptr_t{list[1 + i]}));
+        if (group && *group) break;
+        if (++i >= list[0]) return;
+    }
+    uint32_t all[0x41];
+    std::memcpy(all, list, sizeof(all));
+    list[0] = 0;
+    uint32_t done[2] = {0, 0};
+    for (uint32_t j = 0; j < all[0]; ++j) {
+        const char* group = choice_group(reinterpret_cast<const uint8_t*>(uintptr_t{all[1 + j]}));
+        if (group && *group) continue;
+        done[j >> 5] |= 1u << (j & 0x1f);
+        if (static_cast<int32_t>(list[0]) < 0x40) list[1 + list[0]++] = all[1 + j];
+    }
+    using Stricmp = int32_t XB_CDECL(const char*, const char*);
+    for (uint32_t j = 0; j < all[0]; ++j) {
+        if (done[j >> 5] & (1u << (j & 0x1f))) continue;
+        const char* group = choice_group(reinterpret_cast<const uint8_t*>(uintptr_t{all[1 + j]}));
+        uint32_t members[0x41];
+        members[0] = 0;
+        for (uint32_t k = 0; k < all[0]; ++k) {
+            if (done[k >> 5] & (1u << (k & 0x1f))) continue;
+            const uint8_t* choice = reinterpret_cast<const uint8_t*>(uintptr_t{all[1 + k]});
+            const char* name = choice_group(choice);
+            if (!name || title_function<Stricmp>(0x001f1443)(name, group) != 0) continue;
+            done[k >> 5] |= 1u << (k & 0x1f);
+            if (static_cast<int32_t>(members[0]) < 0x40) members[1 + members[0]++] = all[1 + k];
+        }
+        const uint8_t* picked = ParamChoiceList_PickRandom(members);
+        if (static_cast<int32_t>(list[0]) < 0x40) list[1 + list[0]++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(picked));
+    }
+}
+
+namespace {
+
+// The title CRT's __CIsqrt / __CIpow (x87 intrinsics: argument(s) in ST, result in ST),
+// called where the original calls them so error cases behave alike.
+float title_ci_unary(uint32_t function, float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{function})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+float title_ci_sqrt(float x) { return title_ci_unary(0x0033acf4, x); }
+float title_ci_sin(float x) { return title_ci_unary(0x0033ae60, x); }
+float title_ci_cos(float x) { return title_ci_unary(0x0033adb0, x); }
+
+float title_ci_pow(double base, float exponent) {
+    float result;
+    __asm__ volatile("fldl %1\n\tflds %2\n\tcall *%3\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(base), "m"(exponent), "r"(uintptr_t{0x001f1a6c})
+                     : "eax", "ecx", "edx", "st", "st(1)", "memory");
+    return result;
+}
+
+uint32_t particle_rand15() {
+    uint32_t& seed = title_global<uint32_t>(0x008d5a70);
+    seed = seed * 0x343fd + 0x269ec3;
+    return seed >> 17;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FX_AxesFromForward_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(FX_AxesFromForward) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL FX_AxesFromForward(const float* forward, float* right, float* up) {
+    right[1] = 0.0f - forward[0];
+    std::memcpy(&right[2], &forward[1], 4);
+    std::memcpy(&right[0], &forward[2], 4);
+    const float d = 0.0f - (forward[0] * right[0] + forward[2] * right[2] + right[1] * forward[1]);
+    right[0] = forward[0] * d + right[0];
+    right[1] = forward[1] * d + right[1];
+    right[2] = forward[2] * d + right[2];
+    const float length = title_ci_sqrt(right[2] * right[2] + right[0] * right[0] + right[1] * right[1]);
+    if (length != 0.0f) {
+        const float scale = 1.0f / length;
+        right[0] = right[0] * scale;
+        right[1] = right[1] * scale;
+        right[2] = right[2] * scale;
+    }
+    up[0] = right[1] * forward[2] - right[2] * forward[1];
+    up[1] = right[2] * forward[0] - forward[2] * right[0];
+    up[2] = forward[1] * right[0] - right[1] * forward[0];
+}
+
+PLATFORM_ASM_ENTRY(FX_RandomInOctaves_entry,
+                   "leal 8(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl 8(%esp)\n" PLATFORM_ASM_CALL(FX_RandomInOctaves) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $8, %esp\n"
+                   "ret")
+
+float XB_CDECL FX_RandomInOctaves(float value, float* octaves) {
+    // The original keeps pow's result and then the random number in its `octaves` slot.
+    const float factor = title_ci_pow(2.0, *octaves);
+    const float high = factor * value;
+    const float low = value / factor;
+    const float random = platform_x87_unsigned_to_float(particle_rand15());
+    *octaves = random;
+    return (high - low) * random / 32768.0f + low;
+}
+
+PLATFORM_ASM_ENTRY(CameraShake_InitSlot_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CameraShake_InitSlot) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL CameraShake_InitSlot(int32_t type, uint8_t* slot, float duration) {
+    const uint8_t* def = &title_global<uint8_t>(0x008d5138);
+    while (*reinterpret_cast<const int16_t*>(def) != type) def += 0x20;
+    using Rand = int32_t XB_CDECL();
+    auto put = [slot](uint32_t offset, const void* value) { std::memcpy(slot + offset, value, 4); };
+    const float phase0 = static_cast<float>(title_function<Rand>(0x001efcc0)() % 0x4000);
+    put(0xc, &phase0);
+    *reinterpret_cast<uint32_t*>(slot + 0x10) = 2;
+    put(0x18, def + 0xc);
+    put(0x14, def + 8);
+    const float phase1 = static_cast<float>(title_function<Rand>(0x001efcc0)() % 0x4000);
+    put(0x1c, &phase1);
+    *reinterpret_cast<uint32_t*>(slot + 0x20) = 2;
+    put(0x24, def + 8);
+    put(0x28, def + 0xc);
+    if (duration != 0.0f)
+        put(0x30, &duration);
+    else
+        put(0x30, def + 4);
+}
+
+PLATFORM_ASM_ENTRY(FXTriggerTable_Find_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FXTriggerTable_Find) "addl $8, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL FXTriggerTable_Find(const uint8_t* table, const char* name) {
+    using Stricmp = int32_t XB_CDECL(const char*, const char*);
+    for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(table + 0x24); ++i) {
+        uint8_t* entry = *reinterpret_cast<uint8_t* const*>(table + 0x20) + i * 0x34;
+        if (title_function<Stricmp>(0x001f1443)(reinterpret_cast<const char*>(entry), name) == 0) return entry;
+    }
+    return nullptr;
+}
+
+PLATFORM_ASM_ENTRY(FixedStr32_Format_entry,
+                   "leal 8(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FixedStr32_Format) "addl $12, %esp\n"
+                   "ret")
+
+char* XB_CDECL FixedStr32_Format(char* out, const char* format, va_list args) {
+    out[0x1f] = 0;
+    out[0] = 0;
+    title_function<int XB_CDECL(char*, const char*, va_list)>(0x001eea95)(out, format, args);  // _vsprintf
+    uint32_t length = 0;
+    while (out[length]) ++length;
+    out[0x1f] = static_cast<char>(length);
+    return out;
+}
+
+namespace {
+
+char* fixed_str32_format(char* out, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    FixedStr32_Format(out, format, args);
+    va_end(args);
+    return out;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FX_CollectTriggers_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(FX_CollectTriggers) "addl $16, %esp\n"
+                   "ret $12")
+
+void XB_CDECL FX_CollectTriggers(uint32_t* list, uint32_t zones, const char* prefix, const char* suffix) {
+    // ZoneStringMap_Lookup (EDX zone set; asset maps, out, key, a word it never reads, out index).
+    // The original's out is its own `suffix` argument slot, and the unread word that slot with
+    // its low byte cleared.
+    using Lookup = void XB_REGS2 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, const char*, uint32_t, uint32_t*);
+    const auto lookup = [](uint32_t zone_set, uint32_t* slot, const char* key) {
+        title_function<Lookup>(0x0002bf80)(0, zone_set, title_global<uint32_t>(0x0095f5a8), slot, key,
+                                           *slot & ~0xffu, nullptr);
+    };
+    const auto add = [list](uint32_t table) {
+        if (!table) return;
+        uint8_t* triggers = FXTriggerTable_Find(reinterpret_cast<const uint8_t*>(uintptr_t{table}), "TRIGGERS");
+        if (triggers && static_cast<int32_t>(list[0]) < 0x10)
+            list[1 + list[0]++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(triggers));
+    };
+    const uint8_t* zone_sets = title_global<const uint8_t*>(0x0095f638);
+    uint32_t slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(suffix));
+    lookup(*reinterpret_cast<const uint32_t*>(zone_sets + 0x2c), &slot, suffix);
+    const uint32_t first = slot;
+    add(first);
+    lookup(*reinterpret_cast<const uint32_t*>(title_global<const uint8_t*>(0x0095f638) + 0x34), &slot, suffix);
+    if (slot != first) add(slot);
+    if (prefix) {
+        char name[32];
+        fixed_str32_format(name, "%s-%s", prefix, suffix);
+        lookup(zones, &slot, name);
+        add(slot);
+    }
+}
+
+PLATFORM_ASM_ENTRY(CameraShake_SetDistanceScale_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(CameraShake_SetDistanceScale) "addl $12, %esp\n"
+                   "ret $8")
+
+void XB_CDECL CameraShake_SetDistanceScale(const float* origin, uint8_t* slot, float falloff) {
+    const float base = title_global<float>(0x00964b80);
+    float range;
+    if (!origin) {
+        range = base * 2.0f;
+    } else {
+        const float* camera = nglGetViewMatrix() + 12;
+        const float dx = camera[0] - origin[0], dy = camera[1] - origin[1], dz = camera[2] - origin[2];
+        const float dw = camera[3] - origin[3];
+        platform_keep(dw * dw);  // MULPS squares every lane
+        const float distance_sq = dx * dx + dy * dy + dz * dz;
+        float distance = distance_sq;
+        if (distance_sq != 0.0f && distance_sq == distance_sq) {
+            const float estimate = platform_rsqrt_estimate(distance_sq);
+            const float x = distance_sq * estimate;
+            distance = (3.0f - x * estimate) * x * 0.5f;
+        }
+        range = distance * falloff;
+        const float minimum = base * 2.0f;
+        if (minimum > range) range = minimum;
+    }
+    float scale = 1.0f;
+    if (range != 0.0f) scale = 1.0f / range;
+    std::memcpy(slot + 0x2c, &scale, 4);
+    const float scaled = base * scale;
+    std::memcpy(slot + 0x2c, &scaled, 4);
+}
+
+uint8_t* XB_STDCALL CameraShake_Start(uint8_t* manager, int32_t type, const float* origin, float strength, float duration, float cooldown) {
+    uint8_t* row = &title_global<uint8_t>(0x008d5138);
+    while (*reinterpret_cast<const int16_t*>(row) != type) row += 0x20;
+    float* row_f = reinterpret_cast<float*>(row);
+    if (cooldown != -1.0f) row_f[6] = cooldown;
+    const float now = static_cast<float>(title_global<int32_t>(0x0097253c)) * 0.001f;  // cg_time
+    if (row_f[6] > now - row_f[7]) return nullptr;
+    row_f[7] = now;
+    // The original keeps the duration in its `type` argument slot.
+    float length = row_f[1];
+    if (duration != 0.0f) length = duration;
+    uint8_t* slot;
+    if (*reinterpret_cast<const int16_t*>(row + 2) == 0) {
+        const float scale = strength == 0.0f ? 1.0f : strength;
+        slot = CameraShake_AllocSlot(0, manager);
+        if (!slot) return nullptr;
+        *reinterpret_cast<int32_t*>(slot) = type;
+        std::memcpy(slot + 4, &scale, 4);
+        *reinterpret_cast<uint32_t*>(slot + 8) = 0;
+        CameraShake_SetDistanceScale(origin, slot, row_f[4]);
+    } else {
+        slot = CameraShake_AllocSlot(0, manager);
+        *reinterpret_cast<int32_t*>(slot) = type;
+        std::memcpy(slot + 4, &strength, 4);
+        *reinterpret_cast<uint32_t*>(slot + 8) = 0;
+    }
+    float factor = reinterpret_cast<const float*>(manager)[1];
+    const uint8_t* player = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f534) + 4);
+    if (player && !(*(*reinterpret_cast<uint8_t* const*>(player + 0x23c) + 0x2c) & 0x20) &&
+        *reinterpret_cast<const uint32_t*>(manager + 8) != 0)
+        factor = 1.0f;
+    float* slot_f = reinterpret_cast<float*>(slot);
+    slot_f[1] = slot_f[1] * factor;
+    slot_f[13] = slot_f[13] * factor;
+    CameraShake_InitSlot(type, slot, length);
+    return slot;
+}
+
+PLATFORM_ASM_ENTRY(FxShakeRumble_GetFalloff_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FxShakeRumble_GetFalloff) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL FxShakeRumble_GetFalloff(const uint8_t* component) {
+    const float* range = reinterpret_cast<const float*>(component + 0x44);  // near, far (squared)
+    if (!FxComponent_GetEntity(component) || !(range[0] > 0.0f) || !(range[1] > range[0])) return 1.0f;
+    alignas(16) uint32_t origin_bits[4];
+    FxComponent_GetEntityOrigin(origin_bits, 0, component);
+    float origin[4];
+    std::memcpy(origin, origin_bits, sizeof(origin));
+    const uint8_t* player = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f534) + 4);
+    const float* eye = reinterpret_cast<const float*>(player + 0x140);
+    const float dx = eye[0] - origin[0], dy = eye[1] - origin[1], dz = eye[2] - origin[2];
+    const float dw = eye[3] - origin[3];
+    platform_keep(dw * dw);  // MULPS squares every lane
+    const float distance_sq = dx * dx + dy * dy + dz * dz;
+    if (range[0] > distance_sq) return 1.0f;
+    if (!(range[1] > distance_sq)) return 0.0f;
+    return 1.0f - (distance_sq - range[0]) / (range[1] - range[0]);
+}
+
+PLATFORM_ASM_ENTRY(ShakeRumbleRecord_Init_entry,
+                   "leal 28(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm1, (%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ShakeRumbleRecord_Init) "addl $36, %esp\n"
+                   "ret $28")
+
+uint8_t* XB_CDECL ShakeRumbleRecord_Init(uint8_t* record, float fade_out, uint32_t id, float start, float a3, float strength,
+                                         float hold, float fade_in, ScriptString* name) {
+    float* f = reinterpret_cast<float*>(record);
+    uint32_t* w = reinterpret_cast<uint32_t*>(record);
+    f[3] = 0.0f - start;
+    f[4] = a3;
+    f[5] = strength;
+    f[6] = hold;
+    const float end_hold = hold + fade_out;
+    f[7] = end_hold;
+    w[0] = 0;
+    w[1] = 0;
+    w[2] = id;
+    f[8] = end_hold + fade_in;
+    f[9] = fade_out;
+    ScriptString* own = reinterpret_cast<ScriptString*>(record + 0x28);
+    ScriptString_Copy(own, name);
+    const ScriptStringRep* rep = own->rep;
+    record[0x2c] = rep && rep->text[0] ? 1 : 0;  // the original also tests rep + 6 for null
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(name);  // ScriptString_Release
+    return record;
+}
+
+uint32_t* XB_THISCALL ShakeRumble_Start(const uint8_t* desc, uint8_t* manager, uint32_t* out_id, float a3) {
+    const uint32_t id = *reinterpret_cast<uint32_t*>(manager);
+    *reinterpret_cast<uint32_t*>(manager) = id + 1;
+    for (int channel = 0; channel < 2; ++channel) {
+        const uint8_t* c = desc + 4 + channel * 0x20;  // {start, strength, hold, fade out, fade in, name}
+        const float* cf = reinterpret_cast<const float*>(c);
+        if (!(cf[1] > 0.0f)) continue;
+        uint8_t* record = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(
+            title_global<uint32_t>(0x0095f5c8), 0x30, 0);  // SmallHeap_Alloc
+        if (record) {
+            ScriptString name{nullptr};
+            ScriptString_Copy(&name, reinterpret_cast<const ScriptString*>(c + 0x14));
+            ShakeRumbleRecord_Init(record, cf[3], id, cf[0], a3, cf[1], cf[2], cf[4], &name);
+        }
+        // Appended to the channel's list (count +4, end node +0xc {next, prev}).
+        uint8_t* list = manager + 0x10 + channel * 0x10;
+        uint32_t** last = reinterpret_cast<uint32_t**>(list);
+        uint32_t* node = reinterpret_cast<uint32_t*>(record);
+        node[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list - 4));
+        node[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*last));
+        (*last)[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(record));
+        *last = node;
+        ++*reinterpret_cast<uint32_t*>(list - 0xc);
+    }
+    *out_id = id;
+    return out_id;
+}
+
+PLATFORM_ASM_ENTRY(ShakeRumbleDesc_Init_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ShakeRumbleDesc_Init) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL ShakeRumbleDesc_Init(uint8_t* desc) {
+    for (int channel = 0; channel < 2; ++channel)
+        title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x0011d5d0)(desc + 0x18 + channel * 0x20, 0);  // ScriptString_FromRep
+    float* f = reinterpret_cast<float*>(desc);
+    desc[0] = 0;
+    f[1] = 0.0f;
+    f[2] = 1.0f;
+    f[3] = 0.0f;
+    f[4] = 1.0f;
+    f[5] = 0.0f;
+    desc[0x1c] = 0;
+    desc[0x20] = 0;
+    f[9] = 0.0f;
+    f[10] = 1.0f;
+    f[11] = 0.0f;
+    f[12] = 1.0f;
+    f[13] = 0.0f;
+    desc[0x3c] = 0;
+    return desc;
+}
+
+void XB_REGS1 XB_CDECL ShakeRumbleDesc_Destroy(uint8_t* desc) {
+    for (int channel = 1; channel >= 0; --channel)
+        title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(desc + 0x18 + channel * 0x20);  // ScriptString_Release
+}
+
+void XB_THISCALL FxShakeRumbleComponent_Update(uint8_t* component, float delta) {
+    float* f = reinterpret_cast<float*>(component);
+    f[9] = delta + f[9];  // +0x24 age
+    if (f[8] > f[9]) return;  // +0x20 start delay
+    if (component[0x2a] & 2) {
+        const float falloff = FxShakeRumble_GetFalloff(component);
+        if (uint8_t* shake = *reinterpret_cast<uint8_t* const*>(component + 0x64)) {
+            const float rotation = f[13] * falloff;
+            const float position = f[12] * falloff;
+            if (rotation != 0.0f) {
+                std::memcpy(shake + 0x18, &rotation, 4);
+                std::memcpy(shake + 0x28, &rotation, 4);
+            }
+            if (position != 0.0f) {
+                std::memcpy(shake + 0x14, &position, 4);
+                std::memcpy(shake + 0x24, &position, 4);
+            }
+        }
+        if (uint8_t* manager = title_global<uint8_t*>(0x0095f5c4))
+            Rumble_SetScale(manager, *reinterpret_cast<const uint32_t*>(component + 0x60), falloff);
+        return;
+    }
+    component[0x2a] |= 2;
+    const float falloff = FxShakeRumble_GetFalloff(component);  // kept in the `delta` slot by the original
+    if (f[12] > 0.0f && f[13] > 0.0f && falloff > 0.0f) {
+        uint8_t* shake = CameraShake_Start(&title_global<uint8_t>(0x00964b80), 1, nullptr, 1.0f, f[11], f[14]);
+        *reinterpret_cast<uint8_t**>(component + 0x64) = shake;
+        if (shake) CameraShake_SetAmplitude(shake, f[13] * falloff, f[12] * falloff);
+    }
+    if (!component[0x59]) return;
+    alignas(4) uint8_t desc[0x40];
+    ShakeRumbleDesc_Init(desc);
+    float* d = reinterpret_cast<float*>(desc);
+    d[2] = component[0x58] ? 1.0f : 0.0f;
+    d[4] = f[19];
+    float strength = f[15];
+    if (0.0f > strength)
+        strength = 0.0f;
+    else if (strength > 1.0f)
+        strength = 1.0f;
+    d[10] = strength;
+    d[12] = f[19];
+    d[11] = f[20];
+    d[13] = f[21];
+    if (uint8_t* manager = title_global<uint8_t*>(0x0095f5c4)) {
+        uint32_t id;  // the original's `delta` slot again
+        *reinterpret_cast<uint32_t*>(component + 0x60) = *ShakeRumble_Start(desc, manager, &id, falloff);
+    }
+    ShakeRumbleDesc_Destroy(desc);
+}
+
+uint32_t XB_REGS1 XB_STDCALL ZoneAliasList_NextVariant(const uint32_t* zones, uint32_t key) {
+    for (int32_t i = 0; i < 0x63; ++i) {
+        const uint8_t* table = reinterpret_cast<const uint8_t*>(uintptr_t{zones[1 + i]});
+        if (!table) continue;
+        const uint32_t* found = UintMap_Find(reinterpret_cast<const uint32_t*>(table + 8), &key);
+        if (!found) continue;
+        uint32_t index = *found;
+        if (index >= *reinterpret_cast<const uint32_t*>(table + 0x10)) index = 0;
+        uint32_t* list = reinterpret_cast<uint32_t*>(uintptr_t{(*reinterpret_cast<uint32_t* const*>(table + 0x14))[index]});
+        if (!list) continue;
+        // {count, items, round-robin position}
+        const uint32_t count = list[0];
+        const uint32_t* items = reinterpret_cast<const uint32_t*>(uintptr_t{list[1]});
+        if (count == 0) return 0;
+        if (count == 1) return items[0];
+        uint32_t next = (list[2] + 1) % count;
+        list[2] = next;
+        if (next >= count) next = 0;
+        return items[next];
+    }
+    return 0;
+}
+
+void XB_REGS3 XB_CDECL FX_AnglesToMatrix(const float* translation, uint32_t, const float* angles, float* out) {
+    const float s0 = title_ci_sin(angles[0]), c0 = title_ci_cos(angles[0]);
+    const float s1 = title_ci_sin(angles[1]), c1 = title_ci_cos(angles[1]);
+    const float s2 = title_ci_sin(angles[2]), c2 = title_ci_cos(angles[2]);
+    const float* t = translation ? translation : &title_global<float>(0x0082e290);  // {0, 0, 0, 1}
+    const float c1c0 = c1 * c0;
+    const float a = s2 * s1;
+    const float a_c0 = a * c0 - c2 * s0;
+    const float b = c2 * s1;
+    const float b_c0 = b * c0 + s2 * s0;
+    const float a_s0 = a * s0;
+    const float c1s0 = c1 * s0;
+    const float b_s0 = b * s0 - s2 * c0;
+    const float c2c1 = c2 * c1;
+    const float s2c1 = s2 * c1;
+    const float a_s0_c2c0 = a_s0 + c2 * c0;
+    const float minus_s1 = 0.0f - s1;
+    const float m[16] = {c2c1, s2c1, minus_s1, c2c1, b_s0, a_s0_c2c0, c1s0, b_s0,
+                         b_c0, a_c0, c1c0, b_c0, t[0], t[1], t[2], t[3]};
+    std::memcpy(out, m, sizeof(m));
+}
+
+uint32_t XB_REGS3 XB_CDECL FX_PlayEffectWithAxis(const float* axis, uint32_t, const float* origin, uint32_t effect) {
+    alignas(16) float matrix[16];
+    for (int row = 0; row < 4; ++row) {
+        const float* src = row < 3 ? &axis[row * 3] : origin;
+        matrix[row * 4 + 0] = src[0];
+        matrix[row * 4 + 1] = src[1];
+        matrix[row * 4 + 2] = src[2];
+        matrix[row * 4 + 3] = src[0];
+    }
+    return title_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0023c040)(
+        effect, matrix, 0, 0, 0xffffffff, 0);  // FX_SpawnEffect
+}
+
+uint32_t XB_REGS1 XB_CDECL FX_PlayEffectAlongDir(const float* direction, uint32_t effect, const float* origin) {
+    float axis[9];  // right, up, forward
+    axis[6] = direction[0];
+    axis[7] = direction[1];
+    axis[8] = direction[2];
+    FX_AxesFromForward(&axis[6], &axis[0], &axis[3]);
+    return FX_PlayEffectWithAxis(axis, 0, origin, effect);
+}
+
+void XB_THISCALL FxParticleComponent_Update(uint8_t* component, float delta) {
+    // The spawn parameters FX_AddParticleComponents left in globals: 0x009717f4 entity handle,
+    // 0x00971804 placement {origin, +0x10 direction} or null, 0x0097180c tag name, 0x00971828
+    // tag index (-1: by name), 0x0097182c/0x00971838 flags, 0x00971830 effect, 0x00971834.
+    using SpawnEffect = uint32_t XB_CDECL(uint32_t, const float*, uint32_t, uint32_t, uint32_t, uint32_t);
+    const auto spawn = title_function<SpawnEffect>(0x0023c040);
+    const auto entity_of = [](uint32_t address) {
+        return title_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t)>(0x00013860)(address);  // G_EntHandleToEnt
+    };
+    float* f = reinterpret_cast<float*>(component);
+    uint16_t& flags = *reinterpret_cast<uint16_t*>(component + 0x2a);
+    uint32_t& result = *reinterpret_cast<uint32_t*>(component + 0x2c);
+    f[9] = delta + f[9];  // +0x24 age
+    if (f[8] > f[9]) return;  // +0x20 start delay
+    if (!(component[0x2a] & 2)) {
+        const uint8_t* placement = title_global<const uint8_t*>(0x00971804);
+        const uint32_t effect = title_global<uint32_t>(0x00971830);
+        if (placement)
+            component[0x2a] |= 0x40;
+        else
+            flags |= 0x80;
+        if (title_global<uint8_t>(0x0097182c)) {
+            component[0x2b] |= 1;
+            flags |= 0x80;
+            component[0x2a] &= ~0x40;
+        }
+        if (title_global<uint8_t>(0x00971838)) component[0x2b] |= 2;
+        const uint32_t handle = *reinterpret_cast<const uint32_t*>(component + 0xc);
+        uint32_t slot = 0;  // the entity, later the weapon model's DObj handle (one local)
+        if (const uint8_t* e = handle_object(handle, 0x0097a968)) slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(e));
+        const uint8_t* entity = reinterpret_cast<const uint8_t*>(uintptr_t{slot});
+        const DObj* obj = *reinterpret_cast<DObj* const*>(entity + 0x22c);
+        uint32_t owner = obj ? *reinterpret_cast<const uint32_t*>(reinterpret_cast<const uint8_t*>(obj) + 0x8c) : 0;
+        int32_t tag = title_global<int32_t>(0x00971828);
+        bool bolt = tag != -1;
+        if (!bolt) {
+            const uint32_t hash = Com_HashKeyNoCase(0, &title_global<char>(0x0097180c));
+            if (obj) {
+                tag = DObj_GetTagIndex(obj, hash);
+                bolt = tag != -1;
+            }
+            if (!bolt && entity[3]) {
+                WeaponModel_GetDObjHandle(&slot, 0, entity[3]);
+                if (const DObj* weapon = reinterpret_cast<const DObj*>(DObjHandle_Resolve(&slot))) {
+                    tag = DObj_GetTagIndex(weapon, hash);
+                    if (tag > 0) {
+                        owner = slot;
+                        bolt = true;
+                    }
+                }
+            }
+        }
+        if (bolt) {
+            result = FX_PlayBoltedEffect(reinterpret_cast<const float*>(FxComponent_GetEntity(component) + 0x140), effect,
+                                         owner, handle, static_cast<uint32_t>(tag));
+        } else if (const float* matrix = *reinterpret_cast<float* const*>(component + 0x14)) {
+            result = spawn(effect, matrix, owner, handle, 0xffffffff, 1);
+        } else if (flags & 0x80) {
+            alignas(16) float m[16];
+            bool attached = false;
+            if (flags & 0x200) {
+                const uint8_t* source = entity_of(0x009717f4);
+                const float scale = title_global<float>(0x0082e140);
+                for (int i = 0; i < 12; ++i) m[i] = (&title_global<float>(0x0082e160))[i] * scale;
+                const float* origin = reinterpret_cast<const float*>(source + 0x140);
+                m[12] = origin[0];
+                m[13] = origin[1];
+                m[14] = origin[2];
+                m[15] = origin[0];
+                attached = true;
+            } else {
+                const float pi = title_global<float>(0x0083ed00), half_turn = title_global<float>(0x0083eb60);
+                const float yaw = reinterpret_cast<const float*>(entity_of(0x009717f4) + 0x154)[0] * pi / half_turn;
+                const float pitch = reinterpret_cast<const float*>(entity_of(0x009717f4) + 0x150)[0] * pi / half_turn;
+                const float roll = reinterpret_cast<const float*>(entity_of(0x009717f4) + 0x158)[0] * pi / half_turn;
+                alignas(16) const float angles[4] = {roll, pitch, yaw, roll};
+                FX_AnglesToMatrix(reinterpret_cast<const float*>(entity_of(0x009717f4) + 0x140), 0, angles, m);
+            }
+            result = spawn(effect, m, owner, handle, 0xffffffff, 1);
+            if (result && attached) reinterpret_cast<uint8_t*>(uintptr_t{result})[0x16] |= 4;
+            flags |= 2;
+            goto finish;
+        } else if (flags & 0x40) {
+            const float* p = reinterpret_cast<const float*>(placement);
+            alignas(16) const float origin[4] = {p[0], p[1], p[2], p[0]};
+            const float direction[3] = {p[4], p[5], p[6]};
+            result = FX_PlayEffectAlongDir(direction, effect, origin);
+            if (result) *reinterpret_cast<uint16_t*>(*reinterpret_cast<uint8_t* const*>(uintptr_t{result} + 4) + 0x4e) |= 1;
+            flags |= 2;
+            goto finish;
+        } else if (flags & 0x100) {
+            alignas(16) float origin[4];
+            std::memcpy(origin, FxComponent_GetEntity(component) + 0x140, 16);
+            const float* p = reinterpret_cast<const float*>(placement);
+            const float direction[3] = {p[4], p[5], p[6]};
+            result = FX_PlayEffectAlongDir(direction, effect, origin);
+        } else {
+            result = FX_PlayEffectAt(effect, reinterpret_cast<const float*>(FxComponent_GetEntity(component) + 0x140));
+        }
+        flags |= 2;
+    finish:
+        if (result && title_global<uint32_t>(0x00971834)) *reinterpret_cast<uint16_t*>(uintptr_t{result} + 0x16) |= 2;
+    }
+    if (component[0x2a] & 1) f[7] = f[7] - delta;  // +0x1c
+}
+
+namespace {
+
+// A ParamSet on the stack as FX_Add*Components build it: definition = the trigger entry.
+void param_set_open(ParamSet* set, uint32_t trigger) {
+    set->vtable = 0x008376b8;
+    set->definition = reinterpret_cast<const uint8_t*>(uintptr_t{trigger});
+    ParamList_Init(&set->list);
+    set->failed = 0;
+    set->used = 0;
+}
+
+// ParamSet_Destruct inlined (the original's order).
+void param_set_close(ParamSet* set) {
+    set->vtable = 0x008376b8;
+    set->used = 0;
+    ParamList_Clear(&set->list);
+    set->failed = 0;
+    set->list.vtable = 0x008376c0;
+    ParamList_Clear(&set->list);
+}
+
+// The set's choices (vtable slot 1, 0x0029b9f0): three lists {count, choice*[64]}, the second
+// the one the callers use.
+void param_set_resolve(ParamSet* set, uint32_t* lists) {
+    lists[0] = 0;
+    lists[0x41] = 0;
+    lists[0x82] = 0;
+    title_function<void XB_THISCALL(ParamSet*, uint32_t*)>(vtable_slot(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(set)), 1))(
+        set, lists);
+}
+
+float choice_float(const uint8_t* choice, uint32_t id) {
+    const uint32_t* value = ParamChoice_GetValue(choice, id);
+    float result = 0.0f;
+    if (value) std::memcpy(&result, value, 4);
+    return result;
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL FX_AddLightComponents(uint32_t, const uint8_t* source, uint32_t* out) {
+    uint32_t added = 0;
+    uint32_t triggers[17];
+    triggers[0] = 0;
+    FX_CollectTriggers(triggers, *reinterpret_cast<const uint32_t*>(source + 0x1f4), nullptr, "LIGHT.FX");
+    for (uint32_t t = 0; t < triggers[0]; ++t) {
+        ParamSet set;
+        param_set_open(&set, triggers[1 + t]);
+        ParamSet_AddFxOverrides(source, &set);
+        uint32_t lists[0x83];
+        param_set_resolve(&set, lists);
+        uint32_t* choices = &lists[0x41];
+        ParamChoiceList_PickPerGroup(choices);
+        for (uint32_t i = 0; i < choices[0]; ++i) {
+            const uint8_t* choice = reinterpret_cast<const uint8_t*>(uintptr_t{choices[1 + i]});
+            const uint32_t* texture_value = ParamChoice_GetValue(choice, 0x17);
+            uint32_t light_slot = texture_value ? *texture_value : 0;  // later the light
+            const uint32_t flags = ParamChoice_GetFlags(choice);
+            const float delay = choice_float(choice, 0x10);
+            if (!light_slot) continue;
+            uint8_t* component = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(
+                title_global<uint32_t>(0x0095f5cc), 0x30, 0);  // SmallHeap_Alloc
+            if (component) {
+                const uint32_t entity = *reinterpret_cast<const uint32_t*>(source + 0x1f0);
+                uint32_t* w = reinterpret_cast<uint32_t*>(component);
+                w[3] = 0;
+                *reinterpret_cast<uint16_t*>(component + 0x2a) = 0;
+                std::memcpy(component + 0x20, &delay, 4);
+                w[2] = *reinterpret_cast<const uint32_t*>(source + 0x1f4);
+                w[3] = entity;
+                w[4] = flags;
+                w[5] = 0;
+                const float zero = 0.0f;
+                std::memcpy(component + 0x24, &zero, 4);
+                *reinterpret_cast<uint16_t*>(component + 0x28) = 0;
+                w[1] = 0;
+                *reinterpret_cast<uint16_t*>(component + 0x2a) = 0;
+                w[0] = 0x008376fc;
+                uint8_t* light = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x10);  // Z_Malloc
+                if (light) light[0xc] = 0;
+                light_slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(light));
+                title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x002462b0)(light, entity);
+                PtrVector_PushBack_call(&effect_lights(), reinterpret_cast<uint8_t* const*>(&light_slot));
+                w[11] = light_slot;
+            }
+            if (static_cast<int32_t>(out[0]) < 0x10) out[1 + out[0]++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(component));
+            ++added;
+        }
+        param_set_close(&set);
+    }
+    return added;
 }
 
 }  // namespace game
