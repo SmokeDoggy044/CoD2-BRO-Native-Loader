@@ -1,5 +1,6 @@
 #include "functions.h"
 
+#include "cgame.h"
 #include "dobj.h"
 #include "fx.h"
 #include "ngl.h"
@@ -520,6 +521,7 @@ const Function kFunctions[] = {
     {"ScriptString_Equals", 0x0011d7c0, 0, code(&ScriptString_Equals), 8, Result::Al, Status::Compare},
     {"ScriptString_EqualsString", 0x0011d820, 0, code(&ScriptString_EqualsString), 8, Result::Al, Status::Compare},
     {"ScriptKeyTable_Find", 0x0011db70, 0, code(&ScriptKeyTable_Find), 4, Result::Eax, Status::Compare},
+    {"CG_R_DrawStretchPic", 0x00234b50, 0, code(&CG_R_DrawStretchPic), 32, Result::None, Status::Compare},
     {"RE_ClearScene", 0x00234cc0, 0, code(&RE_ClearScene), 0, Result::None, Status::Compare},
     {"R_ClearFrameLists", 0x00234cf0, 0, code(&R_ClearFrameLists), 0, Result::None, Status::Compare},
     {"R_ClearAlpha", 0x00234d90, 0, code(&R_ClearAlpha), 0, Result::None, Status::Compare},
@@ -619,7 +621,27 @@ const Function kFunctions[] = {
     {"R_AddEntityModel", 0x00245a20, 0, code(&R_AddEntityModel_entry), 0, Result::None, Status::Compare},
     {"R_AddEntitySurfaces", 0x00246d60, 0, code(&R_AddEntitySurfaces), 0, Result::None, Status::Compare},
     {"RE_RenderScene", 0x002476b0, 0, code(&RE_RenderScene_entry), 0, Result::None, Status::Compare},
+    {"CG_StretchPicRotate", 0x002757d0, 0, code(&CG_StretchPicRotate), 36, Result::None, Status::Compare},
+    {"CG_InitLocalEntities", 0x00275a30, 0, code(&CG_InitLocalEntities), 0, Result::None, Status::Compare},
+    {"CG_FadeColor", 0x00275e50, 0, code(&CG_FadeColor), 0, Result::Eax, Status::Compare},
+    {"CG_SetFade", 0x002765b0, 0, code(&CG_SetFade), 4, Result::None, Status::Compare},
+    {"CG_GetAdsOverlayFraction", 0x002765f0, 0, code(&CG_GetAdsOverlayFraction), 0, Result::Eax, Status::Compare},
+    {"CG_ScoresUp_f", 0x002766a0, 0, code(&CG_ScoresUp_f), 0, Result::None, Status::Compare},
+    {"CG_HasWeapon", 0x00276900, 0, code(&CG_HasWeapon), 0, Result::Eax, Status::Compare},
+    {"CG_SaveViewModelAnimTrees", 0x00276b90, 0, code(&CG_SaveViewModelAnimTrees), 0, Result::None, Status::Compare},
+    {"CG_BobCycleVertical", 0x00276d00, 0, code(&CG_BobCycleVertical_entry), 8, Result::St0, Status::Compare},
+    {"CG_BobCycleLateral", 0x00276d50, 0, code(&CG_BobCycleLateral_entry), 8, Result::St0, Status::Compare},
+    {"CG_Error", 0x00277630, 0, code(&CG_Error), 8, Result::None, Status::Compare},
+    {"CG_Printf", 0x00277660, 0, code(&CG_Printf), 8, Result::None, Status::Compare},
+    {"CG_DrawPic", 0x002779e0, 0, code(&CG_DrawPic), 16, Result::None, Status::Compare},
+    {"CG_DrawShellShockBlur", 0x00277c50, 0, code(&CG_DrawShellShockBlur), 0, Result::None, Status::Compare},
     {"WeaponModel_GetDObjHandle", 0x00278e30, 0, code(&WeaponModel_GetDObjHandle), 0, Result::None, Status::Compare},
+    {"CG_StepOffset", 0x00278e50, 0, code(&CG_StepOffset), 0, Result::None, Status::Compare},
+    {"CG_BuildSolidList", 0x00279380, 0, code(&CG_BuildSolidList), 0, Result::None, Status::Compare},
+    {"CG_CheckAmmo", 0x002793f0, 0, code(&CG_CheckAmmo), 0, Result::None, Status::Compare},
+    {"CG_Argv", 0x002794b0, 0, code(&CG_Argv), 0, Result::Eax, Status::Compare},
+    {"CG_PrecacheConfigStringAsset", 0x0027ad40, 0, code(&CG_PrecacheConfigStringAsset), 0, Result::None, Status::Compare},
+    {"CG_PrecacheConfigStringAssets", 0x0027b9a0, 0, code(&CG_PrecacheConfigStringAssets), 0, Result::None, Status::Compare},
     {"DObj_GetOwnerPlacement", 0x00284a80, 0, code(&DObj_GetOwnerPlacement_entry), 0, Result::None, Status::Compare},
     {"Com_HashKeyNoCase", 0x00292fe0, 0, code(&Com_HashKeyNoCase), 0, Result::Eax, Status::Compare},
     {"MatrixInverse4x4", 0x00294610, 0, code(&MatrixInverse4x4), 0, Result::None, Status::Compare},
@@ -790,6 +812,7 @@ const Function kFunctions[] = {
     {"FX_FlushSpawnQueue", 0x002a5940, 0, code(&FX_FlushSpawnQueue_entry), 0, Result::None, Status::Compare},
     {"FX_UpdateEffects", 0x002a5980, 0, code(&FX_UpdateEffects_entry), 4, Result::None, Status::Compare},
     {"CameraShake_AllocSlot", 0x002a7f70, 0, code(&CameraShake_AllocSlot), 0, Result::Eax, Status::Compare},
+    {"CG_WeaponSlotFromName", 0x002acb40, 0, code(&CG_WeaponSlotFromName_entry), 0, Result::Eax, Status::Compare},
     {"SoundRef_IsState3", 0x002add40, 0, code(&SoundRef_IsState3), 0, Result::Al, Status::Compare},
     {"SoundRef_SetVolumeScale", 0x002adea0, 0, code(&SoundRef_SetVolumeScale_entry), 4, Result::None, Status::Compare},
     {"CameraShake_SetAmplitude", 0x002ae740, 0, code(&CameraShake_SetAmplitude_entry), 4, Result::None, Status::Compare},
