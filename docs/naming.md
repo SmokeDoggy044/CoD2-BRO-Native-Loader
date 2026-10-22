@@ -8,6 +8,12 @@ State (2026-10-21): 4653 functions named by us (counter), 900+ globals, plus 300
 library functions named by signature; all applied in Ghidra and exported to
 `tools/data/default_xbe_symbols.txt`.
 
+Next hub targets (2026-10-22 pass stopped at 46; ranks 130-411 surveyed): path/trace 0x002e75d0, 0x002e84d0,
+0x002e88d0, 0x002e8350/0x002e8650; sound voices 0x000c3d00, 0x000c47d0, 0x000c3ff0, 0x000c5400; Loc_* string tables
+0x00020890, 0x0001f2e0, 0x002ca5e0; AnimTree helpers 0x002c9940, 0x002af0a0, 0x002b7ad0; FX component loaders
+0x00023b20, 0x0029b320, 0x002990d0. The front-end widget methods (0x0082a628 family, ~20 hubs such as 0x0031f4b0)
+need their class hierarchy mapped first (UIMenu_Init is the anchor).
+
 ## Files
 
 | File | What |
