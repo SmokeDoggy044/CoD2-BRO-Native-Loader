@@ -63,6 +63,28 @@ void XB_CDECL Q_strncpySubLen(char* dst, int32_t* length, const char* src, int32
     dst[copied] = 0;
 }
 
+PLATFORM_ASM_ENTRY(FixedStr_BaseName_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FixedStr_BaseName) "addl $12, %esp\n"
+                   "ret $4")
+
+char* XB_CDECL FixedStr_BaseName(const char* src, char* dst, uint32_t flag) {
+    char stem[0x80];
+    int32_t stem_length;
+    stem[0x7f] = 0;
+    stem[0] = 0;
+    title_function<void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t)>(0x00044500)(  // Path_BaseName
+        stem, &stem_length, src, static_cast<uint8_t>(src[0x7f]), flag);
+    const uint8_t length = static_cast<uint8_t>(stem_length);
+    stem[0x7f] = static_cast<char>(length);
+    int32_t copied;
+    title_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(0x00044370)(  // FixedStr_Copy
+        dst, &copied, 0x7f, stem, length);
+    dst[0x7f] = static_cast<char>(copied);
+    return dst;
+}
+
 PLATFORM_ASM_ENTRY(AnglesToAxis_entry,
                    "leal 4(%esp), %eax\n"
                    "pushl %esi\n"

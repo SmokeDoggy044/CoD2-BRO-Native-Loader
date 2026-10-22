@@ -48,6 +48,8 @@ enum class SdkStandIn : uint8_t {
     TextureLock,
     SurfaceLock,
     BufferLock,  // D3DVertexBuffer_Lock2 / D3DPalette_Lock2(buffer, flags): Data | 0x80000000
+    // D3DSurface_GetDesc(surface, desc): D3DSURFACE_DESC into *desc as render's describe() does.
+    SurfaceDesc,
 };
 
 struct SdkCall {

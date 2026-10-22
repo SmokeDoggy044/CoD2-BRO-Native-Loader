@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "ngl.h"
 #include "title_data.h"
 
 namespace game {
@@ -132,6 +133,82 @@ uint32_t XB_THISCALL Pack_RelocateTable(PackRelocTable* self, uint32_t base) {
                                static_cast<uintptr_t>(reinterpret_cast<const uint32_t*>(self->entries)[i] + base)),
                            bits);
     return self->count;
+}
+
+namespace {
+
+// The zone's name maps: a UintMap at +offset (hash -> index), the count at +8 and the
+// entries (8 bytes each, the value at +4) at +0xc after it.
+uint32_t zone_map_lookup(uint32_t offset, uint32_t hash, const char* name, const uint8_t* zone) {
+    if (!hash && name) hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x0001d830)(name);  // HashStr_Hash
+    const uint32_t* index =
+        UintMap_Find(reinterpret_cast<const uint32_t*>(zone + offset), &hash);
+    if (!index || *index == 0xffffffff) return 0;
+    uint32_t i = *index;
+    if (i >= *reinterpret_cast<const uint32_t*>(zone + offset + 8)) i = 0;
+    return *reinterpret_cast<const uint32_t*>(zone + offset + 0xc) + i * 8 + 4;
+}
+
+}  // namespace
+
+#define ZONE_MAP_LOOKUP(name, offset)                                                                         \
+    PLATFORM_ASM_ENTRY(name##_entry, "pushl %edi\n"                                                          \
+                                     "pushl %eax\n"                                                          \
+                                     "pushl %ecx\n" PLATFORM_ASM_CALL(name) "addl $12, %esp\n"               \
+                                     "ret")                                                                  \
+    uint32_t XB_CDECL name(uint32_t hash, const char* key, const uint8_t* zone) {                           \
+        return zone_map_lookup(offset, hash, key, zone);                                                    \
+    }
+
+ZONE_MAP_LOOKUP(ZoneTextureMap_Lookup, 0x08)
+ZONE_MAP_LOOKUP(ZoneFontMap_Lookup, 0x18)
+ZONE_MAP_LOOKUP(ZoneMap28_Lookup, 0x28)
+ZONE_MAP_LOOKUP(ZoneMeshFileMap_Lookup, 0x38)
+ZONE_MAP_LOOKUP(ZoneAnimMap_Lookup, 0x88)
+ZONE_MAP_LOOKUP(ZoneMap98_Lookup, 0x98)
+ZONE_MAP_LOOKUP(ZoneMapA8_Lookup, 0xa8)
+ZONE_MAP_LOOKUP(ZoneSkelMap_Lookup, 0xb8)
+ZONE_MAP_LOOKUP(ZoneEffectMap_Lookup, 0xc8)
+
+PLATFORM_ASM_ENTRY(FixedStr512_BaseName_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FixedStr512_BaseName) "addl $12, %esp\n"
+                   "ret $4")
+
+char* XB_CDECL FixedStr512_BaseName(const char* src, char* dst, uint32_t flag) {
+    char stem[0x200];
+    int32_t stem_length;
+    *reinterpret_cast<uint16_t*>(stem + 0x1fe) = 0;
+    stem[0] = 0;
+    title_function<void XB_CDECL(char*, int32_t*, const char*, uint32_t, uint32_t)>(0x00044500)(  // Path_BaseName
+        stem, &stem_length, src, *reinterpret_cast<const uint16_t*>(src + 0x1fe), flag);
+    const uint16_t length = static_cast<uint16_t>(stem_length);
+    *reinterpret_cast<uint16_t*>(stem + 0x1fe) = length;
+    int32_t copied;
+    title_function<void XB_CDECL(char*, int32_t*, int32_t, const char*, uint32_t)>(0x00044370)(  // FixedStr_Copy
+        dst, &copied, 0x1fe, stem, length);
+    *reinterpret_cast<uint16_t*>(dst + 0x1fe) = static_cast<uint16_t>(copied);
+    return dst;
+}
+
+PLATFORM_ASM_ENTRY(Stream_HashFileName_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Stream_HashFileName) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL Stream_HashFileName(const char* name, uint32_t* out) {
+    char text[0x200];
+    int32_t length = 0;
+    title_function<void XB_CDECL(char*, int32_t*, int32_t, const char*)>(0x000442e0)(text, &length, 0x1fe,
+                                                                                     name);  // Q_strncpyLen
+    *reinterpret_cast<uint16_t*>(text + 0x1fe) = static_cast<uint16_t>(length);
+    char base[0x200];
+    FixedStr512_BaseName(text, base, 1);
+    uint32_t hashed[8];
+    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, base);  // HashStr_Init
+    for (int i = 0; i < 8; ++i) out[i] = hashed[i];
+    return out;
 }
 
 }  // namespace game

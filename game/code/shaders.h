@@ -322,6 +322,9 @@ static_assert(sizeof(ShaderCache) == 0x14);
 
 // A new node's level: one more per zero 2-bit pair (chance 1/4 each), at most 15.
 int32_t XB_THISCALL ShaderCache_RandomLevel(ShaderCache* self);
+// 0x00094070 (was FUN_00094070; also Anim_InitManagers' two lists): once (+0 null): the end
+// node (0x2c bytes, key all ones) at +0, a rand() seed, a 16-level head node pointing at it.
+void XB_THISCALL ShaderCache_Init(ShaderCache* self);
 // The node with the key gets one more reference and is returned; otherwise a node
 // {key, value, 1 reference} is added and the result is null.
 ShaderCacheNode* XB_THISCALL ShaderCache_FindOrAdd(ShaderCache* self, const NglHashedName* key, void* value);
@@ -355,8 +358,39 @@ void XB_THISCALL cdSky_Register(NglShaderClass* self);
 // the cd* Draws pick program variants by it (== 1).
 void XB_CDECL R_SetDebugViewMode(uint32_t mode);
 uint32_t XB_CDECL R_GetDebugViewMode();
+// 0x00045630: 0x00897964 = mip (returned).
+uint32_t XB_CDECL R_SetTextureMip(uint32_t mip);
+// 0x00046870: a cdDebug material (0x18 bytes): the cdDebug class (0x00901ec4) at +4, the
+// rest zero. Returns it.
+uint32_t* XB_THISCALL cdDebug_InitMaterial(uint32_t* material);
 // 0x00047200: a PCUV material: (a, b, c) to +0x1c/+0x20 (the mode ShaderPCUV_AddToList
 // reads)/+0x24, the PCUV shader class to +4; returns the material.
 uint8_t* XB_THISCALL ShaderPCUV_InitMaterial(uint8_t* material, uint32_t a, uint32_t b, uint32_t c);
+
+// Simple-instance lists (static models drawn as instances of one mesh): records of 0x80
+// bytes {+0 matrix rows 0..3 (row 2 = row0 x row1), +0x40 scale, +0x50 light direction,
+// +0x60 light colour, +0x70 ambient}.
+struct CdSimpleInstanceList {
+    uint8_t* mesh;
+    uint32_t unknown04;
+    uint32_t unknown08;
+    int32_t count;
+    uint8_t* records;  // +0x10, 0xc000 bytes (0x180 records) until shrunk
+};
+// 0x00046320: mesh, the second word, an empty record block.
+void XB_THISCALL cdSimpleInstance_InitList(CdSimpleInstanceList* self, uint8_t* mesh, uint32_t b);
+// 0x00046370: the records moved into a block of exactly count records.
+void XB_THISCALL cdSimpleInstance_ShrinkList(CdSimpleInstanceList* self);
+// 0x000463c0: appends a record: matrix (row 2 replaced by row0 x row1, packed), scale,
+// direction, and from `light` (0x40 bytes) its colour (+0) and ambient (+0x30 plus a
+// quarter of +0x20 and of +0x10). Returns self.
+CdSimpleInstanceList* XB_THISCALL cdSimpleInstance_AddInstance(CdSimpleInstanceList* self, const float* matrix,
+                                                               float scale, const float* direction, const float* light);
+// 0x00046560: each record into the scene (unless disabled, 0x00901e8e bit 1): a light
+// set with its directional light and ambient colour, then the mesh with a scaled-instance
+// block (flags 2, uniform scale).
+// (ECX = self; the asm entry rebuilds the original's frame and passes its instance block.)
+extern "C" PLATFORM_HIDDEN void XB_CDECL cdSimpleInstance_AddListToScene(CdSimpleInstanceList* self, uint32_t* block);
+extern "C" void cdSimpleInstance_AddListToScene_entry(void);
 
 }  // namespace game

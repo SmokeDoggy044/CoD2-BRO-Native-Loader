@@ -59,4 +59,30 @@ extern "C" void Pack_RelocateChain_entry(void);
 // 0x00055b00: relocates the table's entries pointer, then each chain; returns count.
 uint32_t XB_THISCALL Pack_RelocateTable(PackRelocTable* self, uint32_t base);
 
+// 0x00024ed0..0x00025150 (ECX = hash or 0, EAX = name hashed with HashStr_Hash when ECX is
+// 0, EDI = zone): the zone map at its offset (UintMap +0, count +8, entries +0xc, 8 bytes
+// each): the entry's value address (+4); 0 when missing; index past the count -> entry 0.
+#define ZONE_MAP_LOOKUP_DECL(name)                                                                \
+    extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL name(uint32_t hash, const char* key, const uint8_t* zone); \
+    extern "C" void name##_entry(void);
+ZONE_MAP_LOOKUP_DECL(ZoneTextureMap_Lookup)   // 0x00024ed0, +0x08
+ZONE_MAP_LOOKUP_DECL(ZoneFontMap_Lookup)      // 0x00024f20, +0x18
+ZONE_MAP_LOOKUP_DECL(ZoneMap28_Lookup)        // 0x00024f70, +0x28 (was FUN_00024f70)
+ZONE_MAP_LOOKUP_DECL(ZoneMeshFileMap_Lookup)  // 0x00024fc0, +0x38 (was FUN_00024fc0)
+ZONE_MAP_LOOKUP_DECL(ZoneAnimMap_Lookup)      // 0x00025010, +0x88
+ZONE_MAP_LOOKUP_DECL(ZoneMap98_Lookup)        // 0x00025060, +0x98 (was FUN_00025060)
+ZONE_MAP_LOOKUP_DECL(ZoneMapA8_Lookup)        // 0x000250b0, +0xa8 (was FUN_000250b0)
+ZONE_MAP_LOOKUP_DECL(ZoneSkelMap_Lookup)      // 0x00025100, +0xb8
+ZONE_MAP_LOOKUP_DECL(ZoneEffectMap_Lookup)    // 0x00025150, +0xc8
+#undef ZONE_MAP_LOOKUP_DECL
+
+// 0x00025330 (was FUN_00025330; src in EAX, dst in ESI, flag on the stack; returns dst):
+// FixedStr_BaseName for 0x200-byte fixed strings (u16 length at +0x1fe).
+extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr512_BaseName(const char* src, char* dst, uint32_t flag);
+extern "C" void FixedStr512_BaseName_entry(void);
+// 0x0028eeb0 (name in EAX, out in EDI; returns out): the hashed name (HashStr_Init) of the
+// file name's base name.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL Stream_HashFileName(const char* name, uint32_t* out);
+extern "C" void Stream_HashFileName_entry(void);
+
 }  // namespace game

@@ -2833,6 +2833,111 @@ uint32_t XB_CDECL RE_RegisterModel(uint32_t handle, const char* name, uint32_t f
     return handle;
 }
 
+uint32_t XB_CDECL R_Register() {
+    using CvarGet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
+    const auto Cvar_Get = title_function<CvarGet>(0x0029c2d0);
+    const auto cvar_get = title_function<CvarGet>(title_global<uint32_t>(0x0095e650));  // ri.Cvar_Get
+    const auto add_command = [](const char* name, uint32_t function) {
+        title_function<void XB_CDECL(const char*, uint32_t)>(title_global<uint32_t>(0x0095e65c))(  // ri.Cmd_AddCommand
+            name, function);
+    };
+    const auto text = [](uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); };
+    uint32_t eax = 0;
+    title_global<uint32_t>(0x0095e704) = Cvar_Get(text(0x008340d0), text(0x0082e098), 0x48);  // r_sv_cheats
+    title_global<uint32_t>(0x0095e718) = cvar_get(text(0x0083c3c8), text(0x0082e098), 0x21);  // r_texturebits
+    title_global<uint32_t>(0x0095e610) = cvar_get(text(0x0083c3c0), text(0x008398e0), 0x21);  // r_mode
+    title_global<uint32_t>(0x0095e368) = cvar_get(text(0x0083c3b0), text(0x0082e058), 0x21);  // r_fullscreen
+    title_global<uint32_t>(0x0095e6dc) = cvar_get(text(0x0083c3a0), text(0x0082e098), 0x20);  // r_weightMipMaps
+    title_global<uint32_t>(0x0095e6c0) = cvar_get(text(0x0083c390), text(0x0082e098), 0x0);  // r_uifullscreen
+    title_global<uint32_t>(0x0095e624) = cvar_get(text(0x0083c380), text(0x0082e098), 0x220);  // r_fullbright
+    title_global<uint32_t>(0x0095e384) = cvar_get(text(0x0083c374), text(0x0082e098), 0x1);  // r_lodbias
+    title_global<uint32_t>(0x0095e35c) = cvar_get(text(0x0083c368), text(0x0082e058), 0x1);  // r_flares
+    eax = cvar_get(text(0x0083c35c), text(0x0083c364), 0x100);
+    const uint32_t znear = eax;
+    title_global<uint32_t>(0x0095e7e0) = znear;  // r_znear
+    R_CheckCvarRange(1, reinterpret_cast<const uint8_t*>(uintptr_t{znear}), from_bits(0x3a83126f), from_bits(0x43480000));
+    title_global<uint32_t>(0x0095e378) = cvar_get(text(0x0083c34c), text(0x0083c354), 0x200);  // r_zfar
+    title_global<uint32_t>(0x0095e6ec) = cvar_get(text(0x0083c33c), text(0x0082e058), 0x1);  // r_dynamiclight
+    title_global<uint32_t>(0x0095e714) = cvar_get(text(0x0083c330), text(0x0082e098), 0x1);  // r_finish
+    title_global<uint32_t>(0x0095e380) = cvar_get(text(0x0083c304), text(0x0083c314), 0x1);  // r_textureMode
+    title_global<uint32_t>(0x0095e734) = cvar_get(text(0x0083c2f8), text(0x0082e098), 0x1);  // r_swapDelay
+    title_global<uint32_t>(0x0095e388) = cvar_get(text(0x0083c2e8), text(0x00839850), 0x100);  // r_LightScale
+    title_global<uint32_t>(0x0095e61c) = cvar_get(text(0x0083c2d8), text(0x00839454), 0x1);  // r_maxEntLights
+    title_global<uint32_t>(0x0095e6fc) = cvar_get(text(0x0083c2c0), text(0x00832818), 0x201);  // r_minEntLightIntensity
+    title_global<uint32_t>(0x0095e6b8) = cvar_get(text(0x0083c2b0), text(0x0082e098), 0x20);  // r_vc_makelog
+    title_global<uint32_t>(0x0095e728) = cvar_get(text(0x0083c2a0), text(0x0082e098), 0x0);  // r_vc_showlog
+    title_global<uint32_t>(0x0095e6f8) = cvar_get(text(0x0083c290), text(0x0082e098), 0x20);  // r_vc_compile
+    title_global<uint32_t>(0x0095e7ec) = cvar_get(text(0x0083c288), text(0x0082e058), 0x200);  // r_fog
+    title_global<uint32_t>(0x0095e37c) = cvar_get(text(0x0083c278), text(0x0082e098), 0x200);  // r_portalOnly
+    title_global<uint32_t>(0x0095e620) = cvar_get(text(0x0083c26c), text(0x0082e058), 0x1);  // r_lodscale
+    title_global<uint32_t>(0x0095e238) = cvar_get(text(0x0083c260), text(0x0082e098), 0x200);  // r_norefresh
+    title_global<uint32_t>(0x0095e36c) = cvar_get(text(0x0083c250), text(0x0082e058), 0x200);  // r_drawentities
+    title_global<uint32_t>(0x0095e6c8) = cvar_get(text(0x0083c244), text(0x0082e098), 0x200);  // r_nocull
+    title_global<uint32_t>(0x0095e720) = cvar_get(text(0x0083c234), text(0x0082e098), 0x200);  // r_outsideMapEnts
+    title_global<uint32_t>(0x0095e724) = cvar_get(text(0x0083c228), text(0x0082e098), 0x200);  // r_speeds
+    title_global<uint32_t>(0x0095e230) = cvar_get(text(0x0083c21c), text(0x0082e098), 0x0);  // r_verbose
+    title_global<uint32_t>(0x0095e72c) = cvar_get(text(0x0083c210), text(0x0082e098), 0x0);  // r_logFile
+    title_global<uint32_t>(0x0095e370) = cvar_get(text(0x0083c1f8), text(0x0082e098), 0x200);  // r_profileDrawElements
+    title_global<uint32_t>(0x0095e374) = cvar_get(text(0x0083c1ec), text(0x0082e098), 0x200);  // r_showtris
+    title_global<uint32_t>(0x0095e614) = cvar_get(text(0x0083c1dc), text(0x0082e098), 0x200);  // r_showtricounts
+    title_global<uint32_t>(0x0095e360) = cvar_get(text(0x0083c1c8), text(0x0082e098), 0x200);  // r_showsurfcounts
+    title_global<uint32_t>(0x0095e6c4) = cvar_get(text(0x0083c1c0), text(0x0082e098), 0x200);  // r_clear
+    title_global<uint32_t>(0x0095e618) = cvar_get(text(0x0083c1b0), text(0x00832c8c), 0x200);  // r_offsetfactor
+    title_global<uint32_t>(0x0095e6e4) = cvar_get(text(0x0083c19c), text(0x0083c1ac), 0x200);  // r_offsetunits
+    title_global<uint32_t>(0x0095e6cc) = cvar_get(text(0x0083c190), text(0x0082e098), 0x200);  // r_lockpvs
+    title_global<uint32_t>(0x0095e6d8) = cvar_get(text(0x0083c184), text(0x0082e098), 0x200);  // r_noportals
+    title_global<uint32_t>(0x0095e70c) = cvar_get(text(0x008393c0), text(0x0082e058), 0x0);  // r_cg_skybox
+    title_global<uint32_t>(0x0095e38c) = cvar_get(text(0x0083c174), text(0x0082e098), 0x200);  // r_showportals
+    title_global<uint32_t>(0x0095e730) = cvar_get(text(0x0083c164), text(0x0082e058), 0x0);  // r_cullBModels
+    title_global<uint32_t>(0x0095e234) = cvar_get(text(0x0083c154), text(0x0082e058), 0x0);  // r_cullXModels
+    title_global<uint32_t>(0x0095e7f0) = cvar_get(text(0x0083c144), text(0x0082e098), 0x200);  // r_showSkeletons
+    title_global<uint32_t>(0x0095e6d4) = cvar_get(text(0x0083c134), text(0x0082e098), 0x200);  // r_singlecell
+    title_global<uint32_t>(0x0095e6e0) = cvar_get(text(0x0083c124), text(0x008342cc), 0x1);  // r_portalbevels
+    add_command(text(0x0083c118), 0x002373f0);
+    add_command(text(0x0083c108), 0x00235c20);
+    title_global<uint32_t>(0x0095e700) = cvar_get(text(0x0083c0f8), text(0x0082e058), 0x100);  // r_testshadow
+    return title_global<uint32_t>(0x0095e700);
+}
+
+PLATFORM_ASM_ENTRY(R_InitDebugMeshes_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(R_InitDebugMeshes) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL R_InitDebugMeshes(uint32_t* out) {
+    auto* material = static_cast<uint32_t*>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(0x18));  // Z_Malloc
+    out[3] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(material ? cdDebug_InitMaterial(material) : nullptr));
+    static const char* const kMeshes[3] = {"dbgsphr", "dbgcyl", "dbghemi"};
+    for (int i = 0; i < 3; ++i) {
+        uint8_t hashed[0x20];
+        const auto* name =
+            title_function<const char* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, kMeshes[i]);  // HashStr_Init
+        out[i] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(nglFindMesh(name)));
+    }
+}
+
+uint32_t* XB_REGS1 XB_STDCALL R_RegisterModel(const char* name, uint32_t maps, uint32_t* out, uint32_t zone_set) {
+    char text[0x80];
+    int32_t length = 0;
+    Q_strncpyLen(text, &length, 0x7f, name);
+    text[0x7f] = static_cast<char>(length);
+    char base[0x80];
+    FixedStr_BaseName(text, base, 1);
+    std::memcpy(text, base, 0x80);
+    // ZoneStringMap_Lookup (EDX zone set; asset maps, out, key, a word it never reads, out
+    // index). The original's out slot is its length local with the low byte cleared (0).
+    uint32_t model = static_cast<uint32_t>(length) & ~0xffu;
+    using Lookup = void XB_REGS2 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, const char*, uint32_t, uint32_t*);
+    title_function<Lookup>(0x0002bf80)(0, zone_set, maps, &model, text, model, nullptr);
+    if (model) {
+        auto** parts = reinterpret_cast<XModelParts**>(uintptr_t{model + 0x24});
+        for (int i = 0; i < 5; ++i) {
+            if (parts[i]) XModel_ResolveBoneNames(*reinterpret_cast<XModelParts**>(reinterpret_cast<uint8_t*>(parts[i]) + 8));
+        }
+    }
+    *out = model;
+    return out;
+}
+
 // RE_ParseButtonToken (0x00296350): stdcall, the text before the next "{name}" copied
 // to EBX = out; *icon = the translated button name (null when none), *next = past '}'.
 extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL RE_ParseButtonToken_call(uint32_t table, const char* text,

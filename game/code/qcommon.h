@@ -28,6 +28,12 @@ void XB_CDECL Q_strncpyLen(char* dst, int32_t* length, int32_t max, const char* 
 void XB_CDECL Q_strncpySubLen(char* dst, int32_t* length, const char* src, int32_t start, int32_t count,
                               int32_t size);
 
+// 0x0001f040 (src in EAX, dst in ESI, flag on the stack; returns dst): a fixed string (text,
+// length byte at +0x7f) reduced to its base name (Path_BaseName 0x00044500 with flag) and
+// copied into dst (FixedStr_Copy 0x00044370), dst's length byte set.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr_BaseName(const char* src, char* dst, uint32_t flag);
+extern "C" void FixedStr_BaseName_entry(void);
+
 // 0x002a2af0 (right in EDI, up in ESI; angles, forward on the stack): Q3's AngleVectors with
 // FastSinCos (x87 degree-to-radian products); the original keeps the pitch and roll sines in
 // its two argument slots, so the C version gets their address.

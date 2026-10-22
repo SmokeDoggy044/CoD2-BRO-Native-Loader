@@ -1885,6 +1885,20 @@ int32_t XB_THISCALL ShaderCache_RandomLevel(ShaderCache* self) {
     return level > 15 ? 15 : level;
 }
 
+void XB_THISCALL ShaderCache_Init(ShaderCache* self) {
+    auto** end = reinterpret_cast<ShaderCacheNode**>(self->unknown00);
+    if (*end) return;
+    // The end node: only its key is set, all ones (above every name).
+    *end = static_cast<ShaderCacheNode*>(Mem_AlignedAlloc(0x2c, 4, 0));
+    auto* key = reinterpret_cast<uint32_t*>(*end);
+    for (int i = 0; i < 8; ++i) key[i] = 0xffffffff;
+    self->random_bits = static_cast<int32_t>(title_function<uint32_t XB_CDECL()>(0x001efcc0)());  // _rand
+    self->bits_left = 7;
+    self->level = 0;
+    self->head = static_cast<ShaderCacheNode*>(Mem_AlignedAlloc(0x6c, 4, 0));
+    for (int i = 0; i < 16; ++i) self->head->next[i] = *end;
+}
+
 ShaderCacheNode* XB_THISCALL ShaderCache_FindOrAdd(ShaderCache* self, const NglHashedName* key, void* value) {
     // Keys compare as eight unsigned words, the first difference deciding.
     auto compare = [key](const ShaderCacheNode* node) {
@@ -2100,6 +2114,15 @@ void XB_CDECL R_SetDebugViewMode(uint32_t mode) { title_global<uint32_t>(0x00901
 
 uint32_t XB_CDECL R_GetDebugViewMode() { return title_global<uint32_t>(0x00901e94); }
 
+uint32_t XB_CDECL R_SetTextureMip(uint32_t mip) { return title_global<uint32_t>(0x00897964) = mip; }
+
+uint32_t* XB_THISCALL cdDebug_InitMaterial(uint32_t* material) {
+    material[0] = 0;
+    material[1] = title_global<uint32_t>(0x00901ec4);  // the cdDebug shader class
+    material[2] = material[3] = material[4] = material[5] = 0;
+    return material;
+}
+
 uint8_t* XB_THISCALL ShaderPCUV_InitMaterial(uint8_t* material, uint32_t a, uint32_t b, uint32_t c) {
     auto* words = reinterpret_cast<uint32_t*>(material);
     words[0x1c / 4] = a;
@@ -2107,6 +2130,97 @@ uint8_t* XB_THISCALL ShaderPCUV_InitMaterial(uint8_t* material, uint32_t a, uint
     words[0x24 / 4] = c;
     words[1] = title_global<uint32_t>(0x00901ecc);  // the PCUV shader class
     return material;
+}
+
+void XB_THISCALL cdSimpleInstance_InitList(CdSimpleInstanceList* self, uint8_t* mesh, uint32_t b) {
+    self->mesh = mesh;
+    self->unknown04 = b;
+    self->unknown08 = 0;
+    self->records = static_cast<uint8_t*>(Mem_AlignedAlloc(0xc000, 0x10, 0));
+    self->count = 0;
+}
+
+void XB_THISCALL cdSimpleInstance_ShrinkList(CdSimpleInstanceList* self) {
+    const uint32_t size = static_cast<uint32_t>(self->count) << 7;
+    auto* records = static_cast<uint8_t*>(Mem_AlignedAlloc(size, 0x10, 0));
+    std::memcpy(records, self->records, static_cast<uint32_t>(self->count) << 7);
+    title_function<void XB_CDECL(void*)>(0x000939b0)(self->records);  // Mem_AlignedFree
+    self->records = records;
+}
+
+CdSimpleInstanceList* XB_THISCALL cdSimpleInstance_AddInstance(CdSimpleInstanceList* self, const float* matrix,
+                                                               float scale, const float* direction, const float* light) {
+    std::memcpy(self->records + (static_cast<uint32_t>(self->count) << 7), matrix, 0x40);
+    // Row 2 = row0 x row1 (packed: lane 3 is w*w - w*w).
+    const Lanes a = lanes(matrix + 4);
+    const Lanes b = lanes(matrix);
+    const Lanes a_yzx = {{a.v[1], a.v[2], a.v[0], a.v[3]}};
+    const Lanes b_yzx = {{b.v[1], b.v[2], b.v[0], b.v[3]}};
+    const Lanes cross = sub(mul(b, a_yzx), mul(b_yzx, a));
+    float* row2 = reinterpret_cast<float*>(self->records + (static_cast<uint32_t>(self->count) << 7) + 0x20);
+    row2[0] = cross.v[1];
+    row2[1] = cross.v[2];
+    row2[2] = cross.v[0];
+    row2[3] = cross.v[3];
+    *reinterpret_cast<float*>(self->records + (static_cast<uint32_t>(self->count) << 7) + 0x40) = scale;
+    std::memcpy(self->records + (static_cast<uint32_t>(self->count) << 7) + 0x50, direction, 0x10);
+    std::memcpy(self->records + (static_cast<uint32_t>(self->count) << 7) + 0x60, light, 0x10);
+    float* ambient = reinterpret_cast<float*>(self->records + (static_cast<uint32_t>(self->count) << 7) + 0x70);
+    std::memcpy(ambient, light + 0xc, 0x10);
+    const float quarter = from_bits(0x3e800000);  // 0.25 (0x0083ec24)
+    Lanes sum = add(lanes(ambient), mul(lanes(light + 8), quarter));
+    for (int i = 0; i < 4; ++i) ambient[i] = sum.v[i];
+    sum = add(lanes(ambient), mul(lanes(light + 4), quarter));
+    for (int i = 0; i < 4; ++i) ambient[i] = sum.v[i];
+    ++self->count;
+    return self;
+}
+
+// The original's frame (EBP, ESP aligned to 16, 0x54 bytes, three saved registers) with
+// the instance block at its +0x30: nglListAddMesh copies all 0x30 bytes of it, and the
+// original sets only the flags and the scale, so the rest is whatever its stack held.
+PLATFORM_ASM_ENTRY(cdSimpleInstance_AddListToScene_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "andl $-16, %esp\n"
+                   "subl $0x54, %esp\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "leal 0x30(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(cdSimpleInstance_AddListToScene) "addl $8, %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebx\n"
+                   "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL cdSimpleInstance_AddListToScene(CdSimpleInstanceList* self, uint32_t* block) {
+    if (title_global<uint8_t>(0x00901e8e) & 2) return;
+    for (int32_t i = 0; i < self->count; ++i) {
+        uint8_t* record = self->records + i * 0x80;
+        block[0] = 2;
+        const float s = *reinterpret_cast<const float*>(record + 0x40);
+        for (int j = 0; j < 4; ++j) std::memcpy(&block[4 + j], &s, 4);
+        uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
+        auto* lights = reinterpret_cast<uint32_t*>((arena + 7) & ~uintptr_t{7});
+        arena = reinterpret_cast<uintptr_t>(lights) + title_global<uint32_t>(0x00902904) * 4 + 8;
+        lights[0] = 0;
+        lights[1] = 0;
+        NglLightSet* set = nglCreateLightSet();
+        const uint32_t category = title_global<uint32_t>(0x00902914);
+        lights[0] |= 1u << (category & 31);
+        lights[1] |= 0;
+        lights[category + 2] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(set));
+        nglAddDirectionalLight(0xffffffff, reinterpret_cast<const float*>(self->records + i * 0x80 + 0x50),
+                               reinterpret_cast<const float*>(self->records + i * 0x80 + 0x60));
+        const float* ambient = reinterpret_cast<const float*>(self->records + i * 0x80 + 0x70);
+        nglSetAmbientColor(ambient[0], ambient[1], ambient[2]);
+        const uint32_t light_ref = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lights));
+        nglListAddMesh(self->mesh, reinterpret_cast<const float*>(self->records + i * 0x80), block, &light_ref);
+    }
 }
 
 }  // namespace game

@@ -472,6 +472,18 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL R_CheckCvarRange(uint32_t integral, con
 extern "C" void R_CheckCvarRange_entry(void);
 // 0x00243fb0: R_RegisterModel(name, 0x0095f6ac, handle, flags); returns `handle`.
 uint32_t XB_CDECL RE_RegisterModel(uint32_t handle, const char* name, uint32_t flags);
+// 0x0023c4e0: the renderer cvars (r_* globals 0x0095e230..0x0095e7f0; sv_cheats through
+// Cvar_Get, the rest through ri.Cvar_Get 0x0095e650), r_znear range-checked, the
+// screenshot commands (ri.Cmd_AddCommand 0x0095e65c). Returns r_testshadow.
+uint32_t XB_CDECL R_Register();
+// 0x0023b360 (out in ESI): out[3] = a new cdDebug material (Z_Malloc), out[0..2] = the
+// meshes "dbgsphr", "dbgcyl", "dbghemi".
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_InitDebugMeshes(uint32_t* out);
+extern "C" void R_InitDebugMeshes_entry(void);
+// 0x00241f40 (name in EAX; stdcall): the model by its base name from the zone's asset maps
+// (ZoneStringMap_Lookup 0x0002bf80, zone set in EDX); each of its five LOD part lists gets
+// its bone names resolved; *out = the model (0 when missing). Returns out.
+uint32_t* XB_REGS1 XB_STDCALL R_RegisterModel(const char* name, uint32_t maps, uint32_t* out, uint32_t zone_set);
 // 0x0023f570: text at (x, y - its height) in the font found by name at size
 // 0x008db12c * scale, coloured rgba or "^1".."^9" (a trailing "^7" dropped); "{name}"
 // tokens become button icons (R_DrawPic, as high as a space) or the button's name.
