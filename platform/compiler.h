@@ -363,8 +363,33 @@ inline float platform_x87_div_by_unsigned(float numerator, std::uint32_t value) 
         __asm__("fildl %1\n\tfdivrs %2\n\tfstps %0" : "=m"(result) : "m"(value), "m"(numerator) : "st");
     return result;
 }
+// a * b with b a double (FLD/FMUL QWORD, the caller's precision control), stored as float.
+inline float platform_x87_mul_double(float a, double b) {
+    float result;
+    __asm__("flds %1\n\tfmull %2\n\tfstps %0" : "=m"(result) : "m"(a), "m"(b) : "st");
+    return result;
+}
+// ((a2 * b2 + a1 * b1) + a0 * b0) / (tan(angle * scale) * d) * k wholly on the x87 (the
+// sum kept in the register stack, FPTAN, FDIVP st(1),st as raw bytes: GAS swaps the
+// operand-less fdivp/fdivrp), stored as float.
+inline float platform_x87_dot3_div_tan_mul(float a0, float a1, float a2, float b0, float b1, float b2, float angle,
+                                           float scale, float d, float k) {
+    float result;
+    __asm__("flds %3\n\tfmuls %6\n\tflds %2\n\tfmuls %5\n\tfaddp\n\tflds %1\n\tfmuls %4\n\tfaddp\n\t"
+            "flds %7\n\tfmuls %8\n\tfptan\n\tfstp %%st(0)\n\tfmuls %9\n\t.byte 0xde, 0xf9\n\t"
+            "fmuls %10\n\tfstps %0"
+            : "=m"(result)
+            : "m"(a0), "m"(a1), "m"(a2), "m"(b0), "m"(b1), "m"(b2), "m"(angle), "m"(scale), "m"(d), "m"(k)
+            : "st", "st(1)", "st(2)");
+    return result;
+}
 #else
 #include <cmath>
+inline float platform_x87_mul_double(float a, double b) { return static_cast<float>(a * b); }
+inline float platform_x87_dot3_div_tan_mul(float a0, float a1, float a2, float b0, float b1, float b2, float angle,
+                                           float scale, float d, float k) {
+    return ((a2 * b2 + a1 * b1) + a0 * b0) / (std::tan(angle * scale) * d) * k;
+}
 inline float platform_x87_unsigned_to_float(std::uint32_t value) { return static_cast<float>(value); }
 inline float platform_x87_div_by_unsigned(float numerator, std::uint32_t value) {
     return numerator / static_cast<float>(value);

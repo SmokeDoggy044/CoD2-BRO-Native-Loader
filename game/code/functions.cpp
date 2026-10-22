@@ -1,5 +1,6 @@
 #include "functions.h"
 
+#include "cg_view.h"
 #include "dobj.h"
 #include "fx.h"
 #include "ngl.h"
@@ -619,7 +620,18 @@ const Function kFunctions[] = {
     {"R_AddEntityModel", 0x00245a20, 0, code(&R_AddEntityModel_entry), 0, Result::None, Status::Compare},
     {"R_AddEntitySurfaces", 0x00246d60, 0, code(&R_AddEntitySurfaces), 0, Result::None, Status::Compare},
     {"RE_RenderScene", 0x002476b0, 0, code(&RE_RenderScene_entry), 0, Result::None, Status::Compare},
+    {"CG_CalcGunRotOffset", 0x00275040, 0, code(&CG_CalcGunRotOffset_entry), 0, Result::None, Status::Compare},
+    {"CG_CalcGunMoveOffset", 0x00275380, 0, code(&CG_CalcGunMoveOffset_entry), 0, Result::None, Status::Compare},
+    {"CG_UpdateGunKick", 0x00276dd0, 0, code(&CG_UpdateGunKick), 0, Result::None, Status::Compare},
+    {"CG_ShellShockViewKick", 0x00276f70, 0, code(&CG_ShellShockViewKick_entry), 0, Result::None, Status::Compare},
+    {"CG_ReadShellShockCvars", 0x002770f0, 0, code(&CG_ReadShellShockCvars_entry), 0, Result::None, Status::Compare},
     {"WeaponModel_GetDObjHandle", 0x00278e30, 0, code(&WeaponModel_GetDObjHandle), 0, Result::None, Status::Compare},
+    {"CG_ShellShockScreenParams", 0x00278ed0, 0, code(&CG_ShellShockScreenParams), 4, Result::None, Status::Compare},
+    {"CG_TiltViewAxis", 0x00278fa0, 0, code(&CG_TiltViewAxis), 0, Result::None, Status::Compare},
+    {"CG_CalcCubemapViewValues", 0x0027b3c0, 0, code(&CG_CalcCubemapViewValues), 0, Result::None, Status::Compare},
+    {"CG_CalcCameraShakeSlot", 0x0027d2f0, 0, code(&CG_CalcCameraShakeSlot), 0, Result::Eax, Status::Compare},
+    {"CG_Tracer", 0x0027d850, 0, code(&CG_Tracer), 4, Result::None, Status::Compare},
+    {"CG_ProjectViewDirToScreen", 0x0027ff20, 0, code(&CG_ProjectViewDirToScreen_entry), 0, Result::None, Status::Compare},
     {"DObj_GetOwnerPlacement", 0x00284a80, 0, code(&DObj_GetOwnerPlacement_entry), 0, Result::None, Status::Compare},
     {"Com_HashKeyNoCase", 0x00292fe0, 0, code(&Com_HashKeyNoCase), 0, Result::Eax, Status::Compare},
     {"MatrixInverse4x4", 0x00294610, 0, code(&MatrixInverse4x4), 0, Result::None, Status::Compare},
