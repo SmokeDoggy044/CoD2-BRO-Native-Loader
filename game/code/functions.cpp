@@ -748,6 +748,7 @@ const Function kFunctions[] = {
     {"ParamSet_Resolve", 0x0029b9f0, 0, code(&ParamSet_Resolve), 4, Result::None, Status::Compare},
     {"BoneMatrix_Load", 0x0029c790, 0, code(&BoneMatrix_Load), 0, Result::None, Status::Compare},
     {"BoneMatrix_Store", 0x0029c9e0, 0, code(&BoneMatrix_Store), 0, Result::Eax, Status::Compare},
+    {"FxSoundComponent_Update", 0x0029d7c0, 0, code(&FxSoundComponent_Update_entry), 4, Result::None, Status::Compare},
     {"FxSoundComponent_Create", 0x0029df60, 0, code(&FxSoundComponent_Create_entry), 0, Result::Eax, Status::Compare},
     {"FX_CollectTriggers", 0x0029e1c0, 0, code(&FX_CollectTriggers_entry), 12, Result::None, Status::Compare},
     {"FX_AddSoundComponents", 0x0029eea0, 0, code(&FX_AddSoundComponents_entry), 16, Result::Eax, Status::Compare},

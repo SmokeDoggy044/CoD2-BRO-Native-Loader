@@ -4370,6 +4370,206 @@ uint32_t XB_CDECL FX_AddParticleComponents(uint32_t entry, uint32_t, const uint8
 
 namespace {
 
+// Scr_Notify (0x002b75c0): entity in ESI, the notify on the stack (ret 4).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_Notify_call(uint8_t* entity, uint32_t notify);
+PLATFORM_ASM_ENTRY(Scr_Notify_call,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x002b75c0, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+// S_PlaySoundAlias (0x002c30a0) / S_PlaySoundAlias2 (0x002c3120): alias in EAX, reference table
+// in ECX, out + 9 words (ret 0x28).
+using PlayAlias = uint32_t* XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t, uint32_t, uint32_t,
+                                                 const float*, const float*, uint32_t, uint32_t, uint32_t, uint32_t);
+
+uint8_t* sound_handle_resolve(uint32_t* handle) {
+    return title_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t*)>(0x00013890)(handle);  // SoundHandle_Resolve
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FxSoundComponent_Update_entry,
+                   "pushl %ebx\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(FxSoundComponent_Update) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL FxSoundComponent_Update(uint8_t* component, float delta, uint32_t ebx) {
+    float* f = reinterpret_cast<float*>(component);
+    uint32_t* w = reinterpret_cast<uint32_t*>(component);
+    uint16_t& flags = *reinterpret_cast<uint16_t*>(component + 0x2a);
+    const float age = delta + f[9];
+    ++*reinterpret_cast<uint16_t*>(component + 0x28);
+    f[9] = age;
+    if (f[8] > age) return;
+    if (!handle_object(w[3], 0x0097a968)) return;
+    uint32_t* handle = &w[25];  // +0x64
+    const uint32_t table = title_global<uint32_t>(0x0095f4c4);
+    const auto play = title_function<PlayAlias>(0x002c30a0);   // S_PlaySoundAlias
+    const auto play2 = title_function<PlayAlias>(0x002c3120);  // S_PlaySoundAlias2
+    // The original pushes EBX with the flag (bit 3 of +0x2a) in its low byte over the high byte
+    // of +0x2a and its caller's upper half.
+    const auto flag_word = [&](uint16_t bits) { return (ebx & 0xffff0000u) | (bits & 0xff00u) | ((bits >> 3) & 1); };
+    const float* zero_vector = &title_global<float>(0x0082e110);
+    float pos[4];
+    float zero[4];
+    uint32_t out = 0;
+    const auto notify_entity = [&](uint32_t notify) {
+        Scr_Notify_call(FxComponent_GetEntity(component), notify);
+    };
+    const auto fail = [&] {
+        flags |= 2;
+        Entity_EndSoundNotify(FxComponent_GetEntity(component));
+        if (const uint32_t notify = title_global<uint32_t>(0x0096d928)) notify_entity(notify);
+    };
+    // A looping sound whose voice ended restarts while the listener is within range (+0x50).
+    if ((flags & 0x20) && (flags & 2) && !sound_handle_resolve(handle)) {
+        const uint16_t bits = flags;
+        const uint8_t* listener = *reinterpret_cast<const uint8_t* const*>(title_global<const uint8_t*>(0x0095f534) + 4);
+        const float* here = reinterpret_cast<const float*>(FxComponent_GetEntity(component) + 0x140);
+        const float* there = reinterpret_cast<const float*>(listener + 0x140);
+        const float dx = here[0] - there[0];
+        const float dy = here[1] - there[1];
+        const float dz = here[2] - there[2];
+        const float distance2 = dz * dz + dy * dy + dx * dx;
+        const float range = f[20];
+        if (range * range > distance2) {
+            const bool placed = (bits >> 6) & 1;
+            float position[4];
+            const float* source = &f[12];  // +0x30
+            if (!placed) {
+                FxComponent_GetPosition(position, component);
+                source = position;
+            }
+            std::memcpy(pos, source, 0x10);
+            std::memcpy(zero, zero_vector, 0x10);
+            out = 0;
+            *handle = *play(w[26], 0, table, &out, placed ? 0 : w[3], flag_word(bits), 0, pos, zero, w[16], w[22], w[19], w[20]);
+        }
+    }
+    if (!(flags & 2)) {
+        float value = f[17];  // +0x44
+        if (!(value == title_global<float>(0x0083eb34))) {
+            float octaves = f[18];
+            value = FX_RandomInOctaves(value, &octaves);
+        }
+        f[22] = value;  // +0x58
+        const uint32_t alias = w[26];
+        if (alias == 0xffffffffu) return fail();
+        const float volume = title_function<float XB_CDECL(uint32_t, uint32_t, float)>(0x000c59b0)(alias, 0, 1.0f);  // SndVoice_GetParam
+        if (volume == title_global<float>(0x0083eafc)) return fail();
+        const uint16_t bits = flags;
+        const float* source;
+        if (bits & 0x40) {
+            source = &f[12];
+        } else if (FxComponent_GetEntity(component)) {
+            source = reinterpret_cast<const float*>(FxComponent_GetEntity(component) + 0x140);
+        } else {
+            std::memcpy(zero, &title_global<float>(0x0082e290), 0x10);
+            source = zero;
+        }
+        std::memcpy(pos, source, 0x10);
+        std::memcpy(zero, zero_vector, 0x10);
+        if (bits & 0x10) {
+            *handle = *play2(alias, 0, table, &out, w[3], flag_word(bits), 0, pos, zero, w[16], w[22], w[19], w[20]);
+            if (!sound_handle_resolve(handle)) return fail();
+            if (*reinterpret_cast<const uint32_t*>(sound_handle_resolve(handle)) == 0xffffffffu && (flags & 8)) {
+                *handle = *play2(w[26], 0, table, &out, w[3], 0, 0, pos, zero, w[16], w[22], w[19], w[20]);
+                goto check_voice;
+            }
+        } else {
+            FX_LimitSoundComponents(title_global<uint32_t*>(0x0095f5b4), w[1],
+                                    title_function<uint8_t* XB_REGS1 XB_CDECL(uint32_t*)>(0x00013860)(&w[3]),  // G_EntHandleToEnt
+                                    *reinterpret_cast<const uint16_t*>(component + 0x5e));
+            const uint16_t bits2 = flags;
+            const bool placed = (bits2 >> 6) & 1;
+            const float* source2;
+            if (placed) {
+                source2 = &f[12];
+            } else if (FxComponent_GetEntity(component)) {
+                source2 = reinterpret_cast<const float*>(FxComponent_GetEntity(component) + 0x140);
+            } else {
+                std::memcpy(zero, &title_global<float>(0x0082e290), 0x10);
+                source2 = zero;
+            }
+            std::memcpy(pos, source2, 0x10);
+            const uint32_t entity = placed ? 0 : w[3];
+            std::memcpy(zero, zero_vector, 0x10);
+            *handle = *play(w[26], 0, table, &out, entity, flag_word(bits2), 0, pos, zero, w[16], w[22], w[19], w[20]);
+            if (!sound_handle_resolve(handle)) return fail();
+            if (*reinterpret_cast<const uint32_t*>(sound_handle_resolve(handle)) == 0xffffffffu && (flags & 8)) {
+                *handle = *play(w[26], 0, table, &out, entity, 0, 0, pos, zero, w[16], w[22], w[19], w[20]);
+                goto check_voice;
+            }
+        }
+        goto keep_notify;
+    check_voice:
+        if (*reinterpret_cast<const uint32_t*>(sound_handle_resolve(handle)) == 0xffffffffu) {
+            Entity_EndSoundNotify(FxComponent_GetEntity(component));
+            const uint32_t notify = title_global<uint32_t>(0x0096d928);
+            if (!notify) goto started;
+            notify_entity(notify);
+        }
+    keep_notify:
+        if (const uint32_t notify = title_global<uint32_t>(0x0096d928)) {
+            *reinterpret_cast<uint32_t*>(sound_handle_resolve(handle) + 0x2c) = notify;
+        }
+    started:
+        if (SoundRef_IsBusy(sound_handle_resolve(handle))) flags |= 0x20;
+        f[20] = SoundRef_GetParam1a(sound_handle_resolve(handle));
+        if (sound_handle_resolve(handle)) {
+            const float scale = *reinterpret_cast<const float*>(title_global<const uint8_t*>(0x0095f4c4) + 0x6018);
+            const float volume_scale = SoundRef_GetParam0(sound_handle_resolve(handle)) * scale;
+            SoundRef_SetVolumeScale(sound_handle_resolve(handle), volume_scale);
+        }
+        flags |= 2;
+    }
+    // A timer (+0x54): when it runs out, vtable slot 7 with 2.0.
+    {
+        float timer = f[21];
+        if (timer >= 0.0f) {
+            timer -= delta;
+            f[21] = timer;
+            if (0.0f > timer) {
+                f[21] = title_global<float>(0x0083eb34);
+                title_function<void XB_THISCALL(uint8_t*, float)>(
+                    vtable_slot(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(component)), 7))(component, 2.0f);
+            }
+        }
+    }
+    if (!sound_handle_resolve(handle)) return;
+    if (SoundRef_IsDone(sound_handle_resolve(handle))) return;
+    if (SoundRef_IsState3(sound_handle_resolve(handle))) {
+        Entity_EndSoundNotify(FxComponent_GetEntity(component));
+        if (*reinterpret_cast<const uint32_t*>(sound_handle_resolve(handle) + 0x2c)) {
+            notify_entity(*reinterpret_cast<const uint32_t*>(sound_handle_resolve(handle) + 0x2c));
+        }
+    }
+    // A fade (flag 1): +0x1c counts down over +0x18, scaling the volume +0x40.
+    if (flags & 1) {
+        const float left = f[7] - delta;
+        f[7] = left;
+        if (sound_handle_resolve(handle)) {
+            float fraction = left / f[6];
+            if (0.0f > fraction) {
+                fraction = 0.0f;
+            } else if (fraction > title_global<float>(0x0083eb20)) {
+                fraction = title_global<float>(0x0083eb20);
+            }
+            SoundRef_SetVolumeScale(sound_handle_resolve(handle), fraction * f[16]);
+        }
+    }
+    if (const uint8_t* placement = reinterpret_cast<const uint8_t*>(uintptr_t{w[5]})) {
+        if (sound_handle_resolve(handle)) SoundRef_SetSource(placement, 0, sound_handle_resolve(handle));
+    }
+}
+
+namespace {
+
 // FxSoundComponent_Create with the sound name passed in (FX_AddSoundComponents' own buffer;
 // 0x0096d8f8 then holds the original's stack address of it).
 uint8_t* sound_component_create(uint8_t* component, uint32_t name) {
@@ -4409,7 +4609,7 @@ uint8_t* sound_component_create(uint8_t* component, uint32_t name) {
     uint8_t* entity = handle_object(title_global<uint32_t>(0x0096d8ec), 0x0097a968);
     uint32_t* sound_ids = reinterpret_cast<uint32_t*>(entity + 0x3c4);
     if (sound_ids[0] && !sound_ids[1]) sound_ids[1] = w[1];
-    title_function<void XB_THISCALL(uint8_t*, float)>(0x0029d7c0)(component, 0.0f);  // FxSoundComponent_Update
+    FxSoundComponent_Update(component, 0.0f, 0);  // the original's EBX is 0 here
     return component;
 }
 
@@ -4701,21 +4901,6 @@ uint32_t XB_STDCALL FX_LimitSoundComponents(uint32_t* lists, uint32_t hash, cons
     }
     return static_cast<uint32_t>(count);
 }
-
-namespace {
-
-// Scr_Notify (0x002b75c0): entity in ESI, the notify on the stack (ret 4).
-extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_Notify_call(uint8_t* entity, uint32_t notify);
-PLATFORM_ASM_ENTRY(Scr_Notify_call,
-                   "pushl %esi\n"
-                   "movl 8(%esp), %esi\n"
-                   "pushl 12(%esp)\n"
-                   "movl $0x002b75c0, %eax\n"
-                   "call *%eax\n"
-                   "popl %esi\n"
-                   "ret")
-
-}  // namespace
 
 void XB_REGS1 XB_CDECL Entity_EndSoundNotify(uint8_t* entity) {
     if (!entity) return;

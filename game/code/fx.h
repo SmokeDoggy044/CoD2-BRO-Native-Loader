@@ -660,6 +660,19 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_AddParticleComponents(uint32_t e
                                                                       uint32_t* out, float distance);
 extern "C" void FX_AddParticleComponents_entry(void);
 
+// 0x0029d7c0 (vtable 0x00837674 slot 1, thiscall + delta, ret 4): a sound component's update.
+// Once past its delay (+0x20; age +0x24) and with a live entity: the first time (flag 2 of
+// +0x2a) the alias (+0x68; not with volume 0) plays at the placement (+0x30, flag 0x40), the
+// entity origin or 0x0082e290 - S_PlaySoundAlias2 with flag 0x10, else S_PlaySoundAlias after
+// FX_LimitSoundComponents (+0x5e instances), retried without the loop flag (8) when no voice
+// came; the pitch +0x58 is FX_RandomInOctaves(+0x44, +0x48) unless +0x44 is -1. A dead looping
+// sound (flag 0x20) restarts within +0x50 of the listener. Then the timer +0x54 (vtable slot 7),
+// the end notifies (0x0096d928, the reference's +0x2c), the fade (flag 1: +0x1c over +0x18
+// scales +0x40) and the placement's position. The asm entry passes the caller's EBX: its
+// upper half goes into a word S_PlaySoundAlias gets.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FxSoundComponent_Update(uint8_t* component, float delta, uint32_t ebx);
+extern "C" void FxSoundComponent_Update_entry(void);
+
 // 0x0029df60 (component in ESI, returned): a sound component (0x70 bytes, vtable 0x00837674)
 // from the spawn parameters FX_AddSoundComponents leaves in 0x0096d8e8-0x0096d92c (floats
 // +0x40-+0x54, placement copy +0x30 with flag 0x40, the sound S_FindSoundByHash of the name
