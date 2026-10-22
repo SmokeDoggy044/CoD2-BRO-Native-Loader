@@ -163,6 +163,14 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddAnimToZone(uint32_t anim,
 extern "C" void Stream_AddAnimToZone_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddSkelToZone(uint32_t skel, uint32_t streams);
 extern "C" void Stream_AddSkelToZone_entry(void);
+// 0x00025b50 / 0x00025bf0 / 0x00025c90 / 0x00025e70 / 0x00025f10 (vtable slot 3, thiscall):
+// the Stream_Add*ToZone above while a zone is active on the global context (byte +9 set);
+// otherwise the wrapped manager (+4) adds it; +9 clear: returns the object.
+uint32_t XB_THISCALL ZoneTextureManager_Add(const uint8_t* self, uint32_t object);
+uint32_t XB_THISCALL ZoneMeshFileManager_Add(const uint8_t* self, uint32_t object);
+uint32_t XB_THISCALL ZoneMeshManager_Add(const uint8_t* self, uint32_t object);
+uint32_t XB_THISCALL ZoneAnimManager_Add(const uint8_t* self, uint32_t object);
+uint32_t XB_THISCALL ZoneSkelManager_Add(const uint8_t* self, uint32_t object);
 uint32_t XB_CDECL Stream_LoadAitb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 uint8_t* XB_CDECL Stream_LoadLgrid(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 // 0x00290730 Xmb: pack relocated, registered (0x0023cfb0, EBX = data), stored in

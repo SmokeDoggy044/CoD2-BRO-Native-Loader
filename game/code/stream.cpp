@@ -593,6 +593,49 @@ uint32_t XB_CDECL Stream_AddSkelToZone(uint32_t skel, uint32_t streams) {
     return add_to_zone(streams, skel, skel + 8, 0xb8, false);
 }
 
+namespace {
+
+// Zone*Manager_Add (vtable slot, thiscall): disabled (+9 clear) -> the object back; no
+// active zone on the global context -> the wrapped manager's Add (+4, slot 3); else the
+// zone's own map.
+uint32_t zone_manager_add(const uint8_t* self, uint32_t object, uint32_t (*add)(uint32_t)) {
+    if (!self[9]) return object;
+    uint8_t* context = global_context();
+    const uint32_t count = context_word(context, 0x374);
+    if (count) {
+        const int32_t top = static_cast<int32_t>(count) - 1;
+        if (context_word(context, 0x378 + (top > 0 ? top : 0) * 4) != 0xffffffff) return add(object);
+    }
+    const uint32_t inner = *reinterpret_cast<const uint32_t*>(self + 4);
+    return title_function<uint32_t XB_THISCALL(uint32_t, uint32_t)>(
+        *reinterpret_cast<const uint32_t*>(uintptr_t{*reinterpret_cast<const uint32_t*>(uintptr_t{inner}) + 0xc}))(
+        inner, object);
+}
+
+uint32_t streams() { return title_global<uint32_t>(0x0095f630); }
+
+}  // namespace
+
+uint32_t XB_THISCALL ZoneTextureManager_Add(const uint8_t* self, uint32_t object) {
+    return zone_manager_add(self, object, [](uint32_t o) { return Stream_AddTextureToZone(streams(), o); });
+}
+
+uint32_t XB_THISCALL ZoneMeshFileManager_Add(const uint8_t* self, uint32_t object) {
+    return zone_manager_add(self, object, [](uint32_t o) { return Stream_AddMeshFileToZone(streams(), o); });
+}
+
+uint32_t XB_THISCALL ZoneMeshManager_Add(const uint8_t* self, uint32_t object) {
+    return zone_manager_add(self, object, [](uint32_t o) { return Stream_AddMeshToZone(streams(), o); });
+}
+
+uint32_t XB_THISCALL ZoneAnimManager_Add(const uint8_t* self, uint32_t object) {
+    return zone_manager_add(self, object, [](uint32_t o) { return Stream_AddAnimToZone(o, streams()); });
+}
+
+uint32_t XB_THISCALL ZoneSkelManager_Add(const uint8_t* self, uint32_t object) {
+    return zone_manager_add(self, object, [](uint32_t o) { return Stream_AddSkelToZone(o, streams()); });
+}
+
 uint32_t XB_STDCALL Stream_AddMeshFileToZone(uint32_t streams, uint32_t file) {
     return add_to_zone(streams, file, file, 0x38, false);
 }
