@@ -131,6 +131,11 @@ void XB_CDECL cdOcean_Init();
 NglHashedName* XB_THISCALL cdOcean_GetName(const NglShaderClass* self, NglHashedName* out);
 void XB_THISCALL cdOcean_AddToList(const NglShaderClass* self, NglMeshDrawNode* node,
                                    const NglMeshSection* section, const uint8_t* material);
+// 0x0004ef90 / 0x0004f370 (index in EAX): wave set `index` (0x00901b30, 0xd0 bytes of
+// float4 rows) into the ocean's tweak globals (0x00902134.., 0x0089e6dc..), and back;
+// storing pads the rows with 0 or 1.0 where no global maps.
+void XB_REGS1 XB_CDECL cdOcean_LoadWaveSet(uint32_t index);
+void XB_REGS1 XB_CDECL cdOcean_StoreWaveSet(uint32_t index);
 
 void XB_CDECL cdWater_Toggle();
 void XB_CDECL cdWater_Init();

@@ -344,6 +344,36 @@ void XB_CDECL cdOcean_Init() {
     title_function<void XB_CDECL()>(0x00044eb0)();
 }
 
+namespace {
+
+// Wave set row words -> tweak globals; 0 = no global (stored as 0, the 1.0 pair below).
+constexpr uint32_t kWaveSetGlobals[0x34] = {
+    0x00902134, 0x0089e6dc, 0x0089e6e0, 0,          0x00902138, 0x0090213c, 0x00902140, 0x00902144,
+    0x00902148, 0x0090214c, 0,          0,          0x0089e6e4, 0x0089e6e8, 0x0089e6ec, 0x0089e6f0,
+    0x0089e6f4, 0x0089e6f8, 0,          0,          0x00902150, 0x00902154, 0x00902158, 0x0090215c,
+    0x00902160, 0x00902164, 0x00902168, 0x0090216c, 0x00902170, 0x00902174, 0x00902178, 0x0090217c,
+    0x0089e6fc, 0x0089e700, 0x0089e704, 0x0089e708, 0x0089e70c, 0x0089e710, 0x0089e714, 0x0089e718,
+    0x00902180, 0x00902184, 0x00902188, 0x0090218c, 0x00902190, 0x00902194, 0x00902198, 0x0090219c,
+    0x0089e71c, 0x0089e720, 0x0089e724, 0x0089e728,
+};
+
+uint32_t* wave_set(uint32_t index) { return &title_global<uint32_t>(0x00901b30 + index * 0xd0); }
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL cdOcean_LoadWaveSet(uint32_t index) {
+    const uint32_t* set = wave_set(index);
+    for (uint32_t i = 0; i < 0x34; ++i)
+        if (kWaveSetGlobals[i]) title_global<uint32_t>(kWaveSetGlobals[i]) = set[i];
+}
+
+void XB_REGS1 XB_CDECL cdOcean_StoreWaveSet(uint32_t index) {
+    uint32_t* set = wave_set(index);
+    for (uint32_t i = 0; i < 0x34; ++i) set[i] = kWaveSetGlobals[i] ? title_global<uint32_t>(kWaveSetGlobals[i]) : 0;
+    set[0x12] = 0x3f800000;  // 1.0f
+    set[0x13] = 0x3f800000;
+}
+
 NglHashedName* XB_THISCALL cdOcean_GetName(const NglShaderClass*, NglHashedName* out) {
     return hashed_name(out, "cdOcean");
 }

@@ -1,6 +1,9 @@
 #include "fx.h"
 
+#include <cstring>
+
 #include "ngl.h"
+#include "stream.h"
 #include "title_data.h"
 
 namespace game {
@@ -21,6 +24,30 @@ FxEffect* XB_CDECL FX_AllocEffect() {
     effect->unknown16 = 0;
     effect->unknown18 = -1;
     return effect;
+}
+
+void XB_CDECL FX_InitEffectPool() {
+    FxEffect*& pool = title_global<FxEffect*>(0x0095f6e4);
+    if (pool) return;
+    uint32_t* block = title_function<uint32_t* XB_CDECL(uint32_t)>(0x00042c30)(4 + 0xf0 * sizeof(FxEffect));  // Heap_Alloc16
+    FxEffect* effects = nullptr;
+    if (block) {
+        block[0] = 0xf0;
+        effects = reinterpret_cast<FxEffect*>(block + 1);
+        title_function<void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x00011240)(  // eh_vector_constructor_iterator
+            effects, sizeof(FxEffect), 0xf0, 0x00029650);
+    }
+    pool = effects;
+    uint32_t& free_count = title_global<uint32_t>(0x00988810);
+    free_count = 0;
+    for (uint32_t i = 0; i < 0xf0; ++i) {
+        FxEffect& effect = effects[i];
+        effect.unknown00 = i | (i << 16);
+        if (static_cast<int32_t>(free_count) < 0xf0) {
+            title_global<uint32_t>(0x00988814 + free_count * 4) = effect.unknown00;
+            ++free_count;
+        }
+    }
 }
 
 uint8_t* XB_CDECL FX_FindEvictableEffect(const uint8_t* effect) {
@@ -374,6 +401,150 @@ void XB_CDECL FX_FreeAllEffects(FxIdList* instances) {
         if (objects->count) --objects->count;
     }
     FX_ClearEffects();
+}
+
+namespace {
+
+// FX_GetBoltMatrix (0x002463c0): out matrix in EDI, entity and bone on the stack; AL.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_GetBoltMatrix_call(float* out, uint32_t entity, uint32_t bone);
+PLATFORM_ASM_ENTRY(FX_GetBoltMatrix_call,
+                   "pushl %edi\n"
+                   "movl 8(%esp), %edi\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "movl $0x002463c0, %eax\n"
+                   "call *%eax\n"
+                   "addl $8, %esp\n"
+                   "popl %edi\n"
+                   "ret")
+
+}  // namespace
+
+uint32_t XB_REGS1 XB_CDECL FX_PlayBoltedEffect(const float* origin, uint32_t effect, uint32_t entity,
+                                               uint32_t owner, uint32_t bone) {
+    // {origin, axis0, axis1, axis2}
+    float bolt[12] = {origin[0], origin[1], origin[2]};
+    if (entity && !(FX_GetBoltMatrix_call(bolt, entity, bone) & 0xff)) return 0;
+    alignas(16) float matrix[16];
+    for (int row = 0; row < 4; ++row) {
+        const float* src = &bolt[((row + 1) & 3) * 3];
+        matrix[row * 4 + 0] = src[0];
+        matrix[row * 4 + 1] = src[1];
+        matrix[row * 4 + 2] = src[2];
+        matrix[row * 4 + 3] = src[0];
+    }
+    return title_function<uint32_t XB_CDECL(uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0023c040)(
+        effect, matrix, entity, owner, bone, bone != 0);  // FX_SpawnEffect
+}
+
+PLATFORM_ASM_ENTRY(FX_ParseEffectTexture_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(FX_ParseEffectTexture) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL FX_ParseEffectTexture(uint32_t* stream, uint32_t* out) {
+    // The name buffer; a length past 0x7f is written past it in the original too.
+    char name[0x100] = {};
+    int32_t length = 0;
+    uint8_t hashed[0x20];
+    const auto hash_name = [&]() {
+        Stream_ReadString(stream, name, &length, 0x7f);
+        name[static_cast<uint8_t>(length)] = 0;
+        return title_function<char* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+    };
+    switch (Stream_ReadInt(stream)) {
+    case 0:
+        out[0] = 0;
+        out[1] = reinterpret_cast<uintptr_t>(nglFindTexture(hash_name()));
+        break;
+    case 1:
+        out[1] = reinterpret_cast<uintptr_t>(nglFindMesh(hash_name()));
+        out[0] = 1;
+        break;
+    case 2:
+        out[1] = Stream_ReadUInt(stream);
+        out[0] = 2;
+        break;
+    case 3:
+        out[1] = Stream_ReadInt(stream);
+        out[0] = 3;
+        break;
+    case 4: {
+        const float value = Stream_ReadFloat(stream);
+        std::memcpy(&out[1], &value, 4);
+        out[0] = 4;
+        break;
+    }
+    case 5: {
+        const float a = Stream_ReadFloat(stream);
+        const float b = Stream_ReadFloat(stream);
+        const float c = Stream_ReadFloat(stream);
+        std::memcpy(&out[3], &c, 4);
+        std::memcpy(&out[2], &b, 4);
+        out[0] = 5;
+        std::memcpy(&out[1], &a, 4);
+        break;
+    }
+    case 8:
+        out[1] = Stream_ReadUInt(stream);
+        out[0] = 8;
+        break;
+    default:
+        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        out[1] = 0;
+        out[0] = 2;
+        break;
+    }
+    return out;
+}
+
+namespace {
+
+// FX_UpdateEffect (0x0029b8f0): instance in EBX, delta on the stack (stdcall).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_UpdateEffect_call(uint8_t* effect, uint32_t delta);
+PLATFORM_ASM_ENTRY(FX_UpdateEffect_call,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x0029b8f0, %eax\n"
+                   "call *%eax\n"
+                   "popl %ebx\n"
+                   "ret")
+
+// FX_SpawnQueuedEffect (0x002a5810): list in EDI, the queued spawn on the stack (stdcall).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_SpawnQueuedEffect_call(FxIdList* list, uint8_t* spawn);
+PLATFORM_ASM_ENTRY(FX_SpawnQueuedEffect_call,
+                   "pushl %edi\n"
+                   "movl 8(%esp), %edi\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x002a5810, %eax\n"
+                   "call *%eax\n"
+                   "popl %edi\n"
+                   "ret")
+
+}  // namespace
+
+void XB_REGS1 XB_STDCALL FX_UpdateEffects(FxIdList* list, uint32_t delta) {
+    FX_UpdateFadingComponents(reinterpret_cast<uint8_t*>(list), delta);
+    uint32_t* const words = &list->count;
+    for (uint32_t i = 0; i < list->count; ++i) {
+        FX_UpdateEffect_call(list->items[i], delta);
+        uint8_t* item = list->items[i];
+        if ((*reinterpret_cast<const uint32_t*>(item + 0x50) >> 1) & 1) continue;
+        if (*reinterpret_cast<const uint32_t*>(item)) continue;
+        if (item) {
+            FX_FreeEffectComponents(reinterpret_cast<uint32_t*>(item));
+            title_function<void XB_THISCALL(uint32_t, void*)>(0x00044910)(title_global<uint32_t>(0x0095f5bc),
+                                                                          item);  // SmallHeap_Free
+        }
+        list->items[i] = reinterpret_cast<uint8_t*>(words[list->count]);
+        if (list->count) --list->count;
+        --i;
+    }
+    uint32_t& queued = *reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(list) + 0x910);
+    for (uint32_t i = 0; i < queued; ++i)
+        FX_SpawnQueuedEffect_call(list, reinterpret_cast<uint8_t*>(list) + 0x920 + i * 0x210);
+    queued = 0;
 }
 
 }  // namespace game

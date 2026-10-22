@@ -1735,6 +1735,57 @@ void XB_CDECL nglReleaseTexture(void* texture) {
     manager_slot<ManagerRelease>(texture_manager(), 8)(texture_manager(), texture, 0, 0);
 }
 
+void XB_CDECL nglFreeTexture(NglTexture* texture) {
+    using ManagerRemove = void XB_THISCALL(NglResourceManager*, void*);
+    using Free = void XB_CDECL(void*);
+    if (!texture) return;
+    const uint8_t kind = static_cast<uint8_t>(texture->flags);
+    if (kind == 0x10) return;
+    if (!nglTextureIsStale(texture)) {
+        title_global<uint32_t>(0x00903c88) = 0;
+        title_global<uint32_t>(0x00903c8c) = 0;
+        title_global<uint32_t>(0x00903c90) = 0;
+        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+        nglUnbindTextures();
+        title_function<void XB_CDECL()>(0x003e6200)();
+    }
+    // +0x4c is a count here.
+    if (kind == 0x0f) {
+        for (uint32_t i = 0; i < reinterpret_cast<uintptr_t>(texture->target); ++i) nglReleaseTexture(texture->frames[i]);
+        title_function<Free>(0x000939b0)(texture->frames);  // Mem_AlignedFree
+        title_function<Free>(0x000939b0)(texture);
+        return;
+    }
+    if (texture->target) {
+        for (uint32_t i = 0; i < reinterpret_cast<uintptr_t>(texture->target); ++i) {
+            NglTexture* item = reinterpret_cast<NglTexture*>(reinterpret_cast<uint8_t*>(texture->frames) + i * 0x74);
+            nglFreePalette(reinterpret_cast<uint32_t*>(item->palette));
+            item->palette = nullptr;
+            manager_slot<ManagerRemove>(texture_manager(), 4)(texture_manager(), item);
+        }
+        title_function<Free>(0x000939b0)(texture->frames);
+    }
+    if (texture->palette) {
+        nglFreePalette(reinterpret_cast<uint32_t*>(texture->palette));
+        texture->palette = nullptr;
+    }
+    const bool owns_memory = !((texture->flags >> 10) & 1);
+    if (owns_memory) nglReleaseTextureSurfaces(texture);
+    if (*reinterpret_cast<const uint8_t*>(reinterpret_cast<const uint8_t*>(texture) + 0xc) & 2) {
+        title_function<uint32_t XB_STDCALL(void*)>(0x003e7ef0)(texture->d3d_texture);  // D3DResource_Release
+        texture->d3d_texture = nullptr;
+    }
+    if (!(*reinterpret_cast<const uint8_t*>(reinterpret_cast<const uint8_t*>(texture) + 0x28) & 1) && owns_memory)
+        nglReleaseTextureMemory(texture);
+    nglTexture_FreeHeaders(texture);
+    if (texture->companion) {
+        manager_slot<ManagerRemove>(texture_manager(), 4)(texture_manager(), texture->companion);
+        nglFreeTexture(texture->companion);
+        texture->companion = nullptr;
+    }
+    title_function<Free>(0x000939b0)(texture);
+}
+
 void* XB_CDECL nglFindMesh(const char* name) {
     return manager_slot<ManagerFind>(mesh_manager(), 2)(mesh_manager(), name);
 }
@@ -4201,6 +4252,40 @@ NglTexture* XB_CDECL nglCreateTexture(uint32_t flags, uint32_t width, uint32_t h
     texture->last_used_frame = -1;
     return texture;
 }
+
+namespace {
+
+uint8_t* load_builtin_texture(const char* name, uint32_t data, uint32_t size) {
+    uint8_t* copy = static_cast<uint8_t*>(Mem_AlignedAlloc(size, 0x80, 0x30000));
+    std::memcpy(copy, &title_global<uint8_t>(data), size);
+    uint8_t hashed[0x20];
+    title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+    return title_function<uint8_t* XB_CDECL(uint8_t*, uint32_t, uint8_t*, uint32_t)>(0x000635a0)(  // nglLoadTexture
+        hashed, 0, copy, size);
+}
+
+}  // namespace
+
+void XB_CDECL nglInitTextureManager() {
+    title_global<uint8_t>(0x009025f8) = 0;
+    const auto create_manager = [](uint32_t vtable) -> uint32_t {
+        uint32_t* manager = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
+        if (!manager) return 0;
+        manager[0] = vtable;
+        manager[1] = static_cast<uint32_t>(title_function<int XB_CDECL()>(0x001efcc0)());  // _rand
+        manager[2] = 7;
+        manager[3] = 0;
+        return reinterpret_cast<uintptr_t>(manager);
+    };
+    title_global<uint32_t>(0x009025f0) = create_manager(0x007bc940);
+    title_global<uint32_t>(0x00903d10) = create_manager(0x007bc98c);
+    uint8_t* texture = load_builtin_texture("ngldefault", 0x008a1e40, 0xb38);
+    title_global<uint8_t*>(0x009026f8) = texture;
+    *reinterpret_cast<uint32_t*>(texture + 0x28) |= 2;
+    nglCreateWhiteTexture();
+}
+
+void XB_CDECL nglCreateSysFont() { load_builtin_texture("nglSysFont", 0x008a56e0, 0x155d6); }
 
 void XB_CDECL nglCreateWhiteTexture() {
     NglTexture*& white = title_global<NglTexture*>(0x00902700);

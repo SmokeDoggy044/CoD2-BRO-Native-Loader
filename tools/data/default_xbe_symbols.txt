@@ -1396,10 +1396,10 @@
 0004ebb0 FUN_0004ebb0
 0004eef0 cdOcean_AddToList
 0004ef60 cdOcean_Toggle
-0004ef90 FUN_0004ef90
+0004ef90 cdOcean_LoadWaveSet
 0004f2a0 cdOcean_Register
 0004f320 cdOcean_Init
-0004f370 FUN_0004f370
+0004f370 cdOcean_StoreWaveSet
 0004f810 cdOcean_SetWaveConstants
 000505c0 cdOcean_Draw
 000508e0 cdOcean_InitPixelShaders

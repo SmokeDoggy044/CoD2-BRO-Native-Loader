@@ -698,6 +698,14 @@ void* XB_CDECL nglFindTextureAddRef(const char* name);
 void* XB_CDECL nglFindFontAddRef(const char* name);
 // 0x00063630 / 0x00067720 / 0x000659f0
 void XB_CDECL nglReleaseTexture(void* texture);
+// 0x0006ece0: frees a texture (not null, not a kind 0x10 reference). One in use this
+// frame (nglTextureIsStale false) first unbinds everything like nglResetDeviceBindings.
+// Kind 0x0f (animated): releases each frame (+0x50, count +0x4c), frees the array and
+// itself. Others: the inline sub-textures (0x74 each at +0x50, count +0x4c) lose their
+// palette and leave the texture manager (slot 4), then the palette, surfaces (unless
+// 0x400), the D3D texture (+0xc flag 2), memory (unless +0x28 flag 1 or 0x400), the
+// headers, and the companion (manager slot 4, then freed the same way).
+void XB_CDECL nglFreeTexture(NglTexture* texture);
 // 0x000456a0 / 0x000456c0: nglFindTextureAddRef for a material's texture name, null
 // for an empty one (first word 0); OrDefault also gives null for the default texture
 // (0x009026f8).
@@ -1101,6 +1109,14 @@ NglTexture* XB_CDECL nglCreateTexture(uint32_t flags, uint32_t width, uint32_t h
 
 // 0x000633e0: the 1x1 white texture "nglwhite" (0x00902700), added to the texture manager.
 void XB_CDECL nglCreateWhiteTexture();
+// 0x00063a70: the texture manager (0x009025f0, vtable 0x007bc940) and a second skip-list
+// manager (0x00903d10, vtable 0x007bc98c), each {vtable, rand(), 7, 0}; the default
+// texture "ngldefault" (0x009026f8, flag 2 at +0x28) loaded from a copy of the built-in
+// DDS at 0x008a1e40; then nglCreateWhiteTexture. 0x009025f8 cleared.
+void XB_CDECL nglInitTextureManager();
+// 0x00079f60: the texture "nglSysFont" loaded from a copy of the built-in DDS at
+// 0x008a56e0.
+void XB_CDECL nglCreateSysFont();
 // 0x00072c00: the fog textures: one fog_width x fog_height (0x00902e70), two width x
 // height (0x00902e64), and a texture header over the 0x00902dfc memory (0x00902e50).
 void XB_CDECL nglCreateFogTextures(uint32_t width, uint32_t height, uint32_t fog_width, uint32_t fog_height);

@@ -100,5 +100,28 @@ void XB_CDECL FX_FreeAllEffectLights();
 // then FX_ClearEffects.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FX_FreeAllEffects(FxIdList* instances);
 extern "C" void FX_FreeAllEffects_entry(void);
+// 0x00247190 (origin in EAX): FX_SpawnEffect with the entity's bone matrix
+// (FX_GetBoltMatrix, origin preset to `origin`, axes zero) when `entity` is set; 0 when
+// the bone is not found. The matrix rows are rotated: axes first, origin last, each
+// with its x again in w.
+uint32_t XB_REGS1 XB_CDECL FX_PlayBoltedEffect(const float* origin, uint32_t effect, uint32_t entity,
+                                               uint32_t owner, uint32_t bone);
+
+// 0x00238570 (stream in EDI, out in ESI): one effect parameter, a type word then its
+// value: 0 texture name, 1 mesh name, 2 uint, 3 int, 4 float, 5 three floats, 8 uint;
+// other types break into the debugger and give {2, 0}. Returns `out`.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL FX_ParseEffectTexture(uint32_t* stream, uint32_t* out);
+extern "C" void FX_ParseEffectTexture_entry(void);
+
+// 0x0023b800: once, the pool of 0xf0 effects (0x0095f6e4; Heap_Alloc16 with a count
+// word in front, each built by 0x00029650); every effect's index goes into both halves
+// of its first word, which is pushed on the free list (0x00988810).
+void XB_CDECL FX_InitEffectPool();
+
+// 0x002a5980 (list in EAX, stdcall): fading components first, then FX_UpdateEffect
+// (0x0029b8f0) of every instance; one without flag 2 at +0x50 whose first word is 0 is
+// freed (the last entry takes its place). Then FX_SpawnQueuedEffect (0x002a5810) of
+// each queued spawn (+0x920, 0x210 each, count +0x910), and the queue emptied.
+void XB_REGS1 XB_STDCALL FX_UpdateEffects(FxIdList* list, uint32_t delta);
 
 }  // namespace game

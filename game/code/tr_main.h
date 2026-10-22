@@ -109,6 +109,10 @@ void XB_CDECL R_DrawPic(float x, float y, float w, float h, void* shader);
 // 0x00237770: the height of "LltygI" in `font` at `scale` (times the global text
 // scale 0x008db12c); the font's handle comes from the pointer at 0x0095e6b4.
 uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale);
+// 0x002372e0: Q3's RE_Shutdown: logs, removes the renderer's console commands (ri
+// 0x0095e630 Printf, 0x0095e660 Cmd_RemoveCommand), frees the texture at 0x0095f6c8 and
+// clears 0x0095e390.
+void XB_CDECL RE_Shutdown(int32_t destroy_window);
 
 // 0x00235890: Q3's R_CullPointAndRadius against the view's four side planes
 // (0x0095e518): 0 inside, 1 crossing a plane, 2 outside; always 1 with r_nocull
@@ -447,6 +451,22 @@ int32_t XB_REGS1 XB_STDCALL R_FindFont(const char* name, uint32_t strip_extensio
 // 0x0023fc30: RE_DrawTextExt with the arguments 6 and 7 = -1, 0 inserted after the sixth.
 void XB_CDECL RE_DrawText(float x, float y, uint32_t font_name, float scale, const float* rgba, const char* text,
                           uint32_t a6, uint32_t a7, uint32_t a8);
+// 0x0023fc70: the width of `text` in the font at `scale` (times 0x008db12c); with a
+// "{...}" in it, the runs between button tokens plus each icon's shader width scaled
+// to the last run's height (or the token's name as text without a shader).
+int32_t XB_CDECL RE_TextWidth(const char* text, uint32_t font_name, float scale);
+// 0x0023ec30 (name in EDX): the texture for a shader name: the name up to its first '.',
+// after its last '@'/'$' and last '/', hashed and looked up with Stream_FindTexture -
+// first in the "FrontEnd" zone's bank (when the zone table 0x0095f638 +0x18 has that
+// zone and its bank +0x28 is not -1; otherwise the default bank +0x2c, only if the zone
+// exists), then in the bank at +0x34; the white texture (0x00902700) when neither has it.
+uint8_t* XB_REGS2 XB_CDECL RE_RegisterShader(uint32_t unused, const char* name);
+// 0x00240750: a cell's (0x0095f6b8 +0x1c, 0x50 bytes each) meshes. `release`: the
+// mesh file (+0x3c) and every mesh slot (+0x44, count +0x40) cleared. Otherwise the
+// mesh file "<map>_<cell:03d>" (map name 0x00988c58) or up to 32 split files
+// "<map>_<cell:03d>_SPLIT<n>" (+0x3c = 1 then) through Stream_FindMeshFile, and every
+// mesh of them into the slots in order.
+void XB_CDECL R_LoadCellMeshes(uint32_t cell, uint32_t release);
 
 // 0x00045ef0: the end of R_ClearAlpha: a scene (no clear, no depth test or write) with
 // one custom node that calls R_DrawFogPass (0x00045850) with {1, 0.0}.

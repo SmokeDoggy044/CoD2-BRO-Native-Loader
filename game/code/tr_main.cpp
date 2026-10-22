@@ -387,6 +387,24 @@ void XB_CDECL R_ClearAlpha() {
     R_AddFogPass();
 }
 
+void XB_CDECL RE_Shutdown(int32_t destroy_window) {
+    title_function<void XB_CDECL(int32_t, const char*, ...)>(title_global<uint32_t>(0x0095e630))(
+        0, "RE_Shutdown( %i )\n", destroy_window);
+    static const char* const kCommands[] = {
+        "modellist", "screenshotHigh", "screenshot", "imagelist",   "shaderlist",  "skinlist",  "gfxinfo",
+        "modelist",  "shaderstate",    "taginfo",    "cropimages",  "r_meminfo",   "r_vc_stats", "r_smc_stats",
+        "r_smc_flush", "r_loadsun",    "r_savesun",  "r_sunhelp",   "r_vbo_refresh",
+    };
+    const auto remove_command = title_function<void XB_CDECL(const char*)>(title_global<uint32_t>(0x0095e660));
+    for (const char* name : kCommands) remove_command(name);
+    NglTexture*& texture = title_global<NglTexture*>(0x0095f6c8);
+    if (texture) {
+        nglFreeTexture(texture);
+        texture = nullptr;
+    }
+    title_global<uint32_t>(0x0095e390) = 0;
+}
+
 uint32_t XB_CDECL RE_TextHeight(uint32_t font, float scale) {
     const float size = title_global<float>(0x008db12c) * scale;
     const uint32_t handle = title_function<uint32_t XB_CDECL(uint32_t, float)>(title_global<uint32_t>(0x0095e6b4))(font, size);
@@ -2632,6 +2650,55 @@ void XB_CDECL RE_DrawText(float x, float y, uint32_t font_name, float scale, con
     RE_DrawTextExt(x, y, font_name, scale, rgba, text, -1, 0, a6, a7, a8);
 }
 
+int32_t XB_CDECL RE_TextWidth(const char* text, uint32_t font_name, float scale) {
+    using FindFont = const uint8_t* XB_CDECL(uint32_t, float);
+    const uint8_t* font =
+        title_function<FindFont>(title_global<uint32_t>(0x0095e6b4))(font_name, title_global<float>(0x008db12c) * scale);
+    int32_t width, height;
+    const auto strchr = title_function<const char* XB_CDECL(const char*, int)>(0x001ef5e0);
+    const char* open = strchr(text, '{');
+    if (!open || !strchr(open, '}')) {
+        const float s = title_global<float>(0x008db12c) * scale;
+        nglGetTextSizef(font, &width, &height, s, s, text);
+        return width;
+    }
+    int32_t total = 0;
+    float s = title_global<float>(0x008db12c) * scale;
+    nglGetTextExtent(font, " ", &width, &height, s, s);
+    const uint32_t table = title_global<uint32_t>(0x0095f5e0);
+    const char* cursor = text;
+    const char* icon;
+    char buffer[0x400];
+    if (RE_ParseButtonToken_call(table, text, &cursor, &icon, buffer)) {
+        do {
+            if (buffer[0]) {
+                s = title_global<float>(0x008db12c) * scale;
+                nglGetTextExtent(font, buffer, &width, &height, s, s);
+                total += width;
+            }
+            if (icon) {
+                using RegisterShader = const uint8_t* XB_REGS2 XB_CDECL(uint32_t, const char*);
+                const uint8_t* shader = title_function<RegisterShader>(0x0023ec30)(0, icon);  // RE_RegisterShader
+                if (shader) {
+                    const float ratio = platform_x87_unsigned_to_float(static_cast<uint32_t>(height)) /
+                                        platform_x87_unsigned_to_float(field<uint32_t>(shader, 0x14));
+                    total = platform_ftol(platform_x87_mul_add(platform_x87_unsigned_to_float(field<uint32_t>(shader, 0x10)),
+                                                               ratio,
+                                                               platform_x87_unsigned_to_float(static_cast<uint32_t>(total))));
+                } else {
+                    s = title_global<float>(0x008db12c) * scale;
+                    nglGetTextExtent(font, icon, &width, &height, s, s);
+                    total += width;
+                }
+            }
+        } while (RE_ParseButtonToken_call(table, cursor, &cursor, &icon, buffer));
+    }
+    if (!cursor) return total;
+    s = title_global<float>(0x008db12c) * scale;
+    nglGetTextExtent(font, cursor, &width, &height, s, s);
+    return total + width;
+}
+
 void XB_CDECL R_AddFogPass() {
     static const uint32_t kData[2] = {1, 0};  // {1, 0.0f}
     nglPushScene(0);
@@ -2640,6 +2707,135 @@ void XB_CDECL R_AddFogPass() {
     nglSetSceneDepthEnable(0);
     nglListAddCustomNode(0x00045850, 0, kData);  // R_DrawFogPass
     nglPopScene();
+}
+
+namespace {
+
+// Stream_FindMeshFile (0x00290400): hashed name in EBX, then (streams, zone, 0, a flag
+// it never reads) on the stack (stdcall).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Stream_FindMeshFile_call(const uint8_t* hashed, uint32_t streams,
+                                                                       uint32_t zone, uint32_t unused);
+PLATFORM_ASM_ENTRY(Stream_FindMeshFile_call,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "pushl 20(%esp)\n"
+                   "pushl $0\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "movl $0x00290400, %eax\n"
+                   "call *%eax\n"
+                   "popl %ebx\n"
+                   "ret")
+
+}  // namespace
+
+void XB_CDECL R_LoadCellMeshes(uint32_t cell_index, uint32_t release) {
+    const uint8_t* cm = title_global<const uint8_t*>(0x0095f6b8);
+    if (!cm) return;
+    uint8_t* cell = field<uint8_t*>(cm, 0x1c) + (cell_index < field<uint32_t>(cm, 0x18) ? cell_index : 0) * 0x50;
+    uint32_t& file_slot = *reinterpret_cast<uint32_t*>(cell + 0x3c);
+    const auto mesh_slot = [cell](uint32_t i) -> uint32_t& {
+        return field<uint32_t*>(cell, 0x44)[i < field<uint32_t>(cell, 0x40) ? i : 0];
+    };
+    if (static_cast<uint8_t>(release)) {
+        file_slot = 0;
+        for (uint32_t i = 0; i < field<uint32_t>(cell, 0x40); ++i) mesh_slot(i) = 0;
+        return;
+    }
+    const uint8_t* world = title_global<const uint8_t*>(0x0095f640);
+    const uint8_t* level = field<const uint8_t*>(world, 4 + field<uint32_t>(world, 0x1cc) * 4);
+    const uint8_t* entry =
+        field<const uint8_t**>(level, 0x20)[cell_index < field<uint32_t>(level, 0x1c) ? cell_index : 0];
+    const uint32_t zone = field<uint32_t>(field<const uint8_t*>(field<const uint8_t*>(entry, 0x2c), 0x24), 0x28);
+    const auto sprintf = title_function<int XB_CDECL(char*, const char*, ...)>(0x001ee901);
+    const char* map = &title_global<char>(0x00988c58);
+    char name[0xf0];
+    uint8_t hashed[0x20];
+    uint8_t* files[32];
+    int32_t count = 0;
+    sprintf(name, "%s_%03d", map, cell_index);
+    title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+    uint8_t* file = Stream_FindMeshFile_call(hashed, title_global<uint32_t>(0x0095f630), zone, 0);
+    file_slot = reinterpret_cast<uintptr_t>(file);
+    if (file) {
+        files[0] = file;
+        count = 1;
+    } else {
+        for (int32_t split = 0; split < 0x20; ++split) {
+            sprintf(name, "%s_%03d_SPLIT%d", map, cell_index, split);
+            title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+            file = Stream_FindMeshFile_call(hashed, title_global<uint32_t>(0x0095f630), zone, 0);
+            file_slot = reinterpret_cast<uintptr_t>(file);
+            if (!file) break;
+            if (count < 0x20) files[count++] = file;
+        }
+        file_slot = 1;
+        if (!count) return;
+    }
+    uint32_t slot = 0;
+    for (int32_t i = 0; i < count; ++i)
+        for (uint8_t* mesh = nglMeshFileFirstMesh(files[i]); mesh; mesh = nglMeshNext(mesh))
+            mesh_slot(slot++) = reinterpret_cast<uintptr_t>(mesh);
+}
+
+namespace {
+
+// StringMap_Find (0x000249a0): map in EBX, a pointer to the key's pointer on the stack
+// (stdcall); a pointer to the entry's value or null.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL StringMap_Find_call(const uint8_t* map, const char* const* key);
+PLATFORM_ASM_ENTRY(StringMap_Find_call,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x000249a0, %eax\n"
+                   "call *%eax\n"
+                   "popl %ebx\n"
+                   "ret")
+
+}  // namespace
+
+uint8_t* XB_REGS2 XB_CDECL RE_RegisterShader(uint32_t, const char* name) {
+    char buffer[0x40];
+    char* out = buffer;
+    for (const char* in = name; *in && *in != '.'; ++in) *out++ = *in;
+    *out = 0;
+    const uint8_t* zones = title_global<const uint8_t*>(0x0095f638);
+    const uint8_t* table = field<const uint8_t*>(zones, 0x18);
+    const uint8_t* zone = nullptr;
+    uint32_t bank = 0;
+    bool have_bank = false;
+    if (table) {
+        const char* key = "FrontEnd";
+        const uint32_t* found = StringMap_Find_call(table + 8, &key);
+        if (found) {
+            uint32_t index = *found;
+            if (index >= field<uint32_t>(table, 0x10)) index = 0;
+            zone = field<const uint8_t**>(table, 0x14)[index];
+        }
+        if (zone && field<uint32_t>(zone, 0x28) != 0xffffffff) {
+            bank = field<uint32_t>(zone, 0x28);
+            have_bank = true;
+        }
+    }
+    if (!have_bank) bank = field<uint32_t>(zones, 0x2c);
+    const char* base = buffer;
+    for (uint32_t i = 0; i < std::strlen(buffer); ++i)
+        if (buffer[i] == '@' || buffer[i] == '$') base = &buffer[i + 1];
+    const char* file = base;
+    for (const char* p = base; *p; ++p)
+        if (*p == '/') file = p + 1;
+    uint8_t hashed[0x20];
+    using FindTexture = uint8_t* XB_STDCALL(uint32_t, uint32_t, const uint8_t*, uint32_t, uint32_t);
+    if (zone) {
+        title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, file);  // HashStr_Init
+        uint8_t* texture = title_function<FindTexture>(0x00290620)(title_global<uint32_t>(0x0095f630), bank, hashed,
+                                                                   0, 0);  // Stream_FindTexture
+        if (texture) return texture;
+    }
+    title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, file);  // HashStr_Init
+    uint8_t* texture = title_function<FindTexture>(0x00290620)(title_global<uint32_t>(0x0095f630),
+                                                               field<uint32_t>(zones, 0x34), hashed, 0, 0);
+    return texture ? texture : title_global<uint8_t*>(0x00902700);
 }
 
 }  // namespace game
