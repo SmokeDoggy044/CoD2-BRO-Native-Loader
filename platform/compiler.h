@@ -173,6 +173,22 @@ inline float platform_x87_add(float a, float b) {
     __asm__("flds %1\n\tfadds %2\n\tfstps %0" : "=m"(result) : "m"(a), "m"(b) : "st");
     return result;
 }
+// a > b compared on the x87 (FLD/FCOMIP: no MXCSR flags; false when unordered).
+inline bool platform_x87_greater(float a, float b) {
+    bool result;
+    __asm__("flds %2\n\tflds %1\n\tfcomip %%st(1), %%st\n\tfstp %%st(0)\n\tseta %0"
+            : "=q"(result)
+            : "m"(a), "m"(b)
+            : "st", "st(1)", "cc");
+    return result;
+}
+// a * b on the x87 (FLD/FMUL, the caller's precision and rounding control), stored as
+// float: no MXCSR flags.
+inline float platform_x87_mul(float a, float b) {
+    float result;
+    __asm__("flds %1\n\tfmuls %2\n\tfstps %0" : "=m"(result) : "m"(a), "m"(b) : "st");
+    return result;
+}
 // a * b / c + d on the x87 (FLD/FMUL/FDIV/FADD, rounded by the caller's precision
 // control), stored as float: no MXCSR flags.
 inline float platform_x87_mul_div_add(float a, float b, float c, float d) {

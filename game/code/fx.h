@@ -130,6 +130,83 @@ float* XB_THISCALL FxBox_Sphere(const float* box, float* out);
 uint32_t XB_THISCALL FxEmitter_Draw(uint8_t* emitter, uint32_t lights);
 // 0x00094f60: every emitter's FxEmitter_Draw; bit 1 of +0x4e = one of them returned 1.
 void XB_THISCALL FxSystem_Draw(uint8_t* system, uint32_t lights);
+// 0x000965a0: bit 0 of the definition's emitter entry `index` (+0x50, 0x3c each, +0xc):
+// the emitter starts visible.
+uint32_t XB_THISCALL FxSystemDef_IsEmitterVisible(const uint8_t* definition, int32_t index);
+// 0x0009c330: value `index` of a parameter block (+4, floats) set.
+void XB_THISCALL FxParamBlock_Set(uint8_t* block, uint32_t index, float value);
+// 0x00094990: the system's parameter overrides (+0x5c, {block, index, value} 0xc each,
+// count int16 +0x62) swapped with the blocks' values: called before and after an update.
+void XB_THISCALL FxSystem_SwapParams(uint8_t* system);
+// 0x000971a0: an emitter's particle memory (+0xbc) back to the particle heap (0x008bb760,
+// slot 2), its count (+0xc0) off the live total (0x00909ec0); the argument is unread.
+void XB_THISCALL FxEmitter_FreeParticles(uint8_t* emitter, uint32_t unused);
+// 0x0009b770: an item of a fixed-size pool freed (base +0x18, size +0x14, 8-byte slots
+// +0x1c, free list head int16 +0x20, used count +4).
+void XB_THISCALL apsMemoryPool_Free(uint8_t* pool, uint8_t* item);
+// 0x0009c6e0: a 4-key step curve at `t`: the value (+0xc) of the first key whose time
+// (+8, 8 bytes each) lies past t, else +4 * +0 (x87); 0 without keys (+0x28 clear).
+float XB_THISCALL FxCurve_Evaluate(const uint8_t* curve, float t);
+// 0x00097200: starts a pass over an emitter's particles: begin/end (+0xbc, count +0xc0,
+// stride +0x88) out and into 0x00909ec8/cc, the time into 0x00909ed0, the bounds
+// accumulator (0x00909ee0) emptied; 0 without particles.
+uint32_t XB_THISCALL FxEmitter_BeginParticles(const uint8_t* emitter, uint8_t** begin, uint8_t** end, float time);
+// 0x00097580: a particle range advanced: each particle's age (byte offset +0x95) plus the
+// pass time (0x00909ed0), the bounds accumulator (0x00909ee0 min, 0x00909ef0 max) grown
+// by its extent (+0x84 flag 2: size +0x8d * sqrt 2; flag 4: sizes +0x8e/+0x93; else 1);
+// returns the next range, always empty.
+void XB_THISCALL FxEmitter_AdvanceParticles(uint8_t* emitter, uint8_t** begin, uint8_t** end);
+// 0x00097100: the particles killed in the last pass (0x00909ed4 of them, list from
+// 0x00909ba0) refilled from the end of the array; count +0xc0 and 0x00909ec0 lowered.
+void XB_THISCALL FxEmitter_CompactParticles(uint8_t* emitter);
+// 0x0009f880: the 8 corners of a box {min[4], max[4]} (16 bytes each): min, min + x/y/z
+// of the extent, max - x/y/z, max (packed, every lane).
+void XB_CDECL FxBox_GetCorners(const float* box, float* out);
+// 0x00097910: an emitter's box (+0x60) moved to world space: the min/max of its corners
+// through Mat44_TransformPoint with the emitter matrix (+0x10).
+void XB_THISCALL FxEmitter_TransformBounds(uint8_t* emitter);
+// 0x000979d0: ends a particle pass: the bounds accumulator (0x00909ee0) into +0x60, moved
+// to world space (0x00097910) with flag 2 of +0xae, then FxEmitter_CompactParticles.
+void XB_THISCALL FxEmitter_EndParticles(uint8_t* emitter);
+// 0x000973b0: an emitter's depth (+0xb8: camera distance of its box minus the radius, at
+// least 0) and flag 8 of +0xae (box sphere in the frustum; also set without a scene).
+void XB_THISCALL FxEmitter_UpdateVisibility(uint8_t* emitter);
+// 0x0009f350: an emitter removed from the emitter list (0x00909f60: items +4, count
+// int16 +0xa; the last one takes its slot +0xac) and freed to the pool (0x00909f64 +8).
+void XB_THISCALL FxEmitterList_Remove(uint8_t* list, uint8_t* emitter, uint32_t unused);
+// 0x0009f2d0: a new emitter (0xd0 bytes from the pool, apsGroup_Create) appended to the
+// emitter list; 0 when either fails.
+uint8_t* XB_THISCALL FxEmitterList_Add(uint8_t* list, uint32_t type, uint32_t renderer, uint8_t* block, uint32_t flag);
+// 0x0009b9c0 / 0x0009bec0: the particle random index (0x0090993c) to 0 for a seeded
+// update, and back (0x00909f04) after it.
+void XB_CDECL FxRandom_Reset();
+void XB_CDECL FxRandom_Restore();
+// 0x00094ad0: a particle system's emitters removed (FxEmitterList_Remove), its parameter
+// overrides (+0x5c) and emitter array (+0x54) freed to the particle heap, its
+// definition's use count (+0x48 -> +0xb0) lowered.
+void XB_THISCALL FxSystem_Destroy(uint8_t* system);
+// 0x00095250: every system of a list (items +4, count +0x1e4) updated with its seeded
+// random (effect id +0x64); those FxSystem_Update ends are destroyed and freed to the
+// pool (0x00909994 +8), the last one taking their place.
+void XB_THISCALL FxSystemList_Update(uint8_t* list, float time);
+// 0x00236ae0: the global systems (0x009099a8) updated to the effect clock and drawn with
+// an ambient-only light set (0.4).
+void XB_CDECL FX_DrawGlobalSystems();
+// 0x0009c7b0: an emitter definition's update: FxEmitter_UpdateVisibility, the step
+// (age - last update +0xb0, at most 0.3; hidden emitters wait +0xb4 from a depth curve),
+// then its actions (+0, count int16 +6) inside their time windows (+4 {start, end}):
+// emitter-level ones (+0x14 clear, skipped while stopping), the rest over every particle
+// range. `delta` is unread.
+void XB_THISCALL FxEmitterDef_Update(uint8_t* definition, uint8_t* emitter, uint8_t* system, float age, float delta,
+                                     uint32_t stopping);
+// 0x0009c730: the definition's end-of-life action (+8) over every particle range (time 0,
+// delta 8888.89).
+void XB_THISCALL FxEmitterDef_Finish(uint8_t* definition, uint8_t* system, uint8_t* emitter);
+// 0x00094c60: a particle system advanced to `time`: emitters whose definition entry
+// (+0x48 -> +0x50, 0x3c each) has started and not ended are spawned, dead ones (flag 4 of
+// +0xae) removed, the rest updated (entry +0x14: 0x0009c7b0, at the end time 0x0009c730);
+// age +0x44. 0 when an emitter was removed, else 1 (also when time lies before the start).
+uint32_t XB_THISCALL FxSystem_Update(uint8_t* system, float time);
 // 0x0009d2f0: the particle code's double-buffered block (0x00909f18, index 0x00909f2c)
 // flipped: the other one current (0x00909f3c), its fill counters (0x00909f38/48) 0.
 void XB_CDECL FxBuffers_Flip();

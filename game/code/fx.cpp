@@ -653,6 +653,478 @@ void XB_CDECL FxBuffers_Flip() {
 
 namespace {
 
+template <typename T>
+T& at(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+uint8_t* pointer_at(uint8_t* base, uint32_t offset) { return at<uint8_t*>(base, offset); }
+
+// An action's Apply (vtable slot 0): (begin, end, emitter, system, time, delta); begin
+// and end are null for emitter-level actions.
+void apply_action(uint32_t action, uint8_t* begin, uint8_t* end, uint8_t* emitter, uint8_t* system, float time,
+                  float delta) {
+    using Apply = void XB_THISCALL(uint32_t, uint8_t*, uint8_t*, uint8_t*, uint8_t*, float, float);
+    title_function<Apply>(vtable_slot(action, 0))(action, begin, end, emitter, system, time, delta);
+}
+
+// MINPS/MAXPS lane by lane: the second operand on NaN.
+Lanes lanes_min(const Lanes& a, const Lanes& b) {
+    Lanes r;
+    for (int i = 0; i < 4; ++i) r.v[i] = a.v[i] < b.v[i] ? a.v[i] : b.v[i];
+    return r;
+}
+
+Lanes lanes_max(const Lanes& a, const Lanes& b) {
+    Lanes r;
+    for (int i = 0; i < 4; ++i) r.v[i] = a.v[i] > b.v[i] ? a.v[i] : b.v[i];
+    return r;
+}
+
+Lanes splat(float x) { return {{x, x, x, x}}; }
+
+// A particle's position with z in the last lane too (SHUFPS 0x10, 0xa8).
+Lanes position_xyzz(const uint8_t* particle) {
+    const float* p = reinterpret_cast<const float*>(particle);
+    return {{p[0], p[1], p[2], p[2]}};
+}
+
+// A system's block (+ptr, two int16 sizes after +size) back to the particle heap, the
+// effect id (0x008bb764) and the seeded flag (0x00909948) set aside meanwhile.
+void free_system_block(uint8_t* system, uint32_t ptr, uint32_t size) {
+    if (!at<uint32_t>(system, ptr)) return;
+    const uint32_t id = title_global<uint32_t>(0x008bb764);
+    const uint32_t seeded = title_global<uint32_t>(0x00909948);
+    const uint32_t heap = title_global<uint32_t>(0x008bb760);
+    title_global<uint32_t>(0x008bb764) = 0xffffffffu;
+    title_global<uint32_t>(0x00909948) = 1;
+    title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(heap, 2))(heap, at<uint32_t>(system, ptr));
+    title_global<uint32_t>(0x00909948) = seeded;
+    title_global<uint32_t>(0x008bb764) = id;
+    at<uint32_t>(system, ptr) = 0;
+    at<uint16_t>(system, size) = 0;
+    at<uint16_t>(system, size + 2) = 0;
+}
+
+uint8_t* emitter_pool() { return title_global<uint8_t*>(0x00909f64) + 8; }
+
+}  // namespace
+
+uint32_t XB_THISCALL FxSystemDef_IsEmitterVisible(const uint8_t* definition, int32_t index) {
+    const uint8_t* entries = *reinterpret_cast<const uint8_t* const*>(definition + 0x50);
+    return entries[index * 0x3c + 0xc] & 1;
+}
+
+void XB_THISCALL FxParamBlock_Set(uint8_t* block, uint32_t index, float value) {
+    at<float*>(block, 4)[index] = value;
+}
+
+void XB_THISCALL FxSystem_SwapParams(uint8_t* system) {
+    uint8_t* entry = pointer_at(system, 0x5c);
+    uint8_t* const end = entry + at<int16_t>(system, 0x62) * 0xc;
+    for (; entry != end; entry += 0xc) {
+        uint8_t* block = pointer_at(entry, 0);
+        const uint32_t index = at<uint32_t>(entry, 4);
+        const float old = at<float*>(block, 4)[index];
+        FxParamBlock_Set(block, index, at<float>(entry, 8));
+        at<float>(entry, 8) = old;
+    }
+}
+
+void XB_THISCALL FxEmitter_FreeParticles(uint8_t* emitter, uint32_t) {
+    const uint32_t particles = at<uint32_t>(emitter, 0xbc);
+    const uint32_t heap = title_global<uint32_t>(0x008bb760);
+    if (particles) title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(heap, 2))(heap, particles);
+    const uint32_t count = at<uint32_t>(emitter, 0xc0);
+    if (count) title_global<uint32_t>(0x00909ec0) -= count;
+}
+
+void XB_THISCALL apsMemoryPool_Free(uint8_t* pool, uint8_t* item) {
+    if (!item) return;
+    const int32_t index =
+        static_cast<int32_t>(item - pointer_at(pool, 0x18)) / at<int32_t>(pool, 0x14);
+    uint8_t* slot = pointer_at(pool, 0x1c) + index * 8;
+    at<uint16_t>(slot, 2) = at<uint16_t>(pool, 0x20);
+    at<uint16_t>(pool, 0x20) = static_cast<uint16_t>(index);
+    at<uint32_t>(slot, 4) &= 0xff000000u;
+    slot[7] = 0;
+    --at<uint32_t>(pool, 4);
+}
+
+float XB_THISCALL FxCurve_Evaluate(const uint8_t* curve, float t) {
+    const float* keys = reinterpret_cast<const float*>(curve);
+    if (!*reinterpret_cast<const uint32_t*>(curve + 0x28)) return title_global<float>(0x0083eafc);
+    for (int i = 0; i < 4; ++i)
+        if (keys[2 + i * 2] > t) return keys[3 + i * 2];
+    return platform_x87_mul(keys[1], keys[0]);
+}
+
+uint32_t XB_THISCALL FxEmitter_BeginParticles(const uint8_t* emitter, uint8_t** begin, uint8_t** end, float time) {
+    uint8_t* const particles = *reinterpret_cast<uint8_t* const*>(emitter + 0xbc);
+    if (!particles) return 0;
+    title_global<float>(0x00909ed0) = time;
+    *begin = particles;
+    title_global<uint8_t*>(0x00909ec8) = particles;
+    *end = *begin + *reinterpret_cast<const uint32_t*>(emitter + 0xc0) * *reinterpret_cast<const uint32_t*>(emitter + 0x88);
+    // The bounds accumulator: min = FLT_MAX, max = -FLT_MAX (sign flipped with XORPS).
+    float* bounds = &title_global<float>(0x00909ee0);
+    const float big = title_global<float>(0x007c5000);
+    for (int i = 0; i < 4; ++i) {
+        bounds[i] = big;
+        bounds[4 + i] = -big;
+    }
+    title_global<uint8_t*>(0x00909ecc) = *end;
+    title_global<uint32_t>(0x00909ed4) = 0;
+    return 1;
+}
+
+void XB_THISCALL FxEmitter_CompactParticles(uint8_t* emitter) {
+    const uint32_t killed = title_global<uint32_t>(0x00909ed4);
+    if (!killed) return;
+    title_global<uint32_t>(0x00909ed4) = 0;
+    const uint32_t count = at<uint32_t>(emitter, 0xc0);
+    const uint32_t stride = at<uint32_t>(emitter, 0x88);
+    at<uint32_t>(emitter, 0xc0) = count - killed;
+    title_global<uint32_t>(0x00909ec0) -= killed;
+    // The killed particles (0x00909ba0 on, in order) refilled from the end of the array.
+    uint8_t* last = pointer_at(emitter, 0xbc) + (count - 1) * stride;
+    uint8_t** killed_list = &title_global<uint8_t*>(0x00909b9c);
+    for (uint32_t k = killed; k; --k, last -= stride) {
+        uint8_t* dst = killed_list[k];
+        if (dst != last)
+            for (uint32_t i = 0; i < stride; ++i) dst[i] = last[i];
+    }
+    killed_list[0] = nullptr;
+}
+
+void XB_CDECL FxBox_GetCorners(const float* box, float* out) {
+    const Lanes low = lanes(box);
+    const Lanes high = lanes(box + 4);
+    const Lanes extent = sub(high, low);
+    const Lanes x = mul(lanes(&title_global<float>(0x007c87b0)), splat(extent.v[0]));
+    const Lanes y = mul(lanes(&title_global<float>(0x007c87c0)), splat(extent.v[1]));
+    const Lanes z = mul(lanes(&title_global<float>(0x007c87d0)), splat(extent.v[2]));
+    const Lanes corners[8] = {low, add(low, x), add(low, y), add(low, z), sub(high, x), sub(high, y), sub(high, z), high};
+    std::memcpy(out, corners, sizeof corners);
+}
+
+void XB_THISCALL FxEmitter_TransformBounds(uint8_t* emitter) {
+    float* box = &at<float>(emitter, 0x60);
+    alignas(16) float corners[8][4];
+    FxBox_GetCorners(box, &corners[0][0]);
+    Lanes low = splat(title_global<float>(0x007c5000));
+    Lanes high = neg(low);
+    for (const float* corner : corners) {
+        alignas(16) float point[4];
+        const float* moved = title_function<float* XB_CDECL(float*, const float*, const float*)>(0x00097ba0)(  // Mat44_TransformPoint
+            point, &at<float>(emitter, 0x10), corner);
+        low = lanes_min(low, lanes(moved));
+        high = lanes_max(high, lanes(moved));
+    }
+    std::memcpy(box, low.v, 16);
+    std::memcpy(box + 4, high.v, 16);
+}
+
+void XB_THISCALL FxEmitter_EndParticles(uint8_t* emitter) {
+    if (!at<uint32_t>(emitter, 0xbc)) return;
+    std::memcpy(emitter + 0x60, &title_global<float>(0x00909ee0), 32);
+    if (at<uint8_t>(emitter, 0xae) & 2)
+        FxEmitter_TransformBounds(emitter);
+    FxEmitter_CompactParticles(emitter);
+}
+
+void XB_THISCALL FxEmitter_UpdateVisibility(uint8_t* emitter) {
+    const uint8_t* scene = title_global<const uint8_t*>(0x0090259c);  // ngl_curScene
+    if (!scene) {
+        at<uint8_t>(emitter, 0xae) |= 8;
+        at<float>(emitter, 0xb8) = 0.0f;
+        return;
+    }
+    const float* box = &at<float>(emitter, 0x60);
+    alignas(16) float box_center[4];
+    FxBox_Center(box, box_center);
+    // SHUFPS leaves {x, y, z, z}.
+    alignas(16) float center[4] = {box_center[0], box_center[1], box_center[2], box_center[2]};
+    const float radius = FxBox_Radius(box);
+    const Lanes offset = sub(lanes(center), lanes(reinterpret_cast<const float*>(scene + 0x250)));
+    const Lanes squares = mul(offset, offset);
+    const float distance_sq = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float distance = distance_sq;
+    if (!(distance_sq == 0.0f || distance_sq != distance_sq)) {
+        // RSQRTSS and one Newton step.
+        const float estimate = platform_rsqrt_estimate(distance_sq);
+        const float root = distance_sq * estimate;
+        const float step = title_global<float>(0x007c5310) - root * estimate;
+        distance = (step * root) * title_global<float>(0x007c5320);
+    }
+    float depth = distance - radius;
+    if (0.0f > depth) depth = 0.0f;
+    at<float>(emitter, 0xb8) = depth;
+    if (nglSphereInFrustum(center, radius))
+        at<uint8_t>(emitter, 0xae) |= 8;
+    else
+        at<uint8_t>(emitter, 0xae) &= 0xf7;
+}
+
+void XB_THISCALL FxEmitter_AdvanceParticles(uint8_t* emitter, uint8_t** begin, uint8_t** end) {
+    if (!at<uint32_t>(emitter, 0xbc)) return;
+    uint8_t* particle = title_global<uint8_t*>(0x00909ec8);
+    uint8_t* const last = title_global<uint8_t*>(0x00909ecc);
+    const uint32_t flags = at<uint32_t>(emitter, 0x84);
+    const uint32_t stride = at<uint32_t>(emitter, 0x88);
+    const uint32_t age = at<uint8_t>(emitter, 0x95);
+    Lanes& low = *reinterpret_cast<Lanes*>(&title_global<float>(0x00909ee0));
+    Lanes& high = *reinterpret_cast<Lanes*>(&title_global<float>(0x00909ef0));
+    // Each particle ages by the pass time and grows the bounds by its extent.
+    if (flags & 2) {
+        // A sprite: +-size * sqrt(2) around all four position lanes.
+        const uint32_t size = at<uint8_t>(emitter, 0x8d);
+        const float sqrt2 = title_global<float>(0x0083f1f0);
+        for (; particle != last; particle += stride) {
+            at<float>(particle, age) += title_global<float>(0x00909ed0);
+            const Lanes extent = splat(at<float>(particle, size) * sqrt2);
+            const Lanes upper = add(extent, lanes(reinterpret_cast<const float*>(particle)));
+            high = lanes_max(high, upper);
+            low = lanes_min(low, upper);
+            const Lanes lower = sub(lanes(reinterpret_cast<const float*>(particle)), extent);
+            low = lanes_min(low, lower);
+            high = lanes_max(high, lower);
+        }
+    } else if (flags & 4) {
+        // Two sizes: the larger plus half the smaller.
+        const uint32_t size_a = at<uint8_t>(emitter, 0x8e);
+        const uint32_t size_b = at<uint8_t>(emitter, 0x93);
+        const float half = title_global<float>(0x0083eb24);
+        for (; particle != last; particle += stride) {
+            at<float>(particle, age) += title_global<float>(0x00909ed0);
+            const Lanes position = position_xyzz(particle);
+            const float a = at<float>(particle, size_a);
+            const float b = at<float>(particle, size_b);
+            const Lanes extent = splat(a > b ? b * half + a : a * half + b);
+            low = lanes_min(low, sub(position, extent));
+            high = lanes_max(high, add(extent, position));
+        }
+    } else {
+        const Lanes extent = splat(title_global<float>(0x0083eb20));
+        for (; particle != last; particle += stride) {
+            at<float>(particle, age) += title_global<float>(0x00909ed0);
+            const Lanes position = position_xyzz(particle);
+            const Lanes lower = sub(position, extent);
+            const Lanes upper = add(extent, position);
+            low = lanes_min(low, lower);
+            high = lanes_max(high, upper);
+        }
+    }
+    // One range per pass: the next one is empty.
+    *end = nullptr;
+    *begin = nullptr;
+    title_global<uint8_t*>(0x00909ecc) = nullptr;
+    title_global<uint8_t*>(0x00909ec8) = nullptr;
+}
+
+void XB_THISCALL FxEmitterList_Remove(uint8_t* list, uint8_t* emitter, uint32_t unused) {
+    const int32_t slot = at<int16_t>(emitter, 0xac);
+    FxEmitter_FreeParticles(emitter, unused);
+    apsMemoryPool_Free(emitter_pool(), emitter);
+    at<int16_t>(emitter, 0xac) = -1;
+    if (at<int16_t>(list, 0xa) > 1) {
+        uint8_t** items = at<uint8_t**>(list, 4);
+        items[slot] = items[at<int16_t>(list, 0xa) - 1];
+        at<int16_t>(at<uint8_t**>(list, 4)[slot], 0xac) = static_cast<int16_t>(slot);
+    }
+    if (at<uint16_t>(list, 0xa)) --at<uint16_t>(list, 0xa);
+}
+
+uint8_t* XB_THISCALL FxEmitterList_Add(uint8_t* list, uint32_t type, uint32_t renderer, uint8_t* block, uint32_t flag) {
+    uint8_t* emitter = title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(0x0009ba90)(emitter_pool(), 0xd0);  // apsMemoryPool_Alloc
+    if (!emitter) return nullptr;
+    using Create = uint32_t XB_THISCALL(uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t);
+    if (!title_function<Create>(0x00097a10)(emitter, type, renderer, block, flag)) {  // apsGroup_Create
+        FxEmitter_FreeParticles(emitter, 0);
+        apsMemoryPool_Free(emitter_pool(), emitter);
+        return nullptr;
+    }
+    at<int16_t>(emitter, 0xac) = at<int16_t>(list, 0xa);
+    uint8_t* item = emitter;
+    title_function<void XB_THISCALL(uint8_t*, uint8_t**)>(0x0009f570)(list + 4, &item);  // the list's push_back
+    return emitter;
+}
+
+void XB_CDECL FxRandom_Reset() { title_global<uint32_t>(0x0090993c) = 0; }
+
+void XB_CDECL FxRandom_Restore() { title_global<uint32_t>(0x0090993c) = title_global<uint32_t>(0x00909f04); }
+
+void XB_THISCALL FxSystem_Destroy(uint8_t* system) {
+    uint8_t* const emitters = title_global<uint8_t*>(0x00909f60);
+    const uint32_t flag = at<uint8_t>(system, 0x4e) & 4;
+    const FxEmitters list = emitters_of(system);
+    for (uint8_t* const* it = list.begin; it != list.end; ++it)
+        if (*it) FxEmitterList_Remove(emitters, *it, flag);
+    free_system_block(system, 0x5c, 0x60);
+    free_system_block(system, 0x54, 0x58);
+    uint8_t* const definition = pointer_at(system, 0x48);
+    if (definition) --at<uint32_t>(definition, 0xb0);
+    // The inlined destructor frees both again (already empty).
+    free_system_block(system, 0x5c, 0x60);
+    free_system_block(system, 0x54, 0x58);
+}
+
+void XB_THISCALL FxSystemList_Update(uint8_t* list, float time) {
+    uint8_t** const items = reinterpret_cast<uint8_t**>(list + 4);
+    int32_t& count = at<int32_t>(list, 0x1e4);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const system = items[i];
+        title_global<uint32_t>(0x008bb764) = at<uint32_t>(system, 0x64);
+        title_global<uint32_t>(0x00909948) = 1;
+        FxRandom_Reset();
+        if (!FxSystem_Update(system, time)) {
+            FxSystem_Destroy(system);
+            apsMemoryPool_Free(title_global<uint8_t*>(0x00909994) + 8, system);
+            --count;
+            if (i != count) items[i] = items[count];
+            --i;
+        }
+        FxRandom_Restore();
+        title_global<uint32_t>(0x008bb764) = 0xffffffffu;
+        title_global<uint32_t>(0x00909948) = 0;
+    }
+}
+
+void XB_CDECL FX_DrawGlobalSystems() {
+    FxSystemList_Update(&title_global<uint8_t>(0x009099a8), title_global<float>(0x0095f6e0));
+    NglLightSet* const lights = nglCreateLightSet();
+    const float ambient = from_bits(0x3ecccccdu);  // 0.4
+    nglSetAmbientColor(ambient, ambient, ambient);
+    for (int32_t i = 0; i < title_global<int32_t>(0x00909b8c); ++i)
+        FxSystem_Draw(title_global<uint8_t*>(0x009099ac + i * 4), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lights)));
+}
+
+void XB_THISCALL FxEmitterDef_Update(uint8_t* definition, uint8_t* emitter, uint8_t* system, float age, float delta,
+                                     uint32_t stopping) {
+    (void)delta;
+    FxEmitter_UpdateVisibility(emitter);
+    const float max_step = title_global<float>(0x007c6490);
+    const uint32_t visible = at<uint8_t>(emitter, 0xae) & 8;
+    float step = age - at<float>(emitter, 0xb0);
+    float wait = 0.0f;
+    if (step > max_step) {
+        step = max_step;
+    } else if (!visible) {
+        // Hidden emitters update every `wait` seconds (a curve over their depth).
+        if (at<float>(emitter, 0xb4) > step) return;
+        const float curve = FxCurve_Evaluate(&title_global<uint8_t>(0x00909910), at<float>(emitter, 0xb8));
+        wait = platform_x87_greater(max_step, curve) ? curve : max_step;
+    }
+    at<float>(emitter, 0xb4) = wait;
+    at<float>(emitter, 0xb0) = age;
+    title_global<uint8_t*>(0x00909f10) = definition;
+    uint32_t* const first = at<uint32_t*>(definition, 0);
+    uint32_t* const last = first + at<int16_t>(definition, 6);
+    // Emitter-level actions (+0x14 clear) first, skipped while stopping; the rest run
+    // over every particle range.
+    uint32_t* action = first;
+    for (; action != last; ++action) {
+        uint8_t* const object = address_to_pointer(*action);
+        if (at<uint32_t>(object, 0x14)) break;
+        if (stopping) continue;
+        const float* window = at<float*>(object, 4);
+        if (age >= window[0] && window[1] >= age) apply_action(*action, nullptr, nullptr, emitter, system, age, step);
+    }
+    if (action == last) return;
+    uint8_t* begin;
+    uint8_t* end;
+    if (!FxEmitter_BeginParticles(emitter, &begin, &end, step)) return;
+    while (begin != end) {
+        for (uint32_t* it = action; it != last; ++it) {
+            const float* window = at<float*>(address_to_pointer(*it), 4);
+            if (age >= window[0] && window[1] >= age) apply_action(*it, begin, end, emitter, system, age, step);
+        }
+        FxEmitter_AdvanceParticles(emitter, &begin, &end);
+    }
+    FxEmitter_EndParticles(emitter);
+}
+
+void XB_THISCALL FxEmitterDef_Finish(uint8_t* definition, uint8_t* system, uint8_t* emitter) {
+    if (!at<uint32_t>(definition, 8)) return;
+    uint8_t* begin;
+    uint8_t* end;
+    if (!FxEmitter_BeginParticles(emitter, &begin, &end, 0.0f)) return;
+    while (begin != end) {
+        apply_action(at<uint32_t>(definition, 8), begin, end, emitter, system, 0.0f, from_bits(0x460ae38eu));  // 8888.89
+        FxEmitter_AdvanceParticles(emitter, &begin, &end);
+    }
+    FxEmitter_EndParticles(emitter);
+}
+
+uint32_t XB_THISCALL FxSystem_Update(uint8_t* system, float time) {
+    const float age = time - at<float>(system, 0x40);
+    const float delta = age - at<float>(system, 0x44);
+    uint32_t result = 1;
+    if (0.0f > age || 0.0f > delta) return result;
+    if (at<int16_t>(system, 0x62) > 0) FxSystem_SwapParams(system);
+    title_global<float>(0x00909998) = time;
+    const FxEmitters list = emitters_of(system);
+    int32_t index = 0;
+    for (uint8_t* const* it = list.begin; it != list.end; ++it, ++index) {
+        uint8_t** slot = const_cast<uint8_t**>(it);
+        uint8_t* definition = pointer_at(system, 0x48);
+        uint8_t* entry = pointer_at(definition, 0x50) + index * 0x3c;
+        const float end_time = at<float>(entry, 8);
+        uint8_t* emitter = *slot;
+        uint8_t* const emitters = title_global<uint8_t*>(0x00909f60);
+        if (emitter) {
+            uint16_t flags = at<uint16_t>(emitter, 0xae);
+            if ((flags >> 2) & 1) {
+                FxEmitterList_Remove(emitters, emitter, 0);
+                *slot = nullptr;
+                result = 0;
+                continue;
+            }
+            const uint32_t renderer = at<uint32_t>(entry, 0x10);
+            at<uint32_t>(emitter, 0) = renderer;
+            flags &= 0xfffe;
+            if (renderer && FxSystemDef_IsEmitterVisible(definition, index)) flags |= 1;
+            at<uint16_t>(emitter, 0xae) = flags;
+            entry = pointer_at(pointer_at(system, 0x48), 0x50) + index * 0x3c;
+            const uint32_t updater = at<uint32_t>(entry, 0x14);
+            FxEmitterDef_Update(address_to_pointer(updater), emitter, system, age - at<float>(entry, 4), delta,
+                                at<uint32_t>(system, 0x4c) & 1);
+            if (age >= end_time) {
+                FxEmitterDef_Finish(address_to_pointer(updater), system, emitter);
+                at<uint8_t>(emitter, 0xae) |= 4;
+            }
+            continue;
+        }
+        const float start = at<float>(entry, 4);
+        if (at<uint8_t>(system, 0x4c) & 1) continue;
+        if (!(age >= start) || !(end_time > age)) continue;
+        emitter = FxEmitterList_Add(emitters, at<uint32_t>(entry, 0), at<uint32_t>(entry, 0x10), entry + 0x18,
+                                    (at<uint32_t>(entry, 0xc) >> 1) & 1);
+        if (!emitter) continue;
+        if (at<uint8_t>(system, 0x4e) & 1) {
+            const uint32_t renderer = at<uint32_t>(emitter, 0);
+            if (renderer && !title_function<uint32_t XB_THISCALL(uint32_t)>(vtable_slot(renderer, 4))(renderer)) {
+                const uint32_t again = at<uint32_t>(emitter, 0);
+                if (again) title_function<void XB_THISCALL(uint32_t, uint8_t*)>(vtable_slot(again, 5))(again, system + 0x20);
+            }
+        }
+        FxEmitter_SetMatrix(emitter, reinterpret_cast<const float*>(system));
+        const float local_age = age - start;
+        *slot = emitter;
+        // Bits 1-15 of +0x4c count the spawned emitters.
+        uint32_t& state = at<uint32_t>(system, 0x4c);
+        state ^= ((((state & 0xffffu) & ~1u) + 2) ^ state) & 0xfffe;
+        at<float>(emitter, 0xb0) = local_age;
+        const uint32_t updater = at<uint32_t>(pointer_at(pointer_at(system, 0x48), 0x50) + index * 0x3c, 0x14);
+        FxEmitterDef_Update(address_to_pointer(updater), emitter, system, local_age, local_age, 0);
+    }
+    if (at<int16_t>(system, 0x62) > 0) FxSystem_SwapParams(system);
+    at<float>(system, 0x44) = age;
+    return result;
+}
+
+namespace {
+
 float abs_float(float x) {
     uint32_t bits;
     std::memcpy(&bits, &x, 4);
@@ -856,7 +1328,7 @@ void XB_CDECL FX_DrawEffects() {
         if (!(title_global<uint8_t>(0x00901e8d) & 8))
             FxSystem_Draw(system_object, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lights)));
     }
-    title_function<void XB_CDECL()>(0x00236ae0)();  // FX_DrawGlobalSystems
+    FX_DrawGlobalSystems();
     if (freed) {
         // Drop the freed entries, keeping the order.
         FxEffect** const base = title_global<FxEffect**>(0x00988ce8);
