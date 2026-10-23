@@ -85,4 +85,41 @@ void XB_CDECL SndVoice_SetOrigin(int32_t voice, const uint32_t* origin);
 // otherwise.
 uint8_t* XB_CDECL SndVoice_Resolve(uint32_t handle);
 
+// 0x000c5810: the handle of a sound by name (the argument is a name pointer; bsearch with stricmp over each loaded
+// bank's sorted 40-byte entries, banks = the 12 slots of 0x008bd770): (slot key & 0xffff0000) | index; -1 if none.
+int32_t XB_CDECL S_FindSoundByHash(const char* name);
+// 0x000c62e0: the sound group (0x128 bytes at 0x008bd8f0, name +0x108, count 0x008beb70) with that name (strnicmp
+// 32), else a new one (at most 15: then null) with ids -1 and both volumes 1.0. Null for a null name.
+uint8_t* XB_CDECL SndGroup_FindByName(const char* name);
+
+// 0x0001eee0 (table in ESI; handle on the stack, ret 4): frees a live handle of a 0x200-entry handle table (free
+// bits at +0, {pointer, generation} pairs at +0x40): free bit set, generation + 1, pointer 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SoundHandle_Free(uint8_t* table, uint32_t handle);
+extern "C" void SoundHandle_Free_entry(void);
+// 0x000c5970: the alias name of a sound handle (its entry's first word), or null.
+const char* XB_CDECL Snd_GetAliasName(uint32_t handle);
+// 0x002c3400 (channel in EDI): frees the channel's voice (twice, through the thunk 0x000c4140 and directly) and its
+// sound handle (+0x24, table 0x00962820); with a live entity (+0x20 handle, table 0x0097a968) sends that entity's
+// pending sound notify (+0x3c4 when +0x3c8 = the alias name's hash) and the channel's own (+0x2c), then resets the
+// channel (voice/alias -1, volumes 1.0, near 50, far 1500, free flag +9).
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_StopChannel(uint8_t* channel);
+extern "C" void S_StopChannel_entry(void);
+
+// 0x002c8bc0 (handle pointer in ESI): stops a live handle's channel (S_StopChannel) and clears the handle.
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_StopSoundHandle(uint32_t* handle);
+extern "C" void S_StopSoundHandle_entry(void);
+// 0x002c8d60 (sound system in EBX): S_StopChannel on all 0x200 channels (0x30 bytes each), stops the crossfade's
+// first channel (0x0095f4cc) and resets the crossfade (state 2, length and time 0), then S_StopAllChannels.
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_StopAllSounds(uint8_t* system);
+extern "C" void S_StopAllSounds_entry(void);
+
+// 0x000c5100: every source of the pool 0x0090a8e4 (0xc8-byte records at 0x0090a910) merges its pending dirty mask
+// (+8, 64-bit) into +0 and clears it. Per-frame sound update (0x000c3700).
+void XB_CDECL SndSource_CommitDirty();
+// 0x000c8580: releases hardware voice slot `slot` (< 0x008bed00; 0xe0-byte slots at 0x00911548): +0xc8 = -1, state
+// +0xc0 1 -> 0, any other nonzero state gets the release bit 8 in +0xc1.
+void XB_CDECL SndHw_ReleaseSlot(uint32_t slot);
+// 0x000cb200 (not hookable: CALL in its first 5 bytes): the sound clock 0x0092082c = CRT clock() * 1000 / 1000 (64-bit; milliseconds), returned.
+uint32_t XB_CDECL Snd_UpdateTime();
+
 }  // namespace game

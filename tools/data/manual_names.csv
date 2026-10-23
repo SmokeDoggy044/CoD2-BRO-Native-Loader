@@ -11726,3 +11726,8 @@ address,name,kind,confidence,evidence
 00024df0,Stream_PointInAnyBox,function,medium,"(EDI box set: count +4, 32-byte boxes +8; point on the stack, ret 4): AL 1 if a box contains the point"
 0028fd00,Stream_SetZoneDistancesFromMask,function,low,"(EBX selector; 64-bit zone mask + distance list on the stack, ret 0xc): Zone_SetDistance_r per selector zone, the next listed distance for mask bits else FLT_MAX (1.0 with g_connectpaths)"
 00296a80,FX_FindEffectById,function,medium,"(ESI effect list 0x0095f5b4, EDI id): the effect whose +0x4c is the id, or 0"
+0001eee0,SoundHandle_Free,function,medium,"(ESI handle table 0x00962820, handle; ret 4): free bit set, generation + 1, pointer 0 (the table SoundHandle_Resolve reads at +0x40)"
+000c5970,Snd_GetAliasName,function,medium,"(handle): SndVoice_Resolve(handle)'s first word (the alias name), or 0; S_StopChannel hashes it for entity sound notifies"
+000c5100,SndSource_CommitDirty,function,medium,"every source of the pool 0x0090a8e4 (0xc8-byte records) ORs its pending 64-bit dirty mask (+8) into +0 and clears it; per-frame sound update 0x000c3700"
+000c8580,SndHw_ReleaseSlot,function,medium,"(slot < 0x008bed00): 0xe0-byte hardware slot at 0x00911548: +0xc8 = -1; state +0xc0 1 -> 0, other nonzero states get bit 8 in +0xc1"
+000cb200,Snd_UpdateTime,function,medium,"0x0092082c = CRT clock() * 1000 / 1000 (64-bit), returned; sound update and file request timers"
