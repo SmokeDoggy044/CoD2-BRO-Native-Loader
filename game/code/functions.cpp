@@ -1694,6 +1694,7 @@ const Function kFunctions[] = {
     {"CG_StartShakeCamera", 0x0027fe10, 0, code(&CG_StartShakeCamera_entry), 8, Result::None, Status::Compare},
     {"CG_ProjectViewDirToScreen", 0x0027ff20, 0, code(&CG_ProjectViewDirToScreen_entry), 0, Result::None, Status::Compare},
     {"DObj_GetOwnerPlacement", 0x00284a80, 0, code(&DObj_GetOwnerPlacement_entry), 0, Result::None, Status::Compare},
+    {"Key_TranslateButtonName", 0x00292ee0, 0, code(&Key_TranslateButtonName), 0, Result::Eax, Status::Compare},
     {"Com_HashKeyNoCase", 0x00292fe0, 0, code(&Com_HashKeyNoCase), 0, Result::Eax, Status::Compare},
     {"Com_ModifyMsec", 0x002937a0, 0, code(&Com_ModifyMsec), 0, Result::Eax, Status::Compare},
     {"Com_ParseCommandLine", 0x002938a0, 0, code(&Com_ParseCommandLine), 0, Result::None, Status::Compare},

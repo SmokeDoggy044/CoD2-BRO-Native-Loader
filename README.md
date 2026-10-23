@@ -43,7 +43,7 @@ function of the game.*
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 1,076 | 305 | 138 | 631 | 0 |
 | Client game (HUD, view, effects on screen) | 213 | 127 | 41 | 45 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 575 | 168 | 72 | 324 | 0 |
-| Client and menus | 236 | 56 | 31 | 149 | 0 |
+| Client and menus | 236 | 56 | 32 | 148 | 0 |
 | Server, collision, compression | 155 | 64 | 14 | 77 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 1,906 | 9 | 2 | 1,895 | 0 |
 | Level-script helpers in the engine code | 1,160 | 0 | 0 | 1,153 | 0 |

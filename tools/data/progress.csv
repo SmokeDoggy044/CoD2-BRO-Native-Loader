@@ -8939,7 +8939,7 @@ address,name,section,module,state,tested,matched
 00292d10,Stream_LoadSync,.text,streaming,named,0,0
 00292d70,Stream_StartRequest,.text,streaming,named,0,0
 00292e60,FUN_00292e60,.text,unassigned,unnamed,0,0
-00292ee0,Key_TranslateButtonName,.text,client,named,0,0
+00292ee0,Key_TranslateButtonName,.text,client,untested,0,0
 00292fe0,Com_HashKeyNoCase,.text,qcommon,settled,305,305
 002931c0,FUN_002931c0,.text,unassigned,unnamed,0,0
 00293310,Snd_CountBusyVoices,.text,sound,named,0,0

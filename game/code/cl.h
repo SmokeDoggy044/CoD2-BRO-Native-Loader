@@ -319,4 +319,8 @@ void XB_CDECL Subtitle_Draw();
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SCR_UpdateLoadingDots(uint8_t* screen);
 extern "C" void SCR_UpdateLoadingDots_entry(void);
 
+// 0x00292ee0 (name in EAX, out buffer in ECX): "t:<text>" -> sprintf(out, "%s", text), returns out; else the value
+// of the 19-entry button name table 0x008d5a98 {name, value} matching name (stricmp), 0 if none.
+const char* XB_REGS3 XB_CDECL Key_TranslateButtonName(const char* name, uint32_t unused_edx, char* out);
+
 }  // namespace game

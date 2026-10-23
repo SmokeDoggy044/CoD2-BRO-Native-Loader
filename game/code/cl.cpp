@@ -1627,4 +1627,19 @@ uint32_t XB_CDECL SCR_UpdateLoadingDots(uint8_t* screen) {
     return field<int32_t>(title_global<uint8_t*>(0x0095f8fc), 0xc) == 5 ? 0x002f1e60 : 0;
 }
 
+const char* XB_REGS3 XB_CDECL Key_TranslateButtonName(const char* name, uint32_t, char* out) {
+    using Compare = int32_t XB_CDECL(const char*, const char*);
+    using CompareN = int32_t XB_CDECL(const char*, const char*, uint32_t);
+    if (title_function<CompareN>(0x001f1486)(name, &title_global<const char>(0x008377b0), 2) == 0) {  // "t:"
+        title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(
+            out, &title_global<const char>(0x0082ddd4), name + 2);  // sprintf "%s"
+        return out;
+    }
+    for (uint32_t i = 0; i < 0x13; ++i) {
+        if (title_function<Compare>(0x001f1443)(name, title_global<const char*>(0x008d5a98 + i * 8)) == 0)  // __stricmp
+            return title_global<const char*>(0x008d5a9c + i * 8);
+    }
+    return nullptr;
+}
+
 }  // namespace game
