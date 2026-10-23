@@ -4,6 +4,7 @@
 
 #include "cg_ents.h"
 #include "cgame.h"
+#include "g_utils.h"
 #include "lanes.h"
 #include "ngl.h"
 #include "qcommon.h"
@@ -1234,6 +1235,274 @@ void XB_CDECL CG_OffsetThirdPersonView(uint32_t entry_esp) {
     }
     angles[0] = angle * g(0x0083f0e0);
     angles[1] = angles[1] - g(0x0094c8c0);
+}
+
+PLATFORM_ASM_ENTRY(CG_OffsetAltTankCamView_entry,
+                   "movl %esp, %edx\n"
+                   "subl $0x10000, %esp\n"
+                   "pushl %edx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(CG_OffsetAltTankCamView) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_OffsetAltTankCamView(uint32_t entry_esp) {
+    // The tank camera (cvar 0x009481e4, view mode 2, linked flag 0x100000): behind the turret
+    // ("tag_turret") along the flattened view direction, distance and height from the pitch
+    // (0x008fefa0..b0) and the vehicle's +0x1c0, or - aiming down the barrel - at
+    // "tag_aimdownbarrel" (else "tag_barrel" + 30 forward - 3 right + 10 up); both pulled in by
+    // a box trace (CG_TracePoint, mask 0xe231) from above the turret. The view angles
+    // (cl_viewangles 0x00961798) are reset from the delta angles when the mode changes
+    // (0x0098ad49). Locals at the original's frame addresses, calls at its ESP.
+    const uint32_t frame = (((entry_esp - 4) & ~15u) - 0xc0);
+    const auto local = [frame](uint32_t offset) { return reinterpret_cast<float*>(static_cast<uintptr_t>(frame + offset)); };
+    float* flat = local(0x10);
+    float* axis = local(0x20);
+    float* mins = local(0x60);
+    float* maxs = local(0x70);
+    float* turret = local(0x80);
+    const float b = g(0x008fefb0);
+    for (int k = 0; k < 4; ++k) {
+        mins[k] = 0.0f - b;
+        maxs[k] = b;
+    }
+    if (!title_global<uint32_t>(0x009481e4) || gi(0x00972a38) != 2 || !(title_global<uint32_t>(0x00972610) & 0x100000)) return;
+    if (!G_EntHandleToEnt(&title_global<uint32_t>(0x009729b8))) return;
+    uint8_t* ent = G_EntHandleToEnt(&title_global<uint32_t>(0x009729b8));
+    const TitleRegs none{};
+    const uint32_t lerp_args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent))};
+    title_call_at_regs(frame, 0x002821e0, &none, 1, lerp_args);  // CG_CalcEntityLerpPositions
+    uint32_t& once = title_global<uint32_t>(0x0098ee6c);
+    const auto cached_hash = [&once](uint32_t bit, uint32_t slot, uint32_t name) {
+        if (!(once & bit)) {
+            once |= bit;
+            title_global<uint32_t>(slot) = Com_HashKeyNoCase(0, &title_global<char>(name));
+        }
+        return title_global<uint32_t>(slot);
+    };
+    const auto tag_matrix = [frame, ent](uint32_t hash, float* out) {
+        TitleRegs regs{};
+        regs.edi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+        regs.esi = hash;
+        const uint32_t args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out))};
+        return title_call_at_regs(frame, 0x002e6420, &regs, 1, args);  // G_DObjTryGetTagMatrix
+    };
+    if (!tag_matrix(cached_hash(1, 0x0098ee68, 0x00838a48), turret)) return;  // "tag_turret"
+    const int16_t vehicle = *reinterpret_cast<const int16_t*>(*reinterpret_cast<uint8_t* const*>(ent + 0x248) + 0x178);
+    const uint8_t* vdef = title_global<const uint8_t*>(0x00950a28 + vehicle * 4);  // g_vehicleDefs[vehicle]
+    const float height = *reinterpret_cast<const float*>(vdef + 0x1c0);
+    float* org = &title_global<float>(0x00972bb0);
+    const float k = g(0x0083ebd4);
+    const bool unzoomed = g(0x009725d8) == 0.0f;
+    if (unzoomed == (ent[2] != 1)) {
+        if (title_global<uint8_t>(0x0098ad49)) {
+            const float a = static_cast<float>(gi(0x009725a4)) * k;
+            const float b2 = static_cast<float>(gi(0x009725a8)) * k;
+            const float c = static_cast<float>(gi(0x009725ac)) * k;
+            title_global<float>(0x00961798) = (g(0x009725ec) - a) + g(0x0083eaf4);
+            title_global<float>(0x0096179c) = g(0x009725f0) - b2;
+            title_global<float>(0x009617a0) = g(0x009725f4) - c;
+        }
+        title_global<uint8_t>(0x0098ad49) = 0;
+        title_global<float>(0x00972bf8) = 0.0f;
+        TitleRegs regs{};
+        regs.eax = 0x00972bf0;
+        const uint32_t axis_args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(axis))};
+        title_call_at_regs(frame, 0x002a4610, &regs, 1, axis_args);  // AnglesToAxisLeft
+        flat[0] = axis[0];
+        flat[1] = axis[1];
+        flat[2] = 0.0f;
+        regs = TitleRegs{};
+        regs.esi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(flat));
+        title_call_at_regs(frame, 0x00297770, &regs, 0, nullptr);  // VectorNormalize
+        const float offset = g(0x008fefac);
+        const float two = g(0x0083eba8);
+        const float p = g(0x00972bf0) + offset;
+        float f;
+        if (0.0f > p) {
+            f = 0.0f;
+        } else {
+            f = offset * two;
+            if (!(p > f)) f = p;
+        }
+        f = f / (offset * two);
+        const float scale = g(0x008fefa8);
+        const float back = f * scale - g(0x008fefa4) * scale;
+        const float x = back * flat[0] + turret[12];
+        const float z = back * flat[2] + turret[14];
+        const float y = back * flat[1] + turret[13];
+        float h = g(0x008fefa0) > f ? f / g(0x008fefa0) : g(0x0083eb20);
+        h = h * g(0x008da6dc);
+        const float side = g(0x0095f668);
+        const float up = height + g(0x0095f66c);
+        const float vx = up * axis[6] + (axis[3] * side + h * axis[0]);
+        const float vy = up * axis[7] + (axis[4] * side + h * axis[1]);
+        const float vz = up * axis[8] + (axis[5] * side + h * axis[2]);
+        org[0] = vx + x;
+        org[1] = vy + y;
+        org[2] = vz + z;
+    } else {
+        float* barrel = axis;  // the second tag matrix shares the axis' place
+        if (tag_matrix(cached_hash(2, 0x0098ee64, 0x00838a34), barrel)) {  // "tag_aimdownbarrel"
+            org[0] = barrel[12];
+            org[1] = barrel[13];
+            org[2] = barrel[14];
+        } else {
+            if (!tag_matrix(cached_hash(4, 0x0098ee60, 0x00838a28), barrel)) return;  // "tag_barrel"
+            const float thirty = g(0x0083ee38), three = g(0x0083ec9c), ten = g(0x0083eb98);
+            const float x = (barrel[0] * thirty + barrel[12]) - barrel[4] * three;
+            const float y = (barrel[1] * thirty + barrel[13]) - barrel[5] * three;
+            const float z = (barrel[2] * thirty + barrel[14]) - barrel[6] * three;
+            org[0] = barrel[8] * ten + x;
+            org[1] = barrel[9] * ten + y;
+            org[2] = barrel[10] * ten + z;
+        }
+        if (title_global<uint8_t>(0x0098ad49) != 1) {
+            const float a = static_cast<float>(gi(0x009725a4)) * k;
+            const float b2 = static_cast<float>(gi(0x009725a8)) * k;
+            const float c = static_cast<float>(gi(0x009725ac)) * k;
+            title_global<float>(0x00961798) = (g(0x009725ec) - a) - g(0x0083eaf4);
+            title_global<float>(0x0096179c) = g(0x009725f0) - b2;
+            title_global<float>(0x009617a0) = g(0x009725f4) - c;
+        }
+        title_global<uint8_t>(0x0098ad49) = 1;
+    }
+    // From above the turret to the camera.
+    flat[0] = turret[12];
+    flat[1] = turret[13];
+    flat[2] = (height + g(0x0095f66c)) * g(0x0083066c) + turret[14];
+    float* trace = axis;
+    TitleRegs regs{};
+    regs.eax = 0xe231;
+    regs.ecx = 0x00972bb0;
+    const uint32_t args[5] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(trace)),
+                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(flat)),
+                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mins)),
+                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(maxs)), title_global<uint32_t>(0x009729b8)};
+    title_call_at_regs(frame, 0x00286d00, &regs, 5, args);  // CG_TracePoint
+    if (trace[8] == 1.0f) return;
+    org[0] = trace[0];
+    org[1] = trace[1];
+    org[2] = (g(0x0083eb20) - trace[8]) * g(0x0083eeac) + trace[2];
+    const uint32_t again[5] = {args[0], args[1], args[2], args[3], title_global<uint32_t>(0x009729b8)};
+    title_call_at_regs(frame, 0x00286d00, &regs, 5, again);
+    org[0] = trace[0];
+    org[1] = trace[1];
+    org[2] = trace[2];
+}
+
+PLATFORM_ASM_ENTRY(AnglesToRightNoPitch_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(AnglesToRightNoPitch) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL AnglesToRightNoPitch(const float* angles, float* right) {
+    // The right vector of yaw and roll only: (cos roll * sin yaw, -(cos roll * cos yaw),
+    // -sin roll).
+    const float to_radians = g(0x0083edd8);
+    float sy, cy, sr, cr;
+    FastSinCos(&sy, 0, &cy, angles[1] * to_radians);
+    FastSinCos(&sr, 0, &cr, angles[2] * to_radians);
+    right[0] = cr * sy;
+    right[1] = 0.0f - cr * cy;
+    right[2] = 0.0f - sr;
+}
+
+void XB_CDECL CG_OffsetFirstPersonView() {
+    // Q3's CG_OffsetFirstPersonView: dead (+0x34 of the next snapshot >= 4: fixed death view);
+    // else the gun kick angles added, the damage kick (0x00972f80/84, over 100 ms in and
+    // 400 ms out, less while zoomed), the eye height, then - unless linked (0x6000) - the bob
+    // (angles while zoomed with +0x648, height, side sway along the yaw/roll right vector),
+    // the landing dip (cg.landChange over 150 + 300 ms), the step offset and the lean
+    // (AddLeanToPosition), never below the origin + 8.
+    float* angles = &title_global<float>(0x00972bf0);
+    float* org = &title_global<float>(0x00972bb0);
+    const uint8_t* next = title_global<const uint8_t*>(0x00971aac);
+    if (*reinterpret_cast<const int32_t*>(next + 0x34) >= 4) {
+        angles[2] = g(0x0083ec84);
+        angles[0] = g(0x0083ef14);
+        angles[1] = static_cast<float>(*reinterpret_cast<const int32_t*>(next + 0x114));
+        org[2] = org[2] + g(0x009725fc);
+        return;
+    }
+    CG_UpdateGunKick();
+    const float pitch = angles[0] + g(0x00972f94);
+    const float yaw = angles[1] + g(0x00972f98);
+    const float roll = angles[2] + g(0x00972f9c);
+    const float zoom = g(0x009725d8);
+    const int32_t now = gi(0x0097253c);
+    const uint8_t* weapon = title_global<const uint8_t*>(0x00972acc);
+    angles[0] = pitch;
+    angles[1] = yaw;
+    angles[2] = roll;
+    const int32_t damage_time = gi(0x00972f60);
+    if (damage_time) {
+        const float one = g(0x0083eb20);
+        const float half_zoom = zoom * g(0x0083eb24);
+        float scale = one - half_zoom;
+        if (!(zoom == 0.0f) && *reinterpret_cast<const uint32_t*>(weapon + 0x638)) scale = (half_zoom + one) * scale;
+        const float d = static_cast<float>(now - damage_time);
+        const float two = g(0x0083eba8);
+        float ratio;
+        bool kick = true;
+        if (g(0x0083eb90) > d) {
+            const float k = d * g(0x0083eb94);
+            ratio = (two - abs_bits(k)) * k;
+        } else {
+            const float left = one - (d - g(0x0083eb90)) * g(0x0083f0e4);
+            if (left > 0.0f) {
+                const float u = one - left;
+                ratio = one - (two - abs_bits(u)) * u;
+            } else {
+                kick = false;
+                ratio = 0.0f;
+            }
+        }
+        if (kick) {
+            ratio = ratio * scale;
+            angles[0] = g(0x00972f80) * ratio + pitch;
+            angles[2] = g(0x00972f84) * ratio + roll;
+        }
+    }
+    org[2] = org[2] + g(0x009725fc);
+    if (title_global<uint32_t>(0x00972610) & 0x6000) return;
+    using ext = long double;
+    const float cycle = g(0x00973a80);
+    const float speed = g(0x00973a84);
+    if (!(zoom == 0.0f) && !(*reinterpret_cast<const float*>(weapon + 0x648) == 0.0f)) {
+        const float cap = g(0x0083ef1c);
+        const ext w = *reinterpret_cast<const float*>(weapon + 0x648);
+        const ext lateral = CG_BobCycleLateral(cycle, speed, cap);
+        angles[0] = static_cast<float>(static_cast<ext>(angles[0]) - lateral * static_cast<ext>(g(0x009725d8)) * w);
+        const ext vertical = CG_BobCycleVertical(cycle, speed, cap);
+        angles[1] = static_cast<float>(static_cast<ext>(angles[1]) - vertical * static_cast<ext>(g(0x009725d8)) * w);
+    }
+    const float cap = g(0x009492c0);
+    org[2] = static_cast<float>(static_cast<ext>(CG_BobCycleLateral(cycle, speed, cap)) + static_cast<ext>(org[2]));
+    const int32_t stance = gi(0x009725f8);
+    const float stance_scale = stance == gi(0x00972970) ? g(0x0094aa90) : stance == gi(0x00972974) ? g(0x00947e80) : g(0x0094a6a0);
+    float amplitude = stance_scale * g(0x00973a84);
+    if (amplitude > cap) amplitude = cap;
+    const float sway = static_cast<float>(platform_x87_sin_ext(static_cast<ext>(g(0x00973a80))) * static_cast<ext>(amplitude));
+    float right[3];
+    AnglesToRightNoPitch(angles, right);
+    org[0] = static_cast<float>(static_cast<ext>(right[0]) * sway + static_cast<ext>(org[0]));
+    const float landed = static_cast<float>(now - gi(0x00972af4));
+    org[1] = static_cast<float>(static_cast<ext>(right[1]) * sway + static_cast<ext>(org[1]));
+    org[2] = static_cast<float>(static_cast<ext>(right[2]) * sway + static_cast<ext>(org[2]));
+    if (0.0f > landed) title_global<int32_t>(0x00972af4) = now - 450;
+    if (g(0x0083ebf0) > landed) {
+        org[2] = landed * g(0x0083ef9c) * g(0x00972af0) + org[2];
+    } else if (g(0x0083eba0) > landed) {
+        org[2] = (g(0x0083eb20) - (landed - g(0x0083ebf0)) * g(0x0083ec20)) * g(0x00972af0) + org[2];
+    }
+    CG_StepOffset();
+    float position[3] = {org[0], org[1], org[2]};
+    cg_add_lean(position, g(0x0097259c), angles[1], 16.0f, 20.0f);
+    org[0] = position[0];
+    org[1] = position[1];
+    const float floor = g(0x00972558) + g(0x0083ed78);
+    org[2] = position[2];
+    if (floor > position[2]) org[2] = floor;
 }
 
 }  // namespace game

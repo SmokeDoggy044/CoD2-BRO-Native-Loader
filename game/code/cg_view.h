@@ -120,4 +120,15 @@ void XB_CDECL CG_DrawSkyBoxPortal();
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_OffsetThirdPersonView(uint32_t entry_esp);
 extern "C" void CG_OffsetThirdPersonView_entry(void);
 
+// 0x00286da0: the tank camera (third person behind the turret or down the barrel); the C
+// version gets the entry ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_OffsetAltTankCamView(uint32_t entry_esp);
+extern "C" void CG_OffsetAltTankCamView_entry(void);
+
+// 0x00013ce0 (angles EDI, right ESI): the right vector of yaw and roll only.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnglesToRightNoPitch(const float* angles, float* right);
+extern "C" void AnglesToRightNoPitch_entry(void);
+// 0x00281ad0: Q3's CG_OffsetFirstPersonView.
+void XB_CDECL CG_OffsetFirstPersonView();
+
 }  // namespace game
