@@ -122,4 +122,18 @@ void XB_CDECL SndHw_ReleaseSlot(uint32_t slot);
 // 0x000cb200 (not hookable: CALL in its first 5 bytes): the sound clock 0x0092082c = CRT clock() * 1000 / 1000 (64-bit; milliseconds), returned.
 uint32_t XB_CDECL Snd_UpdateTime();
 
+// 0x000c39a0: the number of set bits of a 64-bit mask (low, high words; SWAR adds).
+uint32_t XB_CDECL Snd_PopCount64(uint32_t low, uint32_t high);
+// 0x000c3f00: releases the hardware slot (+0xd0, -1 = none) of a voice of the pool 0x0090a8b4 (0xf8-byte records).
+void XB_CDECL SndVoice_ReleaseHwSlot(int32_t handle);
+// 0x000c63a0 / 0x000c6390: the sound group table 0x008bd8f0 / the mix state 0x008bda18.
+uint8_t* XB_CDECL Snd_GetGroups();
+uint8_t* XB_CDECL Snd_GetMixState();
+// 0x000c8d80: a request record: +4 flags (| 2 when the last word is not -1), +8 / +0xc -1, +0x10 / +0x14, +0x18 the
+// 0x1000-byte buffer 0x0091f780 (filled with 0xbf), +0x20, +0 = 0.
+uint32_t XB_CDECL Snd_InitRequest(uint8_t* request, uint32_t flags, uint32_t a, uint32_t b, int32_t c);
+// 0x000c7ea0 (out in EAX, in in ECX; both kept): out = in / |in| (x87 length), zero when |in| <= 0x007ce5c8.
+extern "C" PLATFORM_HIDDEN float* XB_CDECL Snd_NormalizeVector(float* out, const float* in);
+extern "C" void Snd_NormalizeVector_entry(void);
+
 }  // namespace game

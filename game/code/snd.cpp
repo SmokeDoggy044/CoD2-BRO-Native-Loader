@@ -1,5 +1,7 @@
 #include "snd.h"
 
+#include <cstring>
+
 #include "cg_ents.h"
 #include "fx.h"
 #include "g_scr_runtime.h"
@@ -594,6 +596,84 @@ uint32_t XB_CDECL Snd_UpdateTime() {
     const uint32_t now = uint32_t(uint64_t(int64_t(ticks) * 1000) / 1000);
     title_global<uint32_t>(0x0092082c) = now;
     return now;
+}
+
+namespace {
+
+template <typename T>
+T& snd_at(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+}  // namespace
+
+uint32_t XB_CDECL Snd_PopCount64(uint32_t low, uint32_t high) {
+    uint64_t v = (static_cast<uint64_t>(high) << 32) | low;
+    v = ((v >> 1) & 0x5555555555555555ull) + (v & 0x5555555555555555ull);
+    v = ((v >> 2) & 0x3333333333333333ull) + (v & 0x3333333333333333ull);
+    v = ((v >> 4) & 0x0f0f0f0f0f0f0f0full) + (v & 0x0f0f0f0f0f0f0f0full);
+    v = ((v >> 8) & 0x00ff00ff00ff00ffull) + (v & 0x00ff00ff00ff00ffull);
+    v = ((v >> 16) & 0x0000ffff0000ffffull) + (v & 0x0000ffff0000ffffull);
+    return static_cast<uint32_t>(v >> 32) + static_cast<uint32_t>(v);
+}
+
+void XB_CDECL SndVoice_ReleaseHwSlot(int32_t handle) {
+    const int32_t index = HandlePool_Resolve(reinterpret_cast<const uint8_t*>(uintptr_t{0x0090a8b4}), handle);
+    if (index == -1) return;
+    uint8_t* voice = title_global<uint8_t*>(0x0090a8e0) + index * 0xf8;
+    if (!voice) return;
+    const int16_t slot = snd_at<int16_t>(voice, 0xd0);
+    if (slot == -1) return;
+    SndHw_ReleaseSlot(static_cast<uint32_t>(static_cast<int32_t>(slot)));
+    snd_at<int16_t>(voice, 0xd0) = -1;
+}
+
+uint8_t* XB_CDECL Snd_GetGroups() { return reinterpret_cast<uint8_t*>(uintptr_t{0x008bd8f0}); }
+
+uint8_t* XB_CDECL Snd_GetMixState() { return reinterpret_cast<uint8_t*>(uintptr_t{0x008bda18}); }
+
+uint32_t XB_CDECL Snd_InitRequest(uint8_t* request, uint32_t flags, uint32_t a, uint32_t b, int32_t c) {
+    snd_at<uint32_t>(request, 0x14) = b;
+    snd_at<uint32_t>(request, 0x10) = a;
+    snd_at<int32_t>(request, 8) = -1;
+    snd_at<int32_t>(request, 0xc) = -1;
+    snd_at<uint32_t>(request, 0x18) = 0x0091f780;
+    snd_at<uint32_t>(request, 4) = flags;
+    snd_at<int32_t>(request, 0x20) = c;
+    if (c != -1) snd_at<uint32_t>(request, 4) = flags | 2;
+    std::memset(reinterpret_cast<void*>(uintptr_t{0x0091f780}), 0xbf, 0x1000);
+    snd_at<uint32_t>(request, 0) = 0;
+    return 0xbfbfbfbf;
+}
+
+// ECX is restored as in the original (its frame slot is a PUSH ECX).
+PLATFORM_ASM_ENTRY(Snd_NormalizeVector_entry,
+                   "pushl %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Snd_NormalizeVector) "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float* XB_CDECL Snd_NormalizeVector(float* out, const float* in) {
+    const long double x = in[0], y = in[1], z = in[2];
+    long double length = (x * x + y * y) + z * z;
+    __asm__("fsqrt" : "+t"(length));
+    const float rounded = static_cast<float>(length);
+    const long double epsilon = title_global<float>(0x007ce5c8);
+    if (epsilon >= length) {  // FCOMIP; JB (unordered: normalize)
+        out[0] = 0.0f;
+        out[1] = 0.0f;
+        out[2] = 0.0f;
+        return out;
+    }
+    const float inv = 1.0f / rounded;
+    out[0] = in[0];
+    out[1] = in[1];
+    out[0] = out[0] * inv;
+    out[2] = in[2];
+    out[1] = inv * out[1];
+    out[2] = out[2] * inv;
+    return out;
 }
 
 }  // namespace game
