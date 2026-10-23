@@ -2047,6 +2047,7 @@ const Function kFunctions[] = {
     {"CM_TraceBoxThroughBrush", 0x002cbca0, 0, code(&CM_TraceBoxThroughBrush), 4, Result::Al, Status::Compare},
     {"SV_AreaEntities", 0x002cc400, 0, code(&SV_AreaEntities), 12, Result::Eax, Status::Compare},
     {"CM_PointContents", 0x002cc480, 0, code(&CM_PointContents), 0, Result::Eax, Status::Compare},
+    {"SV_TraceStaticModel", 0x002cc880, 0, code(&SV_TraceStaticModel), 12, Result::None, Status::Compare},
     {"CM_TempBoxModel", 0x002ccc50, 0, code(&CM_TempBoxModel), 8, Result::Eax, Status::Compare},
     {"CL_SystemInfoChanged", 0x002cce00, 0, code(&CL_SystemInfoChanged), 0, Result::Eax, Status::Compare},
     {"CL_ParseSnapshot", 0x002cce80, 0, code(&CL_ParseSnapshot), 0, Result::Eax, Status::Compare},

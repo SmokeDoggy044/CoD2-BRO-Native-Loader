@@ -689,6 +689,81 @@ uint32_t XB_CDECL SV_ClipToEntity(uint8_t* ent, const float* mins, const float* 
     return results[0x3d];
 }
 
+namespace {
+
+// a == b on the x87 (FUCOMIP, quiet; false when unordered).
+bool x87_equal(float a, float b) {
+    bool equal, ordered;
+    __asm__("flds %3\n\tflds %2\n\tfucomip %%st(1), %%st\n\tfstp %%st(0)\n\tsete %0\n\tsetnp %1"
+            : "=q"(equal), "=q"(ordered)
+            : "m"(a), "m"(b)
+            : "st", "st(1)", "cc");
+    return equal && ordered;
+}
+
+}  // namespace
+void XB_REGS3 XB_CDECL SV_TraceStaticModel(const float* start, uint32_t, uint8_t* inst, uint8_t* clip, const float* end,
+                                           uint32_t content_mask) {
+    alignas(16) uint8_t trace[0x40] = {};
+    field<uint32_t>(trace, 0x20) = field<uint32_t>(clip, 0x20);
+    uint8_t* const model = field<uint8_t*>(inst, 0x68);
+    uint8_t* const* lods = reinterpret_cast<uint8_t* const*>(model + 0x24);
+    int32_t lod = 0;
+    while (!lods[lod]) ++lod;
+    uint32_t bones = 0;
+    if (field<uint8_t*>(lods[lod], 8)) bones = field<uint32_t>(field<uint8_t*>(lods[lod], 8), 0x10);
+    uint8_t* skeleton = static_cast<uint8_t*>(__builtin_alloca(((bones << 6) + 3) & ~3u));
+    XModel_CalcSkeleton(reinterpret_cast<const XModel*>(model), skeleton, nullptr);
+    const float* o = reinterpret_cast<const float*>(inst + 0x90);
+    const float* m = reinterpret_cast<const float*>(inst + 0xb8);  // 3x3 axis
+    float local_start[3];
+    float local_end[3];
+    {
+        const float dx = start[0] - o[0], dy = start[1] - o[1], dz = start[2] - o[2];
+        local_start[0] = (m[6] * dz + m[3] * dy) + m[0] * dx;
+        local_start[1] = (m[7] * dz + m[4] * dy) + m[1] * dx;
+        local_start[2] = (m[8] * dz + m[5] * dy) + m[2] * dx;
+    }
+    {
+        const float dx = end[0] - o[0], dy = end[1] - o[1], dz = end[2] - o[2];
+        local_end[0] = (m[6] * dz + m[3] * dy) + m[0] * dx;
+        local_end[1] = (m[7] * dz + m[4] * dy) + m[1] * dx;
+        local_end[2] = (m[8] * dz + m[5] * dy) + m[2] * dx;
+    }
+    const int32_t hit = title_function<int32_t XB_CDECL(uint8_t*, uint8_t*, uint8_t*, const float*, const float*, uint32_t)>(
+        0x0023d070)(model, trace, skeleton, local_start, local_end, content_mask);
+    if (hit < 0) return;
+    const float f = field<float>(trace, 0x20);
+    float* pos = reinterpret_cast<float*>(trace);
+    pos[0] = (end[0] - start[0]) * f + start[0];
+    pos[1] = (end[1] - start[1]) * f + start[1];
+    pos[2] = (end[2] - start[2]) * f + start[2];
+    float* normal = reinterpret_cast<float*>(trace + 0x10);
+    const float n0 = normal[0], n1 = normal[1], n2 = normal[2];
+    const float wx = (m[1] * n1 + m[2] * n2) + m[0] * n0;
+    const float wy = (m[4] * n1 + m[5] * n2) + m[3] * n0;
+    const float wz = (m[7] * n1 + m[8] * n2) + m[6] * n0;
+    const float squared = (wz * wz + wy * wy) + wx * wx;
+    field<uint32_t>(trace, 0x30) = 0;
+    long double root;
+    __asm__ volatile("call *%2"
+                     : "=t"(root)
+                     : "0"(static_cast<long double>(squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "eax", "ecx", "edx", "memory");
+    const float length = static_cast<float>(root);
+    if (x87_equal(length, 0.0f)) {
+        normal[0] = wx;
+        normal[1] = wy;
+        normal[2] = wz;
+    } else {
+        const float inv = 1.0f / length;
+        normal[0] = inv * wx;
+        normal[1] = inv * wy;
+        normal[2] = inv * wz;
+    }
+    std::memcpy(clip, trace, 0x40);
+}
+
 PLATFORM_ASM_ENTRY(SegmentMissesBounds_entry,
                    "subl $4, %esp\n"
                    "movss %xmm4, (%esp)\n"
@@ -750,7 +825,6 @@ void XB_CDECL SV_TraceStaticModels_r(uint8_t* clip, uint8_t* node, float p1f, fl
         SV_TraceStaticModels_r(clip, children[side], p1f, midf, p1, mid);
         SV_TraceStaticModels_r(clip, children[side ^ 1], midf, p2f, mid, p2);
     }
-    using TraceStaticModel = void XB_REGS3 XB_CDECL(uint8_t*, uint32_t, uint8_t*, uint8_t*, const float*, uint32_t);
     for (uint8_t* model = field<uint8_t*>(node, 0x14); model; model = field<uint8_t*>(model, 0xdc)) {
         if (!(field<uint32_t>(field<uint8_t*>(model, 0x68), 0x40) & field<uint32_t>(clip, 0x40))) continue;
         alignas(16) float maxs[4];
@@ -760,7 +834,7 @@ void XB_CDECL SV_TraceStaticModels_r(uint8_t* clip, uint8_t* node, float p1f, fl
         const float* end = reinterpret_cast<const float*>(clip + 0x60);
         if (SegmentMissesBounds(mins, maxs, end, reinterpret_cast<const float*>(clip + 0x50), field<float>(clip, 0x20)))
             continue;
-        title_function<TraceStaticModel>(0x002cc880)(clip + 0x50, 0, model, clip, end, field<uint32_t>(clip, 0x40));
+        SV_TraceStaticModel(reinterpret_cast<const float*>(clip + 0x50), 0, model, clip, end, field<uint32_t>(clip, 0x40));
     }
 }
 

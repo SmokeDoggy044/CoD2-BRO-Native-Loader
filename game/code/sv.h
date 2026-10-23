@@ -255,4 +255,12 @@ void XB_CDECL SV_CapsuleTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, co
 void XB_CDECL SV_LocationalTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, const float* start, const float* end,
                                  uint32_t pass, uint32_t content_mask);
 
+// 0x002cc880 (start in EAX, static model in ECX; clip block, end, content mask on the stack): one static model of
+// SV_TraceStaticModels_r - its XModel's base skeleton (XModel_CalcSkeleton into an alloca'd buffer, bones of the
+// first LOD's parts), the segment in the model's axis (+0x90 origin, +0xb8 3x3), the title's 0x0023d070 trace;
+// a hit (>= 0) gets endpos from the world start/end, the normal rotated back and normalized (x87 sqrt), +0x30 = 0,
+// and replaces the block's trace.
+void XB_REGS3 XB_CDECL SV_TraceStaticModel(const float* start, uint32_t unused, uint8_t* inst, uint8_t* clip,
+                                           const float* end, uint32_t content_mask);
+
 }  // namespace game
