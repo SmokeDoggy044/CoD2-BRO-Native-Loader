@@ -1370,4 +1370,175 @@ void XB_CDECL Cmd_Vstr_f() {
     Cbuf_InsertText(va(args));
 }
 
+PLATFORM_ASM_ENTRY(Com_ParseCommaToken_entry,
+                   "pushl %edx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Com_ParseCommaToken) "addl $8, %esp\n"
+                   "ret")
+
+char* XB_CDECL Com_ParseCommaToken(const char** data_p, uint32_t allow_line_breaks) {
+    char* token = title_global<char*>(0x008d4ca0);
+    int32_t length = 0;
+    const char* data = *data_p;
+    token[0] = 0;
+    if (!allow_line_breaks) {
+        if (*data == '\r' || *data == '\n') return token;
+    } else {
+        while (*data == '\r' || *data == '\n') ++data;
+    }
+    title_global<const char*>(0x0092efec) = title_global<const char*>(0x009355d4);
+    title_global<const char*>(0x009355d4) = data;
+    for (char c = *data; c; c = *++data) {
+        if (c == ',' || c == '\n') {
+            if (c != '\n') ++data;
+            *data_p = data;
+            token[length] = 0;
+            return token;
+        }
+        if (c == '\r') continue;
+        if (c == '"') {
+            // Quoted: "" is a quote; the closing quote ends the part (no end-of-text check, as the original).
+            for (;;) {
+                c = *++data;
+                if (c == '"') {
+                    if (data[1] != '"') break;
+                    if (length < 0x7f) token[length++] = '"';
+                    ++data;
+                    continue;
+                }
+                if (length < 0x7f) token[length++] = c;
+            }
+            continue;
+        }
+        if (length < 0x7f) token[length++] = c;
+    }
+    *data_p = nullptr;
+    token[length] = 0;
+    return token;
+}
+
+char* XB_CDECL COM_ParseExt(const char** data_p, uint32_t allow_line_breaks) {
+    int32_t has_new_lines = 0;
+    int32_t length = 0;
+    if (!data_p) title_function<Break>(kBreak)(0, title_pointer<const char>(0x0083387c));  // "COM_ParseExt: NULL data_p"
+    const char* data = *data_p;
+    uint8_t* info = title_global<uint8_t*>(0x008d4ca0);
+    char* token = reinterpret_cast<char*>(info);
+    token[0] = 0;
+    if (!data) {
+        *data_p = nullptr;
+        return token;
+    }
+    int32_t& lines = *reinterpret_cast<int32_t*>(info + 0x80);
+    *reinterpret_cast<int32_t*>(info + 0x94) = lines;
+    *reinterpret_cast<const char**>(info + 0x98) = *data_p;
+    if (*reinterpret_cast<uint32_t*>(info + 0x8c)) return Com_ParseCommaToken(data_p, allow_line_breaks);
+
+    char c;
+    for (;;) {
+        data = SkipWhitespace(data, &has_new_lines);
+        if (!data) {
+            *data_p = nullptr;
+            return token;
+        }
+        if (has_new_lines && !allow_line_breaks) {
+            *data_p = data;
+            return token;
+        }
+        c = *data;
+        if (c == '/' && data[1] == '/') {
+            while (c && c != '\n') c = *++data;
+        } else if (c == '/' && data[1] == '*') {
+            while (c) {
+                if (c == '*' && data[1] == '/') {
+                    data += 2;
+                    break;
+                }
+                if (c == '\n') ++lines;
+                c = *++data;
+            }
+        } else {
+            break;
+        }
+    }
+
+    title_global<const char*>(0x0092efec) = title_global<const char*>(0x009355d4);
+    title_global<const char*>(0x009355d4) = data;
+    auto append = [&](char ch) {
+        if (length < 0x7f) token[length++] = ch;
+    };
+    auto is_digit = [](char ch) { return ch >= '0' && ch <= '9'; };
+    auto is_letter = [](char ch) { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'); };
+
+    if (c == '"') {
+        ++data;
+        for (;;) {
+            c = *data++;
+            if (c == '\\' && *data == '"') {
+                c = '"';
+                ++data;
+            } else {
+                if (c != '\\' && (c == '"' || !c)) {
+                    token[length] = 0;
+                    *data_p = data;
+                    return token;
+                }
+                if (*data == '\n') ++lines;
+            }
+            append(c);
+        }
+    }
+    if (*reinterpret_cast<uint32_t*>(info + 0x88)) {
+        do {
+            append(c);
+            c = *++data;
+        } while (c > ' ');
+    } else if (is_digit(c) || (*reinterpret_cast<uint32_t*>(info + 0x90) && c == '-' && is_digit(data[1])) ||
+               (c == '.' && is_digit(data[1]))) {
+        do {
+            append(c);
+            c = *++data;
+        } while (is_digit(c) || c == '.');
+        if (c == 'e' || c == 'E') {
+            append(c);
+            c = *++data;
+            if (c == '-' || c == '+') {
+                append(c);
+                c = *++data;
+            }
+            do {
+                append(c);
+                c = *++data;
+            } while (is_digit(c));
+        }
+    } else if (!(*reinterpret_cast<uint32_t*>(info + 0x90) && c == '-') &&
+               (is_letter(c) || c == '_' || c == '/' || c == '\\')) {
+        do {
+            append(c);
+            c = *++data;
+        } while (is_letter(c) || c == '_' || is_digit(c) || c == '/' || c == '\\' || c == ':' || c == '.');
+    } else {
+        for (const char* const* punc = title_pointer<const char* const>(0x008d3aa0); *punc; ++punc) {
+            const int32_t l = static_cast<int32_t>(std::strlen(*punc));
+            int32_t j = 0;
+            while (j < l && data[j] == (*punc)[j]) ++j;
+            if (j == l) {
+                char* out = title_global<char*>(0x008d4ca0);
+                std::memcpy(out, *punc, static_cast<uint32_t>(l));
+                out[l] = 0;
+                *data_p = data + l;
+                return out;
+            }
+        }
+        token = title_global<char*>(0x008d4ca0);
+        token[0] = *data;
+        token[1] = 0;
+        *data_p = data + 1;
+        return token;
+    }
+    if (length == 0x80) length = 0;
+    token[length] = 0;
+    *data_p = data;
+    return token;
+}
+
 }  // namespace game

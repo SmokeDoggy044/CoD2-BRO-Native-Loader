@@ -280,4 +280,14 @@ void XB_CDECL Com_StartupVariable(const char* match);
 // 0x002c0d30: "vstr name": the cvar's string and a '\n' inserted into the command buffer.
 void XB_CDECL Cmd_Vstr_f();
 
+// Parse info (current record in 0x008d4ca0): +0 token[0x80], +0x80 lines, +0x88 space-delimited tokens,
+// +0x8c comma-separated tokens, +0x90 negative numbers, +0x94/+0x98 backup line/text.
+// 0x002a9a60 (data_p in EDI, allow line breaks in EDX): the comma-separated token - up to ',' or '\n'
+// (skipped, a '\n' only without line breaks allowed), '\r' dropped, "quoted" parts with "" for '"'.
+// Returns the token; *data_p = null at the end of the text. Unnamed in Ghidra.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL Com_ParseCommaToken(const char** data_p, uint32_t allow_line_breaks);
+extern "C" void Com_ParseCommaToken_entry(void);
+// 0x002b0250: Q3's COM_ParseExt with the punctuation table (0x008d3aa0) and the parse-info modes above.
+char* XB_CDECL COM_ParseExt(const char** data_p, uint32_t allow_line_breaks);
+
 }  // namespace game
