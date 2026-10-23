@@ -1164,4 +1164,182 @@ void XB_CDECL SV_SetConfigstring(int32_t index, const char* value) {
     }
 }
 
+void XB_REGS1 XB_CDECL SV_SetBrushModel(uint8_t* ent) {
+    uint32_t map = field<uint32_t>(ent, 0x220);
+    if (map == 0xffffffff) map = field<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x34);
+    const uint32_t index = field<uint16_t>(ent, 6);
+    uint32_t model = 0;
+    if (index) {
+        if (index == 0x1ff || index == 0x1fe) {
+            model = title_global<uint32_t>(0x0095f504);
+        } else {
+            // 0x002afb10: the inline model `index` of clip map `map` (EBX = the table at 0x0095f500).
+            uint32_t c, d;
+            __asm__ volatile("pushl %%ebx\n\tmovl %%edx, %%ebx\n\tcall *%%esi\n\tpopl %%ebx"
+                             : "=a"(model), "=c"(c), "=d"(d)
+                             : "a"(index), "c"(map), "d"(title_global<uint32_t>(0x0095f500)), "S"(uintptr_t{0x002afb10})
+                             : "memory", "cc");
+        }
+    }
+    title_function<void XB_REGS3 XB_CDECL(float*, uint32_t, float*)>(0x002b2790)(  // the model's bounds
+        reinterpret_cast<float*>(ent + 0xf0), model, reinterpret_cast<float*>(ent + 0xe0));
+    field<uint32_t>(ent, 0xdc) = model;
+    field<uint32_t>(ent, 0x134) = 0xffffffff;
+    SV_LinkEntity(ent);
+}
+
+// The title callees run at the original's ESP (entry - 0x40): 0x002c4fe0 leaves a stack address in .data.
+PLATFORM_ASM_ENTRY(SV_PacketEvent_entry,
+                   "movl %esp, %ecx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_PacketEvent) "addl $40, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_PacketEvent(uint32_t entry_esp, uint8_t* msg, uint32_t type, uint32_t ip, uint32_t ipx1,
+                             uint32_t ipx2, uint32_t port_word, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    const uint32_t top = entry_esp - 0x40;
+    const uint32_t msg_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(msg));
+    const uint32_t from[6] = {type, ip, ipx1, ipx2, port_word, 0x008341e4};  // "disconnect"
+    if (field<int32_t>(msg, 0xc) >= 4 && *field<int32_t*>(msg, 4) == -1) {
+        const TitleRegs regs = {msg_word, ebx, 0, 0, esi, edi};
+        title_call_at_regs(top, 0x002b8200, &regs, 5, from);  // SV_ConnectionlessPacket
+        return;
+    }
+    if (!++title_global<int32_t>(0x0093fc28)) title_global<int32_t>(0x0093fc28) = 1;
+    title_global<uint32_t>(0x0095f510) = 1;
+    field<int32_t>(msg, 0x10) = 0;
+    MSG_ReadLong(msg);
+    int32_t count = field<int32_t>(msg, 0x10);
+    const uint8_t* data = field<uint8_t*>(msg, 4);
+    const uint8_t low = data[count];
+    field<int32_t>(msg, 0x10) = ++count;
+    const uint8_t high = data[count];
+    field<int32_t>(msg, 0x10) = ++count;
+    uint32_t qport = static_cast<uint32_t>(low) | static_cast<uint32_t>(high) << 8;
+    if (count > field<int32_t>(msg, 0xc)) qport = 0xffff;
+    uint8_t* client = title_global<uint8_t*>(0x00927e8c);
+    for (int32_t i = 0; i < 1; ++i, client += 0xec0) {
+        if (!field<uint32_t>(client, 0)) continue;
+        const uint32_t* remote = reinterpret_cast<const uint32_t*>(client + 0x698);
+        bool same;
+        if (type != remote[0])
+            same = false;
+        else if (type == 2)
+            same = true;
+        else if (type == 4)
+            same = !std::memcmp(&from[1], &remote[1], 4);
+        else if (type == 5)
+            same = !std::memcmp(&from[2], &remote[2], 10);
+        else
+            same = true;
+        if (!same) continue;
+        if (field<uint32_t>(client, 0x6ac) != qport) continue;
+        const uint16_t port = static_cast<uint16_t>(port_word >> 16);
+        if (field<uint16_t>(client, 0x6aa) != port) field<uint16_t>(client, 0x6aa) = port;
+        const uint32_t client_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(client));
+        const TitleRegs chan_regs = {client_word + 0x690, msg_word, 0, 0, ipx2, edi};
+        if (title_call_at_regs(top, 0x002b13b0, &chan_regs, 0, nullptr)) {  // Netchan_Process
+            const TitleRegs exec_regs = {0, msg_word, 0, 0, ipx2, edi};
+            title_call_at_regs(top, 0x002c4fe0, &exec_regs, 1, &client_word);
+        }
+        title_global<uint32_t>(0x0095f510) = 0;
+        return;
+    }
+    const TitleRegs regs = {1, ebx, 0, port_word, esi, edi};
+    title_call_at_regs(top, 0x002ba530, &regs, 6, from);  // NET_OutOfBandPrint
+    title_global<uint32_t>(0x0095f510) = 0;
+}
+
+// The title callees run at the original's ESP (entry - 4, below its saved EDI): the C frame sits below a gap.
+PLATFORM_ASM_ENTRY(SV_Frame_entry,
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %edx\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_Frame) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_Frame(uint32_t entry_esp, uint32_t ebx, uint32_t msec, uint32_t edx) {
+    const uint32_t top = entry_esp - 4;
+    uint8_t* const killserver = title_global<uint8_t*>(0x00929b5c);
+    if (field<uint32_t>(killserver, 0x20)) {
+        const TitleRegs regs = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(killserver)), ebx,
+                                field<uint32_t>(killserver, 0x20), edx, msec, 0};
+        title_call_at_regs(top, 0x002a6e00, &regs, 0, nullptr);  // SV_Shutdown
+        Cvar_Set2(title_text(0x00832bf0), const_cast<char*>(title_text(0x0082e098)), 1);  // "sv_killserver", "0"
+        return;
+    }
+    if (field<uint32_t>(title_global<uint8_t*>(0x0093fcf0), 0x20)) {  // com_sv_running
+        if (!field<uint32_t>(title_global<uint8_t*>(0x0093fcd8), 0x20) && title_global<uint32_t>(0x0092bdf0) != 2)
+            Cvar_Set2(title_text(0x0082ca00), const_cast<char*>(title_text(0x0082e058)), 1);  // "cl_paused", "1"
+        if (!field<uint32_t>(title_global<uint8_t*>(0x0093fcd8), 0x20) || title_global<uint32_t>(0x0092f548)) {
+            const uint32_t paused = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(title_global<uint8_t*>(0x0093fcd8)));
+            const TitleRegs regs = {paused, ebx, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                                                     title_global<uint8_t*>(0x0093fcf0))),
+                                    paused, msec, 0};
+            if (title_call_at_regs(top, 0x002f3de0, &regs, 0, nullptr)) {  // CheckReloadStatus
+                title_global<uint32_t>(0x0092be90) = 0;
+                title_global<uint32_t>(0x0092be94) = 0;
+                return;
+            }
+            if (!title_global<uint32_t>(0x0092f548)) {
+                const TitleRegs info_regs = {0, ebx, 0, 0, msec, 0};
+                title_call_at_regs(top, 0x002c4e50, &info_regs, 1, &msec);  // SV_UpdateInfoConfigstrings
+                title_global<uint32_t>(0x0092f548) = 1;
+            }
+            const uint32_t command = 0x13;
+            const TitleRegs vm_regs = {0, ebx, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                                                      title_global<uint8_t*>(0x0095f50c))),
+                                       msec, 0};
+            const int32_t limit = static_cast<int32_t>(title_call_at_regs(top, 0x002a84e0, &vm_regs, 1, &command));
+            title_global<int32_t>(0x0092f094) = limit;
+            if (limit > 0x70000000 ||
+                title_global<int32_t>(0x00927e94) >= 0x7ffffffe - title_global<int32_t>(0x00927e90)) {
+                const TitleRegs regs2 = {0, ebx, 0, 0, msec, 0};
+                title_call_at_regs(top, 0x002a6e00, &regs2, 0, nullptr);  // SV_Shutdown
+                Cbuf_AddText(title_text(0x00832b88));  // "vstr nextmap\n"
+                return;
+            }
+            const TitleRegs run_regs = {0, ebx, 0, 0, msec, 0};
+            title_call_at_regs(top, 0x002f2e40, &run_regs, 1, &msec);  // SV_RunGameFrame
+            title_call_at_regs(top, 0x002e6d80, &run_regs, 0, nullptr);
+        }
+    }
+    title_global<uint32_t>(0x0092be94) = 0;
+    title_global<uint32_t>(0x0092be90) = msec;
+}
+
+void XB_CDECL SV_UpdateInfoConfigstrings(int32_t time) {
+    title_function<void XB_CDECL(uint32_t)>(0x002ab560)(1);
+    uint32_t& modified = title_global<uint32_t>(0x009403ec);  // cvar_modifiedFlags
+    if (modified & 4) {
+        SV_SetConfigstring(0, Cvar_InfoString(4));
+        modified &= ~4u;
+    }
+    if (modified & 8) {
+        SV_SetConfigstring(1, Cvar_InfoString_Big(8));
+        modified &= ~8u;
+    }
+    title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(0x002a84e0)(  // VM_Call
+        0, title_global<uint8_t*>(0x0095f50c), 0xa, time);
+}
+
 }  // namespace game

@@ -173,4 +173,25 @@ extern "C" void SV_PointTraceToEntity_entry(void);
 // == 2, client state 1), "cs %i %s" or for 0xe8+ characters "bcs0/1/2 %i %s" chunks of 0xe7.
 void XB_CDECL SV_SetConfigstring(int32_t index, const char* value);
 
+// 0x002d87a0 (gentity in EAX): Q3's SV_SetBrushModel - the inline model of the entity's clip map (+0x220, -1 = the
+// default from 0x0095f638 +0x34) through the title's 0x002afb10 (0x1fe / 0x1ff: 0x0095f504; 0: none), its bounds
+// into +0xe0 / +0xf0 (0x002b2790), +0xdc model, contents -1, SV_LinkEntity.
+void XB_REGS1 XB_CDECL SV_SetBrushModel(uint8_t* ent);
+// 0x002c9de0 (msg in EAX; from address by value, 5 words): Q3's SV_PacketEvent - connectionless packets to
+// SV_ConnectionlessPacket; else sequence + qport, the one client whose address (NET_CompareBaseAdr inline) and
+// qport match takes the port, Netchan_Process (EAX chan, EBX msg) and the title's 0x002c4fe0 (EBX msg); unknown
+// senders get "disconnect". 0x0095f510 set around it.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_PacketEvent(uint32_t entry_esp, uint8_t* msg, uint32_t type, uint32_t ip,
+                                                       uint32_t ipx1, uint32_t ipx2, uint32_t port_word, uint32_t ebx,
+                                                       uint32_t esi, uint32_t edi);
+extern "C" void SV_PacketEvent_entry(void);
+// 0x002c4e50 (unhookable: push 1 / call at its start; no kFunctions row): Q3's SV_UpdateInfoConfigstrings - the title's 0x002ab560(1), configstrings 0 / 1 from the cvar
+// info strings when cvar_modifiedFlags has 4 / 8 (cleared), then VM_Call(gvm, 0xa, time).
+void XB_CDECL SV_UpdateInfoConfigstrings(int32_t time);
+// 0x002f4400 (msec in ESI): Q3's SV_Frame - sv_killserver, cl_paused, CheckReloadStatus, the info configstrings
+// once, VM_Call(gvm, 0x13) as the time limit (shutdown + "vstr nextmap" past it), SV_RunGameFrame, 0x002e6d80;
+// title callees at the original's ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_Frame(uint32_t entry_esp, uint32_t ebx, uint32_t msec, uint32_t edx);
+extern "C" void SV_Frame_entry(void);
+
 }  // namespace game
