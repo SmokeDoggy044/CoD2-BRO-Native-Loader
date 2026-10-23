@@ -748,7 +748,7 @@ address,name,section,module,state,tested,matched
 00029e30,FUN_00029e30,.text,unassigned,unnamed,0,0
 00029ff0,FUN_00029ff0,.text,unassigned,unnamed,0,0
 0002a230,FUN_0002a230,.text,unassigned,unnamed,0,0
-0002a340,FUN_0002a340,.text,unassigned,unnamed,0,0
+0002a340,FUN_0002a340,.text,unassigned,settled,1492,1492
 0002a5d0,FUN_0002a5d0,.text,unassigned,unnamed,0,0
 0002a620,FUN_0002a620,.text,unassigned,unnamed,0,0
 0002a910,FUN_0002a910,.text,unassigned,unnamed,0,0
@@ -7984,7 +7984,7 @@ address,name,section,module,state,tested,matched
 00226890,FUN_00226890,.text,unassigned,unnamed,0,0
 00226950,FUN_00226950,.text,unassigned,unnamed,0,0
 00226ea0,FUN_00226ea0,.text,unassigned,unnamed,0,0
-00227160,FUN_00227160,.text,unassigned,unnamed,0,0
+00227160,FUN_00227160,.text,unassigned,settled,938,938
 00227290,FUN_00227290,.text,unassigned,unnamed,0,0
 002279c0,FUN_002279c0,.text,unassigned,unnamed,0,0
 00227bd0,FUN_00227bd0,.text,unassigned,unnamed,0,0
@@ -7993,7 +7993,7 @@ address,name,section,module,state,tested,matched
 00228bf0,FUN_00228bf0,.text,unassigned,unnamed,0,0
 00228ee0,FUN_00228ee0,.text,unassigned,unnamed,0,0
 00229930,FUN_00229930,.text,unassigned,unnamed,0,0
-002299a0,FUN_002299a0,.text,unassigned,unnamed,0,0
+002299a0,FUN_002299a0,.text,unassigned,settled,1886,1886
 00229c90,FUN_00229c90,.text,unassigned,unnamed,0,0
 00229d20,FUN_00229d20,.text,unassigned,unnamed,0,0
 00229f00,FUN_00229f00,.text,unassigned,unnamed,0,0
@@ -9707,7 +9707,7 @@ address,name,section,module,state,tested,matched
 002cb5a0,CM_TestCapsuleInCapsule,.text,collision,matched,75,75
 002cb890,CM_TraceCapsuleThroughBrush,.text,collision,settled,22487,22487
 002cbca0,CM_TraceBoxThroughBrush,.text,collision,settled,7603,7603
-002cc0e0,FUN_002cc0e0,.text,unassigned,unnamed,0,0
+002cc0e0,FUN_002cc0e0,.text,unassigned,settled,13496,13496
 002cc400,SV_AreaEntities,.text,server,settled,367,367
 002cc480,CM_PointContents,.text,collision,settled,400,400
 002cc750,FUN_002cc750,.text,unassigned,unnamed,0,0
@@ -9764,7 +9764,7 @@ address,name,section,module,state,tested,matched
 002d1f30,FUN_002d1f30,.text,unassigned,settled,5264,5264
 002d2410,FUN_002d2410,.text,unassigned,unnamed,0,0
 002d27c0,FUN_002d27c0,.text,unassigned,untested,0,0
-002d2b50,FUN_002d2b50,.text,unassigned,unnamed,0,0
+002d2b50,FUN_002d2b50,.text,unassigned,settled,11238,11238
 002d2f90,CM_SightTraceRayThroughWorldTrees,.text,collision,settled,2968,2968
 002d3360,FUN_002d3360,.text,unassigned,matched,3,3
 002d37f0,CM_TraceRayThroughWorldTrees,.text,collision,settled,5635,5635
@@ -9790,8 +9790,8 @@ address,name,section,module,state,tested,matched
 002d5ad0,G_RestorePlayerLoadout,.text,game,named,0,0
 002d5ba0,FUN_002d5ba0,.text,unassigned,unnamed,0,0
 002d5bf0,FUN_002d5bf0,.text,unassigned,unnamed,0,0
-002d5d50,FUN_002d5d50,.text,unassigned,unnamed,0,0
-002d60d0,FUN_002d60d0,.text,unassigned,matched,1,1
+002d5d50,FUN_002d5d50,.text,unassigned,settled,4111,4111
+002d60d0,FUN_002d60d0,.text,unassigned,matched,4,4
 002d62c0,BG_EvaluateTrajectory,.text,game,named,0,0
 002d6710,FUN_002d6710,.text,unassigned,unnamed,0,0
 002d67a0,FUN_002d67a0,.text,unassigned,unnamed,0,0
@@ -9874,7 +9874,7 @@ address,name,section,module,state,tested,matched
 002e4c00,FUN_002e4c00,.text,unassigned,settled,2973,2973
 002e5030,CM_BoxTrace,.text,collision,settled,12518,12518
 002e5530,PM_UpdateViewAngles,.text,game,named,0,0
-002e6260,FUN_002e6260,.text,unassigned,unnamed,0,0
+002e6260,FUN_002e6260,.text,unassigned,settled,4113,4113
 002e6420,G_DObjTryGetTagMatrix,.text,game,named,0,0
 002e6490,G_GeneralLink,.text,game,named,0,0
 002e6650,FUN_002e6650,.text,unassigned,unnamed,0,0
@@ -9904,7 +9904,7 @@ address,name,section,module,state,tested,matched
 002e9230,G_EntAttach,.text,game,named,0,0
 002e9370,G_EntDetach,.text,game,named,0,0
 002e9440,FUN_002e9440,.text,unassigned,unnamed,0,0
-002e95b0,FUN_002e95b0,.text,unassigned,unnamed,0,0
+002e95b0,FUN_002e95b0,.text,unassigned,mismatched,23778,23080
 002e9840,G_SightTrace,.text,game,named,0,0
 002e9af0,SV_Trace,.text,server,named,0,0
 002e9ef0,FUN_002e9ef0,.text,unassigned,unnamed,0,0
