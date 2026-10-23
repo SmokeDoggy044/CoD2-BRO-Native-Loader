@@ -214,6 +214,30 @@ extern "C" void CM_TraceThroughVerticalCylinder_entry(void);
 // (CM_TraceThroughSphere) and the cylinder (CM_TraceThroughVerticalCylinder) in the original's order.
 void XB_REGS1 XB_CDECL CM_TraceCapsuleThroughCapsule(uint8_t* tw);
 
+// Sight (any hit) versions of the temporary-model traces, under the sight trace root 0x002e4c00:
+// 0x002d41f0 (model {count, brushes} in ESI, trace work on the stack): 1 at the first brush in the content mask
+// that CM_TraceBoxThroughBrush hits, else 0 (also for no model).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CM_ModelBrushesBlockSight(const uint32_t* model, uint8_t* tw);
+extern "C" void CM_ModelBrushesBlockSight_entry(void);
+// 0x002d3e10 (trace work in ESI): CM_TraceCapsuleThroughTempBox's setup, then always the box trace through the
+// temporary box model; returns its AL zero-extended.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CM_TempBoxBlocksSight(uint8_t* tw);
+extern "C" void CM_TempBoxBlocksSight_entry(void);
+// 0x002d3f40 (sphere origin in EAX, start in ECX, trace work in EDI; extra radius on the stack): starting inside
+// -> 0; outside, CM_TraceThroughSphere's quadratic (nudge (b * 0.125) / length here) -> 0 when it lands below the
+// current fraction, else 1. Writes nothing.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_SphereBlocksSight(const float* origin, const float* start, uint8_t* tw,
+                                                                float extra_radius);
+extern "C" void CM_SphereBlocksSight_entry(void);
+// 0x002d4050 (trace work in EDI; origin, height, extra radius on the stack): the vertical cylinder version - inside
+// within the half height -> 0; outside, the 2D quadratic and the hit height checked -> 0, else 1.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_VerticalCylinderBlocksSight(uint8_t* tw, const float* origin,
+                                                                          float height, float extra_radius);
+extern "C" void CM_VerticalCylinderBlocksSight_entry(void);
+// 0x002da1d0 (trace work in EAX): CM_TraceCapsuleThroughCapsule with the sight tests: -1 as soon as a sphere or
+// the cylinder blocks, else 0.
+int32_t XB_REGS1 XB_CDECL CM_CapsuleBlocksSight(uint8_t* tw);
+
 // 0x002c0d80 (b in EAX, c in EDX, a in ECX; d on the stack; unnamed in Ghidra): a slab test of the segment
 // b -> c against the box a (low) .. d (high): per axis enter/leave fractions (enter from 0, leave from 1; the low
 // planes enter at a - b - 0.125); 0 as soon as enter >= leave, else 1. Packed differences of whole vectors.
@@ -297,12 +321,95 @@ const float* XB_REGS3 XB_CDECL CM_TransformedBoxTrace(const float* origin, uint3
 
 // 0x002e6dc0 (origin in EAX, end in ECX; an unused word, start, mins, maxs, model, brush mask, angles, capsule flag
 // on the stack; unnamed in Ghidra): the sight-trace version of CM_TransformedBoxTrace - the same centered box,
-// local start/end and capsule block, handed to the title sight trace 0x002e4c00 (end in EAX, start in ECX), whose
-// EAX it returns (registered without a result: its true value can be a stack address).
+// local start/end and capsule block, handed to CM_SightTrace (0x002e4c00), whose result it returns (-1/0/1 or the
+// box trace's AL; never a stack address).
 uint32_t XB_REGS3 XB_CDECL CM_TransformedSightTrace(const float* origin, uint32_t unused, const float* end,
                                                     uint32_t unused_arg, const float* start, const float* mins,
                                                     const float* maxs, const uint32_t* model, uint32_t brushmask,
                                                     const float* angles, uint32_t capsule_flag);
+// 0x002e4c00 (end in EAX, start in ECX; mins, maxs, model, brush mask, capsule flag, capsule block on the stack):
+// CM_BoxTrace's trace-work setup (fraction 1, no results) for a sight test. A model: the temporary box model
+// (0x1fe, content mask) -> CM_CapsuleBlocksSight (capsule) or CM_TempBoxBlocksSight, other models ->
+// CM_ModelBrushesBlockSight; no model: the world trees (ray version for a point-sized box), 1 when blocked.
+int32_t XB_REGS3 XB_CDECL CM_SightTrace(const float* end, uint32_t unused, const float* start, const float* mins,
+                                        const float* maxs, const uint32_t* model, uint32_t brushmask,
+                                        uint32_t capsule_flag, const uint8_t* capsule);
+
+// Capsule traces against gathered candidate lists (CM_GatherBoxCandidates / CM_FilterBoxCandidates layout below),
+// under 0x002e95b0 (actor movement traces):
+// 0x002da830 (trace work in EAX; triangle list, brush list on the stack): the position test - CM_TestBoxInBrush
+// per brush until startsolid, then CM_SphereTouchesTriangle (radius +0x164) per triangle; a hit sets
+// startsolid/allsolid and fraction 0.
+void XB_REGS1 XB_CDECL CM_TestInCandidates(uint8_t* tw, const uint8_t* triangles, const uint8_t* brushes);
+// 0x002e1150 (trace work in EDI; triangle list, brush list on the stack): CM_TraceCapsuleThroughBrush per brush
+// (fraction 0 ends it, a smaller fraction stores the brush's flags/contents), then the triangles as in
+// CM_TraceThroughWorldTrees' pass 2 (lowered sphere, radius + 0.001, triangles with both ends beyond the plane
+// skipped, CM_ClipSphereSweepToTriangle from the unchanged end each time). AL = 1 when stuck or a triangle hit.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_TraceThroughCandidates(uint8_t* tw, const uint8_t* triangles,
+                                                                     const uint8_t* brushes);
+extern "C" void CM_TraceThroughCandidates_entry(void);
+// 0x002e20e0 (maxs in EAX, mins in ECX, start in EBX; triangle list, brush list, results, end, brush mask on the
+// stack): CM_BoxTrace's setup for an always-capsule trace without corner rows or checkcount, then
+// CM_TestInCandidates (start == end) or CM_TraceThroughCandidates; endpos and the 0x40-byte results as CM_BoxTrace.
+// EAX = start y bits.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CM_CandidateCapsuleTrace(const float* maxs, const float* mins,
+                                                                     const float* start, const uint8_t* triangles,
+                                                                     const uint8_t* brushes, uint8_t* results,
+                                                                     const float* end, uint32_t brushmask);
+extern "C" void CM_CandidateCapsuleTrace_entry(void);
+// 0x002d3360 (trace work in ECX; triangle list, brush list, start, end, out {point, plane}, surface flags, contents on
+// the stack): the ray version - each brush CM_TraceBoxThroughBrush hits writes its point/plane/ids; each triangle
+// whose plane the segment crosses (start above 1e-4, end at or below 0) closer than the full length, with the
+// crossing inside all three edges, writes them too (no early out, the bound stays the full length). AL = any hit.
+uint8_t XB_REGS3 XB_CDECL CM_TraceRayThroughCandidates(uint32_t unused_eax, uint32_t unused_edx, uint8_t* tw,
+                                                       const uint8_t* triangles, const uint8_t* brushes,
+                                                       const float* start, const float* end, float* out,
+                                                       uint32_t* surface_flags, uint32_t* contents);
+// 0x002d4a60 (end in EAX; triangle list, brush list, results, start, brush mask on the stack): a point-sized trace
+// over the candidate lists - CM_TraceThroughWorld's ray branch with CM_TraceRayThroughCandidates (sizes from
+// 0x0082e290), endpos and the 0x40-byte results as CM_BoxTrace.
+void XB_REGS1 XB_CDECL CM_CandidateRayTrace(const float* end, const uint8_t* triangles, const uint8_t* brushes,
+                                            uint8_t* results, const float* start, uint32_t brushmask);
+// 0x002d60d0 (entity in EBX; radius, start, end on the stack; game code kept here with its collision callees): the
+// entity's record (handle at +0x7c of its first pointer, table 0x0097a968) caches candidate lists (+0x450 triangles,
+// +0x454 brushes) for a box (+0x430/+0x440); a segment box (2 * radius around, z +-100) outside it regathers them
+// (CM_GatherBoxCandidates). The lists filtered with the entity's clip mask (+0x5c & 0xfdff3fff), then
+// CM_CandidateRayTrace; AL = 1 when the fraction is below 1.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL G_RayTraceCachedCandidates(const uint8_t* entity, float radius,
+                                                                          const float* start, const float* end);
+extern "C" void G_RayTraceCachedCandidates_entry(void);
+// 0x002c6400 (brush in EAX, point in ESI, radius in XMM2; out on the stack): the shallowest way out of a brush for a
+// sphere - per axis (half + radius) - |point - center| on the x87 (stored as float), per side plane
+// -((point . n - dist) - radius); any negative depth -> 0 (outside). Else out = point pushed along the nearest plane
+// (or to the nearest box face) by depth + the global skin 0x008fef1c; returns 1.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_PushPointOutOfBrush(const uint8_t* brush, const float* point,
+                                                                  float radius, float* out);
+extern "C" void CM_PushPointOutOfBrush_entry(void);
+// 0x002d1f30 (center in EAX, out in ECX; radius, triangle a, b, c, plane normal on the stack): a sphere against a
+// triangle - plane distance (a - center) . n within +-radius, then the closest feature (vertex, edge, else the face)
+// by Ericson-style region tests on vectors from the center; face: out = center + (dist + radius) * n; else, for a
+// squared distance above 1e-4 within the radius and dist < 0, out = center - ((r - len) / len on the x87) * v. AL.
+uint8_t XB_REGS3 XB_CDECL CM_PushSphereOutOfTriangle(const float* center, uint32_t unused, float* out, float radius,
+                                                     const float* a, const float* b, const float* c,
+                                                     const float* normal);
+// 0x002e2f50 (cdecl move state, radius; game code kept here with its collision callees): pushes the capsule
+// (state +0: player state, origin at +0, handle +0x7c; clip mask +0x5c; mins/maxs z +0x108/+0x118) out of solids. The
+// cached candidates as in G_RayTraceCachedCandidates (around the capsule's middle), entities from SV_AreaEntities
+// (statics 0x0098e460..0x0098e690); then for three spheres (z + radius, height / 2, height - radius): brush models
+// (CM_PushPointOutOfBrush in the model's frame, G_GetEntityMatrix), box entities (closest point; out by
+// radius - distance + 0.01, x87), candidate brushes and triangles (CM_PushSphereOutOfTriangle); the origin is updated
+// after each sphere. AL = whether anything pushed.
+uint8_t XB_CDECL G_PushCapsuleOutOfSolids(uint8_t* pm, float radius);
+// 0x002caf70 (a in EAX, c in ECX; origin, direction, b, max fraction, out fraction on the stack): Moller-Trumbore
+// segment vs triangle - |det| < 1e-4 on the x87 misses, t = fraction along the (unnormalized) direction in
+// [0, max], barycentrics u, v >= 0 with u + v <= 1; a hit stores t. AL.
+uint8_t XB_REGS3 XB_CDECL CM_RayHitsTriangle(const float* a, uint32_t unused, const float* c, const float* origin,
+                                             const float* dir, const float* b, float max_fraction, float* fraction);
+// 0x002d27c0 (start, delta, plane out, fraction in/out on the stack): the nearest mesh triangle the segment crosses
+// front-facing - per world quad tree whose bounds meet the segment box, only the leaf at the segment's middle
+// (CM_QuadTreeFindLeaf), its non-brush objects, triangles from the box-tree walk with plane . delta < 0
+// (CM_RayHitsTriangle with the current fraction as the limit). Fraction starts at 1; AL = any hit.
+uint8_t XB_CDECL CM_RayHitsWorldMeshes(const float* start, const float* delta, float* plane_out, float* fraction);
 
 
 // Candidate lists (CM_GatherBoxCandidates / CM_FilterBoxCandidates): brushes {pointer +0x800, count +0x804} of 4-byte
