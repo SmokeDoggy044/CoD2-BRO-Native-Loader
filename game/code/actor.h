@@ -305,7 +305,7 @@ extern "C" void Actor_GetBoundaryPlanes_entry(void);
 // 0x00200150 (actor in EAX, state in ECX): if a pushed state (+0xa8, count +0xbc) is one of the five
 // that `state` blocks (table 0x00830ea8), pops it and everything above it (queued pops merged).
 // Returns the actor (EAX unchanged).
-uint8_t* XB_REGS2 XB_CDECL Actor_PopBlockingStates(uint8_t* actor, uint32_t state);
+uint8_t* XB_REGS3 XB_CDECL Actor_PopBlockingStates(uint8_t* actor, uint32_t unused_edx, uint32_t state);
 
 // 0x002001f0 (actor in EAX): applies the queued state transitions (+0x38, kind/state pairs, count
 // +0xa0): 1 set (Finish the top, Start the new), 2 push (Suspend, depth + 1, Start), 3 pop (Finish,
@@ -470,6 +470,17 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_CanSee(const uint8_t* bloc
                                                             const uint16_t* second);
 extern "C" void PathNode_CanSee_entry(void);
 
+// 0x00203de0 (actor in EAX, anim script in ESI; unhookable: CALL at byte 3, no kFunctions row, untested): Actor_FindNearbyActor, then the script (g_animScript_walk instead
+// when +0x1390 is set and the speed +0x2a0/+0x2a4 is at least 1) into +0x254, mode 7 (+0x27c), +0x285 = 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_AnimStationary(uint8_t* actor, uint32_t script);
+extern "C" void Actor_AnimStationary_entry(void);
+
+// 0x002b96c0 (handle pointer in EAX, node blocks in EDX; target handle pointer, index on the stack, ret 8): AL = the
+// flag byte `index` (+4) of the node's link to the target (+0x62 count, +0x64 12-byte links), 0 without one (the
+// upper EAX bytes keep the scan pointer, as in the original).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_IsLinkInBadPlace(const uint16_t* handle, const uint8_t* blocks,
+                                                                      const uint16_t* target, int32_t index);
+extern "C" void PathNode_IsLinkInBadPlace_entry(void);
 
 // Path node handles: block (handle >> 9) - 1 (pointer table +8), node handle & 0x1ff (0x80 bytes from block +0x10);
 // 0 and 0xffff are none.

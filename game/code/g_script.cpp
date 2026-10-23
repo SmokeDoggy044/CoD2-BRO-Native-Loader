@@ -352,12 +352,23 @@ float* XB_STDCALL G_GetEntityMatrix(uint8_t* ent, float* out) {
     return out;
 }
 
+// The think callback runs at the original's ESP (entry - 8 with its two arguments): callbacks store stack
+// addresses in .data (0x0098a4fc).
 PLATFORM_ASM_ENTRY(G_RunThink_entry,
-                   "pushl 4(%esp)\n"
-                   "pushl %esi\n" PLATFORM_ASM_CALL(G_RunThink) "addl $8, %esp\n"
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_RunThink) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
                    "ret")
 
-void XB_CDECL G_RunThink(uint8_t* ent, uint32_t arg) {
+void XB_CDECL G_RunThink(uint32_t entry_esp, uint8_t* ent, uint32_t arg, uint32_t ebx, uint32_t edi) {
     if (*reinterpret_cast<uint32_t*>(ent + 0x2a4) & 0x4000000) return;
     int32_t& next = *reinterpret_cast<int32_t*>(ent + 0x328);
     if (next <= 0 || next > title_global<int32_t>(0x0098540c)) return;  // level_time
@@ -366,8 +377,11 @@ void XB_CDECL G_RunThink(uint8_t* ent, uint32_t arg) {
         const uint32_t args[1] = {0x0083b31c};  // "NULL ent->think"
         G_Error(args);
     }
-    const uint32_t think = title_global<uint32_t>(0x008da788 + *reinterpret_cast<uint32_t*>(ent + 0x32c) * 4);
-    title_function<void XB_CDECL(uint8_t*, uint32_t)>(think)(ent, arg);
+    const uint32_t index = *reinterpret_cast<uint32_t*>(ent + 0x32c);
+    const uint32_t ent_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    const uint32_t args[2] = {ent_word, arg};
+    const TitleRegs regs = {index, ebx, arg, 0, ent_word, edi};
+    title_call_at_regs(entry_esp, title_global<uint32_t>(0x008da788 + index * 4), &regs, 2, args);
 }
 
 }  // namespace game
