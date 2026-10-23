@@ -1,5 +1,7 @@
 #include "actor.h"
 
+#include <cstring>
+
 #include "bg_misc.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
@@ -40,11 +42,12 @@ int32_t XB_CDECL Sentient_EnemyTeam(int32_t team) {
     return enemies[team];
 }
 
-void XB_REGS3 XB_CDECL Sentient_GetOrigin(float* out, uint32_t, uint8_t* const* sentient) {
+float* XB_REGS3 XB_CDECL Sentient_GetOrigin(float* out, uint32_t, uint8_t* const* sentient) {
     uint32_t* words = reinterpret_cast<uint32_t*>(out);
     words[0] = field<uint32_t>(*sentient, 0x140);
     words[1] = field<uint32_t>(*sentient, 0x144);
     words[2] = field<uint32_t>(*sentient, 0x148);
+    return out;  // EAX stays the first argument
 }
 
 uint32_t XB_REGS1 XB_CDECL Sentient_HasGoalYaw(const uint8_t* sentient) {
@@ -239,12 +242,14 @@ void set_move_script(uint8_t* actor, uint32_t script, uint32_t fallback) {
 
 }  // namespace
 
-void XB_REGS1 XB_STDCALL Actor_AnimRun(uint8_t* actor, uint32_t script) {
+uint8_t* XB_REGS1 XB_STDCALL Actor_AnimRun(uint8_t* actor, uint32_t script) {
     set_move_script(actor, script, 0x00987b98);  // g_animScript_run
+    return actor;  // EAX stays the first argument
 }
 
-void XB_REGS1 XB_STDCALL Actor_AnimWalk(uint8_t* actor, uint32_t script) {
+uint8_t* XB_REGS1 XB_STDCALL Actor_AnimWalk(uint8_t* actor, uint32_t script) {
     set_move_script(actor, script, 0x00987be8);  // g_animScript_walk
+    return actor;  // EAX stays the first argument
 }
 
 uint32_t XB_REGS3 XB_CDECL Actor_IsStatePushAllowed(uint32_t state, uint32_t, const uint8_t* actor) {
@@ -301,24 +306,26 @@ const uint32_t kSentientInfoWords[] = {0x18, 0x20, 0x24, 0x28, 0x34};
 
 }  // namespace
 
-void XB_REGS2 XB_CDECL Path_CopyToActor(const uint8_t* path, uint8_t* actor) {
+const uint8_t* XB_REGS2 XB_CDECL Path_CopyToActor(const uint8_t* path, uint8_t* actor) {
     copy_path(path, actor + 0x3c0, field<int16_t>(path, 0x382));
+    return path;  // EAX stays the first argument
 }
 
 void XB_REGS2 XB_CDECL Path_CopyFromActor(const uint8_t* actor, uint8_t* path) {
     copy_path(actor + 0x3c0, path, field<int16_t>(actor, 0x742));
 }
 
-void XB_REGS3 XB_CDECL Actor_CopySentientInfo(uint8_t* to, uint32_t, const uint8_t* from) {
+uint8_t* XB_REGS3 XB_CDECL Actor_CopySentientInfo(uint8_t* to, uint32_t, const uint8_t* from) {
     field<uint32_t>(to, 0x14) = 0;
     field<uint32_t>(to, 0x1c) = 0;
     for (uint32_t i = 0; i < 5; ++i)
         field<uint32_t>(to, kSentientInfoWords[i]) = field<uint32_t>(from, kSentientInfoWords[i]);
     field<uint16_t>(to, 0x30) = field<uint16_t>(from, 0x30);
     for (uint32_t offset = 0x40; offset <= 0x48; offset += 4) field<uint32_t>(to, offset) = field<uint32_t>(from, offset);
+    return to;  // EAX stays the first argument
 }
 
-void XB_REGS1 XB_CDECL Actor_AnimReacquire(uint8_t* actor) {
+uint8_t* XB_REGS1 XB_CDECL Actor_AnimReacquire(uint8_t* actor) {
     const uint8_t* sentient = field<const uint8_t*>(field<const uint8_t*>(actor, 0), 0x244);
     const uint32_t script = field<uint32_t>(actor, 0x270);
     if (field<int32_t>(sentient, 4) == 2 && script) {
@@ -331,6 +338,7 @@ void XB_REGS1 XB_CDECL Actor_AnimReacquire(uint8_t* actor) {
         field<uint32_t>(actor, 0x27c) = 2;
     }
     actor[0x285] = 0;
+    return actor;  // EAX stays the first argument
 }
 
 PLATFORM_ASM_ENTRY(Actor_FindSentientSlot_entry,
@@ -347,7 +355,7 @@ uint32_t XB_CDECL Actor_FindSentientSlot(const uint8_t* actor, uint32_t sentient
     return oldest;
 }
 
-void XB_REGS1 XB_CDECL Path_ShrinkLookaheadBy(uint8_t* path) {
+uint8_t* XB_REGS1 XB_CDECL Path_ShrinkLookaheadBy(uint8_t* path) {
     const uint32_t flags = field<uint32_t>(path, 0x3bc);
     float& distance = field<float>(path, 0x3b4);
     if (flags & 2)
@@ -357,15 +365,17 @@ void XB_REGS1 XB_CDECL Path_ShrinkLookaheadBy(uint8_t* path) {
     const float minimum = title_global<float>(0x0083eb4c);  // 0.001
     if (minimum > distance) distance = minimum;
     field<uint32_t>(path, 0x3bc) = flags & ~3u;
+    return path;  // EAX stays the first argument
 }
 
-void XB_REGS1 XB_CDECL Actor_ClearLookAt(uint8_t* actor) {
+uint8_t* XB_REGS1 XB_CDECL Actor_ClearLookAt(uint8_t* actor) {
     field<uint32_t>(actor, 0x1e8) = 0;
     for (uint32_t offset = 0x1ec; offset <= 0x1fc; offset += 4) field<uint32_t>(actor, offset) = 0;  // 0.0f
     field<float>(actor, 0x200) = title_global<float>(0x0083eb68);                                    // 120
     field<uint32_t>(actor, 0x204) = 0;
     field<float>(actor, 0x208) = title_global<float>(0x0083eb64);  // 90
     field<float>(actor, 0x20c) = title_global<float>(0x0083eb64);
+    return actor;  // EAX stays the first argument
 }
 
 PLATFORM_ASM_ENTRY(Path_IsLongerThan_entry,
@@ -417,13 +427,14 @@ uint32_t XB_REGS1 XB_STDCALL Actor_IsEventWorthNoticing(const uint8_t* event, co
     return now - noticed >= 2000 ? 1 : 0;
 }
 
-void XB_REGS2 XB_CDECL Actor_ClearSentientSlots(uint8_t* actor, uint32_t sentient) {
+uint8_t* XB_REGS2 XB_CDECL Actor_ClearSentientSlots(uint8_t* actor, uint32_t sentient) {
     for (uint32_t slot = 0x12a8; slot < 0x1308; slot += 0x18) {
         if (field<uint32_t>(actor, slot + 4) != sentient) continue;
         field<uint32_t>(actor, slot) = 0;
         field<uint32_t>(actor, slot + 4) = 0;
         field<uint32_t>(actor, slot + 0x14) = 0;
     }
+    return actor;  // EAX stays the first argument
 }
 
 uint8_t* XB_CDECL Sentient_Alloc() {
@@ -467,9 +478,10 @@ void XB_CDECL Actor_SetOrientFromDir(uint8_t* out, const float* dir, float yaw_o
     field<float>(out, 0xc) = new_yaw;
 }
 
-void XB_REGS1 XB_CDECL Actor_ClearMoveHistory(uint8_t* actor) {
+uint8_t* XB_REGS1 XB_CDECL Actor_ClearMoveHistory(uint8_t* actor) {
     for (uint32_t offset = 0x1398; offset <= 0x13e4; offset += 4) field<uint32_t>(actor, offset) = 0;  // 0.0f
     field<uint32_t>(actor, 0x1394) = 0;
+    return actor;  // EAX stays the first argument
 }
 
 PLATFORM_ASM_ENTRY(Actor_RecordSentientPosition_entry,
@@ -577,7 +589,7 @@ void XB_REGS3 XB_CDECL Sentient_ClaimNodeIndefinitely(uint32_t claimer, uint32_t
     }
 }
 
-void XB_REGS1 XB_CDECL Actor_ExpirePathPlanes(uint8_t* actor) {
+uint8_t* XB_REGS1 XB_CDECL Actor_ExpirePathPlanes(uint8_t* actor) {
     for (uint32_t slot = 0x12a8; slot < 0x1308; slot += 0x18) {
         const int32_t since = field<int32_t>(actor, slot);
         if (since <= 0) continue;
@@ -587,6 +599,7 @@ void XB_REGS1 XB_CDECL Actor_ExpirePathPlanes(uint8_t* actor) {
             field<uint8_t*>(actor, 4)[0x5a] = 0;
         }
     }
+    return actor;  // EAX stays the first argument
 }
 
 uint32_t XB_REGS1 XB_CDECL Actor_IsOnClaimedNode(const uint8_t* actor) {
@@ -808,19 +821,20 @@ void XB_REGS3 XB_CDECL Actor_AnimScripted_Finish(uint32_t, uint32_t next, const 
     field<uint32_t>(ent, 0x3d4) = 0;
 }
 
-void XB_REGS1 XB_CDECL Actor_MergeStateTransitions(uint8_t* actor) {
+uint8_t* XB_REGS1 XB_CDECL Actor_MergeStateTransitions(uint8_t* actor) {
+    // EAX stays the actor (callers rely on it).
     int32_t& count = field<int32_t>(actor, 0xa0);
-    if (count < 2) return;
+    if (count < 2) return actor;
     do {
         if (!field<uint32_t>(actor, 0x2d0)) {
             count = 1;
-            return;
+            return actor;
         }
         int32_t next = count;
         const uint32_t a = field<uint32_t>(actor, 0x28 + next * 8);
         const uint32_t b = field<uint32_t>(actor, 0x30 + next * 8);
         const int32_t merged = title_global<int32_t>(0x00830e00 + (b + a * 4) * 4);  // g_aiTransitionMerge
-        if (merged == -1) return;
+        if (merged == -1) return actor;
         if (merged == 0) {
             next -= 2;
         } else {
@@ -830,6 +844,7 @@ void XB_REGS1 XB_CDECL Actor_MergeStateTransitions(uint8_t* actor) {
         }
         count = next;
     } while (count >= 2);
+    return actor;
 }
 
 namespace {
@@ -873,8 +888,8 @@ void XB_CDECL Actor_SetState(uint8_t* actor, uint32_t state) {
     field<uint32_t>(actor, 0xa4 + field<uint32_t>(actor, 0xbc) * 4) = state;
 }
 
-void XB_REGS1 XB_STDCALL Actor_AnimMoveRun(uint8_t* actor, uint32_t script) { anim_move(actor, script, false); }
-void XB_REGS1 XB_STDCALL Actor_AnimMoveWalk(uint8_t* actor, uint32_t script) { anim_move(actor, script, true); }
+uint8_t* XB_REGS1 XB_STDCALL Actor_AnimMoveRun(uint8_t* actor, uint32_t script) { anim_move(actor, script, false); return actor; }
+uint8_t* XB_REGS1 XB_STDCALL Actor_AnimMoveWalk(uint8_t* actor, uint32_t script) { anim_move(actor, script, true); return actor; }
 
 void XB_REGS3 XB_CDECL Actor_EventLearnFromActor(const uint8_t* sentient, uint32_t, uint8_t* actor) {
     if (ignores_events(actor)) return;
@@ -1130,7 +1145,7 @@ void XB_CDECL Actor_ClearAll() {
     title_global<int32_t>(0x0095f44c) = -1;
 }
 
-void XB_REGS1 XB_CDECL Actor_InitDefaults(uint8_t* actor) {
+uint8_t* XB_REGS1 XB_CDECL Actor_InitDefaults(uint8_t* actor) {
     static const uint32_t kFloats[][2] = {{0x828, 0x0083eb94}, {0x82c, 0x0083ecec}, {0x824, 0x0083eb24},
                                           {0x7a4, 0x0083ebe8}, {0x7b8, 0x00830bf0}, {0x7bc, 0x0083ec84},
                                           {0x130c, 0x0083eca4}};
@@ -1147,6 +1162,7 @@ void XB_REGS1 XB_CDECL Actor_InitDefaults(uint8_t* actor) {
     field<int32_t>(actor, 0x7b4) = -1;
     field<uint32_t>(actor, 0x15c) = 0;
     field<uint32_t>(actor, 0x158) = 0;  // 0.0f
+    return actor;  // EAX stays the first argument
 }
 
 void XB_REGS2 XB_CDECL Actor_InitPhysics(uint32_t, uint8_t* actor) {
@@ -1164,7 +1180,7 @@ void XB_REGS2 XB_CDECL Actor_InitPhysics(uint32_t, uint8_t* actor) {
     for (uint32_t i = 0; i < 12; i += 4) field<uint32_t>(actor, 0x300 + i) = field<uint32_t>(ent, 0xf0 + i);
 }
 
-void XB_REGS3 XB_CDECL Actor_SumMoveHistory(float* out, uint32_t, const uint8_t* actor) {
+float* XB_REGS3 XB_CDECL Actor_SumMoveHistory(float* out, uint32_t, const uint8_t* actor) {
     uint32_t* words = reinterpret_cast<uint32_t*>(out);
     words[1] = 0;
     words[0] = 0;
@@ -1175,6 +1191,177 @@ void XB_REGS3 XB_CDECL Actor_SumMoveHistory(float* out, uint32_t, const uint8_t*
         out[0] = field<float>(actor, step) + out[0];
         out[1] = field<float>(actor, step + 4) + out[1];
     }
+    return out;  // EAX stays the first argument
+}
+
+uint8_t* XB_REGS1 XB_CDECL Path_GetNegotiationEndNode(const uint8_t* path) {
+    const int16_t current = field<int16_t>(path, 0x386);
+    const uint8_t* node = path_node(field<uint16_t>(path, current * 0x1c + 0x18));
+    const char* name = field<const char*>(node, 0x38);  // the original reads it even from a null node
+    if (!name) return nullptr;
+    const int32_t count = field<int16_t>(node, 0x62);
+    const uint8_t* link = field<const uint8_t*>(node, 0x64);
+    for (int32_t i = 0; i < count; ++i, link += 0xc) {
+        uint8_t* other = path_node(field<uint16_t>(link, 0));
+        if (!other || field<int32_t>(other, 0x28) != 0x11) continue;
+        const char* other_name = field<const char*>(other, 0x30);
+        if (!other_name) continue;
+        if (std::strcmp(name + 6, other_name + 6) == 0) return other;
+    }
+    return nullptr;
+}
+
+namespace {
+
+// The title CRT's __CIsqrt of an x87 value, stored as float.
+float title_ci_sqrt_ext(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+float distance_2d(float dx, float dy) {
+    return title_ci_sqrt_ext(static_cast<long double>(dy) * dy + static_cast<long double>(dx) * dx);
+}
+
+float abs_bits(float x) {
+    uint32_t bits;
+    std::memcpy(&bits, &x, 4);
+    bits &= 0x7fffffffu;
+    std::memcpy(&x, &bits, 4);
+    return x;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Path_AccumulateTrim_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Path_AccumulateTrim) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Path_AccumulateTrim(uint8_t* path, const float* point) {
+    int32_t i = field<int16_t>(path, 0x380) - 1;
+    if (i <= field<int16_t>(path, 0x386)) return;
+    // Walk back from the last point to the one nearest to `point` (distance in xy), summing the
+    // weighted |cross| of each segment's direction with the offset (stop past 32768).
+    const uint8_t* before = path + (i - 1) * 0x1c;
+    float best = distance_2d(point[0] - field<float>(before, 0), point[1] - field<float>(before, 4));
+    float sum = 0.0f;
+    float sum_at_best = 0.0f;
+    const uint8_t* record = path + i * 0x1c;
+    for (;;) {
+        const float dx = field<float>(record, 0) - point[0];
+        const float dy = field<float>(record, 4) - point[1];
+        const float d = distance_2d(dx, dy);
+        if (best >= d) {
+            best = d;
+            sum_at_best = sum;
+        }
+        ++i;
+        if (i >= field<int16_t>(path, 0x382)) break;
+        const float cross = field<float>(record, 0xc) * dy - field<float>(record, 0x10) * dx;
+        sum = field<float>(record, 0x14) * abs_bits(cross) + sum;
+        record += 0x1c;
+        if (!(title_global<float>(0x0083ebc8) >= sum)) break;
+    }
+    const uint8_t* last = path + (field<int16_t>(path, 0x380) - 2) * 0x1c;
+    const float cross = field<float>(last, 0xc) * (field<float>(last, 4) - point[1]) -
+                        field<float>(last, 0x10) * (field<float>(last, 0) - point[0]);
+    const float trim = (field<float>(last, 0x14) - field<float>(path, 0x3c8)) * abs_bits(cross) + sum_at_best;
+    field<float>(path, 0x3b4) = field<float>(path, 0x3b4) + trim;
+}
+
+PLATFORM_ASM_ENTRY(Path_AdvanceAlong_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Path_AdvanceAlong) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL Path_AdvanceAlong(uint8_t* path, const float* point) {
+    int32_t k = field<int16_t>(path, 0x380) - 2;
+    const int32_t start = field<int16_t>(path, 0x386);
+    if (k < start) return path;
+    const float dir_x = field<float>(path, 0x39c);
+    const float dir_y = field<float>(path, 0x3a0);
+    // From the last segment back: the first point ahead of `point` along the direction.
+    bool first = true;
+    const uint8_t* record = path + k * 0x1c;
+    float dot;
+    for (;;) {
+        dot = (field<float>(record, 4) - point[1]) * dir_y + (field<float>(record, 0) - point[0]) * dir_x;
+        if (!(0.0f >= dot)) break;
+        --k;
+        record -= 0x1c;
+        first = false;
+        if (k < field<int16_t>(path, 0x386)) return path;
+    }
+    const uint8_t* next = record + 0x1c;
+    const float next_x = first ? field<float>(path, 0x3cc) : field<float>(next, 0);
+    const float next_y = first ? field<float>(path, 0x3d0) : field<float>(next, 4);
+    const float length = first ? field<float>(path, 0x3c8) : field<float>(record, 0x14);
+    const float dot_next = (next_y - point[1]) * dir_y + (next_x - point[0]) * dir_x;
+    const float t = dot_next / (dot_next - dot);
+    const float step = t * length;
+    if (step >= length) {
+        if (k <= start) return path;
+        std::memcpy(&field<float>(path, 0x3cc), record, 12);
+        --k;
+        field<float>(path, 0x3c8) = field<float>(path + k * 0x1c, 0x14);
+    } else {
+        const float base_x = first ? field<float>(path, 0x3cc) : field<float>(next, 0);
+        field<float>(path, 0x3cc) = field<float>(record, 0xc) * step + base_x;
+        const float base_y = first ? field<float>(path, 0x3d0) : field<float>(next, 4);
+        field<float>(path, 0x3d0) = field<float>(record, 0x10) * step + base_y;
+        const float base_z = first ? field<float>(path, 0x3d4) : field<float>(next, 8);
+        const float remaining = first ? field<float>(path, 0x3c8) : field<float>(record, 0x14);
+        field<float>(path, 0x3d4) = (field<float>(record, 8) - base_z) * t + base_z;
+        field<float>(path, 0x3c8) = remaining - step;
+    }
+    const int16_t lookahead = field<int16_t>(path, 0x384);
+    if (lookahead >= 0) {
+        field<int16_t>(path, 0x384) = static_cast<int16_t>(lookahead - field<int16_t>(path, 0x380) + (k + 2));
+        field<int16_t>(path, 0x380) = static_cast<int16_t>(k + 2);
+        if (field<int16_t>(path, 0x384) < 0) field<int16_t>(path, 0x384) = 0;
+    } else {
+        field<int16_t>(path, 0x380) = static_cast<int16_t>(k + 2);
+    }
+    return path;  // EAX stays the path
+}
+
+PLATFORM_ASM_ENTRY(Actor_GetBoundaryPlanes_entry,
+                   "pushl %esi\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Actor_GetBoundaryPlanes) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_GetBoundaryPlanes(const uint8_t* actor, float* normals, float* distances) {
+    uint32_t count = 0;
+    for (uint32_t plane = 0x12a8; plane <= 0x12f0; plane += 0x18) {
+        if (!field<uint32_t>(actor, plane)) continue;
+        std::memcpy(&normals[count * 2], &field<float>(actor, plane + 8), 8);
+        distances[count] = field<float>(actor, plane + 0x10);
+        ++count;
+    }
+    return count;
+}
+
+uint8_t* XB_REGS2 XB_CDECL Actor_PopBlockingStates(uint8_t* actor, uint32_t state) {
+    // The states that `state` blocks: a row of five in the table 0x00830ea8 (rows from state 8 on).
+    const uint32_t* blocked = &title_global<uint32_t>(0x00830ea8 + (state * 5 - 40) * 4);
+    for (int32_t i = 1; i <= field<int32_t>(actor, 0xbc); ++i) {
+        const uint32_t pushed = field<uint32_t>(actor, 0xa8 + (i - 1) * 4);
+        for (int32_t j = 0; j < 5; ++j) {
+            if (pushed != blocked[j]) continue;
+            // Pop everything from there on: one queued pop (kind 3) per level.
+            do {
+                queue_transition(actor, 3, 0);
+            } while (i <= --field<int32_t>(actor, 0xbc));
+            return actor;
+        }
+    }
+    return actor;  // EAX stays the actor
 }
 
 }  // namespace game

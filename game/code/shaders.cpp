@@ -2223,4 +2223,43 @@ void XB_CDECL cdSimpleInstance_AddListToScene(CdSimpleInstanceList* self, uint32
     }
 }
 
+namespace {
+
+// The vertex iterators' Clone (slot of every shader class's iterator vtable): a 12-byte copy
+// (Z_Malloc) whose vtable is set to the base iterator's first, then to the class's own; null
+// when the allocation fails.
+uint32_t* clone_vertex_iter(const uint32_t* self, uint32_t base_vtable, uint32_t vtable) {
+    uint32_t* copy = static_cast<uint32_t*>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(0xc));  // Z_Malloc
+    if (!copy) return nullptr;
+    copy[0] = base_vtable;
+    copy[1] = self[1];
+    copy[2] = self[2];
+    copy[0] = vtable;
+    return copy;
+}
+
+}  // namespace
+
+uint32_t* XB_THISCALL cdGunSightVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b444c, 0x007b4430); }
+uint32_t* XB_THISCALL cdGunVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b4724, 0x007b4708); }
+uint32_t* XB_THISCALL cdGlassVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b49f4, 0x007b49d8); }
+uint32_t* XB_THISCALL cdSimpleAlphaVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b4cdc, 0x007b4cc0); }
+uint32_t* XB_THISCALL cdPropellerVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b4fb8, 0x007b4f9c); }
+uint32_t* XB_THISCALL cdDecalVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b5284, 0x007b5268); }
+uint32_t* XB_THISCALL cdCharVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b554c, 0x007b5530); }
+uint32_t* XB_THISCALL cdPrelitVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b5828, 0x007b580c); }
+uint32_t* XB_THISCALL cdAirplaneMetalVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b5afc, 0x007b5ae0); }
+uint32_t* XB_THISCALL cdSimpleUVAnimVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b5ddc, 0x007b5dc0); }
+uint32_t* XB_THISCALL cdSimplePrelitVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b60bc, 0x007b60a0); }
+uint32_t* XB_THISCALL cdSimpleVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b6398, 0x007b637c); }
+uint32_t* XB_THISCALL cdRiverVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b66c0, 0x007b66a4); }
+uint32_t* XB_THISCALL cdOceanVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b6960, 0x007b6944); }
+uint32_t* XB_THISCALL cdWaterVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b6c34, 0x007b6c18); }
+uint32_t* XB_THISCALL cdWorldBlendVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b6f0c, 0x007b6ef0); }
+uint32_t* XB_THISCALL cdWorldVertexLitVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b7200, 0x007b71e4); }
+uint32_t* XB_THISCALL cdWorldVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b74d4, 0x007b74b8); }
+uint32_t* XB_THISCALL cdBackgroundVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b77ac, 0x007b7790); }
+uint32_t* XB_THISCALL cdSkyVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b7a88, 0x007b7a6c); }
+uint32_t* XB_THISCALL nglDebugMeshVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007be7c0, 0x007be7d8); }
+
 }  // namespace game

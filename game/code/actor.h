@@ -13,7 +13,7 @@ namespace game {
 // 0x000123d0: the team hostile to `team` ({0, 2, 1, 0, 0}[team]).
 int32_t XB_CDECL Sentient_EnemyTeam(int32_t team);
 // 0x001fe040 (out in EAX, sentient in ECX): the sentient's entity's current origin (+0x140).
-void XB_REGS3 XB_CDECL Sentient_GetOrigin(float* out, uint32_t unused_edx, uint8_t* const* sentient);
+float* XB_REGS3 XB_CDECL Sentient_GetOrigin(float* out, uint32_t unused_edx, uint8_t* const* sentient);
 // 0x001fa5b0 (sentient in EAX): goal yaw (+0x20) is not -1.
 uint32_t XB_REGS1 XB_CDECL Sentient_HasGoalYaw(const uint8_t* sentient);
 // 0x001fc2b0 (sentient in EAX, yaw in XMM0): stores the yaw wrapped into [0, 360) at +0x20.
@@ -78,8 +78,8 @@ extern "C" void Actor_IsUsingTurret_entry(void);
 long double XB_REGS3 XB_CDECL Actor_NodeDistanceSquared(uint32_t, const uint8_t* node, uint8_t* const* ent);
 // 0x001fb640 / 0x001fb6a0 (actor in EAX, callee pops 4): the anim script to run (+0x254) - the
 // given one within 200 ms before +0x798, else the run / walk script; +0x27c = 1, +0x285 = 0.
-void XB_REGS1 XB_STDCALL Actor_AnimRun(uint8_t* actor, uint32_t script);
-void XB_REGS1 XB_STDCALL Actor_AnimWalk(uint8_t* actor, uint32_t script);
+uint8_t* XB_REGS1 XB_STDCALL Actor_AnimRun(uint8_t* actor, uint32_t script);
+uint8_t* XB_REGS1 XB_STDCALL Actor_AnimWalk(uint8_t* actor, uint32_t script);
 // 0x001fbf10 (state in EAX, actor in ECX): no state on the stack above the base (+0xa8..) is
 // one of the five that block it (table 0x00830da0 + state * 20).
 uint32_t XB_REGS3 XB_CDECL Actor_IsStatePushAllowed(uint32_t state, uint32_t, const uint8_t* actor);
@@ -90,24 +90,24 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_StartState(uint32_t entry, ui
 extern "C" void Actor_StartState_entry(void);
 // 0x001fbd60 (path in EAX, actor in EDX): copies the path's points (int16 count +0x382, 0x1c
 // each) and its 0x5c-byte header (+0x380) into the actor's path (+0x3c0).
-void XB_REGS2 XB_CDECL Path_CopyToActor(const uint8_t* path, uint8_t* actor);
+const uint8_t* XB_REGS2 XB_CDECL Path_CopyToActor(const uint8_t* path, uint8_t* actor);
 // 0x001fbda0 (actor in EAX, path in EDX): the reverse.
 void XB_REGS2 XB_CDECL Path_CopyFromActor(const uint8_t* actor, uint8_t* path);
 // 0x00200400 (to in EAX, from in ECX): copies what one sentient knows about another (+0x18..
 // +0x48), clearing +0x14 and +0x1c.
-void XB_REGS3 XB_CDECL Actor_CopySentientInfo(uint8_t* to, uint32_t, const uint8_t* from);
+uint8_t* XB_REGS3 XB_CDECL Actor_CopySentientInfo(uint8_t* to, uint32_t, const uint8_t* from);
 // 0x001fb5c0 (actor in EAX): the reacquire anim script - the actor's own (+0x270, mode +0x274,
 // 1 -> 2) on team 2, else the shared one with mode 2.
-void XB_REGS1 XB_CDECL Actor_AnimReacquire(uint8_t* actor);
+uint8_t* XB_REGS1 XB_CDECL Actor_AnimReacquire(uint8_t* actor);
 // 0x001fa950 (actor in EDI, callee pops 4): the suppression slot (+0x12a8, 4 x 0x18 {time,
 // sentient}) holding the sentient, else the one with the oldest time.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindSentientSlot(const uint8_t* actor, uint32_t sentient);
 extern "C" void Actor_FindSentientSlot_entry(void);
 // 0x001faee0 (path in EAX): shrinks the lookahead distance (+0x3b4; (d - 6.4) * 0.75 with flag
 // 2 of +0x3bc, else (d - 12.8) * 0.5625; at least 0.001) and clears flags 1 and 2.
-void XB_REGS1 XB_CDECL Path_ShrinkLookaheadBy(uint8_t* path);
+uint8_t* XB_REGS1 XB_CDECL Path_ShrinkLookaheadBy(uint8_t* path);
 // 0x001fb1f0 (actor in EAX): no look-at target; limits 120 / 90 / 90.
-void XB_REGS1 XB_CDECL Actor_ClearLookAt(uint8_t* actor);
+uint8_t* XB_REGS1 XB_CDECL Actor_ClearLookAt(uint8_t* actor);
 // 0x001faf40 (path in ECX, distance in XMM1): the remaining path (current segment +0x3b8 +
 // +0x3b0, then the points' lengths +0x14 backwards) is longer than distance; always with
 // +0x386 set.
@@ -122,7 +122,7 @@ uint32_t XB_REGS3 XB_STDCALL Path_IsStale(const uint8_t* path, uint32_t, const f
 // still suppressed (+0x1c after now), never noticed, or 2 s since (+0x18).
 uint32_t XB_REGS1 XB_STDCALL Actor_IsEventWorthNoticing(const uint8_t* event, const uint8_t* base);
 // 0x001fa7f0 (actor in EAX, sentient in EDX): clears the suppression slots holding it.
-void XB_REGS2 XB_CDECL Actor_ClearSentientSlots(uint8_t* actor, uint32_t sentient);
+uint8_t* XB_REGS2 XB_CDECL Actor_ClearSentientSlots(uint8_t* actor, uint32_t sentient);
 // 0x001fc2f0: a free sentient (+0x5c == -1), else the unused one freed longest ago (the
 // largest other negative +0x5c); cleared, +0x5c = level time. 0 when none.
 uint8_t* XB_CDECL Sentient_Alloc();
@@ -131,7 +131,7 @@ uint8_t* XB_CDECL Sentient_Alloc();
 extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_SetOrientFromDir(uint8_t* out, const float* dir, float yaw_offset);
 extern "C" void Actor_SetOrientFromDir_entry(void);
 // 0x001fbc50 (actor in EAX): clears the move history (+0x1394 index, 20 floats from +0x1398).
-void XB_REGS1 XB_CDECL Actor_ClearMoveHistory(uint8_t* actor);
+uint8_t* XB_REGS1 XB_CDECL Actor_ClearMoveHistory(uint8_t* actor);
 // 0x00200050 (sentient in ECX, actor in ESI): records where the sentient is now in the actor's
 // record of it (+0x850 + index * 0x50: time +0x18, origin +0x20, node +0x30/+0x34, the
 // actor's own origin +0x40). Returns the record.
@@ -152,7 +152,7 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_GetLookaheadPoint(const uint8_
 extern "C" void Path_GetLookaheadPoint_entry(void);
 // 0x001fbaf0 (out in EAX, actor in ECX): the x/y sum of the ten move-history steps (+0x1398),
 // z = 0.
-void XB_REGS3 XB_CDECL Actor_SumMoveHistory(float* out, uint32_t, const uint8_t* actor);
+float* XB_REGS3 XB_CDECL Actor_SumMoveHistory(float* out, uint32_t, const uint8_t* actor);
 // 0x002ba1c0 (sentient in EDX): the claim expires in 5 s (+8); each claimed node (handles
 // +0x58, +0x5a; 0 and 0xffff = none, the first none ends it) loses a claim (+0x26) and, at
 // none left, keeps the claimer (+4) and expiry (+8).
@@ -162,7 +162,7 @@ void XB_REGS2 XB_CDECL Sentient_ClaimNodeTimed(uint32_t, uint8_t* sentient);
 void XB_REGS3 XB_CDECL Sentient_ClaimNodeIndefinitely(uint32_t claimer, uint32_t, uint8_t* sentient);
 // 0x001fa860 (actor in EAX): expires the suppression slots - after 300 ms for those with
 // +0x14 set, else after +0x1308 ms - clearing the sentient's +0x5a byte.
-void XB_REGS1 XB_CDECL Actor_ExpirePathPlanes(uint8_t* actor);
+uint8_t* XB_REGS1 XB_CDECL Actor_ExpirePathPlanes(uint8_t* actor);
 // 0x00201520 (actor in EAX): the entity stands within 3 units of the sentient's claimed node
 // (+4 -> handle +0x48; node origin +0x44).
 uint32_t XB_REGS1 XB_CDECL Actor_IsOnClaimedNode(const uint8_t* actor);
@@ -209,7 +209,7 @@ void XB_REGS3 XB_CDECL Actor_AnimScripted_Finish(uint32_t, uint32_t next, const 
 // 0x001fd860 (actor in EAX): collapses the queued state transitions (count +0xa0, entries
 // {state, param} from +0x28) pairwise through g_aiTransitionMerge (0x00830e00, [a * 4 + b];
 // -1 = keep both, 0 = both cancel); without +0x2d0 the queue is reset to one entry.
-void XB_REGS1 XB_CDECL Actor_MergeStateTransitions(uint8_t* actor);
+uint8_t* XB_REGS1 XB_CDECL Actor_MergeStateTransitions(uint8_t* actor);
 // 0x002000e0 (actor in EAX): queues a pop transition (3), merges, drops the top state.
 void XB_REGS1 XB_CDECL Actor_PopState(uint8_t* actor);
 // 0x00200110 (actor in EAX, state in ESI): queues a set transition (1, state), merges, and
@@ -219,8 +219,8 @@ extern "C" void Actor_SetState_entry(void);
 // 0x00201a10 / 0x00201a80 (actor in EAX, callee pops 4): Actor_AnimRun / Actor_AnimWalk, or
 // for an actor on a vehicle path (+0x1390) stop or walk by its speed (+0x2a0, +0x2a4) with mode
 // 7.
-void XB_REGS1 XB_STDCALL Actor_AnimMoveRun(uint8_t* actor, uint32_t script);
-void XB_REGS1 XB_STDCALL Actor_AnimMoveWalk(uint8_t* actor, uint32_t script);
+uint8_t* XB_REGS1 XB_STDCALL Actor_AnimMoveRun(uint8_t* actor, uint32_t script);
+uint8_t* XB_REGS1 XB_STDCALL Actor_AnimMoveWalk(uint8_t* actor, uint32_t script);
 // 0x00202bd0 (sentient in EAX, actor in ECX): the actor learns where the sentient's enemy
 // (+0x3c) is - from the other actor's newer record (CopySentientInfo), or by recording it.
 void XB_REGS3 XB_CDECL Actor_EventLearnFromActor(const uint8_t* sentient, uint32_t, uint8_t* actor);
@@ -274,9 +274,35 @@ void XB_CDECL G_ExpireBadPlaces();
 // 0x001fc130: empties g_actors; 0x0095ee0c = 0x00987a94, 0x0095f44c = -1.
 void XB_CDECL Actor_ClearAll();
 // 0x001fd990 (actor in EAX): default tuning (ranges, accuracy, timers; state stack base 5).
-void XB_REGS1 XB_CDECL Actor_InitDefaults(uint8_t* actor);
+uint8_t* XB_REGS1 XB_CDECL Actor_InitDefaults(uint8_t* actor);
 // 0x001fff80 (actor in EDX): the movement block (+0x290, 0x4c words) cleared and set up from
 // the entity (number +0x224, bounds +0xe0/+0xf0) with clip mask 0x2820011.
 void XB_REGS2 XB_CDECL Actor_InitPhysics(uint32_t, uint8_t* actor);
+
+// 0x001fe3c0 (path in EAX): the negotiation node at the current path point (+0x386; record
+// handle +0x18) and the linked node (type 0x11) whose script name (+0x30) equals its own (+0x38);
+// 0 if none.
+uint8_t* XB_REGS1 XB_CDECL Path_GetNegotiationEndNode(const uint8_t* path);
+// 0x001fee70 (path in ESI, point in EBX): from the last path point back toward the start, the
+// point nearest `point` in xy (__CIsqrt distances); the weighted |cross| sums of the segments up to
+// it, plus the last segment's ((+0x14 - path +0x3c8) * |cross|), are added to path +0x3b4.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_AccumulateTrim(uint8_t* path, const float* point);
+extern "C" void Path_AccumulateTrim_entry(void);
+
+// 0x001fac60 (path in EAX, point in EBX): moves the path's end (+0x380 count, +0x3cc point, +0x3c8
+// remaining length of the last segment) back toward `point` along the direction +0x39c: from the
+// last segment back to the first point ahead of `point`, then interpolated (or one whole point
+// dropped when the step covers the segment); the lookahead count +0x384 follows.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Path_AdvanceAlong(uint8_t* path, const float* point);
+extern "C" void Path_AdvanceAlong_entry(void);
+
+// 0x001fa6e0 (actor in ECX, normals in EDX, distances in ESI): the enabled boundary planes (4 at
+// actor +0x12a8, 0x18 apart: flag, -, normal xy +8, distance +0x10) copied out. Returns the count.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_GetBoundaryPlanes(const uint8_t* actor, float* normals, float* distances);
+extern "C" void Actor_GetBoundaryPlanes_entry(void);
+// 0x00200150 (actor in EAX, state in ECX): if a pushed state (+0xa8, count +0xbc) is one of the five
+// that `state` blocks (table 0x00830ea8), pops it and everything above it (queued pops merged).
+// Returns the actor (EAX unchanged).
+uint8_t* XB_REGS2 XB_CDECL Actor_PopBlockingStates(uint8_t* actor, uint32_t state);
 
 }  // namespace game

@@ -393,4 +393,27 @@ CdSimpleInstanceList* XB_THISCALL cdSimpleInstance_AddInstance(CdSimpleInstanceL
 extern "C" PLATFORM_HIDDEN void XB_CDECL cdSimpleInstance_AddListToScene(CdSimpleInstanceList* self, uint32_t* block);
 extern "C" void cdSimpleInstance_AddListToScene_entry(void);
 
+// Vertex iterator Clone methods (iterator in ECX): see clone_vertex_iter in shaders.cpp.
+uint32_t* XB_THISCALL cdGunSightVertexIter_Clone(const uint32_t* self);  // 0x00047ed0
+uint32_t* XB_THISCALL cdGunVertexIter_Clone(const uint32_t* self);  // 0x00048630
+uint32_t* XB_THISCALL cdGlassVertexIter_Clone(const uint32_t* self);  // 0x00049220
+uint32_t* XB_THISCALL cdSimpleAlphaVertexIter_Clone(const uint32_t* self);  // 0x0004a990
+uint32_t* XB_THISCALL cdPropellerVertexIter_Clone(const uint32_t* self);  // 0x0004b110
+uint32_t* XB_THISCALL cdDecalVertexIter_Clone(const uint32_t* self);  // 0x0004b8d0
+uint32_t* XB_THISCALL cdCharVertexIter_Clone(const uint32_t* self);  // 0x0004c010
+uint32_t* XB_THISCALL cdPrelitVertexIter_Clone(const uint32_t* self);  // 0x0004c780
+uint32_t* XB_THISCALL cdAirplaneMetalVertexIter_Clone(const uint32_t* self);  // 0x0004d110
+uint32_t* XB_THISCALL cdSimpleUVAnimVertexIter_Clone(const uint32_t* self);  // 0x0004d910
+uint32_t* XB_THISCALL cdSimplePrelitVertexIter_Clone(const uint32_t* self);  // 0x0004e000
+uint32_t* XB_THISCALL cdSimpleVertexIter_Clone(const uint32_t* self);  // 0x0004e760
+uint32_t* XB_THISCALL cdRiverVertexIter_Clone(const uint32_t* self);  // 0x0004ebb0
+uint32_t* XB_THISCALL cdOceanVertexIter_Clone(const uint32_t* self);  // 0x00050d80
+uint32_t* XB_THISCALL cdWaterVertexIter_Clone(const uint32_t* self);  // 0x000515a0
+uint32_t* XB_THISCALL cdWorldBlendVertexIter_Clone(const uint32_t* self);  // 0x000527e0
+uint32_t* XB_THISCALL cdWorldVertexLitVertexIter_Clone(const uint32_t* self);  // 0x00052ed0
+uint32_t* XB_THISCALL cdWorldVertexIter_Clone(const uint32_t* self);  // 0x00054050
+uint32_t* XB_THISCALL cdBackgroundVertexIter_Clone(const uint32_t* self);  // 0x00054730
+uint32_t* XB_THISCALL cdSkyVertexIter_Clone(const uint32_t* self);  // 0x00055400
+uint32_t* XB_THISCALL nglDebugMeshVertexIter_Clone(const uint32_t* self);  // 0x0006e920
+
 }  // namespace game
