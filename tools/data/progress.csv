@@ -9653,8 +9653,8 @@ address,name,section,module,state,tested,matched
 002c62b0,Cbuf_Execute,.text,unassigned,named,0,0
 002c63a0,Cbuf_ExecuteText,.text,unassigned,named,0,0
 002c6400,FUN_002c6400,.text,unassigned,unnamed,0,0
-002c6630,CM_FilterBoxCandidates,.text,collision,named,0,0
-002c6840,FUN_002c6840,.text,unassigned,unnamed,0,0
+002c6630,CM_FilterBoxCandidates,.text,collision,untested,0,0
+002c6840,FUN_002c6840,.text,unassigned,untested,0,0
 002c6bf0,FUN_002c6bf0,.text,unassigned,settled,24290,24290
 002c7220,FUN_002c7220,.text,unassigned,settled,207,207
 002c72e0,SV_AreaEntities_r,.text,server,named,0,0
@@ -9700,7 +9700,7 @@ address,name,section,module,state,tested,matched
 002cabf0,PathNode_SetClaim,.text,unassigned,named,0,0
 002cae20,Cmd_Exec_f,.text,qcommon,named,0,0
 002caf70,FUN_002caf70,.text,unassigned,unnamed,0,0
-002cb0f0,CM_GatherBoxCandidates,.text,collision,named,0,0
+002cb0f0,CM_GatherBoxCandidates,.text,collision,untested,0,0
 002cb1a0,FUN_002cb1a0,.text,unassigned,settled,108,108
 002cb420,FUN_002cb420,.text,unassigned,settled,403,403
 002cb560,FUN_002cb560,.text,unassigned,settled,103,103
@@ -9872,7 +9872,7 @@ address,name,section,module,state,tested,matched
 002e4940,FUN_002e4940,.text,unassigned,unnamed,0,0
 002e4980,FUN_002e4980,.text,unassigned,settled,8144,8144
 002e4c00,FUN_002e4c00,.text,unassigned,unnamed,0,0
-002e5030,CM_BoxTrace,.text,collision,untested,0,0
+002e5030,CM_BoxTrace,.text,collision,settled,12518,12518
 002e5530,PM_UpdateViewAngles,.text,game,named,0,0
 002e6260,FUN_002e6260,.text,unassigned,unnamed,0,0
 002e6420,G_DObjTryGetTagMatrix,.text,game,named,0,0
@@ -9881,8 +9881,8 @@ address,name,section,module,state,tested,matched
 002e6710,FUN_002e6710,.text,unassigned,unnamed,0,0
 002e67d0,FUN_002e67d0,.text,unassigned,unnamed,0,0
 002e6d80,FUN_002e6d80,.text,unassigned,unnamed,0,0
-002e6dc0,FUN_002e6dc0,.text,unassigned,untested,0,0
-002e70c0,CM_TransformedBoxTrace,.text,collision,untested,0,0
+002e6dc0,FUN_002e6dc0,.text,unassigned,settled,1119,1119
+002e70c0,CM_TransformedBoxTrace,.text,collision,settled,8709,8709
 002e74f0,Think_ScriptLinked,.text,unassigned,named,0,0
 002e7520,FUN_002e7520,.text,unassigned,unnamed,0,0
 002e75d0,FUN_002e75d0,.text,unassigned,unnamed,0,0

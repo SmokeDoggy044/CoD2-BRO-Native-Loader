@@ -11668,3 +11668,4 @@ address,name,kind,confidence,evidence
 002d37f0,CM_TraceRayThroughWorldTrees,function,medium,"ray trace through the world quad trees: cells from 0x002c6bf0, brushes via CM_TraceBoxThroughBrush, meshes via vtable slot 5; nearest hit point/normal/flags/contents; AL"
 002e04e0,CM_TraceThroughWorldTrees,function,medium,"box/capsule sweep through the world quad trees: brushes (capsule/box trace), then mesh triangles with CM_ClipSphereSweepToTriangle; AL = mesh hit"
 002e4980,CM_TraceThroughWorld,function,medium,"CM_BoxTrace world sweep: checkcount, box/capsule -> CM_TraceThroughWorldTrees, ray -> CM_TraceRayThroughWorldTrees + fraction from plane distances"
+002e6dc0,CM_TransformedSightTrace,function,medium,"sight-trace twin of CM_TransformedBoxTrace: centered box, local start/end, capsule block, then the title sight trace 0x002e4c00"

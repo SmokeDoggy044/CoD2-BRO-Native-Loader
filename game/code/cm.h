@@ -271,4 +271,37 @@ extern "C" void CM_TraceThroughWorldTrees_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TraceThroughWorld(uint8_t* tw, const float* start, const float* end);
 extern "C" void CM_TraceThroughWorld_entry(void);
 
+
+// 0x002e5030 (capsule block in EAX, maxs in ECX; results, start, end, mins, model, brush mask, capsule flag on the
+// stack): Q3's CM_BoxTrace. The 0x170-byte trace work (Com_Memset) gets the content mask (+0xf8), the results'
+// fraction (preset to 1 without a capsule block), the box centered on start/end (+0x40/+0x50 sizes, start/end
+// moved by the offset, delta +0xe0, its squared length +0xf0), the capsule block (0x30 bytes to +0x140) or a
+// capsule from the size (radius = min(x, z), axis offset z - radius), the swept bounds and the corner table. Equal
+// start and end: the position tests (world trees, a model's brushes, the temporary box capsule), else the sweeps
+// (+0xfc = zero size); endpos = start + delta * fraction, and +0x100..+0x140 copied to the results. EAX = start z.
+uint32_t XB_REGS3 XB_CDECL CM_BoxTrace(const uint8_t* capsule, uint32_t unused, const float* maxs, uint8_t* results,
+                                       const float* start, const float* end, const float* mins, const uint32_t* model,
+                                       uint32_t brushmask, uint32_t capsule_flag);
+
+// 0x002e70c0 (origin in EAX, maxs in ECX; results, start, end, mins, model, brush mask, angles, capsule flag on
+// the stack): Q3's CM_TransformedBoxTrace - the centered box and start/end relative to the origin, rotated into a
+// model with angles (AnglesToAxis rows {forward, -right, up}, Mat34_RotateVector), a capsule block (axis offset
+// (0, 0, half z - radius) rotated likewise), CM_BoxTrace, the plane normal rotated back (Mat34_Transpose3) when
+// the fraction dropped, endpos from the world start/end. Never-set stack words (block, row w) are zero as in
+// tests. Returns end.
+const float* XB_REGS3 XB_CDECL CM_TransformedBoxTrace(const float* origin, uint32_t unused, const float* maxs,
+                                                      uint8_t* results, const float* start, const float* end,
+                                                      const float* mins, const uint32_t* model, uint32_t brushmask,
+                                                      const float* angles, uint32_t capsule_flag);
+
+
+// 0x002e6dc0 (origin in EAX, end in ECX; an unused word, start, mins, maxs, model, brush mask, angles, capsule flag
+// on the stack; unnamed in Ghidra): the sight-trace version of CM_TransformedBoxTrace - the same centered box,
+// local start/end and capsule block, handed to the title sight trace 0x002e4c00 (end in EAX, start in ECX), whose
+// EAX it returns (registered without a result: its true value can be a stack address).
+uint32_t XB_REGS3 XB_CDECL CM_TransformedSightTrace(const float* origin, uint32_t unused, const float* end,
+                                                    uint32_t unused_arg, const float* start, const float* mins,
+                                                    const float* maxs, const uint32_t* model, uint32_t brushmask,
+                                                    const float* angles, uint32_t capsule_flag);
+
 }  // namespace game

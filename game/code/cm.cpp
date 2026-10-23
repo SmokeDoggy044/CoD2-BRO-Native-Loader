@@ -1931,4 +1931,233 @@ void XB_CDECL CM_TraceThroughWorld(uint8_t* tw, const float* start, const float*
     std::memcpy(tw + 0x110, out + 4, 16);
 }
 
+uint32_t XB_REGS3 XB_CDECL CM_BoxTrace(const uint8_t* capsule, uint32_t, const float* maxs, uint8_t* results,
+                                       const float* start, const float* end, const float* mins, const uint32_t* model,
+                                       uint32_t brushmask, uint32_t capsule_flag) {
+    if (!capsule) *reinterpret_cast<float*>(results + 0x20) = title_global<float>(0x0083eb20);  // 1
+    ++cm_field<int32_t>(0x60);  // checkcount
+    alignas(16) uint8_t tw[0x170];
+    Com_Memset(tw, 0, 0x170);
+    std::memcpy(tw + 0x120, results + 0x20, 4);
+    *reinterpret_cast<uint32_t*>(tw + 0xf8) = brushmask;
+    const Lanes offset = mul(add(lanes(mins), lanes(maxs)), splat(title_global<float>(0x0083eb24)));  // 0.5
+    const Lanes size0 = sub(lanes(mins), offset);
+    const Lanes size1 = sub(lanes(maxs), offset);
+    const Lanes s = add(lanes(start), offset);
+    const Lanes e = add(lanes(end), offset);
+    const Lanes delta = sub(e, s);
+    std::memcpy(tw + 0xe0, delta.v, 16);
+    const float length_squared = sum_xyz(mul(delta, delta));
+    std::memcpy(tw + 0x40, size0.v, 16);
+    std::memcpy(tw + 0x50, size1.v, 16);
+    std::memcpy(tw, s.v, 16);
+    std::memcpy(tw + 0x10, e.v, 16);
+    std::memcpy(tw + 0xf0, &length_squared, 4);
+    float radius;
+    uint32_t flag;
+    if (capsule) {
+        std::memcpy(tw + 0x140, capsule, 0x30);
+        std::memcpy(&radius, tw + 0x164, 4);
+        std::memcpy(&flag, tw + 0x160, 4);
+    } else {
+        flag = capsule_flag;
+        *reinterpret_cast<uint32_t*>(tw + 0x160) = flag;
+        const float half_z = size1.v[2];
+        radius = size1.v[0] > half_z ? half_z : size1.v[0];
+        *reinterpret_cast<float*>(tw + 0x140) = 0.0f;
+        *reinterpret_cast<float*>(tw + 0x144) = 0.0f;
+        *reinterpret_cast<float*>(tw + 0x164) = radius;
+        *reinterpret_cast<float*>(tw + 0x168) = half_z;
+        *reinterpret_cast<float*>(tw + 0x148) = half_z - radius;
+    }
+    const float* sign = reinterpret_cast<const float*>(uintptr_t{0x0082e0b0});
+    Lanes abs_offset;
+    for (int32_t i = 0; i < 4; ++i) {  // ANDNPS with the sign mask
+        uint32_t mask, bits;
+        std::memcpy(&mask, sign + i, 4);
+        std::memcpy(&bits, tw + 0x140 + i * 4, 4);
+        abs_offset.v[i] = from_bits(~mask & bits);
+    }
+    const Lanes capsule_size = add(abs_offset, splat(radius));
+    Lanes lo = min_lanes(s, e);
+    Lanes hi = max_lanes(s, e);
+    if (flag) {
+        lo = sub(lo, capsule_size);
+        hi = add(hi, capsule_size);
+    } else {
+        lo = add(lo, size0);
+        hi = add(hi, size1);
+    }
+    std::memcpy(tw + 0x20, lo.v, 16);
+    std::memcpy(tw + 0x30, hi.v, 16);
+    for (int32_t corner = 0; corner < 8; ++corner) {  // +0x60: x/y/z from size1 when bit 0/1/2 is set (w stays 0)
+        float* row = reinterpret_cast<float*>(tw + 0x60 + corner * 0x10);
+        row[0] = (corner & 1) ? size1.v[0] : size0.v[0];
+        row[1] = (corner & 2) ? size1.v[1] : size0.v[1];
+        row[2] = (corner & 4) ? size1.v[2] : size0.v[2];
+    }
+    const uint8_t* temp_leaf = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f504) + 4);
+    // UCOMISS + JP: a position test only when every component is exactly equal.
+    if (start[0] == end[0] && start[1] == end[1] && start[2] == end[2]) {
+        if (!model) {
+            CM_TestInWorldTrees(tw);
+        } else if (model[0x48 / 4] != 0x1fe) {
+            CM_TestInBrushes(model, tw);
+        } else if (*reinterpret_cast<const uint32_t*>(temp_leaf + 8) & brushmask) {
+            if (flag)
+                CM_TestCapsuleInCapsule(tw);
+            else
+                CM_TestCapsuleInTempBox(tw);
+        }
+    } else {
+        *reinterpret_cast<uint32_t*>(tw + 0xfc) = (size1.v[1] + size1.v[2]) + size1.v[0] == title_global<float>(0x0083eafc);
+        if (flag) std::memcpy(tw + 0x150, capsule_size.v, 16);
+        if (!model) {
+            CM_TraceThroughWorld(tw, reinterpret_cast<const float*>(tw), reinterpret_cast<const float*>(tw + 0x10));
+        } else if (model[0x48 / 4] != 0x1fe) {
+            CM_TraceThroughBrushes(model, tw);
+        } else if (*reinterpret_cast<const uint32_t*>(temp_leaf + 8) & brushmask) {
+            if (flag)
+                CM_TraceCapsuleThroughCapsule(tw);
+            else
+                CM_TraceCapsuleThroughTempBox(tw);
+        }
+    }
+    const Lanes endpos = add(lanes(start), mul(lanes(tw_row(tw, 0xe0)), splat(*reinterpret_cast<const float*>(tw + 0x120))));
+    std::memcpy(tw + 0x100, endpos.v, 16);
+    std::memcpy(results, tw + 0x100, 0x40);
+    uint32_t z;
+    std::memcpy(&z, start + 2, 4);
+    return z;  // EAX = start z bits
+}
+
+
+const float* XB_REGS3 XB_CDECL CM_TransformedBoxTrace(const float* origin, uint32_t, const float* maxs, uint8_t* results,
+                                                      const float* start, const float* end, const float* mins,
+                                                      const uint32_t* model, uint32_t brushmask, const float* angles,
+                                                      uint32_t capsule_flag) {
+    alignas(16) uint8_t trace[0x40] = {};
+    const Lanes offset = mul(add(lanes(mins), lanes(maxs)), splat(title_global<float>(0x0083eb24)));  // 0.5
+    alignas(16) float size0[4], size1[4], local_start[4], local_end[4];
+    const Lanes s0 = sub(lanes(mins), offset);
+    const Lanes s1 = sub(lanes(maxs), offset);
+    std::memcpy(size0, s0.v, 16);
+    std::memcpy(size1, s1.v, 16);
+    const Lanes o = lanes(origin);
+    const Lanes ls = sub(add(lanes(start), offset), o);
+    const Lanes le = sub(add(lanes(end), offset), o);
+    std::memcpy(local_start, ls.v, 16);
+    std::memcpy(local_end, le.v, 16);
+    // UCOMISS + JP: rotate when an angle is non-zero or NaN.
+    const bool rotate = model && model[0x48 / 4] != 0x1ff &&
+                        (!(angles[0] == 0.0f) || !(angles[1] == 0.0f) || !(angles[2] == 0.0f));
+    // The capsule block CM_BoxTrace copies to trace work +0x140 (axis offset, never-set size, flag, radius, half
+    // height); its unset words are the zeroed dead stack in tests.
+    alignas(16) float block[12] = {};
+    alignas(16) float rows[12] = {};  // w words never set
+    std::memcpy(&block[8], &capsule_flag, 4);
+    const float radius = size1[0] > size1[2] ? size1[2] : size1[0];
+    block[10] = size1[2];
+    block[9] = radius;
+    const float half_height = size1[2] - radius;
+    if (rotate) {
+        float forward[3], right[3], up[3];
+        uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles)),
+                            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward))};
+        AnglesToAxis(args, right, up);
+        const float neg_right_z = 0.0f - right[2];
+        rows[0] = forward[0];
+        rows[1] = forward[1];
+        rows[2] = forward[2];
+        rows[4] = 0.0f - right[0];
+        rows[5] = 0.0f - right[1];
+        rows[6] = neg_right_z;
+        rows[8] = up[0];
+        rows[9] = up[1];
+        rows[10] = up[2];
+        Mat34_RotateVector(local_start, 0, rows);
+        Mat34_RotateVector(local_end, 0, rows);
+        block[0] = forward[2] * half_height;
+        block[1] = 0.0f - neg_right_z * half_height;
+        block[2] = up[2] * half_height;
+    } else {
+        block[0] = 0.0f;
+        block[1] = 0.0f;
+        block[2] = half_height;
+    }
+    std::memcpy(trace + 0x20, results + 0x20, 4);
+    CM_BoxTrace(reinterpret_cast<const uint8_t*>(block), 0, size1, trace, local_start, local_end, size0, model, brushmask,
+                capsule_flag);
+    float fraction;
+    std::memcpy(&fraction, trace + 0x20, 4);
+    if (rotate && *reinterpret_cast<const float*>(results + 0x20) > fraction) {
+        Mat34_Transpose3(block, 0, rows);
+        alignas(16) float normal[4];
+        std::memcpy(normal, trace + 0x10, 16);
+        Mat34_RotateVector(normal, 0, block);
+        std::memcpy(trace + 0x10, normal, 16);
+    }
+    const Lanes s = lanes(start);
+    const Lanes endpos = add(s, mul(splat(fraction), sub(lanes(end), s)));
+    std::memcpy(trace, endpos.v, 16);
+    std::memcpy(results, trace, 0x40);
+    return end;
+}
+
+uint32_t XB_REGS3 XB_CDECL CM_TransformedSightTrace(const float* origin, uint32_t, const float* end, uint32_t,
+                                                    const float* start, const float* mins, const float* maxs,
+                                                    const uint32_t* model, uint32_t brushmask, const float* angles,
+                                                    uint32_t capsule_flag) {
+    const Lanes offset = mul(add(lanes(mins), lanes(maxs)), splat(title_global<float>(0x0083eb24)));  // 0.5
+    alignas(16) float size0[4], size1[4], local_start[4], local_end[4];
+    const Lanes s0 = sub(lanes(mins), offset);
+    const Lanes s1 = sub(lanes(maxs), offset);
+    std::memcpy(size0, s0.v, 16);
+    std::memcpy(size1, s1.v, 16);
+    const Lanes o = lanes(origin);
+    const Lanes ls = sub(add(lanes(start), offset), o);
+    const Lanes le = sub(add(lanes(end), offset), o);
+    std::memcpy(local_start, ls.v, 16);
+    std::memcpy(local_end, le.v, 16);
+    const bool rotate = model && model[0x48 / 4] != 0x1ff &&
+                        (!(angles[0] == 0.0f) || !(angles[1] == 0.0f) || !(angles[2] == 0.0f));
+    alignas(16) float block[12] = {};  // as in CM_TransformedBoxTrace
+    alignas(16) float rows[12] = {};
+    std::memcpy(&block[8], &capsule_flag, 4);
+    const float radius = size1[0] > size1[2] ? size1[2] : size1[0];
+    block[10] = size1[2];
+    block[9] = radius;
+    const float half_height = size1[2] - radius;
+    if (rotate) {
+        float forward[3], right[3], up[3];
+        uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles)),
+                            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward))};
+        AnglesToAxis(args, right, up);
+        const float neg_right_z = 0.0f - right[2];
+        rows[0] = forward[0];
+        rows[1] = forward[1];
+        rows[2] = forward[2];
+        rows[4] = 0.0f - right[0];
+        rows[5] = 0.0f - right[1];
+        rows[6] = neg_right_z;
+        rows[8] = up[0];
+        rows[9] = up[1];
+        rows[10] = up[2];
+        Mat34_RotateVector(local_start, 0, rows);
+        Mat34_RotateVector(local_end, 0, rows);
+        block[0] = forward[2] * half_height;
+        block[1] = 0.0f - neg_right_z * half_height;
+        block[2] = up[2] * half_height;
+    } else {
+        block[0] = 0.0f;
+        block[1] = 0.0f;
+        block[2] = half_height;
+    }
+    // 0x002e4c00 (end in EAX, start in ECX; unnamed in Ghidra): the untransformed sight trace.
+    using SightTrace = uint32_t XB_REGS3 XB_CDECL(const float*, uint32_t, const float*, const float*, const float*,
+                                                  const uint32_t*, uint32_t, uint32_t, const float*);
+    return title_function<SightTrace>(0x002e4c00)(local_end, 0, local_start, size0, size1, model, brushmask, capsule_flag,
+                                                 block);
+}
+
 }  // namespace game
