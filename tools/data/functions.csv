@@ -984,6 +984,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 001fe0c0,Actor_IsUsingTurret,compare,9341,149,149,0,0,0,""
 001fe110,Actor_IsEventWorthNoticing,compare,8540,126,126,0,0,0,""
 001fe3c0,Path_GetNegotiationEndNode,compare,0,0,0,0,0,0,""
+001fe820,Path_RefreshForwardLookahead,compare,1982,1865,1865,0,0,0,""
 001fed20,Path_DropPassedPoints,compare,52,29,29,0,0,0,""
 001fee70,Path_AccumulateTrim,compare,5872,127,127,0,0,0,""
 001ff030,Actor_GrenadeTargetClear,compare,0,0,0,0,0,0,""

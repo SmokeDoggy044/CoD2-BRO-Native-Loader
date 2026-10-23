@@ -7600,7 +7600,7 @@ address,name,section,module,state,tested,matched
 001fe4f0,FUN_001fe4f0,.text,unassigned,unnamed,0,0
 001fe670,FUN_001fe670,.text,unassigned,unnamed,0,0
 001fe710,FUN_001fe710,.text,unassigned,unnamed,0,0
-001fe820,Path_RefreshForwardLookahead,.text,game,named,0,0
+001fe820,Path_RefreshForwardLookahead,.text,game,settled,1865,1865
 001fed20,Path_DropPassedPoints,.text,game,matched,29,29
 001fee70,Path_AccumulateTrim,.text,game,settled,127,127
 001ff030,Actor_GrenadeTargetClear,.text,game,untested,0,0

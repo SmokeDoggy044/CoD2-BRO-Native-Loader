@@ -357,4 +357,11 @@ int32_t XB_CDECL Actor_MainCharacterPriority(const uint8_t* ent);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Path_StepBack(uint8_t* path, const float* point);
 extern "C" void Path_StepBack_entry(void);
 
+// 0x001fe820 (path in ESI, origin in ECX): the look direction +0x3a8 (2D, normalized): the path
+// direction (+0x39c) when the path is short, flagged (+0x3bc bit 0) or its end lies ahead of the point
+// A up to 60 units along the lookahead; else toward the path point where the weighted |cross| sum
+// walking back from A's segment reaches +0x3b4 (or the path's start).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_RefreshForwardLookahead(uint8_t* path, const float* origin);
+extern "C" void Path_RefreshForwardLookahead_entry(void);
+
 }  // namespace game

@@ -940,6 +940,7 @@ const Function kFunctions[] = {
     {"Actor_IsUsingTurret", 0x001fe0c0, 0, code(&Actor_IsUsingTurret_entry), 0, Result::Eax, Status::Compare},
     {"Actor_IsEventWorthNoticing", 0x001fe110, 0, code(&Actor_IsEventWorthNoticing), 4, Result::Eax, Status::Compare},
     {"Path_GetNegotiationEndNode", 0x001fe3c0, 0, code(&Path_GetNegotiationEndNode), 0, Result::Eax, Status::Compare},
+    {"Path_RefreshForwardLookahead", 0x001fe820, 0, code(&Path_RefreshForwardLookahead_entry), 0, Result::None, Status::Compare},
     {"Path_DropPassedPoints", 0x001fed20, 0, code(&Path_DropPassedPoints_entry), 0, Result::None, Status::Compare},
     {"Path_AccumulateTrim", 0x001fee70, 0, code(&Path_AccumulateTrim_entry), 0, Result::None, Status::Compare},
     {"Actor_GrenadeTargetClear", 0x001ff030, 0, code(&Actor_GrenadeTargetClear_entry), 4, Result::Eax, Status::Compare},

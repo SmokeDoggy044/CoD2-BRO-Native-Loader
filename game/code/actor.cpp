@@ -1722,4 +1722,88 @@ accumulate:
     if (field<float>(path, 0x3b4) > limit_dist) field<float>(path, 0x3b4) = limit_dist;
 }
 
+namespace {
+
+// path +0x3a8 = (x, y) / its length (__CIsqrt, stored as float), unless the length is 0.
+void set_look_direction(uint8_t* path, float x, float y) {
+    field<float>(path, 0x3a8) = x;
+    field<float>(path, 0x3ac) = y;
+    const float length = title_ci_sqrt_ext(static_cast<float>(x * x + y * y));
+    if (length == title_global<float>(0x0083eafc)) return;
+    const float inverse = title_global<float>(0x0083eb20) / length;
+    field<float>(path, 0x3a8) = field<float>(path, 0x3a8) * inverse;
+    field<float>(path, 0x3ac) = inverse * field<float>(path, 0x3ac);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Path_RefreshForwardLookahead_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Path_RefreshForwardLookahead) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Path_RefreshForwardLookahead(uint8_t* path, const float* origin) {
+    const auto rec = [path](int32_t i) { return path + i * 0x1c; };
+    const auto f = [](const uint8_t* r, uint32_t offset) { return field<float>(r, offset); };
+    const float dir_x = field<float>(path, 0x39c), dir_y = field<float>(path, 0x3a0);
+    const auto keep_direction = [path, dir_x, dir_y]() {
+        field<float>(path, 0x3a8) = dir_x;
+        field<float>(path, 0x3ac) = dir_y;
+    };
+    const int16_t count = field<int16_t>(path, 0x380);
+    if (count <= 1 || (field<uint8_t>(path, 0x3bc) & 1)) return keep_direction();
+    // A: up to 60 units along the lookahead from the origin.
+    const float lookahead = field<float>(path, 0x3b0), cap = title_global<float>(0x0083eb3c);
+    float ax, ay;
+    if (lookahead > cap) {
+        ax = dir_x * cap + origin[0];
+        ay = dir_y * cap + origin[1];
+    } else {
+        ax = lookahead * dir_x + origin[0];
+        ay = lookahead * dir_y + origin[1];
+    }
+    float ex = field<float>(path, 0x3cc) - ax, ey = field<float>(path, 0x3d0) - ay;
+    float along = dir_x * ex + ey * dir_y;
+    if (along > 0.0f) return keep_direction();
+    const int32_t start = field<int16_t>(path, 0x386);
+    int32_t k = count - 2;
+    bool first = true;
+    for (;;) {
+        if (k < field<int16_t>(path, 0x386)) return keep_direction();
+        const uint8_t* r = rec(k);
+        along = dir_x * (f(r, 0) - ax) + (f(r, 4) - ay) * dir_y;
+        if (!(0.0f >= along)) break;
+        --k;
+        first = false;
+    }
+    const uint8_t* r = rec(k);
+    float length;
+    if (first) {
+        length = field<float>(path, 0x3c8);
+    } else {
+        ex = f(rec(k + 1), 0) - ax;
+        ey = f(rec(k + 1), 4) - ay;
+        length = f(r, 0x14);
+    }
+    const float along_next = dir_x * ex + ey * dir_y;
+    const float budget = field<float>(path, 0x3b4);
+    const float t = along_next / (along_next - along);
+    float abs_cross = abs_bits(f(r, 0xc) * (f(r, 4) - ay) - f(r, 0x10) * (f(r, 0) - ax));
+    float weight = (length - t * length) * abs_cross;
+    if (!(weight >= budget)) {
+        // Walk on back until the weighted |cross| sum reaches the budget.
+        for (;;) {
+            if (k <= start) return set_look_direction(path, f(rec(start), 0) - ax, f(rec(start), 4) - ay);
+            const uint8_t* prev = rec(k - 1);
+            abs_cross = abs_bits((f(prev, 4) - ay) * f(prev, 0xc) - f(prev, 0x10) * (f(prev, 0) - ax));
+            weight = f(prev, 0x14) * abs_cross + weight;
+            --k;
+            if (!(budget > weight)) break;
+        }
+        r = rec(k);
+    }
+    const float s = (weight - budget) / abs_cross;
+    set_look_direction(path, f(r, 0) - f(r, 0xc) * s - ax, f(r, 4) - f(r, 0x10) * s - ay);
+}
+
 }  // namespace game
