@@ -2447,4 +2447,15 @@ int32_t XB_CDECL BadPlace_FindByName(const ScriptString* name) {
     return -1;
 }
 
+PLATFORM_ASM_ENTRY(Sentient_ClaimGoalNode_entry, "pushl %edi\n" PLATFORM_ASM_CALL(Sentient_ClaimGoalNode) "addl $4, %esp\n"
+                                                 "ret")
+
+void XB_CDECL Sentient_ClaimGoalNode(uint8_t* sentient) {
+    const uint16_t* const goal = reinterpret_cast<const uint16_t*>(sentient + 0x50);
+    if (*reinterpret_cast<const uint16_t*>(sentient + 0x48) == *goal) return;
+    if (!(PathNode_HandleIsValid(goal) & 0xff)) return;
+    if (!PathNode_IsAvailableFor(PathNode_FromHandle2(goal), sentient)) return;
+    Sentient_SetClaimedNode(sentient, *goal);
+}
+
 }  // namespace game

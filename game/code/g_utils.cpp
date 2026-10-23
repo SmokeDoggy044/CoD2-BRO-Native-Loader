@@ -652,4 +652,34 @@ void XB_CDECL AddLeanToPosition(float* position, float lean, float yaw, float a,
     position[2] = z;
 }
 
+uint8_t* XB_REGS2 XB_CDECL Phys_FindBodyForEntity(uint32_t, const uint8_t* entity) {
+    uint8_t* const* const records = &title_global<uint8_t*>(0x008fccf0);
+    const uint32_t count = title_global<uint32_t>(0x008fcde4);
+    for (uint32_t i = 0; i < count; ++i) {
+        if (*reinterpret_cast<const uint8_t* const*>(records[i] + 4) == entity)
+            return *reinterpret_cast<uint8_t* const*>(records[i] + 8);
+    }
+    return nullptr;
+}
+
+uint8_t* XB_CDECL multi_wait(uint8_t* entity) {
+    *reinterpret_cast<uint32_t*>(entity + 0x328) = 0;
+    return entity;
+}
+
+PLATFORM_ASM_ENTRY(Entity_YawToForward_entry, "pushl %esi\n"
+                                              "pushl %eax\n" PLATFORM_ASM_CALL(Entity_YawToForward) "addl $8, %esp\n"
+                                              "ret")
+
+void XB_CDECL Entity_YawToForward(uint8_t* const* entity, float* out) {
+    const float yaw = *reinterpret_cast<const float*>(*entity + 0x154) * title_global<float>(0x0083edd8);
+    float cosine;
+    float sine;
+    FastSinCos(&sine, 0, &cosine, yaw);
+    if (!out) return;
+    out[0] = cosine;
+    out[1] = sine;
+    out[2] = 0.0f;
+}
+
 }  // namespace game

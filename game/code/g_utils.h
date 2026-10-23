@@ -145,4 +145,14 @@ void XB_CDECL Path_BaseName(char* dest, int32_t* length, const char* path, int32
 extern "C" PLATFORM_HIDDEN void XB_CDECL AddLeanToPosition(float* position, float lean, float yaw, float a, float b);
 extern "C" void AddLeanToPosition_entry(void);
 
+// 0x002253b0 (entity in EDX): the physics body (+8) of the record (list 0x008fccf0, count 0x008fcde4) whose +4 is
+// the entity, or null.
+uint8_t* XB_REGS2 XB_CDECL Phys_FindBodyForEntity(uint32_t unused_eax, const uint8_t* entity);
+// 0x002482e0 (trigger think): clears the trigger's wait flag +0x328; returns the entity (EAX unchanged).
+uint8_t* XB_CDECL multi_wait(uint8_t* entity);
+// 0x00204db0 (entity pointer in EAX, out in ESI): out = (cos yaw, sin yaw, 0) of the entity's yaw +0x154 (degrees,
+// FastSinCos); no write without out.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Entity_YawToForward(uint8_t* const* entity, float* out);
+extern "C" void Entity_YawToForward_entry(void);
+
 }  // namespace game

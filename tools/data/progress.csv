@@ -7623,7 +7623,7 @@ address,name,section,module,state,tested,matched
 00200400,Actor_CopySentientInfo,.text,game,settled,155,155
 00200450,FUN_00200450,.text,unassigned,unnamed,0,0
 00200960,Sentient_SetClaimedNode,.text,game,settled,107,107
-002009c0,Sentient_ClaimGoalNode,.text,game,named,0,0
+002009c0,Sentient_ClaimGoalNode,.text,game,settled,14490,14490
 00200a00,Sentient_SetGoalNode,.text,game,named,0,0
 00200ad0,FUN_00200ad0,.text,unassigned,unnamed,0,0
 00200b50,Sentient_Dissociate,.text,game,named,0,0
@@ -7692,7 +7692,7 @@ address,name,section,module,state,tested,matched
 00204930,Actor_Pain,.text,game,named,0,0
 00204a60,Actor_UpdateStatusNotifies,.text,game,named,0,0
 00204c70,Actor_FreeFarthestCorpse,.text,game,named,0,0
-00204db0,Entity_YawToForward,.text,game,named,0,0
+00204db0,Entity_YawToForward,.text,game,untested,0,0
 00204e10,FUN_00204e10,.text,unassigned,unnamed,0,0
 00204f80,Actor_Grenade_CoverAttack,.text,game,named,0,0
 00205010,Actor_Grenade_Combat,.text,game,named,0,0
@@ -7958,7 +7958,7 @@ address,name,section,module,state,tested,matched
 00225070,FUN_00225070,.text,unassigned,unnamed,0,0
 00225100,FUN_00225100,.text,unassigned,unnamed,0,0
 00225250,FUN_00225250,.text,unassigned,unnamed,0,0
-002253b0,Phys_FindBodyForEntity,.text,game,named,0,0
+002253b0,Phys_FindBodyForEntity,.text,game,untested,0,0
 00225420,FUN_00225420,.text,unassigned,unnamed,0,0
 00225480,FUN_00225480,.text,unassigned,unnamed,0,0
 00225520,FUN_00225520,.text,unassigned,unnamed,0,0
@@ -8201,7 +8201,7 @@ address,name,section,module,state,tested,matched
 00248080,FUN_00248080,.text,unassigned,unnamed,0,0
 002481d0,FUN_002481d0,.text,unassigned,unnamed,0,0
 00248270,hurt_use,.text,game,named,0,0
-002482e0,multi_wait,.text,game,named,0,0
+002482e0,multi_wait,.text,game,matched,56,56
 002482f0,G_TriggerContentsFromSpawnflags,.text,game,settled,119,119
 00248460,FUN_00248460,.text,unassigned,unnamed,0,0
 002485f0,SP_script_vehicle_collmap,.text,game,matched,22,22

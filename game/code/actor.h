@@ -496,4 +496,9 @@ extern "C" void EntBits_IterNext_entry(void);
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL BadPlace_FindByName(const ScriptString* name);
 extern "C" void BadPlace_FindByName_entry(void);
 
+// 0x002009c0 (sentient in EDI): claims the goal node (+0x50) when it differs from the claimed one (+0x48), is valid
+// and available to the sentient (Sentient_SetClaimedNode).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_ClaimGoalNode(uint8_t* sentient);
+extern "C" void Sentient_ClaimGoalNode_entry(void);
+
 }  // namespace game
