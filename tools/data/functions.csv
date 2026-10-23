@@ -1473,7 +1473,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00249da0,G_SpawnFloat,compare,16030,101,101,0,0,0,""
 00249e70,Vehicle_FreeDefs,compare,0,0,0,0,0,0,""
 0024abb0,G_InitTurretAnimScripts,compare,103,101,101,0,0,0,""
-0024ac50,G_RunThink,compare,3262633,396,396,0,0,0,""
+0024ac50,G_RunThink,compare,6100837,28545,28545,0,0,0,""
 0024acb0,G_EndGame,compare,0,0,0,0,0,0,""
 0024acc0,G_RegisterWeapon,compare,469,107,107,0,0,0,""
 0024b140,G_EntityList_Compact,compare,6578,134,134,0,0,0,""

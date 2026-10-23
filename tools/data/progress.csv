@@ -8236,7 +8236,7 @@ address,name,section,module,state,tested,matched
 00249f60,FUN_00249f60,.text,unassigned,unnamed,0,0
 0024a070,G_InitAnimScripts,.text,game,named,0,0
 0024abb0,G_InitTurretAnimScripts,.text,game,settled,101,101
-0024ac50,G_RunThink,.text,game,settled,396,396
+0024ac50,G_RunThink,.text,game,settled,28545,28545
 0024acb0,G_EndGame,.text,game,untested,0,0
 0024acc0,G_RegisterWeapon,.text,game,settled,107,107
 0024ad30,HudElem_ClearAll,.text,cgame,named,0,0
