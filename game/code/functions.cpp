@@ -1248,6 +1248,7 @@ const Function kFunctions[] = {
     {"Actor_ForgetGrenade", 0x001fd260, 0, code(&Actor_ForgetGrenade_entry), 0, Result::None, Status::Compare},
     {"Actor_NodeDistanceSquared", 0x001fd2b0, 0, code(&Actor_NodeDistanceSquared), 0, Result::St0, Status::Compare},
     {"Actor_AnimScripted_Finish", 0x001fd320, 0, code(&Actor_AnimScripted_Finish), 0, Result::None, Status::Compare},
+    {"ActorBlockList_Bump", 0x001fd500, 0, code(&ActorBlockList_Bump_entry), 4, Result::None, Status::Compare},
     {"Actor_RecordMoveHistory", 0x001fd5a0, 0, code(&Actor_RecordMoveHistory_entry), 0, Result::None, Status::Compare},
     {"Actor_MergeStateTransitions", 0x001fd860, 0, code(&Actor_MergeStateTransitions), 0, Result::Eax, Status::Compare},
     {"Actor_InitDefaults", 0x001fd990, 0, code(&Actor_InitDefaults), 0, Result::Eax, Status::Compare},

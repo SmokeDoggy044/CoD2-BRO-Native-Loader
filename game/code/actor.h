@@ -455,4 +455,10 @@ uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle2(const uint16_t* handle);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_IsAvailableFor(const uint8_t* node, const uint8_t* sentient);
 extern "C" void PathNode_IsAvailableFor_entry(void);
 
+// 0x001fd500 (list in ECX, first entity in EBX; second on the stack, ret 4): the row of the pair (either order)
+// gets 0x008ddaa0 added to its +8 and level_time at +0xc; a new pair takes row count (< 5): +8 0, +0xc
+// level_time, +0x10/+0x12 0, +0x14 120.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ActorBlockList_Bump(uint8_t* list, uint32_t a, uint32_t b);
+extern "C" void ActorBlockList_Bump_entry(void);
+
 }  // namespace game

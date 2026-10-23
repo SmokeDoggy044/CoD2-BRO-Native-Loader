@@ -2286,4 +2286,38 @@ uint32_t XB_CDECL PathNode_IsAvailableFor(const uint8_t* node, const uint8_t* se
     return 1;
 }
 
+PLATFORM_ASM_ENTRY(ActorBlockList_Bump_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(ActorBlockList_Bump) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL ActorBlockList_Bump(uint8_t* list, uint32_t a, uint32_t b) {
+    const float bump = title_global<float>(0x008ddaa0);
+    int32_t& count = *reinterpret_cast<int32_t*>(list + 0x78);
+    const int32_t initial = count;
+    if (initial > 0) {
+        for (int32_t i = 0; i < count; ++i) {
+            uint8_t* row = list + i * 0x18;
+            const uint32_t first = *reinterpret_cast<uint32_t*>(row);
+            const uint32_t second = *reinterpret_cast<uint32_t*>(row + 4);
+            if ((first == a && second == b) || (second == a && first == b)) {
+                *reinterpret_cast<float*>(row + 8) = *reinterpret_cast<float*>(row + 8) + bump;
+                *reinterpret_cast<int32_t*>(row + 0xc) = title_global<int32_t>(0x0098540c);  // level_time
+                return;
+            }
+        }
+    }
+    if (initial >= 5) return;
+    uint8_t* row = list + initial * 0x18;
+    *reinterpret_cast<float*>(row + 8) = 0.0f;
+    *reinterpret_cast<uint32_t*>(row) = a;
+    *reinterpret_cast<uint32_t*>(row + 4) = b;
+    *reinterpret_cast<int32_t*>(row + 0xc) = title_global<int32_t>(0x0098540c);
+    *reinterpret_cast<uint16_t*>(row + 0x10) = 0;
+    *reinterpret_cast<float*>(row + 0x14) = 120.0f;
+    *reinterpret_cast<uint16_t*>(row + 0x12) = 0;
+    ++count;
+}
+
 }  // namespace game

@@ -7578,7 +7578,7 @@ address,name,section,module,state,tested,matched
 001fd2b0,Actor_NodeDistanceSquared,.text,game,untested,0,0
 001fd320,Actor_AnimScripted_Finish,.text,game,settled,141,141
 001fd3d0,FUN_001fd3d0,.text,unassigned,unnamed,0,0
-001fd500,ActorBlockList_Bump,.text,game,named,0,0
+001fd500,ActorBlockList_Bump,.text,game,matched,6,6
 001fd5a0,Actor_RecordMoveHistory,.text,game,settled,163,163
 001fd6f0,FUN_001fd6f0,.text,unassigned,unnamed,0,0
 001fd7f0,FUN_001fd7f0,.text,unassigned,unnamed,0,0
@@ -7595,7 +7595,7 @@ address,name,section,module,state,tested,matched
 001fe110,Actor_IsEventWorthNoticing,.text,game,settled,126,126
 001fe1a0,FUN_001fe1a0,.text,unassigned,unnamed,0,0
 001fe270,ActorMove_ProjectVelocity,.text,game,named,0,0
-001fe370,ActorMove_AddTouchEnt,.text,game,matched,21,21
+001fe370,ActorMove_AddTouchEnt,.text,game,settled,2307,2307
 001fe3c0,Path_GetNegotiationEndNode,.text,game,untested,0,0
 001fe4f0,FUN_001fe4f0,.text,unassigned,unnamed,0,0
 001fe670,FUN_001fe670,.text,unassigned,unnamed,0,0
@@ -9344,7 +9344,7 @@ address,name,section,module,state,tested,matched
 002b1060,PathNode_ListInCylinder,.text,game,named,0,0
 002b1190,FUN_002b1190,.text,unassigned,unnamed,0,0
 002b1210,FUN_002b1210,.text,unassigned,unnamed,0,0
-002b1240,PathNode_IsAvailableFor,.text,game,matched,6,6
+002b1240,PathNode_IsAvailableFor,.text,game,settled,1645,1645
 002b12a0,FUN_002b12a0,.text,unassigned,unnamed,0,0
 002b13b0,Netchan_Process,.text,qcommon,named,0,0
 002b1480,Netchan_Transmit,.text,qcommon,named,0,0
@@ -9494,7 +9494,7 @@ address,name,section,module,state,tested,matched
 002b9a30,VehicleNode_FindByKey,.text,game,named,0,0
 002b9c00,PathNode_FindByKey,.text,game,named,0,0
 002b9f90,PathNode_FromHandle,.text,game,settled,119,119
-002ba010,PathNode_FromHandle2,.text,game,matched,67,67
+002ba010,PathNode_FromHandle2,.text,game,settled,9459,9459
 002ba050,FUN_002ba050,.text,unassigned,unnamed,0,0
 002ba0d0,FUN_002ba0d0,.text,unassigned,unnamed,0,0
 002ba1c0,Sentient_ClaimNodeTimed,.text,game,settled,100,100
