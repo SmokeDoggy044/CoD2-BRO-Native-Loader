@@ -29,4 +29,21 @@ void XB_CDECL SV_SetSkillHard();
 // (+0xe0 mins, +0xf0 maxs, contents +0x134; capsule when +0xd4 has 0x200).
 uint8_t* XB_REGS3 XB_CDECL SV_ClipHandleForEntity(uint32_t unused_eax, uint32_t unused_edx, uint8_t* ent);
 
+// 0x002af3d0 (command buffer in EAX: +4 size, +8 base, +0xc text pointers, +0x10 lengths, +0x14 write cursor;
+// slot and text on the stack): stores the text in the buffer's zero-filled space - at the cursor (wrapped to the
+// base when it would pass the end) when the bytes there are free, else the first run of len + 1 zero bytes that
+// starts after a zero (__break 1 "Reliable command buffer overflow" when the scan reaches the end, or for a
+// zero-size buffer); '%' becomes '.'.
+void XB_REGS1 XB_CDECL SV_AddServerCommand(uint8_t* buffer, int32_t slot, const char* text);
+
+// 0x002bfd10 (client in ESI, null = everyone through the server static when its state is 1; format and
+// arguments on the stack): _vsprintf into a 0x800-byte buffer, then SV_AddServerCommand at the client's next
+// reliable sequence (+0x18, & 0x3f).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_SendServerCommand(uint8_t* client, const uint32_t* args);
+extern "C" void SV_SendServerCommand_entry(void);
+// 0x002bffd0 (text in EAX; entity handle on the stack: index & 0xfff, generation >> 12 checked against the
+// table at 0x0097a968): "%s" to everyone for handle 0, else to the server static's client when the entity has a
+// client (+0x23c).
+void XB_REGS1 XB_CDECL SV_GameSendServerCommand(const char* text, uint32_t handle);
+
 }  // namespace game

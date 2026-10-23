@@ -1,5 +1,6 @@
 #include "sv.h"
 
+#include <cstring>
 
 #include "cm.h"
 #include "qcommon.h"
@@ -110,6 +111,86 @@ uint8_t* XB_REGS3 XB_CDECL SV_ClipHandleForEntity(uint32_t, uint32_t, uint8_t* e
     const uint32_t capsule = (field<uint32_t>(ent, 0xd4) & 0x200) ? 1 : 0;
     return CM_TempBoxModel(reinterpret_cast<const float*>(ent + 0xf0), capsule,
                            reinterpret_cast<const float*>(ent + 0xe0), field<uint32_t>(ent, 0x134));
+}
+
+void XB_REGS1 XB_CDECL SV_AddServerCommand(uint8_t* buffer, int32_t slot, const char* text) {
+    const char* overflow = title_text(0x00832d10);  // "Reliable command buffer overflow"
+    if (!field<int32_t>(buffer, 4)) title_function<Break>(kBreak)(1, overflow);
+    const int32_t length = static_cast<int32_t>(std::strlen(text));
+    char* base = field<char*>(buffer, 8);
+    char*& cursor = field<char*>(buffer, 0x14);
+    if (length - static_cast<int32_t>(reinterpret_cast<uintptr_t>(base)) +
+            static_cast<int32_t>(reinterpret_cast<uintptr_t>(cursor)) + 1 >=
+        field<int32_t>(buffer, 4))
+        cursor = base;
+    if (length) {
+        int32_t left = length;
+        for (const char* p = cursor; left && !*p; ++p) --left;
+        if (left) {
+            const int32_t size = field<int32_t>(buffer, 4);
+            int32_t i = 0;
+            char* q = base;
+            while (i < field<int32_t>(buffer, 4)) {
+                if (!*q && (!i || !q[-1])) {
+                    const int32_t last = field<int32_t>(buffer, 4) - 1;
+                    int32_t j = 0;
+                    while (i < field<int32_t>(buffer, 4) - 1 && j < length + 1 && !q[j]) {
+                        ++i;
+                        ++j;
+                    }
+                    if (j == length + 1) {
+                        cursor = q;
+                        break;
+                    }
+                    if (i == last) title_function<Break>(kBreak)(1, overflow);
+                    q = field<char*>(buffer, 8) + i;
+                }
+                ++i;
+                ++q;
+            }
+            (void)size;
+        }
+    }
+    field<char*>(field<uint8_t*>(buffer, 0xc), static_cast<uint32_t>(slot) * 4) = cursor;
+    field<int32_t>(field<uint8_t*>(buffer, 0x10), static_cast<uint32_t>(slot) * 4) = length;
+    for (int32_t i = 0; i < length; ++i) {
+        char* dst = field<char*>(field<uint8_t*>(buffer, 0xc), static_cast<uint32_t>(slot) * 4) + i;
+        *dst = text[i];
+        if (text[i] == '%') *dst = '.';
+    }
+    field<char*>(field<uint8_t*>(buffer, 0xc), static_cast<uint32_t>(slot) * 4)[length] = 0;
+    cursor = field<char*>(buffer, 0x14) + length + 1;
+}
+
+PLATFORM_ASM_ENTRY(SV_SendServerCommand_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(SV_SendServerCommand) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_SendServerCommand(uint8_t* client, const uint32_t* args) {
+    char message[0x800];
+    title_function<int32_t XB_CDECL(char*, const char*, const uint32_t*)>(0x001eea95)(  // _vsprintf
+        message, reinterpret_cast<const char*>(uintptr_t{args[0]}), args + 1);
+    if (!client) {
+        client = title_global<uint8_t*>(0x00927e8c);
+        if (field<int32_t>(client, 0) != 1) return;
+    }
+    const int32_t sequence = ++field<int32_t>(client, 0x18);
+    SV_AddServerCommand(client, sequence & 0x3f, message);
+}
+
+void XB_REGS1 XB_CDECL SV_GameSendServerCommand(const char* text, uint32_t handle) {
+    const uint32_t args[2] = {0x0082ddd4, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text))};  // "%s"
+    if (!handle) {
+        SV_SendServerCommand(nullptr, args);
+        return;
+    }
+    const uint32_t index = handle & 0xfff;
+    uint8_t* ent = nullptr;
+    if (index < 0x540 && title_global<uint32_t>(0x0097a96c + index * 8) == (handle >> 12))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (field<uint32_t>(ent, 0x23c)) SV_SendServerCommand(title_global<uint8_t*>(0x00927e8c), args);
 }
 
 }  // namespace game
