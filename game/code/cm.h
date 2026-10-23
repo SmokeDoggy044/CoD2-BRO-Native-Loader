@@ -31,4 +31,12 @@ void XB_CDECL CM_FloodArea_r(uint32_t area_num, int32_t flood_num);
 // 0x002b2200: Q3's CM_FloodAreaConnections.
 void XB_CDECL CM_FloodAreaConnections();
 
+// 0x002c73a0: Q3's CM_BoxLeafnums_r on packed SSE - the box (list +0x10 mins, +0x20 maxs, 16-byte rows) against
+// each node plane {normal, dist}; the smallest positive distance to a plane goes to *min_distance; leafs go
+// to the list's store callback (+0x34). Side 0 (only with NaN) follows the plane pointer as the original.
+void XB_CDECL CM_BoxLeafnums_r(uint8_t* list, uint32_t nodenum, float* min_distance);
+// 0x002bab30 (area1 in EDX, area2 in EDI; open on the stack): Q3's CM_AdjustAreaPortalState.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_AdjustAreaPortalState(int32_t area1, int32_t area2, uint32_t open);
+extern "C" void CM_AdjustAreaPortalState_entry(void);
+
 }  // namespace game
