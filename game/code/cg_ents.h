@@ -107,4 +107,57 @@ extern "C" void CG_UpdateFlashSound_entry(void);
 // 0x00289170 (cdecl cent): an actor model entity plus CG_UpdateFlashSound.
 void XB_CDECL CG_Actor(uint8_t* cent);
 
+// 0x00286950: Q3's CG_ClipMoveToEntities(start, mins, maxs, end, skip, mask, capsule, tr); the
+// C version also gets the entry ESP (CG_ClipMoveToEntities_entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_ClipMoveToEntities(const float* start, const float* mins, const float* maxs,
+                                                              const float* end, int32_t skip, uint32_t mask,
+                                                              uint32_t capsule, uint8_t* tr, uint32_t entry_esp);
+extern "C" void CG_ClipMoveToEntities_entry(void);
+// 0x00286c60: Q3's CG_Trace(result, start, mins, maxs, end, skip, mask), capsule entity boxes.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_Trace(uint8_t* result, const float* start, const float* mins,
+                                                 const float* maxs, const float* end, int32_t skip, uint32_t mask,
+                                                 uint32_t entry_esp);
+extern "C" void CG_Trace_entry(void);
+// 0x00286d00 (mask EAX, end ECX, cdecl (result, start, mins, maxs, skip)): as CG_Trace
+// without capsules.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_TracePoint(uint32_t mask, const float* end, uint8_t* result,
+                                                      const float* start, const float* mins, const float* maxs,
+                                                      int32_t skip, uint32_t entry_esp);
+extern "C" void CG_TracePoint_entry(void);
+
+// 0x0027eb80 (yaw byte EAX, pitch byte ECX, cdecl damage): Q3's CG_DamageFeedback plus the
+// damage indicators and a controller rumble.
+void XB_REGS3 XB_CDECL CG_DamageFeedback(int32_t yaw_byte, uint32_t unused_edx, int32_t pitch_byte, int32_t damage);
+// 0x0028abd0: Q3's CG_TransitionSnapshot.
+void XB_CDECL CG_TransitionSnapshot();
+
+// 0x00285e70 (cent in EDI): an item entity (registered on first sight).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_Item(uint8_t* cent);
+extern "C" void CG_Item_entry(void);
+// 0x0028a250 (cent in EAX): Q3's CG_AddCEntity.
+void XB_REGS1 XB_CDECL CG_AddCEntity(uint8_t* cent);
+// 0x0028a760: Q3's CG_AddPacketEntities.
+void XB_CDECL CG_AddPacketEntities();
+
+// 0x002860f0 (out in EDI, cdecl (handle, tag)): the eye or tag position of an entity.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CG_GetEntityEyePosition(float* out, uint32_t handle, const char* tag);
+extern "C" void CG_GetEntityEyePosition_entry(void);
+// 0x00288620 (end EAX, start ESI, cdecl shooter handle): the bullet whiz-by sound.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_BulletWhizBy(const float* end, const float* start, uint32_t handle);
+extern "C" void CG_BulletWhizBy_entry(void);
+// 0x00289270 (tag in EAX, cdecl (handle, end, weapon)): tracer and whiz-by of a bullet.
+void XB_REGS1 XB_CDECL CG_BulletTracerAndWhizBy(const char* tag, uint32_t handle, const float* end, int32_t weapon);
+// 0x0028a370 (start EAX, cent ECX, weapon EDI, cdecl (end, extra)): a bullet's impact
+// effect, tracer and whiz-by.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_Bullet(const uint32_t* start, uint8_t* cent, int32_t weapon,
+                                                  const uint32_t* end, uint32_t extra, uint32_t entry_esp);
+extern "C" void CG_Bullet_entry(void);
+
+// 0x00285e00 (name in EBX): every weapon's view hands set to `name` where they differ.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_SetViewHandsModel(const char* name);
+extern "C" void CG_SetViewHandsModel_entry(void);
+// 0x0028aaa0 (snapshot in EAX): Q3's CG_SetNextSnap.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_SetNextSnap(uint8_t* snap);
+extern "C" void CG_SetNextSnap_entry(void);
+
 }  // namespace game

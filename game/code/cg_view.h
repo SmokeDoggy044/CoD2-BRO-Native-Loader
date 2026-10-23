@@ -100,4 +100,11 @@ void XB_CDECL CG_CalcWeaponSway();
 extern "C" PLATFORM_HIDDEN void XB_CDECL PerpendicularVector(const float* src, float* dst);
 extern "C" void PerpendicularVector_entry(void);
 
+// 0x002843e0: Q3's CG_CalcFov (refdef fov 0x00972ba0/0x00972ba4, under-water wobble and
+// rdflags 0x20, zoom sensitivity 0x00972c38); returns whether the view is under water.
+uint32_t XB_CDECL CG_CalcFov();
+
+// 0x00282340: the damage direction indicators.
+void XB_CDECL CG_DrawDamageDirectionIcons();
+
 }  // namespace game
