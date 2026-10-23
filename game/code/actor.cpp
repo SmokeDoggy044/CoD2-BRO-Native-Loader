@@ -55,9 +55,11 @@ uint32_t XB_REGS1 XB_CDECL Sentient_HasGoalYaw(const uint8_t* sentient) {
 }
 
 PLATFORM_ASM_ENTRY(Sentient_SetGoalYaw_entry,
+                   "pushl %eax\n"  // EAX is handed back unchanged
                    "subl $4, %esp\n"
                    "movss %xmm0, (%esp)\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(Sentient_SetGoalYaw) "addl $8, %esp\n"
+                   "popl %eax\n"
                    "ret")
 
 void XB_CDECL Sentient_SetGoalYaw(uint8_t* sentient, float yaw) {
@@ -135,10 +137,12 @@ uint32_t XB_CDECL Actor_IsInState(const uint8_t* actor, uint32_t state) {
 }
 
 PLATFORM_ASM_ENTRY(Actor_SetSentientVisibility_entry,
+                   "pushl %eax\n"  // EAX is handed back unchanged
                    "subl $4, %esp\n"
                    "movss %xmm0, (%esp)\n"
                    "pushl %ecx\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(Actor_SetSentientVisibility) "addl $12, %esp\n"
+                   "popl %eax\n"
                    "ret")
 
 void XB_CDECL Actor_SetSentientVisibility(uint8_t* record, uint32_t visible, float value) {
@@ -1630,8 +1634,10 @@ int32_t XB_CDECL Actor_MainCharacterPriority(const uint8_t* ent) {
 }
 
 PLATFORM_ASM_ENTRY(Path_StepBack_entry,
+                   "pushl %eax\n"  // EAX is handed back unchanged
                    "pushl %edi\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(Path_StepBack) "addl $8, %esp\n"
+                   "popl %eax\n"
                    "ret")
 
 void XB_CDECL Path_StepBack(uint8_t* path, const float* point) {
