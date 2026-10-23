@@ -184,4 +184,99 @@ void XB_CDECL NAL_Trajectory_AccumulateRoot2(float* dst, const float* current, i
 uint32_t XB_CDECL NAL_TrajPosOri_ApplyWraps(const uint32_t* context, uint8_t* dst, uint8_t* current, int32_t wraps, bool skip,
                                             const int32_t* offsets);
 
+// The Float3 classes' shared methods (vtables 0x007c25b8, 0x007c2620, 0x007c2688, 0x007c26f0)
+// and the quaternion classes' (0x007c28f8, 0x007c2960, 0x007c29c8, 0x007c2a30; values 16
+// bytes, aligned to 16). Slot 0 type tag (0x0007be30 0x00909820, 0x0007be70 0x00909826),
+// slot 1 value size (0x0007be40 12; 0x0007bec0 16, also slot 24 of the 16-aligned classes),
+// slot 24 alignment (0x0007be60 4).
+uint32_t XB_CDECL NAL_Float3_TypeId();
+uint32_t XB_CDECL NAL_Float3_ValueSize();
+uint32_t XB_CDECL NAL_Const4();
+uint32_t XB_CDECL NAL_Quat_TypeId();
+uint32_t XB_CDECL NAL_Const16();
+// 0x0007d700 / 0x0007dad0 (slots 4 / 13, stdcall: group, &cursor[, -]): cursor aligned to 4,
+// then 12 per channel; returns &cursor. 0x0007dab0 (slot 12): the same, returns the new cursor.
+uint8_t** XB_STDCALL NAL_Float3_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
+uint32_t XB_STDCALL NAL_Float3_InitState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Float3_FreeState(const uint8_t* group, uint8_t** cursor);
+// 0x00081c80 / 0x00081f00 (slots 4 / 13): as above with 16 per channel, aligned to 16.
+// 0x00081ee0 (slot 12): returns the aligned start. 0x00082030 (cdecl, behind the slot 14
+// wrapper 0x00081f30): NAL_PosOri_CopyState for 16-byte values.
+uint8_t** XB_STDCALL NAL_Quat_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
+uint32_t XB_STDCALL NAL_Quat_InitState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Quat_FreeState(const uint8_t* group, uint8_t** cursor);
+uint32_t XB_CDECL NAL_Quat_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src);
+// 0x00081e60 (slot 10 of 0x007c2620 and 0x007c2a30, stdcall: context, pose, skip, offsets):
+// NAL_Entropy_SkipStatic - these classes have no static values to apply.
+uint32_t XB_STDCALL NAL_Entropy_SkipStatic4(const uint32_t* context, uint8_t*, uint32_t, const int32_t*);
+// The packed entropy quaternion class (0x007c2a30): cached frames 8 bytes per active channel
+// (aligned to 2). 0x00081930 (slot 15): one cached frame skipped, returns the group.
+// 0x000820e0 (slot 8, stdcall: context, &cursor, &stream, -): a block skipped - per active
+// channel one byte-length-prefixed stream, cursor + 8; stream B aligned + 4, stream A
+// aligned + 4 per channel. Returns the group.
+uint32_t XB_STDCALL NAL_Packed16Quat_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+uint32_t XB_STDCALL NAL_Packed16Quat_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+// 0x0008c8e0 / 0x0008c950 (slots 2 / 3 of the quaternion classes): NAL_PosOri_Blend /
+// BlendWeighted for quaternions alone (Quat_Slerp).
+void XB_STDCALL NAL_Quat_Blend(int32_t count, float* dst, const float* a, const float* b, float t);
+void XB_STDCALL NAL_Quat_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights);
+// 0x0008bab0 / 0x0008bd80 (slots 2 / 3 of the Float3 classes): triples lerped (one weight /
+// a weight per triple from a float cursor); MSVC unrolled both 4x.
+void XB_STDCALL NAL_Float3_Blend(int32_t count, float* dst, const float* a, const float* b, float t);
+void XB_STDCALL NAL_Float3_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights);
+// The plain Float3 class (vtable 0x007c25b8): raw triples. 0x0007d730 (slot 5, stdcall:
+// context, &readers, &stream, frames): per active channel the reader slot (array aligned to
+// 4; null-checked) gets the stream (aligned to 4), which then moves over `frames` triples.
+// 0x0007d7c0 (slot 6: context, &dst, &readers, -, -, count, stride): `count` triples from each
+// active channel's reader, `stride` apart. 0x0007d880 (slot 7: context, &data, &stream,
+// frames, stride): the same straight from the stream. 0x0007d9c0 (slot 9): NAL_EntropyFloat1_
+// Evaluate for triples (no static streams). All return the group.
+uint32_t XB_STDCALL NAL_Float3_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, int32_t frames);
+uint32_t XB_STDCALL NAL_Float3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t, uint32_t,
+                                            int32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Float3_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, int32_t frames,
+                                           int32_t stride);
+uint32_t XB_STDCALL NAL_Float3_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                        const int32_t* offsets);
+// The entropy Float3 class (vtable 0x007c2620; stream B one block scale, stream A one
+// channel scale per channel). 0x0007db70 (slot 5, stdcall: context, &readers, &stream, -): per
+// active channel three entropy readers (NAL_EntropyFloat3_InitReaders, 0x30 bytes).
+// 0x0007dc40 (slot 6: context, &dst, &readers, -, -, count, stride): x, y, z of each active
+// channel from its readers (NAL_EntropyReader_DecodeFloats, scale block * channel).
+// 0x0007df70 (slot 8: context, &cursor, &stream, -): per active channel three
+// byte-length-prefixed streams skipped, cursor + 12. 0x0007e030 (slot 9): NAL_Float3_Evaluate
+// plus the static streams. All return the group.
+uint32_t XB_STDCALL NAL_EntropyFloat3_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_EntropyFloat3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_EntropyFloat3_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_EntropyFloat3_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                               const int32_t* offsets);
+// The quaternion entropy reader (0x40 bytes per channel in the reader array): the current
+// value, one entropy reader for each of x, y, z (8 bytes each: no prediction state) and the
+// first deltas.
+struct QuatReader {
+    struct Reader {
+        uint32_t ptr;
+        uint8_t bit;
+        uint8_t mode;
+        uint16_t zeros;
+    };
+    float value[4];
+    Reader readers[3];
+    int32_t deltas[3];
+};
+// 0x000843c0 (reader in ECX, callee pops 0x10: frames, scale, stream, bit): reads the headers
+// of the x, y, z streams - an optional 11-bit length (+ 0x100 bits; x and y only), the 5-bit
+// residual mode (+ 0x20 for a negative scale), the first value (2-bit width index + folded
+// sign) and the first delta (the same for negative scales, else a 12/7/5-bit code). A stream
+// without a length is decoded once (frames - 2 residuals) to find the next one. value = the
+// first values * |scale| / 4 with w = sqrt(|1 - |xyz|^2|); x's mode gets 0x80. Returns q.
+QuatReader* XB_THISCALL NAL_QuatReader_Init(QuatReader* q, uint32_t count, float scale, uint32_t ptr, uint8_t bit);
+// 0x000842e0 (slot 5 of the entropy quaternion classes 0x007c2960, 0x007c29c8, 0x007c2a30;
+// stdcall: context, &readers, &stream, frames): per active channel a QuatReader (array aligned
+// to 16, 0x40 apart; null-checked) over its byte-length-prefixed stream, scale = channel scale
+// (stream A) * block scale (stream B). Returns the group.
+uint32_t XB_STDCALL NAL_EntropyQuat_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count);
+
 }  // namespace game

@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "lanes.h"
 #include "nal_entropy.h"
 #include "nal_math.h"
 #include "title_data.h"
@@ -694,6 +695,383 @@ uint32_t XB_CDECL NAL_TrajPosOri_ApplyWraps(const uint32_t* context, uint8_t* ds
                                            reinterpret_cast<const float*>(*stream_b), skip);
         }
         if (active) *stream_b += 0x20;
+    }
+    return context[1];
+}
+
+uint32_t XB_CDECL NAL_Float3_TypeId() { return 0x00909820; }
+
+uint32_t XB_CDECL NAL_Float3_ValueSize() { return 0xc; }
+
+uint32_t XB_CDECL NAL_Const4() { return 4; }
+
+uint32_t XB_CDECL NAL_Quat_TypeId() { return 0x00909826; }
+
+uint32_t XB_CDECL NAL_Const16() { return 0x10; }
+
+uint8_t** XB_STDCALL NAL_Float3_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t) {
+    *cursor = align4(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += 0xc;
+    return cursor;
+}
+
+uint32_t XB_STDCALL NAL_Float3_InitState(const uint8_t* group, uint8_t** cursor) {
+    uint8_t* end = align4(*cursor) + channel_count(group) * 0xc;
+    *cursor = end;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end));
+}
+
+uint8_t** XB_STDCALL NAL_Float3_FreeState(const uint8_t* group, uint8_t** cursor) {
+    *cursor = align4(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += 0xc;
+    return cursor;
+}
+
+uint32_t XB_STDCALL NAL_Packed16Quat_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
+    *cursor = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*cursor) + 1) & ~static_cast<uintptr_t>(1));
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i)
+        if (channel_active(context, i)) *cursor += 8;
+    return context[1];
+}
+
+uint8_t** XB_STDCALL NAL_Quat_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t) {
+    *cursor = align16(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += 0x10;
+    return cursor;
+}
+
+uint32_t XB_STDCALL NAL_Entropy_SkipStatic4(const uint32_t* context, uint8_t*, uint32_t, const int32_t*) {
+    return NAL_Entropy_SkipStatic(context);
+}
+
+uint32_t XB_STDCALL NAL_Quat_InitState(const uint8_t* group, uint8_t** cursor) {
+    uint8_t* start = align16(*cursor);
+    *cursor = start + channel_count(group) * 0x10;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(start));
+}
+
+uint8_t** XB_STDCALL NAL_Quat_FreeState(const uint8_t* group, uint8_t** cursor) {
+    *cursor = align16(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += 0x10;
+    return cursor;
+}
+
+uint32_t XB_CDECL NAL_Quat_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src) {
+    *dst = align16(*dst);
+    *src = align16(*src);
+    return copy_advance(dst, src, channel_count(group) * 0x10);
+}
+
+uint32_t XB_STDCALL NAL_Packed16Quat_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    *cursor = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*cursor) + 1) & ~static_cast<uintptr_t>(1));
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            *stream += **stream + 1;
+            *cursor += 8;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+void XB_STDCALL NAL_Quat_Blend(int32_t count, float* dst, const float* a, const float* b, float t) {
+    for (; count > 0; --count) {
+        alignas(16) float q[4];
+        std::memcpy(dst, Quat_Slerp(q, a, b, t), 16);
+        dst += 4;
+        a += 4;
+        b += 4;
+    }
+}
+
+void XB_STDCALL NAL_Quat_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights) {
+    for (; count > 0; --count) {
+        const float t = *(*weights)++;
+        alignas(16) float q[4];
+        std::memcpy(dst, Quat_Slerp(q, a, b, t), 16);
+        dst += 4;
+        a += 4;
+        b += 4;
+    }
+}
+
+void XB_STDCALL NAL_Float3_Blend(int32_t count, float* dst, const float* a, const float* b, float t) {
+    const float one_minus = title_global<float>(0x0083eb20) - t;
+    platform_keep(one_minus);  // computed before the count test (MXCSR flags)
+    for (; count > 0; --count) {
+        dst[0] = a[0] * one_minus + b[0] * t;
+        dst[1] = a[1] * one_minus + b[1] * t;
+        dst[2] = a[2] * one_minus + b[2] * t;
+        dst += 3;
+        a += 3;
+        b += 3;
+    }
+}
+
+void XB_STDCALL NAL_Float3_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights) {
+    for (; count > 0; --count) {
+        const float t = **weights;
+        const float one_minus = title_global<float>(0x0083eb20) - t;
+        dst[0] = a[0] * one_minus + b[0] * t;
+        dst[1] = a[1] * one_minus + b[1] * t;
+        dst[2] = a[2] * one_minus + b[2] * t;
+        ++*weights;
+        dst += 3;
+        a += 3;
+        b += 3;
+    }
+}
+
+uint32_t XB_STDCALL NAL_Float3_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, int32_t frames) {
+    *readers = align4(*readers);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align4(*stream);
+        if (*readers) *reinterpret_cast<uint8_t**>(*readers) = *stream;
+        *stream += frames * 0xc;
+        *readers += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Float3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t, uint32_t,
+                                            int32_t count, int32_t stride) {
+    *readers = align4(*readers);
+    *dst = align4(*dst);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (!channel_active(context, i)) continue;
+        uint8_t* out = *dst;
+        uint8_t** reader = reinterpret_cast<uint8_t**>(*readers);
+        for (int32_t n = count; n > 0; --n) {
+            std::memcpy(out, *reader, 0xc);
+            *reader += 0xc;
+            out += stride;
+        }
+        *readers += 4;
+        *dst += 0xc;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Float3_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, int32_t frames,
+                                           int32_t stride) {
+    *data = align4(*data);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align4(*stream);
+        uint8_t* out = *data;
+        for (int32_t n = frames; n > 0; --n) {
+            std::memcpy(out, *stream, 0xc);
+            *stream += 0xc;
+            out += stride;
+        }
+        *data += 0xc;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_Float3_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                        const int32_t* offsets) {
+    *cursor = align4(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0) std::memcpy(pose + offset, active ? *cursor : defaults + offset, 0xc);
+        if (active) *cursor += 0xc;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat3_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align4(*readers);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            NAL_EntropyFloat3_InitReaders(*readers, stream);
+            *readers += 0x30;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align4(*readers);
+    *dst = align4(*dst);
+    const float* block_scale = reinterpret_cast<const float*>(align4(*stream_b));
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            const float* channel_scale = reinterpret_cast<const float*>(*stream_a);
+            float* out = reinterpret_cast<float*>(*dst);
+            EntropyReader* reader = reinterpret_cast<EntropyReader*>(*readers);
+            for (int32_t c = 0; c < 3; ++c)
+                NAL_EntropyReader_DecodeFloats(reader + c, out + c, stride, count, *block_scale * *channel_scale);
+            *readers += 0x30;
+            *dst += 0xc;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat3_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align4(*cursor);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            for (int32_t c = 0; c < 3; ++c) *stream += **stream + 1;
+            *cursor += 0xc;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat3_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                               const int32_t* offsets) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align4(*cursor);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        const int32_t offset = offsets[channel_index(context, i)];
+        const bool active = channel_active(context, i);
+        if (offset >= 0) std::memcpy(pose + offset, active ? *cursor : defaults + offset, 0xc);
+        if (active) *cursor += 0xc;
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+namespace {
+
+// A signed value: 2 bits pick its width (table 0x008bb490: 3, 5, 8 or 21 bits), the low bit
+// of the value is the sign.
+int32_t read_folded(BitStream& bits) {
+    const uint32_t width = title_global<uint32_t>(0x008bb490 + 4 * bits.read(2));
+    const int32_t v = static_cast<int32_t>(bits.read(width));
+    return (v & 1) ? -(v >> 1) : v >> 1;
+}
+
+// The first delta for a positive scale: a 12/7/5-bit code (low bits pick the form).
+int32_t read_delta_code(BitStream& bits) {
+    const int32_t code = static_cast<int32_t>(bits.peek(12));
+    if (!(code & 0x1f)) {
+        int32_t m = code >> 9;
+        if (!(m & 4)) m -= 7;
+        bits.pos += 12;
+        return m << (((code >> 5) & 0xf) + 9);
+    }
+    if (code & 1) {
+        int32_t m = (code >> 4) & 7;
+        if (!(m & 4)) m -= 7;
+        bits.pos += 7;
+        return m << (((code >> 1) & 7) + 1);
+    }
+    bits.pos += 5;
+    return ((code >> 1) & 0xf) - 8;
+}
+
+}  // namespace
+
+QuatReader* XB_THISCALL NAL_QuatReader_Init(QuatReader* q, uint32_t count, float scale, uint32_t ptr, uint8_t bit) {
+    for (int32_t c = 0; c < 3; ++c) {
+        q->readers[c].mode = 0xff;
+        q->readers[c].zeros = 0;
+    }
+    q->readers[0].ptr = ptr;
+    q->readers[0].bit = bit;
+    float v[3];
+    for (int32_t c = 0; c < 3; ++c) {
+        QuatReader::Reader& r = q->readers[c];
+        BitStream bits(reinterpret_cast<const EntropyReader*>(&r));
+        uint32_t length = 0;  // the component stream's length in bits, 0 = not stored
+        if (c < 2 && bits.read(1)) length = bits.read(11) + 0x100;
+        r.mode = static_cast<uint8_t>(bits.read(5));
+        float magnitude = scale;
+        if (0.0f > scale) {
+            r.mode = static_cast<uint8_t>(r.mode + 0x20);
+            magnitude = 0.0f - scale;
+        }
+        const int32_t first = read_folded(bits);
+        v[c] = magnitude * title_global<float>(0x0083ec24) * static_cast<float>(first);
+        q->deltas[c] = (0.0f > scale) ? read_folded(bits) : read_delta_code(bits);
+        bits.store(reinterpret_cast<EntropyReader*>(&r));
+        if (c == 2) break;
+        QuatReader::Reader& next = q->readers[c + 1];
+        if (length) {
+            BitStream end = bits;
+            end.pos += length;
+            end.store(reinterpret_cast<EntropyReader*>(&next));
+        } else {
+            // No length: decode the residuals once to find where the next stream starts.
+            const QuatReader::Reader start = r;
+            if (count > 2) {
+                uint32_t scratch;
+                NAL_EntropyReader_Decode(reinterpret_cast<EntropyReader*>(&r), &scratch, 0, count - 2);
+            }
+            next.ptr = r.ptr;
+            next.bit = r.bit;
+            r.ptr = start.ptr;
+            r.bit = start.bit;
+            r.zeros = 0;
+        }
+    }
+    // w from the unit length: sqrt(|1 - (x^2 + y^2 + z^2)|) by the rsqrt estimate and one
+    // Newton step (0 and NaN stay as they are).
+    const Lanes squares = mul(Lanes{{v[0], v[1], v[2], 0.0f}}, Lanes{{v[0], v[1], v[2], 0.0f}});
+    platform_keep(squares);
+    const float a = abs_bits(title_global<float>(0x007c2190) - ((squares.v[0] + squares.v[1]) + squares.v[2]));
+    float w = a;
+    if (!(a == 0.0f || a != a)) {
+        const float r = platform_rsqrt_estimate(a);
+        const float t = a * r;
+        w = ((title_global<float>(0x007c2140) - t * r) * t) * title_global<float>(0x007c2150);
+    }
+    q->value[0] = v[0];
+    q->value[1] = v[1];
+    q->value[2] = v[2];
+    q->value[3] = w;
+    q->readers[0].mode |= 0x80;
+    return q;
+}
+
+uint32_t XB_STDCALL NAL_EntropyQuat_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align16(*readers);
+    const float* block_scale = reinterpret_cast<const float*>(align4(*stream_b));
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            QuatReader* reader = reinterpret_cast<QuatReader*>(*readers);
+            const uint8_t length = **stream;
+            *stream += 1;
+            if (reader) {
+                const float scale = *reinterpret_cast<const float*>(*stream_a) * *block_scale;
+                NAL_QuatReader_Init(reader, count, scale, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream)), 0);
+            }
+            *stream += length;
+            *readers += 0x40;
+        }
+        *stream_a += 4;
     }
     return context[1];
 }

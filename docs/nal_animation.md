@@ -91,11 +91,25 @@ whole-loop root motion. Slot 11 (thunk 0x00083350 -> 0x00083380; plain class 0x0
 `NAL_Trajectory_AccumulateRoot` (0x0008d3f0, copy at 0x0008d2d0): dst = dst * loop^wraps * inverse(current), with
 `QuatTrans_Power` (square and multiply) and `QuatTrans_Inverse` (conjugate, -position rotated).
 
+## Float3 and quaternion classes (decompiled: game/code/nal_codec.cpp)
+Float3 vtables 0x007c25b8 (plain), 0x007c2620 (entropy), 0x007c2688 / 0x007c26f0 (packed 8 / 16 entropy) share slots
+0-4 and 12-14 (type 0x00909820, size 12, Blend/BlendWeighted lerp, aligned to 4). Quaternion vtables 0x007c28f8
+(plain), 0x007c2960, 0x007c29c8, 0x007c2a30 (entropy kinds; 0x007c2a30 caches 8 bytes per channel = packed int16)
+share slots 0-4 and 12-14 (type 0x00909826, size 16, Quat_Slerp blends, aligned to 16). Slot 10 of the entropy ones
+is NAL_Entropy_SkipStatic4 (stdcall form of 0x00080010); slot 11 of the plain ones (0x00082650) wraps a bare `ret`.
+The quaternion entropy reader (`QuatReader`, 0x40 per channel: value, three 8-byte entropy readers, three first
+deltas) is set up by NAL_QuatReader_Init (0x000843c0): per component an optional 11-bit length, the 5-bit mode,
+the first value and the first delta; a stream without a length is decoded once to find the next. w comes from
+sqrt(|1 - |xyz|^2|) (rsqrt + one Newton step).
+
 ## Not done yet
-The entropy PosOri block methods (slots 5-7: 0x00085600 BeginBlock with 0x000856e0, 0x000857b0 DecodeFrames with
-0x00084970, 0x00085930 with 0x00085480) - they share the quaternion entropy readers (0x000843c0 ...), so they go
-with the quaternion class (0x007c2a30) and the position class (0x007c2620); the other channel classes' methods
-(0x0007c2b0..0x00086850); the manager methods (0x00083c60..0x00085aa0); the IK matrix builder 0x00093250.
+The quaternion classes' slots 6/7/9 (0x000861b0, 0x00086730, 0x00082170 with 0x000822b0) and the other kinds'
+(0x007c28f8: 0x0007f550, 0x00081990, 0x00081a50, 0x00081b10, 0x00081b90, 0x00081f50; 0x007c2960: 0x000848a0,
+0x00084e10, 0x00081cb0, 0x00081d40; 0x007c29c8: 0x00085ad0, 0x000860a0, 0x00081fb0, 0x00084f30, 0x00082080) - most go
+through 0x00086280 (1.1 KB packed SSE: rebuilds w, then quaternion products; lift with psssym.py). The entropy PosOri
+block methods (slots 5-7: 0x00085600 BeginBlock with 0x000856e0, 0x000857b0 DecodeFrames with 0x00084970, 0x00085930
+with 0x00085480) use NAL_QuatReader_Init too. Then the other channel classes' methods (0x0007c2b0..0x00086850); the
+manager methods (0x00083c60..0x00085aa0); the IK matrix builder 0x00093250.
 Known unmatchable lanes: the w word (+0x1c) of PositionOrientation pairs is never written by the title (Blend,
 AccumulateRoot and the codecs write seven words), so it carries stale stack - in NAL_AnimTrack_Sample's temporary
 states, too. NAL_AnimTrack_Sample / AnimTree_CalcPose_r / DObj_UpdateSkeletons differ from the original only there
