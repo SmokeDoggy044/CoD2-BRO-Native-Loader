@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "cg_ents.h"
 #include "cm.h"
 #include "lanes.h"
 #include "qcommon.h"
@@ -1340,6 +1341,102 @@ void XB_CDECL SV_UpdateInfoConfigstrings(int32_t time) {
     }
     title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(0x002a84e0)(  // VM_Call
         0, title_global<uint8_t*>(0x0095f50c), 0xa, time);
+}
+
+namespace {
+
+void msg_put_byte(uint8_t* msg, uint8_t value) {
+    field<uint8_t*>(msg, 4)[field<int32_t>(msg, 0xc)] = value;
+    ++field<int32_t>(msg, 0xc);
+}
+
+void msg_put_long(uint8_t* msg, uint32_t value) {
+    for (int32_t i = 0; i < 4; ++i) msg_put_byte(msg, static_cast<uint8_t>(value >> (i * 8)));
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(SV_BuildClientSnapshot_entry,
+                   "pushl %edx\n" PLATFORM_ASM_CALL(SV_BuildClientSnapshot) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_BuildClientSnapshot(uint8_t* client) {
+    const uint32_t handle = field<uint32_t>(client, 0x164);
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || title_global<uint32_t>(0x0097a96c + index * 8) != (handle >> 12)) return;
+    uint8_t* ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (!ent) return;
+    uint8_t* ps = client + 0x170;
+    std::memcpy(ps, field<uint8_t*>(ent, 0x23c), 0x520);
+    if (!field<uint32_t>(ps, 0x7c))
+        title_function<void XB_CDECL(uint32_t, const char*)>(kBreak)(1, title_text(0x00832b64));
+    float origin[3] = {field<float>(ps, 0), field<float>(ps, 4), field<float>(ps, 0xac) + field<float>(ps, 8)};
+    cg_add_lean(origin, field<float>(ps, 0x4c), field<float>(ps, 0xa0), 16.0f, 20.0f);
+    const int32_t leaf = CM_PointLeafnum_r(0, origin);
+    title_function<void XB_REGS2 XB_CDECL(uint32_t, int32_t, uint32_t)>(0x002c4c50)(0, leaf, field<uint32_t>(ent, 0x224));
+}
+
+PLATFORM_ASM_ENTRY(SV_UpdateServerCommandsToClient_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(SV_UpdateServerCommandsToClient) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_UpdateServerCommandsToClient(uint8_t* msg, uint8_t* client) {
+    for (int32_t i = field<int32_t>(client, 0x1c) + 1; i <= field<int32_t>(client, 0x18); ++i) {
+        msg_put_byte(msg, 5);  // svc_serverCommand
+        msg_put_long(msg, static_cast<uint32_t>(i));
+        const uint32_t slot = static_cast<uint32_t>(i & 0x3f) * 4;
+        const char* text = title_global<const char*>(0x008fef0c);
+        if (field<uint32_t>(client, 4) && field<uint32_t>(field<uint8_t*>(client, 0x10), slot))
+            text = field<const char*>(field<uint8_t*>(client, 0xc), slot);
+        MSG_WriteString(text, msg);
+    }
+    field<int32_t>(client, 0x20) = field<int32_t>(client, 0x18);
+}
+
+PLATFORM_ASM_ENTRY(SV_WriteSnapshotToClient_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(SV_WriteSnapshotToClient) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_WriteSnapshotToClient(uint8_t* msg) {
+    msg_put_byte(msg, 7);  // svc_snapshot
+    const uint32_t time = static_cast<uint32_t>(
+        title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t)>(0x002a84e0)(  // VM_Call
+            0, title_global<uint8_t*>(0x0095f50c), 0x13));
+    msg_put_long(msg, time);
+    msg_put_byte(msg, title_global<uint8_t>(0x00927e88));
+}
+
+PLATFORM_ASM_ENTRY(SV_SendClientMessages_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(SV_SendClientMessages) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_SendClientMessages(uint8_t* client) {
+    SV_BuildClientSnapshot(client);
+    uint8_t buffer[0x800] = {};
+    alignas(8) uint8_t msg[0x1c] = {};
+    field<uint8_t*>(msg, 4) = buffer;
+    const uint32_t value = field<uint32_t>(client, 0x60);
+    for (int32_t i = 0; i < 4; ++i) buffer[i] = static_cast<uint8_t>(value >> (i * 8));
+    field<uint32_t>(msg, 0x14) = value;
+    field<int32_t>(msg, 8) = 0x800;
+    field<int32_t>(msg, 0xc) = 4;
+    SV_UpdateServerCommandsToClient(msg, client);
+    SV_WriteSnapshotToClient(msg);
+    const int32_t size = field<int32_t>(msg, 0xc);
+    buffer[size] = 8;  // svc_EOF
+    title_global<uint32_t>(0x0093e6b8) = title_global<uint32_t>(0x00947b0c);  // com_frameNumber
+    title_function<void XB_REGS1 XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002b1480)(client + 0x690, size + 1,
+                                                                                 buffer);  // Netchan_Transmit
+}
+
+void XB_CDECL SV_SendMessages() {
+    uint8_t* svs = title_global<uint8_t*>(0x00927e8c);
+    if (!svs) return;
+    title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t)>(0x002a84e0)(  // VM_Call
+        0, title_global<uint8_t*>(0x0095f50c), 0x15);
+    SV_SendClientMessages(title_global<uint8_t*>(0x00927e8c));
+    title_global<uint32_t>(0x0092f548) = 0;
 }
 
 }  // namespace game

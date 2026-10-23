@@ -194,4 +194,24 @@ void XB_CDECL SV_UpdateInfoConfigstrings(int32_t time);
 extern "C" PLATFORM_HIDDEN void XB_CDECL SV_Frame(uint32_t entry_esp, uint32_t ebx, uint32_t msec, uint32_t edx);
 extern "C" void SV_Frame_entry(void);
 
+// 0x002e02c0 (client in EDX): Q3's SV_BuildClientSnapshot start - the client entity's playerState (0x520 bytes)
+// into client +0x170 (__break 1 without +0x7c), the view origin (z + view height, AddLeanToPosition 16 / 20), its
+// leaf, then the title's 0x002c4c50(leaf in EDX, entity number) for the visible entities.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_BuildClientSnapshot(uint8_t* client);
+extern "C" void SV_BuildClientSnapshot_entry(void);
+// 0x002b80f0 (msg in EAX, client in ESI): Q3's SV_UpdateServerCommandsToClient - each reliable command after the
+// acknowledged one (+0x1c) up to +0x18 as svc_serverCommand (5), sequence, text (empty slot / buffer: the empty
+// string at 0x008fef0c); +0x20 = +0x18. Bytes written without overflow checks.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_UpdateServerCommandsToClient(uint8_t* msg, uint8_t* client);
+extern "C" void SV_UpdateServerCommandsToClient_entry(void);
+// 0x002af350 (msg in ESI): svc_snapshot (7), VM_Call(gvm, 0x13) as the server time, the byte at 0x00927e88.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_WriteSnapshotToClient(uint8_t* msg);
+extern "C" void SV_WriteSnapshotToClient_entry(void);
+// 0x002e4750 (client in EBX): Q3's SV_SendClientMessages for the one client - snapshot, a 0x800-byte message
+// (+0x60 first), commands, snapshot, svc_EOF, Netchan_Transmit; 0x0093e6b8 = com_frameNumber.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_SendClientMessages(uint8_t* client);
+extern "C" void SV_SendClientMessages_entry(void);
+// 0x002e6d80: with a server static, VM_Call(gvm, 0x15), SV_SendClientMessages, 0x0092f548 = 0.
+void XB_CDECL SV_SendMessages();
+
 }  // namespace game

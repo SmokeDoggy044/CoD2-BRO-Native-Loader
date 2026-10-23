@@ -11722,3 +11722,7 @@ address,name,kind,confidence,evidence
 002c0f60,SegmentMissesBounds,function,medium,"slab test of a segment against a box (EAX mins, EDI maxs, ESI/stack points, XMM4 leave fraction); 1 = misses; used by static-model, entity and xmodel traces"
 002d5130,SV_TraceStaticModels_r,function,medium,"sector-tree sweep over the static-model lists (+0x14) under SV_TraceStaticModels; each model through SegmentMissesBounds then 0x002cc880"
 002e79c0,SV_PointTraceToEntity,function,medium,"point version of SV_ClipMoveToEntity: DObj hit boxes (DObj_TraceBoneBoxes / 0x0023da30 in the entity's axis) or CM_TransformedBoxTrace; called by SV_PointTraceToEntities_r"
+002af350,SV_WriteSnapshotToClient,function,medium,"writes svc_snapshot (7), VM_Call(gvm, 0x13) server time and the byte at 0x00927e88 into the msg in ESI; called by SV_SendClientMessages"
+002b80f0,SV_UpdateServerCommandsToClient,function,high,"Q3 SV_UpdateServerCommandsToClient: svc_serverCommand (5) + sequence + text for each unacknowledged reliable command"
+002e02c0,SV_BuildClientSnapshot,function,medium,"copies the client entity's playerState into the client, view origin with AddLeanToPosition, leaf, then the visible-entity pass 0x002c4c50"
+002e6d80,SV_SendMessages,function,medium,"SV_Frame tail: VM_Call(gvm, 0x15), SV_SendClientMessages for the server static, 0x0092f548 = 0"
