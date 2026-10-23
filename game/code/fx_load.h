@@ -338,4 +338,7 @@ void XB_CDECL FxShader_SetDepthRangeConstant(uint32_t base, float near_depth, fl
 void XB_CDECL FxNode_ComputeObjectLights(float* directions, float* colors, const float* matrix, uint8_t* set,
                                          const float* sphere);
 
+// 0x0009d900: the billboard axes: camera forward, horizontal right (scaled by 0x00909984), up.
+void XB_CDECL FxCamera_BillboardAxes(float* forward_out, float* right_out, float* up_out);
+
 }  // namespace game

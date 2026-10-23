@@ -1045,6 +1045,7 @@ const Function kFunctions[] = {
     {"FxSet_8bb990", 0x0009d5a0, 0, code(&FxSet_8bb990), 0, Result::None, Status::Compare},
     {"nglQuadBatch_SetMaterial", 0x0009d5b0, 0, code(&nglQuadBatch_SetMaterial), 16, Result::None, Status::Compare},
     {"FxLightSet_SelectObjectLights", 0x0009d840, 0, code(&FxLightSet_SelectObjectLights), 0, Result::None, Status::Compare},
+    {"FxCamera_BillboardAxes", 0x0009d900, 0, code(&FxCamera_BillboardAxes), 0, Result::None, Status::Compare},
     {"FxShader_SetFadeConstant", 0x0009db30, 0, code(&FxShader_SetFadeConstant), 0, Result::None, Status::Compare},
     {"FxShader_SetDepthRangeConstant", 0x0009dbb0, 0, code(&FxShader_SetDepthRangeConstant), 0, Result::None, Status::Compare},
     {"FxNode_ComputeObjectLights", 0x0009dc30, 0, code(&FxNode_ComputeObjectLights), 0, Result::None, Status::Compare},

@@ -1901,4 +1901,21 @@ void XB_CDECL FxNode_ComputeObjectLights(float* directions, float* colors, const
     std::memcpy(colors + 12, set + 0x60, 16);
 }
 
+void XB_CDECL FxCamera_BillboardAxes(float* forward_out, float* right_out, float* up_out) {
+    // The camera's forward (scene +0x260), a horizontal right axis (y, -x) and up = right x forward,
+    // both normalized (RSQRTSS + Newton); right scaled by the billboard size 0x00909984.
+    const float* camera = reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(title_global<uint32_t>(0x0090259c)) + 0x260);
+    const Lanes f = lanes(camera);
+    static const float kRight[4] = {1.0f, -1.0f, 0.0f, 0.0f};  // 0x007c6de0
+    const Lanes right = normalized(mul(Lanes{{f.v[1], f.v[0], f.v[2], f.v[3]}}, lanes(kRight)));
+    const Lanes a = mul(Lanes{{right.v[1], right.v[2], right.v[0], right.v[3]}}, f);
+    const Lanes b = mul(right, Lanes{{f.v[1], f.v[2], f.v[0], f.v[3]}});
+    const Lanes c = sub(b, a);
+    const Lanes up = normalized(Lanes{{c.v[1], c.v[2], c.v[0], c.v[3]}});
+    std::memcpy(forward_out, f.v, 16);
+    const Lanes scaled = mul(right, title_global<float>(0x00909984));
+    std::memcpy(right_out, scaled.v, 16);
+    std::memcpy(up_out, up.v, 16);
+}
+
 }  // namespace game

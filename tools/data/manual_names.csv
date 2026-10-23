@@ -11684,3 +11684,4 @@ address,name,kind,confidence,evidence
 0009db30,FxShader_SetFadeConstant,function,medium,"particle render helper named from its body (fx_load.cpp)"
 0009dbb0,FxShader_SetDepthRangeConstant,function,medium,"particle render helper named from its body (fx_load.cpp)"
 0009dc30,FxNode_ComputeObjectLights,function,medium,"particle render helper named from its body (fx_load.cpp)"
+0009d900,FxCamera_BillboardAxes,function,medium,"camera forward/right/up for billboards (fx_load.cpp)"
