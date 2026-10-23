@@ -11782,3 +11782,8 @@ address,name,kind,confidence,evidence
 000c63a0,Snd_GetGroups,function,medium,"returns the sound group table 0x008bd8f0"
 000c7ea0,Snd_NormalizeVector,function,high,"out (EAX) = in (ECX) / x87 length, zero below 0x007ce5c8"
 000c8d80,Snd_InitRequest,function,low,"fills a request record (+4 flags, +0x10/+0x14, +0x18 = 0x0091f780 buffer set to 0xbf, +0x20); called by 0x000c6080"
+000c84b0,SndHw_AllocSlot,function,medium,"first free hardware voice slot of the sound's type at 0x00911548; fills owner/sound/state bytes, 0x0091f678[type] = slot + 1"
+000c85c0,Snd_UpdateListenerAxis,function,medium,"listener axes from the mix state via cross products + Snd_NormalizeVector, then two vectors expressed in them (0x008bd678 / 0x008bd698)"
+000c4af0,SndVoice_ApplyParams,function,medium,"per-frame voice pass under 0x000c3700: source params, distance cull, hardware slot allocation, state bytes, params/volume/pitch to the hardware slot"
+000c5ca0,SndBank_Free,function,medium,"frees the sound bank of a key in the 12 bank slots 0x008bd770 (cancels a loading request, frees loaded data); called by S_UnloadSoundBank / S_FreeLevelSounds"
+000c6080,SndBank_UpdateLoads,function,medium,"per-frame bank loading: polls request 0x0090a914 (0x000c8fa0), qsorts loaded entries, starts the lowest-priority queued slot"
