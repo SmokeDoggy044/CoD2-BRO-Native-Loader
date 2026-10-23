@@ -1786,6 +1786,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002cde20,CG_SelectWeapon,compare,104,84,84,0,0,0,""
 002d1460,Cmd_Init,compare,65,13,13,0,0,0,""
 002d4250,CM_TestCapsuleInTempBox,compare,0,0,0,0,0,0,""
+002d4f80,CM_SphereTouchesTriangle,compare,39790,11879,11879,0,0,0,""
 002d5320,CM_BoxLeafnums,compare,736354,401,401,0,0,0,""
 002d70a0,G_SetMovedir,compare,0,0,0,0,0,0,""
 002da9d0,CM_TestInWorldTrees,compare,5816,41,41,0,0,0,""

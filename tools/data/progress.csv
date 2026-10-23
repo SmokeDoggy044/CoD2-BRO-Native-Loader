@@ -9778,7 +9778,7 @@ address,name,section,module,state,tested,matched
 002d47d0,FUN_002d47d0,.text,unassigned,unnamed,0,0
 002d4a60,FUN_002d4a60,.text,unassigned,unnamed,0,0
 002d4f10,FUN_002d4f10,.text,unassigned,unnamed,0,0
-002d4f80,FUN_002d4f80,.text,unassigned,unnamed,0,0
+002d4f80,FUN_002d4f80,.text,unassigned,settled,11879,11879
 002d5130,FUN_002d5130,.text,unassigned,unnamed,0,0
 002d5320,CM_BoxLeafnums,.text,collision,settled,401,401
 002d54c0,CL_ParseServerMessage,.text,client,named,0,0

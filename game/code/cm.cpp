@@ -718,4 +718,53 @@ float* XB_CDECL ClosestPointOnTriangle(float* out, const float* a, const float* 
     return out;
 }
 
+namespace {
+
+Lanes yzx(const Lanes& a) { return {{a.v[1], a.v[2], a.v[0], a.v[3]}}; }
+
+// The edge test: (a * yzx(b) - yzx(a) * b) shuffled to yzx, dotted with the normal.
+float edge_side(const Lanes& a, const Lanes& b, const Lanes& normal) {
+    return sum_xyz(mul(yzx(sub(mul(a, yzx(b)), mul(yzx(a), b))), normal));
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CM_SphereTouchesTriangle_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_SphereTouchesTriangle) "addl $24, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL CM_SphereTouchesTriangle(const float* v2, const float* v1, const float* center, const float* v0,
+                                          float radius, const float* plane) {
+    const Lanes n = lanes(plane);
+    const Lanes c = lanes(center);
+    const Lanes product = mul(n, c);
+    Lanes d4 = product;
+    d4.v[0] = (product.v[0] + product.v[1]) + product.v[2];
+    d4 = add(d4, splat(n.v[3]));  // ADDPS with the broadcast distance: every lane
+    platform_keep(d4);
+    const float d = d4.v[0];
+    if (platform_x87_greater(abs_bits(d), radius)) return 0;
+    const Lanes p = sub(c, mul(n, splat(d)));
+    const Lanes a = lanes(v0), b = lanes(v1), e = lanes(v2);
+    const float s1 = edge_side(sub(a, b), sub(p, b), n);
+    const float s2 = edge_side(sub(b, e), sub(p, e), n);
+    const float s3 = edge_side(sub(e, a), sub(p, a), n);
+    const float order[4] = {s3, s2, s1, s1};  // SHUFPS lanes; CMPLTPS on all four
+    int32_t mask = 0;
+    for (int32_t i = 0; i < 4; ++i)
+        if (order[i] < 0.0f) mask |= 1 << i;
+    if (!(mask & 7)) return 1;
+    alignas(16) float closest[4];
+    alignas(16) float projected[4];
+    std::memcpy(projected, p.v, 16);
+    ClosestPointOnTriangle(closest, v0, v1, v2, projected);
+    const Lanes delta = sub(lanes(closest), c);
+    return radius * radius > sum_xyz(mul(delta, delta)) ? 1 : 0;
+}
+
 }  // namespace game
