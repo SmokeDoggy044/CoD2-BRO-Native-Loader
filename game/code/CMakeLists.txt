@@ -30,6 +30,7 @@ set(game_code_sources
     shaders.cpp
     snd.cpp
     stream.cpp
+    sv.cpp
     tr_main.cpp
     unzip.cpp
 )

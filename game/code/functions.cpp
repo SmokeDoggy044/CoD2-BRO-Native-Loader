@@ -27,6 +27,7 @@
 #include "shaders.h"
 #include "snd.h"
 #include "stream.h"
+#include "sv.h"
 #include "tr_main.h"
 #include "unzip.h"
 
@@ -1796,6 +1797,7 @@ const Function kFunctions[] = {
     {"FX_UpdateEffects", 0x002a5980, 0, code(&FX_UpdateEffects_entry), 4, Result::None, Status::Compare},
     {"CameraShake_AllocSlot", 0x002a7f70, 0, code(&CameraShake_AllocSlot), 0, Result::Eax, Status::Compare},
     {"G_AddEvent", 0x002a80b0, 0, code(&G_AddEvent), 8, Result::Eax, Status::Compare},
+    {"SV_GameSystemCalls", 0x002a8750, 0, code(&SV_GameSystemCalls), 4, Result::Eax, Status::Compare},
     {"COM_SkipPath", 0x002a8a40, 0, code(&COM_SkipPath), 0, Result::Eax, Status::Compare},
     {"G_EntList190_Disable", 0x002a8e40, 0, code(&G_EntList190_Disable_entry), 0, Result::None, Status::Compare},
     {"G_EntList190_Enable", 0x002a8e90, 0, code(&G_EntList190_Enable_entry), 0, Result::None, Status::Compare},
@@ -1823,6 +1825,7 @@ const Function kFunctions[] = {
     {"Cbuf_InsertText", 0x002aab40, 0, code(&Cbuf_InsertText), 0, Result::None, Status::Compare},
     {"Cbuf_AddText", 0x002aabb0, 0, code(&Cbuf_AddText), 0, Result::None, Status::Compare},
     {"Cmd_Wait_f", 0x002aac40, 0, code(&Cmd_Wait_f), 0, Result::None, Status::Compare},
+    {"SV_UnlinkEntity", 0x002aacb0, 0, code(&SV_UnlinkEntity), 0, Result::Eax, Status::Compare},
     {"CM_AreasConnected", 0x002aaec0, 0, code(&CM_AreasConnected), 0, Result::Eax, Status::Compare},
     {"CM_FloodArea_r", 0x002aaf00, 0, code(&CM_FloodArea_r), 8, Result::None, Status::Compare},
     {"CM_ClusterPVS", 0x002aaf90, 0, code(&CM_ClusterPVS), 0, Result::Eax, Status::Compare},
@@ -1891,12 +1894,17 @@ const Function kFunctions[] = {
     {"CG_GetEntityRefEntity", 0x002be200, 0, code(&CG_GetEntityRefEntity_entry), 0, Result::Eax, Status::Compare},
     {"G_SetSoundDoneNotify", 0x002be3e0, 0, code(&G_SetSoundDoneNotify_entry), 0, Result::None, Status::Compare},
     {"AnimTree_CalcPose_r", 0x002beb60, 0, code(&AnimTree_CalcPose_r), 24, Result::Al, Status::Compare},
+    {"SV_AdjustAreaPortalState", 0x002bffb0, 0, code(&SV_AdjustAreaPortalState), 0, Result::None, Status::Compare},
     {"Cmd_Vstr_f", 0x002c0d30, 0, code(&Cmd_Vstr_f), 0, Result::None, Status::Compare},
     {"CM_SegmentOverlapsBox", 0x002c0d80, 0, code(&CM_SegmentOverlapsBox), 4, Result::Al, Status::Compare},
     {"CM_PointLeafnum_r", 0x002c1060, 0, code(&CM_PointLeafnum_r), 0, Result::Eax, Status::Compare},
     {"CM_LoadMap", 0x002c1ae0, 0, code(&CM_LoadMap), 4, Result::None, Status::Compare},
     {"BG_InitDefaultWeapon", 0x002c2aa0, 0, code(&BG_InitDefaultWeapon), 0, Result::None, Status::Compare},
     {"S_PlaySoundAlias2", 0x002c3120, 0, code(&S_PlaySoundAlias2), 40, Result::Eax, Status::Compare},
+    {"SV_AllocServerStatic", 0x002c4ed0, 0, code(&SV_AllocServerStatic), 0, Result::None, Status::Compare},
+    {"SV_SetSkillEasy", 0x002c5140, 0, code(&SV_SetSkillEasy), 0, Result::None, Status::Compare},
+    {"SV_SetSkillMedium", 0x002c51a0, 0, code(&SV_SetSkillMedium), 0, Result::None, Status::Compare},
+    {"SV_SetSkillHard", 0x002c5200, 0, code(&SV_SetSkillHard), 0, Result::None, Status::Compare},
     {"Mat34_RotateVector", 0x002c7220, 0, code(&Mat34_RotateVector), 0, Result::Eax, Status::Compare},
     {"CM_BoxLeafnums_r", 0x002c73a0, 0, code(&CM_BoxLeafnums_r), 12, Result::None, Status::Compare},
     {"CameraShake_SetDistanceScale", 0x002c94d0, 0, code(&CameraShake_SetDistanceScale_entry), 8, Result::None, Status::Compare},
@@ -1911,6 +1919,7 @@ const Function kFunctions[] = {
     {"CM_PointContents", 0x002cc480, 0, code(&CM_PointContents), 0, Result::Eax, Status::Compare},
     {"CM_TempBoxModel", 0x002ccc50, 0, code(&CM_TempBoxModel), 8, Result::Eax, Status::Compare},
     {"CG_SelectWeapon", 0x002cde20, 0, code(&CG_SelectWeapon_entry), 0, Result::Eax, Status::Compare},
+    {"SV_ClipHandleForEntity", 0x002cf830, 0, code(&SV_ClipHandleForEntity), 0, Result::Eax, Status::Compare},
     {"Cmd_Init", 0x002d1460, 0, code(&Cmd_Init), 0, Result::None, Status::Compare},
     {"CM_TestCapsuleInTempBox", 0x002d4250, 0, code(&CM_TestCapsuleInTempBox_entry), 0, Result::None, Status::Compare},
     {"CM_TraceCapsuleThroughTempBox", 0x002d4360, 0, code(&CM_TraceCapsuleThroughTempBox_entry), 0, Result::None, Status::Compare},
