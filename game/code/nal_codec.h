@@ -273,6 +273,166 @@ struct QuatReader {
 // without a length is decoded once (frames - 2 residuals) to find the next one. value = the
 // first values * |scale| / 4 with w = sqrt(|1 - |xyz|^2|); x's mode gets 0x80. Returns q.
 QuatReader* XB_THISCALL NAL_QuatReader_Init(QuatReader* q, uint32_t count, float scale, uint32_t ptr, uint8_t bit);
+// 0x000866e0 (out in ECX, callee pops 4): q * 32767 truncated to four int16. Returns out.
+int16_t* XB_THISCALL Quat_ToShort4(int16_t* out, const float* q);
+// 0x00086280 (reader in ECX, callee pops 0x14: out, stride, frames, scale, delta buffer):
+// `frames` quaternions as Quat_ToShort4 words, `stride` apart. The frames the reader still holds
+// come first (top bits of x's mode: the first value, then one step with the first deltas);
+// then the x, y, z residuals go to the buffer (12 bytes per frame), each is added to the
+// deltas, and the value is multiplied by the step quaternion (deltas * |scale|, w from the
+// unit length).
+void XB_THISCALL NAL_QuatReader_DecodeFrames(QuatReader* q, uint8_t* out, int32_t stride, uint32_t count, float scale,
+                                             int32_t* deltas);
+// 0x00084970 (reader in ECX, callee pops 0x10: out, stride, frames, scale): NAL_QuatReader_DecodeFrames
+// with float quaternions out (16 bytes, `stride` apart); the residuals are decoded into the output
+// itself and each product is renormalized (rsqrt + one Newton step).
+void XB_THISCALL NAL_QuatReader_DecodeFloatFrames(QuatReader* q, uint8_t* out, int32_t stride, uint32_t count, float scale);
+// The plain quaternion class 0x007c28f8: the plain Float3 methods with 16-byte values (cache and
+// output aligned to 16). 0x0007f550 (slot 5) BeginBlock, 0x00081990 (6) DecodeFrames, 0x00081a50
+// (7) DecodeBlock, 0x00081b10 (8) SkipBlock (stream + frames * 16 per active channel), 0x00081b90
+// (9) Evaluate. All return the group.
+uint32_t XB_STDCALL NAL_Quat_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, int32_t frames);
+uint32_t XB_STDCALL NAL_Quat_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t, uint32_t,
+                                          int32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Quat_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, int32_t frames, int32_t stride);
+uint32_t XB_STDCALL NAL_Quat_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, int32_t frames);
+uint32_t XB_STDCALL NAL_Quat_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                      const int32_t* offsets);
+// 0x00081cb0 (slot 8 of 0x007c2960: context, &cursor, &stream, -): per active channel its
+// byte-length-prefixed stream skipped, cursor (aligned to 16) + 0x10. 0x00081d40 (slot 9: context,
+// pose, &cursor, defaults, offsets): the cached quaternion or the default at pose + offset (>= 0).
+// Both return the group.
+uint32_t XB_STDCALL NAL_EntropyQuat_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_EntropyQuat_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                             const int32_t* offsets);
+// 0x000848a0 / 0x00084e10 (slots 6 / 7 of the float entropy quaternion class 0x007c2960): as
+// 0x000861b0 / 0x00086730 with NAL_QuatReader_DecodeFloatFrames (16-byte values, dst/data
+// aligned to 16, no delta buffer). Both return the group.
+uint32_t XB_STDCALL NAL_EntropyQuat_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                      uint32_t, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_EntropyQuat_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                     int32_t stride);
+// 0x00086010 (out in ECX, callee pops 4): q negated unless w >= 0, then x, y, z * 127 truncated to
+// three bytes. Returns out. 0x00085ba0: NAL_QuatReader_DecodeFrames writing those three bytes.
+uint8_t* XB_THISCALL Quat_ToByte3(uint8_t* out, const float* q);
+void XB_THISCALL NAL_QuatReader_DecodeByteFrames(QuatReader* q, uint8_t* out, int32_t stride, uint32_t count, float scale,
+                                                 int32_t* deltas);
+// The byte quaternion class 0x007c29c8 (3 bytes cached per channel, no alignment): 0x00085060
+// (in in ECX, callee pops 4) Byte3_ToQuat: x, y, z = bytes / 127, w from the unit length; returns
+// out. Slots 6 0x00085ad0 / 7 0x000860a0: as the Packed16 ones with NAL_QuatReader_DecodeByteFrames
+// (dst / data not aligned, + 3). Slot 8 0x00081fb0 SkipBlock, 9 0x00084f30 Evaluate (Byte3_ToQuat
+// or the default), 15 0x00082080 SkipCachedFrame. All slots return the group.
+float* XB_THISCALL Byte3_ToQuat(const int8_t* in, float* out);
+uint32_t XB_STDCALL NAL_Packed8Quat_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, int32_t* deltas,
+                                                 uint32_t, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Packed8Quat_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                int32_t stride);
+uint32_t XB_STDCALL NAL_Packed8Quat_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_Packed8Quat_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                             const int32_t* offsets);
+uint32_t XB_STDCALL NAL_Packed8Quat_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+// 0x000861b0 (slot 6 of 0x007c2a30: context, &dst, &readers, delta buffer, -, count, stride):
+// per active channel NAL_QuatReader_DecodeFrames (scale channel * block), dst aligned to 2 and
+// + 8. 0x00086730 (slot 7: context, &data, &stream, frames, stride): the same from a stack
+// QuatReader over each byte-length-prefixed stream (buffer 0x00906820). Both return the group.
+uint32_t XB_STDCALL NAL_Packed16Quat_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, int32_t* deltas,
+                                                 uint32_t, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Packed16Quat_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                int32_t stride);
+// 0x000822b0 (in in ECX, callee pops 4): four int16 * 1/32767 (0x007c2410) to out. Returns out.
+float* XB_THISCALL Short4_ToQuat(const int16_t* in, float* out);
+// 0x00082170 (slot 9 of 0x007c2a30: context, pose, &cursor, defaults, offsets): per channel
+// with an offset >= 0 the quaternion at pose + offset - the cursor's int16 words (Short4_ToQuat)
+// for an active channel, else the default; the cursor (aligned to 2) moves 8 per active
+// channel. Returns the group.
+uint32_t XB_STDCALL NAL_Packed16Quat_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
+                                             const int32_t* offsets);
+// 0x0008d6b0 (reader in ECX, callee pops 0x1c: out, stride, count, scale, factor, bias, float
+// buffer): NAL_EntropyReader_DecodeFloats into the buffer (stride 4), then each
+// (value + bias) * factor to int16 at out, `stride` apart, clamped to -32767..32767.
+void XB_THISCALL NAL_EntropyReader_DecodeShorts(EntropyReader* reader, int16_t* out, int32_t stride, uint32_t count, float scale,
+                                                float factor, float bias, float* buffer);
+// 0x0008d510 (cdecl: readers, out, delta buffer, -, count, stride, -, &block scale, ranges,
+// &flag): one channel of the int16 position + orientation class 0x007c2c38 (slot 6, 0x00083500).
+// Flag set: a quaternion (readers +0, out +8) and three position words (entropy readers
+// +0x80/+0x90/+0xa0, out +0x10..: scale block * ranges[0], (v + ranges[1]) * ranges[2]); flag
+// clear: two quaternions (readers +0/+0x40, out +0/+8). Both: the word at +0x16 from the reader
+// after them, scale ranges[3] * block, factor 5215.1, bias 9.6e-5. Quaternion scale ranges[4] * block.
+void XB_CDECL NAL_PackedPosOri_DecodeChannel(uint8_t* readers, uint8_t* out, int32_t* deltas, uint32_t, uint32_t count,
+                                             int32_t stride, uint32_t, const float* block_scale, const float* ranges,
+                                             const uint8_t* has_position);
+// 0x00083500 (slot 6 of 0x007c2c38: context, &dst, &readers, delta buffer, -, count, stride):
+// per active channel NAL_PackedPosOri_DecodeChannel with its five floats from stream A (0x14 per
+// channel) and its flag byte from stream B (after the block scale); readers 0xc0 and dst 0x1a
+// (aligned to 2) per active channel. Returns the group.
+uint32_t XB_STDCALL NAL_PackedPosOri_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, int32_t* deltas,
+                                                  uint32_t unused, uint32_t count, int32_t stride);
+// 0x00086920 (cdecl: readers, &stream, frames, -, &block scale, ranges, &flag; writes the length
+// byte into its last argument slot, so the C version takes the argument block): the streams of
+// one NAL_PackedPosOri_DecodeChannel channel - flag set: a QuatReader (+0) and four entropy
+// readers (+0x80..+0xb0); flag clear: two QuatReaders (+0, +0x40) and one entropy reader
+// (+0x80). Each stream is byte-length-prefixed; a reader whose address is 0 is skipped.
+extern "C" void NAL_PackedPosOri_BeginChannel_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_PackedPosOri_BeginChannel(uint32_t* args);
+// 0x00086850 (slot 5 of 0x007c2c38, stdcall: context, &readers, &stream, frames): per active
+// channel NAL_PackedPosOri_BeginChannel (readers aligned to 16, 0xc0 apart; flag byte from stream
+// B). Returns the group.
+uint32_t XB_STDCALL NAL_PackedPosOri_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count);
+// The int16 position + orientation class 0x007c2c38 (0x50-byte values, 0x1a bytes cached per
+// channel). 0x000834d0 (slot 4) Fixup, 0x00083ce0 (12) InitState, 0x00083b60 (13) FreeState,
+// 0x00083bb0 (14, body of 0x00083b90) CopyState: as the PosOri ones with 0x50 bytes per channel.
+// 0x00083c00 (15) SkipCachedFrame: cursor aligned to 2, + 0x1a per active channel. 0x00083a30 (10,
+// stdcall) and 0x00083ae0 (11, cdecl body of 0x00083ab0) only move the static stream pointers.
+uint8_t** XB_STDCALL NAL_PackedPosOri_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
+uint32_t XB_STDCALL NAL_PackedPosOri_InitState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_PackedPosOri_FreeState(const uint8_t* group, uint8_t** cursor);
+uint32_t XB_CDECL NAL_PackedPosOri_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src);
+uint32_t XB_STDCALL NAL_PackedPosOri_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+uint32_t XB_STDCALL NAL_PackedPosOri_ApplyStatic(const uint32_t* context, uint8_t*, uint32_t, const int32_t*);
+uint32_t XB_CDECL NAL_PackedPosOri_ApplyWraps(const uint32_t* context, uint8_t*, uint8_t*, int32_t, uint32_t, const int32_t*);
+// 0x00083600 / 0x00083690 (slots 7 / 8 of 0x007c2c38, stdcall: context, &data, &stream, frames[,
+// stride]): no decoding - data (aligned to 2) + 0x1a and one flag byte of stream B per active
+// channel, stream A + 0x14 per channel. Return the group.
+uint32_t XB_STDCALL NAL_PackedPosOri_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t**, uint32_t, int32_t);
+uint32_t XB_STDCALL NAL_PackedPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t**, uint32_t);
+// 0x00083860 (cdecl: dst, int16 words, -, &block scale, ranges, &flag): a 0x50-byte pose value
+// built in a stack record and copied whole. Flag set: +0x20 quaternion (words 4-7 / 32767), +0x30
+// position ((word * 1/ranges[2]) - ranges[1]), +0x3c 1.0, +0x42 word 11; flag clear: +0 and +0x10
+// quaternions (words 0-3, 4-7), +0x3c 0, +0x40 word 11. The rest of the record is whatever the
+// stack held: the asm entry moves the C frame below a gap and the record is written at the
+// original's address (entry ESP passed first).
+extern "C" void NAL_PackedPosOri_Dequantize_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_PackedPosOri_Dequantize(uint32_t entry, uint8_t* dst, const int16_t* src, uint32_t,
+                                                                     const float*, const float* ranges,
+                                                                     const uint8_t* has_position);
+// 0x00083720 (slot 9 of 0x007c2c38, stdcall: context, pose, &cursor, defaults, offsets): per
+// channel with an offset >= 0 the 0x50-byte value - NAL_PackedPosOri_Dequantize of the cursor's
+// 0x1a bytes for an active channel, else the default. Returns the group. Asm entry with a gap, so
+// the dequantizer's record lands where the original's does.
+extern "C" void NAL_PackedPosOri_Evaluate_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_PackedPosOri_Evaluate(uint32_t entry, const uint32_t* context, uint8_t* pose,
+                                                                       uint8_t** cursor, const uint8_t* defaults,
+                                                                       const int32_t* offsets);
+// Slots 5-7 of the entropy trajectory class 0x007c2bd0 (stream A: 8 bytes per channel = position
+// scale, quaternion scale; stream B: block scale, then aligned to 16 one 0x20-byte static pair per
+// active channel; readers 0x70 per channel: a QuatReader and three 16-byte entropy readers at
+// +0x40/+0x50/+0x60; values 0x20 = quaternion, position). 0x000856e0 (cdecl: readers, &stream,
+// frames, -, &block scale, ranges, -): the x, y, z streams, then the quaternion stream (null
+// readers skipped). 0x00085600 (slot 5) calls it per active channel. 0x000857b0 (slot 6: context,
+// &dst, &readers, -, -, count, stride): positions by NAL_EntropyReader_DecodeFloats (scale block *
+// ranges[0]), quaternions by NAL_QuatReader_DecodeFloatFrames (ranges[1] * block). 0x00085480
+// (cdecl: out, &stream, frames, stride, -, &block scale, ranges, -): the same from stack readers
+// over the streams; 0x00085930 (slot 7) calls it per active channel. All slots return the group.
+void XB_CDECL NAL_EntropyTrajPosOri_BeginChannel(uint8_t* readers, uint8_t** stream, uint32_t count, uint32_t,
+                                                 const float* block_scale, const float* ranges, uint32_t);
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream,
+                                                     uint32_t count);
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                       uint32_t, uint32_t count, int32_t stride);
+void XB_CDECL NAL_EntropyTrajPosOri_DecodeChannelBlock(uint8_t* out, uint8_t** stream, uint32_t frames, int32_t stride, uint32_t,
+                                                       const float* block_scale, const float* ranges, uint32_t);
+uint32_t XB_STDCALL NAL_EntropyTrajPosOri_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                      int32_t stride);
 // 0x000842e0 (slot 5 of the entropy quaternion classes 0x007c2960, 0x007c29c8, 0x007c2a30;
 // stdcall: context, &readers, &stream, frames): per active channel a QuatReader (array aligned
 // to 16, 0x40 apart; null-checked) over its byte-length-prefixed stream, scale = channel scale

@@ -102,14 +102,33 @@ deltas) is set up by NAL_QuatReader_Init (0x000843c0): per component an optional
 the first value and the first delta; a stream without a length is decoded once to find the next. w comes from
 sqrt(|1 - |xyz|^2|) (rsqrt + one Newton step).
 
+## Quaternion frames and the int16 position + orientation class (decompiled: game/code/nal_codec.cpp)
+`NAL_QuatReader_DecodeFrames` (0x00086280) emits int16 quaternions (`Quat_ToShort4`, * 32767 truncated; read back by
+`Short4_ToQuat`, * 1/32767). The two frames a fresh QuatReader holds come first (counter in the top bits of x's mode:
+0x80 = the first value as it is, 0x40 = one step with the first deltas); after that the x, y, z residuals are decoded
+into a buffer (12 bytes per frame), added to the deltas (second order), and each frame multiplies the value by the
+step quaternion (deltas * |scale|, w = sqrt(|1 - |xyz|^2|) by rsqrt + Newton). The product is the title's packed
+form lane for lane: m * q.w + q * m.w + q x m - dot * {0,0,0,1} (constant 0x008375d0).
+Entropy quaternion class 0x007c2a30: slot 6 0x000861b0 (from the BeginBlock readers), 7 0x00086730 (a stack
+QuatReader per stream, buffer 0x00906820), 9 0x00082170 (Short4_ToQuat or the default).
+Vtable 0x007c2c38 (after the four PosOri ones) holds 0x50-byte values cached as 0x1a bytes per channel: stream A
+has five floats per channel (position bias +4, position range +8, word-3 scale +0xc, quaternion scale +0x10),
+stream B the block scale and one flag byte per active channel. Flag set: a quaternion (int16) and three position
+words; clear: two quaternions. Both end with one more int16 (factor 5215.1, bias 9.6e-5). Readers 0xc0 per channel
+(QuatReaders +0/+0x40, 16-byte entropy readers +0x80..+0xb0; slot 5 0x00086850 -> 0x00086920). Slot 6 0x00083500 ->
+0x0008d510 decodes (positions through 0x0008d6b0: DecodeFloats, (v + bias) * factor clamped to -32767..32767);
+slots 7/8 only move pointers; slot 9 0x00083720 -> 0x00083860 dequantizes into a 0x50-byte stack record that it
+copies whole although each path writes only part of it (the rest is stale stack: both have asm entries that keep
+the record at the original's stack address). Slots 2/3 (0x0008d1e0/0x0008d250) blend through 0x0008cc40 (1.4 KB,
+Quat_Slerp): not done.
+
 ## Not done yet
-The quaternion classes' slots 6/7/9 (0x000861b0, 0x00086730, 0x00082170 with 0x000822b0) and the other kinds'
-(0x007c28f8: 0x0007f550, 0x00081990, 0x00081a50, 0x00081b10, 0x00081b90, 0x00081f50; 0x007c2960: 0x000848a0,
-0x00084e10, 0x00081cb0, 0x00081d40; 0x007c29c8: 0x00085ad0, 0x000860a0, 0x00081fb0, 0x00084f30, 0x00082080) - most go
-through 0x00086280 (1.1 KB packed SSE: rebuilds w, then quaternion products; lift with psssym.py). The entropy PosOri
-block methods (slots 5-7: 0x00085600 BeginBlock with 0x000856e0, 0x000857b0 DecodeFrames with 0x00084970, 0x00085930
-with 0x00085480) use NAL_QuatReader_Init too. Then the other channel classes' methods (0x0007c2b0..0x00086850); the
-manager methods (0x00083c60..0x00085aa0); the IK matrix builder 0x00093250.
+The other quaternion kinds' slots (0x007c28f8: 0x0007f550, 0x00081990, 0x00081a50, 0x00081b10, 0x00081b90,
+0x00081f50; 0x007c2960: 0x000848a0, 0x00084e10, 0x00081cb0, 0x00081d40; 0x007c29c8: 0x00085ad0, 0x000860a0,
+0x00081fb0, 0x00084f30, 0x00082080). The entropy PosOri block methods (slots 5-7: 0x00085600 BeginBlock with
+0x000856e0, 0x000857b0 DecodeFrames with 0x00084970, 0x00085930 with 0x00085480) use NAL_QuatReader_Init too. The
+int16 PosOri blend 0x0008cc40. Then the other channel classes' methods (0x0007c2b0..0x00086850); the manager methods
+(0x00083c60..0x00085aa0); the IK matrix builder 0x00093250.
 Known unmatchable lanes: the w word (+0x1c) of PositionOrientation pairs is never written by the title (Blend,
 AccumulateRoot and the codecs write seven words), so it carries stale stack - in NAL_AnimTrack_Sample's temporary
 states, too. NAL_AnimTrack_Sample / AnimTree_CalcPose_r / DObj_UpdateSkeletons differ from the original only there
