@@ -1921,6 +1921,7 @@ const Function kFunctions[] = {
     {"G_SetMovedir", 0x002d70a0, 0, code(&G_SetMovedir_entry), 0, Result::None, Status::Compare},
     {"CM_TestInLeafObjects", 0x002da4d0, 0, code(&CM_TestInLeafObjects), 12, Result::None, Status::Compare},
     {"CM_TestInWorldTrees", 0x002da9d0, 0, code(&CM_TestInWorldTrees_entry), 0, Result::None, Status::Compare},
+    {"CM_TraceCapsuleThroughCapsule", 0x002dab20, 0, code(&CM_TraceCapsuleThroughCapsule), 0, Result::None, Status::Compare},
     {"CM_TransformedPointContents", 0x002db500, 0, code(&CM_TransformedPointContents_entry), 4, Result::Eax, Status::Compare},
     {"G_GetEntityMatrix", 0x002de120, 0, code(&G_GetEntityMatrix), 8, Result::Eax, Status::Compare},
     {"DObj_UpdateSkeletons", 0x002df880, 0, code(&DObj_UpdateSkeletons), 4, Result::None, Status::Compare},

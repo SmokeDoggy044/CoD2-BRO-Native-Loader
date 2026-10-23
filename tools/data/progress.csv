@@ -9824,7 +9824,7 @@ address,name,section,module,state,tested,matched
 002da4d0,FUN_002da4d0,.text,unassigned,settled,115,115
 002da830,FUN_002da830,.text,unassigned,unnamed,0,0
 002da9d0,FUN_002da9d0,.text,unassigned,matched,96,96
-002dab20,FUN_002dab20,.text,unassigned,unnamed,0,0
+002dab20,FUN_002dab20,.text,unassigned,settled,16495,16495
 002dae30,FUN_002dae30,.text,unassigned,unnamed,0,0
 002db350,FUN_002db350,.text,unassigned,unnamed,0,0
 002db3e0,FUN_002db3e0,.text,unassigned,unnamed,0,0

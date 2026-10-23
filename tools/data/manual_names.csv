@@ -11661,3 +11661,4 @@ address,name,kind,confidence,evidence
 002d4360,CM_TraceCapsuleThroughTempBox,function,medium,"capsule setup against the temporary box model, then CM_TraceCapsuleThroughBrush"
 002d47d0,CM_TraceThroughSphere,function,medium,"Q3 CM_TraceThroughSphere against a sphere (radius + extra), x87 quadratic, Vec4Normalize normal"
 002d44b0,CM_TraceThroughVerticalCylinder,function,medium,"Q3 CM_TraceThroughVerticalCylinder: 2D sphere trace with half-height checks"
+002dab20,CM_TraceCapsuleThroughCapsule,function,high,"Q3 CM_TraceCapsuleThroughCapsule vs the temporary box model (end spheres + vertical cylinder)"

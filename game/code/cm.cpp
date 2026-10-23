@@ -1299,4 +1299,49 @@ int32_t XB_CDECL CM_TraceThroughVerticalCylinder(uint8_t* tw, const float* origi
     return 0;
 }
 
+void XB_REGS1 XB_CDECL CM_TraceCapsuleThroughCapsule(uint8_t* tw) {
+    const uint8_t* box = title_global<const uint8_t*>(0x0095f504);
+    const Lanes one = splat(title_global<float>(0x0083eb20));
+    const Lanes mins = lanes(reinterpret_cast<const float*>(box + 0x10));
+    const Lanes maxs = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const Lanes abs_min = sub(lanes(tw_row(tw, 0x20)), one);
+    const Lanes abs_max = add(lanes(tw_row(tw, 0x30)), one);
+    if (!inside_xyz(sub(mins, abs_max), sub(abs_min, maxs))) return;
+    const Lanes offset = lanes(tw_row(tw, 0x140));
+    const Lanes start = lanes(tw_row(tw, 0));
+    const Lanes end = lanes(tw_row(tw, 0x10));
+    alignas(16) float top_start[4], bottom_start[4], top_end[4], bottom_end[4];
+    std::memcpy(top_start, add(start, offset).v, 16);
+    std::memcpy(bottom_start, sub(start, offset).v, 16);
+    std::memcpy(top_end, add(end, offset).v, 16);
+    std::memcpy(bottom_end, sub(end, offset).v, 16);
+    const float h = title_global<float>(0x0083eb24);  // 0.5
+    const Lanes center_lanes = mul(add(mins, maxs), splat(h));
+    const Lanes half = sub(maxs, center_lanes);
+    const float radius = half.v[0] > half.v[2] ? half.v[2] : half.v[0];
+    const float half_height = half.v[2] - radius;
+    alignas(16) float center[4], top[4], bottom[4];
+    std::memcpy(center, center_lanes.v, 16);
+    std::memcpy(top, center, 16);
+    std::memcpy(bottom, center, 16);
+    top[2] = center[2] + half_height;
+    bottom[2] = center[2] - half_height;
+    const float delta_z = *reinterpret_cast<const float*>(tw + 0xe8);
+    if (bottom_start[2] > top[2]) {
+        if (!CM_TraceThroughSphere(bottom_start, top, tw, bottom_end, radius)) return;
+        if (delta_z >= title_global<float>(0x0083eafc)) return;
+    } else if (bottom[2] > top_start[2]) {
+        if (!CM_TraceThroughSphere(top_start, bottom, tw, top_end, radius)) return;
+        if (0.0f >= delta_z) return;
+    }
+    if (!CM_TraceThroughVerticalCylinder(tw, center, half_height, radius)) return;
+    if (bottom_end[2] > top[2]) {
+        if (!(top[2] >= bottom_start[2])) return;  // COMISS + JB: NaN returns too
+        CM_TraceThroughSphere(bottom_start, top, tw, bottom_end, radius);
+    } else if (bottom[2] > top_end[2]) {
+        if (!(top_start[2] >= bottom[2])) return;
+        CM_TraceThroughSphere(top_start, bottom, tw, top_end, radius);
+    }
+}
+
 }  // namespace game

@@ -209,4 +209,9 @@ extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_TraceThroughVerticalCylinder(uint
                                                                            float height, float extra_radius);
 extern "C" void CM_TraceThroughVerticalCylinder_entry(void);
 
+// 0x002dab20 (trace work in EAX; unnamed in Ghidra): Q3's CM_TraceCapsuleThroughCapsule against the temporary
+// box model's capsule (center +- (half z - radius)): bounds check (trace bounds widened by 1), then end spheres
+// (CM_TraceThroughSphere) and the cylinder (CM_TraceThroughVerticalCylinder) in the original's order.
+void XB_REGS1 XB_CDECL CM_TraceCapsuleThroughCapsule(uint8_t* tw);
+
 }  // namespace game

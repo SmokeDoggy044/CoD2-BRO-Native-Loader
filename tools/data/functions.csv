@@ -1830,6 +1830,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002d70a0,G_SetMovedir,compare,0,0,0,0,0,0,""
 002da4d0,CM_TestInLeafObjects,compare,22107,115,115,0,0,0,""
 002da9d0,CM_TestInWorldTrees,compare,11701,96,96,0,0,0,""
+002dab20,CM_TraceCapsuleThroughCapsule,compare,24923,16495,16495,0,0,0,""
 002db500,CM_TransformedPointContents,compare,441200,394,394,0,0,0,""
 002de120,G_GetEntityMatrix,compare,31982,374,374,0,0,0,""
 002df880,DObj_UpdateSkeletons,compare,68684568,993799,827252,0,166547,0,"80d0b89c [host] [1] 10 vs 01"
