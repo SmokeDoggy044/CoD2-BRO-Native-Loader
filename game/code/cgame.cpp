@@ -5,6 +5,7 @@
 
 #include "bg_misc.h"
 #include "cg_ents.h"
+#include "cg_view.h"
 #include "dobj.h"
 #include "fx.h"
 #include "g_utils.h"
@@ -1943,6 +1944,208 @@ uint32_t XB_CDECL CG_DrawObjectives() {
     }
     CG_DrawObjectiveList(color, alpha);
     return 1;
+}
+
+namespace {
+
+const char* shock_path(const char* name) {
+    return title_function<const char* XB_CDECL(const char*, const char*)>(0x002a93d0)(  // va
+        &title_global<char>(0x00838b30), name);  // "scripts/%s.shock"
+}
+
+}  // namespace
+
+uint32_t XB_REGS1 XB_CDECL CG_ShellShock_LoadParams(const char* name) {
+    // Reads scripts/<name>.shock into the shell shock cvars (0x0029e700 over the 0x1c names
+    // at 0x008da5f0) and updates their vmCvars (0x008da660); 0 when the file is missing.
+    const char* path = shock_path(name);
+    int32_t file;
+    const int32_t length = title_function<int32_t XB_CDECL(const char*, int32_t*, int32_t)>(0x002a1b30)(path, &file, 0);  // FS_FOpenFileByMode
+    if (length < 0) {
+        CG_Printf(&title_global<char>(0x00838b18), path);
+        return 0;
+    }
+    char* text = title_function<char* XB_CDECL(int32_t)>(0x00042c10)(length + 1);  // Z_Malloc
+    title_function<void XB_CDECL(void*, int32_t, int32_t)>(0x002971a0)(text, 0, length + 1);  // Com_Memset
+    title_function<int32_t XB_CDECL(void*, int32_t, int32_t)>(0x00297af0)(text, length, file);  // FS_Read
+    text[length] = 0;
+    title_function<void XB_CDECL(int32_t)>(0x00297d70)(file);  // FS_FCloseFile
+    const uint32_t result = title_function<uint32_t XB_CDECL(uint32_t, uint32_t, const char*, const char*)>(0x0029e700)(  // CG_ShellShock_ParseParams
+        0x008da5f0, 0x1c, text, path);
+    title_function<void XB_CDECL(void*)>(0x000428d0)(text);  // Z_Free
+    for (uint32_t k = 0; k < 0x70; k += 4) cg_cvar_update(title_global<uint32_t>(0x008da660 + k));
+    return result;
+}
+
+uint32_t XB_CDECL CG_ShellShock_SaveParams(const char* name) {
+    // The shell shock cvars written as scripts/<name>.shock; 0 on failure.
+    char text[0x10000];
+    if (!title_function<uint32_t XB_CDECL(uint32_t, uint32_t, char*, uint32_t)>(0x0029c4f0)(  // Cvar_WriteNamedValues
+            0x008da5f0, 0x1c, text, 0x10000))
+        return 0;
+    int32_t file;
+    if (title_function<int32_t XB_CDECL(const char*, int32_t*, int32_t)>(0x002a1b30)(shock_path(name), &file, 1) < 0) return 0;
+    int32_t length = 0;
+    while (text[length]) ++length;
+    title_function<int32_t XB_CDECL(const void*, int32_t, int32_t)>(0x00297a60)(text, length, file);  // FS_Write
+    title_function<void XB_CDECL(int32_t)>(0x00297d70)(file);  // FS_FCloseFile
+    return 1;
+}
+
+void XB_CDECL CG_ShellShockSave_f() {
+    if (title_global<uint32_t>(0x00934248) != 2) {
+        CG_Printf(&title_global<char>(0x00839b94));
+        return;
+    }
+    char name[0x80];
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(name, title_global<const char*>(0x0092df94), 0x7f);
+    name[0x7f] = 0;
+    CG_ShellShock_SaveParams(name);
+}
+
+void XB_CDECL CG_ShellShockLoad_f() {
+    if (title_global<uint32_t>(0x00934248) != 2) {
+        CG_Printf(&title_global<char>(0x00839bb8));
+        return;
+    }
+    char name[0x80];
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(name, title_global<const char*>(0x0092df94), 0x7f);
+    name[0x7f] = 0;
+    CG_ShellShock_LoadParams(name);
+}
+
+void XB_CDECL CG_ShellShock_f() {
+    // "cg_shellshock <duration> [file]": a shell shock of `duration` seconds from now with the
+    // current (or the file's) parameters (CG_ReadShellShockCvars into 0x00975b44).
+    const uint32_t argc = title_global<uint32_t>(0x00934248);
+    char text[0x100];
+    if (argc == 3) {
+        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(text, title_global<const char*>(0x0092df98), 0xff);
+        text[0xff] = 0;
+        if (!CG_ShellShock_LoadParams(text)) return;
+    } else if (argc != 2) {
+        CG_Printf(&title_global<char>(0x00839bdc));
+        return;
+    }
+    const char* arg = title_global<uint32_t>(0x00934248) > 1 ? title_global<const char*>(0x0092df94)
+                                                              : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(text, arg, 0xff);
+    text[0xff] = 0;
+    using ext = long double;
+    const float seconds = static_cast<float>(title_function<ext XB_CDECL(const char*)>(0x001ef056)(text) *  // atof
+                                             static_cast<ext>(g(0x0083eb9c)));
+    CG_ReadShellShockCvars(&title_global<uint8_t>(0x00975b44));
+    title_global<int32_t>(0x00973a70) = title_global<int32_t>(0x0097253c);
+    title_global<int32_t>(0x00973a74) =
+        static_cast<int32_t>(static_cast<int64_t>(static_cast<ext>(seconds) + static_cast<ext>(g(0x0083eb24))));
+}
+
+void XB_CDECL CG_DrawCheckpointReached() {
+    // HUD notices: the timed message configstring (0x00975810, green, fading with its timer
+    // 0x0095f65c / 3) unless letterboxed, "Quad Speed" while 0x0095bd54 > 190, and
+    // "INGAME_CHECKPOINT_REACHED" (localized) while the checkpoint timer (+0x34c of 0x0095f4e0)
+    // runs; the timers count down by the frame time 0x008ddaa0.
+    using DrawText = void XB_CDECL(float, float, uint32_t, float, const float*, const char*, float, uint32_t, uint32_t);
+    const auto draw_text = [](float x, float y, const float* color, const char* text) {
+        title_function<DrawText>(title_global<uint32_t>(0x00928578))(x, y, 4, 1.0f / 3.0f, color, text, 16.0f, 0, 3);
+    };
+    const uint8_t* letterbox = title_function<const uint8_t* XB_CDECL(const char*, const char*, uint32_t)>(0x0029c2d0)(  // Cvar_Get
+        &title_global<char>(0x00835390), &title_global<char>(0x0082e098), 0);
+    const float one = g(0x0083eb20);
+    float& message_time = title_global<float>(0x0095f65c);
+    const float t = message_time;
+    if (t > 0.0f && !*reinterpret_cast<const uint32_t*>(letterbox + 0x20)) {
+        const float color[4] = {0.0f, one, 0.0f, t / g(0x0083ec9c)};
+        message_time = t - g(0x008ddaa0);
+        const uint8_t* string = title_global<const uint8_t*>(0x00975810);
+        draw_text(30.0f, 314.0f, color, string ? reinterpret_cast<const char*>(string + 6) : nullptr);
+    }
+    if (title_global<int32_t>(0x0095bd54) > 0xbe) {
+        const float white[4] = {one, one, one, one};
+        draw_text(500.0f, 64.0f, white, &title_global<char>(0x00839ab8));
+    }
+    uint8_t* game = title_global<uint8_t*>(0x0095f4e0);
+    float& checkpoint = *reinterpret_cast<float*>(game + 0x34c);
+    if (checkpoint > 0.0f) {
+        const float color[4] = {one, one, 0.0f, checkpoint / g(0x0083ece8)};
+        checkpoint = checkpoint - g(0x008ddaa0);
+        const char* text = &title_global<char>(0x00839a9c);
+        TitleRegs regs{};
+        regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text));
+        const uint32_t key = cg_call_regs(0x00024440, &regs, nullptr, 0);  // Loc_HashKey
+        regs = TitleRegs{};
+        regs.eax = title_global<uint32_t>(0x0095f5d8);
+        const uint32_t args[1] = {key};
+        const uint8_t* entry = reinterpret_cast<const uint8_t*>(
+            static_cast<uintptr_t>(cg_call_regs(0x002984f0, &regs, args, 1)));  // Zone_FindByHash
+        if (entry) {
+            text = *reinterpret_cast<const char* const*>(entry + 8);
+            if (!text) text = &title_global<char>(0x008379b4);
+        }
+        draw_text(50.0f, 64.0f, color, text);
+    }
+}
+
+void XB_CDECL CG_FreeWeaponModels() {
+    // Every weapon view model's DObj (handle +0x8c of the model 0x0097606c + (weapon - 1) *
+    // 0xc4, resolved through 0x00981418) freed with its trees, then its memory returned
+    // (XModel_Free, then the client's memory context +0x34 or the zone heap).
+    const auto resolve = [](const uint8_t* model) -> uint8_t* {
+        const uint32_t handle = model ? *reinterpret_cast<const uint32_t*>(model + 0x8c) : 0;
+        const uint32_t index = handle & 0xfff;
+        if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0098141c + index * 8)) return nullptr;
+        return title_global<uint8_t*>(0x00981418 + index * 8);
+    };
+    for (int32_t weapon = 1; weapon <= title_global<int32_t>(0x0095f4d4); ++weapon) {
+        const uint8_t* const* slot = &title_global<const uint8_t*>(0x0097606c + static_cast<uint32_t>(weapon - 1) * 0xc4);
+        if (!resolve(*slot)) continue;
+        DObj_Free(reinterpret_cast<DObj*>(resolve(*slot)), 1);
+        uint8_t* obj = resolve(*slot);
+        const int32_t client = *reinterpret_cast<const int32_t*>(resolve(*slot) + 0x34);
+        if (!obj) continue;
+        title_function<void XB_STDCALL(uint8_t*)>(0x0023cea0)(obj);  // XModel_Free
+        if (client != -1) {
+            uint32_t context = 0;
+            if (client >= 0 && client < 0x63)
+                context = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x38 + client * 4);
+            if (title_function<uint8_t XB_THISCALL(uint32_t, void*)>(0x0028bfc0)(context, obj)) continue;  // MemContext_Free_r
+        }
+        title_function<void XB_CDECL(void*)>(0x000428d0)(obj);  // Z_Free
+    }
+}
+
+namespace {
+
+const char* configstring_text(uint32_t slot) {
+    const uint8_t* s = title_global<const uint8_t*>(slot);
+    return s ? reinterpret_cast<const char*>(s + 6) : nullptr;
+}
+
+}  // namespace
+
+int32_t XB_CDECL CG_ParseInfoValueT() {
+    // Configstring 3's info value "t" as an integer (its "n" is looked up and dropped).
+    const char* info = configstring_text(0x009606c4);
+    const auto value_for = [info](uint32_t key) {
+        TitleRegs regs{};
+        regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
+        regs.esi = regs.ecx;
+        regs.edi = key;
+        return reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(0x002b8f50, &regs, nullptr, 0)));  // Info_ValueForKey
+    };
+    value_for(0x00838d2c);  // "n"
+    return title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(value_for(0x00838d28));  // _atol of "t"
+}
+
+void XB_CDECL CG_ParseConfigStringFloat9() {
+    // Configstring 9 as a float handed to the import 0x00928520.
+    const float value = title_function<float XB_CDECL(const char*)>(0x001ef056)(configstring_text(0x009606dc));  // atof
+    title_function<void XB_CDECL(float)>(title_global<uint32_t>(0x00928520))(value);
+}
+
+void XB_CDECL CG_ParseConfigStringFloat11() {
+    // Configstring 11 as a float into 0x009730a4.
+    title_global<float>(0x009730a4) = title_function<float XB_CDECL(const char*)>(0x001ef056)(configstring_text(0x009606e4));  // atof
 }
 
 }  // namespace game

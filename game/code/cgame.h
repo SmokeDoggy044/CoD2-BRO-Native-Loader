@@ -265,4 +265,27 @@ extern "C" void CG_DrawHudElemClock_entry(void);
 // 0x00281f30: the objectives screen while it is up; 1 when drawn.
 uint32_t XB_CDECL CG_DrawObjectives();
 
+// 0x0027c8f0 (name in EAX): scripts/<name>.shock into the shell shock cvars; 0 if missing.
+uint32_t XB_REGS1 XB_CDECL CG_ShellShock_LoadParams(const char* name);
+// 0x0027c990 (cdecl name): the shell shock cvars saved as scripts/<name>.shock.
+uint32_t XB_CDECL CG_ShellShock_SaveParams(const char* name);
+// 0x0027d6d0 / 0x0027d730 / 0x0027d780: "cg_shellshock_save", "cg_shellshock_load",
+// "cg_shellshock <duration> [file]".
+void XB_CDECL CG_ShellShockSave_f();
+void XB_CDECL CG_ShellShockLoad_f();
+void XB_CDECL CG_ShellShock_f();
+
+// 0x0027bd90: the timed message, "Quad Speed" and "checkpoint reached" notices.
+void XB_CDECL CG_DrawCheckpointReached();
+
+// 0x0027c290: every weapon view model's DObj freed (shutdown).
+void XB_CDECL CG_FreeWeaponModels();
+
+// 0x0027af30: configstring 3's info value "t" (atol).
+int32_t XB_CDECL CG_ParseInfoValueT();
+// 0x0027ad70: configstring 9 (atof) to the import 0x00928520.
+void XB_CDECL CG_ParseConfigStringFloat9();
+// 0x0027abb0: configstring 11 (atof) into 0x009730a4.
+void XB_CDECL CG_ParseConfigStringFloat11();
+
 }  // namespace game

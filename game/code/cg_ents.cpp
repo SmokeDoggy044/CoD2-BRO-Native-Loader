@@ -1435,4 +1435,307 @@ uint32_t XB_CDECL CG_ProcessSnapshots(uint32_t entry_esp) {
     }
 }
 
+namespace {
+
+// A random value between the weapon definition's floats lo and hi (0x00972acc).
+float weapon_random(uint32_t lo, uint32_t hi) {
+    const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+    const uint8_t* def = title_global<const uint8_t*>(0x00972acc);
+    const float low = *reinterpret_cast<const float*>(def + lo);
+    return (*reinterpret_cast<const float*>(def + hi) - low) * (static_cast<float>(r) * g(0x0083ebe0)) + low;
+}
+
+}  // namespace
+
+void XB_CDECL CG_KickWeapon() {
+    // The player's weapon kick on firing: view kick pitch/yaw (0x00972f88 = -a, 0x00972f8c,
+    // 0x00972f90 = yaw * 0x0083eb28) from the weapon's ranges (+0x79c.. fully zoomed, +0x7e4..
+    // otherwise) and the gun offset (0x00972fc0/c4 += +0x77c.. while zooming, +0x7c4.. else).
+    const float zoom = g(0x009725d8);
+    float a, b;
+    if (zoom == g(0x0083eb20)) {
+        a = weapon_random(0x79c, 0x7a0);
+        b = weapon_random(0x7a4, 0x7a8);
+    } else {
+        a = weapon_random(0x7e4, 0x7e8);
+        b = weapon_random(0x7ec, 0x7f0);
+    }
+    title_global<float>(0x00972f8c) = b;
+    title_global<float>(0x00972f88) = 0.0f - a;
+    title_global<float>(0x00972f90) = b * g(0x0083eb28);
+    float c, d;
+    if (zoom > 0.0f) {
+        c = weapon_random(0x77c, 0x780);
+        d = weapon_random(0x784, 0x788);
+    } else {
+        c = weapon_random(0x7c4, 0x7c8);
+        d = weapon_random(0x7cc, 0x7d0);
+    }
+    title_global<float>(0x00972fc0) = g(0x00972fc0) + c;
+    title_global<float>(0x00972fc4) = g(0x00972fc4) + d;
+}
+
+// FXCmd_PlayWeaponSound copies a whole 0x80-byte stack buffer of which only the sound name
+// is written: the rest is what earlier callees left there (half the tests differed). The
+// entry moves the C frame below a gap and the callees run at the original's ESP with its
+// registers (EBX def, ESI cent, EDI local flag).
+PLATFORM_ASM_ENTRY(CG_FireWeapon_entry,
+                   "movl %esp, %edx\n"
+                   "subl $0x10000, %esp\n"
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl 8(%edx)\n"
+                   "pushl 4(%edx)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_FireWeapon) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_FireWeapon(const uint8_t* es, uint8_t* cent, int32_t event, int32_t tag_index, uint32_t entry_esp) {
+    // Q3's CG_FireWeapon: the weapon (+3; a vehicle's coaxial weapon for event 0xa4) fires:
+    // the player's kick (CG_KickWeapon), the fire sound (CG_PlayWeaponFireSound) and the
+    // flash sound at the bone (local players - the player's cent, its vehicle, or the snapshot's
+    // +0x478 for types 0xa/0xe - get the Ex variant with the tag index), then the empty click
+    // when the weapon has no +0x6d8.
+    int32_t weapon;
+    if (es[0] == 0xe && event == 0xa4)
+        weapon = *reinterpret_cast<const int32_t*>(at<uint8_t*>(cent, 0x248) + 0x1a4);
+    else
+        weapon = es[3];
+    if (!weapon) return;
+    if (weapon > title_global<int32_t>(0x0095f4d4)) {
+        CG_Error(&title_global<char>(0x00838738));
+        return;
+    }
+    const uint32_t top = entry_esp - 0x14;  // after its five pushes
+    const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[weapon];
+    TitleRegs regs{};
+    regs.ebx = addr(def);
+    regs.esi = addr(cent);
+    regs.edi = addr(es);
+    const uint8_t* snap = title_global<uint8_t*>(0x00971aa8);
+    if (at<int32_t>(cent, 0x224) == *reinterpret_cast<const int32_t*>(snap + 0x8c))
+        title_call_at_regs(top, 0x002766d0, &regs, 0, nullptr);  // CG_KickWeapon
+    const uint8_t type = es[0];
+    uint8_t* player = *reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 4);
+    uint32_t local = 0;
+    if ((type == 0xa || type == 0xe) &&
+        *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x00971aa8) + 0x478) == at<int32_t>(cent, 0x224))
+        local = 1;
+    if (cent == player) {
+        local = 1;
+    } else if (!local) {
+        const uint8_t* linked = at<uint8_t*>(player, 0x3cc);
+        if (linked && *reinterpret_cast<uint8_t* const*>(linked) == cent) local = 1;
+    }
+    regs.edi = local;
+    if (type < 0x11) {
+        TitleRegs fire = regs;
+        fire.eax = static_cast<uint32_t>(weapon);
+        fire.ecx = local;
+        title_call_at_regs(top, 0x00288dc0, &fire, 0, nullptr);  // CG_PlayWeaponFireSound
+        const uint32_t sound = *reinterpret_cast<const uint32_t*>(def + 8);
+        TitleRegs call = regs;
+        call.eax = addr(cent);
+        if (local) {
+            const uint32_t args[2] = {sound, 0x28};
+            title_call_at_regs(top, 0x002a62d0, &call, 2, args);  // FXCmd_PlayWeaponSound
+        }
+        if (event == 0xa6) {
+            if (local) {
+                const uint32_t args[5] = {addr(cent), sound, 9, 0xffffffff, static_cast<uint32_t>(tag_index)};
+                title_call_at_regs(top, 0x002a6600, &call, 5, args);  // FXCmd_PlayWeaponSoundAtBoneEx
+            } else {
+                const uint32_t args[4] = {addr(cent), sound, 0xa, 0xffffffff};
+                title_call_at_regs(top, 0x002a64e0, &call, 4, args);  // FXCmd_PlayWeaponSoundAtBone
+            }
+        } else {
+            if (local) {
+                const uint32_t args[5] = {addr(cent), sound, 7, 0, static_cast<uint32_t>(tag_index)};
+                title_call_at_regs(top, 0x002a6600, &call, 5, args);
+            } else {
+                const uint32_t args[4] = {addr(cent), sound, 8, 1};
+                title_call_at_regs(top, 0x002a64e0, &call, 4, args);
+            }
+        }
+    }
+    if (!*reinterpret_cast<const uint32_t*>(title_global<const uint8_t* const*>(0x0095f4d8)[weapon] + 0x6d8)) {
+        TitleRegs empty = regs;
+        empty.eax = addr(cent);
+        const uint32_t args[1] = {static_cast<uint32_t>(event)};
+        title_call_at_regs(top + 4, 0x002887f0, &empty, 1, args);  // CG_FireWeaponEmpty
+    }
+}
+
+// The calls run at the original's ESP: CG_Bullet's start vector is a 3-float local whose
+// fourth word (read along with it) is this function's return address.
+PLATFORM_ASM_ENTRY(CG_EntityPreEvent_entry,
+                   "movl %esp, %edx\n"
+                   "subl $0x10000, %esp\n"
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_EntityPreEvent) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_EntityPreEvent(int32_t event, uint8_t* cent, uint32_t entry_esp) {
+    // The events handled before the snapshot is current: weapon fire (0xa3/a4/a6/ad one
+    // shot, 0xae/0xaf two), the reload sound (0xa7: kind 0xd), the empty click (0xa8), a bullet
+    // (0xb3, direction byte +4), tracer + whiz-by (0xb4/0xb5) and a camera shake (0xc4).
+    const uint32_t frame = entry_esp - 0x14;
+    TitleRegs regs{};
+    regs.eax = addr(cent);
+    regs.ecx = addr(cent);
+    regs.esi = addr(cent);
+    regs.edi = static_cast<uint32_t>(event);
+    const auto fire = [&](uint32_t top, uint32_t index) {
+        const uint32_t args[2] = {static_cast<uint32_t>(event), index};
+        title_call_at_regs(top, 0x002893b0, &regs, 2, args);  // CG_FireWeapon
+    };
+    switch (event) {
+    case 0xa3:
+    case 0xa4:
+    case 0xa6:
+    case 0xad: fire(frame, 0); break;
+    case 0xae:
+        fire(frame, 0);
+        fire(frame - 8, 1);
+        break;
+    case 0xaf:
+        fire(frame, 2);
+        fire(frame - 8, 3);
+        break;
+    case 0xa7: {
+        const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(title_global<const uint8_t* const*>(0x0095f4d8)[cent[3]] + 8),
+                                  0xd};
+        title_call_at_regs(frame, 0x002a62d0, &regs, 2, args);  // FXCmd_PlayWeaponSound
+        break;
+    }
+    case 0xa8: {
+        const uint32_t args[1] = {static_cast<uint32_t>(event)};
+        title_call_at_regs(frame, 0x002887f0, &regs, 1, args);  // CG_FireWeaponEmpty
+        break;
+    }
+    case 0xb3: {
+        float* dir = reinterpret_cast<float*>(static_cast<uintptr_t>(frame + 8));
+        const uint32_t byte = cent[4];
+        if (byte < 0xa2) {
+            for (uint32_t k = 0; k < 3; ++k)
+                reinterpret_cast<uint32_t*>(dir)[k] = title_global<uint32_t>(0x008d52d8 + byte * 12 + 4 * k);
+        } else {
+            dir[0] = dir[1] = dir[2] = 0.0f;
+        }
+        TitleRegs bullet{};
+        bullet.eax = addr(dir);
+        bullet.ecx = addr(cent);
+        bullet.esi = addr(cent);
+        bullet.edi = cent[3];
+        const uint32_t args[2] = {addr(cent + 0x140), cent[2]};
+        title_call_at_regs(frame, 0x0028a370, &bullet, 2, args);  // CG_Bullet
+        break;
+    }
+    case 0xb4:
+    case 0xb5: {
+        TitleRegs tracer = regs;
+        tracer.eax = title_global<uint32_t>(0x008da6e0);
+        tracer.ecx = cent[3];
+        tracer.esi = addr(cent + 0x60);
+        const uint32_t args[3] = {at<uint32_t>(cent, 8), addr(cent + 0x60), cent[3]};
+        title_call_at_regs(frame, 0x00289270, &tracer, 3, args);  // CG_BulletTracerAndWhizBy
+        break;
+    }
+    case 0xc4:
+        CG_StartShakeCamera(&at<float>(cent, 0x140), at<float>(cent, 0x90), at<int32_t>(cent, 0xa0), at<float>(cent, 0x94));
+        break;
+    default: break;
+    }
+}
+
+void XB_CDECL CG_InterpolatePlayerState(uint32_t grab_angles) {
+    // Q3's CG_InterpolatePlayerState: the next snapshot's player state (0x148 words from +0x10)
+    // as the predicted one (0x00972550), its weapon definition (0x00972acc); with grab_angles
+    // the view angles from the latest user command (PM_UpdateViewAngles 0x002e5530 with
+    // CG_Trace); between two snapshots origin, velocity, bob cycle (+0x38, wrapping at 256),
+    // +0x500 and - unless grabbed - the view angles lerped, plus the angles at +0x47c.
+    uint8_t* snap = title_global<uint8_t*>(0x00971aa8);
+    uint8_t* next = title_global<uint8_t*>(0x00971aac);
+    uint8_t* ps = &title_global<uint8_t>(0x00972550);
+    for (uint32_t k = 0; k < 0x148 * 4; k += 4) at<uint32_t>(ps, k) = at<uint32_t>(next, 0x10 + k);
+    title_global<uint32_t>(0x00972acc) =
+        title_global<uint32_t>(title_global<uint32_t>(0x0095f4d8) + title_global<uint32_t>(0x009725d0) * 4);
+    if (grab_angles) {
+        alignas(16) uint32_t cmd[11];
+        TitleRegs regs{};
+        regs.eax = title_global<uint32_t>(0x009622ac);  // cl_cmdNumber
+        regs.edx = addr(cmd);
+        cg_call_regs(0x002ac630, &regs, nullptr, 0);  // CL_GetUserCmd
+        regs = TitleRegs{};
+        regs.eax = 0x00972550;
+        regs.ecx = addr(cmd);
+        regs.edx = addr(cmd);
+        const uint32_t args[3] = {addr(cmd), addr(cmd), 0x00286c60};  // CG_Trace
+        cg_call_regs(0x002e5530, &regs, args, 3);  // PM_UpdateViewAngles
+    }
+    if (at<int32_t>(next, 4) <= at<int32_t>(snap, 4)) return;
+    const float f = static_cast<float>(cg_time() - at<int32_t>(snap, 4)) / static_cast<float>(at<int32_t>(next, 4) - at<int32_t>(snap, 4));
+    int32_t bob = at<int32_t>(next, 0x38);
+    if (bob < at<int32_t>(snap, 0x38)) bob += 0x100;
+    title_global<int32_t>(0x00972578) =
+        static_cast<int32_t>(static_cast<float>(bob - at<int32_t>(snap, 0x38)) * f) + at<int32_t>(snap, 0x38);
+    const auto lerp = [&](uint32_t offset) {
+        return (at<float>(next, offset) - at<float>(snap, offset)) * f + at<float>(snap, offset);
+    };
+    const float half_turn = g(0x0083eb60), turn = g(0x0083ebcc), minus_half = g(0x0083ebd0);
+    const auto lerp_angle = [&](uint32_t offset) {
+        float n = at<float>(next, offset);
+        const float s = at<float>(snap, offset);
+        if (n - s > half_turn) n = n - turn;
+        if (minus_half > n - s) n = n + turn;
+        return (n - s) * f + s;
+    };
+    title_global<float>(0x00972a40) = lerp(0x500);
+    for (uint32_t i = 0; i < 3; ++i) {
+        title_global<float>(0x00972550 + 4 * i) = lerp(0x10 + 4 * i);
+        if (!grab_angles) title_global<float>(0x009725ec + 4 * i) = lerp_angle(0xac + 4 * i);
+        title_global<float>(0x00972560 + 4 * i) = lerp(0x20 + 4 * i);
+        title_global<float>(0x009729bc + 4 * i) = lerp_angle(0x47c + 4 * i);
+    }
+}
+
+void XB_CDECL CG_CalcLinkedViewOrigin() {
+    // While linked (flags 0x6000 of 0x00972610) to a live entity (handle 0x009729b8, link on
+    // 0x009729b4): the view angles from its angle trajectory (+0x38) plus its +0x90/+0x94
+    // offsets, the view origin at its "tag_player" (less the view height 0x009725fc).
+    if (!(title_global<uint32_t>(0x00972610) & 0x6000)) return;
+    const uint32_t handle = title_global<uint32_t>(0x009729b8);
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return;
+    if (!title_global<uint32_t>(0x0097a968 + index * 8)) return;
+    if (!title_global<uint32_t>(0x009729b4)) return;
+    uint8_t* ent = G_EntHandleToEnt(&title_global<uint32_t>(0x009729b8));
+    TitleRegs regs{};
+    regs.eax = static_cast<uint32_t>(cg_time());
+    regs.edi = addr(ent + 0x38);
+    regs.ecx = 0x00972bf0;
+    cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+    ent = G_EntHandleToEnt(&title_global<uint32_t>(0x009729b8));
+    if (!(title_global<uint8_t>(0x0098ebe0) & 1)) {
+        title_global<uint32_t>(0x0098ebe0) |= 1;
+        title_global<uint32_t>(0x0098ebdc) = Com_HashKeyNoCase(0, &title_global<char>(0x00838a54));  // "tag_player"
+    }
+    alignas(16) float m[16] = {};
+    const DObj* obj = at<DObj*>(ent, 0x22c);
+    const int32_t bone = obj ? DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098ebdc)) : -1;
+    if (obj && bone >= 0)
+        title_function<void XB_CDECL(uint8_t*, int32_t, float*)>(0x002e3780)(ent, bone, m);  // G_DObjGetWorldTagMatrix
+    else
+        title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, &title_global<char>(0x00838a04));  // __break
+    title_global<float>(0x00972bf4) = g(0x00972bf4) + at<float>(ent, 0x94);
+    title_global<float>(0x00972bb0) = m[12];
+    title_global<float>(0x00972bf0) = g(0x00972bf0) + at<float>(ent, 0x90);
+    title_global<float>(0x00972bb4) = m[13];
+    title_global<float>(0x00972bb8) = m[14] - g(0x009725fc);
+}
+
 }  // namespace game

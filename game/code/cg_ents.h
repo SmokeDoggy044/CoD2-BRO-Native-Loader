@@ -167,4 +167,25 @@ uint8_t* XB_CDECL CG_ReadNextSnapshot();
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CG_ProcessSnapshots(uint32_t entry_esp);
 extern "C" void CG_ProcessSnapshots_entry(void);
 
+// 0x002766d0: the player's weapon kick on firing (view kick and gun offset).
+void XB_CDECL CG_KickWeapon();
+// 0x002893b0 (entity state EAX, cent ECX, cdecl (event, tag index)): Q3's CG_FireWeapon; the
+// C version also gets the entry ESP (CG_FireWeapon_entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_FireWeapon(const uint8_t* es, uint8_t* cent, int32_t event, int32_t tag_index,
+                                                      uint32_t entry_esp);
+extern "C" void CG_FireWeapon_entry(void);
+
+// 0x0028a5e0 (event EAX, cent ECX): the pre-snapshot entity events; the C version gets the
+// entry ESP (CG_EntityPreEvent_entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_EntityPreEvent(int32_t event, uint8_t* cent, uint32_t entry_esp);
+extern "C" void CG_EntityPreEvent_entry(void);
+
+// 0x00287d60 (cdecl grab_angles): Q3's CG_InterpolatePlayerState.
+void XB_CDECL CG_InterpolatePlayerState(uint32_t grab_angles);
+// 0x00286340: the view placed at the linked entity's "tag_player".
+void XB_CDECL CG_CalcLinkedViewOrigin();
+
+// AddLeanToPosition (0x002d9cc0): position in ESI, lean in XMM1, cdecl (yaw, a, b).
+extern "C" PLATFORM_HIDDEN void XB_CDECL cg_add_lean(float* position, float lean, float yaw, float a, float b);
+
 }  // namespace game
