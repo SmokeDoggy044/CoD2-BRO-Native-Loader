@@ -378,4 +378,27 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_IsCoverValidAgainst(const uin
                                                                        const uint8_t* threat, uint32_t* script);
 extern "C" void Actor_IsCoverValidAgainst_entry(void);
 
+// 0x001ffdb0 (actor in EDI): clears the actor's path (trimmed against the entity's origin). Returns 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_ClearPath(uint8_t* actor);
+extern "C" void Actor_ClearPath_entry(void);
+// State Start callbacks (actor in ECX; return the next state, 0): pain 0x00200c70 (+0xc0 = level time,
+// pain anim script, +0x27c = 4), noncombat 0x00200db0 (timers +0x28/+0x2c/+0x34), anim custom 0x00201990,
+// anim scripted 0x002019d0 (sentient +0x5a = 0); all clear the path first.
+uint32_t XB_REGS3 XB_CDECL Actor_Pain_Start(uint32_t, uint32_t, uint8_t* actor);
+uint32_t XB_REGS3 XB_CDECL Actor_Noncombat_Start(uint32_t, uint32_t, uint8_t* actor);
+uint32_t XB_REGS3 XB_CDECL Actor_AnimCustom_Start(uint32_t, uint32_t, uint8_t* actor);
+uint32_t XB_REGS3 XB_CDECL Actor_AnimScripted_Start(uint32_t, uint32_t, uint8_t* actor);
+// 0x00201280 (other entity in EDX, actor in ECX): touched by the entity it is waiting for (+0x39c
+// entity handle): the path is cleared when that entity has +0x23c set.
+void XB_REGS3 XB_CDECL Actor_DefaultTouch(uint32_t, const uint8_t* other, uint8_t* actor);
+// 0x00204610 (threat in ECX, actor in ESI, callee pops 4: node): +0x820 = the node's cover script if the
+// node covers against the threat, else 0. Returns 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateCoverValidity(const uint8_t* threat, uint8_t* actor, const uint8_t* node);
+extern "C" void Actor_UpdateCoverValidity_entry(void);
+// 0x00202770 (actor in ESI, state in EDI; not in kFunctions: its CALL starts at byte 4, unhookable): pushes the
+// state if allowed (popping what it blocks first);
+// returns 1, or 0 when not allowed.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_PushState(uint8_t* actor, uint32_t state);
+extern "C" void Actor_PushState_entry(void);
+
 }  // namespace game

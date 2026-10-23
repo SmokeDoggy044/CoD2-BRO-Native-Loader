@@ -1921,4 +1921,95 @@ uint32_t XB_CDECL Actor_IsCoverValidAgainst(const uint8_t* node, const uint8_t* 
     return valid;
 }
 
+namespace {
+
+// The inlined path clear: trim against the entity's origin, then no points and +0x7c4 = 0.
+void clear_actor_path(uint8_t* actor) {
+    Path_AccumulateTrim(actor + 0x3c0, &field<float>(field<uint8_t*>(actor, 0), 0x140));
+    field<int16_t>(actor, 0x3c0 + 0x380) = 0;
+    field<int16_t>(actor, 0x3c0 + 0x382) = 0;
+    field<uint32_t>(actor, 0x7c4) = 0;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Actor_ClearPath_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_ClearPath) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_ClearPath(uint8_t* actor) {
+    clear_actor_path(actor);
+    return 0;
+}
+
+uint32_t XB_REGS3 XB_CDECL Actor_Pain_Start(uint32_t, uint32_t, uint8_t* actor) {
+    field<int32_t>(actor, 0xc0) = level_time();
+    clear_actor_path(actor);
+    field<uint32_t>(actor, 0x254) = 0x00987b78;  // g_animScript_pain
+    field<uint32_t>(actor, 0x27c) = 4;
+    field<uint8_t>(actor, 0x285) = 0;
+    field<uint8_t>(actor, 0x26c) = 1;
+    return 0;
+}
+
+uint32_t XB_REGS3 XB_CDECL Actor_Noncombat_Start(uint32_t, uint32_t, uint8_t* actor) {
+    clear_actor_path(actor);
+    field<int32_t>(actor, 0x28) = 500;
+    field<int32_t>(actor, 0x2c) = level_time() + 1;
+    field<int32_t>(actor, 0x34) = level_time() + 501;
+    field<int32_t>(actor, 0x34) = level_time() + 2000;
+    return 0;
+}
+
+uint32_t XB_REGS3 XB_CDECL Actor_AnimCustom_Start(uint32_t, uint32_t, uint8_t* actor) {
+    clear_actor_path(actor);
+    field<uint8_t>(actor, 0x26c) = 1;
+    return 0;
+}
+
+uint32_t XB_REGS3 XB_CDECL Actor_AnimScripted_Start(uint32_t, uint32_t, uint8_t* actor) {
+    clear_actor_path(actor);
+    field<uint8_t>(field<uint8_t*>(actor, 4), 0x5a) = 0;
+    field<uint8_t>(actor, 0x26c) = 1;
+    return 0;
+}
+
+void XB_REGS3 XB_CDECL Actor_DefaultTouch(uint32_t, const uint8_t* other, uint8_t* actor) {
+    const uint32_t handle = field<uint32_t>(actor, 0x39c);
+    if (field<uint32_t>(other, 0x224) != handle) return;
+    // The entity behind the handle (index & 0xfff, generation >> 12; table 0x0097a968).
+    const uint32_t index = handle & 0xfff;
+    const uint8_t* ent = nullptr;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<const uint8_t*>(0x0097a968 + index * 8);
+    if (field<uint32_t>(ent, 0x23c)) clear_actor_path(actor);  // the original reads it even from a null entity
+}
+
+PLATFORM_ASM_ENTRY(Actor_UpdateCoverValidity_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Actor_UpdateCoverValidity) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Actor_UpdateCoverValidity(const uint8_t* threat, uint8_t* actor, const uint8_t* node) {
+    uint32_t script;
+    const uint32_t valid = Actor_IsCoverValidAgainst(node, actor, threat, &script);
+    field<uint32_t>(actor, 0x820) = valid ? script : 0;
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Actor_PushState_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Actor_PushState) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_PushState(uint8_t* actor, uint32_t state) {
+    if (!Actor_IsStatePushAllowed(state, 0, actor)) return 0;
+    Actor_PopBlockingStates(actor, state);
+    queue_transition(actor, 2, state);  // push (and merge)
+    const int32_t depth = ++field<int32_t>(actor, 0xbc);
+    field<uint32_t>(actor, 0xa4 + depth * 4) = state;
+    return 1;
+}
+
 }  // namespace game
