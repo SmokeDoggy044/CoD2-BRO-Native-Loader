@@ -2458,4 +2458,45 @@ void XB_CDECL Sentient_ClaimGoalNode(uint8_t* sentient) {
     Sentient_SetClaimedNode(sentient, *goal);
 }
 
+PLATFORM_ASM_ENTRY(Sentient_SetGoalNode_entry, "pushl 4(%esp)\n"
+                                               "pushl %ebx\n" PLATFORM_ASM_CALL(Sentient_SetGoalNode) "addl $8, %esp\n"
+                                               "ret $4")
+
+void XB_CDECL Sentient_SetGoalNode(uint8_t* sentient, uint32_t handle) {
+    const uint16_t goal = uint16_t(handle);
+    uint16_t& current = *reinterpret_cast<uint16_t*>(sentient + 0x50);
+    if (goal != current) {
+        const uint16_t* const claimed = reinterpret_cast<const uint16_t*>(sentient + 0x48);
+        if ((PathNode_HandleIsValid(claimed) & 0xff) && current == *claimed) {
+            const uint8_t* const actor = field<uint8_t*>(*reinterpret_cast<uint8_t**>(sentient), 0x240);
+            if (actor) {
+                const int32_t state = field<int32_t>(const_cast<uint8_t*>(actor), 0xa4);
+                if (state != 1 && state != 6) Sentient_SetClaimedNode(sentient, handle & 0xffff0000);
+            }
+        }
+        current = goal;
+    }
+    const uint8_t* const node = path_node(handle, title_global<const uint8_t*>(0x0095f4f4));
+    if (!node) return;
+    float radius = *reinterpret_cast<const float*>(node + 0x54);
+    if (radius == title_global<float>(0x0083eafc)) return;  // 0
+    const float least = title_global<float>(0x0083100c);   // 4
+    if (least > radius) radius = least;
+    uint8_t* const goal_info = field<uint8_t*>(*reinterpret_cast<uint8_t**>(sentient), 0x244);
+    field<float>(goal_info, 0x18) = radius;
+    field<float>(goal_info, 0x1c) = radius * radius;
+}
+
+void XB_REGS3 XB_CDECL Actor_Exposed_Finish(uint32_t, int32_t kind, const uint8_t* state) {
+    uint8_t* const sentient = *reinterpret_cast<uint8_t* const*>(state + 4);
+    const uint16_t* const claimed = reinterpret_cast<const uint16_t*>(sentient + 0x48);
+    const uint8_t* const node = path_node(*claimed, title_global<const uint8_t*>(0x0095f4f4));
+    if (!node) return;
+    if (kind == 1) {
+        const uint32_t type = field<uint32_t>(PathNode_FromHandle(claimed), 0x28);
+        if ((1u << (type & 31)) & 0x1ffc) return;
+    }
+    Sentient_SetClaimedNode(sentient, uint32_t(uintptr_t(node)) & 0xffff0000);
+}
+
 }  // namespace game

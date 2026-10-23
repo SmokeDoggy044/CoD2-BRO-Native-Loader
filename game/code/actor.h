@@ -501,4 +501,14 @@ extern "C" void BadPlace_FindByName_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_ClaimGoalNode(uint8_t* sentient);
 extern "C" void Sentient_ClaimGoalNode_entry(void);
 
+// 0x00200a00 (sentient in EBX; handle on the stack, ret 4): a new goal node (+0x50) drops the claim on the old one
+// when it was the claimed node (+0x48; not for actor states 1 and 6 at +0xa4 of the actor +0x240) - the claim word is
+// the argument slot with its low half zeroed, as in the original; then the goal radius (+0x18, squared +0x1c of the
+// entity's goal +0x244) = max(node radius +0x54, 4) unless the radius is 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_SetGoalNode(uint8_t* sentient, uint32_t handle);
+extern "C" void Sentient_SetGoalNode_entry(void);
+// 0x00201300 (state in ECX, kind in EDX): drops the sentient's (state +4) claimed node unless kind 1 and the node's
+// type (+0x28) is one of 2..12; the claim word is the node pointer with its low half zeroed, as in the original.
+void XB_REGS3 XB_CDECL Actor_Exposed_Finish(uint32_t unused_eax, int32_t kind, const uint8_t* state);
+
 }  // namespace game

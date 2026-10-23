@@ -7624,7 +7624,7 @@ address,name,section,module,state,tested,matched
 00200450,FUN_00200450,.text,unassigned,unnamed,0,0
 00200960,Sentient_SetClaimedNode,.text,game,settled,107,107
 002009c0,Sentient_ClaimGoalNode,.text,game,settled,14490,14490
-00200a00,Sentient_SetGoalNode,.text,game,named,0,0
+00200a00,Sentient_SetGoalNode,.text,game,settled,32182,32182
 00200ad0,FUN_00200ad0,.text,unassigned,unnamed,0,0
 00200b50,Sentient_Dissociate,.text,game,named,0,0
 00200c70,Actor_Pain_Start,.text,game,settled,102,102
@@ -7634,7 +7634,7 @@ address,name,section,module,state,tested,matched
 00200e20,Path_CrossesBadPlace,.text,game,untested,0,0
 00200e90,Path_TrimAtGoal,.text,game,named,0,0
 00201280,Actor_DefaultTouch,.text,game,settled,4458,4458
-00201300,Actor_Exposed_Finish,.text,game,named,0,0
+00201300,Actor_Exposed_Finish,.text,game,matched,14,14
 00201380,Actor_Exposed_StartReacquire,.text,game,settled,100,100
 00201430,Actor_Cover_NodeClaimRevoked,.text,game,untested,0,0
 002014a0,Actor_Cover_Pain,.text,game,settled,103,103
