@@ -9,4 +9,15 @@ prefix,(SV_|SVC_),server,
 prefix,(CM_|Trace_),collision,
 prefix,(Com_|Cvar_|Cmd_|FS_|Q_|Z_|Hunk_|Sys_|MSG_|NET_|Info_|COM_|Huff|Mem_|va$|Swap_),qcommon,common/cvar/cmd/files/memory/net
 prefix,(inflate|huft|unz|zcalloc|adler|crc32|deflate|compress|uncompress|putShortMSB|flush_pending|lm_init|longest_match|fill_window|init_block|pqdownheap|gen_bitlen|scan_tree|send_tree|send_all_trees|compress_block|set_data_type|bi_flush|bi_windup|copy_block|_tr_|gen_codes|build_tree|build_bl_tree),zlib,
+prefix,(Think_|Use_|Touch_|Pickup_|Door_|hurt_|fire_|turret_|Artillery_|BadPlace_|PathNode_|ActorMove_|ScriptMover_|Ragdoll_|Phys_),game,entity callbacks, path nodes, ragdolls (2026-10-23)
+prefix,(HudElem_|Hud_|HudManager_|CameraShake_),cgame,HUD elements, camera shakes (2026-10-23)
+prefix,(Panel_|Movie_|MemDlg_),client,UI panels, movies, memory-unit dialogs (2026-10-23)
+prefix,(Fx[A-Z]|FXCmd_|apsEffect_),renderer,the effect system (fx_load.cpp side included) (2026-10-23)
+prefix,(NAL_|AnimTree_|AnimData_|AnimWeightRef_),xanim,animation codec, trees and managers (2026-10-23)
+prefix,(Scr[A-Z]|Script[A-Z]|GScr_|VM_|AeThreadFunctor),script,script VM: fields and entity bindings, script strings and key tables, thread functors, the GScr_ built-ins (2026-10-23)
+prefix,(BroScr_|Bro_|BroFunc_),levelscript,helpers of the compiled level scripts in .text: the level-script translator's runtime (2026-10-23)
+prefix,(S_|Snd|Sound|Voice_),sound,sound system and voice (2026-10-23)
+prefix,(Stream|Zone),streaming,asset streaming and zones (2026-10-23)
+prefix,(Live_),online,Xbox Live glue (2026-10-23)
+prefix,(Pak_|File_|Save_|Loc_|Heap_|SmallHeap_|MemContext_|HandlePool_|Cbuf_|Netchan_|Hash|DynArray_|PtrArray_|PtrVector_|aps|std_|FixedStr_|Quat|Mat44_|Vec3_|Param(Set|List|Choice)_),qcommon,files, saves, localization, memory, containers/STL, math (2026-10-23)
 range,0x00045000-0x00080100,renderer,the NGL/shader-class block (status.md)

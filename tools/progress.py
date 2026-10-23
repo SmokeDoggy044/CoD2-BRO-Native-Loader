@@ -89,9 +89,11 @@ def main():
         if sec is None or sec in EXCLUDED:
             continue
         section = ".text" if sec == ".text" else "levels"
-        module = next((m for p, m in prefixes if p.match(name)), None)
-        module = module or next((m for lo, hi, m in ranges if lo <= a < hi), None)
-        module = module or (sec.lower() if section == "levels" else "unassigned")
+        if section == "levels":  # level-section copies of engine helpers stay with their mission
+            module = sec.lower()
+        else:
+            module = next((m for p, m in prefixes if p.match(name)), None)
+            module = module or next((m for lo, hi, m in ranges if lo <= a < hi), None) or "unassigned"
         unnamed = name.startswith("FUN_") or name.startswith("thunk_FUN_")
         r = results.get(a)
         tested = matched = 0
@@ -157,9 +159,12 @@ PARTS = [
     ("Renderer (scenes, materials, shaders, models, effects)", {"renderer"}),
     ("Game logic (entities, AI, animation, weapons, level-script runtime)", {"game", "xanim"}),
     ("Client game (HUD, view, effects on screen)", {"cgame"}),
-    ("Engine core (memory, files, settings, commands)", {"qcommon"}),
+    ("Engine core (memory, files, settings, commands, containers, math)", {"qcommon"}),
     ("Client and menus", {"client"}),
     ("Server, collision, compression", {"server", "collision", "zlib"}),
+    ("Script engine (script VM, entity bindings, built-in script functions)", {"script"}),
+    ("Level-script helpers in the engine code", {"levelscript"}),
+    ("Sound, streaming, online", {"sound", "streaming", "online"}),
 ]
 
 

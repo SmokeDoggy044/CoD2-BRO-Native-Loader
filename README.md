@@ -28,7 +28,7 @@ function of the game.*
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
 | Engine and game code (`.text`) | 11,193 | 6,461 | 1,402 | 9,791 |
-| Mission scripts (15 level sections) | 5,324 | 2,988 | 0 | 5,324 |
+| Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
 | **Total** | **16,517** | **9,449** | **1,402** | **15,115** |
 
 **Named** means we know what the function does and it has a proper name.
@@ -39,15 +39,18 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 788 | 508 | 264 | 15 | 1 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 694 | 205 | 40 | 447 | 0 |
-| Client game (HUD, view, effects on screen) | 187 | 121 | 40 | 26 | 0 |
-| Engine core (memory, files, settings, commands) | 166 | 54 | 32 | 72 | 0 |
-| Client and menus | 210 | 38 | 3 | 169 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 956 | 653 | 268 | 33 | 1 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 992 | 283 | 129 | 578 | 0 |
+| Client game (HUD, view, effects on screen) | 210 | 126 | 41 | 43 | 0 |
+| Engine core (memory, files, settings, commands, containers, math) | 511 | 145 | 67 | 288 | 0 |
+| Client and menus | 222 | 38 | 3 | 181 | 0 |
 | Server, collision, compression | 155 | 58 | 12 | 85 | 0 |
-| Not sorted into a part yet | 8,993 | 418 | 146 | 3,708 | 3,102 |
+| Script engine (script VM, entity bindings, built-in script functions) | 1,902 | 9 | 2 | 1,891 | 0 |
+| Level-script helpers in the engine code | 1,142 | 0 | 0 | 1,135 | 0 |
+| Sound, streaming, online | 181 | 57 | 4 | 119 | 0 |
+| Not sorted into a part yet | 4,922 | 33 | 11 | 169 | 3,102 |
 
-1,619 of the unsorted functions are Microsoft's own library code that was built into
+1,607 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
 codec). We recognise them by comparing their bytes with the Xbox SDK's libraries, so
 they have their real names; they still count towards the total.
@@ -73,20 +76,20 @@ automatically.
 
 | Section | Mission | Functions | Named |
 |---|---|---:|---:|
-| PROLOGUE | `sp/prologue` | 616 | 352 |
-| ORAN | `sp/oran` | 443 | 224 |
-| TUNISIA | `sp/tunisia` | 307 | 174 |
-| KASSPASS | `sp/kasspass` | 498 | 280 |
-| KASSRINE | `sp/kassrine` | 237 | 122 |
-| LIBEATOR | `sp/liberatr` | 321 | 147 |
-| GELA | `sp/gela` | 403 | 244 |
-| PIANLUPO | `sp/piano` | 400 | 234 |
-| TROINA | `sp/troina` | 235 | 105 |
-| OMAHEACH | `sp/omaha` | 322 | 205 |
-| MONS1 | `sp/mons` | 518 | 298 |
-| EILEDORF | `sp/eilndrf` | 184 | 111 |
-| BUCHHOLZ | `sp/buchholz` | 441 | 198 |
-| DRAGEETH | `sp/dragonth` | 179 | 74 |
+| PROLOGUE | `sp/prologue` | 672 | 408 |
+| ORAN | `sp/oran` | 465 | 246 |
+| TUNISIA | `sp/tunisia` | 313 | 180 |
+| KASSPASS | `sp/kasspass` | 526 | 308 |
+| KASSRINE | `sp/kassrine` | 250 | 135 |
+| LIBEATOR | `sp/liberatr` | 327 | 153 |
+| GELA | `sp/gela` | 417 | 258 |
+| PIANLUPO | `sp/piano` | 411 | 245 |
+| TROINA | `sp/troina` | 242 | 112 |
+| OMAHEACH | `sp/omaha` | 332 | 215 |
+| MONS1 | `sp/mons` | 542 | 322 |
+| EILEDORF | `sp/eilndrf` | 186 | 113 |
+| BUCHHOLZ | `sp/buchholz` | 461 | 218 |
+| DRAGEETH | `sp/dragonth` | 180 | 75 |
 <!-- levels:end -->
 
 The totals can still grow a little as more functions turn up during the analysis.
