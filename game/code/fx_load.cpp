@@ -1271,4 +1271,148 @@ uint32_t XB_CDECL FX_LoadEffectFromStream(int32_t size, const uint8_t* data, uin
     return (result & ~0xffu) | stream.flag;
 }
 
+uint8_t* XB_THISCALL FxPool_Init(uint8_t* self, uint32_t slots) {
+    at<uint32_t>(self, 0) = 0;
+    at<uint32_t>(self, 4) = 0;
+    at<uint32_t>(self, 8) = 0;
+    at<uint32_t>(self, 0x14) = 0;
+    at<uint32_t>(self, 0x18) = 0;
+    at<uint32_t>(self, 0xc) = 0x7fffffff;
+    at<uint32_t>(self, 0x10) = 0xffffffff;
+    at<uint32_t>(self, 0x1c) = slots;
+    at<uint16_t>(self, 0x20) = 0xffff;
+    return self;
+}
+
+uint32_t XB_THISCALL FxPool_SetSlotTag(uint8_t* self, int32_t address, int32_t tag) {
+    const int32_t stride = at<int32_t>(self, 0x14);
+    if (tag > stride) return 0;
+    const int32_t index = (address - at<int32_t>(self, 0x18)) / stride;
+    uint32_t* entry = reinterpret_cast<uint32_t*>(at<uint8_t*>(self, 0x1c) + index * 8);
+    const uint32_t word = entry[1];
+    if (tag == static_cast<int32_t>(word << 8) >> 8) return 0;
+    entry[1] = ((word ^ static_cast<uint32_t>(tag)) & 0xffffff) ^ word;
+    return static_cast<uint32_t>(address);
+}
+
+void XB_THISCALL FxPool_FreeSlotTable(uint8_t* self) {
+    const uint32_t table = at<uint32_t>(self, 0x1c);
+    if (table) {
+        if (table != static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self + 0x24))) fx_free(table);
+        at<uint32_t>(self, 0x1c) = 0;
+    }
+    at<uint32_t>(self, 0x18) = 0;
+}
+
+namespace {
+
+// The pool (of a pool set) whose slot range holds `address`.
+uint8_t* pool_of(const uint8_t* set, int32_t address) {
+    uint8_t* const* p = at<uint8_t* const*>(set, 0);
+    uint8_t* const* const end = p + at<int16_t>(set, 6);
+    for (; p != end; ++p) {
+        uint8_t* pool = *p;
+        const int32_t base = at<int32_t>(pool, 0x18);
+        if (!base || address - base < 0) continue;
+        if ((at<int32_t>(pool, 0) - 1) * at<int32_t>(pool, 0x14) - address + base >= 0) return pool;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL FxPools_Release(uint8_t* self, int32_t address) {
+    if (!address) return 0;
+    uint8_t* pool = pool_of(self, address);
+    if (!pool) return 0;
+    const int32_t index = (address - at<int32_t>(pool, 0x18)) / at<int32_t>(pool, 0x14);
+    uint8_t* entry = at<uint8_t*>(pool, 0x1c) + index * 8;
+    at<uint16_t>(entry, 2) = at<uint16_t>(pool, 0x20);
+    at<uint16_t>(pool, 0x20) = static_cast<uint16_t>(index);
+    at<uint32_t>(entry, 4) &= 0xff000000;
+    entry[7] = 0;
+    --at<int32_t>(pool, 4);
+    return 1;
+}
+
+uint32_t XB_THISCALL FxPools_SetSlotTag(uint8_t* self, int32_t address, int32_t tag) {
+    if (!address) return 0;
+    uint8_t* pool = pool_of(self, address);
+    if (!pool) return 0;
+    return FxPool_SetSlotTag(pool, address, tag);
+}
+
+uint32_t XB_CDECL FxPools_ReleaseGlobal(int32_t address) { return FxPools_Release(title_global<uint8_t*>(0x00909f08), address); }
+
+void XB_THISCALL FxPools_Destroy(uint8_t* self) {
+    apsPoolSet_Clear(reinterpret_cast<ApsArray*>(self));
+    if (at<uint32_t>(self, 0)) {
+        fx_free_no_context(at<uint32_t>(self, 0));
+        at<uint32_t>(self, 0) = 0;
+        at<int16_t>(self, 4) = 0;
+        at<int16_t>(self, 6) = 0;
+    }
+    title_global<uint32_t>(0x00909f08) = 0;
+}
+
+void XB_THISCALL FxSystems_FreeBlock(uint8_t* self) {
+    if (at<uint32_t>(self, 4)) {
+        fx_free(at<uint32_t>(self, 4));
+        at<uint32_t>(self, 4) = 0;
+    }
+    title_global<uint32_t>(0x00909908) = 0;
+}
+
+float* XB_CDECL FxVec3_ScaledHalfExtent(float* out, const uint8_t* src) {
+    const float k = title_global<float>(0x0083eaf4);  // 1.5
+    const Lanes v = mul(lanes(reinterpret_cast<const float*>(src + 0x60)), k);
+    platform_keep(v);
+    out[0] = v.v[0];
+    out[1] = v.v[1];
+    out[2] = v.v[2];
+    out[3] = title_global<float>(0x0083eb20);
+    return out;
+}
+
+void XB_THISCALL FxNode_AddToScene(const uint8_t* self, uint8_t* node, float depth) {
+    uint8_t* scene = reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c));
+    const int32_t key = at<int32_t>(self, 8);
+    if (key < 0) {
+        at<int32_t>(node, 8) = -key;
+        at<uint32_t>(node, 4) = at<uint32_t>(scene, 0x304);
+        at<uint8_t*>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x304) = node;
+        ++at<uint32_t>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x30c);
+        return;
+    }
+    at<float>(node, 8) = depth;
+    at<uint32_t>(node, 4) = at<uint32_t>(scene, 0x308);
+    at<uint8_t*>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x308) = node;
+    ++at<uint32_t>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x310);
+}
+
+uint8_t* XB_CDECL FxShaderClass_Create() {
+    uint8_t* self = fx_alloc(0xc, 4);
+    if (!self) return nullptr;
+    at<uint32_t>(self, 0) = 0x007b3ec0;
+    at<uint32_t>(self, 4) = title_global<uint32_t>(0x00909904);
+    title_global<uint8_t*>(0x00909904) = self;
+    at<uint32_t>(self, 0) = 0x007c66f4;
+    return self;
+}
+
+uint32_t* XB_STDCALL FxSimpleShader_GetName(uint32_t* out) {
+    return title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(out, "aeps_simple");
+}
+
+void XB_THISCALL FxEffectPool_Release(uint8_t* self) {
+    uint8_t* slots = self + 8;
+    FxPool_FreeSlotTable(slots);
+    const uint32_t effects = at<uint32_t>(self, 0);
+    for (int32_t n = at<int32_t>(self, 4); n > 0; --n) {
+    }  // each element's destructor (0x00097190) is empty
+    fx_free(effects);
+    apsMemoryPool_FreeSlots(slots);
+    title_global<uint32_t>(0x00909f64) = 0;
+}
+
 }  // namespace game

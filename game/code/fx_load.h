@@ -234,4 +234,28 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_LoadEffectFromStream(int32_t siz
                                                                      uint32_t streams, const char* name);
 extern "C" void FX_LoadEffectFromStream_entry(void);
 
+// The particle memory pools (fx_load.cpp; slot table +0x1c of 8-byte entries {.., u16 next
+// free (+2), 24-bit tag + flag byte (+4)}, slot size +0x14, base +0x18, free head +0x20):
+// 0x0009b6e0 Init, 0x0009b710 SetSlotTag (returns the address, 0 when unchanged or too
+// large), 0x0009ba60 FreeSlotTable, 0x0009bc50 / 0x0009bce0 Release / SetSlotTag over a pool
+// set, 0x0009bea0 Release in the global set (0x00909f08), 0x0009c120 the set destroyed.
+uint8_t* XB_THISCALL FxPool_Init(uint8_t* self, uint32_t slots);
+uint32_t XB_THISCALL FxPool_SetSlotTag(uint8_t* self, int32_t address, int32_t tag);
+void XB_THISCALL FxPool_FreeSlotTable(uint8_t* self);
+uint32_t XB_THISCALL FxPools_Release(uint8_t* self, int32_t address);
+uint32_t XB_THISCALL FxPools_SetSlotTag(uint8_t* self, int32_t address, int32_t tag);
+uint32_t XB_CDECL FxPools_ReleaseGlobal(int32_t address);
+void XB_THISCALL FxPools_Destroy(uint8_t* self);
+// 0x0009d0e0: the block at +4 freed, 0x00909908 cleared. 0x0009e420: out = 1.5 x the xyz at
+// src +0x60, w 1. 0x0009e490: a node onto the scene's opaque (key < 0: -key) or translucent
+// (depth) particle list (+0x304/+0x30c, +0x308/+0x310). 0x0009cd00: the particle shader class
+// (vtable 0x007c66f4) on the shader list. 0x0009ced0: its name "aeps_simple". 0x0009f660:
+// an effect pool's slot table, elements (0xd0 each, empty destructor) and slots released.
+void XB_THISCALL FxSystems_FreeBlock(uint8_t* self);
+float* XB_CDECL FxVec3_ScaledHalfExtent(float* out, const uint8_t* src);
+void XB_THISCALL FxNode_AddToScene(const uint8_t* self, uint8_t* node, float depth);
+uint8_t* XB_CDECL FxShaderClass_Create();
+uint32_t* XB_STDCALL FxSimpleShader_GetName(uint32_t* out);
+void XB_THISCALL FxEffectPool_Release(uint8_t* self);
+
 }  // namespace game
