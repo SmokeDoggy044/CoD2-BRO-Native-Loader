@@ -1383,4 +1383,14 @@ void XB_CDECL nglBeginFrame();
 // frame statistics rolled over. The per-frame hooks 0x009025c0/b8/c8 run with their arguments.
 void XB_CDECL nglEndFrame();
 
+// 0x00083c60 / 0x00083ca0: nglSkipList_Clear for the anim managers' lists (names at +0x10 / +8).
+void XB_THISCALL AnimManager_SkipListClear(NglSkipList* self);
+void XB_THISCALL NalManager_SkipListClearKey8(NglSkipList* self);
+// The four anim managers' deleting destructors (vtables 0x007c2c9c, 0x007c2ce8, 0x007c2d34,
+// 0x007c2d80; Anim_InitManagers): 0x00085a10, 0x00085a40, 0x00085a70, 0x00085aa0.
+uint8_t* XB_THISCALL AnimManager2c9c_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimManager2ce8_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimManager2d34_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimManager2d80_DeletingDtor(uint8_t* self, uint32_t flags);
+
 }  // namespace game

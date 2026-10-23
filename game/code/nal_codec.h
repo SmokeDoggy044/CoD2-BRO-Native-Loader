@@ -509,4 +509,15 @@ uint32_t XB_STDCALL NAL_Packed8EntropyFloat3_DecodeFrames(const uint32_t* contex
 uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
                                                            uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride);
 
+// 0x00080be0 (thiscall, callee pops 8): out = in + self (four floats). Returns out.
+float* XB_THISCALL NAL_Float4_AddTo(const float* self, float* out, const float* in);
+// 0x00080c60 / 0x000828d0: a block of 12 / 8-byte channels skipped in the streams.
+void XB_CDECL NAL_Float3_SkipFixedBlock(const uint32_t* context);
+void XB_CDECL NAL_Float2_SkipFixedBlock(const uint32_t* context);
+// 0x00080cb0: the group's channels (16 bytes each) copied from *src to *dst (both aligned to 4
+// first, both advanced).
+void XB_CDECL NAL_Float4_CopyChannels(const uint8_t* group, uint8_t** dst, uint8_t** src);
+// 0x00081f50 (stdcall): one cached frame of 16-byte channels skipped (cursor aligned to 16).
+uint32_t XB_STDCALL NAL_Packed16_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+
 }  // namespace game

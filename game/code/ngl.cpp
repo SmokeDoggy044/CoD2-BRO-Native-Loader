@@ -6238,4 +6238,20 @@ void XB_CDECL nglEndFrame() {
     current_scene() = nullptr;
 }
 
+void XB_THISCALL AnimManager_SkipListClear(NglSkipList* self) { clear_skip_list<AnimManager_SkipListRemove>(self); }
+void XB_THISCALL NalManager_SkipListClearKey8(NglSkipList* self) { clear_skip_list<NalManager_SkipListRemoveKey8>(self); }
+
+uint8_t* XB_THISCALL AnimManager2c9c_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<AnimManager_SkipListClear>(self, flags, 0x008381f0);
+}
+uint8_t* XB_THISCALL AnimManager2ce8_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<NalManager_SkipListClearKey8>(self, flags, 0x00838160);
+}
+uint8_t* XB_THISCALL AnimManager2d34_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<AnimManager_SkipListClear>(self, flags, 0x008380f4);
+}
+uint8_t* XB_THISCALL AnimManager2d80_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<NalManager_SkipListClearKey8>(self, flags, 0x00838294);
+}
+
 }  // namespace game
