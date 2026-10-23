@@ -258,4 +258,87 @@ uint8_t* XB_CDECL FxShaderClass_Create();
 uint32_t* XB_STDCALL FxSimpleShader_GetName(uint32_t* out);
 void XB_THISCALL FxEffectPool_Release(uint8_t* self);
 
+// 0x0009b830: a pool's statistics (18 words: counts, percentages, bytes, slack of used slots).
+void XB_THISCALL FxPool_GetStats(const uint8_t* self, int32_t* stats);
+// 0x0009bd40 / 0x0009bd80: every pool's statistics taken (discarded), the set's counters
+// (+8..+0x14) cleared; the second for the global set 0x00909f08.
+void XB_THISCALL FxPools_ResetStats(uint8_t* self);
+void XB_CDECL FxPools_ResetGlobalStats();
+// 0x0009c3c0: the action's object list (+0xc) without its null entries.
+void XB_THISCALL FxAction_Compact(uint8_t* self);
+// 0x0009c470: the action base's destructor (objects at +0xc deleted, both arrays freed).
+void XB_THISCALL FxAction_Destroy(uint8_t* self);
+// 0x0009ca90: every object of a pointer array deleted (slot 3 with 0, then freed), the array
+// freed; +8 cleared.
+void XB_THISCALL apsPtrVector_DeleteAll(uint8_t* self);
+// 0x0009d000: a log entry {code, printf text} (at most 8 of 0x104 bytes at log[1]).
+void XB_CDECL apsLog_Printf(int32_t* log, uint32_t code, const char* format, ...);
+// 0x0009f3c0: every live emitter (+4 array, its index at +0xac) freed: particles, pool slot
+// (0x00909f64 + 8), the array kept dense. 0x0009f450: then the effect pool and the array freed.
+void XB_THISCALL FxEmitters_FreeAll(uint8_t* self);
+void XB_THISCALL FxEmitters_Destroy(uint8_t* self);
+
+// 0x0009cf00: view depth (lane z) of the point at +0x50. 0x0009d840: object light selection for
+// a sphere (xyz, radius). 0x0009e0c0: out = the vector through the matrix's 3x3 rows, w 0.
+float XB_THISCALL FxEffect_ViewDepth(const uint8_t* self);
+void XB_CDECL FxLightSet_SelectObjectLights(uint8_t* set, const float* sphere);
+float* XB_CDECL FxMatrix_RotateVector(float* out, const float* matrix, const float* v);
+// 0x0009d040: the log object (0x00909908): eight empty 0x104-byte entries. Returns self.
+uint8_t* XB_THISCALL FxLog_Init(uint8_t* self);
+// 0x0009d110: the particle vertex buffers (two, `quads` x 0x60 bytes; 0x00909f18/20) and the
+// shared quad index buffer (0x00909f28: 0 1 2 2 1 3 per quad).
+void XB_CDECL FxParticleBuffers_Init(int32_t quads);
+// 0x0009f4c0: a pointer array's capacity (the old block freed). False on failure.
+uint32_t XB_THISCALL apsPtrVector_Reserve(uint8_t* self, int32_t capacity);
+
+// 0x0009ef90 (callee pops 0x1c): a particle node's textures (+0x70..+0x78, all or none),
+// sphere (+0x50), matrix (+0x10, identity when null), scale (+0x60) and flags (+0x7c: 2 pre-sorted
+// kind 0x800, 1 when the op's slot 4 says so, 8 when the sphere reaches past the scene's far
+// distance +0x388). Returns the view depth (ST0).
+float XB_THISCALL FxOp_SetupNode(const uint8_t* op, uint8_t* node, uint32_t texture_a, uint32_t texture_b,
+                                 const uint32_t* textures, const float* sphere, const uint32_t* matrix,
+                                 const uint8_t* scale_source);
+// The render ops' AddToList (vtable slot; callee pops 0x18): frustum test of the sphere, a 0x90-byte
+// node in frame memory (vtables below), FxOp_SetupNode, FxNode_AddToScene. 1 added, 0 culled, 2 no
+// memory. 0x0009e560, 0x0009e6f0, 0x0009e830, 0x0009e970, 0x0009eab0, 0x0009ebf0, 0x0009edc0, 0x0009f0f0.
+uint32_t XB_THISCALL FxOpdd_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                      const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp1dd_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp9d5_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOpd5_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                      const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp15b_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp5b_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                      const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOpGrid_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                        const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp53_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                      const uint32_t* matrix, const uint8_t* scale_source);
+
+// 0x0009cd30 / 0x0009e240: FxOp31 / FxOp1d5 AddToList (callee pops 0x18): like the others, the
+// first only when the op has a mesh (+0xc; else 2), with a light set (+0x84, default 0x00902e40)
+// on the translucent list; the second with the scale at +0x60 on the opaque list (key -1).
+// The far test runs on the x87.
+uint32_t XB_THISCALL FxOp31_AddToList(const uint8_t* op, uint32_t a0, uint32_t a1, const uint32_t* a2, const float* sphere,
+                                      const uint32_t* matrix, uint32_t light_set);
+uint32_t XB_THISCALL FxOp1d5_AddToList(const uint8_t* op, uint32_t a0, uint32_t a1, const uint32_t* a2, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source);
+
+// 0x0009db30 / 0x0009dbb0: vertex shader constant base + 0x60: a distance fade {scale, offset}
+// from near/far distances and alphas (range 1 when equal) / a depth range {1/(f-n), -n/(f-n)}
+// scaled by 2^24.
+void XB_CDECL FxShader_SetFadeConstant(uint32_t base, float near_distance, float far_distance, float near_alpha,
+                                       float far_alpha);
+void XB_CDECL FxShader_SetDepthRangeConstant(uint32_t base, float near_depth, float far_depth);
+// 0x0009dc30: up to four object lights for a particle sphere: directions (negated, through the
+// matrix's rotation), colours r[4] g[4] b[4], then the set's ambient.
+void XB_CDECL FxNode_ComputeObjectLights(float* directions, float* colors, const float* matrix, uint8_t* set,
+                                         const float* sphere);
+
+// 0x0009d900: the billboard axes: camera forward, horizontal right (scaled by 0x00909984), up.
+void XB_CDECL FxCamera_BillboardAxes(float* forward_out, float* right_out, float* up_out);
+
 }  // namespace game

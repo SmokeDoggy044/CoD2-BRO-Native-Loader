@@ -551,4 +551,12 @@ void XB_CDECL RE_BeginRegistration(uint32_t* glconfig);
 void XB_REGS1 XB_CDECL R_DrawTextWithShadow(const float* color, const char* text, int32_t x, int32_t y, float z,
                                             float scale);
 
+// 0x0023eda0 (ECX = model, stack: radius; float result in XMM0): the LOD distance - distance from
+// the view origin, times the LOD scale plus bias, over the radius.
+extern "C" PLATFORM_HIDDEN float XB_CDECL R_LodDistanceForRadius(const uint8_t* self, float radius);
+extern "C" void R_LodDistanceForRadius_entry(void);
+// 0x0023e680 (name in EAX): the effect of that name in the current memory context's zone.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL R_FindEffectByName(const char* name);
+extern "C" void R_FindEffectByName_entry(void);
+
 }  // namespace game
