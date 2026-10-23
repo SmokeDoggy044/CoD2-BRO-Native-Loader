@@ -124,4 +124,42 @@ void XB_REGS1 XB_CDECL CM_TestCapsuleInCapsule(uint8_t* tw);
 
 // 0x002da9d0 (trace work in EDI; unnamed in Ghidra): for each world quad tree whose bounds meet the start
 // box (start + trace bounds, widened by the {1,1,1,1} at 0x0082e640), the leaf at the start point goes to
+// 0x002da4d0 (trace work, tree, leaf); stops at startsolid.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TestInWorldTrees(uint8_t* tw);
+extern "C" void CM_TestInWorldTrees_entry(void);
+
+// Bounding-box tree walk stack: 16-bit words at 0x0090a020, depth in 0x0090a620; entries are triples
+// {node, count, axis}.
+// 0x0001bef0 (unnamed in Ghidra): pushes one triple.
+void XB_CDECL CM_BoxTreeStack_Push(uint16_t node, uint16_t count, uint16_t axis);
+// 0x0001bf40 (tree in ECX; mins, maxs on the stack, callee-popped; unnamed in Ghidra): pops triples until a
+// node whose split plane (tree +0x34 rows indexed by tree +0x3c flags & 0x3f, component `axis`) the box
+// straddles; pushes the remaining siblings (counts from tree +0x4c byte pairs) and the side(s) the box
+// reaches, cycling the axis. Returns the node in AX, 0xffff when the stack runs empty (registered without a
+// result: the upper half of EAX is caller garbage).
+uint16_t XB_THISCALL CM_BoxTreeStack_Next(const uint8_t* tree, const float* mins, const float* maxs);
+
+// 0x000b0190 (unnamed in Ghidra): the point of triangle a, b, c closest to p, Ericson's region tests with
+// packed SSE (16-byte vectors, every lane; the ac terms use a - c). Vertex regions copy the vertex, edge
+// regions store a + t * edge (all four lanes, unaligned), the face region copies p. Returns out.
+float* XB_CDECL ClosestPointOnTriangle(float* out, const float* a, const float* b, const float* c, const float* p);
+
+// 0x002d4f80 (v2 in EAX, v1 in ECX, sphere center in ESI, v0 in EDI; radius and plane on the stack; unnamed
+// in Ghidra): 1 when the sphere touches the triangle - not when the plane distance's magnitude exceeds the
+// radius (x87 compare); inside all three edges (packed cross products with yzx shuffles) of the center's
+// projection: 1; else the closest point on the triangle within the radius.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_SphereTouchesTriangle(const float* v2, const float* v1,
+                                                                    const float* center, const float* v0,
+                                                                    float radius, const float* plane);
+extern "C" void CM_SphereTouchesTriangle_entry(void);
+
+// 0x002da4d0 (unnamed in Ghidra): the trace position test against a quad tree leaf's objects (cm checkcount
+// +0x60 bumped; objects marked with it at +0xc). Pass 1: type 9 brushes (vtable slot 8) in the content mask
+// (trace work +0xf8) -> CM_TestBoxInBrush, until startsolid. Then, unless trace work +0xfc is set, pass 2:
+// type 8 triangle meshes - inside their bounds (+0x10 center, +0x20 half) against the start sphere box, each
+// triangle the box-tree walk finds (vertex indexes in +0x3c flags, rows +0x34, planes +0x44) tested with
+// CM_SphereTouchesTriangle; a hit sets startsolid/allsolid/fraction 0. A mesh outside the box ends the whole
+// test unless 0 <= (box max - center + half).x (the original's scalar CMPLESS).
+void XB_CDECL CM_TestInLeafObjects(uint8_t* tw, uint8_t* tree, const uint8_t* leaf);
+
 }  // namespace game

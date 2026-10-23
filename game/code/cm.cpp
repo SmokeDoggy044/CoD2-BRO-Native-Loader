@@ -767,4 +767,89 @@ uint8_t XB_CDECL CM_SphereTouchesTriangle(const float* v2, const float* v1, cons
     return radius * radius > sum_xyz(mul(delta, delta)) ? 1 : 0;
 }
 
+namespace {
+
+uint8_t* leaf_object(uint8_t* tree, uint32_t index) {
+    const uint32_t split = *reinterpret_cast<const uint32_t*>(tree + 0x30);
+    if (index < split) return *reinterpret_cast<uint8_t* const*>(tree + 0x34) + index * 0x50;
+    return *reinterpret_cast<uint8_t* const*>(tree + 0x3c) + (index - split) * 0x40;
+}
+
+int32_t object_type(uint8_t* object) {
+    const uint32_t slot = *reinterpret_cast<const uint32_t*>(*reinterpret_cast<uint8_t* const*>(object) + 0x20);
+    return title_function<int32_t XB_THISCALL(uint8_t*)>(slot)(object);
+}
+
+}  // namespace
+
+void XB_CDECL CM_TestInLeafObjects(uint8_t* tw, uint8_t* tree, const uint8_t* leaf) {
+    int32_t& checkcount = cm_field<int32_t>(0x60);
+    ++checkcount;
+    const int32_t n = *reinterpret_cast<const int32_t*>(leaf);
+    const uint16_t* indexes = *reinterpret_cast<const uint16_t* const*>(leaf + 4);
+    for (int32_t j = 0; j < n; ++j) {
+        uint8_t* object = leaf_object(tree, indexes[j]);
+        if (object_type(object) != 9) continue;
+        int32_t& mark = *reinterpret_cast<int32_t*>(object + 0xc);
+        if (mark == checkcount) continue;
+        mark = checkcount;
+        if (!(*reinterpret_cast<const uint32_t*>(object + 8) & *reinterpret_cast<const uint32_t*>(tw + 0xf8))) continue;
+        CM_TestBoxInBrush(tw, object);
+        if (tw[0x13c]) return;
+    }
+    if (*reinterpret_cast<const uint32_t*>(tw + 0xfc)) return;
+    const float radius = *reinterpret_cast<const float*>(tw + 0x164);
+    alignas(16) float center[4];
+    std::memcpy(center, tw, 16);
+    const Lanes start = lanes(center);
+    alignas(16) float lo[4], hi[4];
+    const Lanes lo_lanes = sub(start, splat(radius));
+    const Lanes hi_lanes = add(start, splat(radius));
+    std::memcpy(lo, lo_lanes.v, 16);
+    std::memcpy(hi, hi_lanes.v, 16);
+    for (int32_t j = 0; j < n; ++j) {
+        uint8_t* object = leaf_object(tree, (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[j]);
+        if (object_type(object) != 8) continue;
+        int32_t& mark = *reinterpret_cast<int32_t*>(object + 0xc);
+        if (mark == checkcount) continue;
+        if (!(*reinterpret_cast<const uint32_t*>(tw + 0xf8) & *reinterpret_cast<const uint32_t*>(object + 8))) continue;
+        mark = checkcount;
+        const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+        const Lanes half = lanes(reinterpret_cast<const float*>(object + 0x20));
+        const Lanes below = sub(lo_lanes, c);
+        const Lanes above = sub(c, hi_lanes);
+        int32_t inside = 0;
+        for (int32_t i = 0; i < 4; ++i) {
+            const float m = above.v[i] > below.v[i] ? above.v[i] : below.v[i];  // MAXPS(above, below)
+            if (m < half.v[i] && i < 3) inside |= 1 << i;
+        }
+        if (inside != 7) {
+            const Lanes reach = add(sub(hi_lanes, c), half);
+            platform_keep(reach);
+            if (!(0.0f <= reach.v[0])) return;
+            continue;
+        }
+        uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+        stack[0] = 0;
+        stack[2] = 0;
+        stack[1] = *reinterpret_cast<const uint16_t*>(object + 0x40);
+        title_global<uint16_t>(0x0090a620) = 3;
+        for (uint16_t node = CM_BoxTreeStack_Next(object, lo, hi); node != 0xffff;
+             node = CM_BoxTreeStack_Next(object, lo, hi)) {
+            const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(object + 0x34);
+            const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(object + 0x3c))[node];
+            const float* v0 = reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16);
+            const float* v1 = reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16);
+            const float* v2 = reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16);
+            const float* plane = reinterpret_cast<const float*>(*reinterpret_cast<uint8_t* const*>(object + 0x44) + node * 16);
+            if (CM_SphereTouchesTriangle(v2, v1, center, v0, radius, plane)) {
+                tw[0x13c] = 1;
+                tw[0x13d] = 1;
+                *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+                return;
+            }
+        }
+    }
+}
+
 }  // namespace game
