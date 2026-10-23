@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "cg_ents.h"
 #include "cgame.h"
 #include "lanes.h"
 #include "ngl.h"
@@ -713,6 +714,142 @@ void XB_CDECL CG_ShakeCamera() {
     const ext roll = platform_x87_sin_ext(static_cast<ext>(time) * static_cast<ext>(g(0x0083f070)) + phase);
     title_global<float>(0x00972bf8) =
         static_cast<float>(roll * s * s * static_cast<ext>(g(0x0083eb98)) + static_cast<ext>(g(0x00972bf8)));
+}
+
+void XB_CDECL CG_CalcWeaponSway() {
+    // The view weapon's sway (0x00972c10 pitch/yaw) lagging behind the view's turn since the
+    // last frame (AnglesNormalize180 of 0x00972c00 against 0x00972bf0): per-weapon factors
+    // (def +0x698.., blended to +0x6b4.. by the zoom when +0x6dc; scaled after a weapon change
+    // by +0x6b0 over a smoothstep of the time left of 0x00973a4c/0x00973a50), each value
+    // moving towards its target by frametime * diff * speed, snapping when within 0.005.
+    const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[gi(0x009725d0)];
+    const auto df = [def](uint32_t offset) { return *reinterpret_cast<const float*>(def + offset); };
+    const float zoom = g(0x009725d8);
+    const float one = g(0x0083eb20);
+    const int32_t left = static_cast<int32_t>(static_cast<uint32_t>(gi(0x00973a50)) -
+                                              static_cast<uint32_t>(gi(0x0097253c)) +
+                                              static_cast<uint32_t>(gi(0x00973a4c)));
+    float k;
+    if (left > 0) {
+        const int32_t total = *title_global<const int32_t*>(0x00973a48);
+        float f = one;
+        if (left < total) f = static_cast<float>(left) / static_cast<float>(total);
+        k = (g(0x0083ec9c) - f * g(0x0083eba8)) * f * f;
+    } else {
+        k = 0.0f;
+    }
+    const float scale = (df(0x6b0) - one) * k + one;
+    float limit, speed, pitch_scale, yaw_scale, pitch_lag, yaw_lag;
+    if (*reinterpret_cast<const uint32_t*>(def + 0x6dc)) {
+        if (zoom > g(0x0083eafc) && *reinterpret_cast<const uint32_t*>(def + 0x638)) return;
+        const auto blend = [&](uint32_t offset) { return (df(offset + 0x1c) - df(offset)) * zoom + df(offset); };
+        limit = blend(0x698);
+        speed = blend(0x69c);
+        pitch_scale = blend(0x6a0);
+        yaw_scale = blend(0x6a4);
+        pitch_lag = blend(0x6a8);
+        yaw_lag = blend(0x6ac);
+    } else {
+        limit = df(0x698);
+        speed = df(0x69c);
+        pitch_scale = df(0x6a0);
+        yaw_scale = df(0x6a4);
+        pitch_lag = df(0x6a8);
+        yaw_lag = df(0x6ac);
+    }
+    pitch_scale = pitch_scale * scale;
+    yaw_scale = yaw_scale * scale;
+    pitch_lag = pitch_lag * scale;
+    yaw_lag = yaw_lag * scale;
+    alignas(16) float delta[4];
+    TitleRegs regs{};
+    regs.esi = 0x00972c00;
+    regs.edi = 0x00972bf0;
+    const uint32_t args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(delta))};
+    cg_call_regs(0x0029a060, &regs, args, 1);  // AnglesNormalize180
+    const float negative = 0.0f - limit;
+    float d0 = delta[0];
+    if (negative > d0)
+        d0 = negative;
+    else if (d0 > limit)
+        d0 = limit;
+    float d1 = delta[1];
+    if (negative > d1)
+        d1 = negative;
+    else if (d1 > limit)
+        d1 = limit;
+    const float frametime = static_cast<float>(gi(0x00972534)) * g(0x0083eb4c);
+    const float snap = g(0x0083eb88);
+    // Moves `current` towards `target` (the original's |x| on the x87 equals clearing the
+    // sign bit).
+    const auto approach = [&](float target, float current, bool step_first) {
+        const float diff = target - current;
+        const float step = frametime * diff * speed;
+        if (abs_bits(diff) > snap && !(abs_bits(step) > abs_bits(diff))) return step_first ? step + current : current + step;
+        return target;
+    };
+    title_global<float>(0x00972c24) = approach(d1 * pitch_lag, g(0x00972c24), false);
+    title_global<float>(0x00972c28) = approach(d0 * yaw_lag, g(0x00972c28), false);
+    float pitch = d0 * pitch_scale;
+    float yaw = d1 * yaw_scale;
+    const float half_turn = g(0x0083eb60), turn = g(0x0083ebcc);
+    const float last_pitch = g(0x00972c10);
+    while (pitch - last_pitch > half_turn) pitch = pitch - turn;
+    const float last_yaw = g(0x00972c14);
+    while (yaw - last_yaw > half_turn) yaw = yaw - turn;
+    pitch = approach(pitch, last_pitch, true);
+    yaw = approach(yaw, last_yaw, false);
+    // Through 16-bit angles (ANGLE2SHORT / SHORT2ANGLE), back to -180..180.
+    const float to_short = g(0x0083ebd8), to_angle = g(0x0083ebd4);
+    float a = static_cast<float>(static_cast<int32_t>(pitch * to_short) & 0xffff) * to_angle;
+    if (a > half_turn) a = a - turn;
+    title_global<float>(0x00972c10) = a;
+    a = static_cast<float>(static_cast<int32_t>(yaw * to_short) & 0xffff) * to_angle;
+    if (a > half_turn) a = a - turn;
+    title_global<float>(0x00972c14) = a;
+    title_global<float>(0x00972c00) = g(0x00972bf0);
+    title_global<float>(0x00972c04) = g(0x00972bf4);
+    title_global<float>(0x00972c08) = g(0x00972bf8);
+}
+
+PLATFORM_ASM_ENTRY(PerpendicularVector_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PerpendicularVector) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL PerpendicularVector(const float* src, float* dst) {
+    // Q3's PerpendicularVector: the axis src is least along projected onto src's plane,
+    // normalized (the |x| tests on the x87 equal clearing the sign bit).
+    int32_t pos = 0;
+    float min_elem = g(0x0083eb20);
+    const float a0 = abs_bits(src[0]);
+    if (g(0x0083eb20) > a0) {
+        pos = 0;
+        min_elem = a0;
+    }
+    const float a1 = abs_bits(src[1]);
+    if (min_elem > a1) {
+        pos = 1;
+        min_elem = a1;
+    }
+    if (min_elem > abs_bits(src[2])) pos = 2;
+    float t[3] = {0.0f, 0.0f, 0.0f};
+    t[pos] = g(0x0083eb20);
+    const float inverse = g(0x0083eb20) / ((src[0] * src[0] + src[1] * src[1]) + src[2] * src[2]);
+    const float d = ((src[1] * t[1] + src[2] * t[2]) + src[0] * t[0]) * inverse;
+    const float p0 = t[0] - src[0] * inverse * d;
+    const float p2 = t[2] - src[2] * inverse * d;
+    const float p1 = t[1] - src[1] * inverse * d;
+    dst[0] = p0;
+    dst[1] = p1;
+    dst[2] = p2;
+    const float length = title_ci_sqrt((p0 * p0 + p2 * p2) + p1 * p1);
+    if (!(length == g(0x0083eafc))) {
+        const float scale = g(0x0083eb20) / length;
+        dst[0] = p0 * scale;
+        dst[1] = p1 * scale;
+        dst[2] = p2 * scale;
+    }
 }
 
 }  // namespace game

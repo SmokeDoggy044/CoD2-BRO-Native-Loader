@@ -8,12 +8,16 @@
 #include "compiler.h"
 #include "title_data.h"
 
+
+
 // Calls `function` on the current stack with all six registers from `regs` and `count`
 // stack words (args[0] pushed last, popped again); returns its EAX.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL cg_call_regs(uint32_t function, const game::TitleRegs* regs,
                                                           const uint32_t* args, uint32_t count);
 
 namespace game {
+
+struct DObj;
 
 // 0x00282040: Q3's CG_AddLocalEntities: every active local entity is freed once its end time
 // (+0xc) has come, else added by type (+8: 0 its refEntity +0x3c, 1 near-culled, 2 tracer);
@@ -70,5 +74,37 @@ extern "C" void CG_AdjustPositionForMover_entry(void);
 int32_t XB_CDECL CG_PointContents(const float* point, int32_t pass_entity, uint32_t mask);
 // 0x002887f0 (cent in EAX, cdecl event): the weapon's empty-click sound.
 void XB_REGS1 XB_CDECL CG_FireWeaponEmpty(const uint8_t* cent, int32_t event);
+
+// 0x0001c210 (record in EDX): a render record (0x100 bytes) reset; returns it.
+uint8_t* XB_REGS2 XB_CDECL RefEntity_Clear(uint32_t unused_eax, uint8_t* record);
+// 0x002be200 (cent in ESI): the cent's render record (+0x250), allocated on first use from
+// its client's memory context (+0x220) or the heap; null when that fails.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CG_GetEntityRefEntity(uint8_t* cent);
+extern "C" void CG_GetEntityRefEntity_entry(void);
+// 0x0027f920 (tag hash EAX, DObj EDI, cdecl out): the tag's world matrix (4x4) through the
+// view placement 0x00972fd8; 0 without that tag.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CG_DObjGetTagMatrix(uint32_t tag, DObj* obj, float* out);
+extern "C" void CG_DObjGetTagMatrix_entry(void);
+
+// 0x00284db0 / 0x00285190 (cdecl cent): a script mover (flag 0x40; also without a DObj
+// when its model is 0xffffff, lit from CG_SetLightingOrigin otherwise) and a general model
+// entity (lit from CG_SetLightingOrigin), as CG_Vehicle.
+void XB_CDECL CG_ScriptMover(uint8_t* cent);
+void XB_CDECL CG_General(uint8_t* cent);
+// 0x002821e0: Q3's CG_CalcEntityLerpPositions(cent).
+void XB_CDECL CG_CalcEntityLerpPositions(uint8_t* cent);
+// 0x00288dc0 (weapon EAX, alt ECX, source ESI): the weapon's fire sound (def +8, kind 1 or
+// 2) and FXCmd_Type9(2), each with EAX = source.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_PlayWeaponFireSound(int32_t weapon, uint32_t alt, uint32_t source);
+extern "C" void CG_PlayWeaponFireSound_entry(void);
+
+// 0x0027bb70 (cent in EAX): a portal surface entity.
+void XB_REGS1 XB_CDECL CG_Portal(uint8_t* cent);
+// 0x00288510 (cent in ESI): the weapon flash timer (+0x41c) counted down with the weapon's
+// sound kind 0xb while it runs and 0xc when it ends.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_UpdateFlashSound(uint8_t* cent);
+extern "C" void CG_UpdateFlashSound_entry(void);
+// 0x00289170 (cdecl cent): an actor model entity plus CG_UpdateFlashSound.
+void XB_CDECL CG_Actor(uint8_t* cent);
 
 }  // namespace game

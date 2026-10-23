@@ -2,6 +2,7 @@
 
 #include "cg_view.h"
 #include "cgame.h"
+#include "dobj.h"
 #include "qcommon.h"
 #include "title_data.h"
 #include "tr_main.h"
@@ -475,6 +476,246 @@ void XB_REGS1 XB_CDECL CG_FireWeaponEmpty(const uint8_t* cent, int32_t event) {
     const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[weapon];
     const uint32_t sound = *reinterpret_cast<const uint32_t*>(def + 8);
     title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002a62d0)(sound, event == 0xa6 ? 4 : 3);  // FXCmd_PlayWeaponSound
+}
+
+uint8_t* XB_REGS2 XB_CDECL RefEntity_Clear(uint32_t, uint8_t* record) {
+    // A cent's render record (0x100 bytes) reset: header and the refEntity part (+0x80, 0x60
+    // bytes) zeroed, scale +0xf4 = 1, lighting origin +0xe0 zero, bytes +0xee/+0xef 0xff.
+    at<uint32_t>(record, 0) = 0;
+    at<uint32_t>(record, 4) = 0;
+    at<uint32_t>(record, 8) = 0;
+    at<float>(record, 0xc) = 0.0f;
+    for (uint32_t k = 0; k < 0x18; ++k) at<uint32_t>(record, 0x80 + 4 * k) = 0;
+    record[0xed] &= 0xfd;
+    record[0xee] = 0xff;
+    record[0xef] = 0xff;
+    at<uint16_t>(record, 0xf8) = 0;
+    at<uint32_t>(record, 0xfc) = 0;
+    at<float>(record, 0xf4) = g(0x0083eb20);
+    at<float>(record, 0xe0) = 0.0f;
+    at<float>(record, 0xe4) = 0.0f;
+    at<float>(record, 0xe8) = 0.0f;
+    return record;
+}
+
+PLATFORM_ASM_ENTRY(CG_GetEntityRefEntity_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_GetEntityRefEntity) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL CG_GetEntityRefEntity(uint8_t* cent) {
+    // The render record (+0x250), allocated (0x100 bytes, aligned 16) on first use from the
+    // memory context of the cent's client (+0x220, 0..0x62: 0x0095f638 +0x38), else the heap.
+    uint8_t*& record = at<uint8_t*>(cent, 0x250);
+    if (record) return record;
+    const int32_t client = at<int32_t>(cent, 0x220);
+    uint8_t* memory = nullptr;
+    if (client != -1) {
+        uint32_t context = 0;
+        if (client >= 0 && client < 0x63)
+            context = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x38 + client * 4);
+        memory = title_function<uint8_t* XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x0028c0f0)(context, 0x10,
+                                                                                            0x100);  // MemContext_Alloc_r
+    }
+    if (!memory) memory = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x10, 0x100);  // Heap_AllocAligned
+    if (!memory) {
+        record = nullptr;
+        return record;
+    }
+    record = RefEntity_Clear(0, memory);
+    return record;
+}
+
+PLATFORM_ASM_ENTRY(CG_DObjGetTagMatrix_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_DObjGetTagMatrix) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL CG_DObjGetTagMatrix(uint32_t tag, DObj* obj, float* out) {
+    // The tag's bone matrix (hash in EAX) times the view placement (axis 0x00972fe4, origin
+    // 0x00972fd8) into out (4x4); 0 when the DObj has no such tag. Creates the skeleton.
+    const int32_t index = DObj_GetTagIndex(obj, tag);
+    if (index < 0) return 0;
+    if (!obj->bone_matrices) {
+        title_function<void* XB_CDECL(uint32_t, const char*, const char*, uint32_t)>(0x00042c20)(  // Z_MallocDebug
+            obj->bone_count * 0x40u + 0x30, &title_global<char>(0x0083534c), &title_global<char>(0x00835354), 0x21c);
+        DObj_CreateSkeleton(obj);
+    }
+    const uint8_t* bones = obj->bone_matrices ? obj->bone_matrices + obj->matrix_offset * 0x40u + 0x30 : nullptr;
+    alignas(16) float placement[12];
+    for (int k = 0; k < 9; ++k) placement[k] = title_global<float>(0x00972fe4 + 4 * k);
+    for (int k = 0; k < 3; ++k) placement[9 + k] = title_global<float>(0x00972fd8 + 4 * k);
+    MatrixMultiply43To44(placement, out, reinterpret_cast<const float*>(bones + index * 0x40));
+    return 1;
+}
+
+void XB_CDECL CG_ScriptMover(uint8_t* cent) {
+    if (hidden(cent)) return;
+    const uint32_t obj = at<uint32_t>(cent, 0x22c);
+    if (at<uint32_t>(cent, 0xac) != 0xffffff && !obj) return;
+    uint8_t* ref = fill_model_ref(cent, obj);
+    at<uint32_t>(ref, 4) = 0x40;
+    if (at<uint32_t>(cent, 0xac) != 0xffffff) CG_SetLightingOrigin(cent, ref);
+    R_AddRefEntityToScene(ref, -1);
+}
+
+void XB_CDECL CG_General(uint8_t* cent) {
+    if (hidden(cent)) return;
+    const uint32_t obj = at<uint32_t>(cent, 0x22c);
+    if (!obj) return;
+    uint8_t* ref = fill_model_ref(cent, obj);
+    CG_SetLightingOrigin(cent, ref);
+    R_AddRefEntityToScene(ref, -1);
+}
+
+void XB_CDECL CG_CalcEntityLerpPositions(uint8_t* cent) {
+    // Q3's CG_CalcEntityLerpPositions: origin (+0x60) from the position trajectory (+0x14;
+    // type 1 = the next snapshot's origin +0x140) moved with its mover unless it is the
+    // player's cent; angles (+0x70) from +0x38, type 1 = lerped from +0x44 to +0x50 by
+    // cg.frameInterpolation the short way round.
+    const auto evaluate = [](int32_t time, uint8_t* trajectory, float* result) {
+        TitleRegs regs{};
+        regs.eax = static_cast<uint32_t>(time);
+        regs.edi = addr(trajectory);
+        regs.ecx = addr(result);
+        cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+    };
+    float* origin = &at<float>(cent, 0x60);
+    if (at<int32_t>(cent, 0x14) == 1) {
+        for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(cent, 0x60 + 4 * k) = at<uint32_t>(cent, 0x140 + 4 * k);
+    } else {
+        evaluate(cg_time(), cent + 0x14, origin);
+        if (cent != *reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 4))
+            CG_AdjustPositionForMover(origin, origin, at<uint32_t>(cent, 0xc),
+                                      *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x00971aa8) + 4), cg_time(),
+                                      nullptr);
+    }
+    if (at<int32_t>(cent, 0x38) != 1) {
+        evaluate(cg_time(), cent + 0x38, &at<float>(cent, 0x70));
+        return;
+    }
+    const float half_turn = g(0x0083eb60), turn = g(0x0083ebcc), minus_half = g(0x0083ebd0);
+    const float f = g(0x00972530);
+    for (uint32_t k = 0; k < 3; ++k) {
+        float next = at<float>(cent, 0x50 + 4 * k);
+        const float prev = at<float>(cent, 0x44 + 4 * k);
+        if (next - prev > half_turn) next = next - turn;
+        if (minus_half > next - prev) next = next + turn;
+        at<float>(cent, 0x70 + 4 * k) = (next - prev) * f + prev;
+    }
+}
+
+PLATFORM_ASM_ENTRY(CG_PlayWeaponFireSound_entry,
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_PlayWeaponFireSound) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_PlayWeaponFireSound(int32_t weapon, uint32_t alt, uint32_t source) {
+    // The weapon's fire sound (def +8; kind 1, or 2 without alt) and FXCmd_Type9(2), both
+    // with EAX = the source in ESI.
+    const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[weapon];
+    TitleRegs regs{};
+    regs.eax = source;
+    regs.esi = source;
+    const uint32_t sound_args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), alt ? 1u : 2u};
+    cg_call_regs(0x002a62d0, &regs, sound_args, 2);  // FXCmd_PlayWeaponSound
+    const uint32_t kind[1] = {2};
+    cg_call_regs(0x002a5bb0, &regs, kind, 1);  // FXCmd_Type9
+}
+
+void XB_REGS1 XB_CDECL CG_Portal(uint8_t* cent) {
+    // A portal surface (refEntity type 0xb): origin +0x60, old origin +0x80, axis[0] the
+    // byte direction +4 (bytedirs 0x008d52d8, 162 entries), axis[1] = -perpendicular, axis[2]
+    // = axis[0] x axis[1].
+    uint8_t* ref = entity_ref(cent) + 0x80;
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ref, 0x3c + 4 * k) = at<uint32_t>(cent, 0x60 + 4 * k);
+    for (uint32_t k = 0; k < 3; ++k) at<uint32_t>(ref, 0x48 + 4 * k) = at<uint32_t>(cent, 0x80 + 4 * k);
+    float* a0 = &at<float>(ref, 0x14);
+    float* a1 = &at<float>(ref, 0x20);
+    const uint32_t dir = cent[4];
+    if (dir < 0xa2) {
+        for (uint32_t k = 0; k < 3; ++k)
+            reinterpret_cast<uint32_t*>(a0)[k] = title_global<uint32_t>(0x008d52d8 + dir * 12 + 4 * k);
+    } else {
+        a0[0] = 0.0f;
+        a0[1] = 0.0f;
+        a0[2] = 0.0f;
+    }
+    PerpendicularVector(a0, a1);
+    a1[0] = 0.0f - a1[0];
+    a1[2] = 0.0f - a1[2];
+    a1[1] = 0.0f - a1[1];
+    float* a2 = &at<float>(ref, 0x2c);
+    a2[0] = a1[2] * a0[1] - a1[1] * a0[2];
+    a2[1] = a1[0] * a0[2] - a1[2] * a0[0];
+    a2[2] = a1[1] * a0[0] - a1[0] * a0[1];
+    at<uint32_t>(ref, 0) = 0xb;
+    R_AddRefEntityToScene(ref, -1);
+}
+
+PLATFORM_ASM_ENTRY(CG_UpdateFlashSound_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_UpdateFlashSound) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_UpdateFlashSound(uint8_t* cent) {
+    // While the cent's flash timer (+0x41c) runs: counted down by the frametime, the
+    // "tag_flash" placement looked up (the player's view model 0x00975fa8 + weapon * 0xc4, or
+    // the cent's DObj through 0x00284d00; else its trajectory) into a local nothing reads,
+    // then the weapon's sound kind 0xb (still running) or 0xc (just ended).
+    uint8_t* weapon_info = &title_global<uint8_t>(0x00975fa8 + cent[3] * 0xc4u);
+    uint32_t hash;
+    if (!(title_global<uint8_t>(0x0098f1c8) & 1)) {
+        title_global<uint32_t>(0x0098f1c8) |= 1;
+        hash = Com_HashKeyNoCase(0, &title_global<char>(0x008389c0));
+        title_global<uint32_t>(0x0098f1c4) = hash;
+    } else {
+        hash = title_global<uint32_t>(0x0098f1c4);
+    }
+    int32_t& timer = at<int32_t>(cent, 0x41c);
+    if (timer <= 0) return;
+    timer -= title_global<int32_t>(0x00972534);
+    alignas(16) float placement[16];
+    uint32_t found = 0;
+    const int32_t client = *reinterpret_cast<const int32_t*>(title_global<uint8_t*>(0x00971aa8) + 0x8c);
+    if (at<int32_t>(cent, 0x224) == client) {
+        DObj* obj = *reinterpret_cast<DObj**>(weapon_info);
+        if (obj) found = CG_DObjGetTagMatrix(hash, obj, placement);
+    } else if (at<uint32_t>(cent, 0x22c)) {
+        TitleRegs regs{};
+        regs.eax = hash;
+        regs.ecx = at<uint32_t>(cent, 0x22c);
+        const uint32_t args[2] = {addr(cent), addr(placement)};
+        found = cg_call_regs(0x00284d00, &regs, args, 2);
+    }
+    if (!found) {
+        alignas(16) float origin[4];
+        TitleRegs regs{};
+        regs.eax = static_cast<uint32_t>(cg_time());
+        regs.edi = addr(cent + 0x14);
+        regs.ecx = addr(origin);
+        cg_call_regs(0x002d62c0, &regs, nullptr, 0);  // BG_EvaluateTrajectory
+    }
+    const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[cent[3]];
+    TitleRegs regs{};
+    regs.eax = addr(cent);
+    regs.esi = addr(cent);
+    const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), timer > 0 ? 0xbu : 0xcu};
+    cg_call_regs(0x002a62d0, &regs, args, 2);  // FXCmd_PlayWeaponSound
+}
+
+void XB_CDECL CG_Actor(uint8_t* cent) {
+    // An actor model: as CG_Vehicle (lit 32 units above the origin, flag 0x80, | 0x20 with
+    // entity flag 0x100), then its flash sound.
+    if (hidden(cent)) return;
+    const uint32_t obj = at<uint32_t>(cent, 0x22c);
+    if (!obj) return;
+    uint8_t* ref = fill_model_ref(cent, obj);
+    raised_lighting_origin(ref, cent);
+    at<uint32_t>(ref, 4) = 0x80;
+    if (at<uint32_t>(cent, 0x10) & 0x100) at<uint32_t>(ref, 4) |= 0x20;
+    R_AddRefEntityToScene(ref, -1);
+    CG_UpdateFlashSound(cent);
 }
 
 }  // namespace game
