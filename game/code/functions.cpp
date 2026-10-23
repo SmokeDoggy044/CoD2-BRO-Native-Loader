@@ -969,6 +969,7 @@ const Function kFunctions[] = {
     {"FxEmitterTable_Resize", 0x00096f00, 0, code(&FxEmitterTable_Resize), 4, Result::Al, Status::Compare},
     {"FxNop_97190", 0x00097190, 0, code(&FxNop_97190), 0, Result::None, Status::Compare},
     {"FxVec3_FromWords1", 0x00097c90, 0, code(&FxVec3_FromWords1), 0, Result::Eax, Status::Compare},
+    {"apsParseActions", 0x00097cd0, 0, code(&apsParseActions), 0, Result::Eax, Status::Compare},
     {"FxRenderer_NewOp31", 0x000985d0, 0, code(&FxRenderer_NewOp31), 0, Result::Eax, Status::Compare},
     {"FxRenderer_NewShrimp", 0x00098650, 0, code(&FxRenderer_NewShrimp), 0, Result::Eax, Status::Compare},
     {"FxDomain_Create", 0x00098820, 0, code(&FxDomain_Create), 0, Result::Eax, Status::Compare},

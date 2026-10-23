@@ -1000,4 +1000,108 @@ uint8_t* XB_CDECL FxDomain_Create(const char* name, const uint32_t* id, const ui
     return nullptr;
 }
 
+namespace {
+
+using ActionInit = uint8_t* XB_THISCALL (*)(uint8_t*);
+
+ActionInit action_by_id(uint32_t id) {
+    switch (id) {
+    case 0x4146494f: return &FxAction8e60_Init;  // "AFIO"
+    case 0x41544558: return &FxAction8ff0_Init;  // "ATEX"
+    case 0x41544559: return &FxAction9004_Init;  // "ATEY"
+    case 0x4154455a: return &FxAction9018_Init;  // "ATEZ"
+    case 0x41564472: return &FxAction8f8c_Init;  // "AVDr"
+    case 0x416c4664: return &FxAction8e4c_Init;  // "AlFd"
+    case 0x416e6754: return &FxAction8fdc_Init;  // "AngT"
+    case 0x42727374: return &FxAction8e08_Init;  // "Brst"
+    case 0x436c5368: return &FxAction8f64_Init;  // "ClSh"
+    case 0x444c4174: return &FxAction9054_Init;  // "DLAt"
+    case 0x45536348: return &FxAction8eec_Init;  // "EScH"
+    case 0x45536357: return &FxAction8ec4_Init;  // "EScW"
+    case 0x45785363: return &FxAction8e9c_Init;  // "ExSc"
+    case 0x466f7263: return &FxAction8f50_Init;  // "Forc"
+    case 0x4b546175: return &FxAction9068_Init;  // "KTau"
+    case 0x4c417472: return &FxAction9040_Init;  // "LAtr"
+    case 0x4c536348: return &FxAction8ed8_Init;  // "LScH"
+    case 0x4c536357: return &FxAction8eb0_Init;  // "LScW"
+    case 0x4c696665: return &FxAction8e38_Init;  // "Life"
+    case 0x4c6e5363: return &FxAction8e88_Init;  // "LnSc"
+    case 0x4d467856: return &FxAction8f3c_Init;  // "MFxV"
+    case 0x4d6f7665: return &FxAction8f00_Init;  // "Move"
+    case 0x4f4d6f76: return &FxAction8f14_Init;  // "OMov"
+    case 0x50417472: return &FxAction902c_Init;  // "PAtr"
+    case 0x50734d76: return &FxAction8f28_Init;  // "PsMv"
+    case 0x5246494f: return &FxAction8e74_Init;  // "RFIO"
+    case 0x5253706e: return &FxAction8e20_Init;  // "RSpn"
+    case 0x53704163: return &FxAction907c_Init;  // "SpAc"
+    case 0x53704465: return &FxAction9090_Init;  // "SpDe"
+    case 0x53726341: return &FxAction8df0_Init;  // "SrcA"
+    case 0x5472616a: return &FxAction90a4_Init;  // "Traj"
+    case 0x55564672: return &FxAction8fc8_Init;  // "UVFr"
+    case 0x56415644: return &FxAction8fa0_Init;  // "VAVD"
+    case 0x566c4472: return &FxAction8f78_Init;  // "VlDr"
+    case 0x57505266: return &FxAction8fb4_Init;  // "WPRf"
+    default: return nullptr;
+    }
+}
+
+ActionInit action_by_name(const char* name) {
+    static const struct {
+        uint32_t text, length;
+        ActionInit init;
+    } kNames[] = {
+        {0x007c5ab0, 13, &FxAction8df0_Init},
+        {0x007c5aa4, 12, &FxAction8e08_Init},
+        {0x007c5a94, 15, &FxAction8e38_Init},
+        {0x007c5a84, 16, &FxAction8e4c_Init},
+        {0x007c5a6c, 21, &FxAction8e60_Init},
+        {0x007c5a50, 27, &FxAction8e74_Init},
+        {0x007c5a3c, 18, &FxAction8e88_Init},
+        {0x007c5a24, 23, &FxAction8e9c_Init},
+        {0x007c5a0c, 23, &FxAction8eb0_Init},
+        {0x007c59f0, 28, &FxAction8ec4_Init},
+        {0x007c59d8, 24, &FxAction8ed8_Init},
+        {0x007c59b8, 29, &FxAction8eec_Init},
+        {0x007c59a4, 19, &FxAction8f28_Init},
+        {0x007c5990, 17, &FxAction8f14_Init},
+        {0x007c5984, 11, &FxAction8f00_Init},
+        {0x007c5968, 26, &FxAction8f3c_Init},
+        {0x007c595c, 12, &FxAction8f50_Init},
+        {0x007c5948, 17, &FxAction8f64_Init},
+        {0x007c5934, 19, &FxAction8f78_Init},
+        {0x007c5918, 26, &FxAction8f8c_Init},
+        {0x007c58f8, 32, &FxAction8fa0_Init},
+        {0x007c58dc, 27, &FxAction8fb4_Init},
+        {0x007c58c8, 19, &FxAction8fc8_Init},
+        {0x007c58ac, 25, &FxAction8fdc_Init},
+        {0x007c5890, 25, &FxAction8ff0_Init},
+        {0x007c5874, 25, &FxAction9004_Init},
+        {0x007c5858, 25, &FxAction9018_Init},
+        {0x007c5840, 21, &FxAction902c_Init},
+        {0x007c582c, 20, &FxAction9040_Init},
+        {0x007c5810, 25, &FxAction9054_Init},
+        {0x007c5800, 15, &FxAction9068_Init},
+        {0x007c57f4, 12, &FxAction907c_Init},
+        {0x007c57e0, 19, &FxAction9090_Init},
+        {0x007c57cc, 17, &FxAction90a4_Init},
+        {0x007c57b8, 18, &FxAction8e20_Init},
+    };
+    for (const auto& entry : kNames) {
+        if (same_name(name, entry.text, entry.length)) return entry.init;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL apsParseActions(const char* name, const uint32_t* id) {
+    // A particle action by four-character id (when set) or class name: a 0x1c-byte object from
+    // the effect allocator handed to its constructor. Null for unknown kinds or failure.
+    const ActionInit init = (id && *id) ? action_by_id(*id) : action_by_name(name);
+    if (!init) return nullptr;
+    uint8_t* self = fx_alloc(0x1c, 4);
+    if (!self) return nullptr;
+    return init(self);
+}
+
 }  // namespace game

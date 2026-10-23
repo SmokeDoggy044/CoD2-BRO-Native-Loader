@@ -923,6 +923,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00097b60,FxBox_Expand,compare,231884,400,400,0,0,0,""
 00097ba0,Mat44_TransformPoint,compare,8389414,402,402,0,0,0,""
 00097c90,FxVec3_FromWords1,compare,7286,30,30,0,0,0,""
+00097cd0,apsParseActions,compare,4162,394,394,0,0,0,""
 000985d0,FxRenderer_NewOp31,compare,36,20,20,0,0,0,""
 00098650,FxRenderer_NewShrimp,compare,14,0,0,0,0,0,""
 00098820,FxDomain_Create,compare,27920,1072,1072,0,0,0,""

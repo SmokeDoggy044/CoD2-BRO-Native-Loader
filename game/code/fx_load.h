@@ -218,4 +218,8 @@ uint8_t* XB_THISCALL FxCircleDomain_Init(uint8_t* self, const float* centre, con
 // its parameters from the list's entries (value in word 1). Null for "NULL"/unknown/failure.
 uint8_t* XB_CDECL FxDomain_Create(const char* name, const uint32_t* id, const uint8_t* list);
 
+// 0x00097cd0: a particle action by four-character id or class name (35 kinds, each a 0x1c-byte
+// FxAction* object). Null for unknown kinds or a failed allocation.
+uint8_t* XB_CDECL apsParseActions(const char* name, const uint32_t* id);
+
 }  // namespace game

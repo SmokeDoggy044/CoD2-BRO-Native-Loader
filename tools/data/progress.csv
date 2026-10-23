@@ -2173,7 +2173,7 @@ address,name,section,module,state,tested,matched
 00097b60,FxBox_Expand,.text,unassigned,settled,400,400
 00097ba0,Mat44_TransformPoint,.text,unassigned,settled,402,402
 00097c90,FUN_00097c90,.text,unassigned,matched,30,30
-00097cd0,apsParseActions,.text,unassigned,named,0,0
+00097cd0,apsParseActions,.text,unassigned,settled,394,394
 000985d0,FUN_000985d0,.text,unassigned,matched,20,20
 00098650,FUN_00098650,.text,unassigned,untested,0,0
 00098820,FUN_00098820,.text,unassigned,settled,1072,1072
