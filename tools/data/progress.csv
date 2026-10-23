@@ -9773,11 +9773,11 @@ address,name,section,module,state,tested,matched
 002d4050,FUN_002d4050,.text,unassigned,unnamed,0,0
 002d41f0,FUN_002d41f0,.text,unassigned,unnamed,0,0
 002d4250,FUN_002d4250,.text,unassigned,untested,0,0
-002d4360,FUN_002d4360,.text,unassigned,unnamed,0,0
+002d4360,FUN_002d4360,.text,unassigned,settled,829,829
 002d44b0,FUN_002d44b0,.text,unassigned,unnamed,0,0
 002d47d0,FUN_002d47d0,.text,unassigned,unnamed,0,0
 002d4a60,FUN_002d4a60,.text,unassigned,unnamed,0,0
-002d4f10,FUN_002d4f10,.text,unassigned,unnamed,0,0
+002d4f10,FUN_002d4f10,.text,unassigned,settled,12369,12369
 002d4f80,FUN_002d4f80,.text,unassigned,settled,11879,11879
 002d5130,FUN_002d5130,.text,unassigned,unnamed,0,0
 002d5320,CM_BoxLeafnums,.text,collision,settled,401,401

@@ -177,4 +177,13 @@ extern "C" void CM_TraceCapsuleThroughBrush_entry(void);
 // (no hit possible), else 1.
 uint8_t XB_REGS1 XB_CDECL CM_TraceBoxThroughBrush(uint8_t* tw, const uint8_t* brush);
 
+// 0x002d4f10 (model {count, brushes} in EDI, trace work in ESI; unnamed in Ghidra): each brush in the content
+// mask traced with the capsule or box version (trace work +0x160); stops when the fraction becomes 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TraceThroughBrushes(const uint32_t* model, uint8_t* tw);
+extern "C" void CM_TraceThroughBrushes_entry(void);
+// 0x002d4360 (trace work in ESI; unnamed in Ghidra): CM_TestCapsuleInTempBox's setup (also the per-axis size
+// +0x150 = {radius, radius, half height}), the box model of the trace bounds, then the capsule trace through it.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TraceCapsuleThroughTempBox(uint8_t* tw);
+extern "C" void CM_TraceCapsuleThroughTempBox_entry(void);
+
 }  // namespace game

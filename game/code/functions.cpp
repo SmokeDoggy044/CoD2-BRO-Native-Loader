@@ -1911,6 +1911,8 @@ const Function kFunctions[] = {
     {"CG_SelectWeapon", 0x002cde20, 0, code(&CG_SelectWeapon_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_Init", 0x002d1460, 0, code(&Cmd_Init), 0, Result::None, Status::Compare},
     {"CM_TestCapsuleInTempBox", 0x002d4250, 0, code(&CM_TestCapsuleInTempBox_entry), 0, Result::None, Status::Compare},
+    {"CM_TraceCapsuleThroughTempBox", 0x002d4360, 0, code(&CM_TraceCapsuleThroughTempBox_entry), 0, Result::None, Status::Compare},
+    {"CM_TraceThroughBrushes", 0x002d4f10, 0, code(&CM_TraceThroughBrushes_entry), 0, Result::None, Status::Compare},
     {"CM_SphereTouchesTriangle", 0x002d4f80, 0, code(&CM_SphereTouchesTriangle_entry), 8, Result::Al, Status::Compare},
     {"CM_BoxLeafnums", 0x002d5320, 0, code(&CM_BoxLeafnums_entry), 12, Result::Eax, Status::Compare},
     {"G_SetMovedir", 0x002d70a0, 0, code(&G_SetMovedir_entry), 0, Result::None, Status::Compare},

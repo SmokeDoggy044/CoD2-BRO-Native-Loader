@@ -1820,6 +1820,8 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002cde20,CG_SelectWeapon,compare,112,92,92,0,0,0,""
 002d1460,Cmd_Init,compare,80,17,17,0,0,0,""
 002d4250,CM_TestCapsuleInTempBox,compare,0,0,0,0,0,0,""
+002d4360,CM_TraceCapsuleThroughTempBox,compare,5916,829,829,0,0,0,""
+002d4f10,CM_TraceThroughBrushes,compare,154225,12369,12369,0,0,0,""
 002d4f80,CM_SphereTouchesTriangle,compare,39790,11879,11879,0,0,0,""
 002d5320,CM_BoxLeafnums,compare,736354,401,401,0,0,0,""
 002d70a0,G_SetMovedir,compare,0,0,0,0,0,0,""

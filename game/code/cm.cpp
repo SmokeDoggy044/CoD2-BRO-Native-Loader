@@ -1046,4 +1046,61 @@ uint8_t XB_REGS1 XB_CDECL CM_TraceBoxThroughBrush(uint8_t* tw, const uint8_t* br
     return 1;
 }
 
+PLATFORM_ASM_ENTRY(CM_TraceThroughBrushes_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CM_TraceThroughBrushes) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL CM_TraceThroughBrushes(const uint32_t* model, uint8_t* tw) {
+    if (!model) return;
+    for (int32_t i = 0; i < static_cast<int32_t>(model[0]); ++i) {
+        const uint8_t* brush = reinterpret_cast<const uint8_t*>(uintptr_t{model[1]}) + i * 0x40;
+        if (!(*reinterpret_cast<const uint32_t*>(tw + 0xf8) & *reinterpret_cast<const uint32_t*>(brush + 8))) continue;
+        if (*reinterpret_cast<const uint32_t*>(tw + 0x160))
+            CM_TraceCapsuleThroughBrush(tw, brush);
+        else
+            CM_TraceBoxThroughBrush(tw, brush);
+        // UCOMISS + JNP: stop on an exact 0 (a NaN fraction goes on).
+        const float fraction = *reinterpret_cast<const float*>(tw + 0x120);
+        if (fraction == title_global<float>(0x0083eafc)) return;
+    }
+}
+
+PLATFORM_ASM_ENTRY(CM_TraceCapsuleThroughTempBox_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CM_TraceCapsuleThroughTempBox) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CM_TraceCapsuleThroughTempBox(uint8_t* tw) {
+    const uint8_t* box = title_global<const uint8_t*>(0x0095f504);
+    const float h = title_global<float>(0x0083eb24);  // 0.5
+    const Lanes maxs = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const Lanes center = mul(add(lanes(reinterpret_cast<const float*>(box + 0x10)), maxs), {{h, h, h, h}});
+    const Lanes half = sub(maxs, center);
+    float* start = reinterpret_cast<float*>(tw);
+    float* end = reinterpret_cast<float*>(tw + 0x10);
+    const Lanes moved_start = sub(lanes(start), center);
+    std::memcpy(start, moved_start.v, 16);
+    const Lanes moved_end = sub(lanes(end), center);
+    std::memcpy(end, moved_end.v, 16);
+    const float half_z = half.v[2];
+    *reinterpret_cast<uint32_t*>(tw + 0x160) = 1;
+    const float radius = half.v[0] > half_z ? half_z : half.v[0];
+    *reinterpret_cast<float*>(tw + 0x164) = radius;
+    *reinterpret_cast<float*>(tw + 0x168) = half_z;
+    *reinterpret_cast<float*>(tw + 0x140) = 0.0f;
+    *reinterpret_cast<float*>(tw + 0x144) = 0.0f;
+    *reinterpret_cast<float*>(tw + 0x148) = half_z - *reinterpret_cast<const float*>(tw + 0x164);
+    std::memcpy(tw + 0x150, tw + 0x164, 4);
+    std::memcpy(tw + 0x154, tw + 0x164, 4);
+    std::memcpy(tw + 0x158, tw + 0x168, 4);
+    const uint8_t* leaf = *reinterpret_cast<uint8_t* const*>(box + 4);
+    CM_TempBoxModel(reinterpret_cast<const float*>(tw + 0x50), 0, reinterpret_cast<const float*>(tw + 0x40),
+                    *reinterpret_cast<const uint32_t*>(leaf + 8));
+    const uint8_t* brush = *reinterpret_cast<uint8_t* const*>(box + 4);
+    if (*reinterpret_cast<const uint32_t*>(tw + 0x160))
+        CM_TraceCapsuleThroughBrush(tw, brush);
+    else
+        CM_TraceBoxThroughBrush(tw, brush);
+}
+
 }  // namespace game

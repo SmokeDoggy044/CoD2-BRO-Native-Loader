@@ -11657,3 +11657,5 @@ address,name,kind,confidence,evidence
 000828d0,NAL_Float2_SkipFixedBlock,function,medium,"NAL anim helper named from its body"
 00080cb0,NAL_Float4_CopyChannels,function,medium,"NAL anim helper named from its body"
 00081f50,NAL_Packed16_SkipCachedFrame,function,medium,"NAL anim helper named from its body"
+002d4f10,CM_TraceThroughBrushes,function,medium,"traces a model's brushes in the content mask (capsule or box version) until fraction 0"
+002d4360,CM_TraceCapsuleThroughTempBox,function,medium,"capsule setup against the temporary box model, then CM_TraceCapsuleThroughBrush"
