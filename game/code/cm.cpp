@@ -226,4 +226,51 @@ int32_t XB_CDECL CM_BoxLeafnums(const float* maxs, const float* mins, uint8_t* c
     return ll.count;
 }
 
+uint8_t* XB_REGS2 XB_CDECL CM_TempBoxModel(const float* maxs, uint32_t capsule, const float* mins, uint32_t contents) {
+    uint8_t* box = title_global<uint8_t*>(0x0095f504);
+    const Lanes lo = {{mins[0], mins[1], mins[2], 0.0f}};
+    const Lanes hi = {{maxs[0], maxs[1], maxs[2], 0.0f}};
+    std::memcpy(box + 0x10, lo.v, 16);
+    std::memcpy(box + 0x20, hi.v, 16);
+    uint8_t* leaf = *reinterpret_cast<uint8_t**>(box + 4);
+    const float half = title_global<float>(0x0083eb24);  // 0.5
+    const Lanes center = mul(add(lo, hi), {{half, half, half, half}});
+    std::memcpy(leaf + 0x10, center.v, 12);
+    const Lanes extent = sub(hi, center);
+    std::memcpy(leaf + 0x20, extent.v, 16);
+    const Lanes squared = mul(extent, extent);
+    platform_keep(squared);
+    const float length_squared = (squared.v[0] + squared.v[1]) + squared.v[2];
+    float radius = length_squared;
+    if (length_squared == length_squared && length_squared != 0.0f) {  // UCOMISS + JNE: NaN counts as equal
+        const float r = platform_rsqrt_estimate(length_squared);
+        const float scaled = length_squared * r;
+        radius = ((title_global<float>(0x0082e660) - scaled * r) * scaled) * title_global<float>(0x0082e670);  // 3, 0.5
+    }
+    *reinterpret_cast<uint32_t*>(leaf + 8) = contents;
+    *reinterpret_cast<float*>(leaf + 0x1c) = radius;
+    *reinterpret_cast<uint32_t*>(box + 0x48) = capsule ? 0x1fe : 0x1ff;
+    return box;
+}
+
+void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load) {
+    using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
+    using CvarGet = uint8_t* XB_CDECL(const char*, const char*, uint32_t);
+    if (!name || !*name)
+        title_function<void XB_CDECL(uint32_t, const char*)>(0x002938f0)(  // __break
+            1, reinterpret_cast<const char*>(uintptr_t{0x00833f64}));  // "CM_LoadMap: NULL name"
+    char copy[0x80];
+    title_function<Strncpy>(0x001eed80)(copy, name, 0x7f);
+    copy[0x7f] = 0;
+    title_global<uint8_t*>(0x00928360) = title_function<CvarGet>(0x0029c2d0)(  // Cvar_Get
+        reinterpret_cast<const char*>(uintptr_t{0x00833f58}), reinterpret_cast<const char*>(uintptr_t{0x0082e098}),
+        0x200);  // "cm_noCurves", "0"
+    title_global<uint8_t*>(0x0092effc) = title_function<CvarGet>(0x0029c2d0)(
+        reinterpret_cast<const char*>(uintptr_t{0x00833f44}), reinterpret_cast<const char*>(uintptr_t{0x0082e058}),
+        0x201);  // "cm_playerCurveClip", "1"
+    if (client_load) return;
+    title_function<Strncpy>(0x001eed80)(reinterpret_cast<char*>(uintptr_t{0x009355d8}), copy, 0x7f);
+    title_global<char>(0x00935657) = 0;
+}
+
 }  // namespace game

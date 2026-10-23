@@ -48,4 +48,14 @@ extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_BoxLeafnums(const float* maxs, co
                                                           int32_t* list, int32_t list_size, int32_t* last_leaf);
 extern "C" void CM_BoxLeafnums_entry(void);
 
+// 0x002ccc50 (maxs in EAX, capsule flag in EDX; mins, contents on the stack): fills the temporary box model
+// (pointer at 0x0095f504): +0x10 mins, +0x20 maxs (16-byte rows; their w lanes are never-set stack, 0 in
+// tests), +0x48 0x1fe (flag set) / 0x1ff; its leaf/brush (+4) gets the center (+0x10), the half extent
+// (+0x20, 16 bytes), the contents (+8) and the half extent's length (+0x1c: SSE rsqrt estimate with one
+// Newton step, 0 or NaN copied as is). Returns the model.
+uint8_t* XB_REGS2 XB_CDECL CM_TempBoxModel(const float* maxs, uint32_t capsule, const float* mins, uint32_t contents);
+// 0x002c1ae0 (name in EAX; client load flag on the stack): registers cm_noCurves / cm_playerCurveClip and,
+// unless the flag is set, remembers the map name (0x009355d8, 0x80 bytes); __break 1 for a missing name.
+void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load);
+
 }  // namespace game
