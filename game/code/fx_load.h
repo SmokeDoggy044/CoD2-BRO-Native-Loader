@@ -341,4 +341,17 @@ void XB_CDECL FxNode_ComputeObjectLights(float* directions, float* colors, const
 // 0x0009d900: the billboard axes: camera forward, horizontal right (scaled by 0x00909984), up.
 void XB_CDECL FxCamera_BillboardAxes(float* forward_out, float* right_out, float* up_out);
 
+// 0x00097500: an effect system's bounds (+0x60 = FLT_MAX x4, +0x70 = -FLT_MAX x4) and empty
+// vertex format (+0x84). 0x0009f1d0: `count` of them (0xd0 bytes). 0x0009f250: the emitter
+// table (0x00909f60) and its system pool (0x00909f64).
+uint8_t* XB_THISCALL FxSystem_InitBounds(uint8_t* self);
+uint8_t* XB_CDECL FxSystems_New(int32_t count, uint32_t alignment);
+uint8_t* XB_THISCALL FxEmitters_Init(uint8_t* self, int32_t count);
+
+// 0x0009ff50: the inverse of a rigid 4x4 (rows) - transposed rotation, negated rotated translation.
+float* XB_CDECL FxMatrix_RigidInverse(float* out, const float* m);
+
+// 0x0009ddb0: a direction frame (normalized direction, right scaled by 0x00909984, up).
+void XB_CDECL FxAxis_Frame(const float* direction, float* direction_out, float* right_out, float* up_out);
+
 }  // namespace game
