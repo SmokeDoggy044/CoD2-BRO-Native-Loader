@@ -13,6 +13,7 @@ set(game_code_sources
     fx.cpp
     g_scr_math.cpp
     g_scr_runtime.cpp
+    g_script.cpp
     g_utils.cpp
     g_vehicle.cpp
     nal_anim.cpp
