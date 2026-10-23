@@ -42,7 +42,11 @@ need their class hierarchy mapped first (UIMenu_Init is the anchor).
    ~130 s) and look at `OUT/last.png`: the last frames must show the level with the
    HUD. A run without presses only reaches the opening movie and the loading screen,
    which does not exercise game code (runs before 2026-10-17 21:45 were like that).
-4. Commit the CSV, the symbol file and this document's state line.
+4. Sort the new names: `tools/progress.py` must show no named function in `unassigned` (`awk -F, '$4=="unassigned"
+   && $5!="library" && $5!="unnamed"' tools/data/progress.csv`); add a prefix or exact-name rule to
+   `tools/data/modules.csv` for any that is (user rule 2026-10-23: no module counts as finished while a function is
+   unnamed or unsorted). Copy the symbol file to the loader repo too (`port/tools/data/`).
+5. Commit the CSV, the symbol file, modules.csv and this document's state line.
 
 Running a script by name (`run_ghidra_script`) needs a copy in `~/ghidra_scripts/`;
 copy the repository version there first so it is not stale.
