@@ -221,4 +221,18 @@ void XB_CDECL CG_ParseServerinfo();
 // 0x0027bb10: Q3's CG_RegisterCvars.
 void XB_CDECL CG_RegisterCvars();
 
+// 0x002800a0 (priority in EAX, cdecl (text, seconds, y)): Q3's CG_CenterPrint with
+// multi-byte text and priorities.
+void XB_REGS1 XB_CDECL CG_CenterPrint(int32_t priority, const char* text, float seconds, int32_t y);
+
+// 0x00285d50 (cdecl index): Q3's CG_RegisterItemVisuals (icon shader, weapon).
+void XB_CDECL CG_RegisterItemVisuals(uint32_t index);
+// 0x00286290: Q3's CG_RegisterItems from configstring 8.
+void XB_CDECL CG_RegisterItems();
+// 0x00285da0: every used weapon view model registered with its animation tree reset.
+void XB_CDECL CG_LoadViewModelAnimTrees();
+
+// 0x0027e630 (colour in EAX, cdecl alpha): the objectives list screen.
+void XB_REGS1 XB_CDECL CG_DrawObjectiveList(const float* color, float alpha);
+
 }  // namespace game

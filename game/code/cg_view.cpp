@@ -852,4 +852,163 @@ void XB_CDECL PerpendicularVector(const float* src, float* dst) {
     }
 }
 
+namespace {
+
+// The title's inline asin series (CG_CalcCubemapViewValues, CG_CalcFov): below one half the
+// odd powers, else pi/2 less the series of sqrt(|(1 - t) / 2|).
+float title_asin_series(float t) {
+    const float half = g(0x0083eb24);
+    if (half > t) {
+        const float t2 = t * t;
+        const float t3 = t2 * t;
+        const float t5 = t3 * t2;
+        const float t7 = t5 * t2;
+        return ((t7 * g(0x0083ee94) + t5 * g(0x0083ee98)) + t3 * g(0x0083ee9c)) + t;
+    }
+    const float s = platform_x87_sqrt_abs_sub_mul(g(0x0083eb20), t, half);
+    const float s2 = s * s;
+    const float s3 = s2 * s;
+    const float s5 = s3 * s2;
+    const float s7 = s5 * s2;
+    return (((s7 * g(0x0083ee8c) - s5 * g(0x0083ed2c)) - s3 * g(0x0083ee90)) - s * g(0x0083eba8)) + g(0x0083ee88);
+}
+
+// atan2(y, x) the title's way, from 1 / hypot already computed.
+float title_atan2(float y, float x, float inverse) {
+    const float abs_y = abs_bits(y), abs_x = abs_bits(x);
+    float angle;
+    if (abs_x > abs_y)
+        angle = g(0x0083ed0c) - title_asin_series(inverse * abs_y);
+    else
+        angle = title_asin_series(inverse * abs_x);
+    if (0.0f > y) angle = g(0x0083ed00) - angle;
+    if (0.0f > x) angle = 0.0f - angle;
+    return angle;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL CG_CalcFov() {
+    // Q3's CG_CalcFov: fov_x from CG_GetViewFov at a 4:3 aspect, fov_y = atan2(3 / ...) (or
+    // 2 * atan(9/16) with 0x00948f64), under water (CG_PointContents of the view origin,
+    // mask 0x20) both wobbling by sin(cg.time * 0.0025); the zoom sensitivity 0x00972c38 and
+    // the fov ratio 0x008da6d8 to cg_fov. Returns whether under water.
+    using ext = long double;
+    if (gi(0x00972574) >= 4) {
+        title_global<int32_t>(0x00972c34) = 0;
+        title_global<float>(0x00972c3c) = 0.0f;
+    }
+    float fov_x = CG_GetViewFov();
+    float& sensitivity = title_global<float>(0x00972c38);
+    sensitivity = (fov_x - g(0x008fefb4)) / (g(0x0094c3e8) - g(0x008fefb4));
+    if (g(0x0083f138) > sensitivity) sensitivity = g(0x0083f138);
+    if (title_global<uint32_t>(0x00972610) & 0x200)
+        sensitivity = sensitivity * (title_global<uint32_t>(0x00972a50) ? g(0x0083ec18) : g(0x0083ed28));
+    const uint8_t* def = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(CG_GetCurrentWeaponDef()));
+    if (def) {
+        const float v = *reinterpret_cast<const float*>(def + (g(0x009725d8) == g(0x0083eb20) ? 0x628 : 0x61c));
+        if (v > g(0x0083eafc)) sensitivity = v * sensitivity;
+    }
+    const float to_half_radians = g(0x0083ecf0);
+    // fov_y = atan2(x, 3) * 360 / pi with x = 4 / tan(fov_x / 2).
+    const float x = static_cast<float>(static_cast<ext>(g(0x0083100c)) /
+                                       platform_x87_tan_ext(static_cast<ext>(fov_x) * static_cast<ext>(to_half_radians)));
+    float angle = 0.0f;
+    const float three = static_cast<float>(title_global<double>(0x0083f130));
+    if (!(abs_bits(three) + abs_bits(x) == 0.0f)) {
+        const float inverse = static_cast<float>(
+            static_cast<ext>(g(0x0083eb20)) /
+            platform_x87_sqrt_ext(static_cast<ext>(x) * static_cast<ext>(x) + static_cast<ext>(g(0x0083eef8))));
+        angle = title_atan2(x, three, inverse);
+    }
+    float fov_y = angle * g(0x0083efbc);
+    float a, b;
+    if (title_global<uint32_t>(0x00948f64)) {
+        a = g(0x0083eef8);
+        b = g(0x0083ebb8);
+    } else {
+        a = static_cast<float>(static_cast<ext>(g(0x0083ec9c)) /
+                               platform_x87_tan_ext(static_cast<ext>(fov_y) * static_cast<ext>(to_half_radians)));
+        b = g(0x0083100c);
+    }
+    angle = 0.0f;
+    if (!(abs_bits(b) + abs_bits(a) == 0.0f)) angle = title_atan2(a, b, platform_x87_rcp_hypot(b, a, g(0x0083eb20)));
+    fov_x = angle * g(0x0083efbc);
+    float* view = &title_global<float>(0x00972bb0);
+    uint32_t& rdflags = title_global<uint32_t>(0x00972be8);
+    uint32_t under_water;
+    if (CG_PointContents(view, 0, 0x20)) {
+        const ext phase =
+            platform_x87_sin_ext(static_cast<ext>(gi(0x0097253c)) * static_cast<ext>(g(0x0083f128)));
+        fov_x = static_cast<float>(static_cast<ext>(fov_x) + phase);
+        fov_y = static_cast<float>(static_cast<ext>(fov_y) - phase);
+        rdflags |= 0x20;
+        under_water = 1;
+    } else {
+        rdflags &= ~0x20u;
+        under_water = 0;
+    }
+    if (CG_PointContents(view, 0, 0x20))
+        rdflags |= 0x20;
+    else
+        rdflags &= ~0x20u;
+    title_global<float>(0x00972ba0) = fov_x;
+    title_global<float>(0x00972ba4) = fov_y;
+    float ratio = g(0x0083eb20);
+    if (fov_x > 0.0f && g(0x0094c3e8) > 0.0f) {
+        const float z = fov_x / g(0x0094c3e8);
+        if (g(0x0083eb20) > z) ratio = z;
+    }
+    title_global<float>(0x008da6d8) = ratio;
+    return under_water;
+}
+
+// vectoyaw (0x002a1830): vector in ECX, yaw in XMM0 (returned here on the x87).
+extern "C" PLATFORM_HIDDEN float XB_CDECL cg_vectoyaw(const float* v);
+PLATFORM_ASM_ENTRY(cg_vectoyaw,
+                   "movl 4(%esp), %ecx\n"
+                   "movl $0x002a1830, %eax\n"
+                   "call *%eax\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "flds (%esp)\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawDamageDirectionIcons() {
+    // Each running damage indicator (0x00972f00, 8 of {time, duration, yaw}) as a rotated
+    // quad (shader 0x00975c58, size 0x00949230, from 0x00948a50 out to + 0x00948c00) about
+    // the screen centre (or the scope's projected aim point), fading over its second half.
+    float color[4] = {g(0x0083eb20), g(0x0083eb20), g(0x0083eb20), 0.0f};
+    if (!title_global<uint32_t>(0x00971aa8)) return;
+    float fraction;
+    float x, y;
+    if (CG_GetAdsOverlayFraction(0, 0, &fraction)) {
+        if (!title_global<uint32_t>(0x0094b1ec)) return;
+        CG_ProjectViewDirToScreen(&x, &y);
+        x = x + g(0x0083ec64);
+        y = y + g(0x0083eed4);
+    } else {
+        x = g(0x0083ec64);
+        y = g(0x0083eed4);
+    }
+    const float size = g(0x00949230) * g(0x0083eb24);
+    const float negative = 0.0f - size;
+    const float offset = g(0x00948a50);
+    const float far_edge = g(0x00948c00) + offset;
+    const float quad[8] = {negative, offset, size, offset, size, far_edge, negative, far_edge};
+    for (uint32_t slot = 0x00972f00; slot < 0x00972f60; slot += 12) {
+        const int32_t elapsed = gi(0x0097253c) - title_global<int32_t>(slot);
+        const int32_t duration = title_global<int32_t>(slot + 4);
+        if (elapsed <= 0 || elapsed >= duration) continue;
+        const float angle = cg_vectoyaw(&title_global<float>(0x00972bc0)) - title_global<float>(slot + 8);
+        const float two = g(0x0083eba8);
+        const float alpha = two - static_cast<float>(elapsed) * two / static_cast<float>(duration);
+        color[3] = g(0x0083eb20);
+        if (!(alpha > g(0x0083eb20))) color[3] = alpha;
+        title_function<void XB_CDECL(const float*)>(title_global<uint32_t>(0x0092852c))(color);
+        CG_DrawRotatedQuadPic(x, y, &title_global<float>(0x00839a6c), title_global<uint32_t>(0x00975c58), quad, angle);
+    }
+}
+
 }  // namespace game

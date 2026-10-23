@@ -1342,4 +1342,231 @@ void XB_CDECL CG_RegisterCvars() {
     }
 }
 
+namespace {
+
+// The next character of `p` (advanced): with multi-byte text on (0x0093e750) and language
+// cvar 0x0093f7fc in 8..11, a valid lead/trail byte pair counts as one character.
+uint32_t next_text_char(const uint8_t*& p) {
+    const uint8_t* language = title_global<const uint8_t*>(0x0093f7fc);
+    if (title_global<uint32_t>(0x0093e750)) {
+        const uint32_t kind = *reinterpret_cast<const uint32_t*>(language + 0x20) - 8;
+        const uint32_t hi = p[0], lo = p[1];
+        bool pair = false;
+        switch (kind) {
+        case 0: pair = hi >= 0xb0 && hi <= 0xc8 && lo > 0xa0 && lo < 0xff; break;
+        case 1:
+            pair = ((hi >= 0xa1 && hi <= 0xc6) || (hi >= 0xc9 && hi <= 0xf9)) &&
+                   ((lo >= 0x40 && lo <= 0x7e) || (lo >= 0xa1 && lo <= 0xfe));
+            break;
+        case 2:
+            pair = ((hi >= 0x81 && hi <= 0x9f) || (hi >= 0xe0 && hi <= 0xef)) &&
+                   ((lo >= 0x40 && lo <= 0x7e) || (lo >= 0x80 && lo <= 0xfc));
+            break;
+        case 3: pair = hi >= 0xa1 && hi <= 0xf7 && lo > 0xa0 && lo < 0xff; break;
+        default: break;
+        }
+        if (pair) {
+            p += 2;
+            return (hi << 8) + lo;
+        }
+    }
+    return *p++;
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL CG_CenterPrint(int32_t priority, const char* text, float seconds, int32_t y) {
+    // Q3's CG_CenterPrint: unless a higher-priority print (0x00972e80) is still up, the
+    // localized text into cg.centerPrint (0x00972c7c, 0x200 bytes) wrapped at a space after
+    // 75 characters, its time, duration (0x00972c78, truncated) and y (0x00972c74), and the
+    // line count (0x00972e7c; "\n" escapes count too).
+    if (title_global<int32_t>(0x00972c70) && priority < title_global<int32_t>(0x00972e80)) return;
+    const char* localized = title_function<const char* XB_CDECL(const char*, const char*, uint32_t)>(0x002d03c0)(  // SEH_LocalizeTextMessage
+        text, &title_global<char>(0x00839a8c), 0);
+    char* print = &title_global<char>(0x00972c7c);
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(print, localized, 0x1ff);  // _strncpy
+    title_global<int32_t>(0x00972e80) = priority;
+    print[0x1ff] = 0;
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(print);
+    int32_t count = 0;
+    bool wrap = false;
+    while (*p) {
+        const uint32_t c = next_text_char(p);
+        if (c == '\n') {
+            wrap = false;
+            count = 0;
+            continue;
+        }
+        if (++count >= 0x4b) wrap = true;
+        if (wrap && c == ' ') {
+            const_cast<uint8_t*>(p)[-1] = '\n';
+            wrap = false;
+            count = 0;
+        }
+    }
+    title_global<int32_t>(0x00972c70) = title_global<int32_t>(0x0097253c);
+    title_global<int32_t>(0x00972c78) = static_cast<int32_t>(seconds);
+    title_global<int32_t>(0x00972c74) = y;
+    int32_t& lines = title_global<int32_t>(0x00972e7c);
+    lines = 1;
+    p = reinterpret_cast<const uint8_t*>(print);
+    while (*p) {
+        const uint32_t c = next_text_char(p);
+        if (c == '\n') {
+            ++lines;
+        } else if (c == '\\' && *p == 'n') {
+            ++lines;
+            ++p;
+        }
+    }
+}
+
+namespace {
+
+// Registers item `index`'s icon shader (0x0096bd10 + index * 0x34, name +0x14) into its
+// record (0x00949a98 + index * 8: registered flag, shader) and, for weapon items (+0x24 1),
+// the weapon (+0x28; CG_RegisterWeapon 0x002832b0).
+void register_item(uint32_t index) {
+    uint8_t* record = &title_global<uint8_t>(0x00949a98 + index * 8);
+    const uint8_t* item = &title_global<uint8_t>(0x0096bd10 + index * 0x34);
+    *reinterpret_cast<uint32_t*>(record) = 0;
+    *reinterpret_cast<uint8_t**>(record + 4) = RE_RegisterShader(0, *reinterpret_cast<const char* const*>(item + 0x14));
+    if (*reinterpret_cast<const int32_t*>(item + 0x24) == 1)
+        title_function<void XB_CDECL(uint32_t)>(0x002832b0)(*reinterpret_cast<const uint32_t*>(item + 0x28));
+    record[0] = 1;
+}
+
+}  // namespace
+
+void XB_CDECL CG_RegisterItemVisuals(uint32_t index) {
+    if (title_global<uint8_t>(0x00949a98 + index * 8)) return;
+    register_item(index);
+}
+
+void XB_CDECL CG_RegisterItems() {
+    // Q3's CG_RegisterItems: the items marked in configstring 8 (one hex digit per 4 items,
+    // bit index & 3), 1..135, not registered yet.
+    const uint8_t* string = title_global<const uint8_t*>(0x009606d8);
+    const char* bits = string ? reinterpret_cast<const char*>(string + 6) : nullptr;
+    char buffer[0x100];
+    for (uint32_t k = 0;; ++k) {
+        buffer[k] = bits[k];
+        if (!bits[k]) break;
+    }
+    for (uint32_t index = 1; index < 0x88; ++index) {
+        int32_t digit = buffer[index >> 2];
+        digit = digit > '9' ? digit - 0x57 : digit - '0';
+        if (!(digit & (1 << (index & 3)))) continue;
+        if (title_global<uint8_t>(0x00949a98 + index * 8)) continue;
+        register_item(index);
+    }
+}
+
+void XB_CDECL CG_LoadViewModelAnimTrees() {
+    // Each used weapon view model (0x0097606c + (weapon - 1) * 0xc4, used +0x84) registered
+    // and its animation tree's root cleared (AnimTree_ClearNode_r); a missing tree is reported.
+    for (int32_t weapon = 1; weapon <= title_global<int32_t>(0x0095f4d4); ++weapon) {
+        uint8_t* model = &title_global<uint8_t>(0x0097606c + static_cast<uint32_t>(weapon - 1) * 0xc4);
+        if (!model[0x84]) continue;
+        title_function<void XB_CDECL(int32_t)>(0x002832b0)(weapon);  // CG_RegisterWeapon
+        if (!*reinterpret_cast<uint32_t*>(model))
+            title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, &title_global<char>(0x008387c4));  // __break
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002c3ae0)(  // AnimTree_ClearNode_r
+            **reinterpret_cast<uint32_t**>(model), 0);
+    }
+}
+
+void XB_REGS1 XB_CDECL CG_DrawObjectiveList(const float* color, float alpha) {
+    // The objectives screen: the "CGAME_MISSIONOBJECTIVES" title underlined (shadow at 40,101
+    // in black, line at 39,100 in `color`), then up to the last 6 objectives (0x009730c8,
+    // 16 of 0x98 bytes: state +0, text +0x18) with their state's icon (1/4 0x00975c5c, 3
+    // 0x00975c60, 5 0x00975c64) and colour, on a dark panel sized to the widest line.
+    const float xs = g(0x009758b8), ys = g(0x009758bc);
+    const float grey = g(0x0083eba4);
+    const float done[4] = {grey, grey, grey, alpha};             // state 1
+    const float current[4] = {grey, g(0x0083eb20), grey, alpha};  // state 4
+    const float failed[4] = {g(0x0083ec44), g(0x0083066c), g(0x0083066c), alpha};  // state 5
+    const float dim[4] = {g(0x0083f064), g(0x0083f064), g(0x0083f064), alpha};      // state 3
+    const float shadow[4] = {0.0f, 0.0f, 0.0f, alpha};
+    const auto font_height = title_function<int32_t XB_CDECL(uint32_t, float)>(title_global<uint32_t>(0x00928574));
+    const auto set_color = title_function<void XB_CDECL(const float*)>(title_global<uint32_t>(0x0092852c));
+    using StretchPic = void XB_CDECL(float, float, float, float, float, float, float, float, uint32_t);
+    const auto stretch_pic = title_function<StretchPic>(title_global<uint32_t>(0x00928530));
+    using DrawText = void XB_CDECL(float, float, uint32_t, float, const float*, const char*, uint32_t, uint32_t, uint32_t);
+    const auto draw_text = title_function<DrawText>(title_global<uint32_t>(0x00928578));
+    const float small = 0.28f, large = 0.45f;
+    const float line_height = static_cast<float>(font_height(0, small));
+    const char* title = CG_TranslateString(&title_global<char>(0x00838c8c), &title_global<char>(0x0083521c));
+    const float title_width = static_cast<float>(RE_TextWidth(title, 0, large));
+    const uint32_t white = title_global<uint32_t>(0x00975c3c);
+    set_color(shadow);
+    stretch_pic(xs * g(0x0083ec84), ys * g(0x0083f060), title_width * xs, ys, 0.0f, 0.0f, 0.0f, 1.0f, white);
+    set_color(nullptr);
+    set_color(color);
+    stretch_pic(xs * g(0x0083f05c), ys * g(0x0083eb90), title_width * xs, ys, 0.0f, 0.0f, 0.0f, 1.0f,
+                title_global<uint32_t>(0x00975c3c));
+    set_color(nullptr);
+    draw_text(39.0f, 99.0f, 0, large, color, title, 0, 0, 3);
+    float y = static_cast<float>(font_height(0, large)) + g(0x0083f058);
+    float widest = static_cast<float>(RE_TextWidth(title, 0, large));
+    int32_t shown[16];
+    int32_t count = 0;
+    for (int32_t i = 0; i < 16; ++i) {
+        const uint8_t* objective = &title_global<uint8_t>(0x009730c8 + i * 0x98);
+        uint32_t icon = 0;
+        switch (*reinterpret_cast<const int32_t*>(objective)) {
+        case 1:
+        case 4: icon = title_global<uint32_t>(0x00975c5c); break;
+        case 3: icon = title_global<uint32_t>(0x00975c60); break;
+        case 5: icon = title_global<uint32_t>(0x00975c64); break;
+        default: continue;
+        }
+        if (icon && objective[0x18]) shown[count++] = i;
+    }
+    int32_t first = 0;
+    if (count > 6) {
+        first = count - 6;
+        count = 6;
+    }
+    const int32_t end = first + count;
+    const float four = g(0x0083100c);
+    for (int32_t k = first; k < end; ++k) {
+        const uint8_t* objective = &title_global<uint8_t>(0x009730c8 + shown[k] * 0x98);
+        uint32_t icon;
+        const float* line_color;
+        switch (*reinterpret_cast<const int32_t*>(objective)) {
+        case 1: icon = title_global<uint32_t>(0x00975c5c); line_color = done; break;
+        case 2: y = line_height + y + four; continue;
+        case 3: icon = title_global<uint32_t>(0x00975c60); line_color = dim; break;
+        case 4: icon = title_global<uint32_t>(0x00975c5c); line_color = current; break;
+        case 5: icon = title_global<uint32_t>(0x00975c64); line_color = failed; break;
+        default: continue;
+        }
+        const char* text = reinterpret_cast<const char*>(objective + 0x18);
+        if (!*text) continue;
+        if (icon) {
+            const float twelve = g(0x0083eccc);
+            const float icon_x = xs * g(0x0083ebc4);
+            const float icon_w = xs * twelve;
+            const float icon_y = ((y - twelve) - g(0x0083eb20)) * ys;
+            const float icon_h = ys * twelve;
+            set_color(line_color);
+            stretch_pic(static_cast<float>(title_global<int32_t>(0x00972b90)) + icon_x,
+                        static_cast<float>(title_global<int32_t>(0x00972b94)) + icon_y, icon_w, icon_h, 0.0f, 0.0f, 1.0f,
+                        1.0f, icon);
+            set_color(nullptr);
+        }
+        const char* localized = title_function<const char* XB_CDECL(const char*, const char*, uint32_t)>(0x002d03c0)(  // SEH_LocalizeTextMessage
+            text, &title_global<char>(0x00838c7c), 0);
+        draw_text(39.0f, y - g(0x0083eba8), 0, small, line_color, localized, 0, 0, 3);
+        const float width = static_cast<float>(RE_TextWidth(localized, 0, small));
+        if (width > widest) widest = width;
+        y = line_height + y + four;
+    }
+    const float panel[4] = {g(0x0083ebf8), g(0x0083ebf8), g(0x0083ebf8), g(0x0083eb58)};
+    const float w = (widest + g(0x0083f05c)) + g(0x0083ebc4);
+    const float h = (line_height + four) * static_cast<float>(count) + g(0x0083f054);
+    R_DrawFilledRect(panel, 14.0f, 59.0f, w, h, 5.0f);
+}
+
 }  // namespace game
