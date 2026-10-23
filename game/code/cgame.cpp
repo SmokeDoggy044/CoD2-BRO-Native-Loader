@@ -3,6 +3,8 @@
 #include <cstdarg>
 #include <cstring>
 
+#include "bg_misc.h"
+#include "cg_ents.h"
 #include "dobj.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -826,6 +828,186 @@ int32_t XB_CDECL CG_CycleWeaponSlot(uint32_t forward, uint32_t need_ammo) {
         slot += step;
         if (slot == 0 || slot == 7) return 0;
     }
+}
+
+namespace {
+
+// Z_MallocDebug(size, "hunk", file, 0x88): the save-state copy's blocks.
+void* save_block(uint32_t size) {
+    return title_function<void* XB_CDECL(uint32_t, const char*, const char*, uint32_t)>(0x00042c20)(
+        size, &title_global<char>(0x0083534c), &title_global<char>(0x00835354), 0x88);
+}
+
+// VM_Call(gvm, 0x14, data, size): writes a block of the save state.
+void write_save_block(uint32_t data, uint32_t size) {
+    TitleRegs regs{};
+    regs.edx = title_global<uint32_t>(0x0095f50c);  // gvm
+    const uint32_t args[3] = {0x14, data, size};
+    cg_call_regs(0x002a84e0, &regs, args, 3);
+}
+
+}  // namespace
+
+void XB_CDECL CG_CopySaveState() {
+    // Per weapon from 1 (view models 0x0097606c, 0xc4 each): whether its tree has a first
+    // word (byte at +0x84) and the word at +0x80; then 0x00972f00 (0x60 bytes) and the camera
+    // shakes 0x0097300c (0x90 bytes).
+    for (int32_t i = 1; i <= title_global<int32_t>(0x0095f4d4); ++i) {
+        uint8_t* model = &title_global<uint8_t>(0x0097606c + static_cast<uint32_t>(i - 1) * 0xc4);
+        const uint32_t* tree = *reinterpret_cast<uint32_t**>(model);
+        model[0x84] = tree && *tree ? 1 : 0;
+        *static_cast<uint8_t*>(save_block(1)) = model[0x84];
+        *static_cast<uint32_t*>(save_block(4)) = *reinterpret_cast<uint32_t*>(model + 0x80);
+    }
+    std::memcpy(save_block(0x60), &title_global<uint8_t>(0x00972f00), 0x60);
+    std::memcpy(save_block(0x90), &title_global<uint8_t>(0x0097300c), 0x90);
+}
+
+void XB_CDECL CG_WriteSaveState() {
+    for (int32_t i = 1; i <= title_global<int32_t>(0x0095f4d4); ++i) {
+        const uint32_t word = 0x009760ec + static_cast<uint32_t>(i - 1) * 0xc4;
+        write_save_block(word + 4, 1);
+        write_save_block(word, 4);
+    }
+    write_save_block(0x00972f00, 0x60);
+    write_save_block(0x0097300c, 0x90);
+}
+
+uint32_t XB_CDECL CG_ConsoleCommand() {
+    // Q3's CG_ConsoleCommand: the first word against cg_commands (0x0082f420, {name, function}).
+    const char* text = title_global<uint32_t>(0x00934248)  // cmd_argc
+                           ? title_global<const char*>(0x0092df90)  // cmd_argv[0]
+                           : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
+    char* buffer = &title_global<char>(0x0098b958);  // cg_argvBuffer
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buffer, text, 0xff);  // _strncpy
+    buffer[0xff] = 0;
+    const uint32_t* commands = &title_global<uint32_t>(0x0082f420);
+    for (uint32_t i = 0; commands[i * 2]; ++i) {
+        if (!title_function<int32_t XB_CDECL(const char*, const char*, int32_t)>(0x000441c0)(  // Q_stricmpn
+                buffer, reinterpret_cast<const char*>(static_cast<uintptr_t>(commands[i * 2])), 99999)) {
+            title_function<void XB_CDECL()>(commands[i * 2 + 1])();
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void XB_CDECL CG_InitConsoleCommands() {
+    const auto add = [](uint32_t name) {
+        title_function<void XB_CDECL(const char*, uint32_t)>(0x002ba5c0)(  // Cmd_AddCommand
+            reinterpret_cast<const char*>(static_cast<uintptr_t>(name)), 0);
+    };
+    for (const uint32_t* command = &title_global<uint32_t>(0x0082f420); *command; command += 2) add(*command);
+    // "startCamera", "stopCamera", "setCameraOrigin", "levelshot", "stats"
+    add(0x00839af4);
+    add(0x00839ae8);
+    add(0x00839ad8);
+    add(0x00839acc);
+    add(0x00839ac4);
+}
+
+void XB_CDECL CG_DrawHudElems() {
+    // The used hud elements (16 of 0x7c bytes from 0x0094cc88), sorted (qsort with
+    // 0x00275ab0), each drawn by CG_DrawHudElem (0x002820f0, element in ECX).
+    uint32_t elems[16];
+    int32_t count = 0;
+    for (uint32_t elem = 0x0094cc88; elem < 0x0094d448; elem += 0x7c)
+        if (title_global<uint32_t>(elem)) elems[count++] = elem;
+    title_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(0x001ef880)(elems, static_cast<uint32_t>(count), 4,
+                                                                                 0x00275ab0);  // _qsort
+    for (int32_t i = 0; i < count; ++i) {
+        TitleRegs regs{};
+        regs.ecx = elems[i];
+        regs.esi = static_cast<uint32_t>(count);
+        regs.edi = static_cast<uint32_t>(i);
+        cg_call_regs(0x002820f0, &regs, nullptr, 0);
+    }
+}
+
+namespace {
+
+// CG_SelectWeapon (0x002cde20, weapon in ESI).
+void select_weapon(uint32_t weapon) { title_call_regs(0x002cde20, 0, weapon, 0); }
+
+}  // namespace
+
+uint32_t XB_REGS1 XB_CDECL CG_CycleOwnedWeapon(uint32_t forward, uint32_t need_ammo) {
+    // Weapons 1.. up (or bg_lastWeaponIndex.. down) the player owns (bits 0x00972940) that
+    // are in no inventory slot and get none (BG_GetWeaponSlot / BG_ChooseWeaponSlot): the
+    // first one (with ammo when asked) is selected. Without ammo the original tries the
+    // same weapon again forever.
+    const uint8_t* ps = &title_global<uint8_t>(0x00972550);
+    const int32_t step = forward ? 1 : -1;
+    int32_t weapon = forward ? 1 : title_global<int32_t>(0x0095f4d4);
+    for (;;) {
+        if ((title_global<uint32_t>(0x00972940 + (weapon >> 5) * 4) & (1u << (weapon & 0x1f))) &&
+            !BG_GetWeaponSlot(ps, weapon, 1) && !BG_ChooseWeaponSlot(0, static_cast<uint32_t>(weapon), ps)) {
+            if (need_ammo) {
+                const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[weapon];
+                if (title_global<uint32_t>(0x009727d0 + *reinterpret_cast<const uint32_t*>(def + 0x5a0) * 4) +
+                        title_global<uint32_t>(0x00972660 + *reinterpret_cast<const uint32_t*>(def + 0x598) * 4) ==
+                    0)
+                    continue;
+            }
+            select_weapon(static_cast<uint32_t>(weapon));
+            return 1;
+        }
+        weapon += step;
+        if (weapon == 0 || weapon == title_global<int32_t>(0x0095f4d4)) return 0;
+    }
+}
+
+void XB_CDECL CG_Weapon_f() {
+    // "weapon <name or index>": selects it unless there is no snapshot or flag 0x4000
+    // (0x0097257c) / 0x100000 (0x00972610) blocks it.
+    if (!title_global<uint32_t>(0x00971aa8)) return;
+    if (title_global<uint32_t>(0x0097257c) & 0x4000) return;
+    if (title_global<uint32_t>(0x00972610) & 0x100000) return;
+    const char* name = CG_Argv(1);
+    uint32_t weapon = 0;
+    if (name && *name) weapon = BG_FindWeaponIndexForHash(Com_HashKeyNoCase(0, name)) & 0xff;
+    if (!weapon) {
+        weapon = static_cast<uint32_t>(
+            title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(CG_Argv(1)));  // _atol
+        if (!weapon) return;
+    }
+    select_weapon(weapon);
+}
+
+void XB_CDECL CG_ConfigStringCommand() {
+    // "cs <index>": CG_ConfigStringModified (0x002867a0, index in EAX) of the second word.
+    const char* text = title_global<uint32_t>(0x00934248) > 1  // cmd_argc
+                           ? title_global<const char*>(0x0092df94)  // cmd_argv[1]
+                           : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
+    char* buffer = &title_global<char>(0x0098b958);  // cg_argvBuffer
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(buffer, text, 0xff);  // _strncpy
+    buffer[0xff] = 0;
+    const int32_t index = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(buffer);  // _atol
+    title_call_regs(0x002867a0, static_cast<uint32_t>(index), 0, 0);
+}
+
+const char* XB_REGS1 XB_CDECL CG_TranslateString(const char* text, const char* what) {
+    // The localized text (Loc_GetString 0x0029d5f0, text in ESI) while localization is on
+    // (0x00929b4c +0x20) and the text has two or more characters; without a translation
+    // "^1UNLOCALIZED(^7text^1)^7" (0x0098bd20; the text alone with 0x00949984 off).
+    const uint8_t* loc = title_global<const uint8_t*>(0x00929b4c);
+    const char* result = text;
+    if (loc && *reinterpret_cast<const uint32_t*>(loc + 0x20) && text[0] && text[1])
+        result = reinterpret_cast<const char*>(
+            static_cast<uintptr_t>(title_call_regs(0x0029d5f0, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text)), 0)));
+    if (result) return result;
+    char* buffer = &title_global<char>(0x0098bd20);
+    if (!title_global<uint32_t>(0x00949984)) {
+        std::strcpy(buffer, text);
+        return buffer;
+    }
+    if (title_global<uint32_t>(0x009491a4))
+        title_function<void XB_CDECL(int32_t, const char*, const char*, const char*)>(0x002938f0)(  // __break
+            7, &title_global<char>(0x00838d04), what, text);
+    std::memcpy(buffer, &title_global<char>(0x00833404), 17);
+    std::strcat(buffer, text);
+    std::strcat(buffer, &title_global<char>(0x008333fc));
+    return buffer;
 }
 
 }  // namespace game

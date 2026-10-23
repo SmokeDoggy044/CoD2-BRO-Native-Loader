@@ -163,4 +163,31 @@ void XB_CDECL CG_DrawProgressBar(float x, float y, float w, float h, float fract
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CG_CycleWeaponSlot(uint32_t forward, uint32_t need_ammo);
 extern "C" void CG_CycleWeaponSlot_entry(void);
 
+// 0x00278cb0: the cgame part of a save copied into hunk blocks (Z_MallocDebug): per weapon
+// from 1 the view model's tree flag (+0x84, set here) and +0x80, then 0x00972f00 (0x60) and
+// the camera shakes 0x0097300c (0x90).
+void XB_CDECL CG_CopySaveState();
+// 0x00276b10: the same blocks written through VM_Call(gvm, 0x14, data, size).
+void XB_CDECL CG_WriteSaveState();
+// 0x00279dd0: Q3's CG_ConsoleCommand: runs the cg_commands entry (0x0082f420) named by
+// the first word (Q_stricmpn); 1 when found.
+uint32_t XB_CDECL CG_ConsoleCommand();
+// 0x0027acb0: Q3's CG_InitConsoleCommands: Cmd_AddCommand(name, 0) for cg_commands and five
+// more names.
+void XB_CDECL CG_InitConsoleCommands();
+
+// 0x00284b90: the used hud elements (0x0094cc88, 16 of 0x7c bytes) sorted and drawn.
+void XB_CDECL CG_DrawHudElems();
+
+// 0x0027bfb0 (forward in EAX, cdecl need_ammo): the next owned weapon outside the inventory
+// slots (from 1 up, or from bg_lastWeaponIndex down) selected; 1 when one was.
+uint32_t XB_REGS1 XB_CDECL CG_CycleOwnedWeapon(uint32_t forward, uint32_t need_ammo);
+// 0x0027c220: "weapon <name or index>" selects that weapon.
+void XB_CDECL CG_Weapon_f();
+// 0x00286c20: "cs <index>": CG_ConfigStringModified of that configstring.
+void XB_CDECL CG_ConfigStringCommand();
+// 0x0027b9f0 (text in EAX, cdecl what): the localized text, or "^1UNLOCALIZED(^7text^1)^7"
+// in 0x0098bd20 (the text alone while 0x00949984 is off).
+const char* XB_REGS1 XB_CDECL CG_TranslateString(const char* text, const char* what);
+
 }  // namespace game

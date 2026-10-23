@@ -81,4 +81,15 @@ void XB_REGS3 XB_CDECL CG_Tracer(uint32_t unused, const float* start, const floa
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_StartShakeCamera(const float* origin, float scale, int32_t duration, float radius);
 extern "C" void CG_StartShakeCamera_entry(void);
 
+// 0x0027a7b0 (result in XMM0): the view's field of view: cg_fov (0x0094c3e8) clamped to 1..160,
+// narrowed while zooming towards the weapon's zoomed fov (+0x624); with the zoom flash cvar
+// (0x009481e4) a short screen fade on zoom state changes; the current weapon's own fov
+// (+0x624 fully zoomed, else +0x848) wins when set.
+extern "C" PLATFORM_HIDDEN float XB_CDECL CG_GetViewFov();
+extern "C" void CG_GetViewFov_entry(void);
+// 0x0027fc40: the camera shake: the strongest active shake slot's scale (capped at 1) moves
+// the view origin by random offsets and the view angles by three sine waves of cg.time;
+// without a shake only a new random phase (0x0097309c).
+void XB_CDECL CG_ShakeCamera();
+
 }  // namespace game
