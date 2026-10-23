@@ -1782,6 +1782,7 @@ const Function kFunctions[] = {
     {"Cvar_FindVar", 0x00299710, 0, code(&Cvar_FindVar), 4, Result::Eax, Status::Compare},
     {"Com_PushEvent", 0x00299800, 0, code(&Com_PushEvent_entry), 0, Result::None, Status::Compare},
     {"CopyString", 0x00299c80, 0, code(&CopyString_entry), 0, Result::Eax, Status::Compare},
+    {"RadiusFromBounds", 0x00299f00, 0, code(&RadiusFromBounds), 0, Result::St0, Status::Compare},
     {"PerpendicularVector", 0x0029a230, 0, code(&PerpendicularVector_entry), 0, Result::None, Status::Compare},
     {"FX_AxesFromForward", 0x0029a430, 0, code(&FX_AxesFromForward_entry), 0, Result::None, Status::Compare},
     {"FS_AddFileToList", 0x0029a810, 0, code(&FS_AddFileToList_entry), 8, Result::Eax, Status::Compare},

@@ -354,4 +354,20 @@ void XB_CDECL SV_Init() {
     }
 }
 
+long double XB_REGS3 XB_CDECL RadiusFromBounds(const float* maxs, uint32_t, const float* mins) {
+    float corner[3];
+    for (int32_t i = 0; i < 3; ++i) {
+        const float a = abs_bits(mins[i]);
+        const float b = abs_bits(maxs[i]);
+        corner[i] = platform_x87_greater(a, b) ? a : b;
+    }
+    const float sum = (corner[2] * corner[2] + corner[1] * corner[1]) + corner[0] * corner[0];
+    long double root;
+    __asm__ volatile("call *%2"
+                     : "=t"(root)
+                     : "0"(static_cast<long double>(sum)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "eax", "ecx", "edx", "memory");
+    return static_cast<float>(root);
+}
+
 }  // namespace game

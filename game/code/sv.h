@@ -84,4 +84,8 @@ void XB_CDECL SV_AddOperatorCommands();
 // kept in globals).
 void XB_CDECL SV_Init();
 
+// 0x00299f00 (maxs in EAX, mins in ECX; unnamed in Ghidra): Q3's RadiusFromBounds - per axis the larger
+// magnitude (x87 compare), sqrt((z^2 + y^2) + x^2) through the title's __CIsqrt, returned on the x87 as a float.
+long double XB_REGS3 XB_CDECL RadiusFromBounds(const float* maxs, uint32_t unused, const float* mins);
+
 }  // namespace game
