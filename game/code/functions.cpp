@@ -10,6 +10,7 @@
 #include "fx.h"
 #include "g_scr_math.h"
 #include "g_scr_runtime.h"
+#include "g_script.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
 #include "nal_anim.h"
@@ -982,6 +983,7 @@ const Function kFunctions[] = {
     {"Actor_SetDesiredAngles", 0x002053b0, 0, code(&Actor_SetDesiredAngles_entry), 4, Result::None, Status::Compare},
     {"Actor_RotateOrient", 0x00205930, 0, code(&Actor_RotateOrient_entry), 0, Result::None, Status::Compare},
     {"G_ExpireBadPlaces", 0x00205a70, 0, code(&G_ExpireBadPlaces), 0, Result::None, Status::Compare},
+    {"G_KillEntityOutright", 0x00225b30, 0, code(&G_KillEntityOutright), 0, Result::None, Status::Compare},
     {"Vehicle_InitWheelTags", 0x00226720, 0, code(&Vehicle_InitWheelTags), 4, Result::Eax, Status::Compare},
     {"Vehicle_PhysicsPreFrame", 0x002314c0, 0, code(&Vehicle_PhysicsPreFrame), 0, Result::None, Status::Compare},
     {"CG_R_DrawStretchPic", 0x00234b50, 0, code(&CG_R_DrawStretchPic), 32, Result::None, Status::Compare},
@@ -1071,6 +1073,13 @@ const Function kFunctions[] = {
     {"R_Register", 0x0023c4e0, 0, code(&R_Register), 0, Result::Eax, Status::Compare},
     {"R_RegisterModel", 0x00241f40, 0, code(&R_RegisterModel), 12, Result::Eax, Status::Compare},
     {"XModel_TransformBones", 0x00242540, 0, code(&XModel_TransformBones), 12, Result::None, Status::Compare},
+    {"G_Error", 0x00248af0, 0, code(&G_Error_entry), 0, Result::Eax, Status::Compare},
+    {"G_EndGame", 0x0024acb0, 0, code(&G_EndGame), 0, Result::None, Status::Compare},
+    {"SP_corona", 0x0024fdd0, 0, code(&SP_corona), 4, Result::None, Status::Compare},
+    {"SP_misc_model", 0x0024fde0, 0, code(&SP_misc_model), 4, Result::None, Status::Compare},
+    {"SP_light", 0x0024fdf0, 0, code(&SP_light), 4, Result::None, Status::Compare},
+    {"SP_info_null", 0x0024fe00, 0, code(&SP_info_null), 4, Result::None, Status::Compare},
+    {"G_Trigger", 0x00250cf0, 0, code(&G_Trigger_entry), 4, Result::None, Status::Compare},
     {"Bullet_RandomSpread", 0x00253cb0, 0, code(&Bullet_RandomSpread_entry), 4, Result::None, Status::Compare},
     {"Vehicle_FindDefIndex", 0x002487d0, 0, code(&Vehicle_FindDefIndex_entry), 0, Result::Eax, Status::Compare},
     {"Vehicle_FreeDefs", 0x00249e70, 0, code(&Vehicle_FreeDefs_entry), 0, Result::Eax, Status::Compare},
@@ -1501,7 +1510,9 @@ const Function kFunctions[] = {
     {"G_SetAngle2", 0x002b7690, 0, code(&G_SetAngle2), 0, Result::Eax, Status::Compare},
     {"G_SetOrigin", 0x002b76e0, 0, code(&G_SetOrigin), 0, Result::Eax, Status::Compare},
     {"G_SetOrigin2", 0x002b7730, 0, code(&G_SetOrigin2), 0, Result::Eax, Status::Compare},
+    {"G_ClearEntityReferences", 0x002b7780, 0, code(&G_ClearEntityReferences), 0, Result::Eax, Status::Compare},
     {"DObj_GetAnimRootTransform", 0x002b7ba0, 0, code(&DObj_GetAnimRootTransform), 8, Result::None, Status::Compare},
+    {"G_UpdateEntityLOD", 0x002b8450, 0, code(&G_UpdateEntityLOD), 0, Result::None, Status::Compare},
     {"Sentient_ClaimNodeTimed", 0x002ba1c0, 0, code(&Sentient_ClaimNodeTimed), 0, Result::None, Status::Compare},
     {"Sentient_ClaimNodeIndefinitely", 0x002ba360, 0, code(&Sentient_ClaimNodeIndefinitely), 0, Result::None, Status::Compare},
     {"PM_ClipIsEmpty", 0x002bc5e0, 0, code(&PM_ClipIsEmpty), 0, Result::Eax, Status::Compare},
@@ -1520,8 +1531,11 @@ const Function kFunctions[] = {
     {"CameraShake_Start", 0x002c9620, 0, code(&CameraShake_Start), 24, Result::Eax, Status::Compare},
     {"G_GetEntityAnimTree", 0x002c9780, 0, code(&G_GetEntityAnimTree), 0, Result::Eax, Status::Compare},
     {"CG_SelectWeapon", 0x002cde20, 0, code(&CG_SelectWeapon_entry), 0, Result::Eax, Status::Compare},
+    {"G_SetMovedir", 0x002d70a0, 0, code(&G_SetMovedir_entry), 0, Result::None, Status::Compare},
+    {"G_GetEntityMatrix", 0x002de120, 0, code(&G_GetEntityMatrix), 8, Result::Eax, Status::Compare},
     {"DObj_UpdateSkeletons", 0x002df880, 0, code(&DObj_UpdateSkeletons), 4, Result::None, Status::Compare},
     {"Scr_TeamFromString", 0x002f5250, 0, code(&Scr_TeamFromString_entry), 0, Result::Eax, Status::Compare},
+    {"G_FindLevelScriptModule", 0x002f54c0, 0, code(&G_FindLevelScriptModule_entry), 0, Result::Eax, Status::Compare},
     {"G_FindAnimTreeByName", 0x002f5790, 0, code(&G_FindAnimTreeByName), 4, Result::Eax, Status::Compare},
     {"G_FindEntsByField", 0x002f5cb0, 0, code(&G_FindEntsByField_entry), 8, Result::Eax, Status::Compare},
     {"Scr_Free", 0x002f5e10, 0, code(&Scr_Free), 4, Result::None, Status::Compare},
@@ -1530,6 +1544,7 @@ const Function kFunctions[] = {
     {"Scr_InThread", 0x002f62b0, 0, code(&Scr_InThread), 0, Result::Al, Status::Compare},
     {"Scr_Sqrt", 0x002f62c0, 0, code(&Scr_Sqrt), 4, Result::St0, Status::Compare},
     {"Scr_EntityHandleIsValid", 0x002fae90, 0, code(&Scr_EntityHandleIsValid), 4, Result::Eax, Status::Compare},
+    {"G_UpdateEntityStringHashes", 0x002fb310, 0, code(&G_UpdateEntityStringHashes_entry), 0, Result::Eax, Status::Compare},
     {"Scr_Alloc", 0x002fb3d0, 0, code(&Scr_Alloc), 8, Result::Eax, Status::Compare},
     {"Scr_QueueNotifyCallback29", 0x002fbc40, 0, code(&Scr_QueueNotifyCallback29), 12, Result::None, Status::Compare},
     {"Scr_QueueNotifyCallback26", 0x002fbd70, 0, code(&Scr_QueueNotifyCallback26), 12, Result::None, Status::Compare},
