@@ -34,7 +34,7 @@ def symbols(binary):
     table = []
     for line in out.splitlines():
         parts = line.split(" ", 2)
-        if len(parts) == 3 and parts[1] in "tTwW" and parts[0].strip():
+        if len(parts) == 3 and parts[1] in "tTwW" and parts[0].strip() and not parts[2].startswith(".L"):
             table.append((int(parts[0], 16) - base, parts[2]))
     return table
 
