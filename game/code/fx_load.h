@@ -258,4 +258,24 @@ uint8_t* XB_CDECL FxShaderClass_Create();
 uint32_t* XB_STDCALL FxSimpleShader_GetName(uint32_t* out);
 void XB_THISCALL FxEffectPool_Release(uint8_t* self);
 
+// 0x0009b830: a pool's statistics (18 words: counts, percentages, bytes, slack of used slots).
+void XB_THISCALL FxPool_GetStats(const uint8_t* self, int32_t* stats);
+// 0x0009bd40 / 0x0009bd80: every pool's statistics taken (discarded), the set's counters
+// (+8..+0x14) cleared; the second for the global set 0x00909f08.
+void XB_THISCALL FxPools_ResetStats(uint8_t* self);
+void XB_CDECL FxPools_ResetGlobalStats();
+// 0x0009c3c0: the action's object list (+0xc) without its null entries.
+void XB_THISCALL FxAction_Compact(uint8_t* self);
+// 0x0009c470: the action base's destructor (objects at +0xc deleted, both arrays freed).
+void XB_THISCALL FxAction_Destroy(uint8_t* self);
+// 0x0009ca90: every object of a pointer array deleted (slot 3 with 0, then freed), the array
+// freed; +8 cleared.
+void XB_THISCALL apsPtrVector_DeleteAll(uint8_t* self);
+// 0x0009d000: a log entry {code, printf text} (at most 8 of 0x104 bytes at log[1]).
+void XB_CDECL apsLog_Printf(int32_t* log, uint32_t code, const char* format, ...);
+// 0x0009f3c0: every live emitter (+4 array, its index at +0xac) freed: particles, pool slot
+// (0x00909f64 + 8), the array kept dense. 0x0009f450: then the effect pool and the array freed.
+void XB_THISCALL FxEmitters_FreeAll(uint8_t* self);
+void XB_THISCALL FxEmitters_Destroy(uint8_t* self);
+
 }  // namespace game

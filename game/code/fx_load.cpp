@@ -1,5 +1,6 @@
 #include "fx_load.h"
 
+#include <cstdarg>
 #include <cstring>
 
 #include "fx.h"
@@ -1413,6 +1414,160 @@ void XB_THISCALL FxEffectPool_Release(uint8_t* self) {
     fx_free(effects);
     apsMemoryPool_FreeSlots(slots);
     title_global<uint32_t>(0x00909f64) = 0;
+}
+
+void XB_THISCALL FxPool_GetStats(const uint8_t* self, int32_t* stats) {
+    std::memset(stats, 0, 0x12 * 4);
+    const int32_t capacity = at<int32_t>(self, 0);
+    if (!capacity) return;
+    const int32_t used = at<int32_t>(self, 4);
+    stats[0] = capacity;
+    stats[1] = used;
+    stats[11] = used * 100 / capacity;
+    stats[2] = capacity - used;
+    stats[12] = (capacity - used) * 100 / capacity;
+    stats[3] = at<int32_t>(self, 8);
+    stats[13] = stats[3] * 100 / capacity;
+    stats[4] = at<int32_t>(self, 0x14);
+    stats[5] = at<int32_t>(self, 0xc) == 0x7fffffff ? 0 : at<int32_t>(self, 0xc);
+    stats[6] = at<int32_t>(self, 0x10) == -1 ? 0 : at<int32_t>(self, 0x10);
+    const int32_t used_bytes = at<int32_t>(self, 0x14) * used;
+    stats[8] = used_bytes;
+    const int32_t total = at<int32_t>(self, 0x14) * capacity;
+    stats[7] = total;
+    stats[14] = used_bytes * 100 / total;
+    stats[15] = stats[9] * 100 / total;
+    stats[9] = total - used_bytes;
+    int32_t slack = 0;
+    const uint8_t* entry = at<uint8_t*>(self, 0x1c) + 4;
+    for (int32_t i = 0; i < at<int32_t>(self, 0); ++i, entry += 8) {
+        if (entry[3] == 1) slack += at<int32_t>(self, 0x14) - (static_cast<int32_t>(at<uint32_t>(entry, 0) << 8) >> 8);
+    }
+    stats[10] = slack;
+    stats[16] = used_bytes ? slack * 100 / used_bytes : 0;
+    stats[17] = slack * 100 / stats[7];
+}
+
+void XB_THISCALL FxPools_ResetStats(uint8_t* self) {
+    uint8_t* const* p = at<uint8_t* const*>(self, 0);
+    uint8_t* const* const end = p + at<int16_t>(self, 6);
+    int32_t stats[0x12];
+    for (; p != end; ++p) FxPool_GetStats(*p, stats);
+    at<uint32_t>(self, 0x14) = 0;
+    at<uint32_t>(self, 0xc) = 0;
+    at<uint32_t>(self, 0x10) = 0;
+    at<uint32_t>(self, 8) = 0;
+}
+
+void XB_CDECL FxPools_ResetGlobalStats() { FxPools_ResetStats(title_global<uint8_t*>(0x00909f08)); }
+
+void XB_THISCALL FxAction_Compact(uint8_t* self) {
+    ApsArray* list = reinterpret_cast<ApsArray*>(self + 0xc);
+    uint8_t kept_storage[8] = {};
+    ApsArray* kept = reinterpret_cast<ApsArray*>(kept_storage);
+    const uint32_t* p = at<uint32_t*>(self, 0xc);
+    const uint32_t* const end = p + at<int16_t>(self, 0x12);
+    for (; p != end; ++p) {
+        if (*p) apsPtrVector_PushBack(kept, p);
+    }
+    apsPtrVector_Resize(list, 0);
+    const uint32_t* q = at<uint32_t*>(kept_storage, 0);
+    const uint32_t* const kept_end = q + at<int16_t>(kept_storage, 6);
+    for (; q != kept_end; ++q) {
+        if (*q) apsPtrVector_PushBack(list, q);
+    }
+    if (at<uint32_t>(kept_storage, 0)) fx_free_no_context(at<uint32_t>(kept_storage, 0));
+}
+
+void XB_THISCALL FxAction_Destroy(uint8_t* self) {
+    at<uint32_t>(self, 0) = 0x007c6220;
+    uint32_t* p = at<uint32_t*>(self, 0xc);
+    uint32_t* const end = p + at<int16_t>(self, 0x12);
+    for (; p != end; ++p) {
+        const uint32_t object = *p;
+        if (!object) continue;
+        const uint32_t destructor = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(
+            *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(object))));
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(destructor)(object, 0);
+        fx_free(object);
+    }
+    if (at<uint32_t>(self, 0xc)) {
+        fx_free_no_context(at<uint32_t>(self, 0xc));
+        at<uint32_t>(self, 0xc) = 0;
+        at<int16_t>(self, 0x10) = 0;
+        at<int16_t>(self, 0x12) = 0;
+    }
+    if (at<uint32_t>(self, 4)) {
+        fx_free_no_context(at<uint32_t>(self, 4));
+        at<uint32_t>(self, 4) = 0;
+        at<int16_t>(self, 8) = 0;
+        at<int16_t>(self, 0xa) = 0;
+    }
+}
+
+void XB_THISCALL apsPtrVector_DeleteAll(uint8_t* self) {
+    uint32_t* p = at<uint32_t*>(self, 0);
+    uint32_t* const end = p + at<int16_t>(self, 6);
+    for (; p != end; ++p) {
+        const uint32_t object = *p;
+        if (!object) continue;
+        const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(
+            *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(object))))[3];
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(method)(object, 0);
+        fx_free(object);
+    }
+    at<uint32_t>(self, 8) = 0;
+    if (at<uint32_t>(self, 0)) {
+        fx_free_no_context(at<uint32_t>(self, 0));
+        at<uint32_t>(self, 0) = 0;
+        at<int16_t>(self, 4) = 0;
+        at<int16_t>(self, 6) = 0;
+    }
+}
+
+void XB_CDECL apsLog_Printf(int32_t* log, uint32_t code, const char* format, ...) {
+    if (log[0] >= 8) return;
+    const int32_t index = log[0]++;
+    uint8_t* entry = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(log[1])) + index * 0x104;
+    at<uint32_t>(entry, 0) = code;
+    va_list args;
+    va_start(args, format);
+    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(
+        reinterpret_cast<char*>(static_cast<uintptr_t>(log[1])) + index * 0x104 + 4, format, args);  // _vsprintf
+    va_end(args);
+}
+
+void XB_THISCALL FxEmitters_FreeAll(uint8_t* self) {
+    uint8_t** p = at<uint8_t**>(self, 4);
+    uint8_t** const end = p + at<int16_t>(self, 0xa);
+    for (; p != end; ++p) {
+        uint8_t* emitter = *p;
+        const int16_t index = at<int16_t>(emitter, 0xac);
+        FxEmitter_FreeParticles(emitter, 0);
+        apsMemoryPool_Free(title_global<uint8_t*>(0x00909f64) + 8, emitter);
+        at<uint16_t>(emitter, 0xac) = 0xffff;
+        if (at<int16_t>(self, 0xa) > 1) {
+            uint8_t** data = at<uint8_t**>(self, 4);
+            data[index] = data[at<int16_t>(self, 0xa) - 1];
+            at<int16_t>(at<uint8_t**>(self, 4)[index], 0xac) = index;
+        }
+        if (at<uint16_t>(self, 0xa)) --at<uint16_t>(self, 0xa);
+    }
+}
+
+void XB_THISCALL FxEmitters_Destroy(uint8_t* self) {
+    FxEmitters_FreeAll(self);
+    if (title_global<uint32_t>(0x00909f64)) {
+        FxEffectPool_Release(title_global<uint8_t*>(0x00909f64));
+        fx_free(title_global<uint32_t>(0x00909f64));
+    }
+    if (at<uint32_t>(self, 4)) {
+        fx_free_no_context(at<uint32_t>(self, 4));
+        at<uint32_t>(self, 4) = 0;
+        at<int16_t>(self, 8) = 0;
+        at<int16_t>(self, 0xa) = 0;
+    }
+    title_global<uint32_t>(0x00909f60) = 0;
 }
 
 }  // namespace game
