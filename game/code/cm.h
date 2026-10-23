@@ -219,4 +219,127 @@ void XB_REGS1 XB_CDECL CM_TraceCapsuleThroughCapsule(uint8_t* tw);
 // planes enter at a - b - 0.125); 0 as soon as enter >= leave, else 1. Packed differences of whole vectors.
 uint8_t XB_REGS3 XB_CDECL CM_SegmentOverlapsBox(const float* b, const float* c, const float* a, const float* d);
 
+// 0x002dae30 (start in EDX, v0 in ECX; end (in/out), direction, radius, v1, v2, plane, startsolid flag on the stack;
+// unnamed in Ghidra): clips a swept sphere's end at triangle v0 v1 v2 with its plane {normal, dist}. A sweep shorter
+// than 1e-5, or a start within the radius and not moving away from the plane, tests CM_SphereTouchesTriangle at the
+// start (hit: flag 1). Else, moving toward the plane: the point Q 50 units behind the start, projected onto the
+// plane (along the direction once it is beyond the radius); inside all edges the end becomes that point + normal *
+// (radius + 1e-4), else the ray from Q through the end against the sphere at the triangle's closest point (x87
+// sqrt). AL = 1 when the end moved or the flag was set.
+uint8_t XB_REGS3 XB_CDECL CM_ClipSphereSweepToTriangle(uint32_t unused, const float* start, const float* v0, float* end,
+                                                     const float* dir, float radius, const float* v1, const float* v2,
+                                                     const float* plane, uint8_t* startsolid);
+
+
+// 0x002c6bf0 (unnamed in Ghidra): the quad tree cells (tree +4 child indexes, +0xc leaf base) the segment p1 -> p2
+// crosses, in order from p1: a leaf (child index <= 0) appends {leaf record, center (+0x10, 16 bytes), half size
+// (+0x20)} to the 0x30-byte list at 0x00960034 (count 0x00960030, no bound check) and returns the new count; a
+// node splits the segment where it crosses the cell center's x and/or y (quadrant = 2 * (x > cx) + (cy < y);
+// children at index + quadrant, centers = center + table 0x0095ff30[quadrant] * half / 2, half size halved in its
+// argument slot). Returns the count after the last leaf.
+int32_t XB_CDECL CM_QuadTreeTraceLeafs_r(const uint8_t* tree, int32_t node, const float* p1, const float* p2,
+                                         const float* center, float half);
+
+
+// 0x002d37f0 (unnamed in Ghidra): a ray (zero-size) trace through the world quad trees for the nearest hit: out
+// {hit point, normal} (32 bytes; the end and no normal when nothing is hit), the hit object's surface flags (+4)
+// and contents (+8). Sweeps shorter than 0.001 (squared) return 0. Per tree whose bounds the segment meets: the
+// cells CM_QuadTreeTraceLeafs_r lists, each cell's objects in the content mask (checkcount-marked): brushes with
+// CM_TraceBoxThroughBrush (an exact fraction 0 returns 1), meshes through their vtable slot 5; a nearer hit
+// shrinks the search box to start .. hit. Stops a tree's cells at the first whose x/y bounds hold the hit; an
+// object box outside the search box ends the cell unless 0 <= (search max - object min).x. AL = hit.
+uint8_t XB_CDECL CM_TraceRayThroughWorldTrees(uint8_t* tw, const float* start, const float* end, float* out,
+                                              uint32_t* surface_flags, uint32_t* contents);
+
+
+// 0x002e04e0 (trace work in EDI; unnamed in Ghidra): the box/capsule sweep through the world quad trees: per tree
+// whose bounds meet the swept box (start/end +- trace size +0x150), the cells CM_QuadTreeTraceLeafs_r lists; per
+// cell, pass 1 traces its brushes (type 9, content mask, checkcount-marked) with the capsule or box version (an
+// exact fraction 0 stores the brush's surface flags/contents and returns 1); pass 2 sweeps a sphere (radius +0x164,
+// or the half size x for boxes; start/end z lowered by +0x168 - radius, restored after the cell) through each
+// mesh's triangles the box-tree walk finds: CM_ClipSphereSweepToTriangle with radius + 0.001 moves the end; a
+// start in solid or a fraction <= 1e-5 sets fraction 0 and allsolid and returns 1, else a smaller fraction (minus
+// 1e-5) stores the triangle plane, flags and contents. An object box outside ends the pass unless
+// 0 <= (max - center + half).x. AL = whether a mesh was hit.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_TraceThroughWorldTrees(uint8_t* tw);
+extern "C" void CM_TraceThroughWorldTrees_entry(void);
+
+// 0x002e4980 (trace work in EAX, start in ESI, end in EBX; unnamed in Ghidra): bumps checkcount; a box/capsule
+// trace (+0xfc 0) goes to CM_TraceThroughWorldTrees; a ray trace takes CM_TraceRayThroughWorldTrees's nearest
+// hit: surface flags/contents, and when its distance over the trace length (rsqrt-Newton lengths) is below the
+// fraction, the fraction (start/end plane distances, 0.125 nudge) and plane normal.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TraceThroughWorld(uint8_t* tw, const float* start, const float* end);
+extern "C" void CM_TraceThroughWorld_entry(void);
+
+
+// 0x002e5030 (capsule block in EAX, maxs in ECX; results, start, end, mins, model, brush mask, capsule flag on the
+// stack): Q3's CM_BoxTrace. The 0x170-byte trace work (Com_Memset) gets the content mask (+0xf8), the results'
+// fraction (preset to 1 without a capsule block), the box centered on start/end (+0x40/+0x50 sizes, start/end
+// moved by the offset, delta +0xe0, its squared length +0xf0), the capsule block (0x30 bytes to +0x140) or a
+// capsule from the size (radius = min(x, z), axis offset z - radius), the swept bounds and the corner table. Equal
+// start and end: the position tests (world trees, a model's brushes, the temporary box capsule), else the sweeps
+// (+0xfc = zero size); endpos = start + delta * fraction, and +0x100..+0x140 copied to the results. EAX = start z.
+uint32_t XB_REGS3 XB_CDECL CM_BoxTrace(const uint8_t* capsule, uint32_t unused, const float* maxs, uint8_t* results,
+                                       const float* start, const float* end, const float* mins, const uint32_t* model,
+                                       uint32_t brushmask, uint32_t capsule_flag);
+
+// 0x002e70c0 (origin in EAX, maxs in ECX; results, start, end, mins, model, brush mask, angles, capsule flag on
+// the stack): Q3's CM_TransformedBoxTrace - the centered box and start/end relative to the origin, rotated into a
+// model with angles (AnglesToAxis rows {forward, -right, up}, Mat34_RotateVector), a capsule block (axis offset
+// (0, 0, half z - radius) rotated likewise), CM_BoxTrace, the plane normal rotated back (Mat34_Transpose3) when
+// the fraction dropped, endpos from the world start/end. Never-set stack words (block, row w) are zero as in
+// tests. Returns end.
+const float* XB_REGS3 XB_CDECL CM_TransformedBoxTrace(const float* origin, uint32_t unused, const float* maxs,
+                                                      uint8_t* results, const float* start, const float* end,
+                                                      const float* mins, const uint32_t* model, uint32_t brushmask,
+                                                      const float* angles, uint32_t capsule_flag);
+
+
+// 0x002e6dc0 (origin in EAX, end in ECX; an unused word, start, mins, maxs, model, brush mask, angles, capsule flag
+// on the stack; unnamed in Ghidra): the sight-trace version of CM_TransformedBoxTrace - the same centered box,
+// local start/end and capsule block, handed to the title sight trace 0x002e4c00 (end in EAX, start in ECX), whose
+// EAX it returns (registered without a result: its true value can be a stack address).
+uint32_t XB_REGS3 XB_CDECL CM_TransformedSightTrace(const float* origin, uint32_t unused, const float* end,
+                                                    uint32_t unused_arg, const float* start, const float* mins,
+                                                    const float* maxs, const uint32_t* model, uint32_t brushmask,
+                                                    const float* angles, uint32_t capsule_flag);
+
+
+// Candidate lists (CM_GatherBoxCandidates / CM_FilterBoxCandidates): brushes {pointer +0x800, count +0x804} of 4-byte
+// entries, triangles {pointer +0x1000, count +0x1004} of {mesh, triangle} pairs; at most 0x200 each (the count
+// still grows when the slot address is 0).
+// 0x002c6840 (unnamed in Ghidra): the quad tree walk for a box: a leaf's objects (checkcount-marked before the
+// test, no content mask) whose bounds meet the box - brushes (type 9) appended, meshes' triangles (box-tree walk,
+// triangle bounds) appended; a node recurses into each quadrant whose cell (center + tables 0x00963870 /
+// 0x00960120 * half) meets the box in x and y, with the child center (table 0x0095ff30 * half / 2).
+void XB_CDECL CM_GatherQuadTreeCandidates_r(uint8_t* tree, uint32_t tree_index, const int16_t* child, const float* center,
+                                            float half, const float* mins, const float* maxs, uint8_t* triangles,
+                                            uint8_t* brushes);
+// 0x002cb0f0 (maxs in EDI; mins, triangle list, brush list on the stack): clears both lists, bumps checkcount and
+// walks each world quad tree whose bounds meet the box. EAX = the tree count (the clip map without trees).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CM_GatherBoxCandidates(const float* mins, uint8_t* triangles,
+                                                                    uint8_t* brushes, const float* maxs);
+extern "C" void CM_GatherBoxCandidates_entry(void);
+// 0x002c6630 (output brush list in EAX, input brush list in ECX; mins, maxs, content mask, input and output
+// triangle lists on the stack): the gathered candidates in the content mask whose bounds (and, for triangles,
+// the triangle's bounds) meet the box. Returns the input triangle count.
+int32_t XB_REGS3 XB_CDECL CM_FilterBoxCandidates(uint8_t* out_brushes, uint32_t unused, const uint8_t* in_brushes,
+                                                 const float* mins, const float* maxs, uint32_t contents,
+                                                 const uint8_t* in_triangles, uint8_t* out_triangles);
+
+
+// 0x002d1980 (mesh in ESI, maxs in EDI; start, end, delta, mins on the stack; unnamed in Ghidra): 1 when the segment
+// crosses a mesh triangle the box-tree walk finds: facing planes (delta.normal < 0) with start and end on opposite
+// sides, triangle bounds meeting the box, the crossing point inside all three edges.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_SegmentCrossesMesh(const uint8_t* mesh, const float* maxs, const float* start,
+                                                                  const float* end, const float* delta, const float* mins);
+extern "C" void CM_SegmentCrossesMesh_entry(void);
+// 0x002d2f90 (unnamed in Ghidra): the sight (any hit) version of CM_TraceRayThroughWorldTrees: brushes hit when the
+// box trace drops the fraction below 1, meshes through CM_SegmentCrossesMesh; the object hit goes to 0x0094cba0.
+uint8_t XB_CDECL CM_SightTraceRayThroughWorldTrees(uint8_t* tw, const float* start, const float* end);
+// 0x002e1740 (trace work in EDI; unnamed in Ghidra): the sight version of CM_TraceThroughWorldTrees: any brush
+// fraction below 1, or any triangle CM_ClipSphereSweepToTriangle clips (end copy per triangle), returns 1.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_SightTraceThroughWorldTrees(uint8_t* tw);
+extern "C" void CM_SightTraceThroughWorldTrees_entry(void);
+
 }  // namespace game
