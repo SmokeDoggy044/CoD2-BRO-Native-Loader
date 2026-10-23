@@ -11623,3 +11623,5 @@ address,name,kind,confidence,evidence
 002d4250,CM_TestCapsuleInTempBox,function,medium,"capsule start test against the temporary box model (center shift, radius/half height, CM_TempBoxModel + CM_TestBoxInBrush)"
 002cb5a0,CM_TestCapsuleInCapsule,function,high,"Q3 CM_TestCapsuleInCapsule vs the temporary box model (end spheres, cylinder overlap)"
 002da9d0,CM_TestInWorldTrees,function,medium,"CM_BoxTrace position test: world quad trees overlapping the start box, leaf objects via 0x002da4d0, stops at startsolid"
+0001bef0,CM_BoxTreeStack_Push,function,medium,"pushes a {node, count, axis} word triple on the walk stack 0x0090a020 (depth 0x0090a620)"
+0001bf40,CM_BoxTreeStack_Next,function,medium,"pops walk-stack triples until a split node the box straddles; pushes siblings/sides; AX = node or 0xffff"

@@ -128,4 +128,15 @@ void XB_REGS1 XB_CDECL CM_TestCapsuleInCapsule(uint8_t* tw);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TestInWorldTrees(uint8_t* tw);
 extern "C" void CM_TestInWorldTrees_entry(void);
 
+// Bounding-box tree walk stack: 16-bit words at 0x0090a020, depth in 0x0090a620; entries are triples
+// {node, count, axis}.
+// 0x0001bef0 (unnamed in Ghidra): pushes one triple.
+void XB_CDECL CM_BoxTreeStack_Push(uint16_t node, uint16_t count, uint16_t axis);
+// 0x0001bf40 (tree in ECX; mins, maxs on the stack, callee-popped; unnamed in Ghidra): pops triples until a
+// node whose split plane (tree +0x34 rows indexed by tree +0x3c flags & 0x3f, component `axis`) the box
+// straddles; pushes the remaining siblings (counts from tree +0x4c byte pairs) and the side(s) the box
+// reaches, cycling the axis. Returns the node in AX, 0xffff when the stack runs empty (registered without a
+// result: the upper half of EAX is caller garbage).
+uint16_t XB_THISCALL CM_BoxTreeStack_Next(const uint8_t* tree, const float* mins, const float* maxs);
+
 }  // namespace game

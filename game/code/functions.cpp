@@ -72,6 +72,8 @@ const Function kFunctions[] = {
     {"ShakeRumbleDesc_Init", 0x000146a0, 0, code(&ShakeRumbleDesc_Init_entry), 0, Result::Eax, Status::Compare},
     {"ShakeRumbleDesc_Destroy", 0x00014710, 0, code(&ShakeRumbleDesc_Destroy), 0, Result::None, Status::Compare},
     {"nglAllocSceneMemory", 0x0001b930, 0, code(&nglAllocSceneMemory), 8, Result::Eax, Status::Compare},
+    {"CM_BoxTreeStack_Push", 0x0001bef0, 0, code(&CM_BoxTreeStack_Push), 12, Result::None, Status::Compare},
+    {"CM_BoxTreeStack_Next", 0x0001bf40, 0, code(&CM_BoxTreeStack_Next), 8, Result::None, Status::Compare},
     {"RefEntity_Clear", 0x0001c210, 0, code(&RefEntity_Clear), 0, Result::Eax, Status::Compare},
     {"SoundRef_GetParam0", 0x0001c340, 0, code(&SoundRef_GetParam0), 0, Result::St0, Status::Compare},
     {"Quat_Slerp", 0x0001c3b0, 0, code(&Quat_Slerp), 16, Result::Eax, Status::Compare},

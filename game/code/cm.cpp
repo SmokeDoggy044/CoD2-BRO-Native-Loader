@@ -601,4 +601,55 @@ void XB_CDECL CM_TestInWorldTrees(uint8_t* tw) {
     }
 }
 
+namespace {
+
+uint16_t* box_stack() { return reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020}); }
+uint16_t& box_stack_depth() { return title_global<uint16_t>(0x0090a620); }
+
+}  // namespace
+
+void XB_CDECL CM_BoxTreeStack_Push(uint16_t node, uint16_t count, uint16_t axis) {
+    uint16_t depth = box_stack_depth();
+    box_stack()[depth++] = node;
+    box_stack()[depth++] = count;
+    box_stack()[depth++] = axis;
+    box_stack_depth() = depth;
+}
+
+uint16_t XB_THISCALL CM_BoxTreeStack_Next(const uint8_t* tree, const float* mins, const float* maxs) {
+    uint16_t* stack = box_stack();
+    uint16_t depth = box_stack_depth();
+    for (;;) {
+        if (!depth) {
+            box_stack_depth() = depth;
+            return 0xffff;
+        }
+        const uint16_t axis = stack[--depth];
+        const uint16_t count = stack[--depth];
+        const uint16_t node = stack[--depth];
+        const uint8_t* counts = *reinterpret_cast<uint8_t* const*>(tree + 0x4c) + node * 2;
+        const uint16_t below = counts[0];
+        const uint16_t above = counts[1];
+        const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(tree + 0x3c))[node];
+        const float* split = reinterpret_cast<const float*>(*reinterpret_cast<uint8_t* const*>(tree + 0x34) + (flags & 0x3f) * 16);
+        const uint16_t rest = static_cast<uint16_t>(count - below - above - 1);
+        const uint16_t next_axis = static_cast<uint16_t>((axis + 1) % 3);
+        if (rest) {
+            stack[depth++] = static_cast<uint16_t>(above + below + node + 1);
+            stack[depth++] = rest;
+            stack[depth++] = next_axis;
+        }
+        if (split[axis] > mins[axis] && below) {
+            stack[depth++] = static_cast<uint16_t>(node + 1);
+            stack[depth++] = below;
+            stack[depth++] = next_axis;
+        }
+        if (maxs[axis] > split[axis]) {
+            box_stack_depth() = depth;
+            if (above) CM_BoxTreeStack_Push(static_cast<uint16_t>(below + node + 1), above, next_axis);
+            return node;
+        }
+    }
+}
+
 }  // namespace game
