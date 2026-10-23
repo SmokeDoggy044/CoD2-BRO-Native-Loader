@@ -253,4 +253,31 @@ void XB_CDECL Cmd_Init();
 // (0x009284e4) unless it has the name.
 void XB_CDECL Cmd_AddServerCommand(const char* name, uint32_t function);
 
+// 0x00296f60 (name in EAX): the cvar hash - sum of tolower(c) * (i + 119), low byte; __break 1 for null.
+int32_t XB_REGS1 XB_CDECL generateHashValue(const char* name);
+// 0x00299c80 (text in EBX): a zeroed Z_Malloc copy.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL CopyString(const char* text);
+extern "C" void CopyString_entry(void);
+// 0x002a9b30 (data in EAX, has-new-lines out in ESI): skips characters <= ' ' (signed), counting '\n' in
+// the current parse info's +0x80; null at the end of the text.
+extern "C" PLATFORM_HIDDEN const char* XB_CDECL SkipWhitespace(const char* data, int32_t* has_new_lines);
+extern "C" void SkipWhitespace_entry(void);
+// 0x002aab40 (text in EAX): text and '\n' inserted at the front of the command buffer when they fit.
+void XB_REGS1 XB_CDECL Cbuf_InsertText(const char* text);
+// 0x002aabb0 (text in EAX): appended to the command buffer when it fits.
+void XB_REGS1 XB_CDECL Cbuf_AddText(const char* text);
+
+// 0x0029fce0 / 0x0029fd20: "seta"/"sets name value": Cvar_Set_f (0x0029e3d0) with exactly two arguments,
+// then the cvar's flags get 1 (archive) / 4.
+void XB_CDECL Cvar_SetA_f();
+void XB_CDECL Cvar_SetS_f();
+// 0x0029fc30: user-created cvars (flag 0x80) unlinked with their strings freed (the record stays in the
+// hash chain); the rest reset (forced) unless flagged 0x450.
+void XB_CDECL Cvar_Restart_f();
+// 0x0029e930: Q3's Com_StartupVariable - "set" console lines (all, or the one naming `match`) applied and
+// flagged user-created.
+void XB_CDECL Com_StartupVariable(const char* match);
+// 0x002c0d30: "vstr name": the cvar's string and a '\n' inserted into the command buffer.
+void XB_CDECL Cmd_Vstr_f();
+
 }  // namespace game

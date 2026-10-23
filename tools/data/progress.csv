@@ -8947,7 +8947,7 @@ address,name,section,module,state,tested,matched
 00293450,FUN_00293450,.text,unassigned,unnamed,0,0
 00293720,SCR_RedrawFrontBuffer,.text,client,named,0,0
 002937a0,Com_ModifyMsec,.text,qcommon,settled,198,198
-002938a0,Com_ParseCommandLine,.text,qcommon,untested,0,0
+002938a0,Com_ParseCommandLine,.text,qcommon,matched,1,1
 002938f0,__break,.text,unassigned,library,0,0
 002939d0,FUN_002939d0,.text,unassigned,unnamed,0,0
 00293ab0,FUN_00293ab0,.text,unassigned,unnamed,0,0
@@ -8985,7 +8985,7 @@ address,name,section,module,state,tested,matched
 00296e50,ParamNode_CollectChoices,.text,unassigned,settled,133,133
 00296ec0,Cvar_Update,.text,qcommon,settled,401,401
 00296f60,generateHashValue,.text,unassigned,named,0,0
-002970c0,Com_AddStartupCommands,.text,qcommon,untested,0,0
+002970c0,Com_AddStartupCommands,.text,qcommon,matched,1,1
 002971a0,Com_Memset,.text,qcommon,settled,356,356
 00297280,FUN_00297280,.text,unassigned,unnamed,0,0
 00297470,FUN_00297470,.text,unassigned,unnamed,0,0
@@ -8996,7 +8996,7 @@ address,name,section,module,state,tested,matched
 00297770,VectorNormalize,.text,unassigned,named,0,0
 00297800,Vec2Distance,.text,unassigned,named,0,0
 00297840,FUN_00297840,.text,unassigned,unnamed,0,0
-00297950,FS_FreePackList,.text,qcommon,untested,0,0
+00297950,FS_FreePackList,.text,qcommon,matched,1,1
 00297990,FS_FreeSearchPaths,.text,qcommon,named,0,0
 002979f0,FS_FreeFileList,.text,qcommon,untested,0,0
 00297a30,FS_FreeFile,.text,qcommon,untested,0,0
@@ -9029,7 +9029,7 @@ address,name,section,module,state,tested,matched
 00299280,ZoneAliasList_NextVariant,.text,unassigned,settled,137,137
 00299310,ParamSet_TestCondition,.text,unassigned,untested,0,0
 002994f0,ParamSet_CompareValue,.text,unassigned,settled,217,217
-002995f0,Cvar_InfoString_Big,.text,qcommon,matched,7,7
+002995f0,Cvar_InfoString_Big,.text,qcommon,matched,9,9
 00299630,Cvar_InfoString,.text,qcommon,matched,12,12
 00299670,Cvar_Shutdown,.text,qcommon,untested,0,0
 00299710,Cvar_FindVar,.text,qcommon,settled,384,384
@@ -9108,7 +9108,7 @@ address,name,section,module,state,tested,matched
 0029fce0,Cvar_SetA_f,.text,qcommon,named,0,0
 0029fd20,Cvar_SetS_f,.text,qcommon,named,0,0
 0029fd60,Cvar_SetCheatState,.text,qcommon,matched,11,11
-0029fdd0,Cvar_SetValue,.text,qcommon,untested,0,0
+0029fdd0,Cvar_SetValue,.text,qcommon,matched,3,3
 0029fe40,Cvar_SetByVmIndex,.text,qcommon,matched,50,50
 0029fe70,Com_InitJournaling,.text,qcommon,named,0,0
 0029ff50,FX_AnglesToMatrix,.text,renderer,settled,303,303
@@ -9123,7 +9123,7 @@ address,name,section,module,state,tested,matched
 002a1fb0,FS_ListFiles,.text,qcommon,untested,0,0
 002a1fd0,FS_ReadFile,.text,qcommon,named,0,0
 002a22d0,FxShakeRumble_GetFalloff,.text,unassigned,settled,100,100
-002a23b0,Cvar_Init,.text,qcommon,named,0,0
+002a23b0,Cvar_Init,.text,qcommon,matched,1,1
 002a2510,Com_RunAndTimeServerPacket,.text,qcommon,named,0,0
 002a26a0,MatrixToAngles,.text,unassigned,named,0,0
 002a27f0,AxisToAngles,.text,unassigned,named,0,0
@@ -9323,7 +9323,7 @@ address,name,section,module,state,tested,matched
 002afa40,FUN_002afa40,.text,unassigned,unnamed,0,0
 002afb10,FUN_002afb10,.text,unassigned,unnamed,0,0
 002afc00,FUN_002afc00,.text,unassigned,unnamed,0,0
-002afdb0,Info_SetValueForKey_Big,.text,qcommon,named,0,0
+002afdb0,Info_SetValueForKey_Big,.text,qcommon,matched,12,12
 002aff40,Info_SetValueForKey,.text,qcommon,settled,119,119
 002b0050,Q_stricmpn2,.text,qcommon,matched,6,6
 002b00a0,Q_strcat,.text,qcommon,untested,0,0
@@ -9502,7 +9502,7 @@ address,name,section,module,state,tested,matched
 002ba360,Sentient_ClaimNodeIndefinitely,.text,game,settled,104,104
 002ba530,NET_OutOfBandPrint,.text,qcommon,named,0,0
 002ba5c0,Cmd_AddCommand,.text,qcommon,matched,51,51
-002ba680,Cmd_AddServerCommand,.text,qcommon,named,0,0
+002ba680,Cmd_AddServerCommand,.text,qcommon,matched,4,4
 002ba750,Cbuf_ExecuteBuffer,.text,unassigned,named,0,0
 002ba8e0,FUN_002ba8e0,.text,unassigned,unnamed,0,0
 002ba910,FUN_002ba910,.text,unassigned,unnamed,0,0
@@ -9757,7 +9757,7 @@ address,name,section,module,state,tested,matched
 002d0d40,Stream_LoadCg,.text,unassigned,named,0,0
 002d0d60,FUN_002d0d60,.text,unassigned,unnamed,0,0
 002d0db0,PathNode_AdjustBadPlaceArc,.text,unassigned,named,0,0
-002d1460,Cmd_Init,.text,qcommon,named,0,0
+002d1460,Cmd_Init,.text,qcommon,matched,1,1
 002d14b0,FUN_002d14b0,.text,unassigned,unnamed,0,0
 002d1980,FUN_002d1980,.text,unassigned,unnamed,0,0
 002d1ce0,FUN_002d1ce0,.text,unassigned,unnamed,0,0
