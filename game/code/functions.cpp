@@ -1314,6 +1314,7 @@ const Function kFunctions[] = {
     {"Actor_StopAnimScript", 0x00202c40, 0, code(&Actor_StopAnimScript_entry), 0, Result::None, Status::Compare},
     {"Actor_FindNearbyActor", 0x00202f10, 0, code(&Actor_FindNearbyActor_entry), 0, Result::None, Status::Compare},
     {"Actor_ResetSentientInfo", 0x00203130, 0, code(&Actor_ResetSentientInfo), 0, Result::None, Status::Compare},
+    {"Actor_RegisterSuppression", 0x00203610, 0, code(&Actor_RegisterSuppression_entry), 4, Result::None, Status::Compare},
     {"Actor_IsCoverValidAgainst", 0x002038b0, 0, code(&Actor_IsCoverValidAgainst_entry), 8, Result::Eax, Status::Compare},
     {"G_FilterCachedCandidates", 0x00203f60, 0, code(&G_FilterCachedCandidates), 24, Result::Al, Status::Compare},
     {"Actor_GetAnimTree", 0x00204060, 0, code(&Actor_GetAnimTree_entry), 0, Result::Eax, Status::Compare},

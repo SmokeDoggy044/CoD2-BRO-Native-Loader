@@ -2537,4 +2537,63 @@ uint32_t XB_REGS3 XB_CDECL Actor_Noncombat_NodeClaimRevoked(uint32_t, uint32_t, 
     return 1;
 }
 
+PLATFORM_ASM_ENTRY(Actor_RegisterSuppression_entry, "movl %esp, %edx\n"
+                                                    "subl $0x20000, %esp\n"
+                                                    "pushl %ebp\n"
+                                                    "movl %edx, %ebp\n"
+                                                    "pushl 4(%ebp)\n"
+                                                    "pushl %ebx\n"
+                                                    "pushl %eax\n"
+                                                    "pushl %ecx\n"
+                                                    "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_RegisterSuppression) "addl $20, %esp\n"
+                                                    "popl %ebp\n"
+                                                    "addl $0x20000, %esp\n"
+                                                    "ret $4")
+
+void XB_CDECL Actor_RegisterSuppression(uint32_t entry, uint8_t* actor, const float* start, const float* end,
+                                        uint8_t* sentient) {
+    if (float(field<int32_t>(actor, 0x1308)) == 0.0f) return;
+    uint8_t* const shooter = field<uint8_t*>(sentient, 0);
+    uint8_t* const own = field<uint8_t*>(actor, 4);
+    if (!field<uint32_t>(shooter, 0x23c) &&
+        field<int32_t>(sentient, 4) != Sentient_EnemyTeam(field<int32_t>(own, 4)))
+        return;
+    const uint32_t slot = Actor_FindSentientSlot(actor, uint32_t(uintptr_t(sentient)));
+    own[0x5a] = 0;
+    field<int32_t>(actor, (slot * 3 + 0x255) * 8) = title_global<int32_t>(0x0098540c);  // level time
+    field<uint8_t*>(actor, slot * 24 + 0x12ac) = sentient;
+    float dy = start[1] - end[1];
+    float dx = end[0] - start[0];
+    float dist = start[1] * dx + start[0] * dy;
+    const uint8_t* const entity = field<uint8_t*>(actor, 0);
+    const float self = field<float>(const_cast<uint8_t*>(entity), 0x144) * dx + field<float>(const_cast<uint8_t*>(entity), 0x140) * dy;
+    if (self > dist) {
+        dy = 0.0f - dy;
+        dx = 0.0f - dx;
+        dist = 0.0f - dist;
+    }
+    uint8_t* const record = actor + slot * 24;
+    field<float>(record, 0x12b0) = dy;
+    field<float>(record, 0x12b4) = dx;
+    field<float>(record, 0x12b8) = dist;
+    if (field<int32_t>(own, 4) == field<int32_t>(sentient, 4)) {
+        field<uint32_t>(record, 0x12bc) = 1;
+        if (field<int16_t>(actor, 0x740) > 0) Actor_ClearPath(actor);
+        Scr_Notify(field<uint8_t*>(actor, 0), title_global<uint32_t>(0x0097a730));  // "movesuppressed"
+        return;
+    }
+    // The original passes the address of its argument slot holding the shooter's entity number.
+    const uint32_t number_slot = entry + 4;
+    title_global<uint32_t>(number_slot) = field<uint32_t>(shooter, 0x224);
+    TitleRegs regs{};
+    regs.eax = number_slot;
+    regs.ecx = title_global<uint32_t>(0x0097a7f4);  // "suppressed"
+    regs.edx = field<uint32_t>(shooter, 0x224);
+    regs.ebx = uint32_t(uintptr_t(end));
+    regs.esi = uint32_t(uintptr_t(start));
+    regs.edi = uint32_t(uintptr_t(field<uint8_t*>(actor, 0)));
+    const uint32_t args[2] = {title_global<uint32_t>(0x0097a7f4), number_slot};
+    title_call_at_regs(entry - 0x20, 0x000265a0, &regs, 2, args);  // G_NotifyWithEntity
+}
+
 }  // namespace game

@@ -521,4 +521,13 @@ void XB_REGS3 XB_CDECL ActorMove_ProjectVelocity(uint32_t unused_eax, float* out
 // its low half zeroed, as in the original). Returns 1.
 uint32_t XB_REGS3 XB_CDECL Actor_Noncombat_NodeClaimRevoked(uint32_t unused_eax, uint32_t unused_edx, uint8_t* actor);
 
+// 0x00203610 (actor in ECX, shot start in EAX, end in EBX; sentient on the stack, ret 4): for an actor that takes
+// suppression (+0x1308), a shot by a non-client must come from the enemy team; records the shooter in its sentient
+// slot (time 0x12a8 + 24 * slot, sentient +0x12ac) with the shot line as a 2D plane facing the actor (+0x12b0..b8);
+// the own team only marks it (+0x12bc = 1, path cleared, "movesuppressed"), others get "suppressed" with the
+// shooter's entity number (G_NotifyWithEntity at the original's ESP, the number in the original's argument slot).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_RegisterSuppression(uint32_t entry, uint8_t* actor, const float* start,
+                                                                   const float* end, uint8_t* sentient);
+extern "C" void Actor_RegisterSuppression_entry(void);
+
 }  // namespace game

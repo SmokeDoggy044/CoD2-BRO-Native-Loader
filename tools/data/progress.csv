@@ -7673,7 +7673,7 @@ address,name,section,module,state,tested,matched
 002031e0,Actor_FreeAllCorpses,.text,game,named,0,0
 00203280,FUN_00203280,.text,unassigned,unnamed,0,0
 00203550,Sentient_SetGoalPos,.text,game,named,0,0
-00203610,Actor_RegisterSuppression,.text,game,named,0,0
+00203610,Actor_RegisterSuppression,.text,game,settled,2409,2409
 00203780,Actor_EventBullet,.text,game,named,0,0
 002038b0,Actor_IsCoverValidAgainst,.text,game,settled,752,752
 00203de0,Actor_AnimStationary,.text,game,named,0,0
