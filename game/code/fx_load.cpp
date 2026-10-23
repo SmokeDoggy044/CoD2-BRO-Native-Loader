@@ -2,7 +2,9 @@
 
 #include <cstring>
 
+#include "fx.h"
 #include "lanes.h"
+#include "ngl.h"
 #include "title_data.h"
 
 namespace game {
@@ -729,5 +731,86 @@ uint8_t* XB_CDECL FX_CreateRenderer(const char* name, const uint32_t* id, const 
     if (same_name(name, 0x007c5c68, 0xf)) return FxRenderer_NewShrimp(list);
     return nullptr;  // "_NullRenderer" and unknown names
 }
+
+uint32_t XB_STDCALL FxNull_Query(uint32_t, uint32_t, uint32_t) { return 0; }
+
+void XB_THISCALL FxSystem_SetParamFloat(uint8_t* self, int32_t index, float value) {
+    at<float>(at<uint8_t*>(self, 0x5c), index * 12 + 8) = value;
+}
+
+float XB_THISCALL FxSystem_GetEmitterParam(const uint8_t* self, int32_t index) {
+    const uint8_t* effect = at<uint8_t*>(self, 0x48);
+    const uint8_t* entry = at<uint8_t*>(effect, 0x58) + index * 0x2c;
+    const uint8_t* stage = at<uint8_t*>(effect, 0x50) + at<int32_t>(entry, 0x20) * 0x3c;
+    const uint32_t* actions = at<uint32_t*>(at<uint8_t*>(stage, 0x14), 0);
+    const uint8_t* action = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(actions[at<int32_t>(entry, 0x24)]));
+    return at<float*>(action, 4)[at<int32_t>(entry, 0x28)];
+}
+
+void XB_THISCALL FxEffect_ClearFlagC0(uint8_t* self) { at<uint32_t>(self, 0xc0) = 0; }
+void XB_THISCALL FxEffect_SetFlagC0(uint8_t* self) { at<uint32_t>(self, 0xc0) = 1; }
+
+int32_t XB_THISCALL FxEffect_AddStage(uint8_t* self) {
+    const int32_t old = at<int16_t>(self, 0x56);
+    FxStageArray_Resize(self + 0x50, old + 1);
+    if (at<int16_t>(self, 0x56) > title_global<int32_t>(0x00909b90)) title_global<int32_t>(0x00909b90) = at<int16_t>(self, 0x56);
+    return old;
+}
+
+int32_t XB_THISCALL FxEffect_AddEmitter(uint8_t* self) {
+    const int32_t old = at<int16_t>(self, 0x5e);
+    FxEmitterTable_Resize(self + 0x58, old + 1);
+    if (at<int16_t>(self, 0x5e) > title_global<int32_t>(0x00909b94)) title_global<int32_t>(0x00909b94) = at<int16_t>(self, 0x5e);
+    return old;
+}
+
+void XB_CDECL FxNop_97190() {}
+void XB_CDECL FxNop_9b960() {}
+
+void XB_CDECL FxSet_8bb860(uint32_t value) { title_global<uint32_t>(0x008bb860) = value; }
+void XB_CDECL FxSet_8bb864(uint16_t value) { title_global<uint16_t>(0x008bb864) = value; }
+void XB_CDECL FxSet_8bb866(uint16_t value) { title_global<uint16_t>(0x008bb866) = value; }
+void XB_CDECL FxSet_8bb868(uint16_t value) { title_global<uint16_t>(0x008bb868) = value; }
+void XB_CDECL FxSet_8bb990(uint32_t value) { title_global<uint32_t>(0x008bb990) = value; }
+
+uint32_t XB_THISCALL FxPool_SlotAddress(const uint8_t* self, uint32_t index) {
+    if (at<uint8_t*>(self, 0x1c)[index * 8 + 7] != 1) return 0;
+    return at<uint32_t>(self, 0x14) * index + at<uint32_t>(self, 0x18);
+}
+
+uint32_t XB_CDECL FxPools_Clear() { return apsPoolSet_Clear(title_global<ApsArray*>(0x00909f08)); }
+
+void XB_THISCALL FxOp_SetTextures(uint8_t* self, uint32_t a, uint32_t b, uint32_t c) {
+    if (a && b && c) {
+        at<uint32_t>(self, 0x74) = a;
+        at<uint32_t>(self, 0x70) = b;
+        at<uint32_t>(self, 0x78) = c;
+        return;
+    }
+    at<uint32_t>(self, 0x74) = 0;
+    at<uint32_t>(self, 0x70) = 0;
+    at<uint32_t>(self, 0x78) = 0;
+}
+
+namespace {
+
+void init_op_shaders(uint32_t vertex_shader, uint32_t declaration, uint32_t vertex_program, uint32_t pixel_shader,
+                     uint32_t pixel_program) {
+    nglVertexShader_Init(&title_global<uint32_t>(vertex_shader), declaration, title_global<uint32_t>(vertex_program));
+    nglPixelShader_Init(&title_global<uint32_t>(pixel_shader), title_global<uint32_t>(pixel_program));
+}
+
+}  // namespace
+
+void XB_CDECL FxOp31_InitShaders() { init_op_shaders(0x00909f7c, 0x008bbc90, 0x008bbeb4, 0x00909f84, 0x008bbfa8); }
+void XB_CDECL FxOp1d5_InitShaders() { init_op_shaders(0x00909f8c, 0x008bbfe0, 0x008bc1c4, 0x00909f94, 0x008bc2b8); }
+void XB_CDECL FxOpdd_InitShaders() { init_op_shaders(0x00909fa0, 0x008bbfe0, 0x008bc3d4, 0x00909f9c, 0x008bc4c8); }
+void XB_CDECL FxOp1dd_InitShaders() { init_op_shaders(0x00909fb0, 0x008bbfe0, 0x008bc614, 0x00909fac, 0x008bc708); }
+void XB_CDECL FxOp9d5_InitShaders() { init_op_shaders(0x00909fbc, 0x008bbfe0, 0x008bc854, 0x00909fc4, 0x008bc948); }
+void XB_CDECL FxOpd5_InitShaders() { init_op_shaders(0x00909fd0, 0x008bbfe0, 0x008bca64, 0x00909fcc, 0x008bcb58); }
+void XB_CDECL FxOp15b_InitShaders() { init_op_shaders(0x00909fe0, 0x008bbfe0, 0x008bcc74, 0x00909fdc, 0x008bcd68); }
+void XB_CDECL FxOp5b_InitShaders() { init_op_shaders(0x00909ff0, 0x008bbfe0, 0x008bce84, 0x00909fec, 0x008bcf78); }
+void XB_CDECL FxOpGrid_InitShaders() { init_op_shaders(0x0090a000, 0x008bbfe0, 0x008bd094, 0x00909ffc, 0x008bd188); }
+void XB_CDECL FxOp53_InitShaders() { init_op_shaders(0x0090a00c, 0x008bbfe0, 0x008bd274, 0x0090a014, 0x008bd368); }
 
 }  // namespace game

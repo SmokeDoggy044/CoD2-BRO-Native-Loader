@@ -173,4 +173,41 @@ uint8_t* XB_CDECL FxRenderer_NewShrimp(const uint8_t* list);
 // class name ("BillboardRenderer" ... "ShrimpRenderer"; "_NullRenderer" gives null).
 uint8_t* XB_CDECL FX_CreateRenderer(const char* name, const uint32_t* id, const uint8_t* list);
 
+// Small effect system helpers (fx_load.cpp, named from their bodies):
+// 0x00094150 returns 0 (stdcall, three words); 0x00094800 sets flag 1 at +0x4c (not hookable);
+// 0x00094920 float `value` into parameter `index` (+0x5c table, 12-byte entries, +8);
+// 0x00094960 an emitter entry's action parameter (entry -> stage -> action list -> float);
+// 0x00096420 / 0x00096430 +0xc0 = 0 / 1; 0x00096960 / 0x00096bd0 append a stage / emitter
+// (returns the old count, high-water marks 0x00909b90 / 0x00909b94); 0x00097190 / 0x0009b960
+// empty; 0x0009b680.. / 0x0009d5a0 global setters; 0x0009b810 a pool slot's address (null unless
+// its flag byte is 1); 0x0009c180 apsPoolSet_Clear of 0x00909f08; 0x0009cc50 three textures at
+// +0x70/+0x74/+0x78 (all or none); the render ops' shader setup 0x0009cca0, 0x0009e190 ...
+uint32_t XB_STDCALL FxNull_Query(uint32_t, uint32_t, uint32_t);
+void XB_THISCALL FxSystem_SetParamFloat(uint8_t* self, int32_t index, float value);
+float XB_THISCALL FxSystem_GetEmitterParam(const uint8_t* self, int32_t index);
+void XB_THISCALL FxEffect_ClearFlagC0(uint8_t* self);
+void XB_THISCALL FxEffect_SetFlagC0(uint8_t* self);
+int32_t XB_THISCALL FxEffect_AddStage(uint8_t* self);
+int32_t XB_THISCALL FxEffect_AddEmitter(uint8_t* self);
+void XB_CDECL FxNop_97190();
+void XB_CDECL FxNop_9b960();
+void XB_CDECL FxSet_8bb860(uint32_t value);
+void XB_CDECL FxSet_8bb864(uint16_t value);
+void XB_CDECL FxSet_8bb866(uint16_t value);
+void XB_CDECL FxSet_8bb868(uint16_t value);
+void XB_CDECL FxSet_8bb990(uint32_t value);
+uint32_t XB_THISCALL FxPool_SlotAddress(const uint8_t* self, uint32_t index);
+uint32_t XB_CDECL FxPools_Clear();
+void XB_THISCALL FxOp_SetTextures(uint8_t* self, uint32_t a, uint32_t b, uint32_t c);
+void XB_CDECL FxOp31_InitShaders();
+void XB_CDECL FxOp1d5_InitShaders();
+void XB_CDECL FxOpdd_InitShaders();
+void XB_CDECL FxOp1dd_InitShaders();
+void XB_CDECL FxOp9d5_InitShaders();
+void XB_CDECL FxOpd5_InitShaders();
+void XB_CDECL FxOp15b_InitShaders();
+void XB_CDECL FxOp5b_InitShaders();
+void XB_CDECL FxOpGrid_InitShaders();
+void XB_CDECL FxOp53_InitShaders();
+
 }  // namespace game
