@@ -965,6 +965,7 @@ const Function kFunctions[] = {
     {"Actor_AnimMoveWalk", 0x00201a80, 0, code(&Actor_AnimMoveWalk), 4, Result::Eax, Status::Compare},
     {"Actor_UpdateYaw", 0x00201b90, 0, code(&Actor_UpdateYaw), 4, Result::None, Status::Compare},
     {"Actor_IsAtClaimedNode", 0x00201d40, 0, code(&Actor_IsAtClaimedNode), 0, Result::Eax, Status::Compare},
+    {"Actor_AskActorsToMoveAside", 0x00202010, 0, code(&Actor_AskActorsToMoveAside), 0, Result::Eax, Status::Compare},
     {"Actor_ForceState", 0x002026f0, 0, code(&Actor_ForceState_entry), 0, Result::None, Status::Compare},
     {"Actor_Turret_Touch", 0x00202a10, 0, code(&Actor_Turret_Touch), 0, Result::None, Status::Compare},
     {"Actor_Noncombat_Touch", 0x00202a30, 0, code(&Actor_Noncombat_Touch), 0, Result::None, Status::Compare},

@@ -1806,4 +1806,26 @@ void XB_CDECL Path_RefreshForwardLookahead(uint8_t* path, const float* origin) {
     set_look_direction(path, f(r, 0) - f(r, 0xc) * s - ax, f(r, 4) - f(r, 0x10) * s - ay);
 }
 
+uint32_t XB_REGS3 XB_CDECL Actor_AskActorsToMoveAside(uint32_t, uint32_t, uint8_t* actor) {
+    const float radius_sq = title_global<float>(0x0083ee3c);
+    uint32_t clear = 1;
+    for (uint32_t slot = 0x00985384; slot < 0x00985404; slot += 4) {
+        uint8_t* other = title_global<uint8_t*>(slot);
+        if (!other || field<int32_t>(other, 0x1360) < 0 || other == actor) continue;
+        const uint8_t* other_ent = field<const uint8_t*>(other, 0);
+        if (other_ent == field<const uint8_t*>(actor, 0x1390)) continue;
+        // Standing at our goal (within 30 units in xy) but not right next to us.
+        float dy = field<float>(other_ent, 0x144) - field<float>(actor, 0x294);
+        float dx = field<float>(other_ent, 0x140) - field<float>(actor, 0x290);
+        if (dy * dy + dx * dx >= radius_sq) continue;
+        uint8_t* ent = field<uint8_t*>(actor, 0);
+        dy = field<float>(other_ent, 0x144) - field<float>(ent, 0x144);
+        dx = field<float>(other_ent, 0x140) - field<float>(ent, 0x140);
+        if (radius_sq > dy * dy + dx * dx) continue;
+        if (!field<uint8_t*>(other, 0x1390)) field<uint8_t*>(other, 0x1390) = ent;
+        clear = 0;
+    }
+    return clear;
+}
+
 }  // namespace game

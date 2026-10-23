@@ -1009,6 +1009,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00201a80,Actor_AnimMoveWalk,compare,268,49,49,0,0,0,""
 00201b90,Actor_UpdateYaw,compare,37910,301,301,0,0,0,""
 00201d40,Actor_IsAtClaimedNode,compare,7171,5598,5598,0,0,0,""
+00202010,Actor_AskActorsToMoveAside,compare,44,44,44,0,0,0,""
 002026f0,Actor_ForceState,compare,192,105,105,0,0,0,""
 00202a10,Actor_Turret_Touch,compare,0,0,0,0,0,0,""
 00202a30,Actor_Noncombat_Touch,compare,3311,105,105,0,0,0,""

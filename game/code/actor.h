@@ -364,4 +364,9 @@ extern "C" void Path_StepBack_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Path_RefreshForwardLookahead(uint8_t* path, const float* origin);
 extern "C" void Path_RefreshForwardLookahead_entry(void);
 
+// 0x00202010 (actor in ECX): asks the actors (list 0x00985384, 32) standing within 30 units (xy)
+// of this actor's goal (+0x290) but not within 30 of the actor itself to move aside (their +0x1390 =
+// our entity, if unset). Returns 1 when none was in the way.
+uint32_t XB_REGS3 XB_CDECL Actor_AskActorsToMoveAside(uint32_t, uint32_t, uint8_t* actor);
+
 }  // namespace game

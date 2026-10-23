@@ -7650,7 +7650,7 @@ address,name,section,module,state,tested,matched
 00201d40,Actor_IsAtClaimedNode,.text,game,settled,5598,5598
 00201e00,BadPlace_ClearCrossingPaths,.text,unassigned,named,0,0
 00201e90,FUN_00201e90,.text,unassigned,unnamed,0,0
-00202010,Actor_AskActorsToMoveAside,.text,game,named,0,0
+00202010,Actor_AskActorsToMoveAside,.text,game,matched,44,44
 002025c0,Actor_ThinkStateMachine,.text,game,named,0,0
 002026f0,Actor_ForceState,.text,game,settled,105,105
 00202770,Actor_PushState,.text,game,named,0,0
