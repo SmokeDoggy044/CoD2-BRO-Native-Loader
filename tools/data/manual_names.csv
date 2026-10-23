@@ -11491,3 +11491,5 @@ address,name,kind,confidence,evidence
 0006a280,nglSection3Manager_DeletingDtor,function,high,"deleting dtor of the vtable 0x007be01c manager nglInitMeshManagers stores in 0x00902a88 (section-3 records); clears its skip list with nglSkipList_ClearIndirect"
 0006cb80,nglDebugDrawSphereMesh,function,medium,"like nglDebugDrawBoxMesh/PyramidMesh with the mesh nglInitDebugMeshes builds third (0x00902c98: sin/cos strips)"
 0006fb30,nglSelectMeshProjectors,function,high,"twin of nglSelectMeshLightSet (0x0006fe00): same set pick, walks set->projectors[mesh[7]-1], keeps type-2 projectors whose six planes (data+0xe0) the bounding sphere is inside, linked via +0x20 into set+0x50"
+000665d0,nglResourceManager_ForEachPass,function,medium,"slot in six NGL manager vtables: iterator from slot 5, per pass walks objects through slot 8 (object, pass, arg), restarts on results <= 0"
+000442a0,Str_EqualN,function,high,"(a, len, b, b_len): b_len >= 0 must equal len, then len bytes compared; nglToggleShaderByName matches shader class names with it"

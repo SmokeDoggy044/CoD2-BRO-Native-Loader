@@ -5222,4 +5222,9 @@ void XB_REGS1 XB_CDECL Entity_EndSoundNotify(uint8_t* entity) {
     notify[1] = 0;
 }
 
+uint32_t XB_CDECL FX_ResetParticleSystem() {
+    title_function<void XB_CDECL()>(0x0009bd80)();
+    return title_function<uint32_t XB_CDECL()>(0x000950b0)();
+}
+
 }  // namespace game

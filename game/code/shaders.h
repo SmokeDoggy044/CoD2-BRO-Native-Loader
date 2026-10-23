@@ -445,4 +445,14 @@ void XB_THISCALL cdSimpleInstance_FreeList(CdSimpleInstanceList* self);
 // the current category has w == 1.0 (or the category is not set), else {1, view depth}.
 void* XB_THISCALL cdDebug_GetSortInfo(const NglMeshNode* node, uint32_t* out);
 
+// 0x00045790: assembles the screen-space pixel shaders (0x00901e70/74/78) and vertex shader
+// (0x00901e84), then runs every shader class's Init.
+void XB_CDECL nglInitShaders();
+
+// 0x000442a0: the first `length` bytes of a and b equal (false when b_length >= 0 differs).
+uint8_t XB_CDECL Str_EqualN(const char* a, int32_t length, const char* b, int32_t b_length);
+// 0x00045f40: toggles the shader class named `name` (lowered, as in "cdworld"; console
+// command) - each class's Toggle flips its disable bit.
+void XB_CDECL nglToggleShaderByName(const char* name);
+
 }  // namespace game

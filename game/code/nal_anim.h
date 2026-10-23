@@ -218,4 +218,10 @@ void XB_STDCALL NAL_GenericAnim_DestroyState(AnimState* state);
 // stored, freed on flags & 1.
 uint8_t* XB_THISCALL NAL_GenericAnim_DeletingDtor(uint8_t* self, uint32_t flags);
 
+// 0x0007bac0: the anim system's managers (0x0090982c/30/28/38, skip lists), its 16 KB work
+// block (first user), the two shader caches, the NAL types; `config` (null: the default at
+// 0x008bb124, 1 MB) stored in 0x00903d78/0x00903f9c. Returns it. CALL in the first 5 bytes:
+// not hookable.
+uint32_t XB_CDECL Anim_InitManagers(uint32_t config);
+
 }  // namespace game

@@ -2325,4 +2325,91 @@ void* XB_THISCALL cdDebug_GetSortInfo(const NglMeshNode* node, uint32_t* out) {
     return out;
 }
 
+void XB_CDECL nglInitShaders() {
+    // The screen-space shaders (title source strings; nglAssemblePixelShader /
+    // nglAssembleVertexShader are variadic formats), then every shader class's Init.
+    using AssemblePixel = void XB_CDECL(uint32_t, uint32_t, ...);
+    using AssembleVertex = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, ...);
+    title_function<AssemblePixel>(0x00076120)(0x00901e70, 0x007b38c8);
+    title_function<AssemblePixel>(0x00076120)(0x00901e74, 0x007b37b0);
+    title_function<AssemblePixel>(0x00076120)(0x00901e78, 0x007b3760);
+    title_function<AssembleVertex>(0x00076220)(0x008979a0, 0x00901e84, 1, 0x007b3710);
+    cdSky_Init();
+    cdBackground_Init();
+    cdWorld_Init();
+    cdWorldVertexLit_Init();
+    cdWorldBlend_Init();
+    cdWater_Init();
+    cdOcean_Init();
+    cdRiver_Init();
+    cdSimple_Init();
+    cdSimplePrelit_Init();
+    cdSimpleUVAnim_Init();
+    cdSimpleInstance_Init();
+    ShaderPCUV_Init();
+    cdAirplaneMetal_Init();
+    cdPrelit_Init();
+    cdChar_Init();
+    cdDecal_Init();
+    cdPropeller_Init();
+    cdSimpleAlpha_Init();
+    cdGlass_Init();
+    cdGun_Init();
+    cdGunSight_Init();
+    cdDebug_Init();
+}
+
+uint8_t XB_CDECL Str_EqualN(const char* a, int32_t length, const char* b, int32_t b_length) {
+    if (length != b_length && b_length >= 0) return 0;
+    for (; length; --length, ++a, ++b) {
+        if (*a != *b) return 0;
+    }
+    return 1;
+}
+
+void XB_CDECL nglToggleShaderByName(const char* name) {
+    // The shader class names (title strings) in the original's order; the first one equal
+    // to the lowered name (at most 31 characters) toggles that class.
+    struct Entry {
+        uint32_t name;
+        void(XB_CDECL* toggle)();
+    };
+    static const Entry kEntries[] = {
+        {0x007b3a18, &cdWorld_Toggle},
+        {0x007b3a04, &cdWorldVertexLit_Toggle},
+        {0x007b39f4, &cdWorldBlend_Toggle},
+        {0x007b39ec, &cdWater_Toggle},
+        {0x007b39e4, &cdOcean_Toggle},
+        {0x007b39dc, &cdRiver_Toggle},
+        {0x007b39d0, &cdSimple_Toggle},
+        {0x007b39bc, &cdSimpleInstance_Toggle},
+        {0x007b39ac, &cdSimplePrelit_Toggle},
+        {0x007b399c, &cdSimpleUVAnim_Toggle},
+        {0x007b398c, &cdSimpleAlpha_Toggle},
+        {0x007b39bc, &cdSimpleInstance_Toggle},  // compared a second time
+        {0x007b3984, &cdChar_Toggle},
+        {0x007b397c, &cdDebug_Toggle},
+        {0x007b3974, &cdSky_Toggle},
+        {0x007b396c, &cdDecal_Toggle},
+        {0x007b395c, &cdBackground_Toggle},
+        {0x007b3950, &cdPropeller_Toggle},
+        {0x007b3940, &cdAirplaneMetal_Toggle},
+        {0x007b3934, &cdPrelit_Toggle},
+        {0x007b392c, &cdGun_Toggle},
+        {0x007b3920, &cdGunSight_Toggle},
+        {0x007b3918, &cdGlass_Toggle},
+    };
+    char buffer[0x20];
+    int32_t length = 0;
+    Q_strncpyLen(buffer, &length, 0x1f, name);
+    const uint8_t length8 = static_cast<uint8_t>(length);
+    title_function<char* XB_CDECL(char*)>(0x001fa3b2)(buffer);  // _strlwr
+    for (const Entry& entry : kEntries) {
+        if (Str_EqualN(buffer, length8, reinterpret_cast<const char*>(uintptr_t{entry.name}), -1)) {
+            entry.toggle();
+            return;
+        }
+    }
+}
+
 }  // namespace game
