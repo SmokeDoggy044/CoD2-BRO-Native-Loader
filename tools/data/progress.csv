@@ -151,10 +151,10 @@ address,name,section,module,state,tested,matched
 000143b0,Scr_RandomFloatRange,.text,game,settled,325,325
 00014440,Scr_SinCosDegrees,.text,game,settled,123,123
 00014470,Scr_Log,.text,game,untested,0,0
-00014480,PathNode_HandleIsValid,.text,game,named,0,0
+00014480,PathNode_HandleIsValid,.text,game,settled,1526,1526
 000144d0,GScr_PhysicsLaunch,.text,script,named,0,0
 00014590,GScr_PhysicsStop,.text,script,named,0,0
-000145d0,PathNode_FromHandleInTable,.text,game,named,0,0
+000145d0,PathNode_FromHandleInTable,.text,game,matched,38,38
 00014610,DObj_SetForcedLod,.text,renderer,settled,301,301
 000146a0,ShakeRumbleDesc_Init,.text,game,settled,103,103
 00014710,ShakeRumbleDesc_Destroy,.text,game,settled,129,129
@@ -168,7 +168,7 @@ address,name,section,module,state,tested,matched
 00014af0,FUN_00014af0,.text,unassigned,unnamed,0,0
 00014b70,WaitTilOutputInst1_str_VFunc1,.text,script,named,0,0
 00014b90,FUN_00014b90,.text,unassigned,unnamed,0,0
-00014bd0,EntBits_IterNext,.text,game,named,0,0
+00014bd0,EntBits_IterNext,.text,game,matched,87,87
 00014c50,WaitTilOutputInst1_str_DeletingDtor,.text,script,named,0,0
 00014c80,FUN_00014c80,.text,unassigned,unnamed,0,0
 00014ca0,EntBits_Invert,.text,game,named,0,0
@@ -7540,7 +7540,7 @@ address,name,section,module,state,tested,matched
 001fb3f0,Actor_WasAttackedBy,.text,game,settled,110,110
 001fb460,Actor_CriticalSection_Start,.text,game,untested,0,0
 001fb470,BadPlace_ClearAll,.text,game,named,0,0
-001fb4e0,BadPlace_FindByName,.text,game,named,0,0
+001fb4e0,BadPlace_FindByName,.text,game,untested,0,0
 001fb5c0,Actor_AnimReacquire,.text,game,settled,120,120
 001fb640,Actor_AnimRun,.text,game,settled,180,180
 001fb6a0,Actor_AnimWalk,.text,game,settled,187,187
@@ -8865,7 +8865,7 @@ address,name,section,module,state,tested,matched
 0028eaa0,FUN_0028eaa0,.text,unassigned,unnamed,0,0
 0028eb90,ZoneManagers_Destruct,.text,streaming,named,0,0
 0028ec30,ResourceManager_Construct,.text,renderer,named,0,0
-0028ee00,Stream_LoadStb,.text,streaming,inconclusive,1044,0
+0028ee00,Stream_LoadStb,.text,streaming,inconclusive,1056,0
 0028ee20,Stream_LoadDb,.text,streaming,settled,115,115
 0028ee50,Stream_LoadIb,.text,streaming,settled,101,101
 0028ee80,Stream_LoadBmips,.text,streaming,settled,100,100
@@ -9354,7 +9354,7 @@ address,name,section,module,state,tested,matched
 002b1ca0,Sys_Milliseconds,.text,qcommon,named,0,0
 002b1dc0,Cmd_RemoveCommand,.text,qcommon,settled,123,123
 002b1e50,Cmd_ArgsBuffer,.text,qcommon,untested,0,0
-002b1eb0,Cmd_ExecuteRegisteredCommand,.text,qcommon,inconclusive,156,0
+002b1eb0,Cmd_ExecuteRegisteredCommand,.text,qcommon,inconclusive,160,0
 002b1f70,FUN_002b1f70,.text,unassigned,settled,395,395
 002b2200,CM_FloodAreaConnections,.text,collision,untested,0,0
 002b2260,FUN_002b2260,.text,unassigned,unnamed,0,0
@@ -9717,7 +9717,7 @@ address,name,section,module,state,tested,matched
 002cce80,CL_ParseSnapshot,.text,client,settled,12505,12505
 002ccf40,CL_DecAnimWeight_f,.text,client,named,0,0
 002ccfb0,CL_IncAnimWeight_f,.text,client,named,0,0
-002cd020,CL_ClearState,.text,client,inconclusive,35,0
+002cd020,CL_ClearState,.text,client,inconclusive,39,0
 002cd090,FUN_002cd090,.text,unassigned,unnamed,0,0
 002cd0c0,CL_KeyEvent,.text,client,settled,299,299
 002cd450,CL_CreateNewCommands,.text,client,settled,356,356
@@ -9951,7 +9951,7 @@ address,name,section,module,state,tested,matched
 002f1e60,SCR_UpdateScreen,.text,client,settled,17878,5954
 002f20a0,CL_Init,.text,client,named,0,0
 002f2630,CL_Frame,.text,client,inconclusive,777,0
-002f2890,CL_MapLoading,.text,client,inconclusive,36,0
+002f2890,CL_MapLoading,.text,client,inconclusive,40,0
 002f2b80,VM_Create,.text,script,named,0,0
 002f2d30,SV_InitGameProgs,.text,server,named,0,0
 002f2db0,CL_InitCGame,.text,client,named,0,0

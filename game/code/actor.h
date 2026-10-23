@@ -10,6 +10,8 @@
 
 namespace game {
 
+struct ScriptString;
+
 // 0x000123d0: the team hostile to `team` ({0, 2, 1, 0, 0}[team]).
 int32_t XB_CDECL Sentient_EnemyTeam(int32_t team);
 // 0x001fe040 (out in EAX, sentient in ECX): the sentient's entity's current origin (+0x140).
@@ -433,5 +435,19 @@ extern "C" void Actor_FindNearbyActor_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CallStateSlot5(uint32_t entry, uint32_t handle, uint32_t ebx, uint32_t esi,
                                                                   uint32_t edi);
 extern "C" void Actor_CallStateSlot5_entry(void);
+
+// Path node handles: block (handle >> 9) - 1 (pointer table +8), node handle & 0x1ff (0x80 bytes from block +0x10);
+// 0 and 0xffff are none.
+// 0x00014480 (handle pointer in EAX): 1 if the handle names a node in g_pathNodeBlocks (0x0095f4f4), else 0.
+uint32_t XB_REGS1 XB_CDECL PathNode_HandleIsValid(const uint16_t* handle);
+// 0x000145d0 (handle pointer in EAX, block table in EDX): the node, or null for none or a missing block.
+uint8_t* XB_REGS2 XB_CDECL PathNode_FromHandleInTable(const uint16_t* handle, const uint8_t* table);
+// 0x00014bd0 (iterator in EDX: bits +0, current word +4, word index +8, result +0xc): the next set entity bit
+// (words 1..0x29 of the bit array): result = index * 32 + bit and the bit cleared; at the end result and index -1.
+extern "C" PLATFORM_HIDDEN void XB_CDECL EntBits_IterNext(uint32_t* iterator);
+extern "C" void EntBits_IterNext_entry(void);
+// 0x001fb4e0 (name in EBX): the bad place (32 slots of 0x28 bytes at 0x0098a574) with that name, -1 if none.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL BadPlace_FindByName(const ScriptString* name);
+extern "C" void BadPlace_FindByName_entry(void);
 
 }  // namespace game
