@@ -291,4 +291,31 @@ void XB_CDECL FxParticleBuffers_Init(int32_t quads);
 // 0x0009f4c0: a pointer array's capacity (the old block freed). False on failure.
 uint32_t XB_THISCALL apsPtrVector_Reserve(uint8_t* self, int32_t capacity);
 
+// 0x0009ef90 (callee pops 0x1c): a particle node's textures (+0x70..+0x78, all or none),
+// sphere (+0x50), matrix (+0x10, identity when null), scale (+0x60) and flags (+0x7c: 2 pre-sorted
+// kind 0x800, 1 when the op's slot 4 says so, 8 when the sphere reaches past the scene's far
+// distance +0x388). Returns the view depth (ST0).
+float XB_THISCALL FxOp_SetupNode(const uint8_t* op, uint8_t* node, uint32_t texture_a, uint32_t texture_b,
+                                 const uint32_t* textures, const float* sphere, const uint32_t* matrix,
+                                 const uint8_t* scale_source);
+// The render ops' AddToList (vtable slot; callee pops 0x18): frustum test of the sphere, a 0x90-byte
+// node in frame memory (vtables below), FxOp_SetupNode, FxNode_AddToScene. 1 added, 0 culled, 2 no
+// memory. 0x0009e560, 0x0009e6f0, 0x0009e830, 0x0009e970, 0x0009eab0, 0x0009ebf0, 0x0009edc0, 0x0009f0f0.
+uint32_t XB_THISCALL FxOpdd_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                      const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp1dd_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp9d5_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOpd5_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                      const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp15b_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp5b_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                      const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOpGrid_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                        const uint32_t* matrix, const uint8_t* scale_source);
+uint32_t XB_THISCALL FxOp53_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
+                                      const uint32_t* matrix, const uint8_t* scale_source);
+
 }  // namespace game

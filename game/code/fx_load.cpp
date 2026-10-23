@@ -1665,4 +1665,84 @@ uint32_t XB_THISCALL apsPtrVector_Reserve(uint8_t* self, int32_t capacity) {
     return 1;
 }
 
+float XB_THISCALL FxOp_SetupNode(const uint8_t* op, uint8_t* node, uint32_t texture_a, uint32_t texture_b,
+                                 const uint32_t* textures, const float* sphere, const uint32_t* matrix,
+                                 const uint8_t* scale_source) {
+    const uint32_t texture_c = textures[1];
+    if (texture_b && texture_a && texture_c) {
+        at<uint32_t>(node, 0x74) = texture_b;
+        at<uint32_t>(node, 0x70) = texture_a;
+        at<uint32_t>(node, 0x78) = texture_c;
+    } else {
+        at<uint32_t>(node, 0x74) = 0;
+        at<uint32_t>(node, 0x70) = 0;
+        at<uint32_t>(node, 0x78) = 0;
+    }
+    std::memcpy(node + 0x50, sphere, 16);
+    if (matrix)
+        std::memcpy(node + 0x10, matrix, 0x40);
+    else
+        title_function<void XB_CDECL(uint8_t*)>(0x0001c140)(node + 0x10);  // Matrix_Identity
+    if (scale_source && at<int32_t>(op, 0x34) == 3) {
+        alignas(16) float extent[4];
+        FxVec3_ScaledHalfExtent(extent, scale_source);
+        const Lanes scaled = mul(lanes(extent), lanes(reinterpret_cast<const float*>(op + 0x20)));
+        std::memcpy(node + 0x60, scaled.v, 16);
+    } else {
+        std::memcpy(node + 0x60, op + 0x20, 16);
+    }
+    uint32_t flags = 0;
+    if (at<uint32_t>(op, 4) & 0x800) {
+        flags = 2;
+    } else {
+        const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(op, 0)))[4];
+        if (title_function<uint32_t XB_THISCALL(const uint8_t*)>(method)(op)) flags = 1;
+    }
+    const float depth = FxEffect_ViewDepth(node);
+    const int32_t kind = at<int32_t>(op, 0x34);
+    if (kind <= 0 || kind > 2) {
+        const uint8_t* scene = reinterpret_cast<const uint8_t*>(title_global<uint32_t>(0x0090259c));
+        if (sphere[3] + depth > at<float>(scene, 0x388)) flags |= 8;
+    }
+    at<uint32_t>(node, 0x7c) |= flags;
+    return depth;
+}
+
+namespace {
+
+uint32_t op_add_to_list(const uint8_t* op, uint32_t node_vtable, uint32_t a1, uint32_t a2, const uint32_t* a3,
+                        const float* sphere, const uint32_t* matrix, const uint8_t* scale_source) {
+    alignas(16) float centre[4];
+    std::memcpy(centre, sphere, 16);
+    if (!nglSphereInFrustum(centre, sphere[3])) return 0;
+    uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
+    const uintptr_t block = (arena + 0xf) & ~uintptr_t{0xf};
+    arena = block + 0x90;
+    if (!block) return 2;
+    uint8_t* node = reinterpret_cast<uint8_t*>(block);
+    at<uint32_t>(node, 0x7c) = 0;
+    at<uint32_t>(node, 0) = node_vtable;
+    at<const uint8_t*>(node, 0x80) = op;
+    const float depth = FxOp_SetupNode(op, node, a1, a2, a3, sphere, matrix, scale_source);
+    FxNode_AddToScene(op, node, depth);
+    return 1;
+}
+
+}  // namespace
+
+#define FX_OP_ADD_TO_LIST(name, vtable)                                                                         \
+    uint32_t XB_THISCALL name(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere, \
+                              const uint32_t* matrix, const uint8_t* scale_source) {                            \
+        return op_add_to_list(op, vtable, a1, a2, a3, sphere, matrix, scale_source);                           \
+    }
+FX_OP_ADD_TO_LIST(FxOpdd_AddToList, 0x007c7344)
+FX_OP_ADD_TO_LIST(FxOp1dd_AddToList, 0x007c75c4)
+FX_OP_ADD_TO_LIST(FxOp9d5_AddToList, 0x007c783c)
+FX_OP_ADD_TO_LIST(FxOpd5_AddToList, 0x007c7abc)
+FX_OP_ADD_TO_LIST(FxOp15b_AddToList, 0x007c7d3c)
+FX_OP_ADD_TO_LIST(FxOp5b_AddToList, 0x007c7fbc)
+FX_OP_ADD_TO_LIST(FxOpGrid_AddToList, 0x007c75bc)
+FX_OP_ADD_TO_LIST(FxOp53_AddToList, 0x007c733c)
+#undef FX_OP_ADD_TO_LIST
+
 }  // namespace game
