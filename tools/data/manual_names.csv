@@ -11698,3 +11698,5 @@ address,name,kind,confidence,evidence
 0009f250,FxEmitters_Init,function,medium,"particle runtime init named from its body (fx_load.cpp)"
 0009ff50,FxMatrix_RigidInverse,function,medium,"transposed 3x3 + negated rotated translation (packed)"
 0009ddb0,FxAxis_Frame,function,medium,"direction/right/up frame for oriented particles (packed SSE)"
+00240f70,R_ModelBoxBounds,function,medium,"bounds of every hit box corner through its bone matrix, in an axis frame (ECX)"
+00241ff0,R_ModelBoneMatrices,function,medium,"per-bone model matrices from local 3x4 transforms times the parent matrix, in place"
