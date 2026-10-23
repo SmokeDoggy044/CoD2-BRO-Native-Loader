@@ -2042,10 +2042,10 @@ address,name,section,module,state,tested,matched
 0008e330,FUN_0008e330,.text,unassigned,unnamed,0,0
 0008e350,FUN_0008e350,.text,unassigned,unnamed,0,0
 0008e370,FUN_0008e370,.text,unassigned,matched,3,3
-0008e3f0,FUN_0008e3f0,.text,unassigned,matched,7,7
-0008e480,FUN_0008e480,.text,unassigned,matched,4,4
-0008e560,FUN_0008e560,.text,unassigned,matched,64,63
-0008e630,FUN_0008e630,.text,unassigned,unnamed,0,0
+0008e3f0,FUN_0008e3f0,.text,unassigned,matched,14,14
+0008e480,FUN_0008e480,.text,unassigned,matched,10,10
+0008e560,FUN_0008e560,.text,unassigned,settled,228,220
+0008e630,FUN_0008e630,.text,unassigned,settled,203,183
 0008ed30,FUN_0008ed30,.text,unassigned,matched,10,10
 0008ed50,FUN_0008ed50,.text,unassigned,matched,1,1
 0008eda0,FUN_0008eda0,.text,unassigned,matched,9,9

@@ -772,6 +772,7 @@ const Function kFunctions[] = {
     {"NAL_StreamedAnim_Create", 0x0008e3f0, 0, code(&NAL_StreamedAnim_Create), 24, Result::Eax, Status::Compare},
     {"NAL_StreamedAnim_Setup", 0x0008e480, 0, code(&NAL_StreamedAnim_Setup), 0, Result::None, Status::Compare},
     {"NAL_StreamedAnim_RequestNext", 0x0008e560, 0, code(&NAL_StreamedAnim_RequestNext), 0, Result::None, Status::Compare},
+    {"NAL_StreamedAnim_Update", 0x0008e630, 0, code(&NAL_StreamedAnim_Update), 4, Result::None, Status::Compare},
     {"NAL_InitRegisteredTypes", 0x0008ed30, 0, code(&NAL_InitRegisteredTypes), 0, Result::None, Status::Compare},
     {"NAL_AnimPlayer_Dtor", 0x0008ed50, 0, code(&NAL_AnimPlayer_Dtor), 0, Result::None, Status::Compare},
     {"NAL_AnimPlayer_AddBinding", 0x0008eda0, 0, code(&NAL_AnimPlayer_AddBinding), 8, Result::Eax, Status::Compare},

@@ -1557,4 +1557,242 @@ void XB_THISCALL NAL_ClipSetPlayer_Update(uint8_t* player, float dt) {
         apply(node, inverse * real(0x14), from, real(0x10), start);
 }
 
+namespace {
+
+// The file-request helpers the streamed player uses (title code, cdecl).
+uint32_t file_status(uint32_t request) { return title_function<uint32_t XB_CDECL(uint32_t)>(0x000c9db0)(request); }
+void file_progress(uint32_t request, uint32_t* out) {
+    title_function<uint32_t* XB_CDECL(uint32_t, uint32_t*)>(0x000c9ea0)(request, out);
+}
+void file_pump() { title_function<void XB_CDECL()>(0x000ca690)(); }  // File_PumpRequests
+uint32_t file_queue(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t length) {
+    return title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x000caed0)(file, offset, buffer,
+                                                                                          length);  // File_QueueRequest
+}
+
+}  // namespace
+
+void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
+    using Make = uint32_t XB_THISCALL(uint32_t, uint32_t);
+    using Apply = void XB_THISCALL(uint32_t, uint32_t, float, float, float, float);
+    auto field = [player](uint32_t offset) -> uint32_t& { return word_of(player, offset); };
+    auto real = [player](uint32_t offset) -> float& { return *reinterpret_cast<float*>(player + offset); };
+    auto buffer = [player](uint32_t which) { return word_of(player, 0x48 + which * 4); };
+    // The original's locals the file helpers write (its zeroed dead stack when they do not).
+    uint32_t local[3] = {0, 0, 0};
+    switch (field(0x1c)) {
+    case 0: {
+        // The header: one aligned read of 0x50 bytes.
+        const uint32_t id = title_function<uint32_t XB_CDECL(uint32_t)>(0x000c9390)(field(0x28));
+        title_function<uint32_t XB_CDECL(uint32_t, uint32_t*)>(0x000c9940)(id, local);
+        uint32_t alignment = local[0] <= local[1] ? local[1] : local[0];
+        if (alignment < local[2]) alignment = local[2];
+        const uint32_t size = (alignment + 0x4f) & ~(alignment - 1);
+        field(0x34) = alignment;
+        field(0x30) = size;
+        field(0x2c) = address_of(Mem_AlignedAlloc(size, alignment, 0));
+        field(0x6c) = file_queue(field(0x28), field(0x58), field(0x2c), field(0x30));
+        field(0x1c) = 1;
+        return;
+    }
+    case 1: {
+        file_progress(field(0x6c), local);
+        if (file_status(field(0x6c)) == 4) return;
+        const int32_t header = static_cast<int32_t>(word_of(pointer<uint8_t>(field(0x2c)), 0x34));
+        if (header <= static_cast<int32_t>(field(0x30))) {
+            field(0x1c) = 3;
+            return;
+        }
+        // The whole header: grow the buffer and read the rest.
+        const uint32_t alignment = field(0x34);
+        const uint32_t size = (static_cast<uint32_t>(header) + alignment + 3) & ~(alignment - 1);
+        uint8_t* grown = static_cast<uint8_t*>(Mem_AlignedAlloc(size, alignment, 0));
+        std::memcpy(grown, pointer<uint8_t>(field(0x2c)), field(0x30));
+        title_function<FreeFn>(0x000939b0)(pointer<void>(field(0x2c)));  // Mem_AlignedFree
+        const uint32_t done = field(0x30);
+        field(0x2c) = address_of(grown);
+        const uint32_t request = file_queue(field(0x28), field(0x58) + done, address_of(grown) + done, size - done);
+        field(0x30) = size;
+        field(0x6c) = request;
+        field(0x1c) = 2;
+        return;
+    }
+    case 2:
+        file_progress(field(0x6c), local);
+        if (file_status(field(0x6c)) == 4) return;
+        field(0x1c) = 3;
+        return;
+    case 3: {
+        // Keep the header (+4); two stream buffers of whole blocks (+0x3c each, +0x44 per
+        // buffer); the first data after the header goes to the current buffer.
+        const uint8_t* header = pointer<uint8_t>(field(0x2c));
+        field(4) = address_of(Mem_AlignedAlloc(word_of(header, 0x34), 4, 0));
+        std::memcpy(pointer<void>(field(4)), header, word_of(header, 0x34));
+        const uint32_t alignment = field(0x34);
+        const int32_t block = static_cast<int32_t>((word_of(pointer<uint8_t>(field(4)), 0x38) + alignment - 1) & ~(alignment - 1));
+        const int32_t blocks = static_cast<int32_t>(field(0x44)) / block;
+        field(0x3c) = static_cast<uint32_t>(block);
+        field(0x40) = static_cast<uint32_t>(blocks & ~1);
+        if (static_cast<int32_t>(field(0x40)) < 4) field(0x40) = 4;
+        field(0x44) = static_cast<uint32_t>(static_cast<int32_t>(field(0x40)) / 2 * static_cast<int32_t>(field(0x3c)));
+        const uint32_t buffers = address_of(Mem_AlignedAlloc(field(0x44) * 2, alignment, 0));
+        field(0x4c) = field(0x44) + buffers;
+        field(0x48) = buffers;
+        field(0x50) = 0;
+        std::memcpy(pointer<void>(buffer(player[0x78])), pointer<void>(field(0x2c)), field(0x30));
+        title_function<FreeFn>(0x000939b0)(pointer<void>(field(0x2c)));  // Mem_AlignedFree
+        const uint32_t done = field(0x30);
+        const uint32_t length = field(0x44) - done;
+        field(0x5c) = done;
+        field(0x68) = length;
+        field(0x6c) = file_queue(field(0x28), field(0x58) + done, buffer(player[0x79]) + done, length);
+        field(0x60) = word_of(pointer<uint8_t>(field(4)), 0x34);
+        field(0x1c) = 4;
+        field(0x18) = buffer(player[0x78]) + field(0x60);
+        return;
+    }
+    case 4: {
+        // Wait until the first block is in.
+        file_progress(field(0x6c), local);
+        const uint32_t start = word_of(player, 0x50 + player[0x78] * 4);
+        const int32_t read = static_cast<int32_t>(field(0x5c) + local[0]);
+        bool ready = false;
+        if (read >= static_cast<int32_t>(start + field(0x60) + 0xc) &&
+            read >= static_cast<int32_t>(word_at(field(0x18)) + start + field(0x60)))
+            ready = true;
+        if (!ready && file_status(field(0x6c)) == 4) return;
+        field(0x1c) = 5;
+        return;
+    }
+    case 6:
+        break;
+    default:
+        return;
+    }
+
+    // Playing: the current block's clips through the bindings' sinks (slot 1: track,
+    // fraction, previous fraction, time, time at the block's start).
+    const uint8_t* file = pointer<uint8_t>(field(4));
+    if (!((word_of(file, 4) >> 1) & 1) && real(0x10) >= *reinterpret_cast<const float*>(file + 0x3c)) return;
+    auto ensure_track = [](uint32_t* node) {
+        if (!node[2]) node[2] = title_function<Make>(word_at(word_at(node[0])))(node[0], node[1]);
+    };
+    auto sink_apply = [](uint32_t* node, float fraction, float previous, float time, float start) {
+        title_function<Apply>(word_at(word_at(node[0]) + 4))(node[0], node[2], fraction, previous, time, start);
+    };
+    float start, previous, duration;
+    for (;;) {
+        NAL_StreamedAnim_RequestNext(player);
+        start = real(0x10);
+        previous = real(0x14);
+        duration = *reinterpret_cast<const float*>(word_at(field(0x18) + 8) + 0x38);
+        if (!(dt + real(0x14) >= duration)) break;
+        // The block ends within dt: wait for the next one's data.
+        while (field(0x6c) != 0xffffffff) {
+            file_progress(field(0x6c), local);
+            const uint32_t next = word_at(field(0x18));
+            const int32_t needed = next ? static_cast<int32_t>(word_of(player, 0x50 + player[0x78] * 4) + field(0x60) + next)
+                                        : static_cast<int32_t>(field(0x70));
+            if (static_cast<int32_t>(field(0x5c) + local[0]) >= needed && file_status(field(0x6c)) == 0) break;
+            NAL_StreamedAnim_RequestNext(player);
+            file_pump();
+        }
+        const float step = duration - real(0x14);
+        real(0x10) = step + real(0x10);
+        dt = dt - step;
+        real(0x14) = duration;
+        for (uint32_t* node = pointer<uint32_t>(field(8)); node; node = pointer<uint32_t>(node[3])) {
+            if (!node[0]) continue;
+            ensure_track(node);
+            sink_apply(node, 1.0f, previous / duration, real(0x10), start);
+        }
+        real(0x14) = 0.0f;
+        // The next block: in this buffer, wrapped into the other one, or the file again.
+        const uint32_t next = word_at(field(0x18));
+        if (next) {
+            field(0x60) = field(0x60) + next;
+            if (static_cast<int32_t>(field(0x60)) >= static_cast<int32_t>(field(0x44))) {
+                player[0x78] ^= 1;
+                field(0x60) = field(0x3c);
+                field(0x18) = buffer(player[0x78]) + field(0x60);
+            } else {
+                const uint32_t current = player[0x78];
+                field(0x18) = field(0x60) + buffer(current);
+                const uint32_t after = word_at(field(0x18));
+                const int32_t end = after ? static_cast<int32_t>(field(0x60) + after)
+                                          : static_cast<int32_t>(field(0x70) - word_of(player, 0x50 + current * 4));
+                if (end > static_cast<int32_t>(field(0x44))) {
+                    // A block across the buffer's end: its head moves to the other buffer.
+                    const int32_t rest = static_cast<int32_t>(field(0x60)) % static_cast<int32_t>(field(0x3c));
+                    std::memcpy(pointer<void>(buffer(current ^ 1) + rest), pointer<void>(field(0x60) + buffer(current)),
+                                field(0x3c) - rest);
+                    player[0x78] ^= 1;
+                    field(0x60) = static_cast<uint32_t>(rest);
+                    field(0x18) = buffer(player[0x78]) + rest;
+                }
+            }
+        } else {
+            if (!(word_of(pointer<uint8_t>(field(4)), 4) & 2)) {
+                real(0x10) = dt + real(0x10);
+                return;
+            }
+            // Looping: read the file's data from the start again.
+            if (field(0x5c) && field(0x6c) != 0xffffffff) {
+                title_function<void XB_CDECL(uint32_t)>(0x000ca0e0)(field(0x6c));  // File_AbortRequest
+                if (file_status(field(0x6c)) == 4) {
+                    do file_pump();
+                    while (file_status(field(0x6c)) == 4);
+                }
+                const uint8_t other = player[0x78] ^ 1;
+                player[0x79] = other;
+                field(0x5c) = 0;
+                word_of(player, 0x50 + other * 4) = 0;
+                field(0x68) = field(0x44);
+                field(0x6c) = file_queue(field(0x28), field(0x58), buffer(player[0x79]), field(0x44));
+                if (file_status(field(0x6c)) == 4) {
+                    do file_pump();
+                    while (file_status(field(0x6c)) == 4);
+                }
+            }
+            player[0x78] ^= 1;
+            field(0x60) = word_of(pointer<uint8_t>(field(4)), 0x34);
+            field(0x18) = buffer(player[0x78]) + field(0x60);
+        }
+        // The new block's clips fixed up and bound in place of the old ones.
+        uint8_t* block = pointer<uint8_t>(field(0x18));
+        if (word_of(block, 8)) {
+            word_of(block, 8) += address_of(block);
+            for (uint8_t* clip = pointer<uint8_t>(word_of(pointer<uint8_t>(field(0x18)), 8)); clip;
+                 clip = pointer<uint8_t>(word_of(clip, 4))) {
+                fix_link(clip, 4);
+                const uint32_t skeleton = pointer<uint32_t>(field(0x38))[word_of(clip, 0x28)];
+                word_of(clip, 0x30) = skeleton;
+                word_of(clip, 0) = class_vtable(skeleton, 0x28);
+                object_call(clip, 3);
+                object_call(clip, 1);
+            }
+        }
+        uint32_t clip = word_at(field(0x18) + 8);
+        for (uint32_t* node = pointer<uint32_t>(field(8)); node; node = pointer<uint32_t>(node[3])) {
+            if (const uint32_t track = node[2]) {
+                const uint32_t old = word_at(track + 0x10);
+                title_function<void XB_THISCALL(uint32_t, uint32_t)>(word_at(word_at(track)))(track, 1);
+                method_call(old, 2);
+            }
+            node[1] = clip;
+            node[2] = 0;
+            clip = NAL_PtrField4(pointer<uint32_t>(clip));
+        }
+        if (!(dt > title_global<float>(0x0083eafc))) return;
+    }
+    real(0x10) = dt + real(0x10);
+    real(0x14) = dt + real(0x14);
+    for (uint32_t* node = pointer<uint32_t>(field(8)); node; node = pointer<uint32_t>(node[3])) {
+        if (!node[0]) continue;
+        ensure_track(node);
+        const float inverse = title_global<float>(0x0083eb20) / duration;
+        sink_apply(node, inverse * real(0x14), inverse * previous, real(0x10), start);
+    }
+}
+
 }  // namespace game

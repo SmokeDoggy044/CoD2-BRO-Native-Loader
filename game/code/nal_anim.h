@@ -206,4 +206,10 @@ void XB_THISCALL NAL_StreamedAnim_RequestNext(uint8_t* player);
 // hands every binding's sink the clip fractions and times (sink slot 1).
 void XB_THISCALL NAL_ClipSetPlayer_Update(uint8_t* player, float dt);
 
+// 0x0008e630 (ECX, callee pops 4; slot 3 of 0x007c3c70): the streamed player's state machine
+// (+0x1c): 0-2 read the header (aligned to the file's alignment), 3 sets up two stream
+// buffers of whole blocks, 4 waits for the first block, 6 plays: advances by dt through the
+// blocks (each block's clips fixed up and bound), keeps the reads going, loops the file.
+void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt);
+
 }  // namespace game
