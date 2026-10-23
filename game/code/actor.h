@@ -461,4 +461,11 @@ extern "C" void PathNode_IsAvailableFor_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL ActorBlockList_Bump(uint8_t* list, uint32_t a, uint32_t b);
 extern "C" void ActorBlockList_Bump_entry(void);
 
+// 0x002b0d10 (node blocks in EAX, first handle pointer in ECX; second on the stack, ret 4): whether the pair's bit is
+// set in the visibility row of the lower block towards the higher one (+0x28, 8-byte entries; bit = node of the
+// lower block * the higher block's count (+4) + node of the higher).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_CanSee(const uint8_t* blocks, const uint16_t* first,
+                                                            const uint16_t* second);
+extern "C" void PathNode_CanSee_entry(void);
+
 }  // namespace game

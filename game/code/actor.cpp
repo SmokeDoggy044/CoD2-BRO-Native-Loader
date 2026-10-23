@@ -2320,4 +2320,31 @@ void XB_CDECL ActorBlockList_Bump(uint8_t* list, uint32_t a, uint32_t b) {
     ++count;
 }
 
+PLATFORM_ASM_ENTRY(PathNode_CanSee_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PathNode_CanSee) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL PathNode_CanSee(const uint8_t* blocks, const uint16_t* first, const uint16_t* second) {
+    const uint16_t h1 = *first;
+    const uint16_t h2 = *second;
+    const uint16_t b1 = static_cast<uint16_t>((h1 >> 9) - 1);
+    const uint16_t b2 = static_cast<uint16_t>((h2 >> 9) - 1);
+    const int32_t n1 = h1 & 0x1ff;
+    const int32_t n2 = h2 & 0x1ff;
+    auto block = [&](uint32_t index) { return *reinterpret_cast<const uint8_t* const*>(blocks + 8 + index * 4); };
+    const uint8_t* visibility;
+    int32_t bit;
+    if (b1 < b2) {
+        visibility = *reinterpret_cast<const uint8_t* const*>(*reinterpret_cast<const uint8_t* const*>(block(b1) + 0x28) + b2 * 8);
+        bit = n1 * *reinterpret_cast<const int32_t*>(block(b2) + 4) + n2;
+    } else {
+        visibility = *reinterpret_cast<const uint8_t* const*>(*reinterpret_cast<const uint8_t* const*>(block(b2) + 0x28) + b1 * 8);
+        bit = n2 * *reinterpret_cast<const int32_t*>(block(b1) + 4) + n1;
+    }
+    if (!visibility) return 0;
+    return (visibility[bit >> 3] & (1 << (bit & 7))) ? 1 : 0;
+}
+
 }  // namespace game
