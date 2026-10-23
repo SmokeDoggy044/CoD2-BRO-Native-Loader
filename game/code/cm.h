@@ -58,4 +58,11 @@ uint8_t* XB_REGS2 XB_CDECL CM_TempBoxModel(const float* maxs, uint32_t capsule, 
 // unless the flag is set, remembers the map name (0x009355d8, 0x80 bytes); __break 1 for a missing name.
 void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load);
 
+// 0x002cb420 (brush in ECX; point on the stack, 16-byte aligned; unnamed in Ghidra): 1 when the point is
+// outside the brush bounds (+0x10 center, +0x20 half size: max(center - half - p, p - center - half) < 0 per
+// axis) or behind every side plane (+0x30 count, +0x34 sides {normal, dist}); 0 at the first side with
+// p.normal - dist >= 0.
+uint8_t XB_REGS3 XB_CDECL CM_BrushPointTest(uint32_t unused_eax, uint32_t unused_edx, const uint8_t* brush,
+                                            const float* point);
+
 }  // namespace game

@@ -273,4 +273,28 @@ void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load) {
     title_global<char>(0x00935657) = 0;
 }
 
+uint8_t XB_REGS3 XB_CDECL CM_BrushPointTest(uint32_t, uint32_t, const uint8_t* brush, const float* point) {
+    const Lanes center = lanes(reinterpret_cast<const float*>(brush + 0x10));
+    const Lanes half = lanes(reinterpret_cast<const float*>(brush + 0x20));
+    const Lanes p = lanes(point);
+    const Lanes high = add(center, half);
+    const Lanes below = sub(sub(center, half), p);
+    const Lanes above = sub(p, high);
+    int32_t inside = 0;
+    for (int32_t i = 0; i < 4; ++i) {
+        const float m = below.v[i] > above.v[i] ? below.v[i] : above.v[i];  // MAXPS: the second operand on NaN
+        if (m < 0.0f && i < 3) inside |= 1 << i;  // CMPLTPS on every lane
+    }
+    if (inside != 7) return 1;
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(brush + 0x30);
+    const float* side = *reinterpret_cast<const float* const*>(brush + 0x34);
+    for (uint32_t i = 0; i < count; ++i, side += 4) {
+        const Lanes product = mul(p, lanes(side));
+        platform_keep(product);
+        const float d = ((product.v[0] + product.v[1]) + product.v[2]) - side[3];
+        if (d >= 0.0f) return 0;
+    }
+    return 1;
+}
+
 }  // namespace game
