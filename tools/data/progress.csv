@@ -9759,13 +9759,13 @@ address,name,section,module,state,tested,matched
 002d0db0,PathNode_AdjustBadPlaceArc,.text,unassigned,named,0,0
 002d1460,Cmd_Init,.text,qcommon,matched,17,17
 002d14b0,FUN_002d14b0,.text,unassigned,unnamed,0,0
-002d1980,FUN_002d1980,.text,unassigned,unnamed,0,0
+002d1980,FUN_002d1980,.text,unassigned,settled,5713,5713
 002d1ce0,FUN_002d1ce0,.text,unassigned,unnamed,0,0
 002d1f30,FUN_002d1f30,.text,unassigned,unnamed,0,0
 002d2410,FUN_002d2410,.text,unassigned,unnamed,0,0
 002d27c0,FUN_002d27c0,.text,unassigned,unnamed,0,0
 002d2b50,FUN_002d2b50,.text,unassigned,unnamed,0,0
-002d2f90,FUN_002d2f90,.text,unassigned,unnamed,0,0
+002d2f90,FUN_002d2f90,.text,unassigned,settled,2968,2968
 002d3360,FUN_002d3360,.text,unassigned,unnamed,0,0
 002d37f0,FUN_002d37f0,.text,unassigned,settled,5635,5635
 002d3e10,FUN_002d3e10,.text,unassigned,unnamed,0,0
@@ -9850,7 +9850,7 @@ address,name,section,module,state,tested,matched
 002e0440,FUN_002e0440,.text,unassigned,unnamed,0,0
 002e04e0,FUN_002e04e0,.text,unassigned,settled,1575,1575
 002e1150,FUN_002e1150,.text,unassigned,unnamed,0,0
-002e1740,FUN_002e1740,.text,unassigned,unnamed,0,0
+002e1740,FUN_002e1740,.text,unassigned,settled,319,319
 002e20e0,FUN_002e20e0,.text,unassigned,unnamed,0,0
 002e23b0,CL_InitInput,.text,client,named,0,0
 002e27d0,FUN_002e27d0,.text,unassigned,unnamed,0,0

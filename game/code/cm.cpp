@@ -2309,4 +2309,262 @@ int32_t XB_REGS3 XB_CDECL CM_FilterBoxCandidates(uint8_t* out_brushes, uint32_t,
     return m;
 }
 
+PLATFORM_ASM_ENTRY(CM_SegmentCrossesMesh_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CM_SegmentCrossesMesh) "addl $24, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL CM_SegmentCrossesMesh(const uint8_t* mesh, const float* maxs, const float* start, const float* end,
+                                       const float* delta, const float* mins) {
+    uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+    stack[1] = *reinterpret_cast<const uint16_t*>(mesh + 0x40);
+    stack[0] = 0;
+    stack[2] = 0;
+    title_global<uint16_t>(0x0090a620) = 3;
+    for (uint16_t node = CM_BoxTreeStack_Next(mesh, mins, maxs); node != 0xffff;
+         node = CM_BoxTreeStack_Next(mesh, mins, maxs)) {
+        const Lanes n = lanes(reinterpret_cast<const float*>(*reinterpret_cast<uint8_t* const*>(mesh + 0x44) + node * 16));
+        const Lanes d = lanes(delta);
+        if (!(0.0f > sum_xyz(mul(d, n)))) continue;
+        const float dist_start = plane_distance(n, lanes(start));
+        const float dist_end = plane_distance(n, lanes(end));
+        if (!(0.0f > dist_start * dist_end)) continue;
+        const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(mesh + 0x34);
+        const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(mesh + 0x3c))[node];
+        const Lanes v0 = lanes(reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16));
+        const Lanes v1 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16));
+        const Lanes v2 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16));
+        const Lanes tmax = max_lanes(max_lanes(v0, v1), v2);
+        const Lanes tmin = min_lanes(min_lanes(v0, v1), v2);
+        if (!inside_xyz(sub(tmin, lanes(maxs)), sub(lanes(mins), tmax))) continue;
+        const float t = dist_start / (dist_start - dist_end);
+        const Lanes p = add(lanes(start), mul(splat(t), d));
+        const float s1 = edge_side(sub(v0, v1), sub(p, v1), n);
+        const float s2 = edge_side(sub(v1, v2), sub(p, v2), n);
+        const float s3 = edge_side(sub(v2, v0), sub(p, v0), n);
+        const float order[4] = {s3, s2, s1, s1};  // SHUFPS lanes; CMPLTPS on all four
+        int32_t mask = 0;
+        for (int32_t i = 0; i < 4; ++i)
+            if (order[i] < 0.0f) mask |= 1 << i;
+        if (!(mask & 7)) return 1;
+    }
+    return 0;
+}
+
+uint8_t XB_CDECL CM_SightTraceRayThroughWorldTrees(uint8_t* tw, const float* start, const float* end) {
+    const Lanes s = lanes(start);
+    const Lanes e = lanes(end);
+    alignas(16) float delta[4];
+    const Lanes d = sub(e, s);
+    std::memcpy(delta, d.v, 16);
+    if (title_global<float>(0x0083eb94) > sum_xyz(mul(d, d))) return 0;  // 0.01
+    const Lanes lo = min_lanes(s, e);
+    const Lanes hi = max_lanes(s, e);
+    int32_t& checkcount = cm_field<int32_t>(0x60);
+    for (int32_t k = 0; k < *reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0095f4fc) + 0xc); ++k) {
+        uint8_t* tree = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f4fc) + 0x10 + k * 4);
+        const float* tree_mins = reinterpret_cast<const float*>(tree + 0x40);
+        const float* tree_maxs = reinterpret_cast<const float*>(tree + 0x50);
+        if (!inside_xyz(sub(lanes(tree_mins), hi), sub(lo, lanes(tree_maxs)))) continue;
+        if (!CM_SegmentOverlapsBox(start, end, tree_mins, tree_maxs)) continue;
+        const Lanes clip_lo = max_lanes(lo, lanes(tree_mins));
+        const Lanes clip_hi = min_lanes(hi, lanes(tree_maxs));
+        title_global<int32_t>(0x00960030) = 0;
+        title_global<uint32_t>(0x00960034) = 0x009638c0;
+        CM_QuadTreeTraceLeafs_r(tree, 0, start, end, reinterpret_cast<const float*>(tree + 0x10),
+                                *reinterpret_cast<const float*>(tree + 0x20));
+        for (uint32_t j = 0; j < title_global<uint32_t>(0x00960030); ++j) {
+            const uint8_t* leaf = *reinterpret_cast<const uint8_t* const*>(title_global<const uint8_t*>(0x00960034) + j * 0x30);
+            const int32_t n = *reinterpret_cast<const int32_t*>(leaf);
+            for (int32_t i = 0; i < n; ++i) {
+                uint8_t* object = leaf_object(tree, (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[i]);
+                int32_t& mark = *reinterpret_cast<int32_t*>(object + 0xc);
+                if (mark == checkcount) continue;
+                if (!(*reinterpret_cast<const uint32_t*>(object + 8) & *reinterpret_cast<const uint32_t*>(tw + 0xf8))) continue;
+                mark = checkcount;
+                const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+                const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+                alignas(16) float omin[4], omax[4];
+                const Lanes lo_o = sub(c, h);
+                const Lanes hi_o = add(c, h);
+                std::memcpy(omin, lo_o.v, 16);
+                std::memcpy(omax, hi_o.v, 16);
+                if (!inside_xyz(sub(lo_o, clip_hi), sub(clip_lo, hi_o))) {
+                    const Lanes reach = sub(hi, lo_o);
+                    platform_keep(reach);
+                    if (!(0.0f <= reach.v[0])) break;  // CMPLESS on the x lane
+                    continue;
+                }
+                if (!CM_SegmentOverlapsBox(start, end, omin, omax)) continue;
+                if (object_type(object) == 9) {
+                    CM_TraceBoxThroughBrush(tw, object);
+                    if (!(title_global<float>(0x0083eb20) > *reinterpret_cast<const float*>(tw + 0x120))) continue;  // 1
+                } else {
+                    alignas(16) float box_lo[4], box_hi[4];
+                    const Lanes bh = min_lanes(clip_hi, hi_o);
+                    const Lanes bl = max_lanes(clip_lo, lo_o);
+                    std::memcpy(box_hi, bh.v, 16);
+                    std::memcpy(box_lo, bl.v, 16);
+                    if (!CM_SegmentCrossesMesh(object, box_hi, start, end, delta, box_lo)) continue;
+                }
+                title_global<uint8_t*>(0x0094cba0) = object;  // the object hit
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(CM_SightTraceThroughWorldTrees_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CM_SightTraceThroughWorldTrees) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL CM_SightTraceThroughWorldTrees(uint8_t* tw) {
+    alignas(16) float start[4], end[4];
+    std::memcpy(start, tw, 16);
+    std::memcpy(end, tw + 0x10, 16);
+    const Lanes s = lanes(start);
+    const Lanes e = lanes(end);
+    int32_t& checkcount = cm_field<int32_t>(0x60);
+    const Lanes extent = lanes(tw_row(tw, 0x150));
+    const Lanes lo = sub(min_lanes(s, e), extent);
+    const Lanes hi = add(max_lanes(s, e), extent);
+    float* const tw_start_z = reinterpret_cast<float*>(tw + 8);
+    float* const tw_end_z = reinterpret_cast<float*>(tw + 0x18);
+    for (int32_t k = 0; k < *reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0095f4fc) + 0xc); ++k) {
+        uint8_t* tree = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f4fc) + 0x10 + k * 4);
+        if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(tree + 0x40)), hi),
+                        sub(lo, lanes(reinterpret_cast<const float*>(tree + 0x50)))))
+            continue;
+        title_global<int32_t>(0x00960030) = 0;
+        title_global<uint32_t>(0x00960034) = 0x009638c0;
+        CM_QuadTreeTraceLeafs_r(tree, 0, start, end, reinterpret_cast<const float*>(tree + 0x10),
+                                *reinterpret_cast<const float*>(tree + 0x20));
+        for (uint32_t j = 0; j < title_global<uint32_t>(0x00960030); ++j) {
+            const uint8_t* leaf = *reinterpret_cast<const uint8_t* const*>(title_global<const uint8_t*>(0x00960034) + j * 0x30);
+            const int32_t n = *reinterpret_cast<const int32_t*>(leaf);
+            // Pass 1: brushes (type 9); any fraction below 1 is a hit.
+            for (int32_t i = 0; i < n; ++i) {
+                uint8_t* object = leaf_object(tree, (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[i]);
+                if (object_type(object) != 9) continue;
+                int32_t& mark = *reinterpret_cast<int32_t*>(object + 0xc);
+                if (mark == checkcount) continue;
+                if (!(*reinterpret_cast<const uint32_t*>(object + 8) & *reinterpret_cast<const uint32_t*>(tw + 0xf8))) continue;
+                mark = checkcount;
+                const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+                const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+                const Lanes below = sub(lo, c);
+                const Lanes above = sub(c, hi);
+                int32_t inside = 0;
+                for (int32_t a = 0; a < 4; ++a) {
+                    const float m = above.v[a] > below.v[a] ? above.v[a] : below.v[a];
+                    if (m < h.v[a]) inside |= 1 << a;
+                }
+                if ((inside & 7) != 7) {
+                    const Lanes reach = add(sub(hi, c), h);
+                    platform_keep(reach);
+                    if (!(0.0f <= reach.v[0])) break;
+                    continue;
+                }
+                if (*reinterpret_cast<const uint32_t*>(tw + 0x160))
+                    CM_TraceCapsuleThroughBrush(tw, object);
+                else
+                    CM_TraceBoxThroughBrush(tw, object);
+                if (title_global<float>(0x0083eb20) > *reinterpret_cast<const float*>(tw + 0x120)) return 1;  // 1
+            }
+            // Pass 2: mesh triangles with the sphere at the capsule's lower end.
+            const float radius = *reinterpret_cast<const uint32_t*>(tw + 0x160) ? *reinterpret_cast<const float*>(tw + 0x164)
+                                                                                 : *reinterpret_cast<const float*>(tw + 0x50);
+            const float saved_start_z = *tw_start_z;
+            const float saved_end_z = *tw_end_z;
+            const float drop = *reinterpret_cast<const float*>(tw + 0x168) - radius;
+            *tw_start_z = *tw_start_z - drop;
+            const float rr = radius + title_global<float>(0x0083eb4c);  // 0.001
+            *tw_end_z = *tw_end_z - drop;
+            alignas(16) float a_pt[4], b_pt[4], dir[4], lo2[4], hi2[4];
+            std::memcpy(a_pt, tw, 16);
+            std::memcpy(b_pt, tw + 0x10, 16);
+            const Lanes a4 = lanes(a_pt), b4 = lanes(b_pt);
+            const Lanes rr4 = splat(rr);
+            const Lanes l2 = sub(min_lanes(a4, b4), rr4);
+            const Lanes h2 = add(max_lanes(a4, b4), rr4);
+            std::memcpy(lo2, l2.v, 16);
+            std::memcpy(hi2, h2.v, 16);
+            const Lanes d = sub(b4, a4);
+            const Lanes dn = div_lanes(d, splat(platform_x87_sqrt(sum_xyz(mul(d, d)))));
+            platform_keep(dn);
+            std::memcpy(dir, dn.v, 16);
+            for (int32_t i = 0; i < n; ++i) {
+                uint8_t* object = leaf_object(tree, (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[i]);
+                if (object_type(object) == 9) continue;
+                int32_t& mark = *reinterpret_cast<int32_t*>(object + 0xc);
+                if (mark == checkcount) continue;
+                if (!(*reinterpret_cast<const uint32_t*>(object + 8) & *reinterpret_cast<const uint32_t*>(tw + 0xf8))) continue;
+                mark = checkcount;
+                const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+                const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+                const Lanes below = sub(l2, c);
+                const Lanes above = sub(c, h2);
+                int32_t inside = 0;
+                for (int32_t a = 0; a < 4; ++a) {
+                    const float m = above.v[a] > below.v[a] ? above.v[a] : below.v[a];
+                    if (m < h.v[a]) inside |= 1 << a;
+                }
+                if ((inside & 7) != 7) {
+                    const Lanes reach = add(sub(h2, c), h);
+                    platform_keep(reach);
+                    if (!(0.0f <= reach.v[0])) break;
+                    continue;
+                }
+                uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+                stack[1] = *reinterpret_cast<const uint16_t*>(object + 0x40);
+                stack[0] = 0;
+                stack[2] = 0;
+                title_global<uint16_t>(0x0090a620) = 3;
+                for (uint16_t node = CM_BoxTreeStack_Next(object, lo2, hi2); node != 0xffff;
+                     node = CM_BoxTreeStack_Next(object, lo2, hi2)) {
+                    alignas(16) float plane[4];
+                    std::memcpy(plane, *reinterpret_cast<uint8_t* const*>(object + 0x44) + node * 16, 16);
+                    const Lanes p = lanes(plane);
+                    const Lanes limit4 = sub(rr4, splat(p.v[3]));
+                    platform_keep(limit4);
+                    const float limit = limit4.v[0];
+                    const float dist_b = sum_xyz(mul(p, b4));
+                    const float dist_a = sum_xyz(mul(p, a4));
+                    const float dists[4] = {dist_a, dist_b, 0.0f, 0.0f};
+                    int32_t beyond = 0;
+                    for (int32_t a = 0; a < 4; ++a)  // CMPLTPS on all four lanes
+                        if (limit < dists[a]) beyond |= 1 << a;
+                    if ((beyond & 3) == 3) continue;
+                    const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(object + 0x34);
+                    const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(object + 0x3c))[node];
+                    alignas(16) float v0[4], v1[4], v2[4];
+                    std::memcpy(v0, rows + (flags & 0x3f) * 16, 16);
+                    std::memcpy(v1, rows + ((flags >> 6) & 0x3f) * 16, 16);
+                    std::memcpy(v2, rows + ((flags >> 12) & 0x3f) * 16, 16);
+                    const Lanes l0 = lanes(v0), l1 = lanes(v1), lv2 = lanes(v2);
+                    const Lanes tmax = max_lanes(l0, max_lanes(l1, lv2));
+                    const Lanes tmin = min_lanes(l0, min_lanes(l1, lv2));
+                    if (!inside_xyz(sub(tmin, h2), sub(l2, tmax))) continue;
+                    alignas(16) float clipped_end[4];
+                    std::memcpy(clipped_end, b_pt, 16);
+                    uint8_t solid;
+                    if (CM_ClipSphereSweepToTriangle(0, a_pt, v0, clipped_end, dir, rr, v1, v2, plane, &solid)) {
+                        *tw_start_z = saved_start_z;
+                        *tw_end_z = saved_end_z;
+                        return 1;
+                    }
+                }
+            }
+            *tw_start_z = saved_start_z;
+            *tw_end_z = saved_end_z;
+        }
+    }
+    return 0;
+}
+
 }  // namespace game

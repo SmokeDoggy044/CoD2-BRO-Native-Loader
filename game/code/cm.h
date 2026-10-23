@@ -327,4 +327,19 @@ int32_t XB_REGS3 XB_CDECL CM_FilterBoxCandidates(uint8_t* out_brushes, uint32_t 
                                                  const float* mins, const float* maxs, uint32_t contents,
                                                  const uint8_t* in_triangles, uint8_t* out_triangles);
 
+
+// 0x002d1980 (mesh in ESI, maxs in EDI; start, end, delta, mins on the stack; unnamed in Ghidra): 1 when the segment
+// crosses a mesh triangle the box-tree walk finds: facing planes (delta.normal < 0) with start and end on opposite
+// sides, triangle bounds meeting the box, the crossing point inside all three edges.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_SegmentCrossesMesh(const uint8_t* mesh, const float* maxs, const float* start,
+                                                                  const float* end, const float* delta, const float* mins);
+extern "C" void CM_SegmentCrossesMesh_entry(void);
+// 0x002d2f90 (unnamed in Ghidra): the sight (any hit) version of CM_TraceRayThroughWorldTrees: brushes hit when the
+// box trace drops the fraction below 1, meshes through CM_SegmentCrossesMesh; the object hit goes to 0x0094cba0.
+uint8_t XB_CDECL CM_SightTraceRayThroughWorldTrees(uint8_t* tw, const float* start, const float* end);
+// 0x002e1740 (trace work in EDI; unnamed in Ghidra): the sight version of CM_TraceThroughWorldTrees: any brush
+// fraction below 1, or any triangle CM_ClipSphereSweepToTriangle clips (end copy per triangle), returns 1.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_SightTraceThroughWorldTrees(uint8_t* tw);
+extern "C" void CM_SightTraceThroughWorldTrees_entry(void);
+
 }  // namespace game
