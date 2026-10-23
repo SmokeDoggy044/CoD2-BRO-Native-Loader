@@ -6089,4 +6089,169 @@ uint8_t XB_CDECL nglSaveScreenshot(const char* name) {
     return nglSaveTextureTGA(front, buffer);
 }
 
+namespace {
+
+// The title clock (RDTSC at 733 MHz) through XAPI QueryPerformanceCounter (0x001ed6ca), whose
+// RDTSC site the loader patches like the inline ones: in tests the same recorded title_rdtsc.
+uint64_t title_clock() {
+    uint32_t counter[2] = {0, 0};
+    title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+    return (uint64_t{counter[1]} << 32) | counter[0];
+}
+
+}  // namespace
+
+void XB_CDECL nglWaitFrameInterval() {
+    // With a frame interval set (0x008a2cb0 vertical blanks): until that many have passed since
+    // the last frame start (0x009028e4 counts them; 0x00902878 = late frames do not wait) the
+    // frame stays pending (0x0090288c = 1); else a new frame starts at the clock's low word.
+    const uint32_t interval = title_global<uint32_t>(0x008a2cb0);
+    if (interval) {
+        if (!title_global<uint32_t>(0x00902878) ||
+            title_global<uint32_t>(0x009028e4) - title_global<uint32_t>(0x00902880) < interval) {
+            title_global<uint8_t>(0x0090288c) = 1;
+            return;
+        }
+    }
+    title_global<uint32_t>(0x00902888) = title_global<uint32_t>(0x00902884);
+    const uint64_t now = title_clock();
+    title_global<uint32_t>(0x00902884) = static_cast<uint32_t>(now);
+    title_global<uint32_t>(0x00902880) = title_global<uint32_t>(0x009028e4);
+    title_global<uint8_t>(0x0090288c) = 0;
+}
+
+void XB_CDECL nglVBlankCallback() {
+    const uint64_t now = title_clock();
+    title_global<uint32_t>(0x00902ba0) = static_cast<uint32_t>(now);
+    title_global<uint32_t>(0x00902ba4) = static_cast<uint32_t>(now >> 32);
+    nglWaitFrameInterval();
+}
+
+void XB_CDECL nglBeginFrame() {
+    title_global<uint32_t>(0x009028e8) = title_global<uint32_t>(0x009028e4);
+    const uint64_t now = title_clock();
+    title_global<uint32_t>(0x00902ba8) = static_cast<uint32_t>(now);
+    title_global<uint32_t>(0x00902bac) = static_cast<uint32_t>(now >> 32);
+    title_global<uint32_t>(0x009025a8) = title_global<uint32_t>(0x009025a4);  // frame memory back to its start
+    title_global<uint32_t>(0x00903c34) = title_global<uint32_t>(0x00903c30);
+    title_global<NglLightSet*>(0x00902e40) = nglCreateLightSet();
+    if (title_global<uint8_t>(0x00902c09)) title_global<uint8_t>(0x00902b71) = 0;
+    if (title_global<uint8_t>(0x00902c0a)) title_global<uint8_t>(0x00902b72) = 0;
+    if (title_global<uint8_t>(0x00902c0b)) title_global<uint8_t>(0x00902b73) = 0;
+    std::memcpy(&title_global<uint32_t>(0x00902bf8), &title_global<uint32_t>(0x00902b60), 0x18);  // this frame's flags
+    current_scene() = nullptr;
+    nglPushScene(0);
+    nglBeginFrame_Nop();
+    nglDynamicVB_BeginFrame(&title_global<uint32_t>(0x00902938));
+}
+
+namespace {
+
+// A tick interval (the title clock, 733 MHz) in seconds: MSVC's int64 to float on the x87.
+float ticks_to_seconds(uint64_t ticks) {
+    return platform_x87_int64_mul(static_cast<uint32_t>(ticks), static_cast<uint32_t>(ticks >> 32),
+                                  title_global<float>(0x0083ed64));
+}
+
+uint64_t global64(uint32_t address) {
+    return (uint64_t{title_global<uint32_t>(address + 4)} << 32) | title_global<uint32_t>(address);
+}
+
+void set_global64(uint32_t address, uint64_t value) {
+    title_global<uint32_t>(address) = static_cast<uint32_t>(value);
+    title_global<uint32_t>(address + 4) = static_cast<uint32_t>(value >> 32);
+}
+
+void call_frame_hook(uint32_t function, uint32_t argument) {
+    const uint32_t hook = title_global<uint32_t>(function);
+    if (hook) title_function<void XB_CDECL(uint32_t)>(hook)(title_global<uint32_t>(argument));
+}
+
+}  // namespace
+
+void XB_CDECL nglEndFrame() {
+    nglFlushDebugLineBatch();
+    alignas(16) float sample[4] = {0.0f, 0.0f, title_global<float>(0x00903c70), title_global<float>(0x00903c74)};
+    title_function<void XB_FASTCALL(uint32_t, const float*)>(0x003e7440)(0, sample);  // SetVertexShaderConstant1Fast
+    if (title_global<uint8_t>(0x00902c00)) title_function<void XB_CDECL()>(0x00064780)();  // nglDrawFpsCounter
+    if (title_global<uint8_t>(0x00902c01)) title_function<void XB_CDECL()>(0x0006bb50)();  // nglDrawFrameTimeBar
+    // Frame statistics in seconds: CPU time since nglBeginFrame (0x00902be4), the render
+    // (0x00902be0), two accumulated intervals (0x00902b84/88), the GPU wait (0x00902bd8), the
+    // whole frame (0x00902bd4), vertical blanks per frame (0x00902bdc) and the fps (0x00902bc8).
+    uint64_t elapsed = title_clock() - global64(0x00902ba8);
+    set_global64(0x00902ba8, elapsed);
+    title_global<float>(0x00902be4) = ticks_to_seconds(elapsed);
+    set_global64(0x00902bb0, title_clock());
+    nglDynamicVB_EndFrame(&title_global<uint32_t>(0x00902938));
+    current_scene() = root_scene();
+    // By its title address: the shader Draws read a never-set constant lane that the title walker
+    // leaves a return address in (stale stack; see nglRenderTranslucentList).
+    title_function<void XB_CDECL()>(0x00074330)();  // nglRenderSceneTree
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003eb9c0)(1, 0x00064580, 0);  // InsertCallback(nglVBlankCallback)
+    nglFreeFogTextures();
+    elapsed = title_clock() - global64(0x00902bb0);
+    set_global64(0x00902bb0, elapsed);
+    title_global<float>(0x00902be0) = ticks_to_seconds(elapsed);
+    title_global<float>(0x00902b84) = ticks_to_seconds(global64(0x00902bb8));
+    title_global<float>(0x00902b88) = ticks_to_seconds(global64(0x00902bc0));
+    uint32_t buffer = title_global<uint32_t>(0x00903c48);
+    if (title_global<uint32_t>(0x00903c54) == buffer) buffer = title_global<uint32_t>(0x00903c4c);
+    title_global<uint32_t>(0x00903c54) = buffer;
+    title_global<uint32_t>(0x00903c50) = buffer;
+    title_function<void XB_STDCALL(uint32_t)>(0x003e72b0)(0);  // D3DDevice_SetVertexShader
+    title_function<void XB_STDCALL(uint32_t)>(0x003e7820)(0);  // D3DDevice_SetPixelShader
+    static const uint32_t kCleared[6] = {0x00903c08, 0x00903c0c, 0x00903c10, 0x00903c88, 0x00903c8c, 0x00903c90};
+    for (const uint32_t address : kCleared) title_global<uint32_t>(address) = 0;
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    call_frame_hook(0x009025c0, 0x009025c4);
+    title_global<float>(0x00902bd8) = ticks_to_seconds(title_clock() - global64(0x00902b90));
+    title_function<void XB_STDCALL(uint32_t)>(0x003e6210)(title_global<uint32_t>(0x0090286c));  // wait on the last fence
+    title_global<uint32_t>(0x0090286c) = title_function<uint32_t XB_STDCALL()>(0x003e68f0)();  // D3DDevice_InsertFence
+    call_frame_hook(0x009025b8, 0x009025bc);
+    while (*static_cast<volatile uint8_t*>(&title_global<uint8_t>(0x0090288c))) {
+    }
+    title_function<void XB_STDCALL(uint32_t)>(0x003eabe0)(0);  // D3DDevice_Swap
+    if (title_global<uint32_t>(0x008a3518) != 0x11) nglRestoreRenderStates(&title_global<uint8_t>(0x00902f08));
+    ++title_global<uint32_t>(0x009028e0);
+    set_global64(0x00902b90, title_clock());
+    title_global<float>(0x00902bd4) = ticks_to_seconds(global64(0x00902ba0) - global64(0x00902b98));
+    const float blanks = platform_x87_unsigned_mul_mul(title_global<uint32_t>(0x00902884) - title_global<uint32_t>(0x00902888),
+                                                       title_global<float>(0x0083ed64), 1.0f);
+    const float total = title_global<float>(0x00902bcc);
+    title_global<float>(0x00902bdc) = blanks;
+    title_global<float>(0x00902bcc) = total + blanks;
+    title_global<float>(0x00902bd0) = (total + blanks) * title_global<float>(0x0083eb4c);
+    title_global<float>(0x00902bc8) = platform_x87_div_mul(title_global<float>(0x0083eb9c), blanks, 1.0f);
+    if (title_global<uint8_t>(0x00902b6a)) {
+        nglSaveScreenshot(nullptr);
+        title_global<uint8_t>(0x00902b6a) = 0;
+    }
+    std::memcpy(&title_global<uint32_t>(0x00902c10), &title_global<uint32_t>(0x00902b78), 0x80);  // last frame's statistics
+    title_global<uint32_t>(0x00902bf0) = 0;
+    title_global<float>(0x00902b84) = 0.0f;
+    title_global<float>(0x00902b88) = 0.0f;
+    title_global<uint32_t>(0x00902bec) = 0;
+    title_global<uint32_t>(0x00902be8) = 0;
+    for (uint32_t address = 0x00902bb8; address <= 0x00902bc4; address += 4) title_global<uint32_t>(address) = 0;
+    set_global64(0x00902b98, title_clock());
+    call_frame_hook(0x009025c8, 0x009025cc);
+    current_scene() = nullptr;
+}
+
+void XB_THISCALL AnimManager_SkipListClear(NglSkipList* self) { clear_skip_list<AnimManager_SkipListRemove>(self); }
+void XB_THISCALL NalManager_SkipListClearKey8(NglSkipList* self) { clear_skip_list<NalManager_SkipListRemoveKey8>(self); }
+
+uint8_t* XB_THISCALL AnimManager2c9c_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<AnimManager_SkipListClear>(self, flags, 0x008381f0);
+}
+uint8_t* XB_THISCALL AnimManager2ce8_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<NalManager_SkipListClearKey8>(self, flags, 0x00838160);
+}
+uint8_t* XB_THISCALL AnimManager2d34_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<AnimManager_SkipListClear>(self, flags, 0x008380f4);
+}
+uint8_t* XB_THISCALL AnimManager2d80_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<NalManager_SkipListClearKey8>(self, flags, 0x00838294);
+}
+
 }  // namespace game

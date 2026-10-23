@@ -210,4 +210,52 @@ void XB_CDECL FxOp5b_InitShaders();
 void XB_CDECL FxOpGrid_InitShaders();
 void XB_CDECL FxOp53_InitShaders();
 
+// 0x000a5a80 / 0x000a5f20: the disc / circle domains (centre, radius, unit normal and two unit
+// in-plane axes; packed SSE with RSQRTSS + one Newton step). Return self.
+uint8_t* XB_THISCALL FxDiscDomain_Init(uint8_t* self, const float* centre, const float* normal, float radius);
+uint8_t* XB_THISCALL FxCircleDomain_Init(uint8_t* self, const float* centre, const float* normal, float radius);
+// 0x00098820: a particle domain by four-character id or name ("1dBumpDomain" ... "UVAFrame"),
+// its parameters from the list's entries (value in word 1). Null for "NULL"/unknown/failure.
+uint8_t* XB_CDECL FxDomain_Create(const char* name, const uint32_t* id, const uint8_t* list);
+
+// 0x00097cd0: a particle action by four-character id or class name (35 kinds, each a 0x1c-byte
+// FxAction* object). Null for unknown kinds or a failed allocation.
+uint8_t* XB_CDECL apsParseActions(const char* name, const uint32_t* id);
+
+// 0x0023e6c0 (stream in EAX; name, zone): an effect file: header, matrix and scale, stages
+// (renderer from its parameter list, particle actions with their parameters and domains),
+// emitters. Null when an action parameter has an unknown type. Entered through the _entry.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL FX_LoadEffectFile(uint32_t* stream, const char* name, uint32_t zone);
+extern "C" void FX_LoadEffectFile_entry(void);
+// 0x00291140 (size in EAX, data in ECX, zone in EBX; streams, name; callee pops 8): the effect
+// loaded from memory and stored in the zone's effect map. Returns EAX as the original leaves it
+// (MemStream_Destroy's flag byte over the slot address, or 0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_LoadEffectFromStream(int32_t size, const uint8_t* data, uint32_t zone,
+                                                                     uint32_t streams, const char* name);
+extern "C" void FX_LoadEffectFromStream_entry(void);
+
+// The particle memory pools (fx_load.cpp; slot table +0x1c of 8-byte entries {.., u16 next
+// free (+2), 24-bit tag + flag byte (+4)}, slot size +0x14, base +0x18, free head +0x20):
+// 0x0009b6e0 Init, 0x0009b710 SetSlotTag (returns the address, 0 when unchanged or too
+// large), 0x0009ba60 FreeSlotTable, 0x0009bc50 / 0x0009bce0 Release / SetSlotTag over a pool
+// set, 0x0009bea0 Release in the global set (0x00909f08), 0x0009c120 the set destroyed.
+uint8_t* XB_THISCALL FxPool_Init(uint8_t* self, uint32_t slots);
+uint32_t XB_THISCALL FxPool_SetSlotTag(uint8_t* self, int32_t address, int32_t tag);
+void XB_THISCALL FxPool_FreeSlotTable(uint8_t* self);
+uint32_t XB_THISCALL FxPools_Release(uint8_t* self, int32_t address);
+uint32_t XB_THISCALL FxPools_SetSlotTag(uint8_t* self, int32_t address, int32_t tag);
+uint32_t XB_CDECL FxPools_ReleaseGlobal(int32_t address);
+void XB_THISCALL FxPools_Destroy(uint8_t* self);
+// 0x0009d0e0: the block at +4 freed, 0x00909908 cleared. 0x0009e420: out = 1.5 x the xyz at
+// src +0x60, w 1. 0x0009e490: a node onto the scene's opaque (key < 0: -key) or translucent
+// (depth) particle list (+0x304/+0x30c, +0x308/+0x310). 0x0009cd00: the particle shader class
+// (vtable 0x007c66f4) on the shader list. 0x0009ced0: its name "aeps_simple". 0x0009f660:
+// an effect pool's slot table, elements (0xd0 each, empty destructor) and slots released.
+void XB_THISCALL FxSystems_FreeBlock(uint8_t* self);
+float* XB_CDECL FxVec3_ScaledHalfExtent(float* out, const uint8_t* src);
+void XB_THISCALL FxNode_AddToScene(const uint8_t* self, uint8_t* node, float depth);
+uint8_t* XB_CDECL FxShaderClass_Create();
+uint32_t* XB_STDCALL FxSimpleShader_GetName(uint32_t* out);
+void XB_THISCALL FxEffectPool_Release(uint8_t* self);
+
 }  // namespace game

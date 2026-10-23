@@ -148,6 +148,17 @@ The arguments are compared as values; pointers to data on the stack are recorded
 content, since the two sides' stack frames differ. `tests/compare_test.cpp` checks a
 right and a wrong recorded call.
 
+The clock: title RDTSC sites jump to loader trampolines that call `title_rdtsc` (patches.cpp);
+in test processes the trampoline pages stay executable and `title_rdtsc` is a recorded call
+with the `Clock` stand-in: EDX:EAX = 0 on both sides (2026-10-23; before, EDX kept whatever the
+caller had, so code storing the high word - nglBeginFrame, nglVBlankCallback - could not match
+a C version). Decompiled code reads the same clock through the title's XAPI
+QueryPerformanceCounter (0x001ed6ca, itself a patched RDTSC site): no loader export needed.
+RE_RenderScene re-checked afterwards (2,636 tests matched).
+Frame end: D3DDevice_InsertCallback (the callback is not run in tests), InsertFence,
+BlockOnFence and Swap are recorded calls too (EAX 0 on both sides), which made nglEndFrame
+testable (settled 132/132; half its tests end "SDK call log full" - the whole scene render).
+
 Stand-ins: a few recorded calls also do what the replacement would, so that code reading
 the result back stays testable (`compare::SdkStandIn`, `kRecordedD3dCalls`):
 D3DResource_AddRef/Release change the resource's reference count (the low 16 bits of its

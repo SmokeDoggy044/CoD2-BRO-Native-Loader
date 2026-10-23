@@ -1368,4 +1368,29 @@ uint8_t XB_CDECL nglSaveTextureTGA(NglTexture* texture, const char* name);
 // 0x00902748, name buffer 0x00902708). CALL in the first 5 bytes: not hookable.
 uint8_t XB_CDECL nglSaveScreenshot(const char* name);
 
+// 0x00064370: frame pacing - the frame stays pending (0x0090288c) until the interval's vertical
+// blanks passed, else a new frame starts at the clock. 0x00064580: the vertical blank callback
+// (the clock into 0x00902ba0/a4), then nglWaitFrameInterval. 0x00064690: a new frame (clock,
+// frame memory and light set reset, the frame's flags, the root scene, dynamic vertex buffers).
+// The clock is read through the title's QueryPerformanceCounter (RDTSC).
+void XB_CDECL nglWaitFrameInterval();
+void XB_CDECL nglVBlankCallback();
+void XB_CDECL nglBeginFrame();
+
+// 0x00064ec0: ends the frame: debug lines, sample offsets constant, fps/time bar overlays,
+// frame timings (title clock -> seconds), the scene tree rendered, the vertical blank callback
+// inserted, the GPU fence, the wait for the frame interval, Swap, render states restored, the
+// frame statistics rolled over. The per-frame hooks 0x009025c0/b8/c8 run with their arguments.
+void XB_CDECL nglEndFrame();
+
+// 0x00083c60 / 0x00083ca0: nglSkipList_Clear for the anim managers' lists (names at +0x10 / +8).
+void XB_THISCALL AnimManager_SkipListClear(NglSkipList* self);
+void XB_THISCALL NalManager_SkipListClearKey8(NglSkipList* self);
+// The four anim managers' deleting destructors (vtables 0x007c2c9c, 0x007c2ce8, 0x007c2d34,
+// 0x007c2d80; Anim_InitManagers): 0x00085a10, 0x00085a40, 0x00085a70, 0x00085aa0.
+uint8_t* XB_THISCALL AnimManager2c9c_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimManager2ce8_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimManager2d34_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimManager2d80_DeletingDtor(uint8_t* self, uint32_t flags);
+
 }  // namespace game

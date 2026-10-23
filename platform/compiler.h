@@ -435,6 +435,19 @@ inline float platform_x87_unsigned_to_float(std::uint32_t value) {
         __asm__("fildl %1\n\tfstps %0" : "=m"(result) : "m"(value) : "st");
     return result;
 }
+// MSVC's 64-bit tick count to float times k on the x87: FILD of {lo, hi & 0x7fffffff},
+// minus FILD of {0, hi & 0x80000000}, FMUL k, FSTP as float (the caller's precision
+// control rounds the sum and the product). No MXCSR flags.
+inline float platform_x87_int64_mul(std::uint32_t lo, std::uint32_t hi, float k) {
+    const std::uint32_t low_part[2] = {lo, hi & 0x7fffffffu};
+    const std::uint32_t sign_part[2] = {0, hi & 0x80000000u};
+    float result;
+    __asm__("fildll %1\n\tfildll %2\n\tfchs\n\tfaddp %%st, %%st(1)\n\tfmuls %3\n\tfstps %0"
+            : "=m"(result)
+            : "m"(low_part), "m"(sign_part), "m"(k)
+            : "st", "st(1)");
+    return result;
+}
 // numerator / (float)value with the unsigned conversion above, the division on the x87
 // too (FILD, FADD 2^32 when negative, FDIVR, FSTP). No MXCSR flags.
 inline float platform_x87_div_by_unsigned(float numerator, std::uint32_t value) {
@@ -477,6 +490,9 @@ inline float platform_x87_dot3_div_tan_mul(float a0, float a1, float a2, float b
     return ((a2 * b2 + a1 * b1) + a0 * b0) / (std::tan(angle * scale) * d) * k;
 }
 inline float platform_x87_unsigned_to_float(std::uint32_t value) { return static_cast<float>(value); }
+inline float platform_x87_int64_mul(std::uint32_t lo, std::uint32_t hi, float k) {
+    return static_cast<float>(static_cast<std::int64_t>((std::uint64_t{hi} << 32) | lo)) * k;
+}
 inline float platform_x87_div_by_unsigned(float numerator, std::uint32_t value) {
     return numerator / static_cast<float>(value);
 }

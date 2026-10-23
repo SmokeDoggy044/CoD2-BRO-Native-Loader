@@ -606,6 +606,7 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
     case SdkStandIn::PushEnd:
     case SdkStandIn::LevelCount:
     case SdkStandIn::SurfaceLevel:
+    case SdkStandIn::Clock:
     case SdkStandIn::None: break;
     }
     return false;
@@ -657,7 +658,10 @@ XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
     }
     if (!ok) c.report.sdk_overflow = 1;
     uint32_t result = 0;
-    if (spec.stand_in != SdkStandIn::None && !sdk_stand_in(c, spec, values, result)) return false;
+    if (spec.stand_in == SdkStandIn::Clock)
+        gregs[REG_EDX] = 0;
+    else if (spec.stand_in != SdkStandIn::None && !sdk_stand_in(c, spec, values, result))
+        return false;
     ++c.report.sdk_calls;
     gregs[REG_EIP] = static_cast<greg_t>(stack[0]);
     gregs[REG_ESP] = static_cast<greg_t>(esp + 4 + spec.stack_slots * 4);

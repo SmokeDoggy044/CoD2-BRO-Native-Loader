@@ -5,6 +5,7 @@
 #include "fx.h"
 #include "lanes.h"
 #include "ngl.h"
+#include "stream.h"
 #include "title_data.h"
 
 namespace game {
@@ -812,5 +813,606 @@ void XB_CDECL FxOp15b_InitShaders() { init_op_shaders(0x00909fe0, 0x008bbfe0, 0x
 void XB_CDECL FxOp5b_InitShaders() { init_op_shaders(0x00909ff0, 0x008bbfe0, 0x008bce84, 0x00909fec, 0x008bcf78); }
 void XB_CDECL FxOpGrid_InitShaders() { init_op_shaders(0x0090a000, 0x008bbfe0, 0x008bd094, 0x00909ffc, 0x008bd188); }
 void XB_CDECL FxOp53_InitShaders() { init_op_shaders(0x0090a00c, 0x008bbfe0, 0x008bd274, 0x0090a014, 0x008bd368); }
+
+namespace {
+
+// 1 / sqrt(lane0 of the squared lanes' (x + y) + z) by RSQRTSS and one Newton step on |s|
+// (((3 - r r |s|) r) 0.5); 0 when the sum is 0.
+float rsqrt_newton(const Lanes& squares) {
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    if (sum == 0.0f) return title_global<float>(0x007c9140);
+    const float magnitude = abs_bits(sum);
+    const float r = platform_rsqrt_estimate(magnitude);
+    return ((title_global<float>(0x007c9100) - (r * r) * magnitude) * r) * title_global<float>(0x007c9110);
+}
+
+Lanes normalized(const Lanes& v) {
+    const Lanes squares = mul(v, v);
+    platform_keep(squares);
+    return mul(v, rsqrt_newton(squares));
+}
+
+// The disc/circle domains (vtables 0x007c93a8 / 0x007c93c0): centre and radius, the normal
+// and two in-plane axes at +0x20 / +0x30.
+uint8_t* plane_domain(uint8_t* self, uint32_t vtable, const float* centre, const float* normal, float radius) {
+    at<uint32_t>(self, 0) = vtable;
+    std::memcpy(self + 0x10, centre, 12);
+    at<float>(self, 0x1c) = radius;
+    const Lanes n = normalized(lanes(normal));
+    static const float kSwapXZ[4] = {-1.0f, 0.0f, 1.0f, 0.0f};  // 0x007c92b0
+    static const float kSwapXY[4] = {1.0f, -1.0f, 0.0f, 0.0f};  // 0x007c92c0
+    Lanes u = mul(Lanes{{n.v[2], n.v[1], n.v[0], n.v[3]}}, lanes(kSwapXZ));
+    std::memcpy(self + 0x20, u.v, 16);
+    const Lanes u_squares = mul(u, u);
+    platform_keep(u_squares);
+    if (title_global<float>(0x0083eca0) > (u_squares.v[0] + u_squares.v[1]) + u_squares.v[2]) {
+        u = mul(Lanes{{n.v[1], n.v[0], n.v[2], n.v[3]}}, lanes(kSwapXY));
+        std::memcpy(self + 0x20, u.v, 16);
+    }
+    u = normalized(lanes(reinterpret_cast<const float*>(self + 0x20)));
+    std::memcpy(self + 0x20, u.v, 16);
+    const Lanes a = mul(Lanes{{n.v[1], n.v[2], n.v[0], n.v[3]}}, u);
+    const Lanes b = mul(n, Lanes{{u.v[1], u.v[2], u.v[0], u.v[3]}});
+    const Lanes c = sub(b, a);
+    const Lanes v = {{c.v[1], c.v[2], c.v[0], c.v[3]}};
+    std::memcpy(self + 0x30, v.v, 16);
+    const Lanes w = normalized(lanes(reinterpret_cast<const float*>(self + 0x30)));
+    std::memcpy(self + 0x30, w.v, 16);
+    return self;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL FxDiscDomain_Init(uint8_t* self, const float* centre, const float* normal, float radius) {
+    return plane_domain(self, 0x007c93a8, centre, normal, radius);
+}
+
+uint8_t* XB_THISCALL FxCircleDomain_Init(uint8_t* self, const float* centre, const float* normal, float radius) {
+    return plane_domain(self, 0x007c93c0, centre, normal, radius);
+}
+
+namespace {
+
+enum class Domain { None, Line, Box3, Box1, Bump1, Bump3, Point1, Point3, Rgb, Circle, Disc, SphereSurface, Sphere,
+                    ZHemisphere, YHemisphere, FrameRange, Frame };
+
+Domain domain_by_id(uint32_t id) {
+    switch (id) {
+    case 0x4c696e65: return Domain::Line;           // "Line"
+    case 0x33644275: return Domain::Bump3;          // "3dBu"
+    case 0x31644278: return Domain::Box1;           // "1dBx"
+    case 0x31644275: return Domain::Bump1;          // "1dBu"
+    case 0x31645074: return Domain::Point1;         // "1dPt"
+    case 0x4372636c: return Domain::Circle;         // "Crcl"
+    case 0x33644278: return Domain::Box3;           // "3dBx"
+    case 0x33645074: return Domain::Point3;         // "3dPt"
+    case 0x44697363: return Domain::Disc;           // "Disc"
+    case 0x55764652: return Domain::FrameRange;     // "UvFR"
+    case 0x53705375: return Domain::SphereSurface;  // "SpSu"
+    case 0x52676242: return Domain::Rgb;            // "RgbB"
+    case 0x53706865: return Domain::Sphere;         // "Sphe"
+    case 0x5576466d: return Domain::Frame;          // "UvFm"
+    case 0x59485370: return Domain::YHemisphere;    // "YHSp"
+    case 0x5a485370: return Domain::ZHemisphere;    // "ZHSp"
+    default: return Domain::None;                   // includes "NULL"
+    }
+}
+
+Domain domain_by_name(const char* name) {
+    static const struct {
+        uint32_t text, length;
+        Domain domain;
+    } kNames[] = {
+        {0x007c5c4c, 0xc, Domain::None},       {0x007c5c40, 0xc, Domain::Box1},
+        {0x007c5c34, 0xc, Domain::Box3},       {0x007c5c24, 0xd, Domain::Rgb},
+        {0x007c5c14, 0xe, Domain::FrameRange}, {0x007c5c04, 0xe, Domain::Point1},
+        {0x007c5bf4, 0xe, Domain::Point3},     {0x007c5be8, 0x9, Domain::Frame},
+        {0x007c5bdc, 0xb, Domain::Disc},       {0x007c5bcc, 0xd, Domain::Circle},
+        {0x007c5bbc, 0xd, Domain::Sphere},     {0x007c5ba8, 0x12, Domain::YHemisphere},
+        {0x007c5b94, 0x12, Domain::ZHemisphere}, {0x007c5b80, 0x14, Domain::SphereSurface},
+        {0x007c5b70, 0xd, Domain::Line},       {0x007c5b60, 0xd, Domain::Bump1},
+        {0x007c5b50, 0xd, Domain::Bump3},
+    };
+    for (const auto& entry : kNames) {
+        if (same_name(name, entry.text, entry.length)) return entry.domain;
+    }
+    return Domain::None;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL FxDomain_Create(const char* name, const uint32_t* id, const uint8_t* list) {
+    const Domain domain = (id && *id) ? domain_by_id(*id) : domain_by_name(name);
+    const auto* e = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(list, 0)));
+    const auto value = [e](int i) {
+        float f;
+        std::memcpy(&f, &e[i * 4 + 1], 4);
+        return f;
+    };
+    alignas(16) uint32_t t0[4];
+    alignas(16) uint32_t t1[4];
+    switch (domain) {
+    case Domain::None: return nullptr;
+    case Domain::Bump1: return FxRange_New5b20(value(0), value(1));
+    case Domain::Box1: return FxRange_New5ac0(value(0), value(1));
+    case Domain::Point1: return FxConst_New(value(0));
+    case Domain::Bump3:
+        std::memcpy(t1, &e[4 + 1], 12);
+        std::memcpy(t0, &e[1], 12);
+        return FxVectorRange_New5b38(reinterpret_cast<const float*>(t0), reinterpret_cast<const float*>(t1));
+    case Domain::Point3: return FxConstVector_New(reinterpret_cast<const float*>(FxVec3_FromWords1(t0, e)));
+    case Domain::Box3:
+    case Domain::Rgb: {
+        const uint32_t* b = FxVec3_FromWords1(t1, e + 4);
+        const uint32_t* a = FxVec3_FromWords1(t0, e);
+        return FxVectorRange_New5ad8(reinterpret_cast<const float*>(a), reinterpret_cast<const float*>(b));
+    }
+    case Domain::Circle:
+    case Domain::Disc: {
+        uint8_t* self = fx_alloc(0x40, 0x10);
+        if (!self) return nullptr;
+        const float radius = value(2);
+        const uint32_t* normal = FxVec4_FromWords1(t1, e + 4);
+        const uint32_t* centre = FxVec4_FromWords1(t0, e);
+        return domain == Domain::Circle
+                   ? FxCircleDomain_Init(self, reinterpret_cast<const float*>(centre), reinterpret_cast<const float*>(normal), radius)
+                   : FxDiscDomain_Init(self, reinterpret_cast<const float*>(centre), reinterpret_cast<const float*>(normal), radius);
+    }
+    case Domain::Line: {
+        uint8_t* self = fx_alloc(0x30, 0x10);
+        if (!self) return nullptr;
+        const uint32_t b[4] = {e[5], e[6], e[7], e[5]};
+        const uint32_t a[4] = {e[1], e[2], e[3], e[1]};
+        std::memcpy(t1, b, 16);
+        std::memcpy(t0, a, 16);
+        return FxSegmentOp_Init(self, reinterpret_cast<const float*>(t0), reinterpret_cast<const float*>(t1));
+    }
+    case Domain::SphereSurface:
+    case Domain::Sphere:
+    case Domain::ZHemisphere:
+    case Domain::YHemisphere: {
+        uint8_t* self = fx_alloc(0x20, 0x10);
+        if (!self) return nullptr;
+        const float radius = value(1);
+        const float* centre = reinterpret_cast<const float*>(FxVec4_FromWords1(t0, e));
+        if (domain == Domain::SphereSurface) return FxVectorOp_Init9378(self, centre, radius);
+        if (domain == Domain::Sphere) return FxVectorOp_Init9330(self, centre, radius);
+        if (domain == Domain::ZHemisphere) return FxVectorOp_Init9360(self, centre, radius);
+        return FxVectorOp_Init9348(self, centre, radius);
+    }
+    case Domain::FrameRange: {
+        const float a = static_cast<float>(static_cast<int32_t>(e[1]));
+        const float b = static_cast<float>(static_cast<int32_t>(e[5]));
+        uint8_t* self = fx_alloc(0xc, 4);
+        if (!self) return nullptr;
+        at<uint32_t>(self, 0) = 0x007c5ac0;
+        ordered(a, b, &at<float>(self, 4), &at<float>(self, 8));
+        return self;
+    }
+    case Domain::Frame: {
+        const float a = static_cast<float>(static_cast<int32_t>(e[1]));
+        uint8_t* self = fx_alloc(8, 4);
+        if (!self) return nullptr;
+        at<uint32_t>(self, 0) = 0x007c5af0;
+        at<float>(self, 4) = a;
+        return self;
+    }
+    }
+    return nullptr;
+}
+
+namespace {
+
+using ActionInit = uint8_t* XB_THISCALL (*)(uint8_t*);
+
+ActionInit action_by_id(uint32_t id) {
+    switch (id) {
+    case 0x4146494f: return &FxAction8e60_Init;  // "AFIO"
+    case 0x41544558: return &FxAction8ff0_Init;  // "ATEX"
+    case 0x41544559: return &FxAction9004_Init;  // "ATEY"
+    case 0x4154455a: return &FxAction9018_Init;  // "ATEZ"
+    case 0x41564472: return &FxAction8f8c_Init;  // "AVDr"
+    case 0x416c4664: return &FxAction8e4c_Init;  // "AlFd"
+    case 0x416e6754: return &FxAction8fdc_Init;  // "AngT"
+    case 0x42727374: return &FxAction8e08_Init;  // "Brst"
+    case 0x436c5368: return &FxAction8f64_Init;  // "ClSh"
+    case 0x444c4174: return &FxAction9054_Init;  // "DLAt"
+    case 0x45536348: return &FxAction8eec_Init;  // "EScH"
+    case 0x45536357: return &FxAction8ec4_Init;  // "EScW"
+    case 0x45785363: return &FxAction8e9c_Init;  // "ExSc"
+    case 0x466f7263: return &FxAction8f50_Init;  // "Forc"
+    case 0x4b546175: return &FxAction9068_Init;  // "KTau"
+    case 0x4c417472: return &FxAction9040_Init;  // "LAtr"
+    case 0x4c536348: return &FxAction8ed8_Init;  // "LScH"
+    case 0x4c536357: return &FxAction8eb0_Init;  // "LScW"
+    case 0x4c696665: return &FxAction8e38_Init;  // "Life"
+    case 0x4c6e5363: return &FxAction8e88_Init;  // "LnSc"
+    case 0x4d467856: return &FxAction8f3c_Init;  // "MFxV"
+    case 0x4d6f7665: return &FxAction8f00_Init;  // "Move"
+    case 0x4f4d6f76: return &FxAction8f14_Init;  // "OMov"
+    case 0x50417472: return &FxAction902c_Init;  // "PAtr"
+    case 0x50734d76: return &FxAction8f28_Init;  // "PsMv"
+    case 0x5246494f: return &FxAction8e74_Init;  // "RFIO"
+    case 0x5253706e: return &FxAction8e20_Init;  // "RSpn"
+    case 0x53704163: return &FxAction907c_Init;  // "SpAc"
+    case 0x53704465: return &FxAction9090_Init;  // "SpDe"
+    case 0x53726341: return &FxAction8df0_Init;  // "SrcA"
+    case 0x5472616a: return &FxAction90a4_Init;  // "Traj"
+    case 0x55564672: return &FxAction8fc8_Init;  // "UVFr"
+    case 0x56415644: return &FxAction8fa0_Init;  // "VAVD"
+    case 0x566c4472: return &FxAction8f78_Init;  // "VlDr"
+    case 0x57505266: return &FxAction8fb4_Init;  // "WPRf"
+    default: return nullptr;
+    }
+}
+
+ActionInit action_by_name(const char* name) {
+    static const struct {
+        uint32_t text, length;
+        ActionInit init;
+    } kNames[] = {
+        {0x007c5ab0, 13, &FxAction8df0_Init},
+        {0x007c5aa4, 12, &FxAction8e08_Init},
+        {0x007c5a94, 15, &FxAction8e38_Init},
+        {0x007c5a84, 16, &FxAction8e4c_Init},
+        {0x007c5a6c, 21, &FxAction8e60_Init},
+        {0x007c5a50, 27, &FxAction8e74_Init},
+        {0x007c5a3c, 18, &FxAction8e88_Init},
+        {0x007c5a24, 23, &FxAction8e9c_Init},
+        {0x007c5a0c, 23, &FxAction8eb0_Init},
+        {0x007c59f0, 28, &FxAction8ec4_Init},
+        {0x007c59d8, 24, &FxAction8ed8_Init},
+        {0x007c59b8, 29, &FxAction8eec_Init},
+        {0x007c59a4, 19, &FxAction8f28_Init},
+        {0x007c5990, 17, &FxAction8f14_Init},
+        {0x007c5984, 11, &FxAction8f00_Init},
+        {0x007c5968, 26, &FxAction8f3c_Init},
+        {0x007c595c, 12, &FxAction8f50_Init},
+        {0x007c5948, 17, &FxAction8f64_Init},
+        {0x007c5934, 19, &FxAction8f78_Init},
+        {0x007c5918, 26, &FxAction8f8c_Init},
+        {0x007c58f8, 32, &FxAction8fa0_Init},
+        {0x007c58dc, 27, &FxAction8fb4_Init},
+        {0x007c58c8, 19, &FxAction8fc8_Init},
+        {0x007c58ac, 25, &FxAction8fdc_Init},
+        {0x007c5890, 25, &FxAction8ff0_Init},
+        {0x007c5874, 25, &FxAction9004_Init},
+        {0x007c5858, 25, &FxAction9018_Init},
+        {0x007c5840, 21, &FxAction902c_Init},
+        {0x007c582c, 20, &FxAction9040_Init},
+        {0x007c5810, 25, &FxAction9054_Init},
+        {0x007c5800, 15, &FxAction9068_Init},
+        {0x007c57f4, 12, &FxAction907c_Init},
+        {0x007c57e0, 19, &FxAction9090_Init},
+        {0x007c57cc, 17, &FxAction90a4_Init},
+        {0x007c57b8, 18, &FxAction8e20_Init},
+    };
+    for (const auto& entry : kNames) {
+        if (same_name(name, entry.text, entry.length)) return entry.init;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL apsParseActions(const char* name, const uint32_t* id) {
+    // A particle action by four-character id (when set) or class name: a 0x1c-byte object from
+    // the effect allocator handed to its constructor. Null for unknown kinds or failure.
+    const ActionInit init = (id && *id) ? action_by_id(*id) : action_by_name(name);
+    if (!init) return nullptr;
+    uint8_t* self = fx_alloc(0x1c, 4);
+    if (!self) return nullptr;
+    return init(self);
+}
+
+namespace {
+
+// The effect file's name strings: ReadString (at most 0x7f), its length byte stored at the
+// buffer's end (+0x7f) as the original does, then terminated.
+void read_name(uint32_t* stream, char* buffer) {
+    int32_t length = 0;
+    buffer[0x7f] = 0;
+    buffer[0] = 0;
+    Stream_ReadString(stream, buffer, &length, 0x7f);
+    buffer[0x7f] = static_cast<char>(length);
+    buffer[static_cast<uint8_t>(length)] = 0;
+}
+
+void hash_string(uint32_t* out, const char* text) {
+    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(out, text);  // HashStr_Init
+}
+
+void free_list(uint8_t* list) {
+    if (!at<uint32_t>(list, 0)) return;
+    fx_free_no_context(at<uint32_t>(list, 0));
+    at<uint32_t>(list, 0) = 0;
+    at<int16_t>(list, 4) = 0;
+    at<int16_t>(list, 6) = 0;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FX_LoadEffectFile_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FX_LoadEffectFile) "addl $12, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL FX_LoadEffectFile(uint32_t* stream, const char* name, uint32_t zone) {
+    using HeapAlloc = uint8_t* XB_CDECL(uint32_t, uint32_t);
+    uint8_t* memory = title_function<HeapAlloc>(0x00042c60)(0x10, 0xd0);  // Heap_AllocAligned
+    uint8_t* effect = memory ? FxEffect_Init(memory, name) : nullptr;
+    Stream_ReadInt(stream);
+    const float version = Stream_ReadFloat(stream);
+    float matrix[16];
+    for (float& value : matrix) value = Stream_ReadFloat(stream);
+    FxEffect_SetMatrix(effect, reinterpret_cast<const uint32_t*>(matrix));
+    const float a = Stream_ReadFloat(stream);
+    const float b = Stream_ReadFloat(stream);
+    const float c = Stream_ReadFloat(stream);
+    at<float>(effect, 0x4c) = Stream_ReadFloat(stream);
+    at<float>(effect, 0x40) = a;
+    at<float>(effect, 0x44) = b;
+    at<float>(effect, 0x48) = c;
+    int32_t particle_limit = 0x40;
+    if (version >= title_global<float>(0x0083f000)) {  // 1.02
+        particle_limit = static_cast<int32_t>(Stream_ReadInt(stream));
+        at<int32_t>(effect, 0x68) = particle_limit < 0 ? -particle_limit : particle_limit;
+    }
+    const int32_t stages = static_cast<int32_t>(Stream_ReadInt(stream));
+    FxEffect_SetStageCount(effect, stages);
+    // The parameter buffers keep what earlier parameters left in their unused words (the
+    // original's stack slots; zero at the start of a test).
+    alignas(16) uint32_t renderer_parameter[4] = {};
+    alignas(16) uint32_t domain_parameter[4] = {};
+    for (int32_t stage = 0; stage < stages; ++stage) {
+        const uint32_t count = Stream_ReadInt(stream);
+        const float rate = Stream_ReadFloat(stream);
+        const float life = Stream_ReadFloat(stream);
+        const uint32_t flag = Stream_ReadInt(stream);
+        uint32_t renderer_id = Stream_ReadUInt(stream);
+        Stream_ReadFloat(stream);
+        uint8_t list[8] = {};
+        const int32_t parameters = static_cast<int32_t>(Stream_ReadInt(stream));
+        FxArray16_Reserve(list, parameters);
+        for (int32_t i = 0; i < parameters; ++i) {
+            FX_ParseEffectTexture(stream, renderer_parameter);
+            FxArray16_Push(list, renderer_parameter);
+        }
+        uint8_t* renderer = FX_CreateRenderer(nullptr, &renderer_id, list);
+        at<int32_t>(renderer, 8) = particle_limit;
+        free_list(list);
+        uint8_t* memory_list = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0xc);  // Z_Malloc
+        uint8_t* elements = memory_list ? FxElementList_Init(memory_list) : nullptr;
+        const uint32_t actions = Stream_ReadInt(stream);
+        for (uint32_t k = 0; k < actions; ++k) {
+            uint32_t action_id = Stream_ReadUInt(stream);
+            Stream_ReadFloat(stream);
+            uint8_t* action = apsParseActions(nullptr, &action_id);
+            const int32_t values = static_cast<int32_t>(Stream_ReadInt(stream));
+            for (int32_t j = 0; j < values; ++j) {
+                const uint32_t type = Stream_ReadInt(stream);
+                if (type == 0) {
+                    FxParamBlock_Set(action, static_cast<uint32_t>(j), Stream_ReadFloat(stream));
+                } else if (type == 1) {
+                    char text[0x80];
+                    read_name(stream, text);
+                    uint32_t hashed[8];
+                    hash_string(hashed, text);
+                    const uint32_t found = Stream_FindEffect(hashed, title_global<uint32_t>(0x0095f630), zone, 0, 0);
+                    float bits;
+                    std::memcpy(&bits, &found, 4);
+                    FxParamBlock_Set(action, static_cast<uint32_t>(j), bits);
+                } else {
+                    return nullptr;
+                }
+            }
+            const int32_t domains = static_cast<int32_t>(Stream_ReadInt(stream));
+            for (int32_t r = 0; r < domains; ++r) {
+                uint32_t domain_id = Stream_ReadUInt(stream);
+                Stream_ReadFloat(stream);
+                uint8_t domain_list[8] = {};
+                const int32_t n = static_cast<int32_t>(Stream_ReadInt(stream));
+                for (int32_t i = 0; i < n; ++i) {
+                    FX_ParseEffectTexture(stream, domain_parameter);
+                    FxArray16_Push(domain_list, domain_parameter);
+                }
+                uint8_t* domain = FxDomain_Create(nullptr, &domain_id, domain_list);
+                FxParamBlock_SetSlot(action, r, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(domain)));
+                free_list(domain_list);
+            }
+            apsElementList_Add(elements, action);
+        }
+        FxEffect_SetStage(effect, stage, count, rate, life, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(renderer)),
+                          static_cast<uint32_t>(reinterpret_cast<uintptr_t>(elements)), flag != 0);
+    }
+    const int32_t emitters = static_cast<int32_t>(Stream_ReadInt(stream));
+    FxEffect_SetEmitterCount(effect, emitters);
+    for (int32_t i = 0; i < emitters; ++i) {
+        char text[0x80];
+        read_name(stream, text);
+        const uint32_t x = Stream_ReadInt(stream);
+        const uint32_t y = Stream_ReadInt(stream);
+        const uint32_t z = Stream_ReadInt(stream);
+        uint32_t hashed[8];
+        hash_string(hashed, text);
+        FxEffect_SetEmitterEntry(effect, i, hashed, x, y, z);
+    }
+    FxEffect_ComputeStageSizes(effect);
+    return effect;
+}
+
+PLATFORM_ASM_ENTRY(FX_LoadEffectFromStream_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FX_LoadEffectFromStream) "addl $20, %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL FX_LoadEffectFromStream(int32_t size, const uint8_t* data, uint32_t zone, uint32_t streams,
+                                          const char* name) {
+    MemStream stream;
+    MemStream_Init(&stream, data, size);
+    uint8_t* effect = FX_LoadEffectFile(reinterpret_cast<uint32_t*>(&stream), name, zone);
+    // EAX at the end: what MemStream_Destroy leaves - its flag byte (0 for this stream) in AL
+    // over the last value: 0, or the effect slot's address.
+    uint32_t result = 0;
+    if (effect) {
+        uint32_t hashed[8];
+        Stream_HashFileName(name, hashed);
+        const auto* zone_map = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+            *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(streams + 0x5c + zone * 4))));
+        const uint32_t slot = ZoneEffectMap_Lookup(hashed[0], reinterpret_cast<const char*>(hashed + 1), zone_map);
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(slot)) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(effect));
+        result = slot;
+    }
+    MemStream_Destroy(&stream);
+    return (result & ~0xffu) | stream.flag;
+}
+
+uint8_t* XB_THISCALL FxPool_Init(uint8_t* self, uint32_t slots) {
+    at<uint32_t>(self, 0) = 0;
+    at<uint32_t>(self, 4) = 0;
+    at<uint32_t>(self, 8) = 0;
+    at<uint32_t>(self, 0x14) = 0;
+    at<uint32_t>(self, 0x18) = 0;
+    at<uint32_t>(self, 0xc) = 0x7fffffff;
+    at<uint32_t>(self, 0x10) = 0xffffffff;
+    at<uint32_t>(self, 0x1c) = slots;
+    at<uint16_t>(self, 0x20) = 0xffff;
+    return self;
+}
+
+uint32_t XB_THISCALL FxPool_SetSlotTag(uint8_t* self, int32_t address, int32_t tag) {
+    const int32_t stride = at<int32_t>(self, 0x14);
+    if (tag > stride) return 0;
+    const int32_t index = (address - at<int32_t>(self, 0x18)) / stride;
+    uint32_t* entry = reinterpret_cast<uint32_t*>(at<uint8_t*>(self, 0x1c) + index * 8);
+    const uint32_t word = entry[1];
+    if (tag == static_cast<int32_t>(word << 8) >> 8) return 0;
+    entry[1] = ((word ^ static_cast<uint32_t>(tag)) & 0xffffff) ^ word;
+    return static_cast<uint32_t>(address);
+}
+
+void XB_THISCALL FxPool_FreeSlotTable(uint8_t* self) {
+    const uint32_t table = at<uint32_t>(self, 0x1c);
+    if (table) {
+        if (table != static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self + 0x24))) fx_free(table);
+        at<uint32_t>(self, 0x1c) = 0;
+    }
+    at<uint32_t>(self, 0x18) = 0;
+}
+
+namespace {
+
+// The pool (of a pool set) whose slot range holds `address`.
+uint8_t* pool_of(const uint8_t* set, int32_t address) {
+    uint8_t* const* p = at<uint8_t* const*>(set, 0);
+    uint8_t* const* const end = p + at<int16_t>(set, 6);
+    for (; p != end; ++p) {
+        uint8_t* pool = *p;
+        const int32_t base = at<int32_t>(pool, 0x18);
+        if (!base || address - base < 0) continue;
+        if ((at<int32_t>(pool, 0) - 1) * at<int32_t>(pool, 0x14) - address + base >= 0) return pool;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL FxPools_Release(uint8_t* self, int32_t address) {
+    if (!address) return 0;
+    uint8_t* pool = pool_of(self, address);
+    if (!pool) return 0;
+    const int32_t index = (address - at<int32_t>(pool, 0x18)) / at<int32_t>(pool, 0x14);
+    uint8_t* entry = at<uint8_t*>(pool, 0x1c) + index * 8;
+    at<uint16_t>(entry, 2) = at<uint16_t>(pool, 0x20);
+    at<uint16_t>(pool, 0x20) = static_cast<uint16_t>(index);
+    at<uint32_t>(entry, 4) &= 0xff000000;
+    entry[7] = 0;
+    --at<int32_t>(pool, 4);
+    return 1;
+}
+
+uint32_t XB_THISCALL FxPools_SetSlotTag(uint8_t* self, int32_t address, int32_t tag) {
+    if (!address) return 0;
+    uint8_t* pool = pool_of(self, address);
+    if (!pool) return 0;
+    return FxPool_SetSlotTag(pool, address, tag);
+}
+
+uint32_t XB_CDECL FxPools_ReleaseGlobal(int32_t address) { return FxPools_Release(title_global<uint8_t*>(0x00909f08), address); }
+
+void XB_THISCALL FxPools_Destroy(uint8_t* self) {
+    apsPoolSet_Clear(reinterpret_cast<ApsArray*>(self));
+    if (at<uint32_t>(self, 0)) {
+        fx_free_no_context(at<uint32_t>(self, 0));
+        at<uint32_t>(self, 0) = 0;
+        at<int16_t>(self, 4) = 0;
+        at<int16_t>(self, 6) = 0;
+    }
+    title_global<uint32_t>(0x00909f08) = 0;
+}
+
+void XB_THISCALL FxSystems_FreeBlock(uint8_t* self) {
+    if (at<uint32_t>(self, 4)) {
+        fx_free(at<uint32_t>(self, 4));
+        at<uint32_t>(self, 4) = 0;
+    }
+    title_global<uint32_t>(0x00909908) = 0;
+}
+
+float* XB_CDECL FxVec3_ScaledHalfExtent(float* out, const uint8_t* src) {
+    const float k = title_global<float>(0x0083eaf4);  // 1.5
+    const Lanes v = mul(lanes(reinterpret_cast<const float*>(src + 0x60)), k);
+    platform_keep(v);
+    out[0] = v.v[0];
+    out[1] = v.v[1];
+    out[2] = v.v[2];
+    out[3] = title_global<float>(0x0083eb20);
+    return out;
+}
+
+void XB_THISCALL FxNode_AddToScene(const uint8_t* self, uint8_t* node, float depth) {
+    uint8_t* scene = reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c));
+    const int32_t key = at<int32_t>(self, 8);
+    if (key < 0) {
+        at<int32_t>(node, 8) = -key;
+        at<uint32_t>(node, 4) = at<uint32_t>(scene, 0x304);
+        at<uint8_t*>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x304) = node;
+        ++at<uint32_t>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x30c);
+        return;
+    }
+    at<float>(node, 8) = depth;
+    at<uint32_t>(node, 4) = at<uint32_t>(scene, 0x308);
+    at<uint8_t*>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x308) = node;
+    ++at<uint32_t>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x310);
+}
+
+uint8_t* XB_CDECL FxShaderClass_Create() {
+    uint8_t* self = fx_alloc(0xc, 4);
+    if (!self) return nullptr;
+    at<uint32_t>(self, 0) = 0x007b3ec0;
+    at<uint32_t>(self, 4) = title_global<uint32_t>(0x00909904);
+    title_global<uint8_t*>(0x00909904) = self;
+    at<uint32_t>(self, 0) = 0x007c66f4;
+    return self;
+}
+
+uint32_t* XB_STDCALL FxSimpleShader_GetName(uint32_t* out) {
+    return title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(out, "aeps_simple");
+}
+
+void XB_THISCALL FxEffectPool_Release(uint8_t* self) {
+    uint8_t* slots = self + 8;
+    FxPool_FreeSlotTable(slots);
+    const uint32_t effects = at<uint32_t>(self, 0);
+    for (int32_t n = at<int32_t>(self, 4); n > 0; --n) {
+    }  // each element's destructor (0x00097190) is empty
+    fx_free(effects);
+    apsMemoryPool_FreeSlots(slots);
+    title_global<uint32_t>(0x00909f64) = 0;
+}
 
 }  // namespace game

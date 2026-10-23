@@ -2475,4 +2475,50 @@ uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_DecodeFrames(const uint32_t* conte
         });
 }
 
+float* XB_THISCALL NAL_Float4_AddTo(const float* self, float* out, const float* in) {
+    const float w = in[3] + self[3];
+    const float z = in[2] + self[2];
+    const float y = in[1] + self[1];
+    const float x = in[0] + self[0];
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    out[3] = w;
+    return out;
+}
+
+namespace {
+
+// Skips a block of fixed-size channels: stream B aligned + 4 (the block scale), stream A
+// aligned and `bytes` per channel of the group.
+void skip_fixed_block(const uint32_t* context, uint32_t bytes) {
+    uint8_t** stream_b = context_stream(context, 3);
+    uint8_t** stream_a = context_stream(context, 2);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) *stream_a += bytes;
+}
+
+}  // namespace
+
+void XB_CDECL NAL_Float3_SkipFixedBlock(const uint32_t* context) { skip_fixed_block(context, 0xc); }
+void XB_CDECL NAL_Float2_SkipFixedBlock(const uint32_t* context) { skip_fixed_block(context, 8); }
+
+void XB_CDECL NAL_Float4_CopyChannels(const uint8_t* group, uint8_t** dst, uint8_t** src) {
+    *dst = align4(*dst);
+    *src = align4(*src);
+    const uint32_t bytes = channel_count(group) << 4;
+    std::memcpy(*dst, *src, bytes);
+    *dst += bytes;
+    *src += bytes;
+}
+
+uint32_t XB_STDCALL NAL_Packed16_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
+    *cursor = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*cursor) + 0xf) & ~uintptr_t{0xf});
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) *cursor += 0x10;
+    }
+    return context[1];
+}
+
 }  // namespace game
