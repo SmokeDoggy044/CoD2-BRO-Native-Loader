@@ -352,4 +352,22 @@ float* XB_STDCALL G_GetEntityMatrix(uint8_t* ent, float* out) {
     return out;
 }
 
+PLATFORM_ASM_ENTRY(G_RunThink_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_RunThink) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL G_RunThink(uint8_t* ent, uint32_t arg) {
+    if (*reinterpret_cast<uint32_t*>(ent + 0x2a4) & 0x4000000) return;
+    int32_t& next = *reinterpret_cast<int32_t*>(ent + 0x328);
+    if (next <= 0 || next > title_global<int32_t>(0x0098540c)) return;  // level_time
+    next = 0;
+    if (!*reinterpret_cast<uint32_t*>(ent + 0x32c)) {
+        const uint32_t args[1] = {0x0083b31c};  // "NULL ent->think"
+        G_Error(args);
+    }
+    const uint32_t think = title_global<uint32_t>(0x008da788 + *reinterpret_cast<uint32_t*>(ent + 0x32c) * 4);
+    title_function<void XB_CDECL(uint8_t*, uint32_t)>(think)(ent, arg);
+}
+
 }  // namespace game

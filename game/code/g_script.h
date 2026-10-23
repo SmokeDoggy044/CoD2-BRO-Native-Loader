@@ -76,4 +76,9 @@ extern "C" void G_SetMovedir_entry(void);
 // each row's fourth word its first) copied to out. Returns out.
 float* XB_STDCALL G_GetEntityMatrix(uint8_t* ent, float* out);
 
+// 0x0024ac50 (entity in ESI; one word passed on): Q3's G_RunThink - unless +0x2a4 has 0x4000000, a due think time
+// (+0x328, 0 < it <= level_time) is cleared and entityThinkFuncs[+0x32c](ent, word) runs (G_Error for none).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_RunThink(uint8_t* ent, uint32_t arg);
+extern "C" void G_RunThink_entry(void);
+
 }  // namespace game

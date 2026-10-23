@@ -443,4 +443,16 @@ extern "C" void PathNode_Construct_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL ActorBlockList_RemoveEntity(uint8_t* list, uint32_t ent);
 extern "C" void ActorBlockList_RemoveEntity_entry(void);
 
+// 0x001fe370: adds an entity to g_actorMove's touch list (+0x88 count, at most 0x20, +0x8c entries) once.
+void XB_CDECL ActorMove_AddTouchEnt(uint32_t ent);
+// 0x002b9f90 / 0x002ba010 (handle pointer in EAX; identical bodies): the path node of a 16-bit handle - block
+// (handle >> 9) - 1 of g_pathNodeBlocks (+8), node handle & 0x1ff (0x80 bytes at the block's +0x10); null for
+// 0, 0xffff or a missing block.
+uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle(const uint16_t* handle);
+uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle2(const uint16_t* handle);
+// 0x002b1240 (node in EBX; sentient on the stack): 0 when another sentient's claim (+4) has not expired (+8 vs
+// level_time) or a team-4 sentient other than this one stands on it (node number vs +0x50), else 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_IsAvailableFor(const uint8_t* node, const uint8_t* sentient);
+extern "C" void PathNode_IsAvailableFor_entry(void);
+
 }  // namespace game

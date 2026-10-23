@@ -2241,4 +2241,49 @@ void XB_CDECL ActorBlockList_RemoveEntity(uint8_t* list, uint32_t ent) {
     }
 }
 
+void XB_CDECL ActorMove_AddTouchEnt(uint32_t ent) {
+    if (!ent) return;
+    uint8_t* move = title_global<uint8_t*>(0x0095f450);  // g_actorMove
+    int32_t& count = *reinterpret_cast<int32_t*>(move + 0x88);
+    uint32_t* touched = reinterpret_cast<uint32_t*>(move + 0x8c);
+    const int32_t n = count;
+    if (n == 0x20) return;
+    for (int32_t i = 0; i < count; ++i)
+        if (touched[i] == ent) return;
+    touched[n] = ent;
+    ++count;
+}
+
+namespace {
+
+uint8_t* path_node_from_handle(const uint16_t* handle) {
+    const uint16_t h = *handle;
+    if (!h || h == 0xffff) return nullptr;
+    const uint32_t block_index = static_cast<uint16_t>((h >> 9) - 1);
+    uint8_t* block = reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f4f4) + 8)[block_index];  // g_pathNodeBlocks
+    if (!block) return nullptr;
+    return *reinterpret_cast<uint8_t**>(block + 0x10) + (h & 0x1ff) * 0x80;
+}
+
+}  // namespace
+
+uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle(const uint16_t* handle) { return path_node_from_handle(handle); }
+
+uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle2(const uint16_t* handle) { return path_node_from_handle(handle); }
+
+PLATFORM_ASM_ENTRY(PathNode_IsAvailableFor_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(PathNode_IsAvailableFor) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL PathNode_IsAvailableFor(const uint8_t* node, const uint8_t* sentient) {
+    if (*reinterpret_cast<const uint8_t* const*>(node + 4) != sentient &&
+        title_global<int32_t>(0x0098540c) <= *reinterpret_cast<const int32_t*>(node + 8))  // level_time
+        return 0;
+    for (uint8_t* other = Sentient_FirstOfTeams(4); other; other = Sentient_NextOfTeams(other, 4))
+        if (other != sentient && *reinterpret_cast<const uint16_t*>(node) == *reinterpret_cast<const uint16_t*>(other + 0x50))
+            return 0;
+    return 1;
+}
+
 }  // namespace game
