@@ -852,4 +852,198 @@ void XB_CDECL CM_TestInLeafObjects(uint8_t* tw, uint8_t* tree, const uint8_t* le
     }
 }
 
+PLATFORM_ASM_ENTRY(CM_TraceCapsuleThroughBrush_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(CM_TraceCapsuleThroughBrush) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL CM_TraceCapsuleThroughBrush(uint8_t* tw, const uint8_t* brush) {
+    const float eps = title_global<float>(0x0083ec68);  // 0.125
+    alignas(16) float plane[4];
+    std::memcpy(plane, reinterpret_cast<const void*>(uintptr_t{0x0082e110}), 16);  // zeros
+    const Lanes start = lanes(tw_row(tw, 0));
+    const Lanes end = lanes(tw_row(tw, 0x10));
+    const Lanes offset = lanes(tw_row(tw, 0x140));
+    const float* size = tw_row(tw, 0x150);
+    float enter = 0.0f;
+    float leave = *reinterpret_cast<const float*>(tw + 0x120);
+    bool hit = false;
+    bool gets_out = true;
+    const Lanes center = lanes(reinterpret_cast<const float*>(brush + 0x10));
+    const Lanes half = lanes(reinterpret_cast<const float*>(brush + 0x20));
+    for (int32_t pass = 0; pass < 2; ++pass) {
+        const Lanes bound = pass ? add(center, half) : sub(center, half);
+        const float sign = title_global<float>(pass ? 0x0083eb20 : 0x0083eb34);  // 1 / -1
+        for (int32_t a = 0; a < 3; ++a) {
+            const float f = (start.v[a] - bound.v[a]) * sign - size[a];
+            const float g = (end.v[a] - bound.v[a]) * sign - size[a];
+            if (f > 0.0f) {
+                const float d = f - g;
+                if (g > 0.0f) {
+                    if (0.0f >= d) return;
+                    if (g >= eps) return;
+                    gets_out = false;
+                }
+                const float f_eps = f - eps;
+                if (f_eps > d * enter) {
+                    enter = f_eps / d;
+                    if (enter >= leave) return;
+                    hit = true;
+                    plane[a] = sign;
+                } else if (!hit) {
+                    hit = true;
+                    plane[a] = sign;
+                }
+            } else if (g > 0.0f) {
+                const float d = f - g;
+                gets_out = false;
+                if (f > d * leave) {
+                    leave = f / d;
+                    if (enter >= leave) return;
+                }
+            }
+        }
+    }
+    const uint32_t sides = *reinterpret_cast<const uint32_t*>(brush + 0x30);
+    const float* side = *reinterpret_cast<const float* const*>(brush + 0x34);
+    for (uint32_t i = 0; i < sides; ++i, side += 4) {
+        const Lanes n = lanes(side);
+        const float dist = side[3] + *reinterpret_cast<const float*>(tw + 0x164);
+        const bool toward = sum_xyz(mul(n, offset)) > 0.0f;
+        const Lanes s0 = toward ? sub(start, offset) : add(start, offset);
+        const Lanes e0 = toward ? sub(end, offset) : add(end, offset);
+        const float f = sum_xyz(mul(s0, n)) - dist;
+        const float g = sum_xyz(mul(e0, n)) - dist;
+        if (f > 0.0f) {
+            const float d = f - g;
+            if (g > 0.0f) {
+                if (0.0f >= d) return;
+                if (g >= eps) return;
+                gets_out = false;
+            }
+            const float f_eps = f - eps;
+            if (f_eps > d * enter) {
+                enter = f_eps / d;
+                if (enter >= leave) return;
+            } else if (hit) {
+                continue;
+            }
+            std::memcpy(plane, side, 16);
+            hit = true;
+        } else if (g > 0.0f) {
+            const float d = f - g;
+            gets_out = false;
+            if (f > d * leave) {
+                leave = f / d;
+                if (enter >= leave) return;
+            }
+        }
+    }
+    if (!hit) {
+        tw[0x13d] = 1;
+        if (!gets_out) return;
+        tw[0x13c] = 1;
+        *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+        return;
+    }
+    *reinterpret_cast<float*>(tw + 0x120) = enter;
+    std::memcpy(tw + 0x110, plane, 16);
+}
+
+uint8_t XB_REGS1 XB_CDECL CM_TraceBoxThroughBrush(uint8_t* tw, const uint8_t* brush) {
+    const float eps = title_global<float>(0x0083ec68);  // 0.125
+    alignas(16) float plane[4];
+    std::memcpy(plane, reinterpret_cast<const void*>(uintptr_t{0x0082e110}), 16);  // zeros
+    const Lanes start = lanes(tw_row(tw, 0));
+    const Lanes end = lanes(tw_row(tw, 0x10));
+    const float* size = tw_row(tw, 0x50);
+    float enter = 0.0f;
+    float leave = *reinterpret_cast<const float*>(tw + 0x120);
+    bool hit = false;
+    bool gets_out = true;
+    const Lanes center = lanes(reinterpret_cast<const float*>(brush + 0x10));
+    const Lanes half = lanes(reinterpret_cast<const float*>(brush + 0x20));
+    for (int32_t pass = 0; pass < 2; ++pass) {
+        const Lanes bound = pass ? add(center, half) : sub(center, half);
+        const float sign = title_global<float>(pass ? 0x0083eb20 : 0x0083eb34);  // 1 / -1
+        for (int32_t a = 0; a < 3; ++a) {
+            const float f = (start.v[a] - bound.v[a]) * sign - size[a];
+            const float g = (end.v[a] - bound.v[a]) * sign - size[a];
+            if (f > 0.0f) {
+                const float d = f - g;
+                if (g > 0.0f) {
+                    if (0.0f >= d) return 0;
+                    if (g >= eps) return 0;
+                    gets_out = false;
+                }
+                const float f_eps = f - eps;
+                if (f_eps > d * enter) {
+                    enter = f_eps / d;
+                    if (!(enter < leave)) return 0;
+                    hit = true;
+                    plane[a] = sign;
+                } else if (!hit) {
+                    hit = true;
+                    plane[a] = sign;
+                }
+            } else if (g > 0.0f) {
+                const float d = f - g;
+                gets_out = false;
+                if (f > d * leave) {
+                    leave = f / d;
+                    if (enter >= leave) return 0;
+                }
+            }
+        }
+    }
+    const uint32_t sides = *reinterpret_cast<const uint32_t*>(brush + 0x30);
+    const float* side = *reinterpret_cast<const float* const*>(brush + 0x34);
+    for (uint32_t i = 0; i < sides; ++i, side += 4) {
+        int32_t corner = 0;
+        if (0.0f > side[0]) corner = 1;
+        if (0.0f > side[1]) corner |= 2;
+        if (0.0f > side[2]) corner |= 4;
+        const Lanes n = lanes(side);
+        const float* c = tw_row(tw, 0x60 + corner * 0x10);
+        const Lanes packed = {{c[0], c[1], c[2], c[0]}};
+        const float dist = side[3] - sum_xyz(mul(packed, n));
+        const float f = sum_xyz(mul(start, n)) - dist;
+        const float g = sum_xyz(mul(end, n)) - dist;
+        if (f > 0.0f) {
+            const float d = f - g;
+            if (g > 0.0f) {
+                if (0.0f >= d) return 0;
+                if (g >= eps) return 0;
+                gets_out = false;
+            }
+            const float f_eps = f - eps;
+            if (f_eps > d * enter) {
+                enter = f_eps / d;
+                if (enter >= leave) return 0;
+            } else if (hit) {
+                continue;
+            }
+            std::memcpy(plane, side, 16);
+            hit = true;
+        } else if (g > 0.0f) {
+            const float d = f - g;
+            gets_out = false;
+            if (f > d * leave) {
+                leave = f / d;
+                if (enter >= leave) return 0;
+            }
+        }
+    }
+    if (!hit) {
+        tw[0x13d] = 1;
+        if (!gets_out) return 1;
+        tw[0x13c] = 1;
+        *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+        return 1;
+    }
+    *reinterpret_cast<float*>(tw + 0x120) = enter;
+    std::memcpy(tw + 0x110, plane, 16);
+    return 1;
+}
+
 }  // namespace game

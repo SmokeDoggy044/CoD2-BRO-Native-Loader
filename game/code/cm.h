@@ -162,4 +162,19 @@ extern "C" void CM_SphereTouchesTriangle_entry(void);
 // test unless 0 <= (box max - center + half).x (the original's scalar CMPLESS).
 void XB_CDECL CM_TestInLeafObjects(uint8_t* tw, uint8_t* tree, const uint8_t* leaf);
 
+// 0x002cb890 (trace work in ECX; brush on the stack; unnamed in Ghidra): a capsule trace (start +0, end +0x10,
+// axis offset +0x140, per-axis size +0x150, radius +0x164) through a brush: the six bound planes (center -
+// half with normal -1 per axis, then center + half with +1), then the side planes against the capsule end
+// nearer each plane, Q3 CM_TraceThroughBrush style (SURFACE_CLIP_EPSILON 0.125 at 0x0083ec68). A hit stores
+// the enter fraction (+0x120) and the leading plane (+0x110, only the components the bound planes set); a
+// start inside sets allsolid (+0x13d), and startsolid with fraction 0 when it does not get out.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TraceCapsuleThroughBrush(uint8_t* tw, const uint8_t* brush);
+extern "C" void CM_TraceCapsuleThroughBrush_entry(void);
+
+// 0x002cbca0 (trace work in EAX; brush on the stack; unnamed in Ghidra): the box version of
+// CM_TraceCapsuleThroughBrush - bound planes against the trace half size (+0x50), side planes moved by the box
+// corner (+0x60 table by the normal's signs; the packed corner is {x, y, z, x}). AL = 0 when it stops early
+// (no hit possible), else 1.
+uint8_t XB_REGS1 XB_CDECL CM_TraceBoxThroughBrush(uint8_t* tw, const uint8_t* brush);
+
 }  // namespace game

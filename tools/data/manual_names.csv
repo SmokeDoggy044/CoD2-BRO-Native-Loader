@@ -11628,3 +11628,5 @@ address,name,kind,confidence,evidence
 000b0190,ClosestPointOnTriangle,function,high,"Ericson closest point on triangle (a, b, c, p) with packed SSE; out returned"
 002d4f80,CM_SphereTouchesTriangle,function,medium,"sphere (ESI center, radius) vs triangle (EDI/ECX/EAX) with its plane: plane distance, edge cross tests, ClosestPointOnTriangle"
 002da4d0,CM_TestInLeafObjects,function,medium,"trace position test vs a quad-tree leaf: type 9 brushes (CM_TestBoxInBrush), type 8 meshes (box-tree walk + CM_SphereTouchesTriangle)"
+002cb890,CM_TraceCapsuleThroughBrush,function,medium,"capsule trace through a brush: six bound planes then side planes vs the nearer capsule end (Q3 CM_TraceThroughBrush style)"
+002cbca0,CM_TraceBoxThroughBrush,function,medium,"box trace through a brush (bound planes vs half size, side planes vs the box corner table); AL 0 on early out"
