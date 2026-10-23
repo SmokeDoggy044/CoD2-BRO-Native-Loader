@@ -56,4 +56,26 @@ void XB_CDECL SV_AreaEntities_r(const uint8_t* node, uint8_t* parms);
 int32_t XB_REGS3 XB_CDECL SV_AreaEntities(const float* maxs, uint32_t unused, const float* mins, int32_t* list,
                                          int32_t max_count, uint32_t content_mask);
 
+// 0x002e01a0: Q3's SV_PointContents - the world contents plus every touching entity's (except the pass
+// entity), each through its clip model (or the temporary box of its bounds) moved by its origin/angles
+// (+0x140 / +0x150); masked with the content mask.
+uint32_t XB_CDECL SV_PointContents(const float* point, int32_t pass_entity, uint32_t content_mask);
+// 0x002f2e40: bumps the frame counter 0x0093fc28 (skipping 0), runs G_RunFrame with the "in game frame" flag
+// 0x0095f510 set. G_RunFrame stores stack addresses in globals: the asm entry moves the C frame below a gap
+// and G_RunFrame runs at the original's ESP with the entry's EBX/ESI/EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_RunGameFrame(uint32_t top, int32_t time, uint32_t ebx, uint32_t esi,
+                                                        uint32_t edi);
+extern "C" void SV_RunGameFrame_entry(void);
+// 0x002af5e0: VM_Call(gvm, 1, 0) (GAME_SHUTDOWN), the 0x8c-byte vm record cleared, gvm/currentVM null.
+void XB_CDECL SV_ShutdownGameProgs();
+
+// 0x002d7210 / 0x002d7290 (entity in EDI): the entity's DObj (+0x22c) gets a skeleton when it has none
+// (Z_MallocDebug of 0x30 + 0x40 per model (+0x2f), DObj_CreateSkeleton), then DObj_UpdateSkeletons; an entity
+// controller (+0x34c, table 0x008da8b0) then runs with a 16-byte part mask - all clear (create) / all set
+// (ensure). Nothing happens when the skeleton exists.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_DObjCreateSkeleton(uint8_t* ent);
+extern "C" void SV_DObjCreateSkeleton_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_DObjEnsureSkeleton(uint8_t* ent);
+extern "C" void SV_DObjEnsureSkeleton_entry(void);
+
 }  // namespace game

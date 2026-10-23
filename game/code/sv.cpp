@@ -235,4 +235,90 @@ int32_t XB_REGS3 XB_CDECL SV_AreaEntities(const float* maxs, uint32_t, const flo
     return field<int32_t>(parms, 0x34);
 }
 
+uint32_t XB_CDECL SV_PointContents(const float* point, int32_t pass_entity, uint32_t content_mask) {
+    int32_t touch[0x540] = {};
+    uint32_t contents = CM_PointContents(point, 0, nullptr);
+    const int32_t count = SV_AreaEntities(point, 0, point, touch, 0x540, content_mask);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint32_t handle = static_cast<uint32_t>(touch[i]);
+        if (handle == static_cast<uint32_t>(pass_entity)) continue;
+        const uint32_t index = handle & 0xfff;
+        uint8_t* ent = nullptr;
+        if (index < 0x540 && title_global<uint32_t>(0x0097a96c + index * 8) == (handle >> 12))
+            ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+        const uint8_t* clip = field<uint8_t*>(ent, 0xdc);
+        if (!clip)
+            clip = CM_TempBoxModel(reinterpret_cast<const float*>(ent + 0xf0), (field<uint32_t>(ent, 0xd4) & 0x200) ? 1 : 0,
+                                   reinterpret_cast<const float*>(ent + 0xe0), field<uint32_t>(ent, 0x134));
+        contents |= CM_TransformedPointContents(reinterpret_cast<const float*>(ent + 0x140),
+                                                reinterpret_cast<const float*>(ent + 0x150),
+                                                reinterpret_cast<const uint32_t*>(clip), point);
+    }
+    return contents & content_mask;
+}
+
+// EBP is saved below the gap: G_RunFrame's argument lands at the entry ESP - 4.
+PLATFORM_ASM_ENTRY(SV_RunGameFrame_entry,
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_RunGameFrame) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_RunGameFrame(uint32_t top, int32_t time, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    if (!++title_global<int32_t>(0x0093fc28)) title_global<int32_t>(0x0093fc28) = 1;
+    title_global<uint32_t>(0x0095f510) = 1;
+    const TitleRegs regs = {1, ebx, 0, 0, esi, edi};
+    const uint32_t arg = static_cast<uint32_t>(time);
+    title_call_at_regs(top, 0x00274660, &regs, 1, &arg);  // G_RunFrame
+    title_global<uint32_t>(0x0095f510) = 0;
+}
+
+void XB_CDECL SV_ShutdownGameProgs() {
+    uint8_t* vm = title_global<uint8_t*>(0x0095f50c);  // gvm
+    if (!vm) return;
+    title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, int32_t)>(0x002a84e0)(0, vm, 1, 0);  // VM_Call
+    Com_Memset(title_global<uint8_t*>(0x0095f50c), 0, 0x8c);
+    title_global<uint32_t>(0x0095f514) = 0;  // currentVM
+    title_global<uint32_t>(0x0095f50c) = 0;
+}
+
+namespace {
+
+// Shared body; `line` is the source line the original hands Z_MallocDebug, `fill` the part mask words.
+void dobj_skeleton(uint8_t* ent, uint32_t line, uint32_t fill) {
+    uint8_t* obj = field<uint8_t*>(ent, 0x22c);
+    if (field<uint32_t>(obj, 0x20)) return;
+    const uint32_t size = static_cast<uint32_t>(obj[0x2f]) * 0x40 + 0x30;
+    void* memory = title_function<void* XB_CDECL(uint32_t, const char*, const char*, uint32_t)>(0x00042c20)(  // Z_MallocDebug
+        size, title_text(0x0083534c), title_text(0x00832e14), line);  // "hunk", "c:\cod\code\game\sv_game.cpp"
+    title_function<void XB_CDECL(uint8_t*, void*)>(0x00240c00)(obj, memory);  // DObj_CreateSkeleton
+    uint32_t parts[4] = {fill, fill, fill, fill};
+    if (uint8_t* current = field<uint8_t*>(ent, 0x22c))
+        title_function<void XB_CDECL(uint8_t*)>(0x002df880)(current);  // DObj_UpdateSkeletons (title: stale-stack lanes)
+    if (const uint32_t controller = field<uint32_t>(ent, 0x34c))
+        title_function<void XB_CDECL(uint8_t*, uint32_t*)>(title_global<uint32_t>(0x008da8b0 + controller * 4))(ent, parts);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(SV_DObjCreateSkeleton_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(SV_DObjCreateSkeleton) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_DObjCreateSkeleton(uint8_t* ent) { dobj_skeleton(ent, 0x2ad, 0); }
+
+PLATFORM_ASM_ENTRY(SV_DObjEnsureSkeleton_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(SV_DObjEnsureSkeleton) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_DObjEnsureSkeleton(uint8_t* ent) { dobj_skeleton(ent, 0x2c7, 0xffffffff); }
+
 }  // namespace game
