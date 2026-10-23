@@ -1738,6 +1738,7 @@ const Function kFunctions[] = {
     {"G_GetEntityAnimTree", 0x002c9780, 0, code(&G_GetEntityAnimTree), 0, Result::Eax, Status::Compare},
     {"CG_SelectWeapon", 0x002cde20, 0, code(&CG_SelectWeapon_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_Init", 0x002d1460, 0, code(&Cmd_Init), 0, Result::None, Status::Compare},
+    {"CM_BoxLeafnums", 0x002d5320, 0, code(&CM_BoxLeafnums_entry), 12, Result::Eax, Status::Compare},
     {"G_SetMovedir", 0x002d70a0, 0, code(&G_SetMovedir_entry), 0, Result::None, Status::Compare},
     {"G_GetEntityMatrix", 0x002de120, 0, code(&G_GetEntityMatrix), 8, Result::Eax, Status::Compare},
     {"DObj_UpdateSkeletons", 0x002df880, 0, code(&DObj_UpdateSkeletons), 4, Result::None, Status::Compare},

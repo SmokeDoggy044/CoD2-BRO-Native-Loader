@@ -39,4 +39,13 @@ void XB_CDECL CM_BoxLeafnums_r(uint8_t* list, uint32_t nodenum, float* min_dista
 extern "C" PLATFORM_HIDDEN void XB_CDECL CM_AdjustAreaPortalState(int32_t area1, int32_t area2, uint32_t open);
 extern "C" void CM_AdjustAreaPortalState_entry(void);
 
+// 0x002d5320 (maxs in EAX, mins in ECX, the caller's leaf cache in ESI; list, list size, last leaf out on
+// the stack): CM_BoxLeafnums with a one-leaf cache - cache +0x120 center (16 bytes, radius in its w at
+// +0x12c), +0x130 leaf, +0x140 the box center to test. Within radius - 5 of the cached center the cached
+// leaf is stored; else the tree walk, and a box in one leaf caches it with its distance to the nearest
+// plane. Returns the count; bumps cm +0x60 (checkcount).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_BoxLeafnums(const float* maxs, const float* mins, uint8_t* cache,
+                                                          int32_t* list, int32_t list_size, int32_t* last_leaf);
+extern "C" void CM_BoxLeafnums_entry(void);
+
 }  // namespace game

@@ -171,4 +171,59 @@ void XB_CDECL CM_AdjustAreaPortalState(int32_t area1, int32_t area2, uint32_t op
     CM_FloodAreaConnections();
 }
 
+PLATFORM_ASM_ENTRY(CM_BoxLeafnums_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_BoxLeafnums) "addl $24, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL CM_BoxLeafnums(const float* maxs, const float* mins, uint8_t* cache, int32_t* list,
+                                int32_t list_size, int32_t* last_leaf) {
+    ++cm_field<int32_t>(0x60);  // checkcount
+    // leafList_t: count, maxcount, overflowed, list, bounds[2] (16-byte rows), lastLeaf, storeLeafs.
+    struct alignas(16) LeafList {
+        int32_t count, maxcount, overflowed;
+        int32_t* list;
+        float bounds[2][4];
+        int32_t last_leaf;
+        uint32_t store;
+    } ll;
+    ll.count = 0;
+    ll.maxcount = list_size;
+    ll.overflowed = 0;
+    ll.list = list;
+    std::memcpy(ll.bounds[0], mins, 16);
+    std::memcpy(ll.bounds[1], maxs, 16);
+    ll.last_leaf = 0;
+    ll.store = 0x002aafc0;  // CM_StoreLeafs
+    float* cached_center = reinterpret_cast<float*>(cache + 0x120);
+    const float* center = reinterpret_cast<const float*>(cache + 0x140);
+    float distance = cached_center[3] - title_global<float>(0x0083ece8);  // radius - 5
+    if (distance > 0.0f) {
+        const Lanes d = sub(lanes(cached_center), lanes(center));
+        const Lanes squared = mul(d, d);
+        platform_keep(squared);
+        const float distance_squared = (squared.v[0] + squared.v[1]) + squared.v[2];
+        if (distance * distance > distance_squared) {
+            CM_StoreLeafs(reinterpret_cast<uint8_t*>(&ll), *reinterpret_cast<uint32_t*>(cache + 0x130));
+            *last_leaf = ll.last_leaf;
+            return ll.count;
+        }
+    }
+    distance = title_global<float>(0x0082eed0);  // FLT_MAX
+    CM_BoxLeafnums_r(reinterpret_cast<uint8_t*>(&ll), 0, &distance);
+    const float radius = ll.count == 1 ? distance : 0.0f;
+    cached_center[3] = radius;
+    if (radius > title_global<float>(0x0083eafc)) {  // 0
+        *reinterpret_cast<int32_t*>(cache + 0x130) = list[0];
+        std::memcpy(cached_center, center, 16);
+        cached_center[3] = radius;
+    }
+    *last_leaf = ll.last_leaf;
+    return ll.count;
+}
+
 }  // namespace game
