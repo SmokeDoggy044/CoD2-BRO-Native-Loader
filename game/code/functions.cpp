@@ -2042,6 +2042,7 @@ const Function kFunctions[] = {
     {"G_UpdateEntityLOD", 0x002b8450, 0, code(&G_UpdateEntityLOD), 0, Result::None, Status::Compare},
     {"SV_UserMove", 0x002b8560, 0, code(&SV_UserMove_entry), 4, Result::None, Status::Compare},
     {"Info_ValueForKey", 0x002b8f50, 0, code(&Info_ValueForKey_entry), 0, Result::Eax, Status::Compare},
+    {"PathNode_IsLinkInBadPlace", 0x002b96c0, 0, code(&PathNode_IsLinkInBadPlace_entry), 8, Result::Eax, Status::Compare},
     {"PathNode_FromHandle", 0x002b9f90, 0, code(&PathNode_FromHandle), 0, Result::Eax, Status::Compare},
     {"PathNode_FromHandle2", 0x002ba010, 0, code(&PathNode_FromHandle2), 0, Result::Eax, Status::Compare},
     {"Sentient_ClaimNodeTimed", 0x002ba1c0, 0, code(&Sentient_ClaimNodeTimed), 0, Result::None, Status::Compare},

@@ -2347,4 +2347,47 @@ uint32_t XB_CDECL PathNode_CanSee(const uint8_t* blocks, const uint16_t* first, 
     return (visibility[bit >> 3] & (1 << (bit & 7))) ? 1 : 0;
 }
 
+PLATFORM_ASM_ENTRY(Actor_AnimStationary_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_AnimStationary) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_AnimStationary(uint8_t* actor, uint32_t script) {
+    Actor_FindNearbyActor(actor);
+    uint32_t chosen = script;
+    if (*reinterpret_cast<uint32_t*>(actor + 0x1390)) {
+        const float x = *reinterpret_cast<float*>(actor + 0x2a0);
+        const float y = *reinterpret_cast<float*>(actor + 0x2a4);
+        if (!(1.0f > x * x + y * y)) chosen = 0x00987be8;  // g_animScript_walk
+    }
+    *reinterpret_cast<uint32_t*>(actor + 0x254) = chosen;
+    *reinterpret_cast<uint32_t*>(actor + 0x27c) = 7;
+    actor[0x285] = 0;
+}
+
+PLATFORM_ASM_ENTRY(PathNode_IsLinkInBadPlace_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PathNode_IsLinkInBadPlace) "addl $16, %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL PathNode_IsLinkInBadPlace(const uint16_t* handle, const uint8_t* blocks, const uint16_t* target,
+                                            int32_t index) {
+    const uint16_t h = *handle;
+    const uint8_t* node = nullptr;
+    if (h && h != 0xffff) {
+        const uint8_t* block = *reinterpret_cast<const uint8_t* const*>(blocks + 8 + static_cast<uint16_t>((h >> 9) - 1) * 4);
+        if (block) node = *reinterpret_cast<const uint8_t* const*>(block + 0x10) + (h & 0x1ff) * 0x80;
+    }
+    const int32_t count = *reinterpret_cast<const int16_t*>(node + 0x62);
+    if (count <= 0) return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)) & ~0xffu;
+    const uint8_t* links = *reinterpret_cast<const uint8_t* const*>(node + 0x64);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint8_t* link = links + i * 0xc;
+        if (*reinterpret_cast<const uint16_t*>(link) == *target) return link[4 + index] ? 1 : 0;
+    }
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(links + count * 0xc)) & ~0xffu;
+}
+
 }  // namespace game

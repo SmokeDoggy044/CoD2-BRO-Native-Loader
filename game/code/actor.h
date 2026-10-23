@@ -468,4 +468,16 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_CanSee(const uint8_t* bloc
                                                             const uint16_t* second);
 extern "C" void PathNode_CanSee_entry(void);
 
+// 0x00203de0 (actor in EAX, anim script in ESI; unhookable: CALL at byte 3, no kFunctions row, untested): Actor_FindNearbyActor, then the script (g_animScript_walk instead
+// when +0x1390 is set and the speed +0x2a0/+0x2a4 is at least 1) into +0x254, mode 7 (+0x27c), +0x285 = 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_AnimStationary(uint8_t* actor, uint32_t script);
+extern "C" void Actor_AnimStationary_entry(void);
+
+// 0x002b96c0 (handle pointer in EAX, node blocks in EDX; target handle pointer, index on the stack, ret 8): AL = the
+// flag byte `index` (+4) of the node's link to the target (+0x62 count, +0x64 12-byte links), 0 without one (the
+// upper EAX bytes keep the scan pointer, as in the original).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_IsLinkInBadPlace(const uint16_t* handle, const uint8_t* blocks,
+                                                                      const uint16_t* target, int32_t index);
+extern "C" void PathNode_IsLinkInBadPlace_entry(void);
+
 }  // namespace game

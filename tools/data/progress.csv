@@ -7578,7 +7578,7 @@ address,name,section,module,state,tested,matched
 001fd2b0,Actor_NodeDistanceSquared,.text,game,untested,0,0
 001fd320,Actor_AnimScripted_Finish,.text,game,settled,141,141
 001fd3d0,FUN_001fd3d0,.text,unassigned,unnamed,0,0
-001fd500,ActorBlockList_Bump,.text,game,matched,38,38
+001fd500,ActorBlockList_Bump,.text,game,matched,70,70
 001fd5a0,Actor_RecordMoveHistory,.text,game,settled,163,163
 001fd6f0,FUN_001fd6f0,.text,unassigned,unnamed,0,0
 001fd7f0,FUN_001fd7f0,.text,unassigned,unnamed,0,0
@@ -9487,7 +9487,7 @@ address,name,section,module,state,tested,matched
 002b9380,FUN_002b9380,.text,unassigned,unnamed,0,0
 002b9470,FUN_002b9470,.text,unassigned,unnamed,0,0
 002b9530,FUN_002b9530,.text,unassigned,unnamed,0,0
-002b96c0,PathNode_IsLinkInBadPlace,.text,game,named,0,0
+002b96c0,PathNode_IsLinkInBadPlace,.text,game,untested,0,0
 002b9740,FUN_002b9740,.text,unassigned,unnamed,0,0
 002b9870,FUN_002b9870,.text,unassigned,unnamed,0,0
 002b99f0,FUN_002b99f0,.text,unassigned,unnamed,0,0
