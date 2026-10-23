@@ -314,4 +314,13 @@ uint8_t* XB_CDECL Cvar_Set2(const char* name, char* value, uint32_t force);
 // apply a latched value, and are forced to the value for ROM (0x40) or cheats off.
 uint8_t* XB_CDECL Cvar_Get(const char* name, const char* value, uint32_t flags);
 
+// Handle pools (0x000cb440..): items of `stride` (+0x1c) bytes at +0, capacity +0x20, index mask +0x24, list
+// head node +0x10; each item starts with its next node and holds its handle at +8.
+// 0x000cb5e0: the first handle (head node +8).
+int32_t XB_CDECL HandlePool_First(const uint8_t* pool);
+// 0x000cb600: the handle after `handle` (its item's next node +8), -1 for a stale or invalid handle.
+int32_t XB_CDECL HandlePool_Next(const uint8_t* pool, int32_t handle);
+// 0x000cb440: the item index of a live handle (handle & mask), -1 for a stale or invalid one.
+int32_t XB_CDECL HandlePool_Resolve(const uint8_t* pool, int32_t handle);
+
 }  // namespace game

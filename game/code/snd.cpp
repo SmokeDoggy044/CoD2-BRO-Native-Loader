@@ -1,5 +1,9 @@
 #include "snd.h"
 
+#include "cg_ents.h"
+#include "fx.h"
+#include "g_scr_runtime.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -131,6 +135,465 @@ uint32_t* XB_REGS3 XB_STDCALL S_PlaySoundAlias2(uint32_t alias, uint32_t, uint8_
                             args);
     *out = ref_word(ref, 0x24);
     return out;
+}
+
+namespace {
+
+uint8_t* const kVoicePool = &title_global<uint8_t>(0x0090a8b4);
+
+uint8_t* voice_record(int32_t index) {
+    if (index == -1) return nullptr;
+    return title_global<uint8_t*>(0x0090a8e0) + uint32_t(index) * 0xf8;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL SndVoice_ForEach(void(XB_CDECL* callback)(int32_t)) {
+    uint32_t smallest = 0;
+    int32_t handle = HandlePool_First(kVoicePool);
+    while (handle != -1) {
+        const int32_t voice = handle;
+        handle = HandlePool_Next(kVoicePool, voice);
+        const uint8_t* const record = voice_record(HandlePool_Resolve(kVoicePool, voice));
+        if (callback) callback(voice);
+        const uint32_t level = record[0xd4];
+        if (smallest > level) smallest = level;
+    }
+    return smallest;
+}
+
+void XB_CDECL SndVoice_ClearAttenuation(int32_t voice) {
+    uint8_t* const record = voice_record(HandlePool_Resolve(kVoicePool, voice));
+    if (record) *reinterpret_cast<uint32_t*>(record + 0xf4) = 0;
+}
+
+uint32_t S_ClearVoiceAttenuation() {
+    using Callback = void XB_CDECL(int32_t);
+    return SndVoice_ForEach(title_function<Callback>(0x000c52b0));
+}
+
+namespace {
+
+template <typename T>
+T& emitter_word(const uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(const_cast<uint8_t*>(base) + offset);
+}
+
+const uint32_t* effect_list() { return title_global<const uint32_t*>(0x0095f5b4); }
+
+// Rand_StepSeed (0x00293e10, XMM0 = high, XMM1 = low): (high - low) * (seed >> 17) / 32768 + low.
+float random_between(float low, float high) {
+    uint32_t& seed = title_global<uint32_t>(0x008d5a70);
+    seed = seed * 0x343fd + 0x269ec3;
+    const float step = platform_x87_unsigned_to_float(seed >> 17);
+    return (high - low) * step / title_global<float>(0x0083ebc8) + low;
+}
+
+uint32_t play_alias(const uint8_t* emitter, int32_t group) {
+    using Play = uint32_t XB_CDECL(uint32_t, uint32_t, int32_t, uint32_t);
+    return title_function<Play>(0x002a6990)(emitter_word<uint32_t>(emitter, 0x40), 0, group, 0);  // FXCmd_PlaySoundAlias
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FX_FindEffectById_entry, "pushl %edi\n"
+                                            "pushl %esi\n" PLATFORM_ASM_CALL(FX_FindEffectById) "addl $8, %esp\n"
+                                            "ret")
+
+uint8_t* XB_CDECL FX_FindEffectById(const uint32_t* list, uint32_t id) {
+    for (uint32_t i = 0; i < list[0]; ++i) {
+        uint8_t* const effect = reinterpret_cast<uint8_t*>(uintptr_t{list[1 + i]});
+        if (emitter_word<uint32_t>(effect, 0x4c) == id) return effect;
+    }
+    return nullptr;
+}
+
+void XB_STDCALL S_UpdateAmbientEmitters(uint8_t* level, float frame_time) {
+    if (frame_time == 0.0f) return;
+    emitter_word<uint32_t>(level, 0x198) = 0;
+    emitter_word<uint32_t>(level, 0x19c) = 0;
+    for (int32_t group_index = 0; group_index < 0x63; ++group_index) {
+        const uint8_t* const group = emitter_word<uint8_t*>(level, 4 + uint32_t(group_index) * 4);
+        if (!group) continue;
+        for (uint32_t j = 0; j < emitter_word<uint32_t>(group, 0x30); ++j) {
+            uint8_t* const emitter = emitter_word<uint8_t*>(group, 0x34) +
+                                     (j < emitter_word<uint32_t>(group, 0x30) ? j : 0) * 0x60;
+            int32_t& state = emitter_word<int32_t>(emitter, 0x54);
+            if (state == 5) continue;
+            float& delay = emitter_word<float>(emitter, 0x58);
+            uint32_t& id = emitter_word<uint32_t>(emitter, 0x50);
+            uint8_t* effect = FX_FindEffectById(effect_list(), id);
+            const auto trigger_on = [emitter] {
+                const uint8_t* const link = emitter_word<uint8_t*>(emitter, 0x44);
+                return link ? emitter_word<uint32_t>(link, 8) != 0 : true;
+            };
+            bool start = false;
+            switch (state) {
+            case 0: {
+                delay = delay - title_global<float>(0x0083eb20);
+                if (delay > 0.0f) continue;
+                const uint32_t key = emitter_word<uint32_t>(emitter, 0x44);
+                if (key) {
+                    emitter_word<uint32_t>(emitter, 0x44) = 0;
+                    const uint32_t* const table = emitter_word<uint32_t*>(level, 0x190);
+                    for (uint32_t k = 0; k < table[0]; ++k) {
+                        const uint8_t* const entry =
+                            reinterpret_cast<const uint8_t*>(uintptr_t{table[1]}) + (k < table[0] ? k : 0) * 12;
+                        if (emitter_word<uint32_t>(entry, 4) == key) {
+                            emitter_word<const uint8_t*>(emitter, 0x44) = entry;
+                            break;
+                        }
+                    }
+                }
+                if (!trigger_on()) {
+                    state = 4;
+                    break;
+                }
+                id = play_alias(emitter, group_index);
+                effect = FX_FindEffectById(effect_list(), id);
+                state = 1;
+                break;
+            }
+            case 1:
+                if (!effect) {
+                    state = 5;
+                    continue;
+                }
+                state = 2;
+                break;
+            case 2: {
+                const bool on = trigger_on();
+                if (effect) {
+                    if (on) break;
+                    FX_FreeEffectsById(reinterpret_cast<FxIdList*>(const_cast<uint32_t*>(effect_list())), id);
+                    id = 0;
+                    state = 4;
+                    continue;
+                }
+                if (!on) {
+                    state = 4;
+                    continue;
+                }
+                if (!(emitter[0x48] & 1)) {
+                    state = 5;
+                    continue;
+                }
+                const float scale = title_global<float>(0x0083eb94);  // 0.01
+                const float low = float(int32_t(emitter_word<uint16_t>(emitter, 0x4c))) * scale;
+                const float high = float(int32_t(emitter_word<uint16_t>(emitter, 0x4e))) * scale;
+                const float wait = random_between(low, high);
+                if (!(wait == 0.0f)) {
+                    state = 3;
+                    delay = wait;
+                    continue;
+                }
+                start = true;
+                break;
+            }
+            case 3:
+                delay = delay - frame_time;
+                if (!(0.0f >= delay)) break;
+                start = true;
+                break;
+            case 4:
+                if (emitter_word<uint8_t*>(emitter, 0x44) && emitter_word<uint32_t>(emitter_word<uint8_t*>(emitter, 0x44), 8))
+                    state = 2;
+                break;
+            default:
+                break;
+            }
+            if (start) {
+                state = 2;
+                id = play_alias(emitter, group_index);
+                effect = FX_FindEffectById(effect_list(), id);
+            }
+            if (!effect) continue;
+            for (uint32_t n = 0; n < emitter_word<uint32_t>(effect, 0); ++n) {
+                const uint32_t component = emitter_word<uint32_t>(effect, 4 + n * 4);
+                using Update = void XB_THISCALL(uint32_t, uint8_t*);
+                const uint32_t vtable = *reinterpret_cast<const uint32_t*>(uintptr_t{component});
+                title_function<Update>(*reinterpret_cast<const uint32_t*>(uintptr_t{vtable + 0x24}))(component, emitter);
+            }
+        }
+    }
+}
+
+uint8_t* XB_REGS1 XB_CDECL SoundHandle_Resolve(const uint32_t* handle) {
+    const uint32_t value = *handle;
+    const uint32_t index = value & 0xfff;
+    if (index >= 0x200) return nullptr;
+    if ((value >> 12) != title_global<uint32_t>(0x00962864 + index * 8)) return nullptr;
+    return title_global<uint8_t*>(0x00962860 + index * 8);
+}
+
+namespace {
+
+// One crossfaded channel: param 0 of its voice = base (+0x1c) * GetParam(0) * master * volume; +0x10 = the product
+// before the base.
+void set_fade_volume(const uint8_t* fade, const uint32_t* handle, float volume, float* slot) {
+    if (!SoundHandle_Resolve(handle)) return;
+    using GetParam = long double XB_CDECL(uint32_t, uint32_t, float);
+    const long double param = title_function<GetParam>(0x000c59b0)(emitter_word<uint32_t>(SoundHandle_Resolve(handle), 4),
+                                                                   0, 1.0f);  // SndVoice_GetParam
+    *slot = float(param * emitter_word<float>(fade, 8) * volume);
+    uint8_t* const channel = SoundHandle_Resolve(handle);
+    const uint32_t voice = emitter_word<uint32_t>(channel, 0);
+    if (voice == 0xffffffff) return;
+    using SetParam = void XB_CDECL(uint32_t, uint32_t, float);
+    title_function<SetParam>(0x000c44f0)(voice, 0, emitter_word<float>(channel, 0x1c) * *slot);  // SndVoice_SetParam
+    emitter_word<float>(channel, 0x10) = *slot;
+}
+
+}  // namespace
+
+void XB_REGS1 XB_STDCALL S_UpdateCrossfade(uint8_t* fade, float time) {
+    int32_t& state = emitter_word<int32_t>(fade, 0x1c);
+    if (state != 1 && state != 2) return;
+    const bool fading_in_first = state == 2;
+    float& elapsed = emitter_word<float>(fade, 0x18);
+    float& out = emitter_word<float>(fade, state == 1 ? 0xc : 0x10);
+    float& in = emitter_word<float>(fade, state == 1 ? 0x10 : 0xc);
+    const float t = time + elapsed;
+    const float length = emitter_word<float>(fade, 0x14);
+    const float one = title_global<float>(0x0083eb20);
+    const float ratio = t / length;
+    elapsed = t;
+    in = ratio;
+    out = one - ratio;
+    if (!(t < length)) {
+        out = 0.0f;
+        in = one;
+        state = 0;
+        uint32_t* const second = &emitter_word<uint32_t>(fade, 4);
+        if (fading_in_first && SoundHandle_Resolve(second)) {  // state 2: stop the faded-out channel
+            TitleRegs regs{};
+            regs.edi = uint32_t(uintptr_t(SoundHandle_Resolve(second)));
+            cg_call_regs(0x002c3400, &regs, nullptr, 0);  // S_StopChannel (channel in EDI)
+            *second = 0;
+        }
+    }
+    set_fade_volume(fade, &emitter_word<uint32_t>(fade, 0), emitter_word<float>(fade, 0xc), &time);
+    set_fade_volume(fade, &emitter_word<uint32_t>(fade, 4), emitter_word<float>(fade, 0x10), &time);
+}
+
+int32_t XB_CDECL S_SetMasterAttenuation(int32_t value) {
+    const uint32_t sign = uint32_t(value >> 31);
+    const int32_t attenuation = -int32_t((uint32_t(value) ^ sign) - sign);
+    title_global<int32_t>(0x008bd650) = attenuation;
+    return attenuation;
+}
+
+namespace {
+
+uint8_t* voice_record_of(int32_t voice) {
+    const int32_t index = HandlePool_Resolve(kVoicePool, voice);
+    if (index == -1) return nullptr;
+    return title_global<uint8_t*>(0x0090a8e0) + uint32_t(index) * 0xf8;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL SndVoice_GetState(int32_t voice) {
+    const uint8_t* const record = voice_record_of(voice);
+    if (!record) return 0;
+    const uint8_t state = record[0xd4];
+    if (state == 5 || (record[0xd7] & 2)) return 5;
+    const uint8_t flags = record[0xd6];
+    if (flags & 2) return 4;
+    if (flags & 1) return (state == 3 ? 1u : 0u) + 2;
+    return state;
+}
+
+void XB_CDECL SndVoice_SetParam(int32_t voice, uint32_t param, uint32_t value_bits) {
+    uint8_t* const record = voice_record_of(voice);
+    if (!record || param >= 0x2e) return;
+    const uint64_t bit = uint64_t{1} << param;
+    emitter_word<uint32_t>(record, 8) |= uint32_t(bit);
+    emitter_word<uint32_t>(record, 0xc) |= uint32_t(bit >> 32);
+    emitter_word<uint32_t>(record, 0x10 + param * 4) = value_bits;
+}
+
+void XB_CDECL SndVoice_SetOrigin(int32_t voice, const uint32_t* origin) {
+    uint8_t* const record = voice_record_of(voice);
+    if (!record) return;
+    for (uint32_t i = 0; i < 3; ++i) emitter_word<uint32_t>(record, 0x5c + i * 4) = origin[i];
+    emitter_word<uint32_t>(record, 8) |= 0x380000;
+}
+
+uint8_t* XB_CDECL SndVoice_Resolve(uint32_t handle) {
+    const uint32_t index = handle & 0xffff;
+    const uint32_t key = handle | 0xffff;
+    const uint8_t* const slot = &title_global<uint8_t>(0x008bd770 + ((key >> 16) % 12) * 32);
+    if (emitter_word<uint32_t>(slot, 0) != key || emitter_word<uint32_t>(slot, 4) != 3) return nullptr;
+    const uint8_t* const bank = emitter_word<uint8_t*>(slot, 0x18);
+    if (index > emitter_word<uint32_t>(bank, 0x40)) return nullptr;
+    return emitter_word<uint8_t*>(bank, 0x44) + index * 40;
+}
+
+int32_t XB_CDECL S_FindSoundByHash(const char* name) {
+    if (!name) return -1;
+    using Compare = int32_t XB_CDECL(const void*, const void*);
+    using Search = void* XB_CDECL(const void*, const void*, uint32_t, uint32_t, Compare*);
+    const uint32_t key = uint32_t(uintptr_t(name));
+    for (uint32_t slot = 0; slot < 12; ++slot) {
+        const uint32_t base = 0x008bd770 + slot * 32;
+        if (title_global<uint32_t>(base + 4) != 3) continue;
+        const uint8_t* const bank = title_global<uint8_t*>(base + 0x18);
+        const uint8_t* const entries = emitter_word<uint8_t*>(bank, 0x44);
+        const auto* const found = static_cast<const uint8_t*>(title_function<Search>(0x001f123f)(
+            &key, entries, emitter_word<uint32_t>(bank, 0x40), 0x28, title_function<Compare>(0x000c5790)));  // _bsearch
+        if (!found) continue;
+        const int32_t index = int32_t(found - entries) / 40;
+        if (index == -1) continue;
+        return int32_t((title_global<uint32_t>(base) & 0xffff0000) | uint32_t(index));
+    }
+    return -1;
+}
+
+uint8_t* XB_CDECL SndGroup_FindByName(const char* name) {
+    if (!name) return nullptr;
+    using Compare = int32_t XB_CDECL(const char*, const char*, uint32_t);
+    int32_t& count = title_global<int32_t>(0x008beb70);
+    int32_t n = count;
+    for (int32_t i = 0; i < n; ++i) {
+        uint8_t* const group = &title_global<uint8_t>(0x008bd8f0 + uint32_t(i) * 0x128);
+        if (title_function<Compare>(0x001f1486)(name, reinterpret_cast<const char*>(group + 0x108), 0x20) == 0)  // __strnicmp
+            return group;
+        n = count;
+    }
+    if (n == 15) return nullptr;
+    uint8_t* const group = &title_global<uint8_t>(0x008bd8f0 + uint32_t(n) * 0x128);
+    count = n + 1;
+    emitter_word<int32_t>(group, 0) = -1;
+    emitter_word<int32_t>(group, 4) = -1;
+    emitter_word<float>(group, 8) = title_global<float>(0x0083eb20);
+    emitter_word<float>(group, 0xc) = title_global<float>(0x0083eb20);
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(reinterpret_cast<char*>(group + 0x108), name,
+                                                                          0x20);  // _strncpy
+    return group;
+}
+
+PLATFORM_ASM_ENTRY(SoundHandle_Free_entry, "pushl 4(%esp)\n"
+                                           "pushl %esi\n" PLATFORM_ASM_CALL(SoundHandle_Free) "addl $8, %esp\n"
+                                           "ret $4")
+
+void XB_CDECL SoundHandle_Free(uint8_t* table, uint32_t handle) {
+    if (!handle) return;
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x200) return;
+    uint32_t& generation = emitter_word<uint32_t>(table, 0x44 + index * 8);
+    if (generation != handle >> 12) return;
+    emitter_word<uint32_t>(table, uint32_t(int32_t(index) >> 5) * 4) |= 1u << (index & 31);
+    ++generation;
+    emitter_word<uint32_t>(table, 0x40 + index * 8) = 0;
+}
+
+const char* XB_CDECL Snd_GetAliasName(uint32_t handle) {
+    const uint8_t* const entry = SndVoice_Resolve(handle);
+    return entry ? emitter_word<const char*>(entry, 0) : nullptr;
+}
+
+PLATFORM_ASM_ENTRY(S_StopChannel_entry, "pushl %edi\n" PLATFORM_ASM_CALL(S_StopChannel) "addl $4, %esp\n"
+                                        "ret")
+
+void XB_CDECL S_StopChannel(uint8_t* channel) {
+    using Free = void XB_CDECL(int32_t);
+    if (emitter_word<int32_t>(channel, 0) != -1) {
+        Snd_GetAliasName(emitter_word<uint32_t>(channel, 4));  // result unused
+        SoundHandle_Free(&title_global<uint8_t>(0x00962820), emitter_word<uint32_t>(channel, 0x24));
+        emitter_word<uint32_t>(channel, 0x24) = 0;
+        title_function<Free>(0x000c4140)(emitter_word<int32_t>(channel, 0));  // SndVoice_Free (thunk)
+        title_function<Free>(0x000c3f50)(emitter_word<int32_t>(channel, 0));  // SndVoice_Free
+        emitter_word<int32_t>(channel, 0) = -1;
+    }
+    const uint32_t handle = emitter_word<uint32_t>(channel, 0x20);
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8)) {
+        if (uint8_t* const entity = title_global<uint8_t*>(0x0097a968 + index * 8)) {
+            const uint32_t hash = Com_HashKeyNoCase(0, Snd_GetAliasName(emitter_word<uint32_t>(channel, 4)));
+            const uint32_t pending = emitter_word<uint32_t>(entity, 0x3c4);
+            if (pending && emitter_word<uint32_t>(entity, 0x3c8) == hash) {
+                Scr_Notify(entity, pending);
+                emitter_word<uint32_t>(entity, 0x3c4) = 0;
+                emitter_word<uint32_t>(entity, 0x3c8) = 0;
+            }
+            if (const uint32_t notify = emitter_word<uint32_t>(channel, 0x2c)) Scr_Notify(entity, notify);
+        }
+    }
+    emitter_word<float>(channel, 0x14) = title_global<float>(0x0083ec30);  // 50
+    channel[8] = 0;
+    emitter_word<uint32_t>(channel, 0x2c) = 0;
+    emitter_word<uint32_t>(channel, 0x28) = 0;
+    emitter_word<int32_t>(channel, 0) = -1;
+    emitter_word<int32_t>(channel, 4) = -1;
+    channel[9] = 1;
+    emitter_word<float>(channel, 0xc) = title_global<float>(0x0083eb20);
+    emitter_word<float>(channel, 0x10) = title_global<float>(0x0083eb20);
+    emitter_word<float>(channel, 0x18) = title_global<float>(0x0083edb0);  // 1500
+    emitter_word<float>(channel, 0x1c) = title_global<float>(0x0083eb20);
+}
+
+PLATFORM_ASM_ENTRY(S_StopSoundHandle_entry, "pushl %esi\n" PLATFORM_ASM_CALL(S_StopSoundHandle) "addl $4, %esp\n"
+                                            "ret")
+
+void XB_CDECL S_StopSoundHandle(uint32_t* handle) {
+    if (!SoundHandle_Resolve(handle)) return;
+    S_StopChannel(SoundHandle_Resolve(handle));
+    *handle = 0;
+}
+
+PLATFORM_ASM_ENTRY(S_StopAllSounds_entry, "pushl %ebx\n" PLATFORM_ASM_CALL(S_StopAllSounds) "addl $4, %esp\n"
+                                          "ret")
+
+void XB_CDECL S_StopAllSounds(uint8_t* system) {
+    for (uint32_t i = 0; i < 0x200; ++i) S_StopChannel(system + i * 0x30);
+    uint8_t* const fade = title_global<uint8_t*>(0x0095f4cc);
+    uint32_t* const first = &emitter_word<uint32_t>(fade, 0);
+    if (SoundHandle_Resolve(first)) {
+        S_StopChannel(SoundHandle_Resolve(first));
+        *first = 0;
+    }
+    uint8_t* const current = title_global<uint8_t*>(0x0095f4cc);
+    emitter_word<uint32_t>(current, 0x1c) = 2;
+    emitter_word<float>(current, 0x14) = 0.0f;
+    emitter_word<float>(current, 0x18) = 0.0f;
+    title_function<void XB_STDCALL(uint8_t*)>(0x002c8c20)(system);  // S_StopAllChannels
+}
+
+void XB_CDECL SndSource_CommitDirty() {
+    uint8_t* const pool = &title_global<uint8_t>(0x0090a8e4);
+    int32_t handle = HandlePool_First(pool);
+    while (handle != -1) {
+        const int32_t source = handle;
+        handle = HandlePool_Next(pool, source);
+        const int32_t index = HandlePool_Resolve(pool, source);
+        uint32_t* const record =
+            index == -1 ? nullptr : reinterpret_cast<uint32_t*>(title_global<uint8_t*>(0x0090a910) + uint32_t(index) * 0xc8);
+        record[0] |= record[2];
+        record[1] |= record[3];
+        record[2] = 0;
+        record[3] = 0;
+    }
+}
+
+void XB_CDECL SndHw_ReleaseSlot(uint32_t slot) {
+    if (slot >= title_global<uint32_t>(0x008bed00)) return;
+    uint8_t* const hardware = SndVoice_Get(slot);
+    const uint8_t state = hardware[0xc0];
+    emitter_word<int32_t>(hardware, 0xc8) = -1;
+    if (!state) return;
+    if (state == 1) {
+        hardware[0xc0] = 0;
+    } else {
+        hardware[0xc1] |= 8;
+    }
+}
+
+uint32_t XB_CDECL Snd_UpdateTime() {
+    const int32_t ticks = title_function<int32_t XB_CDECL()>(0x001f12cb)();  // _clock
+    const uint32_t now = uint32_t(uint64_t(int64_t(ticks) * 1000) / 1000);
+    title_global<uint32_t>(0x0092082c) = now;
+    return now;
 }
 
 }  // namespace game

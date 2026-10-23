@@ -290,6 +290,14 @@ void SCR_DrawScreenField(uint32_t entry);
 // table) and the HUD update (mission HUD at 0x0095f8d0 or g_hudManager's vtable +0xc) with that time.
 extern "C" PLATFORM_HIDDEN void XB_CDECL SCR_UpdateScreen(uint32_t entry);
 extern "C" void SCR_UpdateScreen_entry(void);
+struct TitleRegs;
+// 0x002f2630 (msec in EAX): Q3's CL_Frame: the return to the front end (sounds stopped, KEYCATCH_UI, g_reloading 0),
+// cl_avidemo screenshots and fixed frame time, cls.realtime, user commands and the packet while in game, the screen
+// update (through whatever the call at 0x002f27a4 targets: the loader's --level hook), file requests, sound channels,
+// the streaming view position from the player's cell, crossfade, effects, rumble, ambient emitters and the entity
+// list compaction. `entry` = the original's ESP at its entry, `regs` its registers there.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* regs);
+extern "C" void CL_Frame_entry(void);
 
 // 0x0032dde0 (menu in ESI): escape in game: cl_paused 1, the sound channels paused, the pause overlay shown
 // (byte +0x40 from 0x008dce69, vtable +0x88 (0, 1)) and the menu activated (vtable +0xc (0)).
@@ -299,5 +307,10 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL CL_TogglePause(uint8_t* menu);
 // 0x0093fcd8, activates it (vtable +0xc) and pauses the game (cl_paused 1) unless that cvar is set or the mission
 // overlay is up.
 void XB_REGS3 XB_CDECL CL_PauseForDialog(uint32_t eax_unused, uint8_t keep_running, uint8_t* dialog);
+
+// 0x0030fca0: with subtitles on (0x008dce68), a first line (0x0095f474) and the timer 0x0092708c at or past
+// 0x00926e74: nglListAddTextf on the HUD list 0x0095f8e0 for the first line and, if set, the second (0x0095f470) at
+// their unsigned pixel positions, color 0xe0ffff00 unless the line's flag word is set.
+void XB_CDECL Subtitle_Draw();
 
 }  // namespace game

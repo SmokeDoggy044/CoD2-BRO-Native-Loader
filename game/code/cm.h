@@ -411,16 +411,6 @@ extern "C" void G_PushAwayFromEntities_entry(void);
 // (mask & 0xfdff3fff), each repeated up to five more times while it pushes, radius 0x008fef4c; a move longer than the
 // radius is undone when G_RayTraceCachedCandidates finds the way blocked. The clip mask is restored.
 void XB_CDECL G_SeparateFromSolids();
-// 0x002e95b0 (triangle list, brush list, results, start, mins, maxs, end, pass entity handle, content mask): the actor
-// movement trace - CM_CandidateCapsuleTrace (world entity number unless the fraction is 1), then, unless the fraction
-// is 0, the sector entities through SV_SectorClipTrace_r (title address) with a clip block of the centered box (half
-// size, extents padded by 0x0082e640, capsule flag 1, pass entity and its owner); endpos redone when an entity was
-// hit first. The 0x40-byte trace goes to results.
-// On record as mismatched (3% of tests): two [host] words that also differ under SV_SectorClipTrace_r (0x804fff2c,
-// 0x81e23c6c) - likely its dead stack at the other call depth.
-void XB_CDECL G_CapsuleTraceWithEntities(const uint8_t* triangles, const uint8_t* brushes, uint8_t* results,
-                                          const float* start, const float* mins, const float* maxs, const float* end,
-                                          uint32_t pass_handle, uint32_t content_mask);
 // 0x002caf70 (a in EAX, c in ECX; origin, direction, b, max fraction, out fraction on the stack): Moller-Trumbore
 // segment vs triangle - |det| < 1e-4 on the x87 misses, t = fraction along the (unnormalized) direction in
 // [0, max], barycentrics u, v >= 0 with u + v <= 1; a hit stores t. AL.

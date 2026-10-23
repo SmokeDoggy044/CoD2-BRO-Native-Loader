@@ -1764,4 +1764,31 @@ uint8_t* XB_CDECL Cvar_Get(const char* name, const char* value, uint32_t flags) 
     return var;
 }
 
+namespace {
+
+const uint8_t* handle_item(const uint8_t* pool, int32_t handle) {
+    if (handle < 0) return nullptr;
+    const uint32_t index = *reinterpret_cast<const uint32_t*>(pool + 0x24) & uint32_t(handle);
+    if (index >= *reinterpret_cast<const uint32_t*>(pool + 0x20)) return nullptr;
+    const uint8_t* const item = *reinterpret_cast<uint8_t* const*>(pool) + *reinterpret_cast<const uint32_t*>(pool + 0x1c) * index;
+    return *reinterpret_cast<const int32_t*>(item + 8) == handle ? item : nullptr;
+}
+
+}  // namespace
+
+int32_t XB_CDECL HandlePool_First(const uint8_t* pool) {
+    return *reinterpret_cast<const int32_t*>(*reinterpret_cast<uint8_t* const*>(pool + 0x10) + 8);
+}
+
+int32_t XB_CDECL HandlePool_Next(const uint8_t* pool, int32_t handle) {
+    const uint8_t* const item = handle_item(pool, handle);
+    if (!item) return -1;
+    return *reinterpret_cast<const int32_t*>(*reinterpret_cast<uint8_t* const*>(item) + 8);
+}
+
+int32_t XB_CDECL HandlePool_Resolve(const uint8_t* pool, int32_t handle) {
+    if (!handle_item(pool, handle)) return -1;
+    return int32_t(uint32_t(handle) & *reinterpret_cast<const uint32_t*>(pool + 0x24));
+}
+
 }  // namespace game

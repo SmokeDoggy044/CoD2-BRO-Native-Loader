@@ -438,6 +438,10 @@ void XB_CDECL start_level() {
     title<int32_t>(kCampaignLevel) = g_start_level;
     LOG_INFO("patches", "starting mission %d", g_start_level);
     g_start_level = -1;
+    // The call returns into this thunk; later frames run the original call again (--compare tests of CL_Frame
+    // would otherwise reach host code on every frame).
+    put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{kCallClientFrame}), 0xE8,
+              reinterpret_cast<const void*>(uintptr_t{kClientFrame}));
 }
 
 // pushad; pushfd; call start_level; popfd; popad; jmp FUN_002f1e60
@@ -1380,9 +1384,11 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         calls.push_back({call.name, host, call.args, call.stand_in, value});
     }
     // Kernel exports that only set state nothing in title memory reads back: page
-    // protection (XPhysicalProtect: nglCreateVertexBufferPhysical, nglVertexBuffer_Free).
+    // protection (XPhysicalProtect: nglCreateVertexBufferPhysical, nglVertexBuffer_Free); and the
+    // system time behind the CRT's _clock, 0 on both sides (its pointer is a stack local: not logged).
     static const RecordedCall kRecordedKernelCalls[] = {
         {"MmSetAddressProtect", "s s s"},
+        {"KeQuerySystemTime", "x", compare::SdkStandIn::SystemTime},
     };
     for (const RecordedCall& call : kRecordedKernelCalls) {
         uint32_t host = 0;

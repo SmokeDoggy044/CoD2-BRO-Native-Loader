@@ -132,4 +132,8 @@ extern "C" void G_MissileTrace_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Bullet_RandomSpread(const uint8_t* fire, float* end, float spread);
 extern "C" void Bullet_RandomSpread_entry(void);
 
+// 0x0024b140 (list in EAX, 0x0097a8c0): fills the null slots of the entity pointer list (+0x2ab0, count +0x2aac)
+// with its last entry, storing the moved entity's index at +0x228. EAX is kept.
+uint8_t* XB_REGS1 XB_CDECL G_EntityList_Compact(uint8_t* list);
+
 }  // namespace game

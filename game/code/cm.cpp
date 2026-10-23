@@ -3162,63 +3162,6 @@ void XB_CDECL G_SeparateFromSolids() {
     *reinterpret_cast<uint32_t*>(pm + 0x5c) = clipmask;
 }
 
-void XB_CDECL G_CapsuleTraceWithEntities(const uint8_t* triangles, const uint8_t* brushes, uint8_t* results,
-                                          const float* start, const float* mins, const float* maxs, const float* end,
-                                          uint32_t pass_handle, uint32_t content_mask) {
-    alignas(16) uint8_t trace[0x40] = {};
-    CM_CandidateCapsuleTrace(maxs, mins, start, triangles, brushes, trace, end, content_mask);
-    const float fraction = *reinterpret_cast<const float*>(trace + 0x20);
-    // UCOMISS + JNP: the world entity number unless the fraction is exactly 1.
-    uint32_t entity_num = 0;
-    if (!(fraction == title_global<float>(0x0083eb20))) {
-        const uint8_t* world = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f534) + 8);
-        entity_num = *reinterpret_cast<const uint32_t*>(world + 0x224);
-    }
-    *reinterpret_cast<uint32_t*>(trace + 0x30) = entity_num;
-    if (fraction == title_global<float>(0x0083eafc)) {  // exactly 0: done
-        std::memcpy(results, trace, 0x40);
-        return;
-    }
-    // The entity clip block (SV_ClipTraceToEntity's layout).
-    alignas(16) uint8_t clip[0xa0];
-    std::memcpy(clip + 0x50, trace, 0x40);
-    *reinterpret_cast<uint32_t*>(clip + 0x94) = 0;
-    *reinterpret_cast<uint32_t*>(clip + 0x98) = content_mask;
-    *reinterpret_cast<uint32_t*>(clip + 0x90) = pass_handle;
-    *reinterpret_cast<uint32_t*>(clip + 0x9c) = 1;
-    if (pass_handle) {
-        const uint8_t* ent = entity_from_handle(pass_handle);
-        *reinterpret_cast<uint32_t*>(clip + 0x94) = *reinterpret_cast<const uint32_t*>(ent + 0x1a0);
-    }
-    const Lanes half = mul(sub(lanes(maxs), lanes(mins)), splat(title_global<float>(0x0083eb24)));  // 0.5
-    Lanes neg_half;
-    for (int32_t a = 0; a < 4; ++a) {  // XORPS with the sign mask
-        uint32_t bits;
-        std::memcpy(&bits, &half.v[a], 4);
-        neg_half.v[a] = from_bits(bits ^ 0x80000000u);
-    }
-    std::memcpy(clip, neg_half.v, 16);
-    std::memcpy(clip + 0x10, half.v, 16);
-    const Lanes extents = add(half, lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e640})));
-    std::memcpy(clip + 0x20, extents.v, 16);
-    const Lanes offset = mul(add(lanes(maxs), lanes(mins)), splat(title_global<float>(0x0083eb24)));
-    std::memcpy(clip + 0x30, add(lanes(start), offset).v, 16);
-    std::memcpy(clip + 0x40, add(lanes(end), offset).v, 16);
-    // SV_SectorClipTrace_r by its title address (the server module owns it).
-    using SectorClip = void XB_CDECL(uint8_t*, uint8_t*, float, float, const float*, const float*);
-    title_function<SectorClip>(0x002e88d0)(clip, reinterpret_cast<uint8_t*>(uintptr_t{0x00935664}), 0.0f,
-                                           *reinterpret_cast<const float*>(clip + 0x70),
-                                           reinterpret_cast<const float*>(clip + 0x30),
-                                           reinterpret_cast<const float*>(clip + 0x40));
-    const float clipped = *reinterpret_cast<const float*>(clip + 0x70);
-    if (fraction > clipped) {
-        const Lanes s = lanes(start);
-        const Lanes endpos = add(s, mul(splat(clipped), sub(lanes(end), s)));
-        std::memcpy(clip + 0x50, endpos.v, 16);
-    }
-    std::memcpy(results, clip + 0x50, 0x40);
-}
-
 PLATFORM_ASM_ENTRY(CM_PushSphereOutOfListedObjects_entry,
                    "pushl 4(%esp)\n"
                    "pushl %ebx\n"

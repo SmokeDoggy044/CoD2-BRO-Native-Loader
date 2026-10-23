@@ -197,4 +197,81 @@ extern "C" void FixedStr512_BaseName_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL Stream_HashFileName(const char* name, uint32_t* out);
 extern "C" void Stream_HashFileName_entry(void);
 
+// The streaming view position (CL_Frame, ClientSpawn, G_InitGame, Stream_ParseZbb): zone selectors (manager +4 +
+// index * 4, linked through +0x3c from +0x1cc) pick a volume point from the player's cell and flag box sets;
+// changes recompute every zone's load distance.
+// 0x00024cb0 (point in EAX, bounds in ECX: min vec4, max vec4): min.x <= x <= max.x and y, z inside (SSE lane
+// compares: NaN in x is outside, in y or z inside). 1 or 0 in EAX.
+uint32_t XB_REGS3 XB_CDECL Stream_BoundsContainPoint(const float* point, uint32_t unused_edx, const float* bounds);
+// 0x00024d30 (volume in ESI, point in EDX): the volume's point (+0x28 list of vec4 pointers, count +0x24) nearest
+// to `point` ((dx*dx + dy*dy) + dz*dz, strictly below FLT_MAX), or null.
+extern "C" PLATFORM_HIDDEN const float* XB_CDECL Stream_NearestPoint(const float* point, const uint8_t* volume);
+extern "C" void Stream_NearestPoint_entry(void);
+// 0x00024da0 (point in EBX, volumes on the stack, ret 4): for each volume (+0x28 list, count +0x24) whose bounds
+// contain the point, its nearest point; returns the last one found (0 if none).
+extern "C" PLATFORM_HIDDEN const float* XB_CDECL Stream_PickVolumePoint(const float* point, const uint8_t* volumes);
+extern "C" void Stream_PickVolumePoint_entry(void);
+// 0x00024df0 (box set in EDI, point on the stack, ret 4): 1 in AL if any of its boxes (+8, 32 bytes each, count +4)
+// contains the point.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL Stream_PointInAnyBox(const uint8_t* set, const float* point);
+extern "C" void Stream_PointInAnyBox_entry(void);
+// 0x0028fd00 (selector in EBX; mask low, mask high, distance list on the stack, ret 0xc): per zone of the selector
+// (+0x14 list, count +0x10) the next listed distance if its mask bit is set, else FLT_MAX (1.0 with
+// g_connectpaths), set with Zone_SetDistance_r on its zone +0x24. `args` = the three stack words. Returns the count.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_SetZoneDistancesFromMask(const uint8_t* selector,
+                                                                            const uint32_t* args);
+extern "C" void Stream_SetZoneDistancesFromMask_entry(void);
+// 0x0028fdb0 (stdcall): Pak_ResetZoneDistances, then per selector the distances of its picked point (+0x44) and of
+// each set box flag, and each flagged set's linked zones (12-byte entries: zone +4, distance +8; 1.0 with
+// g_connectpaths) at most at their current +0x30 (-1 = FLT_MAX) on every sub-zone.
+void XB_STDCALL Stream_UpdateZoneDistances(uint8_t* manager);
+// 0x002914f0 (stdcall; cell -1 = none): stores the origin (+0x1b0) and cell (+0x1c4), re-picks each selector's
+// point and box flags and runs Stream_UpdateZoneDistances when anything changed or `force` (byte) is set. The
+// changed flag lives in the manager argument's slot, as in the original.
+void XB_STDCALL Stream_SetViewPosition(uint8_t* manager, uint32_t cell, const float* origin, uint32_t force);
+
+// 0x0028ca10 (stream system in ECX; zone, distance, force byte on the stack, ret 0xc): unless forced, a distance
+// above the zone's current +0x30 changes nothing; otherwise +0x30 = min(distance, +0x30) and every sub-zone (+0x20
+// list, count +0x1c) gets it too, -1 handed on as FLT_MAX (kept in the force argument's slot, as in the original).
+void XB_REGS3 XB_STDCALL Zone_SetDistance_r(uint32_t unused_eax, uint32_t unused_edx, uint32_t system, uint8_t* zone,
+                                            float distance, uint32_t force);
+// 0x0028ca90 (stream system in ESI; both byte on the stack, ret 4): every zone of the pak (system +0x18, list +0x14,
+// count +0x10) gets +0x30 = FLT_MAX, and +0x34 too when `both` is set. Returns the zone count (0 if none).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Pak_ResetZoneDistances(const uint8_t* system, uint32_t both);
+extern "C" void Pak_ResetZoneDistances_entry(void);
+
+// 0x0028c780 / 0x0028c7d0 (ECX passed down; zone on the stack, ret 4): the zone's reference count +0x2c - 1 / + 1,
+// then the same for every sub-zone (+0x20 list, count +0x1c).
+void XB_REGS3 XB_STDCALL Zone_Release_r(uint32_t unused_eax, uint32_t unused_edx, uint32_t passed, uint8_t* zone);
+void XB_REGS3 XB_STDCALL Zone_AddRef_r(uint32_t unused_eax, uint32_t unused_edx, uint32_t passed, uint8_t* zone);
+// 0x0028c820 (zone in ESI; pak on the stack, ret 4): the first sub-zone with no pak slot (+0x28 = -1), an empty pak
+// slot (pak +0x38 + 4 * slot) or a pak in state 3 (+0xdc); null if none.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Zone_FindUnloadedChild(const uint8_t* zone, const uint8_t* pak);
+extern "C" void Zone_FindUnloadedChild_entry(void);
+// 0x0028d480 (memory in ECX, bit words in EDI): how many of its +0x10 slots are set in either bit array (EDI +0 or
+// +8, two words each).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL StreamMem_CountUsed(const uint8_t* memory, const uint32_t* bits);
+extern "C" void StreamMem_CountUsed_entry(void);
+// 0x002984f0 (zone table in EAX; hash on the stack, ret 4): the zone with that hash from the first of the 99 maps
+// (table +4, map +8, lists +0x14, count +0x10) that has one; null if none.
+uint8_t* XB_REGS1 XB_STDCALL Zone_FindByHash(const uint8_t* table, uint32_t hash);
+
+// Stream memory: slot bit arrays at +0 and +8 (two words each), slot count +0x10, slot size +0x14, base +0x18.
+// 0x0028d150 (memory in EDX; out on the stack, ret 4): out = {0, free, 0, 0} with free = 1 per slot set in both
+// arrays plus 0.5 once for any slots set in only one. Returns out.
+extern "C" PLATFORM_HIDDEN float* XB_CDECL StreamMem_CountFree(const uint32_t* memory, float* out);
+extern "C" void StreamMem_CountFree_entry(void);
+// 0x0028d390 (bit arrays in EDI; memory, out, n on the stack, ret 0xc): the n-th slot set in both arrays, else the
+// n-th (counting on) set in only one; out = {address (half-slot offset when only the second array has it), size
+// (halved for a half slot)}. Returns out.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL StreamMem_GetBlock(const uint32_t* bits, const uint8_t* memory,
+                                                                uint32_t* out, int32_t n);
+extern "C" void StreamMem_GetBlock_entry(void);
+
+// 0x0028c870 (zone in ECX; result in XMM0): the zone's load priority, cached per frame (+0x40 = frame 0x008d9d38,
+// +0x3c = value): FLT_MAX when its distance +0x34 is -1, or +0x30 is -1 and +0x34 FLT_MAX; else +0x34 (+0x30 when +0x34
+// is FLT_MAX), 0 for zones in states 0, 1, 3, 7 that have a pak slot (+0x28). Callers keep XMM4 and ECX across it.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Zone_UpdatePriority(uint8_t* zone);
+extern "C" void Zone_UpdatePriority_entry(void);
+
 }  // namespace game
