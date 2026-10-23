@@ -1298,4 +1298,22 @@ int32_t XB_CDECL nglDebugDrawSphereMesh(const float* matrix, const uint32_t* sca
 int32_t XB_CDECL nglDebugDrawBoxMesh(const float* matrix, const uint32_t* scale, uint32_t color, uint8_t solid);
 int32_t XB_CDECL nglDebugDrawPyramidMesh(const float* matrix, const uint32_t* scale, uint32_t color);
 
+// 0x000683a0: the LOD index for a mesh table under `matrix`: the bounding sphere's centre
+// (+0x20) in view space; the last LOD entry (+0x1c, count +0x18, distance at +4) it is beyond
+// gives index + 1, none 0.
+int32_t XB_CDECL nglSelectMeshLodWithMatrix(const uint8_t* table, const float* matrix);
+// 0x0006fb30: nglSelectMeshLightSet's projector counterpart: makes the instance's light set
+// current (0x00902e44) and rebuilds its active projector list (+0x50, ends at +0x30) from the
+// mesh's category list (mesh +7, minus one): box projectors (type 2) whose six planes (data
+// +0xe0) the bounding sphere is not behind, each in front.
+void XB_CDECL nglSelectMeshProjectors(NglMeshDrawNode* node);
+
+// 0x0007bed0 / 0x0007bff0: nglSkipList_Remove for lists whose objects carry their 32-byte name
+// at +0x10 / +8 (the anim managers).
+bool XB_THISCALL AnimManager_SkipListRemove(NglSkipList* self, const uint32_t* object);
+bool XB_THISCALL NalManager_SkipListRemoveKey8(NglSkipList* self, const uint32_t* object);
+// 0x0005ea10: a frame of its own showing the front buffer as one full-screen quad (scene
+// +0x360 = 0, +0x384/+0x385 cleared). CALL in the first 5 bytes: not hookable.
+void XB_CDECL nglDrawSingleQuadFrame();
+
 }  // namespace game

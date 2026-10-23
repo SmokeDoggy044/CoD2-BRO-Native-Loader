@@ -4999,11 +4999,13 @@ namespace {
 
 // The name of a listed object: its first 32 bytes, at +0x54 (textures), or what its first
 // word points to (indirect).
-enum class SkipName { Direct, Texture, Indirect };
+enum class SkipName { Direct, Texture, Indirect, At8, At16 };
 
 const uint32_t* skip_name(const uint32_t* object, SkipName kind) {
     switch (kind) {
     case SkipName::Texture: return object + 0x54 / 4;
+    case SkipName::At8: return object + 2;    // the anim managers' lists (AnimManager_SkipListRemove)
+    case SkipName::At16: return object + 4;
     case SkipName::Indirect: return reinterpret_cast<const uint32_t*>(uintptr_t{object[0]});
     case SkipName::Direct: break;
     }
@@ -5496,6 +5498,106 @@ int32_t XB_CDECL nglDebugDrawBoxMesh(const float* matrix, const uint32_t* scale,
 
 int32_t XB_CDECL nglDebugDrawPyramidMesh(const float* matrix, const uint32_t* scale, uint32_t color) {
     return debug_draw_mesh(title_global<uint8_t*>(0x00902c9c), matrix, scale, color);
+}
+
+int32_t XB_CDECL nglSelectMeshLodWithMatrix(const uint8_t* table, const float* matrix) {
+    // The bounding sphere's centre (+0x20) through the matrix, then the view matrix (all four
+    // lanes, as packed); its view depth (lane z) against the LOD distances from the last one.
+    const float* c = reinterpret_cast<const float*>(table + 0x20);
+    const Lanes p = add(add(add(lanes(matrix + 12), mul(lanes(matrix), c[0])), mul(lanes(matrix + 4), c[1])),
+                        mul(lanes(matrix + 8), c[2]));
+    const float* v = current_scene()->view_matrix;
+    const Lanes view = add(add(add(lanes(v + 12), mul(lanes(v), p.v[0])), mul(lanes(v + 4), p.v[1])),
+                           mul(lanes(v + 8), p.v[2]));
+    platform_keep(view);
+    const float depth = view.v[2];
+    const int32_t count = *reinterpret_cast<const int32_t*>(table + 0x18);
+    const uint8_t* entries = *reinterpret_cast<uint8_t* const*>(table + 0x1c);
+    for (int32_t i = count - 1; i >= 0; --i) {
+        if (depth > *reinterpret_cast<const float*>(entries + i * 8 + 4)) return i + 1;
+    }
+    return 0;
+}
+
+void XB_CDECL nglSelectMeshProjectors(NglMeshDrawNode* node) {
+    const uint32_t slot = title_global<uint32_t>(0x00902914);
+    const uint32_t* params = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(node->extra));
+    const auto has_slot = [params, slot] {
+        const uint32_t low = 1u << (slot & 31);
+        const uint32_t high = static_cast<int32_t>(low) < 0 ? 0xffffffff : 0;
+        return (params[0] & low) == low && (params[1] & high) == high;
+    };
+    NglLightSet* set;
+    if (has_slot()) {
+        set = has_slot() ? reinterpret_cast<NglLightSet*>(static_cast<uintptr_t>(params[2 + slot])) : nullptr;
+    } else {
+        set = current_scene()->light_set;
+    }
+    current_light_set() = set;
+    NglLight* const end = reinterpret_cast<NglLight*>(set->projectors);
+    NglLight*& active = *reinterpret_cast<NglLight**>(reinterpret_cast<uint8_t*>(set) + 0x50);
+    active = end;
+    const uint8_t* mesh = node->mesh;
+    const int32_t list = static_cast<int32_t>(mesh[7]) - 1;
+    if (list == -1) return;
+    const float* local = reinterpret_cast<const float*>(mesh + 0x20);
+    Lanes center = add(lanes(node->world + 12), mul(lanes(node->world), local[0]));
+    center = add(center, mul(lanes(node->world + 4), local[1]));
+    center = add(center, mul(lanes(node->world + 8), local[2]));
+    const Lanes q = {{center.v[0], center.v[1], center.v[2], title_global<float>(0x007beb50)}};
+    set = current_light_set();
+    // Projector boxes (type 2): the sphere must not be behind any of the six planes at data
+    // +0xe0 (tested in the order +0x100, +0x110, +0x120, +0xe0, +0xf0, +0x130); each plane's
+    // distance is (x a + y b) + (z c + d), as the packed sum pairs them.
+    static const int kPlanes[6] = {0x20, 0x30, 0x40, 0x00, 0x10, 0x50};
+    NglLight* item = set->projectors[list];
+    while (item != end) {
+        if (item->type == 2) {
+            const float behind = 0.0f - *reinterpret_cast<const float*>(mesh + 0x30);
+            const uint8_t* planes = reinterpret_cast<const uint8_t*>(item->data) + 0xe0;
+            bool inside = true;
+            for (int k = 0; k < 6 && inside; ++k) {
+                const Lanes plane = lanes(reinterpret_cast<const float*>(planes + kPlanes[k]));
+                const Lanes m = mul(q, plane);
+                const Lanes pair = add(m, Lanes{{m.v[1], m.v[1], plane.v[3], plane.v[3]}});
+                platform_keep(pair);
+                const float distance = pair.v[0] + pair.v[2];
+                if (behind > distance) inside = false;
+            }
+            if (inside) {
+                item->next_object = active;
+                active = item;
+                set = current_light_set();
+            }
+        }
+        item = reinterpret_cast<NglLight* const*>(item)[list];
+    }
+}
+
+bool XB_THISCALL AnimManager_SkipListRemove(NglSkipList* self, const uint32_t* object) {
+    return skip_list_remove(self, object, SkipName::At16);
+}
+
+bool XB_THISCALL NalManager_SkipListRemoveKey8(NglSkipList* self, const uint32_t* object) {
+    return skip_list_remove(self, object, SkipName::At8);
+}
+
+void XB_CDECL nglDrawSingleQuadFrame() {
+    title_function<void XB_CDECL()>(0x00064690)();  // nglBeginFrame
+    uint8_t* scene = reinterpret_cast<uint8_t*>(current_scene());
+    *reinterpret_cast<uint32_t*>(scene + 0x360) = 0;
+    scene = reinterpret_cast<uint8_t*>(current_scene());
+    scene[0x385] = 0;
+    scene = reinterpret_cast<uint8_t*>(current_scene());
+    scene[0x384] = 0;
+    NglQuad quad;
+    nglInitQuad(&quad);
+    nglSetQuadTexture(&quad, nglGetFrontBufferTexture());
+    const float height = static_cast<float>(nglGetScreenHeight());
+    const float width = static_cast<float>(nglGetScreenWidth());
+    nglSetQuadRect(&quad, 0.0f, 0.0f, width, height);
+    nglListAddQuad(&quad);
+    title_function<void XB_CDECL()>(0x00064ec0)();  // nglEndFrame
 }
 
 }  // namespace game

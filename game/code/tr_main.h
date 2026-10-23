@@ -546,4 +546,9 @@ void XB_CDECL R_Init();
 // set, an empty RE_StretchPic. CALL in the first 5 bytes: not hookable.
 void XB_CDECL RE_BeginRegistration(uint32_t* glconfig);
 
+// 0x0023bf30 (EAX = colour rgba): debug text in "arialblack_14" at (x, y, z), once black with the
+// colour's alpha and once in the colour, both scaled by `scale`.
+void XB_REGS1 XB_CDECL R_DrawTextWithShadow(const float* color, const char* text, int32_t x, int32_t y, float z,
+                                            float scale);
+
 }  // namespace game

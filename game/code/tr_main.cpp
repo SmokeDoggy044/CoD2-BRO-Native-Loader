@@ -3494,4 +3494,22 @@ void XB_CDECL RE_BeginRegistration(uint32_t* glconfig) {
     RE_StretchPic(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, nullptr);
 }
 
+void XB_REGS1 XB_CDECL R_DrawTextWithShadow(const float* color, const char* text, int32_t x, int32_t y, float z,
+                                            float scale) {
+    // "arialblack_14" (slots 7 and 8 have no font), drawn twice at the same place: black with
+    // the colour's alpha, then in the colour.
+    const int32_t slot = R_FindFont("arialblack_14", 0);
+    const uint8_t* font = (slot == 7 || slot == 8) ? nullptr : title_global<uint8_t*>(0x0095f8d4 + slot * 4);
+    const float fy = static_cast<float>(y);
+    const float fx = static_cast<float>(x);
+    const float k = title_global<float>(0x0083eb8c);  // 255
+    const uint32_t shadow = static_cast<uint32_t>(platform_ftol(color[3] * k)) << 24;
+    nglListAddText(font, text, fx, fy, z, shadow, scale, scale);
+    uint32_t argb = static_cast<uint32_t>(platform_ftol(color[3] * k));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color[0] * k));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color[1] * k));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color[2] * k));
+    nglListAddText(font, text, fx, fy, z, argb, scale, scale);
+}
+
 }  // namespace game
