@@ -1129,4 +1129,174 @@ long double XB_CDECL Vec4Normalize(const float* v, float* out) {
     return length;
 }
 
+PLATFORM_ASM_ENTRY(CM_TraceThroughSphere_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_TraceThroughSphere) "addl $20, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL CM_TraceThroughSphere(const float* start, const float* origin, uint8_t* tw, const float* end,
+                                       float extra_radius) {
+    const Lanes o = lanes(origin);
+    const Lanes dir = sub(lanes(start), o);
+    const float radius = *reinterpret_cast<const float*>(tw + 0x164) + extra_radius;
+    const float radius_squared = radius * radius;
+    const Lanes squares = mul(dir, dir);
+    platform_keep(squares);
+    const float length_squared = (squares.v[0] + squares.v[1]) + squares.v[2];
+    const float c = length_squared - radius_squared;
+    if (0.0f >= c) {
+        *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+        tw[0x13d] = 1;
+        float length = length_squared;  // 0 or NaN: copied as is
+        if (length_squared == length_squared && length_squared != 0.0f) {  // UCOMISS + JNE
+            const float r = platform_rsqrt_estimate(length_squared);
+            const float scaled = length_squared * r;
+            length = ((title_global<float>(0x0082e660) - scaled * r) * scaled) * title_global<float>(0x0082e670);
+        }
+        Lanes normal = dir;
+        if (!(length == 0.0f)) {  // UCOMISS + JNP: divide unless exactly 0 (all four lanes)
+            const Lanes divided = {{dir.v[0] / length, dir.v[1] / length, dir.v[2] / length, dir.v[3] / length}};
+            normal = divided;
+        }
+        std::memcpy(tw + 0x110, normal.v, 16);
+        const Lanes to_end = sub(lanes(end), o);
+        if (radius_squared >= sum_xyz(mul(to_end, to_end))) tw[0x13c] = 1;
+        return 0;
+    }
+    const float b = sum_xyz(mul(lanes(tw_row(tw, 0xe0)), dir));
+    if (b >= 0.0f) return 1;
+    const float a = *reinterpret_cast<const float*>(tw + 0xf0);
+    const float d = b * b - c * a;
+    if (0.0f > d) return 1;
+    alignas(16) float in[4];
+    alignas(16) float normal[4];
+    std::memcpy(in, dir.v, 16);
+    long double x = Vec4Normalize(in, normal);
+    const float eps = title_global<float>(0x0083ec68);  // 0.125
+    const float fraction = *reinterpret_cast<const float*>(tw + 0x120);
+    float frac;
+    bool hit;
+    // x = len * eps / b + (-b - sqrt(d)) / a on the x87 (stored as float); hit when the current fraction is
+    // above the unrounded sum.
+    __asm__ volatile(
+        "fmuls %[eps]\n\t"
+        "fdivs %[b]\n\t"
+        "flds %[b]\n\t"
+        "fchs\n\t"
+        "flds %[d]\n\t"
+        "fsqrt\n\t"
+        ".byte 0xde, 0xe9\n\t"  // fsubp st(1), st (Intel): st1 = st1 - st0
+        "fdivs %[a]\n\t"
+        ".byte 0xde, 0xc1\n\t"  // faddp st(1), st
+        "fsts %[frac]\n\t"
+        "flds %[fraction]\n\t"
+        "fcomip %%st(1), %%st\n\t"
+        "seta %[hit]"
+        : "+t"(x), [frac] "=m"(frac), [hit] "=q"(hit)
+        : [eps] "m"(eps), [b] "m"(b), [d] "m"(d), [a] "m"(a), [fraction] "m"(fraction)
+        : "cc");
+    if (!hit) return 1;
+    const float stored = frac > 0.0f ? frac : 0.0f;
+    std::memcpy(tw + 0x110, normal, 16);
+    *reinterpret_cast<float*>(tw + 0x120) = stored;
+    const uint8_t* leaf = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f504) + 4);
+    *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(leaf + 8);
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(CM_TraceThroughVerticalCylinder_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CM_TraceThroughVerticalCylinder) "addl $16, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL CM_TraceThroughVerticalCylinder(uint8_t* tw, const float* origin, float height, float extra_radius) {
+    Lanes dir = sub(lanes(tw_row(tw, 0)), lanes(origin));
+    const float radius = *reinterpret_cast<const float*>(tw + 0x164) + extra_radius;
+    const float dx = dir.v[0], dy = dir.v[1];
+    const float c = (dy * dy + dx * dx) - radius * radius;
+    auto half_height = [&] {
+        return (*reinterpret_cast<const float*>(tw + 0x168) - *reinterpret_cast<const float*>(tw + 0x164)) + height;
+    };
+    const uint8_t* leaf = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f504) + 4);
+    if (0.0f >= c) {
+        const float hh = half_height();
+        const float dz = dir.v[2];
+        if (dz > hh) return 1;
+        const float low = 0.0f - hh;
+        if (low > dz) return 1;
+        dir.v[2] = 0.0f;
+        const Lanes squares = mul(dir, dir);
+        platform_keep(squares);
+        const float length_squared = (squares.v[0] + squares.v[1]) + squares.v[2];
+        *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+        tw[0x13d] = 1;
+        float length = length_squared;
+        if (length_squared == length_squared && length_squared != 0.0f) {  // UCOMISS + JNE
+            const float r = platform_rsqrt_estimate(length_squared);
+            const float scaled = length_squared * r;
+            length = ((title_global<float>(0x0082e660) - scaled * r) * scaled) * title_global<float>(0x0082e670);
+        }
+        if (!(length == 0.0f)) {
+            const Lanes divided = {{dir.v[0] / length, dir.v[1] / length, dir.v[2] / length, dir.v[3] / length}};
+            dir = divided;
+        }
+        std::memcpy(tw + 0x110, dir.v, 16);
+        *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(leaf + 8);
+        const Lanes to_end = sub(lanes(tw_row(tw, 0x10)), lanes(origin));
+        const float end_z = to_end.v[2];
+        if (hh >= end_z && end_z >= low) tw[0x13c] = 1;
+        return 0;
+    }
+    const float* delta = tw_row(tw, 0xe0);
+    const float b = delta[1] * dy + delta[0] * dx;
+    if (b >= 0.0f) return 1;
+    const float a = delta[0] * delta[0] + delta[1] * delta[1];
+    const float d = b * b - a * c;
+    if (0.0f > d) return 1;
+    alignas(16) float in[4];
+    alignas(16) float normal[4];
+    dir.v[2] = 0.0f;
+    std::memcpy(in, dir.v, 16);
+    long double x = Vec4Normalize(in, normal);
+    const float eps = title_global<float>(0x0083ec68);  // 0.125
+    const float fraction = *reinterpret_cast<const float*>(tw + 0x120);
+    float nudge, frac;
+    bool hit;
+    // nudge = (float)(len * eps / b); x = (-b - sqrt(d)) / a + nudge on the x87; hit when the current fraction is
+    // above the unrounded x.
+    __asm__ volatile(
+        "fmuls %[eps]\n\t"
+        "fdivs %[b]\n\t"
+        "fstps %[nudge]\n\t"
+        "flds %[b]\n\t"
+        "fchs\n\t"
+        "flds %[d]\n\t"
+        "fsqrt\n\t"
+        ".byte 0xde, 0xe9\n\t"  // fsubp st(1), st (Intel): st1 = st1 - st0
+        "fdivs %[a]\n\t"
+        "fadds %[nudge]\n\t"
+        "fsts %[frac]\n\t"
+        "flds %[fraction]\n\t"
+        "fcomip %%st(1), %%st\n\t"
+        "seta %[hit]"
+        : "+t"(x), [nudge] "+m"(nudge), [frac] "=m"(frac), [hit] "=q"(hit)
+        : [eps] "m"(eps), [b] "m"(b), [d] "m"(d), [a] "m"(a), [fraction] "m"(fraction)
+        : "cc");
+    if (!hit) return 1;
+    const float hh = half_height();
+    const float z = (((frac - nudge) * delta[2]) + *reinterpret_cast<const float*>(tw + 8)) - origin[2];
+    if (z > hh) return 1;
+    if (0.0f - hh > z) return 1;
+    const float stored = frac > 0.0f ? frac : 0.0f;
+    std::memcpy(tw + 0x110, normal, 16);
+    *reinterpret_cast<float*>(tw + 0x120) = stored;
+    *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(leaf + 8);
+    return 0;
+}
+
 }  // namespace game

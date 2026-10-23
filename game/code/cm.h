@@ -192,4 +192,21 @@ extern "C" void CM_TraceCapsuleThroughTempBox_entry(void);
 extern "C" PLATFORM_HIDDEN long double XB_CDECL Vec4Normalize(const float* v, float* out);
 extern "C" void Vec4Normalize_entry(void);
 
+// 0x002d47d0 (start in EAX, sphere origin in ECX, trace work in EDI; end and extra radius on the stack;
+// unnamed in Ghidra): Q3's CM_TraceThroughSphere with radius trace +0x164 + extra. Starting inside: fraction 0,
+// allsolid, the plane normal = start - origin over its rsqrt-Newton length, startsolid when the end is inside
+// too; returns 0. Else, with the trace delta (+0xe0, its squared length at +0xf0): no hit -> 1; a hit stores
+// the normalized normal (Vec4Normalize), the fraction from the x87 quadratic minus the 0.125 nudge (when
+// below the current one; clamped at 0) and the temporary box model's contents; returns 0.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_TraceThroughSphere(const float* start, const float* origin, uint8_t* tw,
+                                                                 const float* end, float extra_radius);
+extern "C" void CM_TraceThroughSphere_entry(void);
+
+// 0x002d44b0 (trace work in EDI; origin, height and extra radius on the stack; unnamed in Ghidra): Q3's
+// CM_TraceThroughVerticalCylinder - the 2D (x, y) version of CM_TraceThroughSphere with the half height
+// (+0x168 - +0x164 + height) checked at the start (inside) or at the hit point (outside).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_TraceThroughVerticalCylinder(uint8_t* tw, const float* origin,
+                                                                           float height, float extra_radius);
+extern "C" void CM_TraceThroughVerticalCylinder_entry(void);
+
 }  // namespace game

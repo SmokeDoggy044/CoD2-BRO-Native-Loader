@@ -1913,6 +1913,8 @@ const Function kFunctions[] = {
     {"Cmd_Init", 0x002d1460, 0, code(&Cmd_Init), 0, Result::None, Status::Compare},
     {"CM_TestCapsuleInTempBox", 0x002d4250, 0, code(&CM_TestCapsuleInTempBox_entry), 0, Result::None, Status::Compare},
     {"CM_TraceCapsuleThroughTempBox", 0x002d4360, 0, code(&CM_TraceCapsuleThroughTempBox_entry), 0, Result::None, Status::Compare},
+    {"CM_TraceThroughVerticalCylinder", 0x002d44b0, 0, code(&CM_TraceThroughVerticalCylinder_entry), 12, Result::Eax, Status::Compare},
+    {"CM_TraceThroughSphere", 0x002d47d0, 0, code(&CM_TraceThroughSphere_entry), 8, Result::Eax, Status::Compare},
     {"CM_TraceThroughBrushes", 0x002d4f10, 0, code(&CM_TraceThroughBrushes_entry), 0, Result::None, Status::Compare},
     {"CM_SphereTouchesTriangle", 0x002d4f80, 0, code(&CM_SphereTouchesTriangle_entry), 8, Result::Al, Status::Compare},
     {"CM_BoxLeafnums", 0x002d5320, 0, code(&CM_BoxLeafnums_entry), 12, Result::Eax, Status::Compare},
