@@ -11435,3 +11435,4 @@ address,name,kind,confidence,evidence
 00085ba0,NAL_QuatReader_DecodeByteFrames,function,high,"NAL quaternion entropy reader: frames as Quat_ToByte3 bytes, game/code/nal_codec.cpp"
 00086010,Quat_ToByte3,function,high,"quaternion (w >= 0) x, y, z * 127 to three bytes, game/code/nal_codec.cpp"
 000860a0,NAL_Packed8Quat_DecodeBlock,function,high,"byte quaternion class 0x007c29c8 slot 7, game/code/nal_codec.cpp"
+00080d60,NAL_EntropyFloat4_InitReaders,function,high,"four entropy readers over byte-length-prefixed streams, game/code/nal_codec.cpp"

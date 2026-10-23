@@ -433,6 +433,50 @@ void XB_CDECL NAL_EntropyTrajPosOri_DecodeChannelBlock(uint8_t* out, uint8_t** s
                                                        const float* block_scale, const float* ranges, uint32_t);
 uint32_t XB_STDCALL NAL_EntropyTrajPosOri_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
                                                       int32_t stride);
+// 0x0007cf20 (slot 7 of the entropy Float1 class: context, &data, &stream, frames, stride): per
+// active channel a stack entropy reader over its byte-length-prefixed stream, DecodeFloats (scale
+// channel * block) into data (+ 4). Returns the group.
+uint32_t XB_STDCALL NAL_EntropyFloat1_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                  int32_t stride);
+// The packed entropy Float3 classes (8 = vtable 0x007c2688, int8; 16 = 0x007c26f0, int16): stream A
+// 12 bytes per channel ({scale, bias, factor}), stream B the block scale. 0x0007ea70 (slot 5, both):
+// NAL_EntropyFloat3_InitReaders per active channel (0x30 apart). Slot 7 (0x0007e480 / 0x0007eed0)
+// calls the channel block (0x0007e550 / 0x0007efa0, cdecl: out, &stream, frames, stride, -, &block
+// scale, ranges, -): each component decoded into the buffer 0x00906820 and stored as
+// (v + bias) * factor clamped to -127..127 / -32767..32767; the channel block keeps its temporaries in
+// its argument slots (asm entry passes the argument block). Slot 9 (0x0007e8a0 / 0x0007f310):
+// NAL_Packed8/16_DequantizeFloat3 or the default. 0x0007f4c0: Packed16 SkipCachedFrame (+ 6).
+uint32_t XB_STDCALL NAL_PackedEntropyFloat3_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t);
+extern "C" void NAL_Packed16EntropyFloat3_DecodeChannelBlock_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed16EntropyFloat3_DecodeChannelBlock(uint32_t* args);
+extern "C" void NAL_Packed8EntropyFloat3_DecodeChannelBlock_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed8EntropyFloat3_DecodeChannelBlock(uint32_t* args);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                          int32_t stride);
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat3_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                         int32_t stride);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                       const uint8_t* defaults, const int32_t* offsets);
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat3_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                      const uint8_t* defaults, const int32_t* offsets);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+// The entropy Float4 classes (stream A 4 bytes per channel; the packed one 0xc): 0x00080d60 (cdecl:
+// readers, &stream, ...): four entropy readers (0x10 apart, null addresses skipped) over the
+// byte-length-prefixed streams; keeps length bytes in its &stream slot (argument block entry);
+// returns &stream. Slot 5 0x0007f9a0 / 0x00080070 (packed) call it per active channel (0x40
+// apart). Slot 7 0x0007fbe0 -> 0x0007fcb0 (cdecl: out, &stream, frames, stride, -, &block scale,
+// ranges, -): four components by DecodeFloats from stack readers (scale block * ranges[0]); data
+// + 0x10. Slot 8 0x0007fe20: NAL_SkipPrefixedStreams4 per active channel, cursor + 0x10.
+extern "C" void NAL_EntropyFloat4_InitReaders_entry(void);
+extern "C" PLATFORM_HIDDEN uint8_t** XB_CDECL NAL_EntropyFloat4_InitReaders(uint32_t* args);
+uint32_t XB_STDCALL NAL_EntropyFloat4_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count);
+uint32_t XB_STDCALL NAL_PackedEntropyFloat4_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream,
+                                                       uint32_t count);
+extern "C" void NAL_EntropyFloat4_DecodeChannelBlock_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_EntropyFloat4_DecodeChannelBlock(uint32_t* args);
+uint32_t XB_STDCALL NAL_EntropyFloat4_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                  int32_t stride);
+uint32_t XB_STDCALL NAL_EntropyFloat4_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
 // 0x000842e0 (slot 5 of the entropy quaternion classes 0x007c2960, 0x007c29c8, 0x007c2a30;
 // stdcall: context, &readers, &stream, frames): per active channel a QuatReader (array aligned
 // to 16, 0x40 apart; null-checked) over its byte-length-prefixed stream, scale = channel scale
