@@ -1228,7 +1228,7 @@ address,name,section,module,state,tested,matched
 000456a0,nglMaterialFindTexture,.text,renderer,settled,127,127
 000456c0,nglMaterialFindTextureOrDefault,.text,renderer,settled,119,119
 000456f0,nglGetSceneFogColor,.text,renderer,settled,350,350
-00045790,nglInitShaders,.text,renderer,inconclusive,34,0
+00045790,nglInitShaders,.text,renderer,inconclusive,38,0
 00045850,R_DrawFogPass,.text,renderer,settled,157,157
 00045ef0,R_AddFogPass,.text,renderer,settled,387,387
 00045f40,nglToggleShaderByName,.text,renderer,untested,0,0
@@ -1252,12 +1252,12 @@ address,name,section,module,state,tested,matched
 00046dd0,cdDebug_GetName,.text,renderer,settled,106,106
 00046df0,nglNode_ViewDepth,.text,renderer,settled,295,295
 00047200,ShaderPCUV_InitMaterial,.text,renderer,settled,176,176
-00047230,ShaderPCUV_Register,.text,renderer,matched,4,4
+00047230,ShaderPCUV_Register,.text,renderer,matched,5,5
 000472a0,ShaderPCUV_Init,.text,renderer,untested,0,0
 000472e0,ShaderPCUV_Draw,.text,renderer,settled,211,211
 000474e0,ShaderPCUV_AddToList,.text,renderer,settled,101,101
 00047590,nglSetDecalZBias,.text,renderer,settled,2291,273
-00047650,ShaderPCUV_GetName,.text,renderer,matched,13,13
+00047650,ShaderPCUV_GetName,.text,renderer,matched,15,15
 00047670,nglMaterial_LoadTextureRef,.text,renderer,untested,0,0
 000476b0,nglSetTextureAnimFrame,.text,renderer,settled,383,383
 000479b0,cdGunSight_AddToList,.text,renderer,settled,149,149
@@ -1322,7 +1322,7 @@ address,name,section,module,state,tested,matched
 0004b110,cdPropellerVertexIter_Clone,.text,renderer,untested,0,0
 0004b400,cdDecal_Toggle,.text,renderer,untested,0,0
 0004b420,cdDecal_AddToList,.text,renderer,settled,186,186
-0004b4a0,cdDecal_Register,.text,renderer,matched,35,35
+0004b4a0,cdDecal_Register,.text,renderer,matched,39,39
 0004b520,cdDecal_Init,.text,renderer,untested,0,0
 0004b560,cdDecal_Draw,.text,renderer,settled,559,559
 0004b880,cdDecal_GetName,.text,renderer,settled,100,100
@@ -1330,7 +1330,7 @@ address,name,section,module,state,tested,matched
 0004b8d0,cdDecalVertexIter_Clone,.text,renderer,untested,0,0
 0004bba0,cdChar_Toggle,.text,renderer,untested,0,0
 0004bbc0,cdChar_AddToList,.text,renderer,settled,228,228
-0004bc40,cdChar_Register,.text,renderer,matched,26,26
+0004bc40,cdChar_Register,.text,renderer,matched,30,30
 0004bcc0,cdChar_Init,.text,renderer,untested,0,0
 0004bd00,cdChar_Draw,.text,renderer,settled,877,877
 0004bfa0,cdChar_GetName,.text,renderer,settled,125,125
@@ -1338,7 +1338,7 @@ address,name,section,module,state,tested,matched
 0004c010,cdCharVertexIter_Clone,.text,renderer,untested,0,0
 0004c2e0,cdPrelit_Toggle,.text,renderer,untested,0,0
 0004c300,cdPrelit_AddToList,.text,renderer,settled,128,128
-0004c380,cdPrelit_Register,.text,renderer,matched,23,23
+0004c380,cdPrelit_Register,.text,renderer,matched,27,27
 0004c410,cdPrelit_Init,.text,renderer,untested,0,0
 0004c450,cdPrelit_Draw,.text,renderer,settled,385,385
 0004c6c0,cdPrelit_GetName,.text,renderer,settled,110,110
@@ -1348,7 +1348,7 @@ address,name,section,module,state,tested,matched
 0004c780,cdPrelitVertexIter_Clone,.text,renderer,untested,0,0
 0004ca50,cdAirplaneMetal_Toggle,.text,renderer,untested,0,0
 0004ca70,cdAirplaneMetal_AddToList,.text,renderer,settled,131,131
-0004caf0,cdAirplaneMetal_Register,.text,renderer,matched,5,5
+0004caf0,cdAirplaneMetal_Register,.text,renderer,matched,9,9
 0004cb70,cdAirplaneMetal_Init,.text,renderer,untested,0,0
 0004cbf0,cdAirplaneMetal_Draw,.text,renderer,settled,188,188
 0004d090,cdAirplaneMetal_GetName,.text,renderer,settled,105,105
@@ -1642,7 +1642,7 @@ address,name,section,module,state,tested,matched
 00064660,nglResetDeviceBindings,.text,renderer,settled,165,101
 00064690,nglBeginFrame,.text,renderer,named,0,0
 00064780,nglDrawFpsCounter,.text,renderer,named,0,0
-000649e0,nglSelectVideoMode,.text,renderer,untested,0,0
+000649e0,nglSelectVideoMode,.text,renderer,inconclusive,1,0
 00064bc0,nglInit,.text,renderer,named,0,0
 00064ec0,nglEndFrame,.text,renderer,named,0,0
 00065380,nglVideoMode_Init,.text,renderer,settled,102,102
@@ -1745,7 +1745,7 @@ address,name,section,module,state,tested,matched
 0006e860,nglDepthToZValue,.text,renderer,settled,4462,4462
 0006e920,nglDebugMeshVertexIter_Clone,.text,renderer,untested,0,0
 0006e9c0,nglInitFrameBuffers,.text,renderer,inconclusive,1,0
-0006eca0,nglReadBackBufferSize,.text,renderer,inconclusive,48,0
+0006eca0,nglReadBackBufferSize,.text,renderer,inconclusive,52,0
 0006ece0,nglFreeTexture,.text,renderer,settled,498,105
 0006eea0,nglCreateTexture,.text,renderer,settled,444,100
 0006f080,nglCreateNormalCubeMap,.text,renderer,named,0,0
@@ -1779,7 +1779,7 @@ address,name,section,module,state,tested,matched
 00073ce0,nglMatrixTargetScale,.text,renderer,settled,213,213
 00073e90,nglGetSceneTargetScale,.text,renderer,settled,287,287
 00073ed0,nglBeginSceneRender,.text,renderer,settled,301,301
-00074330,nglRenderSceneTree,.text,renderer,mismatched,499630,313720
+00074330,nglRenderSceneTree,.text,renderer,mismatched,501589,315136
 000744f0,std_PushHeap_OpaqueNodes,.text,renderer,untested,0,0
 00074540,std_Rotate_NodeKeys,.text,renderer,settled,4669,4669
 00074600,std_PushHeap_TranslucentNodes,.text,renderer,untested,0,0
@@ -1800,7 +1800,7 @@ address,name,section,module,state,tested,matched
 00075280,nglSortOpaqueNodes_r,.text,renderer,settled,402,402
 00075370,nglSortTranslucentNodes_r,.text,renderer,settled,371,371
 00075460,nglRenderOpaqueList,.text,renderer,settled,444,345
-000754f0,nglRenderTranslucentList,.text,renderer,mismatched,209396,141513
+000754f0,nglRenderTranslucentList,.text,renderer,mismatched,210300,142329
 00075780,nglSetDefaultRenderStates,.text,renderer,settled,344,344
 00075ac0,nglSetBlendMode,.text,renderer,settled,580,580
 00075d90,nglRestoreRenderStates,.text,renderer,untested,0,0
@@ -1817,10 +1817,10 @@ address,name,section,module,state,tested,matched
 000765c0,nglSetObjectLightConstants,.text,renderer,settled,343,343
 00076620,nglSetSkinningConstants,.text,renderer,settled,359,359
 000776f0,nglSetTransformConstants,.text,renderer,settled,2121,2121
-000778b0,nglSetFrameMemorySize,.text,renderer,matched,92,92
+000778b0,nglSetFrameMemorySize,.text,renderer,settled,102,102
 00077b30,nglAllocFrameScratch,.text,renderer,settled,400,400
 00077b50,nglAllocFrameMemory,.text,renderer,named,0,0
-00078500,nglInitMultisample,.text,renderer,inconclusive,33,0
+00078500,nglInitMultisample,.text,renderer,inconclusive,37,0
 00078790,nglSetVertexStreams,.text,renderer,settled,4025,4025
 00078810,nglSetRenderTargetCached,.text,renderer,settled,13061,6382
 00078890,nglDrawMeshSection,.text,renderer,settled,3755,3755
@@ -1862,7 +1862,7 @@ address,name,section,module,state,tested,matched
 0007bd40,NAL_GenericAnim_DeletingDtor,.text,renderer,untested,0,0
 0007be10,WaitTilOutputInst1_str_VFunc2,.text,renderer,untested,0,0
 0007bed0,AnimManager_SkipListRemove,.text,renderer,untested,0,0
-0007bff0,NalManager_SkipListRemoveKey8,.text,renderer,matched,57,57
+0007bff0,NalManager_SkipListRemoveKey8,.text,renderer,matched,61,61
 0007c260,NAL_RleReader_ReadBytes,.text,renderer,untested,0,0
 0007c2b0,NAL_SignalCounter_DecodeBlock,.text,renderer,untested,0,0
 0007c570,NAL_SignalCounter_SkipStatic,.text,renderer,untested,0,0
@@ -2007,7 +2007,7 @@ address,name,section,module,state,tested,matched
 00087bb0,NAL_AnimState_InitFrom,.text,unassigned,settled,400,400
 00087cb0,NAL_Skeleton_BoneTransform,.text,unassigned,untested,0,0
 00087dd0,NAL_AnimTrack_Construct,.text,unassigned,settled,3462,3462
-000881c0,NAL_AnimTrack_Sample,.text,unassigned,mismatched,172153,9014
+000881c0,NAL_AnimTrack_Sample,.text,unassigned,mismatched,175236,9160
 000886f0,NAL_GenericAnim_EvaluatePose,.text,unassigned,settled,393,393
 0008af60,NAL_GenericAnim_ExtractState,.text,unassigned,untested,0,0
 0008b480,NAL_AnimTrack_DeletingDtor,.text,unassigned,named,0,0
@@ -2047,7 +2047,7 @@ address,name,section,module,state,tested,matched
 0008e560,NAL_StreamedAnim_RequestNext,.text,unassigned,settled,228,220
 0008e630,NAL_StreamedAnim_Update,.text,unassigned,settled,203,183
 0008ed30,NAL_InitRegisteredTypes,.text,unassigned,settled,105,105
-0008ed50,NAL_AnimPlayer_Dtor,.text,unassigned,matched,95,95
+0008ed50,NAL_AnimPlayer_Dtor,.text,unassigned,matched,99,99
 0008eda0,NAL_AnimPlayer_AddBinding,.text,unassigned,settled,126,126
 0008ee40,NAL_ClipSetPlayer_Create,.text,unassigned,untested,0,0
 0008ee80,NAL_ClipSetPlayer_Update,.text,unassigned,untested,0,0
@@ -2457,7 +2457,7 @@ address,name,section,module,state,tested,matched
 000b0a00,FUN_000b0a00,.text,unassigned,unnamed,0,0
 000b0f70,FUN_000b0f70,.text,unassigned,unnamed,0,0
 000b1500,FUN_000b1500,.text,unassigned,unnamed,0,0
-000b15c0,FUN_000b15c0,.text,unassigned,unnamed,0,0
+000b15c0,FUN_000b15c0,.text,unassigned,settled,399,399
 000b16b0,FUN_000b16b0,.text,unassigned,unnamed,0,0
 000b1b40,FUN_000b1b40,.text,unassigned,unnamed,0,0
 000b25d0,FUN_000b25d0,.text,unassigned,unnamed,0,0
@@ -7518,7 +7518,7 @@ address,name,section,module,state,tested,matched
 001fa5b0,Sentient_HasGoalYaw,.text,game,settled,126,126
 001fa680,Actor_ForgetEnemyLastKnownTime,.text,game,untested,0,0
 001fa6e0,Actor_GetBoundaryPlanes,.text,game,settled,174,174
-001fa7c0,Actor_HasPendingSentientSlot,.text,game,matched,1,1
+001fa7c0,Actor_HasPendingSentientSlot,.text,game,matched,2,2
 001fa7f0,Actor_ClearSentientSlots,.text,game,settled,170,170
 001fa860,Actor_ExpirePathPlanes,.text,game,settled,166,166
 001fa950,Actor_FindSentientSlot,.text,game,settled,100,100
@@ -7627,7 +7627,7 @@ address,name,section,module,state,tested,matched
 00200a00,Sentient_SetGoalNode,.text,game,named,0,0
 00200ad0,FUN_00200ad0,.text,unassigned,unnamed,0,0
 00200b50,Sentient_Dissociate,.text,game,named,0,0
-00200c70,Actor_Pain_Start,.text,game,matched,66,66
+00200c70,Actor_Pain_Start,.text,game,matched,70,70
 00200cd0,Actor_Noncombat_NodeClaimRevoked,.text,game,named,0,0
 00200d90,Actor_Noncombat_Finish,.text,game,settled,123,123
 00200db0,Actor_Noncombat_Start,.text,game,settled,121,121
@@ -7967,7 +7967,7 @@ address,name,section,module,state,tested,matched
 00225a40,FUN_00225a40,.text,unassigned,unnamed,0,0
 00225a90,FUN_00225a90,.text,unassigned,unnamed,0,0
 00225ae0,Phys_RemoveEntity,.text,unassigned,named,0,0
-00225b30,G_KillEntityOutright,.text,game,matched,74,74
+00225b30,G_KillEntityOutright,.text,game,matched,77,77
 00225bc0,FUN_00225bc0,.text,unassigned,unnamed,0,0
 00225c80,FUN_00225c80,.text,unassigned,unnamed,0,0
 00225db0,FUN_00225db0,.text,unassigned,unnamed,0,0
@@ -8135,7 +8135,7 @@ address,name,section,module,state,tested,matched
 0023d5a0,FX_PlayEffectWithAxis,.text,renderer,settled,109,109
 0023d690,R_LinkEntityToCells_r,.text,renderer,settled,107,107
 0023d7b0,FUN_0023d7b0,.text,unassigned,unnamed,0,0
-0023d8a0,R_Init,.text,renderer,matched,68,68
+0023d8a0,R_Init,.text,renderer,matched,72,72
 0023d8f0,R_AddEntityToCells_r,.text,renderer,settled,342,342
 0023da30,FUN_0023da30,.text,unassigned,unnamed,0,0
 0023db60,XModel_CalcBoneChildren,.text,renderer,untested,0,0
@@ -8190,7 +8190,7 @@ address,name,section,module,state,tested,matched
 00246d60,R_AddEntitySurfaces,.text,renderer,settled,204,204
 00246fa0,R_AddWorldSurfaces,.text,renderer,settled,313,313
 00247190,FX_PlayBoltedEffect,.text,renderer,settled,189,189
-00247350,R_RenderView,.text,renderer,mismatched,47558,14250
+00247350,R_RenderView,.text,renderer,mismatched,47720,14326
 002476b0,RE_RenderScene,.text,renderer,settled,539,535
 00247980,GetRefAPI,.text,unassigned,named,0,0
 00247ad0,FUN_00247ad0,.text,unassigned,unnamed,0,0
@@ -8410,7 +8410,7 @@ address,name,section,module,state,tested,matched
 002594e0,SP_trigger_friendlychain,.text,game,named,0,0
 00259530,SP_trigger_multiple,.text,game,named,0,0
 00259990,FUN_00259990,.text,unassigned,unnamed,0,0
-00259d60,Vehicle_InitBrushModels,.text,game,matched,40,40
+00259d60,Vehicle_InitBrushModels,.text,game,matched,42,42
 00259df0,FUN_00259df0,.text,unassigned,unnamed,0,0
 0025a400,Vehicle_ApplyPush,.text,game,settled,116,116
 0025a600,Vehicle_InitRecord,.text,game,named,0,0
@@ -8497,8 +8497,8 @@ address,name,section,module,state,tested,matched
 00265900,FUN_00265900,.text,unassigned,unnamed,0,0
 00265a40,FUN_00265a40,.text,unassigned,unnamed,0,0
 00265c10,Weapon_MeleeTrace,.text,game,named,0,0
-00266390,Vehicle_Die,.text,game,matched,19,19
-00266470,Vehicle_Use,.text,game,matched,66,66
+00266390,Vehicle_Die,.text,game,matched,20,20
+00266470,Vehicle_Use,.text,game,matched,69,69
 002664a0,FUN_002664a0,.text,unassigned,unnamed,0,0
 00266650,Vehicle_UpdateEngineSound,.text,game,named,0,0
 00266b30,Vehicle_UpdateOverheat,.text,game,named,0,0
@@ -8865,7 +8865,7 @@ address,name,section,module,state,tested,matched
 0028eaa0,FUN_0028eaa0,.text,unassigned,unnamed,0,0
 0028eb90,ZoneManagers_Destruct,.text,unassigned,named,0,0
 0028ec30,ResourceManager_Construct,.text,unassigned,named,0,0
-0028ee00,Stream_LoadStb,.text,unassigned,inconclusive,787,0
+0028ee00,Stream_LoadStb,.text,unassigned,inconclusive,798,0
 0028ee20,Stream_LoadDb,.text,unassigned,settled,115,115
 0028ee50,Stream_LoadIb,.text,unassigned,settled,101,101
 0028ee80,Stream_LoadBmips,.text,unassigned,settled,100,100
@@ -8947,7 +8947,7 @@ address,name,section,module,state,tested,matched
 00293450,FUN_00293450,.text,unassigned,unnamed,0,0
 00293720,SCR_RedrawFrontBuffer,.text,client,named,0,0
 002937a0,Com_ModifyMsec,.text,qcommon,settled,198,198
-002938a0,Com_ParseCommandLine,.text,qcommon,matched,10,10
+002938a0,Com_ParseCommandLine,.text,qcommon,matched,14,14
 002938f0,__break,.text,unassigned,library,0,0
 002939d0,FUN_002939d0,.text,unassigned,unnamed,0,0
 00293ab0,FUN_00293ab0,.text,unassigned,unnamed,0,0
@@ -8996,7 +8996,7 @@ address,name,section,module,state,tested,matched
 00297770,VectorNormalize,.text,unassigned,named,0,0
 00297800,Vec2Distance,.text,unassigned,named,0,0
 00297840,FUN_00297840,.text,unassigned,unnamed,0,0
-00297950,FS_FreePackList,.text,qcommon,matched,22,22
+00297950,FS_FreePackList,.text,qcommon,matched,26,26
 00297990,FS_FreeSearchPaths,.text,qcommon,named,0,0
 002979f0,FS_FreeFileList,.text,qcommon,untested,0,0
 00297a30,FS_FreeFile,.text,qcommon,untested,0,0
@@ -9007,7 +9007,7 @@ address,name,section,module,state,tested,matched
 00297d10,FS_FilenameCompare,.text,qcommon,untested,0,0
 00297d70,FS_FCloseFile,.text,qcommon,named,0,0
 00297df0,FS_CopyFile,.text,qcommon,named,0,0
-00297ef0,FS_BuildOSPath,.text,qcommon,matched,24,24
+00297ef0,FS_BuildOSPath,.text,qcommon,matched,28,28
 00298000,FS_filelength,.text,qcommon,named,0,0
 002980f0,FUN_002980f0,.text,unassigned,unnamed,0,0
 00298170,FUN_00298170,.text,unassigned,unnamed,0,0
@@ -9029,8 +9029,8 @@ address,name,section,module,state,tested,matched
 00299280,ZoneAliasList_NextVariant,.text,unassigned,settled,137,137
 00299310,ParamSet_TestCondition,.text,unassigned,untested,0,0
 002994f0,ParamSet_CompareValue,.text,unassigned,settled,217,217
-002995f0,Cvar_InfoString_Big,.text,qcommon,matched,65,65
-00299630,Cvar_InfoString,.text,qcommon,matched,43,43
+002995f0,Cvar_InfoString_Big,.text,qcommon,matched,73,73
+00299630,Cvar_InfoString,.text,qcommon,matched,47,47
 00299670,Cvar_Shutdown,.text,qcommon,untested,0,0
 00299710,Cvar_FindVar,.text,qcommon,settled,384,384
 00299800,Com_PushEvent,.text,qcommon,untested,0,0
@@ -9057,7 +9057,7 @@ address,name,section,module,state,tested,matched
 0029af30,FxComponent_GetEntityOrigin,.text,unassigned,settled,130,130
 0029b010,FUN_0029b010,.text,unassigned,unnamed,0,0
 0029b0b0,FUN_0029b0b0,.text,unassigned,unnamed,0,0
-0029b0f0,FxComponent_GetPosition,.text,unassigned,matched,54,54
+0029b0f0,FxComponent_GetPosition,.text,unassigned,matched,56,56
 0029b1f0,ShakeRumble_Start,.text,unassigned,settled,112,112
 0029b320,ParamChoiceList_PickPerGroup,.text,unassigned,settled,207,207
 0029b620,FX_FreeEffectsById,.text,renderer,settled,120,120
@@ -9094,7 +9094,7 @@ address,name,section,module,state,tested,matched
 0029e6e0,Cvar_Set,.text,qcommon,untested,0,0
 0029e700,CG_ShellShock_ParseParams,.text,cgame,named,0,0
 0029e8d0,FUN_0029e8d0,.text,unassigned,unnamed,0,0
-0029e930,Com_StartupVariable,.text,qcommon,matched,38,38
+0029e930,Com_StartupVariable,.text,qcommon,matched,45,45
 0029ea20,FUN_0029ea20,.text,unassigned,unnamed,0,0
 0029ea50,FUN_0029ea50,.text,unassigned,unnamed,0,0
 0029ea80,FS_ListFilteredFiles,.text,qcommon,named,0,0
@@ -9107,7 +9107,7 @@ address,name,section,module,state,tested,matched
 0029fcc0,Cvar_Reset_f,.text,qcommon,untested,0,0
 0029fce0,Cvar_SetA_f,.text,qcommon,untested,0,0
 0029fd20,Cvar_SetS_f,.text,qcommon,untested,0,0
-0029fd60,Cvar_SetCheatState,.text,qcommon,matched,65,65
+0029fd60,Cvar_SetCheatState,.text,qcommon,matched,73,73
 0029fdd0,Cvar_SetValue,.text,qcommon,matched,3,3
 0029fe40,Cvar_SetByVmIndex,.text,qcommon,settled,102,102
 0029fe70,Com_InitJournaling,.text,qcommon,named,0,0
@@ -9123,7 +9123,7 @@ address,name,section,module,state,tested,matched
 002a1fb0,FS_ListFiles,.text,qcommon,untested,0,0
 002a1fd0,FS_ReadFile,.text,qcommon,named,0,0
 002a22d0,FxShakeRumble_GetFalloff,.text,unassigned,settled,100,100
-002a23b0,Cvar_Init,.text,qcommon,matched,26,26
+002a23b0,Cvar_Init,.text,qcommon,matched,30,30
 002a2510,Com_RunAndTimeServerPacket,.text,qcommon,named,0,0
 002a26a0,MatrixToAngles,.text,unassigned,named,0,0
 002a27f0,AxisToAngles,.text,unassigned,named,0,0
@@ -9199,7 +9199,7 @@ address,name,section,module,state,tested,matched
 002a9240,Info_RemoveKey,.text,qcommon,settled,121,121
 002a93d0,va,.text,qcommon,settled,188,188
 002a9460,Com_sprintf,.text,qcommon,settled,100,100
-002a9540,Q_strlwr,.text,qcommon,matched,42,42
+002a9540,Q_strlwr,.text,qcommon,matched,46,46
 002a9570,Q_strncmp,.text,qcommon,named,0,0
 002a9610,FUN_002a9610,.text,unassigned,unnamed,0,0
 002a96b0,FloatNoSwap,.text,unassigned,named,0,0
@@ -9211,7 +9211,7 @@ address,name,section,module,state,tested,matched
 002a97b0,ShortNoSwap,.text,unassigned,named,0,0
 002a97c0,ShortSwap,.text,unassigned,named,0,0
 002a9890,Com_BitCheck,.text,qcommon,untested,0,0
-002a98b0,COM_DefaultExtension,.text,qcommon,matched,69,69
+002a98b0,COM_DefaultExtension,.text,qcommon,matched,79,79
 002a9a60,FUN_002a9a60,.text,unassigned,untested,0,0
 002a9b30,SkipWhitespace,.text,unassigned,untested,0,0
 002a9be0,FUN_002a9be0,.text,unassigned,unnamed,0,0
@@ -9286,7 +9286,7 @@ address,name,section,module,state,tested,matched
 002ad5e0,FUN_002ad5e0,.text,unassigned,unnamed,0,0
 002ad680,FUN_002ad680,.text,unassigned,unnamed,0,0
 002ad6d0,FUN_002ad6d0,.text,unassigned,unnamed,0,0
-002ad700,BG_AddPredictableEventToPlayerstate,.text,game,matched,93,93
+002ad700,BG_AddPredictableEventToPlayerstate,.text,game,matched,97,97
 002ad770,FUN_002ad770,.text,unassigned,unnamed,0,0
 002ad810,FUN_002ad810,.text,unassigned,unnamed,0,0
 002ad9d0,FUN_002ad9d0,.text,unassigned,unnamed,0,0
@@ -9325,10 +9325,10 @@ address,name,section,module,state,tested,matched
 002afc00,FUN_002afc00,.text,unassigned,unnamed,0,0
 002afdb0,Info_SetValueForKey_Big,.text,qcommon,settled,101,101
 002aff40,Info_SetValueForKey,.text,qcommon,settled,119,119
-002b0050,Q_stricmpn2,.text,qcommon,matched,37,37
+002b0050,Q_stricmpn2,.text,qcommon,matched,41,41
 002b00a0,Q_strcat,.text,qcommon,untested,0,0
 002b00f0,Q_stricmp,.text,qcommon,untested,0,0
-002b0140,Swap_Init,.text,qcommon,matched,48,48
+002b0140,Swap_Init,.text,qcommon,matched,60,60
 002b0250,COM_ParseExt,.text,qcommon,untested,0,0
 002b0600,FUN_002b0600,.text,unassigned,unnamed,0,0
 002b0670,PathNode_Next,.text,unassigned,named,0,0
@@ -9354,7 +9354,7 @@ address,name,section,module,state,tested,matched
 002b1ca0,Sys_Milliseconds,.text,qcommon,named,0,0
 002b1dc0,Cmd_RemoveCommand,.text,qcommon,settled,107,107
 002b1e50,Cmd_ArgsBuffer,.text,qcommon,untested,0,0
-002b1eb0,Cmd_ExecuteRegisteredCommand,.text,qcommon,inconclusive,30,0
+002b1eb0,Cmd_ExecuteRegisteredCommand,.text,qcommon,inconclusive,34,0
 002b1f70,FUN_002b1f70,.text,unassigned,unnamed,0,0
 002b2200,CM_FloodAreaConnections,.text,collision,untested,0,0
 002b2260,FUN_002b2260,.text,unassigned,unnamed,0,0
@@ -9498,7 +9498,7 @@ address,name,section,module,state,tested,matched
 002ba050,FUN_002ba050,.text,unassigned,unnamed,0,0
 002ba0d0,FUN_002ba0d0,.text,unassigned,unnamed,0,0
 002ba1c0,Sentient_ClaimNodeTimed,.text,game,settled,100,100
-002ba2a0,Sentient_ClearNodeClaim,.text,game,matched,12,12
+002ba2a0,Sentient_ClearNodeClaim,.text,game,matched,13,13
 002ba360,Sentient_ClaimNodeIndefinitely,.text,game,settled,104,104
 002ba530,NET_OutOfBandPrint,.text,qcommon,named,0,0
 002ba5c0,Cmd_AddCommand,.text,qcommon,settled,106,106
@@ -9556,7 +9556,7 @@ address,name,section,module,state,tested,matched
 002be7c0,FUN_002be7c0,.text,unassigned,unnamed,0,0
 002be860,FUN_002be860,.text,unassigned,unnamed,0,0
 002be8f0,G_ProcessCodNotes,.text,game,named,0,0
-002beb60,AnimTree_CalcPose_r,.text,unassigned,mismatched,433883,6428
+002beb60,AnimTree_CalcPose_r,.text,unassigned,mismatched,442381,6600
 002bf7d0,FUN_002bf7d0,.text,unassigned,unnamed,0,0
 002bfaa0,AnimTree_NotifyNotetrack,.text,unassigned,named,0,0
 002bfad0,AnimTree_FreeInfo,.text,unassigned,named,0,0
@@ -9584,7 +9584,7 @@ address,name,section,module,state,tested,matched
 002c0f60,FUN_002c0f60,.text,unassigned,unnamed,0,0
 002c1060,CM_PointLeafnum_r,.text,collision,settled,400,400
 002c10e0,FUN_002c10e0,.text,unassigned,unnamed,0,0
-002c1ae0,CM_LoadMap,.text,collision,matched,8,8
+002c1ae0,CM_LoadMap,.text,collision,matched,12,12
 002c1b80,CL_ResetLocalConnection,.text,client,named,0,0
 002c1c20,Key_Bind_f,.text,client,named,0,0
 002c1d60,Key_Unbindall_f,.text,client,named,0,0
@@ -9599,7 +9599,7 @@ address,name,section,module,state,tested,matched
 002c25e0,FUN_002c25e0,.text,unassigned,unnamed,0,0
 002c2690,FUN_002c2690,.text,unassigned,unnamed,0,0
 002c28f0,FUN_002c28f0,.text,unassigned,unnamed,0,0
-002c2aa0,BG_InitDefaultWeapon,.text,game,matched,77,77
+002c2aa0,BG_InitDefaultWeapon,.text,game,matched,81,81
 002c2b40,FUN_002c2b40,.text,unassigned,unnamed,0,0
 002c2c80,FUN_002c2c80,.text,unassigned,unnamed,0,0
 002c2e80,FUN_002c2e80,.text,unassigned,unnamed,0,0
@@ -9727,7 +9727,7 @@ address,name,section,module,state,tested,matched
 002cd750,G_SaveCheckpoint,.text,game,named,0,0
 002cdbc0,G_ClearCheckpoint,.text,game,named,0,0
 002cdca0,Checkpoint_Init,.text,unassigned,named,0,0
-002cde20,CG_SelectWeapon,.text,cgame,matched,61,61
+002cde20,CG_SelectWeapon,.text,cgame,matched,64,64
 002cdf00,BG_InitWeapons,.text,game,named,0,0
 002cdff0,FUN_002cdff0,.text,unassigned,unnamed,0,0
 002ce160,FUN_002ce160,.text,unassigned,unnamed,0,0
@@ -9757,7 +9757,7 @@ address,name,section,module,state,tested,matched
 002d0d40,Stream_LoadCg,.text,unassigned,named,0,0
 002d0d60,FUN_002d0d60,.text,unassigned,unnamed,0,0
 002d0db0,PathNode_AdjustBadPlaceArc,.text,unassigned,named,0,0
-002d1460,Cmd_Init,.text,qcommon,matched,8,8
+002d1460,Cmd_Init,.text,qcommon,matched,12,12
 002d14b0,FUN_002d14b0,.text,unassigned,unnamed,0,0
 002d1980,FUN_002d1980,.text,unassigned,unnamed,0,0
 002d1ce0,FUN_002d1ce0,.text,unassigned,unnamed,0,0
@@ -9843,7 +9843,7 @@ address,name,section,module,state,tested,matched
 002de420,FUN_002de420,.text,unassigned,unnamed,0,0
 002df3e0,G_GetTagParentMatrix,.text,game,named,0,0
 002df740,G_EntLinkTo,.text,game,named,0,0
-002df880,DObj_UpdateSkeletons,.text,renderer,mismatched,830209,691742
+002df880,DObj_UpdateSkeletons,.text,renderer,mismatched,845499,704396
 002e01a0,SV_PointContents,.text,server,named,0,0
 002e02c0,FUN_002e02c0,.text,unassigned,unnamed,0,0
 002e03a0,FUN_002e03a0,.text,unassigned,unnamed,0,0
@@ -10035,7 +10035,7 @@ address,name,section,module,state,tested,matched
 002f5420,ScrIface_Alloc,.text,unassigned,named,0,0
 002f5440,ScrIface_Free,.text,unassigned,named,0,0
 002f5470,ScrIface_HashStringNoCase,.text,unassigned,named,0,0
-002f54c0,G_FindLevelScriptModule,.text,game,matched,80,80
+002f54c0,G_FindLevelScriptModule,.text,game,matched,84,84
 002f5660,FUN_002f5660,.text,unassigned,unnamed,0,0
 002f5690,FUN_002f5690,.text,unassigned,unnamed,0,0
 002f5790,G_FindAnimTreeByName,.text,game,settled,108,108

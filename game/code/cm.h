@@ -65,4 +65,20 @@ void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load);
 uint8_t XB_REGS3 XB_CDECL CM_BrushPointTest(uint32_t unused_eax, uint32_t unused_edx, const uint8_t* brush,
                                             const float* point);
 
+// 0x000b15c0 (tree in ECX; point, out center, out half size on the stack, callee-popped; unnamed in
+// Ghidra): descends a 2D quad tree - +0x4 child indexes (shorts; > 0 = node, children at index +0..3 by
+// x >= / y >= the cell center), +0xc leaf base, +0x10 root center (16 bytes), +0x20 root half size. Each
+// step halves the size (packed, every lane) and moves the center by +-half with the sign of point - center.
+// Returns the leaf record (base - child * 8).
+const uint8_t* XB_THISCALL CM_QuadTreeFindLeaf(const uint8_t* tree, const float* point, float* center,
+                                               float* half_size);
+
+// 0x002cc480 (point in EAX, model in ECX): the contents at a point - with a model, every brush (count +0,
+// 0x40-byte brushes at +4) CM_BrushPointTest accepts; without, each world quad tree (count at +0xc of the
+// record at 0x0095f4fc, trees from +0x10) whose bounds (+0x40 mins, +0x50 maxs) hold the point: the leaf's
+// objects (index < +0x30: 0x50-byte records at +0x34, else 0x40-byte brushes at +0x3c), of which those whose
+// vtable slot 8 returns 9 count when the point is inside their bounds and not in front of a side
+// (dot > dist). The packed point is {x, y, z, x} for the world, {x, y, z, never set} for models.
+uint32_t XB_REGS3 XB_CDECL CM_PointContents(const float* point, uint32_t unused, const uint32_t* model);
+
 }  // namespace game

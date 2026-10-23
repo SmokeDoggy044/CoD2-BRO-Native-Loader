@@ -943,6 +943,7 @@ const Function kFunctions[] = {
     {"nglQuadBatch_Draw", 0x0009d240, 0, code(&nglQuadBatch_Draw), 0, Result::None, Status::Compare},
     {"nglQuadBatch_SetMaterial", 0x0009d5b0, 0, code(&nglQuadBatch_SetMaterial), 16, Result::None, Status::Compare},
     {"apsPool_HasRoom", 0x0009f220, 0, code(&apsPool_HasRoom), 4, Result::Eax, Status::Compare},
+    {"CM_QuadTreeFindLeaf", 0x000b15c0, 0, code(&CM_QuadTreeFindLeaf), 12, Result::Eax, Status::Compare},
     {"SndVoice_GetCount", 0x000c8450, 0, code(&SndVoice_GetCount), 0, Result::Eax, Status::Compare},
     {"SndVoice_Get", 0x000c8470, 0, code(&SndVoice_Get), 4, Result::Eax, Status::Compare},
     {"Scr_FloatToInt", 0x0011a750, 0, code(&Scr_FloatToInt), 4, Result::Eax, Status::Compare},

@@ -11495,3 +11495,4 @@ address,name,kind,confidence,evidence
 000665d0,nglResourceManager_ForEachPass,function,medium,"slot in six NGL manager vtables: iterator from slot 5, per pass walks objects through slot 8 (object, pass, arg), restarts on results <= 0"
 000442a0,Str_EqualN,function,high,"(a, len, b, b_len): b_len >= 0 must equal len, then len bytes compared; nglToggleShaderByName matches shader class names with it"
 002cb420,CM_BrushPointTest,function,medium,"CM_PointContents callee: point vs brush bounds (center/half) and side planes, AL result"
+000b15c0,CM_QuadTreeFindLeaf,function,medium,"CM_PointContents callee: 2D quad tree descent (center/half size), returns base - child*8"

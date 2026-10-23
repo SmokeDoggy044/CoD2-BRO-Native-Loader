@@ -297,4 +297,100 @@ uint8_t XB_REGS3 XB_CDECL CM_BrushPointTest(uint32_t, uint32_t, const uint8_t* b
     return 1;
 }
 
+const uint8_t* XB_THISCALL CM_QuadTreeFindLeaf(const uint8_t* tree, const float* point, float* center,
+                                               float* half_size) {
+    std::memcpy(center, tree + 0x10, 16);
+    const float root = *reinterpret_cast<const float*>(tree + 0x20);
+    const float half = title_global<float>(0x0083eb24);  // 0.5
+    Lanes size = {{root, root, root, root}};
+    const int16_t* children = *reinterpret_cast<const int16_t* const*>(tree + 4);
+    int32_t index = 0;
+    if (children[0] > 0) {
+        do {
+            const bool below_x = point[0] < center[0];  // COMISS + JB: NaN counts as below
+            index = children[index];
+            size = mul(size, {{half, half, half, half}});
+            if (!below_x) index += 2;
+            if (!(point[1] < center[1])) index += 1;
+            const Lanes c = lanes(center);
+            const Lanes d = sub(lanes(point), c);
+            Lanes step;
+            for (int32_t i = 0; i < 4; ++i) {
+                uint32_t bits, size_bits;
+                std::memcpy(&bits, &d.v[i], 4);
+                std::memcpy(&size_bits, &size.v[i], 4);
+                bits = (bits & 0x80000000u) ^ size_bits;
+                std::memcpy(&step.v[i], &bits, 4);
+            }
+            const Lanes moved = add(c, step);
+            std::memcpy(center, moved.v, 16);
+            children = *reinterpret_cast<const int16_t* const*>(tree + 4);
+        } while (children[index] > 0);
+    }
+    *half_size = size.v[0];
+    return *reinterpret_cast<const uint8_t* const*>(tree + 0xc) - children[index] * 8;
+}
+
+namespace {
+
+// MAXPS(a, b) < 0 (CMPLTPS) on every lane; true when lanes 0-2 are all negative.
+bool inside_xyz(const Lanes& a, const Lanes& b) {
+    int32_t mask = 0;
+    for (int32_t i = 0; i < 4; ++i) {
+        const float m = a.v[i] > b.v[i] ? a.v[i] : b.v[i];
+        if (m < 0.0f && i < 3) mask |= 1 << i;
+    }
+    return mask == 7;
+}
+
+}  // namespace
+
+uint32_t XB_REGS3 XB_CDECL CM_PointContents(const float* point, uint32_t, const uint32_t* model) {
+    uint32_t contents = 0;
+    if (model) {
+        alignas(16) float p[4] = {point[0], point[1], point[2], 0.0f};  // w: never-set stack (0 in tests)
+        const int32_t count = static_cast<int32_t>(model[0]);
+        if (count <= 0) return 0;
+        const uint8_t* brush = reinterpret_cast<const uint8_t*>(uintptr_t{model[1]});
+        for (int32_t i = count; i; --i, brush += 0x40)
+            if (CM_BrushPointTest(0, 0, brush, p)) contents |= *reinterpret_cast<const uint32_t*>(brush + 8);
+        return contents;
+    }
+    alignas(16) float p[4] = {point[0], point[1], point[2], point[0]};
+    const Lanes pl = lanes(p);
+    const uint8_t* world = title_global<const uint8_t*>(0x0095f4fc);
+    for (int32_t k = 0; k < *reinterpret_cast<const int32_t*>(world + 0xc); ++k) {
+        const uint8_t* tree = *reinterpret_cast<const uint8_t* const*>(world + 0x10 + k * 4);
+        if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(tree + 0x40)), pl),
+                        sub(pl, lanes(reinterpret_cast<const float*>(tree + 0x50)))))
+            continue;
+        alignas(16) float center[4];
+        float half;
+        const uint8_t* leaf = CM_QuadTreeFindLeaf(tree, p, center, &half);
+        const int32_t n = *reinterpret_cast<const int32_t*>(leaf);
+        for (int32_t j = 0; j < n; ++j) {
+            const uint32_t index = (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[j];
+            const uint32_t split = *reinterpret_cast<const uint32_t*>(tree + 0x30);
+            uint8_t* object = index < split
+                                  ? *reinterpret_cast<uint8_t* const*>(tree + 0x34) + index * 0x50
+                                  : *reinterpret_cast<uint8_t* const*>(tree + 0x3c) + (index - split) * 0x40;
+            const uint32_t slot = *reinterpret_cast<const uint32_t*>(*reinterpret_cast<uint8_t* const*>(object) + 0x20);
+            if (title_function<int32_t XB_THISCALL(uint8_t*)>(slot)(object) != 9) continue;
+            const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+            const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+            if (!inside_xyz(sub(sub(c, h), pl), sub(pl, add(c, h)))) continue;
+            const int32_t sides = *reinterpret_cast<const int32_t*>(object + 0x30);
+            const float* side = *reinterpret_cast<const float* const*>(object + 0x34);
+            int32_t i = 0;
+            for (; i < sides; ++i, side += 4) {
+                const Lanes product = mul(pl, lanes(side));
+                platform_keep(product);
+                if ((product.v[0] + product.v[1]) + product.v[2] > side[3]) break;
+            }
+            if (i == sides) contents |= *reinterpret_cast<const uint32_t*>(object + 8);
+        }
+    }
+    return contents;
+}
+
 }  // namespace game
