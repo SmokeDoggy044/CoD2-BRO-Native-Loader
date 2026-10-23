@@ -2160,4 +2160,153 @@ uint32_t XB_REGS3 XB_CDECL CM_TransformedSightTrace(const float* origin, uint32_
                                                  block);
 }
 
+namespace {
+
+// MAXPS(center - maxs, mins - center) < half on x, y and z (CMPLTPS on every lane).
+bool box_overlaps_object(const float* mins, const float* maxs, const uint8_t* object) {
+    const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+    const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+    const Lanes below = sub(lanes(mins), c);
+    const Lanes above = sub(c, lanes(maxs));
+    int32_t inside = 0;
+    for (int32_t a = 0; a < 4; ++a) {
+        const float m = above.v[a] > below.v[a] ? above.v[a] : below.v[a];
+        if (m < h.v[a]) inside |= 1 << a;
+    }
+    return (inside & 7) == 7;
+}
+
+// The bounds of a mesh triangle (vertex indexes in +0x3c flags, rows +0x34) against mins..maxs.
+bool box_overlaps_triangle(const float* mins, const float* maxs, const uint8_t* mesh, uint32_t triangle) {
+    const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(mesh + 0x34);
+    const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(mesh + 0x3c))[triangle];
+    const Lanes v0 = lanes(reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16));
+    const Lanes v1 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16));
+    const Lanes v2 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16));
+    const Lanes tmax = max_lanes(v0, max_lanes(v1, v2));
+    const Lanes tmin = min_lanes(v0, min_lanes(v1, v2));
+    return inside_xyz(sub(tmin, lanes(maxs)), sub(lanes(mins), tmax));
+}
+
+// Appends to a candidate list (count at +count_offset, at most 0x200, pointer just before it); the slot address
+// is tested, not the pointer.
+uint32_t* candidate_slot(uint8_t* list, uint32_t count_offset, uint32_t entry_size) {
+    int32_t& count = *reinterpret_cast<int32_t*>(list + count_offset);
+    if (count >= 0x200) return nullptr;
+    const uint32_t slot = *reinterpret_cast<const uint32_t*>(list + count_offset - 4) + static_cast<uint32_t>(count) * entry_size;
+    ++count;
+    return reinterpret_cast<uint32_t*>(uintptr_t{slot});
+}
+
+}  // namespace
+
+void XB_CDECL CM_GatherQuadTreeCandidates_r(uint8_t* tree, uint32_t tree_index, const int16_t* child, const float* center,
+                                            float half, const float* mins, const float* maxs, uint8_t* triangles,
+                                            uint8_t* brushes) {
+    if (*child <= 0) {
+        int32_t& checkcount = cm_field<int32_t>(0x60);
+        const uint8_t* leaf = *reinterpret_cast<uint8_t* const*>(tree + 0xc) - *child * 8;
+        const int32_t n = *reinterpret_cast<const int32_t*>(leaf);
+        for (int32_t i = 0; i < n; ++i) {
+            uint8_t* object = leaf_object(tree, (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[i]);
+            int32_t& mark = *reinterpret_cast<int32_t*>(object + 0xc);
+            if (mark == checkcount) continue;
+            mark = checkcount;
+            if (!box_overlaps_object(mins, maxs, object)) continue;
+            if (object_type(object) == 9) {
+                if (uint32_t* slot = candidate_slot(brushes, 0x804, 4)) slot[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object));
+                continue;
+            }
+            uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+            stack[0] = 0;
+            stack[2] = 0;
+            stack[1] = *reinterpret_cast<const uint16_t*>(object + 0x40);
+            title_global<uint16_t>(0x0090a620) = 3;
+            for (uint16_t node = CM_BoxTreeStack_Next(object, mins, maxs); node != 0xffff;
+                 node = CM_BoxTreeStack_Next(object, mins, maxs)) {
+                if (!box_overlaps_triangle(mins, maxs, object, node)) continue;
+                if (uint32_t* slot = candidate_slot(triangles, 0x1004, 8)) {
+                    slot[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object));
+                    slot[1] = node;
+                }
+            }
+        }
+        return;
+    }
+    const float child_half = half * title_global<float>(0x0083eb24);  // 0.5
+    const Lanes h = splat(half);
+    const Lanes c = lanes(center);
+    for (int32_t q = 0; q < 4; ++q) {
+        const Lanes cell_min = add(c, mul(lanes(reinterpret_cast<const float*>(uintptr_t{0x00963870}) + q * 4), h));
+        const Lanes cell_max = add(c, mul(lanes(reinterpret_cast<const float*>(uintptr_t{0x00960120}) + q * 4), h));
+        const Lanes below = sub(lanes(mins), cell_max);
+        const Lanes above = sub(cell_min, lanes(maxs));
+        int32_t inside = 0;
+        for (int32_t a = 0; a < 4; ++a) {
+            const float m = above.v[a] > below.v[a] ? above.v[a] : below.v[a];  // MAXPS(above, below)
+            if (m < 0.0f) inside |= 1 << a;
+        }
+        if ((inside & 3) != 3) continue;  // x and y only
+        alignas(16) float child_center[4];
+        quadtree_child_center(child_center, c, q, splat(child_half));
+        const int16_t* children = *reinterpret_cast<const int16_t* const*>(tree + 4);
+        CM_GatherQuadTreeCandidates_r(tree, tree_index, children + *child + q, child_center, child_half, mins, maxs,
+                                      triangles, brushes);
+    }
+}
+
+PLATFORM_ASM_ENTRY(CM_GatherBoxCandidates_entry,
+                   "pushl %edi\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n" PLATFORM_ASM_CALL(CM_GatherBoxCandidates) "addl $16, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL CM_GatherBoxCandidates(const float* mins, uint8_t* triangles, uint8_t* brushes, const float* maxs) {
+    uint32_t result = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(clip_map()));  // EAX when there are no trees
+    *reinterpret_cast<int32_t*>(triangles + 0x1004) = 0;
+    *reinterpret_cast<int32_t*>(brushes + 0x804) = 0;
+    ++cm_field<int32_t>(0x60);  // checkcount
+    for (int32_t k = 0; k < *reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0095f4fc) + 0xc); ++k) {
+        uint8_t* tree = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f4fc) + 0x10 + k * 4);
+        if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(tree + 0x40)), lanes(maxs)),
+                        sub(lanes(mins), lanes(reinterpret_cast<const float*>(tree + 0x50)))))
+            continue;
+        CM_GatherQuadTreeCandidates_r(tree, static_cast<uint32_t>(k), *reinterpret_cast<const int16_t* const*>(tree + 4),
+                                      reinterpret_cast<const float*>(tree + 0x10), *reinterpret_cast<const float*>(tree + 0x20),
+                                      mins, maxs, triangles, brushes);
+    }
+    if (*reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0095f4fc) + 0xc) > 0)
+        result = *reinterpret_cast<const uint32_t*>(title_global<const uint8_t*>(0x0095f4fc) + 0xc);
+    return result;
+}
+
+int32_t XB_REGS3 XB_CDECL CM_FilterBoxCandidates(uint8_t* out_brushes, uint32_t, const uint8_t* in_brushes, const float* mins,
+                                                 const float* maxs, uint32_t contents, const uint8_t* in_triangles,
+                                                 uint8_t* out_triangles) {
+    *reinterpret_cast<int32_t*>(out_triangles + 0x1004) = 0;
+    *reinterpret_cast<int32_t*>(out_brushes + 0x804) = 0;
+    const int32_t n = *reinterpret_cast<const int32_t*>(in_brushes + 0x804);
+    for (int32_t i = 0; i < n; ++i) {
+        const uint8_t* brush = (*reinterpret_cast<uint8_t* const* const*>(in_brushes + 0x800))[i];
+        if (!(*reinterpret_cast<const uint32_t*>(brush + 8) & contents)) continue;
+        if (!box_overlaps_object(mins, maxs, brush)) continue;
+        if (uint32_t* slot = candidate_slot(out_brushes, 0x804, 4))
+            slot[0] = (*reinterpret_cast<const uint32_t* const*>(in_brushes + 0x800))[i];
+    }
+    const int32_t m = *reinterpret_cast<const int32_t*>(in_triangles + 0x1004);
+    for (int32_t j = 0; j < m; ++j) {
+        const uint32_t* entry = *reinterpret_cast<const uint32_t* const*>(in_triangles + 0x1000) + j * 2;
+        const uint8_t* mesh = reinterpret_cast<const uint8_t*>(uintptr_t{entry[0]});
+        if (!(contents & *reinterpret_cast<const uint32_t*>(mesh + 8))) continue;
+        if (!box_overlaps_object(mins, maxs, mesh)) continue;
+        if (!box_overlaps_triangle(mins, maxs, mesh, entry[1])) continue;
+        if (uint32_t* slot = candidate_slot(out_triangles, 0x1004, 8)) {
+            slot[0] = entry[0];
+            slot[1] = entry[1];
+        }
+    }
+    return m;
+}
+
 }  // namespace game

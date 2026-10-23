@@ -304,4 +304,27 @@ uint32_t XB_REGS3 XB_CDECL CM_TransformedSightTrace(const float* origin, uint32_
                                                     const float* maxs, const uint32_t* model, uint32_t brushmask,
                                                     const float* angles, uint32_t capsule_flag);
 
+
+// Candidate lists (CM_GatherBoxCandidates / CM_FilterBoxCandidates): brushes {pointer +0x800, count +0x804} of 4-byte
+// entries, triangles {pointer +0x1000, count +0x1004} of {mesh, triangle} pairs; at most 0x200 each (the count
+// still grows when the slot address is 0).
+// 0x002c6840 (unnamed in Ghidra): the quad tree walk for a box: a leaf's objects (checkcount-marked before the
+// test, no content mask) whose bounds meet the box - brushes (type 9) appended, meshes' triangles (box-tree walk,
+// triangle bounds) appended; a node recurses into each quadrant whose cell (center + tables 0x00963870 /
+// 0x00960120 * half) meets the box in x and y, with the child center (table 0x0095ff30 * half / 2).
+void XB_CDECL CM_GatherQuadTreeCandidates_r(uint8_t* tree, uint32_t tree_index, const int16_t* child, const float* center,
+                                            float half, const float* mins, const float* maxs, uint8_t* triangles,
+                                            uint8_t* brushes);
+// 0x002cb0f0 (maxs in EDI; mins, triangle list, brush list on the stack): clears both lists, bumps checkcount and
+// walks each world quad tree whose bounds meet the box. EAX = the tree count (the clip map without trees).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CM_GatherBoxCandidates(const float* mins, uint8_t* triangles,
+                                                                    uint8_t* brushes, const float* maxs);
+extern "C" void CM_GatherBoxCandidates_entry(void);
+// 0x002c6630 (output brush list in EAX, input brush list in ECX; mins, maxs, content mask, input and output
+// triangle lists on the stack): the gathered candidates in the content mask whose bounds (and, for triangles,
+// the triangle's bounds) meet the box. Returns the input triangle count.
+int32_t XB_REGS3 XB_CDECL CM_FilterBoxCandidates(uint8_t* out_brushes, uint32_t unused, const uint8_t* in_brushes,
+                                                 const float* mins, const float* maxs, uint32_t contents,
+                                                 const uint8_t* in_triangles, uint8_t* out_triangles);
+
 }  // namespace game

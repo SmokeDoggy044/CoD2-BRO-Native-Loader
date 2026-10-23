@@ -11669,3 +11669,4 @@ address,name,kind,confidence,evidence
 002e04e0,CM_TraceThroughWorldTrees,function,medium,"box/capsule sweep through the world quad trees: brushes (capsule/box trace), then mesh triangles with CM_ClipSphereSweepToTriangle; AL = mesh hit"
 002e4980,CM_TraceThroughWorld,function,medium,"CM_BoxTrace world sweep: checkcount, box/capsule -> CM_TraceThroughWorldTrees, ray -> CM_TraceRayThroughWorldTrees + fraction from plane distances"
 002e6dc0,CM_TransformedSightTrace,function,medium,"sight-trace twin of CM_TransformedBoxTrace: centered box, local start/end, capsule block, then the title sight trace 0x002e4c00"
+002c6840,CM_GatherQuadTreeCandidates_r,function,medium,"quad tree walk for a box: leaf brushes and mesh triangles (box-tree walk) appended to the candidate lists; nodes recurse per overlapping quadrant"
