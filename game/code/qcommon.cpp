@@ -139,4 +139,798 @@ const float* XB_REGS3 XB_CDECL MatrixMultiply43To44(const float* a, float* out, 
     return a;
 }
 
+int32_t XB_CDECL Q_stricmpn(const char* s1, const char* s2, int32_t n) {
+    int32_t c1, c2;
+    do {
+        c1 = *s1++;
+        c2 = *s2++;
+        if (!n--) return 0;
+        if (c1 != c2) {
+            if (c1 >= 'A' && c1 <= 'Z') c1 += 0x20;
+            if (c2 >= 'A' && c2 <= 'Z') c2 += 0x20;
+            if (c1 != c2) return c1 - c2;
+        }
+    } while (c1);
+    return 0;
+}
+
+int32_t XB_REGS3 XB_CDECL Q_stricmp(const char* s2, uint32_t, const char* s1) {
+    if (!s1 || !s2) return -1;
+    return Q_stricmpn(s1, s2, 99999);
+}
+
+int32_t XB_REGS3 XB_CDECL Q_stricmpn2(int32_t n, const char* s1, const char* s2) {
+    int32_t c1, c2;
+    do {
+        c1 = *s1++;
+        c2 = *s2++;
+        if (!n--) return 0;
+        if (c1 != c2) {
+            if (c1 >= 'a' && c1 <= 'z') c1 -= 0x20;
+            if (c2 >= 'a' && c2 <= 'z') c2 -= 0x20;
+            if (c1 != c2) return -1;
+        }
+    } while (c1);
+    return 0;
+}
+
+namespace {
+
+template <typename T>
+T* title_pointer(uint32_t address) {
+    return reinterpret_cast<T*>(uintptr_t{address});
+}
+
+using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
+using Break = void XB_CDECL(uint32_t, const char*);
+using Vsnprintf = int32_t XB_CDECL(char*, uint32_t, const char*, const uint32_t*);
+constexpr uint32_t kStrncpy = 0x001eed80;
+constexpr uint32_t kBreak = 0x002938f0;
+constexpr uint32_t kVsnprintf = 0x001efce2;
+
+// The title CRT's __CIfmod (0x0033acda): x in ST1, y in ST0, fmod(x, y) left in ST0.
+long double title_ci_fmod(long double x, long double y) {
+    long double result;
+    __asm__ volatile("call *%3"
+                     : "=t"(result)
+                     : "0"(y), "u"(x), "r"(uintptr_t{0x0033acda})
+                     : "st(1)", "eax", "ecx", "edx", "memory");
+    return result;
+}
+
+}  // namespace
+
+char* XB_REGS2 XB_CDECL Q_strcat(int32_t size, char* dest, const char* src) {
+    const int32_t length = static_cast<int32_t>(std::strlen(dest));
+    if (length >= size)
+        title_function<Break>(kBreak)(0, title_pointer<const char>(0x0083385c));  // "Q_strcat: already overflowed"
+    char* end = dest + length;
+    const int32_t left = size - length;
+    char* result = title_function<Strncpy>(kStrncpy)(end, src, static_cast<uint32_t>(left - 1));
+    end[left - 1] = 0;
+    return result;
+}
+
+PLATFORM_ASM_ENTRY(Q_strlwr_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Q_strlwr) "addl $4, %esp\n"
+                   "ret")
+
+char* XB_CDECL Q_strlwr(char* text) {
+    for (char* p = text; *p; ++p)
+        *p = static_cast<char>(title_function<int32_t XB_CDECL(int32_t)>(0x001eed48)(*p));  // tolower
+    return text;
+}
+
+char* XB_REGS2 XB_CDECL COM_SkipPath(uint32_t, const char* path) {
+    const char* last = path;
+    for (const char* p = path; *p; ++p)
+        if (*p == '/' || *p == '\\') last = p + 1;
+    char* out = title_pointer<char>(0x0098b1a0);
+    char* dst = out;
+    while ((*dst++ = *last++) != 0) {
+    }
+    return out;
+}
+
+const char* XB_REGS2 XB_CDECL COM_GetExtension(uint32_t, const char* name) {
+    const char* empty = title_pointer<const char>(0x0082dfeb);
+    const char* extension = empty;
+    for (const char* p = name; *p; ++p) {
+        if (*p == '.')
+            extension = p + 1;
+        else if (*p == '/' || *p == '\\')
+            extension = empty;
+    }
+    return extension;
+}
+
+void XB_REGS1 XB_CDECL COM_DefaultExtension(char* path, int32_t max_size, const char* extension) {
+    const char* p = path + std::strlen(path) - 1;
+    char c = *p;
+    if (c != '/') {
+        for (;;) {
+            if (p == path) break;
+            if (c == '.') return;
+            c = *--p;
+            if (c == '/') break;
+        }
+    }
+    char old_path[0x80];
+    title_function<Strncpy>(kStrncpy)(old_path, path, 0x7f);
+    old_path[0x7f] = 0;
+    const uint32_t args[3] = {0x0082d800, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(old_path)),  // "%s%s"
+                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(extension))};
+    Com_sprintf(path, max_size, args);
+}
+
+PLATFORM_ASM_ENTRY(va_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(va) "addl $4, %esp\n"
+                   "ret")
+
+char* XB_CDECL va(const uint32_t* args) {
+    char* staging = title_pointer<char>(0x0092f148);
+    const int32_t length = title_function<Vsnprintf>(kVsnprintf)(
+        staging, 0x400, reinterpret_cast<const char*>(uintptr_t{args[0]}), args + 1);
+    staging[0x3ff] = 0;
+    if (length < 0 || length >= 0x400)
+        title_function<Break>(kBreak)(1, title_pointer<const char>(0x00833830));  // "Attempted to overrun string in call to va()"
+    int32_t& index = title_global<int32_t>(0x0098ad2c);
+    int32_t start = index;
+    if (start + length >= 0x3ff) start = 0;
+    char* out = title_pointer<char>(0x00927f60) + start;
+    std::memmove(out, staging, static_cast<uint32_t>(length + 1));
+    index = start + length + 1;
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(Com_sprintf_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Com_sprintf) "addl $12, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL Com_sprintf(char* dest, int32_t size, const uint32_t* args) {
+    const int32_t result = title_function<Vsnprintf>(kVsnprintf)(
+        dest, static_cast<uint32_t>(size), reinterpret_cast<const char*>(uintptr_t{args[0]}), args + 1);
+    dest[size - 1] = 0;
+    return result;
+}
+
+int32_t XB_REGS2 XB_CDECL Com_BitCheck(uint32_t, int32_t bit, const uint32_t* array) {
+    return (array[bit >> 5] & (1u << (bit & 31))) ? 1 : 0;
+}
+
+const char* XB_CDECL Cmd_Argv(uint32_t arg) {
+    if (arg >= title_global<uint32_t>(0x00934248)) return title_pointer<const char>(0x0082dfeb);
+    return title_global<const char*>(0x0092df90 + arg * 4);
+}
+
+int32_t XB_CDECL Cmd_Argc() { return title_global<int32_t>(0x00934248); }
+
+char* XB_REGS1 XB_CDECL Cmd_ArgsFrom(int32_t first) {
+    char* out = title_pointer<char>(0x00927b30);
+    const int32_t& argc = title_global<int32_t>(0x00934248);
+    out[0] = 0;
+    const int32_t last = argc - 1;
+    for (int32_t i = first; i < argc; ++i) {
+        const char* arg = title_global<const char*>(0x0092df90 + i * 4);
+        std::memcpy(out + std::strlen(out), arg, std::strlen(arg) + 1);  // strcat
+        if (i != last) std::memcpy(out + std::strlen(out), title_pointer<const char>(0x0082d6e4), 2);  // " "
+    }
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(Cmd_ArgsBuffer_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Cmd_ArgsBuffer) "addl $8, %esp\n"
+                   "ret")
+
+char* XB_CDECL Cmd_ArgsBuffer(char* buffer, int32_t size) {
+    char* result = title_function<Strncpy>(kStrncpy)(buffer, Cmd_ArgsFrom(1), static_cast<uint32_t>(size - 1));
+    buffer[size - 1] = 0;
+    return result;
+}
+
+PLATFORM_ASM_ENTRY(Q_fmod_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n" PLATFORM_ASM_CALL(Q_fmod) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $8, %esp\n"
+                   "ret")
+
+float XB_CDECL Q_fmod(float a, float b) {
+    const long double difference = static_cast<long double>(a) - b;
+    float delta = static_cast<float>(title_ci_fmod(difference, title_global<double>(0x0083ed40)));  // 360.0
+    const float full = title_global<float>(0x0083ebcc);                                           // 360
+    if (platform_x87_greater(delta, title_global<float>(0x0083eb60))) delta = delta - full;       // 180
+    if (title_global<float>(0x0083ebd0) > delta) delta = delta + full;                            // -180
+    return delta;
+}
+
+uint32_t XB_CDECL Com_Memset32(uint32_t* dest, uint32_t value, uint32_t count) {
+    for (int32_t i = static_cast<int32_t>(count & ~7u) - 8; i >= 0; i -= 8)
+        for (int32_t j = 0; j < 8; ++j) dest[i + j] = value;
+    uint32_t rest = count & 7;
+    uint32_t* p = dest + (count & ~7u);
+    if (rest >= 4) {
+        p[0] = p[1] = p[2] = p[3] = value;
+        p += 4;
+        rest -= 4;
+    }
+    if (rest >= 2) {
+        p[0] = p[1] = value;
+        p += 2;
+        rest -= 2;
+    }
+    if (rest >= 1) p[0] = value;
+    return value;
+}
+
+uint32_t XB_CDECL Com_Memset(uint8_t* dest, uint32_t fill, uint32_t count) {
+    if (count < 8) {
+        const uint32_t pattern = (fill & 0xff) * 0x01010101u;
+        uint32_t rest = count;
+        if (static_cast<int32_t>(rest) >= 4) {
+            std::memcpy(dest, &pattern, 4);
+            dest += 4;
+            rest -= 4;
+        }
+        if (static_cast<int32_t>(rest) >= 2) {
+            std::memcpy(dest, &pattern, 2);
+            dest += 2;
+            rest -= 2;
+        }
+        if (rest) *dest = static_cast<uint8_t>(pattern);
+        return pattern;
+    }
+    uint32_t pattern = (fill << 8) | fill;
+    pattern |= pattern << 16;
+    Com_Memset32(reinterpret_cast<uint32_t*>(dest), pattern, count >> 2);
+    const uint32_t rest = count & 3;
+    if (!rest) return count;
+    uint8_t* tail = dest + (count & ~3u);
+    if (rest >= 2) {
+        std::memcpy(tail, &pattern, 2);
+        if (rest != 2) tail[2] = static_cast<uint8_t>(pattern);
+    } else {
+        tail[0] = static_cast<uint8_t>(pattern);
+    }
+    return pattern;
+}
+
+PLATFORM_ASM_ENTRY(Cvar_Update_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Cvar_Update) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Cvar_Update(uint8_t* vm_cvar) {
+    uint32_t& handle = *reinterpret_cast<uint32_t*>(vm_cvar);
+    if (handle >= title_global<uint32_t>(0x009476f8))  // cvar_numIndexes
+        title_function<Break>(kBreak)(1, title_pointer<const char>(0x00837ad8));  // "Cvar_Update: handle out of range"
+    uint8_t* cv = title_pointer<uint8_t>(0x00940a10 + handle * 0x2c);  // cvar_indexes
+    const int32_t modified = *reinterpret_cast<int32_t*>(cv + 0x18);
+    if (modified == *reinterpret_cast<int32_t*>(vm_cvar + 4)) return;
+    const char* string = *reinterpret_cast<const char**>(cv + 4);
+    if (!string) return;
+    *reinterpret_cast<int32_t*>(vm_cvar + 4) = modified;
+    if (std::strlen(string) + 1 > 0x80)
+        title_function<void XB_CDECL(uint32_t, const char*, const char*, uint32_t, uint32_t)>(kBreak)(
+            1, title_pointer<const char>(0x00837a98), string, static_cast<uint32_t>(std::strlen(string)), 0x80);
+    char* dst = reinterpret_cast<char*>(vm_cvar + 0x10);
+    title_function<Strncpy>(kStrncpy)(dst, *reinterpret_cast<const char**>(cv + 4), 0x7f);
+    dst[0x7f] = 0;
+    std::memcpy(vm_cvar + 8, cv + 0x1c, 4);
+    std::memcpy(vm_cvar + 0xc, cv + 0x20, 4);
+}
+
+void XB_CDECL Com_BeginParseSession(const char* name) {
+    int32_t& depth = title_global<int32_t>(0x00927f54);
+    if (depth == 0xf)
+        title_function<Break>(kBreak)(0, title_pointer<const char>(0x008338f0));  // "Com_BeginParseSession: session overflow"
+    ++depth;
+    uint8_t* info = title_pointer<uint8_t>(0x008d3ae0 + depth * 0x11c);
+    title_global<uint8_t*>(0x008d4ca0) = info;
+    *reinterpret_cast<uint32_t*>(info + 0x80) = 1;
+    *reinterpret_cast<uint32_t*>(info + 0x84) = 0;
+    *reinterpret_cast<uint32_t*>(info + 0x88) = 1;
+    *reinterpret_cast<uint32_t*>(info + 0x8c) = 0;
+    char* dst = reinterpret_cast<char*>(info + 0x9c);
+    title_function<Strncpy>(kStrncpy)(dst, name, 0x7f);
+    dst[0x7f] = 0;
+}
+
+void XB_REGS1 XB_CDECL Com_ParseCommandLine(char* command_line) {
+    char** lines = title_pointer<char*>(0x0093fcf8);  // com_consoleLines
+    int32_t& count = title_global<int32_t>(0x009403e0);  // com_numConsoleLines
+    lines[0] = command_line;
+    int32_t n = 1;
+    count = 1;
+    if (!*command_line) return;
+    for (char* p = command_line; *p; ++p) {
+        if (*p == '+' || *p == '\n') {
+            if (n == 0x20) break;
+            lines[n++] = p + 1;
+            *p = 0;
+        }
+    }
+    count = n;
+}
+
+namespace {
+
+int32_t& msg_word(uint8_t* msg, uint32_t offset) { return *reinterpret_cast<int32_t*>(msg + offset); }
+uint8_t* msg_data(uint8_t* msg) { return *reinterpret_cast<uint8_t**>(msg + 4); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(MSG_ReadString_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(MSG_ReadString) "addl $4, %esp\n"
+                   "ret")
+
+const char* XB_CDECL MSG_ReadString(uint8_t* msg) {
+    char* out = title_pointer<char>(0x0098b4c8);
+    const char* src = reinterpret_cast<const char*>(msg_data(msg) + msg_word(msg, 0x10));
+    const int32_t length = static_cast<int32_t>(std::strlen(src));
+    if (length >= 0x100 || msg_word(msg, 0x10) + length >= msg_word(msg, 0xc)) {
+        out[0] = 0;
+        return out;
+    }
+    std::memcpy(out, src, static_cast<uint32_t>(length) + 1);
+    msg_word(msg, 0x10) += static_cast<int32_t>(std::strlen(out)) + 1;
+    return out;
+}
+
+namespace {
+
+// The four bytes at the read position (readcount advances by 4); false when that passes cursize.
+bool msg_read4(uint8_t* msg, uint8_t* bytes) {
+    for (int32_t i = 0; i < 4; ++i) bytes[i] = msg_data(msg)[msg_word(msg, 0x10)++];
+    return msg_word(msg, 0x10) <= msg_word(msg, 0xc);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(MSG_ReadFloat_entry,
+                   "pushl %eax\n" PLATFORM_ASM_CALL(MSG_ReadFloat) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL MSG_ReadFloat(uint8_t* msg) {
+    uint8_t bytes[4];
+    float value;
+    if (!msg_read4(msg, bytes)) return title_global<float>(0x0083eb34);  // -1
+    std::memcpy(&value, bytes, 4);
+    return value;
+}
+
+int32_t XB_REGS1 XB_CDECL MSG_ReadLong(uint8_t* msg) {
+    uint8_t bytes[4];
+    int32_t value;
+    if (!msg_read4(msg, bytes)) return -1;
+    std::memcpy(&value, bytes, 4);
+    return value;
+}
+
+void XB_REGS1 XB_CDECL MSG_WriteLong(uint8_t* msg, int32_t value) {
+    const uint32_t v = static_cast<uint32_t>(value);
+    for (int32_t i = 0; i < 4; ++i) msg_data(msg)[msg_word(msg, 0xc)++] = static_cast<uint8_t>(v >> (i * 8));
+}
+
+namespace {
+
+// repz cmpsb's sign: 0, or -1/1 by the first differing byte (unsigned).
+int32_t compare_bytes(const uint8_t* a, const uint8_t* b, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i)
+        if (a[i] != b[i]) return a[i] < b[i] ? -1 : 1;
+    return 0;
+}
+
+}  // namespace
+
+int32_t XB_REGS2 XB_CDECL NET_CompareAdr(const uint8_t* a, const uint8_t* b) {
+    int32_t type_a, type_b;
+    std::memcpy(&type_a, a, 4);
+    std::memcpy(&type_b, b, 4);
+    if (type_a != type_b) return type_a - type_b;
+    if (type_a == 2) return 0;
+    if (type_a != 4 && type_a != 5) return 0;
+    uint16_t port_a, port_b;
+    std::memcpy(&port_a, a + 0x12, 2);
+    std::memcpy(&port_b, b + 0x12, 2);
+    if (port_a != port_b) return static_cast<int32_t>(port_a) - static_cast<int32_t>(port_b);
+    return type_a == 4 ? compare_bytes(a + 4, b + 4, 4) : compare_bytes(a + 8, b + 8, 10);
+}
+
+PLATFORM_ASM_ENTRY(NET_GetLoopPacket_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(NET_GetLoopPacket) "addl $12, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL NET_GetLoopPacket(int32_t sock, uint8_t* msg, uint32_t* from) {
+    uint8_t* loop = title_pointer<uint8_t>(0x00928590 + sock * 0x93c);  // loopbacks
+    int32_t& get = msg_word(loop, 0x934);
+    const int32_t send = msg_word(loop, 0x938);
+    if (send - get > 1) get = send - 1;
+    if (get >= send) return 0;
+    ++get;
+    const int32_t length = msg_word(loop, 0x930);
+    std::memcpy(msg_data(msg), loop, static_cast<uint32_t>(length));
+    msg_word(msg, 0xc) = msg_word(loop, 0x930);
+    for (int32_t i = 0; i < 5; ++i) from[i] = 0;
+    from[0] = 2;  // NA_LOOPBACK
+    return 1;
+}
+
+int32_t XB_REGS3 XB_CDECL FS_ReturnPath(uint32_t, uint32_t, const char* name, char* path, int32_t* depth) {
+    int32_t new_depth = 0;
+    int32_t length = 0;
+    int32_t at = 0;
+    path[0] = 0;
+    for (; name[at]; ++at) {
+        if (name[at] == '/' || name[at] == '\\') {
+            length = at;
+            ++new_depth;
+        }
+    }
+    std::memcpy(path, name, std::strlen(name) + 1);
+    path[length] = 0;
+    if (length + 1 == at) --new_depth;
+    *depth = new_depth;
+    return length;
+}
+
+PLATFORM_ASM_ENTRY(FS_CreatePath_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FS_CreatePath) "addl $4, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL FS_CreatePath(char* path) {
+    using Strstr = char* XB_CDECL(const char*, const char*);
+    if (title_function<Strstr>(0x001efb10)(path, title_pointer<const char>(0x008380a4))) return 1;  // ".."
+    if (title_function<Strstr>(0x001efb10)(path, title_pointer<const char>(0x008380a0))) return 1;  // "::"
+    for (char* p = path + 1; *p; ++p)
+        if (*p == '\\') *p = '\\';
+    return 0;
+}
+
+int32_t XB_REGS1 XB_CDECL FS_HandleForFile(uint32_t flag) {
+    const int32_t first = flag ? 3 : 1;
+    const int32_t count = flag ? 0 : 2;
+    for (int32_t i = 0; i < count; ++i)
+        if (!title_global<uint32_t>(0x009477a0 + (first + i) * 0x120)) return first + i;  // fsh[].handleFiles.file
+    title_function<Break>(kBreak)(1, title_pointer<const char>(0x008380d4));  // "FS_HandleForFile: none free"
+    return -1;
+}
+
+int32_t XB_REGS2 XB_CDECL FS_FilenameCompare(const char* s1, const char* s2) {
+    int32_t c1, c2;
+    do {
+        c2 = *s2++;
+        c1 = *s1++;
+        if (c2 >= 'a' && c2 <= 'z') c2 -= 0x20;
+        if (c1 >= 'a' && c1 <= 'z') c1 -= 0x20;
+        if (c2 == '\\' || c2 == ':') c2 = '/';
+        if (c1 == '\\' || c1 == ':') c1 = '/';
+        if (c2 != c1) return -1;
+    } while (c2);
+    return 0;
+}
+
+uint32_t XB_REGS1 XB_CDECL FS_HashFileName(const char* name, int32_t hash_size) {
+    int32_t hash = 0;
+    for (int32_t i = 0; name[i]; ++i) {
+        int32_t letter = title_function<int32_t XB_CDECL(int32_t)>(0x001eed48)(name[i]);  // tolower
+        if (letter == '.') break;
+        if (letter == '\\') letter = '/';
+        hash += letter * (i + 119);
+    }
+    return static_cast<uint32_t>((((hash >> 10) ^ hash) >> 10) ^ hash) & static_cast<uint32_t>(hash_size - 1);
+}
+
+void XB_REGS1 XB_CDECL Cmd_TokenizeString(const char* text, uint32_t max_tokens) {
+    int32_t& argc = title_global<int32_t>(0x00934248);
+    const char** argv = title_pointer<const char*>(0x0092df90);
+    char* out = title_pointer<char>(0x0092e9e8);  // cmd_tokenized
+    argc = 0;
+    if (!text) return;
+    for (;;) {
+        if (--max_tokens == 0) {
+            // The last allowed token: the rest of the line as it is.
+            if (!*text) return;
+            argv[argc++] = out;
+            while (*text) *out++ = *text++;
+            *out = 0;
+            return;
+        }
+        for (;;) {
+            if (!*text) return;
+            while (*text <= ' ') {
+                if (!*++text) return;
+            }
+            if (text[0] == '/' && text[1] == '/') return;
+            if (text[0] == '/' && text[1] == '*') {
+                while (!(text[0] == '*' && text[1] == '/')) {
+                    if (!*++text) return;
+                }
+                text += 2;
+                continue;
+            }
+            break;
+        }
+        argv[argc++] = out;
+        if (*text == '"') {
+            ++text;
+            while (*text && *text != '"') *out++ = *text++;
+            *out++ = 0;
+            if (!*text) return;
+            ++text;
+        } else {
+            while (*text > ' ') {
+                if (*text == '"') break;
+                if (text[0] == '/' && (text[1] == '/' || text[1] == '*')) break;
+                *out++ = *text++;
+            }
+            *out++ = 0;
+        }
+        if (!*text) return;
+        if (*text <= ' ') ++text;
+        if (argc == 0x200) return;
+    }
+}
+
+PLATFORM_ASM_ENTRY(Info_RemoveKey_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Info_RemoveKey) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Info_RemoveKey(char* info, const char* key) {
+    if (std::strlen(info) >= 0x400)
+        title_function<Break>(kBreak)(1, title_pointer<const char>(0x008337e0));  // "Info_RemoveKey: oversize infostring"
+    if (title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(key, '\\')) return;  // strchr
+    char pkey[0x400];
+    char value[0x400];
+    char* s = info;
+    for (;;) {
+        char* start = s;
+        if (*s == '\\') ++s;
+        char* o = pkey;
+        while (*s != '\\') {
+            if (!*s) return;
+            *o++ = *s++;
+        }
+        ++s;
+        *o = 0;
+        o = value;
+        while (*s != '\\' && *s) *o++ = *s++;
+        *o = 0;
+        if (!std::strcmp(key, pkey)) {
+            char* dst = start;
+            while ((*dst++ = *s++) != 0) {
+            }
+            return;
+        }
+        if (!*s) return;
+    }
+}
+
+uint32_t XB_CDECL Cvar_Set(const char* name, const char* value) {
+    return title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(name, value, 1);  // Cvar_Set2
+}
+
+void XB_CDECL Cmd_AddCommand(const char* name, uint32_t function) {
+    using ZMalloc = void* XB_CDECL(uint32_t);
+    uint32_t*& head = title_global<uint32_t*>(0x00929b04);  // cmd_functions
+    for (uint32_t* cmd = head; cmd; cmd = reinterpret_cast<uint32_t*>(uintptr_t{cmd[0]}))
+        if (!std::strcmp(name, reinterpret_cast<const char*>(uintptr_t{cmd[1]}))) return;
+    uint32_t* cmd = static_cast<uint32_t*>(title_function<ZMalloc>(0x00042c10)(0xc));
+    Com_Memset(reinterpret_cast<uint8_t*>(cmd), 0, 0xc);
+    const uint32_t size = static_cast<uint32_t>(std::strlen(name)) + 1;
+    char* copy = static_cast<char*>(title_function<ZMalloc>(0x00042c10)(size));
+    Com_Memset(reinterpret_cast<uint8_t*>(copy), 0, size);
+    std::memcpy(copy, name, size);
+    cmd[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy));
+    cmd[2] = function;
+    cmd[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(head));
+    head = cmd;
+}
+
+void XB_CDECL Cmd_RemoveCommand(const char* name) {
+    using ZFree = void XB_CDECL(void*);
+    uint32_t* back = title_pointer<uint32_t>(0x00929b04);  // cmd_functions
+    for (uint32_t* cmd = reinterpret_cast<uint32_t*>(uintptr_t{*back}); cmd;
+         cmd = reinterpret_cast<uint32_t*>(uintptr_t{cmd[0]})) {
+        if (!std::strcmp(name, reinterpret_cast<const char*>(uintptr_t{cmd[1]}))) {
+            *back = cmd[0];
+            if (cmd[1]) title_function<ZFree>(0x000428d0)(reinterpret_cast<void*>(uintptr_t{cmd[1]}));  // Z_Free
+            title_function<ZFree>(0x000428d0)(cmd);
+            return;
+        }
+        back = cmd;
+    }
+}
+
+void XB_CDECL Mem_AlignedFree(void* pointer) {
+    using Free = void XB_CDECL(void*);
+    --title_global<uint32_t>(0x009098c4);
+    if (const uint32_t free = title_global<uint32_t>(0x009098ec)) {
+        title_function<Free>(free)(pointer);
+        return;
+    }
+    if (static_cast<int32_t>(reinterpret_cast<uintptr_t>(pointer)) < 0)
+        title_function<void XB_STDCALL(void*)>(0x001e76ba)(pointer);  // XPhysicalFree
+    else
+        title_function<Free>(0x001f113a)(pointer);  // _aligned_free
+}
+
+void XB_STDCALL Mem_AlignedFreeCall(void* pointer) { Mem_AlignedFree(pointer); }
+
+void* XB_CDECL Z_MallocDebug(uint32_t size) {
+    return title_function<void* XB_CDECL(uint32_t)>(0x00042cb0)(size);  // Z_Malloc
+}
+
+void XB_CDECL FS_FreeFile(void* buffer) {
+    if (!buffer) title_function<Break>(kBreak)(0, title_pointer<const char>(0x00837f10));  // "FS_FreeFile( NULL )"
+    --title_global<int32_t>(0x00940a0c);  // fs_loadStack
+    title_function<void XB_CDECL(void*)>(0x000428d0)(buffer);  // Z_Free
+}
+
+void XB_CDECL Cvar_Reset_f() {
+    if (title_global<int32_t>(0x00934248) != 2) return;  // cmd_argc
+    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+        title_global<const char*>(0x0092df94), nullptr, 0);
+}
+
+void XB_CDECL Cvar_SetCheatState() {
+    for (uint8_t* var = title_global<uint8_t*>(0x0093fcec); var; var = *reinterpret_cast<uint8_t**>(var + 0x24)) {
+        if (!(*reinterpret_cast<uint32_t*>(var + 0x10) & 0x200)) continue;  // CVAR_CHEAT
+        const char* reset = *reinterpret_cast<const char**>(var + 8);
+        if (!std::strcmp(reset, *reinterpret_cast<const char**>(var + 4))) continue;
+        title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+            *reinterpret_cast<const char**>(var), reset, 1);
+    }
+}
+
+uint32_t XB_CDECL FS_ListFiles(const char* path, const char* extension, int32_t* count) {
+    return title_function<uint32_t XB_CDECL(const char*, const char*, const char*, int32_t*)>(0x0029ea80)(  // FS_ListFilteredFiles
+        path, extension, nullptr, count);
+}
+
+int32_t XB_REGS3 XB_CDECL Com_ModifyMsec(uint32_t, uint32_t, int32_t msec) {
+    const int32_t fixed = *reinterpret_cast<int32_t*>(title_global<uint8_t*>(0x0093fcc0) + 0x20);  // com_fixedtime
+    const float scale = *reinterpret_cast<float*>(title_global<uint8_t*>(0x0093fce4) + 0x1c);  // com_timescale
+    if (fixed)
+        msec = fixed;
+    else if (scale != 0.0f)
+        msec = static_cast<int32_t>(static_cast<float>(msec) * scale);
+    if (msec < 1 && scale != 0.0f) msec = 1;
+    if (msec > 100) msec = 100;
+    if (*reinterpret_cast<int32_t*>(title_global<uint8_t*>(0x0093fcd8) + 0x20)) return 0;
+    return msec;
+}
+
+PLATFORM_ASM_ENTRY(Com_PushEvent_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Com_PushEvent) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Com_PushEvent(const uint32_t* event) {
+    int32_t& head = title_global<int32_t>(0x0095f588);  // com_pushedEventsHead
+    int32_t& tail = title_global<int32_t>(0x0095f58c);  // com_pushedEventsTail
+    uint32_t* slot = title_pointer<uint32_t>(0x00940400 + (head & 0x3f) * 0x18);  // com_pushedEvents
+    if (head - tail >= 0x40) {
+        if (!title_global<uint32_t>(0x0098ad44)) title_global<uint32_t>(0x0098ad44) = 1;
+        if (slot[5]) title_function<void XB_CDECL(void*)>(0x000428d0)(reinterpret_cast<void*>(uintptr_t{slot[5]}));  // Z_Free
+        ++tail;
+    } else {
+        title_global<uint32_t>(0x0098ad44) = 0;
+    }
+    for (int32_t i = 0; i < 6; ++i) slot[i] = event[i];
+    ++head;
+}
+
+void XB_CDECL Cmd_Wait_f() {
+    int32_t& wait = title_global<int32_t>(0x00929bfc);  // cmd_wait
+    if (title_global<int32_t>(0x00934248) == 2)
+        wait = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(title_global<const char*>(0x0092df94));  // atol
+    else
+        wait = 1;
+}
+
+PLATFORM_ASM_ENTRY(NET_AdrToString_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(NET_AdrToString) "addl $4, %esp\n"
+                   "ret")
+
+const char* XB_CDECL NET_AdrToString(const uint8_t* adr) {
+    char* out = title_pointer<char>(0x0098b388);
+    uint32_t type;
+    std::memcpy(&type, adr, 4);
+    if (type == 2) {
+        const uint32_t args[1] = {0x00833c00};  // "loopback"
+        Com_sprintf(out, 0x40, args);
+        return out;
+    }
+    uint32_t port_word;  // the original pushes the dword at +0x12 (two bytes past the record)
+    std::memcpy(&port_word, adr + 0x12, 4);
+    const uint32_t port = static_cast<uint32_t>(static_cast<int32_t>(static_cast<int16_t>(
+        title_function<uint32_t XB_CDECL(uint32_t)>(title_global<uint32_t>(0x0092f138))(port_word))));  // _BigShort
+    if (type == 4) {
+        const uint32_t args[6] = {0x00833bf0, adr[4], adr[5], adr[6], adr[7], port};  // "%i.%i.%i.%i:%i"
+        Com_sprintf(out, 0x40, args);
+        return out;
+    }
+    uint32_t args[12] = {0x00833bc0};  // "%02x%02x%02x%02x.%02x%02x%02x%02x%02x%02x:%i"
+    for (int32_t i = 0; i < 10; ++i) args[1 + i] = adr[8 + i];
+    args[11] = port;
+    Com_sprintf(out, 0x40, args);
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(Cvar_InfoString_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Cvar_InfoString) "addl $4, %esp\n"
+                   "ret")
+
+const char* XB_CDECL Cvar_InfoString(uint32_t bits) {
+    char* info = title_pointer<char>(0x0093f818);
+    info[0] = 0;
+    for (uint8_t* var = title_global<uint8_t*>(0x0093fcec); var; var = *reinterpret_cast<uint8_t**>(var + 0x24)) {
+        if (!(*reinterpret_cast<uint32_t*>(var + 0x10) & bits)) continue;
+        title_function<void XB_REGS3 XB_CDECL(const char*, uint32_t, const char*, char*)>(0x002aff40)(  // Info_SetValueForKey
+            *reinterpret_cast<const char**>(var + 4), 0, *reinterpret_cast<const char**>(var), info);
+    }
+    return info;
+}
+
+PLATFORM_ASM_ENTRY(Cvar_InfoString_Big_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Cvar_InfoString_Big) "addl $4, %esp\n"
+                   "ret")
+
+const char* XB_CDECL Cvar_InfoString_Big(uint32_t bits) {
+    char* info = title_pointer<char>(0x0093fd78);
+    info[0] = 0;
+    for (uint8_t* var = title_global<uint8_t*>(0x0093fcec); var; var = *reinterpret_cast<uint8_t**>(var + 0x24)) {
+        if (!(*reinterpret_cast<uint32_t*>(var + 0x10) & bits)) continue;
+        title_function<void XB_REGS1 XB_CDECL(const char*, char*, const char*)>(0x002afdb0)(  // Info_SetValueForKey_Big
+            *reinterpret_cast<const char**>(var), info, *reinterpret_cast<const char**>(var + 4));
+    }
+    return info;
+}
+
+int32_t XB_CDECL Cvar_WriteNamedValues(const char* const* names, int32_t count, char* buffer, int32_t size) {
+    using Snprintf = int32_t XB_CDECL(char*, int32_t, const char*, const char*, const char*);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint8_t* var = title_function<const uint8_t* XB_CDECL(const char*)>(0x00299710)(names[i]);  // Cvar_FindVar
+        const char* value = var ? *reinterpret_cast<const char* const*>(var + 4) : title_pointer<const char>(0x0082dfeb);
+        const int32_t written = title_function<Snprintf>(0x001eebff)(  // _snprintf
+            buffer, size, title_pointer<const char>(0x00834544), names[i], value);  // "%s \"%s\"\n"
+        if (written < 0) return 0;
+        buffer += written;
+        size -= written;
+    }
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(MSG_WriteString_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(MSG_WriteString) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL MSG_WriteString(const char* text, uint8_t* msg) {
+    if (!text) {
+        msg_data(msg)[msg_word(msg, 0xc)++] = 0;
+        return;
+    }
+    const int32_t length = static_cast<int32_t>(std::strlen(text));
+    if (length >= 0x100) {
+        msg_data(msg)[msg_word(msg, 0xc)++] = 0;
+        return;
+    }
+    char copy[0x100];
+    std::memcpy(copy, text, static_cast<uint32_t>(length));
+    copy[length] = 0;
+    std::memcpy(msg_data(msg) + msg_word(msg, 0xc), copy, static_cast<uint32_t>(length) + 1);
+    msg_word(msg, 0xc) += length + 1;
+}
+
 }  // namespace game
