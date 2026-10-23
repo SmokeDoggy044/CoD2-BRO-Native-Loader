@@ -360,6 +360,7 @@ const Function kFunctions[] = {
     {"nglResetDeviceBindings", 0x00064660, 0, code(&nglResetDeviceBindings), 0, Result::None, Status::Compare},
     {"nglBeginFrame", 0x00064690, 0, code(&nglBeginFrame), 0, Result::None, Status::Compare},
     {"nglSelectVideoMode", 0x000649e0, 0, code(&nglSelectVideoMode), 0, Result::None, Status::Compare},
+    {"nglEndFrame", 0x00064ec0, 0, code(&nglEndFrame), 0, Result::None, Status::Compare},
     {"nglParseFontFile", 0x00065590, 0, code(&nglParseFontFile_entry), 4, Result::Eax, Status::Compare},
     {"nglLoadFontFile", 0x000657b0, 0, code(&nglLoadFontFile), 8, Result::Eax, Status::Compare},
     {"nglLoadFont", 0x000658f0, 0, code(&nglLoadFont), 8, Result::Eax, Status::Compare},

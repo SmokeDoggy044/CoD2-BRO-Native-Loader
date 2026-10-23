@@ -1242,6 +1242,12 @@ const RecordedCall kRecordedD3dCalls[] = {
     {"D3DResource_BlockUntilNotBusy", "s"},
     {"D3DResource_Register", "s s"},
     // Viewport {x, y, width, height, min z, max z}; Clear's rectangles (count x 16).
+    // Frame end (nglEndFrame): the vertical blank callback's insertion (not run in tests), the
+    // fence pair (EAX 0 on both sides) and Swap (nothing presented, EAX 0).
+    {"D3DDevice_InsertCallback", "s s s"},
+    {"D3DDevice_InsertFence", ""},
+    {"D3DDevice_BlockOnFence", "s"},
+    {"D3DDevice_Swap", "s"},
     {"D3DDevice_SetViewport", "s:24"},
     {"D3DDevice_Clear", "s s:a0*16 s s s s"},
 };

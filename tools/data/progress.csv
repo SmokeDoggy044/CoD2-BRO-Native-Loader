@@ -1644,7 +1644,7 @@ address,name,section,module,state,tested,matched
 00064780,nglDrawFpsCounter,.text,renderer,named,0,0
 000649e0,nglSelectVideoMode,.text,renderer,inconclusive,4,0
 00064bc0,nglInit,.text,renderer,named,0,0
-00064ec0,nglEndFrame,.text,renderer,named,0,0
+00064ec0,nglEndFrame,.text,renderer,settled,266,132
 00065380,nglVideoMode_Init,.text,renderer,settled,102,102
 00065420,nglVideoMode_Copy,.text,renderer,settled,102,102
 000654e0,nglFontParseKeyInt,.text,renderer,settled,100,100

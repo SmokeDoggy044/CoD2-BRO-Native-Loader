@@ -414,6 +414,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00064660,nglResetDeviceBindings,compare,1837,165,101,0,0,64,"original called host code at 080c038f from 00064683 nglResetDeviceBindings+0x23 [.text]"
 00064690,nglBeginFrame,compare,3876,77,77,0,0,0,""
 000649e0,nglSelectVideoMode,compare,45,4,0,0,0,4,"original called host code at 0812b767 from 001e7ef9 XAPILIB::XGetVideoFlags+0x18 [.text]"
+00064ec0,nglEndFrame,compare,13070,266,132,0,0,134,"SDK call log full"
 00065380,nglVideoMode_Init,compare,110,102,102,0,0,0,""
 00065420,nglVideoMode_Copy,compare,110,102,102,0,0,0,""
 000654e0,nglFontParseKeyInt,compare,366814,100,100,0,0,0,""

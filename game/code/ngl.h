@@ -1377,4 +1377,10 @@ void XB_CDECL nglWaitFrameInterval();
 void XB_CDECL nglVBlankCallback();
 void XB_CDECL nglBeginFrame();
 
+// 0x00064ec0: ends the frame: debug lines, sample offsets constant, fps/time bar overlays,
+// frame timings (title clock -> seconds), the scene tree rendered, the vertical blank callback
+// inserted, the GPU fence, the wait for the frame interval, Swap, render states restored, the
+// frame statistics rolled over. The per-frame hooks 0x009025c0/b8/c8 run with their arguments.
+void XB_CDECL nglEndFrame();
+
 }  // namespace game
