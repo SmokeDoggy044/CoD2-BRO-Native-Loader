@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "nal_math.h"
 #include "qcommon.h"
 #include "title_data.h"
 
@@ -743,6 +744,239 @@ AnimState* XB_REGS1 XB_CDECL Anim_CreateClipState(int32_t context, uint8_t* clip
         anim_memcontext_pop(system, static_cast<uint32_t>(context));
     }
     return state;
+}
+
+namespace {
+
+// Slot `slot` of a NAL manager (Anim_InitManagers: 0x0090982c anim files, 0x00909830 clips,
+// 0x00909828, 0x00909838 skeletons), thiscall.
+template <typename... Args>
+uint32_t manager_call(uint32_t global, uint32_t slot, Args... args) {
+    const uint32_t manager = title_global<uint32_t>(global);
+    const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(manager)))[slot];
+    return title_function<uint32_t XB_THISCALL(uint32_t, Args...)>(method)(manager, args...);
+}
+
+// An object's own vtable slot, thiscall without arguments.
+void object_call(uint8_t* object, uint32_t slot) {
+    const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(*reinterpret_cast<uint32_t*>(object)))[slot];
+    title_function<void XB_THISCALL(uint8_t*)>(method)(object);
+}
+
+// The class vtable registered for a clip's or skeleton's type: the class map 0x00903fe0 looked up
+// by the type name at `type` + 0x28, then its record + 0x20 -> `offset`.
+uint32_t class_vtable(uint32_t type, uint32_t offset) {
+    using Find = uint8_t* XB_THISCALL(uint32_t, uint32_t);
+    const uint8_t* entry = title_function<Find>(0x00093f10)(0x00903fe0, type + 0x28);  // HashStrMap_Find
+    const uint8_t* record = *reinterpret_cast<uint8_t* const*>(entry + 0x20);
+    return *reinterpret_cast<const uint32_t*>(record + offset);
+}
+
+using FreeFn = void XB_CDECL(void*);
+
+// Relative links (offsets from the item itself) made absolute; 0 stays 0.
+void fix_link(uint8_t* item, uint32_t field) {
+    uint32_t& link = *reinterpret_cast<uint32_t*>(item + field);
+    if (link) link += static_cast<uint32_t>(reinterpret_cast<uintptr_t>(item));
+}
+
+// The clip chain of an anim file: links made absolute, each clip's skeleton (+0x30) from the
+// file's skeleton table by index (+0x28), its class vtable installed and initialized (slot 3,
+// +0x3c = 0 for registered clips, slot 1); registered clips go to the clip manager.
+void fix_clips(uint8_t* clip, uint32_t* skeletons, bool register_clips) {
+    for (; clip; clip = *reinterpret_cast<uint8_t**>(clip + 4)) {
+        fix_link(clip, 4);
+        const uint32_t skeleton = skeletons[*reinterpret_cast<uint32_t*>(clip + 0x28)];
+        *reinterpret_cast<uint32_t*>(clip + 0x30) = skeleton;
+        *reinterpret_cast<uint32_t*>(clip) = class_vtable(skeleton, 0x28);
+        object_call(clip, 3);
+        if (register_clips) *reinterpret_cast<uint32_t*>(clip + 0x3c) = 0;
+        object_call(clip, 1);
+        if (register_clips) manager_call(0x00909830, 3, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(clip)));
+    }
+}
+
+// The file's skeletons (count +0xc, 32-byte names from `names`) looked up in the skeleton manager.
+uint32_t* find_skeletons(uint8_t* file, uint32_t names) {
+    const int32_t count = *reinterpret_cast<int32_t*>(file + 0xc);
+    uint32_t* skeletons = static_cast<uint32_t*>(Mem_AlignedAlloc(static_cast<uint32_t>(count) << 2, 4, 0));
+    for (int32_t i = 0; i < *reinterpret_cast<int32_t*>(file + 0xc); ++i)
+        skeletons[i] = manager_call(0x00909838, 2, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(file + names + 0x20 * i)));
+    return skeletons;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL NAL_FindClip(uint32_t name) { return manager_call(0x00909830, 2, name); }
+
+uint32_t XB_CDECL NAL_PtrField4(const uint32_t* p) { return p ? p[1] : 0; }
+
+uint32_t XB_CDECL NAL_AnimFile_Fixup(uint8_t* file) {
+    uint32_t* skeletons = find_skeletons(file, 0x48);
+    uint32_t& clips = *reinterpret_cast<uint32_t*>(file + 0x34);
+    if (clips) {
+        clips += static_cast<uint32_t>(reinterpret_cast<uintptr_t>(file));
+        fix_clips(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(clips)), skeletons, true);
+    }
+    title_function<FreeFn>(0x000939b0)(skeletons);  // Mem_AlignedFree
+    *reinterpret_cast<uint32_t*>(file + 4) |= 8;
+    return 1;
+}
+
+uint32_t XB_CDECL NAL_GroupedAnimFile_Fixup(uint8_t* file) {
+    uint32_t* skeletons = find_skeletons(file, 0x50);
+    uint32_t& groups = *reinterpret_cast<uint32_t*>(file + 0x34);
+    if (groups) {
+        groups += static_cast<uint32_t>(reinterpret_cast<uintptr_t>(file));
+        for (uint8_t* group = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(groups)); group;
+             group = *reinterpret_cast<uint8_t**>(group)) {
+            fix_link(group, 0);
+            uint32_t& clips = *reinterpret_cast<uint32_t*>(group + 8);
+            if (!clips) continue;
+            clips += static_cast<uint32_t>(reinterpret_cast<uintptr_t>(group));
+            fix_clips(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(clips)), skeletons, false);
+        }
+    }
+    title_function<FreeFn>(0x000939b0)(skeletons);  // Mem_AlignedFree
+    return 1;
+}
+
+void XB_CDECL NAL_GroupedAnimFile_ForEachClip(const uint8_t* file) {
+    for (uint8_t* group = *reinterpret_cast<uint8_t* const*>(file + 0x34); group; group = *reinterpret_cast<uint8_t**>(group))
+        for (uint8_t* clip = *reinterpret_cast<uint8_t**>(group + 8); clip; clip = *reinterpret_cast<uint8_t**>(clip + 4))
+            object_call(clip, 2);
+}
+
+uint8_t* XB_CDECL NAL_AnimFile_Register(const uint32_t* name, uint8_t* file) {
+    if (uint8_t* found = reinterpret_cast<uint8_t*>(
+            static_cast<uintptr_t>(manager_call(0x0090982c, 2, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(name)))))) {
+        ++*reinterpret_cast<int32_t*>(found + 0x44);
+        return found;
+    }
+    std::memcpy(file + 0x10, name, 0x20);
+    *reinterpret_cast<int32_t*>(file + 0x44) = 1;
+    *reinterpret_cast<uint32_t*>(file + 4) |= 4;
+    if (!(NAL_AnimFile_Fixup(file) & 0xff)) return nullptr;
+    manager_call(0x0090982c, 3, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(file)));
+    return file;
+}
+
+uint8_t* XB_CDECL NAL_Skeleton_Register(uint8_t* skeleton) {
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(skeleton));
+    if (uint8_t* found = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(manager_call(0x00909838, 2, self + 8)))) {
+        ++*reinterpret_cast<int32_t*>(found + 0x48);
+        return found;
+    }
+    *reinterpret_cast<uint32_t*>(skeleton) = class_vtable(self, 0x2c);
+    object_call(skeleton, 4);
+    object_call(skeleton, 2);
+    *reinterpret_cast<uint32_t*>(skeleton + 0x50) = 0;
+    manager_call(0x00909838, 3, self);
+    return skeleton;
+}
+
+uint32_t XB_CDECL NAL_AnimFile_Release(uint32_t file) { return manager_call(0x0090982c, 8, file, 0u, 0u); }
+
+uint32_t XB_CDECL NAL_Manager828_Release(uint32_t item) { return manager_call(0x00909828, 8, item, 0u, 0u); }
+
+uint32_t XB_CDECL NAL_Skeleton_Release(uint32_t skeleton) { return manager_call(0x00909838, 8, skeleton, 0u, 0u); }
+
+void XB_CDECL NAL_InitRegisteredTypes() {
+    for (uint8_t* type = title_global<uint8_t*>(0x00909840); type; type = *reinterpret_cast<uint8_t**>(type + 4))
+        object_call(type, 0);
+}
+
+void XB_THISCALL NAL_BlockCache_FreeAll(uint32_t* cache) {
+    while (cache[2]) {
+        uint32_t* block = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(cache[2]));
+        cache[2] = block[2];
+        const uint32_t size = block[3];
+        const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(*reinterpret_cast<uint32_t*>(
+            static_cast<uintptr_t>(cache[0]))))[2];
+        title_function<void XB_THISCALL(uint32_t, uint32_t*, uint32_t)>(method)(cache[0], block, size);
+    }
+}
+
+namespace {
+
+uint32_t align_up(uint32_t value, uint32_t alignment) { return (value + alignment - 1) & ~(alignment - 1); }
+
+// The group records of a clip (0x30 bytes, type name first): the type's class from the map
+// 0x00903ff4 into record + 0x20.
+void resolve_group_classes(uint8_t* clip, uint32_t count_at, uint32_t records_at) {
+    using Find = uint8_t* XB_THISCALL(uint32_t, uint32_t);
+    for (int32_t i = 0; i < *reinterpret_cast<int32_t*>(clip + count_at); ++i) {
+        const uint32_t record = *reinterpret_cast<uint32_t*>(clip + records_at) + 0x30 * i;
+        const uint8_t* entry = title_function<Find>(0x00093f10)(0x00903ff4, record);  // HashStrMap_Find
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(record) + 0x20) = *reinterpret_cast<const uint32_t*>(entry + 0x20);
+    }
+}
+
+// Slot 4 of each group's class (thiscall: record, &cursor A, &cursor B) over `count` records.
+void fixup_groups(uint8_t* clip, uint32_t count_at, uint32_t records_at, uint32_t a, uint32_t b) {
+    uint32_t cursors[2] = {b, a};  // [esp+0xc], [esp+0x10] in the original
+    uint32_t record = *reinterpret_cast<uint32_t*>(clip + records_at);
+    for (int32_t i = 0; i < *reinterpret_cast<int32_t*>(clip + count_at); ++i, record += 0x30) {
+        const uint32_t object = *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(record) + 0x20);
+        const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(*reinterpret_cast<uint32_t*>(
+            static_cast<uintptr_t>(object))))[4];
+        title_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t*, uint32_t*)>(method)(object, record, &cursors[1], &cursors[0]);
+    }
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL NAL_GenericAnim_Init(uint8_t* clip) {
+    auto field = [clip](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(clip + offset); };
+    const uint32_t a = (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(clip)) + 0xe3) & ~3u;
+    field(0x64) = a;
+    field(0x68) = a + field(0x60) * 20;
+    field(0x6c) = field(0x68) + reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(a))[1];
+    field(0x74) = (reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(a))[2] + field(0x6c) + 3) & ~3u;
+    field(0x80) = (field(0x70) * 48 + field(0x74) + 3) & ~3u;
+    field(0x88) = (field(0x78) * 40 + field(0x80) + 3) & ~3u;
+    field(0x94) = align_up(field(0x84) * 48 + field(0x88), field(0x90));
+    field(0x9c) = (field(0x8c) + field(0x94) + 3) & ~3u;
+    field(0xa4) = (field(0x98) + field(0x9c) + 3) & ~3u;
+    field(0xb0) = align_up(field(0xa0) * 48 + field(0xa4), field(0xac));
+    field(0xb8) = (field(0xa8) + field(0xb0) + 3) & ~3u;
+    field(0xc4) = align_up(field(0xb4) + field(0xb8), field(0xc0));
+    field(0xc8) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(clip));
+    field(0xd0) = field(0x94);
+    resolve_group_classes(clip, 0x84, 0x88);
+    resolve_group_classes(clip, 0xa0, 0xa4);
+    fixup_groups(clip, 0x84, 0x88, field(0x94), field(0x9c));
+    fixup_groups(clip, 0xa0, 0xa4, field(0xb0), field(0xb8));
+    return field(0xa0);
+}
+
+float* XB_THISCALL NAL_Skeleton_BoneTransform(const uint32_t* skeleton, float* out, int32_t index) {
+    const uint8_t* clip = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(skeleton[0]));
+    const uint8_t* bone = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(*reinterpret_cast<const uint32_t*>(clip + 0x74))) +
+                          0x30 * index;
+    const uint32_t flags = *reinterpret_cast<const uint32_t*>(bone + 0x20);
+    const uint32_t shared = *reinterpret_cast<const uint32_t*>(clip + 0xb0);
+    // Position (+0x24) and rotation (+0x28) offsets: into the clip's shared data when the flag
+    // bit is set, else into this skeleton's own data (+8).
+    const uint8_t* position = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+        (flags & 1 ? shared : skeleton[2]) + *reinterpret_cast<const uint32_t*>(bone + 0x24)));
+    const uint8_t* rotation = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+        (flags & 2 ? shared : skeleton[2]) + *reinterpret_cast<const uint32_t*>(bone + 0x28)));
+    alignas(16) float local[8] = {};  // {quaternion, position, w never set}
+    std::memcpy(&local[4], position, 12);
+    std::memcpy(local, rotation, 16);
+    const int32_t parent = *reinterpret_cast<const int32_t*>(bone + 0x2c);
+    if (parent >= 0) {
+        alignas(16) float parent_transform[8] = {};
+        alignas(16) float world[8];
+        NAL_Skeleton_BoneTransform(skeleton, parent_transform, parent);
+        std::memcpy(local, QuatTrans_Concat(world, local, parent_transform), 32);
+    }
+    std::memcpy(out, local, 16);
+    out[4] = local[4];
+    out[5] = local[5];
+    out[6] = local[5];  // the title stores y again where z belongs
+    return out;
 }
 
 }  // namespace game

@@ -95,4 +95,47 @@ uint32_t XB_CDECL NAL_FindSkeleton(uint32_t name);
 // clip, allocated inside that memory context.
 AnimState* XB_REGS1 XB_CDECL Anim_CreateClipState(int32_t context, uint8_t* clip);
 
+// Anim managers (Anim_InitManagers): 0x0090982c anim files, 0x00909830 clips, 0x00909838 skeletons,
+// 0x00909828; slot 2 find (32-byte HashStr name), 3 add, 8 release (item, 0, 0).
+// 0x0008d950: clip manager find. 0x0008d9a0: p ? p[1] : 0.
+uint32_t XB_CDECL NAL_FindClip(uint32_t name);
+uint32_t XB_CDECL NAL_PtrField4(const uint32_t* p);
+// 0x0008d9b0 (cdecl file): the file's skeletons (+0xc names from +0x48) looked up, the clip chain
+// (+0x34, relative links) made absolute, each clip's skeleton, class vtable (class map 0x00903fe0
+// by the skeleton's type, record + 0x28) and init (slots 3, 1) set, the clip registered; flags
+// (+4) |= 8. Returns AL 1. 0x0008dd40: the same for files with groups (names from +0x50, group
+// chain +0x34 with clip chains at +8; clips not registered, +0x3c untouched, no flag).
+// 0x0008de20: slot 2 of every clip of such a file.
+uint32_t XB_CDECL NAL_AnimFile_Fixup(uint8_t* file);
+uint32_t XB_CDECL NAL_GroupedAnimFile_Fixup(uint8_t* file);
+void XB_CDECL NAL_GroupedAnimFile_ForEachClip(const uint8_t* file);
+// 0x0008dbb0 (cdecl name, file; Stream_LoadXbanim): an already loaded file gets a reference
+// (+0x44); else the name is copied to +0x10, references 1, flags |= 4, NAL_AnimFile_Fixup and the
+// anim file manager add (0 on failure). 0x0008e130 (cdecl skeleton; Stream_LoadXbskel): the
+// same for skeletons (name +8, references +0x48; class vtable record + 0x2c, slots 4 and 2, +0x50 = 0).
+uint8_t* XB_CDECL NAL_AnimFile_Register(const uint32_t* name, uint8_t* file);
+uint8_t* XB_CDECL NAL_Skeleton_Register(uint8_t* skeleton);
+// 0x0008dcb0 / 0x0008e060 / 0x0008e2c0: release through the 0x0090982c / 0x00909828 / 0x00909838
+// manager. 0x0008ed30: slot 0 of every registered type in the list 0x00909840 (next at +4).
+uint32_t XB_CDECL NAL_AnimFile_Release(uint32_t file);
+uint32_t XB_CDECL NAL_Manager828_Release(uint32_t item);
+uint32_t XB_CDECL NAL_Skeleton_Release(uint32_t skeleton);
+void XB_CDECL NAL_InitRegisteredTypes();
+// 0x0008f170 (cache in ECX): every block from the front (+8) freed through the allocator (slot 2:
+// block, size +0xc).
+void XB_THISCALL NAL_BlockCache_FreeAll(uint32_t* cache);
+
+// 0x00087030 (slot 3 of the generic clip vtable 0x007c23ac, clip in ECX): lays out the clip's
+// sections behind its header (pointers +0x64..+0xc4 from the counts and alignments stored there;
+// +0xc8 = clip, +0xd0 = +0x94), resolves both group tables' classes (map 0x00903ff4) and runs each
+// group class's slot 4 (record, &cursor, &cursor) over them. Returns the second table's count.
+uint32_t XB_THISCALL NAL_GenericAnim_Init(uint8_t* clip);
+
+// 0x00087cb0 (skeleton in ECX: +0 clip, +8 data; callee pops 8: out, bone index): the bone's
+// transform {quaternion, position} from its record (clip +0x74, 0x30 per bone: +0x20 flags, +0x24
+// position / +0x28 rotation offsets into the clip's shared data +0xb0 (flag bits 0/1) or the
+// skeleton's data, +0x2c parent) concatenated with its parents' (QuatTrans_Concat). The title writes
+// y into out +0x18 as well (z is lost). Returns out.
+float* XB_THISCALL NAL_Skeleton_BoneTransform(const uint32_t* skeleton, float* out, int32_t index);
+
 }  // namespace game
