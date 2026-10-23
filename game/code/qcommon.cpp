@@ -735,12 +735,15 @@ uint32_t XB_CDECL Cvar_Set(const char* name, const char* value) {
     return title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(name, value, 1);  // Cvar_Set2
 }
 
-void XB_CDECL Cmd_AddCommand(const char* name, uint32_t function) {
+namespace {
+
+// Cmd_AddCommand's body on the list at `list`.
+void add_command(uint32_t list, const char* name, uint32_t function) {
     using ZMalloc = void* XB_CDECL(uint32_t);
-    uint32_t*& head = title_global<uint32_t*>(0x00929b04);  // cmd_functions
+    uint32_t*& head = title_global<uint32_t*>(list);
     for (uint32_t* cmd = head; cmd; cmd = reinterpret_cast<uint32_t*>(uintptr_t{cmd[0]}))
         if (!std::strcmp(name, reinterpret_cast<const char*>(uintptr_t{cmd[1]}))) return;
-    uint32_t* cmd = static_cast<uint32_t*>(title_function<ZMalloc>(0x00042c10)(0xc));
+    uint32_t* cmd = static_cast<uint32_t*>(title_function<ZMalloc>(0x00042c10)(0xc));  // Z_Malloc
     Com_Memset(reinterpret_cast<uint8_t*>(cmd), 0, 0xc);
     const uint32_t size = static_cast<uint32_t>(std::strlen(name)) + 1;
     char* copy = static_cast<char*>(title_function<ZMalloc>(0x00042c10)(size));
@@ -750,6 +753,17 @@ void XB_CDECL Cmd_AddCommand(const char* name, uint32_t function) {
     cmd[2] = function;
     cmd[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(head));
     head = cmd;
+}
+
+}  // namespace
+
+void XB_CDECL Cmd_AddCommand(const char* name, uint32_t function) {
+    add_command(0x00929b04, name, function);  // cmd_functions
+}
+
+void XB_CDECL Cmd_AddServerCommand(const char* name, uint32_t function) {
+    Cmd_AddCommand(name, 0x002aaae0);
+    add_command(0x009284e4, name, function);
 }
 
 void XB_CDECL Cmd_RemoveCommand(const char* name) {
@@ -1182,6 +1196,55 @@ uint32_t XB_CDECL Swap_Init() {
     title_global<uint32_t>(0x00934a58) = 0x002a96c0;  // _BigFloat = FloatSwap
     title_global<uint32_t>(0x00929b20) = 0x002a96b0;  // _LittleFloat = FloatNoSwap
     return 1;
+}
+
+void XB_REGS1 XB_CDECL Info_SetValueForKey_Big(const char* key, char* info, const char* value) {
+    using Strchr = char* XB_CDECL(const char*, int32_t);
+    using BreakKv = void XB_CDECL(uint32_t, const char*, const char*, const char*);
+    if (std::strlen(info) >= 0x400)
+        title_function<Break>(kBreak)(1, title_pointer<const char>(0x008336e8));  // "Info_SetValueForKey: oversize infostring"
+    char cleaned[0x400];
+    int32_t length = 0;
+    for (int32_t i = 0; value[i] && i < 0x3ff; ++i) {
+        const char c = value[i];
+        if (c == '\\' || c == ';' || c == '"') continue;
+        cleaned[length++] = c;
+    }
+    cleaned[length] = 0;
+    if (title_function<Strchr>(0x001ef5e0)(key, '\\'))
+        title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x00833784), key, value);
+    if (title_function<Strchr>(0x001ef5e0)(key, ';'))
+        title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x0083374c), key, value);
+    if (title_function<Strchr>(0x001ef5e0)(key, '"'))
+        title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x0083371c), key, value);
+    Info_RemoveKey_Big(info, key);
+    if (!cleaned[0]) return;
+    char pair[0x400];
+    const uint32_t args[3] = {0x00833714, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(key)),  // "\\%s\\%s"
+                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cleaned))};
+    Com_sprintf(pair, 0x400, args);
+    if (std::strlen(pair) + std::strlen(info) > 0x400)
+        title_function<void XB_CDECL(uint32_t, const char*, const char*, const char*, const char*)>(kBreak)(
+            1, title_pointer<const char>(0x008336a0), key, value, info);  // "Info string length exceeded ..."
+    std::memcpy(info + std::strlen(info), pair, std::strlen(pair) + 1);
+}
+
+void XB_CDECL Cvar_Init() {
+    Cmd_AddCommand(title_pointer<const char>(0x00837a64), 0x0029e4d0);  // "toggle", Cvar_Toggle_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837d70), 0x0029e3d0);  // "set", Cvar_Set_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837a5c), 0x0029fd20);  // "sets", Cvar_SetS_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837a54), 0x0029fce0);  // "seta", Cvar_SetA_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837a48), 0x0029e380);  // "setfromcvar"
+    Cmd_AddCommand(title_pointer<const char>(0x00837a40), 0x0029fcc0);  // "reset", Cvar_Reset_f
+    Cmd_AddCommand(title_pointer<const char>(0x00837d74), 0x0029fc30);  // "cvar_restart", Cvar_Restart_f
+}
+
+void XB_CDECL Cmd_Init() {
+    Cmd_AddCommand(title_pointer<const char>(0x00833ca8), 0x002aa870);  // "cmdlist", Cmd_List_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833ca0), 0x002cae20);  // "exec", Cmd_Exec_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833c98), 0x002c0d30);  // "vstr", Cmd_Vstr_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833c90), 0x002aaad0);  // "echo", Cmd_Echo_f
+    Cmd_AddCommand(title_pointer<const char>(0x00833c88), 0x002aac40);  // "wait", Cmd_Wait_f
 }
 
 }  // namespace game

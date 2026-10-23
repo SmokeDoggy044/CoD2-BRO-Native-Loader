@@ -242,4 +242,15 @@ void XB_CDECL Cvar_Shutdown();
 // 0x002b0140: the little-endian byte-swap function pointers (_BigShort ... _LittleFloat); returns 1.
 uint32_t XB_CDECL Swap_Init();
 
+// 0x002afdb0 (key in EAX; info, value on the stack): Info_SetValueForKey for big info strings (its own
+// oversize message, Info_RemoveKey_Big; __break 1 when the result passes 0x400, appended anyway).
+void XB_REGS1 XB_CDECL Info_SetValueForKey_Big(const char* key, char* info, const char* value);
+// 0x002a23b0: the cvar console commands.
+void XB_CDECL Cvar_Init();
+// 0x002d1460: cmdlist, exec, vstr, echo, wait.
+void XB_CDECL Cmd_Init();
+// 0x002ba680: Cmd_AddCommand(name, 0x002aaae0), then the same kind of record on the server command list
+// (0x009284e4) unless it has the name.
+void XB_CDECL Cmd_AddServerCommand(const char* name, uint32_t function);
+
 }  // namespace game
