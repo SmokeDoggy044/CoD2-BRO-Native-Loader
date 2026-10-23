@@ -11625,3 +11625,4 @@ address,name,kind,confidence,evidence
 002da9d0,CM_TestInWorldTrees,function,medium,"CM_BoxTrace position test: world quad trees overlapping the start box, leaf objects via 0x002da4d0, stops at startsolid"
 0001bef0,CM_BoxTreeStack_Push,function,medium,"pushes a {node, count, axis} word triple on the walk stack 0x0090a020 (depth 0x0090a620)"
 0001bf40,CM_BoxTreeStack_Next,function,medium,"pops walk-stack triples until a split node the box straddles; pushes siblings/sides; AX = node or 0xffff"
+000b0190,ClosestPointOnTriangle,function,high,"Ericson closest point on triangle (a, b, c, p) with packed SSE; out returned"

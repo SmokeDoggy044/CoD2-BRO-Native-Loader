@@ -652,4 +652,70 @@ uint16_t XB_THISCALL CM_BoxTreeStack_Next(const uint8_t* tree, const float* mins
     }
 }
 
+namespace {
+
+Lanes splat(float x) { return {{x, x, x, x}}; }
+
+}  // namespace
+
+float* XB_CDECL ClosestPointOnTriangle(float* out, const float* a, const float* b, const float* c, const float* p) {
+    const Lanes la = lanes(a), lb = lanes(b), lc = lanes(c), lp = lanes(p);
+    const Lanes ap = sub(lp, la);
+    const Lanes ab = sub(lb, la);
+    const float d1 = sum_xyz(mul(ap, ab));
+    const Lanes ca = sub(la, lc);  // a - c
+    const float d2 = sum_xyz(mul(ap, ca));
+    if (d2 >= 0.0f && 0.0f >= d1) {
+        std::memcpy(out, a, 16);
+        return out;
+    }
+    const float acac = sum_xyz(mul(ca, ca));
+    const float e = acac + d2;
+    const float abab = sum_xyz(mul(ab, ab));
+    const Lanes bp = sub(lp, lb);
+    const Lanes cb = sub(lc, lb);
+    const float d3 = sum_xyz(mul(bp, cb));
+    if (d1 >= abab && 0.0f >= d3) {
+        std::memcpy(out, b, 16);
+        return out;
+    }
+    const float cbcb = sum_xyz(mul(cb, cb));
+    if (d3 >= cbcb && 0.0f >= e) {
+        std::memcpy(out, c, 16);
+        return out;
+    }
+    const float abac = sum_xyz(mul(ca, ab));
+    const Lanes n = sub(mul(ca, splat(abab)), mul(splat(abac), ab));
+    const float vc = sum_xyz(mul(ap, n));
+    if (vc >= 0.0f && d1 >= 0.0f && abab >= d1) {
+        const Lanes r = add(la, mul(ab, splat(d1 / abab)));
+        std::memcpy(out, r.v, 16);
+        return out;
+    }
+    const float s = sum_xyz(mul(ab, cb));
+    const Lanes m = sub(mul(ab, splat(cbcb)), mul(cb, splat(s)));
+    const float va = sum_xyz(mul(bp, m));
+    if (va >= 0.0f && d3 >= 0.0f && cbcb >= d3) {
+        const Lanes r = add(lb, mul(cb, splat(d3 / cbcb)));
+        std::memcpy(out, r.v, 16);
+        return out;
+    }
+    Lanes neg_ab;
+    for (int32_t i = 0; i < 4; ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &ab.v[i], 4);
+        bits ^= 0x80000000u;
+        std::memcpy(&neg_ab.v[i], &bits, 4);
+    }
+    const Lanes k = add(mul(neg_ab, splat(acac)), mul(splat(abac), ca));
+    const float vb = sum_xyz(mul(ap, k));
+    if (vb >= 0.0f && e >= 0.0f && acac >= e) {
+        const Lanes r = add(lc, mul(ca, splat(e / acac)));
+        std::memcpy(out, r.v, 16);
+        return out;
+    }
+    std::memcpy(out, p, 16);
+    return out;
+}
+
 }  // namespace game

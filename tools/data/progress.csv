@@ -2450,7 +2450,7 @@ address,name,section,module,state,tested,matched
 000afde0,FUN_000afde0,.text,unassigned,unnamed,0,0
 000aff30,FUN_000aff30,.text,unassigned,unnamed,0,0
 000affc0,FUN_000affc0,.text,unassigned,unnamed,0,0
-000b0190,FUN_000b0190,.text,unassigned,unnamed,0,0
+000b0190,FUN_000b0190,.text,unassigned,settled,21304,21304
 000b05a0,FUN_000b05a0,.text,unassigned,unnamed,0,0
 000b07a0,FUN_000b07a0,.text,unassigned,unnamed,0,0
 000b08c0,FUN_000b08c0,.text,unassigned,unnamed,0,0

@@ -1068,6 +1068,7 @@ const Function kFunctions[] = {
     {"FxVectorOp_Init9360", 0x000a50e0, 0, code(&FxVectorOp_Init9360), 8, Result::Eax, Status::Compare},
     {"FxVectorOp_Init9378", 0x000a51f0, 0, code(&FxVectorOp_Init9378), 8, Result::Eax, Status::Compare},
     {"FxSegmentOp_Init", 0x000a52f0, 0, code(&FxSegmentOp_Init), 8, Result::Eax, Status::Compare},
+    {"ClosestPointOnTriangle", 0x000b0190, 0, code(&ClosestPointOnTriangle), 20, Result::Eax, Status::Compare},
     {"CM_QuadTreeFindLeaf", 0x000b15c0, 0, code(&CM_QuadTreeFindLeaf), 12, Result::Eax, Status::Compare},
     {"SndVoice_GetCount", 0x000c8450, 0, code(&SndVoice_GetCount), 0, Result::Eax, Status::Compare},
     {"SndVoice_Get", 0x000c8470, 0, code(&SndVoice_Get), 4, Result::Eax, Status::Compare},

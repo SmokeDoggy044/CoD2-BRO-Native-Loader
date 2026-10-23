@@ -1094,6 +1094,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 000a50e0,FxVectorOp_Init9360,compare,2848,97,97,0,0,0,""
 000a51f0,FxVectorOp_Init9378,compare,14,1,1,0,0,0,""
 000a52f0,FxSegmentOp_Init,compare,8438,103,103,0,0,0,""
+000b0190,ClosestPointOnTriangle,compare,146744,21304,21304,0,0,0,""
 000b15c0,CM_QuadTreeFindLeaf,compare,66553,399,399,0,0,0,""
 000c8450,SndVoice_GetCount,compare,18438,190,190,0,0,0,""
 000c8470,SndVoice_Get,compare,1659420,270,270,0,0,0,""

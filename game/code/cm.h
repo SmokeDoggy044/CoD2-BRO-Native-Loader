@@ -139,4 +139,9 @@ void XB_CDECL CM_BoxTreeStack_Push(uint16_t node, uint16_t count, uint16_t axis)
 // result: the upper half of EAX is caller garbage).
 uint16_t XB_THISCALL CM_BoxTreeStack_Next(const uint8_t* tree, const float* mins, const float* maxs);
 
+// 0x000b0190 (unnamed in Ghidra): the point of triangle a, b, c closest to p, Ericson's region tests with
+// packed SSE (16-byte vectors, every lane; the ac terms use a - c). Vertex regions copy the vertex, edge
+// regions store a + t * edge (all four lanes, unaligned), the face region copies p. Returns out.
+float* XB_CDECL ClosestPointOnTriangle(float* out, const float* a, const float* b, const float* c, const float* p);
+
 }  // namespace game
