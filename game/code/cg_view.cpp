@@ -1505,4 +1505,110 @@ void XB_CDECL CG_OffsetFirstPersonView() {
     if (floor > position[2]) org[2] = floor;
 }
 
+namespace {
+
+// v rotated into the frame of `angles` (forward * x + left * y + up * z, left = -right).
+void rotate_by_angles(uint32_t angles, const float* v, float* out) {
+    const float x = v[0], y = v[1], z = v[2];
+    uint32_t args[2] = {angles, 0};
+    float forward[3], right[3], up[3];
+    args[1] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward));
+    AnglesToAxis(args, right, up);
+    const float ny = 0.0f - y;
+    out[0] = (ny * right[0] + up[0] * z) + forward[0] * x;
+    out[1] = (ny * right[1] + up[1] * z) + forward[1] * x;
+    out[2] = (ny * right[2] + up[2] * z) + forward[2] * x;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CG_RotateByGunAngles_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(CG_RotateByGunAngles) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_RotateByGunAngles(float* v) {
+    // v rotated by the gun angles 0x00972fcc.
+    float out[3];
+    rotate_by_angles(0x00972fcc, v, out);
+    v[0] = out[0];
+    v[1] = out[1];
+    v[2] = out[2];
+}
+
+PLATFORM_ASM_ENTRY(CG_ViewToWorld_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(CG_ViewToWorld) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_ViewToWorld(float* v) {
+    // v rotated by the view angles (0x00972bf0) and moved to the view origin (0x00972bb0).
+    float out[3];
+    const float in[3] = {v[0], v[1], v[2]};
+    rotate_by_angles(0x00972bf0, in, out);
+    const float* org = &title_global<float>(0x00972bb0);
+    v[0] = out[0] + org[0];
+    v[1] = out[1] + org[1];
+    v[2] = out[2] + org[2];
+}
+
+void XB_REGS3 XB_CDECL CG_StoreGunOffsetFromView(uint32_t, uint32_t, const float* origin) {
+    // The gun origin's offset from the view origin times the zoom (0x00972fa8), for zoom
+    // weapons (+0x6dc) while zooming; else zero.
+    const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[gi(0x009725d0)];
+    float* out = &title_global<float>(0x00972fa8);
+    if (!*reinterpret_cast<const uint32_t*>(def + 0x6dc)) {
+        out[0] = out[1] = out[2] = 0.0f;
+        return;
+    }
+    const float zoom = g(0x009725d8);
+    if (zoom == 0.0f) {
+        out[0] = out[1] = out[2] = 0.0f;
+        return;
+    }
+    const float* org = &title_global<float>(0x00972bb0);
+    out[0] = (origin[0] - org[0]) * zoom;
+    out[1] = (origin[1] - org[1]) * zoom;
+    out[2] = (origin[2] - org[2]) * zoom;
+}
+
+void XB_REGS1 XB_CDECL CG_CalculateWeaponPosition(float* origin) {
+    // The view weapon's origin: the lean's side shift (less while zoomed), the gun move offset
+    // (also kept in 0x00972a98), rotated by the gun angles, the sway lag (0x00972c24/28), into
+    // world space at the view, the landing dip (cg.landChange over 150 + 300 ms), and the zoom
+    // offset (CG_StoreGunOffsetFromView).
+    origin[2] = 0.0f;
+    origin[1] = 0.0f;
+    origin[0] = 0.0f;
+    const float lean = g(0x0097259c);
+    const float one = g(0x0083eb20);
+    const float zoom = g(0x009725d8);
+    if (!(lean == 0.0f) && one > zoom) {
+        const float k = (g(0x0083eba8) - abs_bits(lean)) * lean;
+        const float angles[3] = {0.0f, 0.0f, k * g(0x0083ec5c)};
+        const float scale = (one - zoom) * k * g(0x0083f124);
+        float right[3];
+        AnglesToRightNoPitch(angles, right);
+        origin[0] = right[0] * scale;
+        origin[1] = right[1] * scale;
+        origin[2] = right[2] * scale;
+    }
+    float offset[3] = {0.0f, 0.0f, 0.0f};
+    CG_CalcGunMoveOffset(offset);
+    title_global<float>(0x00972a98) = offset[0];
+    title_global<float>(0x00972a9c) = offset[1];
+    title_global<float>(0x00972aa0) = offset[2];
+    origin[0] = origin[0] + offset[0];
+    origin[1] = origin[1] + offset[1];
+    origin[2] = offset[2] + origin[2];
+    CG_RotateByGunAngles(origin);
+    origin[1] = origin[1] - g(0x00972c24);
+    origin[2] = g(0x00972c28) + origin[2];
+    CG_ViewToWorld(origin);
+    const int32_t landed = gi(0x0097253c) - gi(0x00972af4);
+    if (landed < 0x96)
+        origin[2] = static_cast<float>(landed) * g(0x00972af0) * g(0x0083f07c) + origin[2];
+    else if (landed < 0x1c2)
+        origin[2] = static_cast<float>(0x1c2 - landed) * g(0x00972af0) * g(0x0083f120) + origin[2];
+    CG_StoreGunOffsetFromView(0, 0, origin);
+}
+
 }  // namespace game

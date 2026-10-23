@@ -131,4 +131,15 @@ extern "C" void AnglesToRightNoPitch_entry(void);
 // 0x00281ad0: Q3's CG_OffsetFirstPersonView.
 void XB_CDECL CG_OffsetFirstPersonView();
 
+// 0x0027e210 (vector in EBX): rotated by the gun angles 0x00972fcc.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_RotateByGunAngles(float* v);
+extern "C" void CG_RotateByGunAngles_entry(void);
+// 0x002807a0 (vector in EBX): from view space to the world (view angles and origin).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_ViewToWorld(float* v);
+extern "C" void CG_ViewToWorld_entry(void);
+// 0x00278350 (origin in ECX): the zoom offset of the gun from the view (0x00972fa8).
+void XB_REGS3 XB_CDECL CG_StoreGunOffsetFromView(uint32_t unused_eax, uint32_t unused_edx, const float* origin);
+// 0x00282d10 (origin in EAX): the view weapon's origin.
+void XB_REGS1 XB_CDECL CG_CalculateWeaponPosition(float* origin);
+
 }  // namespace game
