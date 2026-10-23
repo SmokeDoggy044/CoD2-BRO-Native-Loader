@@ -11,6 +11,7 @@
 #include "g_scr_math.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
+#include "g_vehicle.h"
 #include "nal_anim.h"
 #include "nal_codec.h"
 #include "nal_entropy.h"
@@ -977,6 +978,8 @@ const Function kFunctions[] = {
     {"Actor_SetDesiredAngles", 0x002053b0, 0, code(&Actor_SetDesiredAngles_entry), 4, Result::None, Status::Compare},
     {"Actor_RotateOrient", 0x00205930, 0, code(&Actor_RotateOrient_entry), 0, Result::None, Status::Compare},
     {"G_ExpireBadPlaces", 0x00205a70, 0, code(&G_ExpireBadPlaces), 0, Result::None, Status::Compare},
+    {"Vehicle_InitWheelTags", 0x00226720, 0, code(&Vehicle_InitWheelTags), 4, Result::Eax, Status::Compare},
+    {"Vehicle_PhysicsPreFrame", 0x002314c0, 0, code(&Vehicle_PhysicsPreFrame), 0, Result::None, Status::Compare},
     {"CG_R_DrawStretchPic", 0x00234b50, 0, code(&CG_R_DrawStretchPic), 32, Result::None, Status::Compare},
     {"RE_ClearScene", 0x00234cc0, 0, code(&RE_ClearScene), 0, Result::None, Status::Compare},
     {"R_ClearFrameLists", 0x00234cf0, 0, code(&R_ClearFrameLists), 0, Result::None, Status::Compare},
@@ -1064,7 +1067,23 @@ const Function kFunctions[] = {
     {"R_Register", 0x0023c4e0, 0, code(&R_Register), 0, Result::Eax, Status::Compare},
     {"R_RegisterModel", 0x00241f40, 0, code(&R_RegisterModel), 12, Result::Eax, Status::Compare},
     {"XModel_TransformBones", 0x00242540, 0, code(&XModel_TransformBones), 12, Result::None, Status::Compare},
+    {"Vehicle_FindDefIndex", 0x002487d0, 0, code(&Vehicle_FindDefIndex_entry), 0, Result::Eax, Status::Compare},
+    {"Vehicle_FreeDefs", 0x00249e70, 0, code(&Vehicle_FreeDefs_entry), 0, Result::Eax, Status::Compare},
+    {"G_RunPlayerVehicleThinks", 0x0024bb70, 0, code(&G_RunPlayerVehicleThinks_entry), 0, Result::None, Status::Compare},
+    {"Vehicle_CacheTags", 0x0024dc70, 0, code(&Vehicle_CacheTags), 4, Result::Eax, Status::Compare},
+    {"Turret_UpdateTargetAngles", 0x0024e300, 0, code(&Turret_UpdateTargetAngles_entry), 8, Result::Eax, Status::Compare},
+    {"Turret_IsUsableBy", 0x00258a10, 0, code(&Turret_IsUsableBy), 0, Result::Eax, Status::Compare},
+    {"Vehicle_InitBrushModels", 0x00259d60, 0, code(&Vehicle_InitBrushModels_entry), 0, Result::Eax, Status::Compare},
+    {"Vehicle_ApplyPush", 0x0025a400, 0, code(&Vehicle_ApplyPush), 20, Result::Eax, Status::Compare},
+    {"Vehicle_Pain", 0x0025b810, 0, code(&Vehicle_Pain), 24, Result::None, Status::Compare},
+    {"Vehicle_Controller", 0x0025b950, 0, code(&Vehicle_Controller), 4, Result::None, Status::Compare},
+    {"G_ReleaseTurretUser", 0x0025cc60, 0, code(&G_ReleaseTurretUser_entry), 0, Result::Eax, Status::Compare},
     {"G_MissileTrace", 0x00262ce0, 0, code(&G_MissileTrace_entry), 0, Result::None, Status::Compare},
+    {"Vehicle_Die", 0x00266390, 0, code(&Vehicle_Die), 32, Result::None, Status::Compare},
+    {"Vehicle_Use", 0x00266470, 0, code(&Vehicle_Use), 8, Result::None, Status::Compare},
+    {"G_TryPushingEntity", 0x00267020, 0, code(&G_TryPushingEntity_entry), 12, Result::Eax, Status::Compare},
+    {"Vehicle_UpdateTurret", 0x00270f90, 0, code(&Vehicle_UpdateTurret), 8, Result::None, Status::Compare},
+    {"Player_UpdateTurretUse", 0x00272360, 0, code(&Player_UpdateTurretUse_entry), 0, Result::None, Status::Compare},
     {"CG_DrawFrontBufferFade", 0x002761b0, 0, code(&CG_DrawFrontBufferFade), 0, Result::None, Status::Compare},
     {"CG_WriteSaveState", 0x00276b10, 0, code(&CG_WriteSaveState), 0, Result::None, Status::Compare},
     {"CG_CopySaveState", 0x00278cb0, 0, code(&CG_CopySaveState), 0, Result::None, Status::Compare},
@@ -1447,6 +1466,9 @@ const Function kFunctions[] = {
     {"BG_AmmoRoomForWeapon", 0x002b5120, 0, code(&BG_AmmoRoomForWeapon_entry), 0, Result::Eax, Status::Compare},
     {"BG_ChooseWeaponSlot", 0x002b52b0, 0, code(&BG_ChooseWeaponSlot_entry), 0, Result::Eax, Status::Compare},
     {"BG_GetWeaponSlot", 0x002b5400, 0, code(&BG_GetWeaponSlot_entry), 8, Result::Eax, Status::Compare},
+    {"BG_RemoveWeaponFromSlot", 0x002b5530, 0, code(&BG_RemoveWeaponFromSlot_entry), 0, Result::Eax, Status::Compare},
+    {"BG_GivePlayerWeapon", 0x002b5690, 0, code(&BG_GivePlayerWeapon_entry), 0, Result::Eax, Status::Compare},
+    {"BG_AllocWeaponDef", 0x002b5df0, 0, code(&BG_AllocWeaponDef_entry), 8, Result::Eax, Status::Compare},
     {"PM_CmdScale", 0x002b62f0, 0, code(&PM_CmdScale_entry), 0, Result::Xmm0, Status::Compare},
     {"PM_AddEvent", 0x002b63f0, 0, code(&PM_AddEvent), 0, Result::None, Status::Compare},
     {"BG_EvaluateTrajectoryDelta", 0x002b6710, 0, code(&BG_EvaluateTrajectoryDelta), 4, Result::None, Status::Compare},
@@ -1471,6 +1493,7 @@ const Function kFunctions[] = {
     {"CG_GetEntityRefEntity", 0x002be200, 0, code(&CG_GetEntityRefEntity_entry), 0, Result::Eax, Status::Compare},
     {"G_SetSoundDoneNotify", 0x002be3e0, 0, code(&G_SetSoundDoneNotify_entry), 0, Result::None, Status::Compare},
     {"AnimTree_CalcPose_r", 0x002beb60, 0, code(&AnimTree_CalcPose_r), 24, Result::Al, Status::Compare},
+    {"BG_InitDefaultWeapon", 0x002c2aa0, 0, code(&BG_InitDefaultWeapon), 0, Result::None, Status::Compare},
     {"S_PlaySoundAlias2", 0x002c3120, 0, code(&S_PlaySoundAlias2), 40, Result::Eax, Status::Compare},
     {"CameraShake_SetDistanceScale", 0x002c94d0, 0, code(&CameraShake_SetDistanceScale_entry), 8, Result::None, Status::Compare},
     {"CameraShake_Start", 0x002c9620, 0, code(&CameraShake_Start), 24, Result::Eax, Status::Compare},
@@ -1489,6 +1512,7 @@ const Function kFunctions[] = {
     {"Scr_QueueNotifyCallback29", 0x002fbc40, 0, code(&Scr_QueueNotifyCallback29), 12, Result::None, Status::Compare},
     {"Scr_QueueNotifyCallback26", 0x002fbd70, 0, code(&Scr_QueueNotifyCallback26), 12, Result::None, Status::Compare},
     {"Scr_QueueNotify", 0x002fbe00, 0, code(&Scr_QueueNotify), 8, Result::None, Status::Compare},
+    {"Vehicle_CountActive", 0x002fd650, 0, code(&Vehicle_CountActive), 0, Result::Eax, Status::Compare},
     {"Scr_GetCurrentThreadHandle", 0x002fdbf0, 0, code(&Scr_GetCurrentThreadHandle), 0, Result::Eax, Status::Compare},
     {"R_FindFont", 0x0030f2b0, 0, code(&R_FindFont), 4, Result::Eax, Status::Compare},
 };

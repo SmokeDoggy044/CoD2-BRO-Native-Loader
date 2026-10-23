@@ -14,6 +14,7 @@ set(game_code_sources
     g_scr_math.cpp
     g_scr_runtime.cpp
     g_utils.cpp
+    g_vehicle.cpp
     nal_anim.cpp
     nal_codec.cpp
     nal_entropy.cpp
