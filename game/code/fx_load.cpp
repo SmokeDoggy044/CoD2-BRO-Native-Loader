@@ -26,6 +26,52 @@ void op_head(uint8_t* self, uint32_t vtable) {
     at<uint32_t>(self, 0) = vtable;
 }
 
+// The effect memory's allocator (0x008bb760, vtable slot 1: size, alignment). Some callers
+// clear the allocation context word 0x00909948 around the call.
+uint8_t* fx_alloc(uint32_t size, uint32_t alignment) {
+    uint8_t* allocator = title_global<uint8_t*>(0x008bb760);
+    const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(allocator, 0)))[1];
+    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
+        title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(method)(allocator, size, alignment)));
+}
+
+uint8_t* fx_alloc_no_context(uint32_t size, uint32_t alignment) {
+    uint32_t& context = title_global<uint32_t>(0x00909948);
+    const uint32_t saved = context;
+    context = 0;
+    uint8_t* memory = fx_alloc(size, alignment);
+    context = saved;
+    return memory;
+}
+
+// The range objects: two floats (or vectors) ordered min, max per component.
+void ordered(float a, float b, float* lo, float* hi) {
+    *lo = a;
+    *hi = b;
+    if (a > b) {
+        *lo = b;
+        *hi = a;
+    }
+}
+
+uint8_t* new_range(uint32_t vtable, float a, float b) {
+    uint8_t* self = fx_alloc(0xc, 4);
+    if (!self) return nullptr;
+    at<uint32_t>(self, 0) = vtable;
+    ordered(a, b, &at<float>(self, 4), &at<float>(self, 8));
+    return self;
+}
+
+uint8_t* new_vector_range(uint32_t vtable, const float* a_in, const float* b_in) {
+    const float a[3] = {a_in[0], a_in[1], a_in[2]};
+    const float b[3] = {b_in[0], b_in[1], b_in[2]};
+    uint8_t* self = fx_alloc(0x1c, 4);
+    if (!self) return nullptr;
+    at<uint32_t>(self, 0) = vtable;
+    for (int i = 0; i < 3; ++i) ordered(a[i], b[i], &at<float>(self, 4 + i * 4), &at<float>(self, 0x10 + i * 4));
+    return self;
+}
+
 // An ARGB colour as four floats b, g, r, a in 0..1 (DIVPS by 255).
 void color_to_floats(uint32_t color, float* out) {
     const float k = title_global<float>(0x0083eb8c);
@@ -163,5 +209,77 @@ uint8_t* XB_THISCALL FxSegmentOp_Init(uint8_t* self, const float* a, const float
     std::memcpy(self + 0x20, d.v, 16);
     return self;
 }
+
+uint8_t* XB_STDCALL FxArray16_New(uint32_t capacity, uint32_t count) {
+    uint8_t* memory = fx_alloc_no_context(capacity << 4, 4);
+    if (!memory) return nullptr;
+    for (uint8_t* p = memory; p != memory + (count << 4); p += 0x10) {
+        if (p) {
+            at<uint32_t>(p, 0) = 3;
+            at<uint32_t>(p, 4) = 0;
+        }
+    }
+    return memory;
+}
+
+uint8_t* XB_THISCALL FxEffect_Init(uint8_t* self, const char* name) {
+    const float* zero = &title_global<float>(0x007c50e0);
+    at<float>(self, 0x40) = zero[0];
+    at<float>(self, 0x44) = zero[1];
+    at<float>(self, 0x48) = zero[2];
+    at<float>(self, 0x4c) = title_global<float>(0x0083eb20);
+    at<uint32_t>(self, 0x50) = 0;
+    at<uint16_t>(self, 0x54) = 0;
+    at<uint16_t>(self, 0x56) = 0;
+    at<uint32_t>(self, 0x58) = 0;
+    at<uint16_t>(self, 0x5c) = 0;
+    at<uint16_t>(self, 0x5e) = 0;
+    at<uint32_t>(self, 0x64) = 0;
+    at<uint32_t>(self, 0x68) = 0x40;
+    title_function<void XB_CDECL(uint8_t*)>(0x0001c140)(self);  // Matrix_Identity
+    FxEffect_SetName(self, name);
+    for (uint32_t offset = 0xac; offset <= 0xc0; offset += 4) at<uint32_t>(self, offset) = 0;
+    return self;
+}
+
+uint8_t* XB_STDCALL FxEmitterTable_New(uint32_t count) {
+    uint8_t* memory = fx_alloc_no_context(count * 0x2c, 4);
+    if (!memory) return nullptr;
+    for (uint8_t* p = memory; p != memory + count * 0x2c; p += 0x2c) {
+        if (p) std::memset(p, 0, 0x2c);
+    }
+    return memory;
+}
+
+uint8_t* XB_CDECL FxRenderer_NewOp31(const uint32_t* const* source) {
+    const uint32_t* p = *source;
+    const uint32_t words[2] = {p[5], p[1]};
+    uint8_t* self = fx_alloc(0x14, 0x10);
+    if (!self) return nullptr;
+    return FxOp31_Init(self, words);
+}
+
+uint8_t* XB_CDECL FxRange_New5ac0(float a, float b) { return new_range(0x007c5ac0, a, b); }
+uint8_t* XB_CDECL FxRange_New5b20(float a, float b) { return new_range(0x007c5b20, a, b); }
+
+uint8_t* XB_CDECL FxConst_New(float value) {
+    uint8_t* self = fx_alloc(8, 4);
+    if (!self) return nullptr;
+    at<uint32_t>(self, 0) = 0x007c5af0;
+    at<float>(self, 4) = value;
+    return self;
+}
+
+uint8_t* XB_CDECL FxConstVector_New(const float* v) {
+    const float copy[3] = {v[0], v[1], v[2]};
+    uint8_t* self = fx_alloc(0x10, 4);
+    if (!self) return nullptr;
+    at<uint32_t>(self, 0) = 0x007c5b08;
+    std::memcpy(self + 4, copy, 12);
+    return self;
+}
+
+uint8_t* XB_CDECL FxVectorRange_New5ad8(const float* a, const float* b) { return new_vector_range(0x007c5ad8, a, b); }
+uint8_t* XB_CDECL FxVectorRange_New5b38(const float* a, const float* b) { return new_vector_range(0x007c5b38, a, b); }
 
 }  // namespace game

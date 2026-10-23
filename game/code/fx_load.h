@@ -47,4 +47,25 @@ uint8_t* XB_THISCALL FxVectorOp_Init9360(uint8_t* self, const float* v, float w)
 uint8_t* XB_THISCALL FxVectorOp_Init9378(uint8_t* self, const float* v, float w);
 uint8_t* XB_THISCALL FxSegmentOp_Init(uint8_t* self, const float* a, const float* b);
 
+// 0x00029a40 (stdcall): `capacity` 16-byte elements from the effect allocator (context word
+// 0x00909948 cleared around the call), the first `count` set to {3, 0}. Null on failure.
+uint8_t* XB_STDCALL FxArray16_New(uint32_t capacity, uint32_t count);
+// 0x00096c20: the effect object's constructor (name, identity matrix, scale 1 at +0x4c, 0x40
+// at +0x68, the rest cleared). Returns self.
+uint8_t* XB_THISCALL FxEffect_Init(uint8_t* self, const char* name);
+// 0x00096d70 (stdcall): `count` zeroed 0x2c-byte emitter entries (null on failure).
+uint8_t* XB_STDCALL FxEmitterTable_New(uint32_t count);
+// 0x000985d0: a 0x14-byte FxOp31 from the source record's words 5 and 1 (null on failure).
+uint8_t* XB_CDECL FxRenderer_NewOp31(const uint32_t* const* source);
+// Parameter objects from the effect allocator (null on failure): 0x0009a2a0 / 0x0009a470 an
+// ordered float range (vtables 0x007c5ac0 / 0x007c5b20), 0x0009a3d0 a constant (0x007c5af0),
+// 0x0009a400 a constant vector (0x007c5b08), 0x0009a2f0 / 0x0009a4c0 a per-component ordered
+// vector range (0x007c5ad8 / 0x007c5b38).
+uint8_t* XB_CDECL FxRange_New5ac0(float a, float b);
+uint8_t* XB_CDECL FxRange_New5b20(float a, float b);
+uint8_t* XB_CDECL FxConst_New(float value);
+uint8_t* XB_CDECL FxConstVector_New(const float* v);
+uint8_t* XB_CDECL FxVectorRange_New5ad8(const float* a, const float* b);
+uint8_t* XB_CDECL FxVectorRange_New5b38(const float* a, const float* b);
+
 }  // namespace game
