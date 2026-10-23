@@ -1040,4 +1040,148 @@ void XB_REGS3 XB_CDECL Info_SetValueForKey(const char* value, uint32_t, const ch
     std::memcpy(info + std::strlen(info), pair, std::strlen(pair) + 1);
 }
 
+void XB_REGS3 XB_CDECL FS_BuildOSPath(const char* game, uint32_t, const char* base, const char* qpath, char* ospath,
+                                      uint32_t quiet) {
+    if (!game || !*game) game = title_pointer<const char>(0x0093fc30);  // fs_gamedir
+    const int32_t base_length = static_cast<int32_t>(std::strlen(base));
+    int32_t game_length = static_cast<int32_t>(std::strlen(game));
+    const int32_t qpath_length = static_cast<int32_t>(std::strlen(qpath));
+    if (qpath_length + game_length + base_length + 2 >= 0x80) {
+        if (quiet) {
+            ospath[0] = 0;
+            return;
+        }
+        title_function<Break>(kBreak)(0, title_pointer<const char>(0x008380a8));  // "FS_BuildOSPath: os path length exceeded"
+    }
+    std::memcpy(ospath, base, static_cast<uint32_t>(base_length));
+    char* separator = ospath + base_length;
+    *separator = '/';
+    std::memcpy(separator + 1, game, static_cast<uint32_t>(game_length));
+    if (game_length)
+        ospath[game_length + base_length + 1] = '/';
+    else
+        game_length = -1;
+    std::memcpy(ospath + game_length + base_length + 2, qpath, static_cast<uint32_t>(qpath_length) + 1);
+    for (char* p = separator; *p; ++p)
+        if (*p == '/' || *p == '\\') *p = '\\';
+}
+
+void XB_REGS1 XB_CDECL FS_FreePackList(uint8_t* pack) {
+    using ZFree = void XB_CDECL(void*);
+    while (pack) {
+        uint8_t* next = *reinterpret_cast<uint8_t**>(pack + 0x90);
+        title_function<ZFree>(0x000428d0)(*reinterpret_cast<void**>(pack + 0x8c));  // Z_Free
+        title_function<ZFree>(0x000428d0)(pack);
+        pack = next;
+    }
+}
+
+void XB_CDECL FS_FreeFileList(char** list) {
+    using ZFree = void XB_CDECL(void*);
+    if (!list) return;
+    for (char** p = list; *p; ++p) title_function<ZFree>(0x000428d0)(*p);  // Z_Free
+    title_function<ZFree>(0x000428d0)(list);
+}
+
+PLATFORM_ASM_ENTRY(FS_AddFileToList_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FS_AddFileToList) "addl $12, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL FS_AddFileToList(const char* name, char** list, int32_t count) {
+    if (count == 0xfff) return count;
+    for (int32_t i = 0; i < count; ++i)
+        if (name && list[i] && !Q_stricmpn(name, list[i], 99999)) return count;
+    const uint32_t size = static_cast<uint32_t>(std::strlen(name)) + 1;
+    char* copy = static_cast<char*>(title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size));  // Z_Malloc
+    Com_Memset(reinterpret_cast<uint8_t*>(copy), 0, size);
+    std::memcpy(copy, name, size);
+    list[count] = copy;
+    return count + 1;
+}
+
+void XB_REGS1 XB_CDECL Cmd_ExecuteRegisteredCommand(const char* text) {
+    title_global<const char*>(0x00927f50) = text;
+    Cmd_TokenizeString(text, 0);
+    if (!title_global<int32_t>(0x00934248)) return;  // cmd_argc
+    uint32_t* prev = title_pointer<uint32_t>(0x009284e4);
+    if (!*prev) return;
+    for (;;) {
+        uint32_t* cmd = reinterpret_cast<uint32_t*>(uintptr_t{*prev});
+        const char* argv0 = title_global<const char*>(0x0092df90);
+        const char* name = reinterpret_cast<const char*>(uintptr_t{cmd[1]});
+        if (argv0 && name && !Q_stricmpn(argv0, name, 99999)) {
+            *prev = cmd[0];
+            cmd[0] = title_global<uint32_t>(0x009284e4);
+            title_global<uint32_t*>(0x009284e4) = cmd;
+            if (cmd[2]) title_function<void XB_CDECL()>(cmd[2])();
+            return;
+        }
+        if (!cmd[0]) return;
+        prev = cmd;
+    }
+}
+
+int32_t XB_CDECL Com_AddStartupCommands() {
+    int32_t added = 0;
+    for (int32_t i = 0; i < title_global<int32_t>(0x009403e0); ++i) {  // com_numConsoleLines
+        const char* line = title_global<const char*>(0x0093fcf8 + i * 4);  // com_consoleLines
+        if (!line || !*line) continue;
+        if (Q_stricmpn(line, title_pointer<const char>(0x00837d70), 3)) added = 1;  // "set"
+        // Cbuf_AddText(line) and "\n", inlined.
+        line = title_global<const char*>(0x0093fcf8 + i * 4);
+        const int32_t length = static_cast<int32_t>(std::strlen(line));
+        char* data = title_global<char*>(0x00935328);
+        int32_t& cursize = title_global<int32_t>(0x00935330);
+        int32_t size = cursize;
+        if (size + length < title_global<int32_t>(0x0093532c)) {
+            std::memcpy(data + size, line, static_cast<uint32_t>(length));
+            size += length;
+            cursize = size;
+        }
+        if (size + 1 < title_global<int32_t>(0x0093532c)) {
+            data[size] = title_global<char>(0x0082d288);  // '\n'
+            cursize = size + 1;
+        }
+    }
+    return added;
+}
+
+void XB_CDECL Cvar_Shutdown() {
+    using ZFree = void XB_CDECL(void*);
+    for (uint32_t bucket = 0; bucket < 0x400; bucket += 4) {
+        uint8_t*& head = title_global<uint8_t*>(0x009472f8 + bucket);  // hashTable
+        for (uint8_t* var = head; var; var = *reinterpret_cast<uint8_t**>(var + 0x28)) {
+            static const uint32_t kStrings[3] = {0xc, 4, 8};  // latched, string, reset
+            for (int32_t i = 0; i < 3; ++i) {
+                void*& string = *reinterpret_cast<void**>(var + kStrings[i]);
+                if (string) {
+                    title_function<ZFree>(0x000428d0)(string);  // Z_Free
+                    string = nullptr;
+                }
+            }
+            title_function<ZFree>(0x000428d0)(*reinterpret_cast<void**>(var));
+            *reinterpret_cast<void**>(var) = nullptr;
+        }
+        head = nullptr;
+    }
+    title_global<uint32_t>(0x009476f8) = 0;  // cvar_numIndexes
+    title_global<uint32_t>(0x0093fcec) = 0;  // cvar_vars
+    title_global<uint32_t>(0x00940358) = 0;
+    title_global<uint32_t>(0x009403ec) = 0;  // cvar_modifiedFlags
+}
+
+uint32_t XB_CDECL Swap_Init() {
+    title_global<uint32_t>(0x0092f138) = 0x002a97c0;  // _BigShort = ShortSwap
+    title_global<uint32_t>(0x0092f134) = 0x002a97b0;  // _LittleShort = ShortNoSwap
+    title_global<uint32_t>(0x00933e38) = 0x002a9780;  // _BigLong = LongSwap
+    title_global<uint32_t>(0x00927de0) = 0x002a9770;  // _LittleLong = LongNoSwap
+    title_global<uint32_t>(0x00929b10) = 0x002a9710;  // _BigLong64 = Long64Swap
+    title_global<uint32_t>(0x00929c24) = 0x002a9700;  // _LittleLong64 = Long64NoSwap
+    title_global<uint32_t>(0x00934a58) = 0x002a96c0;  // _BigFloat = FloatSwap
+    title_global<uint32_t>(0x00929b20) = 0x002a96b0;  // _LittleFloat = FloatNoSwap
+    return 1;
+}
+
 }  // namespace game

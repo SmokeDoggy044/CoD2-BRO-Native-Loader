@@ -217,4 +217,29 @@ void XB_REGS3 XB_CDECL Info_SetValueForKey(const char* value, uint32_t unused, c
 extern "C" PLATFORM_HIDDEN void XB_CDECL Info_RemoveKey_Big(char* info, const char* key);
 extern "C" void Info_RemoveKey_Big_entry(void);
 
+// 0x00297ef0 (game in EAX - null/"" = fs_gamedir -, base in ECX; qpath, ospath, quiet on the stack):
+// "base/game/qpath" (no game: "base/qpath") with '/' turned into '\\' after the base; too long
+// (0x80): "" when quiet, else __break 0 and built anyway.
+void XB_REGS3 XB_CDECL FS_BuildOSPath(const char* game, uint32_t unused, const char* base, const char* qpath,
+                                      char* ospath, uint32_t quiet);
+// 0x00297950 (list in EAX): frees each pack node's +0x8c buffer and the node (next at +0x90).
+void XB_REGS1 XB_CDECL FS_FreePackList(uint8_t* pack);
+// 0x002979f0: frees each string of the null-terminated list, then the list.
+void XB_CDECL FS_FreeFileList(char** list);
+// 0x0029a810 (name in ESI; list, count on the stack): adds a Z_Malloc copy unless the list is full
+// (0xfff) or has the name (Q_stricmpn); returns the new count.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL FS_AddFileToList(const char* name, char** list, int32_t count);
+extern "C" void FS_AddFileToList_entry(void);
+// 0x002b1eb0 (text in EAX, kept in 0x00927f50): tokenizes it and runs the matching command of the list at
+// 0x009284e4 (moved to its front).
+void XB_REGS1 XB_CDECL Cmd_ExecuteRegisteredCommand(const char* text);
+
+// 0x002970c0: every non-empty com_consoleLines entry appended to the command buffer (cmd_text 0x00935328:
+// data, maxsize, cursize) with a '\n' when they fit; 1 when one of them is not a "set" command.
+int32_t XB_CDECL Com_AddStartupCommands();
+// 0x00299670: frees every cvar's strings and name through the hash chains and clears the cvar globals.
+void XB_CDECL Cvar_Shutdown();
+// 0x002b0140: the little-endian byte-swap function pointers (_BigShort ... _LittleFloat); returns 1.
+uint32_t XB_CDECL Swap_Init();
+
 }  // namespace game
