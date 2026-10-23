@@ -3278,6 +3278,90 @@ uint8_t XB_REGS1 XB_CDECL G_FilterCachedCandidates(const uint8_t* record, const 
     return 1;
 }
 
+namespace {
+
+// The title CRT's __CIsqrt of an x87 value, stored as float.
+float ci_sqrt_store(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// asin-style series t + t^3 c1 + (t^5 c2 + t^7 c3) on SSE.
+float pitch_series(float t) {
+    const float t2 = t * t;
+    const float t3 = t2 * t;
+    const float t5 = t3 * t2;
+    const float t7 = t5 * t2;
+    return ((t3 * title_global<float>(0x0083ee9c)) + ((t5 * title_global<float>(0x0083ee98)) +
+                                                      (t7 * title_global<float>(0x0083ee94)))) +
+           t;
+}
+
+// The complementary series for t >= 0.5: s = sqrt(|(1 - t) / 2|) through __CIsqrt, then
+// (((s^7 c4 - s^5 0.15) - s^3 / 3) - 2 s) + pi / 2.
+float pitch_series_far(float t) {
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    const float u = static_cast<float>((static_cast<long double>(one) - t) * half);
+    uint32_t bits;
+    std::memcpy(&bits, &u, 4);
+    const float s = ci_sqrt_store(from_bits(bits & 0x7fffffffu));
+    const float s2 = s * s;
+    const float s3 = s2 * s;
+    const float two_s = s * title_global<float>(0x0083eba8);
+    const float s5 = s3 * s2;
+    const float s7 = s5 * s2;
+    return (((s7 * title_global<float>(0x0083ee8c) - s5 * title_global<float>(0x0083ed2c)) -
+             s3 * title_global<float>(0x0083ee90)) -
+            two_s) +
+           title_global<float>(0x0083ee88);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Vec3_PitchDegrees_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Vec3_PitchDegrees) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL Vec3_PitchDegrees(const float* v) {
+    if (v[1] == 0.0f && v[0] == 0.0f)  // UCOMISS + JP: exactly 0 (a NaN takes the general path)
+        return v[2] > 0.0f ? title_global<float>(0x0083efcc) : title_global<float>(0x0083eb64);  // 270 : 90
+    const float a = ci_sqrt_store(static_cast<long double>(v[1] * v[1] + v[0] * v[0]));
+    const float z = v[2];
+    uint32_t bits;
+    std::memcpy(&bits, &a, 4);
+    const float abs_a = from_bits(bits & 0x7fffffffu);
+    std::memcpy(&bits, &z, 4);
+    const float abs_z = from_bits(bits & 0x7fffffffu);
+    float r;
+    if (static_cast<long double>(abs_z) + abs_a == 0.0L) {  // FUCOMIP with 0.0 (a NaN goes on)
+        r = 0.0f;
+    } else {
+        const float length = ci_sqrt_store(static_cast<long double>(z) * z + static_cast<long double>(a) * a);
+        const float inv = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / length);
+        const float half = title_global<float>(0x0083eb24);
+        if (abs_z > abs_a) {
+            const float t = inv * abs_a;
+            r = title_global<float>(0x0083ed0c) - (half > t ? pitch_series(t) : pitch_series_far(t));  // pi / 2 -
+        } else {
+            const float t = inv * abs_z;
+            r = half > t ? pitch_series(t) : pitch_series_far(t);
+        }
+        const float zero = 0.0f;
+        if (zero > a) r = title_global<float>(0x0083ed00) - r;  // pi -
+        if (zero > z) r = zero - r;
+    }
+    r = (r * title_global<float>(0x0083ebd0)) / title_global<float>(0x0083ed00);  // * -180 / pi
+    if (0.0f > r) r = r + title_global<float>(0x0083ebcc);                       // + 360
+    return r;
+}
+
 uint8_t XB_REGS3 XB_CDECL CM_RayHitsTriangle(const float* a, uint32_t, const float* c, const float* origin,
                                              const float* dir, const float* b, float max_fraction, float* fraction) {
     const Lanes la = lanes(a);

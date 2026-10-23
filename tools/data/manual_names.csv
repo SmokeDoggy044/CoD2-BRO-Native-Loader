@@ -11785,3 +11785,4 @@ address,name,kind,confidence,evidence
 002e95b0,SV_CapsuleTrace,function,medium,"SV_Trace variant used by actor movement/path code: world through 0x002e20e0, then the box entity sweep with the capsule flag"
 002e9440,SV_LocationalTrace,function,medium,"point trace behind GScr_LocationalTraceSurface: world through 0x002d4a60, then the point entity walk with hit boxes"
 002cc880,SV_TraceStaticModel,function,medium,"one static model under SV_TraceStaticModels_r: XModel base skeleton (alloca), segment into the model axis, 0x0023d070 trace, normal rotated back and normalized"
+002a11f0,Vec3_PitchDegrees,function,medium,"pitch of a vector in degrees [0,360) with the title arcsine series and __CIsqrt; 270/90 straight up/down; XMM0"

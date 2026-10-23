@@ -1872,6 +1872,7 @@ const Function kFunctions[] = {
     {"Cvar_SetValue", 0x0029fdd0, 0, code(&Cvar_SetValue), 8, Result::None, Status::Compare},
     {"Cvar_SetByVmIndex", 0x0029fe40, 0, code(&Cvar_SetByVmIndex), 4, Result::None, Status::Compare},
     {"FX_AnglesToMatrix", 0x0029ff50, 0, code(&FX_AnglesToMatrix), 0, Result::None, Status::Compare},
+    {"Vec3_PitchDegrees", 0x002a11f0, 0, code(&Vec3_PitchDegrees_entry), 0, Result::Xmm0, Status::Compare},
     {"FS_ListFiles", 0x002a1fb0, 0, code(&FS_ListFiles), 12, Result::Eax, Status::Compare},
     {"FxShakeRumble_GetFalloff", 0x002a22d0, 0, code(&FxShakeRumble_GetFalloff_entry), 0, Result::Xmm0, Status::Compare},
     {"Cvar_Init", 0x002a23b0, 0, code(&Cvar_Init), 0, Result::None, Status::Compare},

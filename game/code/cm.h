@@ -426,6 +426,11 @@ uint8_t XB_CDECL CM_RayHitsWorldMeshes(const float* start, const float* delta, f
 // with the 0.125 epsilon, leave starting at *fraction. 0 when it misses; else 1 with *fraction = enter after a
 // facing plane, 0 when the start is inside, untouched otherwise.
 uint8_t XB_CDECL CM_ClipSegmentToBrush(const float* start, const float* end, const uint8_t* brush, float* fraction);
+// 0x002a11f0 (vector in ESI; result in XMM0): the pitch of a vector in degrees [0, 360) with the title's own arcsine
+// series (t < 0.5: t + t^3/6 + 0.075 t^5 + 0.054 t^7; else the sqrt((1 - t) / 2) form, __CIsqrt everywhere): 270 / 90
+// straight up / down, 0 for a zero vector; atan2-style quadrant fix-ups, * -180 / pi, + 360 below 0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Vec3_PitchDegrees(const float* v);
+extern "C" void Vec3_PitchDegrees_entry(void);
 // 0x002d2b50 (triangle list, brush list, start, end, fraction in/out, surface flags, contents; Vehicle_UpdatePhysics):
 // CM_TraceRayThroughCandidates with fractions - brushes through CM_ClipSegmentToBrush (ids, 0x009507e0 = -1; an exact
 // 0 ends it), crossed triangles inside their edges give ((start - crossing) . plane - 0.125) / (ds - de) when below

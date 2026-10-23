@@ -9115,7 +9115,7 @@ address,name,section,module,state,tested,matched
 002a0210,FUN_002a0210,.text,unassigned,unnamed,0,0
 002a0850,vectoangles,.text,qcommon,named,0,0
 002a0ea0,FUN_002a0ea0,.text,unassigned,unnamed,0,0
-002a11f0,FUN_002a11f0,.text,unassigned,unnamed,0,0
+002a11f0,FUN_002a11f0,.text,unassigned,settled,1910,1910
 002a1540,FUN_002a1540,.text,unassigned,unnamed,0,0
 002a1830,vectoyaw,.text,qcommon,named,0,0
 002a1b30,FS_FOpenFileByMode,.text,qcommon,named,0,0

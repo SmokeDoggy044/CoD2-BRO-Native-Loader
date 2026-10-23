@@ -1778,6 +1778,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0029fdd0,Cvar_SetValue,compare,453,100,100,0,0,0,""
 0029fe40,Cvar_SetByVmIndex,compare,13194,106,106,0,0,0,""
 0029ff50,FX_AnglesToMatrix,compare,137628,303,303,0,0,0,""
+002a11f0,Vec3_PitchDegrees,compare,2070,1910,1910,0,0,0,""
 002a1fb0,FS_ListFiles,compare,0,0,0,0,0,0,""
 002a22d0,FxShakeRumble_GetFalloff,compare,254,100,100,0,0,0,""
 002a23b0,Cvar_Init,compare,184,64,64,0,0,0,""
