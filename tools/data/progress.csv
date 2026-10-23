@@ -7578,7 +7578,7 @@ address,name,section,module,state,tested,matched
 001fd2b0,Actor_NodeDistanceSquared,.text,game,untested,0,0
 001fd320,Actor_AnimScripted_Finish,.text,game,settled,141,141
 001fd3d0,FUN_001fd3d0,.text,unassigned,unnamed,0,0
-001fd500,ActorBlockList_Bump,.text,game,matched,12,12
+001fd500,ActorBlockList_Bump,.text,game,matched,38,38
 001fd5a0,Actor_RecordMoveHistory,.text,game,settled,163,163
 001fd6f0,FUN_001fd6f0,.text,unassigned,unnamed,0,0
 001fd7f0,FUN_001fd7f0,.text,unassigned,unnamed,0,0
@@ -9338,7 +9338,7 @@ address,name,section,module,state,tested,matched
 002b0b90,FUN_002b0b90,.text,unassigned,unnamed,0,0
 002b0c10,FUN_002b0c10,.text,unassigned,unnamed,0,0
 002b0c70,FUN_002b0c70,.text,unassigned,unnamed,0,0
-002b0d10,PathNode_CanSee,.text,game,matched,6,6
+002b0d10,PathNode_CanSee,.text,game,settled,305,305
 002b0dd0,FUN_002b0dd0,.text,unassigned,unnamed,0,0
 002b0e80,PathNode_ParseScriptKeys,.text,game,named,0,0
 002b1060,PathNode_ListInCylinder,.text,game,named,0,0
