@@ -39,16 +39,17 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 956 | 653 | 268 | 33 | 1 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 992 | 283 | 129 | 578 | 0 |
-| Client game (HUD, view, effects on screen) | 210 | 126 | 41 | 43 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 511 | 145 | 67 | 288 | 0 |
-| Client and menus | 222 | 38 | 3 | 181 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 968 | 657 | 268 | 41 | 1 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,076 | 292 | 135 | 647 | 0 |
+| Client game (HUD, view, effects on screen) | 213 | 127 | 41 | 45 | 0 |
+| Engine core (memory, files, settings, commands, containers, math) | 575 | 164 | 72 | 328 | 0 |
+| Client and menus | 236 | 38 | 3 | 195 | 0 |
 | Server, collision, compression | 155 | 58 | 12 | 85 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 1,902 | 9 | 2 | 1,891 | 0 |
-| Level-script helpers in the engine code | 1,142 | 0 | 0 | 1,135 | 0 |
-| Sound, streaming, online | 181 | 57 | 4 | 119 | 0 |
-| Not sorted into a part yet | 4,922 | 33 | 11 | 169 | 3,102 |
+| Script engine (script VM, entity bindings, built-in script functions) | 1,906 | 9 | 2 | 1,895 | 0 |
+| Level-script helpers in the engine code | 1,160 | 0 | 0 | 1,153 | 0 |
+| Sound, streaming, online | 184 | 57 | 4 | 122 | 0 |
+| Microsoft C runtime pieces the library matcher missed (replaced, not rewritten) | 11 | 0 | 0 | 11 | 0 |
+| Not sorted into a part yet | 4,709 | 0 | 0 | 0 | 3,102 |
 
 1,607 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice

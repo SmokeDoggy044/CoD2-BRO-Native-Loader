@@ -9201,7 +9201,7 @@
 002a9460 Com_sprintf
 002a9540 Q_strlwr
 002a9570 Q_strncmp
-002a9610 FUN_002a9610
+002a9610 Char_IsDigit
 002a96b0 FloatNoSwap
 002a96c0 FloatSwap
 002a9700 Long64NoSwap
