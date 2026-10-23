@@ -2,6 +2,7 @@
 
 #include "actor.h"
 #include "bg_misc.h"
+#include "cg_ents.h"
 #include "cg_view.h"
 #include "cgame.h"
 #include "dobj.h"
@@ -929,6 +930,32 @@ const Function kFunctions[] = {
     {"R_Register", 0x0023c4e0, 0, code(&R_Register), 0, Result::Eax, Status::Compare},
     {"R_RegisterModel", 0x00241f40, 0, code(&R_RegisterModel), 12, Result::Eax, Status::Compare},
     {"XModel_TransformBones", 0x00242540, 0, code(&XModel_TransformBones), 12, Result::None, Status::Compare},
+    {"CG_WriteSaveState", 0x00276b10, 0, code(&CG_WriteSaveState), 0, Result::None, Status::Compare},
+    {"CG_CopySaveState", 0x00278cb0, 0, code(&CG_CopySaveState), 0, Result::None, Status::Compare},
+    {"CG_ConsoleCommand", 0x00279dd0, 0, code(&CG_ConsoleCommand), 0, Result::Eax, Status::Compare},
+    {"CG_SpawnTracer", 0x0027a000, 0, code(&CG_SpawnTracer), 4, Result::None, Status::Compare},
+    {"CG_GetViewFov", 0x0027a7b0, 0, code(&CG_GetViewFov_entry), 0, Result::Xmm0, Status::Compare},
+    {"CG_MaybeSpawnTracer", 0x0027ab40, 0, code(&CG_MaybeSpawnTracer_entry), 8, Result::None, Status::Compare},
+    {"CG_InitConsoleCommands", 0x0027acb0, 0, code(&CG_InitConsoleCommands), 0, Result::None, Status::Compare},
+    {"CG_TranslateString", 0x0027b9f0, 0, code(&CG_TranslateString), 4, Result::Eax, Status::Compare},
+    {"CG_SetLightingOrigin", 0x0027bc90, 0, code(&CG_SetLightingOrigin_entry), 0, Result::None, Status::Compare},
+    {"CG_CycleOwnedWeapon", 0x0027bfb0, 0, code(&CG_CycleOwnedWeapon), 4, Result::Eax, Status::Compare},
+    {"CG_Weapon_f", 0x0027c220, 0, code(&CG_Weapon_f), 0, Result::None, Status::Compare},
+    {"CG_AddTracerLocalEntity", 0x0027ef60, 0, code(&CG_AddTracerLocalEntity), 0, Result::None, Status::Compare},
+    {"CG_AdjustPositionForMover", 0x0027fac0, 0, code(&CG_AdjustPositionForMover_entry), 20, Result::None, Status::Compare},
+    {"CG_ShakeCamera", 0x0027fc40, 0, code(&CG_ShakeCamera), 0, Result::None, Status::Compare},
+    {"CG_PointContents", 0x00281fa0, 0, code(&CG_PointContents), 12, Result::Eax, Status::Compare},
+    {"CG_AddLocalEntities", 0x00282040, 0, code(&CG_AddLocalEntities), 0, Result::None, Status::Compare},
+    {"CG_DrawHudElems", 0x00284b90, 0, code(&CG_DrawHudElems), 0, Result::None, Status::Compare},
+    {"CG_Vehicle", 0x00284bf0, 0, code(&CG_Vehicle), 4, Result::None, Status::Compare},
+    {"CG_Mover", 0x00284ec0, 0, code(&CG_Mover), 4, Result::None, Status::Compare},
+    {"CG_Missile", 0x00284fa0, 0, code(&CG_Missile), 4, Result::None, Status::Compare},
+    {"CG_MG42", 0x002850a0, 0, code(&CG_MG42), 4, Result::None, Status::Compare},
+    {"CG_ConfigStringCommand", 0x00286c20, 0, code(&CG_ConfigStringCommand), 0, Result::None, Status::Compare},
+    {"CG_FireWeaponEmpty", 0x002887f0, 0, code(&CG_FireWeaponEmpty), 4, Result::None, Status::Compare},
+    {"CG_CheckPlayerstateEvents", 0x0028a440, 0, code(&CG_CheckPlayerstateEvents_entry), 0, Result::None, Status::Compare},
+    {"CG_CheckEvents", 0x0028a510, 0, code(&CG_CheckEvents_entry), 0, Result::None, Status::Compare},
+    {"CG_CheckEntityPreEvents", 0x0028a9e0, 0, code(&CG_CheckEntityPreEvents_entry), 0, Result::None, Status::Compare},
     {"MemContext_Pop", 0x0028c690, 0, code(&MemContext_Pop_entry), 0, Result::Eax, Status::Compare},
     {"Stream_LoadLgrid", 0x0028d0e0, 0, code(&Stream_LoadLgrid), 16, Result::Eax, Status::Compare},
     {"Stream_LoadAitb", 0x0028d120, 0, code(&Stream_LoadAitb), 16, Result::Eax, Status::Compare},

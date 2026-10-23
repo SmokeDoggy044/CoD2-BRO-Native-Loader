@@ -4,6 +4,7 @@
 set(game_code_sources
     actor.cpp
     bg_misc.cpp
+    cg_ents.cpp
     cg_view.cpp
     cgame.cpp
     dobj.cpp

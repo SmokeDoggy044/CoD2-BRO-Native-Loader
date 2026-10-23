@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "cgame.h"
 #include "lanes.h"
 #include "ngl.h"
 #include "qcommon.h"
@@ -570,6 +571,148 @@ void XB_CDECL CG_StartShakeCamera(const float* origin, float scale, int32_t dura
             return;
     }
     std::memcpy(slots + slot * 0x24, shake, 0x24);
+}
+
+namespace {
+
+// The screen fade (CG_SetFade inline): to `alpha` over `duration` ms from `start`.
+void set_fade(int32_t start, int32_t duration, float alpha) {
+    const int32_t now = gi(0x0097253c);
+    title_global<int32_t>(0x009730c0) = start;
+    title_global<float>(0x009730b8) = alpha;
+    title_global<int32_t>(0x009730c4) = duration;
+    if (start + duration <= now) title_global<float>(0x009730bc) = alpha;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CG_GetViewFov_entry,
+                   PLATFORM_ASM_CALL(CG_GetViewFov) "subl $4, %esp\n"
+                   "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL CG_GetViewFov() {
+    const float one = g(0x0083eb20);
+    const float zoom = g(0x009725d8);
+    float fov = g(0x0094c3e8);  // cg_fov, 1..160
+    if (one > fov) {
+        fov = one;
+    } else if (fov > g(0x0083ef28)) {
+        fov = g(0x0083ef28);
+    }
+    const int32_t now = gi(0x0097253c);
+    const uint32_t flags = title_global<uint32_t>(0x00972610);
+    const int32_t flash_on_zoom = gi(0x009481e4);
+    const uint32_t scoped = flags & 0x106000;
+    const auto def_flag = [] {
+        const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[gi(0x009725d0)];  // bg_weaponDefs
+        return *reinterpret_cast<const uint32_t*>(def + 0x6dc);
+    };
+    if (flash_on_zoom && gi(0x00972a38) == 2 && scoped) {
+        // A flash (fade from 1.0 over 1 ms, 10 ms ago) when the zoom state (0x00972a34) changes.
+        const uint32_t index = zoom == 0.0f ? 0 : 1;
+        int32_t& last = title_global<int32_t>(0x0098bc40 + index * 4);
+        const int32_t state = gi(0x00972a34);
+        bool same = true;
+        if (def_flag() && state != 2) {
+            if (state == 1) {
+                fov = fov - (fov - g(0x0083eda0)) * zoom;
+                same = false;
+            }
+        } else if (state == 1) {
+            same = false;
+        }
+        if (!same && (last > now || last < now - gi(0x00972534))) {
+            set_fade(now - 10, 1, one);
+            last = now;
+            title_global<int32_t>(0x0098bc3c) = now;
+        } else {
+            if (gi(0x0098bc38) != state) {
+                set_fade(now - 10, 1, one);
+                title_global<int32_t>(0x0098bc3c) = now;
+            }
+            last = now;
+            title_global<int32_t>(0x0098bc38) = state;
+        }
+    } else if (!scoped && def_flag()) {
+        // Zooming in or out: towards the weapon's zoomed fov (+0x624) over the last part of
+        // the zoom (+0x62c in, +0x630 out).
+        const uint8_t* weapon = title_global<const uint8_t*>(0x00972acc);
+        const auto wf = [weapon](uint32_t offset) { return *reinterpret_cast<const float*>(weapon + offset); };
+        if (zoom == one) {
+            fov = wf(0x624);
+        } else if (!(zoom == 0.0f)) {
+            const uint32_t part = gi(0x00972a74) ? 0x62c : 0x630;
+            float t = zoom - (one - wf(part));
+            if (t > 0.0f) {
+                t = t / wf(part);
+                if (t > 0.0f) fov = fov - (fov - wf(0x624)) * t;
+            }
+        }
+    }
+    if (flash_on_zoom && gi(0x00972a38) == 2 && !scoped) {
+        if (gi(0x0098bc38) > 0) {
+            set_fade(now - 10, 1, one);
+            title_global<int32_t>(0x0098bc3c) = now;
+        }
+        title_global<int32_t>(0x0098bc38) = 0;
+    }
+    const int32_t flash = gi(0x0098bc3c);
+    if (flash > 0 && flash < now - 0x32) {
+        set_fade(now - 1, 0x2bc, 0.0f);
+        title_global<int32_t>(0x0098bc3c) = -1;
+    }
+    const uint8_t* def = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(CG_GetCurrentWeaponDef()));
+    if (def) {
+        const float zero = g(0x0083eafc);
+        if (zoom == one) {
+            const float zoomed = *reinterpret_cast<const float*>(def + 0x624);
+            if (zoomed > zero) return zoomed;
+        }
+        const float fixed = *reinterpret_cast<const float*>(def + 0x848);
+        if (fixed > zero) return fixed;
+    }
+    return fov;
+}
+
+void XB_CDECL CG_ShakeCamera() {
+    if (gi(0x0094c7a4) || !gi(0x009496b4)) return;
+    const float time = static_cast<float>(gi(0x0097253c)) * g(0x0083f07c);
+    float scale = 0.0f;
+    for (uint32_t slot = 0x00973010; slot < 0x009730a0; slot += 0x24) {
+        if (CG_CalcCameraShakeSlot(reinterpret_cast<uint8_t*>(slot - 4)) && title_global<float>(slot) > scale)
+            scale = title_global<float>(slot + 0x18);
+    }
+    if (g(0x009730a0) > scale) scale = g(0x009730a0);
+    const auto random = [] {
+        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        return (static_cast<float>(r) * g(0x0083ecf8) - g(0x0083eb20));
+    };
+    if (scale <= 0.0f) {
+        title_global<float>(0x0097309c) = random() * g(0x0083ed00);
+        return;
+    }
+    if (scale > g(0x0083eb20)) scale = g(0x0083eb20);
+    const float amplitude = scale * g(0x0083eca0);
+    float offset[3];
+    for (int i = 0; i < 3; ++i) offset[i] = random() * amplitude;
+    using ext = long double;
+    const ext phase = static_cast<ext>(g(0x0097309c));
+    const ext pitch = platform_x87_sin_ext(static_cast<ext>(time) * static_cast<ext>(g(0x0083f078)) + phase);
+    title_global<float>(0x00972bb0) = g(0x00972bb0) + offset[0];
+    title_global<float>(0x00972bb4) = g(0x00972bb4) + offset[1];
+    title_global<float>(0x00972bb8) = g(0x00972bb8) + offset[2];
+    const ext s = static_cast<ext>(scale);
+    title_global<float>(0x00972bf0) =
+        static_cast<float>(pitch * s * s * static_cast<ext>(g(0x0083eb00)) + static_cast<ext>(g(0x00972bf0)));
+    const ext yaw = platform_x87_sin_ext(static_cast<ext>(time) * static_cast<ext>(g(0x0083f074)) + phase);
+    title_global<float>(0x00972bf4) =
+        static_cast<float>(yaw * s * s * static_cast<ext>(g(0x0083ebb8)) + static_cast<ext>(g(0x00972bf4)));
+    const ext roll = platform_x87_sin_ext(static_cast<ext>(time) * static_cast<ext>(g(0x0083f070)) + phase);
+    title_global<float>(0x00972bf8) =
+        static_cast<float>(roll * s * s * static_cast<ext>(g(0x0083eb98)) + static_cast<ext>(g(0x00972bf8)));
 }
 
 }  // namespace game
