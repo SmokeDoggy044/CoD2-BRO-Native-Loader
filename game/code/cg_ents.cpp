@@ -1330,4 +1330,109 @@ void XB_CDECL CG_SetNextSnap(uint8_t* snap) {
         if (*e) CG_CheckEntityPreEvents(*e, addr(last));
 }
 
+uint8_t* XB_CDECL CG_ReadNextSnapshot() {
+    // Q3's CG_ReadNextSnapshot: the next snapshot the client has (CL_GetSnapshot 0x002ac510,
+    // number in ECX, buffer in EDX) into whichever of the two buffers (0x00971ab0/0x00971ff0)
+    // cg.snap is not; null when none is left. With no weapon yet (0x00947fa4) the snapshot's
+    // weapon (+0x90) is requested through the vmCvars 0x00947f98 / 0x0094c230.
+    int32_t& processed = title_global<int32_t>(0x00971a98);
+    const int32_t latest = title_global<int32_t>(0x00971a9c);
+    if (latest > processed + 1000) CG_Printf(&title_global<char>(0x00838ac4), latest, processed);
+    const auto va_int = [](int32_t v) {
+        return title_function<const char* XB_CDECL(const char*, int32_t)>(0x002a93d0)(&title_global<char>(0x0082ded4), v);
+    };
+    const auto set_vm = [](uint32_t vm, const char* value) {
+        TitleRegs regs{};
+        regs.eax = addr(value);
+        const uint32_t args[1] = {vm};
+        cg_call_regs(0x0029fe40, &regs, args, 1);  // Cvar_SetByVmIndex
+    };
+    while (processed < title_global<int32_t>(0x00971a9c)) {
+        uint8_t* dest = title_global<uint32_t>(0x00971aa8) == 0x00971ab0 ? &title_global<uint8_t>(0x00971ff0)
+                                                                           : &title_global<uint8_t>(0x00971ab0);
+        ++processed;
+        TitleRegs regs{};
+        regs.ecx = static_cast<uint32_t>(processed);
+        regs.edx = addr(dest);
+        if (!cg_call_regs(0x002ac510, &regs, nullptr, 0)) continue;
+        const uint8_t* snap = title_global<uint8_t*>(0x00971aa8);
+        if (snap && !title_global<int32_t>(0x00947fa4) && *reinterpret_cast<const int32_t*>(snap + 0x90)) {
+            set_vm(0x00947f98, va_int(*reinterpret_cast<const int32_t*>(snap + 0x90)));
+            set_vm(0x0094c230, va_int(cg_time()));
+        }
+        return dest;
+    }
+    return nullptr;
+}
+
+namespace {
+
+int32_t wrapped_sub(int32_t a, int32_t b) {
+    return static_cast<int32_t>(static_cast<uint32_t>(a) - static_cast<uint32_t>(b));
+}
+
+}  // namespace
+
+// A callee stores a stack address (0x100006a8 differed by the C frame's depth in 4 of 128
+// tests): the entry moves the C frame below a gap, the calls run at the original's ESP
+// (entry - 4: its one push) through their title addresses, and the first snapshot's tail
+// jump to CG_TransitionSnapshot is returned to the entry, which jumps there at the entry ESP.
+PLATFORM_ASM_ENTRY(CG_ProcessSnapshots_entry,
+                   "movl %esp, %edx\n"
+                   "subl $0x10000, %esp\n"
+                   "pushl %edx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(CG_ProcessSnapshots) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "testl %eax, %eax\n"
+                   "jz 1f\n"
+                   "jmp *%eax\n"
+                   "1:\n"
+                   "ret")
+
+uint32_t XB_CDECL CG_ProcessSnapshots(uint32_t entry_esp) {
+    // Q3's CG_ProcessSnapshots: the latest snapshot number (0x0096016c; going down is an
+    // error), the first snapshot set up (0x0027e2f0), then snapshots read and transitioned
+    // until cg.time lies between the current and the next one; cg.frameInterpolation.
+    title_global<uint32_t>(0x00971aa0) = title_global<uint32_t>(0x00960168);
+    const int32_t n = title_global<int32_t>(0x0096016c);
+    int32_t& latest = title_global<int32_t>(0x00971a9c);
+    if (n != latest) {
+        if (n < latest) CG_Error(&title_global<char>(0x00838a94));
+        latest = n;
+    }
+    const uint32_t top = entry_esp - 4;
+    const auto call = [top](uint32_t function, uint32_t value) {
+        TitleRegs regs{};
+        regs.eax = value;
+        regs.esi = value;
+        return title_call_at_regs(top, function, &regs, 0, nullptr);
+    };
+    uint8_t*& snap = title_global<uint8_t*>(0x00971aa8);
+    uint8_t*& next = title_global<uint8_t*>(0x00971aac);
+    if (!snap) {
+        const uint32_t first = call(0x0027c4f0, 0);  // CG_ReadNextSnapshot
+        call(0x0027e2f0, first);                     // CG_SetInitialSnapshot
+        call(0x0028aaa0, first);                     // CG_SetNextSnap
+        return 0x0028abd0;                           // CG_TransitionSnapshot (tail jump)
+    }
+    const int32_t delta = at<int32_t>(next, 4) - at<int32_t>(snap, 4);
+    float& interpolation = title_global<float>(0x00972530);
+    if (delta == 0) {
+        interpolation = 0.0f;
+    } else {
+        interpolation = static_cast<float>(cg_time() - at<int32_t>(snap, 4)) / static_cast<float>(delta);
+        if (0.0f > interpolation) interpolation = 0.0f;
+    }
+    for (;;) {
+        if (next == snap) {
+            uint8_t* s = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(call(0x0027c4f0, 0)));
+            if (!s) return 0;
+            if (wrapped_sub(at<int32_t>(s, 4), at<int32_t>(snap, 4)) < 0) CG_Error(&title_global<char>(0x00838a64));
+            call(0x0028aaa0, addr(s));  // CG_SetNextSnap
+        }
+        if (wrapped_sub(cg_time(), at<int32_t>(snap, 4)) >= 0 && wrapped_sub(cg_time(), at<int32_t>(next, 4)) < 0) return 0;
+        call(0x0028abd0, 0);  // CG_TransitionSnapshot
+    }
+}
+
 }  // namespace game

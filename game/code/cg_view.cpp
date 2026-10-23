@@ -1011,4 +1011,229 @@ void XB_CDECL CG_DrawDamageDirectionIcons() {
     }
 }
 
+namespace {
+
+// The channel of a sound handle (index in the low 12 bits of 0x00962860 {channel,
+// generation}, 0x200 of them), 0 when stale.
+uint32_t sound_channel(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x200 || (handle >> 12) != title_global<uint32_t>(0x00962864 + index * 8)) return 0;
+    return title_global<uint32_t>(0x00962860 + index * 8);
+}
+
+void stop_channel(uint32_t channel) {
+    TitleRegs regs{};
+    regs.esi = channel;
+    regs.edi = channel;
+    cg_call_regs(0x002c3400, &regs, nullptr, 0);  // S_StopChannel
+}
+
+}  // namespace
+
+void XB_CDECL CG_StopShellShockSound() {
+    // The shell shock's sound mix restored (0x000c53b0; a reverb preset handed to the empty
+    // 0x000c72f0), its flag 0x00973a54 cleared and both looping channels (handles
+    // 0x00973a68/0x00973a6c) stopped. With the second handle 0 the original stops the first
+    // channel a second time (its register still holds it).
+    title_function<void XB_CDECL()>(0x000c53b0)();
+    uint32_t preset[12] = {0xfffffc18, 0xffffff9c, 0, 0, 0, 0xfffff5d6, 0, 200, 0, 0, 0, 0};
+    reinterpret_cast<float*>(preset)[2] = 0.0f;
+    reinterpret_cast<float*>(preset)[3] = g(0x0083ec58);
+    reinterpret_cast<float*>(preset)[4] = g(0x0083ec54);
+    reinterpret_cast<float*>(preset)[6] = g(0x0083ec38);
+    reinterpret_cast<float*>(preset)[8] = g(0x0083ec34);
+    reinterpret_cast<float*>(preset)[9] = g(0x0083eb90);
+    reinterpret_cast<float*>(preset)[10] = g(0x0083eb90);
+    reinterpret_cast<float*>(preset)[11] = g(0x0083ec28);
+    title_function<void XB_CDECL(const uint32_t*)>(0x000c72f0)(preset);
+    if (title_global<uint32_t>(0x00973a54)) title_global<uint32_t>(0x00973a54) = 0;
+    uint32_t channel = 0;
+    const uint32_t first = title_global<uint32_t>(0x00973a68);
+    if (first) {
+        channel = sound_channel(first);
+        if (channel) stop_channel(channel);
+    }
+    title_global<uint32_t>(0x00973a68) = 0;
+    const uint32_t second = title_global<uint32_t>(0x00973a6c);
+    if (second) channel = sound_channel(second);
+    if (channel) stop_channel(channel);
+    title_global<uint32_t>(0x00973a6c) = 0;
+}
+
+PLATFORM_ASM_ENTRY(CG_UpdateShellShock_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_UpdateShellShock) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_UpdateShellShock(int32_t start, int32_t duration, const uint8_t* params) {
+    // While a shell shock (start, duration ms) runs: its sound (0x0027c5c0), the screen
+    // parameters and the view kick; 0x00961770 = still running. Otherwise everything off
+    // (sound stopped, blend 1, blurs 0, scene callback 2 cleared, kick 0).
+    const int32_t elapsed = title_global<int32_t>(0x0097253c) - start;
+    if (start && elapsed >= 0 && elapsed <= duration) {
+        // CG_UpdateShellShockSound reads a never-written word that holds a register pushed by an
+        // earlier callee: hand it the original's EBX/ESI/EDI (params, duration, elapsed).
+        TitleRegs regs{};
+        regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(params));
+        regs.esi = static_cast<uint32_t>(duration);
+        regs.edi = static_cast<uint32_t>(elapsed);
+        const uint32_t args[2] = {static_cast<uint32_t>(elapsed), static_cast<uint32_t>(duration)};
+        cg_call_regs(0x0027c5c0, &regs, args, 2);  // CG_UpdateShellShockSound
+        CG_ShellShockScreenParams(0, elapsed, params, duration);
+        CG_ShellShockViewKick(duration, params, elapsed);
+        title_global<uint32_t>(0x00961770) = elapsed < duration ? 1 : 0;
+        return;
+    }
+    CG_StopShellShockSound();
+    title_global<float>(0x00973a58) = g(0x0083eb20);
+    title_global<float>(0x00961778) = 0.0f;
+    title_global<float>(0x0096177c) = 0.0f;
+    nglSetSceneCallback(2, nullptr, nullptr);
+    title_global<float>(0x00973a5c) = 0.0f;
+    title_global<float>(0x00973a60) = 0.0f;
+    title_global<uint32_t>(0x00961770) = 0;
+}
+
+void XB_CDECL CG_DrawSkyBoxPortal() {
+    // Q3's CG_DrawSkyBoxPortal: with a skybox configstring (0x009606e0: "x y z fov") and the
+    // portal cvar 0x009493e4 the view origin from it, fov_x from CG_GetViewFov and fov_y for
+    // the refdef's aspect (flags 0x18), else flag 8 without 0x10; rendered (import
+    // 0x00928524) at cg.time (0x00972be4), then the refdef restored.
+    const uint8_t* string = title_global<const uint8_t*>(0x009606e0);
+    const char* cursor = string ? reinterpret_cast<const char*>(string + 6) : nullptr;
+    if (!cursor || !*cursor) return;
+    uint32_t saved[0x18];
+    uint32_t* refdef = &title_global<uint32_t>(0x00972b90);
+    for (int k = 0; k < 0x18; ++k) saved[k] = refdef[k];
+    uint32_t& flags = title_global<uint32_t>(0x00972be8);
+    if (title_global<uint32_t>(0x009493e4)) {
+        const auto token = [&cursor]() {
+            TitleRegs regs{};
+            regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&cursor));
+            const char* t = reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(0x002b9080, &regs, nullptr, 0)));
+            if (!t || !*t) CG_Error(&title_global<char>(0x008389cc));
+            return t;
+        };
+        const auto atof = title_function<float XB_CDECL(const char*)>(0x001ef056);
+        title_global<float>(0x00972bb0) = atof(token());
+        title_global<float>(0x00972bb4) = atof(token());
+        title_global<float>(0x00972bb8) = atof(token());
+        title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(token());  // _atol (unused)
+        const float fov_x = CG_GetViewFov();
+        using ext = long double;
+        const float x = static_cast<float>(static_cast<ext>(gi(0x00972b98)) /
+                                           platform_x87_tan_ext(static_cast<ext>(fov_x) * static_cast<ext>(g(0x0083ecf0))));
+        const float y = static_cast<float>(gi(0x00972b9c));
+        float angle = 0.0f;
+        if (!(abs_bits(y) + abs_bits(x) == 0.0f)) angle = title_atan2(x, y, platform_x87_rcp_hypot(y, x, g(0x0083eb20)));
+        title_global<float>(0x00972ba0) = fov_x;
+        title_global<float>(0x00972ba4) = angle * g(0x0083efbc);
+        flags |= 0x18;
+    } else {
+        flags = (flags & ~0x10u) | 8;
+    }
+    title_global<int32_t>(0x00972be4) = gi(0x0097253c);
+    title_function<void XB_CDECL(void*)>(title_global<uint32_t>(0x00928524))(refdef);
+    for (int k = 0; k < 0x18; ++k) refdef[k] = saved[k];
+}
+
+// Runs the trace calls at the original's ESP with the trace and view vectors at the
+// original's frame addresses (as the trace functions themselves): the entry moves the C
+// frame below a gap and hands over its entry ESP.
+PLATFORM_ASM_ENTRY(CG_OffsetThirdPersonView_entry,
+                   "movl %esp, %edx\n"
+                   "subl $0x10000, %esp\n"
+                   "pushl %edx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(CG_OffsetThirdPersonView) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_OffsetThirdPersonView(uint32_t entry_esp) {
+    // Q3's CG_OffsetThirdPersonView: the camera pulled back cg_thirdPersonRange (0x0094adf0)
+    // at cg_thirdPersonAngle (0x0094c8c0) from 8 units above the eye, stopped by the world
+    // (CG_TracePoint, 4-unit box 0x0098ee80/70, mask 0x11; raised by the blocked fraction *
+    // 32 and traced again), looking at the point 512 units ahead (pitch capped at 45; the
+    // view pitch halved first). Intermission (0x00972574 >= 4) uses the yaw 0x00972654.
+    const uint32_t frame = (((entry_esp - 4) & ~15u) - 0xb0);
+    float* view = reinterpret_cast<float*>(static_cast<uintptr_t>(frame + 0x20));
+    uint8_t* trace = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(frame + 0x60));
+    uint32_t& once = title_global<uint32_t>(0x0098ee90);
+    if (!(once & 1)) {
+        once |= 1;
+        for (int k = 0; k < 4; ++k) title_global<float>(0x0098ee80 + 4 * k) = g(0x0083f184);
+    }
+    if (!(once & 2)) {
+        once |= 2;
+        for (int k = 0; k < 4; ++k) title_global<float>(0x0098ee70 + 4 * k) = g(0x0083100c);
+    }
+    float* org = &title_global<float>(0x00972bb0);
+    float* angles = &title_global<float>(0x00972bf0);
+    org[2] = org[2] + g(0x009725fc);
+    float focus_pitch = angles[0];
+    if (gi(0x00972574) >= 4) angles[1] = static_cast<float>(gi(0x00972654));
+    if (focus_pitch > g(0x0083ef1c)) focus_pitch = g(0x0083ef1c);
+    const float to_radians = g(0x0083edd8);
+    float sy, cy, sp, cp;
+    FastSinCos(&sy, 0, &cy, angles[1] * to_radians);
+    FastSinCos(&sp, 0, &cp, focus_pitch * to_radians);
+    using ext = long double;
+    angles[0] = static_cast<float>(static_cast<ext>(angles[0]) * static_cast<ext>(title_global<double>(0x0083ecb0)));
+    const float reach = g(0x0083ebf4);
+    alignas(16) float forward[4];
+    forward[0] = cp * cy;
+    forward[1] = cp * sy;
+    forward[2] = 0.0f - sp;
+    const float focus[3] = {forward[0] * reach + org[0], forward[1] * reach + org[1], forward[2] * reach + org[2]};
+    view[0] = org[0];
+    view[1] = org[1];
+    view[2] = org[2] + g(0x0083ed78);
+    uint32_t args[2] = {0x00972bf0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward))};
+    alignas(16) float right[4], up[4];
+    AnglesToAxis(args, right, up);
+    float s, c;
+    FastSinCos(&s, 0, &c, g(0x0094c8c0) / g(0x0083eb60) * g(0x0083ed00));
+    const float range = g(0x0094adf0);
+    const float forward_scale = 0.0f - range * c;
+    const float side_scale = 0.0f - range * s;
+    view[0] = side_scale * right[0] + (forward_scale * forward[0] + view[0]);
+    view[1] = side_scale * right[1] + (forward_scale * forward[1] + view[1]);
+    view[2] = side_scale * right[2] + (forward_scale * forward[2] + view[2]);
+    TitleRegs regs{};
+    regs.eax = 0x11;
+    regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(view));
+    const uint32_t skip = title_global<uint32_t>(0x009725cc);
+    const uint32_t trace_args[5] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(trace)), 0x00972bb0, 0x0098ee80,
+                                    0x0098ee70, skip};
+    title_call_at_regs(frame - 4, 0x00286d00, &regs, 5, trace_args);  // CG_TracePoint
+    if (!(*reinterpret_cast<const float*>(trace + 0x20) == 1.0f)) {
+        const float* end = reinterpret_cast<const float*>(trace);
+        view[0] = end[0];
+        view[1] = end[1];
+        view[2] = (g(0x0083eb20) - *reinterpret_cast<const float*>(trace + 0x20)) * g(0x0083eeac) + end[2];
+        const uint32_t again[5] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(trace)), 0x00972bb0, 0x0098ee80,
+                                   0x0098ee70, title_global<uint32_t>(0x009725cc)};
+        title_call_at_regs(frame, 0x00286d00, &regs, 5, again);
+        view[0] = end[0];
+        view[1] = end[1];
+        view[2] = end[2];
+    }
+    const float dx = static_cast<float>(static_cast<ext>(focus[0]) - static_cast<ext>(view[0]));
+    org[0] = view[0];
+    org[1] = view[1];
+    const float dz = focus[2] - view[2];
+    const float dy = static_cast<float>(static_cast<ext>(focus[1]) - static_cast<ext>(view[1]));
+    org[2] = view[2];
+    float distance = title_ci_sqrt(static_cast<float>(static_cast<ext>(dy) * dy + static_cast<ext>(dx) * dx));
+    if (g(0x0083eb20) > distance) distance = g(0x0083eb20);
+    float angle = 0.0f;
+    if (!(abs_bits(dz) + abs_bits(distance) == 0.0f)) {
+        const float length = title_ci_sqrt(static_cast<float>(static_cast<ext>(distance) * distance + static_cast<ext>(dz) * dz));
+        const float inverse = static_cast<float>(static_cast<ext>(g(0x0083eb20)) / static_cast<ext>(length));
+        angle = title_atan2(distance, dz, inverse);
+    }
+    angles[0] = angle * g(0x0083f0e0);
+    angles[1] = angles[1] - g(0x0094c8c0);
+}
+
 }  // namespace game

@@ -107,4 +107,17 @@ uint32_t XB_CDECL CG_CalcFov();
 // 0x00282340: the damage direction indicators.
 void XB_CDECL CG_DrawDamageDirectionIcons();
 
+// 0x0027b860: the shell shock sound stopped (mix restored, both looping channels).
+void XB_CDECL CG_StopShellShockSound();
+// 0x0027e540 (start EAX, duration ESI, cdecl params): runs or ends the shell shock effects.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_UpdateShellShock(int32_t start, int32_t duration, const uint8_t* params);
+extern "C" void CG_UpdateShellShock_entry(void);
+
+// 0x0027afd0: Q3's CG_DrawSkyBoxPortal.
+void XB_CDECL CG_DrawSkyBoxPortal();
+
+// 0x002873e0: Q3's CG_OffsetThirdPersonView; the C version gets the entry ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_OffsetThirdPersonView(uint32_t entry_esp);
+extern "C" void CG_OffsetThirdPersonView_entry(void);
+
 }  // namespace game

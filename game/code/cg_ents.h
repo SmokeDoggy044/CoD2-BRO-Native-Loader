@@ -160,4 +160,11 @@ extern "C" void CG_SetViewHandsModel_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_SetNextSnap(uint8_t* snap);
 extern "C" void CG_SetNextSnap_entry(void);
 
+// 0x0027c4f0: Q3's CG_ReadNextSnapshot; the snapshot buffer or null.
+uint8_t* XB_CDECL CG_ReadNextSnapshot();
+// 0x0028b220: Q3's CG_ProcessSnapshots; the C version gets the entry ESP and returns the
+// tail jump target for CG_ProcessSnapshots_entry.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CG_ProcessSnapshots(uint32_t entry_esp);
+extern "C" void CG_ProcessSnapshots_entry(void);
+
 }  // namespace game

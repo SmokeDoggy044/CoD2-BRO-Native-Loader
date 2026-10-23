@@ -3472,9 +3472,10 @@ uint8_t* XB_REGS1 XB_CDECL DObjHandle_Resolve(const uint32_t* handle) {
     return handle_object(*handle, 0x00981418);
 }
 
-void XB_REGS3 XB_CDECL WeaponModel_GetDObjHandle(uint32_t* out, uint32_t, uint32_t index) {
+uint32_t* XB_REGS3 XB_CDECL WeaponModel_GetDObjHandle(uint32_t* out, uint32_t, uint32_t index) {
     const uint8_t* model = title_global<const uint8_t*>(0x00975fa8 + index * 0xc4);
     *out = model ? *reinterpret_cast<const uint32_t*>(model + 0x8c) : 0;
+    return out;  // EAX is never written: the caller gets `out` back
 }
 
 void XB_REGS3 XB_CDECL FxComponent_GetEntityOrigin(uint32_t* out, uint32_t, const uint8_t* component) {

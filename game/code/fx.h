@@ -558,7 +558,7 @@ uint8_t* XB_REGS1 XB_CDECL FxComponent_GetEntity(const uint8_t* component);
 uint8_t* XB_REGS1 XB_CDECL DObjHandle_Resolve(const uint32_t* handle);
 // 0x00278e30 (out in EAX, index in ECX): the DObj handle (+0x8c) of weapon model `index`
 // (0x00975fa8, 0xc4 each; 0 without a model).
-void XB_REGS3 XB_CDECL WeaponModel_GetDObjHandle(uint32_t* out, uint32_t unused_edx, uint32_t index);
+uint32_t* XB_REGS3 XB_CDECL WeaponModel_GetDObjHandle(uint32_t* out, uint32_t unused_edx, uint32_t index);
 // 0x0029af30 (out in EAX, component in ECX): the component entity's origin (+0x140, 16 bytes).
 void XB_REGS3 XB_CDECL FxComponent_GetEntityOrigin(uint32_t* out, uint32_t unused_edx, const uint8_t* component);
 // 0x0029b0f0 (out in EAX, component in EDX): the placement's (+0x14) translation row (+0x30),
