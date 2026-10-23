@@ -650,4 +650,46 @@ void XB_CDECL SV_SectorClipTrace_r(uint8_t* clip, uint8_t* node, float f1, float
         SV_ClipTraceToEntity(clip, 0, link);
 }
 
+PLATFORM_ASM_ENTRY(SV_EntitySightTrace_entry,
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(SV_EntitySightTrace) "addl $28, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL SV_EntitySightTrace(const float* end, const float* maxs, const float* start, const float* mins,
+                                     uint32_t handle, uint32_t content_mask, uint32_t capsule_flag) {
+    const uint32_t index = handle & 0xfff;
+    uint8_t* ent = nullptr;
+    if (static_cast<int32_t>(index) < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (!(field<uint32_t>(ent, 0x134) & content_mask)) return 0;
+    const Lanes pad = lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e640}));
+    const Lanes s = lanes(start), e = lanes(end);
+    Lanes lo = sub(add(Lanes{{s.v[0] < e.v[0] ? s.v[0] : e.v[0], s.v[1] < e.v[1] ? s.v[1] : e.v[1],
+                              s.v[2] < e.v[2] ? s.v[2] : e.v[2], s.v[3] < e.v[3] ? s.v[3] : e.v[3]}},
+                       lanes(mins)),
+                   pad);  // MINPS(start, end): end on NaN
+    Lanes hi = add(add(Lanes{{s.v[0] > e.v[0] ? s.v[0] : e.v[0], s.v[1] > e.v[1] ? s.v[1] : e.v[1],
+                              s.v[2] > e.v[2] ? s.v[2] : e.v[2], s.v[3] > e.v[3] ? s.v[3] : e.v[3]}},
+                       lanes(maxs)),
+                   pad);
+    for (int32_t a = 0; a < 3; ++a)
+        if (field<float>(ent, 0x100 + a * 4) > hi.v[a]) return 0;
+    for (int32_t a = 0; a < 3; ++a)
+        if (lo.v[a] > field<float>(ent, 0x110 + a * 4)) return 0;
+    const uint8_t* const model = SV_ClipHandleForEntity(0, 0, ent);
+    alignas(16) float angles[4];
+    std::memcpy(angles, field<uint32_t>(ent, 0xdc) ? static_cast<const void*>(ent + 0x150)
+                                                   : reinterpret_cast<const void*>(uintptr_t{0x0082e290}),
+                16);
+    const uint32_t blocked = CM_TransformedSightTrace(reinterpret_cast<const float*>(ent + 0x140), 0, end, 0, start,
+                                                      mins, maxs, reinterpret_cast<const uint32_t*>(model),
+                                                      content_mask, angles, capsule_flag);
+    return blocked ? -1 : 0;  // NEG + SBB
+}
+
 }  // namespace game

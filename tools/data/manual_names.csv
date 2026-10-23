@@ -11736,3 +11736,4 @@ address,name,kind,confidence,evidence
 002e8650,SV_SectorBoxSightTrace_r,function,medium,"sector walk with per-axis extents as plane offset (Q3 SV_ClipMoveToEntities style splits), node entities via SV_BoxSightClipToEntity; called by G_SightTrace"
 002e80b0,SV_ClipTraceToEntity,function,medium,"Q3 SV_ClipMoveToEntities per-entity body: pass skips, clip handle, angles (tiny ones zeroed for flag 0x800000), CM_TransformedBoxTrace, keep the smaller fraction / merge solid flags"
 002e88d0,SV_SectorClipTrace_r,function,medium,"Q3 SV_ClipMoveToEntities sector walk with extents as plane offset, early out on the trace fraction, SV_ClipTraceToEntity per node entity; called by SV_Trace"
+002e75d0,SV_EntitySightTrace,function,medium,"sight trace against one entity by handle: content mask, swept-box bounds test, CM_TransformedSightTrace; -1 / 0 (Path_TraceAhead and path code)"

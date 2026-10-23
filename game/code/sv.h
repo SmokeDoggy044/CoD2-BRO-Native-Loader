@@ -133,4 +133,12 @@ int32_t XB_REGS3 XB_CDECL SV_ClipTraceToEntity(uint8_t* clip, uint32_t unused, u
 void XB_CDECL SV_SectorClipTrace_r(uint8_t* clip, uint8_t* node, float f1, float f2, const float* p1,
                                    const float* p2);
 
+// 0x002e75d0 (end in EDI, maxs in EBX; start, mins, entity handle, content mask, capsule flag on the stack): a sight
+// trace against one entity - its contents (+0x134) in the mask, its bounds (+0x100 / +0x110) meeting the swept box
+// (padded by 0x0082e640), then CM_TransformedSightTrace as SV_BoxSightClipToEntity. -1 when blocked, else 0.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SV_EntitySightTrace(const float* end, const float* maxs, const float* start,
+                                                                const float* mins, uint32_t handle,
+                                                                uint32_t content_mask, uint32_t capsule_flag);
+extern "C" void SV_EntitySightTrace_entry(void);
+
 }  // namespace game

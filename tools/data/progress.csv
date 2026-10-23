@@ -9822,7 +9822,7 @@ address,name,section,module,state,tested,matched
 002da080,FUN_002da080,.text,unassigned,unnamed,0,0
 002da1d0,FUN_002da1d0,.text,unassigned,settled,236,236
 002da4d0,CM_TestInLeafObjects,.text,collision,settled,151,151
-002da830,FUN_002da830,.text,unassigned,matched,77,77
+002da830,FUN_002da830,.text,unassigned,settled,113,113
 002da9d0,CM_TestInWorldTrees,.text,collision,settled,138,138
 002dab20,CM_TraceCapsuleThroughCapsule,.text,collision,settled,16495,16495
 002dae30,CM_ClipSphereSweepToTriangle,.text,collision,settled,11065,11065
@@ -9885,9 +9885,9 @@ address,name,section,module,state,tested,matched
 002e70c0,CM_TransformedBoxTrace,.text,collision,settled,8709,8709
 002e74f0,Think_ScriptLinked,.text,game,named,0,0
 002e7520,FUN_002e7520,.text,unassigned,unnamed,0,0
-002e75d0,FUN_002e75d0,.text,unassigned,unnamed,0,0
+002e75d0,FUN_002e75d0,.text,unassigned,settled,2233,2233
 002e7770,FUN_002e7770,.text,unassigned,settled,290,290
-002e78b0,FUN_002e78b0,.text,unassigned,settled,302,302
+002e78b0,FUN_002e78b0,.text,unassigned,settled,3304,3304
 002e79c0,FUN_002e79c0,.text,unassigned,unnamed,0,0
 002e80b0,FUN_002e80b0,.text,unassigned,settled,987,987
 002e8270,SV_ClipToEntity,.text,server,named,0,0

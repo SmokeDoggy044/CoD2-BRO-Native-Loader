@@ -2097,6 +2097,7 @@ const Function kFunctions[] = {
     {"CM_BoxTrace", 0x002e5030, 0, code(&CM_BoxTrace), 28, Result::Eax, Status::Compare},
     {"CM_TransformedSightTrace", 0x002e6dc0, 0, code(&CM_TransformedSightTrace), 32, Result::Eax, Status::Compare},
     {"CM_TransformedBoxTrace", 0x002e70c0, 0, code(&CM_TransformedBoxTrace), 32, Result::Eax, Status::Compare},
+    {"SV_EntitySightTrace", 0x002e75d0, 0, code(&SV_EntitySightTrace_entry), 20, Result::Eax, Status::Compare},
     {"SV_SightClipToEntity", 0x002e7770, 0, code(&SV_SightClipToEntity_entry), 0, Result::Eax, Status::Compare},
     {"SV_BoxSightClipToEntity", 0x002e78b0, 0, code(&SV_BoxSightClipToEntity), 0, Result::Eax, Status::Compare},
     {"SV_ClipTraceToEntity", 0x002e80b0, 0, code(&SV_ClipTraceToEntity), 0, Result::None, Status::Compare},
