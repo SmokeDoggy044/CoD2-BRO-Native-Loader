@@ -1344,4 +1344,43 @@ void XB_REGS1 XB_CDECL CM_TraceCapsuleThroughCapsule(uint8_t* tw) {
     }
 }
 
+uint8_t XB_REGS3 XB_CDECL CM_SegmentOverlapsBox(const float* b, const float* c, const float* a, const float* d) {
+    const Lanes la = lanes(a), lb = lanes(b), lc = lanes(c), ld = lanes(d);
+    float enter = 0.0f;
+    float leave = title_global<float>(0x0083eb20);  // 1
+    // Pass 1: the low planes (a).
+    const Lanes s0 = sub(la, lb);
+    const Lanes enter0 = sub(s0, splat(title_global<float>(0x0083ec68)));  // 0.125
+    const Lanes e0 = sub(la, lc);
+    const Lanes d0 = sub(s0, e0);
+    platform_keep(enter0);
+    for (int32_t i = 0; i < 3; ++i) {
+        if (s0.v[i] > 0.0f) {
+            if (!(enter0.v[i] > d0.v[i] * enter)) continue;
+            enter = enter0.v[i] / d0.v[i];
+        } else {
+            if (!(e0.v[i] > 0.0f)) continue;
+            if (!(s0.v[i] > d0.v[i] * leave)) continue;
+            leave = s0.v[i] / d0.v[i];
+        }
+        if (enter >= leave) return 0;
+    }
+    // Pass 2: the high planes (d).
+    const Lanes s1 = sub(lb, ld);
+    const Lanes e1 = sub(lc, ld);
+    const Lanes d1 = sub(s1, e1);
+    for (int32_t i = 0; i < 3; ++i) {
+        if (s1.v[i] > 0.0f) {
+            if (!(s1.v[i] > d1.v[i] * enter)) continue;
+            enter = s1.v[i] / d1.v[i];
+        } else {
+            if (!(e1.v[i] > 0.0f)) continue;
+            if (!(s1.v[i] > d1.v[i] * leave)) continue;
+            leave = s1.v[i] / d1.v[i];
+        }
+        if (enter >= leave) return 0;
+    }
+    return 1;
+}
+
 }  // namespace game

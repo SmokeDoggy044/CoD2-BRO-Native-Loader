@@ -214,4 +214,9 @@ extern "C" void CM_TraceThroughVerticalCylinder_entry(void);
 // (CM_TraceThroughSphere) and the cylinder (CM_TraceThroughVerticalCylinder) in the original's order.
 void XB_REGS1 XB_CDECL CM_TraceCapsuleThroughCapsule(uint8_t* tw);
 
+// 0x002c0d80 (b in EAX, c in EDX, a in ECX; d on the stack; unnamed in Ghidra): a slab test of the segment
+// b -> c against the box a (low) .. d (high): per axis enter/leave fractions (enter from 0, leave from 1; the low
+// planes enter at a - b - 0.125); 0 as soon as enter >= leave, else 1. Packed differences of whole vectors.
+uint8_t XB_REGS3 XB_CDECL CM_SegmentOverlapsBox(const float* b, const float* c, const float* a, const float* d);
+
 }  // namespace game

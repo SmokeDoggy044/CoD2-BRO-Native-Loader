@@ -9579,7 +9579,7 @@ address,name,section,module,state,tested,matched
 002c0c50,FUN_002c0c50,.text,unassigned,unnamed,0,0
 002c0ce0,Netchan_Init,.text,unassigned,named,0,0
 002c0d30,Cmd_Vstr_f,.text,qcommon,untested,0,0
-002c0d80,FUN_002c0d80,.text,unassigned,unnamed,0,0
+002c0d80,FUN_002c0d80,.text,unassigned,settled,20156,20156
 002c0ec0,FUN_002c0ec0,.text,unassigned,unnamed,0,0
 002c0f60,FUN_002c0f60,.text,unassigned,unnamed,0,0
 002c1060,CM_PointLeafnum_r,.text,collision,settled,400,400

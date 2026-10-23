@@ -1801,6 +1801,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002be3e0,G_SetSoundDoneNotify,compare,5958,103,103,0,0,0,""
 002beb60,AnimTree_CalcPose_r,compare,38184905,519730,7737,0,511993,0,"8108272c [host] [1] 10 vs 00"
 002c0d30,Cmd_Vstr_f,compare,0,0,0,0,0,0,""
+002c0d80,CM_SegmentOverlapsBox,compare,101861,20156,20156,0,0,0,""
 002c1060,CM_PointLeafnum_r,compare,63039,400,400,0,0,0,""
 002c1ae0,CM_LoadMap,compare,56,16,16,0,0,0,""
 002c2aa0,BG_InitDefaultWeapon,compare,131,110,110,0,0,0,""

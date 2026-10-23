@@ -1892,6 +1892,7 @@ const Function kFunctions[] = {
     {"G_SetSoundDoneNotify", 0x002be3e0, 0, code(&G_SetSoundDoneNotify_entry), 0, Result::None, Status::Compare},
     {"AnimTree_CalcPose_r", 0x002beb60, 0, code(&AnimTree_CalcPose_r), 24, Result::Al, Status::Compare},
     {"Cmd_Vstr_f", 0x002c0d30, 0, code(&Cmd_Vstr_f), 0, Result::None, Status::Compare},
+    {"CM_SegmentOverlapsBox", 0x002c0d80, 0, code(&CM_SegmentOverlapsBox), 4, Result::Al, Status::Compare},
     {"CM_PointLeafnum_r", 0x002c1060, 0, code(&CM_PointLeafnum_r), 0, Result::Eax, Status::Compare},
     {"CM_LoadMap", 0x002c1ae0, 0, code(&CM_LoadMap), 4, Result::None, Status::Compare},
     {"BG_InitDefaultWeapon", 0x002c2aa0, 0, code(&BG_InitDefaultWeapon), 0, Result::None, Status::Compare},
