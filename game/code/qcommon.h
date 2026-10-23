@@ -199,4 +199,22 @@ int32_t XB_CDECL Cvar_WriteNamedValues(const char* const* names, int32_t count, 
 extern "C" PLATFORM_HIDDEN void XB_CDECL MSG_WriteString(const char* text, uint8_t* msg);
 extern "C" void MSG_WriteString_entry(void);
 
+// 0x00299710: the cvar named so (generateHashValue 0x00296f60 bucket of hashTable 0x009472f8, chained at
+// +0x28, Q_stricmpn), else null.
+uint8_t* XB_CDECL Cvar_FindVar(const char* name);
+// 0x0029fdd0: Cvar_Set2(name, "%i" when the value is integral, else "%f", forced).
+void XB_CDECL Cvar_SetValue(const char* name, float value);
+// 0x0029fe40 (value in EAX): Cvar_Set2 on the vmCvar's cvar (forced), then Cvar_Update.
+void XB_REGS1 XB_CDECL Cvar_SetByVmIndex(const char* value, uint8_t* vm_cvar);
+// 0x002b8f50 (info in ECX, key in EDI): Q3's Info_ValueForKey - the value in one of two alternating
+// 0x400-byte buffers (0x00927320, index 0x0098ad28), "" when absent; __break 1 for 0x400+ info strings.
+extern "C" PLATFORM_HIDDEN const char* XB_CDECL Info_ValueForKey(const char* info, const char* key);
+extern "C" void Info_ValueForKey_entry(void);
+// 0x002aff40 (value in EAX, key in ECX; info on the stack): value without '\\', ';', '"' (at most 0x3ff
+// characters read), __break 1 for such a key, Info_RemoveKey, then "\\key\\value" appended unchecked.
+void XB_REGS3 XB_CDECL Info_SetValueForKey(const char* value, uint32_t unused, const char* key, char* info);
+// 0x002a9140 (info in ECX, key in EBX): Info_RemoveKey with its own message and buffers.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Info_RemoveKey_Big(char* info, const char* key);
+extern "C" void Info_RemoveKey_Big_entry(void);
+
 }  // namespace game

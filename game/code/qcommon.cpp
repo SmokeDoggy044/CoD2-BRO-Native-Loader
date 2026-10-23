@@ -685,9 +685,10 @@ PLATFORM_ASM_ENTRY(Info_RemoveKey_entry,
                    "pushl %eax\n" PLATFORM_ASM_CALL(Info_RemoveKey) "addl $8, %esp\n"
                    "ret")
 
-void XB_CDECL Info_RemoveKey(char* info, const char* key) {
-    if (std::strlen(info) >= 0x400)
-        title_function<Break>(kBreak)(1, title_pointer<const char>(0x008337e0));  // "Info_RemoveKey: oversize infostring"
+namespace {
+
+void info_remove_key(char* info, const char* key, uint32_t message) {
+    if (std::strlen(info) >= 0x400) title_function<Break>(kBreak)(1, title_pointer<const char>(message));
     if (title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(key, '\\')) return;  // strchr
     char pkey[0x400];
     char value[0x400];
@@ -713,6 +714,21 @@ void XB_CDECL Info_RemoveKey(char* info, const char* key) {
         }
         if (!*s) return;
     }
+}
+
+}  // namespace
+
+void XB_CDECL Info_RemoveKey(char* info, const char* key) {
+    info_remove_key(info, key, 0x008337e0);  // "Info_RemoveKey: oversize infostring"
+}
+
+PLATFORM_ASM_ENTRY(Info_RemoveKey_Big_entry,
+                   "pushl %ebx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Info_RemoveKey_Big) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Info_RemoveKey_Big(char* info, const char* key) {
+    info_remove_key(info, key, 0x008337b4);
 }
 
 uint32_t XB_CDECL Cvar_Set(const char* name, const char* value) {
@@ -931,6 +947,97 @@ void XB_CDECL MSG_WriteString(const char* text, uint8_t* msg) {
     copy[length] = 0;
     std::memcpy(msg_data(msg) + msg_word(msg, 0xc), copy, static_cast<uint32_t>(length) + 1);
     msg_word(msg, 0xc) += length + 1;
+}
+
+uint8_t* XB_CDECL Cvar_FindVar(const char* name) {
+    const int32_t hash = title_function<int32_t XB_REGS1 XB_CDECL(const char*)>(0x00296f60)(name);  // generateHashValue
+    for (uint8_t* var = title_global<uint8_t*>(0x009472f8 + hash * 4); var;
+         var = *reinterpret_cast<uint8_t**>(var + 0x28)) {
+        const char* var_name = *reinterpret_cast<const char**>(var);
+        if (name && var_name && !Q_stricmpn(name, var_name, 99999)) return var;
+    }
+    return nullptr;
+}
+
+void XB_CDECL Cvar_SetValue(const char* name, float value) {
+    char text[0x20];
+    const int32_t integer = static_cast<int32_t>(value);
+    if (static_cast<float>(integer) == value) {
+        const uint32_t args[2] = {0x0082ded4, static_cast<uint32_t>(integer)};  // "%i"
+        Com_sprintf(text, 0x20, args);
+    } else {
+        const double d = static_cast<double>(value);
+        uint32_t args[3] = {0x008325b4};  // "%f"
+        std::memcpy(&args[1], &d, 8);
+        Com_sprintf(text, 0x20, args);
+    }
+    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(name, text, 1);  // Cvar_Set2
+}
+
+void XB_REGS1 XB_CDECL Cvar_SetByVmIndex(const char* value, uint8_t* vm_cvar) {
+    const uint32_t handle = *reinterpret_cast<uint32_t*>(vm_cvar);
+    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+        title_global<const char*>(0x00940a10 + handle * 0x2c), value, 1);
+    Cvar_Update(vm_cvar);
+}
+
+PLATFORM_ASM_ENTRY(Info_ValueForKey_entry,
+                   "pushl %edi\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Info_ValueForKey) "addl $8, %esp\n"
+                   "ret")
+
+const char* XB_CDECL Info_ValueForKey(const char* info, const char* key) {
+    const char* empty = title_pointer<const char>(0x0082dfeb);
+    if (!info || !key) return empty;
+    if (std::strlen(info) >= 0x400)
+        title_function<Break>(kBreak)(1, title_pointer<const char>(0x00833808));  // "Info_ValueForKey: oversize infostring"
+    uint32_t& index = title_global<uint32_t>(0x0098ad28);
+    index ^= 1;
+    char pkey[0x2000];
+    const char* s = info;
+    if (*s == '\\') ++s;
+    for (;;) {
+        char* o = pkey;
+        while (*s != '\\') {
+            if (!*s) return empty;
+            *o++ = *s++;
+        }
+        ++s;
+        *o = 0;
+        char* value = title_pointer<char>(0x00927320 + (index << 10));
+        o = value;
+        while (*s != '\\' && *s) *o++ = *s++;
+        *o = 0;
+        if (!Q_stricmpn(key, pkey, 99999)) return value;
+        if (!*s) return empty;
+        ++s;
+    }
+}
+
+void XB_REGS3 XB_CDECL Info_SetValueForKey(const char* value, uint32_t, const char* key, char* info) {
+    using Strchr = char* XB_CDECL(const char*, int32_t);
+    using BreakKv = void XB_CDECL(uint32_t, const char*, const char*, const char*);
+    char cleaned[0x400];
+    int32_t length = 0;
+    for (int32_t i = 0; value[i] && i < 0x3ff; ++i) {
+        const char c = value[i];
+        if (c == '\\' || c == ';' || c == '"') continue;
+        cleaned[length++] = c;
+    }
+    cleaned[length] = 0;
+    if (title_function<Strchr>(0x001ef5e0)(key, '\\'))
+        title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x00833784), key, value);
+    if (title_function<Strchr>(0x001ef5e0)(key, ';'))
+        title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x0083374c), key, value);
+    if (title_function<Strchr>(0x001ef5e0)(key, '"'))
+        title_function<BreakKv>(kBreak)(1, title_pointer<const char>(0x0083371c), key, value);
+    Info_RemoveKey(info, key);
+    if (!cleaned[0]) return;
+    char pair[0x400];
+    const uint32_t args[3] = {0x00833714, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(key)),  // "\\%s\\%s"
+                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cleaned))};
+    Com_sprintf(pair, 0x400, args);
+    std::memcpy(info + std::strlen(info), pair, std::strlen(pair) + 1);
 }
 
 }  // namespace game
