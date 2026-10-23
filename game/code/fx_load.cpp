@@ -1570,4 +1570,99 @@ void XB_THISCALL FxEmitters_Destroy(uint8_t* self) {
     title_global<uint32_t>(0x00909f60) = 0;
 }
 
+float XB_THISCALL FxEffect_ViewDepth(const uint8_t* self) {
+    const float* p = reinterpret_cast<const float*>(self + 0x50);
+    const float* v = reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(title_global<uint32_t>(0x0090259c)) + 0x150);
+    const Lanes view = add(add(add(lanes(v + 12), mul(lanes(v), p[0])), mul(lanes(v + 4), p[1])), mul(lanes(v + 8), p[2]));
+    platform_keep(view);
+    return view.v[2];
+}
+
+void XB_CDECL FxLightSet_SelectObjectLights(uint8_t* set, const float* sphere) {
+    // Like nglSelectMeshLightSet: the set's list for category (0x008bb993) - 1, directional
+    // lights (type 1) always, point lights (type 0) whose radius plus the sphere's reaches it.
+    at<uint8_t*>(set, 0x20) = set;
+    const int32_t list = static_cast<int8_t>(title_global<uint8_t>(0x008bb993)) - 1;
+    const Lanes centre = {{sphere[0], sphere[1], sphere[2], 0.0f}};
+    for (uint8_t* light = at<uint8_t**>(set, 0)[list]; light != set; light = at<uint8_t**>(light, 0)[list]) {
+        const uint32_t type = at<uint32_t>(light, 0x28);
+        bool add_light = false;
+        if (type == 0) {
+            const float* data = at<float*>(light, 0x2c);
+            const float radius = data[9] + sphere[3];
+            const Lanes d = sub(lanes(data), centre);
+            const Lanes sq = mul(d, d);
+            platform_keep(sq);
+            const float distance = (sq.v[0] + sq.v[1]) + sq.v[2];
+            add_light = radius * radius >= distance;
+        } else if (type == 1) {
+            add_light = true;
+        }
+        if (add_light) {
+            at<uint8_t*>(light, 0x20) = at<uint8_t*>(set, 0x20);
+            at<uint8_t*>(set, 0x20) = light;
+        }
+    }
+}
+
+float* XB_CDECL FxMatrix_RotateVector(float* out, const float* matrix, const float* v) {
+    const Lanes sum = add(add(mul(lanes(matrix), v[0]), mul(lanes(matrix + 4), v[1])), mul(lanes(matrix + 8), v[2]));
+    platform_keep(sum);
+    const float result[4] = {sum.v[0], sum.v[1], sum.v[2], title_global<float>(0x007c6c70)};
+    std::memcpy(out, result, 16);
+    return out;
+}
+
+uint8_t* XB_THISCALL FxLog_Init(uint8_t* self) {
+    title_global<uint8_t*>(0x00909908) = self;
+    at<uint32_t>(self, 0) = 0;
+    uint8_t* entries = fx_alloc(0x820, 4);
+    for (int i = 0; i < 8; ++i) {
+        uint8_t* entry = entries + i * 0x104;
+        if (entry) {
+            at<uint32_t>(entry, 0) = 0;
+            entry[4] = 0;
+        }
+    }
+    at<uint8_t*>(self, 4) = entries;
+    return self;
+}
+
+void XB_CDECL FxParticleBuffers_Init(int32_t quads) {
+    const uint32_t vertex_bytes = static_cast<uint32_t>(quads) * 0x60;
+    title_global<int32_t>(0x00909f34) = quads;
+    for (int i = 0; i < 2; ++i) {
+        auto* buffer = reinterpret_cast<uint32_t*>(fx_alloc(0xc, 4));
+        if (buffer) buffer[0] = 0;
+        title_global<uint32_t*>(0x00909f20 + i * 4) = buffer;
+        nglCreateVertexBuffer(buffer, vertex_bytes, 0x208);
+        title_global<uint32_t>(0x00909f18 + i * 4) = title_global<uint32_t*>(0x00909f20 + i * 4)[0];
+    }
+    auto* indices = reinterpret_cast<uint8_t**>(fx_alloc(4, 4));
+    if (indices) indices[0] = nullptr;
+    title_global<uint8_t**>(0x00909f28) = indices;
+    const uint32_t index_bytes = static_cast<uint32_t>(quads) * 0xc;
+    nglIndexBuffer_Alloc(indices, index_bytes);
+    auto* out = reinterpret_cast<uint16_t*>(nglIndexBuffer_Lock(title_global<uint8_t**>(0x00909f28), 0, index_bytes));
+    for (int32_t k = 0, base = 0; k < quads; ++k, base += 4) {
+        *out++ = static_cast<uint16_t>(base);
+        *out++ = static_cast<uint16_t>(base + 1);
+        *out++ = static_cast<uint16_t>(base + 2);
+        *out++ = static_cast<uint16_t>(base + 2);
+        *out++ = static_cast<uint16_t>(base + 1);
+        *out++ = static_cast<uint16_t>(base + 3);
+    }
+    nglIndexBuffer_Unlock();
+}
+
+uint32_t XB_THISCALL apsPtrVector_Reserve(uint8_t* self, int32_t capacity) {
+    if (capacity <= at<int16_t>(self, 4)) return 1;
+    const int32_t count = at<int16_t>(self, 6);
+    auto* memory = reinterpret_cast<uint32_t*>(fx_alloc_no_context(static_cast<uint32_t>(capacity) << 2, 4));
+    if (!memory) return 0;
+    for (int32_t i = 0; i < count; ++i) memory[i] = at<uint32_t*>(self, 0)[i];
+    replace_block(self, reinterpret_cast<uint8_t*>(memory), static_cast<int16_t>(capacity), static_cast<int16_t>(count));
+    return 1;
+}
+
 }  // namespace game

@@ -278,4 +278,17 @@ void XB_CDECL apsLog_Printf(int32_t* log, uint32_t code, const char* format, ...
 void XB_THISCALL FxEmitters_FreeAll(uint8_t* self);
 void XB_THISCALL FxEmitters_Destroy(uint8_t* self);
 
+// 0x0009cf00: view depth (lane z) of the point at +0x50. 0x0009d840: object light selection for
+// a sphere (xyz, radius). 0x0009e0c0: out = the vector through the matrix's 3x3 rows, w 0.
+float XB_THISCALL FxEffect_ViewDepth(const uint8_t* self);
+void XB_CDECL FxLightSet_SelectObjectLights(uint8_t* set, const float* sphere);
+float* XB_CDECL FxMatrix_RotateVector(float* out, const float* matrix, const float* v);
+// 0x0009d040: the log object (0x00909908): eight empty 0x104-byte entries. Returns self.
+uint8_t* XB_THISCALL FxLog_Init(uint8_t* self);
+// 0x0009d110: the particle vertex buffers (two, `quads` x 0x60 bytes; 0x00909f18/20) and the
+// shared quad index buffer (0x00909f28: 0 1 2 2 1 3 per quad).
+void XB_CDECL FxParticleBuffers_Init(int32_t quads);
+// 0x0009f4c0: a pointer array's capacity (the old block freed). False on failure.
+uint32_t XB_THISCALL apsPtrVector_Reserve(uint8_t* self, int32_t capacity);
+
 }  // namespace game
