@@ -2499,4 +2499,42 @@ void XB_REGS3 XB_CDECL Actor_Exposed_Finish(uint32_t, int32_t kind, const uint8_
     Sentient_SetClaimedNode(sentient, uint32_t(uintptr_t(node)) & 0xffff0000);
 }
 
+void XB_REGS3 XB_CDECL ActorMove_ProjectVelocity(uint32_t, float* out, const float* normal, const float* velocity,
+                                                 float overbounce) {
+    if (normal[2] >= title_global<float>(0x0083ed28)) {  // 0.7
+        const float horizontal = velocity[0] * velocity[0] + velocity[1] * velocity[1];
+        if (horizontal >= velocity[2] * velocity[2]) {
+            out[2] = (0.0f - velocity[0] * normal[0]) - normal[1] * velocity[1];
+            out[0] = velocity[0] * normal[2];
+            out[1] = velocity[1] * normal[2];
+            return;
+        }
+    }
+    float backoff = normal[1] * velocity[1] + velocity[0] * normal[0] + velocity[2] * normal[2];
+    if (0.0f > backoff) {
+        backoff *= overbounce;
+    } else {
+        backoff /= overbounce;
+    }
+    out[0] = velocity[0] - normal[0] * backoff;
+    out[1] = velocity[1] - normal[1] * backoff;
+    out[2] = velocity[2] - backoff * normal[2];
+}
+
+uint32_t XB_REGS3 XB_CDECL Actor_Noncombat_NodeClaimRevoked(uint32_t, uint32_t, uint8_t* actor) {
+    if (field<int16_t>(actor, 0x740) > 0) {
+        const float x = field<float>(actor, 0x750);
+        const float y = field<float>(actor, 0x754);
+        const float z = field<float>(actor, 0x758);
+        const uint16_t* const claimed = reinterpret_cast<const uint16_t*>(field<uint8_t*>(actor, 4) + 0x48);
+        const uint8_t* const node = path_node(*claimed, title_global<const uint8_t*>(0x0095f4f4));
+        if (x == *reinterpret_cast<const float*>(node + 0x44) &&
+            y == *reinterpret_cast<const float*>(PathNode_FromHandle(claimed) + 0x48) &&
+            z == *reinterpret_cast<const float*>(PathNode_FromHandle(claimed) + 0x4c))
+            Actor_ClearPath(actor);
+    }
+    Sentient_SetClaimedNode(field<uint8_t*>(actor, 4), uint32_t(uintptr_t(actor)) & 0xffff0000);
+    return 1;
+}
+
 }  // namespace game

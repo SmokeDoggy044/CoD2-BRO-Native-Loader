@@ -511,4 +511,14 @@ extern "C" void Sentient_SetGoalNode_entry(void);
 // type (+0x28) is one of 2..12; the claim word is the node pointer with its low half zeroed, as in the original.
 void XB_REGS3 XB_CDECL Actor_Exposed_Finish(uint32_t unused_eax, int32_t kind, const uint8_t* state);
 
+// 0x001fe270 (out in EDX, normal in ECX; velocity, overbounce on the stack): on walkable ground (normal z >= 0.7) with
+// a mostly horizontal velocity (x*x + y*y >= z*z) out = (x * nz, y * nz, -x * nx - ny * y); else Q3's PM_ClipVelocity
+// (backoff = (ny * y + x * nx) + z * nz, times overbounce when negative, divided by it otherwise).
+void XB_REGS3 XB_CDECL ActorMove_ProjectVelocity(uint32_t unused_eax, float* out, const float* normal,
+                                                 const float* velocity, float overbounce);
+// 0x00200cd0 (actor in ECX; noncombat state slot): an actor with a path (+0x740) standing exactly on its claimed node
+// (+0x750 vs the node's +0x44..+0x4c) clears the path; then drops the claim (the claim word is the actor pointer with
+// its low half zeroed, as in the original). Returns 1.
+uint32_t XB_REGS3 XB_CDECL Actor_Noncombat_NodeClaimRevoked(uint32_t unused_eax, uint32_t unused_edx, uint8_t* actor);
+
 }  // namespace game

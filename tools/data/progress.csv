@@ -7594,7 +7594,7 @@ address,name,section,module,state,tested,matched
 001fe0c0,Actor_IsUsingTurret,.text,game,settled,149,149
 001fe110,Actor_IsEventWorthNoticing,.text,game,settled,126,126
 001fe1a0,FUN_001fe1a0,.text,unassigned,unnamed,0,0
-001fe270,ActorMove_ProjectVelocity,.text,game,named,0,0
+001fe270,ActorMove_ProjectVelocity,.text,game,settled,1089,1089
 001fe370,ActorMove_AddTouchEnt,.text,game,settled,4614,4614
 001fe3c0,Path_GetNegotiationEndNode,.text,game,untested,0,0
 001fe4f0,FUN_001fe4f0,.text,unassigned,unnamed,0,0
@@ -7628,13 +7628,13 @@ address,name,section,module,state,tested,matched
 00200ad0,FUN_00200ad0,.text,unassigned,unnamed,0,0
 00200b50,Sentient_Dissociate,.text,game,named,0,0
 00200c70,Actor_Pain_Start,.text,game,settled,102,102
-00200cd0,Actor_Noncombat_NodeClaimRevoked,.text,game,named,0,0
+00200cd0,Actor_Noncombat_NodeClaimRevoked,.text,game,untested,0,0
 00200d90,Actor_Noncombat_Finish,.text,game,settled,123,123
 00200db0,Actor_Noncombat_Start,.text,game,settled,121,121
 00200e20,Path_CrossesBadPlace,.text,game,untested,0,0
 00200e90,Path_TrimAtGoal,.text,game,named,0,0
 00201280,Actor_DefaultTouch,.text,game,settled,4458,4458
-00201300,Actor_Exposed_Finish,.text,game,matched,14,14
+00201300,Actor_Exposed_Finish,.text,game,matched,49,49
 00201380,Actor_Exposed_StartReacquire,.text,game,settled,100,100
 00201430,Actor_Cover_NodeClaimRevoked,.text,game,untested,0,0
 002014a0,Actor_Cover_Pain,.text,game,settled,103,103
