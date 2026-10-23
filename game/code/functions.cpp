@@ -1530,6 +1530,7 @@ const Function kFunctions[] = {
     {"Zone_Release_r", 0x0028c780, 0, code(&Zone_Release_r), 0, Result::None, Status::Compare},
     {"Zone_AddRef_r", 0x0028c7d0, 0, code(&Zone_AddRef_r), 0, Result::None, Status::Compare},
     {"Zone_FindUnloadedChild", 0x0028c820, 0, code(&Zone_FindUnloadedChild_entry), 0, Result::Eax, Status::Compare},
+    {"Zone_UpdatePriority", 0x0028c870, 0, code(&Zone_UpdatePriority_entry), 0, Result::Xmm0, Status::Compare},
     {"Zone_SetDistance_r", 0x0028ca10, 0, code(&Zone_SetDistance_r), 12, Result::None, Status::Compare},
     {"Pak_ResetZoneDistances", 0x0028ca90, 0, code(&Pak_ResetZoneDistances_entry), 0, Result::Eax, Status::Compare},
     {"Stream_LoadLgrid", 0x0028d0e0, 0, code(&Stream_LoadLgrid), 16, Result::Eax, Status::Compare},

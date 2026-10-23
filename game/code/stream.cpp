@@ -1198,4 +1198,31 @@ uint32_t* XB_CDECL StreamMem_GetBlock(const uint32_t* bits, const uint8_t* memor
     return out;
 }
 
+PLATFORM_ASM_ENTRY(Zone_UpdatePriority_entry, "pushl %ecx\n"
+                                              "subl $16, %esp\n"
+                                              "movups %xmm4, (%esp)\n"
+                                              "pushl %ecx\n" PLATFORM_ASM_CALL(Zone_UpdatePriority) "fstps (%esp)\n"
+                                              "movss (%esp), %xmm0\n"
+                                              "addl $4, %esp\n"
+                                              "movups (%esp), %xmm4\n"
+                                              "addl $16, %esp\n"
+                                              "popl %ecx\n"
+                                              "ret")
+
+float XB_CDECL Zone_UpdatePriority(uint8_t* zone) {
+    const uint32_t frame = title_global<uint32_t>(0x008d9d38);
+    if (word_at<uint32_t>(zone, 0x40) == frame) return word_at<float>(zone, 0x3c);
+    const float largest = title_global<float>(0x0082eed0);  // FLT_MAX
+    const float none = title_global<float>(0x0083eb34);     // -1
+    float priority = word_at<float>(zone, 0x34) == largest ? word_at<float>(zone, 0x30) : word_at<float>(zone, 0x34);
+    if (word_at<float>(zone, 0x34) == none) return largest;
+    if (word_at<float>(zone, 0x30) == none && word_at<float>(zone, 0x34) == largest) return largest;
+    static constexpr uint8_t kCase[8] = {0, 0, 1, 0, 1, 1, 1, 0};  // byte table 0x0028c904
+    const uint32_t state = word_at<uint32_t>(zone, 0);
+    if (state <= 7 && kCase[state] == 0 && word_at<int32_t>(zone, 0x28) != -1) priority = 0.0f;
+    word_at<uint32_t>(zone, 0x40) = frame;
+    word_at<float>(zone, 0x3c) = priority;
+    return priority;
+}
+
 }  // namespace game
