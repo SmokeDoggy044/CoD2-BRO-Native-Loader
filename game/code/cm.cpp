@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "lanes.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -391,6 +392,34 @@ uint32_t XB_REGS3 XB_CDECL CM_PointContents(const float* point, uint32_t, const 
         }
     }
     return contents;
+}
+
+PLATFORM_ASM_ENTRY(CM_TransformedPointContents_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_TransformedPointContents) "addl $16, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL CM_TransformedPointContents(const float* origin, const float* angles, const uint32_t* model,
+                                              const float* point) {
+    float local[3] = {point[0] - origin[0], point[1] - origin[1], point[2] - origin[2]};
+    const bool box = reinterpret_cast<const uint32_t*>(model)[0x48 / 4] == 0x1ff;
+    // UCOMISS + JP: rotate when an angle is non-zero or NaN.
+    if (!box && (!(angles[0] == 0.0f) || !(angles[1] == 0.0f) || !(angles[2] == 0.0f))) {
+        float forward[3], right[3], up[3];
+        uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles)),
+                            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward))};
+        AnglesToAxis(args, right, up);
+        const float x = local[0], y = local[1], z = local[2];
+        const float tx = (z * forward[2] + y * forward[1]) + x * forward[0];
+        const float s = (z * right[2] + y * right[1]) + right[0] * x;
+        const float tz = (z * up[2] + up[1] * y) + up[0] * x;
+        local[1] = 0.0f - s;
+        local[0] = tx;
+        local[2] = tz;
+    }
+    return CM_PointContents(local, 0, model);
 }
 
 }  // namespace game

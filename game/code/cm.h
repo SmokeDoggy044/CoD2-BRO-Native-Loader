@@ -81,4 +81,11 @@ const uint8_t* XB_THISCALL CM_QuadTreeFindLeaf(const uint8_t* tree, const float*
 // (dot > dist). The packed point is {x, y, z, x} for the world, {x, y, z, never set} for models.
 uint32_t XB_REGS3 XB_CDECL CM_PointContents(const float* point, uint32_t unused, const uint32_t* model);
 
+// 0x002db500 (origin in EAX, angles in EDX, model in EBX; point on the stack): CM_PointContents of the point
+// moved into the model's frame (rotated by AnglesToAxis unless the model is the temporary box (+0x48 0x1ff)
+// or all angles are 0: x' = p.forward, y' = 0 - p.right, z' = p.up, sums in the original's order).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CM_TransformedPointContents(const float* origin, const float* angles,
+                                                                       const uint32_t* model, const float* point);
+extern "C" void CM_TransformedPointContents_entry(void);
+
 }  // namespace game
