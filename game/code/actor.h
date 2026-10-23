@@ -350,4 +350,11 @@ extern "C" void Actor_GrenadeTargetClear_entry(void);
 // + 600 for sentient state 2, - 1000 (+0x5b), - the sentient's +0x18 truncated.
 int32_t XB_CDECL Actor_MainCharacterPriority(const uint8_t* ent);
 
+// 0x001fc750 (path in EAX, point in EDI): steps the path's end (+0x380 count, +0x3cc point, +0x3c8
+// remaining length) back from its last point toward `point` while the weighted |cross| sum stays
+// below +0x3b4 * 0.1765 and the points stay within 256 units (else +0x3bc |= 0x20), interpolating
+// inside the last segment; the sum (* 0.75 without +0x3bc bit 1) is added to +0x3b4 (max 65536).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_StepBack(uint8_t* path, const float* point);
+extern "C" void Path_StepBack_entry(void);
+
 }  // namespace game

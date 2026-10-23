@@ -1629,4 +1629,97 @@ int32_t XB_CDECL Actor_MainCharacterPriority(const uint8_t* ent) {
     return priority;
 }
 
+PLATFORM_ASM_ENTRY(Path_StepBack_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Path_StepBack) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Path_StepBack(uint8_t* path, const float* point) {
+    // Written close to the original's control flow: acc (the weighted |cross| sum, xmm0), the
+    // current segment's |cross| (xmm7), `start` = segment start record (ECX), `end` (EDX).
+    const auto rec = [path](int32_t i) { return path + i * 0x1c; };
+    const auto f = [](const uint8_t* r, uint32_t offset) { return field<float>(r, offset); };
+    const float dir_x = field<float>(path, 0x39c), dir_y = field<float>(path, 0x3a0);
+    const float limit_dist = title_global<float>(0x0083eb40);
+    int32_t i = field<int16_t>(path, 0x380) - 1;
+    const float limit = field<float>(path, 0x3b4) * title_global<float>(0x0083ece0);
+    const uint8_t* end = rec(i);
+    const uint8_t* start = end - 0x1c;
+    float dy = f(start, 4) - point[1];
+    float dx = f(start, 0) - point[0];
+    float abs_cross = abs_bits(f(start, 0xc) * dy - f(start, 0x10) * dx);
+    float acc = 0.0f - field<float>(path, 0x3c8) * abs_cross;
+    dy = f(end, 4) - point[1];
+    dx = f(end, 0) - point[0];
+    float t, step, x4;
+    if (dy * dy + dx * dx > limit_dist) goto too_far;
+    for (;;) {
+        {
+            const float along = dy * dir_y + dx * dir_x;
+            if (!(along > 0.0f)) {
+                // The point is behind the end of this segment: where along changes sign on it.
+                const float along_start = (f(start, 4) - point[1]) * dir_y + (f(start, 0) - point[0]) * dir_x;
+                if (!(along_start > 0.0f)) goto set_end;
+                t = along / (along - along_start);
+                goto interpolate;
+            }
+            x4 = f(start, 0x14) * abs_cross;
+            acc = x4 + acc;
+            if (acc >= limit) {
+                t = (acc - limit) / x4;
+                acc = acc - x4;
+                goto interpolate;
+            }
+        }
+        ++i;
+        if (i >= field<int16_t>(path, 0x382)) {
+            // Ran off the path's end: keep its last point.
+            field<float>(path, 0x3c8) = f(start, 0x14);
+            std::memcpy(&field<float>(path, 0x3cc), end, 12);
+            field<int16_t>(path, 0x380) = field<int16_t>(path, 0x382);
+            goto accumulate;
+        }
+        {
+            const uint8_t* next = rec(i);
+            const float cross = f(end, 0xc) * dy - f(end, 0x10) * dx;
+            dx = f(next, 0) - point[0];
+            dy = f(next, 4) - point[1];
+            start = end;
+            abs_cross = abs_bits(cross);
+            end = next;
+            if (dy * dy + dx * dx > limit_dist) goto too_far;
+        }
+    }
+too_far:
+    field<uint32_t>(path, 0x3bc) |= 0x20;
+set_end:
+    std::memcpy(&field<float>(path, 0x3cc), start, 12);
+    field<float>(path, 0x3c8) = i <= field<int16_t>(path, 0x386) + 1 ? 0.0f : f(rec(i - 2), 0x14);
+    acc = f(start, 0x14) * abs_cross + acc;
+    field<int16_t>(path, 0x380) = static_cast<int16_t>(i);
+    goto accumulate;
+interpolate:
+    step = f(start, 0x14) * t;
+    if (step >= f(start, 0x14)) {
+        --i;
+        if (i <= field<int16_t>(path, 0x386)) return;
+        std::memcpy(&field<float>(path, 0x3cc), start, 12);
+        field<float>(path, 0x3c8) = f(rec(i - 1), 0x14);
+    } else {
+        const float remaining = f(start, 0x14) - step;
+        field<float>(path, 0x3c8) = remaining;
+        acc = remaining * abs_cross + acc;
+        field<float>(path, 0x3cc) = f(start, 0xc) * step + f(end, 0);
+        field<float>(path, 0x3d0) = f(start, 0x10) * step + f(end, 4);
+        field<float>(path, 0x3d4) = (f(start, 8) - f(end, 8)) * t + f(end, 8);
+    }
+    ++i;
+    field<int16_t>(path, 0x380) = static_cast<int16_t>(i);
+accumulate:
+    if (0.0f >= acc) return;
+    if (!(field<uint8_t>(path, 0x3bc) & 2)) acc = acc * title_global<float>(0x0083eb58);
+    field<float>(path, 0x3b4) = field<float>(path, 0x3b4) + acc;
+    if (field<float>(path, 0x3b4) > limit_dist) field<float>(path, 0x3b4) = limit_dist;
+}
+
 }  // namespace game

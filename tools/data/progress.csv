@@ -7567,7 +7567,7 @@ address,name,section,module,state,tested,matched
 001fc480,Actor_InitSpawner,.text,game,settled,164,164
 001fc520,Actor_Negotiation_Start,.text,game,untested,0,0
 001fc540,FUN_001fc540,.text,unassigned,unnamed,0,0
-001fc750,Path_StepBack,.text,game,named,0,0
+001fc750,Path_StepBack,.text,game,settled,277,277
 001fcb40,FUN_001fcb40,.text,unassigned,unnamed,0,0
 001fcbf0,Path_IsPointNearPath,.text,game,settled,134,134
 001fce60,Path_IsStale,.text,game,settled,109,109

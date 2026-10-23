@@ -925,6 +925,7 @@ const Function kFunctions[] = {
     {"Actor_ScoreEnemyByDistance", 0x001fc3f0, 0, code(&Actor_ScoreEnemyByDistance_entry), 0, Result::Eax, Status::Compare},
     {"Actor_InitSpawner", 0x001fc480, 0, code(&Actor_InitSpawner_entry), 0, Result::Eax, Status::Compare},
     {"Actor_Negotiation_Start", 0x001fc520, 0, code(&Actor_Negotiation_Start), 0, Result::Eax, Status::Compare},
+    {"Path_StepBack", 0x001fc750, 0, code(&Path_StepBack_entry), 0, Result::None, Status::Compare},
     {"Path_IsPointNearPath", 0x001fcbf0, 0, code(&Path_IsPointNearPath_entry), 0, Result::Eax, Status::Compare},
     {"Path_IsStale", 0x001fce60, 0, code(&Path_IsStale), 4, Result::Eax, Status::Compare},
     {"Path_ShrinkLookahead", 0x001fcef0, 0, code(&Path_ShrinkLookahead), 0, Result::None, Status::Compare},

@@ -969,6 +969,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 001fc3f0,Actor_ScoreEnemyByDistance,compare,104187,200,200,0,0,0,""
 001fc480,Actor_InitSpawner,compare,11605,164,164,0,0,0,""
 001fc520,Actor_Negotiation_Start,compare,0,0,0,0,0,0,""
+001fc750,Path_StepBack,compare,291,277,277,0,0,0,""
 001fcbf0,Path_IsPointNearPath,compare,478,134,134,0,0,0,""
 001fce60,Path_IsStale,compare,2780,109,109,0,0,0,""
 001fcef0,Path_ShrinkLookahead,compare,133,102,102,0,0,0,""
