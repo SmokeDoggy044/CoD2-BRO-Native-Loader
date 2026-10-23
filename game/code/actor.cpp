@@ -2012,4 +2012,125 @@ uint32_t XB_CDECL Actor_PushState(uint8_t* actor, uint32_t state) {
     return 1;
 }
 
+PLATFORM_ASM_ENTRY(Actor_RecordMoveHistory_entry,
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_RecordMoveHistory) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_RecordMoveHistory(uint8_t* actor) {
+    // Every tenth frame a new history slot, else this frame's move added to the current one.
+    const float tenth = title_global<float>(0x0083ebf8);
+    if ((level_time() / title_global<int32_t>(0x008dda9c)) % 10 != 0) {
+        const int32_t head = field<int32_t>(actor, 0x1394);
+        field<float>(actor, 0x1398 + head * 8) = field<float>(actor, 0x75c) * tenth + field<float>(actor, 0x1398 + head * 8);
+        field<float>(actor, 0x139c + head * 8) = field<float>(actor, 0x760) * tenth + field<float>(actor, 0x139c + head * 8);
+        return;
+    }
+    Actor_AdvanceMoveHistory(actor);
+    const int32_t head = field<int32_t>(actor, 0x1394);
+    field<float>(actor, 0x1398 + head * 8) = field<float>(actor, 0x75c) * tenth;
+    field<float>(actor, 0x139c + head * 8) = field<float>(actor, 0x760) * tenth;
+}
+
+PLATFORM_ASM_ENTRY(Actor_RecordMoveHistoryBlended_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_RecordMoveHistoryBlended) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Actor_RecordMoveHistoryBlended(uint8_t* actor, float speed) {
+    // The move direction blended from +0x75c (slow) to +0x768 (fast) by the speed (95..190 units/s).
+    const float limit = title_global<float>(0x0083ee28);
+    const float f = (title_global<float>(0x0083eb9c) / static_cast<float>(title_global<int32_t>(0x008dda9c)) * speed - limit) / limit;
+    const int32_t head = field<int32_t>(actor, 0x1394);
+    float* entry = &field<float>(actor, 0x1398 + head * 8);
+    const float one = title_global<float>(0x0083eb20);
+    if (0.0f >= f) {
+        entry[0] = field<float>(actor, 0x75c);
+        entry[1] = field<float>(actor, 0x760);
+    } else if (f >= one) {
+        entry[0] = field<float>(actor, 0x768);
+        entry[1] = field<float>(actor, 0x76c);
+    } else {
+        const float rest = one - f;
+        const float x = field<float>(actor, 0x75c) * rest + field<float>(actor, 0x768) * f;
+        const float y = field<float>(actor, 0x760) * rest + field<float>(actor, 0x76c) * f;
+        const float length = title_ci_sqrt_ext(y * y + x * x);
+        if (length == title_global<float>(0x0083eafc)) {
+            entry[0] = x;
+            entry[1] = y;
+        } else {
+            const float inverse = one / length;
+            entry[0] = inverse * x;
+            entry[1] = inverse * y;
+        }
+    }
+    Actor_AdvanceMoveHistory(actor);
+}
+
+uint32_t XB_REGS3 XB_CDECL Actor_Exposed_NodeClaimRevoked(uint32_t, uint32_t, uint8_t* actor) {
+    Sentient_SetClaimedNode(field<uint8_t*>(actor, 4), 0);
+    clear_actor_path(actor);
+    if (field<uint32_t>(actor, 0xa4) == 2 && field<uint32_t>(actor, 0x28) == 0xd3) Actor_Exposed_StartReacquire(1, actor);
+    return 1;
+}
+
+void XB_REGS2 XB_CDECL Sentient_ClearNodeClaim(uint32_t, uint8_t* sentient) {
+    field<uint32_t>(sentient, 4) = 0;
+    field<uint32_t>(sentient, 8) = 0;
+    for (uint32_t offset = 0x58; offset <= 0x5a; offset += 2) {
+        const uint16_t handle = field<uint16_t>(sentient, offset);
+        if (!node_handle_set(handle)) return;
+        uint8_t* node = path_node(handle);
+        if (--field<int16_t>(node, 0x26) == 0) field<uint32_t>(node, 8) = 0;
+    }
+}
+
+// Its callees run where the original's calls put them (one push: EDI); the C frame sits below a gap.
+PLATFORM_ASM_ENTRY(Actor_ThinkStateMachine_entry,
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ThinkStateMachine) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Actor_ThinkStateMachine(uint32_t entry, uint8_t* actor, uint32_t arg, uint32_t ebx) {
+    const uint32_t top = entry - 4;  // push edi
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(actor));
+    uint8_t* ent = field<uint8_t*>(actor, 0);
+    const uint32_t ent_value = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    title_global<uint8_t*>(0x0095f708) = ent;
+    if (field<uint32_t>(actor, 0xa0)) {
+        const TitleRegs regs = {self, ebx, 0, 0, self, ent_value};
+        title_call_at_regs(top, 0x002001f0, &regs, 0, nullptr);  // Actor_ApplyStateTransitions
+    }
+    // The entity we asked to make way: done once it is 37.5 units away, or when we walk away from it.
+    if (const uint8_t* other = field<const uint8_t*>(actor, 0x1390)) {
+        const float dx = field<float>(other, 0x140) - field<float>(ent, 0x140);
+        const float dy = field<float>(other, 0x144) - field<float>(ent, 0x144);
+        const float d2 = dy * dy + dx * dx;
+        if (d2 >= title_global<float>(0x0083eefc)) {
+            uint8_t* other_actor = field<uint8_t*>(other, 0x240);
+            if (other_actor && field<uint8_t*>(other_actor, 0x1390) == ent) field<uint32_t>(other_actor, 0x1390) = 0;
+            field<uint32_t>(actor, 0x1390) = 0;
+        } else if (d2 >= title_global<float>(0x0083ee3c) && !field<uint32_t>(actor, 0x7c8) &&
+                   (field<uint32_t>(actor, 0x278) == 7 || field<uint32_t>(actor, 0x278) == 1) && field<int16_t>(actor, 0x740) > 0) {
+            const float along = field<float>(actor, 0x760) * (field<float>(ent, 0x144) - field<float>(other, 0x144)) +
+                                field<float>(actor, 0x75c) * (field<float>(ent, 0x140) - field<float>(other, 0x140));
+            if (along > title_global<float>(0x0083eafc)) {
+                field<uint32_t>(actor, 0x27c) = 1;
+                field<uint32_t>(actor, 0x1390) = 0;
+            }
+        }
+    }
+    // Think (slot 4) of the current state: actor in ECX, the argument in EDX.
+    const uint32_t state = field<uint32_t>(actor, 8 + field<int32_t>(actor, 0x20) * 4);
+    const TitleRegs think = {state * 9, ebx, self, arg, self, ent_value};
+    return title_call_at_regs(top, title_global<uint32_t>(0x00830c38 + state * 36), &think, 0, nullptr);
+}
+
 }  // namespace game

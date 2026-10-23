@@ -401,4 +401,26 @@ extern "C" void Actor_UpdateCoverValidity_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_PushState(uint8_t* actor, uint32_t state);
 extern "C" void Actor_PushState_entry(void);
 
+// 0x001fd5a0 (actor in EAX): records this frame's move (+0x75c * 0.1) into the move history: a new slot
+// every tenth frame (Actor_AdvanceMoveHistory), else added to the current one.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_RecordMoveHistory(uint8_t* actor);
+extern "C" void Actor_RecordMoveHistory_entry(void);
+// 0x001ffba0 (actor in EAX, callee pops 4: speed): a new history slot with the move direction blended
+// from +0x75c to +0x768 by (speed per second - 95) / 95, normalized when blended.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_RecordMoveHistoryBlended(uint8_t* actor, float speed);
+extern "C" void Actor_RecordMoveHistoryBlended_entry(void);
+// 0x00202ae0 (actor in ECX): exposed NodeClaimRevoked: releases the node, clears the path and restarts
+// the reacquire behaviour when exposed (+0xa4 = 2) in substate 0xd3. Returns 1.
+uint32_t XB_REGS3 XB_CDECL Actor_Exposed_NodeClaimRevoked(uint32_t, uint32_t, uint8_t* actor);
+
+// 0x002ba2a0 (sentient in EDX): drops the sentient's node claims (+0x58, +0x5a; a node whose claim count
+// +0x26 reaches 0 loses its claimer +8) and clears +4/+8.
+void XB_REGS2 XB_CDECL Sentient_ClearNodeClaim(uint32_t, uint8_t* sentient);
+// 0x002025c0 (actor in ESI, callee pops 4: argument): one state machine step: queued transitions
+// applied, the make-way request (+0x1390) ended when far enough or walking away (+0x27c = 1), then the
+// current state's Think (slot 4, argument in EDX). Returns Think's result.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_ThinkStateMachine(uint32_t entry, uint8_t* actor, uint32_t arg,
+                                                                     uint32_t ebx);
+extern "C" void Actor_ThinkStateMachine_entry(void);
+
 }  // namespace game
