@@ -153,4 +153,24 @@ void XB_THISCALL FxEffect_SetStage(uint8_t* self, int32_t index, uint32_t count,
 // 0x00096bb0: the emitter table resized; high-water mark in 0x00909b94.
 void XB_THISCALL FxEffect_SetEmitterCount(uint8_t* self, int32_t count);
 
+// FX_CreateRenderer's creators (cdecl: the parameter list, an FxArray16): a parameter record
+// (words 1 of the entries: two words, 3 floats, optional +0x24/+0x28/+0x2c and colour; the grid
+// kinds also columns/rows at +0x30/+0x34) handed to the op constructor on a 0x40 / 0x50-byte
+// allocation. Null on failure. 0x00099ce0 FxOp53, 0x0009a5a0 FxOp5b, 0x0009a850 FxOpd5,
+// 0x0009ab00 FxOpdd, 0x00099f90 FxOpGrid, 0x0009adb0 FxOp15b, 0x0009b0a0 FxOp9d5, 0x0009b390 FxOp1dd.
+uint8_t* XB_CDECL FxRenderer_NewOp53(const uint8_t* list);
+uint8_t* XB_CDECL FxRenderer_NewOp5b(const uint8_t* list);
+uint8_t* XB_CDECL FxRenderer_NewOpd5(const uint8_t* list);
+uint8_t* XB_CDECL FxRenderer_NewOpdd(const uint8_t* list);
+uint8_t* XB_CDECL FxRenderer_NewOpGrid(const uint8_t* list);
+uint8_t* XB_CDECL FxRenderer_NewOp15b(const uint8_t* list);
+uint8_t* XB_CDECL FxRenderer_NewOp9d5(const uint8_t* list);
+uint8_t* XB_CDECL FxRenderer_NewOp1dd(const uint8_t* list);
+
+// 0x00098650: the "Shrimp" renderer (FxOp1d5): nine parameter words and the colour of entry 9.
+uint8_t* XB_CDECL FxRenderer_NewShrimp(const uint8_t* list);
+// 0x00098ec0: the renderer object for an effect stage, by four-character id (*id, when set) or
+// class name ("BillboardRenderer" ... "ShrimpRenderer"; "_NullRenderer" gives null).
+uint8_t* XB_CDECL FX_CreateRenderer(const char* name, const uint32_t* id, const uint8_t* list);
+
 }  // namespace game

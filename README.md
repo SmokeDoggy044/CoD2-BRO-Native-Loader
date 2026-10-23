@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 56% of the functions have a name, and 1,210 have been
+It's early days: about 56% of the functions have a name, and 1,215 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 6,327 | 1,210 | 9,983 |
+| Engine and game code (`.text`) | 11,193 | 6,336 | 1,215 | 9,978 |
 | Mission scripts (15 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **9,315** | **1,210** | **15,307** |
+| **Total** | **16,517** | **9,324** | **1,215** | **15,302** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -39,13 +39,13 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 784 | 500 | 261 | 22 | 1 |
+| Renderer (scenes, materials, shaders, models, effects) | 784 | 501 | 261 | 21 | 1 |
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 694 | 205 | 40 | 447 | 0 |
 | Client game (HUD, view, effects on screen) | 187 | 121 | 40 | 26 | 0 |
 | Engine core (memory, files, settings, commands) | 165 | 51 | 31 | 75 | 0 |
 | Client and menus | 210 | 0 | 0 | 210 | 0 |
 | Server, collision, compression | 126 | 1 | 2 | 123 | 0 |
-| Not sorted into a part yet | 9,027 | 332 | 127 | 3,713 | 3,237 |
+| Not sorted into a part yet | 9,027 | 336 | 132 | 3,713 | 3,228 |
 
 1,618 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice

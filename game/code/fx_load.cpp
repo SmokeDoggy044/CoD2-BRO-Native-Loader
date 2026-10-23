@@ -612,4 +612,122 @@ void XB_THISCALL FxEffect_SetEmitterCount(uint8_t* self, int32_t count) {
     if (count > title_global<int32_t>(0x00909b94)) title_global<int32_t>(0x00909b94) = count;
 }
 
+namespace {
+
+// The renderer creators' parameter record from the effect file's parameter list (16-byte
+// entries, value in word 1): fixed slots first, then by the extra count: 1 -> +0x24; 2 -> +0x28,
+// +0x2c; 3 -> +0x24, +0x28, +0x2c; 4 -> those and the colour (FxOp_SetColor14). Colour default
+// 1, 1, 1, 1; everything else 0.
+void fill_renderer_record(uint8_t* record, const uint8_t* list, bool grid) {
+    const auto* entries = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(list, 0)));
+    const auto value = [entries](int i) { return entries[i * 4 + 1]; };
+    const float one = title_global<float>(0x0083eb20);
+    for (int i = 0; i < 4; ++i) at<float>(record, 0x14 + i * 4) = one;
+    at<uint32_t>(record, 0) = value(0);
+    at<uint32_t>(record, 4) = value(1);
+    int first;
+    if (grid) {
+        at<uint32_t>(record, 0x30) = value(2);
+        at<uint32_t>(record, 0x34) = value(3);
+        std::memcpy(record + 8, &entries[4 * 4 + 1], 12);
+        first = 5;
+    } else {
+        std::memcpy(record + 8, &entries[2 * 4 + 1], 12);
+        first = 3;
+    }
+    const int extra = at<int16_t>(list, 6) - first;
+    switch (extra) {
+    case 1:
+        at<uint32_t>(record, 0x24) = value(first);
+        break;
+    case 2:
+        at<uint32_t>(record, 0x28) = value(first);
+        at<uint32_t>(record, 0x2c) = value(first + 1);
+        break;
+    case 3:
+    case 4:
+        at<uint32_t>(record, 0x24) = value(first);
+        at<uint32_t>(record, 0x28) = value(first + 1);
+        at<uint32_t>(record, 0x2c) = value(first + 2);
+        if (extra == 4) FxOp_SetColor14(record, 0, value(first + 3), 0, 0);
+        break;
+    default: break;
+    }
+}
+
+uint8_t* new_renderer(const uint8_t* list, bool grid, uint8_t* (XB_THISCALL* init)(uint8_t*, const uint8_t*)) {
+    alignas(16) uint8_t record[0x40] = {};
+    fill_renderer_record(record, list, grid);
+    uint8_t* self = fx_alloc(grid ? 0x50 : 0x40, 0x10);
+    if (!self) return nullptr;
+    return init(self, record);
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL FxRenderer_NewOp53(const uint8_t* list) { return new_renderer(list, false, &FxOp53_Init); }
+uint8_t* XB_CDECL FxRenderer_NewOp5b(const uint8_t* list) { return new_renderer(list, false, &FxOp5b_Init); }
+uint8_t* XB_CDECL FxRenderer_NewOpd5(const uint8_t* list) { return new_renderer(list, false, &FxOpd5_Init); }
+uint8_t* XB_CDECL FxRenderer_NewOpdd(const uint8_t* list) { return new_renderer(list, false, &FxOpdd_Init); }
+uint8_t* XB_CDECL FxRenderer_NewOpGrid(const uint8_t* list) { return new_renderer(list, true, &FxOpGrid_Init); }
+uint8_t* XB_CDECL FxRenderer_NewOp15b(const uint8_t* list) { return new_renderer(list, true, &FxOp15b_Init); }
+uint8_t* XB_CDECL FxRenderer_NewOp9d5(const uint8_t* list) { return new_renderer(list, true, &FxOp9d5_Init); }
+uint8_t* XB_CDECL FxRenderer_NewOp1dd(const uint8_t* list) { return new_renderer(list, true, &FxOp1dd_Init); }
+
+uint8_t* XB_CDECL FxRenderer_NewShrimp(const uint8_t* list) {
+    // Nine parameter words (entries 0..8), the colour from entry 9 at +0x24 (default 1, 1, 1, 1).
+    const auto* entries = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(list, 0)));
+    alignas(16) uint8_t record[0x40] = {};
+    const float one = title_global<float>(0x0083eb20);
+    for (int i = 0; i < 4; ++i) at<float>(record, 0x24 + i * 4) = one;
+    for (int i = 0; i < 9; ++i) at<uint32_t>(record, i * 4) = entries[i * 4 + 1];
+    FxOp_SetColor24(record, 0, entries[9 * 4 + 1], 0, 0);
+    uint8_t* self = fx_alloc(0x40, 0x10);
+    if (!self) return nullptr;
+    return FxOp1d5_Init(self, record);
+}
+
+namespace {
+
+// repz cmpsb over the name's length including its terminator.
+bool same_name(const char* a, uint32_t title_string, uint32_t length) {
+    const auto* b = reinterpret_cast<const char*>(static_cast<uintptr_t>(title_string));
+    for (uint32_t i = 0; i < length; ++i) {
+        if (a[i] != b[i]) return false;
+    }
+    return true;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL FX_CreateRenderer(const char* name, const uint32_t* id, const uint8_t* list) {
+    // By four-character id when there is one, else by class name.
+    if (id && *id) {
+        switch (*id) {
+        case 0x426c626f: return FxRenderer_NewOp53(list);    // "Blbo" billboard
+        case 0x43426c62: return FxRenderer_NewOp5b(list);    // coloured billboard
+        case 0x52656374: return FxRenderer_NewOpd5(list);    // "Rect"
+        case 0x43526374: return FxRenderer_NewOpdd(list);    // coloured rectangle
+        case 0x55564152: return FxRenderer_NewOpGrid(list);  // "UVAR"
+        case 0x43555641: return FxRenderer_NewOp15b(list);   // coloured UVA
+        case 0x55565265: return FxRenderer_NewOp9d5(list);   // UVA rectangle
+        case 0x63555672: return FxRenderer_NewOp1dd(list);   // coloured UVA rectangle
+        case 0x534d7368: return FxRenderer_NewOp31(reinterpret_cast<const uint32_t* const*>(list));  // simple mesh
+        case 0x53686d70: return FxRenderer_NewShrimp(list);
+        default: return nullptr;
+        }
+    }
+    if (same_name(name, 0x007c5d24, 0x12)) return FxRenderer_NewOp53(list);
+    if (same_name(name, 0x007c5d0c, 0x17)) return FxRenderer_NewOp5b(list);
+    if (same_name(name, 0x007c5cf8, 0x12)) return FxRenderer_NewOpd5(list);
+    if (same_name(name, 0x007c5ce0, 0x17)) return FxRenderer_NewOpdd(list);
+    if (same_name(name, 0x007c5cd4, 0xc)) return FxRenderer_NewOpGrid(list);
+    if (same_name(name, 0x007c5cc0, 0x11)) return FxRenderer_NewOp15b(list);
+    if (same_name(name, 0x007c5ca8, 0x15)) return FxRenderer_NewOp9d5(list);
+    if (same_name(name, 0x007c5c8c, 0x1a)) return FxRenderer_NewOp1dd(list);
+    if (same_name(name, 0x007c5c78, 0x13)) return FxRenderer_NewOp31(reinterpret_cast<const uint32_t* const*>(list));
+    if (same_name(name, 0x007c5c68, 0xf)) return FxRenderer_NewShrimp(list);
+    return nullptr;  // "_NullRenderer" and unknown names
+}
+
 }  // namespace game
