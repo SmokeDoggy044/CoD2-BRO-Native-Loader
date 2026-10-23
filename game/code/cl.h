@@ -196,4 +196,108 @@ void XB_CDECL CL_DObjCreateSkeleton(uint32_t unused, DObj* obj);
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CL_DObjGetBoneMatrix(uint32_t name, DObj* obj);
 extern "C" void CL_DObjGetBoneMatrix_entry(void);
 
+// 0x002abe80: +centerview: pitch = -(the delta angle) unless the cvar at 0x00929c28 (CL_JoystickMove's pitch-target mode) is set.
+void XB_CDECL IN_CenterView();
+// 0x002ac060: -mlook: clears the mouse-look flag, then centers the pitch like IN_CenterView unless freelook is on.
+void XB_CDECL IN_MLookUp();
+// 0x002ac0b0: +mlook: sets the mouse-look flag.
+void XB_CDECL IN_MLookDown();
+// 0x002b4650: -leanright: IN_KeyUp on its kbutton (0x00934158).
+void XB_CDECL IN_LeanRightUp();
+// 0x002b4660: +leanright: IN_KeyDown on its kbutton (0x00934158).
+void XB_CDECL IN_LeanRightDown();
+// 0x002b4670: -leanleft: IN_KeyUp on its kbutton (0x00934140).
+void XB_CDECL IN_LeanLeftUp();
+// 0x002b4680: +leanleft: IN_KeyDown on its kbutton (0x00934140).
+void XB_CDECL IN_LeanLeftDown();
+// 0x002b4690: -reload: IN_KeyUp on its kbutton (0x00934128).
+void XB_CDECL IN_ReloadUp();
+// 0x002b46a0: +reload: IN_KeyDown on its kbutton (0x00934128).
+void XB_CDECL IN_ReloadDown();
+// 0x002b46f0: -activate: IN_KeyUp on its kbutton (0x009340b0).
+void XB_CDECL IN_ActivateUp();
+// 0x002b4700: +activate: IN_KeyDown on its kbutton (0x009340b0).
+void XB_CDECL IN_ActivateDown();
+// 0x002b4790: -button0: IN_KeyUp on its kbutton (0x00934020).
+void XB_CDECL IN_Button0Up();
+// 0x002b47a0: +button0: IN_KeyDown on its kbutton (0x00934020).
+void XB_CDECL IN_Button0Down();
+// 0x002b47b0: -strafe: IN_KeyUp on its kbutton (0x00933fa8).
+void XB_CDECL IN_StrafeUp();
+// 0x002b47c0: +strafe: IN_KeyDown on its kbutton (0x00933fa8).
+void XB_CDECL IN_StrafeDown();
+// 0x002b47d0: -speed: IN_KeyUp on its kbutton (0x00933fc0).
+void XB_CDECL IN_SpeedUp();
+// 0x002b47e0: +speed: IN_KeyDown on its kbutton (0x00933fc0).
+void XB_CDECL IN_SpeedDown();
+// 0x002b47f0: -moveright: IN_KeyUp on its kbutton (0x00933f90).
+void XB_CDECL IN_MoverightUp();
+// 0x002b4800: +moveright: IN_KeyDown on its kbutton (0x00933f90).
+void XB_CDECL IN_MoverightDown();
+// 0x002b4810: -moveleft: IN_KeyUp on its kbutton (0x00933f78).
+void XB_CDECL IN_MoveleftUp();
+// 0x002b4820: +moveleft: IN_KeyDown on its kbutton (0x00933f78).
+void XB_CDECL IN_MoveleftDown();
+// 0x002b4830: -lookdown: IN_KeyUp on its kbutton (0x00933f60).
+void XB_CDECL IN_LookdownUp();
+// 0x002b4840: +lookdown: IN_KeyDown on its kbutton (0x00933f60).
+void XB_CDECL IN_LookdownDown();
+// 0x002b4850: -lookup: IN_KeyUp on its kbutton (0x00933f48).
+void XB_CDECL IN_LookupUp();
+// 0x002b4860: +lookup: IN_KeyDown on its kbutton (0x00933f48).
+void XB_CDECL IN_LookupDown();
+// 0x002b4870: -back: IN_KeyUp on its kbutton (0x00933f30).
+void XB_CDECL IN_BackUp();
+// 0x002b4880: +back: IN_KeyDown on its kbutton (0x00933f30).
+void XB_CDECL IN_BackDown();
+// 0x002b4890: -forward: IN_KeyUp on its kbutton (0x00933f18).
+void XB_CDECL IN_ForwardUp();
+// 0x002b48a0: +forward: IN_KeyDown on its kbutton (0x00933f18).
+void XB_CDECL IN_ForwardDown();
+// 0x002b48b0: -right: IN_KeyUp on its kbutton (0x00933f00).
+void XB_CDECL IN_RightUp();
+// 0x002b48c0: +right: IN_KeyDown on its kbutton (0x00933f00).
+void XB_CDECL IN_RightDown();
+// 0x002b48d0: -left: IN_KeyUp on its kbutton (0x00933ee8).
+void XB_CDECL IN_LeftUp();
+// 0x002b48e0: +left: IN_KeyDown on its kbutton (0x00933ee8).
+void XB_CDECL IN_LeftDown();
+// 0x002b48f0: -moveup: releases both jump buttons.
+void XB_CDECL IN_UpUp();
+// 0x002c7de0: +moveup: jump, or one stance step up through cl_stance while not crouching.
+void XB_CDECL IN_UpDown();
+// 0x002cd5f0: -movedown: releases crouch; cl_stanceTemp = whether crouch/prone is still held.
+void XB_CDECL IN_DownUp();
+// 0x002cd640: +movedown: presses crouch; cl_stanceTemp the same way.
+void XB_CDECL IN_DownDown();
+// 0x002cd0c0 (down in EAX, key in ECX, time on the stack): Q3's CL_KeyEvent without the console, menu and
+// message-mode paths: repeats/anykeydown, the camera interrupt (space/enter/escape while a scripted camera runs),
+// escape pausing the game (CL_TogglePause unless introScreen) and "+cmd key time" / "-cmd key time" for bindings.
+void XB_REGS3 XB_CDECL CL_KeyEvent(int32_t down, uint32_t edx_unused, int32_t key, int32_t time);
+
+// 0x002cd020: Q3's CL_ClearState: stops all sounds/channels, empties every set configstring, clears cl and clc.
+void XB_CDECL CL_ClearState();
+// 0x002f2890: Q3's CL_MapLoading for the local server (cvar 0x00947704 set: r_uiFullScreen 1 and a clean client
+// first), then servername "localhost", CA_CONNECTING, one SCR_UpdateScreen and the sounds stopped.
+void XB_CDECL CL_MapLoading();
+
+// 0x002f1d90 (CALL in its first 5 bytes: a C helper, not registered): re.BeginFrame(0), then by cls.state the
+// front end (0), the mission overlays (1) or CG_DrawActiveFrame (2), and the mission overlays at 0x0095f8d0 again.
+// `entry` = the ESP the original would have at its entry.
+void SCR_DrawScreenField(uint32_t entry);
+// 0x002f1e60: the client frame's screen update once the UI is up: SCR_DrawScreenField + re.EndFrame (unless
+// 0x009403f4), the frame time since the last call, a queued level start ("spmap <map>" from the 14-entry mission
+// table) and the HUD update (mission HUD at 0x0095f8d0 or g_hudManager's vtable +0xc) with that time.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SCR_UpdateScreen(uint32_t entry);
+extern "C" void SCR_UpdateScreen_entry(void);
+
+// 0x0032dde0 (menu in ESI): escape in game: cl_paused 1, the sound channels paused, the pause overlay shown
+// (byte +0x40 from 0x008dce69, vtable +0x88 (0, 1)) and the menu activated (vtable +0xc (0)).
+extern "C" void CL_TogglePause_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_TogglePause(uint8_t* menu);
+// 0x0032dec0 (keep_running in DL, dialog in ECX): sets the dialog's flag bits from its mode (+0xc) and the cvar at
+// 0x0093fcd8, activates it (vtable +0xc) and pauses the game (cl_paused 1) unless that cvar is set or the mission
+// overlay is up.
+void XB_REGS3 XB_CDECL CL_PauseForDialog(uint32_t eax_unused, uint8_t keep_running, uint8_t* dialog);
+
 }  // namespace game

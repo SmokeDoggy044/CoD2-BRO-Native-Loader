@@ -4,6 +4,7 @@
 
 #include "cg_ents.h"
 #include "qcommon.h"
+#include "script_string.h"
 #include "tr_main.h"
 #include "title_data.h"
 
@@ -1062,6 +1063,406 @@ uint8_t* XB_CDECL CL_DObjGetBoneMatrix(uint32_t name, DObj* obj) {
     uint8_t* const skeleton = field<uint8_t*>(raw, 0x20);
     if (!skeleton) return reinterpret_cast<uint8_t*>(uintptr_t(uint32_t(bone) << 6));
     return skeleton + 0x30 + (uint32_t{raw[0x60]} << 6) + (uint32_t(bone) << 6);
+}
+
+namespace {
+
+uint8_t* kbutton(uint32_t address) { return &title_global<uint8_t>(address); }
+
+constexpr uint32_t kInUp = 0x00934008, kInUpAlt = 0x00933fd8, kInDown = 0x00933ff0;
+constexpr uint32_t kInDownActive = kInDown + kActive;
+
+// -(pitch delta) * the short-to-angle scale, as 0 - x (keeps +0 for a zero delta).
+void center_pitch() {
+    const float delta = float(title_global<int32_t>(0x009601d4)) * title_global<float>(0x0083ebd4);
+    title_global<float>(0x00961798) = 0.0f - delta;
+}
+
+void set_stance_cvar(uint32_t name, bool one) {
+    Cvar_Set2(&title_global<const char>(name), const_cast<char*>(&title_global<const char>(one ? 0x0082e058 : 0x0082e098)),
+              1);
+}
+
+}  // namespace
+
+void XB_CDECL IN_CenterView() {
+    if (!cvar_integer(0x00929c28)) center_pitch();
+}
+
+void XB_CDECL IN_MLookUp() {
+    title_global<int32_t>(0x009341b0) = 0;
+    if (!cvar_integer(0x0093f808) && !cvar_integer(0x00929c28)) center_pitch();
+}
+
+void XB_CDECL IN_MLookDown() { title_global<int32_t>(0x009341b0) = 1; }
+
+void XB_CDECL IN_LeanRightUp() { IN_KeyUp(kbutton(0x00934158)); }
+void XB_CDECL IN_LeanRightDown() { IN_KeyDown(kbutton(0x00934158)); }
+void XB_CDECL IN_LeanLeftUp() { IN_KeyUp(kbutton(0x00934140)); }
+void XB_CDECL IN_LeanLeftDown() { IN_KeyDown(kbutton(0x00934140)); }
+void XB_CDECL IN_ReloadUp() { IN_KeyUp(kbutton(0x00934128)); }
+void XB_CDECL IN_ReloadDown() { IN_KeyDown(kbutton(0x00934128)); }
+void XB_CDECL IN_ActivateUp() { IN_KeyUp(kbutton(0x009340b0)); }
+void XB_CDECL IN_ActivateDown() { IN_KeyDown(kbutton(0x009340b0)); }
+void XB_CDECL IN_Button0Up() { IN_KeyUp(kbutton(0x00934020)); }
+void XB_CDECL IN_Button0Down() { IN_KeyDown(kbutton(0x00934020)); }
+void XB_CDECL IN_StrafeUp() { IN_KeyUp(kbutton(0x00933fa8)); }
+void XB_CDECL IN_StrafeDown() { IN_KeyDown(kbutton(0x00933fa8)); }
+void XB_CDECL IN_SpeedUp() { IN_KeyUp(kbutton(0x00933fc0)); }
+void XB_CDECL IN_SpeedDown() { IN_KeyDown(kbutton(0x00933fc0)); }
+void XB_CDECL IN_MoverightUp() { IN_KeyUp(kbutton(0x00933f90)); }
+void XB_CDECL IN_MoverightDown() { IN_KeyDown(kbutton(0x00933f90)); }
+void XB_CDECL IN_MoveleftUp() { IN_KeyUp(kbutton(0x00933f78)); }
+void XB_CDECL IN_MoveleftDown() { IN_KeyDown(kbutton(0x00933f78)); }
+void XB_CDECL IN_LookdownUp() { IN_KeyUp(kbutton(0x00933f60)); }
+void XB_CDECL IN_LookdownDown() { IN_KeyDown(kbutton(0x00933f60)); }
+void XB_CDECL IN_LookupUp() { IN_KeyUp(kbutton(0x00933f48)); }
+void XB_CDECL IN_LookupDown() { IN_KeyDown(kbutton(0x00933f48)); }
+void XB_CDECL IN_BackUp() { IN_KeyUp(kbutton(0x00933f30)); }
+void XB_CDECL IN_BackDown() { IN_KeyDown(kbutton(0x00933f30)); }
+void XB_CDECL IN_ForwardUp() { IN_KeyUp(kbutton(0x00933f18)); }
+void XB_CDECL IN_ForwardDown() { IN_KeyDown(kbutton(0x00933f18)); }
+void XB_CDECL IN_RightUp() { IN_KeyUp(kbutton(0x00933f00)); }
+void XB_CDECL IN_RightDown() { IN_KeyDown(kbutton(0x00933f00)); }
+void XB_CDECL IN_LeftUp() { IN_KeyUp(kbutton(0x00933ee8)); }
+void XB_CDECL IN_LeftDown() { IN_KeyDown(kbutton(0x00933ee8)); }
+
+void XB_CDECL IN_UpUp() {
+    IN_KeyUp(kbutton(kInUp));
+    IN_KeyUp(kbutton(kInUpAlt));
+}
+
+// Jump: stands up one stance step (prone -> crouch -> stand) while not holding crouch, else jumps.
+void XB_CDECL IN_UpDown() {
+    IN_KeyDown(kbutton(kInUp));
+    if (title_global<int32_t>(0x00934180) || title_global<int32_t>(kInDownActive)) return;
+    const int32_t stance = cvar_integer(0x00927b20);
+    if (stance > 1)
+        set_stance_cvar(0x008351c0, true);
+    else if (stance > 0)
+        set_stance_cvar(0x008351c0, false);
+    else
+        IN_KeyDown(kbutton(kInUpAlt));
+}
+
+void XB_CDECL IN_DownUp() {
+    IN_KeyUp(kbutton(kInDown));
+    set_stance_cvar(0x008351cc, title_global<int32_t>(0x00934180) || title_global<int32_t>(kInDownActive));
+}
+
+void XB_CDECL IN_DownDown() {
+    IN_KeyDown(kbutton(kInDown));
+    set_stance_cvar(0x008351cc, title_global<int32_t>(0x00934180) || title_global<int32_t>(kInDownActive));
+}
+
+// keys[256] (qkey_t: bit 0 down, bits 2+ repeats; binding at +4), anykeydown.
+void XB_REGS3 XB_CDECL CL_KeyEvent(int32_t down, uint32_t, int32_t key, int32_t time) {
+    uint8_t* const keys = &title_global<uint8_t>(0x00934258);
+    int32_t& word = field<int32_t>(keys + 8 * key, 0);
+    int32_t& anykeydown = title_global<int32_t>(0x0092eff0);
+    word = (word & ~3) | (down & 3);
+    uint32_t catchers = title_global<uint32_t>(0x0092bdf4);
+    if (down) {
+        word = ((word & ~3) + 4) | (word & 3);
+        const int32_t repeats = word >> 2;
+        if (repeats == 1) {
+            ++anykeydown;
+        } else if (repeats > 1) {
+            if (!(catchers & 1) || key == '`' || key == '~' || key == 0x1b) return;
+        }
+    } else {
+        word &= 3;
+        if (--anykeydown < 0) anykeydown = 0;
+    }
+    if (key == 0xa2) {
+        if (down && (title_global<uint8_t>(0x00934880) & 3)) return;
+    } else if (key == '`' || key == '~') {
+        return;
+    }
+    if (title_global<int32_t>(0x009617a8)) {  // a scripted camera
+        if (!(catchers & 3)) {
+            if (key == 0x1b || key == ' ' || key == '\r') {
+                if (down) {
+                    CL_AddReliableCommand(&title_global<const char>(0x0083450c));  // "cameraInterrupt"
+                    return;
+                }
+            } else if (down) {
+                return;
+            }
+        }
+        if ((catchers & 1) && key == 0x1b) return;
+    }
+    int32_t state = title_global<int32_t>(0x0092bdf0);
+    if (down && (key < 0x80 || key == 0xc8) && (state == 3 || state == 4) && !catchers) {
+        Cvar_Set2(&title_global<const char>(0x00834500), const_cast<char*>(&title_global<const char>(0x0082dfeb)),
+                  1);  // nextdemo ""
+        state = title_global<int32_t>(0x0092bdf0);
+        catchers = title_global<uint32_t>(0x0092bdf4);
+        key = 0x1b;
+    }
+    if (key == 0x1b && down) {
+        if (catchers & 8) {
+            title_global<uint32_t>(0x0092bdf4) = catchers & ~8u;
+            return;
+        }
+        if (catchers & 2) return;
+        if (state == 2) {
+            const uint8_t* intro = Cvar_Get(&title_global<const char>(0x008344f4), &title_global<const char>(0x0082e058), 0);
+            if (title_global<uint8_t>(0x0095f919) || field<int32_t>(const_cast<uint8_t*>(intro), 0x20)) return;
+            title_global<uint8_t>(0x0095f919) = 1;
+            TitleRegs regs{};
+            regs.esi = title_global<uint32_t>(0x0095f8fc);
+            cg_call_regs(0x0032dde0, &regs, nullptr, 0);  // CL_TogglePause
+            title_global<uint32_t>(0x00934330) &= 3;     // keys[K_ESCAPE].repeats = 0
+        } else if (state == 3 || state == 4) {
+            TitleRegs regs{};
+            regs.ebx = title_global<uint32_t>(0x0095f4c4);
+            cg_call_regs(0x002c8d60, &regs, nullptr, 0);  // S_StopAllSounds
+        }
+        return;
+    }
+    const char* const binding = field<const char*>(keys + 8 * key, 4);
+    char cmd[0x400];
+    if (!down) {
+        if (!binding || binding[0] != '+') return;
+        const uint32_t args[4] = {0x008344e8, uint32_t(reinterpret_cast<uintptr_t>(binding + 1)), uint32_t(key),
+                                  uint32_t(time)};  // "-%s %i %i\n"
+        Com_sprintf(cmd, sizeof cmd, args);
+        Cbuf_AddText(cmd);
+        return;
+    }
+    if ((catchers & 3) || !state) return;
+    if (binding) {
+        if (binding[0] == '+') {
+            const uint32_t args[4] = {0x008344dc, uint32_t(reinterpret_cast<uintptr_t>(binding)), uint32_t(key),
+                                      uint32_t(time)};  // "%s %i %i\n"
+            Com_sprintf(cmd, sizeof cmd, args);
+            Cbuf_AddText(cmd);
+        } else {
+            Cbuf_AddText(binding);
+            Cbuf_AddText(&title_global<const char>(0x0082d288));  // "\n"
+        }
+        return;
+    }
+    // Unbound: Key_KeynumToString inlined into its static buffer; the "unbound" print is gone.
+    if (key < 0xc8 || key == -1 || key < 0 || key > 0xff) return;
+    char* const name = &title_global<char>(0x0098b5c8);
+    if (key > ' ' && key < 0x7f && key != '"') {
+        name[0] = char(title_function<int32_t XB_CDECL(int32_t)>(0x001efd6d)(key));  // toupper
+        name[1] = 0;
+        if (key != ';') return;
+    }
+    for (const uint8_t* entry = &title_global<uint8_t>(0x008d30b8); field<uint32_t>(const_cast<uint8_t*>(entry), 0);
+         entry += 8)
+        if (key == field<int32_t>(const_cast<uint8_t*>(entry), 4)) return;
+    const int32_t high = key >> 4, low = key & 15;
+    name[0] = '0';
+    name[1] = 'x';
+    name[2] = char(high > 9 ? high + 0x57 : high + 0x30);
+    name[3] = char(low > 9 ? low + 0x57 : low + 0x30);
+    name[4] = 0;
+}
+
+namespace {
+
+void stop_all_sounds() {
+    TitleRegs regs{};
+    regs.ebx = title_global<uint32_t>(0x0095f4c4);
+    cg_call_regs(0x002c8d60, &regs, nullptr, 0);  // S_StopAllSounds (sound system in EBX)
+}
+
+void stop_all_channels() {
+    title_function<void XB_STDCALL(uint32_t)>(0x002c8c20)(title_global<uint32_t>(0x0095f4c4));  // S_StopAllChannels
+}
+
+}  // namespace
+
+void XB_CDECL CL_ClearState() {
+    stop_all_sounds();
+    stop_all_channels();
+    using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
+    for (uint32_t slot = 0x009606b8; slot < 0x009616b8; slot += 4) {  // cl.configstrings
+        auto* string = &title_global<ScriptString>(slot);
+        if (!string->rep) continue;
+        ScriptString empty;
+        ScriptString_FromRep(&empty, nullptr);
+        title_function<Assign>(0x0011d600)(string, &empty);                    // ScriptString_Assign
+        title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&empty);  // ScriptString_Release
+    }
+    std::memset(&title_global<uint8_t>(0x00960160), 0, 0x9b0 * 4);  // cl
+    std::memset(&title_global<uint8_t>(0x0092f5f0), 0, 0x1212 * 4);  // clc
+}
+
+void XB_CDECL CL_MapLoading() {
+    title_global<uint8_t>(0x0095f916) = 1;
+    title_global<uint32_t>(0x0092bdf4) = 0;  // cls.keyCatchers
+    Cvar_Set2(&title_global<const char>(0x008344c8), const_cast<char*>(&title_global<const char>(0x0082dfeb)),
+              1);  // nextmap ""
+    const uint8_t* const dedicated = title_global<uint8_t*>(0x00947704);
+    if (dedicated && field<int32_t>(const_cast<uint8_t*>(dedicated), 0x20)) {
+        Cvar_Set2(&title_global<const char>(0x00835238), const_cast<char*>(&title_global<const char>(0x0082e058)),
+                  1);  // r_uiFullScreen 1
+        CL_ClearState();
+        title_global<int32_t>(0x0092bdf0) = 0;  // CA_UNINITIALIZED
+    }
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(
+        &title_global<char>(0x0092be00), &title_global<const char>(0x008344bc), 0x7f);  // servername "localhost"
+    title_global<char>(0x0092be7f) = 0;
+    title_global<int32_t>(0x0092bdf0) = 1;
+    title_function<void XB_CDECL()>(0x002f1e60)();  // SCR_UpdateScreen
+    stop_all_sounds();
+    stop_all_channels();
+}
+
+namespace {
+
+constexpr uint32_t kMissionHud = 0x0095f8d0;
+
+int32_t sys_milliseconds() { return title_function<int32_t XB_CDECL()>(0x002b1ca0)(); }
+
+// Title callees run at the ESP the original's calls have (title code below keeps addresses of its stack locals in
+// globals, 0x0095e2d0); `top` is the ESP before the call's arguments are pushed.
+// Plain arrays: std::initializer_list's out-of-line accessors (unoptimized builds) bind to the loader's copies.
+struct Args {
+    uint32_t words[3];
+    uint32_t count;
+};
+
+void call_at(uint32_t top, uint32_t function, const TitleRegs& regs, const Args& args = {{}, 0}) {
+    title_call_at_regs(top, function, &regs, args.count, args.words);
+}
+
+void draw_mission_overlays(uint32_t top) {
+    const TitleRegs regs = {0, 0, 0, 0, kMissionHud, 0};
+    if (title_global<uint8_t>(0x0095f919)) call_at(top, 0x003153d0, regs);
+    if (title_global<uint8_t>(0x0095f918)) call_at(top, 0x00315440, regs);
+}
+
+uint32_t float_bits(float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+}  // namespace
+
+void SCR_DrawScreenField(uint32_t entry) {
+    call_at(entry, title_global<uint32_t>(0x00928548), {}, Args{{0}, 1});  // re.BeginFrame(0)
+    const int32_t state = title_global<int32_t>(0x0092bdf0);   // cls.state
+    if (state == 5) return;
+    const uint32_t top = entry - 4;  // push esi
+    switch (state) {
+    case 0:
+        title_global<uint32_t>(0x0092bdf4) = 2;  // KEYCATCH_UI
+        call_at(top, 0x000c53b0, {});
+        Cvar_Set2(&title_global<const char>(0x0082c89c), const_cast<char*>(&title_global<const char>(0x0082e098)),
+                  1);  // g_reloading 0
+        break;
+    case 1:
+        draw_mission_overlays(top);
+        break;
+    case 2:
+        call_at(top, 0x0028b340, {0, 0, title_global<uint32_t>(0x009606b0), 0, 0, 0},
+                Args{{0, 0, title_global<uint32_t>(0x0092be94)}, 3});  // CG_DrawActiveFrame
+        break;
+    default:
+        call_at(top, 0x002938f0, {}, Args{{0, 0x00833ff8}, 2});  // __break
+        break;
+    }
+    draw_mission_overlays(top);
+}
+
+PLATFORM_ASM_ENTRY(SCR_UpdateScreen_entry, "movl %esp, %eax\n"
+                                           "subl $0x20000, %esp\n"
+                                           "pushl %ebp\n"
+                                           "movl %eax, %ebp\n"
+                                           "pushl %ebp\n" PLATFORM_ASM_CALL(SCR_UpdateScreen) "addl $4, %esp\n"
+                                           "popl %ebp\n"
+                                           "addl $0x20000, %esp\n"
+                                           "ret")
+
+void XB_CDECL SCR_UpdateScreen(uint32_t entry) {
+    if (!title_global<int32_t>(0x00933ee4)) return;  // UI not started
+    const uint32_t top = entry - 0x8c;                  // sub esp,0x84; push ebx; push esi
+    int32_t& state = title_global<int32_t>(0x0092bdf0);
+    if (state == 2) {
+        int32_t& frame = title_global<int32_t>(0x0093fc28);
+        if (++frame == 0) frame = 1;
+        title_global<int32_t>(0x0095f4ec) = 1;
+    }
+    if (!title_global<uint8_t>(0x009403f4)) {
+        SCR_DrawScreenField(top - 4);
+        call_at(top, title_global<uint32_t>(0x0092854c), {}, Args{{0x009403f8, 0x0093fce8}, 2});  // re.EndFrame
+    }
+    // static int last = Sys_Milliseconds() on the first call
+    uint32_t& guard = title_global<uint32_t>(0x0098f2c4);
+    int32_t& last = title_global<int32_t>(0x0098f2c0);
+    int32_t previous;
+    if (!(guard & 1)) {
+        guard |= 1;
+        previous = sys_milliseconds();
+    } else {
+        previous = last;
+    }
+    const int32_t now = sys_milliseconds();
+    last = now;
+    const float seconds = float(now - previous) * title_global<float>(0x0083eb4c);
+    int32_t& level = title_global<int32_t>(0x0095f920);  // the level to start, -1 = none
+    if (level > -1) {
+        static constexpr uint32_t kMaps[14] = {0x00833fec, 0x0082bc60, 0x00833fd8, 0x0082bc48, 0x0082bc3c,
+                                               0x0082cc0c, 0x0082bc34, 0x0082bc28, 0x0082bc20, 0x0082bcc0,
+                                               0x0082bcb8, 0x0082bcac, 0x0082bca0, 0x0082bc90};
+        if (level > 13) return;
+        char* const cmd = reinterpret_cast<char*>(uintptr_t{top + 0xc});  // the original's local buffer
+        title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(
+            cmd, &title_global<const char>(0x00833fe0), &title_global<const char>(kMaps[level]));  // "spmap %s"
+        level = -1;
+        Cmd_ExecuteRegisteredCommand(cmd);
+    }
+    const uint32_t time = float_bits(seconds);
+    if (title_global<uint8_t>(0x0095f918)) {
+        call_at(top, 0x00315560, {0, 0, 0, 0, kMissionHud, 0}, Args{{time}, 1});
+    } else if (title_global<uint8_t>(0x0095f919)) {
+        call_at(top, 0x00315520, {0, 0, 0, 0, kMissionHud, 0}, Args{{time}, 1});
+    } else {
+        const uint32_t hud = title_global<uint32_t>(0x0095f8f0);  // g_hudManager, vtable +0xc
+        call_at(top, field<uint32_t>(title_global<uint8_t*>(hud), 0xc), {0, 0, hud, 0, 0, 0}, Args{{time}, 1});
+    }
+    if (state == 2) title_global<int32_t>(0x0095f4ec) = 0;
+}
+
+PLATFORM_ASM_ENTRY(CL_TogglePause_entry, "pushl %esi\n" PLATFORM_ASM_CALL(CL_TogglePause) "addl $4, %esp\n"
+                                         "ret")
+
+void XB_CDECL CL_TogglePause(uint8_t* menu) {
+    const auto set_paused = [] {
+        Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e058)),
+                  1);  // cl_paused 1
+    };
+    title_global<uint8_t>(0x0095f919) = 1;
+    set_paused();
+    uint8_t* const overlay = field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8fc), 4), 0);
+    title_function<void XB_REGS1 XB_CDECL(uint32_t)>(0x002b6be0)(title_global<uint32_t>(0x0095f4c4));  // S_PauseAllChannels
+    set_paused();
+    overlay[0x40] = title_global<uint8_t>(0x008dce69);
+    uint8_t* const object = field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8fc), 4), 0);
+    using Show = void XB_THISCALL(uint8_t*, uint32_t, uint32_t);
+    title_function<Show>(field<uint32_t>(field<uint8_t*>(object, 0), 0x88))(object, 0, 1);
+    using Activate = void XB_THISCALL(uint8_t*, uint32_t);
+    title_function<Activate>(field<uint32_t>(field<uint8_t*>(menu, 0), 0xc))(menu, 0);
+}
+
+void XB_REGS3 XB_CDECL CL_PauseForDialog(uint32_t, uint8_t keep_running, uint8_t* dialog) {
+    const int32_t mode = field<int32_t>(dialog, 0xc);
+    const bool developer = cvar_integer(0x0093fcd8) != 0;
+    if (mode < 0) dialog[0x20] = developer ? uint8_t(dialog[0x20] | 1) : uint8_t(dialog[0x20] & ~1);
+    if (!keep_running && mode != 1) dialog[0x20] = mode == 0 ? uint8_t(dialog[0x20] | 2) : uint8_t(dialog[0x20] & ~2);
+    using Activate = void XB_THISCALL(uint8_t*, uint32_t);
+    title_function<Activate>(field<uint32_t>(field<uint8_t*>(dialog, 0), 0xc))(dialog, keep_running == 0);
+    if (cvar_integer(0x0093fcd8)) return;
+    if (title_global<uint32_t>(0x0095f8f8) && title_global<uint8_t>(0x0095f918)) return;
+    Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e058)),
+              1);  // cl_paused 1
 }
 
 }  // namespace game
