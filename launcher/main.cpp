@@ -168,18 +168,46 @@ public:
         ImGui::Begin("launcher", nullptr,
                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
         update_notice();
-        game_files();
-        display();
-        controls();
-        system_link();
-        reporting();
-        updates();
+        if (!platform::has_game_files(asset_dir(choices_)))
+            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "No game files yet: see Game files on the General tab.");
+        // The tabs scroll on their own; the buttons stay at the bottom.
+        const ImGuiStyle& style = ImGui::GetStyle();
+        float footer = ImGui::GetFrameHeight() + style.ItemSpacing.y * 2 + style.SeparatorTextBorderSize;
+        if (!error_.empty()) footer += ImGui::GetTextLineHeightWithSpacing();
+        ImGui::BeginChild("tabs", ImVec2(0, -footer));
+        if (ImGui::BeginTabBar("sections")) {
+            tab("General", [&] { general(); });
+            tab("Graphics", [&] { graphics(); });
+            tab("Controls", [&] { controls(); });
+            tab("Multiplayer", [&] { system_link(); });
+            tab("Help", [&] { reporting(); });
+            ImGui::EndTabBar();
+        }
+        ImGui::EndChild();
         const bool keep_open = buttons();
         ImGui::End();
         return keep_open && !restart_after_update();
     }
 
 private:
+    template <typename Body>
+    static void tab(const char* name, Body body) {
+        if (!ImGui::BeginTabItem(name)) return;
+        ImGui::Spacing();
+        // Controls get the left 60%, labels the rest.
+        ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+        body();
+        ImGui::PopItemWidth();
+        ImGui::EndTabItem();
+    }
+
+    void general() {
+        game_files();
+        ImGui::SeparatorText("Language and sound");
+        language_and_sound();
+        updates();
+    }
+
     // At the top while a newer release is out: a link to it and, in an installed
     // release (not a dev build), Update now.
     void update_notice() {
@@ -262,8 +290,8 @@ private:
         }
     }
 
-    void display() {
-        ImGui::SeparatorText("Display");
+    void graphics() {
+        ImGui::SeparatorText("Window");
         int aspect = choices_.widescreen ? 0 : 1;
         ImGui::Combo("Aspect ratio", &aspect, "16:9 (widescreen)\0" "4:3 (original)\0");
         choices_.widescreen = aspect == 0;
@@ -281,6 +309,7 @@ private:
         ImGui::TextDisabled("%dx%d", width, height);
         ImGui::EndDisabled();
 
+        ImGui::SeparatorText("Picture");
         // What "render at window/screen size" means in render scale (the game's 480 lines).
         float native_scale = static_cast<float>(choices_.scale);
         if (choices_.fullscreen)
@@ -334,13 +363,14 @@ private:
     }
 
     void controls() {
-        ImGui::SeparatorText("Controls and sound");
+        ImGui::SeparatorText("Mouse and keyboard");
         ImGui::SliderFloat("Mouse sensitivity", &choices_.mouse_sensitivity, 0.01f, 1.0f, "%.2f",
                            ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
         help_marker("Degrees the view turns per mouse count.");
         ImGui::Checkbox("Aim assist", &choices_.aim_assist);
         help_marker("The view follows an enemy under the crosshair, as on the Xbox. Applies to the "
                     "controller and the mouse alike, in the campaign and in multiplayer.");
+        ImGui::SeparatorText("On screen");
         static constexpr const char* kPrompts[] = {"auto", "keyboard", "controller"};
         int prompts = 0;
         while (prompts < 2 && choices_.button_prompts != kPrompts[prompts]) ++prompts;
@@ -348,8 +378,9 @@ private:
         choices_.button_prompts = kPrompts[prompts];
         help_marker("The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox "
                     "controller's. They follow the controller style chosen in the game's options.");
-        ImGui::Checkbox("Mute sound", &choices_.silent);
+    }
 
+    void language_and_sound() {
         static constexpr const char* kLanguages[] = {"english", "german", "french", "spanish", "italian"};
         int language = 0;
         while (language < 4 && choices_.language != kLanguages[language]) ++language;
@@ -358,12 +389,13 @@ private:
         help_marker("The Xbox's language setting. The game can only use languages that are on your disc: "
                     "the North American Standard Edition disc is English only, a European disc has its own languages (and may "
                     "have no English). The log lists the disc's languages.");
+        ImGui::Checkbox("Mute sound", &choices_.silent);
     }
 
     // Multiplayer over the local network (online/lan.h): every game on the LAN has to use
     // the same ports.
     void system_link() {
-        ImGui::SeparatorText("Multiplayer");
+        ImGui::SeparatorText("System Link");
         ImGui::TextWrapped("System Link plays with other PCs on your local network, or with a second copy "
                            "of the game on this PC. Xbox Live is not available.");
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7);
@@ -391,6 +423,7 @@ private:
             open_folder((data ? fs::path(*data) : platform::user_data_dir()) / "E" / "UDATA");
         }
         help_marker("One folder per game profile with its saves, as on the Xbox hard disk.");
+        ImGui::SeparatorText("Low frame rate");
         ImGui::Checkbox("Measure performance", &profile_);
         help_marker("For reports about a low frame rate: the next game started from here writes to its "
                     "log where the time goes, for 10 seconds from the first moment it runs under 24 fps. "
@@ -409,13 +442,16 @@ private:
         ImGui::EndDisabled();
         const bool play = campaign || multiplayer;
         ImGui::SameLine();
-        if (ImGui::Button("Reset to defaults")) {
+        const bool quit = ImGui::Button("Quit");
+        const char* reset_label = "Reset to defaults";
+        ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(reset_label).x -
+                        ImGui::GetStyle().FramePadding.x * 2);
+        if (ImGui::Button(reset_label)) {
             const std::string assets = choices_.assets;  // the game files stay where they are
             choices_ = Choices{};
             choices_.assets = assets;
         }
-        ImGui::SameLine();
-        const bool quit = ImGui::Button("Quit");
+        ImGui::SetItemTooltip("Every option on every tab back to its default; the game files folder stays.");
         if (!error_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s", error_.c_str());
 
         if (play || quit) {
@@ -457,7 +493,7 @@ int main(int, char**) {
     }
     const float ui_scale = std::max(1.0f, SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
     // Tall enough for every option; on a short screen the rest scrolls.
-    int height = static_cast<int>(690 * ui_scale);
+    int height = static_cast<int>(440 * ui_scale);
     if (SDL_Rect usable; SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable))
         height = std::min(height, usable.h - static_cast<int>(40 * ui_scale));
     SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale), height,
