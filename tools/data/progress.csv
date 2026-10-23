@@ -470,7 +470,7 @@ address,name,section,module,state,tested,matched
 0001db80,Anim_CreateClipState,.text,unassigned,settled,102,102
 0001dc10,FUN_0001dc10,.text,unassigned,unnamed,0,0
 0001de20,FUN_0001de20,.text,unassigned,unnamed,0,0
-0001e150,FUN_0001e150,.text,unassigned,settled,327,165
+0001e150,FUN_0001e150,.text,unassigned,settled,7974,7812
 0001eb40,FUN_0001eb40,.text,unassigned,unnamed,0,0
 0001ebd0,FUN_0001ebd0,.text,unassigned,unnamed,0,0
 0001ec10,FUN_0001ec10,.text,unassigned,unnamed,0,0
@@ -1995,7 +1995,7 @@ address,name,section,module,state,tested,matched
 00086da0,NAL_AnimState_Destroy,.text,unassigned,settled,399,399
 00086e50,NAL_AnimState_Copy,.text,unassigned,settled,400,400
 00086ec0,NAL_AnimState_CopyRange,.text,unassigned,settled,400,400
-00087030,FUN_00087030,.text,unassigned,untested,0,0
+00087030,FUN_00087030,.text,unassigned,matched,20,20
 000872e0,FUN_000872e0,.text,unassigned,unnamed,0,0
 00087420,FUN_00087420,.text,unassigned,unnamed,0,0
 000874b0,NAL_AnimTrack_DecodeBlock,.text,unassigned,settled,139,139
