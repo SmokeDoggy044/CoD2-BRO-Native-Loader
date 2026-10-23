@@ -190,4 +190,35 @@ void XB_CDECL CG_ConfigStringCommand();
 // in 0x0098bd20 (the text alone while 0x00949984 is off).
 const char* XB_REGS1 XB_CDECL CG_TranslateString(const char* text, const char* what);
 
+// 0x00279be0: the held weapon's crosshair (def +0x4bc, size +0x4c4) centred in the refdef.
+void XB_CDECL CG_DrawCrosshair();
+// 0x00279900 (flags EBX, back colour ECX, full colour EDX, cdecl (x, y, w, h, colour,
+// fraction)): a 640x480 bar filled to the fraction (flags in the definition).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawBar(float x, float y, float w, float h, const float* color, float fraction,
+                                                   uint32_t flags, const float* back_color, float* full_color);
+extern "C" void CG_DrawBar_entry(void);
+// 0x002761b0: the front-buffer effect (shell shock flash): the last frame as a full-screen
+// quad in the colour 0x008d5114 with blend mode 0x008d5124, fading out at the end.
+void XB_CDECL CG_DrawFrontBufferFade();
+
+// 0x0027bf50 / 0x0027bf80: cg_viewsize - 10 / + 10.
+void XB_CDECL CG_SizeDown_f();
+void XB_CDECL CG_SizeUp_f();
+// 0x0027c3f0: Q3's CG_CalcVrect (cg_viewsize 30..100; height times 0.85 with 0x0094ad64).
+void XB_CDECL CG_CalcVrect();
+// 0x002884e0 (latest sequence in ESI): Q3's CG_ExecuteNewServerCommands.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_ExecuteNewServerCommands(int32_t latest);
+extern "C" void CG_ExecuteNewServerCommands_entry(void);
+
+// 0x00279650: a loading-screen refresh at most every 100 ms.
+void XB_CDECL CG_UpdateScreenWhileLoading();
+// 0x00286bc0: Q3's CG_DrawActive; the C version gets the entry ESP and returns the tail
+// jump target for CG_DrawActive_entry.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CG_DrawActive(uint32_t entry_esp);
+extern "C" void CG_DrawActive_entry(void);
+// 0x0027ada0: Q3's CG_ParseServerinfo (only cgs.mapname "maps/%s.bsp").
+void XB_CDECL CG_ParseServerinfo();
+// 0x0027bb10: Q3's CG_RegisterCvars.
+void XB_CDECL CG_RegisterCvars();
+
 }  // namespace game

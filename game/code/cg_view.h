@@ -92,4 +92,12 @@ extern "C" void CG_GetViewFov_entry(void);
 // without a shake only a new random phase (0x0097309c).
 void XB_CDECL CG_ShakeCamera();
 
+// 0x0027a2b0: the view weapon's sway angles (0x00972c10/0x00972c14) and lag
+// (0x00972c24/0x00972c28) following the view's turn since the last frame.
+void XB_CDECL CG_CalcWeaponSway();
+
+// 0x0029a230 (src EAX, dst ESI): Q3's PerpendicularVector.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PerpendicularVector(const float* src, float* dst);
+extern "C" void PerpendicularVector_entry(void);
+
 }  // namespace game

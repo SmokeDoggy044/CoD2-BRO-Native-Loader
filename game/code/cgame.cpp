@@ -6,6 +6,8 @@
 #include "bg_misc.h"
 #include "cg_ents.h"
 #include "dobj.h"
+#include "g_utils.h"
+#include "ngl.h"
 #include "qcommon.h"
 #include "title_data.h"
 #include "tr_main.h"
@@ -19,6 +21,7 @@ namespace game {
 namespace {
 
 int32_t cg_time() { return title_global<int32_t>(0x0097253c); }
+float g(uint32_t address) { return title_global<float>(address); }
 
 // Registers (import 0x009284f8, type 5) the asset named by the configstring slot at
 // `address` when the slot lies in cl_configstrings (0x009606b8, 0x400 slots) and is set and
@@ -1008,6 +1011,335 @@ const char* XB_REGS1 XB_CDECL CG_TranslateString(const char* text, const char* w
     std::strcat(buffer, text);
     std::strcat(buffer, &title_global<char>(0x008333fc));
     return buffer;
+}
+
+namespace {
+
+uint32_t float_bits(float f) {
+    uint32_t u;
+    std::memcpy(&u, &f, 4);
+    return u;
+}
+
+// CG_FillRect (0x00277bd0, colour in EAX; it cannot be hooked).
+void fill_rect(const float* color, float x, float y, float w, float h) {
+    title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0)(color, x, y, w, h);
+}
+
+}  // namespace
+
+void XB_CDECL CG_DrawCrosshair() {
+    // The held weapon's crosshair (def +0x4bc name; "T..." = a small fixed cross of two
+    // rectangles) centred in the refdef at its size (+0x4c4), alpha cg_crosshairAlpha
+    // (0x00949590, nothing below 0.01), shader in the weapon's media (0x00976060).
+    float color[4] = {g(0x0083eb20), g(0x0083eb20), g(0x0083eb20), 0.0f};
+    if (!title_global<uint32_t>(0x009485d4)) return;
+    if (title_global<uint32_t>(0x0094c7a4) && title_global<uint32_t>(0x0094bf6c)) return;
+    if (title_global<uint32_t>(0x00972548)) return;
+    if (!title_global<uint8_t>(0x008dce69)) return;
+    const uint8_t* ent = G_EntHandleToEnt(&title_global<uint32_t>(0x009729b8));
+    const uint32_t weapon = ent[3];
+    if (!weapon) return;
+    const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[weapon];
+    const char* name = *reinterpret_cast<const char* const*>(def + 0x4bc);
+    if (!name[0]) return;
+    if (name[0] == 'T') {
+        color[0] = 0.0f;
+        color[1] = 0.0f;
+        color[2] = 0.0f;
+        color[3] = g(0x0083eba4);
+        fill_rect(color, 310.0f, 240.0f, 20.0f, 2.0f);
+        fill_rect(color, 319.0f, 242.0f, 2.0f, 8.0f);
+        return;
+    }
+    const float alpha = g(0x00949590);
+    color[3] = alpha;
+    if (g(0x0083eb94) > alpha) return;
+    title_function<void XB_CDECL(const float*)>(title_global<uint32_t>(0x0092852c))(color);
+    const float size = static_cast<float>(*reinterpret_cast<const int32_t*>(def + 0x4c4));
+    const float ys = g(0x009758bc), xs = g(0x009758b8);
+    const float half = g(0x0083eb24);
+    const float h = size * ys;
+    const float w = size * xs;
+    const float y = ((static_cast<float>(title_global<int32_t>(0x00972b9c)) - h) * half + ys * 0.0f) +
+                    static_cast<float>(title_global<int32_t>(0x00972b94));
+    const float x = ((static_cast<float>(title_global<int32_t>(0x00972b98)) - w) * half + xs * 0.0f) +
+                    static_cast<float>(title_global<int32_t>(0x00972b90));
+    CG_R_DrawStretchPic(title_global<uint32_t>(0x00976060 + weapon * 0xc4), float_bits(x), float_bits(y), float_bits(w),
+                        float_bits(h), 0, 0, 0x3f800000, 0x3f800000);
+}
+
+PLATFORM_ASM_ENTRY(CG_DrawBar_entry,
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ebx\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl 36(%esp)\n" PLATFORM_ASM_CALL(CG_DrawBar) "addl $36, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawBar(float x, float y, float w, float h, const float* color, float fraction, uint32_t flags,
+                         const float* back_color, float* full_color) {
+    // A bar filled to `fraction` (flags: 4 vertical, 1 from the far end, 2 centred; 0x10 a
+    // background in back_color (else white at 0.25) inset by 2, or 6/12 with 0x20, none with
+    // 0x40; 0x100 the fill blended towards full_color; without 8 the alphas times 0x0094b5d8).
+    const float one = g(0x0083eb20);
+    float back[4] = {one, one, one, g(0x0083ec24)};
+    float fill[4] = {color[0], color[1], color[2], color[3]};
+    const uint32_t has_back = flags & 0x10;
+    if (has_back && back_color) {
+        back[0] = back_color[0];
+        back[1] = back_color[1];
+        back[2] = back_color[2];
+        back[3] = back_color[3];
+    }
+    if (!(flags & 8)) {
+        const float alpha = g(0x0094b5d8);
+        fill[3] = alpha * fill[3];
+        if (full_color) full_color[3] = full_color[3] * alpha;
+        back[3] = g(0x0094b5d8) * back[3];
+    }
+    float blend[4];
+    const uint32_t blended = flags & 0x100;
+    if (blended) {
+        const float rest = one - fraction;
+        blend[0] = full_color[0] * fraction + rest * fill[0];
+        blend[1] = full_color[1] * fraction + rest * fill[1];
+        blend[2] = full_color[2] * fraction + rest * fill[2];
+        blend[3] = full_color[3] * fraction + rest * fill[3];
+    }
+    if (has_back) {
+        fill_rect(back, x, y, w, h);
+        if (!(flags & 0x40)) {
+            if (flags & 0x20) {
+                y = y + g(0x0083ecd0);
+                h = h - g(0x0083eccc);
+            } else {
+                x = x + g(0x0083eba8);
+                y = y + g(0x0083eba8);
+                w = w - g(0x0083100c);
+                h = h - g(0x0083100c);
+            }
+        }
+    }
+    const float* bar = blended ? blend : fill;
+    if (flags & 4) {
+        if (flags & 1)
+            y = (one - fraction) * h + y;
+        else if (flags & 2)
+            y = (one - fraction) * h * g(0x0083eb24) + y;
+        fill_rect(bar, x, y, w, h * fraction);
+    } else {
+        if (flags & 1)
+            x = (one - fraction) * w + x;
+        else if (flags & 2)
+            x = (one - fraction) * w * g(0x0083eb24) + x;
+        fill_rect(bar, x, y, w * fraction, h);
+    }
+}
+
+void XB_CDECL CG_DrawFrontBufferFade() {
+    // While a front-buffer effect (start 0x00973a4c, duration 0x00973a50, on 0x00973a64)
+    // lasts: the last frame as a full-screen quad in the colour 0x008d5114 (clamped to 0..1)
+    // with blend mode 0x008d5124; below the fraction 0x008fefc0 left it fades out by 0x008d9d4c
+    // (the first colour byte always, all four in modes 5 and 6).
+    const int32_t start = title_global<int32_t>(0x00973a4c);
+    const int32_t now = title_global<int32_t>(0x0097253c);
+    const int32_t elapsed = static_cast<int32_t>(static_cast<uint32_t>(now) - static_cast<uint32_t>(start));
+    if (elapsed < 0) return;
+    const int32_t duration = title_global<int32_t>(0x00973a50);
+    if (elapsed > duration) return;
+    if (!title_global<uint32_t>(0x00973a64)) return;
+    const float one = g(0x0083eb20);
+    const float left = one - static_cast<float>(elapsed) / static_cast<float>(duration);
+    for (uint32_t c = 0x008d5114; c <= 0x008d5120; c += 4) {
+        float& v = title_global<float>(c);
+        if (v > one)
+            v = one;
+        else if (0.0f > v)
+            v = 0.0f;
+    }
+    using ext = long double;
+    const auto to_byte = [](ext v) { return static_cast<uint8_t>(static_cast<int32_t>(static_cast<int64_t>(v))); };
+    const ext full = static_cast<ext>(g(0x0083eb8c));
+    uint8_t r = to_byte(static_cast<ext>(g(0x008d5114)) * full);
+    uint8_t gr = to_byte(static_cast<ext>(g(0x008d5118)) * full);
+    uint8_t b = to_byte(static_cast<ext>(g(0x008d511c)) * full);
+    uint8_t a = to_byte(static_cast<ext>(g(0x008d5120)) * full);
+    const float threshold = g(0x008fefc0);
+    int32_t& mark = title_global<int32_t>(0x0095f644);
+    int32_t fade_time;
+    if (left > threshold) {
+        fade_time = 0;
+        mark = 0;
+        title_global<float>(0x008d9d4c) = one;
+    } else {
+        fade_time = mark;
+    }
+    if (threshold > left && fade_time == 0) {
+        fade_time = duration - now + start;
+        mark = fade_time;
+    }
+    if (fade_time)
+        title_global<float>(0x008d9d4c) =
+            static_cast<float>(duration - now + start) / static_cast<float>(fade_time);
+    NglQuad quad;
+    nglInitQuad(&quad);
+    const ext scale = static_cast<ext>(g(0x008d9d4c));
+    r = to_byte(static_cast<ext>(static_cast<int32_t>(r)) * scale);
+    const uint32_t mode = title_global<uint32_t>(0x008d5124);
+    if (mode == 5 || mode == 6) {
+        gr = to_byte(static_cast<ext>(static_cast<int32_t>(gr)) * scale);
+        b = to_byte(static_cast<ext>(static_cast<int32_t>(b)) * scale);
+        a = to_byte(static_cast<ext>(static_cast<int32_t>(a)) * scale);
+    }
+    const uint32_t rgba = (static_cast<uint32_t>(r) << 24) | (static_cast<uint32_t>(gr) << 16) |
+                          (static_cast<uint32_t>(b) << 8) | a;
+    nglSetQuadColor(&quad, rgba);
+    nglSetQuadBlend(&quad, title_global<uint32_t>(0x008d5124), rgba);
+    const float bottom = static_cast<float>(nglGetScreenHeight() + title_global<int32_t>(0x008fefb8));
+    const int32_t left_edge = title_global<int32_t>(0x008fefbc);
+    const float right = static_cast<float>(nglGetScreenWidth() + left_edge);
+    nglSetQuadRect(&quad, static_cast<float>(left_edge), static_cast<float>(title_global<int32_t>(0x008fefb8)), right,
+                   bottom);
+    nglSetQuadTexture(&quad, nglGetFrontBufferTexture());
+    nglListAddQuad(&quad);
+}
+
+namespace {
+
+// Cvar_Set2("cg_viewsize", "%i" of cg_viewsize + delta, force).
+void set_view_size(int32_t delta) {
+    const char* text = title_function<const char* XB_CDECL(const char*, int32_t)>(0x002a93d0)(  // va
+        &title_global<char>(0x0082ded4), title_global<int32_t>(0x0094c1ac) + delta);
+    title_function<void XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+        &title_global<char>(0x0083428c), text, 1);
+}
+
+}  // namespace
+
+void XB_CDECL CG_SizeDown_f() { set_view_size(-10); }
+
+void XB_CDECL CG_SizeUp_f() { set_view_size(10); }
+
+void XB_CDECL CG_CalcVrect() {
+    // Q3's CG_CalcVrect: cg_viewsize clamped to 30..100 (the cvar set and updated), the
+    // refdef centred at that percentage of the screen (0x0097589c x 0x009758a0); the height
+    // percentage times 0.85 while 0x0094ad64 is set; even sizes.
+    int32_t size = title_global<int32_t>(0x0094c1ac);
+    const auto clamp_to = [](uint32_t text, int32_t value) {
+        const uint32_t name = title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(0x0094c1a0) * 0x2c);
+        title_function<void XB_CDECL(uint32_t, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+            name, &title_global<char>(text), 1);
+        cg_cvar_update(0x0094c1a0);
+        return value;
+    };
+    if (size < 30)
+        size = clamp_to(0x00838a60, 30);
+    else if (size > 100)
+        size = clamp_to(0x00834298, 100);
+    int32_t height_size = size;
+    if (title_global<uint32_t>(0x0094ad64))
+        height_size = static_cast<int32_t>(static_cast<float>(size) * g(0x0083f008));
+    const int32_t width = title_global<int32_t>(0x0097589c), height = title_global<int32_t>(0x009758a0);
+    const int32_t w = (width * size / 100) & ~1;
+    const int32_t h = (height * height_size / 100) & ~1;
+    title_global<int32_t>(0x00972b90) = (width - w) / 2;
+    title_global<int32_t>(0x00972b9c) = h;
+    title_global<int32_t>(0x00972b98) = w;
+    title_global<int32_t>(0x00972b94) = (height - h) / 2;
+}
+
+PLATFORM_ASM_ENTRY(CG_ExecuteNewServerCommands_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_ExecuteNewServerCommands) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_ExecuteNewServerCommands(int32_t latest) {
+    // Q3's CG_ExecuteNewServerCommands: each new server command (CL_GetServerCommand 0x002d59f0,
+    // sequence in EAX) through CG_ServerCommand (0x00287ab0).
+    int32_t& sequence = title_global<int32_t>(0x00971a94);
+    while (sequence < latest) {
+        ++sequence;
+        if (title_call_regs(0x002d59f0, static_cast<uint32_t>(sequence), 0, 0))
+            title_function<void XB_CDECL()>(0x00287ab0)();
+    }
+}
+
+void XB_CDECL CG_UpdateScreenWhileLoading() {
+    // A loading-screen refresh (SCR_UpdateScreen 0x002f1e60, re-entry guard 0x0098ad4c) at
+    // most every 100 ms (Sys_Milliseconds; the last one 0x0098ad50), unless 0x00971aa4.
+    if (title_global<uint32_t>(0x00971aa4) || title_global<uint32_t>(0x0098ad4c)) return;
+    const int32_t now = title_function<int32_t XB_CDECL()>(0x002b1ca0)();  // Sys_Milliseconds
+    const int32_t last = title_global<int32_t>(0x0098ad50);
+    if (last <= now && last > now - 100) return;
+    title_global<int32_t>(0x0098ad50) = now;
+    title_global<int32_t>(0x0098ad4c) = 1;
+    title_function<void XB_CDECL()>(0x002f1e60)();  // SCR_UpdateScreen
+    --title_global<int32_t>(0x0098ad4c);
+}
+
+// The original has no frame of its own: its calls run at the entry ESP and it ends in tail
+// jumps, and a callee stores a stack address in a global (0x0095e2d0 differed by the C
+// frame's depth). The entry moves the C frame below a gap, the C version runs the calls at
+// the original's ESP and returns the tail jump's target (0 = return).
+PLATFORM_ASM_ENTRY(CG_DrawActive_entry,
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_DrawActive) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "testl %eax, %eax\n"
+                   "jz 1f\n"
+                   "jmp *%eax\n"
+                   "1:\n"
+                   "ret")
+
+uint32_t XB_CDECL CG_DrawActive(uint32_t entry_esp) {
+    // Q3's CG_DrawActive: without a snapshot the loading screen; else the refdef (flag 0x10
+    // set while 0x009493e4) rendered (import 0x00928524), the shell shock blur and, while
+    // 0x008d9d48, CG_Draw2D (0x00285f80).
+    if (!title_global<uint32_t>(0x00971aa8)) return 0x00279650;  // CG_UpdateScreenWhileLoading
+    uint32_t& flags = title_global<uint32_t>(0x00972be8);
+    flags |= 0x10;
+    if (!title_global<uint32_t>(0x009493e4)) flags &= ~0x10u;
+    const TitleRegs regs{};
+    const uint32_t refdef[1] = {0x00972b90};
+    title_call_at_regs(entry_esp, title_global<uint32_t>(0x00928524), &regs, 1, refdef);
+    title_call_at_regs(entry_esp, 0x00277c50, &regs, 0, nullptr);  // CG_DrawShellShockBlur
+    return title_global<uint32_t>(0x008d9d48) ? 0x00285f80 : 0;  // CG_Draw2D
+}
+
+void XB_CDECL CG_ParseServerinfo() {
+    // cgs.mapname (0x009758c4, 0x80 bytes) = "maps/<mapname>.bsp" from configstring 0.
+    const uint8_t* info = title_global<const uint8_t*>(0x009606b8);
+    TitleRegs regs{};
+    regs.ecx = info ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info + 6)) : 0;
+    regs.edi = 0x00835230;  // "mapname"
+    const uint32_t value = cg_call_regs(0x002b8f50, &regs, nullptr, 0);  // Info_ValueForKey
+    regs = TitleRegs{};
+    regs.esi = 0x80;
+    regs.edi = 0x009758c4;
+    const uint32_t args[2] = {0x00835224, value};  // "maps/%s.bsp"
+    cg_call_regs(0x002a9460, &regs, args, 2);  // Com_sprintf
+}
+
+void XB_CDECL CG_RegisterCvars() {
+    // Q3's CG_RegisterCvars over cgameCvarTable (0x008d9d60, 0x89 entries {vmCvar, name,
+    // default, flags}): Cvar_Get, then the vmCvar's handle ((cvar - 0x00940a10) / 0x2c),
+    // modification count -1 and Cvar_Update.
+    const uint32_t* entry = &title_global<uint32_t>(0x008d9d60);
+    for (uint32_t i = 0; i < 0x89; ++i, entry += 4) {
+        const uint32_t cvar = title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0029c2d0)(  // Cvar_Get
+            entry[1], entry[2], entry[3]);
+        int32_t* vm_cvar = reinterpret_cast<int32_t*>(static_cast<uintptr_t>(entry[0]));
+        if (!vm_cvar) continue;
+        vm_cvar[0] = static_cast<int32_t>(cvar - 0x00940a10) / 0x2c;
+        vm_cvar[1] = -1;
+        cg_cvar_update(entry[0]);
+    }
 }
 
 }  // namespace game
