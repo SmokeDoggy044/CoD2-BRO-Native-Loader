@@ -144,4 +144,66 @@ uint32_t XB_THISCALL NAL_GenericAnim_Init(uint8_t* clip);
 // y into out +0x18 as well (z is lost). Returns out.
 float* XB_THISCALL NAL_Skeleton_BoneTransform(const uint32_t* skeleton, float* out, int32_t index);
 
+// 0x00086cb0 (vtable 0x007c3250 slot 0, callee pops 4): the track base's deleting
+// destructor: the clip's track count (+0x3c) down, the track freed when flags bit 0.
+uint8_t* XB_THISCALL NAL_AnimTrackBase_DeletingDtor(uint8_t* track, uint32_t flags);
+// 0x00087420 (track in ECX): releases the track's channel map (refcount; unlinked from its
+// bucket of 0x00906810 and freed at 0) and its state (+0x14), then the base's part.
+void XB_THISCALL NAL_AnimTrack_Dtor(uint8_t* track);
+// 0x0008b480 (vtable 0x007c3258 slot 0, callee pops 4): NAL_AnimTrack_Dtor, then freed when flags bit 0.
+// Not registered: its CALL sits in the first 5 bytes (unhookable).
+uint8_t* XB_THISCALL NAL_AnimTrack_DeletingDtor(uint8_t* track, uint32_t flags);
+// 0x00087dd0 (track in ECX, callee pops 8): a track of `clip` for `skeleton` (0 = the clip's
+// own): duration and rate, state +0x14, time +0x24 = -1e9, and the channel map from the clip
+// skeleton's channels to the target's (+0x2c, shared per skeleton pair). Returns the track.
+uint8_t* XB_THISCALL NAL_AnimTrack_Construct(uint8_t* track, uint8_t* clip, uint8_t* skeleton);
+// 0x000872e0 (clip in ECX; vtable 0x007c23ec slot 2): skips every cached frame of each
+// decoded block through the channels (slot 15), frees the blocks, and turns the block
+// table (+0x6c) back into offsets.
+void XB_THISCALL NAL_GenericAnim_Unload(uint8_t* clip);
+// 0x0008b4d0 (registrar vtable 0x00832774 slot 0): adds the channel class {+8 name, +0xc
+// prototype} to the class map 0x00903ff4.
+uint32_t XB_THISCALL NAL_ChannelClass_Register(const uint8_t* entry);
+// 0x0008af60 (clip in ECX, callee pops 0x14; generic clip slot 8 through 0x0007bc80): the
+// state that gives `pose` (the bone matrices of `range`): src copied to dst, then the clip's
+// byte code (+0x6c, length in the range record +8) writes positions / rotations from `work`
+// (a copy of the pose that opcodes 11/13 make bone-relative) and two-bone bend angles.
+void XB_THISCALL NAL_GenericAnim_ExtractState(uint8_t* clip, AnimState* dst, const float* pose, float* work,
+                                              const AnimState* src, int32_t range);
+
+// Streamed-anim players: a base (vtable 0x007c3c60) holding bindings (+8 head, +0xc tail;
+// node {sink, clip, track, next}); the streamed player (0x007c3c70, 0x7c bytes: file
+// requests into two buffers) and the clip-set player (0x007c4160, 0x20 bytes).
+// 0x0008ed50 (ECX): frees the bindings (sink slot 3, track deleted). EAX = 0.
+void XB_THISCALL NAL_AnimPlayer_Dtor(uint8_t* player);
+// 0x0008e330 (callee pops 4): NAL_AnimPlayer_Dtor, freed when flags bit 0.
+// Not registered (also 0x0008e350): the CALL sits in the first 5 bytes.
+uint8_t* XB_THISCALL NAL_AnimPlayer_DeletingDtor(uint8_t* player, uint32_t flags);
+// 0x0008e370 (ECX): the bindings (track deleted, then its clip's slot 2 and the sink's
+// slot 3), the skeleton table (+0x38), the buffers (+0x48) and the file data (+4), then the base.
+void XB_THISCALL NAL_StreamedAnim_Dtor(uint8_t* player);
+// 0x0008e350 (callee pops 4): NAL_StreamedAnim_Dtor, freed when flags bit 0.
+uint8_t* XB_THISCALL NAL_StreamedAnim_DeletingDtor(uint8_t* player, uint32_t flags);
+// 0x0008e3f0 (cdecl): a streamed player for `size` bytes at `offset` of `file`, data up to
+// `end`; `bind(file data, clip name, context)` makes each clip's sink.
+uint8_t* XB_CDECL NAL_StreamedAnim_Create(uint32_t file, uint32_t offset, uint32_t end, uint32_t size, uint32_t bind,
+                                          uint32_t bind_context);
+// 0x0008eda0 (ECX, callee pops 8): appends a binding {sink, clip, 0, 0}. Returns it.
+uint32_t* XB_THISCALL NAL_AnimPlayer_AddBinding(uint8_t* player, uint32_t sink, uint32_t clip);
+// 0x0008f0d0 (ECX, callee pops 0xc): a clip-set player of `group` (its sets at +0x34):
+// one binding per clip of the first set that `bind(group, clip name, context)` gives a sink.
+uint8_t* XB_THISCALL NAL_ClipSetPlayer_Init(uint8_t* player, uint8_t* group, uint32_t bind, uint32_t bind_context);
+// 0x0008ee40 (group in ECX, callee pops 8): allocates and initializes a clip-set player (0 on failure).
+uint8_t* XB_THISCALL NAL_ClipSetPlayer_Create(uint8_t* group, uint32_t bind, uint32_t bind_context);
+// 0x0008e480 (ECX; slot 2 of 0x007c3c70): the file's skeletons looked up, its clips fixed up
+// (links, skeleton, class vtable, slots 3 and 1) and bound; state +0x1c = 6.
+void XB_THISCALL NAL_StreamedAnim_Setup(uint8_t* player);
+// 0x0008e560 (ECX): when the pending request (+0x6c) is done, queues the next block into
+// the other buffer (File_QueueRequest), from the start again when the file data loops.
+void XB_THISCALL NAL_StreamedAnim_RequestNext(uint8_t* player);
+// 0x0008ee80 (ECX, callee pops 4; slot 3 of 0x007c4160): advances the player by dt through
+// the clip sets (the next set at the clip's end; the first again when the group loops) and
+// hands every binding's sink the clip fractions and times (sink slot 1).
+void XB_THISCALL NAL_ClipSetPlayer_Update(uint8_t* player, float dt);
+
 }  // namespace game
