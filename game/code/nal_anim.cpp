@@ -1014,4 +1014,785 @@ float* XB_THISCALL NAL_Skeleton_BoneTransform(const uint32_t* skeleton, float* o
     return out;
 }
 
+namespace {
+
+uint32_t& word_at(uint32_t address) { return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(address)); }
+uint32_t& word_of(const void* base, uint32_t offset) {
+    return *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(base) + offset);
+}
+template <typename T>
+T* pointer(uint32_t address) {
+    return reinterpret_cast<T*>(static_cast<uintptr_t>(address));
+}
+
+// A thiscall method without arguments in slot `slot` of an object's vtable.
+uint32_t method_call(uint32_t object, uint32_t slot) {
+    return title_function<uint32_t XB_THISCALL(uint32_t)>(word_at(word_at(object) + slot * 4))(object);
+}
+
+// The channel maps (0x00906810: 0x43 buckets): per (clip skeleton, target skeleton) pair
+// {refcount, next, clip skeleton, target skeleton, &map, map[clip skeleton +0x7c]} -
+// each channel's offset in the target's state data (-1 = the target lacks it).
+uint32_t*& channel_maps() { return title_global<uint32_t*>(0x00906810); }
+uint32_t channel_map_bucket(uint32_t target, uint32_t source) { return (((target >> 3) ^ source) >> 3) % 0x43; }
+
+}  // namespace
+
+uint8_t* XB_THISCALL NAL_AnimTrackBase_DeletingDtor(uint8_t* track, uint32_t flags) {
+    word_of(track, 0) = 0x007c3250;
+    --word_of(pointer<uint8_t>(word_of(track, 0x10)), 0x3c);
+    if (flags & 1) title_function<FreeFn>(0x000939b0)(track);  // Mem_AlignedFree
+    return track;
+}
+
+void XB_THISCALL NAL_AnimTrack_Dtor(uint8_t* track) {
+    word_of(track, 0) = 0x007c3258;
+    const uint32_t bucket = channel_map_bucket(word_of(track, 0xc), word_of(pointer<uint8_t>(word_of(track, 0x10)), 0x30));
+    uint32_t* previous = nullptr;
+    for (uint32_t* node = pointer<uint32_t>(channel_maps()[bucket]); node; previous = node, node = pointer<uint32_t>(node[1])) {
+        if (address_of(node) != word_of(track, 0x2c)) continue;
+        --node[0];
+        if (!pointer<uint32_t>(word_of(track, 0x2c))[0]) {
+            if (previous)
+                previous[1] = node[1];
+            else
+                channel_maps()[bucket] = node[1];
+            title_function<FreeFn>(0x000939b0)(pointer<void>(word_of(track, 0x2c)));  // Mem_AlignedFree
+        }
+        break;
+    }
+    NAL_AnimState_Destroy(reinterpret_cast<AnimState*>(track + 0x14));
+    word_of(track, 0) = 0x007c3250;
+    --word_of(pointer<uint8_t>(word_of(track, 0x10)), 0x3c);
+}
+
+uint8_t* XB_THISCALL NAL_AnimTrack_DeletingDtor(uint8_t* track, uint32_t flags) {
+    NAL_AnimTrack_Dtor(track);
+    if (flags & 1) title_function<FreeFn>(0x000939b0)(track);  // Mem_AlignedFree
+    return track;
+}
+
+uint8_t* XB_THISCALL NAL_AnimTrack_Construct(uint8_t* track, uint8_t* clip, uint8_t* skeleton) {
+    word_of(track, 0) = 0x007c3250;
+    const float duration = *reinterpret_cast<const float*>(clip + 0x38);
+    float rate = 0.0f;
+    *reinterpret_cast<float*>(track + 4) = duration;
+    if (!(duration == 0.0f)) rate = title_global<float>(0x0083eb20) / duration;
+    *reinterpret_cast<float*>(track + 8) = rate;
+    word_of(track, 0x10) = address_of(clip);
+    word_of(track, 0xc) = skeleton ? address_of(skeleton) : word_of(clip, 0x30);
+    ++word_of(clip, 0x3c);
+    word_of(track, 0) = 0x007c3258;
+    NAL_AnimState_Init(reinterpret_cast<AnimState*>(track + 0x14), skeleton, 0);
+    word_of(track, 0x24) = title_global<uint32_t>(0x007c3260);
+    const uint32_t target = word_of(track, 0xc);
+    const uint32_t source = word_of(pointer<uint8_t>(word_of(track, 0x10)), 0x30);
+    if (!channel_maps()) {
+        channel_maps() = static_cast<uint32_t*>(Mem_AlignedAlloc(0x10c, 4, 0));
+        std::memset(channel_maps(), 0, 0x43 * 4);
+    }
+    const uint32_t bucket = channel_map_bucket(target, source);
+    for (uint32_t* node = pointer<uint32_t>(channel_maps()[bucket]); node; node = pointer<uint32_t>(node[1])) {
+        if (node[2] == source && node[3] == target) {
+            word_of(track, 0x2c) = address_of(node);
+            ++node[0];
+            return track;
+        }
+    }
+    uint8_t* src = pointer<uint8_t>(source);
+    uint32_t* node = static_cast<uint32_t*>(Mem_AlignedAlloc(word_of(src, 0x7c) * 4 + 0x14, 4, 0));
+    word_of(track, 0x2c) = address_of(node);
+    node[0] = 1;
+    node[2] = source;
+    node[3] = target;
+    node[1] = channel_maps()[bucket];
+    node[4] = address_of(node + 5);
+    channel_maps()[bucket] = address_of(node);
+    auto map = [track]() { return pointer<uint32_t>(pointer<uint32_t>(word_of(track, 0x2c))[4]); };
+    if (target == source) {
+        // The same skeleton: the channels' own offsets.
+        int32_t k = 0;
+        for (int32_t g = 0; g < static_cast<int32_t>(word_of(src, 0x84)); ++g) {
+            const uint32_t group = word_of(src, 0x88) + g * 0x30;
+            uint32_t offset = word_at(group + 0x2c);
+            for (int32_t j = 0; j < static_cast<int32_t>(word_at(group + 0x28)); ++j, ++k) {
+                map()[k] = offset;
+                offset += method_call(word_at(group + 0x20), 1);
+            }
+        }
+        return track;
+    }
+    for (int32_t i = 0; i < static_cast<int32_t>(word_of(src, 0x7c)); ++i) map()[i] = 0xffffffff;
+    uint8_t* dst = pointer<uint8_t>(target);
+    // Channels matched by bone name (records +0x74, 0x30 each) and channel record (+0x80, 40
+    // bytes, first 32 compared) within groups of the same channel type.
+    for (int32_t a = 0; a < static_cast<int32_t>(word_of(src, 0x84)); ++a) {
+        const uint32_t group_a = word_of(src, 0x88) + a * 0x30;
+        for (int32_t b = 0; b < static_cast<int32_t>(word_of(dst, 0x84)); ++b) {
+            const uint32_t group_b = word_of(dst, 0x88) + b * 0x30;
+            const uint32_t type_a = method_call(word_at(group_a + 0x20), 0);
+            if (method_call(word_at(group_b + 0x20), 0) != type_a) continue;
+            for (int32_t j = 0; j < static_cast<int32_t>(word_at(group_a + 0x28)); ++j) {
+                const int32_t count_b = static_cast<int32_t>(word_at(group_b + 0x28));
+                int32_t index = static_cast<int32_t>(word_at(group_b + 0x24));
+                if (count_b <= 0) continue;
+                const uint32_t record_a = word_of(src, 0x80) + (word_at(group_a + 0x24) + j) * 40;
+                const uint32_t* name_a = pointer<uint32_t>(word_at(record_a + 0x20) * 0x30 + word_of(src, 0x74));
+                for (int32_t m = 0; m < count_b; ++m, ++index) {
+                    const uint32_t record_b = word_of(dst, 0x80) + index * 40;
+                    const uint32_t* name_b = pointer<uint32_t>(word_at(record_b + 0x20) * 0x30 + word_of(dst, 0x74));
+                    bool same = true;
+                    for (int n = 0; n < 8 && same; ++n) same = name_b[n] == name_a[n];
+                    for (int n = 0; n < 8 && same; ++n) same = pointer<uint32_t>(record_b)[n] == pointer<uint32_t>(record_a)[n];
+                    if (!same) continue;
+                    const uint32_t size = method_call(word_at(group_b + 0x20), 1);
+                    map()[word_at(group_a + 0x24) + j] =
+                        static_cast<uint32_t>(index - static_cast<int32_t>(word_at(group_b + 0x24))) * size + word_at(group_b + 0x2c);
+                    break;
+                }
+            }
+        }
+    }
+    return track;
+}
+
+void XB_THISCALL NAL_GenericAnim_Unload(uint8_t* clip) {
+    const uint8_t* skeleton = pointer<uint8_t>(word_of(clip, 0x30));
+    for (int32_t i = 0; i < static_cast<int32_t>(word_of(clip, 0x64)); ++i) {
+        if (!pointer<uint32_t>(word_of(clip, 0x60))[i]) continue;
+        // Each cached frame of the block skipped once through every channel (slot 15).
+        int32_t frames = static_cast<int32_t>(word_of(clip, 0x68));
+        const int32_t total = static_cast<int32_t>(word_of(clip, 0x44));
+        if ((i + 1) * frames > total) frames = total - frames * i;
+        for (int32_t f = 0; f < frames; ++f) {
+            uint32_t cursor = word_at(word_of(clip, 0x5c)) * f + pointer<uint32_t>(word_of(clip, 0x60))[i] + 0x20;
+            uint32_t a = word_of(skeleton, 0xc4);
+            uint32_t b = word_of(clip, 0x50);
+            uint32_t group = word_of(skeleton, 0x88);
+            for (int32_t g = 0; g < static_cast<int32_t>(word_of(skeleton, 0x84)); ++g, group += 0x30) {
+                uint32_t context[4] = {address_of(clip), group, address_of(&a), address_of(&b)};
+                const uint32_t channel_object = word_at(group + 0x20);
+                title_function<void XB_THISCALL(uint32_t, uint32_t*, uint32_t*)>(word_at(word_at(channel_object) + 0x3c))(
+                    channel_object, context, &cursor);
+            }
+        }
+        NAL_BlockCache_Free(&title_global<uint32_t>(0x00903f9c), pointer<uint32_t>(pointer<uint32_t>(word_of(clip, 0x60))[i]));
+        pointer<uint32_t>(word_of(clip, 0x60))[i] = 0;
+    }
+    // The block table's pointers back to offsets.
+    const uint32_t base = word_of(clip, 0x6c) + word_of(clip, 0x64) * 4;
+    for (int32_t i = 0; i < static_cast<int32_t>(word_of(clip, 0x64)); ++i) pointer<uint32_t>(word_of(clip, 0x6c))[i] -= base;
+}
+
+uint32_t XB_THISCALL NAL_ChannelClass_Register(const uint8_t* entry) {
+    alignas(4) uint8_t name[0x20];
+    title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(0x00011060)(name, word_of(entry, 8));  // HashStr_Init
+    return title_function<uint32_t XB_THISCALL(uint32_t, uint8_t*, uint32_t)>(0x00093c70)(0x00903ff4, name,
+                                                                                    word_of(entry, 0xc));  // map insert
+}
+
+namespace {
+
+// The title CRT's __CIacos (0x001f0ff4): the float in ST, the result stored as float.
+float title_ci_acos(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x001f0ff4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+}  // namespace
+
+void XB_THISCALL NAL_GenericAnim_ExtractState(uint8_t* clip, AnimState* dst, const float* pose, float* work,
+                                              const AnimState* src, int32_t range) {
+    const uint32_t entry = word_of(clip, 0x64) + static_cast<uint32_t>(range) * 20;
+    std::memcpy(work, pose, word_at(entry) << 6);
+    NAL_AnimState_Copy(dst, src);
+    const uint8_t* code = pointer<uint8_t>(word_of(clip, 0x6c));
+    const uint8_t* const end = code + word_at(entry + 8);
+    uint8_t* out = dst->data;
+    while (code < end) {
+        const uint32_t op = static_cast<uint32_t>(*code++) - 6;
+        switch (op) {
+        case 0: {  // 6: a bone's position
+            const float* m = work + *code++ * 16;
+            std::memcpy(out, m + 12, 12);
+            out += 0xc;
+            break;
+        }
+        case 1: {  // 7: a bone's rotation
+            alignas(16) float q[4];
+            const float* r = Quat_FromAxis3(q, work + *code++ * 16);
+            std::memcpy(out, r, 16);
+            out += 0x10;
+            break;
+        }
+        case 2: {  // 8: rotation and position (the eighth word left as it is)
+            alignas(16) float q[4];
+            const float* m = work + *code++ * 16;
+            const float* r = Quat_FromAxis3(q, m);
+            std::memcpy(out, r, 16);
+            std::memcpy(out + 0x10, m + 12, 12);
+            out += 0x20;
+            break;
+        }
+        case 3: {  // 9: a unit scale
+            const float one = title_global<float>(0x0083eb20);
+            std::memcpy(out, &one, 4);
+            std::memcpy(out + 4, &one, 4);
+            std::memcpy(out + 8, &one, 4);
+            out += 0xc;
+            break;
+        }
+        case 5: {  // 11: a two-bone chain's bend angle and rotations
+            const uint32_t b0 = code[0], b1 = code[1], b2 = code[2], b3 = code[3];
+            code += 4;
+            const float* a = pose + b1 * 16;
+            const float* c = pose + b2 * 16;
+            const float a0 = 0.0f - a[0], a1 = 0.0f - a[1], a2 = 0.0f - a[2];
+            const float c0 = 0.0f - c[0], c1 = 0.0f - c[1], c2 = 0.0f - c[2];
+            const float dot = ((c2 * a2) + (c1 * a1)) + (c0 * a0);
+            float clamped;
+            if (title_global<float>(0x0083eb34) > dot)
+                clamped = title_global<float>(0x0083eb34);
+            else if (dot > title_global<float>(0x0083eb20))
+                clamped = title_global<float>(0x0083eb20);
+            else
+                clamped = dot;
+            float angle = title_ci_acos(clamped);
+            const float x = c2 * a1 - c1 * a2;
+            const float y = a2 * c0 - c2 * a0;
+            const float z = c1 * a0 - a1 * c0;
+            const float side = ((c[6] * z) + (c[5] * y)) + (x * c[4]);
+            if (0.0f > side) angle = 0.0f - angle;
+            alignas(16) float inverse[16];
+            alignas(16) float product[16];
+            Mat44_MultiplyInPlace(work + b3 * 16, product, Mat44_InverseRigid(c, inverse));
+            Mat44_MultiplyInPlace(work + b2 * 16, product, Mat44_InverseRigid(a, inverse));
+            Mat44_MultiplyInPlace(work + b1 * 16, product, Mat44_InverseRigid(pose + b0 * 16, inverse));
+            alignas(16) float q3[4];
+            alignas(16) float q1[4];
+            const float* r3 = Quat_FromAxis3(q3, work + b3 * 16);
+            const float* r1 = Quat_FromAxis3(q1, work + b1 * 16);
+            // 0x50 bytes; the words the original never sets are its (zeroed) dead stack.
+            uint32_t record[20] = {};
+            std::memcpy(record, r1, 16);
+            std::memcpy(record + 4, r3, 16);
+            const float zero = 0.0f;
+            std::memcpy(record + 15, &zero, 4);
+            const float scaled = ((angle * title_global<float>(0x007c3268)) * title_global<float>(0x0083f118)) +
+                                 title_global<float>(0x0083eb24);
+            const uint16_t code16 = static_cast<uint16_t>(static_cast<int32_t>(scaled));
+            std::memcpy(record + 16, &code16, 2);
+            std::memcpy(out, record, 0x50);
+            out += 0x50;
+            break;
+        }
+        case 7: {  // 13: a bone made relative to another
+            const uint32_t b0 = code[0], b1 = code[1];
+            code += 2;
+            alignas(16) float inverse[16];
+            alignas(16) float product[16];
+            Mat44_MultiplyInPlace(work + b1 * 16, product, Mat44_InverseRigid(pose + b0 * 16, inverse));
+            break;
+        }
+        case 8:  // 14: skip bytes of the state
+            out += *code++;
+            break;
+        default:  // 10, 12 and the others: nothing
+            break;
+        }
+    }
+}
+
+// The streamed-anim players: a base (vtable 0x007c3c60) with a list of channel bindings
+// (+8 head, +0xc tail; node {sink, clip, track, next}), the streamed player (0x007c3c70,
+// 0x7c bytes) and the clip-set player (0x007c4160, 0x20 bytes).
+
+void XB_THISCALL NAL_AnimPlayer_Dtor(uint8_t* player) {
+    word_of(player, 0) = 0x007c3c60;
+    while (word_of(player, 8)) {
+        uint8_t* node = pointer<uint8_t>(word_of(player, 8));
+        word_of(player, 8) = word_of(node, 0xc);
+        method_call(word_of(node, 0), 3);
+        if (const uint32_t track = word_of(node, 8))
+            title_function<void XB_THISCALL(uint32_t, uint32_t)>(word_at(word_at(track)))(track, 1);
+        title_function<FreeFn>(0x000939b0)(node);  // Mem_AlignedFree
+    }
+}
+
+uint8_t* XB_THISCALL NAL_AnimPlayer_DeletingDtor(uint8_t* player, uint32_t flags) {
+    NAL_AnimPlayer_Dtor(player);
+    if (flags & 1) title_function<FreeFn>(0x000939b0)(player);  // Mem_AlignedFree
+    return player;
+}
+
+void XB_THISCALL NAL_StreamedAnim_Dtor(uint8_t* player) {
+    word_of(player, 0) = 0x007c3c70;
+    while (word_of(player, 8)) {
+        uint8_t* node = pointer<uint8_t>(word_of(player, 8));
+        word_of(player, 8) = word_of(node, 0xc);
+        if (const uint32_t track = word_of(node, 8)) {
+            const uint32_t clip = word_at(track + 0x10);
+            title_function<void XB_THISCALL(uint32_t, uint32_t)>(word_at(word_at(track)))(track, 1);
+            method_call(clip, 2);
+        }
+        if (const uint32_t sink = word_of(node, 0)) method_call(sink, 3);
+        title_function<FreeFn>(0x000939b0)(node);  // Mem_AlignedFree
+    }
+    title_function<FreeFn>(0x000939b0)(pointer<void>(word_of(player, 0x38)));
+    title_function<FreeFn>(0x000939b0)(pointer<void>(word_of(player, 0x48)));
+    title_function<FreeFn>(0x000939b0)(pointer<void>(word_of(player, 4)));
+    NAL_AnimPlayer_Dtor(player);
+}
+
+uint8_t* XB_THISCALL NAL_StreamedAnim_DeletingDtor(uint8_t* player, uint32_t flags) {
+    NAL_StreamedAnim_Dtor(player);
+    if (flags & 1) title_function<FreeFn>(0x000939b0)(player);  // Mem_AlignedFree
+    return player;
+}
+
+uint8_t* XB_CDECL NAL_StreamedAnim_Create(uint32_t file, uint32_t offset, uint32_t end, uint32_t size, uint32_t bind,
+                                          uint32_t bind_context) {
+    uint8_t* player = static_cast<uint8_t*>(Mem_AlignedAlloc(0x7c, 4, 0));
+    if (!player) return nullptr;
+    word_of(player, 0x20) = bind;
+    word_of(player, 0x24) = bind_context;
+    word_of(player, 0x28) = file;
+    word_of(player, 0x44) = size;
+    word_of(player, 4) = 0;
+    word_of(player, 8) = 0;
+    word_of(player, 0xc) = 0;
+    word_of(player, 0x18) = 0;
+    word_of(player, 0x1c) = 0;
+    word_of(player, 0x38) = 0;
+    player[0x78] = 0;
+    player[0x79] = 0;
+    word_of(player, 0x48) = 0;
+    *reinterpret_cast<float*>(player + 0x10) = 0.0f;
+    *reinterpret_cast<float*>(player + 0x14) = 0.0f;
+    word_of(player, 0) = 0x007c3c70;
+    word_of(player, 0x58) = offset;
+    word_of(player, 0x70) = end;
+    return player;
+}
+
+uint32_t* XB_THISCALL NAL_AnimPlayer_AddBinding(uint8_t* player, uint32_t sink, uint32_t clip) {
+    uint32_t* node = static_cast<uint32_t*>(Mem_AlignedAlloc(0x10, 4, 0));
+    node[0] = sink;
+    node[1] = clip;
+    node[2] = 0;
+    node[3] = 0;
+    if (uint32_t* tail = pointer<uint32_t>(word_of(player, 0xc))) {
+        tail[3] = address_of(node);
+        word_of(player, 0xc) = address_of(node);
+        return node;
+    }
+    word_of(player, 8) = address_of(node);
+    word_of(player, 0xc) = address_of(node);
+    return node;
+}
+
+uint8_t* XB_THISCALL NAL_ClipSetPlayer_Init(uint8_t* player, uint8_t* group, uint32_t bind, uint32_t bind_context) {
+    word_of(player, 0x18) = 0;
+    word_of(player, 4) = address_of(group);
+    word_of(player, 8) = 0;
+    word_of(player, 0xc) = 0;
+    *reinterpret_cast<float*>(player + 0x10) = 0.0f;
+    *reinterpret_cast<float*>(player + 0x14) = 0.0f;
+    word_of(player, 0) = 0x007c4160;
+    const uint32_t set = word_of(group, 0x34);
+    word_of(player, 0x1c) = set;
+    word_of(player, 0x18) = set;
+    for (uint32_t clip = word_at(set + 8); clip; clip = NAL_PtrField4(pointer<uint32_t>(clip))) {
+        const uint32_t sink = title_function<uint32_t XB_CDECL(uint8_t*, uint32_t, uint32_t)>(bind)(group, clip + 8, bind_context);
+        if (!sink) continue;
+        uint32_t* node = static_cast<uint32_t*>(Mem_AlignedAlloc(0x10, 4, 0));
+        node[0] = sink;
+        node[1] = clip;
+        node[2] = 0;
+        node[3] = 0;
+        if (uint32_t* tail = pointer<uint32_t>(word_of(player, 0xc)))
+            tail[3] = address_of(node);
+        else
+            word_of(player, 8) = address_of(node);
+        word_of(player, 0xc) = address_of(node);
+    }
+    return player;
+}
+
+uint8_t* XB_THISCALL NAL_ClipSetPlayer_Create(uint8_t* group, uint32_t bind, uint32_t bind_context) {
+    uint8_t* player = static_cast<uint8_t*>(Mem_AlignedAlloc(0x20, 4, 0));
+    if (!player) return nullptr;
+    return NAL_ClipSetPlayer_Init(player, group, bind, bind_context);
+}
+
+void XB_THISCALL NAL_StreamedAnim_Setup(uint8_t* player) {
+    uint8_t* file = pointer<uint8_t>(word_of(player, 4));
+    uint32_t name = address_of(file) + 0x50;
+    word_of(player, 0x38) = address_of(Mem_AlignedAlloc(word_of(file, 0xc) << 2, 4, 0));
+    for (int32_t i = 0; i < static_cast<int32_t>(word_of(pointer<uint8_t>(word_of(player, 4)), 0xc)); ++i, name += 0x20)
+        pointer<uint32_t>(word_of(player, 0x38))[i] = manager_call(0x00909838, 2, name);
+    uint8_t* header = pointer<uint8_t>(word_of(player, 0x18));
+    word_of(player, 0x74) = word_of(header, 0);
+    if (word_of(header, 8)) {
+        word_of(header, 8) += address_of(header);
+        for (uint8_t* clip = pointer<uint8_t>(word_of(pointer<uint8_t>(word_of(player, 0x18)), 8)); clip;
+             clip = pointer<uint8_t>(word_of(clip, 4))) {
+            fix_link(clip, 4);
+            const uint32_t skeleton = pointer<uint32_t>(word_of(player, 0x38))[word_of(clip, 0x28)];
+            word_of(clip, 0x30) = skeleton;
+            word_of(clip, 0) = class_vtable(skeleton, 0x28);
+            object_call(clip, 3);
+            object_call(clip, 1);
+            const uint32_t sink = title_function<uint32_t XB_CDECL(uint32_t, uint8_t*, uint32_t)>(word_of(player, 0x20))(
+                word_of(player, 4), clip + 8, word_of(player, 0x24));
+            NAL_AnimPlayer_AddBinding(player, sink, address_of(clip));
+        }
+    }
+    word_of(player, 0x1c) = 6;
+}
+
+void XB_THISCALL NAL_StreamedAnim_RequestNext(uint8_t* player) {
+    using Status = uint32_t XB_CDECL(uint32_t);
+    using Queue = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t);
+    uint32_t position;
+    uint8_t buffer;
+    if (word_of(player, 0x6c) == 0xffffffff) {
+        if (player[0x79] == player[0x78]) return;
+        position = word_of(player, 0x5c);
+        buffer = player[0x79];
+    } else {
+        if (title_function<Status>(0x000c9db0)(word_of(player, 0x6c)) == 4) return;
+        position = word_of(player, 0x5c) + word_of(player, 0x68);
+        word_of(player, 0x5c) = position;
+        buffer = player[0x79] ^ 1;
+        word_of(player, 0x6c) = 0xffffffff;
+        player[0x79] = buffer;
+        if (buffer == player[0x78]) return;
+    }
+    if (static_cast<int32_t>(position) < static_cast<int32_t>(word_of(player, 0x70))) {
+        word_of(player, 0x50 + buffer * 4) = position - word_of(player, 0x3c);
+        const uint32_t length = word_of(player, 0x44) - word_of(player, 0x3c);
+        word_of(player, 0x68) = length;
+        word_of(player, 0x6c) = title_function<Queue>(0x000caed0)(
+            word_of(player, 0x28), word_of(player, 0x58) + word_of(player, 0x5c),
+            word_of(player, 0x48 + player[0x79] * 4) + word_of(player, 0x3c), length);  // File_QueueRequest
+        return;
+    }
+    // At the end: start over when the animation loops.
+    if (!(word_of(pointer<uint8_t>(word_of(player, 4)), 4) & 2)) return;
+    word_of(player, 0x5c) = 0;
+    word_of(player, 0x50 + buffer * 4) = 0;
+    word_of(player, 0x68) = word_of(player, 0x44);
+    word_of(player, 0x6c) = title_function<Queue>(0x000caed0)(word_of(player, 0x28), word_of(player, 0x58),
+                                                              word_of(player, 0x48 + player[0x79] * 4),
+                                                              word_of(player, 0x44));  // File_QueueRequest
+}
+
+void XB_THISCALL NAL_ClipSetPlayer_Update(uint8_t* player, float dt) {
+    using Make = uint32_t XB_THISCALL(uint32_t, uint32_t);
+    using Apply = void XB_THISCALL(uint32_t, uint32_t, float, float, float, float);
+    auto real = [player](uint32_t offset) -> float& { return *reinterpret_cast<float*>(player + offset); };
+    // Each binding's track (made by the sink's slot 0 when missing) gets the sink's slot 1:
+    // (track, fraction, previous fraction, time, time at the start of the clip).
+    auto apply = [player](uint32_t* node, float fraction, float previous, float time, float start) {
+        if (!node[2]) node[2] = title_function<Make>(word_at(word_at(node[0])))(node[0], node[1]);
+        title_function<Apply>(word_at(word_at(node[0]) + 4))(node[0], node[2], fraction, previous, time, start);
+    };
+    const uint8_t* group = pointer<uint8_t>(word_of(player, 4));
+    if (!((word_of(group, 4) >> 1) & 1) && real(0x10) >= *reinterpret_cast<const float*>(group + 0x3c)) return;
+    const float one = title_global<float>(0x0083eb20);
+    float start = real(0x10);
+    float previous = real(0x14);
+    real(0x14) = previous + dt;
+    float duration = *reinterpret_cast<const float*>(word_at(word_of(pointer<uint8_t>(word_of(player, 0x18)), 8)) + 0x38);
+    if (real(0x14) >= duration) {
+        // Past the clip's end: finish it, then go on with the next clip set (or the first
+        // again when the group loops).
+        for (;;) {
+            const float step = duration - previous;
+            dt = dt - step;
+            real(0x10) = real(0x10) + step;
+            const float inverse = one / duration;
+            const float scaled = inverse * real(0x14);
+            float fraction = one;
+            if (!(scaled > one)) fraction = scaled;
+            if (word_of(player, 8)) {
+                const float from = inverse * previous;
+                for (uint32_t* node = pointer<uint32_t>(word_of(player, 8)); node; node = pointer<uint32_t>(node[3]))
+                    apply(node, fraction, from, real(0x10), start);
+            }
+            const uint8_t* set = pointer<uint8_t>(word_of(player, 0x18));
+            uint32_t next;
+            if (word_of(set, 0)) {
+                real(0x14) = real(0x14) - duration;
+                next = word_of(set, 0);
+            } else {
+                if (!((word_of(pointer<uint8_t>(word_of(player, 4)), 4) >> 1) & 1)) break;
+                real(0x14) = real(0x14) - duration;
+                next = word_of(player, 0x1c);
+            }
+            word_of(player, 0x18) = next;
+            uint32_t clip = word_at(next + 8);
+            previous = 0.0f;
+            for (uint32_t* node = pointer<uint32_t>(word_of(player, 8)); node; node = pointer<uint32_t>(node[3])) {
+                if (const uint32_t track = node[2]) title_function<void XB_THISCALL(uint32_t, uint32_t)>(word_at(word_at(track)))(track, 1);
+                node[1] = clip;
+                node[2] = 0;
+                clip = NAL_PtrField4(pointer<uint32_t>(clip));
+            }
+            start = real(0x10);
+            duration = *reinterpret_cast<const float*>(word_at(word_of(pointer<uint8_t>(word_of(player, 0x18)), 8)) + 0x38);
+            if (!(real(0x14) >= duration)) break;
+        }
+    }
+    real(0x10) = real(0x10) + dt;
+    if (!word_of(player, 8)) return;
+    const float inverse = one / duration;
+    const float from = inverse * previous;
+    for (uint32_t* node = pointer<uint32_t>(word_of(player, 8)); node; node = pointer<uint32_t>(node[3]))
+        apply(node, inverse * real(0x14), from, real(0x10), start);
+}
+
+namespace {
+
+// The file-request helpers the streamed player uses (title code, cdecl).
+uint32_t file_status(uint32_t request) { return title_function<uint32_t XB_CDECL(uint32_t)>(0x000c9db0)(request); }
+void file_progress(uint32_t request, uint32_t* out) {
+    title_function<uint32_t* XB_CDECL(uint32_t, uint32_t*)>(0x000c9ea0)(request, out);
+}
+void file_pump() { title_function<void XB_CDECL()>(0x000ca690)(); }  // File_PumpRequests
+uint32_t file_queue(uint32_t file, uint32_t offset, uint32_t buffer, uint32_t length) {
+    return title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x000caed0)(file, offset, buffer,
+                                                                                          length);  // File_QueueRequest
+}
+
+}  // namespace
+
+void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
+    using Make = uint32_t XB_THISCALL(uint32_t, uint32_t);
+    using Apply = void XB_THISCALL(uint32_t, uint32_t, float, float, float, float);
+    auto field = [player](uint32_t offset) -> uint32_t& { return word_of(player, offset); };
+    auto real = [player](uint32_t offset) -> float& { return *reinterpret_cast<float*>(player + offset); };
+    auto buffer = [player](uint32_t which) { return word_of(player, 0x48 + which * 4); };
+    // The original's locals the file helpers write (its zeroed dead stack when they do not).
+    uint32_t local[3] = {0, 0, 0};
+    switch (field(0x1c)) {
+    case 0: {
+        // The header: one aligned read of 0x50 bytes.
+        const uint32_t id = title_function<uint32_t XB_CDECL(uint32_t)>(0x000c9390)(field(0x28));
+        title_function<uint32_t XB_CDECL(uint32_t, uint32_t*)>(0x000c9940)(id, local);
+        uint32_t alignment = local[0] <= local[1] ? local[1] : local[0];
+        if (alignment < local[2]) alignment = local[2];
+        const uint32_t size = (alignment + 0x4f) & ~(alignment - 1);
+        field(0x34) = alignment;
+        field(0x30) = size;
+        field(0x2c) = address_of(Mem_AlignedAlloc(size, alignment, 0));
+        field(0x6c) = file_queue(field(0x28), field(0x58), field(0x2c), field(0x30));
+        field(0x1c) = 1;
+        return;
+    }
+    case 1: {
+        file_progress(field(0x6c), local);
+        if (file_status(field(0x6c)) == 4) return;
+        const int32_t header = static_cast<int32_t>(word_of(pointer<uint8_t>(field(0x2c)), 0x34));
+        if (header <= static_cast<int32_t>(field(0x30))) {
+            field(0x1c) = 3;
+            return;
+        }
+        // The whole header: grow the buffer and read the rest.
+        const uint32_t alignment = field(0x34);
+        const uint32_t size = (static_cast<uint32_t>(header) + alignment + 3) & ~(alignment - 1);
+        uint8_t* grown = static_cast<uint8_t*>(Mem_AlignedAlloc(size, alignment, 0));
+        std::memcpy(grown, pointer<uint8_t>(field(0x2c)), field(0x30));
+        title_function<FreeFn>(0x000939b0)(pointer<void>(field(0x2c)));  // Mem_AlignedFree
+        const uint32_t done = field(0x30);
+        field(0x2c) = address_of(grown);
+        const uint32_t request = file_queue(field(0x28), field(0x58) + done, address_of(grown) + done, size - done);
+        field(0x30) = size;
+        field(0x6c) = request;
+        field(0x1c) = 2;
+        return;
+    }
+    case 2:
+        file_progress(field(0x6c), local);
+        if (file_status(field(0x6c)) == 4) return;
+        field(0x1c) = 3;
+        return;
+    case 3: {
+        // Keep the header (+4); two stream buffers of whole blocks (+0x3c each, +0x44 per
+        // buffer); the first data after the header goes to the current buffer.
+        const uint8_t* header = pointer<uint8_t>(field(0x2c));
+        field(4) = address_of(Mem_AlignedAlloc(word_of(header, 0x34), 4, 0));
+        std::memcpy(pointer<void>(field(4)), header, word_of(header, 0x34));
+        const uint32_t alignment = field(0x34);
+        const int32_t block = static_cast<int32_t>((word_of(pointer<uint8_t>(field(4)), 0x38) + alignment - 1) & ~(alignment - 1));
+        const int32_t blocks = static_cast<int32_t>(field(0x44)) / block;
+        field(0x3c) = static_cast<uint32_t>(block);
+        field(0x40) = static_cast<uint32_t>(blocks & ~1);
+        if (static_cast<int32_t>(field(0x40)) < 4) field(0x40) = 4;
+        field(0x44) = static_cast<uint32_t>(static_cast<int32_t>(field(0x40)) / 2 * static_cast<int32_t>(field(0x3c)));
+        const uint32_t buffers = address_of(Mem_AlignedAlloc(field(0x44) * 2, alignment, 0));
+        field(0x4c) = field(0x44) + buffers;
+        field(0x48) = buffers;
+        field(0x50) = 0;
+        std::memcpy(pointer<void>(buffer(player[0x78])), pointer<void>(field(0x2c)), field(0x30));
+        title_function<FreeFn>(0x000939b0)(pointer<void>(field(0x2c)));  // Mem_AlignedFree
+        const uint32_t done = field(0x30);
+        const uint32_t length = field(0x44) - done;
+        field(0x5c) = done;
+        field(0x68) = length;
+        field(0x6c) = file_queue(field(0x28), field(0x58) + done, buffer(player[0x79]) + done, length);
+        field(0x60) = word_of(pointer<uint8_t>(field(4)), 0x34);
+        field(0x1c) = 4;
+        field(0x18) = buffer(player[0x78]) + field(0x60);
+        return;
+    }
+    case 4: {
+        // Wait until the first block is in.
+        file_progress(field(0x6c), local);
+        const uint32_t start = word_of(player, 0x50 + player[0x78] * 4);
+        const int32_t read = static_cast<int32_t>(field(0x5c) + local[0]);
+        bool ready = false;
+        if (read >= static_cast<int32_t>(start + field(0x60) + 0xc) &&
+            read >= static_cast<int32_t>(word_at(field(0x18)) + start + field(0x60)))
+            ready = true;
+        if (!ready && file_status(field(0x6c)) == 4) return;
+        field(0x1c) = 5;
+        return;
+    }
+    case 6:
+        break;
+    default:
+        return;
+    }
+
+    // Playing: the current block's clips through the bindings' sinks (slot 1: track,
+    // fraction, previous fraction, time, time at the block's start).
+    const uint8_t* file = pointer<uint8_t>(field(4));
+    if (!((word_of(file, 4) >> 1) & 1) && real(0x10) >= *reinterpret_cast<const float*>(file + 0x3c)) return;
+    auto ensure_track = [](uint32_t* node) {
+        if (!node[2]) node[2] = title_function<Make>(word_at(word_at(node[0])))(node[0], node[1]);
+    };
+    auto sink_apply = [](uint32_t* node, float fraction, float previous, float time, float start) {
+        title_function<Apply>(word_at(word_at(node[0]) + 4))(node[0], node[2], fraction, previous, time, start);
+    };
+    float start, previous, duration;
+    for (;;) {
+        NAL_StreamedAnim_RequestNext(player);
+        start = real(0x10);
+        previous = real(0x14);
+        duration = *reinterpret_cast<const float*>(word_at(field(0x18) + 8) + 0x38);
+        if (!(dt + real(0x14) >= duration)) break;
+        // The block ends within dt: wait for the next one's data.
+        while (field(0x6c) != 0xffffffff) {
+            file_progress(field(0x6c), local);
+            const uint32_t next = word_at(field(0x18));
+            const int32_t needed = next ? static_cast<int32_t>(word_of(player, 0x50 + player[0x78] * 4) + field(0x60) + next)
+                                        : static_cast<int32_t>(field(0x70));
+            if (static_cast<int32_t>(field(0x5c) + local[0]) >= needed && file_status(field(0x6c)) == 0) break;
+            NAL_StreamedAnim_RequestNext(player);
+            file_pump();
+        }
+        const float step = duration - real(0x14);
+        real(0x10) = step + real(0x10);
+        dt = dt - step;
+        real(0x14) = duration;
+        for (uint32_t* node = pointer<uint32_t>(field(8)); node; node = pointer<uint32_t>(node[3])) {
+            if (!node[0]) continue;
+            ensure_track(node);
+            sink_apply(node, 1.0f, previous / duration, real(0x10), start);
+        }
+        real(0x14) = 0.0f;
+        // The next block: in this buffer, wrapped into the other one, or the file again.
+        const uint32_t next = word_at(field(0x18));
+        if (next) {
+            field(0x60) = field(0x60) + next;
+            if (static_cast<int32_t>(field(0x60)) >= static_cast<int32_t>(field(0x44))) {
+                player[0x78] ^= 1;
+                field(0x60) = field(0x3c);
+                field(0x18) = buffer(player[0x78]) + field(0x60);
+            } else {
+                const uint32_t current = player[0x78];
+                field(0x18) = field(0x60) + buffer(current);
+                const uint32_t after = word_at(field(0x18));
+                const int32_t end = after ? static_cast<int32_t>(field(0x60) + after)
+                                          : static_cast<int32_t>(field(0x70) - word_of(player, 0x50 + current * 4));
+                if (end > static_cast<int32_t>(field(0x44))) {
+                    // A block across the buffer's end: its head moves to the other buffer.
+                    const int32_t rest = static_cast<int32_t>(field(0x60)) % static_cast<int32_t>(field(0x3c));
+                    std::memcpy(pointer<void>(buffer(current ^ 1) + rest), pointer<void>(field(0x60) + buffer(current)),
+                                field(0x3c) - rest);
+                    player[0x78] ^= 1;
+                    field(0x60) = static_cast<uint32_t>(rest);
+                    field(0x18) = buffer(player[0x78]) + rest;
+                }
+            }
+        } else {
+            if (!(word_of(pointer<uint8_t>(field(4)), 4) & 2)) {
+                real(0x10) = dt + real(0x10);
+                return;
+            }
+            // Looping: read the file's data from the start again.
+            if (field(0x5c) && field(0x6c) != 0xffffffff) {
+                title_function<void XB_CDECL(uint32_t)>(0x000ca0e0)(field(0x6c));  // File_AbortRequest
+                if (file_status(field(0x6c)) == 4) {
+                    do file_pump();
+                    while (file_status(field(0x6c)) == 4);
+                }
+                const uint8_t other = player[0x78] ^ 1;
+                player[0x79] = other;
+                field(0x5c) = 0;
+                word_of(player, 0x50 + other * 4) = 0;
+                field(0x68) = field(0x44);
+                field(0x6c) = file_queue(field(0x28), field(0x58), buffer(player[0x79]), field(0x44));
+                if (file_status(field(0x6c)) == 4) {
+                    do file_pump();
+                    while (file_status(field(0x6c)) == 4);
+                }
+            }
+            player[0x78] ^= 1;
+            field(0x60) = word_of(pointer<uint8_t>(field(4)), 0x34);
+            field(0x18) = buffer(player[0x78]) + field(0x60);
+        }
+        // The new block's clips fixed up and bound in place of the old ones.
+        uint8_t* block = pointer<uint8_t>(field(0x18));
+        if (word_of(block, 8)) {
+            word_of(block, 8) += address_of(block);
+            for (uint8_t* clip = pointer<uint8_t>(word_of(pointer<uint8_t>(field(0x18)), 8)); clip;
+                 clip = pointer<uint8_t>(word_of(clip, 4))) {
+                fix_link(clip, 4);
+                const uint32_t skeleton = pointer<uint32_t>(field(0x38))[word_of(clip, 0x28)];
+                word_of(clip, 0x30) = skeleton;
+                word_of(clip, 0) = class_vtable(skeleton, 0x28);
+                object_call(clip, 3);
+                object_call(clip, 1);
+            }
+        }
+        uint32_t clip = word_at(field(0x18) + 8);
+        for (uint32_t* node = pointer<uint32_t>(field(8)); node; node = pointer<uint32_t>(node[3])) {
+            if (const uint32_t track = node[2]) {
+                const uint32_t old = word_at(track + 0x10);
+                title_function<void XB_THISCALL(uint32_t, uint32_t)>(word_at(word_at(track)))(track, 1);
+                method_call(old, 2);
+            }
+            node[1] = clip;
+            node[2] = 0;
+            clip = NAL_PtrField4(pointer<uint32_t>(clip));
+        }
+        if (!(dt > title_global<float>(0x0083eafc))) return;
+    }
+    real(0x10) = dt + real(0x10);
+    real(0x14) = dt + real(0x14);
+    for (uint32_t* node = pointer<uint32_t>(field(8)); node; node = pointer<uint32_t>(node[3])) {
+        if (!node[0]) continue;
+        ensure_track(node);
+        const float inverse = title_global<float>(0x0083eb20) / duration;
+        sink_apply(node, inverse * real(0x14), inverse * previous, real(0x10), start);
+    }
+}
+
 }  // namespace game
