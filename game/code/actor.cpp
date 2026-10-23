@@ -2133,4 +2133,64 @@ uint32_t XB_CDECL Actor_ThinkStateMachine(uint32_t entry, uint8_t* actor, uint32
     return title_call_at_regs(top, title_global<uint32_t>(0x00830c38 + state * 36), &think, 0, nullptr);
 }
 
+PLATFORM_ASM_ENTRY(Actor_FindNearbyActor_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Actor_FindNearbyActor) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_FindNearbyActor(uint8_t* actor) {
+    if (field<uint32_t>(actor, 0x1390)) return;
+    const uint8_t* ent = field<const uint8_t*>(actor, 0);
+    const float origin[3] = {field<float>(ent, 0x140), field<float>(ent, 0x144), field<float>(ent, 0x148)};
+    // Cowering from a grenade or standing on its node: only actors on the move (handle +0x39c to an
+    // entity without a sentient) count.
+    const bool settled = field<uint32_t>(actor, 0x250) == 0x00987bc8 || Actor_IsAtClaimedNode(0, actor);
+    for (uint32_t slot = 0x00985384; slot < 0x00985404; slot += 4) {
+        uint8_t* other = title_global<uint8_t*>(slot);
+        if (!other || field<int32_t>(other, 0x1360) < 0 || other == actor) continue;
+        const uint8_t* other_ent = field<const uint8_t*>(field<const uint8_t*>(other, 4), 0);
+        const float dz = origin[2] - field<float>(other_ent, 0x148);
+        if (dz * dz >= title_global<float>(0x0083eb6c)) continue;
+        const float dy = field<float>(other_ent, 0x144) - origin[1];
+        const float dx = field<float>(other_ent, 0x140) - origin[0];
+        if (dy * dy + dx * dx >= title_global<float>(0x0083ee3c)) continue;
+        if (settled) {
+            if (!field<uint32_t>(other, 0x39c)) continue;
+            if (field<uint32_t>(G_EntHandleToEnt(&field<uint32_t>(other, 0x39c)), 0x244)) continue;
+        }
+        field<uint32_t>(actor, 0x1390) = field<uint32_t>(other, 0);
+        return;
+    }
+}
+
+// The callback runs at the original's ESP (no pushes) with its registers; the C frame sits below a gap.
+PLATFORM_ASM_ENTRY(Actor_CallStateSlot5_entry,
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_CallStateSlot5) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_CallStateSlot5(uint32_t entry, uint32_t handle, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return 0;
+    const uint8_t* ent = title_global<const uint8_t*>(0x0097a968 + index * 8);
+    if (!ent || !field<uint32_t>(ent, 0x240)) return 0;
+    uint8_t* actor = field<uint8_t*>(ent, 0x240);
+    const int32_t depth = field<int32_t>(actor, 0x20);
+    title_global<uint32_t>(0x0095f704) = field<uint32_t>(actor, 0);
+    const uint32_t state = field<uint32_t>(actor, 8 + depth * 4);
+    const TitleRegs regs = {state * 9, ebx, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(actor)),
+                            static_cast<uint32_t>(depth), esi, edi};
+    title_call_at_regs(entry, title_global<uint32_t>(0x00830c3c + state * 36), &regs, 0, nullptr);
+    title_global<uint32_t>(0x0095f704) = 0;
+    return 0;
+}
+
 }  // namespace game

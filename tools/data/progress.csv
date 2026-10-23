@@ -7667,7 +7667,7 @@ address,name,section,module,state,tested,matched
 00202bd0,Actor_EventLearnFromActor,.text,game,settled,127,127
 00202c40,Actor_StopAnimScript,.text,game,settled,134,134
 00202ce0,PathNode_FindFreeNeighbor_r,.text,unassigned,named,0,0
-00202f10,Actor_FindNearbyActor,.text,game,named,0,0
+00202f10,Actor_FindNearbyActor,.text,game,settled,5334,5334
 00203050,Actor_IsAtGoal,.text,game,named,0,0
 00203130,Actor_ResetSentientInfo,.text,game,settled,114,114
 002031e0,Actor_FreeAllCorpses,.text,game,named,0,0
@@ -10155,7 +10155,7 @@ address,name,section,module,state,tested,matched
 002f8ed0,GScr_ActorSetPitchBlendAnims,.text,unassigned,named,0,0
 002f8f50,FUN_002f8f50,.text,unassigned,unnamed,0,0
 002f8fa0,GScr_ActorSetAimParams,.text,unassigned,named,0,0
-002f9020,Actor_CallStateSlot5,.text,game,named,0,0
+002f9020,Actor_CallStateSlot5,.text,game,settled,137,137
 002f9080,GScr_SentientNearestEnemyDist,.text,unassigned,named,0,0
 002f9260,GScr_SetEnt250Field_f4,.text,unassigned,named,0,0
 002f92b0,GScr_SetEntFlag20000000,.text,unassigned,named,0,0

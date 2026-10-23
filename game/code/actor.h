@@ -423,4 +423,15 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_ThinkStateMachine(uint32_t en
                                                                      uint32_t ebx);
 extern "C" void Actor_ThinkStateMachine_entry(void);
 
+// 0x00202f10 (actor in EBX): without a make-way target (+0x1390), picks the first other actor within
+// 80 units vertically and 30 in xy - when this actor cowers or stands on its node, only one walking to an
+// entity without a sentient - and stores its entity there.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_FindNearbyActor(uint8_t* actor);
+extern "C" void Actor_FindNearbyActor_entry(void);
+// 0x002f9020 (cdecl entity handle): runs slot 5 of the handle's actor's current state (actor in ECX,
+// depth in EDX) with 0x0095f704 = its entity meanwhile.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CallStateSlot5(uint32_t entry, uint32_t handle, uint32_t ebx, uint32_t esi,
+                                                                  uint32_t edi);
+extern "C" void Actor_CallStateSlot5_entry(void);
+
 }  // namespace game
