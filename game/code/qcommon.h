@@ -302,4 +302,15 @@ extern "C" void MSG_ReadDeltaUsercmd_entry(void);
 // (angles as their low 16 bits). No overflow checks.
 void XB_REGS3 XB_CDECL MSG_WriteDeltaUsercmd(const uint8_t* from, const uint8_t* to, uint8_t* msg);
 
+// cvar_t: +0 name, +4 string, +8 resetString, +0xc latchedString, +0x10 flags, +0x14 modified,
+// +0x18 modificationCount, +0x1c value, +0x20 integer, +0x24 next (sorted list), +0x28 hashNext.
+// 0x0029c030: Q3's Cvar_Set2 - the value's '\\' turned into '/' in place (its length kept in the
+// name's argument slot), name check (__break 0), unknown cvars made through Cvar_Get (user-created
+// unless forced); ROM (0x40), INIT (0x10), cheat (0x200, cheats off) and latched (0x20) rules unforced.
+uint8_t* XB_CDECL Cvar_Set2(const char* name, char* value, uint32_t force);
+// 0x0029c2d0: Q3's Cvar_Get - new cvars in cvar_indexes (at most 0x262), kept sorted by name
+// (stricmp) and hashed; existing ones take the flags, a new reset string for user-created/0x1000 ones,
+// apply a latched value, and are forced to the value for ROM (0x40) or cheats off.
+uint8_t* XB_CDECL Cvar_Get(const char* name, const char* value, uint32_t flags);
+
 }  // namespace game

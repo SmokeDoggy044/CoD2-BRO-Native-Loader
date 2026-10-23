@@ -6,6 +6,7 @@
 #include "cg_ents.h"
 #include "cg_view.h"
 #include "cgame.h"
+#include "cm.h"
 #include "dobj.h"
 #include "fx.h"
 #include "g_scr_math.h"
@@ -1600,6 +1601,8 @@ const Function kFunctions[] = {
     {"FX_FreeAllEffects", 0x0029b860, 0, code(&FX_FreeAllEffects_entry), 0, Result::None, Status::Compare},
     {"FX_UpdateEffect", 0x0029b8f0, 0, code(&FX_UpdateEffect_entry), 4, Result::None, Status::Compare},
     {"ParamSet_Resolve", 0x0029b9f0, 0, code(&ParamSet_Resolve), 4, Result::None, Status::Compare},
+    {"Cvar_Set2", 0x0029c030, 0, code(&Cvar_Set2), 12, Result::Eax, Status::Compare},
+    {"Cvar_Get", 0x0029c2d0, 0, code(&Cvar_Get), 12, Result::Eax, Status::Compare},
     {"Cvar_WriteNamedValues", 0x0029c4f0, 0, code(&Cvar_WriteNamedValues), 16, Result::Eax, Status::Compare},
     {"BoneMatrix_Load", 0x0029c790, 0, code(&BoneMatrix_Load), 0, Result::None, Status::Compare},
     {"BoneMatrix_Store", 0x0029c9e0, 0, code(&BoneMatrix_Store), 0, Result::Eax, Status::Compare},
@@ -1658,6 +1661,12 @@ const Function kFunctions[] = {
     {"Cbuf_InsertText", 0x002aab40, 0, code(&Cbuf_InsertText), 0, Result::None, Status::Compare},
     {"Cbuf_AddText", 0x002aabb0, 0, code(&Cbuf_AddText), 0, Result::None, Status::Compare},
     {"Cmd_Wait_f", 0x002aac40, 0, code(&Cmd_Wait_f), 0, Result::None, Status::Compare},
+    {"CM_AreasConnected", 0x002aaec0, 0, code(&CM_AreasConnected), 0, Result::Eax, Status::Compare},
+    {"CM_FloodArea_r", 0x002aaf00, 0, code(&CM_FloodArea_r), 8, Result::None, Status::Compare},
+    {"CM_ClusterPVS", 0x002aaf90, 0, code(&CM_ClusterPVS), 0, Result::Eax, Status::Compare},
+    {"CM_StoreLeafs", 0x002aafc0, 0, code(&CM_StoreLeafs), 8, Result::Eax, Status::Compare},
+    {"CM_LeafArea", 0x002ab2e0, 0, code(&CM_LeafArea), 0, Result::Eax, Status::Compare},
+    {"CM_LeafCluster", 0x002ab300, 0, code(&CM_LeafCluster), 0, Result::Eax, Status::Compare},
     {"PM_StartLegsAnim", 0x002ac7e0, 0, code(&PM_StartLegsAnim), 0, Result::None, Status::Compare},
     {"BG_FindWeaponIndexForHash", 0x002acb00, 0, code(&BG_FindWeaponIndexForHash_entry), 0, Result::Eax, Status::Compare},
     {"CG_WeaponSlotFromName", 0x002acb40, 0, code(&CG_WeaponSlotFromName_entry), 0, Result::Eax, Status::Compare},
@@ -1676,10 +1685,12 @@ const Function kFunctions[] = {
     {"Swap_Init", 0x002b0140, 0, code(&Swap_Init), 0, Result::Eax, Status::Compare},
     {"COM_ParseExt", 0x002b0250, 0, code(&COM_ParseExt), 8, Result::Eax, Status::Compare},
     {"MSG_ReadDeltaUsercmd", 0x002b1570, 0, code(&MSG_ReadDeltaUsercmd_entry), 0, Result::None, Status::Compare},
+    {"MSG_WriteDeltaUsercmd", 0x002b1780, 0, code(&MSG_WriteDeltaUsercmd), 0, Result::None, Status::Compare},
     {"MSG_WriteString", 0x002b1b60, 0, code(&MSG_WriteString_entry), 0, Result::None, Status::Compare},
     {"Cmd_RemoveCommand", 0x002b1dc0, 0, code(&Cmd_RemoveCommand), 4, Result::None, Status::Compare},
     {"Cmd_ArgsBuffer", 0x002b1e50, 0, code(&Cmd_ArgsBuffer_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_ExecuteRegisteredCommand", 0x002b1eb0, 0, code(&Cmd_ExecuteRegisteredCommand), 0, Result::None, Status::Compare},
+    {"CM_FloodAreaConnections", 0x002b2200, 0, code(&CM_FloodAreaConnections), 0, Result::None, Status::Compare},
     {"BG_AmmoRoomForWeapon", 0x002b5120, 0, code(&BG_AmmoRoomForWeapon_entry), 0, Result::Eax, Status::Compare},
     {"BG_ChooseWeaponSlot", 0x002b52b0, 0, code(&BG_ChooseWeaponSlot_entry), 0, Result::Eax, Status::Compare},
     {"BG_GetWeaponSlot", 0x002b5400, 0, code(&BG_GetWeaponSlot_entry), 8, Result::Eax, Status::Compare},
@@ -1717,6 +1728,7 @@ const Function kFunctions[] = {
     {"G_SetSoundDoneNotify", 0x002be3e0, 0, code(&G_SetSoundDoneNotify_entry), 0, Result::None, Status::Compare},
     {"AnimTree_CalcPose_r", 0x002beb60, 0, code(&AnimTree_CalcPose_r), 24, Result::Al, Status::Compare},
     {"Cmd_Vstr_f", 0x002c0d30, 0, code(&Cmd_Vstr_f), 0, Result::None, Status::Compare},
+    {"CM_PointLeafnum_r", 0x002c1060, 0, code(&CM_PointLeafnum_r), 0, Result::Eax, Status::Compare},
     {"BG_InitDefaultWeapon", 0x002c2aa0, 0, code(&BG_InitDefaultWeapon), 0, Result::None, Status::Compare},
     {"S_PlaySoundAlias2", 0x002c3120, 0, code(&S_PlaySoundAlias2), 40, Result::Eax, Status::Compare},
     {"CameraShake_SetDistanceScale", 0x002c94d0, 0, code(&CameraShake_SetDistanceScale_entry), 8, Result::None, Status::Compare},
