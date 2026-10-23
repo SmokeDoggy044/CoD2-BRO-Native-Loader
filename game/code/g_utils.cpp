@@ -490,4 +490,44 @@ void XB_REGS1 XB_CDECL G_AddEvent(uint8_t* ent, uint32_t event, uint32_t parm) {
     word_at(ent, 0x1a8) = title_global<uint32_t>(0x0098540c);  // level time
 }
 
+// G_LocationalTrace runs where the original's call puts it (aligned frame, 0x18 locals, two saved
+// registers, seven arguments); the C frame sits below a gap.
+PLATFORM_ASM_ENTRY(G_MissileTrace_entry,
+                   "movl %esp, %edx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(G_MissileTrace) "addl $28, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+void XB_CDECL G_MissileTrace(uint32_t entry, uint8_t* results, const float* start, uint32_t pass, uint32_t a6, uint32_t mask,
+                             const float* end) {
+    const uint32_t top = ((entry - 4) & ~15u) - 0x20;
+    const uint32_t args[] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(results)),
+                             static_cast<uint32_t>(reinterpret_cast<uintptr_t>(start)),
+                             static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end)), pass, mask, a6, 0};
+    const TitleRegs regs = {a6, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(start)), mask, pass,
+                            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(results)),
+                            static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end))};
+    title_call_at_regs(top, 0x002600c0, &regs, 7, args);  // G_LocationalTrace
+    if (!results[0x3d]) return;
+    if (*reinterpret_cast<const uint32_t*>(results + 0x28) & 0x800) {
+        // Started inside something that does not block missiles: no hit.
+        results[0x3d] = 0;
+        *reinterpret_cast<float*>(results + 0x20) = title_global<float>(0x0083eb20);
+        return;
+    }
+    *reinterpret_cast<float*>(results + 0x20) = 0.0f;
+    float* normal = reinterpret_cast<float*>(results + 0x10);
+    for (int32_t i = 0; i < 4; ++i) normal[i] = start[i] - end[i];  // all four lanes, as the title's SUBPS
+}
+
 }  // namespace game

@@ -63,4 +63,9 @@ extern "C" void BG_GetWeaponSlot_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL BG_ChooseWeaponSlot(uint32_t preferred, uint32_t weapon, const uint8_t* ps);
 extern "C" void BG_ChooseWeaponSlot_entry(void);
 
+// 0x002b6710 (time in EDX, result in ECX, cdecl trajectory): the trajectory's velocity at `time`
+// by type (+0): 2 delta, 3 delta until start + duration, 4 sine (x87 cos), 5/6/7 gravity (1, 0.3,
+// 0.2 of 0x0094d450) on z, 9/10 delta * t^2 / t until the end; others (and past the end) zero.
+void XB_REGS3 XB_CDECL BG_EvaluateTrajectoryDelta(uint32_t, int32_t time, float* result, const uint8_t* tr);
+
 }  // namespace game

@@ -1,5 +1,7 @@
 #include "bg_misc.h"
 
+#include <cstring>
+
 #include "title_data.h"
 
 namespace game {
@@ -274,6 +276,67 @@ void XB_REGS3 XB_CDECL BG_PlayerStateToEntityState(uint8_t* es, uint32_t, uint8_
     field<uint32_t>(ps, 0xe8) = field<uint32_t>(ps, 0xc4);
     es[3] = ps[0x80];
     field<uint32_t>(es, 0xc) = field<uint32_t>(ps, 0x60);
+}
+
+namespace {
+
+// x87 FCOS of an extended value (the title's precision control applies).
+long double x87_cos_ext(long double x) {
+    long double r;
+    __asm__("fcos" : "=t"(r) : "0"(x));
+    return r;
+}
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL BG_EvaluateTrajectoryDelta(uint32_t, int32_t time, float* result, const uint8_t* tr) {
+    const int32_t start = *reinterpret_cast<const int32_t*>(tr + 4);
+    const int32_t duration = *reinterpret_cast<const int32_t*>(tr + 8);
+    const float* delta = reinterpret_cast<const float*>(tr + 0x18);
+    const float to_seconds = title_global<float>(0x0083eb4c);
+    const float gravity = title_global<float>(0x0094d450);
+    const auto zero = [result]() {
+        result[1] = 0.0f;
+        result[0] = 0.0f;
+        result[2] = 0.0f;
+    };
+    switch (*reinterpret_cast<const uint32_t*>(tr)) {
+    case 2:  // linear
+        std::memcpy(result, delta, 12);
+        return;
+    case 3:  // linear, stopping after the duration
+        if (time > duration + start) return zero();
+        std::memcpy(result, delta, 12);
+        return;
+    case 4: {  // sine: the derivative's cosine factor on the x87
+        const long double phase = static_cast<long double>(time - start) / static_cast<long double>(duration) *
+                                  static_cast<long double>(title_global<float>(0x0083edac));
+        const long double f = x87_cos_ext(phase) * static_cast<long double>(title_global<float>(0x0083eb24));
+        for (int32_t i = 0; i < 3; ++i) result[i] = static_cast<float>(f * static_cast<long double>(delta[i]));
+        return;
+    }
+    case 5:
+    case 6:
+    case 7: {  // gravity (full, 0.3, 0.2)
+        const float t = static_cast<float>(time - start) * to_seconds;
+        std::memcpy(result, delta, 12);
+        float g = gravity;
+        if (*reinterpret_cast<const uint32_t*>(tr) == 6) g = g * title_global<float>(0x0083066c);
+        if (*reinterpret_cast<const uint32_t*>(tr) == 7) g = g * title_global<float>(0x0083eca0);
+        result[2] = delta[2] - g * t;
+        return;
+    }
+    case 9:
+    case 10: {  // accelerating (t squared) / linear in t, until the duration ends
+        if (time > start + duration) return zero();
+        float t = static_cast<float>(time - start) * to_seconds;
+        if (*reinterpret_cast<const uint32_t*>(tr) == 9) t = t * t;
+        for (int32_t i = 0; i < 3; ++i) result[i] = delta[i] * t;
+        return;
+    }
+    default:
+        return zero();
+    }
 }
 
 }  // namespace game

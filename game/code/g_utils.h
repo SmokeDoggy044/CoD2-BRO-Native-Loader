@@ -119,4 +119,11 @@ uint32_t XB_REGS1 XB_CDECL G_GetEntityAnimTree(const uint8_t* ent);
 // Actor_GetAnimTree).
 uint32_t actor_anim_tree(const uint8_t* actor);
 
+// 0x00262ce0 (cdecl results, start, pass; EDI = end, ECX = mask, EAX = G_LocationalTrace's sixth
+// argument): G_LocationalTrace; a trace starting solid becomes no hit (fraction 1) when the surface
+// flags (+0x28) have 0x800, else fraction 0 and +0x10 = start - end (16 bytes).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_MissileTrace(uint32_t entry, uint8_t* results, const float* start, uint32_t pass,
+                                                        uint32_t a6, uint32_t mask, const float* end);
+extern "C" void G_MissileTrace_entry(void);
+
 }  // namespace game
