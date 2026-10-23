@@ -282,4 +282,194 @@ uint8_t* XB_CDECL FxConstVector_New(const float* v) {
 uint8_t* XB_CDECL FxVectorRange_New5ad8(const float* a, const float* b) { return new_vector_range(0x007c5ad8, a, b); }
 uint8_t* XB_CDECL FxVectorRange_New5b38(const float* a, const float* b) { return new_vector_range(0x007c5b38, a, b); }
 
+namespace {
+
+// The effect allocator's free (vtable slot 2), with the context word cleared around it.
+void fx_free_no_context(uint32_t memory) {
+    uint32_t& context = title_global<uint32_t>(0x00909948);
+    const uint32_t saved = context;
+    uint8_t* allocator = title_global<uint8_t*>(0x008bb760);
+    context = 0;
+    const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(allocator, 0)))[2];
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(method)(allocator, memory);
+    context = saved;
+}
+
+// Growable arrays {data, int16 capacity (+4), int16 count (+6)}: the old block freed and the
+// array cleared before the new one is installed.
+void replace_block(uint8_t* self, uint8_t* memory, int16_t capacity, int16_t count) {
+    if (at<uint32_t>(self, 0)) {
+        fx_free_no_context(at<uint32_t>(self, 0));
+        at<uint32_t>(self, 0) = 0;
+        at<int16_t>(self, 4) = 0;
+        at<int16_t>(self, 6) = 0;
+    }
+    at<uint8_t*>(self, 0) = memory;
+    at<int16_t>(self, 6) = count;
+    at<int16_t>(self, 4) = capacity;
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL FxArray16_Reserve(uint8_t* self, int32_t capacity) {
+    if (capacity <= at<int16_t>(self, 4)) return 1;
+    const int32_t count = at<int16_t>(self, 6);
+    uint8_t* memory = FxArray16_New(static_cast<uint32_t>(capacity), static_cast<uint32_t>(count));
+    if (!memory) return 0;
+    for (int32_t i = 0; i < count; ++i) std::memcpy(memory + i * 16, at<uint8_t*>(self, 0) + i * 16, 16);
+    replace_block(self, memory, static_cast<int16_t>(capacity), static_cast<int16_t>(count));
+    return 1;
+}
+
+uint32_t XB_THISCALL FxArray16_Push(uint8_t* self, const uint32_t* element) {
+    const int16_t count = at<int16_t>(self, 6);
+    if (count < at<int16_t>(self, 4)) {
+        std::memcpy(at<uint8_t*>(self, 0) + count * 16, element, 16);
+        ++at<int16_t>(self, 6);
+        return 1;
+    }
+    const int32_t n = count;
+    const int32_t capacity = n > 3 ? n + 4 : n + 1;
+    uint8_t* memory = FxArray16_New(static_cast<uint32_t>(capacity), static_cast<uint32_t>(n + 1));
+    if (!memory) return 0;
+    for (int32_t i = 0; i < n; ++i) std::memcpy(memory + i * 16, at<uint8_t*>(self, 0) + i * 16, 16);
+    replace_block(self, memory, static_cast<int16_t>(capacity), count);
+    std::memcpy(memory + n * 16, element, 16);
+    ++at<int16_t>(self, 6);
+    return 1;
+}
+
+uint32_t XB_THISCALL FxEmitterTable_Resize(uint8_t* self, int32_t count) {
+    if (count <= at<int16_t>(self, 4)) {
+        const int32_t old = at<int16_t>(self, 6);
+        if (count > old) {
+            for (uint8_t* p = at<uint8_t*>(self, 0) + old * 0x2c; p != at<uint8_t*>(self, 0) + count * 0x2c; p += 0x2c) {
+                if (p) std::memset(p, 0, 0x2c);
+            }
+        }
+        at<int16_t>(self, 6) = static_cast<int16_t>(count);
+        return 1;
+    }
+    uint8_t* memory = FxEmitterTable_New(static_cast<uint32_t>(count));
+    if (!memory) return 0;
+    for (int32_t i = 0; i < at<int16_t>(self, 6); ++i)
+        std::memcpy(memory + i * 0x2c, at<uint8_t*>(self, 0) + i * 0x2c, 0x2c);
+    replace_block(self, memory, static_cast<int16_t>(count), static_cast<int16_t>(count));
+    return 1;
+}
+
+uint8_t* XB_THISCALL FxOpdd_Init(uint8_t* self, const uint8_t* src) {
+    FxOp53_Init(self, src);
+    at<uint32_t>(self, 0) = 0x007c7320;
+    at<uint32_t>(self, 4) = at<uint32_t>(src, 0x24) ? 0x8dd : 0xdd;
+    return self;
+}
+
+uint8_t* XB_THISCALL FxOpGrid_Init(uint8_t* self, const uint8_t* src) {
+    FxOp53_Init(self, src);
+    at<uint32_t>(self, 0) = 0x007c8220;
+    const int32_t columns = at<int32_t>(src, 0x30);
+    const int32_t rows = at<int32_t>(src, 0x34);
+    at<float>(self, 0x40) = static_cast<float>(columns);
+    at<float>(self, 0x44) = static_cast<float>(rows * columns - 1);
+    const float one = title_global<float>(0x0083eb20);
+    at<float>(self, 0x48) = one / static_cast<float>(columns);
+    at<float>(self, 0x4c) = one / static_cast<float>(rows);
+    std::memcpy(self + 0x10, src + 8, 16);
+    at<uint32_t>(self, 4) = at<uint32_t>(src, 0x24) ? 0x953 : 0x153;
+    return self;
+}
+
+uint8_t* XB_THISCALL FxVertexFormat_Init(uint8_t* self) {
+    at<uint32_t>(self, 0) = 0;
+    FxVertexFormat_Layout(self);
+    return self;
+}
+
+uint8_t* XB_THISCALL FxVertexFormat_Add(uint8_t* self, uint32_t bits) {
+    at<uint32_t>(self, 0) |= bits;
+    return FxVertexFormat_Layout(self);
+}
+
+uint8_t* XB_THISCALL FxPtrArray_InitFill(uint8_t* self, uint32_t count, const uint32_t* value) {
+    uint8_t* memory = fx_alloc_no_context(count * 4, 4);
+    at<uint8_t*>(self, 0) = memory;
+    if (!memory) {
+        at<int16_t>(self, 6) = 0;
+        at<int16_t>(self, 4) = 0;
+        return self;
+    }
+    at<int16_t>(self, 6) = static_cast<int16_t>(count);
+    at<int16_t>(self, 4) = static_cast<int16_t>(count);
+    for (int32_t i = 0; i < at<int16_t>(self, 6); ++i) at<uint32_t*>(self, 0)[i] = *value;
+    return self;
+}
+
+uint8_t* XB_THISCALL FxAction_Init(uint8_t* self, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    at<uint32_t>(self, 0) = 0x007c6220;
+    const float zero = 0.0f;
+    uint32_t zero_word;
+    std::memcpy(&zero_word, &zero, 4);
+    FxPtrArray_InitFill(self + 4, a, &zero_word);
+    const uint32_t null_word = 0;
+    FxPtrArray_InitFill(self + 0xc, b, &null_word);
+    at<uint32_t>(self, 0x14) = c;
+    at<uint32_t>(self, 0x18) = d;
+    at<uint32_t*>(self, 4)[0] = title_global<uint32_t>(0x0083ef2c);  // -FLT_MAX
+    at<uint32_t*>(self, 4)[1] = title_global<uint32_t>(0x007c5000);  // FLT_MAX
+    return self;
+}
+
+void XB_THISCALL FxActionList_CollectFormat(const uint8_t* self, uint8_t* format) {
+    uint8_t* const* p = at<uint8_t* const*>(self, 0);
+    uint8_t* const* end = p + at<int16_t>(self, 6);
+    for (; p != end; ++p) FxVertexFormat_Add(format, at<uint32_t>(*p, 0x18));
+}
+
+namespace {
+
+uint8_t* action(uint8_t* self, uint32_t vtable, uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    FxAction_Init(self, a, b, c, d);
+    at<uint32_t>(self, 0) = vtable;
+    return self;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL FxAction8df0_Init(uint8_t* self) { return action(self, 0x007c8df0, 0x3, 0x10, 0x0, 0x200); }
+uint8_t* XB_THISCALL FxAction8e08_Init(uint8_t* self) { return action(self, 0x007c8e08, 0x3, 0x10, 0x0, 0x200); }
+uint8_t* XB_THISCALL FxAction8e20_Init(uint8_t* self) { return action(self, 0x007c8e20, 0x3, 0x11, 0x0, 0x200); }
+uint8_t* XB_THISCALL FxAction8e38_Init(uint8_t* self) { return action(self, 0x007c8e38, 0x2, 0x0, 0x1, 0x600); }
+uint8_t* XB_THISCALL FxAction8e4c_Init(uint8_t* self) { return action(self, 0x007c8e4c, 0x4, 0x0, 0x1, 0x610); }
+uint8_t* XB_THISCALL FxAction8e60_Init(uint8_t* self) { return action(self, 0x007c8e60, 0x5, 0x0, 0x1, 0x610); }
+uint8_t* XB_THISCALL FxAction8e74_Init(uint8_t* self) { return action(self, 0x007c8e74, 0x4, 0x0, 0x1, 0x1610); }
+uint8_t* XB_THISCALL FxAction8e88_Init(uint8_t* self) { return action(self, 0x007c8e88, 0x3, 0x0, 0x1, 0x2); }
+uint8_t* XB_THISCALL FxAction8e9c_Init(uint8_t* self) { return action(self, 0x007c8e9c, 0x3, 0x0, 0x1, 0x2); }
+uint8_t* XB_THISCALL FxAction8eb0_Init(uint8_t* self) { return action(self, 0x007c8eb0, 0x3, 0x0, 0x1, 0x4); }
+uint8_t* XB_THISCALL FxAction8ec4_Init(uint8_t* self) { return action(self, 0x007c8ec4, 0x3, 0x0, 0x1, 0x4); }
+uint8_t* XB_THISCALL FxAction8ed8_Init(uint8_t* self) { return action(self, 0x007c8ed8, 0x3, 0x0, 0x1, 0x80); }
+uint8_t* XB_THISCALL FxAction8eec_Init(uint8_t* self) { return action(self, 0x007c8eec, 0x3, 0x0, 0x1, 0x80); }
+uint8_t* XB_THISCALL FxAction8f00_Init(uint8_t* self) { return action(self, 0x007c8f00, 0x2, 0x0, 0x1, 0x2840); }
+uint8_t* XB_THISCALL FxAction8f14_Init(uint8_t* self) { return action(self, 0x007c8f14, 0x2, 0x0, 0x1, 0x4821); }
+uint8_t* XB_THISCALL FxAction8f28_Init(uint8_t* self) { return action(self, 0x007c8f28, 0x2, 0x0, 0x1, 0x801); }
+uint8_t* XB_THISCALL FxAction8f3c_Init(uint8_t* self) { return action(self, 0x007c8f3c, 0x6, 0x0, 0x1, 0x1); }
+uint8_t* XB_THISCALL FxAction8f50_Init(uint8_t* self) { return action(self, 0x007c8f50, 0x6, 0x0, 0x1, 0x800); }
+uint8_t* XB_THISCALL FxAction8f64_Init(uint8_t* self) { return action(self, 0x007c8f64, 0xa, 0x0, 0x1, 0x608); }
+uint8_t* XB_THISCALL FxAction8f78_Init(uint8_t* self) { return action(self, 0x007c8f78, 0x3, 0x0, 0x1, 0x800); }
+uint8_t* XB_THISCALL FxAction8f8c_Init(uint8_t* self) { return action(self, 0x007c8f8c, 0x3, 0x0, 0x1, 0x2000); }
+uint8_t* XB_THISCALL FxAction8fa0_Init(uint8_t* self) { return action(self, 0x007c8fa0, 0x3, 0x0, 0x1, 0x4000); }
+uint8_t* XB_THISCALL FxAction8fb4_Init(uint8_t* self) { return action(self, 0x007c8fb4, 0x9, 0x0, 0x1, 0x801); }
+uint8_t* XB_THISCALL FxAction8fc8_Init(uint8_t* self) { return action(self, 0x007c8fc8, 0x5, 0x0, 0x1, 0x100); }
+uint8_t* XB_THISCALL FxAction8fdc_Init(uint8_t* self) { return action(self, 0x007c8fdc, 0x2, 0x0, 0x1, 0x840); }
+uint8_t* XB_THISCALL FxAction8ff0_Init(uint8_t* self) { return action(self, 0x007c8ff0, 0x2, 0x0, 0x1, 0x40); }
+uint8_t* XB_THISCALL FxAction9004_Init(uint8_t* self) { return action(self, 0x007c9004, 0x2, 0x0, 0x1, 0x40); }
+uint8_t* XB_THISCALL FxAction9018_Init(uint8_t* self) { return action(self, 0x007c9018, 0x2, 0x0, 0x1, 0x40); }
+uint8_t* XB_THISCALL FxAction902c_Init(uint8_t* self) { return action(self, 0x007c902c, 0x6, 0x0, 0x1, 0x801); }
+uint8_t* XB_THISCALL FxAction9040_Init(uint8_t* self) { return action(self, 0x007c9040, 0x9, 0x0, 0x1, 0x801); }
+uint8_t* XB_THISCALL FxAction9054_Init(uint8_t* self) { return action(self, 0x007c9054, 0x9, 0x0, 0x1, 0x801); }
+uint8_t* XB_THISCALL FxAction9068_Init(uint8_t* self) { return action(self, 0x007c9068, 0xb, 0x0, 0x1, 0xf8800); }
+uint8_t* XB_THISCALL FxAction907c_Init(uint8_t* self) { return action(self, 0x007c907c, 0x5, 0x0, 0x1, 0x500001); }
+uint8_t* XB_THISCALL FxAction9090_Init(uint8_t* self) { return action(self, 0x007c9090, 0x3, 0x0, 0x1, 0x200001); }
+uint8_t* XB_THISCALL FxAction90a4_Init(uint8_t* self) { return action(self, 0x007c90a4, 0x4, 0x0, 0x1, 0x3800041); }
+
 }  // namespace game

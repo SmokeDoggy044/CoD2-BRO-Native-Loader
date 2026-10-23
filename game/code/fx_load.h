@@ -68,4 +68,64 @@ uint8_t* XB_CDECL FxConstVector_New(const float* v);
 uint8_t* XB_CDECL FxVectorRange_New5ad8(const float* a, const float* b);
 uint8_t* XB_CDECL FxVectorRange_New5b38(const float* a, const float* b);
 
+// 0x00029760 / 0x00029820: growable 16-byte element arrays {data, int16 capacity, int16 count}:
+// Reserve(capacity) and Push(element) (growth +1, +4 past 3); old blocks go back to the effect
+// allocator. False when the allocation fails.
+uint32_t XB_THISCALL FxArray16_Reserve(uint8_t* self, int32_t capacity);
+uint32_t XB_THISCALL FxArray16_Push(uint8_t* self, const uint32_t* element);
+// 0x00096f00: the emitter table (0x2c-byte entries, same array layout) resized to `count`.
+uint32_t XB_THISCALL FxEmitterTable_Resize(uint8_t* self, int32_t count);
+// 0x0009e530 / 0x0009ed10: FxOp53 derivatives (vtables 0x007c7320, kind 0xdd/0x8dd; 0x007c8220,
+// kind 0x153/0x953 with a columns x rows frame grid at +0x40..+0x4c).
+uint8_t* XB_THISCALL FxOpdd_Init(uint8_t* self, const uint8_t* src);
+uint8_t* XB_THISCALL FxOpGrid_Init(uint8_t* self, const uint8_t* src);
+// 0x000a0840 / 0x000a0860: an empty vertex format / bits added, then laid out. Return self.
+uint8_t* XB_THISCALL FxVertexFormat_Init(uint8_t* self);
+uint8_t* XB_THISCALL FxVertexFormat_Add(uint8_t* self, uint32_t bits);
+// 0x0009c5a0: a word array of `count` copies of *value (effect allocator). Returns self.
+uint8_t* XB_THISCALL FxPtrArray_InitFill(uint8_t* self, uint32_t count, const uint32_t* value);
+// 0x0009c520: the particle action base (vtable 0x007c6220): `a` floats (0.0, then -FLT_MAX and
+// FLT_MAX in the first two) at +4, `b` null words at +0xc, c and d at +0x14/+0x18 (d: the
+// vertex attribute bits). Returns self.
+uint8_t* XB_THISCALL FxAction_Init(uint8_t* self, uint32_t a, uint32_t b, uint32_t c, uint32_t d);
+// 0x0009c9b0: every action's attribute bits (+0x18) added to the vertex format.
+void XB_THISCALL FxActionList_CollectFormat(const uint8_t* self, uint8_t* format);
+// The particle action constructors apsParseActions calls (FxAction_Init with fixed arguments,
+// then the action's vtable).
+uint8_t* XB_THISCALL FxAction8df0_Init(uint8_t* self);  // 0x000a08c0
+uint8_t* XB_THISCALL FxAction8e08_Init(uint8_t* self);  // 0x000a0910
+uint8_t* XB_THISCALL FxAction8e20_Init(uint8_t* self);  // 0x000a0930
+uint8_t* XB_THISCALL FxAction8e38_Init(uint8_t* self);  // 0x000a0950
+uint8_t* XB_THISCALL FxAction8e4c_Init(uint8_t* self);  // 0x000a0a40
+uint8_t* XB_THISCALL FxAction8e60_Init(uint8_t* self);  // 0x000a0a60
+uint8_t* XB_THISCALL FxAction8e74_Init(uint8_t* self);  // 0x000a0a80
+uint8_t* XB_THISCALL FxAction8e88_Init(uint8_t* self);  // 0x000a0aa0
+uint8_t* XB_THISCALL FxAction8e9c_Init(uint8_t* self);  // 0x000a0ac0
+uint8_t* XB_THISCALL FxAction8eb0_Init(uint8_t* self);  // 0x000a0ae0
+uint8_t* XB_THISCALL FxAction8ec4_Init(uint8_t* self);  // 0x000a0b00
+uint8_t* XB_THISCALL FxAction8ed8_Init(uint8_t* self);  // 0x000a0b20
+uint8_t* XB_THISCALL FxAction8eec_Init(uint8_t* self);  // 0x000a0b40
+uint8_t* XB_THISCALL FxAction8f00_Init(uint8_t* self);  // 0x000a0b60
+uint8_t* XB_THISCALL FxAction8f14_Init(uint8_t* self);  // 0x000a0b80
+uint8_t* XB_THISCALL FxAction8f28_Init(uint8_t* self);  // 0x000a0ba0
+uint8_t* XB_THISCALL FxAction8f3c_Init(uint8_t* self);  // 0x000a0bc0
+uint8_t* XB_THISCALL FxAction8f50_Init(uint8_t* self);  // 0x000a0be0
+uint8_t* XB_THISCALL FxAction8f64_Init(uint8_t* self);  // 0x000a0c00
+uint8_t* XB_THISCALL FxAction8f78_Init(uint8_t* self);  // 0x000a0c20
+uint8_t* XB_THISCALL FxAction8f8c_Init(uint8_t* self);  // 0x000a0c40
+uint8_t* XB_THISCALL FxAction8fa0_Init(uint8_t* self);  // 0x000a0c60
+uint8_t* XB_THISCALL FxAction8fb4_Init(uint8_t* self);  // 0x000a0c80
+uint8_t* XB_THISCALL FxAction8fc8_Init(uint8_t* self);  // 0x000a0ca0
+uint8_t* XB_THISCALL FxAction8fdc_Init(uint8_t* self);  // 0x000a0cc0
+uint8_t* XB_THISCALL FxAction8ff0_Init(uint8_t* self);  // 0x000a0ce0
+uint8_t* XB_THISCALL FxAction9004_Init(uint8_t* self);  // 0x000a0d00
+uint8_t* XB_THISCALL FxAction9018_Init(uint8_t* self);  // 0x000a0d20
+uint8_t* XB_THISCALL FxAction902c_Init(uint8_t* self);  // 0x000a0d40
+uint8_t* XB_THISCALL FxAction9040_Init(uint8_t* self);  // 0x000a0d60
+uint8_t* XB_THISCALL FxAction9054_Init(uint8_t* self);  // 0x000a0d80
+uint8_t* XB_THISCALL FxAction9068_Init(uint8_t* self);  // 0x000a0da0
+uint8_t* XB_THISCALL FxAction907c_Init(uint8_t* self);  // 0x000a0dc0
+uint8_t* XB_THISCALL FxAction9090_Init(uint8_t* self);  // 0x000a0de0
+uint8_t* XB_THISCALL FxAction90a4_Init(uint8_t* self);  // 0x000a0e00
+
 }  // namespace game
