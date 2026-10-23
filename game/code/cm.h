@@ -251,4 +251,24 @@ int32_t XB_CDECL CM_QuadTreeTraceLeafs_r(const uint8_t* tree, int32_t node, cons
 uint8_t XB_CDECL CM_TraceRayThroughWorldTrees(uint8_t* tw, const float* start, const float* end, float* out,
                                               uint32_t* surface_flags, uint32_t* contents);
 
+
+// 0x002e04e0 (trace work in EDI; unnamed in Ghidra): the box/capsule sweep through the world quad trees: per tree
+// whose bounds meet the swept box (start/end +- trace size +0x150), the cells CM_QuadTreeTraceLeafs_r lists; per
+// cell, pass 1 traces its brushes (type 9, content mask, checkcount-marked) with the capsule or box version (an
+// exact fraction 0 stores the brush's surface flags/contents and returns 1); pass 2 sweeps a sphere (radius +0x164,
+// or the half size x for boxes; start/end z lowered by +0x168 - radius, restored after the cell) through each
+// mesh's triangles the box-tree walk finds: CM_ClipSphereSweepToTriangle with radius + 0.001 moves the end; a
+// start in solid or a fraction <= 1e-5 sets fraction 0 and allsolid and returns 1, else a smaller fraction (minus
+// 1e-5) stores the triangle plane, flags and contents. An object box outside ends the pass unless
+// 0 <= (max - center + half).x. AL = whether a mesh was hit.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_TraceThroughWorldTrees(uint8_t* tw);
+extern "C" void CM_TraceThroughWorldTrees_entry(void);
+
+// 0x002e4980 (trace work in EAX, start in ESI, end in EBX; unnamed in Ghidra): bumps checkcount; a box/capsule
+// trace (+0xfc 0) goes to CM_TraceThroughWorldTrees; a ray trace takes CM_TraceRayThroughWorldTrees's nearest
+// hit: surface flags/contents, and when its distance over the trace length (rsqrt-Newton lengths) is below the
+// fraction, the fraction (start/end plane distances, 0.125 nudge) and plane normal.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TraceThroughWorld(uint8_t* tw, const float* start, const float* end);
+extern "C" void CM_TraceThroughWorld_entry(void);
+
 }  // namespace game

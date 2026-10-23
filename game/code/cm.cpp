@@ -1694,4 +1694,241 @@ uint8_t XB_CDECL CM_TraceRayThroughWorldTrees(uint8_t* tw, const float* start, c
     return hit;
 }
 
+PLATFORM_ASM_ENTRY(CM_TraceThroughWorldTrees_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CM_TraceThroughWorldTrees) "addl $4, %esp\n"
+                   "ret")
+
+namespace {
+
+// RSQRTSS with one Newton step; 0 and NaN are copied (UCOMISS + JNE).
+float length_from_squared(float squared) {
+    if (!(squared == squared && squared != 0.0f)) return squared;
+    const float r = platform_rsqrt_estimate(squared);
+    const float scaled = squared * r;
+    return ((title_global<float>(0x0082e660) - scaled * r) * scaled) * title_global<float>(0x0082e670);  // 3, 0.5
+}
+
+}  // namespace
+
+uint8_t XB_CDECL CM_TraceThroughWorldTrees(uint8_t* tw) {
+    alignas(16) float start[4], end[4];
+    std::memcpy(start, tw, 16);
+    std::memcpy(end, tw + 0x10, 16);
+    const Lanes s = lanes(start);
+    const Lanes e = lanes(end);
+    const Lanes sweep = sub(e, s);
+    const float length = platform_x87_sqrt(sum_xyz(mul(sweep, sweep)));
+    int32_t& checkcount = cm_field<int32_t>(0x60);
+    const Lanes extent = lanes(tw_row(tw, 0x150));
+    const Lanes lo = sub(min_lanes(s, e), extent);
+    const Lanes hi = add(max_lanes(s, e), extent);
+    uint8_t hit = 0;
+    float* const tw_start_z = reinterpret_cast<float*>(tw + 8);
+    float* const tw_end_z = reinterpret_cast<float*>(tw + 0x18);
+    const uint8_t* world = title_global<const uint8_t*>(0x0095f4fc);
+    for (int32_t k = 0; k < *reinterpret_cast<const int32_t*>(world + 0xc); ++k, world = title_global<const uint8_t*>(0x0095f4fc)) {
+        uint8_t* tree = *reinterpret_cast<uint8_t* const*>(world + 0x10 + k * 4);
+        if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(tree + 0x40)), hi),
+                        sub(lo, lanes(reinterpret_cast<const float*>(tree + 0x50)))))
+            continue;
+        title_global<int32_t>(0x00960030) = 0;
+        title_global<uint32_t>(0x00960034) = 0x009638c0;
+        CM_QuadTreeTraceLeafs_r(tree, 0, start, end, reinterpret_cast<const float*>(tree + 0x10),
+                                *reinterpret_cast<const float*>(tree + 0x20));
+        for (uint32_t j = 0; j < title_global<uint32_t>(0x00960030); ++j) {
+            const uint8_t* leaf = *reinterpret_cast<const uint8_t* const*>(title_global<const uint8_t*>(0x00960034) + j * 0x30);
+            const int32_t n = *reinterpret_cast<const int32_t*>(leaf);
+            // Pass 1: brushes (type 9).
+            for (int32_t i = 0; i < n; ++i) {
+                uint8_t* object = leaf_object(tree, (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[i]);
+                if (object_type(object) != 9) continue;
+                int32_t& mark = *reinterpret_cast<int32_t*>(object + 0xc);
+                if (mark == checkcount) continue;
+                if (!(*reinterpret_cast<const uint32_t*>(object + 8) & *reinterpret_cast<const uint32_t*>(tw + 0xf8))) continue;
+                mark = checkcount;
+                const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+                const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+                const Lanes below = sub(lo, c);
+                const Lanes above = sub(c, hi);
+                int32_t inside = 0;
+                for (int32_t a = 0; a < 4; ++a) {
+                    const float m = above.v[a] > below.v[a] ? above.v[a] : below.v[a];  // MAXPS(above, below)
+                    if (m < h.v[a]) inside |= 1 << a;
+                }
+                if ((inside & 7) != 7) {
+                    const Lanes reach = add(sub(hi, c), h);
+                    platform_keep(reach);
+                    if (!(0.0f <= reach.v[0])) break;  // CMPLESS on the x lane
+                    continue;
+                }
+                if (*reinterpret_cast<const uint32_t*>(tw + 0x160))
+                    CM_TraceCapsuleThroughBrush(tw, object);
+                else
+                    CM_TraceBoxThroughBrush(tw, object);
+                // UCOMISS + JNP: an exact fraction 0 ends the trace.
+                if (*reinterpret_cast<const float*>(tw + 0x120) == title_global<float>(0x0083eafc)) {
+                    *reinterpret_cast<uint32_t*>(tw + 0x124) = *reinterpret_cast<const uint32_t*>(object + 4);
+                    *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(object + 8);
+                    return 1;
+                }
+            }
+            // Pass 2: triangle meshes (every other type), the sphere moved down to the capsule's lower end.
+            const float radius = *reinterpret_cast<const uint32_t*>(tw + 0x160) ? *reinterpret_cast<const float*>(tw + 0x164)
+                                                                                 : *reinterpret_cast<const float*>(tw + 0x50);
+            const float saved_start_z = *tw_start_z;
+            const float saved_end_z = *tw_end_z;
+            const float drop = *reinterpret_cast<const float*>(tw + 0x168) - radius;
+            *tw_start_z = *tw_start_z - drop;
+            *tw_end_z = *tw_end_z - drop;
+            const Lanes ss = lanes(tw_row(tw, 0));
+            const Lanes se = lanes(tw_row(tw, 0x10));
+            const Lanes rr4 = splat(radius);
+            const Lanes lo2 = sub(min_lanes(ss, se), rr4);
+            const Lanes hi2 = add(max_lanes(ss, se), rr4);
+            for (int32_t i = 0; i < n; ++i) {
+                uint8_t* object = leaf_object(tree, (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[i]);
+                if (object_type(object) == 9) continue;
+                int32_t& mark = *reinterpret_cast<int32_t*>(object + 0xc);
+                if (mark == checkcount) continue;
+                if (!(*reinterpret_cast<const uint32_t*>(object + 8) & *reinterpret_cast<const uint32_t*>(tw + 0xf8))) continue;
+                mark = checkcount;
+                const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+                const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+                const Lanes below = sub(lo2, c);
+                const Lanes above = sub(c, hi2);
+                int32_t inside = 0;
+                for (int32_t a = 0; a < 4; ++a) {
+                    const float m = above.v[a] > below.v[a] ? above.v[a] : below.v[a];
+                    if (m < h.v[a]) inside |= 1 << a;
+                }
+                if ((inside & 7) != 7) {
+                    const Lanes reach = add(sub(hi2, c), h);
+                    platform_keep(reach);
+                    if (!(0.0f <= reach.v[0])) break;
+                    continue;
+                }
+                alignas(16) float a_pt[4], b_pt[4], dir[4], walk_lo[4], walk_hi[4];
+                std::memcpy(a_pt, tw, 16);
+                std::memcpy(b_pt, tw + 0x10, 16);
+                const Lanes a4 = lanes(a_pt);
+                Lanes d = sub(lanes(b_pt), a4);
+                {
+                    const Lanes dn = div_lanes(d, splat(platform_x87_sqrt(sum_xyz(mul(d, d)))));
+                    platform_keep(dn);
+                    std::memcpy(dir, dn.v, 16);
+                }
+                uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+                stack[1] = *reinterpret_cast<const uint16_t*>(object + 0x40);
+                stack[0] = 0;
+                stack[2] = 0;
+                title_global<uint16_t>(0x0090a620) = 3;
+                const Lanes wl = sub(min_lanes(a4, lanes(b_pt)), rr4);
+                const Lanes wh = add(max_lanes(a4, lanes(b_pt)), rr4);
+                std::memcpy(walk_lo, wl.v, 16);
+                std::memcpy(walk_hi, wh.v, 16);
+                uint16_t node = CM_BoxTreeStack_Next(object, walk_lo, walk_hi);
+                if (node == 0xffff) continue;
+                const float rr = radius + title_global<float>(0x0083eb4c);  // 0.001
+                for (; node != 0xffff; node = CM_BoxTreeStack_Next(object, walk_lo, walk_hi)) {
+                    alignas(16) float plane[4];
+                    std::memcpy(plane, *reinterpret_cast<uint8_t* const*>(object + 0x44) + node * 16, 16);
+                    const Lanes p = lanes(plane);
+                    const Lanes ap = lanes(a_pt);
+                    const Lanes bp = lanes(b_pt);
+                    const float dist_a = plane_distance(p, ap);
+                    const float dist_b = plane_distance(p, bp);
+                    if (dist_a > rr && dist_b > rr) continue;
+                    const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(object + 0x34);
+                    const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(object + 0x3c))[node];
+                    alignas(16) float v0[4], v1[4], v2[4];
+                    std::memcpy(v0, rows + (flags & 0x3f) * 16, 16);
+                    std::memcpy(v1, rows + ((flags >> 6) & 0x3f) * 16, 16);
+                    std::memcpy(v2, rows + ((flags >> 12) & 0x3f) * 16, 16);
+                    const Lanes rrr = splat(rr);
+                    const Lanes blo = sub(min_lanes(ap, bp), rrr);
+                    const Lanes bhi = add(max_lanes(ap, bp), rrr);
+                    const Lanes l0 = lanes(v0), l1 = lanes(v1), l2 = lanes(v2);
+                    const Lanes tmin = min_lanes(l0, min_lanes(l1, l2));
+                    const Lanes tmax = max_lanes(l0, max_lanes(l1, l2));
+                    if (!inside_xyz(sub(tmin, bhi), sub(blo, tmax))) continue;
+                    uint8_t solid;
+                    if (!CM_ClipSphereSweepToTriangle(0, a_pt, v0, b_pt, dir, rr, v1, v2, plane, &solid)) continue;
+                    if (solid) {
+                        std::memcpy(tw + 0x110, plane, 16);
+                        *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+                        tw[0x13d] = 1;
+                        *reinterpret_cast<uint32_t*>(tw + 0x124) = *reinterpret_cast<const uint32_t*>(object + 4);
+                        *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(object + 8);
+                        *tw_start_z = saved_start_z;
+                        *tw_end_z = saved_end_z;
+                        return 1;
+                    }
+                    d = sub(lanes(b_pt), lanes(a_pt));
+                    const float frac = length_from_squared(sum_xyz(mul(d, d))) / length;
+                    const float min_frac = title_global<float>(0x0083effc);  // 1e-5
+                    if (min_frac >= frac) {
+                        std::memcpy(tw + 0x110, plane, 16);
+                        *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+                        tw[0x13d] = 1;
+                        *reinterpret_cast<uint32_t*>(tw + 0x124) = *reinterpret_cast<const uint32_t*>(object + 4);
+                        *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(object + 8);
+                        *tw_start_z = saved_start_z;
+                        *tw_end_z = saved_end_z;
+                        return 1;
+                    }
+                    if (frac > *reinterpret_cast<const float*>(tw + 0x120)) continue;
+                    *reinterpret_cast<float*>(tw + 0x120) = frac - min_frac;
+                    const float new_length = platform_x87_sqrt(sum_xyz(mul(d, d)));
+                    std::memcpy(tw + 0x110, plane, 16);
+                    *reinterpret_cast<uint32_t*>(tw + 0x124) = *reinterpret_cast<const uint32_t*>(object + 4);
+                    *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(object + 8);
+                    hit = 1;
+                    const Lanes dn = div_lanes(d, splat(new_length));
+                    platform_keep(dn);
+                    std::memcpy(dir, dn.v, 16);
+                }
+            }
+            *tw_start_z = saved_start_z;
+            *tw_end_z = saved_end_z;
+        }
+    }
+    return hit;
+}
+
+
+PLATFORM_ASM_ENTRY(CM_TraceThroughWorld_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_TraceThroughWorld) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL CM_TraceThroughWorld(uint8_t* tw, const float* start, const float* end) {
+    ++cm_field<int32_t>(0x60);  // checkcount
+    if (!*reinterpret_cast<const uint32_t*>(tw + 0xfc)) {
+        CM_TraceThroughWorldTrees(tw);
+        return;
+    }
+    const Lanes s = lanes(start);
+    const Lanes d = sub(lanes(end), s);
+    const float length = length_from_squared(sum_xyz(mul(d, d)));
+    alignas(16) float out[8] = {};  // never-set words: zeroed dead stack in tests
+    uint32_t surface_flags = 0, contents = 0;
+    if (!CM_TraceRayThroughWorldTrees(tw, start, end, out, &surface_flags, &contents)) return;
+    *reinterpret_cast<uint32_t*>(tw + 0x124) = surface_flags;
+    *reinterpret_cast<uint32_t*>(tw + 0x128) = contents;
+    const Lanes p = lanes(out);
+    const Lanes to_hit = sub(p, s);
+    const float fraction = length_from_squared(sum_xyz(mul(to_hit, to_hit))) / length;
+    if (!(*reinterpret_cast<const float*>(tw + 0x120) > fraction)) return;
+    const Lanes n = lanes(out + 4);
+    uint32_t bits;
+    const float dist = sum_xyz(mul(p, n));
+    std::memcpy(&bits, &dist, 4);
+    const float neg_dist = from_bits(bits ^ 0x80000000u);  // XORPS sign
+    const float ds = sum_xyz(mul(s, n)) + neg_dist;
+    const float de = sum_xyz(mul(lanes(end), n)) + neg_dist;
+    *reinterpret_cast<float*>(tw + 0x120) = (ds - title_global<float>(0x0083ec68)) / (ds - de);  // 0.125
+    std::memcpy(tw + 0x110, out + 4, 16);
+}
+
 }  // namespace game

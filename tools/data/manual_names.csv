@@ -11666,3 +11666,5 @@ address,name,kind,confidence,evidence
 002dae30,CM_ClipSphereSweepToTriangle,function,medium,"swept sphere end clipped at a triangle: start touch test, plane projection 50 units back, edge tests, ray vs sphere at ClosestPointOnTriangle; AL"
 002c6bf0,CM_QuadTreeTraceLeafs_r,function,medium,"recursive 2D quad tree walk along a segment: splits at the cell center x/y, appends {leaf, center, half} records to 0x00960034 (count 0x00960030)"
 002d37f0,CM_TraceRayThroughWorldTrees,function,medium,"ray trace through the world quad trees: cells from 0x002c6bf0, brushes via CM_TraceBoxThroughBrush, meshes via vtable slot 5; nearest hit point/normal/flags/contents; AL"
+002e04e0,CM_TraceThroughWorldTrees,function,medium,"box/capsule sweep through the world quad trees: brushes (capsule/box trace), then mesh triangles with CM_ClipSphereSweepToTriangle; AL = mesh hit"
+002e4980,CM_TraceThroughWorld,function,medium,"CM_BoxTrace world sweep: checkcount, box/capsule -> CM_TraceThroughWorldTrees, ray -> CM_TraceRayThroughWorldTrees + fraction from plane distances"

@@ -9848,7 +9848,7 @@ address,name,section,module,state,tested,matched
 002e02c0,FUN_002e02c0,.text,unassigned,unnamed,0,0
 002e03a0,FUN_002e03a0,.text,unassigned,unnamed,0,0
 002e0440,FUN_002e0440,.text,unassigned,unnamed,0,0
-002e04e0,FUN_002e04e0,.text,unassigned,unnamed,0,0
+002e04e0,FUN_002e04e0,.text,unassigned,settled,1575,1575
 002e1150,FUN_002e1150,.text,unassigned,unnamed,0,0
 002e1740,FUN_002e1740,.text,unassigned,unnamed,0,0
 002e20e0,FUN_002e20e0,.text,unassigned,unnamed,0,0
@@ -9870,9 +9870,9 @@ address,name,section,module,state,tested,matched
 002e4750,SV_SendClientMessages,.text,server,named,0,0
 002e4800,Loc_LoadStrings,.text,unassigned,named,0,0
 002e4940,FUN_002e4940,.text,unassigned,unnamed,0,0
-002e4980,FUN_002e4980,.text,unassigned,unnamed,0,0
+002e4980,FUN_002e4980,.text,unassigned,settled,8144,8144
 002e4c00,FUN_002e4c00,.text,unassigned,unnamed,0,0
-002e5030,CM_BoxTrace,.text,collision,named,0,0
+002e5030,CM_BoxTrace,.text,collision,untested,0,0
 002e5530,PM_UpdateViewAngles,.text,game,named,0,0
 002e6260,FUN_002e6260,.text,unassigned,unnamed,0,0
 002e6420,G_DObjTryGetTagMatrix,.text,game,named,0,0
@@ -9881,8 +9881,8 @@ address,name,section,module,state,tested,matched
 002e6710,FUN_002e6710,.text,unassigned,unnamed,0,0
 002e67d0,FUN_002e67d0,.text,unassigned,unnamed,0,0
 002e6d80,FUN_002e6d80,.text,unassigned,unnamed,0,0
-002e6dc0,FUN_002e6dc0,.text,unassigned,unnamed,0,0
-002e70c0,CM_TransformedBoxTrace,.text,collision,named,0,0
+002e6dc0,FUN_002e6dc0,.text,unassigned,untested,0,0
+002e70c0,CM_TransformedBoxTrace,.text,collision,untested,0,0
 002e74f0,Think_ScriptLinked,.text,unassigned,named,0,0
 002e7520,FUN_002e7520,.text,unassigned,unnamed,0,0
 002e75d0,FUN_002e75d0,.text,unassigned,unnamed,0,0
