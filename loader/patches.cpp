@@ -1388,7 +1388,8 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
     }
     // The RDTSC trampolines' clock (Sys_Milliseconds and the frame timers): 0 on both sides
     // (the trampolines themselves stay executable: rdtsc_trampolines).
-    calls.push_back({"title_rdtsc", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&title_rdtsc)), ""});
+    calls.push_back({"title_rdtsc", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&title_rdtsc)), "",
+                     compare::SdkStandIn::Clock});
     return calls;
 }
 

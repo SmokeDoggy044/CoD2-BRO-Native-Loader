@@ -50,6 +50,9 @@ enum class SdkStandIn : uint8_t {
     BufferLock,  // D3DVertexBuffer_Lock2 / D3DPalette_Lock2(buffer, flags): Data | 0x80000000
     // D3DSurface_GetDesc(surface, desc): D3DSURFACE_DESC into *desc as render's describe() does.
     SurfaceDesc,
+    // title_rdtsc (the RDTSC trampolines' clock, a 64-bit result): EDX:EAX = 0 on both sides
+    // (the other recorded calls set only EAX).
+    Clock,
 };
 
 struct SdkCall {

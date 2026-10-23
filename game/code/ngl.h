@@ -1368,4 +1368,13 @@ uint8_t XB_CDECL nglSaveTextureTGA(NglTexture* texture, const char* name);
 // 0x00902748, name buffer 0x00902708). CALL in the first 5 bytes: not hookable.
 uint8_t XB_CDECL nglSaveScreenshot(const char* name);
 
+// 0x00064370: frame pacing - the frame stays pending (0x0090288c) until the interval's vertical
+// blanks passed, else a new frame starts at the clock. 0x00064580: the vertical blank callback
+// (the clock into 0x00902ba0/a4), then nglWaitFrameInterval. 0x00064690: a new frame (clock,
+// frame memory and light set reset, the frame's flags, the root scene, dynamic vertex buffers).
+// The clock is read through the title's QueryPerformanceCounter (RDTSC).
+void XB_CDECL nglWaitFrameInterval();
+void XB_CDECL nglVBlankCallback();
+void XB_CDECL nglBeginFrame();
+
 }  // namespace game

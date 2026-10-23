@@ -6089,4 +6089,60 @@ uint8_t XB_CDECL nglSaveScreenshot(const char* name) {
     return nglSaveTextureTGA(front, buffer);
 }
 
+namespace {
+
+// The title clock (RDTSC at 733 MHz) through XAPI QueryPerformanceCounter (0x001ed6ca), whose
+// RDTSC site the loader patches like the inline ones: in tests the same recorded title_rdtsc.
+uint64_t title_clock() {
+    uint32_t counter[2] = {0, 0};
+    title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+    return (uint64_t{counter[1]} << 32) | counter[0];
+}
+
+}  // namespace
+
+void XB_CDECL nglWaitFrameInterval() {
+    // With a frame interval set (0x008a2cb0 vertical blanks): until that many have passed since
+    // the last frame start (0x009028e4 counts them; 0x00902878 = late frames do not wait) the
+    // frame stays pending (0x0090288c = 1); else a new frame starts at the clock's low word.
+    const uint32_t interval = title_global<uint32_t>(0x008a2cb0);
+    if (interval) {
+        if (!title_global<uint32_t>(0x00902878) ||
+            title_global<uint32_t>(0x009028e4) - title_global<uint32_t>(0x00902880) < interval) {
+            title_global<uint8_t>(0x0090288c) = 1;
+            return;
+        }
+    }
+    title_global<uint32_t>(0x00902888) = title_global<uint32_t>(0x00902884);
+    const uint64_t now = title_clock();
+    title_global<uint32_t>(0x00902884) = static_cast<uint32_t>(now);
+    title_global<uint32_t>(0x00902880) = title_global<uint32_t>(0x009028e4);
+    title_global<uint8_t>(0x0090288c) = 0;
+}
+
+void XB_CDECL nglVBlankCallback() {
+    const uint64_t now = title_clock();
+    title_global<uint32_t>(0x00902ba0) = static_cast<uint32_t>(now);
+    title_global<uint32_t>(0x00902ba4) = static_cast<uint32_t>(now >> 32);
+    nglWaitFrameInterval();
+}
+
+void XB_CDECL nglBeginFrame() {
+    title_global<uint32_t>(0x009028e8) = title_global<uint32_t>(0x009028e4);
+    const uint64_t now = title_clock();
+    title_global<uint32_t>(0x00902ba8) = static_cast<uint32_t>(now);
+    title_global<uint32_t>(0x00902bac) = static_cast<uint32_t>(now >> 32);
+    title_global<uint32_t>(0x009025a8) = title_global<uint32_t>(0x009025a4);  // frame memory back to its start
+    title_global<uint32_t>(0x00903c34) = title_global<uint32_t>(0x00903c30);
+    title_global<NglLightSet*>(0x00902e40) = nglCreateLightSet();
+    if (title_global<uint8_t>(0x00902c09)) title_global<uint8_t>(0x00902b71) = 0;
+    if (title_global<uint8_t>(0x00902c0a)) title_global<uint8_t>(0x00902b72) = 0;
+    if (title_global<uint8_t>(0x00902c0b)) title_global<uint8_t>(0x00902b73) = 0;
+    std::memcpy(&title_global<uint32_t>(0x00902bf8), &title_global<uint32_t>(0x00902b60), 0x18);  // this frame's flags
+    current_scene() = nullptr;
+    nglPushScene(0);
+    nglBeginFrame_Nop();
+    nglDynamicVB_BeginFrame(&title_global<uint32_t>(0x00902938));
+}
+
 }  // namespace game
