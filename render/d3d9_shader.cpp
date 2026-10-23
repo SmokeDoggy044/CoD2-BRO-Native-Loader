@@ -435,6 +435,13 @@ void combiner_input(Assembler& a, uint32_t input, bool alpha_portion, uint32_t t
     const Dst d = r_(temp, mask);
     const Src t = r(temp);
     const Src zero = c(kPsHelpers).x(), one = c(kPsHelpers).y(), half = c(kPsHelpers).z(), two = c(kPsHelpers).w();
+    // ps_3_0 reads one constant register per instruction (Windows' runtime rejects
+    // more; DXVK does not check): C0/C1 go through the temp before max(x, 0).
+    const uint32_t reg = input & 0xF;
+    if ((reg == kRegC0 || reg == kRegC1) && (input >> 5) <= 5) {
+        a.mov(d, s);
+        s = t;
+    }
     switch (input >> 5) {
         case 0: a.max(d, s, zero); break;  // UNSIGNED_IDENTITY: max(0, x)
         case 1:                            // UNSIGNED_INVERT: 1 - clamp(x)

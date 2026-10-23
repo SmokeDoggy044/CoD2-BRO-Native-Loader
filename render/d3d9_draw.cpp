@@ -581,14 +581,18 @@ IDirect3DVertexDeclaration9* vertex_declaration(IDirect3DDevice9* device,
     return entry;
 }
 
+// All of the tokens, 64 per line (one long line gets cut off in the log).
 void log_tokens(const char* what, HRESULT hr, const std::vector<uint32_t>& tokens) {
-    std::string text;
-    for (size_t i = 0; i < tokens.size() && i < 256; ++i) {
-        char buf[12];
-        std::snprintf(buf, sizeof buf, "%08x ", tokens[i]);
-        text += buf;
+    LOG_ERROR("render", "%s failed (%08x); %zu tokens:", what, static_cast<unsigned>(hr), tokens.size());
+    for (size_t line = 0; line < tokens.size(); line += 64) {
+        std::string text;
+        for (size_t i = line; i < tokens.size() && i < line + 64; ++i) {
+            char buf[12];
+            std::snprintf(buf, sizeof buf, "%08x ", tokens[i]);
+            text += buf;
+        }
+        LOG_ERROR("render", "  %s", text.c_str());
     }
-    LOG_ERROR("render", "%s failed (%08x); tokens: %s", what, static_cast<unsigned>(hr), text.c_str());
 }
 
 }  // namespace

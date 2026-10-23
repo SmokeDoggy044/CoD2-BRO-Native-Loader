@@ -1,9 +1,11 @@
 // render/d3d9_shader: translated shaders keep the read-port limits that Windows'
-// Direct3D 9 runtime enforces in CreateVertexShader (DXVK does not check them):
-// vs_3_0 reads at most one constant (c#) and one input (v#) register per instruction.
+// Direct3D 9 runtime enforces in CreateVertexShader/CreatePixelShader (DXVK does not
+// check them): vs_3_0 and ps_3_0 read at most one constant (c#) and one input (v#)
+// register per instruction.
 
 #include "test_support.h"
 
+#include <cstring>
 #include <set>
 #include <vector>
 
@@ -48,6 +50,22 @@ int main() {
         const int at = read_port_violation(tokens);
         CHECK(at < 0, "fog mode %u: token %d (%08x)", static_cast<unsigned>(fog), at,
               at < 0 ? 0u : tokens[static_cast<size_t>(at)]);
+    }
+    // Pixel shaders: every combiner input (register, channel, mapping) as a general
+    // combiner's A and as the final combiner's A, with all four stages sampling.
+    for (uint32_t input = 0; input < 0x100; ++input) {
+        render::d3d9::PixelShaderKey key;
+        std::memset(&key, 0, sizeof key);
+        key.def.texture_modes = 0x0108421;  // project 2D on stages 0-3
+        key.def.combiner_count = 1;
+        key.def.rgb_inputs[0] = key.def.alpha_inputs[0] = input << 24;
+        key.def.rgb_outputs[0] = key.def.alpha_outputs[0] = 0xC00;  // SUM -> R0
+        key.def.final_inputs_abcd = input << 24 | 0x0C;               // D = R0
+        key.def.final_inputs_efg = input << 8;
+        const auto tokens = render::d3d9::translate_pixel_shader(key);
+        CHECK(!tokens.empty() && tokens[0] == 0xFFFF0300);
+        const int at = read_port_violation(tokens);
+        CHECK(at < 0, "pixel input %02x: token %d (%08x)", input, at, at < 0 ? 0u : tokens[static_cast<size_t>(at)]);
     }
     return test::g_failures ? 1 : 0;
 }
