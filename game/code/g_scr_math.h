@@ -62,4 +62,8 @@ void XB_CDECL Scr_AnglesToUp(float* out, const float* angles);
 void XB_CDECL Scr_AnglesToForward(float* out, const float* angles);
 void XB_CDECL Scr_AnglesToRight(float* out, const float* angles);
 
+// 0x00013a10 (script function table only): atan2(y, x) from |y| and |x| over their x87 length - the 0x0083ee88..9c
+// asin series below 0.5, the half-angle form above, quadrant fixed with pi (0x0083ed00); 0 for 0 / 0.
+long double XB_CDECL Scr_Atan2(float y, float x);
+
 }  // namespace game

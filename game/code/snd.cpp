@@ -1,5 +1,7 @@
 #include "snd.h"
 
+#include <cstring>
+
 #include "cg_ents.h"
 #include "fx.h"
 #include "g_scr_runtime.h"
@@ -594,6 +596,435 @@ uint32_t XB_CDECL Snd_UpdateTime() {
     const uint32_t now = uint32_t(uint64_t(int64_t(ticks) * 1000) / 1000);
     title_global<uint32_t>(0x0092082c) = now;
     return now;
+}
+
+namespace {
+
+template <typename T>
+T& snd_at(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+}  // namespace
+
+uint32_t XB_CDECL Snd_PopCount64(uint32_t low, uint32_t high) {
+    uint64_t v = (static_cast<uint64_t>(high) << 32) | low;
+    v = ((v >> 1) & 0x5555555555555555ull) + (v & 0x5555555555555555ull);
+    v = ((v >> 2) & 0x3333333333333333ull) + (v & 0x3333333333333333ull);
+    v = ((v >> 4) & 0x0f0f0f0f0f0f0f0full) + (v & 0x0f0f0f0f0f0f0f0full);
+    v = ((v >> 8) & 0x00ff00ff00ff00ffull) + (v & 0x00ff00ff00ff00ffull);
+    v = ((v >> 16) & 0x0000ffff0000ffffull) + (v & 0x0000ffff0000ffffull);
+    return static_cast<uint32_t>(v >> 32) + static_cast<uint32_t>(v);
+}
+
+void XB_CDECL SndVoice_ReleaseHwSlot(int32_t handle) {
+    const int32_t index = HandlePool_Resolve(reinterpret_cast<const uint8_t*>(uintptr_t{0x0090a8b4}), handle);
+    if (index == -1) return;
+    uint8_t* voice = title_global<uint8_t*>(0x0090a8e0) + index * 0xf8;
+    if (!voice) return;
+    const int16_t slot = snd_at<int16_t>(voice, 0xd0);
+    if (slot == -1) return;
+    SndHw_ReleaseSlot(static_cast<uint32_t>(static_cast<int32_t>(slot)));
+    snd_at<int16_t>(voice, 0xd0) = -1;
+}
+
+uint8_t* XB_CDECL Snd_GetGroups() { return reinterpret_cast<uint8_t*>(uintptr_t{0x008bd8f0}); }
+
+uint8_t* XB_CDECL Snd_GetMixState() { return reinterpret_cast<uint8_t*>(uintptr_t{0x008bda18}); }
+
+uint32_t XB_CDECL Snd_InitRequest(uint8_t* request, uint32_t flags, uint32_t a, uint32_t b, int32_t c) {
+    snd_at<uint32_t>(request, 0x14) = b;
+    snd_at<uint32_t>(request, 0x10) = a;
+    snd_at<int32_t>(request, 8) = -1;
+    snd_at<int32_t>(request, 0xc) = -1;
+    snd_at<uint32_t>(request, 0x18) = 0x0091f780;
+    snd_at<uint32_t>(request, 4) = flags;
+    snd_at<int32_t>(request, 0x20) = c;
+    if (c != -1) snd_at<uint32_t>(request, 4) = flags | 2;
+    std::memset(reinterpret_cast<void*>(uintptr_t{0x0091f780}), 0xbf, 0x1000);
+    snd_at<uint32_t>(request, 0) = 0;
+    return 0xbfbfbfbf;
+}
+
+// ECX is restored as in the original (its frame slot is a PUSH ECX).
+PLATFORM_ASM_ENTRY(Snd_NormalizeVector_entry,
+                   "pushl %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Snd_NormalizeVector) "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float* XB_CDECL Snd_NormalizeVector(float* out, const float* in) {
+    const long double x = in[0], y = in[1], z = in[2];
+    long double length = (x * x + y * y) + z * z;
+    __asm__("fsqrt" : "+t"(length));
+    const float rounded = static_cast<float>(length);
+    const long double epsilon = title_global<float>(0x007ce5c8);
+    if (epsilon >= length) {  // FCOMIP; JB (unordered: normalize)
+        out[0] = 0.0f;
+        out[1] = 0.0f;
+        out[2] = 0.0f;
+        return out;
+    }
+    const float inv = 1.0f / rounded;
+    out[0] = in[0];
+    out[1] = in[1];
+    out[0] = out[0] * inv;
+    out[2] = in[2];
+    out[1] = inv * out[1];
+    out[2] = out[2] * inv;
+    return out;
+}
+
+int32_t XB_CDECL SndHw_AllocSlot(uint32_t sound, uint32_t owner, uint32_t any_slot) {
+    uint8_t* entry = SndVoice_Resolve(sound);
+    const uint8_t type = static_cast<uint8_t>(title_function<uint32_t XB_CDECL(uint8_t*)>(0x000c6fb0)(entry));
+    const int32_t last = static_cast<int32_t>(title_global<uint32_t>(0x008bed00)) - 1;
+    for (int32_t slot = 0; slot < last; ++slot) {
+        if (!any_slot && slot <= 1) continue;
+        uint8_t* record = reinterpret_cast<uint8_t*>(uintptr_t{0x00911548 + static_cast<uint32_t>(slot) * 0xe0});
+        if (record[0xc2] != type || record[0xc0]) continue;
+        std::memset(record, 0, 0xe0);
+        snd_at<uint32_t>(record, 0xc8) = sound;
+        record[0xc2] = type;
+        record[0xc0] = 1;
+        record[0xc1] = 0x40;
+        snd_at<uint32_t>(record, 0xcc) = owner;
+        record[0xc3] = entry[5];
+        record[0xc4] = entry[6];
+        title_global<uint8_t>(0x0091f678 + type) = static_cast<uint8_t>(slot + 1);
+        return slot;
+    }
+    return -1;
+}
+
+void XB_CDECL Snd_UpdateListenerAxis() {
+    uint8_t* m = Snd_GetMixState();
+    auto f = [&](uint32_t offset) { return snd_at<float>(m, offset); };
+    float* a = &title_global<float>(0x0091f654);
+    float* b = a + 3;
+    float* c = a + 6;
+    a[0] = f(0xd0) * f(0xc8) - f(0xd4) * f(0xc4);
+    a[1] = f(0xd4) * f(0xc0) - f(0xc8) * f(0xcc);
+    a[2] = f(0xcc) * f(0xc4) - f(0xd0) * f(0xc0);
+    Snd_NormalizeVector(a, a);
+    b[0] = a[2] * f(0xc4) - a[1] * f(0xc8);
+    b[1] = a[0] * f(0xc8) - f(0xc0) * a[2];
+    b[2] = f(0xc0) * a[1] - a[0] * f(0xc4);
+    Snd_NormalizeVector(b, b);
+    c[0] = b[2] * a[1] - b[1] * a[2];
+    c[1] = b[0] * a[2] - b[2] * a[0];
+    c[2] = b[1] * a[0] - b[0] * a[1];
+    Snd_NormalizeVector(c, c);
+    const float* p = &title_global<float>(0x008bd668);
+    float* out = &title_global<float>(0x008bd678);
+    for (int32_t i = 0; i < 3; ++i) out[i] = (c[i] * p[2] + b[i] * p[1]) + a[i] * p[0];
+    const float* q = &title_global<float>(0x008bd688);
+    float* out2 = &title_global<float>(0x008bd698);
+    for (int32_t i = 0; i < 3; ++i) out2[i] = (c[i] * q[2] + b[i] * q[1]) + a[i] * q[0];
+}
+
+namespace {
+
+bool mask_bit(uint32_t low, uint32_t high, int32_t bit) {
+    return ((static_cast<uint64_t>(high) << 32 | low) >> bit) & 1;
+}
+
+// A curve factor: the word's selected bit set -> the value at the popcount of the bits up to it, else `fallback`.
+float curve_factor(const uint8_t* curve, uint32_t bit, uint32_t below, float fallback) {
+    const uint32_t word = *reinterpret_cast<const uint32_t*>(curve);
+    if (!(word & bit)) return fallback;
+    const int32_t index = static_cast<int32_t>(Snd_PopCount64(word & below, 0)) - 1;
+    if (index == -1) return fallback;
+    return reinterpret_cast<const float*>(curve + 8)[index];
+}
+
+}  // namespace
+
+void XB_CDECL SndVoice_ApplyParams() {
+    Snd_GetMixState();
+    uint8_t* const groups = Snd_GetGroups();
+    uint8_t* const mix = Snd_GetMixState() + 8;
+    const uint8_t* const pool = reinterpret_cast<const uint8_t*>(uintptr_t{0x0090a8b4});
+    const uint8_t* const source_pool = reinterpret_cast<const uint8_t*>(uintptr_t{0x0090a8e4});
+    using Free = void XB_CDECL(int32_t);
+    constexpr uint32_t kFree = 0x000c3f50;  // SndVoice_Free
+    int32_t handle = HandlePool_First(pool);
+    while (handle != -1) {
+        const int32_t next = HandlePool_Next(pool, handle);
+        const int32_t index = HandlePool_Resolve(pool, handle);
+        uint8_t* v = index == -1 ? nullptr : title_global<uint8_t*>(0x0090a8e0) + index * 0xf8;
+        uint8_t* entry = SndVoice_Resolve(snd_at<uint32_t>(v, 0xc8));
+        do {
+            if (!entry) break;
+            if (v[0xd4] == 1) {
+                if (!(v[0xd6] & 1)) break;
+                v[0xd4] = 2;
+            }
+            uint32_t mask_low = snd_at<uint32_t>(v, 8);
+            uint32_t mask_high = snd_at<uint32_t>(v, 0xc);
+            snd_at<uint32_t>(v, 8) = 0;
+            snd_at<uint32_t>(v, 0xc) = 0;
+            const int32_t source_index = HandlePool_Resolve(source_pool, snd_at<int32_t>(v, 0xcc));
+            uint8_t* source =
+                source_index == -1 ? nullptr : title_global<uint8_t*>(0x0090a910) + source_index * 0xc8;
+            if (source) {
+                const uint32_t source_low = snd_at<uint32_t>(source, 8);
+                const uint32_t source_high = snd_at<uint32_t>(source, 0xc);
+                mask_low |= source_low;
+                mask_high |= source_high;
+                for (int32_t bit = 0; bit < 0x2e; ++bit)
+                    if (mask_bit(source_low, source_high, bit))
+                        snd_at<uint32_t>(v, 0x10 + bit * 4) = snd_at<uint32_t>(source, 0x10 + bit * 4);
+            } else if (snd_at<int32_t>(v, 0xcc) != -1) {
+                const bool free_it = v[0xd6] & 8;
+                snd_at<int32_t>(v, 0xcc) = -1;
+                if (free_it) {
+                    title_function<Free>(kFree)(handle);
+                    break;
+                }
+            }
+            snd_at<uint32_t>(v, 0) |= mask_low;
+            snd_at<uint32_t>(v, 4) |= mask_high;
+            const float dx = snd_at<float>(v, 0x5c) - snd_at<float>(mix, 0x4c);
+            const float dy = snd_at<float>(v, 0x60) - snd_at<float>(mix, 0x50);
+            const float dz = snd_at<float>(v, 0x64) - snd_at<float>(mix, 0x54);
+            const float range = snd_at<float>(v, 0x78);
+            const float dist2 = (dz * dz + dx * dx) + dy * dy;
+            const float range2 = range * range;
+            const uint8_t flags = entry[5];
+            const bool culls = (flags & 1) && (flags & 8);
+            bool need_slot;
+            if (culls && dist2 >= range2) {
+                if (snd_at<int16_t>(v, 0xd0) == -1) {
+                    need_slot = true;
+                } else if (dist2 >= range2 * title_global<float>(0x0083f278)) {
+                    v[0xd6] |= 0x20;
+                    SndVoice_ReleaseHwSlot(handle);
+                    break;
+                } else {
+                    need_slot = false;
+                }
+            } else {
+                need_slot = snd_at<int16_t>(v, 0xd0) == -1;
+            }
+            if (need_slot) {
+                if (culls && dist2 >= range2) break;
+                const int32_t slot = SndHw_AllocSlot(snd_at<uint32_t>(v, 0xc8), static_cast<uint32_t>(handle),
+                                                     v[0xd6] & 0x40);
+                snd_at<int16_t>(v, 0xd0) = static_cast<int16_t>(slot);
+                if (static_cast<uint16_t>(slot) == 0xffff) {
+                    if (++snd_at<uint32_t>(v, 0xd8) > 10 && !(entry[5] & 8)) title_function<Free>(kFree)(handle);
+                    break;
+                }
+                if (v[0xd6] & 0x20) {
+                    v[0xd6] &= 0xdf;
+                    v[0xd4] = 1;
+                }
+                mask_low |= snd_at<uint32_t>(v, 0);
+                mask_high |= snd_at<uint32_t>(v, 4);
+                snd_at<uint32_t>(v, 0xd8) = 0;
+            }
+            uint8_t* hw = reinterpret_cast<uint8_t*>(
+                uintptr_t{0x00911548 + static_cast<uint32_t>(static_cast<int32_t>(snd_at<int16_t>(v, 0xd0)) * 0xe0)});
+            if (hw[0xc0] == 6) {
+                if (!(entry[5] & 8))
+                    title_function<Free>(kFree)(handle);
+                else
+                    hw[0xc0] = 1;
+                break;
+            }
+            if (v[0xd7] & 2) {
+                v[0xd7] &= 0xfd;
+                if (v[0xd4] == 4) hw[0xc1] |= 2;
+                v[0xd5] = v[0xd4];
+                v[0xd4] = 5;
+            }
+            if (v[0xd7] & 4) {
+                v[0xd7] &= 0xfb;
+                v[0xd4] = v[0xd5];
+                if (v[0xd4] == 4) hw[0xc1] |= 4;
+            }
+            if (v[0xd4] == 2 && hw[0xc0] == 3) v[0xd4] = 3;
+            if (v[0xd4] == 3 && (v[0xd6] & 2)) {
+                v[0xd4] = 4;
+                hw[0xc1] |= 1;
+            }
+            if (v[0xd7] & 8) {
+                v[0xd7] &= 0xf7;
+                hw[0xc1] |= (v[0xd6] & 0x10) ? 0x20 : 0x40;
+            }
+            for (int32_t bit = 0; bit < 0x2e; ++bit)
+                if (mask_bit(mask_low, mask_high, bit)) snd_at<uint32_t>(hw, 8 + bit * 4) = snd_at<uint32_t>(v, 0x10 + bit * 4);
+            float volume = snd_at<float>(v, 0x10);
+            float pitch = snd_at<float>(v, 0x14);
+            float extra = snd_at<float>(v, 0x7c);
+            if (const uint8_t* curve = snd_at<uint8_t*>(entry, 0x14)) {
+                volume = curve_factor(curve, 1, 1, 1.0f) * volume;
+                pitch = curve_factor(curve, 2, 3, 1.0f) * pitch;
+                extra = curve_factor(curve, 0x8000000, 0xfffffff, 1.0f) * extra;
+            }
+            if (const uint8_t* group = snd_at<uint8_t*>(entry, 0x10)) {
+                volume = snd_at<float>(const_cast<uint8_t*>(group), 8) * volume;
+                pitch = snd_at<float>(const_cast<uint8_t*>(group), 0xc) * pitch;
+            }
+            volume = snd_at<float>(groups, 8) * volume;
+            pitch = snd_at<float>(groups, 0xc) * pitch;
+            if (snd_at<int32_t>(v, 0xf4) > 0) volume = title_global<float>(0x008bd768) * volume;
+            snd_at<float>(hw, 8) = volume;
+            snd_at<float>(hw, 0x74) = extra;
+            snd_at<float>(hw, 0xc) = pitch;
+            snd_at<uint32_t>(hw, 0) |= mask_low | 0x8000003;
+            snd_at<uint32_t>(hw, 4) |= mask_high;
+        } while (false);
+        handle = next;
+    }
+}
+
+uint32_t XB_CDECL SndBank_Free(uint32_t key) {
+    uint8_t* slot = reinterpret_cast<uint8_t*>(uintptr_t{0x008bd770 + ((key >> 16) % 12) * 0x20});
+    if (snd_at<uint32_t>(slot, 0) != key) return 0;
+    const uint32_t state = snd_at<uint32_t>(slot, 4);
+    if (state == 2)  // still loading: cancel the request (tail call)
+        return title_function<uint32_t XB_CDECL(uint32_t)>(0x000c91e0)(0x0090a914);
+    if (state == 3) {
+        if (uint8_t* bank = snd_at<uint8_t*>(slot, 0x18)) {
+            if (bank[0x8c]) title_function<void XB_CDECL(uint32_t)>(0x000c8380)(snd_at<uint32_t>(bank, 0x88));
+            snd_at<uint32_t>(snd_at<uint8_t*>(slot, 0x18), 0x88) = 0;
+            snd_at<uint8_t*>(slot, 0x18)[0x8c] = 1;
+            snd_at<uint32_t>(snd_at<uint8_t*>(slot, 0x18), 8) &= ~2u;
+            title_function<void XB_CDECL(uint8_t*)>(0x000c3830)(snd_at<uint8_t*>(slot, 0x18));  // Mem_AlignedFree
+            snd_at<uint8_t*>(slot, 0x18) = nullptr;
+        }
+    }
+    snd_at<uint32_t>(slot, 0) += 0xc0000;
+    snd_at<uint32_t>(slot, 4) = 0;
+    return 0;
+}
+
+void XB_CDECL SndBank_UpdateLoads() {
+    using Poll = int32_t XB_CDECL(uint32_t);
+    constexpr uint32_t kPoll = 0x000c8fa0;
+    uint8_t* const request = reinterpret_cast<uint8_t*>(uintptr_t{0x0090a914});
+    int32_t best = -1;
+    uint32_t best_priority = 0xffffffff;
+    for (int32_t i = 0; i < 12; ++i) {
+        uint8_t* slot = reinterpret_cast<uint8_t*>(uintptr_t{0x008bd770 + static_cast<uint32_t>(i) * 0x20});
+        const uint32_t state = snd_at<uint32_t>(slot, 4);
+        if (state == 0 || state == 3) continue;
+        if (state == 1) {
+            const uint32_t priority = snd_at<uint32_t>(slot, 0x14);
+            if (best_priority > priority) {
+                best_priority = priority;
+                best = i;
+            }
+            continue;
+        }
+        if (state != 2) continue;
+        const int32_t result = title_function<Poll>(kPoll)(0x0090a914);
+        if (result == 1) {
+            uint8_t* bank = title_global<uint8_t*>(0x0090a92c);
+            snd_at<uint8_t*>(slot, 0x18) = bank;
+            snd_at<uint32_t>(slot, 4) = 3;
+            title_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t)>(0x001ef880)(  // qsort
+                snd_at<void*>(bank, 0x44), snd_at<uint32_t>(bank, 0x40), 0x28, 0x000c5790);
+        } else if (result < 0) {
+            snd_at<uint32_t>(slot, 4) = 3;
+            SndBank_Free(snd_at<uint32_t>(slot, 0));
+        } else {
+            continue;
+        }
+        snd_at<uint32_t>(request, 0) = 0;
+    }
+    if (best == -1 || snd_at<uint32_t>(request, 0)) return;
+    uint8_t* slot = reinterpret_cast<uint8_t*>(uintptr_t{0x008bd770 + static_cast<uint32_t>(best) * 0x20});
+    snd_at<uint32_t>(slot, 4) = 2;
+    Snd_InitRequest(request, snd_at<uint32_t>(slot, 8), snd_at<uint32_t>(slot, 0xc), snd_at<uint32_t>(slot, 0x10),
+                    snd_at<int32_t>(slot, 0x1c));
+    title_function<Poll>(kPoll)(0x0090a914);
+}
+
+int32_t XB_CDECL SndBank_PollLoad(uint8_t* request) {
+    int32_t* r = reinterpret_cast<int32_t*>(request);
+    using Queue = int32_t XB_CDECL(int32_t, int32_t, int32_t, int32_t);
+    constexpr uint32_t kQueue = 0x000caed0;  // File_QueueRequest
+    using Wait = int32_t XB_CDECL(int32_t);
+    constexpr uint32_t kWait = 0x000c9db0;
+    if (r[0] == 0x100) {
+        if (r[2] != -1) {
+            const int32_t result = title_function<Wait>(kWait)(r[2]);
+            if (result != -1) return r[0];
+            r[2] = result;
+        }
+        r[0] = -1;
+        return r[0];
+    }
+    if (r[0] == 0) r[0] = 2;
+    if (r[0] == 2) {
+        r[2] = title_function<Queue>(kQueue)(r[4], r[5], r[6], 0x1000);
+        if (r[2] != -1) r[0] = 3;
+    }
+    if (r[0] == 3) {
+        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        if (result == -1) {
+            r[2] = result;
+            const uint8_t* header = reinterpret_cast<const uint8_t*>(uintptr_t{static_cast<uint32_t>(r[6])});
+            if (std::memcmp(header, reinterpret_cast<const void*>(uintptr_t{0x007ce6bc}), 6) || header[6] != '1' ||
+                header[7] != '1') {
+                r[0] = -5;
+                return r[0];
+            }
+            const uint32_t raw_size = *reinterpret_cast<const uint32_t*>(header + 0x14);
+            r[7] = *reinterpret_cast<const int32_t*>(header + 0x10);
+            r[9] = static_cast<int32_t>(raw_size);
+            r[6] = static_cast<int32_t>(title_function<uint32_t XB_CDECL(int32_t)>(0x000c37f0)(r[7]));
+            const uint32_t flags = static_cast<uint32_t>(r[1]);
+            const bool shared = (flags >> 1) & 1;
+            if (r[9]) {
+                r[9] = static_cast<int32_t>((static_cast<uint32_t>(r[9]) + 0xfff) & 0xfffff000u);
+                if (!shared)
+                    r[8] = static_cast<int32_t>(title_function<uint32_t XB_REGS2 XB_CDECL(uint32_t, uint32_t, uint32_t, int32_t)>(
+                        0x000c8250)(0, raw_size, flags, r[9]));
+            }
+            if (r[6] && (!r[9] || r[8])) {
+                r[0] = 4;
+            } else {
+                if (!shared) title_function<void XB_CDECL(int32_t)>(0x000c8380)(r[8]);
+                title_function<void XB_CDECL(int32_t)>(0x000c3830)(r[6]);  // Mem_AlignedFree
+                r[6] = 0;
+                r[8] = 0;
+                r[0] = -4;
+                return r[0];
+            }
+        }
+    }
+    if (r[0] == 4) {
+        r[2] = title_function<Queue>(kQueue)(r[4], r[5], r[6], r[7]);
+        if (r[2] != -1) r[0] = 5;
+    }
+    if (r[0] == 5) {
+        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        if (result == -1) {
+            r[2] = result;
+            r[0] = r[9] ? 7 : 0xb;
+        }
+    }
+    if (r[0] == 7) {
+        r[2] = title_function<Queue>(kQueue)(r[4], r[7] + r[5], r[8], r[9]);
+        if (r[2] != -1) r[0] = 8;
+    }
+    if (r[0] == 8) {
+        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        if (result == -1) {
+            r[2] = result;
+            r[0] = 0xb;
+        }
+    }
+    if (r[0] == 0xb) {
+        r[0] = 1;
+        title_function<void XB_CDECL(uint8_t*)>(0x000c8de0)(request);
+    }
+    return r[0];
 }
 
 }  // namespace game

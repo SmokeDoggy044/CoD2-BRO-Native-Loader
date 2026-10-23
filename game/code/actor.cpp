@@ -2200,6 +2200,154 @@ uint32_t XB_CDECL Actor_CallStateSlot5(uint32_t entry, uint32_t handle, uint32_t
     return 0;
 }
 
+PLATFORM_ASM_ENTRY(PathNode_Construct_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PathNode_Construct) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL PathNode_Construct(uint8_t* node) {
+    *reinterpret_cast<uint32_t*>(node) = 0;
+    *reinterpret_cast<uint16_t*>(node + 4) = 0;
+    for (uint32_t offset = 8; offset <= 0x14; offset += 4)
+        ScriptString_FromRep(reinterpret_cast<ScriptString*>(node + offset), nullptr);
+    *reinterpret_cast<uint32_t*>(node + 0x18) = 0;
+    *reinterpret_cast<float*>(node + 0x28) = 0.0f;
+    *reinterpret_cast<float*>(node + 0x2c) = 0.0f;
+    for (uint32_t offset = 0x30; offset <= 0x3a; offset += 2) *reinterpret_cast<uint16_t*>(node + offset) = 0;
+    *reinterpret_cast<uint32_t*>(node + 0x3c) = 0;
+    *reinterpret_cast<float*>(node + 0x24) = 0.0f;
+    *reinterpret_cast<float*>(node + 0x20) = 0.0f;
+    *reinterpret_cast<float*>(node + 0x1c) = 0.0f;
+    return node;
+}
+
+PLATFORM_ASM_ENTRY(ActorBlockList_RemoveEntity_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ActorBlockList_RemoveEntity) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL ActorBlockList_RemoveEntity(uint8_t* list, uint32_t ent) {
+    int32_t& count = *reinterpret_cast<int32_t*>(list + 0x78);
+    for (;;) {
+        int32_t i = 0;
+        uint32_t* row = reinterpret_cast<uint32_t*>(list);
+        for (; i < count; ++i, row += 6) {
+            const uint32_t* a = reinterpret_cast<const uint32_t*>(uintptr_t{row[0]});
+            const uint32_t* b = reinterpret_cast<const uint32_t*>(uintptr_t{row[1]});
+            if ((a && *a == ent) || (b && *b == ent)) break;
+        }
+        if (i >= count) return;
+        std::memcpy(row, list + (count - 1) * 0x18, 0x18);
+        --count;
+    }
+}
+
+void XB_CDECL ActorMove_AddTouchEnt(uint32_t ent) {
+    if (!ent) return;
+    uint8_t* move = title_global<uint8_t*>(0x0095f450);  // g_actorMove
+    int32_t& count = *reinterpret_cast<int32_t*>(move + 0x88);
+    uint32_t* touched = reinterpret_cast<uint32_t*>(move + 0x8c);
+    const int32_t n = count;
+    if (n == 0x20) return;
+    for (int32_t i = 0; i < count; ++i)
+        if (touched[i] == ent) return;
+    touched[n] = ent;
+    ++count;
+}
+
+namespace {
+
+uint8_t* path_node_from_handle(const uint16_t* handle) {
+    const uint16_t h = *handle;
+    if (!h || h == 0xffff) return nullptr;
+    const uint32_t block_index = static_cast<uint16_t>((h >> 9) - 1);
+    uint8_t* block = reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f4f4) + 8)[block_index];  // g_pathNodeBlocks
+    if (!block) return nullptr;
+    return *reinterpret_cast<uint8_t**>(block + 0x10) + (h & 0x1ff) * 0x80;
+}
+
+}  // namespace
+
+uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle(const uint16_t* handle) { return path_node_from_handle(handle); }
+
+uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle2(const uint16_t* handle) { return path_node_from_handle(handle); }
+
+PLATFORM_ASM_ENTRY(PathNode_IsAvailableFor_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(PathNode_IsAvailableFor) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL PathNode_IsAvailableFor(const uint8_t* node, const uint8_t* sentient) {
+    if (*reinterpret_cast<const uint8_t* const*>(node + 4) != sentient &&
+        title_global<int32_t>(0x0098540c) <= *reinterpret_cast<const int32_t*>(node + 8))  // level_time
+        return 0;
+    for (uint8_t* other = Sentient_FirstOfTeams(4); other; other = Sentient_NextOfTeams(other, 4))
+        if (other != sentient && *reinterpret_cast<const uint16_t*>(node) == *reinterpret_cast<const uint16_t*>(other + 0x50))
+            return 0;
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(ActorBlockList_Bump_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(ActorBlockList_Bump) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL ActorBlockList_Bump(uint8_t* list, uint32_t a, uint32_t b) {
+    const float bump = title_global<float>(0x008ddaa0);
+    int32_t& count = *reinterpret_cast<int32_t*>(list + 0x78);
+    const int32_t initial = count;
+    if (initial > 0) {
+        for (int32_t i = 0; i < count; ++i) {
+            uint8_t* row = list + i * 0x18;
+            const uint32_t first = *reinterpret_cast<uint32_t*>(row);
+            const uint32_t second = *reinterpret_cast<uint32_t*>(row + 4);
+            if ((first == a && second == b) || (second == a && first == b)) {
+                *reinterpret_cast<float*>(row + 8) = *reinterpret_cast<float*>(row + 8) + bump;
+                *reinterpret_cast<int32_t*>(row + 0xc) = title_global<int32_t>(0x0098540c);  // level_time
+                return;
+            }
+        }
+    }
+    if (initial >= 5) return;
+    uint8_t* row = list + initial * 0x18;
+    *reinterpret_cast<float*>(row + 8) = 0.0f;
+    *reinterpret_cast<uint32_t*>(row) = a;
+    *reinterpret_cast<uint32_t*>(row + 4) = b;
+    *reinterpret_cast<int32_t*>(row + 0xc) = title_global<int32_t>(0x0098540c);
+    *reinterpret_cast<uint16_t*>(row + 0x10) = 0;
+    *reinterpret_cast<float*>(row + 0x14) = 120.0f;
+    *reinterpret_cast<uint16_t*>(row + 0x12) = 0;
+    ++count;
+}
+
+PLATFORM_ASM_ENTRY(PathNode_CanSee_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PathNode_CanSee) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL PathNode_CanSee(const uint8_t* blocks, const uint16_t* first, const uint16_t* second) {
+    const uint16_t h1 = *first;
+    const uint16_t h2 = *second;
+    const uint16_t b1 = static_cast<uint16_t>((h1 >> 9) - 1);
+    const uint16_t b2 = static_cast<uint16_t>((h2 >> 9) - 1);
+    const int32_t n1 = h1 & 0x1ff;
+    const int32_t n2 = h2 & 0x1ff;
+    auto block = [&](uint32_t index) { return *reinterpret_cast<const uint8_t* const*>(blocks + 8 + index * 4); };
+    const uint8_t* visibility;
+    int32_t bit;
+    if (b1 < b2) {
+        visibility = *reinterpret_cast<const uint8_t* const*>(*reinterpret_cast<const uint8_t* const*>(block(b1) + 0x28) + b2 * 8);
+        bit = n1 * *reinterpret_cast<const int32_t*>(block(b2) + 4) + n2;
+    } else {
+        visibility = *reinterpret_cast<const uint8_t* const*>(*reinterpret_cast<const uint8_t* const*>(block(b2) + 0x28) + b1 * 8);
+        bit = n2 * *reinterpret_cast<const int32_t*>(block(b1) + 4) + n1;
+    }
+    if (!visibility) return 0;
+    return (visibility[bit >> 3] & (1 << (bit & 7))) ? 1 : 0;
+}
+
+
 namespace {
 
 uint8_t* path_node(uint32_t value, const uint8_t* table) {

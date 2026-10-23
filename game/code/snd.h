@@ -122,4 +122,47 @@ void XB_CDECL SndHw_ReleaseSlot(uint32_t slot);
 // 0x000cb200 (not hookable: CALL in its first 5 bytes): the sound clock 0x0092082c = CRT clock() * 1000 / 1000 (64-bit; milliseconds), returned.
 uint32_t XB_CDECL Snd_UpdateTime();
 
+// 0x000c39a0: the number of set bits of a 64-bit mask (low, high words; SWAR adds).
+uint32_t XB_CDECL Snd_PopCount64(uint32_t low, uint32_t high);
+// 0x000c3f00: releases the hardware slot (+0xd0, -1 = none) of a voice of the pool 0x0090a8b4 (0xf8-byte records).
+void XB_CDECL SndVoice_ReleaseHwSlot(int32_t handle);
+// 0x000c63a0 / 0x000c6390: the sound group table 0x008bd8f0 / the mix state 0x008bda18.
+uint8_t* XB_CDECL Snd_GetGroups();
+uint8_t* XB_CDECL Snd_GetMixState();
+// 0x000c8d80: a request record: +4 flags (| 2 when the last word is not -1), +8 / +0xc -1, +0x10 / +0x14, +0x18 the
+// 0x1000-byte buffer 0x0091f780 (filled with 0xbf), +0x20, +0 = 0.
+uint32_t XB_CDECL Snd_InitRequest(uint8_t* request, uint32_t flags, uint32_t a, uint32_t b, int32_t c);
+// 0x000c7ea0 (out in EAX, in in ECX; both kept): out = in / |in| (x87 length), zero when |in| <= 0x007ce5c8.
+extern "C" PLATFORM_HIDDEN float* XB_CDECL Snd_NormalizeVector(float* out, const float* in);
+extern "C" void Snd_NormalizeVector_entry(void);
+
+// 0x000c84b0 (sound handle, owner, any-slot flag): the first free hardware slot (0x00911548, 0xe0 bytes) of the
+// sound's type (0x000c6fb0; slots 0/1 only with the flag, the last slot never) - cleared, +0xc8 sound, +0xcc owner,
+// +0xc0 in use, +0xc1 0x40, +0xc2 type, +0xc3/+0xc4 entry bytes 5/6, 0x0091f678[type] = slot + 1; -1 if none.
+int32_t XB_CDECL SndHw_AllocSlot(uint32_t sound, uint32_t owner, uint32_t any_slot);
+// 0x000c85c0 (not hookable: CALL in its first 5 bytes; no kFunctions row): the listener axes from the mix state (+0xc0..+0xd4): three cross products normalized (0x0091f654,
+// 9 floats), then the two vectors 0x008bd668 / 0x008bd688 expressed in them (0x008bd678 / 0x008bd698).
+void XB_CDECL Snd_UpdateListenerAxis();
+
+// 0x000c4af0 (not hookable: CALL at byte 4; no kFunctions row, untested): per voice of the pool 0x0090a8b4 - its
+// source's dirty parameters (pool 0x0090a8e4) copied in, distance cull against the range (+0x78; hardware slot
+// released past range * 0x0083f278), a hardware slot from SndHw_AllocSlot (freed after 10 failures), the state
+// machine bytes +0xd4..+0xd7 into the slot's +0xc0/+0xc1, dirty parameters copied to the slot, volume / pitch /
+// +0x7c scaled by the entry's curve (+0x14, Snd_PopCount64 index), group (+0x10), the global groups and 0x008bd768.
+void XB_CDECL SndVoice_ApplyParams();
+// 0x000c5ca0: frees the sound bank with that key (slot (key >> 16) % 12 of 0x008bd770): a loading one cancels the
+// request (0x000c91e0, tail call), a loaded one frees its data (0x000c8380 for +0x88, Mem_AlignedFree); the slot
+// key advances by 0xc0000, state 0.
+uint32_t XB_CDECL SndBank_Free(uint32_t key);
+// 0x000c6080: bank loading per frame - polls the request 0x0090a914 (0x000c8fa0) for the loading slot (1: loaded,
+// entries qsorted with 0x000c5790; < 0: freed), then starts the queued slot with the lowest priority (+0x14).
+void XB_CDECL SndBank_UpdateLoads();
+
+// 0x000c8fa0 (request 0x0090a914: +0 state, +4 flags, +8 file handle, +0x10..+0x18 file / offset / buffer, +0x1c
+// size, +0x20 / +0x24 second part): the bank load state machine - header read (0x1000 bytes, magic at 0x007ce6bc +
+// "11", else -5), the data buffer (0x000c37f0) and a page-rounded second part (0x000c8250 unless flag 2; -4 when
+// either fails), both reads, then 1 and 0x000c8de0. 0x100: wait for the handle, then -1. File I/O through
+// File_QueueRequest / 0x000c9db0. Returns the state.
+int32_t XB_CDECL SndBank_PollLoad(uint8_t* request);
+
 }  // namespace game

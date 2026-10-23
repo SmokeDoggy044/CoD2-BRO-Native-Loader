@@ -1,5 +1,7 @@
 #include "g_utils.h"
 
+#include <cstring>
+
 #include "fx.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -592,6 +594,62 @@ uint8_t* XB_REGS1 XB_CDECL G_EntityList_Compact(uint8_t* list) {
         }
     }
     return list;
+}
+
+void XB_CDECL Path_BaseName(char* dest, int32_t* length, const char* path, int32_t size, uint8_t strip_extension) {
+    int32_t slash = -1;
+    int32_t dot = size;
+    for (int32_t i = 0; i < size; ++i) {
+        const char c = path[i];
+        if (c == '\\' || c == '/')
+            slash = i;
+        else if (c == '.')
+            dot = i;
+    }
+    if (strip_extension && dot) {
+        Q_strncpySubLen(dest, length, path, slash + 1, dot - slash - 1, 0xffff);
+        return;
+    }
+    const int32_t start = slash + 1;
+    if (start >= 0xffff) return;
+    int32_t end = (start - slash) + size - 1;
+    if (end > 0xfffe) end = 0xfffe;
+    int32_t copied = 0;
+    for (int32_t i = start; i < end && path[i]; ++i, ++copied) dest[i - start] = path[i];
+    *length = copied;
+    dest[copied] = 0;
+}
+
+PLATFORM_ASM_ENTRY(AddLeanToPosition_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm1, (%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(AddLeanToPosition) "addl $24, %esp\n"
+                   "ret")
+
+void XB_CDECL AddLeanToPosition(float* position, float lean, float yaw, float a, float b) {
+    if (lean == 0.0f) return;
+    uint32_t bits;
+    std::memcpy(&bits, &lean, 4);
+    bits &= 0x7fffffff;
+    float magnitude;
+    std::memcpy(&magnitude, &bits, 4);
+    const float f = (2.0f - magnitude) * lean;
+    const float roll = f * a;
+    const float deg = title_global<float>(0x0083edd8);
+    float sin_yaw, cos_yaw, sin_roll, cos_roll;
+    FastSinCos(&sin_yaw, 0, &cos_yaw, yaw * deg);
+    FastSinCos(&sin_roll, 0, &cos_roll, roll * deg);
+    const float k = f * b;
+    const float x = (cos_roll * sin_yaw) * k + position[0];
+    const float y = (0.0f - cos_roll * cos_yaw) * k + position[1];
+    const float z = (0.0f - sin_roll) * k + position[2];
+    position[0] = x;
+    position[1] = y;
+    position[2] = z;
 }
 
 }  // namespace game

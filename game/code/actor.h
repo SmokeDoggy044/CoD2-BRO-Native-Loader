@@ -436,6 +436,41 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CallStateSlot5(uint32_t entry
                                                                   uint32_t edi);
 extern "C" void Actor_CallStateSlot5_entry(void);
 
+// 0x0002bd50 (node in ESI): a path node record cleared - its four script strings (+8..+0x14) from a null rep,
+// floats +0x1c..+0x2c, words +0x30..+0x3a, +0x3c; returns the node.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PathNode_Construct(uint8_t* node);
+extern "C" void PathNode_Construct_entry(void);
+// 0x001fb7f0 (list in ESI, entity in EBX): removes every 0x18-byte row whose first or second pointer points at the
+// entity (the last row moves into its place, count +0x78 drops, the scan restarts).
+extern "C" PLATFORM_HIDDEN void XB_CDECL ActorBlockList_RemoveEntity(uint8_t* list, uint32_t ent);
+extern "C" void ActorBlockList_RemoveEntity_entry(void);
+
+// 0x001fe370: adds an entity to g_actorMove's touch list (+0x88 count, at most 0x20, +0x8c entries) once.
+void XB_CDECL ActorMove_AddTouchEnt(uint32_t ent);
+// 0x002b9f90 / 0x002ba010 (handle pointer in EAX; identical bodies): the path node of a 16-bit handle - block
+// (handle >> 9) - 1 of g_pathNodeBlocks (+8), node handle & 0x1ff (0x80 bytes at the block's +0x10); null for
+// 0, 0xffff or a missing block.
+uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle(const uint16_t* handle);
+uint8_t* XB_REGS1 XB_CDECL PathNode_FromHandle2(const uint16_t* handle);
+// 0x002b1240 (node in EBX; sentient on the stack): 0 when another sentient's claim (+4) has not expired (+8 vs
+// level_time) or a team-4 sentient other than this one stands on it (node number vs +0x50), else 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_IsAvailableFor(const uint8_t* node, const uint8_t* sentient);
+extern "C" void PathNode_IsAvailableFor_entry(void);
+
+// 0x001fd500 (list in ECX, first entity in EBX; second on the stack, ret 4): the row of the pair (either order)
+// gets 0x008ddaa0 added to its +8 and level_time at +0xc; a new pair takes row count (< 5): +8 0, +0xc
+// level_time, +0x10/+0x12 0, +0x14 120.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ActorBlockList_Bump(uint8_t* list, uint32_t a, uint32_t b);
+extern "C" void ActorBlockList_Bump_entry(void);
+
+// 0x002b0d10 (node blocks in EAX, first handle pointer in ECX; second on the stack, ret 4): whether the pair's bit is
+// set in the visibility row of the lower block towards the higher one (+0x28, 8-byte entries; bit = node of the
+// lower block * the higher block's count (+4) + node of the higher).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_CanSee(const uint8_t* blocks, const uint16_t* first,
+                                                            const uint16_t* second);
+extern "C" void PathNode_CanSee_entry(void);
+
+
 // Path node handles: block (handle >> 9) - 1 (pointer table +8), node handle & 0x1ff (0x80 bytes from block +0x10);
 // 0 and 0xffff are none.
 // 0x00014480 (handle pointer in EAX): 1 if the handle names a node in g_pathNodeBlocks (0x0095f4f4), else 0.

@@ -136,4 +136,13 @@ extern "C" void Bullet_RandomSpread_entry(void);
 // with its last entry, storing the moved entity's index at +0x228. EAX is kept.
 uint8_t* XB_REGS1 XB_CDECL G_EntityList_Compact(uint8_t* list);
 
+// 0x00044500: the file name of path[0..size) after the last '/' or '\\' into dest (*length = its length, at most
+// 0xfffe); with strip_extension and a '.', only up to the last '.' (Q_strncpySubLen).
+void XB_CDECL Path_BaseName(char* dest, int32_t* length, const char* path, int32_t size, uint8_t strip_extension);
+
+// 0x002d9cc0 (position in ESI, lean in XMM1; yaw, a, b on the stack): unless lean is 0, f = (2 - |lean|) * lean
+// and the position moves by f * b along (cos r sin yaw, -cos r cos yaw, -sin r), r = f * a degrees (FastSinCos).
+extern "C" PLATFORM_HIDDEN void XB_CDECL AddLeanToPosition(float* position, float lean, float yaw, float a, float b);
+extern "C" void AddLeanToPosition_entry(void);
+
 }  // namespace game
