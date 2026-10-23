@@ -8,6 +8,7 @@
 #include "cgame.h"
 #include "dobj.h"
 #include "fx.h"
+#include "fx_load.h"
 #include "g_scr_math.h"
 #include "g_scr_runtime.h"
 #include "g_script.h"
@@ -937,11 +938,29 @@ const Function kFunctions[] = {
     {"FX_ResetParticleSystem", 0x00094170, 0, code(&FX_ResetParticleSystem), 0, Result::Eax, Status::Compare},
     {"FX_HasParticleRoom", 0x00094890, 0, code(&FX_HasParticleRoom), 0, Result::Eax, Status::Compare},
     {"FX_StopEffect", 0x00095210, 0, code(&FX_StopEffect), 8, Result::None, Status::Compare},
+    {"FxEffect_SetName", 0x00096370, 0, code(&FxEffect_SetName), 4, Result::None, Status::Compare},
+    {"FxEffect_SetMatrix", 0x00096400, 0, code(&FxEffect_SetMatrix), 4, Result::None, Status::Compare},
     {"FxEffectDef_SetElementValue", 0x00096460, 0, code(&FxEffectDef_SetElementValue), 8, Result::None, Status::Compare},
+    {"FxEffect_SetEmitterEntry", 0x00096500, 0, code(&FxEffect_SetEmitterEntry), 20, Result::None, Status::Compare},
+    {"FxVec3_FromWords1", 0x00097c90, 0, code(&FxVec3_FromWords1), 0, Result::Eax, Status::Compare},
+    {"FxVec4_FromWords1", 0x000990c0, 0, code(&FxVec4_FromWords1), 0, Result::Eax, Status::Compare},
+    {"FxOp_SetColor14", 0x00099100, 0, code(&FxOp_SetColor14), 16, Result::None, Status::Compare},
+    {"FxOp_SetColor24", 0x000991a0, 0, code(&FxOp_SetColor24), 16, Result::None, Status::Compare},
+    {"FxParamBlock_SetSlot", 0x0009c350, 0, code(&FxParamBlock_SetSlot), 8, Result::None, Status::Compare},
+    {"FxElementList_Init", 0x0009ca70, 0, code(&FxElementList_Init), 0, Result::Eax, Status::Compare},
+    {"FxOp31_Init", 0x0009ccd0, 0, code(&FxOp31_Init), 4, Result::Eax, Status::Compare},
     {"nglQuadBatch_Reserve", 0x0009d200, 0, code(&nglQuadBatch_Reserve), 4, Result::Eax, Status::Compare},
     {"nglQuadBatch_Draw", 0x0009d240, 0, code(&nglQuadBatch_Draw), 0, Result::None, Status::Compare},
     {"nglQuadBatch_SetMaterial", 0x0009d5b0, 0, code(&nglQuadBatch_SetMaterial), 16, Result::None, Status::Compare},
+    {"FxOp1d5_Init", 0x0009e1c0, 0, code(&FxOp1d5_Init), 4, Result::Eax, Status::Compare},
+    {"FxOp53_Init", 0x0009ef00, 0, code(&FxOp53_Init), 4, Result::Eax, Status::Compare},
     {"apsPool_HasRoom", 0x0009f220, 0, code(&apsPool_HasRoom), 4, Result::Eax, Status::Compare},
+    {"FxVertexFormat_Layout", 0x000a07f0, 0, code(&FxVertexFormat_Layout), 0, Result::Eax, Status::Compare},
+    {"FxVectorOp_Init9330", 0x000a4ed0, 0, code(&FxVectorOp_Init9330), 8, Result::Eax, Status::Compare},
+    {"FxVectorOp_Init9348", 0x000a4fd0, 0, code(&FxVectorOp_Init9348), 8, Result::Eax, Status::Compare},
+    {"FxVectorOp_Init9360", 0x000a50e0, 0, code(&FxVectorOp_Init9360), 8, Result::Eax, Status::Compare},
+    {"FxVectorOp_Init9378", 0x000a51f0, 0, code(&FxVectorOp_Init9378), 8, Result::Eax, Status::Compare},
+    {"FxSegmentOp_Init", 0x000a52f0, 0, code(&FxSegmentOp_Init), 8, Result::Eax, Status::Compare},
     {"SndVoice_GetCount", 0x000c8450, 0, code(&SndVoice_GetCount), 0, Result::Eax, Status::Compare},
     {"SndVoice_Get", 0x000c8470, 0, code(&SndVoice_Get), 4, Result::Eax, Status::Compare},
     {"Scr_FloatToInt", 0x0011a750, 0, code(&Scr_FloatToInt), 4, Result::Eax, Status::Compare},
