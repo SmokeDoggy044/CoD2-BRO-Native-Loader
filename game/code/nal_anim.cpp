@@ -1795,4 +1795,17 @@ void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
     }
 }
 
+void XB_STDCALL NAL_GenericAnim_DestroyState(AnimState* state) {
+    if (!state) return;
+    NAL_AnimState_Destroy(state);
+    title_function<void XB_CDECL(void*)>(0x000939b0)(state);  // Mem_AlignedFree
+}
+
+uint8_t* XB_THISCALL NAL_GenericAnim_DeletingDtor(uint8_t* self, uint32_t flags) {
+    NAL_AnimState_Destroy(reinterpret_cast<AnimState*>(self + 0xc8));
+    *reinterpret_cast<uint32_t*>(self) = 0x007c2370;
+    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000939b0)(self);  // Mem_AlignedFree
+    return self;
+}
+
 }  // namespace game

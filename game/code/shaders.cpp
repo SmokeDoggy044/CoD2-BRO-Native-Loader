@@ -2262,4 +2262,67 @@ uint32_t* XB_THISCALL cdBackgroundVertexIter_Clone(const uint32_t* self) { retur
 uint32_t* XB_THISCALL cdSkyVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b7a88, 0x007b7a6c); }
 uint32_t* XB_THISCALL nglDebugMeshVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007be7c0, 0x007be7d8); }
 
+namespace {
+
+uint32_t** new_vertex_iter(const void* mesh, uint32_t** out, uint32_t vtable) {
+    uint32_t iter[3] = {vtable, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mesh)), 0};
+    using Clone = uint32_t* XB_THISCALL(const uint32_t*);
+    *out = title_function<Clone>(title_global<uint32_t>(vtable + 4))(iter);
+    return out;
+}
+
+}  // namespace
+
+uint32_t** XB_THISCALL cdGunSight_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4430); }
+uint32_t** XB_THISCALL cdGun_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4708); }
+uint32_t** XB_THISCALL cdGlass_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b49d8); }
+uint32_t** XB_THISCALL cdSimpleAlpha_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4cc0); }
+uint32_t** XB_THISCALL cdPropeller_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4f9c); }
+uint32_t** XB_THISCALL cdDecal_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5268); }
+uint32_t** XB_THISCALL cdChar_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5530); }
+uint32_t** XB_THISCALL cdPrelit_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b580c); }
+uint32_t** XB_THISCALL cdAirplaneMetal_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5ae0); }
+uint32_t** XB_THISCALL cdSimpleUVAnim_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5dc0); }
+uint32_t** XB_THISCALL cdSimplePrelit_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b60a0); }
+uint32_t** XB_THISCALL cdSimple_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b637c); }
+uint32_t** XB_THISCALL cdRiver_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b66a4); }
+uint32_t** XB_THISCALL cdWater_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b6c18); }
+uint32_t** XB_THISCALL cdWorldBlend_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b6ef0); }
+uint32_t** XB_THISCALL cdWorldVertexLit_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b71e4); }
+uint32_t** XB_THISCALL cdWorld_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b74b8); }
+uint32_t** XB_THISCALL cdBackground_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b7790); }
+
+void XB_CDECL cdSimpleInstance_Init() {}
+
+void XB_THISCALL cdSimpleInstance_FreeList(CdSimpleInstanceList* self) {
+    title_function<void XB_CDECL(void*)>(0x000939b0)(self->records);  // Mem_AlignedFree
+}
+
+void* XB_THISCALL cdDebug_GetSortInfo(const NglMeshNode* node, uint32_t* out) {
+    // The instance block's light list (+0x8c: a 64-bit category mask, then one light set per
+    // category): the current category's set (0x00902908), its fourth word as a float; 1.0 when
+    // the category is not in the mask. 1.0 -> opaque list keyed by the class id, else translucent
+    // by view depth. (The original tests the mask twice; the second test always passes.)
+    const uint8_t* block = reinterpret_cast<const uint8_t*>(node->world_matrix);
+    const uint32_t* lights = *reinterpret_cast<uint32_t* const*>(block + 0x8c);
+    const uint32_t category = title_global<uint32_t>(0x00902908);
+    const int32_t bit = static_cast<int32_t>(1u << (category & 31));
+    const uint32_t low = static_cast<uint32_t>(bit);
+    const uint32_t high = bit < 0 ? 0xffffffffu : 0;
+    float w = 1.0f;
+    if ((lights[0] & low) == low && (lights[1] & high) == high) {
+        const uint32_t* set = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(lights[category + 2]));
+        std::memcpy(&w, &set[3], 4);
+    }
+    if (w == 1.0f) {
+        out[0] = 0;
+        out[1] = title_global<NglShaderClass*>(0x00901ec4)->id;
+        return out;
+    }
+    out[0] = 1;
+    const float depth = nglNode_ViewDepth(node);
+    std::memcpy(&out[1], &depth, 4);
+    return out;
+}
+
 }  // namespace game

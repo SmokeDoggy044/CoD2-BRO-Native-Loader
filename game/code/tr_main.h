@@ -537,4 +537,13 @@ void XB_CDECL R_DrawFogPass();
 // one custom node that calls R_DrawFogPass (0x00045850) with {1, 0.0}.
 void XB_CDECL R_AddFogPass();
 
+// 0x00235fe0: nglEndFrame, then R_ClearFrameLists (CALL in the first 5 bytes: not hookable).
+void XB_CDECL RE_EndFrame();
+// 0x0023d8a0: clears the renderer state (0x0095e390, 0x9f words), Swap_Init, R_Register,
+// R_ClearFrameLists, GLimp_Init, 0x0095f6a8 = 0, with the two ri.Printf banners.
+void XB_CDECL R_Init();
+// 0x0023f0c0: R_Init, the GL config (0x28 words at 0x0095e740) copied out, a few view globals
+// set, an empty RE_StretchPic. CALL in the first 5 bytes: not hookable.
+void XB_CDECL RE_BeginRegistration(uint32_t* glconfig);
+
 }  // namespace game

@@ -5362,4 +5362,99 @@ bool XB_THISCALL nglSkipList_RemoveIndirect(NglSkipList* self, const uint32_t* o
     return skip_list_remove(self, object, SkipName::Indirect);
 }
 
+// ---- Day 15: the renderer's bottom-up ready list ----
+
+void XB_CDECL nglShutdown() {}
+
+void XB_CDECL nglUpdateScene_Nop() {}
+
+void XB_CDECL nglReadBackBufferSize() {
+    const uint32_t surface = **reinterpret_cast<uint32_t* const*>(static_cast<uintptr_t>(title_global<uint32_t>(0x00902d84)));
+    uint32_t desc[8];
+    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003ebe30)(surface, desc);  // D3DSurface_GetDesc
+    const uint32_t width = desc[5];
+    const uint32_t height = desc[6];
+    title_global<uint32_t>(0x00902d60) = width;
+    title_global<uint32_t>(0x00902d64) = height;
+    title_global<uint32_t>(0x00902dd8) = width;
+    title_global<uint32_t>(0x00902ddc) = height;
+    nglInitDepthTextureView();
+}
+
+void XB_CDECL nglResetDevice() {
+    title_function<void XB_STDCALL()>(0x003e6720)();                    // D3DDevice_PersistDisplay
+    title_function<void XB_STDCALL(uint32_t)>(0x003e51f0)(0x00902750);  // D3DDevice_Reset(presentation parameters)
+    nglReadBackBufferSize();
+}
+
+const uint32_t* XB_THISCALL nglResourceManager_Add(uint8_t* self, const uint32_t* object) {
+    return nglSkipList_Insert(reinterpret_cast<NglSkipList*>(self + 4), object);
+}
+
+namespace {
+
+// The managers' skip list teardown: removes the first node's object until the list is empty,
+// then frees the head node.
+template <bool (XB_THISCALL* Remove)(NglSkipList*, const uint32_t*)>
+void clear_skip_list(NglSkipList* self) {
+    if (!self->head) return;
+    while (NglSkipListNode* first = self->head->next[0]) Remove(self, first->key);
+    title_function<void XB_CDECL(void*)>(0x000939b0)(self->head);  // Mem_AlignedFree
+    self->head = nullptr;
+}
+
+// The managers' deleting destructors: the list at +4 cleared, the base vtable stored, the
+// object freed when flags bit 0 is set.
+template <void (XB_THISCALL* Clear)(NglSkipList*)>
+uint8_t* delete_manager(uint8_t* self, uint32_t flags, uint32_t base_vtable) {
+    Clear(reinterpret_cast<NglSkipList*>(self + 4));
+    *reinterpret_cast<uint32_t*>(self) = base_vtable;
+    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000939b0)(self);  // Mem_AlignedFree
+    return self;
+}
+
+}  // namespace
+
+void XB_THISCALL nglSkipList_ClearTextures(NglSkipList* self) { clear_skip_list<nglSkipList_RemoveTexture>(self); }
+void XB_THISCALL nglSkipList_Clear(NglSkipList* self) { clear_skip_list<nglSkipList_Remove>(self); }
+void XB_THISCALL nglSkipList_ClearIndirect(NglSkipList* self) { clear_skip_list<nglSkipList_RemoveIndirect>(self); }
+
+uint8_t* XB_THISCALL nglTextureManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_ClearTextures>(self, flags, 0x008381cc);
+}
+uint8_t* XB_THISCALL nglPaletteManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_Clear>(self, flags, 0x007bc91c);
+}
+uint8_t* XB_THISCALL nglFontManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_Clear>(self, flags, 0x007bd0d4);
+}
+uint8_t* XB_THISCALL nglMeshFileManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_Clear>(self, flags, 0x00838270);
+}
+uint8_t* XB_THISCALL nglMeshManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_ClearIndirect>(self, flags, 0x00838228);
+}
+uint8_t* XB_THISCALL nglSection3Manager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_ClearIndirect>(self, flags, 0x007bdf30);
+}
+uint8_t* XB_THISCALL nglMeshFileCache_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_Clear>(self, flags, 0x007c1260);
+}
+
+NglHashedName* XB_STDCALL nglEmpty_GetName(NglHashedName* out) {
+    return title_function<NglHashedName* XB_THISCALL(NglHashedName*, const char*)>(0x00011060)(out, "nglEmpty");
+}
+
+void XB_CDECL nglMeshSection_FreeBuffers(uint8_t* section) {
+    nglVertexBuffer_Free(reinterpret_cast<uint32_t*>(section + 0x44), 4);
+    uint32_t* buffers = reinterpret_cast<uint32_t*>(section + 0x34);
+    if (!buffers[1]) return;
+    title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(buffers[0]);  // D3DResource_BlockUntilNotBusy
+    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffers[0]);    // Mem_AlignedFree
+    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffers[1]);    // Mem_AlignedFree
+    buffers[0] = 0;
+    buffers[1] = 0;
+    buffers[2] = 0;
+}
+
 }  // namespace game

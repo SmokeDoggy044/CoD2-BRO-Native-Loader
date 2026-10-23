@@ -11487,3 +11487,6 @@ address,name,kind,confidence,evidence
 00285e00,CG_SetViewHandsModel,function,high,"game/code (decompiled C, kFunctions)"
 00288510,CG_UpdateFlashSound,function,high,"game/code (decompiled C, kFunctions)"
 0029a230,PerpendicularVector,function,high,"game/code (decompiled C, kFunctions)"
+00073ad0,nglUpdateScene_Nop,function,high,"bare ret called at the end of nglUpdateScene (0x0006192e)"
+0006a280,nglSection3Manager_DeletingDtor,function,high,"deleting dtor of the vtable 0x007be01c manager nglInitMeshManagers stores in 0x00902a88 (section-3 records); clears its skip list with nglSkipList_ClearIndirect"
+0006cb80,nglDebugDrawSphereMesh,function,medium,"like nglDebugDrawBoxMesh/PyramidMesh with the mesh nglInitDebugMeshes builds third (0x00902c98: sin/cos strips)"

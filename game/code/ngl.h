@@ -1257,4 +1257,38 @@ uint8_t* XB_CDECL nglLoadMeshFile(const uint32_t* name, uint32_t data);
 // +0xc = the file, the file's +0x140 = the first such record; the first group word = 2.
 uint32_t* XB_CDECL nglMeshFile_RelocateSection3(uint8_t* file, const uint32_t* section, uint32_t base);
 
+// ---- Day 15 ----
+// 0x00064570 / 0x00073ad0 (called at the end of nglUpdateScene): empty (bare ret; not hookable).
+void XB_CDECL nglShutdown();
+void XB_CDECL nglUpdateScene_Nop();
+// 0x0006eca0: the back buffer's width/height (D3DSurface_GetDesc of the surface 0x00902d84
+// points to) into 0x00902d60/64 and 0x00902dd8/dc, then nglInitDepthTextureView.
+void XB_CDECL nglReadBackBufferSize();
+// 0x00064300: PersistDisplay, Reset with the presentation parameters at 0x00902750, then
+// nglReadBackBufferSize. CALL in the first 5 bytes: not hookable.
+void XB_CDECL nglResetDevice();
+// 0x0007af20: resource manager vtable slot: nglSkipList_Insert on the list at +4 (tail jump in
+// the first 5 bytes: not hookable).
+const uint32_t* XB_THISCALL nglResourceManager_Add(uint8_t* self, const uint32_t* object);
+// 0x00063d60 / 0x00069c60 / 0x00069ca0: removes every object (texture / plain / indirect name),
+// then frees the head node and clears it.
+void XB_THISCALL nglSkipList_ClearTextures(NglSkipList* self);
+void XB_THISCALL nglSkipList_Clear(NglSkipList* self);
+void XB_THISCALL nglSkipList_ClearIndirect(NglSkipList* self);
+// The managers' deleting destructors (list at +4 cleared, base vtable, freed on flags & 1):
+// 0x000641a0 textures, 0x000641d0 palettes, 0x000667a0 fonts, 0x0006a220 mesh files,
+// 0x0006a250 meshes, 0x0006a280 section-3 records, 0x0007af30 the mesh file cache.
+uint8_t* XB_THISCALL nglTextureManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglPaletteManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglFontManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglMeshFileManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglMeshManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglSection3Manager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglMeshFileCache_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00069b00: the empty shader's GetName (this unused): "nglEmpty" hashed into out.
+NglHashedName* XB_STDCALL nglEmpty_GetName(NglHashedName* out);
+// 0x0007a4c0: the section's vertex buffer (+0x44) freed; with an index buffer (+0x38) the
+// +0x34 buffer waited on and both freed, +0x34..+0x3c cleared.
+void XB_CDECL nglMeshSection_FreeBuffers(uint8_t* section);
+
 }  // namespace game

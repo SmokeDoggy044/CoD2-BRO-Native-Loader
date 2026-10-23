@@ -3467,4 +3467,31 @@ uint8_t* XB_REGS2 XB_CDECL RE_RegisterShader(uint32_t, const char* name) {
     return texture ? texture : title_global<uint8_t*>(0x00902700);
 }
 
+void XB_CDECL RE_EndFrame() {
+    title_function<void XB_CDECL()>(0x00064ec0)();  // nglEndFrame
+    R_ClearFrameLists();
+}
+
+void XB_CDECL R_Init() {
+    using Printf = void XB_CDECL(int32_t, const char*, ...);
+    title_function<Printf>(title_global<uint32_t>(0x0095e630))(0, "----- R_Init -----\n");  // ri.Printf
+    std::memset(&title_global<uint32_t>(0x0095e390), 0, 0x9f * 4);
+    title_function<void XB_CDECL()>(0x002b0140)();  // Swap_Init
+    R_Register();
+    R_ClearFrameLists();
+    GLimp_Init();
+    title_global<uint32_t>(0x0095f6a8) = 0;
+    title_function<Printf>(title_global<uint32_t>(0x0095e630))(0, "----- finished R_Init -----\n");
+}
+
+void XB_CDECL RE_BeginRegistration(uint32_t* glconfig) {
+    R_Init();
+    std::memcpy(glconfig, &title_global<uint32_t>(0x0095e740), 0x28 * 4);
+    title_global<uint32_t>(0x0095e6bc) = title_global<uint32_t>(0x0095e628);
+    title_global<uint32_t>(0x0095e710) = title_global<uint32_t>(0x0095e60c);
+    title_global<uint32_t>(0x0095e6f4) = title_global<uint32_t>(0x0095e738);
+    title_global<uint32_t>(0x0095e390) = 1;
+    RE_StretchPic(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, nullptr);
+}
+
 }  // namespace game

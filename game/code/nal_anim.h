@@ -212,4 +212,10 @@ void XB_THISCALL NAL_ClipSetPlayer_Update(uint8_t* player, float dt);
 // blocks (each block's clips fixed up and bound), keeps the reads going, loops the file.
 void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt);
 
+// 0x0007bd20: generic anim vtable slot (this unused): destroys and frees a state (null: nothing).
+void XB_STDCALL NAL_GenericAnim_DestroyState(AnimState* state);
+// 0x0007bd40: deleting destructor: the state at +0xc8 destroyed, the base vtable 0x007c2370
+// stored, freed on flags & 1.
+uint8_t* XB_THISCALL NAL_GenericAnim_DeletingDtor(uint8_t* self, uint32_t flags);
+
 }  // namespace game

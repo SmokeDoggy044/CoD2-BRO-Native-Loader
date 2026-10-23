@@ -416,4 +416,33 @@ uint32_t* XB_THISCALL cdBackgroundVertexIter_Clone(const uint32_t* self);  // 0x
 uint32_t* XB_THISCALL cdSkyVertexIter_Clone(const uint32_t* self);  // 0x00055400
 uint32_t* XB_THISCALL nglDebugMeshVertexIter_Clone(const uint32_t* self);  // 0x0006e920
 
+// The shader classes' NewVertexIter (mesh vtable slot): a temporary iterator {class iterator vtable, mesh, 0}
+// on the stack, cloned through its vtable's Clone (slot 1) into *out. Returns out.
+uint32_t** XB_THISCALL cdGunSight_NewVertexIter(const void* mesh, uint32_t** out);  // 0x00047ea0
+uint32_t** XB_THISCALL cdGun_NewVertexIter(const void* mesh, uint32_t** out);  // 0x00048600
+uint32_t** XB_THISCALL cdGlass_NewVertexIter(const void* mesh, uint32_t** out);  // 0x000491f0
+uint32_t** XB_THISCALL cdSimpleAlpha_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004a960
+uint32_t** XB_THISCALL cdPropeller_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004b0e0
+uint32_t** XB_THISCALL cdDecal_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004b8a0
+uint32_t** XB_THISCALL cdChar_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004bfe0
+uint32_t** XB_THISCALL cdPrelit_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004c750
+uint32_t** XB_THISCALL cdAirplaneMetal_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004d0e0
+uint32_t** XB_THISCALL cdSimpleUVAnim_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004d8e0
+uint32_t** XB_THISCALL cdSimplePrelit_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004dfd0
+uint32_t** XB_THISCALL cdSimple_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004e730
+uint32_t** XB_THISCALL cdRiver_NewVertexIter(const void* mesh, uint32_t** out);  // 0x0004eb80
+uint32_t** XB_THISCALL cdWater_NewVertexIter(const void* mesh, uint32_t** out);  // 0x00051570
+uint32_t** XB_THISCALL cdWorldBlend_NewVertexIter(const void* mesh, uint32_t** out);  // 0x000527b0
+uint32_t** XB_THISCALL cdWorldVertexLit_NewVertexIter(const void* mesh, uint32_t** out);  // 0x00052ea0
+uint32_t** XB_THISCALL cdWorld_NewVertexIter(const void* mesh, uint32_t** out);  // 0x00054020
+uint32_t** XB_THISCALL cdBackground_NewVertexIter(const void* mesh, uint32_t** out);  // 0x00054700
+
+// 0x000462f0: empty (bare ret; the harness cannot hook it).
+void XB_CDECL cdSimpleInstance_Init();
+// 0x00046360: frees the record block (+0x10). CALL in the first 5 bytes: not hookable.
+void XB_THISCALL cdSimpleInstance_FreeList(CdSimpleInstanceList* self);
+// 0x00046bb0: node vtable slot 1 for cdDebug: out = {0, class id} when the node's light set for
+// the current category has w == 1.0 (or the category is not set), else {1, view depth}.
+void* XB_THISCALL cdDebug_GetSortInfo(const NglMeshNode* node, uint32_t* out);
+
 }  // namespace game
