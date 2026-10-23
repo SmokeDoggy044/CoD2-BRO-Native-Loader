@@ -577,7 +577,7 @@ address,name,section,module,state,tested,matched
 00022eb0,FUN_00022eb0,.text,unassigned,unnamed,0,0
 00023000,FUN_00023000,.text,unassigned,unnamed,0,0
 00023150,FUN_00023150,.text,unassigned,settled,124,124
-00023180,FUN_00023180,.text,unassigned,matched,88,88
+00023180,FUN_00023180,.text,unassigned,matched,96,96
 000231b0,G_FreeXModel,.text,game,named,0,0
 000231f0,UintMap_Find,.text,unassigned,settled,236,236
 00023260,FUN_00023260,.text,unassigned,unnamed,0,0
@@ -1306,14 +1306,14 @@ address,name,section,module,state,tested,matched
 00049cd0,cdSimpleAlpha_PulseColor,.text,renderer,settled,153,153
 00049e40,cdSimpleAlpha_Draw,.text,renderer,settled,156,156
 0004a7e0,cdSimpleAlpha_AddToList,.text,renderer,settled,101,101
-0004a8a0,cdSimpleAlpha_InitVertexShaders,.text,renderer,matched,93,93
-0004a8e0,cdSimpleAlpha_InitPixelShaders,.text,renderer,matched,82,82
-0004a910,cdSimpleAlpha_InitPixelShaders2,.text,renderer,matched,63,63
+0004a8a0,cdSimpleAlpha_InitVertexShaders,.text,renderer,matched,95,95
+0004a8e0,cdSimpleAlpha_InitPixelShaders,.text,renderer,matched,84,84
+0004a910,cdSimpleAlpha_InitPixelShaders2,.text,renderer,matched,65,65
 0004a940,cdSimpleAlpha_GetName,.text,renderer,settled,108,108
 0004a960,cdSimpleAlpha_NewVertexIter,.text,renderer,named,0,0
 0004a990,cdSimpleAlphaVertexIter_Clone,.text,renderer,untested,0,0
 0004ac80,cdPropeller_Toggle,.text,renderer,untested,0,0
-0004aca0,cdPropeller_Register,.text,renderer,matched,23,23
+0004aca0,cdPropeller_Register,.text,renderer,matched,25,25
 0004ad20,cdPropeller_Init,.text,renderer,untested,0,0
 0004ad60,cdPropeller_Draw,.text,renderer,settled,225,225
 0004b000,cdPropeller_AddToList,.text,renderer,settled,125,125
@@ -1779,7 +1779,7 @@ address,name,section,module,state,tested,matched
 00073ce0,nglMatrixTargetScale,.text,renderer,settled,213,213
 00073e90,nglGetSceneTargetScale,.text,renderer,settled,287,287
 00073ed0,nglBeginSceneRender,.text,renderer,settled,301,301
-00074330,nglRenderSceneTree,.text,renderer,mismatched,464913,288164
+00074330,nglRenderSceneTree,.text,renderer,mismatched,466202,289152
 000744f0,std_PushHeap_OpaqueNodes,.text,renderer,untested,0,0
 00074540,std_Rotate_NodeKeys,.text,renderer,settled,4669,4669
 00074600,std_PushHeap_TranslucentNodes,.text,renderer,untested,0,0
@@ -1800,7 +1800,7 @@ address,name,section,module,state,tested,matched
 00075280,nglSortOpaqueNodes_r,.text,renderer,settled,402,402
 00075370,nglSortTranslucentNodes_r,.text,renderer,settled,371,371
 00075460,nglRenderOpaqueList,.text,renderer,settled,444,345
-000754f0,nglRenderTranslucentList,.text,renderer,mismatched,193743,129913
+000754f0,nglRenderTranslucentList,.text,renderer,mismatched,194306,130455
 00075780,nglSetDefaultRenderStates,.text,renderer,settled,344,344
 00075ac0,nglSetBlendMode,.text,renderer,settled,580,580
 00075d90,nglRestoreRenderStates,.text,renderer,untested,0,0
@@ -2002,12 +2002,12 @@ address,name,section,module,state,tested,matched
 00087690,NAL_AnimTrack_EvaluateFrame,.text,unassigned,settled,400,400
 00087810,NAL_AnimTrack_SampleFrame,.text,unassigned,settled,400,400
 00087890,NAL_AnimState_Blend,.text,unassigned,settled,400,400
-000879a0,FUN_000879a0,.text,unassigned,matched,48,48
+000879a0,FUN_000879a0,.text,unassigned,matched,52,52
 00087ad0,NAL_AnimState_Init,.text,unassigned,settled,398,398
 00087bb0,NAL_AnimState_InitFrom,.text,unassigned,settled,400,400
 00087cb0,FUN_00087cb0,.text,unassigned,untested,0,0
 00087dd0,FUN_00087dd0,.text,unassigned,settled,3462,3462
-000881c0,NAL_AnimTrack_Sample,.text,unassigned,mismatched,117605,6336
+000881c0,NAL_AnimTrack_Sample,.text,unassigned,mismatched,120833,6571
 000886f0,NAL_GenericAnim_EvaluatePose,.text,unassigned,settled,393,393
 0008af60,FUN_0008af60,.text,unassigned,untested,0,0
 0008b480,FUN_0008b480,.text,unassigned,unnamed,0,0
@@ -2041,13 +2041,13 @@ address,name,section,module,state,tested,matched
 0008e2c0,FUN_0008e2c0,.text,unassigned,untested,0,0
 0008e330,FUN_0008e330,.text,unassigned,unnamed,0,0
 0008e350,FUN_0008e350,.text,unassigned,unnamed,0,0
-0008e370,FUN_0008e370,.text,unassigned,matched,50,50
-0008e3f0,FUN_0008e3f0,.text,unassigned,matched,87,87
-0008e480,FUN_0008e480,.text,unassigned,matched,72,72
+0008e370,FUN_0008e370,.text,unassigned,matched,53,53
+0008e3f0,FUN_0008e3f0,.text,unassigned,matched,92,92
+0008e480,FUN_0008e480,.text,unassigned,matched,77,77
 0008e560,FUN_0008e560,.text,unassigned,settled,228,220
 0008e630,FUN_0008e630,.text,unassigned,settled,203,183
 0008ed30,FUN_0008ed30,.text,unassigned,settled,105,105
-0008ed50,FUN_0008ed50,.text,unassigned,matched,31,31
+0008ed50,FUN_0008ed50,.text,unassigned,matched,33,33
 0008eda0,FUN_0008eda0,.text,unassigned,settled,126,126
 0008ee40,FUN_0008ee40,.text,unassigned,untested,0,0
 0008ee80,FUN_0008ee80,.text,unassigned,untested,0,0
@@ -7541,7 +7541,7 @@ address,name,section,module,state,tested,matched
 001fb460,Actor_CriticalSection_Start,.text,game,untested,0,0
 001fb470,BadPlace_ClearAll,.text,unassigned,named,0,0
 001fb4e0,BadPlace_FindByName,.text,unassigned,named,0,0
-001fb5c0,Actor_AnimReacquire,.text,game,matched,74,74
+001fb5c0,Actor_AnimReacquire,.text,game,matched,80,80
 001fb640,Actor_AnimRun,.text,game,settled,180,180
 001fb6a0,Actor_AnimWalk,.text,game,settled,187,187
 001fb7f0,ActorBlockList_RemoveEntity,.text,unassigned,named,0,0
@@ -7573,13 +7573,13 @@ address,name,section,module,state,tested,matched
 001fce60,Path_IsStale,.text,game,settled,109,109
 001fcef0,Path_ShrinkLookahead,.text,game,settled,102,102
 001fd1f0,Actor_Lmg_Start,.text,game,untested,0,0
-001fd260,Actor_ForgetGrenade,.text,game,matched,12,12
+001fd260,Actor_ForgetGrenade,.text,game,matched,13,13
 001fd2a0,Actor_DefaultSlot5,.text,game,named,0,0
 001fd2b0,Actor_NodeDistanceSquared,.text,game,untested,0,0
 001fd320,Actor_AnimScripted_Finish,.text,game,settled,141,141
 001fd3d0,FUN_001fd3d0,.text,unassigned,unnamed,0,0
 001fd500,ActorBlockList_Bump,.text,unassigned,named,0,0
-001fd5a0,Actor_RecordMoveHistory,.text,game,matched,34,34
+001fd5a0,Actor_RecordMoveHistory,.text,game,matched,46,46
 001fd6f0,FUN_001fd6f0,.text,unassigned,unnamed,0,0
 001fd7f0,FUN_001fd7f0,.text,unassigned,unnamed,0,0
 001fd860,Actor_MergeStateTransitions,.text,game,settled,116,116
@@ -7609,9 +7609,9 @@ address,name,section,module,state,tested,matched
 001ff3a0,FUN_001ff3a0,.text,unassigned,unnamed,0,0
 001ff730,FUN_001ff730,.text,unassigned,unnamed,0,0
 001ffac0,Actor_MainCharacterPriority,.text,game,untested,0,0
-001ffba0,Actor_RecordMoveHistoryBlended,.text,game,matched,59,59
+001ffba0,Actor_RecordMoveHistoryBlended,.text,game,matched,91,91
 001ffd50,FUN_001ffd50,.text,unassigned,unnamed,0,0
-001ffdb0,Actor_ClearPath,.text,game,matched,79,79
+001ffdb0,Actor_ClearPath,.text,game,matched,84,84
 001ffe10,Actor_GatherCoverCandidates,.text,game,named,0,0
 001fff80,Actor_InitPhysics,.text,game,settled,108,108
 00200050,Actor_RecordSentientPosition,.text,game,settled,120,120
@@ -7627,7 +7627,7 @@ address,name,section,module,state,tested,matched
 00200a00,Sentient_SetGoalNode,.text,game,named,0,0
 00200ad0,FUN_00200ad0,.text,unassigned,unnamed,0,0
 00200b50,Sentient_Dissociate,.text,game,named,0,0
-00200c70,Actor_Pain_Start,.text,game,matched,11,11
+00200c70,Actor_Pain_Start,.text,game,matched,13,13
 00200cd0,Actor_Noncombat_NodeClaimRevoked,.text,game,named,0,0
 00200d90,Actor_Noncombat_Finish,.text,game,settled,123,123
 00200db0,Actor_Noncombat_Start,.text,game,settled,121,121
@@ -7650,7 +7650,7 @@ address,name,section,module,state,tested,matched
 00201d40,Actor_IsAtClaimedNode,.text,game,settled,5598,5598
 00201e00,BadPlace_ClearCrossingPaths,.text,unassigned,named,0,0
 00201e90,FUN_00201e90,.text,unassigned,unnamed,0,0
-00202010,Actor_AskActorsToMoveAside,.text,game,matched,88,88
+00202010,Actor_AskActorsToMoveAside,.text,game,matched,92,92
 002025c0,Actor_ThinkStateMachine,.text,game,settled,314,314
 002026f0,Actor_ForceState,.text,game,settled,105,105
 00202770,Actor_PushState,.text,game,named,0,0
@@ -7685,7 +7685,7 @@ address,name,section,module,state,tested,matched
 00204320,Actor_Grenade_Recover,.text,game,named,0,0
 00204340,Actor_Grenade_Cower,.text,game,named,0,0
 00204390,Actor_SendLineEvent,.text,game,named,0,0
-00204610,Actor_UpdateCoverValidity,.text,game,matched,25,25
+00204610,Actor_UpdateCoverValidity,.text,game,matched,26,26
 00204640,FUN_00204640,.text,unassigned,unnamed,0,0
 00204850,Actor_SetOrientFromDir,.text,game,settled,138,138
 002048c0,Sentient_TakeNodeClaim,.text,game,named,0,0
@@ -7967,7 +7967,7 @@ address,name,section,module,state,tested,matched
 00225a40,FUN_00225a40,.text,unassigned,unnamed,0,0
 00225a90,FUN_00225a90,.text,unassigned,unnamed,0,0
 00225ae0,Phys_RemoveEntity,.text,unassigned,named,0,0
-00225b30,G_KillEntityOutright,.text,game,matched,1,1
+00225b30,G_KillEntityOutright,.text,game,matched,2,2
 00225bc0,FUN_00225bc0,.text,unassigned,unnamed,0,0
 00225c80,FUN_00225c80,.text,unassigned,unnamed,0,0
 00225db0,FUN_00225db0,.text,unassigned,unnamed,0,0
@@ -8190,7 +8190,7 @@ address,name,section,module,state,tested,matched
 00246d60,R_AddEntitySurfaces,.text,renderer,settled,204,204
 00246fa0,R_AddWorldSurfaces,.text,renderer,settled,313,313
 00247190,FX_PlayBoltedEffect,.text,renderer,settled,189,189
-00247350,R_RenderView,.text,renderer,mismatched,44801,12990
+00247350,R_RenderView,.text,renderer,mismatched,44883,12990
 002476b0,RE_RenderScene,.text,renderer,settled,539,535
 00247980,GetRefAPI,.text,unassigned,named,0,0
 00247ad0,FUN_00247ad0,.text,unassigned,unnamed,0,0
@@ -8206,7 +8206,7 @@ address,name,section,module,state,tested,matched
 00248460,FUN_00248460,.text,unassigned,unnamed,0,0
 002485f0,SP_script_vehicle_collmap,.text,game,matched,9,9
 00248620,FUN_00248620,.text,unassigned,unnamed,0,0
-002487d0,Vehicle_FindDefIndex,.text,game,matched,67,67
+002487d0,Vehicle_FindDefIndex,.text,game,matched,72,72
 00248850,FUN_00248850,.text,unassigned,unnamed,0,0
 002488d0,Use_trigger_use,.text,unassigned,named,0,0
 002489f0,SP_sound_blend,.text,game,untested,0,0
@@ -8289,7 +8289,7 @@ address,name,section,module,state,tested,matched
 0024dad0,FUN_0024dad0,.text,unassigned,unnamed,0,0
 0024db50,FUN_0024db50,.text,unassigned,unnamed,0,0
 0024dc10,FUN_0024dc10,.text,unassigned,unnamed,0,0
-0024dc70,Vehicle_CacheTags,.text,game,matched,76,76
+0024dc70,Vehicle_CacheTags,.text,game,matched,81,81
 0024e1d0,Think_BoostNearbyPlayer,.text,unassigned,named,0,0
 0024e300,Turret_UpdateTargetAngles,.text,game,settled,312,312
 0024e5b0,SP_info_notnull_big,.text,game,untested,0,0
@@ -8330,7 +8330,7 @@ address,name,section,module,state,tested,matched
 00250a70,G_SetFog,.text,game,named,0,0
 00250b70,Pain_ForwardToOwner,.text,unassigned,named,0,0
 00250bf0,ClientImpacts,.text,unassigned,named,0,0
-00250cf0,G_Trigger,.text,game,matched,15,15
+00250cf0,G_Trigger,.text,game,matched,23,23
 00250e00,FUN_00250e00,.text,unassigned,unnamed,0,0
 00250e70,FUN_00250e70,.text,unassigned,unnamed,0,0
 00251140,G_FindSpawnFunc,.text,game,named,0,0
@@ -8437,7 +8437,7 @@ address,name,section,module,state,tested,matched
 0025c6a0,turret_controller,.text,unassigned,named,0,0
 0025c8d0,FUN_0025c8d0,.text,unassigned,unnamed,0,0
 0025ca60,FUN_0025ca60,.text,unassigned,unnamed,0,0
-0025cc60,G_ReleaseTurretUser,.text,game,matched,54,54
+0025cc60,G_ReleaseTurretUser,.text,game,matched,58,58
 0025ccd0,Turret_CanTargetPoint,.text,game,named,0,0
 0025ced0,FUN_0025ced0,.text,unassigned,unnamed,0,0
 0025d050,FUN_0025d050,.text,unassigned,unnamed,0,0
@@ -8497,8 +8497,8 @@ address,name,section,module,state,tested,matched
 00265900,FUN_00265900,.text,unassigned,unnamed,0,0
 00265a40,FUN_00265a40,.text,unassigned,unnamed,0,0
 00265c10,Weapon_MeleeTrace,.text,game,named,0,0
-00266390,Vehicle_Die,.text,game,matched,3,3
-00266470,Vehicle_Use,.text,game,matched,17,17
+00266390,Vehicle_Die,.text,game,matched,5,5
+00266470,Vehicle_Use,.text,game,matched,18,18
 002664a0,FUN_002664a0,.text,unassigned,unnamed,0,0
 00266650,Vehicle_UpdateEngineSound,.text,game,named,0,0
 00266b30,Vehicle_UpdateOverheat,.text,game,named,0,0
@@ -8600,7 +8600,7 @@ address,name,section,module,state,tested,matched
 002761b0,CG_DrawFrontBufferFade,.text,cgame,settled,286,286
 002764c0,FUN_002764c0,.text,unassigned,unnamed,0,0
 00276530,FUN_00276530,.text,unassigned,unnamed,0,0
-002765b0,CG_SetFade,.text,cgame,matched,40,40
+002765b0,CG_SetFade,.text,cgame,matched,42,42
 002765f0,CG_GetAdsOverlayFraction,.text,cgame,settled,399,399
 002766a0,CG_ScoresUp_f,.text,cgame,matched,8,8
 002766d0,FUN_002766d0,.text,unassigned,matched,17,17
@@ -8631,7 +8631,7 @@ address,name,section,module,state,tested,matched
 002780a0,CG_DrawDamageBlend,.text,cgame,settled,114,114
 00278150,CG_DrawFlashFade,.text,cgame,settled,351,351
 002782a0,FUN_002782a0,.text,unassigned,unnamed,0,0
-00278350,FUN_00278350,.text,unassigned,matched,4,4
+00278350,FUN_00278350,.text,unassigned,matched,5,5
 00278400,FUN_00278400,.text,unassigned,unnamed,0,0
 00278790,FUN_00278790,.text,unassigned,unnamed,0,0
 002788b0,FUN_002788b0,.text,unassigned,unnamed,0,0
@@ -8664,7 +8664,7 @@ address,name,section,module,state,tested,matched
 0027ab40,CG_MaybeSpawnTracer,.text,cgame,settled,144,144
 0027abb0,FUN_0027abb0,.text,unassigned,untested,0,0
 0027abe0,CG_DrawProgressBar,.text,cgame,untested,0,0
-0027acb0,CG_InitConsoleCommands,.text,cgame,matched,73,73
+0027acb0,CG_InitConsoleCommands,.text,cgame,matched,75,75
 0027ad20,CG_FxRestart_f,.text,cgame,named,0,0
 0027ad40,CG_PrecacheConfigStringAsset,.text,cgame,untested,0,0
 0027ad70,FUN_0027ad70,.text,unassigned,untested,0,0
@@ -8677,7 +8677,7 @@ address,name,section,module,state,tested,matched
 0027b860,CG_StopShellShockSound,.text,cgame,settled,103,103
 0027b9a0,CG_PrecacheConfigStringAssets,.text,cgame,settled,215,215
 0027b9f0,CG_TranslateString,.text,cgame,settled,145,145
-0027bb10,CG_RegisterCvars,.text,cgame,matched,66,66
+0027bb10,CG_RegisterCvars,.text,cgame,matched,68,68
 0027bb70,CG_Portal,.text,cgame,untested,0,0
 0027bc90,CG_SetLightingOrigin,.text,cgame,settled,401,401
 0027bd90,CG_DrawCheckpointReached,.text,cgame,settled,145,145
@@ -8711,7 +8711,7 @@ address,name,section,module,state,tested,matched
 0027e0d0,CG_PrevWeapon_f,.text,cgame,untested,0,0
 0027e130,CG_NextWeapon_f,.text,cgame,matched,17,17
 0027e190,CG_AltWeapon_f,.text,cgame,untested,0,0
-0027e210,FUN_0027e210,.text,unassigned,matched,14,14
+0027e210,FUN_0027e210,.text,unassigned,matched,26,26
 0027e2f0,CG_SetInitialSnapshot,.text,cgame,named,0,0
 0027e540,CG_UpdateShellShock,.text,cgame,settled,101,101
 0027e630,CG_DrawObjectiveList,.text,cgame,settled,759,759
@@ -8730,7 +8730,7 @@ address,name,section,module,state,tested,matched
 0027ff20,CG_ProjectViewDirToScreen,.text,cgame,settled,114,114
 002800a0,CG_CenterPrint,.text,cgame,untested,0,0
 002803d0,FUN_002803d0,.text,unassigned,unnamed,0,0
-002807a0,FUN_002807a0,.text,unassigned,matched,6,6
+002807a0,FUN_002807a0,.text,unassigned,matched,12,12
 002808b0,FUN_002808b0,.text,unassigned,unnamed,0,0
 00280ed0,FUN_00280ed0,.text,unassigned,unnamed,0,0
 002812d0,FUN_002812d0,.text,unassigned,unnamed,0,0
@@ -8743,7 +8743,7 @@ address,name,section,module,state,tested,matched
 00282340,CG_DrawDamageDirectionIcons,.text,cgame,settled,104,104
 002824f0,FUN_002824f0,.text,unassigned,unnamed,0,0
 00282620,FUN_00282620,.text,unassigned,unnamed,0,0
-00282d10,CG_CalculateWeaponPosition,.text,cgame,matched,25,25
+00282d10,CG_CalculateWeaponPosition,.text,cgame,matched,71,71
 00282ef0,FUN_00282ef0,.text,unassigned,unnamed,0,0
 00283120,FUN_00283120,.text,unassigned,unnamed,0,0
 002832b0,CG_RegisterWeapon,.text,cgame,named,0,0
@@ -8766,7 +8766,7 @@ address,name,section,module,state,tested,matched
 00285e70,CG_Item,.text,cgame,settled,257,257
 00285f80,CG_Draw2D,.text,cgame,named,0,0
 002860f0,CG_GetEntityEyePosition,.text,cgame,settled,158,158
-00286290,CG_RegisterItems,.text,cgame,matched,80,80
+00286290,CG_RegisterItems,.text,cgame,matched,82,82
 00286340,CG_CalcLinkedViewOrigin,.text,cgame,settled,8164,8164
 002864a0,CG_CalcVehicleViewAngles,.text,cgame,named,0,0
 002867a0,CG_ConfigStringModified,.text,cgame,named,0,0
@@ -8865,7 +8865,7 @@ address,name,section,module,state,tested,matched
 0028eaa0,FUN_0028eaa0,.text,unassigned,unnamed,0,0
 0028eb90,ZoneManagers_Destruct,.text,unassigned,named,0,0
 0028ec30,ResourceManager_Construct,.text,unassigned,named,0,0
-0028ee00,Stream_LoadStb,.text,unassigned,inconclusive,581,0
+0028ee00,Stream_LoadStb,.text,unassigned,inconclusive,587,0
 0028ee20,Stream_LoadDb,.text,unassigned,settled,115,115
 0028ee50,Stream_LoadIb,.text,unassigned,settled,101,101
 0028ee80,Stream_LoadBmips,.text,unassigned,settled,100,100
@@ -9054,10 +9054,10 @@ address,name,section,module,state,tested,matched
 0029ac20,FUN_0029ac20,.text,unassigned,unnamed,0,0
 0029acb0,FUN_0029acb0,.text,unassigned,unnamed,0,0
 0029ae90,FUN_0029ae90,.text,unassigned,unnamed,0,0
-0029af30,FUN_0029af30,.text,unassigned,matched,40,40
+0029af30,FUN_0029af30,.text,unassigned,matched,54,54
 0029b010,FUN_0029b010,.text,unassigned,unnamed,0,0
 0029b0b0,FUN_0029b0b0,.text,unassigned,unnamed,0,0
-0029b0f0,FUN_0029b0f0,.text,unassigned,matched,14,14
+0029b0f0,FUN_0029b0f0,.text,unassigned,matched,15,15
 0029b1f0,ShakeRumble_Start,.text,unassigned,settled,112,112
 0029b320,FUN_0029b320,.text,unassigned,settled,207,207
 0029b620,FX_FreeEffectsById,.text,renderer,settled,120,120
@@ -9296,7 +9296,7 @@ address,name,section,module,state,tested,matched
 002ae040,FUN_002ae040,.text,unassigned,unnamed,0,0
 002ae080,FUN_002ae080,.text,unassigned,unnamed,0,0
 002ae350,FUN_002ae350,.text,unassigned,unnamed,0,0
-002ae740,FUN_002ae740,.text,unassigned,matched,95,95
+002ae740,FUN_002ae740,.text,unassigned,matched,96,96
 002ae780,FUN_002ae780,.text,unassigned,settled,115,115
 002ae8f0,FUN_002ae8f0,.text,unassigned,unnamed,0,0
 002ae950,FUN_002ae950,.text,unassigned,unnamed,0,0
@@ -9422,7 +9422,7 @@ address,name,section,module,state,tested,matched
 002b5400,BG_GetWeaponSlot,.text,game,settled,105,105
 002b54c0,FUN_002b54c0,.text,unassigned,unnamed,0,0
 002b5530,BG_RemoveWeaponFromSlot,.text,game,settled,101,101
-002b5690,BG_GivePlayerWeapon,.text,game,matched,82,82
+002b5690,BG_GivePlayerWeapon,.text,game,matched,87,87
 002b5920,FUN_002b5920,.text,unassigned,unnamed,0,0
 002b5a70,FUN_002b5a70,.text,unassigned,unnamed,0,0
 002b5c40,FUN_002b5c40,.text,unassigned,unnamed,0,0
@@ -9460,7 +9460,7 @@ address,name,section,module,state,tested,matched
 002b7690,G_SetAngle2,.text,game,settled,397,397
 002b76e0,G_SetOrigin,.text,game,settled,100,100
 002b7730,G_SetOrigin2,.text,game,settled,364,364
-002b7780,G_ClearEntityReferences,.text,game,matched,15,15
+002b7780,G_ClearEntityReferences,.text,game,matched,28,28
 002b78b0,vtos,.text,unassigned,named,0,0
 002b7900,G_EntUnlink,.text,game,named,0,0
 002b7a30,FUN_002b7a30,.text,unassigned,unnamed,0,0
@@ -9556,7 +9556,7 @@ address,name,section,module,state,tested,matched
 002be7c0,FUN_002be7c0,.text,unassigned,unnamed,0,0
 002be860,FUN_002be860,.text,unassigned,unnamed,0,0
 002be8f0,G_ProcessCodNotes,.text,game,named,0,0
-002beb60,AnimTree_CalcPose_r,.text,unassigned,mismatched,288888,4094
+002beb60,AnimTree_CalcPose_r,.text,unassigned,mismatched,297052,4223
 002bf7d0,FUN_002bf7d0,.text,unassigned,unnamed,0,0
 002bfaa0,AnimTree_NotifyNotetrack,.text,unassigned,named,0,0
 002bfad0,AnimTree_FreeInfo,.text,unassigned,named,0,0
@@ -9599,7 +9599,7 @@ address,name,section,module,state,tested,matched
 002c25e0,FUN_002c25e0,.text,unassigned,unnamed,0,0
 002c2690,FUN_002c2690,.text,unassigned,unnamed,0,0
 002c28f0,FUN_002c28f0,.text,unassigned,unnamed,0,0
-002c2aa0,BG_InitDefaultWeapon,.text,game,matched,16,16
+002c2aa0,BG_InitDefaultWeapon,.text,game,matched,18,18
 002c2b40,FUN_002c2b40,.text,unassigned,unnamed,0,0
 002c2c80,FUN_002c2c80,.text,unassigned,unnamed,0,0
 002c2e80,FUN_002c2e80,.text,unassigned,unnamed,0,0
@@ -9727,7 +9727,7 @@ address,name,section,module,state,tested,matched
 002cd750,G_SaveCheckpoint,.text,game,named,0,0
 002cdbc0,G_ClearCheckpoint,.text,game,named,0,0
 002cdca0,Checkpoint_Init,.text,unassigned,named,0,0
-002cde20,CG_SelectWeapon,.text,cgame,matched,18,18
+002cde20,CG_SelectWeapon,.text,cgame,matched,19,19
 002cdf00,BG_InitWeapons,.text,game,named,0,0
 002cdff0,FUN_002cdff0,.text,unassigned,unnamed,0,0
 002ce160,FUN_002ce160,.text,unassigned,unnamed,0,0
@@ -9843,7 +9843,7 @@ address,name,section,module,state,tested,matched
 002de420,FUN_002de420,.text,unassigned,unnamed,0,0
 002df3e0,G_GetTagParentMatrix,.text,game,named,0,0
 002df740,G_EntLinkTo,.text,game,named,0,0
-002df880,DObj_UpdateSkeletons,.text,renderer,mismatched,556684,464977
+002df880,DObj_UpdateSkeletons,.text,renderer,mismatched,571711,477257
 002e01a0,SV_PointContents,.text,server,named,0,0
 002e02c0,FUN_002e02c0,.text,unassigned,unnamed,0,0
 002e03a0,FUN_002e03a0,.text,unassigned,unnamed,0,0
@@ -10035,7 +10035,7 @@ address,name,section,module,state,tested,matched
 002f5420,ScrIface_Alloc,.text,unassigned,named,0,0
 002f5440,ScrIface_Free,.text,unassigned,named,0,0
 002f5470,ScrIface_HashStringNoCase,.text,unassigned,named,0,0
-002f54c0,G_FindLevelScriptModule,.text,game,matched,4,4
+002f54c0,G_FindLevelScriptModule,.text,game,matched,6,6
 002f5660,FUN_002f5660,.text,unassigned,unnamed,0,0
 002f5690,FUN_002f5690,.text,unassigned,unnamed,0,0
 002f5790,G_FindAnimTreeByName,.text,game,settled,108,108
@@ -10252,7 +10252,7 @@ address,name,section,module,state,tested,matched
 002fb290,GScr_GetPlayerHandle,.text,unassigned,named,0,0
 002fb2a0,GScr_GetLevelEnt8Handle,.text,unassigned,named,0,0
 002fb2b0,FUN_002fb2b0,.text,unassigned,unnamed,0,0
-002fb310,G_UpdateEntityStringHashes,.text,game,matched,44,44
+002fb310,G_UpdateEntityStringHashes,.text,game,matched,78,78
 002fb3d0,Scr_Alloc,.text,game,settled,338,338
 002fb420,Scr_NotifyUnloaded,.text,game,named,0,0
 002fb480,Scr_NotifyLoaded,.text,game,named,0,0
