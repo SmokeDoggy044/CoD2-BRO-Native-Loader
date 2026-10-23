@@ -318,4 +318,24 @@ uint32_t XB_THISCALL FxOpGrid_AddToList(const uint8_t* op, uint32_t a1, uint32_t
 uint32_t XB_THISCALL FxOp53_AddToList(const uint8_t* op, uint32_t a1, uint32_t a2, const uint32_t* a3, const float* sphere,
                                       const uint32_t* matrix, const uint8_t* scale_source);
 
+// 0x0009cd30 / 0x0009e240: FxOp31 / FxOp1d5 AddToList (callee pops 0x18): like the others, the
+// first only when the op has a mesh (+0xc; else 2), with a light set (+0x84, default 0x00902e40)
+// on the translucent list; the second with the scale at +0x60 on the opaque list (key -1).
+// The far test runs on the x87.
+uint32_t XB_THISCALL FxOp31_AddToList(const uint8_t* op, uint32_t a0, uint32_t a1, const uint32_t* a2, const float* sphere,
+                                      const uint32_t* matrix, uint32_t light_set);
+uint32_t XB_THISCALL FxOp1d5_AddToList(const uint8_t* op, uint32_t a0, uint32_t a1, const uint32_t* a2, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source);
+
+// 0x0009db30 / 0x0009dbb0: vertex shader constant base + 0x60: a distance fade {scale, offset}
+// from near/far distances and alphas (range 1 when equal) / a depth range {1/(f-n), -n/(f-n)}
+// scaled by 2^24.
+void XB_CDECL FxShader_SetFadeConstant(uint32_t base, float near_distance, float far_distance, float near_alpha,
+                                       float far_alpha);
+void XB_CDECL FxShader_SetDepthRangeConstant(uint32_t base, float near_depth, float far_depth);
+// 0x0009dc30: up to four object lights for a particle sphere: directions (negated, through the
+// matrix's rotation), colours r[4] g[4] b[4], then the set's ambient.
+void XB_CDECL FxNode_ComputeObjectLights(float* directions, float* colors, const float* matrix, uint8_t* set,
+                                         const float* sphere);
+
 }  // namespace game

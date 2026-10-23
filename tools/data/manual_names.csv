@@ -11679,3 +11679,8 @@ address,name,kind,confidence,evidence
 0009ebf0,FxOp5b_AddToList,function,medium,"particle render op helper named from its body (fx_load.cpp)"
 0009edc0,FxOpGrid_AddToList,function,medium,"particle render op helper named from its body (fx_load.cpp)"
 0009f0f0,FxOp53_AddToList,function,medium,"particle render op helper named from its body (fx_load.cpp)"
+0009cd30,FxOp31_AddToList,function,medium,"particle render op AddToList named from its body (fx_load.cpp)"
+0009e240,FxOp1d5_AddToList,function,medium,"particle render op AddToList named from its body (fx_load.cpp)"
+0009db30,FxShader_SetFadeConstant,function,medium,"particle render helper named from its body (fx_load.cpp)"
+0009dbb0,FxShader_SetDepthRangeConstant,function,medium,"particle render helper named from its body (fx_load.cpp)"
+0009dc30,FxNode_ComputeObjectLights,function,medium,"particle render helper named from its body (fx_load.cpp)"

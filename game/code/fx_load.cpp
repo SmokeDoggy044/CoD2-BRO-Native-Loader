@@ -1745,4 +1745,160 @@ FX_OP_ADD_TO_LIST(FxOpGrid_AddToList, 0x007c75bc)
 FX_OP_ADD_TO_LIST(FxOp53_AddToList, 0x007c733c)
 #undef FX_OP_ADD_TO_LIST
 
+namespace {
+
+// The shared head of FxOp31/FxOp1d5's AddToList: frustum test and node; null when culled (*result
+// 0) or out of frame memory (*result 2).
+uint8_t* op_node(const uint8_t* op, uint32_t node_vtable, uint32_t a0, uint32_t a1, const uint32_t* a2,
+                 const float* sphere, const uint32_t* matrix, uint32_t* result) {
+    alignas(16) float centre[4];
+    std::memcpy(centre, sphere, 16);
+    if (!nglSphereInFrustum(centre, sphere[3])) {
+        *result = 0;
+        return nullptr;
+    }
+    uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
+    const uintptr_t block = (arena + 0xf) & ~uintptr_t{0xf};
+    arena = block + 0x90;
+    if (!block) {
+        *result = 2;
+        return nullptr;
+    }
+    uint8_t* node = reinterpret_cast<uint8_t*>(block);
+    at<uint32_t>(node, 0x7c) = 0;
+    at<uint32_t>(node, 0) = node_vtable;
+    at<const uint8_t*>(node, 0x80) = op;
+    FxOp_SetTextures(node, a1, a0, a2[1]);
+    std::memcpy(node + 0x50, sphere, 16);
+    if (matrix)
+        std::memcpy(node + 0x10, matrix, 0x40);
+    else
+        title_function<void XB_CDECL(uint8_t*)>(0x0001c140)(node + 0x10);  // Matrix_Identity
+    return node;
+}
+
+uint32_t op_sort_flags(const uint8_t* op) {
+    if (at<uint32_t>(op, 4) & 0x800) return 2;
+    const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(op, 0)))[4];
+    return title_function<uint32_t XB_THISCALL(const uint8_t*)>(method)(op) ? 1 : 0;
+}
+
+// x87: depth + radius beyond the scene's far distance (+0x388).
+bool beyond_far(float depth, const float* sphere) {
+    const uint8_t* scene = reinterpret_cast<const uint8_t*>(title_global<uint32_t>(0x0090259c));
+    return platform_x87_greater(platform_x87_add(depth, sphere[3]), at<float>(scene, 0x388));
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL FxOp31_AddToList(const uint8_t* op, uint32_t a0, uint32_t a1, const uint32_t* a2, const float* sphere,
+                                      const uint32_t* matrix, uint32_t light_set) {
+    if (!at<uint32_t>(op, 0xc)) return 2;
+    uint32_t result = 0;
+    uint8_t* node = op_node(op, 0x007c6740, a0, a1, a2, sphere, matrix, &result);
+    if (!node) return result;
+    at<uint32_t>(node, 0x84) = light_set ? light_set : title_global<uint32_t>(0x00902e40);
+    uint32_t flags = op_sort_flags(op);
+    const float depth = FxEffect_ViewDepth(node);
+    if (beyond_far(depth, sphere)) flags |= 8;
+    at<float>(node, 8) = depth;
+    at<uint32_t>(node, 0x7c) |= flags;
+    uint8_t* scene = reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c));
+    at<uint32_t>(node, 4) = at<uint32_t>(scene, 0x308);
+    at<uint8_t*>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x308) = node;
+    ++at<uint32_t>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x310);
+    return 1;
+}
+
+uint32_t XB_THISCALL FxOp1d5_AddToList(const uint8_t* op, uint32_t a0, uint32_t a1, const uint32_t* a2, const float* sphere,
+                                       const uint32_t* matrix, const uint8_t* scale_source) {
+    uint32_t result = 0;
+    uint8_t* node = op_node(op, 0x007c70bc, a0, a1, a2, sphere, matrix, &result);
+    if (!node) return result;
+    if (scale_source && at<int32_t>(op, 0x24) == 3) {
+        alignas(16) float extent[4];
+        FxVec3_ScaledHalfExtent(extent, scale_source);
+        const Lanes scaled = mul(lanes(extent), lanes(reinterpret_cast<const float*>(op + 0x10)));
+        std::memcpy(node + 0x60, scaled.v, 16);
+    } else {
+        std::memcpy(node + 0x60, op + 0x10, 16);
+    }
+    uint32_t flags = op_sort_flags(op);
+    const float depth = FxEffect_ViewDepth(node);
+    if (beyond_far(depth, sphere)) flags |= 8;
+    at<uint32_t>(node, 8) = 0xffffffff;
+    at<uint32_t>(node, 0x7c) |= flags;
+    uint8_t* scene = reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c));
+    at<uint32_t>(node, 4) = at<uint32_t>(scene, 0x304);
+    at<uint8_t*>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x304) = node;
+    ++at<uint32_t>(reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)), 0x30c);
+    return 1;
+}
+
+namespace {
+
+void set_constant(uint32_t base, const float* v) {
+    title_function<void XB_FASTCALL(uint32_t, const float*)>(0x003e7440)(base + 0x60, v);  // SetVertexShaderConstant1Fast
+}
+
+}  // namespace
+
+void XB_CDECL FxShader_SetFadeConstant(uint32_t base, float near_distance, float far_distance, float near_alpha,
+                                       float far_alpha) {
+    float range = far_distance - near_distance;
+    const float one = title_global<float>(0x0083eb20);
+    const float a = one - near_alpha;
+    const float b = one - far_alpha;
+    if (range == 0.0f) range = one;
+    const float scale = (b - a) / range;
+    alignas(16) const float v[4] = {scale, a - scale * near_distance, 0.0f, 0.0f};
+    set_constant(base, v);
+}
+
+void XB_CDECL FxShader_SetDepthRangeConstant(uint32_t base, float near_depth, float far_depth) {
+    const float k = title_global<float>(0x0083f2a0);  // 2^24
+    const float n = near_depth * k;
+    float range = far_depth * k - n;
+    const float zero = 0.0f;
+    float one = title_global<float>(0x0083eb20);
+    if (zero == range) range = one;
+    const float inverse = one / range;
+    alignas(16) const float v[4] = {inverse, zero - inverse * n, zero, zero};
+    set_constant(base, v);
+}
+
+void XB_CDECL FxNode_ComputeObjectLights(float* directions, float* colors, const float* matrix, uint8_t* set,
+                                         const float* sphere) {
+    FxLightSet_SelectObjectLights(set, sphere);
+    alignas(16) const float position[4] = {sphere[0], sphere[1], sphere[2], 0.0f};
+    int count = 0;
+    float* direction = directions;
+    for (uint8_t* light = at<uint8_t*>(set, 0x20); light && light != set;) {
+        alignas(16) float evaluated[8];
+        const float* data = nglEvalLight(evaluated, reinterpret_cast<const NglLight*>(light), position);
+        alignas(16) float rotated[4];
+        const float* r = FxMatrix_RotateVector(rotated, matrix, data);
+        for (int i = 0; i < 4; ++i) {
+            uint32_t bits;
+            std::memcpy(&bits, &r[i], 4);
+            bits ^= 0x80000000u;
+            std::memcpy(&direction[i], &bits, 4);
+        }
+        colors[count] = data[4];
+        colors[4 + count] = data[5];
+        colors[8 + count] = data[6];
+        ++count;
+        direction += 4;
+        if (count == 4) break;
+        light = at<uint8_t*>(light, 0x20);
+    }
+    for (; count < 4; ++count) {
+        std::memset(directions + count * 4, 0, 16);
+        colors[count] = 0.0f;
+        colors[4 + count] = 0.0f;
+        colors[8 + count] = 0.0f;
+    }
+    std::memcpy(colors + 12, set + 0x60, 16);
+}
+
 }  // namespace game
