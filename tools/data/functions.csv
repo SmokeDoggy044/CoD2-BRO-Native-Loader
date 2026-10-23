@@ -1777,6 +1777,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002cb1a0,CM_TestBoxInBrush,compare,20107,108,108,0,0,0,""
 002cb420,CM_BrushPointTest,compare,1331082,403,403,0,0,0,""
 002cb560,CM_TestInBrushes,compare,2313,34,34,0,0,0,""
+002cb5a0,CM_TestCapsuleInCapsule,compare,8,8,8,0,0,0,""
 002cc480,CM_PointContents,compare,466207,400,400,0,0,0,""
 002ccc50,CM_TempBoxModel,compare,66205,361,361,0,0,0,""
 002cde20,CG_SelectWeapon,compare,98,78,78,0,0,0,""

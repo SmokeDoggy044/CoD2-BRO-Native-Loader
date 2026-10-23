@@ -9704,7 +9704,7 @@ address,name,section,module,state,tested,matched
 002cb1a0,FUN_002cb1a0,.text,unassigned,settled,108,108
 002cb420,FUN_002cb420,.text,unassigned,settled,403,403
 002cb560,FUN_002cb560,.text,unassigned,matched,34,34
-002cb5a0,FUN_002cb5a0,.text,unassigned,unnamed,0,0
+002cb5a0,FUN_002cb5a0,.text,unassigned,matched,8,8
 002cb890,FUN_002cb890,.text,unassigned,unnamed,0,0
 002cbca0,FUN_002cbca0,.text,unassigned,unnamed,0,0
 002cc0e0,FUN_002cc0e0,.text,unassigned,unnamed,0,0

@@ -1866,6 +1866,7 @@ const Function kFunctions[] = {
     {"CM_TestBoxInBrush", 0x002cb1a0, 0, code(&CM_TestBoxInBrush_entry), 4, Result::None, Status::Compare},
     {"CM_BrushPointTest", 0x002cb420, 0, code(&CM_BrushPointTest), 4, Result::Al, Status::Compare},
     {"CM_TestInBrushes", 0x002cb560, 0, code(&CM_TestInBrushes_entry), 0, Result::None, Status::Compare},
+    {"CM_TestCapsuleInCapsule", 0x002cb5a0, 0, code(&CM_TestCapsuleInCapsule), 0, Result::None, Status::Compare},
     {"CM_PointContents", 0x002cc480, 0, code(&CM_PointContents), 0, Result::Eax, Status::Compare},
     {"CM_TempBoxModel", 0x002ccc50, 0, code(&CM_TempBoxModel), 8, Result::Eax, Status::Compare},
     {"CG_SelectWeapon", 0x002cde20, 0, code(&CG_SelectWeapon_entry), 0, Result::Eax, Status::Compare},

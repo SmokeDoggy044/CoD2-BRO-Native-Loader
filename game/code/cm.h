@@ -116,4 +116,10 @@ extern "C" void CM_TestInBrushes_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TestCapsuleInTempBox(uint8_t* tw);
 extern "C" void CM_TestCapsuleInTempBox_entry(void);
 
+// 0x002cb5a0 (trace work in EAX; unnamed in Ghidra): Q3's CM_TestCapsuleInCapsule against the temporary box
+// model - the trace capsule's end spheres (start +- axis offset) vs the box capsule's (center +- half z -
+// radius, radius = min(half x, half z)) within the summed radius, then the cylinder overlap; a hit sets
+// startsolid/allsolid and fraction 0. Packed differences of whole 16-byte vectors (w lanes included).
+void XB_REGS1 XB_CDECL CM_TestCapsuleInCapsule(uint8_t* tw);
+
 }  // namespace game

@@ -11621,3 +11621,4 @@ address,name,kind,confidence,evidence
 002cb1a0,CM_TestBoxInBrush,function,high,"Q3 CM_TestBoxInBrush: bounds + side planes vs nearest corner / capsule; sets startsolid/allsolid/fraction 0/contents"
 002cb560,CM_TestInBrushes,function,medium,"CM_TestBoxInBrush over a model's brushes until startsolid (ESI model, ECX trace work)"
 002d4250,CM_TestCapsuleInTempBox,function,medium,"capsule start test against the temporary box model (center shift, radius/half height, CM_TempBoxModel + CM_TestBoxInBrush)"
+002cb5a0,CM_TestCapsuleInCapsule,function,high,"Q3 CM_TestCapsuleInCapsule vs the temporary box model (end spheres, cylinder overlap)"

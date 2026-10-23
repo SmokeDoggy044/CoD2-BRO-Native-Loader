@@ -539,4 +539,43 @@ void XB_CDECL CM_TestCapsuleInTempBox(uint8_t* tw) {
     CM_TestBoxInBrush(tw, *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f504) + 4));
 }
 
+void XB_REGS1 XB_CDECL CM_TestCapsuleInCapsule(uint8_t* tw) {
+    const Lanes offset = lanes(tw_row(tw, 0x140));
+    const Lanes start = lanes(tw_row(tw, 0));
+    const Lanes top = add(start, offset);
+    const Lanes bottom = sub(start, offset);
+    const uint8_t* box = title_global<const uint8_t*>(0x0095f504);
+    const Lanes maxs = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const float h = title_global<float>(0x0083eb24);  // 0.5
+    const Lanes center = mul(add(lanes(reinterpret_cast<const float*>(box + 0x10)), maxs), {{h, h, h, h}});
+    const Lanes half = sub(maxs, center);
+    const float radius = half.v[0] > half.v[2] ? half.v[2] : half.v[0];
+    const float half_height = half.v[2] - radius;
+    float r = *reinterpret_cast<const float*>(tw + 0x164) + radius;
+    auto hit = [&](const Lanes& a, const Lanes& b) {
+        const Lanes d = sub(a, b);
+        if (r * r > sum_xyz(mul(d, d))) {
+            tw[0x13c] = 1;
+            tw[0x13d] = 1;
+            *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+        }
+    };
+    Lanes upper = center;
+    upper.v[2] = center.v[2] + half_height;
+    hit(upper, top);
+    hit(upper, bottom);
+    Lanes lower = center;
+    lower.v[2] = center.v[2] - half_height;
+    hit(lower, top);
+    hit(lower, bottom);
+    const float reach = (*reinterpret_cast<const float*>(tw + 0x168) + half_height) - *reinterpret_cast<const float*>(tw + 0x164);
+    const float dz = *reinterpret_cast<const float*>(tw + 8) - center.v[2];
+    if (!(reach >= dz)) return;  // COMISS + JB: NaN skips
+    if (!(dz >= 0.0f - reach)) return;
+    Lanes flat_top = top;
+    flat_top.v[2] = 0.0f;
+    upper.v[2] = 0.0f;
+    hit(flat_top, upper);
+}
+
 }  // namespace game
