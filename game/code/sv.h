@@ -88,4 +88,89 @@ void XB_CDECL SV_Init();
 // magnitude (x87 compare), sqrt((z^2 + y^2) + x^2) through the title's __CIsqrt, returned on the x87 as a float.
 long double XB_REGS3 XB_CDECL RadiusFromBounds(const float* maxs, uint32_t unused, const float* mins);
 
+// World sectors (+0 axis, +4 brush contents, +8 entity contents, +0xc dist, +0x10 entities, +0x14 static models
+// chained at +0xdc (bounds +0xa0 / +0xac, contents via +0x68 -> +0x40), +0x18 parent / free-list link, +0x1c / +0x20 children above / below dist; null sector 0x0093568c,
+// free list 0x00935688, root 0x00935664). The server entity (gentity + 0xd0) keeps +0x64 contents, +0xdc sector,
+// +0xe0 next, +0x134 linked contents, +0x138 / +0x140 linked xy bounds.
+// 0x002aae40 (maxs in EDX, mins in ESI): takes a sector off the free list, split axis = the longer of x/y, dist
+// = its midpoint; null when the list is empty or that side is not over 512 units.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL SV_AllocSector(const float* maxs, const float* mins);
+extern "C" void SV_AllocSector_entry(void);
+// 0x002b1f70 (sector in EDI; region mins, maxs on the stack): moves the sector's entities and brushes that lie
+// wholly on one side of its split into that child, allocating children (SV_AllocSector over the parent region)
+// as needed; stops when none is free.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_SplitSector(uint8_t* node, const float* mins, const float* maxs);
+extern "C" void SV_SplitSector_entry(void);
+// 0x002ba9d0 (server entity in ESI; absmin, absmax on the stack, x/y used): walks down from the root to the
+// sector the bounds straddle (or a missing child), ORing the contents into each; keeps the current sector when it
+// is the same and the contents are covered, else unlinks and relinks there, then splits that sector.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_LinkToSector(uint8_t* sv, const float* absmin, const float* absmax);
+extern "C" void SV_LinkToSector_entry(void);
+// 0x002d7fe0 (gentity in EDI): Q3's SV_LinkEntity - packed bbox (+0xac), absmin/absmax (+0x100 / +0x110, from
+// RadiusFromBounds when a brush model is rotated) widened by 1, areas (+0x1fc / +0x200) and clusters (+0x1b4 /
+// +0x1b8, last cluster +0x1f8) from CM_BoxLeafnums, the portal cell (+0x458, cached leaf +0x130 within the
+// radius +0x12c of +0x120), then SV_LinkToSector with the bounds (or the DObj's bounds for +0xd4 & 0x18).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_LinkEntity(uint8_t* ent);
+extern "C" void SV_LinkEntity_entry(void);
+// 0x002e8270 (gentity in ESI; mins, maxs, capsule flag on the stack): CM_TransformedBoxTrace of a box at the
+// origin against the entity's clip model; returns the trace's startsolid byte (+0x3d).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SV_ClipToEntity(uint8_t* ent, const float* mins, const float* maxs,
+                                                            uint32_t capsule_flag);
+extern "C" void SV_ClipToEntity_entry(void);
+
+// Clip blocks: box (SV_Trace) +0 -extents, +0x10 extents, +0x20 extents + 1, +0x30 / +0x40 start / end moved to
+// the box center, +0x50 trace (fraction +0x70, solid bytes +0x8c / +0x8d), +0x90 pass entity, +0x94 its owner,
+// +0x98 content mask, +0x9c capsule flag; point: +0 start, +0x10 end, +0x20 trace (fraction +0x40), +0x60 pass,
+// +0x64 owner, +0x68 mask, +0x6c / +0x70 / +0x74 SV_Trace's arguments 7, 10, 8.
+// 0x002e80b0 (box clip in EAX, server entity in ECX): Q3's SV_ClipMoveToEntities body for one entity - skips other
+// contents, the pass entity, its owned entities and entities sharing its owner; CM_TransformedBoxTrace against the
+// clip model (angles zero for non-brush models; x/z angles under 0x008fef08 dropped for +0x134 & 0x800000); a
+// nearer hit replaces the clip's trace (entity number +0x224 at +0x30), else only the solid bytes are ORed in.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_ClipMoveToEntity(uint8_t* clip, uint8_t* sv);
+extern "C" void SV_ClipMoveToEntity_entry(void);
+// 0x002e88d0: the box sweep through the sector tree (fractions p1f..p2f, points p1..p2, the clip's +0x20 extents as
+// the split offset), Q3 SV_ClipMoveToEntities style; then this sector's entities.
+void XB_CDECL SV_ClipMoveToEntities_r(uint8_t* clip, uint8_t* node, float p1f, float p2f, const float* p1,
+                                      const float* p2);
+// 0x002e84d0: the point version (no offset); each entity through the title's 0x002e79c0 (entity in EAX, clip).
+void XB_CDECL SV_PointTraceToEntities_r(uint8_t* clip, uint8_t* node, float p1f, float p2f, const float* p1,
+                                        const float* p2);
+// 0x002db3e0 (start in EAX; results, end, content mask): the static models of the sector tree (title 0x002d5130 over
+// a trace block preset to the results' fraction); a nearer hit replaces the results with endpos set.
+void XB_REGS1 XB_CDECL SV_TraceStaticModels(const float* start, uint8_t* results, const float* end,
+                                            uint32_t content_mask);
+// 0x002e9af0 (start in EBX; results, mins, maxs, end, pass entity, content mask, capsule flag, three more words
+// for the point clip, the static-model flag, one more): Q3's SV_Trace - CM_BoxTrace against the world (hit entity
+// = the world's number), the static models, then the entities: the point walk for a zero-size box, else the box
+// walk with endpos recomputed from the original start/end.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_Trace(const float* start, uint8_t* results, const float* mins,
+                                                 const float* maxs, const float* end, uint32_t pass,
+                                                 uint32_t content_mask, uint32_t capsule_flag, uint32_t arg7,
+                                                 uint32_t arg8, uint32_t static_models, uint32_t arg10);
+extern "C" void SV_Trace_entry(void);
+
+// 0x002c0f60 (mins in EAX, maxs in EDI, p in ESI, q on the stack, leave fraction in XMM4): slab test of the
+// segment against the box, sign -1 against mins then +1 against maxs, entering fractions pulled back by 0.125;
+// 1 when the segment misses (or enters at or after it leaves), 0 when it reaches the box.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SegmentMissesBounds(const float* mins, const float* maxs, const float* p,
+                                                                const float* q, float leave);
+extern "C" void SegmentMissesBounds_entry(void);
+// 0x002d5130: SV_PointTraceToEntities_r over the sectors' static-model lists (block: +0 trace, fraction +0x20,
+// +0x40 mask, +0x50 start, +0x60 end; sector contents +4); each model whose contents match and whose bounds
+// (+0xa0 / +0xac) the segment reaches goes to the title's 0x002cc880 (block + 0x50 in EAX, model in ECX).
+void XB_CDECL SV_TraceStaticModels_r(uint8_t* clip, uint8_t* node, float p1f, float p2f, const float* p1,
+                                     const float* p2);
+// 0x002e79c0 (server entity in EAX; point clip on the stack): the point version of SV_ClipMoveToEntity. With the
+// clip's hit-box flag (+0x6c) and a DObj (+0x22c) whose entity has +0xd4 & 0x18: a box test (DObj bounds or the
+// 0x00960110 / 0x0095ff70 box), VM_Call(gvm, 0x12, entity number), the segment moved into the entity's axis
+// (AnglesToAxisLeft), then 0x0023da30 (0x10) or DObj_TraceBoneBoxes with radius |local start| * +0x70; a hit
+// rotates the normal back. Else CM_TransformedBoxTrace of a point against the clip model. A hit replaces the
+// clip's trace (+0x3c = the clip's byte, +0x3d ORed, +0x28 contents, +0x30 entity number).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_PointTraceToEntity(uint8_t* sv, uint8_t* clip);
+extern "C" void SV_PointTraceToEntity_entry(void);
+// 0x002bfd80: Q3's SV_SetConfigstring - __break 1 for an index outside 0..0x3ff, "" for null; unchanged text
+// does nothing; else ScriptString_AssignCString into 0x00964ce0[index] and, while the server runs (0x00964cd4
+// == 2, client state 1), "cs %i %s" or for 0xe8+ characters "bcs0/1/2 %i %s" chunks of 0xe7.
+void XB_CDECL SV_SetConfigstring(int32_t index, const char* value);
+
 }  // namespace game
