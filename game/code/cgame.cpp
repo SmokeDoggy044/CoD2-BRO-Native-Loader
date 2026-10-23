@@ -6,6 +6,7 @@
 #include "bg_misc.h"
 #include "cg_ents.h"
 #include "dobj.h"
+#include "fx.h"
 #include "g_utils.h"
 #include "ngl.h"
 #include "qcommon.h"
@@ -150,12 +151,13 @@ void XB_REGS1 XB_CDECL CG_R_DrawStretchPic(uint32_t shader, uint32_t x, uint32_t
     title_function<Draw>(title_global<uint32_t>(0x00928530))(x, y, w, h, s0, t0, s1, t1, shader);
 }
 
-void XB_REGS3 XB_CDECL CG_SetFade(int32_t duration, uint32_t, int32_t start, int32_t alpha) {
+int32_t XB_REGS3 XB_CDECL CG_SetFade(int32_t duration, uint32_t, int32_t start, int32_t alpha) {
     const float value = static_cast<float>(alpha) * title_global<float>(0x0083eb30);
     title_global<int32_t>(0x009730c0) = start;
     title_global<int32_t>(0x009730c4) = duration;
     title_global<float>(0x009730b8) = value;
     if (start + duration <= cg_time()) title_global<float>(0x009730bc) = value;
+    return duration;  // EAX is never written: the caller gets the duration back
 }
 
 namespace {
@@ -1567,6 +1569,380 @@ void XB_REGS1 XB_CDECL CG_DrawObjectiveList(const float* color, float alpha) {
     const float w = (widest + g(0x0083f05c)) + g(0x0083ebc4);
     const float h = (line_height + four) * static_cast<float>(count) + g(0x0083f054);
     R_DrawFilledRect(panel, 14.0f, 59.0f, w, h, 5.0f);
+}
+
+namespace {
+
+const uint8_t* weapon_def(int32_t weapon) { return title_global<const uint8_t* const*>(0x0095f4d8)[weapon]; }
+
+bool owns_weapon(int32_t weapon) {
+    return (title_global<uint32_t>(0x00972940 + (weapon >> 5) * 4) & (1u << (weapon & 0x1f))) != 0;
+}
+
+// The ammo left for a weapon: clip (+0x5a0 -> 0x009727d0) plus stock (+0x598 -> 0x00972660).
+uint32_t weapon_ammo(int32_t weapon) {
+    const uint8_t* def = weapon_def(weapon);
+    return title_global<uint32_t>(0x009727d0 + *reinterpret_cast<const uint32_t*>(def + 0x5a0) * 4) +
+           title_global<uint32_t>(0x00972660 + *reinterpret_cast<const uint32_t*>(def + 0x598) * 4);
+}
+
+// Cvar_Set2(the vmCvar's name, value, 1) and Cvar_Update.
+void set_vm_cvar(uint32_t vm_cvar, const char* value) {
+    title_function<void XB_CDECL(uint32_t, const char*, uint32_t)>(0x0029c030)(  // Cvar_Set2
+        title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(vm_cvar) * 0x2c), value, 1);
+    cg_cvar_update(vm_cvar);
+}
+
+const char* va_int(int32_t value) {
+    return title_function<const char* XB_CDECL(const char*, int32_t)>(0x002a93d0)(&title_global<char>(0x0082ded4), value);
+}
+
+// The weapon commands' guard: a snapshot, no flag 0x4000 (0x0097257c) and none of `flags` in
+// 0x00972610, and the switch delay (0x0094abb4) passed since 0x0094c23c.
+bool weapon_command_allowed(uint32_t flags) {
+    if (!title_global<uint32_t>(0x00971aa8)) return false;
+    if (title_global<uint32_t>(0x0097257c) & 0x4000) return false;
+    if (title_global<uint32_t>(0x00972610) & flags) return false;
+    return title_global<int32_t>(0x0097253c) - title_global<int32_t>(0x0094c23c) >= title_global<int32_t>(0x0094abb4);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CG_SelectWeapon_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_SelectWeapon) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL CG_SelectWeapon(int32_t weapon) {
+    // The weapon change request: its time (vmCvar 0x0094c230), the weapon (0x00947f98) and,
+    // unless it is the current weapon's alternate (+0x718), the switch flag (0x0094a3b8 = 1).
+    // 0 while 0x0095f91f or when it is already the current weapon (0x00947fa4).
+    if (title_global<uint8_t>(0x0095f91f)) return 0;
+    set_vm_cvar(0x0094c230, va_int(title_global<int32_t>(0x0097253c)));
+    const int32_t current = title_global<int32_t>(0x00947fa4);
+    if (current == weapon) return 0;
+    const bool alternate = weapon && weapon == *reinterpret_cast<const int32_t*>(weapon_def(current) + 0x718);
+    set_vm_cvar(0x00947f98, va_int(weapon));
+    if (!alternate) set_vm_cvar(0x0094a3b8, &title_global<char>(0x0082e058));
+    return 1;
+}
+
+void XB_CDECL CG_CycleWeapon(uint32_t forward, uint32_t need_ammo) {
+    // Q3's CG_NextWeapon/CG_PrevWeapon: from the current weapon's inventory slot, the next
+    // slot (1..6, wrapping; slot 4 skipped while 0x00929cd0 +0x20) holding a weapon (with ammo
+    // when asked); else an owned weapon outside the slots or CG_CycleWeaponSlot. Without a
+    // slot: the next owned weapon by index (not in the current one's alternate chain, slotless,
+    // with ammo when asked, not slot type 4 while 0x00929cd0 +0x20). The weapon 0 if the
+    // current one is no longer owned.
+    if (!title_global<uint32_t>(0x00971aa8)) return;
+    const int32_t step = forward ? 1 : -1;
+    const int32_t stop_slot = forward ? 1 : 6;
+    const int32_t stop_weapon = forward ? 1 : title_global<int32_t>(0x0095f4d4);
+    const uint8_t* ps = &title_global<uint8_t>(0x00972550);
+    int32_t current = title_global<int32_t>(0x00947fa4);
+    uint32_t slot = BG_GetWeaponSlot(ps, current, 1);
+    if (!slot) slot = BG_ChooseWeaponSlot(0, static_cast<uint32_t>(current), ps);
+    if (title_global<uint32_t>(0x009725e0)) {
+        FX_FreeEffectsById(title_global<FxIdList*>(0x0095f5b4), title_global<uint32_t>(0x009725e0));
+        current = title_global<int32_t>(0x00947fa4);
+    }
+    if (slot) {
+        for (int32_t s = (static_cast<int32_t>(slot) + step + 5) % 6 + 1; s != stop_slot; s = (s + step + 5) % 6 + 1) {
+            const int8_t weapon = title_global<int8_t>(0x00972948 + s);
+            if (!weapon) continue;
+            if (*reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00929cd0) + 0x20) && s == 4) continue;
+            if (need_ammo && !weapon_ammo(weapon)) continue;
+            select_weapon(static_cast<uint32_t>(static_cast<int32_t>(weapon)));
+            return;
+        }
+        if (CG_CycleOwnedWeapon(forward, need_ammo)) return;
+        CG_CycleWeaponSlot(forward, need_ammo);
+    } else {
+        const int32_t base = title_global<int32_t>(0x0095f4d4) + step - 1;
+        int32_t weapon = current;
+        for (;;) {
+            weapon = (base + weapon) % title_global<int32_t>(0x0095f4d4) + 1;
+            if (weapon == stop_weapon) {
+                if (CG_CycleWeaponSlot(forward, need_ammo)) return;
+                CG_CycleOwnedWeapon(forward, need_ammo);
+                break;
+            }
+            if (!owns_weapon(weapon)) continue;
+            bool chained = false;
+            for (int32_t alt = *reinterpret_cast<const int32_t*>(weapon_def(weapon) + 0x718); alt;
+                 alt = *reinterpret_cast<const int32_t*>(weapon_def(alt) + 0x718)) {
+                if (alt == title_global<int32_t>(0x00947fa4)) {
+                    chained = true;
+                    break;
+                }
+                if (alt == weapon) break;
+            }
+            if (chained) continue;
+            if (BG_GetWeaponSlot(ps, weapon, 1)) continue;
+            if (BG_ChooseWeaponSlot(0, static_cast<uint32_t>(weapon), ps)) continue;
+            if (need_ammo && !weapon_ammo(weapon)) continue;
+            if (*reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00929cd0) + 0x20) &&
+                *reinterpret_cast<const int32_t*>(weapon_def(weapon) + 0x9c) == 4)
+                continue;
+            select_weapon(static_cast<uint32_t>(weapon));
+            return;
+        }
+    }
+    if (!owns_weapon(title_global<int32_t>(0x00947fa4))) select_weapon(0);
+}
+
+void XB_CDECL CG_OutOfAmmoChange() {
+    // Q3's CG_OutOfAmmoChange: an owned slot weapon (+0xa0) of the current weapon's slot type
+    // (+0x9c, not class 5) with ammo; else the first of slots 1-4 with ammo (slot 4 skipped
+    // while 0x00929cd0 +0x20) when the current weapon has a slot; else 0x009725e4 when it has a
+    // slot and ammo; else CG_CycleWeapon(1, 1).
+    if (!title_global<uint32_t>(0x00971aa8)) return;
+    const uint8_t* current = title_global<const uint8_t*>(0x00972acc);
+    if (*reinterpret_cast<const uint32_t*>(current + 0xa0)) {
+        const int32_t last = title_global<int32_t>(0x0095f4d4);
+        for (int32_t weapon = 1; weapon <= last; ++weapon) {
+            if (!owns_weapon(weapon)) continue;
+            const uint8_t* def = weapon_def(weapon);
+            if (!*reinterpret_cast<const uint32_t*>(def + 0xa0)) continue;
+            if (*reinterpret_cast<const int32_t*>(def + 0x98) == 5) continue;
+            if (*reinterpret_cast<const int32_t*>(def + 0x9c) != *reinterpret_cast<const int32_t*>(current + 0x9c)) continue;
+            if (weapon_ammo(weapon)) {
+                select_weapon(static_cast<uint32_t>(weapon));
+                return;
+            }
+        }
+    }
+    const uint8_t* ps = &title_global<uint8_t>(0x00972550);
+    if (BG_GetWeaponSlot(ps, *reinterpret_cast<const int32_t*>(current), 1)) {
+        for (int32_t s = 1; s <= 4; ++s) {
+            const int8_t weapon = title_global<int8_t>(0x00972948 + s);
+            if (!weapon) continue;
+            if (*reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00929cd0) + 0x20) && s == 4) continue;
+            if (weapon_ammo(weapon)) {
+                select_weapon(static_cast<uint32_t>(static_cast<int32_t>(weapon)));
+                return;
+            }
+        }
+    }
+    const int32_t fallback = title_global<int32_t>(0x009725e4);
+    if (BG_GetWeaponSlot(ps, fallback, 1) && weapon_ammo(fallback)) {
+        select_weapon(static_cast<uint32_t>(fallback));
+        return;
+    }
+    CG_CycleWeapon(1, 1);
+}
+
+namespace {
+
+// Cvar_SetByVmIndex (0x0029fe40: value in EAX, cdecl vmCvar) of 0x0094c230 to cg.time.
+void stamp_weapon_command() {
+    TitleRegs regs{};
+    regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(va_int(title_global<int32_t>(0x0097253c))));
+    const uint32_t args[1] = {0x0094c230};
+    cg_call_regs(0x0029fe40, &regs, args, 1);
+}
+
+void cycle_command(uint32_t forward) {
+    if (!weapon_command_allowed(0x100000)) return;
+    stamp_weapon_command();
+    CG_CycleWeapon(forward, 0);
+}
+
+}  // namespace
+
+void XB_CDECL CG_PrevWeapon_f() { cycle_command(0); }
+
+void XB_CDECL CG_NextWeapon_f() { cycle_command(1); }
+
+void XB_CDECL CG_WeaponSlot_f() {
+    // "weaponslot <name or 1-6>": the weapon in that inventory slot, if owned.
+    if (!weapon_command_allowed(0x100000)) return;
+    stamp_weapon_command();
+    int32_t slot = static_cast<int32_t>(CG_WeaponSlotFromName(CG_Argv(1)));
+    if (!slot) slot = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(CG_Argv(1));  // _atol
+    if (slot <= 0 || slot >= 7) return;
+    const int32_t weapon = title_global<int8_t>(0x00972948 + slot);
+    if (weapon && CG_HasWeapon(0, weapon)) select_weapon(static_cast<uint32_t>(weapon));
+}
+
+void XB_CDECL CG_AltWeapon_f() {
+    // The current weapon's alternate (+0x718) if owned; without one a "no alternate" message.
+    if (!weapon_command_allowed(0x106000)) return;
+    const int32_t alternate = *reinterpret_cast<const int32_t*>(weapon_def(title_global<int32_t>(0x00947fa4)) + 0x718);
+    if (!alternate) {
+        title_function<const char* XB_CDECL(const char*, const char*, uint32_t)>(0x002d03c0)(  // SEH_LocalizeTextMessage
+            &title_global<char>(0x00838794), &title_global<char>(0x00838b84), 0);
+        return;
+    }
+    if (CG_HasWeapon(0, alternate)) select_weapon(static_cast<uint32_t>(alternate));
+}
+
+void XB_REGS1 XB_CDECL CG_ParseObjective(int32_t index) {
+    // An objective configstring (index; objective record 0x00972748 + index * 0x98): "state"
+    // (+0; becoming 4 stamps +0x10 with cg.time), "str" (+0x18, 0x7f characters), "org"
+    // (+4, "%f %f %f") and "ring" (+0x14; a change stamps +0x10). State 0 clears it (+0x10 -1).
+    const char* text = nullptr;
+    if (index >= 0 && index < 0x400) {
+        const uint8_t* string = title_global<const uint8_t*>(0x009606b8 + static_cast<uint32_t>(index) * 4);
+        if (string) text = reinterpret_cast<const char*>(string + 6);
+    }
+    uint8_t* objective = &title_global<uint8_t>(0x00972748 + static_cast<uint32_t>(index) * 0x98);
+    int32_t& state = *reinterpret_cast<int32_t*>(objective);
+    const auto value_for = [text](uint32_t key) {
+        TitleRegs regs{};
+        regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text));
+        regs.edi = key;
+        return reinterpret_cast<const char*>(static_cast<uintptr_t>(cg_call_regs(0x002b8f50, &regs, nullptr, 0)));  // Info_ValueForKey
+    };
+    const auto atol = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81);
+    bool clear = false;
+    if (!*text) {
+        state = 0;
+        clear = true;
+    } else {
+        const int32_t old_state = state;
+        const char* v = value_for(0x00831b30);  // "state"
+        state = *v ? atol(v) : 0;
+        if (old_state != 4 && state == 4) *reinterpret_cast<int32_t*>(objective + 0x10) = title_global<int32_t>(0x0097253c);
+        clear = state == 0;
+    }
+    float* origin = reinterpret_cast<float*>(objective + 4);
+    if (clear) {
+        origin[2] = 0.0f;
+        origin[1] = 0.0f;
+        origin[0] = 0.0f;
+        objective[0x18] = 0;
+        *reinterpret_cast<int32_t*>(objective + 0x10) = -1;
+        *reinterpret_cast<int32_t*>(objective + 0x14) = 0;
+        return;
+    }
+    const char* v = value_for(0x00831a78);  // "str"
+    if (!*v) {
+        objective[0x18] = 0;
+    } else {
+        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(  // _strncpy
+            reinterpret_cast<char*>(objective + 0x18), v, 0x7f);
+        objective[0x18 + 0x7f] = 0;
+    }
+    v = value_for(0x00831a2c);  // "org"
+    if (!*v) {
+        origin[2] = 0.0f;
+        origin[1] = 0.0f;
+        origin[0] = 0.0f;
+    } else {
+        title_function<int32_t XB_CDECL(const char*, const char*, float*, float*, float*)>(0x001f07e1)(  // sscanf
+            v, &title_global<char>(0x00838c70), origin, origin + 1, origin + 2);
+    }
+    const int32_t old_ring = *reinterpret_cast<int32_t*>(objective + 0x14);
+    v = value_for(0x00831a24);  // "ring"
+    const int32_t ring = *v ? atol(v) : 0;
+    *reinterpret_cast<int32_t*>(objective + 0x14) = ring;
+    if (old_ring != ring) *reinterpret_cast<int32_t*>(objective + 0x10) = title_global<int32_t>(0x0097253c);
+}
+
+int32_t XB_CDECL HudElem_GetTimerValue(const uint8_t* elem) {
+    // A timer hud element's value in ms (+0x5c end or start time): types 4/6/8 count down to
+    // the end (+999 / +99 / exact, for display rounding), 5/7/9 count up; never negative.
+    const int32_t now = title_global<int32_t>(0x0097253c);
+    const int32_t time = *reinterpret_cast<const int32_t*>(elem + 0x5c);
+    int32_t value;
+    switch (*reinterpret_cast<const int32_t*>(elem)) {
+    case 4: value = time - now + 0x3e7; break;
+    case 6: value = time - now + 0x63; break;
+    case 8: value = time - now; break;
+    case 5:
+    case 7:
+    case 9: value = now - time; break;
+    default: return 0;
+    }
+    return value >= 0 ? value : 0;
+}
+
+PLATFORM_ASM_ENTRY(HudElem_GetTimerValue_entry,
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(HudElem_GetTimerValue) "addl $4, %esp\n"
+                   "ret")
+
+PLATFORM_ASM_ENTRY(CG_DrawHudElemClock_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_DrawHudElemClock) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawHudElemClock(const uint8_t* he, const uint8_t* rect) {
+    // A clock hud element: its material (+0x38) as the face and "<material name>needle" turned
+    // by the timer value (a full turn per +0x60 ms, else per 0x10000 / 1.09227 ms), sized like
+    // CG_DrawHudElemMaterial (+0x30/+0x34, fading from +0x3c/+0x40) and aligned vertically in
+    // the rect by +0x18; colour rect +0x30.
+    const uint8_t* material = *reinterpret_cast<const uint8_t* const*>(he + 0x38);
+    if (!material) return;
+    char name[0x80];
+    const char* source = reinterpret_cast<const char*>(material + 0x58);
+    uint32_t n = 0;
+    while ((name[n] = source[n]) != 0) ++n;
+    const char* suffix = &title_global<char>(0x0083993c);  // "needle"
+    for (uint32_t k = 0; k < 7; ++k) name[n + k] = suffix[k];
+    const uint32_t needle = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(RE_RegisterShader(0, name)));
+    const float value = static_cast<float>(HudElem_GetTimerValue(he));
+    const int32_t period = *reinterpret_cast<const int32_t*>(he + 0x60);
+    int32_t turn;
+    if (period)
+        turn = static_cast<int32_t>(value * g(0x0083ebcc) / static_cast<float>(period) * g(0x0083ebd8)) & 0xffff;
+    else
+        turn = static_cast<int32_t>(value * g(0x0083f06c)) & 0xffff;
+    const float angle = static_cast<float>(turn) * g(0x0083ebd4);
+    const float fallback = *reinterpret_cast<const float*>(rect + 0x28);
+    const auto size = [he, fallback](uint32_t offset) {
+        const int32_t v = *reinterpret_cast<const int32_t*>(he + offset);
+        return v ? static_cast<float>(v) : fallback;
+    };
+    const int32_t fade = *reinterpret_cast<const int32_t*>(he + 0x48);
+    const int32_t now = title_global<int32_t>(0x0097253c);
+    const float one = g(0x0083eb20);
+    float w = size(0x30);
+    if (fade > 0 && now - *reinterpret_cast<const int32_t*>(he + 0x44) < fade) {
+        const float from = size(0x3c);
+        const float t = one / static_cast<float>(fade) * static_cast<float>(now - *reinterpret_cast<const int32_t*>(he + 0x44));
+        w = (w - from) * t + from;
+    }
+    float h = size(0x34);
+    if (fade > 0 && now - *reinterpret_cast<const int32_t*>(he + 0x44) < fade) {
+        const float from = size(0x40);
+        const float t = one / static_cast<float>(fade) * static_cast<float>(now - *reinterpret_cast<const int32_t*>(he + 0x44));
+        h = (h - from) * t + from;
+    }
+    const float* r = reinterpret_cast<const float*>(rect);
+    float y;
+    switch (*reinterpret_cast<const int32_t*>(he + 0x18)) {
+    case 0: y = r[1]; break;
+    case 1: y = (r[3] - h) * g(0x0083eb24) + r[1]; break;
+    case 2: y = (r[3] + r[1]) - h; break;
+    default: y = 0.0f; break;
+    }
+    const auto set_color = title_function<void XB_CDECL(const void*)>(title_global<uint32_t>(0x0092852c));
+    set_color(rect + 0x30);
+    const float xs = g(0x009758b8), ys = g(0x009758bc);
+    using StretchPic = void XB_CDECL(float, float, float, float, float, float, float, float, const uint8_t*);
+    title_function<StretchPic>(title_global<uint32_t>(0x00928530))(xs * r[0], ys * y, xs * w, ys * h, 0.0f, 0.0f, 1.0f, 1.0f,
+                                                                    material);
+    CG_DrawRotatedPic(r[0], y, w, h, needle, angle);
+    set_color(nullptr);
+}
+
+uint32_t XB_CDECL CG_DrawObjectives() {
+    // The objectives screen while the scores/objectives display is up (0x00973a78), not with
+    // 0x0094c7a4 and 0x0094bf6c both set nor in intermission (0x00972574 >= 4): faded in over
+    // 100 ms from 0x00973a7c (CG_FadeColor's alpha turned around in place).
+    if (title_global<uint32_t>(0x0094c7a4) && title_global<uint32_t>(0x0094bf6c)) return 0;
+    if (title_global<int32_t>(0x00972574) >= 4) return 0;
+    if (!title_global<uint32_t>(0x00973a78)) return 0;
+    float* color = CG_FadeColor(0, title_global<int32_t>(0x00973a7c), 100);
+    float alpha = g(0x0083eb20);
+    if (color) {
+        alpha = alpha - color[3];
+        color[3] = alpha;
+    } else {
+        color = &title_global<float>(0x0082eb9c);
+    }
+    CG_DrawObjectiveList(color, alpha);
+    return 1;
 }
 
 }  // namespace game

@@ -29,7 +29,8 @@ void XB_REGS1 XB_CDECL CG_R_DrawStretchPic(uint32_t shader, uint32_t x, uint32_t
                                            uint32_t s0, uint32_t t0, uint32_t s1, uint32_t t1);
 // 0x002765b0 (duration EAX, start ECX): a screen fade to alpha / 255 (0x009730b8; the end
 // value 0x009730bc too once start + duration <= cg.time).
-void XB_REGS3 XB_CDECL CG_SetFade(int32_t duration, uint32_t unused_edx, int32_t start, int32_t alpha);
+// Returns the duration (the original leaves its EAX argument there).
+int32_t XB_REGS3 XB_CDECL CG_SetFade(int32_t duration, uint32_t unused_edx, int32_t start, int32_t alpha);
 // 0x0027b9a0: CG_PrecacheConfigStringAsset of configstrings 0x2d4..0x3d2.
 void XB_CDECL CG_PrecacheConfigStringAssets();
 // 0x00276b90: Com_Error when a used view model (0x0097606c, 0xc4 each) has no animation tree.
@@ -234,5 +235,34 @@ void XB_CDECL CG_LoadViewModelAnimTrees();
 
 // 0x0027e630 (colour in EAX, cdecl alpha): the objectives list screen.
 void XB_REGS1 XB_CDECL CG_DrawObjectiveList(const float* color, float alpha);
+
+// 0x002cde20 (weapon in ESI): requests a weapon change (vmCvars 0x0094c230 time,
+// 0x00947f98 weapon, 0x0094a3b8 switch flag unless it is the alternate); 1 when requested.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CG_SelectWeapon(int32_t weapon);
+extern "C" void CG_SelectWeapon_entry(void);
+// 0x0027dcb0 (cdecl forward, need_ammo): the next/previous weapon.
+void XB_CDECL CG_CycleWeapon(uint32_t forward, uint32_t need_ammo);
+// 0x0027df30: Q3's CG_OutOfAmmoChange.
+void XB_CDECL CG_OutOfAmmoChange();
+// 0x0027e0d0 / 0x0027e130: "weapprev" / "weapnext".
+void XB_CDECL CG_PrevWeapon_f();
+void XB_CDECL CG_NextWeapon_f();
+// 0x0027c170: "weaponslot <name or number>".
+void XB_CDECL CG_WeaponSlot_f();
+// 0x0027e190: "weapalt": the current weapon's alternate.
+void XB_CDECL CG_AltWeapon_f();
+
+// 0x0027ade0 (index in EAX): an objective's configstring into its record (0x00972748).
+void XB_REGS1 XB_CDECL CG_ParseObjective(int32_t index);
+
+// 0x00275d00 (element in ECX): a timer hud element's value in ms (types 4-9).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL HudElem_GetTimerValue(const uint8_t* elem);
+extern "C" void HudElem_GetTimerValue_entry(void);
+// 0x0027f1f0 (element EAX, rect EBX): a clock hud element (face and needle).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawHudElemClock(const uint8_t* he, const uint8_t* rect);
+extern "C" void CG_DrawHudElemClock_entry(void);
+
+// 0x00281f30: the objectives screen while it is up; 1 when drawn.
+uint32_t XB_CDECL CG_DrawObjectives();
 
 }  // namespace game
