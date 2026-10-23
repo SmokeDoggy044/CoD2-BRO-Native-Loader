@@ -75,6 +75,9 @@ folder" button opens that folder, and "Open save folder" the saves. Attach
 log.txt to your report (copy it first: the next start replaces it), plus the
 save folder if the problem depends on your progress.
 
+For a low frame rate, tick "Measure performance" in the launcher before pressing
+Play and play to where it gets slow: the log then also says where the time went.
+
 
 Licenses
 --------

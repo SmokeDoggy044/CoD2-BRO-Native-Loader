@@ -75,6 +75,7 @@ struct Options {
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
+    std::optional<std::string> profile;  // --profile, else XB_PROFILE
     // Set by a title reboot (see reboot_title), not by users.
     std::optional<int> launch_data_fd;
     std::optional<int64_t> session_start_ns;
@@ -139,6 +140,9 @@ void print_usage(const char* program) {
         "                   game is paused (DIR/marks.txt), draw dump in the log; new warnings\n"
         "                   and errors are marked by themselves; F11 shows draws that need\n"
         "                   missing features in magenta; DIR/summary.txt on exit\n"
+        "  --profile auto[,S]  when the frame rate first drops under 24, log for S seconds\n"
+        "                   (default 10) where each thread spends its time (START,S: from START\n"
+        "                   seconds on; XB_PROFILE does the same)\n"
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
@@ -310,6 +314,12 @@ std::optional<Options> parse_args(int argc, char** argv) {
                     return std::nullopt;
                 }
             }
+        } else if (arg == "--profile") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--profile needs auto[,SECONDS] or START,SECONDS\n");
+                return std::nullopt;
+            }
+            options.profile = argv[++i];
         } else if (arg == "--launch-data" && i + 1 < argc) {
             options.launch_data_fd = std::atoi(argv[++i]);
         } else if (arg == "--session-start" && i + 1 < argc) {
@@ -535,7 +545,7 @@ int loader_main(int argc, char** argv) {
         LOG_WARN("loader", "no symbols at %s; backtraces will show addresses only", symbol_path.string().c_str());
 
     loader::install_crash_handler(image, symbols);
-    loader::start_profiler_from_env(image, symbols);
+    loader::start_profiler(options->profile ? options->profile->c_str() : std::getenv("XB_PROFILE"), image, symbols);
     loader::os::release_reserved_ranges();
     log_disc_languages(*assets, options->language);
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");

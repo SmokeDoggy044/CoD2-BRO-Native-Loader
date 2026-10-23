@@ -391,6 +391,10 @@ private:
             open_folder((data ? fs::path(*data) : platform::user_data_dir()) / "E" / "UDATA");
         }
         help_marker("One folder per game profile with its saves, as on the Xbox hard disk.");
+        ImGui::Checkbox("Measure performance", &profile_);
+        help_marker("For reports about a low frame rate: the next game started from here writes to its "
+                    "log where the time goes, for 10 seconds from the first moment it runs under 24 fps. "
+                    "It is not saved; tick it again for later reports.");
     }
 
     bool buttons() {
@@ -425,6 +429,7 @@ private:
             const fs::path game = platform::sibling_executable(COD_BRO_GAME_EXECUTABLE);
             std::vector<std::string> args;
             if (multiplayer) args.push_back("--multiplayer");
+            if (profile_) args.insert(args.end(), {"--profile", "auto"});
             if (!platform::start_program(game, args)) {
                 error_ = "Cannot start " + game.string();
                 return true;
@@ -440,6 +445,7 @@ private:
     std::optional<launcher::UpdateCheck> update_;
     std::optional<launcher::Updater> updater_;
     bool restarted_ = false;
+    bool profile_ = false;  // Measure performance: --profile auto, not saved
 };
 
 }  // namespace
