@@ -9563,7 +9563,7 @@ address,name,section,module,state,tested,matched
 002bfb90,AnimData_EnsureLoaded,.text,xanim,named,0,0
 002bfc10,FUN_002bfc10,.text,unassigned,unnamed,0,0
 002bfd10,SV_SendServerCommand,.text,server,settled,148,148
-002bfd80,SV_SetConfigstring,.text,server,settled,152,152
+002bfd80,SV_SetConfigstring,.text,server,settled,8356,8356
 002bffb0,SV_AdjustAreaPortalState,.text,server,untested,0,0
 002bffd0,SV_GameSendServerCommand,.text,server,settled,106,106
 002c0040,FUN_002c0040,.text,unassigned,untested,0,0
@@ -9711,7 +9711,7 @@ address,name,section,module,state,tested,matched
 002cc400,SV_AreaEntities,.text,server,settled,367,367
 002cc480,CM_PointContents,.text,collision,settled,400,400
 002cc750,FUN_002cc750,.text,unassigned,unnamed,0,0
-002cc880,FUN_002cc880,.text,unassigned,matched,9,9
+002cc880,FUN_002cc880,.text,unassigned,settled,913,913
 002ccc50,CM_TempBoxModel,.text,collision,settled,361,361
 002cce00,CL_SystemInfoChanged,.text,client,matched,88,88
 002cce80,CL_ParseSnapshot,.text,client,settled,12505,12505
@@ -9810,7 +9810,7 @@ address,name,section,module,state,tested,matched
 002d7f20,AnimTree_AdvanceTimeForModel,.text,xanim,named,0,0
 002d7fe0,SV_LinkEntity,.text,server,settled,393,393
 002d86b0,SV_ShutdownServer,.text,server,named,0,0
-002d87a0,SV_SetBrushModel,.text,server,matched,60,60
+002d87a0,SV_SetBrushModel,.text,server,matched,85,85
 002d8850,Loc_LoadStringFile,.text,qcommon,named,0,0
 002d8960,Loc_ParseStringBuffer,.text,qcommon,named,0,0
 002d8a10,FUN_002d8a10,.text,unassigned,unnamed,0,0
@@ -9890,7 +9890,7 @@ address,name,section,module,state,tested,matched
 002e78b0,FUN_002e78b0,.text,unassigned,unnamed,0,0
 002e79c0,FUN_002e79c0,.text,unassigned,settled,399,399
 002e80b0,FUN_002e80b0,.text,unassigned,settled,320,320
-002e8270,SV_ClipToEntity,.text,server,settled,109,109
+002e8270,SV_ClipToEntity,.text,server,settled,801,801
 002e8350,FUN_002e8350,.text,unassigned,unnamed,0,0
 002e84d0,FUN_002e84d0,.text,unassigned,mismatched,13950,11899
 002e8650,FUN_002e8650,.text,unassigned,unnamed,0,0
