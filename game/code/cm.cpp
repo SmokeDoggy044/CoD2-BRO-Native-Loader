@@ -1103,4 +1103,30 @@ void XB_CDECL CM_TraceCapsuleThroughTempBox(uint8_t* tw) {
         CM_TraceBoxThroughBrush(tw, brush);
 }
 
+PLATFORM_ASM_ENTRY(Vec4Normalize_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vec4Normalize) "addl $8, %esp\n"
+                   "ret")
+
+long double XB_CDECL Vec4Normalize(const float* v, float* out) {
+    const Lanes in = lanes(v);
+    const float length_squared = sum_xyz(mul(in, in));
+    if (length_squared == 0.0f) {  // UCOMISS + JNP: only an exact 0 (a NaN goes on)
+        out[2] = 0.0f;
+        out[1] = 0.0f;
+        out[0] = 0.0f;
+        return title_global<float>(0x0083eafc);
+    }
+    long double root;
+    __asm__ volatile("call *%2"
+                     : "=t"(root)
+                     : "0"(static_cast<long double>(length_squared)), "r"(uintptr_t{0x0033acf4})  // __CIsqrt
+                     : "eax", "ecx", "edx", "memory");
+    const float length = static_cast<float>(root);
+    const float inverse = title_global<float>(0x0083eb20) / length;  // 1
+    const Lanes r = mul(in, splat(inverse));
+    std::memcpy(out, r.v, 16);
+    return length;
+}
+
 }  // namespace game

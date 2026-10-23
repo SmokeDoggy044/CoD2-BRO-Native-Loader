@@ -1785,6 +1785,7 @@ const Function kFunctions[] = {
     {"FxShakeRumble_GetFalloff", 0x002a22d0, 0, code(&FxShakeRumble_GetFalloff_entry), 0, Result::Xmm0, Status::Compare},
     {"Cvar_Init", 0x002a23b0, 0, code(&Cvar_Init), 0, Result::None, Status::Compare},
     {"AnglesToAxis", 0x002a2af0, 0, code(&AnglesToAxis_entry), 0, Result::None, Status::Compare},
+    {"Vec4Normalize", 0x002a3240, 0, code(&Vec4Normalize_entry), 0, Result::St0, Status::Compare},
     {"FxShakeRumbleComponent_Update", 0x002a3570, 0, code(&FxShakeRumbleComponent_Update), 4, Result::None, Status::Compare},
     {"FX_AddShakeRumbleComponents", 0x002a3820, 0, code(&FX_AddShakeRumbleComponents), 12, Result::Eax, Status::Compare},
     {"FxParticleComponent_Update", 0x002a46d0, 0, code(&FxParticleComponent_Update), 4, Result::None, Status::Compare},

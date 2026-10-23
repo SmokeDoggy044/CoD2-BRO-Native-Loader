@@ -186,4 +186,10 @@ extern "C" void CM_TraceThroughBrushes_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TraceCapsuleThroughTempBox(uint8_t* tw);
 extern "C" void CM_TraceCapsuleThroughTempBox_entry(void);
 
+// 0x002a3240 (vector in EAX, out in ESI): normalizes the 16-byte vector (all four lanes scaled by 1 / length;
+// length through the title's __CIsqrt, stored as float); a zero length clears out's xyz. Returns the length on
+// the x87 (0 for zero).
+extern "C" PLATFORM_HIDDEN long double XB_CDECL Vec4Normalize(const float* v, float* out);
+extern "C" void Vec4Normalize_entry(void);
+
 }  // namespace game
