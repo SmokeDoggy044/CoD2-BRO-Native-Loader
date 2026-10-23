@@ -128,4 +128,29 @@ uint8_t* XB_THISCALL FxAction907c_Init(uint8_t* self);  // 0x000a0dc0
 uint8_t* XB_THISCALL FxAction9090_Init(uint8_t* self);  // 0x000a0de0
 uint8_t* XB_THISCALL FxAction90a4_Init(uint8_t* self);  // 0x000a0e00
 
+// Derived render operation constructors (FxOpGrid_Init or FxOp53_Init, then vtable and kind;
+// +0x800 with src +0x24 set): 0x0009e6c0 (0x007c75a0, 0x1dd), 0x0009e800 (0x007c7820, 0x1d5),
+// 0x0009e940 (0x007c7aa0, 0xd5), 0x0009ea80 (0x007c7d20, 0x15b), 0x0009ebc0 (0x007c7fa0, 0x5b).
+uint8_t* XB_THISCALL FxOp1dd_Init(uint8_t* self, const uint8_t* src);
+uint8_t* XB_THISCALL FxOp9d5_Init(uint8_t* self, const uint8_t* src);
+uint8_t* XB_THISCALL FxOpd5_Init(uint8_t* self, const uint8_t* src);
+uint8_t* XB_THISCALL FxOp15b_Init(uint8_t* self, const uint8_t* src);
+uint8_t* XB_THISCALL FxOp5b_Init(uint8_t* self, const uint8_t* src);
+// 0x00096630: each stage's vertex format (actions' bits, the renderer's +4 bits, 0x600) and the
+// effect's particle data size (+0x64: sum of format size x stage count).
+void XB_THISCALL FxEffect_ComputeStageSizes(uint8_t* self);
+// 0x00096cd0 (stdcall) / 0x00096df0: the 0x3c-byte stage table (count 10, -1, FLT_MAX, 1, an
+// empty vertex format at +0x18) - new block / resized array.
+uint8_t* XB_STDCALL FxStageTable_New(uint32_t count);
+uint32_t XB_THISCALL FxStageArray_Resize(uint8_t* self, int32_t count);
+// 0x000968d0: stage count; shrinking destroys every stage's renderer and action list first
+// (not cleared); high-water mark in 0x00909b90.
+void XB_THISCALL FxEffect_SetStageCount(uint8_t* self, int32_t count);
+// 0x00096af0 (7 stack words): stage `index`: count, two floats, flag bit 2 at +0xc, renderer
+// (+0x10) and action list (+0x14), each replacing (and destroying) the old one.
+void XB_THISCALL FxEffect_SetStage(uint8_t* self, int32_t index, uint32_t count, float a, float b, uint32_t renderer,
+                                   uint32_t list, uint32_t flag);
+// 0x00096bb0: the emitter table resized; high-water mark in 0x00909b94.
+void XB_THISCALL FxEffect_SetEmitterCount(uint8_t* self, int32_t count);
+
 }  // namespace game

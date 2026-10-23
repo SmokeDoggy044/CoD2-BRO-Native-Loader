@@ -472,4 +472,144 @@ uint8_t* XB_THISCALL FxAction907c_Init(uint8_t* self) { return action(self, 0x00
 uint8_t* XB_THISCALL FxAction9090_Init(uint8_t* self) { return action(self, 0x007c9090, 0x3, 0x0, 0x1, 0x200001); }
 uint8_t* XB_THISCALL FxAction90a4_Init(uint8_t* self) { return action(self, 0x007c90a4, 0x4, 0x0, 0x1, 0x3800041); }
 
+namespace {
+
+uint8_t* derived_op(uint8_t* self, const uint8_t* src, bool grid, uint32_t vtable, uint32_t kind) {
+    if (grid)
+        FxOpGrid_Init(self, src);
+    else
+        FxOp53_Init(self, src);
+    at<uint32_t>(self, 0) = vtable;
+    at<uint32_t>(self, 4) = at<uint32_t>(src, 0x24) ? (kind | 0x800) : kind;
+    return self;
+}
+
+// The effect allocator's free without the context word (slot 2).
+void fx_free(uint32_t memory) {
+    uint8_t* allocator = title_global<uint8_t*>(0x008bb760);
+    const uint32_t method = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(allocator, 0)))[2];
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(method)(allocator, memory);
+}
+
+// A stage's render object (+0x10: virtual destructor slot 0 with 0, then freed) and action list
+// (+0x14: apsPtrVector_DeleteAll, then freed).
+void destroy_stage_renderer(uint8_t* stage) {
+    const uint32_t renderer = at<uint32_t>(stage, 0x10);
+    if (!renderer) return;
+    const uint32_t destructor = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(
+        *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(renderer))));
+    title_function<void XB_THISCALL(uint32_t, uint32_t)>(destructor)(renderer, 0);
+}
+
+void destroy_stage_list(uint32_t list) {
+    title_function<void XB_THISCALL(uint32_t)>(0x0009ca90)(list);  // apsPtrVector_DeleteAll
+}
+
+void init_stage(uint8_t* stage) {
+    at<uint32_t>(stage, 0) = 0xa;
+    at<float>(stage, 4) = title_global<float>(0x0083eb34);  // -1
+    at<float>(stage, 8) = title_global<float>(0x007c5000);  // FLT_MAX
+    at<uint32_t>(stage, 0xc) = 1;
+    at<uint32_t>(stage, 0x10) = 0;
+    at<uint32_t>(stage, 0x14) = 0;
+    FxVertexFormat_Init(stage + 0x18);
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL FxOp1dd_Init(uint8_t* self, const uint8_t* src) { return derived_op(self, src, true, 0x007c75a0, 0x1dd); }
+uint8_t* XB_THISCALL FxOp9d5_Init(uint8_t* self, const uint8_t* src) { return derived_op(self, src, true, 0x007c7820, 0x1d5); }
+uint8_t* XB_THISCALL FxOpd5_Init(uint8_t* self, const uint8_t* src) { return derived_op(self, src, false, 0x007c7aa0, 0xd5); }
+uint8_t* XB_THISCALL FxOp15b_Init(uint8_t* self, const uint8_t* src) { return derived_op(self, src, true, 0x007c7d20, 0x15b); }
+uint8_t* XB_THISCALL FxOp5b_Init(uint8_t* self, const uint8_t* src) { return derived_op(self, src, false, 0x007c7fa0, 0x5b); }
+
+void XB_THISCALL FxEffect_ComputeStageSizes(uint8_t* self) {
+    uint8_t* stage = at<uint8_t*>(self, 0x50);
+    uint8_t* const end = stage + at<int16_t>(self, 0x56) * 0x3c;
+    uint32_t total = 0;
+    for (; stage != end; stage += 0x3c) {
+        if (const uint32_t list = at<uint32_t>(stage, 0x14))
+            FxActionList_CollectFormat(reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(list)), stage + 0x18);
+        if (const uint32_t renderer = at<uint32_t>(stage, 0x10))
+            FxVertexFormat_Add(stage + 0x18, reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(renderer))[1]);
+        FxVertexFormat_Add(stage + 0x18, 0x600);
+        total += at<uint32_t>(stage, 0x1c) * at<uint32_t>(stage, 0);
+    }
+    at<uint32_t>(self, 0x64) = total;
+}
+
+uint8_t* XB_STDCALL FxStageTable_New(uint32_t count) {
+    uint8_t* memory = fx_alloc_no_context(count * 0x3c, 4);
+    if (!memory) return nullptr;
+    for (uint8_t* p = memory; p != memory + count * 0x3c; p += 0x3c) {
+        if (p) init_stage(p);
+    }
+    return memory;
+}
+
+uint32_t XB_THISCALL FxStageArray_Resize(uint8_t* self, int32_t count) {
+    if (count <= at<int16_t>(self, 4)) {
+        const int32_t old = at<int16_t>(self, 6);
+        if (count > old) {
+            for (uint8_t* p = at<uint8_t*>(self, 0) + old * 0x3c; p != at<uint8_t*>(self, 0) + count * 0x3c; p += 0x3c) {
+                if (p) init_stage(p);
+            }
+        }
+        at<int16_t>(self, 6) = static_cast<int16_t>(count);
+        return 1;
+    }
+    uint8_t* memory = FxStageTable_New(static_cast<uint32_t>(count));
+    if (!memory) return 0;
+    for (int32_t i = 0; i < at<int16_t>(self, 6); ++i)
+        std::memcpy(memory + i * 0x3c, at<uint8_t*>(self, 0) + i * 0x3c, 0x3c);
+    replace_block(self, memory, static_cast<int16_t>(count), static_cast<int16_t>(count));
+    return 1;
+}
+
+void XB_THISCALL FxEffect_SetStageCount(uint8_t* self, int32_t count) {
+    const int32_t old = at<int16_t>(self, 0x56);
+    if (count < old && old > 0) {
+        for (int32_t i = 0; i < old; ++i) {
+            uint8_t* stage = at<uint8_t*>(self, 0x50) + i * 0x3c;
+            if (at<uint32_t>(stage, 0x10)) {
+                destroy_stage_renderer(stage);
+                fx_free(at<uint32_t>(stage, 0x10));
+            }
+            if (at<uint32_t>(stage, 0x14)) {
+                destroy_stage_list(at<uint32_t>(stage, 0x14));
+                fx_free(at<uint32_t>(stage, 0x14));
+            }
+        }
+    }
+    FxStageArray_Resize(self + 0x50, count);
+    if (count > title_global<int32_t>(0x00909b90)) title_global<int32_t>(0x00909b90) = count;
+    FxEffect_ComputeStageSizes(self);
+}
+
+void XB_THISCALL FxEffect_SetStage(uint8_t* self, int32_t index, uint32_t count, float a, float b, uint32_t renderer,
+                                   uint32_t list, uint32_t flag) {
+    const int32_t offset = index * 0x3c;
+    at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0) = count;
+    at<float>(at<uint8_t*>(self, 0x50) + offset, 4) = a;
+    at<float>(at<uint8_t*>(self, 0x50) + offset, 8) = b;
+    uint32_t& bits = at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0xc);
+    bits = (flag ? 2u : 0u) | (bits & ~2u);
+    if (at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0x10)) {
+        destroy_stage_renderer(at<uint8_t*>(self, 0x50) + offset);
+        fx_free(at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0x10));
+    }
+    at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0x10) = renderer;
+    if (at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0x14)) {
+        destroy_stage_list(at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0x14));
+        fx_free(at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0x14));
+    }
+    at<uint32_t>(at<uint8_t*>(self, 0x50) + offset, 0x14) = list;
+    FxEffect_ComputeStageSizes(self);
+}
+
+void XB_THISCALL FxEffect_SetEmitterCount(uint8_t* self, int32_t count) {
+    FxEmitterTable_Resize(self + 0x58, count);
+    if (count > title_global<int32_t>(0x00909b94)) title_global<int32_t>(0x00909b94) = count;
+}
+
 }  // namespace game
