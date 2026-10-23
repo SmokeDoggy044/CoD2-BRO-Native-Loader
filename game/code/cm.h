@@ -400,6 +400,17 @@ uint8_t XB_REGS3 XB_CDECL CM_PushSphereOutOfTriangle(const float* center, uint32
 // radius - distance + 0.01, x87), candidate brushes and triangles (CM_PushSphereOutOfTriangle); the origin is updated
 // after each sphere. AL = whether anything pushed.
 uint8_t XB_CDECL G_PushCapsuleOutOfSolids(uint8_t* pm, float radius);
+// 0x002d5d50 (move state in ESI, radius in XMM3): pushes the origin away from nearby entities - SV_AreaEntities around
+// the capsule's middle (2 * radius, z +-100; statics 0x0098c160..0x0098c390), each other entity whose origin
+// (+0x140) is not above the capsule top + 2 nor (the original's x test) p.x beyond its x + 72, and within 2 * radius
+// in x/y: the origin becomes entity origin + (2 * radius + 0x008fef50) * direction away (x87 sqrt; below 0.01 the
+// direction is {1, 0, 0, 1}). AL = any push; the origin is written back.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL G_PushAwayFromEntities(uint8_t* pm, float radius);
+extern "C" void G_PushAwayFromEntities_entry(void);
+// 0x002e6260 (move state 0x0092eff4): G_PushAwayFromEntities (clip mask 0x200c000) and G_PushCapsuleOutOfSolids
+// (mask & 0xfdff3fff), each repeated up to five more times while it pushes, radius 0x008fef4c; a move longer than the
+// radius is undone when G_RayTraceCachedCandidates finds the way blocked. The clip mask is restored.
+void XB_CDECL G_SeparateFromSolids();
 // 0x002caf70 (a in EAX, c in ECX; origin, direction, b, max fraction, out fraction on the stack): Moller-Trumbore
 // segment vs triangle - |det| < 1e-4 on the x87 misses, t = fraction along the (unnormalized) direction in
 // [0, max], barycentrics u, v >= 0 with u + v <= 1; a hit stores t. AL.
@@ -410,6 +421,48 @@ uint8_t XB_REGS3 XB_CDECL CM_RayHitsTriangle(const float* a, uint32_t unused, co
 // (CM_QuadTreeFindLeaf), its non-brush objects, triangles from the box-tree walk with plane . delta < 0
 // (CM_RayHitsTriangle with the current fraction as the limit). Fraction starts at 1; AL = any hit.
 uint8_t XB_CDECL CM_RayHitsWorldMeshes(const float* start, const float* delta, float* plane_out, float* fraction);
+// 0x002cc0e0 (start, end, brush, fraction in/out): Q3-style segment vs brush clip without a work block - the six box
+// faces (mins with normal -1, then maxs with +1), then the side planes (+0x34, count +0x30); enter/leave fractions
+// with the 0.125 epsilon, leave starting at *fraction. 0 when it misses; else 1 with *fraction = enter after a
+// facing plane, 0 when the start is inside, untouched otherwise.
+uint8_t XB_CDECL CM_ClipSegmentToBrush(const float* start, const float* end, const uint8_t* brush, float* fraction);
+// 0x002a11f0 (vector in ESI; result in XMM0): the pitch of a vector in degrees [0, 360) with the title's own arcsine
+// series (t < 0.5: t + t^3/6 + 0.075 t^5 + 0.054 t^7; else the sqrt((1 - t) / 2) form, __CIsqrt everywhere): 270 / 90
+// straight up / down, 0 for a zero vector; atan2-style quadrant fix-ups, * -180 / pi, + 360 below 0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Vec3_PitchDegrees(const float* v);
+extern "C" void Vec3_PitchDegrees_entry(void);
+// 0x002d2b50 (triangle list, brush list, start, end, fraction in/out, surface flags, contents; Vehicle_UpdatePhysics):
+// CM_TraceRayThroughCandidates with fractions - brushes through CM_ClipSegmentToBrush (ids, 0x009507e0 = -1; an exact
+// 0 ends it), crossed triangles inside their edges give ((start - crossing) . plane - 0.125) / (ds - de) when below
+// the current fraction (ids, mesh to 0x0094cb9c, triangle to 0x009507e0).
+void XB_CDECL CM_TraceSegmentThroughCandidates(const uint8_t* triangles, const uint8_t* brushes, const float* start,
+                                               const float* end, float* fraction, uint32_t* surface_flags,
+                                               uint32_t* contents);
+// 0x00227160 (fraction out in EDI; start, delta on the stack): *fraction = 1, then every brush of the list 0x008fcee0
+// (count 0x008fcee4) through CM_ClipSegmentToBrush and every front-facing triangle of the list 0x008fd3f0 ({a, c,
+// b, plane} pointers, count 0x008fd3f4) through CM_RayHitsTriangle. AL = any hit.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_RayHitsListedObjects(float* fraction, const float* start,
+                                                                   const float* delta);
+extern "C" void CM_RayHitsListedObjects_entry(void);
+// 0x002299a0 (point in EAX, out in EBX; radius on the stack): out = point pushed out of the listed brushes
+// (CM_PushPointOutOfBrush), triangles (CM_PushSphereOutOfTriangle) and the brush models of the entity records at
+// 0x008fd680 (count 0x008fd684; in each entity's frame, as G_PushCapsuleOutOfSolids). AL = any push.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_PushSphereOutOfListedObjects(const float* point, float* out, float radius);
+extern "C" void CM_PushSphereOutOfListedObjects_entry(void);
+// 0x0002a340 (object in EAX): moves a point attached to its owner (+0x124; rows +0x40.., origin +0x70) - world =
+// owner frame * local point (+0x90); when farther than half the length (+0x120) from the position (+0x100), the
+// segment scaled by (half + len) / len (x87) is tested with CM_RayHitsListedObjects and the push (+0x110) set to
+// (fraction - 1) * that segment; the owner origin moves by the push and the position becomes world + push.
+void XB_REGS1 XB_CDECL Phys_MoveAttachedPoint(uint8_t* obj);
+// 0x0002ab10 (object in EAX): for each attached point (+0xbf0, count +0xc44) the owner origin (+0x124 -> +0x70) moves back
+// by the point's push (+0x110); the w lane added is a never-written stack word in the original (0 here, as in tests).
+void XB_REGS1 XB_CDECL Phys_UndoAttachedPushes(uint8_t* obj);
+// 0x00203f60 (entity record in EAX; start, end, radius, content mask, output triangle and brush lists on the stack):
+// 0 without a record or cached lists (+0x450 / +0x454) or when the segment box (radius around, z up to 2 * radius)
+// is not inside the cached box (+0x430 / +0x440); else CM_FilterBoxCandidates into the output lists and 1.
+uint8_t XB_REGS1 XB_CDECL G_FilterCachedCandidates(const uint8_t* record, const float* start, const float* end,
+                                                   float radius, uint32_t content_mask, uint8_t* out_triangles,
+                                                   uint8_t* out_brushes);
 
 
 // Candidate lists (CM_GatherBoxCandidates / CM_FilterBoxCandidates): brushes {pointer +0x800, count +0x804} of 4-byte

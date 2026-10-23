@@ -268,4 +268,10 @@ extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL StreamMem_GetBlock(const uint32_t*
                                                                 uint32_t* out, int32_t n);
 extern "C" void StreamMem_GetBlock_entry(void);
 
+// 0x0028c870 (zone in ECX; result in XMM0): the zone's load priority, cached per frame (+0x40 = frame 0x008d9d38,
+// +0x3c = value): FLT_MAX when its distance +0x34 is -1, or +0x30 is -1 and +0x34 FLT_MAX; else +0x34 (+0x30 when +0x34
+// is FLT_MAX), 0 for zones in states 0, 1, 3, 7 that have a pak slot (+0x28). Callers keep XMM4 and ECX across it.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Zone_UpdatePriority(uint8_t* zone);
+extern "C" void Zone_UpdatePriority_entry(void);
+
 }  // namespace game

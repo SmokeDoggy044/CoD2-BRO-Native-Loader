@@ -2390,4 +2390,61 @@ uint32_t XB_CDECL PathNode_IsLinkInBadPlace(const uint16_t* handle, const uint8_
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(links + count * 0xc)) & ~0xffu;
 }
 
+namespace {
+
+uint8_t* path_node(uint32_t value, const uint8_t* table) {
+    const uint16_t handle = uint16_t(value);
+    if (handle == 0 || handle == 0xffff) return nullptr;
+    const uint16_t block_index = uint16_t((handle >> 9) - 1);
+    const uint8_t* const block = *reinterpret_cast<uint8_t* const*>(table + 8 + uint32_t(block_index) * 4);
+    if (!block) return nullptr;
+    return *reinterpret_cast<uint8_t* const*>(block + 0x10) + (value & 0x1ff) * 0x80;
+}
+
+}  // namespace
+
+uint32_t XB_REGS1 XB_CDECL PathNode_HandleIsValid(const uint16_t* handle) {
+    // The original keeps the pointer's upper half in EAX; only the low 9 bits reach the node offset.
+    return path_node(*handle, title_global<const uint8_t*>(0x0095f4f4)) ? 1 : 0;
+}
+
+uint8_t* XB_REGS2 XB_CDECL PathNode_FromHandleInTable(const uint16_t* handle, const uint8_t* table) {
+    return path_node(*handle, table);
+}
+
+PLATFORM_ASM_ENTRY(EntBits_IterNext_entry, "pushl %edx\n" PLATFORM_ASM_CALL(EntBits_IterNext) "addl $4, %esp\n"
+                                           "ret")
+
+void XB_CDECL EntBits_IterNext(uint32_t* iterator) {
+    if (int32_t(iterator[2]) == -1) return;
+    if (!iterator[1]) {
+        const uint32_t* const bits = reinterpret_cast<const uint32_t*>(uintptr_t{iterator[0]});
+        while (int32_t(iterator[2]) < 0x29) {
+            ++iterator[2];
+            iterator[1] = bits[iterator[2]];
+            if (iterator[1]) break;
+        }
+    }
+    if (!iterator[1]) {
+        iterator[3] = 0xffffffff;
+        iterator[2] = 0xffffffff;
+        return;
+    }
+    uint32_t bit = 0;
+    while (!(iterator[1] & (1u << bit))) ++bit;  // BSF
+    iterator[1] &= ~(1u << bit);
+    iterator[3] = (iterator[2] << 5) + bit;
+}
+
+PLATFORM_ASM_ENTRY(BadPlace_FindByName_entry, "pushl %ebx\n" PLATFORM_ASM_CALL(BadPlace_FindByName) "addl $4, %esp\n"
+                                              "ret")
+
+int32_t XB_CDECL BadPlace_FindByName(const ScriptString* name) {
+    for (int32_t i = 0; i < 32; ++i) {
+        const auto* const slot = &title_global<const ScriptString>(0x0098a574 + uint32_t(i) * 0x28);
+        if (ScriptString_EqualsString(slot, name)) return i;
+    }
+    return -1;
+}
+
 }  // namespace game

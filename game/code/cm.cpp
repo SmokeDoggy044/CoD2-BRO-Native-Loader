@@ -2580,6 +2580,63 @@ uint8_t XB_REGS3 XB_CDECL CM_TraceRayThroughCandidates(uint32_t, uint32_t, uint8
     return hit;
 }
 
+void XB_CDECL CM_TraceSegmentThroughCandidates(const uint8_t* triangles, const uint8_t* brushes, const float* start,
+                                               const float* end, float* fraction, uint32_t* surface_flags,
+                                               uint32_t* contents) {
+    const Lanes d = sub(lanes(end), lanes(start));
+    const float best = sum_xyz(mul(d, d));
+    if (!(title_global<float>(0x0082e6a0) <= best)) return;  // CMPLESS on lane 0 (0)
+    const int32_t brush_count = *reinterpret_cast<const int32_t*>(brushes + 0x804);
+    for (int32_t i = 0; i < brush_count; ++i) {
+        const uint8_t* brush = (*reinterpret_cast<const uint8_t* const* const*>(brushes + 0x800))[i];
+        if (!CM_ClipSegmentToBrush(start, end, brush, fraction)) continue;
+        *surface_flags = *reinterpret_cast<const uint32_t*>(brush + 4);
+        *contents = *reinterpret_cast<const uint32_t*>(brush + 8);
+        title_global<int32_t>(0x009507e0) = -1;
+        if (*fraction == title_global<float>(0x0083eafc)) return;  // UCOMISS + JNP: exactly 0
+    }
+    const float* zero = reinterpret_cast<const float*>(uintptr_t{0x0082e680});
+    const int32_t n = *reinterpret_cast<const int32_t*>(triangles + 0x1004);
+    for (int32_t i = 0; i < n; ++i) {
+        const uint8_t* entry = *reinterpret_cast<const uint8_t* const*>(triangles + 0x1000) + i * 8;
+        const uint8_t* mesh = *reinterpret_cast<const uint8_t* const*>(entry);
+        const uint32_t triangle = *reinterpret_cast<const uint32_t*>(entry + 4);
+        alignas(16) float plane_copy[4];
+        std::memcpy(plane_copy, *reinterpret_cast<uint8_t* const*>(mesh + 0x44) + triangle * 16, 16);
+        const Lanes plane = lanes(plane_copy);
+        const Lanes s = lanes(start);
+        const Lanes e = lanes(end);
+        const float ds = sum_xyz(mul(plane, s)) + plane.v[3];
+        const float de = sum_xyz(mul(plane, e)) + plane.v[3];
+        if (!(ds > title_global<float>(0x0083ed50))) continue;  // 1e-4
+        if (!(de <= title_global<float>(0x0082e6a0))) continue;  // CMPLESS on lane 0 (0)
+        const Lanes crossing = div_lanes(sub(mul(s, splat(de)), mul(e, splat(ds))), splat(de - ds));
+        platform_keep(crossing);
+        const Lanes to_start = sub(s, crossing);
+        if (!(best > sum_xyz(mul(to_start, to_start)))) continue;
+        const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(mesh + 0x34);
+        const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(mesh + 0x3c))[triangle];
+        const Lanes v0 = lanes(reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16));
+        const Lanes v1 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16));
+        const Lanes v2 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16));
+        const float e0 = edge_side(sub(v0, v1), sub(crossing, v1), plane);
+        const float e1 = edge_side(sub(v1, v2), sub(crossing, v2), plane);
+        const float e2 = edge_side(sub(v2, v0), sub(crossing, v0), plane);
+        const float sides[4] = {e2, e1, e0, e0};
+        int32_t outside = 0;
+        for (int32_t a = 0; a < 4; ++a)  // CMPLTPS on every lane
+            if (sides[a] < zero[a]) outside |= 1 << a;
+        if (outside & 7) continue;
+        const float t = (sum_xyz(mul(to_start, plane)) - title_global<float>(0x0083ec68)) / (ds - de);  // 0.125
+        if (!(*fraction > t)) continue;
+        *fraction = t;
+        *surface_flags = *reinterpret_cast<const uint32_t*>(mesh + 4);
+        *contents = *reinterpret_cast<const uint32_t*>(mesh + 8);
+        title_global<const uint8_t*>(0x0094cb9c) = mesh;
+        title_global<uint32_t>(0x009507e0) = triangle;
+    }
+}
+
 void XB_REGS1 XB_CDECL CM_CandidateRayTrace(const float* end, const uint8_t* triangles, const uint8_t* brushes,
                                             uint8_t* results, const float* start, uint32_t brushmask) {
     alignas(16) uint8_t tw[0x170];
@@ -2988,6 +3045,323 @@ uint8_t XB_CDECL G_PushCapsuleOutOfSolids(uint8_t* pm, float radius) {
     return hit;
 }
 
+PLATFORM_ASM_ENTRY(G_PushAwayFromEntities_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm3, (%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_PushAwayFromEntities) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL G_PushAwayFromEntities(uint8_t* pm, float radius) {
+    uint8_t* const ps = *reinterpret_cast<uint8_t* const*>(pm);
+    uint8_t* const record = entity_from_handle(*reinterpret_cast<const uint32_t*>(ps + 0x7c));
+    uint8_t hit = 0;
+    const float two = title_global<float>(0x0083eba8);
+    const float mid_z = (*reinterpret_cast<const float*>(pm + 0x108) + *reinterpret_cast<const float*>(pm + 0x118)) *
+                        title_global<float>(0x0083eb24);  // 0.5
+    alignas(16) float p[4];
+    std::memcpy(p, ps, 16);
+    Lanes mid = lanes(p);
+    mid.v[2] = mid_z + mid.v[2];
+    const Lanes r2 = mul(splat(two), splat(radius));
+    Lanes lo = sub(mid, r2);
+    Lanes hi = add(mid, r2);
+    lo.v[2] = lo.v[2] - title_global<float>(0x0083eb90);  // 100
+    hi.v[2] = hi.v[2] + title_global<float>(0x0083eb90);
+    if (!(title_global<uint8_t>(0x0098c390) & 1)) {
+        title_global<uint32_t>(0x0098c390) |= 1;
+        std::memset(reinterpret_cast<void*>(uintptr_t{0x0098c190}), 0, 0x200);
+    }
+    std::memcpy(reinterpret_cast<void*>(uintptr_t{0x0098c170}), lo.v, 16);
+    std::memcpy(reinterpret_cast<void*>(uintptr_t{0x0098c180}), hi.v, 16);
+    int32_t* const list = reinterpret_cast<int32_t*>(uintptr_t{0x0098c190});
+    title_global<int32_t>(0x0098c160) =
+        SV_AreaEntities(reinterpret_cast<const float*>(uintptr_t{0x0098c180}), 0,
+                        reinterpret_cast<const float*>(uintptr_t{0x0098c170}), list, 0x80,
+                        *reinterpret_cast<const uint32_t*>(pm + 0x5c));
+    for (int32_t j = 0; j < title_global<int32_t>(0x0098c160); ++j) {
+        const uint8_t* const ent = entity_from_handle(static_cast<uint32_t>(list[j]));
+        if (!ent || ent == record) continue;
+        const Lanes o = lanes(reinterpret_cast<const float*>(ent + 0x140));
+        const float top = (*reinterpret_cast<const float*>(pm + 0x118) + p[2]) + two;
+        if (o.v[2] > top) continue;
+        if (p[0] > o.v[0] + title_global<float>(0x0083ecdc)) continue;  // 72 (the original compares x here)
+        Lanes d = sub(o, lanes(p));
+        d.v[2] = 0.0f;
+        const float length_squared = sum_xyz(mul(d, d));
+        if (!((radius * radius) * title_global<float>(0x0083100c) > length_squared)) continue;  // 4
+        float length;
+        __asm__("flds %[l]\n\tfsqrt\n\tfstps %[s]" : [s] "=m"(length) : [l] "m"(length_squared) : "st");
+        Lanes neg;
+        for (int32_t a = 0; a < 4; ++a) {  // XORPS with the sign mask
+            uint32_t bits;
+            std::memcpy(&bits, &d.v[a], 4);
+            neg.v[a] = from_bits(bits ^ 0x80000000u);
+        }
+        Lanes dir;
+        if (platform_x87_greater(length, title_global<float>(0x0083eb94))) {  // 0.01
+            dir = div_lanes(neg, splat(length));
+            platform_keep(dir);
+        } else {
+            const float one = title_global<float>(0x0083eb20);
+            dir = {{one, 0.0f, 0.0f, one}};
+        }
+        const float push = radius * two + title_global<float>(0x008fef50);
+        const Lanes moved = add(o, mul(splat(push), dir));
+        std::memcpy(p, moved.v, 16);
+        hit = 1;
+    }
+    std::memcpy(ps, p, 16);
+    return hit;
+}
+
+void XB_CDECL G_SeparateFromSolids() {
+    uint8_t* pm = title_global<uint8_t*>(0x0092eff4);
+    uint8_t* ps = *reinterpret_cast<uint8_t* const*>(pm);
+    alignas(16) float saved[4];
+    std::memcpy(saved, ps, 16);
+    const uint32_t clipmask = *reinterpret_cast<const uint32_t*>(pm + 0x5c);
+    *reinterpret_cast<uint32_t*>(pm + 0x5c) = 0x200c000;
+    if (G_PushAwayFromEntities(pm, title_global<float>(0x008fef4c))) {
+        for (int32_t n = 0;;) {
+            const uint8_t again = G_PushAwayFromEntities(pm, title_global<float>(0x008fef4c));
+            if (++n > 4 || !again) break;
+        }
+    }
+    *reinterpret_cast<uint32_t*>(pm + 0x5c) = clipmask & 0xfdff3fffu;
+    if (G_PushCapsuleOutOfSolids(pm, title_global<float>(0x008fef4c))) {
+        for (int32_t n = 0;;) {
+            const uint8_t again = G_PushCapsuleOutOfSolids(title_global<uint8_t*>(0x0092eff4), title_global<float>(0x008fef4c));
+            if (++n > 4 || !again) break;
+        }
+    }
+    pm = title_global<uint8_t*>(0x0092eff4);
+    ps = *reinterpret_cast<uint8_t* const*>(pm);
+    alignas(16) float now[4];
+    std::memcpy(now, ps, 16);
+    const Lanes d = sub(lanes(now), lanes(saved));
+    const float radius = title_global<float>(0x008fef4c);
+    if (!(sum_xyz(mul(d, d)) > radius * radius)) {
+        *reinterpret_cast<uint32_t*>(pm + 0x5c) = clipmask;
+        return;
+    }
+    const float half = (*reinterpret_cast<const float*>(pm + 0x118) + *reinterpret_cast<const float*>(pm + 0x108)) *
+                       title_global<float>(0x0083eb24);  // 0.5
+    alignas(16) float start[4], end[4];
+    std::memcpy(start, saved, 16);
+    std::memcpy(end, now, 16);
+    start[2] = start[2] + half;
+    end[2] = end[2] + half;
+    // G_RayTraceCachedCandidates takes the move state in EBX.
+    uint8_t blocked;
+    {
+        const float r = title_global<float>(0x008fef4c);
+        blocked = G_RayTraceCachedCandidates(pm, r, start, end);
+    }
+    pm = title_global<uint8_t*>(0x0092eff4);
+    if (blocked) std::memcpy(*reinterpret_cast<uint8_t* const*>(pm), saved, 16);
+    *reinterpret_cast<uint32_t*>(pm + 0x5c) = clipmask;
+}
+
+PLATFORM_ASM_ENTRY(CM_PushSphereOutOfListedObjects_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_PushSphereOutOfListedObjects) "addl $12, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL CM_PushSphereOutOfListedObjects(const float* point, float* out, float radius) {
+    std::memcpy(out, point, 16);
+    uint8_t hit = 0;
+    const uint8_t* const* brushes = title_global<const uint8_t* const*>(0x008fcee0);
+    const uint8_t* const* brushes_end = brushes + title_global<int32_t>(0x008fcee4);
+    for (const uint8_t* const* b = brushes; b != brushes_end; ++b) hit |= CM_PushPointOutOfBrush(*b, out, radius, out);
+    const float* const* tris = title_global<const float* const*>(0x008fd3f0);
+    const float* const* tris_end = tris + title_global<int32_t>(0x008fd3f4) * 4;
+    for (const float* const* t = tris; t != tris_end; t += 4)
+        hit |= CM_PushSphereOutOfTriangle(out, 0, out, radius, t[0], t[1], t[2], t[3]);
+    // Entities (0x50-byte records: axis rows +0, +0x10, +0x20, origin +0x30, entity +0x40): the point moved into the
+    // entity's frame, pushed out of its brush model's brushes, moved back.
+    const uint8_t* records = title_global<const uint8_t*>(0x008fd680);
+    const uint8_t* records_end = records + title_global<int32_t>(0x008fd684) * 0x50;
+    for (const uint8_t* r = records; r != records_end; r += 0x50) {
+        const uint8_t* ent = *reinterpret_cast<uint8_t* const*>(r + 0x40);
+        const uint32_t* model = *reinterpret_cast<const uint32_t* const*>(ent + 0xdc);
+        const float* m = reinterpret_cast<const float*>(r);
+        const Lanes r0 = lanes(m), r1 = lanes(m + 4), r2 = lanes(m + 8), origin = lanes(m + 12);
+        const Lanes col0 = {{r0.v[0], r1.v[0], r2.v[0], r2.v[0]}};
+        const Lanes col1 = {{r0.v[1], r1.v[1], r2.v[1], r2.v[1]}};
+        const Lanes col2 = {{r0.v[2], r1.v[2], r2.v[2], r2.v[2]}};
+        const Lanes d = sub(lanes(out), origin);
+        const Lanes local = add(add(mul(col0, splat(d.v[0])), mul(col1, splat(d.v[1]))), mul(col2, splat(d.v[2])));
+        std::memcpy(out, local.v, 16);
+        const uint8_t* model_brushes = reinterpret_cast<const uint8_t*>(model[1]);
+        for (uint32_t k = 0; k < model[0]; ++k)
+            hit |= CM_PushPointOutOfBrush(model_brushes + k * 0x40, out, radius, out);
+        const Lanes l = lanes(out);
+        const Lanes world =
+            add(add(add(origin, mul(r0, splat(l.v[0]))), mul(r1, splat(l.v[1]))), mul(r2, splat(l.v[2])));
+        std::memcpy(out, world.v, 16);
+    }
+    return hit;
+}
+
+void XB_REGS1 XB_CDECL Phys_MoveAttachedPoint(uint8_t* obj) {
+    float* const push = reinterpret_cast<float*>(obj + 0x110);
+    push[0] = push[1] = push[2] = push[3] = 0.0f;
+    const Lanes v = lanes(reinterpret_cast<const float*>(obj + 0x90));
+    uint8_t* const owner = *reinterpret_cast<uint8_t* const*>(obj + 0x124);
+    const float* rows = reinterpret_cast<const float*>(owner + 0x40);
+    const Lanes world = add(add(add(lanes(rows + 12), mul(lanes(rows), splat(v.v[0]))), mul(lanes(rows + 4), splat(v.v[1]))),
+                            mul(lanes(rows + 8), splat(v.v[2])));
+    float* const pos = reinterpret_cast<float*>(obj + 0x100);
+    const Lanes d = sub(world, lanes(pos));
+    const float length_squared = sum_xyz(mul(d, d));
+    const float half = *reinterpret_cast<const float*>(obj + 0x120) * title_global<float>(0x0083eb24);  // 0.5
+    if (length_squared > half * half) {
+        float k;
+        // (half + sqrt(len2)) / sqrt(len2) on the x87, stored as float.
+        __asm__("flds %[l]\n\tfsqrt\n\tflds %[h]\n\t"
+                ".byte 0xd8, 0xc1\n\t"  // fadd st, st(1)
+                ".byte 0xd8, 0xf1\n\t"  // fdiv st, st(1)
+                "fstps %[k]\n\tfstp %%st(0)"
+                : [k] "=m"(k)
+                : [l] "m"(length_squared), [h] "m"(half)
+                : "st", "st(1)");
+        alignas(16) float delta[4];
+        std::memcpy(delta, mul(d, splat(k)).v, 16);
+        float fraction;
+        if (CM_RayHitsListedObjects(&fraction, pos, delta)) {
+            const Lanes back = mul(splat(fraction - title_global<float>(0x0083eb20)), lanes(delta));
+            std::memcpy(push, back.v, 16);
+        }
+    }
+    const Lanes t = lanes(push);
+    float* const origin = reinterpret_cast<float*>(owner + 0x70);
+    std::memcpy(origin, add(lanes(origin), t).v, 16);
+    std::memcpy(pos, add(world, t).v, 16);
+}
+
+void XB_REGS1 XB_CDECL Phys_UndoAttachedPushes(uint8_t* obj) {
+    uint8_t* const* points = reinterpret_cast<uint8_t* const*>(obj + 0xbf0);
+    const int32_t count = *reinterpret_cast<const int32_t*>(obj + 0xc44);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint8_t* point = points[i];
+        const Lanes push = lanes(reinterpret_cast<const float*>(point + 0x110));
+        Lanes back;
+        for (int32_t a = 0; a < 3; ++a) {  // XORPS with the sign mask
+            uint32_t bits;
+            std::memcpy(&bits, &push.v[a], 4);
+            back.v[a] = from_bits(bits ^ 0x80000000u);
+        }
+        back.v[3] = 0.0f;  // the original's w is a never-written stack word (zeroed dead stack in tests)
+        float* origin = reinterpret_cast<float*>(*reinterpret_cast<uint8_t* const*>(point + 0x124) + 0x70);
+        std::memcpy(origin, add(lanes(origin), back).v, 16);
+    }
+}
+
+uint8_t XB_REGS1 XB_CDECL G_FilterCachedCandidates(const uint8_t* record, const float* start, const float* end,
+                                                   float radius, uint32_t content_mask, uint8_t* out_triangles,
+                                                   uint8_t* out_brushes) {
+    if (!record) return 0;
+    const uint8_t* in_triangles = *reinterpret_cast<uint8_t* const*>(record + 0x450);
+    if (!in_triangles) return 0;
+    const uint8_t* in_brushes = *reinterpret_cast<uint8_t* const*>(record + 0x454);
+    if (!in_brushes) return 0;
+    const Lanes s = lanes(start), e = lanes(end);
+    alignas(16) float lo[4], hi[4];
+    std::memcpy(lo, sub(min_lanes(s, e), Lanes{{radius, radius, 0.0f, radius}}).v, 16);
+    const float r2 = radius * title_global<float>(0x0083eba8);  // 2
+    std::memcpy(hi, add(max_lanes(s, e), Lanes{{radius, radius, r2, radius}}).v, 16);
+    if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(record + 0x430)), lanes(lo)),
+                    sub(lanes(hi), lanes(reinterpret_cast<const float*>(record + 0x440)))))
+        return 0;
+    CM_FilterBoxCandidates(out_brushes, 0, in_brushes, lo, hi, content_mask, in_triangles, out_triangles);
+    return 1;
+}
+
+namespace {
+
+// The title CRT's __CIsqrt of an x87 value, stored as float.
+float ci_sqrt_store(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// asin-style series t + t^3 c1 + (t^5 c2 + t^7 c3) on SSE.
+float pitch_series(float t) {
+    const float t2 = t * t;
+    const float t3 = t2 * t;
+    const float t5 = t3 * t2;
+    const float t7 = t5 * t2;
+    return ((t3 * title_global<float>(0x0083ee9c)) + ((t5 * title_global<float>(0x0083ee98)) +
+                                                      (t7 * title_global<float>(0x0083ee94)))) +
+           t;
+}
+
+// The complementary series for t >= 0.5: s = sqrt(|(1 - t) / 2|) through __CIsqrt, then
+// (((s^7 c4 - s^5 0.15) - s^3 / 3) - 2 s) + pi / 2.
+float pitch_series_far(float t) {
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    const float u = static_cast<float>((static_cast<long double>(one) - t) * half);
+    uint32_t bits;
+    std::memcpy(&bits, &u, 4);
+    const float s = ci_sqrt_store(from_bits(bits & 0x7fffffffu));
+    const float s2 = s * s;
+    const float s3 = s2 * s;
+    const float two_s = s * title_global<float>(0x0083eba8);
+    const float s5 = s3 * s2;
+    const float s7 = s5 * s2;
+    return (((s7 * title_global<float>(0x0083ee8c) - s5 * title_global<float>(0x0083ed2c)) -
+             s3 * title_global<float>(0x0083ee90)) -
+            two_s) +
+           title_global<float>(0x0083ee88);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Vec3_PitchDegrees_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Vec3_PitchDegrees) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL Vec3_PitchDegrees(const float* v) {
+    if (v[1] == 0.0f && v[0] == 0.0f)  // UCOMISS + JP: exactly 0 (a NaN takes the general path)
+        return v[2] > 0.0f ? title_global<float>(0x0083efcc) : title_global<float>(0x0083eb64);  // 270 : 90
+    const float a = ci_sqrt_store(static_cast<long double>(v[1] * v[1] + v[0] * v[0]));
+    const float z = v[2];
+    uint32_t bits;
+    std::memcpy(&bits, &a, 4);
+    const float abs_a = from_bits(bits & 0x7fffffffu);
+    std::memcpy(&bits, &z, 4);
+    const float abs_z = from_bits(bits & 0x7fffffffu);
+    float r;
+    if (static_cast<long double>(abs_z) + abs_a == 0.0L) {  // FUCOMIP with 0.0 (a NaN goes on)
+        r = 0.0f;
+    } else {
+        const float length = ci_sqrt_store(static_cast<long double>(z) * z + static_cast<long double>(a) * a);
+        const float inv = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / length);
+        const float half = title_global<float>(0x0083eb24);
+        if (abs_z > abs_a) {
+            const float t = inv * abs_a;
+            r = title_global<float>(0x0083ed0c) - (half > t ? pitch_series(t) : pitch_series_far(t));  // pi / 2 -
+        } else {
+            const float t = inv * abs_z;
+            r = half > t ? pitch_series(t) : pitch_series_far(t);
+        }
+        const float zero = 0.0f;
+        if (zero > a) r = title_global<float>(0x0083ed00) - r;  // pi -
+        if (zero > z) r = zero - r;
+    }
+    r = (r * title_global<float>(0x0083ebd0)) / title_global<float>(0x0083ed00);  // * -180 / pi
+    if (0.0f > r) r = r + title_global<float>(0x0083ebcc);                       // + 360
+    return r;
+}
+
 uint8_t XB_REGS3 XB_CDECL CM_RayHitsTriangle(const float* a, uint32_t, const float* c, const float* origin,
                                              const float* dir, const float* b, float max_fraction, float* fraction) {
     const Lanes la = lanes(a);
@@ -3024,6 +3398,93 @@ uint8_t XB_REGS3 XB_CDECL CM_RayHitsTriangle(const float* a, uint32_t, const flo
     *fraction = t;
     return 1;
 }
+
+uint8_t XB_CDECL CM_ClipSegmentToBrush(const float* start, const float* end, const uint8_t* brush, float* fraction) {
+    const float zero = 0.0f;
+    const float eps = title_global<float>(0x0083ec68);  // 0.125
+    float enter = zero;
+    float leave = *fraction;
+    bool hit_plane = false;
+    bool inside = true;
+    // One plane: d1 / d2 = start / end distances. Returns false when the segment misses the brush.
+    auto plane = [&](float d1, float d2) -> bool {
+        if (d1 > zero) {
+            const float f = d1 - d2;
+            if (d2 > zero) {
+                if (zero >= f) return false;
+                if (d2 >= eps) return false;
+                inside = false;
+            }
+            const float near = d1 - eps;
+            if (near > f * enter) {
+                enter = near / f;
+                if (enter >= leave) return false;
+                hit_plane = true;
+            } else {
+                hit_plane = true;
+            }
+        } else if (d2 > zero) {
+            const float f = d1 - d2;
+            inside = false;
+            if (d1 > f * leave) {
+                leave = d1 / f;
+                if (enter >= leave) return false;
+            }
+        }
+        return true;
+    };
+    const Lanes center = lanes(reinterpret_cast<const float*>(brush + 0x10));
+    const Lanes half = lanes(reinterpret_cast<const float*>(brush + 0x20));
+    for (int32_t pass = 0; pass < 2; ++pass) {  // the box faces: mins with normal -1, then maxs with +1
+        const Lanes bound = pass ? add(center, half) : sub(center, half);
+        const float sign = pass ? title_global<float>(0x0083eb20) : title_global<float>(0x0083eb34);
+        for (int32_t a = 0; a < 3; ++a) {
+            const float d1 = (start[a] - bound.v[a]) * sign;
+            const float d2 = (end[a] - bound.v[a]) * sign;
+            if (!plane(d1, d2)) return 0;
+        }
+    }
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(brush + 0x30);
+    const float* planes = *reinterpret_cast<const float* const*>(brush + 0x34);
+    const Lanes s = lanes(start), e = lanes(end);
+    for (uint32_t j = 0; j < count; ++j) {
+        const Lanes n = lanes(planes + j * 4);
+        const float d1 = sum_xyz(mul(s, n)) - n.v[3];
+        const float d2 = sum_xyz(mul(e, n)) - n.v[3];
+        if (!plane(d1, d2)) return 0;
+    }
+    if (hit_plane) {
+        *fraction = enter;
+    } else if (inside) {
+        *fraction = zero;
+    }
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(CM_RayHitsListedObjects_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CM_RayHitsListedObjects) "addl $12, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL CM_RayHitsListedObjects(float* fraction, const float* start, const float* delta) {
+    *fraction = title_global<float>(0x0083eb20);  // 1
+    alignas(16) float end[4];
+    std::memcpy(end, add(lanes(start), lanes(delta)).v, 16);
+    uint8_t hit = 0;
+    const uint8_t* const* brushes = title_global<const uint8_t* const*>(0x008fcee0);
+    const uint8_t* const* brushes_end = brushes + title_global<int32_t>(0x008fcee4);
+    for (const uint8_t* const* b = brushes; b != brushes_end; ++b)
+        if (CM_ClipSegmentToBrush(start, end, *b, fraction)) hit = 1;
+    const float* const* tris = title_global<const float* const*>(0x008fd3f0);
+    const float* const* tris_end = tris + title_global<int32_t>(0x008fd3f4) * 4;
+    for (const float* const* t = tris; t != tris_end; t += 4) {
+        if (!(0.0f > sum_xyz(mul(lanes(delta), lanes(t[3]))))) continue;  // facing the segment
+        hit |= CM_RayHitsTriangle(t[0], 0, t[1], start, delta, t[2], *fraction, fraction);
+    }
+    return hit;
+}
+
 
 uint8_t XB_CDECL CM_RayHitsWorldMeshes(const float* start, const float* delta, float* plane_out, float* fraction) {
     const Lanes s = lanes(start);
