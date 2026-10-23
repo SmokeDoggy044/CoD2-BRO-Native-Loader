@@ -3297,6 +3297,44 @@ void XB_REGS1 XB_CDECL Phys_MoveAttachedPoint(uint8_t* obj) {
     std::memcpy(pos, add(world, t).v, 16);
 }
 
+void XB_REGS1 XB_CDECL Phys_UndoAttachedPushes(uint8_t* obj) {
+    uint8_t* const* points = reinterpret_cast<uint8_t* const*>(obj + 0xbf0);
+    const int32_t count = *reinterpret_cast<const int32_t*>(obj + 0xc44);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint8_t* point = points[i];
+        const Lanes push = lanes(reinterpret_cast<const float*>(point + 0x110));
+        Lanes back;
+        for (int32_t a = 0; a < 3; ++a) {  // XORPS with the sign mask
+            uint32_t bits;
+            std::memcpy(&bits, &push.v[a], 4);
+            back.v[a] = from_bits(bits ^ 0x80000000u);
+        }
+        back.v[3] = 0.0f;  // the original's w is a never-written stack word (zeroed dead stack in tests)
+        float* origin = reinterpret_cast<float*>(*reinterpret_cast<uint8_t* const*>(point + 0x124) + 0x70);
+        std::memcpy(origin, add(lanes(origin), back).v, 16);
+    }
+}
+
+uint8_t XB_REGS1 XB_CDECL G_FilterCachedCandidates(const uint8_t* record, const float* start, const float* end,
+                                                   float radius, uint32_t content_mask, uint8_t* out_triangles,
+                                                   uint8_t* out_brushes) {
+    if (!record) return 0;
+    const uint8_t* in_triangles = *reinterpret_cast<uint8_t* const*>(record + 0x450);
+    if (!in_triangles) return 0;
+    const uint8_t* in_brushes = *reinterpret_cast<uint8_t* const*>(record + 0x454);
+    if (!in_brushes) return 0;
+    const Lanes s = lanes(start), e = lanes(end);
+    alignas(16) float lo[4], hi[4];
+    std::memcpy(lo, sub(min_lanes(s, e), Lanes{{radius, radius, 0.0f, radius}}).v, 16);
+    const float r2 = radius * title_global<float>(0x0083eba8);  // 2
+    std::memcpy(hi, add(max_lanes(s, e), Lanes{{radius, radius, r2, radius}}).v, 16);
+    if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(record + 0x430)), lanes(lo)),
+                    sub(lanes(hi), lanes(reinterpret_cast<const float*>(record + 0x440)))))
+        return 0;
+    CM_FilterBoxCandidates(out_brushes, 0, in_brushes, lo, hi, content_mask, in_triangles, out_triangles);
+    return 1;
+}
+
 uint8_t XB_REGS3 XB_CDECL CM_RayHitsTriangle(const float* a, uint32_t, const float* c, const float* origin,
                                              const float* dir, const float* b, float max_fraction, float* fraction) {
     const Lanes la = lanes(a);

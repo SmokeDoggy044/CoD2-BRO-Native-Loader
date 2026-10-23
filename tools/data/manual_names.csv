@@ -11745,3 +11745,5 @@ address,name,kind,confidence,evidence
 002299a0,CM_PushSphereOutOfListedObjects,function,medium,"sphere pushed out of the listed brushes/triangles (0x008fcee0 / 0x008fd3f0) and listed entity brush models (0x008fd680, frame rows + origin); AL"
 0002a340,Phys_MoveAttachedPoint,function,low,"point attached to an owner frame (+0x124): world position, CM_RayHitsListedObjects along the move when longer than half +0x120, push +0x110 applied to owner origin and position"
 002d2b50,CM_TraceSegmentThroughCandidates,function,medium,"segment over candidate lists with fractions: CM_ClipSegmentToBrush per brush, crossed triangles (edge tests) with the 0.125 nudge; hit ids, mesh/triangle to 0x0094cb9c / 0x009507e0; Vehicle_UpdatePhysics"
+0002ab10,Phys_UndoAttachedPushes,function,low,"moves each attached point owner origin back by the point push (+0x110); sibling of Phys_MoveAttachedPoint under 0x00231770"
+00203f60,G_FilterCachedCandidates,function,medium,"entity record cached candidate lists filtered for a segment box (radius, z up to 2*radius) inside the cached box; AL; G_ComputeGroundTilt and 0x0020da90"

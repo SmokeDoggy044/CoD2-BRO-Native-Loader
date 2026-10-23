@@ -459,6 +459,15 @@ extern "C" void CM_PushSphereOutOfListedObjects_entry(void);
 // segment scaled by (half + len) / len (x87) is tested with CM_RayHitsListedObjects and the push (+0x110) set to
 // (fraction - 1) * that segment; the owner origin moves by the push and the position becomes world + push.
 void XB_REGS1 XB_CDECL Phys_MoveAttachedPoint(uint8_t* obj);
+// 0x0002ab10 (object in EAX): for each attached point (+0xbf0, count +0xc44) the owner origin (+0x124 -> +0x70) moves back
+// by the point's push (+0x110); the w lane added is a never-written stack word in the original (0 here, as in tests).
+void XB_REGS1 XB_CDECL Phys_UndoAttachedPushes(uint8_t* obj);
+// 0x00203f60 (entity record in EAX; start, end, radius, content mask, output triangle and brush lists on the stack):
+// 0 without a record or cached lists (+0x450 / +0x454) or when the segment box (radius around, z up to 2 * radius)
+// is not inside the cached box (+0x430 / +0x440); else CM_FilterBoxCandidates into the output lists and 1.
+uint8_t XB_REGS1 XB_CDECL G_FilterCachedCandidates(const uint8_t* record, const float* start, const float* end,
+                                                   float radius, uint32_t content_mask, uint8_t* out_triangles,
+                                                   uint8_t* out_brushes);
 
 
 // Candidate lists (CM_GatherBoxCandidates / CM_FilterBoxCandidates): brushes {pointer +0x800, count +0x804} of 4-byte

@@ -752,7 +752,7 @@ address,name,section,module,state,tested,matched
 0002a5d0,FUN_0002a5d0,.text,unassigned,unnamed,0,0
 0002a620,FUN_0002a620,.text,unassigned,unnamed,0,0
 0002a910,FUN_0002a910,.text,unassigned,unnamed,0,0
-0002ab10,FUN_0002ab10,.text,unassigned,unnamed,0,0
+0002ab10,FUN_0002ab10,.text,unassigned,settled,1208,1208
 0002ac30,Mat44_TransformVector,.text,qcommon,named,0,0
 0002ad30,FUN_0002ad30,.text,unassigned,unnamed,0,0
 0002ade0,FUN_0002ade0,.text,unassigned,unnamed,0,0
@@ -7678,7 +7678,7 @@ address,name,section,module,state,tested,matched
 002038b0,Actor_IsCoverValidAgainst,.text,game,settled,752,752
 00203de0,Actor_AnimStationary,.text,game,named,0,0
 00203e60,Actor_FindStepAsideNode,.text,game,named,0,0
-00203f60,FUN_00203f60,.text,unassigned,unnamed,0,0
+00203f60,FUN_00203f60,.text,unassigned,settled,2554,2554
 00204060,Actor_GetAnimTree,.text,game,settled,100,100
 002040a0,FUN_002040a0,.text,unassigned,unnamed,0,0
 00204100,FUN_00204100,.text,unassigned,unnamed,0,0
@@ -9766,7 +9766,7 @@ address,name,section,module,state,tested,matched
 002d27c0,FUN_002d27c0,.text,unassigned,untested,0,0
 002d2b50,FUN_002d2b50,.text,unassigned,settled,11238,11238
 002d2f90,CM_SightTraceRayThroughWorldTrees,.text,collision,settled,2968,2968
-002d3360,FUN_002d3360,.text,unassigned,matched,3,3
+002d3360,FUN_002d3360,.text,unassigned,matched,4,4
 002d37f0,CM_TraceRayThroughWorldTrees,.text,collision,settled,5635,5635
 002d3e10,FUN_002d3e10,.text,unassigned,settled,171,171
 002d3f40,FUN_002d3f40,.text,unassigned,settled,114,114
@@ -9776,7 +9776,7 @@ address,name,section,module,state,tested,matched
 002d4360,CM_TraceCapsuleThroughTempBox,.text,collision,settled,829,829
 002d44b0,CM_TraceThroughVerticalCylinder,.text,collision,settled,100,100
 002d47d0,CM_TraceThroughSphere,.text,collision,matched,40,40
-002d4a60,FUN_002d4a60,.text,unassigned,matched,3,3
+002d4a60,FUN_002d4a60,.text,unassigned,matched,4,4
 002d4f10,CM_TraceThroughBrushes,.text,collision,settled,12369,12369
 002d4f80,CM_SphereTouchesTriangle,.text,collision,settled,11879,11879
 002d5130,FUN_002d5130,.text,unassigned,unnamed,0,0
@@ -9791,7 +9791,7 @@ address,name,section,module,state,tested,matched
 002d5ba0,FUN_002d5ba0,.text,unassigned,unnamed,0,0
 002d5bf0,FUN_002d5bf0,.text,unassigned,unnamed,0,0
 002d5d50,FUN_002d5d50,.text,unassigned,settled,4111,4111
-002d60d0,FUN_002d60d0,.text,unassigned,matched,4,4
+002d60d0,FUN_002d60d0,.text,unassigned,matched,5,5
 002d62c0,BG_EvaluateTrajectory,.text,game,named,0,0
 002d6710,FUN_002d6710,.text,unassigned,unnamed,0,0
 002d67a0,FUN_002d67a0,.text,unassigned,unnamed,0,0
