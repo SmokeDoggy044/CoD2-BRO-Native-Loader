@@ -1485,7 +1485,7 @@ address,name,section,module,state,tested,matched
 000562d0,IN_PadConsumeReleased,.text,client,settled,3942,3942
 00056570,IN_PadReturnFalse,.text,client,named,0,0
 00056580,IN_PadButtonPressed,.text,client,settled,4391,4391
-00056720,IN_PadConsumePressed,.text,client,matched,41,41
+00056720,IN_PadConsumePressed,.text,client,matched,57,57
 000569c0,IN_PadGetStick,.text,client,settled,958,958
 00056a30,IN_SetRumbleMotor,.text,client,named,0,0
 00056ae0,IN_PadStopAllRumble,.text,client,named,0,0
@@ -9228,7 +9228,7 @@ address,name,section,module,state,tested,matched
 002aa4f0,MSG_ReadString,.text,qcommon,settled,123,123
 002aa560,MSG_ReadFloat,.text,qcommon,settled,397,397
 002aa5b0,MSG_ReadLong,.text,qcommon,settled,400,400
-002aa6e0,MSG_WriteLong,.text,qcommon,settled,139,139
+002aa6e0,MSG_WriteLong,.text,qcommon,settled,23860,23860
 002aa870,Cmd_List_f,.text,qcommon,named,0,0
 002aa8b0,Cmd_TokenizeString,.text,qcommon,settled,113,113
 002aaa10,Cmd_ArgsFrom,.text,qcommon,untested,0,0
@@ -9252,11 +9252,11 @@ address,name,section,module,state,tested,matched
 002ab470,SCR_AdjustFrom640,.text,client,named,0,0
 002ab560,FUN_002ab560,.text,unassigned,unnamed,0,0
 002ab710,FUN_002ab710,.text,unassigned,unnamed,0,0
-002ab760,CL_RefPrintf,.text,client,named,0,0
+002ab760,CL_RefPrintf,.text,client,matched,25,25
 002ab7b0,CL_Disconnect_f,.text,client,named,0,0
 002ab7c0,CL_Setenv_f,.text,client,named,0,0
 002ab8d0,CL_AddReliableCommand,.text,client,named,0,0
-002ab980,Key_KeynumToString,.text,client,matched,22,22
+002ab980,Key_KeynumToString,.text,client,matched,30,30
 002abb30,CL_FinishMove,.text,client,settled,396,396
 002abc30,CL_CmdButtons,.text,client,settled,271,271
 002abe80,IN_CenterView,.text,client,named,0,0
@@ -9369,9 +9369,9 @@ address,name,section,module,state,tested,matched
 002b3250,CL_ScaledMilliseconds,.text,client,named,0,0
 002b32b0,CL_ForwardToServer_f,.text,client,named,0,0
 002b3370,Key_Bindlist_f,.text,client,named,0,0
-002b3490,Key_StringToKeynum,.text,client,matched,40,40
+002b3490,Key_StringToKeynum,.text,client,matched,74,74
 002b3580,CL_ShutdownInput,.text,client,named,0,0
-002b37e0,CL_WritePacket,.text,client,named,0,0
+002b37e0,CL_WritePacket,.text,client,settled,8535,8535
 002b39e0,CL_MouseMove,.text,client,settled,699,345
 002b3e60,CL_JoystickMove,.text,client,settled,408,408
 002b3f40,CL_KeyMove,.text,client,settled,118,118
@@ -9407,7 +9407,7 @@ address,name,section,module,state,tested,matched
 002b48d0,IN_LeftUp,.text,client,named,0,0
 002b48e0,IN_LeftDown,.text,client,named,0,0
 002b48f0,IN_UpUp,.text,client,named,0,0
-002b4910,CL_ShutdownCGame,.text,client,named,0,0
+002b4910,CL_ShutdownCGame,.text,client,matched,4,4
 002b49a0,Persistent_SetValue,.text,unassigned,named,0,0
 002b4a30,FUN_002b4a30,.text,unassigned,unnamed,0,0
 002b4ab0,FUN_002b4ab0,.text,unassigned,unnamed,0,0
@@ -9545,7 +9545,7 @@ address,name,section,module,state,tested,matched
 002bdc80,FUN_002bdc80,.text,unassigned,unnamed,0,0
 002bde90,FUN_002bde90,.text,unassigned,unnamed,0,0
 002bdf10,IN_Frame,.text,client,named,0,0
-002be180,IN_InitCvars,.text,client,named,0,0
+002be180,IN_InitCvars,.text,client,matched,5,5
 002be200,CG_GetEntityRefEntity,.text,cgame,settled,391,391
 002be2e0,FUN_002be2e0,.text,unassigned,unnamed,0,0
 002be3e0,G_SetSoundDoneNotify,.text,game,settled,103,103
@@ -9585,7 +9585,7 @@ address,name,section,module,state,tested,matched
 002c1060,CM_PointLeafnum_r,.text,collision,settled,400,400
 002c10e0,FUN_002c10e0,.text,unassigned,unnamed,0,0
 002c1ae0,CM_LoadMap,.text,collision,matched,34,34
-002c1b80,CL_ResetLocalConnection,.text,client,named,0,0
+002c1b80,CL_ResetLocalConnection,.text,client,matched,8,8
 002c1c20,Key_Bind_f,.text,client,named,0,0
 002c1d60,Key_Unbindall_f,.text,client,named,0,0
 002c1db0,Key_Unbind_f,.text,client,named,0,0
@@ -9713,8 +9713,8 @@ address,name,section,module,state,tested,matched
 002cc750,FUN_002cc750,.text,unassigned,unnamed,0,0
 002cc880,FUN_002cc880,.text,unassigned,unnamed,0,0
 002ccc50,CM_TempBoxModel,.text,collision,settled,361,361
-002cce00,CL_SystemInfoChanged,.text,client,named,0,0
-002cce80,CL_ParseSnapshot,.text,client,named,0,0
+002cce00,CL_SystemInfoChanged,.text,client,matched,17,17
+002cce80,CL_ParseSnapshot,.text,client,settled,12505,12505
 002ccf40,CL_DecAnimWeight_f,.text,client,named,0,0
 002ccfb0,CL_IncAnimWeight_f,.text,client,named,0,0
 002cd020,CL_ClearState,.text,client,named,0,0
@@ -9781,12 +9781,12 @@ address,name,section,module,state,tested,matched
 002d4f80,CM_SphereTouchesTriangle,.text,collision,settled,11879,11879
 002d5130,FUN_002d5130,.text,unassigned,unnamed,0,0
 002d5320,CM_BoxLeafnums,.text,collision,settled,401,401
-002d54c0,CL_ParseServerMessage,.text,client,named,0,0
+002d54c0,CL_ParseServerMessage,.text,client,settled,12608,12608
 002d55d0,CL_RefreshConfigstrings,.text,client,named,0,0
-002d5650,CL_InitRenderer,.text,client,named,0,0
+002d5650,CL_InitRenderer,.text,client,matched,8,8
 002d5690,CL_PacketEvent,.text,client,named,0,0
-002d57c0,Key_ClearStates,.text,client,matched,12,12
-002d59f0,CL_GetServerCommand,.text,client,named,0,0
+002d57c0,Key_ClearStates,.text,client,matched,16,16
+002d59f0,CL_GetServerCommand,.text,client,settled,1685,1685
 002d5ad0,G_RestorePlayerLoadout,.text,game,named,0,0
 002d5ba0,FUN_002d5ba0,.text,unassigned,unnamed,0,0
 002d5bf0,FUN_002d5bf0,.text,unassigned,unnamed,0,0
@@ -9852,7 +9852,7 @@ address,name,section,module,state,tested,matched
 002e1150,FUN_002e1150,.text,unassigned,unnamed,0,0
 002e1740,CM_SightTraceThroughWorldTrees,.text,collision,settled,319,319
 002e20e0,FUN_002e20e0,.text,unassigned,unnamed,0,0
-002e23b0,CL_InitInput,.text,client,named,0,0
+002e23b0,CL_InitInput,.text,client,matched,1,1
 002e27d0,FUN_002e27d0,.text,unassigned,unnamed,0,0
 002e2a30,FUN_002e2a30,.text,unassigned,unnamed,0,0
 002e2ac0,FUN_002e2ac0,.text,unassigned,unnamed,0,0
@@ -10763,7 +10763,7 @@ address,name,section,module,state,tested,matched
 00318f30,FUN_00318f30,.text,unassigned,unnamed,0,0
 00319110,FUN_00319110,.text,unassigned,unnamed,0,0
 00319370,FUN_00319370,.text,unassigned,unnamed,0,0
-00319b40,Key_GetKeyNameForCommand,.text,client,matched,8,8
+00319b40,Key_GetKeyNameForCommand,.text,client,matched,12,12
 00319c20,HudManager_Layout2,.text,unassigned,named,0,0
 00319cb0,HudManager_HideAll,.text,unassigned,named,0,0
 00319d50,HudManager_LayoutDefault,.text,unassigned,named,0,0

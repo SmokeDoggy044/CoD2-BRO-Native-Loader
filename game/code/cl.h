@@ -62,6 +62,50 @@ extern "C" void CL_GetUserCmd_entry(void);
 // entities left the 0x800-entry parse buffer (0x00961738 - 0x00962814); else copies flags, server time, the entity
 // count (+0x538) and the 0x520-byte block from 0x009622f0 to +0x10, and returns 1.
 int32_t XB_REGS3 XB_CDECL CL_GetSnapshot(uint32_t unused_eax, uint8_t* out, int32_t number);
+// 0x002cce00: Q3's CL_SystemInfoChanged - cl.serverId from "sv_serverid" of the system info (0x009606bc + 6, null
+// when unset), Cvar_SetCheatState unless "sv_cheats", then the four pak keys looked up for nothing (they rotate
+// Info_ValueForKey's buffers); returns the last lookup.
+const char* XB_CDECL CL_SystemInfoChanged();
+// 0x002cce80 (msg in EAX): the single-player CL_ParseSnapshot - a fresh valid snapshot with the server time
+// (MSG_ReadLong), flags (an inlined MSG_ReadByte), the message number and the server command sequence, and the
+// player state copied from the server's (cgame client 0x0095f534 +4, +0x23c); stored as cl.snap and its copy
+// 0x009622d0. Returns the message number - (cl.snap.messageNum + 1) computed from the old snapshot.
+int32_t XB_REGS1 XB_CDECL CL_ParseSnapshot(uint8_t* msg);
+// 0x002d54c0 (msg in EAX): Q3's CL_ParseServerMessage for the local server - the reliable acknowledge (MSG_ReadLong,
+// at least clc.reliableSequence - 64), then commands until svc_EOF 8 (__break 1 past the end): 1 nop, 5 a server
+// command (inlined MSG_ReadLong, MSG_ReadString; newer ones stored in clc.serverCommands[seq & 63], 127 bytes),
+// 7 CL_ParseSnapshot, others __break 1. Returns the message's data pointer (left in EAX by the last byte read).
+uint8_t* XB_REGS1 XB_CDECL CL_ParseServerMessage(uint8_t* msg);
+// 0x002d59f0 (command number in EAX): Q3's CL_GetServerCommand - tokenizes the stored command (last executed
+// 0x00931604); "cs": re-tokenized with 3 tokens around CL_ConfigstringModified; "clientLevelShot": 0 without a
+// running server, else queues the levelshot commands; returns 1.
+int32_t XB_REGS1 XB_CDECL CL_GetServerCommand(int32_t number);
+// 0x002b37e0: Q3's CL_WritePacket - not in cls.state 3/4 (returns it). A 0x800-byte message: server id, message and
+// command sequences, the unacknowledged reliable commands (2, number, text), then the last up to 32 user commands
+// since the last packet (0x009622c0) delta-coded from a null command (1 = no delta: cl_nodelta 0x00929808, no
+// valid snapshot or an older one; else 0; then the count), the packet bookkeeping (0x009622c0/c4/c8), clc_EOF 3,
+// and Netchan_Transmit on the local channel 0x00933608 (its result returned).
+uint32_t XB_CDECL CL_WritePacket();
+// 0x002ab760 (level, format, arguments): the renderer's print callback - formats into a 0x1000-byte local with the
+// title's _vsprintf and drops it. The asm entry hands the format and a pointer to the arguments.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_RefPrintf(const char* format, const uint32_t* args);
+extern "C" void CL_RefPrintf_entry(void);
+// 0x002e23b0: Q3's CL_InitInput - the 65 input commands (+moveup, +leanleft, raisestance, +sprint ...; table from
+// the original's push sequence), then the cl_nodelta / cl_debugMove cvars ("0"); returns cl_debugMove.
+uint8_t* XB_CDECL CL_InitInput();
+// 0x002be180: the input cvars (in_mouse, in_joystick, in_joyBallScale, in_debugjoystick, joy_threshold - returned).
+uint8_t* XB_CDECL IN_InitCvars();
+// 0x002d5650: the renderer's registration start (callback 0x009284ec with 0x0092beb8), the "nglWhite" and
+// "console" shaders (0x0092bf58/5c), 0x0092e848 = 1; returns the console shader.
+uint8_t* XB_CDECL CL_InitRenderer();
+// 0x002b4910 (EAX passes through when there is no cgame): Q3's CL_ShutdownCGame - key catcher 8 off, then with a
+// cgame VM: VM_Call(CG_SHUTDOWN 1), the VM record cleared (0x8c bytes, Com_Memset's result returned), currentVM and
+// cgvm null.
+uint32_t XB_REGS1 XB_CDECL CL_ShutdownCGame(uint32_t eax);
+// 0x002c1b80 (five cdecl words): clears the local connection block 0x00933608 (0x830 bytes), stores the words at
+// +8..+0x18, the "net_qport" value truncated at +0x1c and 1 at +0x24; cls.state 5 with a cgame VM, else 1
+// (returned).
+int32_t XB_CDECL CL_ResetLocalConnection(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e);
 // 0x002b3e60 (command in ECX): Q3's CL_JoystickMove - the walking bit 0x10 (cvar 0x00929c04 2, or not 1 and
 // cl_run equal to in_speed), the joystick axes 0x00961750/54/58 added to rightmove/forwardmove/upmove with
 // ClampChar; while mlook (0x009341b0) is active the pitch axis turns cl.viewangles[0] by cls.frametime x

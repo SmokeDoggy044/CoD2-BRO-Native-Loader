@@ -111,8 +111,9 @@ extern "C" PLATFORM_HIDDEN float XB_CDECL MSG_ReadFloat(uint8_t* msg);
 extern "C" void MSG_ReadFloat_entry(void);
 // 0x002aa5b0 (msg in EAX): four bytes, -1 when that passes cursize.
 int32_t XB_REGS1 XB_CDECL MSG_ReadLong(uint8_t* msg);
-// 0x002aa6e0 (msg in EAX): four bytes at cursize, no overflow check.
-void XB_REGS1 XB_CDECL MSG_WriteLong(uint8_t* msg, int32_t value);
+// 0x002aa6e0 (msg in EAX): four bytes at cursize, no overflow check. EAX is kept: CL_WritePacket writes the next
+// long without reloading it.
+uint8_t* XB_REGS1 XB_CDECL MSG_WriteLong(uint8_t* msg, int32_t value);
 // 0x002aa260 (a in EAX, b in EDX): netadr_t order - type, then the port (+0x12) and the IP (+4,
 // 4 bytes) or IPX (+8, 10 bytes) bytes; loopback (2) and other types are equal.
 int32_t XB_REGS2 XB_CDECL NET_CompareAdr(const uint8_t* a, const uint8_t* b);

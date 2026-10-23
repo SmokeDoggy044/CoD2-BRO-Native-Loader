@@ -513,9 +513,10 @@ int32_t XB_REGS1 XB_CDECL MSG_ReadLong(uint8_t* msg) {
     return value;
 }
 
-void XB_REGS1 XB_CDECL MSG_WriteLong(uint8_t* msg, int32_t value) {
+uint8_t* XB_REGS1 XB_CDECL MSG_WriteLong(uint8_t* msg, int32_t value) {
     const uint32_t v = static_cast<uint32_t>(value);
     for (int32_t i = 0; i < 4; ++i) msg_data(msg)[msg_word(msg, 0xc)++] = static_cast<uint8_t>(v >> (i * 8));
+    return msg;
 }
 
 namespace {

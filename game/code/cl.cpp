@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "qcommon.h"
+#include "tr_main.h"
 #include "title_data.h"
 
 namespace game {
@@ -284,6 +285,232 @@ int32_t XB_CDECL CL_GetUserCmd(int32_t number, uint8_t* out) {
     if (number <= title_global<int32_t>(0x009622ac) - 64 || number <= 0) return 0;
     std::memcpy(out, &title_global<uint8_t>(0x009617ac) + (number & 63) * 0x2c, 0x2c);  // cl.cmds
     return 1;
+}
+
+const char* XB_CDECL CL_SystemInfoChanged() {
+    const char* const base = title_global<const char*>(0x009606bc);
+    const char* const info = base ? base + 6 : nullptr;
+    const auto value = [info](uint32_t key) { return Info_ValueForKey(info, &title_global<const char>(key)); };
+    title_global<int32_t>(0x009617a4) = title_atol(value(0x008340dc));  // cl.serverId = "sv_serverid"
+    if (!title_atol(value(0x008340d0))) Cvar_SetCheatState();      // "sv_cheats"
+    value(0x008340c8);                                                // "sv_paks"
+    value(0x008340bc);                                                // "sv_pakNames"
+    value(0x008340a8);                                                // "sv_referencedPaks"
+    return value(0x00834090);                                         // "sv_referencedPakNames"
+}
+
+int32_t XB_REGS1 XB_CDECL CL_ParseSnapshot(uint8_t* msg) {
+    uint8_t snap[0x550] = {};
+    field<int32_t>(snap, 0x548) = title_global<int32_t>(0x00931600);  // clc.serverCommandSequence
+    field<int32_t>(snap, 8) = MSG_ReadLong(msg);                      // serverTime
+    const int32_t message_num = title_global<int32_t>(0x009315fc);    // clc.serverMessageSequence
+    field<int32_t>(snap, 0xc) = message_num;
+    int32_t& readcount = field<int32_t>(msg, 0x10);
+    uint8_t flags = field<uint8_t*>(msg, 4)[readcount];
+    if (++readcount > field<int32_t>(msg, 0xc)) flags = 0xff;
+    field<int32_t>(snap, 4) = flags;
+    field<int32_t>(snap, 0) = 1;  // valid
+    uint8_t* const client = field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4);
+    std::memcpy(snap + 0x20, field<uint8_t*>(client, 0x23c), 0x148 * 4);
+    const int32_t result = message_num - (title_global<int32_t>(0x0096016c) + 1);
+    std::memcpy(&title_global<uint8_t>(0x00960160), snap, sizeof snap);  // cl.snap
+    std::memcpy(&title_global<uint8_t>(0x009622d0), snap, sizeof snap);
+    return result;
+}
+
+uint8_t* XB_REGS1 XB_CDECL CL_ParseServerMessage(uint8_t* msg) {
+    int32_t& readcount = field<int32_t>(msg, 0x10);
+    const int32_t& cursize = field<int32_t>(msg, 0xc);
+    const auto break_error = [](uint32_t format, int32_t value) {
+        title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(1, &title_global<const char>(format), value);
+    };
+    const int32_t ack = MSG_ReadLong(msg);
+    const int32_t sequence = title_global<int32_t>(0x0092f5f4);  // clc.reliableSequence
+    int32_t& acknowledge = title_global<int32_t>(0x0092f5f8);
+    acknowledge = ack;
+    if (ack < sequence - 64) acknowledge = sequence;
+    for (;;) {
+        if (readcount > cursize) break_error(0x00834058, 0);  // "read past end of server message"
+        uint8_t* const data = field<uint8_t*>(msg, 4);
+        uint8_t cmd = data[readcount];
+        if (++readcount > cursize) cmd = 0xff;
+        if (cmd == 8) return data;  // svc_EOF
+        if (cmd == 1) continue;     // svc_nop
+        if (cmd == 7) {
+            CL_ParseSnapshot(msg);
+        } else if (cmd == 5) {  // svc_serverCommand
+            uint8_t bytes[4];
+            for (uint8_t& b : bytes) b = data[readcount++];
+            int32_t seq;
+            std::memcpy(&seq, bytes, 4);
+            if (readcount > cursize) seq = -1;
+            const char* s = MSG_ReadString(msg);
+            int32_t& command_sequence = title_global<int32_t>(0x00931600);  // clc.serverCommandSequence
+            if (command_sequence >= seq) continue;
+            command_sequence = seq;
+            char* const slot = &title_global<char>(0x00931608) + (seq & 63) * 128;  // clc.serverCommands
+            title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(slot, s, 127);  // _strncpy
+            slot[127] = 0;
+        } else {
+            break_error(0x00834020, cmd);  // "Illegible server message %d"
+        }
+    }
+}
+
+int32_t XB_REGS1 XB_CDECL CL_GetServerCommand(int32_t number) {
+    const char* const s = &title_global<const char>(0x00931608) + (number & 63) * 128;
+    title_global<int32_t>(0x00931604) = number;  // clc.lastExecutedServerCommand
+    Cmd_TokenizeString(s, 0);
+    const char* const cmd = cmd_argc() ? cmd_argv(0) : &title_global<const char>(0x0082dfeb);
+    if (!std::strcmp(cmd, &title_global<const char>(0x008352e8))) {  // "cs"
+        Cmd_TokenizeString(s, 3);
+        title_function<void XB_CDECL()>(0x002cd690)();  // CL_ConfigstringModified
+        Cmd_TokenizeString(s, 3);
+        return 1;
+    }
+    if (!std::strcmp(cmd, &title_global<const char>(0x008352d8))) {  // "clientLevelShot"
+        if (!cvar_integer(0x0093fcf0)) return 0;                     // com_sv_running
+        Cbuf_AddText(&title_global<const char>(0x008352a4));
+    }
+    return 1;
+}
+
+uint32_t XB_CDECL CL_WritePacket() {
+    const int32_t state = title_global<int32_t>(0x0092bdf0);  // cls.state
+    if (state == 3 || state == 4) return static_cast<uint32_t>(state);
+    uint8_t nullcmd[0x2c] = {};
+    uint8_t data[0x800] = {};
+    uint8_t msg[0x14] = {};  // msg_t: +4 data, +8 maxsize, +0xc cursize, +0x10 readcount
+    field<uint8_t*>(msg, 4) = data;
+    field<int32_t>(msg, 8) = 0x800;
+    int32_t& cursize = field<int32_t>(msg, 0xc);
+    MSG_WriteLong(msg, title_global<int32_t>(0x009617a4));  // cl.serverId
+    MSG_WriteLong(msg, title_global<int32_t>(0x009315fc));  // clc.serverMessageSequence
+    MSG_WriteLong(msg, title_global<int32_t>(0x00931600));  // clc.serverCommandSequence
+    for (int32_t i = title_global<int32_t>(0x0092f5f8) + 1; i <= title_global<int32_t>(0x0092f5f4); ++i) {
+        data[cursize++] = 2;  // clc_clientCommand
+        for (int32_t b = 0; b < 4; ++b) data[cursize++] = static_cast<uint8_t>(static_cast<uint32_t>(i) >> (b * 8));
+        MSG_WriteString(&title_global<const char>(0x0092f5fc) + (i & 63) * 128, msg);  // clc.reliableCommands
+    }
+    const int32_t cmd_number = title_global<int32_t>(0x009622ac);
+    int32_t count = cmd_number - title_global<int32_t>(0x009622c0);
+    const uint8_t* oldcmd = nullcmd;
+    if (count > 32) count = 32;
+    if (count >= 1) {
+        const bool delta = !cvar_integer(0x00929808) && title_global<int32_t>(0x00960160) &&  // cl_nodelta, cl.snap.valid
+                           title_global<int32_t>(0x009315fc) == title_global<int32_t>(0x0096016c);
+        data[cursize++] = delta ? 0 : 1;
+        data[cursize++] = static_cast<uint8_t>(count);
+        for (int32_t i = 0; i < count; ++i) {
+            const uint8_t* cmd = &title_global<uint8_t>(0x009617ac) + ((cmd_number - count + i + 1) & 63) * 0x2c;
+            MSG_WriteDeltaUsercmd(oldcmd, cmd, msg);
+            oldcmd = cmd;
+        }
+    }
+    title_global<uint32_t>(0x009622c8) = title_global<uint32_t>(0x0092be98);  // cls.realtime
+    title_global<uint32_t>(0x009622c4) = *reinterpret_cast<const uint32_t*>(oldcmd);
+    title_global<int32_t>(0x009622c0) = title_global<int32_t>(0x009622ac);
+    data[cursize++] = 3;  // clc_EOF
+    return title_function<uint32_t XB_REGS1 XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002b1480)(  // Netchan_Transmit
+        &title_global<uint8_t>(0x00933608), cursize, data);
+}
+
+PLATFORM_ASM_ENTRY(CL_RefPrintf_entry,
+                   "leal 12(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl 12(%esp)\n" PLATFORM_ASM_CALL(CL_RefPrintf) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL CL_RefPrintf(const char* format, const uint32_t* args) {
+    char text[0x1000];
+    title_function<int32_t XB_CDECL(char*, const char*, const uint32_t*)>(0x001eea95)(text, format, args);  // _vsprintf
+}
+
+uint8_t* XB_CDECL CL_InitInput() {
+    static constexpr struct {
+        uint32_t name;
+        uint32_t function;
+    } kCommands[] = {
+        {0x00835134, 0x002abe80}, {0x0082d62c, 0x002c7de0}, {0x0083512c, 0x002b48f0},
+        {0x00835120, 0x002cd640}, {0x00835114, 0x002cd5f0}, {0x0083510c, 0x002b48e0},
+        {0x00835104, 0x002b48d0}, {0x008350fc, 0x002b48c0}, {0x008350f4, 0x002b48b0},
+        {0x008350e8, 0x002b48a0}, {0x008350dc, 0x002b4890}, {0x008350d4, 0x002b4880},
+        {0x008350cc, 0x002b4870}, {0x008350c4, 0x002b4860}, {0x008350bc, 0x002b4850},
+        {0x008350b0, 0x002b4840}, {0x008350a4, 0x002b4830}, {0x0083509c, 0x002b47c0},
+        {0x00835094, 0x002b47b0}, {0x00835088, 0x002b4820}, {0x0083507c, 0x002b4810},
+        {0x00835070, 0x002b4800}, {0x00835064, 0x002b47f0}, {0x0082dfa8, 0x002b47e0},
+        {0x0083505c, 0x002b47d0}, {0x0082d6ac, 0x002b47a0}, {0x00835054, 0x002b4790},
+        {0x0082d694, 0x002b4720}, {0x0083504c, 0x002b4710}, {0x0082dfc0, 0x002b4700},
+        {0x00835040, 0x002b46f0}, {0x0082d640, 0x002b46a0}, {0x00835038, 0x002b4690},
+        {0x0082be38, 0x002b4680}, {0x0083502c, 0x002b4670}, {0x0082be5c, 0x002b4660},
+        {0x00835020, 0x002b4650}, {0x00835018, 0x002cd5a0}, {0x00835010, 0x002cd550},
+        {0x0082d654, 0x002abec0}, {0x00835008, 0x002abeb0}, {0x00835000, 0x002ac0b0},
+        {0x00834ff8, 0x002ac060}, {0x0082d610, 0x002c7d90}, {0x0082bed8, 0x002c7d40},
+        {0x00834fe8, 0x002c7cf0}, {0x00834fdc, 0x002c7ca0}, {0x00834fd4, 0x002c7c70},
+        {0x00834fc8, 0x002c7c40}, {0x00834fbc, 0x002c7bc0}, {0x00834fb0, 0x002b45f0},
+        {0x0082d5ac, 0x002db660}, {0x00834f98, 0x002bb900}, {0x0082d5d4, 0x002db640},
+        {0x00834f84, 0x002bb8f0}, {0x0082d678, 0x002d58b0}, {0x00834f74, 0x002cd500},
+        {0x00834f64, 0x002cd4d0}, {0x00834f54, 0x002bb8c0}, {0x00834f44, 0x002bb890},
+        {0x00834f34, 0x002bb870}, {0x0082d6cc, 0x002bb840}, {0x00834f24, 0x002bb820},
+        {0x00834f10, 0x002abe70}, {0x00834efc, 0x002abe60},
+    };
+    for (const auto& command : kCommands) Cmd_AddCommand(&title_global<const char>(command.name), command.function);
+    title_global<uint8_t*>(0x00929808) =
+        Cvar_Get(&title_global<const char>(0x00834ef0), &title_global<const char>(0x0082e098), 0);  // cl_nodelta
+    uint8_t* const debug_move =
+        Cvar_Get(&title_global<const char>(0x00834ee0), &title_global<const char>(0x0082e098), 0);  // cl_debugMove
+    title_global<uint8_t*>(0x00935334) = debug_move;
+    return debug_move;
+}
+
+uint8_t* XB_CDECL IN_InitCvars() {
+    const auto get = [](uint32_t name, uint32_t value, uint32_t flags) {
+        return Cvar_Get(&title_global<const char>(name), &title_global<const char>(value), flags);
+    };
+    title_global<uint8_t*>(0x00927c34) = get(0x0083282c, 0x0082e098, 0x21);   // in_mouse "0"
+    title_global<uint8_t*>(0x009284dc) = get(0x00832820, 0x0082e058, 0x21);   // in_joystick "1"
+    title_global<uint8_t*>(0x00929b54) = get(0x00832808, 0x00832818, 1);      // in_joyBallScale "0.02"
+    title_global<uint8_t*>(0x00929b18) = get(0x008327f4, 0x0082e098, 0x100);  // in_debugjoystick "0"
+    uint8_t* const threshold = get(0x008327e0, 0x008327f0, 1);                // joy_threshold "35"
+    title_global<uint8_t*>(0x00929c30) = threshold;
+    return threshold;
+}
+
+uint8_t* XB_CDECL CL_InitRenderer() {
+    title_function<void XB_CDECL(uint8_t*)>(title_global<uint32_t>(0x009284ec))(&title_global<uint8_t>(0x0092beb8));
+    title_global<uint8_t*>(0x0092bf58) = RE_RegisterShader(0, &title_global<const char>(0x00834470));  // "nglWhite"
+    uint8_t* const console = RE_RegisterShader(0, &title_global<const char>(0x00834468));             // "console"
+    title_global<uint8_t*>(0x0092bf5c) = console;
+    title_global<int32_t>(0x0092e848) = 1;
+    return console;
+}
+
+uint32_t XB_REGS1 XB_CDECL CL_ShutdownCGame(uint32_t eax) {
+    title_global<uint32_t>(0x0092bdf4) &= ~8u;  // cls.keyCatchers
+    uint8_t*& cgvm = title_global<uint8_t*>(0x0093f7f8);
+    if (!cgvm) return eax;
+    title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t)>(0x002a84e0)(0, cgvm, 1);  // VM_Call CG_SHUTDOWN
+    const uint32_t result = Com_Memset(cgvm, 0, 0x8c);
+    title_global<uint8_t*>(0x0095f514) = nullptr;  // currentVM
+    cgvm = nullptr;
+    return result;
+}
+
+int32_t XB_CDECL CL_ResetLocalConnection(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e) {
+    uint8_t* const qport_cvar = Cvar_FindVar(&title_global<const char>(0x008344a8));  // "net_qport"
+    const float qport = qport_cvar ? field<float>(qport_cvar, 0x1c) : 0.0f;
+    uint8_t* const conn = &title_global<uint8_t>(0x00933608);
+    std::memset(conn, 0, 0x830);
+    field<uint32_t>(conn, 0x08) = a;
+    field<uint32_t>(conn, 0x0c) = b;
+    field<uint32_t>(conn, 0x10) = c;
+    field<uint32_t>(conn, 0x14) = d;
+    field<uint32_t>(conn, 0x18) = e;
+    field<int32_t>(conn, 0x1c) = static_cast<int32_t>(qport);
+    field<uint32_t>(conn, 0x24) = 1;
+    const int32_t state = title_global<uint32_t>(0x0093f7f8) ? 5 : 1;  // cgvm
+    title_global<int32_t>(0x0092bdf0) = state;                          // cls.state
+    return state;
 }
 
 int32_t XB_REGS3 XB_CDECL CL_GetSnapshot(uint32_t, uint8_t* out, int32_t number) {
