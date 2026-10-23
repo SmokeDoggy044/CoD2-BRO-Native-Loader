@@ -208,7 +208,10 @@ def summarize(out, reported, names):
             for kind in ("MISMATCH", "float drift", "inconclusive"):
                 if kind in kinds:
                     lines.append(f"  {name} {kind}: {kinds[kind][:220]}")
-    progress = subprocess.run([sys.executable, str(ROOT / "tools" / "progress.py")], capture_output=True, text=True)
+    # --readme keeps the README's progress blocks current with every batch (merge conflicts in them:
+    # take either side and rerun tools/progress.py --readme).
+    progress = subprocess.run([sys.executable, str(ROOT / "tools" / "progress.py"), "--readme"], capture_output=True,
+                              text=True)
     counter = [line for line in progress.stdout.splitlines() if line.startswith("counter:")]
     lines += counter
     text = "\n".join(lines)
