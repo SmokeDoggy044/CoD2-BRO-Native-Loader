@@ -3477,21 +3477,23 @@ void XB_REGS3 XB_CDECL WeaponModel_GetDObjHandle(uint32_t* out, uint32_t, uint32
     *out = model ? *reinterpret_cast<const uint32_t*>(model + 0x8c) : 0;
 }
 
-void XB_REGS3 XB_CDECL FxComponent_GetEntityOrigin(uint32_t* out, uint32_t, const uint8_t* component) {
+uint32_t* XB_REGS3 XB_CDECL FxComponent_GetEntityOrigin(uint32_t* out, uint32_t, const uint8_t* component) {
     const uint8_t* entity = FxComponent_GetEntity(component);
     std::memcpy(out, entity + 0x140, 16);
+    return out;
 }
 
-void XB_REGS2 XB_CDECL FxComponent_GetPosition(float* out, const uint8_t* component) {
+float* XB_REGS2 XB_CDECL FxComponent_GetPosition(float* out, const uint8_t* component) {
     if (const uint8_t* placement = *reinterpret_cast<uint8_t* const*>(component + 0x14)) {
         std::memcpy(out, placement + 0x30, 16);
-        return;
+        return out;
     }
     const float* origin = reinterpret_cast<const float*>(FxComponent_GetEntity(component) + 0x140);
     out[0] = origin[0];
     out[1] = origin[1];
     out[2] = origin[2];
     out[3] = origin[0];
+    return out;
 }
 
 PLATFORM_ASM_ENTRY(Rumble_SetScale_entry,
@@ -3523,10 +3525,11 @@ PLATFORM_ASM_ENTRY(CameraShake_SetAmplitude_entry,
                    "pushl 4(%esp)\n"
                    "subl $4, %esp\n"
                    "movss %xmm0, (%esp)\n"
-                   "pushl %ecx\n" PLATFORM_ASM_CALL(CameraShake_SetAmplitude) "addl $12, %esp\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CameraShake_SetAmplitude) "addl $16, %esp\n"
                    "ret $4")
 
-void XB_CDECL CameraShake_SetAmplitude(uint8_t* shake, float rotation, float position) {
+uint32_t XB_CDECL CameraShake_SetAmplitude(uint32_t eax, uint8_t* shake, float rotation, float position) {
     if (rotation != 0.0f) {
         std::memcpy(shake + 0x18, &rotation, 4);
         std::memcpy(shake + 0x28, &rotation, 4);
@@ -3535,6 +3538,17 @@ void XB_CDECL CameraShake_SetAmplitude(uint8_t* shake, float rotation, float pos
         std::memcpy(shake + 0x14, &position, 4);
         std::memcpy(shake + 0x24, &position, 4);
     }
+    // EAX comes back with AH = LAHF after `ucomiss position, 0` (SF, AF clear; bit 1 set).
+    uint32_t ah;
+    if (position != position)
+        ah = 0x47;
+    else if (position == 0.0f)
+        ah = 0x42;
+    else if (position < 0.0f)
+        ah = 0x03;
+    else
+        ah = 0x02;
+    return (eax & 0xffff00ffu) | (ah << 8);
 }
 
 uint8_t* XB_REGS2 XB_CDECL CameraShake_AllocSlot(uint32_t, uint8_t* manager) {
@@ -4037,7 +4051,7 @@ void XB_THISCALL FxShakeRumbleComponent_Update(uint8_t* component, float delta) 
     if (f[12] > 0.0f && f[13] > 0.0f && falloff > 0.0f) {
         uint8_t* shake = CameraShake_Start(&title_global<uint8_t>(0x00964b80), 1, nullptr, 1.0f, f[11], f[14]);
         *reinterpret_cast<uint8_t**>(component + 0x64) = shake;
-        if (shake) CameraShake_SetAmplitude(shake, f[13] * falloff, f[12] * falloff);
+        if (shake) CameraShake_SetAmplitude(0, shake, f[13] * falloff, f[12] * falloff);
     }
     if (!component[0x59]) return;
     alignas(4) uint8_t desc[0x40];

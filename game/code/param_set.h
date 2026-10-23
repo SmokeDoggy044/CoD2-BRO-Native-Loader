@@ -37,12 +37,12 @@ static_assert(offsetof(ParamSet, used) == 0x45c && sizeof(ParamSet) == 0x460);
 
 // 0x00023690: a list's vtable set, count and every bitset zeroed (the record pointers and the
 // id-to-slot bytes are left as they are).
-void XB_REGS1 XB_CDECL ParamList_Init(ParamList* list);
+ParamList* XB_REGS1 XB_CDECL ParamList_Init(ParamList* list);
 // 0x000237b0: the record pointers in use zeroed, then the count and every bitset.
-void XB_REGS1 XB_CDECL ParamList_Clear(ParamList* list);
+ParamList* XB_REGS1 XB_CDECL ParamList_Clear(ParamList* list);
 // 0x00023710 (list in EAX, flag in CL, record in ESI): the record appended; its slot's and id's
 // flag bits follow `flag`, its id is marked present.
-extern "C" PLATFORM_HIDDEN void XB_CDECL ParamList_Add(ParamList* list, uint32_t flag, uint8_t* record);
+extern "C" PLATFORM_HIDDEN ParamList* XB_CDECL ParamList_Add(ParamList* list, uint32_t flag, uint8_t* record);
 extern "C" void ParamList_Add_entry(void);
 // 0x00023840 (vtable 0x008376c0 slot 0): cleared, freed with flags & 1.
 ParamList* XB_THISCALL ParamList_Delete(ParamList* list, uint32_t flags);
@@ -71,7 +71,7 @@ extern "C" void ParamChoice_GetValue_entry(void);
 // 0x00296e50 (out in EAX, node in ECX): a leaf node's choices (+0, count +4) appended to the
 // out lists {count, [64]}: every one to list 0, those of the highest priority (+0xa, int16;
 // best so far in out[0x82], a higher one empties list 1) to list 1.
-void XB_REGS3 XB_CDECL ParamNode_CollectChoices(uint32_t* out, uint32_t unused_edx, const uint8_t* node);
+uint32_t* XB_REGS3 XB_CDECL ParamNode_CollectChoices(uint32_t* out, uint32_t unused_edx, const uint8_t* node);
 // 0x00299310 (set in EAX, id in EDX, value in ECX): the set's record for `id` tested against a
 // node value by the record's operator (byte 1): integers (types 0/6/8) and floats (2/0xb) with
 // ==, >, <, >=, <=, != (ops 0, 2, 3, 4, 5, 8); strings (4) with strcmp (op 0) or _stricmp (op

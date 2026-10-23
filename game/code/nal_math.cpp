@@ -68,7 +68,7 @@ float* XB_THISCALL Quat_ToMat33(float* out, const float* q) {
     return out;
 }
 
-void XB_REGS3 XB_CDECL QuatTrans_ToMat44(float* out, uint32_t, const float* qt) {
+float* XB_REGS3 XB_CDECL QuatTrans_ToMat44(float* out, uint32_t, const float* qt) {
     out[7] = 0.0f;
     out[3] = 0.0f;
     out[11] = 0.0f;
@@ -77,6 +77,7 @@ void XB_REGS3 XB_CDECL QuatTrans_ToMat44(float* out, uint32_t, const float* qt) 
     out[12] = qt[4];
     out[13] = qt[5];
     out[14] = qt[6];
+    return out;
 }
 
 float* XB_CDECL QuatTrans_Concat(float* out, const float* a, const float* b) {
