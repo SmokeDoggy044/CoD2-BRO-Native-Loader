@@ -370,4 +370,284 @@ long double XB_REGS3 XB_CDECL RadiusFromBounds(const float* maxs, uint32_t, cons
     return static_cast<float>(root);
 }
 
+int32_t XB_CDECL SV_EntityVisibleFromPoint(const float* point, uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    uint8_t* ent = nullptr;
+    if (static_cast<int32_t>(index) < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    auto field = [ent](uint32_t offset) -> int32_t { return *reinterpret_cast<const int32_t*>(ent + offset); };
+    if (!field(0xd0)) return 0;
+    const int32_t flags = field(0xd4);
+    if (flags & 1) return 0;
+    if (flags & 0x20) return 1;
+    if (field(0x1a8)) return 1;
+    if (!field(0x1b4)) return 1;
+    const int32_t leaf = CM_PointLeafnum_r(0, point);
+    const int32_t area = CM_LeafArea(static_cast<uint32_t>(leaf));
+    const int32_t cluster = CM_LeafCluster(static_cast<uint32_t>(leaf));
+    const uint8_t* pvs = CM_ClusterPVS(cluster);
+    if (!CM_AreasConnected(0, area, field(0x1fc)) && !CM_AreasConnected(0, area, field(0x200))) return 0;
+    auto visible = [pvs](int32_t c) { return (pvs[c >> 3] & (1 << (c & 7))) != 0; };
+    int32_t c = 0;
+    int32_t i = 0;
+    for (; i < field(0x1b4); ++i) {
+        c = field(0x1b8 + i * 4);
+        if (visible(c)) break;
+    }
+    if (i != field(0x1b4)) return 1;
+    const int32_t last = field(0x1f8);
+    if (!last) return 0;
+    if (c > last) return 1;
+    for (; c <= last; ++c)
+        if (visible(c)) break;
+    return c != last ? 1 : 0;  // Q3's lastCluster test: a scan that runs past the end counts as visible
+}
+
+PLATFORM_ASM_ENTRY(SV_SightClipToEntity_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(SV_SightClipToEntity) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL SV_SightClipToEntity(uint8_t* link, uint8_t* clip) {
+    uint8_t* const ent = link - 0xd0;
+    if (!(field<uint32_t>(clip, 0x30) & field<uint32_t>(link, 0x64))) return 0;
+    for (int32_t k = 0; k < 2; ++k) {  // the two pass entities (+0x20 / +0x24) and their owners (+0x28 / +0x2c)
+        const uint32_t pass = field<uint32_t>(clip, 0x20 + k * 4);
+        if (!pass) continue;
+        if (field<uint32_t>(ent, 0x224) == pass) return 0;
+        const uint32_t owner = field<uint32_t>(ent, 0x1a0);
+        if (owner == pass) return 0;
+        const uint32_t pass_owner = field<uint32_t>(clip, 0x28 + k * 4);
+        if (owner == pass_owner && pass_owner) return 0;
+    }
+    const uint8_t* const handle = SV_ClipHandleForEntity(0, 0, ent);
+    alignas(16) float unit[4];  // {0, 0, 0, 1} from 0x0082e290
+    std::memcpy(unit, reinterpret_cast<const void*>(uintptr_t{0x0082e290}), 16);
+    alignas(16) float angles[4], mins[4], maxs[4];
+    std::memcpy(angles, field<uint32_t>(ent, 0xdc) ? reinterpret_cast<const float*>(ent + 0x150) : unit, 16);
+    std::memcpy(mins, unit, 16);
+    std::memcpy(maxs, unit, 16);
+    const uint32_t blocked =
+        CM_TransformedSightTrace(reinterpret_cast<const float*>(ent + 0x140), 0, reinterpret_cast<const float*>(clip + 0x10),
+                                 0, reinterpret_cast<const float*>(clip), mins, maxs,
+                                 reinterpret_cast<const uint32_t*>(handle), field<uint32_t>(clip, 0x30), angles, 0);
+    return blocked ? -1 : 0;  // NEG + SBB
+}
+
+int32_t XB_CDECL SV_SectorSightTrace_r(uint8_t* clip, uint8_t* node, float f1, float f2, const float* p1,
+                                       const float* p2) {
+    if (!(field<uint32_t>(node, 8) & field<uint32_t>(clip, 0x30))) return 0;
+    const int32_t axis = field<int32_t>(node, 0);
+    const float dist = field<float>(node, 0xc);
+    const float d1 = p1[axis] - dist;
+    const float d2 = p2[axis] - dist;
+    int32_t r;
+    if (d1 >= 0.0f && d2 >= 0.0f) {
+        r = SV_SectorSightTrace_r(clip, field<uint8_t*>(node, 0x1c), f1, f2, p1, p2);
+        if (r) return r;
+    } else if (0.0f >= d1 && 0.0f >= d2) {
+        r = SV_SectorSightTrace_r(clip, field<uint8_t*>(node, 0x20), f1, f2, p1, p2);
+        if (r) return r;
+    } else {
+        const int32_t side = 0.0f > d1 ? 1 : 0;
+        const float frac = d1 / (d1 - d2);
+        const float mid_f = (f2 - f1) * frac + f1;
+        alignas(16) float mid[4];
+        const Lanes m = add(lanes(p1), mul(Lanes{{frac, frac, frac, frac}}, sub(lanes(p2), lanes(p1))));
+        std::memcpy(mid, m.v, 16);
+        r = SV_SectorSightTrace_r(clip, field<uint8_t*>(node, 0x1c + side * 4), f1, mid_f, p1, mid);
+        if (r) return r;
+        r = SV_SectorSightTrace_r(clip, field<uint8_t*>(node, (8 - side) * 4), mid_f, f2, mid, p2);
+        if (r) return r;
+    }
+    for (uint8_t* link = field<uint8_t*>(node, 0x10); link; link = field<uint8_t*>(link, 0xe0)) {
+        r = SV_SightClipToEntity(link, clip);
+        if (r) return r;
+    }
+    return 0;
+}
+
+int32_t XB_REGS3 XB_CDECL SV_BoxSightClipToEntity(uint8_t* clip, uint32_t, uint8_t* link) {
+    uint8_t* const ent = link - 0xd0;
+    if (!(field<uint32_t>(clip, 0x60) & field<uint32_t>(link, 0x64))) return 0;
+    for (int32_t k = 0; k < 2; ++k) {  // pass entities +0x50 / +0x54, owners +0x58 / +0x5c
+        const uint32_t pass = field<uint32_t>(clip, 0x50 + k * 4);
+        if (!pass) continue;
+        if (field<uint32_t>(ent, 0x224) == pass) return 0;
+        const uint32_t owner = field<uint32_t>(ent, 0x1a0);
+        if (owner == pass) return 0;
+        const uint32_t pass_owner = field<uint32_t>(clip, 0x58 + k * 4);
+        if (owner == pass_owner && pass_owner) return 0;
+    }
+    const uint8_t* const handle = SV_ClipHandleForEntity(0, 0, ent);
+    alignas(16) float angles[4];
+    std::memcpy(angles, field<uint32_t>(ent, 0xdc) ? static_cast<const void*>(ent + 0x150)
+                                                   : reinterpret_cast<const void*>(uintptr_t{0x0082e290}),
+                16);
+    const uint32_t blocked = CM_TransformedSightTrace(
+        reinterpret_cast<const float*>(ent + 0x140), 0, reinterpret_cast<const float*>(clip + 0x40), 0,
+        reinterpret_cast<const float*>(clip + 0x30), reinterpret_cast<const float*>(clip),
+        reinterpret_cast<const float*>(clip + 0x10), reinterpret_cast<const uint32_t*>(handle),
+        field<uint32_t>(clip, 0x60), angles, field<uint32_t>(clip, 0x64));
+    return blocked ? -1 : 0;  // NEG + SBB
+}
+
+int32_t XB_CDECL SV_SectorBoxSightTrace_r(uint8_t* clip, uint8_t* node, float f1, float f2, const float* p1,
+                                          const float* p2) {
+    if (!(field<uint32_t>(node, 8) & field<uint32_t>(clip, 0x60))) return 0;
+    const int32_t axis = field<int32_t>(node, 0);
+    const float dist = field<float>(node, 0xc);
+    const float t1 = p1[axis] - dist;
+    const float offset = field<float>(clip, 0x20 + axis * 4);
+    const float t2 = p2[axis] - dist;
+    int32_t r;
+    if (t1 >= offset && t2 >= offset) {
+        r = SV_SectorBoxSightTrace_r(clip, field<uint8_t*>(node, 0x1c), f1, f2, p1, p2);
+        if (r) return r;
+    } else if (0.0f - offset >= t1 && 0.0f - offset >= t2) {
+        r = SV_SectorBoxSightTrace_r(clip, field<uint8_t*>(node, 0x20), f1, f2, p1, p2);
+        if (r) return r;
+    } else {
+        const float one = title_global<float>(0x0083eb20);
+        int32_t side;
+        float frac, frac2;
+        if (t2 > t1) {
+            const float idist = one / (t1 - t2);
+            side = 1;
+            frac2 = (offset + t1) * idist;
+            frac = (t1 - offset) * idist;
+            if (frac > one) frac = one;
+        } else if (t1 > t2) {
+            const float idist = one / (t1 - t2);
+            side = 0;
+            frac2 = (t1 - offset) * idist;
+            frac = (offset + t1) * idist;
+            if (frac > one) frac = one;
+        } else {
+            side = 0;
+            frac = one;
+            frac2 = 0.0f;
+        }
+        const Lanes a = lanes(p1);
+        alignas(16) float mid[4];
+        {
+            const Lanes m = add(a, mul(Lanes{{frac, frac, frac, frac}}, sub(lanes(p2), a)));
+            std::memcpy(mid, m.v, 16);
+        }
+        const float span = f2 - f1;
+        r = SV_SectorBoxSightTrace_r(clip, field<uint8_t*>(node, 0x1c + side * 4), f1, span * frac + f1, p1, mid);
+        if (r) return r;
+        if (0.0f > frac2) frac2 = 0.0f;
+        {
+            const Lanes m = add(a, mul(Lanes{{frac2, frac2, frac2, frac2}}, sub(lanes(p2), a)));
+            std::memcpy(mid, m.v, 16);
+        }
+        r = SV_SectorBoxSightTrace_r(clip, field<uint8_t*>(node, (8 - side) * 4), span * frac2 + f1, f2, mid, p2);
+        if (r) return r;
+    }
+    for (uint8_t* link = field<uint8_t*>(node, 0x10); link; link = field<uint8_t*>(link, 0xe0)) {
+        r = SV_BoxSightClipToEntity(clip, 0, link);
+        if (r) return r;
+    }
+    return 0;
+}
+
+int32_t XB_REGS3 XB_CDECL SV_ClipTraceToEntity(uint8_t* clip, uint32_t, uint8_t* link) {
+    uint8_t* const ent = link - 0xd0;
+    alignas(16) uint8_t results[0x40] = {};  // CM_TransformedBoxTrace writes all of it
+    if (!(field<uint32_t>(link, 0x64) & field<uint32_t>(clip, 0x98))) return 0;
+    const uint32_t pass = field<uint32_t>(clip, 0x90);
+    if (pass) {
+        if (field<uint32_t>(ent, 0x224) == pass) return 0;
+        const uint32_t owner = field<uint32_t>(ent, 0x1a0);
+        if (owner == pass) return 0;
+        const uint32_t pass_owner = field<uint32_t>(clip, 0x94);
+        if (owner == pass_owner && pass_owner) return 0;
+    }
+    const uint8_t* const handle = SV_ClipHandleForEntity(0, 0, ent);
+    alignas(16) float angles[4];
+    std::memcpy(angles, ent + 0x150, 16);
+    if (field<uint32_t>(ent, 0x134) & 0x800000) {
+        // FLD/FABS/FCOMIP: angles below the threshold 0x008fef08 in magnitude become 0 (z, then x).
+        const float threshold = title_global<float>(0x008fef08);
+        static const int32_t kAxes[2] = {2, 0};
+        for (int32_t axis : kAxes) {
+            uint32_t bits;
+            std::memcpy(&bits, &angles[axis], 4);
+            const float magnitude = from_bits(bits & 0x7fffffffu);
+            if (platform_x87_greater(threshold, magnitude)) angles[axis] = 0.0f;
+        }
+    }
+    if (!field<uint32_t>(ent, 0xdc)) std::memcpy(angles, reinterpret_cast<const void*>(uintptr_t{0x0082e290}), 16);
+    std::memcpy(results + 0x20, clip + 0x70, 4);
+    CM_TransformedBoxTrace(reinterpret_cast<const float*>(ent + 0x140), 0, reinterpret_cast<const float*>(clip + 0x10),
+                           results, reinterpret_cast<const float*>(clip + 0x30),
+                           reinterpret_cast<const float*>(clip + 0x40), reinterpret_cast<const float*>(clip),
+                           reinterpret_cast<const uint32_t*>(handle), field<uint32_t>(clip, 0x98), angles,
+                           field<uint32_t>(clip, 0x9c));
+    if (field<float>(results, 0x20) >= field<float>(clip, 0x70)) {
+        clip[0x8c] |= results[0x3c];
+        clip[0x8d] |= results[0x3d];
+        return 0;
+    }
+    results[0x3c] |= clip[0x8c];
+    results[0x3d] |= clip[0x8d];
+    field<uint32_t>(results, 0x30) = field<uint32_t>(ent, 0x224);
+    std::memcpy(clip + 0x50, results, 0x40);
+    return 0;
+}
+
+void XB_CDECL SV_SectorClipTrace_r(uint8_t* clip, uint8_t* node, float f1, float f2, const float* p1,
+                                   const float* p2) {
+    if (f1 >= field<float>(clip, 0x70)) return;
+    if (!(field<uint32_t>(node, 8) & field<uint32_t>(clip, 0x98))) return;
+    const int32_t axis = field<int32_t>(node, 0);
+    const float dist = field<float>(node, 0xc);
+    const float t1 = p1[axis] - dist;
+    const float offset = field<float>(clip, 0x20 + axis * 4);
+    const float t2 = p2[axis] - dist;
+    if (t1 >= offset && t2 >= offset) {
+        SV_SectorClipTrace_r(clip, field<uint8_t*>(node, 0x1c), f1, f2, p1, p2);
+    } else if (0.0f - offset >= t1 && 0.0f - offset >= t2) {
+        SV_SectorClipTrace_r(clip, field<uint8_t*>(node, 0x20), f1, f2, p1, p2);
+    } else {
+        const float one = title_global<float>(0x0083eb20);
+        int32_t side;
+        float frac, frac2;
+        if (t2 > t1) {
+            const float idist = one / (t1 - t2);
+            side = 1;
+            frac2 = (offset + t1) * idist;
+            frac = (t1 - offset) * idist;
+            if (frac > one) frac = one;
+        } else if (t1 > t2) {
+            const float idist = one / (t1 - t2);
+            side = 0;
+            frac2 = (t1 - offset) * idist;
+            frac = (offset + t1) * idist;
+            if (frac > one) frac = one;
+        } else {
+            side = 0;
+            frac = one;
+            frac2 = 0.0f;
+        }
+        const Lanes a = lanes(p1);
+        alignas(16) float mid[4];
+        {
+            const Lanes m = add(a, mul(Lanes{{frac, frac, frac, frac}}, sub(lanes(p2), a)));
+            std::memcpy(mid, m.v, 16);
+        }
+        const float span = f2 - f1;
+        SV_SectorClipTrace_r(clip, field<uint8_t*>(node, 0x1c + side * 4), f1, span * frac + f1, p1, mid);
+        if (0.0f > frac2) frac2 = 0.0f;
+        {
+            const Lanes m = add(a, mul(Lanes{{frac2, frac2, frac2, frac2}}, sub(lanes(p2), a)));
+            std::memcpy(mid, m.v, 16);
+        }
+        SV_SectorClipTrace_r(clip, field<uint8_t*>(node, (8 - side) * 4), span * frac2 + f1, f2, mid, p2);
+    }
+    for (uint8_t* link = field<uint8_t*>(node, 0x10); link; link = field<uint8_t*>(link, 0xe0))
+        SV_ClipTraceToEntity(clip, 0, link);
+}
+
 }  // namespace game

@@ -88,4 +88,49 @@ void XB_CDECL SV_Init();
 // magnitude (x87 compare), sqrt((z^2 + y^2) + x^2) through the title's __CIsqrt, returned on the x87 as a float.
 long double XB_REGS3 XB_CDECL RadiusFromBounds(const float* maxs, uint32_t unused, const float* mins);
 
+// 0x002ca1a0 (point, entity handle on the stack; unnamed in Ghidra): Q3's per-entity PVS test of
+// SV_AddEntitiesVisibleFromPoint - not linked (+0xd0) or flag 1 (+0xd4) -> 0; flag 0x20, +0x1a8 or no clusters
+// (+0x1b4) -> 1; else the point's leaf area connected to the entity's areas (+0x1fc / +0x200), then its clusters
+// (+0x1b8) in the point cluster's PVS, then the range up to lastCluster (+0x1f8) with Q3's off-by-one.
+int32_t XB_CDECL SV_EntityVisibleFromPoint(const float* point, uint32_t handle);
+
+// Sight clips against entities (G_SightTrace): the clip block +0 start, +0x10 end, +0x20/+0x24 pass entities,
+// +0x28/+0x2c their owners, +0x30 content mask.
+// 0x002e7770 (sector link = entity + 0xd0 in EAX, clip in EDI): content mask against +0x64, pass entity / owner
+// (+0x224, +0x1a0) skips, then CM_TransformedSightTrace with the entity's clip handle, origin (+0x140), point-sized
+// {0, 0, 0, 1} bounds and angles (+0x150 for brush models, else {0, 0, 0, 1}). Returns -1 when blocked, else 0.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SV_SightClipToEntity(uint8_t* link, uint8_t* clip);
+extern "C" void SV_SightClipToEntity_entry(void);
+// 0x002e8350 (clip, sector node, start/end fractions, start/end points): walks the sector tree along the segment
+// (both ends on one side -> that child; else split at the plane, near side first), then the node's entities;
+// returns the first nonzero SV_SightClipToEntity.
+// On record as mismatched (2026-10-23): only dead-stack words below the entry differ (likely a saved frame value 0xb0 apart,
+// also with the children and entity clips at their title addresses) - the C frame layout, not the walk.
+int32_t XB_CDECL SV_SectorSightTrace_r(uint8_t* clip, uint8_t* node, float f1, float f2, const float* p1,
+                                       const float* p2);
+
+// The box version (G_SightTrace with bounds): clip +0 mins, +0x10 maxs, +0x20 per-axis extents, +0x30 start, +0x40
+// end, +0x50/+0x54 pass entities, +0x58/+0x5c owners, +0x60 content mask, +0x64 capsule flag.
+// 0x002e78b0 (clip in EAX, sector link in ECX): SV_SightClipToEntity with the clip's bounds and capsule flag.
+int32_t XB_REGS3 XB_CDECL SV_BoxSightClipToEntity(uint8_t* clip, uint32_t unused, uint8_t* link);
+// 0x002e8650 (clip, node, fractions, points): Q3's SV_ClipMoveToEntities-style sector walk with the extents as the
+// plane offset (split fractions (t1 -+ offset) / (t1 - t2), clamped), then the node's entities.
+int32_t XB_CDECL SV_SectorBoxSightTrace_r(uint8_t* clip, uint8_t* node, float f1, float f2, const float* p1,
+                                          const float* p2);
+
+// 0x002e80b0 (clip in EAX, sector link in ECX): Q3's per-entity part of SV_ClipMoveToEntities - clip +0 mins,
+// +0x10 maxs, +0x30 start, +0x40 end, +0x50 the 0x40-byte trace (fraction +0x70, startsolid/allsolid +0x8c/+0x8d),
+// +0x90 pass entity, +0x94 its owner, +0x98 content mask, +0x9c capsule flag. CM_TransformedBoxTrace with the
+// entity's clip handle and angles (+0x150; tiny pitch/roll zeroed for flag 0x800000; {0, 0, 0, 1} without a brush
+// model); a smaller fraction replaces the trace (entity number +0x224), else the solid flags are merged.
+// Registered without a result (the original leaves a byte of the flags in AL).
+int32_t XB_REGS3 XB_CDECL SV_ClipTraceToEntity(uint8_t* clip, uint32_t unused, uint8_t* link);
+
+// 0x002e88d0 (clip, node, fractions, points): Q3's SV_ClipMoveToEntities walk over the sector tree - stops when the
+// start fraction is not below the trace's (+0x70); same-side children or both split halves (as
+// SV_SectorBoxSightTrace_r, no early out), then SV_ClipTraceToEntity for each of the node's entities.
+// On record as mismatched (2026-10-23): likely dead-stack words only (the original's locals where the C frames left zeros).
+void XB_CDECL SV_SectorClipTrace_r(uint8_t* clip, uint8_t* node, float f1, float f2, const float* p1,
+                                   const float* p2);
+
 }  // namespace game

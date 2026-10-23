@@ -2988,6 +2988,96 @@ uint8_t XB_CDECL G_PushCapsuleOutOfSolids(uint8_t* pm, float radius) {
     return hit;
 }
 
+uint8_t XB_REGS3 XB_CDECL CM_RayHitsTriangle(const float* a, uint32_t, const float* c, const float* origin,
+                                             const float* dir, const float* b, float max_fraction, float* fraction) {
+    const Lanes la = lanes(a);
+    const float* sign = reinterpret_cast<const float*>(uintptr_t{0x0082e0b0});
+    const Lanes d = lanes(dir);
+    Lanes neg_dir;
+    for (int32_t i = 0; i < 4; ++i) {  // XORPS with the sign mask
+        uint32_t mask, bits;
+        std::memcpy(&mask, sign + i, 4);
+        std::memcpy(&bits, &d.v[i], 4);
+        neg_dir.v[i] = from_bits(mask ^ bits);
+    }
+    const Lanes e1 = sub(lanes(b), la);
+    const Lanes e2 = sub(lanes(c), la);
+    const Lanes n = yzx(sub(mul(e2, yzx(e1)), mul(yzx(e2), e1)));
+    const float det = sum_xyz(mul(n, neg_dir));
+    uint32_t det_bits;
+    std::memcpy(&det_bits, &det, 4);
+    // FLD/FABS/FCOMIP: parallel when |det| < 1e-4 (no MXCSR flags).
+    if (platform_x87_greater(title_global<float>(0x0083ed50), from_bits(det_bits & 0x7fffffffu))) return 0;
+    const Lanes to_origin = sub(lanes(origin), la);
+    const float t = sum_xyz(mul(n, to_origin)) / det;
+    if (0.0f > t) return 0;
+    if (t > max_fraction) return 0;
+    const Lanes q = yzx(sub(mul(to_origin, yzx(neg_dir)), mul(yzx(to_origin), neg_dir)));
+    const float qe1 = sum_xyz(mul(q, e1));
+    uint32_t qbits;
+    std::memcpy(&qbits, &qe1, 4);
+    const float u = from_bits(qbits ^ 0x80000000u) / det;  // XORPS sign
+    if (0.0f > u) return 0;
+    const float v = sum_xyz(mul(q, e2)) / det;
+    if (!(v >= 0.0f)) return 0;
+    if (!(title_global<float>(0x0083eb20) >= u + v)) return 0;
+    *fraction = t;
+    return 1;
+}
+
+uint8_t XB_CDECL CM_RayHitsWorldMeshes(const float* start, const float* delta, float* plane_out, float* fraction) {
+    const Lanes s = lanes(start);
+    const Lanes e = add(s, lanes(delta));
+    const Lanes hi = max_lanes(s, e);
+    const Lanes lo = min_lanes(s, e);
+    alignas(16) float center[4];
+    {
+        const Lanes c = mul(splat(title_global<float>(0x0083eb24)), add(s, e));  // 0.5
+        std::memcpy(center, c.v, 16);
+    }
+    *fraction = title_global<float>(0x0083eb20);  // 1
+    uint8_t hit = 0;
+    for (int32_t k = 0; k < *reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0095f4fc) + 0xc); ++k) {
+        uint8_t* tree = *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f4fc) + 0x10 + k * 4);
+        if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(tree + 0x40)), hi),
+                        sub(lo, lanes(reinterpret_cast<const float*>(tree + 0x50)))))
+            continue;
+        alignas(16) float cell_center[4];
+        float half;
+        const uint8_t* leaf = CM_QuadTreeFindLeaf(tree, center, cell_center, &half);
+        const int32_t n = *reinterpret_cast<const int32_t*>(leaf);
+        for (int32_t j = 0; j < n; ++j) {
+            uint8_t* object = leaf_object(tree, (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[j]);
+            if (object_type(object) == 9) continue;
+            const Lanes c = lanes(reinterpret_cast<const float*>(object + 0x10));
+            const Lanes h = lanes(reinterpret_cast<const float*>(object + 0x20));
+            if (!inside_xyz(sub(sub(c, h), hi), sub(lo, add(c, h)))) continue;
+            alignas(16) float walk_lo[4], walk_hi[4];  // MINPS/MAXPS(start, end) again
+            std::memcpy(walk_lo, lo.v, 16);
+            std::memcpy(walk_hi, hi.v, 16);
+            uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+            stack[0] = 0;
+            stack[2] = 0;
+            stack[1] = *reinterpret_cast<const uint16_t*>(object + 0x40);
+            title_global<uint16_t>(0x0090a620) = 3;
+            for (uint16_t node = CM_BoxTreeStack_Next(object, walk_lo, walk_hi); node != 0xffff;
+                 node = CM_BoxTreeStack_Next(object, walk_lo, walk_hi)) {
+                const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(object + 0x34);
+                const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(object + 0x3c))[node];
+                const float* v0 = reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16);
+                const float* v1 = reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16);
+                const float* v2 = reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16);
+                const float* plane = reinterpret_cast<const float*>(*reinterpret_cast<uint8_t* const*>(object + 0x44) + node * 16);
+                if (sum_xyz(mul(lanes(plane), lanes(delta))) >= title_global<float>(0x0083eafc)) continue;  // facing away
+                if (!CM_RayHitsTriangle(v0, 0, v1, start, delta, v2, *fraction, fraction)) continue;
+                std::memcpy(plane_out, plane, 16);
+                hit = 1;
+            }
+        }
+    }
+    return hit;
+}
+
 int32_t XB_REGS3 XB_CDECL CM_SightTrace(const float* end, uint32_t, const float* start, const float* mins,
                                         const float* maxs, const uint32_t* model, uint32_t brushmask,
                                         uint32_t capsule_flag, const uint8_t* capsule) {

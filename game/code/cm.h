@@ -400,6 +400,16 @@ uint8_t XB_REGS3 XB_CDECL CM_PushSphereOutOfTriangle(const float* center, uint32
 // radius - distance + 0.01, x87), candidate brushes and triangles (CM_PushSphereOutOfTriangle); the origin is updated
 // after each sphere. AL = whether anything pushed.
 uint8_t XB_CDECL G_PushCapsuleOutOfSolids(uint8_t* pm, float radius);
+// 0x002caf70 (a in EAX, c in ECX; origin, direction, b, max fraction, out fraction on the stack): Moller-Trumbore
+// segment vs triangle - |det| < 1e-4 on the x87 misses, t = fraction along the (unnormalized) direction in
+// [0, max], barycentrics u, v >= 0 with u + v <= 1; a hit stores t. AL.
+uint8_t XB_REGS3 XB_CDECL CM_RayHitsTriangle(const float* a, uint32_t unused, const float* c, const float* origin,
+                                             const float* dir, const float* b, float max_fraction, float* fraction);
+// 0x002d27c0 (start, delta, plane out, fraction in/out on the stack): the nearest mesh triangle the segment crosses
+// front-facing - per world quad tree whose bounds meet the segment box, only the leaf at the segment's middle
+// (CM_QuadTreeFindLeaf), its non-brush objects, triangles from the box-tree walk with plane . delta < 0
+// (CM_RayHitsTriangle with the current fraction as the limit). Fraction starts at 1; AL = any hit.
+uint8_t XB_CDECL CM_RayHitsWorldMeshes(const float* start, const float* delta, float* plane_out, float* fraction);
 
 
 // Candidate lists (CM_GatherBoxCandidates / CM_FilterBoxCandidates): brushes {pointer +0x800, count +0x804} of 4-byte
