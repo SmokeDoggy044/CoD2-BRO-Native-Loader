@@ -9249,13 +9249,13 @@ address,name,section,module,state,tested,matched
 002ab010,FUN_002ab010,.text,unassigned,unnamed,0,0
 002ab2e0,CM_LeafArea,.text,collision,settled,378,378
 002ab300,CM_LeafCluster,.text,collision,settled,270,270
-002ab470,SCR_AdjustFrom640,.text,client,named,0,0
+002ab470,SCR_AdjustFrom640,.text,client,untested,0,0
 002ab560,FUN_002ab560,.text,unassigned,unnamed,0,0
 002ab710,FUN_002ab710,.text,unassigned,unnamed,0,0
 002ab760,CL_RefPrintf,.text,client,matched,25,25
 002ab7b0,CL_Disconnect_f,.text,client,named,0,0
 002ab7c0,CL_Setenv_f,.text,client,named,0,0
-002ab8d0,CL_AddReliableCommand,.text,client,named,0,0
+002ab8d0,CL_AddReliableCommand,.text,client,untested,0,0
 002ab980,Key_KeynumToString,.text,client,matched,30,30
 002abb30,CL_FinishMove,.text,client,settled,396,396
 002abc30,CL_CmdButtons,.text,client,settled,271,271
@@ -9267,7 +9267,7 @@ address,name,section,module,state,tested,matched
 002abfe0,IN_KeyDown,.text,client,settled,124,124
 002ac060,IN_MLookUp,.text,client,named,0,0
 002ac0b0,IN_MLookDown,.text,client,named,0,0
-002ac200,CL_CgameSystemCalls,.text,client,named,0,0
+002ac200,CL_CgameSystemCalls,.text,client,untested,0,0
 002ac450,FUN_002ac450,.text,unassigned,unnamed,0,0
 002ac510,CL_GetSnapshot,.text,client,settled,302,302
 002ac630,CL_GetUserCmd,.text,client,settled,355,355
@@ -9407,7 +9407,7 @@ address,name,section,module,state,tested,matched
 002b48d0,IN_LeftUp,.text,client,named,0,0
 002b48e0,IN_LeftDown,.text,client,named,0,0
 002b48f0,IN_UpUp,.text,client,named,0,0
-002b4910,CL_ShutdownCGame,.text,client,matched,4,4
+002b4910,CL_ShutdownCGame,.text,client,matched,8,8
 002b49a0,Persistent_SetValue,.text,unassigned,named,0,0
 002b4a30,FUN_002b4a30,.text,unassigned,unnamed,0,0
 002b4ab0,FUN_002b4ab0,.text,unassigned,unnamed,0,0
@@ -9585,7 +9585,7 @@ address,name,section,module,state,tested,matched
 002c1060,CM_PointLeafnum_r,.text,collision,settled,400,400
 002c10e0,FUN_002c10e0,.text,unassigned,unnamed,0,0
 002c1ae0,CM_LoadMap,.text,collision,matched,34,34
-002c1b80,CL_ResetLocalConnection,.text,client,matched,8,8
+002c1b80,CL_ResetLocalConnection,.text,client,matched,12,12
 002c1c20,Key_Bind_f,.text,client,named,0,0
 002c1d60,Key_Unbindall_f,.text,client,named,0,0
 002c1db0,Key_Unbind_f,.text,client,named,0,0
@@ -9713,7 +9713,7 @@ address,name,section,module,state,tested,matched
 002cc750,FUN_002cc750,.text,unassigned,unnamed,0,0
 002cc880,FUN_002cc880,.text,unassigned,unnamed,0,0
 002ccc50,CM_TempBoxModel,.text,collision,settled,361,361
-002cce00,CL_SystemInfoChanged,.text,client,matched,17,17
+002cce00,CL_SystemInfoChanged,.text,client,matched,28,28
 002cce80,CL_ParseSnapshot,.text,client,settled,12505,12505
 002ccf40,CL_DecAnimWeight_f,.text,client,named,0,0
 002ccfb0,CL_IncAnimWeight_f,.text,client,named,0,0
@@ -9723,7 +9723,7 @@ address,name,section,module,state,tested,matched
 002cd450,CL_CreateNewCommands,.text,client,settled,356,356
 002cd5f0,IN_DownUp,.text,client,named,0,0
 002cd640,IN_DownDown,.text,client,named,0,0
-002cd690,CL_ConfigstringModified,.text,client,named,0,0
+002cd690,CL_ConfigstringModified,.text,client,settled,2142,2142
 002cd750,G_SaveCheckpoint,.text,game,named,0,0
 002cdbc0,G_ClearCheckpoint,.text,game,named,0,0
 002cdca0,Checkpoint_Init,.text,unassigned,named,0,0
@@ -9783,8 +9783,8 @@ address,name,section,module,state,tested,matched
 002d5320,CM_BoxLeafnums,.text,collision,settled,401,401
 002d54c0,CL_ParseServerMessage,.text,client,settled,12608,12608
 002d55d0,CL_RefreshConfigstrings,.text,client,named,0,0
-002d5650,CL_InitRenderer,.text,client,matched,8,8
-002d5690,CL_PacketEvent,.text,client,named,0,0
+002d5650,CL_InitRenderer,.text,client,matched,16,16
+002d5690,CL_PacketEvent,.text,client,settled,6270,6270
 002d57c0,Key_ClearStates,.text,client,matched,16,16
 002d59f0,CL_GetServerCommand,.text,client,settled,1685,1685
 002d5ad0,G_RestorePlayerLoadout,.text,game,named,0,0

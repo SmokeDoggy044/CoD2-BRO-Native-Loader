@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "cg_ents.h"
 #include "qcommon.h"
 #include "tr_main.h"
 #include "title_data.h"
@@ -287,6 +288,109 @@ int32_t XB_CDECL CL_GetUserCmd(int32_t number, uint8_t* out) {
     return 1;
 }
 
+uint32_t XB_CDECL CL_CgameSystemCalls(const uint32_t* args) {
+    const auto callback = [](uint32_t slot) { return title_global<uint32_t>(slot); };
+    using A2 = uint32_t XB_CDECL(uint32_t, uint32_t);
+    using A9 = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    switch (args[0]) {
+    case 0x2e:
+        return title_function<A2>(callback(0x009284f4))(args[1], args[2]);
+    case 0x54:
+        return title_function<A2>(callback(0x009284f8))(args[1], args[2]);
+    case 0x31:
+        return title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(callback(0x00928570))(
+            args[1], args[2], args[3], 0, args[4]);
+    case 0x32:
+        return title_function<A2>(callback(0x00928574))(args[1], args[2]);
+    case 0x33:
+        title_function<A9>(callback(0x00928578))(args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+                                                   args[9]);
+        return 0;
+    case 0x34:
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                     uint32_t, uint32_t, uint32_t)>(callback(0x00928584))(
+            args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8] & 0xff, 0, args[9], args[10]);
+        return 0;
+    case 0x39:
+        title_function<void XB_CDECL()>(callback(0x00928514))();
+        return 0;
+    case 0x3d:
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(callback(0x00928518))(args[1], args[2], args[3]);
+        return 0;
+    case 0x3e:
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(callback(0x0092851c))(
+            args[1], args[2], args[3], args[4], args[5]);
+        return 0;
+    case 0x42:
+        title_function<void XB_CDECL(uint32_t)>(callback(0x00928524))(args[1]);
+        return 0;
+    case 0x45:
+        title_function<void XB_CDECL(uint32_t)>(callback(0x0092852c))(args[1]);
+        return 0;
+    case 0x46:
+        title_function<A9>(callback(0x00928530))(args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+                                                   args[9]);
+        return 0;
+    default:
+        title_function<void XB_CDECL(int32_t, const char*, uint32_t)>(0x002938f0)(  // __break
+            1, &title_global<const char>(0x00835248), args[0]);
+        return 0;
+    }
+}
+
+float* XB_CDECL SCR_AdjustFrom640(float* x, float* y, float* w, float* h) {
+    const float xscale = static_cast<float>(title_global<int32_t>(0x0092bf3c)) * title_global<float>(0x0083ec14);
+    const float yscale = static_cast<float>(title_global<int32_t>(0x0092bf40)) * title_global<float>(0x0083ec10);
+    if (x) *x = *x * xscale;
+    if (y) *y = *y * yscale;
+    if (w) *w = *w * xscale;
+    if (h) *h = *h * yscale;
+    return h;
+}
+
+char* XB_CDECL CL_AddReliableCommand(const char* text) {
+    const int32_t sequence = ++title_global<int32_t>(0x0092f5f4);  // clc.reliableSequence
+    char* const slot = &title_global<char>(0x0092f5fc) + (sequence & 63) * 128;
+    char* const result = title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(slot, text, 127);
+    slot[127] = 0;
+    return result;  // _strncpy's
+}
+
+uint32_t XB_CDECL CL_PacketEvent(uint32_t from0, uint32_t from1, uint32_t from2, uint32_t from3, uint32_t from4,
+                                 uint8_t* msg) {
+    title_global<uint32_t>(0x0092f5f0) = title_global<uint32_t>(0x0092be98);  // clc.lastPacketTime = cls.realtime
+    const uint32_t state = title_global<uint32_t>(0x0092bdf0);
+    if (!state) return state;
+    const uint32_t from[5] = {from0, from1, from2, from3, from4};
+    uint32_t remote[5];
+    std::memcpy(remote, &title_global<uint32_t>(0x00933610), sizeof remote);  // clc.netchan.remoteAddress
+    const auto* from_bytes = reinterpret_cast<const uint8_t*>(from);
+    if (NET_CompareAdr(from_bytes, reinterpret_cast<const uint8_t*>(remote)))
+        return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(NET_AdrToString(from_bytes)));
+    TitleRegs regs{};
+    regs.eax = 0x00933608;
+    regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(msg));
+    const uint32_t accepted = cg_call_regs(0x002b13b0, &regs, nullptr, 0);  // Netchan_Process
+    if (!accepted) return accepted;
+    title_global<uint32_t>(0x009315fc) = *field<uint32_t*>(msg, 4);  // clc.serverMessageSequence
+    title_global<uint32_t>(0x0092f5f0) = title_global<uint32_t>(0x0092be98);
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(CL_ParseServerMessage(msg)));
+}
+
+void XB_CDECL CL_ConfigstringModified() {
+    const char* const empty = &title_global<const char>(0x0082dfeb);
+    const int32_t index = title_atol(cmd_argc() > 1 ? cmd_argv(1) : empty);
+    if (index < 0 || index >= 0x400)
+        title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, &title_global<const char>(0x008352ec));  // __break
+    const char* const text = cmd_argc() > 2 ? cmd_argv(2) : empty;
+    uint8_t* const slot = &title_global<uint8_t>(0x009606b8 + 4 * index);  // cl.configstrings[index]
+    const char* const base = field<const char*>(slot, 0);
+    const char* const old = base ? base + 6 : nullptr;
+    if (!std::strcmp(old, text)) return;
+    title_function<void XB_THISCALL(uint8_t*, const char*)>(0x0011dd20)(slot, text);  // ScriptString_AssignCString
+    if (index == 1) CL_SystemInfoChanged();
+}
+
 const char* XB_CDECL CL_SystemInfoChanged() {
     const char* const base = title_global<const char*>(0x009606bc);
     const char* const info = base ? base + 6 : nullptr;
@@ -364,7 +468,7 @@ int32_t XB_REGS1 XB_CDECL CL_GetServerCommand(int32_t number) {
     const char* const cmd = cmd_argc() ? cmd_argv(0) : &title_global<const char>(0x0082dfeb);
     if (!std::strcmp(cmd, &title_global<const char>(0x008352e8))) {  // "cs"
         Cmd_TokenizeString(s, 3);
-        title_function<void XB_CDECL()>(0x002cd690)();  // CL_ConfigstringModified
+        CL_ConfigstringModified();
         Cmd_TokenizeString(s, 3);
         return 1;
     }

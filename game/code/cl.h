@@ -62,6 +62,26 @@ extern "C" void CL_GetUserCmd_entry(void);
 // entities left the 0x800-entry parse buffer (0x00961738 - 0x00962814); else copies flags, server time, the entity
 // count (+0x538) and the 0x520-byte block from 0x009622f0 to +0x10, and returns 1.
 int32_t XB_REGS3 XB_CDECL CL_GetSnapshot(uint32_t unused_eax, uint8_t* out, int32_t number);
+// 0x002ac200 (trap args): the cgame's renderer traps 0x2e-0x54 forwarded to the refexport callbacks at 0x009284f4..
+// 0x00928584 (0x2e, 0x54, 0x31 (a 0 inserted as fourth argument), 0x32 return the callback's EAX; the others 0;
+// 0x34 passes its eighth argument as a byte and a 0 after it); others __break 1 "Bad cgame system trap" and 0.
+uint32_t XB_CDECL CL_CgameSystemCalls(const uint32_t* args);
+// 0x002ab470 (x, y, w, h pointers, each may be null): scales x/w by 0x0092bf3c / 640 and y/h by 0x0092bf40 / 480;
+// returns h.
+float* XB_CDECL SCR_AdjustFrom640(float* x, float* y, float* w, float* h);
+// 0x002ab8d0: Q3's CL_AddReliableCommand without the overflow check - the next reliable command slot gets the text
+// (_strncpy 127 bytes, NUL-terminated); returns _strncpy's result.
+char* XB_CDECL CL_AddReliableCommand(const char* text);
+// 0x002d5690 (netadr_t by value, msg): Q3's CL_PacketEvent for the local channel - the packet time; nothing while
+// disconnected; NET_CompareAdr against the channel's remote address set: NET_AdrToString only (the debug print is
+// gone); else Netchan_Process (0x002b13b0, channel 0x00933608 in EAX, msg in EBX) and, when it accepts the packet,
+// the message sequence from the data's first word and CL_ParseServerMessage. Returns the last call's EAX.
+uint32_t XB_CDECL CL_PacketEvent(uint32_t from0, uint32_t from1, uint32_t from2, uint32_t from3, uint32_t from4,
+                                 uint8_t* msg);
+// 0x002cd690: Q3's CL_ConfigstringModified for "cs <index> <text>" - __break 1 outside 0-0x3ff; a changed string is
+// stored in cl.configstrings[index] (script strings at 0x009606b8, text at +6; ScriptString_AssignCString), and
+// index 1 (system info) runs CL_SystemInfoChanged.
+void XB_CDECL CL_ConfigstringModified();
 // 0x002cce00: Q3's CL_SystemInfoChanged - cl.serverId from "sv_serverid" of the system info (0x009606bc + 6, null
 // when unset), Cvar_SetCheatState unless "sv_cheats", then the four pak keys looked up for nothing (they rotate
 // Info_ValueForKey's buffers); returns the last lookup.
