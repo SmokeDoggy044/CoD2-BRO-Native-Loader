@@ -219,4 +219,36 @@ void XB_REGS1 XB_CDECL CM_TraceCapsuleThroughCapsule(uint8_t* tw);
 // planes enter at a - b - 0.125); 0 as soon as enter >= leave, else 1. Packed differences of whole vectors.
 uint8_t XB_REGS3 XB_CDECL CM_SegmentOverlapsBox(const float* b, const float* c, const float* a, const float* d);
 
+// 0x002dae30 (start in EDX, v0 in ECX; end (in/out), direction, radius, v1, v2, plane, startsolid flag on the stack;
+// unnamed in Ghidra): clips a swept sphere's end at triangle v0 v1 v2 with its plane {normal, dist}. A sweep shorter
+// than 1e-5, or a start within the radius and not moving away from the plane, tests CM_SphereTouchesTriangle at the
+// start (hit: flag 1). Else, moving toward the plane: the point Q 50 units behind the start, projected onto the
+// plane (along the direction once it is beyond the radius); inside all edges the end becomes that point + normal *
+// (radius + 1e-4), else the ray from Q through the end against the sphere at the triangle's closest point (x87
+// sqrt). AL = 1 when the end moved or the flag was set.
+uint8_t XB_REGS3 XB_CDECL CM_ClipSphereSweepToTriangle(uint32_t unused, const float* start, const float* v0, float* end,
+                                                     const float* dir, float radius, const float* v1, const float* v2,
+                                                     const float* plane, uint8_t* startsolid);
+
+
+// 0x002c6bf0 (unnamed in Ghidra): the quad tree cells (tree +4 child indexes, +0xc leaf base) the segment p1 -> p2
+// crosses, in order from p1: a leaf (child index <= 0) appends {leaf record, center (+0x10, 16 bytes), half size
+// (+0x20)} to the 0x30-byte list at 0x00960034 (count 0x00960030, no bound check) and returns the new count; a
+// node splits the segment where it crosses the cell center's x and/or y (quadrant = 2 * (x > cx) + (cy < y);
+// children at index + quadrant, centers = center + table 0x0095ff30[quadrant] * half / 2, half size halved in its
+// argument slot). Returns the count after the last leaf.
+int32_t XB_CDECL CM_QuadTreeTraceLeafs_r(const uint8_t* tree, int32_t node, const float* p1, const float* p2,
+                                         const float* center, float half);
+
+
+// 0x002d37f0 (unnamed in Ghidra): a ray (zero-size) trace through the world quad trees for the nearest hit: out
+// {hit point, normal} (32 bytes; the end and no normal when nothing is hit), the hit object's surface flags (+4)
+// and contents (+8). Sweeps shorter than 0.001 (squared) return 0. Per tree whose bounds the segment meets: the
+// cells CM_QuadTreeTraceLeafs_r lists, each cell's objects in the content mask (checkcount-marked): brushes with
+// CM_TraceBoxThroughBrush (an exact fraction 0 returns 1), meshes through their vtable slot 5; a nearer hit
+// shrinks the search box to start .. hit. Stops a tree's cells at the first whose x/y bounds hold the hit; an
+// object box outside the search box ends the cell unless 0 <= (search max - object min).x. AL = hit.
+uint8_t XB_CDECL CM_TraceRayThroughWorldTrees(uint8_t* tw, const float* start, const float* end, float* out,
+                                              uint32_t* surface_flags, uint32_t* contents);
+
 }  // namespace game

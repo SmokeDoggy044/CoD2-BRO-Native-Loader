@@ -9655,7 +9655,7 @@ address,name,section,module,state,tested,matched
 002c6400,FUN_002c6400,.text,unassigned,unnamed,0,0
 002c6630,CM_FilterBoxCandidates,.text,collision,named,0,0
 002c6840,FUN_002c6840,.text,unassigned,unnamed,0,0
-002c6bf0,FUN_002c6bf0,.text,unassigned,unnamed,0,0
+002c6bf0,FUN_002c6bf0,.text,unassigned,settled,24290,24290
 002c7220,FUN_002c7220,.text,unassigned,settled,207,207
 002c72e0,SV_AreaEntities_r,.text,server,named,0,0
 002c73a0,CM_BoxLeafnums_r,.text,collision,settled,346,346
@@ -9767,7 +9767,7 @@ address,name,section,module,state,tested,matched
 002d2b50,FUN_002d2b50,.text,unassigned,unnamed,0,0
 002d2f90,FUN_002d2f90,.text,unassigned,unnamed,0,0
 002d3360,FUN_002d3360,.text,unassigned,unnamed,0,0
-002d37f0,FUN_002d37f0,.text,unassigned,unnamed,0,0
+002d37f0,FUN_002d37f0,.text,unassigned,settled,5635,5635
 002d3e10,FUN_002d3e10,.text,unassigned,unnamed,0,0
 002d3f40,FUN_002d3f40,.text,unassigned,unnamed,0,0
 002d4050,FUN_002d4050,.text,unassigned,unnamed,0,0
@@ -9825,7 +9825,7 @@ address,name,section,module,state,tested,matched
 002da830,FUN_002da830,.text,unassigned,unnamed,0,0
 002da9d0,FUN_002da9d0,.text,unassigned,matched,96,96
 002dab20,FUN_002dab20,.text,unassigned,settled,16495,16495
-002dae30,FUN_002dae30,.text,unassigned,unnamed,0,0
+002dae30,FUN_002dae30,.text,unassigned,settled,11065,11065
 002db350,FUN_002db350,.text,unassigned,unnamed,0,0
 002db3e0,FUN_002db3e0,.text,unassigned,unnamed,0,0
 002db500,CM_TransformedPointContents,.text,collision,settled,394,394
