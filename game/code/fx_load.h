@@ -222,4 +222,16 @@ uint8_t* XB_CDECL FxDomain_Create(const char* name, const uint32_t* id, const ui
 // FxAction* object). Null for unknown kinds or a failed allocation.
 uint8_t* XB_CDECL apsParseActions(const char* name, const uint32_t* id);
 
+// 0x0023e6c0 (stream in EAX; name, zone): an effect file: header, matrix and scale, stages
+// (renderer from its parameter list, particle actions with their parameters and domains),
+// emitters. Null when an action parameter has an unknown type. Entered through the _entry.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL FX_LoadEffectFile(uint32_t* stream, const char* name, uint32_t zone);
+extern "C" void FX_LoadEffectFile_entry(void);
+// 0x00291140 (size in EAX, data in ECX, zone in EBX; streams, name; callee pops 8): the effect
+// loaded from memory and stored in the zone's effect map. Returns EAX as the original leaves it
+// (MemStream_Destroy's flag byte over the slot address, or 0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FX_LoadEffectFromStream(int32_t size, const uint8_t* data, uint32_t zone,
+                                                                     uint32_t streams, const char* name);
+extern "C" void FX_LoadEffectFromStream_entry(void);
+
 }  // namespace game

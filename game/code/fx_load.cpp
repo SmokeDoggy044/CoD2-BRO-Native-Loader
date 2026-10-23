@@ -5,6 +5,7 @@
 #include "fx.h"
 #include "lanes.h"
 #include "ngl.h"
+#include "stream.h"
 #include "title_data.h"
 
 namespace game {
@@ -1102,6 +1103,172 @@ uint8_t* XB_CDECL apsParseActions(const char* name, const uint32_t* id) {
     uint8_t* self = fx_alloc(0x1c, 4);
     if (!self) return nullptr;
     return init(self);
+}
+
+namespace {
+
+// The effect file's name strings: ReadString (at most 0x7f), its length byte stored at the
+// buffer's end (+0x7f) as the original does, then terminated.
+void read_name(uint32_t* stream, char* buffer) {
+    int32_t length = 0;
+    buffer[0x7f] = 0;
+    buffer[0] = 0;
+    Stream_ReadString(stream, buffer, &length, 0x7f);
+    buffer[0x7f] = static_cast<char>(length);
+    buffer[static_cast<uint8_t>(length)] = 0;
+}
+
+void hash_string(uint32_t* out, const char* text) {
+    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(out, text);  // HashStr_Init
+}
+
+void free_list(uint8_t* list) {
+    if (!at<uint32_t>(list, 0)) return;
+    fx_free_no_context(at<uint32_t>(list, 0));
+    at<uint32_t>(list, 0) = 0;
+    at<int16_t>(list, 4) = 0;
+    at<int16_t>(list, 6) = 0;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FX_LoadEffectFile_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FX_LoadEffectFile) "addl $12, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL FX_LoadEffectFile(uint32_t* stream, const char* name, uint32_t zone) {
+    using HeapAlloc = uint8_t* XB_CDECL(uint32_t, uint32_t);
+    uint8_t* memory = title_function<HeapAlloc>(0x00042c60)(0x10, 0xd0);  // Heap_AllocAligned
+    uint8_t* effect = memory ? FxEffect_Init(memory, name) : nullptr;
+    Stream_ReadInt(stream);
+    const float version = Stream_ReadFloat(stream);
+    float matrix[16];
+    for (float& value : matrix) value = Stream_ReadFloat(stream);
+    FxEffect_SetMatrix(effect, reinterpret_cast<const uint32_t*>(matrix));
+    const float a = Stream_ReadFloat(stream);
+    const float b = Stream_ReadFloat(stream);
+    const float c = Stream_ReadFloat(stream);
+    at<float>(effect, 0x4c) = Stream_ReadFloat(stream);
+    at<float>(effect, 0x40) = a;
+    at<float>(effect, 0x44) = b;
+    at<float>(effect, 0x48) = c;
+    int32_t particle_limit = 0x40;
+    if (version >= title_global<float>(0x0083f000)) {  // 1.02
+        particle_limit = static_cast<int32_t>(Stream_ReadInt(stream));
+        at<int32_t>(effect, 0x68) = particle_limit < 0 ? -particle_limit : particle_limit;
+    }
+    const int32_t stages = static_cast<int32_t>(Stream_ReadInt(stream));
+    FxEffect_SetStageCount(effect, stages);
+    // The parameter buffers keep what earlier parameters left in their unused words (the
+    // original's stack slots; zero at the start of a test).
+    alignas(16) uint32_t renderer_parameter[4] = {};
+    alignas(16) uint32_t domain_parameter[4] = {};
+    for (int32_t stage = 0; stage < stages; ++stage) {
+        const uint32_t count = Stream_ReadInt(stream);
+        const float rate = Stream_ReadFloat(stream);
+        const float life = Stream_ReadFloat(stream);
+        const uint32_t flag = Stream_ReadInt(stream);
+        uint32_t renderer_id = Stream_ReadUInt(stream);
+        Stream_ReadFloat(stream);
+        uint8_t list[8] = {};
+        const int32_t parameters = static_cast<int32_t>(Stream_ReadInt(stream));
+        FxArray16_Reserve(list, parameters);
+        for (int32_t i = 0; i < parameters; ++i) {
+            FX_ParseEffectTexture(stream, renderer_parameter);
+            FxArray16_Push(list, renderer_parameter);
+        }
+        uint8_t* renderer = FX_CreateRenderer(nullptr, &renderer_id, list);
+        at<int32_t>(renderer, 8) = particle_limit;
+        free_list(list);
+        uint8_t* memory_list = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0xc);  // Z_Malloc
+        uint8_t* elements = memory_list ? FxElementList_Init(memory_list) : nullptr;
+        const uint32_t actions = Stream_ReadInt(stream);
+        for (uint32_t k = 0; k < actions; ++k) {
+            uint32_t action_id = Stream_ReadUInt(stream);
+            Stream_ReadFloat(stream);
+            uint8_t* action = apsParseActions(nullptr, &action_id);
+            const int32_t values = static_cast<int32_t>(Stream_ReadInt(stream));
+            for (int32_t j = 0; j < values; ++j) {
+                const uint32_t type = Stream_ReadInt(stream);
+                if (type == 0) {
+                    FxParamBlock_Set(action, static_cast<uint32_t>(j), Stream_ReadFloat(stream));
+                } else if (type == 1) {
+                    char text[0x80];
+                    read_name(stream, text);
+                    uint32_t hashed[8];
+                    hash_string(hashed, text);
+                    const uint32_t found = Stream_FindEffect(hashed, title_global<uint32_t>(0x0095f630), zone, 0, 0);
+                    float bits;
+                    std::memcpy(&bits, &found, 4);
+                    FxParamBlock_Set(action, static_cast<uint32_t>(j), bits);
+                } else {
+                    return nullptr;
+                }
+            }
+            const int32_t domains = static_cast<int32_t>(Stream_ReadInt(stream));
+            for (int32_t r = 0; r < domains; ++r) {
+                uint32_t domain_id = Stream_ReadUInt(stream);
+                Stream_ReadFloat(stream);
+                uint8_t domain_list[8] = {};
+                const int32_t n = static_cast<int32_t>(Stream_ReadInt(stream));
+                for (int32_t i = 0; i < n; ++i) {
+                    FX_ParseEffectTexture(stream, domain_parameter);
+                    FxArray16_Push(domain_list, domain_parameter);
+                }
+                uint8_t* domain = FxDomain_Create(nullptr, &domain_id, domain_list);
+                FxParamBlock_SetSlot(action, r, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(domain)));
+                free_list(domain_list);
+            }
+            apsElementList_Add(elements, action);
+        }
+        FxEffect_SetStage(effect, stage, count, rate, life, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(renderer)),
+                          static_cast<uint32_t>(reinterpret_cast<uintptr_t>(elements)), flag != 0);
+    }
+    const int32_t emitters = static_cast<int32_t>(Stream_ReadInt(stream));
+    FxEffect_SetEmitterCount(effect, emitters);
+    for (int32_t i = 0; i < emitters; ++i) {
+        char text[0x80];
+        read_name(stream, text);
+        const uint32_t x = Stream_ReadInt(stream);
+        const uint32_t y = Stream_ReadInt(stream);
+        const uint32_t z = Stream_ReadInt(stream);
+        uint32_t hashed[8];
+        hash_string(hashed, text);
+        FxEffect_SetEmitterEntry(effect, i, hashed, x, y, z);
+    }
+    FxEffect_ComputeStageSizes(effect);
+    return effect;
+}
+
+PLATFORM_ASM_ENTRY(FX_LoadEffectFromStream_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FX_LoadEffectFromStream) "addl $20, %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL FX_LoadEffectFromStream(int32_t size, const uint8_t* data, uint32_t zone, uint32_t streams,
+                                          const char* name) {
+    MemStream stream;
+    MemStream_Init(&stream, data, size);
+    uint8_t* effect = FX_LoadEffectFile(reinterpret_cast<uint32_t*>(&stream), name, zone);
+    // EAX at the end: what MemStream_Destroy leaves - its flag byte (0 for this stream) in AL
+    // over the last value: 0, or the effect slot's address.
+    uint32_t result = 0;
+    if (effect) {
+        uint32_t hashed[8];
+        Stream_HashFileName(name, hashed);
+        const auto* zone_map = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+            *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(streams + 0x5c + zone * 4))));
+        const uint32_t slot = ZoneEffectMap_Lookup(hashed[0], reinterpret_cast<const char*>(hashed + 1), zone_map);
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(slot)) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(effect));
+        result = slot;
+    }
+    MemStream_Destroy(&stream);
+    return (result & ~0xffu) | stream.flag;
 }
 
 }  // namespace game

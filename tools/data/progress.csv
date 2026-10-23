@@ -8143,7 +8143,7 @@ address,name,section,module,state,tested,matched
 0023e510,R_GetCellLighting,.text,renderer,settled,313,313
 0023e620,FX_PlayEffectAlongDir,.text,renderer,settled,109,109
 0023e680,FUN_0023e680,.text,unassigned,unnamed,0,0
-0023e6c0,FX_LoadEffectFile,.text,renderer,named,0,0
+0023e6c0,FX_LoadEffectFile,.text,renderer,settled,256,256
 0023ec30,RE_RegisterShader,.text,renderer,settled,114,114
 0023eda0,FUN_0023eda0,.text,unassigned,unnamed,0,0
 0023ee60,RE_AddPolyToScene,.text,renderer,settled,100,100
@@ -8913,7 +8913,7 @@ address,name,section,module,state,tested,matched
 00290f70,Stream_UpdateUnload,.text,unassigned,named,0,0
 00290fe0,Pak_ReleaseCellMeshesForZone,.text,unassigned,named,0,0
 00291090,Pak_LoadCellMeshesForZone,.text,unassigned,named,0,0
-00291140,FX_LoadEffectFromStream,.text,renderer,named,0,0
+00291140,FX_LoadEffectFromStream,.text,renderer,settled,262,262
 002911c0,Stream_LoadBpe,.text,unassigned,settled,106,106
 00291280,Stream_BeginZoneUnload,.text,unassigned,named,0,0
 00291300,Stream_LoadXmpb,.text,unassigned,named,0,0
