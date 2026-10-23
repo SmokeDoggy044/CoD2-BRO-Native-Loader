@@ -59,20 +59,22 @@ void add_record(ParamSet* set, uint32_t id, const uint32_t* value, uint32_t flag
 
 }  // namespace
 
-void XB_REGS1 XB_CDECL ParamList_Init(ParamList* list) {
+ParamList* XB_REGS1 XB_CDECL ParamList_Init(ParamList* list) {
     list->vtable = kParamListVtable;
     list->count = 0;
     std::memset(list->id_present, 0, sizeof(list->id_present));
     std::memset(list->slot_flag, 0, sizeof(list->slot_flag));
     std::memset(list->id_flag, 0, sizeof(list->id_flag));
+    return list;
 }
 
-void XB_REGS1 XB_CDECL ParamList_Clear(ParamList* list) {
+ParamList* XB_REGS1 XB_CDECL ParamList_Clear(ParamList* list) {
     for (uint32_t i = 0; i < list->count; ++i) list->records[i] = nullptr;
     list->count = 0;
     std::memset(list->slot_flag, 0, sizeof(list->slot_flag));
     std::memset(list->id_flag, 0, sizeof(list->id_flag));
     std::memset(list->id_present, 0, sizeof(list->id_present));
+    return list;
 }
 
 PLATFORM_ASM_ENTRY(ParamList_Add_entry,
@@ -81,7 +83,7 @@ PLATFORM_ASM_ENTRY(ParamList_Add_entry,
                    "pushl %eax\n" PLATFORM_ASM_CALL(ParamList_Add) "addl $12, %esp\n"
                    "ret")
 
-void XB_CDECL ParamList_Add(ParamList* list, uint32_t flag, uint8_t* record) {
+ParamList* XB_CDECL ParamList_Add(ParamList* list, uint32_t flag, uint8_t* record) {
     const bool on = static_cast<uint8_t>(flag) != 0;
     set_bit(list->slot_flag, list->count, on);
     uint16_t id;
@@ -91,6 +93,7 @@ void XB_CDECL ParamList_Add(ParamList* list, uint32_t flag, uint8_t* record) {
     list->slot_of_id[id] = static_cast<uint8_t>(list->count);
     list->records[list->count] = record;
     ++list->count;
+    return list;
 }
 
 ParamList* XB_THISCALL ParamList_Delete(ParamList* list, uint32_t flags) {
@@ -220,7 +223,7 @@ const uint32_t* node_value(const uint8_t* definition, uint16_t id, uint16_t inde
 
 }  // namespace
 
-void XB_REGS3 XB_CDECL ParamNode_CollectChoices(uint32_t* out, uint32_t, const uint8_t* node) {
+uint32_t* XB_REGS3 XB_CDECL ParamNode_CollectChoices(uint32_t* out, uint32_t, const uint8_t* node) {
     const uint32_t count = *reinterpret_cast<const uint16_t*>(node + 4);
     uint32_t* const* children = *reinterpret_cast<uint32_t* const* const*>(node);
     int32_t& best = reinterpret_cast<int32_t&>(out[0x82]);
@@ -235,6 +238,7 @@ void XB_REGS3 XB_CDECL ParamNode_CollectChoices(uint32_t* out, uint32_t, const u
         }
         if (static_cast<int32_t>(out[0]) < 0x40) out[1 + out[0]++] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(children[i]));
     }
+    return out;
 }
 
 uint8_t XB_REGS3 XB_CDECL ParamSet_TestCondition(const ParamSet* set, uint32_t id, const uint32_t* value) {

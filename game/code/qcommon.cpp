@@ -117,7 +117,7 @@ void XB_CDECL AnglesToAxis(uint32_t* args, float* right, float* up) {
     up[2] = roll_c * pitch_c;
 }
 
-void XB_REGS3 XB_CDECL MatrixMultiply43To44(const float* a, float* out, const float* b) {
+const float* XB_REGS3 XB_CDECL MatrixMultiply43To44(const float* a, float* out, const float* b) {
     // out = a (4x3: rows of 3, translation a[9..11]) applied to b's rotation rows and
     // translation (b rows of 4); sums in the original's order (ssesym.py).
     out[0] = ((b[0] * a[0]) + (b[1] * a[3])) + (a[6] * b[2]);
@@ -136,6 +136,7 @@ void XB_REGS3 XB_CDECL MatrixMultiply43To44(const float* a, float* out, const fl
     out[13] = (((a[7] * b[14]) + (a[4] * b[13])) + (a[1] * b[12])) + a[10];
     out[14] = (((b[12] * a[2]) + (b[14] * a[8])) + (b[13] * a[5])) + a[11];
     out[15] = 1.0f;
+    return a;
 }
 
 }  // namespace game

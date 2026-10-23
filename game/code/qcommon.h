@@ -42,6 +42,6 @@ extern "C" void AnglesToAxis_entry(void);
 
 // 0x00295060 (a in EAX, out in EDX, b in ECX): a 4x3 matrix (rows of 3 floats, translation
 // last) times a 4x4 one into a 4x4 with last column {0, 0, 0, 1}.
-void XB_REGS3 XB_CDECL MatrixMultiply43To44(const float* a, float* out, const float* b);
+const float* XB_REGS3 XB_CDECL MatrixMultiply43To44(const float* a, float* out, const float* b);
 
 }  // namespace game

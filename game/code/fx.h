@@ -560,17 +560,18 @@ uint8_t* XB_REGS1 XB_CDECL DObjHandle_Resolve(const uint32_t* handle);
 // (0x00975fa8, 0xc4 each; 0 without a model).
 uint32_t* XB_REGS3 XB_CDECL WeaponModel_GetDObjHandle(uint32_t* out, uint32_t unused_edx, uint32_t index);
 // 0x0029af30 (out in EAX, component in ECX): the component entity's origin (+0x140, 16 bytes).
-void XB_REGS3 XB_CDECL FxComponent_GetEntityOrigin(uint32_t* out, uint32_t unused_edx, const uint8_t* component);
+uint32_t* XB_REGS3 XB_CDECL FxComponent_GetEntityOrigin(uint32_t* out, uint32_t unused_edx, const uint8_t* component);
 // 0x0029b0f0 (out in EAX, component in EDX): the placement's (+0x14) translation row (+0x30),
 // else the entity origin {x, y, z, x}.
-void XB_REGS2 XB_CDECL FxComponent_GetPosition(float* out, const uint8_t* component);
+float* XB_REGS2 XB_CDECL FxComponent_GetPosition(float* out, const uint8_t* component);
 // 0x00298ba0 (manager in EDX, scale in XMM0, id on the stack, ret 4): the scale (+0x10) of the
 // rumble `id` in either of the manager's lists (+8, +0x18; their last node is never checked).
 extern "C" PLATFORM_HIDDEN void XB_CDECL Rumble_SetScale(uint8_t* manager, uint32_t id, float scale);
 extern "C" void Rumble_SetScale_entry(void);
 // 0x002ae740 (shake in ECX, rotation in XMM0, position on the stack, ret 4): non-zero amplitudes
 // stored (rotation +0x18/+0x28, position +0x14/+0x24).
-extern "C" PLATFORM_HIDDEN void XB_CDECL CameraShake_SetAmplitude(uint8_t* shake, float rotation, float position);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CameraShake_SetAmplitude(uint32_t eax, uint8_t* shake, float rotation,
+                                                                  float position);
 extern "C" void CameraShake_SetAmplitude_entry(void);
 // 0x002a7f70 (manager in EDX): the first of 5 free shake slots (+0xc, 0x40 each, in use +0x3c)
 // cleared and marked in use; null when all are taken.

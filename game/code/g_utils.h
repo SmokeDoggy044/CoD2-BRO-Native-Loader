@@ -18,14 +18,14 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL vectoangles_call(const float* v, float*
 uint8_t* XB_REGS1 XB_CDECL G_EntHandleToEnt(const uint32_t* handle);
 // 0x002b76e0 / 0x002b7730 (entity in EAX, origin in ECX): the trajectory base (+0x20),
 // delta (+0x14) and +0x2c cleared, current origin +0x140. Two identical copies.
-void XB_REGS3 XB_CDECL G_SetOrigin(uint8_t* ent, uint32_t unused_edx, const float* origin);
-void XB_REGS3 XB_CDECL G_SetOrigin2(uint8_t* ent, uint32_t unused_edx, const float* origin);
+uint8_t* XB_REGS3 XB_CDECL G_SetOrigin(uint8_t* ent, uint32_t unused_edx, const float* origin);
+uint8_t* XB_REGS3 XB_CDECL G_SetOrigin2(uint8_t* ent, uint32_t unused_edx, const float* origin);
 // 0x002b7640 / 0x002b7690 (entity in EAX, angles in ECX): the angle trajectory (+0x44,
 // +0x38, +0x50) and current angles +0x150. Two identical copies.
-void XB_REGS3 XB_CDECL G_SetAngle(uint8_t* ent, uint32_t unused_edx, const float* angles);
-void XB_REGS3 XB_CDECL G_SetAngle2(uint8_t* ent, uint32_t unused_edx, const float* angles);
+uint8_t* XB_REGS3 XB_CDECL G_SetAngle(uint8_t* ent, uint32_t unused_edx, const float* angles);
+uint8_t* XB_REGS3 XB_CDECL G_SetAngle2(uint8_t* ent, uint32_t unused_edx, const float* angles);
 // 0x002482f0 (entity in EAX): a trigger's contents (+0x134) from its spawnflags (+0x2a0).
-void XB_REGS1 XB_CDECL G_TriggerContentsFromSpawnflags(uint8_t* ent);
+uint8_t* XB_REGS1 XB_CDECL G_TriggerContentsFromSpawnflags(uint8_t* ent);
 // 0x0024d700 (list in ESI, field offset in EDI, callee pops 4): the first entity in the list
 // (count +0x2aac, pointers +0x2ab0) whose int field is set and equals value, or 0.
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL G_FindEntityByIntField(const uint8_t* list, uint32_t offset,
@@ -105,7 +105,7 @@ uint8_t* XB_CDECL G_FindAnimTreeByName(const char* name);
 // 0x002a80b0 (entity in EAX): queues an event (low bytes of event and parameter) on the
 // client's player state (+0x23c; ring at +0xc8 / +0xd8) or on the entity itself (+0xb4 /
 // +0xb8, sequence +0xb0); event time +0x1a8 = level time.
-void XB_REGS1 XB_CDECL G_AddEvent(uint8_t* ent, uint32_t event, uint32_t parm);
+uint8_t* XB_REGS1 XB_CDECL G_AddEvent(uint8_t* ent, uint32_t event, uint32_t parm);
 // 0x00262be0 (entity in EAX): the entity that blocks ent at origin (a trace from origin to 16
 // units above it with ent's bounds and clip mask, 0x11 without one; actors (type 1) as a
 // capsule; started solid), or 0. Triggers (contents 0x4000000) are never blocked.

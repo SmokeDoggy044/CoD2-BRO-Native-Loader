@@ -42,23 +42,27 @@ uint8_t* XB_REGS1 XB_CDECL G_EntHandleToEnt(const uint32_t* handle) {
     return title_global<uint8_t*>(0x0097a968 + index * 8);
 }
 
-void XB_REGS3 XB_CDECL G_SetOrigin(uint8_t* ent, uint32_t, const float* origin) {
+uint8_t* XB_REGS3 XB_CDECL G_SetOrigin(uint8_t* ent, uint32_t, const float* origin) {
     set_trajectory(ent, origin, 0x20, 0x14, 0x2c, 0x140);
+    return ent;
 }
 
-void XB_REGS3 XB_CDECL G_SetOrigin2(uint8_t* ent, uint32_t, const float* origin) {
+uint8_t* XB_REGS3 XB_CDECL G_SetOrigin2(uint8_t* ent, uint32_t, const float* origin) {
     set_trajectory(ent, origin, 0x20, 0x14, 0x2c, 0x140);
+    return ent;
 }
 
-void XB_REGS3 XB_CDECL G_SetAngle(uint8_t* ent, uint32_t, const float* angles) {
+uint8_t* XB_REGS3 XB_CDECL G_SetAngle(uint8_t* ent, uint32_t, const float* angles) {
     set_trajectory(ent, angles, 0x44, 0x38, 0x50, 0x150);
+    return ent;
 }
 
-void XB_REGS3 XB_CDECL G_SetAngle2(uint8_t* ent, uint32_t, const float* angles) {
+uint8_t* XB_REGS3 XB_CDECL G_SetAngle2(uint8_t* ent, uint32_t, const float* angles) {
     set_trajectory(ent, angles, 0x44, 0x38, 0x50, 0x150);
+    return ent;
 }
 
-void XB_REGS1 XB_CDECL G_TriggerContentsFromSpawnflags(uint8_t* ent) {
+uint8_t* XB_REGS1 XB_CDECL G_TriggerContentsFromSpawnflags(uint8_t* ent) {
     const uint32_t flags = word_at(ent, 0x2a0);
     uint32_t& contents = word_at(ent, 0x134);
     contents = 0;
@@ -67,6 +71,7 @@ void XB_REGS1 XB_CDECL G_TriggerContentsFromSpawnflags(uint8_t* ent) {
     if (flags & 2) contents |= 0x80000;
     if (flags & 4) contents |= 0x100000;
     if (flags & 0x10) contents |= 8;
+    return ent;
 }
 
 PLATFORM_ASM_ENTRY(G_FindEntityByIntField_entry,
@@ -477,7 +482,7 @@ uint32_t ent_anim_tree(const uint8_t* ent) {
 uint32_t XB_REGS1 XB_CDECL G_GetEntAnimTree(const uint8_t* ent) { return ent_anim_tree(ent); }
 uint32_t XB_REGS1 XB_CDECL G_GetEntityAnimTree(const uint8_t* ent) { return ent_anim_tree(ent); }
 
-void XB_REGS1 XB_CDECL G_AddEvent(uint8_t* ent, uint32_t event, uint32_t parm) {
+uint8_t* XB_REGS1 XB_CDECL G_AddEvent(uint8_t* ent, uint32_t event, uint32_t parm) {
     if (uint8_t* ps = *reinterpret_cast<uint8_t**>(ent + 0x23c)) {
         word_at(ps, 0xc8 + (word_at(ps, 0xc4) & 3) * 4) = event & 0xff;
         word_at(ps, 0xd8 + (word_at(ps, 0xc4) & 3) * 4) = parm & 0xff;
@@ -488,6 +493,7 @@ void XB_REGS1 XB_CDECL G_AddEvent(uint8_t* ent, uint32_t event, uint32_t parm) {
         ++word_at(ent, 0xb0);
     }
     word_at(ent, 0x1a8) = title_global<uint32_t>(0x0098540c);  // level time
+    return ent;
 }
 
 // G_LocationalTrace runs where the original's call puts it (aligned frame, 0x18 locals, two saved

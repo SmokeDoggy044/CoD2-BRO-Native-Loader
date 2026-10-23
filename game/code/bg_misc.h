@@ -25,7 +25,7 @@ int32_t* XB_REGS3 XB_CDECL PM_WeaponUseAmmo(uint32_t, uint32_t, uint32_t weapon,
 void XB_CDECL PM_DropTimers();
 // 0x002ad700 (ps in EAX, event in ECX): queues the event (low byte) and its parameter (low
 // byte) in the four-entry ring (+0xc8 / +0xd8, sequence +0xc4); event 0 does nothing.
-void XB_REGS3 XB_CDECL BG_AddPredictableEventToPlayerstate(uint8_t* ps, uint32_t, uint32_t event, uint32_t parm);
+uint8_t* XB_REGS3 XB_CDECL BG_AddPredictableEventToPlayerstate(uint8_t* ps, uint32_t, uint32_t event, uint32_t parm);
 // 0x002b63f0 (event in ECX): the same for pm's player with parameter 0.
 void XB_REGS3 XB_CDECL PM_AddEvent(uint32_t, uint32_t, uint32_t event);
 // 0x002bcda0: adds an entity number to pm's touch list (+0x7c count, +0x80, 32 at most)
@@ -39,7 +39,7 @@ void XB_REGS3 XB_CDECL PM_StartLegsAnim(uint32_t, uint32_t, uint32_t anim);
 // state - origin, angles, the lean (+0x78, signed byte as float), the newest predictable
 // event's parameter, and the external events since the last call that are not in the
 // predictable-only list (0x008d2188, ended by a value <= 0).
-void XB_REGS3 XB_CDECL BG_PlayerStateToEntityState(uint8_t* es, uint32_t, uint8_t* ps);
+uint8_t* XB_REGS3 XB_CDECL BG_PlayerStateToEntityState(uint8_t* es, uint32_t, uint8_t* ps);
 // 0x002b62f0 (usercmd in EAX, result in XMM0): the move scale - speed (+0x50) * the largest
 // of |forward|, |right|, |up| / (127 * |move|) on the x87, times the stance speed (+0x430;
 // +0x434 / +0x438 when not moving vertically (+0x4c = 0) and not sprinting (+0x2c bit 7)),

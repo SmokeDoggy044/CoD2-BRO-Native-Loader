@@ -21,7 +21,7 @@ float* XB_THISCALL Mat44_MultiplyInPlace(float* a, float* out, const float* b);
 float* XB_THISCALL Quat_ToMat33(float* out, const float* q);
 // 0x0001cbe0 (out in EAX, {quat, position} in ECX): Quat_ToMat33's rows with the
 // position as row 3.
-void XB_REGS3 XB_CDECL QuatTrans_ToMat44(float* out, uint32_t unused_edx, const float* qt);
+float* XB_REGS3 XB_CDECL QuatTrans_ToMat44(float* out, uint32_t unused_edx, const float* qt);
 // 0x0001cae0: {quat, position} pairs (32 bytes, 16-byte aligned): out = a then b - the
 // quaternion product, a's position rotated by b and moved by b's; out may be a or b.
 // Returns out.

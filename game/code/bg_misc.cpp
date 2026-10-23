@@ -67,8 +67,9 @@ void XB_CDECL PM_DropTimers() {
     }
 }
 
-void XB_REGS3 XB_CDECL BG_AddPredictableEventToPlayerstate(uint8_t* ps, uint32_t, uint32_t event, uint32_t parm) {
+uint8_t* XB_REGS3 XB_CDECL BG_AddPredictableEventToPlayerstate(uint8_t* ps, uint32_t, uint32_t event, uint32_t parm) {
     if (event) add_event(ps, event, parm & 0xff);
+    return ps;
 }
 
 void XB_REGS3 XB_CDECL PM_AddEvent(uint32_t, uint32_t, uint32_t event) {
@@ -229,7 +230,7 @@ uint32_t XB_CDECL BG_ChooseWeaponSlot(uint32_t preferred, uint32_t weapon, const
     return takes_slot(held) ? type : 0;
 }
 
-void XB_REGS3 XB_CDECL BG_PlayerStateToEntityState(uint8_t* es, uint32_t, uint8_t* ps) {
+uint8_t* XB_REGS3 XB_CDECL BG_PlayerStateToEntityState(uint8_t* es, uint32_t, uint8_t* ps) {
     es[0] = 1;
     field<uint32_t>(es, 0x14) = 1;
     for (uint32_t i = 0; i < 12; i += 4) field<uint32_t>(es, 0x20 + i) = field<uint32_t>(ps, i);
@@ -276,6 +277,7 @@ void XB_REGS3 XB_CDECL BG_PlayerStateToEntityState(uint8_t* es, uint32_t, uint8_
     field<uint32_t>(ps, 0xe8) = field<uint32_t>(ps, 0xc4);
     es[3] = ps[0x80];
     field<uint32_t>(es, 0xc) = field<uint32_t>(ps, 0x60);
+    return es;
 }
 
 namespace {
