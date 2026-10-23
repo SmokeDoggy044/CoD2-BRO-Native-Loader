@@ -214,4 +214,45 @@ extern "C" void SV_SendClientMessages_entry(void);
 // 0x002e6d80: with a server static, VM_Call(gvm, 0x15), SV_SendClientMessages, 0x0092f548 = 0.
 void XB_CDECL SV_SendMessages();
 
+// 0x002a8610 (client in ESI): clears the reliable command slots (+0xc texts, zeroed for their +0x10 lengths)
+// from the one before the acknowledged sequence (+0x1c) backwards until an empty slot or the acknowledged one.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_ClearAcknowledgedCommands(uint8_t* client);
+extern "C" void SV_ClearAcknowledgedCommands_entry(void);
+// 0x002c0040 (msg in EAX, client in ECX): Q3's SV_ClientCommand - sequence + text; a new one is tokenized and run
+// through VM_Call(gvm, 5, client entity +0x164) while the server runs (0x00964cd4 == 2), then kept in +0x60 /
+// +0x64 ("%s", 0x100). Returns 1.
+uint32_t XB_REGS3 XB_CDECL SV_ClientCommand(uint8_t* msg, uint32_t unused, uint8_t* client);
+// 0x002b8560 (delta flag in EAX, msg in ECX; client on the stack): Q3's SV_UserMove - deltaMessage (+0x168 =
+// +0x24 or -1), 1..0x20 usercmds (MSG_ReadDeltaUsercmd chain from a zero command); for an active client
+// (state 1) each command not after the last one goes to +0x30 and VM_Call(gvm, 6, entity).
+// VM_Call runs at the original's ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_UserMove(uint32_t entry_esp, uint32_t delta, uint8_t* msg, uint8_t* client);
+extern "C" void SV_UserMove_entry(void);
+// 0x002c4c50 (leaf in EDX; client entity number on the stack): Q3's SV_AddEntitiesVisibleFromPoint over the
+// entity list 0x0097d370 (count 0x0097d36c): linked entities not hidden from this client (+0xd4 flags 1, 0x800 /
+// 0x2000 with +0xd8, itself) whose area connects and a cluster is in the leaf's PVS row (Q3's lastCluster check
+// kept), broadcast (0x20) or cluster-less ones; others only with +0x1a8 (then +0x10 |= 0x80). Each gets the
+// frame stamp 0x00985414 in its render record (+0xfc, CG_GetEntityRefEntity).
+void XB_REGS2 XB_CDECL SV_AddEntitiesVisibleFromPoint(uint32_t unused, uint32_t leaf, uint32_t client_num);
+// 0x002c4fe0 (msg in EBX; client on the stack): Q3's SV_ExecuteClientMessage - serverId (+0x28), messageAcknowledge
+// (+0x24), reliableAcknowledge (+0x1c); the current server id: SV_ClearAcknowledgedCommands, client commands
+// (op 2), then a move (op 0 delta / 1); the previous one: only the client commands (sequence read into the
+// argument slot). Title callees at the original's ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_ExecuteClientMessage(uint32_t entry_esp, uint8_t* msg, uint32_t esi,
+                                                                uint32_t edi);
+extern "C" void SV_ExecuteClientMessage_entry(void);
+
+// 0x002e95b0 (cdecl: two words for the world part, results, start, mins, maxs, end, pass entity, content mask): the
+// capsule trace used by actor movement and path code - the world through the title's 0x002e20e0 (maxs in EAX,
+// mins in ECX, start in EBX), then SV_Trace's box entity part with the capsule flag (owner read without the
+// entity null check).
+void XB_CDECL SV_CapsuleTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, const float* start, const float* mins,
+                              const float* maxs, const float* end, uint32_t pass, uint32_t content_mask);
+
+// 0x002e9440 (cdecl: two words for the world part, results, start, end, pass entity, content mask): the point trace
+// behind GScr_LocationalTraceSurface - the world through the title's 0x002d4a60 (end in EAX), then the point
+// entity walk with the hit-box flag set (no priority table, radius scale 0); no endpos recompute.
+void XB_CDECL SV_LocationalTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, const float* start, const float* end,
+                                 uint32_t pass, uint32_t content_mask);
+
 }  // namespace game

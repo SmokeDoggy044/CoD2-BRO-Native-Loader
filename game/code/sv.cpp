@@ -1043,6 +1043,55 @@ uint32_t pass_owner(uint32_t handle) {
     return field<uint32_t>(G_EntHandleToEnt(&handle), 0x1a0);
 }
 
+// SV_Trace's entity part for a box (shared with SV_CapsuleTrace): the clip block (+0 -extents, +0x10 extents,
+// +0x20 extents + 1, start/end moved to the box center, the world trace, pass/owner/mask/capsule), the sector
+// sweep, endpos from the original start/end when an entity is nearer.
+void trace_entities_box(const float* start, uint8_t* results, const float* mins, const float* maxs, const float* end,
+                        uint8_t* trace, uint32_t pass, uint32_t owner, uint32_t content_mask,
+                        uint32_t capsule_flag) {
+    struct alignas(16) {
+        float mins[4];
+        float maxs[4];
+        float outer[4];
+        float start[4];
+        float end[4];
+        uint8_t trace[0x40];
+        uint32_t pass, owner, mask, capsule;
+    } clip = {};
+    std::memcpy(clip.trace, trace, 0x40);
+    clip.mask = content_mask;
+    clip.pass = pass;
+    clip.capsule = capsule_flag;
+    clip.owner = owner;
+    const Lanes half = {{0.5f, 0.5f, 0.5f, 0.5f}};
+    const Lanes extents = mul(sub(lanes(maxs), lanes(mins)), half);
+    std::memcpy(clip.maxs, extents.v, 16);
+    const Lanes sign = lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e0b0}));
+    for (int32_t i = 0; i < 4; ++i) {
+        uint32_t a, b;
+        std::memcpy(&a, &extents.v[i], 4);
+        std::memcpy(&b, &sign.v[i], 4);
+        a ^= b;
+        std::memcpy(&clip.mins[i], &a, 4);
+    }
+    const Lanes outer = add(extents, lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e640})));
+    std::memcpy(clip.outer, outer.v, 16);
+    const Lanes center = mul(add(lanes(maxs), lanes(mins)), half);
+    const Lanes s = add(lanes(start), center);
+    const Lanes e = add(lanes(end), center);
+    std::memcpy(clip.start, s.v, 16);
+    std::memcpy(clip.end, e.v, 16);
+    SV_ClipMoveToEntities_r(reinterpret_cast<uint8_t*>(&clip), reinterpret_cast<uint8_t*>(uintptr_t{0x00935664}),
+                            0.0f, field<float>(clip.trace, 0x20), clip.start, clip.end);
+    const float hit = field<float>(clip.trace, 0x20);
+    if (field<float>(trace, 0x20) > hit) {  // the fraction after the static models
+        const Lanes from = lanes(start);
+        const Lanes pos = add(from, mul(sub(lanes(end), from), hit));
+        std::memcpy(clip.trace, pos.v, 16);
+    }
+    std::memcpy(results, clip.trace, 0x40);
+}
+
 }  // namespace
 
 void XB_CDECL SV_Trace(const float* start, uint8_t* results, const float* mins, const float* maxs, const float* end,
@@ -1090,48 +1139,7 @@ void XB_CDECL SV_Trace(const float* start, uint8_t* results, const float* mins, 
         std::memcpy(results, clip.trace, 0x40);
         return;
     }
-    struct alignas(16) {
-        float mins[4];
-        float maxs[4];
-        float outer[4];
-        float start[4];
-        float end[4];
-        uint8_t trace[0x40];
-        uint32_t pass, owner, mask, capsule;
-    } clip = {};
-    std::memcpy(clip.trace, trace, 0x40);
-    clip.owner = 0;
-    clip.mask = content_mask;
-    clip.pass = pass;
-    clip.capsule = capsule_flag;
-    clip.owner = pass_owner(pass);
-    const Lanes half = {{0.5f, 0.5f, 0.5f, 0.5f}};
-    const Lanes extents = mul(sub(lanes(maxs), lanes(mins)), half);
-    std::memcpy(clip.maxs, extents.v, 16);
-    const Lanes sign = lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e0b0}));
-    for (int32_t i = 0; i < 4; ++i) {
-        uint32_t a, b;
-        std::memcpy(&a, &extents.v[i], 4);
-        std::memcpy(&b, &sign.v[i], 4);
-        a ^= b;
-        std::memcpy(&clip.mins[i], &a, 4);
-    }
-    const Lanes outer = add(extents, lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e640})));
-    std::memcpy(clip.outer, outer.v, 16);
-    const Lanes center = mul(add(lanes(maxs), lanes(mins)), half);
-    const Lanes s = add(lanes(start), center);
-    const Lanes e = add(lanes(end), center);
-    std::memcpy(clip.start, s.v, 16);
-    std::memcpy(clip.end, e.v, 16);
-    SV_ClipMoveToEntities_r(reinterpret_cast<uint8_t*>(&clip), reinterpret_cast<uint8_t*>(uintptr_t{0x00935664}),
-                            0.0f, field<float>(clip.trace, 0x20), clip.start, clip.end);
-    const float hit = field<float>(clip.trace, 0x20);
-    if (field<float>(trace, 0x20) > hit) {  // the fraction after the static models
-        const Lanes from = lanes(start);
-        const Lanes pos = add(from, mul(sub(lanes(end), from), hit));
-        std::memcpy(clip.trace, pos.v, 16);
-    }
-    std::memcpy(results, clip.trace, 0x40);
+    trace_entities_box(start, results, mins, maxs, end, trace, pass, pass_owner(pass), content_mask, capsule_flag);
 }
 
 void XB_CDECL SV_SetConfigstring(int32_t index, const char* value) {
@@ -1373,7 +1381,7 @@ void XB_CDECL SV_BuildClientSnapshot(uint8_t* client) {
     float origin[3] = {field<float>(ps, 0), field<float>(ps, 4), field<float>(ps, 0xac) + field<float>(ps, 8)};
     cg_add_lean(origin, field<float>(ps, 0x4c), field<float>(ps, 0xa0), 16.0f, 20.0f);
     const int32_t leaf = CM_PointLeafnum_r(0, origin);
-    title_function<void XB_REGS2 XB_CDECL(uint32_t, int32_t, uint32_t)>(0x002c4c50)(0, leaf, field<uint32_t>(ent, 0x224));
+    SV_AddEntitiesVisibleFromPoint(0, static_cast<uint32_t>(leaf), field<uint32_t>(ent, 0x224));
 }
 
 PLATFORM_ASM_ENTRY(SV_UpdateServerCommandsToClient_entry,
@@ -1437,6 +1445,295 @@ void XB_CDECL SV_SendMessages() {
         0, title_global<uint8_t*>(0x0095f50c), 0x15);
     SV_SendClientMessages(title_global<uint8_t*>(0x00927e8c));
     title_global<uint32_t>(0x0092f548) = 0;
+}
+
+PLATFORM_ASM_ENTRY(SV_ClearAcknowledgedCommands_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(SV_ClearAcknowledgedCommands) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_ClearAcknowledgedCommands(uint8_t* client) {
+    if (!field<uint32_t>(client, 4)) return;
+    const int32_t acknowledged = field<int32_t>(client, 0x1c);
+    const int32_t stop = acknowledged & 0x3f;
+    int32_t slot = (acknowledged - 1) & 0x3f;
+    char* text = field<char**>(client, 0xc)[slot];
+    while (text) {
+        std::memset(text, 0, static_cast<uint32_t>(field<int32_t*>(client, 0x10)[slot]));
+        field<char**>(client, 0xc)[slot] = nullptr;
+        field<int32_t*>(client, 0x10)[slot] = 0;
+        if (--slot < 0) slot = 0x3f;
+        if (slot == stop) break;
+        text = field<char**>(client, 0xc)[slot];
+    }
+}
+
+uint32_t XB_REGS3 XB_CDECL SV_ClientCommand(uint8_t* msg, uint32_t, uint8_t* client) {
+    const int32_t sequence = MSG_ReadLong(msg);
+    const char* text = MSG_ReadString(msg);
+    if (field<int32_t>(client, 0x60) >= sequence) return 1;
+    if (title_global<int32_t>(0x00964cd4) == 2) {
+        Cmd_TokenizeString(text, 0);
+        title_function<int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, int32_t, uint32_t, uint32_t)>(0x002a84e0)(  // VM_Call
+            0, title_global<uint8_t*>(0x0095f50c), 5, field<uint32_t>(client, 0x164), 0);
+    }
+    field<int32_t>(client, 0x60) = sequence;
+    const uint32_t args[2] = {0x0082ddd4, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text))};  // "%s"
+    Com_sprintf(reinterpret_cast<char*>(client + 0x64), 0x100, args);
+    return 1;
+}
+
+// VM_Call (ClientThink) runs at the original's ESP (entry - 0x5c0): the game stores a stack address in .data.
+PLATFORM_ASM_ENTRY(SV_UserMove_entry,
+                   "movl %esp, %edx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_UserMove) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_UserMove(uint32_t entry_esp, uint32_t delta, uint8_t* msg, uint8_t* client) {
+    field<int32_t>(client, 0x168) = delta ? field<int32_t>(client, 0x24) : -1;
+    int32_t read = field<int32_t>(msg, 0x10);
+    uint8_t count_byte = field<uint8_t*>(msg, 4)[read];
+    field<int32_t>(msg, 0x10) = ++read;
+    if (read > field<int32_t>(msg, 0xc)) count_byte = 0xff;
+    const int32_t count = count_byte;
+    if (count < 1 || count > 0x20) return;
+    uint8_t old[0x2c] = {};
+    uint8_t cmds[0x20][0x2c];
+    const uint8_t* from = old;
+    for (int32_t i = 0; i < count; ++i) {
+        MSG_ReadDeltaUsercmd(from, msg, cmds[i]);
+        from = cmds[i];
+    }
+    if (field<int32_t>(client, 0) != 1) {
+        field<int32_t>(client, 0x168) = -1;
+        return;
+    }
+    const int32_t last = field<int32_t>(cmds[count - 1], 0);
+    for (int32_t i = 0; i < count; ++i) {
+        if (field<int32_t>(cmds[i], 0) > last) continue;
+        std::memcpy(client + 0x30, cmds[i], 0x2c);
+        const uint32_t args[2] = {6, field<uint32_t>(client, 0x164)};
+        const TitleRegs regs = {0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cmds[i])), 0,
+                                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(title_global<uint8_t*>(0x0095f50c))),
+                                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cmds[i] + 0x2c)),
+                                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(client + 0x5c))};
+        title_call_at_regs(entry_esp - 0x5c0, 0x002a84e0, &regs, 2, args);  // VM_Call
+    }
+}
+
+namespace {
+
+int32_t msg_read_op(uint8_t* msg) {
+    int32_t count = field<int32_t>(msg, 0x10);
+    uint8_t op = field<uint8_t*>(msg, 4)[count];
+    field<int32_t>(msg, 0x10) = ++count;
+    if (count > field<int32_t>(msg, 0xc)) op = 0xff;
+    return op;
+}
+
+}  // namespace
+
+// The title callees run at the original's ESP (entry - 8); `slot` is its client argument slot, which the
+// original reuses for the command sequence.
+PLATFORM_ASM_ENTRY(SV_ExecuteClientMessage_entry,
+                   "movl %esp, %ecx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_ExecuteClientMessage) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_ExecuteClientMessage(uint32_t entry_esp, uint8_t* msg, uint32_t esi, uint32_t edi) {
+    const uint32_t top = entry_esp - 8;
+    uint32_t* slot = reinterpret_cast<uint32_t*>(uintptr_t{entry_esp + 4});
+    uint8_t* client = reinterpret_cast<uint8_t*>(uintptr_t{*slot});
+    const uint32_t client_word = *slot;
+    const uint32_t msg_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(msg));
+    field<int32_t>(client, 0x28) = MSG_ReadLong(msg);
+    field<int32_t>(client, 0x24) = MSG_ReadLong(msg);
+    field<int32_t>(client, 0x1c) = MSG_ReadLong(msg);
+    const int32_t server_id = field<int32_t>(client, 0x28);
+    if (server_id == title_global<int32_t>(0x00964cd8)) {
+        const TitleRegs regs = {0, msg_word, 0, 0, client_word, edi};
+        title_call_at_regs(top, 0x002a8610, &regs, 0, nullptr);
+        int32_t op;
+        for (;;) {
+            op = msg_read_op(msg);
+            if (op == 3 || op != 2) break;
+            const TitleRegs command_regs = {msg_word, msg_word, client_word, 0, client_word, edi};
+            if (!title_call_at_regs(top, 0x002c0040, &command_regs, 0, nullptr)) return;  // client command
+        }
+        if (op == 0 || op == 1) {
+            const TitleRegs move_regs = {op == 0 ? 1u : 0u, msg_word, msg_word, 0, client_word, edi};
+            title_call_at_regs(top, 0x002b8560, &move_regs, 1, &client_word);  // user move (delta for op 0)
+        }
+        return;
+    }
+    if (server_id != title_global<int32_t>(0x00964cdc)) return;
+    for (;;) {
+        const int32_t op = msg_read_op(msg);
+        if (op == 3 || op != 2) return;
+        int32_t count = field<int32_t>(msg, 0x10);
+        const uint8_t* data = field<uint8_t*>(msg, 4);
+        uint8_t* bytes = reinterpret_cast<uint8_t*>(slot);
+        bytes[0] = data[count++];
+        field<int32_t>(msg, 0x10) = count;
+        const uint8_t b1 = data[count++];
+        field<int32_t>(msg, 0x10) = count;
+        bytes[2] = data[count++];
+        field<int32_t>(msg, 0x10) = count;
+        bytes[1] = b1;
+        bytes[3] = data[count++];
+        field<int32_t>(msg, 0x10) = count;
+        if (count > field<int32_t>(msg, 0xc)) *slot = 0xffffffff;
+        const int32_t sequence = static_cast<int32_t>(*slot);
+        const char* text = MSG_ReadString(msg);
+        if (field<int32_t>(client, 0x60) < sequence) {
+            field<int32_t>(client, 0x60) = sequence;
+            const uint32_t args[2] = {0x0082ddd4, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text))};  // "%s"
+            Com_sprintf(reinterpret_cast<char*>(client + 0x64), 0x100, args);
+        }
+    }
+}
+
+void XB_REGS2 XB_CDECL SV_AddEntitiesVisibleFromPoint(uint32_t, uint32_t leaf, uint32_t client_num) {
+    if (!title_global<uint32_t>(0x00964cd4)) return;
+    uint8_t* cm = title_global<uint8_t*>(0x0095f6b8);
+    const uint32_t index = leaf < field<uint32_t>(cm, 8) ? leaf : 0;
+    const uint8_t* row = field<uint8_t*>(cm, 0xc) + index * 16;
+    const int32_t area = *reinterpret_cast<const int16_t*>(row + 8);
+    const int32_t cluster = *reinterpret_cast<const int32_t*>(row + 4);
+    const uint8_t* bits = title_global<uint8_t*>(0x0093565c);
+    if (cluster >= 0 && cluster < field<int32_t>(cm, 0x58) && title_global<uint32_t>(0x00935660))
+        bits = title_global<uint8_t*>(0x0093565c) + title_global<int32_t>(0x00935658) * cluster;
+    uint8_t** const begin = reinterpret_cast<uint8_t**>(uintptr_t{0x0097d370});
+    uint8_t** const end = begin + title_global<int32_t>(0x0097d36c);
+    auto visible = [&](int32_t c) { return (bits[c >> 3] & (1 << (c & 7))) != 0; };
+    for (uint8_t** p = begin; p != end; ++p) {
+        uint8_t* ent = *p;
+        if (!ent || !field<uint32_t>(ent, 0xd0)) continue;
+        const uint32_t flags = field<uint32_t>(ent, 0xd4);
+        if (flags & 1) continue;
+        if ((flags & 0x800) && field<uint32_t>(ent, 0xd8) != client_num) continue;
+        if ((flags & 0x2000) && field<uint32_t>(ent, 0xd8) == client_num) continue;
+        if (field<uint32_t>(ent, 0x224) == client_num) continue;
+        bool seen = true;
+        const int32_t clusters = field<int32_t>(ent, 0x1b4);
+        if (!(flags & 0x20) && clusters) {
+            if (!CM_AreasConnected(0, area, field<int32_t>(ent, 0x1fc)) &&
+                !CM_AreasConnected(0, area, field<int32_t>(ent, 0x200))) {
+                seen = false;
+            } else {
+                int32_t c = 0;
+                int32_t i = 0;
+                for (; i < clusters; ++i) {
+                    c = field<int32_t>(ent, 0x1b8 + static_cast<uint32_t>(i) * 4);
+                    if (visible(c)) break;
+                }
+                if (i == field<int32_t>(ent, 0x1b4)) {
+                    const int32_t last = field<int32_t>(ent, 0x1f8);
+                    if (!last) {
+                        seen = false;
+                    } else if (c <= last) {
+                        for (; c <= last; ++c)
+                            if (visible(c)) break;
+                        if (c == last) seen = false;
+                    }
+                }
+            }
+            if (!seen) {
+                if (!field<uint32_t>(ent, 0x1a8)) continue;
+                field<uint32_t>(ent, 0x10) |= 0x80;
+            }
+        }
+        field<uint32_t>(CG_GetEntityRefEntity(ent), 0xfc) = title_global<uint32_t>(0x00985414);
+    }
+}
+
+void XB_CDECL SV_CapsuleTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, const float* start, const float* mins,
+                              const float* maxs, const float* end, uint32_t pass, uint32_t content_mask) {
+    alignas(16) uint8_t trace[0x40] = {};
+    {
+        // 0x002e20e0 (maxs in EAX, mins in ECX, start in EBX): the world part.
+        const uint32_t args[5] = {arg0, arg1, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(trace)),
+                                  static_cast<uint32_t>(reinterpret_cast<uintptr_t>(end)), content_mask};
+        uint32_t a, c, d;
+        __asm__ volatile("pushl %%ebx\n\tmovl %%edx, %%ebx\n\tpushl 16(%%esi)\n\tpushl 12(%%esi)\n\tpushl 8(%%esi)\n\t"
+                         "pushl 4(%%esi)\n\tpushl (%%esi)\n\tcall *%%edi\n\taddl $20, %%esp\n\tpopl %%ebx"
+                         : "=a"(a), "=c"(c), "=d"(d)
+                         : "a"(maxs), "c"(mins), "d"(start), "S"(args), "D"(uintptr_t{0x002e20e0})
+                         : "memory", "cc");
+    }
+    const float fraction = field<float>(trace, 0x20);
+    field<uint32_t>(trace, 0x30) =
+        fraction != 1.0f ? field<uint32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224) : 0;
+    if (fraction == 0.0f) {
+        std::memcpy(results, trace, 0x40);
+        return;
+    }
+    uint32_t owner = 0;
+    if (pass) {
+        const uint32_t index = pass & 0xfff;
+        uint8_t* ent = nullptr;
+        if (index < 0x540 && title_global<uint32_t>(0x0097a96c + index * 8) == (pass >> 12))
+            ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+        owner = *reinterpret_cast<volatile uint32_t*>(ent + 0x1a0);  // no null check, as in the original
+    }
+    trace_entities_box(start, results, mins, maxs, end, trace, pass, owner, content_mask, 1);
+}
+
+void XB_CDECL SV_LocationalTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, const float* start, const float* end,
+                                 uint32_t pass, uint32_t content_mask) {
+    alignas(16) uint8_t trace[0x40] = {};
+    title_function<void XB_REGS1 XB_CDECL(const float*, uint32_t, uint32_t, uint8_t*, const float*, uint32_t)>(
+        0x002d4a60)(end, arg0, arg1, trace, start, content_mask);  // the world part
+    const float fraction = field<float>(trace, 0x20);
+    field<uint32_t>(trace, 0x30) =
+        fraction != 1.0f ? field<uint32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224) : 0;
+    if (fraction == 0.0f) {
+        std::memcpy(results, trace, 0x40);
+        return;
+    }
+    struct alignas(16) {
+        float start[4];
+        float end[4];
+        uint8_t trace[0x40];
+        uint32_t pass, owner, mask, hit_boxes;
+        float scale;
+        uint32_t priority;
+        uint32_t pad[2];
+    } clip = {};
+    std::memcpy(clip.trace, trace, 0x40);
+    clip.owner = 0;
+    clip.mask = content_mask;
+    std::memcpy(clip.start, start, 16);
+    std::memcpy(clip.end, end, 16);
+    clip.pass = pass;
+    clip.hit_boxes = 1;
+    clip.priority = 0;
+    clip.scale = 0.0f;
+    if (pass) {
+        const uint32_t index = pass & 0xfff;
+        uint8_t* ent = nullptr;
+        if (index < 0x540 && title_global<uint32_t>(0x0097a96c + index * 8) == (pass >> 12))
+            ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+        clip.owner = *reinterpret_cast<volatile uint32_t*>(ent + 0x1a0);  // no null check, as in the original
+    }
+    SV_PointTraceToEntities_r(reinterpret_cast<uint8_t*>(&clip), reinterpret_cast<uint8_t*>(uintptr_t{0x00935664}),
+                              0.0f, field<float>(clip.trace, 0x20), clip.start, clip.end);
+    std::memcpy(results, clip.trace, 0x40);
 }
 
 }  // namespace game
