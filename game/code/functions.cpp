@@ -975,6 +975,7 @@ const Function kFunctions[] = {
     {"Actor_EventLearnFromActor", 0x00202bd0, 0, code(&Actor_EventLearnFromActor), 0, Result::None, Status::Compare},
     {"Actor_StopAnimScript", 0x00202c40, 0, code(&Actor_StopAnimScript_entry), 0, Result::None, Status::Compare},
     {"Actor_ResetSentientInfo", 0x00203130, 0, code(&Actor_ResetSentientInfo), 0, Result::None, Status::Compare},
+    {"Actor_IsCoverValidAgainst", 0x002038b0, 0, code(&Actor_IsCoverValidAgainst_entry), 8, Result::Eax, Status::Compare},
     {"Actor_GetAnimTree", 0x00204060, 0, code(&Actor_GetAnimTree_entry), 0, Result::Eax, Status::Compare},
     {"Actor_SetOrientFromDir", 0x00204850, 0, code(&Actor_SetOrientFromDir_entry), 4, Result::None, Status::Compare},
     {"Actor_SetDesiredAngles", 0x002053b0, 0, code(&Actor_SetDesiredAngles_entry), 4, Result::None, Status::Compare},

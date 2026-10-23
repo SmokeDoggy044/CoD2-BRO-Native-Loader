@@ -1828,4 +1828,97 @@ uint32_t XB_REGS3 XB_CDECL Actor_AskActorsToMoveAside(uint32_t, uint32_t, uint8_
     return clear;
 }
 
+namespace {
+
+// The title's inline asin series for s in [0, 1): s + s^3/6 + 0.075 s^5 + 0.054 s^7 below 0.5, else
+// pi/2 minus the series on sqrt(|(1 - s) / 2|) (__CIsqrt); `complement` returns pi/2 minus it.
+float cover_asin(float s, bool complement) {
+    const auto g = [](uint32_t address) { return title_global<float>(address); };
+    const float half_pi = g(0x0083ed0c);
+    if (g(0x0083eb24) > s) {
+        const float s2 = s * s;
+        const float s3 = s2 * s;
+        const float s5 = s3 * s2;
+        const float s7 = s5 * s2;
+        const float r = (s3 * g(0x0083ee9c) + (s5 * g(0x0083ee98) + s7 * g(0x0083ee94))) + s;
+        return complement ? half_pi - r : r;
+    }
+    const float u = abs_bits((g(0x0083eb20) - s) * g(0x0083eb24));
+    const float v = title_ci_sqrt_ext(u);
+    const float v2 = v * v;
+    const float v3 = v2 * v;
+    const float v5 = v3 * v2;
+    const float v7 = v5 * v2;
+    const float r = (((v7 * g(0x0083ee8c) - v5 * g(0x0083ed2c)) - v3 * g(0x0083ee90)) - v * g(0x0083eba8)) + g(0x0083ee88);
+    return complement ? half_pi - r : r;
+}
+
+struct CoverKind {
+    uint32_t script;
+    uint32_t min_yaw, max_yaw, min_distance_sq;  // addresses of the title's float constants
+};
+
+// Node types 2..11: the cover anim script, the allowed yaw range (min > max wraps through 0) and
+// the squared distance the threat must be beyond.
+const CoverKind kCoverKinds[] = {
+    {0x00987b18, 0x0083efac, 0x0083ef1c, 0x0083efa8}, {0x00987ad8, 0x0083efac, 0x0083ef1c, 0x0083efa8},
+    {0x00987af8, 0x0083efb4, 0x0083ee38, 0x0083efb0}, {0x00987b08, 0x0083efac, 0x0083ee38, 0x0083efa8},
+    {0x00987ae8, 0x0083efb4, 0x0083ef1c, 0x0083efa8}, {0x00987b38, 0x0083efac, 0x0083ee38, 0x0083efa8},
+    {0x00987b28, 0x0083efb4, 0x0083ef1c, 0x0083efa8}, {0x00987ac8, 0x0083efac, 0x0083ef1c, 0x0083efa8},
+    {0x00987aa8, 0x0083efac, 0x0083ef1c, 0x0083efa8}, {0x00987ab8, 0x0083efb4, 0x0083ee38, 0x0083efa8},
+};
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Actor_IsCoverValidAgainst_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_IsCoverValidAgainst) "addl $16, %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL Actor_IsCoverValidAgainst(const uint8_t* node, const uint8_t* actor, const uint8_t* threat, uint32_t* script) {
+    uint32_t chosen = 0;
+    uint32_t valid = 0;
+    if (!node) node = path_node(field<uint16_t>(field<const uint8_t*>(actor, 4), 0x48));
+    if (node && field<uint32_t>(node, 0x28) - 2 <= 9) {
+        const CoverKind& kind = kCoverKinds[field<uint32_t>(node, 0x28) - 2];
+        chosen = kind.script;
+        const float min_yaw = title_global<float>(kind.min_yaw), max_yaw = title_global<float>(kind.max_yaw);
+        const float* pos = nullptr;
+        if (threat) {
+            pos = &field<float>(field<const uint8_t*>(threat, 0), 0x140);
+        } else if (const uint8_t* enemy = field<const uint8_t*>(actor, 0x1310)) {
+            pos = &field<float>(enemy, 0x2c0);
+        }
+        if (pos) {
+            const float dx = pos[0] - field<float>(node, 0x44);
+            const float dy = pos[1] - field<float>(node, 0x48);
+            const float dz = pos[2] - field<float>(node, 0x4c);
+            const float dx2 = dx * dx, dy2 = dy * dy;
+            if (!(title_global<float>(kind.min_distance_sq) > (dz * dz + dx2) + dy2)) {
+                // The threat's direction from the node: atan2 through the asin series.
+                const float ax = abs_bits(dx), ay = abs_bits(dy);
+                float angle = 0.0f;
+                // The title tests |dx| + |dy| against a double that is not 0 (0x0083ed20): never equal.
+                if (static_cast<long double>(ay) + static_cast<long double>(ax) != static_cast<long double>(title_global<double>(0x0083ed20))) {
+                    const float inverse = title_global<float>(0x0083eb20) / title_ci_sqrt_ext(dx2 + dy2);
+                    angle = ay > ax ? cover_asin(inverse * ax, true) : cover_asin(inverse * ay, false);
+                    if (0.0f > dx) angle = title_global<float>(0x0083ed00) - angle;
+                    if (0.0f > dy) angle = 0.0f - angle;
+                }
+                const float degrees = angle * title_global<float>(0x0083efa4) - field<float>(node, 0x50);
+                const float yaw = static_cast<float>(static_cast<int32_t>(degrees * title_global<float>(0x0083ebd8)) & 0xffff) *
+                                  title_global<float>(0x0083ebd4);
+                if (min_yaw > max_yaw)
+                    valid = (min_yaw > yaw && yaw > max_yaw) ? 0 : 1;
+                else
+                    valid = (min_yaw > yaw || yaw > max_yaw) ? 0 : 1;
+            }
+        }
+    }
+    if (script) *script = chosen;
+    return valid;
+}
+
 }  // namespace game

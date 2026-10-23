@@ -369,4 +369,13 @@ extern "C" void Path_RefreshForwardLookahead_entry(void);
 // our entity, if unset). Returns 1 when none was in the way.
 uint32_t XB_REGS3 XB_CDECL Actor_AskActorsToMoveAside(uint32_t, uint32_t, uint8_t* actor);
 
+// 0x002038b0 (node in EAX or 0 = the actor's claimed node, actor in EDX; callee pops 8: threat
+// sentient or 0 = the actor's enemy record +0x1310, out script): whether a cover/concealment node
+// (types 2-11) covers against the threat: beyond the kind's distance and the threat's yaw from the
+// node (asin-series atan2, relative to node +0x50, through a 16-bit angle) outside the uncovered
+// range. *script = the kind's cover anim script (0 for other nodes).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_IsCoverValidAgainst(const uint8_t* node, const uint8_t* actor,
+                                                                       const uint8_t* threat, uint32_t* script);
+extern "C" void Actor_IsCoverValidAgainst_entry(void);
+
 }  // namespace game

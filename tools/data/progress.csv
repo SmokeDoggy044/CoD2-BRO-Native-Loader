@@ -7675,7 +7675,7 @@ address,name,section,module,state,tested,matched
 00203550,Sentient_SetGoalPos,.text,game,named,0,0
 00203610,Actor_RegisterSuppression,.text,game,named,0,0
 00203780,Actor_EventBullet,.text,game,named,0,0
-002038b0,Actor_IsCoverValidAgainst,.text,game,named,0,0
+002038b0,Actor_IsCoverValidAgainst,.text,game,settled,752,752
 00203de0,Actor_AnimStationary,.text,game,named,0,0
 00203e60,Actor_FindStepAsideNode,.text,game,named,0,0
 00203f60,FUN_00203f60,.text,unassigned,unnamed,0,0
