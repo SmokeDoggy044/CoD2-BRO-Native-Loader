@@ -1977,6 +1977,7 @@ const Function kFunctions[] = {
     {"DObj_UpdateSkeletons", 0x002df880, 0, code(&DObj_UpdateSkeletons), 4, Result::None, Status::Compare},
     {"SV_PointContents", 0x002e01a0, 0, code(&SV_PointContents), 12, Result::Eax, Status::Compare},
     {"SV_RunGameFrame", 0x002f2e40, 0, code(&SV_RunGameFrame_entry), 4, Result::None, Status::Compare},
+    {"SV_AddOperatorCommands", 0x002f4770, 0, code(&SV_AddOperatorCommands), 0, Result::None, Status::Compare},
     {"Scr_TeamFromString", 0x002f5250, 0, code(&Scr_TeamFromString_entry), 0, Result::Eax, Status::Compare},
     {"G_FindLevelScriptModule", 0x002f54c0, 0, code(&G_FindLevelScriptModule_entry), 0, Result::Eax, Status::Compare},
     {"G_FindAnimTreeByName", 0x002f5790, 0, code(&G_FindAnimTreeByName), 4, Result::Eax, Status::Compare},

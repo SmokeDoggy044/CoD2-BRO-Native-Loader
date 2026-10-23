@@ -1884,6 +1884,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002df880,DObj_UpdateSkeletons,compare,75138760,1085373,904176,0,181197,0,"816dbfbc [host] [1] 10 vs 01"
 002e01a0,SV_PointContents,compare,144,27,27,0,0,0,""
 002f2e40,SV_RunGameFrame,compare,4471,121,120,0,0,1,"original called host code at 08122044 from 001f12da LIBCMT::_clock+0xf [.text]"
+002f4770,SV_AddOperatorCommands,compare,1,1,1,0,0,0,""
 002f5250,Scr_TeamFromString,compare,7068,102,102,0,0,0,""
 002f54c0,G_FindLevelScriptModule,compare,112,109,109,0,0,0,""
 002f5790,G_FindAnimTreeByName,compare,671,108,108,0,0,0,""

@@ -78,4 +78,10 @@ extern "C" void SV_DObjCreateSkeleton_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL SV_DObjEnsureSkeleton(uint8_t* ent);
 extern "C" void SV_DObjEnsureSkeleton_entry(void);
 
+// 0x002f4770: the server console commands (once; flag 0x0098f2cc) through Cmd_AddServerCommand.
+void XB_CDECL SV_AddOperatorCommands();
+// 0x002f48e0 (unhookable: CALL first, not in kFunctions): SV_AddOperatorCommands, then the server cvars (some
+// kept in globals).
+void XB_CDECL SV_Init();
+
 }  // namespace game

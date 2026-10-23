@@ -321,4 +321,37 @@ PLATFORM_ASM_ENTRY(SV_DObjEnsureSkeleton_entry,
 
 void XB_CDECL SV_DObjEnsureSkeleton(uint8_t* ent) { dobj_skeleton(ent, 0x2c7, 0xffffffff); }
 
+void XB_CDECL SV_AddOperatorCommands() {
+    // {name, handler} in the original's order: map_restart_internal, map_restart, map_restart_check, ...,
+    // reboot, load_mp_exe, the three map commands (SV_Map_f), loadgame, loadlastsave, the skill commands ...
+    static const uint32_t kCommands[][2] = {
+        {0x0082abdc, 0x002cfc20}, {0x0082c874, 0x002cfba0}, {0x0082abf4, 0x002c00b0}, {0x00832f1c, 0x002c0100},
+        {0x00832f10, 0x002a8870}, {0x00832f08, 0x002a8840}, {0x0082c894, 0x002cfa40}, {0x0082c51c, 0x002cf920},
+        {0x00832f00, 0x002f3f40}, {0x00832efc, 0x002f3f40}, {0x00832fa8, 0x002f3f40}, {0x00832ef0, 0x002f4550},
+        {0x00832edc, 0x002f4510}, {0x00832ec8, 0x002c5130}, {0x00832eb8, 0x002c5200}, {0x00832ea4, 0x002c51a0},
+        {0x00832e94, 0x002c5140}, {0x00832e88, 0x002a8880}, {0x00832e7c, 0x002af760},
+    };
+    if (title_global<uint32_t>(0x0098f2cc)) return;
+    title_global<uint32_t>(0x0098f2cc) = 1;
+    for (const auto& command : kCommands) Cmd_AddServerCommand(title_text(command[0]), command[1]);
+}
+
+void XB_CDECL SV_Init() {
+    // {name, value, flags, global (0: not kept)}.
+    static const uint32_t kCvars[][4] = {
+        {0x00832fec, 0x0082e058, 0x24, 0x00929bf0},  {0x00835230, 0x00832c10, 0x44, 0x00929c08},
+        {0x00832c00, 0x0082e098, 0, 0x00929ccc},     {0x008340d0, 0x0082e098, 0x48, 0},
+        {0x008340dc, 0x0082e098, 0x48, 0x0093e6bc},  {0x008340c8, 0x0082dfeb, 0x48, 0},
+        {0x008340bc, 0x0082dfeb, 0x48, 0},           {0x008340a8, 0x0082dfeb, 0x48, 0},
+        {0x00834090, 0x0082dfeb, 0x48, 0},           {0x008344c8, 0x0082dfeb, 0x100, 0},
+        {0x00832bf0, 0x0082e098, 0, 0x00929b5c},     {0x0082c89c, 0x0082e098, 0x40, 0x0093f800},
+        {0x00832bd8, 0x0082e058, 0, 0x00933ee0},
+    };
+    SV_AddOperatorCommands();
+    for (const auto& cvar : kCvars) {
+        uint8_t* var = Cvar_Get(title_text(cvar[0]), title_text(cvar[1]), cvar[2]);
+        if (cvar[3]) title_global<uint8_t*>(cvar[3]) = var;
+    }
+}
+
 }  // namespace game

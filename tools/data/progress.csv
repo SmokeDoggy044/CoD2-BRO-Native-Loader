@@ -9964,8 +9964,8 @@ address,name,section,module,state,tested,matched
 002f4400,SV_Frame,.text,server,named,0,0
 002f4510,SV_LoadLastSave_f,.text,server,named,0,0
 002f4550,SV_LoadGame_f,.text,server,named,0,0
-002f4770,SV_AddOperatorCommands,.text,server,named,0,0
-002f48e0,SV_Init,.text,server,named,0,0
+002f4770,SV_AddOperatorCommands,.text,server,matched,1,1
+002f48e0,SV_Init,.text,server,untested,0,0
 002f4a50,GScr_ObjectiveStateFromString,.text,unassigned,named,0,0
 002f4b00,FUN_002f4b00,.text,unassigned,unnamed,0,0
 002f4b10,FUN_002f4b10,.text,unassigned,unnamed,0,0
