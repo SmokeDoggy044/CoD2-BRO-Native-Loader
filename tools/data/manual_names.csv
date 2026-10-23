@@ -11616,3 +11616,6 @@ address,name,kind,confidence,evidence
 0009eb90,FxOp5b_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009ece0,FxOpGrid_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009eed0,FxOp53_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
+000a5a80,FxDiscDomain_Init,function,medium,"effect particle domain code named from its body and strings (fx_load.cpp)"
+000a5f20,FxCircleDomain_Init,function,medium,"effect particle domain code named from its body and strings (fx_load.cpp)"
+00098820,FxDomain_Create,function,medium,"effect particle domain code named from its body and strings (fx_load.cpp)"

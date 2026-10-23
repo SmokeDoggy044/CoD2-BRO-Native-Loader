@@ -2176,7 +2176,7 @@ address,name,section,module,state,tested,matched
 00097cd0,apsParseActions,.text,unassigned,named,0,0
 000985d0,FUN_000985d0,.text,unassigned,matched,20,20
 00098650,FUN_00098650,.text,unassigned,untested,0,0
-00098820,FUN_00098820,.text,unassigned,unnamed,0,0
+00098820,FUN_00098820,.text,unassigned,settled,1072,1072
 00098ec0,FX_CreateRenderer,.text,renderer,settled,429,429
 000990c0,FUN_000990c0,.text,unassigned,matched,8,8
 00099100,FUN_00099100,.text,unassigned,matched,42,42
@@ -2412,9 +2412,9 @@ address,name,section,module,state,tested,matched
 000a5570,FUN_000a5570,.text,unassigned,unnamed,0,0
 000a5710,FUN_000a5710,.text,unassigned,unnamed,0,0
 000a58b0,FUN_000a58b0,.text,unassigned,unnamed,0,0
-000a5a80,FUN_000a5a80,.text,unassigned,unnamed,0,0
+000a5a80,FUN_000a5a80,.text,unassigned,matched,1,1
 000a5db0,FUN_000a5db0,.text,unassigned,unnamed,0,0
-000a5f20,FUN_000a5f20,.text,unassigned,unnamed,0,0
+000a5f20,FUN_000a5f20,.text,unassigned,untested,0,0
 000a6250,FUN_000a6250,.text,unassigned,unnamed,0,0
 000a66b0,FUN_000a66b0,.text,unassigned,unnamed,0,0
 000a6e40,FUN_000a6e40,.text,unassigned,unnamed,0,0

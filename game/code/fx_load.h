@@ -210,4 +210,12 @@ void XB_CDECL FxOp5b_InitShaders();
 void XB_CDECL FxOpGrid_InitShaders();
 void XB_CDECL FxOp53_InitShaders();
 
+// 0x000a5a80 / 0x000a5f20: the disc / circle domains (centre, radius, unit normal and two unit
+// in-plane axes; packed SSE with RSQRTSS + one Newton step). Return self.
+uint8_t* XB_THISCALL FxDiscDomain_Init(uint8_t* self, const float* centre, const float* normal, float radius);
+uint8_t* XB_THISCALL FxCircleDomain_Init(uint8_t* self, const float* centre, const float* normal, float radius);
+// 0x00098820: a particle domain by four-character id or name ("1dBumpDomain" ... "UVAFrame"),
+// its parameters from the list's entries (value in word 1). Null for "NULL"/unknown/failure.
+uint8_t* XB_CDECL FxDomain_Create(const char* name, const uint32_t* id, const uint8_t* list);
+
 }  // namespace game

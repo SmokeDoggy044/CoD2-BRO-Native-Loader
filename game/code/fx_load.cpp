@@ -813,4 +813,191 @@ void XB_CDECL FxOp5b_InitShaders() { init_op_shaders(0x00909ff0, 0x008bbfe0, 0x0
 void XB_CDECL FxOpGrid_InitShaders() { init_op_shaders(0x0090a000, 0x008bbfe0, 0x008bd094, 0x00909ffc, 0x008bd188); }
 void XB_CDECL FxOp53_InitShaders() { init_op_shaders(0x0090a00c, 0x008bbfe0, 0x008bd274, 0x0090a014, 0x008bd368); }
 
+namespace {
+
+// 1 / sqrt(lane0 of the squared lanes' (x + y) + z) by RSQRTSS and one Newton step on |s|
+// (((3 - r r |s|) r) 0.5); 0 when the sum is 0.
+float rsqrt_newton(const Lanes& squares) {
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    if (sum == 0.0f) return title_global<float>(0x007c9140);
+    const float magnitude = abs_bits(sum);
+    const float r = platform_rsqrt_estimate(magnitude);
+    return ((title_global<float>(0x007c9100) - (r * r) * magnitude) * r) * title_global<float>(0x007c9110);
+}
+
+Lanes normalized(const Lanes& v) {
+    const Lanes squares = mul(v, v);
+    platform_keep(squares);
+    return mul(v, rsqrt_newton(squares));
+}
+
+// The disc/circle domains (vtables 0x007c93a8 / 0x007c93c0): centre and radius, the normal
+// and two in-plane axes at +0x20 / +0x30.
+uint8_t* plane_domain(uint8_t* self, uint32_t vtable, const float* centre, const float* normal, float radius) {
+    at<uint32_t>(self, 0) = vtable;
+    std::memcpy(self + 0x10, centre, 12);
+    at<float>(self, 0x1c) = radius;
+    const Lanes n = normalized(lanes(normal));
+    static const float kSwapXZ[4] = {-1.0f, 0.0f, 1.0f, 0.0f};  // 0x007c92b0
+    static const float kSwapXY[4] = {1.0f, -1.0f, 0.0f, 0.0f};  // 0x007c92c0
+    Lanes u = mul(Lanes{{n.v[2], n.v[1], n.v[0], n.v[3]}}, lanes(kSwapXZ));
+    std::memcpy(self + 0x20, u.v, 16);
+    const Lanes u_squares = mul(u, u);
+    platform_keep(u_squares);
+    if (title_global<float>(0x0083eca0) > (u_squares.v[0] + u_squares.v[1]) + u_squares.v[2]) {
+        u = mul(Lanes{{n.v[1], n.v[0], n.v[2], n.v[3]}}, lanes(kSwapXY));
+        std::memcpy(self + 0x20, u.v, 16);
+    }
+    u = normalized(lanes(reinterpret_cast<const float*>(self + 0x20)));
+    std::memcpy(self + 0x20, u.v, 16);
+    const Lanes a = mul(Lanes{{n.v[1], n.v[2], n.v[0], n.v[3]}}, u);
+    const Lanes b = mul(n, Lanes{{u.v[1], u.v[2], u.v[0], u.v[3]}});
+    const Lanes c = sub(b, a);
+    const Lanes v = {{c.v[1], c.v[2], c.v[0], c.v[3]}};
+    std::memcpy(self + 0x30, v.v, 16);
+    const Lanes w = normalized(lanes(reinterpret_cast<const float*>(self + 0x30)));
+    std::memcpy(self + 0x30, w.v, 16);
+    return self;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL FxDiscDomain_Init(uint8_t* self, const float* centre, const float* normal, float radius) {
+    return plane_domain(self, 0x007c93a8, centre, normal, radius);
+}
+
+uint8_t* XB_THISCALL FxCircleDomain_Init(uint8_t* self, const float* centre, const float* normal, float radius) {
+    return plane_domain(self, 0x007c93c0, centre, normal, radius);
+}
+
+namespace {
+
+enum class Domain { None, Line, Box3, Box1, Bump1, Bump3, Point1, Point3, Rgb, Circle, Disc, SphereSurface, Sphere,
+                    ZHemisphere, YHemisphere, FrameRange, Frame };
+
+Domain domain_by_id(uint32_t id) {
+    switch (id) {
+    case 0x4c696e65: return Domain::Line;           // "Line"
+    case 0x33644275: return Domain::Bump3;          // "3dBu"
+    case 0x31644278: return Domain::Box1;           // "1dBx"
+    case 0x31644275: return Domain::Bump1;          // "1dBu"
+    case 0x31645074: return Domain::Point1;         // "1dPt"
+    case 0x4372636c: return Domain::Circle;         // "Crcl"
+    case 0x33644278: return Domain::Box3;           // "3dBx"
+    case 0x33645074: return Domain::Point3;         // "3dPt"
+    case 0x44697363: return Domain::Disc;           // "Disc"
+    case 0x55764652: return Domain::FrameRange;     // "UvFR"
+    case 0x53705375: return Domain::SphereSurface;  // "SpSu"
+    case 0x52676242: return Domain::Rgb;            // "RgbB"
+    case 0x53706865: return Domain::Sphere;         // "Sphe"
+    case 0x5576466d: return Domain::Frame;          // "UvFm"
+    case 0x59485370: return Domain::YHemisphere;    // "YHSp"
+    case 0x5a485370: return Domain::ZHemisphere;    // "ZHSp"
+    default: return Domain::None;                   // includes "NULL"
+    }
+}
+
+Domain domain_by_name(const char* name) {
+    static const struct {
+        uint32_t text, length;
+        Domain domain;
+    } kNames[] = {
+        {0x007c5c4c, 0xc, Domain::None},       {0x007c5c40, 0xc, Domain::Box1},
+        {0x007c5c34, 0xc, Domain::Box3},       {0x007c5c24, 0xd, Domain::Rgb},
+        {0x007c5c14, 0xe, Domain::FrameRange}, {0x007c5c04, 0xe, Domain::Point1},
+        {0x007c5bf4, 0xe, Domain::Point3},     {0x007c5be8, 0x9, Domain::Frame},
+        {0x007c5bdc, 0xb, Domain::Disc},       {0x007c5bcc, 0xd, Domain::Circle},
+        {0x007c5bbc, 0xd, Domain::Sphere},     {0x007c5ba8, 0x12, Domain::YHemisphere},
+        {0x007c5b94, 0x12, Domain::ZHemisphere}, {0x007c5b80, 0x14, Domain::SphereSurface},
+        {0x007c5b70, 0xd, Domain::Line},       {0x007c5b60, 0xd, Domain::Bump1},
+        {0x007c5b50, 0xd, Domain::Bump3},
+    };
+    for (const auto& entry : kNames) {
+        if (same_name(name, entry.text, entry.length)) return entry.domain;
+    }
+    return Domain::None;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL FxDomain_Create(const char* name, const uint32_t* id, const uint8_t* list) {
+    const Domain domain = (id && *id) ? domain_by_id(*id) : domain_by_name(name);
+    const auto* e = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(list, 0)));
+    const auto value = [e](int i) {
+        float f;
+        std::memcpy(&f, &e[i * 4 + 1], 4);
+        return f;
+    };
+    alignas(16) uint32_t t0[4];
+    alignas(16) uint32_t t1[4];
+    switch (domain) {
+    case Domain::None: return nullptr;
+    case Domain::Bump1: return FxRange_New5b20(value(0), value(1));
+    case Domain::Box1: return FxRange_New5ac0(value(0), value(1));
+    case Domain::Point1: return FxConst_New(value(0));
+    case Domain::Bump3:
+        std::memcpy(t1, &e[4 + 1], 12);
+        std::memcpy(t0, &e[1], 12);
+        return FxVectorRange_New5b38(reinterpret_cast<const float*>(t0), reinterpret_cast<const float*>(t1));
+    case Domain::Point3: return FxConstVector_New(reinterpret_cast<const float*>(FxVec3_FromWords1(t0, e)));
+    case Domain::Box3:
+    case Domain::Rgb: {
+        const uint32_t* b = FxVec3_FromWords1(t1, e + 4);
+        const uint32_t* a = FxVec3_FromWords1(t0, e);
+        return FxVectorRange_New5ad8(reinterpret_cast<const float*>(a), reinterpret_cast<const float*>(b));
+    }
+    case Domain::Circle:
+    case Domain::Disc: {
+        uint8_t* self = fx_alloc(0x40, 0x10);
+        if (!self) return nullptr;
+        const float radius = value(2);
+        const uint32_t* normal = FxVec4_FromWords1(t1, e + 4);
+        const uint32_t* centre = FxVec4_FromWords1(t0, e);
+        return domain == Domain::Circle
+                   ? FxCircleDomain_Init(self, reinterpret_cast<const float*>(centre), reinterpret_cast<const float*>(normal), radius)
+                   : FxDiscDomain_Init(self, reinterpret_cast<const float*>(centre), reinterpret_cast<const float*>(normal), radius);
+    }
+    case Domain::Line: {
+        uint8_t* self = fx_alloc(0x30, 0x10);
+        if (!self) return nullptr;
+        const uint32_t b[4] = {e[5], e[6], e[7], e[5]};
+        const uint32_t a[4] = {e[1], e[2], e[3], e[1]};
+        std::memcpy(t1, b, 16);
+        std::memcpy(t0, a, 16);
+        return FxSegmentOp_Init(self, reinterpret_cast<const float*>(t0), reinterpret_cast<const float*>(t1));
+    }
+    case Domain::SphereSurface:
+    case Domain::Sphere:
+    case Domain::ZHemisphere:
+    case Domain::YHemisphere: {
+        uint8_t* self = fx_alloc(0x20, 0x10);
+        if (!self) return nullptr;
+        const float radius = value(1);
+        const float* centre = reinterpret_cast<const float*>(FxVec4_FromWords1(t0, e));
+        if (domain == Domain::SphereSurface) return FxVectorOp_Init9378(self, centre, radius);
+        if (domain == Domain::Sphere) return FxVectorOp_Init9330(self, centre, radius);
+        if (domain == Domain::ZHemisphere) return FxVectorOp_Init9360(self, centre, radius);
+        return FxVectorOp_Init9348(self, centre, radius);
+    }
+    case Domain::FrameRange: {
+        const float a = static_cast<float>(static_cast<int32_t>(e[1]));
+        const float b = static_cast<float>(static_cast<int32_t>(e[5]));
+        uint8_t* self = fx_alloc(0xc, 4);
+        if (!self) return nullptr;
+        at<uint32_t>(self, 0) = 0x007c5ac0;
+        ordered(a, b, &at<float>(self, 4), &at<float>(self, 8));
+        return self;
+    }
+    case Domain::Frame: {
+        const float a = static_cast<float>(static_cast<int32_t>(e[1]));
+        uint8_t* self = fx_alloc(8, 4);
+        if (!self) return nullptr;
+        at<uint32_t>(self, 0) = 0x007c5af0;
+        at<float>(self, 4) = a;
+        return self;
+    }
+    }
+    return nullptr;
+}
+
 }  // namespace game
