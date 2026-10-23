@@ -756,4 +756,8 @@ uint32_t XB_STDCALL FX_LimitSoundComponents(uint32_t* lists, uint32_t hash, cons
 // (Scr_Notify) and +0x3c4/+0x3c8 cleared.
 void XB_REGS1 XB_CDECL Entity_EndSoundNotify(uint8_t* entity);
 
+// 0x00094170: 0x0009bd80, then a tail jump to 0x000950b0 (CALL in the first 5 bytes: not
+// hookable).
+uint32_t XB_CDECL FX_ResetParticleSystem();
+
 }  // namespace game

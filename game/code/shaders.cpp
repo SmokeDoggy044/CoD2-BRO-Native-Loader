@@ -2262,4 +2262,154 @@ uint32_t* XB_THISCALL cdBackgroundVertexIter_Clone(const uint32_t* self) { retur
 uint32_t* XB_THISCALL cdSkyVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007b7a88, 0x007b7a6c); }
 uint32_t* XB_THISCALL nglDebugMeshVertexIter_Clone(const uint32_t* self) { return clone_vertex_iter(self, 0x007be7c0, 0x007be7d8); }
 
+namespace {
+
+uint32_t** new_vertex_iter(const void* mesh, uint32_t** out, uint32_t vtable) {
+    uint32_t iter[3] = {vtable, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mesh)), 0};
+    using Clone = uint32_t* XB_THISCALL(const uint32_t*);
+    *out = title_function<Clone>(title_global<uint32_t>(vtable + 4))(iter);
+    return out;
+}
+
+}  // namespace
+
+uint32_t** XB_THISCALL cdGunSight_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4430); }
+uint32_t** XB_THISCALL cdGun_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4708); }
+uint32_t** XB_THISCALL cdGlass_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b49d8); }
+uint32_t** XB_THISCALL cdSimpleAlpha_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4cc0); }
+uint32_t** XB_THISCALL cdPropeller_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b4f9c); }
+uint32_t** XB_THISCALL cdDecal_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5268); }
+uint32_t** XB_THISCALL cdChar_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5530); }
+uint32_t** XB_THISCALL cdPrelit_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b580c); }
+uint32_t** XB_THISCALL cdAirplaneMetal_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5ae0); }
+uint32_t** XB_THISCALL cdSimpleUVAnim_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b5dc0); }
+uint32_t** XB_THISCALL cdSimplePrelit_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b60a0); }
+uint32_t** XB_THISCALL cdSimple_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b637c); }
+uint32_t** XB_THISCALL cdRiver_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b66a4); }
+uint32_t** XB_THISCALL cdWater_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b6c18); }
+uint32_t** XB_THISCALL cdWorldBlend_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b6ef0); }
+uint32_t** XB_THISCALL cdWorldVertexLit_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b71e4); }
+uint32_t** XB_THISCALL cdWorld_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b74b8); }
+uint32_t** XB_THISCALL cdBackground_NewVertexIter(const void* mesh, uint32_t** out) { return new_vertex_iter(mesh, out, 0x007b7790); }
+
+void XB_CDECL cdSimpleInstance_Init() {}
+
+void XB_THISCALL cdSimpleInstance_FreeList(CdSimpleInstanceList* self) {
+    title_function<void XB_CDECL(void*)>(0x000939b0)(self->records);  // Mem_AlignedFree
+}
+
+void* XB_THISCALL cdDebug_GetSortInfo(const NglMeshNode* node, uint32_t* out) {
+    // The instance block's light list (+0x8c: a 64-bit category mask, then one light set per
+    // category): the current category's set (0x00902908), its fourth word as a float; 1.0 when
+    // the category is not in the mask. 1.0 -> opaque list keyed by the class id, else translucent
+    // by view depth. (The original tests the mask twice; the second test always passes.)
+    const uint8_t* block = reinterpret_cast<const uint8_t*>(node->world_matrix);
+    const uint32_t* lights = *reinterpret_cast<uint32_t* const*>(block + 0x8c);
+    const uint32_t category = title_global<uint32_t>(0x00902908);
+    const int32_t bit = static_cast<int32_t>(1u << (category & 31));
+    const uint32_t low = static_cast<uint32_t>(bit);
+    const uint32_t high = bit < 0 ? 0xffffffffu : 0;
+    float w = 1.0f;
+    if ((lights[0] & low) == low && (lights[1] & high) == high) {
+        const uint32_t* set = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(lights[category + 2]));
+        std::memcpy(&w, &set[3], 4);
+    }
+    if (w == 1.0f) {
+        out[0] = 0;
+        out[1] = title_global<NglShaderClass*>(0x00901ec4)->id;
+        return out;
+    }
+    out[0] = 1;
+    const float depth = nglNode_ViewDepth(node);
+    std::memcpy(&out[1], &depth, 4);
+    return out;
+}
+
+void XB_CDECL nglInitShaders() {
+    // The screen-space shaders (title source strings; nglAssemblePixelShader /
+    // nglAssembleVertexShader are variadic formats), then every shader class's Init.
+    using AssemblePixel = void XB_CDECL(uint32_t, uint32_t, ...);
+    using AssembleVertex = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, ...);
+    title_function<AssemblePixel>(0x00076120)(0x00901e70, 0x007b38c8);
+    title_function<AssemblePixel>(0x00076120)(0x00901e74, 0x007b37b0);
+    title_function<AssemblePixel>(0x00076120)(0x00901e78, 0x007b3760);
+    title_function<AssembleVertex>(0x00076220)(0x008979a0, 0x00901e84, 1, 0x007b3710);
+    cdSky_Init();
+    cdBackground_Init();
+    cdWorld_Init();
+    cdWorldVertexLit_Init();
+    cdWorldBlend_Init();
+    cdWater_Init();
+    cdOcean_Init();
+    cdRiver_Init();
+    cdSimple_Init();
+    cdSimplePrelit_Init();
+    cdSimpleUVAnim_Init();
+    cdSimpleInstance_Init();
+    ShaderPCUV_Init();
+    cdAirplaneMetal_Init();
+    cdPrelit_Init();
+    cdChar_Init();
+    cdDecal_Init();
+    cdPropeller_Init();
+    cdSimpleAlpha_Init();
+    cdGlass_Init();
+    cdGun_Init();
+    cdGunSight_Init();
+    cdDebug_Init();
+}
+
+uint8_t XB_CDECL Str_EqualN(const char* a, int32_t length, const char* b, int32_t b_length) {
+    if (length != b_length && b_length >= 0) return 0;
+    for (; length; --length, ++a, ++b) {
+        if (*a != *b) return 0;
+    }
+    return 1;
+}
+
+void XB_CDECL nglToggleShaderByName(const char* name) {
+    // The shader class names (title strings) in the original's order; the first one equal
+    // to the lowered name (at most 31 characters) toggles that class.
+    struct Entry {
+        uint32_t name;
+        void(XB_CDECL* toggle)();
+    };
+    static const Entry kEntries[] = {
+        {0x007b3a18, &cdWorld_Toggle},
+        {0x007b3a04, &cdWorldVertexLit_Toggle},
+        {0x007b39f4, &cdWorldBlend_Toggle},
+        {0x007b39ec, &cdWater_Toggle},
+        {0x007b39e4, &cdOcean_Toggle},
+        {0x007b39dc, &cdRiver_Toggle},
+        {0x007b39d0, &cdSimple_Toggle},
+        {0x007b39bc, &cdSimpleInstance_Toggle},
+        {0x007b39ac, &cdSimplePrelit_Toggle},
+        {0x007b399c, &cdSimpleUVAnim_Toggle},
+        {0x007b398c, &cdSimpleAlpha_Toggle},
+        {0x007b39bc, &cdSimpleInstance_Toggle},  // compared a second time
+        {0x007b3984, &cdChar_Toggle},
+        {0x007b397c, &cdDebug_Toggle},
+        {0x007b3974, &cdSky_Toggle},
+        {0x007b396c, &cdDecal_Toggle},
+        {0x007b395c, &cdBackground_Toggle},
+        {0x007b3950, &cdPropeller_Toggle},
+        {0x007b3940, &cdAirplaneMetal_Toggle},
+        {0x007b3934, &cdPrelit_Toggle},
+        {0x007b392c, &cdGun_Toggle},
+        {0x007b3920, &cdGunSight_Toggle},
+        {0x007b3918, &cdGlass_Toggle},
+    };
+    char buffer[0x20];
+    int32_t length = 0;
+    Q_strncpyLen(buffer, &length, 0x1f, name);
+    const uint8_t length8 = static_cast<uint8_t>(length);
+    title_function<char* XB_CDECL(char*)>(0x001fa3b2)(buffer);  // _strlwr
+    for (const Entry& entry : kEntries) {
+        if (Str_EqualN(buffer, length8, reinterpret_cast<const char*>(uintptr_t{entry.name}), -1)) {
+            entry.toggle();
+            return;
+        }
+    }
+}
+
 }  // namespace game

@@ -6,6 +6,7 @@
 #include "lanes.h"
 #include "nal_anim.h"
 #include "nal_pose.h"
+#include "stream.h"
 #include "nal_math.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -951,6 +952,43 @@ void XB_CDECL DObj_UpdateSkeletons(DObj* obj) {
         }
         dobj_call_regs(0x002b7730, addr(ent), addr(origin), 0, 0);  // G_SetOrigin2
         dobj_call_regs(0x002b7690, addr(ent), addr(angles), 0, 0);  // G_SetAngle2
+    }
+}
+
+void XB_STDCALL XModel_Free(uint8_t* model) {
+    // Inside the model's memory context (+0x34, -1 = none): the eight anim states at +0x68
+    // destroyed and freed, the handle at +0x8c released in the handle table (slot = low 12
+    // bits, generation = the rest: the slot's free bit set, its generation bumped, its pointer
+    // cleared), +0x88 poisoned.
+    const int32_t context = *reinterpret_cast<const int32_t*>(model + 0x34);
+    uint8_t saved = 0;
+    if (context != -1) {
+        saved = title_global<uint8_t>(0x0095f5d0);
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        title_global<uint8_t>(0x0095f5d0) = 1;
+        MemContext_Push(title_global<uint8_t*>(0x0095f638), static_cast<uint32_t>(context));
+    }
+    auto* states = reinterpret_cast<AnimState**>(model + 0x68);
+    for (int i = 0; i < 8; ++i) {
+        if (AnimState* state = states[i]) {
+            NAL_AnimState_Destroy(state);
+            title_function<void XB_CDECL(void*)>(0x000939b0)(state);  // Mem_AlignedFree
+        }
+    }
+    const uint32_t handle = *reinterpret_cast<const uint32_t*>(model + 0x8c);
+    if (handle) {
+        const int32_t slot = static_cast<int32_t>(handle & 0xfff);
+        if (slot < 0x540 && title_global<uint32_t>(0x0098141c + slot * 8) == handle >> 12) {
+            title_global<uint32_t>(0x00981370 + (slot >> 5) * 4) |= 1u << (slot & 31);
+            ++title_global<uint32_t>(0x0098141c + slot * 8);
+            title_global<uint32_t>(0x00981418 + slot * 8) = 0;
+        }
+    }
+    *reinterpret_cast<uint32_t*>(model + 0x88) = 0xafafafaf;
+    if (context != -1) {
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        title_global<uint8_t>(0x0095f5d0) = saved;
+        MemContext_Pop(title_global<uint8_t*>(0x0095f638));
     }
 }
 

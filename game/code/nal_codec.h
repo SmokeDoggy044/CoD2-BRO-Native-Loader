@@ -483,4 +483,30 @@ uint32_t XB_STDCALL NAL_EntropyFloat4_SkipBlock(const uint32_t* context, uint8_t
 // (stream A) * block scale (stream B). Returns the group.
 uint32_t XB_STDCALL NAL_EntropyQuat_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count);
 
+// 0x0007ca40 / 0x0007fa70 (stdcall: context, &dst, &readers, -, -, count, stride): the
+// one-/four-component entropy float classes' DecodeFrames - per active channel the readers
+// decode into dst (scale channel * block for Float1, block * channel for Float4); readers move
+// 0x10 per component, dst 4 per component; stream A moves 4 per channel. Return the group.
+uint32_t XB_STDCALL NAL_EntropyFloat1_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_EntropyFloat4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride);
+// 0x0007e290 / 0x0007ecd0 (cdecl, 10 words: readers, out, float buffer, -, count, stride, -,
+// &block scale, ranges, -): one packed entropy Float3 channel as int8 (+-127) / int16 (+-32767):
+// per component the buffer decoded with scale block * ranges[0], then (v + ranges[1]) * ranges[2]
+// clamped and truncated. The original keeps temporaries in its argument slots.
+void XB_CDECL NAL_Packed8EntropyFloat3_DecodeChannelFrames(uint8_t* readers, uint8_t* out, float* buffer, uint32_t,
+                                                           uint32_t count, int32_t stride, uint32_t,
+                                                           const float* block_scale, const float* ranges, uint32_t);
+void XB_CDECL NAL_Packed16EntropyFloat3_DecodeChannelFrames(uint8_t* readers, uint8_t* out, float* buffer, uint32_t,
+                                                            uint32_t count, int32_t stride, uint32_t,
+                                                            const float* block_scale, const float* ranges, uint32_t);
+// 0x0007e1a0 / 0x0007ebd0 (stdcall, as above; arg 4 = the float buffer): their DecodeFrames.
+// dst aligned to 2 for int16; readers +0x30 and dst +3/+6 per active channel, stream A +12 per
+// channel.
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                          uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                           uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride);
+
 }  // namespace game

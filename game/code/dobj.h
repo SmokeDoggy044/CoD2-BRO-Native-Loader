@@ -248,4 +248,8 @@ void XB_CDECL XModel_TransformBones(const XModel* model, uint8_t* bones, const u
 // accumulated in its record (+0x3d4), or applied to its axis and origin.
 void XB_CDECL DObj_UpdateSkeletons(DObj* obj);
 
+// 0x0023cea0: frees a model's anim states (+0x68, eight) inside its memory context, releases
+// its handle (+0x8c) and poisons +0x88 (0xafafafaf).
+void XB_STDCALL XModel_Free(uint8_t* model);
+
 }  // namespace game

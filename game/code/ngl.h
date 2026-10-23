@@ -1257,4 +1257,115 @@ uint8_t* XB_CDECL nglLoadMeshFile(const uint32_t* name, uint32_t data);
 // +0xc = the file, the file's +0x140 = the first such record; the first group word = 2.
 uint32_t* XB_CDECL nglMeshFile_RelocateSection3(uint8_t* file, const uint32_t* section, uint32_t base);
 
+// ---- Day 15 ----
+// 0x00064570 / 0x00073ad0 (called at the end of nglUpdateScene): empty (bare ret; not hookable).
+void XB_CDECL nglShutdown();
+void XB_CDECL nglUpdateScene_Nop();
+// 0x0006eca0: the back buffer's width/height (D3DSurface_GetDesc of the surface 0x00902d84
+// points to) into 0x00902d60/64 and 0x00902dd8/dc, then nglInitDepthTextureView.
+void XB_CDECL nglReadBackBufferSize();
+// 0x00064300: PersistDisplay, Reset with the presentation parameters at 0x00902750, then
+// nglReadBackBufferSize. CALL in the first 5 bytes: not hookable.
+void XB_CDECL nglResetDevice();
+// 0x0007af20: resource manager vtable slot: nglSkipList_Insert on the list at +4 (tail jump in
+// the first 5 bytes: not hookable).
+const uint32_t* XB_THISCALL nglResourceManager_Add(uint8_t* self, const uint32_t* object);
+// 0x00063d60 / 0x00069c60 / 0x00069ca0: removes every object (texture / plain / indirect name),
+// then frees the head node and clears it.
+void XB_THISCALL nglSkipList_ClearTextures(NglSkipList* self);
+void XB_THISCALL nglSkipList_Clear(NglSkipList* self);
+void XB_THISCALL nglSkipList_ClearIndirect(NglSkipList* self);
+// The managers' deleting destructors (list at +4 cleared, base vtable, freed on flags & 1):
+// 0x000641a0 textures, 0x000641d0 palettes, 0x000667a0 fonts, 0x0006a220 mesh files,
+// 0x0006a250 meshes, 0x0006a280 section-3 records, 0x0007af30 the mesh file cache.
+uint8_t* XB_THISCALL nglTextureManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglPaletteManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglFontManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglMeshFileManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglMeshManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglSection3Manager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL nglMeshFileCache_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00069b00: the empty shader's GetName (this unused): "nglEmpty" hashed into out.
+NglHashedName* XB_STDCALL nglEmpty_GetName(NglHashedName* out);
+// 0x0007a4c0: the section's vertex buffer (+0x44) freed; with an index buffer (+0x38) the
+// +0x34 buffer waited on and both freed, +0x34..+0x3c cleared.
+void XB_CDECL nglMeshSection_FreeBuffers(uint8_t* section);
+
+// 0x0006cb80 / 0x0006cc50 / 0x0006cd30: the debug sphere (0x00902c98) / box (0x00902c90 when
+// `solid`, else 0x00902c94) / pyramid (0x00902c9c) mesh at `matrix`, scaled by the four words at
+// `scale`, lit by `color` (ARGB) as the only light of the current category.
+int32_t XB_CDECL nglDebugDrawSphereMesh(const float* matrix, const uint32_t* scale, uint32_t color);
+int32_t XB_CDECL nglDebugDrawBoxMesh(const float* matrix, const uint32_t* scale, uint32_t color, uint8_t solid);
+int32_t XB_CDECL nglDebugDrawPyramidMesh(const float* matrix, const uint32_t* scale, uint32_t color);
+
+// 0x000683a0: the LOD index for a mesh table under `matrix`: the bounding sphere's centre
+// (+0x20) in view space; the last LOD entry (+0x1c, count +0x18, distance at +4) it is beyond
+// gives index + 1, none 0.
+int32_t XB_CDECL nglSelectMeshLodWithMatrix(const uint8_t* table, const float* matrix);
+// 0x0006fb30: nglSelectMeshLightSet's projector counterpart: makes the instance's light set
+// current (0x00902e44) and rebuilds its active projector list (+0x50, ends at +0x30) from the
+// mesh's category list (mesh +7, minus one): box projectors (type 2) whose six planes (data
+// +0xe0) the bounding sphere is not behind, each in front.
+void XB_CDECL nglSelectMeshProjectors(NglMeshDrawNode* node);
+
+// 0x0007bed0 / 0x0007bff0: nglSkipList_Remove for lists whose objects carry their 32-byte name
+// at +0x10 / +8 (the anim managers).
+bool XB_THISCALL AnimManager_SkipListRemove(NglSkipList* self, const uint32_t* object);
+bool XB_THISCALL NalManager_SkipListRemoveKey8(NglSkipList* self, const uint32_t* object);
+// 0x0005ea10: a frame of its own showing the front buffer as one full-screen quad (scene
+// +0x360 = 0, +0x384/+0x385 cleared). CALL in the first 5 bytes: not hookable.
+void XB_CDECL nglDrawSingleQuadFrame();
+
+// 0x00078b90: draws a screen quad now (the quad node's Draw): cull off, the quad's blend mode,
+// the screen-space vertex shader; positions scaled for the 640x480-screen target (0x009028c0);
+// with a texture its stage-0 address modes (flags 0x40/0x80), YUV enable for kind 8 textures,
+// texel-scaled UVs for flag 0x200 textures (x87), the textured or plain pixel shader; then one
+// pushbuffer QUADS draw of vertices 0, 1, 3, 2 (x, y, z, colour, u, v) at the quad's depth.
+// The original keeps the depth in its argument slot (registered with 4 argument bytes).
+void XB_CDECL nglDrawQuad(NglQuad* quad);
+
+// 0x000665d0 (was FUN_000665d0; resource manager vtable slot): `passes` passes over the
+// manager's objects with a new iterator (slot 5): each object goes to slot 8 (object, pass,
+// arg); a positive result steps on, otherwise the walk restarts, and a zero result with
+// `restart_on_zero` also calls the manager's slot 1. The iterator is deleted at the end.
+void XB_THISCALL nglResourceManager_ForEachPass(uint8_t* self, uint8_t restart_on_zero, uint32_t arg, int32_t passes);
+
+// 0x00093a50: reads a whole file into Mem_AlignedAlloc(size, alignment, flags) memory:
+// out[0] = data, out[1] = size; false when it cannot be opened. A read hook (0x009098d8) takes
+// over when set. The data prefix (0x008bb660) is put in front unless the name has it.
+uint8_t XB_CDECL nglReadFile(const char* name, uint32_t* out, uint32_t alignment, uint32_t flags);
+
+// 0x00078500: selects a multisample type: the sample scale vector (0x00903c70: 1, 1, depth
+// offset, 0), the sample counts (0x008a3510/14), the anti-alias render state, the presentation
+// parameters' type (0x00902760, also 0x008a3518), then nglResetDevice. False for unknown types
+// (0x11 used) or a multisample type on a 1920-wide mode.
+uint8_t XB_CDECL nglInitMultisample(uint32_t type);
+
+// 0x0006e9c0: the front buffer, back buffer and back Z-buffer texture records (0x00902cd8,
+// 0x00902d50, 0x00902dc8; made and added to the texture manager the first time, 0x008a2f40),
+// then their D3D surfaces (GetBackBuffer2 0 / -1, GetDepthStencilSurface2) and sizes.
+void XB_CDECL nglInitFrameBuffers();
+
+// 0x000778b0: sets one of the frame memory sizes (kind 0 scene memory 0x009025ac, 1 block
+// 0x00903c44, 2 the two index buffers 0x00903c14, 3 the two dynamic vertex buffers 0x00903c1c,
+// 4 physical block 0x00903c2c; size + (size & 3)), idling the GPU first once it runs; then
+// (re)allocates the CPU block (scene memory, block 1, index buffers) and the physical block
+// (block 2, vertex buffers) when their totals changed and `reallocate`, or when missing.
+void XB_CDECL nglSetFrameMemorySize(uint32_t kind, uint32_t size, uint8_t reallocate);
+
+// 0x000649e0: the first supported video mode of the list (see the body) as the current mode
+// (0x00902890, +0xb set); none supported: unchanged.
+void XB_CDECL nglSelectVideoMode(const uint32_t* modes, uint32_t count);
+
+// 0x0007b810: printf into a 4 KB buffer, written to `file` (an open handle; closed when the
+// write fails). Used by the scene dumps.
+void XB_CDECL nglDumpPrintf(uint32_t file, const char* format, ...);
+// 0x0006ae70: the texture as a 32-bit TGA file at `path` (rows bottom-up, nglTextureGetPixel).
+uint8_t XB_CDECL nglWriteTGA(NglTexture* texture, const char* path);
+// 0x0006afe0: GPU idle, then nglWriteTGA to "D:\<name>.tga" or "D:\savetexNNNN.tga".
+uint8_t XB_CDECL nglSaveTextureTGA(NglTexture* texture, const char* name);
+// 0x000634d0: the front buffer through nglSaveTextureTGA as `name` or "screenshotNNNN" (counter
+// 0x00902748, name buffer 0x00902708). CALL in the first 5 bytes: not hookable.
+uint8_t XB_CDECL nglSaveScreenshot(const char* name);
+
 }  // namespace game

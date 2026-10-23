@@ -1795,4 +1795,52 @@ void XB_THISCALL NAL_StreamedAnim_Update(uint8_t* player, float dt) {
     }
 }
 
+void XB_STDCALL NAL_GenericAnim_DestroyState(AnimState* state) {
+    if (!state) return;
+    NAL_AnimState_Destroy(state);
+    title_function<void XB_CDECL(void*)>(0x000939b0)(state);  // Mem_AlignedFree
+}
+
+uint8_t* XB_THISCALL NAL_GenericAnim_DeletingDtor(uint8_t* self, uint32_t flags) {
+    NAL_AnimState_Destroy(reinterpret_cast<AnimState*>(self + 0xc8));
+    *reinterpret_cast<uint32_t*>(self) = 0x007c2370;
+    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000939b0)(self);  // Mem_AlignedFree
+    return self;
+}
+
+uint32_t XB_CDECL Anim_InitManagers(uint32_t config) {
+    title_function<void XB_CDECL()>(0x00093a10)();
+    uint32_t& users = title_global<uint32_t>(0x009098c8);
+    if (users++ == 0)
+        title_global<uint32_t>(0x009098d0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Mem_AlignedAlloc(0x4000, 0x10, 0)));
+    title_global<uint8_t>(0x00903e80) = 0;
+    title_global<uint8_t>(0x00903d80) = 0;
+    // Four skip-list managers {vtable, rand() seed, 7 bits left, level 0}.
+    static const uint32_t kManagers[4][2] = {
+        {0x0090982c, 0x007c2c9c}, {0x00909830, 0x007c2ce8}, {0x00909828, 0x007c2d34}, {0x00909838, 0x007c2d80}};
+    for (const auto& m : kManagers) {
+        auto* manager = static_cast<uint32_t*>(Mem_AlignedAlloc(0x14, 4, 0));
+        if (manager) {
+            manager[0] = m[1];
+            manager[1] = static_cast<uint32_t>(title_function<int32_t XB_CDECL()>(0x001efcc0)());  // rand
+            manager[2] = 7;
+            manager[3] = 0;
+        }
+        title_global<uint32_t>(m[0]) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(manager));
+    }
+    title_function<void XB_THISCALL(uint32_t)>(0x00094070)(0x00903fe0);  // ShaderCache_Init
+    title_function<void XB_THISCALL(uint32_t)>(0x00094070)(0x00903ff4);
+    NAL_InitRegisteredTypes();
+    if (!config) {
+        title_global<uint32_t>(0x008bb128) = 0x100000;
+        title_global<uint32_t>(0x008bb12c) = 0;
+        config = 0x008bb124;
+    }
+    title_global<uint32_t>(0x00903fa4) = 0;
+    title_global<uint32_t>(0x00903fa0) = 0;
+    title_global<uint32_t>(0x00903d78) = config;
+    title_global<uint32_t>(0x00903f9c) = config;
+    return config;
+}
+
 }  // namespace game

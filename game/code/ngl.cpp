@@ -4999,11 +4999,13 @@ namespace {
 
 // The name of a listed object: its first 32 bytes, at +0x54 (textures), or what its first
 // word points to (indirect).
-enum class SkipName { Direct, Texture, Indirect };
+enum class SkipName { Direct, Texture, Indirect, At8, At16 };
 
 const uint32_t* skip_name(const uint32_t* object, SkipName kind) {
     switch (kind) {
     case SkipName::Texture: return object + 0x54 / 4;
+    case SkipName::At8: return object + 2;    // the anim managers' lists (AnimManager_SkipListRemove)
+    case SkipName::At16: return object + 4;
     case SkipName::Indirect: return reinterpret_cast<const uint32_t*>(uintptr_t{object[0]});
     case SkipName::Direct: break;
     }
@@ -5360,6 +5362,731 @@ bool XB_THISCALL nglSkipList_RemoveTexture(NglSkipList* self, const uint32_t* te
 
 bool XB_THISCALL nglSkipList_RemoveIndirect(NglSkipList* self, const uint32_t* object) {
     return skip_list_remove(self, object, SkipName::Indirect);
+}
+
+// ---- Day 15: the renderer's bottom-up ready list ----
+
+void XB_CDECL nglShutdown() {}
+
+void XB_CDECL nglUpdateScene_Nop() {}
+
+void XB_CDECL nglReadBackBufferSize() {
+    const uint32_t surface = **reinterpret_cast<uint32_t* const*>(static_cast<uintptr_t>(title_global<uint32_t>(0x00902d84)));
+    uint32_t desc[8];
+    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003ebe30)(surface, desc);  // D3DSurface_GetDesc
+    const uint32_t width = desc[5];
+    const uint32_t height = desc[6];
+    title_global<uint32_t>(0x00902d60) = width;
+    title_global<uint32_t>(0x00902d64) = height;
+    title_global<uint32_t>(0x00902dd8) = width;
+    title_global<uint32_t>(0x00902ddc) = height;
+    nglInitDepthTextureView();
+}
+
+void XB_CDECL nglResetDevice() {
+    title_function<void XB_STDCALL()>(0x003e6720)();                    // D3DDevice_PersistDisplay
+    title_function<void XB_STDCALL(uint32_t)>(0x003e51f0)(0x00902750);  // D3DDevice_Reset(presentation parameters)
+    nglReadBackBufferSize();
+}
+
+const uint32_t* XB_THISCALL nglResourceManager_Add(uint8_t* self, const uint32_t* object) {
+    return nglSkipList_Insert(reinterpret_cast<NglSkipList*>(self + 4), object);
+}
+
+namespace {
+
+// The managers' skip list teardown: removes the first node's object until the list is empty,
+// then frees the head node.
+template <bool (XB_THISCALL* Remove)(NglSkipList*, const uint32_t*)>
+void clear_skip_list(NglSkipList* self) {
+    if (!self->head) return;
+    while (NglSkipListNode* first = self->head->next[0]) Remove(self, first->key);
+    title_function<void XB_CDECL(void*)>(0x000939b0)(self->head);  // Mem_AlignedFree
+    self->head = nullptr;
+}
+
+// The managers' deleting destructors: the list at +4 cleared, the base vtable stored, the
+// object freed when flags bit 0 is set.
+template <void (XB_THISCALL* Clear)(NglSkipList*)>
+uint8_t* delete_manager(uint8_t* self, uint32_t flags, uint32_t base_vtable) {
+    Clear(reinterpret_cast<NglSkipList*>(self + 4));
+    *reinterpret_cast<uint32_t*>(self) = base_vtable;
+    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000939b0)(self);  // Mem_AlignedFree
+    return self;
+}
+
+}  // namespace
+
+void XB_THISCALL nglSkipList_ClearTextures(NglSkipList* self) { clear_skip_list<nglSkipList_RemoveTexture>(self); }
+void XB_THISCALL nglSkipList_Clear(NglSkipList* self) { clear_skip_list<nglSkipList_Remove>(self); }
+void XB_THISCALL nglSkipList_ClearIndirect(NglSkipList* self) { clear_skip_list<nglSkipList_RemoveIndirect>(self); }
+
+uint8_t* XB_THISCALL nglTextureManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_ClearTextures>(self, flags, 0x008381cc);
+}
+uint8_t* XB_THISCALL nglPaletteManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_Clear>(self, flags, 0x007bc91c);
+}
+uint8_t* XB_THISCALL nglFontManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_Clear>(self, flags, 0x007bd0d4);
+}
+uint8_t* XB_THISCALL nglMeshFileManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_Clear>(self, flags, 0x00838270);
+}
+uint8_t* XB_THISCALL nglMeshManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_ClearIndirect>(self, flags, 0x00838228);
+}
+uint8_t* XB_THISCALL nglSection3Manager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_ClearIndirect>(self, flags, 0x007bdf30);
+}
+uint8_t* XB_THISCALL nglMeshFileCache_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return delete_manager<nglSkipList_Clear>(self, flags, 0x007c1260);
+}
+
+NglHashedName* XB_STDCALL nglEmpty_GetName(NglHashedName* out) {
+    return title_function<NglHashedName* XB_THISCALL(NglHashedName*, const char*)>(0x00011060)(out, "nglEmpty");
+}
+
+void XB_CDECL nglMeshSection_FreeBuffers(uint8_t* section) {
+    nglVertexBuffer_Free(reinterpret_cast<uint32_t*>(section + 0x44), 4);
+    uint32_t* buffers = reinterpret_cast<uint32_t*>(section + 0x34);
+    if (!buffers[1]) return;
+    title_function<void XB_STDCALL(uint32_t)>(0x003e8000)(buffers[0]);  // D3DResource_BlockUntilNotBusy
+    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffers[0]);    // Mem_AlignedFree
+    title_function<void XB_CDECL(uint32_t)>(0x000939b0)(buffers[1]);    // Mem_AlignedFree
+    buffers[0] = 0;
+    buffers[1] = 0;
+    buffers[2] = 0;
+}
+
+namespace {
+
+// The debug meshes' draw: a one-entry light set in frame memory whose slot for the current
+// category (0x00902908) is the colour as a float4 (frame memory; null when that allocation
+// lands at 0), and an instance block {2 = scaled, ..., +0x10 the scale} on the stack (the
+// words the original leaves unset are zero in tests).
+int32_t debug_draw_mesh(uint8_t* mesh, const float* matrix, const uint32_t* scale, uint32_t color) {
+    uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
+    auto* lights = static_cast<uint32_t*>(alloc_frame(arena, title_global<uint32_t>(0x00902904) * 4 + 8, 8));
+    lights[0] = 0;
+    lights[1] = 0;
+    auto* vec = static_cast<float*>(alloc_frame(arena, 0x10, 0x10));
+    uint32_t vec_word = 0;
+    if (vec) {
+        nglColorToVec4(vec, color);
+        vec_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(vec));
+    }
+    const uint32_t category = title_global<uint32_t>(0x00902908);
+    lights[0] |= 1u << (category & 31);
+    lights[category + 2] = vec_word;
+    alignas(16) uint32_t block[12] = {};
+    std::memcpy(&block[4], scale, 16);
+    block[0] = 2;
+    const uint32_t light_ref = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lights));
+    return nglListAddMesh(mesh, matrix, block, &light_ref);
+}
+
+}  // namespace
+
+int32_t XB_CDECL nglDebugDrawSphereMesh(const float* matrix, const uint32_t* scale, uint32_t color) {
+    return debug_draw_mesh(title_global<uint8_t*>(0x00902c98), matrix, scale, color);
+}
+
+int32_t XB_CDECL nglDebugDrawBoxMesh(const float* matrix, const uint32_t* scale, uint32_t color, uint8_t solid) {
+    return debug_draw_mesh(title_global<uint8_t*>(solid ? 0x00902c90 : 0x00902c94), matrix, scale, color);
+}
+
+int32_t XB_CDECL nglDebugDrawPyramidMesh(const float* matrix, const uint32_t* scale, uint32_t color) {
+    return debug_draw_mesh(title_global<uint8_t*>(0x00902c9c), matrix, scale, color);
+}
+
+int32_t XB_CDECL nglSelectMeshLodWithMatrix(const uint8_t* table, const float* matrix) {
+    // The bounding sphere's centre (+0x20) through the matrix, then the view matrix (all four
+    // lanes, as packed); its view depth (lane z) against the LOD distances from the last one.
+    const float* c = reinterpret_cast<const float*>(table + 0x20);
+    const Lanes p = add(add(add(lanes(matrix + 12), mul(lanes(matrix), c[0])), mul(lanes(matrix + 4), c[1])),
+                        mul(lanes(matrix + 8), c[2]));
+    const float* v = current_scene()->view_matrix;
+    const Lanes view = add(add(add(lanes(v + 12), mul(lanes(v), p.v[0])), mul(lanes(v + 4), p.v[1])),
+                           mul(lanes(v + 8), p.v[2]));
+    platform_keep(view);
+    const float depth = view.v[2];
+    const int32_t count = *reinterpret_cast<const int32_t*>(table + 0x18);
+    const uint8_t* entries = *reinterpret_cast<uint8_t* const*>(table + 0x1c);
+    for (int32_t i = count - 1; i >= 0; --i) {
+        if (depth > *reinterpret_cast<const float*>(entries + i * 8 + 4)) return i + 1;
+    }
+    return 0;
+}
+
+void XB_CDECL nglSelectMeshProjectors(NglMeshDrawNode* node) {
+    const uint32_t slot = title_global<uint32_t>(0x00902914);
+    const uint32_t* params = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(node->extra));
+    const auto has_slot = [params, slot] {
+        const uint32_t low = 1u << (slot & 31);
+        const uint32_t high = static_cast<int32_t>(low) < 0 ? 0xffffffff : 0;
+        return (params[0] & low) == low && (params[1] & high) == high;
+    };
+    NglLightSet* set;
+    if (has_slot()) {
+        set = has_slot() ? reinterpret_cast<NglLightSet*>(static_cast<uintptr_t>(params[2 + slot])) : nullptr;
+    } else {
+        set = current_scene()->light_set;
+    }
+    current_light_set() = set;
+    NglLight* const end = reinterpret_cast<NglLight*>(set->projectors);
+    NglLight*& active = *reinterpret_cast<NglLight**>(reinterpret_cast<uint8_t*>(set) + 0x50);
+    active = end;
+    const uint8_t* mesh = node->mesh;
+    const int32_t list = static_cast<int32_t>(mesh[7]) - 1;
+    if (list == -1) return;
+    const float* local = reinterpret_cast<const float*>(mesh + 0x20);
+    Lanes center = add(lanes(node->world + 12), mul(lanes(node->world), local[0]));
+    center = add(center, mul(lanes(node->world + 4), local[1]));
+    center = add(center, mul(lanes(node->world + 8), local[2]));
+    const Lanes q = {{center.v[0], center.v[1], center.v[2], title_global<float>(0x007beb50)}};
+    set = current_light_set();
+    // Projector boxes (type 2): the sphere must not be behind any of the six planes at data
+    // +0xe0 (tested in the order +0x100, +0x110, +0x120, +0xe0, +0xf0, +0x130); each plane's
+    // distance is (x a + y b) + (z c + d), as the packed sum pairs them.
+    static const int kPlanes[6] = {0x20, 0x30, 0x40, 0x00, 0x10, 0x50};
+    NglLight* item = set->projectors[list];
+    while (item != end) {
+        if (item->type == 2) {
+            const float behind = 0.0f - *reinterpret_cast<const float*>(mesh + 0x30);
+            const uint8_t* planes = reinterpret_cast<const uint8_t*>(item->data) + 0xe0;
+            bool inside = true;
+            for (int k = 0; k < 6 && inside; ++k) {
+                const Lanes plane = lanes(reinterpret_cast<const float*>(planes + kPlanes[k]));
+                const Lanes m = mul(q, plane);
+                const Lanes pair = add(m, Lanes{{m.v[1], m.v[1], plane.v[3], plane.v[3]}});
+                platform_keep(pair);
+                const float distance = pair.v[0] + pair.v[2];
+                if (behind > distance) inside = false;
+            }
+            if (inside) {
+                item->next_object = active;
+                active = item;
+                set = current_light_set();
+            }
+        }
+        item = reinterpret_cast<NglLight* const*>(item)[list];
+    }
+}
+
+bool XB_THISCALL AnimManager_SkipListRemove(NglSkipList* self, const uint32_t* object) {
+    return skip_list_remove(self, object, SkipName::At16);
+}
+
+bool XB_THISCALL NalManager_SkipListRemoveKey8(NglSkipList* self, const uint32_t* object) {
+    return skip_list_remove(self, object, SkipName::At8);
+}
+
+void XB_CDECL nglDrawSingleQuadFrame() {
+    title_function<void XB_CDECL()>(0x00064690)();  // nglBeginFrame
+    uint8_t* scene = reinterpret_cast<uint8_t*>(current_scene());
+    *reinterpret_cast<uint32_t*>(scene + 0x360) = 0;
+    scene = reinterpret_cast<uint8_t*>(current_scene());
+    scene[0x385] = 0;
+    scene = reinterpret_cast<uint8_t*>(current_scene());
+    scene[0x384] = 0;
+    NglQuad quad;
+    nglInitQuad(&quad);
+    nglSetQuadTexture(&quad, nglGetFrontBufferTexture());
+    const float height = static_cast<float>(nglGetScreenHeight());
+    const float width = static_cast<float>(nglGetScreenWidth());
+    nglSetQuadRect(&quad, 0.0f, 0.0f, width, height);
+    nglListAddQuad(&quad);
+    title_function<void XB_CDECL()>(0x00064ec0)();  // nglEndFrame
+}
+
+void XB_CDECL nglDrawQuad(NglQuad* quad) {
+    uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
+    if (cull_mode) {
+        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // D3DDevice_SetRenderState_CullMode
+        cull_mode = 0;
+    }
+    nglSetBlendMode(&title_global<uint8_t>(0x00902f08), quad->blend_mode, quad->blend_arg, 0x80);
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903c9c));
+    NglQuadVertex* v = quad->verts;
+    if (title_global<uint8_t>(0x009028c0) && (current_scene()->render_target->flags & 4)) {
+        const float sx = title_global<float>(0x009028c4);
+        const float sy = title_global<float>(0x009028c8);
+        v[0].x = v[0].x * sx;
+        v[0].y = v[0].y * sy;
+        v[1].x = v[1].x * sx;
+        v[1].y = v[1].y * sy;
+        v[2].x = v[2].x * sx;
+        v[2].y = sy * v[2].y;
+        v[3].x = v[3].x * sx;
+        v[3].y = v[3].y * sy;
+    }
+    bool yuv = false;
+    NglTexture* texture = quad->texture;
+    if (texture) {
+        const uint32_t flags = quad->flags;
+        // D3D's deferred texture stage states, stage 0 (dirty bit 1).
+        title_global<uint32_t>(0x003f8320) |= 1;
+        title_global<uint32_t>(0x003f5c68) = (flags & 0x40) ? 3 : 1;
+        title_global<uint32_t>(0x003f8320) |= 1;
+        title_global<uint32_t>(0x003f5c6c) = (flags & 0x80) ? 3 : 1;
+        title_global<uint32_t>(0x009026fc) = *reinterpret_cast<const uint32_t*>(
+            reinterpret_cast<const uint8_t*>(current_scene()) + 0x3d4);
+        nglSetTexture(0, texture, static_cast<uint8_t>(quad->flags), 3);
+        if (static_cast<uint8_t>(texture->flags) == 8) {
+            yuv = true;
+            if (title_global<uint8_t>(0x00902fbc) != 1) {
+                title_function<void XB_STDCALL(uint32_t)>(0x003e8530)(1);  // D3DDevice_SetRenderState_YuvEnable
+                title_global<uint8_t>(0x00902fbc) = 1;
+            }
+        }
+        if (texture->flags & 0x200) {
+            // Texel coordinates: u by the width, v by the height (x87, unsigned to float).
+            const float w = platform_x87_unsigned_to_float(texture->width);
+            const float h = platform_x87_unsigned_to_float(texture->height);
+            v[0].u = platform_x87_mul(w, v[0].u);
+            v[0].v = platform_x87_mul(h, v[0].v);
+            v[1].u = platform_x87_mul(w, v[1].u);
+            v[1].v = platform_x87_mul(h, v[1].v);
+            v[2].u = platform_x87_mul(w, v[2].u);
+            v[2].v = platform_x87_mul(h, v[2].v);
+            v[3].u = platform_x87_mul(w, v[3].u);
+            v[3].v = platform_x87_mul(h, v[3].v);
+        }
+        nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903cc4));
+    } else {
+        nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903cb4));
+    }
+    const float z = nglDepthToZValue(quad->z);
+    title_global<uint32_t>(0x00903c88) = 0;
+    title_global<uint32_t>(0x00903c8c) = 0;
+    title_global<uint32_t>(0x00903c90) = 0;
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    auto* push = reinterpret_cast<uint32_t*>(
+        static_cast<uintptr_t>(title_function<uint32_t XB_STDCALL(uint32_t)>(0x003eba40)(0x1d)));  // BeginPush
+    push[0] = 0x000417fc;  // begin: quads
+    push[1] = 8;
+    push[2] = 0x40601818;  // 24 dwords of vertex data
+    push += 3;
+    // Vertices 0, 1, 3, 2: x, y, z, colour, u, v.
+    static const int kOrder[4] = {0, 1, 3, 2};
+    for (const int i : kOrder) {
+        std::memcpy(&push[0], &v[i].x, 4);
+        std::memcpy(&push[1], &v[i].y, 4);
+        std::memcpy(&push[2], &z, 4);
+        push[3] = v[i].color;
+        std::memcpy(&push[4], &v[i].u, 4);
+        std::memcpy(&push[5], &v[i].v, 4);
+        push += 6;
+    }
+    push[0] = 0x000417fc;  // end
+    push[1] = 0;
+    push += 2;
+    title_global<uint32_t>(0x00903c98) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(push));
+    title_function<void XB_STDCALL(uint32_t)>(0x003ebaa0)(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(push)));  // EndPush
+    if (yuv && title_global<uint8_t>(0x00902fbc)) {
+        title_function<void XB_STDCALL(uint32_t)>(0x003e8530)(0);  // D3DDevice_SetRenderState_YuvEnable
+        title_global<uint8_t>(0x00902fbc) = 0;
+    }
+}
+
+namespace {
+
+// A title object's virtual method (thiscall).
+template <typename F>
+F* vmethod(const void* object, uint32_t slot) {
+    const uint32_t vtable = *static_cast<const uint32_t*>(object);
+    return title_function<F>(*reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(vtable + slot * 4)));
+}
+
+}  // namespace
+
+void XB_THISCALL nglResourceManager_ForEachPass(uint8_t* self, uint8_t restart_on_zero, uint32_t arg, int32_t passes) {
+    using Method = uint32_t XB_THISCALL(void*);
+    auto* iter = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(vmethod<Method>(self, 5)(self)));  // NewIterator
+    for (int32_t pass = 1; pass <= passes; ++pass) {
+        vmethod<Method>(iter, 1)(iter);  // First
+        while (static_cast<uint8_t>(vmethod<Method>(iter, 2)(iter))) {  // Valid
+            void* object = reinterpret_cast<void*>(static_cast<uintptr_t>(vmethod<Method>(iter, 4)(iter)));  // Current
+            const int32_t result = static_cast<int32_t>(
+                vmethod<uint32_t XB_THISCALL(void*, void*, int32_t, uint32_t)>(self, 8)(self, object, pass, arg));
+            if (result > 0)
+                vmethod<Method>(iter, 3)(iter);  // Next
+            else
+                vmethod<Method>(iter, 1)(iter);  // First again
+            if (result == 0 && restart_on_zero) vmethod<Method>(self, 1)(self);
+        }
+    }
+    if (iter) vmethod<uint32_t XB_THISCALL(void*, uint32_t)>(iter, 0)(iter, 1);  // deleting destructor
+}
+
+uint8_t XB_CDECL nglReadFile(const char* name, uint32_t* out, uint32_t alignment, uint32_t flags) {
+    using ReadHook = uint8_t XB_CDECL(const char*, uint32_t*, uint32_t, uint32_t);
+    const uint32_t hook = title_global<uint32_t>(0x009098d8);
+    if (hook) return title_function<ReadHook>(hook)(name, out, alignment, flags);
+    // The data prefix (0x008bb660) goes in front unless the name starts with it.
+    const char* prefix = &title_global<char>(0x008bb660);
+    char path[0x200];
+    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(name, prefix,
+                                                                                       std::strlen(prefix)))
+        std::strcpy(path, prefix);
+    else
+        path[0] = 0;
+    std::strcat(path, name);
+    using CreateFile = uint32_t XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    const uint32_t file = title_function<CreateFile>(0x001e7d56)(path, 0x80000000, 1, 0, 3, 0x08000080, 0);
+    if (file == 0xffffffff) return 0;
+    const uint32_t size = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x001e84e1)(file, nullptr);  // GetFileSize
+    out[1] = size;
+    void* data = Mem_AlignedAlloc(size, alignment, flags);
+    out[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data));
+    uint32_t read = 0;
+    using ReadFile = uint32_t XB_STDCALL(uint32_t, void*, uint32_t, uint32_t*, void*);
+    title_function<ReadFile>(0x001e7f2a)(file, data, out[1], &read, nullptr);
+    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7b0b)(file);  // CloseHandle
+    return 1;
+}
+
+uint8_t XB_CDECL nglInitMultisample(uint32_t type) {
+    // Multisample types (D3DMULTISAMPLE_*): 0x1021/0x1121 two samples, 0x1022/0x1222 four,
+    // 0x11 none; anything else falls back to 0x11 and returns false. Not on a 1920-wide mode
+    // (0x00902890) unless 0x11.
+    if (title_global<uint32_t>(0x00902890) == 0x780 && type != 0x11) return 0;
+    float z = title_global<float>(0x0083f004);  // 1/32: the depth sample offset
+    float x_samples = title_global<float>(0x0083eba8);  // 2
+    float y_samples = title_global<float>(0x0083eba8);
+    bool antialias = true;
+    uint8_t ok = 1;
+    switch (type) {
+    case 0x1021:
+    case 0x1121:
+        y_samples = title_global<float>(0x0083eb20);  // 1
+        break;
+    case 0x1022:
+    case 0x1222:
+        break;
+    default:
+        ok = 0;
+        type = 0x11;
+        [[fallthrough]];
+    case 0x11:
+        z = title_global<float>(0x007bf1c0);  // 0.53125
+        x_samples = title_global<float>(0x0083eb20);
+        y_samples = title_global<float>(0x0083eb20);
+        antialias = false;
+        break;
+    }
+    float* scale = &title_global<float>(0x00903c70);
+    scale[0] = title_global<float>(0x0083eb20);
+    scale[1] = title_global<float>(0x0083eb20);
+    scale[2] = z;
+    scale[3] = title_global<float>(0x007bf9b0);
+    title_global<float>(0x008a3510) = x_samples;
+    title_global<float>(0x008a3514) = y_samples;
+    uint8_t& state = title_global<uint8_t>(0x00902f44);
+    if (state != static_cast<uint8_t>(antialias)) {
+        title_function<void XB_STDCALL(uint32_t)>(0x003e87c0)(antialias ? 1 : 0);  // SetRenderState_MultiSampleAntiAlias
+        state = antialias ? 1 : 0;
+    }
+    title_global<uint32_t>(0x008a3518) = type;
+    title_global<uint32_t>(0x00902760) = type;
+    nglResetDevice();
+    return ok;
+}
+
+namespace {
+
+// One of the frame buffer texture records (0x74 bytes): flags 6 at +0x28, the hashed name at
+// +0x54, kind (+4), 1 at +0x18, the D3D format (+8) and the depth link (+0x38); then added to
+// the texture manager (vtable slot 3).
+void init_frame_buffer_record(uint32_t record, const char* name, uint32_t kind, uint32_t format, uint32_t link) {
+    title_global<uint32_t>(record + 0x28) |= 6;
+    uint32_t hashed[8];
+    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+    std::memcpy(&title_global<uint32_t>(record + 0x54), hashed, sizeof(hashed));
+    title_global<uint32_t>(record + 0x04) = kind;
+    title_global<uint32_t>(record + 0x18) = 1;
+    title_global<uint32_t>(record + 0x08) = format;
+    title_global<uint32_t>(record + 0x38) = link;
+    uint8_t* manager = title_global<uint8_t*>(0x009025f0);
+    const uint32_t add = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(*reinterpret_cast<uint32_t*>(manager)))[3];
+    title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(add)(manager, record);
+}
+
+}  // namespace
+
+void XB_CDECL nglInitFrameBuffers() {
+    constexpr uint32_t kFront = 0x00902cd8;
+    constexpr uint32_t kBack = 0x00902d50;
+    constexpr uint32_t kDepth = 0x00902dc8;
+    if (title_global<uint32_t>(0x008a2f40)) {
+        std::memset(&title_global<uint32_t>(kFront), 0, 0x1d * 4);
+        std::memset(&title_global<uint32_t>(kBack), 0, 0x1d * 4);
+        std::memset(&title_global<uint32_t>(kDepth), 0, 0x1d * 4);
+        title_global<uint32_t>(kFront + 0x34) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Mem_AlignedAlloc(4, 4, 0)));
+        init_frame_buffer_record(kFront, "nglFrontBuffer", 0x201, title_global<uint32_t>(0x00902758), 0);
+        title_global<uint32_t>(kBack + 0x34) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Mem_AlignedAlloc(4, 4, 0)));
+        init_frame_buffer_record(kBack, "nglBackBuffer", 0x5201, title_global<uint32_t>(0x00902758), kDepth);
+        init_frame_buffer_record(kDepth, "nglBackZBuffer", 0x2201, title_global<uint32_t>(0x00902774), 0);
+        title_global<uint32_t>(0x008a2f40) = 0;
+    }
+    using GetBuffer = uint32_t XB_STDCALL(int32_t);
+    auto* back_surface = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(kBack + 0x34)));
+    *back_surface = title_function<GetBuffer>(0x003e5720)(0);  // D3DDevice_GetBackBuffer2
+    title_global<uint32_t>(kDepth + 0x34) = title_function<uint32_t XB_STDCALL()>(0x003e5b70)();  // GetDepthStencilSurface2
+    const uint32_t width = title_global<uint32_t>(0x00902890);
+    const uint32_t height = title_global<uint32_t>(0x00902894);
+    title_global<uint32_t>(kBack + 0x14) = height;
+    title_global<uint32_t>(kDepth + 0x14) = height;
+    title_global<uint32_t>(kBack + 0x10) = width;
+    title_global<uint32_t>(kDepth + 0x10) = width;
+    title_global<uint32_t>(kBack + 0x30) =
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(kBack + 0x34)));
+    auto* front_surface = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(kFront + 0x34)));
+    *front_surface = title_function<GetBuffer>(0x003e5720)(-1);  // the front buffer
+    uint32_t desc[8];
+    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003ebe30)(
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(kFront + 0x34))), desc);  // GetDesc
+    title_global<uint32_t>(kFront + 0x10) = desc[5];
+    title_global<uint32_t>(kFront + 0x14) = desc[6];
+    title_global<uint32_t>(kFront + 0x30) =
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(kFront + 0x34)));
+}
+
+void XB_CDECL nglSetFrameMemorySize(uint32_t kind, uint32_t size, uint8_t reallocate) {
+    const uint32_t bytes = size + (size & 3);
+    if (title_global<uint32_t>(0x00902874)) {
+        title_global<uint32_t>(0x00903c88) = 0;
+        title_global<uint32_t>(0x00903c8c) = 0;
+        title_global<uint32_t>(0x00903c90) = 0;
+        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+        nglUnbindTextures();
+        title_function<void XB_CDECL()>(0x003e6200)();  // D3DDevice_BlockUntilIdle
+    }
+    uint32_t& scene_bytes = title_global<uint32_t>(0x009025ac);
+    uint32_t& block1_bytes = title_global<uint32_t>(0x00903c44);
+    uint32_t& block2_bytes = title_global<uint32_t>(0x00903c2c);
+    uint32_t& vertex_bytes = title_global<uint32_t>(0x00903c1c);
+    uint32_t& index_bytes = title_global<uint32_t>(0x00903c14);
+    switch (kind) {
+    case 0: scene_bytes = bytes; break;
+    case 1: block1_bytes = bytes; break;
+    case 3:
+        if (vertex_bytes) {
+            nglVertexBuffer_Free(&title_global<uint32_t>(0x00902938), 0);
+            nglVertexBuffer_Free(&title_global<uint32_t>(0x00902944), 0);
+        }
+        vertex_bytes = bytes;
+        break;
+    case 2:
+        if (index_bytes) {
+            nglIndexBuffer_Clear(&title_global<uint8_t*>(0x00902950));
+            nglIndexBuffer_Clear(&title_global<uint8_t*>(0x00902954));
+        }
+        index_bytes = bytes;
+        break;
+    case 4: block2_bytes = bytes; break;
+    default: break;
+    }
+    // The CPU block: scene memory, block 1, two index buffers.
+    uint32_t& total = title_global<uint32_t>(0x00903c40);
+    total = scene_bytes + (index_bytes + block1_bytes) * 2;
+    uint32_t& block = title_global<uint32_t>(0x00903c38);
+    bool make = true;
+    if (block) {
+        if (total == title_global<uint32_t>(0x00903c3c) || !reallocate) {
+            make = false;
+        } else {
+            title_function<void XB_CDECL(uint32_t)>(0x000939b0)(block);  // Mem_AlignedFree
+            block = 0;
+        }
+    }
+    if (make && total && bytes) {
+        title_global<uint32_t>(0x00903c3c) = total;
+        const uint32_t memory = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Mem_AlignedAlloc(total, 4, 0)));
+        block = memory;
+        title_global<uint32_t>(0x009025a4) = memory;
+        const uint32_t block1 = memory + scene_bytes;
+        title_global<uint32_t>(0x00903c48) = block1;
+        const uint32_t block1_end = block1 + block1_bytes;
+        title_global<uint32_t>(0x00903c4c) = block1_end;
+        const uint32_t indices = block1_bytes + block1_end;
+        const uint32_t count = index_bytes;
+        nglIndexBuffer_Init(&title_global<uint8_t*>(0x00902950), reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(indices)),
+                            count);
+        nglIndexBuffer_Init(&title_global<uint8_t*>(0x00902954),
+                            reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(count + indices)), count);
+        title_global<uint32_t>(0x00903c54) = title_global<uint32_t>(0x00903c48);
+        title_global<uint32_t>(0x00903c50) = title_global<uint32_t>(0x00903c48);
+    }
+    // The physical block: block 2 and two vertex buffers.
+    uint32_t& physical_total = title_global<uint32_t>(0x00903c28);
+    physical_total = block2_bytes + vertex_bytes * 2;
+    uint32_t& physical = title_global<uint32_t>(0x00903c20);
+    if (physical) {
+        if (physical_total == title_global<uint32_t>(0x00903c24) || !reallocate) return;
+        title_function<void XB_CDECL(uint32_t)>(0x000939b0)(physical);  // Mem_AlignedFree
+        physical = 0;
+    }
+    if (!physical_total || !bytes) return;
+    title_global<uint32_t>(0x00903c24) = physical_total;
+    const uint32_t memory =
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Mem_AlignedAlloc(physical_total, 0x80, 0x30000)));
+    const uint32_t count = vertex_bytes;
+    physical = memory;
+    title_global<uint32_t>(0x00903c18) = memory;
+    nglCreateVertexBufferPhysical(&title_global<uint32_t>(0x00902938), memory, count, 0);
+    nglCreateVertexBufferPhysical(&title_global<uint32_t>(0x00902944), memory + count, count, 0);
+    title_global<uint32_t>(0x00903c30) = memory + count * 2;
+}
+
+void XB_CDECL nglSelectVideoMode(const uint32_t* modes, uint32_t count) {
+    // The first mode of the list (low byte: 0 NTSC, 1 PAL, 2 480p, 3 720p, 4 1080i) the console
+    // supports (XGetVideoFlags: 1 widescreen, 2 720p, 4 1080i, 8 480p; PAL needs the PAL video
+    // standard) becomes the current mode (0x00902890); the title always renders 640x480/576.
+    const uint32_t flags = title_function<uint32_t XB_STDCALL()>(0x001e7ee1)();  // XGetVideoFlags
+    const auto standard = [] { return title_function<uint32_t XB_STDCALL()>(0x001e75df)(); };  // XGetVideoStandard
+    const bool wide = flags & 1;
+    for (uint32_t i = 0; i < count; ++i) {
+        const char* name = nullptr;
+        uint32_t height = 0x1e0;
+        uint8_t progressive = 0, widescreen = 0, field0a = 1;
+        uint32_t index = 0;
+        switch (modes[i] & 0xff) {
+        case 0:
+            name = wide ? "NTSC (640x480) 16x9" : "NTSC (640x480) 4x3";
+            widescreen = wide;
+            break;
+        case 1:
+            if (standard() == 3 && wide) {
+                name = "PAL (640x576) 16x9";
+                widescreen = 1;
+            } else if (standard() == 3) {
+                name = "PAL (640x576) 4x3";
+            }
+            height = 0x240;
+            index = 1;
+            break;
+        case 2:
+            if (flags & 8) {
+                name = wide ? "480P (640x480) 16x9" : "480P (640x480) 4x3";
+                progressive = 1;
+                widescreen = wide;
+            }
+            index = 2;
+            break;
+        case 3:
+            if (flags & 2) {
+                name = "720P (1280x720) 16x9";
+                progressive = 1;
+                widescreen = 1;
+                field0a = 0;
+            }
+            index = 3;
+            break;
+        case 4:
+            if (flags & 4) {
+                name = "1080I (1920x1080) 16x9";
+                progressive = 1;
+                widescreen = 1;
+                field0a = 0;
+            }
+            index = 4;
+            break;
+        default: break;
+        }
+        if (!name) continue;
+        uint32_t hashed[8];
+        title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+        NglVideoMode mode;
+        nglVideoMode_Init(&mode, 0x280, height, progressive, widescreen, field0a, hashed[0], hashed[1], hashed[2],
+                          hashed[3], hashed[4], hashed[5], hashed[6], hashed[7], index);
+        nglVideoMode_Copy(&title_global<NglVideoMode>(0x00902890), &mode);
+        title_global<uint8_t>(0x0090289b) = 1;
+        return;
+    }
+}
+
+void XB_CDECL nglDumpPrintf(uint32_t file, const char* format, ...) {
+    char text[0x1000];
+    va_list args;
+    va_start(args, format);
+    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    va_end(args);
+    if (!file) return;
+    uint32_t written;
+    using WriteFile = uint32_t XB_STDCALL(uint32_t, const void*, uint32_t, uint32_t*, void*);
+    if (!title_function<WriteFile>(0x001e8017)(file, text, static_cast<uint32_t>(std::strlen(text)), &written, nullptr))
+        title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7b0b)(file);  // CloseHandle
+}
+
+uint8_t XB_CDECL nglWriteTGA(NglTexture* texture, const char* path) {
+    // An 18-byte TGA header (uncompressed true colour, 32 bits), then the rows bottom-up as
+    // nglTextureGetPixel words, through a row buffer in frame memory (or allocated when the
+    // frame memory pointer is unset).
+    uint8_t header[0x12] = {};
+    header[2] = 2;
+    const uint16_t width16 = static_cast<uint16_t>(texture->width);
+    const uint16_t height16 = static_cast<uint16_t>(texture->height);
+    std::memcpy(&header[0xc], &width16, 2);
+    std::memcpy(&header[0xe], &height16, 2);
+    header[0x10] = 0x20;
+    using CreateFile = uint32_t XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    using WriteFile = uint32_t XB_STDCALL(uint32_t, const void*, uint32_t, uint32_t*, void*);
+    const uint32_t file = title_function<CreateFile>(0x001e7d56)(path, 0x40000000, 0, 0, 2, 0x08000080, 0);
+    if (file == 0xffffffff) return 0;
+    uint32_t written;
+    title_function<WriteFile>(0x001e8017)(file, header, 0x12, &written, nullptr);
+    uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
+    auto* row = static_cast<uint32_t*>(alloc_frame(arena, texture->width * 4, 0x10));
+    bool allocated = false;
+    if (!row) {
+        allocated = true;
+        row = static_cast<uint32_t*>(Mem_AlignedAlloc(texture->width * 4, 4, 0));
+        if (!row) return 0;
+    }
+    const uint32_t flags = (texture == nglGetBackBufferTexture() || texture == nglGetFrontBufferTexture()) ? 0xc0 : 0x80;
+    nglTexture_Lock(texture, flags);
+    for (int32_t y = static_cast<int32_t>(texture->height) - 1; y >= 0; --y) {
+        uint32_t* out = row;
+        for (int32_t x = 0; x < static_cast<int32_t>(texture->width); ++x)
+            *out++ = nglTextureGetPixel(texture, static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+        title_function<WriteFile>(0x001e8017)(file, row, texture->width * 4, &written, nullptr);
+    }
+    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7b0b)(file);  // CloseHandle
+    title_function<void XB_CDECL(NglTexture*)>(0x0006a860)(texture);  // nglTexture_Unlock (the argument is pushed)
+    if (allocated) title_function<void XB_CDECL(void*)>(0x000939b0)(row);  // Mem_AlignedFree
+    return 1;
+}
+
+uint8_t XB_CDECL nglSaveTextureTGA(NglTexture* texture, const char* name) {
+    title_global<uint32_t>(0x00903c88) = 0;
+    title_global<uint32_t>(0x00903c8c) = 0;
+    title_global<uint32_t>(0x00903c90) = 0;
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    nglUnbindTextures();
+    title_function<void XB_CDECL()>(0x003e6200)();  // D3DDevice_BlockUntilIdle
+    char path[0x400];
+    using Sprintf = int32_t XB_CDECL(char*, const char*, ...);
+    if (name) {
+        title_function<Sprintf>(0x001ee901)(path, &title_global<char>(0x007be534), name);  // "D:\%s.tga"
+    } else {
+        uint32_t& counter = title_global<uint32_t>(0x008a2ec0);
+        const uint32_t number = counter++;
+        title_function<Sprintf>(0x001ee901)(path, &title_global<char>(0x007be520), number);  // "D:\savetex%4.4d.tga"
+    }
+    return nglWriteTGA(texture, path);
+}
+
+uint8_t XB_CDECL nglSaveScreenshot(const char* name) {
+    NglTexture* front = nglGetFrontBufferTexture();
+    if (name) return nglSaveTextureTGA(front, name);
+    uint32_t& counter = title_global<uint32_t>(0x00902748);
+    const uint32_t number = counter++;
+    char* buffer = &title_global<char>(0x00902708);
+    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(buffer, &title_global<char>(0x007bc90c),
+                                                                           number);  // "screenshot%4.4d"
+    return nglSaveTextureTGA(front, buffer);
 }
 
 }  // namespace game
