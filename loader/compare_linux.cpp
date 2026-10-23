@@ -602,6 +602,13 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
         result = 0;
         return true;
     }
+    case SdkStandIn::SystemTime: {  // (time): 0, as on both sides of every test
+        if (spec.arg_count != 1 || !readable(c, values[0], 8)) return false;
+        auto* time = reinterpret_cast<uint32_t*>(uintptr_t{values[0]});
+        time[0] = time[1] = 0;
+        result = 0;
+        return true;
+    }
     case SdkStandIn::PushBegin:
     case SdkStandIn::PushEnd:
     case SdkStandIn::LevelCount:

@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "cg_ents.h"
+#include "ngl.h"
 #include "qcommon.h"
 #include "script_string.h"
 #include "tr_main.h"
@@ -1431,6 +1432,122 @@ void XB_CDECL SCR_UpdateScreen(uint32_t entry) {
     if (state == 2) title_global<int32_t>(0x0095f4ec) = 0;
 }
 
+// The C frame sits 0x20000 below the original's; `regs` = the entry registers (TitleRegs order).
+PLATFORM_ASM_ENTRY(CL_Frame_entry, "pushl %ebp\n"
+                                   "movl %esp, %ebp\n"
+                                   "subl $0x20000, %esp\n"
+                                   "pushl %edi\n"
+                                   "pushl %esi\n"
+                                   "pushl %edx\n"
+                                   "pushl %ecx\n"
+                                   "pushl %ebx\n"
+                                   "pushl %eax\n"
+                                   "movl %esp, %ecx\n"
+                                   "leal 4(%ebp), %edx\n"
+                                   "pushl %ecx\n"
+                                   "pushl %edx\n" PLATFORM_ASM_CALL(CL_Frame) "movl %ebp, %esp\n"
+                                   "popl %ebp\n"
+                                   "ret")
+
+void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* in) {
+    if (!cvar_integer(0x00947704)) return;  // com_cl_running
+    // push ebp; and esp,-16; sub esp,0x18; push ebx; push esi
+    const uint32_t top = ((entry - 4) & ~uint32_t{15}) - 0x20;
+    TitleRegs regs = *in;
+    title_global<uint32_t>(top + 4) = in->ebx;
+    title_global<uint32_t>(top) = in->esi;
+    int32_t& state = title_global<int32_t>(0x0092bdf0);      // cls.state
+    uint32_t& catchers = title_global<uint32_t>(0x0092bdf4);  // cls.keyCatchers
+    uint32_t& skip_menu = title_global<uint32_t>(0x0092bdf8);
+    int32_t msec = int32_t(in->eax);
+    if (skip_menu) {
+        skip_menu = 0;
+    } else if (state == 0 && !(catchers & 2) && !cvar_integer(0x0093fcf0)) {  // com_sv_running
+        regs.eax = 0;
+        regs.ecx = title_global<uint32_t>(0x0093fcf0);
+        regs.ebx = title_global<uint32_t>(0x0095f4c4);
+        regs.esi = uint32_t(msec);
+        call_at(top, 0x002c8d60, regs);  // S_StopAllSounds (sound system in EBX)
+        catchers = 2;                    // KEYCATCH_UI
+        call_at(top, 0x000c53b0, regs);  // S_ClearVoiceAttenuation
+        Cvar_Set2(&title_global<const char>(0x0082c89c), const_cast<char*>(&title_global<const char>(0x0082e098)),
+                  1);  // g_reloading 0
+    }
+    const int32_t avidemo = cvar_integer(0x009284e0);  // cl_avidemo
+    if (avidemo && msec) {
+        if (state == 2 || cvar_integer(0x00929bf4)) {
+            regs.eax = uint32_t(avidemo);
+            regs.ebx = avidemo > 0 ? 0x00834494 : 0x0083447c;  // "screenshot silent\n" / "screenshotjpeg silent\n"
+            regs.esi = uint32_t(msec);
+            call_at(top, 0x002c6140, regs);  // Cmd_ExecuteString (text in EBX)
+        }
+        const int32_t fps = cvar_integer(0x009284e0);
+        const uint32_t sign = uint32_t(fps >> 31);
+        const int32_t magnitude = int32_t((uint32_t(fps) ^ sign) - sign);
+        const float timescale = field<float>(title_global<uint8_t*>(0x0093fce4), 0x1c);
+        msec = int32_t(title_global<float>(0x0083eb9c) / float(magnitude) * timescale);
+        if (!msec) msec = 1;
+    }
+    title_global<int32_t>(0x0092be9c) = msec;  // cls.realFrametime
+    title_global<int32_t>(0x0092be98) += title_global<int32_t>(0x0092be90);
+    regs.esi = uint32_t(msec);
+    if (state == 2) {
+        bool commands = true;
+        if (cvar_integer(0x0093fcf0) && cvar_integer(0x0093fcd8) == 1) commands = false;
+        if (commands) {
+            call_at(top, 0x002cd450, regs);  // CL_CreateNewCommands
+            if (state != 3 && state != 4) call_at(top, 0x002b37e0, regs);  // CL_WritePacket
+        }
+        if (state == 2) {
+            if (!title_global<int32_t>(0x00960160)) {  // cl.snap.valid
+                call_at(top, 0x002938f0, regs, Args{{1, 0x008351dc}, 2});  // __break
+            }
+            const uint32_t server_time = title_global<uint32_t>(0x0092f094);
+            title_global<uint32_t>(0x009606b0) = server_time;
+            title_global<uint32_t>(0x009606b4) = server_time;
+        }
+    }
+    // The loader's --level hook replaces this call's target (loader/patches.cpp kCallClientFrame).
+    const uint32_t screen = 0x002f27a9 + title_global<uint32_t>(0x002f27a5);
+    regs.eax = uint32_t(state);
+    call_at(top, screen, regs);  // SCR_UpdateScreen
+    const int32_t paused = cvar_integer(0x0093fcd8);  // cl_paused
+    regs.ebx = uint32_t(paused);
+    const float seconds = float(paused ? 0 : msec) * title_global<float>(0x0083eb4c);
+    const uint32_t time = float_bits(seconds);
+    title_global<uint32_t>(top + 0xc) = time;
+    call_at(top, 0x000ca690, regs);  // File_PumpRequests
+    const uint32_t sound = title_global<uint32_t>(0x0095f4c4);
+    call_at(top, 0x002c8c20, regs, Args{{sound}, 1});  // S_StopAllChannels
+    const uint32_t banks = title_global<uint32_t>(0x0095f4c0);
+    call_at(top, 0x002c8f60, regs, Args{{banks}, 1});  // S_CheckWaveBankNotifies
+    if (title_global<uint32_t>(0x0095e608)) {
+        const uint8_t* const player = field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4);
+        const uint32_t origin = top + 0x10;
+        std::memcpy(&title_global<uint8_t>(origin), player + 0x140, 16);
+        TitleRegs at_cell = regs;
+        at_cell.eax = origin;
+        at_cell.edx = origin;
+        const uint32_t cell = title_call_at_regs(top, 0x0023cc80, &at_cell, 2, Args{{origin, 0}, 2}.words);  // CM_CellForPoint
+        const uint32_t stream = title_global<uint32_t>(0x0095f640);
+        const uint32_t view[4] = {stream, cell, origin, 0};
+        title_call_at_regs(top, 0x002914f0, &regs, 4, view);  // Stream_SetViewPosition
+    }
+    regs.esi = time;
+    regs.eax = title_global<uint32_t>(0x0095f638);
+    call_at(top, 0x00292c20, regs);  // Stream_Update
+    regs.eax = title_global<uint32_t>(0x0095f4cc);
+    call_at(top, 0x002c8830, regs, Args{{time}, 1});  // S_UpdateCrossfade
+    regs.eax = title_global<uint32_t>(0x0095f5b4);
+    call_at(top, 0x002a5980, regs, Args{{time}, 1});  // FX_UpdateEffects
+    call_at(top, 0x00298810, regs, Args{{title_global<uint32_t>(0x0095f5c4), time}, 2});  // CL_UpdateRumble
+    regs.eax = title_global<uint32_t>(0x0095f4f8);
+    call_at(top, 0x002ea4f0, regs, Args{{regs.eax, time}, 2});  // S_UpdateAmbientEmitters
+    regs.eax = 0x0097a8c0;
+    call_at(top, 0x0024b140, regs);  // G_EntityList_Compact
+    ++title_global<int32_t>(0x0092be8c);  // cls.framecount
+}
+
 PLATFORM_ASM_ENTRY(CL_TogglePause_entry, "pushl %esi\n" PLATFORM_ASM_CALL(CL_TogglePause) "addl $4, %esp\n"
                                          "ret")
 
@@ -1463,6 +1580,28 @@ void XB_REGS3 XB_CDECL CL_PauseForDialog(uint32_t, uint8_t keep_running, uint8_t
     if (title_global<uint32_t>(0x0095f8f8) && title_global<uint8_t>(0x0095f918)) return;
     Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e058)),
               1);  // cl_paused 1
+}
+
+namespace {
+
+// One subtitle line: yellowish unless its flag word is set (then color 0), unsigned pixel position.
+void draw_subtitle_line(uint32_t text, uint32_t x, uint32_t y, uint32_t flag) {
+    const uint32_t color = title_global<uint16_t>(flag) ? 0 : 0xe0ffff00;
+    nglListAddTextf(title_global<uint8_t*>(0x0095f8e0), platform_x87_unsigned_to_float(title_global<uint32_t>(x)),
+                    platform_x87_unsigned_to_float(title_global<uint32_t>(y)), 0.0f, color, 1.0f, 1.0f,
+                    reinterpret_cast<const char*>(uintptr_t{text}));
+}
+
+}  // namespace
+
+void XB_CDECL Subtitle_Draw() {
+    if (!title_global<uint8_t>(0x008dce68)) return;  // subtitles on
+    const uint32_t first = title_global<uint32_t>(0x0095f474);
+    if (!first) return;
+    if (!(title_global<float>(0x0092708c) >= title_global<float>(0x00926e74))) return;  // comiss; jb (NaN: off)
+    draw_subtitle_line(first, 0x00926e80, 0x00926e2c, 0x00926e78);
+    const uint32_t second = title_global<uint32_t>(0x0095f470);
+    if (second) draw_subtitle_line(second, 0x00926e28, 0x00927088, 0x00926e40);
 }
 
 }  // namespace game

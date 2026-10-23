@@ -577,4 +577,21 @@ void XB_CDECL Bullet_RandomSpread(const uint8_t* fire, float* end, float spread)
     for (int32_t i = 0; i < 3; ++i) end[i] = f(0x18 + 4 * i) * v + end[i];
 }
 
+uint8_t* XB_REGS1 XB_CDECL G_EntityList_Compact(uint8_t* list) {
+    int32_t& count = *reinterpret_cast<int32_t*>(list + 0x2aac);
+    uint8_t** const slots = reinterpret_cast<uint8_t**>(list + 0x2ab0);
+    for (int32_t i = 0; i < count; ++i) {
+        if (slots[i]) continue;
+        if (count) --count;
+        uint8_t* const last = slots[count];
+        if (last) {
+            *reinterpret_cast<int32_t*>(last + 0x228) = i;
+            slots[i] = last;
+        } else {
+            --i;  // look at this slot again
+        }
+    }
+    return list;
+}
+
 }  // namespace game

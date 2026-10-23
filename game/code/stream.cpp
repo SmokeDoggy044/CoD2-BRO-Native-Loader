@@ -2,7 +2,10 @@
 
 #include <cstring>
 
+#include "cg_ents.h"
+#include "lanes.h"
 #include "ngl.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -852,6 +855,346 @@ uint32_t* XB_CDECL Stream_HashFileName(const char* name, uint32_t* out) {
     uint32_t hashed[8];
     title_function<void XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, base);  // HashStr_Init
     for (int i = 0; i < 8; ++i) out[i] = hashed[i];
+    return out;
+}
+
+namespace {
+
+template <typename T>
+T& word_at(const uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(const_cast<uint8_t*>(base) + offset);
+}
+
+uint32_t wrap_index(uint32_t index, uint32_t count) { return index < count ? index : 0; }
+
+uint32_t bits_of(float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+// Zone_SetDistance_r (stream system in ECX, stdcall (zone, distance, 0)).
+void set_zone_distance(uint32_t zone, float distance) {
+    TitleRegs regs{};
+    regs.ecx = title_global<uint32_t>(0x0095f638);
+    const uint32_t args[3] = {zone, bits_of(distance), 0};
+    cg_call_regs(0x0028ca10, &regs, args, 3);
+}
+
+bool connect_paths() {
+    const uint8_t* const cvar = Cvar_Get(&title_global<const char>(0x00833a4c), &title_global<const char>(0x0082e098), 0);
+    return word_at<int32_t>(cvar, 0x20) != 0;  // g_connectpaths
+}
+
+}  // namespace
+
+uint32_t XB_REGS3 XB_CDECL Stream_BoundsContainPoint(const float* point, uint32_t, const float* bounds) {
+    const float* const low = bounds;
+    const float* const high = bounds + 4;
+    if (!(low[0] <= point[0])) return 0;  // CMPLESS, lane 0
+    // CMPLTPS over all four lanes (MXCSR), lanes 1 and 2 tested
+    const bool below[4] = {point[0] < low[0], point[1] < low[1], point[2] < low[2], point[3] < low[3]};
+    platform_keep(below);
+    if (below[1] || below[2]) return 0;
+    if (!(point[0] <= high[0])) return 0;
+    const bool above[4] = {high[0] < point[0], high[1] < point[1], high[2] < point[2], high[3] < point[3]};
+    platform_keep(above);
+    if (above[1] || above[2]) return 0;
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Stream_NearestPoint_entry, "pushl %esi\n"
+                                              "pushl %edx\n" PLATFORM_ASM_CALL(Stream_NearestPoint) "addl $8, %esp\n"
+                                              "ret")
+
+const float* XB_CDECL Stream_NearestPoint(const float* point, const uint8_t* volume) {
+    const uint32_t count = word_at<uint32_t>(volume, 0x24);
+    float best = title_global<float>(0x0082eed0);  // FLT_MAX
+    const float* nearest = nullptr;
+    for (uint32_t i = 0; i < count; ++i) {
+        const float* const candidate =
+            word_at<const float**>(volume, 0x28)[wrap_index(i, word_at<uint32_t>(volume, 0x24))];
+        Lanes d = sub(lanes(candidate), lanes(point));
+        d = mul(d, d);
+        platform_keep(d);
+        const float distance = d.v[0] + d.v[1] + d.v[2];
+        if (best > distance) {
+            best = distance;
+            nearest = candidate;
+        }
+    }
+    return nearest;
+}
+
+PLATFORM_ASM_ENTRY(Stream_PickVolumePoint_entry, "pushl 4(%esp)\n"
+                                                 "pushl %ebx\n" PLATFORM_ASM_CALL(Stream_PickVolumePoint) "addl $8, %esp\n"
+                                                 "ret $4")
+
+const float* XB_CDECL Stream_PickVolumePoint(const float* point, const uint8_t* volumes) {
+    const float* picked = nullptr;
+    for (uint32_t i = 0; i < word_at<uint32_t>(volumes, 0x24); ++i) {
+        const uint8_t* const volume =
+            word_at<const uint8_t**>(volumes, 0x28)[wrap_index(i, word_at<uint32_t>(volumes, 0x24))];
+        if (Stream_BoundsContainPoint(point, 0, reinterpret_cast<const float*>(volume)) & 0xff)
+            picked = Stream_NearestPoint(point, volume);
+    }
+    return picked;
+}
+
+PLATFORM_ASM_ENTRY(Stream_PointInAnyBox_entry, "pushl 4(%esp)\n"
+                                               "pushl %edi\n" PLATFORM_ASM_CALL(Stream_PointInAnyBox) "addl $8, %esp\n"
+                                               "ret $4")
+
+uint8_t XB_CDECL Stream_PointInAnyBox(const uint8_t* set, const float* point) {
+    const uint32_t count = word_at<uint32_t>(set, 4);
+    for (uint32_t i = 0; i < count; ++i) {
+        const auto* const box = reinterpret_cast<const float*>(word_at<const uint8_t*>(set, 8) + wrap_index(i, count) * 32);
+        if (Stream_BoundsContainPoint(point, 0, box) & 0xff) return 1;
+    }
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(Stream_SetZoneDistancesFromMask_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Stream_SetZoneDistancesFromMask) "addl $8, %esp\n"
+                   "ret $0xc")
+
+uint32_t XB_CDECL Stream_SetZoneDistancesFromMask(const uint8_t* selector, const uint32_t* args) {
+    uint32_t listed = 0;
+    for (uint32_t i = 0; i < word_at<uint32_t>(selector, 0x10); ++i) {
+        float distance;
+        if (args[i >> 5] & (1u << (i & 31))) {
+            const auto* const list = reinterpret_cast<const uint8_t*>(uintptr_t{args[2]});
+            distance = word_at<const float*>(list, 4)[wrap_index(listed, word_at<uint32_t>(list, 0))];
+            ++listed;
+        } else {
+            distance = title_global<float>(0x0082eed0);  // FLT_MAX
+        }
+        const uint8_t* const zone =
+            word_at<const uint8_t**>(selector, 0x14)[wrap_index(i, word_at<uint32_t>(selector, 0x10))];
+        const uint32_t target = word_at<uint32_t>(zone, 0x24);
+        if (connect_paths()) distance = title_global<float>(0x0083eb20);  // 1.0
+        set_zone_distance(target, distance);
+    }
+    return word_at<uint32_t>(selector, 0x10);
+}
+
+void XB_STDCALL Stream_UpdateZoneDistances(uint8_t* manager) {
+    TitleRegs reset{};
+    reset.esi = title_global<uint32_t>(0x0095f638);
+    const uint32_t zero = 0;
+    cg_call_regs(0x0028ca90, &reset, &zero, 1);  // Pak_ResetZoneDistances (stream system in ESI)
+    for (int32_t index = word_at<int32_t>(manager, 0x1cc); index != -1;
+         index = word_at<int32_t>(word_at<uint8_t*>(manager, 4 + uint32_t(index) * 4), 0x3c)) {
+        const uint8_t* const selector = word_at<uint8_t*>(manager, 4 + uint32_t(index) * 4);
+        if (const uint8_t* const picked = word_at<uint8_t*>(selector, 0x44)) {
+            const uint32_t args[3] = {word_at<uint32_t>(picked, 0x18), word_at<uint32_t>(picked, 0x1c),
+                                      uint32_t(uintptr_t(picked + 0x20))};
+            Stream_SetZoneDistancesFromMask(selector, args);
+        }
+        for (uint32_t j = 0; j < word_at<uint32_t>(selector, 0x34); ++j) {
+            const uint8_t* const flag =
+                word_at<const uint8_t**>(selector, 0x38)[wrap_index(j, word_at<uint32_t>(selector, 0x34))];
+            if (!word_at<uint32_t>(flag, 0)) continue;
+            const uint32_t args[3] = {word_at<uint32_t>(flag, 0xc), word_at<uint32_t>(flag, 0x10),
+                                      uint32_t(uintptr_t(flag + 0x14))};
+            Stream_SetZoneDistancesFromMask(selector, args);
+            for (uint32_t m = 0; m < word_at<uint32_t>(flag, 0x1c); ++m) {
+                const uint8_t* const link = word_at<const uint8_t*>(flag, 0x20) + wrap_index(m, word_at<uint32_t>(flag, 0x1c)) * 12;
+                const float listed = word_at<float>(link, 8);
+                uint8_t* const zone = word_at<uint8_t*>(link, 4);
+                float value = connect_paths() ? title_global<float>(0x0083eb20) : listed;
+                float& current = word_at<float>(zone, 0x30);
+                if (value > current) continue;
+                if (value > current) value = current;  // MSVC's second COMISS
+                current = value;
+                const float distance = value == title_global<float>(0x0083eb34) ? title_global<float>(0x0082eed0) : value;
+                for (uint32_t n = 0; n < word_at<uint32_t>(zone, 0x1c); ++n)
+                    set_zone_distance(word_at<const uint32_t*>(zone, 0x20)[wrap_index(n, word_at<uint32_t>(zone, 0x1c))],
+                                      distance);
+            }
+        }
+    }
+}
+
+void XB_STDCALL Stream_SetViewPosition(uint8_t* manager, uint32_t cell, const float* origin, uint32_t force) {
+    if (cell == 0xffffffff) return;
+    std::memcpy(manager + 0x1b0, origin, 16);
+    // The original keeps this flag in the low byte of `manager`'s argument slot.
+    bool changed = word_at<uint32_t>(manager, 0x1c8) != word_at<uint32_t>(manager, 0x1d0);
+    const int32_t first = word_at<int32_t>(manager, 0x1cc);
+    word_at<uint32_t>(manager, 0x1c4) = cell;
+    word_at<uint32_t>(manager, 0x1c8) = word_at<uint32_t>(manager, 0x1d0);
+    for (int32_t index = first; index != -1;
+         index = word_at<int32_t>(word_at<uint8_t*>(manager, 4 + uint32_t(index) * 4), 0x3c)) {
+        uint8_t* const selector = word_at<uint8_t*>(manager, 4 + uint32_t(index) * 4);
+        const uint32_t old = word_at<uint32_t>(selector, 0x44);
+        const uint8_t* const volumes =
+            word_at<const uint8_t**>(selector, 0x20)[wrap_index(cell, word_at<uint32_t>(selector, 0x1c))];
+        word_at<const float*>(selector, 0x44) = Stream_PickVolumePoint(origin, volumes);
+        for (uint32_t j = 0; j < word_at<uint32_t>(selector, 0x34); ++j) {
+            uint32_t* const flag = word_at<uint32_t**>(selector, 0x38)[wrap_index(j, word_at<uint32_t>(selector, 0x34))];
+            const uint8_t inside = Stream_PointInAnyBox(reinterpret_cast<const uint8_t*>(flag), origin);
+            const uint8_t was = *flag != 0;
+            *flag = inside;
+            if (inside != was) changed = true;
+        }
+        if (old != word_at<uint32_t>(selector, 0x44)) changed = true;
+    }
+    if (changed || (force & 0xff)) Stream_UpdateZoneDistances(manager);
+}
+
+void XB_REGS3 XB_STDCALL Zone_SetDistance_r(uint32_t, uint32_t, uint32_t system, uint8_t* zone, float distance,
+                                            uint32_t force) {
+    float& current = word_at<float>(zone, 0x30);
+    if (!(force & 0xff) && distance > current) return;
+    if (distance > current) distance = current;
+    current = distance;
+    const float handed = distance == title_global<float>(0x0083eb34) ? title_global<float>(0x0082eed0) : distance;
+    std::memcpy(&force, &handed, 4);  // the original's slot for it
+    for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0x1c); ++i)
+        Zone_SetDistance_r(0, 0, system, word_at<uint8_t**>(zone, 0x20)[wrap_index(i, word_at<uint32_t>(zone, 0x1c))],
+                           handed, 0);
+}
+
+PLATFORM_ASM_ENTRY(Pak_ResetZoneDistances_entry, "pushl 4(%esp)\n"
+                                                 "pushl %esi\n" PLATFORM_ASM_CALL(Pak_ResetZoneDistances) "addl $8, %esp\n"
+                                                 "ret $4")
+
+int32_t XB_CDECL Pak_ResetZoneDistances(const uint8_t* system, uint32_t both) {
+    const uint8_t* const zones = word_at<const uint8_t*>(system, 0x18) + 0x10;  // count, list
+    int32_t i = 0;
+    for (; i < word_at<int32_t>(zones, 0); ++i) {
+        const uint32_t count = word_at<uint32_t>(zones, 0);
+        word_at<float>(word_at<uint8_t**>(zones, 4)[wrap_index(uint32_t(i), count)], 0x30) = title_global<float>(0x0082eed0);
+        if (both & 0xff)
+            word_at<float>(word_at<uint8_t**>(zones, 4)[wrap_index(uint32_t(i), count)], 0x34) =
+                title_global<float>(0x0082eed0);
+    }
+    return i;
+}
+
+void XB_REGS3 XB_STDCALL Zone_Release_r(uint32_t, uint32_t, uint32_t passed, uint8_t* zone) {
+    --word_at<int32_t>(zone, 0x2c);
+    for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0x1c); ++i)
+        Zone_Release_r(0, 0, passed, word_at<uint8_t**>(zone, 0x20)[wrap_index(i, word_at<uint32_t>(zone, 0x1c))]);
+}
+
+void XB_REGS3 XB_STDCALL Zone_AddRef_r(uint32_t, uint32_t, uint32_t passed, uint8_t* zone) {
+    ++word_at<int32_t>(zone, 0x2c);
+    for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0x1c); ++i)
+        Zone_AddRef_r(0, 0, passed, word_at<uint8_t**>(zone, 0x20)[wrap_index(i, word_at<uint32_t>(zone, 0x1c))]);
+}
+
+PLATFORM_ASM_ENTRY(Zone_FindUnloadedChild_entry, "pushl 4(%esp)\n"
+                                                 "pushl %esi\n" PLATFORM_ASM_CALL(Zone_FindUnloadedChild) "addl $8, %esp\n"
+                                                 "ret $4")
+
+uint8_t* XB_CDECL Zone_FindUnloadedChild(const uint8_t* zone, const uint8_t* pak) {
+    const uint32_t count = word_at<uint32_t>(zone, 0x1c);
+    for (uint32_t i = 0; i < count; ++i) {
+        uint8_t* const child = word_at<uint8_t**>(zone, 0x20)[wrap_index(i, count)];
+        const int32_t slot = word_at<int32_t>(child, 0x28);
+        if (slot == -1) return child;
+        const uint8_t* const loaded = word_at<const uint8_t*>(pak, 0x38 + uint32_t(slot) * 4);
+        if (!loaded || word_at<uint32_t>(loaded, 0xdc) == 3) return child;
+    }
+    return nullptr;
+}
+
+PLATFORM_ASM_ENTRY(StreamMem_CountUsed_entry, "pushl %edi\n"
+                                              "pushl %ecx\n" PLATFORM_ASM_CALL(StreamMem_CountUsed) "addl $8, %esp\n"
+                                              "ret")
+
+uint32_t XB_CDECL StreamMem_CountUsed(const uint8_t* memory, const uint32_t* bits) {
+    uint32_t used = 0;
+    for (uint32_t i = 0; i < word_at<uint32_t>(memory, 0x10); ++i) {
+        const uint32_t bit = 1u << (i & 31);
+        const uint32_t word = uint32_t(int32_t(i) >> 5);
+        if ((bits[word] & bit) || (bits[word + 2] & bit)) ++used;
+    }
+    return used;
+}
+
+uint8_t* XB_REGS1 XB_STDCALL Zone_FindByHash(const uint8_t* table, uint32_t hash) {
+    for (int32_t i = 0; i < 0x63; ++i) {
+        const uint8_t* const map = word_at<const uint8_t*>(table, 4 + uint32_t(i) * 4);
+        if (!map) continue;
+        const uint32_t key = hash;
+        const uint32_t* const found = UintMap_Find(reinterpret_cast<const uint32_t*>(map + 8), &key);
+        if (!found) continue;
+        uint8_t* const zone = word_at<uint8_t**>(map, 0x14)[wrap_index(*found, word_at<uint32_t>(map, 0x10))];
+        if (zone) return zone;
+    }
+    return nullptr;
+}
+
+// StreamMem_Alloc keeps a value in XMM3 across the call (the original never writes it).
+PLATFORM_ASM_ENTRY(StreamMem_CountFree_entry, "subl $16, %esp\n"
+                                              "movups %xmm3, (%esp)\n"
+                                              "pushl 20(%esp)\n"
+                                              "pushl %edx\n" PLATFORM_ASM_CALL(StreamMem_CountFree) "addl $8, %esp\n"
+                                              "movups (%esp), %xmm3\n"
+                                              "addl $16, %esp\n"
+                                              "ret $4")
+
+float* XB_CDECL StreamMem_CountFree(const uint32_t* memory, float* out) {
+    float free = 0.0f;
+    bool half = false;
+    for (uint32_t i = 0; i < memory[4]; ++i) {
+        const uint32_t bit = 1u << (i & 31);
+        const uint32_t word = uint32_t(int32_t(i) >> 5);
+        const bool first = (memory[word] & bit) != 0;
+        const bool second = (memory[word + 2] & bit) != 0;
+        if (first && second) {
+            free += title_global<float>(0x0083eb20);  // 1.0
+        } else if (first != second && !half) {
+            half = true;
+            free += title_global<float>(0x0083eb24);  // 0.5
+        }
+    }
+    out[0] = 0.0f;
+    out[1] = free;
+    out[2] = 0.0f;
+    out[3] = 0.0f;
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(StreamMem_GetBlock_entry, "pushl 12(%esp)\n"
+                                             "pushl 12(%esp)\n"
+                                             "pushl 12(%esp)\n"
+                                             "pushl %edi\n" PLATFORM_ASM_CALL(StreamMem_GetBlock) "addl $16, %esp\n"
+                                             "ret $0xc")
+
+uint32_t* XB_CDECL StreamMem_GetBlock(const uint32_t* bits, const uint8_t* memory, uint32_t* out, int32_t n) {
+    const uint32_t count = word_at<uint32_t>(memory, 0x10);
+    int32_t slot = -1;  // the matches counted so far, then the slot found
+    bool found = false;
+    for (uint32_t i = 0; i < count && !found; ++i) {
+        const uint32_t bit = 1u << (i & 31);
+        const uint32_t word = uint32_t(int32_t(i) >> 5);
+        if ((bits[word] & bit) && (bits[word + 2] & bit) && ++slot == n) {
+            slot = int32_t(i);
+            found = true;
+        }
+    }
+    for (uint32_t i = 0; i < count && !found; ++i) {
+        const uint32_t bit = 1u << (i & 31);
+        const uint32_t word = uint32_t(int32_t(i) >> 5);
+        if (((bits[word + 2] & bit) != 0) != ((bits[word] & bit) != 0) && ++slot == n) {
+            slot = int32_t(i);
+            found = true;
+        }
+    }
+    const uint32_t bit = 1u << (uint32_t(slot) & 31);
+    const int32_t word = slot >> 5;
+    const uint32_t first = bits[word] & bit;
+    const uint32_t size = word_at<uint32_t>(memory, 0x14);
+    const uint32_t offset = first ? 0 : size >> 1;
+    out[0] = size * uint32_t(slot) + word_at<uint32_t>(memory, 0x18) + offset;
+    const bool half = ((bits[word + 2] & bit) != 0) != (first != 0);
+    out[1] = size >> (half ? 1 : 0);
     return out;
 }
 

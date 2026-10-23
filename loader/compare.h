@@ -53,6 +53,9 @@ enum class SdkStandIn : uint8_t {
     // title_rdtsc (the RDTSC trampolines' clock, a 64-bit result): EDX:EAX = 0 on both sides
     // (the other recorded calls set only EAX).
     Clock,
+    // KeQuerySystemTime(time): *time = 0 on both sides (GetSystemTimeAsFileTime -> CRT _clock: the file
+    // request and sound bank timers, CL_Frame).
+    SystemTime,
 };
 
 struct SdkCall {
