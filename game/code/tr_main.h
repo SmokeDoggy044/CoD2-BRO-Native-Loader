@@ -559,4 +559,13 @@ extern "C" void R_LodDistanceForRadius_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL R_FindEffectByName(const char* name);
 extern "C" void R_FindEffectByName_entry(void);
 
+// 0x00240f70 (axis in ECX; model, mins, maxs, bone matrices): the hit boxes' corner bounds in axis space.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL R_ModelBoxBounds(const float* axis, const uint8_t* model, float* mins, float* maxs,
+                                                            const float* bone_matrices);
+extern "C" void R_ModelBoxBounds_entry(void);
+
+// 0x00241ff0: the model bone matrices (in place) from each bone's local transform and its
+// parent's matrix (identity for root slots).
+void XB_CDECL R_ModelBoneMatrices(const uint8_t* model, float* matrices);
+
 }  // namespace game

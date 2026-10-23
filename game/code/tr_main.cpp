@@ -3548,4 +3548,88 @@ uint32_t XB_CDECL R_FindEffectByName(const char* name) {
     return Stream_FindEffect(hashed, title_global<uint32_t>(0x0095f630), zone, 0, 0);
 }
 
+namespace {
+
+template <typename T>
+const T& at(const void* base, uint32_t offset) {
+    return *reinterpret_cast<const T*>(static_cast<const uint8_t*>(base) + offset);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(R_ModelBoxBounds_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(R_ModelBoxBounds) "addl $20, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL R_ModelBoxBounds(const float* axis, const uint8_t* model, float* mins, float* maxs,
+                                   const float* bone_matrices) {
+    // The bounds (in `axis` space) of every corner of every hit box of the model (+0x3c, count
+    // +0x38; box mins +0, maxs +0x10, bone +0x28) placed by its bone matrix. False without boxes.
+    if (!at<uint32_t>(model, 0x38)) return 0;
+    for (int k = 0; k < 3; ++k) mins[k] = title_global<float>(0x0082eed0);
+    for (int k = 0; k < 3; ++k) maxs[k] = title_global<float>(0x0083ef2c);
+    for (uint32_t i = 0; i < at<uint32_t>(model, 0x38); ++i) {
+        const uint32_t index = i < at<uint32_t>(model, 0x38) ? i : 0;
+        const float* box = reinterpret_cast<const float*>(static_cast<uintptr_t>(at<uint32_t*>(model, 0x3c)[index]));
+        const float* m = bone_matrices + at<int32_t>(box, 0x28) * 16;
+        for (int corner = 0; corner < 8; ++corner) {
+            const float x = (corner & 1) ? box[0] : box[4];
+            const float y = (corner & 2) ? box[1] : box[5];
+            const float z = (corner & 4) ? box[2] : box[6];
+            const Lanes p = add(add(add(lanes(m + 12), mul(lanes(m), x)), mul(lanes(m + 4), y)), mul(lanes(m + 8), z));
+            platform_keep(p);
+            float v[3];
+            v[0] = (axis[0] * p.v[0] + axis[6] * p.v[2]) + axis[3] * p.v[1];
+            v[1] = (axis[1] * p.v[0] + axis[7] * p.v[2]) + axis[4] * p.v[1];
+            v[2] = (axis[2] * p.v[0] + p.v[2] * axis[8]) + p.v[1] * axis[5];
+            for (int k = 0; k < 3; ++k) {
+                if (mins[k] > v[k]) mins[k] = v[k];
+                if (v[k] > maxs[k]) maxs[k] = v[k];
+            }
+        }
+    }
+    return 1;
+}
+
+void XB_CDECL R_ModelBoneMatrices(const uint8_t* model, float* matrices) {
+    // The model's first LOD (+0x24.. the first set entry; its +8 the bone info) turns the bone
+    // matrices (in place, 4x4 rows) into per-bone model matrices: for bone i with parent slot
+    // b >= 0 (12-byte table +0x14, count +0x10), the 3x4 local transform (+4, 0x30 bytes each,
+    // count +0) times matrix b (packed, sums in the original order); b < 0 gives identity.
+    const uint32_t* lods = reinterpret_cast<const uint32_t*>(model + 0x24);
+    int lod = 0;
+    while (!lods[lod]) ++lod;
+    const uint8_t* info = at<uint8_t*>(reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(lods[lod])), 8);
+    const int32_t count = at<int32_t>(info, 0x10);
+    const float one = title_global<float>(0x0082e140);
+    for (int32_t i = 0; i < count; ++i) {
+        float* out = matrices + i * 16;
+        const uint32_t slot = static_cast<uint32_t>(i) < at<uint32_t>(info, 0x10) ? static_cast<uint32_t>(i) : 0;
+        const int32_t parent = at<int32_t*>(info, 0x14)[slot * 3 + 2];
+        if (parent < 0) {
+            static const float kRows[3][4] = {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}};
+            for (int r = 0; r < 3; ++r) {
+                const Lanes row = mul(lanes(kRows[r]), one);
+                std::memcpy(out + r * 4, row.v, 16);
+            }
+            std::memcpy(out + 12, &title_global<float>(0x0082e290), 16);
+            continue;
+        }
+        const uint32_t bone = static_cast<uint32_t>(i) < at<uint32_t>(info, 0) ? static_cast<uint32_t>(i) : 0;
+        const float* a = reinterpret_cast<const float*>(at<uint8_t*>(info, 4) + bone * 0x30);
+        const float* m = matrices + parent * 16;
+        Lanes rows[3];
+        for (int r = 0; r < 3; ++r)
+            rows[r] = add(add(mul(lanes(m), a[r * 3]), mul(lanes(m + 4), a[r * 3 + 1])), mul(lanes(m + 8), a[r * 3 + 2]));
+        for (int r = 0; r < 3; ++r) std::memcpy(out + r * 4, rows[r].v, 16);
+        const Lanes origin =
+            add(add(add(lanes(m + 12), mul(lanes(m), a[9])), mul(lanes(m + 4), a[10])), mul(lanes(m + 8), a[11]));
+        std::memcpy(out + 12, origin.v, 16);
+    }
+}
+
 }  // namespace game

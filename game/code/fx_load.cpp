@@ -1918,4 +1918,84 @@ void XB_CDECL FxCamera_BillboardAxes(float* forward_out, float* right_out, float
     std::memcpy(up_out, up.v, 16);
 }
 
+uint8_t* XB_THISCALL FxSystem_InitBounds(uint8_t* self) {
+    const float big = title_global<float>(0x007c5000);  // FLT_MAX
+    for (int i = 0; i < 4; ++i) at<float>(self, 0x60 + i * 4) = big;
+    for (int i = 0; i < 4; ++i) at<uint32_t>(self, 0x70 + i * 4) = at<uint32_t>(self, 0x60 + i * 4) ^ 0x80000000u;
+    FxVertexFormat_Init(self + 0x84);
+    return self;
+}
+
+uint8_t* XB_CDECL FxSystems_New(int32_t count, uint32_t alignment) {
+    uint8_t* memory = fx_alloc(static_cast<uint32_t>(count) * 0xd0, alignment);
+    uint8_t* p = memory;
+    for (int32_t i = 0; i < count; ++i, p += 0xd0) {
+        if (p) FxSystem_InitBounds(p);
+    }
+    return memory;
+}
+
+uint8_t* XB_THISCALL FxEmitters_Init(uint8_t* self, int32_t count) {
+    title_global<uint8_t*>(0x00909f60) = self;
+    at<uint32_t>(self, 4) = 0;
+    at<int16_t>(self, 8) = 0;
+    at<int16_t>(self, 0xa) = 0;
+    at<int32_t>(self, 0) = count;
+    apsPtrVector_Reserve(self + 4, count);
+    uint8_t* pool = fx_alloc(0x2c, 4);
+    if (pool) {
+        title_global<uint8_t*>(0x00909f64) = pool;
+        FxPool_Init(pool + 8, 0);
+        at<int32_t>(pool, 4) = count;
+        uint8_t* items = FxSystems_New(count, 0x10);
+        at<uint8_t*>(pool, 0) = items;
+        apsMemoryPool_Init(pool + 8, count, 0xd0, items);
+    }
+    return self;
+}
+
+float* XB_CDECL FxMatrix_RigidInverse(float* out, const float* m) {
+    // Rows: the transposed 3x3 (lane 3 of each repeats row 2's element), then -(T0 x + T1 y + T2 z)
+    // of the translation (all lanes, packed).
+    const Lanes t0 = {{m[0], m[4], m[8], m[8]}};
+    const Lanes t1 = {{m[1], m[5], m[9], m[9]}};
+    const Lanes t2 = {{m[2], m[6], m[10], m[10]}};
+    const Lanes sum = add(add(mul(t0, m[12]), mul(t1, m[13])), mul(t2, m[14]));
+    const Lanes translation = neg(sum);
+    float result[16];
+    std::memcpy(result, t0.v, 16);
+    std::memcpy(result + 4, t1.v, 16);
+    std::memcpy(result + 8, t2.v, 16);
+    std::memcpy(result + 12, translation.v, 16);
+    std::memcpy(out, result, 64);
+    return out;
+}
+
+void XB_CDECL FxAxis_Frame(const float* direction, float* direction_out, float* right_out, float* up_out) {
+    // A frame around a direction: the normalized direction, a right axis perpendicular to it and
+    // to a reference (y, or the rotated direction when |z| > 0.98), and up = right x direction,
+    // both normalized; right scaled by the billboard size 0x00909984. Packed SSE throughout.
+    const Lanes n = normalized(lanes(direction));
+    Lanes reference;
+    if (abs_bits(n.v[2]) > title_global<float>(0x0083f148)) {  // 0.98
+        reference = Lanes{{n.v[1], n.v[2], n.v[0], n.v[0]}};
+    } else {
+        static const float kUp[4] = {0.0f, 1.0f, 0.0f, 0.0f};  // 0x007c6cb0
+        reference = mul(lanes(kUp), title_global<float>(0x007c6c80));
+    }
+    const Lanes shuffled_n = {{n.v[1], n.v[2], n.v[0], n.v[3]}};
+    const Lanes a = mul(shuffled_n, reference);
+    const Lanes b = mul(n, Lanes{{reference.v[1], reference.v[2], reference.v[0], reference.v[3]}});
+    const Lanes c = sub(b, a);
+    const Lanes right = normalized(Lanes{{c.v[1], c.v[2], c.v[0], c.v[3]}});
+    const Lanes a2 = mul(Lanes{{right.v[1], right.v[2], right.v[0], right.v[3]}}, n);
+    const Lanes b2 = mul(right, shuffled_n);
+    const Lanes c2 = sub(b2, a2);
+    const Lanes up = normalized(Lanes{{c2.v[1], c2.v[2], c2.v[0], c2.v[3]}});
+    std::memcpy(direction_out, n.v, 16);
+    const Lanes scaled = mul(right, title_global<float>(0x00909984));
+    std::memcpy(right_out, scaled.v, 16);
+    std::memcpy(up_out, up.v, 16);
+}
+
 }  // namespace game
