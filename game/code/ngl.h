@@ -1291,4 +1291,11 @@ NglHashedName* XB_STDCALL nglEmpty_GetName(NglHashedName* out);
 // +0x34 buffer waited on and both freed, +0x34..+0x3c cleared.
 void XB_CDECL nglMeshSection_FreeBuffers(uint8_t* section);
 
+// 0x0006cb80 / 0x0006cc50 / 0x0006cd30: the debug sphere (0x00902c98) / box (0x00902c90 when
+// `solid`, else 0x00902c94) / pyramid (0x00902c9c) mesh at `matrix`, scaled by the four words at
+// `scale`, lit by `color` (ARGB) as the only light of the current category.
+int32_t XB_CDECL nglDebugDrawSphereMesh(const float* matrix, const uint32_t* scale, uint32_t color);
+int32_t XB_CDECL nglDebugDrawBoxMesh(const float* matrix, const uint32_t* scale, uint32_t color, uint8_t solid);
+int32_t XB_CDECL nglDebugDrawPyramidMesh(const float* matrix, const uint32_t* scale, uint32_t color);
+
 }  // namespace game

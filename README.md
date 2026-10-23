@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 6,238 | 1,119 | 10,074 |
+| Engine and game code (`.text`) | 11,193 | 6,239 | 1,119 | 10,074 |
 | Mission scripts (15 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **9,226** | **1,119** | **15,398** |
+| **Total** | **16,517** | **9,227** | **1,119** | **15,398** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -39,7 +39,7 @@ function of the game.*
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 784 | 496 | 235 | 49 | 4 |
+| Renderer (scenes, materials, shaders, models, effects) | 784 | 496 | 244 | 41 | 3 |
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 694 | 205 | 40 | 447 | 0 |
 | Client game (HUD, view, effects on screen) | 187 | 121 | 40 | 26 | 0 |
 | Engine core (memory, files, settings, commands) | 165 | 4 | 1 | 152 | 0 |

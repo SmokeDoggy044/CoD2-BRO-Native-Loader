@@ -2336,4 +2336,143 @@ uint32_t XB_STDCALL NAL_EntropyQuat_BeginBlock(const uint32_t* context, uint8_t*
     return context[1];
 }
 
+uint32_t XB_STDCALL NAL_EntropyFloat1_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align4(*readers);
+    *dst = align4(*dst);
+    const float* block_scale = reinterpret_cast<const float*>(align4(*stream_b));
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            const float* channel_scale = reinterpret_cast<const float*>(*stream_a);
+            NAL_EntropyReader_DecodeFloats(reinterpret_cast<EntropyReader*>(*readers), reinterpret_cast<float*>(*dst), stride,
+                                           count, *channel_scale * *block_scale);
+            *readers += 0x10;
+            *dst += 4;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyFloat4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align4(*readers);
+    *dst = align4(*dst);
+    const float* block_scale = reinterpret_cast<const float*>(align4(*stream_b));
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            const float* channel_scale = reinterpret_cast<const float*>(*stream_a);
+            float* out = reinterpret_cast<float*>(*dst);
+            EntropyReader* reader = reinterpret_cast<EntropyReader*>(*readers);
+            for (int32_t c = 0; c < 4; ++c)
+                NAL_EntropyReader_DecodeFloats(reader + c, out + c, stride, count, *block_scale * *channel_scale);
+            *readers += 0x40;
+            *dst += 0x10;
+        }
+        *stream_a += 4;
+    }
+    return context[1];
+}
+
+namespace {
+
+// The packed entropy Float3 channels: per component the entropy reader decodes into the float
+// buffer (scale block * ranges[0]), then each (value + ranges[1]) * ranges[2] is clamped to
+// +-kMax and truncated into T at out, `stride` apart. All three components share the ranges.
+template <typename T>
+void decode_packed_float3(uint8_t* readers, uint8_t* out, float* buffer, uint32_t count, int32_t stride,
+                          const float* block_scale, const float* ranges, uint32_t low_global, uint32_t high_global,
+                          T low_value, T high_value) {
+    for (int c = 0; c < 3; ++c) {
+        const float bias = ranges[1];
+        const float factor = ranges[2];
+        NAL_EntropyReader_DecodeFloats(reinterpret_cast<EntropyReader*>(readers) + c, buffer, 4, count,
+                                       *block_scale * ranges[0]);
+        T* dst = reinterpret_cast<T*>(out) + c;
+        const float* in = buffer;
+        for (uint32_t n = count; n; --n) {
+            const float v = (*in + bias) * factor;
+            if (title_global<float>(low_global) > v)
+                *dst = low_value;
+            else if (v > title_global<float>(high_global))
+                *dst = high_value;
+            else
+                *dst = static_cast<T>(static_cast<int32_t>(v));
+            ++in;
+            dst = reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(dst) + stride);
+        }
+    }
+}
+
+// Their DecodeFrames: per active channel the channel decoder on (readers, out, the float buffer,
+// -, count, stride, the unaligned stream A, &block scale, the channel's ranges, stream B); readers
+// +0x30, out + 3 components; stream A moves 12 (three ranges) per channel.
+template <uint32_t Size, typename Decode>
+uint32_t decode_packed_float3_frames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t buffer,
+                                     uint32_t arg5, uint32_t count, int32_t stride, Decode decode) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *readers = align4(*readers);
+    if (Size == 2) *dst = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*dst) + 1) & ~static_cast<uintptr_t>(1));
+    uint8_t* block_scale = align4(*stream_b);
+    *stream_b = block_scale;
+    const uint32_t raw_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_a));
+    *stream_b = block_scale + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            decode(*readers, *dst, buffer, arg5, count, stride, raw_a, reinterpret_cast<const float*>(block_scale),
+                   reinterpret_cast<const float*>(*stream_a), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_b)));
+            *readers += 0x30;
+            *dst += 3 * Size;
+        }
+        *stream_a += 0xc;
+    }
+    return context[1];
+}
+
+}  // namespace
+
+void XB_CDECL NAL_Packed8EntropyFloat3_DecodeChannelFrames(uint8_t* readers, uint8_t* out, float* buffer, uint32_t,
+                                                           uint32_t count, int32_t stride, uint32_t,
+                                                           const float* block_scale, const float* ranges, uint32_t) {
+    decode_packed_float3<int8_t>(readers, out, buffer, count, stride, block_scale, ranges, 0x0083ed84, 0x0083ed88,
+                                 static_cast<int8_t>(0x81), 0x7f);
+}
+
+void XB_CDECL NAL_Packed16EntropyFloat3_DecodeChannelFrames(uint8_t* readers, uint8_t* out, float* buffer, uint32_t,
+                                                            uint32_t count, int32_t stride, uint32_t,
+                                                            const float* block_scale, const float* ranges, uint32_t) {
+    decode_packed_float3<int16_t>(readers, out, buffer, count, stride, block_scale, ranges, 0x007c240c, 0x0083f258,
+                                  static_cast<int16_t>(0x8001), 0x7fff);
+}
+
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                          uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride) {
+    return decode_packed_float3_frames<1>(context, dst, readers, buffer, arg5, count, stride,
+        [](uint8_t* r, uint8_t* o, uint32_t b, uint32_t a5, uint32_t n, int32_t s, uint32_t raw, const float* bs,
+           const float* ranges, uint32_t sb) {
+            NAL_Packed8EntropyFloat3_DecodeChannelFrames(r, o, reinterpret_cast<float*>(static_cast<uintptr_t>(b)), a5, n, s,
+                                                        raw, bs, ranges, sb);
+        });
+}
+
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat3_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                           uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride) {
+    return decode_packed_float3_frames<2>(context, dst, readers, buffer, arg5, count, stride,
+        [](uint8_t* r, uint8_t* o, uint32_t b, uint32_t a5, uint32_t n, int32_t s, uint32_t raw, const float* bs,
+           const float* ranges, uint32_t sb) {
+            NAL_Packed16EntropyFloat3_DecodeChannelFrames(r, o, reinterpret_cast<float*>(static_cast<uintptr_t>(b)), a5, n,
+                                                         s, raw, bs, ranges, sb);
+        });
+}
+
 }  // namespace game

@@ -5457,4 +5457,45 @@ void XB_CDECL nglMeshSection_FreeBuffers(uint8_t* section) {
     buffers[2] = 0;
 }
 
+namespace {
+
+// The debug meshes' draw: a one-entry light set in frame memory whose slot for the current
+// category (0x00902908) is the colour as a float4 (frame memory; null when that allocation
+// lands at 0), and an instance block {2 = scaled, ..., +0x10 the scale} on the stack (the
+// words the original leaves unset are zero in tests).
+int32_t debug_draw_mesh(uint8_t* mesh, const float* matrix, const uint32_t* scale, uint32_t color) {
+    uintptr_t& arena = title_global<uintptr_t>(0x009025a8);
+    auto* lights = static_cast<uint32_t*>(alloc_frame(arena, title_global<uint32_t>(0x00902904) * 4 + 8, 8));
+    lights[0] = 0;
+    lights[1] = 0;
+    auto* vec = static_cast<float*>(alloc_frame(arena, 0x10, 0x10));
+    uint32_t vec_word = 0;
+    if (vec) {
+        nglColorToVec4(vec, color);
+        vec_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(vec));
+    }
+    const uint32_t category = title_global<uint32_t>(0x00902908);
+    lights[0] |= 1u << (category & 31);
+    lights[category + 2] = vec_word;
+    alignas(16) uint32_t block[12] = {};
+    std::memcpy(&block[4], scale, 16);
+    block[0] = 2;
+    const uint32_t light_ref = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(lights));
+    return nglListAddMesh(mesh, matrix, block, &light_ref);
+}
+
+}  // namespace
+
+int32_t XB_CDECL nglDebugDrawSphereMesh(const float* matrix, const uint32_t* scale, uint32_t color) {
+    return debug_draw_mesh(title_global<uint8_t*>(0x00902c98), matrix, scale, color);
+}
+
+int32_t XB_CDECL nglDebugDrawBoxMesh(const float* matrix, const uint32_t* scale, uint32_t color, uint8_t solid) {
+    return debug_draw_mesh(title_global<uint8_t*>(solid ? 0x00902c90 : 0x00902c94), matrix, scale, color);
+}
+
+int32_t XB_CDECL nglDebugDrawPyramidMesh(const float* matrix, const uint32_t* scale, uint32_t color) {
+    return debug_draw_mesh(title_global<uint8_t*>(0x00902c9c), matrix, scale, color);
+}
+
 }  // namespace game
