@@ -155,4 +155,15 @@ uint8_t* XB_CDECL multi_wait(uint8_t* entity);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Entity_YawToForward(uint8_t* const* entity, float* out);
 extern "C" void Entity_YawToForward_entry(void);
 
+// 0x00248270 (trigger_hurt use): toggles the hurt state +0x338 (0 <-> 3); with a wait (+0x38c) the next think at
+// level time + 50 (+0x328, think 0xe at +0x32c) and the next hurt at wait * 1000 + level time (+0x384). Returns the
+// new state.
+uint32_t XB_CDECL hurt_use(uint8_t* self);
+// 0x002488d0 (trigger_use use): once the level time passes +0x384, the next use at +0x38c + time and, unless the
+// activator has a client (+0x23c), toggles flag bit 0 of +0x2a0.
+void XB_CDECL Use_trigger_use(uint8_t* self, const uint8_t* other);
+// 0x00249c00 (token in EAX): Q3's G_AddSpawnVarToken - copies the token into the spawn var buffer (0x00985628, used
+// 0x00985624, G_Error past 0x800) and returns the copy.
+char* XB_REGS1 XB_CDECL G_AddSpawnVarToken(const char* token);
+
 }  // namespace game

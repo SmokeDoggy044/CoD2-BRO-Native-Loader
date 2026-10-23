@@ -40,7 +40,7 @@ function of the game.*
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 968 | 663 | 262 | 41 | 1 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,076 | 311 | 141 | 622 | 0 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,076 | 311 | 144 | 619 | 0 |
 | Client game (HUD, view, effects on screen) | 213 | 127 | 41 | 45 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 575 | 168 | 72 | 324 | 0 |
 | Client and menus | 236 | 56 | 32 | 148 | 0 |

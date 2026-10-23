@@ -7634,7 +7634,7 @@ address,name,section,module,state,tested,matched
 00200e20,Path_CrossesBadPlace,.text,game,untested,0,0
 00200e90,Path_TrimAtGoal,.text,game,named,0,0
 00201280,Actor_DefaultTouch,.text,game,settled,4458,4458
-00201300,Actor_Exposed_Finish,.text,game,matched,49,49
+00201300,Actor_Exposed_Finish,.text,game,matched,86,86
 00201380,Actor_Exposed_StartReacquire,.text,game,settled,100,100
 00201430,Actor_Cover_NodeClaimRevoked,.text,game,untested,0,0
 002014a0,Actor_Cover_Pain,.text,game,settled,103,103
@@ -8200,7 +8200,7 @@ address,name,section,module,state,tested,matched
 00247f70,FUN_00247f70,.text,unassigned,unnamed,0,0
 00248080,FUN_00248080,.text,unassigned,unnamed,0,0
 002481d0,FUN_002481d0,.text,unassigned,unnamed,0,0
-00248270,hurt_use,.text,game,named,0,0
+00248270,hurt_use,.text,game,untested,0,0
 002482e0,multi_wait,.text,game,matched,56,56
 002482f0,G_TriggerContentsFromSpawnflags,.text,game,settled,119,119
 00248460,FUN_00248460,.text,unassigned,unnamed,0,0
@@ -8208,7 +8208,7 @@ address,name,section,module,state,tested,matched
 00248620,FUN_00248620,.text,unassigned,unnamed,0,0
 002487d0,Vehicle_FindDefIndex,.text,game,settled,134,134
 00248850,FUN_00248850,.text,unassigned,unnamed,0,0
-002488d0,Use_trigger_use,.text,game,named,0,0
+002488d0,Use_trigger_use,.text,game,untested,0,0
 002489f0,SP_sound_blend,.text,game,untested,0,0
 00248a30,FUN_00248a30,.text,unassigned,unnamed,0,0
 00248af0,G_Error,.text,game,untested,0,0
@@ -8226,7 +8226,7 @@ address,name,section,module,state,tested,matched
 00249a40,multi_trigger,.text,game,named,0,0
 00249ae0,FUN_00249ae0,.text,unassigned,unnamed,0,0
 00249b90,FUN_00249b90,.text,unassigned,unnamed,0,0
-00249c00,G_AddSpawnVarToken,.text,game,named,0,0
+00249c00,G_AddSpawnVarToken,.text,game,untested,0,0
 00249cd0,G_SpawnVector,.text,game,named,0,0
 00249d40,G_SpawnInt,.text,game,settled,113,113
 00249da0,G_SpawnFloat,.text,game,settled,101,101

@@ -682,4 +682,36 @@ void XB_CDECL Entity_YawToForward(uint8_t* const* entity, float* out) {
     out[2] = 0.0f;
 }
 
+uint32_t XB_CDECL hurt_use(uint8_t* self) {
+    uint32_t& state = *reinterpret_cast<uint32_t*>(self + 0x338);
+    state = state ? 0 : 3;
+    const float wait = *reinterpret_cast<const float*>(self + 0x38c);
+    if (!(wait == title_global<float>(0x0083eafc))) {
+        const int32_t time = title_global<int32_t>(0x0098540c);  // level time
+        *reinterpret_cast<int32_t*>(self + 0x328) = time + 50;
+        *reinterpret_cast<uint32_t*>(self + 0x32c) = 0xe;
+        *reinterpret_cast<float*>(self + 0x384) = wait * title_global<float>(0x0083eb9c) + float(time);
+    }
+    return state;
+}
+
+void XB_CDECL Use_trigger_use(uint8_t* self, const uint8_t* other) {
+    const float time = float(title_global<int32_t>(0x0098540c));
+    float& next = *reinterpret_cast<float*>(self + 0x384);
+    if (!(time > next)) return;
+    next = *reinterpret_cast<const float*>(self + 0x38c) + time;
+    if (*reinterpret_cast<const uint32_t*>(other + 0x23c)) return;
+    *reinterpret_cast<uint32_t*>(self + 0x2a0) ^= 1;
+}
+
+char* XB_REGS1 XB_CDECL G_AddSpawnVarToken(const char* token) {
+    const uint32_t length = uint32_t(std::strlen(token));
+    if (int32_t(title_global<uint32_t>(0x00985624) + length + 1) > 0x800)
+        title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x00839d74));  // G_Error
+    char* const copy = &title_global<char>(0x00985628 + title_global<uint32_t>(0x00985624));
+    std::memcpy(copy, token, length + 1);
+    title_global<uint32_t>(0x00985624) += length + 1;
+    return copy;
+}
+
 }  // namespace game
