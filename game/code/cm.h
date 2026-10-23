@@ -88,4 +88,21 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CM_TransformedPointContents(const f
                                                                        const uint32_t* model, const float* point);
 extern "C" void CM_TransformedPointContents_entry(void);
 
+// 0x002ba8e0 (out in EAX, rows in ECX; unnamed in Ghidra): the transpose of a 3x3 held in 16-byte rows
+// (out rows 16 bytes apart, w words untouched).
+void XB_REGS3 XB_CDECL Mat34_Transpose3(float* out, uint32_t unused, const float* rows);
+// 0x002c7220 (vector in EAX, in place and returned; rows in ECX; unnamed in Ghidra): v = {row0.v, row1.v, row2.v} with
+// packed products (every lane, the input's w included).
+float* XB_REGS3 XB_CDECL Mat34_RotateVector(float* v, uint32_t unused, const float* rows);
+
+// Trace work (ECX in the trace helpers): +0 start, +0x20 / +0x30 bounds (16-byte rows), +0x60 the eight box
+// corner offsets (by sign of x/y/z), +0x120 fraction, +0x128 contents, +0x13c startsolid, +0x13d allsolid,
+// +0x140 capsule axis offset, +0x160 capsule flag, +0x164 capsule radius.
+// 0x002cb1a0 (trace work in ECX, kept; brush on the stack; unnamed in Ghidra): Q3's CM_TestBoxInBrush - the
+// brush bounds (+0x10 center, +0x20 half size) against the trace bounds, then each side plane against the
+// nearest box corner (or the capsule's nearer end + radius); inside all: startsolid/allsolid, fraction 0,
+// the brush contents (+8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TestBoxInBrush(uint8_t* tw, const uint8_t* brush);
+extern "C" void CM_TestBoxInBrush_entry(void);
+
 }  // namespace game

@@ -422,4 +422,74 @@ uint32_t XB_CDECL CM_TransformedPointContents(const float* origin, const float* 
     return CM_PointContents(local, 0, model);
 }
 
+void XB_REGS3 XB_CDECL Mat34_Transpose3(float* out, uint32_t, const float* rows) {
+    for (int32_t i = 0; i < 3; ++i) {
+        std::memcpy(&out[i * 4 + 0], &rows[i], 4);
+        std::memcpy(&out[i * 4 + 1], &rows[4 + i], 4);
+        std::memcpy(&out[i * 4 + 2], &rows[8 + i], 4);
+    }
+}
+
+float* XB_REGS3 XB_CDECL Mat34_RotateVector(float* v, uint32_t, const float* rows) {
+    const Lanes in = lanes(v);
+    for (int32_t i = 0; i < 3; ++i) {
+        const Lanes product = mul(lanes(rows + i * 4), in);
+        platform_keep(product);
+        v[i] = (product.v[0] + product.v[1]) + product.v[2];
+    }
+    return v;  // EAX is never written
+}
+
+namespace {
+
+float sum_xyz(const Lanes& product) {
+    platform_keep(product);
+    return (product.v[0] + product.v[1]) + product.v[2];
+}
+
+const float* tw_row(const uint8_t* tw, uint32_t offset) { return reinterpret_cast<const float*>(tw + offset); }
+
+}  // namespace
+
+// The original never touches ECX; its title callers read the trace work from ECX after the call.
+PLATFORM_ASM_ENTRY(CM_TestBoxInBrush_entry,
+                   "pushl %ecx\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(CM_TestBoxInBrush) "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+void XB_CDECL CM_TestBoxInBrush(uint8_t* tw, const uint8_t* brush) {
+    const Lanes c = lanes(reinterpret_cast<const float*>(brush + 0x10));
+    const Lanes h = lanes(reinterpret_cast<const float*>(brush + 0x20));
+    if (!inside_xyz(sub(sub(c, h), lanes(tw_row(tw, 0x30))), sub(lanes(tw_row(tw, 0x20)), add(c, h)))) return;
+    const uint32_t sides = *reinterpret_cast<const uint32_t*>(brush + 0x30);
+    const float* side = *reinterpret_cast<const float* const*>(brush + 0x34);
+    if (*reinterpret_cast<const uint32_t*>(tw + 0x160)) {
+        const Lanes offset = lanes(tw_row(tw, 0x140));
+        for (uint32_t i = 0; i < sides; ++i, side += 4) {
+            const Lanes n = lanes(side);
+            const float limit = side[3] + *reinterpret_cast<const float*>(tw + 0x164);
+            const Lanes start = lanes(tw_row(tw, 0));
+            const Lanes v = sum_xyz(mul(n, offset)) > 0.0f ? sub(start, offset) : add(start, offset);
+            if (sum_xyz(mul(v, n)) - limit > 0.0f) return;
+        }
+    } else {
+        const Lanes start = lanes(tw_row(tw, 0));
+        for (uint32_t i = 0; i < sides; ++i, side += 4) {
+            int32_t corner = 0;
+            if (0.0f > side[0]) corner = 1;
+            if (0.0f > side[1]) corner |= 2;
+            if (0.0f > side[2]) corner |= 4;
+            const Lanes n = lanes(side);
+            const float dist = side[3] - sum_xyz(mul(lanes(tw_row(tw, 0x60 + corner * 0x10)), n));
+            if (sum_xyz(mul(start, n)) - dist > 0.0f) return;
+        }
+    }
+    tw[0x13c] = 1;
+    tw[0x13d] = 1;
+    *reinterpret_cast<float*>(tw + 0x120) = 0.0f;
+    *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(brush + 8);
+}
+
 }  // namespace game

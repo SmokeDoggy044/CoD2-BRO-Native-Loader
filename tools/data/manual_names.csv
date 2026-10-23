@@ -11616,3 +11616,6 @@ address,name,kind,confidence,evidence
 0009eb90,FxOp5b_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009ece0,FxOpGrid_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009eed0,FxOp53_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
+002ba8e0,Mat34_Transpose3,function,high,"copies the 3x3 of a 16-byte-row matrix transposed (CM_TransformedBoxTrace)"
+002c7220,Mat34_RotateVector,function,high,"in-place v = rows . v with packed dot products (CM trace transforms)"
+002cb1a0,CM_TestBoxInBrush,function,high,"Q3 CM_TestBoxInBrush: bounds + side planes vs nearest corner / capsule; sets startsolid/allsolid/fraction 0/contents"
