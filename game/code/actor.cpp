@@ -1364,4 +1364,269 @@ uint8_t* XB_REGS2 XB_CDECL Actor_PopBlockingStates(uint8_t* actor, uint32_t stat
     return actor;  // EAX stays the actor
 }
 
+// The state callbacks run where the original's calls put them (four pushes) with its registers;
+// the C frame sits below a gap.
+PLATFORM_ASM_ENTRY(Actor_ApplyStateTransitions_entry,
+                   "movl %esp, %ecx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ApplyStateTransitions) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_ApplyStateTransitions(uint32_t entry, uint8_t* actor, uint32_t edi) {
+    const uint32_t top = entry - 0x10;  // push ebp, esi, ebx, edi
+    const uint32_t self = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(actor));
+    // Slot `slot` of a state's nine callbacks (0 Start, 1 Finish, 2 Suspend, 3 Resume).
+    const auto callback = [](uint32_t state, uint32_t slot) { return title_global<uint32_t>(0x00830c28 + (state * 9 + slot) * 4); };
+    const auto state_at = [actor](int32_t depth) { return field<uint32_t>(actor, 8 + depth * 4); };
+    for (int32_t i = 0; i < field<int32_t>(actor, 0xa0); ++i) {
+        const uint32_t queued = self + 0x3c + 8 * i;  // EBX: the queued state
+        const uint32_t kind = field<uint32_t>(actor, 0x38 + 8 * i);
+        int32_t& depth = field<int32_t>(actor, 0x20);
+        uint32_t next;
+        uint32_t eax;
+        uint32_t ecx = self;
+        if (kind == 1 || kind == 2) {
+            // Set: finish the top state; push: suspend it. Then start the queued state.
+            const uint32_t current = state_at(depth);
+            const TitleRegs regs = {current * 9, queued, self, field<uint32_t>(actor, 0x3c + 8 * i), self, edi};
+            eax = title_call_at_regs(top, callback(current, kind), &regs, 0, nullptr);
+            if (kind == 2) ++depth;
+            next = field<uint32_t>(actor, 0x3c + 8 * i);
+            ecx = next;
+        } else if (kind == 3) {
+            // Pop: finish the top state, resume the one below; a state Resume returns replaces it.
+            const uint32_t current = state_at(depth);
+            edi = current * 9;
+            const TitleRegs finish = {static_cast<uint32_t>(depth), queued, self, state_at(depth - 1), self, edi};
+            title_call_at_regs(top, callback(current, 1), &finish, 0, nullptr);
+            --depth;
+            const uint32_t below = state_at(depth);
+            const TitleRegs resume = {below * 9, queued, self, state_at(depth + 1), self, edi};
+            edi = title_call_at_regs(top, callback(below, 3), &resume, 0, nullptr);
+            if (!edi) continue;
+            const uint32_t now = state_at(depth);
+            const TitleRegs replace = {now * 9, queued, self, edi, self, edi};
+            eax = title_call_at_regs(top, callback(now, 1), &replace, 0, nullptr);
+            next = edi;
+        } else {
+            continue;
+        }
+        const TitleRegs start = {eax, queued, ecx, 0, self, edi};
+        title_call_at_regs(top, 0x001fc020, &start, 1, &next);  // Actor_StartState (ESI = actor)
+    }
+    field<uint32_t>(actor, 0xa0) = 0;
+    field<int32_t>(actor, 0xbc) = field<int32_t>(actor, 0x20);
+    for (int32_t c = 0; c <= field<int32_t>(actor, 0x20); ++c) field<uint32_t>(actor, 0xa4 + c * 4) = state_at(c);
+}
+
+PLATFORM_ASM_ENTRY(Actor_RotateOrient_entry,
+                   "subl $8, %esp\n"
+                   "movss %xmm5, 4(%esp)\n"
+                   "movss %xmm4, (%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_RotateOrient) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_RotateOrient(uint8_t* actor, float yaw, float pitch) {
+    const float to_short = title_global<float>(0x0083ebd8), to_angle = title_global<float>(0x0083ebd4);
+    // An angle turned by `delta`, through a 16-bit angle.
+    const auto turn = [to_short, to_angle](float angle, float delta) {
+        return static_cast<float>(static_cast<int32_t>((angle + delta) * to_short) & 0xffff) * to_angle;
+    };
+    static const uint32_t kPairs[] = {0x130, 0x144};
+    for (const uint32_t base : kPairs) {
+        const float new_yaw = turn(field<float>(actor, base + 8), yaw);
+        const float new_pitch = turn(field<float>(actor, base), pitch);
+        field<float>(actor, base + 4) = new_yaw;
+        field<float>(actor, base + 8) = new_yaw;
+        field<float>(actor, base) = new_pitch;
+    }
+    uint8_t* ent = field<uint8_t*>(actor, 0);
+    field<float>(ent, 0x150) = 0.0f;
+    field<float>(ent, 0x154) = turn(field<float>(ent, 0x154), yaw);
+    field<float>(ent, 0x158) = 0.0f;
+    Actor_SetDesiredAngles(actor, field<float>(actor, 0x100) + pitch, field<float>(actor, 0x104) + yaw);
+}
+
+PLATFORM_ASM_ENTRY(Actor_AdvanceMoveHistory_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Actor_AdvanceMoveHistory) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_AdvanceMoveHistory(uint8_t* actor) {
+    // The ten 2D moves (+0x1398) from the oldest (after the head +0x1394) to the newest are scaled
+    // by 1/2, 2/3, 3/4, ...; the head moves on.
+    const int32_t head = field<int32_t>(actor, 0x1394);
+    const float one = title_global<float>(0x0083eb20);
+    float n = one;
+    const auto scale = [actor, one, &n](int32_t k) {
+        const float previous = n;
+        n = n + one;
+        const float f = previous / n;
+        field<float>(actor, 0x1398 + k * 8) = field<float>(actor, 0x1398 + k * 8) * f;
+        field<float>(actor, 0x139c + k * 8) = field<float>(actor, 0x139c + k * 8) * f;
+    };
+    for (int32_t k = head + 1; k < 10; ++k) scale(k);
+    for (int32_t k = 0; k < head; ++k) scale(k);
+    field<int32_t>(actor, 0x1394) = (head + 1) % 10;
+}
+
+PLATFORM_ASM_ENTRY(Path_IsPointNearPath_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm4, (%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Path_IsPointNearPath) "addl $16, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Path_IsPointNearPath(const uint8_t* path, const float* origin, const float* point, float radius_sq) {
+    // Near a segment (start, unit direction, length) when the perpendicular distance is below the
+    // radius and the point lies along it, or near one of its ends.
+    const auto near_segment = [radius_sq](float dx, float dy, float dir_x, float dir_y, float length) {
+        const float cross = dir_x * dy - dir_y * dx;
+        if (!(radius_sq > cross * cross)) return false;
+        const float along = dir_y * dy + dir_x * dx;
+        if (0.0f > along) return radius_sq > dy * dy + dx * dx;
+        if (length >= along) return true;
+        const float ex = dir_x * length + dx;
+        const float ey = dir_y * length + dy;
+        return radius_sq > ey * ey + ex * ex;
+    };
+    const float dir_x = field<float>(path, 0x39c), dir_y = field<float>(path, 0x3a0);
+    const float lookahead = field<float>(path, 0x3b0);
+    // The lookahead segment, measured back from its end.
+    {
+        const float ax = dir_x * lookahead + origin[0];
+        const float ay = dir_y * lookahead + origin[1];
+        const float dx = point[0] - ax, dy = point[1] - ay;
+        const float cross = dir_x * dy - dir_y * dx;
+        if (radius_sq > cross * cross) {
+            const float along = dir_y * dy + dir_x * dx;
+            if (0.0f > along) {
+                if (radius_sq > dy * dy + dx * dx) return 1;
+            } else {
+                if (lookahead >= along) return 1;
+                const float ox = origin[0] - point[0], oy = origin[1] - point[1];
+                if (radius_sq > oy * oy + ox * ox) return 1;
+            }
+        }
+    }
+    const int32_t current = field<int16_t>(path, 0x388);
+    const float remaining = field<float>(path, 0x3b8);
+    if (remaining != 0.0f) {
+        // The current segment, its remaining length from its start point.
+        const uint8_t* r = path + current * 0x1c;
+        const float dx = point[0] - field<float>(r, 0), dy = point[1] - field<float>(r, 4);
+        if (near_segment(dx, dy, field<float>(r, 0xc), field<float>(r, 0x10), remaining)) return 1;
+    }
+    for (int32_t k = current - 1; k >= 0; --k) {
+        const uint8_t* r = path + k * 0x1c;
+        const float dx = point[0] - field<float>(r, 0), dy = point[1] - field<float>(r, 4);
+        const float r_x = field<float>(r, 0xc), r_y = field<float>(r, 0x10);
+        const float cross = r_x * dy - dx * r_y;
+        if (cross * cross >= radius_sq) continue;
+        const float along = r_x * dx + dy * r_y;
+        if (0.0f > along) {
+            if (radius_sq > dy * dy + dx * dx) return 1;
+            continue;
+        }
+        const float length = field<float>(r, 0x14);
+        if (length >= along) return 1;
+        const float ex = r_x * length + dx;
+        const float ey = length * r_y + dy;
+        if (radius_sq > ey * ey + ex * ex) return 1;
+    }
+    return 0;
+}
+
+void XB_REGS3 XB_CDECL Actor_Noncombat_Finish(uint32_t, uint32_t, uint8_t* actor) {
+    Sentient_SetClaimedNode(field<uint8_t*>(actor, 4), 0);
+}
+
+void XB_REGS3 XB_CDECL Actor_Cover_Finish(uint32_t, uint32_t next, uint8_t* actor) {
+    field<uint8_t>(actor, 0x1364) = 0;
+    field<int32_t>(actor, 0x1368) = level_time();
+    if (next != 9) Sentient_SetClaimedNode(field<uint8_t*>(actor, 4), 0);
+}
+
+uint32_t XB_REGS3 XB_CDECL Actor_Cover_NodeClaimRevoked(uint32_t, uint32_t, uint8_t* actor) {
+    Sentient_SetClaimedNode(field<uint8_t*>(actor, 4), 0);
+    uint32_t& top = field<uint32_t>(actor, 0xa4 + field<int32_t>(actor, 0xbc) * 4);
+    if (top == 1) {
+        queue_transition(actor, 1, 1);  // set state 1 (and merge)
+        field<uint32_t>(actor, 0xa4 + field<int32_t>(actor, 0xbc) * 4) = 1;
+    }
+    return 1;
+}
+
+uint32_t XB_REGS2 XB_CDECL Actor_IsAtClaimedNode(uint32_t, const uint8_t* actor) {
+    if (field<uint32_t>(actor, 0x140)) return 1;
+    const uint8_t* node = path_node(field<uint16_t>(field<const uint8_t*>(actor, 4), 0x48));
+    if (!node) return 0;
+    const uint8_t* ent = field<const uint8_t*>(actor, 0);
+    const float dz = field<float>(node, 0x4c) - field<float>(ent, 0x148);
+    if (!(title_global<float>(0x0083eb6c) > dz * dz)) return 0;
+    const float dy = field<float>(ent, 0x144) - field<float>(node, 0x48);
+    const float dx = field<float>(ent, 0x140) - field<float>(node, 0x44);
+    return title_global<float>(0x0083100c) > dy * dy + dx * dx ? 1 : 0;
+}
+
+PLATFORM_ASM_ENTRY(Actor_GrenadeTargetClear_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Actor_GrenadeTargetClear) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Actor_GrenadeTargetClear(uint32_t weapon, const float* target, const uint8_t* actor) {
+    const uint8_t* def = title_global<uint8_t* const*>(0x0095f4d8)[weapon];  // bg_weaponDefs
+    const float limit = static_cast<float>(field<int32_t>(def, 0x724)) * title_global<float>(0x00830f60);
+    // Every sentient not on the team the actor's team maps to (0 -> 0, 1 -> 2, 2 -> 1, 3/4 -> 0).
+    static const int32_t kTeamBit[] = {0, 2, 1, 0, 0};
+    const uint32_t team = field<uint32_t>(field<const uint8_t*>(actor, 4), 4);
+    const uint32_t mask = ~(1u << kTeamBit[team]);
+    for (uint8_t* sentient = Sentient_FirstOfTeams(mask); sentient; sentient = Sentient_NextOfTeams(sentient, mask)) {
+        const uint8_t* ent = field<const uint8_t*>(sentient, 0);
+        const float dx = target[0] - field<float>(ent, 0x140);
+        const float dy = target[1] - field<float>(ent, 0x144);
+        const float dz = target[2] - field<float>(ent, 0x148);
+        if (limit >= (dz * dz + dy * dy) + dx * dx) return 0;
+    }
+    return 1;
+}
+
+int32_t XB_CDECL Actor_MainCharacterPriority(const uint8_t* ent) {
+    if (!ent) return 0;
+    int32_t priority = 0;
+    const uint8_t* actor = field<const uint8_t*>(ent, 0x240);
+    if (actor) {
+        const char* script_name = field<const char*>(actor, 0xec);
+        if (script_name && script_name[6]) {
+            // The name after the first ' ' (0x0082d6e4) against the main characters' names.
+            const char* name = script_name + 6;
+            using StrStr = const char* XB_CDECL(const char*, const char*);
+            using StrICmp = int32_t XB_CDECL(const char*, const char*);
+            if (const char* sep = title_function<StrStr>(0x001efb10)(name, &title_global<const char>(0x0082d6e4))) name = sep + 1;
+            for (const char* const* main = &title_global<const char* const>(0x008db468); *main; ++main) {
+                if (title_function<StrICmp>(0x001f1443)(*main, name) == 0) {
+                    priority = 5000;
+                    break;
+                }
+            }
+        }
+        if (field<uint8_t>(field<const uint8_t*>(ent, 0x240), 0x7df)) priority += 1000;
+    }
+    if (!field<uint32_t>(ent, 0x29c)) priority += 1000;
+    const uint8_t* sentient = field<const uint8_t*>(ent, 0x244);
+    if (sentient) {
+        if (field<int32_t>(sentient, 4) == 2) priority += 600;
+        if (field<uint8_t>(sentient, 0x5b)) priority -= 1000;
+        priority -= static_cast<int32_t>(field<float>(sentient, 0x18));
+    }
+    return priority;
+}
+
 }  // namespace game

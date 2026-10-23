@@ -305,4 +305,49 @@ extern "C" void Actor_GetBoundaryPlanes_entry(void);
 // Returns the actor (EAX unchanged).
 uint8_t* XB_REGS2 XB_CDECL Actor_PopBlockingStates(uint8_t* actor, uint32_t state);
 
+// 0x002001f0 (actor in EAX): applies the queued state transitions (+0x38, kind/state pairs, count
+// +0xa0): 1 set (Finish the top, Start the new), 2 push (Suspend, depth + 1, Start), 3 pop (Finish,
+// depth - 1, Resume; a state it returns is started after the new top's Finish). Then the queue is
+// cleared and the state stack mirrored to +0xa4 (count +0xbc). Callbacks: table 0x00830c28.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ApplyStateTransitions(uint32_t entry, uint8_t* actor, uint32_t edi);
+extern "C" void Actor_ApplyStateTransitions_entry(void);
+
+// 0x00205930 (actor in EAX, yaw delta in XMM4, pitch delta in XMM5): turns the actor's angle
+// pairs (+0x130/+0x138 into +0x134 too, +0x144/+0x14c into +0x148) and the entity's yaw (+0x154; roll
+// and pitch +0x150/+0x158 cleared) through 16-bit angles, then the desired angles.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_RotateOrient(uint8_t* actor, float yaw, float pitch);
+extern "C" void Actor_RotateOrient_entry(void);
+
+// 0x001fb8b0 (actor in EBX): ages the move history (ten 2D moves at +0x1398, head +0x1394): from the
+// oldest to the newest each is scaled by n/(n+1) (n = 1, 2, ...), the newest not at all; head + 1.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_AdvanceMoveHistory(uint8_t* actor);
+extern "C" void Actor_AdvanceMoveHistory_entry(void);
+
+// 0x001fcbf0 (path in ECX, origin in EAX, point in ESI, squared radius in XMM4): whether the point is
+// within the radius (xy) of the lookahead segment (+0x39c direction, +0x3b0 length, ending at
+// origin + direction * length), the current segment (+0x388, remaining +0x3b8) or any earlier one.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_IsPointNearPath(const uint8_t* path, const float* origin, const float* point,
+                                                                  float radius_sq);
+extern "C" void Path_IsPointNearPath_entry(void);
+
+// State callbacks (actor in ECX, the next state in EDX): 0x00200d90 noncombat Finish (releases the
+// claimed node), 0x002014f0 cover Finish (+0x1364 = 0, +0x1368 = level time; the node is kept for
+// state 9), 0x00201430 cover NodeClaimRevoked (releases it; a state 1 on top is set anew). Returns 1.
+void XB_REGS3 XB_CDECL Actor_Noncombat_Finish(uint32_t, uint32_t, uint8_t* actor);
+void XB_REGS3 XB_CDECL Actor_Cover_Finish(uint32_t, uint32_t next, uint8_t* actor);
+uint32_t XB_REGS3 XB_CDECL Actor_Cover_NodeClaimRevoked(uint32_t, uint32_t, uint8_t* actor);
+// 0x00201d40 (actor in EDX): whether the actor stands on its claimed node (+0x140 set, or within
+// 80 units vertically and 2 in xy).
+uint32_t XB_REGS2 XB_CDECL Actor_IsAtClaimedNode(uint32_t, const uint8_t* actor);
+
+// 0x001ff030 (weapon in ECX, target in EBX, callee pops 4: actor): 0 when a sentient of the teams
+// the actor's team allows (all but table {0, 2, 1, 0, 0}[team]) stands within weapon def +0x724 * 1.2
+// (compared with the squared distance, as the title does) of the target, else 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_GrenadeTargetClear(uint32_t weapon, const float* target, const uint8_t* actor);
+extern "C" void Actor_GrenadeTargetClear_entry(void);
+// 0x001ffac0 (cdecl ent): who gives way when two actors block each other: 5000 for a main
+// character (script name after the first ' ' in the list 0x008db468), + 1000 (+0x7df), + 1000 without +0x29c,
+// + 600 for sentient state 2, - 1000 (+0x5b), - the sentient's +0x18 truncated.
+int32_t XB_CDECL Actor_MainCharacterPriority(const uint8_t* ent);
+
 }  // namespace game
