@@ -6,6 +6,7 @@
 #include "cg_ents.h"
 #include "cg_view.h"
 #include "cgame.h"
+#include "cl.h"
 #include "cm.h"
 #include "dobj.h"
 #include "fx.h"
@@ -344,6 +345,12 @@ const Function kFunctions[] = {
     {"Pack_RelocateChain", 0x00055ab0, 0, code(&Pack_RelocateChain_entry), 0, Result::None, Status::Compare},
     {"Pack_RelocateTable", 0x00055b00, 0, code(&Pack_RelocateTable), 4, Result::Eax, Status::Compare},
     {"Pack_DecodeRelocWord", 0x00055b40, 0, code(&Pack_DecodeRelocWord), 16, Result::None, Status::Compare},
+    {"IN_PadIsConnected", 0x000560e0, 0, code(&IN_PadIsConnected), 4, Result::Al, Status::Compare},
+    {"IN_PadButtonDown", 0x00056100, 0, code(&IN_PadButtonDown), 8, Result::Eax, Status::Compare},
+    {"IN_PadConsumeReleased", 0x000562d0, 0, code(&IN_PadConsumeReleased), 8, Result::Al, Status::Compare},
+    {"IN_PadButtonPressed", 0x00056580, 0, code(&IN_PadButtonPressed), 8, Result::Al, Status::Compare},
+    {"IN_PadConsumePressed", 0x00056720, 0, code(&IN_PadConsumePressed), 8, Result::Al, Status::Compare},
+    {"IN_PadGetStick", 0x000569c0, 0, code(&IN_PadGetStick), 16, Result::None, Status::Compare},
     {"strcmpcasenosensitive_internal", 0x00056b80, 0, code(&strcmpcasenosensitive_internal), 0, Result::Eax, Status::Compare},
     {"nglDrawSingleQuadFrame", 0x0005ea10, 0, code(&nglDrawSingleQuadFrame), 0, Result::None, Status::Compare},
     {"nglListAddCustomNode", 0x00062a10, 0, code(&nglListAddCustomNode), 12, Result::None, Status::Compare},
@@ -1441,7 +1448,9 @@ const Function kFunctions[] = {
     {"CG_DamageFeedback", 0x0027eb80, 0, code(&CG_DamageFeedback), 4, Result::None, Status::Compare},
     {"CG_AddTracerLocalEntity", 0x0027ef60, 0, code(&CG_AddTracerLocalEntity), 0, Result::None, Status::Compare},
     {"CG_DrawHudElemClock", 0x0027f1f0, 0, code(&CG_DrawHudElemClock_entry), 0, Result::None, Status::Compare},
+    {"CL_DObjCreateSkeleton", 0x0027f8e0, 0, code(&CL_DObjCreateSkeleton), 0, Result::None, Status::Compare},
     {"CG_DObjGetTagMatrix", 0x0027f920, 0, code(&CG_DObjGetTagMatrix_entry), 4, Result::Eax, Status::Compare},
+    {"CL_DObjGetBoneMatrix", 0x0027fa50, 0, code(&CL_DObjGetBoneMatrix_entry), 0, Result::Eax, Status::Compare},
     {"CG_AdjustPositionForMover", 0x0027fac0, 0, code(&CG_AdjustPositionForMover_entry), 20, Result::None, Status::Compare},
     {"CG_ShakeCamera", 0x0027fc40, 0, code(&CG_ShakeCamera), 0, Result::None, Status::Compare},
     {"CG_ViewToWorld", 0x002807a0, 0, code(&CG_ViewToWorld_entry), 0, Result::None, Status::Compare},
@@ -1846,6 +1855,7 @@ const Function kFunctions[] = {
     {"va", 0x002a93d0, 0, code(&va_entry), 8, Result::Eax, Status::Compare},
     {"Com_sprintf", 0x002a9460, 0, code(&Com_sprintf_entry), 8, Result::Eax, Status::Compare},
     {"Q_strlwr", 0x002a9540, 0, code(&Q_strlwr_entry), 0, Result::Eax, Status::Compare},
+    {"Char_IsDigit", 0x002a9610, 0, code(&Char_IsDigit), 0, Result::Eax, Status::Compare},
     {"Com_BitCheck", 0x002a9890, 0, code(&Com_BitCheck), 4, Result::Eax, Status::Compare},
     {"COM_DefaultExtension", 0x002a98b0, 0, code(&COM_DefaultExtension), 8, Result::None, Status::Compare},
     {"Com_ParseCommaToken", 0x002a9a60, 0, code(&Com_ParseCommaToken_entry), 0, Result::Eax, Status::Compare},
@@ -1872,6 +1882,14 @@ const Function kFunctions[] = {
     {"CM_StoreLeafs", 0x002aafc0, 0, code(&CM_StoreLeafs), 8, Result::Eax, Status::Compare},
     {"CM_LeafArea", 0x002ab2e0, 0, code(&CM_LeafArea), 0, Result::Eax, Status::Compare},
     {"CM_LeafCluster", 0x002ab300, 0, code(&CM_LeafCluster), 0, Result::Eax, Status::Compare},
+    {"Key_KeynumToString", 0x002ab980, 0, code(&Key_KeynumToString_entry), 0, Result::Eax, Status::Compare},
+    {"CL_FinishMove", 0x002abb30, 0, code(&CL_FinishMove_entry), 0, Result::None, Status::Compare},
+    {"CL_CmdButtons", 0x002abc30, 0, code(&CL_CmdButtons), 0, Result::Eax, Status::Compare},
+    {"CL_KeyState", 0x002abed0, 0, code(&CL_KeyState_entry), 0, Result::Xmm0, Status::Compare},
+    {"IN_KeyUp", 0x002abf50, 0, code(&IN_KeyUp_entry), 0, Result::None, Status::Compare},
+    {"IN_KeyDown", 0x002abfe0, 0, code(&IN_KeyDown_entry), 0, Result::None, Status::Compare},
+    {"CL_GetSnapshot", 0x002ac510, 0, code(&CL_GetSnapshot), 0, Result::Eax, Status::Compare},
+    {"CL_GetUserCmd", 0x002ac630, 0, code(&CL_GetUserCmd_entry), 0, Result::Eax, Status::Compare},
     {"PM_StartLegsAnim", 0x002ac7e0, 0, code(&PM_StartLegsAnim), 0, Result::None, Status::Compare},
     {"BG_FindWeaponIndexForHash", 0x002acb00, 0, code(&BG_FindWeaponIndexForHash_entry), 0, Result::Eax, Status::Compare},
     {"CG_WeaponSlotFromName", 0x002acb40, 0, code(&CG_WeaponSlotFromName_entry), 0, Result::Eax, Status::Compare},
@@ -1898,6 +1916,11 @@ const Function kFunctions[] = {
     {"Cmd_ArgsBuffer", 0x002b1e50, 0, code(&Cmd_ArgsBuffer_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_ExecuteRegisteredCommand", 0x002b1eb0, 0, code(&Cmd_ExecuteRegisteredCommand), 0, Result::None, Status::Compare},
     {"CM_FloodAreaConnections", 0x002b2200, 0, code(&CM_FloodAreaConnections), 0, Result::None, Status::Compare},
+    {"Key_StringToKeynum", 0x002b3490, 0, code(&Key_StringToKeynum_entry), 0, Result::Eax, Status::Compare},
+    {"CL_MouseMove", 0x002b39e0, 0, code(&CL_MouseMove_entry), 0, Result::None, Status::Compare},
+    {"CL_JoystickMove", 0x002b3e60, 0, code(&CL_JoystickMove), 0, Result::None, Status::Compare},
+    {"CL_KeyMove", 0x002b3f40, 0, code(&CL_KeyMove_entry), 0, Result::None, Status::Compare},
+    {"CL_AdjustAngles", 0x002b4170, 0, code(&CL_AdjustAngles), 0, Result::None, Status::Compare},
     {"BG_AmmoRoomForWeapon", 0x002b5120, 0, code(&BG_AmmoRoomForWeapon_entry), 0, Result::Eax, Status::Compare},
     {"BG_ChooseWeaponSlot", 0x002b52b0, 0, code(&BG_ChooseWeaponSlot_entry), 0, Result::Eax, Status::Compare},
     {"BG_GetWeaponSlot", 0x002b5400, 0, code(&BG_GetWeaponSlot_entry), 8, Result::Eax, Status::Compare},
@@ -1955,6 +1978,7 @@ const Function kFunctions[] = {
     {"Mat34_RotateVector", 0x002c7220, 0, code(&Mat34_RotateVector), 0, Result::Eax, Status::Compare},
     {"SV_AreaEntities_r", 0x002c72e0, 0, code(&SV_AreaEntities_r), 8, Result::None, Status::Compare},
     {"CM_BoxLeafnums_r", 0x002c73a0, 0, code(&CM_BoxLeafnums_r), 12, Result::None, Status::Compare},
+    {"CL_CreateCmd", 0x002c7a90, 0, code(&CL_CreateCmd_entry), 0, Result::Eax, Status::Compare},
     {"CameraShake_SetDistanceScale", 0x002c94d0, 0, code(&CameraShake_SetDistanceScale_entry), 8, Result::None, Status::Compare},
     {"CameraShake_Start", 0x002c9620, 0, code(&CameraShake_Start), 24, Result::Eax, Status::Compare},
     {"G_GetEntityAnimTree", 0x002c9780, 0, code(&G_GetEntityAnimTree), 0, Result::Eax, Status::Compare},
@@ -1968,6 +1992,7 @@ const Function kFunctions[] = {
     {"SV_AreaEntities", 0x002cc400, 0, code(&SV_AreaEntities), 12, Result::Eax, Status::Compare},
     {"CM_PointContents", 0x002cc480, 0, code(&CM_PointContents), 0, Result::Eax, Status::Compare},
     {"CM_TempBoxModel", 0x002ccc50, 0, code(&CM_TempBoxModel), 8, Result::Eax, Status::Compare},
+    {"CL_CreateNewCommands", 0x002cd450, 0, code(&CL_CreateNewCommands), 0, Result::None, Status::Compare},
     {"CG_SelectWeapon", 0x002cde20, 0, code(&CG_SelectWeapon_entry), 0, Result::Eax, Status::Compare},
     {"SV_ClipHandleForEntity", 0x002cf830, 0, code(&SV_ClipHandleForEntity), 0, Result::Eax, Status::Compare},
     {"Cmd_Init", 0x002d1460, 0, code(&Cmd_Init), 0, Result::None, Status::Compare},
@@ -1981,6 +2006,7 @@ const Function kFunctions[] = {
     {"CM_TraceThroughBrushes", 0x002d4f10, 0, code(&CM_TraceThroughBrushes_entry), 0, Result::None, Status::Compare},
     {"CM_SphereTouchesTriangle", 0x002d4f80, 0, code(&CM_SphereTouchesTriangle_entry), 8, Result::Al, Status::Compare},
     {"CM_BoxLeafnums", 0x002d5320, 0, code(&CM_BoxLeafnums_entry), 12, Result::Eax, Status::Compare},
+    {"Key_ClearStates", 0x002d57c0, 0, code(&Key_ClearStates), 0, Result::None, Status::Compare},
     {"G_SetMovedir", 0x002d70a0, 0, code(&G_SetMovedir_entry), 0, Result::None, Status::Compare},
     {"SV_DObjCreateSkeleton", 0x002d7210, 0, code(&SV_DObjCreateSkeleton_entry), 0, Result::None, Status::Compare},
     {"SV_DObjEnsureSkeleton", 0x002d7290, 0, code(&SV_DObjEnsureSkeleton_entry), 0, Result::None, Status::Compare},
@@ -2019,6 +2045,7 @@ const Function kFunctions[] = {
     {"Vehicle_CountActive", 0x002fd650, 0, code(&Vehicle_CountActive), 0, Result::Eax, Status::Compare},
     {"Scr_GetCurrentThreadHandle", 0x002fdbf0, 0, code(&Scr_GetCurrentThreadHandle), 0, Result::Eax, Status::Compare},
     {"R_FindFont", 0x0030f2b0, 0, code(&R_FindFont), 4, Result::Eax, Status::Compare},
+    {"Key_GetKeyNameForCommand", 0x00319b40, 0, code(&Key_GetKeyNameForCommand_entry), 0, Result::None, Status::Compare},
 };
 
 }  // namespace

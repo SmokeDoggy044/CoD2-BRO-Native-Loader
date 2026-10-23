@@ -8,6 +8,7 @@ set(game_code_sources
     cg_ents.cpp
     cg_view.cpp
     cgame.cpp
+    cl.cpp
     cm.cpp
     dobj.cpp
     functions.cpp

@@ -11711,3 +11711,4 @@ address,name,kind,confidence,evidence
 002d1980,CM_SegmentCrossesMesh,function,medium,"segment vs mesh triangles from the box-tree walk: facing plane, start/end on opposite sides, crossing point inside the edges; AL"
 002d2f90,CM_SightTraceRayThroughWorldTrees,function,medium,"sight version of CM_TraceRayThroughWorldTrees: any brush fraction < 1 or mesh crossing; hit object to 0x0094cba0"
 002e1740,CM_SightTraceThroughWorldTrees,function,medium,"sight version of CM_TraceThroughWorldTrees: any brush fraction < 1 or triangle clipped by CM_ClipSphereSweepToTriangle"
+002a9610,Char_IsDigit,function,high,"1 for EAX in 0-9 else 0; Key_StringToKeynum hex-digit test"
