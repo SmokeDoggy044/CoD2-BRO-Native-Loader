@@ -1174,6 +1174,7 @@ const Function kFunctions[] = {
     {"SndHw_AllocSlot", 0x000c84b0, 0, code(&SndHw_AllocSlot), 12, Result::Eax, Status::Compare},
     {"SndHw_ReleaseSlot", 0x000c8580, 0, code(&SndHw_ReleaseSlot), 0, Result::None, Status::Compare},
     {"Snd_InitRequest", 0x000c8d80, 0, code(&Snd_InitRequest), 20, Result::Eax, Status::Compare},
+    {"SndBank_PollLoad", 0x000c8fa0, 0, code(&SndBank_PollLoad), 4, Result::Eax, Status::Compare},
     {"HandlePool_Resolve", 0x000cb440, 0, code(&HandlePool_Resolve), 0, Result::Eax, Status::Compare},
     {"HandlePool_First", 0x000cb5e0, 0, code(&HandlePool_First), 0, Result::Eax, Status::Compare},
     {"HandlePool_Next", 0x000cb600, 0, code(&HandlePool_Next), 0, Result::Eax, Status::Compare},

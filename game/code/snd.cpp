@@ -944,4 +944,87 @@ void XB_CDECL SndBank_UpdateLoads() {
     title_function<Poll>(kPoll)(0x0090a914);
 }
 
+int32_t XB_CDECL SndBank_PollLoad(uint8_t* request) {
+    int32_t* r = reinterpret_cast<int32_t*>(request);
+    using Queue = int32_t XB_CDECL(int32_t, int32_t, int32_t, int32_t);
+    constexpr uint32_t kQueue = 0x000caed0;  // File_QueueRequest
+    using Wait = int32_t XB_CDECL(int32_t);
+    constexpr uint32_t kWait = 0x000c9db0;
+    if (r[0] == 0x100) {
+        if (r[2] != -1) {
+            const int32_t result = title_function<Wait>(kWait)(r[2]);
+            if (result != -1) return r[0];
+            r[2] = result;
+        }
+        r[0] = -1;
+        return r[0];
+    }
+    if (r[0] == 0) r[0] = 2;
+    if (r[0] == 2) {
+        r[2] = title_function<Queue>(kQueue)(r[4], r[5], r[6], 0x1000);
+        if (r[2] != -1) r[0] = 3;
+    }
+    if (r[0] == 3) {
+        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        if (result == -1) {
+            r[2] = result;
+            const uint8_t* header = reinterpret_cast<const uint8_t*>(uintptr_t{static_cast<uint32_t>(r[6])});
+            if (std::memcmp(header, reinterpret_cast<const void*>(uintptr_t{0x007ce6bc}), 6) || header[6] != '1' ||
+                header[7] != '1') {
+                r[0] = -5;
+                return r[0];
+            }
+            const uint32_t raw_size = *reinterpret_cast<const uint32_t*>(header + 0x14);
+            r[7] = *reinterpret_cast<const int32_t*>(header + 0x10);
+            r[9] = static_cast<int32_t>(raw_size);
+            r[6] = static_cast<int32_t>(title_function<uint32_t XB_CDECL(int32_t)>(0x000c37f0)(r[7]));
+            const uint32_t flags = static_cast<uint32_t>(r[1]);
+            const bool shared = (flags >> 1) & 1;
+            if (r[9]) {
+                r[9] = static_cast<int32_t>((static_cast<uint32_t>(r[9]) + 0xfff) & 0xfffff000u);
+                if (!shared)
+                    r[8] = static_cast<int32_t>(title_function<uint32_t XB_REGS2 XB_CDECL(uint32_t, uint32_t, uint32_t, int32_t)>(
+                        0x000c8250)(0, raw_size, flags, r[9]));
+            }
+            if (r[6] && (!r[9] || r[8])) {
+                r[0] = 4;
+            } else {
+                if (!shared) title_function<void XB_CDECL(int32_t)>(0x000c8380)(r[8]);
+                title_function<void XB_CDECL(int32_t)>(0x000c3830)(r[6]);  // Mem_AlignedFree
+                r[6] = 0;
+                r[8] = 0;
+                r[0] = -4;
+                return r[0];
+            }
+        }
+    }
+    if (r[0] == 4) {
+        r[2] = title_function<Queue>(kQueue)(r[4], r[5], r[6], r[7]);
+        if (r[2] != -1) r[0] = 5;
+    }
+    if (r[0] == 5) {
+        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        if (result == -1) {
+            r[2] = result;
+            r[0] = r[9] ? 7 : 0xb;
+        }
+    }
+    if (r[0] == 7) {
+        r[2] = title_function<Queue>(kQueue)(r[4], r[7] + r[5], r[8], r[9]);
+        if (r[2] != -1) r[0] = 8;
+    }
+    if (r[0] == 8) {
+        const int32_t result = title_function<Wait>(kWait)(r[2]);
+        if (result == -1) {
+            r[2] = result;
+            r[0] = 0xb;
+        }
+    }
+    if (r[0] == 0xb) {
+        r[0] = 1;
+        title_function<void XB_CDECL(uint8_t*)>(0x000c8de0)(request);
+    }
+    return r[0];
+}
+
 }  // namespace game

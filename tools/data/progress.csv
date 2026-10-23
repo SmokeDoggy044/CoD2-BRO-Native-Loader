@@ -2693,7 +2693,7 @@ address,name,section,module,state,tested,matched
 000c39a0,FUN_000c39a0,.text,unassigned,settled,383,383
 000c3b40,FUN_000c3b40,.text,unassigned,unnamed,0,0
 000c3d00,FUN_000c3d00,.text,unassigned,unnamed,0,0
-000c3f00,FUN_000c3f00,.text,unassigned,matched,2,2
+000c3f00,FUN_000c3f00,.text,unassigned,matched,3,3
 000c3f50,SndVoice_Free,.text,sound,named,0,0
 000c3fb0,FUN_000c3fb0,.text,unassigned,unnamed,0,0
 000c3ff0,FUN_000c3ff0,.text,unassigned,unnamed,0,0
@@ -2755,15 +2755,15 @@ address,name,section,module,state,tested,matched
 000c8380,FUN_000c8380,.text,unassigned,unnamed,0,0
 000c8450,SndVoice_GetCount,.text,sound,settled,190,190
 000c8470,SndVoice_Get,.text,sound,settled,270,270
-000c84b0,FUN_000c84b0,.text,unassigned,matched,71,71
+000c84b0,FUN_000c84b0,.text,unassigned,settled,2446,2446
 000c8580,FUN_000c8580,.text,unassigned,settled,212,212
 000c85c0,FUN_000c85c0,.text,unassigned,unnamed,0,0
 000c88c0,FUN_000c88c0,.text,unassigned,unnamed,0,0
 000c8c10,FUN_000c8c10,.text,unassigned,unnamed,0,0
 000c8d30,FUN_000c8d30,.text,unassigned,unnamed,0,0
-000c8d80,FUN_000c8d80,.text,unassigned,matched,25,25
+000c8d80,FUN_000c8d80,.text,unassigned,matched,36,36
 000c8de0,FUN_000c8de0,.text,unassigned,unnamed,0,0
-000c8fa0,FUN_000c8fa0,.text,unassigned,unnamed,0,0
+000c8fa0,FUN_000c8fa0,.text,unassigned,matched,36,36
 000c91e0,FUN_000c91e0,.text,unassigned,unnamed,0,0
 000c9230,FUN_000c9230,.text,unassigned,unnamed,0,0
 000c9250,FUN_000c9250,.text,unassigned,unnamed,0,0

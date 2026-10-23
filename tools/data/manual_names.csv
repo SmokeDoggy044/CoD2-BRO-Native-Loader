@@ -11787,3 +11787,4 @@ address,name,kind,confidence,evidence
 000c4af0,SndVoice_ApplyParams,function,medium,"per-frame voice pass under 0x000c3700: source params, distance cull, hardware slot allocation, state bytes, params/volume/pitch to the hardware slot"
 000c5ca0,SndBank_Free,function,medium,"frees the sound bank of a key in the 12 bank slots 0x008bd770 (cancels a loading request, frees loaded data); called by S_UnloadSoundBank / S_FreeLevelSounds"
 000c6080,SndBank_UpdateLoads,function,medium,"per-frame bank loading: polls request 0x0090a914 (0x000c8fa0), qsorts loaded entries, starts the lowest-priority queued slot"
+000c8fa0,SndBank_PollLoad,function,medium,"sound bank load state machine on the request 0x0090a914: header (magic 0x007ce6bc + 11), data and second part reads via File_QueueRequest, then 0x000c8de0"

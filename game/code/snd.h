@@ -158,4 +158,11 @@ uint32_t XB_CDECL SndBank_Free(uint32_t key);
 // entries qsorted with 0x000c5790; < 0: freed), then starts the queued slot with the lowest priority (+0x14).
 void XB_CDECL SndBank_UpdateLoads();
 
+// 0x000c8fa0 (request 0x0090a914: +0 state, +4 flags, +8 file handle, +0x10..+0x18 file / offset / buffer, +0x1c
+// size, +0x20 / +0x24 second part): the bank load state machine - header read (0x1000 bytes, magic at 0x007ce6bc +
+// "11", else -5), the data buffer (0x000c37f0) and a page-rounded second part (0x000c8250 unless flag 2; -4 when
+// either fails), both reads, then 1 and 0x000c8de0. 0x100: wait for the handle, then -1. File I/O through
+// File_QueueRequest / 0x000c9db0. Returns the state.
+int32_t XB_CDECL SndBank_PollLoad(uint8_t* request);
+
 }  // namespace game
