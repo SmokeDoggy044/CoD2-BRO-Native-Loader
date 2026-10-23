@@ -2237,6 +2237,7 @@ const Function kFunctions[] = {
     {"Key_GetKeyNameForCommand", 0x00319b40, 0, code(&Key_GetKeyNameForCommand_entry), 0, Result::None, Status::Compare},
     {"CL_TogglePause", 0x0032dde0, 0, code(&CL_TogglePause_entry), 0, Result::None, Status::Compare},
     {"CL_PauseForDialog", 0x0032dec0, 0, code(&CL_PauseForDialog), 0, Result::None, Status::Compare},
+    {"SCR_UpdateLoadingDots", 0x0033ac10, 0, code(&SCR_UpdateLoadingDots_entry), 0, Result::None, Status::Compare},
 };
 
 }  // namespace

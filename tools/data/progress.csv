@@ -11101,7 +11101,7 @@ address,name,section,module,state,tested,matched
 0033a640,FUN_0033a640,.text,unassigned,unnamed,0,0
 0033a750,UI_ShowDiscErrorScreen,.text,client,named,0,0
 0033aa20,UI_ShowDamagedDiscScreen,.text,client,named,0,0
-0033ac10,SCR_UpdateLoadingDots,.text,client,named,0,0
+0033ac10,SCR_UpdateLoadingDots,.text,client,untested,0,0
 0033ac80,FUN_0033ac80,.text,unassigned,unnamed,0,0
 0033acda,LIBCMT::__CIfmod,.text,unassigned,library,0,0
 0033acf4,LIBCMT::__CIsqrt,.text,unassigned,library,0,0

@@ -1604,4 +1604,27 @@ void XB_CDECL Subtitle_Draw() {
     if (second) draw_subtitle_line(second, 0x00926e28, 0x00927088, 0x00926e40);
 }
 
+// The tail jump to SCR_UpdateScreen runs at the entry ESP, as in the original.
+PLATFORM_ASM_ENTRY(SCR_UpdateLoadingDots_entry, "pushl %esi\n" PLATFORM_ASM_CALL(SCR_UpdateLoadingDots) "addl $4, %esp\n"
+                                                "testl %eax, %eax\n"
+                                                "jz 1f\n"
+                                                "jmp *%eax\n"
+                                                "1: ret")
+
+uint32_t XB_CDECL SCR_UpdateLoadingDots(uint8_t* screen) {
+    int32_t& ticks = field<int32_t>(screen, 0x40);
+    if (++ticks > 10) {
+        int32_t& dot = field<int32_t>(screen, 0x3c);
+        ticks = 0;
+        if (++dot > 2) dot = 0;
+        using Show = void XB_THISCALL(uint8_t*, uint32_t);
+        const auto show = [](uint8_t* panel, uint32_t alpha) {
+            title_function<Show>(field<uint32_t>(field<uint8_t*>(panel, 0), 0x7c))(panel, alpha);
+        };
+        for (uint32_t i = 0; i < 3; ++i) show(field<uint8_t*>(screen, 0x44 + i * 4), 0);
+        show(field<uint8_t*>(screen, 0x44 + uint32_t(dot) * 4), 0x3f800000);
+    }
+    return field<int32_t>(title_global<uint8_t*>(0x0095f8fc), 0xc) == 5 ? 0x002f1e60 : 0;
+}
+
 }  // namespace game

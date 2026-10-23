@@ -313,4 +313,10 @@ void XB_REGS3 XB_CDECL CL_PauseForDialog(uint32_t eax_unused, uint8_t keep_runni
 // their unsigned pixel positions, color 0xe0ffff00 unless the line's flag word is set.
 void XB_CDECL Subtitle_Draw();
 
+// 0x0033ac10 (loading screen in ESI): every 11th call steps the dot counter (+0x3c, 0..2) and shows only that dot
+// (vtable +0x7c (0) on the three dot panels +0x44..+0x4c, then (1.0) on the current one); then tail-jumps to
+// SCR_UpdateScreen when the front end (0x0095f8fc) is in state 5. The C returns the tail-jump target (0 = none).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SCR_UpdateLoadingDots(uint8_t* screen);
+extern "C" void SCR_UpdateLoadingDots_entry(void);
+
 }  // namespace game

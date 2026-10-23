@@ -2143,3 +2143,4 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00319b40,Key_GetKeyNameForCommand,compare,69,67,67,0,0,0,""
 0032dde0,CL_TogglePause,compare,4,4,4,0,0,0,""
 0032dec0,CL_PauseForDialog,compare,0,0,0,0,0,0,""
+0033ac10,SCR_UpdateLoadingDots,compare,0,0,0,0,0,0,""
