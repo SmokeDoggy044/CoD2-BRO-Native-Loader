@@ -125,7 +125,7 @@ address,name,section,module,state,tested,matched
 000139e0,Scr_Acos,.text,game,named,0,0
 000139f0,Scr_Asin,.text,game,named,0,0
 00013a00,Scr_Atan,.text,game,untested,0,0
-00013a10,Scr_Atan2,.text,game,named,0,0
+00013a10,Scr_Atan2,.text,game,untested,0,0
 00013c60,AnglesToForward,.text,qcommon,named,0,0
 00013ce0,AnglesToRightNoPitch,.text,qcommon,settled,1969,1969
 00013d90,std_exception_CtorString,.text,qcommon,named,0,0
@@ -779,7 +779,7 @@ address,name,section,module,state,tested,matched
 0002bb20,FUN_0002bb20,.text,unassigned,unnamed,0,0
 0002bce0,FUN_0002bce0,.text,unassigned,unnamed,0,0
 0002bd30,FUN_0002bd30,.text,unassigned,unnamed,0,0
-0002bd50,PathNode_Construct,.text,game,named,0,0
+0002bd50,PathNode_Construct,.text,game,settled,184,184
 0002bdc0,FUN_0002bdc0,.text,unassigned,unnamed,0,0
 0002be40,FUN_0002be40,.text,unassigned,unnamed,0,0
 0002bf00,FUN_0002bf00,.text,unassigned,unnamed,0,0
@@ -1199,7 +1199,7 @@ address,name,section,module,state,tested,matched
 00044330,FUN_00044330,.text,unassigned,unnamed,0,0
 00044370,FixedStr_Copy,.text,qcommon,named,0,0
 000443e0,Q_strncpySubLen,.text,qcommon,settled,249,249
-00044500,Path_BaseName,.text,game,named,0,0
+00044500,Path_BaseName,.text,game,settled,9744,9744
 000445d0,FUN_000445d0,.text,unassigned,unnamed,0,0
 00044620,FUN_00044620,.text,unassigned,unnamed,0,0
 00044770,FUN_00044770,.text,unassigned,unnamed,0,0
@@ -7544,7 +7544,7 @@ address,name,section,module,state,tested,matched
 001fb5c0,Actor_AnimReacquire,.text,game,settled,120,120
 001fb640,Actor_AnimRun,.text,game,settled,180,180
 001fb6a0,Actor_AnimWalk,.text,game,settled,187,187
-001fb7f0,ActorBlockList_RemoveEntity,.text,game,named,0,0
+001fb7f0,ActorBlockList_RemoveEntity,.text,game,settled,176,176
 001fb860,Actor_GetSquadSlot,.text,game,settled,101,101
 001fb8b0,Actor_AdvanceMoveHistory,.text,game,settled,209,209
 001fbaf0,Actor_SumMoveHistory,.text,game,settled,146,146

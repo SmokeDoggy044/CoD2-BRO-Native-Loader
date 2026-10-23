@@ -594,4 +594,28 @@ uint8_t* XB_REGS1 XB_CDECL G_EntityList_Compact(uint8_t* list) {
     return list;
 }
 
+void XB_CDECL Path_BaseName(char* dest, int32_t* length, const char* path, int32_t size, uint8_t strip_extension) {
+    int32_t slash = -1;
+    int32_t dot = size;
+    for (int32_t i = 0; i < size; ++i) {
+        const char c = path[i];
+        if (c == '\\' || c == '/')
+            slash = i;
+        else if (c == '.')
+            dot = i;
+    }
+    if (strip_extension && dot) {
+        Q_strncpySubLen(dest, length, path, slash + 1, dot - slash - 1, 0xffff);
+        return;
+    }
+    const int32_t start = slash + 1;
+    if (start >= 0xffff) return;
+    int32_t end = (start - slash) + size - 1;
+    if (end > 0xfffe) end = 0xfffe;
+    int32_t copied = 0;
+    for (int32_t i = start; i < end && path[i]; ++i, ++copied) dest[i - start] = path[i];
+    *length = copied;
+    dest[copied] = 0;
+}
+
 }  // namespace game

@@ -6,6 +6,7 @@
 #include "g_scr_runtime.h"
 #include "g_utils.h"
 #include "qcommon.h"
+#include "script_string.h"
 #include "title_data.h"
 
 namespace game {
@@ -2197,6 +2198,47 @@ uint32_t XB_CDECL Actor_CallStateSlot5(uint32_t entry, uint32_t handle, uint32_t
     title_call_at_regs(entry, title_global<uint32_t>(0x00830c3c + state * 36), &regs, 0, nullptr);
     title_global<uint32_t>(0x0095f704) = 0;
     return 0;
+}
+
+PLATFORM_ASM_ENTRY(PathNode_Construct_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PathNode_Construct) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL PathNode_Construct(uint8_t* node) {
+    *reinterpret_cast<uint32_t*>(node) = 0;
+    *reinterpret_cast<uint16_t*>(node + 4) = 0;
+    for (uint32_t offset = 8; offset <= 0x14; offset += 4)
+        ScriptString_FromRep(reinterpret_cast<ScriptString*>(node + offset), nullptr);
+    *reinterpret_cast<uint32_t*>(node + 0x18) = 0;
+    *reinterpret_cast<float*>(node + 0x28) = 0.0f;
+    *reinterpret_cast<float*>(node + 0x2c) = 0.0f;
+    for (uint32_t offset = 0x30; offset <= 0x3a; offset += 2) *reinterpret_cast<uint16_t*>(node + offset) = 0;
+    *reinterpret_cast<uint32_t*>(node + 0x3c) = 0;
+    *reinterpret_cast<float*>(node + 0x24) = 0.0f;
+    *reinterpret_cast<float*>(node + 0x20) = 0.0f;
+    *reinterpret_cast<float*>(node + 0x1c) = 0.0f;
+    return node;
+}
+
+PLATFORM_ASM_ENTRY(ActorBlockList_RemoveEntity_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ActorBlockList_RemoveEntity) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL ActorBlockList_RemoveEntity(uint8_t* list, uint32_t ent) {
+    int32_t& count = *reinterpret_cast<int32_t*>(list + 0x78);
+    for (;;) {
+        int32_t i = 0;
+        uint32_t* row = reinterpret_cast<uint32_t*>(list);
+        for (; i < count; ++i, row += 6) {
+            const uint32_t* a = reinterpret_cast<const uint32_t*>(uintptr_t{row[0]});
+            const uint32_t* b = reinterpret_cast<const uint32_t*>(uintptr_t{row[1]});
+            if ((a && *a == ent) || (b && *b == ent)) break;
+        }
+        if (i >= count) return;
+        std::memcpy(row, list + (count - 1) * 0x18, 0x18);
+        --count;
+    }
 }
 
 }  // namespace game

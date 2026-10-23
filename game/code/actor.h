@@ -434,4 +434,13 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CallStateSlot5(uint32_t entry
                                                                   uint32_t edi);
 extern "C" void Actor_CallStateSlot5_entry(void);
 
+// 0x0002bd50 (node in ESI): a path node record cleared - its four script strings (+8..+0x14) from a null rep,
+// floats +0x1c..+0x2c, words +0x30..+0x3a, +0x3c; returns the node.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PathNode_Construct(uint8_t* node);
+extern "C" void PathNode_Construct_entry(void);
+// 0x001fb7f0 (list in ESI, entity in EBX): removes every 0x18-byte row whose first or second pointer points at the
+// entity (the last row moves into its place, count +0x78 drops, the scan restarts).
+extern "C" PLATFORM_HIDDEN void XB_CDECL ActorBlockList_RemoveEntity(uint8_t* list, uint32_t ent);
+extern "C" void ActorBlockList_RemoveEntity_entry(void);
+
 }  // namespace game

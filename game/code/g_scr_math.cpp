@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "lanes.h"
+
 #include "g_utils.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -185,6 +187,52 @@ void XB_CDECL Scr_AnglesToRight(float* out, const float* angles) {
     out[0] = cr * sy;
     out[1] = 0.0f - cr * cy;
     out[2] = 0.0f - sr;
+}
+
+namespace {
+
+float atan2_c(uint32_t address) { return title_global<float>(address); }
+
+// asin(t) series for t < 0.5: ((t^7 c94 + t^5 c98) + t^3 c9c) + t.
+float asin_series(float t) {
+    const float t2 = t * t;
+    const float t3 = t2 * t;
+    const float t5 = t3 * t2;
+    const float t7 = t5 * t2;
+    return ((t7 * atan2_c(0x0083ee94) + t5 * atan2_c(0x0083ee98)) + t3 * atan2_c(0x0083ee9c)) + t;
+}
+
+// asin(t) for t >= 0.5 through u = sqrt(|(1 - t) / 2|): (((u^7 c8c - u^5 c2c) - u^3 c90) - 2u) + c88.
+float asin_large(float t) {
+    const float u = platform_x87_sqrt_abs_sub_mul(1.0f, t, 0.5f);
+    const float u2 = u * u;
+    const float u3 = u2 * u;
+    const float twice = u * 2.0f;
+    const float u5 = u3 * u2;
+    const float u7 = u5 * u2;
+    return (((u7 * atan2_c(0x0083ee8c) - u5 * atan2_c(0x0083ed2c)) - u3 * atan2_c(0x0083ee90)) - twice) +
+           atan2_c(0x0083ee88);
+}
+
+}  // namespace
+
+ext XB_CDECL Scr_Atan2(float y, float x) {
+    const float ax = abs_bits(x);
+    const float ay = abs_bits(y);
+    if (static_cast<ext>(ay) + ax == 0.0L) return 0.0f;
+    const ext length = platform_x87_sqrt_ext(static_cast<ext>(y) * y + static_cast<ext>(x) * x);
+    const float inverse = static_cast<float>(1.0L / length);
+    float r;
+    if (ay > ax) {
+        const float t = inverse * ax;
+        r = atan2_c(0x0083ed0c) - (0.5f > t ? asin_series(t) : asin_large(t));
+    } else {
+        const float t = inverse * ay;
+        r = 0.5f > t ? asin_series(t) : asin_large(t);
+    }
+    if (0.0f > x) r = atan2_c(0x0083ed00) - r;
+    if (0.0f > y) r = 0.0f - r;
+    return r;
 }
 
 }  // namespace game
