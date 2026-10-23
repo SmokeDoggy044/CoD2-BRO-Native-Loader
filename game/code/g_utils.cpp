@@ -530,4 +530,45 @@ void XB_CDECL G_MissileTrace(uint32_t entry, uint8_t* results, const float* star
     for (int32_t i = 0; i < 4; ++i) normal[i] = start[i] - end[i];  // all four lanes, as the title's SUBPS
 }
 
+namespace {
+
+// tan(degrees * pi / 180) on the x87 through the title CRT's __CItan, stored as float.
+float title_tan_degrees(float degrees, float pi, float half_turn) {
+    float result;
+    __asm__ volatile("flds %1\n\tfmuls %2\n\tfdivs %3\n\tcall *%4\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(degrees), "m"(pi), "m"(half_turn), "r"(uintptr_t{0x0033af10})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+int32_t title_rand() { return title_function<int32_t XB_CDECL()>(0x001efcc0)(); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Bullet_RandomSpread_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Bullet_RandomSpread) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Bullet_RandomSpread(const uint8_t* fire, float* end, float spread) {
+    const auto f = [fire](uint32_t offset) { return *reinterpret_cast<const float*>(fire + offset); };
+    const uint8_t* weapon = *reinterpret_cast<uint8_t* const*>(fire + 0x3c);
+    const float range = *reinterpret_cast<const int32_t*>(weapon + 0xa8) == 5 ? title_global<float>(0x0083ee50)
+                                                                              : title_global<float>(0x00830bd8);
+    const float pi = title_global<float>(0x0083ed00), half_turn = title_global<float>(0x0083eb60);
+    const float radius = title_tan_degrees(spread, pi, half_turn) * range;
+    const float scale = title_global<float>(0x0083ebc8);
+    const float angle = static_cast<float>(title_rand()) / scale * title_global<float>(0x0083ebcc);
+    const float distance = static_cast<float>(title_rand()) / scale;
+    float sine, cosine;
+    FastSinCos(&sine, 0, &cosine, angle * pi / half_turn);
+    const float u = cosine * distance * radius;  // along the right axis (+0xc)
+    const float v = sine * distance * radius;    // along the up axis (+0x18)
+    for (int32_t i = 0; i < 3; ++i) end[i] = f(4 * i) * range + f(0x24 + 4 * i);
+    for (int32_t i = 0; i < 3; ++i) end[i] = f(0xc + 4 * i) * u + end[i];
+    for (int32_t i = 0; i < 3; ++i) end[i] = f(0x18 + 4 * i) * v + end[i];
+}
+
 }  // namespace game

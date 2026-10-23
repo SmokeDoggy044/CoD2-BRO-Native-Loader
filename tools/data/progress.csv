@@ -1996,7 +1996,7 @@ address,name,section,module,state,tested,matched
 00086e50,NAL_AnimState_Copy,.text,unassigned,settled,400,400
 00086ec0,NAL_AnimState_CopyRange,.text,unassigned,settled,400,400
 00087030,FUN_00087030,.text,unassigned,settled,237,237
-000872e0,FUN_000872e0,.text,unassigned,matched,51,51
+000872e0,FUN_000872e0,.text,unassigned,settled,969,969
 00087420,FUN_00087420,.text,unassigned,settled,104,104
 000874b0,NAL_AnimTrack_DecodeBlock,.text,unassigned,settled,139,139
 00087690,NAL_AnimTrack_EvaluateFrame,.text,unassigned,settled,400,400
@@ -2006,7 +2006,7 @@ address,name,section,module,state,tested,matched
 00087ad0,NAL_AnimState_Init,.text,unassigned,settled,398,398
 00087bb0,NAL_AnimState_InitFrom,.text,unassigned,settled,400,400
 00087cb0,FUN_00087cb0,.text,unassigned,untested,0,0
-00087dd0,FUN_00087dd0,.text,unassigned,settled,120,120
+00087dd0,FUN_00087dd0,.text,unassigned,settled,3462,3462
 000881c0,NAL_AnimTrack_Sample,.text,unassigned,mismatched,89736,4726
 000886f0,NAL_GenericAnim_EvaluatePose,.text,unassigned,settled,393,393
 0008af60,FUN_0008af60,.text,unassigned,untested,0,0
@@ -8367,7 +8367,7 @@ address,name,section,module,state,tested,matched
 002538f0,Player_Touch,.text,game,named,0,0
 00253a10,SpotWouldTelefrag,.text,unassigned,named,0,0
 00253b30,P_DamageFeedback,.text,unassigned,named,0,0
-00253cb0,Bullet_RandomSpread,.text,game,named,0,0
+00253cb0,Bullet_RandomSpread,.text,game,settled,1052,1052
 00253e30,Die_trigger_damage,.text,unassigned,named,0,0
 00253e70,Pain_trigger_damage,.text,unassigned,named,0,0
 00253eb0,Use_trigger_damage,.text,unassigned,named,0,0
@@ -8479,7 +8479,7 @@ address,name,section,module,state,tested,matched
 00262b40,FUN_00262b40,.text,unassigned,unnamed,0,0
 00262ba0,MatchTeam,.text,unassigned,named,0,0
 00262be0,G_TestEntityPosition,.text,game,settled,118,118
-00262ce0,G_MissileTrace,.text,game,untested,0,0
+00262ce0,G_MissileTrace,.text,game,matched,52,52
 00262d70,SP_turret,.text,game,named,0,0
 00262e00,FUN_00262e00,.text,unassigned,unnamed,0,0
 002631a0,turret_think_init,.text,unassigned,named,0,0
@@ -9438,7 +9438,7 @@ address,name,section,module,state,tested,matched
 002b62f0,PM_CmdScale,.text,game,settled,105,105
 002b63f0,PM_AddEvent,.text,game,settled,102,102
 002b6430,FUN_002b6430,.text,unassigned,unnamed,0,0
-002b6710,BG_EvaluateTrajectoryDelta,.text,game,untested,0,0
+002b6710,BG_EvaluateTrajectoryDelta,.text,game,matched,25,25
 002b68f0,BG_CanItemBeGrabbed,.text,game,named,0,0
 002b6a70,BG_FindItem,.text,game,named,0,0
 002b6ba0,S_ResumeAllChannels,.text,unassigned,named,0,0

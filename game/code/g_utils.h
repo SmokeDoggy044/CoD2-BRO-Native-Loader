@@ -126,4 +126,10 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL G_MissileTrace(uint32_t entry, uint8_t*
                                                         uint32_t a6, uint32_t mask, const float* end);
 extern "C" void G_MissileTrace_entry(void);
 
+// 0x00253cb0 (fire record in EDI: forward +0, right +0xc, up +0x18, start +0x24, weapon +0x3c; end in
+// ESI; cdecl spread in degrees, its slot reused as scratch): the end point range ahead (16384 for
+// weapon class 5, else 8192) moved by a random point of the disc of radius tan(spread) * range.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Bullet_RandomSpread(const uint8_t* fire, float* end, float spread);
+extern "C" void Bullet_RandomSpread_entry(void);
+
 }  // namespace game

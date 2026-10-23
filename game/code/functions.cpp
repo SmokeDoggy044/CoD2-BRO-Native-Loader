@@ -1064,6 +1064,7 @@ const Function kFunctions[] = {
     {"R_Register", 0x0023c4e0, 0, code(&R_Register), 0, Result::Eax, Status::Compare},
     {"R_RegisterModel", 0x00241f40, 0, code(&R_RegisterModel), 12, Result::Eax, Status::Compare},
     {"XModel_TransformBones", 0x00242540, 0, code(&XModel_TransformBones), 12, Result::None, Status::Compare},
+    {"Bullet_RandomSpread", 0x00253cb0, 0, code(&Bullet_RandomSpread_entry), 4, Result::None, Status::Compare},
     {"G_MissileTrace", 0x00262ce0, 0, code(&G_MissileTrace_entry), 0, Result::None, Status::Compare},
     {"CG_DrawFrontBufferFade", 0x002761b0, 0, code(&CG_DrawFrontBufferFade), 0, Result::None, Status::Compare},
     {"CG_WriteSaveState", 0x00276b10, 0, code(&CG_WriteSaveState), 0, Result::None, Status::Compare},
