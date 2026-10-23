@@ -1541,4 +1541,90 @@ char* XB_CDECL COM_ParseExt(const char** data_p, uint32_t allow_line_breaks) {
     return token;
 }
 
+PLATFORM_ASM_ENTRY(MSG_ReadDeltaUsercmd_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(MSG_ReadDeltaUsercmd) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL MSG_ReadDeltaUsercmd(const uint8_t* from, uint8_t* msg, uint8_t* to) {
+    auto raw_byte = [&]() { return msg_data(msg)[msg_word(msg, 0x10)++]; };
+    auto checked_byte = [&]() {
+        const uint8_t b = raw_byte();
+        return msg_word(msg, 0x10) > msg_word(msg, 0xc) ? uint8_t{0xff} : b;
+    };
+    auto put = [&](uint32_t offset, const void* value, uint32_t size) { std::memcpy(to + offset, value, size); };
+    if (raw_byte()) {
+        const uint32_t time = static_cast<uint32_t>(checked_byte()) + *reinterpret_cast<const uint32_t*>(from);
+        put(0, &time, 4);
+    } else {
+        const int32_t time = MSG_ReadLong(msg);
+        put(0, &time, 4);
+    }
+    if (!raw_byte()) {
+        static const uint8_t kDwords[8] = {8, 0xc, 0x10, 0x18, 0x1c, 0x20, 0x24, 0x28};
+        static const uint8_t kBytes[6] = {0x14, 0x15, 0x16, 4, 5, 6};
+        for (int32_t i = 0; i < 3; ++i) put(kDwords[i], from + kDwords[i], 4);
+        for (int32_t i = 0; i < 6; ++i) to[kBytes[i]] = from[kBytes[i]];
+        for (int32_t i = 3; i < 8; ++i) put(kDwords[i], from + kDwords[i], 4);
+        return;
+    }
+    for (uint32_t offset = 8; offset <= 0x10; offset += 4) {
+        const uint8_t low = raw_byte();
+        const uint8_t high = raw_byte();
+        int16_t angle = static_cast<int16_t>(low | (high << 8));
+        if (msg_word(msg, 0x10) > msg_word(msg, 0xc)) angle = -1;
+        const int32_t value = angle;
+        put(offset, &value, 4);
+    }
+    to[0x14] = checked_byte();
+    to[0x15] = checked_byte();
+    to[0x16] = checked_byte();
+    to[4] = checked_byte();
+    to[5] = checked_byte();
+    to[6] = checked_byte();
+    for (uint32_t offset = 0x18; offset <= 0x28; offset += 4) {
+        // MSG_ReadFloat's bits (not through the x87, which would quiet a signalling NaN).
+        uint8_t bytes[4];
+        if (!msg_read4(msg, bytes)) std::memcpy(bytes, &title_global<uint32_t>(0x0083eb34), 4);  // -1
+        put(offset, bytes, 4);
+    }
+}
+
+void XB_REGS3 XB_CDECL MSG_WriteDeltaUsercmd(const uint8_t* from, const uint8_t* to, uint8_t* msg) {
+    auto write_byte = [&](uint8_t b) { msg_data(msg)[msg_word(msg, 0xc)++] = b; };
+    auto write_bytes = [&](const uint8_t* p, int32_t count) {
+        for (int32_t i = 0; i < count; ++i) write_byte(p[i]);
+    };
+    auto word = [](const uint8_t* p, uint32_t offset) {
+        int32_t v;
+        std::memcpy(&v, p + offset, 4);
+        return v;
+    };
+    auto real = [](const uint8_t* p, uint32_t offset) {
+        float v;
+        std::memcpy(&v, p + offset, 4);
+        return v;
+    };
+    if (word(to, 0) - word(from, 0) < 0x100) {
+        write_byte(1);
+        write_byte(static_cast<uint8_t>(to[0] - from[0]));
+    } else {
+        write_byte(0);
+        write_bytes(to, 4);
+    }
+    static const uint8_t kBytes[6] = {0x14, 0x15, 0x16, 4, 5, 6};
+    bool same = word(from, 8) == word(to, 8) && word(from, 0xc) == word(to, 0xc) && word(from, 0x10) == word(to, 0x10);
+    for (int32_t i = 0; same && i < 6; ++i) same = from[kBytes[i]] == to[kBytes[i]];
+    for (uint32_t offset = 0x18; same && offset <= 0x28; offset += 4) same = real(from, offset) == real(to, offset);
+    if (same) {
+        write_byte(0);
+        return;
+    }
+    write_byte(1);
+    for (uint32_t offset = 8; offset <= 0x10; offset += 4) write_bytes(to + offset, 2);
+    for (int32_t i = 0; i < 6; ++i) write_byte(to[kBytes[i]]);
+    for (uint32_t offset = 0x18; offset <= 0x28; offset += 4) write_bytes(to + offset, 4);
+}
+
 }  // namespace game

@@ -290,4 +290,16 @@ extern "C" void Com_ParseCommaToken_entry(void);
 // 0x002b0250: Q3's COM_ParseExt with the punctuation table (0x008d3aa0) and the parse-info modes above.
 char* XB_CDECL COM_ParseExt(const char** data_p, uint32_t allow_line_breaks);
 
+// 0x002b1570 (from in EAX, msg in ESI, to in EDI): the byte-aligned usercmd delta - a time flag byte
+// (then a byte delta or MSG_ReadLong), a change flag byte (0: everything copied from `from`), three
+// 16-bit angles, six bytes (+0x14..+0x16, +4..+6; 0xff past cursize) and five MSG_ReadFloat values.
+// The flag bytes are read without the cursize check.
+extern "C" PLATFORM_HIDDEN void XB_CDECL MSG_ReadDeltaUsercmd(const uint8_t* from, uint8_t* msg, uint8_t* to);
+extern "C" void MSG_ReadDeltaUsercmd_entry(void);
+
+// 0x002b1780 (from in EAX, to in EDX, msg in ECX): MSG_ReadDeltaUsercmd's writer - time flag + byte delta
+// (under 0x100) or the full time, then 0 when nothing else changed (floats by ==), else 1 and every field
+// (angles as their low 16 bits). No overflow checks.
+void XB_REGS3 XB_CDECL MSG_WriteDeltaUsercmd(const uint8_t* from, const uint8_t* to, uint8_t* msg);
+
 }  // namespace game

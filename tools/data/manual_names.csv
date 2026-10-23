@@ -11487,3 +11487,4 @@ address,name,kind,confidence,evidence
 00285e00,CG_SetViewHandsModel,function,high,"game/code (decompiled C, kFunctions)"
 00288510,CG_UpdateFlashSound,function,high,"game/code (decompiled C, kFunctions)"
 0029a230,PerpendicularVector,function,high,"game/code (decompiled C, kFunctions)"
+002a9a60,Com_ParseCommaToken,function,high,"COM_ParseExt calls it when parse info +0x8c is set; splits at , and newline, "" quotes"
