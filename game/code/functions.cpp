@@ -1862,6 +1862,7 @@ const Function kFunctions[] = {
     {"CameraShake_Start", 0x002c9620, 0, code(&CameraShake_Start), 24, Result::Eax, Status::Compare},
     {"G_GetEntityAnimTree", 0x002c9780, 0, code(&G_GetEntityAnimTree), 0, Result::Eax, Status::Compare},
     {"CM_BrushPointTest", 0x002cb420, 0, code(&CM_BrushPointTest), 4, Result::Al, Status::Compare},
+    {"CM_PointContents", 0x002cc480, 0, code(&CM_PointContents), 0, Result::Eax, Status::Compare},
     {"CM_TempBoxModel", 0x002ccc50, 0, code(&CM_TempBoxModel), 8, Result::Eax, Status::Compare},
     {"CG_SelectWeapon", 0x002cde20, 0, code(&CG_SelectWeapon_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_Init", 0x002d1460, 0, code(&Cmd_Init), 0, Result::None, Status::Compare},
