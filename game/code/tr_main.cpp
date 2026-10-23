@@ -7,6 +7,7 @@
 #include "ngl.h"
 #include "qcommon.h"
 #include "shaders.h"
+#include "stream.h"
 #include "title_data.h"
 
 namespace game {
@@ -3510,6 +3511,41 @@ void XB_REGS1 XB_CDECL R_DrawTextWithShadow(const float* color, const char* text
     argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color[1] * k));
     argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color[2] * k));
     nglListAddText(font, text, fx, fy, z, argb, scale, scale);
+}
+
+PLATFORM_ASM_ENTRY(R_LodDistanceForRadius_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(R_LodDistanceForRadius) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $8, %esp\n"
+                   "ret")
+
+float XB_CDECL R_LodDistanceForRadius(const uint8_t* self, float radius) {
+    // The distance from the view origin (tr.viewParms) to the point at +0x30 (packed; square root
+    // by RSQRTSS + Newton, the squared sum itself when it is 0 or NaN), through the LOD scale and
+    // bias (0x0095e4d0 / 0x0095e4cc), divided by `radius`. Result in XMM0.
+    const Lanes d = sub(lanes(reinterpret_cast<const float*>(self + 0x30)), lanes(&title_global<float>(0x0095e3a0)));
+    const Lanes sq = mul(d, d);
+    platform_keep(sq);
+    const float s = (sq.v[0] + sq.v[1]) + sq.v[2];
+    float distance = s;
+    if (!(s == title_global<float>(0x0082e680)) && s == s) {
+        const float r = platform_rsqrt_estimate(s);
+        const float x = s * r;
+        distance = ((title_global<float>(0x0082e660) - x * r) * x) * title_global<float>(0x0082e670);
+    }
+    return (title_global<float>(0x0095e4d0) * distance + title_global<float>(0x0095e4cc)) / radius;
+}
+
+PLATFORM_ASM_ENTRY(R_FindEffectByName_entry,
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_FindEffectByName) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL R_FindEffectByName(const char* name) {
+    uint32_t hashed[8];
+    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hashed, name);  // HashStr_Init
+    const uint32_t zone = *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x34);
+    return Stream_FindEffect(hashed, title_global<uint32_t>(0x0095f630), zone, 0, 0);
 }
 
 }  // namespace game
