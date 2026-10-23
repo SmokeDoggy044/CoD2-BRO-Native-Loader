@@ -11622,3 +11622,4 @@ address,name,kind,confidence,evidence
 002cb560,CM_TestInBrushes,function,medium,"CM_TestBoxInBrush over a model's brushes until startsolid (ESI model, ECX trace work)"
 002d4250,CM_TestCapsuleInTempBox,function,medium,"capsule start test against the temporary box model (center shift, radius/half height, CM_TempBoxModel + CM_TestBoxInBrush)"
 002cb5a0,CM_TestCapsuleInCapsule,function,high,"Q3 CM_TestCapsuleInCapsule vs the temporary box model (end spheres, cylinder overlap)"
+002da9d0,CM_TestInWorldTrees,function,medium,"CM_BoxTrace position test: world quad trees overlapping the start box, leaf objects via 0x002da4d0, stops at startsolid"

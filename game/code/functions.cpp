@@ -1874,6 +1874,7 @@ const Function kFunctions[] = {
     {"CM_TestCapsuleInTempBox", 0x002d4250, 0, code(&CM_TestCapsuleInTempBox_entry), 0, Result::None, Status::Compare},
     {"CM_BoxLeafnums", 0x002d5320, 0, code(&CM_BoxLeafnums_entry), 12, Result::Eax, Status::Compare},
     {"G_SetMovedir", 0x002d70a0, 0, code(&G_SetMovedir_entry), 0, Result::None, Status::Compare},
+    {"CM_TestInWorldTrees", 0x002da9d0, 0, code(&CM_TestInWorldTrees_entry), 0, Result::None, Status::Compare},
     {"CM_TransformedPointContents", 0x002db500, 0, code(&CM_TransformedPointContents_entry), 4, Result::Eax, Status::Compare},
     {"G_GetEntityMatrix", 0x002de120, 0, code(&G_GetEntityMatrix), 8, Result::Eax, Status::Compare},
     {"DObj_UpdateSkeletons", 0x002df880, 0, code(&DObj_UpdateSkeletons), 4, Result::None, Status::Compare},

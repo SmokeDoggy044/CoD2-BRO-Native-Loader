@@ -578,4 +578,27 @@ void XB_REGS1 XB_CDECL CM_TestCapsuleInCapsule(uint8_t* tw) {
     hit(flat_top, upper);
 }
 
+PLATFORM_ASM_ENTRY(CM_TestInWorldTrees_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CM_TestInWorldTrees) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CM_TestInWorldTrees(uint8_t* tw) {
+    const Lanes one = lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e640}));
+    const Lanes start = lanes(tw_row(tw, 0));
+    const Lanes lo = sub(add(start, lanes(tw_row(tw, 0x40))), one);
+    const Lanes hi = add(add(start, lanes(tw_row(tw, 0x50))), one);
+    for (int32_t k = 0; k < *reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0095f4fc) + 0xc); ++k) {
+        const uint8_t* tree =
+            *reinterpret_cast<const uint8_t* const*>(title_global<const uint8_t*>(0x0095f4fc) + 0x10 + k * 4);
+        if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(tree + 0x40)), hi),
+                        sub(lo, lanes(reinterpret_cast<const float*>(tree + 0x50)))))
+            continue;
+        alignas(16) float center[4];
+        float half;
+        const uint8_t* leaf = CM_QuadTreeFindLeaf(tree, tw_row(tw, 0), center, &half);
+        title_function<void XB_CDECL(uint8_t*, const uint8_t*, const uint8_t*)>(0x002da4d0)(tw, tree, leaf);
+        if (tw[0x13c]) return;
+    }
+}
+
 }  // namespace game

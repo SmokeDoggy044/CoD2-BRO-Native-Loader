@@ -122,4 +122,10 @@ extern "C" void CM_TestCapsuleInTempBox_entry(void);
 // startsolid/allsolid and fraction 0. Packed differences of whole 16-byte vectors (w lanes included).
 void XB_REGS1 XB_CDECL CM_TestCapsuleInCapsule(uint8_t* tw);
 
+// 0x002da9d0 (trace work in EDI; unnamed in Ghidra): for each world quad tree whose bounds meet the start
+// box (start + trace bounds, widened by the {1,1,1,1} at 0x0082e640), the leaf at the start point goes to
+// 0x002da4d0 (trace work, tree, leaf); stops at startsolid.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TestInWorldTrees(uint8_t* tw);
+extern "C" void CM_TestInWorldTrees_entry(void);
+
 }  // namespace game
