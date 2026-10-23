@@ -374,6 +374,41 @@ void XB_CDECL NAL_AnimState_Blend(uint32_t* args) {
     }
 }
 
+void XB_THISCALL NAL_AnimState_BlendWeighted(const uint8_t* weights, AnimState* dst, const AnimState* a,
+                                             const AnimState* b) {
+    const int32_t high = a->range <= b->range ? b->range : a->range;
+    dst->range = high;
+    const uint8_t* clip = a->clip;
+    // One weight per channel, read in order by the channels (slot 3 advances the cursor).
+    uint8_t* cursor = *reinterpret_cast<uint8_t* const*>(weights + 8);
+    const int32_t blended = range_groups(clip, high);
+    uint8_t* group = groups(clip);
+    int32_t done = 0;
+    if (blended > 0) {
+        done = blended;
+        for (int32_t i = 0; i < blended; ++i, group += 0x30) {
+            const int32_t offset = *reinterpret_cast<const int32_t*>(group + 0x2c);
+            title_function<void XB_THISCALL(uint32_t, uint32_t, uint8_t*, uint8_t*, uint8_t*, uint8_t**)>(
+                channel_slot(group, 3))(channel(group), *reinterpret_cast<const uint32_t*>(group + 0x28),
+                                        dst->data + offset, a->data + offset, b->data + offset, &cursor);
+        }
+    }
+    // The groups only the smaller range has come from the state with that range.
+    const AnimState* source = a;
+    int32_t low = a->range;
+    if (a->range > b->range) {
+        low = b->range;
+        source = b;
+    }
+    const int32_t total = range_groups(clip, low);
+    for (int32_t i = done; i < total; ++i, group += 0x30) {
+        const int32_t offset = *reinterpret_cast<const int32_t*>(group + 0x2c);
+        uint8_t* dst_cursor = dst->data + offset;
+        uint8_t* src_cursor = source->data + offset;
+        channel_copy(group, &dst_cursor, &src_cursor);
+    }
+}
+
 namespace {
 
 // NAL_AnimState_Init's body (also NAL_AnimState_InitFrom's).

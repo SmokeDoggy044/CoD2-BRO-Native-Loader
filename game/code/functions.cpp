@@ -1,6 +1,7 @@
 #include "functions.h"
 
 #include "actor.h"
+#include "anim_script.h"
 #include "bg_misc.h"
 #include "cg_view.h"
 #include "cgame.h"
@@ -72,11 +73,16 @@ const Function kFunctions[] = {
     {"Vec3_MulMat44", 0x0001c9f0, 0, code(&Vec3_MulMat44), 12, Result::Eax, Status::Compare},
     {"QuatTrans_Concat", 0x0001cae0, 0, code(&QuatTrans_Concat), 12, Result::Eax, Status::Compare},
     {"QuatTrans_ToMat44", 0x0001cbe0, 0, code(&QuatTrans_ToMat44), 0, Result::None, Status::Compare},
+    {"AnimWeights_SetAll", 0x0001cdc0, 0, code(&AnimWeights_SetAll_entry), 0, Result::Eax, Status::Compare},
     {"DObj_SetLod", 0x0001d0f0, 0, code(&DObj_SetLod_entry), 0, Result::None, Status::Compare},
     {"nglMeshBuilder_AddIndexRun", 0x0001d230, 0, code(&nglMeshBuilder_AddIndexRun), 0, Result::Eax, Status::Compare},
     {"nglMeshBuilder_AddStrip", 0x0001d280, 0, code(&nglMeshBuilder_AddStrip), 8, Result::None, Status::Compare},
     {"Anim_CreateClipState", 0x0001db80, 0, code(&Anim_CreateClipState), 4, Result::Eax, Status::Compare},
+    {"AnimScript_Update", 0x0001e150, 0, code(&AnimScript_Update_entry), 20, Result::None, Status::Compare},
     {"FixedStr_BaseName", 0x0001f040, 0, code(&FixedStr_BaseName_entry), 4, Result::Eax, Status::Compare},
+    {"NAL_AsGenericClip", 0x000229d0, 0, code(&NAL_AsGenericClip), 0, Result::Eax, Status::Compare},
+    {"AnimWeightRef_GetA", 0x00023150, 0, code(&AnimWeightRef_GetA), 4, Result::Eax, Status::Compare},
+    {"AnimWeightRef_GetB", 0x00023180, 0, code(&AnimWeightRef_GetB), 4, Result::Eax, Status::Compare},
     {"ZoneTextureMap_Lookup", 0x00024ed0, 0, code(&ZoneTextureMap_Lookup_entry), 0, Result::Eax, Status::Compare},
     {"ZoneFontMap_Lookup", 0x00024f20, 0, code(&ZoneFontMap_Lookup_entry), 0, Result::Eax, Status::Compare},
     {"ZoneMap28_Lookup", 0x00024f70, 0, code(&ZoneMap28_Lookup_entry), 0, Result::Eax, Status::Compare},
@@ -666,6 +672,7 @@ const Function kFunctions[] = {
     {"NAL_AnimTrack_EvaluateFrame", 0x00087690, 0, code(&NAL_AnimTrack_EvaluateFrame), 24, Result::None, Status::Compare},
     {"NAL_AnimTrack_SampleFrame", 0x00087810, 0, code(&NAL_AnimTrack_SampleFrame), 16, Result::None, Status::Compare},
     {"NAL_AnimState_Blend", 0x00087890, 0, code(&NAL_AnimState_Blend_entry), 16, Result::None, Status::Compare},
+    {"NAL_AnimState_BlendWeighted", 0x000879a0, 0, code(&NAL_AnimState_BlendWeighted), 12, Result::None, Status::Compare},
     {"NAL_AnimState_Init", 0x00087ad0, 0, code(&NAL_AnimState_Init), 8, Result::Eax, Status::Compare},
     {"NAL_AnimState_InitFrom", 0x00087bb0, 0, code(&NAL_AnimState_InitFrom), 8, Result::Eax, Status::Compare},
     {"NAL_AnimTrack_Sample", 0x000881c0, 0, code(&NAL_AnimTrack_Sample), 24, Result::None, Status::Compare},

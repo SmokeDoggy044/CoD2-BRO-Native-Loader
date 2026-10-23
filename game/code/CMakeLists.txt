@@ -3,6 +3,7 @@
 # (functions.h, loader/compare.h).
 set(game_code_sources
     actor.cpp
+    anim_script.cpp
     bg_misc.cpp
     cg_view.cpp
     cgame.cpp

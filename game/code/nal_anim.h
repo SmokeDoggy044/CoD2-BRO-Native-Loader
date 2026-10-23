@@ -69,6 +69,12 @@ void XB_THISCALL NAL_AnimTrack_SampleFrame(const uint8_t* track, int32_t time, A
 // keeps its cursors in the a/b slots).
 extern "C" void NAL_AnimState_Blend_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_AnimState_Blend(uint32_t* args);
+// 0x000879a0 (weights in ECX, callee pops 0xc): blends a and b into dst with one weight
+// per channel (slot 3; the weights object's float array at +8) over the larger range's
+// groups, copies the rest of the smaller range from the state that has it; dst gets the
+// larger range.
+void XB_THISCALL NAL_AnimState_BlendWeighted(const uint8_t* weights, AnimState* dst, const AnimState* a,
+                                             const AnimState* b);
 // 0x00087ad0 (state in ECX, callee pops 8): sets the state up for clip/range and lets each
 // channel initialize its data (slot 12). Returns the state.
 AnimState* XB_THISCALL NAL_AnimState_Init(AnimState* state, uint8_t* clip, int32_t range);
