@@ -46,4 +46,14 @@ extern "C" void SV_SendServerCommand_entry(void);
 // client (+0x23c).
 void XB_REGS1 XB_CDECL SV_GameSendServerCommand(const char* text, uint32_t handle);
 
+// areaParms_t: +0x10 mins, +0x20 maxs (16-byte rows), +0x30 list, +0x34 count, +0x38 max count, +0x3c content
+// mask. World sector: +0 axis, +8 contents, +0xc dist, +0x10 entities (chained at +0xe0), +0x1c / +0x20 children.
+// 0x002c72e0: Q3's SV_AreaEntities_r - entity numbers (+0x154) of the sector tree's entities whose content
+// (+0x64) matches and whose bounds (+0x30 / +0x40) overlap; stops when the list is full.
+void XB_CDECL SV_AreaEntities_r(const uint8_t* node, uint8_t* parms);
+// 0x002cc400 (maxs in EAX, mins in ECX; list, max count, content mask on the stack): from the root sector
+// 0x00935664; returns the count.
+int32_t XB_REGS3 XB_CDECL SV_AreaEntities(const float* maxs, uint32_t unused, const float* mins, int32_t* list,
+                                         int32_t max_count, uint32_t content_mask);
+
 }  // namespace game

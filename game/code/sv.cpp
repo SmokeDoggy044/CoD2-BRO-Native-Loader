@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "cm.h"
+#include "lanes.h"
 #include "qcommon.h"
 #include "title_data.h"
 
@@ -191,6 +192,47 @@ void XB_REGS1 XB_CDECL SV_GameSendServerCommand(const char* text, uint32_t handl
     if (index < 0x540 && title_global<uint32_t>(0x0097a96c + index * 8) == (handle >> 12))
         ent = title_global<uint8_t*>(0x0097a968 + index * 8);
     if (field<uint32_t>(ent, 0x23c)) SV_SendServerCommand(title_global<uint8_t*>(0x00927e8c), args);
+}
+
+void XB_CDECL SV_AreaEntities_r(const uint8_t* node, uint8_t* parms) {
+    const uint32_t mask = field<uint32_t>(parms, 0x3c);
+    const float* mins = reinterpret_cast<const float*>(parms + 0x10);
+    const float* maxs = reinterpret_cast<const float*>(parms + 0x20);
+    while (mask & *reinterpret_cast<const uint32_t*>(node + 8)) {
+        for (uint8_t* ent = *reinterpret_cast<uint8_t* const*>(node + 0x10); ent; ent = field<uint8_t*>(ent, 0xe0)) {
+            if (!(field<uint32_t>(parms, 0x3c) & field<uint32_t>(ent, 0x64))) continue;
+            const Lanes a = sub(lanes(mins), lanes(reinterpret_cast<const float*>(ent + 0x40)));
+            const Lanes b = sub(lanes(reinterpret_cast<const float*>(ent + 0x30)), lanes(maxs));
+            int32_t inside = 0;
+            for (int32_t i = 0; i < 4; ++i) {
+                const float m = a.v[i] > b.v[i] ? a.v[i] : b.v[i];  // MAXPS(a, b)
+                if (m < 0.0f && i < 3) inside |= 1 << i;
+            }
+            if (inside != 7) continue;
+            int32_t& count = field<int32_t>(parms, 0x34);
+            if (count == field<int32_t>(parms, 0x38)) return;
+            field<int32_t*>(parms, 0x30)[count] = field<int32_t>(ent, 0x154);
+            ++count;
+        }
+        const int32_t axis = *reinterpret_cast<const int32_t*>(node);
+        const float dist = *reinterpret_cast<const float*>(node + 0xc);
+        if (maxs[axis] > dist) SV_AreaEntities_r(*reinterpret_cast<const uint8_t* const*>(node + 0x1c), parms);
+        if (!(dist > mins[axis])) return;
+        node = *reinterpret_cast<const uint8_t* const*>(node + 0x20);
+    }
+}
+
+int32_t XB_REGS3 XB_CDECL SV_AreaEntities(const float* maxs, uint32_t, const float* mins, int32_t* list,
+                                         int32_t max_count, uint32_t content_mask) {
+    alignas(16) uint8_t parms[0x40] = {};
+    std::memcpy(parms + 0x10, mins, 16);
+    std::memcpy(parms + 0x20, maxs, 16);
+    field<int32_t*>(parms, 0x30) = list;
+    field<int32_t>(parms, 0x34) = 0;
+    field<int32_t>(parms, 0x38) = max_count;
+    field<uint32_t>(parms, 0x3c) = content_mask;
+    SV_AreaEntities_r(reinterpret_cast<const uint8_t*>(uintptr_t{0x00935664}), parms);
+    return field<int32_t>(parms, 0x34);
 }
 
 }  // namespace game
