@@ -11619,3 +11619,5 @@ address,name,kind,confidence,evidence
 002ba8e0,Mat34_Transpose3,function,high,"copies the 3x3 of a 16-byte-row matrix transposed (CM_TransformedBoxTrace)"
 002c7220,Mat34_RotateVector,function,high,"in-place v = rows . v with packed dot products (CM trace transforms)"
 002cb1a0,CM_TestBoxInBrush,function,high,"Q3 CM_TestBoxInBrush: bounds + side planes vs nearest corner / capsule; sets startsolid/allsolid/fraction 0/contents"
+002cb560,CM_TestInBrushes,function,medium,"CM_TestBoxInBrush over a model's brushes until startsolid (ESI model, ECX trace work)"
+002d4250,CM_TestCapsuleInTempBox,function,medium,"capsule start test against the temporary box model (center shift, radius/half height, CM_TempBoxModel + CM_TestBoxInBrush)"

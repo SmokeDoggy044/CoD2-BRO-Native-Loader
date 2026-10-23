@@ -105,4 +105,15 @@ float* XB_REGS3 XB_CDECL Mat34_RotateVector(float* v, uint32_t unused, const flo
 extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TestBoxInBrush(uint8_t* tw, const uint8_t* brush);
 extern "C" void CM_TestBoxInBrush_entry(void);
 
+// 0x002cb560 (model {count, brushes} in ESI, trace work in ECX, kept; unnamed in Ghidra): CM_TestBoxInBrush on
+// each 0x40-byte brush until startsolid.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TestInBrushes(const uint32_t* model, uint8_t* tw);
+extern "C" void CM_TestInBrushes_entry(void);
+// 0x002d4250 (trace work in ESI; unnamed in Ghidra): the start test of a capsule trace against the temporary
+// box model: start/end (+0, +0x10) moved to the box center, radius = min(half x, half z) (half x on NaN),
+// half height in +0x168, axis offset {0, 0, half z - radius}; then the box model of the trace bounds
+// (+0x40, +0x50) tested with CM_TestBoxInBrush. Leaves ECX = the trace work like the original.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_TestCapsuleInTempBox(uint8_t* tw);
+extern "C" void CM_TestCapsuleInTempBox_entry(void);
+
 }  // namespace game

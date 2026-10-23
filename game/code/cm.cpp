@@ -492,4 +492,51 @@ void XB_CDECL CM_TestBoxInBrush(uint8_t* tw, const uint8_t* brush) {
     *reinterpret_cast<uint32_t*>(tw + 0x128) = *reinterpret_cast<const uint32_t*>(brush + 8);
 }
 
+PLATFORM_ASM_ENTRY(CM_TestInBrushes_entry,
+                   "pushl %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CM_TestInBrushes) "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+void XB_CDECL CM_TestInBrushes(const uint32_t* model, uint8_t* tw) {
+    if (!model) return;
+    const uint8_t* brushes = reinterpret_cast<const uint8_t*>(uintptr_t{model[1]});
+    for (int32_t i = 0; i < static_cast<int32_t>(model[0]); ++i) {
+        CM_TestBoxInBrush(tw, brushes + i * 0x40);
+        if (tw[0x13c]) return;
+    }
+}
+
+PLATFORM_ASM_ENTRY(CM_TestCapsuleInTempBox_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CM_TestCapsuleInTempBox) "addl $4, %esp\n"
+                   "movl %esi, %ecx\n"
+                   "ret")
+
+void XB_CDECL CM_TestCapsuleInTempBox(uint8_t* tw) {
+    const uint8_t* box = title_global<const uint8_t*>(0x0095f504);
+    const float h = title_global<float>(0x0083eb24);  // 0.5
+    const Lanes maxs = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const Lanes center = mul(add(lanes(reinterpret_cast<const float*>(box + 0x10)), maxs), {{h, h, h, h}});
+    const Lanes half = sub(maxs, center);
+    float* start = reinterpret_cast<float*>(tw);
+    float* end = reinterpret_cast<float*>(tw + 0x10);
+    const Lanes moved_start = sub(lanes(start), center);
+    std::memcpy(start, moved_start.v, 16);
+    const Lanes moved_end = sub(lanes(end), center);
+    std::memcpy(end, moved_end.v, 16);
+    const float half_z = half.v[2];
+    *reinterpret_cast<uint32_t*>(tw + 0x160) = 1;
+    const float radius = half.v[0] > half_z ? half_z : half.v[0];
+    *reinterpret_cast<float*>(tw + 0x164) = radius;
+    *reinterpret_cast<float*>(tw + 0x168) = half_z;
+    *reinterpret_cast<float*>(tw + 0x140) = 0.0f;
+    *reinterpret_cast<float*>(tw + 0x144) = 0.0f;
+    *reinterpret_cast<float*>(tw + 0x148) = half_z - *reinterpret_cast<const float*>(tw + 0x164);
+    const uint8_t* leaf = *reinterpret_cast<uint8_t* const*>(box + 4);
+    CM_TempBoxModel(reinterpret_cast<const float*>(tw + 0x50), 0, reinterpret_cast<const float*>(tw + 0x40),
+                    *reinterpret_cast<const uint32_t*>(leaf + 8));
+    CM_TestBoxInBrush(tw, *reinterpret_cast<uint8_t* const*>(title_global<const uint8_t*>(0x0095f504) + 4));
+}
+
 }  // namespace game
