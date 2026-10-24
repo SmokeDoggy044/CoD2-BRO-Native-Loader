@@ -8662,13 +8662,13 @@ address,name,section,module,state,tested,matched
 0027a2b0,CG_CalcWeaponSway,.text,cgame,settled,182,182
 0027a7b0,CG_GetViewFov,.text,cgame,settled,154,154
 0027ab40,CG_MaybeSpawnTracer,.text,cgame,settled,144,144
-0027abb0,CG_ParseConfigStringFloat11,.text,cgame,untested,0,0
+0027abb0,CG_ParseConfigStringFloat11,.text,cgame,matched,2,2
 0027abe0,CG_DrawProgressBar,.text,cgame,untested,0,0
 0027acb0,CG_InitConsoleCommands,.text,cgame,settled,103,103
 0027ad20,CG_FxRestart_f,.text,cgame,named,0,0
 0027ad40,CG_PrecacheConfigStringAsset,.text,cgame,untested,0,0
 0027ad70,CG_ParseConfigStringFloat9,.text,cgame,untested,0,0
-0027ada0,CG_ParseServerinfo,.text,cgame,untested,0,0
+0027ada0,CG_ParseServerinfo,.text,cgame,matched,2,2
 0027ade0,CG_ParseObjective,.text,cgame,settled,132,132
 0027af30,CG_ParseInfoValueT,.text,cgame,untested,0,0
 0027af70,CG_ScoresDown_f,.text,cgame,matched,7,7
