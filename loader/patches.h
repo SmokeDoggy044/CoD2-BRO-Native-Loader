@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -39,12 +40,15 @@ struct TitlePatchConfig {
     // the MP heap lock, --level); none of the PC features above, so the game's code
     // runs as on the Xbox (for --compare: a patched function cannot be compared).
     bool pc_features = true;
+    // Console commands and cvars ("r_fullbright 1; give all") queued once the level
+    // is active (testing, campaign only).
+    std::string exec_text;
 };
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,
 // direct kernel/hardware access) to replacements, and adds PC features (mouse look).
 // Call after the image is mapped. `config` applies to both titles, except
-// start_level (campaign only).
+// start_level and exec_text (campaign only).
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config);
 
 // While the engine draws a scene an in-game menu or the objectives panel created this

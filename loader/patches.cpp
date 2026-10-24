@@ -424,34 +424,55 @@ void update_button_prompts() {
 // every frame from the main loop at 0x002f27a4) runs "spmap <name of mission k>" once
 // the UI is up (0x00933ee4) when 0x0095f920 holds k >= 0; the difficulty screen
 // FUN_0032d800 sets it, and the campaign level index 0x008dce48, on New Game.
+// --exec queues console text through Cbuf_AddText (string in EAX) on the first frame
+// cls.state is 2 (cgame active, SCR_DrawScreenField draws CG_DrawActiveFrame): the
+// connect before it (CL_SystemInfoChanged -> Cvar_SetCheatState) resets cheat cvars.
+// Cvar_Set2 refuses cheat cvars (flag 0x200: most r_ and debug cvars) while sv_cheats is
+// 0, so --exec forces it to 1 first (client and server share the cvar).
 constexpr uint32_t kCallClientFrame = 0x002f27a4;
 constexpr uint32_t kClientFrame = 0x002f1e60;
 constexpr uint32_t kUiStarted = 0x00933ee4;
 constexpr uint32_t kLevelToStart = 0x0095f920;
 constexpr uint32_t kCampaignLevel = 0x008dce48;
+constexpr uint32_t kCbufAddText = 0x002aabb0;
+constexpr uint32_t kCvarSet2 = 0x0029c030;
+constexpr uint32_t kClsState = 0x0092bdf0;
+constexpr int32_t kClsStateActive = 2;
 
 int32_t g_start_level = -1;  // pending until the UI is up
+std::string g_exec_text;     // pending until the level is active
 
-void XB_CDECL start_level() {
-    if (g_start_level < 0 || title<int32_t>(kUiStarted) == 0) return;
-    title<int32_t>(kLevelToStart) = g_start_level;
-    title<int32_t>(kCampaignLevel) = g_start_level;
-    LOG_INFO("patches", "starting mission %d", g_start_level);
-    g_start_level = -1;
+void XB_CDECL client_frame_hook() {
+    if (g_start_level >= 0 && title<int32_t>(kUiStarted) != 0) {
+        title<int32_t>(kLevelToStart) = g_start_level;
+        title<int32_t>(kCampaignLevel) = g_start_level;
+        LOG_INFO("patches", "starting mission %d", g_start_level);
+        g_start_level = -1;
+    }
+    if (!g_exec_text.empty() && g_start_level < 0 && title<int32_t>(kClsState) == kClsStateActive) {
+        LOG_INFO("patches", "exec: %s", g_exec_text.c_str());
+        g_exec_text += '\n';
+        using CvarSet2 = void*(XB_CDECL*)(const char*, const char*, uint32_t);
+        reinterpret_cast<CvarSet2>(uintptr_t{kCvarSet2})("sv_cheats", "1", 1);
+        using CbufAddText = void(XB_REGS1*)(const char*);
+        reinterpret_cast<CbufAddText>(uintptr_t{kCbufAddText})(g_exec_text.c_str());
+        g_exec_text.clear();
+    }
+    if (g_start_level >= 0 || !g_exec_text.empty()) return;
     // The call returns into this thunk; later frames run the original call again (--compare tests of CL_Frame
     // would otherwise reach host code on every frame).
     put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{kCallClientFrame}), 0xE8,
               reinterpret_cast<const void*>(uintptr_t{kClientFrame}));
 }
 
-// pushad; pushfd; call start_level; popfd; popad; jmp FUN_002f1e60
-void install_start_level(int32_t level) {
-    if (level < 0) return;
+// pushad; pushfd; call client_frame_hook; popfd; popad; jmp FUN_002f1e60
+void install_client_frame_hook(int32_t level, const std::string& exec_text) {
+    if (level < 0 && exec_text.empty()) return;
     auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kCallClientFrame});
     uint32_t relative;
     std::memcpy(&relative, site + 1, 4);
     if (site[0] != 0xE8 || kCallClientFrame + 5 + relative != kClientFrame) {
-        LOG_WARN("patches", "%08x: not the call to the client frame; --level ignored", kCallClientFrame);
+        LOG_WARN("patches", "%08x: not the call to the client frame; --level/--exec ignored", kCallClientFrame);
         return;
     }
     auto* thunk = alloc_code(64);
@@ -459,13 +480,14 @@ void install_start_level(int32_t level) {
     uint8_t* t = thunk;
     *t++ = 0x60;  // pushad
     *t++ = 0x9C;  // pushfd
-    put_rel32(t, 0xE8, reinterpret_cast<const void*>(&start_level));
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(&client_frame_hook));
     t += 5;
     *t++ = 0x9D;  // popfd
     *t++ = 0x61;  // popad
     put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kClientFrame}));
     put_rel32(site, 0xE8, thunk);
     g_start_level = level;
+    g_exec_text = exec_text;
 }
 
 // Aim assist (sticky aim): the player movement code's view angle update
@@ -1437,9 +1459,9 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         g_button_prompts = TitlePatchConfig::ButtonPrompts::Controller;
         LOG_INFO("patches", "PC features off: the game's code runs as on the Xbox (30 fps)");
     }
-    if (!campaign) return;  // the objectives panel and --level are campaign-only
+    if (!campaign) return;  // the objectives panel, --level and --exec are campaign-only
 
-    install_start_level(config.start_level);
+    install_client_frame_hook(config.start_level, config.exec_text);
     if (config.pc_features) install_objectives_hook();
 }
 

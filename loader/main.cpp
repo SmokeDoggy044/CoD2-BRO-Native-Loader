@@ -74,6 +74,7 @@ struct Options {
     bool aim_assist = true;
     int32_t frame_rate = 60;
     int32_t start_level = -1;
+    std::string exec_text;       // --exec
     bool multiplayer = false;    // start codmp_xboxf.xbe
     bool compare = false;        // test decompiled functions against the originals
     bool compare_all = false;    // ... settled ones too
@@ -150,6 +151,8 @@ void print_usage(const char* program) {
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n"
+        "  --exec \"CMDS\"    console commands/cvars, e.g. \"r_showtris 1; god\", run once the\n"
+        "                   level is active (testing; first boot only)\n"
         "  --compare        test the decompiled functions against the originals while playing\n"
         "                   (Linux; counts in tools/data/functions.csv, details in the log);\n"
         "                   implies --pc-patches off unless that is given, ignores settings.ini;\n"
@@ -320,6 +323,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 std::fprintf(stderr, "--level needs a mission number (0-13)\n");
                 return std::nullopt;
             }
+        } else if (arg == "--exec") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--exec needs console commands\n");
+                return std::nullopt;
+            }
+            if (!options.exec_text.empty()) options.exec_text += ';';
+            options.exec_text += argv[++i];
         } else if (arg == "--diag") {
             if (!(options.diag_dir = value())) return std::nullopt;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -380,7 +390,7 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
 // HalReturnToFirmware(QuickReboot): the Xbox reboots into `xbe` with the launch data
 // page kept in memory. Here the loader replaces itself (exec) with the same command
 // line for `xbe`, passing the page in a file and the session start time (log and
-// --diag times continue). Scripted presses and --level are for the first boot only.
+// --diag times continue). Scripted presses, --level and --exec are for the first boot only.
 [[noreturn]] void reboot_title(const fs::path& xbe, std::span<const uint8_t> launch_data_page) {
     // Patches and symbols exist for the disc's two titles only.
     const bool same_title = fs::path(xbe).filename() == g_xbe.filename();
@@ -405,7 +415,7 @@ void call_guest(uint32_t function, const uint32_t* args, uint32_t count) {
     for (size_t i = 1; i < g_args.size(); ++i) {
         const std::string name = option_name(g_args[i]);
         if (name == "--xbe" || name == "--launch-data" || name == "--session-start" || name == "--press" ||
-            name == "--level" || name == "--multiplayer" || (name == "--symbols" && !same_title)) {
+            name == "--level" || name == "--exec" || name == "--multiplayer" || (name == "--symbols" && !same_title)) {
             ++i;  // dropped with its value
             continue;
         }
@@ -593,7 +603,7 @@ int loader_main(int argc, char** argv) {
     loader::install_kernel_thunks(image);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
                                            options->frame_rate, options->button_prompts,
-                                           options->pc_patches.value_or(!options->compare)});
+                                           options->pc_patches.value_or(!options->compare), options->exec_text});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
