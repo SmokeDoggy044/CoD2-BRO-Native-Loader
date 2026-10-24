@@ -4,12 +4,14 @@
 // - Everything the title submits is executed (or dropped) synchronously, so fences are
 //   always passed and InsertCallback runs its callback at once.
 // - The vertical blank callback runs on our own 60 Hz thread at DISPATCH_LEVEL, like
-//   the Xbox's DPC. Titles pace their frames with it (CoD2: BRO busy-waits on a flag
-//   that its callback clears), so it must keep running.
+//   the Xbox's DPC. Titles pace their frames with it (CoD2: BRO waits on a flag that
+//   its callback clears; the loader turns that spin into wait_vertical_blank_after),
+//   so it must keep running.
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -53,6 +55,9 @@ struct State {
     XbVBlankData* vblank_data = nullptr;
     std::atomic<uint32_t> vblank_count{0};
     std::atomic<uint32_t> vblank_callback{0};
+    std::mutex vblank_done_mutex;
+    std::condition_variable vblank_done_changed;
+    uint32_t vblank_done = 0;  // vertical blanks whose callback has run (vertical_blanks_done)
     XbDisplayMode display_mode{};  // from CreateDevice's parameters
     std::mutex notice_mutex;  // show_notice may come from any title thread
     std::vector<std::string> notice;
@@ -136,14 +141,19 @@ void vblank_thread(double hz) {
         next += period;
         std::this_thread::sleep_until(next);
         const uint32_t count = ++g.vblank_count;
-        const uint32_t callback = g.vblank_callback.load();
-        if (!callback) continue;
-        g.vblank_data->vblank = count;
-        g.vblank_data->swap = g.swap_count;
-        g.vblank_data->flags = 0;
-        const uint8_t old_irql = xbox::raise_irql_to(xbox::kDispatchLevel);
-        call_title(callback, {to_xbox_ptr(g.vblank_data)});  // cdecl; call_guest restores ESP
-        xbox::lower_irql_to(old_irql);
+        if (const uint32_t callback = g.vblank_callback.load()) {
+            g.vblank_data->vblank = count;
+            g.vblank_data->swap = g.swap_count;
+            g.vblank_data->flags = 0;
+            const uint8_t old_irql = xbox::raise_irql_to(xbox::kDispatchLevel);
+            call_title(callback, {to_xbox_ptr(g.vblank_data)});  // cdecl; call_guest restores ESP
+            xbox::lower_irql_to(old_irql);
+        }
+        {
+            std::lock_guard lock(g.vblank_done_mutex);
+            ++g.vblank_done;
+        }
+        g.vblank_done_changed.notify_all();
     }
 }
 
@@ -641,6 +651,16 @@ uint32_t frames_shown() { return g_frames_shown_count.load(std::memory_order_rel
 void frame_rate_changed(uint32_t fps) {
     LOG_INFO("frames", "target %u fps", fps);
     g_frame_rate_changed = true;
+}
+
+uint32_t vertical_blanks_done() {
+    std::lock_guard lock(g.vblank_done_mutex);
+    return g.vblank_done;
+}
+
+void wait_vertical_blank_after(uint32_t seen, uint32_t timeout_ms) {
+    std::unique_lock lock(g.vblank_done_mutex);
+    g.vblank_done_changed.wait_for(lock, std::chrono::milliseconds(timeout_ms), [seen] { return g.vblank_done != seen; });
 }
 
 void show_notice(std::vector<std::string> lines, double seconds) {

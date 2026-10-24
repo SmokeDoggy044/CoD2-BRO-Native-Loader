@@ -116,6 +116,8 @@ size_t sample(double seconds, std::vector<Sample>& samples) {
     return ticks;
 }
 
+double busy(uint32_t) { return -1; }
+
 std::string thread_name(uint32_t tid) {
     const auto it = g_names.find(tid);
     return it != g_names.end() ? it->second : read_thread_name(tid);

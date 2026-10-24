@@ -735,7 +735,20 @@ void install_multiplayer_heap_lock() {
 // wait is chosen where it is set up - FUN_00064580 (a D3D callback inserted by the
 // frame end) and 0x000649c0 both jump to 0x00064370 - with 2 vblanks while a movie
 // frame was decoded in the last few frames.
-// MP: the same code (FUN_00065520, 0x000652d0, decoder vtable 0x0038e830).
+//
+// The wait itself is a spin on the pending flag (0x0090288c, cleared by the vblank
+// callback): "cmp byte [flag],bl; jne $-6" right before D3DDevice_Swap. It is replaced
+// by a call that sleeps until the next vertical blank, so the title thread leaves the
+// core to the graphics driver's thread (issue #8: a dual-core laptop at 20 fps).
+//
+// A frame that missed its vertical blank waits for the next one with modes 1/2 (on the
+// Xbox too): at 30 fps a 34 ms frame is shown at 50 ms, so a PC slightly too slow for
+// 30 drops to 20. Unless late_frames_wait, the "late frames do not wait" flag of modes
+// 3/4 is set as well: a late frame is shown at once and the next one counts its
+// vertical blanks from there (between 20 and 30 fps instead of 20). Frames on time are
+// paced as before.
+// MP: the same code (FUN_00065520, 0x000652d0, decoder vtable 0x0038e830, spin
+// 0x00066123 on 0x004523ec).
 struct FramePacing {
     uint32_t set_frame_interval;
     uint32_t frame_vblanks;
@@ -744,14 +757,19 @@ struct FramePacing {
     uint32_t wait_jumps[2];
     uint32_t movie_next_frame_slot;
     uint32_t movie_next_frame;
+    uint32_t frame_wait_spin;
+    uint32_t frame_pending;
 };
 constexpr FramePacing kCampaignPacing = {0x000645c0, 0x008a2cb0, 0x00902878, 0x00064370,
-                                         {0x000645ad, 0x000649d8}, 0x007cf398, 0x000ce210};
+                                         {0x000645ad, 0x000649d8}, 0x007cf398, 0x000ce210,
+                                         0x000651c3, 0x0090288c};
 constexpr FramePacing kMultiplayerPacing = {0x00065520, 0x003e8850, 0x004523d8, 0x000652d0,
-                                            {0x0006550d, 0x00065938}, 0x0038e838, 0x000cf050};
+                                            {0x0006550d, 0x00065938}, 0x0038e838, 0x000cf050,
+                                            0x00066123, 0x004523ec};
 FramePacing g_pacing = kCampaignPacing;
 uint32_t g_frame_vblanks = 2;      // per frame outside movies
 bool g_frame_wait = true;          // false: the title asked for mode 0 (no wait)
+bool g_late_frames_wait = false;   // TitlePatchConfig::late_frames_wait
 uint32_t g_movie_frame = 0;        // engine_frame at the last movie frame
 bool g_movie_seen = false;
 bool g_movie_pacing = false;
@@ -759,7 +777,7 @@ bool g_movie_pacing = false;
 void XB_CDECL set_frame_interval(uint32_t mode) {
     if (mode > 4) return;
     g_frame_wait = mode != 0;
-    title<uint32_t>(g_pacing.late_no_wait) = mode >= 3 ? 1 : 0;
+    title<uint32_t>(g_pacing.late_no_wait) = mode >= 3 || !g_late_frames_wait ? 1 : 0;
     title<uint32_t>(g_pacing.frame_vblanks) = g_frame_wait ? g_frame_vblanks : 0;
 }
 
@@ -780,13 +798,41 @@ void XB_CDECL choose_frame_wait() {
     title<uint32_t>(g_pacing.frame_vblanks) = movie ? 2 : g_frame_vblanks;
 }
 
-void install_frame_rate(int32_t frame_rate) {
+void XB_CDECL wait_frame_start() {
+    const auto& pending = *reinterpret_cast<volatile uint8_t*>(uintptr_t{g_pacing.frame_pending});
+    for (;;) {
+        const uint32_t seen = render::vertical_blanks_done();
+        if (!pending) return;
+        render::wait_vertical_blank_after(seen, 50);
+    }
+}
+
+void install_frame_wait() {
+    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_pacing.frame_wait_spin});
+    uint8_t spin[8] = {0x38, 0x1D, 0, 0, 0, 0, 0x75, 0xF8};  // cmp [pending],bl; jne $-6
+    std::memcpy(spin + 2, &g_pacing.frame_pending, 4);
+    if (std::memcmp(site, spin, sizeof(spin)) != 0) {
+        LOG_WARN("patches", "%08x: not the frame end's wait; it spins", g_pacing.frame_wait_spin);
+        return;
+    }
+    auto* thunk = alloc_code(16);
+    if (!thunk) return;
+    *put_preserving_call(thunk, &wait_frame_start) = 0xC3;
+    put_rel32(site, 0xE8, thunk);
+    std::memset(site + 5, 0x90, 3);
+}
+
+void install_frame_rate(int32_t frame_rate, bool late_frames_wait) {
     g_frame_vblanks = frame_rate == 60 ? 1 : 2;
+    g_late_frames_wait = late_frames_wait;
+    install_frame_wait();
     install_jump(g_pacing.set_frame_interval, reinterpret_cast<const void*>(&set_frame_interval));
     // MP sets the interval only in its intro movie player (FUN_0029ab90, mode 2, never
     // reset); before that its static 1 applies. Start at the chosen rate either way.
     title<uint32_t>(g_pacing.frame_vblanks) = g_frame_vblanks;
-    LOG_INFO("patches", "%d fps (%u vertical blanks per frame)", frame_rate, g_frame_vblanks);
+    title<uint32_t>(g_pacing.late_no_wait) = late_frames_wait ? 0 : 1;
+    LOG_INFO("patches", "%d fps (%u vertical blanks per frame)%s", frame_rate, g_frame_vblanks,
+             late_frames_wait ? "; late frames wait for the next one" : "");
     if (g_frame_vblanks == 2) return;
 
     auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{g_pacing.movie_next_frame_slot});
@@ -1293,7 +1339,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     g_menus = campaign ? kCampaignMenus : kMultiplayerMenus;
     g_pacing = campaign ? kCampaignPacing : kMultiplayerPacing;
     if (!config.aim_assist) disable_aim_assist();
-    install_frame_rate(config.frame_rate);
+    install_frame_rate(config.frame_rate, config.late_frames_wait);
     install_menu_render_hooks();
     g_menu_pointer = campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer;
     install_menu_pointer();

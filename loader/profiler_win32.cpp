@@ -1,6 +1,9 @@
 // Sampling profiler, Windows side (profiler_os.h): each millisecond, every other
-// thread that used CPU time since the last tick (QueryThreadCycleTime) is suspended
-// for a GetThreadContext and resumed; nothing is allocated while one is suspended.
+// thread that ran for at least a quarter of the tick (QueryThreadCycleTime against the
+// time stamp counter, which it counts in) is suspended for a GetThreadContext and
+// resumed; nothing is allocated while one is suspended. Its busy share is its cycles
+// over the counter's. Any thread that wakes up uses a few cycles, so "used CPU time"
+// alone sampled every thread that sleeps a millisecond at a time (0.1.8: all at 100%).
 // A thread that ran only part of the millisecond may be caught in a wait already, so
 // waits (ntdll/win32u/kernel32 functions) can take a few percent of a busy thread.
 // Wine has no QueryThreadCycleTime (ERROR_CALL_NOT_IMPLEMENTED): there every thread is
@@ -11,6 +14,7 @@
 #include <windows.h>
 #include <timeapi.h>
 #include <tlhelp32.h>
+#include <intrin.h>
 
 #include <chrono>
 #include <cstdio>
@@ -32,6 +36,9 @@ struct Watched {
 
 // Names read while sampling, so threads that exited before the report keep theirs.
 std::map<uint32_t, std::string> g_names;
+// Cycles each thread used while sampling, and the counter's cycles in that time.
+std::map<uint32_t, ULONG64> g_busy_cycles;
+ULONG64 g_total_cycles = 0;
 
 std::string read_thread_name(HANDLE thread) {
     // Windows 10 1607+; older systems have no thread names.
@@ -88,16 +95,24 @@ size_t sample(double seconds, std::vector<Sample>& samples) {
     size_t ticks = 0;
     bool no_cycle_time = false;
     const auto end = Clock::now() + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(seconds));
+    g_busy_cycles.clear();
+    const ULONG64 first_tsc = __rdtsc();
+    ULONG64 last_tsc = first_tsc;
     while (Clock::now() < end) {
         if (Clock::now() >= refresh) {
             refresh_threads(watched, self);
             refresh = Clock::now() + std::chrono::milliseconds(100);
         }
+        const ULONG64 tsc = __rdtsc();
+        const ULONG64 tick_cycles = tsc - last_tsc;
+        last_tsc = tsc;
         for (auto& [tid, w] : watched) {
             ULONG64 cycles = 0;
             if (QueryThreadCycleTime(w.handle, &cycles)) {
-                if (cycles == w.cycles) continue;
+                const ULONG64 used = cycles - w.cycles;
                 w.cycles = cycles;
+                g_busy_cycles[tid] += used;
+                if (used * 4 < tick_cycles) continue;
             } else {
                 no_cycle_time = true;
             }
@@ -112,11 +127,18 @@ size_t sample(double seconds, std::vector<Sample>& samples) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     timeEndPeriod(1);
+    g_total_cycles = no_cycle_time ? 0 : __rdtsc() - first_tsc;
     if (no_cycle_time)
         LOG_WARN("profile", "no thread CPU times here (Wine?): waiting threads were sampled too, so busy "
                  "is not CPU use and waits are counted");
     for (auto& [tid, w] : watched) CloseHandle(w.handle);
     return ticks;
+}
+
+double busy(uint32_t tid) {
+    const auto it = g_busy_cycles.find(tid);
+    if (!g_total_cycles || it == g_busy_cycles.end()) return -1;
+    return static_cast<double>(it->second) / static_cast<double>(g_total_cycles);
 }
 
 std::string thread_name(uint32_t tid) {

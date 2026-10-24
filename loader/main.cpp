@@ -70,6 +70,7 @@ struct Options {
     float mouse_sensitivity = 0.11f;
     bool aim_assist = true;
     int32_t frame_rate = 60;
+    bool late_frames_wait = false;
     int32_t start_level = -1;
     bool multiplayer = false;    // start codmp_xboxf.xbe
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
@@ -146,6 +147,8 @@ void print_usage(const char* program) {
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
+        "  --late-frames show|wait  a frame that missed its vertical blank is shown at once\n"
+        "                   (default) or waits for the next one (as on the Xbox: 30 fps drops to 20)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n",
         program);
 }
@@ -282,6 +285,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.frame_rate = std::stoi(value);
+        } else if (arg == "--late-frames") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "show" && value != "wait") {
+                std::fprintf(stderr, "--late-frames needs show or wait\n");
+                return std::nullopt;
+            }
+            options.late_frames_wait = value == "wait";
         } else if (arg == "--brightness") {
             options.brightness = i + 1 < argc ? std::strtof(argv[++i], nullptr) : 0.0f;
             if (!(options.brightness >= 0.5f && options.brightness <= 2.0f)) {
@@ -552,7 +562,8 @@ int loader_main(int argc, char** argv) {
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
-                                           options->frame_rate, options->button_prompts});
+                                           options->frame_rate, options->late_frames_wait,
+                                           options->button_prompts});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});

@@ -51,7 +51,9 @@ void run(double start, double seconds, const XbeImage* image, const SymbolTable*
     }
     LOG_INFO("profile", "sampling every thread for %.0f s", seconds);
     std::vector<Sample> samples;
+    const uint32_t frames_before = render::frames_shown();
     const size_t ticks = profiler_os::sample(seconds, samples);
+    LOG_INFO("profile", "%.1f fps while sampling", (render::frames_shown() - frames_before) / seconds);
 
     struct Thread {
         size_t samples = 0;
@@ -81,13 +83,14 @@ void run(double start, double seconds, const XbeImage* image, const SymbolTable*
     std::vector<std::pair<uint32_t, const Thread*>> order;
     for (const auto& [tid, t] : by_thread) order.push_back({tid, &t});
     std::sort(order.begin(), order.end(), [](auto& a, auto& b) { return a.second->samples > b.second->samples; });
-    LOG_INFO("profile", "%zu ticks; per thread: busy = ticks it was running (100%% = a whole core), then "
+    LOG_INFO("profile", "%zu ticks; per thread: busy = share of the time it ran (100%% = a whole core), then "
              "where those samples were:", ticks);
     for (const auto& [tid, t] : order) {
         std::vector<std::pair<std::string, size_t>> places(t->places.begin(), t->places.end());
         std::sort(places.begin(), places.end(), [](auto& a, auto& b) { return a.second > b.second; });
+        const double cpu = profiler_os::busy(tid);
         LOG_INFO("profile", "thread %u (%s): busy %.1f%%", tid, profiler_os::thread_name(tid).c_str(),
-                 ticks ? 100.0 * t->samples / ticks : 0.0);
+                 cpu >= 0 ? 100.0 * cpu : ticks ? 100.0 * t->samples / ticks : 0.0);
         if (ticks && t->samples * 50 < ticks) continue;  // under 2%: no breakdown
         for (size_t i = 0; i < places.size() && i < 40; ++i)
             LOG_INFO("profile", "  %5.1f%%  %s", 100.0 * places[i].second / t->samples, places[i].first.c_str());

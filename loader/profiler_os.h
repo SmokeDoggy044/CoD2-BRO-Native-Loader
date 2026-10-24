@@ -19,6 +19,11 @@ size_t sample(double seconds, std::vector<Sample>& samples);
 
 std::string thread_name(uint32_t tid);
 
+// The share of the sampling time the thread ran (1 = a whole core), measured from its
+// CPU time where the OS keeps it per thread; negative where it does not (Linux: only
+// running threads are sampled, so the share of ticks with a sample is that).
+double busy(uint32_t tid);
+
 // Where a host address is: library and symbol, or the file and its offset there
 // (for addr2line).
 std::string host_place(uint32_t eip);

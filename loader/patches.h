@@ -27,6 +27,7 @@ struct TitlePatchConfig {
     int32_t start_level = -1;               // >= 0: start this mission once the menus are up (testing)
     bool aim_assist = true;                 // false: no sticky aim (the view following a target)
     int32_t frame_rate = 60;                // 60 or 30 (as on the Xbox): frames per second
+    bool late_frames_wait = false;          // true: a late frame waits for the next vertical blank (as on the Xbox)
     // The game's button icons: keycaps while the keyboard/mouse is used (Auto), always
     // (Keyboard) or never (Controller). See text/key_prompts.h.
     enum class ButtonPrompts { Auto, Keyboard, Controller };
