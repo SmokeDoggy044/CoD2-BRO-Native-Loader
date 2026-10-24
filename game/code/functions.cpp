@@ -22,6 +22,7 @@
 #include "nal_math.h"
 #include "nal_pose.h"
 #include "ngl.h"
+#include "ngl_debug.h"
 #include "param_set.h"
 #include "qcommon.h"
 #include "script_string.h"
@@ -383,6 +384,7 @@ const Function kFunctions[] = {
     {"nglVBlankCallback", 0x00064580, 0, code(&nglVBlankCallback), 0, Result::None, Status::Compare},
     {"nglResetDeviceBindings", 0x00064660, 0, code(&nglResetDeviceBindings), 0, Result::None, Status::Compare},
     {"nglBeginFrame", 0x00064690, 0, code(&nglBeginFrame), 0, Result::None, Status::Compare},
+    {"nglDrawFpsCounter", 0x00064780, 0, code(&nglDrawFpsCounter), 0, Result::None, Status::Compare},
     {"nglSelectVideoMode", 0x000649e0, 0, code(&nglSelectVideoMode), 0, Result::None, Status::Compare},
     {"nglEndFrame", 0x00064ec0, 0, code(&nglEndFrame), 0, Result::None, Status::Compare},
     {"nglParseFontFile", 0x00065590, 0, code(&nglParseFontFile_entry), 4, Result::Eax, Status::Compare},
@@ -435,9 +437,15 @@ const Function kFunctions[] = {
     {"nglLoadDDS", 0x0006b070, 0, code(&nglLoadDDS), 8, Result::Al, Status::Compare},
     {"nglLoadDDSTexture", 0x0006b4f0, 0, code(&nglLoadDDSTexture), 8, Result::Al, Status::Compare},
     {"nglLoadTextureFile", 0x0006b7e0, 0, code(&nglLoadTextureFile), 16, Result::Eax, Status::Compare},
+    {"nglDrawFrameTimeBar", 0x0006bb50, 0, code(&nglDrawFrameTimeBar), 0, Result::None, Status::Compare},
+    {"nglDebugMesh_AddBox", 0x0006c2b0, 0, code(&nglDebugMesh_AddBox_entry), 0, Result::None, Status::Compare},
     {"nglDebugDrawSphereMesh", 0x0006cb80, 0, code(&nglDebugDrawSphereMesh), 0, Result::Eax, Status::Compare},
     {"nglDebugDrawBoxMesh", 0x0006cc50, 0, code(&nglDebugDrawBoxMesh), 0, Result::Eax, Status::Compare},
     {"nglDebugDrawPyramidMesh", 0x0006cd30, 0, code(&nglDebugDrawPyramidMesh), 0, Result::Eax, Status::Compare},
+    {"nglDebugDrawLine", 0x0006ce00, 0, code(&nglDebugDrawLine), 16, Result::None, Status::Compare},
+    {"nglDebugDrawAxes", 0x0006d240, 0, code(&nglDebugDrawAxes), 20, Result::None, Status::Compare},
+    {"nglDebugLineBatch_Draw", 0x0006d390, 0, code(&nglDebugLineBatch_Draw), 0, Result::None, Status::Compare},
+    {"nglInitDebugMeshes", 0x0006da20, 0, code(&nglInitDebugMeshes), 0, Result::None, Status::Compare},
     {"nglDebugMeshVertexIter_Clone", 0x0006e920, 0, code(&nglDebugMeshVertexIter_Clone), 0, Result::Eax, Status::Compare},
     {"nglInitFrameBuffers", 0x0006e9c0, 0, code(&nglInitFrameBuffers), 0, Result::None, Status::Compare},
     {"nglReadBackBufferSize", 0x0006eca0, 0, code(&nglReadBackBufferSize), 0, Result::None, Status::Compare},
@@ -1421,6 +1429,7 @@ const Function kFunctions[] = {
     {"R_RenderTestShadow", 0x00241290, 0, code(&R_RenderTestShadow), 0, Result::None, Status::Compare},
     {"RE_DrawTextWithIcons", 0x00241860, 0, code(&RE_DrawTextWithIcons), 36, Result::None, Status::Compare},
     {"RE_TextWidthWithIcons", 0x00241a30, 0, code(&RE_TextWidthWithIcons), 20, Result::Eax, Status::Compare},
+    {"R_DrawDObjSkeleton", 0x00241b40, 0, code(&R_DrawDObjSkeleton), 4, Result::None, Status::Compare},
     {"XModel_ResolveBoneNames", 0x00241ea0, 0, code(&XModel_ResolveBoneNames_entry), 0, Result::None, Status::Compare},
     {"R_InitDebugMeshes", 0x0023b360, 0, code(&R_InitDebugMeshes_entry), 0, Result::None, Status::Compare},
     {"R_Register", 0x0023c4e0, 0, code(&R_Register), 0, Result::Eax, Status::Compare},
@@ -2005,6 +2014,8 @@ const Function kFunctions[] = {
     {"Cmd_ExecuteRegisteredCommand", 0x002b1eb0, 0, code(&Cmd_ExecuteRegisteredCommand), 0, Result::None, Status::Compare},
     {"SV_SplitSector", 0x002b1f70, 0, code(&SV_SplitSector_entry), 8, Result::None, Status::Compare},
     {"CM_FloodAreaConnections", 0x002b2200, 0, code(&CM_FloodAreaConnections), 0, Result::None, Status::Compare},
+    {"DebugDraw_AddLine", 0x002b2f20, 0, code(&DebugDraw_AddLine), 24, Result::None, Status::Compare},
+    {"DebugDraw_AddString", 0x002b30d0, 0, code(&DebugDraw_AddString_entry), 16, Result::None, Status::Compare},
     {"Key_StringToKeynum", 0x002b3490, 0, code(&Key_StringToKeynum_entry), 0, Result::Eax, Status::Compare},
     {"CL_WritePacket", 0x002b37e0, 0, code(&CL_WritePacket), 0, Result::Eax, Status::Compare},
     {"CL_MouseMove", 0x002b39e0, 0, code(&CL_MouseMove_entry), 0, Result::None, Status::Compare},
