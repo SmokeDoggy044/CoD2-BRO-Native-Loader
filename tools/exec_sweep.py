@@ -48,10 +48,11 @@ GROUPS = {
     "debugdraw": ("fx_debug 1; fx_debugBolt 1; bg_stickyAimRender 1; debug_drones 1; debug_vehicles 1; "
                   "debug_squad_radius 1; debug_squad_overall_radius 1; debug_axis 1; debug_attrib 1; debug_drawcone 1; "
                   "debug_mortars 1; debug_mg_targets 1; debug_tankall 1; debug_stundraw 1"),
-    # Shutdown and load paths: the renderer restarted, the level restarted, the server shut down.
-    "vidrestart": "vid_restart",
-    "maprestart": "map_restart",
-    "disconnect": "disconnect",
+    # Shutdown and load paths: the renderer restarted, the level restarted, the server shut down - after
+    # ~80 s (--exec runs while the mission is still loading).
+    "vidrestart": "wait 2400; vid_restart",
+    "maprestart": "wait 2400; map_restart",
+    "disconnect": "wait 2400; disconnect",
 }
 
 
