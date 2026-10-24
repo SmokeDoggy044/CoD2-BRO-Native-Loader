@@ -20,6 +20,7 @@ usage: tools/compare_batch.py [FUNCTION ...] [options]
   --press LIST   scripted presses for every run (default A every 4 s from 10 s to 86 s:
                  past the movie and "Press A to start" into the level, checked for
                  missions 1/4/5/6 on 2026-10-19; 'none' for no presses)
+  --exec CMDS    console commands/cvars for every run (loader --exec), e.g. "r_drawentities 0"
   --screenshots N  save every N-th frame as DIR/m<N>/frame_<n>.bmp
   --preset P     build preset (default linux-loader)
   --out DIR      run folders (default build/compare/<date-time>)
@@ -123,6 +124,8 @@ def start_runs(args, out, reported):
                    "--silent", "--level", str(mission), "--compare-all" if args.all else "--compare"]
         if args.press != "none":
             command += ["--press", args.press]
+        if args.exec:
+            command += ["--exec", args.exec]
         if args.screenshots:
             command += ["--screenshots", str(args.screenshots), str(folder)]
         if i:
@@ -230,6 +233,7 @@ def main():
     parser.add_argument("--only", action="store_true")
     parser.add_argument("--every", type=int)
     parser.add_argument("--press", default=",".join(f"a@{t}" for t in range(10, 90, 4)))
+    parser.add_argument("--exec")
     parser.add_argument("--screenshots", type=int)
     parser.add_argument("--preset", default="linux-loader")
     parser.add_argument("--out", type=Path)

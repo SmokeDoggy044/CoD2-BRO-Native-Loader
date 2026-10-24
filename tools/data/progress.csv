@@ -1221,9 +1221,9 @@ address,name,section,module,state,tested,matched
 00044e90,FUN_00044e90,.text,unassigned,unnamed,0,0
 00044eb0,FUN_00044eb0,.text,unassigned,unnamed,0,0
 00044ee0,Water_GetHeight,.text,game,named,0,0
-00045610,R_SetDebugViewMode,.text,renderer,untested,0,0
+00045610,R_SetDebugViewMode,.text,renderer,matched,2,2
 00045620,R_GetDebugViewMode,.text,renderer,settled,405,405
-00045630,R_SetTextureMip,.text,renderer,untested,0,0
+00045630,R_SetTextureMip,.text,renderer,matched,1,1
 00045640,nglAdvanceShaderTime,.text,renderer,settled,368,368
 000456a0,nglMaterialFindTexture,.text,renderer,settled,127,127
 000456c0,nglMaterialFindTextureOrDefault,.text,renderer,settled,119,119
@@ -1231,16 +1231,16 @@ address,name,section,module,state,tested,matched
 00045790,nglInitShaders,.text,renderer,inconclusive,218,0
 00045850,R_DrawFogPass,.text,renderer,settled,157,157
 00045ef0,R_AddFogPass,.text,renderer,settled,387,387
-00045f40,nglToggleShaderByName,.text,renderer,untested,0,0
+00045f40,nglToggleShaderByName,.text,renderer,matched,2,2
 000462f0,cdSimpleInstance_Init,.text,renderer,untested,0,0
-00046300,cdSimpleInstance_Toggle,.text,renderer,untested,0,0
+00046300,cdSimpleInstance_Toggle,.text,renderer,matched,1,1
 00046320,cdSimpleInstance_InitList,.text,renderer,settled,104,104
 00046360,cdSimpleInstance_FreeList,.text,renderer,untested,0,0
 00046370,cdSimpleInstance_ShrinkList,.text,renderer,settled,102,102
 000463c0,cdSimpleInstance_AddInstance,.text,renderer,settled,107,107
 00046560,cdSimpleInstance_AddListToScene,.text,renderer,settled,300,300
 00046870,cdDebug_InitMaterial,.text,renderer,settled,124,124
-00046890,cdDebug_Toggle,.text,renderer,untested,0,0
+00046890,cdDebug_Toggle,.text,renderer,matched,1,1
 000468b0,cdDebug_AddToList,.text,renderer,untested,0,0
 00046900,cdDebug_Register,.text,renderer,settled,166,166
 00046970,cdDebug_Init,.text,renderer,untested,0,0
@@ -1261,7 +1261,7 @@ address,name,section,module,state,tested,matched
 00047670,nglMaterial_LoadTextureRef,.text,renderer,untested,0,0
 000476b0,nglSetTextureAnimFrame,.text,renderer,settled,383,383
 000479b0,cdGunSight_AddToList,.text,renderer,settled,149,149
-00047a30,cdGunSight_Toggle,.text,renderer,untested,0,0
+00047a30,cdGunSight_Toggle,.text,renderer,matched,1,1
 00047a50,cdGunSight_Register,.text,renderer,settled,106,106
 00047ad0,cdGunSight_Init,.text,renderer,untested,0,0
 00047b10,cdGunSight_Draw,.text,renderer,settled,170,170
@@ -1273,7 +1273,7 @@ address,name,section,module,state,tested,matched
 00047ea0,cdGunSight_NewVertexIter,.text,renderer,untested,0,0
 00047ed0,cdGunSightVertexIter_Clone,.text,renderer,untested,0,0
 000481c0,cdGun_AddToList,.text,renderer,settled,100,100
-00048240,cdGun_Toggle,.text,renderer,untested,0,0
+00048240,cdGun_Toggle,.text,renderer,matched,1,1
 00048260,cdGun_Register,.text,renderer,settled,101,101
 000482e0,cdGun_Init,.text,renderer,untested,0,0
 00048320,cdGun_Draw,.text,renderer,settled,100,100
@@ -1281,7 +1281,7 @@ address,name,section,module,state,tested,matched
 000485e0,nglMaterial_ReleaseTexture,.text,renderer,settled,111,111
 00048600,cdGun_NewVertexIter,.text,renderer,untested,0,0
 00048630,cdGunVertexIter_Clone,.text,renderer,untested,0,0
-00048900,cdGlass_Toggle,.text,renderer,untested,0,0
+00048900,cdGlass_Toggle,.text,renderer,matched,1,1
 00048920,cdGlass_Register,.text,renderer,settled,120,120
 00048990,cdGlass_Init,.text,renderer,untested,0,0
 00048a10,cdGlass_Draw,.text,renderer,settled,366,366
@@ -1299,7 +1299,7 @@ address,name,section,module,state,tested,matched
 00049280,nglNode_GetWorldViewRotation,.text,renderer,settled,200,200
 000495d0,nglNode_CalcWorldMatrix,.text,renderer,settled,6361,6361
 00049750,nglNode_GetWorldInverse,.text,renderer,settled,12982,12982
-00049b70,cdSimpleAlpha_Toggle,.text,renderer,untested,0,0
+00049b70,cdSimpleAlpha_Toggle,.text,renderer,matched,1,1
 00049b90,cdSimpleAlpha_Register,.text,renderer,settled,109,109
 00049bf0,cdSimpleAlpha_Init,.text,renderer,untested,0,0
 00049c30,cdSimpleAlpha_ClampDebugPulse,.text,renderer,untested,0,0
@@ -1312,7 +1312,7 @@ address,name,section,module,state,tested,matched
 0004a940,cdSimpleAlpha_GetName,.text,renderer,settled,108,108
 0004a960,cdSimpleAlpha_NewVertexIter,.text,renderer,untested,0,0
 0004a990,cdSimpleAlphaVertexIter_Clone,.text,renderer,untested,0,0
-0004ac80,cdPropeller_Toggle,.text,renderer,untested,0,0
+0004ac80,cdPropeller_Toggle,.text,renderer,matched,1,1
 0004aca0,cdPropeller_Register,.text,renderer,settled,104,104
 0004ad20,cdPropeller_Init,.text,renderer,untested,0,0
 0004ad60,cdPropeller_Draw,.text,renderer,settled,225,225
@@ -1320,7 +1320,7 @@ address,name,section,module,state,tested,matched
 0004b0c0,cdPropeller_GetName,.text,renderer,settled,111,111
 0004b0e0,cdPropeller_NewVertexIter,.text,renderer,untested,0,0
 0004b110,cdPropellerVertexIter_Clone,.text,renderer,untested,0,0
-0004b400,cdDecal_Toggle,.text,renderer,untested,0,0
+0004b400,cdDecal_Toggle,.text,renderer,matched,1,1
 0004b420,cdDecal_AddToList,.text,renderer,settled,186,186
 0004b4a0,cdDecal_Register,.text,renderer,settled,113,113
 0004b520,cdDecal_Init,.text,renderer,untested,0,0
@@ -1328,7 +1328,7 @@ address,name,section,module,state,tested,matched
 0004b880,cdDecal_GetName,.text,renderer,settled,100,100
 0004b8a0,cdDecal_NewVertexIter,.text,renderer,untested,0,0
 0004b8d0,cdDecalVertexIter_Clone,.text,renderer,untested,0,0
-0004bba0,cdChar_Toggle,.text,renderer,untested,0,0
+0004bba0,cdChar_Toggle,.text,renderer,matched,1,1
 0004bbc0,cdChar_AddToList,.text,renderer,settled,228,228
 0004bc40,cdChar_Register,.text,renderer,settled,103,103
 0004bcc0,cdChar_Init,.text,renderer,untested,0,0
@@ -1336,7 +1336,7 @@ address,name,section,module,state,tested,matched
 0004bfa0,cdChar_GetName,.text,renderer,settled,125,125
 0004bfe0,cdChar_NewVertexIter,.text,renderer,untested,0,0
 0004c010,cdCharVertexIter_Clone,.text,renderer,untested,0,0
-0004c2e0,cdPrelit_Toggle,.text,renderer,untested,0,0
+0004c2e0,cdPrelit_Toggle,.text,renderer,matched,1,1
 0004c300,cdPrelit_AddToList,.text,renderer,settled,128,128
 0004c380,cdPrelit_Register,.text,renderer,settled,100,100
 0004c410,cdPrelit_Init,.text,renderer,untested,0,0
@@ -1346,7 +1346,7 @@ address,name,section,module,state,tested,matched
 0004c720,nglMaterial_ReleaseBaseAndOptional,.text,renderer,settled,109,109
 0004c750,cdPrelit_NewVertexIter,.text,renderer,untested,0,0
 0004c780,cdPrelitVertexIter_Clone,.text,renderer,untested,0,0
-0004ca50,cdAirplaneMetal_Toggle,.text,renderer,untested,0,0
+0004ca50,cdAirplaneMetal_Toggle,.text,renderer,matched,1,1
 0004ca70,cdAirplaneMetal_AddToList,.text,renderer,settled,131,131
 0004caf0,cdAirplaneMetal_Register,.text,renderer,settled,106,106
 0004cb70,cdAirplaneMetal_Init,.text,renderer,untested,0,0
@@ -1355,7 +1355,7 @@ address,name,section,module,state,tested,matched
 0004d0b0,nglMaterial_Relocate2,.text,renderer,settled,129,129
 0004d0e0,cdAirplaneMetal_NewVertexIter,.text,renderer,untested,0,0
 0004d110,cdAirplaneMetalVertexIter_Clone,.text,renderer,untested,0,0
-0004d3e0,cdSimpleUVAnim_Toggle,.text,renderer,untested,0,0
+0004d3e0,cdSimpleUVAnim_Toggle,.text,renderer,matched,1,1
 0004d400,cdSimpleUVAnim_Register,.text,renderer,matched,91,91
 0004d4a0,cdSimpleUVAnim_AddToList,.text,renderer,settled,101,101
 0004d520,cdSimpleUVAnim_Init,.text,renderer,untested,0,0
@@ -1364,7 +1364,7 @@ address,name,section,module,state,tested,matched
 0004d8c0,cdSimpleUVAnim_GetName,.text,renderer,settled,133,133
 0004d8e0,cdSimpleUVAnim_NewVertexIter,.text,renderer,untested,0,0
 0004d910,cdSimpleUVAnimVertexIter_Clone,.text,renderer,untested,0,0
-0004dc00,cdSimplePrelit_Toggle,.text,renderer,untested,0,0
+0004dc00,cdSimplePrelit_Toggle,.text,renderer,matched,1,1
 0004dc20,cdSimplePrelit_AddToList,.text,renderer,settled,203,203
 0004dca0,cdSimplePrelit_Register,.text,renderer,matched,15,15
 0004dd10,cdSimplePrelit_Init,.text,renderer,untested,0,0
@@ -1373,7 +1373,7 @@ address,name,section,module,state,tested,matched
 0004dfb0,nglMaterial_Relocate,.text,renderer,settled,121,121
 0004dfd0,cdSimplePrelit_NewVertexIter,.text,renderer,untested,0,0
 0004e000,cdSimplePrelitVertexIter_Clone,.text,renderer,untested,0,0
-0004e2f0,cdSimple_Toggle,.text,renderer,untested,0,0
+0004e2f0,cdSimple_Toggle,.text,renderer,matched,1,1
 0004e310,cdSimple_AddToList,.text,renderer,settled,309,309
 0004e390,cdSimple_Register,.text,renderer,matched,3,3
 0004e410,cdSimple_Init,.text,renderer,untested,0,0
@@ -1384,7 +1384,7 @@ address,name,section,module,state,tested,matched
 0004e760,cdSimpleVertexIter_Clone,.text,renderer,untested,0,0
 0004e7c0,cdRiver_InitPixelShaders,.text,renderer,matched,2,2
 0004e810,cdRiver_AddToList,.text,renderer,settled,100,100
-0004e880,cdRiver_Toggle,.text,renderer,untested,0,0
+0004e880,cdRiver_Toggle,.text,renderer,matched,1,1
 0004e8a0,cdRiver_Register,.text,renderer,matched,1,1
 0004e980,cdRiver_Init,.text,renderer,untested,0,0
 0004ea10,cdOcean_GetName,.text,renderer,matched,2,2
@@ -1395,7 +1395,7 @@ address,name,section,module,state,tested,matched
 0004eb80,cdRiver_NewVertexIter,.text,renderer,untested,0,0
 0004ebb0,cdRiverVertexIter_Clone,.text,renderer,untested,0,0
 0004eef0,cdOcean_AddToList,.text,renderer,settled,103,103
-0004ef60,cdOcean_Toggle,.text,renderer,untested,0,0
+0004ef60,cdOcean_Toggle,.text,renderer,matched,1,1
 0004ef90,cdOcean_LoadWaveSet,.text,renderer,untested,0,0
 0004f2a0,cdOcean_Register,.text,renderer,matched,3,3
 0004f320,cdOcean_Init,.text,renderer,untested,0,0
@@ -1406,7 +1406,7 @@ address,name,section,module,state,tested,matched
 00050910,nglNode_GetScaledWorldInverse,.text,renderer,settled,4763,4763
 00050d80,cdOceanVertexIter_Clone,.text,renderer,untested,0,0
 00051070,cdWater_AddToList,.text,renderer,untested,0,0
-000510e0,cdWater_Toggle,.text,renderer,untested,0,0
+000510e0,cdWater_Toggle,.text,renderer,matched,1,1
 00051100,cdWater_Register,.text,renderer,matched,4,4
 00051180,cdWater_Init,.text,renderer,untested,0,0
 000511c0,cdWater_Draw,.text,renderer,untested,0,0
@@ -1415,13 +1415,13 @@ address,name,section,module,state,tested,matched
 00051540,nglMaterial_ReleaseTwoTexturesClear,.text,renderer,untested,0,0
 00051570,cdWater_NewVertexIter,.text,renderer,untested,0,0
 000515a0,cdWaterVertexIter_Clone,.text,renderer,untested,0,0
-00051870,cdWorldBlend_Toggle,.text,renderer,untested,0,0
+00051870,cdWorldBlend_Toggle,.text,renderer,matched,1,1
 00051890,cdWorldBlend_Register,.text,renderer,matched,4,4
 00051910,cdWorldBlend_Init,.text,renderer,untested,0,0
 00051970,cdWorldBlend_AddToList,.text,renderer,settled,270,270
 00051b10,cdWorldBlend_Draw,.text,renderer,settled,6013,6013
 00052600,cdWorldBlend_InitVertexShaders,.text,renderer,matched,1,1
-00052640,cdWorldBlend_InitVertexShaders2,.text,renderer,untested,0,0
+00052640,cdWorldBlend_InitVertexShaders2,.text,renderer,matched,1,1
 00052680,cdWorldBlend_InitPixelShaders,.text,renderer,matched,1,1
 000526b0,cdWorldBlend_InitPixelShaders2,.text,renderer,matched,2,2
 000526e0,cdWorldBlend_GetName,.text,renderer,matched,6,6
@@ -1429,7 +1429,7 @@ address,name,section,module,state,tested,matched
 00052780,cdWorldBlend_ReleaseTextures,.text,renderer,settled,103,103
 000527b0,cdWorldBlend_NewVertexIter,.text,renderer,untested,0,0
 000527e0,cdWorldBlendVertexIter_Clone,.text,renderer,untested,0,0
-00052af0,cdWorldVertexLit_Toggle,.text,renderer,untested,0,0
+00052af0,cdWorldVertexLit_Toggle,.text,renderer,matched,1,1
 00052b10,cdWorldVertexLit_AddToList,.text,renderer,untested,0,0
 00052b90,cdWorldVertexLit_Register,.text,renderer,matched,3,3
 00052c10,cdWorldVertexLit_Init,.text,renderer,untested,0,0
@@ -1437,7 +1437,7 @@ address,name,section,module,state,tested,matched
 00052e80,cdWorldVertexLit_GetName,.text,renderer,matched,3,3
 00052ea0,cdWorldVertexLit_NewVertexIter,.text,renderer,untested,0,0
 00052ed0,cdWorldVertexLitVertexIter_Clone,.text,renderer,untested,0,0
-000531a0,cdWorld_Toggle,.text,renderer,untested,0,0
+000531a0,cdWorld_Toggle,.text,renderer,matched,1,1
 000531c0,cdWorld_Register,.text,renderer,matched,1,1
 00053240,cdWorld_Init,.text,renderer,untested,0,0
 000532a0,cdWorld_AddToList,.text,renderer,settled,636,636
@@ -1445,11 +1445,11 @@ address,name,section,module,state,tested,matched
 00053f20,cdWorld_InitVertexShaders,.text,renderer,matched,2,2
 00053f60,cdWorld_InitVertexShaders2,.text,renderer,matched,1,1
 00053fa0,cdWorld_InitPixelShaders,.text,renderer,matched,1,1
-00053fd0,cdWorld_InitPixelShaders2,.text,renderer,untested,0,0
+00053fd0,cdWorld_InitPixelShaders2,.text,renderer,matched,1,1
 00054000,cdWorld_GetName,.text,renderer,matched,2,2
 00054020,cdWorld_NewVertexIter,.text,renderer,untested,0,0
 00054050,cdWorldVertexIter_Clone,.text,renderer,untested,0,0
-00054340,cdBackground_Toggle,.text,renderer,untested,0,0
+00054340,cdBackground_Toggle,.text,renderer,matched,1,1
 00054360,cdBackground_AddToList,.text,renderer,settled,100,100
 000543e0,cdBackground_Register,.text,renderer,matched,1,1
 00054460,cdBackground_Init,.text,renderer,untested,0,0
@@ -1457,7 +1457,7 @@ address,name,section,module,state,tested,matched
 000546e0,cdBackground_GetName,.text,renderer,matched,1,1
 00054700,cdBackground_NewVertexIter,.text,renderer,untested,0,0
 00054730,cdBackgroundVertexIter_Clone,.text,renderer,untested,0,0
-00054a00,cdSky_Toggle,.text,renderer,untested,0,0
+00054a00,cdSky_Toggle,.text,renderer,matched,1,1
 00054a20,cdSky_Register,.text,renderer,matched,2,2
 00054a90,cdSky_Init,.text,renderer,untested,0,0
 00054ad0,cdSky_Draw,.text,renderer,settled,659,659
@@ -2250,9 +2250,9 @@ address,name,section,module,state,tested,matched
 0009cc50,FxOp_SetTextures,.text,renderer,untested,0,0
 0009cca0,FxOp31_InitShaders,.text,renderer,matched,4,4
 0009ccd0,FxOp31_Init,.text,renderer,settled,115,115
-0009cd00,FxShaderClass_Create,.text,renderer,settled,104,104
+0009cd00,FxShaderClass_Create,.text,renderer,settled,116,116
 0009cd30,FxOp31_AddToList,.text,renderer,untested,0,0
-0009ced0,FxSimpleShader_GetName,.text,renderer,untested,0,0
+0009ced0,FxSimpleShader_GetName,.text,renderer,matched,2,2
 0009cf00,FxEffect_ViewDepth,.text,renderer,settled,400,400
 0009d000,apsLog_Printf,.text,qcommon,untested,0,0
 0009d040,FxLog_Init,.text,renderer,settled,105,105
@@ -2300,9 +2300,9 @@ address,name,section,module,state,tested,matched
 0009ef00,FxOp53_Init,.text,renderer,settled,131,131
 0009ef90,FxOp_SetupNode,.text,renderer,settled,400,400
 0009f0f0,FxOp53_AddToList,.text,renderer,settled,127,127
-0009f1d0,FxSystems_New,.text,renderer,untested,0,0
+0009f1d0,FxSystems_New,.text,renderer,matched,1,1
 0009f220,apsPool_HasRoom,.text,qcommon,settled,111,111
-0009f250,FxEmitters_Init,.text,renderer,untested,0,0
+0009f250,FxEmitters_Init,.text,renderer,matched,1,1
 0009f2d0,FxEmitterList_Add,.text,renderer,settled,103,103
 0009f350,FxEmitterList_Remove,.text,renderer,settled,107,107
 0009f3c0,FxEmitters_FreeAll,.text,renderer,untested,0,0
