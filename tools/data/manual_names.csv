@@ -11817,3 +11817,5 @@ address,name,kind,confidence,evidence
 00248cb0,Cmd_MemReport_f,function,medium,"handler of ""memreport"" in g_devCommands (0x008ddae0)"
 00248ca0,Cmd_MemPools_f,function,medium,"handler of ""mempools"" in g_devCommands (0x008ddae0)"
 00248dc0,Cmd_CameraInterrupt_f,function,medium,"handler of ""cameraInterrupt"" in g_devCommands (0x008ddae0)"
+00024520,FxSpawnCmd_Copy,function,medium,"EBX dst, stack src; copies a 0x210-byte effect spawn command (ScriptString_Assign at +0x1fc); only caller FXCmd_Alloc"
+00296d80,FxInstance_Init,function,medium,"EAX instance, ECX handle; +0x4c = ++0x0095f5b8 (never 0), +0x50 = 2; only caller FXCmd_Commit"

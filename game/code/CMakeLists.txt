@@ -13,6 +13,7 @@ set(game_code_sources
     dobj.cpp
     functions.cpp
     fx.cpp
+    fx_cmd.cpp
     fx_load.cpp
     g_scr_math.cpp
     g_scr_runtime.cpp
