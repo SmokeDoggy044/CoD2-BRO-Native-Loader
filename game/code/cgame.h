@@ -50,11 +50,11 @@ void XB_CDECL CG_InitLocalEntities();
 void XB_CDECL CG_StepOffset();
 // 0x00276d00 (cap in XMM1, cdecl, result on the x87): sin(cycle) * min(stance scale * speed,
 // cap); the stance scale is 0x0094aa90 / 0x00947e80 / 0x0094a6a0.
-extern "C" PLATFORM_HIDDEN float XB_CDECL CG_BobCycleVertical(float cycle, float speed, float cap);
+extern "C" PLATFORM_HIDDEN long double XB_CDECL CG_BobCycleVertical(float cycle, float speed, float cap);
 extern "C" void CG_BobCycleVertical_entry(void);
 // 0x00276d50 (as CG_BobCycleVertical): (sin(cycle * 4 + pi/2) * 0.2 + sin(2 * cycle)) *
 // amplitude * 0.75.
-extern "C" PLATFORM_HIDDEN float XB_CDECL CG_BobCycleLateral(float cycle, float speed, float cap);
+extern "C" PLATFORM_HIDDEN long double XB_CDECL CG_BobCycleLateral(float cycle, float speed, float cap);
 extern "C" void CG_BobCycleLateral_entry(void);
 // 0x002779e0 (shader in EAX): a 640x480 picture scaled to the screen (cgs.screenX/YScale).
 void XB_REGS1 XB_CDECL CG_DrawPic(uint32_t shader, float x, float y, float w, float h);

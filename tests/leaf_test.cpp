@@ -717,9 +717,24 @@ int main() {
                 runner.reset_pages(input_pages);
                 continue;
             }
+            // An x87 result function that returns nothing on the x87 stack (FPTAN out of range
+            // pushes nothing) leaves its caller to underflow: treated like a crash.
+            if (f->result == game::Result::St0 && x87_depth(a.ctx) == 0) {
+                ++skipped;
+                runner.reset_pages(input_pages);
+                continue;
+            }
             runner.apply_inputs();
             input.trace = 0;
-            const Outcome b = runner.run(input, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(f->code)), arena_in, 50);
+            const uint32_t ours = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(f->code));
+            Outcome b = runner.run(input, ours, arena_in, 50);
+            if (b.crashed && b.signal == SIGALRM) {
+                // Our C is slower on long loops (the -O0 preset: NAL_Float3_SkipFixedBlock
+                // over millions of channels): once more with a longer limit.
+                for (const auto& p : b.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);
+                runner.apply_inputs();
+                b = runner.run(input, ours, arena_in, 2000);
+            }
             bool drift = false, nan = false;
             const std::string diff = compare(*f, a, b, runner, drift, nan);
             if (!diff.empty() && !drift && !nan) {
@@ -776,6 +791,9 @@ int main() {
         }
         emit(outputs[static_cast<size_t>(worker)], index, mismatched != 0, leaf, tested, matched, nans, mismatched + drifted,
              coverage, out);
+        // Progress as each function finishes (the table above is printed sorted at the end).
+        std::fprintf(stderr, "[%zu/%zu] %s: %d of %d matched%s\n", index + 1, sizeof kLeafFunctions / sizeof *kLeafFunctions,
+                     leaf.name, matched, tested, mismatched ? " - MISMATCH" : "");
     }
     if (worker >= 0) {
         std::fflush(outputs[static_cast<size_t>(worker)]);
@@ -787,6 +805,7 @@ int main() {
             char line[512];
             while (std::fgets(line, sizeof line, in)) {
                 unsigned address = 0;
+                if (std::strncmp(line, "address,", 8) == 0) continue;  // the header ("add" reads as hex)
                 if (std::sscanf(line, "%x,", &address) == 1) rows[address] = line;
             }
             std::fclose(in);

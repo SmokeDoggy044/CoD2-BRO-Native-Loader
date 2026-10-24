@@ -75,17 +75,10 @@ uint32_t XB_CDECL Vehicle_FindDefIndex(uint32_t eax, const char* name) {
     return eax | 0xffff;
 }
 
-PLATFORM_ASM_ENTRY(Vehicle_FreeDefs_entry,
-                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_FreeDefs) "addl $4, %esp\n"
-                   "ret")
-
-uint32_t XB_CDECL Vehicle_FreeDefs(uint32_t eax) {
-    for (int32_t i = 0; i < vehicle_def_count(); ++i) {
-        eax = address_of(vehicle_def(i));
-        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(eax);  // Z_Free
-    }
+void XB_CDECL Vehicle_FreeDefs() {
+    for (int32_t i = 0; i < vehicle_def_count(); ++i)
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(address_of(vehicle_def(i)));  // Z_Free
     vehicle_def_count() = 0;
-    return eax;
 }
 
 PLATFORM_ASM_ENTRY(BG_AllocWeaponDef_entry,

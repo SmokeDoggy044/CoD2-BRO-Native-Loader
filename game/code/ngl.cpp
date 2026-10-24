@@ -792,6 +792,15 @@ void swap_nodes(Node& a, Node& b) {
     b = t;
 }
 
+// last - first in 8-byte nodes as the original counts: the byte difference shifted (SAR 3).
+// Pointer subtraction would let GCC assume an exact multiple and fold `count > 1` into
+// `bytes > 8` (12 bytes: 1 node to the original, 2 to the fold).
+template <typename Node>
+int32_t node_count(const Node* first, const Node* last) {
+    static_assert(sizeof(Node) == 8);
+    return static_cast<int32_t>(reinterpret_cast<uintptr_t>(last) - reinterpret_cast<uintptr_t>(first)) >> 3;
+}
+
 }  // namespace
 
 void XB_CDECL std_PushHeap_OpaqueNodes(NglOpaqueNode* first, int32_t hole, int32_t top, NglOpaqueNode value) {
@@ -812,8 +821,8 @@ void XB_CDECL std_PushHeap_TranslucentNodes(NglTranslucentNode* first, int32_t h
 }
 
 void XB_CDECL std_Rotate_NodeKeys(NglOpaqueNode* first, NglOpaqueNode* mid, NglOpaqueNode* last) {
-    const int32_t shift = static_cast<int32_t>(mid - first);
-    const int32_t count = static_cast<int32_t>(last - first);
+    const int32_t shift = node_count(first, mid);
+    const int32_t count = node_count(first, last);
     int32_t factor = count;
     for (int32_t b = shift; b != 0;) {
         const int32_t r = factor % b;
@@ -933,7 +942,7 @@ void adjust_heap_impl(Node* first, int32_t hole, int32_t bottom, Node value, uin
 
 template <typename Node>
 void make_heap_impl(Node* first, Node* last, uint32_t pred) {
-    const int32_t bottom = static_cast<int32_t>(last - first);
+    const int32_t bottom = node_count(first, last);
     for (int32_t hole = bottom / 2; hole > 0;) {
         --hole;
         adjust_heap(first, hole, bottom, first[hole], pred);
@@ -942,10 +951,10 @@ void make_heap_impl(Node* first, Node* last, uint32_t pred) {
 
 template <typename Node>
 void sort_heap_impl(Node* first, Node* last, uint32_t pred) {
-    for (; last - first > 1; --last) {
+    for (; node_count(first, last) > 1; --last) {
         const Node value = last[-1];
         last[-1] = first[0];
-        adjust_heap(first, 0, static_cast<int32_t>(last - 1 - first), value, pred);
+        adjust_heap(first, 0, node_count(first, last - 1), value, pred);
     }
 }
 
@@ -968,7 +977,7 @@ void insertion_sort_impl(Node* first, Node* last) {
 
 template <typename Node>
 void median_impl(Node* first, Node* mid, Node* last) {
-    const int32_t count = static_cast<int32_t>(last - first);
+    const int32_t count = node_count(first, last);
     if (count > 40) {
         const int32_t step = (count + 1) / 8;
         med3(first, first + step, first + 2 * step);
@@ -989,7 +998,7 @@ void iter_swap(Node* a, Node* b) {
 
 template <typename Node>
 NglNodeRange<Node>* unguarded_partition_impl(NglNodeRange<Node>* result, Node* first, Node* last, uint32_t pred) {
-    Node* mid = first + (last - first) / 2;
+    Node* mid = first + node_count(first, last) / 2;
     median(first, mid, last - 1, pred);
     Node* pfirst = mid;
     Node* plast = pfirst + 1;
@@ -1028,8 +1037,8 @@ NglNodeRange<Node>* unguarded_partition_impl(NglNodeRange<Node>* result, Node* f
 
 template <typename Node>
 void sort_r_impl(Node* first, Node* last, int32_t ideal, uint32_t pred) {
-    int32_t count = static_cast<int32_t>(last - first);
-    for (; count > 32 && ideal > 0; count = static_cast<int32_t>(last - first)) {
+    int32_t count = node_count(first, last);
+    for (; count > 32 && ideal > 0; count = node_count(first, last)) {
         NglNodeRange<Node> range;
         unguarded_partition(&range, first, last, pred);
         ideal = ideal / 2 + ideal / 2 / 2;

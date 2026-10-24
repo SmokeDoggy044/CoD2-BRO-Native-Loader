@@ -5,7 +5,7 @@ FS/port/privileged instructions, no calls into SDK sections that touch the hardw
 (D3D, DSOUND, XONLINE, XNET, XPP), and callees that pass the same test. Globals are fine:
 the test maps the image at its addresses and randomizes the ones read.
 
-usage: tools/leafscan.py [--module renderer] [--states untested,inconclusive,mismatched]
+usage: tools/leafscan.py [--module all|renderer,game,...] [--states untested,inconclusive,mismatched,offline]
                          [--emit tests/leaf_functions.inc]
   --emit FILE  write the eligible functions as the test's table (name, address, size,
                instruction count, globals read by the function and its callees)
@@ -14,6 +14,7 @@ import argparse
 import bisect
 import csv
 import re
+import struct
 
 import fnpack
 
@@ -52,7 +53,7 @@ def scan(image, starts, va):
     end = starts[i] if i < len(starts) else va + 0x400
     rows = fnpack.disassemble(image, va, min(end - va, 0x4000))
     size = rows[-1][0] + rows[-1][1] - va if rows else 0
-    callees, problems, reads, writes = set(), set(), set(), set()
+    callees, problems, reads, writes, addressed, indexed = set(), set(), set(), set(), set(), set()
     for _, _, text in rows:
         mnemonic, operands = fnpack.split_operands(text)
         joined = ",".join(operands)
@@ -69,23 +70,46 @@ def scan(image, starts, va):
             continue
         for k, op in enumerate(operands):
             memory = op[op.index("["):] if "[" in op else op[op.index("ds:"):] if "ds:" in op else None
-            if memory is None:
+            if memory is None or mnemonic == "lea":
+                for m in ADDRESS.finditer(op):  # the address itself is taken
+                    addressed.add(int(m.group(1), 16))
                 continue
             for m in ADDRESS.finditer(memory):
                 target = int(m.group(1), 16)
+                if re.search(r"\[.*e[abcds][xip]", memory):
+                    indexed.add(target)
                 if target < 0x10000 or image.section(target) not in fnpack.DATA_SECTIONS - {".rdata"}:
                     continue
                 (writes if k == 0 and WRITES.match(mnemonic) else reads).add(target)
                 if k == 0 and mnemonic in ("add", "sub", "and", "or", "xor", "inc", "dec", "adc", "sbb"):
                     reads.add(target)
     return {"size": size, "count": reachable(rows, va), "callees": callees, "problems": problems,
-            "reads": reads, "writes": writes}
+            "reads": reads, "writes": writes, "addressed": addressed,
+            "indexed": indexed}
+
+
+def data_refs(image):
+    """Code positions of every 32-bit word that is an address in a data section."""
+    ranges = [(start, start + max(vsize, raw_size)) for name, start, vsize, _, raw_size in image.sections
+              if name in fnpack.DATA_SECTIONS]
+    lo, hi = min(r[0] for r in ranges), max(r[1] for r in ranges)
+    refs = {}
+    for name, start, _, raw, raw_size in image.sections:
+        if name in fnpack.DATA_SECTIONS:
+            continue
+        blob = image.data[raw:raw + raw_size]
+        for align in range(4):
+            words = struct.iter_unpack("<I", blob[align:align + (len(blob) - align) // 4 * 4])
+            for i, (value,) in enumerate(words):
+                if lo <= value < hi:
+                    refs.setdefault(value, []).append(start + align + 4 * i)
+    return refs
 
 
 def main():
     parser = argparse.ArgumentParser(usage=__doc__)
-    parser.add_argument("--module", default="renderer")
-    parser.add_argument("--states", default="untested,inconclusive,mismatched")
+    parser.add_argument("--module", default="all")
+    parser.add_argument("--states", default="untested,inconclusive,mismatched,offline")
     parser.add_argument("--emit")
     args = parser.parse_args()
     wanted = set(args.states.split(","))
@@ -97,7 +121,7 @@ def main():
     with open(fnpack.DATA / "progress.csv", newline="") as f:
         for row in csv.DictReader(f):
             va = int(row["address"], 16)
-            if row["module"] in args.module.split(",") and row["state"] in wanted and va in ours:
+            if (args.module == "all" or row["module"] in args.module.split(",")) and row["state"] in wanted and va in ours:
                 targets.append((va, row["name"], row["state"]))
     cache = {}
 
@@ -125,6 +149,35 @@ def main():
             if why:
                 return why
         return None
+
+    refs = None
+
+    def constant(g):
+        """Read and never written: every instruction naming the address reads it, none takes it
+        (lea, immediate) or writes it, and no address in the 16 bytes below or the 3 above is
+        a base (taken, or indexed with a register) that could reach it. A heuristic: a structure
+        whose base is further away and taken could still reach it. The test leaves such a global at the image's
+        value (FastSinCos's rounding constant 0x008febd0 is in .data, not .rdata)."""
+        nonlocal refs
+        if refs is None:
+            refs = data_refs(image)
+        def site(p):
+            i = bisect.bisect_right(starts, p) - 1
+            if i < 0:
+                return None
+            r = info(starts[i])
+            return r if r["size"] and p < starts[i] + r["size"] else None  # inside a known function
+
+        for a in range(g - 0x10, g + 4):
+            for p in refs.get(a, []) if a != g else []:
+                r = site(p)
+                if r is None or a in r["addressed"] or a in r["indexed"]:
+                    return False
+        for p in refs.get(g, []):
+            r = site(p)
+            if r is None or g in r["writes"] or g in r["addressed"] or g not in r["reads"]:
+                return False
+        return bool(refs.get(g))
 
     def tree_globals(va, seen=None):
         seen = set() if seen is None else seen
@@ -157,9 +210,13 @@ def main():
     if args.emit:
         out = ["// Generated by tools/leafscan.py --emit: functions tests/leaf_test.cpp runs offline.",
                "// name, address, size, instructions, globals read (randomized per input)"]
+        with open(fnpack.DATA / "leaf_pending.csv", newline="") as f:
+            pending = {row["name"] for row in csv.DictReader(f)}  # known mismatches being fixed
         for va, name, _ in eligible:
+            if name in pending:
+                continue
             r = info(va)
-            globals_ = ", ".join(f"0x{g:08x}" for g in sorted(tree_globals(va)))
+            globals_ = ", ".join(f"0x{g:08x}" for g in sorted(tree_globals(va)) if not constant(g))
             out.append(f'{{"{name}", 0x{va:08x}, {r["size"]}, {r["count"]}, {{{globals_}}}}},')
         with open(args.emit, "w") as f:
             f.write("\n".join(out) + "\n")

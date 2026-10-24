@@ -16,10 +16,9 @@ int32_t XB_CDECL Vehicle_CountActive();
 // rest of EAX as the last _stricmp (or the caller) left it.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Vehicle_FindDefIndex(uint32_t eax, const char* name);
 extern "C" void Vehicle_FindDefIndex_entry(void);
-// 0x00249e70: frees the vehicle defs (Z_Free) and clears their count. EAX = the last def
-// freed, else EAX as it came.
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Vehicle_FreeDefs(uint32_t eax);
-extern "C" void Vehicle_FreeDefs_entry(void);
+// 0x00249e70: frees the vehicle defs (Z_Free) and clears their count. EAX is left as
+// Z_Free left it; the caller (G_ShutdownGame) overwrites it.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vehicle_FreeDefs();
 // 0x002b5df0 (index in EBX; cdecl fields, count): a zeroed 0x870-byte weapon def in
 // bg_weaponDefs[index], name "" hashed, string fields (type 0) set to "".
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL BG_AllocWeaponDef(uint32_t index, const uint32_t* fields, int32_t count);

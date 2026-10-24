@@ -246,18 +246,21 @@ uint8_t XB_REGS3 XB_CDECL ParamSet_TestCondition(const ParamSet* set, uint32_t i
     const uint8_t op = record[1];
     switch (record[0]) {
     case 0: case 6: case 8: {
-        const int32_t r = *reinterpret_cast<const int32_t*>(record + 4), v = static_cast<int32_t>(*value);
+        // *value is read only for the operators handled (the others read nothing).
+        const int32_t r = *reinterpret_cast<const int32_t*>(record + 4);
+        const auto v = [value] { return static_cast<int32_t>(*value); };
         switch (op) {
-        case 0: return r == v;
-        case 2: return r > v;
-        case 3: return r < v;
-        case 4: return r >= v;
-        case 5: return r <= v;
-        case 8: return r != v;
+        case 0: return r == v();
+        case 2: return r > v();
+        case 3: return r < v();
+        case 4: return r >= v();
+        case 5: return r <= v();
+        case 8: return r != v();
         default: return 0;
         }
     }
     case 2: case 0xb: {
+        if (op > 8 || op == 1 || op == 6 || op == 7) return 0;
         float r, v;
         std::memcpy(&r, record + 4, 4);
         std::memcpy(&v, value, 4);

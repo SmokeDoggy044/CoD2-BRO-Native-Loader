@@ -292,10 +292,14 @@ compared anyway).
 tests decompiled functions without the game: it maps default.xbe at its addresses in a
 32-bit test process, so the original's bytes run as they are and our C finds the title's
 globals and functions where it expects them. `tools/leafscan.py --emit tests/leaf_functions.inc`
-picks the functions (default: the renderer's untested, inconclusive and mismatched ones;
-`--module`, `--states`): no indirect calls (kernel thunks, vtables, callbacks), no FS or
+picks the functions (default: every module's untested, inconclusive, mismatched and offline
+ones, so the offline ones stay checked; `--module`, `--states`): no indirect calls (kernel thunks, vtables, callbacks), no FS or
 privileged instructions, no calls into D3D/DSOUND/XONLINE/XNET/XPP, callees passing the same
-test. Globals are allowed; the ones read by the function and its callees are randomized.
+test. Globals are allowed; the ones read by the function and its callees are randomized,
+except constants in writable sections: every instruction naming the address reads it, none
+writes it or takes its address, and nothing within 16 bytes below is a base (address taken, or
+indexed by a register) - FastSinCos's rounding constant 0x008febd0 lives in .data. A heuristic:
+a structure based further away could still reach such a global.
 
 Inputs are random: registers, XMM registers, 8 stack words (always 8: a caller's stack has
 words above the arguments, and kFunctions' arg_bytes can be short - nglSelectMeshLodWithMatrix
@@ -314,7 +318,9 @@ Compared as in the game (below, What is compared): the result by kind, EBX/ESI/E
 the return, DF, the x87 control word, depth and values, MXCSR, the arena, and every title data
 page either side wrote (they are read-only during a call; the first write to each faults and is
 recorded). Stack arguments are not compared (callee scratch). Inputs the original crashes on
-or runs over 50 ms with are skipped, and so are unstable ones: on a mismatch the original runs
+or runs over 50 ms with are skipped (our C, slower at -O0, gets a second run with 2 s), and so
+are inputs an x87-result function returns from with an empty x87 stack (FPTAN out of range
+pushes nothing: Scr_Tan's caller would underflow), and so are unstable ones: on a mismatch the original runs
 again with the stack 0x2040 bytes lower, and if its own result changes, a pointer computed from
 random fields landed on the call stack, where the two versions' frames differ
 (FxPool_SetSlotTag's entry = pool + index * 8: 1 to 5 inputs in 10,000). Outcomes: matched, drift, **nan** (every difference is two

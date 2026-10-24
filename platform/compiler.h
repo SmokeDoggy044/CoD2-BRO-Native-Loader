@@ -113,14 +113,14 @@ inline float platform_x87_tan(float x) {
     return result;
 }
 // sin(angle) * scale with the sine kept in extended precision (FSIN; FMUL).
-inline float platform_x87_sin_mul(float angle, float scale) {
-    float result;
+inline long double platform_x87_sin_mul(float angle, float scale) {
+    long double result;
     __asm__("fsin\n\tfmuls %2" : "=t"(result) : "0"(angle), "m"(scale));
     return result;
 }
 // (sin(x * a + b) * c + sin(x + x)) * d * e, all on the x87 (CoD BRO CG_BobCycleLateral).
-inline float platform_x87_sin_sum_mul(float x, float a, float b, float c, float d, float e) {
-    float result;
+inline long double platform_x87_sin_sum_mul(float x, float a, float b, float c, float d, float e) {
+    long double result;
     __asm__("flds %1\n\tfmuls %2\n\tfadds %3\n\tfsin\n\tfmuls %4\n\tflds %1\n\tfadd %%st(0), %%st\n\tfsin\n\t"
             "faddp %%st, %%st(1)\n\tfmuls %5\n\tfmuls %6"
             : "=&t"(result)
@@ -500,9 +500,11 @@ inline float platform_x87_sin(float x) { return std::sin(x); }
 inline float platform_x87_cos(float x) { return std::cos(x); }
 inline float platform_x87_tan(float x) { return std::tan(x); }
 inline long double platform_x87_tan_ext(long double x) { return std::tan(x); }
-inline float platform_x87_sin_mul(float angle, float scale) { return std::sin(angle) * scale; }
-inline float platform_x87_sin_sum_mul(float x, float a, float b, float c, float d, float e) {
-    return (std::sin(x * a + b) * c + std::sin(x + x)) * d * e;
+inline long double platform_x87_sin_mul(float angle, float scale) {
+    return std::sin(static_cast<long double>(angle)) * scale;
+}
+inline long double platform_x87_sin_sum_mul(float x, float a, float b, float c, float d, float e) {
+    return (std::sin(static_cast<long double>(x) * a + b) * c + std::sin(static_cast<long double>(x) + x)) * d * e;
 }
 inline bool platform_x87_sub_sqrt_ge(float t, float a, float b, float limit) {
     return t - std::sqrt(a * b) >= limit;

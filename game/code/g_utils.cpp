@@ -653,11 +653,12 @@ void XB_CDECL AddLeanToPosition(float* position, float lean, float yaw, float a,
 }
 
 uint8_t* XB_REGS2 XB_CDECL Phys_FindBodyForEntity(uint32_t, const uint8_t* entity) {
-    uint8_t* const* const records = &title_global<uint8_t*>(0x008fccf0);
-    const uint32_t count = title_global<uint32_t>(0x008fcde4);
-    for (uint32_t i = 0; i < count; ++i) {
-        if (*reinterpret_cast<const uint8_t* const*>(records[i] + 4) == entity)
-            return *reinterpret_cast<uint8_t* const*>(records[i] + 8);
+    // Walks to records + count * 4 (32-bit wrap): count mod 2^30 records.
+    const uint32_t end = 0x008fccf0 + title_global<uint32_t>(0x008fcde4) * 4;
+    for (uint32_t at = 0x008fccf0; at != end; at += 4) {
+        uint8_t* const record = title_global<uint8_t*>(at);
+        if (*reinterpret_cast<const uint8_t* const*>(record + 4) == entity)
+            return *reinterpret_cast<uint8_t* const*>(record + 8);
     }
     return nullptr;
 }
@@ -682,7 +683,7 @@ void XB_CDECL Entity_YawToForward(uint8_t* const* entity, float* out) {
     out[2] = 0.0f;
 }
 
-uint32_t XB_CDECL hurt_use(uint8_t* self) {
+void XB_CDECL hurt_use(uint8_t* self) {
     uint32_t& state = *reinterpret_cast<uint32_t*>(self + 0x338);
     state = state ? 0 : 3;
     const float wait = *reinterpret_cast<const float*>(self + 0x38c);
@@ -692,7 +693,6 @@ uint32_t XB_CDECL hurt_use(uint8_t* self) {
         *reinterpret_cast<uint32_t*>(self + 0x32c) = 0xe;
         *reinterpret_cast<float*>(self + 0x384) = wait * title_global<float>(0x0083eb9c) + float(time);
     }
-    return state;
 }
 
 void XB_CDECL Use_trigger_use(uint8_t* self, const uint8_t* other) {

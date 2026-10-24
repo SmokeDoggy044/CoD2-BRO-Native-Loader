@@ -190,7 +190,7 @@ PLATFORM_ASM_ENTRY(CG_BobCycleVertical_entry,
                    "pushl 12(%esp)\n" PLATFORM_ASM_CALL(CG_BobCycleVertical) "addl $12, %esp\n"
                    "ret")
 
-float XB_CDECL CG_BobCycleVertical(float cycle, float speed, float cap) {
+long double XB_CDECL CG_BobCycleVertical(float cycle, float speed, float cap) {
     return platform_x87_sin_mul(cycle, bob_amplitude(speed, cap));
 }
 
@@ -201,7 +201,7 @@ PLATFORM_ASM_ENTRY(CG_BobCycleLateral_entry,
                    "pushl 12(%esp)\n" PLATFORM_ASM_CALL(CG_BobCycleLateral) "addl $12, %esp\n"
                    "ret")
 
-float XB_CDECL CG_BobCycleLateral(float cycle, float speed, float cap) {
+long double XB_CDECL CG_BobCycleLateral(float cycle, float speed, float cap) {
     return platform_x87_sin_sum_mul(cycle, title_global<float>(0x0083100c), title_global<float>(0x0083ed0c),
                                     title_global<float>(0x0083eca0), bob_amplitude(speed, cap),
                                     title_global<float>(0x0083eb58));
@@ -678,7 +678,7 @@ void XB_CDECL CG_CalcWeaponBob() {
     // Only the downward half of the roll cycle.
     const float sine = platform_x87_sin(roll_cycle);
     float roll = 0.0f;
-    if (platform_x87_greater(0.0f, platform_x87_sin_mul(roll_cycle, roll_scale))) {
+    if (0.0L > platform_x87_sin_mul(roll_cycle, roll_scale)) {  // the unrounded x87 product (FCOMIP)
         float scale = stance_scale() * roll_speed;
         if (scale > cap) scale = cap;
         roll = sine * scale;
