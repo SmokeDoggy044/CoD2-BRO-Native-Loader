@@ -1321,6 +1321,12 @@ void XB_CDECL menu_pointer(uint32_t manager) {
     }
 
     input::set_menu_pointer();
+    // Once a session, when the front end's menus first come up: where the PC menu is.
+    static bool pc_menu_told = false;
+    if (!pc_menu_told && g_menu_pointer.front_end && manager == title<uint32_t>(g_menu_pointer.front_end)) {
+        pc_menu_told = true;
+        render::show_notice({"PC settings", "Press ` (the key below Esc) at any time: field of view and more."}, 6);
+    }
     input::PointerState pointer = input::take_pointer();
     float x = 0, y = 0;
     if (!pointer.inside || !render::window_to_screen(pointer.x, pointer.y, x, y)) return;
