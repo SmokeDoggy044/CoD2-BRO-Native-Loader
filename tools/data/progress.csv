@@ -1857,7 +1857,7 @@ address,name,section,module,state,tested,matched
 0007b670,nglDebugShader_Draw,.text,renderer,untested,0,0
 0007b780,nglDebugShader_GetName,.text,renderer,matched,5,5
 0007b810,nglDumpPrintf,.text,renderer,untested,0,0
-0007bac0,Anim_InitManagers,.text,renderer,untested,0,0
+0007bac0,Anim_InitManagers,.text,renderer,inconclusive,3,0
 0007bd20,NAL_GenericAnim_DestroyState,.text,xanim,untested,0,0
 0007bd40,NAL_GenericAnim_DeletingDtor,.text,xanim,untested,0,0
 0007be10,WaitTilOutputInst1_str_VFunc2,.text,renderer,untested,0,0
@@ -2251,7 +2251,7 @@ address,name,section,module,state,tested,matched
 0009cca0,FxOp31_InitShaders,.text,renderer,matched,4,4
 0009ccd0,FxOp31_Init,.text,renderer,settled,115,115
 0009cd00,FxShaderClass_Create,.text,renderer,settled,122,122
-0009cd30,FxOp31_AddToList,.text,renderer,untested,0,0
+0009cd30,FxOp31_AddToList,.text,renderer,settled,286,286
 0009ced0,FxSimpleShader_GetName,.text,renderer,matched,2,2
 0009cf00,FxEffect_ViewDepth,.text,renderer,settled,400,400
 0009d000,apsLog_Printf,.text,qcommon,untested,0,0
@@ -2263,11 +2263,11 @@ address,name,section,module,state,tested,matched
 0009d2f0,FxBuffers_Flip,.text,renderer,settled,351,351
 0009d5a0,FxSet_8bb990,.text,renderer,matched,1,1
 0009d5b0,nglQuadBatch_SetMaterial,.text,renderer,settled,400,400
-0009d840,FxLightSet_SelectObjectLights,.text,renderer,untested,0,0
+0009d840,FxLightSet_SelectObjectLights,.text,renderer,matched,55,55
 0009d900,FxCamera_BillboardAxes,.text,renderer,settled,7899,7899
 0009db30,FxShader_SetFadeConstant,.text,renderer,settled,400,400
 0009dbb0,FxShader_SetDepthRangeConstant,.text,renderer,settled,400,400
-0009dc30,FxNode_ComputeObjectLights,.text,renderer,untested,0,0
+0009dc30,FxNode_ComputeObjectLights,.text,renderer,matched,59,59
 0009ddb0,FxAxis_Frame,.text,renderer,settled,212,212
 0009e0c0,FxMatrix_RotateVector,.text,renderer,untested,0,0
 0009e190,FxOp1d5_InitShaders,.text,renderer,matched,2,2
@@ -2307,7 +2307,7 @@ address,name,section,module,state,tested,matched
 0009f350,FxEmitterList_Remove,.text,renderer,settled,107,107
 0009f3c0,FxEmitters_FreeAll,.text,renderer,untested,0,0
 0009f450,FxEmitters_Destroy,.text,renderer,untested,0,0
-0009f4c0,apsPtrVector_Reserve,.text,qcommon,untested,0,0
+0009f4c0,apsPtrVector_Reserve,.text,qcommon,matched,6,6
 0009f570,apsPtrVector_PushBack,.text,qcommon,settled,201,201
 0009f660,FxEffectPool_Release,.text,renderer,untested,0,0
 0009f6c0,Quat_RotateVector,.text,qcommon,settled,100,100
@@ -2315,7 +2315,7 @@ address,name,section,module,state,tested,matched
 0009fa80,Mat44_FromQuatTranslation,.text,qcommon,settled,11449,11449
 0009fc20,Mat44_FromDirection,.text,qcommon,untested,0,0
 0009fe70,Quat_FromAxisAngle,.text,qcommon,settled,110,110
-0009ff50,FxMatrix_RigidInverse,.text,renderer,untested,0,0
+0009ff50,FxMatrix_RigidInverse,.text,renderer,matched,72,72
 000a00f0,Quat_FromEuler,.text,qcommon,settled,100,100
 000a0340,Quat_FromMat44,.text,qcommon,untested,0,0
 000a06e0,apsSinCos,.text,qcommon,settled,403,403
@@ -9158,7 +9158,7 @@ address,name,section,module,state,tested,matched
 002a62d0,FXCmd_PlayWeaponSound,.text,renderer,settled,123,123
 002a63d0,FXCmd_PlayWeaponSoundLoop,.text,renderer,untested,0,0
 002a64e0,FXCmd_PlayWeaponSoundAtBone,.text,renderer,settled,138,138
-002a6600,FXCmd_PlayWeaponSoundAtBoneEx,.text,renderer,untested,0,0
+002a6600,FXCmd_PlayWeaponSoundAtBoneEx,.text,renderer,settled,198,198
 002a6740,FXCmd_PlaySoundAliasAtPoint,.text,renderer,settled,167,167
 002a6880,FXCmd_PlaySoundAliasMode7,.text,renderer,matched,12,12
 002a6990,FXCmd_PlaySoundAlias,.text,renderer,settled,1887,1887
@@ -9210,7 +9210,7 @@ address,name,section,module,state,tested,matched
 002a9780,LongSwap,.text,qcommon,named,0,0
 002a97b0,ShortNoSwap,.text,qcommon,named,0,0
 002a97c0,ShortSwap,.text,qcommon,named,0,0
-002a9890,Com_BitCheck,.text,qcommon,untested,0,0
+002a9890,Com_BitCheck,.text,qcommon,matched,2,2
 002a98b0,COM_DefaultExtension,.text,qcommon,settled,113,113
 002a9a60,Com_ParseCommaToken,.text,qcommon,untested,0,0
 002a9b30,SkipWhitespace,.text,qcommon,untested,0,0
@@ -11101,7 +11101,7 @@ address,name,section,module,state,tested,matched
 0033a640,FUN_0033a640,.text,unassigned,unnamed,0,0
 0033a750,UI_ShowDiscErrorScreen,.text,client,named,0,0
 0033aa20,UI_ShowDamagedDiscScreen,.text,client,named,0,0
-0033ac10,SCR_UpdateLoadingDots,.text,client,untested,0,0
+0033ac10,SCR_UpdateLoadingDots,.text,client,settled,255,255
 0033ac80,FUN_0033ac80,.text,unassigned,unnamed,0,0
 0033acda,LIBCMT::__CIfmod,.text,unassigned,library,0,0
 0033acf4,LIBCMT::__CIsqrt,.text,unassigned,library,0,0
