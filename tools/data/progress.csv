@@ -2250,7 +2250,7 @@ address,name,section,module,state,tested,matched
 0009cc50,FxOp_SetTextures,.text,renderer,untested,0,0
 0009cca0,FxOp31_InitShaders,.text,renderer,matched,4,4
 0009ccd0,FxOp31_Init,.text,renderer,settled,115,115
-0009cd00,FxShaderClass_Create,.text,renderer,settled,119,119
+0009cd00,FxShaderClass_Create,.text,renderer,settled,122,122
 0009cd30,FxOp31_AddToList,.text,renderer,untested,0,0
 0009ced0,FxSimpleShader_GetName,.text,renderer,matched,2,2
 0009cf00,FxEffect_ViewDepth,.text,renderer,settled,400,400
@@ -8974,7 +8974,7 @@ address,name,section,module,state,tested,matched
 002963f0,StringTable_Load,.text,qcommon,named,0,0
 00296710,FUN_00296710,.text,unassigned,unnamed,0,0
 002969a0,FX_RandomInOctaves,.text,renderer,settled,113,113
-00296a80,FX_FindEffectById,.text,renderer,untested,0,0
+00296a80,FX_FindEffectById,.text,renderer,matched,4,4
 00296ab0,FX_StopEffectById,.text,renderer,settled,105,105
 00296b00,FX_SetEffectParamById,.text,renderer,settled,106,106
 00296b80,FXParam_Broadcast,.text,renderer,settled,12723,12723
