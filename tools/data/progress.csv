@@ -2250,7 +2250,7 @@ address,name,section,module,state,tested,matched
 0009cc50,FxOp_SetTextures,.text,renderer,untested,0,0
 0009cca0,FxOp31_InitShaders,.text,renderer,matched,4,4
 0009ccd0,FxOp31_Init,.text,renderer,settled,115,115
-0009cd00,FxShaderClass_Create,.text,renderer,settled,116,116
+0009cd00,FxShaderClass_Create,.text,renderer,settled,119,119
 0009cd30,FxOp31_AddToList,.text,renderer,untested,0,0
 0009ced0,FxSimpleShader_GetName,.text,renderer,matched,2,2
 0009cf00,FxEffect_ViewDepth,.text,renderer,settled,400,400

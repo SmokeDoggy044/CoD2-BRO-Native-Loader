@@ -1059,7 +1059,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0009cc50,FxOp_SetTextures,compare,0,0,0,0,0,0,""
 0009cca0,FxOp31_InitShaders,compare,182,4,4,0,0,0,""
 0009ccd0,FxOp31_Init,compare,171,115,115,0,0,0,""
-0009cd00,FxShaderClass_Create,compare,116,116,116,0,0,0,""
+0009cd00,FxShaderClass_Create,compare,119,119,119,0,0,0,""
 0009cd30,FxOp31_AddToList,compare,0,0,0,0,0,0,""
 0009ced0,FxSimpleShader_GetName,compare,296,2,2,0,0,0,""
 0009cf00,FxEffect_ViewDepth,compare,239827,400,400,0,0,0,""
