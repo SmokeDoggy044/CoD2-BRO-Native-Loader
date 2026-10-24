@@ -30,10 +30,11 @@ builds from source for Linux and Windows, needing only the game's assets.
 
 ## Status
 
-Prototype 0.1.8. The single-player campaign is playable from the menus through
+Prototype 0.1.9. The single-player campaign is playable from the menus through
 the missions: 1 to 5 tested through, 6 started. It runs at 60 fps (or the game's
-30), with the game's own widescreen mode, higher render resolutions, borderless
-fullscreen, controllers, and keyboard and mouse. Multiplayer runs over System Link
+30), with the game's own widescreen mode (wider ultrawide pictures experimental),
+higher render resolutions, borderless fullscreen, a field of view setting (the
+in-game PC menu, `` ` `` key), controllers, and keyboard and mouse. Multiplayer runs over System Link
 on the local network ([docs/multiplayer.md](docs/multiplayer.md)); Xbox Live is not
 available. The Windows version is tested on Windows and under Wine. Details and
 next steps: [docs/status.md](docs/status.md).
