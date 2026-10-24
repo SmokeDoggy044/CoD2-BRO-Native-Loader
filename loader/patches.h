@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include "backend.h"
+
 namespace loader {
 
 // The disc's two titles: default.xbe (campaign) and codmp_xboxf.xbe (multiplayer).
@@ -33,6 +35,10 @@ struct TitlePatchConfig {
     bool aim_assist = true;                 // false: no sticky aim (the view following a target)
     int32_t frame_rate = 60;                // 60 or 30 (as on the Xbox): frames per second
     bool late_frames_wait = false;          // true: a late frame waits for the next vertical blank (as on the Xbox)
+    // The picture's shape in the game's widescreen mode (16:9 as on the Xbox; wider is
+    // experimental: the view widens, the HUD keeps its 16:9 place in the middle). 0:
+    // not in widescreen mode.
+    float display_aspect = 16.0f / 9.0f;
     // The game's button icons: keycaps while the keyboard/mouse is used (Auto), always
     // (Keyboard) or never (Controller). See text/key_prompts.h.
     enum class ButtonPrompts { Auto, Keyboard, Controller };
@@ -45,10 +51,11 @@ struct TitlePatchConfig {
 // start_level (campaign only).
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config);
 
-// While the engine draws a scene an in-game menu or the objectives panel created this
-// frame (UI laid out for 4:3), the x to narrow it around as a fraction of the width;
-// otherwise -1 (render::BackendConfig::narrow_ui_draw).
-float in_game_menu_draw();
+// How to narrow the draw the engine is making (render::BackendConfig::narrow_ui_draw):
+// scenes an in-game menu or the objectives panel created this frame (UI laid out for
+// 4:3) and, on a picture wider than 16:9, the HUD's orthographic scenes (laid out for
+// 16:9) are narrowed to their shape.
+render::UiNarrowing in_game_menu_draw();
 
 class SymbolTable;
 class XbeImage;

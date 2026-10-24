@@ -280,8 +280,7 @@ D3D9Draw::D3D9Draw(IDirect3DDevice9* device, const BackendConfig& config)
     : device_(device), depth_data_(config.depth_stencil.data), anisotropy_(config.anisotropy),
       render_scale_x_(config.render_scale > 0 ? config.render_scale_x() : 1),
       render_scale_y_(config.render_scale > 0 ? config.render_scale : 1),
-      narrow_factor_(config.display_aspect > 0 ? static_cast<float>(config.width) / config.height / config.display_aspect
-                                               : 1.0f),
+      back_width_(config.width), back_height_(config.height),
       narrow_ui_draw_(config.narrow_ui_draw), replace_texture_(config.replace_texture),
       replacement_version_(config.replacement_version), caches_(std::make_unique<Caches>()) {
     D3DCAPS9 caps{};
@@ -395,12 +394,14 @@ IDirect3DTexture9* D3D9Draw::target_texture(uint32_t data) {
 
 D3D9Draw::~D3D9Draw() { release(magenta_); }
 
-float D3D9Draw::narrow_anchor(const DrawInput& input, uint32_t width) const {
-    // Only over a 3D scene (drawn before the UI): flat frames are pillarboxed whole.
-    if (narrow_factor_ >= 1.0f || !narrow_ui_draw_ || !frame_writes_depth_ || !(input.attribute_mask & 1))
-        return -1.0f;
-    const float anchor = narrow_ui_draw_();
-    if (anchor < 0.0f) return -1.0f;
+UiNarrowing D3D9Draw::narrow_ui(const DrawInput& input, uint32_t width, uint32_t height) const {
+    // Only over a 3D scene (drawn before the UI): flat frames are pillarboxed whole. Only
+    // into the back buffer's size: smaller targets are the title's effects (glow).
+    if (!narrow_ui_draw_ || !frame_writes_depth_ || !(input.attribute_mask & 1) || width != back_width_ ||
+        height != back_height_)
+        return {};
+    const UiNarrowing narrowing = narrow_ui_draw_();
+    if (narrowing.anchor < 0.0f || narrowing.factor >= 1.0f) return {};
     // Full-width quads (dimming, letterbox bars) keep covering the picture.
     const uint32_t stride = static_cast<uint32_t>(std::popcount(input.attribute_mask)) * 4;
     float left = input.vertices[0], right = left;
@@ -408,7 +409,7 @@ float D3D9Draw::narrow_anchor(const DrawInput& input, uint32_t width) const {
         left = std::min(left, input.vertices[i * stride]);
         right = std::max(right, input.vertices[i * stride]);
     }
-    return left <= 1.0f && right >= static_cast<float>(width) - 1.0f ? -1.0f : anchor;
+    return left <= 1.0f && right >= static_cast<float>(width) - 1.0f ? UiNarrowing{} : narrowing;
 }
 
 void D3D9Draw::end_frame() {
@@ -719,8 +720,9 @@ void D3D9Draw::draw(const DrawInput& input) {
     // UI laid out for the back buffer's shape over a wider 3D picture (in-game menus):
     // narrowed to that shape around an anchor a (a fraction of the width),
     // x' = a w + (x - a w) * k.
-    const float anchor = narrow_anchor(input, width);
-    const float narrow = anchor >= 0.0f ? narrow_factor_ : 1.0f;
+    const UiNarrowing narrowing = narrow_ui(input, width, height);
+    const float anchor = narrowing.anchor;
+    const float narrow = narrowing.factor;
     const float screen_to_clip[8] = {2.0f / width * narrow, -2.0f / height, 1.0f / input.depth_max, 0.0f,
                                      -1.0f + 2.0f * anchor * (1.0f - narrow) + (scale_x - 1) / surface_width,
                                      1.0f - (scale_y - 1) / surface_height, 0.0f, 0.0f};

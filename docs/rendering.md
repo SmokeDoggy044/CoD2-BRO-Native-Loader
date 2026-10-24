@@ -73,6 +73,29 @@ Everything else is a 4:3 layout:
 Checked: missions 1-2, pause menu and its Options, objectives (mission 4, against
 `--aspect 4:3`). Not checked: death/mission failed screens, dialogs.
 
+### Wider than 16:9 (experimental)
+
+`--aspect W:H` wider than 16:9 (launcher: 21:9, 32:9, the screen's shape), campaign
+only (multiplayer has no HUD manager and stays 16:9). The 3D view takes the picture's
+aspect: R_RenderView and nglSetDefaultSceneParams load it with `movss xmm0,[0x0083f254]`
+(16/9), pointed at our value instead; the vertical field of view stays (Hor+). Culling
+needs nothing: in widescreen CG_CalcFov sets fov_x to 2 atan(16/9) = 121 degrees, wider
+than a 32:9 view at the game's fov.
+
+The HUD stays a 16:9 layout narrowed into the middle, which in Hor+ is exactly the
+16:9 picture, so 3D-anchored HUD items stay on their targets. Every NGL scene is a
+perspective one (`+0x300` = 1, 2D included), so 2D scenes are told apart by who
+makes them, like the menus': the HUD manager's draw (vtable 0x0082a5d8 slot 0x14 =
+0x00311940, called from the in-game UI's FUN_003154b0; compass, health) and CG_Draw2D
+(CG_DrawActive's tail jump at 0x00286c0c; RE_StretchPic adds quads to the current
+scene: crosshair, centre prints). The renderer's narrowing takes an anchor and a factor
+per draw (`UiNarrowing`): menus 4:3 around the centre, the objectives panel 4:3 around
+x = 50 of 640 inside the 16:9 layout, the HUD 16:9; only into the back buffer.
+
+Checked: mission 2 at 21:9 (HUD, objectives, pause menu), mission 1 cutscene; 16:9
+unchanged. Not checked: scopes and binoculars (side bars drawn as quads would only
+cover the 16:9 part), death/mission failed screens, missions 3+, 32:9 in play.
+
 ## Debugging a wrong picture
 
 `XB_DUMP_FRAME=n` logs every draw of frame n (shader keys, combiners, texture

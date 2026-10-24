@@ -56,17 +56,17 @@ private:
     // mipmap chain if `mipmaps`. False if the texture cannot be created.
     bool upload_replacement(CachedTexture& entry, const TextureReplacement& replacement, bool mipmaps);
     bool magenta_shader();  // creates magenta_ once; false if that failed
-    // Where the draw, UI to narrow to the back buffer's shape, is narrowed around (a
-    // fraction of the width), or negative if it is not (BackendConfig::narrow_ui_draw).
-    float narrow_anchor(const DrawInput& input, uint32_t width) const;
+    // How the draw, UI laid out for a narrower shape, is narrowed, or anchor -1 if it is
+    // not (BackendConfig::narrow_ui_draw).
+    UiNarrowing narrow_ui(const DrawInput& input, uint32_t width, uint32_t height) const;
     void dump_draw(const DrawInput& input, const XbPixelShaderDef& def, uint64_t vs_key, uint32_t primitives);
 
     IDirect3DDevice9* device_;
     uint32_t depth_data_;  // the device's depth buffer's Xbox address
     uint32_t anisotropy_;  // BackendConfig::anisotropy, within the device's limit
     float render_scale_x_, render_scale_y_;  // BackendConfig::render_scale_x(), render_scale
-    float narrow_factor_;                    // back buffer aspect / display aspect
-    float (*narrow_ui_draw_)();               // BackendConfig::narrow_ui_draw
+    uint32_t back_width_, back_height_;      // the title's back buffer size
+    UiNarrowing (*narrow_ui_draw_)();         // BackendConfig::narrow_ui_draw
     decltype(BackendConfig::replace_texture) replace_texture_;
     decltype(BackendConfig::replacement_version) replacement_version_;
     // The current target: its size as the title sees it and the D3D9 surface's.

@@ -720,6 +720,109 @@ void install_multiplayer_heap_lock() {
         0x00043470, std::to_array<uint8_t>({0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x04}), reinterpret_cast<const void*>(&locked_heap_free_in)));
 }
 
+// --- Wider than 16:9 (experimental) ----------------------------------------------------
+//
+// In widescreen mode (cg_widescreen) the 3D view is 16:9: R_RenderView (0x002473a9) and
+// nglSetDefaultSceneParams (0x00062ac0) load the scene aspect "movss xmm0,[16/9]" from
+// 0x0083f254. Pointing both at our own value widens the view (the vertical field of
+// view stays: Hor+). The culling frustum needs nothing: in widescreen CG_CalcFov sets
+// fov_x to 2 atan(16/9) = 121 degrees, wider than a 32:9 view at the game's fov.
+// The HUD stays laid out for 16:9 and is narrowed into the middle: CG_DrawActive ends
+// in "jmp CG_Draw2D" (0x00286c0c -> 0x00285f80), which goes through a thunk noting
+// the current scene (RE_StretchPic adds its quad to it) and the scenes allocated
+// meanwhile, like the in-game menus' (in_game_menu_draw). All NGL scenes are
+// perspective ones, so the projection does not tell 2D apart.
+// MP: 0x003d5240, loaded at 0x000638f0 and 0x001b4b09; jmp 0x001f71ac -> 0x001f67c0.
+struct AspectSites {
+    uint32_t constant;
+    uint32_t loads[2];  // movss xmm0,[constant]
+    uint32_t draw_2d_jump, draw_2d;
+    uint32_t hud_draw_slot, hud_draw;  // 0: none
+};
+constexpr AspectSites kCampaignAspect = {0x0083f254, {0x00062ac0, 0x002473a9}, 0x00286c0c, 0x00285f80,
+                                         0x0082a5ec, 0x00311940};
+constexpr AspectSites kMultiplayerAspect = {0x003d5240, {0x000638f0, 0x001b4b09}, 0x001f71ac, 0x001f67c0, 0, 0};
+float g_display_aspect = 16.0f / 9.0f;
+float g_scene_aspect = 16.0f / 9.0f;  // the title reads it (32-bit address)
+MenuScenes g_hud_scenes[2];  // CG_Draw2D's, the HUD manager's draw's
+
+template <int N>
+void XB_CDECL hud_render_begin() {
+    const uint32_t allocator = title<uint32_t>(g_menus.frame_allocator);
+    g_hud_scenes[N] = {allocator, allocator, title<uint32_t>(g_menus.current_scene),
+                       title<uint32_t>(g_menus.engine_frame)};
+}
+
+template <int N>
+void XB_CDECL hud_render_end() {
+    g_hud_scenes[N].end = title<uint32_t>(g_menus.frame_allocator);
+}
+
+bool is_hud_scene(uint32_t scene, uint32_t frame) {
+    for (const MenuScenes& h : g_hud_scenes)
+        if (h.frame == frame && (scene == h.scene || (scene >= h.begin && scene < h.end))) return true;
+    return false;
+}
+
+bool install_hud_scenes(const AspectSites& sites) {
+    auto* jump = reinterpret_cast<uint8_t*>(uintptr_t{sites.draw_2d_jump});
+    int32_t relative = 0;
+    std::memcpy(&relative, jump + 1, 4);
+    if (jump[0] != 0xE9 || sites.draw_2d_jump + 5 + relative != sites.draw_2d) {
+        LOG_WARN("patches", "%08x: not the jump to CG_Draw2D", sites.draw_2d_jump);
+        return false;
+    }
+    auto* thunk = alloc_code(32);
+    if (!thunk) return false;
+    // hud_render_begin; call CG_Draw2D; hud_render_end; ret
+    uint8_t* t = put_preserving_call(thunk, &hud_render_begin<0>);
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{sites.draw_2d}));
+    t = put_preserving_call(t + 5, &hud_render_end<0>);
+    *t = 0xC3;
+    put_rel32(jump, 0xE9, thunk);
+    if (!sites.hud_draw_slot) return true;
+    // The HUD manager's draw (vtable 0x0082a5d8 slot 0x14, thiscall, no arguments; the
+    // in-game UI calls it from FUN_003154b0 before CG_Draw2D) puts the compass, health
+    // and the like into a scene of its own.
+    auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{sites.hud_draw_slot});
+    if (*slot != sites.hud_draw) {
+        LOG_WARN("patches", "%08x: not the HUD manager's draw", sites.hud_draw_slot);
+        return false;
+    }
+    auto* draw = alloc_code(32);
+    if (!draw) return false;
+    // begin; call draw (ecx kept); end; ret
+    t = put_preserving_call(draw, &hud_render_begin<1>);
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{sites.hud_draw}));
+    t = put_preserving_call(t + 5, &hud_render_end<1>);
+    *t = 0xC3;
+    *slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(draw));
+    return true;
+}
+
+void install_display_aspect(const AspectSites& sites, float aspect) {
+    if (aspect <= 0) return;
+    g_display_aspect = aspect;
+    if (std::fabs(aspect - 16.0f / 9.0f) < 0.001f) return;
+    for (uint32_t load : sites.loads) {
+        const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{load});
+        uint32_t operand = 0;
+        std::memcpy(&operand, code + 4, 4);
+        if (code[0] != 0xF3 || code[1] != 0x0F || code[2] != 0x10 || code[3] != 0x05 || operand != sites.constant) {
+            LOG_WARN("patches", "%08x: not the scene aspect load; the view stays 16:9 (stretched)", load);
+            return;
+        }
+    }
+    if (!install_hud_scenes(sites)) {
+        LOG_WARN("patches", "the view stays 16:9 (stretched; the HUD could not be kept at 16:9)");
+        return;
+    }
+    g_scene_aspect = aspect;
+    const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_scene_aspect));
+    for (uint32_t load : sites.loads) std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{load}) + 4, &address, 4);
+    LOG_WARN("patches", "experimental: %.3f:1 picture (the view widens, the HUD stays 16:9 in the middle)", aspect);
+}
+
 // --- Frame rate -------------------------------------------------------------------
 //
 // The title paces itself on the vertical blank: its callback (0x000643e0) counts
@@ -1146,14 +1249,22 @@ void install_menu_pointer() {
 
 }  // namespace
 
-float in_game_menu_draw() {
+render::UiNarrowing in_game_menu_draw() {
     const uint32_t scene = title<uint32_t>(g_menus.current_scene);
     const MenuScenes& m = g_menu_scenes;
     const MenuScenes& o = g_objectives_scenes;
     const uint32_t frame = title<uint32_t>(g_menus.engine_frame);
-    if (m.frame == frame && (scene == m.scene || (scene >= m.begin && scene < m.end))) return 0.5f;
-    if (o.frame == frame && o.scene != 0 && scene == o.scene) return kObjectivesAnchor;
-    return -1.0f;
+    const float menu = 4.0f / 3.0f / g_display_aspect;
+    const float hud = std::min(1.0f, 16.0f / 9.0f / g_display_aspect);  // 16:9 layout into the picture
+    if (m.frame == frame && (scene == m.scene || (scene >= m.begin && scene < m.end))) return {0.5f, menu};
+    if (o.frame == frame && o.scene != 0 && scene == o.scene) {
+        // 4:3 around the HUD's left anchor within the 16:9 layout (k1), that layout
+        // around the centre (k2): one narrowing by k1 k2 around the point both keep.
+        const float k1 = 0.75f, k2 = hud, a = kObjectivesAnchor;
+        return {(0.5f * (1.0f - k2) + k2 * a * (1.0f - k1)) / (1.0f - k1 * k2), k1 * k2};
+    }
+    if (hud < 1.0f && is_hud_scene(scene, frame)) return {0.5f, hud};
+    return {};
 }
 
 namespace {
@@ -1341,6 +1452,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     g_pacing = campaign ? kCampaignPacing : kMultiplayerPacing;
     if (!config.aim_assist) disable_aim_assist();
     install_frame_rate(config.frame_rate, config.late_frames_wait);
+    install_display_aspect(campaign ? kCampaignAspect : kMultiplayerAspect, config.display_aspect);
     install_menu_render_hooks();
     g_menu_pointer = campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer;
     install_menu_pointer();

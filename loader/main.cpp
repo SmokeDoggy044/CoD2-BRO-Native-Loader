@@ -62,6 +62,7 @@ struct Options {
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
     bool widescreen = true;
+    float aspect = 16.0f / 9.0f;  // with widescreen: the picture's shape (wider than 16:9: experimental)
     uint32_t language = 1;  // XC_LANGUAGE
     uint32_t screenshot_interval = 0;
     std::optional<fs::path> screenshot_dir;
@@ -120,7 +121,9 @@ void print_usage(const char* program) {
         "  --scale N        window size as a multiple of the game's resolution (default 2)\n"
         "  --render-scale X render resolution as a multiple of the game's 640x480 (default: the\n"
         "                   window's or screen's height; above it = supersampling, e.g. 4)\n"
-        "  --aspect A       16:9 (default: the game's widescreen mode, wider view and HUD) or 4:3\n"
+        "  --aspect A       16:9 (default: the game's widescreen mode, wider view and HUD) or 4:3;\n"
+        "                   wider, e.g. 21:9, 32:9 or 3440:1440, is experimental (wider view,\n"
+        "                   the HUD stays 16:9 in the middle)\n"
         "  --anisotropy N   anisotropic filtering for mipmapped textures, 1-16 (default 16;\n"
         "                   1 = what the game asks for)\n"
         "  --brightness X   0.5-2.0 (default 1: as on the Xbox; higher = brighter midtones)\n"
@@ -202,12 +205,16 @@ std::optional<Options> parse_args(int argc, char** argv) {
             }
         } else if (arg == "--aspect") {
             const std::string aspect = i + 1 < argc ? argv[++i] : "";
-            if (aspect == "16:9") {
-                options.widescreen = true;
-            } else if (aspect == "4:3") {
+            float w = 0, h = 0;
+            char end = 0;
+            if (aspect == "4:3") {
                 options.widescreen = false;
+            } else if (std::sscanf(aspect.c_str(), "%f:%f%c", &w, &h, &end) == 2 && h > 0 &&
+                       w / h >= 16.0f / 9.0f - 0.001f && w / h <= 4.0f) {
+                options.widescreen = true;
+                options.aspect = aspect == "16:9" ? 16.0f / 9.0f : w / h;
             } else {
-                std::fprintf(stderr, "--aspect needs 16:9 or 4:3\n");
+                std::fprintf(stderr, "--aspect needs 4:3, 16:9 or wider W:H up to 4:1 (e.g. 21:9)\n");
                 return std::nullopt;
             }
         } else if (arg == "--anisotropy") {
@@ -544,6 +551,13 @@ int loader_main(int argc, char** argv) {
     const fs::path xbe = options->xbe.value_or(*assets / (options->multiplayer ? "codmp_xboxf.xbe" : "default.xbe"));
     const loader::TitleInfo* title = loader::find_title(xbe.filename().string());
     if (!title) return startup_failed(xbe.filename().string() + " is not one of the game's executables");
+    // Wider than 16:9 keeps the HUD at 16:9 through the campaign's HUD manager, which
+    // multiplayer does not have (patches.cpp, "Wider than 16:9").
+    float aspect = options->aspect;
+    if (title->id == loader::TitleId::Multiplayer && aspect > 16.0f / 9.0f + 0.001f) {
+        LOG_WARN("loader", "multiplayer: pictures wider than 16:9 are campaign only for now; 16:9");
+        aspect = 16.0f / 9.0f;
+    }
     if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
     if (image.header().time_date != title->time_date || image.size() != title->image_size) {
         LOG_ERROR("loader", "%s is another build (time stamp %08x, image size %x) than the supported one (%08x, %x)",
@@ -579,7 +593,7 @@ int loader_main(int argc, char** argv) {
     loader::install_kernel_thunks(image);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
                                            options->frame_rate, options->late_frames_wait,
-                                           options->button_prompts});
+                                           options->widescreen ? aspect : 0.0f, options->button_prompts});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
@@ -601,7 +615,7 @@ int loader_main(int argc, char** argv) {
         };
     if (key_prompts) d3d_config.backend.replacement_version = &text::key_prompt_version;
     if (options->widescreen) {
-        d3d_config.backend.display_aspect = 16.0f / 9.0f;
+        d3d_config.backend.display_aspect = aspect;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts
         d3d_config.backend.narrow_ui_draw = &loader::in_game_menu_draw;
     }

@@ -33,7 +33,7 @@ namespace {
 // a changed default still reaches players who never touched that setting.
 struct Choices {
     std::string assets;  // empty: <executable dir>/assets
-    bool widescreen = true;
+    std::string aspect = "16:9";  // 4:3, 16:9, or wider W:H (experimental)
     bool fullscreen = false;
     int scale = 2;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
@@ -52,6 +52,14 @@ struct Choices {
     bool check_updates = true;
 };
 
+// The width over the height of an aspect setting ("W:H"), or 0 if it is not one.
+float aspect_ratio(const std::string& aspect) {
+    float w = 0, h = 0;
+    char end = 0;
+    if (std::sscanf(aspect.c_str(), "%f:%f%c", &w, &h, &end) != 2 || !(w > 0) || !(h > 0)) return 0;
+    return w / h;
+}
+
 std::string number(float value) {
     char text[32];
     std::snprintf(text, sizeof(text), "%g", value);
@@ -61,7 +69,10 @@ std::string number(float value) {
 Choices read_choices(const platform::Settings& settings) {
     Choices c;
     if (auto v = settings.get("assets")) c.assets = *v;
-    if (auto v = settings.get("aspect")) c.widescreen = *v != "4:3";
+    // What the game takes (--aspect): 4:3, or 16:9 up to 4:1.
+    if (auto v = settings.get("aspect");
+        v && (*v == "4:3" || (aspect_ratio(*v) >= 16.0f / 9.0f - 0.001f && aspect_ratio(*v) <= 4.0f)))
+        c.aspect = *v;
     if (auto v = settings.get("fullscreen")) c.fullscreen = *v == "true";
     if (auto v = settings.get("scale")) c.scale = std::clamp(std::atoi(v->c_str()), 1, 8);
     if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
@@ -91,7 +102,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
             settings.set(key, value);
     };
     put("assets", c.assets.empty(), c.assets);
-    put("aspect", c.widescreen == d.widescreen, c.widescreen ? "16:9" : "4:3");
+    put("aspect", c.aspect == d.aspect, c.aspect);
     put("fullscreen", c.fullscreen == d.fullscreen, c.fullscreen ? "true" : "false");
     put("scale", c.scale == d.scale, std::to_string(c.scale));
     put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
@@ -292,9 +303,33 @@ private:
 
     void graphics() {
         ImGui::SeparatorText("Window");
-        int aspect = choices_.widescreen ? 0 : 1;
-        ImGui::Combo("Aspect ratio", &aspect, "16:9 (widescreen)\0" "4:3 (original)\0");
-        choices_.widescreen = aspect == 0;
+        // The screen's own shape, offered when it is wider than 16:9 (3440x1440 is a little
+        // wider than 21:9).
+        std::string screen;
+        if (const SDL_DisplayMode* display = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window_)))
+            if (display->h > 0 && display->w * 9 > display->h * 16 + 9)
+                screen = std::to_string(display->w) + ":" + std::to_string(display->h);
+        std::vector<std::pair<std::string, std::string>> aspects = {
+            {"16:9", "16:9 (widescreen)"},
+            {"4:3", "4:3 (original)"},
+            {"21:9", "21:9 ultrawide (experimental)"},
+            {"32:9", "32:9 super ultrawide (experimental)"}};
+        if (!screen.empty() && screen != "21:9" && screen != "32:9")
+            aspects.push_back({screen, "Your screen, " + screen + " (experimental)"});
+        if (std::none_of(aspects.begin(), aspects.end(), [&](const auto& a) { return a.first == choices_.aspect; }))
+            aspects.push_back({choices_.aspect, choices_.aspect + " (experimental)"});
+        if (ImGui::BeginCombo("Aspect ratio", std::find_if(aspects.begin(), aspects.end(), [&](const auto& a) {
+                                                  return a.first == choices_.aspect;
+                                              })->second.c_str())) {
+            for (const auto& [value, label] : aspects)
+                if (ImGui::Selectable(label.c_str(), value == choices_.aspect)) choices_.aspect = value;
+            ImGui::EndCombo();
+        }
+        const float ratio = aspect_ratio(choices_.aspect);
+        if (ratio > 16.0f / 9.0f + 0.001f)
+            help_marker("Experimental. The view gets wider; the HUD and the menus keep their 16:9 and 4:3 "
+                        "places in the middle. Campaign only: multiplayer stays 16:9. Some screens may "
+                        "not look right yet (please report them).");
 
         int mode = choices_.fullscreen ? 1 : 0;
         ImGui::Combo("Display mode", &mode, "Window\0" "Fullscreen\0");
@@ -302,7 +337,7 @@ private:
         help_marker("Alt+Enter switches between the two while playing.");
 
         const int height = 480 * choices_.scale;
-        const int width = choices_.widescreen ? (height * 16 + 4) / 9 : 640 * choices_.scale;
+        const int width = static_cast<int>(height * ratio + 0.5f);
         ImGui::BeginDisabled(choices_.fullscreen);
         ImGui::SliderInt("Window size", &choices_.scale, 1, 8, "x%d", ImGuiSliderFlags_AlwaysClamp);
         ImGui::SameLine();
@@ -325,7 +360,7 @@ private:
                                ImGuiSliderFlags_AlwaysClamp);
             const int render_height = static_cast<int>(480 * choices_.render_scale + 0.5f);
             ImGui::SameLine();
-            ImGui::TextDisabled("%dx%d", choices_.widescreen ? (render_height * 16 + 4) / 9 : render_height * 4 / 3,
+            ImGui::TextDisabled("%dx%d", static_cast<int>(render_height * ratio + 0.5f),
                                 render_height);
         }
 

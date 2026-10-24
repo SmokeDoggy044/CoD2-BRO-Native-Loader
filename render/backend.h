@@ -29,6 +29,13 @@ struct TextureReplacement {
     std::vector<uint32_t> pixels;  // A8R8G8B8, width * height; mipmaps are made from it
 };
 
+// How to narrow one draw of UI laid out for a narrower shape than the picture's
+// (BackendConfig::narrow_ui_draw): x' = a w + (x - a w) * factor.
+struct UiNarrowing {
+    float anchor = -1.0f;  // a, a fraction of the width; negative: not narrowed
+    float factor = 1.0f;
+};
+
 struct BackendConfig {
     // Horizontal render scale: render_scale widened to the display aspect.
     float render_scale_x() const {
@@ -55,11 +62,11 @@ struct BackendConfig {
     // movies; the title lays them out for its back buffer's shape only) are shown at
     // that shape instead, centred between black bars.
     bool pillarbox_flat_frames = false;
-    // With a wider display_aspect: asked per draw; while the title draws UI laid out for
-    // its back buffer's shape over the wide picture (in-game menus), the x to narrow it
-    // to that shape around, as a fraction of the width (0.5 = the centre); otherwise
-    // negative. Draws spanning the full width are not narrowed.
-    float (*narrow_ui_draw)() = nullptr;
+    // With a wider display_aspect: asked per draw into the back buffer over a 3D scene;
+    // while the title draws UI laid out for a narrower shape than the picture's (in-game
+    // menus: the back buffer's; the HUD on an ultrawide picture: 16:9), where and how
+    // much to narrow it. Draws spanning the full width are not narrowed.
+    UiNarrowing (*narrow_ui_draw)() = nullptr;
     // Anisotropic filtering for mipmapped textures the title filters linearly (PC
     // option; the Xbox titles rarely used it). 1 = the title's own filters.
     uint32_t anisotropy = 1;

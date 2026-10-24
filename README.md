@@ -209,9 +209,9 @@ command line, so options given there win. `check-updates = false` is the launche
 own (the game skips keys set to false). Without game files and without
 `--assets`/`COD_BRO_ASSETS`, the game starts the launcher and exits.
 
-Common options: `--aspect 16:9|4:3`, `--fullscreen`/`--windowed` (Alt+Enter switches
+Common options: `--aspect 16:9|4:3` (or wider, e.g. `21:9`, `32:9`, `3440:1440`: experimental, campaign only), `--fullscreen`/`--windowed` (Alt+Enter switches
 while playing), `--scale N` (window size), `--render-scale X`,
-`--anisotropy N`, `--brightness X`, `--sharp-text on|off`, `--button-prompts auto|keyboard|controller`, `--language L`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--level N` (start a mission directly),
+`--anisotropy N`, `--brightness X`, `--sharp-text on|off`, `--button-prompts auto|keyboard|controller`, `--language L`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--late-frames show|wait`, `--level N` (start a mission directly),
 `--multiplayer` (start multiplayer), `--net-port N` (System Link UDP ports N..N+3),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
 `--debug`/`--trace`. Playtests and performance checks use the optimized
