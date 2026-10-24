@@ -895,9 +895,30 @@ bool conditional_branch(const uint8_t* code, uint32_t& length, uint32_t& target)
     return false;
 }
 
+// A relative CALL (E8) or JMP (E9, EB) at `code`: its length and target. The trampoline
+// re-encodes a JMP as a near JMP and a CALL as `push <the original's return address>; jmp
+// target`, so the callee returns into the original code right after the call (the hook's
+// 5 bytes always end at or before that address) with the same return address on the
+// stack as the original (CoD BRO `push 0xc; call Z_Malloc` constructors, SV_Init).
+bool relative_transfer(const uint8_t* code, uint32_t& length, uint32_t& target) {
+    if (code[0] == 0xE8 || code[0] == 0xE9) {
+        int32_t relative;
+        std::memcpy(&relative, code + 1, 4);
+        length = 5;
+        target = addr(code) + 5 + static_cast<uint32_t>(relative);
+        return true;
+    }
+    if (code[0] == 0xEB) {
+        length = 2;
+        target = addr(code) + 2 + static_cast<uint32_t>(static_cast<int8_t>(code[1]));
+        return true;
+    }
+    return false;
+}
+
 // Copies the entry instructions [entry, entry + moved) into `out`, re-encoding
-// conditional branches as near branches to the same targets. Returns the bytes
-// written.
+// conditional branches as near branches to the same targets and relative CALL/JMP as
+// above. Returns the bytes written.
 uint32_t copy_entry(uint8_t* out, const uint8_t* entry, uint32_t moved) {
     uint32_t in = 0, written = 0;
     while (in < moved) {
@@ -907,6 +928,15 @@ uint32_t copy_entry(uint8_t* out, const uint8_t* entry, uint32_t moved) {
             out[written] = 0x0F;
             put_rel32(out + written + 1, static_cast<uint8_t>(0x80 | condition), target);
             written += 6;
+        } else if (relative_transfer(entry + in, length, target)) {
+            if (entry[in] == 0xE8) {
+                const uint32_t return_address = addr(entry + in) + length;
+                out[written] = 0x68;  // push imm32
+                std::memcpy(out + written + 1, &return_address, 4);
+                written += 5;
+            }
+            put_rel32(out + written, 0xE9, target);
+            written += 5;
         } else {
             length = instruction_length(entry + in);
             std::memcpy(out + written, entry + in, length);
@@ -1967,9 +1997,10 @@ void install(std::span<const game::Function> functions, const Config& config) {
         bool movable = true;
         while (moved < 5) {
             uint32_t length = instruction_length(entry + moved), target = 0;
-            // A conditional branch moves too, unless it jumps back into the bytes
-            // the hook overwrites.
-            if (!length && (!conditional_branch(entry + moved, length, target) ||
+            // A conditional branch or relative CALL/JMP moves too, unless it jumps back
+            // into the bytes the hook overwrites.
+            if (!length && (!(conditional_branch(entry + moved, length, target) ||
+                              relative_transfer(entry + moved, length, target)) ||
                             (target >= address && target < address + 5))) {
                 movable = false;
                 break;
@@ -1980,7 +2011,7 @@ void install(std::span<const game::Function> functions, const Config& config) {
             LOG_WARN("compare", "%s: cannot move the instruction at %08x; not tested", function.name, address + moved);
             continue;
         }
-        uint8_t* code = alloc_code(moved * 3 + 5 + 32);  // a 2-byte branch becomes 6
+        uint8_t* code = alloc_code(moved * 3 + 5 + 32);  // a 2-byte branch becomes 6, a CALL 10
         if (!code) continue;
         auto hook = std::make_unique<Hook>();
         hook->function = &function;

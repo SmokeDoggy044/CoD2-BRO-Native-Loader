@@ -26,8 +26,10 @@ set(game_code_sources
     nal_math.cpp
     nal_pose.cpp
     ngl.cpp
+    ngl_debug.cpp
     param_set.cpp
     qcommon.cpp
+    r_init.cpp
     script_string.cpp
     shaders.cpp
     snd.cpp
