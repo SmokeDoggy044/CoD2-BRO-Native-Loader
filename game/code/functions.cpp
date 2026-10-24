@@ -24,6 +24,7 @@
 #include "ngl.h"
 #include "param_set.h"
 #include "qcommon.h"
+#include "r_init.h"
 #include "script_string.h"
 #include "shaders.h"
 #include "snd.h"
@@ -100,6 +101,7 @@ const Function kFunctions[] = {
     {"NAL_AsGenericClip", 0x000229d0, 0, code(&NAL_AsGenericClip), 0, Result::Eax, Status::Compare},
     {"AnimWeightRef_GetA", 0x00023150, 0, code(&AnimWeightRef_GetA), 4, Result::Eax, Status::Compare},
     {"AnimWeightRef_GetB", 0x00023180, 0, code(&AnimWeightRef_GetB), 4, Result::Eax, Status::Compare},
+    {"PakRender_Shutdown", 0x00023e00, 0, code(&PakRender_Shutdown), 0, Result::None, Status::Compare},
     {"Stream_BoundsContainPoint", 0x00024cb0, 0, code(&Stream_BoundsContainPoint), 0, Result::Eax, Status::Compare},
     {"Stream_NearestPoint", 0x00024d30, 0, code(&Stream_NearestPoint_entry), 0, Result::Eax, Status::Compare},
     {"Stream_PickVolumePoint", 0x00024da0, 0, code(&Stream_PickVolumePoint_entry), 4, Result::Eax, Status::Compare},
@@ -384,6 +386,7 @@ const Function kFunctions[] = {
     {"nglResetDeviceBindings", 0x00064660, 0, code(&nglResetDeviceBindings), 0, Result::None, Status::Compare},
     {"nglBeginFrame", 0x00064690, 0, code(&nglBeginFrame), 0, Result::None, Status::Compare},
     {"nglSelectVideoMode", 0x000649e0, 0, code(&nglSelectVideoMode), 0, Result::None, Status::Compare},
+    {"nglInit", 0x00064bc0, 0, code(&nglInit), 0, Result::None, Status::Compare},
     {"nglEndFrame", 0x00064ec0, 0, code(&nglEndFrame), 0, Result::None, Status::Compare},
     {"nglParseFontFile", 0x00065590, 0, code(&nglParseFontFile_entry), 4, Result::Eax, Status::Compare},
     {"nglLoadFontFile", 0x000657b0, 0, code(&nglLoadFontFile), 8, Result::Eax, Status::Compare},
@@ -443,9 +446,14 @@ const Function kFunctions[] = {
     {"nglReadBackBufferSize", 0x0006eca0, 0, code(&nglReadBackBufferSize), 0, Result::None, Status::Compare},
     {"nglSelectMeshProjectors", 0x0006fb30, 0, code(&nglSelectMeshProjectors), 0, Result::None, Status::Compare},
     {"nglUpdateScene_Nop", 0x00073ad0, 0, code(&nglUpdateScene_Nop), 0, Result::None, Status::Compare},
+    {"nglAssemblePixelShader", 0x00076120, 0, code(&nglAssemblePixelShader_entry), 8, Result::Eax, Status::Compare},
+    {"nglAssembleVertexShader", 0x00076220, 0, code(&nglAssembleVertexShader_entry), 16, Result::Eax, Status::Compare},
     {"nglSetFrameMemorySize", 0x000778b0, 0, code(&nglSetFrameMemorySize), 0, Result::None, Status::Compare},
+    {"nglAllocFrameMemory", 0x00077b50, 0, code(&nglAllocFrameMemory), 0, Result::None, Status::Compare},
     {"nglInitMultisample", 0x00078500, 0, code(&nglInitMultisample), 0, Result::Al, Status::Compare},
     {"nglDrawQuad", 0x00078b90, 0, code(&nglDrawQuad), 4, Result::None, Status::Compare},
+    {"nglDumpCamera", 0x000795c0, 0, code(&nglDumpCamera), 4, Result::None, Status::Compare},
+    {"nglDumpSceneMeshes", 0x00079950, 0, code(&nglDumpSceneMeshes), 12, Result::None, Status::Compare},
     {"nglMeshSection_FreeBuffers", 0x0007a4c0, 0, code(&nglMeshSection_FreeBuffers), 0, Result::None, Status::Compare},
     {"nglResourceManager_Add", 0x0007af20, 0, code(&nglResourceManager_Add), 4, Result::Eax, Status::Compare},
     {"nglMeshFileCache_DeletingDtor", 0x0007af30, 0, code(&nglMeshFileCache_DeletingDtor), 4, Result::Eax, Status::Compare},
@@ -1427,6 +1435,7 @@ const Function kFunctions[] = {
     {"R_RegisterModel", 0x00241f40, 0, code(&R_RegisterModel), 12, Result::Eax, Status::Compare},
     {"R_ModelBoneMatrices", 0x00241ff0, 0, code(&R_ModelBoneMatrices), 0, Result::None, Status::Compare},
     {"XModel_TransformBones", 0x00242540, 0, code(&XModel_TransformBones), 12, Result::None, Status::Compare},
+    {"GetRefAPI", 0x00247980, 0, code(&GetRefAPI), 0, Result::Eax, Status::Compare},
     {"hurt_use", 0x00248270, 0, code(&hurt_use), 0, Result::Eax, Status::Compare},
     {"multi_wait", 0x002482e0, 0, code(&multi_wait), 0, Result::Eax, Status::Compare},
     {"Use_trigger_use", 0x002488d0, 0, code(&Use_trigger_use), 0, Result::None, Status::Compare},
@@ -1576,11 +1585,13 @@ const Function kFunctions[] = {
     {"StreamMem_CountFree", 0x0028d150, 0, code(&StreamMem_CountFree_entry), 0, Result::Eax, Status::Compare},
     {"StreamMem_GetBlock", 0x0028d390, 0, code(&StreamMem_GetBlock_entry), 12, Result::Eax, Status::Compare},
     {"StreamMem_CountUsed", 0x0028d480, 0, code(&StreamMem_CountUsed_entry), 0, Result::Eax, Status::Compare},
+    {"ResourceManager_Destruct", 0x0028d7d0, 0, code(&ResourceManager_Destruct), 0, Result::None, Status::Compare},
     {"Stream_AddSkelToZone", 0x0028e690, 0, code(&Stream_AddSkelToZone_entry), 4, Result::Eax, Status::Compare},
     {"Stream_AddAnimToZone", 0x0028e790, 0, code(&Stream_AddAnimToZone_entry), 4, Result::Eax, Status::Compare},
     {"Stream_AddMeshFileToZone", 0x0028e7e0, 0, code(&Stream_AddMeshFileToZone), 8, Result::Eax, Status::Compare},
     {"Stream_AddMeshToZone", 0x0028e880, 0, code(&Stream_AddMeshToZone), 8, Result::Eax, Status::Compare},
     {"Stream_AddTextureToZone", 0x0028e930, 0, code(&Stream_AddTextureToZone), 8, Result::Eax, Status::Compare},
+    {"ResourceManager_Construct", 0x0028ec30, 0, code(&ResourceManager_Construct_entry), 0, Result::Eax, Status::Compare},
     {"Stream_LoadStb", 0x0028ee00, 0, code(&Stream_LoadStb), 16, Result::Eax, Status::Compare},
     {"Stream_LoadDb", 0x0028ee20, 0, code(&Stream_LoadDb), 16, Result::Eax, Status::Compare},
     {"Stream_LoadIb", 0x0028ee50, 0, code(&Stream_LoadIb), 16, Result::Eax, Status::Compare},
@@ -2093,6 +2104,7 @@ const Function kFunctions[] = {
     {"SV_AdjustAreaPortalState", 0x002bffb0, 0, code(&SV_AdjustAreaPortalState), 0, Result::None, Status::Compare},
     {"SV_GameSendServerCommand", 0x002bffd0, 0, code(&SV_GameSendServerCommand), 4, Result::None, Status::Compare},
     {"SV_ClientCommand", 0x002c0040, 0, code(&SV_ClientCommand), 0, Result::Eax, Status::Compare},
+    {"SceneFX_Init", 0x002c03e0, 0, code(&SceneFX_Init_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_Vstr_f", 0x002c0d30, 0, code(&Cmd_Vstr_f), 0, Result::None, Status::Compare},
     {"CM_SegmentOverlapsBox", 0x002c0d80, 0, code(&CM_SegmentOverlapsBox), 4, Result::Al, Status::Compare},
     {"SegmentMissesBounds", 0x002c0f60, 0, code(&SegmentMissesBounds_entry), 4, Result::Eax, Status::Compare},

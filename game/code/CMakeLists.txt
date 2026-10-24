@@ -27,6 +27,7 @@ set(game_code_sources
     ngl.cpp
     param_set.cpp
     qcommon.cpp
+    r_init.cpp
     script_string.cpp
     shaders.cpp
     snd.cpp

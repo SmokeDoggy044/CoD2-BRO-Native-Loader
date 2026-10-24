@@ -1407,10 +1407,14 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
     }
     // Kernel exports that only set state nothing in title memory reads back: page
     // protection (XPhysicalProtect: nglCreateVertexBufferPhysical, nglVertexBuffer_Free); and the
-    // system time behind the CRT's _clock, 0 on both sides (its pointer is a stack local: not logged).
+    // system time behind the CRT's _clock, 0 on both sides (its pointer is a stack local: not logged);
+    // critical sections (the XAPI heap's lock under RtlAllocateHeap/RtlFreeHeap: CRT malloc, XGAssembleShader):
+    // a test process is one thread, so the section is left as it was on both sides.
     static const RecordedCall kRecordedKernelCalls[] = {
         {"MmSetAddressProtect", "s s s"},
         {"KeQuerySystemTime", "x", compare::SdkStandIn::SystemTime},
+        {"RtlEnterCriticalSection", "s"},
+        {"RtlLeaveCriticalSection", "s"},
     };
     for (const RecordedCall& call : kRecordedKernelCalls) {
         uint32_t host = 0;

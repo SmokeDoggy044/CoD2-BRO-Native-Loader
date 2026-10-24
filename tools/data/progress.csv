@@ -607,7 +607,7 @@ address,name,section,module,state,tested,matched
 00023b20,ParamSet_AddFxOverrides,.text,qcommon,settled,207,207
 00023cf0,FUN_00023cf0,.text,unassigned,unnamed,0,0
 00023d80,FUN_00023d80,.text,unassigned,unnamed,0,0
-00023e00,PakRender_Shutdown,.text,renderer,named,0,0
+00023e00,PakRender_Shutdown,.text,renderer,untested,0,0
 00023e50,SoundRef_GetParam1a,.text,sound,settled,124,124
 00023e70,FUN_00023e70,.text,unassigned,unnamed,0,0
 00023ed0,FUN_00023ed0,.text,unassigned,unnamed,0,0
@@ -1228,7 +1228,7 @@ address,name,section,module,state,tested,matched
 000456a0,nglMaterialFindTexture,.text,renderer,settled,127,127
 000456c0,nglMaterialFindTextureOrDefault,.text,renderer,settled,119,119
 000456f0,nglGetSceneFogColor,.text,renderer,settled,350,350
-00045790,nglInitShaders,.text,renderer,inconclusive,220,0
+00045790,nglInitShaders,.text,renderer,inconclusive,224,0
 00045850,R_DrawFogPass,.text,renderer,settled,157,157
 00045ef0,R_AddFogPass,.text,renderer,settled,387,387
 00045f40,nglToggleShaderByName,.text,renderer,matched,2,2
@@ -1643,7 +1643,7 @@ address,name,section,module,state,tested,matched
 00064690,nglBeginFrame,.text,renderer,settled,109,109
 00064780,nglDrawFpsCounter,.text,renderer,named,0,0
 000649e0,nglSelectVideoMode,.text,renderer,inconclusive,179,0
-00064bc0,nglInit,.text,renderer,named,0,0
+00064bc0,nglInit,.text,renderer,inconclusive,2,0
 00064ec0,nglEndFrame,.text,renderer,settled,266,132
 00065380,nglVideoMode_Init,.text,renderer,settled,102,102
 00065420,nglVideoMode_Copy,.text,renderer,settled,102,102
@@ -1808,10 +1808,10 @@ address,name,section,module,state,tested,matched
 00076050,nglStateCache_SetBlendColor,.text,renderer,settled,157,157
 000760a0,nglSetPixelShaderProgramCached,.text,renderer,settled,2444,2444
 000760c0,nglSetVertexShaderCached,.text,renderer,settled,4852,4852
-00076120,nglAssemblePixelShader,.text,renderer,named,0,0
+00076120,nglAssemblePixelShader,.text,renderer,matched,6,4
 000761f0,nglVertexShader_Init,.text,renderer,settled,166,166
 00076210,nglPixelShader_Init,.text,renderer,settled,168,168
-00076220,nglAssembleVertexShader,.text,renderer,named,0,0
+00076220,nglAssembleVertexShader,.text,renderer,matched,2,2
 00076360,nglInitShaderConstantTable,.text,renderer,settled,105,105
 00076470,nglInitShaderConstants,.text,renderer,settled,345,345
 000765c0,nglSetObjectLightConstants,.text,renderer,settled,343,343
@@ -1819,7 +1819,7 @@ address,name,section,module,state,tested,matched
 000776f0,nglSetTransformConstants,.text,renderer,settled,2121,2121
 000778b0,nglSetFrameMemorySize,.text,renderer,settled,115,115
 00077b30,nglAllocFrameScratch,.text,renderer,settled,400,400
-00077b50,nglAllocFrameMemory,.text,renderer,named,0,0
+00077b50,nglAllocFrameMemory,.text,renderer,untested,0,0
 00078500,nglInitMultisample,.text,renderer,inconclusive,217,0
 00078790,nglSetVertexStreams,.text,renderer,settled,4025,4025
 00078810,nglSetRenderTargetCached,.text,renderer,settled,13061,6382
@@ -1827,8 +1827,8 @@ address,name,section,module,state,tested,matched
 00078b90,nglDrawQuad,.text,renderer,settled,252,252
 00079020,nglParseDDSPalette,.text,renderer,untested,0,0
 000794a0,nglBeginFrame_Nop,.text,renderer,untested,0,0
-000795c0,nglDumpCamera,.text,renderer,named,0,0
-00079950,nglDumpSceneMeshes,.text,renderer,named,0,0
+000795c0,nglDumpCamera,.text,renderer,untested,0,0
+00079950,nglDumpSceneMeshes,.text,renderer,untested,0,0
 00079f60,nglCreateSysFont,.text,renderer,inconclusive,1,0
 00079fc0,nglRenderTextNode,.text,renderer,settled,301,301
 0007a3a0,nglIndexBuffer_Alloc,.text,renderer,settled,100,100
@@ -8192,7 +8192,7 @@ address,name,section,module,state,tested,matched
 00247190,FX_PlayBoltedEffect,.text,renderer,settled,189,189
 00247350,R_RenderView,.text,renderer,mismatched,52663,16659
 002476b0,RE_RenderScene,.text,renderer,settled,3175,3171
-00247980,GetRefAPI,.text,renderer,named,0,0
+00247980,GetRefAPI,.text,renderer,matched,2,2
 00247ad0,FUN_00247ad0,.text,unassigned,unnamed,0,0
 00247c80,FUN_00247c80,.text,unassigned,unnamed,0,0
 00247d50,FUN_00247d50,.text,unassigned,unnamed,0,0
@@ -8843,7 +8843,7 @@ address,name,section,module,state,tested,matched
 0028d480,StreamMem_CountUsed,.text,streaming,settled,176,176
 0028d4c0,StreamMem_MoveSlots,.text,streaming,named,0,0
 0028d5e0,StreamMem_Alloc,.text,streaming,named,0,0
-0028d7d0,ResourceManager_Destruct,.text,renderer,named,0,0
+0028d7d0,ResourceManager_Destruct,.text,renderer,untested,0,0
 0028d860,FUN_0028d860,.text,unassigned,unnamed,0,0
 0028d8b0,ZoneRecord_GetContext,.text,streaming,named,0,0
 0028d920,Stream_GetFileType,.text,streaming,named,0,0
@@ -8864,7 +8864,7 @@ address,name,section,module,state,tested,matched
 0028ea20,FUN_0028ea20,.text,unassigned,unnamed,0,0
 0028eaa0,FUN_0028eaa0,.text,unassigned,unnamed,0,0
 0028eb90,ZoneManagers_Destruct,.text,streaming,named,0,0
-0028ec30,ResourceManager_Construct,.text,renderer,named,0,0
+0028ec30,ResourceManager_Construct,.text,renderer,matched,2,2
 0028ee00,Stream_LoadStb,.text,streaming,inconclusive,1124,0
 0028ee20,Stream_LoadDb,.text,streaming,settled,115,115
 0028ee50,Stream_LoadIb,.text,streaming,settled,101,101
@@ -9569,7 +9569,7 @@ address,name,section,module,state,tested,matched
 002c0040,SV_ClientCommand,.text,server,untested,0,0
 002c0120,Loc_CountChars,.text,qcommon,named,0,0
 002c0310,FUN_002c0310,.text,unassigned,unnamed,0,0
-002c03e0,SceneFX_Init,.text,renderer,named,0,0
+002c03e0,SceneFX_Init,.text,renderer,matched,2,2
 002c0480,G_FriendlyChainNode,.text,game,named,0,0
 002c05e0,FUN_002c05e0,.text,unassigned,unnamed,0,0
 002c08c0,FUN_002c08c0,.text,unassigned,unnamed,0,0

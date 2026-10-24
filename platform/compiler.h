@@ -563,10 +563,13 @@ inline std::int32_t platform_ftol(float x) { return static_cast<std::int32_t>(st
 inline float platform_rsqrt_estimate(float x) { return _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(x))); }
 // RCPSS/RCPPS, the reciprocal estimate (per CPU vendor as well).
 inline float platform_rcp_estimate(float x) { return _mm_cvtss_f32(_mm_rcp_ss(_mm_set_ss(x))); }
+// STMXCSR, OR, LDMXCSR (CoD BRO nglInit: round toward zero).
+inline void platform_mxcsr_or(unsigned bits) { _mm_setcsr(_mm_getcsr() | bits); }
 #else
 #include <cmath>
 inline float platform_rsqrt_estimate(float x) { return 1.0f / std::sqrt(x); }
 inline float platform_rcp_estimate(float x) { return 1.0f / x; }
+inline void platform_mxcsr_or(unsigned) {}
 #endif
 
 // ---- Game module (g_scr_math.cpp): x87 operations whose result stays in extended precision
