@@ -71,6 +71,7 @@ struct Options {
     bool aim_assist = true;
     int32_t frame_rate = 60;
     bool late_frames_wait = false;
+    bool any_release = false;    // start an XBE whose build is not the supported one (testing)
     int32_t start_level = -1;
     bool multiplayer = false;    // start codmp_xboxf.xbe
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
@@ -149,6 +150,8 @@ void print_usage(const char* program) {
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
         "  --late-frames show|wait  a frame that missed its vertical blank is shown at once\n"
         "                   (default) or waits for the next one (as on the Xbox: 30 fps drops to 20)\n"
+        "  --any-release    start an executable from another release of the game (testing;\n"
+        "                   its addresses differ, so expect crashes)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n",
         program);
 }
@@ -285,6 +288,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.frame_rate = std::stoi(value);
+        } else if (arg == "--any-release") {
+            options.any_release = true;
         } else if (arg == "--late-frames") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             if (value != "show" && value != "wait") {
@@ -540,6 +545,17 @@ int loader_main(int argc, char** argv) {
     const loader::TitleInfo* title = loader::find_title(xbe.filename().string());
     if (!title) return startup_failed(xbe.filename().string() + " is not one of the game's executables");
     if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
+    if (image.header().time_date != title->time_date || image.size() != title->image_size) {
+        LOG_ERROR("loader", "%s is another build (time stamp %08x, image size %x) than the supported one (%08x, %x)",
+                  xbe.filename().string().c_str(), image.header().time_date, image.size(), title->time_date,
+                  title->image_size);
+        if (!options->any_release)
+            return startup_failed(xbe.filename().string() +
+                                  " is from another release of the game than the one this version supports, so "
+                                  "its code is at other addresses (the log has its time stamp and size; please "
+                                  "mention them and your disc's region and languages in a report)");
+        LOG_WARN("loader", "--any-release: starting it anyway; expect patches to miss and crashes");
+    }
     g_xbe = xbe;
 
     static loader::SymbolTable symbols;

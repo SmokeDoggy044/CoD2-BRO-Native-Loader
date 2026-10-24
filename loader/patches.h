@@ -17,6 +17,11 @@ struct TitleInfo {
     uint32_t d3d_render_state;    // D3D__RenderState
     uint32_t d3d_texture_state;   // D3D_g_DeferredTextureState
     uint32_t gamepad_type;        // XPP g_DeviceType_Gamepad (XDEVICE_TYPE_GAMEPAD)
+    // The build every address here is for (XBE header time stamp and image size). Other
+    // releases of the game (issue #9: a French/Spanish/Italian disc) have their code at
+    // other addresses.
+    uint32_t time_date;
+    uint32_t image_size;
 };
 
 // The title with this XBE file name, or null.
