@@ -1228,7 +1228,7 @@ address,name,section,module,state,tested,matched
 000456a0,nglMaterialFindTexture,.text,renderer,settled,127,127
 000456c0,nglMaterialFindTextureOrDefault,.text,renderer,settled,119,119
 000456f0,nglGetSceneFogColor,.text,renderer,settled,350,350
-00045790,nglInitShaders,.text,renderer,inconclusive,218,0
+00045790,nglInitShaders,.text,renderer,inconclusive,220,0
 00045850,R_DrawFogPass,.text,renderer,settled,157,157
 00045ef0,R_AddFogPass,.text,renderer,settled,387,387
 00045f40,nglToggleShaderByName,.text,renderer,matched,2,2
@@ -1356,7 +1356,7 @@ address,name,section,module,state,tested,matched
 0004d0e0,cdAirplaneMetal_NewVertexIter,.text,renderer,untested,0,0
 0004d110,cdAirplaneMetalVertexIter_Clone,.text,renderer,untested,0,0
 0004d3e0,cdSimpleUVAnim_Toggle,.text,renderer,matched,1,1
-0004d400,cdSimpleUVAnim_Register,.text,renderer,matched,91,91
+0004d400,cdSimpleUVAnim_Register,.text,renderer,matched,93,93
 0004d4a0,cdSimpleUVAnim_AddToList,.text,renderer,settled,101,101
 0004d520,cdSimpleUVAnim_Init,.text,renderer,untested,0,0
 0004d560,cdSimpleUVAnim_GetUVParams,.text,renderer,settled,293,293
@@ -1366,10 +1366,10 @@ address,name,section,module,state,tested,matched
 0004d910,cdSimpleUVAnimVertexIter_Clone,.text,renderer,untested,0,0
 0004dc00,cdSimplePrelit_Toggle,.text,renderer,matched,1,1
 0004dc20,cdSimplePrelit_AddToList,.text,renderer,settled,203,203
-0004dca0,cdSimplePrelit_Register,.text,renderer,matched,15,15
+0004dca0,cdSimplePrelit_Register,.text,renderer,matched,17,17
 0004dd10,cdSimplePrelit_Init,.text,renderer,untested,0,0
 0004dd50,cdSimplePrelit_Draw,.text,renderer,settled,314,314
-0004df90,cdSimplePrelit_GetName,.text,renderer,matched,6,6
+0004df90,cdSimplePrelit_GetName,.text,renderer,matched,10,10
 0004dfb0,nglMaterial_Relocate,.text,renderer,settled,121,121
 0004dfd0,cdSimplePrelit_NewVertexIter,.text,renderer,untested,0,0
 0004e000,cdSimplePrelitVertexIter_Clone,.text,renderer,untested,0,0
@@ -1642,7 +1642,7 @@ address,name,section,module,state,tested,matched
 00064660,nglResetDeviceBindings,.text,renderer,settled,165,101
 00064690,nglBeginFrame,.text,renderer,settled,109,109
 00064780,nglDrawFpsCounter,.text,renderer,named,0,0
-000649e0,nglSelectVideoMode,.text,renderer,inconclusive,177,0
+000649e0,nglSelectVideoMode,.text,renderer,inconclusive,179,0
 00064bc0,nglInit,.text,renderer,named,0,0
 00064ec0,nglEndFrame,.text,renderer,settled,266,132
 00065380,nglVideoMode_Init,.text,renderer,settled,102,102
@@ -1745,7 +1745,7 @@ address,name,section,module,state,tested,matched
 0006e860,nglDepthToZValue,.text,renderer,settled,4462,4462
 0006e920,nglDebugMeshVertexIter_Clone,.text,renderer,untested,0,0
 0006e9c0,nglInitFrameBuffers,.text,renderer,inconclusive,7,0
-0006eca0,nglReadBackBufferSize,.text,renderer,inconclusive,225,0
+0006eca0,nglReadBackBufferSize,.text,renderer,inconclusive,227,0
 0006ece0,nglFreeTexture,.text,renderer,settled,498,105
 0006eea0,nglCreateTexture,.text,renderer,settled,444,100
 0006f080,nglCreateNormalCubeMap,.text,renderer,named,0,0
@@ -1779,7 +1779,7 @@ address,name,section,module,state,tested,matched
 00073ce0,nglMatrixTargetScale,.text,renderer,settled,213,213
 00073e90,nglGetSceneTargetScale,.text,renderer,settled,287,287
 00073ed0,nglBeginSceneRender,.text,renderer,settled,301,301
-00074330,nglRenderSceneTree,.text,renderer,mismatched,560597,358246
+00074330,nglRenderSceneTree,.text,renderer,mismatched,560987,358636
 000744f0,std_PushHeap_OpaqueNodes,.text,qcommon,untested,0,0
 00074540,std_Rotate_NodeKeys,.text,qcommon,settled,4669,4669
 00074600,std_PushHeap_TranslucentNodes,.text,qcommon,untested,0,0
@@ -1800,7 +1800,7 @@ address,name,section,module,state,tested,matched
 00075280,nglSortOpaqueNodes_r,.text,renderer,settled,402,402
 00075370,nglSortTranslucentNodes_r,.text,renderer,settled,371,371
 00075460,nglRenderOpaqueList,.text,renderer,settled,444,345
-000754f0,nglRenderTranslucentList,.text,renderer,mismatched,237461,163299
+000754f0,nglRenderTranslucentList,.text,renderer,mismatched,237777,163615
 00075780,nglSetDefaultRenderStates,.text,renderer,settled,344,344
 00075ac0,nglSetBlendMode,.text,renderer,settled,580,580
 00075d90,nglRestoreRenderStates,.text,renderer,untested,0,0
@@ -1820,7 +1820,7 @@ address,name,section,module,state,tested,matched
 000778b0,nglSetFrameMemorySize,.text,renderer,settled,115,115
 00077b30,nglAllocFrameScratch,.text,renderer,settled,400,400
 00077b50,nglAllocFrameMemory,.text,renderer,named,0,0
-00078500,nglInitMultisample,.text,renderer,inconclusive,215,0
+00078500,nglInitMultisample,.text,renderer,inconclusive,217,0
 00078790,nglSetVertexStreams,.text,renderer,settled,4025,4025
 00078810,nglSetRenderTargetCached,.text,renderer,settled,13061,6382
 00078890,nglDrawMeshSection,.text,renderer,settled,3755,3755
@@ -2257,7 +2257,7 @@ address,name,section,module,state,tested,matched
 0009d000,apsLog_Printf,.text,qcommon,untested,0,0
 0009d040,FxLog_Init,.text,renderer,settled,105,105
 0009d0e0,FxSystems_FreeBlock,.text,renderer,untested,0,0
-0009d110,FxParticleBuffers_Init,.text,renderer,matched,91,91
+0009d110,FxParticleBuffers_Init,.text,renderer,matched,93,93
 0009d200,nglQuadBatch_Reserve,.text,renderer,settled,400,400
 0009d240,nglQuadBatch_Draw,.text,renderer,settled,8723,8723
 0009d2f0,FxBuffers_Flip,.text,renderer,settled,351,351
@@ -2284,13 +2284,13 @@ address,name,section,module,state,tested,matched
 0009e7d0,FxOp9d5_InitShaders,.text,renderer,matched,7,7
 0009e800,FxOp9d5_Init,.text,renderer,settled,127,127
 0009e830,FxOp9d5_AddToList,.text,renderer,settled,204,204
-0009e910,FxOpd5_InitShaders,.text,renderer,matched,15,15
+0009e910,FxOpd5_InitShaders,.text,renderer,matched,17,17
 0009e940,FxOpd5_Init,.text,renderer,untested,0,0
 0009e970,FxOpd5_AddToList,.text,renderer,untested,0,0
-0009ea50,FxOp15b_InitShaders,.text,renderer,matched,58,58
+0009ea50,FxOp15b_InitShaders,.text,renderer,matched,60,60
 0009ea80,FxOp15b_Init,.text,renderer,settled,127,127
 0009eab0,FxOp15b_AddToList,.text,renderer,settled,301,301
-0009eb90,FxOp5b_InitShaders,.text,renderer,matched,93,93
+0009eb90,FxOp5b_InitShaders,.text,renderer,matched,95,95
 0009ebc0,FxOp5b_Init,.text,renderer,untested,0,0
 0009ebf0,FxOp5b_AddToList,.text,renderer,untested,0,0
 0009ece0,FxOpGrid_InitShaders,.text,renderer,settled,107,107
@@ -4180,7 +4180,7 @@ address,name,section,module,state,tested,matched
 0011d600,ScriptString_Assign,.text,script,named,0,0
 0011d640,ScriptString_Release,.text,script,named,0,0
 0011d660,ScriptString_Clear,.text,script,named,0,0
-0011d6a0,ScriptString_Find,.text,script,matched,6,6
+0011d6a0,ScriptString_Find,.text,script,matched,21,21
 0011d700,ScriptString_FindChar,.text,script,settled,357,357
 0011d730,ScriptString_FindLast,.text,script,untested,0,0
 0011d7a0,ScriptString_SetChar,.text,script,untested,0,0
@@ -8865,7 +8865,7 @@ address,name,section,module,state,tested,matched
 0028eaa0,FUN_0028eaa0,.text,unassigned,unnamed,0,0
 0028eb90,ZoneManagers_Destruct,.text,streaming,named,0,0
 0028ec30,ResourceManager_Construct,.text,renderer,named,0,0
-0028ee00,Stream_LoadStb,.text,streaming,inconclusive,1121,0
+0028ee00,Stream_LoadStb,.text,streaming,inconclusive,1124,0
 0028ee20,Stream_LoadDb,.text,streaming,settled,115,115
 0028ee50,Stream_LoadIb,.text,streaming,settled,101,101
 0028ee80,Stream_LoadBmips,.text,streaming,settled,100,100
@@ -8985,7 +8985,7 @@ address,name,section,module,state,tested,matched
 00296e50,ParamNode_CollectChoices,.text,qcommon,settled,133,133
 00296ec0,Cvar_Update,.text,qcommon,settled,401,401
 00296f60,generateHashValue,.text,qcommon,settled,378,378
-002970c0,Com_AddStartupCommands,.text,qcommon,matched,38,38
+002970c0,Com_AddStartupCommands,.text,qcommon,matched,40,40
 002971a0,Com_Memset,.text,qcommon,settled,356,356
 00297280,FUN_00297280,.text,unassigned,unnamed,0,0
 00297470,FUN_00297470,.text,unassigned,unnamed,0,0
@@ -9232,7 +9232,7 @@ address,name,section,module,state,tested,matched
 002aa870,Cmd_List_f,.text,qcommon,named,0,0
 002aa8b0,Cmd_TokenizeString,.text,qcommon,settled,113,113
 002aaa10,Cmd_ArgsFrom,.text,qcommon,untested,0,0
-002aaaa0,Cmd_Argv,.text,qcommon,untested,0,0
+002aaaa0,Cmd_Argv,.text,qcommon,matched,13,13
 002aaac0,Cmd_Argc,.text,qcommon,untested,0,0
 002aaad0,Cmd_Echo_f,.text,qcommon,named,0,0
 002aab40,Cbuf_InsertText,.text,qcommon,settled,100,100
@@ -9382,7 +9382,7 @@ address,name,section,module,state,tested,matched
 002b4680,IN_LeanLeftDown,.text,client,matched,4,4
 002b4690,IN_ReloadUp,.text,client,matched,4,4
 002b46a0,IN_ReloadDown,.text,client,matched,3,3
-002b46f0,IN_ActivateUp,.text,client,matched,4,4
+002b46f0,IN_ActivateUp,.text,client,matched,5,5
 002b4700,IN_ActivateDown,.text,client,matched,3,3
 002b4790,IN_Button0Up,.text,client,matched,8,8
 002b47a0,IN_Button0Down,.text,client,matched,8,8
@@ -9406,7 +9406,7 @@ address,name,section,module,state,tested,matched
 002b48c0,IN_RightDown,.text,client,untested,0,0
 002b48d0,IN_LeftUp,.text,client,untested,0,0
 002b48e0,IN_LeftDown,.text,client,untested,0,0
-002b48f0,IN_UpUp,.text,client,matched,4,4
+002b48f0,IN_UpUp,.text,client,matched,11,11
 002b4910,CL_ShutdownCGame,.text,client,matched,69,69
 002b49a0,Persistent_SetValue,.text,game,named,0,0
 002b4a30,FUN_002b4a30,.text,unassigned,unnamed,0,0
@@ -9545,7 +9545,7 @@ address,name,section,module,state,tested,matched
 002bdc80,FUN_002bdc80,.text,unassigned,unnamed,0,0
 002bde90,FUN_002bde90,.text,unassigned,unnamed,0,0
 002bdf10,IN_Frame,.text,client,named,0,0
-002be180,IN_InitCvars,.text,client,matched,49,49
+002be180,IN_InitCvars,.text,client,matched,51,51
 002be200,CG_GetEntityRefEntity,.text,cgame,settled,391,391
 002be2e0,FUN_002be2e0,.text,unassigned,unnamed,0,0
 002be3e0,G_SetSoundDoneNotify,.text,game,settled,103,103
@@ -9632,7 +9632,7 @@ address,name,section,module,state,tested,matched
 002c4f50,SV_RestartGameProgs,.text,server,named,0,0
 002c4fe0,SV_ExecuteClientMessage,.text,server,settled,116,116
 002c5140,SV_SetSkillEasy,.text,server,untested,0,0
-002c51a0,SV_SetSkillMedium,.text,server,untested,0,0
+002c51a0,SV_SetSkillMedium,.text,server,matched,2,2
 002c5200,SV_SetSkillHard,.text,server,untested,0,0
 002c5260,FUN_002c5260,.text,unassigned,unnamed,0,0
 002c5310,FUN_002c5310,.text,unassigned,unnamed,0,0
@@ -9668,10 +9668,10 @@ address,name,section,module,state,tested,matched
 002c8110,FUN_002c8110,.text,unassigned,unnamed,0,0
 002c84e0,FUN_002c84e0,.text,unassigned,unnamed,0,0
 002c8830,S_UpdateCrossfade,.text,sound,settled,7134,7134
-002c8bc0,S_StopSoundHandle,.text,sound,matched,24,24
+002c8bc0,S_StopSoundHandle,.text,sound,matched,28,28
 002c8c20,S_StopAllChannels,.text,sound,named,0,0
 002c8d30,FUN_002c8d30,.text,unassigned,unnamed,0,0
-002c8d60,S_StopAllSounds,.text,sound,inconclusive,170,0
+002c8d60,S_StopAllSounds,.text,sound,inconclusive,171,0
 002c8ed0,S_FreeLevelSounds,.text,sound,named,0,0
 002c8f60,S_CheckWaveBankNotifies,.text,sound,named,0,0
 002c90c0,FUN_002c90c0,.text,unassigned,unnamed,0,0
@@ -9852,7 +9852,7 @@ address,name,section,module,state,tested,matched
 002e1150,CM_TraceThroughCandidates,.text,collision,settled,4976,4976
 002e1740,CM_SightTraceThroughWorldTrees,.text,collision,settled,319,319
 002e20e0,CM_CandidateCapsuleTrace,.text,collision,settled,5503,5503
-002e23b0,CL_InitInput,.text,client,matched,31,31
+002e23b0,CL_InitInput,.text,client,matched,33,33
 002e27d0,FUN_002e27d0,.text,unassigned,unnamed,0,0
 002e2a30,FUN_002e2a30,.text,unassigned,unnamed,0,0
 002e2ac0,FUN_002e2ac0,.text,unassigned,unnamed,0,0
@@ -9950,7 +9950,7 @@ address,name,section,module,state,tested,matched
 002f1d90,SCR_DrawScreenField,.text,client,named,0,0
 002f1e60,SCR_UpdateScreen,.text,client,settled,17878,5954
 002f20a0,CL_Init,.text,client,named,0,0
-002f2630,CL_Frame,.text,client,inconclusive,1857,0
+002f2630,CL_Frame,.text,client,inconclusive,1967,0
 002f2890,CL_MapLoading,.text,client,inconclusive,69,0
 002f2b80,VM_Create,.text,script,named,0,0
 002f2d30,SV_InitGameProgs,.text,server,named,0,0
@@ -9964,7 +9964,7 @@ address,name,section,module,state,tested,matched
 002f4400,SV_Frame,.text,server,settled,311,310
 002f4510,SV_LoadLastSave_f,.text,server,named,0,0
 002f4550,SV_LoadGame_f,.text,server,named,0,0
-002f4770,SV_AddOperatorCommands,.text,server,matched,48,48
+002f4770,SV_AddOperatorCommands,.text,server,matched,50,50
 002f48e0,SV_Init,.text,server,named,0,0
 002f4a50,GScr_ObjectiveStateFromString,.text,script,named,0,0
 002f4b00,FUN_002f4b00,.text,unassigned,unnamed,0,0
@@ -10966,7 +10966,7 @@ address,name,section,module,state,tested,matched
 0032d890,FUN_0032d890,.text,unassigned,unnamed,0,0
 0032dde0,CL_TogglePause,.text,client,matched,4,4
 0032de50,FUN_0032de50,.text,unassigned,unnamed,0,0
-0032dec0,CL_PauseForDialog,.text,client,untested,0,0
+0032dec0,CL_PauseForDialog,.text,client,matched,15,15
 0032df40,FUN_0032df40,.text,unassigned,unnamed,0,0
 0032df90,CL_ResumeFromPause,.text,client,named,0,0
 0032e180,FUN_0032e180,.text,unassigned,unnamed,0,0
