@@ -815,7 +815,8 @@ void XB_STDCALL cdGlass_LoadTextures(uint8_t* material);
 // own sort key (vtable slot 1).
 void XB_CDECL nglListAddNode(NglNode* node);
 // 0x00046df0: the view-space depth of the section's centre, plus its radius.
-float XB_THISCALL nglNode_ViewDepth(const NglMeshNode* node);
+// The view depth + radius as the x87 leaves it in ST0 (unrounded; callers store it as float).
+long double XB_THISCALL nglNode_ViewDepth(const NglMeshNode* node);
 // 0x000495d0: the node's matrix (+0); when its instance (+0x90) has flag 2, rows 0..2
 // divided by the instance's scale (+0x10, RCPPS + one Newton step). Returns out.
 float* XB_THISCALL nglNode_CalcWorldMatrix(const uint8_t* self, float* out);

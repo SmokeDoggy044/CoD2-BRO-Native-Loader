@@ -559,9 +559,9 @@ void XB_CDECL R_SetInstanceColor(uint32_t* const* params, const float* colour) {
         std::memcpy(copy, colour, 16);
     }
     const uint32_t slot = title_global<uint32_t>(0x00902908);
-    uint32_t* block_words = *params;
-    block_words[0] |= 1u << (slot & 31);
-    block_words[2 + slot] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy));
+    (*params)[0] |= 1u << (slot & 31);
+    // *params read again for the second store, as the original does.
+    (*params)[2 + slot] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(copy));
 }
 
 PLATFORM_ASM_ENTRY(R_ApplyCachedLighting_entry,

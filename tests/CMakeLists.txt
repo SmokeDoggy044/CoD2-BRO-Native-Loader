@@ -63,4 +63,15 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(compare_test PRIVATE compare_test_code xbox Threads::Threads)
     add_test(NAME compare_test COMMAND compare_test)
     set_tests_properties(compare_test PROPERTIES TIMEOUT 60)
+
+    # Decompiled functions the campaign never runs, against default.xbe's code mapped at its
+    # addresses (tools/leafscan.py --emit writes leaf_functions.inc; skipped without the game
+    # files).
+    add_executable(leaf_test leaf_test.cpp)
+    target_include_directories(leaf_test PRIVATE ${PROJECT_SOURCE_DIR}/platform)
+    target_compile_definitions(leaf_test PRIVATE
+        COD_BRO_DEFAULT_XBE="${PROJECT_SOURCE_DIR}/../unpacked/default.xbe")
+    target_link_libraries(leaf_test PRIVATE game_code cod_bro_options)
+    add_test(NAME leaf_test COMMAND leaf_test)
+    set_tests_properties(leaf_test PROPERTIES TIMEOUT 600 SKIP_RETURN_CODE 77)
 endif()

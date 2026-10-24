@@ -749,7 +749,10 @@ void XB_THISCALL nglIndexBuffer_Write(uint8_t** self, const void* source, uint32
 uint8_t XB_CDECL nglEvalPointLight(float* out, const float* light, const float* position) {
     float d[4];
     for (int i = 0; i < 4; ++i) d[i] = position[i] - light[i];
-    const float dist2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    // Squared as packed: w too (its overflow flag reaches MXCSR).
+    const Lanes sq = mul(lanes(d), lanes(d));
+    platform_keep(sq);
+    const float dist2 = sq.v[0] + sq.v[1] + sq.v[2];
     if (1e-6f > dist2) {
         for (int i = 0; i < 4; ++i) out[4 + i] = light[4 + i];
         out[0] = 0.0f;
@@ -1836,7 +1839,7 @@ void XB_CDECL nglListAddNode(NglNode* node) {
     }
 }
 
-float XB_THISCALL nglNode_ViewDepth(const NglMeshNode* node) {
+long double XB_THISCALL nglNode_ViewDepth(const NglMeshNode* node) {
     const float* m = node->world_matrix;
     const float* center = node->section->center;
     const Lanes world = add(add(add(lanes(m + 12), mul(lanes(m), center[0])), mul(lanes(m + 4), center[1])),
@@ -1846,7 +1849,8 @@ float XB_THISCALL nglNode_ViewDepth(const NglMeshNode* node) {
     const Lanes view = add(add(add(lanes(v + 12), mul(lanes(v), world.v[0])), mul(lanes(v + 4), world.v[1])),
                            mul(lanes(v + 8), world.v[2]));
     platform_keep(view);
-    return view.v[2] + node->section->radius;
+    // FLD/FADD: the sum stays in ST0 (the caller's FSTP rounds it, overflowing there).
+    return static_cast<long double>(view.v[2]) + node->section->radius;
 }
 
 float* XB_THISCALL nglNode_CalcWorldMatrix(const uint8_t* self, float* out) {

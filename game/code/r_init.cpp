@@ -54,9 +54,13 @@ void XB_CDECL PakRender_Shutdown() {
 void XB_THISCALL ResourceManager_Destruct(uint8_t* self) {
     field<uint32_t>(self, 0) = 0x00838220;
     uint32_t count = title_global<uint32_t>(0x009719f8);
-    uint32_t index = 0;
-    while (index < count && title_global<uint32_t>(0x009719fc + index * 4) != address_of(self)) ++index;
-    if (index == count) return;
+    // The search runs over slot addresses up to registry + count * 4, wrapping as the
+    // original's pointer does.
+    const uint32_t end = 0x009719fc + count * 4;
+    uint32_t slot = 0x009719fc;
+    while (slot != end && title_global<uint32_t>(slot) != address_of(self)) slot += 4;
+    if (slot == end) return;
+    const uint32_t index = (slot - 0x009719fc) >> 2;
     if (static_cast<int32_t>(count) > 1 && static_cast<int32_t>(index) < static_cast<int32_t>(count)) {
         const int32_t last = static_cast<int32_t>(count) - 1;
         title_global<uint32_t>(0x009719fc + index * 4) = title_global<uint32_t>(0x009719fc + (last > 0 ? last : 0) * 4);

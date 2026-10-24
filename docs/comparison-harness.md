@@ -286,6 +286,55 @@ pagemap read in every test of three runs: they differed twice, both times by the
 the calling thread's rseq area, which the kernel wrote between the two reads (it is not
 compared anyway).
 
+## Offline tests of functions the campaign never runs
+
+`tests/leaf_test.cpp` (ctest `leaf_test`, Linux loader builds; skipped without default.xbe)
+tests decompiled functions without the game: it maps default.xbe at its addresses in a
+32-bit test process, so the original's bytes run as they are and our C finds the title's
+globals and functions where it expects them. `tools/leafscan.py --emit tests/leaf_functions.inc`
+picks the functions (default: the renderer's untested, inconclusive and mismatched ones;
+`--module`, `--states`): no indirect calls (kernel thunks, vtables, callbacks), no FS or
+privileged instructions, no calls into D3D/DSOUND/XONLINE/XNET/XPP, callees passing the same
+test. Globals are allowed; the ones read by the function and its callees are randomized.
+
+Inputs are random: registers, XMM registers, 8 stack words (always 8: a caller's stack has
+words above the arguments, and kFunctions' arg_bytes can be short - nglSelectMeshLodWithMatrix
+says 0 but takes two), the globals, and a 32 KB arena of 1 KB chunks whose words are small
+integers, bit masks, floats (0, -0, NaN, infinities, denormals...), random words, text or
+pointers to near the start of a chunk (pointer chains to any depth). The arguments each get a
+chunk of their own (two arguments are never the same object; with self == src FxOpdd_Init's
+order of stores differed); an argument the original faulted near becomes mostly a pointer from
+then on (address - value < 4 KB). The x87 control word and MXCSR vary per input (24/53/64-bit
+precision, truncation; FTZ, round down). The calls run on their own stack. Random words never
+point into host memory (any mapping but the arena and the image, and 64 MB below the main
+stack, which the kernel grows into on any access: -inf = 0xff800000 as a pointer read fresh
+pages there instead of faulting, and a word inside a library's data read host state).
+
+Compared as in the game (below, What is compared): the result by kind, EBX/ESI/EDI, ESP after
+the return, DF, the x87 control word, depth and values, MXCSR, the arena, and every title data
+page either side wrote (they are read-only during a call; the first write to each faults and is
+recorded). Stack arguments are not compared (callee scratch). Inputs the original crashes on
+or runs over 50 ms with are skipped, and so are unstable ones: on a mismatch the original runs
+again with the stack 0x2040 bytes lower, and if its own result changes, a pointer computed from
+random fields landed on the call stack, where the two versions' frames differ
+(FxPool_SetSlotTag's entry = pool + index * 8: 1 to 5 inputs in 10,000). Outcomes: matched, drift, **nan** (every difference is two
+NaNs: SSE returns the first operand's NaN and GCC swaps commutative operands - only random
+inputs hold NaNs, not game data; not a failure), mismatched (fails the test). The original is
+single-stepped (TF) on every fourth input: coverage is the share of its instructions reachable
+from the entry that ran. Worker processes (`LEAF_JOBS`, default half the CPUs, at most 4) take every N-th function;
+the whole renderer list takes about 3.5 minutes on 8 CPUs. A worker can die outside a call (a
+pointer computed from random fields wrote into its own heap; seen once, not reproducible, the
+arena's address changes each run): it names the function it was on, and the functions it had
+not finished run again in fresh workers (two more rounds; still missing fails the test).
+`LEAF_ITERS=N` (default 4000), `LEAF_ONLY=a,b`, `LEAF_VERBOSE=1`
+(where the original crashed: the fixed sites tell which input needs a better shape).
+`LEAF_CSV=tools/data/offline.csv` records the results (rows of functions not run are kept);
+tools/progress.py gives a function without a conclusive in-game test the state **offline** when
+it has 100+ inputs matched, none mismatched or drifted, and 90%+ coverage (user, 2026-10-24: it
+counts towards the matched counter; an in-game test later moves it to matched/settled as usual).
+Checked with planted bugs in nglColorToVec4 (alpha ^ 1: 279 of 279 inputs) and
+nglVec4ToColor (alpha from blue: 75 of 285).
+
 ## Limits
 
 - Functions whose first 5 bytes hold a call, a jump or an instruction the decoder

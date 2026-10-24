@@ -15,8 +15,10 @@ States: unnamed; library (named by signature: C runtime, XAPI, thunks to them);
 named (by us, not decompiled); untested (decompiled, no conclusive test yet);
 inconclusive (tests ran, none conclusive); mismatched (mismatch or drift on
 record); matched (matched, under functions.csv's 100 for settled); settled (100+
-matched, none mismatched); replaced (runs instead of the original).
-Rewritten = matched + settled + replaced (the progress counter's "matched").
+matched, none mismatched); offline (no conclusive in-game test, but tests/leaf_test.cpp
+matched it: tools/data/offline.csv, 100+ inputs matched, none mismatched, 90%+ of its
+instructions reached); replaced (runs instead of the original).
+Rewritten = matched + settled + offline + replaced (the progress counter's "matched").
 """
 import argparse
 import collections
@@ -29,7 +31,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "tools" / "data"
 XBE = ROOT.parent / "unpacked" / "default.xbe"
 EXCLUDED = {"XGRPH", "XONLINE", "DSOUND", "XNET", "D3DX", "D3D", "XPP"}  # Microsoft libraries
-REWRITTEN = {"matched", "settled", "replaced"}
+REWRITTEN = {"matched", "settled", "offline", "replaced"}
+OFFLINE_MATCHED, OFFLINE_COVERAGE = 100, 90.0  # what tools/data/offline.csv needs for "offline"
 
 
 def sections():
@@ -80,6 +83,12 @@ def main():
     for m in re.finditer(r'\{"(\w+)", 0x([0-9a-f]{8}),.*Status::(\w+)\}', (ROOT / "game/code/functions.cpp").read_text()):
         decompiled[int(m.group(2), 16)] = m.group(3)
     results = {int(r["address"], 16): r for r in csv.DictReader(open(DATA / "functions.csv"))}
+    offline = set()
+    if (DATA / "offline.csv").exists():
+        for r in csv.DictReader(open(DATA / "offline.csv")):
+            if (int(r["matched"]) >= OFFLINE_MATCHED and not int(r["mismatched"])
+                    and float(r["coverage"]) >= OFFLINE_COVERAGE):
+                offline.add(int(r["address"], 16))
     prefixes, ranges = load_modules()
     secs = sections()
 
@@ -108,6 +117,8 @@ def main():
                 state = "settled"
             elif matched:
                 state = "matched"
+            elif a in offline:
+                state = "offline"
             elif tested:
                 state = "inconclusive"
             else:
@@ -202,7 +213,9 @@ def write_readme(rows, excluded):
         globals_ |= {int(r["address"], 16) for r in csv.DictReader(open(DATA / f)) if r["kind"] == "data"}
     out += ["", "**Named** means we know what the function does and it has a proper name.",
             "**Rewritten** means it has been turned into C++ and passed the in-game comparison",
-            f"(below). We've also named {n(len(globals_))} of the game's global variables.", "",
+            f"(below), or, for {n(sum(1 for r in rows if r[4] == 'offline'))} functions the campaign never runs, "
+            "the same comparison offline on random inputs.",
+            f"We've also named {n(len(globals_))} of the game's global variables.", "",
             "### By part of the game", "",
             "| Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |",
             "|---|---:|---:|---:|---:|---:|"]

@@ -418,7 +418,7 @@ const Function kFunctions[] = {
     {"nglDynamicVB_BeginFrame", 0x00066ed0, 0, code(&nglDynamicVB_BeginFrame), 0, Result::None, Status::Compare},
     {"nglDynamicVB_EndFrame", 0x00066f20, 0, code(&nglDynamicVB_EndFrame), 0, Result::None, Status::Compare},
     {"nglMeshBuilder_AddSection", 0x00066f40, 0, code(&nglMeshBuilder_AddSection), 28, Result::Eax, Status::Compare},
-    {"nglSelectMeshLodWithMatrix", 0x000683a0, 0, code(&nglSelectMeshLodWithMatrix), 0, Result::Eax, Status::Compare},
+    {"nglSelectMeshLodWithMatrix", 0x000683a0, 0, code(&nglSelectMeshLodWithMatrix), 8, Result::Eax, Status::Compare},
     {"nglBuildBoneMatrixPalette", 0x00068f70, 0, code(&nglBuildBoneMatrixPalette), 12, Result::None, Status::Compare},
     {"nglEmpty_GetName", 0x00069b00, 0, code(&nglEmpty_GetName), 4, Result::Eax, Status::Compare},
     {"nglSkipList_Clear", 0x00069c60, 0, code(&nglSkipList_Clear), 0, Result::None, Status::Compare},
