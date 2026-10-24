@@ -293,7 +293,8 @@ tests decompiled functions without the game: it maps default.xbe at its addresse
 32-bit test process, so the original's bytes run as they are and our C finds the title's
 globals and functions where it expects them. `tools/leafscan.py --emit tests/leaf_functions.inc`
 picks the functions (default: every module's untested, inconclusive, mismatched and offline
-ones, so the offline ones stay checked; `--module`, `--states`): no indirect calls (kernel thunks, vtables, callbacks), no FS or
+ones, so the offline ones stay checked, plus decompiled gap functions - no symbol, so not in
+progress.csv - as state `unsorted`; `--module`, `--states`): no indirect calls (kernel thunks, vtables, callbacks), no FS or
 privileged instructions, no calls into D3D/DSOUND/XONLINE/XNET/XPP, callees passing the same
 test. Globals are allowed; the ones read by the function and its callees are randomized,
 except constants in writable sections: every instruction naming the address reads it, none
@@ -325,15 +326,30 @@ again with the stack 0x2040 bytes lower, and if its own result changes, a pointe
 random fields landed on the call stack, where the two versions' frames differ
 (FxPool_SetSlotTag's entry = pool + index * 8: 1 to 5 inputs in 10,000). Outcomes: matched, drift, **nan** (every difference is two
 NaNs: SSE returns the first operand's NaN and GCC swaps commutative operands - only random
-inputs hold NaNs, not game data; not a failure), mismatched (fails the test). The original is
+inputs hold NaNs, not game data; not a failure; a byte counts as a NaN difference when some 4
+bytes around it are NaN on both sides, since random strides put particle floats at any address),
+mismatched (fails the test). A NaN difference can cascade: on overlapping records (stride 1,
+velocity and tangent at the same offset) later iterations read the NaN's bytes back as other
+numbers. So a mismatch whose registers agree (MXCSR aside) and whose arena differs is rerun
+with an **arena write log** (the arena read-only, every store faulting, single-stepped, the bytes
+it changed recorded). If the first store where the two runs differ leaves a NaN on both sides,
+the input counts as nan. Store by store when both made as many stores (exact), otherwise by
+each byte's sequence of changes. Checked by restoring a fixed bug (FrenetMove clamping its
+cached curvature instead of re-reading it): still 4 mismatches. The original is
 single-stepped (TF) on every fourth input: coverage is the share of its instructions reachable
 from the entry that ran. Worker processes (`LEAF_JOBS`, default half the CPUs, at most 4) take every N-th function;
 the whole renderer list takes about 3.5 minutes on 8 CPUs. A worker can die outside a call (a
-pointer computed from random fields wrote into its own heap; seen once, not reproducible, the
-arena's address changes each run): it names the function it was on, and the functions it had
+pointer computed from random fields wrote into its own heap; seen once, not reproducible: the
+arena's address changes each run unless ASLR is off): it names the function it was on, and the functions it had
 not finished run again in fresh workers (two more rounds; still missing fails the test).
 `LEAF_ITERS=N` (default 4000), `LEAF_ONLY=a,b`, `LEAF_VERBOSE=1`
 (where the original crashed: the fixed sites tell which input needs a better shape).
+`LEAF_DUMP=DIR` writes each function's first mismatch as `DIR/<name>.case` (arena address,
+registers, stack, globals, arena) plus both arenas after the call; `LEAF_REPLAY=DIR/<name>.case
+LEAF_ONLY=<name>` runs it once more (with the write-log verdict) and writes
+`<name>.replay.original/ours.bin`. Run both under `setarch -R`: the case needs its arena at the
+same address, and ASLR moves the libraries over it. `LEAF_REPLAY_STACK=1=0x...` changes a stack
+word: shortening a particle loop's `end` bisects to the first iteration that differs.
 `LEAF_CSV=tools/data/offline.csv` records the results (rows of functions not run are kept);
 tools/progress.py gives a function without a conclusive in-game test the state **offline** when
 it has 100+ inputs matched, none mismatched or drifted, and 90%+ coverage (user, 2026-10-24: it

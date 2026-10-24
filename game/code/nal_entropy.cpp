@@ -4,44 +4,67 @@ namespace game {
 
 namespace {
 
-// The decoders' state: the stream as a bit position (LSB first in little-endian words, read
-// a word at a time from the aligned word holding the position), the output and what is left
-// to decode.
+// The decoders' state, as the title keeps it in registers: the current word shifted down to
+// the next bit (`cur`), how many of its bits are left (`left`, unsigned: a reader->bit of 8 or
+// more makes it wrap), the following word and the next word to load. Shifts take their count
+// mod 32, as x86 does.
 class Decoder {
 public:
     Decoder(EntropyReader* reader, uint32_t* dst, int32_t stride, uint32_t count)
-        : reader_(reader),
-          pos_(static_cast<uint64_t>(reader->ptr) * 8 + reader->bit),  // the byte address * 8 overflows 32 bits
-          dst_(reinterpret_cast<uint8_t*>(dst)),
-          stride_(stride),
-          count_(count) {}
+        : reader_(reader), dst_(reinterpret_cast<uint8_t*>(dst)), stride_(stride), count_(count) {
+        const uint32_t shift = reader->bit + (reader->ptr & 3) * 8;
+        word_ = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(reader->ptr & ~3u));
+        cur_ = word_[0] >> (shift & 31);
+        next_ = word_[1];
+        word_ += 2;
+        left_ = 32 - shift;
+    }
 
     bool more() const { return count_ != 0; }
 
-    // The next n bits (n <= 32), not consumed.
+    // The next n bits (n < 32), not consumed.
     uint32_t peek(uint32_t n) const {
-        const uint32_t* word = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>((pos_ >> 5) * 4));
-        const uint32_t shift = static_cast<uint32_t>(pos_ & 31);
-        uint64_t bits = word[0];
-        if (shift + n > 32) bits |= static_cast<uint64_t>(word[1]) << 32;
-        bits >>= shift;
-        return n == 32 ? static_cast<uint32_t>(bits) : static_cast<uint32_t>(bits) & ((1u << n) - 1);
+        const uint32_t bits = left_ >= n ? cur_ : (next_ << (left_ & 31)) | cur_;
+        return bits & ((1u << n) - 1);
     }
 
     // One value with a code of `length` bits.
     void value(uint32_t length, int32_t v) {
-        pos_ += length;
+        consume(length);
         put(static_cast<uint32_t>(v));
         --count_;
     }
 
     // A run of `run` zeros with a code of `length` bits; what does not fit is left over.
     void zeros(uint32_t length, uint32_t run) {
-        pos_ += length;
+        consume(length);
+        zero_run(run);
+    }
+
+    // The 32-bit code (NAL_EntropyMode3D's own reader): with all 32 bits left the current word
+    // without a refill, else it and the next word combined, and always a refill.
+    uint32_t take32() {
+        uint32_t v;
+        if (left_ == 32) {
+            v = cur_;
+            cur_ = 0;
+            left_ = 0;
+        } else {
+            v = (next_ << (left_ & 31)) | cur_;
+            cur_ = (next_ >> 1) >> ((31 - left_) & 31);
+            next_ = *word_++;
+        }
+        return v;
+    }
+    void put_value(uint32_t v) {
+        put(v);
+        --count_;
+    }
+    void zero_run(uint32_t run) {
         const uint32_t n = count_ < run ? count_ : run;
         for (uint32_t i = 0; i < n; ++i) put(0);
         if (count_ < run) {
-            left_ = run - count_;
+            left_over_ = run - count_;
             count_ = 0;
         } else {
             count_ -= run;
@@ -50,23 +73,35 @@ public:
 
     // Stores the position in the reader; returns the zeros left over.
     uint32_t finish() {
-        reader_->ptr = static_cast<uint32_t>(pos_ >> 3);
-        reader_->bit = static_cast<uint8_t>(pos_ & 7);
-        return left_;
+        reader_->bit = static_cast<uint8_t>(-left_ & 7);
+        reader_->ptr = ((32 - left_) >> 3) + static_cast<uint32_t>(reinterpret_cast<uintptr_t>(word_)) - 8;
+        return left_over_;
     }
 
 private:
+    void consume(uint32_t length) {
+        if (left_ >= length) {
+            cur_ >>= length;
+            left_ -= length;
+        } else {
+            cur_ = next_ >> ((length - left_) & 31);
+            next_ = *word_++;
+            left_ += 32 - length;
+        }
+    }
+
     void put(uint32_t v) {
         *reinterpret_cast<uint32_t*>(dst_) = v;
         dst_ += stride_;
     }
 
     EntropyReader* reader_;
-    uint64_t pos_;
+    const uint32_t* word_;
+    uint32_t cur_, next_, left_;
     uint8_t* dst_;
     int32_t stride_;
     uint32_t count_;
-    uint32_t left_ = 0;
+    uint32_t left_over_ = 0;
 };
 
 // A sign-folded field of `bits` bits: values with the top bit set stand for themselves, the
@@ -714,11 +749,11 @@ uint32_t XB_CDECL NAL_EntropyMode3C(EntropyReader* reader, uint32_t* dst, int32_
 uint32_t XB_CDECL NAL_EntropyMode3D(EntropyReader* reader, uint32_t* dst, int32_t stride, uint32_t count) {
     Decoder d(reader, dst, stride, count);
     while (d.more()) {
-        const uint32_t c = d.peek(32);
+        const uint32_t c = d.take32();
         if (c == 0x80000000u) {
-            d.zeros(32, 8);
+            d.zero_run(8);
         } else {
-            d.value(32, static_cast<int32_t>(c));
+            d.put_value(c);
         }
     }
     return d.finish();

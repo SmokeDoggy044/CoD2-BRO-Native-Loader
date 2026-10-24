@@ -6,11 +6,9 @@ namespace game {
 
 namespace {
 
-// inflate_mask: the low n bits.
-const uint32_t kInflateMask[17] = {
-    0x0000, 0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff,
-    0x01ff, 0x03ff, 0x07ff, 0x0fff, 0x1fff, 0x3fff, 0x7fff, 0xffff,
-};
+// inflate_mask (the low n bits) in the title's .data: indexed as the original does, so an
+// index past its 17 entries (a corrupt exop) reads the same memory.
+uint32_t inflate_mask(uint32_t n) { return title_global<uint32_t>(0x008a1d80u + n * 4); }
 
 }  // namespace
 
@@ -31,8 +29,8 @@ int32_t XB_CDECL inflate_fast(uint32_t bl, uint32_t bd, const InflateHuft* tl, c
     uint32_t k = s->bitk;
     uint8_t* q = s->write;
     uint32_t m = q < s->read ? static_cast<uint32_t>(s->read - q - 1) : static_cast<uint32_t>(s->end - q);
-    const uint32_t ml = kInflateMask[bl];
-    const uint32_t md = kInflateMask[bd];
+    const uint32_t ml = inflate_mask(bl);
+    const uint32_t md = inflate_mask(bd);
 
     auto grab = [&](uint32_t bits) {
         while (k < bits) {
@@ -74,7 +72,7 @@ int32_t XB_CDECL inflate_fast(uint32_t bl, uint32_t bd, const InflateHuft* tl, c
             if (e & 16) {
                 // A length, then its distance.
                 e &= 15;
-                uint32_t c = t->base + (b & kInflateMask[e]);
+                uint32_t c = t->base + (b & inflate_mask(e));
                 b >>= e;
                 k -= e;
                 grab(15);
@@ -86,7 +84,7 @@ int32_t XB_CDECL inflate_fast(uint32_t bl, uint32_t bd, const InflateHuft* tl, c
                     if (e & 16) {
                         e &= 15;
                         grab(e);
-                        const uint32_t d = t->base + (b & kInflateMask[e]);
+                        const uint32_t d = t->base + (b & inflate_mask(e));
                         b >>= e;
                         k -= e;
                         m -= c;
@@ -120,7 +118,7 @@ int32_t XB_CDECL inflate_fast(uint32_t bl, uint32_t bd, const InflateHuft* tl, c
                     }
                     if ((e & 64) == 0) {
                         t += t->base;
-                        t += b & kInflateMask[e];
+                        t += b & inflate_mask(e);
                         e = t->exop;
                     } else {
                         z->msg = &title_global<const char>(0x007bbe70);  // "invalid distance code"
@@ -131,7 +129,7 @@ int32_t XB_CDECL inflate_fast(uint32_t bl, uint32_t bd, const InflateHuft* tl, c
             }
             if ((e & 64) == 0) {
                 t += t->base;
-                t += b & kInflateMask[e];
+                t += b & inflate_mask(e);
                 e = t->exop;
                 if (e == 0) {
                     b >>= t->bits;

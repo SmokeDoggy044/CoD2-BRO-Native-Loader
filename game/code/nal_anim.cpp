@@ -1010,7 +1010,7 @@ float* XB_THISCALL NAL_Skeleton_BoneTransform(const uint32_t* skeleton, float* o
     std::memcpy(out, local, 16);
     out[4] = local[4];
     out[5] = local[5];
-    out[6] = local[5];  // the title stores y again where z belongs
+    out[6] = local[6];  // [esp+0x24] again, but after a POP: z
     return out;
 }
 

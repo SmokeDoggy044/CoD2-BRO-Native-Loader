@@ -1,10 +1,1 @@
 name,reason
-NAL_EntropyFloat3_InitReaders,offline mismatch in the arena (reader pointers off by one byte); to fix
-NAL_Skeleton_BoneTransform,offline mismatch (1 of 1 input); to check
-apsActionPlaneBounce_Apply,offline mismatch: MXCSR flags differ; to fix
-apsActionFrenetMove_Apply,offline mismatch in the arena; to fix
-apsActionPointAttract_Apply,offline mismatch; to fix
-apsActionLineAttract_Apply,offline mismatch; to fix
-apsActionDecayLineAttract_Apply,offline mismatch; to fix
-apsOrientToVelocity,offline mismatch in the arena; to fix
-apsActionAngleToEmitterX_Apply,offline mismatch on 1 input in ~2300 (sign/mantissa bits of a run of arena words); to check

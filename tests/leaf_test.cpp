@@ -18,6 +18,10 @@
 // (exit 77) without it. LEAF_ITERS=N inputs per function (default 4000),
 // LEAF_ONLY=name,name to run only those, LEAF_VERBOSE=1 to list where the original crashed,
 // LEAF_JOBS=N worker processes (default half the CPUs, at most 4),
+// LEAF_DUMP=DIR to write each function's first mismatch to DIR/<name>.case (the input) and
+// <name>.<arena>.original/ours.bin (the arena after each version); LEAF_REPLAY=DIR/<name>.case
+// runs that input once more (LEAF_ONLY=<name>; LEAF_REPLAY_STACK=k=value changes stack word k:
+// shorten a particle loop's end to find the first iteration that differs),
 // LEAF_CSV=tools/data/offline.csv to record the results there (rows of other functions kept;
 // tools/progress.py reads it).
 
@@ -160,6 +164,17 @@ volatile sig_atomic_t g_in_call = 0;
 uint32_t g_trace_lo, g_trace_hi;
 std::set<uint32_t> g_reached;
 uint32_t g_crash_eip, g_crash_address;
+// Arena write log (rerun of a mismatch): the arena is read-only, each store faults, is
+// single-stepped, and the bytes it changed are recorded in order.
+struct ArenaWrite {
+    uint32_t address, store;  // store: its number in the run
+    uint8_t value;
+};
+constexpr uint32_t kLogWindow = 64;  // bytes compared around a store (rep string steps, wide moves)
+std::vector<ArenaWrite> g_log;       // reserved up front: never reallocates in the handler
+bool g_logging = false, g_log_full = false;
+uint32_t g_log_lo, g_log_hi, g_log_at, g_log_stores;  // arena range; the store being stepped (0: none)
+uint8_t g_log_before[kLogWindow];
 const char* volatile g_current = nullptr;  // the function a worker is testing
 std::vector<std::pair<uint32_t, uint32_t>> g_host_ranges;  // inclusive
 
@@ -184,6 +199,15 @@ void on_segv(int sig, siginfo_t* info, void* context) {
             return;
         }
     }
+    if (sig == SIGSEGV && g_in_call && g_logging && !g_log_at && address >= g_log_lo && address < g_log_hi) {
+        g_log_at = address;
+        const uint32_t n = std::min(kLogWindow, g_log_hi - address);
+        std::memcpy(g_log_before, reinterpret_cast<void*>(static_cast<uintptr_t>(address)), n);
+        const uint32_t first = address & ~(kPage - 1), last = std::min(g_log_hi, address + n);
+        mprotect(reinterpret_cast<void*>(static_cast<uintptr_t>(first)), last - first, PROT_READ | PROT_WRITE);
+        static_cast<ucontext_t*>(context)->uc_mcontext.gregs[REG_EFL] |= 0x100;
+        return;
+    }
     if (g_in_call) {
         g_crash_eip = static_cast<uint32_t>(static_cast<ucontext_t*>(context)->uc_mcontext.gregs[REG_EIP]);
         g_crash_address = address;
@@ -203,6 +227,20 @@ void on_segv(int sig, siginfo_t* info, void* context) {
 void on_trap(int, siginfo_t*, void* context) {
     auto* uc = static_cast<ucontext_t*>(context);
     const auto eip = static_cast<uint32_t>(uc->uc_mcontext.gregs[REG_EIP]);
+    if (g_log_at) {  // the logged store has run: record what changed, protect the arena again
+        const uint32_t n = std::min(kLogWindow, g_log_hi - g_log_at);
+        const auto* now = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(g_log_at));
+        for (uint32_t i = 0; i < n; ++i) {
+            if (now[i] == g_log_before[i]) continue;
+            if (g_log.size() == g_log.capacity()) g_log_full = true;
+            else g_log.push_back({g_log_at + i, g_log_stores, now[i]});
+        }
+        ++g_log_stores;
+        mprotect(reinterpret_cast<void*>(static_cast<uintptr_t>(g_log_lo)), g_log_hi - g_log_lo, PROT_READ);
+        g_log_at = 0;
+        uc->uc_mcontext.gregs[REG_EFL] &= ~0x100;  // log runs are not traced
+        return;
+    }
     if (eip >= g_trace_lo && eip < g_trace_hi) g_reached.insert(eip);
     if (eip < kImageBase || eip >= g_image_hi) uc->uc_mcontext.gregs[REG_EFL] &= ~0x100;
 }
@@ -322,6 +360,9 @@ struct Outcome {
     Ctx ctx;
     std::vector<uint8_t> arena;
     std::vector<std::pair<uint32_t, std::vector<uint8_t>>> pages;  // written data pages, contents
+    std::vector<ArenaWrite> writes;  // with log_arena: every byte a store changed, in order
+    uint32_t stores = 0;
+    bool writes_complete = false;
 };
 
 // The x87 stack in FXSAVE order (ST0 first) and its depth.
@@ -344,13 +385,24 @@ struct Runner {
         for (uint32_t page : pages) std::memcpy(data_page(page), g_data_base.data() + page * kPage, kPage);
     }
 
-    Outcome run(const Ctx& input, uint32_t target, const std::vector<uint8_t>& arena_in, uint32_t timeout_ms) {
+    Outcome run(const Ctx& input, uint32_t target, const std::vector<uint8_t>& arena_in, uint32_t timeout_ms,
+                bool log_arena = false) {
         Outcome o;
         o.ctx = input;
         o.ctx.target = target;
         std::memcpy(arena, arena_in.data(), kArenaSize);
         g_dirty_list.clear();
         protect_data(PROT_READ);
+        if (log_arena) {
+            g_log.clear();
+            g_log_full = false;
+            g_log_at = 0;
+            g_log_stores = 0;
+            g_log_lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena));
+            g_log_hi = g_log_lo + kArenaSize;
+            g_logging = true;
+            mprotect(arena, kArenaSize, PROT_READ);
+        }
         itimerval timer{{0, 0}, {static_cast<time_t>(timeout_ms / 1000), static_cast<suseconds_t>(timeout_ms % 1000 * 1000)}};
         setitimer(ITIMER_REAL, &timer, nullptr);
         if (const int sig = sigsetjmp(g_crash_jump, 1)) {
@@ -365,6 +417,14 @@ struct Runner {
         timer = {};
         setitimer(ITIMER_REAL, &timer, nullptr);
         protect_data(PROT_READ | PROT_WRITE);
+        if (log_arena) {
+            g_logging = false;
+            g_log_at = 0;
+            mprotect(arena, kArenaSize, PROT_READ | PROT_WRITE);
+            o.writes = g_log;
+            o.stores = g_log_stores;
+            o.writes_complete = !g_log_full;
+        }
         o.arena.assign(arena, arena + kArenaSize);
         for (uint32_t page : g_dirty_list) {
             o.pages.emplace_back(page, std::vector<uint8_t>(data_page(page), data_page(page) + kPage));
@@ -390,11 +450,26 @@ bool float_close(uint32_t a, uint32_t b) {
 // Differences between the two outcomes; empty when they match. `drift` is set when every
 // difference is a pair of close floats, `nan` when every difference is two NaNs (payload or
 // quiet bit: the random inputs hold NaNs, game data does not).
-// difference is a pair of close floats.
-std::string compare(const game::Function& f, const Outcome& a, const Outcome& b, Runner& runner, bool& drift, bool& nan) {
+bool is_nan(uint32_t v) { return (v & 0x7f800000) == 0x7f800000 && (v & 0x007fffff); }
+
+// A float the title stores need not be aligned (random strides overlap particle records:
+// stride 35, velocity at +247), so a byte counts as a NaN difference when some 4 bytes
+// around it hold a NaN on both sides.
+bool nan_byte(const uint8_t* p, const uint8_t* q, uint32_t size, uint32_t at) {
+    for (uint32_t s = at >= 3 ? at - 3 : 0; s <= at && s + 4 <= size; ++s) {
+        uint32_t u, v;
+        std::memcpy(&u, p + s, 4);
+        std::memcpy(&v, q + s, 4);
+        if (is_nan(u) && is_nan(v)) return true;
+    }
+    return false;
+}
+
+// registers_only: everything but MXCSR and memory (for the write-log check below).
+std::string compare(const game::Function& f, const Outcome& a, const Outcome& b, Runner& runner, bool& drift, bool& nan,
+                    bool registers_only = false) {
     std::string diff;
     bool only_floats = true, only_nans = true;
-    auto is_nan = [](uint32_t v) { return (v & 0x7f800000) == 0x7f800000 && (v & 0x007fffff); };
     auto reg = [&](const char* name, uint32_t x, uint32_t y, bool may_drift = false) {
         if (x == y) return;
         if (!(may_drift && float_close(x, y))) only_floats = false;
@@ -428,7 +503,7 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
     uint32_t mx_a, mx_b;
     std::memcpy(&mx_a, x.fx_out + 24, 4);
     std::memcpy(&mx_b, y.fx_out + 24, 4);
-    reg("mxcsr", mx_a, mx_b);
+    if (!registers_only) reg("mxcsr", mx_a, mx_b);
     const int depth_a = x87_depth(x), depth_b = x87_depth(y);
     reg("x87 depth", depth_a, depth_b);
     if (depth_a == depth_b) {
@@ -456,10 +531,12 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
             std::memcpy(&v, q + i, 4);
             if (u == v) continue;
             if (!float_close(u, v)) only_floats = false;
-            if (!(is_nan(u) && is_nan(v))) only_nans = false;
+            for (uint32_t k = i; k < i + 4; ++k)
+                if (p[k] != q[k] && !nan_byte(p, q, size, k)) only_nans = false;
             if (diff.size() < 600) diff += std::string(" ") + where + " " + hex(base + i) + " " + hex(u) + "/" + hex(v);
         }
     };
+    if (registers_only) return diff;
     memory("arena", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(runner.arena)), a.arena.data(), b.arena.data(), kArenaSize);
     // Data pages: the written content, or the page as both started (base + inputs).
     std::set<uint32_t> pages;
@@ -480,6 +557,80 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
     drift = !diff.empty() && only_floats;
     nan = !diff.empty() && only_nans && !only_floats;
     return diff;
+}
+
+// The first arena store where the two logged runs differ: store by store when both made as
+// many, else each byte's sequence of changed values is compared and, of the bytes that differ,
+// the one whose divergent store came first in the original decides (approximate: a store that
+// rewrites the old value records nothing). True when that store leaves a NaN on both sides: everything after it may follow
+// from the NaN's payload (SSE keeps the first operand's NaN, GCC swaps commutative operands),
+// e.g. later records overlapping it read those bytes back as other numbers.
+bool first_divergence_nan(const Outcome& a, const Outcome& b, const std::vector<uint8_t>& arena_in, uint32_t base) {
+    if (!a.writes_complete || !b.writes_complete) return false;
+    if (a.stores == b.stores) {
+        // The same stores in the same order (the usual case): the arenas agree up to the first
+        // store whose changes differ - exact, also when one side's store rewrote the old value.
+        std::vector<uint8_t> ma = arena_in, mb = arena_in;
+        size_t i = 0, j = 0;
+        for (uint32_t store = 0; store < a.stores; ++store) {
+            const size_t i0 = i, j0 = j;
+            while (i < a.writes.size() && a.writes[i].store == store) ++i;
+            while (j < b.writes.size() && b.writes[j].store == store) ++j;
+            bool same = i - i0 == j - j0;
+            for (size_t k = 0; same && k < i - i0; ++k)
+                same = a.writes[i0 + k].address == b.writes[j0 + k].address && a.writes[i0 + k].value == b.writes[j0 + k].value;
+            for (size_t k = i0; k < i; ++k) ma[a.writes[k].address - base] = a.writes[k].value;
+            for (size_t k = j0; k < j; ++k) mb[b.writes[k].address - base] = b.writes[k].value;
+            if (same) continue;
+            bool all_nan = true;
+            for (size_t k = i0; k < i; ++k) {
+                const uint32_t at = a.writes[k].address - base;
+                if (ma[at] != mb[at] && !nan_byte(ma.data(), mb.data(), kArenaSize, at)) all_nan = false;
+            }
+            for (size_t k = j0; k < j; ++k) {
+                const uint32_t at = b.writes[k].address - base;
+                if (ma[at] != mb[at] && !nan_byte(ma.data(), mb.data(), kArenaSize, at)) all_nan = false;
+            }
+            return all_nan;
+        }
+        return false;
+    }
+    // Otherwise (e.g. a 16-byte copy against four dword stores): per byte.
+    std::map<uint32_t, std::vector<uint32_t>> by_address_a, by_address_b;  // byte -> indices into writes
+    for (uint32_t i = 0; i < a.writes.size(); ++i) by_address_a[a.writes[i].address].push_back(i);
+    for (uint32_t i = 0; i < b.writes.size(); ++i) by_address_b[b.writes[i].address].push_back(i);
+    constexpr uint32_t kNone = 0xffffffff;
+    uint32_t first_a = kNone, first_b = kNone, first_address = 0;
+    auto check = [&](uint32_t address) {
+        static const std::vector<uint32_t> kEmpty;
+        const auto ita = by_address_a.find(address), itb = by_address_b.find(address);
+        const auto& va = ita == by_address_a.end() ? kEmpty : ita->second;
+        const auto& vb = itb == by_address_b.end() ? kEmpty : itb->second;
+        size_t k = 0;
+        while (k < va.size() && k < vb.size() && a.writes[va[k]].value == b.writes[vb[k]].value) ++k;
+        if (k == va.size() && k == vb.size()) return;
+        const uint32_t ta = k < va.size() ? va[k] : kNone, tb = k < vb.size() ? vb[k] : kNone;
+        if (ta < first_a || (ta == kNone && first_a == kNone && tb < first_b)) {
+            first_a = ta;
+            first_b = tb;
+            first_address = address;
+        }
+    };
+    for (const auto& [address, unused] : by_address_a) check(address);
+    for (const auto& [address, unused] : by_address_b)
+        if (!by_address_a.count(address)) check(address);
+    if (first_a == kNone || first_b == kNone) return false;  // one side never wrote it
+    // The arena on each side just after that store (all its bytes).
+    std::vector<uint8_t> ma = arena_in, mb = arena_in;
+    for (const ArenaWrite& w : a.writes) {
+        if (w.store > a.writes[first_a].store) break;
+        ma[w.address - base] = w.value;
+    }
+    for (const ArenaWrite& w : b.writes) {
+        if (w.store > b.writes[first_b].store) break;
+        mb[w.address - base] = w.value;
+    }
+    return nan_byte(ma.data(), mb.data(), kArenaSize, first_address - base);
 }
 
 void appendf(std::string& out, const char* format, ...) {
@@ -511,6 +662,22 @@ const game::Function* find_function(const char* name) {
 }  // namespace
 
 int main() {
+    // A replayed case needs its arena at the same address: reserved before anything else maps.
+    const char* replay = std::getenv("LEAF_REPLAY");
+    FILE* replay_file = replay ? std::fopen(replay, "rb") : nullptr;
+    uint32_t replay_header[3] = {};
+    if (replay && (!replay_file || std::fread(replay_header, sizeof replay_header, 1, replay_file) != 1 ||
+                   replay_header[1] != sizeof(Ctx) || !std::getenv("LEAF_ONLY"))) {
+        std::printf("leaf_test: LEAF_REPLAY needs a case file from this build and LEAF_ONLY=<its function>\n");
+        return 1;
+    }
+    auto* arena = static_cast<uint8_t*>(mmap(reinterpret_cast<void*>(static_cast<uintptr_t>(replay_header[0])), kArenaSize,
+                                             PROT_READ | PROT_WRITE,
+                                             MAP_PRIVATE | MAP_ANONYMOUS | (replay ? MAP_FIXED_NOREPLACE : 0), -1, 0));
+    if (arena == MAP_FAILED) {
+        std::printf("leaf_test: the case's arena address %08x is taken\n", replay_header[0]);
+        return 1;
+    }
     const char* path = std::getenv("COD_BRO_XBE");
 #ifdef COD_BRO_DEFAULT_XBE
     if (!path) path = COD_BRO_DEFAULT_XBE;
@@ -537,8 +704,6 @@ int main() {
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
     sigaction(SIGTRAP, &sa, nullptr);
 
-    auto* arena = static_cast<uint8_t*>(
-        mmap(nullptr, kArenaSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
     Runner runner{xbe, arena, {}};
     constexpr uint32_t kCallStack = 1 << 20;
     auto* call_stack = static_cast<uint8_t*>(
@@ -562,9 +727,65 @@ int main() {
         std::fclose(maps);
     }
 
+    g_log.reserve(2u << 20);
     // A clean FPU/SSE image to start each call from.
     alignas(16) uint8_t clean_fx[512];
     asm volatile("fninit\n fxsave %0" : "=m"(clean_fx));
+
+    if (replay) {
+        Ctx input{};
+        std::fread(&input, sizeof input, 1, replay_file);
+        runner.global_inputs.resize(replay_header[2]);
+        for (auto& g : runner.global_inputs) std::fread(&g, sizeof g, 1, replay_file);
+        std::vector<uint8_t> arena_in(kArenaSize);
+        std::fread(arena_in.data(), 1, kArenaSize, replay_file);
+        std::fclose(replay_file);
+        input.stack_top = call_stack_top;
+        input.trace = 0;
+        if (const char* set = std::getenv("LEAF_REPLAY_STACK")) {
+            const unsigned k = static_cast<unsigned>(std::atoi(set));
+            if (const char* eq = std::strchr(set, '='); eq && k < 8) input.stack[k] = static_cast<uint32_t>(std::strtoul(eq + 1, nullptr, 0));
+        }
+        const std::string name = only.substr(1, only.find(',', 1) - 1);
+        const game::Function* f = find_function(name.c_str());
+        const LeafFunction* leaf = nullptr;
+        for (const LeafFunction& l : kLeafFunctions)
+            if (name == l.name) leaf = &l;
+        if (!f || !leaf) {
+            std::printf("leaf_test: %s is not in the table\n", name.c_str());
+            return 1;
+        }
+        runner.apply_inputs();
+        const Outcome a = runner.run(input, leaf->address, arena_in, 2000);
+        for (const auto& p : a.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);
+        runner.apply_inputs();
+        const Outcome b = runner.run(input, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(f->code)), arena_in, 2000);
+        bool drift = false, nan = false, d2 = false, n2 = false;
+        const std::string diff = compare(*f, a, b, runner, drift, nan);
+        for (const auto& p : b.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);
+        if (!diff.empty() && !drift && !nan && a.arena != b.arena && compare(*f, a, b, runner, d2, n2, true).empty()) {
+            runner.apply_inputs();
+            const Outcome la = runner.run(input, leaf->address, arena_in, 5000, true);
+            for (const auto& p : la.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);
+            runner.apply_inputs();
+            const Outcome lb = runner.run(input, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(f->code)), arena_in, 5000, true);
+            nan = !la.crashed && !lb.crashed && first_divergence_nan(la, lb, arena_in, replay_header[0]);
+            std::printf("write log: %zu/%zu bytes stored%s%s, first divergent store %s\n", la.writes.size(), lb.writes.size(),
+                        la.crashed ? ("; original crashed, signal " + std::to_string(la.signal) + " at " + hex(g_crash_eip)).c_str() : "",
+                        lb.crashed ? ("; ours crashed, signal " + std::to_string(lb.signal) + " at " + hex(g_crash_eip) + " address " + hex(g_crash_address)).c_str() : "",
+                        nan ? "NaN on both sides" : "not a NaN pair");
+        }
+        std::printf("%s: %s%s\n", name.c_str(), a.crashed ? "original crashed; " : "",
+                    diff.empty() ? "same" : ((drift ? "drift:" : nan ? "nan:" : "mismatch:") + diff).c_str());
+        const std::string base = std::string(replay).substr(0, std::string(replay).size() - 5);
+        for (const auto& [what, o] : {std::pair{"original", &a}, std::pair{"ours", &b}}) {
+            if (FILE* file = std::fopen((base + ".replay." + what + ".bin").c_str(), "wb")) {
+                std::fwrite(o->arena.data(), 1, kArenaSize, file);
+                std::fclose(file);
+            }
+        }
+        return diff.empty() ? 0 : 1;
+    }
 
     int failures = 0;
     struct Record {
@@ -660,6 +881,7 @@ int main() {
         g_reached.clear();
         int tested = 0, matched = 0, drifted = 0, nans = 0, mismatched = 0, skipped = 0, unstable = 0;
         std::string first_issue;
+        bool first_failing = false;
         std::map<uint32_t, int> crash_sites;  // where the original crashed (0 = timeout)
         std::vector<uint8_t> pointer_slot(14 + leaf.globals.size(), 0);
         for (int it = 0; it < iterations; ++it) {
@@ -754,6 +976,20 @@ int main() {
                     continue;
                 }
                 runner.apply_inputs();
+                // Registers agree and the arena differs: rerun both with the arena write log; a
+                // first divergent store that is NaN on both sides makes this a NaN difference.
+                bool d3 = false, n3 = false;
+                if (a.arena != b.arena && compare(*f, a, b, runner, d3, n3, true).empty()) {
+                    const Outcome la = runner.run(input, leaf.address, arena_in, 5000, true);
+                    for (const auto& p : la.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);
+                    runner.apply_inputs();
+                    const Outcome lb = runner.run(input, ours, arena_in, 5000, true);
+                    for (const auto& p : lb.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);
+                    runner.apply_inputs();
+                    if (!la.crashed && !lb.crashed &&
+                        first_divergence_nan(la, lb, arena_in, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena))))
+                        nan = true;
+                }
             }
             ++tested;
             if (diff.empty())
@@ -764,13 +1000,41 @@ int main() {
                 ++nans;
             else
                 ++mismatched;
-            if (!diff.empty() && first_issue.empty()) {
+            // The report shows the first mismatch, else the first drift or NaN difference.
+            const bool failing = !diff.empty() && !drift && !nan;
+            if (!diff.empty() && (first_issue.empty() || (failing && !first_failing))) {
+                first_failing = failing;
                 first_issue = (drift ? "drift:" : nan ? "nan:" : "mismatch:") + diff + "\n    input: eax ecx edx ebx esi edi";
                 for (uint32_t r : input.in) first_issue += " " + hex(r);
                 first_issue += ", stack";
                 for (uint32_t k = 0; k < input.nstack; ++k) first_issue += " " + hex(input.stack[k]);
                 if (!runner.global_inputs.empty()) first_issue += ", globals";
                 for (const auto& [address, value] : runner.global_inputs) first_issue += " " + hex(address) + "=" + hex(value);
+                // LEAF_DUMP=DIR: the first mismatch's input (replayable) and the arena after each version.
+                if (const char* dir = std::getenv("LEAF_DUMP"); dir && failing) {
+                    const auto dump = [&](const char* what, const uint8_t* bytes) {
+                        const std::string path = std::string(dir) + "/" + leaf.name + "." + hex(static_cast<uint32_t>(
+                            reinterpret_cast<uintptr_t>(arena))) + "." + what + ".bin";
+                        if (FILE* file = std::fopen(path.c_str(), "wb")) {
+                            std::fwrite(bytes, 1, kArenaSize, file);
+                            std::fclose(file);
+                        }
+                    };
+                    dump("original", a.arena.data());
+                    dump("ours", b.arena.data());
+                    // The whole input, for LEAF_REPLAY: arena address, Ctx, global inputs, arena.
+                    const std::string path = std::string(dir) + "/" + leaf.name + ".case";
+                    if (FILE* file = std::fopen(path.c_str(), "wb")) {
+                        const uint32_t header[3] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena)),
+                                                    static_cast<uint32_t>(sizeof input),
+                                                    static_cast<uint32_t>(runner.global_inputs.size())};
+                        std::fwrite(header, sizeof header, 1, file);
+                        std::fwrite(&input, sizeof input, 1, file);
+                        for (const auto& g : runner.global_inputs) std::fwrite(&g, sizeof g, 1, file);
+                        std::fwrite(arena_in.data(), 1, kArenaSize, file);
+                        std::fclose(file);
+                    }
+                }
             }
             // Restore: pages either side wrote and the inputs' pages.
             for (const auto& p : b.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);

@@ -212,7 +212,10 @@ uint32_t XB_STDCALL NAL_RLE8Int1_SkipBlock(const uint32_t* context, uint8_t** ds
 uint8_t** XB_CDECL NAL_EntropyFloat3_InitReaders(uint8_t* readers, uint8_t** stream) {
     // Three component streams, each a length byte and its bits; readers 0x10 apart.
     for (uint32_t i = 0; i < 3; ++i) {
-        const uint8_t length = *(*stream)++;
+        // The length byte is read before the stream pointer moves past it (they may overlap).
+        uint8_t* const at = *stream;
+        const uint8_t length = *at;
+        *stream = at + 1;
         EntropyReader* reader = reinterpret_cast<EntropyReader*>(readers + i * 0x10);
         if (reader) {
             reader->ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream));
@@ -493,7 +496,9 @@ void XB_STDCALL NAL_PosOri_Blend(int32_t count, float* dst, const float* a, cons
 
 void XB_STDCALL NAL_PosOri_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights) {
     for (; count > 0; --count) {
-        const float t = *(*weights)++;
+        const float* const weight = *weights;  // read before the pointer moves on (they may overlap)
+        const float t = *weight;
+        *weights = weight + 1;
         const float one_minus = title_global<float>(0x0083eb20) - t;
         dst[4] = a[4] * one_minus + b[4] * t;
         dst[5] = a[5] * one_minus + b[5] * t;
@@ -790,7 +795,9 @@ void XB_STDCALL NAL_Quat_Blend(int32_t count, float* dst, const float* a, const 
 
 void XB_STDCALL NAL_Quat_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights) {
     for (; count > 0; --count) {
-        const float t = *(*weights)++;
+        const float* const weight = *weights;  // read before the pointer moves on (they may overlap)
+        const float t = *weight;
+        *weights = weight + 1;
         alignas(16) float q[4];
         std::memcpy(dst, Quat_Slerp(q, a, b, t), 16);
         dst += 4;

@@ -5,7 +5,7 @@ FS/port/privileged instructions, no calls into SDK sections that touch the hardw
 (D3D, DSOUND, XONLINE, XNET, XPP), and callees that pass the same test. Globals are fine:
 the test maps the image at its addresses and randomizes the ones read.
 
-usage: tools/leafscan.py [--module all|renderer,game,...] [--states untested,inconclusive,mismatched,offline]
+usage: tools/leafscan.py [--module all|renderer,game,...] [--states untested,inconclusive,mismatched,offline,unsorted]
                          [--emit tests/leaf_functions.inc]
   --emit FILE  write the eligible functions as the test's table (name, address, size,
                instruction count, globals read by the function and its callees)
@@ -109,20 +109,31 @@ def data_refs(image):
 def main():
     parser = argparse.ArgumentParser(usage=__doc__)
     parser.add_argument("--module", default="all")
-    parser.add_argument("--states", default="untested,inconclusive,mismatched,offline")
+    parser.add_argument("--states", default="untested,inconclusive,mismatched,offline,unsorted")
     parser.add_argument("--emit")
     args = parser.parse_args()
     wanted = set(args.states.split(","))
     functions, _ = fnpack.load_names()
-    starts = sorted(functions)
     _, ours = fnpack.load_states()
+    starts = sorted(set(functions) | ours)  # decompiled gap functions bound their neighbours too
     image = fnpack.Image()
     targets = []
+    listed = set()
     with open(fnpack.DATA / "progress.csv", newline="") as f:
         for row in csv.DictReader(f):
             va = int(row["address"], 16)
+            listed.add(va)
             if (args.module == "all" or row["module"] in args.module.split(",")) and row["state"] in wanted and va in ours:
                 targets.append((va, row["name"], row["state"]))
+    # Decompiled gap functions (no symbol, so not in progress.csv): state "unsorted".
+    if args.module == "all" and "unsorted" in wanted:
+        with open(fnpack.DATA / "functions.csv", newline="") as f:
+            for row in csv.DictReader(f):
+                va = int(row["address"], 16)
+                if va in ours and va not in listed:
+                    targets.append((va, row["name"], "unsorted"))
+                    functions.setdefault(va, row["name"])
+        targets.sort()
     cache = {}
 
     def info(va):

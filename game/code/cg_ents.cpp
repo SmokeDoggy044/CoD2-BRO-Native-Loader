@@ -48,7 +48,9 @@ namespace {
 
 uint32_t addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 int32_t cg_time() { return title_global<int32_t>(0x0097253c); }
-float g(uint32_t address) { return title_global<float>(address); }
+// A reference: a float returned by value passes the x87 stack (i386 ABI), which quiets a
+// signaling NaN where the title's MOVSS keeps it (and its later ADDSS raises MXCSR IE).
+const float& g(uint32_t address) { return title_global<float>(address); }
 
 template <typename T>
 T& at(void* base, uint32_t offset) {

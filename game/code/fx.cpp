@@ -2852,7 +2852,11 @@ void XB_THISCALL apsActionPlaneBounce_Apply(uint8_t* self, uint8_t* begin, uint8
         inverse = ((title_global<float>(0x007c8be0) - r * r * a) * r) * title_global<float>(0x007c8bf0);
         point_w = title_global<float>(0x007c8bec);  // 3.0
     }
-    const Lanes unit = mul(normal, inverse);
+    // MULPS scales all four lanes, but only lanes 0-2 go back over the normal: the 4th stays 0
+    // (not 0 * inverse, a NaN for an infinite inverse, which would hide later DE flags).
+    const Lanes scaled = mul(normal, inverse);
+    platform_keep(scaled);
+    const Lanes unit = {{scaled.v[0], scaled.v[1], scaled.v[2], normal.v[3]}};
     const Lanes point = {{at<float>(config, 0x14), at<float>(config, 0x18), at<float>(config, 0x1c), point_w}};
     const Lanes products = mul(neg(unit), point);
     const float offset = (products.v[0] + products.v[1]) + products.v[2];
@@ -3150,13 +3154,15 @@ void XB_THISCALL apsActionFrenetMove_Apply(uint8_t* self, uint8_t* begin, uint8_
         store_xyz(binormal, mul(b, unit_scale(b, 0x007c8be0, 0x007c8bf0)));
         store_xyz(normal, cross_lanes(vec(tangent), vec(binormal)));
         // Curvature and torsion drift by a random rate in [min, max) * delta, then are clamped.
-        float k = ((action_random(one) * curvature_range) + curvature_min) * delta + at<float>(curvature, 0);
-        at<float>(curvature, 0) = k;
-        float tau = ((action_random(one) * torsion_range) + torsion_min) * delta + at<float>(torsion, 0);
-        at<float>(torsion, 0) = tau;
+        // Each is read back before its clamp (the other's store may overlap it).
+        at<float>(curvature, 0) =
+            ((action_random(one) * curvature_range) + curvature_min) * delta + at<float>(curvature, 0);
+        at<float>(torsion, 0) = ((action_random(one) * torsion_range) + torsion_min) * delta + at<float>(torsion, 0);
+        float k = at<float>(curvature, 0);
         if (curvature_low > k) k = curvature_low;
         else if (k > curvature_high) k = curvature_high;
         at<float>(curvature, 0) = k;
+        float tau = at<float>(torsion, 0);
         if (torsion_low > tau) tau = torsion_low;
         else if (tau > torsion_high) tau = torsion_high;
         at<float>(torsion, 0) = tau;

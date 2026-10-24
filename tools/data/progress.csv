@@ -1878,11 +1878,11 @@ address,name,section,module,state,tested,matched
 0007d1a0,NAL_Float1_CopyState,.text,xanim,offline,0,0
 0007d1f0,NAL_EntropyFloat1_SkipCachedFrame,.text,xanim,offline,0,0
 0007d3e0,NAL_Packed8Float1_DecodeBlock,.text,xanim,untested,0,0
-0007d480,NAL_Packed8Float1_SkipBlock,.text,xanim,untested,0,0
+0007d480,NAL_Packed8Float1_SkipBlock,.text,xanim,offline,0,0
 0007d650,NAL_Packed8Float1_SkipStatic,.text,xanim,offline,0,0
 0007d940,NAL_Float3_SkipBlock,.text,xanim,offline,0,0
 0007db00,NAL_Float3_SkipCachedFrame,.text,xanim,settled,306,306
-0007db70,NAL_EntropyFloat3_BeginBlock,.text,xanim,untested,0,0
+0007db70,NAL_EntropyFloat3_BeginBlock,.text,xanim,offline,0,0
 0007dc40,NAL_EntropyFloat3_DecodeFrames,.text,xanim,untested,0,0
 0007dd80,NAL_EntropyFloat3_DecodeBlock,.text,xanim,settled,114,114
 0007de50,NAL_EntropyFloat3_DecodeChannelBlock,.text,xanim,settled,252,252
@@ -1891,7 +1891,7 @@ address,name,section,module,state,tested,matched
 0007e290,NAL_Packed8EntropyFloat3_DecodeChannelFrames,.text,xanim,untested,0,0
 0007e480,NAL_Packed8EntropyFloat3_DecodeBlock,.text,xanim,untested,0,0
 0007e550,NAL_Packed8EntropyFloat3_DecodeChannelBlock,.text,xanim,untested,0,0
-0007e8a0,NAL_Packed8EntropyFloat3_Evaluate,.text,xanim,untested,0,0
+0007e8a0,NAL_Packed8EntropyFloat3_Evaluate,.text,xanim,offline,0,0
 0007e9d0,NAL_Packed8_DequantizeFloat3,.text,xanim,offline,0,0
 0007ea70,NAL_PackedEntropyFloat3_BeginBlock,.text,xanim,offline,0,0
 0007eb40,NAL_EntropyFloat3_InitReaders,.text,xanim,untested,0,0
@@ -1908,7 +1908,7 @@ address,name,section,module,state,tested,matched
 0007fa70,NAL_EntropyFloat4_DecodeFrames,.text,xanim,untested,0,0
 0007fbe0,NAL_EntropyFloat4_DecodeBlock,.text,xanim,untested,0,0
 0007fcb0,NAL_EntropyFloat4_DecodeChannelBlock,.text,xanim,untested,0,0
-0007fe20,NAL_EntropyFloat4_SkipBlock,.text,xanim,offline,0,0
+0007fe20,NAL_EntropyFloat4_SkipBlock,.text,xanim,untested,0,0
 00080010,NAL_Entropy_SkipStatic,.text,xanim,settled,400,400
 00080060,nglShader_Nop,.text,renderer,offline,0,0
 00080070,NAL_PackedEntropyFloat4_BeginBlock,.text,xanim,offline,0,0
@@ -1946,7 +1946,7 @@ address,name,section,module,state,tested,matched
 000828d0,NAL_Float2_SkipFixedBlock,.text,xanim,offline,0,0
 00082960,NAL_PosOri_CopyState,.text,xanim,settled,400,400
 00082c30,FUN_00082c30,.text,unassigned,unnamed,0,0
-00082ee0,NAL_TrajPosOri_ApplyWraps,.text,xanim,untested,0,0
+00082ee0,NAL_TrajPosOri_ApplyWraps,.text,xanim,offline,0,0
 00083000,NAL_EntropyTrajPosOri_SkipBlock,.text,xanim,settled,154,154
 000830e0,NAL_EntropyTrajPosOri_Evaluate,.text,xanim,settled,400,400
 00083200,NAL_EntropyTrajPosOri_ApplyStatic,.text,xanim,settled,127,127
@@ -2384,15 +2384,15 @@ address,name,section,module,state,tested,matched
 000a1fa0,apsActionAngleToEmitterX_Apply,.text,qcommon,offline,0,0
 000a20c0,apsActionAngleToEmitterY_Apply,.text,qcommon,offline,0,0
 000a21e0,apsActionAngleToEmitterZ_Apply,.text,qcommon,offline,0,0
-000a2300,apsActionFrenetMove_Apply,.text,qcommon,untested,0,0
+000a2300,apsActionFrenetMove_Apply,.text,qcommon,offline,0,0
 000a2900,apsPath_FindSegment,.text,qcommon,settled,100,100
 000a2aa0,apsActionTrajectory_Apply,.text,qcommon,settled,100,100
 000a2e40,apsActionEmitter_Apply,.text,qcommon,settled,401,401
 000a39f0,apsActionMoveFixed_Apply,.text,qcommon,settled,100,100
 000a3bb0,apsActionForce_Apply,.text,qcommon,settled,300,300
-000a3d80,apsActionPointAttract_Apply,.text,qcommon,untested,0,0
-000a3f00,apsActionLineAttract_Apply,.text,qcommon,untested,0,0
-000a41c0,apsActionDecayLineAttract_Apply,.text,qcommon,untested,0,0
+000a3d80,apsActionPointAttract_Apply,.text,qcommon,offline,0,0
+000a3f00,apsActionLineAttract_Apply,.text,qcommon,offline,0,0
+000a41c0,apsActionDecayLineAttract_Apply,.text,qcommon,offline,0,0
 000a4460,apsOrientToVelocity,.text,qcommon,untested,0,0
 000a4640,apsActionAngleToVelocity_Apply,.text,qcommon,settled,118,118
 000a4ac0,apsAtan2,.text,qcommon,settled,146,146
@@ -7631,7 +7631,7 @@ address,name,section,module,state,tested,matched
 00200cd0,Actor_Noncombat_NodeClaimRevoked,.text,game,untested,0,0
 00200d90,Actor_Noncombat_Finish,.text,game,settled,123,123
 00200db0,Actor_Noncombat_Start,.text,game,settled,121,121
-00200e20,Path_CrossesBadPlace,.text,game,offline,0,0
+00200e20,Path_CrossesBadPlace,.text,game,untested,0,0
 00200e90,Path_TrimAtGoal,.text,game,named,0,0
 00201280,Actor_DefaultTouch,.text,game,settled,4458,4458
 00201300,Actor_Exposed_Finish,.text,game,matched,86,86
@@ -9212,7 +9212,7 @@ address,name,section,module,state,tested,matched
 002a97c0,ShortSwap,.text,qcommon,named,0,0
 002a9890,Com_BitCheck,.text,qcommon,matched,2,2
 002a98b0,COM_DefaultExtension,.text,qcommon,settled,113,113
-002a9a60,Com_ParseCommaToken,.text,qcommon,offline,0,0
+002a9a60,Com_ParseCommaToken,.text,qcommon,untested,0,0
 002a9b30,SkipWhitespace,.text,qcommon,offline,0,0
 002a9be0,FUN_002a9be0,.text,unassigned,unnamed,0,0
 002a9c10,FUN_002a9c10,.text,unassigned,unnamed,0,0
@@ -9231,7 +9231,7 @@ address,name,section,module,state,tested,matched
 002aa6e0,MSG_WriteLong,.text,qcommon,settled,23860,23860
 002aa870,Cmd_List_f,.text,qcommon,named,0,0
 002aa8b0,Cmd_TokenizeString,.text,qcommon,settled,113,113
-002aaa10,Cmd_ArgsFrom,.text,qcommon,offline,0,0
+002aaa10,Cmd_ArgsFrom,.text,qcommon,untested,0,0
 002aaaa0,Cmd_Argv,.text,qcommon,matched,13,13
 002aaac0,Cmd_Argc,.text,qcommon,offline,0,0
 002aaad0,Cmd_Echo_f,.text,qcommon,named,0,0

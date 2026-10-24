@@ -14,7 +14,9 @@ namespace game {
 
 namespace {
 
-float g(uint32_t address) { return title_global<float>(address); }
+// A reference: a float returned by value passes the x87 stack (i386 ABI), which quiets a
+// signaling NaN where the title's MOVSS keeps it (and its later ADDSS raises MXCSR IE).
+const float& g(uint32_t address) { return title_global<float>(address); }
 int32_t gi(uint32_t address) { return title_global<int32_t>(address); }
 const uint8_t* weapon() { return title_global<const uint8_t*>(0x00972acc); }  // the current weapon's definition
 float wf(uint32_t offset) { return *reinterpret_cast<const float*>(weapon() + offset); }

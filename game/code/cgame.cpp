@@ -23,7 +23,9 @@ namespace game {
 namespace {
 
 int32_t cg_time() { return title_global<int32_t>(0x0097253c); }
-float g(uint32_t address) { return title_global<float>(address); }
+// A reference: a float returned by value passes the x87 stack (i386 ABI), which quiets a
+// signaling NaN where the title's MOVSS keeps it (and its later ADDSS raises MXCSR IE).
+const float& g(uint32_t address) { return title_global<float>(address); }
 
 // Registers (import 0x009284f8, type 5) the asset named by the configstring slot at
 // `address` when the slot lies in cl_configstrings (0x009606b8, 0x400 slots) and is set and
