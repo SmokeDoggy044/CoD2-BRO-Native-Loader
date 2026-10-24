@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <iterator>
 #include <mutex>
@@ -746,8 +747,11 @@ float g_display_aspect = 16.0f / 9.0f;
 float g_scene_aspect = 16.0f / 9.0f;  // the title reads it (32-bit address)
 MenuScenes g_hud_scenes[2];  // CG_Draw2D's, the HUD manager's draw's
 
+void scale_fixed_fov();  // Field of view, below
+
 template <int N>
 void XB_CDECL hud_render_begin() {
+    if (N == 0) scale_fixed_fov();  // CG_Draw2D: cgame is drawing a level
     const uint32_t allocator = title<uint32_t>(g_menus.frame_allocator);
     g_hud_scenes[N] = {allocator, allocator, title<uint32_t>(g_menus.current_scene),
                        title<uint32_t>(g_menus.engine_frame)};
@@ -764,7 +768,11 @@ bool is_hud_scene(uint32_t scene, uint32_t frame) {
     return false;
 }
 
-bool install_hud_scenes(const AspectSites& sites) {
+// CG_DrawActive's "jmp CG_Draw2D" through a thunk (hud_render_begin<0>/end<0>); the
+// wide picture and the field of view both use it, so it goes in once.
+bool install_draw_2d_hook(const AspectSites& sites) {
+    static bool installed = false;
+    if (installed) return true;
     auto* jump = reinterpret_cast<uint8_t*>(uintptr_t{sites.draw_2d_jump});
     int32_t relative = 0;
     std::memcpy(&relative, jump + 1, 4);
@@ -780,6 +788,12 @@ bool install_hud_scenes(const AspectSites& sites) {
     t = put_preserving_call(t + 5, &hud_render_end<0>);
     *t = 0xC3;
     put_rel32(jump, 0xE9, thunk);
+    installed = true;
+    return true;
+}
+
+bool install_hud_scenes(const AspectSites& sites) {
+    if (!install_draw_2d_hook(sites)) return false;
     if (!sites.hud_draw_slot) return true;
     // The HUD manager's draw (vtable 0x0082a5d8 slot 0x14, thiscall, no arguments; the
     // in-game UI calls it from FUN_003154b0 before CG_Draw2D) puts the compass, health
@@ -792,7 +806,7 @@ bool install_hud_scenes(const AspectSites& sites) {
     auto* draw = alloc_code(32);
     if (!draw) return false;
     // begin; call draw (ecx kept); end; ret
-    t = put_preserving_call(draw, &hud_render_begin<1>);
+    uint8_t* t = put_preserving_call(draw, &hud_render_begin<1>);
     put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{sites.hud_draw}));
     t = put_preserving_call(t + 5, &hud_render_end<1>);
     *t = 0xC3;
@@ -901,7 +915,155 @@ void XB_CDECL choose_frame_wait() {
     title<uint32_t>(g_pacing.frame_vblanks) = movie ? 2 : g_frame_vblanks;
 }
 
+// --- Field of view ----------------------------------------------------------------------
+//
+// cg_fov (vmCvar 0x0094c3e0, value +8; default 70, horizontal degrees at 4:3: the game
+// widens it Hor+) is set through Cvar_SetValue (0x0029fdd0, cdecl (name, float); it
+// forces the change) on the title's thread at the frame end, again if a level start
+// put the default back. In widescreen CG_CalcFov sets the culling fov_x to
+// 2 atan(16/9) from the constants 9 (0x0083eef8) and 16 (0x0083ebb8), loaded at
+// 0x00284727 and 0x00284735 ("movss xmm0,[9]" / "movss xmm0,[16]"): those loads read
+// our pair instead, which stays 1 : 16/9 (the same 121 degrees) until a wide picture
+// with a high fov needs more (this fov_x also places the damage direction icons).
+// Campaign only for now.
+struct FovSites {
+    uint32_t vm_value;
+    uint32_t set_value;
+    uint32_t current_weapon_def;  // CG_GetCurrentWeaponDef, cdecl, eax
+    uint32_t gun_fov_load;        // R_RenderView, the gun scene's "mov ecx,[ebx+0x128]" (viewParms fov_y)
+    uint32_t refdef_fov_y;        // cg.refdef fov_y (CG_CalcFov)
+    uint32_t zoom;                // cg zoom fraction, 0 (hip) .. 1 (aiming down sights)
+    uint32_t cull_loads[2];  // movss xmm0,[a]; movss xmm0,[b]
+    uint32_t cull_constants[2];
+};
+constexpr FovSites kCampaignFov = {0x0094c3e8, 0x0029fdd0, 0x002bc750, 0x002475de, 0x00972ba4, 0x009725d8,
+                                   {0x00284727, 0x00284735}, {0x0083eef8, 0x0083ebb8}};
+constexpr uint8_t kGunFovLoad[6] = {0x8B, 0x8B, 0x28, 0x01, 0x00, 0x00};  // mov ecx,[ebx+0x128]
+constexpr uint32_t kWeaponFixedFov = 0x848;  // weapon def: a fov of its own (tanks, mounted guns), else 0
+constexpr float kGameFov = 70.0f;           // cg_fov's default
+const FovSites* g_fov = nullptr;
+std::atomic<float> g_fov_wanted{0.0f};  // 0: the game's own
+uint32_t g_fov_set_frame = 0;
+float g_cull[2] = {1.0f, 16.0f / 9.0f};  // the title reads them (32-bit addresses)
+float g_gun_fov_y = 0.0f;                 // the title reads it while the gun's own fov is on
+bool g_gun_fov_ok = false;                // the gun scene's fov load is where expected
+bool g_gun_fov_on = false;                // ... and reads g_gun_fov_y
+
+void install_field_of_view(const FovSites* sites, const AspectSites& aspect_sites, float degrees) {
+    if (!sites || !install_draw_2d_hook(aspect_sites)) return;
+    for (int i = 0; i < 2; ++i) {
+        const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{sites->cull_loads[i]});
+        uint32_t operand = 0;
+        std::memcpy(&operand, code + 4, 4);
+        if (code[0] != 0xF3 || code[1] != 0x0F || code[2] != 0x10 || code[3] != 0x05 ||
+            operand != sites->cull_constants[i]) {
+            LOG_WARN("patches", "%08x: not the widescreen culling fov; no field of view setting", sites->cull_loads[i]);
+            return;
+        }
+    }
+    for (int i = 0; i < 2; ++i) {
+        const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_cull[i]));
+        std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{sites->cull_loads[i]}) + 4, &address, 4);
+    }
+    g_gun_fov_ok = std::memcmp(reinterpret_cast<const void*>(uintptr_t{sites->gun_fov_load}), kGunFovLoad, 6) == 0;
+    if (!g_gun_fov_ok)
+        LOG_WARN("patches", "%08x: not the gun scene's fov; the gun widens with the view", sites->gun_fov_load);
+    g_fov = sites;
+    if (degrees > 0) {
+        g_fov_wanted = degrees;
+        LOG_INFO("patches", "field of view %.0f", static_cast<double>(degrees));
+    }
+}
+
+void set_gun_fov(float wanted);  // below
+
+// On the title's thread at the frame end.
+void apply_field_of_view() {
+    if (!g_fov) return;
+    const float current = title<float>(g_fov->vm_value);
+    const float wanted = g_fov_wanted.load();
+    const uint32_t frame = title<uint32_t>(g_menus.engine_frame);
+    // cgame is up (its vmCvar has a value) and has had a few frames to pick up the last set.
+    if (wanted > 0 && current > 0 && current != wanted && frame - g_fov_set_frame > 10) {
+        static const char kName[] = "cg_fov";
+        call_title(g_fov->set_value, kName, wanted);
+        g_fov_set_frame = frame;
+    }
+    set_gun_fov(wanted);
+    // The culling fov_x: wide enough for this picture at this fov, plus a margin.
+    constexpr float kPi = 3.14159265f;
+    const float fov = std::max(current, wanted);
+    const float half_width = g_display_aspect * 0.75f * std::tan(fov * kPi / 360.0f) * 1.05f;
+    g_cull[1] = std::max(16.0f / 9.0f, half_width);
+}
+
+// CG_GetViewFov returns the weapon def's own fov (+0x848) instead of cg_fov where it has
+// one: a tank's view (55) or a mounted gun's. That fov is widened by as much as cg_fov
+// is (in tan(fov / 2)), on the title's thread while cgame draws a level (CG_Draw2D),
+// keeping the original to come back to; zoomed sights (+0x624) stay as they are.
+struct ScaledFov {
+    uint32_t def;
+    float original, written;
+};
+std::vector<ScaledFov> g_scaled_fovs;
+
+float widen_fov(float fov, float wanted) {
+    constexpr float kHalfRadians = 3.14159265f / 360.0f;
+    return std::atan(std::tan(fov * kHalfRadians) * std::tan(wanted * kHalfRadians) /
+                     std::tan(kGameFov * kHalfRadians)) / kHalfRadians;
+}
+
+void scale_fixed_fov() {
+    if (!g_fov) return;
+    const float wanted = g_fov_wanted.load();
+    if (wanted <= 0) return;
+    const uint32_t def = call_title(g_fov->current_weapon_def);
+    if (!def) return;
+    float& fixed = title<float>(def + kWeaponFixedFov);
+    auto it = std::find_if(g_scaled_fovs.begin(), g_scaled_fovs.end(), [def](const ScaledFov& s) { return s.def == def; });
+    if (it == g_scaled_fovs.end()) {
+        if (fixed <= 0) return;
+        g_scaled_fovs.push_back({def, fixed, fixed});
+        it = g_scaled_fovs.end() - 1;
+    } else if (fixed != it->written) {
+        it->original = fixed;  // a new level's def at the same place
+    }
+    if (it->original <= 0) return;
+    const float target = wanted == kGameFov ? it->original : widen_fov(it->original, wanted);
+    if (fixed != target) fixed = it->written = target;
+}
+
+// The gun (view model) has a scene of its own in R_RenderView, set up with the view's
+// fov_y; at a wider fov it shrinks and shows what the game's 70 keeps off screen (the
+// front hand under the rifle). Off the default, that scene's fov load
+// "mov ecx,[ebx+0x128]" becomes "mov ecx,[g_gun_fov_y]": at the hip the view's fov_y
+// narrowed back by the fov's factor (in tan(fov / 2)), aiming down sights the view's own
+// (zoomed sights are not widened), blended by the zoom fraction. It follows the view a
+// frame late (computed at the frame end), so at the default the original load is back.
+void set_gun_fov(float wanted) {
+    if (!g_gun_fov_ok) return;
+    const bool on = wanted > 0 && wanted != kGameFov;
+    if (on) {
+        constexpr float kHalfRadians = 3.14159265f / 360.0f;
+        const float factor = std::tan(wanted * kHalfRadians) / std::tan(kGameFov * kHalfRadians);
+        const float zoom = std::clamp(title<float>(g_fov->zoom), 0.0f, 1.0f);
+        const float view = std::tan(title<float>(g_fov->refdef_fov_y) * kHalfRadians);
+        g_gun_fov_y = std::atan(view / factor * (1.0f - zoom) + view * zoom) / kHalfRadians;
+    }
+    if (on == g_gun_fov_on) return;
+    auto* code = reinterpret_cast<uint8_t*>(uintptr_t{g_fov->gun_fov_load});
+    if (on) {
+        const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_gun_fov_y));
+        code[0] = 0x8B, code[1] = 0x0D;  // mov ecx,[address]
+        std::memcpy(code + 2, &address, 4);
+    } else {
+        std::memcpy(code, kGunFovLoad, 6);
+    }
+    g_gun_fov_on = on;
+}
+
 void XB_CDECL wait_frame_start() {
+    apply_field_of_view();
     const auto& pending = *reinterpret_cast<volatile uint8_t*>(uintptr_t{g_pacing.frame_pending});
     for (;;) {
         const uint32_t seen = render::vertical_blanks_done();
@@ -1249,6 +1411,11 @@ void install_menu_pointer() {
 
 }  // namespace
 
+void set_field_of_view(float degrees) { g_fov_wanted = degrees; }
+float field_of_view() { return g_fov_wanted.load(); }
+float game_field_of_view() { return g_fov ? title<float>(g_fov->vm_value) : 0.0f; }
+bool field_of_view_supported() { return g_fov != nullptr; }
+
 render::UiNarrowing in_game_menu_draw() {
     const uint32_t scene = title<uint32_t>(g_menus.current_scene);
     const MenuScenes& m = g_menu_scenes;
@@ -1453,6 +1620,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     if (!config.aim_assist) disable_aim_assist();
     install_frame_rate(config.frame_rate, config.late_frames_wait);
     install_display_aspect(campaign ? kCampaignAspect : kMultiplayerAspect, config.display_aspect);
+    install_field_of_view(campaign ? &kCampaignFov : nullptr, kCampaignAspect, config.field_of_view);
     install_menu_render_hooks();
     g_menu_pointer = campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer;
     install_menu_pointer();

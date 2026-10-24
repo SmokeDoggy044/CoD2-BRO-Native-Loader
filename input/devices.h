@@ -95,6 +95,11 @@ Device last_device();
 // The title shows a menu (set_menu_pointer was called in the last 0.25 s).
 bool in_menu();
 
+// While our own in-game menu is open (render's PC menu): every port reads as nothing
+// pressed, mouse motion and pointing are dropped and clicks do not capture the mouse.
+// The title keeps running.
+void set_game_input_blocked(bool blocked);
+
 // Sets a port's rumble motors (0-65535; left is the low-frequency one).
 void set_rumble(uint32_t port, uint16_t left, uint16_t right);
 

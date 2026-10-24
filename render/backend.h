@@ -67,6 +67,14 @@ struct BackendConfig {
     // menus: the back buffer's; the HUD on an ultrawide picture: 16:9), where and how
     // much to narrow it. Draws spanning the full width are not narrowed.
     UiNarrowing (*narrow_ui_draw)() = nullptr;
+    // The in-game PC menu, opened and closed with the key below Escape (` ~) and closed
+    // with Escape: Dear ImGui over the picture while the title keeps running. pc_menu
+    // makes its widgets each frame (ImGui calls, from present() on the title's thread)
+    // and returns false to close it; pc_menu_shown is told when it opens and closes.
+    // Null: no menu.
+    bool (*pc_menu)() = nullptr;
+    void (*pc_menu_shown)(bool open) = nullptr;
+    std::string menu_font;  // a TTF for the menu; empty: Dear ImGui's own
     // Anisotropic filtering for mipmapped textures the title filters linearly (PC
     // option; the Xbox titles rarely used it). 1 = the title's own filters.
     uint32_t anisotropy = 1;

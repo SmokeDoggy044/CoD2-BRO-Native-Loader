@@ -72,6 +72,10 @@ int g_left_clicks = 0, g_right_clicks = 0, g_wheel_steps = 0;
 // window); F10 or focus loss clear it.
 std::atomic<bool> g_recapture{false};
 std::atomic<Device> g_last_device{Device::Keyboard};
+std::atomic<bool> g_blocked{false};  // set_game_input_blocked
+// After the menu closes, port 0 stays neutral until the keys and buttons that closed it
+// are let go (Escape would pause the game, a click would fire).
+std::atomic<bool> g_wait_release{false};
 constexpr int kStickDeadZone = 12000, kTriggerDeadZone = 8000;  // SDL axis units
 std::mutex g_tap_mutex;
 PadState g_tap;  // guarded by g_tap_mutex
@@ -108,6 +112,7 @@ void follow_menu_mode(SDL_Window* window) {
 
 // Runs on the thread that pumps window events (the renderer's).
 bool SDLCALL watch_event(void*, SDL_Event* event) {
+    if (g_blocked.load()) return true;  // our menu has the mouse
     switch (event->type) {
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
@@ -322,7 +327,7 @@ PointerState take_pointer() {
         pointer.wheel = std::exchange(g_wheel_steps, 0);
     }
     SDL_Window* window = SDL_GetMouseFocus();
-    if (!menu_mode() || !window || !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) ||
+    if (g_blocked.load() || !menu_mode() || !window || !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) ||
         SDL_GetWindowRelativeMouseMode(window)) {
         if (pointer.left_clicks || pointer.right_clicks)
             LOG_DEBUG("input", "menu clicks dropped: %s",
@@ -349,9 +354,18 @@ void tap(const PadState& buttons) {
 
 void take_mouse_motion(float& dx, float& dy) {
     std::lock_guard lock(g_mouse_mutex);
-    dx = g_mouse_dx;
-    dy = g_mouse_dy;
+    dx = g_blocked.load() ? 0.0f : g_mouse_dx;
+    dy = g_blocked.load() ? 0.0f : g_mouse_dy;
     g_mouse_dx = g_mouse_dy = 0.0f;
+}
+
+void set_game_input_blocked(bool blocked) {
+    g_blocked = blocked;
+    g_wait_release = !blocked;
+    std::lock_guard lock(g_mouse_mutex);
+    g_mouse_dx = g_mouse_dy = 0.0f;
+    g_pointer_moved = false;
+    g_left_clicks = g_right_clicks = g_wheel_steps = 0;
 }
 
 uint32_t connected_ports() {
@@ -370,6 +384,14 @@ bool read_port(uint32_t port, PadState& state) {
     state = PadState{};
     if (port >= kPortCount) return false;
     std::lock_guard lock(g_mutex);
+    if (g_blocked.load()) return port == 0 || g_ports[port] != nullptr;
+    if (port == 0 && g_wait_release.load()) {
+        const bool* keys = SDL_GetKeyboardState(nullptr);
+        if (keys[SDL_SCANCODE_ESCAPE] || keys[SDL_SCANCODE_GRAVE] || keys[SDL_SCANCODE_RETURN] ||
+            keys[SDL_SCANCODE_SPACE] || SDL_GetMouseState(nullptr, nullptr))
+            return true;
+        g_wait_release = false;
+    }
     if (g_ports[port]) read_gamepad(g_ports[port], state);
     if (port == 0) {
         read_keyboard_mouse(state);

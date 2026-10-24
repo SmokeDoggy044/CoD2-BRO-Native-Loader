@@ -6,6 +6,7 @@ set(loader_sources
     kernel_thunks.cpp
     main.cpp
     patches.cpp
+    pc_menu.cpp
     profiler.cpp
     seh.cpp
     symbols.cpp

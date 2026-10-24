@@ -104,3 +104,25 @@ modes/formats, raster states, first vertex) plus each vertex program's microcode
 after the k-th - with `--screenshots` on frame n-1, bisect for the draw that breaks
 it. In a `--diag` session, F12 dumps the next frame's draws and F11 shows draws that
 need untranslated features in magenta ([playtesting.md](playtesting.md)).
+
+## Field of view and the PC menu
+
+The key below Escape (`` ` ``/`~`) opens the PC menu: Dear ImGui (render's own copy, Direct3D 9
+and SDL3 back ends) drawn over the presented frame while the title keeps running; the
+title's input is blocked meanwhile (`input::set_game_input_blocked`), and after it closes
+port 0 stays neutral until Escape/`` ` ``/Return/Space and the mouse buttons are let go.
+Contents: `loader/pc_menu.cpp`; what changed is saved to settings.ini (`fov = N`) on close.
+
+Field of view (campaign; `--fov DEG`, 50-120): cg_fov (default 70, degrees across 4:3,
+Hor+ in widescreen), set with Cvar_SetValue at the frame end. Three more places:
+- Weapon defs with a fov of their own (`+0x848`: tanks 55, mounted guns), which
+  CG_GetViewFov returns instead of cg_fov, are widened by the same factor in
+  tan(fov / 2) while cgame draws (CG_Draw2D hook), keeping the original.
+- The gun's scene in R_RenderView takes the view's fov_y (`mov ecx,[ebx+0x128]` at
+  0x002475de); off the default it reads a value narrowed back by that factor at the
+  hip and the view's own when zoomed, so the gun looks as at 70 (at 120 the front hand
+  showed under the rifle). One frame late; the original load is back at 70.
+- The widescreen culling fov_x (2 atan(16/9), constants loaded at 0x00284727/0x00284735)
+  grows when a wide picture at a high fov needs more.
+
+Checked: mission 2 (tank) and mission 4 (rifle, hip and sights) at 50-120, user-tested.

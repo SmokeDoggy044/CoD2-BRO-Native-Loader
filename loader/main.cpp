@@ -25,6 +25,7 @@
 #include "log.h"
 #include "os.h"
 #include "patches.h"
+#include "pc_menu.h"
 #include "profiler.h"
 #include "paths.h"
 #include "program.h"
@@ -62,6 +63,7 @@ struct Options {
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
     bool widescreen = true;
+    float field_of_view = 0;      // cg_fov; 0: the game's own (70)
     float aspect = 16.0f / 9.0f;  // with widescreen: the picture's shape (wider than 16:9: experimental)
     uint32_t language = 1;  // XC_LANGUAGE
     uint32_t screenshot_interval = 0;
@@ -151,6 +153,8 @@ void print_usage(const char* program) {
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
+        "  --fov DEG        field of view in degrees across a 4:3 picture (50-120, default 70\n"
+        "                   as the game; campaign); also in the PC menu (` key while playing)\n"
         "  --late-frames show|wait  a frame that missed its vertical blank is shown at once\n"
         "                   (default) or waits for the next one (as on the Xbox: 30 fps drops to 20)\n"
         "  --any-release    start an executable from another release of the game (testing;\n"
@@ -295,6 +299,12 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.frame_rate = std::stoi(value);
+        } else if (arg == "--fov") {
+            if (i + 1 >= argc || (options.field_of_view = std::strtof(argv[++i], nullptr)) < 50.0f ||
+                options.field_of_view > 120.0f) {
+                std::fprintf(stderr, "--fov needs degrees across a 4:3 picture (50-120; the game's own is 70)\n");
+                return std::nullopt;
+            }
         } else if (arg == "--any-release") {
             options.any_release = true;
         } else if (arg == "--late-frames") {
@@ -593,7 +603,8 @@ int loader_main(int argc, char** argv) {
     loader::install_kernel_thunks(image);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
                                            options->frame_rate, options->late_frames_wait,
-                                           options->widescreen ? aspect : 0.0f, options->button_prompts});
+                                           options->widescreen ? aspect : 0.0f, options->field_of_view,
+                                           options->button_prompts});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
@@ -619,6 +630,9 @@ int loader_main(int argc, char** argv) {
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts
         d3d_config.backend.narrow_ui_draw = &loader::in_game_menu_draw;
     }
+    d3d_config.backend.pc_menu = &loader::pc_menu;
+    d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
+    d3d_config.backend.menu_font = (platform::executable_dir() / "fonts" / "Jost-500-Medium.ttf").string();
     d3d_config.backend.fullscreen = options->fullscreen;
     d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks
     d3d_config.screenshot_interval = options->screenshot_interval;

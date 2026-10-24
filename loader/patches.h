@@ -39,6 +39,9 @@ struct TitlePatchConfig {
     // experimental: the view widens, the HUD keeps its 16:9 place in the middle). 0:
     // not in widescreen mode.
     float display_aspect = 16.0f / 9.0f;
+    // cg_fov, horizontal degrees at 4:3 (the game's default 70); 0: the game's own.
+    // Campaign only for now.
+    float field_of_view = 0;
     // The game's button icons: keycaps while the keyboard/mouse is used (Auto), always
     // (Keyboard) or never (Controller). See text/key_prompts.h.
     enum class ButtonPrompts { Auto, Keyboard, Controller };
@@ -56,6 +59,13 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
 // 4:3) and, on a picture wider than 16:9, the HUD's orthographic scenes (laid out for
 // 16:9) are narrowed to their shape.
 render::UiNarrowing in_game_menu_draw();
+
+// The field of view (TitlePatchConfig::field_of_view), changed while playing (the PC
+// menu); applied at the title's next frame end. Any thread.
+void set_field_of_view(float degrees);
+float field_of_view();       // what was asked for; 0: the game's own
+float game_field_of_view();  // cg_fov now; 0 before the game has set it up
+bool field_of_view_supported();
 
 class SymbolTable;
 class XbeImage;

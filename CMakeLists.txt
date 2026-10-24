@@ -86,6 +86,7 @@ if(WIN32)
 else()
     find_package(SDL3 REQUIRED CONFIG)
 endif()
+include(cmake/imgui.cmake)
 
 add_subdirectory(platform)
 add_subdirectory(xbox)
