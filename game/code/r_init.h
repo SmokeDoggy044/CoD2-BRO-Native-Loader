@@ -61,6 +61,11 @@ void XB_CDECL nglDumpCamera(const float* matrix);
 // instances with flag 0x20000. No callers in the title.
 void XB_CDECL nglDumpSceneMeshes(const uint8_t* instance, const float* matrix, const uint8_t* skin);
 
+// 0x0006f080: the normalization cube map (0x00902cc8, edge 0x00902ccc), made again for a new edge
+// length: per face and texel the unit direction as an 0xffRRGGBB colour, swizzled into the face.
+// No callers in the title.
+void XB_CDECL nglCreateNormalCubeMap(uint32_t size);
+
 // 0x00077b50: the frame memory sizes not set yet - scene 0x40000, block 1 0x2000, vertex buffers
 // 0x20000, index buffers 0x10000, block 2 0x180000 (nglSetFrameMemorySize, reallocating).
 void XB_CDECL nglAllocFrameMemory();

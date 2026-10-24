@@ -1235,7 +1235,7 @@ address,name,section,module,state,tested,matched
 000462f0,cdSimpleInstance_Init,.text,renderer,untested,0,0
 00046300,cdSimpleInstance_Toggle,.text,renderer,matched,1,1
 00046320,cdSimpleInstance_InitList,.text,renderer,settled,104,104
-00046360,cdSimpleInstance_FreeList,.text,renderer,untested,0,0
+00046360,cdSimpleInstance_FreeList,.text,renderer,matched,4,4
 00046370,cdSimpleInstance_ShrinkList,.text,renderer,settled,102,102
 000463c0,cdSimpleInstance_AddInstance,.text,renderer,settled,107,107
 00046560,cdSimpleInstance_AddListToScene,.text,renderer,settled,300,300
@@ -1243,7 +1243,7 @@ address,name,section,module,state,tested,matched
 00046890,cdDebug_Toggle,.text,renderer,matched,1,1
 000468b0,cdDebug_AddToList,.text,renderer,untested,0,0
 00046900,cdDebug_Register,.text,renderer,settled,166,166
-00046970,cdDebug_Init,.text,renderer,untested,0,0
+00046970,cdDebug_Init,.text,renderer,matched,1,1
 000469b0,cdDebug_Draw,.text,renderer,untested,0,0
 00046bb0,cdDebug_GetSortInfo,.text,renderer,untested,0,0
 00046ca0,nglListAddTranslucent,.text,renderer,settled,285,285
@@ -1253,7 +1253,7 @@ address,name,section,module,state,tested,matched
 00046df0,nglNode_ViewDepth,.text,renderer,settled,295,295
 00047200,ShaderPCUV_InitMaterial,.text,renderer,settled,176,176
 00047230,ShaderPCUV_Register,.text,renderer,settled,116,116
-000472a0,ShaderPCUV_Init,.text,renderer,untested,0,0
+000472a0,ShaderPCUV_Init,.text,renderer,matched,1,1
 000472e0,ShaderPCUV_Draw,.text,renderer,settled,211,211
 000474e0,ShaderPCUV_AddToList,.text,renderer,settled,101,101
 00047590,nglSetDecalZBias,.text,renderer,settled,2291,273
@@ -1263,7 +1263,7 @@ address,name,section,module,state,tested,matched
 000479b0,cdGunSight_AddToList,.text,renderer,settled,149,149
 00047a30,cdGunSight_Toggle,.text,renderer,matched,1,1
 00047a50,cdGunSight_Register,.text,renderer,settled,106,106
-00047ad0,cdGunSight_Init,.text,renderer,untested,0,0
+00047ad0,cdGunSight_Init,.text,renderer,matched,1,1
 00047b10,cdGunSight_Draw,.text,renderer,settled,170,170
 00047dc0,nglStateCache_SetAlphaTestEnable,.text,renderer,settled,273,273
 00047df0,nglStateCache_SetAlphaFunc,.text,renderer,settled,243,243
@@ -1275,7 +1275,7 @@ address,name,section,module,state,tested,matched
 000481c0,cdGun_AddToList,.text,renderer,settled,100,100
 00048240,cdGun_Toggle,.text,renderer,matched,1,1
 00048260,cdGun_Register,.text,renderer,settled,101,101
-000482e0,cdGun_Init,.text,renderer,untested,0,0
+000482e0,cdGun_Init,.text,renderer,matched,1,1
 00048320,cdGun_Draw,.text,renderer,settled,100,100
 000485c0,cdGun_GetName,.text,renderer,settled,101,101
 000485e0,nglMaterial_ReleaseTexture,.text,renderer,settled,111,111
@@ -1283,7 +1283,7 @@ address,name,section,module,state,tested,matched
 00048630,cdGunVertexIter_Clone,.text,renderer,untested,0,0
 00048900,cdGlass_Toggle,.text,renderer,matched,1,1
 00048920,cdGlass_Register,.text,renderer,settled,120,120
-00048990,cdGlass_Init,.text,renderer,untested,0,0
+00048990,cdGlass_Init,.text,renderer,matched,1,1
 00048a10,cdGlass_Draw,.text,renderer,settled,366,366
 00048fd0,nglStateCache_SetSrcBlend,.text,renderer,settled,184,184
 00049000,nglStateCache_SetDestBlend,.text,renderer,settled,143,143
@@ -1301,7 +1301,7 @@ address,name,section,module,state,tested,matched
 00049750,nglNode_GetWorldInverse,.text,renderer,settled,12982,12982
 00049b70,cdSimpleAlpha_Toggle,.text,renderer,matched,1,1
 00049b90,cdSimpleAlpha_Register,.text,renderer,settled,109,109
-00049bf0,cdSimpleAlpha_Init,.text,renderer,untested,0,0
+00049bf0,cdSimpleAlpha_Init,.text,renderer,matched,1,1
 00049c30,cdSimpleAlpha_ClampDebugPulse,.text,renderer,untested,0,0
 00049cd0,cdSimpleAlpha_PulseColor,.text,renderer,settled,153,153
 00049e40,cdSimpleAlpha_Draw,.text,renderer,settled,156,156
@@ -1314,7 +1314,7 @@ address,name,section,module,state,tested,matched
 0004a990,cdSimpleAlphaVertexIter_Clone,.text,renderer,untested,0,0
 0004ac80,cdPropeller_Toggle,.text,renderer,matched,1,1
 0004aca0,cdPropeller_Register,.text,renderer,settled,104,104
-0004ad20,cdPropeller_Init,.text,renderer,untested,0,0
+0004ad20,cdPropeller_Init,.text,renderer,matched,1,1
 0004ad60,cdPropeller_Draw,.text,renderer,settled,225,225
 0004b000,cdPropeller_AddToList,.text,renderer,settled,125,125
 0004b0c0,cdPropeller_GetName,.text,renderer,settled,111,111
@@ -1323,7 +1323,7 @@ address,name,section,module,state,tested,matched
 0004b400,cdDecal_Toggle,.text,renderer,matched,1,1
 0004b420,cdDecal_AddToList,.text,renderer,settled,186,186
 0004b4a0,cdDecal_Register,.text,renderer,settled,113,113
-0004b520,cdDecal_Init,.text,renderer,untested,0,0
+0004b520,cdDecal_Init,.text,renderer,matched,1,1
 0004b560,cdDecal_Draw,.text,renderer,settled,559,559
 0004b880,cdDecal_GetName,.text,renderer,settled,100,100
 0004b8a0,cdDecal_NewVertexIter,.text,renderer,untested,0,0
@@ -1331,7 +1331,7 @@ address,name,section,module,state,tested,matched
 0004bba0,cdChar_Toggle,.text,renderer,matched,1,1
 0004bbc0,cdChar_AddToList,.text,renderer,settled,228,228
 0004bc40,cdChar_Register,.text,renderer,settled,103,103
-0004bcc0,cdChar_Init,.text,renderer,untested,0,0
+0004bcc0,cdChar_Init,.text,renderer,matched,1,1
 0004bd00,cdChar_Draw,.text,renderer,settled,877,877
 0004bfa0,cdChar_GetName,.text,renderer,settled,125,125
 0004bfe0,cdChar_NewVertexIter,.text,renderer,untested,0,0
@@ -1339,7 +1339,7 @@ address,name,section,module,state,tested,matched
 0004c2e0,cdPrelit_Toggle,.text,renderer,matched,1,1
 0004c300,cdPrelit_AddToList,.text,renderer,settled,128,128
 0004c380,cdPrelit_Register,.text,renderer,settled,100,100
-0004c410,cdPrelit_Init,.text,renderer,untested,0,0
+0004c410,cdPrelit_Init,.text,renderer,matched,1,1
 0004c450,cdPrelit_Draw,.text,renderer,settled,385,385
 0004c6c0,cdPrelit_GetName,.text,renderer,settled,110,110
 0004c6e0,nglMaterial_LoadBaseAndOptional,.text,renderer,settled,112,112
@@ -1349,7 +1349,7 @@ address,name,section,module,state,tested,matched
 0004ca50,cdAirplaneMetal_Toggle,.text,renderer,matched,1,1
 0004ca70,cdAirplaneMetal_AddToList,.text,renderer,settled,131,131
 0004caf0,cdAirplaneMetal_Register,.text,renderer,settled,106,106
-0004cb70,cdAirplaneMetal_Init,.text,renderer,untested,0,0
+0004cb70,cdAirplaneMetal_Init,.text,renderer,matched,1,1
 0004cbf0,cdAirplaneMetal_Draw,.text,renderer,settled,188,188
 0004d090,cdAirplaneMetal_GetName,.text,renderer,settled,105,105
 0004d0b0,nglMaterial_Relocate2,.text,renderer,settled,129,129
@@ -1358,7 +1358,7 @@ address,name,section,module,state,tested,matched
 0004d3e0,cdSimpleUVAnim_Toggle,.text,renderer,matched,1,1
 0004d400,cdSimpleUVAnim_Register,.text,renderer,matched,93,93
 0004d4a0,cdSimpleUVAnim_AddToList,.text,renderer,settled,101,101
-0004d520,cdSimpleUVAnim_Init,.text,renderer,untested,0,0
+0004d520,cdSimpleUVAnim_Init,.text,renderer,matched,1,1
 0004d560,cdSimpleUVAnim_GetUVParams,.text,renderer,settled,293,293
 0004d610,cdSimpleUVAnim_Draw,.text,renderer,settled,295,295
 0004d8c0,cdSimpleUVAnim_GetName,.text,renderer,settled,133,133
@@ -1367,7 +1367,7 @@ address,name,section,module,state,tested,matched
 0004dc00,cdSimplePrelit_Toggle,.text,renderer,matched,1,1
 0004dc20,cdSimplePrelit_AddToList,.text,renderer,settled,203,203
 0004dca0,cdSimplePrelit_Register,.text,renderer,matched,17,17
-0004dd10,cdSimplePrelit_Init,.text,renderer,untested,0,0
+0004dd10,cdSimplePrelit_Init,.text,renderer,matched,1,1
 0004dd50,cdSimplePrelit_Draw,.text,renderer,settled,314,314
 0004df90,cdSimplePrelit_GetName,.text,renderer,matched,10,10
 0004dfb0,nglMaterial_Relocate,.text,renderer,settled,121,121
@@ -1376,7 +1376,7 @@ address,name,section,module,state,tested,matched
 0004e2f0,cdSimple_Toggle,.text,renderer,matched,1,1
 0004e310,cdSimple_AddToList,.text,renderer,settled,309,309
 0004e390,cdSimple_Register,.text,renderer,matched,3,3
-0004e410,cdSimple_Init,.text,renderer,untested,0,0
+0004e410,cdSimple_Init,.text,renderer,matched,1,1
 0004e450,cdSimple_Draw,.text,renderer,settled,1126,1126
 0004e6f0,cdSimple_GetName,.text,renderer,settled,108,108
 0004e710,nglMaterial_LoadTexture,.text,renderer,settled,117,117
@@ -1386,7 +1386,7 @@ address,name,section,module,state,tested,matched
 0004e810,cdRiver_AddToList,.text,renderer,settled,100,100
 0004e880,cdRiver_Toggle,.text,renderer,matched,1,1
 0004e8a0,cdRiver_Register,.text,renderer,matched,1,1
-0004e980,cdRiver_Init,.text,renderer,untested,0,0
+0004e980,cdRiver_Init,.text,renderer,matched,1,1
 0004ea10,cdOcean_GetName,.text,renderer,matched,2,2
 0004ea50,nglMaterial_Relocate4,.text,renderer,settled,108,108
 0004eaa0,nglMaterial_LoadThreeTexturesAndOptional,.text,renderer,settled,118,118
@@ -1398,7 +1398,7 @@ address,name,section,module,state,tested,matched
 0004ef60,cdOcean_Toggle,.text,renderer,matched,1,1
 0004ef90,cdOcean_LoadWaveSet,.text,renderer,untested,0,0
 0004f2a0,cdOcean_Register,.text,renderer,matched,3,3
-0004f320,cdOcean_Init,.text,renderer,untested,0,0
+0004f320,cdOcean_Init,.text,renderer,matched,1,1
 0004f370,cdOcean_StoreWaveSet,.text,renderer,untested,0,0
 0004f810,cdOcean_SetWaveConstants,.text,renderer,settled,4764,4764
 000505c0,cdOcean_Draw,.text,renderer,settled,124,124
@@ -1408,7 +1408,7 @@ address,name,section,module,state,tested,matched
 00051070,cdWater_AddToList,.text,renderer,untested,0,0
 000510e0,cdWater_Toggle,.text,renderer,matched,1,1
 00051100,cdWater_Register,.text,renderer,matched,4,4
-00051180,cdWater_Init,.text,renderer,untested,0,0
+00051180,cdWater_Init,.text,renderer,matched,1,1
 000511c0,cdWater_Draw,.text,renderer,untested,0,0
 000514f0,cdWater_GetName,.text,renderer,matched,5,5
 00051510,nglMaterial_LoadTwoTextures,.text,renderer,settled,105,105
@@ -1417,7 +1417,7 @@ address,name,section,module,state,tested,matched
 000515a0,cdWaterVertexIter_Clone,.text,renderer,untested,0,0
 00051870,cdWorldBlend_Toggle,.text,renderer,matched,1,1
 00051890,cdWorldBlend_Register,.text,renderer,matched,4,4
-00051910,cdWorldBlend_Init,.text,renderer,untested,0,0
+00051910,cdWorldBlend_Init,.text,renderer,matched,1,1
 00051970,cdWorldBlend_AddToList,.text,renderer,settled,270,270
 00051b10,cdWorldBlend_Draw,.text,renderer,settled,6013,6013
 00052600,cdWorldBlend_InitVertexShaders,.text,renderer,matched,1,1
@@ -1432,14 +1432,14 @@ address,name,section,module,state,tested,matched
 00052af0,cdWorldVertexLit_Toggle,.text,renderer,matched,1,1
 00052b10,cdWorldVertexLit_AddToList,.text,renderer,untested,0,0
 00052b90,cdWorldVertexLit_Register,.text,renderer,matched,3,3
-00052c10,cdWorldVertexLit_Init,.text,renderer,untested,0,0
+00052c10,cdWorldVertexLit_Init,.text,renderer,matched,1,1
 00052c50,cdWorldVertexLit_Draw,.text,renderer,untested,0,0
 00052e80,cdWorldVertexLit_GetName,.text,renderer,matched,3,3
 00052ea0,cdWorldVertexLit_NewVertexIter,.text,renderer,untested,0,0
 00052ed0,cdWorldVertexLitVertexIter_Clone,.text,renderer,untested,0,0
 000531a0,cdWorld_Toggle,.text,renderer,matched,1,1
 000531c0,cdWorld_Register,.text,renderer,matched,1,1
-00053240,cdWorld_Init,.text,renderer,untested,0,0
+00053240,cdWorld_Init,.text,renderer,matched,1,1
 000532a0,cdWorld_AddToList,.text,renderer,settled,636,636
 00053440,cdWorld_Draw,.text,renderer,settled,24377,24377
 00053f20,cdWorld_InitVertexShaders,.text,renderer,matched,2,2
@@ -1452,14 +1452,14 @@ address,name,section,module,state,tested,matched
 00054340,cdBackground_Toggle,.text,renderer,matched,1,1
 00054360,cdBackground_AddToList,.text,renderer,settled,100,100
 000543e0,cdBackground_Register,.text,renderer,matched,1,1
-00054460,cdBackground_Init,.text,renderer,untested,0,0
+00054460,cdBackground_Init,.text,renderer,matched,1,1
 000544a0,cdBackground_Draw,.text,renderer,settled,202,202
 000546e0,cdBackground_GetName,.text,renderer,matched,1,1
 00054700,cdBackground_NewVertexIter,.text,renderer,untested,0,0
 00054730,cdBackgroundVertexIter_Clone,.text,renderer,untested,0,0
 00054a00,cdSky_Toggle,.text,renderer,matched,1,1
 00054a20,cdSky_Register,.text,renderer,matched,2,2
-00054a90,cdSky_Init,.text,renderer,untested,0,0
+00054a90,cdSky_Init,.text,renderer,matched,1,1
 00054ad0,cdSky_Draw,.text,renderer,settled,659,659
 00055310,cdSky_GetName,.text,renderer,matched,2,2
 00055330,cdSky_AddToList,.text,renderer,settled,569,569
@@ -1748,7 +1748,7 @@ address,name,section,module,state,tested,matched
 0006eca0,nglReadBackBufferSize,.text,renderer,inconclusive,227,0
 0006ece0,nglFreeTexture,.text,renderer,settled,498,105
 0006eea0,nglCreateTexture,.text,renderer,settled,444,100
-0006f080,nglCreateNormalCubeMap,.text,renderer,named,0,0
+0006f080,nglCreateNormalCubeMap,.text,renderer,untested,0,0
 0006f550,nglSetSceneLightSet,.text,renderer,settled,687,687
 0006f580,nglLightSetAddLight,.text,renderer,settled,25325,25325
 0006f6a0,nglLightSetAddProjector,.text,renderer,settled,135,135

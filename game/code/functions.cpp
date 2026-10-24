@@ -444,6 +444,7 @@ const Function kFunctions[] = {
     {"nglDebugMeshVertexIter_Clone", 0x0006e920, 0, code(&nglDebugMeshVertexIter_Clone), 0, Result::Eax, Status::Compare},
     {"nglInitFrameBuffers", 0x0006e9c0, 0, code(&nglInitFrameBuffers), 0, Result::None, Status::Compare},
     {"nglReadBackBufferSize", 0x0006eca0, 0, code(&nglReadBackBufferSize), 0, Result::None, Status::Compare},
+    {"nglCreateNormalCubeMap", 0x0006f080, 0, code(&nglCreateNormalCubeMap), 4, Result::None, Status::Compare},
     {"nglSelectMeshProjectors", 0x0006fb30, 0, code(&nglSelectMeshProjectors), 0, Result::None, Status::Compare},
     {"nglUpdateScene_Nop", 0x00073ad0, 0, code(&nglUpdateScene_Nop), 0, Result::None, Status::Compare},
     {"nglAssemblePixelShader", 0x00076120, 0, code(&nglAssemblePixelShader_entry), 8, Result::Eax, Status::Compare},

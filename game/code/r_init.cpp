@@ -300,6 +300,73 @@ void XB_CDECL nglDumpSceneMeshes(const uint8_t* instance, const float* matrix, c
     nglDumpPrintf(dump_file(), "ENDMODEL\n");
 }
 
+void XB_CDECL nglCreateNormalCubeMap(uint32_t size) {
+    NglTexture*& cube = title_global<NglTexture*>(0x00902cc8);
+    uint32_t& cube_size = title_global<uint32_t>(0x00902ccc);
+    if (cube_size == size) return;
+    if (cube) {
+        nglFreeTexture(cube);
+        cube = nullptr;
+        cube_size = 0;
+    }
+    NglTexture* const texture = nglCreateTexture(0x10000101, size, size, 0, 0);
+    uint8_t hashed[0x20];
+    title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(hashed, "nglNormalCubeMapTex");  // HashStr_Init
+    std::memcpy(texture->name, hashed, sizeof hashed);
+    uint32_t* const pixels = static_cast<uint32_t*>(Mem_AlignedAlloc(size * size * 4, 4, 0));
+    const float last = platform_x87_unsigned_mul_mul(size - 1, 1.0f, 1.0f);
+    // (index / (size - 1)) * 2 - 1 on the x87.
+    const auto coordinate = [&](uint32_t index) {
+        return platform_x87_add(platform_x87_div_mul(platform_x87_unsigned_mul_mul(index, 1.0f, 1.0f), last, 2.0f),
+                                -1.0f);
+    };
+    float v[4] = {};
+    for (uint32_t face = 0; face < 6; ++face) {
+        uint32_t* out = pixels;
+        for (uint32_t row = 0; row < size; ++row) {
+            const float s = coordinate(row);
+            for (uint32_t column = 0; column < size; ++column) {
+                const float t = coordinate(column);
+                switch (face) {  // (x, y, z, w) of the face's direction
+                case 0: v[0] = 1.0f, v[1] = 0.0f - s, v[2] = 0.0f - t, v[3] = 1.0f; break;
+                case 1: v[0] = -1.0f, v[1] = 0.0f - s, v[2] = t, v[3] = -1.0f; break;
+                case 2: v[0] = t, v[1] = 1.0f, v[2] = s, v[3] = t; break;
+                case 3: v[0] = t, v[1] = -1.0f, v[2] = 0.0f - s, v[3] = t; break;
+                case 4: v[0] = t, v[1] = 0.0f - s, v[2] = 1.0f, v[3] = t; break;
+                case 5: v[0] = 0.0f - t, v[1] = 0.0f - s, v[2] = -1.0f, v[3] = 0.0f - t; break;
+                }
+                const float length2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+                float scale = 0.0f;
+                if (!(length2 == 0.0f)) {
+                    // One Newton step on RSQRTSS.
+                    uint32_t bits;
+                    std::memcpy(&bits, &length2, 4);
+                    bits &= 0x7fffffffu;
+                    float a;
+                    std::memcpy(&a, &bits, 4);
+                    const float r = platform_rsqrt_estimate(a);
+                    scale = (3.0f - r * r * a) * r * 0.5f;
+                }
+                for (float& lane : v) lane *= scale;
+                const auto channel = [](float x) { return static_cast<uint32_t>(platform_ftol((x + 1.0f) * 127.5f)); };
+                *out++ = (((channel(v[0]) | 0xffffff00u) << 8 | channel(v[1])) << 8) | channel(v[2]);
+            }
+        }
+        const uint32_t surface = title_function<uint32_t XB_STDCALL(uint8_t*, uint32_t, uint32_t)>(0x003ebd70)(
+            texture->d3d_texture, face, 0);  // D3DCubeTexture_GetCubeMapSurface2
+        uint32_t locked[2] = {};             // D3DLOCKED_RECT {pitch, bits}
+        title_function<void XB_STDCALL(uint32_t, uint32_t*, uint32_t, uint32_t)>(0x003ebe50)(surface, locked, 0,
+                                                                                            0);  // D3DSurface_LockRect
+        title_function<void XB_STDCALL(const void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                       uint32_t)>(0x003fa203)(pixels, 0, 0, locked[1], size, size, 0,
+                                                              4);  // XGSwizzleRect
+        title_function<uint32_t XB_STDCALL(uint32_t)>(0x003e7ef0)(surface);  // D3DResource_Release
+    }
+    Mem_AlignedFree(pixels);
+    cube = texture;
+    cube_size = size;
+}
+
 void XB_CDECL nglAllocFrameMemory() {
     // nglSetFrameMemorySize inlined five times, each for a size not set yet.
     if (!title_global<uint32_t>(0x009025a4)) nglSetFrameMemorySize(0, 0x40000, 1);   // scene memory
