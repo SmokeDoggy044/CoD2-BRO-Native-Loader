@@ -44,6 +44,8 @@ ext XB_CDECL Scr_Sin(float x) { return platform_x87_sin_ext(x); }
 ext XB_CDECL Scr_Tan(float x) { return platform_x87_tan_ext(x); }
 ext XB_CDECL Scr_Abs(float x) { return platform_x87_abs_ext(x); }
 ext XB_CDECL Scr_Sqrt(float x) { return platform_x87_sqrt_ext(x); }
+ext XB_CDECL Scr_Acos(float x) { return title_ci_unary_ext(0x001f0ff4, x); }  // __CIacos
+ext XB_CDECL Scr_Asin(float x) { return title_ci_unary_ext(0x001f1d6c, x); }  // __CIasin
 ext XB_CDECL Scr_Atan(float x) { return platform_x87_atan_ext(x); }
 ext XB_CDECL Scr_Log(float x) { return platform_x87_ln_ext(x); }
 

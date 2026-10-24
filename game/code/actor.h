@@ -397,7 +397,7 @@ void XB_REGS3 XB_CDECL Actor_DefaultTouch(uint32_t, const uint8_t* other, uint8_
 // node covers against the threat, else 0. Returns 1.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateCoverValidity(const uint8_t* threat, uint8_t* actor, const uint8_t* node);
 extern "C" void Actor_UpdateCoverValidity_entry(void);
-// 0x00202770 (actor in ESI, state in EDI; not in kFunctions: its CALL starts at byte 4, unhookable): pushes the
+// 0x00202770 (actor in ESI, state in EDI): pushes the
 // state if allowed (popping what it blocks first);
 // returns 1, or 0 when not allowed.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_PushState(uint8_t* actor, uint32_t state);
@@ -470,7 +470,7 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PathNode_CanSee(const uint8_t* bloc
                                                             const uint16_t* second);
 extern "C" void PathNode_CanSee_entry(void);
 
-// 0x00203de0 (actor in EAX, anim script in ESI; unhookable: CALL at byte 3, no kFunctions row, untested): Actor_FindNearbyActor, then the script (g_animScript_walk instead
+// 0x00203de0 (actor in EAX, anim script in ESI): Actor_FindNearbyActor, then the script (g_animScript_walk instead
 // when +0x1390 is set and the speed +0x2a0/+0x2a4 is at least 1) into +0x254, mode 7 (+0x27c), +0x285 = 0.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_AnimStationary(uint8_t* actor, uint32_t script);
 extern "C" void Actor_AnimStationary_entry(void);

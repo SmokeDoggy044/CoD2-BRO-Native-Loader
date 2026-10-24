@@ -39,6 +39,9 @@ extern "C" void Scr_StartThread_ent_hash_i_i_f_f_f_f_hash_2_entry(void);
 // a4, a5, functor) and it tail-jumps to Scr_BeginThreadEndOn.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_BeginThreadEndOnFunctor1(uint32_t* args);
 extern "C" void Scr_BeginThreadEndOnFunctor1_entry(void);
+// 0x0011c170 (entity in ECX): the entity's script object (0x0011db20 of its first word), or the
+// empty key table 0x00922e94 when it has none.
+uint32_t XB_THISCALL Scr_GetEntObjectOrEmpty(const uint32_t* entity);
 // 0x00248af0 (cdecl fmt, ...): formats into a local buffer (_vsprintf) and drops it.
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL G_Error(const uint32_t* args);
 extern "C" void G_Error_entry(void);

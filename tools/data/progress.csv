@@ -122,8 +122,8 @@ address,name,section,module,state,tested,matched
 000138c0,PtrVector_PushBack,.text,qcommon,named,0,0
 00013940,FUN_00013940,.text,unassigned,unnamed,0,0
 00013970,PtrVector_Resize,.text,qcommon,named,0,0
-000139e0,Scr_Acos,.text,game,named,0,0
-000139f0,Scr_Asin,.text,game,named,0,0
+000139e0,Scr_Acos,.text,game,untested,0,0
+000139f0,Scr_Asin,.text,game,untested,0,0
 00013a00,Scr_Atan,.text,game,untested,0,0
 00013a10,Scr_Atan2,.text,game,untested,0,0
 00013c60,AnglesToForward,.text,qcommon,named,0,0
@@ -1698,7 +1698,7 @@ address,name,section,module,state,tested,matched
 00068560,nglSelectMeshLod,.text,renderer,settled,2172,2172
 00068680,nglScaleMeshMatrix,.text,renderer,settled,1737,1737
 00068850,nglListAddMesh,.text,renderer,settled,1020,1020
-00068f70,FUN_00068f70,.text,renderer,unnamed,0,0
+00068f70,FUN_00068f70,.text,renderer,untested,0,0
 00069b00,nglEmpty_GetName,.text,renderer,untested,0,0
 00069b40,nglSkipList_RemoveIndirect,.text,renderer,untested,0,0
 00069c60,nglSkipList_Clear,.text,renderer,untested,0,0
@@ -2706,10 +2706,10 @@ address,name,section,module,state,tested,matched
 000c4690,SndVoice_SetOrigin,.text,sound,settled,458,458
 000c47d0,FUN_000c47d0,.text,unassigned,unnamed,0,0
 000c4910,FUN_000c4910,.text,unassigned,unnamed,0,0
-000c4af0,SndVoice_ApplyParams,.text,sound,named,0,0
+000c4af0,SndVoice_ApplyParams,.text,sound,settled,5148,5148
 000c5100,SndSource_CommitDirty,.text,sound,settled,484,484
 000c5390,FUN_000c5390,.text,unassigned,unnamed,0,0
-000c53b0,S_ClearVoiceAttenuation,.text,sound,named,0,0
+000c53b0,S_ClearVoiceAttenuation,.text,sound,settled,1075,1075
 000c5400,FUN_000c5400,.text,unassigned,unnamed,0,0
 000c5560,FUN_000c5560,.text,unassigned,unnamed,0,0
 000c56b0,FUN_000c56b0,.text,unassigned,unnamed,0,0
@@ -2757,7 +2757,7 @@ address,name,section,module,state,tested,matched
 000c8470,SndVoice_Get,.text,sound,settled,270,270
 000c84b0,SndHw_AllocSlot,.text,sound,settled,4937,4937
 000c8580,SndHw_ReleaseSlot,.text,sound,settled,212,212
-000c85c0,Snd_UpdateListenerAxis,.text,sound,named,0,0
+000c85c0,Snd_UpdateListenerAxis,.text,sound,settled,4333,4333
 000c88c0,FUN_000c88c0,.text,unassigned,unnamed,0,0
 000c8c10,FUN_000c8c10,.text,unassigned,unnamed,0,0
 000c8d30,FUN_000c8d30,.text,unassigned,unnamed,0,0
@@ -2800,7 +2800,7 @@ address,name,section,module,state,tested,matched
 000caf20,FUN_000caf20,.text,unassigned,unnamed,0,0
 000caff0,File_ReadAt,.text,qcommon,named,0,0
 000cb0f0,FUN_000cb0f0,.text,unassigned,unnamed,0,0
-000cb200,Snd_UpdateTime,.text,sound,named,0,0
+000cb200,Snd_UpdateTime,.text,sound,settled,7913,7913
 000cb390,FUN_000cb390,.text,unassigned,unnamed,0,0
 000cb440,HandlePool_Resolve,.text,qcommon,settled,356,356
 000cb510,HandlePool_Alloc,.text,qcommon,named,0,0
@@ -4144,7 +4144,7 @@ address,name,section,module,state,tested,matched
 0011c0e0,FUN_0011c0e0,.text,unassigned,unnamed,0,0
 0011c100,FUN_0011c100,.text,unassigned,unnamed,0,0
 0011c130,FUN_0011c130,.text,unassigned,unnamed,0,0
-0011c170,Scr_GetEntObjectOrEmpty,.text,game,named,0,0
+0011c170,Scr_GetEntObjectOrEmpty,.text,game,untested,0,0
 0011c1b0,liberator_wad_Level_DeletingDtor,.text,levelscript,named,0,0
 0011c1d0,ScrClass_0080873c_Dtor,.text,script,named,0,0
 0011ca00,gela_wad_Level_DeletingDtor,.text,levelscript,named,0,0
@@ -7653,7 +7653,7 @@ address,name,section,module,state,tested,matched
 00202010,Actor_AskActorsToMoveAside,.text,game,settled,108,108
 002025c0,Actor_ThinkStateMachine,.text,game,settled,314,314
 002026f0,Actor_ForceState,.text,game,settled,105,105
-00202770,Actor_PushState,.text,game,named,0,0
+00202770,Actor_PushState,.text,game,settled,1497,1497
 002027d0,Actor_DropClaimedNode,.text,game,named,0,0
 002028a0,FUN_002028a0,.text,unassigned,unnamed,0,0
 002029d0,Sentient_Free,.text,game,named,0,0
@@ -7676,7 +7676,7 @@ address,name,section,module,state,tested,matched
 00203610,Actor_RegisterSuppression,.text,game,settled,2409,2409
 00203780,Actor_EventBullet,.text,game,named,0,0
 002038b0,Actor_IsCoverValidAgainst,.text,game,settled,752,752
-00203de0,Actor_AnimStationary,.text,game,named,0,0
+00203de0,Actor_AnimStationary,.text,game,settled,521,521
 00203e60,Actor_FindStepAsideNode,.text,game,named,0,0
 00203f60,G_FilterCachedCandidates,.text,game,settled,2554,2554
 00204060,Actor_GetAnimTree,.text,game,settled,100,100
@@ -8942,7 +8942,7 @@ address,name,section,module,state,tested,matched
 00292ee0,Key_TranslateButtonName,.text,client,untested,0,0
 00292fe0,Com_HashKeyNoCase,.text,qcommon,settled,305,305
 002931c0,FUN_002931c0,.text,unassigned,unnamed,0,0
-00293310,Snd_CountBusyVoices,.text,sound,named,0,0
+00293310,Snd_CountBusyVoices,.text,sound,settled,172,172
 00293410,FUN_00293410,.text,unassigned,unnamed,0,0
 00293450,FUN_00293450,.text,unassigned,unnamed,0,0
 00293720,SCR_RedrawFrontBuffer,.text,client,named,0,0
@@ -9627,7 +9627,7 @@ address,name,section,module,state,tested,matched
 002c4a00,AnimTree_Create,.text,xanim,named,0,0
 002c4ae0,AnimData_Purge,.text,xanim,named,0,0
 002c4c50,SV_AddEntitiesVisibleFromPoint,.text,server,settled,142,142
-002c4e50,SV_UpdateInfoConfigstrings,.text,server,named,0,0
+002c4e50,SV_UpdateInfoConfigstrings,.text,server,settled,980,980
 002c4ed0,SV_AllocServerStatic,.text,server,settled,104,104
 002c4f50,SV_RestartGameProgs,.text,server,named,0,0
 002c4fe0,SV_ExecuteClientMessage,.text,server,settled,116,116
@@ -9965,7 +9965,7 @@ address,name,section,module,state,tested,matched
 002f4510,SV_LoadLastSave_f,.text,server,named,0,0
 002f4550,SV_LoadGame_f,.text,server,named,0,0
 002f4770,SV_AddOperatorCommands,.text,server,matched,50,50
-002f48e0,SV_Init,.text,server,named,0,0
+002f48e0,SV_Init,.text,server,untested,0,0
 002f4a50,GScr_ObjectiveStateFromString,.text,script,named,0,0
 002f4b00,FUN_002f4b00,.text,unassigned,unnamed,0,0
 002f4b10,FUN_002f4b10,.text,unassigned,unnamed,0,0
