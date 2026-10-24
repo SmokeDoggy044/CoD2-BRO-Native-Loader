@@ -3501,15 +3501,16 @@ void XB_REGS1 XB_CDECL R_DrawTextWithShadow(const float* color, const char* text
     // the colour's alpha, then in the colour.
     const int32_t slot = R_FindFont("arialblack_14", 0);
     const uint8_t* font = (slot == 7 || slot == 8) ? nullptr : title_global<uint8_t*>(0x0095f8d4 + slot * 4);
-    const float fy = static_cast<float>(y);
-    const float fx = static_cast<float>(x);
+    // FILD/FSTP and FLD/FMUL into _ftol on the x87: no MXCSR flags.
+    const float fy = platform_x87_int_to_float(y);
+    const float fx = platform_x87_int_to_float(x);
     const float k = title_global<float>(0x0083eb8c);  // 255
-    const uint32_t shadow = static_cast<uint32_t>(platform_ftol(color[3] * k)) << 24;
+    const uint32_t shadow = static_cast<uint32_t>(platform_x87_mul_ftol(color[3], k)) << 24;
     nglListAddText(font, text, fx, fy, z, shadow, scale, scale);
-    uint32_t argb = static_cast<uint32_t>(platform_ftol(color[3] * k));
-    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color[0] * k));
-    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color[1] * k));
-    argb = (argb << 8) | static_cast<uint32_t>(platform_ftol(color[2] * k));
+    uint32_t argb = static_cast<uint32_t>(platform_x87_mul_ftol(color[3], k));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_x87_mul_ftol(color[0], k));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_x87_mul_ftol(color[1], k));
+    argb = (argb << 8) | static_cast<uint32_t>(platform_x87_mul_ftol(color[2], k));
     nglListAddText(font, text, fx, fy, z, argb, scale, scale);
 }
 

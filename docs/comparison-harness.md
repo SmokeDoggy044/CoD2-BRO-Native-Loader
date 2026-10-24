@@ -48,7 +48,11 @@ the library is built with `-msse -mfpmath=sse` so float math rounds like the tit
 code (keep the original's operation order; `0 - x` is not `-x` for x = 0). MXCSR's
 exception flags are compared too: where the original computes whole packed vectors
 (DIVPS) and uses one lane, compute the other lanes as well and keep them with
-`platform_keep` (compiler.h) - a 0/0 in an unused lane sets the invalid flag. No range-for
+`platform_keep` (compiler.h) - a 0/0 in an unused lane sets the invalid flag. Int to float
+the title does on the x87 (FILD/FSTP, FLD/FMUL into _ftol) goes through the platform_x87_*
+helpers: CVTSI2SS sets the precision flag above 2^24 and rounds by MXCSR. The title's inline
+memcpy (REP MOVSD + REP MOVSB) is `platform_rep_movs`: front to back, like the title on
+overlapping ranges. No range-for
 over a braced list (`for (int i : {1, 2})`): the Debug build calls
 `std::initializer_list` members out of line, the loader's copies win, and every test
 ends inconclusive ("called host code"); use a static array. `--compare`
@@ -296,7 +300,18 @@ picks the functions (default: every module's untested, inconclusive, mismatched 
 ones, so the offline ones stay checked, plus decompiled gap functions - no symbol, so not in
 progress.csv - as state `unsorted`; `--module`, `--states`): no indirect calls (kernel thunks, vtables, callbacks), no FS or
 privileged instructions, no calls into D3D/DSOUND/XONLINE/XNET/XPP, callees passing the same
-test. Globals are allowed; the ones read by the function and its callees are randomized,
+test; `int3` is fine: the original crashes and the input is skipped; call depth up to 12).
+Only instructions reachable from the entry count. A call through a constant table
+(`call [reg*4+table]` in .rdata/.data, the NAL entropy modes) has the table's leading code
+addresses as callees; eh_vector_constructor_iterator's callers have the constructor they push.
+Stand-ins (`kStandins`, leafscan's STANDINS): Z_Malloc (0x00042cb0), XPhysicalAlloc/Free and
+_aligned_malloc/free jump to the test's bump heap (1 MB of its own mapping between no-access guard
+pages: in .bss it sat below malloc's heap and an overrun corrupted the worker), reset and zeroed
+before each run, compared after it like the arena, with the list of freed pointers; _vsprintf,
+_sprintf and __vsnprintf (they reach _getptd through FS) format with the host's printf (an i386
+va_list is the same pointer), refusing %n; our C reaches them through the title's
+addresses, so both sides get the same answers. Pinned: Mem_AlignedFree's free hook 0x009098ec
+stays 0 (never randomized). Globals are allowed; the ones read by the function and its callees are randomized,
 except constants in writable sections: every instruction naming the address reads it, none
 writes it or takes its address, and nothing within 16 bytes below is a base (address taken, or
 indexed by a register) - FastSinCos's rounding constant 0x008febd0 lives in .data. A heuristic:
@@ -306,10 +321,19 @@ Inputs are random: registers, XMM registers, 8 stack words (always 8: a caller's
 words above the arguments, and kFunctions' arg_bytes can be short - nglSelectMeshLodWithMatrix
 says 0 but takes two), the globals, and a 32 KB arena of 1 KB chunks whose words are small
 integers, bit masks, floats (0, -0, NaN, infinities, denormals...), random words, text or
-pointers to near the start of a chunk (pointer chains to any depth). The arguments each get a
+pointers to near the start of a chunk (pointer chains to any depth). The arena sits between
+no-access guard pages (it is mapped first, right below the libraries: a write past its end
+corrupted ld.so and libc). The arguments each get a
 chunk of their own (two arguments are never the same object; with self == src FxOpdd_Init's
 order of stores differed); an argument the original faulted near becomes mostly a pointer from
-then on (address - value < 4 KB). The x87 control word and MXCSR vary per input (24/53/64-bit
+then on (address - value < 4 KB), and so does an arena field: a fault within 4 KB above at most 8
+arena words gives each of their chunk offsets 1/n, and from 1 on that offset is mostly a pointer
+in every chunk. Half of the inputs mutate an earlier one the original ran without crashing (a
+corpus of 256: 1-4 changes to arena words near a chunk's start, input slots, or the x87/SSE
+modes; a pointer argument is redrawn when it would share another argument's chunk), only
+inputs the original finished within 2 ms (a long loop's input would fill the corpus with slow ones),
+so the rare input that gets through a chain of pointers and small indexes leads to more
+like it (NAL_EntropyMode0C: 8 inputs of 4000 to 1862; Actor_GrenadeTargetClear 0 to 742). The x87 control word and MXCSR vary per input (24/53/64-bit
 precision, truncation; FTZ, round down). The calls run on their own stack. Random words never
 point into host memory (any mapping but the arena and the image, and 64 MB below the main
 stack, which the kernel grows into on any access: -inf = 0xff800000 as a pointer read fresh
@@ -319,12 +343,14 @@ Compared as in the game (below, What is compared): the result by kind, EBX/ESI/E
 the return, DF, the x87 control word, depth and values, MXCSR, the arena, and every title data
 page either side wrote (they are read-only during a call; the first write to each faults and is
 recorded). Stack arguments are not compared (callee scratch). Inputs the original crashes on
-or runs over 50 ms with are skipped (our C, slower at -O0, gets a second run with 2 s), and so
+or runs over 10 ms with (50 ms when single-stepped) are skipped (random counts make long loops,
+and each timed-out input costs the whole limit; our C, slower at -O0, gets a second run with 2 s), and so
 are inputs an x87-result function returns from with an empty x87 stack (FPTAN out of range
 pushes nothing: Scr_Tan's caller would underflow), and so are unstable ones: on a mismatch the original runs
 again with the stack 0x2040 bytes lower, and if its own result changes, a pointer computed from
 random fields landed on the call stack, where the two versions' frames differ
-(FxPool_SetSlotTag's entry = pool + index * 8: 1 to 5 inputs in 10,000). Outcomes: matched, drift, **nan** (every difference is two
+(FxPool_SetSlotTag's entry = pool + index * 8: 1 to 5 inputs in 10,000). Outcomes: matched, drift (every difference a close float or two
+NaNs, as projections give both), **nan** (every difference is two
 NaNs: SSE returns the first operand's NaN and GCC swaps commutative operands - only random
 inputs hold NaNs, not game data; not a failure; a byte counts as a NaN difference when some 4
 bytes around it are NaN on both sides, since random strides put particle floats at any address),
@@ -337,11 +363,14 @@ the input counts as nan. Store by store when both made as many stores (exact), o
 each byte's sequence of changes. Checked by restoring a fixed bug (FrenetMove clamping its
 cached curvature instead of re-reading it): still 4 mismatches. The original is
 single-stepped (TF) on every fourth input: coverage is the share of its instructions reachable
-from the entry that ran. Worker processes (`LEAF_JOBS`, default half the CPUs, at most 4) take every N-th function;
-the whole renderer list takes about 3.5 minutes on 8 CPUs. A worker can die outside a call (a
-pointer computed from random fields wrote into its own heap; seen once, not reproducible: the
-arena's address changes each run unless ASLR is off): it names the function it was on, and the functions it had
-not finished run again in fresh workers (two more rounds; still missing fails the test).
+from the entry that ran. A function stops after 15 s once 1000 inputs ran (the slowest loops).
+Worker processes (`LEAF_JOBS`, default half the CPUs, at most 4) take functions from a shared
+queue (between guard pages: next to the arena, an overrun once filled its counters). A worker can
+die outside a call (a pointer computed from random fields wrote into its own heap): it names the
+function it was on, and a fresh worker takes the dead one's place at once and runs that function
+first, on a clean heap: the corruption is often done by an earlier function and noticed by malloc
+later, so the victim passes there. Within one run every worker has the same arena address, so a
+function that kills a fresh worker kills all three tries and fails the test.
 `LEAF_ITERS=N` (default 4000), `LEAF_ONLY=a,b`, `LEAF_VERBOSE=1`
 (where the original crashed: the fixed sites tell which input needs a better shape).
 `LEAF_DUMP=DIR` writes each function's first mismatch as `DIR/<name>.case` (arena address,

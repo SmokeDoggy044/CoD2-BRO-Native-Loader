@@ -28,12 +28,15 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <ucontext.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
@@ -180,6 +183,103 @@ std::vector<std::pair<uint32_t, uint32_t>> g_host_ranges;  // inclusive
 
 uint32_t g_host_lowest = 0xffffffff;
 
+// The test's own memory a call may write (arena, call stack, stand-in heap) sits in the middle
+// of a no-access reservation: a pointer computed from random fields (base + index * stride)
+// that lands within kSlack of it faults inside the call instead of corrupting ld.so, libc or
+// malloc's heap next to it. `at` (a replayed case's arena): exactly there, slack one page.
+constexpr uint32_t kSlack = 16u << 20;
+uint8_t* map_guarded(uint32_t size, uint32_t at = 0) {
+    const uint32_t slack = at ? 0x1000 : kSlack;
+    void* base = mmap(reinterpret_cast<void*>(static_cast<uintptr_t>(at ? at - slack : 0)), size + 2 * slack, PROT_NONE,
+                      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | (at ? MAP_FIXED_NOREPLACE : 0), -1, 0);
+    if (base == MAP_FAILED) return nullptr;
+    uint8_t* inside = static_cast<uint8_t*>(base) + slack;
+    mprotect(inside, size, PROT_READ | PROT_WRITE);
+    return inside;
+}
+
+// Stand-ins: title allocators whose state lives behind randomized globals (Z_Malloc's heap)
+// or in the kernel (XPhysicalAlloc). Their entries jump here (push imm32; ret), so the
+// original and our C (which calls them by title address) get the same answers: a bump heap
+// reset before each run, zeroed, compared after it like the arena, and a log of the frees.
+// Its own mapping between no-access guard pages (map_image): in .bss it sat just below
+// malloc's heap, and a write past a block corrupted the worker's own heap.
+constexpr uint32_t kHeapSize = 1 << 20;
+uint8_t* g_heap;
+uint32_t g_heap_used;
+uint32_t g_frees[256], g_free_count;
+void* heap_alloc(uint32_t size, uint32_t align) {
+    align = align < 16 ? 16 : align;
+    if ((align & (align - 1)) || size > kHeapSize) return nullptr;
+    const uint32_t at = (g_heap_used + align - 1) & ~(align - 1);
+    if (at + size > kHeapSize) return nullptr;
+    g_heap_used = at + size;
+    return g_heap + at;
+}
+void heap_free(void* pointer) {
+    if (g_free_count < 256) g_frees[g_free_count] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pointer));
+    ++g_free_count;
+}
+__attribute__((force_align_arg_pointer)) void* XB_CDECL standin_z_malloc(uint32_t size) { return heap_alloc(size, 16); }
+__attribute__((force_align_arg_pointer)) void* XB_STDCALL standin_physical_alloc(uint32_t size, uint32_t, uint32_t align, uint32_t) {
+    return heap_alloc(size, align ? align : kPage);
+}
+__attribute__((force_align_arg_pointer)) void XB_STDCALL standin_physical_free(void* pointer) { heap_free(pointer); }
+__attribute__((force_align_arg_pointer)) void* XB_CDECL standin_aligned_malloc(uint32_t size, uint32_t align) { return heap_alloc(size, align); }
+__attribute__((force_align_arg_pointer)) void XB_CDECL standin_aligned_free(void* pointer) { heap_free(pointer); }
+// The CRT's printf family reaches _getptd (thread data through FS): host formatting instead
+// (an i386 va_list is the same pointer to the arguments). %n is refused (-1, nothing written):
+// random formats would make it write anywhere.
+bool writes_count(const char* format) {
+    for (const char* p = format; *p; ++p) {
+        if (*p != '%') continue;
+        ++p;
+        while (*p && std::strchr("-+ #0123456789.*hlLIqjzt", *p)) ++p;
+        if (*p == 'n') return true;
+        if (!*p) break;
+    }
+    return false;
+}
+__attribute__((force_align_arg_pointer)) int32_t XB_CDECL standin_vsprintf(char* out, const char* format, va_list args) {
+    return writes_count(format) ? -1 : std::vsprintf(out, format, args);
+}
+__attribute__((force_align_arg_pointer)) int32_t XB_CDECL standin_sprintf(char* out, const char* format, ...) {
+    if (writes_count(format)) return -1;
+    va_list args;
+    va_start(args, format);
+    const int32_t n = std::vsprintf(out, format, args);
+    va_end(args);
+    return n;
+}
+// MSVC's _vsnprintf: no terminator when the text fills the buffer, -1 when it does not fit.
+__attribute__((force_align_arg_pointer)) int32_t XB_CDECL standin_vsnprintf(char* out, uint32_t count, const char* format, va_list args) {
+    if (writes_count(format)) return -1;
+    va_list copy;
+    va_copy(copy, args);
+    const int n = std::vsnprintf(nullptr, 0, format, copy);
+    va_end(copy);
+    if (n < 0) return -1;
+    std::vector<char> text(static_cast<size_t>(n) + 1);
+    std::vsnprintf(text.data(), text.size(), format, args);
+    if (static_cast<uint32_t>(n) > count) {
+        std::memcpy(out, text.data(), count);
+        return -1;
+    }
+    std::memcpy(out, text.data(), static_cast<uint32_t>(n) < count ? static_cast<size_t>(n) + 1 : static_cast<size_t>(n));
+    return n;
+}
+// tools/leafscan.py's STANDINS lists the same addresses (callees it does not scan).
+const std::pair<uint32_t, void*> kStandins[] = {
+    {0x00042cb0, reinterpret_cast<void*>(&standin_z_malloc)},
+    {0x001e763a, reinterpret_cast<void*>(&standin_physical_alloc)},
+    {0x001e76ba, reinterpret_cast<void*>(&standin_physical_free)},
+    {0x001f114f, reinterpret_cast<void*>(&standin_aligned_malloc)},
+    {0x001f113a, reinterpret_cast<void*>(&standin_aligned_free)},
+    {0x001eea95, reinterpret_cast<void*>(&standin_vsprintf)},
+    {0x001ee901, reinterpret_cast<void*>(&standin_sprintf)},
+    {0x001efce2, reinterpret_cast<void*>(&standin_vsnprintf)},
+};
+
 bool in_host_memory(uint32_t v) {
     if (v < g_host_lowest) return false;
     for (const auto& [lo, hi] : g_host_ranges)
@@ -270,6 +370,15 @@ bool map_image(const Xbe& xbe) {
     if (!data_start) return false;
     g_data_lo = data_start & ~(kPage - 1);
     g_data_hi = g_image_hi;
+    for (const auto& [address, standin] : kStandins) {
+        uint8_t* code = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(address));
+        const uint32_t target = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(standin));
+        code[0] = 0x68;  // push target; ret
+        std::memcpy(code + 1, &target, 4);
+        code[5] = 0xc3;
+    }
+    g_heap = map_guarded(kHeapSize);
+    if (!g_heap) return false;
     // Code read-only and executable, .rdata read-only; the data pages are switched per run.
     mprotect(at, g_data_lo - kImageBase, PROT_READ | PROT_EXEC);
     g_data_base.assign(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(g_data_lo)),
@@ -330,9 +439,33 @@ struct Gen {
         default: return rng();
         }
     }
+    // Learned per function: chunk offsets (words) the original dereferenced. A fault near
+    // a word at that offset adds 1/n (n words explained the fault); from 1 on, the word is
+    // mostly a pointer in every chunk (structures start near a chunk's start).
+    float pointer_score[kChunk / 4] = {};
+    void learn_fault(const uint8_t* arena_in, uint32_t address) {
+        const uint32_t lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena)), hi = lo + kArenaSize;
+        uint32_t found[8], n = 0;
+        for (uint32_t i = 0; i < kArenaSize; i += 4) {
+            uint32_t w;
+            std::memcpy(&w, arena_in + i, 4);
+            if (address - w >= kPage || (w >= lo && w < hi)) continue;
+            if (n == 8) return;  // too many candidates (a small fault address): no evidence
+            found[n++] = i % kChunk / 4;
+        }
+        for (uint32_t k = 0; k < n; ++k) pointer_score[found[k]] += 1.0f / static_cast<float>(n);
+    }
     void fill_arena() {
         static const uint32_t kPointerPercent[] = {15, 30, 60, 85};
         pointer_percent = kPointerPercent[below(4)];
+        fill_words();
+        for (uint32_t i = 0; i < kArenaSize; i += 4)
+            if (pointer_score[i % kChunk / 4] >= 1.0f && below(10)) {
+                const uint32_t v = pointer();
+                std::memcpy(arena + i, &v, 4);
+            }
+    }
+    void fill_words() {
         switch (below(5)) {
         case 0: {  // text: letters, digits, spaces, terminators (strings, char compares)
             static const char kText[] = "aAbBzZ_ 09^\0";
@@ -359,6 +492,8 @@ struct Outcome {
     int signal = 0;
     Ctx ctx;
     std::vector<uint8_t> arena;
+    std::vector<uint8_t> heap;     // the stand-ins' heap as far as it was used
+    std::vector<uint32_t> frees;  // pointers passed to the stand-in frees, in order
     std::vector<std::pair<uint32_t, std::vector<uint8_t>>> pages;  // written data pages, contents
     std::vector<ArenaWrite> writes;  // with log_arena: every byte a store changed, in order
     uint32_t stores = 0;
@@ -391,6 +526,9 @@ struct Runner {
         o.ctx = input;
         o.ctx.target = target;
         std::memcpy(arena, arena_in.data(), kArenaSize);
+        std::memset(g_heap, 0, g_heap_used);
+        g_heap_used = 0;
+        g_free_count = 0;
         g_dirty_list.clear();
         protect_data(PROT_READ);
         if (log_arena) {
@@ -426,6 +564,9 @@ struct Runner {
             o.writes_complete = !g_log_full;
         }
         o.arena.assign(arena, arena + kArenaSize);
+        o.heap.assign(g_heap, g_heap + ((g_heap_used + 3) & ~3u));
+        o.frees.assign(g_frees, g_frees + std::min<uint32_t>(g_free_count, 256));
+        if (g_free_count > 256) o.frees.push_back(g_free_count);
         for (uint32_t page : g_dirty_list) {
             o.pages.emplace_back(page, std::vector<uint8_t>(data_page(page), data_page(page) + kPage));
             g_dirty[page] = 0;
@@ -472,7 +613,8 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
     bool only_floats = true, only_nans = true;
     auto reg = [&](const char* name, uint32_t x, uint32_t y, bool may_drift = false) {
         if (x == y) return;
-        if (!(may_drift && float_close(x, y))) only_floats = false;
+        // Drift: every difference is a close float or two NaNs (projections give both).
+        if (!(may_drift && (float_close(x, y) || (is_nan(x) && is_nan(y))))) only_floats = false;
         if (!(may_drift && is_nan(x) && is_nan(y))) only_nans = false;
         if (diff.size() < 400) diff += std::string(" ") + name + " " + hex(x) + "/" + hex(y);
     };
@@ -530,7 +672,7 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
             std::memcpy(&u, p + i, 4);
             std::memcpy(&v, q + i, 4);
             if (u == v) continue;
-            if (!float_close(u, v)) only_floats = false;
+            if (!float_close(u, v) && !(is_nan(u) && is_nan(v))) only_floats = false;
             for (uint32_t k = i; k < i + 4; ++k)
                 if (p[k] != q[k] && !nan_byte(p, q, size, k)) only_nans = false;
             if (diff.size() < 600) diff += std::string(" ") + where + " " + hex(base + i) + " " + hex(u) + "/" + hex(v);
@@ -538,6 +680,17 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
     };
     if (registers_only) return diff;
     memory("arena", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(runner.arena)), a.arena.data(), b.arena.data(), kArenaSize);
+    if (a.heap.size() != b.heap.size()) {
+        diff += " heap used " + hex(static_cast<uint32_t>(a.heap.size())) + "/" + hex(static_cast<uint32_t>(b.heap.size()));
+        only_floats = only_nans = false;
+    } else {
+        memory("heap", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g_heap)), a.heap.data(), b.heap.data(),
+               static_cast<uint32_t>(a.heap.size()));
+    }
+    if (a.frees != b.frees) {
+        diff += " frees differ";
+        only_floats = only_nans = false;
+    }
     // Data pages: the written content, or the page as both started (base + inputs).
     std::set<uint32_t> pages;
     for (const auto& p : a.pages) pages.insert(p.first);
@@ -554,8 +707,8 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
         for (const auto& p : b.pages) if (p.first == page) pb = p.second.data();
         memory("data", g_data_lo + page * kPage, pa, pb, kPage);
     }
-    drift = !diff.empty() && only_floats;
-    nan = !diff.empty() && only_nans && !only_floats;
+    nan = !diff.empty() && only_nans;
+    drift = !diff.empty() && only_floats && !only_nans;
     return diff;
 }
 
@@ -671,10 +824,10 @@ int main() {
         std::printf("leaf_test: LEAF_REPLAY needs a case file from this build and LEAF_ONLY=<its function>\n");
         return 1;
     }
-    auto* arena = static_cast<uint8_t*>(mmap(reinterpret_cast<void*>(static_cast<uintptr_t>(replay_header[0])), kArenaSize,
-                                             PROT_READ | PROT_WRITE,
-                                             MAP_PRIVATE | MAP_ANONYMOUS | (replay ? MAP_FIXED_NOREPLACE : 0), -1, 0));
-    if (arena == MAP_FAILED) {
+    // Guarded (map_guarded): mapped first, right below the libraries, an unguarded arena let a
+    // write past its end (a long _vsprintf, a computed index) corrupt ld.so and libc.
+    auto* arena = map_guarded(kArenaSize, replay_header[0]);
+    if (!arena) {
         std::printf("leaf_test: the case's arena address %08x is taken\n", replay_header[0]);
         return 1;
     }
@@ -706,8 +859,7 @@ int main() {
 
     Runner runner{xbe, arena, {}};
     constexpr uint32_t kCallStack = 1 << 20;
-    auto* call_stack = static_cast<uint8_t*>(
-        mmap(nullptr, kCallStack, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    auto* call_stack = map_guarded(kCallStack);
     const auto call_stack_top = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(call_stack + kCallStack - 64));
 
     // Host memory: random words must not point there (a library's data, or the gap below the
@@ -796,38 +948,85 @@ int main() {
     };
     std::vector<Record> records;
     std::printf("%-34s %7s %7s %6s %6s %6s %8s %9s\n", "function", "tested", "matched", "drift", "nan", "mism", "skipped", "coverage");
-    // Workers (forked after the image is mapped) each take every jobs-th function and write
+    // Workers (forked after the image is mapped) take functions from a shared queue and write
     // one line per function to their own temporary file: index, failed, record, report.
     const char* jobs_env = std::getenv("LEAF_JOBS");
     const long cpus = sysconf(_SC_NPROCESSORS_ONLN);
     const int jobs = jobs_env ? std::max(1, std::atoi(jobs_env)) : static_cast<int>(std::clamp(cpus / 2, 1L, 4L));
-    // A worker can die outside a call (a pointer computed from random fields wrote into its own
-    // heap): the functions it had not finished run again in fresh workers, up to two rounds.
     std::vector<size_t> todo;
     for (size_t index = 0; index < sizeof kLeafFunctions / sizeof *kLeafFunctions; ++index)
         if (only.empty() || only.find(std::string(",") + kLeafFunctions[index].name + ",") != std::string::npos)
             todo.push_back(index);
+    // A worker can die outside a call (a pointer computed from random fields wrote into its own
+    // heap, often noticed by malloc during a later function): a fresh worker takes its place at
+    // once and runs the function it was on first, on a clean heap (until that function has killed
+    // 3 workers), so one death neither leaves the rest to fewer workers nor fails a bystander.
+    struct Queue {
+        std::atomic<uint32_t> next, count;
+        int32_t current[64];  // per worker slot: the function's index, -1 between functions
+        int32_t items[1];     // todo
+    };
+    // Between no-access guard pages: the kernel maps it next to the arena, and a function
+    // writing past the arena's end filled the counters with 0xffffffff.
+    const size_t queue_bytes = (sizeof(Queue) + todo.size() * 4 + kPage - 1) & ~size_t{kPage - 1};
+    auto* queue_map = static_cast<uint8_t*>(mmap(nullptr, queue_bytes + 2 * kPage, PROT_NONE, MAP_SHARED | MAP_ANONYMOUS, -1, 0));
+    if (queue_map == MAP_FAILED) return 1;
+    mprotect(queue_map + kPage, queue_bytes, PROT_READ | PROT_WRITE);
+    auto* queue = reinterpret_cast<Queue*>(queue_map + kPage);
+    for (size_t k = 0; k < todo.size(); ++k) queue->items[k] = static_cast<int32_t>(todo[k]);
+    queue->next = 0;
+    queue->count = static_cast<uint32_t>(todo.size());
     std::vector<FILE*> outputs;
+    FILE* output = nullptr;
     int worker = -1;
+    int32_t first_job = -1;  // a replacement worker's first function
     std::vector<std::pair<int, std::string>> reports;
-    for (int round = 0; round < 3 && !todo.empty() && worker < 0; ++round) {
-        outputs.clear();
-        std::vector<pid_t> workers;
-        for (int k = 0; k < jobs; ++k) {
-            outputs.push_back(std::tmpfile());
-            const pid_t pid = fork();
-            if (pid == 0) {
-                worker = k;
+    {
+        const int slots = std::min(jobs, 64);
+        std::vector<pid_t> slot_pid(static_cast<size_t>(slots), 0);
+        std::map<int32_t, int> deaths;
+        std::vector<std::pair<int, int32_t>> spawn;  // slot, first function (-1: none)
+        for (int k = slots - 1; k >= 0; --k) spawn.emplace_back(k, -1);
+        int live = 0;
+        for (;;) {
+            while (!spawn.empty()) {
+                const auto [k, first] = spawn.back();
+                spawn.pop_back();
+                queue->current[k] = -1;
+                outputs.push_back(std::tmpfile());
+                const pid_t pid = fork();
+                if (pid == 0) {
+                    // No core dump for a death outside a call (handled here; systemd-coredump
+                    // would notify the desktop).
+                    prctl(PR_SET_DUMPABLE, 0);
+                    worker = k;
+                    first_job = first;
+                    output = outputs.back();
+                    break;
+                }
+                slot_pid[static_cast<size_t>(k)] = pid;
+                ++live;
+            }
+            if (worker >= 0 || live == 0) break;
+            int status = 0;
+            const pid_t pid = waitpid(-1, &status, 0);
+            if (pid < 0) {
+                if (errno == EINTR) continue;
+                std::printf("leaf_test: waitpid: %s\n", std::strerror(errno));
                 break;
             }
-            workers.push_back(pid);
+            const auto at = std::find(slot_pid.begin(), slot_pid.end(), pid);
+            if (at == slot_pid.end()) continue;
+            const int k = static_cast<int>(at - slot_pid.begin());
+            *at = 0;
+            --live;
+            if (WIFEXITED(status)) continue;
+            std::printf("leaf_test: a worker died (status %d)\n", status);
+            const int32_t index = queue->current[k];
+            spawn.emplace_back(k, index >= 0 && ++deaths[index] < 3 ? index : -1);
         }
-        if (worker >= 0) break;
-        for (pid_t pid : workers) {
-            int status = 0;
-            waitpid(pid, &status, 0);
-            if (!WIFEXITED(status)) std::printf("leaf_test: a worker died (status %d)\n", status);
-        }
+    }
+    if (worker < 0) {
         std::set<size_t> done;
         for (FILE* file : outputs) {
             std::rewind(file);
@@ -840,11 +1039,11 @@ int main() {
                 if (std::sscanf(line, "%d %d %x %127s %d %d %d %d %lf%n", &index, &failed, &address, name, &tested, &matched,
                                 &nans, &mismatched, &coverage, &consumed) != 9)
                     continue;
+                if (!done.insert(static_cast<size_t>(index)).second) continue;  // requeued after it had finished
                 std::string text = line + consumed + 1;
                 for (size_t at; (at = text.find('\x1f')) != std::string::npos;) text[at] = '\n';
                 if (!text.empty() && text.back() == '\n') text.pop_back();
                 reports.emplace_back(index, text);
-                done.insert(static_cast<size_t>(index));
                 failures += failed;
                 if (tested) records.push_back({address, name, tested, matched, nans, mismatched, coverage});
             }
@@ -863,19 +1062,30 @@ int main() {
             ++failures;
         }
     }
-    for (size_t k = 0; worker >= 0 && k < todo.size(); ++k) {
-        if (static_cast<int>(k % static_cast<size_t>(jobs)) != worker) continue;
-        const size_t index = todo[k];
+    while (worker >= 0) {
+        queue->current[worker] = -1;
+        size_t index;
+        if (first_job >= 0) {
+            index = static_cast<size_t>(first_job);
+            first_job = -1;
+        } else {
+            uint32_t q = queue->next.load();
+            if (q >= queue->count.load()) break;
+            if (!queue->next.compare_exchange_weak(q, q + 1)) continue;
+            index = static_cast<size_t>(queue->items[q]);
+        }
+        queue->current[worker] = static_cast<int32_t>(index);
         const LeafFunction& leaf = kLeafFunctions[index];
         g_current = leaf.name;
         std::string out;
         const game::Function* f = find_function(leaf.name);
         if (!f) {
             appendf(out, "%-34s not in kFunctions\n", leaf.name);
-            emit(outputs[static_cast<size_t>(worker)], index, true, leaf, 0, 0, 0, 0, 0, out);
+            emit(output, index, true, leaf, 0, 0, 0, 0, 0, out);
             continue;
         }
         Gen gen(0x1eaf0000u ^ leaf.address, arena);
+        const auto function_started = std::chrono::steady_clock::now();
         g_trace_lo = leaf.address;
         g_trace_hi = leaf.address + leaf.size;
         g_reached.clear();
@@ -884,9 +1094,24 @@ int main() {
         bool first_failing = false;
         std::map<uint32_t, int> crash_sites;  // where the original crashed (0 = timeout)
         std::vector<uint8_t> pointer_slot(14 + leaf.globals.size(), 0);
+        // Inputs the original ran without crashing; half of the inputs mutate one of them
+        // (a few arena words or input slots), so the rare input that gets through a chain
+        // of pointers and small indexes leads to more like it.
+        struct Saved {
+            std::vector<uint8_t> arena;
+            Ctx input;
+            std::vector<std::pair<uint32_t, uint32_t>> globals;
+            std::vector<uint32_t> slots;
+        };
+        std::vector<Saved> corpus;
         for (int it = 0; it < iterations; ++it) {
+            // A budget: after 15 s, stop once 1000 inputs ran (the slowest loops; far more than
+            // the 100 an offline function needs, and coverage has stopped growing by then).
+            if (it % 64 == 0 && tested >= 1000 &&
+                std::chrono::steady_clock::now() - function_started > std::chrono::seconds(15))
+                break;
             gen.fill_arena();
-            const std::vector<uint8_t> arena_in(arena, arena + kArenaSize);
+            std::vector<uint8_t> arena_in(arena, arena + kArenaSize);
             runner.global_inputs.clear();
             Ctx input{};
             gen.start_arguments();
@@ -921,10 +1146,61 @@ int main() {
             }
             input.stack_top = call_stack_top;
             input.nstack = 8;  // a caller's stack has words above the arguments (and arg_bytes can be short)
+            if (!corpus.empty() && gen.below(2)) {
+                const Saved& s = corpus[gen.below(static_cast<uint32_t>(corpus.size()))];
+                std::memcpy(arena, s.arena.data(), kArenaSize);
+                input = s.input;
+                runner.global_inputs = s.globals;
+                slot_values = s.slots;
+                for (uint32_t n = 1 + gen.below(4); n; --n) {
+                    const uint32_t kind = gen.below(4);
+                    if (kind < 2) {  // an arena word, mostly a structure's first fields
+                        const uint32_t at = gen.below(32) * kChunk + 4 * (gen.below(4) ? gen.below(0x30) : gen.below(kChunk / 4));
+                        const uint32_t v = kind ? gen.value() : gen.below(2) ? gen.below(8) : gen.below(256);
+                        std::memcpy(arena + at, &v, 4);
+                    } else if (kind == 2) {  // an input slot: register, stack word or global
+                        const size_t k = gen.below(static_cast<uint32_t>(slot_values.size()));
+                        // Arguments stay distinct objects: a pointer into another slot's chunk is redrawn.
+                        const uint32_t lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena));
+                        const auto chunk_taken = [&](uint32_t v) {
+                            if (v - lo >= kArenaSize) return false;
+                            for (size_t j = 0; j < slot_values.size(); ++j)
+                                if (j != k && slot_values[j] - lo < kArenaSize && (slot_values[j] - lo) / kChunk == (v - lo) / kChunk)
+                                    return true;
+                            return false;
+                        };
+                        uint32_t v = gen.below(2) ? gen.value() : gen.below(8);
+                        for (int tries = 0; tries < 8 && chunk_taken(v); ++tries) v = gen.value();
+                        if (chunk_taken(v)) v = gen.below(8);
+                        slot_values[k] = v;
+                        if (k < 6)
+                            input.in[k] = v;
+                        else if (k < 14)
+                            input.stack[k - 6] = v;
+                        else {
+                            const uint32_t g = leaf.globals[k - 14];
+                            auto at = std::find_if(runner.global_inputs.begin(), runner.global_inputs.end(),
+                                                   [&](const auto& e) { return e.first == g; });
+                            if (at != runner.global_inputs.end())
+                                at->second = v;
+                            else
+                                runner.global_inputs.emplace_back(g, v);
+                        }
+                    } else {  // the x87 control word and MXCSR
+                        std::memcpy(input.fx_in, &kControl[gen.below(4)], 2);
+                        std::memcpy(input.fx_in + 24, &kMxcsr[gen.below(4)], 4);
+                    }
+                }
+                arena_in.assign(arena, arena + kArenaSize);
+            }
             input.trace = it % 4 == 0;
 
             runner.apply_inputs();
-            const Outcome a = runner.run(input, leaf.address, arena_in, 50);
+            const auto started = std::chrono::steady_clock::now();
+            // 10 ms for the original (50 single-stepped): random counts make long loops, and
+            // every timed-out input costs the whole limit (NAL_Float3_Fixup: 1 input in 5).
+            const Outcome a = runner.run(input, leaf.address, arena_in, input.trace ? 50 : 10);
+            const auto took = std::chrono::steady_clock::now() - started;
             // Back to the starting state: the original's written pages, then the inputs.
             for (const auto& p : a.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);
             std::vector<uint32_t> input_pages;
@@ -935,6 +1211,7 @@ int main() {
                 if (a.signal == SIGSEGV || a.signal == SIGBUS) {
                     for (size_t k = 0; k < slot_values.size(); ++k)
                         if (g_crash_address - slot_values[k] < kPage) pointer_slot[k] = 1;
+                    gen.learn_fault(arena_in.data(), g_crash_address);
                 }
                 runner.reset_pages(input_pages);
                 continue;
@@ -946,6 +1223,12 @@ int main() {
                 runner.reset_pages(input_pages);
                 continue;
             }
+            // Only quick inputs breed: a long loop's input would fill the corpus with slow ones.
+            if (took > std::chrono::milliseconds(2)) {
+            } else if (corpus.size() < 256)
+                corpus.push_back({arena_in, input, runner.global_inputs, slot_values});
+            else
+                corpus[gen.below(256)] = {arena_in, input, runner.global_inputs, slot_values};
             runner.apply_inputs();
             input.trace = 0;
             const uint32_t ours = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(f->code));
@@ -1053,14 +1336,15 @@ int main() {
                 text += " " + (sites[i].second ? hex(sites[i].second) : std::string("timeout")) + " x" + std::to_string(sites[i].first);
             if (!text.empty()) appendf(out, "    original crashed at:%s\n", text.c_str());
         }
-        emit(outputs[static_cast<size_t>(worker)], index, mismatched != 0, leaf, tested, matched, nans, mismatched + drifted,
+        emit(output, index, mismatched != 0, leaf, tested, matched, nans, mismatched + drifted,
              coverage, out);
         // Progress as each function finishes (the table above is printed sorted at the end).
-        std::fprintf(stderr, "[%zu/%zu] %s: %d of %d matched%s\n", index + 1, sizeof kLeafFunctions / sizeof *kLeafFunctions,
-                     leaf.name, matched, tested, mismatched ? " - MISMATCH" : "");
+        std::fprintf(stderr, "[%zu/%zu] %s: %d of %d matched%s (%.0f s)\n", index + 1, sizeof kLeafFunctions / sizeof *kLeafFunctions,
+                     leaf.name, matched, tested, mismatched ? " - MISMATCH" : "",
+                     std::chrono::duration<double>(std::chrono::steady_clock::now() - function_started).count());
     }
     if (worker >= 0) {
-        std::fflush(outputs[static_cast<size_t>(worker)]);
+        std::fflush(output);
         _exit(0);
     }
     if (const char* csv = std::getenv("LEAF_CSV")) {

@@ -46,7 +46,7 @@ namespace {
 
 // Copies `bytes` from *src to *dst and advances both cursors.
 uint32_t copy_advance(uint8_t** dst, uint8_t** src, uint32_t bytes) {
-    std::memcpy(*dst, *src, bytes);
+    platform_rep_movs(*dst, *src, bytes);  // the title's inline REP MOVSD/MOVSB
     *dst += bytes;
     *src += bytes;
     return bytes;
@@ -2515,7 +2515,7 @@ void XB_CDECL NAL_Float4_CopyChannels(const uint8_t* group, uint8_t** dst, uint8
     *dst = align4(*dst);
     *src = align4(*src);
     const uint32_t bytes = channel_count(group) << 4;
-    std::memcpy(*dst, *src, bytes);
+    platform_rep_movs(*dst, *src, bytes);  // the title's inline REP MOVSD/MOVSB
     *dst += bytes;
     *src += bytes;
 }

@@ -19,16 +19,28 @@ import struct
 import fnpack
 
 ADDRESS = re.compile(r"0x([0-9a-f]{5,8})\b")
-BAD = re.compile(r"^(in|out|ins\w|outs\w|cli|sti|hlt|int|int3|into|rdtsc|rdmsr|wrmsr|cpuid|wbinvd|invlpg|"
-                 r"lgdt|lidt|sgdt|sidt|iret\w*|lock)\b")
+BAD = re.compile(r"^(in|out|ins\w|outs\w|cli|sti|hlt|int|into|rdtsc|rdmsr|wrmsr|cpuid|wbinvd|invlpg|"
+                 r"lgdt|lidt|sgdt|sidt|iret\w*|lock)\b")  # int3 is fine: the original crashes, the input is skipped
 HARDWARE_SECTIONS = {"D3D", "DSOUND", "XONLINE", "XNET", "XPP"}
+# Callees the test replaces (tests/leaf_test.cpp kStandins): not scanned, no globals.
+STANDINS = {0x00042cb0: "Z_Malloc", 0x001e763a: "XPhysicalAlloc", 0x001e76ba: "XPhysicalFree",
+            0x001f114f: "_aligned_malloc", 0x001f113a: "_aligned_free",
+            0x001eea95: "_vsprintf", 0x001ee901: "_sprintf", 0x001efce2: "__vsnprintf"}
+# Globals that hold an optional hook, 0 in the image and in the game: never randomized, and the
+# indirect branch they guard is not a blocker in these functions (Mem_AlignedFree's free hook).
+PINNED = {0x009098ec}
+PINNED_INDIRECT = {0x000939b0}
+# Functions that call a function passed as an argument; their callers push it as an immediate
+# (eh_vector_constructor_iterator(array, size, count, constructor), stdcall).
+ARGUMENT_CALLERS = {0x00011240}
 WRITES = re.compile(r"^(mov\w*|add|sub|and|or|xor|inc|dec|neg|not|shl|shr|sar|rol|ror|adc|sbb|set\w+|"
                     r"fst\w*|fist\w*|fbstp|stos\w|cmpxchg|xchg|xadd|pop)$")
 
 
 def reachable(rows, va):
-    """Instructions reachable from the entry over direct branches (a symbol's range can hold
-    another, unnamed function after the last RET); all of them if a switch table jumps."""
+    """Addresses of the instructions reachable from the entry over direct branches (a symbol's
+    range can hold another, unnamed function after the last RET); all of them if a switch table
+    jumps."""
     index = {address: k for k, (address, _, _) in enumerate(rows)}
     seen, todo = set(), [va]
     while todo:
@@ -39,13 +51,36 @@ def reachable(rows, va):
             mnemonic, operands = fnpack.split_operands(text)
             target = re.fullmatch(r"0x([0-9a-f]+)", ",".join(operands))
             if mnemonic.startswith("j") and not target:
-                return len(rows)  # switch table
+                return {address for address, _, _ in rows}  # switch table
             if mnemonic.startswith("j") and target:
                 todo.append(int(target.group(1), 16))
             if mnemonic in ("ret", "jmp", "iret"):
                 break
             address += length
-    return len(seen)
+    return seen
+
+
+def call_table(image, operand):
+    """call [table] or [reg*4+table] through a table in .rdata or .data (not randomized: the call is no
+    global read, so the test keeps the image's value): its leading words that point into code (the
+    NAL entropy modes, 0x008bb4a0). An index past them reads other data; such an input crashes
+    the original (or calls whatever code address follows: rare)."""
+    fixed = re.fullmatch(r"DWORD PTR ds:0x([0-9a-f]+)", operand)  # one slot (a vtable's, 0x007b4434)
+    m = fixed or re.fullmatch(r"DWORD PTR \[e\w\w\*4\+0x([0-9a-f]+)\]", operand)
+    if not m or image.section(int(m.group(1), 16)) not in (".rdata", ".data"):
+        return set()
+    targets, va = set(), int(m.group(1), 16)
+    while True:
+        raw = image.read(va, 4)
+        if len(raw) < 4:  # .bss: filled at run time
+            return targets
+        (word,) = struct.unpack("<I", raw)
+        if word < 0x10000 or image.section(word) in fnpack.DATA_SECTIONS or image.section(word) is None:
+            return targets
+        targets.add(word)
+        if fixed:
+            return targets
+        va += 4
 
 
 def scan(image, starts, va):
@@ -54,7 +89,11 @@ def scan(image, starts, va):
     rows = fnpack.disassemble(image, va, min(end - va, 0x4000))
     size = rows[-1][0] + rows[-1][1] - va if rows else 0
     callees, problems, reads, writes, addressed, indexed = set(), set(), set(), set(), set(), set()
-    for _, _, text in rows:
+    live = reachable(rows, va)
+    pushed = []  # immediates pushed since the last call
+    for address, _, text in rows:
+        if address not in live:
+            continue
         mnemonic, operands = fnpack.split_operands(text)
         joined = ",".join(operands)
         if BAD.match(text) or "fs:" in joined:
@@ -65,9 +104,20 @@ def scan(image, starts, va):
                 target = int(m.group(1), 16)
                 if mnemonic == "call" or not va <= target < va + size:
                     callees.add(target)
+                if target in ARGUMENT_CALLERS:
+                    code = {p for p in pushed if image.section(p) not in fnpack.DATA_SECTIONS | {None}}
+                    callees |= code
+                    if not code:
+                        problems.add("indirect call (argument)")
+                if mnemonic == "call":
+                    pushed = []
+            elif mnemonic == "call" and (table := call_table(image, joined)):
+                callees |= table
             elif not (mnemonic == "jmp" and re.search(r"\*4\+0x", joined)):  # switch tables stay inside
                 problems.add(f"indirect {mnemonic}")
             continue
+        if mnemonic == "push" and (m := re.fullmatch(r"0x([0-9a-f]+)", joined)):
+            pushed.append(int(m.group(1), 16))
         for k, op in enumerate(operands):
             memory = op[op.index("["):] if "[" in op else op[op.index("ds:"):] if "ds:" in op else None
             if memory is None or mnemonic == "lea":
@@ -83,7 +133,7 @@ def scan(image, starts, va):
                 (writes if k == 0 and WRITES.match(mnemonic) else reads).add(target)
                 if k == 0 and mnemonic in ("add", "sub", "and", "or", "xor", "inc", "dec", "adc", "sbb"):
                     reads.add(target)
-    return {"size": size, "count": reachable(rows, va), "callees": callees, "problems": problems,
+    return {"size": size, "count": len(live), "callees": callees, "problems": problems,
             "reads": reads, "writes": writes, "addressed": addressed,
             "indexed": indexed}
 
@@ -147,14 +197,17 @@ def main():
         if va in seen:
             return None
         seen.add(va)
+        if va in STANDINS:
+            return None
         if image.section(va) in HARDWARE_SECTIONS:
             return f"calls SDK {functions.get(va, hex(va))}"
-        if depth > 6:
+        if depth > 12:
             return "call depth"
         r = info(va)
-        if r["problems"]:
+        problems = r["problems"] - ({"indirect jmp", "indirect call"} if va in PINNED_INDIRECT | ARGUMENT_CALLERS else set())
+        if problems:
             where = "" if depth == 0 else f" in {functions.get(va, hex(va))}"
-            return ",".join(sorted(r["problems"])) + where
+            return ",".join(sorted(problems)) + where
         for c in sorted(r["callees"]):
             why = blocker(c, depth + 1, seen)
             if why:
@@ -192,11 +245,11 @@ def main():
 
     def tree_globals(va, seen=None):
         seen = set() if seen is None else seen
-        if va in seen:
+        if va in seen or va in STANDINS:
             return set()
         seen.add(va)
         r = info(va)
-        out = set(r["reads"])
+        out = set(r["reads"]) - PINNED
         for c in r["callees"]:
             out |= tree_globals(c, seen)
         return out
@@ -223,7 +276,11 @@ def main():
                "// name, address, size, instructions, globals read (randomized per input)"]
         with open(fnpack.DATA / "leaf_pending.csv", newline="") as f:
             pending = {row["name"] for row in csv.DictReader(f)}  # known mismatches being fixed
+        # The test finds functions by kFunctions' name (Ghidra's can still be FUN_xxxxxxxx).
+        table = {int(a, 16): n for n, a in
+                 re.findall(r'\{"(\w+)", 0x([0-9a-fA-F]+),', (fnpack.ROOT / "game/code/functions.cpp").read_text())}
         for va, name, _ in eligible:
+            name = table.get(va, name)
             if name in pending:
                 continue
             r = info(va)

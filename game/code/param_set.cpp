@@ -276,9 +276,10 @@ uint8_t XB_REGS3 XB_CDECL ParamSet_TestCondition(const ParamSet* set, uint32_t i
     }
     case 4: {
         const char* text = reinterpret_cast<const char*>(record + 4);
-        const char* other = reinterpret_cast<const char*>(uintptr_t{*value});
-        if (op == 0) return inline_strcmp(text, other) == 0;
-        if (op == 9) return Stricmp(text, other) == 0;
+        // *value only for operators 0 and 9, as with the integers.
+        const auto other = [value] { return reinterpret_cast<const char*>(uintptr_t{*value}); };
+        if (op == 0) return inline_strcmp(text, other()) == 0;
+        if (op == 9) return Stricmp(text, other()) == 0;
         return 0;
     }
     case 9:

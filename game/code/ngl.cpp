@@ -274,8 +274,9 @@ void XB_CDECL nglMatrixScreenToClip(float* out) {
     float half_width = 320.0f;
     float half_height = 240.0f;
     if (!(target->flags & 4)) {
-        half_width = static_cast<float>(target->width) * 0.5f;
-        half_height = static_cast<float>(target->height) * 0.5f;
+        // FILD (FADD 2^32 when negative), FMUL 0.5, FSTP on the x87 (* 1 is exact).
+        half_width = platform_x87_unsigned_mul_mul(target->width, 0.5f, 1.0f);
+        half_height = platform_x87_unsigned_mul_mul(target->height, 0.5f, 1.0f);
     }
     set_rows(out, {1.0f / half_width, 0, 0, 0,
                    0, 1.0f / half_height, 0, 0,
@@ -1421,13 +1422,10 @@ namespace {
 
 float clamp_unit(float x) { return -1.0f > x ? -1.0f : (x > 1.0f ? 1.0f : x); }
 
-// Unsigned to float as MSVC does it: signed conversion, plus 2^32 when negative.
-float unsigned_to_float(uint32_t value) {
-    const int32_t v = static_cast<int32_t>(value);
-    float f = static_cast<float>(v);
-    if (v < 0) f += 4294967296.0f;
-    return f;
-}
+// The render target's width/height to float as the title does it: FILD, FADD 2^32 when
+// negative, FSTP (x87 rounding and precision control; CVTSI2SS rounds by MXCSR and the SSE
+// add rounds twice).
+float unsigned_to_float(uint32_t value) { return platform_x87_unsigned_to_float(value); }
 
 }  // namespace
 
@@ -1893,13 +1891,9 @@ float* XB_CDECL nglMatrixTargetScale(float* out, const NglRenderTarget* target, 
         width = static_cast<float>(nglGetScreenWidth());
         height = static_cast<float>(nglGetScreenHeight());
     } else {
-        // Unsigned to float as MSVC does it (on the x87 here, rounded to float).
-        const int32_t w = static_cast<int32_t>(target->width);
-        width = static_cast<float>(w);
-        if (w < 0) width += 4294967296.0f;
-        const int32_t h = static_cast<int32_t>(target->height);
-        height = static_cast<float>(h);
-        if (h < 0) height += 4294967296.0f;
+        // Unsigned to float as MSVC does it, on the x87 (FILD, FADD 2^32, FSTP).
+        width = platform_x87_unsigned_to_float(target->width);
+        height = platform_x87_unsigned_to_float(target->height);
     }
     const float sy = scale[1] * height * 0.5f;
     const float sx = scale[0] * width * 0.5f;
@@ -5032,7 +5026,10 @@ bool skip_list_remove(NglSkipList* self, const uint32_t* object, SkipName kind) 
     NglSkipListNode* current = self->head;
     NglSkipListNode* node;
     const int32_t top = self->level;
-    for (int32_t level = top; level >= 0; --level) {
+    // A do-while as in the title: a negative level still searches once at that index (its
+    // update[] store lands in the title's frame; never read, as no level is unlinked).
+    int32_t level = top;
+    do {
         node = current->next[level];
         while (node) {
             const uint32_t* other = skip_name(node->key, kind);
@@ -5042,12 +5039,12 @@ bool skip_list_remove(NglSkipList* self, const uint32_t* object, SkipName kind) 
             current = node;
             node = current->next[level];
         }
-        update[level] = current;
-    }
+        if (level >= 0) update[level] = current;
+    } while (--level >= 0);
     if (!node || node->key != object) return false;
     for (int32_t i = 0; i <= top && update[i]->next[i] == node; ++i) update[i]->next[i] = node->next[i];
     title_function<void XB_CDECL(void*)>(0x000939b0)(node);  // Mem_AlignedFree
-    int32_t level = top;
+    level = top;
     while (level > 0 && !self->head->next[level]) --level;
     self->level = level;
     return true;

@@ -341,6 +341,36 @@ inline float platform_x87_abs_int_mul_mul(std::int32_t value, float a, float b) 
             : "st");
     return result;
 }
+// MSVC's inline memcpy: REP MOVSD over bytes / 4, then REP MOVSB over the rest, front to back
+// (overlapping ranges copy as the title does; a long copy faults at the first unmapped page,
+// where glibc's memcpy stores its tail first).
+inline void platform_rep_movs(void* dst, const void* src, std::uint32_t bytes) {
+    std::uint32_t words = bytes >> 2, rest = bytes & 3;
+    __asm__ volatile("rep movsl\n\tmovl %3, %%ecx\n\trep movsb"
+                     : "+D"(dst), "+S"(src), "+c"(words)
+                     : "r"(rest)
+                     : "memory");
+}
+// MSVC's _ftol of a * b computed on the x87: FLD, FMUL (the caller's precision control), a
+// chopping FISTP through 64 bits, low half. No MXCSR flags.
+inline std::int32_t platform_x87_mul_ftol(float a, float b) {
+    std::int64_t result;
+    std::uint16_t control, chop;
+    __asm__("fnstcw %0" : "=m"(control));
+    chop = static_cast<std::uint16_t>(control | 0x0c00);
+    __asm__("flds %1\n\tfmuls %2\n\tfldcw %3\n\tfistpll %0\n\tfldcw %4"
+            : "=m"(result)
+            : "m"(a), "m"(b), "m"(chop), "m"(control)
+            : "st");
+    return static_cast<std::int32_t>(result);
+}
+// An int to float on the x87: FILD, FSTP (rounded by the caller's rounding control). No MXCSR
+// flags, unlike CVTSI2SS (precision flag above 2^24).
+inline float platform_x87_int_to_float(std::int32_t value) {
+    float result;
+    __asm__("fildl %1\n\tfstps %0" : "=m"(result) : "m"(value) : "st");
+    return result;
+}
 // MSVC's _ftol of value * factor (+ addend with FIADD) computed on the x87: FILD, FMUL,
 // [FIADD,] then a chopping FISTP through 64 bits, low half.
 inline std::int32_t platform_x87_mul_add_ftol(std::int32_t value, float factor, std::int32_t addend, bool add) {
@@ -538,6 +568,13 @@ inline std::int32_t platform_x87_add_mul_mul_add_ftol(float a, float b, float c,
 }
 inline std::int32_t platform_x87_round_to_int(float x) { return static_cast<std::int32_t>(std::nearbyint(x)); }
 inline float platform_x87_int_mul(std::int32_t value, float factor) { return static_cast<float>(value) * factor; }
+inline std::int32_t platform_x87_mul_ftol(float a, float b) { return static_cast<std::int32_t>(static_cast<std::int64_t>(a * b)); }
+inline void platform_rep_movs(void* dst, const void* src, std::uint32_t bytes) {
+    auto* d = static_cast<volatile unsigned char*>(dst);
+    const auto* q = static_cast<const volatile unsigned char*>(src);
+    for (std::uint32_t i = 0; i < bytes; ++i) d[i] = q[i];
+}
+inline float platform_x87_int_to_float(std::int32_t value) { return static_cast<float>(value); }
 inline std::int32_t platform_x87_mul_add_ftol(std::int32_t value, float factor, std::int32_t addend, bool add) {
     const float product = static_cast<float>(value) * factor;
     return static_cast<std::int32_t>(static_cast<std::int64_t>(add ? product + static_cast<float>(addend) : product));
