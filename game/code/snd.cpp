@@ -191,9 +191,12 @@ float random_between(float low, float high) {
     return (high - low) * step / title_global<float>(0x0083ebc8) + low;
 }
 
-uint32_t play_alias(const uint8_t* emitter, int32_t group) {
-    using Play = uint32_t XB_CDECL(uint32_t, uint32_t, int32_t, uint32_t);
-    return title_function<Play>(0x002a6990)(emitter_word<uint32_t>(emitter, 0x40), 0, group, 0);  // FXCmd_PlaySoundAlias
+// FXCmd_PlaySoundAlias takes the owner entity in ECX (here the view's entity, read once at
+// S_UpdateAmbientEmitters' start: (0x0095f534)->+8); regparm(3) puts it there.
+uint32_t play_alias(const uint8_t* emitter, int32_t group, uint32_t owner) {
+    using Play = uint32_t XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int32_t, uint32_t);
+    return title_function<Play>(0x002a6990)(0, 0, owner, emitter_word<uint32_t>(emitter, 0x40), 0, group,
+                                            0);  // FXCmd_PlaySoundAlias
 }
 
 }  // namespace
@@ -214,6 +217,7 @@ void XB_STDCALL S_UpdateAmbientEmitters(uint8_t* level, float frame_time) {
     if (frame_time == 0.0f) return;
     emitter_word<uint32_t>(level, 0x198) = 0;
     emitter_word<uint32_t>(level, 0x19c) = 0;
+    const uint32_t owner = emitter_word<uint32_t>(title_global<uint8_t*>(0x0095f534), 8);
     for (int32_t group_index = 0; group_index < 0x63; ++group_index) {
         const uint8_t* const group = emitter_word<uint8_t*>(level, 4 + uint32_t(group_index) * 4);
         if (!group) continue;
@@ -251,7 +255,7 @@ void XB_STDCALL S_UpdateAmbientEmitters(uint8_t* level, float frame_time) {
                     state = 4;
                     break;
                 }
-                id = play_alias(emitter, group_index);
+                id = play_alias(emitter, group_index, owner);
                 effect = FX_FindEffectById(effect_list(), id);
                 state = 1;
                 break;
@@ -306,7 +310,7 @@ void XB_STDCALL S_UpdateAmbientEmitters(uint8_t* level, float frame_time) {
             }
             if (start) {
                 state = 2;
-                id = play_alias(emitter, group_index);
+                id = play_alias(emitter, group_index, owner);
                 effect = FX_FindEffectById(effect_list(), id);
             }
             if (!effect) continue;
