@@ -15,7 +15,7 @@ namespace game {
 uint32_t XB_CDECL SndVoice_GetCount();
 // 0x000c8470: voice record `index` (0x00911548, 0xe0 bytes; handle at +0xcc).
 uint8_t* XB_CDECL SndVoice_Get(uint32_t index);
-// 0x00293310 (not hookable: CALL in its first 5 bytes): the voices whose state is nonzero.
+// 0x00293310: the voices whose state is nonzero.
 int32_t Snd_CountBusyVoices();
 
 // 0x0001c340 (ref in EAX): SndVoice_GetParam(voice +4, 0, 1.0).
@@ -48,7 +48,7 @@ uint32_t* XB_REGS3 XB_STDCALL S_PlaySoundAlias2(uint32_t alias, uint32_t unused_
 uint32_t XB_CDECL SndVoice_ForEach(void(XB_CDECL* callback)(int32_t));
 // 0x000c52b0: SndVoice_ForEach callback: the voice's attenuation flag +0xf4 = 0.
 void XB_CDECL SndVoice_ClearAttenuation(int32_t voice);
-// 0x000c53b0 (not hookable: PUSH + CALL in its first 5 bytes): SndVoice_ForEach(SndVoice_ClearAttenuation).
+// 0x000c53b0: SndVoice_ForEach(SndVoice_ClearAttenuation).
 uint32_t S_ClearVoiceAttenuation();
 
 // 0x00296a80 (effect list in ESI, id in EDI): the running effect whose id (+0x4c) is `id`, or null.
@@ -119,7 +119,7 @@ void XB_CDECL SndSource_CommitDirty();
 // 0x000c8580: releases hardware voice slot `slot` (< 0x008bed00; 0xe0-byte slots at 0x00911548): +0xc8 = -1, state
 // +0xc0 1 -> 0, any other nonzero state gets the release bit 8 in +0xc1.
 void XB_CDECL SndHw_ReleaseSlot(uint32_t slot);
-// 0x000cb200 (not hookable: CALL in its first 5 bytes): the sound clock 0x0092082c = CRT clock() * 1000 / 1000 (64-bit; milliseconds), returned.
+// 0x000cb200: the sound clock 0x0092082c = CRT clock() * 1000 / 1000 (64-bit; milliseconds), returned.
 uint32_t XB_CDECL Snd_UpdateTime();
 
 // 0x000c39a0: the number of set bits of a 64-bit mask (low, high words; SWAR adds).
@@ -140,11 +140,11 @@ extern "C" void Snd_NormalizeVector_entry(void);
 // sound's type (0x000c6fb0; slots 0/1 only with the flag, the last slot never) - cleared, +0xc8 sound, +0xcc owner,
 // +0xc0 in use, +0xc1 0x40, +0xc2 type, +0xc3/+0xc4 entry bytes 5/6, 0x0091f678[type] = slot + 1; -1 if none.
 int32_t XB_CDECL SndHw_AllocSlot(uint32_t sound, uint32_t owner, uint32_t any_slot);
-// 0x000c85c0 (not hookable: CALL in its first 5 bytes; no kFunctions row): the listener axes from the mix state (+0xc0..+0xd4): three cross products normalized (0x0091f654,
+// 0x000c85c0: the listener axes from the mix state (+0xc0..+0xd4): three cross products normalized (0x0091f654,
 // 9 floats), then the two vectors 0x008bd668 / 0x008bd688 expressed in them (0x008bd678 / 0x008bd698).
 void XB_CDECL Snd_UpdateListenerAxis();
 
-// 0x000c4af0 (not hookable: CALL at byte 4; no kFunctions row, untested): per voice of the pool 0x0090a8b4 - its
+// 0x000c4af0: per voice of the pool 0x0090a8b4 - its
 // source's dirty parameters (pool 0x0090a8e4) copied in, distance cull against the range (+0x78; hardware slot
 // released past range * 0x0083f278), a hardware slot from SndHw_AllocSlot (freed after 10 failures), the state
 // machine bytes +0xd4..+0xd7 into the slot's +0xc0/+0xc1, dirty parameters copied to the slot, volume / pitch /

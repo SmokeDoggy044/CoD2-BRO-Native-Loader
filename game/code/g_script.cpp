@@ -384,4 +384,9 @@ void XB_CDECL G_RunThink(uint32_t entry_esp, uint8_t* ent, uint32_t arg, uint32_
     title_call_at_regs(entry_esp, title_global<uint32_t>(0x008da788 + index * 4), &regs, 2, args);
 }
 
+uint32_t XB_THISCALL Scr_GetEntObjectOrEmpty(const uint32_t* entity) {
+    const uint32_t object = title_function<uint32_t XB_CDECL(uint32_t)>(0x0011db20)(entity[0]);  // GScr_GetEntScriptObject
+    return object ? object : 0x00922e94;
+}
+
 }  // namespace game

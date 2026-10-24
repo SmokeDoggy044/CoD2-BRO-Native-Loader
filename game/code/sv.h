@@ -80,7 +80,7 @@ extern "C" void SV_DObjEnsureSkeleton_entry(void);
 
 // 0x002f4770: the server console commands (once; flag 0x0098f2cc) through Cmd_AddServerCommand.
 void XB_CDECL SV_AddOperatorCommands();
-// 0x002f48e0 (unhookable: CALL first, not in kFunctions): SV_AddOperatorCommands, then the server cvars (some
+// 0x002f48e0: SV_AddOperatorCommands, then the server cvars (some
 // kept in globals).
 void XB_CDECL SV_Init();
 
@@ -185,7 +185,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL SV_PacketEvent(uint32_t entry_esp, uint
                                                        uint32_t ipx1, uint32_t ipx2, uint32_t port_word, uint32_t ebx,
                                                        uint32_t esi, uint32_t edi);
 extern "C" void SV_PacketEvent_entry(void);
-// 0x002c4e50 (unhookable: push 1 / call at its start; no kFunctions row): Q3's SV_UpdateInfoConfigstrings - the title's 0x002ab560(1), configstrings 0 / 1 from the cvar
+// 0x002c4e50: Q3's SV_UpdateInfoConfigstrings - the title's 0x002ab560(1), configstrings 0 / 1 from the cvar
 // info strings when cvar_modifiedFlags has 4 / 8 (cleared), then VM_Call(gvm, 0xa, time).
 void XB_CDECL SV_UpdateInfoConfigstrings(int32_t time);
 // 0x002f4400 (msec in ESI): Q3's SV_Frame - sv_killserver, cl_paused, CheckReloadStatus, the info configstrings

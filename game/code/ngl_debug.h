@@ -68,4 +68,11 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL DebugDraw_AddString(const float* color,
                                                          const char* text, uint32_t grouped);
 extern "C" void DebugDraw_AddString_entry(void);
 
+// 0x00068f70 (unreferenced: no calls, no pointers to it; kept here, not in ngl.cpp): a mesh
+// section's bone matrix palette - per bone of the section (+8 count, +0xc 16-bit bone
+// indices) one 4x4 matrix into `out`, by the node's instance flags (node +0x90 -> word 0):
+// 0x10 the instance matrices (+8) as they are; 0x8 bind matrix (node +0x88 -> +0x14) times
+// instance matrix; 0x4 that times the node's world inverse; otherwise identities.
+void XB_CDECL nglBuildBoneMatrixPalette(float* out, uint8_t* node, const uint8_t* section);
+
 }  // namespace game
