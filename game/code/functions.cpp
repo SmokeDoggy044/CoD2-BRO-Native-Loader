@@ -10,6 +10,7 @@
 #include "cm.h"
 #include "dobj.h"
 #include "fx.h"
+#include "fx_cmd.h"
 #include "fx_load.h"
 #include "g_scr_math.h"
 #include "g_scr_runtime.h"
@@ -100,6 +101,7 @@ const Function kFunctions[] = {
     {"NAL_AsGenericClip", 0x000229d0, 0, code(&NAL_AsGenericClip), 0, Result::Eax, Status::Compare},
     {"AnimWeightRef_GetA", 0x00023150, 0, code(&AnimWeightRef_GetA), 4, Result::Eax, Status::Compare},
     {"AnimWeightRef_GetB", 0x00023180, 0, code(&AnimWeightRef_GetB), 4, Result::Eax, Status::Compare},
+    {"FxSpawnCmd_Copy", 0x00024520, 0, code(&FxSpawnCmd_Copy_entry), 4, Result::Eax, Status::Compare},
     {"Stream_BoundsContainPoint", 0x00024cb0, 0, code(&Stream_BoundsContainPoint), 0, Result::Eax, Status::Compare},
     {"Stream_NearestPoint", 0x00024d30, 0, code(&Stream_NearestPoint_entry), 0, Result::Eax, Status::Compare},
     {"Stream_PickVolumePoint", 0x00024da0, 0, code(&Stream_PickVolumePoint_entry), 4, Result::Eax, Status::Compare},
@@ -1845,9 +1847,11 @@ const Function kFunctions[] = {
     {"FX_FindEffectById", 0x00296a80, 0, code(&FX_FindEffectById_entry), 0, Result::Eax, Status::Compare},
     {"FX_StopEffectById", 0x00296ab0, 0, code(&FX_StopEffectById), 0, Result::None, Status::Compare},
     {"FX_SetEffectParamById", 0x00296b00, 0, code(&FX_SetEffectParamById), 12, Result::None, Status::Compare},
+    {"FXParam_Broadcast", 0x00296b80, 0, code(&FXParam_Broadcast), 16, Result::None, Status::Compare},
     {"FX_UpdateFadingComponents", 0x00296c00, 0, code(&FX_UpdateFadingComponents_entry), 4, Result::None, Status::Compare},
     {"FX_PruneComponents", 0x00296c90, 0, code(&FX_PruneComponents_entry), 0, Result::None, Status::Compare},
     {"FX_FreeEffectComponents", 0x00296d10, 0, code(&FX_FreeEffectComponents), 4, Result::None, Status::Compare},
+    {"FxInstance_Init", 0x00296d80, 0, code(&FxInstance_Init), 0, Result::Eax, Status::Compare},
     {"ParamNode_CollectChoices", 0x00296e50, 0, code(&ParamNode_CollectChoices), 0, Result::Eax, Status::Compare},
     {"Cvar_Update", 0x00296ec0, 0, code(&Cvar_Update_entry), 0, Result::None, Status::Compare},
     {"generateHashValue", 0x00296f60, 0, code(&generateHashValue), 0, Result::Eax, Status::Compare},
@@ -1861,6 +1865,7 @@ const Function kFunctions[] = {
     {"FS_BuildOSPath", 0x00297ef0, 0, code(&FS_BuildOSPath), 12, Result::None, Status::Compare},
     {"Zone_FindByHash", 0x002984f0, 0, code(&Zone_FindByHash), 4, Result::Eax, Status::Compare},
     {"Rumble_SetScale", 0x00298ba0, 0, code(&Rumble_SetScale_entry), 4, Result::None, Status::Compare},
+    {"FXCmd_Commit", 0x00298e90, 0, code(&FXCmd_Commit_entry), 0, Result::Eax, Status::Compare},
     {"ParamChoiceList_PickRandom", 0x00298f50, 0, code(&ParamChoiceList_PickRandom), 0, Result::Eax, Status::Compare},
     {"ParamChoice_GetFlags", 0x002990d0, 0, code(&ParamChoice_GetFlags), 0, Result::Eax, Status::Compare},
     {"FX_IsEffectActive", 0x00299150, 0, code(&FX_IsEffectActive_entry), 0, Result::Al, Status::Compare},
@@ -1920,6 +1925,23 @@ const Function kFunctions[] = {
     {"FX_SpawnQueuedEffect", 0x002a5810, 0, code(&FX_SpawnQueuedEffect_entry), 4, Result::None, Status::Compare},
     {"FX_FlushSpawnQueue", 0x002a5940, 0, code(&FX_FlushSpawnQueue_entry), 0, Result::None, Status::Compare},
     {"FX_UpdateEffects", 0x002a5980, 0, code(&FX_UpdateEffects_entry), 4, Result::None, Status::Compare},
+    {"FXCmd_Alloc", 0x002a5a40, 0, code(&FXCmd_Alloc_entry), 8, Result::Eax, Status::Compare},
+    {"FXCmd_Type9", 0x002a5bb0, 0, code(&FXCmd_Type9_entry), 4, Result::Eax, Status::Compare},
+    {"FXCmd_Type8AtTag", 0x002a5c40, 0, code(&FXCmd_Type8AtTag_entry), 12, Result::Eax, Status::Compare},
+    {"FXCmd_Type8", 0x002a5ee0, 0, code(&FXCmd_Type8_entry), 8, Result::Eax, Status::Compare},
+    {"FXCmd_Type7AtTransform", 0x002a5fd0, 0, code(&FXCmd_Type7AtTransform_entry), 8, Result::Eax, Status::Compare},
+    {"FXCmd_Type6AtTransform", 0x002a60e0, 0, code(&FXCmd_Type6AtTransform_entry), 8, Result::Eax, Status::Compare},
+    {"FXCmd_Type5AtTransform", 0x002a61f0, 0, code(&FXCmd_Type5AtTransform_entry), 8, Result::Eax, Status::Compare},
+    {"FXCmd_PlayWeaponSound", 0x002a62d0, 0, code(&FXCmd_PlayWeaponSound_entry), 8, Result::Eax, Status::Compare},
+    {"FXCmd_PlayWeaponSoundLoop", 0x002a63d0, 0, code(&FXCmd_PlayWeaponSoundLoop_entry), 12, Result::Eax, Status::Compare},
+    {"FXCmd_PlayWeaponSoundAtBone", 0x002a64e0, 0, code(&FXCmd_PlayWeaponSoundAtBone_entry), 16, Result::Eax, Status::Compare},
+    {"FXCmd_PlayWeaponSoundAtBoneEx", 0x002a6600, 0, code(&FXCmd_PlayWeaponSoundAtBoneEx_entry), 20, Result::Eax, Status::Compare},
+    {"FXCmd_PlaySoundAliasAtPoint", 0x002a6740, 0, code(&FXCmd_PlaySoundAliasAtPoint_entry), 16, Result::Eax, Status::Compare},
+    {"FXCmd_PlaySoundAliasMode7", 0x002a6880, 0, code(&FXCmd_PlaySoundAliasMode7_entry), 12, Result::Eax, Status::Compare},
+    {"FXCmd_PlaySoundAlias", 0x002a6990, 0, code(&FXCmd_PlaySoundAlias_entry), 16, Result::Eax, Status::Compare},
+    {"FXCmd_Type2AtTransform", 0x002a6ab0, 0, code(&FXCmd_Type2AtTransform_entry), 4, Result::Eax, Status::Compare},
+    {"FXCmd_Type1AtTransform", 0x002a6b70, 0, code(&FXCmd_Type1AtTransform_entry), 8, Result::Eax, Status::Compare},
+    {"FXCmd_Type0AtTransform", 0x002a6c40, 0, code(&FXCmd_Type0AtTransform_entry), 8, Result::Eax, Status::Compare},
     {"CameraShake_AllocSlot", 0x002a7f70, 0, code(&CameraShake_AllocSlot), 0, Result::Eax, Status::Compare},
     {"G_AddEvent", 0x002a80b0, 0, code(&G_AddEvent), 8, Result::Eax, Status::Compare},
     {"SV_ClearAcknowledgedCommands", 0x002a8610, 0, code(&SV_ClearAcknowledgedCommands_entry), 0, Result::None, Status::Compare},
