@@ -2090,7 +2090,7 @@ address,name,section,module,state,tested,matched
 00094140,Mem_AlignedFreeCall,.text,qcommon,settled,168,168
 00094150,FxNull_Query,.text,renderer,untested,0,0
 00094160,FxShaderClass_Create,.text,renderer,library,0,0
-00094170,FX_ResetParticleSystem,.text,renderer,untested,0,0
+00094170,FX_ResetParticleSystem,.text,renderer,matched,15,15
 000941b0,FxSystem_SetView,.text,renderer,settled,384,384
 00094610,FUN_00094610,.text,unassigned,unnamed,0,0
 00094750,FUN_00094750,.text,unassigned,unnamed,0,0
@@ -2136,7 +2136,7 @@ address,name,section,module,state,tested,matched
 00096370,FxEffect_SetName,.text,renderer,settled,115,115
 000963c0,FUN_000963c0,.text,unassigned,unnamed,0,0
 00096400,FxEffect_SetMatrix,.text,renderer,settled,100,100
-00096420,FxEffect_ClearFlagC0,.text,renderer,untested,0,0
+00096420,FxEffect_ClearFlagC0,.text,renderer,matched,3,3
 00096430,FxEffect_SetFlagC0,.text,renderer,untested,0,0
 00096460,FxEffectDef_SetElementValue,.text,renderer,untested,0,0
 000964b0,FUN_000964b0,.text,unassigned,unnamed,0,0
@@ -2247,7 +2247,7 @@ address,name,section,module,state,tested,matched
 0009ca90,apsPtrVector_DeleteAll,.text,qcommon,untested,0,0
 0009cb00,apsElementList_Add,.text,qcommon,settled,111,111
 0009cb60,apsPtrVector_PushFront,.text,qcommon,settled,102,102
-0009cc50,FxOp_SetTextures,.text,renderer,untested,0,0
+0009cc50,FxOp_SetTextures,.text,renderer,settled,1796,1796
 0009cca0,FxOp31_InitShaders,.text,renderer,matched,4,4
 0009ccd0,FxOp31_Init,.text,renderer,settled,115,115
 0009cd00,FxShaderClass_Create,.text,renderer,settled,116,116
@@ -2272,7 +2272,7 @@ address,name,section,module,state,tested,matched
 0009e0c0,FxMatrix_RotateVector,.text,renderer,untested,0,0
 0009e190,FxOp1d5_InitShaders,.text,renderer,matched,2,2
 0009e1c0,FxOp1d5_Init,.text,renderer,matched,37,37
-0009e240,FxOp1d5_AddToList,.text,renderer,untested,0,0
+0009e240,FxOp1d5_AddToList,.text,renderer,settled,2638,2638
 0009e420,FxVec3_ScaledHalfExtent,.text,renderer,settled,145,145
 0009e490,FxNode_AddToScene,.text,renderer,settled,398,398
 0009e500,FxOpdd_InitShaders,.text,renderer,matched,5,5
@@ -2355,7 +2355,7 @@ address,name,section,module,state,tested,matched
 000a0d60,FxAction9040_Init,.text,renderer,untested,0,0
 000a0d80,FxAction9054_Init,.text,renderer,untested,0,0
 000a0da0,FxAction9068_Init,.text,renderer,untested,0,0
-000a0dc0,FxAction907c_Init,.text,renderer,untested,0,0
+000a0dc0,FxAction907c_Init,.text,renderer,matched,5,5
 000a0de0,FxAction9090_Init,.text,renderer,untested,0,0
 000a0e00,FxAction90a4_Init,.text,renderer,matched,4,4
 000a0e50,apsActionSource_Count,.text,qcommon,settled,400,400
@@ -8974,7 +8974,7 @@ address,name,section,module,state,tested,matched
 002963f0,StringTable_Load,.text,qcommon,named,0,0
 00296710,FUN_00296710,.text,unassigned,unnamed,0,0
 002969a0,FX_RandomInOctaves,.text,renderer,settled,113,113
-00296a80,FX_FindEffectById,.text,renderer,untested,0,0
+00296a80,FX_FindEffectById,.text,renderer,matched,14,14
 00296ab0,FX_StopEffectById,.text,renderer,settled,105,105
 00296b00,FX_SetEffectParamById,.text,renderer,settled,106,106
 00296b80,FXParam_Broadcast,.text,renderer,settled,12723,12723
@@ -9407,7 +9407,7 @@ address,name,section,module,state,tested,matched
 002b48d0,IN_LeftUp,.text,client,untested,0,0
 002b48e0,IN_LeftDown,.text,client,untested,0,0
 002b48f0,IN_UpUp,.text,client,matched,11,11
-002b4910,CL_ShutdownCGame,.text,client,matched,69,69
+002b4910,CL_ShutdownCGame,.text,client,matched,71,71
 002b49a0,Persistent_SetValue,.text,game,named,0,0
 002b4a30,FUN_002b4a30,.text,unassigned,unnamed,0,0
 002b4ab0,FUN_002b4ab0,.text,unassigned,unnamed,0,0
@@ -9909,7 +9909,7 @@ address,name,section,module,state,tested,matched
 002e9af0,SV_Trace,.text,server,mismatched,1566,1254
 002e9ef0,FUN_002e9ef0,.text,unassigned,unnamed,0,0
 002ea190,FUN_002ea190,.text,unassigned,unnamed,0,0
-002ea4f0,S_UpdateAmbientEmitters,.text,sound,settled,297,297
+002ea4f0,S_UpdateAmbientEmitters,.text,sound,settled,9705,9705
 002ea820,PathNode_FindNearest,.text,game,named,0,0
 002eabd0,FUN_002eabd0,.text,unassigned,unnamed,0,0
 002eac90,FUN_002eac90,.text,unassigned,unnamed,0,0
