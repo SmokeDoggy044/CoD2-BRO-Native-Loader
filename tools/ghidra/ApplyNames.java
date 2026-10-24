@@ -3,7 +3,9 @@
 // where Ghidra has none (command handlers only referenced as pointers), and only
 // renames functions that still have a default FUN_ name. Rows whose third column
 // is "data" name a global instead (only over a default DAT_/label name).
-// Script argument: CSV path.
+// Script arguments: CSV path [create]. Without "create", rows at addresses without a
+// function are skipped (gap functions stay uncreated until the user wants the counter
+// complete; their names wait in the CSV).
 //@category CodBro
 
 import java.io.BufferedReader;
@@ -22,7 +24,8 @@ public class ApplyNames extends GhidraScript {
     public void run() throws Exception {
         String[] args = getScriptArgs();
         File csv = args.length > 0 ? new File(args[0]) : askFile("Names CSV", "Apply");
-        int renamed = 0, created = 0, skipped = 0, labels = 0, already = 0;
+        boolean create = args.length > 1 && args[1].equals("create");
+        int renamed = 0, created = 0, skipped = 0, labels = 0, already = 0, uncreated = 0;
         SymbolTable symbols = currentProgram.getSymbolTable();
         try (BufferedReader r = new BufferedReader(new FileReader(csv))) {
             String line = r.readLine(); // header
@@ -49,6 +52,10 @@ public class ApplyNames extends GhidraScript {
                     continue;
                 }
                 Function f = getFunctionAt(addr);
+                if (f == null && !create) {
+                    uncreated++;
+                    continue;
+                }
                 if (f == null) {
                     if (getInstructionAt(addr) == null) disassemble(addr);
                     f = createFunction(addr, null);
@@ -73,6 +80,7 @@ public class ApplyNames extends GhidraScript {
             }
         }
         println("Renamed " + renamed + " (" + created + " functions created), " + labels
-                + " globals named, " + already + " already named so, skipped " + skipped);
+                + " globals named, " + already + " already named so, skipped " + skipped
+                + ", " + uncreated + " rows without a function left uncreated");
     }
 }
