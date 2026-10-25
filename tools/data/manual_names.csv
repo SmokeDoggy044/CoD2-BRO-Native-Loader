@@ -1470,7 +1470,7 @@ address,name,kind,confidence,evidence
 0033ac10,SCR_UpdateLoadingDots,function,medium,"every 10 calls highlights the next of three loading elements, SCR_UpdateScreen while the UI is in state 5; SV_SpawnServer"
 00337050,FE_CreateMenus,function,medium,"Com_Init: creates the front-end menu object (0xf8, FrontEndMenu_Construct) at +0x28 and sets its first state, and the in-game menu object (0x24) at +0x30"
 00336ad0,FrontEndMenu_Construct,function,medium,"FE_CreateMenus' 0xf8 object: creates every front-end screen object"
-00331cb0,InGameMenu_Construct,function,medium,"FE_CreateMenus' 0x24 object"
+00331cb0,DialogMgr_Construct,function,medium,"(2026-10-25, was InGameMenu_Construct) builds the dialog manager 0x0095f900 (vtable 0x0082881c): two UIDialog screens + a 0x48 memory-card state; FE_CreateMenus' 0x24 object"
 0023d8a0,R_Init,function,high,"'----- R_Init -----' / '----- finished R_Init -----'; RE_BeginRegistration; calls Swap_Init and R_Register"
 0023c4e0,R_Register,function,high,"registers every r_* cvar through ri.Cvar_Get and the screenshot commands, Q3 tr_init.c order; R_Init"
 002374a0,R_CheckCvarRange,function,medium,"'WARNING: cvar '%s' must be integral / out of range' with (min, max); R_Register after r_znear"
@@ -3813,7 +3813,7 @@ address,name,kind,confidence,evidence
 000caff0,File_ReadAt,function,medium,"(handle, offset, buffer, size): starts a read and polls its state until done (3 = error -> 0), returns size; used by StringTable_Load and the bonus loaders"
 000cac90,File_Close,function,medium,"called on the handle after the bonus images are released"
 0031ff30,FE_LoadTheatreBackground,function,medium,"loads textures\\<lang>\\europe/africa/sicily.dds by the last mission (0x008dce48: 1-5 africa, 6-8 sicily) as texLoad; from CL_ApplyFrontEndReturnState"
-003341e0,PauseMenu_HandleSelect,function,low,"vtable slot (no callers): resume (cl_paused 0, cg_norender 0, S_ResumeAllChannels, clears the key catcher) or the reload-checkpoint confirm dialog (MEM_DIALOG_YES/NO, FEMENU_RELOADING)"
+003341e0,MissionSuccessFailMenu_HandleSelect,function,medium,"(2026-10-25, was PauseMenu_HandleSelect) slot 14 of 0x00828d18 = the MissionSuccessFail screen; vtable slot (no callers): resume (cl_paused 0, cg_norender 0, S_ResumeAllChannels, clears the key catcher) or the reload-checkpoint confirm dialog (MEM_DIALOG_YES/NO, FEMENU_RELOADING)"
 003367a0,FE_MainMenu_UpdateSignIn,function,low,"vtable slot: Live sign-in state text (FEMENU_SIGNING_IN/SIGNIN_FAILED/PASSCODE_NEEDED/NOT_SIGNED_IN) and music_mainmenu"
 002c7f00,G_ApplyCheckpointStart,function,low,"from G_SpawnGEntityFromSpawnVars: when the spawner's name equals 0x00988c58, sets the checkpoint cvar and moves info_player_start to its origin/angles"
 002ddf80,G_SetPoseFromPhysics,function,low,"clears the trajectory deltas, origin from entity +0x190, angles via MatrixToAngles, SV_LinkEntity; from the vehicle/physics-object updates"
@@ -3852,7 +3852,7 @@ address,name,kind,confidence,evidence
 0025b530,G_UpdatePlayerHeadEnt,function,low,"from ClientThink: spawns/moves a helper entity (client +0x5f0, 8-unit box, contents 0x2080, pain/die 2) to the eye position with lean"
 002ced30,AnimTree_FlushClearLists,function,low,"AnimTree_ClearNode_r over two pending lists (0x00987074, 0x00987878) and resets their counts; from G_ReloadLevel, G_FreeEntityContents, GScr_ClearAnimTree"
 00307950,GScr_CheckGrenadeThrow,function,medium,"error text 'checkGrenadeThrow: method must be min energy, min time, or max time'; Actor_GrenadeThrow_MinEnergy/ByTime/Fallback"
-003307a0,PauseMenu_ReloadCheckpoint,function,low,"from PauseMenu_HandleSelect: sets g_reloading and runs the reload command, or pauses and opens screen 7"
+003307a0,MissionSuccessFailMenu_ReloadCheckpoint,function,low,"from MissionSuccessFailMenu_HandleSelect: sets g_reloading and runs the reload command, or pauses and opens screen 7"
 003344e0,MemDlg_CheckFreeSpace,function,low,"free blocks = 4*a + 2*b + 5*c; when short: 'not enough blocks' dialog with MEM_CONTINUE_WO_SAVING / MEM_XBOX_MANAGE_MEM_UNIT"
 00335460,MemDlg_CheckFreeSpace2,function,low,"same check and dialog as MemDlg_CheckFreeSpace, other handlers; from the profile screens"
 00338710,FE_ProfileSelect,function,low,"after MemDlg_CheckFreeSpace2: picks profile slot EAX (profile +0x11ec), new profile -> Profile_SetDefaults + CL_ApplyProfileSettings, else an overwrite yes/no dialog"
@@ -12046,3 +12046,85 @@ address,name,kind,confidence,evidence
 001e4610,ScrPathNodeField_script_waittill_NonEmpty,function,medium,"ScrPathNodeField_script_waittill_Copy, true when the string is set"
 00198b60,BroScr_NodeHasScriptWaittill,function,medium,"(out bool, node handle): false for 0/-1 handles, else ScrPathNodeField_script_waittill_NonEmpty"
 002dcc60,BG_CheckProne,function,medium,"15 args (passEnt, origin, size, height, yaw, 3 outs, alreadyProne, onGround, groundNormal z > 0.7, two trace functions, check type, float): the full prone trace check; same debug cvars as BG_CheckProne (g_debugProneCheck/DepthCheck); Actor_UpdateAimBlend, GScr_ActorMayMoveToPoint"
+0082a628,UIMenu_vtable,data,high,49-slot base list-menu vtable stored by UIMenu_Init and UIMenu_Dtor; every screen vtable shares its slots 1-9/32-48
+008294d8,UIGridMenu_vtable,data,medium,UIMenu vtable with slots 44-47 replaced by neighbour-link moves (UIGridMenu_MoveUp..Right); stored by UIGridMenu_Init
+008290c8,UIMenuItem_vtable,data,medium,"39-slot menu entry vtable: UIMenuItem_Init, base of UIOptionItem (UIOptionItem_Dtor restores it)"
+00829680,UIOptionItem_vtable,data,medium,"UIMenuItem + slots 39/40 (prev/next value); string list +0x20, index +0x18, count +0x1c"
+0082a5f8,UIScreenMgr_vtable,data,medium,"12-slot screen-manager vtable (UIScreenMgr_Init/Dtor): screen array +4, active +0xc, count +0x14"
+0082905c,FrontEndMenu_vtable,data,medium,"UIScreenMgr subclass stored by FrontEndMenu_Construct (front-end screens, g 0x0095f8f8)"
+008286cc,InGameScreens_vtable,data,medium,"UIScreenMgr subclass stored by InGameScreens_Construct (pause/loading/autosave screens, 0x0095f8fc)"
+0082881c,DialogMgr_vtable,data,medium,"UIScreenMgr subclass stored by InGameMenu_Construct, which holds two UIDialog screens (the UI_ShowDialog/UI_DialogAddButton manager)"
+00829d48,UIDialog_vtable,data,medium,"UIMenu subclass stored by UIDialog_Construct (3 UIMenuItem buttons, Dialog_LayoutButtons)"
+00829244,UIElement_vtable,data,medium,14-slot base panel-element vtable; UIText_Dtor and UIPicture_Dtor end by storing it
+0082a2c0,UIPicture_vtable,data,medium,"picture element vtable (UIPicture_Init, Panel_CreatePicture, UIPicture_Dtor)"
+008298b8,UITextBase_vtable,data,medium,text element base vtable stored by UIText_Init; UIText_Dtor restores it before UIElement
+0082a450,UIText_vtable,data,medium,84-slot text element vtable stored by UIText_Construct (derives from UITextBase)
+008297f0,TitleMenu_vtable,data,medium,FrontEndMenu screen 0 (inline UIMenu_Init); FE_SetupPanel binds singletitle_menu.panel to screen 0
+00829b80,MainMenu_vtable,data,medium,FrontEndMenu screen 1 (MainMenu_Construct); propaganda_menu.panel -> FE_SetupMainMenu(screens[1])
+00829410,SinglePlayerMenu_vtable,data,medium,FrontEndMenu screen 2; singleplayerpropaganda_menu.panel -> screens[2]
+00829348,OptionsMenu_vtable,data,medium,FrontEndMenu screen 3 (inline UIMenu_Init); propagandaoptions_menu.panel -> screens[3]
+00828930,GameplayMenu_vtable,data,medium,FrontEndMenu screen 4; gameplay_menu.panel -> screens[4]
+00829c48,ControllerConfigMenu_vtable,data,medium,FrontEndMenu screen 5; controllerconfigxbox_menu.panel -> screens[5]
+00828b88,ScreenMenu_vtable,data,medium,FrontEndMenu screen 6; screen_menu.panel -> screens[6]
+00829fa0,SoundMenu_vtable,data,medium,FrontEndMenu screen 7; sound_menu.panel -> screens[7]
+0082a708,BonusMaterialsMenu_vtable,data,medium,FrontEndMenu screen 8; bonusmaterials_menu.panel -> screens[8]
+00829728,BonusCharactersMenu_vtable,data,medium,FrontEndMenu screen 9; bonusmaterials_characters.panel -> screens[9]
+00828868,BonusWeaponsMenu_vtable,data,medium,FrontEndMenu screen 10; bonusmaterials_weapons.panel -> screens[10]
+00829ab8,BonusVehiclesMenu_vtable,data,medium,FrontEndMenu screen 11; bonusmaterials_vehicles.panel -> screens[11]
+00828f98,BonusConceptsMenu_vtable,data,medium,FrontEndMenu screen 12; bonusmaterials_concepts.panel -> screens[12]
+00828c50,DifficultyMenu_vtable,data,medium,FrontEndMenu screen 13 (UIGridMenu_Init inline); slot 16 = FE_DifficultyMenu_Init; difficulty_menu.panel -> screens[13]
+0082a068,CreateProfileMenu_vtable,data,medium,FrontEndMenu screen 14 (UIGridMenu subclass); createprofile_menu.panel -> screens[14]
+00828ed0,ProfileMenu_vtable,data,medium,FrontEndMenu screen 15; singleprofile_menu.panel -> screens[15]
+008299f0,ChapterMenu_vtable,data,medium,FrontEndMenu screen 17; singlechapter_menu.panel -> screens[17]; slot 10 = FE_DrawLoadingQuote
+00828ac0,SpecialMaterialsMenu_vtable,data,medium,FrontEndMenu screen 18; specialmaterials_menu.panel -> screens[18]
+00829ed8,SpecialConceptMenu_vtable,data,medium,FrontEndMenu screen 19; specialconcept_menu.panel -> screens[19]
+008289f8,PauseMenu_vtable,data,medium,InGameScreens screen 0 (inline UIMenu_Init); pause_menu.panel -> FE_SetupPauseMenu(screens[0])
+0082a388,AdvancedOptionsMenu_vtable,data,medium,InGameScreens screen 1; advanced_options_menu.panel -> screens[1]
+00829180,LoadingMenu_vtable,data,medium,InGameScreens screen 2; loading_menu.panel -> screens[2]
+0082a1f8,LoadAfricaMenu_vtable,data,medium,InGameScreens screen 3; loadafrica_menu.panel -> screens[3]
+00828718,LoadSicilyMenu_vtable,data,medium,InGameScreens screen 4; loadsicily_menu.panel -> screens[4]
+008295a0,LoadMaubeugeMenu_vtable,data,medium,InGameScreens screen 5; loadmaubeuge_menu.panel -> screens[5]
+00828d18,MissionSuccessFailMenu_vtable,data,medium,InGameScreens screen 6; missionsuccessfail_menu.panel -> screens[6]; slot 14 = PauseMenu_HandleSelect
+0082a130,AutosaveMenu_vtable,data,medium,InGameScreens screen 7; autosave_menu.panel -> screens[7]
+00013690,UIMenu_DeletingDtor,function,high,"slot 0 of UIMenu_vtable: stores the vtable, UIMenu_FreeItems, Z_Free if flag&1"
+0032eab0,UIMenu_Dtor,function,high,"(ECX) stores UIMenu_vtable, UIMenu_FreeItems"
+0032e8f0,UIMenu_PlaySelectSound,function,medium,"slot 4 (+0x10): plays alias UI_Select, handle into +0x2c; called by SelectPrev/Next when the selection moves"
+0032e7a0,UIMenu_PlaySelectSoundIfIdle,function,medium,slot 5: same UI_Select play unless the +0x2c voice is still playing
+00314ce0,UIMenu_Layout,function,medium,"slot 7 (+0x1c): counts visible items, centres them (+0x18 = (n-1)*spacing/2) and places each item (+0x2c SetPos x +0xc, y +0x10 + i*spacing +0x14)"
+00314c30,UIMenu_Draw,function,medium,"slot 10 (+0x28): draws every non-hidden item (item +0xc), or only the scrolled window (+0x20 first, +0x28 count) when flag 1 is set"
+00314ba0,UIMenu_Update,function,medium,"slot 12 (+0x30)(dt): input auto-repeat timer +0x1c (0.1s / 0.01s) calling slot 48, then item +0x10 Update(dt) on each item"
+0030ef50,UIMenu_SelectFirst,function,medium,"slot 13 (+0x34): first item whose +0x24 (hidden) is false -> slot 34 SetSelection(i,0)"
+00314b20,UIMenu_RestoreSelection,function,medium,"slot 16 (+0x40): selection +0x22 defaults to +0x24; selects it if enabled else SelectFirst, resets +0x32, scrolls or relayouts"
+0030ef20,UIMenu_OnAccept,function,medium,"slot 24 (+0x60, button 0x40 = A from UIScreenMgr_OnButtonDown): calls slot 14 HandleSelect(selection) when the item is enabled"
+00314e70,UIMenu_ScrollTo,function,medium,"slot 35 (+0x8c)(first): sets +0x20 and positions the +0x28 visible items from it, wrapping when flag 2"
+0030efd0,UIMenu_SetItemsScale,function,low,slot 38: calls item +0x5c(arg) on every item; FE_SetupPauseMenu / UIDialog_Construct call +0x5c with 0.7 / 0.6
+00314f40,UIMenu_SelectPrev,function,medium,"slot 44 (+0xb0): previous enabled item (wraps when flag 2, scrolls when flag 1), UI_Select sound, SetSelection(i,1)"
+00315080,UIMenu_SelectNext,function,medium,"slot 45 (+0xb4): next enabled item, mirror of UIMenu_SelectPrev"
+00331dc0,UIGridMenu_Init,function,medium,"(ESI menu, EDI item count, owner, flags): UIMenu fields, vtable 0x008294d8; DifficultyMenu and CreateProfileMenu build on it"
+00314a00,UIGridMenu_MoveUp,function,medium,"slot 44: follows the selected item's +8 neighbour index past hidden items, SetSelection(i,1)"
+00314990,UIGridMenu_MoveDown,function,medium,"slot 45: same with item +0xa (FE_SetupMissionSuccessFailMenu links item0+0xa=1, item1+8=0)"
+00314920,UIGridMenu_MoveLeft,function,medium,slot 46: same with item +0xc
+003148b0,UIGridMenu_MoveRight,function,medium,slot 47: same with item +0xe
+0032a7e0,UIMenuItem_Init,function,medium,"(label, menu, style): vtable 0x008290c8, text element (UIText_Init or UIText_Construct) at +0x10, owner +4, neighbours +8..+0xe = -1, colour update slot 37"
+0031fd80,UIMenuItem_UpdateColor,function,medium,"slot 37 (+0x94): picks colours from the style table 0x0095fd30 (style +0x14, 0xb = text's own) by selected +0x15/disabled +0x16, sets them on the text"
+0032e5e0,UIOptionItem_Dtor,function,medium,"stores 0x00829680, releases the option strings +0x20, stops sound +0x24, back to UIMenuItem_vtable, deletes the owned text"
+0032e540,UIOptionItem_Next,function,medium,"slot 40: index +0x18 + 1 wrapping at count +0x1c, sets the text (+0x10 vt+0x78) to option string"
+003147d0,UIScreenMgr_Init,function,medium,"(EAX capacity): vtable 0x0082a5f8, screen array +4, count +0x14 = 0, active +0xc = -1; then slot 6 and each screen's Layout"
+00314790,UIScreenMgr_Dtor,function,medium,"stores 0x0082a5f8, deletes every screen (skips index 16), frees the array"
+0030eed0,UIScreenMgr_LayoutAll,function,medium,slot 1: slot 6 (read stick directions) then each screen's +0x1c Layout
+0032e6a0,UIScreenMgr_SetActiveScreen,function,medium,"slot 3 (+0xc)(index): old screen +0x44 leave(new), new screen +0x3c enter(old), UI_Highlight sound, active +0xc; FE_CreateMenus calls +0xc(0)"
+0030eea0,UIScreenMgr_Update,function,medium,"slot 4 (+0x10)(dt): active screen +0x30 Update(dt), then slot 5 HandleInput"
+0031fc10,UIScreenMgr_HandleInput,function,medium,"slot 5: picks the first pad that presses (0x008d50d8), turns pad presses/releases and held stick directions (bits 4..0x20) into slot 10/11 OnButtonDown/Up"
+00314750,UIScreenMgr_ReadStickDirections,function,medium,slot 6: sets/clears bits 4..0x20 of +0x18 from the held direction test 0x0030ea00
+0030ec70,UIScreenMgr_OnButtonDown,function,medium,"slot 10 (+0x28)(button,pad): active screen +0x80, then per-button slot (1->+0x48 ... 0x40->+0x60 accept, 0x80->+0x64 back ... 0x2000->+0x7c)"
+00331680,InGameScreens_Construct,function,medium,"Com_Init: UIScreenMgr_Init, vtable 0x008286cc, builds the pause, advanced options, loading (x4), mission success/fail, autosave and live options screens"
+00331920,UIDialog_Construct,function,medium,"UIMenu_Init with 3 items, vtable 0x00829d48, three UIMenuItem buttons scaled 0.6; two made by InGameMenu_Construct"
+00315e70,UIElement_UpdateFade,function,medium,"element slot 1(dt): when visible, fades alpha +4 in (flag 0x10) or out (flag 0x20) over time +0xc, clearing the flags at 1/0"
+00317050,UIPicture_Init,function,medium,"(ESI picture, name): vtable 0x0082a2c0, alpha 1, flags 4, name ScriptString, scale 1; Panel_CreatePicture, Panel_GetDefaultPicture, UIScrollBar_Construct"
+00316ec0,UIPicture_Dtor,function,medium,"stores 0x0082a2c0, releases the texture, frees the vertex blocks (+0x20 vector), name, then UIElement_vtable"
+00320790,UIText_Dtor,function,medium,"UIText_vtable -> frees glyph buffer +0x80, UITextBase_vtable -> frees +0x14 and two strings, UIElement_vtable"
+00316620,Panel_FreeElements,function,medium,"(EAX panel): deletes every picture (+0 vector, count +8) and text (+0xc vector, count +0x14), empties both; every screen dtor"
+00310010,Panel_Draw,function,medium,"(ESI panel): draws every picture except index +0x18, then the texts unless +0x1c is set; screens' Draw slots"
+00310070,Panel_SetLayer,function,medium,"(EDI panel, layer): each element gets depth (layer*1000 + its depth) via vt+0x28/vt+0x1c; first call of every FE_Setup* (layer 2)"
+00316320,Movie_Stop,function,medium,"waits for pending reads, Movie_FreeResources, closes the file, frees 0x0095f458, deletes the movie object 0x0095f454; optional two black frames; Cmd_LaunchMultiplayer_f, CL_PlayMovie"
+003166a0,UIPicture_ScaleXForAspect,function,low,"(picture, AL wide, XMM0 centre): scales the vertex x (+0x40/+0x54/+0x68/+0x7c of each quad) and +0x14 about the centre by 0.75 or 4/3; HUD component slots"

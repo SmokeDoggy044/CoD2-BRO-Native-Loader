@@ -775,4 +775,25 @@ CoD-specific functions included, so later decompilation covers both kinds.
     flag 0x0095ffb0, ground normal 0x0095ffd0, frametime 0x0095ffa4.
   Skipped on purpose (need their module's decompile): physics solver internals (0xb1b40 GJK simplex, 0xbb4f0,
   0xc0000, 0xbfc20 ...), movie bit decoder 0xcea00, compiled-script helpers, online UIX LiveEngine callers.
-  Next (in progress): the front-end widget class hierarchy per vtable, then the 288 aligned 2-caller functions.
+  UI batch (82 names: 40 vtables + 42 methods). Front-end class map (vtables in .rdata):
+  - UIElement 0x00829244 (14 slots; alpha +4, fade +0xc, flags +0x10) -> UIPicture 0x0082a2c0 (UIPicture_Init
+    0x00317050); UITextBase 0x008298b8 (UIText_Init) -> UIText 0x0082a450 (84 slots, UIText_Construct). A panel
+    holds a picture vector (+0, count +8) and a text vector (+0xc, count +0x14): Panel_SetLayer/Draw/FreeElements.
+  - UIMenu 0x0082a628 (49 slots, UIMenu_Init): items +4, owner +8, x/y +0xc/+0x10, spacing +0x14, scroll +0x20,
+    selection +0x22, default +0x24, count +0x26, visible +0x28, flags +0x2a, sound +0x2c. Slots: 0 deleting dtor,
+    4/5 select sound, 7 Layout, 10 Draw, 12 Update(dt), 13 SelectFirst, 14 HandleSelect(i) (per screen), 15/17
+    enter/leave, 16 RestoreSelection, 18-31 per-button (24 A/accept, 25 back), 32 any button, 34 SetSelection,
+    35 ScrollTo, 44-47 move up/down/left/right, 48 auto-repeat. UIGridMenu 0x008294d8 (UIGridMenu_Init 0x00331dc0)
+    moves by per-item neighbour links (+8/+0xa/+0xc/+0xe): Difficulty, CreateProfile.
+  - UIMenuItem 0x008290c8 (owner +4, text +0x10, style +0x14) -> UIOptionItem 0x00829680 (options +0x20, index
+    +0x18, count +0x1c).
+  - UIScreenMgr 0x0082a5f8 (12 slots; screens +4, active +0xc, count +0x14; pad input -> active screen's slots
+    18-31): FrontEndMenu 0x0082905c (global 0x0095f8f8; screens 0-19 Title, Main, SinglePlayer, Options, Gameplay,
+    ControllerConfig, Screen, Sound, five Bonus*, Difficulty, CreateProfile, Profile, ? (0x00829e10), Chapter,
+    SpecialMaterials, SpecialConcept; 20 Xbox Live), InGameScreens 0x008286cc (Pause, AdvancedOptions, Loading,
+    LoadAfrica/Sicily/Maubeuge, MissionSuccessFail, Autosave, InGameLiveOptions), DialogMgr 0x0082881c (global
+    0x0095f900, two UIDialog 0x00829d48; was "InGameMenu_Construct"). Screen vtables mapped by FE_SetupPanel's slot
+    index vs the ctor's fill order; 003341e0 is MissionSuccessFailMenu_HandleSelect (was PauseMenu_HandleSelect).
+  - Many vtable slots target uncreated functions (0x00011xxx-0x00013xxx dtors/getters): left as gap functions.
+    The 7-slot HUD component vtables (HudManager_Create, ~12) are a separate hierarchy, not done yet.
+  Next (in progress): per-screen ctors/dtors and slots 10/12/14/16/20-25; the 288 aligned 2-caller functions.
