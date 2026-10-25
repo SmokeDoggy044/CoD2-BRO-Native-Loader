@@ -1631,7 +1631,7 @@ address,name,section,module,state,tested,matched
 00064080,nglSkipList_Find,.text,renderer,settled,146,146
 000641a0,nglTextureManager_DeletingDtor,.text,renderer,offline,0,0
 000641d0,nglPaletteManager_DeletingDtor,.text,renderer,untested,0,0
-00064300,nglResetDevice,.text,renderer,inconclusive,29,0
+00064300,nglResetDevice,.text,renderer,inconclusive,31,0
 00064370,nglWaitFrameInterval,.text,renderer,settled,138,138
 00064560,nglIsPAL50,.text,renderer,settled,666,666
 00064570,nglShutdown,.text,renderer,offline,0,0
@@ -1745,7 +1745,7 @@ address,name,section,module,state,tested,matched
 0006e860,nglDepthToZValue,.text,renderer,settled,4462,4462
 0006e920,nglDebugMeshVertexIter_Clone,.text,renderer,untested,0,0
 0006e9c0,nglInitFrameBuffers,.text,renderer,inconclusive,7,0
-0006eca0,nglReadBackBufferSize,.text,renderer,inconclusive,255,0
+0006eca0,nglReadBackBufferSize,.text,renderer,matched,257,2
 0006ece0,nglFreeTexture,.text,renderer,settled,498,105
 0006eea0,nglCreateTexture,.text,renderer,settled,444,100
 0006f080,nglCreateNormalCubeMap,.text,renderer,untested,0,0
@@ -1779,7 +1779,7 @@ address,name,section,module,state,tested,matched
 00073ce0,nglMatrixTargetScale,.text,renderer,settled,213,213
 00073e90,nglGetSceneTargetScale,.text,renderer,settled,287,287
 00073ed0,nglBeginSceneRender,.text,renderer,settled,301,301
-00074330,nglRenderSceneTree,.text,renderer,mismatched,571928,367100
+00074330,nglRenderSceneTree,.text,renderer,mismatched,575018,369201
 000744f0,std_PushHeap_OpaqueNodes,.text,qcommon,offline,0,0
 00074540,std_Rotate_NodeKeys,.text,qcommon,settled,4669,4669
 00074600,std_PushHeap_TranslucentNodes,.text,qcommon,offline,0,0
@@ -1800,7 +1800,7 @@ address,name,section,module,state,tested,matched
 00075280,nglSortOpaqueNodes_r,.text,renderer,settled,402,402
 00075370,nglSortTranslucentNodes_r,.text,renderer,settled,371,371
 00075460,nglRenderOpaqueList,.text,renderer,settled,444,345
-000754f0,nglRenderTranslucentList,.text,renderer,mismatched,243102,167782
+000754f0,nglRenderTranslucentList,.text,renderer,mismatched,244395,168688
 00075780,nglSetDefaultRenderStates,.text,renderer,settled,344,344
 00075ac0,nglSetBlendMode,.text,renderer,settled,580,580
 00075d90,nglRestoreRenderStates,.text,renderer,untested,0,0
@@ -1820,7 +1820,7 @@ address,name,section,module,state,tested,matched
 000778b0,nglSetFrameMemorySize,.text,renderer,settled,115,115
 00077b30,nglAllocFrameScratch,.text,renderer,settled,400,400
 00077b50,nglAllocFrameMemory,.text,renderer,matched,29,29
-00078500,nglInitMultisample,.text,renderer,inconclusive,246,0
+00078500,nglInitMultisample,.text,renderer,inconclusive,248,0
 00078790,nglSetVertexStreams,.text,renderer,settled,4025,4025
 00078810,nglSetRenderTargetCached,.text,renderer,settled,13061,6382
 00078890,nglDrawMeshSection,.text,renderer,settled,3755,3755
@@ -8190,7 +8190,7 @@ address,name,section,module,state,tested,matched
 00246d60,R_AddEntitySurfaces,.text,renderer,settled,204,204
 00246fa0,R_AddWorldSurfaces,.text,renderer,settled,313,313
 00247190,FX_PlayBoltedEffect,.text,renderer,settled,189,189
-00247350,R_RenderView,.text,renderer,mismatched,53315,17036
+00247350,R_RenderView,.text,renderer,mismatched,53624,17137
 002476b0,RE_RenderScene,.text,renderer,settled,3175,3171
 00247980,GetRefAPI,.text,renderer,matched,5,5
 00247ad0,FUN_00247ad0,.text,unassigned,unnamed,0,0
@@ -9843,7 +9843,7 @@ address,name,section,module,state,tested,matched
 002de420,G_DObjSetBoneRotation,.text,game,named,0,0
 002df3e0,G_GetTagParentMatrix,.text,game,named,0,0
 002df740,G_EntLinkTo,.text,game,named,0,0
-002df880,DObj_UpdateSkeletons,.text,renderer,mismatched,1365473,1139466
+002df880,DObj_UpdateSkeletons,.text,renderer,mismatched,1389409,1159111
 002e01a0,SV_PointContents,.text,server,settled,112,112
 002e02c0,SV_BuildClientSnapshot,.text,server,settled,110,110
 002e03a0,SV_ConnectLocalClient,.text,server,named,0,0

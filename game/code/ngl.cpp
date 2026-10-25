@@ -5381,7 +5381,7 @@ void XB_CDECL nglShutdown() {}
 void XB_CDECL nglUpdateScene_Nop() {}
 
 void XB_CDECL nglReadBackBufferSize() {
-    const uint32_t surface = **reinterpret_cast<uint32_t* const*>(static_cast<uintptr_t>(title_global<uint32_t>(0x00902d84)));
+    const uint32_t surface = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x00902d84)));
     uint32_t desc[8];
     title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003ebe30)(surface, desc);  // D3DSurface_GetDesc
     const uint32_t width = desc[5];
