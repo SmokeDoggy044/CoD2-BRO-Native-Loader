@@ -814,4 +814,11 @@ CoD-specific functions included, so later decompilation covers both kinds.
   UIMenu_RestoreSelection. Screen panel pointer +0x34 (+0x38 for UIGridMenu screens), owned children after it.
   Screen 16 (0x00829e10, ctor 003308a0) has a second base at +0x34 (vtable 0x00829e0c) registered as the
   save-device removal callback 0x00920af8 - probably a memory-unit-removed screen (UIScreenMgr_Dtor skips it).
-  Next (in progress): UI slots 20-23, deleting dtors, leftover UI hubs, HUD components; remaining 2-caller functions.
+  UI batch 3 (81 names): slots 20-23 handlers, the slot-0 deleting dtors (0x00011xxx-0x00013xxx: <Class>_Dtor or an
+  inline copy, then Z_Free if flag & 1; UIElement/UIPicture/FrontEndMenu's are uncreated), DialogMgr_CloseDialog,
+  Profile_SumMissionStats, ProfileSave_PrepareRequest, UIText_LayoutLines. Profile progress: 0x48-byte per-mission
+  records of 18 ints at 0x0095f924. Save requests (0x00920b00): up to 8 files, names 0x40 at +0, buffers +0x200,
+  sizes +0x220, count +0x244; the profile save object 0x0095f480 keeps 4 cluster buffers at +0x11c0 ('<name>',
+  '<name>1'..'3'). Dialog manager: +0x1c current dialog (flag 8 at its +0x44 = close), +0x20 flag 2 = nested dialog
+  returns to dialog 0. Screen 16 stays unnamed (nothing pins it).
+  Next: HUD component hierarchy (7-slot vtables from HudManager_Create, ~12 classes); remaining 2-caller functions.
