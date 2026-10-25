@@ -963,3 +963,18 @@ CoD-specific functions included, so later decompilation covers both kinds.
     +0x40 (vertex stride 0x14, colour +0x10), flag +0xa4) in a vector at picture +0x20 (count +0x28).
   - Uncreated gap callers: 0x0032cd60 HudCompGrenades update, 0x00336670 PauseMenu slot 14, 0x003357b0
     BonusMaterials update, 0x000127a0/0x000127b0 ControllerConfigMenu slots 22/23, 0x00012ff0, 0x000d13f0.
+  Trees 6 (108 names): world collision trees (.cg: CM_LoadWorldTree + fixups, box hull, sphere/mesh contacts),
+  pmove (PM_GroundTrace, PM_CrashLand, PM_WalkMove, PM_LadderMove, PM_Accelerate, reload path, PM_WeaponFire),
+  scene files (.scn: Stream_ParseScn, Scn_*), the script thread runtime under Com_Frame (Scr_RunThreads,
+  Scr_ResumeThread, Scr_SaveContext setjmp-style, waits, anim notifies), G_SetupGameScriptImports (0x003094a0)
+  and its builtins by slot (154 GetSpgVariant, 292 AnimHasNotetrack, 344/348/349 melee/prone, 363/370/378), UI
+  button tokens, DialogMgr_Draw, Movie_Load. Unclear: 0x002d5ba0/0x002531b0 (PM_Weapon-gated use interaction,
+  ps flag 0x1000000, Sentient_TakeNodeClaim + "trigger" notify).
+  - .cg manager 0x0095f4fc: count +0xc, trees +0x10, zone per tree +0x19c, temp box model +0x190; meshes 0x50
+    (vtable 0x00832680), brushes 0x40 (vtable 0x008325ec, shape base 0x0083263c); mesh triangles one dword each
+    (three 6-bit indices into 0x10-byte vertices). .scn table 0x0095f4f8 (scene per zone at +4 + zone*4): static
+    models +0x18, instances +0x20/+0x24, spawn entities +0x10, 0x60-byte update-group items +0x30/+0x34.
+  - Script threads: flags +0x10 (1 start, 2|4 woken, 8 done, 0x800 on the wait list), waits +0x1c, saved-stack
+    blocks +0x2c (0xfc each, next +0xfc); current thread 0x008dda2c; manager +0x858 woken chain.
+  - ps view heights: stand +0x420, crouch +0x424, prone +0x428, current +0xac, target +0xa8. Surface type =
+    (0x0095ffe4 >> 20) & 0x1f; event bases run +1, walk +0x18, prone +0x2f, jump +0x46, land +0x5d.
