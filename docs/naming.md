@@ -874,3 +874,27 @@ CoD-specific functions included, so later decompilation covers both kinds.
     record at vehicle +0x300 (body +0x34, object +0x30).
   Next: ~560 1-caller functions whose caller is still unnamed (bottom-up: name a caller, its callees follow) and
   ~720 0-caller functions (pointer/vtable/script targets); skipped bodies above wait for their module's decompile.
+  Tree pass (2026-10-25, day 21c): unnamed functions grouped into call trees (members = 1-caller functions whose
+  caller is another unnamed function; root = 0 callers or a skipped caller; library neighbourhoods filtered out):
+  208 trees, 657 functions, read in ~100-function lists by fresh agents.
+  Trees 1-2 (159 names): UI pictures/text, UIRootMenu/ProfileSave/LiveMgr dtors, SoundBankManager, AnimScript ctor,
+  std set<string> (std_tree_*29), G_ClearClient/PlayerState/ClientPersistant, ocean wave sets, the FX particle
+  library, NAL Packed8/16 entropy channels (vtables 0x007c2828/0x007c2890), SOLID-style GJK, the physics step tree
+  (Phys_RunFrame, PhysWorld_Step/Substep/BuildIslands, PhysIsland_Solve, contacts), ragdoll joints/forces/damping.
+  - Corrections: 0x0083261c (rm_animTrees' vtable) is only 2 slots; AnimScript_vtable starts at 0x00832624
+    (slot 0 0x0001de20 notetrack load, slot 1 AnimScript_Update, slot 3 AnimScript_Destroy). Ghidra sizes
+    Loc_GetString 0x0029d5f0 past 0x0029d6b5, which is FX component code.
+  - Handle tables: sound channels 0x00962820 = 512 entries (free bitmap 16 words, {ptr, gen} at +0x40,
+    full-callback +0x1040, handle = gen << 12 | slot); the entity table 0x0097a8c0 has the same layout with 0x540
+    entries (callback +0x2aa8). UI root 0x0095f8d0 (vtable 0x0082a5f4, built by 0x00331e90): fonts +4, menu
+    +0x24, FrontEndMenu +0x28 (0x0095f8f8), DialogMgr +0x30 (0x0095f900). gclient: playerState +0, pers +0x520.
+  - Physics body (0x170): +0 rotation 3x4, +0x30 position, +0x40/+0x70 predicted rotation/position, +0xc0
+    gravity direction, +0xd0 linear / +0xe0 angular velocity, +0x110/+0x120 force/torque (cleared per step),
+    +0x130 mass, +0x134 gravity scale, +0x138 max angular speed, +0x13c time scale, +0x140 max step, +0x154
+    island. Islands (0x3c, pool world +0x1c8): 8 constraint-type lists +0..+0x1c (order of the world lists +0x200,
+    +0x22c, +0x240, +0x254, +0x268, +0x27c (0x1b0 joints), +0x290, +0x2a4), body +0x20, next +0x24, tail +0x28,
+    count +0x2c, iterations +0x30, dt +0x34, next island +0x38. Collision shapes: base vtable 0x0083263c, box
+    0x007cc6c0 (slot 5 ray, 7 segment; center +0x10, half extents +0x20). GJK simplex: statics 0x0090a630-0x0090a850.
+  - Skipped: 37 per-constraint-type prepare/solve routines 0xb6780-0xc1d60 (need the solver decompile), 8 billboard
+    particle draws 0xa7930-0xac3b0 (differ only in shader globals), unreferenced box tests (af120, ae970, af460,
+    ad140, af800, afbd0, b0f70, b1500: probably dead code).

@@ -12781,3 +12781,162 @@ address,name,kind,confidence,evidence
 00247e60,VehNode_FillUnsetValue0c,function,medium,"(DI node index): when node +0xc is unset (< 0, VehNode_Alloc sets the speeds to -1) walks the previous (+0x3c bits 14-27) and next (bits 0-13) links for the nearest set +0xc and fills it in; VehNode_LinkAll"
 00247f70,VehNode_FillUnsetValue08,function,medium,(DI node index): same as VehNode_FillUnsetValue0c for the node value +8 (unset < 0): nearest set value along the previous/next links; VehNode_LinkAll
 0014ebc0,ScrField_h4ced49f6_PopFront,function,medium,"field h4ced49f6 (single-word crack 'enemyque', unconfirmed); shifts the int array field 0x4ced49f6 (HashKeyNoCase ""enemyque"", keyhash_crack) one left and sets the last slot to 0x00922e84 (undefined); BroScr_TankHullGunnerThink"
+00011870,UIText_SetScale,function,medium,"UIText_vtable 0x0082a450 slot 23: (x, y) into +0x38/+0x3c (the scale pair UIText_LayoutLines passes to nglGetTextExtent), +0x40 = 0, then UIText_LayoutLines"
+00310520,UIPictureBlock_SetVertexUVs,function,medium,"thiscall (block, EAX u[4], v[4]): nglSetQuadVertexUV on the block's quad (+0x40) for vertices 0-3; from the gap method 0x000119b0 that picks block [index] of the picture's +0x20 vector"
+0032c430,UIPicture_GetBoundsMax,function,medium,"(EAX picture, out vec3): max x/y over the four quad vertices (+0x40/+0x54/+0x68/+0x7c, y +4) of every vertex block in +0x20 (count +0x28), z = 0x00922eb8"
+0032c200,UIPicture_GetBoundsMin,function,medium,same as UIPicture_GetBoundsMax with min: smallest vertex x/y over the picture's vertex blocks
+00011ac0,UIPicture_GetHeight,function,medium,UIPicture_vtable 0x0082a2c0 slot 45 (also 0x00828eac): UIPicture_GetBoundsMax.y - UIPicture_GetBoundsMin.y
+00316f40,UIPicture_CopyFrom,function,medium,"UIPicture_vtable slot 14 (also 0x00828e30): copies +4..+0x10, name ScriptString +0x3c, +0x30..+0x38, a 0x34-byte copy of +0x2c, each 0xa8-byte vertex block of +0x20 (count +0x28) into new Z_Malloc blocks (PtrVector_PushBack), +0x14/+0x18"
+00012140,UIRootMenu_Dtor,function,low,"vtable 0x00829280 (the menu 00331e90 allocates into +0x24 of the UI root 0x0095f8d0): frees panel +0x34 (Panel_FreeElements, two aligned buffers), deletes child +0x38, back to UIMenu_vtable, UIMenu_FreeItems - same shape as <Screen>Menu_Dtor"
+000121b0,UIRootMenu_DeletingDtor,function,low,"slot 0 of vtable 0x00829280: UIRootMenu_Dtor, Z_Free if flag & 1"
+003124f0,ProfileSave_Dtor,function,medium,"stores vtable 0x008287dc, Z_Free of the four cluster buffers +0x11c0 and of +0x11bc (the profile save object ProfileSave_PrepareRequest fills)"
+00013840,ProfileSave_DeletingDtor,function,medium,"slot 0 of vtable 0x008287dc: ProfileSave_Dtor, Z_Free if flag & 1"
+00330640,ProfileSave_Construct,function,medium,"Com_Init: vtable 0x008287dc, four profile slots (0xf3 dwords each from +0x2a8, Profile_SetDefaults twice), clears the cluster buffers +0x11bc..+0x11cc"
+002fc230,ScrWaitRecord_Dtor,function,medium,"vtable 0x00831800 (Scr_InitWaitRecord): if the record's entity handle (+0x14, table 0x0097a968) is live, unlinks the list node +0x1c and decrements the entity's notify count (+0x230 -> +0x1c); SmallHeap_Free(+0x1c); base vtable 0x008317e4"
+000142c0,ScrWaitRecord_DeletingDtor,function,medium,"slot 0 of vtable 0x00831800: ScrWaitRecord_Dtor, SmallHeap_Free if flag & 1"
+00023ed0,ResourceManager_CreateSoundBanks,function,medium,"Com_Init: same ResourceManager construct shape (0x84c bytes), vtable 0x008327a8, stored in 0x0095f4c0 (GScr_SoundBankLoad/Unload, SV_SpawnServer, Stream_UpdateLoad)"
+0095f4c0,rm_soundBanks,data,medium,"sound bank resource manager created by ResourceManager_CreateSoundBanks; GScr_SoundBankLoad/GScr_SoundBankUnload, SV_SpawnServer"
+008327a8,SoundBankManager_vtable,data,medium,vtable stored by ResourceManager_CreateSoundBanks and SoundBankManager_Dtor
+002b6d60,SoundBankManager_Dtor,function,medium,"vtable 0x008327a8: per entry (count +8, 0x84 bytes from +0x60) six {file +0x60, bank +0x78} pairs: SndBank_Free + File_Close when set; ResourceManager_Destruct"
+0001c320,SoundBankManager_DeletingDtor,function,medium,"slot 0 of vtable 0x008327a8: SoundBankManager_Dtor, Z_Free if flag & 1"
+0001dc10,AnimScript_Construct,function,medium,"(EBX object, EAX owner, 8-hash name, XMM0, arg): vtable 0x00832624 (slot 1 AnimScript_Update), finds the entity by name (not 'camera') and sets its flag 0x40000000 (+0x2a4), looks up the clip's 'Trajectory'/'fakeroot' PosOri and 'Position'/'Bip01 Pelvis' Float3 channels; from 0x002beb4a"
+00832624,AnimScript_vtable,data,medium,"slots: 0 0x0001de20 (loads the COD_Note notetracks, builds the track), 1 AnimScript_Update, 2 empty, 3 AnimScript_Destroy; stored by AnimScript_Construct"
+0001eb40,AnimScript_Destroy,function,medium,"AnimScript_vtable slot 3: deletes the +0xc8 helper, clears entity flags 0x44000000 set by AnimScript_Construct, releases the notetrack ScriptStrings (+0x30), Z_Free(self)"
+00022eb0,NAL_Clip_FindPosOriChannel,function,medium,"(ESI clip, out {clip, group, index, ?}, name8, bone8): walks the groups (+0x84 count, +0x88 0x30 each) and channels (+0x80, 0x28 each, bone +0x74 0x30) for matching 8-dword names whose class type id (slot 0) is the PosOri tag 0x00909824"
+00023000,NAL_Clip_FindFloat3Channel,function,medium,same walk as NAL_Clip_FindPosOriChannel for the Float3 type tag 0x00909820 (NAL_Float3_TypeId); AnimScript_Construct 'Position'/'Bip01 Pelvis'
+0001ee70,HandleTable512_Alloc,function,medium,"(EAX table, EBX out): BitIter_Next over the 16-word free bitmap, clears the bit, handle = generation (+0x44 + slot*8) << 12 | slot; HandleTable512_ReportFull when none; S_AllocChannelHandle on 0x00962820"
+0001fa20,HandleTable512_ReportFull,function,medium,"no free slot: Sys_DebugBreak without a callback (+0x1040), else calls it for every used slot (HandleBits512_Invert of the bitmap)"
+00020990,HandleBits512_Invert,function,medium,"(EAX out, src): complement of a 16-dword (512-bit) bitmap; the 512-entry form of EntBits_Invert"
+00962820,s_channelHandles,data,medium,"512-entry handle table of the sound channels: free bitmap 16 words, entries {channel 0x00962860, generation 0x00962864}; S_AllocChannelHandle, FxSoundComponent_Dtor"
+0001f560,std_tree_InsertUnique29,function,medium,"set<std::string>::insert for the isnil +0x29 node type: lower-bound walk with std_string_CompareSubstr, std_tree_Dec29, std_tree_Insert29 when absent"
+000206e0,std_tree_Insert29,function,medium,"thiscall tree _Insert for the isnil +0x29 nodes: throws ""map/set<T> too long"", std_tree_BuyNode29, links, red-black fixup with std_tree_Lrotate29/Rrotate29"
+000213f0,std_tree_BuyNode29,function,medium,Z_Malloc(0x2c) node + std_tree_NodeCtor29 (EH frame); std_tree_Insert29
+00022500,std_tree_Dec29,function,medium,(&iterator): tree predecessor for nodes with isnil at +0x29 (head -> rightmost); pairs with std_tree_Inc29
+00022560,std_tree_NodeCtor29,function,medium,"node {left, parent, right, std::string +0xc, colour +0x28, isnil +0x29 = 0}"
+000212b0,std_tree_EraseRange29,function,medium,"erase(first, last) for the isnil +0x29 tree: whole tree -> std_map_string_EraseSubtree_2 and reset head, else std_tree_Erase29 per node"
+00022010,std_tree_Erase29,function,medium,"erase(iterator): throws ""invalid map/set<T> iterator"" on the head, unlinks with red-black fixup (Lrotate29/Rrotate29), frees the string and node"
+00022840,std_tree_Max29,function,medium,rightmost node (follow +8 until isnil +0x29)
+00022860,std_tree_Min29,function,medium,leftmost node (follow +0 until isnil +0x29); std_tree_Erase29
+00022880,std_map_string_NodeCtor,function,medium,"node ctor for the isnil +0x65 string map (std_map_string_BuyNode): links, std_map_string_PairCopy, colour +0x64, isnil +0x65 = 0"
+00022900,std_map_string_PairCopy,function,medium,"copy-constructs the map value {std::string key, two std::strings, dword +0x54} (localization entries)"
+00023390,NAL_SkipActiveChannelBlocks,function,medium,"(EDI ctx {clip, group, ., &stream}): aligns the stream to 4, then per channel of the group whose bit is set in clip +0x54 skips a self-sized block (cursor += *cursor); from 0x00022ba0 (game-side channel vtable around 0x008326b8)"
+00023260,std_list_InsertRange8,function,medium,wrapper of std_list_InsertRange8_EH; HashMap_CopyFrom_7
+000233f0,std_list_InsertRange8_EH,function,medium,"EH-framed loop: std_list_Insert8 for each node of [first, last)"
+00015760,std_list_Insert8,function,medium,"insert before where: std_list_BuyNode8, std_list_IncSize_4, links prev/next"
+00024200,FxComponent_DelayDone,function,low,(EAX component): true when flag bit 0 of +0x2a is set and +0x1c is below 0.001; gates the FX component update at 0x0029d6b5 before FxSystem calls
+000240b0,FxSystem_Prewarm,function,medium,"(ESI system, time): start time +0x40 -= time, then FxSystem_Update in 0.3 s steps up to time; from 0x00024240"
+0029ee30,FxSoundComponent_Dtor,function,medium,"vtable 0x00837674 (FxSoundComponent_Create): S_StopChannel when the channel handle +0x64 is live in s_channelHandles, then base vtable 0x00837624, +4 = 0"
+00024320,FxSoundComponent_DeletingDtor,function,medium,"slot 0 of vtable 0x00837674: FxSoundComponent_Dtor, SmallHeap_Free if flag & 1"
+00837674,FxSoundComponent_vtable,data,medium,"sound component vtable: slot 0 FxSoundComponent_DeletingDtor, slot 1 FxSoundComponent_Update; FxSoundComponent_Create"
+00025d30,ZoneClipManager_Add,function,medium,"slot 3 of the clip manager wrapper (vtable 0x0083824c, manager 0x00909830 = NAL_FindClip's): not enabled (+9) -> returns the arg; with a zone on the stack (0x0095f638 +0x374/+0x378) Stream_AddClipToZone, else the wrapped manager's slot 3"
+0028e740,Stream_AddClipToZone,function,medium,"stores the clip in the current zone's map (ZoneMap98_Lookup), returns the previous entry; ZoneClipManager_Add"
+00025dd0,ZoneClipSetManager_Add,function,low,"slot 3 of the wrapper 0x00838118 (manager 0x00909828): same shape as ZoneClipManager_Add, zone path Stream_AddClipSetToZone"
+0028e6e0,Stream_AddClipSetToZone,function,low,"NAL_ClipSetPlayer_Create(0, 0), then stores the item in the current zone's map (ZoneMapA8_Lookup), returns the previous entry; ZoneClipSetManager_Add"
+00026b60,G_ClearClient,function,medium,"(ESI gclient): G_ClearPlayerState(client), G_ClearClientPersistant(client +0x520), zeroes +0x584..+0x634 (+0x5bc = 1.0); ClientConnect (entity +0x23c client) and G_InitGame"
+00026750,G_ClearPlayerState,function,medium,"(EAX ps): field-by-field reset of the client's player state at gclient +0 (+0xc = 1.0, vectors from 0x0082e290/0x0082e110); G_ClearClient"
+00026ae0,G_ClearClientPersistant,function,medium,"(EAX gclient +0x520): zeroes the 0x64-byte block (ClientConnect then sets +0x520 = 1, the connected state)"
+00027dc0,Vehicle_CopyPathState,function,medium,"(EAX vehicle +0x248, EBX dst): copies the 0x1c-byte header and two 0x40-byte path nodes (VehiclePathNode_Copy); Vehicle_MoveAlongPath keeps a local copy"
+00027e60,VehiclePathNode_Copy,function,medium,"(EDI src, ESI dst) 0x40-byte node: ScriptString_Copy of +0/+4/+0x10, dwords +8..+0x38, packed bitfields +0x3c (14/14/2/2 bits)"
+00027f30,EntHandleTable_Alloc,function,medium,"(EAX table 0x0097a8c0, EBX out): EntBits_IterNext over the 0x2a-word free bitmap, clears the bit, handle = generation << 12 | slot; EntHandleTable_ReportFull when none; G_EntityList_Add"
+000299c0,EntHandleTable_ReportFull,function,medium,"no free entity handle: Sys_DebugBreak without the callback +0x2aa8, else calls it for every used slot (EntBits_Invert); same shape as HandleTable512_ReportFull"
+00029ce0,PhysRagdoll_InitState,function,medium,"(EDI ragdoll physics state, owner): base lists (0x00029b70), inline arrays {+0x4b0 -> +0xa50, +0xa60 -> +0x1000, +0x1020 -> +0x1c50, +0x1c60 -> +0x1cd0} with count 0, owner +0x1d30; Ragdoll_StartPhysics"
+000b38d0,PhysRagdoll_AddBodyForce,function,medium,"thiscall ragdoll (body index, force vec4): wakes it (+0x480 = 1000, +0x470/+0x478/+0x474/+0x484 = 0) and adds to the body's force accumulator +0x110; Ragdoll_AddForce"
+000b3300,PhysRagdoll_AddBodyForceAtPoint,function,medium,"thiscall ragdoll (body index, force, point, scale): same wake-up, then PhysBody_AddForceAtPoint on bodies[+0x28][index]"
+00029d50,Ragdoll_AddForce,function,medium,"(EAX force, ragdoll state, body): copies the vector, PhysRagdoll_AddBodyForce; G_PhysicsLaunch with a zero point"
+00029da0,Ragdoll_AddForceAtPoint,function,medium,"(EAX point, force, ragdoll state, body, scale): PhysRagdoll_AddBodyForceAtPoint; G_PhysicsLaunch"
+002248b0,LiveMgr_Dtor,function,medium,"vtable 0x0083c738: releases the sub-objects +0x20/+0x18/+0x1c, D3DResource_Release(+0x28), CLiveEngine_Release(+0x14), clears the Live global 0x0095f6fc"
+0002bce0,LiveMgr_DeletingDtor,function,medium,"slot 0 of vtable 0x0083c788 (ctor 0x00224920 from Sys_Main): stores it, LiveMgr_Dtor, Z_Free if flag & 1"
+00223e10,InGameLiveOptionsMenu_Dtor,function,medium,"InGameLiveOptionsMenu_vtable: frees panel +0x34 and child +0x38, back to UIMenu_vtable, UIMenu_FreeItems (the <Screen>Menu_Dtor shape)"
+0002bd30,InGameLiveOptionsMenu_DeletingDtor,function,medium,"InGameLiveOptionsMenu_Dtor, Z_Free if flag & 1"
+00043020,Heap_GetMallInfo,function,medium,"(out 10 ints): dlmalloc mallinfo of the current heap - free chunks in the 10 small bins and 127 bins, top size, totals from heap +0x450..+0x470"
+00043150,Heap_MallInfo,function,low,unreferenced wrapper: Heap_GetMallInfo into a local
+00044eb0,cdOcean_ResetWaveSets,function,medium,cdOcean_Init (both paths): cdOcean_WaveSet_SetDefaults on the four 0xd0-byte wave sets at 0x00901b30
+000449b0,cdOcean_WaveSet_SetDefaults,function,medium,"(ECX wave set 0xd0): defaults (0.5, 0.5, eight 800.0, constants from 0x007b3290/0x007b32d0); cdOcean_ResetWaveSets"
+00901b30,g_oceanWaveSets,data,medium,"4 x 0xd0-byte ocean wave sets: cdOcean_SetWaveConstants, cdOcean_StoreWaveSet, cdOcean_LoadWaveSet, Water_GetHeight"
+00094810,FxSystem_FindEmitterByName,function,medium,"thiscall system (name): HashStr_Init(name), FxSystemDef_FindEmitterByHash on the definition +0x48; the FX component code 0x002930c0 then reads FxSystem_GetEmitterParam"
+000964b0,FxSystemDef_FindEmitterByHash,function,medium,"thiscall definition (8-dword HashStr): index into the +0x58 entries (0x2c each, count int16 +0x5e) with that name, -1 if none"
+000949e0,FxSystem_GetBounds,function,medium,"thiscall system (out min/max): minps/maxps over the active emitters (+0x54, count int16 +0x5a; emitter +0xc0 set) bounds +0x60/+0x70"
+00097340,FxEmitter_SetOrigin,function,low,"thiscall emitter (vec4): previous +0x50 = old +0x40 (or the new one when it was zero), +0x40 = new; unreferenced; same logic as FxEmitter_SetMatrix"
+00099250,FxRange_SampleN,function,medium,"FxRange vtable 0x007c5ac0 slot 1 (count, out floats): FxRandom_Range(min +4, max +8) per output"
+00099290,FxRandom_Range,function,medium,"(min, max): LCG seed 0x00909f6c = seed * 0x41c64e6d + 12345 (31 bits), mantissa trick 1.0..2.0 - 1, min + (max - min) * r"
+00909f6c,fx_randSeed,data,medium,"particle library LCG seed: FxRandom_Range and the aps actions (apsActionFrenetMove_Apply, 0x000a5340..0x000a6250)"
+0009c070,FX_InitParticleLibrary,function,medium,"Mem_InitSmallBlockPools: allocator 0x008bb760 slot 1 -> pool set 0x00909f08 (apsPtrVector reserve 10), random 0x00909f04 (vtable 0x007c5fc0, also 0x0090993c), FxEmitters_Init, FxSystemPool_Init"
+000951c0,FxSystemPool_Init,function,medium,"(ESI count): 0x2c-byte pool 0x00909994: FxPool_Init, FxSystem_AllocArray(count), apsMemoryPool_Init(count, 0x70, array)"
+00095f20,FxSystem_AllocArray,function,medium,"(count, align): count * 0x70 bytes from the particle allocator, each system's fields cleared, handle +0x5e.. = -1"
+00909f08,aps_poolSet,data,medium,particle memory pool set (apsAlloc / apsPoolSet_Alloc); FX_InitParticleLibrary
+00909994,fx_systemPool,data,medium,"particle system pool (0x70-byte records): FxSystemPool_Init, FX_HasParticleRoom, FxSystemList_Update"
+00909f04,fx_random,data,medium,random object (vtable 0x007c5fc0) made by FX_InitParticleLibrary; FxRandom_Restore copies it to 0x0090993c
+000a7570,FastAcos,function,medium,"polynomial acos: |x| >= 0.5 via sqrt((1 - |x|) / 2) series, else pi/2 - asin series; FxOp1d5_Draw"
+000a6e40,FxOp1d5_Draw,function,medium,"slot 7 of the render op vtable 0x007c70a0 (FxOp1d5_Init): quad-batch particle draw (nglQuadBatch_SetMaterial from op +0x80, scene view matrix constants, apsColor_PackScaled, FastAcos)"
+00080140,NAL_Packed8EntropyFloat4_DecodeFrames,function,medium,"vtable 0x007c2828 slot 6: per active channel NAL_Packed8EntropyFloat4_DecodeChannelFrames from its 0x40-byte readers, 4 bytes out per channel"
+00080230,NAL_Packed8EntropyFloat4_DecodeChannelFrames,function,medium,only caller NAL_Packed8EntropyFloat4_DecodeFrames: four NAL_EntropyReader_DecodeFloats passes clamped to -127..127 into int8 components
+000804c0,NAL_Packed8EntropyFloat4_DecodeBlock,function,medium,vtable 0x007c2828 slot 7: per active channel NAL_Packed8EntropyFloat4_DecodeChannelBlock
+00080590,NAL_Packed8EntropyFloat4_DecodeChannelBlock,function,medium,"block form of the channel decode: byte-length-prefixed streams, four component passes clamped to int8"
+00080a00,NAL_Packed8EntropyFloat4_Evaluate,function,medium,"vtable 0x007c2828 slot 9: per channel with an output offset NAL_Packed8_DequantizeFloat4, default otherwise"
+00080b30,NAL_Packed8_DequantizeFloat4,function,medium,"(out, packed, ..., range): four signed bytes * range +8 + range +4 (NAL_Float4_AddTo)"
+00080e20,NAL_Packed16EntropyFloat4_DecodeFrames,function,medium,vtable 0x007c2890 slot 6: per active channel NAL_Packed16EntropyFloat4_DecodeChannelFrames (cache aligned to 2)
+00080f20,NAL_Packed16EntropyFloat4_DecodeChannelFrames,function,medium,only caller NAL_Packed16EntropyFloat4_DecodeFrames: entropy-decoded components clamped to int16
+000811c0,NAL_Packed16EntropyFloat4_DecodeBlock,function,medium,vtable 0x007c2890 slot 7: per active channel NAL_Packed16EntropyFloat4_DecodeChannelBlock
+00081290,NAL_Packed16EntropyFloat4_DecodeChannelBlock,function,medium,block form of the int16 channel decode
+00081700,NAL_Packed16EntropyFloat4_Evaluate,function,medium,vtable 0x007c2890 slot 9: per channel with an output offset NAL_Packed16_DequantizeFloat4
+00081840,NAL_Packed16_DequantizeFloat4,function,medium,"(out, packed int16[4], ..., range): value * range +8 + range +4 per component"
+000afde0,PhysBox_Construct,function,medium,"thiscall ctor: base vtable 0x0083263c then box vtable 0x007cc6c0; center +0x10 from arg1, half extents +0x20 from arg2, +0x1c = |extents| (rsqrt); 4 callers build temp boxes"
+000ad770,PhysBox_IntersectRay,function,high,"slot 5 of box vtable 0x007cc6c0; slab test of segment vs AABB center +0x10 / half extents +0x20, writes hit point and +-1 axis normal (+0x10), optional face distance out"
+000ada90,PhysBox_IntersectSegment,function,medium,"slot 7 of box vtable 0x007cc6c0; AABB (center +0x10, extents +0x20) vs start/end/dir per-axis slab test, returns bool only"
+000af800,PhysOrientedBox_IntersectRay,function,medium,"transforms ray into frame (rot +0x30, origin +0x60), builds temp PhysBox from extents +0x70, PhysBox_IntersectRay, rotates hit point/normal back to world"
+000afbd0,PhysOrientedBox_IntersectSegment,function,medium,"same frame transform (rot +0x30, origin +0x60, extents +0x70) of start/end/dir, temp PhysBox, PhysBox_IntersectSegment"
+000b07a0,PhysBox_ContainsPointInFrame,function,high,"point minus frame origin [0xc..0xe] times frame rows, then min/max test against box center +0x10 +- extents +0x20"
+000b0f70,PhysBox_IntersectSegmentInFrame,function,medium,"two points into frame (arg2), AABB overlap reject, then RayPlaneIntersectFrac against the box faces; degenerate length < 0.0001 falls back to PhysBox_ContainsPointInFrame"
+000affc0,PhysBox_PointDistanceSq,function,high,"clamps point to [center-extents, center+extents] (+0x10/+0x20) with maxps/minps, returns squared distance"
+000b1500,PhysBox_PointDistanceSqInFrame,function,medium,point into frame (rows + origin [0xc..0xe]) then PhysBox_PointDistanceSq
+000b1b40,Gjk_ClosestPoints,function,medium,"GJK loop (SOLID style): support via shape vtable slot 2 on both shapes, simplex points p/q/y in 0x0090a750/0x0090a7d0/0x0090a790, bits/all_bits, 0.0001 duplicate-vertex exits, writes p,q,v to arg4"
+000b16b0,Gjk_ComputeDeterminants,function,high,"Johnson sub-algorithm: dot products dp[4][4] 0x0090a810 of y's for the new vertex, det[16][4] 0x0090a640 for every subset with last_bit, full simplex case all_bits==0xf"
+0090a640,gjk_det,data,high,"Gjk_ComputeDeterminants: det[subset][i] float table, 16x4"
+0090a810,gjk_dp,data,high,"Gjk_ComputeDeterminants: dot products y[i].y[j], 4x4"
+0090a790,gjk_y,data,high,"Gjk_ClosestPoints: simplex points y[i] = p[i]-q[i], 4 x vec4"
+0090a750,gjk_p,data,high,"Gjk_ClosestPoints: support points on shape A per slot, 4 x vec4"
+0090a7d0,gjk_q,data,high,"Gjk_ClosestPoints: support points on shape B per slot, 4 x vec4"
+0090a748,gjk_bits,data,high,"Gjk_ClosestPoints: used simplex slot mask, cleared at start, free slot search"
+0090a740,gjk_allBits,data,high,bits|last_bit; Gjk_ComputeDeterminants full simplex when == 0xf
+0090a744,gjk_last,data,high,index of the newly added simplex slot
+0090a630,gjk_lastBit,data,high,1<<gjk_last
+000b3130,PhysRagdoll_CreateJoint,function,medium,"PhysRagdoll_Build per joint with type != 0: PhysWorld_AllocConstraint1B0(bodies[+0x28][i], bodies[j]) stored in ragdoll +0x58[j]"
+000b4b40,PhysWorld_AllocConstraint1B0,function,medium,"pops a record from the phys_world pool +0x27c/+0x284/+0x288 (0x1b0 pool), init, stores body A/B at +0/+4"
+000b5aa0,PhysConstraint1B0_Init,function,medium,"fastcall: 12 slots at +0x34 stride 8 = -1, +0x190 = this+0x110, +0x194/+0x30 = 0; only caller PhysWorld_AllocConstraint1B0"
+000b33e0,PhysRagdoll_SolveJointPositions,function,medium,up to 0x008bd470 (200) passes over ragdoll joints +0x58/+0x5c calling PhysJoint_SnapBodyToAnchor until max error <= 1e-5; called from PhysRagdoll_Build
+008bd470,phys_ragdollSolveIterations,data,medium,int 200: pass limit of PhysRagdoll_SolveJointPositions
+000b7770,PhysJoint_SnapBodyToAnchor,function,medium,"world anchors of body A (+0, local +0x10) and B (+4, local +0x20); translates body B by the difference, returns squared error"
+000b8ba0,PhysBody_Translate,function,high,adds vec4 to body position +0x30
+000b31c0,PhysRagdoll_FreeConstraintD0,function,medium,"frees ragdoll +0x88[i] via PhysWorld_FreeConstraintD0, clears slot"
+000b49b0,PhysWorld_FreeConstraintD0,function,medium,wrapper: PhysConstraintPoolD0_Free on phys_world
+000b31f0,PhysRagdoll_UpdateLaunchToTarget,function,medium,"callers Ragdoll_UpdateAllFromEntities: while counter +0x4a0 > 0, push bodies (+0x28, count +0x2c) toward target +0x490; stops when within 1.5 units (dist^2 < 2.25)"
+000bad60,PhysBodies_LaunchTowardTarget,function,medium,"PhysBodies_GetCenterOfMass, Newton iteration on launch speed under gravity -9.8 (* body +0x134) to hit the target point, adds the impulse/mass^2 to each body's +0x110 accumulator; outputs dist^2"
+000b3ba0,PhysRagdoll_DampLinear,function,medium,loops ragdoll bodies (count +0x2c) calling PhysRagdoll_DampBodyLinear with a vec3 factor
+000b3960,PhysRagdoll_DampBodyLinear,function,medium,"wakes ragdoll (+0x480 = 1000.0, clears +0x470/+0x474/+0x478/+0x484), body +0x110 += -(lin vel +0xd0 * (1 - factor))"
+000b3bd0,PhysRagdoll_DampAngular,function,medium,loops ragdoll bodies calling PhysRagdoll_DampBodyAngular
+000b3a80,PhysRagdoll_DampBodyAngular,function,medium,same as DampBodyLinear on angular vel +0xe0 into torque accumulator +0x120
+000b3dc0,PhysRagdoll_AttachBodyAtPoint,function,medium,"world point into owner frame (arg1 3x4+origin) and into body i's frame, then PhysRagdoll_AttachBodyToObject"
+000b35b0,PhysRagdoll_AttachBodyToObject,function,medium,"finds/creates the 0x1c0 physics object for owner (PhysWorld_FindObject1c0ByOwner / AllocObject1c0 + Init), AllocConstraint50(body, obj), sets anchors, PhysRagdoll_AddAttachedObject, stores constraint in ragdoll +0xe8 (max 10)"
+000b3f90,PhysRagdoll_AddAttachedObject,function,medium,"thiscall ragdoll: appends object to +0xb8 list (count +0xbc, max 10) if not present"
+000b44a0,PhysWorld_FindObject1c0ByOwner,function,high,scans phys_world +0x1d8 list (count +0x1e4) for record with +0x1b0 == arg
+000b4170,Phys_RunFrame,function,medium,"G_VehiclePhysicsFrame after Ragdoll_UpdateAllFromEntities: PhysWorld_Step(phys_world, dt)"
+000be640,PhysWorld_Step,function,medium,"substep count from dt / max step +0x10; per-body pre-step (+0x1ec list), objects (+0x1d8), constraint lists +0x254/+0x2a4, PhysWorld_Substep x N, then clears body force/torque +0x110..+0x12c"
+000be390,PhysWorld_Substep,function,medium,"predicts body/object transforms, callback +0xc, PhysWorld_BuildIslands, per-island iteration counts (+0x30) from dt and body +0x140, PhysIsland_Solve each, swaps contact buffers +0x30/+0x34, reinserts persistent pairs into the pair tree"
+000bd380,PhysWorld_BuildIslands,function,high,"union-find: one 0x3c island per body (+0x1c8 pool, count +0x1d0) at body +0x154, merges along every constraint list (+0x200..+0x2a4), counts per body +0x158/+0x15c, links constraints into island lists +0..+0x1c, returns island list via +0x38"
+000c2220,PhysIsland_Solve,function,medium,"per island: collects bodies flagged 0x20 (+0x144), per-type constraint prepare over island lists 0..7, then iterations (island +0x30) of the solver; profile callbacks 2/3"
+0090a888,phys_profileBegin,data,medium,optional callback called with phase 0..3 around PhysWorld_Substep / PhysIsland_Solve parts
+0090a88c,phys_profileEnd,data,medium,"paired end callback of phys_profileBegin, same phase ids"
+000c1980,PhysBody_Integrate,function,high,"pos +0x30 += dt * lin vel +0xd0; rotation (+0) = Mat34_FromRotationVector(ang vel +0xe0, dt) * rotation"
+000c17a0,PhysObject1c0_PredictTransform,function,medium,"PhysWorld_Substep over +0x1d8 objects: predicted pos +0x70 = pos +0x30 + dt*scale(+0x13c)*vel +0xd0, predicted rot +0x40 from ang vel +0xe0"
+000c0a00,PhysBody_PreStep,function,medium,"PhysWorld_Step per body: clamps angular speed +0xe0 to +0x138 via torque +0x120, then divides impulse accumulators +0x110/+0x120 by dt*+0x13c and adds gravity 9.8*(+0x134/+0x130) along +0xc0"
+000b93d0,PhysConstraint60_ComputeTargetRate,function,medium,PhysWorld_Step over +0x254 list: +0x3c = (target +0x38 - value +0x34) / (dt * body +0x13c)
+000b9410,PhysConstraint60_AdvanceTarget,function,medium,value +0x34 += rate +0x3c * dt
+000b9430,PhysConstraint60_SnapToTarget,function,medium,end of PhysWorld_Step: value +0x34 = target +0x38
+000ba9d0,PhysBody_WorldToRelative,function,medium,out = point - body pos +0x30 unless body is static (+0x144 & 0x10)
+000c2d10,PhysContactMatch_DistanceSq,function,medium,sum of squared differences of +0x10/+0x20/+0x30 vectors of two contacts; PhysContactPair_UpdateContacts picks the nearest old contact
+000c2f80,PhysContactPair_UpdateContacts,function,medium,"for each new contact finds nearest old one (PhysContactMatch_DistanceSq), copies warm-start impulses +0x60..+0x74, allocates 0xa0 contacts from the arena (+0x2b8/+0x2bc, list +0x2cc), PhysContact_Init, bias via PhysContact_ComputeBiasAndBounce"
+000c2bb0,PhysContact_ComputeBiasAndBounce,function,medium,"bias from PhysContact_GetSeparation with 0.02 slop, 0.3 factor, clamp -5, min dt 1/240; restitution from relative normal velocity against threshold body +0x134"
+000bc880,PhysContact_GetStateNormalVelocity,function,medium,"like PhysContact_GetNormalVelocity but reads velocities from the bodies' state record (+0x34 -> lin +0xf0, ang +0x100); normal +0x10, rA +0x20, rB +0x30"
+000bcb40,PhysContact_SolveNormalImpulse,function,medium,"lambda = (bias +0x78 - PhysContact_GetNormalVelocity - softness +0x80 * accum +0x68) / mass +0x84 + accum, PhysConstraint_ClampImpulse"
+000b72f0,PhysContact_AllocBufferB0,function,medium,"0xa0 bytes 16-aligned from world contact arena (cursor +0x2bc, end +0x2b8) into this +0xb0"
+000b7330,PhysContact_AllocBufferB4,function,medium,same arena alloc of 0xa0 into this +0xb4
