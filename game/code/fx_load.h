@@ -326,6 +326,13 @@ uint32_t XB_THISCALL FxOp31_AddToList(const uint8_t* op, uint32_t a0, uint32_t a
                                       const uint32_t* matrix, uint32_t light_set);
 uint32_t XB_THISCALL FxOp1d5_AddToList(const uint8_t* op, uint32_t a0, uint32_t a1, const uint32_t* a2, const float* sphere,
                                        const uint32_t* matrix, const uint8_t* scale_source);
+// 0x000a66b0 / 0x000a6e40: FxOp31 / FxOp1d5 node Draw (vtable 0x007c6740 / 0x007c70bc slot): the
+// node's instance array (+0x70 first, +0x74 count, +0x78 stride). The first draws the op's mesh
+// (+0xc) once per instance {position, alpha, quaternion} with object lights, depth writes only for
+// alpha >= 0.4; the second builds one camera-facing quad per instance into the quad batch, its
+// texture-atlas cell from the frame (+0x1c) and the view angle around the particle.
+void XB_THISCALL FxOp31_Draw(uint8_t* node);
+void XB_THISCALL FxOp1d5_Draw(uint8_t* node);
 
 // 0x0009db30 / 0x0009dbb0: vertex shader constant base + 0x60: a distance fade {scale, offset}
 // from near/far distances and alphas (range 1 when equal) / a depth range {1/(f-n), -n/(f-n)}

@@ -1841,6 +1841,211 @@ uint32_t XB_THISCALL FxOp1d5_AddToList(const uint8_t* op, uint32_t a0, uint32_t 
 
 namespace {
 
+using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
+using SetVertexConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
+
+// A cached NV2A state sent through SetRenderState_Simple only when it changes.
+template <typename T>
+void set_simple_state(uint32_t cache, uint32_t method, T value) {
+    T& cached = title_global<T>(cache);
+    if (cached == value) return;
+    title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+    cached = value;
+}
+
+// The instance array the node got from FxOp_SetTextures: +0x70 first record, +0x74 count,
+// +0x78 stride in bytes.
+const uint8_t* node_instances(const uint8_t* node) {
+    return reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(at<uint32_t>(node, 0x70)));
+}
+
+}  // namespace
+
+void XB_THISCALL FxOp31_Draw(uint8_t* node) {
+    const uint8_t* op = at<const uint8_t*>(node, 0x80);
+    nglSetTexture(0, at<NglTexture*>(op, 0x10), 2, 3);
+    // D3D's stage 0 shadows (title memory): wrap in u and v, marked dirty.
+    title_global<uint32_t>(0x003f5c68) = 1;
+    title_global<uint32_t>(0x003f8320) |= 1;
+    title_global<uint32_t>(0x003f5c6c) = 1;
+    // Alpha test (greater, ref 0), blending source alpha + (1 - source alpha), no culling.
+    set_simple_state<uint8_t>(0x00902f64, 0x00040304, 1);
+    set_simple_state<uint8_t>(0x00902f58, 0x00040300, 1);
+    set_simple_state<uint32_t>(0x00902f5c, 0x0004033c, 0x204);
+    set_simple_state<uint32_t>(0x00902f60, 0x00040340, 0);
+    uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
+    if (cull_mode != 0) {
+        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // SetRenderState_CullMode
+        cull_mode = 0;
+    }
+    set_simple_state<uint32_t>(0x00902f78, 0x00040350, 0x8006);
+    set_simple_state<uint32_t>(0x00902f68, 0x00040344, 0x302);
+    set_simple_state<uint32_t>(0x00902f6c, 0x00040348, 0x303);
+    title_global<uint32_t>(0x00902ff0) = 9;  // nglSetBlendMode's cache no longer applies
+    title_global<int32_t>(0x00902ff4) = -1;
+    title_global<int32_t>(0x00902ff8) = -1;
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00909f7c));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00909f84));
+    uint8_t& dirty = title_global<uint8_t>(0x00902f93);
+    if (dirty) {
+        title_global<uint32_t>(0x003f8320) |= 0x2000;
+        title_global<uint32_t>(0x003f8498) = 0;
+        dirty = 0;
+    }
+    const uint8_t* mesh = at<const uint8_t*>(op, 0xc);
+    const uint8_t saved_z_write = title_global<uint8_t>(0x00902f7c);
+    const uint8_t* instance = node_instances(node);
+    uint32_t count = at<uint32_t>(node, 0x74);
+    if (count == 0) return;
+    // Constants 6..18: the instance's world * view * projection (transposed), four object lights'
+    // directions, colours and the ambient, then {?, ?, ?, alpha}: the first three lanes the title
+    // never writes (zeros here and in --compare test processes).
+    alignas(16) float constants[52] = {};
+    do {
+        const uint8_t* record = instance;
+        instance += at<uint32_t>(node, 0x78);
+        // Record: position {x, y, z, alpha}, then the rotation quaternion.
+        alignas(16) float position[4];
+        std::memcpy(position, record, 16);
+        alignas(16) float world[16];
+        Mat44_FromQuatTranslation(world, reinterpret_cast<const float*>(record + 0x10), position);
+        FxMatrix_Multiply(world, world, reinterpret_cast<const float*>(node + 0x10));
+        const float* view_projection =
+            reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(title_global<uint32_t>(0x0090259c)) + 0x190);
+        const Lanes r0 = lanes(view_projection), r1 = lanes(view_projection + 4), r2 = lanes(view_projection + 8),
+                    r3 = lanes(view_projection + 12);
+        Lanes rows[4];
+        for (int i = 0; i < 3; ++i)
+            rows[i] = add(add(mul(r0, world[i * 4]), mul(r1, world[i * 4 + 1])), mul(r2, world[i * 4 + 2]));
+        rows[3] = add(add(add(r3, mul(r0, world[12])), mul(r1, world[13])), mul(r2, world[14]));
+        for (int r = 0; r < 4; ++r)
+            for (int k = 0; k < 4; ++k) constants[r * 4 + k] = rows[k].v[r];
+        const float alpha = at<float>(record, 0xc);
+        constants[51] = alpha;
+        // Depth writes only for the more opaque instances (alpha >= 0.4, NaN included).
+        set_simple_state<uint8_t>(0x00902f7c, 0x0004035c, title_global<float>(0x0083ec44) > alpha ? 0 : 1);
+        alignas(16) const float sphere[4] = {at<float>(record, 0), at<float>(record, 4), at<float>(record, 8),
+                                             at<float>(mesh, 0x30)};
+        alignas(16) float inverse[16];
+        const float* to_object = FxMatrix_RigidInverse(inverse, world);
+        FxNode_ComputeObjectLights(constants + 16, constants + 32, to_object, at<uint8_t*>(node, 0x84), sphere);
+        title_function<SetVertexConstants>(0x003e7490)(6, constants, 0x34);  // NotInlineFast
+        nglDrawMeshSection(at<const NglMeshSection*>(at<const uint8_t*>(mesh, 0xc), 4));
+    } while (--count != 0);
+    set_simple_state<uint8_t>(0x00902f7c, 0x0004035c, saved_z_write);
+}
+
+void XB_THISCALL FxOp1d5_Draw(uint8_t* node) {
+    const uint8_t* op = at<const uint8_t*>(node, 0x80);
+    nglQuadBatch_SetMaterial(at<NglTexture*>(op, 0x20), at<uint32_t>(op, 0x24), 0, 0x7f);
+    // Constants 6..9: the scene's view * projection (+0x190), transposed.
+    const float* view_projection =
+        reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(title_global<uint32_t>(0x0090259c)) + 0x190);
+    alignas(16) float transposed[16];
+    for (int r = 0; r < 4; ++r)
+        for (int k = 0; k < 4; ++k) transposed[r * 4 + k] = view_projection[k * 4 + r];
+    title_function<SetVertexConstants>(0x003e7490)(6, transposed, 0x10);  // NotInlineFast
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00909f8c));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00909f94));
+    uint32_t count = at<uint32_t>(node, 0x74);
+    const uint32_t stride = at<uint32_t>(node, 0x78);
+    if (count == 0) return;
+    uint8_t* quad = nglQuadBatch_Reserve(static_cast<int32_t>(count));
+    if (!quad) return;
+    // The op's texture atlas (int16 fields): +0x28 cells, +0x2a sets, +0x2c view-angle steps; cell
+    // size in u +0x2e / +0x32, in v +0x30 / +0x34. A frame picks a cell within its set's row run.
+    const float angle_steps = static_cast<float>(at<int16_t>(op, 0x2c));
+    const int32_t sets = at<int16_t>(op, 0x2a);
+    const float per_set = static_cast<float>(at<int16_t>(op, 0x28)) / static_cast<float>(sets);
+    const int32_t per_set_i = static_cast<int32_t>(per_set);
+    const float set_scale = title_global<float>(0x0083eb20) / per_set;  // 1
+    const float du = static_cast<float>(at<int16_t>(op, 0x2e)) / static_cast<float>(at<int16_t>(op, 0x32));
+    const float dv = static_cast<float>(at<int16_t>(op, 0x30)) / static_cast<float>(at<int16_t>(op, 0x34));
+    const uint8_t* scene = reinterpret_cast<const uint8_t*>(title_global<uint32_t>(0x0090259c));
+    const float one = title_global<float>(0x007c9db0);
+    // Up: {0, 0, 1, 0}; the camera's forward (+0x260) flattened (z = 0), {1, 0, 0, 0} when nearly
+    // vertical, normalized; right = (y, -x, 0, y) times the billboard size.
+    const Lanes up = mul(lanes(&title_global<float>(0x007c9df0)), one);
+    Lanes forward = lanes(reinterpret_cast<const float*>(scene + 0x260));
+    forward.v[2] = 0.0f;
+    const Lanes squares = mul(forward, forward);
+    platform_keep(squares);
+    if (title_global<float>(0x0083f02c) > (squares.v[0] + squares.v[1]) + squares.v[2])
+        forward = mul(lanes(&title_global<float>(0x007c9dd0)), one);
+    const Lanes d = normalized(forward);
+    uint32_t neg_x;
+    std::memcpy(&neg_x, &d.v[0], 4);
+    neg_x ^= 0x80000000u;
+    const Lanes right = mul(Lanes{{d.v[1], from_bits(neg_x), 0.0f, d.v[1]}}, title_global<float>(0x00909984));
+    platform_keep(right);
+    // The camera's heading as a fraction of a turn (times the billboard size), wrapped to [0, 1).
+    float heading = title_function<float XB_CDECL(float)>(0x000a7570)(d.v[0]);  // FastAcos
+    if (0.0f > d.v[1]) heading = title_global<float>(0x0083edac) - heading;      // 2 pi
+    heading = heading * title_global<float>(0x0083f118) * title_global<float>(0x00909984);  // 1 / (2 pi)
+    if (0.0f > heading) heading += title_global<float>(0x0083eb20);
+    if (heading >= title_global<float>(0x0083eb20)) heading -= title_global<float>(0x0083eb20);
+    const float half_step = title_global<float>(0x0083eb24) / angle_steps;  // 0.5
+    const float* matrix = reinterpret_cast<const float*>(node + 0x10);
+    const float* colour = reinterpret_cast<const float*>(node + 0x60);
+    const uint8_t* instance = node_instances(node);
+    do {
+        // Record: position, alpha (+0x10), heading (+0x14, radians), height (+0x18), frame (+0x1c);
+        // width = +0xc times 0.5.
+        const uint8_t* record = instance;
+        instance += stride;
+        alignas(16) float point[4];
+        std::memcpy(point, record, 16);
+        alignas(16) float centre[4];
+        Mat44_TransformPoint(centre, matrix, point);
+        alignas(16) const float scale[4] = {title_global<float>(0x0083eb20), title_global<float>(0x0083eb20),
+                                            title_global<float>(0x0083eb20), at<float>(record, 0x10)};
+        const uint32_t argb =
+            title_function<uint32_t XB_CDECL(const float*, const float*)>(0x000a7670)(colour, scale);  // apsColor_PackScaled
+        // The atlas v by the view angle around the particle (in steps), u by the frame.
+        float angle = at<float>(record, 0x14) * title_global<float>(0x0083f118) + half_step;
+        const float wrap = title_global<float>(0x0083eb20);
+        if (angle > wrap) angle -= wrap;
+        angle -= heading;
+        if (0.0f > angle) angle += wrap;
+        const int32_t frame = static_cast<int32_t>(at<float>(record, 0x1c));
+        angle *= angle_steps;
+        const int32_t set = static_cast<int32_t>(static_cast<float>(frame) * set_scale);
+        const int32_t cell = frame - set * per_set_i;
+        const float u0 = static_cast<float>(cell) * du;
+        const int32_t row = static_cast<int32_t>(angle) * sets + set;
+        const float u1 = u0 + du;
+        const float v0 = static_cast<float>(row) * dv;
+        const float v1 = v0 + dv;
+        const Lanes height = mul(up, at<float>(record, 0x18));
+        const Lanes width = mul(right, at<float>(record, 0xc) * title_global<float>(0x0083eb24));
+        const Lanes p = lanes(centre);
+        const Lanes top = add(p, height);
+        const Lanes top_right = add(top, width);
+        const Lanes top_left = sub(top, width);
+        const Lanes bottom_right = add(p, width);
+        const Lanes bottom_left = sub(p, width);
+        platform_keep(top_right);
+        platform_keep(top_left);
+        platform_keep(bottom_right);
+        platform_keep(bottom_left);
+        // Four {x, y, z, colour, u, v} vertices.
+        const Lanes* corners[4] = {&top_right, &bottom_right, &top_left, &bottom_left};
+        const float us[4] = {u0, u0, u1, u1};
+        const float vs[4] = {v0, v1, v0, v1};
+        for (int i = 0; i < 4; ++i) {
+            uint8_t* vertex = quad + i * 0x18;
+            std::memcpy(vertex, corners[i]->v, 12);
+            at<uint32_t>(vertex, 0xc) = argb;
+            at<float>(vertex, 0x10) = us[i];
+            at<float>(vertex, 0x14) = vs[i];
+        }
+        quad += 0x60;
+    } while (--count != 0);
+    nglQuadBatch_Draw();
+}
+
+namespace {
+
 void set_constant(uint32_t base, const float* v) {
     title_function<void XB_FASTCALL(uint32_t, const float*)>(0x003e7440)(base + 0x60, v);  // SetVertexShaderConstant1Fast
 }

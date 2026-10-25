@@ -1244,6 +1244,8 @@ const Function kFunctions[] = {
     {"FxDiscDomain_Generate", 0x000a5db0, 0, code(&FxDiscDomain_Generate), 8, Result::Eax, Status::Compare},
     {"FxCircleDomain_Init", 0x000a5f20, 0, code(&FxCircleDomain_Init), 12, Result::Eax, Status::Compare},
     {"FxCircleDomain_Generate", 0x000a6250, 0, code(&FxCircleDomain_Generate), 8, Result::Eax, Status::Compare},
+    {"FxOp31_Draw", 0x000a66b0, 0, code(&FxOp31_Draw), 0, Result::None, Status::Compare},
+    {"FxOp1d5_Draw", 0x000a6e40, 0, code(&FxOp1d5_Draw), 0, Result::None, Status::Compare},
     {"ClosestPointOnTriangle", 0x000b0190, 0, code(&ClosestPointOnTriangle), 20, Result::Eax, Status::Compare},
     {"CM_QuadTreeFindLeaf", 0x000b15c0, 0, code(&CM_QuadTreeFindLeaf), 12, Result::Eax, Status::Compare},
     {"S_SetMasterAttenuation", 0x000c3500, 0, code(&S_SetMasterAttenuation), 0, Result::Eax, Status::Compare},
