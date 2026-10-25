@@ -708,4 +708,113 @@ void XB_REGS1 XB_STDCALL DebugDraw_QueueTriangle(DebugDrawQueue* queue, const ui
     push_queue(queue, triangle, 12, false);
 }
 
+uint32_t* XB_REGS3 XB_STDCALL DebugDraw_MakeTriangle(uint32_t, const uint32_t* b, const uint32_t* c, uint32_t* out,
+                                                     const uint32_t* a) {
+    for (int w = 0; w < 4; ++w) out[w] = a[w];
+    for (int w = 0; w < 4; ++w) out[4 + w] = b[w];
+    for (int w = 0; w < 4; ++w) out[8 + w] = c[w];
+    return out;
+}
+
+void XB_REGS2 XB_CDECL DebugDraw_AddTriangleIfEnabled(uint32_t, const uint32_t* b, const uint32_t* a,
+                                                      const uint32_t* c) {
+    if (!title_global<uint8_t>(0x0095f688)) return;
+    alignas(16) uint32_t triangle[12];
+    DebugDraw_QueueTriangle(&title_global<DebugDrawQueue>(0x0097a8b0), DebugDraw_MakeTriangle(0, b, c, triangle, a));
+}
+
+PLATFORM_ASM_ENTRY(DebugDraw_AddLineIfEnabled_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DebugDraw_AddLineIfEnabled) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL DebugDraw_AddLineIfEnabled(const uint32_t* second, const uint32_t* first, float value) {
+    if (!title_global<uint8_t>(0x0095f688)) return;
+    alignas(16) uint32_t line[9];
+    for (int w = 0; w < 4; ++w) line[w] = first[w];
+    std::memcpy(&line[4], &value, 4);
+    for (int w = 0; w < 4; ++w) line[5 + w] = second[w];
+    DebugDraw_QueueLine(&title_global<DebugDrawQueue>(0x00984ce0), line);
+}
+
+void XB_CDECL DebugDraw_Flush(uint32_t toggle) {
+    // Drops the queued strings and the lines of one group: with `toggle` the group flips
+    // first (0x0092bf88 = !0x0092bf88) and that new group's entries go, else group 2's
+    // (ungrouped). Lines lose one frame and their fade from the alpha (+0x24) and go once out
+    // of frames. A dropped entry takes the last one's place. Both lists are handed to the
+    // draw callbacks (0x00928568 strings, 0x0092856c lines).
+    if (!title_global<uint32_t>(0x0092be80)) return;
+    uint8_t group;
+    if (toggle) {
+        uint8_t& current = title_global<uint8_t>(0x0092bf88);
+        current = current == 0;
+        group = current;
+    } else {
+        group = 2;
+    }
+    using Draw = void XB_CDECL(uint8_t*, int32_t);
+    uint8_t*& strings = title_global<uint8_t*>(0x0092bf68);
+    if (strings) {
+        int32_t& count = title_global<int32_t>(0x0092bf64);
+        uint8_t*& groups = title_global<uint8_t*>(0x0092bf6c);
+        int32_t n = count;
+        for (int32_t i = 0; i < n;) {
+            if (groups[i] == group) {
+                --count;
+                groups[i] = groups[count];
+                platform_rep_movs(strings + i * 0x84, strings + count * 0x84, 0x84);
+                n = count;
+            } else {
+                ++i;
+            }
+        }
+        title_function<Draw>(title_global<uint32_t>(0x00928568))(strings, n);
+    }
+    uint8_t*& lines = title_global<uint8_t*>(0x0092bf78);
+    if (lines) {
+        int32_t& count = title_global<int32_t>(0x0092bf74);
+        uint8_t*& groups = title_global<uint8_t*>(0x0092bf7c);
+        int32_t*& frames = title_global<int32_t*>(0x0092bf80);
+        float*& fades = title_global<float*>(0x0092bf84);
+        for (int32_t i = 0; i < count;) {
+            if (groups[i] == group) {
+                --frames[i];
+                float& alpha = *reinterpret_cast<float*>(lines + i * 0x2c + 0x24);
+                alpha = alpha - fades[i];
+                if (frames[i] <= 0) {
+                    --count;
+                    groups[i] = groups[count];
+                    frames[i] = frames[count];
+                    reinterpret_cast<uint32_t*>(fades)[i] = reinterpret_cast<const uint32_t*>(fades)[count];
+                    platform_rep_movs(lines + i * 0x2c, lines + count * 0x2c, 0x2c);
+                    continue;
+                }
+            }
+            ++i;
+        }
+        title_function<Draw>(title_global<uint32_t>(0x0092856c))(lines, count);
+    }
+}
+
+uint32_t XB_CDECL DebugDraw_Shutdown() {
+    // Frees the line and string queues' arrays and clears their state (0x0092bf60, 11 words).
+    const auto release = [](uint32_t address) {
+        void*& block = title_global<void*>(address);
+        if (block) {
+            title_function<void XB_CDECL(void*)>(0x000428d0)(block);  // Z_Free
+            block = nullptr;
+        }
+    };
+    release(0x0092bf78);
+    release(0x0092bf7c);
+    release(0x0092bf80);
+    release(0x0092bf84);
+    release(0x0092bf68);
+    release(0x0092bf6c);
+    std::memset(&title_global<uint32_t>(0x0092bf60), 0, 11 * 4);
+    return 0;
+}
+
 }  // namespace game

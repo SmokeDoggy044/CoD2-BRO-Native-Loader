@@ -483,4 +483,7 @@ void XB_CDECL cdOcean_SetWaveSpeed(uint32_t index, uint32_t wave, uint32_t value
 // 0x00044eb0: all four sets to their defaults.
 void XB_CDECL cdOcean_ResetWaveSets();
 
+// 0x00093be0 (nglInit): calls vtable slot 0 of each shader class on the class list (0x00909904).
+void XB_CDECL nglShaderList_InitAll();
+
 }  // namespace game

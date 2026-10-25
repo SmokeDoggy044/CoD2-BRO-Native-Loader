@@ -2496,4 +2496,11 @@ void XB_CDECL cdOcean_ResetWaveSets() {
     for (uint32_t i = 0; i < 4; ++i) cdOcean_WaveSet_SetDefaults(wave_set(i));
 }
 
+void XB_CDECL nglShaderList_InitAll() {
+    // Vtable slot 0 of every class on the list (no arguments), in list order.
+    for (NglShaderClass* c = title_global<NglShaderClass*>(0x00909904); c; c = c->next) {
+        title_function<void XB_THISCALL(NglShaderClass*)>(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(c->vtable[0])))(c);
+    }
+}
+
 }  // namespace game

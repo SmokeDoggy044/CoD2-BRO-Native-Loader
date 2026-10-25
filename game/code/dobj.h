@@ -252,4 +252,13 @@ void XB_CDECL DObj_UpdateSkeletons(DObj* obj);
 // its handle (+0x8c) and poisons +0x88 (0xafafafaf).
 void XB_STDCALL XModel_Free(uint8_t* model);
 
+// 0x002be7c0 (model in EBX; no callers by CALL): XModel_Free's anim-state part over the model's
+// count (+0x2e): each state destroyed and freed, its slot cleared, inside the memory context.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL XModel_FreeAnimStates(uint8_t* model);
+extern "C" void XModel_FreeAnimStates_entry(void);
+// 0x002c9b30 (object in EDI): debug text of each model's anim tree (AnimTree_DebugDraw_r with
+// one line counter) after a DebugDraw_Flush(0); nothing when the first model has no tree.
+extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_DebugDrawAnimTrees(uint8_t* const* obj);
+extern "C" void DObj_DebugDrawAnimTrees_entry(void);
+
 }  // namespace game

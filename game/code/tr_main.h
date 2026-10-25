@@ -568,4 +568,29 @@ extern "C" void R_ModelBoxBounds_entry(void);
 // parent's matrix (identity for root slots).
 void XB_CDECL R_ModelBoneMatrices(const uint8_t* model, float* matrices);
 
+// 0x00235910 (point in EAX, radius in XMM2): R_CullPointAndRadius of the point moved from the
+// current entity's space (tr.or, 0x0095e568) into the world.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL R_CullLocalPointAndRadius(const float* point, float radius);
+extern "C" void R_CullLocalPointAndRadius_entry(void);
+// 0x00235c50 / 0x00235c60 / 0x00235f60 / 0x00235f70 / 0x00235fd0 / 0x0023ba80: renderer export
+// slots that do nothing (bare ret; not hookable).
+void XB_CDECL RE_WaterCubemapShotStub();
+void XB_CDECL RE_CubemapShotStub();
+void XB_CDECL RE_AddDebugLinesStub();
+void XB_CDECL RE_AddDebugStringsStub();
+void XB_CDECL RE_EmptyStub26();
+void XB_CDECL RE_EndRegistration();
+// 0x00238750 (entity in ESI; float result in XMM0): the entity's LOD distance - distance from
+// the view origin to +0x3c, times the LOD scale plus bias, over the LOD radius (+0x38) unless 0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL R_EntityLodDistance(const uint8_t* ent);
+extern "C" void R_EntityLodDistance_entry(void);
+// 0x0028f740: an identical copy of R_DrawTextWithShadow.
+void XB_REGS1 XB_CDECL R_DrawTextWithShadow_2(const float* color, const char* text, int32_t x, int32_t y, float z,
+                                              float scale);
+// 0x002a8d30 (R_RenderView): every simple-instance list of the 99 object slots at table + 4
+// into the scene (cdSimpleInstance_AddListToScene).
+// (The asm entry rebuilds the original's pushes and passes their address, the callee's ESP.)
+extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddSimpleInstancesToScene(uint32_t top, const uint8_t* table);
+extern "C" void R_AddSimpleInstancesToScene_entry(void);
+
 }  // namespace game
