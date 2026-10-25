@@ -1394,4 +1394,32 @@ uint8_t* XB_THISCALL AnimManager2ce8_DeletingDtor(uint8_t* self, uint32_t flags)
 uint8_t* XB_THISCALL AnimManager2d34_DeletingDtor(uint8_t* self, uint32_t flags);
 uint8_t* XB_THISCALL AnimManager2d80_DeletingDtor(uint8_t* self, uint32_t flags);
 
+// Vertex writers: 12-byte title objects {vtable, cursor, material}; the material is the
+// builder's 8-byte {vtable, section} (section +0x24 flags, +0x44 the locked vertex buffer).
+// 0x0001f0b0 (ESI = writer, EDI = material): locks the section's vertex buffer unless it
+// is a GPU-frame one (flags 0x40000), then sets cursor 0, the material and the vtable
+// 0x0083273c; returns the writer.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL nglVertexWriter_Init(uint32_t* writer, uint32_t* material);
+extern "C" void nglVertexWriter_Init_entry(void);
+// 0x0001f0f0: slot 1 of the position material's vtable (0x00832760): a stack writer for
+// `material` cloned through the writer vtable's slot 1 (0x00832740), the copy stored to
+// *out; returns out.
+uint32_t** XB_THISCALL nglMeshSection_CreateVertexWriter(uint32_t* material, uint32_t** out);
+// 0x0001f120: a section with an 8-byte position material (vtable 0x00832760, from the
+// builder's allocator 0x00902928) and 12-byte vertices; returns the material.
+uint32_t* XB_CDECL nglMeshBuilder_AddPosSection(uint32_t primitive_type, uint32_t vertex_count, uint32_t unused,
+                                                uint32_t index_count, const uint16_t* indices);
+// 0x0001f1a0 / 0x00029710: Z_Malloc'd copies of a vertex writer / poly vertex writer (null
+// when the allocation fails).
+uint32_t* XB_THISCALL nglVertexWriter_Clone(const uint32_t* self);
+uint32_t* XB_THISCALL nglPolyVertexWriter_Clone(const uint32_t* self);
+// 0x000253f0 / 0x00025570: run `passes` passes (1..passes) over a resource manager's items
+// with an iterator from manager slot 5 (iterator slots: 0 deleting dtor, 1 first, 2 valid,
+// 3 next, 4 current): manager slot 8 (item, pass, context) on each item; a result > 0 steps
+// with slot 3, otherwise with slot 1, and a 0 with `notify` set calls manager slot 1 too.
+// The original also copies 32 bytes of each item (texture +0x54, mesh *item) into a local
+// nothing reads.
+void XB_THISCALL nglTextureManager_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes);
+void XB_THISCALL nglMeshManager_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes);
+
 }  // namespace game

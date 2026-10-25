@@ -455,4 +455,32 @@ uint8_t XB_CDECL Str_EqualN(const char* a, int32_t length, const char* b, int32_
 // command) - each class's Toggle flips its disable bit.
 void XB_CDECL nglToggleShaderByName(const char* name);
 
+// The four ocean wave sets (0x00901b30, 0xd0 bytes = 0x34 words each): +0x00 base height,
+// +0x04/+0x08 a pair, +0x10 and +0x30 three pairs each, +0x50 the four waves' origins (x, y),
+// then per wave (4 floats each) +0x70 direction, +0x80 falloff, +0x90 length, +0xa0
+// amplitude, +0xb0 phase, +0xc0 speed. The setters (no direct callers) copy the float
+// arguments' bits (MOVSS) and check no index.
+// 0x000449b0: one set's defaults: {0, 0.5, 0.5, 0}, zero pairs, {800 x4} at +0x30/+0x40,
+// zero origins and directions, falloff and length 1, amplitude/phase/speed 0.
+void XB_THISCALL cdOcean_WaveSet_SetDefaults(uint32_t* set);
+// 0x00044bc0
+void XB_CDECL cdOcean_SetBaseHeight(uint32_t index, uint32_t height);
+// 0x00044be0
+void XB_CDECL cdOcean_SetWaveSetVec04(uint32_t index, uint32_t x, uint32_t y);
+// 0x00044c10: pair `which` (0..2, others ignored) at +0x10.
+void XB_CDECL cdOcean_SetWaveSetVec10(uint32_t index, uint32_t which, uint32_t x, uint32_t y);
+// 0x00044ca0: pair `which` (0..2) at +0x30.
+void XB_CDECL cdOcean_SetWaveSetVec30(uint32_t index, uint32_t which, uint32_t x, uint32_t y);
+// 0x00044d30: wave `wave` (0..3, switch) origin.
+void XB_CDECL cdOcean_SetWaveOrigin(uint32_t index, uint32_t wave, uint32_t x, uint32_t y);
+// 0x00044df0 .. 0x00044e90: one wave's value.
+void XB_CDECL cdOcean_SetWaveDirection(uint32_t index, uint32_t wave, uint32_t value);
+void XB_CDECL cdOcean_SetWaveFalloff(uint32_t index, uint32_t wave, uint32_t value);
+void XB_CDECL cdOcean_SetWaveLength(uint32_t index, uint32_t wave, uint32_t value);
+void XB_CDECL cdOcean_SetWaveAmplitude(uint32_t index, uint32_t wave, uint32_t value);
+void XB_CDECL cdOcean_SetWavePhase(uint32_t index, uint32_t wave, uint32_t value);
+void XB_CDECL cdOcean_SetWaveSpeed(uint32_t index, uint32_t wave, uint32_t value);
+// 0x00044eb0: all four sets to their defaults.
+void XB_CDECL cdOcean_ResetWaveSets();
+
 }  // namespace game

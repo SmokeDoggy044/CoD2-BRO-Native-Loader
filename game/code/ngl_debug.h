@@ -75,4 +75,18 @@ extern "C" void DebugDraw_AddString_entry(void);
 // instance matrix; 0x4 that times the node's world inverse; otherwise identities.
 void XB_CDECL nglBuildBoneMatrixPalette(float* out, uint8_t* node, const uint8_t* section);
 
+// The debug-draw queues' growable arrays {data (Mem_AlignedAlloc), capacity, count} with
+// 0x30-byte slots: push_back of one element (EAX = array). Full arrays grow by 4 (by 1
+// while count <= 3), copying the old elements.
+struct DebugDrawQueue {
+    uint32_t data;
+    int32_t capacity;
+    int32_t count;
+};
+// 0x00028160: a 0x24-byte line (two points, colour); new slots up to the old count + 1
+// get +0x10 = 0 first.
+void XB_REGS1 XB_STDCALL DebugDraw_QueueLine(DebugDrawQueue* queue, const uint32_t* line);
+// 0x000282b0: a 0x30-byte triangle.
+void XB_REGS1 XB_STDCALL DebugDraw_QueueTriangle(DebugDrawQueue* queue, const uint32_t* triangle);
+
 }  // namespace game

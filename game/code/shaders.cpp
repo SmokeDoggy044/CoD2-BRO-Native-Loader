@@ -2412,4 +2412,88 @@ void XB_CDECL nglToggleShaderByName(const char* name) {
     }
 }
 
+namespace {
+
+// The original copies each 16-byte constant word by word from .rdata.
+void copy_vec4(uint32_t* dst, uint32_t source) {
+    for (int i = 0; i < 4; ++i) dst[i] = title_global<uint32_t>(source + i * 4);
+}
+
+void set_wave_pair(uint32_t index, uint32_t offset, uint32_t x, uint32_t y) {
+    uint32_t* set = wave_set(index);
+    set[offset / 4] = x;
+    set[offset / 4 + 1] = y;
+}
+
+void set_wave_value(uint32_t index, uint32_t wave, uint32_t offset, uint32_t value) {
+    title_global<uint32_t>(0x00901b30 + offset + (index * 0x34 + wave) * 4) = value;
+}
+
+}  // namespace
+
+void XB_THISCALL cdOcean_WaveSet_SetDefaults(uint32_t* set) {
+    const uint32_t half = title_global<uint32_t>(0x0083eb24);  // 0.5f
+    set[0] = 0;
+    set[1] = half;
+    set[2] = half;
+    set[3] = 0;
+    copy_vec4(set + 0x04, 0x007b32d0);  // (0, 0, 0, 0)
+    copy_vec4(set + 0x08, 0x007b32d0);
+    const uint32_t eight_hundred = title_global<uint32_t>(0x0083f194);  // 800.0f
+    for (int i = 0; i < 4; ++i) set[0x0c + i] = eight_hundred;
+    for (int i = 0; i < 4; ++i) set[0x10 + i] = eight_hundred;
+    copy_vec4(set + 0x14, 0x007b32d0);
+    copy_vec4(set + 0x18, 0x007b32d0);
+    copy_vec4(set + 0x1c, 0x007b32d0);
+    copy_vec4(set + 0x20, 0x007b3290);  // (1, 1, 1, 1)
+    copy_vec4(set + 0x24, 0x007b3290);
+    copy_vec4(set + 0x28, 0x007b32d0);
+    copy_vec4(set + 0x2c, 0x007b32d0);
+    copy_vec4(set + 0x30, 0x007b32d0);
+}
+
+void XB_CDECL cdOcean_SetBaseHeight(uint32_t index, uint32_t height) { wave_set(index)[0] = height; }
+
+void XB_CDECL cdOcean_SetWaveSetVec04(uint32_t index, uint32_t x, uint32_t y) { set_wave_pair(index, 0x04, x, y); }
+
+void XB_CDECL cdOcean_SetWaveSetVec10(uint32_t index, uint32_t which, uint32_t x, uint32_t y) {
+    if (which < 3) set_wave_pair(index, 0x10 + which * 8, x, y);
+}
+
+void XB_CDECL cdOcean_SetWaveSetVec30(uint32_t index, uint32_t which, uint32_t x, uint32_t y) {
+    if (which < 3) set_wave_pair(index, 0x30 + which * 8, x, y);
+}
+
+void XB_CDECL cdOcean_SetWaveOrigin(uint32_t index, uint32_t wave, uint32_t x, uint32_t y) {
+    if (wave < 4) set_wave_pair(index, 0x50 + wave * 8, x, y);
+}
+
+void XB_CDECL cdOcean_SetWaveDirection(uint32_t index, uint32_t wave, uint32_t value) {
+    set_wave_value(index, wave, 0x70, value);
+}
+
+void XB_CDECL cdOcean_SetWaveFalloff(uint32_t index, uint32_t wave, uint32_t value) {
+    set_wave_value(index, wave, 0x80, value);
+}
+
+void XB_CDECL cdOcean_SetWaveLength(uint32_t index, uint32_t wave, uint32_t value) {
+    set_wave_value(index, wave, 0x90, value);
+}
+
+void XB_CDECL cdOcean_SetWaveAmplitude(uint32_t index, uint32_t wave, uint32_t value) {
+    set_wave_value(index, wave, 0xa0, value);
+}
+
+void XB_CDECL cdOcean_SetWavePhase(uint32_t index, uint32_t wave, uint32_t value) {
+    set_wave_value(index, wave, 0xb0, value);
+}
+
+void XB_CDECL cdOcean_SetWaveSpeed(uint32_t index, uint32_t wave, uint32_t value) {
+    set_wave_value(index, wave, 0xc0, value);
+}
+
+void XB_CDECL cdOcean_ResetWaveSets() {
+    for (uint32_t i = 0; i < 4; ++i) cdOcean_WaveSet_SetDefaults(wave_set(i));
+}
+
 }  // namespace game

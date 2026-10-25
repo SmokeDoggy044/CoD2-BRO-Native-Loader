@@ -77,4 +77,8 @@ void XB_CDECL nglAllocFrameMemory();
 // the vertical blank callback, multisampling, fog textures and the debug meshes.
 void XB_CDECL nglInit();
 
+// 0x0001d880: SceneFX's deleting destructor (vtable 0x00832634 slot 0): the resource
+// manager base destructor, then Z_Free when bit 0 of `flags` is set; returns self.
+uint8_t* XB_THISCALL SceneFX_DeletingDtor(uint8_t* self, uint32_t flags);
+
 }  // namespace game

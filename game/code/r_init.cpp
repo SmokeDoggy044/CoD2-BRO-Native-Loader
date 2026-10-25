@@ -451,4 +451,11 @@ void XB_CDECL nglInit() {
     nglDynamicVB_EndFrame(&title_global<uint32_t>(0x00902938));
 }
 
+uint8_t* XB_THISCALL SceneFX_DeletingDtor(uint8_t* self, uint32_t flags) {
+    field<uint32_t>(self, 0) = 0x00832634;  // SceneFX vtable
+    ResourceManager_Destruct(self);
+    if (flags & 1) title_function<void XB_CDECL(void*)>(0x000428d0)(self);  // Z_Free
+    return self;
+}
+
 }  // namespace game

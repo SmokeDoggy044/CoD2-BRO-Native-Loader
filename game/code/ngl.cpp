@@ -6264,4 +6264,96 @@ uint8_t* XB_THISCALL AnimManager2d80_DeletingDtor(uint8_t* self, uint32_t flags)
     return delete_manager<NalManager_SkipListClearKey8>(self, flags, 0x00838294);
 }
 
+PLATFORM_ASM_ENTRY(nglVertexWriter_Init_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(nglVertexWriter_Init) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL nglVertexWriter_Init(uint32_t* writer, uint32_t* material) {
+    const auto section = [material] { return reinterpret_cast<uint8_t*>(uintptr_t{material[1]}); };
+    if (!(*reinterpret_cast<const uint32_t*>(section() + 0x24) & 0x40000)) {
+        uint8_t* buffer = section() + 0x44;
+        const uint8_t* locked = nglLockVertexBuffer(buffer, 0, 0);
+        *reinterpret_cast<uint32_t*>(section() + 0x44) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(locked));
+    }
+    writer[1] = 0;
+    writer[2] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(material));
+    writer[0] = 0x0083273c;  // vtable
+    return writer;
+}
+
+uint32_t** XB_THISCALL nglMeshSection_CreateVertexWriter(uint32_t* material, uint32_t** out) {
+    uint32_t writer[3] = {0x0083273c, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(material))};
+    using Clone = uint32_t* XB_THISCALL(const uint32_t*);
+    *out = title_function<Clone>(title_global<uint32_t>(0x00832740))(writer);
+    return out;
+}
+
+uint32_t* XB_CDECL nglMeshBuilder_AddPosSection(uint32_t primitive_type, uint32_t vertex_count, uint32_t unused,
+                                                uint32_t index_count, const uint16_t* indices) {
+    using Alloc = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
+    uint32_t* material =
+        reinterpret_cast<uint32_t*>(uintptr_t{title_function<Alloc>(title_global<uint32_t>(0x00902928))(8, 4, 0)});
+    if (material) material[0] = 0x00832760;  // vtable
+    nglMeshBuilder_AddSection(material, primitive_type, vertex_count, unused, index_count, indices, 0xc);
+    return material;
+}
+
+namespace {
+
+// Both writer clones: the base vtable first, then the class's own.
+uint32_t* clone_writer(const uint32_t* self, uint32_t base_vtable, uint32_t vtable) {
+    using Alloc = uint32_t XB_CDECL(uint32_t);
+    uint32_t* copy = reinterpret_cast<uint32_t*>(uintptr_t{title_function<Alloc>(0x00042c10)(0xc)});  // Z_Malloc
+    if (!copy) return nullptr;
+    copy[0] = base_vtable;
+    copy[1] = self[1];
+    copy[2] = self[2];
+    copy[0] = vtable;
+    return copy;
+}
+
+void for_each_pass(void** self, uint8_t notify, uint32_t context, int32_t passes) {
+    using Create = void** XB_THISCALL(void**);
+    using Step = void XB_THISCALL(void**);
+    using Valid = uint8_t XB_THISCALL(void**);
+    using Current = uint32_t XB_THISCALL(void**);
+    using Visit = int32_t XB_THISCALL(void**, uint32_t, int32_t, uint32_t);
+    using Delete = void XB_THISCALL(void**, uint32_t);
+    const auto slot = [](void** object, int index) {
+        return reinterpret_cast<uintptr_t>(static_cast<void**>(object[0])[index]);
+    };
+    void** it = title_function<Create>(slot(self, 5))(self);
+    for (int32_t pass = 1; pass <= passes; ++pass) {
+        title_function<Step>(slot(it, 1))(it);
+        while (title_function<Valid>(slot(it, 2))(it)) {
+            const uint32_t item = title_function<Current>(slot(it, 4))(it);
+            const int32_t result = title_function<Visit>(slot(self, 8))(self, item, pass, context);
+            if (result > 0) {
+                title_function<Step>(slot(it, 3))(it);
+            } else {
+                title_function<Step>(slot(it, 1))(it);
+            }
+            if (result == 0 && notify) title_function<Step>(slot(self, 1))(self);
+        }
+    }
+    if (it) title_function<Delete>(slot(it, 0))(it, 1);
+}
+
+}  // namespace
+
+uint32_t* XB_THISCALL nglVertexWriter_Clone(const uint32_t* self) { return clone_writer(self, 0x00832790, 0x0083273c); }
+
+void XB_THISCALL nglTextureManager_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes) {
+    for_each_pass(self, notify, context, passes);
+}
+
+void XB_THISCALL nglMeshManager_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes) {
+    for_each_pass(self, notify, context, passes);
+}
+
+uint32_t* XB_THISCALL nglPolyVertexWriter_Clone(const uint32_t* self) {
+    return clone_writer(self, 0x0083be58, 0x0083be3c);
+}
+
 }  // namespace game

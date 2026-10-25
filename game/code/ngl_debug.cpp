@@ -660,4 +660,52 @@ void XB_CDECL nglBuildBoneMatrixPalette(float* out, uint8_t* node, const uint8_t
     }
 }
 
+namespace {
+
+uint32_t* queue_slot(uint32_t data, int32_t index) {
+    return reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(data + static_cast<uint32_t>(index) * 0x30));
+}
+
+// The grow step of both push_backs: `words` dwords per element copied, the line's
+// constructor loop (`clear_10`) over the first old count + 1 new slots.
+void grow_queue(DebugDrawQueue* queue, int words, bool clear_10) {
+    const int32_t count = queue->count;
+    const int32_t capacity = count > 3 ? count + 4 : count + 1;
+    const uint32_t data = static_cast<uint32_t>(
+        reinterpret_cast<uintptr_t>(Mem_AlignedAlloc(static_cast<uint32_t>(capacity) * 0x30, 4, 0)));
+    if (clear_10) {
+        const uint32_t end = data + static_cast<uint32_t>(count + 1) * 0x30;
+        for (uint32_t slot = data; slot != end; slot += 0x30)
+            if (slot) *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(slot + 0x10)) = 0;  // 0.0f
+    }
+    for (int32_t i = 0; i < queue->count; ++i) {
+        const uint32_t* from = queue_slot(queue->data, i);
+        uint32_t* to = queue_slot(data, i);
+        for (int w = 0; w < words; ++w) to[w] = from[w];
+    }
+    if (queue->data) {
+        Mem_AlignedFree(reinterpret_cast<void*>(static_cast<uintptr_t>(queue->data)));
+        queue->data = 0;
+    }
+    queue->capacity = capacity;
+    queue->data = data;
+}
+
+void push_queue(DebugDrawQueue* queue, const uint32_t* element, int words, bool clear_10) {
+    if (queue->count >= queue->capacity) grow_queue(queue, words, clear_10);
+    uint32_t* slot = queue_slot(queue->data, queue->count);
+    ++queue->count;
+    for (int w = 0; w < words; ++w) slot[w] = element[w];
+}
+
+}  // namespace
+
+void XB_REGS1 XB_STDCALL DebugDraw_QueueLine(DebugDrawQueue* queue, const uint32_t* line) {
+    push_queue(queue, line, 9, true);
+}
+
+void XB_REGS1 XB_STDCALL DebugDraw_QueueTriangle(DebugDrawQueue* queue, const uint32_t* triangle) {
+    push_queue(queue, triangle, 12, false);
+}
+
 }  // namespace game
