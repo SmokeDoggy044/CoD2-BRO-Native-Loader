@@ -487,7 +487,7 @@
 0001efd0 DynArray_Erase12
 0001f040 FixedStr_BaseName
 0001f0b0 nglVertexWriter_Init
-0001f0f0 nglMeshSection_CreateVertexWriter
+0001f0f0 nglPosMaterial_CreateVertexWriter
 0001f120 nglMeshBuilder_AddPosSection
 0001f1a0 nglVertexWriter_Clone
 0001f1f0 std_map_string_Subscript
@@ -695,7 +695,7 @@
 00027770 FUN_00027770
 00027cf0 FUN_00027cf0
 00027d30 FUN_00027d30
-00027d60 FUN_00027d60
+00027d60 DebugDraw_MakeTriangle
 00027dc0 Vehicle_CopyPathState
 00027e60 VehiclePathNode_Copy
 00027f30 EntHandleTable_Alloc
@@ -2093,7 +2093,7 @@
 00094170 FX_ResetParticleSystem
 000941b0 FxSystem_SetView
 00094610 FX_InitSystem
-00094750 FxSystem_ResetView
+00094750 FxView_Reset
 00094800 FxSystem_Stop
 00094810 FxSystem_FindEmitterByName
 00094890 FX_HasParticleRoom
@@ -2247,7 +2247,7 @@
 0009ca90 apsPtrVector_DeleteAll
 0009cb00 apsElementList_Add
 0009cb60 apsPtrVector_PushFront
-0009cc50 FxOp_SetTextures
+0009cc50 FxOp_SetInstances
 0009cca0 FxOp31_InitShaders
 0009ccd0 FxOp31_Init
 0009cd00 FxShaderClass_Create
@@ -8134,7 +8134,7 @@
 0023d070 XModel_TraceParts
 0023d5a0 FX_PlayEffectWithAxis
 0023d690 R_LinkEntityToCells_r
-0023d7b0 XModel_GetTransformedBounds
+0023d7b0 DObj_GetTransformedBounds
 0023d8a0 R_Init
 0023d8f0 R_AddEntityToCells_r
 0023da30 SV_TraceDObjModels
