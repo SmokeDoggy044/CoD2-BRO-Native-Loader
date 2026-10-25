@@ -569,15 +569,17 @@ int loader_main(int argc, char** argv) {
         aspect = 16.0f / 9.0f;
     }
     if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
-    if (image.header().time_date != title->time_date || image.size() != title->image_size) {
-        LOG_ERROR("loader", "%s is another build (time stamp %08x, image size %x) than the supported one (%08x, %x)",
-                  xbe.filename().string().c_str(), image.header().time_date, image.size(), title->time_date,
-                  title->image_size);
+    if (const uint64_t fingerprint = image.code_fingerprint(); fingerprint != title->code_fingerprint) {
+        LOG_ERROR("loader", "%s is another build (time stamp %08x, code fingerprint %016llx) than the supported one "
+                  "(%016llx); its sections:", xbe.filename().string().c_str(), image.header().time_date,
+                  static_cast<unsigned long long>(fingerprint),
+                  static_cast<unsigned long long>(title->code_fingerprint));
+        image.log_sections();
         if (!options->any_release)
             return startup_failed(xbe.filename().string() +
                                   " is from another release of the game than the one this version supports, so "
-                                  "its code is at other addresses (the log has its time stamp and size; please "
-                                  "mention them and your disc's region and languages in a report)");
+                                  "its code is at other addresses (the log lists its sections; please attach the "
+                                  "log and mention your disc's region and languages in a report)");
         LOG_WARN("loader", "--any-release: starting it anyway; expect patches to miss and crashes");
     }
     g_xbe = xbe;

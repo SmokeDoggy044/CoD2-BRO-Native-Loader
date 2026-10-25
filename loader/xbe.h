@@ -92,6 +92,14 @@ public:
     std::string section_name(const XbeSectionHeader& section) const;
     XbeSectionHeader* find_section(uint32_t address) const;
 
+    // Identifies the build by its contents rather than its header: every section's name,
+    // address and size, and the SHA-1 digest of each section holding code. Data-only
+    // sections (strings, tables) count by place and size only, so a release whose
+    // localized data differs but whose code and layout match gets the same value.
+    uint64_t code_fingerprint() const;
+    // Logs each section with its digest, so a report shows where another build differs.
+    void log_sections() const;
+
     // Kernel-side section management (XeLoadSection / XeUnloadSection).
     void load_section(XbeSectionHeader& section);
     void unload_section(XbeSectionHeader& section);

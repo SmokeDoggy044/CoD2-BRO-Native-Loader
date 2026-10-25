@@ -1505,11 +1505,11 @@ struct TitleData {
 
 const TitleData kTitles[] = {
     {{TitleId::Campaign, "default.xbe", "default_xbe_symbols.txt", 0x003f8318, 0x003f8328, 0x003f5c68, 0x007a9f78,
-      0x433a25fa, 0x00990d80},
+      0x7426a4b9ea0d1071},
      kCampaignPatches, kCampaignRdtscSites, kCampaignSdkAliases, kCampaignSdkKeepOriginal, 0x00897908, 0x00897910,
      0x0095f6fc},
     {{TitleId::Multiplayer, "codmp_xboxf.xbe", "codmp_xbe_symbols.txt", 0x0032a358, 0x0032a368, 0x00327ca8,
-      0x003693d8, 0x433a2612, 0x00503a80},
+      0x003693d8, 0x144ecea5f2744258},
      kMultiplayerPatches, kMultiplayerRdtscSites, kMultiplayerSdkAliases, kMultiplayerSdkKeepOriginal, 0x003dd49c,
      0x003dd4a4, 0x004b2fec},
 };
