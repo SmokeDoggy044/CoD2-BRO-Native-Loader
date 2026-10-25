@@ -7,8 +7,10 @@ binaries of the same release (the build directory it was packaged from), this pr
 the log with those offsets replaced by function names, and the samples summed per
 function under each thread.
 
-usage: resolve_profile.py LOG BINARY [BINARY...]
+usage: resolve_profile.py [--summary] LOG BINARY [BINARY...]
   BINARY: the unstripped cod_bro_loader_core.dll (Windows) or cod_bro_loader (Linux)
+  --summary: per report only its start, fps and threads, each busy thread's places
+             summed over every module (system calls by name, offsets dropped)
 """
 
 import bisect
@@ -40,10 +42,14 @@ def symbols(binary):
 
 
 def main():
-    if len(sys.argv) < 3:
+    args = sys.argv[1:]
+    summary = bool(args) and args[0] == "--summary"
+    if summary:
+        args = args[1:]
+    if len(args) < 2:
         sys.exit(__doc__)
     tables = {}
-    for binary in sys.argv[2:]:
+    for binary in args[1:]:
         table = symbols(binary)
         tables[os.path.basename(binary)] = ([offset for offset, _ in table], [name for _, name in table])
 
@@ -54,28 +60,45 @@ def main():
         i = bisect.bisect_right(offsets, offset) - 1
         return names[i] if i >= 0 else f"+0x{offset:x}"
 
+    any_place = re.compile(r"^.*profile\s+(\d+\.\d+)%\s+(.*)$")
     per_function = collections.Counter()
+    everything = collections.Counter()
     thread = None
-    with open(sys.argv[1], encoding="utf-8", errors="replace") as log:
+
+    def end_thread():
+        if summary and thread:
+            print_totals(thread, everything, 12, "all places, summed")
+        elif per_function:
+            print_totals(thread, per_function, 25, "our functions, summed")
+
+    with open(args[0], encoding="utf-8", errors="replace") as log:
         for line in log:
             line = line.rstrip("\r\n")
-            if " profile  thread " in line:
-                if per_function:
-                    print_totals(thread, per_function)
-                thread, per_function = line, collections.Counter()
+            if " profile  " in line and ("thread " in line or "automatic" in line or "sampling" in line):
+                end_thread()
+                thread, per_function, everything = None, collections.Counter(), collections.Counter()
+                if " profile  thread " in line:
+                    thread = line
             m = place.match(line)
             if m and m.group(4) in tables:
                 function = name(m.group(4), int(m.group(5), 16))
                 per_function[function] += float(m.group(2))
+                everything[f"{m.group(4)}: {function}"] += float(m.group(2))
                 line = f"{m.group(1)}{m.group(2)}%{m.group(3)}{m.group(4)}: {function}"
-            print(line)
-    if per_function:
-        print_totals(thread, per_function)
+            elif thread and (a := any_place.match(line)):
+                where = re.sub(r" \+0x[0-9a-f]+", "", a.group(2))
+                where = re.sub(r"\((\w+)\+0x[0-9a-f]+\)", r"(\1)", where)
+                if where.startswith("igd") or "OpenAdapter" in where:  # driver: export names mean nothing
+                    where = where.split(" ")[0]
+                everything[where] += float(a.group(1))
+            if not summary or (" profile  " in line and not any_place.match(line) and "profile  thread " not in line):
+                print(line)
+    end_thread()
 
 
-def print_totals(thread, per_function):
-    print(f"--- our functions, summed: {thread.split('profile  ')[-1]}")
-    for function, percent in per_function.most_common(25):
+def print_totals(thread, per_function, count, what):
+    print(f"--- {what}: {thread.split('profile  ')[-1]}")
+    for function, percent in per_function.most_common(count):
         print(f"  {percent:5.1f}%  {function}")
 
 

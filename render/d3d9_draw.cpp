@@ -224,6 +224,21 @@ D3DPRIMITIVETYPE primitive_type(DrawInput::Primitive primitive) {
     }
 }
 
+// Hashing every texture's whole memory every frame took up to 13% of the main thread
+// on a slow PC (issue #8), though nearly all of them stay as loaded. Each frame hashes
+// kSampleBlocks spread blocks of a large texture (memory loaded with another picture
+// differs nearly everywhere) and the whole of it only every kFullCheckFrames frames
+// (staggered) or while it changed in the last kHotFrames.
+constexpr uint32_t kSampleBlocks = 16, kSampleBlockSize = 64, kFullCheckFrames = 8, kHotFrames = 60;
+
+uint64_t sample_texture(const uint8_t* memory, uint32_t size) {
+    if (size <= kSampleBlocks * kSampleBlockSize * 2) return hash_bytes(memory, size);
+    uint64_t h = hash_bytes(memory, kSampleBlockSize);
+    for (uint32_t i = 1; i < kSampleBlocks; ++i)
+        h = hash_bytes(memory + uint64_t{size - kSampleBlockSize} * i / (kSampleBlocks - 1), kSampleBlockSize, h);
+    return h;
+}
+
 }  // namespace
 
 struct D3D9Draw::CachedTexture {
@@ -231,6 +246,8 @@ struct D3D9Draw::CachedTexture {
     uint64_t content = 0;
     uint32_t replacement_version = 0;  // BackendConfig::replacement_version when made
     uint32_t checked_frame = 0;
+    uint64_t sample = 0;         // sample_texture when last checked
+    uint32_t changed_frame = 0;  // when its contents last changed
     float scale[2] = {1.0f, 1.0f};  // texel -> normalized coordinates for linear formats
     bool replaced = false;          // holds a BackendConfig::replace_texture picture
 };
@@ -392,7 +409,77 @@ IDirect3DTexture9* D3D9Draw::target_texture(uint32_t data) {
     return it == caches_->targets.end() ? nullptr : it->second.texture;
 }
 
-D3D9Draw::~D3D9Draw() { release(magenta_); }
+D3D9Draw::~D3D9Draw() {
+    release(magenta_);
+    release(vertex_buffer_);
+    release(index_buffer_);
+}
+
+namespace {
+
+constexpr uint32_t kVertexBufferSize = 8u << 20, kIndexBufferSize = 2u << 20;
+
+// Room for `bytes` at `offset` (rounded up to `align`) in a buffer of `size`: the lock
+// flags, and `offset` where they go. Wrapping to the start discards the buffer.
+DWORD reserve(uint32_t& offset, uint32_t bytes, uint32_t align, uint32_t size) {
+    offset = (offset + align - 1) / align * align;
+    if (offset + bytes <= size) return D3DLOCK_NOOVERWRITE;
+    offset = 0;
+    return D3DLOCK_DISCARD;
+}
+
+}  // namespace
+
+bool D3D9Draw::stream_draw(const DrawInput& input, D3DPRIMITIVETYPE type, uint32_t primitives, uint32_t stride) {
+    if (streams_failed_) return false;
+    const uint32_t vertex_bytes = input.vertex_count * stride;
+    const uint32_t index_bytes = input.indices ? input.index_count * 4 : 0;
+    // A draw larger than the buffers (none seen) gets the old path.
+    if (vertex_bytes > kVertexBufferSize || index_bytes > kIndexBufferSize) return false;
+    if (!vertex_buffer_) {
+        D3DDEVICE_CREATION_PARAMETERS creation{};
+        device_->GetCreationParameters(&creation);
+        const DWORD usage = D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY |
+                            (creation.BehaviorFlags & D3DCREATE_SOFTWARE_VERTEXPROCESSING ? D3DUSAGE_SOFTWAREPROCESSING
+                                                                                           : 0);
+        if (FAILED(device_->CreateVertexBuffer(kVertexBufferSize, usage, 0, D3DPOOL_DEFAULT, &vertex_buffer_,
+                                               nullptr)) ||
+            FAILED(device_->CreateIndexBuffer(kIndexBufferSize, usage, D3DFMT_INDEX32, D3DPOOL_DEFAULT,
+                                              &index_buffer_, nullptr))) {
+            LOG_WARN("render", "cannot create the draw vertex/index buffers; drawing from memory (slower)");
+            streams_failed_ = true;
+            return false;
+        }
+        vertex_buffer_size_ = kVertexBufferSize;
+        index_buffer_size_ = kIndexBufferSize;
+        vertex_offset_ = vertex_buffer_size_;  // the first lock discards
+        index_offset_ = index_buffer_size_;
+    }
+    auto fail = [&](const char* what) {
+        LOG_WARN("render", "cannot lock the draw %s buffer; drawing from memory (slower)", what);
+        streams_failed_ = true;
+        return false;
+    };
+    void* to = nullptr;
+    const DWORD vertex_flags = reserve(vertex_offset_, vertex_bytes, stride, vertex_buffer_size_);
+    if (FAILED(vertex_buffer_->Lock(vertex_offset_, vertex_bytes, &to, vertex_flags))) return fail("vertex");
+    std::memcpy(to, input.vertices, vertex_bytes);
+    vertex_buffer_->Unlock();
+    const uint32_t first_vertex = vertex_offset_ / stride;
+    vertex_offset_ += vertex_bytes;
+    device_->SetStreamSource(0, vertex_buffer_, 0, stride);
+    if (!input.indices) return SUCCEEDED(device_->DrawPrimitive(type, first_vertex, primitives));
+
+    const DWORD index_flags = reserve(index_offset_, index_bytes, 4, index_buffer_size_);
+    if (FAILED(index_buffer_->Lock(index_offset_, index_bytes, &to, index_flags))) return fail("index");
+    std::memcpy(to, input.indices, index_bytes);
+    index_buffer_->Unlock();
+    const uint32_t first_index = index_offset_ / 4;
+    index_offset_ += index_bytes;
+    device_->SetIndices(index_buffer_);
+    return SUCCEEDED(device_->DrawIndexedPrimitive(type, static_cast<INT>(first_vertex), 0, input.vertex_count,
+                                                   first_index, primitives));
+}
 
 UiNarrowing D3D9Draw::narrow_ui(const DrawInput& input, uint32_t width, uint32_t height) const {
     // Only over a 3D scene (drawn before the UI): flat frames are pillarboxed whole. Only
@@ -468,14 +555,22 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
     }
 
     const uint32_t key_words[4] = {data, format, size_field, palette_data};
-    CachedTexture& entry = caches_->textures[hash_bytes(key_words, sizeof(key_words))];
+    const uint64_t key = hash_bytes(key_words, sizeof(key_words));
+    CachedTexture& entry = caches_->textures[key];
     if (entry.texture && entry.checked_frame == frame_) return &entry;
     entry.checked_frame = frame_;
     const auto* memory = from_xbox_ptr<uint8_t>(data | 0x80000000u);
+    uint64_t sample = sample_texture(memory, layout.total_size);
+    if (palette) sample = hash_bytes(palette, 256 * 4, sample);
+    const bool full_check = !entry.texture || sample != entry.sample || frame_ - entry.changed_frame < kHotFrames ||
+                            (frame_ + static_cast<uint32_t>(key)) % kFullCheckFrames == 0;
+    entry.sample = sample;
+    if (!full_check) return &entry;
     uint64_t content = hash_bytes(memory, layout.total_size);
     if (palette) content = hash_bytes(palette, 256 * 4, content);
     const uint32_t version = replacement_version_ ? replacement_version_(content) : 0;
     if (entry.texture && entry.content == content && entry.replacement_version == version) return &entry;
+    if (entry.texture) entry.changed_frame = frame_;
     entry.content = content;
     entry.replacement_version = version;
 
@@ -868,6 +963,7 @@ void D3D9Draw::draw(const DrawInput& input) {
         device_->SetRenderState(D3DRS_COLORWRITEENABLE, 0xF);
     }
     const UINT stride = static_cast<UINT>(std::popcount(input.attribute_mask)) * 16;
+    if (stream_draw(input, primitive_type(input.primitive), primitives, stride)) return;
     if (input.indices)
         device_->DrawIndexedPrimitiveUP(primitive_type(input.primitive), 0, input.vertex_count, primitives,
                                         input.indices, D3DFMT_INDEX32, input.vertices, stride);

@@ -426,6 +426,7 @@ constexpr uint32_t kLevelToStart = 0x0095f920;
 constexpr uint32_t kCampaignLevel = 0x008dce48;
 
 int32_t g_start_level = -1;  // pending until the UI is up
+bool g_campaign = true;
 
 void XB_CDECL start_level() {
     if (g_start_level < 0 || title<int32_t>(kUiStarted) == 0) return;
@@ -434,6 +435,12 @@ void XB_CDECL start_level() {
     LOG_INFO("patches", "starting mission %d", g_start_level);
     g_start_level = -1;
 }
+
+}  // namespace
+
+int32_t campaign_level() { return g_campaign ? title<int32_t>(kCampaignLevel) : -1; }
+
+namespace {
 
 // pushad; pushfd; call start_level; popfd; popad; jmp FUN_002f1e60
 void install_start_level(int32_t level) {
@@ -1620,6 +1627,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     input::set_action_remap(&remap_keyboard_actions);
     g_button_prompts = config.button_prompts;
     const bool campaign = title.id == TitleId::Campaign;
+    g_campaign = campaign;
     g_aim_assist = campaign ? AimAssist{0x002db7d0, 0x500} : AimAssist{0x0024c940, 0x510};
     g_menus = campaign ? kCampaignMenus : kMultiplayerMenus;
     g_pacing = campaign ? kCampaignPacing : kMultiplayerPacing;

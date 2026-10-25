@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "log.h"
+#include "patches.h"
 #include "profiler_os.h"
 #include "symbols.h"
 #include "xbe.h"
@@ -31,25 +32,42 @@ std::string place(uint32_t eip, const XbeImage& image, const SymbolTable& symbol
     return profiler_os::host_place(eip);
 }
 
-// start < 0: automatic, at the first second under kSlowFps once the game has shown
-// kWarmupFrames (loading and the first menus are slow anyway).
-constexpr uint32_t kSlowFps = 24, kWarmupFrames = 300;
+// start < 0: automatic, at each second under kSlowFps once the game has shown
+// kWarmupFrames (loading and the first menus are slow anyway), at most once every
+// kAutoInterval seconds and kAutoReports times a run, so a whole play session's slow
+// spots get a report, not just the first one.
+constexpr uint32_t kSlowFps = 24, kWarmupFrames = 300, kAutoReports = 20;
+constexpr auto kAutoInterval = std::chrono::seconds(60);
+
+void report(double seconds, const XbeImage& image, const SymbolTable& symbols);
 
 void run(double start, double seconds, const XbeImage* image, const SymbolTable* symbols) {
     using Clock = std::chrono::steady_clock;
     if (start >= 0) {
         std::this_thread::sleep_until(platform::session_start() + std::chrono::duration_cast<Clock::duration>(
                                                                       std::chrono::duration<double>(start)));
-    } else {
+        LOG_INFO("profile", "sampling every thread for %.0f s", seconds);
+        report(seconds, *image, *symbols);
+        return;
+    }
+    for (uint32_t n = 1; n <= kAutoReports; ++n) {
         uint32_t fps = 0;
         for (;;) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             fps = render::frames_last_second();
             if (render::frames_shown() >= kWarmupFrames && fps > 0 && fps < kSlowFps) break;
         }
-        LOG_INFO("profile", "automatic start: the last second had %u frames", fps);
+        const int32_t level = campaign_level();
+        char where[32] = "";
+        if (level >= 0) std::snprintf(where, sizeof(where), ", mission %d", level);
+        LOG_INFO("profile", "automatic report %u of at most %u: the last second had %u frames%s; sampling every "
+                 "thread for %.0f s", n, kAutoReports, fps, where, seconds);
+        report(seconds, *image, *symbols);
+        std::this_thread::sleep_for(kAutoInterval);
     }
-    LOG_INFO("profile", "sampling every thread for %.0f s", seconds);
+}
+
+void report(double seconds, const XbeImage& image, const SymbolTable& symbols) {
     std::vector<Sample> samples;
     const uint32_t frames_before = render::frames_shown();
     const size_t ticks = profiler_os::sample(seconds, samples);
@@ -63,7 +81,7 @@ void run(double start, double seconds, const XbeImage* image, const SymbolTable*
     std::unordered_map<uint32_t, std::string> cache;
     for (const Sample& s : samples) {
         auto it = cache.find(s.eip);
-        if (it == cache.end()) it = cache.emplace(s.eip, place(s.eip, *image, *symbols)).first;
+        if (it == cache.end()) it = cache.emplace(s.eip, place(s.eip, image, symbols)).first;
         Thread& t = by_thread[s.tid];
         ++t.samples;
         ++t.places[it->second];

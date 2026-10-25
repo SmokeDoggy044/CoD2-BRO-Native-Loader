@@ -546,7 +546,8 @@ private:
             io.Fonts->AddFontDefault(&font);
         }
         ImGui::GetStyle().ScaleAllSizes(size / 16.0f);
-        if (!ImGui_ImplSDL3_InitForD3D(window_) || !ImGui_ImplDX9_Init(device_)) {
+        // InitForD3D asserts outside Windows (DXVK is D3D9 there too); both only set up SDL input.
+        if (!ImGui_ImplSDL3_InitForOther(window_) || !ImGui_ImplDX9_Init(device_)) {
             LOG_ERROR("render", "the PC menu cannot start (Dear ImGui)");
             ImGui::DestroyContext();
             pc_menu_ = nullptr;

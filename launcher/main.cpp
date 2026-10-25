@@ -461,7 +461,7 @@ private:
         ImGui::SeparatorText("Low frame rate");
         ImGui::Checkbox("Measure performance", &profile_);
         help_marker("For reports about a low frame rate: the next game started from here writes to its "
-                    "log where the time goes, for 10 seconds from the first moment it runs under 24 fps. "
+                    "log where the time goes: 10 seconds each time it runs under 24 fps (at most once a minute). "
                     "It is not saved; tick it again for later reports.");
     }
 

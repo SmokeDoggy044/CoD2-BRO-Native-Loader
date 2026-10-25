@@ -66,6 +66,10 @@ float field_of_view();       // what was asked for; 0: the game's own
 float game_field_of_view();  // cg_fov now; 0 before the game has set it up
 bool field_of_view_supported();
 
+// The campaign mission being played (0-13, 0 = prologue; the level index New Game and
+// the mission screens set), -1 in multiplayer. Any thread.
+int32_t campaign_level();
+
 class SymbolTable;
 class XbeImage;
 
