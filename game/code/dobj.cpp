@@ -8,6 +8,7 @@
 #include "nal_pose.h"
 #include "ngl_debug.h"
 #include "stream.h"
+#include "sv.h"
 #include "nal_math.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -1039,6 +1040,188 @@ void XB_CDECL DObj_DebugDrawAnimTrees(uint8_t* const* obj) {
             title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t, int32_t*)>(0x002c4310)(tree, 0, 0, &line);  // AnimTree_DebugDraw_r
         }
     }
+}
+
+namespace {
+
+// Bounds_AddPoints8 (0x0023c400): the eight corners of the box at `box` (mins +0, maxs
+// +0x10) through `matrix` into `bounds` (mins, then maxs at +0x10, four lanes each).
+extern "C" PLATFORM_HIDDEN void XB_CDECL dobj_bounds_add_points8(const float* matrix, const void* box, float* bounds);
+PLATFORM_ASM_ENTRY(dobj_bounds_add_points8,
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "movl 12(%esp), %esi\n"
+                   "movl 16(%esp), %edi\n"
+                   "pushl 20(%esp)\n"
+                   "movl $0x0023c400, %eax\n"
+                   "call *%eax\n"
+                   "addl $4, %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "ret")
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL XModel_GetTransformedBounds(const float* matrix, const DObj* obj, float* mins, float* maxs) {
+    const uint32_t big = title_global<uint32_t>(0x0082eed0);       // FLT_MAX
+    const uint32_t neg_big = title_global<uint32_t>(0x0083ef2c);   // -FLT_MAX
+    alignas(16) uint32_t bounds[8] = {big, big, big, big, neg_big, neg_big, neg_big, neg_big};
+    float* box = reinterpret_cast<float*>(bounds);
+    for (int32_t i = 0; i < obj->model_count; ++i) dobj_bounds_add_points8(matrix, obj->models[i], box);
+    mins[0] = box[0];
+    maxs[0] = box[4];
+    mins[1] = box[1];
+    maxs[1] = box[5];
+    mins[2] = box[2];
+    maxs[2] = box[6];
+}
+
+PLATFORM_ASM_ENTRY(DObj_GetRootAnimDelta_entry,
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DObj_GetRootAnimDelta) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL DObj_GetRootAnimDelta(const DObj* obj, float* dir, float* delta) {
+    // Identity {quaternion, position}; the eighth word is never set.
+    const float one = title_global<float>(0x0083eb20);
+    alignas(16) float root[8] = {0.0f, 0.0f, 0.0f, one, 0.0f, 0.0f, 0.0f, 0.0f};
+    if (obj->bone_matrices) {
+        const XModel* model = obj->models[0];
+        int32_t lod = 0;
+        while (!model->lods[lod]) ++lod;
+        const uint8_t* skeleton =
+            *reinterpret_cast<uint8_t* const*>(reinterpret_cast<const uint8_t*>(model->lods[lod]->parts) + 0x38);
+        const uint32_t generic = title_global<uint32_t>(0x00903fdc);  // the generic clip's vtable
+        const AnimState* state = reinterpret_cast<const AnimState*>(obj->lod_limit);
+        if (skeleton && *reinterpret_cast<const uint32_t*>(skeleton) == generic && state && state->clip &&
+            *reinterpret_cast<const uint32_t*>(state->clip) == generic)
+            NAL_GenericAnim_GetRootTransform(state->clip, state, reinterpret_cast<uint32_t*>(root));
+    }
+    alignas(16) float rotation[16];
+    Quat_ToMat33(rotation, root);
+    dir[0] = rotation[0];
+    dir[1] = rotation[1];
+    delta[0] = root[4];
+    delta[1] = root[5];
+    delta[2] = root[6];
+}
+
+void XB_CDECL XModel_CalcBoneChildrenOrtho(const XModel* model, uint8_t* matrices, int32_t parent) {
+    const XModelParts* first = model_parts(model);  // its bone table (no null check, as in the original)
+    for (int32_t bone = parent + 1;; ++bone) {
+        const XModelParts* parts = model_parts(model);
+        if (bone >= static_cast<int32_t>(parts ? parts->bone_count : 0)) break;
+        if (bone_parent(first, static_cast<uint32_t>(bone)) != parent) continue;
+        const float* p = reinterpret_cast<const float*>(matrices + parent * 0x40);
+        float* b = reinterpret_cast<float*>(matrices + bone * 0x40);
+        alignas(16) float rows[12];
+        for (int row = 0; row < 3; ++row) {
+            const float* r = b + row * 4;
+            const Lanes v = add(add(mul(lanes(p), r[0]), mul(lanes(p + 4), r[1])), mul(lanes(p + 8), r[2]));
+            std::memcpy(rows + row * 4, v.v, 16);
+        }
+        std::memcpy(b, rows, sizeof rows);
+        const float* t = b + 12;
+        const Lanes v3 = add(add(add(lanes(p + 12), mul(lanes(p), t[0])), mul(lanes(p + 4), t[1])), mul(lanes(p + 8), t[2]));
+        std::memcpy(b + 12, v3.v, 16);
+        title_function<void XB_THISCALL(float*)>(0x002cede0)(b);  // Matrix_Orthonormalize
+        XModel_CalcBoneChildrenOrtho(model, matrices, bone);
+    }
+}
+
+namespace {
+
+template <typename T>
+T& at(void* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(static_cast<uint8_t*>(base) + offset);
+}
+
+template <typename T>
+const T& at(const void* base, uint32_t offset) {
+    return *reinterpret_cast<const T*>(static_cast<const uint8_t*>(base) + offset);
+}
+
+// p - origin (+12) times the rows of the bone matrix m, as XModel_TraceParts sums them.
+void into_bone_space(const float* m, const float* p, float* out) {
+    const float dx = p[0] - m[12];
+    const float dz = p[2] - m[14];
+    const float dy = p[1] - m[13];
+    out[0] = (m[0] * dx + m[2] * dz) + m[1] * dy;
+    out[1] = (m[4] * dx + m[6] * dz) + m[5] * dy;
+    out[2] = (m[8] * dx + dz * m[10]) + dy * m[9];
+}
+
+}  // namespace
+
+int32_t XB_CDECL XModel_TraceParts(const uint8_t* model, uint8_t* trace, const uint8_t* skeleton, const float* start,
+                                   const float* end, uint32_t content_mask) {
+    int32_t hit_bone = -1;
+    int32_t bone = -1;  // the bone the segment below is in
+    float s[3] = {};    // start, end and end - start in that bone's space
+    float e[3] = {};
+    float d[3] = {};
+    for (uint32_t i = 0; i < at<uint32_t>(model, 0x38); ++i) {
+        const uint32_t count = at<uint32_t>(model, 0x38);
+        const uint8_t* part = at<const uint8_t* const*>(model, 0x3c)[i < count ? i : 0];
+        if (!(at<uint32_t>(part, 0x2c) & content_mask)) continue;
+        if (at<int32_t>(part, 0x28) != bone) {
+            bone = at<int32_t>(part, 0x28);
+            const float* m = reinterpret_cast<const float*>(skeleton + bone * 0x40);
+            into_bone_space(m, start, s);
+            into_bone_space(m, end, e);
+            d[0] = e[0] - s[0];
+            d[1] = e[1] - s[1];
+            d[2] = e[2] - s[2];
+        }
+        const float* box = reinterpret_cast<const float*>(part);
+        alignas(16) const float mins[4] = {box[0], box[1], box[2], box[0]};
+        alignas(16) const float maxs[4] = {box[4], box[5], box[6], box[4]};
+        alignas(16) const float p[4] = {e[0], e[1], e[2], e[0]};
+        alignas(16) const float q[4] = {s[0], s[1], s[2], s[0]};
+        if (SegmentMissesBounds(mins, maxs, p, q, at<float>(trace, 0x20))) continue;
+        for (uint32_t j = 0; j < at<uint32_t>(part, 0x20); ++j) {
+            const uint32_t planes = at<uint32_t>(part, 0x20);
+            const float* plane = at<const float* const*>(part, 0x24)[j < planes ? j : 0];
+            const float d_end = ((plane[2] * e[2] + plane[1] * e[1]) + plane[0] * e[0]) - plane[3];
+            if (d_end >= 0.0f) continue;
+            const float d_start = ((plane[2] * s[2] + plane[1] * s[1]) + plane[0] * s[0]) - plane[3];
+            if (0.0f >= d_start) continue;
+            const float span = d_start - d_end;
+            const float fraction = (d_start - title_global<float>(0x0083ec68)) / span;  // 0.125
+            if (fraction >= at<float>(trace, 0x20)) continue;
+            const float t = d_start / span;
+            const float px = t * d[0] + s[0];
+            const float pz = t * d[2] + s[2];
+            const float py = t * d[1] + s[1];
+            const float low = title_global<float>(0x0083eef4);  // -0.005
+            const float u = ((plane[6] * pz + plane[5] * py) + plane[4] * px) - plane[7];
+            if (low > u) continue;
+            const float high = title_global<float>(0x0083ef74);  // 1.005
+            if (u > high) continue;
+            const float v = ((plane[10] * pz + plane[9] * py) + plane[8] * px) - plane[11];
+            if (low > v) continue;
+            if (v + u > high) continue;
+            at<uint8_t>(trace, 0x3d) = 0;
+            at<uint8_t>(trace, 0x3c) = 0;
+            at<float>(trace, 0x20) = fraction;
+            hit_bone = bone;
+            at<uint32_t>(trace, 0x24) = at<uint32_t>(part, 0x30);
+            at<uint32_t>(trace, 0x28) = at<uint32_t>(part, 0x2c);
+            std::memcpy(trace + 0x10, plane, 12);
+        }
+    }
+    if (hit_bone < 0) return -1;
+    const float* m = reinterpret_cast<const float*>(skeleton + hit_bone * 0x40);
+    float* n = reinterpret_cast<float*>(trace + 0x10);
+    const float nx = n[0], ny = n[1], nz = n[2];
+    const float wx = (m[8] * nz + m[4] * ny) + m[0] * nx;
+    const float wy = (m[9] * nz + m[5] * ny) + m[1] * nx;
+    const float wz = (m[10] * nz + m[6] * ny) + m[2] * nx;
+    n[0] = wx;
+    n[1] = wy;
+    n[2] = wz;
+    return hit_bone;
 }
 
 }  // namespace game

@@ -261,4 +261,32 @@ extern "C" void XModel_FreeAnimStates_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_DebugDrawAnimTrees(uint8_t* const* obj);
 extern "C" void DObj_DebugDrawAnimTrees_entry(void);
 
+// 0x0023d7b0 (matrix in EAX; no callers by CALL): the bounds of every model of `obj` (each
+// model's box +0/+0x10 through the matrix, Bounds_AddPoints8 0x0023c400) into mins / maxs;
+// +-FLT_MAX for an object without models.
+void XB_REGS1 XB_CDECL XModel_GetTransformedBounds(const float* matrix, const DObj* obj, float* mins, float* maxs);
+// 0x002d7e30 (obj in EAX, dir out EBX, delta out EDI): the root motion of the first model's
+// generic NAL clip (as DObj_GetAnimRootTransform): dir = the first rotation row's x, y,
+// delta = the position; the identity without one.
+extern "C" PLATFORM_HIDDEN void XB_CDECL DObj_GetRootAnimDelta(const DObj* obj, float* dir, float* delta);
+extern "C" void DObj_GetRootAnimDelta_entry(void);
+
+// 0x002d7310: XModel_CalcBoneChildren for an animated skeleton (from G_DObjSetBoneRotation):
+// each child of bone `parent` (in index order after it) gets its own full 4x4 matrix in
+// `matrices` (0x40 bytes per bone, all four lanes) premultiplied by the parent's, is
+// re-orthonormalized (Matrix_Orthonormalize 0x002cede0) and recursed into.
+void XB_CDECL XModel_CalcBoneChildrenOrtho(const XModel* model, uint8_t* matrices, int32_t parent);
+
+// 0x0023d070: the segment start-end (in the model's space) against the model's collision
+// parts (count +0x38, pointer list +0x3c; each: box +0/+0x10, plane count +0x20 and
+// pointer list +0x24, bone +0x28, contents +0x2c, surface flags +0x30). Parts whose
+// contents match `content_mask` and whose box (SegmentMissesBounds) the segment reaches
+// in their bone's space (`skeleton`, 0x40 bytes per bone) test each triangle plane
+// (normal, dist, then two edge rows with offsets; inside within -0.005..1.005): a crossing
+// from the front pulled back by 0.125 and before trace +0x20 becomes the hit (fraction
+// +0x20, normal +0x10, +0x24 flags, +0x28 contents, +0x3c/+0x3d cleared). Returns the hit's
+// bone with the normal rotated out of its space, -1 for no hit.
+int32_t XB_CDECL XModel_TraceParts(const uint8_t* model, uint8_t* trace, const uint8_t* skeleton, const float* start,
+                                   const float* end, uint32_t content_mask);
+
 }  // namespace game
