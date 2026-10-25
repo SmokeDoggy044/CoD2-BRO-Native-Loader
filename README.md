@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 58% of the functions have a name, and 1,911 have been
+It's early days: about 58% of the functions have a name, and 1,912 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,13 +27,13 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 6,549 | 1,911 | 9,282 |
+| Engine and game code (`.text`) | 11,193 | 6,549 | 1,912 | 9,281 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **9,537** | **1,911** | **14,606** |
+| **Total** | **16,517** | **9,537** | **1,912** | **14,605** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 250 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 251 functions the campaign never runs, the same comparison offline on random inputs.
 We've also named 2,406 of the game's global variables.
 
 ### By part of the game
@@ -41,7 +41,7 @@ We've also named 2,406 of the game's global variables.
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 969 | 828 | 140 | 0 | 0 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,085 | 418 | 51 | 614 | 0 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,085 | 419 | 50 | 614 | 0 |
 | Client game (HUD, view, effects on screen) | 213 | 134 | 34 | 45 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 577 | 222 | 20 | 324 | 0 |
 | Client and menus | 236 | 81 | 7 | 148 | 0 |

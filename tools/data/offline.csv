@@ -80,7 +80,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00066960,nglVertexBuffer_Unlock,4000,4000,0,0,100.0
 00066a10,nglVertexBuffer_GetD3D,3824,3824,0,0,100.0
 000683a0,nglSelectMeshLodWithMatrix,2549,2549,0,0,100.0
-00068f70,nglBuildBoneMatrixPalette,2216,316,0,1900,67.3
+00068f70,nglBuildBoneMatrixPalette,2245,2245,0,0,53.9
 00069b00,nglEmpty_GetName,3819,3819,0,0,100.0
 00069b40,nglSkipList_RemoveIndirect,1927,1927,0,0,63.3
 00069c60,nglSkipList_Clear,1915,1915,0,0,91.3
@@ -121,7 +121,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0007be90,NAL_PosOri_ValueSize,4000,4000,0,0,100.0
 0007bec0,NAL_Const16,4000,4000,0,0,100.0
 0007bed0,AnimManager_SkipListRemove,1927,1927,0,0,63.1
-0007c260,NAL_RleReader_ReadBytes,1779,1760,0,19,100.0
+0007c260,NAL_RleReader_ReadBytes,1903,1903,0,0,100.0
 0007c2b0,NAL_SignalCounter_DecodeBlock,3035,3035,0,0,95.3
 0007c360,NAL_SignalCounter_SkipBlock,3242,3242,0,0,100.0
 0007c570,NAL_SignalCounter_SkipStatic,3198,3198,0,0,100.0
@@ -137,7 +137,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0007d250,NAL_Cursor_Skip8,3806,3806,0,0,100.0
 0007d3e0,NAL_Packed8Float1_DecodeBlock,3389,3389,0,0,98.5
 0007d480,NAL_Packed8Float1_SkipBlock,3331,3331,0,0,100.0
-0007d650,NAL_Packed8Float1_SkipStatic,3327,3327,0,0,100.0
+0007d650,NAL_Packed8Float1_SkipStatic,3315,3315,0,0,100.0
 0007d700,NAL_Float3_Fixup,1699,1699,0,0,100.0
 0007d730,NAL_Float3_BeginBlock,3023,3023,0,0,100.0
 0007d7c0,NAL_Float3_DecodeFrames,2933,2933,0,0,97.2
@@ -185,7 +185,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00081c80,NAL_Quat_Fixup,3045,3045,0,0,100.0
 00081cb0,NAL_EntropyQuat_SkipBlock,3114,3114,0,0,100.0
 00081d40,NAL_EntropyQuat_Evaluate,3105,3105,0,0,91.1
-00081e60,NAL_Entropy_SkipStatic4,3261,3260,0,1,100.0
+00081e60,NAL_Entropy_SkipStatic4,3283,3283,0,0,100.0
 00081ee0,NAL_Quat_InitState,3701,3701,0,0,100.0
 00081f00,NAL_Quat_FreeState,1699,1699,0,0,100.0
 00081f50,NAL_Packed16_SkipCachedFrame,3219,3219,0,0,100.0
@@ -253,7 +253,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00090fa0,NAL_EntropyMode15,1814,1814,0,0,100.0
 00091310,NAL_EntropyMode17,1812,1812,0,0,100.0
 000914d0,NAL_EntropyMode18,1864,1864,0,0,100.0
-00091640,NAL_EntropyMode19,1326,1324,0,2,100.0
+00091640,NAL_EntropyMode19,1810,1810,0,0,100.0
 000917d0,NAL_EntropyMode1A,1742,1742,0,0,100.0
 00091940,NAL_EntropyMode1B,1881,1881,0,0,99.4
 00091b00,NAL_EntropyMode1C,1830,1830,0,0,100.0

@@ -1,6 +1,2 @@
 name,reason
 Vehicle_Controller,"explained, not a bug in the C: its callee 0x002de420 copies 3 floats into 16-byte locals and loads all 4 lanes (MOVUPS); the 4th lane is stack residue that differs under our frames (1 input in ~8600)"
-nglBuildBoneMatrixPalette,"open (2026-10-24): our C crashes on 1900 of 2216 inputs the original runs (newly eligible through eh_vector_constructor_iterator)"
-NAL_RleReader_ReadBytes,"open (2026-10-24): 19 of 1779 - the reader pointer ends +0xff in the original, +0 in ours"
-NAL_Entropy_SkipStatic4,"open (2026-10-24): 1 of 3261 - EAX (stream pointer) differs by 4"
-NAL_EntropyMode19,"open (2026-10-24): 2 of 1326 - result 2/1 and the decoded words differ"

@@ -1863,7 +1863,7 @@ address,name,section,module,state,tested,matched
 0007be10,WaitTilOutputInst1_str_VFunc2,.text,renderer,offline,0,0
 0007bed0,AnimManager_SkipListRemove,.text,renderer,untested,0,0
 0007bff0,NalManager_SkipListRemoveKey8,.text,renderer,settled,119,119
-0007c260,NAL_RleReader_ReadBytes,.text,xanim,untested,0,0
+0007c260,NAL_RleReader_ReadBytes,.text,xanim,offline,0,0
 0007c2b0,NAL_SignalCounter_DecodeBlock,.text,xanim,offline,0,0
 0007c570,NAL_SignalCounter_SkipStatic,.text,xanim,offline,0,0
 0007c5f0,NAL_RLE8Int1_BeginBlock,.text,xanim,offline,0,0

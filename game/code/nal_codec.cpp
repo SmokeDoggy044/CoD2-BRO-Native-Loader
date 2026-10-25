@@ -12,8 +12,13 @@ namespace game {
 void XB_THISCALL NAL_RleReader_ReadBytes(RleReader* reader, uint8_t* dst, int32_t stride, uint32_t count) {
     for (; count; --count) {
         if (!reader->run) {
-            reader->run = *reader->ptr++;
-            reader->value = *reader->ptr++;
+            // The title stores the pointer after each byte it reads (the stream may overlap the reader).
+            const uint8_t* ptr = reader->ptr;
+            const uint8_t run = *ptr++;
+            reader->ptr = ptr;
+            reader->run = run;
+            reader->value = *ptr++;
+            reader->ptr = ptr;
         }
         *dst = reader->value;
         dst += stride;
@@ -118,7 +123,7 @@ uint32_t XB_CDECL NAL_Entropy_SkipStatic(const uint32_t* context) {
     *stream_b = align4(*stream_b) + 4;
     *stream_a = align4(*stream_a);
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) *stream_a += 4;
-    return context[2];
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(stream_a));  // read before the stores
 }
 
 uint32_t XB_STDCALL NAL_EntropyFloat1_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
@@ -129,7 +134,7 @@ uint32_t XB_CDECL NAL_Packed8Float1_SkipStatic(const uint32_t* context) {
     uint8_t** stream_a = reinterpret_cast<uint8_t**>(static_cast<uintptr_t>(context[2]));
     *stream_a = align4(*stream_a);
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) *stream_a += 8;
-    return context[2];
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(stream_a));
 }
 
 namespace {

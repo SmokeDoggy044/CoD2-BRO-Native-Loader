@@ -603,20 +603,23 @@ void bone_rows(const float* a, const float* b, Lanes rows[4]) {
 void XB_CDECL nglBuildBoneMatrixPalette(float* out, uint8_t* node, const uint8_t* section) {
     const uint32_t* instance = *reinterpret_cast<uint32_t* const*>(node + 0x90);
     const uint32_t flags = instance[0];
-    const uint32_t count = *reinterpret_cast<const uint32_t*>(section + 8);
-    const uint16_t* bones = *reinterpret_cast<const uint16_t* const*>(section + 0xc);
+    // The count and the bone list are read again each iteration (out may overlap section).
+    const auto count = [section] { return *reinterpret_cast<const uint32_t*>(section + 8); };
+    const auto bone = [section](uint32_t i) {
+        return (*reinterpret_cast<const uint16_t* const*>(section + 0xc))[i];
+    };
     const float* instance_matrices = reinterpret_cast<const float*>(static_cast<uintptr_t>(instance[2]));
     if (flags & 0x10) {
-        for (uint32_t i = 0; i < count; ++i) std::memcpy(out + i * 16, instance_matrices + bones[i] * 16, 64);
+        for (uint32_t i = 0; i < count(); ++i) std::memcpy(out + i * 16, instance_matrices + bone(i) * 16, 64);
         return;
     }
     if (flags & 0x8 || flags & 0x4) {
         const uint8_t* model = *reinterpret_cast<uint8_t* const*>(node + 0x88);
         const float* bind = *reinterpret_cast<const float* const*>(model + 0x14);
         if (flags & 0x8) {
-            for (uint32_t i = 0; i < count; ++i) {
+            for (uint32_t i = 0; i < count(); ++i) {
                 Lanes rows[4];
-                bone_rows(instance_matrices + bones[i] * 16, bind + bones[i] * 16, rows);
+                bone_rows(instance_matrices + bone(i) * 16, bind + bone(i) * 16, rows);
                 std::memcpy(out + i * 16, rows, 48);
                 std::memcpy(out + i * 16 + 12, rows[3].v, 16);
             }
@@ -624,9 +627,9 @@ void XB_CDECL nglBuildBoneMatrixPalette(float* out, uint8_t* node, const uint8_t
         }
         alignas(16) float inverse[16];
         nglNode_GetWorldInverse(reinterpret_cast<NglMeshDrawNode*>(node), inverse);
-        for (uint32_t i = 0; i < count; ++i) {
+        for (uint32_t i = 0; i < count(); ++i) {
             Lanes m[4];
-            bone_rows(instance_matrices + bones[i] * 16, bind + bones[i] * 16, m);
+            bone_rows(instance_matrices + bone(i) * 16, bind + bone(i) * 16, m);
             // Rows 0-2 and the translation through the inverse (row 3 with its own term).
             Lanes rows[3];
             for (int32_t r = 0; r < 3; ++r) {
@@ -646,7 +649,7 @@ void XB_CDECL nglBuildBoneMatrixPalette(float* out, uint8_t* node, const uint8_t
         return;
     }
     const float one = title_global<float>(0x007bdd70);
-    for (uint32_t i = 0; i < count; ++i) {
+    for (uint32_t i = 0; i < count(); ++i) {
         const Lanes r0 = mul(lanes(&title_global<float>(0x007bdd90)), one);
         const Lanes r1 = mul(lanes(&title_global<float>(0x007bdda0)), one);
         const Lanes r2 = mul(lanes(&title_global<float>(0x007bddb0)), one);
