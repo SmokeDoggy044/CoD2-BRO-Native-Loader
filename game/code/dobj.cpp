@@ -6,6 +6,7 @@
 #include "lanes.h"
 #include "nal_anim.h"
 #include "nal_pose.h"
+#include "ngl_debug.h"
 #include "stream.h"
 #include "nal_math.h"
 #include "qcommon.h"
@@ -989,6 +990,54 @@ void XB_STDCALL XModel_Free(uint8_t* model) {
         title_global<uint8_t>(0x0095f5d1) = 0;
         title_global<uint8_t>(0x0095f5d0) = saved;
         MemContext_Pop(title_global<uint8_t*>(0x0095f638));
+    }
+}
+
+PLATFORM_ASM_ENTRY(XModel_FreeAnimStates_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(XModel_FreeAnimStates) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL XModel_FreeAnimStates(uint8_t* model) {
+    // XModel_Free's anim-state part for the model's own count (+0x2e, read again each
+    // iteration): each state at +0x68 destroyed, freed and its slot cleared, inside the
+    // model's memory context (+0x34, -1 = none; returns MemContext_Pop's result then).
+    const int32_t context = *reinterpret_cast<const int32_t*>(model + 0x34);
+    uint8_t saved = 0;
+    if (context != -1) {
+        saved = title_global<uint8_t>(0x0095f5d0);
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        title_global<uint8_t>(0x0095f5d0) = 1;
+        MemContext_Push(title_global<uint8_t*>(0x0095f638), static_cast<uint32_t>(context));
+    }
+    auto* states = reinterpret_cast<AnimState**>(model + 0x68);
+    for (int32_t i = 0; i < model[0x2e]; ++i) {
+        if (AnimState* state = states[i]) {
+            NAL_AnimState_Destroy(state);
+            title_function<void XB_CDECL(void*)>(0x000939b0)(state);  // Mem_AlignedFree
+            states[i] = nullptr;
+        }
+    }
+    if (context == -1) return model[0x2e];
+    title_global<uint8_t>(0x0095f5d1) = 0;
+    title_global<uint8_t>(0x0095f5d0) = saved;
+    return MemContext_Pop(title_global<uint8_t*>(0x0095f638));
+}
+
+PLATFORM_ASM_ENTRY(DObj_DebugDrawAnimTrees_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(DObj_DebugDrawAnimTrees) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL DObj_DebugDrawAnimTrees(uint8_t* const* obj) {
+    // With an anim tree on the first model: the debug queues flushed (group 2), then each
+    // model's tree (+0, one per model, count +0x2e) as debug text, one shared line counter.
+    if (!obj[0]) return;
+    DebugDraw_Flush(0);
+    const uint8_t* count = reinterpret_cast<const uint8_t*>(obj) + 0x2e;
+    int32_t line = 0;
+    for (int32_t i = 0; i < *count; ++i) {
+        if (uint8_t* tree = obj[i]) {
+            title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t, int32_t*)>(0x002c4310)(tree, 0, 0, &line);  // AnimTree_DebugDraw_r
+        }
     }
 }
 

@@ -89,4 +89,26 @@ void XB_REGS1 XB_STDCALL DebugDraw_QueueLine(DebugDrawQueue* queue, const uint32
 // 0x000282b0: a 0x30-byte triangle.
 void XB_REGS1 XB_STDCALL DebugDraw_QueueTriangle(DebugDrawQueue* queue, const uint32_t* triangle);
 
+// 0x00027d60 (was FUN_00027d60; EDX = b, ECX = c): a triangle record {a, b, c} (four words
+// each) into `out`; returns out. Only DebugDraw_AddTriangleIfEnabled calls it.
+uint32_t* XB_REGS3 XB_STDCALL DebugDraw_MakeTriangle(uint32_t unused_eax, const uint32_t* b, const uint32_t* c,
+                                                     uint32_t* out, const uint32_t* a);
+// 0x0024f790 (EDX = b; no callers by CALL): when the debug-geometry switch (0x0095f688) is on,
+// the triangle {a, b, c} onto the triangle queue 0x0097a8b0.
+void XB_REGS2 XB_CDECL DebugDraw_AddTriangleIfEnabled(uint32_t unused_eax, const uint32_t* b, const uint32_t* a,
+                                                      const uint32_t* c);
+// 0x0024f7d0 (EAX = second, ECX = first, XMM0 = value; no callers by CALL): when 0x0095f688 is
+// on, the line {first (four words), value, second (four words)} onto the line queue 0x00984ce0.
+// (Ghidra's body runs on into 0x0024f840, a separate uncalled function: configstrings
+// 0x10-0x1f set to empty.)
+extern "C" PLATFORM_HIDDEN void XB_CDECL DebugDraw_AddLineIfEnabled(const uint32_t* second, const uint32_t* first,
+                                                                    float value);
+extern "C" void DebugDraw_AddLineIfEnabled_entry(void);
+// 0x002ab560: with debug drawing on (0x0092be80), the queued strings and lines of one group
+// expire (`toggle`: the group at 0x0092bf88 flips first and is the one; else group 2) and both
+// lists go to the draw callbacks at 0x00928568 / 0x0092856c.
+void XB_CDECL DebugDraw_Flush(uint32_t toggle);
+// 0x002b2e80: frees the queues' arrays (Z_Free) and zeroes their state block 0x0092bf60. Returns 0.
+uint32_t XB_CDECL DebugDraw_Shutdown();
+
 }  // namespace game

@@ -3633,4 +3633,116 @@ void XB_CDECL R_ModelBoneMatrices(const uint8_t* model, float* matrices) {
     }
 }
 
+PLATFORM_ASM_ENTRY(R_CullLocalPointAndRadius_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm2, (%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_CullLocalPointAndRadius) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL R_CullLocalPointAndRadius(const float* point, float radius) {
+    // The point from the current entity's space (tr.or: origin 0x0095e568, axes 0x0095e574)
+    // into the world, then R_CullPointAndRadius with the radius as it came (XMM2).
+    const float* origin = &title_global<float>(0x0095e568);
+    const float* axis = origin + 3;
+    float world[3];
+    for (int i = 0; i < 3; ++i) world[i] = point[0] * axis[i] + axis[6 + i] * point[2] + axis[3 + i] * point[1] + origin[i];
+    return R_CullPointAndRadius(world, radius);
+}
+
+// The renderer export table's empty slots (bare ret; the harness cannot hook them).
+void XB_CDECL RE_WaterCubemapShotStub() {}
+void XB_CDECL RE_CubemapShotStub() {}
+void XB_CDECL RE_AddDebugLinesStub() {}
+void XB_CDECL RE_AddDebugStringsStub() {}
+void XB_CDECL RE_EmptyStub26() {}
+void XB_CDECL RE_EndRegistration() {}
+
+namespace {
+
+// The title CRT's __CIsqrt (0x0033acf4; argument and result in ST0).
+long double title_ci_sqrt_ext(long double x) {
+    long double result;
+    __asm__ volatile("call *%2" : "=t"(result) : "0"(x), "r"(uintptr_t{0x0033acf4}) : "eax", "ecx", "edx", "memory");
+    return result;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(R_EntityLodDistance_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(R_EntityLodDistance) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL R_EntityLodDistance(const uint8_t* ent) {
+    // All on the x87 (no MXCSR flags) up to the division: the distance from the view origin
+    // (tr.viewParms 0x0095e3a0) to the entity's origin (+0x3c), through the LOD scale and bias
+    // (0x0095e4d0 / 0x0095e4cc), divided by the entity's LOD radius (+0x38) unless that is 0.
+    const float* view = &title_global<float>(0x0095e3a0);
+    const float* position = reinterpret_cast<const float*>(ent + 0x3c);
+    const float dx = static_cast<float>(static_cast<long double>(view[0]) - position[0]);
+    const float dy = static_cast<float>(static_cast<long double>(view[1]) - position[1]);
+    const float dz = static_cast<float>(static_cast<long double>(view[2]) - position[2]);
+    const long double sum =
+        (static_cast<long double>(dz) * dz + static_cast<long double>(dy) * dy) + static_cast<long double>(dx) * dx;
+    const float distance = static_cast<float>(title_ci_sqrt_ext(sum));
+    const float radius = *reinterpret_cast<const float*>(ent + 0x38);
+    float lod = static_cast<float>(static_cast<long double>(title_global<float>(0x0095e4d0)) * distance +
+                                   title_global<float>(0x0095e4cc));
+    if (radius != 0.0f) lod = lod / radius;
+    return lod;
+}
+
+void XB_REGS1 XB_CDECL R_DrawTextWithShadow_2(const float* color, const char* text, int32_t x, int32_t y, float z,
+                                              float scale) {
+    // A second copy of R_DrawTextWithShadow (0x0023bf30), instruction for instruction.
+    R_DrawTextWithShadow(color, text, x, y, z, scale);
+}
+
+// The original's four pushes (EBX, EBP, ESI, EDI) rebuilt below the entry ESP, the C frame
+// moved below a 128 KB gap: each cdSimpleInstance_AddListToScene runs at the original's ESP,
+// where its partly written instance block picks up the same stale words as in the original.
+PLATFORM_ASM_ENTRY(R_AddSimpleInstancesToScene_entry,
+                   "pushl %ebx\n"
+                   "pushl %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "movl %esp, %ebp\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(R_AddSimpleInstancesToScene) "movl %ebp, %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebp\n"
+                   "popl %ebx\n"
+                   "ret $4")
+
+void XB_CDECL R_AddSimpleInstancesToScene(uint32_t top, const uint8_t* table) {
+    // 99 slots from +4: each object's groups (+0x24, 16 bytes each, count +0x20 read again
+    // per group; an index past it reads group 0), each group's instance lists (+4, chained
+    // through +0x14) into the scene.
+    const uint8_t* const* slots = reinterpret_cast<const uint8_t* const*>(table + 4);
+    for (int32_t s = 0; s < 0x63; ++s) {
+        const uint8_t* object = slots[s];
+        if (!object) continue;
+        const uint32_t object_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(object));
+        if (!*reinterpret_cast<const uint32_t*>(object + 0x20)) continue;
+        for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(object + 0x20); ++i) {
+            const uint32_t group = i < *reinterpret_cast<const uint32_t*>(object + 0x20) ? i : 0;
+            const uint8_t* groups = *reinterpret_cast<const uint8_t* const*>(object + 0x24);
+            uint32_t list = *reinterpret_cast<const uint32_t*>(groups + group * 16 + 4);
+            uint32_t eax = group * 16;
+            while (list) {
+                const TitleRegs regs{eax, i, list, 0, list, object_word};
+                eax = title_call_at_regs(top, 0x00046560, &regs, 0, nullptr);  // cdSimpleInstance_AddListToScene
+                // What the original's call leaves there: its return address and its EBP (the slot pointer).
+                *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = 0x002a8d77;
+                *reinterpret_cast<uint32_t*>(uintptr_t{top - 8}) =
+                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&slots[s]));
+                list = *reinterpret_cast<const uint32_t*>(uintptr_t{list + 0x14});
+            }
+        }
+    }
+}
+
 }  // namespace game
