@@ -246,6 +246,18 @@ inline float platform_x87_mul(float a, float b) {
     __asm__("flds %1\n\tfmuls %2\n\tfstps %0" : "=m"(result) : "m"(a), "m"(b) : "st");
     return result;
 }
+// a * b on the x87 (FLD/FMUL, the caller's precision control) stored as a double (FSTP QWORD).
+inline double platform_x87_mul_double(float a, float b) {
+    double result;
+    __asm__("flds %1\n\tfmuls %2\n\tfstpl %0" : "=m"(result) : "m"(a), "m"(b) : "st");
+    return result;
+}
+// value * b on the x87 (FILD/FMUL) stored as a double (FSTP QWORD).
+inline double platform_x87_int_mul_double(std::int32_t value, float b) {
+    double result;
+    __asm__("fildl %1\n\tfmuls %2\n\tfstpl %0" : "=m"(result) : "m"(value), "m"(b) : "st");
+    return result;
+}
 // a * b / c + d on the x87 (FLD/FMUL/FDIV/FADD, rounded by the caller's precision
 // control), stored as float: no MXCSR flags.
 inline float platform_x87_mul_div_add(float a, float b, float c, float d) {

@@ -1,5 +1,6 @@
 #include "cgame.h"
 
+#include <cmath>
 #include <cstdarg>
 #include <cstring>
 
@@ -2050,6 +2051,72 @@ void XB_CDECL CG_Draw2D() {
     Subtitle_Draw();
     CG_DrawFlashFade();
     nglPopScene();
+}
+
+void XB_CDECL HudElem_ClearAll() {
+    uint8_t* elems = &title_global<uint8_t>(0x0094cc88);
+    for (uint32_t offset = 0; offset < 0x7c0; offset += 0x7c) {
+        int32_t& type = *reinterpret_cast<int32_t*>(elems + offset);
+        if (type) type = 0;
+    }
+    std::memset(elems, 0, 0x7c0);
+}
+
+void XB_REGS1 XB_CDECL HudElem_SetDefaults(uint8_t* elem) {
+    const auto set = [elem](uint32_t offset, uint32_t value) { *reinterpret_cast<uint32_t*>(elem + offset) = value; };
+    *reinterpret_cast<float*>(elem + 0xc) = g(0x0083eb20);
+    set(0, 1);
+    for (uint32_t offset = 4; offset <= 0x18; offset += 4)
+        if (offset != 0xc) set(offset, 0);
+    set(0x1c, 0xffffffff);
+    for (uint32_t offset = 0x20; offset <= 0x48; offset += 4) set(offset, 0);
+    set(0x5c, 0);
+    set(0x60, 0);
+    *reinterpret_cast<float*>(elem + 0x64) = 0.0f;
+    set(0x68, 0);
+    *reinterpret_cast<float*>(elem + 0x6c) = 0.0f;
+}
+
+namespace {
+
+// MSVC's (int)ceil(seconds * 1000) with the product on the x87.
+int32_t hud_ms(float seconds) {
+    return static_cast<int32_t>(static_cast<int64_t>(std::ceil(platform_x87_mul_double(seconds, g(0x0083eb9c)))));
+}
+
+uint8_t* hud_elem(int32_t index) { return &title_global<uint8_t>(0x0094cc88) + index * 0x7c; }
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL HudElem_SetTimerKind(int32_t index, int32_t kind, float seconds) {
+    uint8_t* elem = hud_elem(index);
+    const int32_t ms = hud_ms(seconds);
+    if (ms <= 0 && kind != 5)
+        title_function<const char* XB_CDECL(const char*, double)>(0x002a93d0)(  // va
+            &title_global<char>(0x008323f4), platform_x87_int_mul_double(ms, g(0x0083eb4c)));  // "time %g should be > 0"
+    for (uint32_t offset = 0x30; offset <= 0x48; offset += 4) *reinterpret_cast<int32_t*>(elem + offset) = 0;
+    *reinterpret_cast<int32_t*>(elem + 0x60) = 0;
+    *reinterpret_cast<int32_t*>(elem + 0x68) = 0;
+    *reinterpret_cast<int32_t*>(elem) = kind;
+    *reinterpret_cast<float*>(elem + 0x64) = 0.0f;
+    *reinterpret_cast<int32_t*>(elem + 0x5c) = title_global<int32_t>(0x0098540c) + ms;  // level.time
+}
+
+void XB_REGS1 XB_CDECL HudElem_SetShaderTimer(int32_t index, int32_t kind, const char* name, float seconds,
+                                             float period, int32_t w, int32_t h) {
+    uint8_t* elem = hud_elem(index);
+    const int32_t ms = hud_ms(seconds);
+    const int32_t period_ms = hud_ms(period);
+    uint8_t* shader = RE_RegisterShader(0, name);
+    for (uint32_t offset = 0x3c; offset <= 0x48; offset += 4) *reinterpret_cast<int32_t*>(elem + offset) = 0;
+    *reinterpret_cast<int32_t*>(elem + 0x68) = 0;
+    *reinterpret_cast<int32_t*>(elem) = kind;
+    *reinterpret_cast<uint8_t**>(elem + 0x38) = shader;
+    *reinterpret_cast<int32_t*>(elem + 0x60) = period_ms;
+    *reinterpret_cast<float*>(elem + 0x64) = 0.0f;
+    *reinterpret_cast<int32_t*>(elem + 0x5c) = title_global<int32_t>(0x0098540c) + ms;
+    *reinterpret_cast<int32_t*>(elem + 0x30) = w;
+    *reinterpret_cast<int32_t*>(elem + 0x34) = h;
 }
 
 PLATFORM_ASM_ENTRY(HudElem_SubstituteLabel_entry,

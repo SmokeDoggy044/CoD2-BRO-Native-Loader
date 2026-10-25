@@ -313,6 +313,20 @@ void XB_CDECL CG_DrawViewDirIcon();
 // 0x00285f80: the 2D pass of a frame - fades, damage, hud elements, crosshair and weapon hud,
 // checkpoint, objectives or the centre print, subtitles - in a pushed 2D scene.
 void XB_CDECL CG_Draw2D();
+// 0x0024ad30: clears the 16 hud elements at 0x0094cc88 (0x7c bytes each; each type first
+// when set, then all of it).
+void XB_CDECL HudElem_ClearAll();
+// 0x002f6080 (element in EAX): a hud element's defaults - type 1, font scale 1, sort 0, alpha
+// colour 0xffffffff at +0x1c, the rest 0.
+void XB_REGS1 XB_CDECL HudElem_SetDefaults(uint8_t* elem);
+// 0x002fb500 (element index in EAX): makes element `index` a timer of `kind` (4-7) ending or
+// starting at level.time + ceil(seconds * 1000) ms; formats a "time %g should be > 0" message
+// (unused) when that is not positive, except for kind 5.
+void XB_REGS1 XB_CDECL HudElem_SetTimerKind(int32_t index, int32_t kind, float seconds);
+// 0x00301d30 (element index in EAX): makes element `index` a clock (kind 8/9) of the shader
+// `name`, size w x h, timer at level.time + ceil(seconds * 1000), turn period ceil(period * 1000).
+void XB_REGS1 XB_CDECL HudElem_SetShaderTimer(int32_t index, int32_t kind, const char* name, float seconds,
+                                             float period, int32_t w, int32_t h);
 // 0x00275b60 (layout in EDI, buffer size in EDX, buffer on the stack): the label's first "%s"
 // replaced by the text, into the buffer, which becomes the text (its width += the label's);
 // the label becomes "" with width 0. Returns the length.
