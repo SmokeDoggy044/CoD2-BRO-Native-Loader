@@ -157,8 +157,8 @@ void print_usage(const char* program) {
         "                   as the game; campaign); also in the PC menu (` key while playing)\n"
         "  --late-frames show|wait  a frame that missed its vertical blank is shown at once\n"
         "                   (default) or waits for the next one (as on the Xbox: 30 fps drops to 20)\n"
-        "  --any-release    start an executable from another release of the game (testing;\n"
-        "                   its addresses differ, so expect crashes)\n"
+        "  --any-release    start another release's multiplayer executable (testing; its\n"
+        "                   addresses differ, so expect crashes; other campaigns always start)\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n",
         program);
 }
@@ -575,12 +575,18 @@ int loader_main(int argc, char** argv) {
                   static_cast<unsigned long long>(fingerprint),
                   static_cast<unsigned long long>(title->code_fingerprint));
         image.log_sections();
-        if (!options->any_release)
+        // Another release's campaign ran on 0.1.8 (issue #9: the French/Spanish/Italian
+        // disc), so it starts with a warning; its multiplayer crashed, so that stays refused.
+        if (title->id == loader::TitleId::Campaign)
+            LOG_WARN("loader", "starting the campaign anyway (other releases' campaigns have run); please report "
+                     "problems with this log attached");
+        else if (!options->any_release)
             return startup_failed(xbe.filename().string() +
                                   " is from another release of the game than the one this version supports, so "
                                   "its code is at other addresses (the log lists its sections; please attach the "
                                   "log and mention your disc's region and languages in a report)");
-        LOG_WARN("loader", "--any-release: starting it anyway; expect patches to miss and crashes");
+        else
+            LOG_WARN("loader", "--any-release: starting it anyway; expect patches to miss and crashes");
     }
     g_xbe = xbe;
 
