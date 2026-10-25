@@ -341,4 +341,69 @@ void XB_REGS3 XB_CDECL BG_EvaluateTrajectoryDelta(uint32_t, int32_t time, float*
     }
 }
 
+// The original returns in XMM0 (the C version stores to a slot the entry loads) and leaves XMM2-7 alone;
+// FireWeapon keeps XMM2 across the call.
+PLATFORM_ASM_ENTRY(BG_GetWeaponSpread_entry,
+                   "subl $100, %esp\n"
+                   "movups %xmm2, 4(%esp)\n"
+                   "movups %xmm3, 20(%esp)\n"
+                   "movups %xmm4, 36(%esp)\n"
+                   "movups %xmm5, 52(%esp)\n"
+                   "movups %xmm6, 68(%esp)\n"
+                   "movups %xmm7, 84(%esp)\n"
+                   "pushl 108(%esp)\n"
+                   "pushl 108(%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n"
+                   "leal 16(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(BG_GetWeaponSpread) "addl $20, %esp\n"
+                   "movss (%esp), %xmm0\n"
+                   "movups 4(%esp), %xmm2\n"
+                   "movups 20(%esp), %xmm3\n"
+                   "movups 36(%esp), %xmm4\n"
+                   "movups 52(%esp), %xmm5\n"
+                   "movups 68(%esp), %xmm6\n"
+                   "movups 84(%esp), %xmm7\n"
+                   "addl $100, %esp\n"
+                   "ret")
+
+void XB_CDECL BG_GetWeaponSpread(float* out, uint32_t weapon, const uint8_t* ps, int32_t time, int32_t ads) {
+    const uint8_t* def = title_global<const uint8_t**>(0x0095f4d8)[weapon];  // bg_weaponDefs
+    const auto f = [def](uint32_t offset) -> const float& { return *reinterpret_cast<const float*>(def + offset); };
+    const auto word = [ps](uint32_t offset) { return *reinterpret_cast<const int32_t*>(ps + offset); };
+    // {standing, crouched, prone}
+    const uint32_t stand = ads ? 0x7b8 : 0x64c, crouch = ads ? 0x7bc : 0x650, prone = ads ? 0x7c0 : 0x654;
+    const int32_t target = word(0xb4);
+    const int32_t start = word(0xb0);
+    if (static_cast<float>(target) == *reinterpret_cast<const float*>(ps + 0xac) || !start) {
+        const int32_t flags = word(0x2c);
+        *out = f(flags & 1 ? prone : flags & 2 ? crouch : stand);
+        return;
+    }
+    // view heights: prone +0x420, crouched +0x424, standing +0x428
+    const int32_t prone_height = word(0x420);
+    int32_t duration = 200;
+    if (target == prone_height)
+        duration = 400;
+    else if (target == word(0x424))
+        duration = word(0xb8) ? 200 : 400;
+    float frac = static_cast<float>(time - start) / static_cast<float>(duration);
+    if (0.0f > frac)
+        frac = 0.0f;
+    else if (frac > 1.0f)
+        frac = 1.0f;
+    // blend from the stance being left (from, to)
+    uint32_t from, to;
+    if (target == prone_height) {
+        from = crouch, to = prone;
+    } else if (target == word(0x428)) {
+        from = crouch, to = stand;
+    } else if (word(0xb8)) {
+        from = stand, to = crouch;
+    } else {
+        from = prone, to = crouch;
+    }
+    *out = (f(to) - f(from)) * frac + f(from);
+}
+
 }  // namespace game

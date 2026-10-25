@@ -426,6 +426,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002b48c0,IN_RightDown,3804,3804,0,0,100.0
 002b48d0,IN_LeftUp,3778,3778,0,0,100.0
 002b48e0,IN_LeftDown,3813,3813,0,0,100.0
+002b4d80,BG_GetWeaponSpread,1663,1663,0,0,60.7
 002b96c0,PathNode_IsLinkInBadPlace,2410,2410,0,0,100.0
 002bab30,CM_AdjustAreaPortalState,3942,3942,0,0,46.9
 002bffb0,SV_AdjustAreaPortalState,2875,2875,0,0,100.0

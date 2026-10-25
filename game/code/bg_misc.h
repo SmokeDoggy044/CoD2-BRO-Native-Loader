@@ -68,4 +68,13 @@ extern "C" void BG_ChooseWeaponSlot_entry(void);
 // 0.2 of 0x0094d450) on z, 9/10 delta * t^2 / t until the end; others (and past the end) zero.
 void XB_REGS3 XB_CDECL BG_EvaluateTrajectoryDelta(uint32_t, int32_t time, float* result, const uint8_t* tr);
 
+// 0x002b4d80 (weapon in EDX, playerState in ECX; time, ads on the stack; result in XMM0): the weapon's spread for
+// the stance - weapon def +0x64c/+0x650/+0x654 (hip; ads: +0x7b8/+0x7bc/+0x7c0) for standing/crouched/prone
+// (pm_flags +0x2c bits 2/1); while the view height (+0xac) moves to its target (+0xb4) since +0xb0, blended from
+// the old stance's value over 400 ms into prone or (without +0xb8) into crouch, else 200 ms, the fraction clamped
+// to 0..1. The C version writes the result to `out`.
+extern "C" PLATFORM_HIDDEN void XB_CDECL BG_GetWeaponSpread(float* out, uint32_t weapon, const uint8_t* ps, int32_t time,
+                                                         int32_t ads);
+extern "C" void BG_GetWeaponSpread_entry(void);
+
 }  // namespace game

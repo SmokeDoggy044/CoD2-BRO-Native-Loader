@@ -73,6 +73,23 @@ extern "C" void FE_BonusWeaponSetText_entry(void);
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL UIMenu_Init(uint8_t* menu, int32_t count, uint8_t* owner, uint32_t a2,
                                                          uint32_t a3, uint16_t a4, uint32_t flags);
 extern "C" void UIMenu_Init_entry(void);
+// 0x00315b10 (text in ESI; 10 stack words, ret 0x28): the UI text item base constructor - vtable 0x008298b8, two
+// empty ScriptStrings (+0x1c = the text a2, +0x54 = ""), the colours +0x20..+0x4c from 0x00922eb8, kind a1 at
+// +0x18, position a3/a4 (+0x2c/+0x30), scale a7 (+0x38/+0x3c/+0x44/+0x48), a10 at +0x50; with a6 == 8 +0x8 =
+// a5, else the vtable +0x24 sort key ((a6 * 1000 + a5 clamped to 0..1000) * 0.125); flags +0x5c = a8 | a9 | 4
+// (| 1 with the top byte of a10). Returns the text.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL UIText_Init(uint8_t* text, int32_t kind, const char* string, uint32_t x,
+                                                         uint32_t y, int32_t depth, int32_t layer, uint32_t scale,
+                                                         uint8_t a8, uint8_t a9, uint32_t a10);
+extern "C" void UIText_Init_entry(void);
+// 0x00320690 (8 stack words, ret 0x20; the caller's ECX and EDX low bytes become UIText_Init's flag words a9 / a8):
+// UIText_Init(text, kind a2, "", a3, a4, a5, a6, a7, EDX, ECX, a8), then the derived vtable 0x0082a450, colour -1,
+// alignment -1, the rest cleared and the line height (+0x68, +0x6c) = the height of "!" in the kind's font
+// (0x0095f8d4; none for kinds 7/8) at the text's scale (nglGetTextExtent; unsigned to float on the x87).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL UIText_Construct(uint8_t* text, int32_t kind, uint32_t x, uint32_t y,
+                                                              int32_t depth, int32_t layer, uint32_t scale,
+                                                              uint32_t a8, uint32_t ecx, uint32_t edx);
+extern "C" void UIText_Construct_entry(void);
 // 0x003215c0 (name in EBX; panel on the stack, ret 4): the panel's text item (+0xc array, +0x14 count) whose name
 // (vtable +0x9c, a ScriptString released after) is `name`, else null.
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Panel_FindText(const char* name, uint8_t* panel);

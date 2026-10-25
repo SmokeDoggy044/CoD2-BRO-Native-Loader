@@ -2004,6 +2004,273 @@ void XB_CDECL CG_DrawViewDirIcon() {
         title_global<uint32_t>(0x00928530))(sx, sy, w, h, 0.0f, 0.0f, 1.0f, 1.0f, title_global<uint32_t>(0x00975c48));
 }
 
+namespace {
+
+uint32_t bits_of(float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+// a - b * c on the x87 (FLD/FMUL/FSUBR), stored as float: no MXCSR flags.
+float x87_sub_product(float a, float b, float c) {
+    float result;
+    __asm__("flds %2\n\tfmuls %3\n\tfsubrs %1\n\tfstps %0" : "=m"(result) : "m"(a), "m"(b), "m"(c) : "st");
+    return result;
+}
+
+// a - b on the x87 (FLD/FSUB), stored as float.
+float x87_sub(float a, float b) {
+    float result;
+    __asm__("flds %1\n\tfsubs %2\n\tfstps %0" : "=m"(result) : "m"(a), "m"(b) : "st");
+    return result;
+}
+
+void set_color(const float* color) { title_function<void XB_CDECL(const float*)>(title_global<uint32_t>(0x0092852c))(color); }
+
+// trap_R_DrawStretchPic (import 0x00928530)
+void stretch_pic(float x, float y, float w, float h, float s0, float t0, float s1, float t1, uint32_t shader) {
+    title_function<void XB_CDECL(float, float, float, float, float, float, float, float, uint32_t)>(
+        title_global<uint32_t>(0x00928530))(x, y, w, h, s0, t0, s1, t1, shader);
+}
+
+void stretch_pic_eax(uint32_t shader, float x, float y, float w, float h) {
+    CG_R_DrawStretchPic(shader, bits_of(x), bits_of(y), bits_of(w), bits_of(h), 0, 0, 0x3f800000, 0x3f800000);
+}
+
+float refdef_x() { return static_cast<float>(title_global<int32_t>(0x00972b90)); }
+float refdef_y() { return static_cast<float>(title_global<int32_t>(0x00972b94)); }
+float refdef_w() { return static_cast<float>(title_global<int32_t>(0x00972b98)); }
+float refdef_h() { return static_cast<float>(title_global<int32_t>(0x00972b9c)); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CG_DrawAdsOverlay_entry,
+                   "subl $4, %esp\n"
+                   "pushl %esp\n" PLATFORM_ASM_CALL(CG_DrawAdsOverlay) "addl $4, %esp\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawAdsOverlay(float* out) {
+    float fraction = 0.0f;
+    float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    if (!CG_GetAdsOverlayFraction(0, 0, &fraction)) {
+        if (title_global<uint8_t>(0x0098ad58)) {
+            title_global<uint8_t>(0x0095f91f) = 0;
+            title_global<uint8_t>(0x0098ad58) = 0;
+        }
+        *out = 1.0f;
+        return;
+    }
+    color[3] = fraction;
+    const uint8_t* cg = title_global<const uint8_t*>(0x00972acc);
+    const uint32_t client = *reinterpret_cast<const uint32_t*>(cg);
+    float px, py;
+    CG_ProjectViewDirToScreen(&px, &py);
+    const float xs = g(0x009758b8), ys = g(0x009758bc);
+    const float w = *reinterpret_cast<const float*>(cg + 0x63c) * xs;
+    const float h = *reinterpret_cast<const float*>(cg + 0x640) * ys;
+    const float cx = xs * px + refdef_w() * 0.5f + refdef_x();
+    const float cy = ys * py + refdef_h() * 0.5f + refdef_y();
+    set_color(color);
+    cg = title_global<const uint8_t*>(0x00972acc);
+    if (**reinterpret_cast<const char* const*>(cg + 0x634)) {  // the scope overlay, black around it
+        const uint32_t shader = title_global<uint32_t>(0x00976068 + client * 0xc4);
+        const float x0 = x87_sub_product(cx, w, 0.5f);
+        const float y0 = x87_sub_product(cy, h, 0.5f);
+        title_global<uint8_t>(0x0098ad58) = 1;
+        title_global<uint8_t>(0x0095f91f) = 1;
+        stretch_pic(x0, y0, w, h, 0.0f, 0.0f, 1.0f, 1.0f, shader);
+        if (x0 > 0.0f) stretch_pic(0.0f, 0.0f, x0, refdef_h(), 0.0f, 0.0f, 0.0f, 1.0f, shader);
+        const float x1 = x0 + w;
+        const float rw = refdef_w();
+        if (rw > x1) stretch_pic(x1, 0.0f, rw - x1, refdef_h(), 0.0f, 0.0f, 0.0f, 1.0f, shader);
+        if (y0 > 0.0f) stretch_pic(x0, 0.0f, w, y0, 0.0f, 0.0f, 1.0f, 0.0f, shader);
+        const float y1 = y0 + h;
+        const float rh = refdef_h();
+        if (rh > y1) stretch_pic(x0, y1, w, rh - y1, 0.0f, 0.0f, 1.0f, 0.0f, shader);
+    }
+    cg = title_global<const uint8_t*>(0x00972acc);
+    const int32_t mode = *reinterpret_cast<const int32_t*>(cg + 0x638);
+    const auto black = [&color] {
+        color[0] = color[1] = color[2] = 0.0f;
+        set_color(color);
+    };
+    if (mode == 1) {  // a reticle shader, size +0x4c4
+        const float size = static_cast<float>(*reinterpret_cast<const int32_t*>(cg + 0x4c4));
+        const uint32_t shader = title_global<uint32_t>(0x00976060 + client * 0xc4);
+        const float w2 = xs * size, h2 = ys * size;
+        const float y = (refdef_h() - h2) * 0.5f + ys * py + refdef_y();
+        const float x = (refdef_w() - w2) * 0.5f + xs * px + refdef_x();
+        stretch_pic(x, y, w2, h2, 0.0f, 0.0f, 1.0f, 1.0f, shader);
+    } else if (mode == 2) {  // a vertical line down, two horizontal ones (import)
+        black();
+        stretch_pic(cx - 1.0f, cy, 3.0f, h * g(0x0083ec18), 0.0f, 0.0f, 1.0f, 1.0f, title_global<uint32_t>(0x00975c40));
+        const float length = platform_x87_mul(w, 0.75f);
+        const float y = x87_sub(cy, 1.0f);
+        stretch_pic(cx - w * g(0x0083ec18), y, length, 3.0f, 0.0f, 0.0f, 1.0f, 1.0f, title_global<uint32_t>(0x00975c44));
+        stretch_pic(w * g(0x0083ed2c) + cx, y, length, 3.0f, 0.0f, 0.0f, 1.0f, 1.0f, title_global<uint32_t>(0x00975c44));
+    } else if (mode == 3) {  // a full cross
+        black();
+        stretch_pic_eax(title_global<uint32_t>(0x00975c40), cx - 1.0f, cy - h * g(0x0083ec18), 3.0f, h * g(0x0083f0e8));
+        stretch_pic_eax(title_global<uint32_t>(0x00975c44), cx - w * g(0x0083ec18), cy - 1.0f, w * g(0x0083f0e8), 3.0f);
+    } else if (mode == 4) {  // as mode 2 through CG_R_DrawStretchPic
+        black();
+        stretch_pic_eax(title_global<uint32_t>(0x00975c40), cx - 1.0f, cy, 3.0f, h * g(0x0083ec18));
+        const float length = platform_x87_mul(w, 0.75f);
+        const float y = x87_sub(cy, 1.0f);
+        stretch_pic_eax(title_global<uint32_t>(0x00975c44), cx - w * g(0x0083ec18), y, length, 3.0f);
+        stretch_pic_eax(title_global<uint32_t>(0x00975c44), w * g(0x0083ed2c) + cx, y, length, 3.0f);
+    }
+    set_color(nullptr);
+    *out = 1.0f - fraction;
+}
+
+void XB_CDECL CG_DrawWeaponReticle() {
+    float color[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+    const float zoom = g(0x009725d8);
+    float scale = 1.0f;
+    float offset = 0.0f;
+    if (title_global<int32_t>(0x00972548)) return;
+    color[3] = g(0x00949590);
+    if (*reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0093fcd8) + 0x20)) return;
+    if (title_global<uint32_t>(0x0097257c) & 0x1000000) {
+        color[0] = g(0x0083f144);
+        color[1] = g(0x0083f140);
+        color[2] = g(0x0083f13c);
+    }
+    const uint32_t state = title_global<uint32_t>(0x00972610);
+    if (state & 0x6000) {  // in a vehicle
+        if (title_global<int32_t>(0x009729b8)) CG_DrawCrosshair();
+        return;
+    }
+    if ((state & 0x100000) && !(state & 0x400000)) {  // a mounted weapon: two lines
+        color[0] = color[1] = color[2] = 0.0f;
+        color[3] = g(0x0083eba4);
+        if (title_global<int32_t>(0x00972a38) == 1) {
+            CG_FillRect(color, 310.0f, 240.0f, 20.0f, 2.0f);
+            CG_FillRect(color, 319.0f, 242.0f, 2.0f, 8.0f);
+            return;
+        }
+        if (uint8_t* hud = title_global<uint8_t*>(0x0095f8f0)) {  // g_hudManager
+            uint8_t* const item = *reinterpret_cast<uint8_t**>(hud + 0x40);
+            const auto hidden = title_function<uint8_t XB_THISCALL(uint8_t*)>(
+                *reinterpret_cast<const uint32_t*>(*reinterpret_cast<const uint8_t* const*>(item) + 0x10));
+            if (hidden(item)) return;
+        }
+        CG_FillRect(color, 300.0f, 240.0f, 40.0f, 2.0f);
+        CG_FillRect(color, 319.0f, 242.0f, 2.0f, 16.0f);
+        return;
+    }
+    const uint8_t* cg = title_global<const uint8_t*>(0x00972acc);
+    const uint32_t weapon = *reinterpret_cast<const uint32_t*>(cg);
+    if (!weapon) return;
+    color[3] = [] {
+        float ads;
+        CG_DrawAdsOverlay(&ads);
+        return ads;
+    }() * g(0x00949590);
+    if (g(0x0083eb94) > color[3]) return;  // 0.01
+    if (!title_global<int32_t>(0x009485d4) || !title_global<uint8_t>(0x008dce69) || title_global<uint8_t>(0x0095f91f))
+        return;
+    if (title_global<int32_t>(0x009729cc) == 10) return;
+    if (title_global<int32_t>(0x0094c7a4) && title_global<int32_t>(0x0094bf6c)) return;
+    if (zoom == 1.0f && title_global<int32_t>(0x00949864)) return;
+    const int32_t view = title_global<int32_t>(0x009725d4);
+    if (view == 10 || view == 11 || view == 5 || view == 14 || view == 1 || view == 2) return;
+    cg = title_global<const uint8_t*>(0x00972acc);
+    if (*reinterpret_cast<const int32_t*>(cg + 0x98) == 5) return;
+    const auto word = [](const uint8_t* base, uint32_t offset) { return *reinterpret_cast<const int32_t*>(base + offset); };
+    const auto fl = [](const uint8_t* base, uint32_t offset) -> const float& {
+        return *reinterpret_cast<const float*>(base + offset);
+    };
+    float px, py;
+    CG_ProjectViewDirToScreen(&px, &py);
+    set_color(color);
+    cg = title_global<const uint8_t*>(0x00972acc);
+    bool done = false;
+    if (!(zoom == 0.0f)) {
+        // into the zoom's last part (+0x774 zooming in, else +0x778): the crosshair shrinks and moves down
+        const float part = title_global<int32_t>(0x00972a74) ? fl(cg, 0x774) : fl(cg, 0x778);
+        float t = zoom - (1.0f - part);
+        if (t > 0.0f) {
+            t = t / part;
+            if (t > 0.0f) {
+                scale = 1.0f - t * 0.5f;
+                offset = 480.0f / g(0x00972ba4) * fl(cg, 0x770) * t;
+            }
+        }
+        if (!title_global<int32_t>(0x00949864)) {
+            if (1.0f > scale) {
+                uint32_t shader = title_global<uint32_t>(0x00976060 + weapon * 0xc4);
+                if (!shader)
+                    shader = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(
+                        RE_RegisterShader(0, &title_global<const char>(0x0094baf0))));
+                cg = title_global<const uint8_t*>(0x00972acc);
+                if (shader) {
+                    const float size = static_cast<float>(word(cg, 0x4c4)) * (1.5f - scale);
+                    const float y = (refdef_h() - size) * 0.5f + g(0x009758bc) * py + refdef_y();
+                    const float x = (refdef_w() - size) * 0.5f + g(0x009758b8) * px + refdef_x();
+                    stretch_pic_eax(shader, x, y, size, size);
+                    cg = title_global<const uint8_t*>(0x00972acc);
+                }
+            }
+            done = zoom == 1.0f;
+        }
+    }
+    if (!done) {
+        if (!title_global<int32_t>(0x0094b15c)) {
+            px = 0.0f;
+            py = offset;
+        }
+        if (**reinterpret_cast<const char* const*>(cg + 0x4bc)) {  // the centre shader
+            const float size = static_cast<float>(word(cg, 0x4c4));
+            const float y = (refdef_h() - size) * 0.5f + g(0x009758bc) * py + refdef_y();
+            const float x = (refdef_w() - size) * 0.5f + g(0x009758b8) * px + refdef_x();
+            stretch_pic_eax(title_global<uint32_t>(0x00976060 + weapon * 0xc4), x, y, size, size);
+            cg = title_global<const uint8_t*>(0x00972acc);
+        }
+        if (**reinterpret_cast<const char* const*>(cg + 0x4c0)) {  // the spread ticks
+            const float fade = g(0x00972a40) * g(0x0083eb30);  // / 255
+            float alpha = (1.0f - fade) * color[3];
+            color[3] = alpha;
+            if (g(0x0094a7c0) > alpha) color[3] = g(0x0094a7c0);
+            set_color(color);
+            float spread;
+            BG_GetWeaponSpread(&spread, weapon, &title_global<const uint8_t>(0x00972550),
+                               word(title_global<const uint8_t*>(0x00971aa8), 4), 0);  // cg.snap->serverTime
+            cg = title_global<const uint8_t*>(0x00972acc);
+            const float value = ((fl(cg, 0x658) - spread) * (g(0x00972a40) * g(0x0083eb30)) + spread) * scale;
+            float sx = 640.0f / g(0x00972ba0) * value;  // fov x
+            float sy = 480.0f / g(0x00972ba4) * value;  // fov y
+            const float minimum = static_cast<float>(word(cg, 0x4cc));
+            if (minimum > sx) sx = minimum;
+            if (minimum > sy) sy = minimum;
+            const uint32_t shader = title_global<uint32_t>(0x00976064 + weapon * 0xc4);
+            // Per tick (only 1 and 3 are drawn): the original's direction tables
+            static constexpr struct {
+                float ay, by, cy, ax, bx, cx;
+            } kTicks[4] = {{}, {0.0f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f}, {}, {0.0f, -0.5f, 0.0f, -1.0f, -1.0f, -1.0f}};
+            for (int32_t i = 1; i < 4; i += 2) {
+                const auto& tick = kTicks[i];
+                const float length = static_cast<float>(word(cg, 0x4c8)) * scale;
+                const float c674 = fl(cg, 0x674);
+                const float y = (tick.ay * sy + py) * g(0x009758bc) + tick.by * length + tick.cy -
+                                tick.ay * c674 * length + refdef_h() * 0.5f + refdef_y();
+                const float x = (tick.ax * sx + px) * g(0x009758b8) + tick.bx * length + tick.cx -
+                                tick.ax * c674 * length + refdef_w() * 0.5f + refdef_x();
+                CG_StretchPicRotate(shader, bits_of(x), bits_of(y), bits_of(length), bits_of(length), 0,
+                                    bits_of(static_cast<float>((i >> 1) & 1)), 0x3f800000,
+                                    bits_of(static_cast<float>(((i - 2) >> 1) & 1)),
+                                    bits_of(static_cast<float>(i & 1) * 90.0f));
+                cg = title_global<const uint8_t*>(0x00972acc);
+            }
+        }
+    }
+    set_color(nullptr);
+}
+
 void XB_CDECL CG_Draw2D() {
     if (title_global<int32_t>(0x00971a88) || title_global<int32_t>(0x00971a8c)) return;
     nglPushScene(1);
@@ -2028,14 +2295,14 @@ void XB_CDECL CG_Draw2D() {
     if (*reinterpret_cast<const int32_t*>(intro + 0x20)) {
         // Over the intro screen the hud elements go on top.
         if (snapshot_ok()) {
-            call(0x00285260);
+            CG_DrawWeaponReticle();
             if (weapon_hud()) CG_DrawViewDirIcon();
         }
         if (snapshot_ok() && title_global<int32_t>(0x00948c94)) CG_DrawHudElems();
     } else {
         if (snapshot_ok() && title_global<int32_t>(0x00948c94)) CG_DrawHudElems();
         if (snapshot_ok()) {
-            call(0x00285260);
+            CG_DrawWeaponReticle();
             if (weapon_hud()) CG_DrawViewDirIcon();
         }
     }
