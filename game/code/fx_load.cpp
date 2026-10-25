@@ -2144,4 +2144,201 @@ uint32_t XB_THISCALL FxVectorRange_Within(const uint8_t* range, int32_t count, c
     return 1;
 }
 
+void XB_CDECL FX_InitParticleLibrary() {
+    uint8_t* pools = fx_alloc(0x1c, 4);
+    if (pools) {
+        title_global<uint8_t*>(0x00909f08) = pools;  // aps_poolSet
+        at<uint32_t>(pools, 0) = 0;
+        at<uint16_t>(pools, 4) = 0;
+        at<uint16_t>(pools, 6) = 0;
+        apsPtrVector_Reserve(pools, 10);
+        apsPtrVector_Resize(reinterpret_cast<ApsArray*>(pools), 0);
+        at<uint32_t>(pools, 0x18) = 0;
+        at<uint32_t>(pools, 0x14) = 0;
+        at<uint32_t>(pools, 0xc) = 0;
+        at<uint32_t>(pools, 0x10) = 0;
+        at<uint32_t>(pools, 8) = 0;
+    }
+    uint8_t* random = fx_alloc(4, 4);
+    if (random) {
+        title_global<uint8_t*>(0x00909f04) = random;  // fx_random
+        at<uint32_t>(random, 0) = 0x007c5fc0;
+    }
+    title_global<uint32_t>(0x0090993c) = title_global<uint32_t>(0x00909f04);
+    uint8_t* emitters = fx_alloc(0xc, 4);
+    if (emitters) FxEmitters_Init(emitters, title_global<int16_t>(0x008bb864));
+    FxSystemPool_Init(title_global<int16_t>(0x008bb866));
+}
+
+uint8_t* XB_THISCALL FxAction_DeletingDtor(uint8_t* self, uint32_t flags) {
+    FxAction_Destroy(self);
+    if (flags & 1) title_function<void XB_CDECL(void*)>(0x00011050)(self);  // Z_Free
+    return self;
+}
+
+namespace {
+
+// The domains' random number: fx_randSeed (0x00909f6c) = (12345 - seed * 0x3e39b193) &
+// 0x7fffffff, its top 23 bits as the mantissa of a float in [1, 2), minus 1.
+float domain_random() {
+    uint32_t& seed = title_global<uint32_t>(0x00909f6c);
+    seed = (0x3039u - seed * 0x3e39b193u) & 0x7fffffffu;
+    return from_bits((seed >> 8) | 0x3f800000u) - title_global<float>(0x0083eb20);
+}
+
+const float* vec_at(const uint8_t* self, uint32_t offset) { return reinterpret_cast<const float*>(self + offset); }
+
+// centre - point over four lanes (SUBPS; the point's fourth lane is its x).
+Lanes ball_offset(const uint8_t* self, const float* point) {
+    const Lanes p = {{point[0], point[1], point[2], point[0]}};
+    return sub(lanes(vec_at(self, 0x10)), p);
+}
+
+uint32_t ball_within(const uint8_t* self, const Lanes& offset) {
+    const Lanes squares = mul(offset, offset);
+    platform_keep(squares);
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    const float radius = at<float>(self, 0x1c);
+    return radius * radius > sum ? 1 : 0;
+}
+
+// out's xyz = the sum's lanes 0-2 (the original stores all four, then out's old w).
+uint8_t* store_point(float* out, const Lanes& sum) {
+    platform_keep(sum.v[3]);
+    for (int i = 0; i < 3; ++i) out[i] = sum.v[i];
+    return reinterpret_cast<uint8_t*>(out);
+}
+
+// Rejection sampling in the ball's cube: x and one of y/z in [-r, r), the other (`positive`,
+// 1 = y, 2 = z) in [0, r), until (x x + y y) + z z < r r or `tries` points. The fourth lane is a
+// stack word the original never writes (0 in tests: the dead stack is zeroed).
+uint8_t* ball_generate(const uint8_t* self, float* out, int32_t tries, int positive) {
+    const float radius = at<float>(self, 0x1c);
+    const float radius_sq = radius * radius;
+    const float low = 0.0f - radius;
+    const float span = radius - low;
+    Lanes p = {{0.0f, 0.0f, 0.0f, 0.0f}};
+    int32_t i = 0;
+    do {
+        const float u0 = domain_random();
+        const float u1 = domain_random();
+        const float u2 = domain_random();
+        p.v[0] = (radius - low) * u0 + low;
+        if (positive == 1) {
+            p.v[1] = u1 * radius;
+            p.v[2] = u2 * span + low;
+        } else {
+            p.v[1] = u1 * span + low;
+            p.v[2] = u2 * radius;
+        }
+        const Lanes squares = mul(p, p);
+        platform_keep(squares);
+        const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+        if (!(radius_sq <= sum)) break;
+    } while (++i < tries);
+    return store_point(out, add(lanes(vec_at(self, 0x10)), p));
+}
+
+// The plane domains' point: (centre + u-axis * a) + v-axis * b over four lanes.
+uint8_t* plane_point(const uint8_t* self, float* out, float a, float b) {
+    const Lanes v = mul(lanes(vec_at(self, 0x30)), b);
+    const Lanes u = mul(lanes(vec_at(self, 0x20)), a);
+    return store_point(out, add(add(lanes(vec_at(self, 0x10)), u), v));
+}
+
+// The title's packed sine polynomial on one lane, its rounding constant from 0x008bbc80.
+float circle_sine(float angle, float magic) {
+    const float y = -abs_bits(angle) * title_global<float>(0x007c91f0);  // 1 / (2 pi)
+    const float z = abs_bits(((y - magic) + magic) - y - title_global<float>(0x007c9200)) - title_global<float>(0x007c9210);
+    const float z2 = z * z;
+    const float z4 = z2 * z2;
+    const float z3 = z * z2;
+    const float z5 = z * z4;
+    float sum = z5 * z4 * title_global<float>(0x007c9260) + z3 * z4 * title_global<float>(0x007c9250);
+    sum = sum + z5 * title_global<float>(0x007c9240);
+    sum = sum + z3 * title_global<float>(0x007c9230);
+    return sum + z * title_global<float>(0x007c9220);
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL FxSphereDomain_Within(const uint8_t* self, int32_t, const float* point) {
+    return ball_within(self, ball_offset(self, point));
+}
+
+uint32_t XB_THISCALL FxYHemisphereDomain_Within(const uint8_t* self, int32_t, const float* point) {
+    const Lanes offset = ball_offset(self, point);
+    if (offset.v[1] > 0.0f) return 0;
+    return ball_within(self, offset);
+}
+
+uint32_t XB_THISCALL FxZHemisphereDomain_Within(const uint8_t* self, int32_t, const float* point) {
+    const Lanes offset = ball_offset(self, point);
+    if (offset.v[2] > 0.0f) return 0;
+    return ball_within(self, offset);
+}
+
+uint32_t XB_THISCALL FxSphereSurfaceDomain_Within(const uint8_t* self, int32_t, const float* point) {
+    return ball_within(self, ball_offset(self, point));
+}
+
+uint8_t* XB_THISCALL FxLineDomain_Generate(const uint8_t* self, int32_t, float* out) {
+    const float u = domain_random();
+    const Lanes step = mul(lanes(vec_at(self, 0x20)), u);
+    return store_point(out, add(lanes(vec_at(self, 0x10)), step));
+}
+
+uint8_t* XB_THISCALL FxSphereDomain_Generate(const uint8_t* self, int32_t, float* out) {
+    return ball_generate(self, out, 30, 2);
+}
+
+uint8_t* XB_THISCALL FxYHemisphereDomain_Generate(const uint8_t* self, int32_t, float* out) {
+    return ball_generate(self, out, 100, 1);
+}
+
+uint8_t* XB_THISCALL FxZHemisphereDomain_Generate(const uint8_t* self, int32_t, float* out) {
+    return ball_generate(self, out, 100, 2);
+}
+
+uint8_t* XB_THISCALL FxSphereSurfaceDomain_Generate(const uint8_t* self, int32_t, float* out) {
+    // A point of the [-1, 1) cube (fourth lane: a never-written stack word, 0 in tests)
+    // normalized, times the radius.
+    const float one = title_global<float>(0x0083eb20), two = title_global<float>(0x0083eba8);
+    Lanes p = {{0.0f, 0.0f, 0.0f, 0.0f}};
+    for (int i = 0; i < 3; ++i) p.v[i] = domain_random() * two - one;
+    const float radius = at<float>(self, 0x1c);
+    const Lanes v = mul(normalized(p), radius);
+    return store_point(out, add(lanes(vec_at(self, 0x10)), v));
+}
+
+uint8_t* XB_THISCALL FxDiscDomain_Generate(const uint8_t* self, int32_t, float* out) {
+    const float radius = at<float>(self, 0x1c);
+    const float low = 0.0f - radius;
+    const float span = radius - low;
+    const float radius_sq = radius * radius;
+    Lanes p = {{0.0f, 0.0f, 0.0f, 0.0f}};  // 0x007c9120
+    int32_t i = 0;
+    do {
+        const float u0 = domain_random();
+        const float u1 = domain_random();
+        p.v[0] = (radius - low) * u0 + low;
+        p.v[1] = u1 * span + low;
+        const Lanes squares = mul(p, p);
+        platform_keep(squares);
+        const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+        if (radius_sq >= sum) break;
+    } while (++i < 100);
+    return plane_point(self, out, p.v[0], p.v[1]);
+}
+
+uint8_t* XB_THISCALL FxCircleDomain_Generate(const uint8_t* self, int32_t, float* out) {
+    // sin(angle + 3 pi / 2) and sin(angle) (lanes 2-3 repeat lane 1), times the radius.
+    const float angle = domain_random() * title_global<float>(0x0083edac);  // 2 pi
+    const float radius = at<float>(self, 0x1c);
+    Lanes s;
+    for (int i = 0; i < 4; ++i)
+        s.v[i] = circle_sine(angle + title_global<float>(0x007c9290 + i * 4), title_global<float>(0x008bbc80 + i * 4)) * radius;
+    return plane_point(self, out, s.v[0], s.v[1]);
+}
+
 }  // namespace game

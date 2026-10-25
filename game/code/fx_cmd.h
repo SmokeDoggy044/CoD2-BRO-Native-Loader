@@ -84,4 +84,16 @@ uint8_t* XB_REGS1 XB_CDECL FXCmd_InitPlacement(uint8_t* placement);
 // empty script string at +0x1fc, ids +0x204/+0x208/+0x20e -1.
 uint8_t* XB_THISCALL FXCmd_RecordCtor(uint8_t* cmd);
 
+// 0x0029fbd0 (queue in ESI): counts +0, +0x804, +0x910 cleared, 0x40 command records at
+// +0x920 (0x210 bytes each), +0x8d20..+0x8d28 and 0x20 word pairs at +0x8d2c cleared;
+// returns the queue.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL FXCmdQueue_Ctor(uint8_t* queue);
+extern "C" void FXCmdQueue_Ctor_entry(void);
+// 0x002ec280 (EAX entity; value): FXCmd_Type2AtTransform at the entity's origin (+0x20) with
+// the identity rotation and the value at +0x20. Built at the original's stack address
+// ((entry - 4) & ~15) - 0x30: the callee copies 0x30 bytes, 0x24 of them set.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FXCmd_Type2AtOrigin(uint32_t entry, uint8_t* entity, uint32_t ebx, uint32_t esi,
+                                                          uint32_t edi);
+extern "C" void FXCmd_Type2AtOrigin_entry(void);
+
 }  // namespace game
