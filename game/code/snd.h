@@ -83,7 +83,7 @@ void XB_CDECL SndVoice_SetOrigin(int32_t voice, const uint32_t* origin);
 // 0x000c58b0: the 40-byte sound entry of a handle: bank slot (handle | 0xffff) >> 16 % 12 in 0x008bd770 (32 bytes:
 // key, state 3 = loaded, +0x18 bank: count +0x40, entries +0x44), index handle & 0xffff (at most the count); null
 // otherwise.
-uint8_t* XB_CDECL SndVoice_Resolve(uint32_t handle);
+uint8_t* XB_CDECL SndBank_GetSoundEntry(uint32_t handle);
 
 // 0x000c5810: the handle of a sound by name (the argument is a name pointer; bsearch with stricmp over each loaded
 // bank's sorted 40-byte entries, banks = the 12 slots of 0x008bd770): (slot key & 0xffff0000) | index; -1 if none.

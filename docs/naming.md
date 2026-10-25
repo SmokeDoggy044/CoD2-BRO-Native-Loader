@@ -742,3 +742,20 @@ CoD-specific functions included, so later decompilation covers both kinds.
   Hubs are dry for string/shape naming: next is the renderer decomp. The many tiny wrappers around
   still-unnamed common-script functions (0016ce40/0016cf80 scripted anim loops, 00135590/001354f0,
   0046b200/00470f70) wait for those targets; then the ~250 common-script leftovers in 0x120000-0x1e4000.
+- Hub pass 3 (2026-10-25, two subagents over the 302 unnamed .text functions with 3+ callers, bodies read):
+  batch 1 = 127 names (low range 66: file/movie streaming, memory-unit saves, rigid-body physics, sound,
+  std::string/map, script thread handles; high range 61: anim_reach/notetracks/anim commands, pmove slide/step,
+  AnimTree helpers, DebugDraw, loading icon, entity notify callbacks). SndVoice_Resolve renamed
+  SndBank_GetSoundEntry (sound id (bank<<16|index) -> 0x28-byte entry; not a voice). Findings:
+  - 0x11000-0x2xxxx: small helpers the linker pulled out of every module - name them after their callers.
+  - Physics world 0x0090a87c: static body +0x40, constraint pool +0x254/+0x25c/+0x260, constraint lists from
+    +0x200; bodies 0x170-byte pool records (linear vel +0x10, angular +0x20); contacts: body A +0x94, B +0x98,
+    normal +0x10, rA +0x20, rB +0x30. Fixed pools share one template {base, ptrs[], indices[], capacity, count}
+    (ragdoll 0x570/0x1d50 at 0x008dfde0/0x008f0470; physics 0x170/0x1c0/0x30/0xd0).
+  - Voice records (0xf8): param i at +0x10+4i, dirty bit i at +8; params 19-21 origin, 22-24 velocity.
+  - Saves: state 0x00920af4 (0 idle, 1 read, 2 write); XCalculateSignature over the file into its last 0x20 bytes.
+  - Entity +0x234: notify-callback blocks (6 {hash, func} pairs at +8/+0xc, next +0x38), walked by Scr_Notify and
+    G_NotifyWithEntity (script slot 544). Entity +0x458: CM cell index (cm +0x1c cells of 0x50, +0x3c in-map).
+  - Anim tree records 0x38 (trees 0x0095f524, current 0x00928588): child count +0x20 (u16), first child +0x36,
+    data +0x24 (length data+0x38), notetracks +0x28, sync flags +0x34 (&3 sync, 4 marked); anim info 0x30 at
+    0x00965cf0 (weight +0x20, goal +0x24, rate +0x28). Compiled scripts queue 0x34-byte anim commands (type 1-4).

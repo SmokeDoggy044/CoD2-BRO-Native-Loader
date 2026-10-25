@@ -426,7 +426,7 @@ void XB_CDECL SndVoice_SetOrigin(int32_t voice, const uint32_t* origin) {
     emitter_word<uint32_t>(record, 8) |= 0x380000;
 }
 
-uint8_t* XB_CDECL SndVoice_Resolve(uint32_t handle) {
+uint8_t* XB_CDECL SndBank_GetSoundEntry(uint32_t handle) {
     const uint32_t index = handle & 0xffff;
     const uint32_t key = handle | 0xffff;
     const uint8_t* const slot = &title_global<uint8_t>(0x008bd770 + ((key >> 16) % 12) * 32);
@@ -495,7 +495,7 @@ void XB_CDECL SoundHandle_Free(uint8_t* table, uint32_t handle) {
 }
 
 const char* XB_CDECL Snd_GetAliasName(uint32_t handle) {
-    const uint8_t* const entry = SndVoice_Resolve(handle);
+    const uint8_t* const entry = SndBank_GetSoundEntry(handle);
     return entry ? emitter_word<const char*>(entry, 0) : nullptr;
 }
 
@@ -681,7 +681,7 @@ float* XB_CDECL Snd_NormalizeVector(float* out, const float* in) {
 }
 
 int32_t XB_CDECL SndHw_AllocSlot(uint32_t sound, uint32_t owner, uint32_t any_slot) {
-    uint8_t* entry = SndVoice_Resolve(sound);
+    uint8_t* entry = SndBank_GetSoundEntry(sound);
     const uint8_t type = static_cast<uint8_t>(title_function<uint32_t XB_CDECL(uint8_t*)>(0x000c6fb0)(entry));
     const int32_t last = static_cast<int32_t>(title_global<uint32_t>(0x008bed00)) - 1;
     for (int32_t slot = 0; slot < last; ++slot) {
@@ -758,7 +758,7 @@ void XB_CDECL SndVoice_ApplyParams() {
         const int32_t next = HandlePool_Next(pool, handle);
         const int32_t index = HandlePool_Resolve(pool, handle);
         uint8_t* v = index == -1 ? nullptr : title_global<uint8_t*>(0x0090a8e0) + index * 0xf8;
-        uint8_t* entry = SndVoice_Resolve(snd_at<uint32_t>(v, 0xc8));
+        uint8_t* entry = SndBank_GetSoundEntry(snd_at<uint32_t>(v, 0xc8));
         do {
             if (!entry) break;
             if (v[0xd4] == 1) {

@@ -1194,7 +1194,7 @@ const Function kFunctions[] = {
     {"SndVoice_ClearAttenuation", 0x000c52b0, 0, code(&SndVoice_ClearAttenuation), 0, Result::None, Status::Compare},
     {"S_ClearVoiceAttenuation", 0x000c53b0, 0, code(&S_ClearVoiceAttenuation), 0, Result::Eax, Status::Compare},
     {"S_FindSoundByHash", 0x000c5810, 0, code(&S_FindSoundByHash), 0, Result::Eax, Status::Compare},
-    {"SndVoice_Resolve", 0x000c58b0, 0, code(&SndVoice_Resolve), 0, Result::Eax, Status::Compare},
+    {"SndBank_GetSoundEntry", 0x000c58b0, 0, code(&SndBank_GetSoundEntry), 0, Result::Eax, Status::Compare},
     {"Snd_GetAliasName", 0x000c5970, 0, code(&Snd_GetAliasName), 0, Result::Eax, Status::Compare},
     {"SndBank_Free", 0x000c5ca0, 0, code(&SndBank_Free), 4, Result::None, Status::Compare},
     {"SndBank_UpdateLoads", 0x000c6080, 0, code(&SndBank_UpdateLoads), 0, Result::None, Status::Compare},

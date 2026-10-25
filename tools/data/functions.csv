@@ -1245,7 +1245,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 000c52b0,SndVoice_ClearAttenuation,compare,38145,249,249,0,0,0,""
 000c53b0,S_ClearVoiceAttenuation,compare,4312,1075,1075,0,0,0,""
 000c5810,S_FindSoundByHash,compare,2841,2591,2591,0,0,0,""
-000c58b0,SndVoice_Resolve,compare,192313,2658,2658,0,0,0,""
+000c58b0,SndBank_GetSoundEntry,compare,192313,2658,2658,0,0,0,""
 000c5970,Snd_GetAliasName,compare,8683,4083,4083,0,0,0,""
 000c5ca0,SndBank_Free,compare,0,0,0,0,0,0,""
 000c6080,SndBank_UpdateLoads,compare,44542,678,678,0,0,0,""
