@@ -1024,3 +1024,29 @@ CoD-specific functions included, so later decompilation covers both kinds.
     script_mg42auto -> 0x001a4910. Global 0x007f49a8 = "mg42"; 0x0019f390/0x0019f770/0x001b9770 share
     BroScr_Mg30calAnimTree's shape (refcount field habc1df0a). Field h1791f035 = array of 0x34-byte anim-command
     records (BroScr_RecordAnimCommand / BroScr_ApplyAnimCommand); h747cde6c = look-at id counter.
+  Zero-caller list 4 (77 names): refexport stubs (slot 10 RE_EndRegistration), refimport slots 29/30/33, level-script
+  import slots 572-574 (G_Create/Start/FreeCodNote), InGameLiveOptionsMenu_Draw, LiveMgr_SetVoiceEnabled, the .spg
+  manager (SpgManager_*, rm_spg 0x0095f564), unreferenced Q3 matches (Com_Freeze_f, Com_Prefetch,
+  BaseWindingForPlane, R_CullLocalPointAndRadius, SCR_DrawSmallChar).
+  - Entity callback table +0x348 at 0x008da8a4: [1] 0x001fbec0, [2] 0x00248a30, both empty; Actor_Spawn stores 1,
+    Actor_BecomeCorpse/SP_script_model/Turret_ParseInfo/Vehicle_FreePhysics store 2; no dispatch site found.
+  - refimport_t at [esp+8] in CL_InitRef: slots 3-7, 18, 23 left zero; 29 = cm+0x14 16-byte table lookup, 30 =
+    VM_Call(cgvm, 8), 31 CL_DObjCreateSkeleton, 32 SCR_AdjustFrom640, 33 font lookup (ri+0x84, RE_TextWidth).
+  - Vehicle physics pool records: vtable 0x0083c5f0 (0 build contacts, 1 wheel distances), pool allocated at
+    0x0002b2c0. .spg manager (0x002b6fc0, from Com_Init): 32 slots {id, ?, data} of 0xc at +4. Localized strings:
+    std::map head 0x0095feec, text +0x2c, alternate text +0x48 (when 0x0095fef4 is set), dword +0x60.
+  Zero-caller list 5 (128 names): script import slots by their stores (pScr_<name> data rows at 0x00922140 +
+  4*slot; e.g. 450 SetFreezeControls, 565-568 fog pass count/alpha/step/final alpha read by R_DrawFogPass, 180
+  missile max lifetime, 194 compass markers, 453 PlayerIsLookingAt, 178/179 Get{Move,Angle}Delta), UI vtable slots
+  across the widget classes and screens, script wait records, ScriptStrings none/obstacle/world.
+  - UI menu slots (UIScreenMgr_OnButtonDown, SetActiveScreen): 15 OnEnter(prev), 17 OnLeave(next); button bits
+    1/2 -> 18/19, 4/8/0x10/0x20 -> 20-23 (up/down/left/right), 0x40 -> 24 (A), 0x80 -> 25 (back),
+    0x100..0x800 -> 26-29, 0x1000/0x2000 -> 30/31; 32 any button. UIElement: 6 SetAlign (0x40/0x80), 7
+    SetLayer(frac, layer) -> 9 SetDepth(layer*1000+frac), 12 IsVisible, 13 SetVisible (+0x10 bit 4). UIPicture: 9
+    SetDepth, 27 SetQuadFlags, 30 SetAlpha, 31 vertex-scaled alpha, 33 SetRect -> 34 SetQuadCorners, 36
+    ResetTransform, 15 AddQuad; UITextBase: 14 CopyFrom, 15 Draw, 19/20 align. UIWorldPicture (vtable 0x00828df8,
+    world point +0x40, slot 51 projects then calls 35) is dead (unreferenced ctor).
+  - Wait records: vtable 0x00831800 plain waittill, 0x0083182c timeout variant (countdown +0x1c); entity +0x14,
+    name +0x18, result +0x10, done +0xc. Actor +0x39c/+0x2b0 entity handles read as "none"/"obstacle"/"world"
+    (entity +0x2a4 bit 0x4000); client +0x5f4 look-at entity. Import slot stores in 0x00309030-0x003094a0 belong to
+    G_SetupActorScriptImports (older evidence saying "Game" for those slots may be wrong).
