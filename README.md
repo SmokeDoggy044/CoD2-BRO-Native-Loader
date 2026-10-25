@@ -27,30 +27,30 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 7,728 | 1,952 | 9,241 |
+| Engine and game code (`.text`) | 11,193 | 7,821 | 1,952 | 9,241 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **10,716** | **1,952** | **14,565** |
+| **Total** | **16,517** | **10,809** | **1,952** | **14,565** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
 (below), or, for 268 functions the campaign never runs, the same comparison offline on random inputs.
-We've also named 2,542 of the game's global variables.
+We've also named 2,544 of the game's global variables.
 
 ### By part of the game
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 997 | 833 | 132 | 31 | 0 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,479 | 423 | 48 | 1,004 | 0 |
-| Client game (HUD, view, effects on screen) | 269 | 151 | 38 | 80 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 822 | 227 | 21 | 563 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,003 | 833 | 132 | 37 | 0 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,519 | 423 | 48 | 1,044 | 0 |
+| Client game (HUD, view, effects on screen) | 275 | 151 | 38 | 86 | 0 |
+| Engine core (memory, files, settings, commands, containers, math) | 845 | 227 | 21 | 586 | 0 |
 | Client and menus | 520 | 92 | 29 | 399 | 0 |
-| Server, collision, compression | 203 | 110 | 16 | 77 | 0 |
+| Server, collision, compression | 212 | 110 | 16 | 86 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 1,940 | 11 | 0 | 1,929 | 0 |
 | Level-script helpers in the engine code | 1,232 | 0 | 0 | 1,225 | 0 |
-| Sound, streaming, online | 279 | 105 | 5 | 168 | 0 |
+| Sound, streaming, online | 288 | 105 | 5 | 177 | 0 |
 | Microsoft C runtime pieces the library matcher missed (replaced, not rewritten) | 11 | 0 | 0 | 11 | 0 |
-| Not sorted into a part yet | 3,441 | 0 | 0 | 0 | 1,834 |
+| Not sorted into a part yet | 3,348 | 0 | 0 | 0 | 1,741 |
 
 1,607 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice

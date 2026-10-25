@@ -927,3 +927,22 @@ CoD-specific functions included, so later decompilation covers both kinds.
     = 2 dashboard (CLiveEngine_Reboot) dialog, 3 yes/no confirm, shown by the InGameLiveOptionsMenu update at
     0x00224510 (not a function yet). XboxLiveMenu_vtable slot 10 = XboxLiveMenu_Draw 00222750. Entity +0x350 =
     health (Actor_ClampLethalDamage, Mover_UnstickPlayer crushes for health + 50).
+  Trees 5 (95 names): Q3 polylib windings (CheckWinding/WindingArea/WindingPlane/CopyWinding, c_active_windings,
+  c_peak_windings), Com_Filter/FilterPath/StringContains, SndMem_Init/GetSize, path-node link disabling, inline
+  brush models (Dcg_*), FX command queue, rumble, localization maps, copy-on-write strings. Low: AnimTree_AdvanceTime_r_2
+  (same shape as AnimTree_AdvanceTime_r, saves times and calls two stubs), FxMem_Alloc/Free.
+  - Path node tree: node tree id +0x5c, depth +0x5e, parent handle +0x60; sorted handle list at blocks(+0x194)
+    +0x14 (count +8), free list of 8-byte disconnected-link entries +0x10 (head +6); the entity's ring of
+    disconnected links +0x410; 12-byte links with disable count +2; node +0x24 active link count (total +0x62),
+    disabled links swapped past it.
+  - DCG = inline brush models: per zone, 0x50-byte records keyed by modelindex +0x48 (CM_FindInlineModel) with
+    0x40-byte sub-records (vtable 0x008325ec); the two-array 99-slot zone list (+0x10/+0x19c) is removed from by
+    002c5c60, which resets the cached area bounds (+0x430..+0x44c).
+  - FX command queue 0x0095f5b4: 64 records of 0x210. FxShakeRumbleComponent vtable 0x008376d0 slot 4 = Stop;
+    rumble manager: 2 motor lists at +8 stride 0x10, node id +8.
+  - Pmove: weaponstates 0xc/0xd = ADS raise/drop (def times +0x678/+0x67c, events 0xa0/0xa1; weapon types 3/8);
+    jump velocity sqrt(2*39*gravity), event 0x46 + surface type, 0x53 on a ladder; stamina ps +0x45c (flag 0x20000
+    = exhausted, breath event 0x8c every 1700 ms).
+  - Localization: entry map map<string, {string, string, int}> (isnil +0x65); flag map map<string, uint bit>
+    (isnil +0x2d, std_set_string_*), flag names in a vector at +0x8c. RcString rep {len, refs, text, cap} (0x10,
+    Z_Malloc, capacity steps of 20). Unidentified class: dtor 00296710 (vtable 0x008376c4, base 0x0083760c).

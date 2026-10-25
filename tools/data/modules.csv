@@ -49,3 +49,8 @@ prefix,(FileDevice_|FileXapi_),qcommon,XAPI file device driver (2026-10-25 trees
 prefix,(Ragdoll[A-Za-z]*_|VehPath_|Add_AmmoClips$),game,ragdoll capsules/spheres/body defs; vehicle path following; ammo clips (2026-10-25 trees)
 prefix,(Bounds_),qcommon,bounds helpers (2026-10-25 trees)
 prefix,(LiveRecord_|LiveMgrBase_),online,Xbox Live manager base and user records (2026-10-25 trees)
+prefix,(Dcg_|CheckWinding$|WindingArea$|WindingPlane$|CopyWinding$|AddWindingToConvexHull$),collision,inline brush models (DCG); Q3 polylib windings (2026-10-25 trees)
+prefix,(LocEntry_|RcString_),qcommon,localization entries; copy-on-write strings (2026-10-25 trees)
+prefix,(TryDoor$|PathNodeBlock_),game,doors; path node blocks (2026-10-25 trees)
+prefix,(Rumble_),cgame,controller rumble (2026-10-25 trees)
+prefix,(FXCmdQueue_),renderer,effect command queue (2026-10-25 trees)
