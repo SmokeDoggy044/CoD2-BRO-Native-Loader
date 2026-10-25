@@ -898,3 +898,16 @@ CoD-specific functions included, so later decompilation covers both kinds.
   - Skipped: 37 per-constraint-type prepare/solve routines 0xb6780-0xc1d60 (need the solver decompile), 8 billboard
     particle draws 0xa7930-0xac3b0 (differ only in shader globals), unreferenced box tests (af120, ae970, af460,
     ad140, af800, afbd0, b0f70, b1500: probably dead code).
+  Trees 3 (96 names, incl. the earlier-skipped file-system and movie regions): PhysWorld_Destroy, the XAPI file
+  device (File_StartDeviceRequest, FileDevice_IssueIo/AlignTransfer/OnIoComplete), the movie class and its video
+  decoder (Movie_/MovieBase_/MovieVid_, 35 names), Save_GetProgressFraction/GetOpState, enemy-queue helpers.
+  - Movie player: vtable 0x007cf390 {DeletingDtor 000cefd0, 0x000cbc70, Decode 0x000ce210, Reset 000cf170} (two
+    slots not functions yet), base vtable 0x007cf600. MPEG-2 style decoder: bitstream XOR 0xa6 (bits +0x14c/
+    +0x150), macroblock rows start with sync 0xfacadeca/0xfaca0000, non-linear quantiser table 0x008bffd0, quant
+    tables +0x160, motion-compensation put/average tables 0x008c0208/0x008c0228, coefficient block +0x154, read
+    ring +0x20[4], cursor +0x140; soundtrack DirectSound buffer 0x00920850.
+  - XAPI file driver table 0x008bfe9c: Open (CreateFileA) 0x000cba40, Close 0x000cbae0, GetSize+SortKey
+    0x000cbb00, 0x000cbb30, Read/WriteFileEx 0x000cbb70 (completion 0x000cbb50), CancelIo 0x000cbbe0, SleepEx poll
+    0x000cbc00; alignment 0x1000 follows. Sound bank slots 0x008bd770 (12 x 0x20: handle, state, flags, file, ?,
+    serial from 0x0090a93c, ?, priority). Streaming voice: media object +0x2c, DS stream +0x30, two 0xc packets
+    +0x38, bytes left +0x58, last packet +0x5c, packet size +0x60, loop start +0x64.
