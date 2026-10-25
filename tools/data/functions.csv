@@ -2378,7 +2378,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0030e0f0,FE_CommandDisplayName,compare,48,3,3,0,0,0,""
 0030f2b0,R_FindFont,compare,23683,332,332,0,0,0,""
 0030fca0,Subtitle_Draw,compare,15564,304,304,0,0,0,""
-00312690,FE_SaveSlotsUpdateText,compare,8,8,0,0,8,0,"100006a8 [host] [1] 88 vs 58 [esp f650a78c, stack limit f640e000]"
+00312690,FE_SaveSlotsUpdateText,compare,6,6,6,0,0,0,""
 00312ad0,FE_BonusConceptSetText,compare,0,0,0,0,0,0,""
 00312bd0,FE_BonusLevelLabel,compare,0,0,0,0,0,0,""
 00315210,UIMenu_Init,compare,1218,9,9,0,0,0,""

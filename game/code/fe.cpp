@@ -189,25 +189,56 @@ const char* XB_CDECL FE_CommandDisplayName(int32_t key) {
     return text_at(key == 27 ? 0x0082bfd0 : 0x0082bdd8);  // FEMENU_NA
 }
 
+// The set-text methods store the address of a stack local in a heap word (0x100006a8), so
+// every call runs where the original's call puts it: the entry moves our frame below a gap,
+// passes the original's entry ESP, and each call leaves the original's return address.
 PLATFORM_ASM_ENTRY(FE_SaveSlotsUpdateText_entry,
-                   "pushl %esi\n" PLATFORM_ASM_CALL(FE_SaveSlotsUpdateText) "addl $4, %esp\n"
+                   "movl %esp, %eax\n"
+                   "subl $0x10000, %esp\n"  // nothing saved above the gap: the calls' arguments go there
+                   "pushl %eax\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(FE_SaveSlotsUpdateText) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
                    "ret")
 
-void XB_CDECL FE_SaveSlotsUpdateText(uint8_t* menu) {
-    if (menu[0x36]) {  // card corrupt
-        for (uint32_t i = 0; i < 4; ++i) set_text(menu_item(menu, i), 0x30, text_at(0x0082ada0));
+namespace {
+
+// One thiscall method call (one stack argument) with ESP at `top`, returning to `ret`.
+void set_text_at(uint32_t top, uint32_t ret, uint8_t* menu, uint8_t* item, uint32_t offset, uint32_t text,
+                 uint32_t edi) {
+    const uint32_t vtable = field<uint32_t>(item, 0);
+    const TitleRegs regs{text, 0, address_of(item), vtable, address_of(menu), edi};
+    title_call_at_regs(top, field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{vtable}), offset), &regs, 1, &text);
+    *reinterpret_cast<uint32_t*>(uintptr_t{top - 8}) = ret;
+}
+
+}  // namespace
+
+void XB_CDECL FE_SaveSlotsUpdateText(uint32_t entry, uint8_t* menu, uint32_t edi) {
+    if (menu[0x36]) {  // card corrupt; push edi
+        *reinterpret_cast<uint32_t*>(uintptr_t{entry - 4}) = edi;
+        for (uint32_t i = 0; i < 4; ++i)
+            set_text_at(entry - 4, 0x003126b0, menu, menu_item(menu, i), 0x30, 0x0082ada0, i * 4);
         return;
     }
-    for (uint32_t i = 0; i < 4; ++i) {  // save slots {name +0x64, empty +0x6c}, 12 bytes each
+    // save slots {name +0x64, empty +0x6c}, 12 bytes each; return addresses {new, name}
+    static constexpr uint32_t kReturns[4][2] = {
+        {0x003126d0, 0x003126d9}, {0x003126f0, 0x00312701}, {0x0031271b, 0x0031272c}, {0x00312746, 0x0031275a}};
+    for (uint32_t i = 0; i < 4; ++i) {
         uint8_t* const item = menu_item(menu, i);
         if (menu[0x6c + i * 12])
-            set_text(item, 0x30, text_at(0x0082ad90));  // FEMENU_OP_NEW
+            set_text_at(entry, kReturns[i][0], menu, item, 0x30, 0x0082ad90, edi);  // FEMENU_OP_NEW
         else
-            set_text(item, 0x34, field<const char*>(menu, 0x64 + i * 12));
+            set_text_at(entry, kReturns[i][1], menu, item, 0x34, field<uint32_t>(menu, 0x64 + i * 12), edi);
     }
     const bool empty = menu[(uint32_t(field<int16_t>(menu, 0x22)) + 9) * 12] == 1;
-    set_text(field<uint8_t*>(menu, 0x40), 0x6c,
-             text_at(field<uint32_t>(menu, 0x4c) || empty ? 0x0082c37c : 0x0082b10c));
+    if (field<uint32_t>(menu, 0x4c) || empty)
+        set_text_at(entry, 0x0031276e, menu, field<uint8_t*>(menu, 0x40), 0x6c, 0x0082c37c, edi);
+    else
+        set_text_at(entry, 0x0031278c, menu, field<uint8_t*>(menu, 0x40), 0x6c, 0x0082b10c, edi);
 }
 
 PLATFORM_ASM_ENTRY(FE_BonusConceptSetText_entry,

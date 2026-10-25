@@ -10669,7 +10669,7 @@ address,name,section,module,state,tested,matched
 00312340,SpecialMaterialsMenu_OnLeave,.text,client,named,0,0
 003123c0,FUN_003123c0,.text,unassigned,unnamed,0,0
 003124f0,ProfileSave_Dtor,.text,qcommon,named,0,0
-00312690,FE_SaveSlotsUpdateText,.text,client,mismatched,8,0
+00312690,FE_SaveSlotsUpdateText,.text,client,matched,6,6
 00312850,FUN_00312850,.text,unassigned,unnamed,0,0
 00312870,FUN_00312870,.text,unassigned,unnamed,0,0
 003129e0,FUN_003129e0,.text,unassigned,unnamed,0,0

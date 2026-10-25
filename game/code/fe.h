@@ -44,7 +44,7 @@ extern "C" void FE_CommandDisplayName_entry(void);
 // 0x00312690 (menu in ESI): with the card corrupt (+0x36) FEMENU_OP_CORRUPT on all four slot items; else per slot
 // FEMENU_OP_NEW (empty, +0x6c + slot * 12) or its name (+0x64 + slot * 12), then the help bar +0x40:
 // FEMENU_OP_HELPBAR when +0x4c is set or the selected slot is empty, else FEMENU_LOAD_HELPBAR_XBOX.
-extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SaveSlotsUpdateText(uint8_t* menu);
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SaveSlotsUpdateText(uint32_t entry, uint8_t* menu, uint32_t edi);
 extern "C" void FE_SaveSlotsUpdateText_entry(void);
 // 0x00312ad0 (menu in ESI): "%i / %i" of the concept category's current item (+0x8c + index * 4) and its count
 // (the 0x48-byte level records at 0x0095f968, entry index + 1; 0 while that level is locked: 0x008dce54 clear and
