@@ -288,4 +288,61 @@ void XB_CDECL CG_ParseConfigStringFloat9();
 // 0x0027abb0: configstring 11 (atof) into 0x009730a4.
 void XB_CDECL CG_ParseConfigStringFloat11();
 
+// 0x002764c0 and 0x00276530 (two copies of one body): for 100 ms after the flash start
+// (0x00973a7c, while 0x00973a78 is set) the flash colour 0x0098ad68 is white with alpha
+// fading from 0x0094b5d8.
+void XB_CDECL CG_UpdateWhiteFlashColor();
+void XB_CDECL CG_UpdateWhiteFlashColor2();
+// 0x00277ed0 (starts with a call, cannot be hooked): the screen blackout, then the scripted
+// fade - colour 0x00972e8c blending to 0x00972e9c until 0x00972e84 at rate 0x00972e88 - as a
+// full-screen rectangle.
+void XB_CDECL CG_ScreenFade();
+// 0x00277ca0: the front-buffer blend - the last frame as a full-screen quad (offset
+// 0x008fefcc/0x008fefc8, blend mode 0x008fefc4) in the colour 0x008fefd0, its alpha
+// 0x0095f648 (at most 0x008fefe0) falling by 0x008ddaa0 each frame; blend modes 5/6
+// (0x008d5124) scale the colour by it too.
+void XB_CDECL CG_DrawFrontBufferBlend();
+// 0x0027d180: a status label at (345, 217) - the name at 0x009606ec +6 (nothing for "none"),
+// coloured from red through yellow to green by the value at 0x009606f0 +6 (0..1) - and under
+// it at y 235 the translated text at 0x009606f4 +6 (white, alpha 0.7), small font.
+void XB_CDECL CG_DrawStatusLabel();
+// 0x002824f0: with player flag 0x1000000 (not 0x2000000), the icon 0x00975c48 (40x40) at the
+// screen position of the view direction (CG_ProjectViewDirToScreen times the zoom 0x009725d8),
+// centred in the refdef.
+void XB_CDECL CG_DrawViewDirIcon();
+// 0x00285f80: the 2D pass of a frame - fades, damage, hud elements, crosshair and weapon hud,
+// checkpoint, objectives or the centre print, subtitles - in a pushed 2D scene.
+void XB_CDECL CG_Draw2D();
+// 0x00275b60 (layout in EDI, buffer size in EDX, buffer on the stack): the label's first "%s"
+// replaced by the text, into the buffer, which becomes the text (its width += the label's);
+// the label becomes "" with width 0. Returns the length.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL HudElem_SubstituteLabel(int32_t size, uint8_t* layout, char* buffer);
+extern "C" void HudElem_SubstituteLabel_entry(void);
+// 0x002778e0 (element in ECX): the timer value as "h:mm:ss" or "m:ss" (va).
+const char* XB_FASTCALL HudElem_FormatTimer(const uint8_t* elem);
+// 0x00277850 (element in ECX): the timer value with tenths, "h:mm:ss.t" or "m:ss.t" (va).
+const char* XB_FASTCALL HudElem_FormatTenthsTimer(const uint8_t* elem);
+// 0x00279750 (element in EAX, layout in ESI; float in XMM0): the element's width - label +
+// text for the text types, else its size +0x30 (fading from +0x3c) plus the label.
+extern "C" PLATFORM_HIDDEN float XB_CDECL HudElem_GetWidth(const uint8_t* elem, const uint8_t* layout);
+extern "C" void HudElem_GetWidth_entry(void);
+// 0x002796a0 (element in EAX, layout in ESI; float in XMM0): the element's height - the font
+// height for the text types, else its size +0x34 (fading from +0x40); at least the font height.
+extern "C" PLATFORM_HIDDEN float XB_CDECL HudElem_GetHeight(const uint8_t* elem, const uint8_t* layout);
+extern "C" void HudElem_GetHeight_entry(void);
+// 0x0027f460 (layout in EAX, element in EBX; text buffer and its size on the stack): a hud
+// element's text layout - font, label and text with their widths, size, position after the
+// move fade and alignment, colour after the colour fade.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawHudElemText(uint8_t* layout, const uint8_t* elem, char* buffer,
+                                                            int32_t size);
+extern "C" void CG_DrawHudElemText_entry(void);
+// 0x002820f0 (element in ECX): one hud element - its text layout (CG_DrawHudElemText), the
+// label, then the text, material or clock; an element with sort -777 (+0x6c) while not paused
+// also updates the loading-screen animation (0x002960a0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawHudElem(const uint8_t* elem);
+extern "C" void CG_DrawHudElem_entry(void);
+// 0x002c0120 (text in EDX): the printable characters - multi-byte pairs once, colour codes
+// "^0".."^9" and line breaks not counted.
+int32_t XB_REGS2 XB_CDECL Loc_CountChars(uint32_t unused, const char* text);
+
 }  // namespace game

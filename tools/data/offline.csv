@@ -344,11 +344,14 @@ address,name,tested,matched,nan,mismatched,coverage
 0024c5a0,G_FreeFieldStrings,3103,3103,0,0,100.0
 0024e5b0,SP_info_notnull_big,3825,3825,0,0,100.0
 0024e620,SP_info_notnull,3797,3797,0,0,100.0
+00275b60,HudElem_SubstituteLabel,3612,3612,0,0,90.3
 00275d00,HudElem_GetTimerValue,3834,3834,0,0,37.5
 00276900,CG_HasWeapon,3491,3491,0,0,100.0
 00276b90,CG_SaveViewModelAnimTrees,3686,3686,0,0,100.0
 00276d00,CG_BobCycleVertical,4000,4000,0,0,100.0
 00277630,CG_Error,3811,3811,0,0,57.1
+00277850,HudElem_FormatTenthsTimer,2025,2025,0,0,85.5
+002778e0,HudElem_FormatTimer,2134,2134,0,0,86.4
 00278cb0,CG_CopySaveState,3678,3678,0,0,36.8
 00279fb0,CG_Viewpos_f,4000,4000,0,0,83.3
 0027af30,CG_ParseInfoValueT,3836,3836,0,0,100.0
@@ -421,6 +424,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002b96c0,PathNode_IsLinkInBadPlace,2410,2410,0,0,100.0
 002bab30,CM_AdjustAreaPortalState,3942,3942,0,0,46.9
 002bffb0,SV_AdjustAreaPortalState,2875,2875,0,0,100.0
+002c0120,Loc_CountChars,3775,3775,0,0,31.8
 002c0d30,Cmd_Vstr_f,3992,3992,0,0,61.9
 002c5140,SV_SetSkillEasy,1403,1403,0,0,16.0
 002c5200,SV_SetSkillHard,1914,1914,0,0,16.0

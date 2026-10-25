@@ -6,6 +6,7 @@
 #include "bg_misc.h"
 #include "cg_ents.h"
 #include "cg_view.h"
+#include "cl.h"
 #include "dobj.h"
 #include "fx.h"
 #include "g_utils.h"
@@ -754,8 +755,7 @@ void XB_CDECL CG_DrawScreenBlackout() {
     const float alpha = title_global<float>(0x00972f70);
     if (platform_x87_greater_equal(0.0f, alpha) || !title_global<uint32_t>(0x00971aa8)) return;
     const float color[4] = {0.0f, 0.0f, 0.0f, alpha};
-    title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0)(  // CG_FillRect
-        color, 0.0f, 0.0f, 640.0f, 480.0f);
+    CG_FillRect(color, 0.0f, 0.0f, 640.0f, 480.0f);
 }
 
 uint32_t XB_CDECL CG_GetCurrentWeaponDef() {
@@ -791,12 +791,11 @@ void XB_CDECL CG_DrawDamageBlend() {
     const float level = platform_x87_greater(fade, cap) ? cap : fade;
     const float red = title_global<float>(0x0083eca0);
     const float color[4] = {red, 0.0f, 0.0f, level * red * title_global<float>(0x0083ed28)};
-    title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0)(  // CG_FillRect
-        color, -10.0f, -10.0f, 650.0f, 490.0f);
+    CG_FillRect(color, -10.0f, -10.0f, 650.0f, 490.0f);
 }
 
 void XB_CDECL CG_DrawProgressBar(float x, float y, float w, float h, float fraction) {
-    const auto fill = title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0);  // CG_FillRect
+    const auto fill = CG_FillRect;
     const float one = title_global<float>(0x0083eb20), half = title_global<float>(0x0083eb24);
     const float alpha = title_global<float>(0x0083066c);
     const float back[4] = {half, half, half, alpha};
@@ -1026,10 +1025,7 @@ uint32_t float_bits(float f) {
     return u;
 }
 
-// CG_FillRect (0x00277bd0, colour in EAX; it cannot be hooked).
-void fill_rect(const float* color, float x, float y, float w, float h) {
-    title_function<void XB_REGS1 XB_CDECL(const float*, float, float, float, float)>(0x00277bd0)(color, x, y, w, h);
-}
+void fill_rect(const float* color, float x, float y, float w, float h) { CG_FillRect(color, x, y, w, h); }
 
 }  // namespace
 
@@ -1863,6 +1859,496 @@ int32_t XB_CDECL HudElem_GetTimerValue(const uint8_t* elem) {
 PLATFORM_ASM_ENTRY(HudElem_GetTimerValue_entry,
                    "pushl %ecx\n" PLATFORM_ASM_CALL(HudElem_GetTimerValue) "addl $4, %esp\n"
                    "ret")
+
+namespace {
+
+void update_white_flash_color() {
+    if (!title_global<int32_t>(0x00973a78)) return;
+    const int32_t start = title_global<int32_t>(0x00973a7c);
+    if (!start) return;
+    const int32_t t = title_global<int32_t>(0x0097253c) - start;
+    if (t >= 100) return;
+    const float one = g(0x0083eb20);
+    const int32_t left = 100 - t;
+    const float f = left < 100 ? static_cast<float>(left) * g(0x0083eb94) : one;
+    const float alpha = f * g(0x0094b5d8);
+    title_global<float>(0x0098ad70) = one;
+    title_global<float>(0x0098ad6c) = one;
+    title_global<float>(0x0098ad68) = one;
+    title_global<float>(0x0098ad74) = alpha;
+}
+
+}  // namespace
+
+void XB_CDECL CG_UpdateWhiteFlashColor() { update_white_flash_color(); }
+
+void XB_CDECL CG_UpdateWhiteFlashColor2() { update_white_flash_color(); }
+
+void XB_CDECL CG_ScreenFade() {
+    CG_DrawScreenBlackout();
+    const float rate = g(0x00972e88);
+    if (rate == 0.0f) return;
+    float* current = &title_global<float>(0x00972e8c);
+    const float* target = &title_global<float>(0x00972e9c);
+    const int32_t left = title_global<int32_t>(0x00972e84) - title_global<int32_t>(0x0097253c);
+    if (left <= 0) {
+        for (uint32_t i = 0; i < 4; ++i) current[i] = target[i];
+        if (current[3] == 0.0f) {
+            title_global<float>(0x00972e88) = 0.0f;
+            return;
+        }
+        CG_FillRect(current, 0.0f, 0.0f, 640.0f, 480.0f);
+        return;
+    }
+    const float f = static_cast<float>(left) * rate;
+    const float inv = g(0x0083eb20) - f;
+    float color[4];
+    for (uint32_t i = 0; i < 4; ++i) color[i] = target[i] * inv + current[i] * f;
+    if (color[3] == 0.0f) return;
+    CG_FillRect(color, 0.0f, 0.0f, g(0x0083ec0c), g(0x0083ec08));  // 640 x 480
+}
+
+void XB_CDECL CG_DrawFrontBufferBlend() {
+    float& alpha = title_global<float>(0x0095f648);
+    float a = alpha - g(0x008ddaa0);
+    alpha = a;
+    if (0.0f > a) {
+        alpha = 0.0f;
+        return;
+    }
+    if (a > g(0x008fefe0)) {
+        a = g(0x008fefe0);
+        alpha = a;
+    }
+    if (0.0f >= a) return;
+    const float k = g(0x0083eb8c);  // 255
+    uint8_t r = static_cast<uint8_t>(platform_x87_mul_ftol(g(0x008fefd8), k));
+    uint8_t gr = static_cast<uint8_t>(platform_x87_mul_ftol(g(0x008fefd4), k));
+    uint8_t b = static_cast<uint8_t>(platform_x87_mul_ftol(g(0x008fefd0), k));
+    const uint8_t base_alpha = static_cast<uint8_t>(platform_x87_mul_ftol(g(0x008fefdc), k));
+    const uint8_t al = static_cast<uint8_t>(platform_x87_mul_add_ftol(base_alpha, alpha, 0, false));
+    const int32_t mode = title_global<int32_t>(0x008d5124);
+    if (mode == 5 || mode == 6) {
+        r = static_cast<uint8_t>(platform_x87_mul_add_ftol(r, alpha, 0, false));
+        gr = static_cast<uint8_t>(platform_x87_mul_add_ftol(gr, alpha, 0, false));
+        b = static_cast<uint8_t>(platform_x87_mul_add_ftol(b, alpha, 0, false));
+    }
+    NglQuad quad;
+    nglInitQuad(&quad);
+    const uint32_t color = (static_cast<uint32_t>(al) << 24) | (static_cast<uint32_t>(r) << 16) |
+                           (static_cast<uint32_t>(gr) << 8) | b;
+    nglSetQuadColor(&quad, color);
+    nglSetQuadBlend(&quad, title_global<uint32_t>(0x008fefc4), color);
+    const float y1 = static_cast<float>(nglGetScreenHeight()) + g(0x008fefc8);
+    const float x1 = static_cast<float>(nglGetScreenWidth()) + g(0x008fefcc);
+    nglSetQuadRect(&quad, g(0x008fefcc), g(0x008fefc8), x1, y1);
+    nglSetQuadTexture(&quad, nglGetFrontBufferTexture());
+    nglListAddQuad(&quad);
+}
+
+void XB_CDECL CG_DrawStatusLabel() {
+    const uint8_t* label = title_global<const uint8_t*>(0x009606ec);
+    if (!label) return;
+    const char* name = reinterpret_cast<const char*>(label + 6);
+    if (!*name) return;
+    if (!title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(name, &title_global<char>(0x00832430)))  // __stricmp "none"
+        return;
+    const uint8_t* value_text = title_global<const uint8_t*>(0x009606f0);
+    float value = static_cast<float>(title_function<double XB_CDECL(const char*)>(0x001ef056)(  // atof
+        value_text ? reinterpret_cast<const char*>(value_text + 6) : nullptr));
+    const float one = g(0x0083eb20);
+    if (value > one)
+        value = one;
+    else if (0.0f > value)
+        value = 0.0f;
+    float color[4];
+    if (value > 0.5f) {
+        color[0] = (one - value) * g(0x0083eba8);
+        color[1] = one;
+    } else {
+        color[0] = one;
+        color[1] = value * g(0x0083eba8);
+    }
+    color[2] = 0.0f;
+    color[3] = one;
+    using DrawText = void XB_CDECL(float, float, uint32_t, float, const float*, const char*, uint32_t, uint32_t, uint32_t);
+    const auto draw_text = title_function<DrawText>(title_global<uint32_t>(0x00928578));
+    draw_text(345.0f, 217.0f, 0, 1.0f / 3.0f, color, name, 0, 0, 3);
+    const uint8_t* text = title_global<const uint8_t*>(0x009606f4);
+    const char* translated =
+        CG_TranslateString(text ? reinterpret_cast<const char*>(text + 6) : nullptr, &title_global<char>(0x0083521c));  // "cgame"
+    color[0] = g(0x0083eb20);
+    color[1] = color[0];
+    color[2] = color[0];
+    color[3] = g(0x0083ed28);  // 0.7
+    draw_text(345.0f, 235.0f, 0, 1.0f / 3.0f, color, translated, 0, 0, 3);
+}
+
+void XB_CDECL CG_DrawViewDirIcon() {
+    const uint32_t flags = title_global<uint32_t>(0x0097257c);
+    const float zoom = g(0x009725d8);
+    if (!(flags & 0x1000000) || (flags & 0x2000000)) return;
+    float x, y;
+    CG_ProjectViewDirToScreen(&x, &y);
+    const float xs = g(0x009758b8), ys = g(0x009758bc);
+    x = x * zoom * xs;
+    y = y * zoom * ys;
+    const float w = xs * g(0x0083ec84), h = ys * g(0x0083ec84);  // 40
+    title_function<void XB_CDECL(const float*)>(title_global<uint32_t>(0x0092852c))(nullptr);  // set colour
+    const float half = g(0x0083eb24);
+    const float sy = (static_cast<float>(title_global<int32_t>(0x00972b9c)) - h) * half +
+                     static_cast<float>(title_global<int32_t>(0x00972b94)) + y;  // refdef height, y
+    const float sx = (static_cast<float>(title_global<int32_t>(0x00972b98)) - w) * half +
+                     static_cast<float>(title_global<int32_t>(0x00972b90)) + x;  // refdef width, x
+    title_function<void XB_CDECL(float, float, float, float, float, float, float, float, uint32_t)>(
+        title_global<uint32_t>(0x00928530))(sx, sy, w, h, 0.0f, 0.0f, 1.0f, 1.0f, title_global<uint32_t>(0x00975c48));
+}
+
+void XB_CDECL CG_Draw2D() {
+    if (title_global<int32_t>(0x00971a88) || title_global<int32_t>(0x00971a8c)) return;
+    nglPushScene(1);
+    if (title_global<int32_t>(0x00973008) || !title_global<int32_t>(0x00949474)) {
+        CG_DrawFlashFade();
+        return;
+    }
+    const auto set = [](uint32_t address) { return title_global<uint8_t>(address) != 0; };
+    const auto weapon_hud = [&set] { return set(0x008dce6a) && !set(0x0095f91f) && !set(0x0095f919); };
+    const auto snapshot_ok = [] {
+        return *reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x00971aa8) + 0x34) < 4;  // cg.snap
+    };
+    const auto call = [](uint32_t address) { title_function<void XB_CDECL()>(address)(); };
+    if (weapon_hud()) CG_DrawStatusLabel();
+    if (!set(0x0095f919)) {
+        CG_ScreenFade();
+        CG_DrawDamageBlend();
+        CG_DrawDamageDirectionIcons();
+    }
+    const uint8_t* intro = title_function<const uint8_t* XB_CDECL(const char*, const char*, uint32_t)>(0x0029c2d0)(  // Cvar_Get
+        &title_global<char>(0x008344f4), &title_global<char>(0x0082e098), 0);  // "introScreen", "0"
+    if (*reinterpret_cast<const int32_t*>(intro + 0x20)) {
+        // Over the intro screen the hud elements go on top.
+        if (snapshot_ok()) {
+            call(0x00285260);
+            if (weapon_hud()) CG_DrawViewDirIcon();
+        }
+        if (snapshot_ok() && title_global<int32_t>(0x00948c94)) CG_DrawHudElems();
+    } else {
+        if (snapshot_ok() && title_global<int32_t>(0x00948c94)) CG_DrawHudElems();
+        if (snapshot_ok()) {
+            call(0x00285260);
+            if (weapon_hud()) CG_DrawViewDirIcon();
+        }
+    }
+    if (!set(0x0095f919)) {
+        CG_DrawFrontBufferBlend();
+        CG_DrawFrontBufferFade();
+    }
+    CG_DrawCheckpointReached();
+    if (!CG_DrawObjectives()) CG_DrawCenterString();
+    CG_UpdateWhiteFlashColor2();
+    CG_UpdateWhiteFlashColor();
+    Subtitle_Draw();
+    CG_DrawFlashFade();
+    nglPopScene();
+}
+
+PLATFORM_ASM_ENTRY(HudElem_SubstituteLabel_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(HudElem_SubstituteLabel) "addl $12, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL HudElem_SubstituteLabel(int32_t size, uint8_t* layout, char* buffer) {
+    // The label (+0x10) and text (+0x18) are read through the layout at each character.
+    const auto label = [layout] { return *reinterpret_cast<const char* const*>(layout + 0x10); };
+    const auto text = [layout] { return *reinterpret_cast<const char* const*>(layout + 0x18); };
+    const int32_t n = size - 1;
+    int32_t i = 0, j = 0;
+    while (i < n) {
+        const char c = label()[j];
+        if (!c) break;
+        if (c == '%' && label()[j + 1] == 's') {
+            j += 2;
+            break;
+        }
+        ++i;
+        buffer[j++] = c;
+    }
+    for (int32_t k = 0; i < n; ++k) {
+        const char c = text()[k];
+        if (!c) break;
+        buffer[i++] = c;
+    }
+    while (i < n) {
+        const char c = label()[j];
+        if (!c) break;
+        buffer[i++] = c;
+        ++j;
+    }
+    buffer[i] = 0;
+    float* width = reinterpret_cast<float*>(layout + 0x14);
+    const float text_width = *reinterpret_cast<const float*>(layout + 0x1c) + *width;
+    *reinterpret_cast<char**>(layout + 0x18) = buffer;
+    *reinterpret_cast<float*>(layout + 0x1c) = text_width;
+    *reinterpret_cast<const char**>(layout + 0x10) = &title_global<const char>(0x0082dfeb);  // ""
+    *width = 0.0f;
+    return i;
+}
+
+const char* XB_FASTCALL HudElem_FormatTimer(const uint8_t* elem) {
+    const int32_t seconds = HudElem_GetTimerValue(elem) / 1000;
+    const int32_t hours = seconds / 3600;
+    const int32_t rest = seconds - hours * 3600;
+    const int32_t minutes = rest / 60;
+    const int32_t secs = rest - minutes * 60;
+    if (hours)
+        return title_function<const char* XB_CDECL(const char*, int32_t, int32_t, int32_t)>(0x002a93d0)(  // va
+            &title_global<char>(0x00839968), hours, minutes, secs);  // "%i:%02i:%02i"
+    return title_function<const char* XB_CDECL(const char*, int32_t, int32_t)>(0x002a93d0)(  // va
+        &title_global<char>(0x00839960), minutes, secs);  // "%i:%02i"
+}
+
+const char* XB_FASTCALL HudElem_FormatTenthsTimer(const uint8_t* elem) {
+    const int32_t tenths_total = HudElem_GetTimerValue(elem) / 100;
+    const int32_t hours = tenths_total / 36000;
+    const int32_t rest = tenths_total - hours * 36000;
+    const int32_t minutes = rest / 600;
+    const int32_t rest2 = rest - minutes * 600;
+    const int32_t secs = rest2 / 10;
+    const int32_t tenths = rest2 - secs * 10;
+    if (hours)
+        return title_function<const char* XB_CDECL(const char*, int32_t, int32_t, int32_t, int32_t)>(0x002a93d0)(  // va
+            &title_global<char>(0x00839950), hours, minutes, secs, tenths);  // "%i:%02i:%02i.%i"
+    return title_function<const char* XB_CDECL(const char*, int32_t, int32_t, int32_t)>(0x002a93d0)(  // va
+        &title_global<char>(0x00839944), minutes, secs, tenths);  // "%i:%02i.%i"
+}
+
+namespace {
+
+// Hud element types: 1 label text, 2 value, 3 material, 4-7 timers (text); 8/9 clocks.
+bool hud_elem_is_text(int32_t type) { return type == 1 || type == 2 || (type >= 4 && type <= 7); }
+bool hud_elem_is_sized(int32_t type) { return type == 3 || type == 8 || type == 9; }
+
+// An element size field, or the layout's font height (+0x28) when it is 0.
+float hud_elem_size(const uint8_t* elem, uint32_t offset, const uint8_t* layout) {
+    const int32_t v = *reinterpret_cast<const int32_t*>(elem + offset);
+    return v ? static_cast<float>(v) : *reinterpret_cast<const float*>(layout + 0x28);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(HudElem_GetWidth_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(HudElem_GetWidth) "addl $8, %esp\n"
+                   "subl $4, %esp\n"
+                   "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL HudElem_GetWidth(const uint8_t* elem, const uint8_t* layout) {
+    const int32_t type = *reinterpret_cast<const int32_t*>(elem);
+    const float label = *reinterpret_cast<const float*>(layout + 0x14);
+    if (hud_elem_is_text(type)) return *reinterpret_cast<const float*>(layout + 0x1c) + label;
+    if (!hud_elem_is_sized(type)) return 0.0f;
+    const float width = hud_elem_size(elem, 0x30, layout);
+    const int32_t fade = *reinterpret_cast<const int32_t*>(elem + 0x48);
+    if (fade > 0) {
+        const int32_t t = title_global<int32_t>(0x0097253c) - *reinterpret_cast<const int32_t*>(elem + 0x44);
+        if (t < fade) {
+            const float from = hud_elem_size(elem, 0x3c, layout);
+            const float v = g(0x0083eb20) / static_cast<float>(fade) * static_cast<float>(t) * (width - from);
+            return label + (v + from);
+        }
+    }
+    return label + width;
+}
+
+PLATFORM_ASM_ENTRY(HudElem_GetHeight_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(HudElem_GetHeight) "addl $8, %esp\n"
+                   "subl $4, %esp\n"
+                   "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL HudElem_GetHeight(const uint8_t* elem, const uint8_t* layout) {
+    const int32_t type = *reinterpret_cast<const int32_t*>(elem);
+    const float font_height = *reinterpret_cast<const float*>(layout + 0x28);
+    float height;
+    if (hud_elem_is_text(type)) {
+        height = font_height;
+    } else if (hud_elem_is_sized(type)) {
+        height = hud_elem_size(elem, 0x34, layout);
+        const int32_t fade = *reinterpret_cast<const int32_t*>(elem + 0x48);
+        if (fade > 0) {
+            const int32_t t = title_global<int32_t>(0x0097253c) - *reinterpret_cast<const int32_t*>(elem + 0x44);
+            if (t < fade) {
+                const float from = hud_elem_size(elem, 0x40, layout);
+                height = g(0x0083eb20) / static_cast<float>(fade) * static_cast<float>(t) * (height - from) + from;
+            }
+        }
+    } else {
+        return 0.0f;
+    }
+    if (*reinterpret_cast<const uint32_t*>(layout + 0x10) && font_height > height) return font_height;
+    return height;
+}
+
+PLATFORM_ASM_ENTRY(CG_DrawHudElemText_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_DrawHudElemText) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawHudElemText(uint8_t* layout, const uint8_t* elem, char* buffer, int32_t size) {
+    const auto ei = [elem](uint32_t offset) { return *reinterpret_cast<const int32_t*>(elem + offset); };
+    const auto lf = [layout](uint32_t offset) -> float& { return *reinterpret_cast<float*>(layout + offset); };
+    const auto ls = [layout](uint32_t offset) -> const char*& { return *reinterpret_cast<const char**>(layout + offset); };
+    const char* empty = &title_global<const char>(0x0082dfeb);
+    // Font (+0x20), scale (+0x24), font height (+0x28) and fixed character width (+0x2c).
+    const float font_scale = *reinterpret_cast<const float*>(elem + 0xc);
+    switch (ei(0x10)) {
+    case 0: {
+        *reinterpret_cast<int32_t*>(layout + 0x20) = 0;
+        const float scale = font_scale * g(0x0083ec24);
+        lf(0x24) = scale;
+        lf(0x28) = static_cast<float>(
+            title_function<int32_t XB_CDECL(uint32_t, float)>(title_global<uint32_t>(0x00928574))(0, scale));
+        lf(0x2c) = 0.0f;
+        break;
+    }
+    case 1:
+        *reinterpret_cast<int32_t*>(layout + 0x20) = 4;
+        lf(0x24) = font_scale * g(0x0083ed74);
+        lf(0x28) = g(0x0083ebb8);
+        lf(0x2c) = g(0x0083ebb8);
+        break;
+    case 2:
+        *reinterpret_cast<int32_t*>(layout + 0x20) = 5;
+        lf(0x24) = font_scale * g(0x0083ed74);
+        lf(0x28) = g(0x0083ebb8);
+        lf(0x2c) = g(0x0083ed78);
+        break;
+    default: break;
+    }
+    ls(0x10) = ei(0x2c) ? CG_GetHudElemText(ei(0x2c)) : empty;
+    switch (ei(0)) {
+    case 1: ls(0x18) = ei(0x68) ? CG_GetHudElemText(ei(0x68)) : empty; break;
+    case 2:
+        ls(0x18) = title_function<const char* XB_CDECL(const char*, double)>(0x002a93d0)(  // va
+            &title_global<char>(0x008324d4), *reinterpret_cast<const float*>(elem + 0x64));  // "%g"
+        break;
+    case 4:
+    case 5: ls(0x18) = HudElem_FormatTimer(elem); break;
+    case 6:
+    case 7: ls(0x18) = HudElem_FormatTenthsTimer(elem); break;
+    default: ls(0x18) = empty; break;
+    }
+    if (*ls(0x10) && *ls(0x18)) HudElem_SubstituteLabel(size, layout, buffer);
+    // Widths: printable characters times the fixed width, else the font's.
+    const auto width = [&](const char* text) {
+        if (!*text) return 0.0f;
+        if (lf(0x2c) != 0.0f) return static_cast<float>(Loc_CountChars(0, text)) * lf(0x2c);
+        return static_cast<float>(RE_TextWidth(text, *reinterpret_cast<const uint32_t*>(layout + 0x20), lf(0x24)));
+    };
+    lf(0x14) = width(ls(0x10));
+    lf(0x1c) = width(ls(0x18));
+    const float w = HudElem_GetWidth(elem, layout);
+    lf(8) = w;
+    const float h = HudElem_GetHeight(elem, layout);
+    lf(0xc) = h;
+    const float one = g(0x0083eb20);
+    const float half = g(0x0083eb24);
+    // Position (+4/+8), moving from +0x4c/+0x50 over +0x58 ms from +0x54; aligned by +0x14/+0x18.
+    const auto position = [&](uint32_t to, uint32_t from, uint32_t align, float extent) {
+        const int32_t move = ei(0x58);
+        float v;
+        int32_t t;
+        if (move > 0 && (t = title_global<int32_t>(0x0097253c) - ei(0x54)) < move)
+            v = static_cast<float>((ei(to) - ei(from)) * t) * (one / static_cast<float>(move)) +
+                static_cast<float>(ei(from));
+        else
+            v = static_cast<float>(ei(to));
+        switch (ei(align)) {
+        case 1: v = v - extent * half; break;
+        case 2: v = v - extent; break;
+        default: break;
+        }
+        return v;
+    };
+    lf(0) = position(4, 0x4c, 0x14, w);
+    lf(4) = position(8, 0x50, 0x18, h);
+    // Colour (+0x30, 0..1) from the bytes +0x1c, fading from +0x20 over +0x28 ms from +0x24.
+    const float scale = g(0x0083eb30);
+    const int32_t fade = ei(0x28);
+    int32_t t;
+    if (fade > 0 && (t = title_global<int32_t>(0x0097253c) - ei(0x24)) < fade && t >= 0) {
+        const float frac = static_cast<float>(t) / static_cast<float>(fade);
+        for (uint32_t i = 0; i < 4; ++i)
+            lf(0x30 + i * 4) = (static_cast<float>(elem[0x1c + i] - elem[0x20 + i]) * frac +
+                                static_cast<float>(elem[0x20 + i])) * scale;
+    } else {
+        for (uint32_t i = 0; i < 4; ++i) lf(0x30 + i * 4) = static_cast<float>(elem[0x1c + i]) * scale;
+    }
+}
+
+PLATFORM_ASM_ENTRY(CG_DrawHudElem_entry,
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(CG_DrawHudElem) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_DrawHudElem(const uint8_t* elem) {
+    alignas(16) uint8_t layout[0x40] = {};
+    char buffer[0x2000];
+    CG_DrawHudElemText(layout, elem, buffer, 0x2000);
+    const char* label = *reinterpret_cast<const char* const*>(layout + 0x10);
+    float& x = *reinterpret_cast<float*>(layout);
+    if (*label) {
+        CG_DrawHudElemAlignedText(layout, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(label)), elem);
+        x = x + *reinterpret_cast<const float*>(layout + 0x14);
+    }
+    switch (*reinterpret_cast<const int32_t*>(elem)) {
+    case 1:
+    case 2:
+    case 4:
+    case 5:
+    case 6:
+    case 7: {
+        const char* text = *reinterpret_cast<const char* const*>(layout + 0x18);
+        if (*text) CG_DrawHudElemAlignedText(layout, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(text)), elem);
+        break;
+    }
+    case 3: CG_DrawHudElemMaterial(elem, layout); break;
+    case 8:
+    case 9: CG_DrawHudElemClock(elem, layout); break;
+    default: break;
+    }
+    const uint8_t* paused = title_function<const uint8_t* XB_CDECL(const char*, const char*, uint32_t)>(0x0029c2d0)(  // Cvar_Get
+        &title_global<char>(0x0082ca00), &title_global<char>(0x0082e098), 0);  // "cl_paused", "0"
+    if (*reinterpret_cast<const float*>(elem + 0x6c) == g(0x0083ebb4) && !*reinterpret_cast<const int32_t*>(paused + 0x20))
+        title_function<void XB_CDECL(uint32_t)>(0x002960a0)(0);
+}
+
+int32_t XB_REGS2 XB_CDECL Loc_CountChars(uint32_t, const char* text) {
+    if (!text || !*text) return 0;
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(text);
+    int32_t count = 0;
+    do {
+        const uint32_t c = next_text_char(p);
+        if (c == '^') {
+            if (*p != '^' && *p >= '0' && *p <= '9') {
+                ++p;
+                continue;
+            }
+        } else if (c == '\n' || c == '\r') {
+            continue;
+        }
+        ++count;
+    } while (*p);
+    return count;
+}
 
 PLATFORM_ASM_ENTRY(CG_DrawHudElemClock_entry,
                    "pushl %ebx\n"
