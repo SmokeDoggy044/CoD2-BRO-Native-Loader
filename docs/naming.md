@@ -946,3 +946,20 @@ CoD-specific functions included, so later decompilation covers both kinds.
   - Localization: entry map map<string, {string, string, int}> (isnil +0x65); flag map map<string, uint bit>
     (isnil +0x2d, std_set_string_*), flag names in a vector at +0x8c. RcString rep {len, refs, text, cap} (0x10,
     Z_Malloc, capacity steps of 20). Unidentified class: dtor 00296710 (vtable 0x008376c4, base 0x0083760c).
+  Trees 7 (73 names): UIText word wrap and line drawing, UIPicture quads/meshes, the save module setup
+  (Save_Init, drive names, ports, listeners), the save-completion state machine (ProfileSave_OnSaveOpComplete and
+  its Autosave/Profile dialogs), memory-unit checks, play-time split, controller config, pause dialogs.
+  - Save listener 0x00920af0 = the ProfileSave object (vtable 0x008287dc: slot 0 OnSaveOpComplete(op 1 read,
+    2 write, 3 delete, 4 format), slot 1 DeletingDtor); HudCompGrenades' vtable starts right after (0x008287e4).
+    FrontEndMenu 0x0095f8f8 == 0 means in-game (Autosave screen handles it); active screen 0xf = Profile screen.
+    Ghidra cuts many of these handlers short (switch cases past their ends). Save drive names: 9 x 64 at
+    0x00920860 from 0x007cfa40 (F:\..M:\, 'XBOX HARD DISK'; port 8 = hard disk). ProfileSave: slot records 4 x
+    0x3cc at +0x28c, loaded profile copy +0x2a8, valid flags +0x11e7[4]; play time split to 0x008dce58..64
+    (s/m/h/d, capped 99:59:59). Save_SetPathPrefix 0x000d0c60 (low) conflicts with the Save_GetData reading of
+    0x00920aa8 ("Profiles" is appended to it): re-check when the save module is decompiled.
+  - UIText line records (0x20 at +0x80, count +0x78): font +0, x +4, y +8, text +0x14, '~' icon markers +0x18,
+    count +0x1c; "\f[N" switches font; width +0x74, line spacing +0x6c. Fonts 0x0095f8d4[idx] (index 2 = button
+    icons, 7/8 = none). UIPicture quads: 0xa8 elements (corners 4x3 floats +0, per-vertex alpha +0x30, ngl quad
+    +0x40 (vertex stride 0x14, colour +0x10), flag +0xa4) in a vector at picture +0x20 (count +0x28).
+  - Uncreated gap callers: 0x0032cd60 HudCompGrenades update, 0x00336670 PauseMenu slot 14, 0x003357b0
+    BonusMaterials update, 0x000127a0/0x000127b0 ControllerConfigMenu slots 22/23, 0x00012ff0, 0x000d13f0.
