@@ -4,9 +4,8 @@ default.xbe has no symbols. Before decompiling a subsystem we name its functions
 globals in Ghidra after their Quake 3 / RTCW counterparts (GPL source, the engine's
 ancestry), so decompiled code reads like the original and callers make sense.
 
-State (2026-10-21): 4653 functions named by us (counter), 900+ globals, plus 3008 Microsoft
-library functions named by signature; all applied in Ghidra and exported to
-`tools/data/default_xbe_symbols.txt`.
+State (2026-10-25): 10393 functions named (counter, incl. level sections), plus 3008 Microsoft library functions
+named by signature; all applied in Ghidra and exported to `tools/data/default_xbe_symbols.txt`.
 
 Next hub targets (2026-10-22 pass stopped at 46; ranks 130-411 surveyed): path/trace 0x002e75d0, 0x002e84d0,
 0x002e88d0, 0x002e8350/0x002e8650; sound voices 0x000c3d00, 0x000c47d0, 0x000c3ff0, 0x000c5400; Loc_* string tables
@@ -861,4 +860,17 @@ CoD-specific functions included, so later decompilation covers both kinds.
   sprint-style meter (not ADS, that is ps +0x88). Suspect names to re-check: 002fb600 "GScr_GetCurrentZoneId" acts
   like a newHudElem-style allocator. Skipped (need modules): vehicle paths/physics, turret states, pmove internals,
   view-weapon anim, stream relocation, localization parsers; ~60 bodies read with roles unclear.
-  Next (in progress): 1-caller list ones_a from 0x000d19e0.
+  1-caller batch A2 (71 names; ones_a fully read, so all 522 1-caller functions with a named caller are read):
+  async save workers, script field accessors (hits, onfire, detoured), BroScr_* helpers (flamethrower check, drones,
+  keyed ents), container copies, Path_GetAllowedStances, actor shot spread/cone, InGameLiveOptions/XboxLive menus,
+  ragdoll and vehicle-physics lifecycle. Field h4ced49f6 kept by hash (single-word crack 'enemyque' unconfirmed).
+  - Vehicle-node interface slot 527 (0x0092297c): key setter (node, hash, value), between GetStringKey 526 and
+    GetIntKey 528; node +8/+0xc start at -1, filled from prev/next links (+0x3c bits 14-27 / 0-13).
+  - Script level object 0x00922ee0: keyed-ent list at 0x00922ef8+0x50 ({key, 0, ent}, count +0x58), live drones
+    +0x508, drone delay +0x544, drone array +0x770 (count +0x778). Weapon-class hash 0xe5aa1ee7 = "flamethrower".
+  - Actor +0x1382: index in g_actors; ClientEndFrame packs a hidden team-2 actor marker (+0x137c flag) into ps +0x4d0
+    (dx/dy 9 bits each, yaw top byte, index low 6 bits). Ragdoll record (0x570): physics state +0x568 (0x1d50) with
+    10 preallocated bodies +0xbf0 (taken +0xc44); at most 6 live (0x008fb450, used 0x008fb484). Vehicle physics
+    record at vehicle +0x300 (body +0x34, object +0x30).
+  Next: ~560 1-caller functions whose caller is still unnamed (bottom-up: name a caller, its callees follow) and
+  ~720 0-caller functions (pointer/vtable/script targets); skipped bodies above wait for their module's decompile.
