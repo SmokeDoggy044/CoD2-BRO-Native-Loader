@@ -1779,7 +1779,7 @@ address,name,section,module,state,tested,matched
 00073ce0,nglMatrixTargetScale,.text,renderer,settled,213,213
 00073e90,nglGetSceneTargetScale,.text,renderer,settled,287,287
 00073ed0,nglBeginSceneRender,.text,renderer,settled,301,301
-00074330,nglRenderSceneTree,.text,renderer,mismatched,575018,369201
+00074330,nglRenderSceneTree,.text,renderer,accepted,575018,369201
 000744f0,std_PushHeap_OpaqueNodes,.text,qcommon,offline,0,0
 00074540,std_Rotate_NodeKeys,.text,qcommon,settled,4669,4669
 00074600,std_PushHeap_TranslucentNodes,.text,qcommon,offline,0,0
@@ -1800,7 +1800,7 @@ address,name,section,module,state,tested,matched
 00075280,nglSortOpaqueNodes_r,.text,renderer,settled,402,402
 00075370,nglSortTranslucentNodes_r,.text,renderer,settled,371,371
 00075460,nglRenderOpaqueList,.text,renderer,settled,444,345
-000754f0,nglRenderTranslucentList,.text,renderer,mismatched,244395,168688
+000754f0,nglRenderTranslucentList,.text,renderer,accepted,244395,168688
 00075780,nglSetDefaultRenderStates,.text,renderer,settled,344,344
 00075ac0,nglSetBlendMode,.text,renderer,settled,580,580
 00075d90,nglRestoreRenderStates,.text,renderer,untested,0,0
@@ -2007,7 +2007,7 @@ address,name,section,module,state,tested,matched
 00087bb0,NAL_AnimState_InitFrom,.text,xanim,settled,400,400
 00087cb0,NAL_Skeleton_BoneTransform,.text,xanim,untested,0,0
 00087dd0,NAL_AnimTrack_Construct,.text,xanim,settled,3462,3462
-000881c0,NAL_AnimTrack_Sample,.text,xanim,mismatched,273412,13551
+000881c0,NAL_AnimTrack_Sample,.text,xanim,accepted,273412,13551
 000886f0,NAL_GenericAnim_EvaluatePose,.text,xanim,settled,393,393
 0008af60,NAL_GenericAnim_ExtractState,.text,xanim,untested,0,0
 0008b480,NAL_AnimTrack_DeletingDtor,.text,xanim,named,0,0
@@ -8190,7 +8190,7 @@ address,name,section,module,state,tested,matched
 00246d60,R_AddEntitySurfaces,.text,renderer,settled,204,204
 00246fa0,R_AddWorldSurfaces,.text,renderer,settled,313,313
 00247190,FX_PlayBoltedEffect,.text,renderer,settled,189,189
-00247350,R_RenderView,.text,renderer,mismatched,53624,17137
+00247350,R_RenderView,.text,renderer,accepted,53624,17137
 002476b0,RE_RenderScene,.text,renderer,settled,3175,3171
 00247980,GetRefAPI,.text,renderer,matched,5,5
 00247ad0,FUN_00247ad0,.text,unassigned,unnamed,0,0
@@ -9556,7 +9556,7 @@ address,name,section,module,state,tested,matched
 002be7c0,XModel_FreeAnimStates,.text,renderer,named,0,0
 002be860,CodNote_Free,.text,game,named,0,0
 002be8f0,G_ProcessCodNotes,.text,game,named,0,0
-002beb60,AnimTree_CalcPose_r,.text,xanim,mismatched,695113,9441
+002beb60,AnimTree_CalcPose_r,.text,xanim,accepted,695113,9441
 002bf7d0,AnimTree_AdvanceTime_r_2,.text,xanim,named,0,0
 002bfaa0,AnimTree_NotifyNotetrack,.text,xanim,named,0,0
 002bfad0,AnimTree_FreeInfo,.text,xanim,named,0,0
@@ -9843,7 +9843,7 @@ address,name,section,module,state,tested,matched
 002de420,G_DObjSetBoneRotation,.text,game,named,0,0
 002df3e0,G_GetTagParentMatrix,.text,game,named,0,0
 002df740,G_EntLinkTo,.text,game,named,0,0
-002df880,DObj_UpdateSkeletons,.text,renderer,mismatched,1389409,1159111
+002df880,DObj_UpdateSkeletons,.text,renderer,accepted,1389409,1159111
 002e01a0,SV_PointContents,.text,server,settled,112,112
 002e02c0,SV_BuildClientSnapshot,.text,server,settled,110,110
 002e03a0,SV_ConnectLocalClient,.text,server,named,0,0

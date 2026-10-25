@@ -35,6 +35,13 @@ the original. Code: `loader/compare.h`, `loader/compare_linux.cpp` (Linux only;
    tests, no mismatches and no drift then becomes
    `Status::Replaced`: from then on it runs instead of the original, in every build.
    Drift on a function that does float math can be accepted after reading it.
+   Mismatches in values the title never sets (stale stack: uninitialized lanes, unwritten
+   struct words - they depend on whatever ran before at that stack depth, so no C version
+   can reproduce them) are accepted too (user decision 2026-10-25): `tools/data/accepted.csv`
+   lists the function, a regex for its recorded issue and the reason. progress.py then
+   counts it as `accepted` (rewritten; it no longer blocks its module's Replaced) while
+   functions.csv's latest issue still matches the regex - a different kind of mismatch
+   turns it back to `mismatched`. It stays Compare and keeps being tested.
 
 A static check without a game run: `tools/vc71match/vc71match.py` compiles
 `game/code/` with the title's own compiler (Visual C++ 7.1 from XDK 5849, under Wine)

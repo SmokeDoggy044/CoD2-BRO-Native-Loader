@@ -14,11 +14,13 @@ usage: tools/progress.py [--module NAME [--state STATE]] [--readme]
 States: unnamed; library (named by signature: C runtime, XAPI, thunks to them);
 named (by us, not decompiled); untested (decompiled, no conclusive test yet);
 inconclusive (tests ran, none conclusive); mismatched (mismatch or drift on
-record); matched (matched, under functions.csv's 100 for settled); settled (100+
+record); accepted (mismatches on record, all of a kind tools/data/accepted.csv accepts: values
+the title never sets, such as stale stack - its latest issue must still match the listed
+pattern); matched (matched, under functions.csv's 100 for settled); settled (100+
 matched, none mismatched); offline (no conclusive in-game test, but tests/leaf_test.cpp
 matched it: tools/data/offline.csv, 100+ inputs matched, none mismatched, 90%+ of its
 instructions reached); replaced (runs instead of the original).
-Rewritten = matched + settled + offline + replaced (the progress counter's "matched").
+Rewritten = matched + settled + offline + accepted + replaced (the progress counter's "matched").
 """
 import argparse
 import collections
@@ -31,7 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "tools" / "data"
 XBE = ROOT.parent / "unpacked" / "default.xbe"
 EXCLUDED = {"XGRPH", "XONLINE", "DSOUND", "XNET", "D3DX", "D3D", "XPP"}  # Microsoft libraries
-REWRITTEN = {"matched", "settled", "offline", "replaced"}
+REWRITTEN = {"matched", "settled", "offline", "accepted", "replaced"}
 OFFLINE_MATCHED, OFFLINE_COVERAGE = 100, 90.0  # what tools/data/offline.csv needs for "offline"
 
 
@@ -89,6 +91,10 @@ def main():
             if (int(r["matched"]) >= OFFLINE_MATCHED and not int(r["mismatched"])
                     and float(r["coverage"]) >= OFFLINE_COVERAGE):
                 offline.add(int(r["address"], 16))
+    accepted = {}
+    if (DATA / "accepted.csv").exists():
+        for r in csv.DictReader(open(DATA / "accepted.csv")):
+            accepted[int(r["address"], 16)] = re.compile(r["issue"])
     prefixes, ranges = load_modules()
     secs = sections()
 
@@ -111,6 +117,8 @@ def main():
             bad = r and (int(r["mismatched"]) or int(r["drift"]))
             if decompiled[a] == "Replaced":
                 state = "replaced"
+            elif bad and matched >= 100 and a in accepted and accepted[a].search(r["last_issue"]):
+                state = "accepted"
             elif bad:
                 state = "mismatched"
             elif matched >= 100:

@@ -1,0 +1,7 @@
+address,name,issue,reason
+00074330,nglRenderSceneTree,"SetVertexShaderConstantNotInlineFast: arguments differ at word (21|52) |SDK call log full","a title shader Draw sends a constant lane it never sets: dead stack (the original's 0x0007553c or older values vs a host return address on our side)"
+000754f0,nglRenderTranslucentList,"SetVertexShaderConstantNotInlineFast: arguments differ at word (21|52) ","the same uninitialized constant lane as nglRenderSceneTree (the walker's dead stack)"
+00247350,R_RenderView,"[0-9a-f]{8} \[host\] \[\d+\] [0-9a-f]+(\.\.)? vs 0+(\.\.)?(;|$)","mesh-record matrix lanes R_AddEntityModel's subtree never sets: the original's stale stack vs zeros after our stack scrub"
+002df880,DObj_UpdateSkeletons,"[0-9a-f]{7}c \[host\] \[\d\] ","the quaternion w word (+0x1c, at 0xc mod 16) that Blend/AccumulateRoot never write: stale stack"
+000881c0,NAL_AnimTrack_Sample,"[0-9a-f]{7}c \[host\] \[\d\] ","the w word (+0x1c, at 0xc mod 16) of its temporary PositionOrientation states, never written: stale stack"
+002beb60,AnimTree_CalcPose_r,"[0-9a-f]{7}c \[host\] \[\d\] ","the same unwritten w word as NAL_AnimTrack_Sample, in the poses it blends"
