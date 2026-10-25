@@ -629,7 +629,7 @@ address,name,section,module,state,tested,matched
 00024490,FUN_00024490,.text,unassigned,unnamed,0,0
 000244c0,DObjHandle_Resolve,.text,renderer,settled,107,107
 000244f0,FixedStr32_Format,.text,qcommon,untested,0,0
-00024520,FUN_00024520,.text,unassigned,untested,0,0
+00024520,FUN_00024520,.text,unassigned,offline,0,0
 000245d0,FUN_000245d0,.text,unassigned,unnamed,0,0
 00024600,FUN_00024600,.text,unassigned,unnamed,0,0
 00024630,ParamSet_AddString,.text,qcommon,settled,206,206
@@ -1245,7 +1245,7 @@ address,name,section,module,state,tested,matched
 00046900,cdDebug_Register,.text,renderer,settled,166,166
 00046970,cdDebug_Init,.text,renderer,matched,2,2
 000469b0,cdDebug_Draw,.text,renderer,untested,0,0
-00046bb0,cdDebug_GetSortInfo,.text,renderer,offline,0,0
+00046bb0,cdDebug_GetSortInfo,.text,renderer,untested,0,0
 00046ca0,nglListAddTranslucent,.text,renderer,settled,285,285
 00046cd0,nglListAddNode,.text,renderer,settled,125,125
 00046d50,nglStateCache_SetFogEnable,.text,renderer,settled,150,150
@@ -1630,7 +1630,7 @@ address,name,section,module,state,tested,matched
 00064040,nglSkipList_RandomLevel,.text,renderer,settled,104,104
 00064080,nglSkipList_Find,.text,renderer,settled,146,146
 000641a0,nglTextureManager_DeletingDtor,.text,renderer,offline,0,0
-000641d0,nglPaletteManager_DeletingDtor,.text,renderer,offline,0,0
+000641d0,nglPaletteManager_DeletingDtor,.text,renderer,untested,0,0
 00064300,nglResetDevice,.text,renderer,inconclusive,29,0
 00064370,nglWaitFrameInterval,.text,renderer,settled,138,138
 00064560,nglIsPAL50,.text,renderer,settled,666,666
@@ -1663,7 +1663,7 @@ address,name,section,module,state,tested,matched
 000665d0,nglResourceManager_ForEachPass,.text,renderer,untested,0,0
 000666f0,nglResourceManager_Find,.text,renderer,matched,67,67
 00066760,nglSkipList_InitHead,.text,renderer,settled,100,100
-000667a0,nglFontManager_DeletingDtor,.text,renderer,offline,0,0
+000667a0,nglFontManager_DeletingDtor,.text,renderer,untested,0,0
 00066850,nglCreateVertexBuffer,.text,renderer,settled,100,100
 000668d0,nglCreateVertexBufferPhysical,.text,renderer,settled,707,100
 00066940,nglLockVertexBuffer,.text,renderer,settled,45141,164
@@ -1701,11 +1701,11 @@ address,name,section,module,state,tested,matched
 00068f70,FUN_00068f70,.text,renderer,offline,0,0
 00069b00,nglEmpty_GetName,.text,renderer,offline,0,0
 00069b40,nglSkipList_RemoveIndirect,.text,renderer,untested,0,0
-00069c60,nglSkipList_Clear,.text,renderer,untested,0,0
+00069c60,nglSkipList_Clear,.text,renderer,offline,0,0
 00069ca0,nglSkipList_ClearIndirect,.text,renderer,offline,0,0
 00069e00,nglSkipList_Insert,.text,renderer,settled,103,103
 0006a220,nglMeshFileManager_DeletingDtor,.text,renderer,offline,0,0
-0006a250,nglMeshManager_DeletingDtor,.text,renderer,untested,0,0
+0006a250,nglMeshManager_DeletingDtor,.text,renderer,offline,0,0
 0006a280,nglSection3Manager_DeletingDtor,.text,renderer,offline,0,0
 0006a340,nglTextureGetSurfaces,.text,renderer,settled,94970,282
 0006a410,nglInitTextureHeader,.text,renderer,settled,104,104
@@ -1844,13 +1844,13 @@ address,name,section,module,state,tested,matched
 0007acf0,nglInitMeshFileCache,.text,renderer,settled,120,120
 0007ad80,nglSkipList_Remove,.text,renderer,settled,121,121
 0007af20,nglResourceManager_Add,.text,renderer,matched,42,42
-0007af30,nglMeshFileCache_DeletingDtor,.text,renderer,untested,0,0
+0007af30,nglMeshFileCache_DeletingDtor,.text,renderer,offline,0,0
 0007af70,nglCreatePalette,.text,renderer,settled,108,108
 0007b130,nglFreePalette,.text,renderer,untested,0,0
 0007b180,nglLockPalette,.text,renderer,untested,0,0
 0007b1a0,nglPalette_Unlock,.text,renderer,offline,0,0
 0007b1b0,nglPaletteSetEntry,.text,renderer,offline,0,0
-0007b1d0,nglSetPaletteCached,.text,renderer,untested,0,0
+0007b1d0,nglSetPaletteCached,.text,renderer,offline,0,0
 0007b220,nglSwapRedBlue,.text,renderer,settled,100,100
 0007b250,nglCreateDDSPalette,.text,renderer,untested,0,0
 0007b2a0,nglSwizzleTextureLevels,.text,renderer,settled,100,100
@@ -1877,7 +1877,7 @@ address,name,section,module,state,tested,matched
 0007d0b0,NAL_EntropyFloat1_Evaluate,.text,xanim,offline,0,0
 0007d1a0,NAL_Float1_CopyState,.text,xanim,offline,0,0
 0007d1f0,NAL_EntropyFloat1_SkipCachedFrame,.text,xanim,offline,0,0
-0007d3e0,NAL_Packed8Float1_DecodeBlock,.text,xanim,untested,0,0
+0007d3e0,NAL_Packed8Float1_DecodeBlock,.text,xanim,offline,0,0
 0007d480,NAL_Packed8Float1_SkipBlock,.text,xanim,offline,0,0
 0007d650,NAL_Packed8Float1_SkipStatic,.text,xanim,offline,0,0
 0007d940,NAL_Float3_SkipBlock,.text,xanim,offline,0,0
@@ -1899,7 +1899,7 @@ address,name,section,module,state,tested,matched
 0007ecd0,NAL_Packed16EntropyFloat3_DecodeChannelFrames,.text,xanim,untested,0,0
 0007eed0,NAL_Packed16EntropyFloat3_DecodeBlock,.text,xanim,offline,0,0
 0007efa0,NAL_Packed16EntropyFloat3_DecodeChannelBlock,.text,xanim,offline,0,0
-0007f310,NAL_Packed16EntropyFloat3_Evaluate,.text,xanim,untested,0,0
+0007f310,NAL_Packed16EntropyFloat3_Evaluate,.text,xanim,offline,0,0
 0007f440,NAL_Packed16_DequantizeFloat3,.text,xanim,offline,0,0
 0007f4c0,NAL_Packed16EntropyFloat3_SkipCachedFrame,.text,xanim,offline,0,0
 0007f760,NAL_Float4_SkipBlock,.text,xanim,offline,0,0
@@ -1982,7 +1982,7 @@ address,name,section,module,state,tested,matched
 00085aa0,AnimManager2d80_DeletingDtor,.text,xanim,offline,0,0
 00085ba0,NAL_QuatReader_DecodeByteFrames,.text,xanim,offline,0,0
 00086010,Quat_ToByte3,.text,qcommon,offline,0,0
-000860a0,NAL_Packed8Quat_DecodeBlock,.text,xanim,offline,0,0
+000860a0,NAL_Packed8Quat_DecodeBlock,.text,xanim,untested,0,0
 000861b0,NAL_Packed16Quat_DecodeFrames,.text,xanim,offline,0,0
 00086280,NAL_QuatReader_DecodeFrames,.text,xanim,settled,305,305
 000866e0,Quat_ToShort4,.text,qcommon,settled,331,331
@@ -2206,7 +2206,7 @@ address,name,section,module,state,tested,matched
 0009b6a0,FxSet_8bb866,.text,renderer,matched,1,1
 0009b6b0,FxSet_8bb868,.text,renderer,matched,1,1
 0009b6e0,FxPool_Init,.text,renderer,matched,2,2
-0009b710,FxPool_SetSlotTag,.text,renderer,offline,0,0
+0009b710,FxPool_SetSlotTag,.text,renderer,untested,0,0
 0009b770,apsMemoryPool_Free,.text,qcommon,settled,105,105
 0009b810,FxPool_SlotAddress,.text,renderer,settled,155,155
 0009b830,FxPool_GetStats,.text,renderer,settled,101,101
@@ -2393,7 +2393,7 @@ address,name,section,module,state,tested,matched
 000a3d80,apsActionPointAttract_Apply,.text,qcommon,offline,0,0
 000a3f00,apsActionLineAttract_Apply,.text,qcommon,offline,0,0
 000a41c0,apsActionDecayLineAttract_Apply,.text,qcommon,offline,0,0
-000a4460,apsOrientToVelocity,.text,qcommon,untested,0,0
+000a4460,apsOrientToVelocity,.text,qcommon,offline,0,0
 000a4640,apsActionAngleToVelocity_Apply,.text,qcommon,settled,118,118
 000a4ac0,apsAtan2,.text,qcommon,settled,146,146
 000a4d10,FUN_000a4d10,.text,unassigned,unnamed,0,0
@@ -7631,12 +7631,12 @@ address,name,section,module,state,tested,matched
 00200cd0,Actor_Noncombat_NodeClaimRevoked,.text,game,matched,3,3
 00200d90,Actor_Noncombat_Finish,.text,game,settled,123,123
 00200db0,Actor_Noncombat_Start,.text,game,settled,121,121
-00200e20,Path_CrossesBadPlace,.text,game,untested,0,0
+00200e20,Path_CrossesBadPlace,.text,game,offline,0,0
 00200e90,Path_TrimAtGoal,.text,game,named,0,0
 00201280,Actor_DefaultTouch,.text,game,settled,4458,4458
 00201300,Actor_Exposed_Finish,.text,game,matched,96,96
 00201380,Actor_Exposed_StartReacquire,.text,game,settled,100,100
-00201430,Actor_Cover_NodeClaimRevoked,.text,game,offline,0,0
+00201430,Actor_Cover_NodeClaimRevoked,.text,game,untested,0,0
 002014a0,Actor_Cover_Pain,.text,game,settled,103,103
 002014f0,Actor_Cover_Finish,.text,game,settled,122,122
 00201520,Actor_IsOnClaimedNode,.text,game,settled,102,102
@@ -8161,7 +8161,7 @@ address,name,section,module,state,tested,matched
 00240930,FUN_00240930,.text,unassigned,unnamed,0,0
 00240c00,DObj_CreateSkeleton,.text,renderer,settled,124,124
 00240ce0,DObj_Free,.text,renderer,settled,148,148
-00240d70,DObj_CalcAnimatedSkeleton,.text,renderer,offline,0,0
+00240d70,DObj_CalcAnimatedSkeleton,.text,renderer,untested,0,0
 00240f00,DObj_CalcBasePose,.text,renderer,settled,102,102
 00240f70,R_ModelBoxBounds,.text,renderer,settled,116,116
 00241200,FX_PlayEffectAt,.text,renderer,offline,0,0
@@ -8264,7 +8264,7 @@ address,name,section,module,state,tested,matched
 0024c2c0,Vehicle_FindCollmap,.text,game,settled,105,105
 0024c330,Vehicle_FromEntityHandle,.text,game,matched,4,4
 0024c3b0,InitScriptMover,.text,game,named,0,0
-0024c5a0,G_FreeFieldStrings,.text,game,untested,0,0
+0024c5a0,G_FreeFieldStrings,.text,game,offline,0,0
 0024c5e0,FUN_0024c5e0,.text,unassigned,unnamed,0,0
 0024c6f0,Think_InitDoor,.text,game,named,0,0
 0024c800,Artillery_Drop,.text,game,named,0,0
@@ -8591,7 +8591,7 @@ address,name,section,module,state,tested,matched
 00275380,CG_CalcGunMoveOffset,.text,cgame,settled,113,113
 002757d0,CG_StretchPicRotate,.text,cgame,settled,156,156
 00275a30,CG_InitLocalEntities,.text,cgame,settled,215,215
-00275b60,HudElem_SubstituteLabel,.text,cgame,offline,0,0
+00275b60,HudElem_SubstituteLabel,.text,cgame,untested,0,0
 00275d00,HudElem_GetTimerValue,.text,cgame,untested,0,0
 00275e50,CG_FadeColor,.text,cgame,matched,32,32
 00275f40,FUN_00275f40,.text,unassigned,unnamed,0,0
@@ -8647,7 +8647,7 @@ address,name,section,module,state,tested,matched
 002793f0,CG_CheckAmmo,.text,cgame,settled,354,354
 002794b0,CG_Argv,.text,cgame,settled,103,103
 00279500,CG_UpdateCvars,.text,cgame,settled,179,179
-00279530,CG_AddNearCulledLocalEntity,.text,cgame,offline,0,0
+00279530,CG_AddNearCulledLocalEntity,.text,cgame,untested,0,0
 002795d0,CG_AllocLocalEntity,.text,cgame,settled,106,106
 00279650,CG_UpdateScreenWhileLoading,.text,cgame,untested,0,0
 002796a0,FUN_002796a0,.text,unassigned,settled,100,100
@@ -8666,7 +8666,7 @@ address,name,section,module,state,tested,matched
 0027abe0,CG_DrawProgressBar,.text,cgame,untested,0,0
 0027acb0,CG_InitConsoleCommands,.text,cgame,settled,103,103
 0027ad20,CG_FxRestart_f,.text,cgame,named,0,0
-0027ad40,CG_PrecacheConfigStringAsset,.text,cgame,offline,0,0
+0027ad40,CG_PrecacheConfigStringAsset,.text,cgame,untested,0,0
 0027ad70,CG_ParseConfigStringFloat9,.text,cgame,untested,0,0
 0027ada0,CG_ParseServerinfo,.text,cgame,matched,2,2
 0027ade0,CG_ParseObjective,.text,cgame,settled,132,132
@@ -9216,7 +9216,7 @@ address,name,section,module,state,tested,matched
 002a9b30,SkipWhitespace,.text,qcommon,offline,0,0
 002a9be0,FUN_002a9be0,.text,unassigned,unnamed,0,0
 002a9c10,FUN_002a9c10,.text,unassigned,unnamed,0,0
-002a9cf0,Com_BeginParseSession,.text,qcommon,offline,0,0
+002a9cf0,Com_BeginParseSession,.text,qcommon,untested,0,0
 002a9d70,FUN_002a9d70,.text,unassigned,unnamed,0,0
 002a9db0,FUN_002a9db0,.text,unassigned,unnamed,0,0
 002a9e00,PathNode_ListInCylinder_r,.text,game,named,0,0
@@ -9231,7 +9231,7 @@ address,name,section,module,state,tested,matched
 002aa6e0,MSG_WriteLong,.text,qcommon,settled,23860,23860
 002aa870,Cmd_List_f,.text,qcommon,named,0,0
 002aa8b0,Cmd_TokenizeString,.text,qcommon,settled,113,113
-002aaa10,Cmd_ArgsFrom,.text,qcommon,offline,0,0
+002aaa10,Cmd_ArgsFrom,.text,qcommon,untested,0,0
 002aaaa0,Cmd_Argv,.text,qcommon,matched,13,13
 002aaac0,Cmd_Argc,.text,qcommon,offline,0,0
 002aaad0,Cmd_Echo_f,.text,qcommon,named,0,0
