@@ -841,4 +841,14 @@ CoD-specific functions included, so later decompilation covers both kinds.
   +0x554, objectives from cg +0x1648 (0x98 each), tank markers from +0xe38, script-set fields +0x13d0..+0x13d8.
   Open: the GScr_HudComp20_*/24_*/1c_* setters (low) can be renamed after IconCount/Meter/BomberMap; most slot-1
   Setup bodies and HudCompTankShells' methods are uncreated (gap rule).
-  Next (in progress): 1-caller functions whose caller is named (ones_a: 0x11000-0x247f70, ones_b: the rest).
+  1-caller batch A1 (101 names, callers named): std/container helpers, Com_Init's resource managers (rm_* globals:
+  models 0x0095f6ac, xmpb 0x0095f6b0, lgrid 0x0095f6a0, animTrees 0x0095f524, locStrings 0x0095f5d8, dlg 0x0095f5ac,
+  aitb 0x0095f718, db 0x0095f5a8, cfgstr 0x0095f5d4; one shape: Heap_AllocAligned(4,400), base vtable 0x00838220,
+  list 0x009719fc), physical pools (Mem_AllocPhysicalPools: contiguous 0x232b000 at 0x00901af0/af4/af8,
+  write-combined 0x3ac000 at 0x00901b08/b0c/b10), physics world size (PhysWorld_GetMemorySize -> 0x0090a880; pair
+  tree node 0x18 {left, right, balance, key pair +0xc/+0x10, value}), sound arena (bump allocator base/used/limit
+  0x0090a890/94/98, base 0 = sizing pass), ragdoll object (bodies +0x28 count +0x2c max 10, joints +0x58 count +0x5c,
+  bones +0x410 count +0x464, angle limits +400 count +0x194 max 4 {axis, cos, sin}), Live users (0x0095f6fc: 0xfe8
+  records at +0x30, current +0x44d0, wide name +0x10). Skipped (need modules): physics 0xb3130-0xc0ca0 helpers,
+  file system 0xc9390-0xca380, movie/save 0xcbc10-0xd0dd0, sound 0xc3fb0/0xc5a80/0xc6fb0/0xc7540.
+  Next (in progress): 1-caller lists ones_a from 0x000d19e0 and ones_b.
