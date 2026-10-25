@@ -1050,3 +1050,21 @@ CoD-specific functions included, so later decompilation covers both kinds.
     name +0x18, result +0x10, done +0xc. Actor +0x39c/+0x2b0 entity handles read as "none"/"obstacle"/"world"
     (entity +0x2a4 bit 0x4000); client +0x5f4 look-at entity. Import slot stores in 0x00309030-0x003094a0 belong to
     G_SetupActorScriptImports (older evidence saying "Game" for those slots may be wrong).
+  Fresh 1-caller list (51 names; callers named during this pass): std vector/set/string pieces, PM_Weapon parts
+  (timers, reload check, rechamber, melee, PM_FinishWeaponChange, grenade hold/cook/throw, raise/ADS states), the
+  compass marker passes, G_SetupObjectiveScriptImports/G_SetupVehicleScriptImports, small-heap inits, Heap_Sbrk,
+  turret player placement, G_QueueEntityRemove. Several callers sit in gap code (0x337e0b, 0x318051.., 0x12133).
+  - Weapon states (ps +0x84): 1 raising, 2 dropping, 3 firing, 4 rechamber (def +0x6d8, ps bit +0x400, times def
+    +0x5e0/+0x5e4, events 0xa7/0xa8), 10 melee wind-up (def +0x5d8, time +0x5ec, event 0xa9), 11 melee strike/
+    recover (0xaa), 0xf grenade cooking (fuse ps +0x3c = def +0x618, event 0xa2); melee button cmd +8 & 0x20,
+    offhand & 2; weapon class def +0x9c == 4 offhand, type +0x94 == 1 grenade.
+  - Chapters: 0x008dce48 current (0..13), 0x008dce44 highest unlocked; UIRoot +0x54 14 x 0x48 per-chapter table
+    (low). Compass records (0x28): actor markers +0x40 (32; entity type 0xb, team 2, ps +0x4e0), firing enemies
+    +0x540 (32), tank markers +0xe28 (25, ps +0x4e4), 16 x 0x1c pulse list ~+0x1210. HudCompCompass slot 6 may be
+    the compass Draw (Ghidra cuts it at 0x318051; the three draw passes follow) - re-check the HUD batch's slot 6.
+  - Entity removal queue 0x00987a78 (count 0x00987a80); 0024cab0 is the add-side twin (count 0x0097a648). Small
+    heaps: 0x0095f624 (0xe4 units), 0x0095f628 (0x494 stream free-block headers), 0x0095f490 (0x100 script
+    thread data chunks).
+  Where the pass ends: .text has ~700 unnamed non-library functions left, all read at least once and skipped as
+  needing their module's decompile (physics constraint solver, FX billboard draws, ragdoll/vehicle internals,
+  unclear compiled-script bodies); ~2,320 level-section functions stay deferred (leaf rule).

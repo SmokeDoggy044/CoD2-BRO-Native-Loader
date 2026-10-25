@@ -492,7 +492,7 @@ address,name,section,module,state,tested,matched
 0001f1a0,nglVertexWriter_Clone,.text,renderer,named,0,0
 0001f1f0,std_map_string_Subscript,.text,qcommon,named,0,0
 0001f2e0,std_map_string_Find,.text,qcommon,named,0,0
-0001f340,FUN_0001f340,.text,unassigned,unnamed,0,0
+0001f340,std_vector_string_Size,.text,qcommon,named,0,0
 0001f370,std_vector_string_PushBack,.text,qcommon,named,0,0
 0001f3f0,std_vector_string_InsertOne,.text,qcommon,named,0,0
 0001f460,std_set_string_Subscript,.text,qcommon,named,0,0
@@ -511,7 +511,7 @@ address,name,section,module,state,tested,matched
 000200d0,std_map_string_EraseSubtree,.text,qcommon,named,0,0
 00020120,std_string_KeyLess,.text,qcommon,named,0,0
 00020150,std_vector_string_InsertN,.text,qcommon,named,0,0
-00020470,FUN_00020470,.text,unassigned,unnamed,0,0
+00020470,std_vector_string_Ufill,.text,qcommon,named,0,0
 00020490,std_set_string_InsertHint,.text,qcommon,named,0,0
 00020610,std_set_string_EraseSubtree,.text,qcommon,named,0,0
 00020670,std_map_string_MakePair,.text,qcommon,named,0,0
@@ -562,7 +562,7 @@ address,name,section,module,state,tested,matched
 00022840,std_tree_Max29,.text,qcommon,named,0,0
 00022860,std_tree_Min29,.text,qcommon,named,0,0
 00022880,std_map_string_NodeCtor,.text,qcommon,named,0,0
-000228b0,FUN_000228b0,.text,unassigned,unnamed,0,0
+000228b0,std_set_string_NodeCtor,.text,qcommon,named,0,0
 00022900,std_map_string_PairCopy,.text,qcommon,named,0,0
 00022970,std_tree_Inc29,.text,qcommon,named,0,0
 000229d0,NAL_AsGenericClip,.text,xanim,offline,0,0
@@ -581,9 +581,9 @@ address,name,section,module,state,tested,matched
 000231b0,G_FreeXModel,.text,game,named,0,0
 000231f0,UintMap_Find,.text,qcommon,settled,236,236
 00023260,std_list_InsertRange8,.text,qcommon,named,0,0
-000232b0,FUN_000232b0,.text,unassigned,unnamed,0,0
-000232d0,FUN_000232d0,.text,unassigned,unnamed,0,0
-000232f0,FUN_000232f0,.text,unassigned,unnamed,0,0
+000232b0,std_vector_string_Ucopy,.text,qcommon,named,0,0
+000232d0,std_string_FillRange,.text,qcommon,named,0,0
+000232f0,std_string_CopyBackward,.text,qcommon,named,0,0
 00023320,std_string_CompareSubstr,.text,qcommon,named,0,0
 00023390,NAL_SkipActiveChannelBlocks,.text,xanim,named,0,0
 000233f0,std_list_InsertRange8_EH,.text,qcommon,named,0,0
@@ -762,7 +762,7 @@ address,name,section,module,state,tested,matched
 0002afb0,RagdollPool_Free,.text,game,named,0,0
 0002b0a0,RagdollPhysPool_Free,.text,game,named,0,0
 0002b150,PhysObjPool_Free,.text,game,named,0,0
-0002b2c0,FUN_0002b2c0,.text,unassigned,unnamed,0,0
+0002b2c0,VehiclePhys_AllocFromPool,.text,game,named,0,0
 0002b300,VehiclePhysPool_Free,.text,game,named,0,0
 0002b3a0,FUN_0002b3a0,.text,unassigned,unnamed,0,0
 0002b4c0,FUN_0002b4c0,.text,unassigned,unnamed,0,0
@@ -1160,7 +1160,7 @@ address,name,section,module,state,tested,matched
 00042680,Heap_Free,.text,qcommon,named,0,0
 00042710,Heap_FreeIn,.text,qcommon,named,0,0
 00042740,Heap_InitDefaultHeaps,.text,qcommon,named,0,0
-00042830,FUN_00042830,.text,unassigned,unnamed,0,0
+00042830,Heap_Sbrk,.text,qcommon,named,0,0
 00042860,Heap_GetCurrent,.text,qcommon,named,0,0
 00042870,Heap_FreeFromOwner,.text,qcommon,named,0,0
 000428d0,Z_Free,.text,qcommon,named,0,0
@@ -2093,7 +2093,7 @@ address,name,section,module,state,tested,matched
 00094170,FX_ResetParticleSystem,.text,renderer,matched,44,44
 000941b0,FxSystem_SetView,.text,renderer,settled,384,384
 00094610,FX_InitSystem,.text,renderer,named,0,0
-00094750,FUN_00094750,.text,unassigned,unnamed,0,0
+00094750,FxSystem_ResetView,.text,renderer,named,0,0
 00094800,FxSystem_Stop,.text,renderer,offline,0,0
 00094810,FxSystem_FindEmitterByName,.text,renderer,named,0,0
 00094890,FX_HasParticleRoom,.text,renderer,settled,113,113
@@ -2737,7 +2737,7 @@ address,name,section,module,state,tested,matched
 000c6790,SndVoice_SetMixBins,.text,sound,named,0,0
 000c68d0,SndSys_CreateVoiceBuffers,.text,sound,named,0,0
 000c6fb0,FUN_000c6fb0,.text,unassigned,unnamed,0,0
-000c7010,FUN_000c7010,.text,unassigned,unnamed,0,0
+000c7010,SndArena_EmptyStub,.text,sound,named,0,0
 000c7020,SndStream_SetFormat,.text,sound,named,0,0
 000c7220,SndStream_ReadPacket,.text,sound,named,0,0
 000c72f0,FUN_000c72f0,.text,unassigned,unnamed,0,0
@@ -2760,7 +2760,7 @@ address,name,section,module,state,tested,matched
 000c85c0,Snd_UpdateListenerAxis,.text,sound,settled,4333,4333
 000c88c0,Snd_ComputeVoice3DParams,.text,sound,named,0,0
 000c8c10,Snd_PopCount64_2,.text,sound,named,0,0
-000c8d30,FUN_000c8d30,.text,unassigned,unnamed,0,0
+000c8d30,Snd_MaskBitIndex64,.text,sound,named,0,0
 000c8d80,Snd_InitRequest,.text,sound,settled,152,152
 000c8de0,SndBank_Relocate,.text,sound,named,0,0
 000c8fa0,SndBank_PollLoad,.text,sound,settled,132,132
@@ -2790,7 +2790,7 @@ address,name,section,module,state,tested,matched
 000ca380,File_StartDeviceRequest,.text,qcommon,named,0,0
 000ca500,File_PumpDevices,.text,qcommon,named,0,0
 000ca690,File_PumpRequests,.text,qcommon,named,0,0
-000ca910,FUN_000ca910,.text,unassigned,unnamed,0,0
+000ca910,File_GetNativeHandle,.text,qcommon,named,0,0
 000cac20,File_AbortRequestsForFile,.text,qcommon,named,0,0
 000cac90,File_Close,.text,qcommon,named,0,0
 000cad40,File_InitSystem,.text,qcommon,named,0,0
@@ -7566,7 +7566,7 @@ address,name,section,module,state,tested,matched
 001fc3f0,Actor_ScoreEnemyByDistance,.text,game,settled,200,200
 001fc480,Actor_InitSpawner,.text,game,settled,164,164
 001fc520,Actor_Negotiation_Start,.text,game,offline,0,0
-001fc540,FUN_001fc540,.text,unassigned,unnamed,0,0
+001fc540,Actor_PathAllowsFacingEnemy,.text,game,named,0,0
 001fc750,Path_StepBack,.text,game,settled,584,584
 001fcb40,FUN_001fcb40,.text,unassigned,unnamed,0,0
 001fcbf0,Path_IsPointNearPath,.text,game,settled,134,134
@@ -8216,7 +8216,7 @@ address,name,section,module,state,tested,matched
 00248dd0,Q_CleanStrLower,.text,qcommon,named,0,0
 00248e10,FUN_00248e10,.text,unassigned,unnamed,0,0
 00248ee0,G_GetTouchTypeFlag,.text,game,named,0,0
-00248f70,FUN_00248f70,.text,unassigned,unnamed,0,0
+00248f70,VehNode_AllocSlot,.text,game,named,0,0
 00249010,FUN_00249010,.text,unassigned,unnamed,0,0
 002490c0,VehNode_Alloc,.text,game,named,0,0
 00249160,FUN_00249160,.text,unassigned,unnamed,0,0
@@ -8270,7 +8270,7 @@ address,name,section,module,state,tested,matched
 0024c800,Artillery_Drop,.text,game,named,0,0
 0024c9f0,G_FlushEntityListChanges,.text,game,named,0,0
 0024cab0,FUN_0024cab0,.text,unassigned,unnamed,0,0
-0024cb10,FUN_0024cb10,.text,unassigned,unnamed,0,0
+0024cb10,G_QueueEntityRemove,.text,game,named,0,0
 0024cbd0,G_FindTeams,.text,game,named,0,0
 0024cd70,G_FreeDroppedItems,.text,game,named,0,0
 0024ce90,Add_AmmoClips,.text,game,named,0,0
@@ -8287,7 +8287,7 @@ address,name,section,module,state,tested,matched
 0024d8b0,ConsoleCommand,.text,game,named,0,0
 0024d940,G_SetupVehiclePool,.text,game,named,0,0
 0024dad0,FUN_0024dad0,.text,unassigned,unnamed,0,0
-0024db50,FUN_0024db50,.text,unassigned,unnamed,0,0
+0024db50,Veh_GetEntTankInfo,.text,game,named,0,0
 0024dc10,FUN_0024dc10,.text,unassigned,unnamed,0,0
 0024dc70,Vehicle_CacheTags,.text,game,settled,124,124
 0024e1d0,Think_BoostNearbyPlayer,.text,game,named,0,0
@@ -8394,7 +8394,7 @@ address,name,section,module,state,tested,matched
 002586f0,FUN_002586f0,.text,unassigned,unnamed,0,0
 002589e0,Use_DropNamedItem,.text,game,named,0,0
 00258a10,Turret_IsUsableBy,.text,game,settled,121,121
-00258a70,FUN_00258a70,.text,unassigned,unnamed,0,0
+00258a70,Turret_PlacePlayerBehind,.text,game,named,0,0
 00258ba0,Use_ToggleLink,.text,game,named,0,0
 00258ce0,RespawnItem,.text,game,named,0,0
 00258d90,Cmd_JumpToNode_f,.text,qcommon,named,0,0
@@ -8543,7 +8543,7 @@ address,name,section,module,state,tested,matched
 0026c4d0,Actor_CanUseTurret,.text,game,named,0,0
 0026c550,Turret_UpdateTarget,.text,game,named,0,0
 0026cd70,Turret_ThinkAutoTarget,.text,game,named,0,0
-0026ce50,FUN_0026ce50,.text,unassigned,unnamed,0,0
+0026ce50,Turret_ClampPlayerViewAngles,.text,game,named,0,0
 0026d0d0,Touch_Item,.text,game,named,0,0
 0026d440,Touch_Item_Auto,.text,game,named,0,0
 0026d480,Cmd_Give_f,.text,qcommon,named,0,0
@@ -8874,7 +8874,7 @@ address,name,section,module,state,tested,matched
 0028ef90,FUN_0028ef90,.text,unassigned,unnamed,0,0
 0028f1a0,Stream_FreeZoneMemory,.text,streaming,named,0,0
 0028f2f0,StreamRequest_Cancel,.text,streaming,named,0,0
-0028f4b0,FUN_0028f4b0,.text,unassigned,unnamed,0,0
+0028f4b0,Stream_InitSmallHeaps,.text,streaming,named,0,0
 0028f5c0,Pak_FindZoneByName,.text,qcommon,named,0,0
 0028f620,ZoneGraph_Init,.text,streaming,named,0,0
 0028f6c0,MemContext_Push,.text,qcommon,settled,202,202
@@ -9409,13 +9409,13 @@ address,name,section,module,state,tested,matched
 002b48f0,IN_UpUp,.text,client,matched,11,11
 002b4910,CL_ShutdownCGame,.text,client,matched,92,92
 002b49a0,Persistent_SetValue,.text,game,named,0,0
-002b4a30,FUN_002b4a30,.text,unassigned,unnamed,0,0
-002b4ab0,FUN_002b4ab0,.text,unassigned,unnamed,0,0
-002b4b30,FUN_002b4b30,.text,unassigned,unnamed,0,0
+002b4a30,PM_FinishAdsDrop,.text,game,named,0,0
+002b4ab0,PM_FinishAdsRaise,.text,game,named,0,0
+002b4b30,PM_FinishWeaponRaise,.text,game,named,0,0
 002b4c20,FUN_002b4c20,.text,unassigned,unnamed,0,0
 002b4cb0,FUN_002b4cb0,.text,unassigned,unnamed,0,0
 002b4d80,BG_GetWeaponSpread,.text,game,settled,1262,1262
-002b4fd0,FUN_002b4fd0,.text,unassigned,unnamed,0,0
+002b4fd0,BG_GetTotalReserveAmmo,.text,game,named,0,0
 002b5120,BG_AmmoRoomForWeapon,.text,game,settled,109,109
 002b52b0,BG_ChooseWeaponSlot,.text,game,matched,4,4
 002b5390,BG_GetFreeWeaponSlot,.text,game,named,0,0
@@ -9513,11 +9513,11 @@ address,name,section,module,state,tested,matched
 002bb3d0,BaseWindingForPlane,.text,collision,named,0,0
 002bb7c0,CL_RefGetFont,.text,client,named,0,0
 002bb940,G_RestorePlayerHealth,.text,game,named,0,0
-002bb9e0,FUN_002bb9e0,.text,unassigned,unnamed,0,0
+002bb9e0,PM_WeaponMeleeStrike,.text,game,named,0,0
 002bba50,FUN_002bba50,.text,unassigned,unnamed,0,0
 002bbd30,PM_RemoveEmptyWeapon,.text,game,named,0,0
 002bbdc0,PM_WeaponCanReload,.text,game,named,0,0
-002bbe40,FUN_002bbe40,.text,unassigned,unnamed,0,0
+002bbe40,PM_FinishWeaponChange,.text,game,named,0,0
 002bc120,PM_BeginWeaponChange,.text,game,named,0,0
 002bc310,PM_Weapon_BeginAdsDrop,.text,game,named,0,0
 002bc3d0,PM_Weapon_BeginAdsRaise,.text,game,named,0,0
@@ -9576,7 +9576,7 @@ address,name,section,module,state,tested,matched
 002c0950,PathNode_ResolveAnimScripts,.text,game,named,0,0
 002c09e0,Path_RelocateNodeBlock,.text,game,named,0,0
 002c0b80,Path_InitAfterLoad,.text,game,named,0,0
-002c0c50,FUN_002c0c50,.text,unassigned,unnamed,0,0
+002c0c50,Path_FindZoneBlockIndex,.text,game,named,0,0
 002c0ce0,Netchan_Init,.text,qcommon,named,0,0
 002c0d30,Cmd_Vstr_f,.text,qcommon,untested,0,0
 002c0d80,CM_SegmentOverlapsBox,.text,collision,settled,20156,20156
@@ -9591,14 +9591,14 @@ address,name,section,module,state,tested,matched
 002c1db0,Key_Unbind_f,.text,client,matched,65,65
 002c1e00,Field_AdjustScroll,.text,client,named,0,0
 002c1ff0,FUN_002c1ff0,.text,unassigned,unnamed,0,0
-002c20e0,FUN_002c20e0,.text,unassigned,unnamed,0,0
+002c20e0,PM_FinishWeaponMelee,.text,game,named,0,0
 002c2170,FUN_002c2170,.text,unassigned,unnamed,0,0
 002c21f0,PM_SetWeaponFireTimers,.text,game,named,0,0
 002c2380,PM_CheckWeaponChange,.text,game,named,0,0
-002c24d0,FUN_002c24d0,.text,unassigned,unnamed,0,0
+002c24d0,PM_UpdateWeaponTimers,.text,game,named,0,0
 002c25e0,PM_Weapon_CheckAdsTransition,.text,game,named,0,0
 002c2690,PM_ReloadAmmoAtTime,.text,game,named,0,0
-002c28f0,FUN_002c28f0,.text,unassigned,unnamed,0,0
+002c28f0,PM_UpdateWeaponRechamber,.text,game,named,0,0
 002c2aa0,BG_InitDefaultWeapon,.text,game,settled,110,110
 002c2b40,PM_UpdateStaminaMeter,.text,game,named,0,0
 002c2c80,PM_CheckJump,.text,game,named,0,0
@@ -9829,7 +9829,7 @@ address,name,section,module,state,tested,matched
 002db350,AnglesToAxisVec4,.text,qcommon,named,0,0
 002db3e0,SV_TraceStaticModels,.text,server,settled,114,114
 002db500,CM_TransformedPointContents,.text,collision,settled,394,394
-002db680,FUN_002db680,.text,unassigned,unnamed,0,0
+002db680,PM_CheckWeaponMelee,.text,game,named,0,0
 002db7d0,PM_UpdateStickyAim,.text,game,named,0,0
 002dc3b0,PM_UpdateLean,.text,game,named,0,0
 002dc6f0,BG_CheckProneFeet,.text,game,named,0,0
@@ -9935,14 +9935,14 @@ address,name,section,module,state,tested,matched
 002ef090,PM_CheckDuck,.text,game,named,0,0
 002efbe0,PM_WalkMove,.text,game,named,0,0
 002f0450,PM_WeaponCheckAmmo,.text,game,named,0,0
-002f0530,FUN_002f0530,.text,unassigned,unnamed,0,0
+002f0530,PM_CheckWeaponReload,.text,game,named,0,0
 002f06b0,CL_LoadFrontEndZone,.text,client,named,0,0
 002f0750,CL_ApplyFrontEndReturnState,.text,client,named,0,0
 002f08e0,CL_Shutdown,.text,client,named,0,0
 002f0a50,CL_StartHunkUsers,.text,client,named,0,0
-002f0ae0,FUN_002f0ae0,.text,unassigned,unnamed,0,0
+002f0ae0,PM_UpdateGrenadeThrow,.text,game,named,0,0
 002f0d40,PM_WeaponFire,.text,game,named,0,0
-002f0ef0,FUN_002f0ef0,.text,unassigned,unnamed,0,0
+002f0ef0,PM_CheckFireButtonRelease,.text,game,named,0,0
 002f10d0,CL_InitRef,.text,client,named,0,0
 002f1220,PM_Weapon,.text,game,named,0,0
 002f1590,PmoveSingle,.text,game,named,0,0
@@ -10084,7 +10084,7 @@ address,name,section,module,state,tested,matched
 002f64f0,ScrWaitTimeoutRecord_Init,.text,script,named,0,0
 002f6600,Scr_RestoreThreadStack,.text,game,named,0,0
 002f6670,ScrThread_AppendData,.text,script,named,0,0
-002f67a0,FUN_002f67a0,.text,unassigned,unnamed,0,0
+002f67a0,ScrThread_InitDataHeap,.text,script,named,0,0
 002f6840,AnimTree_FreeNotetracks,.text,xanim,named,0,0
 002f68f0,GScr_Vehicle_Is180Clear,.text,script,named,0,0
 002f6950,GScr_Vehicle_ClearTurretTarget,.text,script,named,0,0
@@ -10421,7 +10421,7 @@ address,name,section,module,state,tested,matched
 00301ba0,GScr_StopAnimScripted,.text,script,named,0,0
 00301c80,GScr_HudSetShader,.text,script,named,0,0
 00301d30,HudElem_SetShaderTimer,.text,cgame,untested,0,0
-00301df0,FUN_00301df0,.text,unassigned,unnamed,0,0
+00301df0,G_SetupObjectiveScriptImports,.text,game,named,0,0
 00301ee0,GScr_PlayerSetViewModel,.text,script,named,0,0
 00301f60,GScr_SwapEntField_dc,.text,script,named,0,0
 00302060,GScr_LocalToWorldCoords,.text,script,named,0,0
@@ -10545,7 +10545,7 @@ address,name,section,module,state,tested,matched
 003080e0,GScr_ActorCanSeeDefaultAge,.text,script,named,0,0
 00308150,GScr_Vehicle_FireWeapon,.text,script,named,0,0
 00308720,GScr_MagicBullet,.text,script,named,0,0
-003088b0,FUN_003088b0,.text,unassigned,unnamed,0,0
+003088b0,G_SetupVehicleScriptImports,.text,game,named,0,0
 00308a30,GScr_ActorShoot,.text,script,named,0,0
 00308a90,GScr_ActorShootAt,.text,script,named,0,0
 00308af0,GScr_SetAIFlags,.text,script,named,0,0
@@ -10573,7 +10573,7 @@ address,name,section,module,state,tested,matched
 0030c323,FUN_0030c323,.text,unassigned,unnamed,0,0
 0030c4d0,SaveSlot_Init,.text,client,named,0,0
 0030c6f0,FUN_0030c6f0,.text,unassigned,unnamed,0,0
-0030c9a0,FUN_0030c9a0,.text,unassigned,unnamed,0,0
+0030c9a0,ChapterMenu_UpdateList,.text,client,named,0,0
 0030cc20,ChapterMenu_OnButton100,.text,client,named,0,0
 0030ccb0,FUN_0030ccb0,.text,unassigned,unnamed,0,0
 0030cd70,FE_FormatPlayTime,.text,client,untested,0,0
@@ -10649,8 +10649,8 @@ address,name,section,module,state,tested,matched
 00310f70,FUN_00310f70,.text,unassigned,unnamed,0,0
 00311090,HudCompMeter_SetCount,.text,cgame,named,0,0
 003110e0,HudCompHint_Draw,.text,cgame,named,0,0
-003111a0,FUN_003111a0,.text,unassigned,unnamed,0,0
-00311270,FUN_00311270,.text,unassigned,unnamed,0,0
+003111a0,HudCompCompass_UpdateMarkerPulse,.text,cgame,named,0,0
+00311270,HudCompCompass_DrawMarkerList,.text,cgame,named,0,0
 00311330,HudCompTankIcon_Draw,.text,cgame,named,0,0
 00311350,HudCompTankReticle_Draw,.text,cgame,named,0,0
 003113d0,HudCompTankHealth_Draw,.text,cgame,named,0,0
@@ -10680,7 +10680,7 @@ address,name,section,module,state,tested,matched
 00312d50,BonusMaterialsMenu_OnLeave,.text,client,named,0,0
 00312d60,FUN_00312d60,.text,unassigned,unnamed,0,0
 00312e30,Profile_SumMissionStats,.text,qcommon,named,0,0
-00312f60,FUN_00312f60,.text,unassigned,unnamed,0,0
+00312f60,UIRoot_InitChapterTable,.text,client,named,0,0
 00313120,FUN_00313120,.text,unassigned,unnamed,0,0
 00313240,FUN_00313240,.text,unassigned,unnamed,0,0
 00313360,FUN_00313360,.text,unassigned,unnamed,0,0
@@ -10750,8 +10750,8 @@ address,name,section,module,state,tested,matched
 003175b0,FE_LiberatorCreateCrossIcons,.text,client,named,0,0
 00317ac0,HudManager_SetComponentColor,.text,cgame,named,0,0
 00317bd0,HudCompMeter_Ctor,.text,cgame,named,0,0
-00317d90,FUN_00317d90,.text,unassigned,unnamed,0,0
-00317e50,FUN_00317e50,.text,unassigned,unnamed,0,0
+00317d90,HudCompCompass_DrawTankMarkers,.text,cgame,named,0,0
+00317e50,HudCompCompass_DrawActorMarkers,.text,cgame,named,0,0
 00317f00,HudCompCompass_DrawFiringEnemies,.text,cgame,named,0,0
 00317fb0,HudCompCompass_SetWidescreen,.text,cgame,named,0,0
 003180a0,HudCompCompass_UpdateNeedle,.text,cgame,named,0,0
@@ -10883,7 +10883,7 @@ address,name,section,module,state,tested,matched
 00321430,FUN_00321430,.text,unassigned,unnamed,0,0
 003215c0,Panel_FindText,.text,client,matched,74,74
 00321650,Panel_FindPicture,.text,client,settled,126,126
-003216e0,FUN_003216e0,.text,unassigned,unnamed,0,0
+003216e0,UIMeshList_ScaleXForAspect,.text,client,named,0,0
 003217b0,Panel_SetPictureVisibleByName,.text,client,named,0,0
 00321830,UIWorldPicture_Construct,.text,client,named,0,0
 00321890,UIPicture_SetAlpha,.text,client,named,0,0
@@ -10935,7 +10935,7 @@ address,name,section,module,state,tested,matched
 00329c80,FE_SetupPauseMenu,.text,client,named,0,0
 00329fe0,FE_SetupMemcardMenu,.text,client,named,0,0
 0032a0e0,UIScrollBar_Construct,.text,client,named,0,0
-0032a5c0,FUN_0032a5c0,.text,unassigned,unnamed,0,0
+0032a5c0,DialogMgr_DestroyContents,.text,client,named,0,0
 0032a660,FE_SetupLoginStatus,.text,client,named,0,0
 0032a7e0,UIMenuItem_Init,.text,client,named,0,0
 0032a910,FE_SetupPanel,.text,client,named,0,0
@@ -11090,7 +11090,7 @@ address,name,section,module,state,tested,matched
 00339110,OptionsMenu_RestoreSelection,.text,client,named,0,0
 003393f0,FE_LoadPanel,.text,client,named,0,0
 00339450,HudCompCompass_UpdateTankMarkers,.text,cgame,named,0,0
-00339830,FUN_00339830,.text,unassigned,unnamed,0,0
+00339830,HudCompCompass_UpdateActorMarkers,.text,cgame,named,0,0
 00339c30,HudCompCompass_Update,.text,cgame,named,0,0
 00339c70,AutosaveMenu_ShowDeleteSuccessDialog,.text,client,named,0,0
 00339fa0,ProfileMenu_ShowDeleteSuccessDialog,.text,client,named,0,0

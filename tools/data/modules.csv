@@ -66,3 +66,4 @@ prefix,(SpgManager_|Vec3Distance$|RandomPointInUnitCircle$|Mat43_|AnglesToAxisVe
 prefix,(Ent_Callback348Stub|Pain_Func|ShakeRumble_StartByName$),game,entity callback stubs; pain callbacks; rumble by name (2026-10-25 zero-caller pass)
 prefix,(BaseWindingForPlane$),collision,Q3 polylib (2026-10-25 zero-caller pass)
 prefix,(BroLvl_oran_SetupEvent4Chains$),levelscript,oran hangar chain setup compiled into .text (2026-10-25 zero-caller pass)
+prefix,(Veh_),game,vehicle helpers (2026-10-25)

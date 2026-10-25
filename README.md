@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 69% of the functions have a name, and 1,952 have been
+It's early days: about 70% of the functions have a name, and 1,952 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,30 +27,30 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,465 | 1,952 | 9,241 |
+| Engine and game code (`.text`) | 11,193 | 8,510 | 1,952 | 9,241 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,453** | **1,952** | **14,565** |
+| **Total** | **16,517** | **11,498** | **1,952** | **14,565** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
 (below), or, for 268 functions the campaign never runs, the same comparison offline on random inputs.
-We've also named 2,641 of the game's global variables.
+We've also named 2,647 of the game's global variables.
 
 ### By part of the game
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,061 | 832 | 132 | 96 | 0 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,643 | 423 | 48 | 1,168 | 0 |
-| Client game (HUD, view, effects on screen) | 279 | 151 | 38 | 90 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 888 | 227 | 21 | 629 | 0 |
-| Client and menus | 678 | 92 | 29 | 557 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,062 | 832 | 132 | 97 | 0 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,666 | 423 | 48 | 1,191 | 0 |
+| Client game (HUD, view, effects on screen) | 284 | 151 | 38 | 95 | 0 |
+| Engine core (memory, files, settings, commands, containers, math) | 896 | 227 | 21 | 637 | 0 |
+| Client and menus | 682 | 92 | 29 | 561 | 0 |
 | Server, collision, compression | 239 | 110 | 16 | 113 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 1,992 | 12 | 0 | 1,980 | 0 |
+| Script engine (script VM, entity bindings, built-in script functions) | 1,993 | 12 | 0 | 1,981 | 0 |
 | Level-script helpers in the engine code | 1,396 | 0 | 0 | 1,389 | 0 |
-| Sound, streaming, online | 302 | 105 | 5 | 191 | 0 |
+| Sound, streaming, online | 305 | 105 | 5 | 194 | 0 |
 | Microsoft C runtime pieces the library matcher missed (replaced, not rewritten) | 11 | 0 | 0 | 11 | 0 |
-| Not sorted into a part yet | 2,704 | 0 | 0 | 0 | 1,097 |
+| Not sorted into a part yet | 2,659 | 0 | 0 | 0 | 1,052 |
 
 1,607 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
