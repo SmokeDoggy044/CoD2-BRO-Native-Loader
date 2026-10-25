@@ -11226,8 +11226,6 @@ address,name,kind,confidence,evidence
 00015810,std_list_Clear,function,medium,"ESI = list {?, head, size}: unlinks every node and Z_Frees it, size 0; G_ClearCheckpoint and more"
 0001b8f0,HashStr_Equals,function,medium,thiscall (other): true when the eight dwords of two HashStr keys match; skip-list inserts/removes and G_SetModel
 00023510,std_string_DestroyRange,function,medium,"[EAX, EDI) of 0x1c-byte std::string objects: frees the heap buffer when capacity +0x18 > 15, resets to the empty small string; Cmd_RelaunchTitle_f, Loc_* table clears"
-00023690,FxComponentList_Init,function,medium,"EAX = object: vtable 0x008376c0, count 0, fields +0x208..+0x24c cleared; FX_AddSound/ShakeRumble/Light/ParticleComponents"
-000237b0,FxComponentList_Clear,function,medium,EAX = list (vtable 0x008376c0): zeroes the count +4 entries and the fields +0x208..+0x24c; FX_AddSoundComponents/ShakeRumble/Light
 00093f10,HashStrMap_Find,function,medium,"thiscall skip list (8-dword HashStr key): same node layout as ShaderCache_FindOrAdd (head +4, level +0x10), returns the item or 0; nglParseMesh, NAL_FindSkeleton (registry 0x00903ff4)"
 00094010,HashStrMap_Clear,function,medium,"fastcall map {buffer, head}: removes every node (0x00093dc0) and frees both; nglDumpPrintf and 7 more"
 0009ca90,apsPtrVector_DeleteAll,function,medium,"fastcall {data, short cap, short count}: slot 3 (release) of each element, frees them and the array through the aps allocator 0x008bb760"

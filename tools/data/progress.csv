@@ -592,9 +592,9 @@ address,name,section,module,state,tested,matched
 00023550,FUN_00023550,.text,unassigned,unnamed,0,0
 000235b0,FUN_000235b0,.text,unassigned,unnamed,0,0
 00023640,FXTriggerTable_Find,.text,renderer,settled,216,216
-00023690,FxComponentList_Init,.text,renderer,settled,211,211
+00023690,ParamList_Init,.text,qcommon,settled,211,211
 00023710,ParamList_Add,.text,qcommon,settled,210,210
-000237b0,FxComponentList_Clear,.text,renderer,settled,213,213
+000237b0,ParamList_Clear,.text,qcommon,settled,213,213
 00023840,ParamList_Delete,.text,qcommon,offline,0,0
 00023870,ParamSet_Destruct,.text,qcommon,offline,0,0
 000238b0,ParamSet_Delete,.text,qcommon,offline,0,0
@@ -629,7 +629,7 @@ address,name,section,module,state,tested,matched
 00024490,FUN_00024490,.text,unassigned,unnamed,0,0
 000244c0,DObjHandle_Resolve,.text,renderer,settled,107,107
 000244f0,FixedStr32_Format,.text,qcommon,untested,0,0
-00024520,FUN_00024520,.text,unassigned,offline,0,0
+00024520,FxSpawnCmd_Copy,.text,renderer,offline,0,0
 000245d0,FUN_000245d0,.text,unassigned,unnamed,0,0
 00024600,FUN_00024600,.text,unassigned,unnamed,0,0
 00024630,ParamSet_AddString,.text,qcommon,settled,206,206
@@ -8158,7 +8158,7 @@ address,name,section,module,state,tested,matched
 0023ffb0,R_AddEntitiesToCells,.text,renderer,settled,313,313
 00240590,RE_StretchPicRotate,.text,renderer,settled,147,147
 00240750,R_LoadCellMeshes,.text,renderer,settled,100,100
-00240930,FUN_00240930,.text,unassigned,unnamed,0,0
+00240930,R_DrawSkeletonBones_r,.text,renderer,named,0,0
 00240c00,DObj_CreateSkeleton,.text,renderer,settled,124,124
 00240ce0,DObj_Free,.text,renderer,settled,148,148
 00240d70,DObj_CalcAnimatedSkeleton,.text,renderer,untested,0,0
@@ -8212,7 +8212,7 @@ address,name,section,module,state,tested,matched
 002489f0,SP_sound_blend,.text,game,offline,0,0
 00248a30,FUN_00248a30,.text,unassigned,unnamed,0,0
 00248af0,G_Error,.text,game,untested,0,0
-00248db0,FUN_00248db0,.text,unassigned,unnamed,0,0
+00248db0,Cmd_NglStats_f,.text,qcommon,named,0,0
 00248dd0,FUN_00248dd0,.text,unassigned,unnamed,0,0
 00248e10,FUN_00248e10,.text,unassigned,unnamed,0,0
 00248ee0,FUN_00248ee0,.text,unassigned,unnamed,0,0
@@ -8598,8 +8598,8 @@ address,name,section,module,state,tested,matched
 00275ff0,FUN_00275ff0,.text,unassigned,unnamed,0,0
 00276060,CG_DrawTextScaled,.text,cgame,offline,0,0
 002761b0,CG_DrawFrontBufferFade,.text,cgame,settled,286,286
-002764c0,FUN_002764c0,.text,unassigned,matched,18,18
-00276530,FUN_00276530,.text,unassigned,matched,30,30
+002764c0,CG_UpdateWhiteFlashColor,.text,cgame,matched,18,18
+00276530,CG_UpdateWhiteFlashColor2,.text,cgame,matched,30,30
 002765b0,CG_SetFade,.text,cgame,settled,108,108
 002765f0,CG_GetAdsOverlayFraction,.text,cgame,settled,399,399
 002766a0,CG_ScoresUp_f,.text,cgame,matched,8,8
@@ -8625,7 +8625,7 @@ address,name,section,module,state,tested,matched
 002779e0,CG_DrawPic,.text,cgame,settled,190,190
 00277bd0,CG_FillRect,.text,cgame,untested,0,0
 00277c50,CG_DrawShellShockBlur,.text,cgame,settled,387,387
-00277ca0,FUN_00277ca0,.text,unassigned,matched,46,46
+00277ca0,CG_DrawFrontBufferBlend,.text,cgame,matched,46,46
 00277e70,CG_DrawScreenBlackout,.text,cgame,settled,109,109
 00277ed0,CG_ScreenFade,.text,cgame,settled,115,115
 002780a0,CG_DrawDamageBlend,.text,cgame,settled,114,114
@@ -8650,8 +8650,8 @@ address,name,section,module,state,tested,matched
 00279530,CG_AddNearCulledLocalEntity,.text,cgame,untested,0,0
 002795d0,CG_AllocLocalEntity,.text,cgame,settled,106,106
 00279650,CG_UpdateScreenWhileLoading,.text,cgame,untested,0,0
-002796a0,FUN_002796a0,.text,unassigned,settled,100,100
-00279750,FUN_00279750,.text,unassigned,settled,109,109
+002796a0,HudElem_GetHeight,.text,cgame,settled,100,100
+00279750,HudElem_GetWidth,.text,cgame,settled,109,109
 00279900,CG_DrawBar,.text,cgame,untested,0,0
 00279be0,CG_DrawCrosshair,.text,cgame,settled,148,148
 00279dd0,CG_ConsoleCommand,.text,cgame,settled,133,133
@@ -8699,7 +8699,7 @@ address,name,section,module,state,tested,matched
 0027cd20,FUN_0027cd20,.text,unassigned,unnamed,0,0
 0027cdc0,CG_DrawRotatedQuadPic,.text,cgame,settled,126,126
 0027cf40,CG_DrawRotatedPic,.text,cgame,offline,0,0
-0027d180,FUN_0027d180,.text,unassigned,settled,100,100
+0027d180,CG_DrawStatusLabel,.text,cgame,settled,100,100
 0027d2f0,CG_CalcCameraShakeSlot,.text,cgame,settled,1214,1214
 0027d450,CG_DrawCenterString,.text,cgame,settled,351,351
 0027d6d0,CG_ShellShockSave_f,.text,cgame,untested,0,0
@@ -8741,8 +8741,8 @@ address,name,section,module,state,tested,matched
 002820f0,CG_DrawHudElem,.text,cgame,settled,115,115
 002821e0,CG_CalcEntityLerpPositions,.text,cgame,settled,403,403
 00282340,CG_DrawDamageDirectionIcons,.text,cgame,settled,104,104
-002824f0,FUN_002824f0,.text,unassigned,matched,27,27
-00282620,FUN_00282620,.text,unassigned,settled,1303,1303
+002824f0,CG_DrawViewDirIcon,.text,cgame,matched,27,27
+00282620,CG_DrawAdsOverlay,.text,cgame,settled,1303,1303
 00282d10,CG_CalculateWeaponPosition,.text,cgame,settled,134,134
 00282ef0,FUN_00282ef0,.text,unassigned,unnamed,0,0
 00283120,FUN_00283120,.text,unassigned,unnamed,0,0
@@ -8758,7 +8758,7 @@ address,name,section,module,state,tested,matched
 00284fa0,CG_Missile,.text,cgame,settled,115,115
 002850a0,CG_MG42,.text,cgame,settled,260,260
 00285190,CG_General,.text,cgame,settled,149,149
-00285260,FUN_00285260,.text,unassigned,settled,4591,4591
+00285260,CG_DrawWeaponReticle,.text,cgame,settled,4591,4591
 00285af0,CG_CalculateWeaponAngles,.text,cgame,named,0,0
 00285d50,CG_RegisterItemVisuals,.text,cgame,settled,128,128
 00285da0,CG_LoadViewModelAnimTrees,.text,cgame,untested,0,0
@@ -8981,7 +8981,7 @@ address,name,section,module,state,tested,matched
 00296c00,FX_UpdateFadingComponents,.text,renderer,settled,390,390
 00296c90,FX_PruneComponents,.text,renderer,untested,0,0
 00296d10,FX_FreeEffectComponents,.text,renderer,settled,637,637
-00296d80,FUN_00296d80,.text,unassigned,settled,2453,2453
+00296d80,FxInstance_Init,.text,renderer,settled,2453,2453
 00296e50,ParamNode_CollectChoices,.text,qcommon,settled,133,133
 00296ec0,Cvar_Update,.text,qcommon,settled,401,401
 00296f60,generateHashValue,.text,qcommon,settled,378,378
@@ -9414,7 +9414,7 @@ address,name,section,module,state,tested,matched
 002b4b30,FUN_002b4b30,.text,unassigned,unnamed,0,0
 002b4c20,FUN_002b4c20,.text,unassigned,unnamed,0,0
 002b4cb0,FUN_002b4cb0,.text,unassigned,unnamed,0,0
-002b4d80,FUN_002b4d80,.text,unassigned,settled,1262,1262
+002b4d80,BG_GetWeaponSpread,.text,game,settled,1262,1262
 002b4fd0,FUN_002b4fd0,.text,unassigned,unnamed,0,0
 002b5120,BG_AmmoRoomForWeapon,.text,game,settled,109,109
 002b52b0,BG_ChooseWeaponSlot,.text,game,matched,4,4

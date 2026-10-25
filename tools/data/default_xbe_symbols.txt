@@ -592,9 +592,9 @@
 00023550 FUN_00023550
 000235b0 FUN_000235b0
 00023640 FXTriggerTable_Find
-00023690 FxComponentList_Init
+00023690 ParamList_Init
 00023710 ParamList_Add
-000237b0 FxComponentList_Clear
+000237b0 ParamList_Clear
 00023840 ParamList_Delete
 00023870 ParamSet_Destruct
 000238b0 ParamSet_Delete
@@ -629,7 +629,7 @@
 00024490 FUN_00024490
 000244c0 DObjHandle_Resolve
 000244f0 FixedStr32_Format
-00024520 FUN_00024520
+00024520 FxSpawnCmd_Copy
 000245d0 FUN_000245d0
 00024600 FUN_00024600
 00024630 ParamSet_AddString
@@ -8158,7 +8158,7 @@
 0023ffb0 R_AddEntitiesToCells
 00240590 RE_StretchPicRotate
 00240750 R_LoadCellMeshes
-00240930 FUN_00240930
+00240930 R_DrawSkeletonBones_r
 00240c00 DObj_CreateSkeleton
 00240ce0 DObj_Free
 00240d70 DObj_CalcAnimatedSkeleton
@@ -8212,7 +8212,7 @@
 002489f0 SP_sound_blend
 00248a30 FUN_00248a30
 00248af0 G_Error
-00248db0 FUN_00248db0
+00248db0 Cmd_NglStats_f
 00248dd0 FUN_00248dd0
 00248e10 FUN_00248e10
 00248ee0 FUN_00248ee0
@@ -8598,8 +8598,8 @@
 00275ff0 FUN_00275ff0
 00276060 CG_DrawTextScaled
 002761b0 CG_DrawFrontBufferFade
-002764c0 FUN_002764c0
-00276530 FUN_00276530
+002764c0 CG_UpdateWhiteFlashColor
+00276530 CG_UpdateWhiteFlashColor2
 002765b0 CG_SetFade
 002765f0 CG_GetAdsOverlayFraction
 002766a0 CG_ScoresUp_f
@@ -8625,7 +8625,7 @@
 002779e0 CG_DrawPic
 00277bd0 CG_FillRect
 00277c50 CG_DrawShellShockBlur
-00277ca0 FUN_00277ca0
+00277ca0 CG_DrawFrontBufferBlend
 00277e70 CG_DrawScreenBlackout
 00277ed0 CG_ScreenFade
 002780a0 CG_DrawDamageBlend
@@ -8650,8 +8650,8 @@
 00279530 CG_AddNearCulledLocalEntity
 002795d0 CG_AllocLocalEntity
 00279650 CG_UpdateScreenWhileLoading
-002796a0 FUN_002796a0
-00279750 FUN_00279750
+002796a0 HudElem_GetHeight
+00279750 HudElem_GetWidth
 00279900 CG_DrawBar
 00279be0 CG_DrawCrosshair
 00279dd0 CG_ConsoleCommand
@@ -8699,7 +8699,7 @@
 0027cd20 FUN_0027cd20
 0027cdc0 CG_DrawRotatedQuadPic
 0027cf40 CG_DrawRotatedPic
-0027d180 FUN_0027d180
+0027d180 CG_DrawStatusLabel
 0027d2f0 CG_CalcCameraShakeSlot
 0027d450 CG_DrawCenterString
 0027d6d0 CG_ShellShockSave_f
@@ -8741,8 +8741,8 @@
 002820f0 CG_DrawHudElem
 002821e0 CG_CalcEntityLerpPositions
 00282340 CG_DrawDamageDirectionIcons
-002824f0 FUN_002824f0
-00282620 FUN_00282620
+002824f0 CG_DrawViewDirIcon
+00282620 CG_DrawAdsOverlay
 00282d10 CG_CalculateWeaponPosition
 00282ef0 FUN_00282ef0
 00283120 FUN_00283120
@@ -8758,7 +8758,7 @@
 00284fa0 CG_Missile
 002850a0 CG_MG42
 00285190 CG_General
-00285260 FUN_00285260
+00285260 CG_DrawWeaponReticle
 00285af0 CG_CalculateWeaponAngles
 00285d50 CG_RegisterItemVisuals
 00285da0 CG_LoadViewModelAnimTrees
@@ -8981,7 +8981,7 @@
 00296c00 FX_UpdateFadingComponents
 00296c90 FX_PruneComponents
 00296d10 FX_FreeEffectComponents
-00296d80 FUN_00296d80
+00296d80 FxInstance_Init
 00296e50 ParamNode_CollectChoices
 00296ec0 Cvar_Update
 00296f60 generateHashValue
@@ -9414,7 +9414,7 @@
 002b4b30 FUN_002b4b30
 002b4c20 FUN_002b4c20
 002b4cb0 FUN_002b4cb0
-002b4d80 FUN_002b4d80
+002b4d80 BG_GetWeaponSpread
 002b4fd0 FUN_002b4fd0
 002b5120 BG_AmmoRoomForWeapon
 002b52b0 BG_ChooseWeaponSlot
