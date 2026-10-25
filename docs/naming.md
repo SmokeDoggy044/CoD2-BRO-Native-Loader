@@ -911,3 +911,19 @@ CoD-specific functions included, so later decompilation covers both kinds.
     0x000cbc00; alignment 0x1000 follows. Sound bank slots 0x008bd770 (12 x 0x20: handle, state, flags, file, ?,
     serial from 0x0090a93c, ?, priority). Streaming voice: media object +0x2c, DS stream +0x30, two 0xc packets
     +0x38, bytes left +0x58, last packet +0x5c, packet size +0x60, loop start +0x64.
+  Trees 4 (98 names): ragdoll collision (Ragdoll_CollideAll -> PhysRagdoll_Collide), mass properties
+  (Phys_SphereMassProperties, PhysBody_SetMass/SetInertia), vehicle physics and paths, Live manager, anim-tree deltas.
+  - Ragdoll state collision: capsules (0x130 pool: ptrs +0xbe0, idx +0xc08, base +0xc30, count +0xc34; live list
+    +0xbf0 count +0xc44; capsule id +0x128, body +0x124, spheres +0x80 count +0x84, 0x40 each), capsule pairs
+    ({a, b} at +0xc88, count +0xcc4), bone pool 0x50 (ptrs +0x320, idx +0x348, base +0x370, count +0x374). Rest:
+    asleep count +0x47c, settled +0x470 (80% asleep for 0.25 s), fade +0x1d38. World pools also: 0x10 link pool
+    (ptrs +0x268, cap +0x270, count +0x274: {body, object, ?, owner}) and +0x28c; neither alloc checks for full.
+  - Vehicle physics record (VehiclePhys_Init): object +0x30, body +0x34, 4 wheel points +0x50, down axis +0x90,
+    wheel radius +0x120, hit flags +0x130, distances +0x134; tags tag_body/tag_turret/tag_barrel (turret yaw
+    +0x258, pitch +0x260), muzzles tag_flash/tag_flash_2. Path state: node short +0, end flag +2, frac +4, speed +8,
+    lookahead +0xc, origin +0x14, angles +0x20, target name +0x38; g_vehNodes: origin +0x14, dir +0x20, angles
+    +0x2c, length +0x38, next index bits 0-13 of +0x3c, flags 0x30000000.
+  - Live manager g_liveMgr 0x0095f6fc: base vtable 0x0083c738 (slot 6 SetInput), derived 0x0083c788; state +0x10
+    = 2 dashboard (CLiveEngine_Reboot) dialog, 3 yes/no confirm, shown by the InGameLiveOptionsMenu update at
+    0x00224510 (not a function yet). XboxLiveMenu_vtable slot 10 = XboxLiveMenu_Draw 00222750. Entity +0x350 =
+    health (Actor_ClampLethalDamage, Mover_UnstickPlayer crushes for health + 50).
