@@ -1642,4 +1642,136 @@ const char* XB_REGS3 XB_CDECL Key_TranslateButtonName(const char* name, uint32_t
     return nullptr;
 }
 
+void XB_CDECL SCR_RedrawFrontBuffer() {
+    NglQuad quad{};
+    nglInitQuad(&quad);
+    nglBeginFrame();
+    nglSetClearFlags(0);
+    nglEndFrame();
+    nglResetDeviceBindings();
+    nglSetQuadTexture(&quad, nglGetFrontBufferTexture());
+    nglSetQuadRect(&quad, 0.0f, 0.0f, 640.0f, 480.0f);
+    nglBeginFrame();
+    nglSetClearFlags(0xf3);
+    nglListAddQuad(&quad);
+    nglEndFrame();
+    nglResetDeviceBindings();
+}
+
+void XB_CDECL CL_Setenv_f() {
+    const uint32_t argc = cmd_argc();
+    if (int32_t(argc) <= 2) return;
+    char buffer[0x400];  // the putenv text; nothing reads it (Q3 called putenv)
+    std::strcpy(buffer, argc > 1 ? cmd_argv(1) : &title_global<const char>(0x0082dfeb));
+    std::strcat(buffer, &title_global<const char>(0x008344b8));  // "="
+    for (uint32_t i = 2; int32_t(i) < int32_t(argc); ++i) {
+        std::strcat(buffer, i < argc ? cmd_argv(i) : &title_global<const char>(0x0082dfeb));
+        std::strcat(buffer, &title_global<const char>(0x0082d6e4));  // " "
+    }
+}
+
+void XB_CDECL CL_ShellExecute_URL_f() {
+    const char* verb = &title_global<const char>(0x0082dfeb);
+    if (cmd_argc() > 1) {
+        verb = cmd_argv(1);
+        if (!verb) return;
+    }
+    if (Q_stricmpn(verb, &title_global<const char>(0x00834430), 99999)) return;  // "open"
+    const uint32_t argc = cmd_argc();
+    if (int32_t(argc) < 4) return;
+    title_atol(argc > 3 ? cmd_argv(3) : &title_global<const char>(0x0082dfeb));  // the show flag, unused
+}
+
+void XB_CDECL CL_ForwardToServer_f() {
+    if (title_global<uint32_t>(0x0092bdf0) != 2 || int32_t(cmd_argc()) <= 1) return;  // CA_CONNECTED
+    CL_AddReliableCommand(Cmd_ArgsFrom(1));
+}
+
+void XB_CDECL Key_Bindlist_f() {
+    for (int32_t i = 0; i < 256; ++i) {
+        const char* binding = title_global<const char*>(0x0093425c + 8 * uint32_t(i));
+        if (binding && binding[0]) Key_KeynumToString(i, 0);  // the Com_Printf is compiled out
+    }
+}
+
+void XB_CDECL CL_ShutdownInput() {
+    // CL_InitInput's commands without the last six
+    static constexpr uint32_t kNames[] = {
+        0x00835134, 0x0082d62c, 0x0083512c, 0x00835120, 0x00835114, 0x0083510c, 0x00835104, 0x008350fc,
+        0x008350f4, 0x008350e8, 0x008350dc, 0x008350d4, 0x008350cc, 0x008350c4, 0x008350bc, 0x008350b0,
+        0x008350a4, 0x0083509c, 0x00835094, 0x00835088, 0x0083507c, 0x00835070, 0x00835064, 0x0082dfa8,
+        0x0083505c, 0x0082d6ac, 0x00835054, 0x0082d694, 0x0083504c, 0x0082dfc0, 0x00835040, 0x0082d640,
+        0x00835038, 0x0082be38, 0x0083502c, 0x0082be5c, 0x00835020, 0x00835018, 0x00835010, 0x0082d654,
+        0x00835008, 0x00835000, 0x00834ff8, 0x0082d610, 0x0082bed8, 0x00834fe8, 0x00834fdc, 0x00834fd4,
+        0x00834fc8, 0x00834fbc, 0x00834fb0, 0x0082d5ac, 0x00834f98, 0x0082d5d4, 0x00834f84, 0x0082d678,
+        0x00834f74, 0x00834f64, 0x00834f54,
+    };
+    for (const uint32_t name : kNames) Cmd_RemoveCommand(&title_global<const char>(name));
+}
+
+namespace {
+
+// cl_testAnimWeight stepped by the frame time over the rate cvar (0x0093fce4; 0 counts as 1) * 0.002.
+float anim_weight_step(float rate) {
+    if (rate == 0.0f) rate = 1.0f;
+    return static_cast<float>(title_global<int32_t>(0x0092be90)) / rate * 0.002f;  // cls.frametime
+}
+
+}  // namespace
+
+void XB_CDECL CL_DecAnimWeight_f() {
+    const float weight = cvar_value(0x00929b0c);
+    float value = weight - anim_weight_step(cvar_value(0x0093fce4));
+    if (0.0f > value) value = 0.0f;
+    Cvar_SetValue(&title_global<const char>(0x0083441c), value);  // cl_testAnimWeight
+}
+
+void XB_CDECL CL_IncAnimWeight_f() {
+    const float weight = cvar_value(0x00929b0c);
+    float value = anim_weight_step(cvar_value(0x0093fce4)) + weight;
+    if (value > 1.0f) value = 1.0f;
+    Cvar_SetValue(&title_global<const char>(0x0083441c), value);  // cl_testAnimWeight
+}
+
+namespace {
+
+// Key_SetBinding(key, ""), inlined.
+void clear_binding(uint32_t key) {
+    const char*& binding = title_global<const char*>(0x0093425c + 8 * key);
+    if (binding) title_function<void XB_CDECL(const void*)>(0x000428d0)(binding);  // Z_Free
+    binding = CopyString(&title_global<const char>(0x0082dfeb));
+    title_global<uint32_t>(0x009403ec) |= 1;  // cvar_modifiedFlags
+}
+
+}  // namespace
+
+void XB_CDECL Key_Unbindall_f() {
+    for (uint32_t i = 0; i < 256; ++i)
+        if (title_global<const char*>(0x0093425c + 8 * i)) clear_binding(i);
+}
+
+void XB_CDECL Key_Unbind_f() {
+    if (cmd_argc() != 2) return;
+    const int32_t key = Key_StringToKeynum(cmd_argv(1));
+    if (key == -1) return;
+    clear_binding(uint32_t(key));
+}
+
+PLATFORM_ASM_ENTRY(CL_ExecControllerConfig_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CL_ExecControllerConfig) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CL_ExecControllerConfig(int32_t style) {
+    Cvar_SetValue(&title_global<const char>(0x0082e084), static_cast<float>(style));  // cg_controllerconfig
+    uint32_t text = 0x0082dff4;  // "exec style_h.cfg\n"
+    if (style == 1)
+        text = 0x0082e030;  // style_e
+    else if (style == 2)
+        text = 0x0082e01c;  // style_f
+    else if (style == 3)
+        text = 0x0082e008;  // style_g
+    Cbuf_AddText(&title_global<const char>(text));
+    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute (a tail jump)
+}
+
 }  // namespace game

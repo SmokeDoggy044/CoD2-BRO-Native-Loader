@@ -323,4 +323,31 @@ extern "C" void SCR_UpdateLoadingDots_entry(void);
 // of the 19-entry button name table 0x008d5a98 {name, value} matching name (stricmp), 0 if none.
 const char* XB_REGS3 XB_CDECL Key_TranslateButtonName(const char* name, uint32_t unused_edx, char* out);
 
+// 0x00293720: the front buffer redrawn as a 640x480 quad (an empty frame first, then one with clear flags 0xf3).
+void XB_CDECL SCR_RedrawFrontBuffer();
+// 0x002ab7c0: Q3's CL_Setenv_f without the putenv: "name=value ..." built from the arguments in a local buffer only.
+void XB_CDECL CL_Setenv_f();
+// 0x002b31f0: Q3's CL_ShellExecute_URL_f without the shell call: for "open" with 3+ arguments only _atol(argv 3).
+void XB_CDECL CL_ShellExecute_URL_f();
+// 0x002b32b0: Q3's CL_ForwardToServer_f: Cmd_ArgsFrom(1) as a reliable command (CL_AddReliableCommand, inlined)
+// when connected (cls.state 2) with an argument.
+void XB_CDECL CL_ForwardToServer_f();
+// 0x002b3370: Q3's Key_Bindlist_f with the Com_Printf compiled out: Key_KeynumToString(key, 0) of every bound key.
+void XB_CDECL Key_Bindlist_f();
+// 0x002b3580: Q3's CL_ShutdownInput - Cmd_RemoveCommand for the first 59 of CL_InitInput's commands.
+void XB_CDECL CL_ShutdownInput();
+// 0x002ccf40 / 0x002ccfb0: cl_testAnimWeight -/+ cls.frametime / rate (cvar 0x0093fce4, 0 = 1) * 0.002, clamped
+// to 0 / 1.0 (Cvar_SetValue).
+void XB_CDECL CL_DecAnimWeight_f();
+void XB_CDECL CL_IncAnimWeight_f();
+// 0x002c1d60: Q3's Key_Unbindall_f: every bound key set to a "" copy (Key_SetBinding inlined: Z_Free, CopyString,
+// cvar_modifiedFlags |= 1).
+void XB_CDECL Key_Unbindall_f();
+// 0x002c1db0: Q3's Key_Unbind_f: with exactly one argument, that key (Key_StringToKeynum) set to "" as above.
+void XB_CDECL Key_Unbind_f();
+// 0x00331030 (style in ESI): cg_controllerconfig = style, then "exec style_e/f/g.cfg" for 1/2/3 (style_h
+// otherwise) and Cbuf_Execute (a tail jump).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_ExecControllerConfig(int32_t style);
+extern "C" void CL_ExecControllerConfig_entry(void);
+
 }  // namespace game
