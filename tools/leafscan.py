@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Which decompiled functions tests/leaf_test.cpp can run offline from default.xbe's bytes:
-code that needs nothing but memory - no indirect calls (kernel thunks, vtables), no
+code that needs nothing but memory - no indirect calls (kernel thunks, vtables; pinned hooks,
+the static allocator's vtable, preset and logged .bss slots are fine), no
 FS/port/privileged instructions, no calls into SDK sections that touch the hardware
 (D3D, DSOUND, XONLINE, XNET, XPP), and callees that pass the same test. Globals are fine:
 the test maps the image at its addresses and randomizes the ones read.
@@ -26,10 +27,26 @@ HARDWARE_SECTIONS = {"D3D", "DSOUND", "XONLINE", "XNET", "XPP"}
 STANDINS = {0x00042cb0: "Z_Malloc", 0x001e763a: "XPhysicalAlloc", 0x001e76ba: "XPhysicalFree",
             0x001f114f: "_aligned_malloc", 0x001f113a: "_aligned_free",
             0x001eea95: "_vsprintf", 0x001ee901: "_sprintf", 0x001efce2: "__vsnprintf"}
-# Globals that hold an optional hook, 0 in the image and in the game: never randomized, and the
-# indirect branch they guard is not a blocker in these functions (Mem_AlignedFree's free hook).
-PINNED = {0x009098ec}
-PINNED_INDIRECT = {0x000939b0}
+# Globals that hold an optional hook, 0 in the image and in the game: never randomized, and a
+# jmp/call through a register loaded from one is not a blocker (never taken): the free hooks
+# 0x009098ec (Mem_AlignedFree, nglFreeFileBuffer) and 0x009098dc (nglFreeFileBuffer), the
+# alloc hook 0x009098e8 (Mem_AlignedAlloc).
+HOOKS = {0x009098ec, 0x009098e8, 0x009098dc}
+# Globals that point to a static object with a fixed vtable in .rdata: never randomized (nor the
+# object's vtable pointer), and call [vtable+N] through them calls the slot's function (the
+# particle/effect allocator 0x008bb760 -> 0x008bb768 -> vtable 0x007c4d90: +4 alloc 0x94120,
+# +8 free 0x94140, which reach Mem_AlignedAlloc/Free and the test's stand-ins).
+OBJECTS = {0x008bb760: 0x008bb768}
+# Function pointers in .bss the game fills at startup with fixed values: the test presets them
+# (tests/leaf_test.cpp kPresets), never randomized, and a call through one calls that function
+# (Swap_Init's little-endian byte-order functions).
+PRESETS = {0x0092f138: 0x002a97c0, 0x0092f134: 0x002a97b0, 0x00933e38: 0x002a9780, 0x00927de0: 0x002a9770,
+           0x00929b10: 0x002a9710, 0x00929c24: 0x002a9700, 0x00934a58: 0x002a96c0, 0x00929b20: 0x002a96b0}
+# Import slots in .bss (the cgame's engine calls, the renderer's 0x0095e634/0x0095e6b0): the test
+# fills them with log stubs (cdecl, record the slot and 6 argument words, return 0) and compares
+# the call log; never randomized.
+LOGGED = set(range(0x009284f4, 0x0092857c, 4)) | {0x0095e634, 0x0095e6b0}
+PINNED = HOOKS | set(OBJECTS) | set(OBJECTS.values()) | set(PRESETS) | LOGGED
 # Functions that call a function passed as an argument; their callers push it as an immediate
 # (eh_vector_constructor_iterator(array, size, count, constructor), stdcall).
 ARGUMENT_CALLERS = {0x00011240}
@@ -83,6 +100,13 @@ def call_table(image, operand):
         va += 4
 
 
+REGISTER = re.compile(r"e(ax|bx|cx|dx|si|di|bp)")
+
+
+def word(image, va):
+    return struct.unpack("<I", image.read(va, 4))[0]
+
+
 def scan(image, starts, va):
     i = bisect.bisect_right(starts, va)
     end = starts[i] if i < len(starts) else va + 0x400
@@ -91,11 +115,54 @@ def scan(image, starts, va):
     callees, problems, reads, writes, addressed, indexed = set(), set(), set(), set(), set(), set()
     live = reachable(rows, va)
     pushed = []  # immediates pushed since the last call
+    held = {}  # register -> ("hook",) / ("object", address) / ("vtable", address), in address order
     for address, _, text in rows:
         if address not in live:
             continue
         mnemonic, operands = fnpack.split_operands(text)
         joined = ",".join(operands)
+        if mnemonic in ("call", "jmp") and REGISTER.fullmatch(joined) and held.get(joined, ("",))[0] in ("hook", "logged", "preset"):
+            if held[joined][0] == "preset":
+                callees.add(held[joined][1])
+            if mnemonic == "call":
+                pushed = []
+                for r in ("eax", "ecx", "edx"):
+                    held.pop(r, None)
+            continue  # a pinned hook (0, never taken), a log stub or a preset function
+        slot = re.fullmatch(r"DWORD PTR ds:0x([0-9a-f]+)", joined)
+        if mnemonic in ("call", "jmp") and slot and int(slot.group(1), 16) in LOGGED | set(PRESETS):
+            if int(slot.group(1), 16) in PRESETS:
+                callees.add(PRESETS[int(slot.group(1), 16)])
+            pushed = []
+            for r in ("eax", "ecx", "edx"):
+                held.pop(r, None)
+            continue
+        m = re.fullmatch(r"DWORD PTR \[(e\w\w)(?:\+0x([0-9a-f]+))?\]", joined)
+        if mnemonic == "call" and m and held.get(m.group(1), ("",))[0] == "vtable":
+            callees.add(word(image, held[m.group(1)][1] + int(m.group(2) or "0", 16)))
+            pushed = []
+            for r in ("eax", "ecx", "edx"):
+                held.pop(r, None)
+            continue
+        if mnemonic == "call":
+            for r in ("eax", "ecx", "edx"):
+                held.pop(r, None)
+        elif operands and REGISTER.fullmatch(operands[0]) and mnemonic not in ("push", "cmp", "test"):
+            source = operands[1] if len(operands) > 1 else ""
+            g = re.fullmatch(r"(?:DWORD PTR )?ds:0x([0-9a-f]+)", source)
+            b = re.fullmatch(r"DWORD PTR \[(e\w\w)\]", source)
+            if mnemonic == "mov" and g and int(g.group(1), 16) in HOOKS:
+                held[operands[0]] = ("hook",)
+            elif mnemonic == "mov" and g and int(g.group(1), 16) in LOGGED:
+                held[operands[0]] = ("logged",)
+            elif mnemonic == "mov" and g and int(g.group(1), 16) in PRESETS:
+                held[operands[0]] = ("preset", PRESETS[int(g.group(1), 16)])
+            elif mnemonic == "mov" and g and int(g.group(1), 16) in OBJECTS:
+                held[operands[0]] = ("object", word(image, int(g.group(1), 16)))
+            elif mnemonic == "mov" and b and held.get(b.group(1), ("",))[0] == "object":
+                held[operands[0]] = ("vtable", word(image, held[b.group(1)][1]))
+            else:
+                held.pop(operands[0], None)
         if BAD.match(text) or "fs:" in joined:
             problems.add("fs:" if "fs:" in joined else mnemonic)
         if mnemonic == "call" or mnemonic.startswith("j"):
@@ -204,7 +271,7 @@ def main():
         if depth > 12:
             return "call depth"
         r = info(va)
-        problems = r["problems"] - ({"indirect jmp", "indirect call"} if va in PINNED_INDIRECT | ARGUMENT_CALLERS else set())
+        problems = r["problems"] - ({"indirect jmp", "indirect call"} if va in ARGUMENT_CALLERS else set())
         if problems:
             where = "" if depth == 0 else f" in {functions.get(va, hex(va))}"
             return ",".join(sorted(problems)) + where

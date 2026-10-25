@@ -347,7 +347,9 @@ uint32_t XB_THISCALL FxEmitterTable_Resize(uint8_t* self, int32_t count) {
     if (count <= at<int16_t>(self, 4)) {
         const int32_t old = at<int16_t>(self, 6);
         if (count > old) {
-            for (uint8_t* p = at<uint8_t*>(self, 0) + old * 0x2c; p != at<uint8_t*>(self, 0) + count * 0x2c; p += 0x2c) {
+            // begin and end once (the elements can overlap self: random inputs)
+            uint8_t* const data = at<uint8_t*>(self, 0);
+            for (uint8_t* p = data + old * 0x2c, *end = data + count * 0x2c; p != end; p += 0x2c) {
                 if (p) std::memset(p, 0, 0x2c);
             }
         }
@@ -555,7 +557,9 @@ uint32_t XB_THISCALL FxStageArray_Resize(uint8_t* self, int32_t count) {
     if (count <= at<int16_t>(self, 4)) {
         const int32_t old = at<int16_t>(self, 6);
         if (count > old) {
-            for (uint8_t* p = at<uint8_t*>(self, 0) + old * 0x3c; p != at<uint8_t*>(self, 0) + count * 0x3c; p += 0x3c) {
+            // begin and end once (the elements can overlap self: random inputs)
+            uint8_t* const data = at<uint8_t*>(self, 0);
+            for (uint8_t* p = data + old * 0x3c, *end = data + count * 0x3c; p != end; p += 0x3c) {
                 if (p) init_stage(p);
             }
         }

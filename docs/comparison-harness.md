@@ -310,8 +310,20 @@ pages: in .bss it sat below malloc's heap and an overrun corrupted the worker), 
 before each run, compared after it like the arena, with the list of freed pointers; _vsprintf,
 _sprintf and __vsnprintf (they reach _getptd through FS) format with the host's printf (an i386
 va_list is the same pointer), refusing %n; our C reaches them through the title's
-addresses, so both sides get the same answers. Pinned: Mem_AlignedFree's free hook 0x009098ec
-stays 0 (never randomized). Globals are allowed; the ones read by the function and its callees are randomized,
+addresses, so both sides get the same answers. Pinned (never randomized): the hooks 0x009098ec
+(free), 0x009098e8 (Mem_AlignedAlloc) and 0x009098dc (nglFreeFileBuffer) stay 0, and a jmp/call
+through a register loaded from one is not a blocker; the effect allocator 0x008bb760 and its object's
+vtable pointer keep the image's values, and `call [reg+N]` with reg = [[0x008bb760]] calls vtable
+0x007c4d90's slot (+4 0x94120, +8 0x94140: they reach Mem_AlignedAlloc/Free and the stand-ins, so no
+stand-in of their own); leafscan follows the registers in address order. Presets (`kPresets`,
+PRESETS): .bss function pointers the game sets at startup, written into the image (Swap_Init's
+little-endian byte-order functions, 0x0092f138 etc.); a call through one calls that function. Log
+stubs (LOGGED): the import slots 0x009284f4-0x00928578 (cgame) and 0x0095e634/0x0095e6b0 (renderer)
+hold cdecl stubs that log the slot and its first words and return 0; the log is compared like the
+frees. Words logged per slot (`kSlotArgs`): the fewest any call site pops right after the call, else
+0 (logging 6 compared the callers' stack words past the arguments: return addresses, locals); a word
+pointing into the call stack logs as a marker. A stub writes no out-parameter (R_DrawPic's
+coordinates stay as they are) and pushes no x87 result (CG_ParseConfigStringFloat9: every input skipped). Globals are allowed; the ones read by the function and its callees are randomized,
 except constants in writable sections: every instruction naming the address reads it, none
 writes it or takes its address, and nothing within 16 bytes below is a base (address taken, or
 indexed by a register) - FastSinCos's rounding constant 0x008febd0 lives in .data. A heuristic:
