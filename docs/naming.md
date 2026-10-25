@@ -796,4 +796,15 @@ CoD-specific functions included, so later decompilation covers both kinds.
     index vs the ctor's fill order; 003341e0 is MissionSuccessFailMenu_HandleSelect (was PauseMenu_HandleSelect).
   - Many vtable slots target uncreated functions (0x00011xxx-0x00013xxx dtors/getters): left as gap functions.
     The 7-slot HUD component vtables (HudManager_Create, ~12) are a separate hierarchy, not done yet.
-  Next (in progress): per-screen ctors/dtors and slots 10/12/14/16/20-25; the 288 aligned 2-caller functions.
+  2-caller batch 1 (82 names): file request queue, script containers, std tree/string templates, sound bank memory,
+  saves, pmove/weapons, path-node walkers, physics pools, MatrixMultiply (Q3 body).
+  - File requests (0x44, pool 0x00920798): +0 desc[5], +4 op type, +8 device, +0xc handle, +0x10 desc[2], +0x18 queue
+    time, +0x1c deadline, +0x20 device priority << 8 | request priority, +0x2c state, +0x34 bytes done; devices
+    (0x10, pool 0x009207c0) priority +0xc.
+  - Sound bank memory: two-ended stack allocator, base 0x0091f648, size 0x0091f64c, 0x240-byte units, 64 block sizes
+    at 0x0091f548 (bit 31 = freed), bottom index 0x008bed08, top 0x008bed04, free size 0x0091f650.
+  - Fixed pools: vehicle physics 5 x 0x220 (ptrs +0xaa0, idx +0xab4, base +0xac8, count +0xacc), physics objects
+    30 x 0xd0 (+0x1860/+0x18d8/+0x1950/+0x1954), ragdoll physics 6 x 0x1d50 (+0xafe0/+0xaff8/+0xb010/+0xb014).
+  - pm->ps +0x88: 0..1 aim-down-sight fraction (weapon def rates +0x868 in, +0x86c out; medium).
+  - g_pathNodeBlocks: block array +8, count via +0x194 -> +0xc; block: node count +4, 0x80-byte nodes at +0x10.
+  Next (in progress): per-screen UI methods + HUD components; the remaining 120 2-caller functions.
