@@ -535,4 +535,48 @@ uint8_t* XB_THISCALL FXCmd_RecordCtor(uint8_t* cmd) {
     return cmd;
 }
 
+PLATFORM_ASM_ENTRY(FXCmdQueue_Ctor_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FXCmdQueue_Ctor) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL FXCmdQueue_Ctor(uint8_t* queue) {
+    word(queue, 0) = 0;
+    word(queue, 0x804) = 0;
+    word(queue, 0x910) = 0;
+    for (uint32_t i = 0; i < 0x40; ++i) FXCmd_RecordCtor(queue_slot(queue, i));
+    word(queue, 0x8d20) = 0;
+    word(queue, 0x8d28) = 0;
+    for (uint32_t i = 0; i < 0x20; ++i) {
+        word(queue, 0x8d2c + i * 8) = 0;
+        word(queue, 0x8d30 + i * 8) = 0;
+    }
+    word(queue, 0x8d24) = 0;
+    return queue;
+}
+
+// The C frame below a gap; the transform and the callee's frame at the original's addresses.
+PLATFORM_ASM_ENTRY(FXCmd_Type2AtOrigin_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "leal 4(%ebp), %edx\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(FXCmd_Type2AtOrigin) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL FXCmd_Type2AtOrigin(uint32_t entry, uint8_t* entity, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    const uint32_t value = arg(entry, 1);
+    uint8_t* const transform = pointer(((entry - 4) & ~15u) - 0x30);
+    for (uint32_t i = 0; i < 4; ++i) word(transform, 0x10 + i * 4) = title_global<uint32_t>(0x0082e290 + i * 4);  // 0, 0, 0, 1
+    std::memcpy(transform, entity + 0x20, 16);
+    word(transform, 0x20) = value;
+    const TitleRegs regs{address_of(entity), ebx, value, address_of(transform), esi, edi};
+    const uint32_t args[1] = {address_of(transform)};
+    return title_call_at_regs(address_of(transform), 0x002a6ab0, &regs, 1, args);  // FXCmd_Type2AtTransform
+}
+
 }  // namespace game

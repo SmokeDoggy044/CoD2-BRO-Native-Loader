@@ -381,4 +381,33 @@ uint32_t XB_THISCALL FxConst_Within(const uint8_t* constant, int32_t count, cons
 uint32_t XB_THISCALL FxConstVector_Within(const uint8_t* constant, int32_t count, const float* value);
 uint32_t XB_THISCALL FxVectorRange_Within(const uint8_t* range, int32_t count, const float* value);
 
+// 0x0009c070: the particle library's globals: the pool set (0x00909f08, 0x1c bytes, its
+// pointer vector reserved to 10 and emptied), the random source (0x00909f04, vtable
+// 0x007c5fc0; also 0x0090993c), the emitters (0x8bb864 of them) and the system pool
+// (0x8bb866).
+void XB_CDECL FX_InitParticleLibrary();
+// 0x000a4d10 (vtable slot 0): FxAction_Destroy, then Z_Free when bit 0 of `flags` is set.
+uint8_t* XB_THISCALL FxAction_DeletingDtor(uint8_t* self, uint32_t flags);
+// The ball domains (centre +0x10, radius +0x1c; FxVectorOp_Init93xx): Within = the point
+// strictly inside the radius (slot 2); the hemispheres also need point.y / point.z >= the
+// centre's. `count` is not read.
+uint32_t XB_THISCALL FxSphereDomain_Within(const uint8_t* self, int32_t count, const float* point);
+uint32_t XB_THISCALL FxYHemisphereDomain_Within(const uint8_t* self, int32_t count, const float* point);
+uint32_t XB_THISCALL FxZHemisphereDomain_Within(const uint8_t* self, int32_t count, const float* point);
+uint32_t XB_THISCALL FxSphereSurfaceDomain_Within(const uint8_t* self, int32_t count, const float* point);
+// The domains' Generate (slot 1): a random point (fx_randSeed 0x00909f6c) into out's xyz,
+// out's w kept; returns out. Line: start +0x10 plus a random fraction of +0x20. Sphere / Z / Y
+// hemisphere: rejection sampling in the cube (one axis only on the positive side: z for the
+// sphere and Z hemisphere, y for the Y hemisphere) until strictly inside the radius, at most
+// 30 / 100 / 100 tries. Sphere surface: a cube point normalized and scaled to the radius. Disc:
+// rejection sampling in the plane square (axes +0x20 / +0x30), at most 100 tries. Circle: a
+// random angle on the rim (the packed sine polynomial).
+uint8_t* XB_THISCALL FxLineDomain_Generate(const uint8_t* self, int32_t count, float* out);
+uint8_t* XB_THISCALL FxSphereDomain_Generate(const uint8_t* self, int32_t count, float* out);
+uint8_t* XB_THISCALL FxYHemisphereDomain_Generate(const uint8_t* self, int32_t count, float* out);
+uint8_t* XB_THISCALL FxZHemisphereDomain_Generate(const uint8_t* self, int32_t count, float* out);
+uint8_t* XB_THISCALL FxSphereSurfaceDomain_Generate(const uint8_t* self, int32_t count, float* out);
+uint8_t* XB_THISCALL FxDiscDomain_Generate(const uint8_t* self, int32_t count, float* out);
+uint8_t* XB_THISCALL FxCircleDomain_Generate(const uint8_t* self, int32_t count, float* out);
+
 }  // namespace game

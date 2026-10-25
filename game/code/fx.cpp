@@ -3,6 +3,7 @@
 #include <cstdarg>
 #include <cstring>
 
+#include "cg_ents.h"
 #include "dobj.h"
 #include "fx_load.h"
 #include "lanes.h"
@@ -5255,17 +5256,6 @@ void particle_heap_free(uint32_t block) {
 
 }  // namespace
 
-// Calls a title function that takes its object in ESI (ECX holds it too).
-extern "C" PLATFORM_HIDDEN void XB_CDECL fx_call_esi(uint32_t function, void* object);
-PLATFORM_ASM_ENTRY(fx_call_esi,
-                   "pushl %esi\n"
-                   "movl 8(%esp), %eax\n"
-                   "movl 12(%esp), %esi\n"
-                   "movl %esi, %ecx\n"
-                   "call *%eax\n"
-                   "popl %esi\n"
-                   "ret")
-
 PLATFORM_ASM_ENTRY(FxSystem_Prewarm_entry,
                    "pushl 4(%esp)\n"
                    "pushl %esi\n" PLATFORM_ASM_CALL(FxSystem_Prewarm) "addl $8, %esp\n"
@@ -5288,7 +5278,7 @@ uint32_t XB_REGS1 XB_CDECL FxComponent_DelayDone(const uint8_t* component) {
 }
 
 uint8_t* XB_THISCALL FxSoundComponent_DeletingDtor(uint8_t* component, uint32_t flags) {
-    fx_call_esi(0x0029ee30, component);  // FxSoundComponent_Dtor
+    FxSoundComponent_Dtor(component);
     if (flags & 1) component_free(component);
     return component;
 }
@@ -5310,17 +5300,7 @@ uint8_t* XB_THISCALL FxParticleComponent_DeletingDtor(uint8_t* component, uint32
 
 uint8_t* XB_THISCALL FxShakeRumbleComponent_DeletingDtor(uint8_t* component, uint32_t flags) {
     *reinterpret_cast<uint32_t*>(component) = 0x008376d0;  // FxShakeRumbleComponent_vtable
-    uint32_t& rumble = *reinterpret_cast<uint32_t*>(component + 0x60);
-    if (rumble) {
-        title_function<void XB_REGS1 XB_STDCALL(uint32_t, uint32_t)>(0x00298ca0)(  // Rumble_Stop
-            title_global<uint32_t>(0x0095f5c4), rumble);
-        rumble = 0;
-    }
-    uint8_t*& shake = *reinterpret_cast<uint8_t**>(component + 0x64);
-    if (shake) {
-        *reinterpret_cast<uint32_t*>(shake + 0x3c) = 0;
-        shake = nullptr;
-    }
+    FxShakeRumbleComponent_Stop(component);
     component_base_dtor(component);
     if (flags & 1) component_free(component);
     return component;
@@ -5459,6 +5439,148 @@ uint32_t XB_THISCALL FxEmitter_SetOrigin(uint8_t* emitter, const uint32_t* origi
     const uint32_t w = origin[3];
     current[3] = w;
     return w;
+}
+
+namespace {
+
+// The memory context's heap (0x0095f638 +0x38, 99 entries; null outside them).
+uint32_t context_heap(int32_t context) {
+    if (context < 0 || context >= 0x63) return 0;
+    return title_global<uint32_t>(title_global<uint32_t>(0x0095f638) + 0x38 + static_cast<uint32_t>(context) * 4);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FxMem_Free_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FxMem_Free) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL FxMem_Free(int32_t context, uint32_t block) {
+    if (!block) return;
+    if (FxPools_ReleaseGlobal(static_cast<int32_t>(block))) return;
+    if (context != -1) {
+        using Free = uint8_t XB_THISCALL(uint32_t, uint32_t);
+        if (title_function<Free>(0x0028bfc0)(context_heap(context), block)) return;  // MemContext_Free_r
+    }
+    title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00042e30)(title_global<uint32_t>(0x0095f6d8), block);  // Heap_FreeIn2
+}
+
+PLATFORM_ASM_ENTRY(FxMem_Alloc_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(FxMem_Alloc) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL FxMem_Alloc(int32_t context, uint32_t size, uint32_t alignment) {
+    using Alloc = uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t);
+    uint32_t block = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(apsAlloc(static_cast<int32_t>(size), alignment)));
+    if (block) return block;
+    if (context != -1) {
+        block = title_function<Alloc>(0x0028c0f0)(context_heap(context), alignment, size);  // MemContext_Alloc_r
+        if (block) return block;
+    }
+    return title_function<Alloc>(0x00042de0)(title_global<uint32_t>(0x0095f6d8), size, alignment);  // Heap_AllocFromHeap
+}
+
+void XB_STDCALL FX_GetEntityTagOrigin(float* out, uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    uint8_t* entity = nullptr;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        entity = title_global<uint8_t*>(0x0097a968 + index * 8);
+    uint8_t* const weapon = &title_global<uint8_t>(0x00975fa8 + entity[3] * 0xc4u);
+    uint32_t& guard = title_global<uint32_t>(0x0098e958);
+    uint32_t tag;
+    if (!(guard & 1)) {
+        guard |= 1;
+        tag = Com_HashKeyNoCase(0, &title_global<const char>(0x008389c0));  // "tag_flash"
+        title_global<uint32_t>(0x0098e954) = tag;
+    } else {
+        tag = title_global<uint32_t>(0x0098e954);
+    }
+    alignas(16) float matrix[16];
+    uint32_t found = 0;
+    if (entity == title_global<uint8_t* const*>(0x0095f534)[1]) {
+        DObj* const model = *reinterpret_cast<DObj* const*>(weapon);
+        if (model) found = CG_DObjGetTagMatrix(tag, model, matrix);
+    } else {
+        const uint32_t model = *reinterpret_cast<const uint32_t*>(entity + 0x22c);
+        if (model) {
+            using WorldTag = uint32_t XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t, uint8_t*, float*);
+            found = title_function<WorldTag>(0x00284d00)(tag, 0, model, entity, matrix);  // CG_DObjGetWorldTagMatrix
+        }
+    }
+    if (found) {
+        out[0] = matrix[12];
+        out[1] = matrix[13];
+        out[2] = matrix[14];
+    } else {
+        for (int i = 0; i < 3; ++i)
+            reinterpret_cast<uint32_t*>(out)[i] = *reinterpret_cast<const uint32_t*>(entity + 0x140 + i * 4);
+    }
+    reinterpret_cast<uint8_t*>(out)[0xc] = 1;
+}
+
+PLATFORM_ASM_ENTRY(FX_EffectComponentsFinished_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(FX_EffectComponentsFinished) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL FX_EffectComponentsFinished(const uint8_t* effect) {
+    const uint32_t* components = reinterpret_cast<const uint32_t*>(effect + 4);
+    for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(effect); ++i) {
+        const uint32_t component = components[i];
+        if (!title_function<uint8_t XB_THISCALL(uint32_t)>(vtable_slot(component, 10))(component)) return 0;
+    }
+    return 1;
+}
+
+void XB_THISCALL FxShakeRumbleComponent_Stop(uint8_t* component) {
+    uint32_t& rumble = *reinterpret_cast<uint32_t*>(component + 0x60);
+    if (rumble) {
+        title_function<void XB_REGS1 XB_STDCALL(uint32_t, uint32_t)>(0x00298ca0)(  // Rumble_Stop
+            title_global<uint32_t>(0x0095f5c4), rumble);
+        rumble = 0;
+    }
+    uint8_t*& shake = *reinterpret_cast<uint8_t**>(component + 0x64);
+    if (shake) {
+        *reinterpret_cast<uint32_t*>(shake + 0x3c) = 0;
+        shake = nullptr;
+    }
+}
+
+void XB_THISCALL FxSoundComponent_SetParent(uint8_t* component, const uint8_t* parent) {
+    *reinterpret_cast<const uint8_t**>(component + 0x14) = parent;
+    const uint32_t* handle = reinterpret_cast<const uint32_t*>(component + 0x64);
+    if (!SoundHandle_Resolve(handle)) return;
+    uint8_t* const channel = SoundHandle_Resolve(handle);
+    *reinterpret_cast<const uint8_t**>(channel + 0x28) = parent;
+    const int32_t voice = *reinterpret_cast<const int32_t*>(channel);
+    if (voice == -1) return;
+    const uint32_t* from = reinterpret_cast<const uint32_t*>(parent + 0x30);
+    const uint32_t origin[3] = {from[0], from[1], from[2]};
+    SndVoice_SetOrigin(voice, origin);
+}
+
+void XB_THISCALL FxSoundComponent_Resume(uint8_t* component) {
+    const uint32_t* handle = reinterpret_cast<const uint32_t*>(component + 0x64);
+    if (!SoundHandle_Resolve(handle)) return;
+    const int32_t voice = *reinterpret_cast<const int32_t*>(SoundHandle_Resolve(handle));
+    if (voice == -1 || SndVoice_GetState(voice) != 3) return;
+    const int32_t again = *reinterpret_cast<const int32_t*>(SoundHandle_Resolve(handle));
+    if (again != -1) title_function<void XB_CDECL(int32_t)>(0x000c3ff0)(again);  // SndVoice_Play
+    const uint32_t subtitle = *reinterpret_cast<const uint32_t*>(component + 0x60);
+    if (subtitle) title_function<uint32_t XB_REGS1 XB_CDECL(uint32_t, uint32_t)>(0x0032f650)(subtitle, 0);  // Subtitle_Start
+}
+
+PLATFORM_ASM_ENTRY(FxSoundComponent_Dtor_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FxSoundComponent_Dtor) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL FxSoundComponent_Dtor(uint8_t* component) {
+    *reinterpret_cast<uint32_t*>(component) = 0x00837674;  // FxSoundComponent_vtable
+    const uint32_t* handle = reinterpret_cast<const uint32_t*>(component + 0x64);
+    if (SoundHandle_Resolve(handle)) S_StopChannel(SoundHandle_Resolve(handle));
+    component_base_dtor(component);
 }
 
 }  // namespace game

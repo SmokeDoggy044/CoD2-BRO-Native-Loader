@@ -796,4 +796,35 @@ uint8_t* XB_CDECL FxSystem_AllocArray(int32_t count, uint32_t alignment);
 // origin, or the new one while the previous is still 0. Returns origin's 4th word.
 uint32_t XB_THISCALL FxEmitter_SetOrigin(uint8_t* emitter, const uint32_t* origin);
 
+// 0x00236ba0 (block EDI, memory context ESI): the effect allocator's free - the global
+// effect pools first (FxPools_ReleaseGlobal), then the context's heap (0x0095f638 +0x38
+// table, 99 entries; -1 skips it), else the main heap 0x0095f6d8.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FxMem_Free(int32_t context, uint32_t block);
+extern "C" void FxMem_Free_entry(void);
+// 0x00236bf0 (size ESI, alignment EDI, memory context EBX): apsAlloc, then the context's heap,
+// else the main heap.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FxMem_Alloc(int32_t context, uint32_t size, uint32_t alignment);
+extern "C" void FxMem_Alloc_entry(void);
+// 0x002462b0: an entity's (handle in the low 12 bits, 0x540 slots at 0x0097a968) "tag_flash"
+// origin (the view's own entity: its weapon model, 0x00975fa8 + 0xc4 per weapon; others:
+// their model +0x22c in world space), else its origin +0x140; out +0xc = 1.
+void XB_STDCALL FX_GetEntityTagOrigin(float* out, uint32_t handle);
+// 0x00293410 (effect in EBX: count +0, components +4): 1 when every component's slot 10
+// (finished) says so.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL FX_EffectComponentsFinished(const uint8_t* effect);
+extern "C" void FX_EffectComponentsFinished_entry(void);
+// 0x0029ae90 (vtable slot 4): stops the rumble (+0x60, Rumble_Stop) and detaches the shake
+// (+0x64: its +0x3c cleared).
+void XB_THISCALL FxShakeRumbleComponent_Stop(uint8_t* component);
+// 0x0029b010 (vtable slot 9): parent +0x14; a live sound handle's (+0x64) channel gets it at
+// +0x28 and its voice the parent's origin (+0x30).
+void XB_THISCALL FxSoundComponent_SetParent(uint8_t* component, const uint8_t* parent);
+// 0x0029ed60 (vtable slot 3): replays a live handle's voice in state 3 (paused) and restarts
+// its subtitle (+0x60).
+void XB_THISCALL FxSoundComponent_Resume(uint8_t* component);
+// 0x0029ee30 (component in ESI): stops a live handle's channel (S_StopChannel), then the
+// base destructor.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FxSoundComponent_Dtor(uint8_t* component);
+extern "C" void FxSoundComponent_Dtor_entry(void);
+
 }  // namespace game
