@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cstring>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
 #include "backend.h"
@@ -15,7 +16,9 @@
 #include "log.h"
 #include "nv2a.h"
 #include "shader_state.h"
+#include "texture_hash.h"
 #include "xbox_d3d.h"
+#include "xbox_d3d_api.h"
 
 namespace render {
 
@@ -136,6 +139,23 @@ bool current_layout(VertexLayout& layout) {
 thread_local std::vector<float> t_vertices;
 thread_local std::vector<uint32_t> t_indices;
 
+// Where converted vertices go: straight into the back end's draw buffer when it takes
+// them (written once, not copied there afterwards), else t_vertices.
+float* vertex_output(uint32_t vertex_count, uint32_t attributes, bool to_backend) {
+    if (Backend* b = backend(); b && to_backend) {
+        platform::HostFloatEnv float_env;
+        if (float* mapped = b->map_vertices(vertex_count, attributes)) return mapped;
+    }
+    t_vertices.resize(static_cast<size_t>(vertex_count) * attributes * 4);
+    return t_vertices.data();
+}
+
+// The vertices handed to submit: where they are and, for static sources, their key.
+struct Vertices {
+    const float* data = nullptr;  // null: the back end's cached copy of `key`
+    uint64_t key = 0, content = 0;
+};
+
 // Appends the primitive's indices as a back end primitive. `source` = null means
 // vertices 0..count-1.
 DrawInput::Primitive convert_primitive(uint32_t primitive, const uint32_t* source, uint32_t count,
@@ -208,8 +228,8 @@ void apply_fog_states() {
     nv2a::write(kNvFogParams, params, 3);
 }
 
-void submit(uint32_t primitive, const VertexLayout& layout, uint32_t vertex_count, const uint32_t* source_indices,
-            uint32_t index_count) {
+void submit(uint32_t primitive, const VertexLayout& layout, const Vertices& vertices, uint32_t vertex_count,
+            const uint32_t* source_indices, uint32_t index_count) {
     static std::once_flag prim_once;
     if (!vertex_count || !begin_draw()) return;
     t_indices.clear();
@@ -229,7 +249,9 @@ void submit(uint32_t primitive, const VertexLayout& layout, uint32_t vertex_coun
         input.indices = source_indices;
         input.index_count = index_count;
     }
-    input.vertices = t_vertices.data();
+    input.vertices = vertices.data;
+    input.vertex_key = vertices.key;
+    input.vertex_content = vertices.content;
     input.vertex_count = vertex_count;
     input.attribute_mask = layout.mask;
     input.depth_max = depth_buffer_max();
@@ -248,12 +270,113 @@ void inline_draw(uint32_t primitive, const uint32_t* data, size_t dwords) {
     stride = (stride + 3) & ~3u;
     const uint32_t vertex_count = static_cast<uint32_t>(dwords * 4 / stride);
     const auto* bytes = reinterpret_cast<const uint8_t*>(data);
-    t_vertices.resize(static_cast<size_t>(vertex_count) * layout.count * 4);
-    float* out = t_vertices.data();
+    float* const vertices = vertex_output(vertex_count, layout.count, true);
+    float* out = vertices;
     for (uint32_t v = 0; v < vertex_count; ++v)
         for (uint32_t a = 0; a < layout.count; ++a, out += 4)
             fetch_attribute(layout.format[a], bytes + static_cast<size_t>(v) * stride + layout.offset[a], out);
-    submit(primitive, layout, vertex_count, nullptr, 0);
+    submit(primitive, layout, {vertices}, vertex_count, nullptr, 0);
+}
+
+// Vertex buffers the title fills once (the world, models) need not be converted every
+// frame: a land view in mission 9 converted ~100,000 vertices (7 MB) a frame (issue #8).
+// A draw's source (buffers, offsets, strides, formats, vertex range) is checked as
+// textures are (d3d9_draw.cpp): a sample hash each frame, the whole range every
+// kFullCheckFrames frames or while it changed in the last kHotFrames. One unchanged for
+// kStableFrames is static: the back end keeps it converted.
+constexpr uint32_t kSampleBlocks = 16, kSampleBlockSize = 64, kFullCheckFrames = 8, kHotFrames = 60;
+constexpr uint32_t kStableFrames = 3, kForgetFrames = 600;
+
+struct SourceState {
+    uint64_t sample = 0, content = 0;
+    uint32_t checked_frame = 0, changed_frame = 0;
+};
+thread_local std::unordered_map<uint64_t, SourceState> t_sources;
+thread_local uint32_t t_sources_swept = 0;
+
+struct ByteRange {
+    const uint8_t* data;
+    size_t size;
+};
+
+uint64_t sample_ranges(const ByteRange* ranges, uint32_t count) {
+    uint64_t h = 0xCBF29CE484222325ull;
+    for (uint32_t r = 0; r < count; ++r) {
+        const ByteRange& range = ranges[r];
+        if (range.size <= kSampleBlocks * kSampleBlockSize * 2) {
+            h = hash_bytes(range.data, range.size, h);
+            continue;
+        }
+        for (uint32_t i = 0; i < kSampleBlocks; ++i)
+            h = hash_bytes(range.data + (range.size - kSampleBlockSize) * i / (kSampleBlocks - 1), kSampleBlockSize, h);
+    }
+    return h;
+}
+
+uint64_t hash_ranges(const ByteRange* ranges, uint32_t count) {
+    uint64_t h = 0xCBF29CE484222325ull;
+    for (uint32_t r = 0; r < count; ++r) h = hash_bytes(ranges[r].data, ranges[r].size, h);
+    return h;
+}
+
+// The key and contents of the source of vertices [first, first + fetched) if it is
+// static, else key 0.
+Vertices static_source(const VertexLayout& layout, const ShaderState& shaders, uint32_t first, uint32_t fetched) {
+    if (!fetched) return {};
+    uint64_t words[4 + kMaxAttributes * 6];
+    uint32_t n = 0;
+    words[n++] = layout.count;
+    words[n++] = first;
+    words[n++] = fetched;
+    ByteRange ranges[kMaxAttributes];
+    uint32_t range_count = 0;
+    for (uint32_t a = 0; a < layout.count; ++a) {
+        const XbStreamInput& stream = shaders.streams[layout.stream[a]];
+        uint32_t data = 0;
+        if (stream.vertex_buffer) data = from_xbox_ptr<XbResource>(stream.vertex_buffer)->data;
+        words[n++] = layout.format[a];
+        words[n++] = layout.stream[a];
+        words[n++] = layout.offset[a];
+        words[n++] = data;
+        words[n++] = stream.offset;
+        words[n++] = stream.stride;
+        if (!data) continue;
+        // Each stream's bytes once: from the first vertex to the last one's end.
+        bool seen = false;
+        for (uint32_t b = 0; b < a; ++b) seen |= layout.stream[b] == layout.stream[a];
+        if (seen) continue;
+        uint32_t end = 0;
+        for (uint32_t b = 0; b < layout.count; ++b)
+            if (layout.stream[b] == layout.stream[a])
+                end = std::max(end, layout.offset[b] + attribute_size(layout.format[b]));
+        const auto* base = from_xbox_ptr<uint8_t>(data | 0x80000000u);
+        ranges[range_count++] = {base + stream.offset + static_cast<size_t>(first) * stream.stride,
+                                 static_cast<size_t>(fetched - 1) * stream.stride + end};
+    }
+    const uint64_t key = hash_bytes(words, n * sizeof(words[0]));
+
+    const uint32_t frame = frames_shown();
+    if (frame - t_sources_swept >= kForgetFrames) {
+        std::erase_if(t_sources, [frame](const auto& entry) { return frame - entry.second.checked_frame > kForgetFrames; });
+        t_sources_swept = frame;
+    }
+    auto [it, fresh] = t_sources.try_emplace(key);
+    SourceState& state = it->second;
+    if (fresh || state.checked_frame != frame) {
+        const uint64_t sample = sample_ranges(ranges, range_count);
+        if (fresh || sample != state.sample || frame - state.changed_frame < kHotFrames ||
+            (frame + static_cast<uint32_t>(key)) % kFullCheckFrames == 0) {
+            const uint64_t content = hash_ranges(ranges, range_count) | 1;  // never 0
+            if (fresh || content != state.content) {
+                state.content = content;
+                state.changed_frame = frame;
+            }
+        }
+        state.sample = sample;
+        state.checked_frame = frame;
+    }
+    if (frame - state.changed_frame < kStableFrames) return {};
+    return {nullptr, key, state.content};
 }
 
 }  // namespace
@@ -277,8 +400,18 @@ void draw_streams(uint32_t primitive, uint32_t start_vertex, uint32_t vertex_cou
         for (uint32_t i = 0; i < vertex_count; ++i) rebased[i] = indices[i] - first;
     }
     const uint32_t fetched = last - first;
-    t_vertices.resize(static_cast<size_t>(fetched) * layout.count * 4);
-    float* out = t_vertices.data();
+    Vertices vertices = static_source(layout, shaders, first, fetched);
+    if (vertices.key) {
+        Backend* b = backend();
+        if (b && b->has_cached_vertices(vertices.key, vertices.content)) {
+            submit(primitive, layout, vertices, fetched, indices ? rebased.data() : nullptr, vertex_count);
+            return;
+        }
+    }
+    // A static source's vertices go to the back end's cache from memory of our own.
+    float* const converted = vertex_output(fetched, layout.count, !vertices.key);
+    vertices.data = converted;
+    float* out = converted;
     for (uint32_t v = 0; v < fetched; ++v) {
         for (uint32_t a = 0; a < layout.count; ++a, out += 4) {
             const XbStreamInput& stream = shaders.streams[layout.stream[a]];
@@ -293,19 +426,19 @@ void draw_streams(uint32_t primitive, uint32_t start_vertex, uint32_t vertex_cou
                             base + stream.offset + static_cast<size_t>(first + v) * stream.stride + layout.offset[a], out);
         }
     }
-    submit(primitive, layout, fetched, indices ? rebased.data() : nullptr, vertex_count);
+    submit(primitive, layout, vertices, fetched, indices ? rebased.data() : nullptr, vertex_count);
 }
 
 void draw_user_pointer(uint32_t primitive, uint32_t vertex_count, const void* data, uint32_t stride) {
     VertexLayout layout;
     if (!current_layout(layout)) return;
     const auto* bytes = static_cast<const uint8_t*>(data);
-    t_vertices.resize(static_cast<size_t>(vertex_count) * layout.count * 4);
-    float* out = t_vertices.data();
+    float* const vertices = vertex_output(vertex_count, layout.count, true);
+    float* out = vertices;
     for (uint32_t v = 0; v < vertex_count; ++v)
         for (uint32_t a = 0; a < layout.count; ++a, out += 4)
             fetch_attribute(layout.format[a], bytes + static_cast<size_t>(v) * stride + layout.offset[a], out);
-    submit(primitive, layout, vertex_count, nullptr, 0);
+    submit(primitive, layout, {vertices}, vertex_count, nullptr, 0);
 }
 
 namespace {

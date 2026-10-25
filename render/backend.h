@@ -112,6 +112,12 @@ struct DrawInput {
     const uint32_t* indices = nullptr;  // null: vertices in order
     uint32_t index_count = 0;
     float depth_max = 16777215.0f;  // the depth buffer's largest value (screen-space z range)
+    // Non-zero: the vertices come from title vertex buffers that stayed the same for a
+    // few frames (the world, models), identified by `vertex_key` with contents hashing to
+    // `vertex_content`; the back end may keep them converted. `vertices` is null when
+    // has_cached_vertices said it has them.
+    uint64_t vertex_key = 0;
+    uint64_t vertex_content = 0;
 };
 
 class Backend {
@@ -144,6 +150,22 @@ public:
 
     // Draws to the current render target with the current Xbox state.
     virtual void draw(const DrawInput& input) = 0;
+
+    // Room for the next draw's converted vertices (`attributes` float4s each) in the back
+    // end's own draw buffer, so they are written once instead of copied; null: use other
+    // memory. Pass the pointer as DrawInput::vertices to the next draw.
+    virtual float* map_vertices(uint32_t vertex_count, uint32_t attributes) {
+        (void)vertex_count;
+        (void)attributes;
+        return nullptr;
+    }
+    // Whether the back end still holds the vertices of DrawInput::vertex_key with these
+    // contents, so the next draw can pass null vertices.
+    virtual bool has_cached_vertices(uint64_t key, uint64_t content) {
+        (void)key;
+        (void)content;
+        return false;
+    }
 
     // Handles window events. Returns false once the user closed the window.
     virtual bool pump_events() = 0;

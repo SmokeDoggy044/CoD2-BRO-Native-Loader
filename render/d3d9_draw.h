@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
 
 #include "backend.h"
 #include "d3d9_api.h"
@@ -22,6 +23,9 @@ public:
 
     void draw(const DrawInput& input);
     void end_frame();  // textures are checked for CPU changes once per frame
+    // Backend::map_vertices / has_cached_vertices.
+    float* map_vertices(uint32_t vertex_count, uint32_t attributes);
+    bool has_cached_vertices(uint64_t key, uint64_t content) const;
 
     // Render targets: D3D9 render target textures by Xbox memory address. False if the
     // target cannot be created (draws then go nowhere).
@@ -50,18 +54,27 @@ private:
     struct Caches;
     struct CachedTexture;
     struct Target;
+    struct CachedVertices;
     // The texture bound to a stage as a D3D9 texture (created or updated), or null.
     CachedTexture* texture_for_stage(uint32_t stage);
     // Makes `entry` hold `replacement` (BackendConfig::replace_texture), with a full
     // mipmap chain if `mipmaps`. False if the texture cannot be created.
     bool upload_replacement(CachedTexture& entry, const TextureReplacement& replacement, bool mipmaps);
     bool magenta_shader();  // creates magenta_ once; false if that failed
-    // Draws `input` from vertex_buffer_/index_buffer_ (filled front to back, NOOVERWRITE,
-    // DISCARD on wrap). False (nothing drawn) if they cannot be made or locked.
-    bool stream_draw(const DrawInput& input, D3DPRIMITIVETYPE type, uint32_t primitives, uint32_t stride);
+    bool create_streams();  // vertex_buffer_/index_buffer_ once; false if they cannot be made
+    // The cached vertices of input.vertex_key, made from input.vertices if they are given
+    // (a static source seen for the first time or changed); null if there are none.
+    CachedVertices* cached_vertices(const DrawInput& input, uint32_t stride);
+    void unmap_vertices();  // ends a map_vertices lock the draw did not take
+    // Draws `input` from `cached`, or else from vertex_buffer_ (filled front to back,
+    // NOOVERWRITE, DISCARD on wrap; map_vertices writes there directly), with indices
+    // from index_buffer_. False (nothing drawn) if the buffers cannot be made or locked.
+    bool stream_draw(const DrawInput& input, const CachedVertices* cached, D3DPRIMITIVETYPE type,
+                     uint32_t primitives, uint32_t stride);
     // How the draw, UI laid out for a narrower shape, is narrowed, or anchor -1 if it is
     // not (BackendConfig::narrow_ui_draw).
-    UiNarrowing narrow_ui(const DrawInput& input, uint32_t width, uint32_t height) const;
+    UiNarrowing narrow_ui(const DrawInput& input, const CachedVertices* cached, uint32_t width,
+                          uint32_t height) const;
     void dump_draw(const DrawInput& input, const XbPixelShaderDef& def, uint64_t vs_key, uint32_t primitives);
 
     IDirect3DDevice9* device_;
@@ -94,6 +107,12 @@ private:
     uint32_t vertex_buffer_size_ = 0, vertex_offset_ = 0;
     uint32_t index_buffer_size_ = 0, index_offset_ = 0;
     bool streams_failed_ = false;  // creating or locking them failed: DrawPrimitiveUP
+    DWORD buffer_usage_ = 0;       // usage flags for vertex/index buffers (software processing)
+    float* mapped_ = nullptr;      // map_vertices: locked in vertex_buffer_ at mapped_offset_
+    uint32_t mapped_offset_ = 0, mapped_stride_ = 0;
+    // Static sources' vertices (DrawInput::vertex_key), kept within kVertexCacheBytes.
+    std::unique_ptr<std::unordered_map<uint64_t, CachedVertices>> vertex_cache_;
+    uint64_t vertex_cache_bytes_ = 0;
     std::unique_ptr<Caches> caches_;
 };
 

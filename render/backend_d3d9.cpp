@@ -477,6 +477,14 @@ public:
         device_->EndScene();
     }
 
+    float* map_vertices(uint32_t vertex_count, uint32_t attributes) override {
+        return draw_->map_vertices(vertex_count, attributes);
+    }
+
+    bool has_cached_vertices(uint64_t key, uint64_t content) override {
+        return draw_->has_cached_vertices(key, content);
+    }
+
     bool pump_events() override {
         if (closed_) return false;
         SDL_Event event;

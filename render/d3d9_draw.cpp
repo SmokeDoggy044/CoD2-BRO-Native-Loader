@@ -409,15 +409,29 @@ IDirect3DTexture9* D3D9Draw::target_texture(uint32_t data) {
     return it == caches_->targets.end() ? nullptr : it->second.texture;
 }
 
+struct D3D9Draw::CachedVertices {
+    IDirect3DVertexBuffer9* buffer = nullptr;
+    uint64_t content = 0;
+    uint32_t bytes = 0;
+    uint32_t used_frame = 0;
+    float left = 0.0f, right = 0.0f;  // position x range (narrow_ui)
+};
+
 D3D9Draw::~D3D9Draw() {
     release(magenta_);
+    unmap_vertices();
     release(vertex_buffer_);
     release(index_buffer_);
+    if (vertex_cache_)
+        for (auto& [key, entry] : *vertex_cache_) release(entry.buffer);
 }
 
 namespace {
 
 constexpr uint32_t kVertexBufferSize = 8u << 20, kIndexBufferSize = 2u << 20;
+// Static vertices kept on the GPU; entries unused for kVertexCacheFrames go first.
+constexpr uint64_t kVertexCacheBytes = 256ull << 20;
+constexpr uint32_t kVertexCacheFrames = 600;
 
 // Room for `bytes` at `offset` (rounded up to `align`) in a buffer of `size`: the lock
 // flags, and `offset` where they go. Wrapping to the start discards the buffer.
@@ -430,46 +444,135 @@ DWORD reserve(uint32_t& offset, uint32_t bytes, uint32_t align, uint32_t size) {
 
 }  // namespace
 
-bool D3D9Draw::stream_draw(const DrawInput& input, D3DPRIMITIVETYPE type, uint32_t primitives, uint32_t stride) {
+bool D3D9Draw::create_streams() {
+    if (vertex_buffer_) return true;
     if (streams_failed_) return false;
-    const uint32_t vertex_bytes = input.vertex_count * stride;
+    D3DDEVICE_CREATION_PARAMETERS creation{};
+    device_->GetCreationParameters(&creation);
+    buffer_usage_ = creation.BehaviorFlags & D3DCREATE_SOFTWARE_VERTEXPROCESSING ? D3DUSAGE_SOFTWAREPROCESSING : 0;
+    const DWORD usage = D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY | buffer_usage_;
+    if (FAILED(device_->CreateVertexBuffer(kVertexBufferSize, usage, 0, D3DPOOL_DEFAULT, &vertex_buffer_, nullptr)) ||
+        FAILED(device_->CreateIndexBuffer(kIndexBufferSize, usage, D3DFMT_INDEX32, D3DPOOL_DEFAULT, &index_buffer_,
+                                          nullptr))) {
+        LOG_WARN("render", "cannot create the draw vertex/index buffers; drawing from memory (slower)");
+        release(vertex_buffer_);
+        release(index_buffer_);
+        streams_failed_ = true;
+        return false;
+    }
+    vertex_buffer_size_ = kVertexBufferSize;
+    index_buffer_size_ = kIndexBufferSize;
+    vertex_offset_ = vertex_buffer_size_;  // the first lock discards
+    index_offset_ = index_buffer_size_;
+    vertex_cache_ = std::make_unique<std::unordered_map<uint64_t, CachedVertices>>();
+    return true;
+}
+
+float* D3D9Draw::map_vertices(uint32_t vertex_count, uint32_t attributes) {
+    unmap_vertices();
+    const uint32_t stride = attributes * 16, bytes = vertex_count * stride;
+    if (!bytes || bytes > kVertexBufferSize || !create_streams()) return nullptr;
+    const DWORD flags = reserve(vertex_offset_, bytes, stride, vertex_buffer_size_);
+    void* to = nullptr;
+    if (FAILED(vertex_buffer_->Lock(vertex_offset_, bytes, &to, flags))) return nullptr;
+    mapped_ = static_cast<float*>(to);
+    mapped_offset_ = vertex_offset_;
+    mapped_stride_ = stride;
+    vertex_offset_ += bytes;
+    return mapped_;
+}
+
+void D3D9Draw::unmap_vertices() {
+    if (!mapped_) return;
+    vertex_buffer_->Unlock();
+    mapped_ = nullptr;
+}
+
+bool D3D9Draw::has_cached_vertices(uint64_t key, uint64_t content) const {
+    if (!vertex_cache_) return false;
+    const auto it = vertex_cache_->find(key);
+    return it != vertex_cache_->end() && it->second.content == content && it->second.buffer;
+}
+
+D3D9Draw::CachedVertices* D3D9Draw::cached_vertices(const DrawInput& input, uint32_t stride) {
+    if (!input.vertex_key || !create_streams()) return nullptr;
+    auto it = vertex_cache_->find(input.vertex_key);
+    if (!input.vertices) {
+        if (it == vertex_cache_->end() || !it->second.buffer) return nullptr;
+        it->second.used_frame = frame_;
+        return &it->second;
+    }
+    const uint32_t bytes = input.vertex_count * stride;
+    CachedVertices& entry = (*vertex_cache_)[input.vertex_key];
+    // A changed source gets a new buffer: the GPU may still read the old one.
+    vertex_cache_bytes_ -= entry.bytes;
+    release(entry.buffer);
+    entry = {};
+    void* to = nullptr;
+    if (FAILED(device_->CreateVertexBuffer(bytes, D3DUSAGE_WRITEONLY | buffer_usage_, 0, D3DPOOL_DEFAULT,
+                                           &entry.buffer, nullptr))) {
+        vertex_cache_->erase(input.vertex_key);
+        return nullptr;
+    }
+    if (FAILED(entry.buffer->Lock(0, 0, &to, 0))) {
+        release(entry.buffer);
+        vertex_cache_->erase(input.vertex_key);
+        return nullptr;
+    }
+    std::memcpy(to, input.vertices, bytes);
+    entry.buffer->Unlock();
+    entry.content = input.vertex_content;
+    entry.bytes = bytes;
+    entry.used_frame = frame_;
+    const uint32_t floats = stride / 4;
+    entry.left = entry.right = input.vertices[0];
+    for (uint32_t i = 1; i < input.vertex_count; ++i) {
+        entry.left = std::min(entry.left, input.vertices[i * floats]);
+        entry.right = std::max(entry.right, input.vertices[i * floats]);
+    }
+    vertex_cache_bytes_ += bytes;
+    return &entry;
+}
+
+bool D3D9Draw::stream_draw(const DrawInput& input, const CachedVertices* cached, D3DPRIMITIVETYPE type,
+                           uint32_t primitives, uint32_t stride) {
+    const bool mapped = mapped_ && input.vertices == mapped_;
+    if (!mapped) unmap_vertices();
+    if (!create_streams()) return false;
     const uint32_t index_bytes = input.indices ? input.index_count * 4 : 0;
     // A draw larger than the buffers (none seen) gets the old path.
-    if (vertex_bytes > kVertexBufferSize || index_bytes > kIndexBufferSize) return false;
-    if (!vertex_buffer_) {
-        D3DDEVICE_CREATION_PARAMETERS creation{};
-        device_->GetCreationParameters(&creation);
-        const DWORD usage = D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY |
-                            (creation.BehaviorFlags & D3DCREATE_SOFTWARE_VERTEXPROCESSING ? D3DUSAGE_SOFTWAREPROCESSING
-                                                                                           : 0);
-        if (FAILED(device_->CreateVertexBuffer(kVertexBufferSize, usage, 0, D3DPOOL_DEFAULT, &vertex_buffer_,
-                                               nullptr)) ||
-            FAILED(device_->CreateIndexBuffer(kIndexBufferSize, usage, D3DFMT_INDEX32, D3DPOOL_DEFAULT,
-                                              &index_buffer_, nullptr))) {
-            LOG_WARN("render", "cannot create the draw vertex/index buffers; drawing from memory (slower)");
-            streams_failed_ = true;
-            return false;
-        }
-        vertex_buffer_size_ = kVertexBufferSize;
-        index_buffer_size_ = kIndexBufferSize;
-        vertex_offset_ = vertex_buffer_size_;  // the first lock discards
-        index_offset_ = index_buffer_size_;
+    if (index_bytes > kIndexBufferSize) {
+        unmap_vertices();
+        return false;
     }
     auto fail = [&](const char* what) {
         LOG_WARN("render", "cannot lock the draw %s buffer; drawing from memory (slower)", what);
         streams_failed_ = true;
         return false;
     };
-    void* to = nullptr;
-    const DWORD vertex_flags = reserve(vertex_offset_, vertex_bytes, stride, vertex_buffer_size_);
-    if (FAILED(vertex_buffer_->Lock(vertex_offset_, vertex_bytes, &to, vertex_flags))) return fail("vertex");
-    std::memcpy(to, input.vertices, vertex_bytes);
-    vertex_buffer_->Unlock();
-    const uint32_t first_vertex = vertex_offset_ / stride;
-    vertex_offset_ += vertex_bytes;
-    device_->SetStreamSource(0, vertex_buffer_, 0, stride);
+    uint32_t first_vertex = 0;
+    if (cached) {
+        device_->SetStreamSource(0, cached->buffer, 0, stride);
+    } else if (mapped) {
+        unmap_vertices();
+        if (mapped_stride_ != stride) return false;  // not drawn: the memory is gone
+        first_vertex = mapped_offset_ / stride;
+        device_->SetStreamSource(0, vertex_buffer_, 0, stride);
+    } else {
+        const uint32_t vertex_bytes = input.vertex_count * stride;
+        if (!input.vertices || vertex_bytes > kVertexBufferSize) return false;
+        void* to = nullptr;
+        const DWORD vertex_flags = reserve(vertex_offset_, vertex_bytes, stride, vertex_buffer_size_);
+        if (FAILED(vertex_buffer_->Lock(vertex_offset_, vertex_bytes, &to, vertex_flags))) return fail("vertex");
+        std::memcpy(to, input.vertices, vertex_bytes);
+        vertex_buffer_->Unlock();
+        first_vertex = vertex_offset_ / stride;
+        vertex_offset_ += vertex_bytes;
+        device_->SetStreamSource(0, vertex_buffer_, 0, stride);
+    }
     if (!input.indices) return SUCCEEDED(device_->DrawPrimitive(type, first_vertex, primitives));
 
+    void* to = nullptr;
     const DWORD index_flags = reserve(index_offset_, index_bytes, 4, index_buffer_size_);
     if (FAILED(index_buffer_->Lock(index_offset_, index_bytes, &to, index_flags))) return fail("index");
     std::memcpy(to, input.indices, index_bytes);
@@ -481,7 +584,8 @@ bool D3D9Draw::stream_draw(const DrawInput& input, D3DPRIMITIVETYPE type, uint32
                                                    first_index, primitives));
 }
 
-UiNarrowing D3D9Draw::narrow_ui(const DrawInput& input, uint32_t width, uint32_t height) const {
+UiNarrowing D3D9Draw::narrow_ui(const DrawInput& input, const CachedVertices* cached, uint32_t width,
+                                uint32_t height) const {
     // Only over a 3D scene (drawn before the UI): flat frames are pillarboxed whole. Only
     // into the back buffer's size: smaller targets are the title's effects (glow).
     if (!narrow_ui_draw_ || !frame_writes_depth_ || !(input.attribute_mask & 1) || width != back_width_ ||
@@ -491,15 +595,39 @@ UiNarrowing D3D9Draw::narrow_ui(const DrawInput& input, uint32_t width, uint32_t
     if (narrowing.anchor < 0.0f || narrowing.factor >= 1.0f) return {};
     // Full-width quads (dimming, letterbox bars) keep covering the picture.
     const uint32_t stride = static_cast<uint32_t>(std::popcount(input.attribute_mask)) * 4;
-    float left = input.vertices[0], right = left;
-    for (uint32_t i = 1; i < input.vertex_count; ++i) {
-        left = std::min(left, input.vertices[i * stride]);
-        right = std::max(right, input.vertices[i * stride]);
+    float left = cached ? cached->left : 0.0f, right = cached ? cached->right : 0.0f;
+    if (!cached && input.vertices) {
+        left = right = input.vertices[0];
+        for (uint32_t i = 1; i < input.vertex_count; ++i) {
+            left = std::min(left, input.vertices[i * stride]);
+            right = std::max(right, input.vertices[i * stride]);
+        }
     }
     return left <= 1.0f && right >= static_cast<float>(width) - 1.0f ? UiNarrowing{} : narrowing;
 }
 
 void D3D9Draw::end_frame() {
+    unmap_vertices();
+    if (vertex_cache_ && frame_ % 60 == 0) {
+        for (auto it = vertex_cache_->begin(); it != vertex_cache_->end();) {
+            if (frame_ - it->second.used_frame <= kVertexCacheFrames) {
+                ++it;
+                continue;
+            }
+            vertex_cache_bytes_ -= it->second.bytes;
+            release(it->second.buffer);
+            it = vertex_cache_->erase(it);
+        }
+    }
+    // Over the budget: the least recently used go.
+    while (vertex_cache_ && vertex_cache_bytes_ > kVertexCacheBytes && !vertex_cache_->empty()) {
+        auto oldest = vertex_cache_->begin();
+        for (auto it = vertex_cache_->begin(); it != vertex_cache_->end(); ++it)
+            if (it->second.used_frame < oldest->second.used_frame) oldest = it;
+        vertex_cache_bytes_ -= oldest->second.bytes;
+        release(oldest->second.buffer);
+        vertex_cache_->erase(oldest);
+    }
     ++frame_;
     unsupported_draws_ = 0;
     flat_frames_ = frame_is_flat() ? flat_frames_ + 1 : 0;
@@ -697,7 +825,8 @@ void log_tokens(const char* what, HRESULT hr, const std::vector<uint32_t>& token
 // with each vertex program's microcode and c[-96..-77] once; XB_DUMP_STOP=k also drops
 // that frame's draws after the k-th, to find the draw that breaks a picture.
 void D3D9Draw::dump_draw(const DrawInput& input, const XbPixelShaderDef& def, uint64_t vs_key, uint32_t primitives) {
-    const float* v = input.vertices;
+    static const float kCached[4] = {};  // a cached static source's vertices are not at hand
+    const float* v = input.vertices ? input.vertices : kCached;
     char textures[200] = "";
     size_t used = 0;
     for (uint32_t stage = 0; stage < 4; ++stage)
@@ -753,6 +882,10 @@ void D3D9Draw::draw(const DrawInput& input) {
     const uint32_t primitives = primitive_count(input.primitive, vertex_count_or_indices);
     if (!primitives || !target_ok_) return;
     const uint32_t width = target_width_, height = target_height_;
+    const UINT stride = static_cast<UINT>(std::popcount(input.attribute_mask)) * 16;
+    // A static source's vertices: kept from before, or kept from now on.
+    const CachedVertices* cached = cached_vertices(input, stride);
+    if (!input.vertices && !cached) return;
 
     // Vertex shader: the program from its start slot to the final instruction.
     const nv2a::State& nv = nv2a::state();
@@ -815,7 +948,7 @@ void D3D9Draw::draw(const DrawInput& input) {
     // UI laid out for the back buffer's shape over a wider 3D picture (in-game menus):
     // narrowed to that shape around an anchor a (a fraction of the width),
     // x' = a w + (x - a w) * k.
-    const UiNarrowing narrowing = narrow_ui(input, width, height);
+    const UiNarrowing narrowing = narrow_ui(input, cached, width, height);
     const float anchor = narrowing.anchor;
     const float narrow = narrowing.factor;
     const float screen_to_clip[8] = {2.0f / width * narrow, -2.0f / height, 1.0f / input.depth_max, 0.0f,
@@ -962,8 +1095,11 @@ void D3D9Draw::draw(const DrawInput& input) {
         device_->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
         device_->SetRenderState(D3DRS_COLORWRITEENABLE, 0xF);
     }
-    const UINT stride = static_cast<UINT>(std::popcount(input.attribute_mask)) * 16;
-    if (stream_draw(input, primitive_type(input.primitive), primitives, stride)) return;
+    // Mapped vertices are gone once stream_draw has run: no fallback for them.
+    const bool mapped = mapped_ && input.vertices == mapped_;
+    if (stream_draw(input, cached, primitive_type(input.primitive), primitives, stride) || mapped ||
+        !input.vertices)
+        return;
     if (input.indices)
         device_->DrawIndexedPrimitiveUP(primitive_type(input.primitive), 0, input.vertex_count, primitives,
                                         input.indices, D3DFMT_INDEX32, input.vertices, stride);
