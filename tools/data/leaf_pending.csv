@@ -1,2 +1,3 @@
 name,reason
 Vehicle_Controller,"explained, not a bug in the C: its callee 0x002de420 copies 3 floats into 16-byte locals and loads all 4 lanes (MOVUPS); the 4th lane is stack residue that differs under our frames (1 input in ~8600)"
+NAL_Float1_CopyState,"open (2026-10-24, after the leaf-blocked merge): a rare input corrupts the worker heap (abort, double free) depending on the address layout - passes under some layouts, all inputs that ran matched; find the input (LEAF_VERBOSE) and keep its copy inside the arena"

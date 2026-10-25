@@ -35,6 +35,7 @@
 #include <ucontext.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -47,6 +48,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "compiler.h"
@@ -279,6 +281,53 @@ const std::pair<uint32_t, void*> kStandins[] = {
     {0x001ee901, reinterpret_cast<void*>(&standin_sprintf)},
     {0x001efce2, reinterpret_cast<void*>(&standin_vsnprintf)},
 };
+// Function pointers in .bss the game fills at startup with fixed values (Swap_Init's little-endian
+// byte-order functions): preset in the image (leafscan's PRESETS).
+const std::pair<uint32_t, uint32_t> kPresets[] = {
+    {0x0092f138, 0x002a97c0}, {0x0092f134, 0x002a97b0}, {0x00933e38, 0x002a9780}, {0x00927de0, 0x002a9770},
+    {0x00929b10, 0x002a9710}, {0x00929c24, 0x002a9700}, {0x00934a58, 0x002a96c0}, {0x00929b20, 0x002a96b0},
+};
+// Import slots in .bss filled at run time (the cgame's engine calls 0x009284f4-0x00928578, the
+// renderer's 0x0095e634 and 0x0095e6b0; leafscan's LOGGED): each gets a cdecl stub that records
+// the slot and its first argument words and returns 0 (EDX:EAX), the same for both sides; the log
+// is compared like the frees. How many words: the fewest any call site pops right after the call
+// (kSlotArgs, at most 6; 0 when no site pops right after: words past the arguments are the
+// caller's, a return address or a local, and differ between the versions; Printf-like slots take
+// more on some calls). A word pointing into the call stack is logged as kStackWord (the frames differ).
+constexpr uint32_t kCgameSlots = (0x0092857c - 0x009284f4) / 4;
+constexpr uint32_t kLoggedSlots = kCgameSlots + 2;
+constexpr uint32_t kStackWord = 0x57ac57ac;
+uint32_t logged_slot(uint32_t k) { return k < kCgameSlots ? 0x009284f4 + 4 * k : k == kCgameSlots ? 0x0095e634 : 0x0095e6b0; }
+const std::map<uint32_t, uint32_t> kSlotArgs = {
+    {0x009284f4, 2}, {0x009284f8, 2}, {0x00928518, 3}, {0x0092851c, 5}, {0x00928520, 3}, {0x00928524, 1},
+    {0x0092852c, 1}, {0x00928530, 6}, {0x00928534, 6}, {0x00928538, 6}, {0x0092853c, 3}, {0x0092854c, 2},
+    {0x00928554, 6}, {0x00928560, 5}, {0x00928564, 5}, {0x00928568, 2}, {0x0092856c, 2}, {0x00928570, 5},
+    {0x00928574, 2}, {0x00928578, 6}, {0x0095e634, 2},
+};
+uint32_t g_stack_lo, g_stack_hi;
+uint32_t g_calls[64 * 7], g_call_count;
+uint64_t log_call(uint32_t slot, const uint32_t* args) {
+    if (g_call_count < 64) {
+        uint32_t* entry = g_calls + 7 * g_call_count;
+        entry[0] = slot;
+        const auto known = kSlotArgs.find(slot);
+        const uint32_t n = known == kSlotArgs.end() ? 0 : known->second;
+        for (uint32_t i = 0; i < 6; ++i)
+            entry[1 + i] = i >= n ? 0 : args[i] >= g_stack_lo && args[i] < g_stack_hi ? kStackWord : args[i];
+    }
+    ++g_call_count;
+    return 0;
+}
+template <uint32_t K>
+__attribute__((force_align_arg_pointer)) uint64_t XB_CDECL log_stub(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f) {
+    const uint32_t args[6] = {a, b, c, d, e, f};
+    return log_call(logged_slot(K), args);
+}
+template <uint32_t... K>
+constexpr std::array<void*, sizeof...(K)> log_stubs(std::integer_sequence<uint32_t, K...>) {
+    return {reinterpret_cast<void*>(&log_stub<K>)...};
+}
+const std::array<void*, kLoggedSlots> kLogStubs = log_stubs(std::make_integer_sequence<uint32_t, kLoggedSlots>());
 
 bool in_host_memory(uint32_t v) {
     if (v < g_host_lowest) return false;
@@ -376,6 +425,11 @@ bool map_image(const Xbe& xbe) {
         code[0] = 0x68;  // push target; ret
         std::memcpy(code + 1, &target, 4);
         code[5] = 0xc3;
+    }
+    for (const auto& [slot, value] : kPresets) std::memcpy(reinterpret_cast<void*>(static_cast<uintptr_t>(slot)), &value, 4);
+    for (uint32_t k = 0; k < kLoggedSlots; ++k) {
+        const auto stub = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(kLogStubs[k]));
+        std::memcpy(reinterpret_cast<void*>(static_cast<uintptr_t>(logged_slot(k))), &stub, 4);
     }
     g_heap = map_guarded(kHeapSize);
     if (!g_heap) return false;
@@ -494,6 +548,7 @@ struct Outcome {
     std::vector<uint8_t> arena;
     std::vector<uint8_t> heap;     // the stand-ins' heap as far as it was used
     std::vector<uint32_t> frees;  // pointers passed to the stand-in frees, in order
+    std::vector<uint32_t> calls;  // the log stubs' records (slot, 6 words), in order
     std::vector<std::pair<uint32_t, std::vector<uint8_t>>> pages;  // written data pages, contents
     std::vector<ArenaWrite> writes;  // with log_arena: every byte a store changed, in order
     uint32_t stores = 0;
@@ -529,6 +584,7 @@ struct Runner {
         std::memset(g_heap, 0, g_heap_used);
         g_heap_used = 0;
         g_free_count = 0;
+        g_call_count = 0;
         g_dirty_list.clear();
         protect_data(PROT_READ);
         if (log_arena) {
@@ -567,6 +623,8 @@ struct Runner {
         o.heap.assign(g_heap, g_heap + ((g_heap_used + 3) & ~3u));
         o.frees.assign(g_frees, g_frees + std::min<uint32_t>(g_free_count, 256));
         if (g_free_count > 256) o.frees.push_back(g_free_count);
+        o.calls.assign(g_calls, g_calls + 7 * std::min<uint32_t>(g_call_count, 64));
+        o.calls.push_back(g_call_count);
         for (uint32_t page : g_dirty_list) {
             o.pages.emplace_back(page, std::vector<uint8_t>(data_page(page), data_page(page) + kPage));
             g_dirty[page] = 0;
@@ -690,6 +748,16 @@ std::string compare(const game::Function& f, const Outcome& a, const Outcome& b,
     if (a.frees != b.frees) {
         diff += " frees differ";
         only_floats = only_nans = false;
+    }
+    if (a.calls != b.calls) {  // argument words as floats: two NaNs, close floats (slot words are code addresses)
+        diff += " stub calls differ (" + std::to_string(a.calls.back()) + "/" + std::to_string(b.calls.back()) + ")";
+        if (a.calls.size() != b.calls.size()) only_floats = only_nans = false;
+        for (size_t i = 0; i + 1 < std::min(a.calls.size(), b.calls.size()); ++i) {
+            if (a.calls[i] == b.calls[i]) continue;
+            if (diff.size() < 600) diff += " call word " + std::to_string(i) + " " + hex(a.calls[i]) + "/" + hex(b.calls[i]);
+            if (i % 7 == 0 || !(is_nan(a.calls[i]) && is_nan(b.calls[i]))) only_nans = false;
+            if (i % 7 == 0 || !(float_close(a.calls[i], b.calls[i]) || (is_nan(a.calls[i]) && is_nan(b.calls[i])))) only_floats = false;
+        }
     }
     // Data pages: the written content, or the page as both started (base + inputs).
     std::set<uint32_t> pages;
@@ -861,6 +929,8 @@ int main() {
     constexpr uint32_t kCallStack = 1 << 20;
     auto* call_stack = map_guarded(kCallStack);
     const auto call_stack_top = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(call_stack + kCallStack - 64));
+    g_stack_lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(call_stack));
+    g_stack_hi = g_stack_lo + kCallStack;
 
     // Host memory: random words must not point there (a library's data, or the gap below the
     // main stack, which the kernel grows into on any access - -inf = 0xff800000 read fresh
