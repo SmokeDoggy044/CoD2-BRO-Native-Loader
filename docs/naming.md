@@ -830,4 +830,15 @@ CoD-specific functions included, so later decompilation covers both kinds.
     Body: position +0x30, predicted +0x70, force +0x110, torque +0x120, inverse mass +0x130, angular vel +0xe0.
   - Handle tables {free bitmap, entries {ptr, generation}}, handle = generation << 8 | slot (HandleTable256_*);
     the entity list 0x0097a8c0 (0x540 entries, G_EntityList_Init) uses it at +0xa8.
-  Next (in progress): HUD component hierarchy.
+  HUD batch (67 names): 15 component classes on HudComponent_vtable 0x008286fc (7 slots: 0 DeletingDtor, 1 Setup(panel),
+  2 Update(dt), 3 Draw, 4 IsVisible / 5 SetVisible (byte +4), 6 SetWidescreen(bool, anchor x 50/320/590)); Hud_Setup*/
+  Hud_CreateTankIcons/HudMeter_SetCount renamed to their class methods. g_hudManager 0x0095f8f0 (HudManager_vtable
+  0x0082a5d8: 0 DeletingDtor, 1 Setup, 2 Detach, 3 Update): +4 Compass, +8 Stance, +0xc Health, +0x10 Ammo, +0x14
+  WeaponName, +0x18 Hint, +0x1c BomberMap, +0x20 IconCount, +0x24 Meter (12 LED pairs), +0x28 TankHealth, +0x2c
+  TankShells, +0x30 Grenades, +0x34 GrenadeCook, +0x38 TankIcon, +0x3c UIText, +0x40 TankReticle, +0x44 panel, +0x58
+  last widescreen value, +0x5c hud mode (0 infantry, 1 hidden except Meter - also FE_SetupLiberatorMenu, 2 bomber,
+  3 tank), +0x60 timer. Compass (0x13dc): needle angle +0x38, velocity +0x34, 32 firing-enemy markers of 0x28 at
+  +0x554, objectives from cg +0x1648 (0x98 each), tank markers from +0xe38, script-set fields +0x13d0..+0x13d8.
+  Open: the GScr_HudComp20_*/24_*/1c_* setters (low) can be renamed after IconCount/Meter/BomberMap; most slot-1
+  Setup bodies and HudCompTankShells' methods are uncreated (gap rule).
+  Next (in progress): 1-caller functions whose caller is named (ones_a: 0x11000-0x247f70, ones_b: the rest).

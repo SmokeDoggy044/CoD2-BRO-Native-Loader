@@ -3312,9 +3312,9 @@ address,name,kind,confidence,evidence
 0031d250,FE_BonusWeaponCategoryLabel,function,medium,BONUS_BONUS_SMG/RIFLE/HMG/PISTOL/GRENADE/ASSAULT/SNIPER/... or BONUS_LOCKED
 0031d880,FE_BonusCharacterLabel,function,medium,BONUS_BONUS_CHAR_1..7 or BONUS_LOCKED
 0031de10,FE_BonusMenuLabel,function,medium,BONUS_CREDITS/MOVIES/CHARACTERS/WEAPONS/VEHICLES/ARTS or BONUS_LOCKED
-00324330,Hud_SetupGrenadeCook,function,medium,finds the GrenadeCook1..6 and GrenadeCookring pictures in the hud panel
-00324480,Hud_SetupGrenadeIcon,function,medium,finds the us_grenade/german_grenade pictures and the count text
-003244c0,Hud_SetupAmmo,function,medium,finds the hudammo picture and texts
+00324330,HudCompGrenadeCook_Setup,function,medium,"HudCompGrenadeCook_vtable slot 1 (was Hud_SetupGrenadeCook): GrenadeCook1..6 and GrenadeCookring (2026-10-25, was Hud_SetupGrenadeCook)"
+00324480,HudCompGrenades_Setup,function,medium,"HudCompGrenades_vtable slot 1 (was Hud_SetupGrenadeIcon): us_grenade/german_grenade pictures and the count text (2026-10-25, was Hud_SetupGrenadeIcon)"
+003244c0,HudCompAmmo_Setup,function,medium,"HudCompAmmo_vtable slot 1 (was Hud_SetupAmmo): finds the hudammo picture and texts (2026-10-25, was Hud_SetupAmmo)"
 00325d60,FE_SetDifficultyPicture,function,medium,"sprintf difficulty%i, Panel_FindPicture"
 0032a0e0,UIScrollBar_Construct,function,medium,"builds scroll_back, scroll_arrow_top/bottom and scroll_indicator pictures"
 0032d130,MemDlg_FormatNotEnoughBlocks,function,medium,formats MEM_ERROR_NOT_ENOUGH_BLOCKS2 with the block count (%s %d %s)
@@ -3464,7 +3464,7 @@ address,name,kind,confidence,evidence
 002fefa0,GScr_SetHudMode,function,medium,"slot 136: hud mode at g_hudManager +0x5c, 0 default, 1 hidden, 2/3 layouts"
 0032ced0,HudText_SetStringByHash,function,medium,"Zone_FindByHash text into the text element (vtable +0x140), 'STRING NOT FOUND!' otherwise"
 002fef80,GScr_HudSetTextByHash,function,low,slot 137: HudText_SetStringByHash on a g_hudManager component
-00311090,HudMeter_SetCount,function,medium,"12 pairs of elements: the first n show the 'on' element; FE_SetupLiberatorMenu also calls it"
+00311090,HudCompMeter_SetCount,function,medium,"(was HudMeter_SetCount) 12 led pairs: the first n show the 'on' element; GScr_HudSetMeterCount, FE_SetupLiberatorMenu (2026-10-25, was HudMeter_SetCount)"
 002f94a0,GScr_HudSetMeterCount,function,low,slot 138: HudMeter_SetCount on the g_hudManager +0x... meter
 002f5a30,GScr_HudObjectives_Set13d0,function,low,slot 132: two shorts at +0x13d0 of g_hudManager's +4 component
 002f5a10,GScr_SuppressObjectiveUpdateMessage,function,medium,"slot 133: sets +0x13d4 flag / +0x13d8 index of g_hudManager +4; G_SendObjectiveUpdate skips 'GAME_OBJECTIVESUPDATED' for that index"
@@ -3834,7 +3834,7 @@ address,name,kind,confidence,evidence
 00315b10,UIText_Init,function,medium,"sets the vtable 0x008298b8 and the text/rect/colour fields; from UIText_Construct, Panel_CreateText, SCR_DrawLoadingScreen"
 0031a900,FE_BonusCEMainLoadImage,function,medium,"'bonus_ce\\main\\ce_%i[_%i].dds', frees the previous image first (fields +0x5c/+0x60/+0x64)"
 0031d5b0,FE_BonusCharacterLoadImage,function,medium,"'bonus\\char\\char%i.dds' as texchar after FE_BonusCharacterSetText"
-00323fa0,Hud_CreateTankIcons,function,low,"vtable slot: picture quads for stance_stand, Tank_Base/Tank_Turret (tankbody/tankturret)"
+00323fa0,HudCompTankIcon_Setup,function,medium,"HudCompTankIcon_vtable slot 1 (was Hud_CreateTankIcons): stance_stand, Tank_Base/Tank_Turret pictures (2026-10-25, was Hud_CreateTankIcons)"
 0032cf50,Profile_SetDefaults,function,low,"clears the profile record (ESI): sensitivities 25, cg_controllerconfig default; from Com_Init and the profile screens"
 00335d60,FE_ControlsUpdateText,function,low,"controls screen: layout name by config index (+0xc0), CL_ExecControllerConfig, FEMENU_CMD_* labels via FE_CommandDisplayName"
 0025d230,G_TouchEntitiesInBox,function,low,"SV_AreaEntities over a box (player bounds +-40/52 or the entity's bounds), SV_ClipToEntity, notify 'touch'; from G_TouchTriggers, Vehicle_Think/ThinkInit"
@@ -12436,3 +12436,65 @@ address,name,kind,confidence,evidence
 0015aa50,BroScr_AddFollowersDefault,function,medium,"BroScr_AddFollowers(a, b, 0x00922e84); BroLvl_buchholz_Ev3FollowTank, buchholz event3 House2 trigger"
 0016c9d0,BroScr_StukaStartNearbyDrones,function,medium,"(ent): for each entity of the level array +0x770 (count +0x778) within 384 units (dist^2 <= 147456) starts thread BroScr_DroneMain(ent, true, false); BroScr_StukaBombExplode"
 001a8fc0,BroScr_GetClosestNodeFromArray,function,medium,"(out, point, nodes[]): Scr_Distance from point to each node's ScrPathNode_GetOrigin, keeps the closest; like BroScr_GetClosestFromArray; BroLvl_kasserine_Ev02SeekPlayer, targetname node array caller 0x0013c3f0"
+0082a5d8,HudManager_vtable,data,high,"7-slot vtable stored by HudManager_Create/HudManager_Dtor (g_hudManager): 0 deleting dtor, 1 Setup(panel), 2 Detach, 3 Update(dt); directly follows HudCompGrenadeCook_vtable"
+008286fc,HudComponent_vtable,data,high,"base HUD component vtable, every component dtor ends on it: 0 deleting dtor 00012400, 1/2 nglShader_Nop, 3 ret, 4 IsVisible (byte +4), 5 SetVisible(byte +4), 6 SetWidescreen nop (ret 8)"
+0082884c,HudCompCompass_vtable,data,high,"stored by HudCompCompass_Ctor (g_hudManager +4, 0x13dc bytes); setup 00323a70 finds objective/objective_up/_down/_ring, tank, enemy, friendly pictures"
+0082a5a0,HudCompStance_vtable,data,high,g_hudManager +8 (0x34); setup 00324640 finds stance_stand/crouch/prone(_man) and stance_flash; Update picks stance from cg pm_flags 1/2
+008290a8,HudCompHealth_vtable,data,high,g_hudManager +0xc (0x24); setup 00324560 finds hudhealthbar/hudhealthback/hudhealthcross; Update = snap health/maxhealth (+0x110/+0x118) into a quad fill
+00828ddc,HudCompAmmo_vtable,data,high,"g_hudManager +0x10 (0x20); slot 1 HudCompAmmo_Setup (hudammo); Update prints clip ""%2i"" / reserve ""%i"" capped at 999"
+00829d28,HudCompWeaponName_vtable,data,medium,"stored by HudCompWeaponName_Ctor (g_hudManager +0x14, 0x18): UIText + weapon_name_background, setup finds weaponnameback"
+00829d0c,HudCompHint_vtable,data,medium,"g_hudManager +0x18 (0x228): 0x84 hint pictures + text +0x218, current index +0x21c; setup 00323970 hint_usable/hint_usable_MG/hint_health, ""Press[Use]"""
+0082908c,HudCompBomberMap_vtable,data,medium,"g_hudManager +0x1c (0x60), hud mode 2; setup 00322d30: bomber section pictures r/l tail, bomb, waist, wing, chin, station markers tailobj/chinobj/bombobj/ballobj, Obj_Head/Middle/Tail/Ring; script slots 148-151 set its mode +0x44"
+00828800,HudCompIconCount_vtable,data,medium,"g_hudManager +0x20 (0x1c), hud mode 2: Draw repeats one picture count (+0x10) times, 8 per row from (580,410), optional highlighted icon at +0x18 (script slots 144-147)"
+008299b8,HudCompMeter_vtable,data,medium,"stored by HudCompMeter_Ctor (g_hudManager +0x24, 0xf0): 12 led1/led2 picture pairs + background02-05, drawn only in hud mode 1; HudCompMeter_SetCount, script slots 138-142"
+008299d4,HudCompTankHealth_vtable,data,high,"g_hudManager +0x28 (0x1c), hud mode 3: setup 003242e0 finds armor/tankhealthbar/tankbar; Update = player_tank entity health +0x350 over its first value"
+00829664,HudCompTankShells_vtable,data,medium,"g_hudManager +0x2c (0x14), hud mode 3: setup 003242b0 finds tankshells02/tankshells03"
+008287e4,HudCompGrenades_vtable,data,high,"g_hudManager +0x30 (0x20); slot 1 HudCompGrenades_Setup (us_grenade/german_grenade pictures, count text)"
+0082a5bc,HudCompGrenadeCook_vtable,data,high,g_hudManager +0x34 (0x30); slot 1 HudCompGrenadeCook_Setup (GrenadeCook1..6 + GrenadeCookring)
+00829164,HudCompTankIcon_vtable,data,medium,"g_hudManager +0x38 (0x10), hud mode 3; slot 1 HudCompTankIcon_Setup (stance_stand, tankbody/tankturret)"
+0082a6ec,HudCompTankReticle_vtable,data,medium,g_hudManager +0x40 (0x48); setup 00324140 finds tank_reticle + tank_tic1..4; Draw only with cg flag 0x100000 (in vehicle)
+000123b0,HudManager_DeletingDtor,function,high,"HudManager_vtable slot 0: HudManager_Dtor, Z_Free if flag & 1"
+00319f20,HudManager_Dtor,function,high,"stores HudManager_vtable, calls slot 0 (delete) of every component pointer +4.."
+00330350,HudManager_Setup,function,medium,"HudManager_vtable slot 1: keeps the panel at +0x44, calls each component's slot 1 with it, makes a UIText (+0x3c) from Panel_FindText and a scroll bar"
+00311ae0,HudManager_Detach,function,medium,HudManager_vtable slot 2: clears the panel +0x44 and deletes the +0x3c text
+00319df0,HudManager_Update,function,medium,"HudManager_vtable slot 3 (SCR_UpdateScreen calls +0xc): component slot 2 with dt; widescreen change -> HudManager_SetWidescreen; hud mode +0x5c picks +0x24 (1), +0x1c (2), +0x28/+0x2c (3); +0x60 timer to 8 s"
+00311800,HudManager_SetWidescreen,function,high,"on vm_cg_widescreen change: every component's slot 6 (bool, anchor x 50 left / 320 centre / 590 right)"
+00318400,HudCompCompass_Ctor,function,high,"called by HudManager_Create for the +4 component (0x13dc): stores HudCompCompass_vtable, clears the marker tables"
+00318380,HudCompCompass_Dtor,function,high,"stores HudCompCompass_vtable, deletes its pictures +0x14..+0x30, back to HudComponent_vtable"
+00012440,HudCompCompass_DeletingDtor,function,high,"HudCompCompass_vtable slot 0: HudCompCompass_Dtor, Z_Free if flag & 1"
+00339c30,HudCompCompass_Update,function,medium,"HudCompCompass_vtable slot 2: unless frozen (+0x3c, set by the hud layouts) runs the needle, marker and objective updates"
+003180a0,HudCompCompass_UpdateNeedle,function,medium,"rotates the +8 face picture to the view yaw, springy (angular velocity +0x34, angle +0x38) in 5 ms steps; widescreen rescale; last time 0x0098ad14"
+003379b0,HudCompCompass_UpdateObjectives,function,medium,"cg objectives (cg +0x1648, 0x98 each, state 4) -> compass positions via HudCompCompass_PlaceMarker, above/below flags from cg_hudObjectiveMaxHeight/MinHeight"
+00337b70,HudCompCompass_UpdateFiringEnemies,function,medium,actors of the opposing team (team map 1<->2) that fired in the last 2000 ms (+0x240 +0xe8): up to 32 markers at +0x554
+00339450,HudCompCompass_UpdateTankMarkers,function,medium,"vehicle entities (eType 14) passing the live tank check 0x0024db50 -> marker records at +0xe38, plus the snapshot ps +0x4e4 packed position"
+00337810,HudCompCompass_PlaceMarker,function,medium,"(yaw, distance) -> compass screen position scaled between cg_hudCompassMinRange/MaxRange, MinRadius and cg_hudCompassSize; callers are the four compass marker updates"
+00317f00,HudCompCompass_DrawFiringEnemies,function,medium,"draws the 32 marker records at +0x554 (written by HudCompCompass_UpdateFiringEnemies) with the +0x2c picture: position, rotation, colour"
+00317fb0,HudCompCompass_SetWidescreen,function,medium,HudCompCompass_vtable slot 6: re-applies the needle rotation and aspect scaling (UIPicture_ScaleXForAspect) to the face pictures
+003116f0,HudCompStance_Update,function,high,"HudCompStance_vtable slot 2: stance index +0x24 from cg pm_flags (1 prone, 2 crouch, else stand), flashes for 1 s after a change"
+003116c0,HudCompStance_Draw,function,high,HudCompStance_vtable slot 3: draws the current stance picture (+8 + index*8) and its flash (+0xc) while active
+00011fd0,HudCompHealth_DeletingDtor,function,high,"HudCompHealth_vtable slot 0: deletes +0x14, back to HudComponent_vtable, Z_Free if flag & 1"
+00319370,HudCompHealth_Update,function,high,"HudCompHealth_vtable slot 2: snap health/maxhealth clamp 0..1 at +0x18, bar quad vertex pos/UV, colour from the fraction"
+00311670,HudCompHealth_Draw,function,high,"HudCompHealth_vtable slot 3: bar (+8) when health > 0, back, cross, overlay (+0x20 flag)"
+00012010,HudCompAmmo_DeletingDtor,function,high,"HudCompAmmo_vtable slot 0: deletes the texts +0xc/+0x10, Z_Free if flag & 1"
+00319110,HudCompAmmo_Update,function,high,"HudCompAmmo_vtable slot 2: current weapon (bg_weaponDefs) clip ""%2i"" and reserve ""%i"" (<= 999) into the two texts; hidden in vehicles"
+00311640,HudCompAmmo_Draw,function,high,"HudCompAmmo_vtable slot 3: picture +8, texts +0xc/+0x10 unless hidden (+0x1c)"
+00318bf0,HudCompWeaponName_Ctor,function,medium,"HudManager_Create +0x14 component: stores HudCompWeaponName_vtable, UIText at +8, weapon_name_background picture at +0xc"
+000120a0,HudCompWeaponName_DeletingDtor,function,high,"HudCompWeaponName_vtable slot 0: deletes +8/+0xc, Z_Free if flag & 1"
+00318b30,HudCompWeaponName_Setup,function,medium,"HudCompWeaponName_vtable slot 1: finds weaponnameback, sets the colour/UV blocks"
+00311400,HudCompWeaponName_Draw,function,medium,"HudCompWeaponName_vtable slot 3: when visible and not hidden (+0x14): text +8, picture +0xc"
+000120e0,HudCompHint_DeletingDtor,function,high,"HudCompHint_vtable slot 0: deletes the text +0x218, Z_Free if flag & 1"
+003110e0,HudCompHint_Draw,function,medium,HudCompHint_vtable slot 3: picture index +0x21c (0..0x83) and text +0x218 unless hidden (+0x224)
+003374e0,HudCompBomberMap_Update,function,medium,"HudCompBomberMap_vtable slot 2: rotates the 10 section pictures and the objective arrow by the vehicle yaw, places Obj_Head/Middle/Tail (FastSinCos, widescreen aware)"
+00310d60,HudCompBomberMap_Draw,function,medium,"HudCompBomberMap_vtable slot 3: in its own ngl scene: background +0x30, 10 section pictures, then the objective arrow +0x34..+0x3c"
+00310b80,HudCompIconCount_Draw,function,medium,"HudCompIconCount_vtable slot 3: count +0x10 (+1 when +0x14) icons, 8 per row leftwards/upwards from (580,410); index +0x18 uses the second picture"
+00317550,HudCompIconCount_SetWidescreen,function,medium,HudCompIconCount_vtable slot 6: UIPicture_ScaleXForAspect on its pictures
+00317bd0,HudCompMeter_Ctor,function,high,"HudManager_Create +0x24 component (0xf0): stores HudCompMeter_vtable, clears the 12 picture pairs and counts +0xe4..+0xec"
+00318840,HudCompTankHealth_Update,function,high,"HudCompTankHealth_vtable slot 2: ""player_tank"" entity health +0x350 / first seen value (+0x18) -> bar quad"
+003113d0,HudCompTankHealth_Draw,function,high,"HudCompTankHealth_vtable slot 3: pictures +0xc, +8, +0x10"
+00311330,HudCompTankIcon_Draw,function,medium,HudCompTankIcon_vtable slot 3: body +8 and turret +0xc pictures
+00012050,HudCompGrenades_DeletingDtor,function,high,"HudCompGrenades_vtable slot 0: deletes +0x10/+8/+0xc, Z_Free if flag & 1"
+00311610,HudCompGrenades_Draw,function,medium,HudCompGrenades_vtable slot 3: two pictures and the count text unless hidden (+0x18)
+003115b0,HudCompGrenadeCook_Draw,function,medium,HudCompGrenadeCook_vtable slot 3: 6 segment pictures and the ring +0x20 unless hidden (+0x2d)
+00318f30,HudCompGrenadeCook_Dtor,function,high,"stores HudCompGrenadeCook_vtable, deletes the 6 segments and ring, back to HudComponent_vtable"
+00311350,HudCompTankReticle_Draw,function,medium,HudCompTankReticle_vtable slot 3: reticle +8 then 4 tics when cg flag 0x100000 is set and cg +0xfb8 != 1
+0098ad14,hudCompass_lastNeedleTime,data,medium,cg_time of the last HudCompCompass_UpdateNeedle step (gaps > 500 ms skip the spring)
