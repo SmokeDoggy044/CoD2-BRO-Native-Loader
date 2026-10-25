@@ -162,12 +162,16 @@ struct Xbe {
 // records it.
 uint32_t g_data_lo, g_data_hi, g_image_hi;
 std::vector<uint8_t> g_data_base;  // the pages as mapped (the image's .data, zeroed .bss)
-std::vector<uint8_t> g_dirty;      // per data page: written during this run
-std::vector<uint32_t> g_dirty_list;
+// Static, like everything the handlers write: the brk heap is read-only during a call.
+constexpr uint32_t kMaxDataPages = 4096;
+uint8_t g_dirty[kMaxDataPages];  // per data page: written during this run
+uint32_t g_dirty_list[kMaxDataPages], g_dirty_count;
 sigjmp_buf g_crash_jump;
 volatile sig_atomic_t g_in_call = 0;
-uint32_t g_trace_lo, g_trace_hi;
-std::set<uint32_t> g_reached;
+uint32_t g_trace_lo, g_trace_hi;  // the function being traced (at most kMaxTrace bytes)
+constexpr uint32_t kMaxTrace = 1u << 16;
+uint8_t g_reached[kMaxTrace];  // per byte of it: an instruction started there
+uint32_t g_reached_count;
 uint32_t g_crash_eip, g_crash_address;
 // Arena write log (rerun of a mismatch): the arena is read-only, each store faults, is
 // single-stepped, and the bytes it changed are recorded in order.
@@ -242,11 +246,30 @@ bool writes_count(const char* format) {
     }
     return false;
 }
+void protect_brk(int prot);
+// The host's printf allocates: the brk heap is writable while it runs (read-only otherwise during
+// a call, protect_brk), and the timeout waits so it cannot long-jump out of malloc.
+struct HostHeap {
+    sigset_t saved;
+    HostHeap() {
+        sigset_t alarm;
+        sigemptyset(&alarm);
+        sigaddset(&alarm, SIGALRM);
+        sigprocmask(SIG_BLOCK, &alarm, &saved);
+        protect_brk(PROT_READ | PROT_WRITE);
+    }
+    ~HostHeap() {
+        protect_brk(PROT_READ);
+        sigprocmask(SIG_SETMASK, &saved, nullptr);
+    }
+};
 __attribute__((force_align_arg_pointer)) int32_t XB_CDECL standin_vsprintf(char* out, const char* format, va_list args) {
+    HostHeap host;
     return writes_count(format) ? -1 : std::vsprintf(out, format, args);
 }
 __attribute__((force_align_arg_pointer)) int32_t XB_CDECL standin_sprintf(char* out, const char* format, ...) {
     if (writes_count(format)) return -1;
+    HostHeap host;
     va_list args;
     va_start(args, format);
     const int32_t n = std::vsprintf(out, format, args);
@@ -256,6 +279,7 @@ __attribute__((force_align_arg_pointer)) int32_t XB_CDECL standin_sprintf(char* 
 // MSVC's _vsnprintf: no terminator when the text fills the buffer, -1 when it does not fit.
 __attribute__((force_align_arg_pointer)) int32_t XB_CDECL standin_vsnprintf(char* out, uint32_t count, const char* format, va_list args) {
     if (writes_count(format)) return -1;
+    HostHeap host;
     va_list copy;
     va_copy(copy, args);
     const int n = std::vsnprintf(nullptr, 0, format, copy);
@@ -304,14 +328,14 @@ const std::map<uint32_t, uint32_t> kSlotArgs = {
     {0x00928554, 6}, {0x00928560, 5}, {0x00928564, 5}, {0x00928568, 2}, {0x0092856c, 2}, {0x00928570, 5},
     {0x00928574, 2}, {0x00928578, 6}, {0x0095e634, 2},
 };
+uint32_t logged_words(uint32_t slot);  // kSlotArgs, else kD3dStubs' words
 uint32_t g_stack_lo, g_stack_hi;
 uint32_t g_calls[64 * 7], g_call_count;
 uint64_t log_call(uint32_t slot, const uint32_t* args) {
     if (g_call_count < 64) {
         uint32_t* entry = g_calls + 7 * g_call_count;
         entry[0] = slot;
-        const auto known = kSlotArgs.find(slot);
-        const uint32_t n = known == kSlotArgs.end() ? 0 : known->second;
+        const uint32_t n = logged_words(slot);
         for (uint32_t i = 0; i < 6; ++i)
             entry[1 + i] = i >= n ? 0 : args[i] >= g_stack_lo && args[i] < g_stack_hi ? kStackWord : args[i];
     }
@@ -329,6 +353,111 @@ constexpr std::array<void*, sizeof...(K)> log_stubs(std::integer_sequence<uint32
 }
 const std::array<void*, kLoggedSlots> kLogStubs = log_stubs(std::make_integer_sequence<uint32_t, kLoggedSlots>());
 
+// D3D setters (leafscan's D3D_STUBS): their entries jump to log stubs of the same convention
+// that record ECX/EDX (fastcall) and the stack words under the function's address, pop them and
+// return 0. Getters stay blockers (a stub cannot fill their out-parameters).
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_STDCALL d3d_std0() {
+    return static_cast<uint32_t>(log_call(A, nullptr));
+}
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_STDCALL d3d_std1(uint32_t a) {
+    const uint32_t args[] = {a};
+    return static_cast<uint32_t>(log_call(A, args));
+}
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_STDCALL d3d_std2(uint32_t a, uint32_t b) {
+    const uint32_t args[] = {a, b};
+    return static_cast<uint32_t>(log_call(A, args));
+}
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_STDCALL d3d_std3(uint32_t a, uint32_t b, uint32_t c) {
+    const uint32_t args[] = {a, b, c};
+    return static_cast<uint32_t>(log_call(A, args));
+}
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_STDCALL d3d_std4(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    const uint32_t args[] = {a, b, c, d};
+    return static_cast<uint32_t>(log_call(A, args));
+}
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_STDCALL d3d_std5(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e) {
+    const uint32_t args[] = {a, b, c, d, e};
+    return static_cast<uint32_t>(log_call(A, args));
+}
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_STDCALL d3d_std6(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+                                                                      uint32_t f) {
+    const uint32_t args[] = {a, b, c, d, e, f};
+    return static_cast<uint32_t>(log_call(A, args));
+}
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_FASTCALL d3d_fast0(uint32_t ecx, uint32_t edx) {
+    const uint32_t args[] = {ecx, edx};
+    return static_cast<uint32_t>(log_call(A, args));
+}
+template <uint32_t A>
+__attribute__((force_align_arg_pointer)) uint32_t XB_FASTCALL d3d_fast1(uint32_t ecx, uint32_t edx, uint32_t a) {
+    const uint32_t args[] = {ecx, edx, a};
+    return static_cast<uint32_t>(log_call(A, args));
+}
+#define D3D_STUB(address, kind, words) {address, reinterpret_cast<void*>(&kind<address>), words}
+struct D3dStub {
+    uint32_t address;
+    void* stub;
+    uint32_t words;  // logged: ECX/EDX (fastcall), then the stack words
+};
+const D3dStub kD3dStubs[] = {
+    D3D_STUB(0x003e9710, d3d_std4, 4),  // DrawVerticesUP
+    D3D_STUB(0x003e98c0, d3d_std3, 3),  // DrawVertices
+    D3D_STUB(0x003e9990, d3d_std3, 3),  // DrawIndexedVertices
+    D3D_STUB(0x003e6720, d3d_std0, 0),  // PersistDisplay
+    D3D_STUB(0x003e6160, d3d_std2, 2),  // SetPalette
+    D3D_STUB(0x003e5f70, d3d_std2, 2),  // SetTexture
+    D3D_STUB(0x003e6130, d3d_fast1, 3), // SwitchTexture
+    D3D_STUB(0x003e88f0, d3d_std1, 1),  // SetRenderState_BackFillMode
+    D3D_STUB(0x003e80f0, d3d_std1, 1),  // SetRenderState_CullMode
+    D3D_STUB(0x003e8010, d3d_std1, 1),  // SetRenderState_EdgeAntiAlias
+    D3D_STUB(0x003e88a0, d3d_std1, 1),  // SetRenderState_FillMode
+    D3D_STUB(0x003e8090, d3d_std1, 1),  // SetRenderState_FogColor
+    D3D_STUB(0x003e8840, d3d_std1, 1),  // SetRenderState_LogicOp
+    D3D_STUB(0x003e87c0, d3d_std1, 1),  // SetRenderState_MultiSampleAntiAlias
+    D3D_STUB(0x003e8800, d3d_std1, 1),  // SetRenderState_MultiSampleMask
+    D3D_STUB(0x003e8650, d3d_std1, 1),  // SetRenderState_RopZCmpAlwaysRead
+    D3D_STUB(0x003e82b0, d3d_std1, 1),  // SetRenderState_StencilEnable
+    D3D_STUB(0x003e8530, d3d_std1, 1),  // SetRenderState_YuvEnable
+    D3D_STUB(0x003e8210, d3d_std1, 1),  // SetRenderState_ZEnable
+    D3D_STUB(0x003e89f0, d3d_fast0, 2), // SetRenderState_Simple
+    D3D_STUB(0x003e7440, d3d_fast0, 2), // SetVertexShaderConstant1Fast
+    D3D_STUB(0x003e7490, d3d_fast1, 3), // SetVertexShaderConstantNotInlineFast
+    D3D_STUB(0x003e75e0, d3d_std3, 3),  // SetVertexShaderInputDirect
+    D3D_STUB(0x003e6ea0, d3d_std2, 2),  // LoadVertexShaderProgram
+    D3D_STUB(0x003e6f40, d3d_std2, 2),  // SelectVertexShaderDirect
+    D3D_STUB(0x003e72b0, d3d_std1, 1),  // SetVertexShader
+    D3D_STUB(0x003e7820, d3d_std1, 1),  // SetPixelShader
+    D3D_STUB(0x003e77e0, d3d_std1, 1),  // SetPixelShaderProgram
+    D3D_STUB(0x003e52b0, d3d_std2, 2),  // SetRenderTarget
+    D3D_STUB(0x003e55b0, d3d_std3, 3),  // SetRenderTargetFast
+    D3D_STUB(0x003e5cc0, d3d_std1, 1),  // SetViewport
+    D3D_STUB(0x003ead90, d3d_std6, 6),  // Clear
+    D3D_STUB(0x003eabe0, d3d_std1, 1),  // Swap
+    D3D_STUB(0x003ebf10, d3d_std2, 2),  // RunPushBuffer
+    D3D_STUB(0x003e68f0, d3d_std0, 0),  // InsertFence (returns fence 0)
+    D3D_STUB(0x003eb9c0, d3d_std3, 3),  // InsertCallback
+    D3D_STUB(0x003e6210, d3d_std1, 1),  // 0x003e6210 (1 word, no out-parameter)
+    D3D_STUB(0x003e6200, d3d_std0, 0),  // BlockUntilIdle
+    D3D_STUB(0x003e8000, d3d_std1, 1),  // D3DResource_BlockUntilNotBusy
+    D3D_STUB(0x003e7ef0, d3d_std1, 1),  // D3DResource_Release (returns 0)
+};
+#undef D3D_STUB
+
+uint32_t logged_words(uint32_t slot) {
+    if (const auto known = kSlotArgs.find(slot); known != kSlotArgs.end()) return known->second;
+    for (const auto& d : kD3dStubs)
+        if (d.address == slot) return d.words;
+    return 0;
+}
+
 bool in_host_memory(uint32_t v) {
     if (v < g_host_lowest) return false;
     for (const auto& [lo, hi] : g_host_ranges)
@@ -342,7 +471,7 @@ void on_segv(int sig, siginfo_t* info, void* context) {
         const uint32_t page = (address - g_data_lo) / kPage;
         if (!g_dirty[page]) {
             g_dirty[page] = 1;
-            g_dirty_list.push_back(page);
+            g_dirty_list[g_dirty_count++] = page;
             mprotect(reinterpret_cast<void*>(static_cast<uintptr_t>(g_data_lo + page * kPage)), kPage,
                      PROT_READ | PROT_WRITE);
             return;
@@ -365,8 +494,8 @@ void on_segv(int sig, siginfo_t* info, void* context) {
     }
     if (g_current) {
         char text[160];
-        const int n = std::snprintf(text, sizeof text, "leaf_test: worker crashed outside a call (signal %d) after %s\n", sig,
-                                    g_current);
+        const int n = std::snprintf(text, sizeof text, "leaf_test: worker crashed outside a call (signal %d at %08x, address %08x) after %s\n", sig,
+                                    static_cast<unsigned>(static_cast<ucontext_t*>(context)->uc_mcontext.gregs[REG_EIP]), address, g_current);
         if (n > 0) (void)!write(2, text, static_cast<size_t>(n));
     }
     signal(sig, SIG_DFL);
@@ -390,8 +519,21 @@ void on_trap(int, siginfo_t*, void* context) {
         uc->uc_mcontext.gregs[REG_EFL] &= ~0x100;  // log runs are not traced
         return;
     }
-    if (eip >= g_trace_lo && eip < g_trace_hi) g_reached.insert(eip);
+    if (eip >= g_trace_lo && eip < g_trace_hi && !g_reached[eip - g_trace_lo]) {
+        g_reached[eip - g_trace_lo] = 1;
+        ++g_reached_count;
+    }
     if (eip < kImageBase || eip >= g_image_hi) uc->uc_mcontext.gregs[REG_EFL] &= ~0x100;
+}
+
+// The brk heap (malloc's): read-only while a call runs, so a pointer the function computes
+// into it (NAL_Quat_BeginBlock's store loop overwrote its own pointer cell) faults instead of
+// breaking malloc's chunks. Random words never point there (g_host_ranges); computed ones can.
+uintptr_t g_brk_lo;
+void protect_brk(int prot) {
+    if (!g_brk_lo) return;
+    const uintptr_t hi = (reinterpret_cast<uintptr_t>(sbrk(0)) + kPage - 1) & ~static_cast<uintptr_t>(kPage - 1);
+    mprotect(reinterpret_cast<void*>(g_brk_lo), hi - g_brk_lo, prot);
 }
 
 void protect_data(int prot) {
@@ -426,6 +568,13 @@ bool map_image(const Xbe& xbe) {
         std::memcpy(code + 1, &target, 4);
         code[5] = 0xc3;
     }
+    for (const auto& d : kD3dStubs) {
+        uint8_t* code = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(d.address));
+        const uint32_t target = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(d.stub));
+        code[0] = 0x68;  // push target; ret
+        std::memcpy(code + 1, &target, 4);
+        code[5] = 0xc3;
+    }
     for (const auto& [slot, value] : kPresets) std::memcpy(reinterpret_cast<void*>(static_cast<uintptr_t>(slot)), &value, 4);
     for (uint32_t k = 0; k < kLoggedSlots; ++k) {
         const auto stub = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(kLogStubs[k]));
@@ -437,7 +586,7 @@ bool map_image(const Xbe& xbe) {
     mprotect(at, g_data_lo - kImageBase, PROT_READ | PROT_EXEC);
     g_data_base.assign(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(g_data_lo)),
                        reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(g_data_hi)));
-    g_dirty.assign((g_data_hi - g_data_lo) / kPage, 0);
+    if ((g_data_hi - g_data_lo) / kPage > kMaxDataPages) return false;
     return true;
 }
 
@@ -537,6 +686,17 @@ struct Gen {
                 const uint32_t v = value();
                 std::memcpy(arena + i, &v, 4);
             }
+            return;
+        }
+        // Text words are not drawn by value(): two 16-bit words make 0x00000000-0x13ffffff,
+        // where the test's own executable and brk heap live (NAL_Float1_CopyState stored
+        // through such a pointer into malloc's chunks). Redraw those.
+        for (uint32_t i = 0; i < kArenaSize; i += 4) {
+            uint32_t v;
+            std::memcpy(&v, arena + i, 4);
+            if (!in_host_memory(v)) continue;
+            v = value();
+            std::memcpy(arena + i, &v, 4);
         }
     }
 };
@@ -585,7 +745,7 @@ struct Runner {
         g_heap_used = 0;
         g_free_count = 0;
         g_call_count = 0;
-        g_dirty_list.clear();
+        g_dirty_count = 0;
         protect_data(PROT_READ);
         if (log_arena) {
             g_log.clear();
@@ -597,6 +757,7 @@ struct Runner {
             g_logging = true;
             mprotect(arena, kArenaSize, PROT_READ);
         }
+        protect_brk(PROT_READ);
         itimerval timer{{0, 0}, {static_cast<time_t>(timeout_ms / 1000), static_cast<suseconds_t>(timeout_ms % 1000 * 1000)}};
         setitimer(ITIMER_REAL, &timer, nullptr);
         if (const int sig = sigsetjmp(g_crash_jump, 1)) {
@@ -610,6 +771,7 @@ struct Runner {
         }
         timer = {};
         setitimer(ITIMER_REAL, &timer, nullptr);
+        protect_brk(PROT_READ | PROT_WRITE);
         protect_data(PROT_READ | PROT_WRITE);
         if (log_arena) {
             g_logging = false;
@@ -625,7 +787,8 @@ struct Runner {
         if (g_free_count > 256) o.frees.push_back(g_free_count);
         o.calls.assign(g_calls, g_calls + 7 * std::min<uint32_t>(g_call_count, 64));
         o.calls.push_back(g_call_count);
-        for (uint32_t page : g_dirty_list) {
+        for (uint32_t k = 0; k < g_dirty_count; ++k) {
+            const uint32_t page = g_dirty_list[k];
             o.pages.emplace_back(page, std::vector<uint8_t>(data_page(page), data_page(page) + kPage));
             g_dirty[page] = 0;
         }
@@ -920,6 +1083,10 @@ int main() {
     struct sigaction sa{};
     sa.sa_sigaction = on_segv;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER;
+    // The timeout waits while a handler runs (a handler interrupted half-way leaves its state
+    // half-written); sigsetjmp(.., 1) restores the mask.
+    sigemptyset(&sa.sa_mask);
+    sigaddset(&sa.sa_mask, SIGALRM);
     for (int sig : {SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGALRM}) sigaction(sig, &sa, nullptr);
     sa.sa_sigaction = on_trap;
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
@@ -932,9 +1099,16 @@ int main() {
     g_stack_lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(call_stack));
     g_stack_hi = g_stack_lo + kCallStack;
 
+    // Before the snapshot below: its 24 MB are malloc's own mapping (random words pointing
+    // into it overwrote the chunk header - NAL_Float1_CopyState's stores through *dst).
+    g_log.reserve(2u << 20);
     // Host memory: random words must not point there (a library's data, or the gap below the
     // main stack, which the kernel grows into on any access - -inf = 0xff800000 read fresh
-    // pages): the two sides would read host state instead of faulting.
+    // pages): the two sides would read host state instead of faulting. Memory mapped later
+    // gets headroom: 256 MB above [heap] (brk growth) and below the lowest mapping above it
+    // (malloc's large chunks map top-down).
+    constexpr unsigned long kHeadroom = 256ul << 20;
+    unsigned long heap_hi = 0, mmap_lo = 0;
     if (FILE* maps = std::fopen("/proc/self/maps", "r")) {
         char line[256];
         while (std::fgets(line, sizeof line, maps)) {
@@ -943,13 +1117,23 @@ int main() {
             if (lo >= kImageBase && hi <= g_image_hi) continue;
             if (lo == reinterpret_cast<uintptr_t>(arena)) continue;
             if (std::strstr(line, "[stack]")) lo = lo > (64ul << 20) ? lo - (64ul << 20) : 0;
+            if (std::strstr(line, "[heap]")) {
+                g_brk_lo = lo;
+                heap_hi = hi;
+                hi += kHeadroom;
+            } else if (heap_hi && lo >= heap_hi && !mmap_lo) {
+                mmap_lo = lo;
+                lo = lo - kHeadroom > heap_hi + kHeadroom ? lo - kHeadroom : heap_hi + kHeadroom;
+            }
+            // A page below each range too: a value just under one, aligned up (NAL_Quat_BeginBlock's
+            // (p + 3) & ~3: 0x....fffd became [heap]'s first word) or walked a little, lands inside.
+            // (Not the arena's upper guard: that page is the arena's.)
+            if (lo != reinterpret_cast<uintptr_t>(arena) + kArenaSize) lo = lo >= kPage ? lo - kPage : 0;
             g_host_ranges.emplace_back(static_cast<uint32_t>(lo), static_cast<uint32_t>(hi - 1));
             g_host_lowest = std::min(g_host_lowest, static_cast<uint32_t>(lo));
         }
         std::fclose(maps);
     }
-
-    g_log.reserve(2u << 20);
     // A clean FPU/SSE image to start each call from.
     alignas(16) uint8_t clean_fx[512];
     asm volatile("fninit\n fxsave %0" : "=m"(clean_fx));
@@ -1157,8 +1341,9 @@ int main() {
         Gen gen(0x1eaf0000u ^ leaf.address, arena);
         const auto function_started = std::chrono::steady_clock::now();
         g_trace_lo = leaf.address;
-        g_trace_hi = leaf.address + leaf.size;
-        g_reached.clear();
+        g_trace_hi = leaf.address + std::min(leaf.size, kMaxTrace);
+        std::memset(g_reached, 0, sizeof g_reached);
+        g_reached_count = 0;
         int tested = 0, matched = 0, drifted = 0, nans = 0, mismatched = 0, skipped = 0, unstable = 0;
         std::string first_issue;
         bool first_failing = false;
@@ -1393,7 +1578,7 @@ int main() {
             for (const auto& p : b.pages) std::memcpy(data_page(p.first), g_data_base.data() + p.first * kPage, kPage);
             runner.reset_pages(input_pages);
         }
-        const double coverage = leaf.instructions ? 100.0 * static_cast<double>(g_reached.size()) / leaf.instructions : 0;
+        const double coverage = leaf.instructions ? 100.0 * static_cast<double>(g_reached_count) / leaf.instructions : 0;
         appendf(out, "%-34s %7d %7d %6d %6d %6d %8d %8.0f%%\n", leaf.name, tested, matched, drifted, nans, mismatched, skipped + unstable,
                     coverage);
         if (!first_issue.empty()) appendf(out, "    %s\n", first_issue.c_str());
@@ -1429,6 +1614,9 @@ int main() {
             std::fclose(in);
         }
         for (const Record& r : records) {
+            // No input ran (all crashed: some console commands find a running input only in some
+            // runs, the corpus is bimodal): no evidence either way, the earlier row stays.
+            if (r.tested == 0 && rows.count(r.address)) continue;
             char line[512];
             std::snprintf(line, sizeof line, "%08x,%s,%d,%d,%d,%d,%.1f\n", r.address, r.name.c_str(), r.tested,
                           r.matched, r.nans, r.mismatched, r.coverage);

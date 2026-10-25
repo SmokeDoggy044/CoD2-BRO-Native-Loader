@@ -46,6 +46,50 @@ PRESETS = {0x0092f138: 0x002a97c0, 0x0092f134: 0x002a97b0, 0x00933e38: 0x002a978
 # fills them with log stubs (cdecl, record the slot and 6 argument words, return 0) and compares
 # the call log; never randomized.
 LOGGED = set(range(0x009284f4, 0x0092857c, 4)) | {0x0095e634, 0x0095e6b0}
+# D3D setters (no out-parameters) the test replaces by log stubs (tests/leaf_test.cpp kD3dStubs):
+# record ECX/EDX (fastcall) and the stack words, pop those, return 0; the log is compared like
+# the slots'. Not scanned, no globals. Getters (GetDesc, Lock*, GetBackBuffer2) stay blockers:
+# a stub cannot fill their out-parameters. address: (name, registers logged, stack words popped)
+D3D_STUBS = {0x003e9710: ("DrawVerticesUP", 0, 4),
+             0x003e98c0: ("DrawVertices", 0, 3),
+             0x003e9990: ("DrawIndexedVertices", 0, 3),
+             0x003e6720: ("PersistDisplay", 0, 0),
+             0x003e6160: ("SetPalette", 0, 2),
+             0x003e5f70: ("SetTexture", 0, 2),
+             0x003e6130: ("SwitchTexture", 2, 1),
+             0x003e88f0: ("SetRenderState_BackFillMode", 0, 1),
+             0x003e80f0: ("SetRenderState_CullMode", 0, 1),
+             0x003e8010: ("SetRenderState_EdgeAntiAlias", 0, 1),
+             0x003e88a0: ("SetRenderState_FillMode", 0, 1),
+             0x003e8090: ("SetRenderState_FogColor", 0, 1),
+             0x003e8840: ("SetRenderState_LogicOp", 0, 1),
+             0x003e87c0: ("SetRenderState_MultiSampleAntiAlias", 0, 1),
+             0x003e8800: ("SetRenderState_MultiSampleMask", 0, 1),
+             0x003e8650: ("SetRenderState_RopZCmpAlwaysRead", 0, 1),
+             0x003e82b0: ("SetRenderState_StencilEnable", 0, 1),
+             0x003e8530: ("SetRenderState_YuvEnable", 0, 1),
+             0x003e8210: ("SetRenderState_ZEnable", 0, 1),
+             0x003e89f0: ("SetRenderState_Simple", 2, 0),
+             0x003e7440: ("SetVertexShaderConstant1Fast", 2, 0),
+             0x003e7490: ("SetVertexShaderConstantNotInlineFast", 2, 1),
+             0x003e75e0: ("SetVertexShaderInputDirect", 0, 3),
+             0x003e6ea0: ("LoadVertexShaderProgram", 0, 2),
+             0x003e6f40: ("SelectVertexShaderDirect", 0, 2),
+             0x003e72b0: ("SetVertexShader", 0, 1),
+             0x003e7820: ("SetPixelShader", 0, 1),
+             0x003e77e0: ("SetPixelShaderProgram", 0, 1),
+             0x003e52b0: ("SetRenderTarget", 0, 2),
+             0x003e55b0: ("SetRenderTargetFast", 0, 3),
+             0x003e5cc0: ("SetViewport", 0, 1),
+             0x003ead90: ("Clear", 0, 6),
+             0x003eabe0: ("Swap", 0, 1),
+             0x003ebf10: ("RunPushBuffer", 0, 2),
+             0x003e68f0: ("InsertFence", 0, 0),
+             0x003eb9c0: ("InsertCallback", 0, 3),
+             0x003e6210: ("0x003e6210", 0, 1),
+             0x003e6200: ("BlockUntilIdle", 0, 0),
+             0x003e8000: ("D3DResource_BlockUntilNotBusy", 0, 1),
+             0x003e7ef0: ("D3DResource_Release", 0, 1)}
 PINNED = HOOKS | set(OBJECTS) | set(OBJECTS.values()) | set(PRESETS) | LOGGED
 # Functions that call a function passed as an argument; their callers push it as an immediate
 # (eh_vector_constructor_iterator(array, size, count, constructor), stdcall).
@@ -195,6 +239,10 @@ def scan(image, starts, va):
                 target = int(m.group(1), 16)
                 if re.search(r"\[.*e[abcds][xip]", memory):
                     indexed.add(target)
+                if k == 0 and WRITES.match(mnemonic) and image.section(target) in HARDWARE_SECTIONS:
+                    # D3D's shadow state (render states, the device's tables in its zero-filled
+                    # tail; LTCG inlines the stores): the test maps SDK sections read-only.
+                    problems.add("writes SDK state")
                 if target < 0x10000 or image.section(target) not in fnpack.DATA_SECTIONS - {".rdata"}:
                     continue
                 (writes if k == 0 and WRITES.match(mnemonic) else reads).add(target)
@@ -264,7 +312,7 @@ def main():
         if va in seen:
             return None
         seen.add(va)
-        if va in STANDINS:
+        if va in STANDINS or va in D3D_STUBS:
             return None
         if image.section(va) in HARDWARE_SECTIONS:
             return f"calls SDK {functions.get(va, hex(va))}"
@@ -312,7 +360,7 @@ def main():
 
     def tree_globals(va, seen=None):
         seen = set() if seen is None else seen
-        if va in seen or va in STANDINS:
+        if va in seen or va in STANDINS or va in D3D_STUBS:
             return set()
         seen.add(va)
         r = info(va)

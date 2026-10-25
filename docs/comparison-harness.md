@@ -323,7 +323,14 @@ hold cdecl stubs that log the slot and its first words and return 0; the log is 
 frees. Words logged per slot (`kSlotArgs`): the fewest any call site pops right after the call, else
 0 (logging 6 compared the callers' stack words past the arguments: return addresses, locals); a word
 pointing into the call stack logs as a marker. A stub writes no out-parameter (R_DrawPic's
-coordinates stay as they are) and pushes no x87 result (CG_ParseConfigStringFloat9: every input skipped). Globals are allowed; the ones read by the function and its callees are randomized,
+coordinates stay as they are) and pushes no x87 result (CG_ParseConfigStringFloat9: every input skipped). D3D stubs (`kD3dStubs`,
+D3D_STUBS): 40 D3D setters, draws and waits (SetRenderState_*, SetTexture, Draw*, Clear, RunPushBuffer,
+BlockUntilIdle...) jump to log stubs of their own convention (stdcall 0-6 words, fastcall ECX/EDX +
+0-1; checked against each one's `ret N` and register reads) that log under the function's address
+and return 0. Getters (GetDesc, Lock*, GetBackBuffer2, Register, Reset) stay blockers: a stub cannot
+fill their out-parameters, and so does a store into an SDK section (`writes SDK state`: D3D's shadow
+render state and tables in its zero-filled tail, LTCG inlines them into nglRestoreRenderStates and the
+cd*_Draw functions; the test maps SDK sections read-only with their code). Globals are allowed; the ones read by the function and its callees are randomized,
 except constants in writable sections: every instruction naming the address reads it, none
 writes it or takes its address, and nothing within 16 bytes below is a base (address taken, or
 indexed by a register) - FastSinCos's rounding constant 0x008febd0 lives in .data. A heuristic:
@@ -349,7 +356,17 @@ like it (NAL_EntropyMode0C: 8 inputs of 4000 to 1862; Actor_GrenadeTargetClear 0
 precision, truncation; FTZ, round down). The calls run on their own stack. Random words never
 point into host memory (any mapping but the arena and the image, and 64 MB below the main
 stack, which the kernel grows into on any access: -inf = 0xff800000 as a pointer read fresh
-pages there instead of faulting, and a word inside a library's data read host state).
+pages there instead of faulting, and a word inside a library's data read host state). The ranges
+come from /proc/self/maps after the test's own buffers are mapped, plus a page below each (a value
+just under [heap] aligned up by `(p + 3) & ~3` landed inside), 256 MB above [heap] and below the
+lowest mapping above it (later brk growth and malloc's mmaps); text fills redraw words that
+point there (two 16-bit "wide text" words made 0x00000000-0x13ffffff, the test's executable and
+heap). Pointers a function computes can still get anywhere (NAL_Quat_BeginBlock's store loop
+overwrites its own pointer cell): the brk heap is read-only during every call, so such a store
+faults and the input is skipped, and the signal handlers write only static state (the printf
+stand-ins open the heap while the host's printf runs, with SIGALRM held back). Some console
+commands (CL_DecAnimWeight_f, IN_DownUp...) are bimodal: in some runs no input gets through va's
+ring-buffer copy, so all 4000 are skipped; LEAF_CSV then keeps the function's earlier row.
 
 Compared as in the game (below, What is compared): the result by kind, EBX/ESI/EDI, ESP after
 the return, DF, the x87 control word, depth and values, MXCSR, the arena, and every title data
