@@ -851,4 +851,14 @@ CoD-specific functions included, so later decompilation covers both kinds.
   bones +0x410 count +0x464, angle limits +400 count +0x194 max 4 {axis, cos, sin}), Live users (0x0095f6fc: 0xfe8
   records at +0x30, current +0x44d0, wide name +0x10). Skipped (need modules): physics 0xb3130-0xc0ca0 helpers,
   file system 0xc9390-0xca380, movie/save 0xcbc10-0xd0dd0, sound 0xc3fb0/0xc5a80/0xc6fb0/0xc7540.
-  Next (in progress): 1-caller lists ones_a from 0x000d19e0 and ones_b.
+  1-caller batch B (111 names; list ones_b 0x248000-0x33ac80 fully read). Findings: language index 0x0095f5dc (0 en,
+  1 de, 2 fr, 3 es, 4 it; from XGetLanguage in 0030f210; suffix table 0x008d5a80). Weapon def name -> index pairs:
+  altWeapon +0x714/+0x718, ammo +0x594/+0x598 (max ammo 0x00929818), clip +0x59c/+0x5a0 (clip size 0x00935338),
+  shared ammo cap +0x5ac/+0x5b0 (0x00934a68), hint +0x840/+0x844. Actor +0x46 "stance not allowed" bits (1 prone,
+  2 crouch, 4 stand) from node flags +0x2c (0x10/8/4). Vehicle: wheel angle +0x1c4, steer +0x270, wheel bones +0x2dc,
+  turret target +0x1c8..+0x1e4; def +0x30/+0x34/+0x38 nonzero = immune to bullet/grenade/projectile. Hud records 16 x
+  0x7c at 0x0094cc88. ps +0x45c drains 2/3 per second under pm_flags 0x10000, blocked prone/crouched: a stamina/
+  sprint-style meter (not ADS, that is ps +0x88). Suspect names to re-check: 002fb600 "GScr_GetCurrentZoneId" acts
+  like a newHudElem-style allocator. Skipped (need modules): vehicle paths/physics, turret states, pmove internals,
+  view-weapon anim, stream relocation, localization parsers; ~60 bodies read with roles unclear.
+  Next (in progress): 1-caller list ones_a from 0x000d19e0.

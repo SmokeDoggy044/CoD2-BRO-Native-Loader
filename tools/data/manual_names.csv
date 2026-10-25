@@ -12599,3 +12599,114 @@ address,name,kind,confidence,evidence
 000cae10,File_Exists,function,high,"File_OpenRead(path, mode), File_Close, returns handle != -1; Stream_QueueLoad"
 000d1360,Save_TranslateError,function,medium,"Win32 error -> save result: 0 -> 0, 0x70 (disk full) -> -3, 0x55 (already exists) -> -17, 0x48f (device not connected) -> -10, else -1; Save_MountDevice"
 000d1500,Save_CalculateSignature,function,high,"(data, size, out sig, out size): *size = 0x14; XCalculateSignatureBegin/Update/End into the 20-byte signature; Save_Update"
+002481d0,TriggerDamage_AcceptsMeansOfDeath,function,medium,Activate_trigger_damage helper: spawnflags +0x2a0 bits 1/2/4/8/0x10/0x20/0x40/0x100 each exclude a set of MOD values (EAX); returns 1 when not excluded
+00248460,Actor_CopySpawnerFields,function,medium,"walks the entity field table 0x0082ff3c ({ofs,type}: 0 int,1 short,2/0xc byte,3 float,5 vec3,0xe script string) copying spawner (EDI) -> new ent, plus +0x260..+0x280; only caller Actor_SpawnFromSpawner"
+00248620,Vehicle_TakesDamageFromMod,function,medium,"G_Damage helper: vehicle def (g_vehicleDefs[veh+0x178]) +0x30 for MOD 1/2, +0x34 for 3/4, +0x38 for 5/6 (nonzero = immune); MOD 0x17/0x1b never; else true"
+002490c0,VehNode_Alloc,function,medium,"G_SpawnVehicleNode: FUN_00248f70 slot, clears name strings, speeds -1, links +0x3c=0xfffffff, angles unset (008db094), g_numVehNodes++"
+00249b90,G_SetSpawnVarsFromList,function,medium,"fills level_spawnVars key/value pairs (level_numSpawnVars) from a {count, pairs[8]} list in ECX; called at the end of G_SpawnGEntityFromSpawnVars"
+0024bd40,Vehicle_UpdateTurnRateAndWheelAngle,function,medium,"Vehicle_Think: if vehicle def +0x24, yaw delta (fmod 360, wrapped) / dt clamped +-60 into veh +0x2a0 (old in +0x270); wheel angle +0x1c4 += speed/(radius +0x1c0 * 2pi)*360"
+0024bfd0,Vehicle_ResetMotionState,function,medium,"Vehicle_InitRecord: copies ent origin +0x140 / angles +0x150 into vehicle record +0xc0/+0xd0 and +0xe0/+0xf0, zeroes velocities +0x100.. and rates"
+0024cf70,Fill_Clip,function,high,"RTCW Fill_Clip body (Add_Ammo caller): moves min(clip size 0x00935338[clipIdx]-clip, stock) from ps ammo +0x110[weapDef+0x598] into clip +0x280[weapDef+0x5a0]"
+0024fcc0,Turret_UpdateAimWithJitter,function,medium,"Turret_UpdateTarget: every 4500 ms re-rolls aim offsets +0x68 (pitch -6..6) / +0x6c (yaw -20..20) and target time +0x1c, then Turret_UpdateTargetAngles"
+0024fd90,Turret_SetIdle,function,medium,"Actor_Turret_Start: clears turret info flags 0x48 (+2), target +0xc; if state +1 was nonzero notifies turretstatechange; state = 0"
+0024fe10,G_FreeAnimTrees,function,medium,"G_ShutdownGame: AnimTree_FreeNotetracks for trees 1..count 0x00927098, Z_Free the buffer 0x0095f59c when owned (0x0095f5a0)"
+0024fef0,Player_UpdateLookAtActorInfo,function,medium,"Player_UpdateCursorHints: for client+0x5f4 entity's actor (+0x240, +0x2d0 set, name string +0xec) sets configstrings 13 name, 14 health/maxhealth (+0x350/+0x354), 15 weapon name; else clears"
+00250960,ClientThink_RunPendingTouch,function,medium,"ClientThink_real: client +0x628 entity handle; when FUN_00248e10 passes and delay 0x0095bc34 since +0x62c elapsed, clears it, notifies 'touch' and calls entityTouchFuncs[ent+0x338]"
+00250e70,AnimTree_EnsureAnimLoaded,function,medium,G_AnimScriptedStart: (tree<<16|anim) -> 0x38-byte anim record of tree 0x0095f524; AnimData_EnsureLoaded when data +0x24 is null
+00253ed0,Vehicle_UpdateTreadScroll,function,medium,"Vehicle_Think: if vehicle def +0x28, ent +0xa0 += forward speed * dt * vm_g_vehicleTexScrollScale (00954fd0, or def +0x40) /176; plus veh +0x114"
+00254a10,G_SimulateGrenadeBounce,function,medium,"G_SimulateGrenadePath: reflects trajectory velocity about the trace normal (-2 dot), halves it for flag 0x2000000, stops on ground (normal z > 0.7, speed < 20); Q3 G_BounceMissile shape"
+00254bd0,Turret_IsPlayerWithinArc,function,medium,"Turret_IsUsableBy: angle between turret centre yaw (arc +0x30/+0x38 around ent yaw +0x154) and player (EDI) direction via acos, compared with the half arc"
+0025b4d0,G_DObjAdvanceAnimsUntilDone,function,medium,"Actor_UpdateAnimScript: while AnimTree_AdvanceTimeForModel(ent+0x22c, frame msec 0x008dda9c *0.001, 1) returns true; stops for no model or ent flag 0x10000 (+0x2a4)"
+0025b8a0,Vehicle_UpdateWheelBones,function,medium,"Vehicle_Think: for 4 (or 6 when def type +0x20 != 1) wheel bones at veh +0x2dc, G_DObjSetBoneRotation with roll angle veh +0x1c4 and steer +0x270 on the two front wheels (0x0095f658/0x008d9d58)"
+0025d7d0,G_MissileActivateDamageTriggers,function,medium,"G_RunMissile: SV_AreaEntities over the missile move bounds, trigger_damage ents (+0x260) with flag 0x40000 and a clear SV_EntitySightTrace get Activate_trigger_damage + 'damage' notify"
+0025df60,G_SetEntityAnimTree,function,medium,"GScr_UseAnimTree: ent +0x254 = AnimTree_Create(animtree EAX) (or 0), G_DObjUpdate, old tree queued on 0x00987070/0x00987074 for AnimTree_FlushClearLists"
+00260b60,Vehicle_UpdateTurretAim,function,medium,"Vehicle_Think: turret target (veh +0x1c8, entity +0x1cc or point +0x1d0), aims via tag matrix/AnglesToAxis, sight trace, notifies turret_on_target / turret_on_vistarget; state +0x18c"
+00262b40,Mover_ReverseTeam,function,medium,"Use_BinaryMover: for each team member (+0x37c chain) negates move speed +0x2f4, copies flag 0x100 from the leader, SetMoverState"
+00269700,G_PlayerMelee,function,medium,"ClientEvents: unless on a turret/vehicle (client +0xc0 & 0x106000), view axis from client +0x9c, Player_GetViewOrigin, Weapon_MeleeTrace with the current weapon def"
+00271b60,Turret_UpdatePlayerFire,function,medium,"Player_UpdateTurretUse: turret info +4 fire cooldown -= frame msec; when 0 and attack held (client +0x594 & 1) adds weapon fireTime*heat rate (+0x5dc, +0x84c) to overheat +0x78, resets cooldown, fires via FUN_002712a0"
+002789f0,Angles2Normalize180,function,medium,"CG_CalculateWeaponAngles helper: wraps ESI[0] and ESI[1] (pitch, yaw) into -180..180 via fmod 360"
+00283120,CG_CreateViewWeaponDObj,function,medium,"CG_SetViewHandsModel: frees weapon slot's DObj (0x00975fa8 + w*0xc4), R_RegisterModel hands + weapon model, DObj_Create(2 models), stores it and the hands name (0x00976010, 0x17 chars)"
+0028c240,Stream_SeekNextItem,function,medium,"Stream_UpdateLoad: zone (+0x7c)->table +8 entry +0x80 (0x18 each, count +0xe); item index +0xd4 == count -> state +0xe0 = 3, else +0xd8 = block base (+0x1c records) + item offset (0x14 items)"
+00296200,SCR_DrawLoadingText,function,high,"SCR_UpdateLoadingIcon_2: dims 640x480 (0x96000000 quad) and draws centred 'Loading ...' in the language picked by 0x0095f5dc (1 Laden, 2 Chargement, 3 Cargando, 4 Caricamento) with font 0x0095f8d4"
+00297500,MatrixInverse43,function,medium,"G_EntLinkTo helper: inverse of an orthonormal 4x3 (axis transposed, origin = -R^T t) from ECX into EAX"
+00299af0,Com_InitSmallHeap,function,medium,"Com_Init: SmallHeap_Init with 5 size classes ({0x14,4,0x1000}..) into 0x00947700 and copies that heap into every module heap pointer (0x0095f488 .. 0x0095f6d4)"
+00947700,com_smallHeap,data,medium,SmallHeap_Init result stored by Com_InitSmallHeap and copied to the module heap pointers
+0029a8b0,FS_Seek,function,high,Q3 FS_Seek body: fsh[f] (0x120 records) plain file -> fseek with origin 0 cur / 1 end / 2 set; zip file -> unzSetCurrentFileInfoPosition/unzOpenCurrentFile + read forward in 64K chunks
+0029ab20,FS_IsCfgMenuOrDatFile,function,medium,"FS_FOpenFileRead helper: skips a leading '.', true for extension 'cfg' (stricmp) or names starting 'menu' / 'dat'; Q3 pak-reference exemption list shape"
+0029ea50,FS_AddGameDirectories,function,medium,FS_Startup: FS_AddGameDirectory 14 times in a loop plus one more
+002a4520,YawToAxis,function,medium,"G_AnimScriptedStart: FastSinCos(yaw deg) -> axis (cos,sin,0) (-sin,cos,0) (0,0,1) in ESI"
+002a8960,Loc_StripLineComment,function,medium,"Loc_ReadLine: finds '//' outside double quotes and cuts the line there, trimming trailing whitespace"
+002a89f0,Loc_MatchKeyword,function,medium,"Loc_ParseStringFile: strnicmp the line (ESI cursor) against keyword EDI; on match advances the cursor past it and following tabs/spaces, returns 1"
+002a8a80,Loc_StripFileExtension,function,medium,Loc_BeginStringFile: copies the path into static 0x0098b220 and cuts the last '.' that follows any '/' or '\\'
+002a8b40,Loc_IsKsc5601Punct,function,medium,Loc_PopSemicolonToken helper: double-byte code 0xa1a1..0xa1ad (KS X 1001 punctuation)
+002a8b80,Loc_IsShiftJisPunct,function,medium,Loc_PopSemicolonToken helper: double-byte code 0x8140..0x8151 (Shift-JIS punctuation)
+002a8ba0,Loc_IsShiftJisChar,function,high,lead 0x81-0x9f/0xe0-0xef with trail 0x40-0x7e/0x80-0xfc: Shift-JIS double-byte character test
+002a8bd0,Loc_IsBig5Punct,function,medium,Loc_PopSemicolonToken helper: double-byte code 0xa140..0xa153 (Big5 punctuation)
+002a8bf0,Loc_IsBig5Char,function,medium,lead 0xa1-0xc6/0xc9-0xf9 with trail 0x40-0x7e/0xa1-0xfe: Big5 double-byte character test
+002a8c20,Loc_IsKsc5601Char,function,medium,lead 0xb0-0xc8 with trail 0xa1-0xfe: KS X 1001 Hangul syllable test
+002a8d30,R_AddSimpleInstancesToScene,function,medium,"R_RenderView: for 99 buckets (param[1..]) walks each bucket's 0x10-byte slots (+0x20 count, +0x24 array) and their +0x14-linked lists, cdSimpleInstance_AddListToScene"
+002a9f90,Actor_GetAllowedStanceMask,function,medium,"GScr_ActorIsStanceAllowed: mask 7 (stand/crouch/prone) minus bits for the disallow flags at +0x46 (4 -> stand, 2 -> crouch, 1 -> prone)"
+002ac450,CL_ClearConfigstrings,function,medium,"SV_MapRestart: assigns '' to every cl_configstrings entry up to 0x009616b8, then VM_Call(cgvm, 0x14)"
+002acc10,BG_SetupAltWeaponIndices,function,high,"BG_InitWeapons: clears weapDef +0x718, resolves altWeapon name +0x714 by stricmp over bg_weaponDefs into +0x718; errors 'could not find altWeapon', 'has a bad altWeapon', 'does not have same slotStackable setting as its alt weapon'"
+002acdb0,BG_SetupWeaponItems,function,medium,BG_InitWeapons: for each weapon fills a bg_itemlist entry with the weapon name (+0x578) and its lowercase rotate-xor hash
+002acf50,BG_SetupWeaponTransitionRates,function,medium,"BG_InitWeapons: per weapon def +0x868 = 1/(+0x678) and +0x86c = 1/(+0x67c) with defaults (ADS in/out rates, naming.md pm->ps +0x88), and more reciprocal time fields"
+002aeab0,Stream_RelocateAnimTrees,function,medium,"Stream_LoadAtrb: adds the base to the tree table (+8), Pack_RelocateTable, then per tree (0xc) its 0x38-byte anim records' pointers; stores the table at param+4"
+002aecd0,AnimTree_IsLeafOrSynced,function,medium,AnimTree_DebugDraw_r helper: anim record (0x38) has no children (+0x20) or has sync flags (+0x34 & 3)
+002afa40,Loc_IsGb2312Char,function,medium,lead 0xa1-0xf7 with trail 0xa1-0xfe: GB2312 (EUC-CN) double-byte character test; next to the other Loc_Is* encoding tests
+002b0b90,PathNode_ResetAllRuntimeState,function,medium,"G_InitGame: for every block of g_pathNodeBlocks (+8, count via +0x194 -> +0xc) clears each 0x80-byte node's +8 and sets +0x68 = -2"
+002b5920,BG_SetupClipIndices,function,medium,"BG_InitWeapons: lowercases clip name weapDef +0x59c, finds it in the clip name table 0x00928368 (count 0x00929b14) or appends it, stores the index (+0x5a0) and clip size into 0x00935338"
+002b5a70,BG_SetupSharedAmmoCaps,function,high,"BG_InitWeapons: shared ammo cap name +0x5ac -> index +0x5b0 in table 0x00929990 (count 0x00929c1c), caps 0x00934a68; error 'Shared ammo cap mismatch for ""%s""'"
+002b5c40,BG_SetupAmmoIndices,function,high,"BG_InitWeapons: ammo name +0x594 -> index +0x598 in table 0x00935128 (count 0x0092f5ec), max ammo 0x00929818; error 'Max ammo mismatch for ""%s"" ammo'"
+002b6e50,G_EntityRemoveNotifyCallback,function,medium,"GScr_GetEntVar: walks the entity notify-callback blocks (6 {hash, func} pairs at +8/+0xc, next +0x38; naming.md entity +0x234) and clears the pair matching (hash, func)"
+002b8390,SV_GetConfigstring,function,high,"Q3 SV_GetConfigstring body: bufferSize < 1 and index outside 0..1023 are fatal (__break), strncpy from configstring 0x00964ce0[index] (+6 = string text) into the buffer; caller Cmd_MenuResponse_f"
+002b8420,G_EntGetTagIndex,function,medium,"GScr_LinkToTagWithOffset: DObj_GetTagIndex when the entity has a DObj (+0x22c), else -1"
+002b9080,Com_ParseOnLine,function,medium,"returns an ungot token (parse info 0x008d4ca0 +0x84 flag, +0x88/+0x94/+0x98) when one is pending, else COM_ParseExt(data, 0) (no line breaks)"
+002ba050,Actor_SetStanceLimitsFromNode,function,medium,"Actor_UpdateStatusNotifies: path node from handle +0x18 (g_pathNodeBlocks block/index); node flags +0x2c 0x10/8/4 -> actor +0x46 bits 1/2/4 (prone/crouch/stand not allowed, see Actor_GetAllowedStanceMask)"
+002bb940,G_RestorePlayerHealth,function,medium,"G_RestorePlayerLoadout: player health (client +0x100, ent +0x350) = saved value (EBX+4) raised to a per-g_skillLevel minimum when restoring a checkpoint, else client +0x108"
+002c6030,Stream_RelocatePathData,function,medium,"Stream_LoadZpth: copies the base name, adds the block base to the path data's pointer fields (+0x10..+0x28) and per node block of g_pathNodeBlocks (+0x194) fixes their pointers"
+002c80b0,BG_SetupWeaponHintStrings,function,medium,BG_InitWeapons: for each weapon with a hint string (+0x840) G_FindHintStringIndex into +0x844; fatal when the table (0x20) is full
+002c84e0,PM_NoclipMove,function,medium,"Q3 PM_NoclipMove shape: viewheight (+0xa8/+0x428) reset to 0x009341c4, speed friction (stop speed 100, factor 8.25 * frametime), then PM_CmdScale wish velocity added; PmoveSingle"
+002db7d0,PM_UpdateStickyAim,function,medium,"PM_UpdateViewAngles: aim-assist toward actors (g_actors, stance prone/crouch target heights) with RayPlaneIntersectFrac, debug lines/strings under cvar bg_stickyAimRender"
+002dc3b0,PM_UpdateLean,function,medium,"RTCW PM_UpdateLean shape: cmd buttons 0x10/0x20 lean left/right (blocked by pm_flags 0x400000/0x800000, turret/vehicle, prone), lean fraction stepped by pml_msec, AddLeanToPosition trace"
+002e0440,Loc_LoadStringFileOrSte,function,medium,Loc_LoadStrings: Loc_LoadStringFile; on failure replaces a 3-letter extension with '.ste' and tries again
+002e2a30,PM_ProneUndoBlockedMove,function,medium,"PM_StepSlideMove helper: when prone (pm_flags & 1) BG_CheckProneFeet (30 units, 60) at the new origin; if it fails restores the saved origin (EAX) and velocity (ESI) into ps"
+002e3670,G_DObjCreateForEnt,function,medium,"G_DObjUpdate: allocates the entity's 0xa0-byte DObj (+0x22c) from its mem context or Heap_AllocAligned when missing, DObj_Create(models), owner +0x88 = ent"
+002e3720,G_DObjGetTagMatrixPtr,function,medium,"turret_think_init: DObj_GetTagIndex + SV_DObjCreateSkeleton, returns the tag's 0x40-byte matrix in the skeleton (dobj +0x20, +0x60 bone offset), 0 if none"
+002ecc80,PM_Footsteps,function,medium,"Q3 PM_Footsteps shape: pm->xyspeed (pm[0x49]) = horizontal speed first; bails on turret/vehicle; stance from viewheight +0xa8 vs prone/crouch heights (+0x424/+0x420); bob cycle by pml_msec, legs anims"
+002ef090,PM_CheckDuck,function,medium,"Q3 PM_CheckDuck shape: pm mins/maxs (pm[0x40..0x45]) from ps +0x408..+0x418, viewheight +0xa8 per stance (+0x42c), prone checks with BG_CheckProneFeet and stance-change events"
+002f1220,PM_Weapon,function,medium,"Q3 PM_Weapon role: skipped on pm_flags 0x800 or dead (pm_type > 3); PM_UpdateAimDownSightFrac, weapon state machine helpers, PM_WeaponUseAmmo, PM_RemoveEmptyWeapon, HUD grenade-cook reset"
+002f6160,HudElem_Alloc,function,medium,"first free 0x7c-byte hud record of 16 at 0x0094cc88 (+0 inuse): sets inuse, alpha-like +0xc = 1.0, color +0x1c = 0xffffffff, clears the rest, returns index or -1; caller 002fb600 'GScr_GetCurrentZoneId' looks like newHudElem"
+002fdf40,ScrObject_GetThreadHandle,function,medium,"Scr_InitWaitRecord: clears the 3-dword record (ESI), allocates a handle for the object (EDI +0x14) via ScrThread_AllocHandle when it has none (slot table 0x008dd228), stores it in record[2]"
+002ff3e0,Sys_InitHeaps,function,medium,"Sys_Main: SmallHeap_Init (3 size classes) into 0x0095f4a4, Heap_CreateFromZone (0x494-byte heap) into 0x0095f4a0, registers callback 0x002fd6e0 in the list 0x00988784 (max 32)"
+0030adb0,G_SetupLevelScriptImports,function,high,"G_LoadLevelScriptModule: fills the level-script import table (0x0095f49c) with engine function pointers: GScr_EmptyStub0/1, GScr_SendGameMessage, GScr_Print3D, sprintf/strcpy, Scr_CreateThread, Scr_BeginThread, wait records ..."
+0030cfd0,MissionSuccessFailMenu_SetFailedText,function,medium,G_CheckMissionEnd: sets the two text elements at screen +0x40/+0x44 (vtable slot 0x6c) to 'INGAME_MISSION_FAILED'
+0030d4c0,CreateProfileMenu_ToggleCase,function,high,CreateProfileMenu_HandleSelect: flag +0x1a8 toggles; relabels keys 10..35 (vtable slot 0x30) with 'a'..'z' or 'A'..'Z'
+0030de20,LoadSicilyMenu_ClearElements,function,medium,"LoadSicilyMenu_RestoreSelection: slot 0x7c(0) on 19 elements from +0x48 and 3 from +0x98, slot 0x78('') on the text at +0xa8"
+0030de90,LoadAfricaMenu_ClearElements,function,medium,"LoadAfricaMenu_RestoreSelection: slot 0x7c(0) on 48 elements from +0x48 and 5 from +0x10c, slot 0x78('') on the text at +0x124"
+0030df00,LoadingMenu_ClearElements,function,medium,"LoadingMenu_RestoreSelection: slot 0x7c(0) on 42 elements from +0x48 and 5 from +0xf4, slot 0x78('') on the text at +0x10c"
+0030eb40,UIScreenMgr_PadBitToButton,function,medium,"UIScreenMgr_HandleInput: maps one pad bit to a button index (0x10->0, 8->1, 0x20->2, 4->3, 0x80->6, 1->0xf, ...)"
+0030f210,Loc_InitLanguageFromDashboard,function,medium,"UI_ShowDiscErrorScreen: XGetLanguage 1 (English) -> 0, 3 (German) -> 1, 4 (French) -> 2, ... into 0x0095f5dc; other languages decided by XGetVideoStandard"
+0095f5dc,g_languageIndex,data,medium,"0 English, 1 German, 2 French, 3 Spanish, 4 Italian (Loc_InitLanguageFromDashboard; SCR_DrawLoadingText's 'Loading ...' strings; suffix table 0x008d5a80)"
+0030f3f0,Loc_AppendLanguageSuffix,function,medium,Pak_ParseFli: once (0x0098ad11) appends '_' and the language suffix 0x008d5a80[g_languageIndex] to the 0x1f-char name buffer 0x0095f828 (length 0x0095f847)
+0030fe00,Movie_DrawFrame,function,medium,"CL_PlayMovie: returns 4 when stopped (0x0095f916), else decodes via the movie object (0x0095f454 slot 2), Subtitle_Draw, sets the frame texture on quad 0x0095f458 (+0x60) and nglListAddQuad"
+00310e10,UI_DrawPillarboxBars,function,medium,"two black (0xff000000) quads x 0..80 and 560..640, full height 480, z = owner depth - 100"
+00316010,Movie_CheckSkipInput,function,medium,"CL_PlayMovie: IN_PadUpdate, after a minimum time (0x0095f45c >= 0x0095f460) checks pad 0x008d50d8 buttons 0xe and 4..11 (IN_PadButtonPressed) and sets the skip flags 0x0095f91c/0x0095f915"
+00316580,Panel_ReadString,function,medium,"Panel_CreateText: reads a u16 length then that many chars from the panel data (EDI, cursor ESI) with ScriptString_AppendChar"
+0031ac10,Save_GetBlocksNeeded,function,medium,"MemDlg_FormatNotEnoughBlocks: (Save_ClustersForSize(0x400)*4 + cluster*2 + cluster*5) - Save_GetFreeSpace, BytesToBlocks, at least 1"
+003258c0,CreateProfileMenu_Backspace,function,medium,"CreateProfileMenu_HandleSelect: length +0x1ac -1, puts '_' at the cursor in name buffer +0x198, updates the name text (slot 0x6c), re-enables the 0x9d/4 key elements when below 15 chars"
+00325980,CreateProfileMenu_AddChar,function,medium,"CreateProfileMenu_HandleSelect: key index -> '0'..'9' or 'a'..'z'/'A'..'Z' (case flag +0x1a8), appended while the name (+0x1ac) is under 15 chars"
+0031e0a0,LoadSicilyMenu_SetMissionRange,function,medium,"LoadSicilyMenu_RestoreSelection: mission 0x008dce48 6/7/8 -> first item +0x3c (0/6/12) and count +0x40 up to 5/11/18, then FUN_00313120"
+0031e190,LoadAfricaMenu_SetMissionRange,function,medium,"LoadAfricaMenu_RestoreSelection: mission 0x008dce48 1..4 -> first item +0x3c (0/13/30/..) and count +0x40, then FUN_00313360"
+0031e2a0,LoadingMenu_SetMissionRange,function,medium,"LoadingMenu_RestoreSelection: mission 0x008dce48 9..12 -> first item +0x3c (0/11/27/..) and count +0x40, then FUN_00313610"
+003291a0,AdvancedOptionsMenu_LoadSettings,function,medium,"AdvancedOptionsMenu_RestoreSelection: copies the control settings (0x008dce68..0x008dce88, profile +0x40) into the screen's +0xa4..+0xc2 and labels toggles FEMENU_COP_ON/OFF"
+00329330,AdvancedOptionsMenu_ResetDefaults,function,medium,"same +0xa4..+0xc2 layout as AdvancedOptionsMenu_LoadSettings: toggles 1,1,1,0,0,0,0, sliders 25/25/50 (FUN_0031ee10) and FEMENU_COP_ON/OFF labels"
+0031f050,AdvancedOptionsMenu_ToggleSelected,function,medium,"switch on selection +0x22: flips the matching AdvancedOptions toggle (+0xbe, +0xbf, ...) and sets its text to FEMENU_COP_ON/OFF"
+0032d340,MissionSuccessFailMenu_OnRetryYes,function,medium,"'yes' callback of MissionSuccessFailMenu_ShowRetryDialog: flag 0x0095ee08 = 1, Cvar_Set2('g_reloading', '1'), Cmd_ExecuteRegisteredCommand"
+0032df40,DialogMgr_Dtor,function,high,"DialogMgr_DeletingDtor: vtable = DialogMgr_vtable, frees the object at +0x1c, deleting-dtors the two dialogs (+4 array), UIScreenMgr_Dtor"
+0032e310,UIOptionItem_PlaySelectSound,function,medium,"UIOptionItem_Next: if sounds enabled (+0x28) and the previous handle (+0x24) is not still playing (SndVoice_GetState 4), S_PlaySoundAlias of 'UI_Select'"
+00331f70,SCR_UpdateLoadingSubtitle,function,medium,SCR_LoadingPump: subtitle clock 0x0092708c += msec/1000; Subtitle_Start once it passes the next cue time 0x00926e24 while subtitles are on (0x0095f474)
+00333060,FE_BonusStopMovie,function,medium,"FE_BonusMovieFileName: stops sound and movie, nglResetDeviceBindings, releases the frame texture (+100), closes the file (+0x5c) and frees its buffer (+0x60)"
+00333640,AutosaveMenu_ShowNoSaveDialog,function,medium,"AutosaveMenu_Update: UI_ShowDialog on 0x0095f900 with one button 'MEM_CONTINUE_WO_SAVING' (callback 0x003125d0), Dialog_LayoutButtons"
+00334070,MissionSuccessFailMenu_ShowRetryDialog,function,medium,MissionSuccessFailMenu_HandleSelect: dialog with MEM_DIALOG_YES (MissionSuccessFailMenu_OnRetryYes) / MEM_DIALOG_NO (0x0030cf90) when 0x008dd1cf == 1
+00334ca0,ProfileMenu_ShowSaveErrorDialog,function,medium,"ProfileMenu_Update: by error state +0x48/+0x4c shows MEM_DIALOG_OK, MEM_RETURN_TO_MAIN or MEM_CONTINUE_WO_SAVING dialogs"
+00338b70,CreateProfileMenu_Finish,function,medium,"CreateProfileMenu_HandleSelect: trims trailing spaces of the name (+0x198, length +0x1ac), copies 16 chars to the profile name 0x008dce30, Movie_Open('Propgnda') full screen"
