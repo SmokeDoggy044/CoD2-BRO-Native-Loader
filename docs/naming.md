@@ -759,3 +759,20 @@ CoD-specific functions included, so later decompilation covers both kinds.
   - Anim tree records 0x38 (trees 0x0095f524, current 0x00928588): child count +0x20 (u16), first child +0x36,
     data +0x24 (length data+0x38), notetracks +0x28, sync flags +0x34 (&3 sync, 4 marked); anim info 0x30 at
     0x00965cf0 (weight +0x20, goal +0x24, rate +0x28). Compiled scripts queue 0x34-byte anim commands (type 1-4).
+  Batch 2 = 88 names: physics pools per record size (PhysWorld_Create carves them from one arena), contacts,
+  sound listener/voice setters, save buffers, Stream_RelocateZone/UnrelocateZone, std templates; PM_AirMove/
+  PM_Friction, turrets, G_EntityAddNotifyCallback, vehicle state. 002dcc60 is BG_CheckProne (15 args, ground
+  normal z > 0.7, two traces); the earlier BG_CheckProne 002dc6f0 is BG_CheckProneFeet (24 units behind the yaw).
+  - Physics world (0x300): pools {base, ptrs, idx, cap, count} - bodies 0x170 +0x1e8, constraints 0x30 +0x1fc,
+    0x50 +0x228, 0x60 +0x250, 0x10 +0x264; contact arena +0x2b4..+0x2bc, contact lists +0x2cc (0xa0), +0x2d8
+    (0x140), +0x2e4 (0xa0). Body flags +0x144 (0x10 static, 2 scalar inverse inertia +0xb0), rotation +0x40,
+    inverse inertia tensor +0x80.
+  - Sound mix state 0x008bda18: listener origin +0x54, velocity +0x60, front +0xc0, top +0xcc (DirectSound listener).
+  - Loaded stream blocks keep offsets: Stream_RelocateZone adds the base to the zone table (+8, count +0xc) and
+    each entry's 0x14-byte items (count +0xe); Stream_UnrelocateZone undoes it on cancel.
+  - Turret info (entity +0x24c): +1 state (0 idle, 2 on target, turretstatechange), +2 flags, +0xc target,
+    +0x1c target time, +0x2c..+0x38 yaw/pitch arcs. Pmove locals: forward/right 0x0095ff80..94, ground plane
+    flag 0x0095ffb0, ground normal 0x0095ffd0, frametime 0x0095ffa4.
+  Skipped on purpose (need their module's decompile): physics solver internals (0xb1b40 GJK simplex, 0xbb4f0,
+  0xc0000, 0xbfc20 ...), movie bit decoder 0xcea00, compiled-script helpers, online UIX LiveEngine callers.
+  Next (in progress): the front-end widget class hierarchy per vtable, then the 288 aligned 2-caller functions.
