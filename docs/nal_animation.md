@@ -111,7 +111,7 @@ step quaternion (deltas * |scale|, w = sqrt(|1 - |xyz|^2|) by rsqrt + Newton). T
 form lane for lane: m * q.w + q * m.w + q x m - dot * {0,0,0,1} (constant 0x008375d0).
 Entropy quaternion class 0x007c2a30: slot 6 0x000861b0 (from the BeginBlock readers), 7 0x00086730 (a stack
 QuatReader per stream, buffer 0x00906820), 9 0x00082170 (Short4_ToQuat or the default).
-Vtable 0x007c2c38 (after the four PosOri ones) holds 0x50-byte values cached as 0x1a bytes per channel: stream A
+Vtable 0x007c2c38, NAL_Packed16EntropyIKSpin (descriptor table 0x008bb130 names every channel class; it was called "PackedPosOri" here before), holds 0x50-byte values cached as 0x1a bytes per channel: stream A
 has five floats per channel (position bias +4, position range +8, word-3 scale +0xc, quaternion scale +0x10),
 stream B the block scale and one flag byte per active channel. Flag set: a quaternion (int16) and three position
 words; clear: two quaternions. Both end with one more int16 (factor 5215.1, bias 9.6e-5). Readers 0xc0 per channel

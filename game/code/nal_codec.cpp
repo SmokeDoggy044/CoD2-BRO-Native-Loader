@@ -1591,7 +1591,7 @@ void XB_THISCALL NAL_EntropyReader_DecodeShorts(EntropyReader* reader, int16_t* 
     }
 }
 
-void XB_CDECL NAL_PackedPosOri_DecodeChannel(uint8_t* readers, uint8_t* out, int32_t* deltas, uint32_t, uint32_t count,
+void XB_CDECL NAL_Packed16EntropyIKSpin_DecodeChannel(uint8_t* readers, uint8_t* out, int32_t* deltas, uint32_t, uint32_t count,
                                              int32_t stride, uint32_t, const float* block_scale, const float* ranges,
                                              const uint8_t* has_position) {
     EntropyReader* floats = reinterpret_cast<EntropyReader*>(readers + 0x80);
@@ -1615,7 +1615,7 @@ void XB_CDECL NAL_PackedPosOri_DecodeChannel(uint8_t* readers, uint8_t* out, int
     }
 }
 
-uint32_t XB_STDCALL NAL_PackedPosOri_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, int32_t* deltas,
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, int32_t* deltas,
                                                   uint32_t unused, uint32_t count, int32_t stride) {
     uint8_t** stream_a = context_stream(context, 2);
     uint8_t** stream_b = context_stream(context, 3);
@@ -1627,7 +1627,7 @@ uint32_t XB_STDCALL NAL_PackedPosOri_DecodeFrames(const uint32_t* context, uint8
     *stream_a = align4(*stream_a);
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
         if (channel_active(context, i)) {
-            NAL_PackedPosOri_DecodeChannel(*readers, *dst, deltas, unused, count, stride, old_a, block_scale,
+            NAL_Packed16EntropyIKSpin_DecodeChannel(*readers, *dst, deltas, unused, count, stride, old_a, block_scale,
                                            reinterpret_cast<const float*>(*stream_a), *stream_b);
             *readers += 0xc0;
             *dst += 0x1a;
@@ -1669,12 +1669,12 @@ void begin_quat_stream(uintptr_t reader, uint8_t** stream, uint32_t count, float
 
 }  // namespace
 
-PLATFORM_ASM_ENTRY(NAL_PackedPosOri_BeginChannel_entry,
+PLATFORM_ASM_ENTRY(NAL_Packed16EntropyIKSpin_BeginChannel_entry,
                    "leal 4(%esp), %eax\n"
-                   "pushl %eax\n" PLATFORM_ASM_CALL(NAL_PackedPosOri_BeginChannel) "addl $4, %esp\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(NAL_Packed16EntropyIKSpin_BeginChannel) "addl $4, %esp\n"
                    "ret")
 
-void XB_CDECL NAL_PackedPosOri_BeginChannel(uint32_t* args) {
+void XB_CDECL NAL_Packed16EntropyIKSpin_BeginChannel(uint32_t* args) {
     const uintptr_t readers = args[0];
     uint8_t** stream = reinterpret_cast<uint8_t**>(static_cast<uintptr_t>(args[1]));
     const uint32_t count = args[2];
@@ -1691,7 +1691,7 @@ void XB_CDECL NAL_PackedPosOri_BeginChannel(uint32_t* args) {
     }
 }
 
-uint32_t XB_STDCALL NAL_PackedPosOri_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count) {
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count) {
     uint8_t** stream_a = context_stream(context, 2);
     uint8_t** stream_b = context_stream(context, 3);
     *readers = align16(*readers);
@@ -1708,7 +1708,7 @@ uint32_t XB_STDCALL NAL_PackedPosOri_BeginBlock(const uint32_t* context, uint8_t
                                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(block_scale)),
                                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_a)),
                                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_b))};
-            NAL_PackedPosOri_BeginChannel(args);
+            NAL_Packed16EntropyIKSpin_BeginChannel(args);
             *readers += 0xc0;
             *stream_b += 1;
         }
@@ -1739,32 +1739,32 @@ uint32_t packed_posori_skip(const uint32_t* context, uint8_t** data) {
 
 }  // namespace
 
-uint8_t** XB_STDCALL NAL_PackedPosOri_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t) {
+uint8_t** XB_STDCALL NAL_Packed16EntropyIKSpin_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t) {
     *cursor = align16(*cursor);
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += 0x50;
     return cursor;
 }
 
-uint32_t XB_STDCALL NAL_PackedPosOri_InitState(const uint8_t* group, uint8_t** cursor) {
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_InitState(const uint8_t* group, uint8_t** cursor) {
     uint8_t* start = align16(*cursor);
     *cursor = start;
     *cursor = start + channel_count(group) * 0x50;
     return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(start));
 }
 
-uint8_t** XB_STDCALL NAL_PackedPosOri_FreeState(const uint8_t* group, uint8_t** cursor) {
+uint8_t** XB_STDCALL NAL_Packed16EntropyIKSpin_FreeState(const uint8_t* group, uint8_t** cursor) {
     *cursor = align16(*cursor);
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(group)); ++i) *cursor += 0x50;
     return cursor;
 }
 
-uint32_t XB_CDECL NAL_PackedPosOri_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src) {
+uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src) {
     *dst = align16(*dst);
     *src = align16(*src);
     return copy_advance(dst, src, channel_count(group) * 0x50);
 }
 
-uint32_t XB_STDCALL NAL_PackedPosOri_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
     *cursor = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*cursor) + 1) & ~static_cast<uintptr_t>(1));
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i)
         if (channel_active(context, i)) *cursor += 0x1a;
@@ -1789,23 +1789,23 @@ uint32_t packed_posori_skip_static(const uint32_t* context) {
 
 }  // namespace
 
-uint32_t XB_STDCALL NAL_PackedPosOri_ApplyStatic(const uint32_t* context, uint8_t*, uint32_t, const int32_t*) {
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_ApplyStatic(const uint32_t* context, uint8_t*, uint32_t, const int32_t*) {
     return packed_posori_skip_static(context);
 }
 
-uint32_t XB_CDECL NAL_PackedPosOri_ApplyWraps(const uint32_t* context, uint8_t*, uint8_t*, int32_t, uint32_t, const int32_t*) {
+uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_ApplyWraps(const uint32_t* context, uint8_t*, uint8_t*, int32_t, uint32_t, const int32_t*) {
     return packed_posori_skip_static(context);
 }
 
-uint32_t XB_STDCALL NAL_PackedPosOri_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t**, uint32_t, int32_t) {
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t**, uint32_t, int32_t) {
     return packed_posori_skip(context, data);
 }
 
-uint32_t XB_STDCALL NAL_PackedPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t**, uint32_t) {
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t**, uint32_t) {
     return packed_posori_skip(context, cursor);
 }
 
-PLATFORM_ASM_ENTRY(NAL_PackedPosOri_Dequantize_entry,
+PLATFORM_ASM_ENTRY(NAL_Packed16EntropyIKSpin_Dequantize_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "subl $0x20000, %esp\n"
@@ -1816,11 +1816,11 @@ PLATFORM_ASM_ENTRY(NAL_PackedPosOri_Dequantize_entry,
                    "pushl 12(%ebp)\n"
                    "pushl 8(%ebp)\n"
                    "leal 4(%ebp), %eax\n"
-                   "pushl %eax\n" PLATFORM_ASM_CALL(NAL_PackedPosOri_Dequantize) "movl %ebp, %esp\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(NAL_Packed16EntropyIKSpin_Dequantize) "movl %ebp, %esp\n"
                    "popl %ebp\n"
                    "ret")
 
-void XB_CDECL NAL_PackedPosOri_Dequantize(uint32_t entry, uint8_t* dst, const int16_t* src, uint32_t, const float*,
+void XB_CDECL NAL_Packed16EntropyIKSpin_Dequantize(uint32_t entry, uint8_t* dst, const int16_t* src, uint32_t, const float*,
                                           const float* ranges, const uint8_t* has_position) {
     // The record sits where the original's frame has it (push ebp; and esp,-16; sub 0x78; two
     // pushes): the fields this path does not write keep that stack's old contents.
@@ -1850,7 +1850,7 @@ void XB_CDECL NAL_PackedPosOri_Dequantize(uint32_t entry, uint8_t* dst, const in
     std::memcpy(dst, record, 0x50);
 }
 
-PLATFORM_ASM_ENTRY(NAL_PackedPosOri_Evaluate_entry,
+PLATFORM_ASM_ENTRY(NAL_Packed16EntropyIKSpin_Evaluate_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "subl $0x20000, %esp\n"
@@ -1860,11 +1860,11 @@ PLATFORM_ASM_ENTRY(NAL_PackedPosOri_Evaluate_entry,
                    "pushl 12(%ebp)\n"
                    "pushl 8(%ebp)\n"
                    "leal 4(%ebp), %eax\n"
-                   "pushl %eax\n" PLATFORM_ASM_CALL(NAL_PackedPosOri_Evaluate) "movl %ebp, %esp\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(NAL_Packed16EntropyIKSpin_Evaluate) "movl %ebp, %esp\n"
                    "popl %ebp\n"
                    "ret $0x14")
 
-uint32_t XB_CDECL NAL_PackedPosOri_Evaluate(uint32_t entry, const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_Evaluate(uint32_t entry, const uint32_t* context, uint8_t* pose, uint8_t** cursor,
                                             const uint8_t* defaults, const int32_t* offsets) {
     uint8_t** stream_a = context_stream(context, 2);
     uint8_t** stream_b = context_stream(context, 3);
@@ -1879,7 +1879,7 @@ uint32_t XB_CDECL NAL_PackedPosOri_Evaluate(uint32_t entry, const uint32_t* cont
         if (offset >= 0) {
             if (active) {
                 // The original calls it 0x40 below its own entry (4 locals, 4 saved registers, 6 arguments).
-                NAL_PackedPosOri_Dequantize(entry - 0x40, pose + offset, reinterpret_cast<const int16_t*>(*cursor), old_a,
+                NAL_Packed16EntropyIKSpin_Dequantize(entry - 0x40, pose + offset, reinterpret_cast<const int16_t*>(*cursor), old_a,
                                             block_scale, reinterpret_cast<const float*>(*stream_a), *stream_b);
                 *cursor += 0x1a;
                 *stream_b += 1;

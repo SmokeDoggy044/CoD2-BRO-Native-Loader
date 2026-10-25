@@ -11390,25 +11390,25 @@ address,name,kind,confidence,evidence
 00086730,NAL_Packed16Quat_DecodeBlock,function,high,"NAL quaternion class 0x007c2a30 slot 7, game/code/nal_codec.cpp (docs/nal_animation.md)"
 00082170,NAL_Packed16Quat_Evaluate,function,high,"NAL quaternion class 0x007c2a30 slot 9, game/code/nal_codec.cpp"
 000822b0,Short4_ToQuat,function,high,"four int16 / 32767 to a quaternion, game/code/nal_codec.cpp"
-000834d0,NAL_PackedPosOri_Fixup,function,high,"int16 PosOri class 0x007c2c38 slot 4, game/code/nal_codec.cpp"
-00083500,NAL_PackedPosOri_DecodeFrames,function,high,"int16 PosOri class 0x007c2c38 slot 6, game/code/nal_codec.cpp"
-00083600,NAL_PackedPosOri_DecodeBlock,function,high,"int16 PosOri class 0x007c2c38 slot 7, game/code/nal_codec.cpp"
-00083690,NAL_PackedPosOri_SkipBlock,function,high,"int16 PosOri class 0x007c2c38 slot 8, game/code/nal_codec.cpp"
-00083720,NAL_PackedPosOri_Evaluate,function,high,"int16 PosOri class 0x007c2c38 slot 9, game/code/nal_codec.cpp"
-00083860,NAL_PackedPosOri_Dequantize,function,high,"int16 PosOri 0x1a bytes to a 0x50-byte value, game/code/nal_codec.cpp"
-00083a30,NAL_PackedPosOri_ApplyStatic,function,high,"int16 PosOri class 0x007c2c38 slot 10, game/code/nal_codec.cpp"
-00083ab0,NAL_PackedPosOri_ApplyWraps_thunk,function,high,"slot 11 wrapper of vtable 0x007c2c38 around 0x00083ae0"
-00083ae0,NAL_PackedPosOri_ApplyWraps,function,high,"int16 PosOri class 0x007c2c38 slot 11 body, game/code/nal_codec.cpp"
-00083b60,NAL_PackedPosOri_FreeState,function,high,"int16 PosOri class 0x007c2c38 slot 13, game/code/nal_codec.cpp"
-00083b90,NAL_PackedPosOri_CopyState_thunk,function,high,"slot 14 wrapper of vtable 0x007c2c38 around 0x00083bb0"
-00083bb0,NAL_PackedPosOri_CopyState,function,high,"int16 PosOri class 0x007c2c38 slot 14 body, game/code/nal_codec.cpp"
-00083c00,NAL_PackedPosOri_SkipCachedFrame,function,high,"int16 PosOri class 0x007c2c38 slot 15, game/code/nal_codec.cpp"
-00083ce0,NAL_PackedPosOri_InitState,function,high,"int16 PosOri class 0x007c2c38 slot 12, game/code/nal_codec.cpp"
-00086850,NAL_PackedPosOri_BeginBlock,function,high,"int16 PosOri class 0x007c2c38 slot 5, game/code/nal_codec.cpp"
-00086920,NAL_PackedPosOri_BeginChannel,function,high,"int16 PosOri readers of one channel, game/code/nal_codec.cpp"
-0008d1e0,NAL_PackedPosOri_Blend,function,medium,"int16 PosOri class 0x007c2c38 slot 2 (per value 0x0008cc40)"
-0008d250,NAL_PackedPosOri_BlendWeighted,function,medium,"int16 PosOri class 0x007c2c38 slot 3 (per value 0x0008cc40)"
-0008d510,NAL_PackedPosOri_DecodeChannel,function,high,"int16 PosOri frames of one channel, game/code/nal_codec.cpp"
+000834d0,NAL_Packed16EntropyIKSpin_Fixup,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 4, game/code/nal_codec.cpp"
+00083500,NAL_Packed16EntropyIKSpin_DecodeFrames,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 6, game/code/nal_codec.cpp"
+00083600,NAL_Packed16EntropyIKSpin_DecodeBlock,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 7, game/code/nal_codec.cpp"
+00083690,NAL_Packed16EntropyIKSpin_SkipBlock,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 8, game/code/nal_codec.cpp"
+00083720,NAL_Packed16EntropyIKSpin_Evaluate,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 9, game/code/nal_codec.cpp"
+00083860,NAL_Packed16EntropyIKSpin_Dequantize,function,high,"int16 PosOri 0x1a bytes to a 0x50-byte value, game/code/nal_codec.cpp"
+00083a30,NAL_Packed16EntropyIKSpin_ApplyStatic,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 10, game/code/nal_codec.cpp"
+00083ab0,NAL_Packed16EntropyIKSpin_ApplyWraps_thunk,function,high,"slot 11 wrapper of vtable 0x007c2c38 around 0x00083ae0"
+00083ae0,NAL_Packed16EntropyIKSpin_ApplyWraps,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 11 body, game/code/nal_codec.cpp"
+00083b60,NAL_Packed16EntropyIKSpin_FreeState,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 13, game/code/nal_codec.cpp"
+00083b90,NAL_Packed16EntropyIKSpin_CopyState_thunk,function,high,"slot 14 wrapper of vtable 0x007c2c38 around 0x00083bb0"
+00083bb0,NAL_Packed16EntropyIKSpin_CopyState,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 14 body, game/code/nal_codec.cpp"
+00083c00,NAL_Packed16EntropyIKSpin_SkipCachedFrame,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 15, game/code/nal_codec.cpp"
+00083ce0,NAL_Packed16EntropyIKSpin_InitState,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 12, game/code/nal_codec.cpp"
+00086850,NAL_Packed16EntropyIKSpin_BeginBlock,function,high,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 5, game/code/nal_codec.cpp"
+00086920,NAL_Packed16EntropyIKSpin_BeginChannel,function,high,"int16 PosOri readers of one channel, game/code/nal_codec.cpp"
+0008d1e0,NAL_Packed16EntropyIKSpin_Blend,function,medium,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 2 (per value 0x0008cc40)"
+0008d250,NAL_Packed16EntropyIKSpin_BlendWeighted,function,medium,"Packed16EntropyIKSpin class 0x007c2c38 (int16; descriptor 0x008bb220) slot 3 (per value 0x0008cc40)"
+0008d510,NAL_Packed16EntropyIKSpin_DecodeChannel,function,high,"int16 PosOri frames of one channel, game/code/nal_codec.cpp"
 0008d6b0,NAL_EntropyReader_DecodeShorts,function,high,"entropy floats to clamped int16, game/code/nal_codec.cpp"
 00084970,NAL_QuatReader_DecodeFloatFrames,function,high,"NAL quaternion entropy reader: frames as normalized float quaternions, game/code/nal_codec.cpp"
 00085480,NAL_EntropyTrajPosOri_DecodeChannelBlock,function,high,"entropy trajectory class one channel's key block, game/code/nal_codec.cpp"
@@ -12566,7 +12566,7 @@ address,name,kind,confidence,evidence
 00901b08,wcPoolStart,data,high,"Mem_AllocPhysicalPools: XPhysicalAlloc(0x3ac000, PAGE_WRITECOMBINE 0x404) result"
 00901b0c,wcPoolEnd,data,high,Mem_AllocPhysicalPools: wcPoolStart + wcPoolSize
 00901b10,wcPoolSize,data,high,Mem_AllocPhysicalPools: 0x3ac000
-0008cc40,NAL_PackedPosOri_Lerp,function,medium,"(a, out, t, ...) EAX = b: when both +0x3c are 0, Quat_Slerp the two quaternions (+0, +0x10) and lerps the short at +0x40, copies the 0x50-byte result; NAL_PackedPosOri_Blend"
+0008cc40,NAL_Packed16EntropyIKSpin_Lerp,function,medium,"(a, out, t, ...) EAX = b: when both +0x3c are 0, Quat_Slerp the two quaternions (+0, +0x10) and lerps the short at +0x40, copies the 0x50-byte result; NAL_Packed16EntropyIKSpin_Blend"
 00093a10,Sys_GetStackBounds,function,medium,"base = &local & 0xffff0000 into 0x009098f0, then steps 64 KB at a time while XQueryMemoryProtect reports read/write, end in 0x009098f4; Anim_InitManagers"
 00093be0,nglShaderList_InitAll,function,medium,calls slot 0 of every shader class on ngl_shaderList (next at +4); nglInit
 00093dc0,HashStrMap_Remove,function,medium,"thiscall skip list (8-dword HashStr key): finds the update path per level (+0x28 next[]), unlinks the node, lowers the level, Mem_AlignedFree; HashStrMap_Clear"
@@ -13410,3 +13410,196 @@ address,name,kind,confidence,evidence
 00317240,UIQuad_GetMaxCorner,function,low,"(ECX quad, EAX out vec3): largest x and y over the 4 corner positions (+0x48/+0x5c/+0x70/+0x84, y +4), z 0; reached by pointer"
 00320f20,UITextLine_Init,function,medium,"(ESI line, EAX text, font, scale): assigns the text, counts '~' button tokens (2 slots each, +0x1c), allocates the token table (+0x18) and lays it out with UITextLine_LayoutTokens, else measures the plain width (+0x10); UIText_WrapLines"
 003207f0,UITextLine_LayoutTokens,function,medium,"(line, font scale): per '~' segment nglGetTextExtent (ui_fonts[+0]) accumulates the width, stores {char index, x} pairs in the token table (+0x18, 8 bytes each), UI_TranslateButtonToken replaces the token with its glyph; UITextLine_Init"
+000112f0,UIElement_SetDepth,function,medium,"UIElement_vtable slot 9 (shared by UITextBase/UIText): stores float +8; UIText_Init calls it with (layer*1000 + clamp(z,0,1000))*0.125, HUD setup sets GetDepth()+1"
+00011300,UIElement_GetDepth,function,medium,UIElement_vtable slot 10 (shared by UITextBase/UIText): returns float +8 (the draw depth set by slot 9)
+000113f0,UITextBase_SetUniformScale,function,medium,"UITextBase_vtable slot 24: scale x/y +0x38/+0x3c = s, +0x40 = 0 (UIText_Init fills the same fields; slots 41/42 read them)"
+00011430,UITextBase_SetScale,function,medium,"UITextBase_vtable slot 23 (UIText overrides with UIText_SetScale, same stores + relayout): +0x38 = x, +0x3c = y, +0x40 = 0"
+000114c0,UITextBase_MoveBy,function,medium,"UITextBase_vtable slot 28: slot 31 SetPosition(slot 50 GetX() + dx, slot 51 GetY() + dy)"
+00011540,UITextBase_SetPosition,function,medium,"UITextBase_vtable slot 31: +0x2c = x, +0x30 = y, +0x34 = 0 (UIText_Init's x/y args; slots 32/33 set them singly, 50/51 read them)"
+000115d0,UITextBase_GetName,function,medium,UITextBase/UIText vtable slot 39 (+0x9c): copies the ScriptString +0x54 out; Panel_FindText matches text elements by vtable +0x9c
+000115f0,UITextBase_GetText,function,medium,UITextBase/UIText vtable slot 40: copies the ScriptString +0x1c out (the string slot 30 sets; UIText slot 30 localizes and relayouts it)
+000117a0,UIText_SetHorzAlign,function,medium,"UIText_vtable slot 19: clears flag bits 0x30 (+0x5c via slot 55 SetFlag), sets 0x10 or 0x20 when given, UIText_LayoutLines"
+000117e0,UIText_SetVertAlign,function,medium,"UIText_vtable slot 20: clears flag bits 0xc0 (+0x5c via slot 55 SetFlag), sets 0x40 or 0x80 when given, UIText_LayoutLines"
+00011820,UIText_SetUniformScale,function,medium,"UIText_vtable slot 24: scale +0x38/+0x3c = s, +0x40 = 0, then UIText_LayoutLines (uniform form of UIText_SetScale)"
+00011a90,UIPicture_GetWidth,function,high,"UIPicture vtables slot before UIPicture_GetHeight (0x0082a370, 0x00828ea8): UIPicture_GetBoundsMax.x - UIPicture_GetBoundsMin.x"
+00013670,UIRoot_DeletingDtor,function,medium,"slot 0 of UIRoot_vtable 0x0082a5f4 (UI root 0x0095f8d0): UIRoot_Dtor, Z_Free if flag & 1"
+0030f470,UIRoot_Dtor,function,medium,"stores UIRoot_vtable 0x0082a5f4, deleting-dtors the owned objects at +0x28/+0x2c/+0x30/+0x20/+0x24/+0x34 (FrontEndMenu, DialogMgr, menu ...)"
+00331e90,UIRoot_Construct,function,medium,"static init 0x00372ed0 with ESI = 0x0095f8d0 (atexit 0x00379890): vtable 0x0082a5f4, clears fonts/flags, allocates the 0x3c UIRootMenu (vtable 0x00829280) into +0x24"
+0082a5f4,UIRoot_vtable,data,medium,1-slot vtable of the UI root 0x0095f8d0 (UIRoot_Construct / UIRoot_Dtor); directly before UIScreenMgr_vtable
+0095f8d0,g_uiRoot,data,medium,"UI root object (UIRoot_Construct from a static initializer): fonts +4 (ui_fonts), menu +0x24, FrontEndMenu +0x28, DialogMgr +0x30"
+0001b9e0,PhysShape_SupportInFrame,function,medium,"shape vtable slot 1 (base 0x0083263c, box 0x007cc6c0, brush, mesh, tri-mesh): rotates the direction into the frame (transpose of the 3x4 arg), calls slot 2 (local support point, Gjk_ClosestPoints' support), transforms the point back"
+0001bb60,PhysShape_IntersectInFrame,function,medium,"shape vtable slot 3 (all five shape vtables): moves the query into the 3x4 frame, calls slot 4, rotates the hit point and normal (out +0/+0x10) back; returns slot 4's bool"
+0001bec0,CM_TriMesh_DeletingDtor,function,medium,"slot 9 of tri-mesh shape vtable 0x0083270c (slot 8 type 6): CM_TriMesh_Dtor, Z_Free if flag & 1"
+0001bdc0,CM_TriMesh_Dtor,function,medium,"stores vtable 0x0083270c, Mem_AlignedFree of the four arrays +0x34/+0x3c/+0x44/+0x4c (vertices 16 B, triangles, box-tree nodes walked by CM_BoxTreeStack_Next) and clears their counts"
+0001c0c0,CM_Mesh_DeletingDtor,function,medium,"slot 9 of the .cg mesh vtable 0x00832680 (slot 8 type 8; derives from 0x0083270c): CM_TriMesh_Dtor, Z_Free if flag & 1"
+0001c100,CM_Brush_DeletingDtor,function,medium,"slot 9 of brush vtable 0x008325ec (slot 8 type 9; CM_BrushArray_Alloc): Mem_AlignedFree(+0x34), clears +0x30/+0x34, Z_Free if flag & 1"
+0083270c,CM_TriMesh_vtable,data,medium,"10-slot shape vtable (slot 8 returns type 6, slot 9 CM_TriMesh_DeletingDtor); base of CM_Mesh_vtable"
+00832680,CM_Mesh_vtable,data,medium,".cg mesh vtable (type 8 in CM_TestInLeafObjects; slot 9 CM_Mesh_DeletingDtor), set by CM_LoadWorldTree"
+008325ec,CM_Brush_vtable,data,medium,"brush shape vtable (type 9; slot 9 CM_Brush_DeletingDtor), set by CM_BrushArray_Alloc and Stream_RelocateDcg"
+0083263c,PhysShape_vtable,data,medium,"base collision-shape vtable (PhysBox_Construct and CM_BrushArray_Alloc store it first): slot 1 PhysShape_SupportInFrame, 2 local support (center +0x10), 3 PhysShape_IntersectInFrame"
+0001d880,SceneFX_DeletingDtor,function,medium,"slot 0 of vtable 0x00832634 (stored by SceneFX_Init): ResourceManager_Destruct, Z_Free if flag & 1"
+00832634,SceneFX_vtable,data,medium,resource-manager vtable stored by SceneFX_Init after the base 0x00838220; slot 0 SceneFX_DeletingDtor
+0001d8b0,CM_WorldTreeManager_DeletingDtor,function,high,"slot 0 of vtable 0x00832734 (CM_WorldTreeManager_Construct): CM_BrushArray_Free on the box model +0x190, ResourceManager_Destruct, Z_Free if flag & 1"
+00832734,CM_WorldTreeManager_vtable,data,high,stored by CM_WorldTreeManager_Construct (cm_worldTrees) and its deleting dtor
+00024eb0,ResourceManager_DeletingDtor,function,high,"slot 0 of the base ResourceManager vtable 0x00838220 (also of 0x0083be70 lgrid and 0x00832780): ResourceManager_Destruct, Z_Free if flag & 1"
+00838220,ResourceManager_vtable,data,high,base resource-manager vtable: every ResourceManager_Create*/Construct stores it before registering in 0x009719fc; ResourceManager_Destruct restores it
+0001de20,AnimScript_LoadNotetracks,function,medium,AnimScript_vtable slot 0: (0x105c stack) reads the COD_Note notetrack channel of the clip and builds the track's ScriptString list (+0x30) used by AnimScript_Update
+0001f0f0,nglMeshSection_CreateVertexWriter,function,low,"slot 1 of the section vtable 0x00832760 (nglMeshBuilder_AddPosSection): builds {0x0083273c, 0, this} on the stack and returns its slot-1 clone in *out"
+0001f1a0,nglVertexWriter_Clone,function,medium,"slot 1 of nglVertexWriter vtable 0x0083273c (called by 0x0001f0f0): Z_Malloc(0xc) copy of {vtable, index +4, section +8}"
+0083273c,nglVertexWriter_vtable,data,medium,"writer vtable stored by nglVertexWriter_Init: 1 nglVertexWriter_Clone, 2 index +4 < section count (+8 -> +4 -> +0x40)"
+0008c0c0,NAL_Float4_Blend,function,high,"slot 2 of the four Float4 channel vtables (NAL_Float4 0x007c2758, Entropy, Packed8/16Entropy): (count, dst, a, b, t) lerps float4s, 4 per pass; matches NAL_Float3_Blend"
+0008c4a0,NAL_Float4_BlendWeighted,function,high,slot 3 of the four Float4 channel vtables: like NAL_Float4_Blend with one weight per value read from a float cursor (*arg5 advanced)
+00080910,NAL_Packed8EntropyFloat4_SkipBlock,function,medium,slot 8 of NAL_Packed8EntropyFloat4 vtable 0x007c2828: advances the streams over the active channels (NAL_SkipPrefixedStreams4) without decoding
+00081630,NAL_Packed16EntropyFloat4_SkipBlock,function,medium,slot 8 of NAL_Packed16EntropyFloat4 vtable 0x007c2890: as the Packed8 one with the cache cursor aligned to 2 (int16 data)
+000823a0,NAL_PositionOrientation_DecodeFrames,function,medium,slot 6 of NAL_PositionOrientation vtable 0x007c2a98 (descriptor 0x008bb284): per active channel copies the next frames' 32-byte pairs from the stream
+00082450,NAL_PositionOrientation_DecodeBlock,function,medium,slot 7 of NAL_PositionOrientation vtable 0x007c2a98: per active channel copies a key block into the 16-aligned cache
+00082500,NAL_PositionOrientation_SkipBlock,function,medium,slot 8 of NAL_PositionOrientation vtable 0x007c2a98: per active channel advances stream by n*0x20 and the cache by 0x20
+00082580,NAL_PositionOrientation_Evaluate,function,medium,"slot 9 of NAL_PositionOrientation vtable 0x007c2a98: per channel with output offset >= 0 writes the value or the default, unused ones skip 0x20"
+00085170,NAL_EntropyPosOri_BeginBlock,function,medium,slot 5 of NAL_EntropyPositionOrientation vtable 0x007c2b00 (descriptor 0x008bb298): per active channel NAL_EntropyTrajPosOri_BeginChannel readers
+00085240,NAL_EntropyPosOri_DecodeFrames,function,medium,slot 6 of NAL_EntropyPositionOrientation vtable 0x007c2b00: NAL_QuatReader_DecodeFloatFrames + NAL_EntropyReader_DecodeFloats per active channel
+000853b0,NAL_EntropyPosOri_DecodeBlock,function,medium,slot 7 of NAL_EntropyPositionOrientation vtable 0x007c2b00: NAL_EntropyTrajPosOri_DecodeChannelBlock per active channel
+00082680,NAL_EntropyPosOri_SkipBlock,function,medium,"slot 8 of NAL_EntropyPositionOrientation vtable 0x007c2b00: NAL_SkipPrefixedStreams4 per active channel, cache +0x20"
+00082750,NAL_EntropyPosOri_Evaluate,function,medium,slot 9 of NAL_EntropyPositionOrientation vtable 0x007c2b00: per channel with output offset writes the cached pair or the default
+00082c30,NAL_TrajPosOri_SkipBlock,function,medium,"slot 8 of NAL_TrajectoryPositionOrientation vtable 0x007c2b68 (descriptor 0x008bb2ac): stream += n*0x20 per active channel, 16-aligned cursors"
+00022a00,NAL_CodNote_SkipBlock,function,medium,"slots 5/8/10 of the 'COD_Note' notetrack channel vtable 0x008326a8 (descriptor 0x008dda5c, type tag 0x00933e3c): per active channel skips one length-prefixed record"
+00022a60,NAL_CodNote_DecodeFrames,function,medium,slot 6 of the COD_Note channel vtable 0x008326a8: same per-active-channel record skip as NAL_CodNote_SkipBlock (7 args)
+00022ac0,NAL_CodNote_DecodeBlock,function,medium,slot 7 of the COD_Note channel vtable 0x008326a8: same per-active-channel record skip (5 args)
+008326a8,NAL_CodNote_vtable,data,medium,"NAL channel class 'COD_Note' (descriptor 0x008dda5c next to the COD_Note list): slot 0 type tag 0x00933e3c, value size 0, record skips in 5-8/10, 22 0x0001db70"
+00022bb0,EmptyVFunc_Ret8,function,medium,"empty thiscall/stdcall method with two args (ret 8) shared by many vtable slots: COD_Note 12/13/15, AnimScript 2, UIText 60, UI 0x00828714/0x008299a8, NGL 0x007b3ee0.."
+000242c0,DlgManager_DeletingDtor,function,medium,"slot 0 of vtable 0x00837728 (stored by ResourceManager_CreateDlg, rm_dlg): restores it, ResourceManager_Destruct, Z_Free if flag & 1"
+00837728,DlgManager_vtable,data,medium,resource-manager vtable stored by ResourceManager_CreateDlg (rm_dlg); slot 0 DlgManager_DeletingDtor
+00024600,CfgstrManager_DeletingDtor,function,medium,"slot 0 of rm_cfgstr's vtable 0x00837650 and of its base 0x00837618 (the vtable it stores): ResourceManager_Destruct, Z_Free if flag & 1"
+00024490,LocStringManager_DeletingDtor,function,medium,"slot 0 of rm_locStrings' vtable 0x00837668 and of its base 0x0083765c (the vtable it stores): ResourceManager_Destruct, Z_Free if flag & 1"
+000245d0,DbManager_DeletingDtor,function,medium,"slot 0 of rm_db's vtable 0x008376ac and of its base 0x008376a0 (the vtable it stores): ResourceManager_Destruct, Z_Free if flag & 1"
+00837650,CfgstrManager_vtable,data,medium,vtable stored by ResourceManager_CreateCfgstr (rm_cfgstr); slot 0 CfgstrManager_DeletingDtor
+00837668,LocStringManager_vtable,data,medium,vtable stored by ResourceManager_CreateLocStrings (rm_locStrings); slot 0 LocStringManager_DeletingDtor
+008376ac,DbManager_vtable,data,medium,vtable stored by ResourceManager_CreateDb (rm_db); slot 0 DbManager_DeletingDtor
+00024350,FxParticleComponent_DeletingDtor,function,medium,"slot 0 of vtable 0x008375e0 (slot 1 FxParticleComponent_Update; stored by FX_AddParticleComponents): FxSystem_Stop on +0x2c->+4, base FX component vtable 0x00837624, SmallHeap_Free if flag & 1"
+008375e0,FxParticleComponent_vtable,data,medium,"particle component vtable: 0 FxParticleComponent_DeletingDtor, 1 FxParticleComponent_Update; FX_AddParticleComponents"
+000243a0,FxShakeRumbleComponent_DeletingDtor,function,medium,"slot 0 of vtable 0x008376d0 (slot 1 FxShakeRumbleComponent_Update; FX_AddShakeRumbleComponents): Rumble_Stop(+0x60) on shakeRumbleMgr, clears +0x64's +0x3c, base vtable 0x00837624, SmallHeap_Free if flag & 1"
+008376d0,FxShakeRumbleComponent_vtable,data,medium,"shake/rumble component vtable: 0 FxShakeRumbleComponent_DeletingDtor, 1 _Update, 4 _Stop; FX_AddShakeRumbleComponents"
+00024400,HeapAllocator_DeletingDtor,function,medium,"slot 0 of vtable 0x008376c4 (1 MB arena object made in Sys_Main: Z_Malloc(0x100000) +4, Heap_Init at +8; slot 1 alloc with +0x490 used <= 1 MB, slot 2 Heap_FreeIn): frees +4, base vtable 0x0083760c, Z_Free if flag & 1"
+008376c4,HeapAllocator_vtable,data,medium,"allocator vtable stored by Sys_Main and 0x00296710: 0 HeapAllocator_DeletingDtor, 1 alloc (Heap_SetCurrent, 1 MB cap), 2 free (Heap_FreeIn)"
+000251a0,ZoneManagers_DeletingDtor,function,medium,"slot 0 of vtable 0x00838300 (stored by ResourceManager_Construct and ZoneManagers_Destruct): ZoneManagers_Destruct, Z_Free if flag & 1"
+00838300,ZoneManagers_vtable,data,medium,vtable of the resource manager ResourceManager_Construct builds (installs the zone texture/mesh/mesh-file managers); slot 0 ZoneManagers_DeletingDtor
+000251c0,ZoneGraph_DeletingDtor,function,medium,"slot 0 of the ZoneGraph vtable 0x00838214 (ZoneGraph_Init): Cmd_RemoveCommand(0x00838320, the command ZoneGraph_Init adds), base vtable 0x00838308, ResourceManager_Destruct, Z_Free if flag & 1"
+00838214,ZoneGraph_vtable,data,medium,stored by ZoneGraph_Init; slot 0 ZoneGraph_DeletingDtor
+00025880,ZoneGraphBase_DeletingDtor,function,low,"slot 0 of vtable 0x00838308, the intermediate base ZoneGraph_DeletingDtor stores before ResourceManager_Destruct: ResourceManager_Destruct, Z_Free if flag & 1"
+00025a40,ZoneClipSetManager_Destruct,function,medium,"slot 0 of the clip-set manager wrapper 0x00838118 (slot 3 ZoneClipSetManager_Add): restores the manager 0x00909828 from +4, base vtable 0x008380f4, Mem_AlignedFree if flag & 1 (same shape as ZoneSkelManager_Destruct)"
+000259f0,ZoneClipManager_Destruct,function,medium,"slot 0 of the clip manager wrapper 0x0083824c (slot 3 ZoneClipManager_Add): restores the manager 0x00909830 from +4, base vtable 0x00838160, Mem_AlignedFree if flag & 1"
+000253f0,nglTextureManager_ForEachPass,function,medium,"nglResourceManager_ForEachPass copy for textures: slot 6 of nglTextureManager 0x007bc940 and its base 0x008381cc; per pass walks the slot-5 iterator, calls slot 8 on each texture (keyed by the HashStr +0x54)"
+00025570,nglMeshManager_ForEachPass,function,medium,nglResourceManager_ForEachPass copy: slot 6 of the mesh managers 0x007bdfd0/0x007be01c/0x007bdf30 and base 0x00838228; objects keyed by their first dword
+00025750,AnimManager_ForEachPass,function,medium,"nglResourceManager_ForEachPass copy: slot 6 of the anim and clip-set managers (0x007c2c9c, 0x007c2d34; Anim_InitManagers) and the wrapper bases 0x008380f4/0x008381f0; items keyed at +0x10 (flag +0x28)"
+00025230,NalManagerKey8_ForEachPass,function,medium,"nglResourceManager_ForEachPass copy: slot 6 of the clip and skeleton managers (0x007c2ce8, 0x007c2d80; keyed at +8 like NalManager_SkipListRemoveKey8) and bases 0x00838160/0x00838294 (flag +0x20)"
+00029960,ModelManager_DeletingDtor,function,medium,"slot 0 of rm_models' vtable 0x0083be98 and of its base 0x0083be8c (the vtable it stores): ResourceManager_Destruct, Z_Free if flag & 1"
+00029990,XmpbManager_DeletingDtor,function,medium,"slot 0 of rm_xmpb's vtable 0x0083beb0 and of its base 0x0083bea4 (the vtable it stores): ResourceManager_Destruct, Z_Free if flag & 1"
+0002bf50,AitbManager_DeletingDtor,function,medium,"slot 0 of rm_aitb's vtable 0x0083ce48 and of its base 0x0083ce3c (the vtable it stores): ResourceManager_Destruct, Z_Free if flag & 1"
+00029710,nglPolyVertexWriter_Clone,function,medium,"slot 1 of writer vtable 0x0083be3c (RE_AddPolyToScene builds it with section vtable 0x0083be78; slot 2 index < count +0x40): Z_Malloc(0xc) copy {vtable, section +4, index +8}; same shape as nglVertexWriter_Clone"
+000296b0,nglPolySection_CreateVertexWriter,function,low,"slot 1 of the poly section vtable 0x0083be78 (RE_AddPolyToScene): builds {0x0083be3c, this, 0} on the stack and returns nglPolyVertexWriter_Clone of it in *out"
+00014b90,WaitTilOutputInst2_CopyArgs,function,medium,"slot 1 (VFunc1) of the two-arg waittill output vtables 0x00831810 and 0x00839c20 (slot 0 the folded WaitTilOutputInst1_ent_DeletingDtor, slot 2 returns 2): copies +0xc when the source's slot 2 gives 1, +0xc and +0x10 when 2"
+000290d0,WaitTilOutputInst2_str_str_CopyArgs,function,medium,slot 1 of waittill output vtable 0x00839c2c: ScriptString_Assign of +0xc (source count 1) or +0xc and +0x10 (count 2); the string form of WaitTilOutputInst2_CopyArgs
+00029130,WaitTilOutputInst2_str_str_DeletingDtor,function,medium,"slot 0 of waittill output vtable 0x00839c2c: releases the ScriptStrings +0x10/+0xc, base WaitTilOutput vtable 0x007f48c4 (RTTI .?AVWaitTilOutput@@), SmallHeap_Free(0x0095f574) if flag & 1"
+00044bc0,cdOcean_SetBaseHeight,function,medium,"(set, value): g_oceanWaveSets[set] +0 = value (the constant Water_GetHeight adds); stored in the level-script import table 0x0095f49c +0xcf0 by G_SetupLevelScriptImports"
+00044be0,cdOcean_SetWaveSetVec04,function,low,"(set, a, b): wave set +4/+8 (defaults 0.5/0.5, read by cdOcean_SetWaveConstants); import 0x0095f49c +0xcf4"
+00044c10,cdOcean_SetWaveSetVec10,function,low,"(set, index 0..2, a, b): wave set float pair +0x10/+0x18/+0x20 by index; import 0x0095f49c +0xcfc"
+00044ca0,cdOcean_SetWaveSetVec30,function,low,"(set, index 0..2, a, b): wave set float pair +0x30/+0x38/+0x40 by index; import 0x0095f49c +0xcf8"
+00044d30,cdOcean_SetWaveOrigin,function,medium,"(set, wave 0..3, x, y): wave set +0x50 + wave*8, the point Water_GetHeight measures each wave's distance from; import 0x0095f49c +0xd00"
+00044df0,cdOcean_SetWaveDirection,function,medium,"(set, wave, value): wave set +0x70[wave], an angle in degrees (Water_GetHeight * pi/180 -> sin/cos); import +0xd04"
+00044e10,cdOcean_SetWaveFalloff,function,medium,"(set, wave, value): wave set +0x80[wave], distance divisor of the 0..1 attenuation in Water_GetHeight; import +0xd08"
+00044e30,cdOcean_SetWaveLength,function,medium,"(set, wave, value): wave set +0x90[wave], distance divisor of the phase in Water_GetHeight; import +0xd0c"
+00044e50,cdOcean_SetWaveAmplitude,function,medium,"(set, wave, value): wave set +0xa0[wave], multiplies the wave's sine in Water_GetHeight; import +0xd10"
+00044e70,cdOcean_SetWavePhase,function,medium,"(set, wave, value): wave set +0xb0[wave], phase offset in Water_GetHeight; import +0xd14"
+00044e90,cdOcean_SetWaveSpeed,function,medium,"(set, wave, value): wave set +0xc0[wave], multiplied by the shader time 0x00901e90 in Water_GetHeight's phase; import +0xd18"
+00043d30,Heap_IndependentAlloc,function,medium,"dlmalloc ialloc shape (count, sizes[], opts; EAX optional chunk array): one Heap_Malloc for all elements (opts 1 same size, 2 clear), splits it into chunks, returns the pointer array; no direct callers"
+0001ebd0,AnimTreeManager_DeletingDtor,function,medium,"slot 0 of vtable 0x0083261c (stored by ResourceManager_CreateAnimTrees, rm_animTrees): restores it, ResourceManager_Destruct, Z_Free if flag & 1"
+000992e0,FxRange_Within,function,medium,"slot 2 of FxRange vtables 0x007c5ac0 (1dBoxDomain) and 0x007c5b20 (1dBumpDomain): (count clamped to 1, value*) 1 when min +4 <= v <= max +8"
+00099c90,FxVectorRange_Within,function,medium,slot 2 of vtables 0x007c5ad8 (3dBoxDomain) and 0x007c5b38 (3dBumpDomain): per component (count clamped to 3) min +4.. <= v <= max +0x10..
+00099560,FxConst_Within,function,medium,slot 2 of FxConst vtable 0x007c5af0 (1dPointDomain): 1 when the value equals the stored float +4
+00099640,FxConstVector_Within,function,medium,slot 2 of FxConstVector vtable 0x007c5b08 (3dPointDomain): up to 3 components equal the stored floats +4
+007c5ac0,FxRange_vtable,data,medium,"'1dBoxDomain' in FxDomain_Create (FxRange_New5ac0): slot 1 FxRange_SampleN, 2 FxRange_Within"
+007c5ad8,FxVectorRange_vtable,data,medium,'3dBoxDomain' in FxDomain_Create (FxVectorRange_New5ad8): slot 2 FxVectorRange_Within
+007c5af0,FxConst_vtable,data,medium,'1dPointDomain' in FxDomain_Create (FxConst_New): slot 2 FxConst_Within
+007c5b08,FxConstVector_vtable,data,medium,'3dPointDomain' in FxDomain_Create (FxConstVector_New): slot 2 FxConstVector_Within
+007c5b20,FxBumpRange_vtable,data,medium,'1dBumpDomain' in FxDomain_Create (FxRange_New5b20); shares FxRange_Within
+007c5b38,FxBumpVectorRange_vtable,data,medium,'3dBumpDomain' in FxDomain_Create (FxVectorRange_New5b38); shares FxVectorRange_Within
+000a4d10,FxAction_DeletingDtor,function,medium,"slot 3 of ~36 particle action vtables 0x007c8df0.. (apsActionEmitter_Apply / *_Count siblings): FxAction_Destroy, Z_Free if flag & 1"
+000a4f20,FxSphereDomain_Within,function,medium,"slot 2 of vtable 0x007c9330 ('SphereDomain', FxVectorOp_Init9330): |p - center +0x10| < radius +0x1c"
+000a53d0,FxSphereDomain_Generate,function,medium,"slot 1 of vtable 0x007c9330: rejection-sampled point in the radius +0x1c ball (30 tries, fx_randSeed LCG) + center +0x10"
+000a5020,FxYHemisphereDomain_Within,function,medium,slot 2 of vtable 0x007c9348 ('YHemisphereDomain'): inside radius +0x1c and p.y >= center.y
+000a5570,FxYHemisphereDomain_Generate,function,medium,"slot 1 of vtable 0x007c9348: rejection sample x,z in [-r,r], y in [0,r) (100 tries) + center"
+000a5130,FxZHemisphereDomain_Within,function,medium,slot 2 of vtable 0x007c9360 ('ZHemisphereDomain'): inside radius +0x1c and p.z >= center.z
+000a5710,FxZHemisphereDomain_Generate,function,medium,"slot 1 of vtable 0x007c9360: rejection sample x,y in [-r,r], z in [0,r) (100 tries) + center"
+000a5240,FxSphereSurfaceDomain_Within,function,medium,slot 2 of vtable 0x007c9378 ('SphereSurfaceDomain'): |p - center| < radius (same test as the sphere)
+000a58b0,FxSphereSurfaceDomain_Generate,function,medium,"slot 1 of vtable 0x007c9378: random direction (3 rands in [-1,1], rsqrt normalize) * radius +0x1c + center"
+000a5340,FxLineDomain_Generate,function,medium,"slot 1 of vtable 0x007c9390 ('3dLineDomain', FxSegmentOp_Init a, b - a): a +0x10 + (b-a) +0x20 * rand"
+000a5db0,FxDiscDomain_Generate,function,medium,"slot 1 of vtable 0x007c93a8 ('DiscDomain', FxDiscDomain_Init): rejection-sampled 2D point in radius (100 tries) along basis vectors +0x20/+0x30 + center"
+000a6250,FxCircleDomain_Generate,function,medium,"slot 1 of vtable 0x007c93c0 ('CircleDomain', FxCircleDomain_Init): random angle * 2pi, polynomial sin/cos * radius along basis +0x20/+0x30 + center"
+007c9330,FxSphereDomain_vtable,data,medium,"'SphereDomain' (FxDomain_Create -> FxVectorOp_Init9330): 1 Generate, 2 Within"
+007c9348,FxYHemisphereDomain_vtable,data,medium,'YHemisphereDomain' (FxVectorOp_Init9348)
+007c9360,FxZHemisphereDomain_vtable,data,medium,'ZHemisphereDomain' (FxVectorOp_Init9360)
+007c9378,FxSphereSurfaceDomain_vtable,data,medium,'SphereSurfaceDomain' (FxVectorOp_Init9378)
+007c9390,FxLineDomain_vtable,data,medium,'3dLineDomain' (FxSegmentOp_Init)
+007c93a8,FxDiscDomain_vtable,data,medium,'DiscDomain' (FxDiscDomain_Init)
+007c93c0,FxCircleDomain_vtable,data,medium,'CircleDomain' (FxCircleDomain_Init)
+000a66b0,FxOp31_Draw,function,medium,"slot 7 of render op vtable 0x007c6724 (FxOp31_Init, string 'aps_simple' before it; same slot as FxOp1d5_Draw): per particle (+0x70, count +0x74) Mat44_FromQuatTranslation * op matrix, view constants from ngl_curScene, FxNode_ComputeObjectLights, nglDrawMeshSection of the mesh +0x80"
+007c6724,FxOp31_vtable,data,medium,"render op vtable stored by FxOp31_Init: slot 1 FxOp31_AddToList, 7 FxOp31_Draw"
+00095060,FxSystemList_UpdateBounds,function,low,"no references (dead copy of the last loop of 0x000950b0): fastcall list {?, systems[] +4, count +0x1e4} (the global 0x009099a8: 0x009099ac / 0x00909b8c), FxSystem_GetBounds of each"
+000963c0,FxEffectStage_CollectFormat,function,medium,"no references; the per-stage body of FxEffect_ComputeStageSizes: FxActionList_CollectFormat(stage +0x18) if +0x14, FxVertexFormat_Add(+0x10 -> +4), FxVertexFormat_Add(0x600)"
+000967c0,FxEffectStage_Release,function,medium,"no references; the per-stage body of FxEffectDef_Release: slot 0 of +0x10 then aps free (0x008bb760 +8), apsPtrVector_DeleteAll of +0x14 then free"
+000966e0,FxEffectDef_CanReuseStages,function,low,"no references; thiscall (def a, def b): 1 when equal or every stage of b (0x3c each, +0x50 count +0x56) fits a distinct stage of a by size (+0 * +0x1c)"
+000acd80,PhysBox_Support,function,medium,slot 2 of box vtable 0x007cc6c0 (Gjk_ClosestPoints support slot): center +0x10 + half extents +0x20 signed by the direction
+000acc70,PhysSegment_Support,function,medium,no references; support of a two-point shape: endpoint +0x30 or +0x40 with the larger dot along the direction
+000acd00,PhysSphere_Support,function,medium,no references; center +0x10 + direction * (radius +0x1c / |dir|)
+000acdf0,PhysCapsule_Support,function,medium,no references; endpoint +0x30/+0x40 further along dir + dir * radius +0x50 / |dir|
+000aefa0,PhysOrientedBox_Support,function,medium,"no references; direction into the box frame (rows +0x30..+0x5c), half extents +0x70 signed per axis, back to world"
+000aceb0,CM_TriMesh_Support,function,medium,"slot 2 of CM_TriMesh_vtable 0x0083270c and CM_Mesh_vtable 0x00832680: vertex (+0x34, count +0x30, 16 B) with the largest dot along the direction"
+000adf20,CM_Mesh_IntersectRay,function,medium,"slot 5 of CM_Mesh_vtable 0x00832680 (PhysBox_IntersectRay's slot): bounding-sphere reject (+0x10, r +0x1c), CM_BoxTreeStack_Next over the triangles (planes +0x44, tri words +0x3c, verts +0x34), nearest hit point/normal out, triangle index out"
+000ae500,CM_TriMesh_TraceSegment,function,low,"no real references (0x0083d653 is unaligned): (start, end, box-tree walk stack, ?, fraction in/out, hit out) - box-tree walk over the mesh triangles, crossing test per facing plane"
+000acf70,PhysPoint_SphereContact,function,low,"no references; (this point +0x10, center, radius, out contact): 0 when farther than radius, else contact = point, normal = normalized (center - point)"
+000ad040,PhysSphere_SphereContact,function,medium,"no references; as PhysPoint_SphereContact with radius + own radius +0x1c, contact on the sphere surface"
+000adc90,PhysCapsule_SphereContact,function,medium,"no references; capsule segment +0x30/+0x40 radius +0x50 vs (center, radius): closest point on segment, contact and normal out"
+000b05a0,Tri_MinEdgeLineDistSq,function,medium,"no references; cdecl (a, b, c, p): smallest squared distance from p to the three edge lines of triangle abc, clamped to >= 0.0001"
+000b08c0,PhysBox_OverlapsSphereInFrame,function,low,"no references; (box center +0x10/half +0x20, frame 3x4+origin, sphere center +0x10 radius +0x1c): sphere center into box frame then per-axis slab overlap"
+000b0a00,Phys_ShapesOverlapGjk,function,medium,"no references; (shape A, frame A, shape B, frame B, margin): bounding-sphere reject (+0x10, r +0x1c), relative frame, Gjk_ClosestPoints(margin^2) != 0"
+000b25d0,Phys_GjkContact,function,medium,no references; Gjk_ClosestPoints with tolerance 0x008bd430; separated (1): normalizes the normal +0x20 and pulls the two witness points 0.03 in/out; 2 when touching
+000b26c0,Phys_SphereShapeContact,function,medium,"no references; sphere (center +0x10, radius +0x1c) in frame vs shape: shape slot 4 sphere contact (+0x10), else up to 5 Gjk_ClosestPoints retreats along the normal (0.998 / 0.005 checks)"
+000b2a90,Phys_ShapeContact,function,low,"no references; general shape-pair version of Phys_SphereShapeContact: Gjk_ClosestPoints first (0.03 margin), then slot 4 and the retreat loop"
+000b3090,PhysRagdoll_SetLaunchTarget,function,medium,"no references; thiscall (ragdoll, vec4): target +0x490, counter +0x4a0 = 2 - the pair read by PhysRagdoll_UpdateLaunchToTarget"
+000b3240,PhysRagdoll_GetCenterOfMass,function,medium,"no references; thiscall (ragdoll, out pos, out vel, arg): PhysBodies_GetCenterOfMass(bodies +0x28, count +0x2c)"
+000b3c00,PhysRagdoll_AddVelocityForce,function,low,"no references; thiscall (ragdoll, vec4 v): per body whose velocity +0xd0 lags v, adds the projected share of v to the force accumulator +0x110"
+000bac80,Phys_PointsBoundingSphere,function,medium,"(vec3 points stride 12, count, out radius, out center): centroid, then max distance; one data-looking ref in the liberator level block"
+000bb360,Phys_PointsBoxCenterSize,function,medium,"no references; (.., points stride 12, count, out size, out center): min/max from +-1e7, size = max - min, center = midpoint"
+000c4910,SndVoice_SetSource,function,medium,"no references; (voice handle, source handle): voice (pool 0x0090a8b4, 0xf8) +0xcc = source (pool 0x0090a8e4, 200 B; -1 without), ORs the source's 64-bit param masks into the voice and copies the set params (0x2e)"
+000c57b0,SndBank_FindSound,function,medium,"no references; (EAX key, ESI bank): bsearch over the bank's 0x28-byte sound entries (+0x44, count +0x40, comparator 0x000c5790), index or -1 - per-bank core of S_FindSoundByHash"
+000cba40,FileXapi_Open,function,high,"slot 0 of the XAPI file driver table 0x008bfe9c (FileXapi_GetSizeAndSortKey slot 2): (out handle, path, mode, size) CreateFileA, mode 4 presizes with SetFilePointerEx/SetEndOfFile; 1 on failure"
+008bfe9c,FileXapi_driver,data,medium,"XAPI file driver ops: 0 FileXapi_Open, 2 FileXapi_GetSizeAndSortKey (CloseHandle/ReadFileEx/CancelIo/SleepEx slots)"
+000cf840,MovieBase_DeletingDtor,function,high,"slot 0 of MovieBase vtable 0x007cf600: restores the vtable, Movie_FreeResources, Z_Free if flag & 1"
+007cf600,MovieBase_vtable,data,medium,"stored by MovieBase_Construct/MovieBase_Dtor: 0 MovieBase_DeletingDtor, 3 MovieBase_Reset"
+000cf7c0,Movie_OnReadComplete,function,medium,"no references; thiscall (movie, error, request): finds the request in the 4 pending slots +0x58; error sets +0x44 = -1, else frees the slot, marks +0x68[i] done, Movie_QueueReads"
+008c0208,MovieVid_mcFuncs,data,medium,"16 motion-compensation block copies [put 16, put 8, avg 16, avg 8] x [full, x-half, y-half, xy-half] (pavgb), MPEG-2 style video of MovieVid_DecodeMacroblocks"
+000d0430,MovieVid_McPut16,function,medium,"MovieVid_mcFuncs[0]: (dst, src, stride, rows) 16-byte row copy"
+000d0500,MovieVid_McPut16X,function,medium,"MovieVid_mcFuncs[1]: pavgb(src, src+1), 16 wide"
+000d05e0,MovieVid_McPut16Y,function,medium,"MovieVid_mcFuncs[2]: pavgb(src, src+stride), 16 wide"
+000d0760,MovieVid_McPut16XY,function,medium,"MovieVid_mcFuncs[3]: four-sample half-pel average, 16 wide"
+000d0460,MovieVid_McPut8,function,medium,MovieVid_mcFuncs[4]: 8-byte row copy
+000d0540,MovieVid_McPut8X,function,medium,"MovieVid_mcFuncs[5]: pavgb(src, src+1), 8 wide"
+000d0620,MovieVid_McPut8Y,function,medium,"MovieVid_mcFuncs[6]: pavgb(src, src+stride), 8 wide"
+000d0800,MovieVid_McPut8XY,function,medium,"MovieVid_mcFuncs[7]: four-sample average, 8 wide"
+000d03c0,MovieVid_McAvg16,function,medium,"MovieVid_mcFuncs[8]: pavgb(dst, src), 16 wide"
+000d0490,MovieVid_McAvg16X,function,medium,"MovieVid_mcFuncs[9]: dst averaged with the x half-pel prediction, 16 wide"
+000d0570,MovieVid_McAvg16Y,function,medium,"MovieVid_mcFuncs[10]: dst averaged with the y half-pel prediction, 16 wide"
+000d0650,MovieVid_McAvg16XY,function,medium,"MovieVid_mcFuncs[11]: dst averaged with the xy half-pel prediction, 16 wide"
+000d0400,MovieVid_McAvg8,function,medium,"MovieVid_mcFuncs[12]: pavgb(dst, src), 8 wide"
+000d04d0,MovieVid_McAvg8X,function,medium,"MovieVid_mcFuncs[13]: x half-pel, averaged into dst, 8 wide"
+000d05b0,MovieVid_McAvg8Y,function,medium,"MovieVid_mcFuncs[14]: y half-pel, averaged into dst, 8 wide"
+000d0700,MovieVid_McAvg8XY,function,medium,"MovieVid_mcFuncs[15]: xy half-pel, averaged into dst, 8 wide"
+000d0f10,Save_GetNextMemoryUnit,function,medium,"no references; Save_EnumMemoryUnits, returns the first inserted port after the current one (0x008c02d0), wrapping to the first; -1 when none"
+0011db10,Scr_ReturnFalse,function,medium,"xor al,al; ret - its address is the fallback ScriptKeyTable_Find (0x0011dc4f: mov eax, 0x0011db10) and Scr_WaitOnObjectNoFlag return on a miss"
+0011fb00,BroScr_NotifyAfterWaitTill_56caf2eb,function,medium,"thread functor target (AeThreadFunctor vtable 0x007f4a88) in BroScr_AnimSingleGuys: endon(self, msg); waittill(guy, hash 0x56caf2eb); notify(self, msg) - Scr_NotifyAfterDeath's shape"
+0011fb40,BroScr_NotifyAfterSingleAnim,function,medium,"thread target in BroScr_AnimSingleGuys: endon(self, msg); Scr_WaitTillArgs(guy, 'single_anim' 0xce00786e); notify(self, msg)"
+0011fb90,BroScr_AnimNoteTracksThread,function,medium,"thread target (functor 0x007f4b00) in BroScr_AnimSingleGuys ('single_anim') and BroScr_AnimLoopGuys ('looping_anim' 0x7c70a61e): endon 0x3621f548 and 'death', BroScr_HandleNoteTracks on the anim flag"
+0011fc20,BroScr_AnimReachNotifyOnDeath,function,medium,"thread target in BroScr_AnimReachGuyThread: endon, waittill(guy, 'death'), notify(origin, 0x2253e8ee) - the reach notify"
+00120030,BroScr_FlagWhilePlayerLooksAway,function,medium,"no references; script thread (ent): forever per frame, yaw from the player (0x00922eec) to ent vs the player's yaw: outside +-45 GScr_SetEntFlag400, inside GScr_ClearEntFlag400 (on change)"
+001201c0,BroScr_IsVecAllMinusOne,function,medium,"no references; (out bool, vec3): 1 when all three components are -1"
+001201f0,BroScr_MoveToThread,function,medium,"no references; script thread (ent, vec, time): endon(ent, 0xf9ed2681), GScr_MoveTo(ent, vec, time, 0, 0)"
+007cc6c0,PhysBox_vtable,data,medium,"box collision-shape vtable (PhysBox_Construct): 2 PhysBox_Support, 5 PhysBox_IntersectRay, 7 PhysBox_IntersectSegment"

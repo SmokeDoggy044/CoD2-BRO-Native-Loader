@@ -358,59 +358,59 @@ void XB_THISCALL NAL_EntropyReader_DecodeShorts(EntropyReader* reader, int16_t* 
 // +0x80/+0x90/+0xa0, out +0x10..: scale block * ranges[0], (v + ranges[1]) * ranges[2]); flag
 // clear: two quaternions (readers +0/+0x40, out +0/+8). Both: the word at +0x16 from the reader
 // after them, scale ranges[3] * block, factor 5215.1, bias 9.6e-5. Quaternion scale ranges[4] * block.
-void XB_CDECL NAL_PackedPosOri_DecodeChannel(uint8_t* readers, uint8_t* out, int32_t* deltas, uint32_t, uint32_t count,
+void XB_CDECL NAL_Packed16EntropyIKSpin_DecodeChannel(uint8_t* readers, uint8_t* out, int32_t* deltas, uint32_t, uint32_t count,
                                              int32_t stride, uint32_t, const float* block_scale, const float* ranges,
                                              const uint8_t* has_position);
 // 0x00083500 (slot 6 of 0x007c2c38: context, &dst, &readers, delta buffer, -, count, stride):
-// per active channel NAL_PackedPosOri_DecodeChannel with its five floats from stream A (0x14 per
+// per active channel NAL_Packed16EntropyIKSpin_DecodeChannel with its five floats from stream A (0x14 per
 // channel) and its flag byte from stream B (after the block scale); readers 0xc0 and dst 0x1a
 // (aligned to 2) per active channel. Returns the group.
-uint32_t XB_STDCALL NAL_PackedPosOri_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, int32_t* deltas,
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, int32_t* deltas,
                                                   uint32_t unused, uint32_t count, int32_t stride);
 // 0x00086920 (cdecl: readers, &stream, frames, -, &block scale, ranges, &flag; writes the length
 // byte into its last argument slot, so the C version takes the argument block): the streams of
-// one NAL_PackedPosOri_DecodeChannel channel - flag set: a QuatReader (+0) and four entropy
+// one NAL_Packed16EntropyIKSpin_DecodeChannel channel - flag set: a QuatReader (+0) and four entropy
 // readers (+0x80..+0xb0); flag clear: two QuatReaders (+0, +0x40) and one entropy reader
 // (+0x80). Each stream is byte-length-prefixed; a reader whose address is 0 is skipped.
-extern "C" void NAL_PackedPosOri_BeginChannel_entry(void);
-extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_PackedPosOri_BeginChannel(uint32_t* args);
+extern "C" void NAL_Packed16EntropyIKSpin_BeginChannel_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed16EntropyIKSpin_BeginChannel(uint32_t* args);
 // 0x00086850 (slot 5 of 0x007c2c38, stdcall: context, &readers, &stream, frames): per active
-// channel NAL_PackedPosOri_BeginChannel (readers aligned to 16, 0xc0 apart; flag byte from stream
+// channel NAL_Packed16EntropyIKSpin_BeginChannel (readers aligned to 16, 0xc0 apart; flag byte from stream
 // B). Returns the group.
-uint32_t XB_STDCALL NAL_PackedPosOri_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count);
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count);
 // The int16 position + orientation class 0x007c2c38 (0x50-byte values, 0x1a bytes cached per
 // channel). 0x000834d0 (slot 4) Fixup, 0x00083ce0 (12) InitState, 0x00083b60 (13) FreeState,
 // 0x00083bb0 (14, body of 0x00083b90) CopyState: as the PosOri ones with 0x50 bytes per channel.
 // 0x00083c00 (15) SkipCachedFrame: cursor aligned to 2, + 0x1a per active channel. 0x00083a30 (10,
 // stdcall) and 0x00083ae0 (11, cdecl body of 0x00083ab0) only move the static stream pointers.
-uint8_t** XB_STDCALL NAL_PackedPosOri_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
-uint32_t XB_STDCALL NAL_PackedPosOri_InitState(const uint8_t* group, uint8_t** cursor);
-uint8_t** XB_STDCALL NAL_PackedPosOri_FreeState(const uint8_t* group, uint8_t** cursor);
-uint32_t XB_CDECL NAL_PackedPosOri_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src);
-uint32_t XB_STDCALL NAL_PackedPosOri_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
-uint32_t XB_STDCALL NAL_PackedPosOri_ApplyStatic(const uint32_t* context, uint8_t*, uint32_t, const int32_t*);
-uint32_t XB_CDECL NAL_PackedPosOri_ApplyWraps(const uint32_t* context, uint8_t*, uint8_t*, int32_t, uint32_t, const int32_t*);
+uint8_t** XB_STDCALL NAL_Packed16EntropyIKSpin_Fixup(const uint8_t* group, uint8_t** cursor, uint32_t);
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_InitState(const uint8_t* group, uint8_t** cursor);
+uint8_t** XB_STDCALL NAL_Packed16EntropyIKSpin_FreeState(const uint8_t* group, uint8_t** cursor);
+uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_CopyState(const uint8_t* group, uint8_t** dst, uint8_t** src);
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_ApplyStatic(const uint32_t* context, uint8_t*, uint32_t, const int32_t*);
+uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_ApplyWraps(const uint32_t* context, uint8_t*, uint8_t*, int32_t, uint32_t, const int32_t*);
 // 0x00083600 / 0x00083690 (slots 7 / 8 of 0x007c2c38, stdcall: context, &data, &stream, frames[,
 // stride]): no decoding - data (aligned to 2) + 0x1a and one flag byte of stream B per active
 // channel, stream A + 0x14 per channel. Return the group.
-uint32_t XB_STDCALL NAL_PackedPosOri_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t**, uint32_t, int32_t);
-uint32_t XB_STDCALL NAL_PackedPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t**, uint32_t);
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t**, uint32_t, int32_t);
+uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t**, uint32_t);
 // 0x00083860 (cdecl: dst, int16 words, -, &block scale, ranges, &flag): a 0x50-byte pose value
 // built in a stack record and copied whole. Flag set: +0x20 quaternion (words 4-7 / 32767), +0x30
 // position ((word * 1/ranges[2]) - ranges[1]), +0x3c 1.0, +0x42 word 11; flag clear: +0 and +0x10
 // quaternions (words 0-3, 4-7), +0x3c 0, +0x40 word 11. The rest of the record is whatever the
 // stack held: the asm entry moves the C frame below a gap and the record is written at the
 // original's address (entry ESP passed first).
-extern "C" void NAL_PackedPosOri_Dequantize_entry(void);
-extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_PackedPosOri_Dequantize(uint32_t entry, uint8_t* dst, const int16_t* src, uint32_t,
+extern "C" void NAL_Packed16EntropyIKSpin_Dequantize_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed16EntropyIKSpin_Dequantize(uint32_t entry, uint8_t* dst, const int16_t* src, uint32_t,
                                                                      const float*, const float* ranges,
                                                                      const uint8_t* has_position);
 // 0x00083720 (slot 9 of 0x007c2c38, stdcall: context, pose, &cursor, defaults, offsets): per
-// channel with an offset >= 0 the 0x50-byte value - NAL_PackedPosOri_Dequantize of the cursor's
+// channel with an offset >= 0 the 0x50-byte value - NAL_Packed16EntropyIKSpin_Dequantize of the cursor's
 // 0x1a bytes for an active channel, else the default. Returns the group. Asm entry with a gap, so
 // the dequantizer's record lands where the original's does.
-extern "C" void NAL_PackedPosOri_Evaluate_entry(void);
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_PackedPosOri_Evaluate(uint32_t entry, const uint32_t* context, uint8_t* pose,
+extern "C" void NAL_Packed16EntropyIKSpin_Evaluate_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_Evaluate(uint32_t entry, const uint32_t* context, uint8_t* pose,
                                                                        uint8_t** cursor, const uint8_t* defaults,
                                                                        const int32_t* offsets);
 // Slots 5-7 of the entropy trajectory class 0x007c2bd0 (stream A: 8 bytes per channel = position

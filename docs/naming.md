@@ -978,3 +978,30 @@ CoD-specific functions included, so later decompilation covers both kinds.
     blocks +0x2c (0xfc each, next +0xfc); current thread 0x008dda2c; manager +0x858 woken chain.
   - ps view heights: stand +0x420, crouch +0x424, prone +0x428, current +0xac, target +0xa8. Surface type =
     (0x0095ffe4 >> 20) & 0x1f; event bases run +1, walk +0x18, prone +0x2f, jump +0x46, land +0x5d.
+  Zero-caller list 0 (102 names): UIElement/UIText slots, the UI root object (g_uiRoot 0x0095f8d0, UIRoot_vtable
+  0x0082a5f4, UIRoot_Construct 0x00331e90), collision shape slots and dtors (CM_Brush 0x008325ec type 9, CM_Mesh
+  0x00832680 type 8, CM_TriMesh 0x0083270c type 6), resource-manager subclass dtors, NAL channel slots, the 1 MB
+  HeapAllocator of Sys_Main, cdOcean wave-set setters (level-script imports, 0x0095f49c +0xcf0..+0xd18).
+  - Correction: the NAL channel descriptor table 0x008bb130 (stride 0x14: vtable, base 0x00832774, 0, name, self)
+    names all 21 classes; 0x007c2c38 is NAL_Packed16EntropyIKSpin, so the NAL_PackedPosOri_* functions were
+    renamed (Ghidra, sources, CSVs). A 22nd descriptor at 0x008dda5c is the "COD_Note" notetrack class (vtable
+    0x008326a8). 0x008325ec-0x00832790 holds packed small vtables: collision shapes have 10 slots (8 type id,
+    9 deleting dtor), resource managers 1-3; several deleting dtors store an intermediate base vtable that only
+    they reference (0x00837618, 0x0083765c, 0x008376a0, 0x0083be8c, 0x0083bea4, 0x0083ce3c).
+  - Ocean wave sets (0xd0 at 0x00901b30): +0 base height; 4 waves: origin +0x50 + wave*8, float[4] arrays +0x70
+    direction (degrees), +0x80 falloff, +0x90 wavelength, +0xa0 amplitude, +0xb0 phase, +0xc0 speed (x shader time
+    0x00901e90). UI text element: +0x18 font, +0x1c text, +0x2c/+0x30 x/y, +0x38/+0x3c scale, +0x54 name, +0x5c
+    flags (0x30 horizontal, 0xc0 vertical align); UIElement +8 draw depth.
+  Zero-caller list 1 (91 names; functions reached only by pointer): particle domains, collision shape classes,
+  fx render ops, movie motion compensation. About 35 of the 90 have no reference anywhere (not even a raw dword):
+  dead out-of-line copies, named only where the body is clear ("no references" in the evidence).
+  - Particle domains (FxDomain_Create strings), vtables [0x9a280, 1 Generate, 2 Within, 3 ?, 4 0xa4980, 5 ?]:
+    1d/3dBox 0x007c5ac0/5ad8, 1d/3dPoint 5af0/5b08, 1d/3dBump 5b20/5b38; Sphere, YHemisphere, ZHemisphere,
+    SphereSurface, 3dLine, Disc, Circle = 0x007c9330, 9348, 9360, 9378, 9390, 93a8, 93c0 (center +0x10, radius
+    +0x1c, disc/circle basis +0x20/+0x30).
+  - Collision shape vtable slots: 2 local support, 4 sphere contact, 5 ray, 7 segment; unreferenced point/sphere/
+    capsule/segment/OBB classes keep the layout (capsule ends +0x30/+0x40, radius +0x50). Fx render ops: Draw in
+    slot 7 (FxOp31 0x007c6724 mesh particles, FxOp1d5 0x007c70a0 quads). Movie motion compensation 0x008c0208 =
+    [put16, put8, avg16, avg8] x [full, x, y, xy half-pel].
+  - Notify hashes (HashStr, rol 5 xor, lowercase): 'single_anim' 0xce00786e, 'looping_anim' 0x7c70a61e; 0x56caf2eb
+    and 0x3621f548 unknown. 0x0011db10 is a `return false` stub that key-table lookups return on a miss.
