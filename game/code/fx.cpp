@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "dobj.h"
+#include "fx_load.h"
 #include "lanes.h"
 #include "ngl.h"
 #include "param_set.h"
@@ -5231,6 +5232,233 @@ void XB_REGS1 XB_CDECL Entity_EndSoundNotify(uint8_t* entity) {
 uint32_t XB_CDECL FX_ResetParticleSystem() {
     title_function<void XB_CDECL()>(0x0009bd80)();
     return title_function<uint32_t XB_CDECL()>(0x000950b0)();
+}
+
+namespace {
+
+// The small-block heap (0x0095f5cc) the components come from: SmallHeap_Free (0x00044910).
+void component_free(void* block) {
+    title_function<void XB_THISCALL(uint32_t, void*)>(0x00044910)(title_global<uint32_t>(0x0095f5cc), block);
+}
+
+// A component's base destructor: the base vtable (0x00837624), entity handle +4 cleared.
+void component_base_dtor(uint8_t* component) {
+    *reinterpret_cast<uint32_t*>(component) = 0x00837624;
+    *reinterpret_cast<uint32_t*>(component + 4) = 0;
+}
+
+// The particle heap's Free (slot 2).
+void particle_heap_free(uint32_t block) {
+    const uint32_t heap = particle_heap();
+    title_function<void XB_THISCALL(uint32_t, uint32_t)>(vtable_slot(heap, 2))(heap, block);
+}
+
+}  // namespace
+
+// Calls a title function that takes its object in ESI (ECX holds it too).
+extern "C" PLATFORM_HIDDEN void XB_CDECL fx_call_esi(uint32_t function, void* object);
+PLATFORM_ASM_ENTRY(fx_call_esi,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %eax\n"
+                   "movl 12(%esp), %esi\n"
+                   "movl %esi, %ecx\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+PLATFORM_ASM_ENTRY(FxSystem_Prewarm_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FxSystem_Prewarm) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL FxSystem_Prewarm(uint8_t* system, float time) {
+    float& start = *reinterpret_cast<float*>(system + 0x40);
+    start = start - time;
+    if (!(time > 0.0f)) return;
+    float t = 0.0f;
+    do {
+        t = t + title_global<float>(0x0083066c);  // 0.3 s steps
+        FxSystem_Update(system, t + start);
+    } while (time > t);
+}
+
+uint32_t XB_REGS1 XB_CDECL FxComponent_DelayDone(const uint8_t* component) {
+    if (!(component[0x2a] & 1)) return 0;
+    return title_global<float>(0x0083eb4c) > *reinterpret_cast<const float*>(component + 0x1c) ? 1 : 0;
+}
+
+uint8_t* XB_THISCALL FxSoundComponent_DeletingDtor(uint8_t* component, uint32_t flags) {
+    fx_call_esi(0x0029ee30, component);  // FxSoundComponent_Dtor
+    if (flags & 1) component_free(component);
+    return component;
+}
+
+uint8_t* XB_THISCALL FxParticleComponent_DeletingDtor(uint8_t* component, uint32_t flags) {
+    *reinterpret_cast<uint32_t*>(component) = 0x008375e0;  // FxParticleComponent_vtable
+    const uint8_t* handle = *reinterpret_cast<uint8_t* const*>(component + 0x2c);
+    if (handle) {
+        uint8_t* system = *reinterpret_cast<uint8_t* const*>(handle + 4);
+        if (system)
+            FxSystem_Stop(system);
+        else
+            *reinterpret_cast<uint32_t*>(component + 0x2c) = 0;
+    }
+    component_base_dtor(component);
+    if (flags & 1) component_free(component);
+    return component;
+}
+
+uint8_t* XB_THISCALL FxShakeRumbleComponent_DeletingDtor(uint8_t* component, uint32_t flags) {
+    *reinterpret_cast<uint32_t*>(component) = 0x008376d0;  // FxShakeRumbleComponent_vtable
+    uint32_t& rumble = *reinterpret_cast<uint32_t*>(component + 0x60);
+    if (rumble) {
+        title_function<void XB_REGS1 XB_STDCALL(uint32_t, uint32_t)>(0x00298ca0)(  // Rumble_Stop
+            title_global<uint32_t>(0x0095f5c4), rumble);
+        rumble = 0;
+    }
+    uint8_t*& shake = *reinterpret_cast<uint8_t**>(component + 0x64);
+    if (shake) {
+        *reinterpret_cast<uint32_t*>(shake + 0x3c) = 0;
+        shake = nullptr;
+    }
+    component_base_dtor(component);
+    if (flags & 1) component_free(component);
+    return component;
+}
+
+uint32_t XB_CDECL FX_InitSystem(uint32_t, uint32_t heap_size, int32_t quads) {
+    title_global<uint32_t>(0x00909944) = 0;
+    FxSystem_ResetView(&title_global<float>(0x00909950));
+    const uint32_t heap = particle_heap();
+    title_global<uint32_t>(0x00909940) = 0;
+    const uint32_t log = title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(vtable_slot(heap, 1))(heap, 8, 4);
+    if (log) FxLog_Init(address_to_pointer(log));
+    FxParticleBuffers_Init(quads);
+    FxOp53_InitShaders();
+    FxOpGrid_InitShaders();
+    FxOp5b_InitShaders();
+    FxOp15b_InitShaders();
+    FxOpd5_InitShaders();
+    FxOp9d5_InitShaders();
+    FxOp1dd_InitShaders();
+    FxOpdd_InitShaders();
+    FxOp31_InitShaders();
+    FxOp1d5_InitShaders();
+    FxSet_8bb990(heap_size);
+    // The settings block 0x00909910..0x00909938 from constants (bit copies).
+    static const uint32_t kSettings[][2] = {
+        {0x00909910, 0x0083f0cc}, {0x0090991c, 0x0083f0cc}, {0x00909920, 0x0083eb9c}, {0x00909924, 0x007c4dac},
+        {0x00909928, 0x0083ecc8}, {0x0090992c, 0x007c4da8}, {0x00909930, 0x007c4da0}, {0x00909934, 0x007c4da4},
+        {0x00909918, 0x0083ebec}, {0x00909914, 0x0083ebb8},
+    };
+    const uint32_t flags = title_global<uint32_t>(0x00909944);
+    for (const auto& s : kSettings) title_global<uint32_t>(s[0]) = title_global<uint32_t>(s[1]);
+    title_global<uint32_t>(0x00909938) = 1;
+    title_global<uint32_t>(0x00909944) = flags | 1;
+    return 1;
+}
+
+void XB_THISCALL FxSystem_ResetView(float* view) {
+    // Rows y, z, x (identity columns scaled by 1), then 0 and 1.
+    static const float kRows[12] = {0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0};
+    const float one = title_global<float>(0x007c4bd0);
+    for (int i = 0; i < 12; ++i) view[i] = kRows[i] * one;
+    view[12] = 0.0f;
+    view[13] = title_global<float>(0x0083eb20);
+}
+
+int32_t XB_THISCALL FxSystem_FindEmitterByName(const uint8_t* system, const char* name) {
+    const uint8_t* definition = *reinterpret_cast<uint8_t* const*>(system + 0x48);
+    uint32_t hash[8];
+    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(0x00011060)(hash, name);  // HashStr_Init
+    return FxSystemDef_FindEmitterByHash(definition, hash);
+}
+
+uint8_t* const* XB_THISCALL FxSystem_GetBounds(const uint8_t* system, float* out) {
+    const float big = title_global<float>(0x007c5000);
+    Lanes low = splat(big);
+    Lanes high = splat(big);
+    for (float& v : high.v) {
+        uint32_t bits;
+        std::memcpy(&bits, &v, 4);
+        bits ^= title_global<uint32_t>(0x007c4db0);
+        std::memcpy(&v, &bits, 4);
+    }
+    const FxEmitters list = emitters_of(system);
+    uint8_t* const* e = list.begin;
+    for (; e != list.end; ++e) {
+        const uint8_t* emitter = *e;
+        if (!emitter || !*reinterpret_cast<const uint32_t*>(emitter + 0xc0)) continue;
+        low = lanes_min(low, lanes(reinterpret_cast<const float*>(emitter + 0x60)));
+        high = lanes_max(high, lanes(reinterpret_cast<const float*>(emitter + 0x70)));
+    }
+    std::memcpy(out, low.v, 16);
+    std::memcpy(out + 4, high.v, 16);
+    return e;
+}
+
+void XB_THISCALL FxSystemList_UpdateBounds(const uint8_t* list) {
+    // Each system's bounds into a scratch box nothing reads.
+    alignas(16) float box[8];
+    const int32_t& count = *reinterpret_cast<const int32_t*>(list + 0x1e4);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint8_t* system = *reinterpret_cast<uint8_t* const*>(list + 4 + i * 4);
+        if (system) FxSystem_GetBounds(system, box);
+    }
+}
+
+void XB_CDECL FxSystemPool_Init(int32_t count) {
+    const uint32_t heap = particle_heap();
+    uint8_t* pool = address_to_pointer(
+        title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(vtable_slot(heap, 1))(heap, 0x2c, 0x10));
+    if (!pool) return;
+    title_global<uint8_t*>(0x00909994) = pool;  // fx_systemPool
+    FxPool_Init(pool + 8, 0);
+    *reinterpret_cast<int32_t*>(pool + 4) = count;
+    uint8_t* systems = FxSystem_AllocArray(count, 0x10);
+    *reinterpret_cast<uint8_t**>(pool) = systems;
+    apsMemoryPool_Init(pool + 8, count, 0x70, systems);
+}
+
+uint8_t* XB_CDECL FxSystem_AllocArray(int32_t count, uint32_t alignment) {
+    const uint32_t heap = particle_heap();
+    uint8_t* systems = address_to_pointer(title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(
+        vtable_slot(heap, 1))(heap, static_cast<uint32_t>(count) * 0x70, alignment));
+    if (count <= 0) return systems;
+    int32_t left = count;  // a local: the cdecl argument slot is compared
+    uint8_t* system = systems;
+    do {
+        if (system) {
+            *reinterpret_cast<uint32_t*>(system + 0x48) = 0;
+            *reinterpret_cast<uint32_t*>(system + 0x54) = 0;
+            *reinterpret_cast<uint16_t*>(system + 0x58) = 0;
+            *reinterpret_cast<uint16_t*>(system + 0x5a) = 0;
+            *reinterpret_cast<uint32_t*>(system + 0x5c) = 0;
+            *reinterpret_cast<uint16_t*>(system + 0x60) = 0;
+            *reinterpret_cast<uint16_t*>(system + 0x62) = 0;
+            *reinterpret_cast<uint32_t*>(system + 0x64) = 0xffffffffu;
+        }
+        system += 0x70;
+    } while (--left != 0);
+    return systems;
+}
+
+uint32_t XB_THISCALL FxEmitter_SetOrigin(uint8_t* emitter, const uint32_t* origin) {
+    // CMPEQPS of the previous origin (+0x50) with 0 over all four lanes; xyz all 0 = no
+    // previous origin yet, it starts at the new one.
+    const float* previous = reinterpret_cast<const float*>(emitter + 0x50);
+    const float* zero = &title_global<float>(0x007c5330);
+    bool equal[4];
+    for (int i = 0; i < 4; ++i) equal[i] = previous[i] == zero[i];
+    platform_keep(equal);
+    const uint32_t* source = (equal[0] && equal[1] && equal[2]) ? origin : reinterpret_cast<const uint32_t*>(emitter + 0x40);
+    uint32_t* last = reinterpret_cast<uint32_t*>(emitter + 0x50);
+    for (int i = 0; i < 4; ++i) last[i] = source[i];
+    uint32_t* current = reinterpret_cast<uint32_t*>(emitter + 0x40);
+    for (int i = 0; i < 3; ++i) current[i] = origin[i];
+    const uint32_t w = origin[3];
+    current[3] = w;
+    return w;
 }
 
 }  // namespace game

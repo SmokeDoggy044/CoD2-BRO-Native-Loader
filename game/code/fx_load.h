@@ -354,4 +354,31 @@ float* XB_CDECL FxMatrix_RigidInverse(float* out, const float* m);
 // 0x0009ddb0: a direction frame (normalized direction, right scaled by 0x00909984, up).
 void XB_CDECL FxAxis_Frame(const float* direction, float* direction_out, float* right_out, float* up_out);
 
+// 0x000963c0: a stage's vertex format (+0x18): its actions' (+0x14) bits, its renderer's
+// (+0x10, word +4), then 0x600.
+void XB_THISCALL FxEffectStage_CollectFormat(uint8_t* stage);
+// 0x000964b0: the index of the emitter entry (+0x58, 0x2c bytes each, count int16 +0x5e)
+// whose first 8 words are `hash`, -1 if none.
+int32_t XB_THISCALL FxSystemDef_FindEmitterByHash(const uint8_t* definition, const uint32_t* hash);
+// 0x000966e0: 1 when every stage of `other` fits a distinct stage of `self` (particle
+// counts +0x1c * +0, best fit first), or other == self.
+uint32_t XB_THISCALL FxEffectDef_CanReuseStages(const uint8_t* self, const uint8_t* other);
+// 0x000967c0: a stage's renderer (+0x10: deleted through vtable slot 0, freed) and action
+// list (+0x14: emptied, freed).
+void XB_THISCALL FxEffectStage_Release(uint8_t* stage);
+// 0x00096800: every stage released, then the emitter (+0x58) and stage (+0x50) tables
+// freed with their sizes cleared.
+void XB_THISCALL FxEffectDef_Release(uint8_t* definition);
+// 0x00099250: `count` random samples of the range's (min, max) pairs (+4 on, one float apart).
+void XB_THISCALL FxRange_SampleN(const uint8_t* range, int32_t count, float* out);
+// 0x00099290: the effect random generator (fx_randSeed 0x00909f6c) scaled to [low, high),
+// on the x87 (ST0).
+long double XB_CDECL FxRandom_Range(float low, float high);
+// 0x000992e0, 0x00099560, 0x00099640, 0x00099c90: whether value[0] lies in the range /
+// equals the constant, for up to 1 (scalar) or 3 (vector) components.
+uint32_t XB_THISCALL FxRange_Within(const uint8_t* range, int32_t count, const float* value);
+uint32_t XB_THISCALL FxConst_Within(const uint8_t* constant, int32_t count, const float* value);
+uint32_t XB_THISCALL FxConstVector_Within(const uint8_t* constant, int32_t count, const float* value);
+uint32_t XB_THISCALL FxVectorRange_Within(const uint8_t* range, int32_t count, const float* value);
+
 }  // namespace game

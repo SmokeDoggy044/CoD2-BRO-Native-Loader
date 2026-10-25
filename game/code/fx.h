@@ -760,4 +760,40 @@ void XB_REGS1 XB_CDECL Entity_EndSoundNotify(uint8_t* entity);
 // hookable).
 uint32_t XB_CDECL FX_ResetParticleSystem();
 
+// 0x000240b0 (system in ESI): runs a new system `time` seconds ahead - its start (+0x40)
+// moved back by `time`, then FxSystem_Update in 0.3 s steps until `time` is covered.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FxSystem_Prewarm(uint8_t* system, float time);
+extern "C" void FxSystem_Prewarm_entry(void);
+// 0x00024200 (EAX): 1 when the component waits for a delay (flag bit 0 of +0x2a) whose
+// remaining time (+0x1c) is under 0.001.
+uint32_t XB_REGS1 XB_CDECL FxComponent_DelayDone(const uint8_t* component);
+// 0x00024320, 0x00024350, 0x000243a0: the sound / particle / shake-rumble components'
+// deleting destructors (bit 0 of flags frees to the small-block heap 0x0095f5cc). The
+// particle one stops its system, the shake-rumble one its rumble (+0x60) and shake (+0x64).
+uint8_t* XB_THISCALL FxSoundComponent_DeletingDtor(uint8_t* component, uint32_t flags);
+uint8_t* XB_THISCALL FxParticleComponent_DeletingDtor(uint8_t* component, uint32_t flags);
+uint8_t* XB_THISCALL FxShakeRumbleComponent_DeletingDtor(uint8_t* component, uint32_t flags);
+// 0x00094610 (cdecl; Sys_Main passes 0, 0x2000000, 4000): the particle library's start -
+// view reset, log, particle buffers for `quads`, every render op's shaders, the heap size,
+// the settings block 0x00909910..; returns 1.
+uint32_t XB_CDECL FX_InitSystem(uint32_t unused, uint32_t heap_size, int32_t quads);
+// 0x00094750: the effect view (0x00909950, 14 floats) back to its default axes.
+void XB_THISCALL FxSystem_ResetView(float* view);
+// 0x00094810: the index of the definition's (+0x48) emitter named `name`, -1 if none.
+int32_t XB_THISCALL FxSystem_FindEmitterByName(const uint8_t* system, const char* name);
+// 0x000949e0: the box (min, max: 8 floats) around the system's emitters that have
+// particles (+0xc0), from each one's box at +0x60/+0x70. Returns the emitter list's end.
+uint8_t* const* XB_THISCALL FxSystem_GetBounds(const uint8_t* system, float* out);
+// 0x00095060: FxSystem_GetBounds of every system in the list (+4, count +0x1e4) into a
+// scratch box (the results are dropped).
+void XB_THISCALL FxSystemList_UpdateBounds(const uint8_t* list);
+// 0x000951c0: the system pool (fx_systemPool 0x00909994, 0x2c bytes): `count` systems
+// (+0, +4) behind a memory pool at +8.
+void XB_CDECL FxSystemPool_Init(int32_t count);
+// 0x00095f20: `count` empty systems (0x70 bytes each) from the particle heap.
+uint8_t* XB_CDECL FxSystem_AllocArray(int32_t count, uint32_t alignment);
+// 0x00097340: an emitter's origin (+0x40) = `origin`; the previous one (+0x50) = the old
+// origin, or the new one while the previous is still 0. Returns origin's 4th word.
+uint32_t XB_THISCALL FxEmitter_SetOrigin(uint8_t* emitter, const uint32_t* origin);
+
 }  // namespace game
