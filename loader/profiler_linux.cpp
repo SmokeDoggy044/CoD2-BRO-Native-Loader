@@ -84,7 +84,10 @@ std::vector<pid_t> threads() {
 
 size_t sample(double seconds, std::vector<Sample>& samples) {
     using Clock = std::chrono::steady_clock;
-    g_samples = new Sample[kMaxSamples];
+    // One buffer for every report (late signals of the last one may still write to it);
+    // the count starts over, or a second report stored nothing (automatic reports repeat).
+    if (!g_samples) g_samples = new Sample[kMaxSamples];
+    g_count.store(0, std::memory_order_relaxed);
     const int signal = SIGRTMIN + 4;
     struct sigaction action{};
     action.sa_sigaction = on_sample;
