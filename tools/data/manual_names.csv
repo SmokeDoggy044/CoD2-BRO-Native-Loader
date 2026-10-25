@@ -13603,3 +13603,166 @@ address,name,kind,confidence,evidence
 001201c0,BroScr_IsVecAllMinusOne,function,medium,"no references; (out bool, vec3): 1 when all three components are -1"
 001201f0,BroScr_MoveToThread,function,medium,"no references; script thread (ent, vec, time): endon(ent, 0xf9ed2681), GScr_MoveTo(ent, vec, time, 0, 0)"
 007cc6c0,PhysBox_vtable,data,medium,"box collision-shape vtable (PhysBox_Construct): 2 PhysBox_Support, 5 PhysBox_IntersectRay, 7 PhysBox_IntersectSegment"
+00120380,BroScr_EmptyFunc2StrArgs,function,medium,"no references; empty compiled script function: only releases its two by-value ScriptString args ([esp+0x20],[esp+0x30]) under SEH"
+001203d0,BroScr_EmptyFuncStrArg,function,medium,"no references; lea ecx,[esp+0x14]; jmp ScriptString_Release: empty script function releasing its by-value string arg"
+001203e0,BroScr_EmptyFunc2StrArgs_2,function,medium,no references; same shape as BroScr_EmptyFunc2StrArgs (two ScriptString_Release of by-value args)
+00120460,BroScr_EmptyFuncStrArg_2,function,medium,no references; tail call ScriptString_Release on a stack arg: empty script function with a string arg
+00120480,BroScr_EmptyFuncStrArg_3,function,medium,no references; tail call ScriptString_Release on a stack arg: empty script function with a string arg
+00120860,BroScr_WaitFiveSeconds,function,high,no references; t = GScr_GetTime(); while (GetTime() < t + 5000) Scr_WaitFrames(0)
+00121a60,BroScr_NotifyLevelOnDeath,function,medium,"thread started by BroScr_PauseUnpauseWait (Scr_StartThread_ent_ent): endon(ent, 0x92b8c65f), waittill(ent, ""death""), level (0x00922ee0+4) notify 0x92b8c65f"
+00121b10,BroScr_WaitTill_hcc07a20a,function,medium,"no references; Scr_WaitTill(self, 0xcc07a20a) only (hash not cracked)"
+001233f0,BroScr_MakeVec0Y0,function,medium,"no references; (out, _, y): out = (0, y, 0) via SSE floats"
+00123430,BroScr_MakeVecXY0,function,medium,"no references; (out, x, y): out = (x, y, 0) via SSE floats"
+001286f0,BroScr_SetHealthOrDefault,function,medium,"no references; (ent, health): health == g_scrUndefinedInt -> ScrEnt_SetHealth with default, else ScrEnt_SetHealth(health) (both tail jumps)"
+00130ab0,BroScr_CheckpointFadeLocalized,function,low,no references; turns its three string args into localized strings (ScrCall_GScr_GetLocalizedString x3) and calls BroScr_CheckpointFade
+00130c80,BroScr_TriggerSpawnerThink,function,medium,"thread (trigger, spawner) from BroScr_SetupSpawnerTriggers and itself (Scr_BeginThread_ent_ent, notify ""trigger""): endon, if spawner targetname == trigger target: GScr_ForceSpawn if ScrField_h02d62a20 == 1 else GScr_DoSpawn; wait trigger.wait; restart itself"
+001281c0,BroScr_WaitForNotifyOrTimeout,function,low,"(outside list; callee of 00130df0/00130ee0/00130fc0/001310b0) optional level endon(str), optional level notify(str)+endon(str), then waits timeout s by GetTime (if defined) else WaitFrames forever: body of a stubbed-out effect loop"
+00130df0,BroScr_WaitForNotifyOrTimeoutCall,function,low,"no references; copies its string/vector args and calls 001281c0 (BroScr_WaitForNotifyOrTimeout), timeout default g_scrUndefinedFloat"
+00130ee0,BroScr_WaitForNotifyOrTimeoutCall_2,function,low,thread target in BroScr_MortarThink (2 sites); wrapper of 001281c0 with empty strings and undefined timeout
+00130fc0,BroScr_WaitForNotifyOrTimeoutCall_3,function,low,no references; wrapper of 001281c0 with empty strings and zero vectors (0x00922eb8)
+001310b0,BroScr_WaitForNotifyOrTimeoutCall_4,function,low,thread target in BroScr_MortarThink (Scr_StartThread_ent_vec_str_vec_f); wrapper of 001281c0 passing its timeout arg
+001315b0,BroScr_DebugForwardStub,function,low,"no references; forever per frame: origin (key 0xe2e8d8a5 created as vector), origin, angles, AnglesToForward and nothing else (debug drawing compiled out)"
+00132410,BroScr_RestoreSpawnerSavedState,function,low,"no references; (ent): slot 659 setter (0x00922b8c) with saved key 0x56aed3da, then SetOrigin from ScrField_hcc045c84; inverse of 0013ab60"
+0013ab60,BroScr_TakeSpawnerSaveState,function,low,"no references; returns spawner level+0x324 of GScr_GetSpawnerTeamArray, saves slot 658 value (0x00922b88) into key 0x56aed3da and origin into ScrField_hcc045c84, then slot 659 (ent, 1)"
+00134150,BroScr_MoveSoundEvery128Units,function,low,no references; (ent) per frame adds distance moved; while slot 638 (0x00922b38) > 1 and every 128 units plays GScr_PlaySoundAtPosition(key 0x1cc418a4 string); ends when it drops below 1
+001349d0,BroScr_DebugStub_h8c05ef86,function,low,"no references; (_, ent): endon death, ent key 0x8c05ef86 = 0, then wait 0.05 forever (body compiled out)"
+00134a30,BroScr_DebugStub_hcd84c908,function,low,"no references; (_, ent): endon death, ent key 0xcd84c908 = 0, then wait 0.05 forever (body compiled out)"
+00134cb0,BroScr_DebugForwardStub_2,function,low,"no references; forever: angles, key 0xbe149b8c float, AnglesToForward twice, wait 0 (debug drawing compiled out)"
+00135e10,BroScr_WaitForNotifyForever,function,low,"no references; optional level endon(str) / notify(str)+endon(str), then wait 0.1 forever; same head as BroScr_WaitForNotifyOrTimeout (001281c0)"
+00136020,BroScr_EmptyFuncArrStrArgs,function,medium,no references; frees its by-value array arg (Scr_Free) and releases a string arg: empty script function; next to Scr_ReleaseStringArrayAndString
+00136070,BroScr_EmptyFuncArrStrArgs_2,function,medium,"no references; same bytes shape as 00136020 (Scr_Free array arg, ScriptString_Release)"
+001360c0,BroScr_EmptyFuncArrArg,function,medium,no references; if (arg2) Scr_Free(arg2): empty script function with one by-value array arg
+001362b0,BroScr_DeleteFromLevelList784ByTargetname,function,medium,"no references; walks level (0x00922ee0) DynArray +0x784/+0x78c, first valid ent whose targetname equals the arg: GScr_Delete + DynArray_Erase; cf. BroScr_FindInLevelList798ByTargetname"
+0013c150,BroScr_GetNonSentientsByGroupname,function,medium,"no references; Scr_GetEntArray(arg, ""groupname""), pushes each ent with !GScr_IsSentient into the result"
+0013c3f0,BroScr_GetClosestNodeToEnt,function,medium,"no references; (out, ent, targetname): node array by targetname (or all nodes when 0), empty -> 0x00922ea0, else BroScr_GetClosestNodeFromArray(ent origin)"
+00147470,BroScr_GetClosestArrayPointToPlayer,function,medium,"no references; (out, ent): of ent's vector array key 0x4f7c0a56 returns the point closest to the player (0x00922eec) by Scr_Distance"
+001476b0,BroScr_GetClosestArrayPointToPlayer_2,function,medium,no references; same 562-byte body as 00147470
+0014a380,BroScr_WaitForAllFollowersNotify,function,medium,"no references; (ents): sums the ""followers"" array counts of all ents, then waits that many times for level notify 0x92b8c65f"
+0014a910,BroScr_PathPosDebugStub,function,low,"thread started by BroScr_StartPathPosThreads: endon 0x71017853 on ent and level, every 0.05 s walks ent.path_pos doing nothing (debug drawing compiled out)"
+0014a9c0,BroScr_CurrentPathPosDebugStub,function,low,"second thread of BroScr_StartPathPosThreads: endon 0x71017853, every 0.05 s reads ent.current_pos and path_pos[current_pos] only (debug drawing compiled out)"
+0014ce80,BroScr_DeleteArraysOnVehicleRemoved,function,low,"thread target in BroScr_VehicleHealthThink: copies vehicle arrays 0x9ecce58a/0xb0996bdc, polls EntityHandleIsValid every 5 s, then GScr_Delete on the copied ents (loop body dropped by decompiler)"
+00150b70,BroScr_AddToLevelList798EntArray,function,low,"no references; (ent, targetname): BroScr_FindInLevelList798ByTargetname, if valid pushes ent into its key 0xe104fd5c array"
+00152730,BroScr_GetAIByGroupFieldCall,function,medium,no references; default-argument wrapper of BroScr_GetAIByGroupField (copies string arg)
+001592d0,BroScr_SpawnerGroupManagerCall,function,medium,"called from PROLOGUE/ORAN/KASSPASS/MONS1 by absolute address; BroScr_SpawnerGroupParams_Init + string copies, then BroScr_SpawnerGroupManager (1 arg)"
+00159400,BroScr_SpawnerGroupManagerCall_2,function,medium,called from ORAN (2); default-arg wrapper of BroScr_SpawnerGroupManager (3 args)
+00159530,BroScr_SpawnerGroupManagerCall_3,function,medium,called from PROLOGUE/GELA/OMAHEACH (20 sites); default-arg wrapper of BroScr_SpawnerGroupManager (4 args)
+001596a0,BroScr_SpawnerGroupManagerCall_4,function,medium,called from KASSPASS/MONS1 (7); wrapper of BroScr_SpawnerGroupManager without params init
+001597a0,BroScr_RunSpawnerGroupsByGroupname,function,low,"no references; GScr_GetSpawnerArray, groups spawners by ScrEnt_GetGroupname, runs BroScr_SpawnerGroupManager per group, waits on a notify string"
+0015b6c0,BroScr_ArrayUseAnimTreeByAnimname,function,medium,"no references; for each ent of the by-value array: GScr_UseAnimTree(ent, tree of HashStr(ent.animname)); Scr_Free array"
+0015bd20,BroScr_LoopSoundUntilFlag,function,medium,"thread target in BroScr_FxCreationSoundThink: optional level endon, until ent key 0x75c85f71 (bool) set: GScr_PlaySound(ent, alias, notify 0x10b1bdae) + waittill 0x10b1bdae"
+0015bde0,BroScr_RandomSoundBursts,function,medium,"thread target of BroScr_SpawnLoopSoundOrigin and 0015fd60/de0/e50: forever RandomIntRange(min,max) plays of alias (waittill 0x2c5b1495, wait d+rand) then wait gap+rand"
+0015cee0,BroScr_StoneBreakTriggerThink,function,medium,"thread target in BroScr_StoneBreakFx: no target -> delete; waits on target ents, random 'light' check, GScr_PlaySound, threads BroScr_SpawnStoneGibs at origin, deletes"
+0015fd60,BroScr_RandomSoundBurstsThread,function,medium,no references; Scr_StartThread_ent_hash_i_i_f_f_f_f_hash(BroScr_RandomSoundBursts) with default args
+0015fde0,BroScr_RandomSoundBurstsThread_2,function,medium,"no references; same, fewer defaulted args"
+0015fe50,BroScr_RandomSoundBurstsThread_3,function,medium,"no references; same, only the last arg defaulted"
+001640c0,BroScr_TreeBurstTriggerThink,function,medium,"thread target in BroScr_SetupTreeBursts (2): waits burst_notify or trigger, then Bro__treeburst_gmi__tree_burst_playBurst on each target ent"
+001642b0,BroScr_WindowBreakThink,function,low,"thread target in BroScr_GetWindowBreaks: target ents/'script_origin', entity flags 0x40000/0x80000/0x400, IsTouching + script_noteworthy checks, MoverNotSolid, starts thread 0015e4c0"
+00169b20,BroScr_DroneAnimLoop,function,low,"thread target in BroScr_DronePathSpawnOne: endons, UseAnimTree by animname, random SetFlaggedAnimKnobAll per notify (0x6e28adc5/0x2297b461)"
+0016d0c0,BroScr_AnimReachCall,function,medium,no references; copies string/array args and calls BroScr_AnimReach
+0016d1a0,BroScr_AnimReachEntCall,function,medium,no references; copies string/array args and calls BroScr_AnimReachEnt
+0016d280,BroScr_StartDronesByTargetname,function,medium,"called from BroLvl_prologue_Event1Drones by address; Scr_GetEntArray(arg, ""targetname""), starts a BroScr_DroneMain functor thread on each"
+00175320,BroScr_PathMoverFromTargetChainCall,function,medium,"no references; BroScr_PathMoverFromTargetChain(a, b) with remaining args undefined"
+00175370,BroScr_PathMoverFromTargetChainCall_2,function,medium,no references; default-arg wrapper (3 args given)
+001753c0,BroScr_PathMoverFromTargetChainCall_3,function,medium,no references; default-arg wrapper (4 args given)
+00175410,BroScr_PathMoverFromTargetChainCall_4,function,medium,no references; default-arg wrapper (5 args given)
+001819b0,BroScr_DeleteEntArg2,function,medium,no references; GScr_Delete(arg2)
+00181a90,BroScr_VectorScale_2,function,high,"no references; out = (x*s, y*s, z*s); copy of BroScr_VectorScale 00182270"
+00181c90,BroScr_DistanceSquared,function,high,no references; out = (ax-bx)^2 + (ay-by)^2 + (az-bz)^2
+001820f0,BroScr_EmptyFuncStrArg_4,function,medium,no references; tail call ScriptString_Release of a stack arg
+00182100,BroScr_PrecacheModelBySpawn,function,medium,"no references; spawns a 'script_model' at 0x009236dc's origin, GScr_SetModel(arg model), GScr_Delete"
+001827d0,BroScr_TurretSetAnimKnob_8cf684,function,medium,"thread (actor, turret) from 0019cf40: GScr_SetAnimKnob(turret, anim handle 0x008cf684, 1.0, 0.15, 0, 1)"
+00182800,BroScr_TurretSetAnimKnob_8cf684_2,function,medium,no references; same bytes as 001827d0
+001828a0,BroScr_TurretSetAnimKnob_8cf684_3,function,medium,no references; same bytes as 001827d0
+001828d0,BroScr_RelayNotifyWhileBothAlive,function,medium,"thread (a, b) from 0019d7b0: endon death on both, endon 0x1e4aecac, waittill(a, 0x259b8110), notify(a, 0x1e4aecac)"
+00182940,BroScr_EmptyFuncStrArg_5,function,medium,no references; tail call ScriptString_Release of a stack arg
+00183700,BroScr_EmptyFuncStrArg_6,function,medium,no references; tail call ScriptString_Release of a stack arg
+00183790,BroScr_WaitFrameStrArg,function,medium,"no references; Scr_WaitFrames(0), releases its by-value string arg"
+001838c0,BroScr_EndOnDeath,function,medium,"thread target in BroScr_HeadLookMainLoop: Scr_EndOn(ent, ""death"") only"
+00183900,BroScr_EmptyFuncStrArg_7,function,medium,no references; tail call ScriptString_Release of a stack arg
+00183a70,BroScr_TurretSetProneRecoverAnim,function,medium,"thread (actor, turret) from BroScr_TurretProneMG42Recover while the actor plays pronemg42gunner_recover: SetAnimKnob(turret, 0x008cf7bc, 1, 0.2, 1, 1)"
+00183aa0,BroScr_TurretSetAnimKnob_8cf7a4,function,medium,"no references; SetAnimKnob(turret arg2, 0x008cf7a4, 1, 0.2, 1, 1); sibling of BroScr_TurretSetProneRecoverAnim"
+00183ce0,BroScr_AnimCmd_SetAnim,function,medium,"no references; (ent, _, anim, _, _, weight, time, rate): GScr_SetAnim(ent, anim, weight, time, rate, 0); next to BroScr_AnimCmd_SetAnimKnobAll"
+00184b90,BroScr_GetEyeLoop,function,low,"no references; endon killanimscript + h47e458b4, loop wait 0.05 calling GScr_GetEye(self, &vec) (result unused, debug stripped)"
+00184c20,BroScr_ReturnQuarter,function,medium,"no references; *out = 0.25f, return"
+0018ba10,BroScr_DeleteEntsOnNotify,function,medium,"thread from BroScr_MgTurretThink (Scr_StartThread_ent_ent_str_ent_ent_4): WaitTillString(ent, str), then GScr_Delete of the two other ents if valid"
+0018bfc0,BroScr_FallbackDebugLoop,function,medium,"thread from BroScr_FallbackGoalThink only when cvar fallback == ""1"" (ent, pathnode origin): endon both goal notifies, loop wait 0.05 forever (debug draw stripped)"
+0018c4e0,BroScr_TurretIdleAnimStart,function,medium,"callback passed by BroScr_AnimScript_TurretCall_1: endon killanimscript, ScrActor_SetInt_1370 + SetAnimKnob of anim 008cf0d8, then BroScr_TurretIdleAnimLoop"
+0018c540,BroScr_TurretSetIdleKnobs,function,low,"callback passed by BroScr_AnimScript_TurretCall_1: endon killanimscript, SetAnimKnob on turret (anim 008cf684) and on actor (008cf0d8, ScrActor_SetInt_1370), blend 0.15"
+0018da00,BroScr_MeleeNoteTrackHandler,function,medium,"notetrack callback passed by Bro_combat__MeleeCombat/BroScr_MeleeAttackAnim: if note == ""melee"" call script slot 009226a0(self)"
+0018e050,BroScr_CompareIntEqual,function,medium,no references; *out = (*a == b)
+0018e070,BroScr_CompareIntNotEqual,function,medium,no references; *out = (*a != b)
+0018ffe0,ScrField_h17138232,function,medium,no references; string getter: GetEntScriptObject + ScriptKeyTable_GetString(0x17138232)
+00192040,ScrField_ha3d681e3_IsDefined,function,medium,no references; isdefined(ent.ha3d681e3) (string): EntityHandleIsValid + GetStringCopy(0xa3d681e3) non-empty
+001989d0,ScrField_ha33a251d_IsDefined,function,medium,no references; isdefined(ent.ha33a251d) (int): EntityHandleIsValid + ScriptKeyTable_Find(0xa33a251d) not 0/-1
+00199940,BroScr_MgFollowEntOrigin,function,low,"functor thread from BroScr_MgTurretThink: unless cvar ""mg42"" == ""off"": field hc51219a9 = self, loop SetOrigin(self, GetOrigin(arg3)) every 0.1"
+00199bc0,BroScr_TriggeredSpawnerThink,function,medium,"functor thread from BroScr_SetTargetnamesFromOrigins and the flood_spawner trigger thread: zone check, script_delay/_min/_max wait, spawnflags, GScr_ForceSpawn/DoSpawn, 'DIED'/'DELETED' notifies"
+0019a150,BroScr_TrackStartFlagLoop,function,low,"functor thread from BroScr_SetTargetnameFromOrigin: loop waittill hd50105fc -> ent.start = 0, waittill hccd105e5 -> ent.start = 1"
+0019a500,BroScr_FallbackOnGoalRestore,function,medium,"functor thread from BroScr_FallbackGoalThink/BroScr_FallbackNodeThink: waittill ""goal"", restore ScrActor int 1308 / float 7e4 from fields hac91e5fb/h62271501, notify hed4ff1b2 + h6a48b933"
+0019b990,BroScr_PushActorFloat82c,function,medium,"no references; field h98b54d9f = ScrActor_GetFloat_82c(self), then SetFloat_82c(self, 3.0); pair of BroScr_PopActorFloat82c"
+0019ba00,BroScr_PopActorFloat82c,function,medium,"no references; ScrActor_SetFloat_82c(self, field h98b54d9f); restores BroScr_PushActorFloat82c"
+0019bec0,BroScr_ExploderPlaySound,function,medium,"functor thread from BroScr_Exploder: script_delay wait, then thread BroScr_PlaySoundOnTempOrigin_4(origin, ent.script_sound)"
+0019bf80,BroScr_ExploderSoundFx,function,low,"functor thread from BroScr_Exploder: script_delay(_min/_max) wait, script_fxid, target ents by targetname, VectorNormalize, PlaySound/PlaySoundAtPosition"
+0019c2c0,BroScr_ExploderSoundFx_2,function,low,"functor thread from BroScr_Exploder: like BroScr_ExploderSoundFx plus endon(level, ent.script_waittill)"
+0019cf40,BroScr_TurretPlayAnimDone,function,low,"callback passed by BroScr_AnimScript_TurretCall_1: endon killanimscript, CallThread FUN_001827d0, SetFlaggedAnimKnob ""animdone"" of anim 008cf0d8, waittill animdone"
+0019d460,BroScr_ReloadLauncherTimeout,function,medium,"thread from BroScr_ReloadLauncher (begun beside Bro_combat__rechamber): endon h5e12d3d2/killanimscript, wait 3, field hc786fa48 = 0, notify h5e12d3d2"
+0019d7b0,BroScr_OrientToEntityKillWatch,function,medium,"thread from BroScr_UpdateOrientToEntity: CallThread FUN_001828d0(self, ent), endon death on both + h1e4aecac, waittill killanimscript, notify h1e4aecac"
+0019d820,BroScr_CachePerTeamValues,function,low,"no references; field had8f34a0 -> 00922fa0, then per team of the sentient (neutral/all/axis/...) copies four level+0xd0.. values into globals 00922fa4-00922fbc"
+0019da60,BroScr_CoverShootOnNotify,function,low,"thread from BroScr_CoverAttack (2 sites): endons, count times WaitTillArgs then GScr_ActorShoot(self, arg4) and decrement a shot-count field, final notify"
+0019e120,BroScr_AnimFaceWaitSetFlag,function,low,"thread from BroScr_AnimFaceWait: endon death/had9b8a7b, waittill h91935ca7, field haa35a0b5 = 1, notify h1c87198d"
+0019e1a0,BroScr_AnimFaceWaitOnNotify,function,medium,"thread from BroScr_AnimFaceWait: endon death + arg4, waittill(arg2 hashed), field h1cc76848 = ""notify"", notify arg3 (timeout sibling BroScr_AnimFaceWaitOnTime)"
+0019e260,BroScr_AnimFaceWaitOnTime,function,medium,"thread from BroScr_AnimFaceWait: endon death + arg4, wait(arg2), field h1cc76848 = ""time"", notify arg3"
+0019f090,BroScr_StopLookingAtOnNotify,function,medium,"functor thread from BroScr_HeadLookMainLoop: endon death, waittill h247afc7f, BroScr_StopLookingAt(self)"
+0019f390,BroScr_Mg42AnimTree,function,medium,"thread from Bro_b30cal_prone; same shape as BroScr_Mg30calAnimTree with 'mg42': UseAnimTree(turret), ref count habc1df0a, waittill killanimscript on actor, ClearAnimTree at zero"
+0019f770,BroScr_Mg42AnimTree_2,function,medium,"thread from BroScr_TurretPoseProne (turret, actor); copy of BroScr_Mg42AnimTree ('mg42' UseAnimTree/ClearAnimTree ref count)"
+0019fe80,BroScr_DirectionalMoveAnimsOnNotify,function,medium,"thread from BroScr_DirectionalMoveAnimsLoop: stores its thread handle in field ha78b2c24 (terminating the old one), loop waittill + BroScr_SetDirectionalMoveAnims(6 anims, 0.2)"
+0019ff70,BroScr_DirectionalMoveAnimsLoop,function,medium,"thread from Bro_run__main/BroScr_StandCombatRun/BroScr_TraverseDiveWall with forward/back/left/right anim sets: handle in field hf8b8e073, threads BroScr_DirectionalMoveAnimsOnNotify, loop SetDirectionalMoveAnims + wait"
+001a0d20,BroScr_StopLookingAt_2,function,medium,no references; wrapper calling BroScr_StopLookingAt(self)
+001a0e60,BroScr_UpdateWoundedTimeDefaults,function,medium,"no references; defaults arg2 (undefined -> h0776460f) and arg3 (undefined -> 0), then BroScr_UpdateWoundedTime"
+001a1240,ScrField_h80658b23_SetTrue,function,medium,no references; ent.h80658b23 = 1 (Find/Set with undefined int)
+001a4290,ScrField_h12993a44,function,medium,no references; struct getter: GetEntScriptObject + ScriptKeyTable_GetStruct28(0x12993a44)
+001a46c0,BroScr_EmptyFunc_StrArray,function,medium,"no references; empty script function taking a string array by value: releases each string, Scr_Free"
+001a4890,BroScr_EmptyFunc_StrArray_2,function,medium,"no references; empty script function (self, string array by value): releases each string, Scr_Free"
+001a48d0,BroScr_EmptyFunc_StrArray_3,function,medium,no references; same body as BroScr_EmptyFunc_StrArray
+001a47b0,BroScr_DetachRandomModel,function,medium,"no references; BroScr_RandomArrayString of a string array arg, GScr_DetachNoTag(self, model)"
+001a4910,BroScr_Mg42AutoTriggerThink,function,medium,"functor thread from BroScr_SetupSpawnerTriggers when trigger.script_mg42auto (0xbe5f9a9f) is defined: waittill trigger, AI/spawners with matching script_mg42auto get ai_mode = auto_ai + notify auto_ai, BroScr_DeleteFloodSpawner"
+001a5940,BroScr_IncrementTriggerThink,function,medium,"functor thread from BroScr_SetupSpawnerTriggers when trigger.script_increment is defined: waittill trigger loop, ents by classname with script_increment adjusted, ScrEnt_GetDelay, BroScr_DeleteFloodSpawner"
+001a7650,BroScr_ArrayExclude,function,medium,no references; copies array elements not found in the excluders array (1024-entry stack buffer) into the out array
+001a7790,BroScr_ArrayRemove,function,medium,no references; out = elements of array != *value (DynArray push)
+001a7870,BroScr_ArrayRemove_2,function,medium,no references; out = elements of array != value (by value); twin of BroScr_ArrayRemove
+001a8590,BroScr_AnyAliveAITouching,function,medium,"no references; returns bool: GetAI(team) and any IsAlive + IsTouching(ai, trigger)"
+001a8870,BroScr_ArrayRemoveEnt,function,medium,"no references; out = array minus ent; empty result taken from getentarray(""emptyarray"", ""classname"")"
+001aa9c0,BroScr_SortByDistance,function,medium,"no references; sets ent.distance = Distance(origin, org) for each array element, then orders the array by it"
+001aad20,BroScr_TempEventTextThink,function,medium,"functor thread from BroScr_TempEventText: deletes the ent unless sv_cheats >= 1, endon death, script_noteworthy text ('Missing Script_NoteWorthy'), distance loop"
+001acae0,BroScr_ForwardNotifyString,function,low,"functor thread from FUN_001c2d10: WaitTillOutputStr, then QueueNotifyWithString(self, h71445fee, str)"
+001b2e20,BroScr_WaitThreeEndNotes,function,low,"thread from FUN_001bac80: endon, waittill flag notes until ""end"" three times, then notify"
+001b3960,ScrField_h8969d6d6_Size,function,medium,no references; *out = ScriptKeyTable_GetArray(0x8969d6d6).count
+001b3990,BroScr_HangarChainUpdateLoop,function,low,"functor thread from FUN_001c4a80 (oran hangar events): endon h011066c4, loop prunes dead handles from the level array +0x8c/+0x94, 'pause_update' checks, ScrSentient_SetFloat_18"
+001b4130,BroScr_HangarChainMoverThink,function,low,"functor thread per spawned script_origin chain in FUN_001c4a80 (chain_name/BroScr_BuildTargetChain): walks ent.chain, deletes when < 2 links, AI distance checks"
+001b4e40,BroScr_FloodSpawnerTriggerThink,function,medium,"functor thread from BroScr_SetupSpawnerTriggers for targetname ""flood_spawner"": target spawners get BroScr_SetTargetnameFromOrigin threads, waittill trigger, spawn, BroScr_DeleteFloodSpawner"
+001b6350,BroScr_OnSpawnedReattachGun,function,low,"no references; WaitTillOutputEnt ""spawned"", unless BroScr_WaitFinishedSpawning -> BroScr_ReattachGunInHand, frees string array arg"
+001b7bc0,BroScr_AnimFaceWaitNotetracks,function,medium,"thread from BroScr_AnimFaceWait: endons, BroScr_HandleNoteTracks(flag), field hfd6181bd = 1, notify h1c87198d"
+001b7c70,BroScr_GrenadeCowerHide,function,medium,"stored as callback field he057503b by BroScr_AnimScript_GrenadeCower: unless anim_script pain/death, grenadehide left/right (or prone cower) loop+2crouch anims, pose crouch"
+001b9770,BroScr_Mg42AnimTree_3,function,medium,thread from BroScr_TurretPoseStand; BroScr_Mg42AnimTree copy plus BroScr_PutGunInHand
+001ba580,BroScr_StandCombatRun_2,function,medium,no references; wrapper calling BroScr_StandCombatRun(self)
+001bc010,ScrField_fallback,function,medium,"no references; array getter: GetEntScriptObject + ScriptKeyTable_GetOrAddArray_7(""fallback"") (pair of ScrField_fallback_IsDefined)"
+001bc0b0,ScrField_h1791f035,function,medium,"no references; getter: ScriptKeyTable_FindOrAdd(0x1791f035), the 0x34-byte anim command records BroScr_ApplyAnimCommand reads"
+001bc7c0,BroScr_HangarChainAIThink,function,low,"functor thread per chain in FUN_001c4a80: chain_pos, BroScr_ActorRunToEntIgnoringAll_2, GetAI allies, random waits"
+001bea50,BroScr_FallbackerJoinFallback,function,low,"thread from BroScr_FallbackerSetup (ent, index, pathnode, str): marks ent.fallback[index], script_fallback, threads BroScr_FallbackGoalThink + BroScr_NotifyFallbackerDied"
+001bf200,BroScr_FriendlyMg42TriggerThink,function,medium,"thread from BroScr_SetupSpawnerTriggers for targetname ""friendly_mg42"": target node + turret by targetname, Turret_SetMode auto_ai, ClearTargetEntity, turret_use_time"
+001bfe70,BroScr_LookAtEnemyLoop,function,low,"functor thread from BroScr_CoverAttack and 5 others: look-at id field h747cde6c++, notify/endon ha538f810, threads BroScr_LookAtUntilKillAnimscript_1, loop FUN_001a0940(self, enemy, 2, ""alert"") every 2s"
+001c0130,BroScr_LookAtPositionLoop,function,low,"thread from BroScr_ForceShootAtPoint (no target ent): look-at id h747cde6c++, BroScr_LookAtPosition loop every 0.2"
+001c02d0,BroScr_LookAtEntityLoop,function,low,"thread from BroScr_ForceShootAtPoint (target ent): look-at id h747cde6c++, notify/endon h1651c9e7, BroScr_LookAtUntilKillAnimscript_3, loop FUN_001a0940(self, ent, 2, ""alert"")"
+001c2a40,ScrField_h1791f035_Clear,function,medium,"no references; FindOrAdd(0x1791f035) + DynArray_Resize52(0, 0): clears the anim command record array"
+001c2a70,ScrField_h1791f035_Clear_2,function,medium,no references; same body as ScrField_h1791f035_Clear
+001c2f70,BroScr_ReplayAnimCommands,function,medium,"no references; ActorSetAnimMode ""nophysics"", walks the 0x34-byte records of field h1791f035 calling BroScr_ApplyAnimCommand"
+001c3b80,BroScr_CrouchRun_2,function,medium,no references; wrapper calling BroScr_CrouchRun(self)
+001c5790,BroScr_GrenadeSpawnerOnceTriggerThink,function,medium,"thread from BroScr_SetupSpawnerTriggers for targetname ""grenade_spawner_once"": target ents get BroScr_GrenadeThrowTrigger threads, script_delay (default 2), waittill trigger, BroScr_DeleteFloodSpawner"
+001c6ba0,BroScr_ForceShootTargetDeathWatch,function,low,"thread from BroScr_ForceShootAtPoint: endon death/pain/h2cf20de4/h3c77a48b, waittill target death, FUN_001c0030(self)"
+001c86a0,BroScr_RecordAnimCommand3,function,medium,"no references; BroScr_RecordAnimCommand(self, 3, args...)"
+001ca3c0,BroScr_RechamberRifleDelayed,function,medium,"thread from BroScr_StandShootSideStep: endon killanimscript (+ optional notify), optional wait, BroScr_RechamberRifle"
+001ca420,BroScr_ForceShootThread,function,medium,"thread from BroScr_ForceShoot (ent, vec, f, str, i, ent, i): endon death/pain, fire-type/weapon-type shoot loop (panzerfaust/panzerschreck, semi), 'face point', reloads, look-at threads"
+001dcc70,BroScr_AnimScriptEntInitIfValid,function,medium,no references; if EntityHandleIsValid: BroScr_AnimScriptEntInit + FUN_001b7e70 (void twin of Bro_anim_main_init)
+001dcca0,Bro_anim_main_init,function,high,"registered by name ""anim_main_init"" through import slot +0x94 in each LevelScript_*_ModuleEntry (14 refs), beside Bro_anim_main_combat"
+001de980,BroScr_TriggerNotifyLevelTargetname,function,medium,"functor thread from BroScr_Mg42CoverSpotThink: waittill trigger, notify level with the trigger's targetname, sets a level hash-map flag by it, deletes"
+001e2010,BroScr_Mg42CoverSpotThink,function,medium,"functor thread from BroScr_InitMg42CoverSpots: ai_mode = manual_ai, target node/turret by targetname, BroScr_TurretSetAIMode/TurretManualTargetThink, script_delay waits, DoSpawn"
+001bac80,BroScr_PlayAnimWaitEndNotes,function,low,"no references; if anim given: SetFlaggedAnimKnobAll(flag hc5a136d6, anim, root), threads BroScr_WaitThreeEndNotes + BroScr_NotifyAfterTime_3 (3x anim length + 1 s timeout), waittill hf8a618a1, notify h47e458b4"

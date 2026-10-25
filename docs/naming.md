@@ -1005,3 +1005,22 @@ CoD-specific functions included, so later decompilation covers both kinds.
     [put16, put8, avg16, avg8] x [full, x, y, xy half-pel].
   - Notify hashes (HashStr, rol 5 xor, lowercase): 'single_anim' 0xce00786e, 'looping_anim' 0x7c70a61e; 0x56caf2eb
     and 0x3621f548 unknown. 0x0011db10 is a `return false` stub that key-table lookups return on a miss.
+  Zero-caller list 2 (79 names, compiled common scripts 0x120000-0x184000): thread targets named from their
+  store sites (spawner trigger think, tree-burst/stone/window-break triggers, sound loops, turret anim knobs),
+  default-argument wrappers (SpawnerGroupManagerCall 1-4 - level sections call them by absolute address,
+  PathMoverFromTargetChainCall 1-4), BroScr_WaitForNotifyOrTimeout. 64 of the 90 have no reference at all: many are
+  empty script functions that only release by-value string/array arguments (BroScr_EmptyFuncStrArg*/EmptyFuncArr*;
+  the older ScrLocal_ReleaseString names 001837e0/00182060 are the same shape) and compiled-out debug-draw loops
+  (BroScr_*DebugStub).
+  - Open: script interface slots 638 (0x00922b38, a speed getter?), 658/659 (0x00922b88/0x00922b8c, spawner get/set
+    with keys 0x56aed3da/0xcc045c84); turret anim handles 0x008cf684/0x008cf7a4/0x008cf7bc uncracked. 0x00922eec =
+    the player, 0x00922ee0+4 = the level entity.
+  Zero-caller list 3 (84 names, compiled common scripts 0x184b70-0x1e2010): thread/functor bodies of the spawner
+  triggers, exploders, fallback goals, anim face waits, MG turret think; Bro_anim_main_init 0x001dcca0 (high: every
+  LevelScript_*_ModuleEntry registers it as "anim_main_init" through import slot +0x94); array helpers.
+  - BroScr_SetupSpawnerTriggers 0x00154990 targetname branches: flood_spawner 0x001b4e40, grenade_spawner
+    BroScr_GrenadeThrowTriggers, grenade_spawner_once 0x001c5790, friendly_wave(_off) BroScr_SetFriendlyWaveTrigger,
+    friendly_chat 0x00149200, friendly_mg42 0x001bf200; script_increment 0x001a5940; key 0xbe5f9a9f =
+    script_mg42auto -> 0x001a4910. Global 0x007f49a8 = "mg42"; 0x0019f390/0x0019f770/0x001b9770 share
+    BroScr_Mg30calAnimTree's shape (refcount field habc1df0a). Field h1791f035 = array of 0x34-byte anim-command
+    records (BroScr_RecordAnimCommand / BroScr_ApplyAnimCommand); h747cde6c = look-at id counter.

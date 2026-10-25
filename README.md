@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 67% of the functions have a name, and 1,952 have been
+It's early days: about 68% of the functions have a name, and 1,952 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,141 | 1,952 | 9,241 |
+| Engine and game code (`.text`) | 11,193 | 8,304 | 1,952 | 9,241 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,129** | **1,952** | **14,565** |
+| **Total** | **16,517** | **11,292** | **1,952** | **14,565** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -46,11 +46,11 @@ We've also named 2,597 of the game's global variables.
 | Engine core (memory, files, settings, commands, containers, math) | 872 | 227 | 21 | 613 | 0 |
 | Client and menus | 618 | 92 | 29 | 497 | 0 |
 | Server, collision, compression | 234 | 110 | 16 | 108 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 1,953 | 12 | 0 | 1,941 | 0 |
-| Level-script helpers in the engine code | 1,239 | 0 | 0 | 1,232 | 0 |
+| Script engine (script VM, entity bindings, built-in script functions) | 1,963 | 12 | 0 | 1,951 | 0 |
+| Level-script helpers in the engine code | 1,392 | 0 | 0 | 1,385 | 0 |
 | Sound, streaming, online | 296 | 105 | 5 | 185 | 0 |
 | Microsoft C runtime pieces the library matcher missed (replaced, not rewritten) | 11 | 0 | 0 | 11 | 0 |
-| Not sorted into a part yet | 3,028 | 0 | 0 | 0 | 1,421 |
+| Not sorted into a part yet | 2,865 | 0 | 0 | 0 | 1,258 |
 
 1,607 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
