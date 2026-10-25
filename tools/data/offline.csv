@@ -390,6 +390,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002aac40,Cmd_Wait_f,3996,3996,0,0,100.0
 002aaf00,CM_FloodArea_r,2096,2096,0,0,100.0
 002ab470,SCR_AdjustFrom640,3418,3418,0,0,100.0
+002ab7c0,CL_Setenv_f,3777,3777,0,0,55.4
 002ab8d0,CL_AddReliableCommand,3815,3815,0,0,100.0
 002abe80,IN_CenterView,3841,3841,0,0,100.0
 002ac060,IN_MLookUp,3823,3823,0,0,100.0
@@ -400,6 +401,10 @@ address,name,tested,matched,nan,mismatched,coverage
 002b0250,COM_ParseExt,3542,3542,0,0,39.6
 002b1e50,Cmd_ArgsBuffer,1737,1737,0,0,100.0
 002b2200,CM_FloodAreaConnections,1001,1001,0,0,96.8
+002b31f0,CL_ShellExecute_URL_f,3866,3866,0,0,60.0
+002b32b0,CL_ForwardToServer_f,3987,3987,0,0,39.1
+002b3370,Key_Bindlist_f,3860,3860,0,0,75.8
+002b3580,CL_ShutdownInput,1118,1118,0,0,100.0
 002b47b0,IN_StrafeUp,3822,3822,0,0,100.0
 002b47c0,IN_StrafeDown,3825,3825,0,0,100.0
 002b47f0,IN_MoverightUp,3762,3762,0,0,100.0
@@ -422,10 +427,18 @@ address,name,tested,matched,nan,mismatched,coverage
 002bab30,CM_AdjustAreaPortalState,3942,3942,0,0,46.9
 002bffb0,SV_AdjustAreaPortalState,2875,2875,0,0,100.0
 002c0d30,Cmd_Vstr_f,3992,3992,0,0,61.9
+002c1d60,Key_Unbindall_f,3587,3587,0,0,90.5
+002c1db0,Key_Unbind_f,3996,3996,0,0,50.0
 002c5140,SV_SetSkillEasy,1403,1403,0,0,16.0
 002c5200,SV_SetSkillHard,1914,1914,0,0,16.0
+002ccf40,CL_DecAnimWeight_f,406,406,0,0,92.3
+002ccfb0,CL_IncAnimWeight_f,1016,1016,0,0,92.6
 002cd640,IN_DownDown,1910,1910,0,0,63.6
 002d4250,CM_TestCapsuleInTempBox,3306,3301,5,0,100.0
 002d70a0,G_SetMovedir,3668,3668,0,0,59.5
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
 002fd650,Vehicle_CountActive,1963,1963,0,0,100.0
+0030cd70,FE_FormatPlayTime,2030,2030,0,0,87.2
+0030d0b0,FE_FormatPlayTime2,1992,1992,0,0,87.2
+0030e0f0,FE_CommandDisplayName,1973,1973,0,0,68.9
+0032cf50,Profile_SetDefaults,2440,2440,0,0,47.3

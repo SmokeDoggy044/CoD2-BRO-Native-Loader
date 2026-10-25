@@ -11,6 +11,7 @@ set(game_code_sources
     cl.cpp
     cm.cpp
     dobj.cpp
+    fe.cpp
     functions.cpp
     fx.cpp
     fx_cmd.cpp
