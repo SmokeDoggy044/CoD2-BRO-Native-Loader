@@ -21,6 +21,9 @@ uint16_t& half(uint8_t* p, uint32_t offset) { return *reinterpret_cast<uint16_t*
 uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 uint8_t* pointer(uint32_t address) { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(address)); }
 
+// The six head words a command record clears (in the original's store order).
+const uint32_t kRecordHeadWords[6] = {8, 4, 0, 0x14, 0x10, 0xc};
+
 uint8_t* queue_slot(uint8_t* list, uint32_t index) { return list + 0x920 + index * 0x210; }
 
 // Stack argument `n` (1-based) of a builder.
@@ -503,5 +506,33 @@ uint32_t XB_CDECL FXCmd_Type0AtTransform_body(uint32_t entry, uint8_t* entity, u
 }
 
 #undef FXCMD_ENTRY
+
+uint8_t* XB_REGS1 XB_CDECL FXCmd_InitPlacement(uint8_t* placement) {
+    // Two copies of the identity quaternion (0x0082e290: 0, 0, 0, 1), then the bone -1.
+    for (uint32_t i = 0; i < 2; ++i)
+        for (uint32_t j = 0; j < 4; ++j) word(placement, i * 0x10 + j * 4) = title_global<uint32_t>(0x0082e290 + j * 4);
+    word(placement, 0x20) = 0xffffffffu;
+    return placement;
+}
+
+uint8_t* XB_THISCALL FXCmd_RecordCtor(uint8_t* cmd) {
+    for (uint32_t offset : kRecordHeadWords) word(cmd, offset) = 0;
+    cmd[0x18] = 0;
+    cmd[0xa8] = 0;
+    cmd[0x134] = 0;
+    FXCmd_InitPlacement(cmd + 0x1c0);
+    word(cmd, 0x1f0) = 0;
+    ScriptString_FromRep(reinterpret_cast<ScriptString*>(cmd + 0x1fc), nullptr);
+    half(cmd, 0x20c) = 0;
+    for (uint32_t offset : kRecordHeadWords) word(cmd, offset) = 0;
+    word(cmd, 0x1f0) = 0;
+    word(cmd, 0x204) = 0xffffffffu;
+    half(cmd, 0x20e) = 0xffff;
+    word(cmd, 0x208) = 0xffffffffu;
+    word(cmd, 0x1f8) = 0;
+    half(cmd, 0x20c) = 0;
+    word(cmd, 0x200) = 0;
+    return cmd;
+}
 
 }  // namespace game

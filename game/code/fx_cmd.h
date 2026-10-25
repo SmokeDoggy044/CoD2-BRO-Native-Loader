@@ -78,4 +78,10 @@ FXCMD_BUILDER(FXCmd_Type1AtTransform)
 FXCMD_BUILDER(FXCmd_Type0AtTransform)
 #undef FXCMD_BUILDER
 
+// 0x00023a70 (EAX): a placement's two rotations = identity, its bone (+0x20) -1; returns it.
+uint8_t* XB_REGS1 XB_CDECL FXCmd_InitPlacement(uint8_t* placement);
+// 0x00023cf0: a queued command record (0x210 bytes): cleared head, placement at +0x1c0,
+// empty script string at +0x1fc, ids +0x204/+0x208/+0x20e -1.
+uint8_t* XB_THISCALL FXCmd_RecordCtor(uint8_t* cmd);
+
 }  // namespace game

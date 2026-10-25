@@ -2002,4 +2002,146 @@ void XB_CDECL FxAxis_Frame(const float* direction, float* direction_out, float* 
     std::memcpy(up_out, up.v, 16);
 }
 
+void XB_THISCALL FxEffectStage_CollectFormat(uint8_t* stage) {
+    if (const uint8_t* actions = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(at<uint32_t>(stage, 0x14))))
+        FxActionList_CollectFormat(actions, stage + 0x18);
+    if (const uint32_t renderer = at<uint32_t>(stage, 0x10))
+        FxVertexFormat_Add(stage + 0x18, at<uint32_t>(reinterpret_cast<const void*>(static_cast<uintptr_t>(renderer)), 4));
+    FxVertexFormat_Add(stage + 0x18, 0x600);
+}
+
+int32_t XB_THISCALL FxSystemDef_FindEmitterByHash(const uint8_t* definition, const uint32_t* hash) {
+    const int32_t count = at<int16_t>(definition, 0x5e);
+    const uint32_t* entry = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at<uint32_t>(definition, 0x58)));
+    for (int32_t i = 0; i < count; ++i, entry += 0x2c / 4) {
+        int32_t word = 0;
+        while (word < 8 && entry[word] == hash[word]) ++word;
+        if (word == 8) return i;
+    }
+    return -1;
+}
+
+uint32_t XB_THISCALL FxEffectDef_CanReuseStages(const uint8_t* self, const uint8_t* other) {
+    if (other == self) return 1;
+    // Each of `other`'s stages takes the smallest free stage of `self` that holds as many
+    // particles (+0x1c * +0). The original keeps the sizes in an alloca'd array and marks
+    // a taken stage -1; the sizes are recomputed here (nothing writes the stages meanwhile).
+    const int32_t count = at<int16_t>(self, 0x56);
+    const uint8_t* stages = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(at<uint32_t>(self, 0x50)));
+    uint32_t taken[0x8000 / 32] = {};
+    auto size_of = [](const uint8_t* stage) {
+        return static_cast<int32_t>(at<uint32_t>(stage, 0x1c) * at<uint32_t>(stage, 0));
+    };
+    auto available = [&](int32_t j) {
+        return (taken[j >> 5] >> (j & 31)) & 1 ? -1 : size_of(stages + j * 0x3c);
+    };
+    const uint8_t* stage = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(at<uint32_t>(other, 0x50)));
+    const uint8_t* const end = stage + at<int16_t>(other, 0x56) * 0x3c;
+    for (; stage != end; stage += 0x3c) {
+        const int32_t need = size_of(stage);
+        int32_t best_index = -1;
+        int32_t best = 0x40000000;
+        for (int32_t j = 0; j < count; ++j) {
+            const int32_t size = available(j);
+            if (size >= need && size < best) {
+                best = size;
+                best_index = j;
+            }
+        }
+        if (best_index < 0) return 0;
+        taken[best_index >> 5] |= 1u << (best_index & 31);
+    }
+    return 1;
+}
+
+void XB_THISCALL FxEffectStage_Release(uint8_t* stage) {
+    if (const uint32_t renderer = at<uint32_t>(stage, 0x10)) {
+        const uint32_t dtor = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(
+            at<uint32_t>(reinterpret_cast<const void*>(static_cast<uintptr_t>(renderer)), 0)))[0];
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(dtor)(renderer, 0);
+        fx_free(at<uint32_t>(stage, 0x10));
+    }
+    if (const uint32_t actions = at<uint32_t>(stage, 0x14)) {
+        apsPtrVector_DeleteAll(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(actions)));
+        fx_free(at<uint32_t>(stage, 0x14));
+    }
+}
+
+void XB_THISCALL FxEffectDef_Release(uint8_t* definition) {
+    const int32_t count = at<int16_t>(definition, 0x56);
+    if (count > 0) {
+        int32_t left = count;
+        uint32_t offset = 0;
+        do {
+            FxEffectStage_Release(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(at<uint32_t>(definition, 0x50))) +
+                                  offset);
+            offset += 0x3c;
+        } while (--left != 0);
+    }
+    // The emitter table (+0x58, sizes +0x5c/+0x5e), then the stage table (+0x50, +0x54/+0x56).
+    static const uint32_t kTables[2] = {0x58, 0x50};
+    for (uint32_t table : kTables) {
+        if (!at<uint32_t>(definition, table)) continue;
+        fx_free_no_context(at<uint32_t>(definition, table));
+        at<uint32_t>(definition, table) = 0;
+        at<int16_t>(definition, table + 4) = 0;
+        at<int16_t>(definition, table + 6) = 0;
+    }
+}
+
+void XB_THISCALL FxRange_SampleN(const uint8_t* range, int32_t count, float* out) {
+    if (count <= 0) return;
+    const float* bounds = reinterpret_cast<const float*>(range + 4);
+    do {
+        *out++ = static_cast<float>(FxRandom_Range(bounds[0], bounds[1]));
+        ++bounds;
+    } while (--count != 0);
+}
+
+long double XB_CDECL FxRandom_Range(float low, float high) {
+    uint32_t& seed = title_global<uint32_t>(0x00909f6c);  // fx_randSeed
+    seed = (0x3039u - seed * 0x3e39b193u) & 0x7fffffffu;
+    const uint32_t bits = (seed >> 8) | 0x3f800000u;
+    float unit;
+    std::memcpy(&unit, &bits, 4);
+    // On the x87: (unit - 1) * (high - low) + low.
+    const long double fraction = static_cast<long double>(unit) - title_global<float>(0x0083eb20);
+    const long double span = static_cast<long double>(high) - low;
+    return fraction * span + low;
+}
+
+// The ranges' and constants' Within (vtable slots): at most 1 (scalar) or 3 (vector)
+// components, each tested against value[0] - the value pointer never advances.
+uint32_t XB_THISCALL FxRange_Within(const uint8_t* range, int32_t count, const float* value) {
+    if (count > 1) count = 1;
+    for (int32_t i = 0; i < count; ++i) {
+        if (at<float>(range, 4 + i * 4) > *value) return 0;
+        if (*value > at<float>(range, 8 + i * 4)) return 0;
+    }
+    return 1;
+}
+
+uint32_t XB_THISCALL FxConst_Within(const uint8_t* constant, int32_t count, const float* value) {
+    if (count > 1) count = 1;
+    for (int32_t i = 0; i < count; ++i)
+        if (!(*value == at<float>(constant, 4 + i * 4))) return 0;
+    return 1;
+}
+
+uint32_t XB_THISCALL FxConstVector_Within(const uint8_t* constant, int32_t count, const float* value) {
+    if (count > 3) count = 3;
+    for (int32_t i = 0; i < count; ++i)
+        if (!(*value == at<float>(constant, 4 + i * 4))) return 0;
+    return 1;
+}
+
+uint32_t XB_THISCALL FxVectorRange_Within(const uint8_t* range, int32_t count, const float* value) {
+    if (count > 3) count = 3;
+    for (int32_t i = 0; i < count; ++i) {
+        if (at<float>(range, 4 + i * 4) > *value) return 0;
+        if (*value > at<float>(range, 0x10 + i * 4)) return 0;
+    }
+    return 1;
+}
+
 }  // namespace game
