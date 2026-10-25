@@ -32,16 +32,18 @@ std::string place(uint32_t eip, const XbeImage& image, const SymbolTable& symbol
     return profiler_os::host_place(eip);
 }
 
-// start < 0: automatic, at each second under kSlowFps once the game has shown
+// start < 0: automatic, at each second under kSlowShare of the frame rate aimed at
+// (24 at 30 fps, 48 at 60: looking at land halved 60 fps on a fast PC) once the game has shown
 // kWarmupFrames (loading and the first menus are slow anyway), at most once every
 // kAutoInterval seconds and kAutoReports times a run, so a whole play session's slow
 // spots get a report, not just the first one.
-constexpr uint32_t kSlowFps = 24, kWarmupFrames = 300, kAutoReports = 20;
+constexpr uint32_t kWarmupFrames = 300, kAutoReports = 20;
+constexpr double kSlowShare = 0.8;
 constexpr auto kAutoInterval = std::chrono::seconds(60);
 
 void report(double seconds, const XbeImage& image, const SymbolTable& symbols);
 
-void run(double start, double seconds, const XbeImage* image, const SymbolTable* symbols) {
+void run(double start, double seconds, uint32_t frame_rate, const XbeImage* image, const SymbolTable* symbols) {
     using Clock = std::chrono::steady_clock;
     if (start >= 0) {
         std::this_thread::sleep_until(platform::session_start() + std::chrono::duration_cast<Clock::duration>(
@@ -55,7 +57,8 @@ void run(double start, double seconds, const XbeImage* image, const SymbolTable*
         for (;;) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             fps = render::frames_last_second();
-            if (render::frames_shown() >= kWarmupFrames && fps > 0 && fps < kSlowFps) break;
+            const uint32_t target = render::frame_rate_target() ? render::frame_rate_target() : frame_rate;
+            if (render::frames_shown() >= kWarmupFrames && fps > 0 && fps < kSlowShare * target) break;
         }
         const int32_t level = campaign_level();
         char where[32] = "";
@@ -117,7 +120,7 @@ void report(double seconds, const XbeImage& image, const SymbolTable& symbols) {
 
 }  // namespace
 
-void start_profiler(const char* spec, const XbeImage& image, const SymbolTable& symbols) {
+void start_profiler(const char* spec, uint32_t frame_rate, const XbeImage& image, const SymbolTable& symbols) {
     if (!spec) return;
     double start = 0, seconds = 10;
     if (std::strncmp(spec, "auto", 4) == 0) {
@@ -130,7 +133,7 @@ void start_profiler(const char* spec, const XbeImage& image, const SymbolTable& 
         LOG_WARN("profile", "profiling needs START,SECONDS or auto[,SECONDS] (got %s)", spec);
         return;
     }
-    std::thread(run, start, seconds, &image, &symbols).detach();
+    std::thread(run, start, seconds, frame_rate, &image, &symbols).detach();
 }
 
 }  // namespace loader

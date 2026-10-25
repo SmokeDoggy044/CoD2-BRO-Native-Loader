@@ -346,6 +346,15 @@ std::mutex g_auto_mutex;
 std::vector<std::string> g_auto_pending;  // "category: text", guarded by g_auto_mutex
 std::atomic<bool> g_frames_shown{false};
 std::atomic<bool> g_frame_rate_changed{false};
+// Session seconds up to which frames_last_second() reports 0 (not measured): the game
+// was paused for a --diag note (the automatic profile took that for a slow spot).
+std::atomic<int64_t> g_unmeasured_until{-1};
+
+int64_t session_second() {
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
+                                                            platform::session_start())
+        .count();
+}
 
 void diag_observer(platform::LogLevel level, const char* category, const char* text) {
     if (!g_frames_shown.load(std::memory_order_relaxed)) return;
@@ -419,9 +428,11 @@ void diagnostics() {
         LOG_INFO("diag", "MARK %u at %llds, frame %u: %s", marks, static_cast<long long>(seconds), g.swap_count,
                  shot.c_str());
         if (g.config.pause_audio) g.config.pause_audio(true);
+        g_unmeasured_until.store(INT64_MAX, std::memory_order_relaxed);
         const auto note = g.backend->prompt({"MARK " + std::to_string(marks) + " saved - game paused",
                                              "What is wrong here? (one or two sentences)"});
         if (g.config.pause_audio) g.config.pause_audio(false);
+        g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
         const std::string text = note ? *note : "";
         LOG_INFO("diag", "MARK %u note: %s", marks, note ? text.c_str() : "(none)");
         if (std::FILE* file = std::fopen(marks_path.c_str(), "a")) {
@@ -498,11 +509,10 @@ std::atomic<uint32_t> g_frames_shown_count{0};
 void count_frame() {
     static int64_t second = -1;
     static uint32_t frames = 0;
-    const int64_t now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
-                                                                         platform::session_start())
-                            .count();
+    const int64_t now = session_second();
     if (now != second) {
-        if (second >= 0) g_frames_last_second.store(now == second + 1 ? frames : 0, std::memory_order_relaxed);
+        const bool measured = now == second + 1 && second > g_unmeasured_until.load(std::memory_order_relaxed);
+        if (second >= 0) g_frames_last_second.store(measured ? frames : 0, std::memory_order_relaxed);
         second = now;
         frames = 0;
     }
@@ -648,10 +658,15 @@ void texture_written(XbPtr resource) {
 uint32_t frames_last_second() { return g_frames_last_second.load(std::memory_order_relaxed); }
 uint32_t frames_shown() { return g_frames_shown_count.load(std::memory_order_relaxed); }
 
+std::atomic<uint32_t> g_frame_rate_target{0};
+
 void frame_rate_changed(uint32_t fps) {
     LOG_INFO("frames", "target %u fps", fps);
+    g_frame_rate_target.store(fps, std::memory_order_relaxed);
     g_frame_rate_changed = true;
 }
+
+uint32_t frame_rate_target() { return g_frame_rate_target.load(std::memory_order_relaxed); }
 
 uint32_t vertical_blanks_done() {
     std::lock_guard lock(g.vblank_done_mutex);

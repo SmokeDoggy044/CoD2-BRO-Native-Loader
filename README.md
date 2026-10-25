@@ -219,7 +219,7 @@ while playing), `--scale N` (window size), `--render-scale X`,
 `linux-loader-release` build (`linux-loader` is a Debug build, several times slower
 in heavy scenes). Profiling (Linux and Windows): `--profile auto[,SECONDS]` (or
 `XB_PROFILE`; the launcher's "Measure performance") samples every thread for SECONDS each
-time a second runs under 24 fps (at most once a minute, 20 times a run, naming the
+time a second runs under 80% of the frame rate aimed at (at most once a minute, 20 times a run, naming the
 mission), or once with `START,SECONDS`, and logs where the time went;
 `XB_PROFILE_OUT=FILE` adds every sampled address. Release packages are stripped:
 `tools/resolve_profile.py LOG BINARY` names our own offsets from the unstripped build. The keyboard layout is in `input/devices.h`: WASD, mouse look,

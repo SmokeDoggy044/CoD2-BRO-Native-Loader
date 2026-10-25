@@ -53,6 +53,8 @@ uint32_t frames_shown();
 // 60 fps game): --diag counts neither the change as hitches nor the seconds at the
 // lower rate as slow. Any thread.
 void frame_rate_changed(uint32_t fps);
+// The last frame_rate_changed rate, 0 before the first. Any thread.
+uint32_t frame_rate_target();
 
 // Vertical blanks whose title callback has run so far, and a wait until that number has
 // moved past `seen` (at most `timeout_ms`). The title's frame end waits for its

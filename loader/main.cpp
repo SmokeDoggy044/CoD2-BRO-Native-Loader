@@ -147,9 +147,10 @@ void print_usage(const char* program) {
         "                   game is paused (DIR/marks.txt), draw dump in the log; new warnings\n"
         "                   and errors are marked by themselves; F11 shows draws that need\n"
         "                   missing features in magenta; DIR/summary.txt on exit\n"
-        "  --profile auto[,S]  each time the frame rate drops under 24 (at most once a minute,\n"
-        "                   20 times), log for S seconds (default 10) where each thread spends\n"
-        "                   its time (START,S: once, from START seconds on; XB_PROFILE does the same)\n"
+        "  --profile auto[,S]  each time the frame rate drops under 80%% of its aim (24 at 30 fps;\n"
+        "                   at most once a minute, 20 times), log for S seconds (default 10)\n"
+        "                   where each thread spends its time (START,S: once, from START\n"
+        "                   seconds on; XB_PROFILE does the same)\n"
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
@@ -603,7 +604,8 @@ int loader_main(int argc, char** argv) {
         LOG_WARN("loader", "no symbols at %s; backtraces will show addresses only", symbol_path.string().c_str());
 
     loader::install_crash_handler(image, symbols);
-    loader::start_profiler(options->profile ? options->profile->c_str() : std::getenv("XB_PROFILE"), image, symbols);
+    loader::start_profiler(options->profile ? options->profile->c_str() : std::getenv("XB_PROFILE"),
+                         static_cast<uint32_t>(options->frame_rate), image, symbols);
     loader::os::release_reserved_ranges();
     log_disc_languages(*assets, options->language);
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
