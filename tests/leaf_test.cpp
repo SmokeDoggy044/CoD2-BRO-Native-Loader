@@ -80,7 +80,8 @@ struct alignas(16) Ctx {
     uint32_t target;      // 1076
     uint32_t nstack;      // 1080
     uint32_t stack[8];    // 1084
-    uint32_t pad[8];      // 1116
+    uint32_t heap_fails;  // 1116: the stand-in allocators return null (1 input in 16)
+    uint32_t pad[7];      // 1120
     uint32_t host_esp;    // 1148
     uint32_t esp_before;  // 1152
     uint32_t eflags_out;  // 1156: EFLAGS (pushed after the stack arguments are dead)
@@ -96,9 +97,19 @@ static_assert(offsetof(Ctx, stack) == 1084 && offsetof(Ctx, host_esp) == 1148 &&
 
 extern "C" void leaf_call(Ctx* ctx);
 
+// A call out of the title image while tracing (a stand-in, a log stub) returns here instead:
+// it puts the original return address back into the popped slot, sets TF again and returns
+// there, so the instructions after the call count for coverage.
+extern "C" uint32_t leaf_resume_eip;
+uint32_t leaf_resume_eip;
+extern "C" void leaf_resume_trace();
+PLATFORM_ASM_ENTRY(leaf_resume_trace,
+                   "sub $4, %esp\n push %eax\n mov leaf_resume_eip, %eax\n mov %eax, 4(%esp)\n pop %eax\n"
+                   "pushf\n orl $0x100, (%esp)\n popf\n ret")
+
 // The stack arguments are pushed below a zeroed 16 KB (like xbcmp_resume's dead stack), the
 // registers loaded last; TF is set just before the call when tracing (the trap handler
-// clears it once execution leaves the title image).
+// clears it once execution leaves the title image, leaf_resume_trace sets it again).
 PLATFORM_ASM_ENTRY(leaf_call,
                    "push %ebp\n push %ebx\n push %esi\n push %edi\n"
                    "mov 20(%esp), %ebp\n"
@@ -172,6 +183,7 @@ uint32_t g_trace_lo, g_trace_hi;  // the function being traced (at most kMaxTrac
 constexpr uint32_t kMaxTrace = 1u << 16;
 uint8_t g_reached[kMaxTrace];  // per byte of it: an instruction started there
 uint32_t g_reached_count;
+uint32_t g_trace_prev;  // the last traced instruction in the image (0: none since the last exit)
 uint32_t g_crash_eip, g_crash_address;
 // Arena write log (rerun of a mismatch): the arena is read-only, each store faults, is
 // single-stepped, and the bytes it changed are recorded in order.
@@ -214,7 +226,9 @@ constexpr uint32_t kHeapSize = 1 << 20;
 uint8_t* g_heap;
 uint32_t g_heap_used;
 uint32_t g_frees[256], g_free_count;
+bool g_heap_fails;  // this input's Ctx::heap_fails: covers the callers' out-of-memory paths
 void* heap_alloc(uint32_t size, uint32_t align) {
+    if (g_heap_fails) return nullptr;
     align = align < 16 ? 16 : align;
     if ((align & (align - 1)) || size > kHeapSize) return nullptr;
     const uint32_t at = (g_heap_used + align - 1) & ~(align - 1);
@@ -523,7 +537,27 @@ void on_trap(int, siginfo_t*, void* context) {
         g_reached[eip - g_trace_lo] = 1;
         ++g_reached_count;
     }
-    if (eip < kImageBase || eip >= g_image_hi) uc->uc_mcontext.gregs[REG_EFL] &= ~0x100;
+    if (eip >= kImageBase && eip < g_image_hi) {
+        g_trace_prev = eip;
+        return;
+    }
+    // Left the image: by a call or jmp (not a ret, except the stand-ins' `push target; ret`),
+    // with a return address into the image on top of the stack, the callee returns through
+    // leaf_resume_trace and tracing goes on there.
+    auto* top = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(uc->uc_mcontext.gregs[REG_ESP]));
+    const auto* prev = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(g_trace_prev));
+    bool left_by_call = g_trace_prev && *prev != 0xc3 && *prev != 0xc2;
+    if (g_trace_prev && *prev == 0xc3 && prev[-5] == 0x68) {
+        uint32_t target;
+        std::memcpy(&target, prev - 4, 4);
+        left_by_call = target == eip;
+    }
+    if (left_by_call && *top >= kImageBase && *top < g_image_hi) {
+        leaf_resume_eip = *top;
+        *top = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&leaf_resume_trace));
+    }
+    g_trace_prev = 0;
+    uc->uc_mcontext.gregs[REG_EFL] &= ~0x100;
 }
 
 // The brk heap (malloc's): read-only while a call runs, so a pointer the function computes
@@ -743,6 +777,7 @@ struct Runner {
         std::memcpy(arena, arena_in.data(), kArenaSize);
         std::memset(g_heap, 0, g_heap_used);
         g_heap_used = 0;
+        g_heap_fails = input.heap_fails != 0;
         g_free_count = 0;
         g_call_count = 0;
         g_dirty_count = 0;
@@ -1449,6 +1484,7 @@ int main() {
                 arena_in.assign(arena, arena + kArenaSize);
             }
             input.trace = it % 4 == 0;
+            input.heap_fails = it % 16 == 4;  // a traced input: the null paths count for coverage
 
             runner.apply_inputs();
             const auto started = std::chrono::steady_clock::now();
