@@ -11603,7 +11603,7 @@ address,name,kind,confidence,evidence
 0009d5a0,FxSet_8bb990,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009b810,FxPool_SlotAddress,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009c180,FxPools_Clear,function,medium,"effect system helper named from its body (fx_load.cpp)"
-0009cc50,FxOp_SetTextures,function,medium,"effect system helper named from its body (fx_load.cpp)"
+0009cc50,FxOp_SetInstances,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009cca0,FxOp31_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009e190,FxOp1d5_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
 0009e500,FxOpdd_InitShaders,function,medium,"effect system helper named from its body (fx_load.cpp)"
@@ -13444,7 +13444,7 @@ address,name,kind,confidence,evidence
 00024eb0,ResourceManager_DeletingDtor,function,high,"slot 0 of the base ResourceManager vtable 0x00838220 (also of 0x0083be70 lgrid and 0x00832780): ResourceManager_Destruct, Z_Free if flag & 1"
 00838220,ResourceManager_vtable,data,high,base resource-manager vtable: every ResourceManager_Create*/Construct stores it before registering in 0x009719fc; ResourceManager_Destruct restores it
 0001de20,AnimScript_LoadNotetracks,function,medium,AnimScript_vtable slot 0: (0x105c stack) reads the COD_Note notetrack channel of the clip and builds the track's ScriptString list (+0x30) used by AnimScript_Update
-0001f0f0,nglMeshSection_CreateVertexWriter,function,low,"slot 1 of the section vtable 0x00832760 (nglMeshBuilder_AddPosSection): builds {0x0083273c, 0, this} on the stack and returns its slot-1 clone in *out"
+0001f0f0,nglPosMaterial_CreateVertexWriter,function,low,"slot 1 of the section vtable 0x00832760 (nglMeshBuilder_AddPosSection): builds {0x0083273c, 0, this} on the stack and returns its slot-1 clone in *out"
 0001f1a0,nglVertexWriter_Clone,function,medium,"slot 1 of nglVertexWriter vtable 0x0083273c (called by 0x0001f0f0): Z_Malloc(0xc) copy of {vtable, index +4, section +8}"
 0083273c,nglVertexWriter_vtable,data,medium,"writer vtable stored by nglVertexWriter_Init: 1 nglVertexWriter_Clone, 2 index +4 < section count (+8 -> +4 -> +0x40)"
 0008c0c0,NAL_Float4_Blend,function,high,"slot 2 of the four Float4 channel vtables (NAL_Float4 0x007c2758, Entropy, Packed8/16Entropy): (count, dst, a, b, t) lerps float4s, 4 per pass; matches NAL_Float3_Blend"
@@ -13789,7 +13789,7 @@ address,name,kind,confidence,evidence
 00235910,R_CullLocalPointAndRadius,function,high,no references; Q3 R_CullLocalPointAndRadius: point (EAX) through tr.or axis/origin (tr_or) then R_CullPointAndRadius
 00238750,R_EntityLodDistance,function,low,"no references; (ESI ref entity) distance from view origin 0x0095e3a0 to origin +0x3c, * 0x0095e4d0 + 0x0095e4cc, / scale +0x38 when nonzero; next to R_AddRefEntityToScene"
 0023d040,Stream_LoadXmbInto,function,medium,no references; same body as Stream_LoadXmb with the resource manager passed in (param_1) instead of rm_models
-0023d7b0,XModel_GetTransformedBounds,function,medium,"no references; (EAX matrix, model, mins, maxs): Bounds_AddPoints8 over the model's parts (+0x38, count byte +0x2e), as Scn_AddStaticModel does"
+0023d7b0,DObj_GetTransformedBounds,function,medium,"no references; (EAX matrix, model, mins, maxs): Bounds_AddPoints8 over the model's parts (+0x38, count byte +0x2e), as Scn_AddStaticModel does"
 00248a30,Ent_Callback348Stub2,function,medium,"entityCallback348Funcs[2] (0x008da8ac), empty ret; index 2 is stored into ent+0x348 by Actor_BecomeCorpse, SP_script_model, Turret_ParseInfo, Vehicle_FreePhysics"
 001fbec0,Actor_Callback348Stub,function,low,"entityCallback348Funcs[1] (0x008da8a8), empty ret; index 1 presumably the one Actor_Spawn stores into ent+0x348 (stored from a register)"
 008da8a4,entityCallback348Funcs,data,medium,"entity callback table for ent+0x348 (between die 0x008da88c and controller 0x008da8b0): [1] 0x001fbec0, [2] 0x00248a30, both empty; no dispatch site found"
@@ -13979,7 +13979,7 @@ address,name,kind,confidence,evidence
 000232f0,std_string_CopyBackward,function,medium,"std::copy_backward of strings (stride 0x1c, assign via std_string_AssignSubstr), returns dest begin; std_vector_string_InsertN"
 0002b2c0,VehiclePhys_AllocFromPool,function,medium,"(owner): takes the next of 5 preallocated objects (+0xaa0[+0xacc], count +0xacc <= 4), stores VehiclePhys_vtable and sets 13 handle pairs (+0x1b0 stride 8) to -1; VehiclePhys_GetOrCreate"
 00042830,Heap_Sbrk,function,medium,"(size): bump pointer of the region 0x00901ae8 (+0x47c cur, +0x478 end): returns old cur and advances, -1 when past end; Heap_SysAlloc's MORECORE"
-00094750,FxSystem_ResetView,function,medium,"FX_InitSystem with ECX = 0x00909950 (the FX view FxSystem_SetView fills, +0x34 = 0x00909984 read by FxAxis_Frame/FxCamera_BillboardAxes): three axis vec4s from constants, +0x30 = 0, +0x34 = 1.0"
+00094750,FxView_Reset,function,medium,"FX_InitSystem with ECX = 0x00909950 (the FX view FxSystem_SetView fills, +0x34 = 0x00909984 read by FxAxis_Frame/FxCamera_BillboardAxes): three axis vec4s from constants, +0x30 = 0, +0x34 = 1.0"
 000c7010,SndArena_EmptyStub,function,medium,empty body (ret); first call of SndArena_Reset
 000c8d30,Snd_MaskBitIndex64,function,medium,"(EAX 64-bit mask, bit lo/hi): -1 unless the mask holds the bit, else Snd_PopCount64_2(mask & (bit*2-1)) - 1 = packed index of that bit; SndBank_Relocate scales the float at +8 + index*4"
 000ca910,File_GetNativeHandle,function,medium,"(file id, out a, out offset, out rec+0, out size): HandlePool_Resolve on 0x009207e8 (0x24-byte records at 0x00920820); type 1 (+0x20) = sub-file: offset +4, size +0x10, resolves parent +8; calls the driver's slot +0x14 with File_GetDriverData; SndStream_SetFormat hands the result to XFileCreateMediaObjectAsync"
@@ -14018,7 +14018,21 @@ address,name,kind,confidence,evidence
 0032a5c0,DialogMgr_DestroyContents,function,medium,"DialogMgr_Dtor (EDI = DialogMgr +0x1c object): deleting dtors of owned objects +0x28/+0x2c/+0/+4/+8/+0xc/+0x24, panel +0x30 Panel_FreeElements + Mem_AlignedFree + Z_Free"
 008dce48,g_currentChapter,data,medium,"chapter index 0..13: SV_Map_f sets it, SV_SpawnServer/CG_SetInitialSnapshot/G_CheckMissionEnd branch on ranges, Cmd_RelaunchTitle_f clamps to 13"
 008dce44,g_chaptersUnlocked,data,medium,"highest unlocked chapter: ChapterMenu_UpdateList enables rows up to it, ChapterMenu_OnButton100 sets 0xe"
-00909950,fx_view,data,medium,"FX view block: FxSystem_ResetView, FxSystem_SetView (+0x18.., scale +0x34 = 0x00909984)"
+00909950,fx_view,data,medium,"FX view block: FxView_Reset, FxSystem_SetView (+0x18.., scale +0x34 = 0x00909984)"
 0095f628,stream_heapHeaderPool,data,medium,"SmallHeap of 0x494-byte Heap headers: Stream_InitSmallHeaps, Stream_AddFreeBlock"
 0095f490,scrThread_dataHeap,data,medium,"SmallHeap of 0x100-byte chunks: ScrThread_InitDataHeap, ScrThread_AppendData, Scr_DestroyThreadContents"
 00987a78,g_entityRemoveQueue,data,medium,handle queue (count 0x00987a80) drained by G_FlushEntityListChanges; G_QueueEntityRemove
+00027d60,DebugDraw_MakeTriangle,function,high,"stdcall(out, a), EDX = b, ECX = c: out = {a, b, c} of 4 words each, returns out; DebugDraw_AddTriangleIfEnabled"
+0024f840,SV_ClearConfigstrings10_1F,function,medium,"SV_SetConfigstring(0x10 + i, NULL) for i < 0x10; no callers; Ghidra had it inside DebugDraw_AddLineIfEnabled"
+0098e954,fx_tagFlashHash,data,medium,"cached HashStr of ""tag_flash"" (FX_GetEntityTagOrigin), guarded by 0x0098e958"
+0098e958,fx_tagFlashHashGuard,data,medium,"guard bit for fx_tagFlashHash (static-init flag)"
+0097a968,g_entityHandleTable,data,medium,"0x540 slots of {ptr, generation}: FX_GetEntityTagOrigin resolves entity handles"
+00928568,g_debugDrawStringsCallback,data,medium,"debug-draw strings callback (DebugDraw_Flush)"
+0092856c,g_debugDrawLinesCallback,data,medium,"debug-draw lines callback (DebugDraw_Flush)"
+00832790,nglVertexWriterBase_vtable,data,medium,"base vtable of the 12-byte vertex writer {vtable, cursor, material}"
+00832760,nglPosMaterial_vtable,data,medium,"position-material vtable installed by nglMeshBuilder_AddPosSection; slot 1 = nglPosMaterial_CreateVertexWriter"
+0083be3c,nglPolyVertexWriter_vtable,data,medium,"poly vertex writer vtable (nglPolyVertexWriter_Clone)"
+0083be58,nglPolyVertexWriterBase_vtable,data,medium,"poly vertex writer base vtable"
+00837624,FxComponent_vtable,data,medium,"FX component base vtable (component base dtor)"
+007c6740,FxOp31_vtable,data,medium,"render-op node vtable: slot 0 FxOp31_Draw, slot 1 nglShader_Nop"
+007c70bc,FxOp1d5_vtable,data,medium,"render-op node vtable: slot 0 FxOp1d5_Draw, slot 1 nglShader_Nop"

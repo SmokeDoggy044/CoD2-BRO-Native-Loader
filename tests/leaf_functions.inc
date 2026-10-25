@@ -8,7 +8,7 @@
 {"Scr_Closer", 0x00013fa0, 134, 35, {}},
 {"Scr_Log", 0x00014470, 11, 5, {}},
 {"SceneFX_DeletingDtor", 0x0001d880, 36, 12, {0x008ff4a8, 0x008ff5a8, 0x008ff5b0, 0x008ff5b4, 0x008ff630, 0x008ffabc, 0x00901ae8, 0x00901aec, 0x009719f8, 0x009719fc}},
-{"nglMeshSection_CreateVertexWriter", 0x0001f0f0, 45, 11, {}},
+{"nglPosMaterial_CreateVertexWriter", 0x0001f0f0, 45, 11, {}},
 {"nglVertexWriter_Clone", 0x0001f1a0, 47, 18, {}},
 {"NAL_AsGenericClip", 0x000229d0, 17, 7, {0x00903fdc}},
 {"ParamList_Delete", 0x00023840, 38, 13, {0x008ff4a8, 0x008ff5a8, 0x008ff5b0, 0x008ff5b4, 0x008ff630, 0x008ffabc, 0x00901ae8, 0x00901aec}},

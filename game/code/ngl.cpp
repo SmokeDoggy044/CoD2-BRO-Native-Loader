@@ -6282,7 +6282,7 @@ uint32_t* XB_CDECL nglVertexWriter_Init(uint32_t* writer, uint32_t* material) {
     return writer;
 }
 
-uint32_t** XB_THISCALL nglMeshSection_CreateVertexWriter(uint32_t* material, uint32_t** out) {
+uint32_t** XB_THISCALL nglPosMaterial_CreateVertexWriter(uint32_t* material, uint32_t** out) {
     uint32_t writer[3] = {0x0083273c, 0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(material))};
     using Clone = uint32_t* XB_THISCALL(const uint32_t*);
     *out = title_function<Clone>(title_global<uint32_t>(0x00832740))(writer);

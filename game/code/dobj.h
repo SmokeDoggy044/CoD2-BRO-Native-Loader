@@ -51,7 +51,10 @@ struct XModel {
     float maxs[3];        // +0x10
     uint32_t unknown1c;
     XModelParts* default_parts;  // +0x20
-    XModelLod* lods[7];   // +0x24, the first non-null one has the parts
+    // +0x24: 5 LODs, the first non-null one has the parts. lods[5] (+0x38) is the collision part
+    // count and lods[6] (+0x3c) the part list (XModel_TraceParts); kept in the array because the
+    // title's first-LOD walks have no bound.
+    XModelLod* lods[7];
     uint32_t flags;       // +0x40
 };
 
@@ -264,7 +267,7 @@ extern "C" void DObj_DebugDrawAnimTrees_entry(void);
 // 0x0023d7b0 (matrix in EAX; no callers by CALL): the bounds of every model of `obj` (each
 // model's box +0/+0x10 through the matrix, Bounds_AddPoints8 0x0023c400) into mins / maxs;
 // +-FLT_MAX for an object without models.
-void XB_REGS1 XB_CDECL XModel_GetTransformedBounds(const float* matrix, const DObj* obj, float* mins, float* maxs);
+void XB_REGS1 XB_CDECL DObj_GetTransformedBounds(const float* matrix, const DObj* obj, float* mins, float* maxs);
 // 0x002d7e30 (obj in EAX, dir out EBX, delta out EDI): the root motion of the first model's
 // generic NAL clip (as DObj_GetAnimRootTransform): dir = the first rotation row's x, y,
 // delta = the position; the identity without one.

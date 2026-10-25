@@ -786,7 +786,7 @@ uint32_t XB_THISCALL FxPool_SlotAddress(const uint8_t* self, uint32_t index) {
 
 uint32_t XB_CDECL FxPools_Clear() { return apsPoolSet_Clear(title_global<ApsArray*>(0x00909f08)); }
 
-void XB_THISCALL FxOp_SetTextures(uint8_t* self, uint32_t a, uint32_t b, uint32_t c) {
+void XB_THISCALL FxOp_SetInstances(uint8_t* self, uint32_t a, uint32_t b, uint32_t c) {
     if (a && b && c) {
         at<uint32_t>(self, 0x74) = a;
         at<uint32_t>(self, 0x70) = b;
@@ -1772,7 +1772,7 @@ uint8_t* op_node(const uint8_t* op, uint32_t node_vtable, uint32_t a0, uint32_t 
     at<uint32_t>(node, 0x7c) = 0;
     at<uint32_t>(node, 0) = node_vtable;
     at<const uint8_t*>(node, 0x80) = op;
-    FxOp_SetTextures(node, a1, a0, a2[1]);
+    FxOp_SetInstances(node, a1, a0, a2[1]);
     std::memcpy(node + 0x50, sphere, 16);
     if (matrix)
         std::memcpy(node + 0x10, matrix, 0x40);
@@ -1853,7 +1853,7 @@ void set_simple_state(uint32_t cache, uint32_t method, T value) {
     cached = value;
 }
 
-// The instance array the node got from FxOp_SetTextures: +0x70 first record, +0x74 count,
+// The instance array the node got from FxOp_SetInstances: +0x70 first record, +0x74 count,
 // +0x78 stride in bytes.
 const uint8_t* node_instances(const uint8_t* node) {
     return reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(at<uint32_t>(node, 0x70)));

@@ -5308,7 +5308,7 @@ uint8_t* XB_THISCALL FxShakeRumbleComponent_DeletingDtor(uint8_t* component, uin
 
 uint32_t XB_CDECL FX_InitSystem(uint32_t, uint32_t heap_size, int32_t quads) {
     title_global<uint32_t>(0x00909944) = 0;
-    FxSystem_ResetView(&title_global<float>(0x00909950));
+    FxView_Reset(&title_global<float>(0x00909950));
     const uint32_t heap = particle_heap();
     title_global<uint32_t>(0x00909940) = 0;
     const uint32_t log = title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(vtable_slot(heap, 1))(heap, 8, 4);
@@ -5338,7 +5338,7 @@ uint32_t XB_CDECL FX_InitSystem(uint32_t, uint32_t heap_size, int32_t quads) {
     return 1;
 }
 
-void XB_THISCALL FxSystem_ResetView(float* view) {
+void XB_THISCALL FxView_Reset(float* view) {
     // Rows y, z, x (identity columns scaled by 1), then 0 and 1.
     static const float kRows[12] = {0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0};
     const float one = title_global<float>(0x007c4bd0);

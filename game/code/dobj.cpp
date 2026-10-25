@@ -1062,7 +1062,7 @@ PLATFORM_ASM_ENTRY(dobj_bounds_add_points8,
 
 }  // namespace
 
-void XB_REGS1 XB_CDECL XModel_GetTransformedBounds(const float* matrix, const DObj* obj, float* mins, float* maxs) {
+void XB_REGS1 XB_CDECL DObj_GetTransformedBounds(const float* matrix, const DObj* obj, float* mins, float* maxs) {
     const uint32_t big = title_global<uint32_t>(0x0082eed0);       // FLT_MAX
     const uint32_t neg_big = title_global<uint32_t>(0x0083ef2c);   // -FLT_MAX
     alignas(16) uint32_t bounds[8] = {big, big, big, big, neg_big, neg_big, neg_big, neg_big};

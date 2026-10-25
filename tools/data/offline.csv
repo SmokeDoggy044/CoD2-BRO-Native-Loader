@@ -7,7 +7,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00013fa0,Scr_Closer,3473,3473,0,0,100.0
 00014470,Scr_Log,4000,4000,0,0,100.0
 0001d880,SceneFX_DeletingDtor,1021,1021,0,0,91.7
-0001f0f0,nglMeshSection_CreateVertexWriter,3187,3187,0,0,54.5
+0001f0f0,nglPosMaterial_CreateVertexWriter,3187,3187,0,0,54.5
 0001f1a0,nglVertexWriter_Clone,3119,3119,0,0,22.2
 000229d0,NAL_AsGenericClip,3869,3869,0,0,100.0
 00023840,ParamList_Delete,1432,1432,0,0,100.0

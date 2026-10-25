@@ -198,7 +198,7 @@ void XB_CDECL FxSet_8bb868(uint16_t value);
 void XB_CDECL FxSet_8bb990(uint32_t value);
 uint32_t XB_THISCALL FxPool_SlotAddress(const uint8_t* self, uint32_t index);
 uint32_t XB_CDECL FxPools_Clear();
-void XB_THISCALL FxOp_SetTextures(uint8_t* self, uint32_t a, uint32_t b, uint32_t c);
+void XB_THISCALL FxOp_SetInstances(uint8_t* self, uint32_t a, uint32_t b, uint32_t c);
 void XB_CDECL FxOp31_InitShaders();
 void XB_CDECL FxOp1d5_InitShaders();
 void XB_CDECL FxOpdd_InitShaders();

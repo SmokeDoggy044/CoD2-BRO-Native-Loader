@@ -1404,7 +1404,7 @@ extern "C" void nglVertexWriter_Init_entry(void);
 // 0x0001f0f0: slot 1 of the position material's vtable (0x00832760): a stack writer for
 // `material` cloned through the writer vtable's slot 1 (0x00832740), the copy stored to
 // *out; returns out.
-uint32_t** XB_THISCALL nglMeshSection_CreateVertexWriter(uint32_t* material, uint32_t** out);
+uint32_t** XB_THISCALL nglPosMaterial_CreateVertexWriter(uint32_t* material, uint32_t** out);
 // 0x0001f120: a section with an 8-byte position material (vtable 0x00832760, from the
 // builder's allocator 0x00902928) and 12-byte vertices; returns the material.
 uint32_t* XB_CDECL nglMeshBuilder_AddPosSection(uint32_t primitive_type, uint32_t vertex_count, uint32_t unused,

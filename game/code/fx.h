@@ -778,7 +778,7 @@ uint8_t* XB_THISCALL FxShakeRumbleComponent_DeletingDtor(uint8_t* component, uin
 // the settings block 0x00909910..; returns 1.
 uint32_t XB_CDECL FX_InitSystem(uint32_t unused, uint32_t heap_size, int32_t quads);
 // 0x00094750: the effect view (0x00909950, 14 floats) back to its default axes.
-void XB_THISCALL FxSystem_ResetView(float* view);
+void XB_THISCALL FxView_Reset(float* view);
 // 0x00094810: the index of the definition's (+0x48) emitter named `name`, -1 if none.
 int32_t XB_THISCALL FxSystem_FindEmitterByName(const uint8_t* system, const char* name);
 // 0x000949e0: the box (min, max: 8 floats) around the system's emitters that have

@@ -34,13 +34,13 @@ function of the game.*
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
 (below), or, for 303 functions the campaign never runs, the same comparison offline on random inputs.
-We've also named 2,647 of the game's global variables.
+We've also named 2,659 of the game's global variables.
 
 ### By part of the game
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,062 | 912 | 149 | 0 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,063 | 913 | 149 | 0 | 0 |
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 1,666 | 425 | 46 | 1,191 | 0 |
 | Client game (HUD, view, effects on screen) | 284 | 151 | 38 | 95 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 896 | 227 | 21 | 637 | 0 |
@@ -50,7 +50,7 @@ We've also named 2,647 of the game's global variables.
 | Level-script helpers in the engine code | 1,396 | 0 | 0 | 1,389 | 0 |
 | Sound, streaming, online | 305 | 105 | 5 | 194 | 0 |
 | Microsoft C runtime pieces the library matcher missed (replaced, not rewritten) | 11 | 0 | 0 | 11 | 0 |
-| Not sorted into a part yet | 2,659 | 1 | 0 | 0 | 1,051 |
+| Not sorted into a part yet | 2,658 | 0 | 0 | 0 | 1,051 |
 
 1,607 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice
