@@ -821,4 +821,13 @@ CoD-specific functions included, so later decompilation covers both kinds.
   sizes +0x220, count +0x244; the profile save object 0x0095f480 keeps 4 cluster buffers at +0x11c0 ('<name>',
   '<name>1'..'3'). Dialog manager: +0x1c current dialog (flag 8 at its +0x44 = close), +0x20 flag 2 = nested dialog
   returns to dialog 0. Screen 16 stays unnamed (nothing pins it).
-  Next: HUD component hierarchy (7-slot vtables from HudManager_Create, ~12 classes); remaining 2-caller functions.
+  2-caller batch 2 (60 names; the 2-caller list is now fully read, skips listed in the session's reports are
+  library code (0x38xxx-0x41xxx fixed point, XAPILIB, CRT), the MMX IDCT 0x000cfb20 (video), UIX/Live wrappers,
+  and bodies that need their module: DObj bone recursion 002d7850/002d7310, anim-tree sync 002bf7d0/002b7c60,
+  Actor_ShootWeapon aim offsets 002072d0/00206dc0, 11 compiled common-script functions).
+  - Physics world: 0x1c0 pool +0x1d4 (ptrs +0x1d8, cap +0x1e0, count +0x1e4), body-pair tree +0x1bc (pairs from
+    the 0x30 pool: {bodyA, bodyB, lists +0xc/+0x18, back +0x2c}), contact points 0x80 from the linear pool +0x34.
+    Body: position +0x30, predicted +0x70, force +0x110, torque +0x120, inverse mass +0x130, angular vel +0xe0.
+  - Handle tables {free bitmap, entries {ptr, generation}}, handle = generation << 8 | slot (HandleTable256_*);
+    the entity list 0x0097a8c0 (0x540 entries, G_EntityList_Init) uses it at +0xa8.
+  Next (in progress): HUD component hierarchy.
