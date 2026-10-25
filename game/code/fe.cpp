@@ -2,7 +2,9 @@
 
 #include <cstring>
 
+#include "ngl.h"
 #include "qcommon.h"
+#include "script_string.h"
 #include "snd.h"
 #include "title_data.h"
 
@@ -18,6 +20,7 @@ T& field(uint8_t* base, uint32_t offset) {
     return *reinterpret_cast<T*>(base + offset);
 }
 
+const float& g(uint32_t address) { return title_global<float>(address); }
 uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 const char* text_at(uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); }
 
@@ -290,6 +293,101 @@ uint8_t* XB_CDECL UIMenu_Init(uint8_t* menu, int32_t count, uint8_t* owner, uint
     menu[0x30] = 0;
     menu[0x33] = owner ? method<uint8_t XB_THISCALL(uint8_t*)>(owner, 0x24)(owner) : 0;
     return menu;
+}
+
+PLATFORM_ASM_ENTRY(UIText_Init_entry,
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIText_Init) "addl $44, %esp\n"
+                   "ret $40")
+
+uint8_t* XB_CDECL UIText_Init(uint8_t* text, int32_t kind, const char* string, uint32_t x, uint32_t y, int32_t depth,
+                              int32_t layer, uint32_t scale, uint8_t a8, uint8_t a9, uint32_t a10) {
+    using Assign = void XB_THISCALL(uint8_t*, const char*);
+    text[0x10] = 4;
+    field<uint32_t>(text, 4) = 0x3f800000;  // 1.0
+    field<uint32_t>(text, 0) = 0x008298b8;  // vtable
+    ScriptString_FromRep(reinterpret_cast<ScriptString*>(text + 0x1c), nullptr);
+    const uint32_t colour = title_global<uint32_t>(0x00922eb8);
+    for (uint32_t offset = 0x20; offset <= 0x4c; offset += 4) field<uint32_t>(text, offset) = colour;
+    field<uint32_t>(text, 0x50) = 0;
+    ScriptString_FromRep(reinterpret_cast<ScriptString*>(text + 0x54), nullptr);
+    field<int32_t>(text, 0x18) = kind;
+    title_function<Assign>(0x0011dd20)(text + 0x1c, string);  // ScriptString_AssignCString
+    field<uint32_t>(text, 0x2c) = x;
+    field<uint32_t>(text, 0x30) = y;
+    field<uint32_t>(text, 0x34) = 0;
+    float d = static_cast<float>(depth);
+    if (layer == 8) {
+        field<float>(text, 8) = d;
+    } else {
+        if (0.0f > d)
+            d = 0.0f;
+        else if (d > 1000.0f)
+            d = 1000.0f;
+        const float key = (static_cast<float>(layer * 1000) + d) * g(0x0083ec68);  // 0.125
+        title_function<void XB_THISCALL(uint8_t*, float)>(field<uint32_t>(field<uint8_t*>(text, 0), 0x24))(text, key);
+    }
+    field<uint32_t>(text, 0x38) = scale;
+    field<uint32_t>(text, 0x3c) = scale;
+    field<uint32_t>(text, 0x44) = scale;
+    field<uint32_t>(text, 0x40) = 0;
+    field<uint32_t>(text, 0x48) = scale;
+    field<int32_t>(text, 0x58) = -1;
+    field<uint32_t>(text, 0x4c) = 0;
+    field<uint32_t>(text, 0x50) = a10;
+    title_function<Assign>(0x0011dd20)(text + 0x54, text_at(0x0082dfeb));  // ""
+    const uint8_t flags = uint8_t(a9 | a8 | 4);
+    field<uint32_t>(text, 0x14) = 0;
+    text[0x5c] = text[0x53] ? uint8_t(flags | 1) : flags;
+    return text;
+}
+
+PLATFORM_ASM_ENTRY(UIText_Construct_entry,
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n"
+                   "pushl 40(%esp)\n" PLATFORM_ASM_CALL(UIText_Construct) "addl $40, %esp\n"
+                   "ret $32")
+
+uint8_t* XB_CDECL UIText_Construct(uint8_t* text, int32_t kind, uint32_t x, uint32_t y, int32_t depth, int32_t layer,
+                                   uint32_t scale, uint32_t a8, uint32_t ecx, uint32_t edx) {
+    UIText_Init(text, kind, text_at(0x0082dfeb), x, y, depth, layer, scale, uint8_t(edx), uint8_t(ecx), a8);
+    field<uint32_t>(text, 0) = 0x0082a450;  // vtable
+    field<uint32_t>(text, 0x60) = 0;
+    for (uint32_t offset = 0x78; offset <= 0x80; offset += 4) field<uint32_t>(text, offset) = 0;
+    text[0x94] = 0;
+    text[0x95] = 0;
+    for (uint32_t offset = 0x84; offset <= 0x8c; offset += 4) field<uint32_t>(text, offset) = 0;
+    field<uint32_t>(text, 0x90) = 0;
+    text[0x96] = 0;
+    field<uint32_t>(text, 0x64) = 0x3f800000;  // 1.0
+    field<uint32_t>(text, 0x70) = 0;
+    field<uint32_t>(text, 0x60) = 0xffffffff;  // colour
+    const int32_t type = field<int32_t>(text, 0x18);
+    field<int32_t>(text, 0x74) = -1;
+    const uint8_t* font = type == 7 || type == 8 ? nullptr : title_global<const uint8_t*>(0x0095f8d4 + uint32_t(type) * 4);
+    int32_t width = int32_t(a8);
+    int32_t height = -1;  // the argument slot the original reuses holds the colour bytes
+    nglGetTextExtent(font, text_at(0x0082d764), &width, &height, field<float>(text, 0x38), field<float>(text, 0x3c));  // "!"
+    const float line = platform_x87_unsigned_to_float(uint32_t(height));
+    field<float>(text, 0x68) = line;
+    field<float>(text, 0x6c) = line;
+    return text;
 }
 
 PLATFORM_ASM_ENTRY(Panel_FindText_entry,

@@ -310,6 +310,20 @@ void XB_CDECL CG_DrawStatusLabel();
 // screen position of the view direction (CG_ProjectViewDirToScreen times the zoom 0x009725d8),
 // centred in the refdef.
 void XB_CDECL CG_DrawViewDirIcon();
+// 0x00282620 (result in XMM0): with an ADS overlay (CG_GetAdsOverlayFraction), the weapon's scope picture
+// (+0x634 set: shader 0x00976068 per client, +0x63c x +0x640 at the view direction, the refdef outside it filled
+// with its edge texels; flags 0x0098ad58/0x0095f91f set) and its reticle by +0x638: 1 shader 0x00976060 (size
+// +0x4c4), 2/4 a line down and two sideways (0x00975c40 / 0x00975c44; x87 for w * 0.75 and cy - 1), 3 a full
+// cross, in black with the fraction as alpha. Returns 1 - fraction (1.0 without overlay, the flags cleared).
+// The C version writes the result to `out`.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawAdsOverlay(float* out);
+extern "C" void CG_DrawAdsOverlay_entry(void);
+// 0x00285260: the crosshair: vehicles (0x00972610 & 0x6000) CG_DrawCrosshair; a mounted weapon two black
+// CG_FillRect lines; else, alpha = CG_DrawAdsOverlay * 0x00949590 and enough of it, outside the excluded views
+// (0x009725d4) - while zooming a shrinking shader 0x00976060 (RE_RegisterShader of 0x0094baf0 when unset), the
+// centre shader (+0x4bc) and the two spread ticks (+0x4c0: shader 0x00976064 through CG_StretchPicRotate, spread
+// BG_GetWeaponSpread blended to +0x658 by 0x00972a40 / 255, scaled by the fov, at least +0x4cc).
+void XB_CDECL CG_DrawWeaponReticle();
 // 0x00285f80: the 2D pass of a frame - fades, damage, hud elements, crosshair and weapon hud,
 // checkpoint, objectives or the centre print, subtitles - in a pushed 2D scene.
 void XB_CDECL CG_Draw2D();
