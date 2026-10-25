@@ -593,4 +593,12 @@ void XB_REGS1 XB_CDECL R_DrawTextWithShadow_2(const float* color, const char* te
 extern "C" PLATFORM_HIDDEN void XB_CDECL R_AddSimpleInstancesToScene(uint32_t top, const uint8_t* table);
 extern "C" void R_AddSimpleInstancesToScene_entry(void);
 
+// 0x00242730 (cell in EAX; from Scn_AddModelInstances): R_SampleLightGrid for a static
+// model, into arrays instead of the renderer: the blended ambient as (r, g, b, 1) at
+// colors + 0x30, then up to three strongest lights as directions (16 bytes each; a point
+// light's from the point, w 0) and colours times weight / 65535 (w 1); the unused slots
+// zeroed. Nothing at all without an area for the cell.
+void XB_REGS1 XB_STDCALL R_SampleLightGridStatic(int32_t cell, const RLightGrid* grid, const float* point,
+                                                 float* directions, float* colors);
+
 }  // namespace game

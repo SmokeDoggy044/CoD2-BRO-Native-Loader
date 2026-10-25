@@ -3745,4 +3745,143 @@ void XB_CDECL R_AddSimpleInstancesToScene(uint32_t top, const uint8_t* table) {
     }
 }
 
+void XB_REGS1 XB_STDCALL R_SampleLightGridStatic(int32_t cell, const RLightGrid* grid, const float* point,
+                                                 float* directions, float* colors) {
+    const RLightGridArea* area = nullptr;
+    for (int32_t i = 0; i < grid->area_count; ++i) {
+        if (grid->areas[i].cell == cell) {
+            area = &grid->areas[i];
+            break;
+        }
+    }
+    if (!area) return;
+
+    // The sample cell and the point's place in it (as R_SampleLightGrid).
+    const Lanes offset = sub(lanes(point), lanes(area->origin));
+    platform_keep(offset);
+    float fx = offset.v[0] / area->cell_size[0];
+    float fy = offset.v[1] / area->cell_size[1];
+    int32_t x = static_cast<int32_t>(fx);
+    int32_t y = static_cast<int32_t>(fy);
+    if (x < 0) {
+        fx = 0.0f;
+        x = 0;
+    }
+    if (x >= area->width - 1) {
+        x = area->width - 2;
+        fx = static_cast<float>(x);
+    }
+    if (y < 0) {
+        fy = 0.0f;
+        y = 0;
+    }
+    if (y >= area->height - 1) {
+        y = area->height - 2;
+        fy = static_cast<float>(y);
+    }
+    const float one = title_global<float>(0x0083eb20);
+    fx = fx - static_cast<float>(x);
+    fy = fy - static_cast<float>(y);
+    const int32_t index = area->width * y + area->first + x;
+    const uint32_t* corners[4] = {grid->samples + index, grid->samples + index + 1,
+                                  grid->samples + area->width + index, grid->samples + area->width + index + 1};
+    const float gx = one - fx;
+    const float weights[4] = {gx * (one - fy), (one - fy) * fx, gx * fy, fy * fx};
+
+    // The ambient: the corners' 5-bit colours (r, g, b, r) / 31, blended; w = 1.
+    const float to_unit = title_global<float>(0x0083f040);
+    Lanes corner_colors[4];
+    for (int i = 0; i < 4; ++i) {
+        const uint32_t sample = *corners[i];
+        const float r = platform_x87_int_mul(static_cast<int32_t>(sample & 0x1f), to_unit);
+        const float b = platform_x87_int_mul(static_cast<int32_t>((sample >> 10) & 0x1f), to_unit);
+        const float g = platform_x87_int_mul(static_cast<int32_t>((sample >> 5) & 0x1f), to_unit);
+        corner_colors[i] = {{r, g, b, r}};
+    }
+    const uint32_t one_bits = title_global<uint32_t>(0x0082ecb0);  // 1.0f
+    const Lanes ambient = add(add(add(mul(corner_colors[0], weights[0]), mul(corner_colors[1], weights[1])),
+                                  mul(corner_colors[2], weights[2])),
+                              mul(corner_colors[3], weights[3]));
+    platform_keep(ambient);
+    std::memcpy(colors + 12, ambient.v, 12);
+    std::memcpy(colors + 15, &one_bits, 4);
+
+    // The corners' light references, merged: {light, weight} with blended weights.
+    struct Reference {
+        uint16_t light;
+        uint16_t weight;
+    } merged[12];
+    int32_t merged_count = 0;
+    for (int c = 0; c < 4; ++c) {
+        const uint32_t sample = *corners[c];
+        const uint32_t count = (sample >> 15) & 3;
+        if (count == 0) continue;
+        const uint16_t* reference = grid->references + (sample >> 17) * 2;
+        for (uint32_t r = 0; r < count; ++r, reference += 2) {
+            int32_t i = 0;
+            for (; i < merged_count; ++i) {
+                if (merged[i].light == reference[0]) {
+                    merged[i].weight = static_cast<uint16_t>(
+                        platform_x87_mul_add_ftol(reference[1], weights[c], merged[i].weight, true));
+                    break;
+                }
+            }
+            if (i != merged_count) continue;
+            merged[merged_count].light = reference[0];
+            merged[merged_count].weight =
+                static_cast<uint16_t>(platform_x87_mul_add_ftol(reference[1], weights[c], 0, false));
+            ++merged_count;
+        }
+    }
+
+    // The three strongest.
+    int32_t n = 0;
+    for (; n < (merged_count < 3 ? merged_count : 3); ++n) {
+        int32_t best = 0;
+        int32_t strongest = 0;
+        for (int32_t i = 0; i < merged_count; ++i) {
+            if (merged[i].weight > strongest) {
+                strongest = merged[i].weight;
+                best = i;
+            }
+        }
+        merged[best].weight = 0;
+        const RGridLight& light = grid->lights[merged[best].light];
+        const float* words = reinterpret_cast<const float*>(&light);  // origin, point, colour (+ the next word)
+        float* direction = directions + n * 4;
+        if (light.point == 0.0f) {
+            std::memcpy(direction, words, 16);
+        } else {
+            // From the light to the point (w: 1 - point), normalized (RSQRTSS + one Newton step).
+            const Lanes d = sub(Lanes{{point[0], point[1], point[2], from_bits(one_bits)}},
+                                lanes(words));
+            const Lanes sq = mul(d, d);
+            platform_keep(sq);
+            const float length_sq = (sq.v[0] + sq.v[1]) + sq.v[2];
+            float scale;
+            if (length_sq == 0.0f) {
+                scale = title_global<float>(0x0082e6a0);
+            } else {
+                const float a = abs_bits(length_sq);
+                const float r = platform_rsqrt_estimate(a);
+                scale = ((title_global<float>(0x0082e660) - r * r * a) * r) * title_global<float>(0x0082e670);
+            }
+            const Lanes scaled = mul(d, scale);
+            platform_keep(scaled);
+            std::memcpy(direction, scaled.v, 12);
+            std::memcpy(direction + 3, &title_global<uint32_t>(0x0082eca0), 4);  // 0.0f
+        }
+        const float weight = static_cast<float>(strongest) * title_global<float>(0x0083f03c);  // / 65535
+        const Lanes color = mul(lanes(words + 4), weight);
+        platform_keep(color);
+        float* out = colors + n * 4;
+        std::memcpy(out, color.v, 12);
+        std::memcpy(out + 3, &one_bits, 4);
+    }
+    for (; n < 3; ++n) {
+        std::memcpy(directions + n * 4, &title_global<uint32_t>(0x0082e680), 16);
+        std::memcpy(colors + n * 4, &title_global<uint32_t>(0x0082e680), 16);
+    }
+}
+
 }  // namespace game

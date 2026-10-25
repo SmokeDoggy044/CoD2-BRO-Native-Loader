@@ -817,4 +817,22 @@ uint32_t XB_CDECL DebugDraw_Shutdown() {
     return 0;
 }
 
+void XB_CDECL R_DrawSkeletonBones_r(const uint8_t* parts, const uint8_t* matrices, int32_t parent, const float* matrix) {
+    for (uint32_t i = 0; i < *reinterpret_cast<const uint32_t*>(parts + 0x10); ++i) {
+        const uint32_t count = *reinterpret_cast<const uint32_t*>(parts + 0x10);
+        const uint8_t* bones = *reinterpret_cast<const uint8_t* const*>(parts + 0x14);
+        if (*reinterpret_cast<const int32_t*>(bones + (i < count ? i : 0) * 12 + 8) != parent) continue;
+        // Both end points through the matrix over four lanes (the w lane repeats x).
+        const float* from = reinterpret_cast<const float*>(matrices + parent * 0x40 + 0x30);
+        const float* to = reinterpret_cast<const float*>(matrices + i * 0x40 + 0x30);
+        const Lanes start = add(add(add(lanes(matrix + 12), mul(lanes(matrix), from[0])), mul(lanes(matrix + 4), from[1])),
+                                mul(lanes(matrix + 8), from[2]));
+        const Lanes end = add(add(add(lanes(matrix + 12), mul(lanes(matrix), to[0])), mul(lanes(matrix + 4), to[1])),
+                              mul(lanes(matrix + 8), to[2]));
+        platform_keep(start);
+        platform_keep(end);
+        R_DrawSkeletonBones_r(parts, matrices, static_cast<int32_t>(i), matrix);
+    }
+}
+
 }  // namespace game

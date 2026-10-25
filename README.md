@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 70% of the functions have a name, and 1,995 have been
+It's early days: about 70% of the functions have a name, and 2,034 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,20 +27,20 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,511 | 1,995 | 9,198 |
+| Engine and game code (`.text`) | 11,193 | 8,511 | 2,034 | 9,159 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,499** | **1,995** | **14,522** |
+| **Total** | **16,517** | **11,499** | **2,034** | **14,483** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 268 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 303 functions the campaign never runs, the same comparison offline on random inputs.
 We've also named 2,647 of the game's global variables.
 
 ### By part of the game
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,062 | 873 | 180 | 8 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,062 | 911 | 148 | 2 | 0 |
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 1,666 | 425 | 46 | 1,191 | 0 |
 | Client game (HUD, view, effects on screen) | 284 | 151 | 38 | 95 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 896 | 227 | 21 | 637 | 0 |
@@ -50,7 +50,7 @@ We've also named 2,647 of the game's global variables.
 | Level-script helpers in the engine code | 1,396 | 0 | 0 | 1,389 | 0 |
 | Sound, streaming, online | 305 | 105 | 5 | 194 | 0 |
 | Microsoft C runtime pieces the library matcher missed (replaced, not rewritten) | 11 | 0 | 0 | 11 | 0 |
-| Not sorted into a part yet | 2,659 | 0 | 1 | 0 | 1,051 |
+| Not sorted into a part yet | 2,659 | 1 | 0 | 0 | 1,051 |
 
 1,607 of the unsorted functions are Microsoft's own library code that was built into
 the game (the C runtime, the Xbox system library, the UIX menu library, the voice

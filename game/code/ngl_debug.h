@@ -111,4 +111,10 @@ void XB_CDECL DebugDraw_Flush(uint32_t toggle);
 // 0x002b2e80: frees the queues' arrays (Z_Free) and zeroes their state block 0x0092bf60. Returns 0.
 uint32_t XB_CDECL DebugDraw_Shutdown();
 
+// 0x00240930: for each child of bone `parent` of the skeleton `parts` (bone count +0x10,
+// 12-byte bone records +0x14 with the parent at +8) the bone line from the parent's to the
+// child's position (+0x30 of each 0x40-byte matrix) through `matrix` (4x4), then the
+// child's children. The line itself is compiled out: only the end points are computed.
+void XB_CDECL R_DrawSkeletonBones_r(const uint8_t* parts, const uint8_t* matrices, int32_t parent, const float* matrix);
+
 }  // namespace game
