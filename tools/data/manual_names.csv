@@ -12210,3 +12210,88 @@ address,name,kind,confidence,evidence
 0002b740,RagdollPhysPool_Clear,function,medium,"(ESI pool): RagdollPhysPool_DestroyAll, then rebuilds the 6-record list of 0x1d50-byte states (ptrs +0xafe0 from base +0xb010, indices +0xaff8), count +0xb014 = 0; RagdollPhysPool_Free"
 0002b570,RagdollPool_ReleaseAllPhysics,function,medium,"(pool): for each used 0x570-byte ragdoll with physics (+0x568): PhysRagdoll_WriteBodiesToPose, 0x0022c0f0, RagdollPhysPool_Free, clears +0x568 and the entity flag +0x294"
 0002b5f0,RagdollPool_Clear,function,medium,"(ESI pool): RagdollPool_ReleaseAllPhysics, then rebuilds the free list of 0x570-byte ragdoll records; RagdollPool_Free"
+00331d80,TitleMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores TitleMenu_vtable 0x008297f0; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012220,TitleMenu_Dtor,function,medium,"stores TitleMenu_vtable 0x008297f0, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+003312f0,MainMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores MainMenu_vtable 0x00829b80; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012520,MainMenu_Dtor,function,medium,"stores MainMenu_vtable 0x00829b80, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00331210,SinglePlayerMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores SinglePlayerMenu_vtable 0x00829410; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+000125b0,SinglePlayerMenu_Dtor,function,medium,"stores SinglePlayerMenu_vtable 0x00829410, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00012a80,OptionsMenu_Dtor,function,medium,"stores OptionsMenu_vtable 0x00829348, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00331150,GameplayMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores GameplayMenu_vtable 0x00828930; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012640,GameplayMenu_Dtor,function,medium,"stores GameplayMenu_vtable 0x00828930, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+003310d0,ControllerConfigMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores ControllerConfigMenu_vtable 0x00829c48; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012730,ControllerConfigMenu_Dtor,function,medium,"stores ControllerConfigMenu_vtable 0x00829c48, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330fd0,ScreenMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores ScreenMenu_vtable 0x00828b88; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012820,ScreenMenu_Dtor,function,medium,"stores ScreenMenu_vtable 0x00828b88, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330f80,SoundMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores SoundMenu_vtable 0x00829fa0; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012950,SoundMenu_Dtor,function,medium,"stores SoundMenu_vtable 0x00829fa0, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330de0,BonusMaterialsMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores BonusMaterialsMenu_vtable 0x0082a708; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012f80,BonusMaterialsMenu_Dtor,function,medium,"stores BonusMaterialsMenu_vtable 0x0082a708, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330d60,BonusCharactersMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores BonusCharactersMenu_vtable 0x00829728; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00330cd0,BonusCharactersMenu_Dtor,function,medium,"stores BonusCharactersMenu_vtable 0x00829728, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330c40,BonusWeaponsMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores BonusWeaponsMenu_vtable 0x00828868; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00013050,BonusWeaponsMenu_Dtor,function,medium,"stores BonusWeaponsMenu_vtable 0x00828868, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330bb0,BonusVehiclesMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores BonusVehiclesMenu_vtable 0x00829ab8; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00330b30,BonusVehiclesMenu_Dtor,function,medium,"stores BonusVehiclesMenu_vtable 0x00829ab8, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330ab0,BonusConceptsMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores BonusConceptsMenu_vtable 0x00828f98; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00330a40,BonusConceptsMenu_Dtor,function,medium,"stores BonusConceptsMenu_vtable 0x00828f98, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00012ea0,DifficultyMenu_Dtor,function,medium,"stores DifficultyMenu_vtable 0x00828c50, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00335570,CreateProfileMenu_Construct,function,medium,UIGridMenu_Init then stores CreateProfileMenu_vtable 0x0082a068; one caller (FrontEndMenu_Construct/InGameScreens_Construct)
+00330980,CreateProfileMenu_Dtor,function,medium,"stores CreateProfileMenu_vtable 0x0082a068, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+003308f0,ProfileMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores ProfileMenu_vtable 0x00828ed0; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00013290,ProfileMenu_Dtor,function,medium,"stores ProfileMenu_vtable 0x00828ed0, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00333380,ChapterMenu_Construct,function,medium,UIGridMenu_Init then stores ChapterMenu_vtable 0x008299f0; one caller (FrontEndMenu_Construct/InGameScreens_Construct)
+00013460,ChapterMenu_Dtor,function,medium,"stores ChapterMenu_vtable 0x008299f0, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+003305e0,SpecialMaterialsMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores SpecialMaterialsMenu_vtable 0x00828ac0; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+000134e0,SpecialMaterialsMenu_Dtor,function,medium,"stores SpecialMaterialsMenu_vtable 0x00828ac0, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330560,SpecialConceptMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores SpecialConceptMenu_vtable 0x00829ed8; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00013580,SpecialConceptMenu_Dtor,function,medium,"stores SpecialConceptMenu_vtable 0x00829ed8, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00012b80,PauseMenu_Dtor,function,medium,"stores PauseMenu_vtable 0x008289f8, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+003315e0,AdvancedOptionsMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores AdvancedOptionsMenu_vtable 0x0082a388; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012c00,AdvancedOptionsMenu_Dtor,function,medium,"stores AdvancedOptionsMenu_vtable 0x0082a388, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00012ca0,LoadingMenu_Dtor,function,medium,"stores LoadingMenu_vtable 0x00829180, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00012d20,LoadAfricaMenu_Dtor,function,medium,"stores LoadAfricaMenu_vtable 0x0082a1f8, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00012da0,LoadSicilyMenu_Dtor,function,medium,"stores LoadSicilyMenu_vtable 0x00828718, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330e80,LoadMaubeugeMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores LoadMaubeugeMenu_vtable 0x008295a0; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00012e20,LoadMaubeugeMenu_Dtor,function,medium,"stores LoadMaubeugeMenu_vtable 0x008295a0, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330820,MissionSuccessFailMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores MissionSuccessFailMenu_vtable 0x00828d18; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+00013330,MissionSuccessFailMenu_Dtor,function,medium,"stores MissionSuccessFailMenu_vtable 0x00828d18, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+00330730,AutosaveMenu_Construct,function,medium,"UIMenu_Init(0x140,0xf0,8,0) then stores AutosaveMenu_vtable 0x0082a130; one caller (FrontEndMenu_Construct/InGameScreens_Construct)"
+000133d0,AutosaveMenu_Dtor,function,medium,"stores AutosaveMenu_vtable 0x0082a130, frees its panel (Panel_FreeElements), back to UIMenu_vtable, UIMenu_FreeItems; called by the slot-0 deleting dtor"
+0031f3e0,AdvancedOptionsMenu_Draw,function,medium,AdvancedOptionsMenu_vtable 0x0082a388 slot 10 Draw (UIScreenMgr draws the active screen); Panel_Draw + UIMenu_Draw
+00329c50,AdvancedOptionsMenu_RestoreSelection,function,medium,"AdvancedOptionsMenu_vtable 0x0082a388 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+00338040,AutosaveMenu_Update,function,medium,"AutosaveMenu_vtable 0x0082a130 slot 12 Update(dt), called by UIScreenMgr_Update; Save_Update, then UIMenu_Update"
+0031d820,BonusCharactersMenu_Draw,function,medium,BonusCharactersMenu_vtable 0x00829728 slot 10 Draw (UIScreenMgr draws the active screen)
+0031d980,BonusCharactersMenu_RestoreSelection,function,medium,"BonusCharactersMenu_vtable 0x00829728 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031c830,BonusVehiclesMenu_RestoreSelection,function,medium,"BonusVehiclesMenu_vtable 0x00829ab8 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031d570,BonusWeaponsMenu_RestoreSelection,function,medium,"BonusWeaponsMenu_vtable 0x00828868 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031eb90,ControllerConfigMenu_Draw,function,medium,ControllerConfigMenu_vtable 0x00829c48 slot 10 Draw (UIScreenMgr draws the active screen)
+00338f50,ControllerConfigMenu_RestoreSelection,function,medium,"ControllerConfigMenu_vtable 0x00829c48 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031b5f0,CreateProfileMenu_Draw,function,medium,CreateProfileMenu_vtable 0x0082a068 slot 10 Draw (UIScreenMgr draws the active screen); draws the background movie frame (Movie_GetFrameTexture)
+00338c40,CreateProfileMenu_HandleSelect,function,medium,"CreateProfileMenu_vtable 0x0082a068 slot 14 HandleSelect(item), called by UIMenu_OnAccept; letter grid: 0x24-0x27 special keys"
+0031ec10,GameplayMenu_Draw,function,medium,GameplayMenu_vtable 0x00828930 slot 10 Draw (UIScreenMgr draws the active screen)
+00339050,GameplayMenu_RestoreSelection,function,medium,"GameplayMenu_vtable 0x00828930 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031e210,LoadAfricaMenu_Draw,function,medium,LoadAfricaMenu_vtable 0x0082a1f8 slot 10 Draw (UIScreenMgr draws the active screen)
+0031e270,LoadAfricaMenu_RestoreSelection,function,medium,"LoadAfricaMenu_vtable 0x0082a1f8 slot 16, calls UIMenu_RestoreSelection then sets the screen up; FEMENU_LOADING text"
+0031e100,LoadSicilyMenu_Draw,function,medium,LoadSicilyMenu_vtable 0x00828718 slot 10 Draw (UIScreenMgr draws the active screen)
+0031e160,LoadSicilyMenu_RestoreSelection,function,medium,"LoadSicilyMenu_vtable 0x00828718 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031e000,LoadMaubeugeMenu_Draw,function,medium,LoadMaubeugeMenu_vtable 0x008295a0 slot 10 Draw (UIScreenMgr draws the active screen)
+0031e050,LoadMaubeugeMenu_RestoreSelection,function,medium,"LoadMaubeugeMenu_vtable 0x008295a0 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031e320,LoadingMenu_Draw,function,medium,LoadingMenu_vtable 0x00829180 slot 10 Draw (UIScreenMgr draws the active screen)
+0031e380,LoadingMenu_RestoreSelection,function,medium,"LoadingMenu_vtable 0x00829180 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+00339110,OptionsMenu_RestoreSelection,function,medium,"OptionsMenu_vtable 0x00829348 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031f440,PauseMenu_Draw,function,medium,PauseMenu_vtable 0x008289f8 slot 10 Draw (UIScreenMgr draws the active screen)
+0033a640,ProfileMenu_Update,function,medium,"ProfileMenu_vtable 0x00828ed0 slot 12 Update(dt), called by UIScreenMgr_Update"
+0031e790,ScreenMenu_Draw,function,medium,ScreenMenu_vtable 0x00828b88 slot 10 Draw (UIScreenMgr draws the active screen)
+00336460,SinglePlayerMenu_Update,function,medium,"SinglePlayerMenu_vtable 0x00829410 slot 12 Update(dt), called by UIScreenMgr_Update"
+0031e710,SoundMenu_Draw,function,medium,SoundMenu_vtable 0x00829fa0 slot 10 Draw (UIScreenMgr draws the active screen)
+00338e40,SoundMenu_RestoreSelection,function,medium,"SoundMenu_vtable 0x00829fa0 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+0031a8c0,SpecialConceptMenu_RestoreSelection,function,medium,"SpecialConceptMenu_vtable 0x00829ed8 slot 16, calls UIMenu_RestoreSelection then sets the screen up"
+00013250,BonusConceptsMenu_OnA,function,medium,BonusConceptsMenu_vtable 0x00828f98 slot 24 (+0x60) A button from UIScreenMgr_OnButtonDown; shows the concept image full screen (BONUS_HELPBAR_BACK_ONLY)
+00013200,BonusConceptsMenu_OnBack,function,medium,BonusConceptsMenu_vtable 0x00828f98 slot 25 (+0x64) back button (0x80) from UIScreenMgr_OnButtonDown; leaves full screen (BONUS_HELPBAR_FULLSCREEN) or returns via owner +0xc
+000131c0,BonusVehiclesMenu_OnA,function,medium,BonusVehiclesMenu_vtable 0x00829ab8 slot 24 (+0x60) A button from UIScreenMgr_OnButtonDown
+00013170,BonusVehiclesMenu_OnBack,function,medium,BonusVehiclesMenu_vtable 0x00829ab8 slot 25 (+0x64) back button (0x80) from UIScreenMgr_OnButtonDown
+00013120,BonusWeaponsMenu_OnA,function,medium,BonusWeaponsMenu_vtable 0x00828868 slot 24 (+0x60) A button from UIScreenMgr_OnButtonDown
+000130d0,BonusWeaponsMenu_OnBack,function,medium,BonusWeaponsMenu_vtable 0x00828868 slot 25 (+0x64) back button (0x80) from UIScreenMgr_OnButtonDown
+00013630,SpecialConceptMenu_OnA,function,medium,SpecialConceptMenu_vtable 0x00829ed8 slot 24 (+0x60) A button from UIScreenMgr_OnButtonDown
+0031f690,UIDialog_Draw,function,medium,"UIDialog_vtable 0x00829d48 slot 10: sets the three buttons' style, UIMenu_Draw when the dialog alpha (0x0095f900) >= 0"

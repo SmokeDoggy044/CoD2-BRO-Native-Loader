@@ -807,4 +807,11 @@ CoD-specific functions included, so later decompilation covers both kinds.
     30 x 0xd0 (+0x1860/+0x18d8/+0x1950/+0x1954), ragdoll physics 6 x 0x1d50 (+0xafe0/+0xaff8/+0xb010/+0xb014).
   - pm->ps +0x88: 0..1 aim-down-sight fraction (weapon def rates +0x868 in, +0x86c out; medium).
   - g_pathNodeBlocks: block array +8, count via +0x194 -> +0xc; block: node count +4, 0x80-byte nodes at +0x10.
-  Next (in progress): per-screen UI methods + HUD components; the remaining 120 2-caller functions.
+  UI batch 2 (85 names): <Screen>Menu_Construct (21; Options/Difficulty/Pause/Loading/LoadAfrica/LoadSicily are
+  built inline), <Screen>Menu_Dtor (27: own vtable, free panel + children, back to UIMenu_vtable, UIMenu_FreeItems)
+  and overridden slots 10/12/14/16/24/25. Slots confirmed: 18/19 buttons 1/2, 20-23 Up/Down/Left/Right (pad bits
+  4/8/0x10/0x20; Up/Down call 44/45 and wrap; Sound's Left/Right step a 0..50 volume), 16 handlers start with
+  UIMenu_RestoreSelection. Screen panel pointer +0x34 (+0x38 for UIGridMenu screens), owned children after it.
+  Screen 16 (0x00829e10, ctor 003308a0) has a second base at +0x34 (vtable 0x00829e0c) registered as the
+  save-device removal callback 0x00920af8 - probably a memory-unit-removed screen (UIScreenMgr_Dtor skips it).
+  Next (in progress): UI slots 20-23, deleting dtors, leftover UI hubs, HUD components; remaining 2-caller functions.
