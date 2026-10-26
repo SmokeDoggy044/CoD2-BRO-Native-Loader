@@ -77,6 +77,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00054730,cdBackgroundVertexIter_Clone,3854,3854,0,0,100.0
 00055400,cdSkyVertexIter_Clone,3839,3839,0,0,100.0
 000555f0,MemStream_DeletingDestroy,3517,3517,0,0,100.0
+00056570,IN_PadReturnFalse,4000,4000,0,0,100.0
 00056b80,strcmpcasenosensitive_internal,3652,3652,0,0,100.0
 0005d8c0,inflate_trees_fixed,3342,3342,0,0,100.0
 0005da20,inflate_fast,1116,1116,0,0,60.3
@@ -368,6 +369,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000a58b0,FxSphereSurfaceDomain_Generate,3656,3656,0,0,99.1
 000c52b0,SndVoice_ClearAttenuation,4000,4000,0,0,57.1
 000cbf60,MovieVid_ReadIntraCoeffs,2420,2420,0,0,100.0
+000cf130,Movie_SetAudioTrack,3826,3826,0,0,100.0
 000cf950,MovieVid_AddBlock,1820,1820,0,0,100.0
 000d0700,MovieVid_McAvg8XY,1782,1782,0,0,100.0
 0011b470,Scr_IntToFloat,3855,3855,0,0,100.0

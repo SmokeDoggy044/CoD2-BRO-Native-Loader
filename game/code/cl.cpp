@@ -1773,5 +1773,317 @@ void XB_CDECL CL_ExecControllerConfig(int32_t style) {
     Cbuf_AddText(&title_global<const char>(text));
     title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute (a tail jump)
 }
+// ---- Pads (XInput) ----
+//
+// Per port: the XINPUT_STATE at 0x00902290 (0x16 bytes), the XINPUT_FEEDBACK at 0x009022e8 (0x46 bytes: status
+// dword, rumble left/right words at +0x42/+0x44) and the pad block at 0x00902400 (0x58 bytes: the gamepad copy
+// +0x00, previous buttons +0x12, analog buttons down +0x14, pressed edges +0x1c, released edges +0x26,
+// capabilities +0x30, handle +0x4c, inserted +0x50, removed +0x54). Rumble per pad at 0x00902568: {left current,
+// left target, right current, right target} words.
+
+namespace {
+
+constexpr uint32_t kPadStates = 0x00902290, kPadStateSize = 0x16;
+constexpr uint32_t kPadFeedback = 0x009022e8, kPadFeedbackSize = 0x46;
+constexpr uint32_t kGamepadType = 0x007a9f78;  // XDEVICE_TYPE_GAMEPAD
+
+uint8_t* pad_state(int32_t pad) { return reinterpret_cast<uint8_t*>(uintptr_t{kPadStates + uint32_t(pad) * kPadStateSize}); }
+uint8_t* pad_feedback(int32_t pad) {
+    return reinterpret_cast<uint8_t*>(uintptr_t{kPadFeedback + uint32_t(pad) * kPadFeedbackSize});
+}
+uint32_t& pad_handle(int32_t pad) { return field<uint32_t>(pad_block(pad), 0x4c); }
+
+// rep stosd + stosw over count dwords and a word.
+void zero_words(uint8_t* p, uint32_t dwords) {
+    for (uint32_t i = 0; i < dwords; ++i) field<uint32_t>(p, i * 4) = 0;
+    field<uint16_t>(p, dwords * 4) = 0;
+}
+
+uint32_t xinput_open(int32_t port) {
+    // XINPUT_POLLING_PARAMETERS: fAutoPoll | fInterruptOut, 8 ms in and out.
+    uint8_t params[4] = {0x03, 0x08, 0x08, 0x00};
+    return title_function<uint32_t XB_STDCALL(uint32_t, int32_t, uint32_t, uint8_t*)>(0x007abf0d)(kGamepadType, port, 0,
+                                                                                                 params);
+}
+void xinput_get_capabilities(uint32_t handle, uint8_t* caps) {
+    title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*)>(0x007abf6f)(handle, caps);
+}
+void xinput_get_state(uint32_t handle, uint8_t* state) {
+    title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*)>(0x007ac147)(handle, state);
+}
+void xinput_set_state(uint32_t handle, uint8_t* feedback) {
+    title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*)>(0x007ac1ba)(handle, feedback);
+}
+
+// The analog buttons as down flags: over 0x1e, the triggers (6, 7) over 0x80.
+void set_analog_down(uint8_t* block, const uint8_t* analog) {
+    for (int32_t i = 0; i < 8; ++i) block[0x14 + i] = analog[i] > ((i == 7 || i == 6) ? 0x80 : 0x1e);
+}
+
+// A freshly opened pad: capabilities, state, buttons and analog flags.
+void pad_read_initial(int32_t port) {
+    uint8_t* block = pad_block(port);
+    uint8_t* state = pad_state(port);
+    xinput_get_capabilities(pad_handle(port), block + 0x30);
+    xinput_get_state(pad_handle(port), state);
+}
+
+// Sys_QueEvent (0x00222fa0; time in EAX, 0 = now).
+void sys_que_event(int32_t time, int32_t type, int32_t value, int32_t value2) {
+    title_function<void XB_REGS1 XB_CDECL(int32_t, int32_t, int32_t, int32_t, int32_t, void*)>(0x00222fa0)(
+        time, type, value, value2, 0, nullptr);
+}
+
+// Sys_QueEvent(0, SE_KEY, key, 0, 0, NULL) inlined: the event ring 0x0095e800 (64 x 0x18 bytes, head 0x0095e7f4,
+// tail 0x0095ee04; a full ring drops the oldest event and frees its data).
+void queue_key_up(int32_t key) {
+    uint32_t& head = title_global<uint32_t>(0x0095e7f4);
+    uint32_t& tail = title_global<uint32_t>(0x0095ee04);
+    uint8_t* event = reinterpret_cast<uint8_t*>(uintptr_t{0x0095e800 + (head & 0x3f) * 0x18});
+    if (static_cast<int32_t>(head - tail) >= 0x40) {
+        if (field<uint32_t>(event, 0x14)) title_function<void XB_CDECL(uint32_t)>(0x000428d0)(field<uint32_t>(event, 0x14));
+        ++tail;
+    }
+    ++head;
+    field<int32_t>(event, 0x00) = sys_milliseconds();
+    field<int32_t>(event, 0x04) = 1;  // SE_KEY
+    field<int32_t>(event, 0x08) = key;
+    field<int32_t>(event, 0x0c) = 0;
+    field<int32_t>(event, 0x10) = 0;
+    field<int32_t>(event, 0x14) = 0;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(IN_PadConsumeAllPressed_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(IN_PadConsumeAllPressed) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL IN_PadConsumeAllPressed(int32_t pad) {
+    for (uint32_t button = 0; button <= 15; ++button) IN_PadConsumePressed(pad, button);
+}
+
+PLATFORM_ASM_ENTRY(IN_JoyApplyThreshold_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(IN_JoyApplyThreshold) "addl $4, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL IN_JoyApplyThreshold(int32_t value) {
+    const int32_t threshold = static_cast<int32_t>(cvar_value(0x00929c30));
+    const uint32_t sign_mask = static_cast<uint32_t>(value >> 31);
+    const int32_t magnitude = static_cast<int32_t>((static_cast<uint32_t>(value) ^ sign_mask) - sign_mask);
+    if (magnitude < threshold) return 0;
+    const float scaled = static_cast<float>(magnitude - threshold) / static_cast<float>(0x80 - threshold) *
+                         title_global<float>(0x0083ebe8);  // 128
+    const int32_t sign = value >= 0 ? 1 : -1;
+    return static_cast<int32_t>(static_cast<uint32_t>(static_cast<int32_t>(scaled)) * static_cast<uint32_t>(sign));
+}
+
+void XB_CDECL IN_PadCheckDeviceChanges() {
+    uint32_t insertions, removals;
+    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*)>(0x007ac272)(kGamepadType, &insertions,
+                                                                                    &removals);  // XGetDeviceChanges
+    for (int32_t port = 0; port < 4; ++port) {
+        const uint32_t bit = 1u << port;
+        uint8_t* block = pad_block(port);
+        field<uint32_t>(block, 0x54) = (removals & bit) != 0;
+        if (removals & bit) {
+            if (pad_handle(port)) title_function<void XB_STDCALL(uint32_t)>(0x007abf63)(pad_handle(port));  // XInputClose
+            pad_handle(port) = 0;
+        }
+        field<uint32_t>(block, 0x50) = (insertions & bit) != 0;
+        if (!(insertions & bit)) continue;
+        zero_words(pad_feedback(port), 0x11);
+        pad_handle(port) = xinput_open(port);
+        if (!pad_handle(port)) continue;
+        pad_read_initial(port);
+        field<uint16_t>(block, 0x12) = field<uint16_t>(pad_state(port), 4);
+        set_analog_down(block, pad_state(port) + 6);
+        if (port == 0) title_function<void XB_CDECL(uint32_t)>(0x001fa100)(pad_handle(0));
+    }
+}
+
+uint8_t* XB_THISCALL IN_PadInit(uint8_t* pads) {
+    title_function<void XB_STDCALL(uint32_t, void*)>(0x007ac24b)(0, nullptr);  // XInitDevices
+    const uint32_t devices = title_function<uint32_t XB_STDCALL(uint32_t)>(0x007ac250)(kGamepadType);  // XGetDevices
+    for (int32_t port = 0; port < 4; ++port) {
+        zero_words(pad_state(port), 5);
+        uint8_t* block = pad_block(port);
+        for (uint32_t i = 0; i < 0x16; ++i) field<uint32_t>(block, i * 4) = 0;
+        zero_words(pad_feedback(port), 0x11);
+        if (!(devices & (1u << port))) continue;
+        pad_handle(port) = xinput_open(port);
+        pad_read_initial(port);
+        xinput_set_state(pad_handle(port), pad_feedback(port));
+        field<uint16_t>(block, 0x12) = field<uint16_t>(pad_state(port), 4);
+        set_analog_down(block, pad_state(port) + 6);
+    }
+    return pads;
+}
+
+uint8_t* XB_CDECL IN_PadCreate() {
+    uint8_t*& pads = title_global<uint8_t*>(0x00902564);
+    if (pads) return pads;
+    uint8_t* memory = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x18);  // Z_Malloc
+    pads = memory ? IN_PadInit(memory) : nullptr;
+    return pads;
+}
+
+void XB_CDECL IN_PadUpdate() {
+    IN_PadCheckDeviceChanges();
+    for (int32_t port = 0; port < 4; ++port) {
+        if (!pad_handle(port)) continue;
+        uint8_t* block = pad_block(port);
+        uint8_t* state = pad_state(port);
+        xinput_get_state(pad_handle(port), state);
+        for (uint32_t i = 0; i < 0x10; i += 4) field<uint32_t>(block, i) = field<uint32_t>(state, 4 + i);
+        field<uint16_t>(block, 0x10) = field<uint16_t>(state, 0x14);
+        uint8_t* live = title_global<uint8_t*>(0x0095f6fc);  // g_liveMgr
+        bool taken = false;
+        if (!title_global<uint8_t>(0x0095f538) && live && live[0x44cb]) {
+            const uint32_t method = field<uint32_t>(field<uint8_t*>(live, 0), 0x18);
+            taken = title_function<uint8_t XB_THISCALL(uint8_t*, int32_t, uint8_t*)>(method)(live, port, state) != 0;
+        }
+        if (taken) {
+            title_global<uint8_t>(0x00902560) = 1;
+        } else {
+            const uint16_t previous = field<uint16_t>(block, 0x12), buttons = field<uint16_t>(block, 0);
+            title_global<uint8_t>(0x00902560) = 0;
+            field<uint16_t>(block, 0x1c) = static_cast<uint16_t>(~previous & buttons);
+            field<uint16_t>(block, 0x26) = static_cast<uint16_t>(~buttons & previous);
+        }
+        field<uint16_t>(block, 0x12) = field<uint16_t>(block, 0);
+        for (int32_t i = 0; i < 8; ++i) {
+            const uint8_t down = block[2 + i] > ((i == 7 || i == 6) ? 0x80 : 0x1e);
+            if (!pad_input_blocked()) {
+                const uint8_t was = block[0x14 + i];
+                block[0x1e + i] = !was && down;
+                block[0x28 + i] = was && !down;
+            }
+            block[0x14 + i] = down;
+        }
+    }
+}
+
+uint8_t XB_STDCALL IN_PadReturnFalse(int32_t, uint32_t) { return 0; }
+
+void XB_STDCALL IN_SetRumbleMotor(int32_t pad, int32_t motor, float strength) {
+    const int32_t value = platform_x87_mul_ftol(strength, title_global<float>(0x0083eeec));  // 65535
+    uint16_t* rumble = &title_global<uint16_t>(0x00902568 + uint32_t(pad) * 8);
+    uint16_t* motor_words = rumble + (motor != 1 ? 2 : 0);  // {current, target}
+    motor_words[1] = static_cast<uint16_t>(value);
+    uint8_t* feedback = pad_feedback(pad);
+    if (field<uint32_t>(feedback, 0)) return;  // the last set is still pending
+    rumble[0] = field<uint16_t>(feedback, 0x42);
+    rumble[2] = field<uint16_t>(feedback, 0x44);
+    if (motor_words[0] == motor_words[1]) return;
+    zero_words(feedback, 0x11);
+    field<uint16_t>(feedback, 0x42) = rumble[1];
+    field<uint16_t>(feedback, 0x44) = rumble[3];
+    if (pad_handle(pad)) xinput_set_state(pad_handle(pad), feedback);
+}
+
+void XB_CDECL IN_PadStopAllRumble() {
+    for (int32_t port = 0; port < 4; ++port) {
+        uint8_t* feedback = pad_feedback(port);
+        if (field<uint32_t>(feedback, 0)) continue;
+        zero_words(feedback, 0x11);
+        if (pad_handle(port)) xinput_set_state(pad_handle(port), feedback);
+    }
+}
+
+void XB_REGS1 XB_CDECL IN_StopAllRumble(uint8_t* rumble) {
+    for (int32_t motor = 0; motor < 2; ++motor) {
+        const int32_t pad = title_global<int32_t>(0x008dcf18);
+        if (pad != -1) {
+            IN_PadCreate();
+            IN_SetRumbleMotor(pad, motor, 0.0f);
+        }
+        // Frees the list of queued rumbles (head at +8 + 16 * motor, its end sentinel 4 bytes on).
+        uint8_t* list = rumble + 8 + motor * 0x10;
+        uint32_t first = field<uint32_t>(list, 0);
+        const uint32_t end = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list + 4));
+        uint32_t next = first ? *reinterpret_cast<uint32_t*>(uintptr_t{first}) : 0;
+        if (first == end) {
+            next = 0;
+            first = 0;
+        }
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x000248f0)(first, next, end, 0,
+                                                                                                   0);
+    }
+}
+
+void XB_CDECL IN_SprintUp() {}
+
+void XB_CDECL IN_SprintDown() {}
+
+// The pad's keys as they map to key events: buttons 0-3 = 0x9c, 0x9b, 0x9d, 0x9a; 14 = escape, 15 = tab; the
+// rest 0xcf + button.
+namespace {
+int32_t pad_button_key(uint32_t button) {
+    switch (button) {
+    case 0: return 0x9c;
+    case 1: return 0x9b;
+    case 2: return 0x9d;
+    case 3: return 0x9a;
+    case 5: return 0xd4;
+    case 14: return 0x1b;
+    case 15: return 0x09;
+    default: return static_cast<int32_t>(button + 0xcf);
+    }
+}
+}  // namespace
+
+void XB_CDECL IN_PadQueueEvents() {
+    const int32_t pad = title_global<int32_t>(0x008d50d8);
+    IN_PadCreate();
+    for (uint32_t button = 0; button <= 15; ++button) IN_PadConsumePressed(pad, button);
+    static const int32_t kKeys[6] = {0x1b, 0x09, 0x9c, 0x9d, 0x9b, 0x9a};
+    for (int32_t key : kKeys) queue_key_up(key);
+    for (int32_t i = 0; i <= 15; ++i) queue_key_up(0xcf + i);
+}
+
+void XB_CDECL IN_Frame() {
+    if (!cvar_integer(0x009284dc)) return;
+    IN_PadCreate();
+    IN_PadUpdate();
+    uint8_t& active = title_global<uint8_t>(0x008d50dc);
+    if (title_global<int32_t>(0x008d50d8) != -1) {
+        IN_PadCreate();
+        if (!IN_PadIsConnected(title_global<int32_t>(0x008d50d8))) {
+            active = 0;
+            return;
+        }
+    }
+    if (!active) IN_PadQueueEvents();
+    const int32_t selected = title_global<int32_t>(0x008d50d8);
+    const uint8_t keys_off = title_global<uint8_t>(0x0095f919);
+    const int32_t pad = selected != -1 ? selected : 0;
+    active = 1;
+    if (title_global<uint8_t>(0x0095f538)) return;
+    if (!keys_off) {
+        int32_t x, y;
+        IN_PadCreate();
+        IN_PadGetStick(pad, 1, &x, &y);
+        x = IN_JoyApplyThreshold(x);
+        y = IN_JoyApplyThreshold(y);
+        if (x || y) sys_que_event(0, 3, x, y);
+        IN_PadCreate();
+        IN_PadGetStick(pad, 0, &x, &y);
+        x = IN_JoyApplyThreshold(x);
+        y = IN_JoyApplyThreshold(y);
+        sys_que_event(pad, 4, 1, static_cast<int32_t>(0u - static_cast<uint32_t>(y)));  // time = the pad (as the original)
+        sys_que_event(pad, 4, 0, x);
+    }
+    for (uint32_t button = 0; button <= 15; ++button) {
+        const int32_t key = pad_button_key(button);
+        IN_PadCreate();
+        if (IN_PadButtonPressed(pad, button)) {
+            title_global<int32_t>(0x008dcf18) = pad;
+            if (!keys_off) sys_que_event(0, 1, key, 1);
+        }
+        IN_PadCreate();
+        if (IN_PadConsumeReleased(pad, button)) queue_key_up(key);
+    }
+}
 
 }  // namespace game
