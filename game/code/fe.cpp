@@ -1403,4 +1403,945 @@ void XB_THISCALL UIPicture_LoadMesh(uint8_t* picture, const uint8_t* materials, 
     set_centre_from_bounds(picture);
 }
 
+// UI text (UIText_* / UITextBase_*) -------------------------------------------------------------------------------
+
+namespace {
+
+void script_string_release(uint8_t* string) {
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(string);  // ScriptString_Release
+}
+
+// The font of a text kind (ui_fonts 0x0095f8d4; none for kinds 7 and 8).
+const uint8_t* text_font(int32_t kind) {
+    return kind == 7 || kind == 8 ? nullptr : title_global<const uint8_t*>(0x0095f8d4 + uint32_t(kind) * 4);
+}
+
+// vtable +0xdc: sets (on) or clears the flag bits `mask` of +0x5c.
+void text_set_flags(uint8_t* text, uint32_t mask, uint32_t on) {
+    method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(text, 0xdc)(text, mask, on);
+}
+
+// vtable +0xd8: whether any of the flag bits `mask` of +0x5c are set.
+bool text_has_flags(uint8_t* text, uint32_t mask) {
+    return method<uint8_t XB_THISCALL(uint8_t*, uint32_t)>(text, 0xd8)(text, mask) != 0;
+}
+
+void text_layout(uint8_t* text) { UIText_LayoutLines(text); }
+
+}  // namespace
+
+void XB_THISCALL UITextBase_SetUniformScale(uint8_t* text, float scale) {
+    field<float>(text, 0x38) = scale;
+    field<float>(text, 0x3c) = scale;
+    field<uint32_t>(text, 0x40) = 0;
+}
+
+void XB_THISCALL UITextBase_SetScale(uint8_t* text, float sx, float sy) {
+    field<float>(text, 0x38) = sx;
+    field<float>(text, 0x3c) = sy;
+    field<uint32_t>(text, 0x40) = 0;
+}
+
+void XB_THISCALL UITextBase_MoveBy(uint8_t* text, float dx, float dy) {
+    using Get = long double XB_THISCALL(uint8_t*);
+    const float y = static_cast<float>(method<Get>(text, 0xcc)(text) + dy);  // get y
+    const float x = static_cast<float>(method<Get>(text, 0xc8)(text) + dx);  // get x
+    method<void XB_THISCALL(uint8_t*, float, float)>(text, 0x7c)(text, x, y);  // set position
+}
+
+void XB_THISCALL UITextBase_SetPosition(uint8_t* text, float x, float y) {
+    field<float>(text, 0x2c) = x;
+    field<float>(text, 0x30) = y;
+    field<uint32_t>(text, 0x34) = 0;
+}
+
+ScriptString* XB_THISCALL UITextBase_GetName(uint8_t* text, ScriptString* out) {
+    ScriptString_Copy(out, reinterpret_cast<const ScriptString*>(text + 0x54));
+    return out;
+}
+
+ScriptString* XB_THISCALL UITextBase_GetText(uint8_t* text, ScriptString* out) {
+    ScriptString_Copy(out, reinterpret_cast<const ScriptString*>(text + 0x1c));
+    return out;
+}
+
+namespace {
+
+void text_base_dtor(uint8_t* text) {
+    field<uint32_t>(text, 0) = 0x008298b8;  // UITextBase vtable
+    if (field<void*>(text, 0x14)) {
+        z_free(field<void*>(text, 0x14));
+        field<uint32_t>(text, 0x14) = 0;
+    }
+    script_string_release(text + 0x54);
+    script_string_release(text + 0x1c);
+    field<uint32_t>(text, 0) = 0x00829244;  // UIElement vtable
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL UITextBase_DeletingDtor(uint8_t* text, uint32_t flags) {
+    text_base_dtor(text);
+    if (flags & 1) z_free(text);
+    return text;
+}
+
+void XB_THISCALL UITextBase_SetHorzAlign(uint8_t* text, int32_t align) {
+    text_set_flags(text, 0x30, 0);
+    if (align == 0x10 || align == 0x20) text_set_flags(text, uint32_t(align), 1);
+}
+
+void XB_THISCALL UITextBase_SetVertAlign(uint8_t* text, int32_t align) {
+    text_set_flags(text, 0xc0, 0);
+    if (align == 0x40 || align == 0x80) text_set_flags(text, uint32_t(align), 1);
+}
+
+void XB_THISCALL UIText_SetHorzAlign(uint8_t* text, int32_t align) {
+    UITextBase_SetHorzAlign(text, align);
+    text_layout(text);
+}
+
+void XB_THISCALL UIText_SetVertAlign(uint8_t* text, int32_t align) {
+    UITextBase_SetVertAlign(text, align);
+    text_layout(text);
+}
+
+void XB_THISCALL UIText_SetUniformScale(uint8_t* text, float scale) {
+    UITextBase_SetUniformScale(text, scale);
+    text_layout(text);
+}
+
+void XB_THISCALL UIText_SetScale(uint8_t* text, float sx, float sy) {
+    UITextBase_SetScale(text, sx, sy);
+    text_layout(text);
+}
+
+void XB_THISCALL UIText_SetPosition(uint8_t* text, float x, float y) {
+    UITextBase_SetPosition(text, x, y);
+    text_layout(text);
+}
+
+PLATFORM_ASM_ENTRY(UIText_Dtor_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIText_Dtor) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL UIText_Dtor(uint8_t* text) {
+    field<uint32_t>(text, 0) = 0x0082a450;  // UIText vtable
+    if (field<uint8_t*>(text, 0x80)) {
+        // vector deleting destructor of the lines (count at -4; 3 = destroy each, free the block)
+        title_function<void XB_REGS1 XB_STDCALL(uint8_t*, uint32_t)>(0x00012480)(field<uint8_t*>(text, 0x80), 3);
+        field<uint32_t>(text, 0x80) = 0;
+    }
+    text_base_dtor(text);
+}
+
+uint8_t* XB_THISCALL UIText_DeletingDtor(uint8_t* text, uint32_t flags) {
+    UIText_Dtor(text);
+    if (flags & 1) z_free(text);
+    return text;
+}
+
+void XB_THISCALL UIText_Draw(uint8_t* text) {
+    if (!method<uint8_t XB_THISCALL(uint8_t*)>(text, 0x30)(text)) return;  // shown
+    using DrawLines = void XB_THISCALL(uint8_t*, uint32_t, uint32_t);
+    const uint8_t scrolled = text[0x94];
+    const uint32_t first = scrolled ? field<uint32_t>(text, 0x88) : 0;
+    if (scrolled)
+        method<DrawLines>(text, 0x100)(text, first, field<uint32_t>(text, 0x8c));
+    else
+        method<DrawLines>(text, 0x100)(text, first, field<uint32_t>(text, 0x78));
+}
+
+void XB_THISCALL UIText_SetLineSpacing(uint8_t* text, int32_t spacing) {
+    if (spacing == -1) {
+        int32_t width = int32_t(address_of(text));  // the push ecx slot
+        int32_t height = spacing;                   // the argument slot the original reuses
+        nglGetTextExtent(text_font(field<int32_t>(text, 0x18)), text_at(0x0082d764), &width, &height,
+                         field<float>(text, 0x38), field<float>(text, 0x3c));  // "!"
+        field<float>(text, 0x68) = platform_x87_unsigned_to_float(uint32_t(height));
+    } else {
+        field<float>(text, 0x68) = static_cast<float>(spacing);
+    }
+    field<uint32_t>(text, 0x6c) = field<uint32_t>(text, 0x68);
+}
+
+long double XB_THISCALL UIText_GetLineHeight(uint8_t* text) {
+    const ScriptStringRep* rep = field<ScriptStringRep*>(text, 0x1c);
+    const char* string = rep ? rep->text : nullptr;
+    int32_t width = 0;
+    int32_t height = 0;
+    nglGetTextExtent(text_font(field<int32_t>(text, 0x18)), string, &width, &height, field<float>(text, 0x38),
+                     field<float>(text, 0x3c));
+    return platform_x87_unsigned_to_float(uint32_t(height));
+}
+
+long double XB_THISCALL UIText_GetTextHeight(uint8_t* text) {
+    const float line = static_cast<float>(UIText_GetLineHeight(text));
+    const int32_t count = method<int32_t XB_THISCALL(uint8_t*)>(text, 0xc4)(text) - 1;  // line count
+    return static_cast<long double>(count) * field<float>(text, 0x6c) + line;
+}
+
+// UI text lines (0x20 bytes): +0x00 kind (8), +0x04 (x, y, z), +0x14 the text (ScriptString), +0x18 an owned block.
+uint8_t* XB_THISCALL UITextLine_Construct(uint8_t* line) {
+    const uint32_t word = title_global<uint32_t>(0x00922eb8);
+    field<uint32_t>(line, 4) = word;
+    field<uint32_t>(line, 8) = word;
+    field<uint32_t>(line, 0xc) = word;
+    ScriptString_FromRep(reinterpret_cast<ScriptString*>(line + 0x14), nullptr);
+    title_function<void XB_THISCALL(uint8_t*, const char*)>(0x0011dd20)(line + 0x14, text_at(0x0082dfeb));  // ""
+    field<uint32_t>(line, 4) = 0;
+    field<uint32_t>(line, 8) = 0;
+    field<uint32_t>(line, 0xc) = 0;
+    field<uint32_t>(line, 0) = 8;
+    field<uint32_t>(line, 0x18) = 0;
+    return line;
+}
+
+void XB_THISCALL UITextLine_Dtor(uint8_t* line) {
+    if (field<void*>(line, 0x18)) {
+        z_free(field<void*>(line, 0x18));
+        field<uint32_t>(line, 0x18) = 0;
+    }
+    script_string_release(line + 0x14);
+}
+
+void XB_THISCALL UITextBase_ApplyAlignOffset(uint8_t* text, float* x, float* y, uint32_t string) {
+    using Get = long double XB_THISCALL(uint8_t*);
+    const float height = static_cast<float>(method<Get>(text, 0xd4)(text));
+    const float width = static_cast<float>(method<Get>(text, 0xd0)(text));
+    if (text_has_flags(text, 0x20))
+        *x = *x - width;
+    else if (!text_has_flags(text, 0x10))
+        *x = *x - width * g(0x0083eb24);  // 0.5
+    if (text_has_flags(text, 0x80))
+        *y = *y - height;
+    else if (!text_has_flags(text, 0x40))
+        *y = *y - height * g(0x0083eb24);
+    script_string_release(reinterpret_cast<uint8_t*>(&string));  // the by-value ScriptString argument
+}
+
+void XB_THISCALL UITextBase_CopyFrom(uint8_t* text, uint8_t* source) {
+    using Assign = void XB_THISCALL(uint8_t*, uint8_t*);
+    field<uint32_t>(text, 4) = field<uint32_t>(source, 4);
+    field<uint32_t>(text, 8) = field<uint32_t>(source, 8);
+    field<uint32_t>(text, 0xc) = field<uint32_t>(source, 0xc);
+    text[0x10] = source[0x10];
+    if (field<void*>(text, 0x14)) {
+        z_free(field<void*>(text, 0x14));
+        field<uint32_t>(text, 0x14) = 0;
+    }
+    if (field<uint32_t*>(source, 0x14)) {
+        uint32_t* const block = static_cast<uint32_t*>(z_malloc(0x10));
+        if (block) {
+            const uint32_t* from = field<uint32_t*>(source, 0x14);
+            for (int i = 0; i < 4; ++i) block[i] = from[i];
+        }
+        field<uint32_t*>(text, 0x14) = block;
+    } else {
+        field<uint32_t>(text, 0x14) = 0;
+    }
+    field<uint32_t>(text, 0x18) = field<uint32_t>(source, 0x18);
+    title_function<Assign>(0x0011d600)(text + 0x1c, source + 0x1c);  // ScriptString_Assign
+    for (uint32_t offset = 0x20; offset < 0x50; offset += 4) field<uint32_t>(text, offset) = field<uint32_t>(source, offset);
+    field<uint32_t>(text, 0x50) = field<uint32_t>(source, 0x50);
+    title_function<Assign>(0x0011d600)(text + 0x54, source + 0x54);
+    text[0x5c] = source[0x5c];
+    field<uint32_t>(text, 0x58) = field<uint32_t>(source, 0x58);
+}
+
+void XB_THISCALL UIText_ScrollBy(uint8_t* text, float delta) {
+    if (!text[0x94]) return;
+    const float old = field<float>(text, 0x90);
+    const uint8_t wrap = text[0x95];
+    const float pos = delta + old;
+    field<float>(text, 0x90) = pos;
+    float total = static_cast<float>(field<int32_t>(text, 0x78)) * field<float>(text, 0x6c);
+    const int32_t margin = field<int32_t>(text, 0x84);
+    if (wrap) {
+        total = total + static_cast<float>(margin * 2);
+    } else {
+        const float m = static_cast<float>(margin);
+        total = total - m;
+        if (m > total) total = m;
+    }
+    const float m = static_cast<float>(margin);
+    const float top = wrap ? m : 0.0f;
+    if (pos > top) field<float>(text, 0x90) = top;
+    const float bottom = 0.0f - total;
+    if (bottom > field<float>(text, 0x90)) field<float>(text, 0x90) = bottom;
+    method<void XB_THISCALL(uint8_t*, float, float)>(text, 0x70)(text, 0.0f, field<float>(text, 0x90) - old);  // move by
+    const float one = g(0x0083eb20);
+    const float per_line = one / field<float>(text, 0x6c);
+    const int32_t first = static_cast<int32_t>(0.0f - per_line * field<float>(text, 0x90));
+    const int32_t last = static_cast<int32_t>(static_cast<float>(field<int32_t>(text, 0x84)) * per_line +
+                                              static_cast<float>(first) + one);
+    field<int32_t>(text, 0x88) = first;
+    field<int32_t>(text, 0x8c) = last;
+}
+
+void XB_THISCALL UIText_AllocLines(uint8_t* text, int32_t count) {
+    field<int32_t>(text, 0x7c) = count;
+    field<int32_t>(text, 0x78) = 0;
+    uint8_t* const lines = field<uint8_t*>(text, 0x80);
+    if (lines) {
+        // the lines' vector delete, inlined
+        for (int32_t i = reinterpret_cast<int32_t*>(lines)[-1] - 1; i >= 0; --i) UITextLine_Dtor(lines + i * 0x20);
+        z_free(lines - 4);
+    }
+    const int32_t n = field<int32_t>(text, 0x7c);
+    uint8_t* const block = static_cast<uint8_t*>(heap_alloc16(uint32_t(n) * 0x20 + 4));
+    if (!block) {
+        field<uint32_t>(text, 0x80) = 0;
+        return;
+    }
+    field<int32_t>(block, 0) = n;
+    for (int32_t i = 0; i < n; ++i) UITextLine_Construct(block + 4 + i * 0x20);
+    field<uint8_t*>(text, 0x80) = block + 4;
+}
+
+namespace {
+
+// The "UI_Highlight" sound (S_PlaySoundAlias at the origin, volumes -1); the result with its low word 0xffff.
+uint32_t play_highlight_sound() {
+    alignas(16) float origin[4];
+    alignas(16) float axis[4];
+    std::memcpy(origin, &title_global<float>(0x0082e110), sizeof origin);  // (0, 0, 0, 0)
+    std::memcpy(axis, &title_global<float>(0x0082e290), sizeof axis);      // (0, 0, 0, 1)
+    const uint32_t table = title_global<uint32_t>(0x0095f4c4);
+    const int32_t alias = S_FindSoundByHash(text_at(0x0082cbf0));  // "UI_Highlight"
+    if (alias == -1) return 0xffffffff;
+    uint32_t handle = 0;
+    using PlayAlias = uint32_t* XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t, uint32_t,
+                                                     uint32_t, const float*, const float*, uint32_t, uint32_t,
+                                                     uint32_t, uint32_t);
+    const uint32_t result = address_of(title_function<PlayAlias>(0x002c30a0)(
+        uint32_t(alias), address_of(&handle), table, &handle, 0, 1, 0, axis, origin, 0xbf800000, 0xbf800000,
+        0xbf800000, 0xbf800000));  // S_PlaySoundAlias
+    return result | 0xffff;
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL UITextTable_SelectNext(uint8_t* table) {
+    uint32_t selected = field<uint32_t>(table, 0x50);
+    if (selected < field<uint32_t>(table, 0x20) - 1) {
+        const uint32_t rows = field<uint32_t>(table, 0x48);
+        ++selected;
+        const uint32_t end = field<uint32_t>(table, 0x4c) + rows;
+        field<uint32_t>(table, 0x50) = selected;
+        if (selected >= end) field<uint32_t>(table, 0x4c) = selected - rows + 1;
+    }
+    return play_highlight_sound();
+}
+
+uint32_t XB_THISCALL UITextTable_SelectPrev(uint8_t* table) {
+    uint32_t selected = field<uint32_t>(table, 0x50);
+    if (selected > 0) {
+        --selected;
+        field<uint32_t>(table, 0x50) = selected;
+        if (selected < field<uint32_t>(table, 0x4c)) field<uint32_t>(table, 0x4c) = selected;
+    }
+    return play_highlight_sound();
+}
+
+PLATFORM_ASM_ENTRY(UIText_LayoutLines_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIText_LayoutLines) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL UIText_LayoutLines(uint8_t* text) {
+    int32_t width = 0;
+    int32_t height = 0;
+    nglGetTextExtent(text_font(field<int32_t>(text, 0x18)), text_at(0x0082d6e4), &width, &height,
+                     field<float>(text, 0x38), field<float>(text, 0x3c));  // " "
+    const float space = platform_x87_unsigned_to_float(uint32_t(height));
+    const float half = g(0x0083eb24);
+    for (int32_t i = 0; i < field<int32_t>(text, 0x78); ++i) {
+        const float line_width = field<float>(field<uint8_t*>(text, 0x80) + i * 0x20, 0x10);
+        float x;
+        if (text_has_flags(text, 0x10))
+            x = field<float>(text, 0x2c);
+        else if (text_has_flags(text, 0x20))
+            x = field<float>(text, 0x2c) - line_width;
+        else
+            x = field<float>(text, 0x2c) - line_width * half;
+        float y;
+        if (text_has_flags(text, 0x40)) {
+            y = static_cast<float>(i) * field<float>(text, 0x6c) + field<float>(text, 0x30);
+        } else if (text_has_flags(text, 0x80)) {
+            y = static_cast<float>(i - field<int32_t>(text, 0x78) + 1) * field<float>(text, 0x6c) +
+                field<float>(text, 0x30) - space;
+        } else {
+            const float half_count = static_cast<float>(field<int32_t>(text, 0x78)) * half;
+            y = (static_cast<float>(i) + half - half_count) * field<float>(text, 0x6c) + field<float>(text, 0x30) -
+                space * half;
+        }
+        uint8_t* const line = field<uint8_t*>(text, 0x80) + i * 0x20;
+        field<float>(line, 4) = x;
+        field<float>(line, 8) = y;
+        field<uint32_t>(line, 0xc) = 0;
+    }
+    // +0x70: the baseline offset, from glyph 'A' of the text's font and glyph '!' of font 2 (glyph records 0x1c
+    // bytes from the font's +0x28, first character +0x38; +0x0c height, +0x14 offset).
+    const uint8_t* font = text_font(field<int32_t>(text, 0x18));
+    const uint8_t* const a = field<uint8_t*>(const_cast<uint8_t*>(font), 0x28) +
+                             (0x41 - field<int32_t>(const_cast<uint8_t*>(font), 0x38)) * 0x1c;
+    uint8_t* const font2 = title_global<uint8_t*>(0x0095f8dc);
+    const uint8_t* const bang = field<uint8_t*>(font2, 0x28) + (0x21 - field<int32_t>(font2, 0x38)) * 0x1c;
+    const int32_t* const ga = reinterpret_cast<const int32_t*>(a);
+    const int32_t* const gb = reinterpret_cast<const int32_t*>(bang);
+    const float above = (static_cast<float>(ga[3]) * half + static_cast<float>(ga[5])) * field<float>(text, 0x3c);
+    field<float>(text, 0x70) =
+        (static_cast<float>(gb[3]) * half + static_cast<float>(gb[5])) * field<float>(text, 0x64) - above +
+        g(0x0083eb20);
+}
+
+namespace {
+
+float negated(float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    bits ^= 0x80000000u;  // XORPS with the sign mask 0x0082e0b0
+    std::memcpy(&value, &bits, 4);
+    return value;
+}
+
+}  // namespace
+
+void XB_THISCALL UITextBase_SetTransform(uint8_t* text, const float* matrix, float alpha) {
+    const bool applied = text[0x10] & 1;
+    if (applied) {
+        field<float>(text, 0x2c) = matrix[12] + field<float>(text, 0x2c);
+        field<float>(text, 0x30) = matrix[13] + field<float>(text, 0x30);
+    } else {
+        field<float>(text, 0x2c) = matrix[12] + field<float>(text, 0x20);
+        field<float>(text, 0x30) = field<float>(text, 0x24) + matrix[13];
+    }
+    using SetAlpha = void XB_THISCALL(uint8_t*, float);
+    if (applied) {
+        field<float>(text, 0x38) = matrix[0] * field<float>(text, 0x38);
+        field<float>(text, 0x3c) = matrix[5] * field<float>(text, 0x3c);
+        method<SetAlpha>(text, 0x88)(text, field<float>(text, 4) * alpha);
+    } else {
+        // MULPS of rows 0 and 1 by the base scales: every lane's flags
+        float row0[4];
+        float row1[4];
+        const float sx = field<float>(text, 0x44);
+        const float sy = field<float>(text, 0x48);
+        for (int k = 0; k < 4; ++k) row0[k] = matrix[k] * sx;
+        platform_keep(row0);
+        field<float>(text, 0x38) = row0[0];
+        for (int k = 0; k < 4; ++k) row1[k] = matrix[4 + k] * sy;
+        platform_keep(row1);
+        field<float>(text, 0x3c) = row1[1];
+        method<SetAlpha>(text, 0x88)(text, alpha);
+    }
+}
+
+void XB_THISCALL UIText_SetTransform(uint8_t* text, const float* matrix, float alpha) {
+    const bool applied = text[0x10] & 1;
+    if (applied) {
+        const float y = field<float>(text, 0x30) + matrix[13];
+        field<float>(text, 0x2c) = matrix[12] + field<float>(text, 0x2c);
+        field<float>(text, 0x30) = y;
+    } else {
+        const float y = field<float>(text, 0x24) + matrix[13];
+        field<float>(text, 0x2c) = matrix[12] + field<float>(text, 0x20);
+        field<float>(text, 0x30) = y;
+    }
+    field<uint32_t>(text, 0x34) = 0;
+    if (applied) {
+        field<float>(text, 0x38) = matrix[0] * field<float>(text, 0x38);
+        field<float>(text, 0x3c) = negated(matrix[5]) * field<float>(text, 0x3c);
+    } else {
+        field<float>(text, 0x38) = matrix[0];
+        field<float>(text, 0x3c) = negated(matrix[5]);
+        field<uint32_t>(text, 0x40) = 0;
+    }
+    field<float>(text, 0x6c) = field<float>(text, 0x68) * field<float>(text, 0x3c);
+    using SetAlpha = void XB_THISCALL(uint8_t*, float);
+    if (applied)
+        method<SetAlpha>(text, 0x88)(text, field<float>(text, 4) * alpha);
+    else
+        method<SetAlpha>(text, 0x88)(text, alpha);
+    UIText_LayoutLines(text);
+}
+
+// Title helpers taking EAX and ESI plus one stack word (ret 4).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ui_call_eax_esi(uint32_t function, uint32_t eax, uint32_t esi,
+                                                            uint32_t arg);
+PLATFORM_ASM_ENTRY(ui_call_eax_esi,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %ecx\n"
+                   "movl 12(%esp), %eax\n"
+                   "movl 16(%esp), %esi\n"
+                   "pushl 20(%esp)\n"
+                   "call *%ecx\n"
+                   "popl %esi\n"
+                   "ret")
+
+namespace {
+
+using Str = ScriptString;
+
+Str* str_substring(Str* self, Str* out, int32_t start, int32_t length) {
+    return title_function<Str* XB_THISCALL(Str*, Str*, int32_t, int32_t)>(0x0011e290)(self, out, start, length);
+}
+void str_assign(Str* self, const Str* other) {
+    title_function<void XB_THISCALL(Str*, const Str*)>(0x0011d600)(self, other);
+}
+void str_assign_text(Str* self, const char* text) {
+    title_function<void XB_THISCALL(Str*, const char*)>(0x0011dd20)(self, text);
+}
+void str_release(Str* self) { script_string_release(reinterpret_cast<uint8_t*>(self)); }
+const char* str_text(const Str* self) { return self->rep ? self->rep->text : nullptr; }
+uint32_t str_length(const Str* self) { return self->rep ? self->rep->length : 0; }
+
+// The width of `text` in `font` at (scale, scale) (nglGetTextExtent, unsigned to float on the x87).
+float text_extent_width(const uint8_t* font, const char* text, float scale) {
+    int32_t width = 0;
+    int32_t height = 0;
+    nglGetTextExtent(font, text, &width, &height, scale, scale);
+    return platform_x87_unsigned_to_float(uint32_t(width));
+}
+
+const uint8_t* button_font() { return title_global<const uint8_t*>(0x0095f8dc); }  // ui_fonts[2]
+
+// 0x00315620 (text in EDI, out in ESI): the length of the button token ("~select", ...) at `text` and its glyph
+// string in *out; 0 (out not written) without a '~'.
+int32_t translate_button_token(const char* text, const char** out) {
+    return int32_t(title_call_regs(0x00315620, 0, address_of(out), address_of(text)));
+}
+
+// 0x0030f950 (kind in EAX, text in EDX): the width of the text in the kind's font at (scale, scale), x87; the
+// constant 0x0083eafc for no text or kind 8.
+long double text_width(int32_t kind, const char* text, float scale) {
+    return title_function<long double XB_REGS2 XB_CDECL(int32_t, const char*, float)>(0x0030f950)(kind, text, scale);
+}
+
+// 0x00315cd0 (block in EAX, out in ESI; colour on the stack): the colour faded towards the block's (16 bytes at
+// +0x14 of a UI text). Returns the colour word.
+uint32_t text_fade_colour(uint8_t* text, uint32_t colour) {
+    uint32_t out = 0;
+    const uint32_t result =
+        ui_call_eax_esi(0x00315cd0, field<uint32_t>(text, 0x14), address_of(&out), colour);
+    return *reinterpret_cast<uint32_t*>(uintptr_t{result});
+}
+
+// The text colour +0x50 (faded with flags bit 3) with its alpha times the fade alpha +0x04 (x87, _ftol).
+uint32_t text_draw_colour(uint8_t* text) {
+    uint32_t colour = field<uint32_t>(text, 0x50);
+    if (text[0x5c] & 8) colour = text_fade_colour(text, colour);
+    const int32_t alpha = platform_x87_mul_add_ftol(int32_t(colour >> 24), field<float>(text, 4), 0, false);
+    return (colour & 0x00ffffffu) | (uint32_t(uint8_t(alpha)) << 24);
+}
+
+long double element_depth(uint8_t* element) {
+    return method<long double XB_THISCALL(uint8_t*)>(element, 0x28)(element);  // UIElement_GetDepth
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL UITextLine_LayoutTokens(uint8_t* line, float scale, float button_scale) {
+    Str* const text = reinterpret_cast<Str*>(line + 0x14);
+    if (field<int32_t>(line, 0x1c) / 2 <= 0) return uint32_t(field<int32_t>(line, 0x1c) / 2);
+    float width = 0.0f;
+    int32_t pos = 0;
+    int32_t marks = 1;
+    const char* glyph = nullptr;  // kept across tokens like the original's slot
+    for (int32_t i = 0; i < field<int32_t>(line, 0x1c) / 2; ++i) {
+        const int32_t start = ScriptString_FindChar(text, uint32_t(pos), '~');
+        Str before;
+        str_substring(text, &before, pos, start - pos);
+        float w = 0.0f;
+        const int32_t kind = field<int32_t>(line, 0);
+        if (str_text(&before) && kind != 8) w = text_extent_width(text_font(kind), str_text(&before), scale);
+        width = w + width;
+        str_release(&before);
+        field<int16_t*>(line, 0x18)[i * 4] = int16_t(start);
+        field<int16_t*>(line, 0x18)[i * 4 + 1] = int16_t(static_cast<int32_t>(width));
+        const int32_t consumed = translate_button_token(str_text(text) + start, &glyph);
+        // the text with the token replaced by its glyphs
+        Str rest, prefix, joined, all;
+        str_substring(text, &rest, consumed + start, int32_t(str_length(text)) - consumed - start);
+        str_substring(text, &prefix, 0, start);
+        title_function<Str* XB_CDECL(Str*, const Str*, const char*)>(0x0011eec0)(&joined, &prefix, glyph);  // ConcatCString
+        title_function<Str* XB_CDECL(Str*, const Str*, const Str*)>(0x0011e340)(&all, &joined, &rest);  // Concat
+        str_assign(text, &all);
+        str_release(&all);
+        str_release(&joined);
+        str_release(&prefix);
+        str_release(&rest);
+        int32_t glyph_length = 0;  // the original's inline strlen
+        while (glyph[glyph_length]) ++glyph_length;
+        pos = glyph_length + start;
+        if (!text->rep || uint32_t(pos) >= text->rep->length) {
+            field<int32_t>(line, 0x1c) = marks;
+        } else {
+            float w2 = 0.0f;
+            if (glyph) w2 = text_extent_width(button_font(), glyph, button_scale);
+            width = w2 + width;
+            field<int16_t*>(line, 0x18)[i * 4 + 2] = int16_t(pos);
+            field<int16_t*>(line, 0x18)[i * 4 + 3] = int16_t(static_cast<int32_t>(width));
+        }
+        if (i == field<int32_t>(line, 0x1c) / 2 - 1 || !text->rep || uint32_t(pos) >= text->rep->length) {
+            Str tail;
+            str_substring(text, &tail, pos, int32_t(str_length(text)) - pos);
+            float w3 = 0.0f;
+            const int32_t kind2 = field<int32_t>(line, 0);
+            if (str_text(&tail) && kind2 != 8) w3 = text_extent_width(text_font(kind2), str_text(&tail), scale);
+            field<float>(line, 0x10) = w3 + width;
+            str_release(&tail);
+        }
+        marks += 2;
+    }
+    return uint32_t(field<int32_t>(line, 0x1c) / 2);
+}
+
+PLATFORM_ASM_ENTRY(UITextLine_Init_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UITextLine_Init) "addl $20, %esp\n"
+                   "ret $12")
+
+uint32_t XB_CDECL UITextLine_Init(uint8_t* line, const char* string, int32_t kind, float scale, float button_scale) {
+    Str* const text = reinterpret_cast<Str*>(line + 0x14);
+    str_assign_text(text, string);
+    field<uint32_t>(line, 4) = 0;
+    field<int32_t>(line, 0) = kind;
+    field<uint32_t>(line, 8) = 0;
+    field<uint32_t>(line, 0xc) = 0;
+    field<uint32_t>(line, 0x10) = 0;
+    field<int32_t>(line, 0x1c) = 0;
+    // two token marks per '~'
+    int32_t pos = 0;
+    while (text->rep && text->rep->text[0] && pos >= 0) {
+        pos = ScriptString_FindChar(text, uint32_t(pos), '~');
+        if (pos >= 0) {
+            field<int32_t>(line, 0x1c) += 2;
+            ++pos;
+        }
+    }
+    if (field<void*>(line, 0x18)) {
+        z_free(field<void*>(line, 0x18));
+        field<uint32_t>(line, 0x18) = 0;
+    }
+    const int32_t marks = field<int32_t>(line, 0x1c);
+    if (marks > 0) {
+        void* const block = heap_alloc16(uint32_t(marks) * 4);
+        if (block)
+            title_function<void XB_STDCALL(void*, uint32_t, int32_t, uint32_t)>(0x00011240)(
+                block, 4, marks, 0x00011750);  // eh_vector_constructor_iterator
+        field<void*>(line, 0x18) = block;
+        return UITextLine_LayoutTokens(line, scale, button_scale);
+    }
+    field<float>(line, 0x10) = static_cast<float>(text_width(field<int32_t>(line, 0), str_text(text), scale));
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(UIText_MeasureWord_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIText_MeasureWord) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $16, %esp\n"
+                   "ret")
+
+float XB_CDECL UIText_MeasureWord(const char* word, int32_t kind, float scale, float button_scale) {
+    if (!word[0]) return 0.0f;
+    float width = 0.0f;
+    Str text;
+    title_function<void XB_THISCALL(Str*, const char*)>(0x0011eb50)(&text, word);  // ScriptString_FromCString
+    int32_t pos = 0;
+    const char* glyph = nullptr;
+    for (;;) {
+        const int32_t start = ScriptString_FindChar(&text, uint32_t(pos), '~');
+        if (start == -1) break;
+        Str before;
+        str_substring(&text, &before, pos, start - pos);
+        float w = 0.0f;
+        if (str_text(&before) && kind != 8) w = text_extent_width(text_font(kind), str_text(&before), scale);
+        width = w + width;
+        str_release(&before);
+        pos = translate_button_token(str_text(&text) + start, &glyph) + start;
+        float w2 = 0.0f;
+        if (glyph) w2 = text_extent_width(button_font(), glyph, button_scale);
+        width = w2 + width;
+        if (pos < 0) break;
+    }
+    if (pos != 0) {
+        Str tail;
+        str_substring(&text, &tail, pos, int32_t(str_length(&text)) - pos);
+        width = static_cast<float>(text_width(kind, str_text(&tail), scale) + width);
+        str_release(&tail);
+    } else {
+        width = static_cast<float>(text_width(kind, str_text(&text), scale) + width);
+    }
+    str_release(&text);
+    return width;
+}
+
+PLATFORM_ASM_ENTRY(UITextLine_Draw_entry,
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UITextLine_Draw) "addl $32, %esp\n"
+                   "ret $28")
+
+void XB_CDECL UITextLine_Draw(uint8_t* line, float depth, uint32_t colour, uint32_t button_colour, float sx, float sy,
+                              float button_scale, float button_drop) {
+    Str* const text = reinterpret_cast<Str*>(line + 0x14);
+    const int16_t* tokens;
+    if (field<int32_t>(line, 0x1c) <= 0) {
+        nglListAddText(text_font(field<int32_t>(line, 0)), str_text(text), field<float>(line, 4), field<float>(line, 8),
+                       depth, colour, sx, sy);
+        return;
+    }
+    Str part;
+    str_substring(text, &part, 0, field<int16_t*>(line, 0x18)[0]);
+    nglListAddText(text_font(field<int32_t>(line, 0)), str_text(&part), field<float>(line, 4), field<float>(line, 8),
+                   depth, colour, sx, sy);
+    str_release(&part);
+    for (int32_t i = 0; i < (field<int32_t>(line, 0x1c) + 1) / 2; ++i) {
+        const int32_t mark = i * 2;
+        // the token's glyphs in the button font
+        tokens = field<int16_t*>(line, 0x18);
+        const int32_t start = tokens[i * 4];
+        const int32_t end = mark == field<int32_t>(line, 0x1c) - 1 ? int32_t(str_length(text)) : tokens[i * 4 + 2];
+        Str glyphs;
+        str_substring(text, &glyphs, start, end - start);
+        const float y = field<float>(line, 8) - button_drop;
+        const float x = static_cast<float>(field<int16_t*>(line, 0x18)[i * 4 + 1]) + field<float>(line, 4);
+        nglListAddText(button_font(), str_text(&glyphs), x, y, depth, button_colour, button_scale, button_scale);
+        str_release(&glyphs);
+        // the text after it, up to the next token
+        const int32_t count = field<int32_t>(line, 0x1c);
+        if (mark < count - 1) {
+            tokens = field<int16_t*>(line, 0x18);
+            const int32_t from = tokens[i * 4 + 2];
+            const int32_t to = mark == count - 2 ? int32_t(str_length(text)) : tokens[i * 4 + 4];
+            Str after;
+            str_substring(text, &after, from, to - from);
+            const float ax = static_cast<float>(field<int16_t*>(line, 0x18)[i * 4 + 3]) + field<float>(line, 4);
+            nglListAddText(text_font(field<int32_t>(line, 0)), str_text(&after), ax, field<float>(line, 8), depth,
+                           colour, sx, sy);
+            str_release(&after);
+        }
+    }
+}
+
+void XB_THISCALL UIText_DrawLines(uint8_t* text, int32_t first, int32_t end) {
+    if (!method<uint8_t XB_THISCALL(uint8_t*)>(text, 0x30)(text)) return;
+    if (first < 0) first = 0;
+    if (end > field<int32_t>(text, 0x78)) end = field<int32_t>(text, 0x78);
+    const uint32_t colour = text_draw_colour(text);
+    const uint32_t button_colour = field<uint32_t>(text, 0x60);
+    for (int32_t i = first; i < end; ++i) {
+        uint8_t* line = field<uint8_t*>(text, 0x80) + i * 0x20;
+        if (field<int32_t>(line, 0) == 8) continue;
+        if (ScriptString_Equals(reinterpret_cast<const Str*>(line + 0x14), text_at(0x0082dfeb))) continue;  // ""
+        const float drop = field<float>(text, 0x70);
+        const float button_scale = field<float>(text, 0x64);
+        const float sy = field<float>(text, 0x3c);
+        const float sx = field<float>(text, 0x38);
+        const float depth = static_cast<float>(element_depth(text));
+        UITextLine_Draw(field<uint8_t*>(text, 0x80) + i * 0x20, depth, colour, button_colour, sx, sy, button_scale,
+                        drop);
+    }
+}
+
+void XB_THISCALL UITextBase_Draw(uint8_t* text) {
+    if (!method<uint8_t XB_THISCALL(uint8_t*)>(text, 0x30)(text)) return;
+    Str* const string = reinterpret_cast<Str*>(text + 0x1c);
+    if (ScriptString_Equals(string, text_at(0x0082dfeb))) return;  // ""
+    const uint32_t colour = text_draw_colour(text);
+    float x = field<float>(text, 0x2c);
+    float y = field<float>(text, 0x30);
+    Str copy;
+    ScriptString_Copy(&copy, string);  // handed over by value, released by the callee
+    method<void XB_THISCALL(uint8_t*, float*, float*, uint32_t)>(text, 0xfc)(text, &x, &y,
+                                                                          address_of(copy.rep));
+    const char* const chars = str_text(string);
+    const uint8_t* const font = text_font(field<int32_t>(text, 0x18));
+    const float sy = field<float>(text, 0x3c);
+    const float sx = field<float>(text, 0x38);
+    const float depth = static_cast<float>(element_depth(text));
+    nglListAddText(font, chars, x, y, depth, colour, sx, sy);
+}
+
+uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t width, uint8_t store) {
+    using StrFn = void XB_THISCALL(Str*, const char*);
+    if (field<int32_t>(text, 0x18) == 8) return 0;
+    int32_t count = 0;
+    int32_t pos = 0;
+    float line_width = 0.0f;
+    float measured = 0.0f;
+    Str line;
+    title_function<StrFn>(0x0011eb50)(&line, text_at(0x0082dfeb));  // ScriptString_FromCString("")
+    auto trim = [&]() {
+        title_function<StrFn>(0x0011ed20)(&line, text_at(0x0082e09c));  // TrimLeftChars(" \n\t\r")
+        title_function<StrFn>(0x0011edf0)(&line, text_at(0x0082e09c));  // TrimRightChars
+    };
+    auto store_line = [&]() {
+        UITextLine_Init(field<uint8_t*>(text, 0x80) + count * 0x20, str_text(&line), field<int32_t>(text, 0x18),
+                        field<float>(text, 0x38), field<float>(text, 0x64));
+    };
+    if (string[0]) {
+        const float max_width = static_cast<float>(width);
+        char word[0x100];
+        do {
+            const char* const from = string + pos;
+            const int32_t n = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001ef010)(
+                from, text_at(0x0082d280));  // _strcspn(" -\n\r")
+            pos += n;
+            const char separator = string[pos];
+            title_function<char* XB_CDECL(char*, const char*, int32_t)>(0x001eed80)(word, from, n);  // _strncpy
+            word[n] = 0;
+            bool newline = false;
+            if (separator) {
+                ++pos;
+                if (separator == '-' || separator == ' ') {  // kept on the word (inline strcat)
+                    char* end = word;
+                    while (*end) ++end;
+                    end[0] = separator;
+                    end[1] = 0;
+                } else if (separator == '\n') {
+                    newline = true;
+                }
+            }
+            if (newline) {
+                // the line so far ends here; the word before the newline starts the next one
+                line_width = 0.0f;
+                trim();
+                if (store && count < field<int32_t>(text, 0x7c)) store_line();
+                str_assign_text(&line, text_at(0x0082dfeb));
+                ++count;
+            }
+            if (title_function<int32_t XB_CDECL(const char*, const char*, int32_t)>(0x001eeaf0)(
+                    word, text_at(0x0082d27c), 2) == 0) {  // _strncmp(word, "\f[", 2): a kind change
+                field<int32_t>(text, 0x18) =
+                    title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(word + 2);  // _atol
+                for (int32_t k = 0;; ++k) {
+                    word[k] = word[k + 4];
+                    if (!word[k]) break;
+                }
+            }
+            const float w = UIText_MeasureWord(word, field<int32_t>(text, 0x18), field<float>(text, 0x38),
+                                               field<float>(text, 0x64));
+            measured = w + line_width;
+            if (measured > max_width) {
+                line_width = w;
+                trim();
+                if (store && count < field<int32_t>(text, 0x7c)) store_line();
+                str_assign_text(&line, word);
+                ++count;
+            } else {
+                title_function<StrFn>(0x0011ebc0)(&line, word);  // ScriptString_AppendCString
+                line_width = measured;
+            }
+            if (!string[pos]) {
+                trim();
+                if (line.rep && line.rep->length) {
+                    if (store && count < field<int32_t>(text, 0x7c)) store_line();
+                    ++count;
+                }
+            }
+        } while (string[pos]);
+    }
+    str_release(&line);
+    return uint32_t(count);
+}
+
+void XB_THISCALL UIText_SetWrappedText(uint8_t* text, uint32_t string, int32_t width, float a3) {
+    const bool unset = a3 == g(0x0083eb34);  // -1.0 (UCOMISS; nothing else uses it)
+    platform_keep(unset);
+    field<int32_t>(text, 0x74) = width;
+    Str* const source = reinterpret_cast<Str*>(&string);
+    field<uint32_t>(text, 0x78) = UIText_WrapLines(text, str_text(source), width, 0);
+    if (field<uint8_t*>(text, 0x80))
+        title_function<void XB_REGS1 XB_STDCALL(uint8_t*, uint32_t)>(0x00012480)(field<uint8_t*>(text, 0x80), 3);
+    const int32_t n = field<int32_t>(text, 0x78);
+    uint8_t* lines = nullptr;
+    if (uint8_t* const block = static_cast<uint8_t*>(heap_alloc16(uint32_t(n) * 0x20 + 4))) {
+        field<int32_t>(block, 0) = n;
+        lines = block + 4;
+        for (int32_t i = 0; i < n; ++i) UITextLine_Construct(lines + i * 0x20);
+    }
+    field<uint32_t>(text, 0x7c) = field<uint32_t>(text, 0x78);
+    field<uint8_t*>(text, 0x80) = lines;
+    UIText_WrapLines(text, str_text(source), width, 1);
+    str_assign_text(reinterpret_cast<Str*>(text + 0x1c),
+                    str_text(reinterpret_cast<Str*>(field<uint8_t*>(text, 0x80) + 0x14)));
+    UIText_LayoutLines(text);
+    str_release(source);  // the by-value argument
+}
+
+void XB_THISCALL UITextTable_Draw(uint8_t* table) {
+    using Get = long double XB_THISCALL(uint8_t*);
+    using SetFloat = void XB_THISCALL(uint8_t*, float);
+    using SetText = void XB_THISCALL(uint8_t*, const char*);
+    using Call = void XB_THISCALL(uint8_t*);
+    uint8_t* item = field<uint8_t*>(table, 0x10);
+    const float x0 = static_cast<float>(method<Get>(item, 0xc8)(item));
+    item = field<uint8_t*>(table, 0x10);
+    const float y0 = static_cast<float>(method<Get>(item, 0xcc)(item));
+    auto text_item = [&]() { return field<uint8_t*>(table, 0x10); };
+    auto set_x_by = [&](float dx) {
+        uint8_t* t = text_item();
+        const float x = static_cast<float>(method<Get>(t, 0xc8)(t) + dx);
+        t = text_item();
+        method<SetFloat>(t, 0x80)(t, x);
+    };
+    auto set_y_by = [&](float dy) {
+        uint8_t* t = text_item();
+        const float y = static_cast<float>(method<Get>(t, 0xcc)(t) + dy);
+        t = text_item();
+        method<SetFloat>(t, 0x84)(t, y);
+    };
+    auto draw_text = [&](const Str* s) {
+        uint8_t* t = text_item();
+        method<SetText>(t, 0x78)(t, str_text(s));
+    };
+    if (table[0x34]) {  // the header row: four texts +0x38.., column offsets +0x24..
+        table[0x15] = 0;
+        method<Call>(table, 0x94)(table);
+        for (uint32_t k = 0; k < 4; ++k) {
+            draw_text(reinterpret_cast<const Str*>(table + 0x38 + k * 4));
+            method<Call>(text_item(), 0x3c)(text_item());
+            set_x_by(field<float>(table, 0x24 + k * 4));
+        }
+        set_y_by(field<float>(table, 0x58));
+    }
+    for (uint32_t i = 0; field<uint32_t>(table, 0x4c) + i < field<uint32_t>(table, 0x20) && i < field<uint32_t>(table, 0x48);
+         ++i) {
+        const uint32_t row = field<uint32_t>(table, 0x4c) + i;
+        if (row == field<uint32_t>(table, 0x50)) {
+            table[0x15] = 1;
+            method<Call>(table, 0x94)(table);
+        }
+        // row record: +0x04 the first text, +0x0c column count, +0x10.. the column texts
+        draw_text(reinterpret_cast<const Str*>(field<uint8_t**>(table, 0x18)[row] + 4));
+        method<SetFloat>(text_item(), 0x80)(text_item(), x0);
+        method<Call>(text_item(), 0x3c)(text_item());
+        for (uint32_t c = 0; c < field<uint32_t>(field<uint8_t**>(table, 0x18)[row], 0xc); ++c) {
+            draw_text(reinterpret_cast<const Str*>(field<uint8_t**>(table, 0x18)[row] + 0x10 + c * 4));
+            set_x_by(field<float>(table, 0x24 + c * 4));
+            method<Call>(text_item(), 0x3c)(text_item());
+        }
+        set_y_by(field<float>(table, 0x54));
+        if (row == field<uint32_t>(table, 0x50)) {
+            table[0x15] = 0;
+            method<Call>(table, 0x94)(table);
+        }
+    }
+    method<SetFloat>(text_item(), 0x80)(text_item(), x0);
+    method<SetFloat>(text_item(), 0x84)(text_item(), y0);
+}
+
 }  // namespace game

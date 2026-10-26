@@ -1,6 +1,8 @@
 address,name,tested,matched,nan,mismatched,coverage
 00011020,Scr_Sin,4000,4000,0,0,100.0
 00011030,Scr_Tan,3021,3021,0,0,100.0
+00011430,UITextBase_SetScale,3810,3810,0,0,100.0
+000115f0,UITextBase_GetText,3513,3513,0,0,100.0
 00011ac0,UIPicture_GetHeight,1875,1875,0,0,100.0
 00013a00,Scr_Atan,4000,4000,0,0,100.0
 00013a10,Scr_Atan2,4000,4000,0,0,100.0
@@ -549,6 +551,8 @@ address,name,tested,matched,nan,mismatched,coverage
 00310520,UIPictureBlock_SetVertexUVs,3490,3490,0,0,100.0
 00310560,UIQuad_PlaceScaled,3822,3822,0,0,100.0
 00310820,UIQuad_SetWipe,3802,3802,0,0,91.8
+003158a0,UITextLine_Dtor,2756,2756,0,0,100.0
+003159c0,UITextBase_CopyFrom,2291,2291,0,0,100.0
 003166a0,UIPicture_ScaleXForAspect,1860,1860,0,0,100.0
 00316f40,UIPicture_CopyFrom,3158,3158,0,0,100.0
 00317240,UIQuad_GetMaxCorner,3626,3626,0,0,100.0
