@@ -1,6 +1,7 @@
 address,name,tested,matched,nan,mismatched,coverage
 00011020,Scr_Sin,4000,4000,0,0,100.0
 00011030,Scr_Tan,3021,3021,0,0,100.0
+00011ac0,UIPicture_GetHeight,1875,1875,0,0,100.0
 00013a00,Scr_Atan,4000,4000,0,0,100.0
 00013a10,Scr_Atan2,4000,4000,0,0,100.0
 00013e70,Scr_Length,3843,3843,0,0,100.0
@@ -548,9 +549,13 @@ address,name,tested,matched,nan,mismatched,coverage
 00310520,UIPictureBlock_SetVertexUVs,3490,3490,0,0,100.0
 00310560,UIQuad_PlaceScaled,3822,3822,0,0,100.0
 00310820,UIQuad_SetWipe,3802,3802,0,0,91.8
+003166a0,UIPicture_ScaleXForAspect,1860,1860,0,0,100.0
+00316f40,UIPicture_CopyFrom,3158,3158,0,0,100.0
 00317240,UIQuad_GetMaxCorner,3626,3626,0,0,100.0
 003172f0,UIQuad_SetVertexAlpha,1908,1908,0,0,100.0
 00317350,UIQuad_SetVertexColor,1969,1969,0,0,100.0
+003216e0,UIMeshList_ScaleXForAspect,3627,3627,0,0,100.0
+00321940,UIPicture_SetColorRGB,1880,1880,0,0,100.0
 00322bd0,UIQuad_GetVertexMin,3662,3662,0,0,100.0
 00322c70,UIQuad_GetVertexMax,3701,3701,0,0,100.0
 00322d10,UIQuad_SetVertexAlphaScaled,1974,1974,0,0,100.0
