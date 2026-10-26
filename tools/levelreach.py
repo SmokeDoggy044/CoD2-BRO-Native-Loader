@@ -8,7 +8,14 @@ code addresses stored by code (callbacks) upward - and the call sites of those s
 direct calls from each level section ("+N direct"). A function
 reached through a pointer in data (vtables) is marked: its callers are not followed.
 
+With --dead: the functions nothing reaches instead - no CALL/JMP, no pointer in data, no
+code address in code (callbacks), or only from functions that are dead themselves (the
+XBE entry point is live); per module, with their states. Functions the harness saw called
+(tools/data/functions.csv calls > 0) are live whatever the bytes say - some pointers are
+computed at run time (the effect allocator's FxMem_Alloc/Free): listed apart, as a warning.
+
 usage: tools/levelreach.py FUNCTION... [--module renderer --state untested] [--depth 12]
+       tools/levelreach.py --dead [--module M] [--state S]
 Reads the XBE and the exported symbols only (no Ghidra needed).
 """
 import argparse
@@ -45,6 +52,7 @@ def main():
     parser.add_argument("--module")
     parser.add_argument("--state")
     parser.add_argument("--depth", type=int, default=12)
+    parser.add_argument("--dead", action="store_true")
     args = parser.parse_args()
     functions, _ = fnpack.load_names()
     by_name = {n: a for a, n in functions.items()}
@@ -100,6 +108,10 @@ def main():
                 elif owner(start + j) is not None and owner(start + j) != word:
                     callers[word].add(owner(start + j))
 
+    if args.dead:
+        report_dead(image, functions, starts, callers, data_pointer, args)
+        return
+
     for target in targets:
         seen, frontier, found = {target}, [target], set()
         through_data = target in data_pointer
@@ -128,6 +140,39 @@ def main():
             level_text += f" (+{sum(direct.values())} direct)"
         print(f"{target:08x} {functions.get(target, '?'):34} {level_text}"
               + (" (+data pointer)" if through_data else "") + (f"  via {builtins}" if builtins else ""))
+
+
+def report_dead(image, functions, starts, callers, data_pointer, args):
+    entry = struct.unpack_from("<I", image.data, 0x128)[0] ^ 0xA8FC57AB  # retail entry-point XOR key
+    rows = {int(r["address"], 16): r for r in csv.DictReader(open(fnpack.DATA / "progress.csv"))}
+    ran = {int(r["address"], 16) for r in csv.DictReader(open(fnpack.DATA / "functions.csv"))
+           if int(r["calls"] or 0) or int(r["tested"] or 0)}
+    dead = set()
+    changed = True
+    while changed:
+        changed = False
+        for f in starts:
+            if f in dead or f in ran or f in data_pointer or f == entry or image.section(f) in fnpack.DATA_SECTIONS:
+                continue
+            if all(c in dead for c in callers.get(f, ())):
+                dead.add(f)
+                changed = True
+    unseen = [f for f in sorted(ran & set(starts)) if f not in data_pointer and f != entry
+              and all(c in dead or c == f for c in callers.get(f, ()))]
+    if unseen:
+        print(f"== ran although nothing in the XBE points to them (computed pointers): "
+              + ", ".join(functions.get(f, hex(f)) for f in unseen))
+    by_module = collections.defaultdict(list)
+    for f in sorted(dead):
+        row = rows.get(f)
+        if not row or (args.module and row["module"] != args.module) or (args.state and row["state"] != args.state):
+            continue
+        by_module[row["module"]].append((f, row["name"], row["state"]))
+    for module, items in sorted(by_module.items()):
+        states = collections.Counter(state for _, _, state in items)
+        print(f"== {module}: {len(items)} dead ({', '.join(f'{n} {s}' for s, n in states.most_common())})")
+        for f, name, state in items:
+            print(f"{f:08x} {name:40} {state}")
 
 
 if __name__ == "__main__":
