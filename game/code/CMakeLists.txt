@@ -54,7 +54,9 @@ target_include_directories(game_code PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(game_code PRIVATE ${PROJECT_SOURCE_DIR}/platform)
 target_link_libraries(game_code PRIVATE cod_bro_options)
 # The title does its float math in SSE (single precision); x87 code would round and
-# quiet NaNs differently. Pentium III level: SSE only, no SSE2.
+# quiet NaNs differently. Pentium III level: SSE only, no SSE2. -frounding-math: the
+# title's MXCSR does not round to nearest, so constant expressions (1.0f / 320.0f in
+# nglMatrixScreenToClip) must not be folded at build time (optimized builds did).
 if(CMAKE_SIZEOF_VOID_P EQUAL 4 AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(i.86|x86|X86)$")
-    target_compile_options(game_code PRIVATE -msse -mfpmath=sse)
+    target_compile_options(game_code PRIVATE -msse -mfpmath=sse -frounding-math)
 endif()
