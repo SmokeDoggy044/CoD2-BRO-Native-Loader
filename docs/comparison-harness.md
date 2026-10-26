@@ -359,7 +359,19 @@ corpus of 256: 1-4 changes to arena words near a chunk's start, input slots, or 
 modes; a pointer argument is redrawn when it would share another argument's chunk), only
 inputs the original finished within 2 ms (a long loop's input would fill the corpus with slow ones),
 so the rare input that gets through a chain of pointers and small indexes leads to more
-like it (NAL_EntropyMode0C: 8 inputs of 4000 to 1862; Actor_GrenadeTargetClear 0 to 742). The x87 control word and MXCSR vary per input (24/53/64-bit
+like it (NAL_EntropyMode0C: 8 inputs of 4000 to 1862; Actor_GrenadeTargetClear 0 to 742). Compare
+constants (leafscan's 6th field, at most 32: the function's own, then its callees' breadth first):
+cmp/test immediates, the value an add/sub right before a jcc zeroes, a switch's range (`add -k; cmp
+n` gives k..k+n, the first 16) and image words an fcomp/comiss/cmp reads; 0, 1 and -1 left out. A
+fifth mutation kind and 1 fresh input in 4 get one dictionary step: half the time (when the
+function has constants) a constant, 1 in 4 off by one, into an input slot (1/3) or as an 8/16/32-bit
+field (as wide as it needs at least) at one chunk offset (half the time in the first 16 bytes) in every chunk
+(3/4) or in one; otherwise a word copied from a slot or an arena field to a slot (not into another
+argument's chunk), or to an arena field the same way, sometimes a run of 2-8 (an array of equal
+values), sometimes a second field too. FxRenderer_NewOp5b's switch on a 16-bit field that must be
+4..7, FxConst_Within's two floats that must be equal. Coverage is noisy: the same function lands
+on 44% or 90% depending on the random stream (bimodal: one lucky input breeds), so compare such
+changes over several `LEAF_SEED=N` (default 0). The x87 control word and MXCSR vary per input (24/53/64-bit
 precision, truncation; FTZ, round down). The calls run on their own stack. Random words never
 point into host memory (any mapping but the arena and the image, and 64 MB below the main
 stack, which the kernel grows into on any access: -inf = 0xff800000 as a pointer read fresh

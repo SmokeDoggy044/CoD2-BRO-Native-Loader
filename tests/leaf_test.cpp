@@ -6,7 +6,8 @@
 //
 // Each input is random: registers, XMM registers, stack arguments and the globals the
 // function reads hold small integers, bit masks, floats, random words or pointers into a
-// 16 KB arena whose words are drawn the same way (pointer chains to any depth). Both
+// 16 KB arena whose words are drawn the same way (pointer chains to any depth); some get a
+// constant the code compares against (leaf_functions.inc) or a copy of another word. Both
 // versions run from the same state; compared as the in-game harness does
 // (docs/comparison-harness.md): the result by kind, EBX/ESI/EDI/EBP, ESP, DF, the x87
 // control word, stack and values, MXCSR, the stack arguments, the arena and every title
@@ -15,7 +16,8 @@
 // how well the random inputs cover it.
 //
 // Needs the game's default.xbe: COD_BRO_XBE, else the path CMake passes in; skipped
-// (exit 77) without it. LEAF_ITERS=N inputs per function (default 4000),
+// (exit 77) without it. LEAF_ITERS=N inputs per function (default 4000), LEAF_SEED=N another
+// random stream (default 0; coverage is bimodal, so compare generator changes over a few),
 // LEAF_ONLY=name,name to run only those, LEAF_VERBOSE=1 to list where the original crashed,
 // LEAF_JOBS=N worker processes (default half the CPUs, at most 4),
 // LEAF_DUMP=DIR to write each function's first mismatch to DIR/<name>.case (the input) and
@@ -60,6 +62,7 @@ struct LeafFunction {
     const char* name;
     uint32_t address, size, instructions;
     std::vector<uint32_t> globals;
+    std::vector<uint32_t> constants;  // what its code (and its callees') compares against
 };
 
 const LeafFunction kLeafFunctions[] = {
@@ -676,6 +679,32 @@ struct Gen {
         default: return rng();
         }
     }
+    // A compare constant (leafscan: cmp/test immediates, switch ranges, image words compared
+    // against), now and then one off (the other side of a < or <=); never a host address.
+    uint32_t constant(const std::vector<uint32_t>& constants) {
+        const uint32_t v = constants[below(static_cast<uint32_t>(constants.size()))] + (below(4) ? 0 : below(2) ? 1 : -1u);
+        return in_host_memory(v) ? below(8) : v;
+    }
+    // A chunk offset for a planted or copied field: mostly a structure's first fields.
+    uint32_t field_offset(uint32_t width) {
+        return (below(2) ? below(0x10) : below(4) ? below(0x40) : below(kChunk - 3)) & ~(width - 1);
+    }
+    // Writes v as a field at the same offset in every chunk (mostly), or in one: pointers
+    // lead anywhere in the arena, and mostly to a chunk's start. count fields in a row:
+    // equal neighbours (an array of equal values).
+    void plant(uint32_t v, uint32_t width, uint32_t at, uint32_t count = 1) {
+        count = std::min(count, (kChunk - at) / width);
+        const bool every = below(4) != 0;
+        for (uint32_t chunk = every ? 0 : below(32); chunk < 32; ++chunk) {
+            for (uint32_t i = 0; i < count; ++i) std::memcpy(arena + chunk * kChunk + at + i * width, &v, width);
+            if (!every) break;
+        }
+    }
+    // As an 8/16/32-bit field, as wide as it needs at least.
+    void plant(uint32_t v) {
+        const uint32_t width = v < 0x100 ? 1u << below(3) : v < 0x10000 ? 2u << below(2) : 4;
+        plant(v, width, field_offset(width));
+    }
     // Learned per function: chunk offsets (words) the original dereferenced. A fault near
     // a word at that offset adds 1/n (n words explained the fault); from 1 on, the word is
     // mostly a pointer in every chunk (structures start near a chunk's start).
@@ -1109,6 +1138,7 @@ int main() {
     if (!map_image(xbe)) return 1;
     std::setvbuf(stdout, nullptr, _IOLBF, 0);
     const int iterations = std::getenv("LEAF_ITERS") ? std::atoi(std::getenv("LEAF_ITERS")) : 4000;
+    const uint32_t seed = std::getenv("LEAF_SEED") ? static_cast<uint32_t>(std::atoi(std::getenv("LEAF_SEED"))) : 0;
     const bool verbose = std::getenv("LEAF_VERBOSE") != nullptr;
     const std::string only = std::getenv("LEAF_ONLY") ? std::string(",") + std::getenv("LEAF_ONLY") + "," : "";
 
@@ -1373,7 +1403,7 @@ int main() {
             emit(output, index, true, leaf, 0, 0, 0, 0, 0, out);
             continue;
         }
-        Gen gen(0x1eaf0000u ^ leaf.address, arena);
+        Gen gen(0x1eaf0000u ^ leaf.address ^ seed * 0x9e3779b9u, arena);
         const auto function_started = std::chrono::steady_clock::now();
         g_trace_lo = leaf.address;
         g_trace_hi = leaf.address + std::min(leaf.size, kMaxTrace);
@@ -1436,6 +1466,61 @@ int main() {
             }
             input.stack_top = call_stack_top;
             input.nstack = 8;  // a caller's stack has words above the arguments (and arg_bytes can be short)
+            // Arguments stay distinct objects: a pointer into another slot's chunk is taken.
+            const uint32_t lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena));
+            const auto chunk_taken = [&](size_t k, uint32_t v) {
+                if (v - lo >= kArenaSize) return false;
+                for (size_t j = 0; j < slot_values.size(); ++j)
+                    if (j != k && slot_values[j] - lo < kArenaSize && (slot_values[j] - lo) / kChunk == (v - lo) / kChunk)
+                        return true;
+                return false;
+            };
+            const auto set_slot = [&](size_t k, uint32_t v) {
+                slot_values[k] = v;
+                if (k < 6)
+                    input.in[k] = v;
+                else if (k < 14)
+                    input.stack[k - 6] = v;
+                else {
+                    const uint32_t g = leaf.globals[k - 14];
+                    auto at = std::find_if(runner.global_inputs.begin(), runner.global_inputs.end(),
+                                           [&](const auto& e) { return e.first == g; });
+                    if (at != runner.global_inputs.end())
+                        at->second = v;
+                    else
+                        runner.global_inputs.emplace_back(g, v);
+                }
+            };
+            // A compare constant into an input slot or an arena field (a switch on a 16-bit
+            // field that must be 4..7), or a word copied to another place (two floats that
+            // must be equal, a field equal to an argument): random words almost never are.
+            const auto plant_constant = [&] {
+                const uint32_t v = gen.constant(leaf.constants);
+                if (gen.below(3) == 0)
+                    set_slot(gen.below(static_cast<uint32_t>(slot_values.size())), v);
+                else
+                    gen.plant(v);
+            };
+            const auto copy_word = [&] {
+                uint32_t v;
+                if (gen.below(2))
+                    v = slot_values[gen.below(static_cast<uint32_t>(slot_values.size()))];
+                else
+                    std::memcpy(&v, arena + gen.below(32) * kChunk + gen.field_offset(4), 4);
+                if (gen.below(3) == 0) {
+                    const size_t k = gen.below(static_cast<uint32_t>(slot_values.size()));
+                    if (!chunk_taken(k, v)) set_slot(k, v);
+                    return;
+                }
+                gen.plant(v, 4, gen.field_offset(4), gen.below(2) ? 1 : 2 + gen.below(7));  // or a few in a row
+                if (gen.below(2)) gen.plant(v, 4, gen.field_offset(4));  // and another field equal to it
+            };
+            const auto dictionary = [&] {
+                if (!leaf.constants.empty() && gen.below(2))
+                    plant_constant();
+                else
+                    copy_word();
+            };
             if (!corpus.empty() && gen.below(2)) {
                 const Saved& s = corpus[gen.below(static_cast<uint32_t>(corpus.size()))];
                 std::memcpy(arena, s.arena.data(), kArenaSize);
@@ -1443,44 +1528,26 @@ int main() {
                 runner.global_inputs = s.globals;
                 slot_values = s.slots;
                 for (uint32_t n = 1 + gen.below(4); n; --n) {
-                    const uint32_t kind = gen.below(4);
+                    const uint32_t kind = gen.below(5);
                     if (kind < 2) {  // an arena word, mostly a structure's first fields
                         const uint32_t at = gen.below(32) * kChunk + 4 * (gen.below(4) ? gen.below(0x30) : gen.below(kChunk / 4));
                         const uint32_t v = kind ? gen.value() : gen.below(2) ? gen.below(8) : gen.below(256);
                         std::memcpy(arena + at, &v, 4);
                     } else if (kind == 2) {  // an input slot: register, stack word or global
                         const size_t k = gen.below(static_cast<uint32_t>(slot_values.size()));
-                        // Arguments stay distinct objects: a pointer into another slot's chunk is redrawn.
-                        const uint32_t lo = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(arena));
-                        const auto chunk_taken = [&](uint32_t v) {
-                            if (v - lo >= kArenaSize) return false;
-                            for (size_t j = 0; j < slot_values.size(); ++j)
-                                if (j != k && slot_values[j] - lo < kArenaSize && (slot_values[j] - lo) / kChunk == (v - lo) / kChunk)
-                                    return true;
-                            return false;
-                        };
                         uint32_t v = gen.below(2) ? gen.value() : gen.below(8);
-                        for (int tries = 0; tries < 8 && chunk_taken(v); ++tries) v = gen.value();
-                        if (chunk_taken(v)) v = gen.below(8);
-                        slot_values[k] = v;
-                        if (k < 6)
-                            input.in[k] = v;
-                        else if (k < 14)
-                            input.stack[k - 6] = v;
-                        else {
-                            const uint32_t g = leaf.globals[k - 14];
-                            auto at = std::find_if(runner.global_inputs.begin(), runner.global_inputs.end(),
-                                                   [&](const auto& e) { return e.first == g; });
-                            if (at != runner.global_inputs.end())
-                                at->second = v;
-                            else
-                                runner.global_inputs.emplace_back(g, v);
-                        }
-                    } else {  // the x87 control word and MXCSR
+                        for (int tries = 0; tries < 8 && chunk_taken(k, v); ++tries) v = gen.value();
+                        if (chunk_taken(k, v)) v = gen.below(8);
+                        set_slot(k, v);
+                    } else if (kind == 3) {  // the x87 control word and MXCSR
                         std::memcpy(input.fx_in, &kControl[gen.below(4)], 2);
                         std::memcpy(input.fx_in + 24, &kMxcsr[gen.below(4)], 4);
-                    }
+                    } else
+                        dictionary();
                 }
+                arena_in.assign(arena, arena + kArenaSize);
+            } else if (gen.below(4) == 0) {  // a fresh input with a constant or a copy
+                dictionary();
                 arena_in.assign(arena, arena + kArenaSize);
             }
             input.trace = it % 4 == 0;
