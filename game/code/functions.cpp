@@ -18,6 +18,7 @@
 #include "g_script.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
+#include "movie.h"
 #include "movie_vid.h"
 #include "nal_anim.h"
 #include "nal_codec.h"
@@ -1281,6 +1282,9 @@ const Function kFunctions[] = {
     {"HandlePool_Resolve", 0x000cb440, 0, code(&HandlePool_Resolve), 0, Result::Eax, Status::Compare},
     {"HandlePool_First", 0x000cb5e0, 0, code(&HandlePool_First), 0, Result::Eax, Status::Compare},
     {"HandlePool_Next", 0x000cb600, 0, code(&HandlePool_Next), 0, Result::Eax, Status::Compare},
+    {"Movie_Construct", 0x000cbc10, 0, code(&Movie_Construct), 0, Result::Eax, Status::Compare},
+    {"Movie_ReadHeader", 0x000cbce0, 0, code(&Movie_ReadHeader), 16, Result::Eax, Status::Compare},
+    {"Movie_StartAudio", 0x000cbe80, 0, code(&Movie_StartAudio), 0, Result::None, Status::Compare},
     {"MovieVid_ReadIntraCoeffs", 0x000cbf60, 0, code(&MovieVid_ReadIntraCoeffs), 4, Result::None, Status::Compare},
     {"MovieVid_ReadIntraCoeffsAlt", 0x000cc250, 0, code(&MovieVid_ReadIntraCoeffsAlt), 4, Result::None, Status::Compare},
     {"MovieVid_ReadNonIntraCoeffs", 0x000cc510, 0, code(&MovieVid_ReadNonIntraCoeffs), 4, Result::Eax, Status::Compare},
@@ -1290,12 +1294,23 @@ const Function kFunctions[] = {
     {"MovieVid_PredictLastMotion", 0x000cd4f0, 0, code(&MovieVid_PredictLastMotion), 8, Result::None, Status::Compare},
     {"MovieVid_PredictZeroMotion", 0x000cd630, 0, code(&MovieVid_PredictZeroMotion), 8, Result::None, Status::Compare},
     {"MovieVid_DecodeMacroblocks", 0x000cd6e0, 0, code(&MovieVid_DecodeMacroblocks), 0, Result::Eax, Status::Compare},
+    {"Movie_Dtor", 0x000ce1c0, 0, code(&Movie_Dtor), 0, Result::Eax, Status::Compare},
     {"MovieVid_BuildQuantTables", 0x000ce7d0, 0, code(&MovieVid_BuildQuantTables), 4, Result::None, Status::Compare},
     {"MovieVid_ReadMacroblockType", 0x000ce850, 0, code(&MovieVid_ReadMacroblockType), 0, Result::Eax, Status::Compare},
     {"MovieVid_ReadCodedBlockPattern", 0x000ceb80, 0, code(&MovieVid_ReadCodedBlockPattern), 0, Result::Eax, Status::Compare},
     {"MovieVid_ReadLumaDCDiff", 0x000cec20, 0, code(&MovieVid_ReadLumaDCDiff), 0, Result::Eax, Status::Compare},
     {"MovieVid_ReadChromaDCDiff", 0x000ced80, 0, code(&MovieVid_ReadChromaDCDiff), 0, Result::Eax, Status::Compare},
     {"MovieVid_DecodeIntraBlock", 0x000ceef0, 0, code(&MovieVid_DecodeIntraBlock), 12, Result::None, Status::Compare},
+    {"Movie_DeletingDtor", 0x000cefd0, 0, code(&Movie_DeletingDtor), 4, Result::Eax, Status::Compare},
+    {"Movie_FreeResources", 0x000cf010, 0, code(&Movie_FreeResources), 0, Result::Eax, Status::Compare},
+    {"MovieBase_Reset", 0x000cf170, 0, code(&MovieBase_Reset_entry), 0, Result::None, Status::Compare},
+    {"Movie_QueueReads", 0x000cf1e0, 0, code(&Movie_QueueReads), 0, Result::None, Status::Compare},
+    {"MovieBase_Construct", 0x000cf310, 0, code(&MovieBase_Construct), 0, Result::Eax, Status::Compare},
+    {"MovieBase_Dtor", 0x000cf360, 0, code(&MovieBase_Dtor), 0, Result::Eax, Status::Compare},
+    {"Movie_FetchBytes", 0x000cf550, 0, code(&Movie_FetchBytes), 8, Result::Al, Status::Compare},
+    {"Movie_IsReady", 0x000cf750, 0, code(&Movie_IsReady), 0, Result::Al, Status::Compare},
+    {"Movie_OnReadComplete", 0x000cf7c0, 0, code(&Movie_OnReadComplete), 8, Result::None, Status::Compare},
+    {"MovieBase_DeletingDtor", 0x000cf840, 0, code(&MovieBase_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"MovieVid_PutBlock", 0x000cf8c0, 0, code(&MovieVid_PutBlock), 0, Result::Eax, Status::Compare},
     {"MovieVid_AddBlock", 0x000cf950, 0, code(&MovieVid_AddBlock), 0, Result::None, Status::Compare},
     {"MovieVid_AddBlockDCOnly", 0x000cfa70, 0, code(&MovieVid_AddBlockDCOnly), 0, Result::None, Status::Compare},
@@ -2487,6 +2502,7 @@ const Function kFunctions[] = {
     {"R_FindFont", 0x0030f2b0, 0, code(&R_FindFont), 4, Result::Eax, Status::Compare},
     {"UIElement_SetAlign", 0x0030fc20, 0, code(&UIElement_SetAlign), 4, Result::None, Status::Compare},
     {"Subtitle_Draw", 0x0030fca0, 0, code(&Subtitle_Draw), 0, Result::None, Status::Compare},
+    {"Movie_DrawFrame", 0x0030fe00, 0, code(&Movie_DrawFrame), 0, Result::Eax, Status::Compare},
     {"UIQuad_Translate", 0x00310400, 0, code(&UIQuad_Translate), 8, Result::None, Status::Compare},
     {"UIQuad_ResetPositions", 0x00310450, 0, code(&UIQuad_ResetPositions), 0, Result::None, Status::Compare},
     {"UIQuad_SetCornerPositions", 0x00310480, 0, code(&UIQuad_SetCornerPositions), 0, Result::None, Status::Compare},
@@ -2501,6 +2517,9 @@ const Function kFunctions[] = {
     {"UIMenu_Init", 0x00315210, 0, code(&UIMenu_Init_entry), 20, Result::Eax, Status::Compare},
     {"UIText_Init", 0x00315b10, 0, code(&UIText_Init_entry), 40, Result::Eax, Status::Compare},
     {"UIElement_UpdateFade", 0x00315e70, 0, code(&UIElement_UpdateFade), 4, Result::None, Status::Compare},
+    {"Movie_Load", 0x00315f00, 0, code(&Movie_Load), 0, Result::Al, Status::Compare},
+    {"Movie_CheckSkipInput", 0x00316010, 0, code(&Movie_CheckSkipInput), 0, Result::Al, Status::Compare},
+    {"Movie_Stop", 0x00316320, 0, code(&Movie_Stop), 4, Result::None, Status::Compare},
     {"Color_Modulate", 0x00316e20, 0, code(&Color_Modulate), 8, Result::Eax, Status::Compare},
     {"UIQuad_GetMaxCorner", 0x00317240, 0, code(&UIQuad_GetMaxCorner_entry), 0, Result::None, Status::Compare},
     {"UIQuad_SetVertexAlpha", 0x003172f0, 0, code(&UIQuad_SetVertexAlpha_entry), 4, Result::None, Status::Compare},
@@ -2520,8 +2539,10 @@ const Function kFunctions[] = {
     {"CL_TogglePause", 0x0032dde0, 0, code(&CL_TogglePause_entry), 0, Result::None, Status::Compare},
     {"CL_PauseForDialog", 0x0032dec0, 0, code(&CL_PauseForDialog), 0, Result::None, Status::Compare},
     {"UIMenu_FreeItems", 0x0032ea00, 0, code(&UIMenu_FreeItems_entry), 0, Result::None, Status::Compare},
+    {"Subtitle_Start", 0x0032f650, 0, code(&Subtitle_Start), 4, Result::None, Status::Compare},
     {"PauseMenu_ReloadCheckpoint", 0x003307a0, 0, code(&PauseMenu_ReloadCheckpoint), 0, Result::Al, Status::Compare},
     {"CL_ExecControllerConfig", 0x00331030, 0, code(&CL_ExecControllerConfig_entry), 0, Result::None, Status::Compare},
+    {"Movie_Open", 0x00332030, 0, code(&Movie_Open), 4, Result::Al, Status::Compare},
     {"UIQuad_ApplyMatrix", 0x00332b90, 0, code(&UIQuad_ApplyMatrix_entry), 8, Result::None, Status::Compare},
     {"SCR_UpdateLoadingDots", 0x0033ac10, 0, code(&SCR_UpdateLoadingDots_entry), 0, Result::None, Status::Compare},
 };
