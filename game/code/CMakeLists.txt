@@ -16,6 +16,7 @@ set(game_code_sources
     fe_menus.cpp
     fe_options.cpp
     fe_profile.cpp
+    fe_special.cpp
     functions.cpp
     fx.cpp
     fx_cmd.cpp

@@ -224,6 +224,24 @@ void Panel_Delete(uint8_t* panel) {
     z_free(panel);
 }
 
+PLATFORM_ASM_ENTRY(Panel_DeletingDtor_entry, "pushl 4(%esp)\n"
+                                             "pushl %esi\n" PLATFORM_ASM_CALL(Panel_DeletingDtor) "addl $8, %esp\n"
+                                             "ret $4")
+
+uint8_t* XB_CDECL Panel_DeletingDtor(uint8_t* panel, uint32_t flags) {
+    Panel_FreeElements(panel);
+    if (void* const texts = field<void*>(panel, 0xc)) {
+        Mem_AlignedFree(texts);
+        field<uint32_t>(panel, 0xc) = 0;
+    }
+    if (void* const pictures = field<void*>(panel, 0)) {
+        Mem_AlignedFree(pictures);
+        field<uint32_t>(panel, 0) = 0;
+    }
+    if (flags & 1) z_free(panel);
+    return panel;
+}
+
 PLATFORM_ASM_ENTRY(Panel_GetDefaultPicture_entry,
                    "pushl %edi\n" PLATFORM_ASM_CALL(Panel_GetDefaultPicture) "addl $4, %esp\n"
                    "ret")

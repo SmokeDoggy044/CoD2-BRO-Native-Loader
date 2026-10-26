@@ -16,6 +16,21 @@ namespace game {
 // the index +0x22) and its count (38, 15, 15, 3, 9, 11 for indexes 0-5, else 0) into the label +0x3c.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusCESetText(uint8_t* menu);
 extern "C" void FE_BonusCESetText_entry(void);
+
+// 0x0030c010 / 0x0030daa0 / 0x0030db00 / 0x0030db60 / 0x0030dcc0 (menu in ESI): the image of the collector's edition art
+// / concepts / vehicles / weapons / bonus materials menu freed: nglResetDeviceBindings, the texture (+0x4c / +0xcc /
+// +0x94 / +0xb8 / +0x90) released and cleared (the materials menu keeps the pointer), the file (+0x44 / +0xc4 / +0x8c /
+// +0xb0 / +0x88) closed unless -1 and then its buffer (the next word) freed; the buffer pointer cleared.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusCEFreeImage(uint8_t* menu);
+extern "C" void FE_BonusCEFreeImage_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusConceptFreeImage(uint8_t* menu);
+extern "C" void FE_BonusConceptFreeImage_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusVehicleFreeImage(uint8_t* menu);
+extern "C" void FE_BonusVehicleFreeImage_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusWeaponFreeImage(uint8_t* menu);
+extern "C" void FE_BonusWeaponFreeImage_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusMainFreeImage(uint8_t* menu);
+extern "C" void FE_BonusMainFreeImage_entry(void);
 // 0x0030c070 (menu in ESI): the six art category item texts (BONUS_ART_DIR .. BONUS_OVERHEAD).
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusArtCategoryLabel(uint8_t* menu);
 extern "C" void FE_BonusArtCategoryLabel_entry(void);
