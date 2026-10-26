@@ -1,0 +1,258 @@
+#include "fe_setup.h"
+
+#include <cstring>
+
+#include "fe.h"
+#include "ui_panel.h"
+#include "title_data.h"
+
+// The functions that call a text setter (UIText vtable +0x6c, the item text +0x30, the menu's add item +4) run
+// those calls at the original's ESP: the entry moves the C frame below a gap and hands the C version the entry ESP
+// (see FE_GAP_ENTRY in fe_menus.cpp). The C version gets the menu, the panel and the entry ESP.
+#define SETUP_GAP_ENTRY(name, menu_reg)                                                                           \
+    PLATFORM_ASM_ENTRY(name##_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"                   \
+                                     "pushl %edx\n pushl %eax\n pushl " menu_reg "\n" PLATFORM_ASM_CALL(name)     \
+                                     "addl $12, %esp\n"                                                           \
+                                     "popl %esp\n ret")
+// The plain ones: menu and panel (EAX) to the C version.
+#define SETUP_ENTRY(name, menu_reg)                                                                               \
+    PLATFORM_ASM_ENTRY(name##_entry, "pushl %eax\n pushl " menu_reg "\n" PLATFORM_ASM_CALL(name)                  \
+                                     "addl $8, %esp\n ret")
+
+namespace game {
+
+namespace {
+
+template <typename T>
+T& field(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+const char* text_at(uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); }
+
+uint32_t bits(float value) {
+    uint32_t out;
+    std::memcpy(&out, &value, 4);
+    return out;
+}
+
+uint8_t* z_malloc(uint32_t size) { return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+
+// A title object's vtable slot (byte offset).
+template <typename F>
+F* method(uint8_t* object, uint32_t offset) {
+    return title_function<F>(field<uint32_t>(field<uint8_t*>(object, 0), offset));
+}
+
+using WordMethod = void XB_THISCALL(uint8_t*, uint32_t);
+using GetMethod = long double XB_THISCALL(uint8_t*);  // an x87 result
+using IntMethod = int32_t XB_THISCALL(uint8_t*);
+using ColourMethod = uint32_t* XB_THISCALL(uint8_t*, uint32_t*);
+
+void call(uint8_t* object, uint32_t offset, uint32_t a) { method<WordMethod>(object, offset)(object, a); }
+long double get(uint8_t* object, uint32_t offset) { return method<GetMethod>(object, offset)(object); }
+
+// A title method call at the original's ESP `top` (before the call's pushes) with the original's registers.
+void method_at(uint32_t top, TitleRegs regs, uint8_t* object, uint32_t offset, uint32_t count, const uint32_t* args) {
+    regs.ecx = address_of(object);
+    title_call_at_regs(top, field<uint32_t>(field<uint8_t*>(object, 0), offset), &regs, count, args);
+}
+
+constexpr uint32_t kLoadingMenu = 0x0082bc84;  // "LoadingMenu"
+constexpr uint32_t kHelpbar = 0x0082cbd0;      // "Helpbar"
+constexpr uint32_t kBack = 0x0082c7c8;         // "Back"
+constexpr uint32_t kNumberFormat = 0x0082bccc;  // the loading picture names (sprintf with the 1-based index)
+
+// The inlined help bar copy: a new UIText (Z_Malloc 0x98) with the source text's colour (+0xb4 into a local),
+// scale (+0xa4), y (+0xcc), x (+0xc8) and kind (+0xb0), in that order; depth / layer 0, the caller's ECX flag,
+// EDX 0. Null when the allocation fails.
+uint8_t* copy_text(uint8_t* source, uint32_t ecx) {
+    uint8_t* const block = z_malloc(0x98);
+    if (!block) return nullptr;
+    uint32_t local = 0;
+    const uint32_t colour = *method<ColourMethod>(source, 0xb4)(source, &local);
+    const float scale = static_cast<float>(get(source, 0xa4));
+    const float y = static_cast<float>(get(source, 0xcc));
+    const float x = static_cast<float>(get(source, 0xc8));
+    const int32_t kind = method<IntMethod>(source, 0xb0)(source);
+    return UIText_Construct(block, kind, bits(x), bits(y), 0, 0, bits(scale), colour, ecx, 0);
+}
+
+// Items 0..count-1 from the panel texts `names` (menu vtable +4 (index, text, 0) at the original's ESP `top`, EBX =
+// the name, EDI = the menu vtable, as in the original).
+void add_items(uint32_t top, TitleRegs regs, uint8_t* menu, uint32_t panel_offset, const uint32_t* names,
+               uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) {
+        uint8_t* const text = Panel_FindText(text_at(names[i]), field<uint8_t*>(menu, panel_offset));
+        regs.ebx = names[i];
+        regs.edi = field<uint32_t>(menu, 0);
+        const uint32_t args[3] = {i, address_of(text), 0};
+        method_at(top, regs, menu, 4, 3, args);
+    }
+}
+
+uint8_t* item(uint8_t* menu, uint32_t index) { return field<uint8_t*>(field<uint8_t*>(menu, 4), index * 4); }
+
+uint8_t* find_picture(uint8_t* menu, uint32_t name) { return Panel_FindPicture(field<uint8_t*>(menu, 0x34), text_at(name)); }
+
+// The three loading screens: `count` numbered pictures from +0x48 (names from sprintf of `first` + i), then the
+// five named pictures `names` to `named` + i * 4, Back to `back`, the LoadingMenu text to `title`, and the help bar
+// copy (ECX flag 0x40, scale 1.3) to `title` + 4.
+void setup_loading(uint8_t* menu, uint8_t* panel, int32_t first, int32_t count, const uint32_t* names,
+                   uint32_t name_count, uint32_t named, uint32_t back, uint32_t title) {
+    field<uint8_t*>(menu, 0x34) = panel;
+    for (int32_t i = 0; i < count; ++i) {
+        char name[16];
+        title_function<int XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(name, text_at(kNumberFormat),
+                                                                              first + i);  // _sprintf
+        field<uint8_t*>(menu, 0x48 + uint32_t(i) * 4) = Panel_FindPicture(field<uint8_t*>(menu, 0x34), name);
+    }
+    for (uint32_t i = 0; i < name_count; ++i) field<uint8_t*>(menu, named + i * 4) = find_picture(menu, names[i]);
+    field<uint8_t*>(menu, back) = find_picture(menu, kBack);
+    field<uint8_t*>(menu, title) = Panel_FindText(text_at(kLoadingMenu), field<uint8_t*>(menu, 0x34));
+    uint8_t* const source = Panel_FindText(text_at(kHelpbar), field<uint8_t*>(menu, 0x34));
+    field<uint8_t*>(menu, title + 4) = copy_text(source, 0x40);
+    call(field<uint8_t*>(menu, title + 4), 0x13c, 1);
+    call(field<uint8_t*>(menu, title + 4), 0x60, 0x3fa66666);  // 1.3
+}
+
+// The list menus: panel to `panel_offset` (Panel_SetLayer 2 when `layer`), items from the panel texts `names`, the
+// item texts `item_texts` (item vtable +0x30), the Helpbar copy at `help_offset` (+0x13c (1)) with its text (+0x6c);
+// the setters at the original's ESP (three pushes).
+void setup_list(uint8_t* menu, uint8_t* panel, uint32_t entry_esp, uint32_t panel_offset, bool layer,
+                const uint32_t* names, uint32_t count, const uint32_t* item_texts, uint32_t text_count,
+                uint32_t help_offset) {
+    const uint32_t top = entry_esp - 12;  // push ecx / ebx / edi
+    field<uint8_t*>(menu, panel_offset) = panel;
+    if (layer) Panel_SetLayer(panel, 2);
+    TitleRegs regs{};
+    regs.esi = address_of(menu);
+    add_items(top, regs, menu, panel_offset, names, count);
+    for (uint32_t i = 0; i < text_count; ++i) {
+        const uint32_t args[1] = {item_texts[i]};
+        method_at(top, regs, item(menu, i), 0x30, 1, args);
+    }
+    uint8_t* const source = Panel_FindText(text_at(kHelpbar), field<uint8_t*>(menu, panel_offset));
+    uint8_t* const copy = copy_text(source, 0);
+    field<uint8_t*>(menu, help_offset) = copy;
+    call(field<uint8_t*>(menu, help_offset), 0x13c, 1);
+    regs.ebx = address_of(copy);
+    regs.edi = address_of(source);
+    const uint32_t args[1] = {0x0082c37c};
+    method_at(top, regs, field<uint8_t*>(menu, help_offset), 0x6c, 1, args);
+}
+
+// FE_SetupInGameLiveOptions / FE_SetupXboxLiveSingle (the same code twice).
+void setup_live(uint8_t* menu, uint8_t* panel, uint32_t entry_esp) {
+    static constexpr uint32_t kTexts[3] = {0x0083c9fc, 0x0083c9ec, 0x0083c9e0};
+    static constexpr uint32_t kItemTexts[3] = {0x0083c9cc, 0x0083ca34, 0x0083ca5c};
+    setup_list(menu, panel, entry_esp, 0x34, false, kTexts, 3, kItemTexts, 3, 0x38);
+}
+
+}  // namespace
+
+SETUP_ENTRY(FE_SetupControllerDisconnected, "%edi")
+
+void XB_CDECL FE_SetupControllerDisconnected(uint8_t* menu, uint8_t* panel) {
+    field<uint8_t*>(menu, 0x34) = panel;
+    uint8_t* const source = Panel_FindText(text_at(0x0082c9a0), panel);  // "Resume"
+    field<uint8_t*>(menu, 0x38) = copy_text(source, 0);
+    call(field<uint8_t*>(menu, 0x38), 0x13c, 8);
+    call(field<uint8_t*>(menu, 0x38), 0x90, 0xffffffff);  // colour: four 0xff bytes
+    call(field<uint8_t*>(menu, 0x38), 0xe4, 0x14);
+}
+
+SETUP_ENTRY(FE_SetupLoadMaubeugeMenu, "%esi")
+
+void XB_CDECL FE_SetupLoadMaubeugeMenu(uint8_t* menu, uint8_t* panel) {
+    field<uint8_t*>(menu, 0x34) = panel;
+    field<uint8_t*>(menu, 0x44) = Panel_FindPicture(panel, text_at(0x0082bc14));  // "maubeuge3"
+    field<uint8_t*>(menu, 0x48) = find_picture(menu, 0x0082bc08);                 // "maubeuge2"
+    field<uint8_t*>(menu, 0x4c) = find_picture(menu, 0x0082bbfc);                 // "maubeuge1"
+    field<uint8_t*>(menu, 0x50) = find_picture(menu, kBack);
+    field<uint8_t*>(menu, 0x54) = Panel_FindText(text_at(kLoadingMenu), field<uint8_t*>(menu, 0x34));
+    uint8_t* const source = Panel_FindText(text_at(kHelpbar), field<uint8_t*>(menu, 0x34));
+    field<uint8_t*>(menu, 0x58) = copy_text(source, 0x40);
+    call(field<uint8_t*>(menu, 0x58), 0x13c, 1);
+    call(field<uint8_t*>(menu, 0x58), 0x60, 0x3fa66666);  // 1.3
+}
+
+SETUP_GAP_ENTRY(FE_SetupMemcardMenu, "%esi")
+
+void XB_CDECL FE_SetupMemcardMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp) {
+    field<uint8_t*>(menu, 0x30) = panel;
+    static constexpr uint32_t kNames[5] = {0x0082ca54, 0x0082ca44, 0x0082ca38, 0x0082ca2c, 0x0082ca24};
+    field<uint8_t*>(menu, 0x10) = Panel_FindPicture(panel, text_at(kNames[0]));
+    for (uint32_t i = 1; i < 5; ++i)
+        field<uint8_t*>(menu, 0x10 + i * 4) = Panel_FindPicture(field<uint8_t*>(menu, 0x30), text_at(kNames[i]));
+    uint8_t* const source = Panel_FindText(text_at(kHelpbar), field<uint8_t*>(menu, 0x30));
+    uint8_t* const old = field<uint8_t*>(menu, 0x24);
+    if (old) call(old, 0, 1);  // deleting destructor
+    uint8_t* const copy = copy_text(source, 0);
+    field<uint8_t*>(menu, 0x24) = copy;
+    call(field<uint8_t*>(menu, 0x24), 0x13c, 1);
+    TitleRegs regs{};
+    regs.ebx = address_of(copy);
+    regs.esi = address_of(menu);
+    regs.edi = address_of(source);
+    const uint32_t args[1] = {0x0082ca0c};
+    method_at(entry_esp - 12, regs, field<uint8_t*>(menu, 0x24), 0x6c, 1, args);  // push ecx / ebx / edi
+}
+
+SETUP_GAP_ENTRY(FE_SetupInGameLiveOptions, "%esi")
+
+void XB_CDECL FE_SetupInGameLiveOptions(uint8_t* menu, uint8_t* panel, uint32_t entry_esp) {
+    setup_live(menu, panel, entry_esp);
+}
+
+SETUP_GAP_ENTRY(FE_SetupXboxLiveSingle, "%esi")
+
+void XB_CDECL FE_SetupXboxLiveSingle(uint8_t* menu, uint8_t* panel, uint32_t entry_esp) {
+    setup_live(menu, panel, entry_esp);
+}
+
+SETUP_ENTRY(FE_SetupLoadSicilyMenu, "%esi")
+
+void XB_CDECL FE_SetupLoadSicilyMenu(uint8_t* menu, uint8_t* panel) {
+    static constexpr uint32_t kNames[3] = {0x0082bc34, 0x0082bc28, 0x0082bc20};
+    setup_loading(menu, panel, 1, 0x13, kNames, 3, 0x98, 0x94, 0xa4);
+}
+
+SETUP_ENTRY(FE_SetupLoadAfricaMenu, "%esi")
+
+void XB_CDECL FE_SetupLoadAfricaMenu(uint8_t* menu, uint8_t* panel) {
+    static constexpr uint32_t kNames[5] = {0x0082bc60, 0x0082bc58, 0x0082bc48, 0x0082bc3c, 0x0082cc0c};
+    setup_loading(menu, panel, 0x17, 0x30, kNames, 5, 0x10c, 0x108, 0x120);
+}
+
+SETUP_ENTRY(FE_SetupLoadingMenu, "%esi")
+
+void XB_CDECL FE_SetupLoadingMenu(uint8_t* menu, uint8_t* panel) {
+    static constexpr uint32_t kNames[5] = {0x0082bcc0, 0x0082bcb8, 0x0082bcac, 0x0082bca0, 0x0082bc90};
+    setup_loading(menu, panel, 1, 0x2a, kNames, 5, 0xf4, 0xf0, 0x108);
+}
+
+SETUP_GAP_ENTRY(FE_SetupAutosaveMenu, "%esi")
+
+void XB_CDECL FE_SetupAutosaveMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp) {
+    static constexpr uint32_t kTexts[4] = {0x0082aeb4, 0x0082aea8, 0x0082ae9c, 0x0082ae90};
+    setup_list(menu, panel, entry_esp, 0x3c, true, kTexts, 4, nullptr, 0, 0x40);
+    // The item links: +0xa = the item below, +8 = the item above.
+    field<int16_t>(item(menu, 0), 0xa) = 1;
+    field<int16_t>(item(menu, 1), 0xa) = 2;
+    field<int16_t>(item(menu, 2), 0xa) = 3;
+    field<int16_t>(item(menu, 3), 8) = 2;
+    field<int16_t>(item(menu, 2), 8) = 1;
+    field<int16_t>(item(menu, 1), 8) = 0;
+}
+
+SETUP_GAP_ENTRY(FE_SetupSinglePlayerMenu, "%esi")
+
+void XB_CDECL FE_SetupSinglePlayerMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp) {
+    static constexpr uint32_t kTexts[5] = {0x0082c420, 0x0082c418, 0x0082c408, 0x0082c3fc, 0x0082c3ec};
+    static constexpr uint32_t kItemTexts[5] = {0x0082c3dc, 0x0082c3cc, 0x0082c3bc, 0x0082c3a8, 0x0082c390};
+    setup_list(menu, panel, entry_esp, 0x38, true, kTexts, 5, kItemTexts, 5, 0x34);
+}
+
+}  // namespace game

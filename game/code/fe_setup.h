@@ -1,0 +1,55 @@
+#pragma once
+
+// The FE_SetupPanel helpers: each fills one front-end screen's menu object from its loaded panel (pictures and
+// texts by name, the help bar copy).
+
+#include <cstddef>
+#include <cstdint>
+
+#include "compiler.h"
+
+namespace game {
+
+// 0x00325c90 (menu in EDI, panel in EAX): panel to +0x34; +0x38 = a copy of the "Resume" text (+0x13c (8),
+// colour -1, +0xe4 (20)).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupControllerDisconnected(uint8_t* menu, uint8_t* panel);
+extern "C" void FE_SetupControllerDisconnected_entry(void);
+// 0x003278b0 (menu in ESI, panel in EAX): pictures maubeuge3/2/1 and Back to +0x44..+0x50, the LoadingMenu
+// text to +0x54, the Helpbar copy (ECX flag 0x40, scale 1.3) to +0x58.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupLoadMaubeugeMenu(uint8_t* menu, uint8_t* panel);
+extern "C" void FE_SetupLoadMaubeugeMenu_entry(void);
+// 0x00329fe0 (menu in ESI, panel in EAX): panel to +0x30, five pictures to +0x10..+0x20, the old +0x24 text
+// deleted, +0x24 = the Helpbar copy with its text (+0x6c, at the original's ESP).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupMemcardMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupMemcardMenu_entry(void);
+// 0x00223140 (menu in ESI, panel in EAX): items 0-2 from three panel texts, their texts, +0x38 = the Helpbar
+// copy with its text (the setters at the original's ESP).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupInGameLiveOptions(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupInGameLiveOptions_entry(void);
+// 0x00223260: the same code as FE_SetupInGameLiveOptions.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupXboxLiveSingle(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupXboxLiveSingle_entry(void);
+// 0x003279b0 (menu in ESI, panel in EAX): numbered pictures 1-19 to +0x48, three named to +0x98, Back +0x94,
+// LoadingMenu text +0xa4, the Helpbar copy (flag 0x40, scale 1.3) +0xa8.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupLoadSicilyMenu(uint8_t* menu, uint8_t* panel);
+extern "C" void FE_SetupLoadSicilyMenu_entry(void);
+// 0x00327b00 (menu in ESI, panel in EAX): numbered pictures 23-70 to +0x48, five named to +0x10c, Back +0x108,
+// LoadingMenu text +0x120, the Helpbar copy +0x124.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupLoadAfricaMenu(uint8_t* menu, uint8_t* panel);
+extern "C" void FE_SetupLoadAfricaMenu_entry(void);
+// 0x00327c70 (menu in ESI, panel in EAX): numbered pictures 1-42 to +0x48, five named to +0xf4, Back +0xf0,
+// LoadingMenu text +0x108, the Helpbar copy +0x10c.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupLoadingMenu(uint8_t* menu, uint8_t* panel);
+extern "C" void FE_SetupLoadingMenu_entry(void);
+
+// 0x00325210 (menu in ESI, panel in EAX): panel to +0x3c (Panel_SetLayer 2), items 0-3 from four panel texts,
+// +0x40 = the Helpbar copy with its text, then the item up / down links (+8 / +0xa).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupAutosaveMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupAutosaveMenu_entry(void);
+
+// 0x00328d10 (menu in ESI, panel in EAX): panel to +0x38 (Panel_SetLayer 2), items 0-4 from five panel texts and
+// their texts, +0x34 = the Helpbar copy with its text.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupSinglePlayerMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupSinglePlayerMenu_entry(void);
+
+}  // namespace game

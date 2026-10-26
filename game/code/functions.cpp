@@ -14,6 +14,7 @@
 #include "fe_menus.h"
 #include "fe_options.h"
 #include "fe_profile.h"
+#include "fe_setup.h"
 #include "fe_special.h"
 #include "fx.h"
 #include "fx_cmd.h"
@@ -1593,6 +1594,8 @@ const Function kFunctions[] = {
     {"G_ExpireBadPlaces", 0x00205a70, 0, code(&G_ExpireBadPlaces), 0, Result::None, Status::Compare},
     {"InGameLiveOptionsMenu_Draw", 0x002226e0, 0, code(&InGameLiveOptionsMenu_Draw), 0, Result::None, Status::Compare},
     {"XboxLiveMenu_Draw", 0x00222750, 0, code(&XboxLiveMenu_Draw), 0, Result::None, Status::Compare},
+    {"FE_SetupInGameLiveOptions", 0x00223140, 0, code(&FE_SetupInGameLiveOptions_entry), 0, Result::None, Status::Compare},
+    {"FE_SetupXboxLiveSingle", 0x00223260, 0, code(&FE_SetupXboxLiveSingle_entry), 0, Result::None, Status::Compare},
     {"InGameLiveOptionsMenu_Dtor", 0x00223e10, 0, code(&InGameLiveOptionsMenu_Dtor), 0, Result::None, Status::Compare},
     {"InGameLiveOptionsMenu_Construct", 0x00223e80, 0, code(&InGameLiveOptionsMenu_Construct), 0, Result::Eax, Status::Compare},
     {"XboxLiveMenu_Construct", 0x00223ed0, 0, code(&XboxLiveMenu_Construct), 0, Result::Eax, Status::Compare},
@@ -2863,12 +2866,20 @@ const Function kFunctions[] = {
     {"UIQuad_GetVertexMin", 0x00322bd0, 0, code(&UIQuad_GetVertexMin), 0, Result::None, Status::Compare},
     {"UIQuad_GetVertexMax", 0x00322c70, 0, code(&UIQuad_GetVertexMax), 0, Result::None, Status::Compare},
     {"UIQuad_SetVertexAlphaScaled", 0x00322d10, 0, code(&UIQuad_SetVertexAlphaScaled), 4, Result::None, Status::Compare},
+    {"FE_SetupAutosaveMenu", 0x00325210, 0, code(&FE_SetupAutosaveMenu_entry), 0, Result::None, Status::Compare},
     {"CreateProfileMenu_Backspace", 0x003258c0, 0, code(&CreateProfileMenu_Backspace_entry), 0, Result::None, Status::Compare},
     {"CreateProfileMenu_AddChar", 0x00325980, 0, code(&CreateProfileMenu_AddChar_entry), 0, Result::None, Status::Compare},
+    {"FE_SetupControllerDisconnected", 0x00325c90, 0, code(&FE_SetupControllerDisconnected_entry), 0, Result::None, Status::Compare},
     {"FE_SetDifficultyPicture", 0x00325d60, 0, code(&FE_SetDifficultyPicture_entry), 4, Result::None, Status::Compare},
+    {"FE_SetupLoadMaubeugeMenu", 0x003278b0, 0, code(&FE_SetupLoadMaubeugeMenu_entry), 0, Result::None, Status::Compare},
+    {"FE_SetupLoadSicilyMenu", 0x003279b0, 0, code(&FE_SetupLoadSicilyMenu_entry), 0, Result::None, Status::Compare},
+    {"FE_SetupLoadAfricaMenu", 0x00327b00, 0, code(&FE_SetupLoadAfricaMenu_entry), 0, Result::None, Status::Compare},
+    {"FE_SetupLoadingMenu", 0x00327c70, 0, code(&FE_SetupLoadingMenu_entry), 0, Result::None, Status::Compare},
+    {"FE_SetupSinglePlayerMenu", 0x00328d10, 0, code(&FE_SetupSinglePlayerMenu_entry), 0, Result::None, Status::Compare},
     {"AdvancedOptionsMenu_LoadSettings", 0x003291a0, 0, code(&AdvancedOptionsMenu_LoadSettings_entry), 0, Result::None, Status::Compare},
     {"AdvancedOptionsMenu_ResetDefaults", 0x00329330, 0, code(&AdvancedOptionsMenu_ResetDefaults_entry), 0, Result::None, Status::Compare},
     {"AdvancedOptionsMenu_RestoreSelection", 0x00329c50, 0, code(&AdvancedOptionsMenu_RestoreSelection), 0, Result::None, Status::Compare},
+    {"FE_SetupMemcardMenu", 0x00329fe0, 0, code(&FE_SetupMemcardMenu_entry), 0, Result::None, Status::Compare},
     {"UIScrollBar_Construct", 0x0032a0e0, 0, code(&UIScrollBar_Construct_entry), 0, Result::None, Status::Compare},
     {"DialogMgr_DestroyContents", 0x0032a5c0, 0, code(&DialogMgr_DestroyContents_entry), 0, Result::None, Status::Compare},
     {"UIMenuItem_Init", 0x0032a7e0, 0, code(&UIMenuItem_Init_entry), 12, Result::Eax, Status::Compare},
