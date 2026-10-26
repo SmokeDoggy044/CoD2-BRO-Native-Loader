@@ -4,6 +4,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00011430,UITextBase_SetScale,3810,3810,0,0,100.0
 000115f0,UITextBase_GetText,3513,3513,0,0,100.0
 00011ac0,UIPicture_GetHeight,1875,1875,0,0,100.0
+00012370,UI_DialogSetDefaultButton,3522,3522,0,0,100.0
 00013a00,Scr_Atan,4000,4000,0,0,100.0
 00013a10,Scr_Atan2,4000,4000,0,0,100.0
 00013e70,Scr_Length,3843,3843,0,0,100.0
@@ -546,6 +547,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0030cd70,FE_FormatPlayTime,2094,2094,0,0,87.2
 0030d0b0,FE_FormatPlayTime2,1999,1999,0,0,87.2
 0030e0f0,FE_CommandDisplayName,2132,2132,0,0,68.9
+0030f380,UIFontTable_SetByName,3736,3736,0,0,100.0
 00310400,UIQuad_Translate,3845,3845,0,0,100.0
 00310450,UIQuad_ResetPositions,3802,3802,0,0,100.0
 00310480,UIQuad_SetCornerPositions,3675,3675,0,0,100.0
@@ -553,6 +555,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00310520,UIPictureBlock_SetVertexUVs,3490,3490,0,0,100.0
 00310560,UIQuad_PlaceScaled,3822,3822,0,0,100.0
 00310820,UIQuad_SetWipe,3802,3802,0,0,91.8
+00315360,UI_SetFontByName,3854,3854,0,0,100.0
 003158a0,UITextLine_Dtor,2756,2756,0,0,100.0
 003159c0,UITextBase_CopyFrom,2291,2291,0,0,100.0
 003166a0,UIPicture_ScaleXForAspect,1860,1860,0,0,100.0
