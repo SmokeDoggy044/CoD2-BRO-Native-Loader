@@ -366,6 +366,9 @@ address,name,tested,matched,nan,mismatched,coverage
 000a5570,FxYHemisphereDomain_Generate,3381,3381,0,0,100.0
 000a58b0,FxSphereSurfaceDomain_Generate,3656,3656,0,0,99.1
 000c52b0,SndVoice_ClearAttenuation,4000,4000,0,0,57.1
+000cbf60,MovieVid_ReadIntraCoeffs,2420,2420,0,0,100.0
+000cf950,MovieVid_AddBlock,1820,1820,0,0,100.0
+000d0700,MovieVid_McAvg8XY,1782,1782,0,0,100.0
 0011b470,Scr_IntToFloat,3855,3855,0,0,100.0
 0011d730,ScriptString_FindLast,3141,3141,0,0,98.2
 0011d7a0,ScriptString_SetChar,3682,3682,0,0,100.0
