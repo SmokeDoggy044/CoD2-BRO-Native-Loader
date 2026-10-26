@@ -5,3 +5,4 @@ address,name,issue,reason
 002df880,DObj_UpdateSkeletons,"[0-9a-f]{7}c \[host\] \[\d\] ","the quaternion w word (+0x1c, at 0xc mod 16) that Blend/AccumulateRoot never write: stale stack"
 000881c0,NAL_AnimTrack_Sample,"[0-9a-f]{7}c \[host\] \[\d\] ","the w word (+0x1c, at 0xc mod 16) of its temporary PositionOrientation states, never written: stale stack"
 002beb60,AnimTree_CalcPose_r,"[0-9a-f]{7}c \[host\] \[\d\] ","the same unwritten w word as NAL_AnimTrack_Sample, in the poses it blends"
+002f20a0,CL_Init,"0095e(678|68c) [^;]* \[\d\] [0-9a-f]+ vs 0+(;|$)","refimport slots 0x12/0x17 (ri 0x0095e630 + 0x48/+0x5c) CL_InitRef never sets: GetRefAPI copies the original's stale stack (the earlier pushed Cmd_AddCommand names 0x00834190/0x0083419c) vs zeros in ours"
