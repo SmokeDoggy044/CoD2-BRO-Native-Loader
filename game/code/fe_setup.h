@@ -52,4 +52,37 @@ extern "C" void FE_SetupAutosaveMenu_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupSinglePlayerMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
 extern "C" void FE_SetupSinglePlayerMenu_entry(void);
 
+// 0x00325e60 (menu in ESI, panel in EAX): panel to +0x34 (Panel_SetLayer 2), difficulty0..2 hidden, items easy /
+// medium / hard, the arrows to +0x3c / +0x40, the Helpbar copy to +0x38, the item links.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupDifficultyMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupDifficultyMenu_entry(void);
+// 0x00325ac0 (menu in ESI, panel in EAX): panel to +0x38; the 40 key texts / shadows, four key pictures, the
+// Helpbar copy to +0x3c, the title and the profile name text.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupCreateProfileMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupCreateProfileMenu_entry(void);
+// 0x0032a660 (panel in EAX, menu on the stack, ret 4): the login status texts; the ybutton copy to +0x1c.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FE_SetupLoginStatus(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupLoginStatus_entry(void);
+
+// 0x00327de0 (menu in ECX, panel in EAX): panel to +0x34 (Panel_SetLayer 2), three items with their texts, the
+// title, the arrows hidden, the volume bar to +0x3c, the Helpbar copy to +0x38, two more pictures hidden.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupSoundMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupSoundMenu_entry(void);
+
+// 0x003256b0 (menu in ESI, panel in EAX): panel to +0x3c (Panel_SetLayer 2), items Profile1..4, the title, the
+// Helpbar copy to +0x40, the profile picture to +0x58, the item links.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupProfileMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupProfileMenu_entry(void);
+
+// 0x00328f70 (menu in ESI, panel in EAX): panel to +0x38 (Panel_SetLayer 2), four items and the special edition
+// item (or a DISABLED one) by 0x0095e7f8, the item texts, the Helpbar copy to +0x34, the check pictures hidden.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupMainMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupMainMenu_entry(void);
+
+// 0x00327fd0 (menu in ESI, panel in EAX): panel to +0x34 (Panel_SetLayer 2), three items with their texts, the size
+// selection text to +0x3c, the title, the arrows to +0x44 / +0x48 (+0x4c the left one's +0xac), the Helpbar copy to
+// +0x38, mp_menu / mp_back hidden, item 0 +0x20 (1).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupScreenMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupScreenMenu_entry(void);
+
 }  // namespace game
