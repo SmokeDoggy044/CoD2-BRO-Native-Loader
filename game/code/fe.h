@@ -251,4 +251,119 @@ void XB_THISCALL UIPicture_LoadMesh(uint8_t* picture, const uint8_t* materials, 
 // sets bit 0.
 void XB_THISCALL UIPicture_SetTransform(uint8_t* picture, const float* matrix, float alpha);
 
+// UI texts. The base (UITextBase, vtable 0x008298b8, a UI element): +0x14 an owned block, +0x18 kind (font index,
+// ui_fonts 0x0095f8d4; 7 and 8 have none), +0x1c the text (ScriptString), +0x20..+0x4c colours, +0x2c position (x,
+// y, z), +0x38 scale (x, y, z), +0x54 the name (ScriptString), +0x5c flags (0x30 horizontal / 0xc0 vertical
+// alignment). vtable slots: +0x30 shown, +0x7c set position, +0xc4 line count, +0xc8 / +0xcc get x / y, +0xdc set or
+// clear flags (mask, on), +0x100 draw lines. UIText (vtable 0x0082a450) adds +0x68 / +0x6c line height and spacing,
+// +0x78 line count, +0x80 the lines (0x20-byte UI text lines, vector-new block), +0x88 / +0x8c the shown range,
+// +0x94 scrolled.
+struct ScriptString;
+// 0x000113f0 / 0x00011430: scale (s, s, 0) / (sx, sy, 0).
+void XB_THISCALL UITextBase_SetUniformScale(uint8_t* text, float scale);
+void XB_THISCALL UITextBase_SetScale(uint8_t* text, float sx, float sy);
+// 0x000114c0: set position (vtable +0x7c) to (get x + dx, get y + dy) (x87 sums).
+void XB_THISCALL UITextBase_MoveBy(uint8_t* text, float dx, float dy);
+// 0x00011540: position (x, y, 0).
+void XB_THISCALL UITextBase_SetPosition(uint8_t* text, float x, float y);
+// 0x000115d0 / 0x000115f0: out = a copy of the name +0x54 / text +0x1c. Return out.
+ScriptString* XB_THISCALL UITextBase_GetName(uint8_t* text, ScriptString* out);
+ScriptString* XB_THISCALL UITextBase_GetText(uint8_t* text, ScriptString* out);
+// 0x00011700: frees +0x14, releases the name and text, the UI element vtable; frees the text with flags bit 0.
+uint8_t* XB_THISCALL UITextBase_DeletingDtor(uint8_t* text, uint32_t flags);
+// 0x0030fba0 / 0x0030fb60: alignment flags 0x30 / 0xc0 cleared, then set to 0x10 / 0x20 (0x40 / 0x80) when given.
+void XB_THISCALL UITextBase_SetHorzAlign(uint8_t* text, int32_t align);
+void XB_THISCALL UITextBase_SetVertAlign(uint8_t* text, int32_t align);
+// 0x000117a0, 0x000117e0, 0x00011820, 0x00011870, 0x00320570: the UITextBase setters, then UIText_LayoutLines.
+void XB_THISCALL UIText_SetHorzAlign(uint8_t* text, int32_t align);
+void XB_THISCALL UIText_SetVertAlign(uint8_t* text, int32_t align);
+void XB_THISCALL UIText_SetUniformScale(uint8_t* text, float scale);
+void XB_THISCALL UIText_SetScale(uint8_t* text, float sx, float sy);
+void XB_THISCALL UIText_SetPosition(uint8_t* text, float x, float y);
+// 0x00320790 (text in ESI): the lines' vector delete (0x00012480), then UITextBase's destructor.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIText_Dtor(uint8_t* text);
+extern "C" void UIText_Dtor_entry(void);
+// 0x00012460: UIText_Dtor, frees the text with flags bit 0.
+uint8_t* XB_THISCALL UIText_DeletingDtor(uint8_t* text, uint32_t flags);
+// 0x0030f900: when shown, draw lines (vtable +0x100) of the range +0x88/+0x8c when scrolled, else (0, +0x78).
+void XB_THISCALL UIText_Draw(uint8_t* text);
+// 0x0030f880: line height and spacing +0x68/+0x6c = spacing, or for -1 the height of "!" at the text's scale.
+void XB_THISCALL UIText_SetLineSpacing(uint8_t* text, int32_t spacing);
+// 0x00321030: the height of the text at its scale (x87, unsigned).
+long double XB_THISCALL UIText_GetLineHeight(uint8_t* text);
+// 0x0032ba80: (line count - 1) * spacing + the line height (x87).
+long double XB_THISCALL UIText_GetTextHeight(uint8_t* text);
+// 0x003158d0 / 0x003158a0: UI text line constructor (kind 8, position 0, text "") / destructor.
+uint8_t* XB_THISCALL UITextLine_Construct(uint8_t* line);
+void XB_THISCALL UITextLine_Dtor(uint8_t* line);
+
+// 0x0030fa60 (vtable): moves (x, y) by the text's width (+0xd0) / height (+0xd4) for the alignment: right (0x20)
+// minus all, left (0x10) nothing, else half; bottom 0x80 / top 0x40 likewise. Releases the by-value ScriptString.
+void XB_THISCALL UITextBase_ApplyAlignOffset(uint8_t* text, float* x, float* y, uint32_t string);
+// 0x003159c0: copies the element fields, the block +0x14 (a new 16-byte copy), kind, text, colours, position, scale,
+// name and flags of `source`.
+void XB_THISCALL UITextBase_CopyFrom(uint8_t* text, uint8_t* source);
+// 0x0030f730: when scrolled (+0x94), +0x90 scroll offset += delta clamped to [-(lines * spacing - margin (+0x84)),
+// 0] (with +0x95: [-(lines * spacing + 2 margin), margin]); moves the text by the change (vtable +0x70) and sets the
+// shown range +0x88/+0x8c.
+void XB_THISCALL UIText_ScrollBy(uint8_t* text, float delta);
+// 0x0032b940: frees the lines and allocates `count` new ones (Heap_Alloc16, count at -4); +0x7c = count, +0x78 = 0.
+void XB_THISCALL UIText_AllocLines(uint8_t* text, int32_t count);
+// 0x0032e180 / 0x0032e250: text tables: selection +0x50 one down (below the row count +0x20) / up, the first shown
+// row +0x4c following it (+0x48 rows shown); then the "UI_Highlight" sound. Returns its result | 0xffff (-1 without
+// the alias).
+uint32_t XB_THISCALL UITextTable_SelectNext(uint8_t* table);
+uint32_t XB_THISCALL UITextTable_SelectPrev(uint8_t* table);
+// 0x003202e0 (text in ESI): each line's position (+0x04) from the text's position, alignment, the line's width
+// (+0x10), the spacing and the height of " "; then the baseline offset +0x70.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIText_LayoutLines(uint8_t* text);
+extern "C" void UIText_LayoutLines_entry(void);
+
+// 0x0032bc00 (vtable +0x14; matrix 16-byte aligned, row 3 = translation): position (+0x2c) = translation + the
+// current position once flags bit 0 is set, else + the base position +0x20; scale (+0x38) = the matrix diagonal
+// times the current scale / the base scale +0x44; then set alpha (vtable +0x88) to alpha (times the fade alpha
+// once bit 0 is set).
+void XB_THISCALL UITextBase_SetTransform(uint8_t* text, const float* matrix, float alpha);
+// 0x0032af10: the same for UIText (y scale from the negated m[5]; base: the matrix scale itself), spacing +0x6c =
+// line height * y scale, then UIText_LayoutLines.
+void XB_THISCALL UIText_SetTransform(uint8_t* text, const float* matrix, float alpha);
+
+// 0x003207f0 (stdcall; Init tail-jumps here): per '~' button token of the line's text: the token start and the
+// width so far (+0x18 records: int16 start, x, end, x after the glyphs), the token replaced by its glyph string
+// (0x00315620), the glyphs' width in the button font (ui_fonts[2]) at button_scale (the text's +0x64); the line width +0x10 after the last token.
+// Returns the token count (+0x1c / 2).
+uint32_t XB_STDCALL UITextLine_LayoutTokens(uint8_t* line, float scale, float button_scale);
+// 0x00320f20 (line in ESI, text in EAX; kind, scale, button scale on the stack, ret 0xc): text, kind, position 0, two marks
+// (+0x1c) per '~' with a new token block (+0x18), then UITextLine_LayoutTokens; without tokens the width +0x10.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL UITextLine_Init(uint8_t* line, const char* string, int32_t kind,
+                                                             float scale, float button_scale);
+extern "C" void UITextLine_Init_entry(void);
+// 0x00320b00 (word in EAX; kind, scale, button scale on the stack; result in XMM0): the word's width with its
+// button tokens (glyphs in the button font at the button scale).
+extern "C" PLATFORM_HIDDEN float XB_CDECL UIText_MeasureWord(const char* word, int32_t kind, float scale,
+                                                            float button_scale);
+extern "C" void UIText_MeasureWord_entry(void);
+// 0x00320ce0 (line in ESI; 7 stack words, ret 0x1c): the line's text pieces (nglListAddText) and the button glyphs
+// between them in the button font (colour, scale, moved up by `button_drop`).
+extern "C" PLATFORM_HIDDEN void XB_CDECL UITextLine_Draw(uint8_t* line, float depth, uint32_t colour,
+                                                         uint32_t button_colour, float sx, float sy,
+                                                         float button_scale, float button_drop);
+extern "C" void UITextLine_Draw_entry(void);
+// 0x0032bab0 (vtable +0x100): when shown, lines [first, end) (clamped to the count) with UITextLine_Draw: the colour
+// +0x50 (faded with flags bit 3) at the fade alpha, the button colour +0x60, scale, +0x64 / +0x70, the depth.
+void XB_THISCALL UIText_DrawLines(uint8_t* text, int32_t first, int32_t end);
+// 0x00321160 (vtable +0x3c): when shown and not "", the text at its position moved by the alignment (vtable +0xfc)
+// in its colour at the fade alpha.
+void XB_THISCALL UITextBase_Draw(uint8_t* text);
+// 0x0032b0d0: word-wraps `string` at `width` (separators " -\n\r"; "\f[" words change the kind); with `store` the
+// lines go to the line array (up to its capacity +0x7c). Returns the line count.
+uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t width, uint8_t store);
+// 0x0032b420 (vtable +0x14c; ScriptString by value): counts the wrapped lines, reallocates the line array, wraps
+// into it, the text = line 0's, then UIText_LayoutLines; +0x74 = width.
+void XB_THISCALL UIText_SetWrappedText(uint8_t* text, uint32_t string, int32_t width, float a3);
+// 0x0031f920: text tables (+0x10 a UI text drawn for every cell): the header (+0x34; texts +0x38.., column offsets
+// +0x24..), then rows +0x4c.. (+0x48 shown, +0x20 count; records +0x18: +0x04 text, +0x0c columns, +0x10 texts), the
+// selected one (+0x50) highlighted (+0x15, vtable +0x94); the text item's position restored after.
+void XB_THISCALL UITextTable_Draw(uint8_t* table);
+
 }  // namespace game

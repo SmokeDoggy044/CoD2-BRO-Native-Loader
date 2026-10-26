@@ -2,6 +2,8 @@
 // name, address, size, instructions, globals read (randomized per input),// compare constants of the function and its callees (planted in some inputs)
 {"Scr_Sin", 0x00011020, 7, 3, {}, {}},
 {"Scr_Tan", 0x00011030, 9, 4, {}, {}},
+{"UITextBase_SetScale", 0x00011430, 63, 16, {}, {}},
+{"UITextBase_GetText", 0x000115f0, 22, 9, {}, {}},
 {"UIPicture_GetHeight", 0x00011ac0, 45, 19, {0x00922eb8}, {}},
 {"Scr_Atan", 0x00013a00, 9, 4, {}, {}},
 {"Scr_Atan2", 0x00013a10, 588, 136, {}, {}},
@@ -541,6 +543,8 @@
 {"UIPictureBlock_SetVertexUVs", 0x00310520, 52, 27, {}, {0x4}},
 {"UIQuad_PlaceScaled", 0x00310560, 452, 116, {}, {}},
 {"UIQuad_SetWipe", 0x00310820, 661, 158, {}, {0x3f800000, 0x4}},
+{"UITextLine_Dtor", 0x003158a0, 35, 12, {0x008ff4a8, 0x008ff5a8, 0x008ff5b0, 0x008ff5b4, 0x008ff630, 0x008ffabc, 0x00901ae8, 0x00901aec, 0x0095f4a0, 0x0095f4a4}, {0x901f4c, 0x2, 0x10000}},
+{"UITextBase_CopyFrom", 0x003159c0, 257, 96, {0x008ff4a8, 0x008ff5a8, 0x008ff5b0, 0x008ff5b4, 0x008ff630, 0x008ffabc, 0x00901ae8, 0x00901aec, 0x0095f4a0, 0x0095f4a4}, {0x901f4c, 0x2, 0x10000}},
 {"UIPicture_ScaleXForAspect", 0x003166a0, 157, 41, {}, {}},
 {"UIPicture_CopyFrom", 0x00316f40, 272, 90, {0x008ff4a8, 0x008ff5a8, 0x008ff5b0, 0x008ff5b4, 0x008ff630, 0x008ffabc, 0x00901ae8, 0x00901aec, 0x009098c4, 0x0095f4a0, 0x0095f4a4}, {0x3, 0x30000, 0x20000, 0x901f4c, 0x2, 0x10000}},
 {"UIQuad_GetMaxCorner", 0x00317240, 172, 45, {}, {}},
