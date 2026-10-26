@@ -386,4 +386,110 @@ void XB_CDECL IN_PadQueueEvents();
 // for the buttons (unless 0x0095f919: no stick or key-down events).
 void XB_CDECL IN_Frame();
 
+struct ScriptString;
+
+// Loading screen spinner and text, configstrings, the text field, rumble.
+// 0x00292e60: the spinner icon (scr_loadingIconImages[scr_loadingIconFrame]) as a quad at the rect 0x008fef54..60.
+void XB_CDECL SCR_DrawLoadingIcon();
+// 0x002960a0 / 0x00298170 (full in EBX): steps the 8-frame spinner (one frame per 0.15 s of the RDTSC clock, own
+// statics each), then with full: device bindings reset, one frame (clear 0xf3, no depth) with the icon; without:
+// the icon added twice. The second also draws the "Loading ..." text first.
+void XB_CDECL SCR_UpdateLoadingIcon(uint8_t full);
+extern "C" PLATFORM_HIDDEN void XB_CDECL SCR_UpdateLoadingIcon_2(uint32_t ebx);
+extern "C" void SCR_UpdateLoadingIcon_2_entry(void);
+// 0x00296200: a dark full-screen quad (0x96000000, z 300) and the localized "Loading ..." centered at y 220 in
+// ui_fonts[0], both added twice (clear flags 3).
+void XB_CDECL SCR_DrawLoadingText();
+// 0x002aac90: refimport: cm entry `index` (16 bytes at +0x14; entry 0 when out of range).
+uint8_t* XB_CDECL CL_RefCM_GetEntry(uint32_t index);
+// 0x002ab710: refimport: VM_Call(cgvm, 8, value).
+uint32_t XB_CDECL CL_CGameCall8(int16_t value);
+// 0x002ac450: every configstring set to "", then VM_Call(cgvm, 0x14).
+void XB_CDECL CL_ClearConfigstrings();
+// 0x002b3250: refimport: Sys_Milliseconds() scaled by the cvar at 0x0093fce4 (CALL in its first 5 bytes).
+int32_t XB_CDECL CL_ScaledMilliseconds();
+// 0x002bb7c0: refimport: the "arialblack_14" entry of ui_fonts (null when R_FindFont gives 7 or 8).
+uint8_t* XB_CDECL CL_RefGetFont();
+// 0x002cd090 (char in EAX): CL_CharEvent on the field 0x0092e830 unless '`'/'~', only with the console catcher or
+// cls.state 0.
+uint32_t XB_REGS1 XB_CDECL CL_CharEventFiltered(uint32_t ch);
+// 0x002d55d0: cgame notified (0x16, 0x0092f094), then each configstring that differs from strings[i] assigned and
+// reported (VM_Call 0x15, i); CL_SystemInfoChanged (tail jump).
+void XB_CDECL CL_RefreshConfigstrings(const ScriptString* strings);
+// 0x00331f70: the subtitle clock 0x0092708c += ms / 1000 (x87); past the shown line's end (0x00926e24) the next
+// line (Subtitle_Start with the category at 0x00926e30).
+void XB_CDECL SCR_UpdateLoadingSubtitle(int32_t ms);
+// 0x00331fb0: while a movie plays (0x0095f454, not 0x0095f916): its clock 0x0095f45c advanced by the RDTSC ticks
+// since 0x0095f468 (in ms), the subtitles by that * 1.015, then File_PumpRequests (tail jump).
+void XB_CDECL SCR_LoadingPump();
+// 0x002c1e00 (field in ESI): Q3's Field_AdjustScroll on pixel widths (re function 0x00928570: text, mode, the
+// field's sizes, count): scroll and characters shown (+8) so the cursor stays inside the width (+0xc).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Field_AdjustScroll(uint8_t* field);
+extern "C" void Field_AdjustScroll_entry(void);
+// 0x002c77d0 (field in EAX, char in EBX): Q3's Field_CharEvent: ctrl-v (nothing), ctrl-c, backspace, ctrl-a,
+// ctrl-e, printable characters inserted or overstruck (0x0092858c), 255 at most.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_CharEvent(uint8_t* field, int32_t ch);
+extern "C" void CL_CharEvent_entry(void);
+// 0x002c1c20: Q3's Key_Bind_f without the prints: binds argv 1 (tolower) to the rest of the arguments; with
+// 0x008dce70 a command containing "+speed" becomes "toggle cl_run".
+void XB_CDECL Key_Bind_f();
+// 0x00298810: per motor, the queued rumbles advanced by dt (patterns 'a'..'z' over their duration, envelopes with
+// attack/sustain/release; finished ones freed), the strongest level * scale sent to the last used pad (0x008dcf18;
+// zero when the cvar 0x0093fcd8 is set, rumble 0x008dce72 is off or cls.state is 5).
+void XB_STDCALL CL_UpdateRumble(uint8_t* rumble, float dt);
+
+// 0x002b2c60 (character in ECX): the character (va "%c") drawn by the re function 0x00928578 at x, y + 16 scaled
+// from 640x480, 8 wide and a third high, white.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SCR_DrawSmallChar(int32_t x, int32_t y, int32_t ch);
+extern "C" void SCR_DrawSmallChar_entry(void);
+// 0x002f06b0: the "FrontEnd" zone from the stream map (0x0095f4f0); unless already loaded (slot +0x28 loaded with
+// +0xdc set) or 0x0095ee01: request counter 0x008d9d38 + 1, priority +0x34 = 0, Stream_StartRequest.
+uint8_t* XB_CDECL CL_LoadFrontEndZone();
+// 0x002f0a50: Q3's CL_StartHunkUsers while com_cl_running: cl_xmodelcheck (0x008db11c), the renderer once
+// (cls.rendererStarted), the front-end zone once (0x0092be88).
+void XB_CDECL CL_StartHunkUsers();
+// 0x002982d0: the four spinner images (0x1080-byte DDS copies from 0x008d5b38.., Mem_AlignedAlloc) loaded as
+// spinner_a..d into the 8 icon frames a a a b c d c b.
+void XB_CDECL SCR_InitLoadingSpinner();
+// 0x002b2880: cubemapShot <size> <name> [water x y z x y z | fresnel a b]: water writes the six faces with the
+// re function 0x00928564; otherwise each face is rendered (CG_DRAW_ACTIVE_FRAME with face and size) and written
+// by 0x00928560 as env/<name><suffix>.tga with the fresnel values (default 1, 1.333).
+void XB_CDECL CL_CubemapShot_f();
+// 0x002f10d0: Q3's CL_InitRef: the refimport table (0x22 words; words 0x12 and 0x17 never set), GetRefAPI(14),
+// re = its 0x28 words, cl_paused 0.
+void XB_CDECL CL_InitRef();
+// 0x002f2db0: Q3's CL_InitCGame: cl.mapname "maps/<mapname>.bsp" from the serverinfo configstring, VM_Create
+// ("cgame", CL_CgameSystemCalls), CG_INIT, re.EndRegistration (0x00928510), Sys_Milliseconds calls around them.
+uint32_t XB_CDECL CL_InitCGame();
+// 0x002f08e0: Q3's CL_Shutdown: debug draw, client state, cgame, re.Shutdown(1), the front-end return state, input
+// and the 18 client commands removed, cl_running 0, cls cleared.
+void XB_CDECL CL_Shutdown();
+// 0x002f0750: KEYCATCH_UI off; with 0x0095ee01 the profile settings (0x008dce30), skill and the front end opened
+// for the chapter (theatre background); with the mission overlay (0x0095f918) it is destroyed and the front end
+// opened likewise, the front-end zone waited for (priority FLT_MAX).
+void XB_CDECL CL_ApplyFrontEndReturnState();
+// 0x0032df90 (menu in ESI, dt on the stack, ret 4): the pause overlay's update: resume (flag 8: 0x0095f900 vtable
+// +0xc (-1), sounds and cl_paused 0 unless its flag 1), children shown, slide timer +0x40 and the slide-in/out
+// position +0x3c (3 per 0.01 s) sent to child 3 (vtable +0x8c), both backgrounds' colour (vtable +0x90).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_ResumeFromPause(uint8_t* menu, float dt);
+extern "C" void CL_ResumeFromPause_entry(void);
+// 0x00332230 (name in ESI): opens the movie, waits for its buffers, subtitles "MOVIE", then frames (identity view
+// moved 10 along z) until the last frame or a skip; Movie_Stop(1).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_PlayMovie(const char* name);
+extern "C" void CL_PlayMovie_entry(void);
+// 0x00332e20 (profile in EDI): sound attenuation mode, volumes (+0x58 / 50), inverted look (m_pitch sign),
+// sensitivities (+0x44/+0x48 / 25), the active pad, g_vehControlMode (+0x3c) and the controller style config.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_ApplyProfileSettings(uint8_t* profile);
+extern "C" void CL_ApplyProfileSettings_entry(void);
+// 0x0032eac0: the "INGAME_TWO_YEARS" card: a UIText over black, faded in over 2 s, shown to 3 s, faded out by 5 s
+// (RDTSC clock), a frame per step. The text object is not freed.
+void XB_CDECL SCR_DrawLoadingScreen();
+// 0x0032ed10 (alpha in EAX): "INGAME_LOADING" over a black quad of that alpha, two frames.
+void XB_REGS1 XB_CDECL SCR_DrawLaunchLoadingScreen(uint32_t alpha);
+
+// 0x002f20a0: Q3's CL_Init: cls.state 0, CL_InitInput, the client cvars (sensitivities from the profile defaults
+// 0x008dce74/78, m_pitch = its sign * 0.7), the client commands, CL_InitRef, UI started (0x00933ee4), Cbuf_Execute,
+// cl_running 1.
+void XB_CDECL CL_Init();
+
 }  // namespace game

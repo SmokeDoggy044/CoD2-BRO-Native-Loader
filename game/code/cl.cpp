@@ -3,9 +3,17 @@
 #include <cstring>
 
 #include "cg_ents.h"
+#include "cgame.h"
+#include "fe.h"
+#include "movie.h"
 #include "ngl.h"
+#include "ngl_debug.h"
 #include "qcommon.h"
+#include "r_init.h"
 #include "script_string.h"
+#include "snd.h"
+#include "stream.h"
+#include "sv.h"
 #include "tr_main.h"
 #include "title_data.h"
 
@@ -2084,6 +2092,1193 @@ void XB_CDECL IN_Frame() {
         IN_PadCreate();
         if (IN_PadConsumeReleased(pad, button)) queue_key_up(key);
     }
+}
+
+// --- Loading screen spinner, subtitles during loads, configstrings, the text field ---
+
+namespace {
+
+// The title clock (RDTSC) through XAPI QueryPerformanceCounter (0x001ed6ca), whose RDTSC site the loader patches
+// like the inline ones the original uses here.
+uint64_t loading_clock() {
+    uint32_t counter[2] = {0, 0};
+    title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+    return (uint64_t{counter[1]} << 32) | counter[0];
+}
+
+// acc + float(ticks) / 733333.3 * 0.001 on the x87: the unsigned 64-bit tick count as FILD of the low 63 bits plus
+// 2^63 for the top bit (stored as float), then FDIV, FMUL, FADD without storing in between.
+float loading_seconds_add(uint64_t ticks, float acc) {
+    const uint32_t low_part[2] = {static_cast<uint32_t>(ticks), static_cast<uint32_t>(ticks >> 32) & 0x7fffffffu};
+    const uint32_t sign_part[2] = {0, static_cast<uint32_t>(ticks >> 32) & 0x80000000u};
+    float seconds;
+    __asm__("fildll %1\n\tfildll %2\n\tfchs\n\tfaddp %%st, %%st(1)\n\tfstps %0"
+            : "=m"(seconds)
+            : "m"(low_part), "m"(sign_part)
+            : "st", "st(1)");
+    float result;
+    __asm__("flds %1\n\tfdivs %2\n\tfmuls %3\n\tfadds %4\n\tfstps %0"
+            : "=m"(result)
+            : "m"(seconds), "m"(title_global<float>(0x0083ed30)), "m"(title_global<float>(0x0083eb4c)), "m"(acc)
+            : "st");
+    return result;
+}
+
+// The spinner's clock: 0.15 s per frame of the 8-frame icon. `guard`/`ticks`/`time` are the caller's statics.
+void loading_icon_step(uint32_t guard_address, uint32_t ticks_address, uint32_t time_address) {
+    uint32_t& guard = title_global<uint32_t>(guard_address);
+    uint64_t last;
+    if (!(guard & 1)) {
+        guard |= 1;
+        last = loading_clock();
+    } else {
+        last = (uint64_t{title_global<uint32_t>(ticks_address + 4)} << 32) | title_global<uint32_t>(ticks_address);
+    }
+    const uint64_t now = loading_clock();
+    float& time = title_global<float>(time_address);
+    time = loading_seconds_add(now - last, time);
+    int32_t steps = 0;
+    const float step = title_global<float>(0x0083ed2c);  // 0.15
+    if (platform_x87_greater_equal(time, step)) {
+        float rest = time;
+        do {
+            rest -= step;
+            ++steps;
+        } while (rest >= step);
+        time = rest;
+    }
+    int32_t& frame = title_global<int32_t>(0x0095f604);  // scr_loadingIconFrame
+    frame = (frame + steps) & 7;
+    title_global<uint32_t>(ticks_address) = static_cast<uint32_t>(now);
+    title_global<uint32_t>(ticks_address + 4) = static_cast<uint32_t>(now >> 32);
+}
+
+void loading_icon_draw(bool full, bool text) {
+    if (full) nglResetDeviceBindings();
+    for (int32_t i = full ? 1 : 2; i > 0; --i) {
+        if (full) {
+            nglBeginFrame();
+            nglSetClearFlags(0xf3);
+            nglSetSceneDepthEnable(0);
+        }
+        if (text) SCR_DrawLoadingText();
+        SCR_DrawLoadingIcon();
+        if (full) nglEndFrame();
+    }
+}
+
+// MSVC's unsigned to double (FILD, FADD 2^32 when negative, FSTP QWORD) times 0.5 (FMUL QWORD), _ftol.
+int32_t unsigned_half_ftol(uint32_t value) {
+    double converted;
+    if (static_cast<int32_t>(value) < 0)
+        __asm__("fildl %1\n\tfaddl %2\n\tfstpl %0" : "=m"(converted) : "m"(value), "m"(title_global<double>(0x0083ecc0))
+                : "st");
+    else
+        __asm__("fildl %1\n\tfstpl %0" : "=m"(converted) : "m"(value) : "st");
+    int64_t result;
+    uint16_t control, chop;
+    __asm__("fnstcw %0" : "=m"(control));
+    chop = static_cast<uint16_t>(control | 0x0c00);
+    __asm__("fldl %1\n\tfmull %2\n\tfldcw %3\n\tfistpll %0\n\tfldcw %4"
+            : "=m"(result)
+            : "m"(converted), "m"(title_global<double>(0x0083ecb0)), "m"(chop), "m"(control)
+            : "st");
+    return static_cast<int32_t>(result);
+}
+
+// _ftol(a * b) with a float a and a double b (FLD, FMUL QWORD, chopping FISTP through 64 bits).
+int32_t mul_double_ftol(float a, double b) {
+    int64_t result;
+    uint16_t control, chop;
+    __asm__("fnstcw %0" : "=m"(control));
+    chop = static_cast<uint16_t>(control | 0x0c00);
+    __asm__("flds %1\n\tfmull %2\n\tfldcw %3\n\tfistpll %0\n\tfldcw %4"
+            : "=m"(result)
+            : "m"(a), "m"(b), "m"(chop), "m"(control)
+            : "st");
+    return static_cast<int32_t>(result);
+}
+
+// acc + ms * 0.001 (FILD, FMUL QWORD, FADD) on the x87, stored as float.
+float add_milliseconds(int32_t ms, float acc) {
+    float result;
+    __asm__("fildl %1\n\tfmull %2\n\tfadds %3\n\tfstps %0"
+            : "=m"(result)
+            : "m"(ms), "m"(title_global<double>(0x0083ef88)), "m"(acc)
+            : "st");
+    return result;
+}
+
+uint32_t vm_call1(uint32_t command) {
+    return title_function<uint32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(0x002a84e0)(
+        0, title_global<uint8_t*>(0x0093f7f8), command);  // VM_Call(cgvm, command)
+}
+
+uint32_t vm_call2(uint32_t command, uint32_t arg) {
+    return title_function<uint32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t)>(0x002a84e0)(
+        0, title_global<uint8_t*>(0x0093f7f8), command, arg);
+}
+
+}  // namespace
+
+void XB_CDECL SCR_DrawLoadingIcon() {
+    NglQuad quad{};
+    nglInitQuad(&quad);
+    nglSetQuadRect(&quad, title_global<float>(0x008fef60), title_global<float>(0x008fef58),
+                   title_global<float>(0x008fef5c), title_global<float>(0x008fef54));
+    nglSetQuadTexture(&quad, title_global<NglTexture*>(0x0095f5e4 + 4 * title_global<uint32_t>(0x0095f604)));
+    nglSetQuadBlend(&quad, 2, 0);
+    nglListAddQuad(&quad);
+}
+
+void XB_CDECL SCR_UpdateLoadingIcon(uint8_t full) {
+    loading_icon_step(0x0098b6e0, 0x0098b6d8, 0x0098ad40);
+    loading_icon_draw(full != 0, false);
+}
+
+PLATFORM_ASM_ENTRY(SCR_UpdateLoadingIcon_2_entry, "pushl %ebx\n" PLATFORM_ASM_CALL(SCR_UpdateLoadingIcon_2) "addl $4, %esp\n"
+                                                  "ret")
+
+void XB_CDECL SCR_UpdateLoadingIcon_2(uint32_t ebx) {
+    loading_icon_step(0x0098ba60, 0x0098ba58, 0x0098ad3c);
+    loading_icon_draw(static_cast<uint8_t>(ebx) != 0, true);
+}
+
+void XB_CDECL SCR_DrawLoadingText() {
+    const char* text;
+    switch (title_global<int32_t>(0x0095f5dc)) {  // g_languageIndex
+    case 1: text = &title_global<const char>(0x00837768); break;  // "Laden ..."
+    case 2: text = &title_global<const char>(0x0083773c); break;  // "Chargement en cours"
+    case 3: text = &title_global<const char>(0x00837730); break;  // "Cargando"
+    case 4: text = &title_global<const char>(0x00837750); break;  // "Caricamento in corso"
+    default: text = &title_global<const char>(0x00837774); break;  // "Loading ..."
+    }
+    NglQuad quad{};
+    nglInitQuad(&quad);
+    nglSetQuadRect(&quad, 0.0f, 0.0f, 640.0f, 480.0f);
+    nglSetQuadColor(&quad, 0x96000000);
+    nglSetQuadZ(&quad, 300.0f);
+    nglSetQuadBlend(&quad, 2, 0);
+    if (!title_global<uint8_t*>(0x0095f8d4)) return;  // ui_fonts[0]
+    int32_t width, height;
+    nglGetTextExtentf(title_global<uint8_t*>(0x0095f8d4), &width, &height, text);
+    const int32_t x = unsigned_half_ftol(static_cast<uint32_t>(0x280 - width));
+    for (int32_t i = 2; i != 0; --i) {
+        nglSetClearFlags(3);
+        nglListAddQuad(&quad);
+        nglListAddTextf(title_global<uint8_t*>(0x0095f8d4), platform_x87_unsigned_to_float(static_cast<uint32_t>(x)),
+                        220.0f, 0.0f, 0xe0ffffff, 1.0f, 1.0f, text);
+    }
+}
+
+uint8_t* XB_CDECL CL_RefCM_GetEntry(uint32_t index) {
+    uint8_t* const cm = title_global<uint8_t*>(0x0095f6b8);
+    if (index >= field<uint32_t>(cm, 0x10)) index = 0;
+    return field<uint8_t*>(cm, 0x14) + index * 16;
+}
+
+uint32_t XB_CDECL CL_CGameCall8(int16_t value) { return vm_call2(8, static_cast<uint32_t>(int32_t{value})); }
+
+void XB_CDECL CL_ClearConfigstrings() {
+    for (uint32_t slot = 0x009606b8; slot < 0x009616b8; slot += 4)  // cl.configstrings
+        title_function<void XB_THISCALL(ScriptString*, const char*)>(0x0011dd20)(
+            &title_global<ScriptString>(slot), &title_global<const char>(0x0082dfeb));  // ScriptString_AssignCString ""
+    vm_call1(0x14);
+}
+
+int32_t XB_CDECL CL_ScaledMilliseconds() {
+    return static_cast<int32_t>(static_cast<float>(sys_milliseconds()) * cvar_value(0x0093fce4));
+}
+
+uint8_t* XB_CDECL CL_RefGetFont() {
+    const int32_t font = R_FindFont(&title_global<const char>(0x0082d248), 0);  // "arialblack_14"
+    if (font == 7 || font == 8) return nullptr;
+    return title_global<uint8_t*>(0x0095f8d4 + 4 * font);  // ui_fonts
+}
+
+uint32_t XB_REGS1 XB_CDECL CL_CharEventFiltered(uint32_t ch) {
+    if (ch == '`' || ch == '~') return ch;
+    if (!(title_global<uint8_t>(0x0092bdf4) & 1)) {  // cls.keyCatchers & KEYCATCH_CONSOLE
+        const int32_t state = title_global<int32_t>(0x0092bdf0);
+        if (state) return static_cast<uint32_t>(state);
+    }
+    CL_CharEvent(&title_global<uint8_t>(0x0092e830), static_cast<int32_t>(ch));
+    return 0;
+}
+
+void XB_CDECL CL_RefreshConfigstrings(const ScriptString* strings) {
+    if (title_global<uint8_t*>(0x0093f7f8)) vm_call2(0x16, title_global<uint32_t>(0x0092f094));
+    for (uint32_t index = 0; index < 0x400; ++index) {
+        auto* string = &title_global<ScriptString>(0x009606b8 + 4 * index);  // cl.configstrings
+        const ScriptString* source = &strings[index];
+        if (string->rep && ScriptString_EqualsString(string, source)) continue;
+        title_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(0x0011d600)(string, source);  // Assign
+        if (title_global<uint8_t*>(0x0093f7f8)) vm_call2(0x15, index);
+    }
+    CL_SystemInfoChanged();
+}
+
+void XB_CDECL SCR_UpdateLoadingSubtitle(int32_t ms) {
+    float& time = title_global<float>(0x0092708c);
+    time = add_milliseconds(ms, time);
+    if (!title_global<uint32_t>(0x0095f474)) return;  // no line shown
+    if (time > title_global<float>(0x00926e24))       // its end
+        Subtitle_Start(nullptr, &title_global<const char>(0x00926e30));
+}
+
+void XB_CDECL SCR_LoadingPump() {
+    if (title_global<uint8_t>(0x0095f916)) return;
+    if (!title_global<uint32_t>(0x0095f454)) return;  // no movie
+    const uint32_t now = static_cast<uint32_t>(loading_clock());
+    uint32_t& last = title_global<uint32_t>(0x0095f468);
+    const float ms = static_cast<float>(static_cast<int32_t>(now - last)) * title_global<float>(0x0083ed64);
+    float& movie_time = title_global<float>(0x0095f45c);
+    movie_time = movie_time + ms;
+    last = now;
+    const int32_t step = mul_double_ftol(ms, title_global<double>(0x0083efe8));
+    SCR_UpdateLoadingSubtitle(step);
+    title_function<void XB_CDECL()>(0x000ca690)();  // File_PumpRequests
+}
+
+// The text field (Q3's field_t, extended): +0 cursor, +4 scroll, +8 characters shown, +0xc width (pixels),
+// +0x10 / +0x14 the text size arguments (+0x14 / 48), +0x18 scaled from 640x480, +0x1c the text (256).
+namespace {
+
+int32_t field_text_width(const char* text, int32_t mode, float scale_x, float scale_y, int32_t count) {
+    using Width = int32_t XB_CDECL(const char*, int32_t, float, float, int32_t);
+    return title_function<Width>(title_global<uint32_t>(0x00928570))(text, mode, scale_x, scale_y, count);  // re.
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Field_AdjustScroll_entry, "pushl %esi\n" PLATFORM_ASM_CALL(Field_AdjustScroll) "addl $4, %esp\n"
+                                             "ret")
+
+void XB_CDECL Field_AdjustScroll(uint8_t* f) {
+    int32_t& cursor = field<int32_t>(f, 0);
+    int32_t& scroll = field<int32_t>(f, 4);
+    int32_t& shown = field<int32_t>(f, 8);
+    char* const text = reinterpret_cast<char*>(f + 0x1c);
+    float scale_x = field<float>(f, 0x14) * title_global<float>(0x0083ebbc);  // / 48
+    float scale_y = field<float>(f, 0x10);
+    float width = static_cast<float>(field<int32_t>(f, 0xc));
+    int32_t mode = 0;
+    if (field<int32_t>(f, 0x18)) {
+        const float sx = title_global<float>(0x0083ec08) / static_cast<float>(title_global<int32_t>(0x0092bf40));
+        const float sy = title_global<float>(0x0083ec0c) / static_cast<float>(title_global<int32_t>(0x0092bf3c));
+        scale_x = sx * scale_x;
+        scale_y = sy * scale_y;
+        width = sy * width;
+        mode = 5;
+    }
+    if (width > static_cast<float>(field_text_width(text, mode, scale_x, scale_y, 0))) {
+        scroll = 0;
+        shown = Loc_CountChars(0, text);
+        return;
+    }
+    if (width > 0.0f) {
+        while (scroll > 0) {
+            const float before = static_cast<float>(field_text_width(text + scroll - 1, mode, scale_x, scale_y, 0));
+            if (before >= width) break;
+            scroll = scroll - 1;
+            if (!(width > before)) break;
+        }
+    }
+    for (;;) {
+        const uint32_t from_scroll = static_cast<uint32_t>(field_text_width(text + scroll, mode, scale_x, scale_y, 0));
+        int32_t diff = static_cast<int32_t>(
+            from_scroll - static_cast<uint32_t>(field_text_width(text + cursor, mode, scale_x, scale_y, 0)));
+        if (diff < 0) {
+            if (scroll == 0) {
+                diff = 0;
+            } else {
+                scroll = scroll - 1;
+                continue;
+            }
+        } else if (static_cast<float>(diff) >= width) {
+            scroll = scroll + 1;
+        }
+        if (static_cast<float>(diff) >= width) continue;
+        break;
+    }
+    const int32_t rest = static_cast<int32_t>(std::strlen(text + scroll));
+    shown = cursor - scroll;
+    if (!(width > 0.0f)) return;
+    while (shown < rest) {
+        const float drawn = static_cast<float>(field_text_width(text + scroll, mode, scale_x, scale_y, shown + 1));
+        if (width > drawn) ++shown;
+        if (!(width > drawn)) break;
+    }
+}
+
+PLATFORM_ASM_ENTRY(CL_CharEvent_entry, "pushl %ebx\n"
+                                       "pushl %eax\n" PLATFORM_ASM_CALL(CL_CharEvent) "addl $8, %esp\n"
+                                       "ret")
+
+void XB_CDECL CL_CharEvent(uint8_t* f, int32_t ch) {
+    int32_t& cursor = field<int32_t>(f, 0);
+    char* const text = reinterpret_cast<char*>(f + 0x1c);
+    int32_t length = static_cast<int32_t>(std::strlen(text));
+    if (ch == 0x16) {  // ctrl-v: no clipboard
+        Field_AdjustScroll(f);
+        return;
+    }
+    if (ch == 3) {  // ctrl-c: clear
+        std::memset(text, 0, 0x100);
+        cursor = 0;
+        field<int32_t>(f, 4) = 0;
+        field<int32_t>(f, 8) = 0x100;
+        Field_AdjustScroll(f);
+        return;
+    }
+    if (ch == 8) {  // backspace
+        if (cursor > 0) {
+            std::memmove(text + cursor - 1, text + cursor, static_cast<size_t>(length - cursor + 1));
+            cursor = cursor - 1;
+        }
+        Field_AdjustScroll(f);
+        return;
+    }
+    if (ch == 1) {  // ctrl-a: home
+        cursor = 0;
+        field<int32_t>(f, 4) = 0;
+        return;
+    }
+    if (ch == 5) {  // ctrl-e: end
+        cursor = length;
+        Field_AdjustScroll(f);
+        return;
+    }
+    if (ch < 0x20) return;
+    if (title_global<int32_t>(0x0092858c)) {  // key_overstrikeMode
+        if (cursor == 0xff) return;
+        text[cursor] = static_cast<char>(ch);
+    } else {
+        if (length == 0xff) return;
+        std::memmove(text + cursor + 1, text + cursor, static_cast<size_t>(length - cursor + 1));
+        text[cursor] = static_cast<char>(ch);
+    }
+    cursor = cursor + 1;
+    ++length;
+    if (cursor == length) text[cursor] = 0;
+    Field_AdjustScroll(f);
+}
+
+void XB_CDECL Key_Bind_f() {
+    const uint32_t argc = cmd_argc();
+    if (static_cast<int32_t>(argc) < 2) return;
+    const char* const name = argc > 1 ? cmd_argv(1) : &title_global<const char>(0x0082dfeb);
+    int32_t key = Key_StringToKeynum(name);
+    if (key == -1) return;
+    key = title_function<int32_t XB_CDECL(int32_t)>(0x001eed48)(key);  // tolower
+    if (argc == 2) return;  // (the binding is printed in Q3)
+    char command[0x400];
+    command[0] = 0;
+    for (uint32_t i = 2; i < argc; ++i) {
+        std::strcat(command, i < cmd_argc() ? cmd_argv(i) : &title_global<const char>(0x0082dfeb));
+        if (i != argc - 1) std::strcat(command, " ");
+    }
+    if (title_global<uint8_t>(0x008dce70) && std::strstr(command, &title_global<const char>(0x0082dfa8)))  // "+speed"
+        title_function<int32_t XB_CDECL(char*, const char*, const char*)>(0x001ee901)(
+            command, &title_global<const char>(0x0082ddd4), &title_global<const char>(0x0082dfb0));  // "toggle cl_run"
+    if (key == -1) return;
+    const char*& binding = title_global<const char*>(0x0093425c + 8 * static_cast<uint32_t>(key));
+    if (binding) title_function<void XB_CDECL(const void*)>(0x000428d0)(binding);  // Z_Free
+    binding = CopyString(command);
+    title_global<uint32_t>(0x009403ec) |= 1;  // cvar_modifiedFlags
+}
+
+// The rumble state: per motor (left, right) a list of queued rumbles at +4 + 0x10 * motor (count, then the list
+// head; the sentinel node at +0xc). A queued rumble: +0 next, +4 prev, +0xc time, +0x10 scale, +0x14 level,
+// +0x18 attack, +0x1c sustain end, +0x20 release end, +0x24 duration (pattern) / looping (envelope), +0x28 the
+// pattern ('a'..'z' = 0..1, ScriptString), +0x2c pattern flag.
+namespace {
+
+void rumble_unlink(uint8_t* node, uint8_t* list) {
+    uint8_t* const next = field<uint8_t*>(node, 0);
+    uint8_t* const prev = field<uint8_t*>(node, 4);
+    field<uint8_t*>(next, 4) = prev;
+    field<uint8_t*>(field<uint8_t*>(node, 4), 0) = field<uint8_t*>(node, 0);
+    field<uint8_t*>(node, 0) = nullptr;
+    field<uint8_t*>(node, 4) = nullptr;
+    --field<int32_t>(list, -4);
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(node + 0x28);  // ScriptString_Release
+    title_function<void XB_THISCALL(uint32_t, uint8_t*)>(0x00044910)(title_global<uint32_t>(0x0095f5c8),
+                                                                     node);  // SmallHeap_Free
+}
+
+// (t / duration) * float(unsigned count) on the x87 (FLD, FDIV, FILD (+2^32), FMUL), stored as float.
+float rumble_pattern_position(float t, float duration, uint32_t count) {
+    const float converted = platform_x87_unsigned_to_float(count);
+    float result;
+    __asm__("flds %1\n\tfdivs %2\n\tfmuls %3\n\tfstps %0" : "=m"(result) : "m"(t), "m"(duration), "m"(converted)
+            : "st");
+    return result;
+}
+
+uint32_t pattern_length(const uint8_t* node) {
+    const uint8_t* const rep = field<uint8_t*>(const_cast<uint8_t*>(node), 0x28);
+    return rep ? field<uint16_t>(const_cast<uint8_t*>(rep), 2) : 0;
+}
+
+const char* pattern_text(const uint8_t* node) {
+    uint8_t* const rep = field<uint8_t*>(const_cast<uint8_t*>(node), 0x28);
+    return rep ? reinterpret_cast<const char*>(rep + 6) : nullptr;
+}
+
+float pattern_level(const char* text, int32_t index) {
+    return static_cast<float>(static_cast<int32_t>(static_cast<signed char>(text[index])) - 0x61) /
+           title_global<float>(0x0083ebc4);  // 25
+}
+
+}  // namespace
+
+void XB_STDCALL CL_UpdateRumble(uint8_t* rumble, float dt) {
+    for (int32_t motor = 0; motor < 2; ++motor) {
+        uint8_t* const list = rumble + 8 + 0x10 * motor;
+        float strongest = 0.0f;
+        uint8_t* node = field<uint8_t*>(list, 0);
+        uint8_t* after = node ? field<uint8_t*>(node, 0) : nullptr;
+        if (node != list + 4 && after) {
+            uint8_t* next = nullptr;
+            for (;;) {
+                if (after) {
+                    next = after;
+                    after = field<uint8_t*>(after, 0);
+                }
+                const float t = field<float>(node, 0xc) + dt;
+                float level = 0.0f;
+                field<float>(node, 0xc) = t;
+                if (field<uint8_t>(node, 0x2c)) {
+                    const float duration = field<float>(node, 0x24);
+                    if (t >= duration) {
+                        rumble_unlink(node, list);
+                    } else if (t >= 0.0f) {
+                        const float position = rumble_pattern_position(t, duration, pattern_length(node) - 1);
+                        const int32_t index = static_cast<int32_t>(static_cast<int64_t>(position));
+                        if (static_cast<uint32_t>(index) < pattern_length(node) - 2) {
+                            const float fraction = position - static_cast<float>(index);
+                            const float a = pattern_level(pattern_text(node), index);
+                            const float b = pattern_level(pattern_text(node), index + 1);
+                            level = (b - a) * fraction + a;
+                        } else {
+                            level = pattern_level(pattern_text(node), index);
+                        }
+                    }
+                } else {
+                    const float peak = field<float>(node, 0x14);
+                    // +0x24 compared (UCOMISS) only after each time test; NaN counts as set.
+                    if (t >= field<float>(node, 0x20) && field<float>(node, 0x24) != 0.0f) {
+                        rumble_unlink(node, list);
+                    } else if (t >= field<float>(node, 0x1c) && field<float>(node, 0x24) != 0.0f) {
+                        const float span = field<float>(node, 0x20) - field<float>(node, 0x1c);
+                        const float fade = (t - field<float>(node, 0x1c)) / span;
+                        level = (0.0f - peak) * fade + peak;
+                    } else if (t >= field<float>(node, 0x18)) {
+                        level = peak;
+                    } else if (t >= 0.0f) {
+                        const float rise = t / field<float>(node, 0x18);
+                        level = (peak - 0.0f) * rise + 0.0f;
+                    }
+                }
+                const float scaled = field<float>(node, 0x10) * level;
+                if (scaled > strongest) strongest = scaled;
+                if (!after) break;
+                node = next;
+            }
+        }
+        if (cvar_integer(0x0093fcd8) || !title_global<uint8_t>(0x008dce72) || title_global<int32_t>(0x0092bdf0) == 5)
+            strongest = 0.0f;
+        const int32_t pad = title_global<int32_t>(0x008dcf18);
+        if (pad != -1) {
+            IN_PadCreate();
+            IN_SetRumbleMotor(pad, motor, strongest);
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(SCR_DrawSmallChar_entry, "pushl %ecx\n"
+                                            "pushl 12(%esp)\n"
+                                            "pushl 12(%esp)\n" PLATFORM_ASM_CALL(SCR_DrawSmallChar) "addl $12, %esp\n"
+                                            "ret")
+
+void XB_CDECL SCR_DrawSmallChar(int32_t x, int32_t y, int32_t ch) {
+    const float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    const float scale_x = title_global<float>(0x0083ec0c) / static_cast<float>(title_global<int32_t>(0x0092bf3c));
+    const float left = static_cast<float>(x) * scale_x;
+    const float width = scale_x * title_global<float>(0x0083ed78);  // 8
+    const float scale_y = title_global<float>(0x0083ec08) / static_cast<float>(title_global<int32_t>(0x0092bf40));
+    const float top = (static_cast<float>(y) + title_global<float>(0x0083ebb8)) * scale_y;  // + 16
+    const float height = scale_y * title_global<float>(0x0083ed74);                           // / 3
+    const char* const text = title_function<const char* XB_CDECL(const char*, int32_t)>(0x002a93d0)(
+        &title_global<const char>(0x0083401c), ch);  // va("%c")
+    using DrawText = void XB_CDECL(float, float, int32_t, float, const float*, const char*, float, int32_t, int32_t);
+    title_function<DrawText>(title_global<uint32_t>(0x00928578))(left, top, 5, height, color, text, width, 0, 0);
+}
+
+uint8_t* XB_CDECL CL_LoadFrontEndZone() {
+    uint8_t* streams = title_global<uint8_t*>(0x0095f638);
+    uint8_t* const map = field<uint8_t*>(streams, 0x18);
+    uint8_t* zone = nullptr;
+    if (map) {
+        uint32_t key = 0x00833f7c;  // "FrontEnd"
+        TitleRegs regs{};
+        regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(map + 8));
+        const uint32_t args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key))};
+        auto* const found = reinterpret_cast<uint32_t*>(uintptr_t{cg_call_regs(0x000249a0, &regs, args, 1)});  // StringMap_Find
+        if (found) {
+            uint32_t index = *found;
+            if (index >= field<uint32_t>(map, 0x10)) index = 0;
+            zone = field<uint8_t**>(map, 0x14)[index];
+        }
+        streams = title_global<uint8_t*>(0x0095f638);
+    }
+    title_global<uint8_t*>(0x0095f4f0) = zone;
+    if (!zone) return zone;
+    const int32_t slot = field<int32_t>(zone, 0x28);
+    if (slot != -1) {
+        uint8_t* const loaded = field<uint8_t*>(streams, 0x38 + 4 * slot);
+        if (loaded && !field<uint32_t>(loaded, 0xdc)) return zone;
+    }
+    if (title_global<uint8_t>(0x0095ee01)) return zone;
+    ++title_global<int32_t>(0x008d9d38);
+    field<float>(zone, 0x34) = 0.0f;
+    title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x00292d70)(streams, zone);  // Stream_StartRequest
+    return zone;
+}
+
+void XB_CDECL CL_StartHunkUsers() {
+    const uint8_t* const running = title_global<uint8_t*>(0x00947704);  // com_cl_running
+    if (!running || !field<int32_t>(const_cast<uint8_t*>(running), 0x20)) return;
+    title_global<int32_t>(0x008db11c) = field<int32_t>(
+        Cvar_Get(&title_global<const char>(0x00834458), &title_global<const char>(0x0082e098), 0x21), 0x20);  // cl_xmodelcheck
+    if (!title_global<int32_t>(0x0092be80)) {  // cls.rendererStarted
+        title_global<int32_t>(0x0092be80) = 1;
+        CL_InitRenderer();
+    }
+    if (!title_global<int32_t>(0x0092be88)) {
+        title_global<int32_t>(0x0092be88) = 1;
+        CL_LoadFrontEndZone();
+    }
+}
+
+void XB_CDECL SCR_InitLoadingSpinner() {
+    static constexpr uint32_t kImages[4] = {0x008d5b38, 0x008d6bb8, 0x008d7c38, 0x008d8cb8};
+    static constexpr uint32_t kNames[4] = {0x008377a4, 0x00837798, 0x0083778c, 0x00837780};  // spinner_a..d
+    uint8_t* data[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        data[i] = static_cast<uint8_t*>(Mem_AlignedAlloc(0x1080, 0x80, 0x30000));
+        std::memcpy(data[i], &title_global<uint8_t>(kImages[i]), 0x1080);
+    }
+    NglTexture* textures[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        alignas(4) uint8_t name[0x20] = {};
+        title_function<uint8_t* XB_THISCALL(uint8_t*, const char*)>(0x00011060)(
+            name, &title_global<const char>(kNames[i]));  // HashStr_Init
+        textures[i] = nglLoadTexture(name, 0, data[i], 0x1080);
+        if (i == 0) {
+            title_global<NglTexture*>(0x0095f5e4) = textures[0];
+            title_global<NglTexture*>(0x0095f5e8) = textures[0];
+            title_global<NglTexture*>(0x0095f5ec) = textures[0];
+        } else {
+            title_global<NglTexture*>(0x0095f5ec + 4 * i) = textures[i];
+        }
+    }
+    title_global<NglTexture*>(0x0095f5fc) = textures[2];  // the 8 frames: a a a b c d c b
+    title_global<NglTexture*>(0x0095f600) = textures[1];
+}
+
+namespace {
+
+float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(0x001ef056)(text); }
+
+int32_t title_stricmp(const char* a, const char* b) {
+    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(a, b);
+}
+
+const char* cube_face_path(const char* name, uint32_t face_slot) {
+    return title_function<const char* XB_CDECL(const char*, const char*, const char*)>(0x002a93d0)(
+        &title_global<const char>(0x00833fa8), name, title_global<const char*>(face_slot));  // va("env/%s%s.tga")
+}
+
+uint32_t bits_of(float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+}  // namespace
+
+void XB_CDECL CL_CubemapShot_f() {
+    float fresnel[2] = {1.0f, title_global<float>(0x0083ed70)};  // 1.333
+    if (!title_global<uint8_t*>(0x0093f7f8)) return;              // cgvm
+    const uint32_t argc = cmd_argc();
+    if (static_cast<int32_t>(argc) < 3) return;
+    const char* const name_arg = argc > 2 ? cmd_argv(2) : &title_global<const char>(0x0082dfeb);
+    if (std::strlen(name_arg) > 0x68) return;
+    char name[0x80];
+    std::strcpy(name, argc > 2 ? cmd_argv(2) : &title_global<const char>(0x0082dfeb));
+    const int32_t size = title_atol(argc > 1 ? cmd_argv(1) : &title_global<const char>(0x0082dfeb));
+    if (size < 4 || size > 0x400 || (size & (size - 1))) return;
+    const uint32_t count = cmd_argc();
+    if (count == 10) {  // water: two vectors, the six faces written by re function 0x00928564
+        if (title_stricmp(Cmd_Argv(3), &title_global<const char>(0x00833fb8))) return;
+        float first[3], second[3];
+        first[0] = title_atof(Cmd_Argv(4));
+        first[1] = title_atof(Cmd_Argv(5));
+        first[2] = title_atof(Cmd_Argv(6));
+        second[0] = title_atof(Cmd_Argv(7));
+        second[1] = title_atof(Cmd_Argv(8));
+        second[2] = title_atof(Cmd_Argv(9));
+        int32_t face = 1;
+        for (uint32_t slot = 0x008fef20; slot <= 0x008fef34; slot += 4, ++face) {
+            using Write = void XB_CDECL(const char*, int32_t, int32_t, const float*, const float*);
+            title_function<Write>(title_global<uint32_t>(0x00928564))(cube_face_path(name, slot), size, face, first,
+                                                                      second);
+        }
+        return;
+    }
+    if (count == 6) {  // fresnel: both values at least 1
+        if (title_stricmp(Cmd_Argv(3), &title_global<const char>(0x00833fa0))) return;
+        fresnel[0] = title_atof(Cmd_Argv(4));
+        fresnel[1] = title_atof(Cmd_Argv(5));
+        if (platform_x87_greater(1.0f, fresnel[0])) return;
+        if (1.0f > fresnel[1]) return;
+    } else if (count != 3) {
+        return;
+    }
+    int32_t& frame = title_global<int32_t>(0x0093fc28);
+    if (++frame == 0) frame = 1;
+    title_global<int32_t>(0x0095f4ec) = 1;
+    int32_t face = 1;
+    for (uint32_t slot = 0x008fef20; slot <= 0x008fef34; slot += 4, ++face) {
+        title_function<void XB_CDECL(int32_t)>(title_global<uint32_t>(0x00928548))(0);  // re.BeginFrame
+        title_function<uint32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, int32_t,
+                                                  int32_t)>(0x002a84e0)(
+            0, title_global<uint8_t*>(0x0093f7f8), 3, title_global<uint32_t>(0x009606b0), 0, 0, static_cast<uint32_t>(face),
+            size);  // VM_Call(cgvm, CG_DRAW_ACTIVE_FRAME, serverTime, 0, 0, face, size)
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(title_global<uint32_t>(0x0092854c))(0, 0);  // re.EndFrame
+        using Write = void XB_CDECL(const char*, int32_t, int32_t, uint32_t, uint32_t);
+        title_function<Write>(title_global<uint32_t>(0x00928560))(cube_face_path(name, slot), size, face,
+                                                                  bits_of(fresnel[0]), bits_of(fresnel[1]));
+    }
+    title_global<int32_t>(0x0095f4ec) = 0;
+}
+
+void XB_CDECL CL_InitRef() {
+    // refimport_t (0x22 words). Words 0x12 and 0x17 are never set by the original (stale stack there).
+    uint32_t imports[0x22] = {};
+    imports[0x0b] = 0x002ba5c0;  // Cmd_AddCommand
+    imports[0x0c] = 0x002b1dc0;  // Cmd_RemoveCommand
+    imports[0x0d] = 0x002aaac0;  // Cmd_Argc
+    imports[0x0e] = 0x002aaaa0;  // Cmd_Argv
+    imports[0x0f] = 0x002c63a0;  // Cbuf_ExecuteText
+    imports[0x00] = 0x002ab760;  // CL_RefPrintf
+    imports[0x01] = 0x002938f0;  // __break (Com_Error)
+    imports[0x02] = 0x002b3250;  // CL_ScaledMilliseconds
+    imports[0x13] = 0x002a1fd0;  // FS_ReadFile
+    imports[0x14] = 0x00297a30;  // FS_FreeFile
+    imports[0x16] = 0x002979f0;  // FS_FreeFileList
+    imports[0x15] = 0x002a1fb0;  // FS_ListFiles
+    imports[0x18] = 0x0029d4a0;  // FS_FileExists
+    imports[0x19] = 0x002a1b30;  // FS_FOpenFileByMode
+    imports[0x1a] = 0x00297d70;  // FS_FCloseFile
+    imports[0x1b] = 0x00297af0;  // FS_Read
+    imports[0x1c] = 0x00297a60;  // FS_Write
+    imports[0x1d] = 0x002aac90;  // CL_RefCM_GetEntry
+    imports[0x08] = 0x0029c2d0;  // Cvar_Get
+    imports[0x09] = 0x00299710;  // Cvar_FindVar
+    imports[0x0a] = 0x0029e6e0;  // Cvar_Set
+    imports[0x10] = 0x0029c4f0;  // Cvar_WriteNamedValues
+    imports[0x11] = 0x0029e700;  // CG_ShellShock_ParseParams
+    imports[0x1e] = 0x002ab710;  // CL_CGameCall8
+    imports[0x1f] = 0x0027f8e0;  // CL_DObjCreateSkeleton
+    imports[0x20] = 0x002ab470;  // SCR_AdjustFrom640
+    imports[0x21] = 0x002bb7c0;  // CL_RefGetFont
+    const uint32_t exports = GetRefAPI(imports, 0xe);
+    if (!exports)
+        title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(0, &title_global<const char>(0x00834438));
+    std::memcpy(&title_global<uint8_t>(0x009284e8), reinterpret_cast<const void*>(uintptr_t{exports}), 0x28 * 4);  // re
+    Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e098)),
+              1);  // cl_paused 0
+}
+
+uint32_t XB_CDECL CL_InitCGame() {
+    sys_milliseconds();
+    const ScriptString& info = title_global<ScriptString>(0x009606b8);  // configstring 0 (serverinfo)
+    const char* const text = info.rep ? reinterpret_cast<const char*>(info.rep) + 6 : nullptr;
+    const char* const map = Info_ValueForKey(text, &title_global<const char>(0x00835230));  // "mapname"
+    const uint32_t args[2] = {0x00835224, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(map))};  // "maps/%s.bsp"
+    Com_sprintf(&title_global<char>(0x009616b8), 0x80, args);  // cl.mapname
+    uint8_t* const vm = title_function<uint8_t* XB_CDECL(const char*, uint32_t)>(0x002f2b80)(
+        &title_global<const char>(0x0083521c), 0x002ac200);  // VM_Create("cgame", CL_CgameSystemCalls)
+    title_global<uint8_t*>(0x0093f7f8) = vm;
+    if (!vm) title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, &title_global<const char>(0x00835200));
+    title_function<uint32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(0x002a84e0)(0, vm, 0);  // VM_Call CG_INIT
+    sys_milliseconds();
+    title_function<void XB_CDECL()>(title_global<uint32_t>(0x00928510))();  // re.EndRegistration
+    const uint8_t* const cvar = title_global<uint8_t*>(0x00934c68);
+    if (cvar && !field<int32_t>(const_cast<uint8_t*>(cvar), 0x20)) return static_cast<uint32_t>(sys_milliseconds());
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cvar));
+}
+
+void XB_CDECL CL_Shutdown() {
+    int32_t& recursive = title_global<int32_t>(0x0098ad30);
+    if (recursive) {
+        title_function<int32_t XB_CDECL(const char*)>(0x001efc4d)(&title_global<const char>(0x00834170));  // printf
+        return;
+    }
+    recursive = 1;
+    DebugDraw_Shutdown();
+    const uint8_t* const running = title_global<uint8_t*>(0x00947704);  // com_cl_running
+    if (running && field<int32_t>(const_cast<uint8_t*>(running), 0x20)) {
+        Cvar_Set2(&title_global<const char>(0x00835238), const_cast<char*>(&title_global<const char>(0x0082e058)),
+                  1);  // r_uiFullScreen 1
+        CL_ClearState();
+        title_global<int32_t>(0x0092bdf0) = 0;  // cls.state
+    }
+    CL_ShutdownCGame(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(running)));
+    const uint32_t shutdown = title_global<uint32_t>(0x009284e8);  // re.Shutdown
+    if (shutdown) {
+        title_function<void XB_CDECL(int32_t)>(shutdown)(1);
+        std::memset(&title_global<uint8_t>(0x009284e8), 0, 0x28 * 4);
+    }
+    CL_ApplyFrontEndReturnState();
+    CL_ShutdownInput();
+    static constexpr uint32_t kCommands[18] = {0x008341f0, 0x00834164, 0x00834158, 0x008341e4, 0x0083414c, 0x008341dc,
+                                               0x0083413c, 0x00834128, 0x00834118, 0x008341cc, 0x00834114, 0x00834100,
+                                               0x008341bc, 0x008340f0, 0x008341ac, 0x0083419c, 0x00834190, 0x008340e8};
+    for (uint32_t name : kCommands) Cmd_RemoveCommand(&title_global<const char>(name));
+    Cvar_Set2(&title_global<const char>(0x00834184), const_cast<char*>(&title_global<const char>(0x0082e098)),
+              1);  // cl_running 0
+    std::memset(&title_global<uint8_t>(0x0092bdf0), 0, 0x67 * 4);  // cls
+    recursive = 0;
+}
+
+namespace {
+
+constexpr uint32_t kFrontEnd = 0x0095f8fc;
+
+// The front end opened over the paused game in `mode` (0x0032de50, front end in ESI: 0x0095f919 = 1, cl_paused 1,
+// vtable +0xc (mode)), inlined or called.
+void open_front_end(uint32_t mode, bool call) {
+    uint8_t* const fe = title_global<uint8_t*>(kFrontEnd);
+    if (call) {
+        TitleRegs regs{};
+        regs.esi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(fe));
+        const uint32_t args[1] = {mode};
+        cg_call_regs(0x0032de50, &regs, args, 1);  // (its tail-called method pops the word)
+        return;
+    }
+    title_global<uint8_t>(0x0095f919) = 1;
+    Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e058)),
+              1);  // cl_paused 1
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(field<uint32_t>(field<uint8_t*>(fe, 0), 0xc))(fe, mode);
+}
+
+void load_theatre_background() {
+    TitleRegs regs{};
+    regs.eax = 0x0095f8d0;  // g_uiRoot
+    cg_call_regs(0x0031ff30, &regs, nullptr, 0);  // FE_LoadTheatreBackground
+}
+
+}  // namespace
+
+void XB_CDECL CL_ApplyFrontEndReturnState() {
+    title_global<uint32_t>(0x0092bdf4) &= ~2u;  // cls.keyCatchers
+    if (title_global<uint8_t>(0x0095ee01)) {
+        CL_ApplyProfileSettings(&title_global<uint8_t>(0x008dce30));
+        if (!title_global<int32_t>(0x008dce50)) SV_SetSkillHard();
+        if (title_global<int32_t>(0x008dce50) == 1) SV_SetSkillMedium();
+        if (title_global<int32_t>(0x008dce50) == 2) SV_SetSkillEasy();
+        const int32_t chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
+        if (chapter <= 0)
+            open_front_end(5, false);
+        else if (chapter <= 5)
+            open_front_end(3, false);
+        else
+            open_front_end(chapter <= 8 ? 4 : 2, true);
+        load_theatre_background();
+    }
+    if (!title_global<uint8_t>(0x0095f918)) return;
+    uint8_t* const overlay = title_global<uint8_t*>(0x0095f8f8);
+    title_global<uint8_t>(0x0095f918) = 0;
+    if (overlay) title_function<void XB_THISCALL(uint8_t*, int32_t)>(field<uint32_t>(field<uint8_t*>(overlay, 0), 0))(overlay, 1);
+    title_global<uint8_t*>(0x0095f8f8) = nullptr;
+    if (title_global<uint8_t>(0x0095ee01)) return;
+    const int32_t chapter = title_global<int32_t>(0x008dce48);
+    if (chapter <= 0)
+        open_front_end(5, false);
+    else
+        open_front_end(chapter <= 5 ? 3 : chapter <= 8 ? 4 : 2, true);
+    load_theatre_background();
+    uint8_t* const zone = title_global<uint8_t*>(0x0095f4f0);
+    field<uint32_t>(zone, 0x34) = title_global<uint32_t>(0x0082eed0);  // FLT_MAX
+    TitleRegs regs{};
+    regs.eax = title_global<uint32_t>(0x0095f638);
+    regs.ebx = field<uint32_t>(zone, 0x28);
+    cg_call_regs(0x00292cb0, &regs, nullptr, 0);  // Stream_WaitForLoad
+}
+
+PLATFORM_ASM_ENTRY(CL_ResumeFromPause_entry, "pushl 4(%esp)\n"
+                                             "pushl %esi\n" PLATFORM_ASM_CALL(CL_ResumeFromPause) "addl $8, %esp\n"
+                                             "ret $4")
+
+void XB_CDECL CL_ResumeFromPause(uint8_t* menu, float dt) {
+    using Method1 = void XB_THISCALL(uint8_t*, uint32_t);
+    auto method = [](uint8_t* object, uint32_t slot) {
+        return title_function<Method1>(field<uint32_t>(field<uint8_t*>(object, 0), slot));
+    };
+    if (field<uint8_t>(menu, 0x44) & 8) {
+        uint8_t* const pause = title_global<uint8_t*>(0x0095f900);
+        method(pause, 0xc)(pause, 0xffffffff);
+        if (!(field<uint8_t>(pause, 0x20) & 1)) {
+            TitleRegs regs{};
+            regs.eax = title_global<uint32_t>(0x0095f4c4);
+            cg_call_regs(0x002b6ba0, &regs, nullptr, 0);  // S_ResumeAllChannels
+            Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e098)),
+                      1);  // cl_paused 0
+        }
+        field<uint8_t>(pause, 0x20) &= 0xfb;
+    }
+    if (field<float>(menu, 0x40) == 0.0f && (field<uint8_t>(menu, 0x44) & 4)) {  // UCOMISS: NaN is not 0
+        for (uint32_t i = 0; i < 4; ++i) {
+            uint8_t* const child = field<uint8_t*>(menu, 4 * i);
+            method(child, 0x34)(child, 1);
+        }
+    }
+    if (0.0f > field<float>(menu, 0x40)) field<float>(menu, 0x40) = field<float>(menu, 0x40) + dt;
+    const uint8_t flags = field<uint8_t>(menu, 0x44);
+    bool show = false;
+    if ((flags & 4) && (flags & 1) && 0.0f > field<float>(menu, 0x3c)) {
+        const float value = dt / title_global<float>(0x0083eb94) * title_global<float>(0x0083ec9c) + field<float>(menu, 0x3c);
+        field<float>(menu, 0x3c) = value;
+        if (value > 0.0f) field<float>(menu, 0x3c) = 0.0f;
+        show = true;
+    } else if ((flags & 4) && (flags & 2)) {
+        float value = field<float>(menu, 0x3c);
+        if (value > field<float>(menu, 0x38)) {
+            value = value - dt / title_global<float>(0x0083eb94) * title_global<float>(0x0083ec9c);
+            field<float>(menu, 0x3c) = value;
+            if (field<float>(menu, 0x38) > value) field<uint32_t>(menu, 0x3c) = field<uint32_t>(menu, 0x38);
+            show = true;
+        }
+    }
+    if (show) {
+        const float position =
+            field<float>(menu, 0x3c) / field<float>(menu, 0x38) * title_global<float>(0x0083ef98) + title_global<float>(0x0083ef94);
+        uint8_t* const child = field<uint8_t*>(menu, 0xc);
+        uint32_t bits;
+        std::memcpy(&bits, &position, 4);
+        using Method2 = void XB_THISCALL(uint8_t*, uint32_t, uint32_t);
+        title_function<Method2>(field<uint32_t>(field<uint8_t*>(child, 0), 0x8c))(child, field<uint32_t>(menu, 0x34), bits);
+    }
+    const uint32_t color = title_global<uint8_t*>(0x0095f8f8) ? 0xff000000 : 0xffffffff;
+    uint8_t* const first = field<uint8_t*>(menu, 0x28);
+    method(first, 0x90)(first, color);
+    uint8_t* const second = field<uint8_t*>(menu, 0x2c);
+    method(second, 0x90)(second, color);
+}
+
+PLATFORM_ASM_ENTRY(CL_PlayMovie_entry, "pushl %esi\n" PLATFORM_ASM_CALL(CL_PlayMovie) "addl $4, %esp\n"
+                                       "ret")
+
+void XB_CDECL CL_PlayMovie(const char* name) {
+    if (title_global<uint8_t>(0x0095f916)) return;
+    title_global<uint8_t>(0x0095f46c) = 0;
+    if (!Movie_Open(name)) return;
+    if (!title_global<Movie*>(0x0095f454)) return;
+    while (!Movie_IsReady(title_global<Movie*>(0x0095f454))) title_function<void XB_CDECL()>(0x000ca690)();  // File_PumpRequests
+    title_global<uint32_t>(0x0095f468) = static_cast<uint32_t>(loading_clock());
+    Subtitle_Start(name, &title_global<const char>(0x0082d7f8));  // "MOVIE"
+    nglSetVBlankMode(2);
+    bool done = false;
+    title_global<float>(0x0095f45c) = 0.0f;
+    // The view matrix: rows 0x0082e160/70/80 times lane 0 of 0x0082e140, row 3 = 0x0082e290 with z + 10 (all lanes
+    // computed, as MULPS/ADDPS do).
+    alignas(16) float view[16];
+    const float scale = title_global<float>(0x0082e140);
+    for (uint32_t row = 0; row < 3; ++row)
+        for (uint32_t lane = 0; lane < 4; ++lane)
+            view[4 * row + lane] = title_global<float>(0x0082e160 + 0x10 * row + 4 * lane) * scale;
+    const float z = title_global<float>(0x0082e298);
+    float sums[4];
+    for (uint32_t lane = 0; lane < 4; ++lane) sums[lane] = title_global<float>(0x0083eb98) + z;
+    platform_keep(sums[1]);
+    view[12] = title_global<float>(0x0082e290);
+    view[13] = title_global<float>(0x0082e294);
+    view[14] = sums[0];
+    view[15] = title_global<float>(0x0082e29c);
+    do {
+        nglBeginFrame();
+        nglSetPerspective(90.0f, 1.0f, 100.0f);
+        nglSetViewMatrix(view);
+        if (Movie_DrawFrame() == 3 || Movie_CheckSkipInput() == 1) done = true;
+        Subtitle_Draw();
+        nglEndFrame();
+        SCR_LoadingPump();
+    } while (!done);
+    Movie_Stop(1);
+}
+
+namespace {
+
+// S_SetHandleVolume (0x002bd140): handle in EAX, volume in XMM0.
+void set_handle_volume(uint32_t handle, float volume) {
+    __asm__ volatile("movss %1, %%xmm0\n\tcall *%2"
+                     : "+a"(handle)
+                     : "m"(volume), "r"(uintptr_t{0x002bd140})
+                     : "ecx", "edx", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory");
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CL_ApplyProfileSettings_entry, "pushl %edi\n" PLATFORM_ASM_CALL(CL_ApplyProfileSettings) "addl $4, %esp\n"
+                                                  "ret")
+
+void XB_CDECL CL_ApplyProfileSettings(uint8_t* profile) {
+    static constexpr int32_t kAttenuation[4] = {1, 2, 4, 3};
+    const uint32_t mode = title_global<uint32_t>(0x008dce84);
+    if (mode <= 3) S_SetMasterAttenuation(kAttenuation[mode]);
+    const float fifty = title_global<float>(0x0083ec30);
+    set_handle_volume(title_global<uint32_t>(0x0095f4cc), static_cast<float>(field<int32_t>(profile, 0x58)) / fifty);
+    const float volume = static_cast<float>(field<int32_t>(profile, 0x58)) / fifty;
+    uint8_t* const sound = title_global<uint8_t*>(0x0095f4c4);
+    float& level = field<float>(sound, 0x6018);
+    level = volume;
+    if (0.0f >= volume) level = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    if (level >= one) level = one;
+    const float rest = one - level;
+    title_function<void XB_CDECL(float)>(0x000c6490)(one - rest * rest);  // S_SetMasterVolume
+    const uint8_t* const pitch = title_global<uint8_t*>(0x00929c0c);  // m_pitch
+    if (pitch) {
+        const float value = field<float>(const_cast<uint8_t*>(pitch), 0x1c);
+        const bool flip = title_global<uint8_t>(0x008dce71) ? value > 0.0f : 0.0f > value;  // inverted look
+        if (flip) Cvar_SetValue(&title_global<const char>(0x0082e07c), field<float>(const_cast<uint8_t*>(pitch), 0x1c) * -1.0f);
+    }
+    uint8_t* const sensitivity_x = Cvar_Get(&title_global<const char>(0x0082e06c), &title_global<const char>(0x0082e098), 1);
+    uint8_t* const sensitivity_y = Cvar_Get(&title_global<const char>(0x0082e05c), &title_global<const char>(0x0082e098), 1);
+    const float two = title_global<float>(0x0083eba8);
+    field<float>(sensitivity_x, 0x1c) = static_cast<float>(field<int32_t>(profile, 0x44)) / fifty * two;
+    field<float>(sensitivity_y, 0x1c) = static_cast<float>(field<int32_t>(profile, 0x48)) / fifty * two;
+    const int32_t pad = title_global<int32_t>(0x008dcf18);
+    title_global<int32_t>(0x008d50d8) = pad;
+    if (pad != -1) field<int32_t>(title_global<uint8_t*>(0x0095f6fc), 0x44d0) = pad;  // g_liveMgr
+    Cvar_Set2(&title_global<const char>(0x0082e044),
+              const_cast<char*>(&title_global<const char>(field<int32_t>(profile, 0x3c) == 1 ? 0x0082e058 : 0x0082e098)),
+              1);  // g_vehControlMode
+    switch (title_global<int32_t>(0x008dce7c)) {  // controller style
+    case 1: Cbuf_AddText(&title_global<const char>(0x0082e030)); break;  // exec style_e.cfg
+    case 2: Cbuf_AddText(&title_global<const char>(0x0082e01c)); break;  // exec style_f.cfg
+    case 3: Cbuf_AddText(&title_global<const char>(0x0082e008)); break;  // exec style_g.cfg
+    case 4: break;
+    default: Cbuf_AddText(&title_global<const char>(0x0082dff4)); break;  // exec style_h.cfg (inlined)
+    }
+    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute (a tail jump)
+}
+
+namespace {
+
+// The localized string `key` (rm_locStrings), "NO STRING" when its entry has none, the key when there is no entry.
+const char* localized(const char* key) {
+    const uint32_t hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x00024440)(key);  // Loc_HashKey
+    const uint8_t* const entry = Zone_FindByHash(title_global<uint8_t*>(0x0095f5d8), hash);
+    if (!entry) return key;
+    const char* const text = field<const char*>(const_cast<uint8_t*>(entry), 8);
+    return text ? text : &title_global<const char>(0x008379b4);
+}
+
+// float(value * 0.5) on the x87 (FILD, FSTP QWORD, FLD, FMUL QWORD 0.5, FSTP DWORD).
+float int_half_float(int32_t value) {
+    double converted;
+    __asm__("fildl %1\n\tfstpl %0" : "=m"(converted) : "m"(value) : "st");
+    float result;
+    __asm__("fldl %1\n\tfmull %2\n\tfstps %0" : "=m"(result) : "m"(converted), "m"(title_global<double>(0x0083ecb0))
+            : "st");
+    return result;
+}
+
+// time + float(float(ticks) / 733333.3) * 0.001 on the x87, each step stored as float as the original does.
+float add_tick_seconds(int32_t ticks, float time) {
+    float converted, divided, result;
+    __asm__("fildl %1\n\tfstps %0" : "=m"(converted) : "m"(ticks) : "st");
+    __asm__("flds %1\n\tfdivs %2\n\tfstps %0" : "=m"(divided) : "m"(converted), "m"(title_global<float>(0x0083ed30))
+            : "st");
+    __asm__("flds %1\n\tfmull %2\n\tfadds %3\n\tfstps %0"
+            : "=m"(result)
+            : "m"(divided), "m"(title_global<double>(0x0083ef88)), "m"(time)
+            : "st");
+    return result;
+}
+
+// time * 0.5 (FLD, FMUL QWORD) / 1.0 - (time - 3) * 0.5 (FSUB, FMUL QWORD, FSUBR QWORD), stored as float.
+float fade_in(float time) {
+    float result;
+    __asm__("flds %1\n\tfmull %2\n\tfstps %0" : "=m"(result) : "m"(time), "m"(title_global<double>(0x0083ecb0)) : "st");
+    return result;
+}
+
+float fade_out(float time) {
+    float result;
+    __asm__("flds %1\n\tfsubs %2\n\tfmull %3\n\tfsubrl %4\n\tfstps %0"
+            : "=m"(result)
+            : "m"(time), "m"(title_global<float>(0x0083ec9c)), "m"(title_global<double>(0x0083ecb0)),
+              "m"(title_global<double>(0x0083eb10))
+            : "st");
+    return result;
+}
+
+}  // namespace
+
+void XB_CDECL SCR_DrawLoadingScreen() {
+    NglQuad quad{};
+    nglInitQuad(&quad);
+    nglSetQuadRect(&quad, 0.0f, 0.0f, 640.0f, 480.0f);
+    nglSetQuadColor(&quad, 0xff000000);
+    nglSetQuadZ(&quad, 300.0f);
+    const char* const text = localized(&title_global<const char>(0x0082d018));  // "INGAME_TWO_YEARS"
+    uint8_t* object = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x60);  // Z_Malloc
+    if (object) object = UIText_Init(object, 3, text, 0, 0, 0, 7, 0x3fd9999a, 0x10, 0, 0xffd2cfb2);  // 1.7, colour
+    auto method = [object](uint32_t slot) { return field<uint32_t>(field<uint8_t*>(object, 0), slot); };
+    const long double width = title_function<long double XB_THISCALL(uint8_t*)>(method(0xd0))(object);
+    const int32_t left = 0x280 - static_cast<int32_t>(static_cast<int64_t>(width));
+    title_function<void XB_THISCALL(uint8_t*, float, float)>(method(0x7c))(object, int_half_float(left), 230.0f);
+    using SetAlpha = void XB_THISCALL(uint8_t*, uint32_t);
+    title_function<SetAlpha>(method(0x88))(object, 0);
+    uint32_t last = static_cast<uint32_t>(loading_clock());
+    float time = 0.0f;
+    float alpha = 0.0f;
+    for (;;) {
+        uint32_t alpha_bits;
+        std::memcpy(&alpha_bits, &alpha, 4);
+        title_function<SetAlpha>(method(0x88))(object, alpha_bits);
+        nglBeginFrame();
+        nglPushScene(0);
+        nglSetClearFlags(0xf3);
+        nglSetSceneDepthEnable(0);
+        nglListAddQuad(&quad);
+        nglPopScene();
+        nglPushScene(0);
+        nglSetClearFlags(0);
+        title_function<void XB_THISCALL(uint8_t*)>(method(0x3c))(object);  // draw
+        nglPopScene();
+        nglEndFrame();
+        title_function<void XB_CDECL()>(0x000ca690)();  // File_PumpRequests
+        const uint32_t now = static_cast<uint32_t>(loading_clock());
+        time = add_tick_seconds(static_cast<int32_t>(now - last), time);
+        last = now;
+        if (platform_x87_greater(title_global<float>(0x0083eba8), time)) {  // 2 s fade in
+            alpha = fade_in(time);
+        } else if (title_global<float>(0x0083ec9c) > time) {  // shown until 3 s
+            alpha = title_global<float>(0x0083eb20);
+        } else if (title_global<float>(0x0083ece8) > time) {  // fade out until 5 s
+            alpha = fade_out(time);
+        } else {
+            return;
+        }
+    }
+}
+
+void XB_REGS1 XB_CDECL SCR_DrawLaunchLoadingScreen(uint32_t alpha) {
+    const char* const text = localized(&title_global<const char>(0x0082d06c));  // "INGAME_LOADING"
+    int32_t width, height;
+    nglGetTextExtentf(title_global<uint8_t*>(0x0095f8e0), &width, &height, text);
+    const int32_t x = unsigned_half_ftol(static_cast<uint32_t>(0x280 - width));
+    NglQuad quad{};
+    nglInitQuad(&quad);
+    nglSetQuadRect(&quad, 0.0f, 0.0f, 640.0f, 480.0f);
+    nglSetQuadColor(&quad, alpha << 24);
+    nglSetQuadZ(&quad, 300.0f);
+    nglSetQuadBlend(&quad, 2, 0);
+    for (int32_t i = 2; i != 0; --i) {
+        nglBeginFrame();
+        nglSetClearFlags(3);
+        nglListAddQuad(&quad);
+        nglListAddTextf(title_global<uint8_t*>(0x0095f8d4), platform_x87_unsigned_to_float(static_cast<uint32_t>(x)),
+                        220.0f, 0.0f, 0xe0ffffff, 1.0f, 1.0f, text);
+        nglEndFrame();
+    }
+}
+
+// Q3's CL_Init: cvars (the generated sequence follows the original's calls), commands, the renderer imports.
+void XB_CDECL CL_Init() {
+    title_global<int32_t>(0x0092bdf0) = 0;  // cls.state
+    title_global<int32_t>(0x0092be98) = 0;
+    CL_InitInput();
+    title_global<uint8_t*>(0x00934c68) = Cvar_Get(&title_global<const char>(0x00834410), &title_global<const char>(0x0082e098), 0x0);
+    title_global<uint8_t*>(0x0095f4e4) = Cvar_Get(&title_global<const char>(0x00834404), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x00927de4) = Cvar_Get(&title_global<const char>(0x008343f8), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x009284e0) = Cvar_Get(&title_global<const char>(0x008343ec), &title_global<const char>(0x0082e098), 0x0);
+    title_global<uint8_t*>(0x00929bf4) = Cvar_Get(&title_global<const char>(0x008343dc), &title_global<const char>(0x0082e098), 0x0);
+    title_global<uint8_t*>(0x00929b1c) = Cvar_Get(&title_global<const char>(0x008343cc), &title_global<const char>(0x008343d8), 0x1);
+    title_global<uint8_t*>(0x00934a60) = Cvar_Get(&title_global<const char>(0x008343bc), &title_global<const char>(0x008343d8), 0x1);
+    title_global<uint8_t*>(0x0093e6b4) = Cvar_Get(&title_global<const char>(0x008343a4), &title_global<const char>(0x008343b8), 0x0);
+    title_global<uint8_t*>(0x00929c04) = Cvar_Get(&title_global<const char>(0x00834394), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x00934c70) = Cvar_Get(&title_global<const char>(0x0082c538), &title_global<const char>(0x0082e058), 0x100);
+    title_global<uint8_t*>(0x00927b20) = Cvar_Get(&title_global<const char>(0x008351c0), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x009284d8) = Cvar_Get(&title_global<const char>(0x008351cc), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x00927ddc) = Cvar_Get(&title_global<const char>(0x00834380), &title_global<const char>(0x0082e098), 0x1);
+    title_global<uint8_t*>(0x00929b58) = Cvar_Get(&title_global<const char>(0x00834370), &title_global<const char>(0x0082e058), 0x1);
+    title_global<uint8_t*>(0x00933e40) = Cvar_Get(&title_global<const char>(0x00834360), &title_global<const char>(0x0082e058), 0x1);
+    // Sensitivities from the profile defaults (0x008dce74/78 / 50 * 2).
+    const float fifty = title_global<float>(0x0083ec30);
+    const float two = title_global<float>(0x0083eba8);
+    field<float>(title_global<uint8_t*>(0x00929b58), 0x1c) = static_cast<float>(title_global<int32_t>(0x008dce74)) / fifty * two;
+    field<float>(title_global<uint8_t*>(0x00933e40), 0x1c) = static_cast<float>(title_global<int32_t>(0x008dce78)) / fifty * two;
+    title_global<uint8_t*>(0x0092f5e8) = Cvar_Get(&title_global<const char>(0x00834350), &title_global<const char>(0x0082e098), 0x1);
+    title_global<uint8_t*>(0x0093f808) = Cvar_Get(&title_global<const char>(0x00834344), &title_global<const char>(0x0082e058), 0x1);
+    title_global<uint8_t*>(0x00929cd0) = Cvar_Get(&title_global<const char>(0x0083432c), &title_global<const char>(0x0082e058), 0x1);
+    title_global<uint8_t*>(0x00927de8) = Cvar_Get(&title_global<const char>(0x008351a8), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x0093efe8) = Cvar_Get(&title_global<const char>(0x00835190), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x0092e824) = Cvar_Get(&title_global<const char>(0x0082e044), &title_global<const char>(0x0082e058), 0x1);
+    title_global<uint8_t*>(0x00929c2c) = Cvar_Get(&title_global<const char>(0x00834318), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x00929c28) = Cvar_Get(&title_global<const char>(0x00834300), &title_global<const char>(0x0082e098), 0x100);
+    title_global<uint8_t*>(0x0092eff8) = Cvar_Get(&title_global<const char>(0x008342ec), &title_global<const char>(0x0082e098), 0x0);
+    title_global<uint8_t*>(0x00934a5c) = Cvar_Get(&title_global<const char>(0x008342e0), &title_global<const char>(0x0082e098), 0x0);
+    title_global<uint8_t*>(0x00927b24) = Cvar_Get(&title_global<const char>(0x008342d0), &title_global<const char>(0x0082e098), 0x0);
+    title_global<uint8_t*>(0x0092f54c) = Cvar_Get(&title_global<const char>(0x00835158), &title_global<const char>(0x0082e098), 0x40);
+    title_global<uint8_t*>(0x0093ef60) = Cvar_Get(&title_global<const char>(0x00835140), &title_global<const char>(0x0082e098), 0x40);
+    title_global<uint8_t*>(0x00929c0c) = Cvar_Get(&title_global<const char>(0x0082e07c), &title_global<const char>(0x008342cc), 0x1);
+    title_global<uint8_t*>(0x00929bf8) = Cvar_Get(&title_global<const char>(0x008342c4), &title_global<const char>(0x008342cc), 0x1);
+    // The look direction from m_pitch's sign: m_pitch = sign * 0.7, then 0x008342c4 = 0.7.
+    const float pitch = field<float>(title_global<uint8_t*>(0x00929c0c), 0x1c);
+    int32_t sign = 0;
+    if (pitch > 0.0f)
+        sign = 1;
+    else if (0.0f > field<float>(title_global<uint8_t*>(0x00929c0c), 0x1c))
+        sign = -1;
+    Cvar_SetValue(&title_global<const char>(0x0082e07c), static_cast<float>(sign) * title_global<float>(0x0083ed28));
+    Cvar_SetValue(&title_global<const char>(0x008342c4), 0.7f);
+    title_global<uint8_t*>(0x0092f13c) = Cvar_Get(&title_global<const char>(0x008342b0), &title_global<const char>(0x008342bc), 0x1);
+    title_global<uint8_t*>(0x00934c6c) = Cvar_Get(&title_global<const char>(0x008342a8), &title_global<const char>(0x008342bc), 0x1);
+    title_global<uint8_t*>(0x00935110) = Cvar_Get(&title_global<const char>(0x0083429c), &title_global<const char>(0x0082e098), 0x1);
+    Cvar_Get(&title_global<const char>(0x0083428c), &title_global<const char>(0x00834298), 0x1);
+    title_global<uint8_t*>(0x00927e80) = Cvar_Get(&title_global<const char>(0x00834280), &title_global<const char>(0x0082e058), 0x200);
+    title_global<uint8_t*>(0x00934250) = Cvar_Get(&title_global<const char>(0x00834278), &title_global<const char>(0x0082e058), 0x200);
+    title_global<uint8_t*>(0x009355d0) = Cvar_Get(&title_global<const char>(0x00834270), &title_global<const char>(0x0082e058), 0x0);
+    title_global<uint8_t*>(0x00935120) = Cvar_Get(&title_global<const char>(0x00834260), &title_global<const char>(0x0082e058), 0x1);
+    title_global<uint8_t*>(0x00933e48) = Cvar_Get(&title_global<const char>(0x00834254), &title_global<const char>(0x0082e098), 0x1);
+    title_global<uint8_t*>(0x0092e820) = Cvar_Get(&title_global<const char>(0x00834248), &title_global<const char>(0x0082e098), 0x200);
+    title_global<uint8_t*>(0x00934a64) = Cvar_Get(&title_global<const char>(0x0083423c), &title_global<const char>(0x0082e098), 0x200);
+    title_global<uint8_t*>(0x0092e9e0) = Cvar_Get(&title_global<const char>(0x0083422c), &title_global<const char>(0x0082e098), 0x200);
+    title_global<uint8_t*>(0x0092f098) = Cvar_Get(&title_global<const char>(0x00834220), &title_global<const char>(0x0082e098), 0x200);
+    title_global<uint8_t*>(0x00929b50) = Cvar_Get(&title_global<const char>(0x0083420c), &title_global<const char>(0x0082e098), 0x200);
+    Cvar_Get(&title_global<const char>(0x008341f4), &title_global<const char>(0x008341fc), 0x1);
+    Cmd_AddCommand(&title_global<const char>(0x008341f0), 0x002b32b0);
+    Cmd_AddServerCommand(&title_global<const char>(0x008341e4), 0x002ab7b0);
+    Cmd_AddCommand(&title_global<const char>(0x008341dc), 0x002ab7c0);
+    Cmd_AddCommand(&title_global<const char>(0x008341cc), 0x002f1e60);
+    Cmd_AddCommand(&title_global<const char>(0x008341bc), 0x002b31f0);
+    Cmd_AddCommand(&title_global<const char>(0x008341ac), 0x002ccfb0);
+    Cmd_AddCommand(&title_global<const char>(0x0083419c), 0x002ccf40);
+    title_global<uint8_t*>(0x00929b0c) = Cvar_Get(&title_global<const char>(0x0083441c), &title_global<const char>(0x0082e098), 0x0);
+    Cmd_AddCommand(&title_global<const char>(0x00834190), 0x002b2880);
+    CL_InitRef();
+    title_global<int32_t>(0x00933ee4) = 1;  // UI started
+    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute
+    Cvar_Set2(&title_global<const char>(0x00834184), const_cast<char*>(&title_global<const char>(0x0082e058)),
+              1);  // cl_running 1
 }
 
 }  // namespace game

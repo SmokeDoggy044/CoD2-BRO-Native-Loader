@@ -488,6 +488,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002aaa10,Cmd_ArgsFrom,2419,2419,0,0,100.0
 002aaac0,Cmd_Argc,4000,4000,0,0,100.0
 002aac40,Cmd_Wait_f,3995,3995,0,0,100.0
+002aac90,CL_RefCM_GetEntry,3815,3815,0,0,100.0
 002aaf00,CM_FloodArea_r,1037,1037,0,0,100.0
 002ab470,SCR_AdjustFrom640,3504,3504,0,0,100.0
 002ab7c0,CL_Setenv_f,3518,3518,0,0,55.4
@@ -501,6 +502,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002b0250,COM_ParseExt,3508,3508,0,0,26.8
 002b1e50,Cmd_ArgsBuffer,1395,1395,0,0,100.0
 002b2200,CM_FloodAreaConnections,1525,1525,0,0,96.8
+002b2c60,SCR_DrawSmallChar,3222,3222,0,0,100.0
 002b2e80,DebugDraw_Shutdown,3266,3266,0,0,100.0
 002b31f0,CL_ShellExecute_URL_f,3868,3868,0,0,60.0
 002b32b0,CL_ForwardToServer_f,3978,3978,0,0,39.1
@@ -532,6 +534,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002c0d30,Cmd_Vstr_f,3981,3981,0,0,100.0
 002c1d60,Key_Unbindall_f,3332,3332,0,0,100.0
 002c1db0,Key_Unbind_f,3996,3996,0,0,50.0
+002c1e00,Field_AdjustScroll,1201,1201,0,0,56.1
 002c5140,SV_SetSkillEasy,895,895,0,0,100.0
 002c5200,SV_SetSkillHard,1,1,0,0,100.0
 002ccf40,CL_DecAnimWeight_f,1041,1041,0,0,100.0
