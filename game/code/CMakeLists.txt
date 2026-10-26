@@ -21,6 +21,7 @@ set(game_code_sources
     g_script.cpp
     g_utils.cpp
     g_vehicle.cpp
+    movie_vid.cpp
     nal_anim.cpp
     nal_codec.cpp
     nal_entropy.cpp
