@@ -548,7 +548,9 @@ address,name,tested,matched,nan,mismatched,coverage
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
 002fd650,Vehicle_CountActive,2033,2033,0,0,100.0
 0030cd70,FE_FormatPlayTime,2094,2094,0,0,87.2
+0030cdf0,FE_SplitPlayTime2,3267,3267,0,0,100.0
 0030d0b0,FE_FormatPlayTime2,1999,1999,0,0,87.2
+0030d140,FE_SplitPlayTime,3334,3334,0,0,100.0
 0030e0f0,FE_CommandDisplayName,2132,2132,0,0,68.9
 0030f380,UIFontTable_SetByName,3736,3736,0,0,100.0
 00310400,UIQuad_Translate,3845,3845,0,0,100.0
