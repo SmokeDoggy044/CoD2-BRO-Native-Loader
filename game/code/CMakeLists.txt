@@ -12,6 +12,7 @@ set(game_code_sources
     cm.cpp
     dobj.cpp
     fe.cpp
+    fe_bonus.cpp
     fe_menus.cpp
     fe_options.cpp
     functions.cpp
