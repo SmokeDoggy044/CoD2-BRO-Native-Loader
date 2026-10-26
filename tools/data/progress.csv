@@ -1228,7 +1228,7 @@ address,name,section,module,state,tested,matched
 000456a0,nglMaterialFindTexture,.text,renderer,settled,127,127
 000456c0,nglMaterialFindTextureOrDefault,.text,renderer,settled,119,119
 000456f0,nglGetSceneFogColor,.text,renderer,settled,350,350
-00045790,nglInitShaders,.text,renderer,inconclusive,299,0
+00045790,nglInitShaders,.text,renderer,inconclusive,300,0
 00045850,R_DrawFogPass,.text,renderer,settled,157,157
 00045ef0,R_AddFogPass,.text,renderer,settled,387,387
 00045f40,nglToggleShaderByName,.text,renderer,matched,2,2
@@ -1631,7 +1631,7 @@ address,name,section,module,state,tested,matched
 00064080,nglSkipList_Find,.text,renderer,settled,146,146
 000641a0,nglTextureManager_DeletingDtor,.text,renderer,offline,0,0
 000641d0,nglPaletteManager_DeletingDtor,.text,renderer,offline,0,0
-00064300,nglResetDevice,.text,renderer,inconclusive,73,0
+00064300,nglResetDevice,.text,renderer,inconclusive,74,0
 00064370,nglWaitFrameInterval,.text,renderer,settled,138,138
 00064560,nglIsPAL50,.text,renderer,settled,666,666
 00064570,nglShutdown,.text,renderer,offline,0,0
@@ -1642,8 +1642,8 @@ address,name,section,module,state,tested,matched
 00064660,nglResetDeviceBindings,.text,renderer,settled,165,101
 00064690,nglBeginFrame,.text,renderer,settled,109,109
 00064780,nglDrawFpsCounter,.text,renderer,settled,286,286
-000649e0,nglSelectVideoMode,.text,renderer,inconclusive,191,0
-00064bc0,nglInit,.text,renderer,inconclusive,15,0
+000649e0,nglSelectVideoMode,.text,renderer,inconclusive,192,0
+00064bc0,nglInit,.text,renderer,inconclusive,16,0
 00064ec0,nglEndFrame,.text,renderer,settled,266,132
 00065380,nglVideoMode_Init,.text,renderer,settled,102,102
 00065420,nglVideoMode_Copy,.text,renderer,settled,102,102
@@ -1744,7 +1744,7 @@ address,name,section,module,state,tested,matched
 0006e780,nglColorToVec4,.text,renderer,offline,0,0
 0006e860,nglDepthToZValue,.text,renderer,settled,4462,4462
 0006e920,nglDebugMeshVertexIter_Clone,.text,renderer,offline,0,0
-0006e9c0,nglInitFrameBuffers,.text,renderer,inconclusive,17,0
+0006e9c0,nglInitFrameBuffers,.text,renderer,inconclusive,18,0
 0006eca0,nglReadBackBufferSize,.text,renderer,matched,289,34
 0006ece0,nglFreeTexture,.text,renderer,settled,498,105
 0006eea0,nglCreateTexture,.text,renderer,settled,444,100
@@ -1820,7 +1820,7 @@ address,name,section,module,state,tested,matched
 000778b0,nglSetFrameMemorySize,.text,renderer,settled,115,115
 00077b30,nglAllocFrameScratch,.text,renderer,settled,400,400
 00077b50,nglAllocFrameMemory,.text,renderer,matched,61,61
-00078500,nglInitMultisample,.text,renderer,inconclusive,290,0
+00078500,nglInitMultisample,.text,renderer,inconclusive,291,0
 00078790,nglSetVertexStreams,.text,renderer,settled,4025,4025
 00078810,nglSetRenderTargetCached,.text,renderer,settled,13061,6382
 00078890,nglDrawMeshSection,.text,renderer,settled,3755,3755
@@ -1857,7 +1857,7 @@ address,name,section,module,state,tested,matched
 0007b670,nglDebugShader_Draw,.text,renderer,untested,0,0
 0007b780,nglDebugShader_GetName,.text,renderer,matched,5,5
 0007b810,nglDumpPrintf,.text,renderer,untested,0,0
-0007bac0,Anim_InitManagers,.text,renderer,inconclusive,14,0
+0007bac0,Anim_InitManagers,.text,renderer,inconclusive,15,0
 0007bd20,NAL_GenericAnim_DestroyState,.text,xanim,untested,0,0
 0007bd40,NAL_GenericAnim_DeletingDtor,.text,xanim,untested,0,0
 0007be10,WaitTilOutputInst1_str_VFunc2,.text,script,offline,0,0
@@ -9153,7 +9153,7 @@ address,name,section,module,state,tested,matched
 002a5c40,FXCmd_Type8AtTag,.text,renderer,settled,208,208
 002a5ee0,FXCmd_Type8,.text,renderer,settled,109,109
 002a5fd0,FXCmd_Type7AtTransform,.text,renderer,matched,84,84
-002a60e0,FXCmd_Type6AtTransform,.text,renderer,untested,0,0
+002a60e0,FXCmd_Type6AtTransform,.text,renderer,matched,22,22
 002a61f0,FXCmd_Type5AtTransform,.text,renderer,settled,272,272
 002a62d0,FXCmd_PlayWeaponSound,.text,renderer,settled,123,123
 002a63d0,FXCmd_PlayWeaponSoundLoop,.text,renderer,matched,15,15
