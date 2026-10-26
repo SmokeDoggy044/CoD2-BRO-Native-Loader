@@ -119,6 +119,25 @@ struct Counts {
 // Counts of the tested function named `name` since install (zero if not tested).
 Counts counts(const char* name);
 
+// A title thread's registers as pushad after pushfd leaves them (lowest address first).
+struct TitleRegisters {
+    uint32_t eflags, edi, esi, ebp, esp_ignored, ebx, edx, ecx, eax;
+};
+
+enum class ForceResult { Started, Busy, Failed };
+
+// Tests a call the title does not make (shutdown and free paths the campaign never
+// reaches): the hooked function `name` runs, original and decompiled, on a copy of the
+// game as if the title code that holds `registers` had called it with its return address
+// slot at `esp`; the game itself goes on without the call. `args`: comma-separated
+// "eax=E" ... "ebp=E" (not esp) and stack words in order; E is a number, "[E]" (the title
+// word there), "E+N" or "E-N". `when` (empty: always): an E that must be nonzero now, else
+// Busy. Busy: no free test slot or `when` is 0 (try again later). Failed: why in
+// `error` (not hooked - settled, not Compare or no --compare -, a bad argument); Started: the
+// values used, in `error` too.
+ForceResult force_call(const char* name, const char* args, const char* when, const TitleRegisters& registers,
+                       uint32_t esp, std::string& error);
+
 // Waits until the tests in flight have reported (at most timeout_ms + 2 s). Tests run
 // beside the game: a call's verdict arrives a few ms after the call.
 void drain();

@@ -76,6 +76,21 @@ the MP heap lock, `--level`). `--compare --pc-patches on` plays with them; then 
 `loader/` before adding a function - a patched one is not compared. A function the PC
 features patch cannot become `Replaced` until that patch calls the decompiled version.
 
+## Forced calls (paths the campaign never takes)
+
+`--force "NAME(ARGS)@S*N?W"` (with `--compare`, campaign; `compare_batch.py --force`, repeatable)
+tests N calls of a hooked function the title does not make - shutdown and free paths (the campaign
+reboots instead of shutting down) - on copies of the game: `compare::force_call` starts an ordinary
+test from the client frame's call site (`client_frame_hook`, at most one per spec and frame, from S
+seconds after the level is active, on frames where W is nonzero), as if the title had called NAME
+there; the game goes on without the call. ARGS: `eax=` ... `ebp=` and up to 8 stack words, written
+above the return slot in the test processes (dead stack there); values are numbers, `[E]` (the
+title word at E, read without faulting) and `E+N`/`E-N`. The log's `force:` line shows the values
+used. Check that the call does work before counting it: FxSystemList_DestroyAll(ecx=0x009099a8)
+matched 39 times with its list count ([0x00909b8c]) 0 on every client frame of missions 1 and 4 -
+only the early return ran; the row was reset. Functions nothing calls or points to (no CALL/JMP,
+no pointer in data: XModel_FreeAnimStates) are dead code and not tested (user, 2026-10-25).
+
 ## How a test runs
 
 The function's entry jumps to a stub (`push index; jmp xbcmp_entry`) that saves all

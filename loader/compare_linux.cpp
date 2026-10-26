@@ -31,6 +31,7 @@
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/ucontext.h>
+#include <sys/uio.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -69,10 +70,13 @@ struct alignas(16) Context {
     uint32_t target;  // where xbcmp_resume continues
     uint32_t zero_below;  // bytes below ESP that xbcmp_resume clears (test processes)
     uint32_t pad;
+    // force_call: stack arguments the test processes write above the return address slot.
+    uint32_t stack_words;
+    uint32_t stack[8];
 };
 static_assert(offsetof(Context, eax) == 512 && offsetof(Context, esp) == 528 && offsetof(Context, edi) == 540);
 static_assert(offsetof(Context, eflags) == 544 && offsetof(Context, target) == 548 &&
-              offsetof(Context, zero_below) == 552 && sizeof(Context) == 560);
+              offsetof(Context, zero_below) == 552 && sizeof(Context) == 608);
 
 // What xbcmp_entry leaves on the stack: pushad, pushfd, the stub's index, the
 // caller's return address.
@@ -1076,7 +1080,9 @@ bool prepare_maps(ChildArea& c) {
     c.start.zero_below = 0;
     if (stack_limit && c.start.esp > stack_limit)
         c.start.zero_below = std::min<uint32_t>(kZeroedStack, (c.start.esp - stack_limit) & ~3u);
-    *reinterpret_cast<uint32_t*>(uintptr_t{c.start.esp}) = addr(reinterpret_cast<const void*>(&xbcmp_landing));
+    auto* frame = reinterpret_cast<uint32_t*>(uintptr_t{c.start.esp});
+    for (uint32_t i = 0; i < c.start.stack_words; ++i) frame[1 + i] = c.start.stack[i];
+    frame[0] = addr(reinterpret_cast<const void*>(&xbcmp_landing));
     child_run(c);
 }
 
@@ -2053,6 +2059,113 @@ void install(std::span<const game::Function> functions, const Config& config) {
     } else if (replaced) {
         LOG_INFO("compare", "%d decompiled functions replace the originals", replaced);
     }
+}
+
+namespace {
+
+// One force_call argument value: a number, "[E]" (the title word at E, read without
+// faulting), then any "+N" / "-N".
+bool parse_value(std::string_view& text, uint32_t& value, std::string& error) {
+    if (!text.empty() && text[0] == '[') {
+        text.remove_prefix(1);
+        uint32_t at = 0;
+        if (!parse_value(text, at, error)) return false;
+        if (text.empty() || text[0] != ']') {
+            error = "missing ]";
+            return false;
+        }
+        text.remove_prefix(1);
+        iovec local{&value, 4}, remote{reinterpret_cast<void*>(uintptr_t{at}), 4};
+        if (process_vm_readv(getpid(), &local, 1, &remote, 1, 0) != 4) {
+            error = "cannot read " + hex(at);
+            return false;
+        }
+    } else {
+        const std::string digits(text.substr(0, text.find_first_of(",]+-", 1)));
+        char* end = nullptr;
+        value = static_cast<uint32_t>(std::strtoul(digits.c_str(), &end, 0));
+        if (digits.empty() || *end) {
+            error = "not a number: " + digits;
+            return false;
+        }
+        text.remove_prefix(digits.size());
+    }
+    while (!text.empty() && (text[0] == '+' || text[0] == '-')) {
+        const bool minus = text[0] == '-';
+        text.remove_prefix(1);
+        uint32_t offset = 0;
+        if (!parse_value(text, offset, error)) return false;
+        value = minus ? value - offset : value + offset;
+    }
+    return true;
+}
+
+}  // namespace
+
+ForceResult force_call(const char* name, const char* args, const char* when, const TitleRegisters& registers,
+                       uint32_t esp, std::string& error) {
+    Context context{};
+    asm volatile("fxsave %0" : "=m"(context.fx));  // the title's x87/SSE modes: no host float code ran yet
+    Hook* hook = nullptr;
+    for (const auto& h : g_hooks)
+        if (std::strcmp(h->function->name, name) == 0) hook = h.get();
+    if (!g_config.enabled || !hook) {
+        error = "not hooked (settled, not Compare, or no --compare)";
+        return ForceResult::Failed;
+    }
+    if (when && *when) {
+        std::string_view text = when;
+        uint32_t value = 0;
+        if (!parse_value(text, value, error) || !text.empty()) {
+            if (error.empty()) error = "unexpected " + std::string(text);
+            return ForceResult::Failed;
+        }
+        if (!value) return ForceResult::Busy;
+    }
+    context.eax = registers.eax;
+    context.ecx = registers.ecx;
+    context.edx = registers.edx;
+    context.ebx = registers.ebx;
+    context.ebp = registers.ebp;
+    context.esi = registers.esi;
+    context.edi = registers.edi;
+    context.eflags = registers.eflags;
+    context.esp = esp;
+    context.target = hook->trampoline;
+    std::string_view text = args ? args : "";
+    while (!text.empty()) {
+        uint32_t* to = nullptr;
+        for (auto [prefix, reg] : {std::pair{"eax=", &context.eax}, {"ecx=", &context.ecx}, {"edx=", &context.edx},
+                                   {"ebx=", &context.ebx}, {"esi=", &context.esi}, {"edi=", &context.edi},
+                                   {"ebp=", &context.ebp}})
+            if (text.starts_with(prefix)) {
+                text.remove_prefix(4);
+                to = reg;
+            }
+        if (!to) {
+            if (context.stack_words == std::size(context.stack)) {
+                error = "more than 8 stack words";
+                return ForceResult::Failed;
+            }
+            to = &context.stack[context.stack_words++];
+        }
+        if (!parse_value(text, *to, error)) return ForceResult::Failed;
+        if (!text.empty() && text[0] != ',') {
+            error = "unexpected " + std::string(text);
+            return ForceResult::Failed;
+        }
+        if (!text.empty()) text.remove_prefix(1);
+    }
+    platform::HostFloatEnv host_float;
+    Collector& c = collector();
+    if (!take_slot(c)) return ForceResult::Busy;
+    if (!start_test(c, *hook, hook->calls.load(std::memory_order_relaxed), context)) {
+        release_slot(c);
+        return ForceResult::Busy;
+    }
+    error = "eax=" + hex(context.eax) + " ecx=" + hex(context.ecx) + " edx=" + hex(context.edx) + " esp=" + hex(esp);
+    for (uint32_t i = 0; i < context.stack_words; ++i) error += " " + hex(context.stack[i]);
+    return ForceResult::Started;
 }
 
 Counts counts(const char* name) {

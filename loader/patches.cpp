@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <iterator>
 #include <mutex>
@@ -441,8 +442,39 @@ constexpr int32_t kClsStateActive = 2;
 
 int32_t g_start_level = -1;  // pending until the UI is up
 std::string g_exec_text;     // pending until the level is active
+std::vector<TitlePatchConfig::ForcedCall> g_forced_calls;  // count: tests still to start
+uint64_t g_active_ms = 0;    // when the level became active (0: not yet)
 
-void XB_CDECL client_frame_hook() {
+// --force: at most one test per call per frame, from the title's registers at the client
+// frame's call (its return address slot 36 bytes above them: pushfd, pushad).
+void force_calls(const compare::TitleRegisters* saved) {
+    if (title<int32_t>(kClsState) != kClsStateActive) return;
+    const auto now = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                               std::chrono::steady_clock::now().time_since_epoch())
+                                               .count());
+    if (!g_active_ms) g_active_ms = now;
+    for (auto& forced : g_forced_calls) {
+        if (!forced.count || now - g_active_ms < forced.after_ms) continue;
+        std::string error;
+        const auto esp = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(saved)) + 36;
+        switch (compare::force_call(forced.name.c_str(), forced.args.c_str(), forced.when.c_str(), *saved, esp, error)) {
+        case compare::ForceResult::Started:
+            if (!forced.started++) LOG_INFO("patches", "force: %s(%s): %s", forced.name.c_str(), forced.args.c_str(), error.c_str());
+            --forced.count;
+            break;
+        case compare::ForceResult::Busy:
+            break;
+        case compare::ForceResult::Failed:
+            LOG_WARN("patches", "force: %s(%s): %s", forced.name.c_str(), forced.args.c_str(), error.c_str());
+            forced.count = 0;
+            break;
+        }
+    }
+    std::erase_if(g_forced_calls, [](const auto& forced) { return forced.count == 0; });
+}
+
+void XB_CDECL client_frame_hook(const compare::TitleRegisters* saved) {
+    force_calls(saved);
     if (g_start_level >= 0 && title<int32_t>(kUiStarted) != 0) {
         title<int32_t>(kLevelToStart) = g_start_level;
         title<int32_t>(kCampaignLevel) = g_start_level;
@@ -458,16 +490,17 @@ void XB_CDECL client_frame_hook() {
         reinterpret_cast<CbufAddText>(uintptr_t{kCbufAddText})(g_exec_text.c_str());
         g_exec_text.clear();
     }
-    if (g_start_level >= 0 || !g_exec_text.empty()) return;
+    if (g_start_level >= 0 || !g_exec_text.empty() || !g_forced_calls.empty()) return;
     // The call returns into this thunk; later frames run the original call again (--compare tests of CL_Frame
     // would otherwise reach host code on every frame).
     put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{kCallClientFrame}), 0xE8,
               reinterpret_cast<const void*>(uintptr_t{kClientFrame}));
 }
 
-// pushad; pushfd; call client_frame_hook; popfd; popad; jmp FUN_002f1e60
-void install_client_frame_hook(int32_t level, const std::string& exec_text) {
-    if (level < 0 && exec_text.empty()) return;
+// pushad; pushfd; push esp; call client_frame_hook; pop eax; popfd; popad; jmp FUN_002f1e60
+void install_client_frame_hook(int32_t level, const std::string& exec_text,
+                               const std::vector<TitlePatchConfig::ForcedCall>& forced_calls) {
+    if (level < 0 && exec_text.empty() && forced_calls.empty()) return;
     auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kCallClientFrame});
     uint32_t relative;
     std::memcpy(&relative, site + 1, 4);
@@ -480,14 +513,17 @@ void install_client_frame_hook(int32_t level, const std::string& exec_text) {
     uint8_t* t = thunk;
     *t++ = 0x60;  // pushad
     *t++ = 0x9C;  // pushfd
+    *t++ = 0x54;  // push esp
     put_rel32(t, 0xE8, reinterpret_cast<const void*>(&client_frame_hook));
     t += 5;
+    *t++ = 0x58;  // pop eax (popad restores it)
     *t++ = 0x9D;  // popfd
     *t++ = 0x61;  // popad
     put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kClientFrame}));
     put_rel32(site, 0xE8, thunk);
     g_start_level = level;
     g_exec_text = exec_text;
+    g_forced_calls = forced_calls;
 }
 
 // Aim assist (sticky aim): the player movement code's view angle update
@@ -1465,7 +1501,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     }
     if (!campaign) return;  // the objectives panel, --level and --exec are campaign-only
 
-    install_client_frame_hook(config.start_level, config.exec_text);
+    install_client_frame_hook(config.start_level, config.exec_text, config.forced_calls);
     if (config.pc_features) install_objectives_hook();
 }
 

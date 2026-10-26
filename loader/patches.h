@@ -43,12 +43,22 @@ struct TitlePatchConfig {
     // Console commands and cvars ("r_fullbright 1; give all") queued once the level
     // is active (testing, campaign only).
     std::string exec_text;
+    // Calls the title does not make, tested once the level is active (--force, needs
+    // --compare; campaign only): compare::force_call at the client frame's call site.
+    struct ForcedCall {
+        std::string name, args;
+        std::string when;       // only while this is nonzero (compare::force_call)
+        uint32_t after_ms = 0;  // after the level became active
+        uint32_t count = 1;     // tests, at most one per frame
+        uint32_t started = 0;
+    };
+    std::vector<ForcedCall> forced_calls;
 };
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,
 // direct kernel/hardware access) to replacements, and adds PC features (mouse look).
 // Call after the image is mapped. `config` applies to both titles, except
-// start_level and exec_text (campaign only).
+// start_level, exec_text and forced_calls (campaign only).
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config);
 
 // While the engine draws a scene an in-game menu or the objectives panel created this
