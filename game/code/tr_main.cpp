@@ -1964,6 +1964,10 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous) { t
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed) {
     constexpr uint32_t kMargin = 256;  // the helper's own pushes below its floor
     if (t_host_floor && t_host_floor - kMargin < proposed) proposed = t_host_floor - kMargin;
+    // GAME_GAP_ESP pushes the entry's ESP at the result - 4 before it reads the registers back
+    // from its scratch (this argument and the 12 bytes above it): stay clear of them.
+    const uint32_t scratch = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&proposed));
+    if (proposed > scratch - 32 && proposed < scratch + 48) proposed = scratch - 32;
     return proposed & ~15u;
 }
 
@@ -2452,7 +2456,8 @@ PLATFORM_ASM_ENTRY(R_AddEntityModel_entry,
                    "movl %esp, %ecx\n"
                    GAME_GAP_ESP("0x10000")
                    "pushl %ecx\n"
-                   "pushl %eax\n" PLATFORM_ASM_CALL(R_AddEntityModel) "addl $0x10008, %esp\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(R_AddEntityModel) "addl $8, %esp\n"
+                   "popl %esp\n"
                    "popl %edi\n"
                    "popl %esi\n"
                    "movl %ebp, %esp\n"

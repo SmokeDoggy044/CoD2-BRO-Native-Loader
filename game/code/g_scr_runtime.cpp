@@ -100,7 +100,7 @@ PLATFORM_ASM_ENTRY(G_NotifyWithEntity_entry,
                    "pushl %edi\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(G_NotifyWithEntity) "addl $24, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret $8")
 
 void XB_CDECL G_NotifyWithEntity(uint32_t entry, uint8_t* ent, uint32_t notify, const uint32_t* other, uint32_t ebx,
@@ -150,7 +150,7 @@ PLATFORM_ASM_ENTRY(G_NotifyWithOwnHandle_entry,
                    "pushl %eax\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(G_NotifyWithOwnHandle) "addl $24, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL G_NotifyWithOwnHandle(uint32_t entry, const uint8_t* ent, uint8_t* notified, uint32_t notify,

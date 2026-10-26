@@ -1379,7 +1379,7 @@ PLATFORM_ASM_ENTRY(SCR_UpdateScreen_entry, "movl %esp, %eax\n"
                                            "movl %eax, %ebp\n"
                                            "pushl %ebp\n" PLATFORM_ASM_CALL(SCR_UpdateScreen) "addl $4, %esp\n"
                                            "popl %ebp\n"
-                                           "addl $0x20000, %esp\n"
+                                           "popl %esp\n"
                                            "ret")
 
 void XB_CDECL SCR_UpdateScreen(uint32_t entry) {

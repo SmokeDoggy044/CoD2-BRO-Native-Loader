@@ -163,7 +163,7 @@ PLATFORM_ASM_ENTRY(G_LocationalTrace_entry,
                    "pushl 4(%ebp)\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(G_LocationalTrace) "addl $36, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL G_LocationalTrace(uint32_t entry, uint32_t results, uint32_t start, uint32_t end, uint32_t pass,
@@ -513,7 +513,7 @@ PLATFORM_ASM_ENTRY(G_MissileTrace_entry,
                    "pushl 4(%ebp)\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(G_MissileTrace) "addl $28, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL G_MissileTrace(uint32_t entry, uint8_t* results, const float* start, uint32_t pass, uint32_t a6, uint32_t mask,

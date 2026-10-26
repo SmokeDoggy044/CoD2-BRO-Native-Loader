@@ -51,8 +51,12 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed);
 // the original leaves unset (NAL_Packed16EntropyIKSpin_Dequantize copied our saved registers out),
 // not inside the gap, where deep title code reads stale words (the SV_Trace family's 0x804fff2c
 // mismatches rose eightfold at half the gap), and past a caller's live C frame (nested case).
+// The body's ESP is not the entry's minus the gap (aligned down, or below the floor): the macro
+// pushes the ESP it started with, so the epilogue undoes it with `popl %esp` once the words
+// pushed after it are gone (an `addl $gap, %esp` popped a wrong return address or registers:
+// EDI after R_AddEntityModel_entry, in R_RenderView's nested calls).
 #define GAME_GAP_ESP(gap)                                                                 \
     "subl $(" gap "+0x10000), %esp\n pushl %eax\n pushl %ecx\n pushl %edx\n"              \
     "leal 12+0x10000(%esp), %eax\n pushl %eax\n" PLATFORM_ASM_CALL(game_body_esp)         \
-    "movl %esp, %ecx\n movl %eax, %esp\n movl 4(%ecx), %edx\n movl 12(%ecx), %eax\n" \
-    "movl 8(%ecx), %ecx\n"
+    "movl %esp, %ecx\n movl %eax, %esp\n leal 16+0x10000+" gap "(%ecx), %edx\n pushl %edx\n"      \
+    "movl 4(%ecx), %edx\n movl 12(%ecx), %eax\n movl 8(%ecx), %ecx\n"

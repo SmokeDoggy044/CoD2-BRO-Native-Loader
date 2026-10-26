@@ -946,7 +946,7 @@ PLATFORM_ASM_ENTRY(Actor_ForceState_entry,
                    "pushl %esi\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ForceState) "addl $16, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL Actor_ForceState(uint32_t entry, uint8_t* actor, uint32_t state, uint32_t ebx) {
@@ -1380,7 +1380,7 @@ PLATFORM_ASM_ENTRY(Actor_ApplyStateTransitions_entry,
                    "pushl %eax\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ApplyStateTransitions) "addl $12, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL Actor_ApplyStateTransitions(uint32_t entry, uint8_t* actor, uint32_t edi) {
@@ -2102,7 +2102,7 @@ PLATFORM_ASM_ENTRY(Actor_ThinkStateMachine_entry,
                    "pushl %esi\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ThinkStateMachine) "addl $16, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret $4")
 
 uint32_t XB_CDECL Actor_ThinkStateMachine(uint32_t entry, uint8_t* actor, uint32_t arg, uint32_t ebx) {
@@ -2181,7 +2181,7 @@ PLATFORM_ASM_ENTRY(Actor_CallStateSlot5_entry,
                    "pushl 4(%ebp)\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_CallStateSlot5) "addl $20, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 uint32_t XB_CDECL Actor_CallStateSlot5(uint32_t entry, uint32_t handle, uint32_t ebx, uint32_t esi, uint32_t edi) {
@@ -2547,7 +2547,7 @@ PLATFORM_ASM_ENTRY(Actor_RegisterSuppression_entry, "movl %esp, %edx\n"
                                                     "pushl %ecx\n"
                                                     "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_RegisterSuppression) "addl $20, %esp\n"
                                                     "popl %ebp\n"
-                                                    "addl $0x20000, %esp\n"
+                                                    "popl %esp\n"
                                                     "ret $4")
 
 void XB_CDECL Actor_RegisterSuppression(uint32_t entry, uint8_t* actor, const float* start, const float* end,

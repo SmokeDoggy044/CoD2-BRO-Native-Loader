@@ -272,7 +272,7 @@ PLATFORM_ASM_ENTRY(SV_RunGameFrame_entry,
                    "pushl 4(%ebp)\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(SV_RunGameFrame) "addl $20, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL SV_RunGameFrame(uint32_t top, int32_t time, uint32_t ebx, uint32_t esi, uint32_t edi) {
@@ -1288,7 +1288,7 @@ PLATFORM_ASM_ENTRY(SV_PacketEvent_entry,
                    "pushl %eax\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(SV_PacketEvent) "addl $40, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL SV_PacketEvent(uint32_t entry_esp, uint8_t* msg, uint32_t type, uint32_t ip, uint32_t ipx1,
@@ -1357,7 +1357,7 @@ PLATFORM_ASM_ENTRY(SV_Frame_entry,
                    "pushl %ebx\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(SV_Frame) "addl $16, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL SV_Frame(uint32_t entry_esp, uint32_t ebx, uint32_t msec, uint32_t edx) {
@@ -1567,7 +1567,7 @@ PLATFORM_ASM_ENTRY(SV_UserMove_entry,
                    "pushl %eax\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(SV_UserMove) "addl $16, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL SV_UserMove(uint32_t entry_esp, uint32_t delta, uint8_t* msg, uint8_t* client) {
@@ -1626,7 +1626,7 @@ PLATFORM_ASM_ENTRY(SV_ExecuteClientMessage_entry,
                    "pushl %ebx\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(SV_ExecuteClientMessage) "addl $16, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL SV_ExecuteClientMessage(uint32_t entry_esp, uint8_t* msg, uint32_t esi, uint32_t edi) {

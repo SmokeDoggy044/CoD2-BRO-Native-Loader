@@ -365,7 +365,7 @@ PLATFORM_ASM_ENTRY(G_RunThink_entry,
                    "pushl %esi\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(G_RunThink) "addl $20, %esp\n"
                    "popl %ebp\n"
-                   "addl $0x20000, %esp\n"
+                   "popl %esp\n"
                    "ret")
 
 void XB_CDECL G_RunThink(uint32_t entry_esp, uint8_t* ent, uint32_t arg, uint32_t ebx, uint32_t edi) {
