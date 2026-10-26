@@ -96,6 +96,21 @@ void set_vehicle_or_weapon_text(uint8_t* menu, uint32_t items, uint32_t name_for
     set_text(field<uint8_t*>(menu, 0x40), 0x6c, text);
 }
 
+// The FE_Bonus*FreeImage helpers (menu in ESI): nglResetDeviceBindings, the texture released (and its pointer
+// cleared, except the main menu's), the image file closed and its buffer freed, the buffer pointer cleared.
+void free_image(uint8_t* menu, uint32_t file_offset, uint32_t buffer_offset, uint32_t texture_offset,
+                bool clear_texture) {
+    nglResetDeviceBindings();
+    if (void* const texture = field<void*>(menu, texture_offset)) nglReleaseTexture(texture);
+    const int32_t file = field<int32_t>(menu, file_offset);
+    if (clear_texture) field<uint32_t>(menu, texture_offset) = 0;
+    if (file != -1) {
+        title_function<void XB_CDECL(int32_t)>(0x000cac90)(file);  // File_Close
+        if (void* const buffer = field<void*>(menu, buffer_offset)) Mem_AlignedFree(buffer);
+    }
+    field<uint32_t>(menu, buffer_offset) = 0;
+}
+
 }  // namespace
 
 PLATFORM_ASM_ENTRY(FE_BonusCESetText_entry, "pushl %esi\n" PLATFORM_ASM_CALL(FE_BonusCESetText) "addl $4, %esp\n"
@@ -109,6 +124,17 @@ void XB_CDECL FE_BonusCESetText(uint8_t* menu) {
                   uint32_t(index) <= 5 ? kCounts[index] : 0);  // "%i / %i"
     set_text(field<uint8_t*>(menu, 0x3c), 0x6c, text);
 }
+
+#define FE_FREE_IMAGE(name, file, buffer, texture, clear)                                                     \
+    PLATFORM_ASM_ENTRY(name##_entry, "pushl %esi\n" PLATFORM_ASM_CALL(name) "addl $4, %esp\n"                \
+                                     "ret")                                                                    \
+    void XB_CDECL name(uint8_t* menu) { free_image(menu, file, buffer, texture, clear); }
+
+FE_FREE_IMAGE(FE_BonusCEFreeImage, 0x44, 0x48, 0x4c, true)
+FE_FREE_IMAGE(FE_BonusConceptFreeImage, 0xc4, 0xc8, 0xcc, true)
+FE_FREE_IMAGE(FE_BonusVehicleFreeImage, 0x8c, 0x90, 0x94, true)
+FE_FREE_IMAGE(FE_BonusWeaponFreeImage, 0xb0, 0xb4, 0xb8, true)
+FE_FREE_IMAGE(FE_BonusMainFreeImage, 0x88, 0x8c, 0x90, false)
 
 PLATFORM_ASM_ENTRY(FE_BonusArtCategoryLabel_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(FE_BonusArtCategoryLabel) "addl $4, %esp\n"

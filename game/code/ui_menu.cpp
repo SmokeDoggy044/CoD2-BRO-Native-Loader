@@ -266,6 +266,12 @@ void XB_STDCALL UIOptionItem_Dtor(uint8_t* item) {
     if (item[0x17] && text) call(text, 0, 1);  // deleting destructor (a tail jump in the original)
 }
 
+uint8_t* XB_THISCALL UIOptionItem_DeletingDtor(uint8_t* item, uint32_t flags) {
+    UIOptionItem_Dtor(item);
+    if (flags & 1) z_free(item);
+    return item;
+}
+
 // --- Dialogs ---
 
 void XB_REGS1 XB_STDCALL UI_DialogAddButton(uint8_t* mgr, uint32_t label, uint32_t handler) {
@@ -594,6 +600,12 @@ void XB_THISCALL UIScreenMgr_Dtor(uint8_t* mgr) {
         if (s) call(s, 0, 1);
     }
     z_free(field<void*>(mgr, 4));
+}
+
+uint8_t* XB_THISCALL UIScreenMgr_DeletingDtor(uint8_t* mgr, uint32_t flags) {
+    UIScreenMgr_Dtor(mgr);
+    if (flags & 1) z_free(mgr);
+    return mgr;
 }
 
 void XB_THISCALL UIScreenMgr_Update(uint8_t* mgr, uint32_t dt) {
@@ -1245,6 +1257,12 @@ void XB_THISCALL DialogMgr_Dtor(uint8_t* mgr) {
     UIScreenMgr_Dtor(mgr);
 }
 
+uint8_t* XB_THISCALL DialogMgr_DeletingDtor(uint8_t* mgr, uint32_t flags) {
+    DialogMgr_Dtor(mgr);
+    if (flags & 1) z_free(mgr);
+    return mgr;
+}
+
 uint8_t* XB_REGS1 XB_CDECL DialogMgr_Construct(uint8_t* mgr) {
     UIScreenMgr_Init(mgr, 2, nullptr);
     field<uint32_t>(mgr, 0) = 0x0082881c;  // DialogMgr vtable
@@ -1364,6 +1382,49 @@ void XB_REGS1 XB_CDECL DialogMgr_DrawOverlay(uint8_t* overlay) {
         first -= line_count(field<uint8_t*>(overlay, 0x28));
     }
     call(field<uint8_t*>(overlay, 0x2c), 0x100, uint32_t(first), uint32_t(first + 0xc));
+    nglPopScene();
+}
+
+PLATFORM_ASM_ENTRY(DialogMgr_DrawBackground_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(DialogMgr_DrawBackground) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL DialogMgr_DrawBackground(uint8_t* overlay) {
+    constexpr uint32_t kOne = 0x3f800000;  // 1.0f (0x0083eb20)
+    nglPushScene(0);
+    nglSetClearFlags(0);
+    nglSetSceneDepthTest(0);
+    nglSetSceneDepthEnable(0);
+    uint8_t* const quad = field<uint8_t*>(overlay, 0x30);
+    if (title_global<uint8_t*>(0x0095f8f8)) {
+        field<int32_t>(quad, 0x18) = -1;
+        if (uint8_t* const back = field<uint8_t*>(overlay, 0x10)) call(back, 0x7c, kOne);
+        if (uint8_t* const plain = field<uint8_t*>(overlay, 0x14)) call(plain, 0x7c, 0);
+        call(field<uint8_t*>(overlay, 0x10), 0x44);
+    } else {
+        field<int32_t>(quad, 0x18) = 0;
+        const bool alt = overlay[0x45] != 0;  // +0x45: the +0x1c / +0x20 pair instead of +0x14
+        if (uint8_t* const back = field<uint8_t*>(overlay, 0x10)) call(back, 0x7c, 0);
+        if (uint8_t* const plain = field<uint8_t*>(overlay, 0x14)) call(plain, 0x7c, alt ? 0 : kOne);
+        if (uint8_t* const left = field<uint8_t*>(overlay, 0x1c)) call(left, 0x7c, alt ? kOne : 0);
+        if (uint8_t* const right = field<uint8_t*>(overlay, 0x20)) call(right, 0x7c, alt ? kOne : 0);
+        if (overlay[0x45]) {
+            call(field<uint8_t*>(overlay, 0x1c), 0x44);
+            call(field<uint8_t*>(overlay, 0x20), 0x44);
+        } else {
+            call(field<uint8_t*>(overlay, 0x14), 0x44);
+        }
+    }
+    call(field<uint8_t*>(overlay, 0x18), 0x44);
+    nglPopScene();
+    uint8_t* const pause = title_global<uint8_t*>(0x0095f900);
+    uint8_t* const screen = field<uint8_t**>(pause, 4)[field<uint32_t>(pause, 0xc) != 0 ? 1 : 0];
+    if (field<int32_t>(screen, 0x34) <= 0) return;
+    nglPushScene(0);
+    nglSetClearFlags(0);
+    nglSetSceneDepthTest(0);
+    nglSetSceneDepthEnable(0);
+    call(field<uint8_t*>(overlay, 0x24), 0x3c);
     nglPopScene();
 }
 
@@ -1615,6 +1676,12 @@ void XB_THISCALL UIRoot_Dtor(uint8_t* root) {
     delete_object(field<uint8_t*>(root, 0x20));
     delete_object(field<uint8_t*>(root, 0x24));
     delete_object(field<uint8_t*>(root, 0x34));
+}
+
+uint8_t* XB_THISCALL UIRoot_DeletingDtor(uint8_t* root, uint32_t flags) {
+    UIRoot_Dtor(root);
+    if (flags & 1) z_free(root);
+    return root;
 }
 
 void XB_REGS1 XB_CDECL UIRoot_InitChapterTable(uint8_t* table) {

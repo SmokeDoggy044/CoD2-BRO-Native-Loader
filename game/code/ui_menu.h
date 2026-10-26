@@ -58,6 +58,9 @@ uint32_t XB_THISCALL UIOptionItem_Next(uint8_t* item);
 // the menu item's part (deletes an owned text).
 void XB_STDCALL UIOptionItem_Dtor(uint8_t* item);
 
+// 0x000136c0: UIOptionItem_Dtor, then Z_Free with flags bit 0. Returns the item.
+uint8_t* XB_THISCALL UIOptionItem_DeletingDtor(uint8_t* item, uint32_t flags);
+
 // 0x00012320 (screen manager in EAX; label, handler on the stack, ret 8): the dialog's (+0x04 [+0x0c != 0]) next
 // button (+0x34) gets the label (vtable +0x30), the handler (+0x38 + n * 4) and is shown (+0x20 (0)).
 void XB_REGS1 XB_STDCALL UI_DialogAddButton(uint8_t* mgr, uint32_t label, uint32_t handler);
@@ -117,6 +120,9 @@ extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL UIScreenMgr_Init(uint8_t* mgr, int3
 extern "C" void UIScreenMgr_Init_entry(void);
 // 0x00314790: deletes every screen but index 16, frees the array.
 void XB_THISCALL UIScreenMgr_Dtor(uint8_t* mgr);
+
+// 0x00011f90: UIScreenMgr_Dtor, then Z_Free with flags bit 0. Returns the manager.
+uint8_t* XB_THISCALL UIScreenMgr_DeletingDtor(uint8_t* mgr, uint32_t flags);
 // 0x0030eea0: the active screen's update (+0x30 (dt)), then the manager's (+0x14).
 void XB_THISCALL UIScreenMgr_Update(uint8_t* mgr, uint32_t dt);
 // 0x0030eed0: +0x18, then every screen's +0x1c.
@@ -208,6 +214,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL DialogMgr_DestroyContents(uint8_t* over
 extern "C" void DialogMgr_DestroyContents_entry(void);
 // 0x0032df40: the overlay destroyed and freed, both dialogs deleted, then UIScreenMgr_Dtor.
 void XB_THISCALL DialogMgr_Dtor(uint8_t* mgr);
+
+// 0x000137a0: DialogMgr_Dtor, then Z_Free with flags bit 0. Returns the manager.
+uint8_t* XB_THISCALL DialogMgr_DeletingDtor(uint8_t* mgr, uint32_t flags);
 // 0x00331cb0 (manager in EAX): UIScreenMgr_Init with two screens, a cleared overlay, the two dialogs. Returns the
 // manager.
 uint8_t* XB_REGS1 XB_CDECL DialogMgr_Construct(uint8_t* mgr);
@@ -225,6 +234,13 @@ void XB_REGS1 XB_CDECL DialogMgr_CloseDialog(uint8_t* mgr);
 // 0x00314340 (overlay in EAX): the background (0x003141c0), then the body and heading in their own scene; a
 // scrolled text in the viewport (180, 140) - (460, 340) at the scroll offset, lines from -1 - offset / 20.
 void XB_REGS1 XB_CDECL DialogMgr_DrawOverlay(uint8_t* overlay);
+
+// 0x003141c0 (overlay in ESI): in a scene of its own (no clear, no depth): with a dialog up (0x0095f8f8) the quad
+// +0x30's +0x18 = -1, +0x10 alpha 1 and drawn, +0x14 alpha 0; else +0x18 = 0, +0x10 alpha 0 and by +0x45 either
+// +0x1c / +0x20 (alpha 1, drawn) or +0x14 (alpha 1, drawn); then +0x18 drawn (+0x44). When the pause manager's
+// (0x0095f900) current screen (+0x04 [+0x0c != 0]) has +0x34 > 0, the text +0x24 drawn (+0x3c) in a second scene.
+extern "C" PLATFORM_HIDDEN void XB_CDECL DialogMgr_DrawBackground(uint8_t* overlay);
+extern "C" void DialogMgr_DrawBackground_entry(void);
 
 // Root menus and screen managers. UIRootMenu (vtable 0x00829280, 0x3c bytes, the UI root's +0x24): a UIMenu with
 // +0x34 a panel and +0x38 an object. TitleMenu (0x008297f0): +0x34 a panel. MainMenu (0x00829b80, 0x4c bytes): +0x34
@@ -257,6 +273,9 @@ uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr);
 uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr);
 // 0x0030f470: deletes the objects +0x28, +0x2c, +0x30, +0x20, +0x24, +0x34.
 void XB_THISCALL UIRoot_Dtor(uint8_t* root);
+
+// 0x00013670: UIRoot_Dtor, then Z_Free with flags bit 0. Returns the root.
+uint8_t* XB_THISCALL UIRoot_DeletingDtor(uint8_t* root, uint32_t flags);
 // 0x00312f60 (table in EAX): the chapter table cleared, then its fixed values.
 void XB_REGS1 XB_CDECL UIRoot_InitChapterTable(uint8_t* table);
 // 0x00331e90 (root in ESI): the UI root's fields, chapter table and an empty root menu. Returns the root.

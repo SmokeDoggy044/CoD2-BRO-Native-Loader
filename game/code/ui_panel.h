@@ -49,6 +49,11 @@ void XB_REGS1 XB_CDECL Panel_FreeElements(uint8_t* panel);
 // The inline panel delete of the destructors (0x000121d0 without the flags): Panel_FreeElements, the vector
 // arrays freed (Mem_AlignedFree, +0x0c then +0x00, each cleared), the panel freed (Z_Free).
 void Panel_Delete(uint8_t* panel);
+
+// 0x000121d0 (panel in ESI; flags on the stack, ret 4): Panel_Delete's steps, the panel freed only with flags bit
+// 0. Returns the panel.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Panel_DeletingDtor(uint8_t* panel, uint32_t flags);
+extern "C" void Panel_DeletingDtor_entry(void);
 // 0x00320170 (the UI root in EDI): the shared "default_PQ" picture +0x34, created on first use with one 100 x 100
 // quad (colour 0xff80ff80, no texture). Returns it.
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Panel_GetDefaultPicture(uint8_t* root);
