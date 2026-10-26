@@ -2,12 +2,14 @@
 """Resolves a merge conflict in tools/data/functions.csv: each function's counts become
 base + (ours - base) + (theirs - base), so test results recorded on both branches add
 up; the other columns (status, last_issue) come from the side whose counts changed
-last (theirs when both changed).
+last (theirs when both changed). Conflicts in game/code/functions.cpp's kFunctions table
+(each side added rows at the same place) keep both sides' rows in address order.
 
 usage: tools/merge_functions_csv.py [THEIRS]   (during a conflicted `git merge THEIRS`;
        default MERGE_HEAD) - writes the merged file and `git add`s it
 """
 import csv
+import re
 import io
 import subprocess
 import sys
@@ -23,6 +25,25 @@ def load(rev):
                           check=True).stdout
     rows = list(csv.DictReader(io.StringIO(text)))
     return {row["address"]: row for row in rows}, list(rows[0].keys()) if rows else []
+
+
+def resolve_table():
+    path = ROOT / "game" / "code" / "functions.cpp"
+    text = path.read_text()
+    if "<<<<<<< " not in text:
+        return
+
+    def both(match):
+        lines = [line for line in (match.group(1) + match.group(2)).split("\n") if line.strip()]
+        if not all(re.search(r"0x[0-9a-f]+", line) for line in lines):
+            sys.exit("functions.cpp: a conflict outside the kFunctions rows, resolve it yourself")
+        lines.sort(key=lambda line: int(re.search(r"0x([0-9a-f]+)", line).group(1), 16))
+        return "\n".join(lines) + "\n"
+
+    text, count = re.subn(r"<<<<<<< [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n", both, text, flags=re.S)
+    path.write_text(text)
+    subprocess.run(["git", "-C", str(ROOT), "add", str(path)], check=True)
+    print(f"functions.cpp: {count} table conflicts resolved")
 
 
 def main():
@@ -52,6 +73,7 @@ def main():
     (ROOT / PATH).write_text("\n".join(lines) + "\n")
     subprocess.run(["git", "-C", str(ROOT), "add", PATH], check=True)
     print(f"merged {len(merged)} rows ({PATH})")
+    resolve_table()
 
 
 if __name__ == "__main__":
