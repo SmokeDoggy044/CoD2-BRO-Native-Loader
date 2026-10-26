@@ -46,10 +46,13 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_at_regs(uint32_t top, ui
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_enter(uint32_t floor);
 extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed);
-// The registers are saved at the entry's own ESP (the title's dead stack below it), not
-// below the gap: that address can be a live host frame's when the floor applies.
+// Its scratch (the saved registers, game_body_esp's call) sits 64 KB below the gap, where only
+// our C runs: not just below the entry, where some C rebuilds the original's frame and reads words
+// the original leaves unset (NAL_Packed16EntropyIKSpin_Dequantize copied our saved registers out),
+// not inside the gap, where deep title code reads stale words (the SV_Trace family's 0x804fff2c
+// mismatches rose eightfold at half the gap), and past a caller's live C frame (nested case).
 #define GAME_GAP_ESP(gap)                                                                 \
-    "pushl %eax\n pushl %ecx\n pushl %edx\n"                                              \
-    "leal 12-" gap "(%esp), %eax\n pushl %eax\n" PLATFORM_ASM_CALL(game_body_esp)         \
+    "subl $(" gap "+0x10000), %esp\n pushl %eax\n pushl %ecx\n pushl %edx\n"              \
+    "leal 12+0x10000(%esp), %eax\n pushl %eax\n" PLATFORM_ASM_CALL(game_body_esp)         \
     "movl %esp, %ecx\n movl %eax, %esp\n movl 4(%ecx), %edx\n movl 12(%ecx), %eax\n" \
     "movl 8(%ecx), %ecx\n"
