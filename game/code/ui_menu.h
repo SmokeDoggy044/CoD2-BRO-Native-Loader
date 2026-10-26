@@ -176,4 +176,117 @@ extern "C" void UIScrollBar_Construct_entry(void);
 void XB_REGS1 XB_STDCALL UI_ShowDialog(const char* name, uint8_t* mgr, uint8_t ok, uint8_t yes_no, const char* title,
                                        uint8_t keep_running);
 
+// The dialog manager (vtable 0x0082881c, a screen manager over two dialogs; +0x1c the overlay, +0x20 flags (bit 1:
+// a second dialog is queued)). The overlay (0x48 bytes): +0x00..+0x0c four elements (the scroll arrows, bar and
+// indicator), +0x24 a picture, +0x28 the heading and +0x2c the body (UI texts), +0x30 a panel, +0x34 the indicator
+// x, +0x38 the indicator y, +0x3c the scroll offset, +0x40 the fade, +0x44 flags (bits 0 / 1 scrolling up / down,
+// bit 2 the text is scrolled, bit 3 closed, bit 4 vertical buttons). The dialogs (UIDialog, vtable 0x00829d48, a
+// UIMenu of three buttons): +0x34 button count, +0x38 the handlers, +0x4c the text, +0x50 the heading
+// (ScriptStrings), +0x54 -1.0, +0x58 vertical buttons, +0x59 the overlay's layout flag, +0x5a select +0x22 on layout.
+
+// 0x0031f4b0 (vertical in AL, dialog in EDI): the overlay layout (0x00313e40, the button count or 1), every button
+// (+0x4c (0)) placed (+0x2c): vertical ones at x 320 below the text (10 lines at most), else two at 280 / 360; then
+// the default button (+0x34), or the selection +0x22 when +0x5a asks for it.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Dialog_LayoutButtons(uint8_t vertical, uint8_t* dialog);
+extern "C" void Dialog_LayoutButtons_entry(void);
+// 0x00313f20 (overlay in ESI; text and heading ScriptStrings by value, ret 8): the body wrapped at 280 (newlines
+// expanded, +0x14c) and the heading (+0x144), the body colour (black with 0x0095f8f8, else white), the scroll flag
+// (more than 10 lines) shows the four scroll elements (+0x34), a scrolled text's offset / indicator reset; both
+// texts +0x50 (0x40). Releases both strings.
+// The entry hands the C version its entry ESP (the original's frame is rebuilt there).
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIDialog_SetText(uint32_t entry, uint8_t* overlay);
+extern "C" void UIDialog_SetText_entry(void);
+// 0x0031f690: every button's +0x58 (3 with 0x0095f8f8, else 4), then UIMenu_Draw while the overlay's fade is >= 0.
+void XB_THISCALL UIDialog_Draw(uint8_t* dialog);
+// 0x000122e0: releases the heading and text, UIMenu_FreeItems, frees the dialog with flags bit 0.
+uint8_t* XB_THISCALL UIDialog_DeletingDtor(uint8_t* dialog, uint32_t flags);
+// 0x00331920 (owner in EAX, dialog in ECX): a three-item UIMenu (layer 8), empty texts, three empty items (mode 1)
+// at scale 0.6, flag 6. Returns the dialog.
+uint8_t* XB_REGS3 XB_CDECL UIDialog_Construct(uint8_t* owner, uint32_t unused_edx, uint8_t* dialog);
+// 0x0032a5c0 (overlay in EDI): deletes the texts, the four elements, the panel and the picture +0x24.
+extern "C" PLATFORM_HIDDEN void XB_CDECL DialogMgr_DestroyContents(uint8_t* overlay);
+extern "C" void DialogMgr_DestroyContents_entry(void);
+// 0x0032df40: the overlay destroyed and freed, both dialogs deleted, then UIScreenMgr_Dtor.
+void XB_THISCALL DialogMgr_Dtor(uint8_t* mgr);
+// 0x00331cb0 (manager in EAX): UIScreenMgr_Init with two screens, a cleared overlay, the two dialogs. Returns the
+// manager.
+uint8_t* XB_REGS1 XB_CDECL DialogMgr_Construct(uint8_t* mgr);
+// 0x00331c50: the active dialog's update (+0x30), the manager's (+0x14), the overlay's (0x0032df90 (dt)), then
+// +0x20 (1 with 0x0095f8f8, else 4).
+void XB_THISCALL DialogMgr_Update(uint8_t* mgr, uint32_t dt);
+// 0x0031f890: the active dialog's +0x28, then DialogMgr_DrawOverlay.
+void XB_THISCALL DialogMgr_Draw(uint8_t* mgr);
+// 0x0031f770 (ret 8): the active dialog's +0x84 (pad, bit); a scrolled text stops scrolling up (bit 4) / down (bit 8)
+// with that arrow back at alpha 0.5.
+void XB_THISCALL DialogMgr_OnButtonUp(uint8_t* mgr, uint32_t bit, uint32_t pad);
+// 0x0031f6e0 (manager in EAX): with the second dialog active and one queued (+0x20 bit 1): back to the first
+// (+0x0c (0)), its text and buttons shown again; else the overlay's closed flag (bit 3).
+void XB_REGS1 XB_CDECL DialogMgr_CloseDialog(uint8_t* mgr);
+// 0x00314340 (overlay in EAX): the background (0x003141c0), then the body and heading in their own scene; a
+// scrolled text in the viewport (180, 140) - (460, 340) at the scroll offset, lines from -1 - offset / 20.
+void XB_REGS1 XB_CDECL DialogMgr_DrawOverlay(uint8_t* overlay);
+
+// Root menus and screen managers. UIRootMenu (vtable 0x00829280, 0x3c bytes, the UI root's +0x24): a UIMenu with
+// +0x34 a panel and +0x38 an object. TitleMenu (0x008297f0): +0x34 a panel. MainMenu (0x00829b80, 0x4c bytes): +0x34
+// an object, +0x38 a panel. The UI root (vtable 0x0082a5f4, g_uiRoot 0x0095f8d0): +0x04 seven words with flags
+// +0x3c.., +0x20 / +0x28 / +0x2c / +0x30 / +0x34 objects (+0x34: the default picture), +0x24 the root menu, +0x54 the
+// chapter table (14 records of 0x48 bytes), +0x444 a float.
+// 0x00012140 / 0x00012220 / 0x00012520 (menu in EAX): the panel deleted (Panel_Delete), the object deleted, then
+// the UIMenu part (UIMenu_FreeItems). 0x000121b0 / 0x00012290 / 0x00012590: the same, freed with flags bit 0.
+void XB_REGS1 XB_CDECL UIRootMenu_Dtor(uint8_t* menu);
+uint8_t* XB_THISCALL UIRootMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
+void XB_REGS1 XB_CDECL TitleMenu_Dtor(uint8_t* menu);
+uint8_t* XB_THISCALL TitleMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
+void XB_REGS1 XB_CDECL MainMenu_Dtor(uint8_t* menu);
+uint8_t* XB_THISCALL MainMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
+// 0x003312f0 (owner in EAX, menu in ECX): a five-row UIMenu at (320, 240), layer 8; fields cleared. Returns it.
+uint8_t* XB_REGS3 XB_CDECL MainMenu_Construct(uint8_t* owner, uint32_t unused_edx, uint8_t* menu);
+// 0x000122b0: UIScreenMgr_Dtor, freed with flags bit 0.
+uint8_t* XB_THISCALL InGameScreens_DeletingDtor(uint8_t* mgr, uint32_t flags);
+// 0x00313ce0 (ret 4): the active screen's update (+0x30 (dt)), then the manager's (+0x14).
+extern "C" PLATFORM_HIDDEN void XB_CDECL InGameScreens_Update(uint32_t entry, uint8_t* mgr, uint32_t dt);
+extern "C" void InGameScreens_Update_entry(void);
+// 0x00331680 (stdcall): the in-game screens (vtable 0x008286cc, nine): pause, advanced options, the loading screens
+// (generic, Africa, Sicily, Maubeuge), mission success / fail, autosave, live options; then +0x18 and every screen's
+// +0x1c. Returns the manager.
+uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr);
+// 0x00336ad0 (stdcall): the front end's 21 screens (vtable 0x0082905c): title, main, single player, options,
+// gameplay, controller, screen, sound, the five bonus menus, difficulty (a grid menu), create profile, profile,
+// 0x003308a0, chapter, special materials / concept, Xbox Live; the two background quads (0, 0) - (640, 320) and
+// (0, 320) - (640, 480) at z 300; no active screen. Returns the manager.
+uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr);
+// 0x0030f470: deletes the objects +0x28, +0x2c, +0x30, +0x20, +0x24, +0x34.
+void XB_THISCALL UIRoot_Dtor(uint8_t* root);
+// 0x00312f60 (table in EAX): the chapter table cleared, then its fixed values.
+void XB_REGS1 XB_CDECL UIRoot_InitChapterTable(uint8_t* table);
+// 0x00331e90 (root in ESI): the UI root's fields, chapter table and an empty root menu. Returns the root.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL UIRoot_Construct(uint8_t* root);
+extern "C" void UIRoot_Construct_entry(void);
+// 0x0032d130 (stdcall, the first argument unused): "%s %d %s" of MEM_ERROR_NOT_ENOUGH_BLOCKS1, the blocks needed
+// (0x0031ac10) and MEM_ERROR_NOT_ENOUGH_BLOCKS2 (localized) into out.
+void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t unused, char* out);
+
+// 0x00333e20 / 0x00335460: unless the profiles folder exists or there is room for a save (0x0031ac60), the "not
+// enough blocks" dialog (MemDlg_FormatNotEnoughBlocks) with continue without saving (0x003125d0; 0x0031b2e0) and,
+// for the second, manage memory (0x00335410). The second calls 0x00312870 on the room path unless 0x008dd1d0.
+// Return 1 when there is room, else 0.
+uint8_t XB_CDECL MemDlg_CheckFreeSpace3();
+uint8_t XB_CDECL MemDlg_CheckFreeSpace2();
+// 0x003344e0 (check in AL, menu in ECX): the same when `check` is set, with the blocks needed in the menu's +0x38,
+// +0x41 = 1 and the buttons continue (0x00334410) / manage (0x0030d040).
+uint8_t XB_REGS3 XB_CDECL MemDlg_CheckFreeSpace(uint8_t check, uint32_t unused_edx, uint8_t* menu);
+// 0x003345d0 (device in EAX; present on the stack, ret 4): for no device (-2) or none present the "no save data"
+// dialog with continue (0x00334410) and retry (0x00338470); returns 0, else 1.
+uint8_t XB_REGS1 XB_STDCALL MemDlg_CheckSaveDevice(int32_t device, uint8_t present);
+// Save slots (the save manager: +0x04 the write request, +0x28c four 0x3cc-byte slot records (+0x00 version
+// "9-21-05" / "9-21-05CE", +0x1c the profile, +0x3c0 the save data name), +0x11c0 four write buffers, +0x11e0 the
+// slot written, +0x11e6 the device byte, +0x11e7 four slot-used flags).
+// 0x0030c4d0 (manager in EBX; slot, keep on the stack, ret 8): the slot's version and name, used; without keep
+// 0x0030c1a0 first; the record into the slot's write buffer, then Save_BeginWrite.
+// Returns Save_BeginWrite's result.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep);
+extern "C" void SaveSlot_Init_entry(void);
+// 0x0032d200 (stdcall): all four slots with a default profile (Profile_SetDefaults of a local), then one write.
+void XB_STDCALL SaveSlot_InitAll(uint8_t* saves);
+
 }  // namespace game

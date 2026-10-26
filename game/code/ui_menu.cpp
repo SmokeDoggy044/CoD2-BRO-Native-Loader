@@ -10,6 +10,7 @@
 #include "stream.h"
 #include "title_data.h"
 #include "tr_main.h"
+#include "ui_panel.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -1007,6 +1008,820 @@ void XB_REGS1 XB_STDCALL UI_ShowDialog(const char* name, uint8_t* mgr, uint8_t o
     }
     string_release(&heading);
     string_release(&message);
+}
+
+// --- Dialogs ---
+
+namespace {
+
+// The dialog overlay (the dialog manager's +0x1c) of the UI root's dialog manager (0x0095f900).
+uint8_t* root_overlay() { return field<uint8_t*>(title_global<uint8_t*>(0x0095f900), 0x1c); }
+int32_t line_count(uint8_t* text) { return method<int32_t XB_THISCALL(uint8_t*)>(text, 0xc4)(text); }
+// The overlay's lines: the body's (+0x2c) and, when the heading (+0x28) has any, the heading's plus one.
+int32_t overlay_lines(uint8_t* overlay) {
+    const int32_t body = line_count(field<uint8_t*>(overlay, 0x2c));
+    int32_t heading = 0;
+    if (line_count(field<uint8_t*>(overlay, 0x28)) > 0) heading = line_count(field<uint8_t*>(overlay, 0x28)) + 1;
+    return heading + body;
+}
+// Whether a text's text (vtable +0xa0, a copy) is not "".
+bool has_text(uint8_t* text) {
+    ScriptString copy;
+    const ScriptString* const s =
+        method<const ScriptString* XB_THISCALL(uint8_t*, ScriptString*)>(text, 0xa0)(text, &copy);
+    const bool empty = ScriptString_Equals(s, text_at(0x0082dfeb));  // ""
+    string_release(&copy);
+    return !empty;
+}
+void delete_object(uint8_t* object) {
+    if (object) call(object, 0, 1);
+}
+void set_position(uint8_t* object, float x, float y) { method<PositionMethod>(object, 0x2c)(object, x, y); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Dialog_LayoutButtons_entry,
+                   "pushl %edi\n"
+                   "movzbl %al, %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Dialog_LayoutButtons) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Dialog_LayoutButtons(uint8_t vertical, uint8_t* dialog) {
+    dialog[0x58] = vertical;
+    TitleRegs regs{};
+    regs.eax = dialog[0x59];
+    regs.esi = address_of(root_overlay());
+    const uint32_t args[1] = {vertical ? field<uint32_t>(dialog, 0x34) : 1u};
+    ui_call_regs(0x00313e40, &regs, 1, args);  // the overlay's layout for the button count
+    for (int32_t i = 0; i < field<int32_t>(dialog, 0x34); ++i) call(menu_item(dialog, i), 0x4c, 0);
+    if (vertical) {
+        for (int32_t i = 0; i < field<int32_t>(dialog, 0x34); ++i) {
+            int32_t lines = overlay_lines(root_overlay());
+            if (lines > 10) lines = 10;
+            set_position(menu_item(dialog, i), 320.0f, float((lines + i * 2 + 0x19) * 10));
+        }
+    } else {
+        int32_t lines = overlay_lines(root_overlay());
+        if (lines > 10) lines = 10;
+        const float y = platform_x87_int_to_float((lines * 5 + 0x7d) * 2);
+        set_position(menu_item(dialog, 0), 280.0f, y);
+        set_position(menu_item(dialog, 1), 360.0f, y);
+    }
+    if (!dialog[0x5a]) {
+        call(dialog, 0x34);
+        return;
+    }
+    select(dialog, field<int16_t>(dialog, 0x22), 1);
+    dialog[0x5a] = 0;
+}
+
+namespace {
+
+// A thiscall method (or any title function) run where the original's call puts it: ESP = top minus the arguments.
+uint32_t call_at(uint32_t top, uint32_t function, uint32_t ecx, uint32_t count, const uint32_t* args) {
+    TitleRegs regs{};
+    regs.ecx = ecx;
+    return title_call_at_regs(top, function, &regs, count, args);
+}
+uint32_t slot_of(uint8_t* object, uint32_t offset) { return field<uint32_t>(field<uint8_t*>(object, 0), offset); }
+uint32_t method_at(uint32_t top, uint8_t* object, uint32_t offset, uint32_t count = 0, const uint32_t* args = nullptr) {
+    return call_at(top, slot_of(object, offset), address_of(object), count, args);
+}
+
+}  // namespace
+
+// The callees run at the original's stack positions (a title callee keeps a stack address in the heap at
+// 0x100006a8): the C frame sits below a gap; the expanded text and the colour word are the original's locals at
+// entry - 4 / entry - 8, the by-value strings its argument slots.
+// EBP is saved below the gap: the original's expanded text lives at entry - 4.
+PLATFORM_ASM_ENTRY(UIDialog_SetText_entry,
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(UIDialog_SetText) "leal -0x20004(%ebp), %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret $8")
+
+void XB_CDECL UIDialog_SetText(uint32_t entry, uint8_t* overlay) {
+    const uint32_t top = entry - 0x14;  // after sub esp,8 and three pushes
+    ScriptString* const text = reinterpret_cast<ScriptString*>(uintptr_t{entry + 4});
+    ScriptString* const heading = reinterpret_cast<ScriptString*>(uintptr_t{entry + 8});
+    ScriptString* const expanded = reinterpret_cast<ScriptString*>(uintptr_t{entry - 4});
+    uint32_t& word = *reinterpret_cast<uint32_t*>(uintptr_t{entry - 8});
+    {
+        ScriptString_Copy(reinterpret_cast<ScriptString*>(uintptr_t{entry - 0x18}), text);
+        TitleRegs regs{};
+        regs.edi = address_of(expanded);
+        const uint32_t args[1] = {field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{entry - 0x18}), 0)};
+        title_call_at_regs(top, 0x0030f4d0, &regs, 1, args);  // ScriptString_ExpandNewlines (out in EDI)
+    }
+    {
+        const uint32_t args[3] = {string_copy(expanded), 0x118, 0xbf800000};  // width 280, -1.0
+        method_at(top, field<uint8_t*>(overlay, 0x2c), 0x14c, 3, args);
+    }
+    {
+        const uint32_t args[3] = {string_copy(heading), 0x118, 0xbf800000};
+        method_at(top, field<uint8_t*>(overlay, 0x28), 0x144, 3, args);
+    }
+    word = title_global<uint32_t>(0x0095f8f8) ? 0xff000000u : 0xffffffffu;
+    {
+        const uint32_t args[1] = {word};
+        method_at(top, field<uint8_t*>(overlay, 0x2c), 0x90, 1, args);
+    }
+    overlay[0x44] = 0;
+    const int32_t body_lines = int32_t(method_at(top, field<uint8_t*>(overlay, 0x2c), 0xc4));
+    int32_t lines = 0;
+    if (int32_t(method_at(top, field<uint8_t*>(overlay, 0x28), 0xc4)) > 0) {
+        lines = int32_t(method_at(top, field<uint8_t*>(overlay, 0x28), 0xc4)) + 1;
+    }
+    uint8_t flags = overlay[0x44];
+    if (lines + body_lines > 10) {
+        flags |= 4;
+    } else {
+        flags &= ~4;
+    }
+    overlay[0x44] = flags;
+    reinterpret_cast<uint8_t*>(&word)[0] = (flags >> 2) & 1;  // the scroll flag over the colour's upper bytes
+    {
+        const uint32_t args[1] = {word};
+        for (uint32_t offset = 0; offset < 0x10; offset += 4) {
+            method_at(top, field<uint8_t*>(overlay, offset), 0x34, 1, args);
+        }
+    }
+    int32_t heading_lines = 0;
+    {
+        const uint32_t args[2] = {address_of(heading), 0x0082dfeb};  // ""
+        if (!(call_at(top, 0x0011d7c0, 0, 2, args) & 0xff)) {  // ScriptString_Equals
+            heading_lines = int32_t(method_at(top, field<uint8_t*>(overlay, 0x28), 0xc4)) + 1;
+        }
+    }
+    if ((overlay[0x44] >> 2) & 1) {
+        field<float>(overlay, 0x3c) = 0.0f;
+        overlay[0x44] &= 0xfc;
+        uint8_t* const body = field<uint8_t*>(overlay, 0x2c);
+        const long double height = method<long double XB_THISCALL(uint8_t*)>(body, 0xd4)(body);
+        word = uint32_t(heading_lines * 20);
+        const int32_t extent = int32_t(int64_t(height + (long double)int32_t(word)));  // FIADD, _ftol
+        field<float>(overlay, 0x38) = float(0xc8 - extent);
+        const uint32_t half[1] = {0x3f000000};  // 0.5
+        method_at(top, field<uint8_t*>(overlay, 0), 0x78, 1, half);
+        method_at(top, field<uint8_t*>(overlay, 4), 0x78, 1, half);
+        const uint32_t args[2] = {field<uint32_t>(overlay, 0x34), 0x43068000};  // 134.5
+        method_at(top, field<uint8_t*>(overlay, 0xc), 0x8c, 2, args);
+    }
+    const uint32_t flag[1] = {0x40};
+    method_at(top, field<uint8_t*>(overlay, 0x2c), 0x50, 1, flag);
+    method_at(top, field<uint8_t*>(overlay, 0x28), 0x50, 1, flag);
+    call_at(top, 0x0011d640, address_of(expanded), 0, nullptr);  // ScriptString_Release
+    call_at(top, 0x0011d640, address_of(text), 0, nullptr);
+    call_at(top, 0x0011d640, address_of(heading), 0, nullptr);
+}
+
+void XB_THISCALL UIDialog_Draw(uint8_t* dialog) {
+    for (int32_t i = 0; i < 3; ++i) call(menu_item(dialog, i), 0x58, title_global<uint32_t>(0x0095f8f8) ? 3 : 4);
+    if (field<float>(root_overlay(), 0x40) >= 0.0f) UIMenu_Draw(dialog);
+}
+
+uint8_t* XB_THISCALL UIDialog_DeletingDtor(uint8_t* dialog, uint32_t flags) {
+    field<uint32_t>(dialog, 0) = 0x00829d48;  // UIDialog vtable
+    string_release(reinterpret_cast<ScriptString*>(dialog + 0x50));
+    string_release(reinterpret_cast<ScriptString*>(dialog + 0x4c));
+    field<uint32_t>(dialog, 0) = 0x0082a628;  // UIMenu vtable
+    UIMenu_FreeItems(dialog);
+    if (flags & 1) z_free(dialog);
+    return dialog;
+}
+
+uint8_t* XB_REGS3 XB_CDECL UIDialog_Construct(uint8_t* owner, uint32_t, uint8_t* dialog) {
+    UIMenu_Init(dialog, 3, owner, 0, 0, 8, 0);
+    field<uint32_t>(dialog, 0) = 0x00829d48;  // UIDialog vtable
+    ScriptString_FromRep(reinterpret_cast<ScriptString*>(dialog + 0x4c), nullptr);
+    ScriptString_FromRep(reinterpret_cast<ScriptString*>(dialog + 0x50), nullptr);
+    dialog[0x33] = 3;
+    for (int32_t i = 0; i < 3; ++i) {
+        uint8_t* item = z_malloc(0x18);
+        if (item) item = UIMenuItem_Init(8, item, text_at(0x0082dfeb), dialog, 1);
+        field<uint8_t**>(dialog, 4)[i] = item;
+    }
+    for (int32_t i = 0; i < item_count(dialog); ++i) call(menu_item(dialog, i), 0x5c, 0x3f19999a);  // 0.6
+    dialog[0x2a] |= 0x40;
+    field<uint32_t>(dialog, 0x34) = 0;
+    dialog[0x58] = 0;
+    dialog[0x59] = 0;
+    field<uint32_t>(dialog, 0x44) = 0;
+    field<uint32_t>(dialog, 0x48) = 0;
+    dialog[0x5a] = 0;
+    field<uint32_t>(dialog, 0x54) = title_global<uint32_t>(0x0083eb34);  // -1.0
+    return dialog;
+}
+
+PLATFORM_ASM_ENTRY(DialogMgr_DestroyContents_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(DialogMgr_DestroyContents) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL DialogMgr_DestroyContents(uint8_t* overlay) {
+    delete_object(field<uint8_t*>(overlay, 0x28));
+    delete_object(field<uint8_t*>(overlay, 0x2c));
+    delete_object(field<uint8_t*>(overlay, 0));
+    delete_object(field<uint8_t*>(overlay, 4));
+    delete_object(field<uint8_t*>(overlay, 8));
+    delete_object(field<uint8_t*>(overlay, 0xc));
+    if (uint8_t* const panel = field<uint8_t*>(overlay, 0x30)) Panel_Delete(panel);
+    delete_object(field<uint8_t*>(overlay, 0x24));
+}
+
+void XB_THISCALL DialogMgr_Dtor(uint8_t* mgr) {
+    uint8_t* const overlay = field<uint8_t*>(mgr, 0x1c);
+    field<uint32_t>(mgr, 0) = 0x0082881c;  // DialogMgr vtable
+    if (overlay) {
+        DialogMgr_DestroyContents(overlay);
+        z_free(overlay);
+    }
+    for (int32_t i = 0; i < 2; ++i) delete_object(screen(mgr, i));
+    UIScreenMgr_Dtor(mgr);
+}
+
+uint8_t* XB_REGS1 XB_CDECL DialogMgr_Construct(uint8_t* mgr) {
+    UIScreenMgr_Init(mgr, 2, nullptr);
+    field<uint32_t>(mgr, 0) = 0x0082881c;  // DialogMgr vtable
+    mgr[0x1a] = 1;
+    uint8_t* const overlay = z_malloc(0x48);
+    if (overlay) {
+        field<uint32_t>(overlay, 0) = 0;
+        field<uint32_t>(overlay, 4) = 0;
+        field<uint32_t>(overlay, 8) = 0;
+        field<uint32_t>(overlay, 0xc) = 0;
+        field<float>(overlay, 0x3c) = 0.0f;
+        field<float>(overlay, 0x40) = 0.0f;
+        overlay[0x44] = 0;
+        field<uint32_t>(overlay, 0x30) = 0;
+        field<uint32_t>(overlay, 0x10) = 0;
+        field<uint32_t>(overlay, 0x14) = 0;
+        field<uint32_t>(overlay, 0x24) = 0;
+        field<uint32_t>(overlay, 0x28) = 0;
+        field<uint32_t>(overlay, 0x2c) = 0;
+        overlay[0x45] = 0;
+        field<uint32_t>(overlay, 0x1c) = 0;
+        field<uint32_t>(overlay, 0x20) = 0;
+    }
+    field<uint8_t*>(mgr, 0x1c) = overlay;
+    for (int32_t i = 0; i < 2; ++i) {
+        uint8_t* dialog = z_malloc(0x5c);
+        if (dialog) dialog = UIDialog_Construct(mgr, 0, dialog);
+        field<uint8_t**>(mgr, 4)[field<int32_t>(mgr, 0x14)] = dialog;
+        ++field<int32_t>(mgr, 0x14);
+    }
+    mgr[0x20] = 0;
+    return mgr;
+}
+
+void XB_THISCALL DialogMgr_Update(uint8_t* mgr, uint32_t dt) {
+    const int32_t active = field<int32_t>(mgr, 0xc);
+    if (active >= 0 && screen(mgr, active)) call(screen(mgr, active), 0x30, dt);
+    call(mgr, 0x14);
+    TitleRegs regs{};
+    regs.esi = address_of(field<uint8_t*>(mgr, 0x1c));
+    const uint32_t args[1] = {dt};
+    ui_call_regs(0x0032df90, &regs, 1, args);  // the overlay's fade (CL_ResumeFromPause)
+    call(mgr, 0x20, title_global<uint32_t>(0x0095f8f8) ? 1 : 4);
+}
+
+void XB_THISCALL DialogMgr_Draw(uint8_t* mgr) {
+    const int32_t active = field<int32_t>(mgr, 0xc);
+    if (active >= 0) call(screen(mgr, active), 0x28);
+    DialogMgr_DrawOverlay(field<uint8_t*>(mgr, 0x1c));
+}
+
+void XB_THISCALL DialogMgr_OnButtonUp(uint8_t* mgr, uint32_t bit, uint32_t pad) {
+    const int32_t active = field<int32_t>(mgr, 0xc);
+    if (active >= 0 && screen(mgr, active)) call(screen(mgr, active), 0x84, pad, bit);
+    uint8_t* const overlay = field<uint8_t*>(mgr, 0x1c);
+    const uint8_t flags = overlay[0x44];
+    if (!((flags >> 2) & 1)) return;
+    if (bit == 4) {
+        overlay[0x44] = flags & 0xfe;
+        call(field<uint8_t*>(overlay, 0), 0x78, 0x3f000000);  // 0.5
+    } else if (bit == 8) {
+        overlay[0x44] = flags & 0xfd;
+        call(field<uint8_t*>(overlay, 4), 0x78, 0x3f000000);
+    }
+}
+
+void XB_REGS1 XB_CDECL DialogMgr_CloseDialog(uint8_t* mgr) {
+    if (field<int32_t>(mgr, 0xc) != 1 || !((mgr[0x20] >> 1) & 1)) {
+        field<uint8_t*>(mgr, 0x1c)[0x44] |= 8;
+        return;
+    }
+    call(mgr, 0xc, 0);
+    const uint32_t heading = string_copy(reinterpret_cast<ScriptString*>(dialog_of(mgr) + 0x50));
+    const uint32_t text = string_copy(reinterpret_cast<ScriptString*>(dialog_of(mgr) + 0x4c));
+    {
+        TitleRegs regs{};
+        regs.esi = field<uint32_t>(mgr, 0x1c);
+        const uint32_t args[2] = {text, heading};
+        ui_call_regs(0x00313f20, &regs, 2, args);  // UIDialog_SetText (overlay in ESI)
+    }
+    uint8_t* const dialog = dialog_of(mgr);
+    Dialog_LayoutButtons(dialog[0x58], dialog);
+    mgr[0x20] &= 0xfd;
+}
+
+void XB_REGS1 XB_CDECL DialogMgr_DrawOverlay(uint8_t* overlay) {
+    {
+        TitleRegs regs{};
+        regs.esi = address_of(overlay);
+        ui_call_regs(0x003141c0, &regs, 0, nullptr);  // DialogMgr_DrawBackground
+    }
+    if (!((overlay[0x44] >> 2) & 1)) {
+        nglPushScene(0);
+        nglSetClearFlags(0);
+        nglSetSceneDepthTest(0);
+        nglSetSceneDepthEnable(0);
+        call(field<uint8_t*>(overlay, 0x2c), 0x3c);
+        if (has_text(field<uint8_t*>(overlay, 0x28))) call(field<uint8_t*>(overlay, 0x28), 0x3c);
+        nglPopScene();
+    }
+    if (!((overlay[0x44] >> 2) & 1)) return;
+    nglPushScene(0);
+    nglSetClearFlags(0);
+    nglSetSceneDepthTest(0);
+    nglSetSceneDepthEnable(0);
+    nglSetViewportRect(180.0f, 140.0f, 460.0f, 340.0f);
+    int32_t offset = 0;
+    if (has_text(field<uint8_t*>(overlay, 0x28))) offset = (line_count(field<uint8_t*>(overlay, 0x28)) + 1) * 20;
+    uint8_t* const heading = field<uint8_t*>(overlay, 0x28);
+    method<PositionMethod>(heading, 0x7c)(heading, 320.0f, field<float>(overlay, 0x3c) + 140.0f);
+    offset += 0x8c;
+    uint8_t* const body = field<uint8_t*>(overlay, 0x2c);
+    method<PositionMethod>(body, 0x7c)(body, 320.0f, float(offset) + field<float>(overlay, 0x3c));
+    int32_t first = -1 - int32_t(field<float>(overlay, 0x3c) * title_global<float>(0x0083edc8));  // 0.05
+    if (has_text(field<uint8_t*>(overlay, 0x28))) {
+        call(field<uint8_t*>(overlay, 0x28), 0x3c);
+        first -= line_count(field<uint8_t*>(overlay, 0x28));
+    }
+    call(field<uint8_t*>(overlay, 0x2c), 0x100, uint32_t(first), uint32_t(first + 0xc));
+    nglPopScene();
+}
+
+// --- Screen managers and root menus ---
+
+namespace {
+
+// The pause / loading screens' plain UIMenu part (owner, rows, position 320, 240, layer 8).
+void init_screen_menu(uint8_t* menu, int32_t count, uint8_t* owner) { UIMenu_Init(menu, count, owner, 0x140, 0xf0, 8, 0); }
+
+// A screen constructor taking the owner in EAX and the memory in ECX (returns the screen).
+uint8_t* construct_screen(uint32_t function, uint32_t size, uint8_t* owner) {
+    uint8_t* const memory = z_malloc(size);
+    if (!memory) return nullptr;
+    return title_function<uint8_t* XB_REGS3 XB_CDECL(uint8_t*, uint32_t, uint8_t*)>(function)(owner, 0, memory);
+}
+
+// A localized string (rm_locStrings): the entry's text ("NO STRING" when null), the name itself without an entry.
+const char* localized(const char* name) {
+    uint8_t* const zone = title_global<uint8_t*>(0x0095f5d8);  // rm_locStrings
+    const uint32_t hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x00024440)(name);  // Loc_HashKey
+    const uint8_t* const entry = Zone_FindByHash(zone, hash);
+    if (!entry) return name;
+    const char* const text = field<const char*>(const_cast<uint8_t*>(entry), 8);
+    return text ? text : text_at(0x008379b4);  // "NO STRING"
+}
+
+void add_screen(uint8_t* mgr, uint8_t* screen_object) {
+    field<uint8_t**>(mgr, 4)[field<int32_t>(mgr, 0x14)] = screen_object;
+    ++field<int32_t>(mgr, 0x14);
+}
+
+// The loading screens (0x44 bytes and up): +0x33, +0x34, +0x38 cleared, +0x44 = -1.
+uint8_t* loading_screen(uint32_t size, uint32_t vtable, uint8_t* owner) {
+    uint8_t* const menu = z_malloc(size);
+    if (!menu) return nullptr;
+    init_screen_menu(menu, 0, owner);
+    field<uint32_t>(menu, 0) = vtable;
+    menu[0x33] = 0;
+    field<uint32_t>(menu, 0x34) = 0;
+    menu[0x38] = 0;
+    field<int32_t>(menu, 0x44) = -1;
+    return menu;
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL UIRootMenu_Dtor(uint8_t* menu) {
+    uint8_t* const panel = field<uint8_t*>(menu, 0x34);
+    field<uint32_t>(menu, 0) = 0x00829280;  // UIRootMenu vtable
+    if (panel) Panel_Delete(panel);
+    delete_object(field<uint8_t*>(menu, 0x38));
+    field<uint32_t>(menu, 0) = 0x0082a628;  // UIMenu vtable
+    UIMenu_FreeItems(menu);
+}
+
+uint8_t* XB_THISCALL UIRootMenu_DeletingDtor(uint8_t* menu, uint32_t flags) {
+    UIRootMenu_Dtor(menu);
+    if (flags & 1) z_free(menu);
+    return menu;
+}
+
+void XB_REGS1 XB_CDECL TitleMenu_Dtor(uint8_t* menu) {
+    uint8_t* const panel = field<uint8_t*>(menu, 0x34);
+    field<uint32_t>(menu, 0) = 0x008297f0;  // TitleMenu vtable
+    if (panel) Panel_Delete(panel);
+    field<uint32_t>(menu, 0) = 0x0082a628;  // UIMenu vtable
+    UIMenu_FreeItems(menu);
+}
+
+uint8_t* XB_THISCALL TitleMenu_DeletingDtor(uint8_t* menu, uint32_t flags) {
+    TitleMenu_Dtor(menu);
+    if (flags & 1) z_free(menu);
+    return menu;
+}
+
+void XB_REGS1 XB_CDECL MainMenu_Dtor(uint8_t* menu) {
+    uint8_t* const panel = field<uint8_t*>(menu, 0x38);
+    field<uint32_t>(menu, 0) = 0x00829b80;  // MainMenu vtable
+    if (panel) Panel_Delete(panel);
+    delete_object(field<uint8_t*>(menu, 0x34));
+    field<uint32_t>(menu, 0) = 0x0082a628;  // UIMenu vtable
+    UIMenu_FreeItems(menu);
+}
+
+uint8_t* XB_THISCALL MainMenu_DeletingDtor(uint8_t* menu, uint32_t flags) {
+    MainMenu_Dtor(menu);
+    if (flags & 1) z_free(menu);
+    return menu;
+}
+
+uint8_t* XB_REGS3 XB_CDECL MainMenu_Construct(uint8_t* owner, uint32_t, uint8_t* menu) {
+    init_screen_menu(menu, 5, owner);
+    field<uint32_t>(menu, 0x34) = 0;
+    field<uint32_t>(menu, 0x38) = 0;
+    field<uint32_t>(menu, 0x3c) = 0;
+    menu[0x44] = 0;
+    field<uint32_t>(menu, 0x48) = 0;
+    field<uint32_t>(menu, 0) = 0x00829b80;  // MainMenu vtable
+    menu[0x33] = 5;
+    field<float>(menu, 0x40) = 0.0f;
+    return menu;
+}
+
+uint8_t* XB_THISCALL InGameScreens_DeletingDtor(uint8_t* mgr, uint32_t flags) {
+    field<uint32_t>(mgr, 0) = 0x008286cc;  // InGameScreens vtable
+    UIScreenMgr_Dtor(mgr);
+    if (flags & 1) z_free(mgr);
+    return mgr;
+}
+
+// The callees run at the original's stack positions (as UIDialog_SetText: the pause menu's dialogs).
+PLATFORM_ASM_ENTRY(InGameScreens_Update_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl 8(%ebp)\n"
+                   "pushl %ecx\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(InGameScreens_Update) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret $4")
+
+void XB_CDECL InGameScreens_Update(uint32_t entry, uint8_t* mgr, uint32_t dt) {
+    const uint32_t top = entry - 4;  // after push esi
+    const int32_t active = field<int32_t>(mgr, 0xc);
+    if (active >= 0 && screen(mgr, active)) {
+        const uint32_t args[1] = {dt};
+        method_at(top, screen(mgr, active), 0x30, 1, args);
+    }
+    method_at(top, mgr, 0x14);
+}
+
+uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr) {
+    UIScreenMgr_Init(mgr, 9, nullptr);
+    field<uint32_t>(mgr, 0) = 0x008286cc;  // InGameScreens vtable
+    uint8_t* pause = z_malloc(0x44);
+    if (pause) {
+        init_screen_menu(pause, 5, mgr);
+        field<uint16_t>(pause, 0x2a) |= 0x180;
+        field<uint32_t>(pause, 0) = 0x008289f8;  // PauseMenu vtable
+        pause[0x33] = 0;
+        field<uint32_t>(pause, 0x34) = 0;
+        pause[0x40] = 1;
+    }
+    add_screen(mgr, pause);
+    add_screen(mgr, construct_screen(0x003315e0, 0xc4, mgr));  // AdvancedOptionsMenu_Construct
+    add_screen(mgr, loading_screen(0x110, 0x00829180, mgr));  // LoadingMenu
+    add_screen(mgr, loading_screen(0x128, 0x0082a1f8, mgr));  // LoadAfricaMenu
+    add_screen(mgr, loading_screen(0xac, 0x00828718, mgr));   // LoadSicilyMenu
+    uint8_t* maubeuge = z_malloc(0x5c);
+    if (maubeuge) {
+        init_screen_menu(maubeuge, 0, mgr);
+        field<uint32_t>(maubeuge, 0) = 0x008295a0;  // LoadMaubeugeMenu vtable
+        maubeuge[0x33] = 0;
+        field<uint32_t>(maubeuge, 0x34) = 0;
+        maubeuge[0x38] = 0;
+        field<uint32_t>(maubeuge, 0x3c) = 0;
+        field<uint32_t>(maubeuge, 0x40) = 0;
+    }
+    add_screen(mgr, maubeuge);
+    add_screen(mgr, construct_screen(0x00330820, 0xc4, mgr));  // MissionSuccessFailMenu_Construct
+    add_screen(mgr, construct_screen(0x00330730, 0x88, mgr));  // AutosaveMenu_Construct
+    add_screen(mgr, construct_screen(0x00223e80, 0x4c, mgr));  // InGameLiveOptionsMenu_Construct
+    call(mgr, 0x18);
+    for (int32_t i = 0; i < field<int32_t>(mgr, 0x14); ++i) call(screen(mgr, i), 0x1c);
+    return mgr;
+}
+
+uint8_t* XB_STDCALL FrontEndMenu_Construct(uint8_t* mgr) {
+    UIScreenMgr_Init(mgr, 0x15, nullptr);
+    field<uint32_t>(mgr, 0) = 0x0082905c;  // FrontEndMenu vtable
+    uint8_t* title = z_malloc(0x44);
+    if (title) {
+        init_screen_menu(title, 0, mgr);
+        title[0x2a] |= 0x40;
+        field<uint32_t>(title, 0) = 0x008297f0;  // TitleMenu vtable
+        title[0x33] = 0;
+        field<float>(title, 0x38) = 0.0f;
+        title[0x3c] = 0;
+        field<uint32_t>(title, 0x40) = 0;
+        field<uint32_t>(title, 0x34) = 0;
+    }
+    add_screen(mgr, title);
+    uint8_t* main = z_malloc(0x4c);
+    if (main) main = MainMenu_Construct(mgr, 0, main);
+    add_screen(mgr, main);
+    add_screen(mgr, construct_screen(0x00331210, 0x4c, mgr));  // SinglePlayerMenu_Construct
+    uint8_t* options = z_malloc(0x40);
+    if (options) {
+        init_screen_menu(options, 3, mgr);
+        options[0x2a] |= 0x80;
+        field<uint32_t>(options, 0) = 0x00829348;  // OptionsMenu vtable
+        options[0x33] = 7;
+        field<uint32_t>(options, 0x34) = 0;
+        field<uint32_t>(options, 0x38) = 0;
+        field<uint32_t>(options, 0x3c) = 0;
+    }
+    add_screen(mgr, options);
+    // (constructor, size): Gameplay, ControllerConfig, Screen, Sound, BonusMaterials, BonusCharacters, BonusWeapons,
+    // BonusVehicles, BonusConcepts.
+    static const uint32_t kMenus[][2] = {
+        {0x00331150, 0x8c},  {0x003310d0, 0xd8},  {0x00330fd0, 0x5c},  {0x00330f80, 0x44},  {0x00330de0, 0x108},
+        {0x00330d60, 0xf4},  {0x00330c40, 0x194}, {0x00330bb0, 0x1d4}, {0x00330ab0, 0x20c},
+    };
+    for (const auto& menu : kMenus) add_screen(mgr, construct_screen(menu[0], menu[1], mgr));
+    uint8_t* difficulty = z_malloc(0x54);
+    if (difficulty) {
+        UIGridMenu_Init(difficulty, 3, mgr, 0);
+        field<uint32_t>(difficulty, 0) = 0x00828c50;  // DifficultyMenu vtable
+        difficulty[0x33] = 0;
+        field<uint32_t>(difficulty, 0x34) = 0;
+        field<uint32_t>(difficulty, 0x38) = 0;
+        field<int32_t>(difficulty, 0x48) = -1;
+        field<uint32_t>(difficulty, 0x50) = 1;
+    }
+    add_screen(mgr, difficulty);
+    // CreateProfile, Profile, 0x003308a0, Chapter, SpecialMaterials, SpecialConcept, XboxLive.
+    static const uint32_t kMoreMenus[][2] = {
+        {0x00335570, 0x1b4}, {0x003308f0, 0x9c}, {0x003308a0, 0x44}, {0x00333380, 0x1b8},
+        {0x003305e0, 0xdc},  {0x00330560, 0x148}, {0x00223ed0, 0x4c},
+    };
+    for (const auto& menu : kMoreMenus) add_screen(mgr, construct_screen(menu[0], menu[1], mgr));
+    NglQuad* const top = reinterpret_cast<NglQuad*>(mgr + 0x20);
+    NglQuad* const bottom = reinterpret_cast<NglQuad*>(mgr + 0x84);
+    nglInitQuad(top);
+    nglInitQuad(bottom);
+    nglSetQuadRect(top, 0.0f, 0.0f, 640.0f, 320.0f);
+    nglSetQuadRect(bottom, 0.0f, 320.0f, 640.0f, 480.0f);
+    mgr[0xe8] = 0;
+    mgr[0xf5] = 1;
+    mgr[0xf4] = 0;
+    field<uint32_t>(mgr, 0xf0) = 0;
+    field<uint32_t>(mgr, 0xec) = 0;
+    field<uint32_t>(mgr, 0x1c) = 0;
+    field<int32_t>(mgr, 0xc) = -1;
+    call(mgr, 0x18);
+    for (int32_t i = 0; i < field<int32_t>(mgr, 0x14); ++i) call(screen(mgr, i), 0x1c);
+    nglSetQuadZ(top, 300.0f);
+    nglSetQuadZ(bottom, 300.0f);
+    return mgr;
+}
+
+void XB_THISCALL UIRoot_Dtor(uint8_t* root) {
+    field<uint32_t>(root, 0) = 0x0082a5f4;  // UIRoot vtable
+    delete_object(field<uint8_t*>(root, 0x28));
+    delete_object(field<uint8_t*>(root, 0x2c));
+    delete_object(field<uint8_t*>(root, 0x30));
+    delete_object(field<uint8_t*>(root, 0x20));
+    delete_object(field<uint8_t*>(root, 0x24));
+    delete_object(field<uint8_t*>(root, 0x34));
+}
+
+void XB_REGS1 XB_CDECL UIRoot_InitChapterTable(uint8_t* table) {
+    for (int32_t i = 0; i < 14 * 0x12; ++i) field<uint32_t>(table, i * 4) = 0;
+    // (offset, value) pairs, in the original's store order.
+    static const uint16_t kEntries[][2] = {
+        {0xb8, 3},   {0x148, 3},  {0x48, 2},   {0x4c, 2},   {0x54, 1},   {0x58, 2},   {0x5c, 1},   {0x60, 1},
+        {0x64, 2},   {0x70, 2},   {0x74, 2},   {0x78, 1},   {0x88, 4},   {0x8c, 2},   {0xbc, 1},   {0xc4, 1},
+        {0xd4, 2},   {0xd8, 1},   {0xec, 1},   {0xf0, 1},   {0xf4, 1},   {0x100, 6},  {0x11c, 2},  {0x164, 2},
+        {0x174, 1},  {0x194, 4},  {0x1ac, 2},  {0x1b0, 1},  {0x1b4, 1},  {0x1b8, 1},  {0x1d0, 1},  {0x1d8, 1},
+        {0x1dc, 2},  {0x1e8, 2},  {0x1f4, 2},  {0x1fc, 1},  {0x20c, 1},  {0x220, 1},  {0x23c, 2},  {0x248, 1},
+        {0x24c, 1},  {0x264, 1},  {0x268, 1},  {0x284, 2},  {0x29c, 1},  {0x2a8, 1},  {0x2b0, 1},  {0x2c0, 1},
+        {0x2c8, 1},  {0x2cc, 2},  {0x2fc, 1},  {0x310, 1},  {0x314, 2},  {0x31c, 1},  {0x338, 1},  {0x35c, 2},
+        {0x3a0, 1},  {0x3a4, 2},  {0x3cc, 1},  {0x3e4, 1},  {0x3ec, 2},
+    };
+    for (const auto& entry : kEntries) field<uint32_t>(table, entry[0]) = entry[1];
+}
+
+PLATFORM_ASM_ENTRY(UIRoot_Construct_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_Construct) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL UIRoot_Construct(uint8_t* root) {
+    field<uint32_t>(root, 0) = 0x0082a5f4;  // UIRoot vtable
+    UIRoot_InitChapterTable(root + 0x54);
+    field<uint32_t>(root, 0x28) = 0;
+    field<uint32_t>(root, 0x2c) = 0;
+    field<uint32_t>(root, 0x30) = 0;
+    root[0x43] = 0;
+    field<uint32_t>(root, 0x34) = 0;
+    field<float>(root, 0x38) = 0.0f;
+    root[0x48] = 0;
+    root[0x49] = 0;
+    field<float>(root, 0x444) = 0.0f;
+    root[0x45] = 0;
+    root[0x44] = 0;
+    root[0x4a] = 0;
+    root[0x4b] = 0;
+    root[0x4c] = 0;
+    root[0x4d] = 0;
+    root[0x46] = 0;
+    root[0x4f] = 0;
+    root[0x4e] = 0;
+    root[0x47] = 1;
+    field<int32_t>(root, 0x50) = -1;
+    for (int32_t i = 0; i < 7; ++i) {
+        field<uint32_t>(root, 4 + i * 4) = 0;
+        root[0x3c + i] = 0;
+    }
+    uint8_t* const menu = z_malloc(0x3c);
+    if (menu) {
+        field<uint32_t>(menu, 0x2c) = 0;
+        field<uint32_t>(menu, 0xc) = 0;
+        field<uint32_t>(menu, 0x10) = 0;
+        field<uint16_t>(menu, 0x26) = 0;
+        field<uint32_t>(menu, 0x14) = 0;
+        field<uint32_t>(menu, 0x18) = 0;
+        field<uint16_t>(menu, 0x2a) = 0;
+        field<uint32_t>(menu, 4) = 0;
+        field<uint16_t>(menu, 0x20) = 0;
+        field<uint32_t>(menu, 8) = 0;
+        menu[0x30] = 0;
+        menu[0x33] = 0;
+        field<uint32_t>(menu, 0x34) = 0;
+        field<uint32_t>(menu, 0x38) = 0;
+        field<uint16_t>(menu, 0x28) = 1;
+        field<int16_t>(menu, 0x22) = -1;
+        field<int16_t>(menu, 0x24) = -1;
+        menu[0x31] = 1;
+        field<uint32_t>(menu, 0) = 0x00829280;  // UIRootMenu vtable
+    }
+    field<uint8_t*>(root, 0x24) = menu;
+    return root;
+}
+
+void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t, char* out) {
+    title_function<uint32_t XB_CDECL(uint32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    title_function<uint32_t XB_CDECL()>(0x000d1ec0)();               // Save_GetClusterSize
+    title_function<uint32_t XB_CDECL()>(0x000d1ec0)();
+    const char* const first = localized(text_at(0x0082aabc));   // "MEM_ERROR_NOT_ENOUGH_BLOCKS1"
+    const char* const second = localized(text_at(0x0082aa9c));  // "MEM_ERROR_NOT_ENOUGH_BLOCKS2"
+    const int32_t blocks = title_function<int32_t XB_CDECL()>(0x0031ac10)();  // Save_GetBlocksNeeded
+    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(out, text_at(0x0082b1c8), first, blocks,
+                                                                          second);  // _sprintf "%s %d %s"
+}
+
+// --- Memory-unit dialogs and save slots ---
+
+namespace {
+
+uint8_t* dialog_mgr() { return title_global<uint8_t*>(0x0095f900); }
+bool profiles_dir_exists() { return title_function<uint8_t XB_CDECL()>(0x0030c300)() != 0; }  // Save_ProfilesDirExists
+bool has_free_space() { return title_function<uint8_t XB_CDECL()>(0x0031ac60)() != 0; }
+
+// The blocks a save needs (BytesToBlocks of 4 clusters of 1 KB, two and five clusters).
+int32_t blocks_needed() {
+    const int32_t clusters = title_function<int32_t XB_CDECL(uint32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    int32_t bytes = clusters * 4;
+    bytes = bytes + title_function<int32_t XB_CDECL()>(0x000d1ec0)() * 2;  // Save_GetClusterSize
+    const int32_t size = title_function<int32_t XB_CDECL()>(0x000d1ec0)();
+    bytes = bytes + size * 4 + size;
+    return title_function<int32_t XB_CDECL(int64_t)>(0x000d1610)(bytes);  // BytesToBlocks
+}
+
+// The "not enough blocks" dialog with the continue-without-saving button (and the manage-memory one).
+void show_not_enough_blocks(const char* text, uint32_t continue_handler, uint32_t manage_handler) {
+    UI_ShowDialog(text, dialog_mgr(), 0, 0, text_at(0x0082dfeb), 1);
+    UI_DialogAddButton(dialog_mgr(), 0x0082b0f4, continue_handler);  // "MEM_CONTINUE_WO_SAVING"
+    if (manage_handler) UI_DialogAddButton(dialog_mgr(), 0x0082b0d8, manage_handler);  // "MEM_XBOX_MANAGE_MEM_UNIT"
+    Dialog_LayoutButtons(1, dialog_of(dialog_mgr()));
+}
+
+// Copies a save slot record (0x3cc bytes) into its write buffer (the slot's +0x11c0 pointer, cleared first for
+// the save's size), with the device byte +0x11e6 after it.
+void fill_write_buffer(uint8_t* saves, int32_t slot, const uint8_t* record) {
+    const uint32_t size = title_function<uint32_t XB_CDECL(uint32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    uint8_t* const buffer = field<uint8_t*>(saves, 0x11c0 + slot * 4);
+    for (uint32_t i = 0; i < size; ++i) buffer[i] = 0;
+    platform_rep_movs(field<uint8_t*>(saves, 0x11c0 + slot * 4), record, 0x3cc);
+    field<uint8_t*>(saves, 0x11c0 + slot * 4)[0x3cc] = saves[0x11e6];
+}
+
+}  // namespace
+
+uint8_t XB_CDECL MemDlg_CheckFreeSpace3() {
+    if (profiles_dir_exists() || has_free_space()) return 1;
+    char text[0x200];
+    blocks_needed();
+    MemDlg_FormatNotEnoughBlocks(title_global<uint32_t>(0x0095f480), text);
+    show_not_enough_blocks(text, 0x003125d0, 0);
+    return 0;
+}
+
+uint8_t XB_REGS3 XB_CDECL MemDlg_CheckFreeSpace(uint8_t check, uint32_t, uint8_t* menu) {
+    if (!check || profiles_dir_exists() || has_free_space()) return 1;
+    char text[0x200];
+    field<int32_t>(menu, 0x38) = blocks_needed();
+    MemDlg_FormatNotEnoughBlocks(title_global<uint32_t>(0x0095f480), text);
+    menu[0x41] = 1;
+    show_not_enough_blocks(text, 0x00334410, 0x0030d040);
+    return 0;
+}
+
+uint8_t XB_CDECL MemDlg_CheckFreeSpace2() {
+    if (profiles_dir_exists() || has_free_space()) {
+        if (!title_global<uint8_t>(0x008dd1d0)) title_function<void XB_CDECL()>(0x00312870)();
+        return 1;
+    }
+    char text[0x200];
+    blocks_needed();
+    MemDlg_FormatNotEnoughBlocks(title_global<uint32_t>(0x0095f480), text);
+    show_not_enough_blocks(text, 0x0031b2e0, 0x00335410);
+    return 0;
+}
+
+uint8_t XB_REGS1 XB_STDCALL MemDlg_CheckSaveDevice(int32_t device, uint8_t present) {
+    if (device != -2 && present) return 1;
+    UI_ShowDialog(text_at(0x0082ad74), dialog_mgr(), 0, 0, text_at(0x0082dfeb), 1);  // "MEM_PS2_ERROR_NO_SAVE_DATA"
+    UI_DialogAddButton(dialog_mgr(), 0x0082b0f4, 0x00334410);  // "MEM_CONTINUE_WO_SAVING"
+    UI_DialogAddButton(dialog_mgr(), 0x0082af70, 0x00338470);  // "MEM_RETRY"
+    Dialog_LayoutButtons(1, dialog_of(dialog_mgr()));
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(SaveSlot_Init_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(SaveSlot_Init) "addl $12, %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep) {
+    using StrNCpy = char* XB_CDECL(char*, const char*, uint32_t);
+    title_global<uint8_t>(0x008d50dd) = 0;
+    uint8_t* const record = saves + slot * 0x3cc;
+    const char* const version = title_global<uint8_t>(0x0095e7f8) ? text_at(0x0082ab00) : text_at(0x0082aaf8);
+    title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x28c), version, 0x19);  // "9-21-05(CE)"
+    const char* const data = title_function<const char* XB_CDECL()>(0x000d0c80)();  // Save_GetData
+    title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x64c), data, 0xc);
+    saves[slot + 0x11e7] = 1;
+    if (!keep) title_function<void XB_THISCALL(uint8_t*)>(0x0030c1a0)(saves);
+    fill_write_buffer(saves, slot, record + 0x28c);
+    const uint32_t result = title_function<uint32_t XB_CDECL(uint8_t*)>(0x000d2620)(saves + 4);  // Save_BeginWrite
+    field<int32_t>(saves, 0x11e0) = slot;
+    return result;
+}
+
+void XB_STDCALL SaveSlot_InitAll(uint8_t* saves) {
+    using StrNCpy = char* XB_CDECL(char*, const char*, uint32_t);
+    uint8_t profile[0x3a4];  // the defaults (the words Profile_SetDefaults leaves are zero on the dead stack)
+    for (uint32_t i = 0; i < sizeof profile; ++i) profile[i] = 0;
+    title_global<uint8_t>(0x008d50dd) = 0;
+    field<int32_t>(profile, 0xe8) = -1;
+    Profile_SetDefaults(profile);
+    int32_t slot = 0;
+    for (; slot < 4; ++slot) {
+        uint8_t* const record = saves + 0x28c + slot * 0x3cc;
+        const char* const version = title_global<uint8_t>(0x0095e7f8) ? text_at(0x0082ab00) : text_at(0x0082aaf8);
+        title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record), version, 0x19);
+        const char* const data = title_function<const char* XB_CDECL()>(0x000d0c80)();  // Save_GetData
+        title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x3c0), data, 0xc);
+        saves[slot + 0x11e7] = 1;
+        profile[0] = 0;
+        platform_rep_movs(record + 0x1c, profile, 0x3a4);
+        fill_write_buffer(saves, slot, record);
+    }
+    title_function<void XB_CDECL(uint8_t*)>(0x000d2620)(saves + 4);  // Save_BeginWrite
+    field<int32_t>(saves, 0x11e0) = slot;
 }
 
 }  // namespace game
