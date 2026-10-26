@@ -366,4 +366,96 @@ void XB_THISCALL UIText_SetWrappedText(uint8_t* text, uint32_t string, int32_t w
 // selected one (+0x50) highlighted (+0x15, vtable +0x94); the text item's position restored after.
 void XB_THISCALL UITextTable_Draw(uint8_t* table);
 
+// Front-end helpers that run every title call at the original's stack position (the set-text methods keep a stack
+// buffer's address, the image loaders hand stack buffers on): the entry (fe.cpp FE_FRAME_ENTRY) moves the C frame
+// below a gap and hands the C version the entry registers and the entry ESP. They return the original's last EAX.
+struct FrameIn {
+    uint32_t eax, ebx, ecx, edx, esi, edi, ebp;
+};
+#define FE_FRAME_FUNCTION(name)                                                                               \
+    extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL name(const FrameIn* in, uint32_t entry_esp);                   \
+    extern "C" void name##_entry(void);
+
+// The bonus image loaders (menu in EAX): the old image freed (inline, or FE_Bonus*FreeImage), the texts
+// (FE_Bonus*SetText), the .dds file of the current item opened (handle, aligned buffer, texture fields), read whole
+// into a 32 KB-aligned buffer (Mem_AlignedAlloc, 0x80, 0x30000) and loaded as a texture onto the image quad.
+// 0x0031d5b0: characters, bonus\char\char<n>.dds ("texchar"; +0x74 file, +0x78 buffer, +0x7c texture, quad +0x80).
+FE_FRAME_FUNCTION(FE_BonusCharacterLoadImage)
+// 0x0031a900: the collector's-edition hub: bonus_ce\main\ce_<n>.dds, row 2 ce_3_<+0x48 + 1>.dds (+0x5c.., quad +0x68).
+FE_FRAME_FUNCTION(FE_BonusCEMainLoadImage)
+// 0x0031d9d0: the bonus materials hub: bonus\main\tex<n>.dds; row 1 bonus\main\mov<item>.dds, its first items by
+// language (+0x88.., quad +0x94).
+FE_FRAME_FUNCTION(FE_BonusMainLoadImage)
+// 0x0031cd50 / 0x0031bf70 / 0x0031b730: weapons / vehicles / concept art: bonus\weapon<f>\wp<n>_<item>[f].dds etc.,
+// the folder f from the category n (and the vehicle item); full screen (+0xac / +0x88 / +0xc0) picks the "f" file,
+// the "...Full" texture name and the full-screen quad.
+FE_FRAME_FUNCTION(FE_BonusWeaponLoadImage)
+FE_FRAME_FUNCTION(FE_BonusVehicleLoadImage)
+FE_FRAME_FUNCTION(FE_BonusConceptLoadImage)
+// 0x0031a490: collector's-edition art: bonus_ce\<folder><f>\<prefix><group>[_<item>][f].dds from the category +0x22
+// and the current item's group / index (0x0030be60 / 0x0030bd30, menu in EDX); +0x44.., quads +0x50 / +0xb4.
+FE_FRAME_FUNCTION(FE_BonusCELoadImage)
+// The bonus label helpers: the unlock counts (Profile_SumMissionStats of 0x0095f924) hide the locked rows (+0x20),
+// the row texts, BONUS_LOCKED on the locked ones (+0x24), then the current texts.
+// 0x0031d880 (menu in EAX): characters (rows up to the characters reached, count word 16), then 0x0031d6b0;
+// +0x3c = 1.0, +0x40 cleared.
+FE_FRAME_FUNCTION(FE_BonusCharacterLabel)
+// 0x0031c5d0 (menu in ESI) / 0x0031d250 (menu in EAX): vehicle (counts 10-15) / weapon (counts 0-9) categories; the
+// current items raised to the stored bests (0x00312d60, EAX = out) + 1 while unlocked beyond them; then 0x0031c0e0
+// (stdcall menu) / 0x0031ceb0 (EDI = menu); +0x48 = 1.0, +0x4c cleared.
+FE_FRAME_FUNCTION(FE_BonusVehicleCategoryLabel)
+FE_FRAME_FUNCTION(FE_BonusWeaponCategoryLabel)
+// 0x0031de10 (menu in EAX): the bonus materials rows: row 1's movie count +0x78 (by the chapters reached, one or two
+// fewer by language), +0x61 = more movies than the stored best (0x008dcf0c), rows 2-5 hidden before chapter 2; the
+// texts, then 0x0031db10 (EDI = menu); the selection back to +0x80.
+FE_FRAME_FUNCTION(FE_BonusMenuLabel)
+// 0x00333060 (menu in EDI; movie name on the stack, ret 4): plays a bonus movie: the music handle stopped, the old
+// movie and image freed, CL_PlayMovie (ESI = name), then +0x44 = 5 and FE_BonusCEMainLoadImage.
+FE_FRAME_FUNCTION(FE_BonusStopMovie)
+// 0x003330f0 (index in EAX, menu in ECX): the collector's-edition movies: rows 0-3 play Bringing / TheMen / the
+// multiplayer map (+0x48: MPKass, MPMaub, MPTroina) / Behind; row 4 opens dialog screen 0x13. Nothing while a movie
+// plays (+0x3c).
+FE_FRAME_FUNCTION(FE_BonusMovieFileName)
+// 0x00338710 (slot in EAX; menu on the stack, ret 4): with room on the card (MemDlg_CheckFreeSpace2) the slot into
+// 0x0095f480 +0x11ec; an empty slot asks MEM_XBOX_OVERWRITE_CONFIRM (NO selected); else (mode 3: the default
+// profile applied to 0x008dce30 and CL_ApplyProfileSettings) ProfileMenu_ShowSaveWarning.
+FE_FRAME_FUNCTION(FE_ProfileSelect)
+// 0x0031ff30 (object in EAX): its +0x28 deleted, the chapter's theatre picture (textures\<language>\africa / sicily
+// / europe.dds) drawn full screen for two frames, then released.
+FE_FRAME_FUNCTION(FE_LoadTheatreBackground)
+// 0x00335d60 (menu in EAX): the style letter (+0x44), UpdateLabelColors, CL_ExecControllerConfig, each command's key
+// name (FE_CommandDisplayName) and the fixed PAUSE / OBJECTIVES / MOVE / LOOK labels; all 18 labels black.
+FE_FRAME_FUNCTION(FE_ControlsUpdateText)
+// 0x003367a0 (menu in ECX; pad on the stack, ret 4; main menu vtable 0x0082906c slot): the sign-in text (0x0095f478)
+// by the Live state (signing in / signed in as <gamertag> / the sign-in error); the first time the start-up movies
+// (legal, ATVI, Treyarch, intro) and the music; else the selected item and the backdrop shaders.
+FE_FRAME_FUNCTION(FE_MainMenu_UpdateSignIn)
+// 0x0031af60 (vtable slot, menu in ECX): the loading screen: the quotes / chapters around +0x190, the panel, the
+// picture +0x18c at (320, 240), the help bar, the movie frame and the menu.
+FE_FRAME_FUNCTION(FE_DrawLoadingQuote)
+// 0x003346e0 (menu on the stack, ret 4): the save device and free space checked at start-up; the dialogs closed.
+FE_FRAME_FUNCTION(FE_CheckStartupStorage)
+// 0x003175b0 (owner in EDI): two 22 x 22 cross pictures (normal_cross: ironcrosswhite at +0x08, ace_cross:
+// ironcrossgold at +0x0c).
+FE_FRAME_FUNCTION(FE_LiberatorCreateCrossIcons)
+// 0x0032d890: fades the music channel out over 0x008d2090 seconds (step 0x008d208c) with a black quad, then stops
+// all sounds.
+FE_FRAME_FUNCTION(FE_FadeOut)
+// 0x003393f0 (name, data): a new panel (Z_Malloc 0x60), Panel_Load, FE_SetupPanel (EAX = panel, EDX = name).
+FE_FRAME_FUNCTION(FE_LoadPanel)
+// 0x00337050 (owner in ESI): the front-end menu (+0x28, its first screen) and the dialog manager (+0x30).
+FE_FRAME_FUNCTION(FE_CreateMenus)
+// 0x00338d70 (vtable slot, menu in ECX): difficulty pictures hidden, the selection restored, the propaganda movie
+// opened once, row 1 selected.
+FE_FRAME_FUNCTION(FE_DifficultyMenu_Init)
+// 0x00331340 (menu in ESI): the control and sound settings to the cvars / globals, the controller style config.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_ApplyControlSettings(uint8_t* menu);
+extern "C" void FE_ApplyControlSettings_entry(void);
+// 0x0030d140 / 0x0030cdf0 (seconds in EAX, at most 359999; ret 0x10): days, hours, minutes and seconds into the
+// four out words. Two identical copies.
+int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime(int32_t seconds, int32_t* out_seconds, int32_t* out_minutes,
+                                              int32_t* out_hours, int32_t* out_days);
+int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime2(int32_t seconds, int32_t* out_seconds, int32_t* out_minutes,
+                                               int32_t* out_hours, int32_t* out_days);
+
 }  // namespace game

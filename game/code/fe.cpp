@@ -1,6 +1,7 @@
 #include "fe.h"
 
 #include <cstring>
+#include <type_traits>
 
 #include "ngl.h"
 #include "qcommon.h"
@@ -2342,6 +2343,1285 @@ void XB_THISCALL UITextTable_Draw(uint8_t* table) {
     }
     method<SetFloat>(text_item(), 0x80)(text_item(), x0);
     method<SetFloat>(text_item(), 0x84)(text_item(), y0);
+}
+
+// --- Front-end helpers run at the original's stack position ---
+//
+// The set-text methods leave a stack buffer's address in a heap word, and the image loaders hand stack buffers to
+// title callees: these functions run every title call where the original makes it. The entry (FE_FRAME_ENTRY) moves
+// the C frame below a gap and hands the C version the entry registers and the entry ESP; each call runs at the
+// original's ESP (`depth` bytes below the entry, before the call's pushes) and leaves the original's return address
+// and saved registers in the dead stack.
+#define FE_FRAME_ENTRY(name, ret)                                                                                 \
+    PLATFORM_ASM_ENTRY(name##_entry, GAME_GAP_ESP("0x10000") "pushl %ebp\n pushl %edi\n pushl %esi\n"            \
+                                     "pushl %edx\n pushl %ecx\n pushl %ebx\n pushl %eax\n movl %esp, %eax\n"      \
+                                     "pushl 28(%eax)\n pushl %eax\n" PLATFORM_ASM_CALL(name)                      \
+                                     "addl $36, %esp\n popl %esp\n" ret)
+
+namespace {
+
+uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); }
+
+template <typename T>
+uint32_t word_of(T value) {
+    if constexpr (std::is_pointer_v<T>)
+        return address_of(value);
+    else
+        return static_cast<uint32_t>(value);
+}
+
+struct Frame {
+    uint32_t entry;  // the original's entry ESP
+    TitleRegs regs;  // the registers title calls get
+
+    Frame(const FrameIn* in, uint32_t entry_esp)
+        : entry(entry_esp), regs{in->eax, in->ebx, in->ecx, in->edx, in->esi, in->edi} {}
+
+    uint32_t& word(uint32_t depth) const { return stack_word(entry - depth); }
+    template <typename T = uint8_t>
+    T* local(uint32_t depth) const {
+        return reinterpret_cast<T*>(uintptr_t{entry - depth});
+    }
+    // A title call at ESP = entry - depth (before its pushes; args[0] pushed last), returning to `ret`.
+    template <typename... A>
+    uint32_t call(uint32_t depth, uint32_t ret, uint32_t function, A... a) const {
+        const uint32_t args[] = {word_of(a)..., 0};
+        const uint32_t top = entry - depth;
+        const uint32_t result = title_call_at_regs(top, function, &regs, sizeof...(A), args);
+        stack_word(top - 4 * sizeof...(A) - 4) = ret;
+        return result;
+    }
+    // A thiscall method (vtable byte offset `slot`) of `object`.
+    template <typename... A>
+    uint32_t method(uint32_t depth, uint32_t ret, uint8_t* object, uint32_t slot, A... a) {
+        const uint32_t saved = regs.ecx;
+        regs.ecx = address_of(object);
+        const uint32_t result = call(depth, ret, field<uint32_t>(field<uint8_t*>(object, 0), slot), a...);
+        regs.ecx = saved;
+        return result;
+    }
+};
+
+constexpr uint32_t kSprintf = 0x001ee901;
+constexpr uint32_t kFileOpenRead = 0x000c9d40, kFileGetSize = 0x000c9d10, kFileReadAt = 0x000caff0;
+constexpr uint32_t kFileClose = 0x000cac90;
+constexpr uint32_t kMemAlignedAlloc = 0x00093950, kMemAlignedFree = 0x000939b0;
+constexpr uint32_t kHashStrInit = 0x00011060, kNglLoadTexture = 0x000635a0, kNglSetQuadTexture = 0x0005de20;
+constexpr uint32_t kNglResetDeviceBindings = 0x00064660, kNglReleaseTexture = 0x00063630;
+
+// The image fields of a menu: file handle, buffer, texture.
+struct ImageFields {
+    uint32_t file, buffer, texture;
+};
+
+// The inline free of the character / collector's-edition images (frame: one push below sub esp,0x40).
+void free_image_inline(Frame& f, uint8_t* menu, const ImageFields& image, const uint32_t (&rets)[4]) {
+    if (!field<uint32_t>(menu, image.buffer)) return;
+    f.call(0x44, rets[0], kNglResetDeviceBindings);
+    if (const uint32_t texture = field<uint32_t>(menu, image.texture)) f.call(0x44, rets[1], kNglReleaseTexture, texture);
+    const int32_t file = field<int32_t>(menu, image.file);
+    if (file != -1) {
+        f.call(0x44, rets[2], kFileClose, file);
+        if (const uint32_t buffer = field<uint32_t>(menu, image.buffer)) f.call(0x44, rets[3], kMemAlignedFree, buffer);
+    }
+    field<uint32_t>(menu, image.buffer) = 0;
+}
+
+// The return addresses of the loading tail's calls: open, size, alloc, read, hash, load, set quad.
+struct LoadRets {
+    uint32_t open, size, alloc, read, hash, load, quad;
+};
+
+// Open `name` (a buffer in the frame), read it whole into an aligned buffer and make the texture `hash_name` on the
+// quad. Depths below the entry: the open call; the ESP before the `pushes` words pushed after the open (1: EDI, 2:
+// EBX and EDI); the hash and texture calls; the quad call. Returns false when the file does not open.
+struct LoadDepths {
+    uint32_t open, base, pushes, hash, quad;
+};
+
+bool load_image_file(Frame& f, uint8_t* menu, const ImageFields& image, uint32_t name, const LoadDepths& d,
+                     uint32_t hash_name, uint32_t quad, const LoadRets& rets) {
+    const int32_t file = int32_t(f.call(d.open, rets.open, kFileOpenRead, title_global<uint32_t>(0x0095f6f4), name));
+    field<int32_t>(menu, image.file) = file;
+    if (file == -1) return false;
+    uint32_t depth = d.base;
+    if (d.pushes == 2) {
+        depth += 4;
+        f.word(depth) = f.regs.ebx;
+    }
+    if (d.pushes >= 1) {
+        depth += 4;
+        f.word(depth) = f.regs.edi;
+    }
+    const uint32_t size = f.call(depth, rets.size, kFileGetSize, file);
+    const uint32_t aligned = (size + 0x7fff) & 0xffff8000u;
+    f.regs.ebx = size;
+    f.regs.edi = aligned;
+    const uint32_t buffer = f.call(depth + 4, rets.alloc, kMemAlignedAlloc, aligned, 0x80, 0x30000);
+    field<uint32_t>(menu, image.buffer) = buffer;
+    f.call(depth + 0x10, rets.read, kFileReadAt, field<int32_t>(menu, image.file), 0, buffer, aligned);
+    const uint32_t hash = f.entry - 0x20;
+    f.regs.ecx = hash;
+    f.call(d.hash, rets.hash, kHashStrInit, hash_name);
+    const uint32_t texture =
+        f.call(d.hash, rets.load, kNglLoadTexture, hash, 0, field<uint32_t>(menu, image.buffer), size);
+    field<uint32_t>(menu, image.texture) = texture;
+    f.call(d.quad, rets.quad, kNglSetQuadTexture, menu + quad, texture);
+    return true;
+}
+
+}  // namespace
+
+FE_FRAME_ENTRY(FE_BonusCharacterLoadImage, "ret")
+
+uint32_t XB_CDECL FE_BonusCharacterLoadImage(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x44) = in->esi;  // push esi
+    f.regs.esi = in->eax;
+    constexpr ImageFields kImage{0x74, 0x78, 0x7c};
+    free_image_inline(f, menu, kImage, {0x0031d5c2, 0x0031d5cf, 0x0031d5e0, 0x0031d5f0});
+    f.call(0x44, 0x0031d5ff, 0x0030dbc0);  // FE_BonusCharacterSetText
+    const uint32_t name = f.entry - 0x40;
+    f.call(0x44, 0x0031d614, kSprintf, name, 0x0082b7d0, field<int16_t>(menu, 0x22) + 1);  // bonus\char\char%i.dds
+    load_image_file(f, menu, kImage, name, {0x50, 0x44, 2, 0x4c, 0x5c}, 0x0082b7c8, 0x80,  // "texchar"
+                    {0x0031d624, 0x0031d637, 0x0031d655, 0x0031d665, 0x0031d676, 0x0031d687, 0x0031d697});
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusCEMainLoadImage, "ret")
+
+uint32_t XB_CDECL FE_BonusCEMainLoadImage(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x44) = in->esi;  // push esi
+    f.regs.esi = in->eax;
+    constexpr ImageFields kImage{0x5c, 0x60, 0x64};
+    free_image_inline(f, menu, kImage, {0x0031a912, 0x0031a91f, 0x0031a930, 0x0031a940});
+    const uint32_t name = f.entry - 0x40;
+    if (field<int16_t>(menu, 0x22) == 2)
+        f.call(0x44, 0x0031a96a, kSprintf, name, 0x0082a950, 3, field<int32_t>(menu, 0x48) + 1);  // ce_%i_%i.dds
+    else
+        f.call(0x44, 0x0031a983, kSprintf, name, 0x0082a938, field<int16_t>(menu, 0x22) + 1);  // ce_%i.dds
+    load_image_file(f, menu, kImage, name, {0x44, 0x44, 2, 0x4c, 0x5c}, name, 0x68,
+                    {0x0031a997, 0x0031a9aa, 0x0031a9c8, 0x0031a9d8, 0x0031a9e9, 0x0031a9fa, 0x0031aa07});
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusMainLoadImage, "ret")
+
+uint32_t XB_CDECL FE_BonusMainLoadImage(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x44) = in->esi;  // push esi
+    f.regs.esi = in->eax;
+    if (field<uint32_t>(menu, 0x8c)) f.call(0x44, 0x0031d9e5, 0x0030dcc0);  // FE_BonusMainFreeImage
+    const uint32_t name = f.entry - 0x40;
+    if (field<int16_t>(menu, 0x22) == 1) {
+        // the movie row: its item's picture (bonus\main\mov%i.dds), the language's own for the first ones
+        const int32_t language = title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+        int32_t n;
+        if (language != 0 || title_global<uint8_t>(0x0095ee00)) {
+            n = field<int32_t>(menu, 0x7c) + (language == 1 ? 3 : 2);
+        } else {
+            n = field<int32_t>(menu, 0x7c) + 1;
+            if (n == 1)
+                n = 2;
+            else if (n == 2)
+                n = 1;
+        }
+        f.call(0x44, 0x0031da69, kSprintf, name, 0x0082b9dc, n);
+    } else {
+        f.call(0x44, 0x0031da69, kSprintf, name, 0x0082b9c4, field<int16_t>(menu, 0x22) + 1);  // tex%i.dds
+    }
+    load_image_file(f, menu, ImageFields{0x88, 0x8c, 0x90}, name, {0x44, 0x44, 2, 0x4c, 0x5c}, 0x0082b9bc, 0x94,  // "texMain"
+                    {0x0031da7c, 0x0031da92, 0x0031dab0, 0x0031dac6, 0x0031dad7, 0x0031daeb, 0x0031dafe});
+    return 0;
+}
+
+namespace {
+
+// The weapon / vehicle / concept image loaders (frame: sub esp,0x40; push ebx; push esi).
+struct CategoryImage {
+    uint32_t free_image, set_text;
+    uint32_t items;  // the current item per category
+    uint32_t full_screen;
+    ImageFields image;
+    uint32_t format, format_full, hash, hash_full, quad, quad_full;
+    uint32_t rets[12];  // free, set text, sprintf, open, size, alloc, read, hash (full), hash, load, quad (full), quad
+    int32_t (*folder)(const uint8_t* menu, int32_t n);  // the folder number of category n (1-based)
+};
+
+void load_category_image(const FrameIn* in, uint32_t entry_esp, const CategoryImage& c) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x44) = in->ebx;  // push ebx
+    f.word(0x48) = in->esi;  // push esi
+    f.regs.esi = in->eax;
+    if (field<uint32_t>(menu, c.image.buffer)) f.call(0x48, c.rets[0], c.free_image);
+    f.call(0x48, c.rets[1], c.set_text);
+    const int32_t index = field<int16_t>(menu, 0x22);
+    const bool full = menu[c.full_screen] != 0;
+    f.regs.ebx = (f.regs.ebx & ~0xffu) | menu[c.full_screen];
+    const uint32_t name = f.entry - 0x40;
+    f.call(0x48, c.rets[2], kSprintf, name, full ? c.format_full : c.format, c.folder(menu, index + 1), index + 1,
+           field<int32_t>(menu, c.items + uint32_t(index) * 4));
+    const LoadRets rets{c.rets[3], c.rets[4], c.rets[5], c.rets[6], full ? c.rets[7] : c.rets[8], c.rets[9],
+                        full ? c.rets[10] : c.rets[11]};
+    load_image_file(f, menu, c.image, name, {0x48, 0x48, 1, 0x48, 0x48}, full ? c.hash_full : c.hash,
+                    full ? c.quad_full : c.quad, rets);
+}
+
+}  // namespace
+
+FE_FRAME_ENTRY(FE_BonusWeaponLoadImage, "ret")
+
+uint32_t XB_CDECL FE_BonusWeaponLoadImage(const FrameIn* in, uint32_t entry_esp) {
+    static constexpr CategoryImage kWeapon{
+        0x0030db60, 0x0031cc30, 0x84, 0xac, {0xb0, 0xb4, 0xb8}, 0x0082b598, 0x0082b5b4, 0x0082b57c, 0x0082b588,
+        0xbc, 0x120,  // bonus\weapon%i\wp%i_%i(f).dds, "texweapon" / "texweaponfull"
+        {0x0031cd66, 0x0031cd6b, 0x0031cdb3, 0x0031cdc7, 0x0031cde0, 0x0031cdfe, 0x0031ce14, 0x0031ce30, 0x0031ce4b,
+         0x0031ce5f, 0x0031ce85, 0x0031cea1},
+        [](const uint8_t*, int32_t n) { return n <= 2 ? 1 : 2 + (n > 5 ? 1 : 0); }};
+    load_category_image(in, entry_esp, kWeapon);
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusVehicleLoadImage, "ret")
+
+uint32_t XB_CDECL FE_BonusVehicleLoadImage(const FrameIn* in, uint32_t entry_esp) {
+    static constexpr CategoryImage kVehicle{
+        0x0030db00, 0x0031be80, 0x70, 0x88, {0x8c, 0x90, 0x94}, 0x0082b414, 0x0082b430, 0x0082b3f8, 0x0082b404,
+        0x98, 0xfc,  // bonus\vehicle%i\vh%i_%i(f).dds, "texvehicle" / "texvehicleFull"
+        {0x0031bf86, 0x0031bf8b, 0x0031bfe0, 0x0031bff4, 0x0031c00d, 0x0031c02b, 0x0031c041, 0x0031c05d, 0x0031c078,
+         0x0031c08c, 0x0031c0b2, 0x0031c0ce},
+        // category 1: folder 1 up to item 13, then 2; category 2: 3; the rest: 4
+        [](const uint8_t* menu, int32_t n) {
+            if (n == 1) return field<int32_t>(const_cast<uint8_t*>(menu), 0x70) > 13 ? 2 : 1;
+            return n == 2 ? 3 : 4;
+        }};
+    load_category_image(in, entry_esp, kVehicle);
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusConceptLoadImage, "ret")
+
+uint32_t XB_CDECL FE_BonusConceptLoadImage(const FrameIn* in, uint32_t entry_esp) {
+    static constexpr CategoryImage kConcept{
+        0x0030daa0, 0x00312ad0, 0x8c, 0xc0, {0xc4, 0xc8, 0xcc}, 0x0082b270, 0x0082b28c, 0x0082b25c, 0x0082b264,
+        0xd0, 0x134,  // bonus\concept%i\cp%i_%i(f).dds, "texart" / "texartFull"
+        {0x0031b746, 0x0031b74b, 0x0031b785, 0x0031b798, 0x0031b7b1, 0x0031b7cf, 0x0031b7e5, 0x0031b801, 0x0031b81c,
+         0x0031b830, 0x0031b856, 0x0031b872},
+        [](const uint8_t*, int32_t n) { return n > 7 ? 2 : 1; }};
+    load_category_image(in, entry_esp, kConcept);
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusCELoadImage, "ret")
+
+uint32_t XB_CDECL FE_BonusCELoadImage(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x44) = in->ebx;  // push ebx
+    f.word(0x48) = in->esi;  // push esi
+    f.word(0x4c) = in->edi;  // push edi
+    f.regs.esi = in->eax;
+    if (field<uint32_t>(menu, 0x48)) f.call(0x4c, 0x0031a4a4, 0x0030c010);  // FE_BonusCEFreeImage
+    f.call(0x4c, 0x0031a4a9, 0x0030bf90);                                     // FE_BonusCESetText
+    f.regs.edx = in->eax;
+    const int32_t group = int32_t(f.call(0x4c, 0x0031a4b0, 0x0030be60));  // the item's group (EDX = menu)
+    f.regs.ebx = uint32_t(group);
+    const int32_t item = int32_t(f.call(0x4c, 0x0031a4b7, 0x0030bd30));  // the item within it (0: one picture)
+    // the folder / file prefixes and the folder number of the category (+0x22)
+    uint32_t folder, prefix;  // "%s%i\%s%i"
+    int32_t number = 1;
+    switch (field<int16_t>(menu, 0x22)) {
+        case 0:
+            folder = 0x0082a894, prefix = 0x0082a88c;
+            if (group < 3 || (group == 3 && item == 1))
+                number = 1;
+            else if (group < 5)
+                number = 2;
+            else
+                number = 3;
+            break;
+        case 1:
+            folder = prefix = 0x0082a884;
+            number = (group >= 4 ? 1 : 0) + 1;
+            break;
+        case 2:
+            folder = 0x0082a87c, prefix = 0x0082a878;
+            number = (group >= 5 ? 1 : 0) + 1;
+            break;
+        case 3:
+            folder = 0x0082a870, prefix = 0x0082a868;
+            break;
+        case 4:
+            folder = 0x0082a860, prefix = 0x0082a858;  // "misc" / "misc_"
+            break;
+        default:
+            folder = 0x0082a850, prefix = 0x0082a848;  // "over" / "over_"
+            break;
+    }
+    const bool full = menu[0x40] != 0;
+    const uint32_t name = f.entry - 0x40;
+    if (item)
+        f.call(0x4c, full ? 0x0031a58b : 0x0031a5b8, kSprintf, name, full ? 0x0082a82c : 0x0082a7f8, folder, number,
+               prefix, group, item);  // bonus_ce\%s%i\%s%i_%i(f).dds
+    else
+        f.call(0x4c, 0x0031a5d0, kSprintf, name, full ? 0x0082a814 : 0x0082a7e0, folder, number, prefix,
+               group);  // bonus_ce\%s%i\%s%i(f).dds
+    f.regs.eax = uint32_t(item);
+    f.regs.edi = prefix;
+    load_image_file(f, menu, ImageFields{0x44, 0x48, 0x4c}, name, {0x4c, 0x4c, 0, 0x4c, 0x4c},
+                    full ? 0x0082a7d4 : 0x0082a7cc, full ? 0xb4 : 0x50,  // "texCEFull" / "texCE"
+                    {0x0031a5e4, 0x0031a5f9, 0x0031a617, 0x0031a627, full ? 0x0031a63fu : 0x0031a657u, 0x0031a668,
+                     full ? 0x0031a685u : 0x0031a69cu});
+    return 0;
+}
+
+namespace {
+
+constexpr uint32_t kSumMissionStats = 0x00312e30;  // Profile_SumMissionStats (stdcall: stats, out)
+constexpr uint32_t kBonusLocked = 0x0082bb8c;      // "BONUS_LOCKED"
+
+// The locked items' text: BONUS_LOCKED on every item whose vtable +0x24 says locked.
+void set_locked_texts(Frame& f, uint8_t* menu, uint32_t count, uint32_t depth, uint32_t ret_query,
+                      uint32_t ret_text) {
+    for (uint32_t i = 0; i < count; ++i) {
+        if (uint8_t(f.method(depth, ret_query, menu_item(menu, i), 0x24)) == 1)
+            f.method(depth, ret_text, menu_item(menu, i), 0x30, kBonusLocked);
+    }
+}
+
+// The current items raised to the stored bests: item i = best + 1 while the unlocked count is above it.
+void raise_items(uint8_t* menu, uint32_t items, const int32_t* unlocked, const int32_t* best, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i)
+        if (unlocked[i] > best[i] && best[i] > 0) field<int32_t>(menu, items + i * 4) = best[i] + 1;
+}
+
+}  // namespace
+
+FE_FRAME_ENTRY(FE_BonusCharacterLabel, "ret")
+
+uint32_t XB_CDECL FE_BonusCharacterLabel(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x4c) = in->ebx;  // push ebx
+    f.word(0x50) = in->esi;  // push esi
+    f.word(0x54) = in->edi;  // push edi
+    f.regs.edi = in->eax;
+    int32_t* const counts = f.local<int32_t>(0x48);
+    f.call(0x54, 0x0031d897, kSumMissionStats, 0x0095f924, counts);
+    const int32_t reached = counts[16];  // the characters reached
+    f.regs.ebx = uint32_t(reached);
+    for (uint32_t i = 0; i < 7; ++i) {
+        f.regs.esi = i + 1;
+        f.method(0x54, 0x0031d8ba, menu_item(menu, i), 0x20, reached < int32_t(i) + 1 ? 1 : 0);  // hidden
+    }
+    static constexpr uint32_t kTexts[7] = {0x0082b9a8, 0x0082b994, 0x0082b980, 0x0082b96c,
+                                           0x0082b958, 0x0082b944, 0x0082b930};  // BONUS_BONUS_CHAR_1..7
+    for (uint32_t i = 0; i < 7; ++i)
+        f.method(0x54, 0x0031d8d0 + i * 0x10, menu_item(menu, i), 0x30, kTexts[i]);
+    set_locked_texts(f, menu, 7, 0x54, 0x0031d93d, 0x0031d951);
+    f.call(0x54, 0x0031d95e, 0x0031d6b0);  // the character texts (EDI = menu)
+    field<uint32_t>(menu, 0x3c) = title_global<uint32_t>(0x0083eb20);  // 1.0
+    menu[0x40] = 0;
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusVehicleCategoryLabel, "ret")
+
+uint32_t XB_CDECL FE_BonusVehicleCategoryLabel(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->esi});
+    f.word(0x94) = in->edi;  // push edi
+    int32_t* const counts = f.local<int32_t>(0x90);  // per category unlocked: vehicles at 10..15
+    int32_t* const best = f.local<int32_t>(0x48);
+    f.call(0x94, 0x0031c5e6, kSumMissionStats, 0x0095f924, counts);
+    f.regs.eax = address_of(best);
+    f.call(0x94, 0x0031c5ef, 0x00312d60);  // the stored bests (EAX = out)
+    for (uint32_t i = 0; i < 6; ++i) {
+        f.regs.edi = i * 4;
+        f.method(0x94, 0x0031c5fe, menu_item(menu, i), 0x20, 0);
+    }
+    const int32_t* const unlocked = counts + 10;
+    f.regs.edi = uint32_t(unlocked[0]);
+    if (!unlocked[0]) f.method(0x94, 0x0031c61a, menu_item(menu, 0), 0x20, 1);
+    f.word(0x98) = in->ebx;  // push ebx
+    f.regs.ebx = uint32_t(unlocked[1]);
+    f.word(0x9c) = in->ebp;  // push ebp
+    if (!unlocked[1]) f.method(0x9c, 0x0031c631, menu_item(menu, 1), 0x20, 1);
+    // the other categories in the order 4, 3, 2, 5
+    static constexpr struct {
+        uint32_t item, ret;
+    } kHides[4] = {{4, 0x0031c646}, {3, 0x0031c65b}, {2, 0x0031c670}, {5, 0x0031c685}};
+    for (const auto& h : kHides) {
+        if (!unlocked[h.item]) f.method(0x9c, h.ret, menu_item(menu, h.item), 0x20, 1);
+    }
+    raise_items(menu, 0x70, unlocked, best + 10, 6);
+    static constexpr struct {
+        uint32_t item, text;
+    } kTexts[6] = {{0, 0x0082b538}, {1, 0x0082b528}, {4, 0x0082b518},
+                   {3, 0x0082b500}, {2, 0x0082b4e8}, {5, 0x0082b4d4}};  // LAND, AIR, SEA, ARTILLERY, ANTI_AIR, ROCKET
+    f.regs.ebx = in->ebx;
+    f.regs.edi = uint32_t(unlocked[0]);
+    for (uint32_t i = 0; i < 6; ++i)
+        f.method(0x94, 0x0031c70e + i * 0x10, menu_item(menu, kTexts[i].item), 0x30, kTexts[i].text);
+    set_locked_texts(f, menu, 6, 0x94, 0x0031c76b, 0x0031c77f);
+    f.call(0x94, 0x0031c78d, 0x0031c0e0, menu);  // the category texts (stdcall menu)
+    field<uint32_t>(menu, 0x48) = title_global<uint32_t>(0x0083eb20);  // 1.0
+    menu[0x4c] = 0;
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusWeaponCategoryLabel, "ret")
+
+uint32_t XB_CDECL FE_BonusWeaponCategoryLabel(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x94) = in->esi;  // push esi
+    f.word(0x98) = in->edi;  // push edi
+    f.regs.edi = in->eax;
+    int32_t* const unlocked = f.local<int32_t>(0x90);  // weapons at 0..9
+    int32_t* const best = f.local<int32_t>(0x48);
+    f.call(0x98, 0x0031d269, kSumMissionStats, 0x0095f924, unlocked);
+    f.regs.eax = address_of(best);
+    f.call(0x98, 0x0031d272, 0x00312d60);  // the stored bests (EAX = out)
+    for (uint32_t i = 0; i < 10; ++i) {
+        f.regs.esi = i * 4;
+        f.method(0x98, 0x0031d281, menu_item(menu, i), 0x20, 0);
+    }
+    f.regs.esi = uint32_t(unlocked[0]);
+    if (!unlocked[0]) f.method(0x98, 0x0031d29d, menu_item(menu, 0), 0x20, 1);
+    f.word(0x9c) = in->ebx;  // push ebx
+    f.word(0xa0) = in->ebp;  // push ebp
+    f.regs.ebx = uint32_t(unlocked[1]);
+    for (uint32_t i = 1; i < 10; ++i) {
+        if (!unlocked[i]) f.method(0xa0, 0x0031d2b4 + (i - 1) * 0x15, menu_item(menu, i), 0x20, 1);
+    }
+    raise_items(menu, 0x84, unlocked, best, 10);
+    f.regs.ebx = in->ebx;
+    static constexpr uint32_t kTexts[10] = {0x0082b77c, 0x0082b768, 0x0082b758, 0x0082b744, 0x0082b730,
+                                            0x0082b71c, 0x0082b708, 0x0082b6f0, 0x0082b6d8, 0x0082b6c0};
+    for (uint32_t i = 0; i < 10; ++i)  // SMG, RIFLE, HMG, PISTOL, GRENADE, ASSAULT, SNIPER, CREW_SERVED, ...
+        f.method(0x98, 0x0031d439 + i * 0x10, menu_item(menu, i), 0x30, kTexts[i]);
+    set_locked_texts(f, menu, 10, 0x98, 0x0031d4db, 0x0031d4ef);
+    f.call(0x98, 0x0031d4fc, 0x0031ceb0);  // the category texts (EDI = menu)
+    field<uint32_t>(menu, 0x48) = title_global<uint32_t>(0x0083eb20);  // 1.0
+    menu[0x4c] = 0;
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusMenuLabel, "ret")
+
+uint32_t XB_CDECL FE_BonusMenuLabel(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x4) = in->ecx;  // push ecx (its low byte becomes a flag below)
+    f.word(0x8) = in->esi;  // push esi
+    f.word(0xc) = in->edi;  // push edi
+    f.regs.edi = in->eax;
+    field<int32_t>(menu, 0x7c) = 0;
+    // row 1's item count: the movies unlocked by the chapters reached (all with 0x008dce54)
+    int32_t count;
+    if (title_global<uint8_t>(0x008dce54)) {
+        count = 6;
+    } else {
+        const int32_t chapters = title_global<int32_t>(0x008dce44);  // g_chaptersUnlocked
+        count = chapters >= 9 ? 5 : chapters >= 6 ? 4 : chapters >= 1 ? 3 : 2;
+    }
+    field<int32_t>(menu, 0x78) = count;
+    f.word(0x10) = in->ebp;  // push ebp
+    const int32_t language = title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+    if (language != 0 || title_global<uint8_t>(0x0095ee00)) {
+        field<int32_t>(menu, 0x78) -= 1;
+        if (language == 1) field<int32_t>(menu, 0x78) -= 1;
+    }
+    f.method(0x10, 0x0031dea3, menu_item(menu, 1), 0x20, field<int32_t>(menu, 0x78) <= 0 ? 1 : 0);
+    menu[0x61] = title_global<int32_t>(0x008dcf0c) != field<int32_t>(menu, 0x78);
+    // rows 2-5 hidden before chapter 2: the flag byte in the push ecx slot, pushed as a whole word
+    f.local(0x4)[0] = title_global<int32_t>(0x008dce44) < 2;
+    const uint32_t hidden = f.word(0x4);
+    for (uint32_t i = 2; i < 6; ++i) {
+        f.regs.esi = i * 4;
+        f.method(0x10, 0x0031ded3, menu_item(menu, i), 0x20, hidden);
+    }
+    static constexpr uint32_t kTexts[6] = {0x0082bbec, 0x0082bbdc, 0x0082bbc8,
+                                           0x0082bbb8, 0x0082bba8, 0x0082bb9c};  // CREDITS .. ARTS
+    for (uint32_t i = 0; i < 6; ++i) f.method(0x10, 0x0031deea + i * 0x10, menu_item(menu, i), 0x30, kTexts[i]);
+    set_locked_texts(f, menu, 6, 0xc, 0x0031df4b, 0x0031df5f);
+    f.call(0xc, 0x0031df6c, 0x0031db10);  // EDI = menu
+    const uint16_t saved = field<uint16_t>(menu, 0x80);
+    menu[0x3c] = 0;
+    field<uint32_t>(menu, 0x40) = title_global<uint32_t>(0x0083eb20);  // 1.0
+    menu[0x44] = 0;
+    field<uint16_t>(menu, 0x22) = saved;
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusStopMovie, "ret $4")
+
+uint32_t XB_CDECL FE_BonusStopMovie(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->edi});
+    f.word(0x4) = in->esi;  // push esi
+    f.regs.esi = title_global<uint32_t>(0x0095f4cc);
+    f.call(0x4, 0x0033306c, 0x002c8bc0);  // S_StopSoundHandle (ESI = the handle)
+    f.call(0x4, 0x00333071, 0x000c3700);  // SndSys_Update
+    f.call(0x4, 0x00333078, 0x00316320, 1);  // Movie_Stop
+    f.call(0x4, 0x00333080, kNglResetDeviceBindings);
+    if (const uint32_t texture = field<uint32_t>(menu, 0x64)) f.call(0x4, 0x0033308d, kNglReleaseTexture, texture);
+    const int32_t file = field<int32_t>(menu, 0x5c);
+    if (file != -1) {
+        f.call(0x4, 0x0033309e, kFileClose, file);
+        if (const uint32_t buffer = field<uint32_t>(menu, 0x60)) f.call(0x4, 0x003330ae, kMemAlignedFree, buffer);
+    }
+    f.regs.esi = stack_word(entry_esp + 4);  // the movie name
+    field<uint32_t>(menu, 0x60) = 0;
+    menu[0x3c] = 1;
+    title_global<uint8_t>(0x008dce8d) = 1;
+    f.call(0x4, 0x003330d1, 0x00332230, 0x0082dfeb);  // CL_PlayMovie (ESI = name; "" pushed)
+    field<int32_t>(menu, 0x44) = 5;
+    menu[0x3c] = 0;
+    f.regs.eax = in->edi;
+    return f.call(0x4, 0x003330e6, 0x0031a900);  // FE_BonusCEMainLoadImage
+}
+
+FE_FRAME_ENTRY(FE_BonusMovieFileName, "ret")
+
+uint32_t XB_CDECL FE_BonusMovieFileName(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    f.word(0x4) = in->edi;  // push edi
+    f.regs.edi = in->ecx;
+    if (menu[0x3c]) return in->eax;  // a movie is playing
+    const uint32_t index = in->eax;
+    field<int32_t>(menu, 0x40) = field<int16_t>(menu, 0x22);
+    auto play = [&](uint32_t ret, uint32_t name) { return f.call(0x4, ret, 0x00333060, name); };  // FE_BonusStopMovie
+    switch (index) {
+        case 0:
+            return play(0x00333117, 0x0082a998);  // "Bringing"
+        case 1:
+            return play(0x00333123, 0x0082a990);  // "TheMen"
+        case 2: {
+            const int32_t map = field<int32_t>(menu, 0x48);
+            if (map == 0) return play(0x00333136, 0x0082a988);  // "MPKass"
+            if (map == 1) return play(0x00333147, 0x0082a980);  // "MPMaub"
+            return play(0x00333153, 0x0082a974);                // "MPTroina"
+        }
+        case 3:
+            return play(0x0033315f, 0x0082a96c);  // "Behind"
+        case 4: {
+            uint8_t* const dialogs = title_global<uint8_t*>(0x0095f8f8);
+            return f.method(0x4, 0x0033316e, dialogs, 0xc, 0x13);
+        }
+        default:
+            return index;
+    }
+}
+
+FE_FRAME_ENTRY(FE_ProfileSelect, "ret $4")
+
+uint32_t XB_CDECL FE_ProfileSelect(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    const int32_t slot = int32_t(in->eax);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry_esp + 4)});
+    f.word(0x3a8) = in->ebp;  // push ebp
+    f.word(0x3ac) = in->esi;  // push esi
+    f.regs.esi = in->eax;
+    menu[0x34] = 0;
+    const uint32_t room = f.call(0x3ac, 0x0033872a, 0x00335460);  // MemDlg_CheckFreeSpace2
+    if (!uint8_t(room)) return room;
+    field<int32_t>(title_global<uint8_t*>(0x0095f480), 0x11ec) = slot;
+    f.word(0x3b0) = in->edi;  // push edi
+    if (menu[0x6c + slot * 12]) {  // an empty slot: confirm the overwrite (NO selected)
+        uint8_t* const dialogs = title_global<uint8_t*>(0x0095f900);
+        f.regs.eax = 0x0082ae6c;  // MEM_XBOX_OVERWRITE_CONFIRM
+        f.call(0x3b0, 0x003387b0, 0x003319e0, dialogs, 0, 0, 0x0082dfeb, 1);  // UI_ShowDialog
+        f.regs.eax = title_global<uint32_t>(0x0095f900);
+        f.call(0x3b0, 0x003387c4, 0x00012320, 0x0082c8b8, 0x00334c70);  // UI_DialogAddButton: MEM_DIALOG_YES
+        f.regs.eax = title_global<uint32_t>(0x0095f900);
+        f.call(0x3b0, 0x003387d8, 0x00012320, 0x0082c8a8, 0x0030d2f0);  // MEM_DIALOG_NO
+        uint8_t* mgr = title_global<uint8_t*>(0x0095f900);
+        uint8_t* dialog = field<uint8_t**>(mgr, 4)[field<uint32_t>(mgr, 0xc) ? 1 : 0];
+        field<int16_t>(dialog, 0x22) = 1;
+        dialog[0x5a] = 1;
+        mgr = title_global<uint8_t*>(0x0095f900);
+        dialog = field<uint8_t**>(mgr, 4)[field<uint32_t>(mgr, 0xc) ? 1 : 0];
+        f.regs.eax = (address_of(mgr) & ~0xffu) | 1;
+        f.regs.ecx = field<uint32_t>(mgr, 0xc) ? 1 : 0;
+        f.regs.edx = field<uint32_t>(mgr, 4);
+        f.regs.esi = field<uint32_t>(mgr, 0xc);
+        f.regs.edi = address_of(dialog);
+        return f.call(0x3b0, 0x00338813, 0x0031f4b0);  // Dialog_LayoutButtons
+    }
+    menu[0x54] = 0;
+    if (field<int32_t>(menu, 0x4c) == 3) {  // the default profile's settings applied
+        uint8_t* const profile = f.local(0x3a4);
+        profile[0] = 0;
+        field<int32_t>(profile, 0xe8) = -1;
+        f.regs.esi = address_of(profile);
+        f.call(0x3b0, 0x0033876c, 0x0032cf50);  // Profile_SetDefaults (ESI)
+        f.regs.eax = 0x008dce30;
+        f.regs.ecx = address_of(profile);
+        f.regs.edi = f.call(0x3b0, 0x0033877a, 0x00311f90);  // profile copy (EAX = 0x008dce30, ECX = source)
+        f.call(0x3b0, 0x00338781, 0x00332e20);               // CL_ApplyProfileSettings (EDI)
+    }
+    f.regs.esi = address_of(menu);
+    return f.call(0x3b0, 0x00338788, 0x00334b70);  // ProfileMenu_ShowSaveWarning (ESI = menu)
+}
+
+FE_FRAME_ENTRY(FE_LoadTheatreBackground, "ret")
+
+uint32_t XB_CDECL FE_LoadTheatreBackground(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const object = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x88) = in->ebx;  // push ebx
+    f.word(0x8c) = in->esi;  // push esi
+    f.regs.esi = in->eax;
+    if (uint8_t* const old = field<uint8_t*>(object, 0x28)) {
+        f.method(0x8c, 0x0031ff47, old, 0, 1);  // deleting destructor
+        field<uint32_t>(object, 0x28) = 0;
+    }
+    // the language folder: "de", "fr", "es", "it", else "en"
+    static constexpr uint32_t kFolders[4] = {0x0082d010, 0x0082d008, 0x0082d004, 0x0082d00c};
+    const uint32_t language = title_global<uint32_t>(0x0095f5dc) - 1;  // g_languageIndex
+    title_global<uint8_t>(0x008d50dd) = 0;
+    const uint32_t folder = language <= 3 ? kFolders[language] : 0x0082d014;
+    const int32_t chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
+    constexpr uint32_t kVa = 0x002a93d0;
+    uint32_t name;
+    if (chapter > 0 && chapter < 9) {
+        if (chapter <= 5)
+            name = f.call(0x8c, 0x0031ffa6, kVa, 0x0082cfd4, folder);  // textures\%s\africa.dds
+        else
+            name = f.call(0x8c, 0x0031ffba, kVa, 0x0082cfbc, folder);  // textures\%s\sicily.dds
+    } else {
+        name = f.call(0x8c, 0x0031ffcf, kVa, 0x0082cfec, folder);  // textures\%s\europe.dds
+    }
+    const int32_t file = int32_t(f.call(0x94, 0x0031ffdb, kFileOpenRead, title_global<uint32_t>(0x0095f6f4), name));
+    if (file == -1) return uint32_t(file);
+    f.regs.ebx = uint32_t(file);
+    f.word(0x90) = in->ebp;  // push ebp
+    f.word(0x94) = in->edi;  // push edi
+    const uint32_t size = f.call(0x94, 0x0031fff1, kFileGetSize, file);
+    const uint32_t aligned = (size + 0x7fff) & 0xffff8000u;
+    f.regs.edi = size;
+    f.regs.esi = aligned;
+    const uint32_t buffer = f.call(0x98, 0x0032000f, kMemAlignedAlloc, aligned, 0x80, 0x30000);
+    f.call(0xa4, 0x0032001b, kFileReadAt, file, 0, buffer, aligned);
+    const uint32_t hash = f.entry - 0x84;
+    f.regs.ecx = hash;
+    f.call(0x94, 0x0032002c, kHashStrInit, 0x0082cfb4);  // "texLoad"
+    const uint32_t texture = f.call(0x94, 0x0032003a, kNglLoadTexture, hash, 0, buffer, size);
+    f.regs.esi = texture;
+    const uint32_t quad = f.entry - 0x64;
+    f.call(0xa4, 0x00320046, 0x0005ddb0, quad);                                // nglInitQuad
+    f.call(0xa8, 0x0032005e, 0x0005ded0, quad, 0, 0, 0x44200000, 0x43f00000);  // nglSetQuadRect 640 x 480
+    f.call(0xbc, 0x00320069, kNglSetQuadTexture, quad, texture);
+    f.call(0xc4, 0x00320078, 0x0005df20, quad, 0x43960000);  // nglSetQuadZ 300
+    // two frames with the picture
+    for (uint32_t frames = 2; frames; --frames) {
+        f.regs.edi = frames;
+        f.call(0x94, 0x00320085, kNglResetDeviceBindings);
+        f.call(0x94, 0x0032008a, 0x00064690);        // nglBeginFrame
+        f.call(0x94, 0x0032008f, 0x0005e430, 0xf3);  // nglSetClearFlags
+        f.call(0x98, 0x0032009b, 0x0005e490, 0);     // nglSetSceneDepthEnable
+        f.call(0x9c, 0x003200a5, 0x0005e270, quad);  // nglListAddQuad
+        f.call(0x94, 0x003200ad, 0x00064ec0);        // nglEndFrame
+    }
+    f.regs.edi = 0;
+    f.call(0x94, 0x003200b5, kNglResetDeviceBindings);
+    f.call(0x94, 0x003200bb, kNglReleaseTexture, texture);
+    f.call(0x98, 0x003200c1, kFileClose, file);
+    return f.call(0x9c, 0x003200c7, kMemAlignedFree, buffer);
+}
+
+namespace {
+
+// S_SetHandleVolume (0x002bd140): handle in EAX, volume in XMM0.
+void set_handle_volume(uint32_t handle, float volume) {
+    __asm__ volatile("movss %1, %%xmm0\n\tcall *%2"
+                     : "+a"(handle)
+                     : "m"(volume), "r"(uintptr_t{0x002bd140})
+                     : "ecx", "edx", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "cc", "memory");
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(FE_ApplyControlSettings_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FE_ApplyControlSettings) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL FE_ApplyControlSettings(uint8_t* menu) {
+    const float fifty = title_global<float>(0x0083ec30);
+    const float two = title_global<float>(0x0083eba8);
+    const int32_t sensitivity_x = field<int32_t>(menu, 0xa4);
+    title_global<int32_t>(0x008dce74) = sensitivity_x;
+    title_global<int32_t>(0x008dce78) = field<int32_t>(menu, 0xa8);
+    Cvar_SetValue(text_at(0x0082e06c), static_cast<float>(sensitivity_x) / fifty * two);  // cl_sensitivityX
+    Cvar_SetValue(text_at(0x0082e05c),
+                  static_cast<float>(title_global<int32_t>(0x008dce78)) / fifty * two);  // cl_sensitivityY
+    title_global<int32_t>(0x008dce88) = field<int32_t>(menu, 0xac);
+    set_handle_volume(title_global<uint32_t>(0x0095f4cc), static_cast<float>(field<int32_t>(menu, 0xac)) / fifty);
+    const float volume = static_cast<float>(field<int32_t>(menu, 0xac)) / fifty;
+    float& level = field<float>(title_global<uint8_t*>(0x0095f4c4), 0x6018);
+    level = volume;
+    if (0.0f >= volume) level = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    if (level >= one) level = one;
+    const float rest = one - level;
+    title_function<void XB_CDECL(float)>(0x000c6490)(one - rest * rest);  // S_SetMasterVolume
+    const uint8_t inverted = menu[0xbe];
+    title_global<uint8_t>(0x008dce71) = inverted;
+    if (uint8_t* const pitch = title_global<uint8_t*>(0x00929c0c)) {  // m_pitch
+        const float value = field<float>(pitch, 0x1c);
+        const bool flip = inverted ? value > title_global<float>(0x0083eafc) : 0.0f > value;
+        if (flip) Cvar_SetValue(text_at(0x0082e07c), field<float>(pitch, 0x1c) * title_global<float>(0x0083eb34));
+    }
+    title_global<int32_t>(0x008dce6c) = menu[0xc1];
+    Cvar_Set2(text_at(0x0082e044), const_cast<char*>(text_at(menu[0xc1] ? 0x0082e058 : 0x0082e098)),
+              1);  // g_vehControlMode
+    title_global<uint8_t>(0x008dce70) = menu[0xc2];
+    title_global<uint8_t>(0x008dce72) = menu[0xbf];
+    title_global<uint8_t>(0x008dce68) = menu[0xc0];
+    title_global<uint8_t>(0x008dce6a) = menu[0xbd];
+    switch (title_global<int32_t>(0x008dce7c)) {  // controller style
+        case 1:
+            Cbuf_AddText(text_at(0x0082e030));  // exec style_e.cfg
+            break;
+        case 2:
+            Cbuf_AddText(text_at(0x0082e01c));  // exec style_f.cfg
+            break;
+        case 3:
+            Cbuf_AddText(text_at(0x0082e008));  // exec style_g.cfg
+            break;
+        default:
+            Cbuf_AddText(text_at(0x0082dff4));  // exec style_h.cfg
+            break;
+    }
+    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute
+    Cvar_Set2(text_at(0x0082c538), const_cast<char*>(text_at(0x0082e058)), 1);  // cl_run 1
+    uint8_t* const item = *field<uint8_t**>(title_global<uint8_t*>(0x0095f8fc), 4);
+    item[0x40] = menu[0xbc];
+}
+
+FE_FRAME_ENTRY(FE_ControlsUpdateText, "ret")
+
+uint32_t XB_CDECL FE_ControlsUpdateText(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->eax});
+    f.word(0x4) = in->ecx;  // push ecx (the colour bytes below)
+    f.word(0x8) = in->ebx;  // push ebx
+    f.word(0xc) = in->esi;  // push esi
+    f.word(0x10) = in->edi;  // push edi
+    f.regs.ebx = in->eax;
+    // the controller style's letter
+    static constexpr uint32_t kStyles[4][2] = {
+        {0x0082c008, 0x00335d85}, {0x0082c004, 0x00335daa}, {0x0082c000, 0x00335d9b}, {0x0082bffc, 0x00335daa}};
+    const uint32_t style = field<uint32_t>(menu, 0xc0);
+    if (style <= 3) f.method(0x10, kStyles[style][1], field<uint8_t*>(menu, 0x44), 0x78, kStyles[style][0]);
+    f.word(0x14) = in->ebp;  // push ebp
+    f.regs.esi = in->eax;
+    f.call(0x14, 0x00335db2, 0x0030e080);  // ControllerConfigMenu_UpdateLabelColors (ESI = menu)
+    f.regs.esi = field<uint32_t>(menu, 0xc0);
+    f.call(0x14, 0x00335dbd, 0x00331030);  // CL_ExecControllerConfig (ESI = style)
+    // each command's key name: {item, key}
+    static constexpr uint32_t kKeys[16][2] = {{0x68, 0x0d}, {0x6c, 0x1b}, {0x70, 0xd4}, {0x74, 0xd5}, {0x78, 0xd3},
+                                              {0x7c, 0xd6}, {0x80, 0xd7}, {0x84, 0xd9}, {0x88, 0xdb}, {0x8c, 0xd8},
+                                              {0x90, 0xda}, {0x94, 0xdc}, {0x98, 0x9a}, {0x9c, 0x9b}, {0xa0, 0x9c},
+                                              {0xa4, 0x9d}};
+    static constexpr uint32_t kKeyRets[16][2] = {
+        {0x00335dcf, 0x00335dd5}, {0x00335de4, 0x00335deb}, {0x00335dfa, 0x00335e01}, {0x00335e10, 0x00335e17},
+        {0x00335e26, 0x00335e2d}, {0x00335e3c, 0x00335e43}, {0x00335e55, 0x00335e5f}, {0x00335e71, 0x00335e7b},
+        {0x00335e8d, 0x00335e97}, {0x00335ea9, 0x00335eb3}, {0x00335ec5, 0x00335ecf}, {0x00335ee1, 0x00335eeb},
+        {0x00335efd, 0x00335f07}, {0x00335f19, 0x00335f23}, {0x00335f35, 0x00335f3f}, {0x00335f51, 0x00335f5b}};
+    f.regs.esi = address_of(menu + 0x68);
+    for (uint32_t i = 0; i < 16; ++i) {
+        uint8_t* const item = field<uint8_t*>(menu, kKeys[i][0]);
+        f.regs.edi = kKeys[i][1];
+        const uint32_t name = f.call(0x14, kKeyRets[i][0], 0x0030e0f0);  // FE_CommandDisplayName (EDI = key)
+        f.method(0x14, kKeyRets[i][1], item, 0x6c, name);
+    }
+    // the fixed ones: PAUSE, OBJECTIVES, MOVE, LOOK
+    static constexpr uint32_t kFixed[4][3] = {{0x68, 0x0082bfe8, 0x00335f67},
+                                              {0x6c, 0x0082bfd0, 0x00335f74},
+                                              {0xa8, 0x0082bfc0, 0x00335f84},
+                                              {0xac, 0x0082bfb0, 0x00335f94}};
+    for (const auto& fixed : kFixed) f.method(0x14, fixed[2], field<uint8_t*>(menu, fixed[0]), 0x6c, fixed[1]);
+    // all 18 labels black (0xff000000, built in the push ecx slot)
+    f.word(0x4) = 0xff000000u;
+    const uint32_t black = f.word(0x4);
+    f.regs.ebx = black;
+    uint32_t result = 0;
+    for (uint32_t i = 0; i < 18; ++i) {
+        f.regs.edi = 18 - i;
+        f.regs.esi = address_of(menu + 0x68 + i * 4);
+        result = f.method(0x10, 0x00335fbc, field<uint8_t*>(menu, 0x68 + i * 4), 0x90, black);
+    }
+    return result;
+}
+
+FE_FRAME_ENTRY(FE_MainMenu_UpdateSignIn, "ret $4")
+
+uint32_t XB_CDECL FE_MainMenu_UpdateSignIn(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    const uint32_t pad = stack_word(entry_esp + 4);
+    f.word(0x1c) = in->edi;  // push edi
+    f.regs.edi = in->ecx;
+    if (field<int32_t>(menu, 0xc) == 0x10) {  // the selection on item 16: its handler, then the menu's +0x14
+        if (uint8_t* const item = field<uint8_t**>(menu, 4)[0x10]) f.method(0x1c, 0x003367c2, item, 0x30, pad);
+        return f.method(0x1c, 0x003367c9, menu, 0x14);
+    }
+    uint8_t* const live = title_global<uint8_t*>(0x0095f6fc);  // g_liveMgr
+    menu[0xf4] = field<int32_t>(menu, 0xc) != 0x14 && field<int32_t>(live, 4) != 1;
+    f.word(0x20) = in->ebx;  // push ebx
+    f.word(0x24) = in->esi;  // push esi
+    // the sign-in text black -> white: its colour (vtable +0xb4 into a local) against 0xff000000
+    uint8_t* const status = title_global<uint8_t*>(0x0095f478);
+    f.regs.ebx = (in->ebx & ~0xffu) | 0xff;
+    f.word(0x18) = 0xff000000u;
+    const uint32_t* const colour = reinterpret_cast<const uint32_t*>(
+        uintptr_t{f.method(0x24, 0x00336819, status, 0xb4, f.entry - 0x14)});
+    if (*colour == f.word(0x18)) {
+        f.word(0x18) = 0xffffffffu;
+        f.method(0x24, 0x00336844, title_global<uint8_t*>(0x0095f478), 0x90, f.word(0x18));
+    }
+    uint8_t* const text = title_global<uint8_t*>(0x0095f478);
+    if (text) {
+        uint8_t* const mgr = title_global<uint8_t*>(0x0095f6fc);
+        const int32_t state = field<int32_t>(mgr, 4);
+        if (state != field<int32_t>(menu, 0xec) || field<int32_t>(mgr, 0x446c) != field<int32_t>(menu, 0xf0)) {
+            field<int32_t>(menu, 0xec) = state;
+            const uint32_t result = field<uint32_t>(mgr, 0x446c);
+            field<uint32_t>(menu, 0xf0) = result;
+            if (state == 0) {  // signed out: by the sign-in result
+                if (result == 0x80151082)
+                    f.method(0x24, 0x0033693f, text, 0x6c, 0x0082cb80);
+                else
+                    f.method(0x24, 0x0033694b, text, 0x6c,
+                             result == 0x80151080 || result == 0 ? 0x0082cb98 : 0x0082cb68);
+            } else if (state == 1) {
+                f.method(0x24, 0x0033691a, text, 0x6c, 0x0082cb54);  // FEMENU_SIGNING_IN
+            } else if (state == 2) {
+                // FEMENU_SIGNED_IN_AS with the gamertag
+                f.regs.ecx = address_of(mgr);
+                const uint32_t user = f.call(0x24, 0x003368a4, 0x00011220);  // Live_GetCurrentUser
+                const uint32_t name = f.entry - 0x10;
+                f.call(0x28, 0x003368b7, kSprintf, name, 0x0082cb50, user + 0x10);  // "%S"
+                f.word(0x28) = user + 0x10;
+                f.regs.esi = 0x0082cb3c;  // FEMENU_SIGNED_IN_AS
+                const uint32_t localized = f.call(0x24, 0x003368c9, 0x0029d5f0, name);  // Loc_GetString
+                f.regs.ecx = f.entry - 0x14;
+                const uint32_t string = f.call(0x2c, 0x003368d3, 0x0011eb50, localized);  // ScriptString_FromCString
+                f.call(0x2c, 0x003368de, 0x0011eec0, f.entry - 0x18, string);            // ScriptString_ConcatCString
+                f.regs.ecx = f.entry - 0x14;
+                f.call(0x24, 0x003368ea, 0x0011d640);  // ScriptString_Release
+                const uint32_t joined = f.word(0x18);
+                f.method(0x24, 0x00336905, title_global<uint8_t*>(0x0095f478), 0x78, joined ? joined + 6 : 0);
+                f.regs.ecx = f.entry - 0x18;
+                f.call(0x24, 0x0033690e, 0x0011d640);  // ScriptString_Release
+            }
+        }
+    }
+    uint32_t result = 0;
+    if (menu[0xf5]) {
+        if (title_global<uint8_t>(0x0095ee09)) {
+            title_global<uint8_t>(0x0095ee09) = 0;
+        } else {
+            // the start-up movies: the legal screen of the language, then ATVI, Treyarch and the intro unless skipped
+            const int32_t language = title_global<int32_t>(0x0095f5dc);
+            title_global<uint32_t>(0x0095f460) = title_global<uint32_t>(0x0083ec28);  // 5000.0
+            f.regs.esi = language == 2 ? 0x0082cb30 : language == 3 ? 0x0082cb24 : language == 4 ? 0x0082cb18 : 0x0082cb10;
+            f.call(0x24, 0x003369ac, 0x00332230, 0x0082dfeb);  // CL_PlayMovie (ESI = name)
+            title_global<float>(0x0095f460) = 0.0f;
+            static constexpr uint32_t kMovies[3][2] = {
+                {0x0082cb08, 0x003369d9}, {0x0082cafc, 0x003369fb}, {0x0082cbd8, 0x00336a1d}};  // ATVI, Treyarch
+            for (const auto& movie : kMovies) {
+                if (title_global<uint8_t>(0x0095f91c)) break;
+                f.regs.esi = movie[0];
+                title_global<uint8_t>(0x0095f46d) = 1;
+                f.call(0x24, movie[1], 0x00332230, 0x0082dfeb);
+            }
+            f.regs.eax = title_global<uint32_t>(0x0095f4cc);
+            result = f.call(0x24, 0x00336a2f, 0x002ce520, 0x0082cbe0);  // Music_Play (EAX = the handle)
+        }
+    } else {
+        const int32_t selected = field<int32_t>(menu, 0xc);
+        if (selected >= 0) {
+            if (uint8_t* const item = field<uint8_t**>(menu, 4)[selected]) f.method(0x24, 0x00336a5e, item, 0x30, pad);
+        }
+        result = f.method(0x24, 0x00336a65, menu, 0x14);
+        if (!menu[0xe8]) {
+            f.word(0x28) = in->ebp;  // push ebp
+            f.regs.edx = 0x0082caec;
+            const uint32_t top = f.call(0x28, 0x00336a7a, 0x0023ec30);  // RE_RegisterShader "main_back_top"
+            f.regs.esi = top;
+            f.regs.edx = 0x0082cad8;
+            const uint32_t bottom = f.call(0x28, 0x00336a86, 0x0023ec30);  // "main_back_bottom"
+            const uint32_t fallback = title_global<uint32_t>(0x009026f8);  // ngl_defaultTexture
+            result = fallback;
+            if (top != fallback && bottom != fallback) {
+                f.call(0x28, 0x00336a9f, kNglSetQuadTexture, menu + 0x20, top);
+                result = f.call(0x30, 0x00336aac, kNglSetQuadTexture, menu + 0x84, bottom);
+                menu[0xe8] = 1;
+            }
+        }
+    }
+    title_global<uint8_t>(0x0095f91b) = 1;
+    menu[0xf5] = 0;
+    return result;
+}
+
+FE_FRAME_ENTRY(FE_DrawLoadingQuote, "ret")
+
+uint32_t XB_CDECL FE_DrawLoadingQuote(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    f.word(0x18) = in->ebx;  // push ebx
+    f.word(0x1c) = in->ebp;  // push ebp
+    f.word(0x20) = in->esi;  // push esi
+    f.word(0x24) = in->edi;  // push edi
+    f.regs.ebx = in->ecx;
+    const uint32_t text = f.entry - 0x14;
+    constexpr uint32_t kEmpty = 0x0082dfeb;
+    // the quotes around the current one (+0x190, two either side): FEMENU_QUOTE_<i+1> and FEMENU_CHAPTER_<i>; the
+    // others cleared; the texts +0x154.. cleared
+    for (int32_t i = 0; i < 14; ++i) {
+        f.regs.edi = uint32_t(i);
+        f.regs.esi = address_of(menu + 0x154 + i * 4);
+        const int32_t current = field<int32_t>(menu, 0x190);
+        if (i >= current - 2 && i <= current + 2) {
+            f.call(0x24, 0x0031afa7, kSprintf, text, 0x0082ab74, i + 1);  // FEMENU_QUOTE_%i
+            f.method(0x24, 0x0031afbd, menu_item(menu, uint32_t(i)), 0x30, text);
+            f.call(0x24, 0x0031afcd, kSprintf, text, 0x0082ab60, i);  // FEMENU_CHAPTER_%i
+            f.method(0x24, 0x0031afdd, field<uint8_t*>(menu, 0x11c + uint32_t(i) * 4), 0x6c, text);
+        } else {
+            f.method(0x24, 0x0031aff2, menu_item(menu, uint32_t(i)), 0x34, kEmpty);
+            f.method(0x24, 0x0031afff, field<uint8_t*>(menu, 0x11c + uint32_t(i) * 4), 0x78, kEmpty);
+        }
+        f.method(0x24, 0x0031b00b, field<uint8_t*>(menu, 0x154 + uint32_t(i) * 4), 0x78, kEmpty);
+    }
+    f.regs.edi = 14;
+    f.regs.esi = address_of(menu + 0x154 + 14 * 4);
+    uint32_t result = 0;
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) {
+            f.regs.esi = address_of(panel);
+            f.call(0x24, 0x0031b02d, 0x00310010);  // Panel_Draw (ESI = panel)
+        }
+        if (uint8_t* const picture = field<uint8_t*>(menu, 0x18c)) {
+            f.method(0x24, 0x0031b04b, picture, 0x8c, 0x43a00000, 0x43700000);  // placed at (320, 240)
+            f.method(0x24, 0x0031b056, field<uint8_t*>(menu, 0x18c), 0x44);
+        }
+        if (uint8_t* const help = field<uint8_t*>(menu, 0x38)) f.method(0x24, 0x0031b064, help, 0x3c);
+    }
+    if (!title_global<uint8_t>(0x0095f916)) {
+        if (uint8_t* const movie = title_global<uint8_t*>(0x0095f454)) {
+            f.method(0x24, 0x0031b07c, movie, 0x8);
+            f.call(0x24, 0x0031b081, 0x0030fca0);  // Subtitle_Draw
+            f.regs.ecx = title_global<uint32_t>(0x0095f454);
+            const uint32_t texture = f.call(0x24, 0x0031b08c, 0x000cf100);  // Movie_GetFrameTexture (ECX)
+            uint8_t* const quad = title_global<uint8_t*>(0x0095f458);
+            field<uint32_t>(quad, 0x60) = texture;
+            result = f.call(0x24, 0x0031b09b, 0x0005e270, quad);  // nglListAddQuad
+        }
+    }
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        f.regs.ecx = in->ecx;
+        result = f.call(0x24, 0x0031b0ae, 0x00314c30);  // UIMenu_Draw
+    }
+    return result;
+}
+
+FE_FRAME_ENTRY(FE_CheckStartupStorage, "ret $4")
+
+uint32_t XB_CDECL FE_CheckStartupStorage(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    const uint32_t menu = stack_word(entry_esp + 4);
+    f.word(0x44) = in->esi;  // push esi
+    f.word(0x48) = in->edi;  // push edi
+    title_global<uint8_t>(0x008d50dd) = 0;
+    f.regs.eax = title_global<uint32_t>(0x0095f480);
+    f.call(0x48, 0x003346f6, 0x0031acf0);  // ProfileSave_PrepareRequest (EAX)
+    // a zeroed block copied over the free-space block
+    uint32_t* const zeros = f.local<uint32_t>(0x40);
+    uint32_t* const block = f.local<uint32_t>(0x20);
+    for (uint32_t i = 0; i < 8; ++i) zeros[i] = 0;
+    for (uint32_t i = 0; i < 8; ++i) block[i] = zeros[i];
+    f.regs.eax = 0;
+    f.regs.ecx = 0;
+    f.regs.esi = address_of(zeros + 8);
+    f.regs.edi = address_of(block + 8);
+    f.call(0x48, 0x0033472e, 0x000d0c90, 8);  // Save_SetPort
+    f.regs.ecx = address_of(block);
+    using Call64 = uint64_t XB_CDECL(uint32_t, uint32_t, const TitleRegs*, uint32_t, const uint32_t*);
+    const uint32_t args[1] = {address_of(block)};
+    const uint64_t space =
+        reinterpret_cast<Call64*>(reinterpret_cast<uintptr_t>(&title_call_at_regs))(f.entry - 0x4c, 0x000d1b40, &f.regs, 1, args);  // Save_GetFreeSpace
+    stack_word(f.entry - 0x54) = 0x00334738;
+    const uint32_t device = uint32_t(space);
+    f.regs.eax = device;
+    f.regs.edi = block[6];
+    // the "present" word: EDX's upper bytes, the low byte block +0x18 != 0
+    const uint32_t present = (uint32_t(space >> 32) & ~0xffu) | (block[6] != 0 ? 1 : 0);
+    f.regs.edx = present;
+    uint32_t result = f.call(0x48, 0x0033474a, 0x003345d0, present);  // MemDlg_CheckSaveDevice (EAX = device)
+    f.regs.esi = in->esi;
+    f.regs.edi = in->edi;
+    if (!uint8_t(result)) {
+        f.regs.eax = title_global<uint32_t>(0x0095f900);
+        f.call(0x40, 0x0033475a, 0x0031f6e0);  // DialogMgr_CloseDialog (EAX)
+        result = f.method(0x40, 0x00334767, title_global<uint8_t*>(0x0095f8f8), 0xc, 0);
+    }
+    f.regs.eax = (result & ~0xffu) | (block[6] != 0 ? 1 : 0);
+    f.regs.ecx = menu;
+    f.regs.edx = block[6];
+    result = f.call(0x40, 0x00334779, 0x003344e0);  // MemDlg_CheckFreeSpace (AL, ECX = menu)
+    if (uint8_t(result)) {
+        title_global<uint8_t*>(0x0095f480)[0x11e4] = 0;
+        f.regs.eax = title_global<uint32_t>(0x0095f900);
+        f.call(0x40, 0x0033478f, 0x0031f6e0);
+        result = f.method(0x40, 0x003347a1, title_global<uint8_t*>(0x0095f8f8), 0xc, 0);
+    }
+    return result;
+}
+
+FE_FRAME_ENTRY(FE_LiberatorCreateCrossIcons, "ret")
+
+uint32_t XB_CDECL FE_LiberatorCreateCrossIcons(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const owner = reinterpret_cast<uint8_t*>(uintptr_t{in->edi});
+    f.word(0x44) = in->esi;  // push esi
+    // one 22 x 22 quad in white
+    const uint32_t size = title_global<uint32_t>(0x0083edd4);  // 22.0
+    uint32_t* const points = f.local<uint32_t>(0x30);
+    const uint32_t kPoints[12] = {0, 0, 0, size, 0, 0, 0, size, 0, size, size, 0};
+    for (uint32_t i = 0; i < 12; ++i) points[i] = kPoints[i];
+    uint32_t* const colours = f.local<uint32_t>(0x40);
+    for (uint32_t i = 0; i < 4; ++i) colours[i] = 0xffffffffu;
+    f.regs.eax = (in->eax & ~0xffu) | 0xff;
+    // {picture name, texture, owner field, return addresses: malloc, init, add quad}
+    static constexpr uint32_t kCrosses[2][6] = {
+        {0x0082d844, 0x0082d834, 0x8, 0x00317650, 0x00317663, 0x00317687},   // normal_cross: ironcrosswhite
+        {0x0082d828, 0x0082d818, 0xc, 0x0031768e, 0x003176a1, 0x003176c5}};  // ace_cross: ironcrossgold
+    uint32_t result = 0;
+    for (const auto& cross : kCrosses) {
+        const uint32_t block = f.call(0x44, cross[3], 0x00042c10, 0x40);  // Z_Malloc
+        uint8_t* picture = nullptr;
+        if (block) {
+            f.regs.esi = block;
+            picture = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0x44, cross[4], 0x00317050, cross[0])});  // UIPicture_Init
+        }
+        field<uint8_t*>(owner, cross[2]) = picture;
+        f.regs.edx = field<uint32_t>(picture, 0);
+        result = f.method(0x44, cross[5], picture, 0x3c, points, colours, 7, 0x42c80000, cross[1]);  // add quad, 100.0
+    }
+    return result;
+}
+
+FE_FRAME_ENTRY(FE_FadeOut, "ret")
+
+uint32_t XB_CDECL FE_FadeOut(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    // the RDTSC start time (unused) through XAPI QueryPerformanceCounter: the loader patches both sites alike
+    f.call(0x6c, 0x0032d898, 0x001ed6ca, f.entry - 0x6c);
+    float& elapsed = *f.local<float>(0x6c);
+    float t = 0.0f;
+    float duration = title_global<float>(0x008d2090);
+    if (duration > t) {
+        f.word(0x70) = in->esi;  // push esi
+        for (;;) {
+            // the music channel faded to 1 - elapsed / duration
+            uint32_t handle = title_global<uint32_t>(0x009600f4);
+            t = title_global<float>(0x008d208c) + t;
+            elapsed = t;
+            const float fraction = t / duration;
+            uint32_t index = handle & 0xfff;
+            f.regs.ecx = handle;
+            if (index < 0x200 && title_global<uint32_t>(0x00962864 + index * 8) == handle >> 12 &&
+                title_global<uint32_t>(0x00962860 + index * 8)) {
+                uint8_t* const channel = title_global<uint8_t*>(0x00962860 + index * 8);
+                const int32_t voice = field<int32_t>(channel, 0);
+                const float level = title_global<float>(0x0083eb20) - fraction;
+                *f.local<float>(0x68) = level;
+                if (voice != -1) {
+                    const float volume = field<float>(channel, 0x1c) * level;
+                    uint32_t bits;
+                    std::memcpy(&bits, &volume, 4);
+                    f.regs.esi = address_of(channel);
+                    f.call(0x70, 0x0032d961, 0x000c44f0, voice, 0, bits);  // SndVoice_SetParam
+                    field<float>(channel, 0x10) = *f.local<float>(0x68);
+                }
+            }
+            f.call(0x70, 0x0032d97a, 0x002c8c20, title_global<uint32_t>(0x0095f4c4));  // S_StopAllChannels
+            // two frames of the black quad at the fade alpha (0x008d2088 << 24)
+            const uint32_t quad = f.entry - 0x64;
+            for (uint32_t frames = 2; frames; --frames) {
+                f.regs.esi = frames;
+                f.call(0x70, 0x0032d985, kNglResetDeviceBindings);
+                f.call(0x70, 0x0032d98a, 0x00064690);  // nglBeginFrame
+                f.call(0x70, 0x0032d994, 0x0005ddb0, quad);  // nglInitQuad
+                const int32_t height = int32_t(f.call(0x74, 0x0032d999, 0x00064650));  // nglGetScreenHeight
+                const float h = static_cast<float>(height);
+                std::memcpy(f.local(0x74), &h, 4);
+                const int32_t width = int32_t(f.call(0x74, 0x0032d9a7, 0x00064640));  // nglGetScreenWidth
+                const float w = static_cast<float>(width);
+                uint32_t wb, hb;
+                std::memcpy(&wb, &w, 4);
+                std::memcpy(&hb, &h, 4);
+                f.call(0x70, 0x0032d9bf, 0x0005ded0, quad, 0, 0, wb, hb);  // nglSetQuadRect
+                f.call(0x84, 0x0032d9d2, 0x0005deb0, quad, title_global<uint32_t>(0x008d2088) << 24);  // nglSetQuadColor
+                f.call(0x8c, 0x0032d9e0, 0x0005de40, quad, 2, 0);  // nglSetQuadBlend
+                f.call(0x98, 0x0032d9ea, 0x0005e270, quad);        // nglListAddQuad
+                f.call(0x70, 0x0032d9f2, 0x00064ec0);              // nglEndFrame
+            }
+            duration = title_global<float>(0x008d2090);
+            if (!(duration > elapsed)) break;
+            t = elapsed;
+        }
+        f.regs.esi = in->esi;
+    }
+    f.word(0x70) = in->ebx;  // push ebx
+    f.regs.ebx = title_global<uint32_t>(0x0095f4c4);
+    f.call(0x70, 0x0032da15, 0x002c8d60);                                 // S_StopAllSounds (EBX)
+    const uint32_t mode = f.call(0x70, 0x0032da1a, 0x000c34f0);           // Snd_GetSpeakerMode
+    f.call(0x70, 0x0032da20, 0x000c3500, mode);                           // S_SetMasterAttenuation
+    return f.call(0x70, 0x0032da2f, 0x002c8c20, title_global<uint32_t>(0x0095f4c4));  // S_StopAllChannels
+}
+
+FE_FRAME_ENTRY(FE_LoadPanel, "ret")
+
+uint32_t XB_CDECL FE_LoadPanel(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    f.word(0x4) = in->ebx;  // push ebx
+    f.word(0x8) = in->esi;  // push esi
+    f.word(0xc) = in->edi;  // push edi
+    const uint32_t name = stack_word(entry_esp + 4);
+    const uint32_t data = stack_word(entry_esp + 8);
+    uint8_t* const panel = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0xc, 0x003393fa, 0x00042c10, 0x60)});  // Z_Malloc
+    if (panel) {
+        for (uint32_t i = 0; i < 6; ++i) field<uint32_t>(panel, i * 4) = 0;
+        field<int32_t>(panel, 0x18) = -1;
+        panel[0x1c] = 0;
+    }
+    f.regs.ecx = 0;
+    f.regs.ebx = name;
+    f.regs.esi = data;
+    f.regs.edi = address_of(panel);
+    f.call(0xc, 0x00339432, 0x00337380, name);  // Panel_Load (ESI = data, EDI = panel)
+    f.regs.eax = address_of(panel);
+    f.regs.edx = name;
+    return f.call(0xc, 0x00339440, 0x0032a910, 0x0095f8d0);  // FE_SetupPanel (EAX = panel, EDX = name; g_uiRoot)
+}
+
+FE_FRAME_ENTRY(FE_CreateMenus, "ret")
+
+uint32_t XB_CDECL FE_CreateMenus(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const owner = reinterpret_cast<uint8_t*>(uintptr_t{in->esi});
+    const uint32_t block = f.call(0, 0x0033705a, 0x00042c10, 0xf8);  // Z_Malloc
+    uint8_t* front_end = nullptr;
+    if (block) {
+        f.regs.eax = block;
+        front_end = reinterpret_cast<uint8_t*>(uintptr_t{f.call(0, 0x00337067, 0x00336ad0, block)});  // FrontEndMenu_Construct
+    }
+    field<uint8_t*>(owner, 0x28) = front_end;
+    if (!title_global<uint8_t>(0x0095ee01)) {
+        // the first screen: 0, or 1 with 0x0095ee09 (unless 0x008dd1ce asks for 0 once)
+        if (title_global<uint8_t>(0x008dd1ce)) {
+            f.method(0, 0x00337089, front_end, 0xc, 0);
+            title_global<uint8_t>(0x008dd1ce) = 0;
+        } else if (!title_global<uint8_t>(0x0095ee09)) {
+            f.method(0, 0x003370a2, front_end, 0xc, 0);
+        } else {
+            f.method(0, 0x003370ab, front_end, 0xc, 1);
+        }
+    }
+    const uint32_t dialogs = f.call(0, 0x003370b2, 0x00042c10, 0x24);  // Z_Malloc
+    uint32_t result = 0;
+    if (dialogs) {
+        f.regs.eax = dialogs;
+        result = f.call(0, 0x003370be, 0x00331cb0);  // DialogMgr_Construct (EAX)
+    }
+    field<uint32_t>(owner, 0x30) = result;
+    return result;
+}
+
+FE_FRAME_ENTRY(FE_DifficultyMenu_Init, "ret")
+
+uint32_t XB_CDECL FE_DifficultyMenu_Init(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
+    f.word(0x10) = in->ebx;  // push ebx
+    f.word(0x14) = in->edi;  // push edi
+    f.word(0x18) = in->esi;  // push esi
+    f.regs.edi = in->ecx;
+    const uint32_t name = f.entry - 0xc;
+    // the pictures difficulty0-2 hidden
+    for (int32_t i = 0; i < 3; ++i) {
+        f.regs.ebx = uint32_t(i);
+        f.call(0x18, 0x00338d90, kSprintf, name, 0x0082b24c, i);  // difficulty%i
+        uint8_t* const panel = field<uint8_t*>(menu, 0x34);
+        f.regs.esi = address_of(panel);
+        f.regs.eax = address_of(panel);
+        const uint32_t picture = f.call(0x18, 0x00338da2, 0x00321650, name);  // Panel_FindPicture (EAX = list)
+        const uint32_t* const pictures = field<uint32_t*>(panel, 0);
+        const uint32_t count = field<uint32_t>(panel, 8);
+        int32_t index = -1;
+        for (uint32_t k = 0; k < count; ++k)
+            if (pictures[k] == picture) {
+                index = int32_t(k);
+                break;
+            }
+        f.method(0x18, 0x00338dc8, reinterpret_cast<uint8_t*>(uintptr_t{pictures[index]}), 0x34, 0);
+    }
+    f.regs.ecx = in->ecx;
+    f.call(0x18, 0x00338dd5, 0x00314b20);  // UIMenu_RestoreSelection
+    f.regs.esi = in->esi;
+    f.regs.ebx = 1;
+    if (!title_global<uint8_t>(0x0095f91a)) {
+        // the propaganda movie behind the menu, full screen
+        if (uint8_t(f.call(0x14, 0x00338dee, 0x00332030, 0x0082cacc))) {  // Movie_Open "Propgnda"
+            f.call(0x14, 0x00338e0e, 0x0005ded0, title_global<uint32_t>(0x0095f458), 0, 0, 0x44200000, 0x43f00000);
+            title_global<uint8_t>(0x0095f91a) = 1;
+        }
+    }
+    field<int32_t>(menu, 0x50) = 1;
+    const uint32_t result = f.call(0x14, 0x00338e20, 0x00325d60, 1);  // FE_SetDifficultyPicture (EDI = menu)
+    field<int16_t>(menu, 0x22) = 1;
+    return result;
+}
+
+namespace {
+
+// Seconds (at most 99:59:59 + days) split into days, hours, minutes and seconds.
+void split_play_time(int32_t seconds, int32_t* out_seconds, int32_t* out_minutes, int32_t* out_hours,
+                     int32_t* out_days) {
+    if (seconds > 0x57e3f) seconds = 0x57e3f;  // 359999
+    const int32_t day_rest = seconds % 86400;
+    *out_days = (seconds - day_rest) / 86400;
+    const int32_t hour_rest = day_rest % 3600;
+    *out_hours = (day_rest - hour_rest) / 3600;
+    const int32_t minute_rest = hour_rest % 60;
+    *out_minutes = (hour_rest - minute_rest) / 60;
+    *out_seconds = minute_rest;
+}
+
+}  // namespace
+
+int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime(int32_t seconds, int32_t* out_seconds, int32_t* out_minutes,
+                                              int32_t* out_hours, int32_t* out_days) {
+    split_play_time(seconds, out_seconds, out_minutes, out_hours, out_days);
+    return out_seconds;
+}
+
+int32_t* XB_REGS1 XB_STDCALL FE_SplitPlayTime2(int32_t seconds, int32_t* out_seconds, int32_t* out_minutes,
+                                               int32_t* out_hours, int32_t* out_days) {
+    split_play_time(seconds, out_seconds, out_minutes, out_hours, out_days);
+    return out_seconds;
 }
 
 }  // namespace game
