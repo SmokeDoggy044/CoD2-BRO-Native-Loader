@@ -300,9 +300,12 @@ def hook_problem(rows, va):
         if address >= va + 5:
             return None
         mnemonic, ops = split_operands(text)
-        if mnemonic in ("call", "jmp", "ret") or mnemonic.startswith("loop"):
+        # The trampoline re-encodes relative CALL/JMP/Jcc (compare_linux.cpp copy_entry);
+        # a RET, LOOP or indirect transfer there, or a branch back into the 5 bytes, stops it.
+        direct = bool(ops) and re.fullmatch(r"(0x)?[0-9a-f]+", ops[0].split()[0]) is not None
+        if mnemonic == "ret" or mnemonic.startswith("loop") or (mnemonic in ("call", "jmp") and not direct):
             return f"{mnemonic} at {address:08x} inside the first 5 bytes: the harness cannot hook it"
-        if mnemonic.startswith("j") and ops:
+        if mnemonic.startswith("j") or mnemonic == "call":
             try:
                 target = int(ops[0].split()[0], 16)
             except ValueError:
