@@ -16,8 +16,8 @@ namespace game {
 struct NglTexture;
 
 // 0x2248 bytes (Z_Malloc'd by Movie_Open). Vtables: MovieBase 0x007cf600 {DeletingDtor,
-// 0x000cf370, 0x000cf110 (returns -1), Reset}; Movie 0x007cf390 {DeletingDtor, 0x000cbc70 (strides,
-// then 0x000cf370), 0x000ce210 (decodes a frame), Reset}.
+// MovieBase_Start, MovieBase_DecodeFrame (returns -1), Reset}; Movie 0x007cf390 {DeletingDtor,
+// Movie_Start, Movie_DecodeFrame, Reset}.
 struct Movie {
     void** vtable;
     int32_t width;          // +0x04, header +0x08 (u16)
@@ -53,7 +53,8 @@ struct Movie {
     uint32_t last_slot;     // +0x90, buffer holding the stream end (0xf = none)
     uint32_t last_bytes;    // +0x94, bytes of the stream in last_slot
     uint8_t quant[2][64];   // +0x98, header +0x10 / +0x50 (MovieVid_BuildQuantTables)
-    uint8_t pad_118[0x28];
+    uint8_t* planes[3][3];  // +0x118, Y/U/V: two reference pictures (full frames) and one macroblock row (B pictures)
+    uint8_t* planes_end;    // +0x13c, past the planes in memory
     uint8_t* bit_ptr;       // +0x140, the decoder's read position (Movie_FetchBytes)
     uint8_t* read_ptr;      // +0x144, consumed up to here
     uint8_t has_audio;      // +0x148
@@ -65,6 +66,7 @@ static_assert(offsetof(Movie, texture) == 0x30);
 static_assert(offsetof(Movie, requests) == 0x58);
 static_assert(offsetof(Movie, file_size) == 0x78);
 static_assert(offsetof(Movie, quant) == 0x98);
+static_assert(offsetof(Movie, planes_end) == 0x13c);
 static_assert(offsetof(Movie, bit_ptr) == 0x140);
 static_assert(offsetof(Movie, block) == 0x154);
 #endif
@@ -105,6 +107,36 @@ uint8_t XB_THISCALL Movie_IsReady(Movie* movie);
 // 0x000cf7c0: a queued read finished (status 0 = ok): marks its buffer ready and queues more;
 // an error stops the player (state -1).
 void XB_THISCALL Movie_OnReadComplete(Movie* movie, int32_t status, int32_t request);
+
+// 0x000cbc70: vtable slot 1: the decoder's strides and limits from the size (+0x21f8..+0x2214), the
+// reference picture index +0x222c = 0, then MovieBase_Start.
+int32_t XB_THISCALL Movie_Start(Movie* movie);
+// 0x000ce210: vtable slot 2: the next video packet (audio packets of audio_track on the way are copied
+// into the audio ring 0x00920848 + 0x00920854, 0x12000 bytes; late B pictures dropped while
+// 0x00920859), its picture header, the slices into the planes, converted into the locked texture2
+// (flag_74: the back buffer), then texture/texture2 swapped. 0 = a frame, 3 = the last frame,
+// 1 = data not ready, -1 = a broken slice chain (state -1).
+int32_t XB_THISCALL Movie_DecodeFrame(Movie* movie);
+// 0x000cf0c0 .. 0x000cf140: accessors (0x000cf0d0/0x000cf0e0/0x000cf0f0/0x000cf110 are shorter than
+// the harness hook: unhookable).
+void XB_THISCALL Movie_SetState(Movie* movie, int32_t state);
+int32_t XB_THISCALL Movie_GetState(Movie* movie);
+int32_t XB_THISCALL Movie_GetFrameCount(Movie* movie);
+int32_t XB_THISCALL Movie_GetFrameIndex(Movie* movie);
+int32_t XB_THISCALL MovieBase_DecodeFrame(Movie* movie);
+// 0x000cf120: 0x00920859, lets Movie_DecodeFrame drop B pictures while over a frame behind
+// (SndSys_InitDevice).
+void XB_CDECL Movie_SetDropLateFrames(uint8_t drop);
+int32_t XB_THISCALL Movie_SetAudioTrack(Movie* movie, int32_t track);
+// 0x000cf140: any read request queued.
+uint8_t XB_THISCALL Movie_HasPendingReads(Movie* movie);
+// 0x000cf370: vtable slot 1: allocates what Movie_Load did not provide (memory, the read buffers,
+// frame, both textures unless flag_74; `owned` records which), Reset, state 1, queues the reads, and
+// lays out the planes in memory by format. Returns 0.
+int32_t XB_THISCALL MovieBase_Start(Movie* movie);
+// 0x000cf820: the read-completion callback File_QueueRead calls (status, request, movie): status 1
+// (still busy) is ignored, else Movie_OnReadComplete.
+void XB_CDECL Movie_ReadCallback(int32_t status, int32_t request, Movie* movie);
 
 // 0x0030fe00: decodes a frame (vtable[2]), draws subtitles and the frame quad; returns the
 // decoder's result, 4 while 0x0095f916 is set, -1 without a movie.

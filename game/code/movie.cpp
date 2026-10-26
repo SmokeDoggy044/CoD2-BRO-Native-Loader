@@ -1,6 +1,7 @@
 #include "movie.h"
 
 #include "cl.h"
+#include "movie_vid.h"
 #include "ngl.h"
 #include "qcommon.h"
 #include "stream.h"
@@ -618,6 +619,311 @@ uint8_t XB_CDECL Movie_Open(const char* name) {
     while (!Movie_IsReady(the_movie())) title_function<void XB_CDECL()>(0x00331fb0)();  // SCR_LoadingPump
     title_global<uint8_t>(0x0095f46c) = 1;
     return 1;
+}
+
+
+// ---- Vtable slots and accessors (no Ghidra functions: decompiled by address) ----
+
+namespace {
+
+// Decoder fields past the Movie struct (movie_vid.cpp names them where it uses them).
+template <typename T>
+T& dec(Movie* movie, uint32_t offset) {
+    return *reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(movie) + offset);
+}
+
+// The audio ring the packets are copied into (movie_audioBuffer's data), its write offset and the
+// offset where the stream started.
+uint8_t* audio_ring() { return title_global<uint8_t*>(0x00920848); }
+int32_t& audio_write() { return title_global<int32_t>(0x00920854); }
+
+// Destination planes +0x221c..+0x2224 = a plane set.
+void set_dest_planes(Movie* movie, uint8_t* const* set) {
+    dec<uint8_t*>(movie, 0x221c) = set[0];
+    dec<uint8_t*>(movie, 0x2220) = set[1];
+    dec<uint8_t*>(movie, 0x2224) = set[2];
+}
+
+}  // namespace
+
+int32_t XB_THISCALL Movie_Start(Movie* movie) {
+    const int32_t width = movie->width;
+    dec<int32_t>(movie, 0x21fc) = width >> 1;                       // chroma stride
+    dec<int32_t>(movie, 0x2200) = width << 4;                       // a luma macroblock row
+    dec<int32_t>(movie, 0x21f8) = width;                            // luma stride
+    dec<int32_t>(movie, 0x2204) = (width << 4) >> 2;                // a chroma macroblock row
+    const int32_t height = movie->height;
+    dec<int32_t>(movie, 0x2208) = width * 2 - 0x20;                 // x limit (half pixels)
+    dec<int32_t>(movie, 0x2214) = (height - 0x10) * 2;              // frame y limit
+    dec<int32_t>(movie, 0x222c) = 0;                                // reference picture index
+    dec<int32_t>(movie, 0x2210) = height * 2 - 0x10;
+    dec<int32_t>(movie, 0x220c) = height - 0x10;                    // field y limit
+    return MovieBase_Start(movie);
+}
+
+int32_t XB_THISCALL Movie_DecodeFrame(Movie* movie) {
+    if (!movie->field_38) {
+        movie->field_38 = 1;
+        if (movie->format == 7) {
+            --movie->frame_index;
+            slot<int32_t XB_THISCALL(Movie*)>(movie, 2)(movie);
+        }
+    }
+    // The next video packet: {size, flags, track / f_codes, f_codes, DC precision} and size bytes.
+    uint8_t* packet;
+    for (;;) {
+        if (!Movie_FetchBytes(movie, 8, 0)) return 1;
+        if (movie->read_slot == movie->first_slot) {  // skip the stream's 0x90-byte start
+            movie->read_ptr += 0x90;
+            movie->bit_ptr = movie->read_ptr;
+            movie->first_slot = 0xf;
+            title_global<int32_t>(0x0092084c) = audio_write();
+        }
+        if (!Movie_FetchBytes(movie, *reinterpret_cast<int32_t*>(movie->bit_ptr) + 8, 1)) return 1;
+        packet = movie->bit_ptr;
+        const uint8_t flags = packet[4];
+        if (flags & 0x80) {  // audio
+            if (static_cast<int32_t>(packet[5]) != movie->audio_track) continue;
+            const uint32_t size = *reinterpret_cast<uint32_t*>(packet);
+            movie->has_audio = 1;
+            platform_rep_movs(audio_ring() + audio_write(), packet + 8, size);
+            audio_write() += static_cast<int32_t>(size);
+            if (audio_write() >= 0x12000) audio_write() = 0;
+            continue;
+        }
+        // Over a frame behind: drop B pictures.
+        if (title_global<uint8_t>(0x00920859) && movie->time > title_global<float>(0x0083eb20) && (flags & 0xf0) == 0x60) {
+            movie->time = movie->time - title_global<float>(0x0083eb20);
+            ++movie->frame_index;
+            continue;
+        }
+        break;
+    }
+    movie->time = movie->time + title_global<float>(0x007cf3a0);
+    const uint32_t flags = packet[4];
+    const int32_t coding_type = static_cast<int32_t>((flags >> 4) & 3) + 1;  // 1 I, 2 P, 3 B
+    dec<int32_t>(movie, 0x2164) = coding_type;
+    dec<uint32_t>(movie, 0x2198) = packet[5] >> 4;  // f_codes
+    dec<uint32_t>(movie, 0x219c) = packet[5] & 0xf;
+    dec<uint32_t>(movie, 0x21d0) = packet[6] >> 4;
+    dec<uint32_t>(movie, 0x21d4) = packet[6] & 0xf;
+    dec<uint32_t>(movie, 0x2234) = packet[7];        // intra DC precision
+    dec<uint32_t>(movie, 0x2238) = flags & 8;        // frame_pred_frame_dct
+    dec<uint8_t>(movie, 0x2246) = static_cast<uint8_t>(flags & 4);  // q_scale_type
+    dec<uint32_t>(movie, 0x223c) = flags & 2;        // intra VLC format
+    dec<uint32_t>(movie, 0x2240) = (flags & 1) ? 0x008bff60 : 0x008bff20;  // alternate / zigzag scan
+    if (movie->format & 2) {
+        const int32_t current = dec<int32_t>(movie, 0x222c);
+        // Forward references +0x2168, backward +0x21a0.
+        if (coding_type == 3) {
+            uint8_t* const* forward = movie->planes[current ^ 1];
+            dec<uint8_t*>(movie, 0x2168) = forward[0];
+            dec<uint8_t*>(movie, 0x216c) = forward[1];
+            dec<uint8_t*>(movie, 0x2170) = forward[2];
+            dec<uint8_t*>(movie, 0x21a0) = movie->planes[current][0];
+            dec<uint8_t*>(movie, 0x21a4) = movie->planes[current][1];
+            dec<uint8_t*>(movie, 0x21a8) = movie->planes[current][2];
+            MovieVid_BuildQuantTables(reinterpret_cast<uint8_t*>(movie), 1);
+            MovieVid_BuildQuantTables(reinterpret_cast<uint8_t*>(movie), 0);
+        } else if (coding_type == 2 || coding_type == 1) {
+            if (coding_type == 2) {
+                dec<uint8_t*>(movie, 0x2168) = movie->planes[current][0];
+                dec<uint8_t*>(movie, 0x216c) = movie->planes[current][1];
+                dec<uint8_t*>(movie, 0x2170) = movie->planes[current][2];
+                MovieVid_BuildQuantTables(reinterpret_cast<uint8_t*>(movie), 1);
+            }
+            MovieVid_BuildQuantTables(reinterpret_cast<uint8_t*>(movie), 0);
+            dec<int32_t>(movie, 0x222c) ^= 1;
+        }
+    }
+    if (movie->flag_74) {
+        movie->texture2 = nglGetBackBufferTexture();
+        nglTexture_Lock(movie->texture2, 0x40);
+    } else {
+        nglTexture_Lock(movie->texture2, 0);
+    }
+    uint8_t* pixels = *reinterpret_cast<uint8_t**>(reinterpret_cast<uint8_t*>(movie->texture2) + 0x20);  // locked bits
+    // Per row: convert each macroblock row as it is decoded (format 1, B pictures: one-row planes).
+    bool per_row;
+    if (movie->format == 1) {
+        per_row = true;
+        set_dest_planes(movie, movie->planes[0]);
+    } else if (dec<int32_t>(movie, 0x2164) == 3) {
+        per_row = true;
+        set_dest_planes(movie, movie->planes[2]);
+    } else {
+        set_dest_planes(movie, movie->planes[dec<int32_t>(movie, 0x222c)]);
+        per_row = false;
+    }
+    uint8_t*& y_dest = dec<uint8_t*>(movie, 0x221c);
+    // The slices: each starts with 0xfaca<length to the next> (0xfacadeca: none follows); the next
+    // marker is overwritten with 0xa6a6a6a6 to stop the bit reader.
+    movie->bit_ptr += 8;
+    uint8_t* slice = movie->bit_ptr;
+    uint32_t marker = *reinterpret_cast<uint32_t*>(slice);
+    int32_t& row_y = dec<int32_t>(movie, 0x2218);
+    row_y = 0;
+    if (movie->height > 0) {
+        do {
+            movie->bit_ptr = slice;
+            if (marker != 0xfacadeca) {
+                slice += marker & 0xffff;
+                marker = *reinterpret_cast<uint32_t*>(slice);
+                if ((marker & 0xffff0000) != 0xfaca0000) {
+                    movie->state = -1;
+                    return -1;
+                }
+                *reinterpret_cast<uint32_t*>(slice) = 0xa6a6a6a6;
+            }
+            movie->bit_ptr += 4;
+            MovieVid_DecodeMacroblocks(reinterpret_cast<uint8_t*>(movie));
+            if (per_row) {
+                MovieVid_ConvertMacroblockRow(&y_dest, pixels, movie->width);
+                pixels += movie->width << 6;
+            } else {
+                y_dest += dec<int32_t>(movie, 0x2200);
+                dec<uint8_t*>(movie, 0x2220) += dec<int32_t>(movie, 0x2204);
+                dec<uint8_t*>(movie, 0x2224) += dec<int32_t>(movie, 0x2204);
+            }
+            row_y += 0x10;
+        } while (row_y < movie->height);
+    }
+    if (!per_row) {
+        // Whole pictures: convert the one to show (MPEG order: the previous reference unless format 3).
+        int32_t shown = dec<int32_t>(movie, 0x222c);
+        if (movie->format != 3) shown ^= 1;
+        set_dest_planes(movie, movie->planes[shown]);
+        row_y = 0;
+        if (movie->height > 0) {
+            do {
+                MovieVid_ConvertMacroblockRow(&y_dest, pixels, movie->width);
+                y_dest += dec<int32_t>(movie, 0x2200);
+                dec<uint8_t*>(movie, 0x2220) += dec<int32_t>(movie, 0x2204);
+                dec<uint8_t*>(movie, 0x2224) += dec<int32_t>(movie, 0x2204);
+                pixels += movie->width << 6;
+                row_y += 0x10;
+            } while (row_y < movie->height);
+        }
+    }
+    nglTexture_Unlock();
+    NglTexture* const drawn = movie->texture2;
+    movie->texture2 = movie->texture;
+    movie->texture = drawn;
+    if (movie->frame_index != movie->frame_count && movie->frame_index != 0) {
+        ++movie->frame_index;
+    } else {
+        Movie_StartAudio(movie);
+        movie->frame_index = 1;
+    }
+    if (movie->frame_index != movie->frame_count) return 0;
+    if (movie->has_audio && (dsound_get_status(audio_buffer()) & 1))  // DSBSTATUS_PLAYING
+        title_function<int32_t XB_STDCALL(void*)>(0x003c7777)(audio_buffer());  // IDirectSoundBuffer_Stop
+    return 3;
+}
+
+void XB_THISCALL Movie_SetState(Movie* movie, int32_t state) { movie->state = state; }
+
+int32_t XB_THISCALL Movie_GetState(Movie* movie) { return movie->state; }
+
+int32_t XB_THISCALL Movie_GetFrameCount(Movie* movie) { return movie->frame_count; }
+
+int32_t XB_THISCALL Movie_GetFrameIndex(Movie* movie) { return movie->frame_index; }
+
+int32_t XB_THISCALL MovieBase_DecodeFrame(Movie*) { return -1; }
+
+void XB_CDECL Movie_SetDropLateFrames(uint8_t drop) { title_global<uint8_t>(0x00920859) = drop; }
+
+int32_t XB_THISCALL Movie_SetAudioTrack(Movie* movie, int32_t track) {
+    movie->audio_track = track;
+    return 0;
+}
+
+uint8_t XB_THISCALL Movie_HasPendingReads(Movie* movie) {
+    uint8_t pending = 0;
+    if (movie->requests[0] != -1) pending = 1;
+    if (movie->requests[1] != -1) pending = 1;
+    if (movie->requests[2] != -1) pending = 1;
+    if (movie->requests[3] != -1) pending = 1;
+    return pending;
+}
+
+int32_t XB_THISCALL MovieBase_Start(Movie* movie) {
+    movie->owned = 2;
+    if (!movie->memory) {
+        movie->memory = static_cast<uint8_t*>(Mem_AlignedAlloc(movie->frame_bytes, 0x40, 0));
+        movie->owned |= 1;
+    }
+    movie->owned <<= 1;
+    if (!movie->buffers[0]) {
+        for (uint8_t*& buffer : movie->buffers) buffer = static_cast<uint8_t*>(Mem_AlignedAlloc(movie->chunk_size, 0x40, 0));
+        movie->owned |= 1;
+    }
+    movie->owned <<= 1;
+    if (!movie->frame && movie->extra_bytes) {
+        movie->frame = static_cast<uint8_t*>(Mem_AlignedAlloc(movie->extra_bytes, 0x80, 0));
+        movie->owned |= 1;
+    }
+    movie->owned <<= 1;
+    if (!movie->texture && !movie->flag_74) {
+        movie->texture = nglCreateTexture(0x204, movie->width, movie->height, 0, 0);
+        movie->owned |= 1;
+    }
+    movie->owned <<= 1;
+    if (!movie->texture2 && !movie->flag_74) {
+        movie->texture2 = nglCreateTexture(0x204, movie->width, movie->height, 0, 0);
+        movie->owned |= 1;
+    }
+    slot<void XB_THISCALL(Movie*)>(movie, 3)(movie);  // Reset
+    movie->state = 1;
+    for (int32_t& request : movie->requests) request = -1;
+    Movie_QueueReads(movie);
+    uint8_t* p = movie->memory;
+    switch (movie->format) {
+    case 1: {  // one macroblock row
+        const int32_t luma = movie->width << 4, chroma = luma >> 2;
+        movie->planes[0][0] = p;
+        p += luma;
+        movie->planes[0][1] = p;
+        p += chroma;
+        movie->planes[0][2] = p;
+        p += chroma;
+        break;
+    }
+    case 3:
+    case 7: {  // two reference pictures and a B row
+        const int32_t width = movie->width;
+        const int32_t luma = movie->height * width, chroma = luma >> 2;
+        movie->planes[0][0] = p;
+        p += luma;
+        movie->planes[0][1] = p;
+        p += chroma;
+        movie->planes[0][2] = p;
+        p += chroma;
+        movie->planes[1][0] = p;
+        p += luma;
+        movie->planes[1][1] = p;
+        p += chroma;
+        movie->planes[1][2] = p;
+        p += chroma;
+        movie->planes[2][0] = p;
+        const int32_t row = width << 4, row_chroma = row >> 2;
+        p += row;
+        movie->planes[2][1] = p;
+        p += row_chroma;
+        movie->planes[2][2] = p;
+        p += row_chroma;
+        break;
+    }
+    default:
+        break;
+    }
+    movie->planes_end = p;
+    return 0;
+}
+
+void XB_CDECL Movie_ReadCallback(int32_t status, int32_t request, Movie* movie) {
+    if (status == 1) return;  // still pending
+    Movie_OnReadComplete(movie, status, request);
 }
 
 }  // namespace game

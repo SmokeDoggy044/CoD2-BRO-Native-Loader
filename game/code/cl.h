@@ -350,4 +350,40 @@ void XB_CDECL Key_Unbind_f();
 extern "C" PLATFORM_HIDDEN void XB_CDECL CL_ExecControllerConfig(int32_t style);
 extern "C" void CL_ExecControllerConfig_entry(void);
 
+// The pads (XInput). The pad object IN_PadCreate returns (0x00902564, 0x18 bytes) holds nothing: the methods
+// work on the per-port globals (cl.cpp) and ignore ECX.
+// 0x00011b80 (pad in EDI): takes the pressed edges of all 16 buttons.
+extern "C" PLATFORM_HIDDEN void XB_CDECL IN_PadConsumeAllPressed(int32_t pad);
+extern "C" void IN_PadConsumeAllPressed_entry(void);
+// 0x0001ec70 (value in ESI): a stick axis with the dead zone (cvar 0x00929c30) cut out, rescaled to +-128.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL IN_JoyApplyThreshold(int32_t value);
+extern "C" void IN_JoyApplyThreshold_entry(void);
+// 0x00055bc0: XGetDeviceChanges: closes removed pads, opens inserted ones (port 0: 0x001fa100(handle)).
+void XB_CDECL IN_PadCheckDeviceChanges();
+// 0x00055d10: XInitDevices, clears every port's state and opens the attached pads. Returns `pads`.
+uint8_t* XB_THISCALL IN_PadInit(uint8_t* pads);
+// 0x00055e40: the pad object, created (Z_Malloc, IN_PadInit) on first use; null when that fails.
+uint8_t* XB_CDECL IN_PadCreate();
+// 0x00055e70: device changes, then per open pad: XInputGetState, the pressed/released edges (unless
+// g_liveMgr takes the input: 0x00902560 = 1), analog buttons as down flags with edges.
+void XB_CDECL IN_PadUpdate();
+// 0x00056570: false (unhookable: ret in the first 5 bytes).
+uint8_t XB_STDCALL IN_PadReturnFalse(int32_t pad, uint32_t button);
+// 0x00056a30: motor 1 = left, else right; strength 0..1. Sends the new values once the last set is done.
+void XB_STDCALL IN_SetRumbleMotor(int32_t pad, int32_t motor, float strength);
+// 0x00056ae0: zero rumble on every pad with no set pending.
+void XB_CDECL IN_PadStopAllRumble();
+// 0x00298d30 (rumble state in EAX): both motors off on the last rumbled pad (0x008dcf18) and frees the two
+// queued-rumble lists (+8, +0x18) with 0x000248f0.
+void XB_REGS1 XB_CDECL IN_StopAllRumble(uint8_t* rumble);
+// 0x002abeb0 / 0x002abec0: empty (bare ret, unhookable).
+void XB_CDECL IN_SprintUp();
+void XB_CDECL IN_SprintDown();
+// 0x002b7200: takes the active pad's pressed edges and queues key-up events for every pad key.
+void XB_CDECL IN_PadQueueEvents();
+// 0x002bdf10: per frame: pad update; the active pad (0x008d50d8, -1 = pad 0) gone: 0x008d50dc = 0; first frame
+// back: IN_PadQueueEvents. Unless 0x0095f538: stick events (3 = move stick, 4 = look stick axes) and key events
+// for the buttons (unless 0x0095f919: no stick or key-down events).
+void XB_CDECL IN_Frame();
+
 }  // namespace game
