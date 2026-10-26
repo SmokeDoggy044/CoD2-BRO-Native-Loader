@@ -15,6 +15,7 @@ struct TitleInfo {
     TitleId id;
     const char* xbe_name;
     const char* symbol_file;  // Ghidra export (next to the loader, or tools/data)
+    const char* signature_file;  // for finding its addresses in other releases (release_map.h)
     uint32_t d3d_device_pointer;  // D3D__pDevice (D3D is LTCG)
     uint32_t d3d_render_state;    // D3D__RenderState
     uint32_t d3d_texture_state;   // D3D_g_DeferredTextureState

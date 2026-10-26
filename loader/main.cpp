@@ -27,6 +27,7 @@
 #include "patches.h"
 #include "pc_menu.h"
 #include "profiler.h"
+#include "release_map.h"
 #include "paths.h"
 #include "program.h"
 #include "script.h"
@@ -75,6 +76,7 @@ struct Options {
     int32_t frame_rate = 60;
     bool late_frames_wait = false;
     bool any_release = false;    // start an XBE whose build is not the supported one (testing)
+    std::optional<fs::path> write_signatures;  // write the XBE's signatures there and exit
     int32_t start_level = -1;
     bool multiplayer = false;    // start codmp_xboxf.xbe
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
@@ -97,6 +99,16 @@ bool g_tell_player = false;    // error boxes (not in scripted runs)
 void tell_player(const std::string& what) {
     if (!g_tell_player) return;
     loader::os::show_error("Call of Duty 2: Big Red One", what + "\n\nDetails are in the log:\n" + g_log_path.string());
+}
+
+// The mapped image, for release_map.h.
+loader::ImageBytes image_bytes(const loader::XbeImage& image) {
+    loader::ImageBytes bytes;
+    bytes.base = image.base();
+    bytes.bytes = {reinterpret_cast<const uint8_t*>(uintptr_t{image.base()}), image.size()};
+    for (const loader::XbeSectionHeader* section : image.sections())
+        bytes.sections.push_back({image.section_name(*section), section->virtual_addr, section->virtual_size});
+    return bytes;
 }
 
 int startup_failed(const std::string& what) {
@@ -158,8 +170,10 @@ void print_usage(const char* program) {
         "                   as the game; campaign); also in the PC menu (` key while playing)\n"
         "  --late-frames show|wait  a frame that missed its vertical blank is shown at once\n"
         "                   (default) or waits for the next one (as on the Xbox: 30 fps drops to 20)\n"
-        "  --any-release    start another release's multiplayer executable (testing; its\n"
-        "                   addresses differ, so expect crashes; other campaigns always start)\n"
+        "  --any-release    start another release's multiplayer executable even where the\n"
+        "                   port's changes were not all found in it (testing: expect crashes)\n"
+        "  --write-signatures FILE  write the supported XBE's function signatures, for\n"
+        "                   finding its addresses in other releases (tools/data), and exit\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n",
         program);
 }
@@ -308,6 +322,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
             }
         } else if (arg == "--any-release") {
             options.any_release = true;
+        } else if (arg == "--write-signatures") {
+            if (!(options.write_signatures = value())) return std::nullopt;
         } else if (arg == "--late-frames") {
             const std::string value = i + 1 < argc ? argv[++i] : "";
             if (value != "show" && value != "wait") {
@@ -570,38 +586,60 @@ int loader_main(int argc, char** argv) {
         aspect = 16.0f / 9.0f;
     }
     if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
-    if (const uint64_t fingerprint = image.code_fingerprint(); fingerprint != title->code_fingerprint) {
-        LOG_ERROR("loader", "%s is another build (time stamp %08x, code fingerprint %016llx) than the supported one "
-                  "(%016llx); its sections:", xbe.filename().string().c_str(), image.header().time_date,
-                  static_cast<unsigned long long>(fingerprint),
-                  static_cast<unsigned long long>(title->code_fingerprint));
+    // A release has the data files next to the loader; builds use the source tree's.
+    auto data_file = [](const char* name) {
+        const fs::path next_to_loader = platform::executable_dir() / name;
+        return fs::exists(next_to_loader) ? next_to_loader : fs::path(COD_BRO_SYMBOLS_DIR) / name;
+    };
+    const bool other_build = image.code_fingerprint() != title->code_fingerprint;
+    bool release_map_ready = false;
+    if (other_build) {
+        LOG_WARN("loader", "%s is another build (time stamp %08x, code fingerprint %016llx) than the supported one "
+                 "(%016llx); its sections:", xbe.filename().string().c_str(), image.header().time_date,
+                 static_cast<unsigned long long>(image.code_fingerprint()),
+                 static_cast<unsigned long long>(title->code_fingerprint));
         image.log_sections();
-        // Another release's campaign ran on 0.1.8 (issue #9: the French/Spanish/Italian
-        // disc), so it starts with a warning; its multiplayer crashed, so that stays refused.
-        if (title->id == loader::TitleId::Campaign)
-            LOG_WARN("loader", "starting the campaign anyway (other releases' campaigns have run); please report "
-                     "problems with this log attached");
-        else if (!options->any_release)
-            return startup_failed(xbe.filename().string() +
-                                  " is from another release of the game than the one this version supports, so "
-                                  "its code is at other addresses (the log lists its sections; please attach the "
-                                  "log and mention your disc's region and languages in a report)");
-        else
-            LOG_WARN("loader", "--any-release: starting it anyway; expect patches to miss and crashes");
+        // The port's addresses are the supported build's; find where they are in this one.
+        loader::ReleaseSignatures signatures;
+        const fs::path signature_path = data_file(title->signature_file);
+        if (signatures.load(signature_path)) {
+            loader::ReleaseMap map;
+            map.build(signatures, image_bytes(image));
+            loader::set_release_map(map);
+            release_map_ready = true;
+        } else {
+            LOG_ERROR("loader", "cannot read %s; the port's changes cannot be placed in this build",
+                      signature_path.string().c_str());
+        }
+        // Without the map, another release's campaign ran on 0.1.8 (issue #9: the
+        // French/Spanish/Italian disc), but its multiplayer crashed.
+        if (!release_map_ready && title->id == loader::TitleId::Multiplayer && !options->any_release)
+            return startup_failed(std::string(title->signature_file) + " is missing or damaged");
     }
     g_xbe = xbe;
 
     static loader::SymbolTable symbols;
-    // A release has it next to the loader; builds use the source tree's.
-    fs::path symbol_path = platform::executable_dir() / title->symbol_file;
-    if (options->symbols)
-        symbol_path = *options->symbols;
-    else if (!fs::exists(symbol_path))
-        symbol_path = fs::path(COD_BRO_SYMBOLS_DIR) / title->symbol_file;
+    const fs::path symbol_path = options->symbols ? *options->symbols : data_file(title->symbol_file);
     if (symbols.load(symbol_path))
         LOG_INFO("loader", "%zu symbols from %s", symbols.size(), symbol_path.string().c_str());
     else
         LOG_WARN("loader", "no symbols at %s; backtraces will show addresses only", symbol_path.string().c_str());
+    if (options->write_signatures) {
+        if (other_build) return startup_failed("--write-signatures needs the supported build");
+        const loader::ReleaseSignatures signatures =
+            loader::make_signatures(image_bytes(image), symbols.in_range(0, 0xFFFFFFFF));
+        if (!signatures.save(*options->write_signatures))
+            return startup_failed("cannot write " + options->write_signatures->string());
+        LOG_INFO("loader", "%zu function signatures and %zu data references written to %s",
+                 signatures.functions.size(), signatures.data.size(), options->write_signatures->string().c_str());
+        return 0;
+    }
+    if (release_map_ready) {
+        loader::release_map().log_summary(&symbols);
+        // Names and the SDK replacements follow the functions to where they are here.
+        const size_t dropped = symbols.relocate([](uint32_t address) { return loader::release_map().find(address); });
+        if (dropped) LOG_INFO("release", "%zu symbols are in changed code and were left out", dropped);
+    }
 
     loader::install_crash_handler(image, symbols);
     loader::start_profiler(options->profile ? options->profile->c_str() : std::getenv("XB_PROFILE"),
@@ -655,9 +693,9 @@ int loader_main(int argc, char** argv) {
         fs::create_directories(*options->screenshot_dir);
         d3d_config.screenshot_dir = options->screenshot_dir->string();
     }
-    d3d_config.device_pointer = title->d3d_device_pointer;
-    d3d_config.render_state = title->d3d_render_state;
-    d3d_config.texture_state = title->d3d_texture_state;
+    d3d_config.device_pointer = loader::title_address(title->d3d_device_pointer, "(D3D device pointer)");
+    d3d_config.render_state = loader::title_address(title->d3d_render_state, "(D3D render states)");
+    d3d_config.texture_state = loader::title_address(title->d3d_texture_state, "(D3D texture states)");
     d3d_config.device_failed = [] {
         loader::run_fatal_exit_hook(false);
         tell_player(
@@ -666,11 +704,22 @@ int loader_main(int argc, char** argv) {
         std::_Exit(1);
     };
     render::configure(d3d_config);
-    input::configure({title->gamepad_type});
+    input::configure({loader::title_address(title->gamepad_type, "(gamepad device type)")});
     if (!options->press_script.empty() && !input::set_script(options->press_script)) return 1;
     if (!loader::install_sdk_replacements(image, symbols, *title)) {
         LOG_ERROR("loader", "SDK replacements need the symbol file (%s)", symbol_path.string().c_str());
         return startup_failed(std::string(title->symbol_file) + " is missing or damaged");
+    }
+    if (const size_t missed = loader::missed_title_addresses()) {
+        LOG_WARN("loader", "%zu of the port's changes were not found in this release (see above)", missed);
+        // The campaign started anyway before there was a map (0.1.8 on the issue #9 disc).
+        if (title->id == loader::TitleId::Multiplayer && !options->any_release)
+            return startup_failed(xbe.filename().string() +
+                                  " is from another release of the game, and some of the places the port changes "
+                                  "were not found in it (the log lists them; please attach the log and mention "
+                                  "your disc's region and languages in a report)");
+    } else if (release_map_ready) {
+        LOG_INFO("loader", "all of the port's changes were found in this release");
     }
 
     // The title's initial thread. Like the Xbox's, it has no TLS block (TlsData is

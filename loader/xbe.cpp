@@ -7,6 +7,7 @@
 
 #include "log.h"
 #include "os.h"
+#include "release_map.h"
 
 namespace loader {
 
@@ -25,12 +26,6 @@ T* at(uint32_t address) {
 
 void add_shared_page_ref(uint32_t counter_addr, int delta) {
     if (counter_addr) *at<uint16_t>(counter_addr) += delta;
-}
-
-bool is_data_section(const std::string& name) {
-    for (const char* data : {".rdata", ".data", ".data1", "XON_RD", ".XTLID", "$$XTIMAGE", "$$XSIMAGE"})
-        if (name == data) return true;
-    return false;
 }
 
 void fnv1a(uint64_t& hash, const void* bytes, size_t size) {

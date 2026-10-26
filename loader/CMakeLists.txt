@@ -9,6 +9,7 @@ set(loader_sources
     pc_menu.cpp
     profiler.cpp
     seh.cpp
+    release_map.cpp
     symbols.cpp
     thread_env.cpp
     xbe.cpp

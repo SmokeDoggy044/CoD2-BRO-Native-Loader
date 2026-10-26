@@ -10,6 +10,13 @@ add_executable(update_check_test update_check_test.cpp)
 target_link_libraries(update_check_test PRIVATE launcher_update)
 add_test(NAME update_check_test COMMAND update_check_test)
 
+# Finding the supported build's addresses in another release (loader/release_map.h).
+add_executable(release_map_test release_map_test.cpp ${PROJECT_SOURCE_DIR}/loader/release_map.cpp
+               ${PROJECT_SOURCE_DIR}/loader/symbols.cpp)
+target_include_directories(release_map_test PRIVATE ${PROJECT_SOURCE_DIR}/loader)
+target_link_libraries(release_map_test PRIVATE platform)
+add_test(NAME release_map_test COMMAND release_map_test)
+
 # The virtual Xbox LAN (system link) over loopback UDP.
 add_executable(lan_test lan_test.cpp ${PROJECT_SOURCE_DIR}/online/lan.cpp)
 target_include_directories(lan_test PRIVATE ${PROJECT_SOURCE_DIR}/online)

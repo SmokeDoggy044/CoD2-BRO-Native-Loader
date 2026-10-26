@@ -1,6 +1,6 @@
 # The player release (route B, 32-bit Linux): `cmake --install` / `cpack` lay out
 #
-#   cod_bro_launcher, cod_bro_loader, default_xbe_symbols.txt, codmp_xbe_symbols.txt, README.txt
+#   cod_bro_launcher, cod_bro_loader, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
 #   assets/README.md          the player copies the game dump here
 #   lib/                      the libraries the executables need beyond glibc and
 #                             the system's 32-bit graphics/sound drivers
@@ -36,7 +36,9 @@ install(RUNTIME_DEPENDENCY_SET release_libraries
     POST_EXCLUDE_REGEXES "^/lib64/" "^/usr/lib64/")
 
 install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
-              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt DESTINATION .)
+              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_signatures.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/assets/README.md DESTINATION assets)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
 # Fonts for sharper text (SIL OFL; their licenses and sources in fonts/).

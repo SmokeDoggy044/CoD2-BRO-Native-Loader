@@ -1,0 +1,155 @@
+// ReleaseMap (loader/release_map.h): finding the supported build's functions and data
+// in a build where code grew in the middle, later sections moved and data moved
+// within its section (as the European multiplayer XBE of issue #9).
+
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+#include <map>
+#include <random>
+#include <vector>
+
+#include "release_map.h"
+
+namespace {
+
+int g_failures = 0;
+
+#define CHECK(condition, ...)                                              \
+    do {                                                                   \
+        if (!(condition)) {                                                \
+            ++g_failures;                                                  \
+            std::printf("FAIL %s:%d: %s", __FILE__, __LINE__, #condition); \
+            __VA_OPT__(std::printf(" - "); std::printf(__VA_ARGS__);)      \
+            std::printf("\n");                                             \
+        }                                                                  \
+    } while (0)
+
+constexpr uint32_t kBase = 0x10000;
+constexpr int kFunctions = 60;
+constexpr int kGrown = 30;           // this function gets 0x30 more bytes in its middle
+constexpr uint32_t kGrowth = 0x30;
+constexpr int kVariables = 40;
+
+struct Build {
+    std::vector<uint8_t> bytes;
+    std::vector<loader::ImageSection> sections;
+    std::vector<uint32_t> functions;
+    loader::ImageBytes view() const { return {kBase, bytes, sections}; }
+};
+
+// Functions of random code (no E8/E9, nothing that reads as an address) that each
+// load two variables (mov eax,[variable]) and call the next function; `grow` adds
+// bytes in the middle of function kGrown. `variable_at` places each variable.
+Build make_build(bool grow, const std::vector<uint32_t>& variable_at) {
+    std::mt19937 random(1234);
+    std::vector<std::vector<uint8_t>> bodies;
+    for (int f = 0; f < kFunctions; ++f) {
+        const int length = 40 + static_cast<int>(random() % 160);
+        std::vector<uint8_t> body;
+        for (int i = 0; i < length; ++i) {
+            uint8_t byte;
+            do byte = static_cast<uint8_t>(random());
+            while (byte == 0xE8 || byte == 0xE9 || byte == 0x00 || byte == 0x01);  // 0x0001xxxx would be an address
+            body.push_back(byte);
+        }
+        bodies.push_back(body);
+    }
+    Build build;
+    const uint32_t text = 0x11000;
+    uint32_t at = text;
+    std::vector<uint8_t> code;
+    for (int f = 0; f < kFunctions; ++f) {
+        build.functions.push_back(at);
+        std::vector<uint8_t> body = bodies[f];
+        // mov eax,[variable]; at 8 and 24 bytes in
+        for (int k = 0; k < 2; ++k) {
+            const uint32_t variable = variable_at[(f * 2 + k) % kVariables];
+            body[8 + 16 * k] = 0xA1;
+            std::memcpy(&body[9 + 16 * k], &variable, 4);
+        }
+        if (grow && f == kGrown) body.insert(body.begin() + 36, kGrowth, 0x90);
+        code.insert(code.end(), body.begin(), body.end());
+        at += static_cast<uint32_t>(body.size());
+        while (at % 16) code.push_back(0xCC), ++at;
+    }
+    const uint32_t text_size = at - text;
+    const uint32_t data = (at + 0x1F) & ~0x1Fu;  // XBE sections: 0x20 apart
+    build.sections = {{".text", text, text_size}, {".data", data, 0x400}};
+    build.bytes.assign(data + 0x400 - kBase, 0);
+    std::memcpy(&build.bytes[text - kBase], code.data(), code.size());
+    return build;
+}
+
+std::vector<uint32_t> variables(uint32_t data, bool shuffled) {
+    std::vector<uint32_t> at;
+    for (int v = 0; v < kVariables; ++v) at.push_back(data + 0x10 * v);
+    // Another build: variables 10-19 sit 0x80 later (something before them grew), and
+    // variable 5 went to the end.
+    if (shuffled) {
+        for (int v = 10; v < 20; ++v) at[v] += 0x80;
+        at[5] = data + 0x3F0;
+    }
+    return at;
+}
+
+}  // namespace
+
+int main() {
+    // The supported build: its data section's address depends on its code size.
+    const uint32_t supported_data = make_build(false, variables(0, false)).sections[1].address;
+    const Build supported = make_build(false, variables(supported_data, false));
+    const Build other_probe = make_build(true, variables(0, false));
+    const uint32_t other_data = other_probe.sections[1].address;
+    const Build other = make_build(true, variables(other_data, true));
+    CHECK(other_data > supported_data, "the data section did not move");
+
+    loader::ReleaseSignatures signatures = loader::make_signatures(supported.view(), supported.functions);
+    CHECK(signatures.functions.size() == kFunctions);
+    CHECK(signatures.data.size() == kVariables, "%zu data references", signatures.data.size());
+
+    const auto path = std::filesystem::temp_directory_path() / "release_map_test_signatures.txt";
+    CHECK(signatures.save(path));
+    loader::ReleaseSignatures loaded;
+    CHECK(loaded.load(path));
+    std::filesystem::remove(path);
+    CHECK(loaded.functions.size() == signatures.functions.size() && loaded.data.size() == signatures.data.size());
+    CHECK(loaded.image_end == signatures.image_end && loaded.sections.size() == signatures.sections.size());
+
+    // Not built: the identity.
+    loader::ReleaseMap map;
+    CHECK(map.identity() && map.find(0x12345) == 0x12345u);
+
+    // The supported build itself maps onto itself.
+    map.build(loaded, supported.view());
+    CHECK(map.unchanged() == kFunctions && map.missing() == 0);
+    for (uint32_t f : supported.functions) CHECK(map.find(f + 3) == f + 3);
+
+    map.build(loaded, other.view());
+    CHECK(map.unchanged() == kFunctions - 1, "%zu unchanged", map.unchanged());
+    CHECK(map.entry_only() == 1, "%zu entry only", map.entry_only());
+    for (int f = 0; f < kFunctions; ++f) {
+        const uint32_t ours = supported.functions[f], theirs = other.functions[f];
+        CHECK(map.find(ours) == theirs, "function %d", f);
+        if (f == kGrown)
+            CHECK(!map.find(ours + 40), "inside the grown function");  // changed code
+        else
+            CHECK(map.find(ours + 20) == theirs + 20, "function %d + 20", f);
+    }
+    const std::vector<uint32_t> ours = variables(supported_data, false), theirs = variables(other_data, true);
+    for (int v = 0; v < kVariables; ++v) CHECK(map.find(ours[v]) == theirs[v], "variable %d", v);
+    // Between variables that moved alike: alike; between ones that moved differently: unknown.
+    CHECK(map.find(ours[2] + 4) == theirs[2] + 4);
+    CHECK(map.find(ours[12] + 4) == theirs[12] + 4);
+    CHECK(!map.find(ours[9] + 8), "between variables 9 and 10");
+    // A guess in changed code moves like the function it is in.
+    CHECK(map.guess(supported.functions[kGrown] + 40) == other.functions[kGrown] + 40);
+
+    if (g_failures) {
+        std::printf("%d failure(s)\n", g_failures);
+        return 1;
+    }
+    std::printf("release_map_test: all passed\n");
+    return 0;
+}

@@ -233,6 +233,14 @@ Alt+Tab frees it.
 - **Symbols:** run `tools/ghidra/ExportSymbols.java` in Ghidra on `default.xbe` and
   save to `tools/data/default_xbe_symbols.txt`; the loader uses it to name functions
   in backtraces and to find SDK functions to replace.
+- **Other releases:** the port's addresses are those of one build of the game. On
+  another release (the Collector's Edition, the European French/Spanish/Italian disc)
+  the loader finds them by matching that build's functions and data references,
+  hashed in `tools/data/<xbe>_signatures.txt` (`loader/release_map.h`). Regenerate
+  these with `cod_bro_loader [--multiplayer] --write-signatures FILE` on the supported
+  dump whenever the symbol files gain functions. A multiplayer XBE in which some
+  addresses are not found is refused unless `--any-release` is given; the log lists
+  them.
 - **Kernel exports:** `xbox/kernel_exports.inc` is generated from
   `tools/data/xboxkrnl_ordinals.txt` and `third_party/xbox-includes/include/xboxkrnl.h`
   (`--target gen_kernel_exports`). Each export's calling convention and argument size

@@ -8,6 +8,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <initializer_list>
 #include <iterator>
 #include <mutex>
 #include <cstdint>
@@ -28,6 +29,7 @@
 #include "key_prompts.h"
 #include "kernel.h"
 #include "log.h"
+#include "release_map.h"
 #include "symbols.h"
 #include "xbe.h"
 #include "xbox_d3d_api.h"
@@ -142,9 +144,10 @@ void install_rdtsc_patches(std::span<const RdtscSite> sites) {
     int installed = 0;
     for (size_t i = 0; i < sites.size(); ++i) {
         const RdtscSite& site = sites[i];
-        auto* code = reinterpret_cast<uint8_t*>(uintptr_t{site.address});
+        const uint32_t address = title_address(site.address, "(RDTSC)");
+        auto* code = reinterpret_cast<uint8_t*>(uintptr_t{address});
         if (code[0] != 0x0F || code[1] != 0x31) {
-            LOG_WARN("patches", "%08x: not RDTSC; left alone", site.address);
+            LOG_WARN("patches", "%08x: not RDTSC; left alone", address);
             continue;
         }
         uint8_t* t = pool + i * kTrampolineSize;
@@ -419,37 +422,40 @@ void update_button_prompts() {
 // every frame from the main loop at 0x002f27a4) runs "spmap <name of mission k>" once
 // the UI is up (0x00933ee4) when 0x0095f920 holds k >= 0; the difficulty screen
 // FUN_0032d800 sets it, and the campaign level index 0x008dce48, on New Game.
-constexpr uint32_t kCallClientFrame = 0x002f27a4;
-constexpr uint32_t kClientFrame = 0x002f1e60;
-constexpr uint32_t kUiStarted = 0x00933ee4;
-constexpr uint32_t kLevelToStart = 0x0095f920;
-constexpr uint32_t kCampaignLevel = 0x008dce48;
+struct StartLevelSites {
+    uint32_t call_client_frame = 0x002f27a4;
+    uint32_t client_frame = 0x002f1e60;
+    uint32_t ui_started = 0x00933ee4;
+    uint32_t level_to_start = 0x0095f920;
+    uint32_t campaign_level = 0x008dce48;
+};
+StartLevelSites g_start_sites;
 
 int32_t g_start_level = -1;  // pending until the UI is up
 bool g_campaign = true;
 
 void XB_CDECL start_level() {
-    if (g_start_level < 0 || title<int32_t>(kUiStarted) == 0) return;
-    title<int32_t>(kLevelToStart) = g_start_level;
-    title<int32_t>(kCampaignLevel) = g_start_level;
+    if (g_start_level < 0 || title<int32_t>(g_start_sites.ui_started) == 0) return;
+    title<int32_t>(g_start_sites.level_to_start) = g_start_level;
+    title<int32_t>(g_start_sites.campaign_level) = g_start_level;
     LOG_INFO("patches", "starting mission %d", g_start_level);
     g_start_level = -1;
 }
 
 }  // namespace
 
-int32_t campaign_level() { return g_campaign ? title<int32_t>(kCampaignLevel) : -1; }
+int32_t campaign_level() { return g_campaign ? title<int32_t>(g_start_sites.campaign_level) : -1; }
 
 namespace {
 
 // pushad; pushfd; call start_level; popfd; popad; jmp FUN_002f1e60
 void install_start_level(int32_t level) {
     if (level < 0) return;
-    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kCallClientFrame});
+    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_start_sites.call_client_frame});
     uint32_t relative;
     std::memcpy(&relative, site + 1, 4);
-    if (site[0] != 0xE8 || kCallClientFrame + 5 + relative != kClientFrame) {
-        LOG_WARN("patches", "%08x: not the call to the client frame; --level ignored", kCallClientFrame);
+    if (site[0] != 0xE8 || g_start_sites.call_client_frame + 5 + relative != g_start_sites.client_frame) {
+        LOG_WARN("patches", "%08x: not the call to the client frame; --level ignored", g_start_sites.call_client_frame);
         return;
     }
     auto* thunk = alloc_code(64);
@@ -461,7 +467,7 @@ void install_start_level(int32_t level) {
     t += 5;
     *t++ = 0x9D;  // popfd
     *t++ = 0x61;  // popad
-    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kClientFrame}));
+    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{g_start_sites.client_frame}));
     put_rel32(site, 0xE8, thunk);
     g_start_level = level;
 }
@@ -608,13 +614,16 @@ void install_menu_render_hooks() {
 // it gets a child scene of its own, made like the pause screen's in FUN_003153d0, and
 // is narrowed around x = 50 of 640, the anchor the HUD's left-hand components use
 // (FUN_00311800).
-constexpr uint32_t kObjectivesCall = 0x00281f8f;
-constexpr uint32_t kObjectivesDraw = 0x0027e630;
-constexpr uint32_t kSceneCreate = 0x00062fc0;  // (mode) a child of the current scene, made current
-constexpr uint32_t kScenePop = 0x0005e730;     // the parent becomes current
-constexpr uint32_t kSceneSetClear = 0x0005e430;  // scene +0x360
-constexpr uint32_t kSceneSetFlag384 = 0x0005e490;
-constexpr uint32_t kSceneSetFlag385 = 0x0005e4b0;
+struct ObjectivesSites {
+    uint32_t call = 0x00281f8f;
+    uint32_t draw = 0x0027e630;
+    uint32_t scene_create = 0x00062fc0;  // (mode) a child of the current scene, made current
+    uint32_t scene_pop = 0x0005e730;     // the parent becomes current
+    uint32_t scene_set_clear = 0x0005e430;  // scene +0x360
+    uint32_t scene_set_flag384 = 0x0005e490;
+    uint32_t scene_set_flag385 = 0x0005e4b0;
+};
+ObjectivesSites g_objectives;
 constexpr float kObjectivesAnchor = 50.0f / 640.0f;
 MenuScenes g_objectives_scenes;
 bool g_objectives_scene = false;  // made one this call
@@ -625,25 +634,25 @@ uint32_t call_title(uint32_t address, Args... args) {
 }
 
 void XB_CDECL objectives_begin() {
-    g_objectives_scene = title<uint32_t>(g_menus.current_scene) != 0 && call_title(kSceneCreate, 0) != 0;
+    g_objectives_scene = title<uint32_t>(g_menus.current_scene) != 0 && call_title(g_objectives.scene_create, 0) != 0;
     if (g_objectives_scene) {
-        call_title(kSceneSetClear, 0);
-        call_title(kSceneSetFlag385, 0);
-        call_title(kSceneSetFlag384, 0);
+        call_title(g_objectives.scene_set_clear, 0);
+        call_title(g_objectives.scene_set_flag385, 0);
+        call_title(g_objectives.scene_set_flag384, 0);
     }
     g_objectives_scenes = {0, 0, g_objectives_scene ? title<uint32_t>(g_menus.current_scene) : 0,
                            title<uint32_t>(g_menus.engine_frame)};
 }
 
 void XB_CDECL objectives_end() {
-    if (g_objectives_scene) call_title(kScenePop);
+    if (g_objectives_scene) call_title(g_objectives.scene_pop);
 }
 
 void install_objectives_hook() {
-    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kObjectivesCall});
+    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_objectives.call});
     if (site[0] != 0xE8 || site + 5 + *reinterpret_cast<int32_t*>(site + 1) !=
-                               reinterpret_cast<uint8_t*>(uintptr_t{kObjectivesDraw})) {
-        LOG_WARN("patches", "%08x: not the objectives draw call; objectives stay stretched", kObjectivesCall);
+                               reinterpret_cast<uint8_t*>(uintptr_t{g_objectives.draw})) {
+        LOG_WARN("patches", "%08x: not the objectives draw call; objectives stay stretched", g_objectives.call);
         return;
     }
     auto* thunk = alloc_code(64);
@@ -651,7 +660,7 @@ void install_objectives_hook() {
     // begin; push dword [esp+4]; call FUN_0027e630; add esp,4; end; ret
     uint8_t* t = put_preserving_call(thunk, &objectives_begin);
     *t++ = 0xFF, *t++ = 0x74, *t++ = 0x24, *t++ = 0x04;
-    put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{kObjectivesDraw}));
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{g_objectives.draw}));
     t += 5;
     *t++ = 0x83, *t++ = 0xC4, *t++ = 0x04;
     t = put_preserving_call(t, &objectives_end);
@@ -714,18 +723,22 @@ void XB_CDECL locked_heap_free_in(uint32_t heap, uint32_t pointer) {
 }
 
 void install_multiplayer_heap_lock() {
+    constexpr const char* kWhat = "(heap lock)";
     // push ebx; mov ebx,[esp+8]
     g_heap_alloc = reinterpret_cast<HeapAlloc>(
-        hook_with_original(0x00043a10, std::to_array<uint8_t>({0x53, 0x8b, 0x5c, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_alloc)));
+        hook_with_original(title_address(0x00043a10, kWhat), std::to_array<uint8_t>({0x53, 0x8b, 0x5c, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_alloc)));
     // mov eax,[0x00451638]
+    auto aligned_prologue = std::to_array<uint8_t>({0xa1, 0, 0, 0, 0});
+    const uint32_t heap_alignment = title_address(0x00451638, kWhat);
+    std::memcpy(&aligned_prologue[1], &heap_alignment, 4);
     g_heap_aligned_alloc = reinterpret_cast<HeapAlignedAlloc>(hook_with_original(
-        0x00043850, std::to_array<uint8_t>({0xa1, 0x38, 0x16, 0x45, 0x00}), reinterpret_cast<const void*>(&locked_heap_aligned_alloc)));
+        title_address(0x00043850, kWhat), aligned_prologue, reinterpret_cast<const void*>(&locked_heap_aligned_alloc)));
     // push esi; mov esi,[esp+8]
     g_heap_free = reinterpret_cast<HeapFree>(
-        hook_with_original(0x00043630, std::to_array<uint8_t>({0x56, 0x8b, 0x74, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_free)));
+        hook_with_original(title_address(0x00043630, kWhat), std::to_array<uint8_t>({0x56, 0x8b, 0x74, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_free)));
     // mov ecx,[esp+8]; mov eax,[esp+4]
     g_heap_free_in = reinterpret_cast<HeapFreeIn>(hook_with_original(
-        0x00043470, std::to_array<uint8_t>({0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x04}), reinterpret_cast<const void*>(&locked_heap_free_in)));
+        title_address(0x00043470, kWhat), std::to_array<uint8_t>({0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x04}), reinterpret_cast<const void*>(&locked_heap_free_in)));
 }
 
 // --- Wider than 16:9 (experimental) ----------------------------------------------------
@@ -1511,12 +1524,12 @@ struct TitleData {
 };
 
 const TitleData kTitles[] = {
-    {{TitleId::Campaign, "default.xbe", "default_xbe_symbols.txt", 0x003f8318, 0x003f8328, 0x003f5c68, 0x007a9f78,
-      0x7426a4b9ea0d1071},
+    {{TitleId::Campaign, "default.xbe", "default_xbe_symbols.txt", "default_xbe_signatures.txt", 0x003f8318,
+      0x003f8328, 0x003f5c68, 0x007a9f78, 0x7426a4b9ea0d1071},
      kCampaignPatches, kCampaignRdtscSites, kCampaignSdkAliases, kCampaignSdkKeepOriginal, 0x00897908, 0x00897910,
      0x0095f6fc},
-    {{TitleId::Multiplayer, "codmp_xboxf.xbe", "codmp_xbe_symbols.txt", 0x0032a358, 0x0032a368, 0x00327ca8,
-      0x003693d8, 0x144ecea5f2744258},
+    {{TitleId::Multiplayer, "codmp_xboxf.xbe", "codmp_xbe_symbols.txt", "codmp_xbe_signatures.txt", 0x0032a358,
+      0x0032a368, 0x00327ca8, 0x003693d8, 0x144ecea5f2744258},
      kMultiplayerPatches, kMultiplayerRdtscSites, kMultiplayerSdkAliases, kMultiplayerSdkKeepOriginal, 0x003dd49c,
      0x003dd4a4, 0x004b2fec},
 };
@@ -1528,6 +1541,56 @@ const TitleData& title_data(const TitleInfo& info) {
 }
 
 const SymbolTable* g_symbols = nullptr;
+
+// Every address in the tables above is the supported build's; in another release they
+// move to where the same code and data are there (release_map.h). Zero means none.
+void relocate(const char* what, std::initializer_list<uint32_t*> addresses) {
+    for (uint32_t* address : addresses)
+        if (*address) *address = title_address(*address, what);
+}
+ClientAddresses relocated(ClientAddresses c) {
+    relocate("(mouse look)", {&c.call_mouse_move, &c.mouse_move, &c.view_flags, &c.view_allow_flags, &c.vehicle,
+                              &c.sensitivity, &c.pitch, &c.yaw, &c.freelook, &c.cl_freelook, &c.m_pitch,
+                              &c.key_bindings});
+    return c;
+}
+MenuRenderSites relocated(MenuRenderSites m) {
+    relocate("(menu render)", {&m.screen_calls[0], &m.screen_calls[1], &m.menu_calls[0], &m.menu_calls[1],
+                               &m.menu_jump, &m.current_scene, &m.frame_allocator, &m.engine_frame});
+    return m;
+}
+AspectSites relocated(AspectSites a) {
+    relocate("(widescreen)", {&a.constant, &a.loads[0], &a.loads[1], &a.draw_2d_jump, &a.draw_2d, &a.hud_draw_slot,
+                              &a.hud_draw});
+    return a;
+}
+FramePacing relocated(FramePacing f) {
+    relocate("(frame pacing)", {&f.set_frame_interval, &f.frame_vblanks, &f.late_no_wait, &f.wait_setup,
+                                &f.wait_jumps[0], &f.wait_jumps[1], &f.movie_next_frame_slot, &f.movie_next_frame,
+                                &f.frame_wait_spin, &f.frame_pending});
+    return f;
+}
+FovSites relocated(FovSites f) {
+    relocate("(field of view)", {&f.vm_value, &f.set_value, &f.current_weapon_def, &f.gun_fov_load, &f.refdef_fov_y,
+                                 &f.zoom, &f.cull_loads[0], &f.cull_loads[1], &f.cull_constants[0],
+                                 &f.cull_constants[1]});
+    return f;
+}
+MenuPointerSites relocated(MenuPointerSites m) {
+    relocate("(menu mouse)", {&m.screen_poll, &m.text_draw, &m.text_widget_vtable, &m.front_end, &m.dialogs,
+                              &m.press_start_vtable});
+    return m;
+}
+StartLevelSites relocated(StartLevelSites l) {
+    relocate("(--level)", {&l.call_client_frame, &l.client_frame, &l.ui_started, &l.level_to_start,
+                           &l.campaign_level});
+    return l;
+}
+ObjectivesSites relocated(ObjectivesSites o) {
+    relocate("(objectives)", {&o.call, &o.draw, &o.scene_create, &o.scene_pop, &o.scene_set_clear,
+                              &o.scene_set_flag384, &o.scene_set_flag385});
+    return o;
+}
 
 // Every function in a replaced library's section that we do not replace starts with
 // "call sdk_trap", so reaching original SDK code (it would touch hardware) stops with
@@ -1579,7 +1642,8 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
         // shorter than a CALL are left alone (they would clobber their neighbour).
         const std::vector<uint32_t> entries =
             symbols.in_range(section->virtual_addr, section->virtual_addr + section->virtual_size);
-        std::vector<uint32_t> keep(data.sdk_keep_original.begin(), data.sdk_keep_original.end());
+        std::vector<uint32_t> keep;
+        for (uint32_t address : data.sdk_keep_original) keep.push_back(title_address(address, "(SDK kept)"));
         for (const char* name : kSdkKeepOriginalNames)
             for (uint32_t address : symbols.find(name)) keep.push_back(address);
         for (size_t i = 0; i < entries.size(); ++i) {
@@ -1592,7 +1656,8 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
         for (const xbox::KernelImpl& function : library.functions) {
             std::vector<uint32_t> addresses = symbols.find(function.name);
             for (const SdkAlias& alias : data.sdk_aliases)
-                if (std::strcmp(alias.name, function.name) == 0) addresses.push_back(alias.address);
+                if (std::strcmp(alias.name, function.name) == 0)
+                    addresses.push_back(title_address(alias.address, alias.name));
             if (addresses.empty()) {
                 if (library.partial)
                     LOG_DEBUG("patches", "%s: %s not linked into this title", library.name, function.name);
@@ -1613,34 +1678,43 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
 
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {
     const TitleData& data = title_data(title);
-    g_online_pointer = data.online_pointer;
+    g_online_pointer = title_address(data.online_pointer, "(Xbox Live state)");
     for (const Patch& patch : data.patches) {
-        install_jump(patch.address, patch.replacement);
-        LOG_DEBUG("patches", "%08x: %s", patch.address, patch.what);
+        const uint32_t address = title_address(patch.address, patch.what);
+        install_jump(address, patch.replacement);
+        LOG_DEBUG("patches", "%08x: %s", address, patch.what);
     }
-    std::memset(reinterpret_cast<void*>(uintptr_t{data.launch_hook_table}), 0,
+    const uint32_t launch_hooks = title_address(data.launch_hook_table, "(launch hooks)");
+    std::memset(reinterpret_cast<void*>(uintptr_t{launch_hooks}), 0,
                 data.launch_hook_table_end - data.launch_hook_table);
     install_rdtsc_patches(data.rdtsc_sites);
     g_mouse_degrees_per_count = config.mouse_degrees_per_count;
-    g_client = title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient;
+    g_client = relocated(title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient);
     install_mouse_look();
     input::set_action_remap(&remap_keyboard_actions);
     g_button_prompts = config.button_prompts;
     const bool campaign = title.id == TitleId::Campaign;
     g_campaign = campaign;
     g_aim_assist = campaign ? AimAssist{0x002db7d0, 0x500} : AimAssist{0x0024c940, 0x510};
-    g_menus = campaign ? kCampaignMenus : kMultiplayerMenus;
-    g_pacing = campaign ? kCampaignPacing : kMultiplayerPacing;
+    g_aim_assist.function = title_address(g_aim_assist.function, "(aim assist)");
+    g_menus = relocated(campaign ? kCampaignMenus : kMultiplayerMenus);
+    g_pacing = relocated(campaign ? kCampaignPacing : kMultiplayerPacing);
     if (!config.aim_assist) disable_aim_assist();
     install_frame_rate(config.frame_rate, config.late_frames_wait);
-    install_display_aspect(campaign ? kCampaignAspect : kMultiplayerAspect, config.display_aspect);
-    install_field_of_view(campaign ? &kCampaignFov : nullptr, kCampaignAspect, config.field_of_view);
+    static AspectSites aspect;  // g_fov points into these
+    static FovSites fov;
+    aspect = relocated(campaign ? kCampaignAspect : kMultiplayerAspect);
+    if (campaign) fov = relocated(kCampaignFov);
+    install_display_aspect(aspect, config.display_aspect);
+    install_field_of_view(campaign ? &fov : nullptr, aspect, config.field_of_view);
     install_menu_render_hooks();
-    g_menu_pointer = campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer;
+    g_menu_pointer = relocated(campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer);
     install_menu_pointer();
     if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
     if (!campaign) return;  // the objectives panel and --level are campaign-only
 
+    g_start_sites = relocated(StartLevelSites{});
+    g_objectives = relocated(ObjectivesSites{});
     install_start_level(config.start_level);
     install_objectives_hook();
 }
