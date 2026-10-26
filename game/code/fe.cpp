@@ -578,4 +578,298 @@ uint8_t XB_CDECL PauseMenu_ReloadCheckpoint() {
     return 0;
 }
 
+
+void XB_THISCALL UIElement_SetDepth(uint8_t* element, float depth) { field<float>(element, 8) = depth; }
+
+void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align) {
+    const uint8_t flags = element[0x10] & 0x3f;
+    element[0x10] = flags;
+    if (align == 0)
+        element[0x10] = flags | 0x40;
+    else if (align == 2)
+        element[0x10] = flags | 0x80;
+}
+
+void XB_THISCALL UIElement_UpdateFade(uint8_t* element, float dt) {
+    if (!method<uint8_t XB_THISCALL(uint8_t*)>(element, 0x30)(element)) return;
+    const uint8_t flags = element[0x10];
+    if (flags & 0x10) {
+        const float alpha = dt / field<float>(element, 0xc) + field<float>(element, 4);
+        field<float>(element, 4) = alpha;
+        if (alpha >= 1.0f) {
+            field<float>(element, 4) = 1.0f;
+            element[0x10] = flags & 0xcf;
+        }
+    } else if (flags & 0x20) {
+        const float alpha = field<float>(element, 4) - dt / field<float>(element, 0xc);
+        field<float>(element, 4) = alpha;
+        if (0.0f >= alpha) {
+            field<float>(element, 4) = 0.0f;
+            element[0x10] = flags & 0xcb;
+        }
+    }
+}
+
+namespace {
+
+NglQuad* screen_quad(uint8_t* quad) { return reinterpret_cast<NglQuad*>(quad + 0x40); }
+// Base corner point i (x, y, z).
+float* base_point(uint8_t* quad, int32_t i) { return &field<float>(quad, uint32_t(i) * 12); }
+
+}  // namespace
+
+void XB_REGS1 XB_STDCALL UIQuad_Translate(uint8_t* quad, float dx, float dy) {
+    NglQuad* const q = screen_quad(quad);
+    for (int32_t i = 0; i < 4; ++i) {
+        const float y = q->verts[i].y + dy;
+        const float x = q->verts[i].x + dx;
+        nglSetQuadVertexPos(q, i, x, y);
+    }
+}
+
+void XB_REGS1 XB_CDECL UIQuad_ResetPositions(uint8_t* quad) {
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(screen_quad(quad), i, base_point(quad, i)[0], base_point(quad, i)[1]);
+}
+
+void XB_REGS3 XB_CDECL UIQuad_SetCornerPositions(uint8_t* quad, uint32_t, const float* points) {
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(screen_quad(quad), i, points[i * 3], points[i * 3 + 1]);
+}
+
+void XB_REGS1 XB_STDCALL UIQuad_SetVertexPositions(const float* xs, uint8_t* quad, const float* ys) {
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(screen_quad(quad), i, xs[i], ys[i]);
+}
+
+void XB_REGS3 XB_CDECL UIQuad_SetCornerUVs(uint8_t* quad, uint32_t, const float* points) {
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexUV(screen_quad(quad), i, points[i * 3], points[i * 3 + 1]);
+}
+
+void XB_REGS3 XB_STDCALL UIPictureBlock_SetVertexUVs(const float* us, uint32_t, const float* vs, uint8_t* quad) {
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexUV(screen_quad(quad), i, us[i], vs[i]);
+}
+
+PLATFORM_ASM_ENTRY(UIQuad_PlaceScaled_entry,
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIQuad_PlaceScaled) "addl $20, %esp\n"
+                   "popl %ecx\n"
+                   "popl %edx\n"
+                   "ret $16")
+
+void XB_CDECL UIQuad_PlaceScaled(uint8_t* quad, float x, float y, float sx, float sy) {
+    float min_x = 1000.0f, max_x = -1000.0f, min_y = 1000.0f, max_y = -1000.0f;
+    for (int32_t i = 0; i < 4; ++i) {
+        const float* const p = base_point(quad, i);
+        if (min_x > p[0]) min_x = p[0];
+        if (p[0] > max_x) max_x = p[0];
+        if (min_y > p[1]) min_y = p[1];
+        if (p[1] > max_y) max_y = p[1];
+    }
+    const float cx = (max_x - min_x) * 0.5f + min_x;
+    const float cy = (max_y - min_y) * 0.5f + min_y;
+    NglQuad* const q = screen_quad(quad);
+    for (int32_t i = 0; i < 4; ++i) {
+        const float* const p = base_point(quad, i);
+        q->verts[i].x = x - (cx - p[0]) * sx;
+        q->verts[i].y = y - (cy - p[1]) * sy;
+    }
+}
+
+PLATFORM_ASM_ENTRY(UIQuad_SetWipe_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(UIQuad_SetWipe) "addl $20, %esp\n"
+                   "ret $16")
+
+void XB_CDECL UIQuad_SetWipe(uint8_t* quad, float amount, int32_t mode, float uv_scale, float scale) {
+    if (mode == 0) return;
+    float t = amount;
+    if (t > 1.0f) t = 2.0f - t;
+    const float* const p0 = base_point(quad, 0);
+    const float* const p3 = base_point(quad, 3);
+    float size = mode == 1 || mode == 2 ? p3[0] - p0[0] : p3[1] - p0[1];
+    size *= scale;
+    NglQuad* const q = screen_quad(quad);
+    // The two edges' x and y: the wiping side moves by size * t.
+    const float x0 = mode == 1 ? q->verts[3].x - size * t : q->verts[0].x;
+    const float x3 = mode == 2 ? size * t + x0 : q->verts[3].x;
+    const float y0 = mode == 4 ? q->verts[3].y - size * t : q->verts[0].y;
+    const float y3 = mode == 3 ? size * t + y0 : q->verts[3].y;
+    const float u0 = q->verts[0].u;
+    const float u1 = q->verts[1].u;
+    // Vertices 0 and 1 with the same u: the texture runs down the quad, so the corners go in column order.
+    bool columns;
+    if (u0 >= u1)
+        columns = 0.001f > u0 - u1;
+    else
+        columns = 0.001f > u1 - u0;
+    float xs[4], ys[4];
+    xs[0] = x0;
+    ys[0] = y0;
+    xs[3] = x3;
+    ys[3] = y3;
+    if (columns) {
+        xs[1] = x0;
+        xs[2] = x3;
+        ys[2] = y0;
+        ys[1] = y3;
+    } else {
+        xs[1] = x3;
+        xs[2] = x0;
+        ys[2] = y3;
+        ys[1] = y0;
+    }
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(q, i, xs[i], ys[i]);
+    if (!(uv_scale > 0.0f)) return;
+    const float ua = mode == 1 ? q->verts[3].u - t * uv_scale : q->verts[0].u;
+    const float ub = mode == 2 ? t * uv_scale + ua : q->verts[3].u;
+    const float va = mode == 4 ? q->verts[3].v - t * uv_scale : q->verts[0].v;
+    const float vb = mode == 3 ? t * uv_scale + va : q->verts[3].v;
+    float us[4], vs[4];
+    us[0] = ua;
+    vs[0] = va;
+    us[3] = ub;
+    vs[3] = vb;
+    if (columns) {
+        us[1] = ua;
+        us[2] = ub;
+        vs[2] = va;
+        vs[1] = vb;
+    } else {
+        us[1] = ub;
+        us[2] = ua;
+        vs[2] = vb;
+        vs[1] = va;
+    }
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexUV(q, i, us[i], vs[i]);
+}
+
+uint8_t* XB_REGS3 XB_CDECL Color_Modulate(uint32_t, uint32_t, uint8_t* out, uint32_t a, uint32_t b) {
+    for (uint32_t i = 0; i < 4; ++i)
+        out[i] = uint8_t(int32_t((a >> (i * 8)) & 0xff) * int32_t((b >> (i * 8)) & 0xff) / 255);
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(UIQuad_GetMaxCorner_entry,
+                   "subl $16, %esp\n"
+                   "movups %xmm5, (%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIQuad_GetMaxCorner) "addl $8, %esp\n"
+                   "movups (%esp), %xmm5\n"
+                   "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL UIQuad_GetMaxCorner(float* out, const uint8_t* source) {
+    const NglQuadVertex* const v = reinterpret_cast<const NglQuadVertex*>(source + 0x40);
+    float u = v[0].u, w = v[0].v;
+    for (int32_t i = 1; i < 4; ++i) {
+        if (v[i].u > u) u = v[i].u;
+        if (v[i].v > w) w = v[i].v;
+    }
+    out[0] = u;
+    out[1] = w;
+    out[2] = 0.0f;
+}
+
+PLATFORM_ASM_ENTRY(UIQuad_SetVertexAlpha_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIQuad_SetVertexAlpha) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL UIQuad_SetVertexAlpha(uint8_t* quad, int32_t vertex, float alpha) {
+    const uint32_t old = screen_quad(quad)->verts[vertex].color;
+    const uint32_t a = uint32_t(platform_x87_mul_ftol(alpha, g(0x0083eb8c))) & 0xff;  // 255.0
+    nglSetQuadVertexColor(screen_quad(quad), vertex, a << 24 | (old & 0x00ffffff));
+}
+
+void XB_REGS3 XB_STDCALL UIQuad_SetVertexColor(int32_t vertex, uint32_t, uint8_t* quad, uint32_t color) {
+    const uint32_t old = screen_quad(quad)->verts[vertex].color;
+    nglSetQuadVertexColor(screen_quad(quad), vertex, (old & 0xff000000) | (color & 0x00ffffff));
+}
+
+namespace {
+
+// MSVC's min/max of four values: (3 vs 2) vs (1 vs 0), each pick keeping the first operand on NaN.
+float min4(float v0, float v1, float v2, float v3) {
+    const float b = v3 > v2 ? v2 : v3;
+    const float a = v1 > v0 ? v0 : v1;
+    return b > a ? a : b;
+}
+float max4(float v0, float v1, float v2, float v3) {
+    const float b = v2 > v3 ? v2 : v3;
+    const float a = v0 > v1 ? v0 : v1;
+    return a > b ? a : b;
+}
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL UIQuad_GetVertexMin(float* out, uint32_t, const uint8_t* quad) {
+    const NglQuadVertex* const v = reinterpret_cast<const NglQuadVertex*>(quad + 0x40);
+    const uint32_t z = title_global<uint32_t>(0x00922eb8);
+    const float x = min4(v[0].x, v[1].x, v[2].x, v[3].x);
+    const float y = min4(v[0].y, v[1].y, v[2].y, v[3].y);
+    out[0] = x;
+    out[1] = y;
+    std::memcpy(&out[2], &z, 4);
+}
+
+void XB_REGS3 XB_CDECL UIQuad_GetVertexMax(float* out, uint32_t, const uint8_t* quad) {
+    const NglQuadVertex* const v = reinterpret_cast<const NglQuadVertex*>(quad + 0x40);
+    const uint32_t z = title_global<uint32_t>(0x00922eb8);
+    const float x = max4(v[0].x, v[1].x, v[2].x, v[3].x);
+    const float y = max4(v[0].y, v[1].y, v[2].y, v[3].y);
+    out[0] = x;
+    out[1] = y;
+    std::memcpy(&out[2], &z, 4);
+}
+
+void XB_REGS3 XB_STDCALL UIQuad_SetVertexAlphaScaled(uint8_t* quad, uint32_t, int32_t vertex, float alpha) {
+    UIQuad_SetVertexAlpha(quad, vertex, field<float>(quad, 0x30 + uint32_t(vertex) * 4) * alpha);
+}
+
+PLATFORM_ASM_ENTRY(UIQuad_ApplyMatrix_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm2, (%esp)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(UIQuad_ApplyMatrix) "addl $16, %esp\n"
+                   "ret $8")
+
+void XB_CDECL UIQuad_ApplyMatrix(const float* matrix, float z, uint8_t* quad, uint32_t use_quad) {
+    float xs[4], ys[4];
+    for (int32_t i = 0; i < 4; ++i) {
+        float x, y;
+        if (uint8_t(use_quad)) {
+            x = screen_quad(quad)->verts[i].x;
+            y = screen_quad(quad)->verts[i].y;
+        } else {
+            x = base_point(quad, i)[0];
+            y = base_point(quad, i)[1];
+        }
+        // All four lanes, as the packed original computes them (MXCSR flags); the point's w lane is x.
+        float r[4];
+        for (int32_t lane = 0; lane < 4; ++lane) {
+            // Separate products, then the running sum first in each ADDPS: on two NaNs ADDPS keeps the first.
+            const float px = matrix[lane] * x;
+            const float py = matrix[4 + lane] * y;
+            const float pz = matrix[8 + lane] * z;
+            float s = matrix[12 + lane];
+            s += px;
+            s += py;
+            s += pz;
+            r[lane] = s;
+        }
+        platform_keep(r);
+        xs[i] = r[0];
+        ys[i] = r[1];
+    }
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(screen_quad(quad), i, xs[i], ys[i]);
+}
+
 }  // namespace game

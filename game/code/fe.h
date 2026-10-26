@@ -117,4 +117,65 @@ void XB_CDECL UI_PlayTypeSound();
 // returns 1; else the front end's dialog state 4, cl_paused 1 and the front end's vtable +0xc (7), returns 0.
 uint8_t XB_CDECL PauseMenu_ReloadCheckpoint();
 
+
+// UI elements (title C++ objects): +0x04 fade alpha, +0x08 depth, +0x0c fade time, +0x10 flags (bit 4 fading in,
+// bit 5 fading out, bits 6-7 alignment).
+// 0x000112f0 (vtable slot): the depth +0x08.
+void XB_THISCALL UIElement_SetDepth(uint8_t* element, float depth);
+// 0x0030fc20 (vtable slot): alignment bits 6-7 of the flags +0x10: 0 -> 0x40, 2 -> 0x80, else none.
+void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align);
+// 0x00315e70: advances a fade by dt / the fade time +0x0c when vtable slot +0x30 says the element is shown; a fade in
+// stops at 1.0 (clears flags 0x30), a fade out at 0 (clears flags 0x34).
+void XB_THISCALL UIElement_UpdateFade(uint8_t* element, float dt);
+
+// UI quads: four base corner points (x, y, z; 12 bytes apart) at +0x00, four vertex alpha scales at +0x30 and the
+// screen quad (NglQuad: x, y, u, v, colour per vertex) at +0x40.
+// 0x00310400: moves the quad's vertices by (dx, dy).
+void XB_REGS1 XB_STDCALL UIQuad_Translate(uint8_t* quad, float dx, float dy);
+// 0x00310450: the quad's vertices back to the base corner points.
+void XB_REGS1 XB_CDECL UIQuad_ResetPositions(uint8_t* quad);
+// 0x00310480: vertex positions from four (x, y, z) points (ECX).
+void XB_REGS3 XB_CDECL UIQuad_SetCornerPositions(uint8_t* quad, uint32_t unused_edx, const float* points);
+// 0x003104b0: vertex positions from separate x (EAX) and y arrays.
+void XB_REGS1 XB_STDCALL UIQuad_SetVertexPositions(const float* xs, uint8_t* quad, const float* ys);
+// 0x003104f0: vertex UVs from four (u, v, w) points (ECX).
+void XB_REGS3 XB_CDECL UIQuad_SetCornerUVs(uint8_t* quad, uint32_t unused_edx, const float* points);
+// 0x00310520: vertex UVs from separate u (EAX) and v (ECX) arrays.
+void XB_REGS3 XB_STDCALL UIPictureBlock_SetVertexUVs(const float* us, uint32_t unused_edx, const float* vs,
+                                                     uint8_t* quad);
+// 0x00310560 (quad in EAX; keeps ECX/EDX, its caller loops on them): places each base point at (x, y) minus its
+// offset from the points' bounding-box centre times (sx, sy).
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_PlaceScaled(uint8_t* quad, float x, float y, float sx, float sy);
+extern "C" void UIQuad_PlaceScaled_entry(void);
+// 0x00310820 (quad in EDI): a wipe of `amount` (above 1: 2 - amount) from the side `mode` (1-4; 0 = nothing) over
+// the base size times `scale`; with uv_scale > 0 the UVs follow by amount * uv_scale. Picks the corner order by
+// whether vertices 0 and 1 have (almost) the same u.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_SetWipe(uint8_t* quad, float amount, int32_t mode, float uv_scale,
+                                                       float scale);
+extern "C" void UIQuad_SetWipe_entry(void);
+// 0x00316e20: out (ECX) = a * b / 255 per byte; returns out.
+uint8_t* XB_REGS3 XB_CDECL Color_Modulate(uint32_t unused_eax, uint32_t unused_edx, uint8_t* out, uint32_t a,
+                                          uint32_t b);
+// 0x00317240 (out in EAX, source in ECX; keeps XMM5): out = (max u, max v, 0) over the four vertices of the quad
+// at ECX + 8 - the vertex UVs when ECX is a UI quad.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_GetMaxCorner(float* out, const uint8_t* source);
+extern "C" void UIQuad_GetMaxCorner_entry(void);
+// 0x003172f0 (quad in EAX, vertex in ESI): the vertex colour's alpha byte = alpha * 255.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_SetVertexAlpha(uint8_t* quad, int32_t vertex, float alpha);
+extern "C" void UIQuad_SetVertexAlpha_entry(void);
+// 0x00317350: the vertex colour's RGB, keeping its alpha.
+void XB_REGS3 XB_STDCALL UIQuad_SetVertexColor(int32_t vertex, uint32_t unused_edx, uint8_t* quad, uint32_t color);
+// 0x00322bd0: out = (min x, min y, the word at 0x00922eb8) over the four vertices.
+void XB_REGS3 XB_CDECL UIQuad_GetVertexMin(float* out, uint32_t unused_edx, const uint8_t* quad);
+// 0x00322c70: out = (max x, max y, the word at 0x00922eb8) over the four vertices.
+void XB_REGS3 XB_CDECL UIQuad_GetVertexMax(float* out, uint32_t unused_edx, const uint8_t* quad);
+// 0x00322d10: UIQuad_SetVertexAlpha with alpha times the vertex's alpha scale +0x30.
+void XB_REGS3 XB_STDCALL UIQuad_SetVertexAlphaScaled(uint8_t* quad, uint32_t unused_edx, int32_t vertex,
+                                                     float alpha);
+// 0x00332b90 (matrix in ECX, z in XMM2): vertex positions = the matrix (rows 16 bytes apart, row 3 = translation)
+// times (x, y, z) of each vertex (use_quad) or base point.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_ApplyMatrix(const float* matrix, float z, uint8_t* quad,
+                                                           uint32_t use_quad);
+extern "C" void UIQuad_ApplyMatrix_entry(void);
+
 }  // namespace game
