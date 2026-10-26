@@ -872,4 +872,535 @@ void XB_CDECL UIQuad_ApplyMatrix(const float* matrix, float z, uint8_t* quad, ui
     for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(screen_quad(quad), i, xs[i], ys[i]);
 }
 
+namespace {
+
+// The title's PtrVector {data, capacity, count}: Resize (0x00013970) takes the vector in ESI and the count in EBX,
+// PushBack (0x000138c0) the vector in ESI and a pointer to the value on the stack.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ui_ptrvector_resize(uint8_t* vector, uint32_t count);
+PLATFORM_ASM_ENTRY(ui_ptrvector_resize,
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "movl 12(%esp), %esi\n"
+                   "movl 16(%esp), %ebx\n"
+                   "movl $0x00013970, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "popl %ebx\n"
+                   "ret")
+
+extern "C" PLATFORM_HIDDEN void XB_CDECL ui_ptrvector_push(uint8_t* vector, uint8_t* const* value);
+PLATFORM_ASM_ENTRY(ui_ptrvector_push,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x000138c0, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+void z_free(void* pointer) { title_function<void XB_CDECL(void*)>(0x000428d0)(pointer); }
+
+uint32_t quad_count(uint8_t* picture) { return field<uint32_t>(picture, 0x28); }
+uint8_t* picture_quad(uint8_t* picture, uint32_t i) { return field<uint8_t**>(picture, 0x20)[i]; }
+
+// A new UI quad block (0xa8 bytes): base points = the word at 0x00922eb8, nglInitQuad, +0xa4 = 1. Null when the
+// allocation fails.
+uint8_t* new_quad() {
+    uint8_t* const quad = static_cast<uint8_t*>(z_malloc(0xa8));
+    if (!quad) return nullptr;
+    const uint32_t c = title_global<uint32_t>(0x00922eb8);
+    for (uint32_t i = 0; i < 12; ++i) field<uint32_t>(quad, i * 4) = c;
+    nglInitQuad(screen_quad(quad));
+    quad[0xa4] = 1;
+    return quad;
+}
+
+// The picture's centre +0x14 = the centre of its bounds.
+void set_centre_from_bounds(uint8_t* picture) {
+    float min_buffer[3], max_buffer[3];
+    const float* const min = UIPicture_GetBoundsMin(picture, min_buffer);
+    const float* const max = UIPicture_GetBoundsMax(picture, max_buffer);
+    const float half = g(0x0083eb24);  // 0.5
+    field<float>(picture, 0x14) = (max[0] - min[0]) * half + min[0];
+    field<float>(picture, 0x18) = (max[1] - min[1]) * half + min[1];
+    field<float>(picture, 0x1c) = (max[2] - min[2]) * half + min[2];
+}
+
+void scale_x(uint8_t* picture, float scale, float cx) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i) {
+        NglQuad* const q = screen_quad(picture_quad(picture, i));
+        for (int32_t v = 0; v < 4; ++v) q->verts[v].x = (q->verts[v].x - cx) * scale + cx;
+    }
+    field<float>(picture, 0x14) = (field<float>(picture, 0x14) - cx) * scale + cx;
+}
+
+}  // namespace
+
+long double XB_THISCALL UIPicture_GetWidth(uint8_t* picture) {
+    float max_buffer[3], min_buffer[3];
+    const float* const max = UIPicture_GetBoundsMax(picture, max_buffer);
+    const float* const min = UIPicture_GetBoundsMin(picture, min_buffer);
+    return static_cast<long double>(max[0]) - min[0];
+}
+
+long double XB_THISCALL UIPicture_GetHeight(uint8_t* picture) {
+    float max_buffer[3], min_buffer[3];
+    const float* const max = UIPicture_GetBoundsMax(picture, max_buffer);
+    const float* const min = UIPicture_GetBoundsMin(picture, min_buffer);
+    return static_cast<long double>(max[1]) - min[1];
+}
+
+void XB_THISCALL UIPicture_SetRect(uint8_t* picture, float x0, float y0, float x1, float y1) {
+    float ys[4] = {y0, y0, y1, y1};
+    float xs[4] = {x0, x1, x0, x1};
+    method<void XB_THISCALL(uint8_t*, const float*, const float*)>(picture, 0x88)(picture, xs, ys);
+}
+
+PLATFORM_ASM_ENTRY(UIPicture_ScaleXForAspect_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIPicture_ScaleXForAspect) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL UIPicture_ScaleXForAspect(uint32_t widescreen, uint8_t* picture, float cx) {
+    const float scale = uint8_t(widescreen) ? g(0x0083eb58) : g(0x0083eb80);  // 0.75 : 4/3
+    scale_x(picture, scale, cx);
+}
+
+void XB_THISCALL UIPicture_SetDepth(uint8_t* picture, float depth) {
+    field<float>(picture, 8) = depth;
+    for (uint32_t i = 0; i < quad_count(picture); ++i) nglSetQuadZ(screen_quad(picture_quad(picture, i)), depth);
+}
+
+void XB_THISCALL UIPicture_SetQuadFlags(uint8_t* picture, uint32_t flags) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i) nglSetQuadFlags(screen_quad(picture_quad(picture, i)), flags);
+}
+
+void XB_THISCALL UIPicture_SetTexture(uint8_t* picture, void* texture) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i)
+        nglSetQuadTexture(screen_quad(picture_quad(picture, i)), static_cast<NglTexture*>(texture));
+}
+
+PLATFORM_ASM_ENTRY(UIPicture_Dtor_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(UIPicture_Dtor) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL UIPicture_Dtor(uint8_t* picture) {
+    field<uint32_t>(picture, 0) = 0x0082a2c0;
+    void* const texture = field<void*>(picture_quad(picture, 0), 0xa0);
+    if (texture) nglReleaseTexture(texture);
+    for (int32_t i = 0; i < field<int32_t>(picture, 0x28); ++i) z_free(picture_quad(picture, uint32_t(i)));
+    ui_ptrvector_resize(picture + 0x20, 0);
+    z_free(field<void*>(picture, 0x2c));
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(picture + 0x3c);  // ScriptString_Release
+    if (field<uint8_t*>(picture, 0x20)) {
+        Mem_AlignedFree(field<uint8_t*>(picture, 0x20));
+        field<uint8_t*>(picture, 0x20) = nullptr;
+    }
+    field<uint32_t>(picture, 0) = 0x00829244;
+}
+
+void XB_THISCALL UIPicture_CopyFrom(uint8_t* picture, uint8_t* source) {
+    field<uint32_t>(picture, 4) = field<uint32_t>(source, 4);
+    field<uint32_t>(picture, 8) = field<uint32_t>(source, 8);
+    field<uint32_t>(picture, 0xc) = field<uint32_t>(source, 0xc);
+    picture[0x10] = source[0x10];
+    title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(picture + 0x3c, source + 0x3c);  // ScriptString_Assign
+    field<uint32_t>(picture, 0x30) = field<uint32_t>(source, 0x30);
+    field<uint32_t>(picture, 0x34) = field<uint32_t>(source, 0x34);
+    field<uint32_t>(picture, 0x38) = field<uint32_t>(source, 0x38);
+    if (field<uint8_t*>(source, 0x2c)) {
+        uint8_t* const block = static_cast<uint8_t*>(z_malloc(0x34));
+        if (block) platform_rep_movs(block, field<uint8_t*>(source, 0x2c), 0x34);
+        field<uint8_t*>(picture, 0x2c) = block;
+    } else {
+        field<uint8_t*>(picture, 0x2c) = nullptr;
+    }
+    for (int32_t i = 0; i < field<int32_t>(source, 0x28); ++i) {
+        uint8_t* quad = static_cast<uint8_t*>(z_malloc(0xa8));
+        if (quad) platform_rep_movs(quad, picture_quad(source, uint32_t(i)), 0xa8);
+        ui_ptrvector_push(picture + 0x20, &quad);
+    }
+    field<uint32_t>(picture, 0x14) = field<uint32_t>(source, 0x14);
+    field<uint32_t>(picture, 0x18) = field<uint32_t>(source, 0x18);
+    field<float>(picture, 0x1c) = 0.0f;
+}
+
+PLATFORM_ASM_ENTRY(UIPicture_Init_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIPicture_Init) "addl $8, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL UIPicture_Init(uint8_t* picture, const char* name) {
+    field<float>(picture, 4) = g(0x0083eb20);  // 1.0
+    picture[0x10] = 4;
+    field<uint32_t>(picture, 0) = 0x0082a2c0;
+    const uint32_t c = title_global<uint32_t>(0x00922eb8);
+    field<uint32_t>(picture, 0x14) = c;
+    field<uint32_t>(picture, 0x18) = c;
+    field<uint32_t>(picture, 0x1c) = c;
+    field<uint32_t>(picture, 0x20) = 0;
+    field<uint32_t>(picture, 0x24) = 0;
+    field<uint32_t>(picture, 0x28) = 0;
+    ScriptString* const string = reinterpret_cast<ScriptString*>(picture + 0x3c);
+    ScriptString_FromRep(string, nullptr);
+    title_function<void XB_THISCALL(ScriptString*, const char*)>(0x0011dd20)(string, name);  // ScriptString_AssignCString
+    field<float>(picture, 0x14) = 0.0f;
+    field<float>(picture, 0x18) = 0.0f;
+    field<uint32_t>(picture, 0x2c) = 0;
+    field<float>(picture, 0x1c) = 0.0f;
+    field<float>(picture, 0x30) = 0.0f;
+    field<float>(picture, 0x34) = g(0x0083eb20);
+    field<float>(picture, 0x38) = g(0x0083eb20);
+    return picture;
+}
+
+PLATFORM_ASM_ENTRY(UIMeshList_ScaleXForAspect_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(UIMeshList_ScaleXForAspect) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL UIMeshList_ScaleXForAspect(uint32_t widescreen, uint8_t* list, float cx) {
+    for (int32_t i = 0; i < field<int32_t>(list, 8); ++i) {
+        const float scale = uint8_t(widescreen) ? g(0x0083eb58) : g(0x0083eb80);
+        scale_x(field<uint8_t**>(list, 0)[i], scale, cx);
+    }
+}
+
+uint8_t* XB_REGS3 XB_CDECL UIWorldPicture_Construct(const char* name, uint32_t, uint8_t* picture) {
+    UIPicture_Init(picture, name);
+    const uint32_t c = title_global<uint32_t>(0x00922eb8);
+    field<uint32_t>(picture, 0) = 0x00828df8;
+    field<uint32_t>(picture, 0x40) = c;
+    field<uint32_t>(picture, 0x44) = c;
+    field<uint32_t>(picture, 0x48) = c;
+    field<float>(picture, 0x40) = 0.0f;
+    field<float>(picture, 0x44) = 0.0f;
+    field<float>(picture, 0x48) = 0.0f;
+    return picture;
+}
+
+void XB_THISCALL UIPicture_SetAlpha(uint8_t* picture, float alpha) {
+    if (quad_count(picture) == 0) return;
+    const uint32_t a = uint32_t(platform_x87_mul_ftol(alpha, g(0x0083eb8c))) & 0xff;  // 255.0
+    for (uint32_t i = 0; i < quad_count(picture); ++i) {
+        for (int32_t v = 0; v < 4; ++v) {
+            NglQuad* const q = screen_quad(picture_quad(picture, i));
+            nglSetQuadVertexColor(q, v, a << 24 | (q->verts[v].color & 0x00ffffff));
+        }
+    }
+}
+
+void XB_THISCALL UIPicture_SetColorRGB(uint8_t* picture, uint32_t color) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i)
+        for (int32_t v = 0; v < 4; ++v) UIQuad_SetVertexColor(v, 0, picture_quad(picture, i), color);
+}
+
+void XB_THISCALL UIWorldPicture_UpdateScreenPos(uint8_t* picture) {
+    // The position (x, y, z) with x again in the w lane; the result buffer starts as a copy of it.
+    alignas(16) float point[4], out[4];
+    point[0] = field<float>(picture, 0x40);
+    point[1] = field<float>(picture, 0x44);
+    point[2] = field<float>(picture, 0x48);
+    point[3] = point[0];
+    std::memcpy(out, point, sizeof out);
+    nglProjectPointCopy(out, point);
+    method<void XB_THISCALL(uint8_t*, float, float)>(picture, 0x8c)(picture, out[0], out[1]);
+}
+
+PLATFORM_ASM_ENTRY(UIPicture_GetBoundsMin_entry,
+                   "subl $32, %esp\n"
+                   "movups %xmm6, (%esp)\n"
+                   "movups %xmm7, 16(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIPicture_GetBoundsMin) "addl $8, %esp\n"
+                   "movups (%esp), %xmm6\n"
+                   "movups 16(%esp), %xmm7\n"
+                   "addl $32, %esp\n"
+                   "ret $4")
+
+float* XB_CDECL UIPicture_GetBoundsMin(uint8_t* picture, float* out) {
+    uint8_t* const* const quads = field<uint8_t**>(picture, 0x20);
+    float m[3];
+    UIQuad_GetVertexMin(m, 0, quads[0]);
+    float x = m[0], y = m[1];
+    const uint32_t count = quad_count(picture);
+    for (uint32_t i = 1; i < count; ++i) {
+        UIQuad_GetVertexMin(m, 0, quads[i]);
+        if (x > m[0]) x = m[0];
+        if (y > m[1]) y = m[1];
+    }
+    out[0] = x;
+    out[1] = y;
+    field<uint32_t>(reinterpret_cast<uint8_t*>(out), 8) = title_global<uint32_t>(0x00922eb8);
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(UIPicture_GetBoundsMax_entry,
+                   "subl $32, %esp\n"
+                   "movups %xmm6, (%esp)\n"
+                   "movups %xmm7, 16(%esp)\n"
+                   "pushl 36(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIPicture_GetBoundsMax) "addl $8, %esp\n"
+                   "movups (%esp), %xmm6\n"
+                   "movups 16(%esp), %xmm7\n"
+                   "addl $32, %esp\n"
+                   "ret $4")
+
+float* XB_CDECL UIPicture_GetBoundsMax(uint8_t* picture, float* out) {
+    uint8_t* const* const quads = field<uint8_t**>(picture, 0x20);
+    float m[3];
+    UIQuad_GetVertexMax(m, 0, quads[0]);
+    float x = m[0], y = m[1];
+    const uint32_t count = quad_count(picture);
+    for (uint32_t i = 1; i < count; ++i) {
+        UIQuad_GetVertexMax(m, 0, quads[i]);
+        if (m[0] > x) x = m[0];
+        if (m[1] > y) y = m[1];
+    }
+    out[0] = x;
+    out[1] = y;
+    field<uint32_t>(reinterpret_cast<uint8_t*>(out), 8) = title_global<uint32_t>(0x00922eb8);
+    return out;
+}
+
+void XB_THISCALL UIPicture_ResetTransform(uint8_t* picture) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i) UIQuad_ResetPositions(picture_quad(picture, i));
+    set_centre_from_bounds(picture);
+    field<float>(picture, 0x34) = g(0x0083eb20);
+    field<float>(picture, 0x38) = g(0x0083eb20);
+    field<float>(picture, 0x30) = 0.0f;
+}
+
+void XB_THISCALL UIPicture_SetQuadCorners(uint8_t* picture, const float* xs, const float* ys) {
+    const float max_y = max4(ys[0], ys[1], ys[2], ys[3]);
+    const float max_x = max4(xs[0], xs[1], xs[2], xs[3]);
+    const float min_y = min4(ys[0], ys[1], ys[2], ys[3]);
+    const float min_x = min4(xs[0], xs[1], xs[2], xs[3]);
+    const uint32_t count = quad_count(picture);
+    if (count == 1) {
+        UIQuad_SetVertexPositions(xs, picture_quad(picture, 0), ys);
+    } else {
+        // Every vertex mapped from the current bounds onto the box of (xs, ys).
+        float max_buffer[3], min_buffer[3];
+        UIPicture_GetBoundsMax(picture, max_buffer);
+        UIPicture_GetBoundsMin(picture, min_buffer);
+        const float height = max_buffer[1] - min_buffer[1];
+        const float to_width = max_x - min_x;
+        const float to_height = max_y - min_y;
+        const float width = max_buffer[0] - min_buffer[0];
+        if (count != 0) {
+            const float inv_height = g(0x0083eb20) / height;
+            const float inv_width = g(0x0083eb20) / width;
+            for (uint32_t i = 0; i < quad_count(picture); ++i) {
+                NglQuad* const q = screen_quad(picture_quad(picture, i));
+                float nx[4], ny[4];
+                for (int32_t v = 0; v < 4; ++v) {
+                    nx[v] = (q->verts[v].x - min_buffer[0]) * inv_width * to_width + min_x;
+                    ny[v] = (q->verts[v].y - min_buffer[1]) * inv_height * to_height + min_y;
+                }
+                for (int32_t v = 0; v < 4; ++v) nglSetQuadVertexPos(q, v, nx[v], ny[v]);
+            }
+        }
+    }
+    const float half = g(0x0083eb24);
+    field<float>(picture, 0x14) = (max_x - min_x) * half + min_x;
+    field<float>(picture, 0x18) = (max_y - min_y) * half + min_y;
+    field<float>(picture, 0x1c) = 0.0f;
+}
+
+void XB_THISCALL UIPicture_SetVertexScaledAlpha(uint8_t* picture, float alpha) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i) {
+        for (int32_t v = 0; v < 4; ++v) {
+            uint8_t* const quad = picture_quad(picture, i);
+            const uint32_t old = screen_quad(quad)->verts[v].color;
+            // FLD alpha, FMUL scale, FMUL 255 on the x87, then _ftol.
+            const long double product = static_cast<long double>(alpha) * field<float>(quad, 0x30 + uint32_t(v) * 4) *
+                                        static_cast<long double>(g(0x0083eb8c));
+            const uint32_t a = uint32_t(int32_t(int64_t(product))) & 0xff;
+            nglSetQuadVertexColor(screen_quad(quad), v, a << 24 | (old & 0x00ffffff));
+        }
+    }
+}
+
+void XB_THISCALL UIPicture_AddQuad(uint8_t* picture, const float* points, const uint32_t* colors, uint32_t a3,
+                                   uint32_t a4, const char* texture) {
+    method<void XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(picture, 0x1c)(picture, a4, a3);
+    const float one = g(0x0083eb20);
+    float uvs[12] = {0.0f, 0.0f, 0.0f, one, 0.0f, 0.0f, 0.0f, one, 0.0f, one, one, 0.0f};
+    uint8_t* quad = new_quad();
+    // 0x003173e0 (quad in EAX, points in ECX; UVs, colours, depth on the stack): fills the quad.
+    title_function<void XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, const float*, const float*, const uint32_t*,
+                                            uint32_t)>(0x003173e0)(quad, 0, points, uvs, colors,
+                                                                   field<uint32_t>(picture, 8));
+    ui_ptrvector_push(picture + 0x20, &quad);
+    if (texture && *texture) {
+        // 0x00322b30 (name in ESI): the texture, the language-prefixed one first.
+        const uint32_t found = title_call_regs(0x00322b30, 0, address_of(texture), 0);
+        method<void XB_THISCALL(uint8_t*, uint32_t)>(picture, 0x68)(picture, found);
+    }
+    set_centre_from_bounds(picture);
+}
+
+void XB_THISCALL UIPicture_SetTransform(uint8_t* picture, const float* matrix, float alpha) {
+    for (uint32_t i = 0; i < quad_count(picture); ++i)
+        UIQuad_ApplyMatrix(matrix, field<float>(picture, 8), picture_quad(picture, i), picture[0x10] & 1);
+    if (picture[0x10] & 1)
+        method<void XB_THISCALL(uint8_t*, float)>(picture, 0x7c)(picture, field<float>(picture, 4) * alpha);
+    else
+        method<void XB_THISCALL(uint8_t*, float)>(picture, 0x7c)(picture, alpha);
+    picture[0x10] |= 1;
+}
+
+namespace {
+
+// Calls a title function that takes EDI and three cdecl stack words.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ui_call_edi3(uint32_t function, uint32_t edi, uint32_t a, uint32_t b,
+                                                         uint32_t c);
+PLATFORM_ASM_ENTRY(ui_call_edi3,
+                   "pushl %edi\n"
+                   "movl 12(%esp), %edi\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "call *20(%esp)\n"
+                   "addl $12, %esp\n"
+                   "popl %edi\n"
+                   "ret")
+
+// Little-endian reads from the mesh data at *offset, advancing it.
+int32_t read_s16(const uint8_t* data, uint32_t* offset) {
+    const uint32_t o = *offset;
+    *offset = o + 2;
+    return int16_t(uint16_t(data[o] | data[o + 1] << 8));
+}
+uint32_t read_u32(const uint8_t* data, uint32_t* offset) {
+    const uint32_t o = *offset;
+    *offset = o + 4;
+    return uint32_t(data[o]) | uint32_t(data[o + 1]) << 8 | uint32_t(data[o + 2]) << 16 | uint32_t(data[o + 3]) << 24;
+}
+
+void* heap_alloc16(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c30)(size); }
+
+}  // namespace
+
+void XB_THISCALL UIPicture_LoadMesh(uint8_t* picture, const uint8_t* materials, const uint8_t* data, uint32_t* offset,
+                                    const float* matrix) {
+    const uint8_t* const material = materials + read_s16(data, offset) * 16;
+    const int32_t count = read_s16(data, offset);
+    const uint32_t c = title_global<uint32_t>(0x00922eb8);
+    uint32_t* const positions = static_cast<uint32_t*>(heap_alloc16(uint32_t(count) * 12));
+    if (positions)
+        for (int32_t i = 0; i < count * 3; ++i) positions[i] = c;
+    uint32_t* const colors = static_cast<uint32_t*>(heap_alloc16(uint32_t(count) * 4));
+    if (colors)
+        for (int32_t i = 0; i < count; ++i) colors[i] = 0;
+    uint32_t* const uvs = static_cast<uint32_t*>(heap_alloc16(uint32_t(count) * 12));
+    if (uvs)
+        for (int32_t i = 0; i < count * 3; ++i) uvs[i] = c;
+    // Per vertex: position (3 floats), colour (bytes R, G, B, A -> ARGB, modulated by the material colour +0x08),
+    // u, v.
+    for (int32_t i = 0; i < count; ++i) {
+        for (int32_t k = 0; k < 3; ++k) positions[i * 3 + k] = read_u32(data, offset);
+        const uint32_t o = *offset;
+        const uint32_t color = uint32_t(data[o + 3]) << 24 | uint32_t(data[o]) << 16 | uint32_t(data[o + 1]) << 8 |
+                               uint32_t(data[o + 2]);
+        *offset = o + 4;
+        colors[i] = color;
+        uint32_t modulated;
+        colors[i] = *reinterpret_cast<uint32_t*>(
+            Color_Modulate(0, 0, reinterpret_cast<uint8_t*>(&modulated), color, field<uint32_t>(const_cast<uint8_t*>(material), 8)));
+        uvs[i * 3] = read_u32(data, offset);
+        uvs[i * 3 + 1] = read_u32(data, offset);
+    }
+    *offset += 2;
+    const int32_t index_count = read_s16(data, offset);
+    uint16_t* const indices = static_cast<uint16_t*>(heap_alloc16(uint32_t(index_count) * 2));
+    for (int32_t i = 0; i < index_count; ++i) indices[i] = uint16_t(read_s16(data, offset));
+    const int32_t triangles = index_count / 3;
+    float m[16];
+    std::memcpy(m, matrix, sizeof m);
+    uint32_t quad_colors[4] = {0, 0, 0, 0};
+    uint32_t base[12], screen[12], quad_uvs[12];
+    for (int32_t i = 0; i < 12; ++i) {
+        base[i] = c;
+        screen[i] = c;
+        quad_uvs[i] = c;
+    }
+    float depth = 0.0f;
+    // The quad's four position indices; Panel_TrianglePairToQuad may leave words of it as they were.
+    int32_t corners[4] = {0, 0, 0, 0};
+    const uint16_t* triangle = indices;
+    for (int32_t i = 0; i < triangles; ++i, triangle += 3) {
+        // Two triangles sharing an edge (0x003101d0: EDI = this triangle, the next one's index) make one quad.
+        if (i + 1 < triangles && ui_call_edi3(0x003101d0, uint32_t(i), address_of(indices), uint32_t(i + 1),
+                                              address_of(corners)) == 2) {
+            ++i;
+            triangle += 3;
+        } else {
+            corners[0] = int16_t(triangle[0]);
+            corners[1] = int16_t(triangle[1]);
+            corners[2] = int16_t(triangle[2]);
+            corners[3] = int16_t(triangle[2]);
+        }
+        for (int32_t k = 0; k < 4; ++k) {
+            const uint32_t* const p = positions + corners[k] * 3;
+            base[k * 3] = p[0];
+            base[k * 3 + 1] = p[1];
+            float x, y, z;
+            std::memcpy(&x, &p[0], 4);
+            std::memcpy(&y, &p[1], 4);
+            std::memcpy(&z, &p[2], 4);
+            // All four lanes of the packed transform (MXCSR flags): row 3 + x * row 0 + y * row 1 + z * row 2.
+            float r[4];
+            for (int32_t lane = 0; lane < 4; ++lane) {
+                const float px = m[lane] * x;
+                const float py = m[4 + lane] * y;
+                const float pz = m[8 + lane] * z;
+                float s = m[12 + lane];
+                s += px;
+                s += py;
+                s += pz;
+                r[lane] = s;
+            }
+            platform_keep(r);
+            std::memcpy(&screen[k * 3], &r[0], 8);
+            depth = r[2];
+            const uint32_t* const uv = uvs + corners[k] * 3;
+            quad_uvs[k * 3] = uv[0];
+            quad_uvs[k * 3 + 1] = uv[1];
+            quad_uvs[k * 3 + 2] = uv[2];
+            quad_colors[k] = colors[corners[k]];
+        }
+        uint8_t* quad = new_quad();
+        uint32_t depth_bits;
+        std::memcpy(&depth_bits, &depth, 4);
+        title_function<void XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, const uint32_t*, const uint32_t*, const uint32_t*,
+                                                uint32_t)>(0x003173e0)(quad, 0, screen, quad_uvs, quad_colors,
+                                                                       depth_bits);
+        for (int32_t k = 0; k < 12; ++k) field<uint32_t>(quad, uint32_t(k) * 4) = base[k];
+        ui_ptrvector_push(picture + 0x20, &quad);
+    }
+    method<void XB_THISCALL(uint8_t*, float)>(picture, 0x24)(picture, depth);
+    // Material +0x0c: use its texture +0x00; +0x0d: quad flag 2; +0x0e / +0x0f clear: flags 0x40 / 0x80.
+    uint32_t flags = material[0xd] ? 2 : 0;
+    if (!material[0xe]) flags |= 0x40;
+    if (!material[0xf]) flags |= 0x80;
+    uint32_t* const texture = *reinterpret_cast<uint32_t* const*>(material);
+    if (texture && material[0xc]) {
+        method<void XB_THISCALL(uint8_t*, uint32_t*)>(picture, 0x68)(picture, texture);
+        nglAddRef(*reinterpret_cast<uint32_t* const*>(material));
+    }
+    if (flags) method<void XB_THISCALL(uint8_t*, uint32_t)>(picture, 0x6c)(picture, flags);
+    z_free(positions);
+    z_free(uvs);
+    z_free(colors);
+    z_free(indices);
+    set_centre_from_bounds(picture);
+}
+
 }  // namespace game

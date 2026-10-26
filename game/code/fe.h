@@ -178,4 +178,77 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_ApplyMatrix(const float* matrix,
                                                            uint32_t use_quad);
 extern "C" void UIQuad_ApplyMatrix_entry(void);
 
+// UI pictures (vtable 0x0082a2c0, a UI element): +0x14 centre (x, y, z), +0x20 the quads (PtrVector: data,
+// capacity, count; 0xa8-byte UI quad blocks, +0xa4 = 1 from the allocators), +0x2c an owned 0x34-byte block, +0x30
+// 0 and +0x34 / +0x38 1.0 (reset by UIPicture_ResetTransform), +0x3c the name (ScriptString). Flags bit 0: a
+// transform was applied. vtable slots: +0x1c (two words), +0x24 (one word), +0x68 set texture, +0x6c set quad
+// flags, +0x78 set alpha, +0x7c set alpha times the vertex alpha scales, +0x88 set corners (xs, ys). World
+// pictures (vtable 0x00828df8) add a world position at +0x40 and slot +0x8c (x, y) to place them on screen.
+// 0x00011a90 / 0x00011ac0: the bounds' width / height (x87).
+long double XB_THISCALL UIPicture_GetWidth(uint8_t* picture);
+long double XB_THISCALL UIPicture_GetHeight(uint8_t* picture);
+// 0x00310110: corners (x0, y0), (x1, y0), (x0, y1), (x1, y1) through vtable +0x88.
+void XB_THISCALL UIPicture_SetRect(uint8_t* picture, float x0, float y0, float x1, float y1);
+// 0x003166a0 (picture in EDX, centre x in XMM0): every vertex x and the centre x scaled about the centre by 0.75
+// (AL set) or 4/3.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIPicture_ScaleXForAspect(uint32_t widescreen, uint8_t* picture, float cx);
+extern "C" void UIPicture_ScaleXForAspect_entry(void);
+// 0x003169c0: the depth +0x08 and every quad's z.
+void XB_THISCALL UIPicture_SetDepth(uint8_t* picture, float depth);
+// 0x00316a10 / 0x00316a50: every quad's flags / texture.
+void XB_THISCALL UIPicture_SetQuadFlags(uint8_t* picture, uint32_t flags);
+void XB_THISCALL UIPicture_SetTexture(uint8_t* picture, void* texture);
+// 0x00316ec0 (picture in EDI): releases the first quad's texture, frees the quads, the block +0x2c, the name and
+// the quad array; the vtable back to the UI element's (0x00829244).
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIPicture_Dtor(uint8_t* picture);
+extern "C" void UIPicture_Dtor_entry(void);
+// 0x00316f40: copies the element fields, name, transform, block +0x2c and quads (new copies appended) of `source`;
+// the centre from the source's x, y with z 0.
+void XB_THISCALL UIPicture_CopyFrom(uint8_t* picture, uint8_t* source);
+// 0x00317050 (picture in ESI; name on the stack, ret 4): the picture constructor. Returns the picture.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL UIPicture_Init(uint8_t* picture, const char* name);
+extern "C" void UIPicture_Init_entry(void);
+// 0x003216e0 (list in EDI: +0 data, +8 count; flag in BL, centre x in XMM0): UIPicture_ScaleXForAspect on every
+// picture of the list.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIMeshList_ScaleXForAspect(uint32_t widescreen, uint8_t* list, float cx);
+extern "C" void UIMeshList_ScaleXForAspect_entry(void);
+// 0x00321830 (picture in ECX, name in EAX): UIPicture_Init, then the world picture vtable and position 0.
+uint8_t* XB_REGS3 XB_CDECL UIWorldPicture_Construct(const char* name, uint32_t unused_edx, uint8_t* picture);
+// 0x00321890: every vertex's alpha byte = alpha * 255.
+void XB_THISCALL UIPicture_SetAlpha(uint8_t* picture, float alpha);
+// 0x00321940: every vertex's RGB, keeping its alpha.
+void XB_THISCALL UIPicture_SetColorRGB(uint8_t* picture, uint32_t color);
+// 0x0032c190: the world position projected (nglProjectPointCopy) and handed to vtable +0x8c.
+void XB_THISCALL UIWorldPicture_UpdateScreenPos(uint8_t* picture);
+// 0x0032c200 / 0x0032c430 (picture in EAX; out on the stack, ret 4; keep XMM6/XMM7, SetQuadCorners relies on
+// them): out = (min / max x, min / max y, the word at 0x00922eb8) over all quads' vertices. Return out.
+extern "C" PLATFORM_HIDDEN float* XB_CDECL UIPicture_GetBoundsMin(uint8_t* picture, float* out);
+extern "C" void UIPicture_GetBoundsMin_entry(void);
+extern "C" PLATFORM_HIDDEN float* XB_CDECL UIPicture_GetBoundsMax(uint8_t* picture, float* out);
+extern "C" void UIPicture_GetBoundsMax_entry(void);
+// 0x0032c660: every quad back to its base points; centre = the bounds' centre, +0x30 = 0, +0x34 / +0x38 = 1.0.
+void XB_THISCALL UIPicture_ResetTransform(uint8_t* picture);
+// 0x0032c770: one quad: its vertices = (xs, ys); several: every vertex mapped from the current bounds onto the
+// bounding box of (xs, ys). The centre = that box's centre (z 0).
+void XB_THISCALL UIPicture_SetQuadCorners(uint8_t* picture, const float* xs, const float* ys);
+// 0x0032cad0: every vertex's alpha byte = alpha * its alpha scale (+0x30) * 255 (x87).
+void XB_THISCALL UIPicture_SetVertexScaledAlpha(uint8_t* picture, float alpha);
+// 0x0032cba0: vtable +0x1c (a4, a3), then a new quad (0x003173e0: points, colours, unit UVs, the depth) appended;
+// with a texture name the localized texture (0x00322b30) through vtable +0x68; the centre = the bounds' centre.
+void XB_THISCALL UIPicture_AddQuad(uint8_t* picture, const float* points, const uint32_t* colors, uint32_t a3,
+                                   uint32_t a4, const char* texture);
+// 0x00332390: one mesh from the data at *offset (advanced; little-endian): material index (16-byte records:
+// +0x00 texture, +0x08 colour, +0x0c use the texture, +0x0d quad flag 2, +0x0e / +0x0f clear: flags 0x40 / 0x80),
+// vertex count, per vertex position (3 floats), RGBA colour (modulated by the material's), u, v; 2 skipped bytes,
+// index count and 16-bit indices. Triangles sharing an edge with the next (0x003101d0) become one quad, others a
+// quad with the third corner twice; corners through the matrix (row 3 = translation; the last z is the depth,
+// vtable +0x24), the positions as the base points. Then the material's texture (+0x68, nglAddRef), flags (+0x6c)
+// and the centre.
+void XB_THISCALL UIPicture_LoadMesh(uint8_t* picture, const uint8_t* materials, const uint8_t* data,
+                                    uint32_t* offset, const float* matrix);
+// 0x00337460: every quad through the matrix (UIQuad_ApplyMatrix at the depth; from the vertices once flags bit 0
+// is set, else from the base points), then vtable +0x7c with alpha (times the fade alpha +0x04 once bit 0 is set);
+// sets bit 0.
+void XB_THISCALL UIPicture_SetTransform(uint8_t* picture, const float* matrix, float alpha);
+
 }  // namespace game
