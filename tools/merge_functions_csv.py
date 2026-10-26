@@ -37,6 +37,7 @@ def resolve_table():
         lines = [line for line in (match.group(1) + match.group(2)).split("\n") if line.strip()]
         if not all(re.search(r"0x[0-9a-f]+", line) for line in lines):
             sys.exit("functions.cpp: a conflict outside the kFunctions rows, resolve it yourself")
+        lines = list(dict.fromkeys(lines))  # a row on both sides once
         lines.sort(key=lambda line: int(re.search(r"0x([0-9a-f]+)", line).group(1), 16))
         return "\n".join(lines) + "\n"
 
