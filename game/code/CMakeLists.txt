@@ -40,6 +40,7 @@ set(game_code_sources
     sv.cpp
     tr_main.cpp
     ui_menu.cpp
+    ui_panel.cpp
     unzip.cpp
 )
 # Linux loader builds: a shared library, so that the comparison harness can tell this
