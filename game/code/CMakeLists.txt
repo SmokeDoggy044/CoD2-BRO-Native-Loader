@@ -13,6 +13,7 @@ set(game_code_sources
     dobj.cpp
     fe.cpp
     fe_menus.cpp
+    fe_options.cpp
     functions.cpp
     fx.cpp
     fx_cmd.cpp

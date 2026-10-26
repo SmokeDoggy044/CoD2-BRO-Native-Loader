@@ -2,8 +2,8 @@
 """Resolves a merge conflict in tools/data/functions.csv: each function's counts become
 base + (ours - base) + (theirs - base), so test results recorded on both branches add
 up; the other columns (status, last_issue) come from the side whose counts changed
-last (theirs when both changed). Conflicts in game/code/functions.cpp's kFunctions table
-(each side added rows at the same place) keep both sides' rows in address order.
+last (theirs when both changed). Conflicts where each side only added list lines (functions.cpp's kFunctions rows and
+#includes, game/code/CMakeLists.txt's sources) keep both sides' lines.
 
 usage: tools/merge_functions_csv.py [THEIRS]   (during a conflicted `git merge THEIRS`;
        default MERGE_HEAD) - writes the merged file and `git add`s it
@@ -27,24 +27,39 @@ def load(rev):
     return {row["address"]: row for row in rows}, list(rows[0].keys()) if rows else []
 
 
-def resolve_table():
-    path = ROOT / "game" / "code" / "functions.cpp"
-    text = path.read_text()
-    if "<<<<<<< " not in text:
-        return
+def resolve_lists():
+    """Conflicts where both sides only added list lines - kFunctions rows (address order),
+    #include lines or CMake source files (name order) - keep both sides' lines once."""
+    kinds = [(ROOT / "game" / "code" / "functions.cpp", True), (ROOT / "game" / "code" / "CMakeLists.txt", False)]
+    for path, table in kinds:
+        text = path.read_text()
+        if "<<<<<<< " not in text:
+            continue
 
-    def both(match):
-        lines = [line for line in (match.group(1) + match.group(2)).split("\n") if line.strip()]
-        if not all(re.search(r"0x[0-9a-f]+", line) for line in lines):
-            sys.exit("functions.cpp: a conflict outside the kFunctions rows, resolve it yourself")
-        lines = list(dict.fromkeys(lines))  # a row on both sides once
-        lines.sort(key=lambda line: int(re.search(r"0x([0-9a-f]+)", line).group(1), 16))
-        return "\n".join(lines) + "\n"
+        def both(match):
+            lines = list(dict.fromkeys(line for line in (match.group(1) + match.group(2)).split("\n") if line.strip()))
+            if all(re.search(r"^\s*\{\"\w+\", 0x[0-9a-f]+", line) for line in lines):
+                lines.sort(key=lambda line: int(re.search(r"0x([0-9a-f]+)", line).group(1), 16))
+            elif all(line.startswith("#include ") for line in lines) or (
+                    not table and all(re.fullmatch(r"\s+[\w/]+\.cpp", line) for line in lines)):
+                lines.sort()
+            else:
+                sys.exit(f"{path.name}: a conflict that is not only added list lines, resolve it yourself")
+            return "\n".join(lines) + "\n"
 
-    text, count = re.subn(r"<<<<<<< [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n", both, text, flags=re.S)
-    path.write_text(text)
-    subprocess.run(["git", "-C", str(ROOT), "add", str(path)], check=True)
-    print(f"functions.cpp: {count} table conflicts resolved")
+        text, count = re.subn(r"<<<<<<< [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n", both, text, flags=re.S)
+        if table:  # a row one side removed as a duplicate can come back from the other
+            seen, out = set(), []
+            for line in text.split("\n"):
+                if re.match(r"^\s*\{\"\w+\", 0x[0-9a-f]+", line):
+                    if line in seen:
+                        continue
+                    seen.add(line)
+                out.append(line)
+            text = "\n".join(out)
+        path.write_text(text)
+        subprocess.run(["git", "-C", str(ROOT), "add", str(path)], check=True)
+        print(f"{path.name}: {count} conflicts resolved")
 
 
 def main():
@@ -74,7 +89,7 @@ def main():
     (ROOT / PATH).write_text("\n".join(lines) + "\n")
     subprocess.run(["git", "-C", str(ROOT), "add", PATH], check=True)
     print(f"merged {len(merged)} rows ({PATH})")
-    resolve_table()
+    resolve_lists()
 
 
 if __name__ == "__main__":
