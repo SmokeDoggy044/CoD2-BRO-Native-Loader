@@ -36,3 +36,20 @@ struct TitleRegs {
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_at_regs(uint32_t top, uint32_t function,
                                                             const game::TitleRegs* regs, uint32_t count,
                                                             const uint32_t* args);
+
+// While title_call_at* runs a callee at the original's position, the host frames below
+// that position (the caller's C frame under its entry's gap) stay live: the helpers keep
+// their lowest address as this thread's floor (game_floor_enter/leave), and an asm entry
+// moves its C frame below its gap with GAME_GAP_ESP, which also stays below the floor -
+// else an entry reached that way (our FX_FlushSpawnQueue calling our FX_SpawnQueuedEffect
+// at the original's ESP) put its C frame on its caller's. Keeps EAX, ECX and EDX.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_enter(uint32_t floor);
+extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed);
+// The registers are saved at the entry's own ESP (the title's dead stack below it), not
+// below the gap: that address can be a live host frame's when the floor applies.
+#define GAME_GAP_ESP(gap)                                                                 \
+    "pushl %eax\n pushl %ecx\n pushl %edx\n"                                              \
+    "leal 12-" gap "(%esp), %eax\n pushl %eax\n" PLATFORM_ASM_CALL(game_body_esp)         \
+    "movl %esp, %ecx\n movl %eax, %esp\n movl 4(%ecx), %edx\n movl 12(%ecx), %eax\n" \
+    "movl 8(%ecx), %ecx\n"

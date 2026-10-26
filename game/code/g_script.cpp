@@ -356,7 +356,7 @@ float* XB_STDCALL G_GetEntityMatrix(uint8_t* ent, float* out) {
 // addresses in .data (0x0098a4fc).
 PLATFORM_ASM_ENTRY(G_RunThink_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
                    "pushl %edi\n"

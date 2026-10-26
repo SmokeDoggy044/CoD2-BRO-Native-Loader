@@ -150,7 +150,7 @@ void XB_CDECL G_TraceCapsule(uint32_t results, uint32_t start, uint32_t mins, ui
 // base; push ebx, esi).
 PLATFORM_ASM_ENTRY(G_LocationalTrace_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
                    "pushl %edi\n"
@@ -502,7 +502,7 @@ uint8_t* XB_REGS1 XB_CDECL G_AddEvent(uint8_t* ent, uint32_t event, uint32_t par
 // registers, seven arguments); the C frame sits below a gap.
 PLATFORM_ASM_ENTRY(G_MissileTrace_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %edx, %ebp\n"
                    "pushl %edi\n"

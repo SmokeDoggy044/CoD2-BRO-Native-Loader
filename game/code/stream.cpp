@@ -753,7 +753,7 @@ uint32_t XB_CDECL Stream_LoadZbb(char*, uint8_t* data, uint32_t, uint32_t zone) 
 PLATFORM_ASM_ENTRY(Stream_LoadBpe_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 20(%ebp)\n"
                    "pushl 16(%ebp)\n"
                    "pushl 12(%ebp)\n"

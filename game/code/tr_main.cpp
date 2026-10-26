@@ -1949,6 +1949,24 @@ void XB_CDECL R_AddEntitySurfaces() {
     }
 }
 
+namespace {
+PLATFORM_TLS_FIXED thread_local uint32_t t_host_floor;  // title_data.h: game_floor_enter
+}  // namespace
+
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_enter(uint32_t floor) {
+    const uint32_t previous = t_host_floor;
+    t_host_floor = floor;
+    return previous;
+}
+
+extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous) { t_host_floor = previous; }
+
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed) {
+    constexpr uint32_t kMargin = 256;  // the helper's own pushes below its floor
+    if (t_host_floor && t_host_floor - kMargin < proposed) proposed = t_host_floor - kMargin;
+    return proposed & ~15u;
+}
+
 // Calls `function` with ESP at `top` minus its stack arguments (args[0] pushed last),
 // EAX = eax and ESI = esi; returns its EAX. Callers that rebuild the original's frame
 // use it so that each callee runs where the original's call puts it: some title
@@ -1961,6 +1979,7 @@ PLATFORM_ASM_ENTRY(title_call_at,
                    "pushl %esi\n"
                    "pushl %edi\n"
                    "pushl %ebx\n"
+                   "pushl %esp\n" PLATFORM_ASM_CALL(game_floor_enter) "movl %eax, (%esp)\n"
                    "movl 8(%ebp), %edx\n"
                    "movl 24(%ebp), %ecx\n"
                    "movl 28(%ebp), %edi\n"
@@ -1978,6 +1997,10 @@ PLATFORM_ASM_ENTRY(title_call_at,
                    "movl 12(%ebp), %ecx\n"
                    "movl %edx, %esp\n"
                    "call *%ecx\n"
+                   "leal -16(%ebp), %esp\n"
+                   "movl %eax, %esi\n"
+                   "movl %edx, %edi\n" PLATFORM_ASM_CALL(game_floor_leave) "movl %esi, %eax\n"
+                   "movl %edi, %edx\n"
                    "leal -12(%ebp), %esp\n"
                    "popl %ebx\n"
                    "popl %edi\n"
@@ -1991,6 +2014,7 @@ PLATFORM_ASM_ENTRY(title_call_at_regs,
                    "pushl %esi\n"
                    "pushl %edi\n"
                    "pushl %ebx\n"
+                   "pushl %esp\n" PLATFORM_ASM_CALL(game_floor_enter) "movl %eax, (%esp)\n"
                    "movl 8(%ebp), %edx\n"
                    "movl 20(%ebp), %ecx\n"
                    "movl 24(%ebp), %edi\n"
@@ -2012,6 +2036,10 @@ PLATFORM_ASM_ENTRY(title_call_at_regs,
                    "movl 20(%eax), %edi\n"
                    "movl 0(%eax), %eax\n"
                    "call *12(%ebp)\n"
+                   "leal -16(%ebp), %esp\n"
+                   "movl %eax, %esi\n"
+                   "movl %edx, %edi\n" PLATFORM_ASM_CALL(game_floor_leave) "movl %esi, %eax\n"
+                   "movl %edi, %edx\n"
                    "leal -12(%ebp), %esp\n"
                    "popl %ebx\n"
                    "popl %edi\n"
@@ -2422,7 +2450,7 @@ PLATFORM_ASM_ENTRY(R_AddEntityModel_entry,
                    "pushl %esi\n"
                    "pushl %edi\n"
                    "movl %esp, %ecx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %ecx\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(R_AddEntityModel) "addl $0x10008, %esp\n"
                    "popl %edi\n"
@@ -2587,7 +2615,7 @@ PLATFORM_ASM_ENTRY(RE_RenderScene_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "leal 4(%ebp), %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 8(%ebp)\n"
                    "pushl %ecx\n" PLATFORM_ASM_CALL(RE_RenderScene) "movl %ebp, %esp\n"
                    "popl %ebp\n"
@@ -2666,7 +2694,7 @@ PLATFORM_ASM_ENTRY(R_RenderView_entry,
                    "andl $-16, %esp\n"
                    "subl $0xa0, %esp\n"
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %eax\n"
                    "pushl %ebx\n" PLATFORM_ASM_CALL(R_RenderView) "movl %ebp, %esp\n"
                    "popl %ebp\n"
@@ -3708,7 +3736,7 @@ PLATFORM_ASM_ENTRY(R_AddSimpleInstancesToScene_entry,
                    "pushl %esi\n"
                    "pushl %edi\n"
                    "movl %esp, %ebp\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 20(%ebp)\n"
                    "pushl %ebp\n" PLATFORM_ASM_CALL(R_AddSimpleInstancesToScene) "movl %ebp, %esp\n"
                    "popl %edi\n"

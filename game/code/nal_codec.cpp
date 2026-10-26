@@ -1808,7 +1808,7 @@ uint32_t XB_STDCALL NAL_Packed16EntropyIKSpin_SkipBlock(const uint32_t* context,
 PLATFORM_ASM_ENTRY(NAL_Packed16EntropyIKSpin_Dequantize_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 28(%ebp)\n"
                    "pushl 24(%ebp)\n"
                    "pushl 20(%ebp)\n"
@@ -1853,7 +1853,7 @@ void XB_CDECL NAL_Packed16EntropyIKSpin_Dequantize(uint32_t entry, uint8_t* dst,
 PLATFORM_ASM_ENTRY(NAL_Packed16EntropyIKSpin_Evaluate_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 24(%ebp)\n"
                    "pushl 20(%ebp)\n"
                    "pushl 16(%ebp)\n"

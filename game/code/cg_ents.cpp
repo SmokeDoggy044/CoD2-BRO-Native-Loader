@@ -729,7 +729,7 @@ void XB_CDECL CG_Actor(uint8_t* cent) {
 // version its entry ESP; the original frame is ((entry ESP - 4) & ~15) - frame size.
 PLATFORM_ASM_ENTRY(CG_ClipMoveToEntities_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %edx\n"
                    "pushl %edx\n"
                    "pushl 32(%edx)\n"
@@ -845,7 +845,7 @@ void trace_world_and_entities(uint8_t* result, const float* start, const float* 
 
 PLATFORM_ASM_ENTRY(CG_Trace_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %edx\n"
                    "pushl %edx\n"
                    "pushl 28(%edx)\n"
@@ -865,7 +865,7 @@ void XB_CDECL CG_Trace(uint8_t* result, const float* start, const float* mins, c
 
 PLATFORM_ASM_ENTRY(CG_TracePoint_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %edx\n"
                    "pushl %edx\n"
                    "pushl 20(%edx)\n"
@@ -1231,7 +1231,7 @@ void XB_REGS1 XB_CDECL CG_BulletTracerAndWhizBy(const char* tag, uint32_t handle
 // address, (entry ESP - 4) & ~15 less 0x30.
 PLATFORM_ASM_ENTRY(CG_Bullet_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x1000, %esp\n"
+                   GAME_GAP_ESP("0x1000")
                    "pushl %edx\n"
                    "pushl %edx\n"
                    "pushl 8(%edx)\n"
@@ -1381,7 +1381,7 @@ int32_t wrapped_sub(int32_t a, int32_t b) {
 // jump to CG_TransitionSnapshot is returned to the entry, which jumps there at the entry ESP.
 PLATFORM_ASM_ENTRY(CG_ProcessSnapshots_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %edx\n"
                    "pushl %edx\n" PLATFORM_ASM_CALL(CG_ProcessSnapshots) "addl $4, %esp\n"
                    "popl %esp\n"
@@ -1483,7 +1483,7 @@ void XB_CDECL CG_KickWeapon() {
 // registers (EBX def, ESI cent, EDI local flag).
 PLATFORM_ASM_ENTRY(CG_FireWeapon_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %edx\n"
                    "pushl %edx\n"
                    "pushl 8(%edx)\n"
@@ -1573,7 +1573,7 @@ void XB_CDECL CG_FireWeapon(const uint8_t* es, uint8_t* cent, int32_t event, int
 // fourth word (read along with it) is this function's return address.
 PLATFORM_ASM_ENTRY(CG_EntityPreEvent_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %edx\n"
                    "pushl %edx\n"
                    "pushl %ecx\n"

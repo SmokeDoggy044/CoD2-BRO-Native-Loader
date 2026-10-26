@@ -44,7 +44,8 @@ std::string describe_address(uint32_t address) {
         // The Ghidra symbols only cover the XBE; don't attach them to our own code.
         char buffer[32];
         std::snprintf(buffer, sizeof(buffer), "%08x [host]", address);
-        return buffer;
+        const std::string where = describe_host_address(address);
+        return where.empty() ? std::string(buffer) : std::string(buffer) + " " + where;
     }
     std::string text = g_symbols->describe(address);
     if (const XbeSectionHeader* section = g_image->find_section(address))

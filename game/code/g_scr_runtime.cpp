@@ -90,7 +90,7 @@ void XB_CDECL Scr_Notify(uint8_t* ent, uint32_t notify) {
 // handler runs at the original's ESP. The asm entry keeps the area above the C frame free.
 PLATFORM_ASM_ENTRY(G_NotifyWithEntity_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
                    "pushl %esi\n"
@@ -140,7 +140,7 @@ void XB_CDECL G_NotifyWithEntity(uint32_t entry, uint8_t* ent, uint32_t notify, 
 // entity number at entry ESP - 4).
 PLATFORM_ASM_ENTRY(G_NotifyWithOwnHandle_entry,
                    "movl %esp, %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %ecx, %ebp\n"
                    "pushl %esi\n"

@@ -263,7 +263,7 @@ uint32_t XB_CDECL SV_PointContents(const float* point, int32_t pass_entity, uint
 // EBP is saved below the gap: G_RunFrame's argument lands at the entry ESP - 4.
 PLATFORM_ASM_ENTRY(SV_RunGameFrame_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
                    "pushl %edi\n"
@@ -1274,7 +1274,7 @@ void XB_REGS1 XB_CDECL SV_SetBrushModel(uint8_t* ent) {
 // The title callees run at the original's ESP (entry - 0x40): 0x002c4fe0 leaves a stack address in .data.
 PLATFORM_ASM_ENTRY(SV_PacketEvent_entry,
                    "movl %esp, %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %ecx, %ebp\n"
                    "pushl %edi\n"
@@ -1349,7 +1349,7 @@ void XB_CDECL SV_PacketEvent(uint32_t entry_esp, uint8_t* msg, uint32_t type, ui
 // The title callees run at the original's ESP (entry - 4, below its saved EDI): the C frame sits below a gap.
 PLATFORM_ASM_ENTRY(SV_Frame_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
                    "pushl %edx\n"
@@ -1559,7 +1559,7 @@ uint32_t XB_REGS3 XB_CDECL SV_ClientCommand(uint8_t* msg, uint32_t, uint8_t* cli
 // VM_Call (ClientThink) runs at the original's ESP (entry - 0x5c0): the game stores a stack address in .data.
 PLATFORM_ASM_ENTRY(SV_UserMove_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %edx, %ebp\n"
                    "pushl 4(%ebp)\n"
@@ -1618,7 +1618,7 @@ int32_t msg_read_op(uint8_t* msg) {
 // original reuses for the command sequence.
 PLATFORM_ASM_ENTRY(SV_ExecuteClientMessage_entry,
                    "movl %esp, %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %ecx, %ebp\n"
                    "pushl %edi\n"

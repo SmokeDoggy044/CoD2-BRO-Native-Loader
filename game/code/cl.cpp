@@ -1374,7 +1374,7 @@ void SCR_DrawScreenField(uint32_t entry) {
 }
 
 PLATFORM_ASM_ENTRY(SCR_UpdateScreen_entry, "movl %esp, %eax\n"
-                                           "subl $0x20000, %esp\n"
+                                           GAME_GAP_ESP("0x20000")
                                            "pushl %ebp\n"
                                            "movl %eax, %ebp\n"
                                            "pushl %ebp\n" PLATFORM_ASM_CALL(SCR_UpdateScreen) "addl $4, %esp\n"
@@ -1435,7 +1435,7 @@ void XB_CDECL SCR_UpdateScreen(uint32_t entry) {
 // The C frame sits 0x20000 below the original's; `regs` = the entry registers (TitleRegs order).
 PLATFORM_ASM_ENTRY(CL_Frame_entry, "pushl %ebp\n"
                                    "movl %esp, %ebp\n"
-                                   "subl $0x20000, %esp\n"
+                                   GAME_GAP_ESP("0x20000")
                                    "pushl %edi\n"
                                    "pushl %esi\n"
                                    "pushl %edx\n"

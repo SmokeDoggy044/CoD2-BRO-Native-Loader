@@ -194,7 +194,7 @@ const char* XB_CDECL FE_CommandDisplayName(int32_t key) {
 // passes the original's entry ESP, and each call leaves the original's return address.
 PLATFORM_ASM_ENTRY(FE_SaveSlotsUpdateText_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x10000, %esp\n"  // nothing saved above the gap: the calls' arguments go there
+                   GAME_GAP_ESP("0x10000")  // nothing saved above the gap: the calls' arguments go there
                    "pushl %eax\n"
                    "pushl %ebp\n"
                    "pushl %edi\n"

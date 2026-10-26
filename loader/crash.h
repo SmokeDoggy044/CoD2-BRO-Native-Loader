@@ -30,8 +30,12 @@ void set_fatal_exit_hook(void (*hook)(bool error));
 // threads crashing meanwhile) wait forever for the first to end the process.
 void run_fatal_exit_hook(bool error);
 
-// `address` with its Ghidra symbol and section if it is in the XBE, else "[host]".
+// `address` with its Ghidra symbol and section if it is in the XBE, else "[host]" and,
+// where the platform part can tell, the library and symbol (or offset) there.
 std::string describe_address(uint32_t address);
+
+// For the platform parts: "libfoo.so: symbol" or "libfoo.so +0xoffset"; empty if unknown.
+std::string describe_host_address(uint32_t address);
 
 // Remembers what describe_address uses (install_crash_handler).
 void set_crash_context(const XbeImage& image, const SymbolTable& symbols);

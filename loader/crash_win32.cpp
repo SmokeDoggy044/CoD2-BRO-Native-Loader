@@ -85,4 +85,6 @@ void install_crash_handler(const XbeImage& image, const SymbolTable& symbols) {
     SetConsoleCtrlHandler(console_handler, TRUE);
 }
 
+std::string describe_host_address(uint32_t) { return {}; }
+
 }  // namespace loader

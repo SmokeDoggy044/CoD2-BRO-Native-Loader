@@ -191,7 +191,7 @@ PLATFORM_ASM_ENTRY(nglAssemblePixelShader_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "leal 4(%ebp), %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %edi\n"
                    "pushl %esi\n"
                    "pushl %ebx\n"
@@ -219,7 +219,7 @@ PLATFORM_ASM_ENTRY(nglAssembleVertexShader_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "leal 4(%ebp), %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %edi\n"
                    "pushl %esi\n"
                    "pushl %ebx\n"

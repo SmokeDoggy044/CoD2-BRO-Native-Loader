@@ -273,7 +273,7 @@ uint32_t XB_REGS3 XB_CDECL Actor_IsStatePushAllowed(uint32_t state, uint32_t, co
 PLATFORM_ASM_ENTRY(Actor_StartState_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebx\n"
                    "pushl 8(%ebp)\n"
                    "pushl %esi\n"
@@ -938,7 +938,7 @@ uint32_t XB_THISCALL Actor_Lmg_Start(uint8_t* actor) {
 // EBP is saved below the gap: the callbacks' return address goes to entry ESP - 4.
 PLATFORM_ASM_ENTRY(Actor_ForceState_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
                    "pushl %ebx\n"
@@ -1373,7 +1373,7 @@ uint8_t* XB_REGS3 XB_CDECL Actor_PopBlockingStates(uint8_t* actor, uint32_t, uin
 // the C frame sits below a gap.
 PLATFORM_ASM_ENTRY(Actor_ApplyStateTransitions_entry,
                    "movl %esp, %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %ecx, %ebp\n"
                    "pushl %edi\n"
@@ -2094,7 +2094,7 @@ void XB_REGS2 XB_CDECL Sentient_ClearNodeClaim(uint32_t, uint8_t* sentient) {
 // Its callees run where the original's calls put them (one push: EDI); the C frame sits below a gap.
 PLATFORM_ASM_ENTRY(Actor_ThinkStateMachine_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
                    "pushl %ebx\n"
@@ -2172,7 +2172,7 @@ void XB_CDECL Actor_FindNearbyActor(uint8_t* actor) {
 // The callback runs at the original's ESP (no pushes) with its registers; the C frame sits below a gap.
 PLATFORM_ASM_ENTRY(Actor_CallStateSlot5_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %ebp\n"
                    "movl %eax, %ebp\n"
                    "pushl %edi\n"
@@ -2538,7 +2538,7 @@ uint32_t XB_REGS3 XB_CDECL Actor_Noncombat_NodeClaimRevoked(uint32_t, uint32_t, 
 }
 
 PLATFORM_ASM_ENTRY(Actor_RegisterSuppression_entry, "movl %esp, %edx\n"
-                                                    "subl $0x20000, %esp\n"
+                                                    GAME_GAP_ESP("0x20000")
                                                     "pushl %ebp\n"
                                                     "movl %edx, %ebp\n"
                                                     "pushl 4(%ebp)\n"

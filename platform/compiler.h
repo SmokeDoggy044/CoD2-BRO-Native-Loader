@@ -57,6 +57,15 @@
 #define PLATFORM_SECTION(name) __attribute__((section(name), noinline))
 #endif
 
+// A thread_local read and written without a call (no __tls_get_addr): for code that runs
+// between a title call and the use of its result (x87/XMM registers still live). ELF only,
+// in a library the executable links (not dlopen'ed).
+#if (defined(__GNUC__) || defined(__clang__)) && defined(__ELF__)
+#define PLATFORM_TLS_FIXED __attribute__((tls_model("initial-exec")))
+#else
+#define PLATFORM_TLS_FIXED
+#endif
+
 // Entry points for title functions whose arguments sit where C cannot name them (ESI,
 // EDI, EBX, an XMM register): PLATFORM_ASM_ENTRY(name, body) defines `name` from AT&T
 // assembly that moves them to the stack and calls the C version - an extern "C"

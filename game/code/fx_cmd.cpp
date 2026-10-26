@@ -141,7 +141,7 @@ PLATFORM_ASM_ENTRY(FXCmd_Alloc_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "leal 4(%ebp), %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 12(%ebp)\n"
                    "pushl 8(%ebp)\n"
                    "pushl %esi\n"
@@ -254,7 +254,7 @@ void XB_STDCALL FXParam_Broadcast(const uint8_t* list, uint32_t id, uint32_t a, 
     PLATFORM_ASM_ENTRY(name##_entry, "pushl %ebp\n"                                         \
                                      "movl %esp, %ebp\n"                                    \
                                      "leal 4(%ebp), %edx\n"                                 \
-                                     "subl $0x20000, %esp\n"                                \
+                                     GAME_GAP_ESP("0x20000")                                \
                                      "pushl %ecx\n"                                         \
                                      "pushl %eax\n"                                         \
                                      "pushl %edx\n" PLATFORM_ASM_CALL(name##_body) "movl %ebp, %esp\n" \
@@ -559,7 +559,7 @@ PLATFORM_ASM_ENTRY(FXCmd_Type2AtOrigin_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "leal 4(%ebp), %edx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %edi\n"
                    "pushl %esi\n"
                    "pushl %ebx\n"

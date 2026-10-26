@@ -2,6 +2,7 @@
 
 #include "crash.h"
 
+#include <dlfcn.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/ucontext.h>
@@ -41,6 +42,19 @@ void stop_signal_thread(sigset_t signals) {
 }
 
 }  // namespace
+
+std::string describe_host_address(uint32_t address) {
+    Dl_info info{};
+    if (!dladdr(reinterpret_cast<void*>(uintptr_t{address}), &info) || !info.dli_fname) return {};
+    const char* file = std::strrchr(info.dli_fname, '/');
+    file = file ? file + 1 : info.dli_fname;
+    char text[48];
+    if (info.dli_sname)
+        std::snprintf(text, sizeof(text), "+0x%x", static_cast<unsigned>(address - reinterpret_cast<uintptr_t>(info.dli_saddr)));
+    else
+        std::snprintf(text, sizeof(text), " +0x%x", static_cast<unsigned>(address - reinterpret_cast<uintptr_t>(info.dli_fbase)));
+    return std::string(file) + (info.dli_sname ? std::string(": ") + info.dli_sname + text : text);
+}
 
 void install_crash_handler(const XbeImage& image, const SymbolTable& symbols) {
     set_crash_context(image, symbols);

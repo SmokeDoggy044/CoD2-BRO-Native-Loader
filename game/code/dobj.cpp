@@ -648,7 +648,7 @@ const XModelLod* first_lod(const XModel* model) {
 PLATFORM_ASM_ENTRY(DObj_Create_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 12(%ebp)\n"
                    "pushl 8(%ebp)\n"
                    "pushl %edx\n"

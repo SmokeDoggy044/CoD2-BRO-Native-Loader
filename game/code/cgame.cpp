@@ -1289,7 +1289,7 @@ void XB_CDECL CG_UpdateScreenWhileLoading() {
 // the original's ESP and returns the tail jump's target (0 = return).
 PLATFORM_ASM_ENTRY(CG_DrawActive_entry,
                    "movl %esp, %eax\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %eax\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(CG_DrawActive) "addl $4, %esp\n"
                    "popl %esp\n"

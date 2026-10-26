@@ -82,7 +82,7 @@ float* XB_REGS1 XB_STDCALL AnimWeightRef_GetB(const uint32_t* ref, const uint8_t
 PLATFORM_ASM_ENTRY(AnimScript_Update_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %edi\n"
                    "pushl %esi\n"
                    "pushl %ebx\n"

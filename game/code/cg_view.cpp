@@ -1146,7 +1146,7 @@ void XB_CDECL CG_DrawSkyBoxPortal() {
 // frame below a gap and hands over its entry ESP.
 PLATFORM_ASM_ENTRY(CG_OffsetThirdPersonView_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %edx\n"
                    "pushl %edx\n" PLATFORM_ASM_CALL(CG_OffsetThirdPersonView) "addl $4, %esp\n"
                    "popl %esp\n"
@@ -1241,7 +1241,7 @@ void XB_CDECL CG_OffsetThirdPersonView(uint32_t entry_esp) {
 
 PLATFORM_ASM_ENTRY(CG_OffsetAltTankCamView_entry,
                    "movl %esp, %edx\n"
-                   "subl $0x10000, %esp\n"
+                   GAME_GAP_ESP("0x10000")
                    "pushl %edx\n"
                    "pushl %edx\n" PLATFORM_ASM_CALL(CG_OffsetAltTankCamView) "addl $4, %esp\n"
                    "popl %esp\n"

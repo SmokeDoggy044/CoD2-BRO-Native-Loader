@@ -1611,7 +1611,7 @@ PLATFORM_ASM_ENTRY(FX_UpdateEffects_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "leal 4(%ebp), %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 8(%ebp)\n"
                    "pushl %eax\n"
                    "pushl %ecx\n" PLATFORM_ASM_CALL(FX_UpdateEffects_body) "movl %ebp, %esp\n"
@@ -1712,7 +1712,7 @@ PLATFORM_ASM_ENTRY(FX_SpawnQueuedEffect_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "leal 4(%ebp), %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl 8(%ebp)\n"
                    "pushl %edi\n"
                    "pushl %ecx\n" PLATFORM_ASM_CALL(FX_SpawnQueuedEffect_body) "movl %ebp, %esp\n"
@@ -1776,7 +1776,7 @@ PLATFORM_ASM_ENTRY(FX_FlushSpawnQueue_entry,
                    "pushl %ebp\n"
                    "movl %esp, %ebp\n"
                    "leal 4(%ebp), %ecx\n"
-                   "subl $0x20000, %esp\n"
+                   GAME_GAP_ESP("0x20000")
                    "pushl %eax\n"
                    "pushl %ecx\n" PLATFORM_ASM_CALL(FX_FlushSpawnQueue_body) "movl %ebp, %esp\n"
                    "popl %ebp\n"
