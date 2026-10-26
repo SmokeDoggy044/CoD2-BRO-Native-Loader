@@ -2145,7 +2145,7 @@ address,name,section,module,state,tested,matched
 00096630,FxEffect_ComputeStageSizes,.text,renderer,settled,160,160
 000966e0,FxEffectDef_CanReuseStages,.text,renderer,offline,0,0
 000967c0,FxEffectStage_Release,.text,renderer,untested,0,0
-00096800,FxEffectDef_Release,.text,renderer,untested,0,0
+00096800,FxEffectDef_Release,.text,renderer,settled,205,205
 000968d0,FxEffect_SetStageCount,.text,renderer,settled,213,213
 00096960,FxEffect_AddStage,.text,renderer,offline,0,0
 00096af0,FxEffect_SetStage,.text,renderer,settled,106,106

@@ -1026,7 +1026,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00096630,FxEffect_ComputeStageSizes,compare,2590,160,160,0,0,0,""
 000966e0,FxEffectDef_CanReuseStages,compare,0,0,0,0,0,0,""
 000967c0,FxEffectStage_Release,compare,0,0,0,0,0,0,""
-00096800,FxEffectDef_Release,compare,0,0,0,0,0,0,""
+00096800,FxEffectDef_Release,compare,0,205,205,0,0,0,""
 000968d0,FxEffect_SetStageCount,compare,428,213,213,0,0,0,""
 00096960,FxEffect_AddStage,compare,0,0,0,0,0,0,""
 00096af0,FxEffect_SetStage,compare,18618,106,106,0,0,0,""
