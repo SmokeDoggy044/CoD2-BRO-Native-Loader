@@ -100,8 +100,11 @@ void XB_THISCALL AdvancedOptionsMenu_ResumeGame(uint8_t* menu, uint32_t pad);
 // 5, else FEMENU_OP_HELPBAR; drawn through +0x3c, GameplayMenu: when set), UIMenu_Draw, then the background movie's
 // frame (Movie_DrawFrame's steps).
 void XB_THISCALL ScreenMenu_Draw(uint8_t* menu);
-void XB_THISCALL ControllerConfigMenu_Draw(uint8_t* menu);
-void XB_THISCALL GameplayMenu_Draw(uint8_t* menu);
+extern "C" PLATFORM_HIDDEN void XB_CDECL ControllerConfigMenu_Draw(uint8_t* menu, uint32_t entry_esp, uint32_t esi,
+                                                                    uint32_t edi);
+extern "C" void ControllerConfigMenu_Draw_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL GameplayMenu_Draw(uint8_t* menu, uint32_t entry_esp, uint32_t esi, uint32_t edi);
+extern "C" void GameplayMenu_Draw_entry(void);
 // 0x0031f3e0: the texts +0x98, +0x9c (from row 10 on) and +0xa0 (+0x3c), the panel, then UIMenu_Draw.
 void XB_THISCALL AdvancedOptionsMenu_Draw(uint8_t* menu);
 

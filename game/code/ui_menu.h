@@ -181,6 +181,10 @@ extern "C" void UIScrollBar_Construct_entry(void);
 // and Dialog_LayoutButtons (AL = ok).
 void XB_REGS1 XB_STDCALL UI_ShowDialog(const char* name, uint8_t* mgr, uint8_t ok, uint8_t yes_no, const char* title,
                                        uint8_t keep_running);
+// The implementation behind UI_ShowDialog_entry (the entry's registers and ESP); UI_ShowDialog calls the title address.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, uint32_t ebp,
+                                                          uint32_t esi, uint32_t edi);
+extern "C" void UI_ShowDialog_entry(void);
 
 // The dialog manager (vtable 0x0082881c, a screen manager over two dialogs; +0x1c the overlay, +0x20 flags (bit 1:
 // a second dialog is queued)). The overlay (0x48 bytes): +0x00..+0x0c four elements (the scroll arrows, bar and

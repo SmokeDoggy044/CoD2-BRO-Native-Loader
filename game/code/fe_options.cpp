@@ -507,17 +507,50 @@ void XB_THISCALL ScreenMenu_Draw(uint8_t* menu) {
     Movie_DrawFrame();
 }
 
-void XB_THISCALL ControllerConfigMenu_Draw(uint8_t* menu) {
+// The two Draws set the help bar text (+0x6c), which keeps a stack address: the entry moves the C frame below a gap
+// and the call runs at the original's ESP (after push esi / push edi), leaving its return address there.
+#define DRAW_GAP_ENTRY(name)                                                                                      \
+    PLATFORM_ASM_ENTRY(name##_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"                   \
+                                     "pushl %edi\n pushl %esi\n pushl %edx\n pushl %ecx\n" PLATFORM_ASM_CALL(name)  \
+                                     "addl $16, %esp\n popl %esp\n ret")
+
+namespace {
+
+uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); }
+
+// The help bar +0x38: FEMENU_HELPBAR_BACK above row 5, else FEMENU_OP_HELPBAR, at entry - 8 (EDI = the menu, ESI = the
+// panel); `rets`: the return addresses of the two calls.
+void set_help_bar_at(uint8_t* menu, uint32_t entry_esp, uint32_t esi, uint32_t edi, const uint32_t (&rets)[2]) {
+    stack_word(entry_esp - 4) = esi;  // push esi
+    stack_word(entry_esp - 8) = edi;  // push edi
+    uint8_t* const bar = field<uint8_t*>(menu, 0x38);
+    const bool back = field<int16_t>(menu, 0x22) < 5;
+    const uint32_t text = back ? 0x0082c560u : 0x0082c37cu;
+    const uint32_t vtable = field<uint32_t>(bar, 0);
+    const TitleRegs regs{back ? vtable : 0, 0, address_of(bar), back ? 0 : vtable, field<uint32_t>(menu, 0x34),
+                         address_of(menu)};
+    const uint32_t top = entry_esp - 8;
+    title_call_at_regs(top, field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{vtable}), 0x6c), &regs, 1, &text);
+    stack_word(top - 8) = rets[back ? 0 : 1];
+}
+
+}  // namespace
+
+DRAW_GAP_ENTRY(ControllerConfigMenu_Draw)
+
+void XB_CDECL ControllerConfigMenu_Draw(uint8_t* menu, uint32_t entry_esp, uint32_t esi, uint32_t edi) {
     if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
-    set_help_bar(menu, 5);
+    set_help_bar_at(menu, entry_esp, esi, edi, {0x0031ebb4, 0x0031ebc0});
     call(field<uint8_t*>(menu, 0x38), 0x3c);
     UIMenu_Draw(menu);
     Movie_DrawFrame();
 }
 
-void XB_THISCALL GameplayMenu_Draw(uint8_t* menu) {
+DRAW_GAP_ENTRY(GameplayMenu_Draw)
+
+void XB_CDECL GameplayMenu_Draw(uint8_t* menu, uint32_t entry_esp, uint32_t esi, uint32_t edi) {
     if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
-    set_help_bar(menu, 5);
+    set_help_bar_at(menu, entry_esp, esi, edi, {0x0031ec34, 0x0031ec40});
     if (uint8_t* const bar = field<uint8_t*>(menu, 0x38)) call(bar, 0x3c);
     UIMenu_Draw(menu);
     Movie_DrawFrame();

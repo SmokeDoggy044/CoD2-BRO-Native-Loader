@@ -965,8 +965,6 @@ namespace game {
 namespace {
 
 using StringMethod = void XB_THISCALL(ScriptString*, const char*);
-void string_from(ScriptString* s, const char* text) { title_function<StringMethod>(0x0011eb50)(s, text); }
-void string_assign(ScriptString* s, const char* text) { title_function<StringMethod>(0x0011dd20)(s, text); }
 void string_release(ScriptString* s) { title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(s); }
 // A by-value copy (the callee releases it).
 uint32_t string_copy(const ScriptString* s) {
@@ -977,49 +975,137 @@ uint32_t string_copy(const ScriptString* s) {
 
 }  // namespace
 
-void XB_REGS1 XB_STDCALL UI_ShowDialog(const char* name, uint8_t* mgr, uint8_t ok, uint8_t yes_no, const char* title,
-                                       uint8_t keep_running) {
+// The original keeps its two strings in stack slots (the message in the manager's argument slot, the heading in the
+// pushed-ECX slot) and the text setters it reaches keep a stack address: the entry moves the C frame below a gap and
+// every call runs at the original's body ESP (entry - 0x14) with its return address.
+PLATFORM_ASM_ENTRY(UI_ShowDialog_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"
+                                        "pushl %edi\n pushl %esi\n pushl %ebp\n pushl %ebx\n pushl %edx\n pushl %eax\n"
+                                        PLATFORM_ASM_CALL(UI_ShowDialogAt) "addl $24, %esp\n popl %esp\n ret $0x14")
+
+namespace {
+
+struct DialogFrame {
+    uint32_t body;  // the original's ESP after its five pushes
+    TitleRegs regs{};
+
+    // A title call at the body ESP (args[0] pushed last) returning to `ret`.
+    uint32_t call(uint32_t ret, uint32_t function, uint32_t count = 0, const uint32_t* args = nullptr,
+                  uint32_t top_offset = 0) {
+        const uint32_t top = body - top_offset;
+        const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+        *reinterpret_cast<uint32_t*>(uintptr_t{top - 4 * count - 4}) = ret;
+        return result;
+    }
+    uint32_t method(uint32_t ret, uint32_t object, uint32_t function, uint32_t count = 0, const uint32_t* args = nullptr,
+                    uint32_t top_offset = 0) {
+        regs.ecx = object;
+        return call(ret, function, count, args, top_offset);
+    }
+    // A by-value copy of `source` into the argument slot at body - top_offset - 4 (ScriptString_Copy).
+    void copy(uint32_t ret, uint32_t top_offset, uint32_t source) {
+        const uint32_t args[1] = {source};
+        method(ret, body - top_offset - 4, 0x0011d5e0, 1, args, top_offset + 4);
+    }
+    // A dialog button: text (+0x30), handler, +0x20 (0), count +0x34.
+    void button(uint8_t* dialog, uint32_t label, uint32_t handler, uint32_t ret_text, uint32_t ret_flag) {
+        regs.esi = address_of(dialog);
+        const uint32_t text_args[1] = {label};
+        uint8_t* item = menu_item(dialog, field<int32_t>(dialog, 0x34));
+        method(ret_text, address_of(item), field<uint32_t>(field<uint8_t*>(item, 0), 0x30), 1, text_args);
+        field<uint32_t>(dialog, 0x38 + field<uint32_t>(dialog, 0x34) * 4) = handler;
+        item = menu_item(dialog, field<int32_t>(dialog, 0x34));
+        const uint32_t flag_args[1] = {0};
+        method(ret_flag, address_of(item), field<uint32_t>(field<uint8_t*>(item, 0), 0x20), 1, flag_args);
+        ++field<int32_t>(dialog, 0x34);
+    }
+};
+
+}  // namespace
+
+void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, uint32_t ebp, uint32_t esi,
+                              uint32_t edi) {
+    uint32_t* const slots = reinterpret_cast<uint32_t*>(uintptr_t{entry});
+    uint8_t* const mgr = reinterpret_cast<uint8_t*>(uintptr_t{slots[1]});
+    const uint8_t ok = uint8_t(slots[2]), yes_no = uint8_t(slots[3]), keep_running = uint8_t(slots[5]);
+    const char* const title = reinterpret_cast<const char*>(uintptr_t{slots[4]});
+    slots[-2] = ebx;  // push ebx / ebp / esi / edi (push ecx's slot holds the heading)
+    slots[-3] = ebp;
+    slots[-4] = esi;
+    slots[-5] = edi;
+    const uint32_t message = entry + 4, heading = entry - 4;  // ScriptStrings in the stack slots
+    DialogFrame f{entry - 0x14};
+    f.regs.ebx = title_global<uint32_t>(0x0095f5d8);  // rm_locStrings
+    f.regs.esi = f.regs.edi = address_of(name);
     const char* text = name;
     if (name) {
-        const uint32_t hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x00024440)(name);  // Loc_HashKey
-        const uint8_t* const entry = Zone_FindByHash(title_global<uint8_t*>(0x0095f5d8), hash);  // rm_locStrings
-        if (entry) {
-            text = field<const char*>(const_cast<uint8_t*>(entry), 8);
+        f.regs.eax = address_of(name);
+        const uint32_t hash = f.call(0x003319fc, 0x00024440);  // Loc_HashKey
+        f.regs.eax = f.regs.ebx;
+        const uint32_t hash_args[1] = {hash};
+        const uint8_t* const entry_rec =
+            reinterpret_cast<const uint8_t*>(uintptr_t{f.call(0x00331a04, 0x002984f0, 1, hash_args)});  // Zone_FindByHash
+        if (entry_rec) {
+            text = field<const char*>(const_cast<uint8_t*>(entry_rec), 8);
             if (!text) text = text_at(0x008379b4);  // "NO STRING"
         }
     }
-    ScriptString message;
-    string_from(&message, text);
-    ScriptString heading;
-    string_from(&heading, text_at(0x0082dfeb));  // ""
-    if (*title) string_assign(&heading, title);
-    if (!message.rep || !message.rep->length) string_assign(&message, name);
-    CL_PauseForDialog(0, keep_running, mgr);
-    {
-        const uint32_t second = string_copy(&heading);
-        const uint32_t first = string_copy(&message);
-        ui_call_esi_edi_2(0x00313f20, field<uint32_t>(mgr, 0x1c), 0, first, second);  // UIDialog_SetText
+    f.regs.edi = address_of(text);
+    const uint32_t from_text[1] = {address_of(text)};
+    f.method(0x00331a1e, message, 0x0011eb50, 1, from_text);  // ScriptString_FromCString
+    const uint32_t from_empty[1] = {0x0082dfeb};  // ""
+    f.method(0x00331a2c, heading, 0x0011eb50, 1, from_empty);
+    if (*title) {
+        const uint32_t from_title[1] = {address_of(title)};
+        f.method(0x00331a3f, heading, 0x0011dd20, 1, from_title);  // ScriptString_AssignCString
     }
-    {
-        uint8_t* const dialog = dialog_of(mgr);
-        const uint32_t second = string_copy(&heading);
-        const uint32_t first = string_copy(&message);
-        ui_call_esi_edi_2(0x0030e6f0, 0, address_of(dialog), first, second);
+    const auto* const rep = *reinterpret_cast<const uint8_t* const*>(uintptr_t{message});
+    const bool has_text = rep && field<uint16_t>(const_cast<uint8_t*>(rep), 2);
+    // The two copies of the same sequence (message as is / replaced by the name).
+    static constexpr uint32_t kRets[2][5] = {{0x00331a5a, 0x00331a67, 0x00331a74, 0x00331a7c, 0x00331a99},
+                                             {0x00331ab8, 0x00331ac5, 0x00331ad2, 0x00331ada, 0x00331af7}};
+    const uint32_t* const rets = kRets[has_text ? 0 : 1];
+    if (!has_text) {
+        const uint32_t from_name[1] = {address_of(name)};
+        f.method(0x00331aad, message, 0x0011dd20, 1, from_name);
     }
-    if (ok) {
-        UI_DialogAddButton(mgr, 0x0082c9ec, 0x00313dc0);  // "INGAME_DIALOG_OK"
-        uint8_t* const dialog = dialog_of(mgr);
-        title_call_regs(0x0031f4b0, (field<uint32_t>(mgr, 0xc) & ~0xffu) | 1, address_of(dialog),
-                        address_of(dialog));  // Dialog_LayoutButtons
-    } else if (yes_no) {
-        UI_DialogAddButton(mgr, 0x0082c9d8, 0x00313dc0);  // "INGAME_DIALOG_YES"
-        UI_DialogAddButton(mgr, 0x0082c9c4, 0x00313db0);  // "INGAME_DIALOG_NO"
-        uint8_t* const dialog = dialog_of(mgr);
-        title_call_regs(0x0031f4b0, field<uint32_t>(mgr, 0xc) & ~0xffu, address_of(dialog),
-                        address_of(dialog));  // Dialog_LayoutButtons
+    f.regs.eax = 0;
+    f.regs.edx = keep_running;
+    f.method(rets[0], address_of(mgr), 0x0032dec0);  // CL_PauseForDialog
+    f.copy(rets[1], 0, heading);
+    f.copy(rets[2], 4, message);
+    f.regs.esi = field<uint32_t>(mgr, 0x1c);
+    const uint32_t set_args[2] = {*reinterpret_cast<uint32_t*>(uintptr_t{f.body - 8}),
+                                  *reinterpret_cast<uint32_t*>(uintptr_t{f.body - 4})};
+    f.call(rets[3], 0x00313f20, 2, set_args);  // UIDialog_SetText (takes both copies)
+    uint8_t* const dialog = dialog_of(mgr);
+    f.regs.edi = address_of(dialog);
+    f.copy(rets[4], 0, heading);
+    f.copy(0x00331b04, 4, message);
+    const uint32_t dialog_args[2] = {*reinterpret_cast<uint32_t*>(uintptr_t{f.body - 8}),
+                                     *reinterpret_cast<uint32_t*>(uintptr_t{f.body - 4})};
+    f.call(0x00331b09, 0x0030e6f0, 2, dialog_args);
+    if (ok || yes_no) {
+        if (ok) {
+            f.button(dialog_of(mgr), 0x0082c9ec, 0x00313dc0, 0x00331b34, 0x00331b4f);  // "INGAME_DIALOG_OK"
+        } else {
+            f.button(dialog_of(mgr), 0x0082c9d8, 0x00313dc0, 0x00331b92, 0x00331bad);  // "INGAME_DIALOG_YES"
+            f.button(dialog_of(mgr), 0x0082c9c4, 0x00313db0, 0x00331bd3, 0x00331bee);  // "INGAME_DIALOG_NO"
+        }
+        uint8_t* const layout = dialog_of(mgr);
+        f.regs.eax = (field<uint32_t>(mgr, 0xc) & ~0xffu) | (ok ? 1 : 0);
+        f.regs.ecx = field<uint32_t>(mgr, 0xc) != 0;
+        f.regs.edx = field<uint32_t>(mgr, 4);
+        f.regs.edi = address_of(layout);
+        f.call(0x00331c08, 0x0031f4b0);  // Dialog_LayoutButtons
     }
-    string_release(&heading);
-    string_release(&message);
+    f.method(0x00331c11, heading, 0x0011d640);  // ScriptString_Release
+    f.method(0x00331c1a, message, 0x0011d640);
+}
+
+void XB_REGS1 XB_STDCALL UI_ShowDialog(const char* name, uint8_t* mgr, uint8_t ok, uint8_t yes_no, const char* title,
+                                       uint8_t keep_running) {
+    using Show = void XB_REGS1 XB_STDCALL(const char*, uint8_t*, uint8_t, uint8_t, const char*, uint8_t);
+    title_function<Show>(0x003319e0)(name, mgr, ok, yes_no, title, keep_running);
 }
 
 // --- Dialogs ---

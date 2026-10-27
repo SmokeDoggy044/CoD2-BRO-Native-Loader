@@ -36,8 +36,6 @@ using FlagMethod = void XB_THISCALL(uint8_t*, uint32_t);
 using WrapMethod = void XB_THISCALL(uint8_t*, const char*, uint32_t, uint32_t);
 
 void set_text(uint8_t* item, uint32_t offset, const char* text) { method<TextMethod>(item, offset)(item, text); }
-// +0x140: wrapped text, width 300, -1.0
-void set_wrapped(uint8_t* item, const char* text) { method<WrapMethod>(item, 0x140)(item, text, 300, 0xbf800000); }
 
 uint8_t* menu_item(uint8_t* menu, uint32_t index) { return field<uint8_t**>(menu, 4)[index]; }
 
@@ -78,23 +76,6 @@ uint32_t unlocked_level_word(int32_t n) {
     if (title_global<uint8_t>(0x008dce54) || title_global<int32_t>(0x008dce44) > n)
         return title_global<uint32_t>(0x0095f968 + uint32_t(n) * 0x48);
     return 0;
-}
-
-void set_vehicle_or_weapon_text(uint8_t* menu, uint32_t items, uint32_t name_format, uint32_t info_format,
-                                uint32_t first_count, uint32_t categories) {
-    char text[0x20];
-    int32_t index = field<int16_t>(menu, 0x22);
-    title_sprintf(text, name_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
-    set_text(field<uint8_t*>(menu, 0x3c), 0x6c, text);
-    index = field<int16_t>(menu, 0x22);
-    title_sprintf(text, info_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
-    set_wrapped(field<uint8_t*>(menu, 0x44), text);
-    int32_t counts[18] = {};
-    title_function<void XB_STDCALL(uint32_t, int32_t*)>(0x00312e30)(0x0095f924, counts);
-    index = field<int16_t>(menu, 0x22);
-    const int32_t count = uint32_t(index) < categories ? counts[first_count + uint32_t(index)] : 0;
-    title_sprintf(text, 0x0082bb5c, field<int32_t>(menu, items + uint32_t(index) * 4), count);  // "%i / %i"
-    set_text(field<uint8_t*>(menu, 0x40), 0x6c, text);
 }
 
 // The FE_Bonus*FreeImage helpers (menu in ESI): nglResetDeviceBindings, the texture released (and its pointer
@@ -160,20 +141,6 @@ void XB_CDECL FE_BonusMovieLabel(uint8_t* menu) {
 const char* XB_REGS1 XB_CDECL FE_FormatPlayTime(int32_t* time) { return format_play_time(time); }
 
 const char* XB_REGS1 XB_CDECL FE_FormatPlayTime2(int32_t* time) { return format_play_time(time); }
-
-PLATFORM_ASM_ENTRY(FE_BonusCharacterSetText_entry,
-                   "pushl %esi\n" PLATFORM_ASM_CALL(FE_BonusCharacterSetText) "addl $4, %esp\n"
-                   "ret")
-
-void XB_CDECL FE_BonusCharacterSetText(uint8_t* menu) {
-    char text[0x20];
-    title_sprintf(text, 0x0082b7b4, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_NAME
-    set_text(field<uint8_t*>(menu, 0x68), 0x6c, text);
-    title_sprintf(text, 0x0082b7a0, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_STATS
-    set_wrapped(field<uint8_t*>(menu, 0x6c), text);
-    title_sprintf(text, 0x0082b78c, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_BIO
-    set_wrapped(field<uint8_t*>(menu, 0x70), text);
-}
 
 PLATFORM_ASM_ENTRY(FE_AspectOptionLabel_entry,
                    "pushl %ecx\n"
@@ -301,22 +268,6 @@ void XB_CDECL FE_BonusLevelLabel(uint8_t* menu) {
     title_function<void XB_STDCALL(uint8_t*)>(0x00312b40)(menu);
     field<uint32_t>(menu, 0x40) = 0x3f800000;  // 1.0
     menu[0x44] = 0;
-}
-
-PLATFORM_ASM_ENTRY(FE_BonusVehicleSetText_entry,
-                   "pushl %esi\n" PLATFORM_ASM_CALL(FE_BonusVehicleSetText) "addl $4, %esp\n"
-                   "ret")
-
-void XB_CDECL FE_BonusVehicleSetText(uint8_t* menu) {
-    set_vehicle_or_weapon_text(menu, 0x70, 0x0082b3e0, 0x0082b3c8, 10, 6);
-}
-
-PLATFORM_ASM_ENTRY(FE_BonusWeaponSetText_entry,
-                   "pushl %esi\n" PLATFORM_ASM_CALL(FE_BonusWeaponSetText) "addl $4, %esp\n"
-                   "ret")
-
-void XB_CDECL FE_BonusWeaponSetText(uint8_t* menu) {
-    set_vehicle_or_weapon_text(menu, 0x84, 0x0082b564, 0x0082b54c, 0, 10);
 }
 
 PLATFORM_ASM_ENTRY(UIMenu_Init_entry,
@@ -2497,6 +2448,72 @@ bool load_image_file(Frame& f, uint8_t* menu, const ImageFields& image, uint32_t
 }
 
 }  // namespace
+
+// The bonus text helpers (menu in ESI; sub esp 0x20 / 0x68, the text buffer at the body ESP): every call at the body
+// ESP, with the original's return addresses.
+namespace {
+
+// A wrapped text (+0x140 (text, 300, -1.0)).
+void set_wrapped_at(Frame& f, uint32_t depth, uint32_t ret, uint8_t* item, uint32_t text) {
+    f.method(depth, ret, item, 0x140, text, 0x12c, 0xbf800000u);
+}
+
+// The vehicle / weapon texts: name (+0x3c), info (+0x44, wrapped), "%i / %i" of the item and its category's unlock
+// count (+0x40). `rets`: the seven calls' return addresses.
+void set_vehicle_or_weapon_text(Frame& f, uint8_t* menu, uint32_t items, uint32_t name_format, uint32_t info_format,
+                                uint32_t first_count, uint32_t categories, const uint32_t (&rets)[7]) {
+    const uint32_t text = f.entry - 0x68;
+    int32_t index = field<int16_t>(menu, 0x22);
+    f.call(0x68, rets[0], kSprintf, text, name_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
+    f.method(0x68, rets[1], field<uint8_t*>(menu, 0x3c), 0x6c, text);
+    index = field<int16_t>(menu, 0x22);
+    f.call(0x68, rets[2], kSprintf, text, info_format, index + 1, field<int32_t>(menu, items + uint32_t(index) * 4));
+    set_wrapped_at(f, 0x68, rets[3], field<uint8_t*>(menu, 0x44), text);
+    int32_t* const counts = f.local<int32_t>(0x48);
+    f.call(0x68, rets[4], 0x00312e30, 0x0095f924, counts);  // Profile_SumMissionStats
+    index = field<int16_t>(menu, 0x22);
+    const int32_t count = uint32_t(index) < categories ? counts[first_count + uint32_t(index)] : 0;
+    f.call(0x68, rets[5], kSprintf, text, 0x0082bb5c, field<int32_t>(menu, items + uint32_t(index) * 4), count);
+    f.method(0x68, rets[6], field<uint8_t*>(menu, 0x40), 0x6c, text);
+}
+
+}  // namespace
+
+FE_FRAME_ENTRY(FE_BonusCharacterSetText, "ret")
+
+uint32_t XB_CDECL FE_BonusCharacterSetText(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->esi});
+    const uint32_t text = f.entry - 0x20;
+    f.call(0x20, 0x0030dbd8, kSprintf, text, 0x0082b7b4, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_NAME
+    f.method(0x20, 0x0030dbe7, field<uint8_t*>(menu, 0x68), 0x6c, text);
+    f.call(0x20, 0x0030dbfc, kSprintf, text, 0x0082b7a0, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_STATS
+    set_wrapped_at(f, 0x20, 0x0030dc19, field<uint8_t*>(menu, 0x6c), text);
+    f.call(0x20, 0x0030dc2e, kSprintf, text, 0x0082b78c, field<int16_t>(menu, 0x22) + 1);  // BONUS_CHAR_%i_BIO
+    return f.method(0x20, 0x0030dc4b, field<uint8_t*>(menu, 0x70), 0x140, text, 0x12c, 0xbf800000u);
+}
+
+FE_FRAME_ENTRY(FE_BonusVehicleSetText, "ret")
+
+uint32_t XB_CDECL FE_BonusVehicleSetText(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    static constexpr uint32_t kRets[7] = {0x0031be9d, 0x0031beac, 0x0031bec6, 0x0031bee3,
+                                          0x0031bef2, 0x0031bf3d, 0x0031bf4c};
+    set_vehicle_or_weapon_text(f, reinterpret_cast<uint8_t*>(uintptr_t{in->esi}), 0x70, 0x0082b3e0, 0x0082b3c8, 10, 6,
+                               kRets);
+    return 0;
+}
+
+FE_FRAME_ENTRY(FE_BonusWeaponSetText, "ret")
+
+uint32_t XB_CDECL FE_BonusWeaponSetText(const FrameIn* in, uint32_t entry_esp) {
+    Frame f(in, entry_esp);
+    static constexpr uint32_t kRets[7] = {0x0031cc50, 0x0031cc5f, 0x0031cc7c, 0x0031cc99,
+                                          0x0031cca8, 0x0031cd0e, 0x0031cd1d};
+    set_vehicle_or_weapon_text(f, reinterpret_cast<uint8_t*>(uintptr_t{in->esi}), 0x84, 0x0082b564, 0x0082b54c, 0, 10,
+                               kRets);
+    return 0;
+}
 
 FE_FRAME_ENTRY(FE_BonusCharacterLoadImage, "ret")
 

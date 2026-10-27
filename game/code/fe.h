@@ -43,10 +43,6 @@ extern "C" void FE_BonusMovieLabel_entry(void);
 // seconds, each below 10 with a leading "0". Two identical copies.
 const char* XB_REGS1 XB_CDECL FE_FormatPlayTime(int32_t* time);
 const char* XB_REGS1 XB_CDECL FE_FormatPlayTime2(int32_t* time);
-// 0x0030dbc0 (menu in ESI): BONUS_CHAR_<n>_NAME into the label +0x68, _STATS and _BIO wrapped (300, -1.0) into
-// +0x6c / +0x70; n = the index +0x22 + 1.
-extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusCharacterSetText(uint8_t* menu);
-extern "C" void FE_BonusCharacterSetText_entry(void);
 // 0x0030dfd0 (menu in ESI, ECX = the push ecx slot's value): FEMENU_COP_4X3 / _16X9 by +0x50 into the label +0x3c,
 // then the first item's color (vtable +0x84 into a local) onto the label (+0x90).
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_AspectOptionLabel(uint8_t* menu, uint32_t ecx);
@@ -72,14 +68,6 @@ extern "C" void FE_BonusConceptSetText_entry(void);
 // (+0x24); then 0x00312b40 (the menu), alpha +0x40 = 1.0 and +0x44 cleared.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusLevelLabel(uint8_t* menu);
 extern "C" void FE_BonusLevelLabel_entry(void);
-// 0x0031be80 / 0x0031cc30 (menu in ESI): the current vehicle / weapon (index +0x22, item +0x70 / +0x84 + index * 4)
-// BONUS_VEH_/BONUS_WEAP_<n>_<item>_NAME into the label +0x3c, _INFO wrapped (300, -1.0) into +0x44, then "%i /
-// %i" of the item and the category's count from the unlock counts 0x00312e30 fills (0x0095f924; weapons 0-9 at
-// words 0-9, vehicles 0-5 at words 10-15, others 0) into +0x40.
-extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusVehicleSetText(uint8_t* menu);
-extern "C" void FE_BonusVehicleSetText_entry(void);
-extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusWeaponSetText(uint8_t* menu);
-extern "C" void FE_BonusWeaponSetText_entry(void);
 
 // 0x00315210 (menu in ESI, item count in EDI; owner, a2, a3, a4, flags on the stack, ret 0x14): the UI menu base
 // constructor - vtable 0x0082a628, a zeroed item array (Heap_Alloc16), the arguments at +0x8/+0xc/+0x10/+0x28 and
@@ -390,6 +378,17 @@ struct FrameIn {
 #define FE_FRAME_FUNCTION(name)                                                                               \
     extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL name(const FrameIn* in, uint32_t entry_esp);                   \
     extern "C" void name##_entry(void);
+
+// The bonus text helpers (a 0x20-byte sprintf buffer at the original's frame position).
+// 0x0030dbc0 (menu in ESI): BONUS_CHAR_<n>_NAME into the label +0x68, _STATS and _BIO wrapped (300, -1.0) into
+// +0x6c / +0x70; n = the index +0x22 + 1.
+FE_FRAME_FUNCTION(FE_BonusCharacterSetText)
+// 0x0031be80 / 0x0031cc30 (menu in ESI): the current vehicle / weapon (index +0x22, item +0x70 / +0x84 + index * 4)
+// BONUS_VEH_/BONUS_WEAP_<n>_<item>_NAME into the label +0x3c, _INFO wrapped (300, -1.0) into +0x44, then "%i /
+// %i" of the item and the category's count from the unlock counts 0x00312e30 fills (0x0095f924; weapons 0-9 at
+// words 0-9, vehicles 0-5 at words 10-15, others 0) into +0x40.
+FE_FRAME_FUNCTION(FE_BonusVehicleSetText)
+FE_FRAME_FUNCTION(FE_BonusWeaponSetText)
 
 // The bonus image loaders (menu in EAX): the old image freed (inline, or FE_Bonus*FreeImage), the texts
 // (FE_Bonus*SetText), the .dds file of the current item opened (handle, aligned buffer, texture fields), read whole
