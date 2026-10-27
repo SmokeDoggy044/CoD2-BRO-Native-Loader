@@ -157,7 +157,8 @@ void print_usage(const char* program) {
         "  --force \"F(ARGS)@S*N?W\"  with --compare: test N calls of F the title does not make,\n"
         "                   from S s after the level is active, on frames where W is nonzero;\n"
         "                   ARGS: eax= ... ebp= and stack words; values: numbers, [E] reads a\n"
-        "                   title word, E+N (first boot only)\n"
+        "                   title word, E+N (first boot only); \"scene:F(...)\" calls from\n"
+        "                   R_RenderView with the main scene open (draw-list code)\n"
         "  --compare        test the decompiled functions against the originals while playing\n"
         "                   (Linux; counts in tools/data/functions.csv, details in the log);\n"
         "                   implies --pc-patches off unless that is given, ignores settings.ini;\n"
@@ -339,6 +340,10 @@ std::optional<Options> parse_args(int argc, char** argv) {
             // NAME(ARGS)@SECONDS*COUNT?WHEN; all but NAME optional
             std::string text = i + 1 < argc ? argv[++i] : "";
             loader::TitlePatchConfig::ForcedCall forced;
+            if (text.starts_with("scene:")) {
+                forced.scene = true;
+                text.erase(0, 6);
+            }
             if (const size_t when = text.find('?'); when != std::string::npos) {
                 forced.when = text.substr(when + 1);
                 text.resize(when);
@@ -699,6 +704,7 @@ int loader_main(int argc, char** argv) {
     if (options->compare_all) compare.enough_matches = 0;
     if (options->compare) compare.sdk_calls = loader::recorded_sdk_calls();
     if (options->compare) compare.host_code.push_back(loader::rdtsc_trampolines());
+    if (options->compare) compare.host_code.push_back(loader::scene_force_thunk());
     if (options->compare)
         compare.results = fs::path(COD_BRO_SYMBOLS_DIR) / (compare.multiplayer ? "functions_mp.csv" : "functions.csv");
     loader::compare::install(game::functions(), compare);

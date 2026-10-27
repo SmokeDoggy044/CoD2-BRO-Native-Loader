@@ -22,6 +22,11 @@ void install(std::span<const game::Function> functions, const Config& config) {
 
 Counts counts(const char*) { return {}; }
 
+const uint8_t* in_test_flag() {
+    static const uint8_t never = 0;
+    return &never;
+}
+
 ForceResult force_call(const char*, const char*, const char*, const TitleRegisters&, uint32_t, std::string& error) {
     error = "--compare works on Linux only";
     return ForceResult::Failed;

@@ -112,11 +112,11 @@ address,name,tested,matched,nan,mismatched,coverage
 0006a860,nglTexture_Unlock,4000,4000,0,0,100.0
 0006a9a0,nglTextureGetPixel,1030,1030,0,0,100.0
 0006bb50,nglDrawFrameTimeBar,3389,2993,396,0,100.0
-0006e780,nglColorToVec4,3814,3814,0,0,92.7
+0006e780,nglColorToVec4,3817,3817,0,0,92.7
 0006e920,nglDebugMeshVertexIter_Clone,3844,3844,0,0,100.0
 0006fb30,nglSelectMeshProjectors,1161,1161,0,0,98.5
 00070120,nglEvalLight,3784,3783,1,0,100.0
-00073750,nglVec4ToColor,3839,3839,0,0,100.0
+00073750,nglVec4ToColor,3809,3809,0,0,100.0
 00073ad0,nglUpdateScene_Nop,4000,4000,0,0,100.0
 000744f0,std_PushHeap_OpaqueNodes,1812,1812,0,0,100.0
 00074600,std_PushHeap_TranslucentNodes,1961,1961,0,0,100.0

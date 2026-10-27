@@ -1952,6 +1952,9 @@ bool listed_in(const char* list, const char* name) {
 
 void install(std::span<const game::Function> functions, const Config& config) {
     g_config = config;
+    // The protection pass below walks these in address order.
+    std::erase_if(g_config.host_code, [](const auto& range) { return range.first >= range.second; });
+    std::sort(g_config.host_code.begin(), g_config.host_code.end());
     // XBCMP_EVERY=N: test every N-th call after the first ones (with XBCMP_ONLY, to
     // reach calls the default sampling skips).
     if (const char* every = std::getenv("XBCMP_EVERY")) g_config.every = static_cast<uint32_t>(std::atoi(every));
@@ -2101,6 +2104,8 @@ bool parse_value(std::string_view& text, uint32_t& value, std::string& error) {
 }
 
 }  // namespace
+
+const uint8_t* in_test_flag() { return &xbcmp_in_test; }
 
 ForceResult force_call(const char* name, const char* args, const char* when, const TitleRegisters& registers,
                        uint32_t esp, std::string& error) {

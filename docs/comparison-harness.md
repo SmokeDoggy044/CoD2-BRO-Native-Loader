@@ -90,6 +90,11 @@ used. Check that the call does work before counting it: FxSystemList_DestroyAll(
 matched 39 times with its list count ([0x00909b8c]) 0 on every client frame of missions 1 and 4 -
 only the early return ran; the row was reset. Functions nothing calls or points to (no CALL/JMP,
 no pointer in data: XModel_FreeAnimStates) are dead code and not tested (user, 2026-10-25).
+A `scene:` prefix (`--force "scene:nglDebugDrawLine(...)@5*10"`) starts the test from R_RenderView's call of
+R_AddSimpleInstancesToScene (0x0024758a) instead, with the main scene pushed: draw-list code (nglListAddMesh/AddText,
+*_AddToList) reads ngl_curScene (0x0090259c), which is null at the client frame. That thunk also runs inside the
+original R_RenderView in test processes; it checks `compare::in_test_flag()` first and stays executable there
+(Config::host_code, now sorted: the protection pass walks the ranges in address order).
 
 ## How a test runs
 

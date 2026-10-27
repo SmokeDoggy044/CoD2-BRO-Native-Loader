@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 70% of the functions have a name, and 2,504 have been
+It's early days: about 70% of the functions have a name, and 2,525 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,536 | 2,504 | 8,689 |
+| Engine and game code (`.text`) | 11,193 | 8,536 | 2,525 | 8,668 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,524** | **2,504** | **14,013** |
+| **Total** | **16,517** | **11,524** | **2,525** | **13,992** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -40,15 +40,15 @@ We've also named 2,659 of the game's global variables.
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,063 | 1,003 | 59 | 0 | 0 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,666 | 431 | 40 | 1,191 | 0 |
-| Client game (HUD, view, effects on screen) | 284 | 162 | 27 | 95 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,063 | 1,007 | 55 | 0 | 0 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,666 | 432 | 39 | 1,191 | 0 |
+| Client game (HUD, view, effects on screen) | 284 | 165 | 24 | 95 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 896 | 234 | 14 | 637 | 0 |
-| Client and menus | 707 | 446 | 232 | 29 | 0 |
+| Client and menus | 707 | 458 | 220 | 29 | 0 |
 | Server, collision, compression | 239 | 111 | 15 | 113 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 1,993 | 12 | 0 | 1,981 | 0 |
 | Level-script helpers in the engine code | 1,396 | 0 | 0 | 1,389 | 0 |
-| Sound, streaming, online | 305 | 105 | 5 | 194 | 0 |
+| Sound, streaming, online | 305 | 106 | 4 | 194 | 0 |
 | Microsoft C runtime pieces the library matcher missed (replaced, not rewritten) | 11 | 0 | 0 | 11 | 0 |
 | Not sorted into a part yet | 2,633 | 0 | 0 | 0 | 1,026 |
 

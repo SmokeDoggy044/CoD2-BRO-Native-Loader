@@ -627,7 +627,7 @@ int32_t XB_CDECL nglGetScreenWidth() { return 640; }
 int32_t XB_CDECL nglGetScreenHeight() { return 480; }
 
 void XB_CDECL nglColorToVec4(float* out, uint32_t color) {
-    const float scale = 1.0f / 255.0f;
+    const float scale = 0x1.010102p-8f;  // 0x3b808081, 1/255 (a division would round with the title's MXCSR)
     out[0] = static_cast<float>((color >> 16) & 0xff) * scale;
     out[1] = static_cast<float>((color >> 8) & 0xff) * scale;
     out[2] = static_cast<float>(color & 0xff) * scale;

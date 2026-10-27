@@ -1974,7 +1974,7 @@ void XB_CDECL CG_DrawStatusLabel() {
     color[3] = one;
     using DrawText = void XB_CDECL(float, float, uint32_t, float, const float*, const char*, uint32_t, uint32_t, uint32_t);
     const auto draw_text = title_function<DrawText>(title_global<uint32_t>(0x00928578));
-    draw_text(345.0f, 217.0f, 0, 1.0f / 3.0f, color, name, 0, 0, 3);
+    draw_text(345.0f, 217.0f, 0, 0x1.555556p-2f /* 0x3eaaaaab, 1/3 */, color, name, 0, 0, 3);
     const uint8_t* text = title_global<const uint8_t*>(0x009606f4);
     const char* translated =
         CG_TranslateString(text ? reinterpret_cast<const char*>(text + 6) : nullptr, &title_global<char>(0x0083521c));  // "cgame"
@@ -1982,7 +1982,7 @@ void XB_CDECL CG_DrawStatusLabel() {
     color[1] = color[0];
     color[2] = color[0];
     color[3] = g(0x0083ed28);  // 0.7
-    draw_text(345.0f, 235.0f, 0, 1.0f / 3.0f, color, translated, 0, 0, 3);
+    draw_text(345.0f, 235.0f, 0, 0x1.555556p-2f /* 0x3eaaaaab, 1/3 */, color, translated, 0, 0, 3);
 }
 
 void XB_CDECL CG_DrawViewDirIcon() {
@@ -2869,7 +2869,7 @@ void XB_CDECL CG_DrawCheckpointReached() {
     // runs; the timers count down by the frame time 0x008ddaa0.
     using DrawText = void XB_CDECL(float, float, uint32_t, float, const float*, const char*, float, uint32_t, uint32_t);
     const auto draw_text = [](float x, float y, const float* color, const char* text) {
-        title_function<DrawText>(title_global<uint32_t>(0x00928578))(x, y, 4, 1.0f / 3.0f, color, text, 16.0f, 0, 3);
+        title_function<DrawText>(title_global<uint32_t>(0x00928578))(x, y, 4, 0x1.555556p-2f /* 0x3eaaaaab, 1/3 */, color, text, 16.0f, 0, 3);
     };
     const uint8_t* letterbox = title_function<const uint8_t* XB_CDECL(const char*, const char*, uint32_t)>(0x0029c2d0)(  // Cvar_Get
         &title_global<char>(0x00835390), &title_global<char>(0x0082e098), 0);

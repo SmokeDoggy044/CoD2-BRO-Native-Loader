@@ -411,9 +411,9 @@ void XB_CDECL nglInit() {
     title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e5770)(0, 0x008a29b0);           // D3DDevice_SetGammaRamp
     title_function<void XB_STDCALL(uint32_t)>(0x003e5090)(0x00902798);                        // D3DDevice_GetDeviceCaps
     nglAllocFrameMemory();
-    const float sx = platform_x87_unsigned_mul_mul(title_global<uint32_t>(0x00902890), 1.0f / 640.0f, 1.0f);
+    const float sx = platform_x87_unsigned_mul_mul(title_global<uint32_t>(0x00902890), 0x1.99999ap-10f /* 0x3acccccd, 1/640 */, 1.0f);
     title_global<float>(0x009028c4) = sx;
-    const float sy = platform_x87_unsigned_mul_mul(title_global<uint32_t>(0x00902894), 1.0f / 480.0f, 1.0f);
+    const float sy = platform_x87_unsigned_mul_mul(title_global<uint32_t>(0x00902894), 0x1.111112p-9f /* 0x3b088889, 1/480 */, 1.0f);
     title_global<float>(0x009028c8) = sy;
     if (!(sx == 1.0f) || !(sy == 1.0f)) title_global<uint8_t>(0x009028c0) = 1;
     nglResetFrameStats();

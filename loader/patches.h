@@ -51,6 +51,7 @@ struct TitlePatchConfig {
         uint32_t after_ms = 0;  // after the level became active
         uint32_t count = 1;     // tests, at most one per frame
         uint32_t started = 0;
+        bool scene = false;     // "scene:" prefix: from R_RenderView with the main scene open
     };
     std::vector<ForcedCall> forced_calls;
 };
@@ -79,5 +80,8 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
 std::vector<compare::SdkCall> recorded_sdk_calls();
 // The pages of the RDTSC trampolines (begin, end; 0, 0 before install_title_patches).
 std::pair<uint32_t, uint32_t> rdtsc_trampolines();
+// The page of the scene-time --force thunk (0, 0 without "scene:" forced calls): it runs in
+// test processes too (the original R_RenderView), so it stays executable there.
+std::pair<uint32_t, uint32_t> scene_force_thunk();
 
 }  // namespace loader

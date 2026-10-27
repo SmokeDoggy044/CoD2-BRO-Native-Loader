@@ -126,6 +126,10 @@ struct TitleRegisters {
 
 enum class ForceResult { Started, Busy, Failed };
 
+// Nonzero in --compare's test processes (host code other than the harness and the game
+// library is not executable there): title-side thunks check it before calling the loader.
+const uint8_t* in_test_flag();
+
 // Tests a call the title does not make (shutdown and free paths the campaign never
 // reaches): the hooked function `name` runs, original and decompiled, on a copy of the
 // game as if the title code that holds `registers` had called it with its return address

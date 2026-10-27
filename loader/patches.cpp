@@ -446,15 +446,16 @@ std::vector<TitlePatchConfig::ForcedCall> g_forced_calls;  // count: tests still
 uint64_t g_active_ms = 0;    // when the level became active (0: not yet)
 
 // --force: at most one test per call per frame, from the title's registers at the client
-// frame's call (its return address slot 36 bytes above them: pushfd, pushad).
-void force_calls(const compare::TitleRegisters* saved) {
+// frame's call or (scene: specs) R_RenderView's (the return address slot 36 bytes above
+// them: pushfd, pushad).
+void force_calls(const compare::TitleRegisters* saved, bool scene) {
     if (title<int32_t>(kClsState) != kClsStateActive) return;
     const auto now = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
                                                std::chrono::steady_clock::now().time_since_epoch())
                                                .count());
     if (!g_active_ms) g_active_ms = now;
     for (auto& forced : g_forced_calls) {
-        if (!forced.count || now - g_active_ms < forced.after_ms) continue;
+        if (forced.scene != scene || !forced.count || now - g_active_ms < forced.after_ms) continue;
         std::string error;
         const auto esp = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(saved)) + 36;
         switch (compare::force_call(forced.name.c_str(), forced.args.c_str(), forced.when.c_str(), *saved, esp, error)) {
@@ -474,7 +475,7 @@ void force_calls(const compare::TitleRegisters* saved) {
 }
 
 void XB_CDECL client_frame_hook(const compare::TitleRegisters* saved) {
-    force_calls(saved);
+    force_calls(saved, false);
     if (g_start_level >= 0 && title<int32_t>(kUiStarted) != 0) {
         title<int32_t>(kLevelToStart) = g_start_level;
         title<int32_t>(kCampaignLevel) = g_start_level;
@@ -524,6 +525,52 @@ void install_client_frame_hook(int32_t level, const std::string& exec_text,
     g_start_level = level;
     g_exec_text = exec_text;
     g_forced_calls = forced_calls;
+}
+
+// "scene:" forced calls start inside R_RenderView (0x00247370), at its call of
+// R_AddSimpleInstancesToScene: the main scene is pushed there, so draw-list code
+// (nglListAddMesh/AddText, *_AddToList) finds ngl_curScene (0x0090259c) set. The thunk runs
+// in test processes too, where the loader is not executable: it goes straight on there.
+constexpr uint32_t kCallAddSimpleInstances = 0x0024758a;
+constexpr uint32_t kAddSimpleInstances = 0x002a8d30;
+uint32_t g_scene_thunk = 0;
+
+void XB_CDECL scene_hook(const compare::TitleRegisters* saved) { force_calls(saved, true); }
+
+// cmp byte [in_test], 0; jne R_AddSimpleInstancesToScene; then as the client frame's thunk
+void install_scene_hook(const std::vector<TitlePatchConfig::ForcedCall>& forced_calls) {
+    if (std::none_of(forced_calls.begin(), forced_calls.end(), [](const auto& f) { return f.scene; })) return;
+    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kCallAddSimpleInstances});
+    uint32_t relative;
+    std::memcpy(&relative, site + 1, 4);
+    if (site[0] != 0xE8 || kCallAddSimpleInstances + 5 + relative != kAddSimpleInstances) {
+        LOG_WARN("patches", "%08x: not the call to R_AddSimpleInstancesToScene; scene: forced calls ignored",
+                 kCallAddSimpleInstances);
+        return;
+    }
+    auto* thunk = alloc_code(64);
+    if (!thunk) return;
+    uint8_t* t = thunk;
+    *t++ = 0x80;  // cmp byte [in_test], 0
+    *t++ = 0x3D;
+    const auto flag = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(compare::in_test_flag()));
+    std::memcpy(t, &flag, 4);
+    t += 4;
+    *t++ = 0;
+    *t++ = 0x0F;  // jne
+    put_rel32(t, 0x85, reinterpret_cast<const void*>(uintptr_t{kAddSimpleInstances}));
+    t += 5;
+    *t++ = 0x60;  // pushad
+    *t++ = 0x9C;  // pushfd
+    *t++ = 0x54;  // push esp
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(&scene_hook));
+    t += 5;
+    *t++ = 0x58;  // pop eax (popad restores it)
+    *t++ = 0x9D;  // popfd
+    *t++ = 0x61;  // popad
+    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kAddSimpleInstances}));
+    put_rel32(site, 0xE8, thunk);
+    g_scene_thunk = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(thunk));
 }
 
 // Aim assist (sticky aim): the player movement code's view angle update
@@ -1469,6 +1516,10 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
 
 std::pair<uint32_t, uint32_t> rdtsc_trampolines() { return {g_rdtsc_pool_begin, g_rdtsc_pool_end}; }
 
+std::pair<uint32_t, uint32_t> scene_force_thunk() {
+    return {g_scene_thunk, g_scene_thunk ? g_scene_thunk + 0x1000 : 0};
+}
+
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {
     const TitleData& data = title_data(title);
     g_online_pointer = data.online_pointer;
@@ -1502,6 +1553,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     if (!campaign) return;  // the objectives panel, --level and --exec are campaign-only
 
     install_client_frame_hook(config.start_level, config.exec_text, config.forced_calls);
+    install_scene_hook(config.forced_calls);
     if (config.pc_features) install_objectives_hook();
 }
 
