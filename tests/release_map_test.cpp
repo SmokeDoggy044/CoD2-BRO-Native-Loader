@@ -39,20 +39,30 @@ struct Build {
     loader::ImageBytes view() const { return {kBase, bytes, sections}; }
 };
 
-// Functions of random code (no E8/E9, nothing that reads as an address) that each
-// load two variables (mov eax,[variable]) and call the next function; `grow` adds
-// bytes in the middle of function kGrown. `variable_at` places each variable.
+// Instructions without addresses in them (imm8/disp8 random), for filling functions.
+// C1 E8 (shr eax,imm8) holds an E8 byte that is not a CALL.
+const std::vector<std::vector<uint8_t>> kFillers = {
+    {0x8B, 0xC1}, {0x03, 0xC2}, {0x85, 0xC9}, {0x8B, 0x4E, 0}, {0x89, 0x46, 0}, {0x83, 0xC0, 0},
+    {0x74, 0},    {0x75, 0},    {0x90},       {0x6A, 0},       {0x56},          {0x5E},
+    {0xC1, 0xE8, 0}, {0x8D, 0x49, 0x00}, {0x0F, 0xAF, 0xC1}, {0xD9, 0x46, 0}, {0xF6, 0x44, 0x24, 0x08, 0},
+};
+
+// Functions of random instructions that each refer to two variables, at about 8 and
+// 24 bytes in: test ecx,ecx; mov [esi],variable (its bytes C9 C7 06 00 read as an
+// address in the image when the variable's low byte is 0, which hid the variable from
+// 0.1.12's hash), and mov eax,[variable]. `grow` adds bytes in the
+// middle of function kGrown. `variable_at` places each variable.
 Build make_build(bool grow, const std::vector<uint32_t>& variable_at) {
     std::mt19937 random(1234);
-    std::vector<std::vector<uint8_t>> bodies;
+    std::vector<std::vector<std::vector<uint8_t>>> bodies;  // per function, its fillers
     for (int f = 0; f < kFunctions; ++f) {
         const int length = 40 + static_cast<int>(random() % 160);
-        std::vector<uint8_t> body;
-        for (int i = 0; i < length; ++i) {
-            uint8_t byte;
-            do byte = static_cast<uint8_t>(random());
-            while (byte == 0xE8 || byte == 0xE9 || byte == 0x00 || byte == 0x01);  // 0x0001xxxx would be an address
-            body.push_back(byte);
+        std::vector<std::vector<uint8_t>> body;
+        for (int bytes = 0; bytes < length;) {
+            std::vector<uint8_t> filler = kFillers[random() % kFillers.size()];
+            if (filler.size() > 1 && filler.back() == 0) filler.back() = static_cast<uint8_t>(random() % 0x7F + 1);
+            bytes += static_cast<int>(filler.size());
+            body.push_back(filler);
         }
         bodies.push_back(body);
     }
@@ -62,14 +72,26 @@ Build make_build(bool grow, const std::vector<uint32_t>& variable_at) {
     std::vector<uint8_t> code;
     for (int f = 0; f < kFunctions; ++f) {
         build.functions.push_back(at);
-        std::vector<uint8_t> body = bodies[f];
-        // mov eax,[variable]; at 8 and 24 bytes in
-        for (int k = 0; k < 2; ++k) {
-            const uint32_t variable = variable_at[(f * 2 + k) % kVariables];
-            body[8 + 16 * k] = 0xA1;
-            std::memcpy(&body[9 + 16 * k], &variable, 4);
+        std::vector<uint8_t> body;
+        bool grown = false, placed[2] = {};
+        for (const std::vector<uint8_t>& filler : bodies[f]) {
+            for (int k = 0; k < 2; ++k) {
+                if (placed[k] || body.size() < static_cast<size_t>(8 + 16 * k)) continue;
+                placed[k] = true;
+                const uint32_t variable = variable_at[(f * 2 + k) % kVariables];
+                const std::vector<uint8_t> load = k == 0 ? std::vector<uint8_t>{0x85, 0xC9, 0xC7, 0x06}
+                                                         : std::vector<uint8_t>{0xA1};
+                body.insert(body.end(), load.begin(), load.end());
+                body.insert(body.end(), reinterpret_cast<const uint8_t*>(&variable),
+                            reinterpret_cast<const uint8_t*>(&variable) + 4);
+            }
+            if (grow && f == kGrown && !grown && body.size() >= 36) {
+                body.insert(body.end(), kGrowth, 0x90);
+                grown = true;
+            }
+            body.insert(body.end(), filler.begin(), filler.end());
         }
-        if (grow && f == kGrown) body.insert(body.begin() + 36, kGrowth, 0x90);
+        body.push_back(0xC3);
         code.insert(code.end(), body.begin(), body.end());
         at += static_cast<uint32_t>(body.size());
         while (at % 16) code.push_back(0xCC), ++at;
@@ -138,6 +160,9 @@ int main() {
             CHECK(map.find(ours + 20) == theirs + 20, "function %d + 20", f);
     }
     const std::vector<uint32_t> ours = variables(supported_data, false), theirs = variables(other_data, true);
+    bool window_case = false;  // a mov [esi],variable whose variable's low byte is 0 here only
+    for (int v = 0; v < kVariables; v += 2) window_case |= (ours[v] & 0xFF) == 0 && (theirs[v] & 0xFF) != 0;
+    CHECK(window_case, "no variable for the issue #9 window case");
     for (int v = 0; v < kVariables; ++v) CHECK(map.find(ours[v]) == theirs[v], "variable %d", v);
     // Between variables that moved alike: alike; between ones that moved differently: unknown.
     CHECK(map.find(ours[2] + 4) == theirs[2] + 4);

@@ -33,10 +33,12 @@ struct ImageBytes {
 };
 
 // One function of the supported build (it reaches to the next symbol or its section's
-// end): hashes of its first 32 bytes (fewer if it is shorter) and of all of it. The
-// hashes leave out what moves with the code - CALL/JMP rel32 targets and any four bytes
-// that read as an address in the image - so the same code at other addresses hashes
-// the same.
+// end): hashes of its first 32 bytes (the instructions that start in them; fewer if it
+// is shorter) and of all of it. The hashes are taken instruction by instruction and
+// leave out what moves with the code - rel32 targets, 32-bit operands that read as an
+// address in the image and jump table entries - so the same code at other addresses
+// hashes the same. (Masking any four bytes that read as an address, as 0.1.12 did,
+// let a window across two instructions hide the address after it: issue #9.)
 struct FunctionSignature {
     uint32_t address;
     uint32_t length;

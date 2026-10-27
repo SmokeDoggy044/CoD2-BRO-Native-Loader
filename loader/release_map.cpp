@@ -24,39 +24,158 @@ uint32_t read32(const uint8_t* p) {
     return value;
 }
 
-// Walks `size` bytes of code, hashing them (FNV-1a) without what moves with the code:
-// the rel32 after an E8/E9 byte (CALL/JMP) and any four bytes that read as an address
-// in [low, high). `slot(offset)` sees the offset of each such address.
+// One x86 instruction's length and the operands in it that can move with the code:
+// rel32 targets, and 32-bit displacements, immediates and moffs that may be addresses.
+struct Instruction {
+    struct Operand {
+        uint8_t offset;
+        uint8_t size;
+        bool relative;
+    };
+    uint32_t length = 0;
+    Operand operands[2] = {};
+    int count = 0;
+    void add(uint32_t offset, uint32_t size, bool relative = false) {
+        if (count < 2) operands[count++] = {static_cast<uint8_t>(offset), static_cast<uint8_t>(size), relative};
+    }
+};
+
+// Decodes the 32-bit x86 instruction (Pentium III: x87, MMX, SSE) at `bytes`, which
+// holds at least 16 readable bytes (zero padded past the code).
+Instruction decode(const uint8_t* bytes) {
+    Instruction in;
+    uint32_t p = 0;
+    bool operand16 = false, address16 = false;
+    for (; p < 14; ++p) {
+        const uint8_t b = bytes[p];
+        if (b == 0x66) operand16 = true;
+        else if (b == 0x67) address16 = true;
+        else if (b != 0xF0 && b != 0xF2 && b != 0xF3 && b != 0x26 && b != 0x2E && b != 0x36 && b != 0x3E &&
+                 b != 0x64 && b != 0x65)
+            break;
+    }
+    const uint32_t immz = operand16 ? 2 : 4;
+    auto modrm = [&](uint32_t immediate) {
+        const uint8_t m = bytes[p++];
+        const int mod = m >> 6, rm = m & 7;
+        if (mod != 3) {
+            if (address16) {
+                if ((mod == 0 && rm == 6) || mod == 2) in.add(p, 2), p += 2;
+                else if (mod == 1) p += 1;
+            } else {
+                if (rm == 4 && (bytes[p++] & 7) == 5 && mod == 0) in.add(p, 4), p += 4;
+                else if (rm == 5 && mod == 0) in.add(p, 4), p += 4;
+                if (mod == 1) p += 1;
+                else if (mod == 2) in.add(p, 4), p += 4;
+            }
+        }
+        if (immediate) in.add(p, immediate), p += immediate;
+    };
+    auto immediate = [&](uint32_t size, bool relative = false) { in.add(p, size, relative), p += size; };
+
+    const uint8_t op = bytes[p++];
+    if (op == 0x0F) {
+        const uint8_t op2 = bytes[p++];
+        if (op2 >= 0x80 && op2 <= 0x8F) immediate(4, true);
+        else if ((op2 >= 0x70 && op2 <= 0x73) || op2 == 0xA4 || op2 == 0xAC || op2 == 0xBA || op2 == 0x0F ||
+                 (op2 >= 0xC2 && op2 <= 0xC6))
+            modrm(1);
+        else if (op2 == 0x3A) ++p, modrm(1);
+        else if (op2 == 0x38) ++p, modrm(0);
+        else if ((op2 >= 0x05 && op2 <= 0x09) || op2 == 0x0B || (op2 >= 0x30 && op2 <= 0x37) || op2 == 0x77 ||
+                 (op2 >= 0xA0 && op2 <= 0xA2) || (op2 >= 0xA8 && op2 <= 0xAA) || (op2 >= 0xC8 && op2 <= 0xCF))
+            ;
+        else modrm(0);
+    } else if (op < 0x40 && (op & 7) < 4) {
+        modrm(0);
+    } else if (op < 0x40 && (op & 7) == 4) {
+        immediate(1);
+    } else if (op < 0x40 && (op & 7) == 5) {
+        immediate(immz);
+    } else if (op < 0x62 || (op >= 0x6C && op <= 0x6F) || (op >= 0x90 && op <= 0x99) ||
+               (op >= 0x9B && op <= 0x9F) || (op >= 0xA4 && op <= 0xA7) || (op >= 0xAA && op <= 0xAF)) {
+        // no operands (inc/dec/push/pop, string ops, ...)
+    } else if (op == 0x62 || op == 0x63 || (op >= 0x84 && op <= 0x8F) || op == 0xC4 || op == 0xC5 ||
+               (op >= 0xD0 && op <= 0xD3) || (op >= 0xD8 && op <= 0xDF) || op == 0xFE || op == 0xFF) {
+        modrm(0);
+    } else if (op == 0x68 || op == 0xA9 || (op >= 0xB8 && op <= 0xBF)) {
+        immediate(immz);
+    } else if (op == 0x69 || op == 0x81 || op == 0xC7) {
+        modrm(immz);
+    } else if (op == 0x6A || op == 0xA8 || op == 0xCD || op == 0xD4 || op == 0xD5 || (op >= 0xE4 && op <= 0xE7) ||
+               (op >= 0xB0 && op <= 0xB7)) {
+        immediate(1);
+    } else if (op == 0x6B || op == 0x80 || op == 0x82 || op == 0x83 || op == 0xC0 || op == 0xC1 || op == 0xC6) {
+        modrm(1);
+    } else if ((op >= 0x70 && op <= 0x7F) || (op >= 0xE0 && op <= 0xE3) || op == 0xEB) {
+        p += 1;
+    } else if (op >= 0xA0 && op <= 0xA3) {
+        immediate(address16 ? 2 : 4);
+    } else if (op == 0xC2 || op == 0xCA) {
+        p += 2;
+    } else if (op == 0xC8) {
+        p += 3;
+    } else if (op == 0xE8 || op == 0xE9) {
+        immediate(4, true);
+    } else if (op == 0x9A || op == 0xEA) {
+        immediate(immz), p += 2;
+    } else if (op == 0xF6 || op == 0xF7) {
+        const bool test = ((bytes[p] >> 3) & 7) < 2;
+        modrm(test ? (op == 0xF6 ? 1 : immz) : 0);
+    }
+    in.length = p;
+    return in;
+}
+
+// Walks `size` bytes of code at `here` instruction by instruction, hashing them
+// (FNV-1a) without what moves with the code: rel32 targets, 32-bit operands that read
+// as an address in [low, high), and the entries of jump tables (aligned dwords that
+// point into these bytes). `available` bytes can be read (an instruction may run past
+// `size`). `slot(offset)` sees the offset of each address operand.
 template <typename Slot>
-uint32_t walk_code(const uint8_t* code, uint32_t size, uint32_t low, uint32_t high, Slot&& slot) {
+uint32_t walk_code(const uint8_t* code, uint32_t size, uint32_t available, uint32_t here, uint32_t low,
+                   uint32_t high, Slot&& slot) {
     uint32_t hash = 0x811c9dc5u;
     auto mix = [&hash](uint8_t byte) { hash = (hash ^ byte) * 0x01000193u; };
+    size = std::min(size, available);
     for (uint32_t i = 0; i < size;) {
-        const uint8_t byte = code[i];
-        if ((byte == 0xE8 || byte == 0xE9) && size - i >= 5) {
-            mix(byte);
-            mix(0xFF);
-            i += 5;
-            continue;
-        }
-        if (size - i >= 4) {
+        if ((here + i) % 4 == 0 && size - i >= 4) {
             const uint32_t value = read32(code + i);
-            if (value >= low && value < high) {
-                slot(i);
-                mix(0xFE);
+            if (value >= here && value - here < size) {
+                mix(0xFD);
                 i += 4;
                 continue;
             }
         }
-        mix(byte);
-        ++i;
+        uint8_t window[16] = {};
+        const uint8_t* bytes = code + i;
+        if (available - i < 16) bytes = static_cast<const uint8_t*>(std::memcpy(window, bytes, available - i));
+        const Instruction in = decode(bytes);
+        if (in.length > available - i) {
+            while (i < size) mix(code[i++]);
+            break;
+        }
+        uint32_t masked = 0;  // bit k: byte k of the instruction
+        for (int k = 0; k < in.count; ++k) {
+            const Instruction::Operand& operand = in.operands[k];
+            if (!operand.relative) {
+                if (operand.size != 4) continue;
+                const uint32_t value = read32(code + i + operand.offset);
+                if (value < low || value >= high) continue;
+                slot(i + operand.offset);
+            }
+            masked |= ((1u << operand.size) - 1) << operand.offset;
+        }
+        for (uint32_t k = 0; k < in.length; ++k) mix(masked >> k & 1 ? 0xFE : code[i + k]);
+        i += in.length;
     }
     return hash;
 }
 
 uint32_t code_hash(const ImageBytes& image, uint32_t address, uint32_t size) {
     if (address < image.base || address >= image.end() || size > image.end() - address) return 0;
-    return walk_code(image.bytes.data() + (address - image.base), size, image.base, image.end(), [](uint32_t) {});
+    return walk_code(image.bytes.data() + (address - image.base), size, image.end() - address, address, image.base,
+                     image.end(), [](uint32_t) {});
 }
 
 const ImageSection* find_section(const std::vector<ImageSection>& sections, uint32_t address) {
@@ -152,7 +271,8 @@ ReleaseSignatures make_signatures(const ImageBytes& image, std::span<const uint3
         FunctionSignature function{sorted[i], next - sorted[i], 0, 0};
         const uint8_t* code = image.bytes.data() + (function.address - image.base);
         function.head = code_hash(image, function.address, std::min(kHeadBytes, function.length));
-        function.body = walk_code(code, function.length, image.base, image.end(), [&](uint32_t offset) {
+        function.body = walk_code(code, function.length, image.end() - function.address, function.address,
+                                  image.base, image.end(), [&](uint32_t offset) {
             const uint32_t target = read32(code + offset);
             const ImageSection* in = find_section(image.sections, target);
             if (in && is_data_section(in->name)) sites.try_emplace(target, function.address + offset);
@@ -211,7 +331,21 @@ void ReleaseMap::build(const ReleaseSignatures& supported, const ImageBytes& ima
     for (size_t i = 0; i < functions_.size(); ++i) {
         if (times[i] != 1) continue;
         const int32_t delta = static_cast<int32_t>(found[i] - functions_[i].signature.address);
+        // Code does not move between sections: a find in another one is code alike.
+        const ImageSection* ours = find_section(supported.sections, functions_[i].signature.address);
+        const ImageSection* there = find_section(image.sections, found[i]);
+        if (!ours || !there || ours->name != there->name) continue;
         if (matches(functions_[i], delta, true)) functions_[i] = {functions_[i].signature, delta, Match::Whole};
+    }
+    // Sections of code alike (the multiplayer maps' MP_* sections) have no unique
+    // first bytes; their functions are tried where their section moved to.
+    for (Function& function : functions_) {
+        if (function.match == Match::Whole) continue;
+        const Section* section = nullptr;
+        for (const Section& s : sections_)
+            if (function.signature.address - s.supported.address < s.supported.size) section = &s;
+        if (section && section->delta && matches(function, *section->delta, true))
+            function = {function.signature, *section->delta, Match::Whole};
     }
 
     // The others (short, repeated or changed functions) are tried where their
