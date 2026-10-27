@@ -154,7 +154,7 @@ def report_dead(image, functions, starts, callers, data_pointer, args):
         for f in starts:
             if f in dead or f in ran or f in data_pointer or f == entry or image.section(f) in fnpack.DATA_SECTIONS:
                 continue
-            if all(c in dead for c in callers.get(f, ())):
+            if all(c in dead or c == f for c in callers.get(f, ())):  # self-recursion is no caller
                 dead.add(f)
                 changed = True
     unseen = [f for f in sorted(ran & set(starts)) if f not in data_pointer and f != entry

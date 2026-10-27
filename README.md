@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 70% of the functions have a name, and 2,499 have been
+It's early days: about 70% of the functions have a name, and 2,504 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -22,25 +22,25 @@ Developed with AI: see [Made with AI](#made-with-ai).
 ## Progress
 
 <!-- progress:start (tools/progress.py --readme) -->
-*As of 2026-10-26. The numbers come from `tools/progress.py`, which tracks every
+*As of 2026-10-27. The numbers come from `tools/progress.py`, which tracks every
 function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,536 | 2,499 | 8,694 |
+| Engine and game code (`.text`) | 11,193 | 8,536 | 2,504 | 8,689 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,524** | **2,499** | **14,018** |
+| **Total** | **16,517** | **11,524** | **2,504** | **14,013** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 422 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 424 functions the campaign never runs, the same comparison offline on random inputs.
 We've also named 2,659 of the game's global variables.
 
 ### By part of the game
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,063 | 998 | 64 | 0 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,063 | 1,003 | 59 | 0 | 0 |
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 1,666 | 431 | 40 | 1,191 | 0 |
 | Client game (HUD, view, effects on screen) | 284 | 162 | 27 | 95 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 896 | 234 | 14 | 637 | 0 |

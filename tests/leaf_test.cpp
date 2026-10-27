@@ -1682,6 +1682,14 @@ int main() {
             runner.reset_pages(input_pages);
         }
         const double coverage = leaf.instructions ? 100.0 * static_cast<double>(g_reached_count) / leaf.instructions : 0;
+        if (const char* dir = std::getenv("LEAF_REACHED")) {
+            // The instructions the traced inputs started, one address per line (diff with the disassembly).
+            if (FILE* file = std::fopen((std::string(dir) + "/" + leaf.name + ".reached").c_str(), "w")) {
+                for (uint32_t a = g_trace_lo; a < g_trace_hi; ++a)
+                    if (g_reached[a - g_trace_lo]) std::fprintf(file, "%08x\n", a);
+                std::fclose(file);
+            }
+        }
         appendf(out, "%-34s %7d %7d %6d %6d %6d %8d %8.0f%%\n", leaf.name, tested, matched, drifted, nans, mismatched, skipped + unstable,
                     coverage);
         if (!first_issue.empty()) appendf(out, "    %s\n", first_issue.c_str());

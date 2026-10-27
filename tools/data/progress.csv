@@ -1698,7 +1698,7 @@ address,name,section,module,state,tested,matched
 00068560,nglSelectMeshLod,.text,renderer,settled,2172,2172
 00068680,nglScaleMeshMatrix,.text,renderer,settled,1737,1737
 00068850,nglListAddMesh,.text,renderer,settled,1020,1020
-00068f70,FUN_00068f70,.text,renderer,untested,0,0
+00068f70,FUN_00068f70,.text,renderer,offline,0,0
 00069b00,nglEmpty_GetName,.text,renderer,offline,0,0
 00069b40,nglSkipList_RemoveIndirect,.text,renderer,untested,0,0
 00069c60,nglSkipList_Clear,.text,renderer,offline,0,0
@@ -1737,7 +1737,7 @@ address,name,section,module,state,tested,matched
 0006cb80,nglDebugDrawSphereMesh,.text,renderer,untested,0,0
 0006cc50,nglDebugDrawBoxMesh,.text,renderer,untested,0,0
 0006cd30,nglDebugDrawPyramidMesh,.text,renderer,untested,0,0
-0006ce00,nglDebugDrawLine,.text,renderer,untested,0,0
+0006ce00,nglDebugDrawLine,.text,renderer,inconclusive,30,0
 0006d240,nglDebugDrawAxes,.text,renderer,untested,0,0
 0006d390,nglDebugLineBatch_Draw,.text,renderer,untested,0,0
 0006da20,nglInitDebugMeshes,.text,renderer,matched,92,89
@@ -2206,7 +2206,7 @@ address,name,section,module,state,tested,matched
 0009b6a0,FxSet_8bb866,.text,renderer,matched,1,1
 0009b6b0,FxSet_8bb868,.text,renderer,matched,1,1
 0009b6e0,FxPool_Init,.text,renderer,matched,2,2
-0009b710,FxPool_SetSlotTag,.text,renderer,untested,0,0
+0009b710,FxPool_SetSlotTag,.text,renderer,offline,0,0
 0009b770,apsMemoryPool_Free,.text,qcommon,settled,105,105
 0009b810,FxPool_SlotAddress,.text,renderer,settled,155,155
 0009b830,FxPool_GetStats,.text,renderer,settled,101,101
@@ -8069,7 +8069,7 @@ address,name,section,module,state,tested,matched
 00236a70,GScr_SetFogDistances,.text,script,named,0,0
 00236aa0,FX_FreeAllEffectLights,.text,renderer,settled,101,101
 00236ae0,FX_DrawGlobalSystems,.text,renderer,settled,384,384
-00236b40,FX_FindEvictableEffect,.text,renderer,untested,0,0
+00236b40,FX_FindEvictableEffect,.text,renderer,matched,30,30
 00236ba0,FxMem_Free,.text,renderer,settled,234,234
 00236bf0,FxMem_Alloc,.text,renderer,settled,6100,6100
 00236c80,Mem_InitSmallBlockPools,.text,qcommon,named,0,0
@@ -8979,7 +8979,7 @@ address,name,section,module,state,tested,matched
 00296b00,FX_SetEffectParamById,.text,renderer,settled,106,106
 00296b80,FXParam_Broadcast,.text,renderer,settled,12723,12723
 00296c00,FX_UpdateFadingComponents,.text,renderer,settled,390,390
-00296c90,FX_PruneComponents,.text,renderer,untested,0,0
+00296c90,FX_PruneComponents,.text,renderer,settled,150,120
 00296d10,FX_FreeEffectComponents,.text,renderer,settled,637,637
 00296d80,FxInstance_Init,.text,renderer,settled,2453,2453
 00296e50,ParamNode_CollectChoices,.text,qcommon,settled,133,133
@@ -9682,7 +9682,7 @@ address,name,section,module,state,tested,matched
 002c9890,AnimTree_CopyInfos,.text,xanim,named,0,0
 002c9940,AnimTree_SetGoalWeightInternal,.text,xanim,named,0,0
 002c9a90,AnimTree_ClearChildGoalWeights,.text,xanim,named,0,0
-002c9b30,DObj_DebugDrawAnimTrees,.text,renderer,untested,0,0
+002c9b30,DObj_DebugDrawAnimTrees,.text,renderer,settled,110,108
 002c9b80,AnimTree_ProcessNotetracks_r,.text,xanim,named,0,0
 002c9c20,AnimTree_BlendWeights_r,.text,xanim,named,0,0
 002c9de0,SV_PacketEvent,.text,server,mismatched,10407,10261

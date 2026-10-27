@@ -435,6 +435,8 @@ first, on a clean heap: the corruption is often done by an earlier function and 
 later, so the victim passes there. Within one run every worker has the same arena address, so a
 function that kills a fresh worker kills all three tries and fails the test.
 `LEAF_ITERS=N` (default 4000), `LEAF_ONLY=a,b`, `LEAF_VERBOSE=1`
+`LEAF_REACHED=DIR` writes `DIR/<name>.reached` (the instruction addresses the traced inputs started; mark the
+missing ones against `tools/fnpack.py --asm DIR <name>` to see which branch no input takes).
 (where the original crashed: the fixed sites tell which input needs a better shape).
 `LEAF_DUMP=DIR` writes each function's first mismatch as `DIR/<name>.case` (arena address,
 registers, stack, globals, arena) plus both arenas after the call; `LEAF_REPLAY=DIR/<name>.case

@@ -101,7 +101,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000669e0,nglVertexBuffer_Destroy,3819,3819,0,0,100.0
 00066a10,nglVertexBuffer_GetD3D,3824,3824,0,0,100.0
 000683a0,nglSelectMeshLodWithMatrix,2727,2727,0,0,100.0
-00068f70,nglBuildBoneMatrixPalette,2275,2275,0,0,67.3
+00068f70,nglBuildBoneMatrixPalette,2225,2225,0,0,97.5
 00069b00,nglEmpty_GetName,3813,3813,0,0,100.0
 00069b40,nglSkipList_RemoveIndirect,1889,1889,0,0,67.9
 00069c60,nglSkipList_Clear,1939,1939,0,0,100.0
@@ -317,9 +317,9 @@ address,name,tested,matched,nan,mismatched,coverage
 00099560,FxConst_Within,3967,3967,0,0,100.0
 00099640,FxConstVector_Within,3965,3965,0,0,100.0
 00099c90,FxVectorRange_Within,3961,3961,0,0,100.0
-0009a5a0,FxRenderer_NewOp5b,3649,3649,0,0,83.9
+0009a5a0,FxRenderer_NewOp5b,3668,3668,0,0,37.3
 0009a850,FxRenderer_NewOpd5,3610,3610,0,0,79.1
-0009b710,FxPool_SetSlotTag,3371,3371,0,0,87.5
+0009b710,FxPool_SetSlotTag,3431,3431,0,0,100.0
 0009b960,FxNop_9b960,4000,4000,0,0,100.0
 0009ba60,FxPool_FreeSlotTable,3834,3834,0,0,100.0
 0009bce0,FxPools_SetSlotTag,3069,3069,0,0,100.0
@@ -403,7 +403,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00235f60,RE_AddDebugLinesStub,4000,4000,0,0,100.0
 00235f70,RE_AddDebugStringsStub,4000,4000,0,0,100.0
 00235fd0,RE_EmptyStub26,4000,4000,0,0,100.0
-00236b40,FX_FindEvictableEffect,1972,1972,0,0,88.4
+00236b40,FX_FindEvictableEffect,1957,1957,0,0,86.0
 00237120,R_RotateForEntity,3516,3451,65,0,100.0
 00237590,R_DrawPic,3633,3273,360,0,100.0
 002375e0,R_LayoutTextWithIcons,3442,3442,0,0,100.0
