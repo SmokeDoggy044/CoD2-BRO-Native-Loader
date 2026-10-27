@@ -54,3 +54,9 @@ Run on a copy of the save folder (`--data COPY`) so the real saves stay untouche
 - `tools/feature_sweep.sh OUT [MISSIONS] [SECONDS]` runs each mission's start
   unattended and gathers every summary.txt into OUT/report.txt (mission 4's start: no
   new warnings; full sweep not run yet).
+
+## Profiles
+`tools/profile_edit.py [SAVE_DIR]` lists the profiles (name, chapters unlocked, play time, signature);
+`--unlock-all FILE` unlocks every chapter and bonus (what the chapter-select cheat does: hold both triggers,
+Up Up Down Down Left Left Right Right X Right X Right X) and re-signs the file. Use it on a run's `--data` copy
+to reach every front-end screen in steered runs.
