@@ -506,7 +506,7 @@ CoD-specific functions included, so later decompilation covers both kinds.
   setters on entity +0x2a4/+0x10 bits, UI-state setters on 0x0095f8f0, hud timer variants
   (0x002fb500 kind 4/6/7), vehicle path/speed setters - name them when those fields are known.
   Front end 0x30c000-0x340000 (same night): its 495 unnamed functions dumped; the 32 with
-  distinctive strings named (FE_Bonus* labels/texts, FE_DrawLoadingQuote, Hud_Setup* panel
+  distinctive strings named (FE_Bonus* labels/texts, ChapterMenu_Draw, Hud_Setup* panel
   hooks, CL_TogglePause/ResumeFromPause, CL_ApplyProfileSettings, SCR_DrawLoadingScreen,
   Save_CheckVersion). Left: ~30 MEM_* memory-unit dialogs (one per error case; name them from
   their callers' state machine 0x0033a530/0x003381c0), duplicate UI_Highlight/UI_Select

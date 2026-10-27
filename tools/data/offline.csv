@@ -557,7 +557,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00310450,UIQuad_ResetPositions,3802,3802,0,0,100.0
 00310480,UIQuad_SetCornerPositions,3675,3675,0,0,100.0
 003104f0,UIQuad_SetCornerUVs,3653,3653,0,0,100.0
-00310520,UIPictureBlock_SetVertexUVs,3490,3490,0,0,100.0
+00310520,UIQuad_SetVertexUVs,3490,3490,0,0,100.0
 00310560,UIQuad_PlaceScaled,3822,3822,0,0,100.0
 00310820,UIQuad_SetWipe,3802,3802,0,0,91.8
 00315360,UI_SetFontByName,3854,3854,0,0,100.0
@@ -565,7 +565,7 @@ address,name,tested,matched,nan,mismatched,coverage
 003159c0,UITextBase_CopyFrom,2291,2291,0,0,100.0
 003166a0,UIPicture_ScaleXForAspect,1860,1860,0,0,100.0
 00316f40,UIPicture_CopyFrom,3158,3158,0,0,100.0
-00317240,UIQuad_GetMaxCorner,3626,3626,0,0,100.0
+00317240,UIQuad_GetMaxUV,3626,3626,0,0,100.0
 003172f0,UIQuad_SetVertexAlpha,1908,1908,0,0,100.0
 00317350,UIQuad_SetVertexColor,1969,1969,0,0,100.0
 003216e0,UIMeshList_ScaleXForAspect,3627,3627,0,0,100.0

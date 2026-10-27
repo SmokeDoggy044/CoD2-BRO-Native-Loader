@@ -76,7 +76,7 @@ extern "C" void MissionSuccessFailMenu_SetFailedText_entry(void);
 // 0x0032d340: the retry button: 0x0095ee08 = 1, g_reloading 1, "reboot". Returns 0 (AL).
 uint8_t XB_CDECL MissionSuccessFailMenu_OnRetryYes();
 // 0x00334070 (stdcall, ret 4): with a checkpoint (0x008dd1cf == 1) or the state +0x58 set: MEM_QUIT_WARNING, YES
-// OnRetryYes, NO 0x0030cf90; else MEM_SAVE_QUIT, YES PauseMenu_ReloadCheckpoint, NO OnRetryYes. Default NO.
+// OnRetryYes, NO 0x0030cf90; else MEM_SAVE_QUIT, YES MissionSuccessFailMenu_ReloadCheckpoint, NO OnRetryYes. Default NO.
 extern "C" PLATFORM_HIDDEN void XB_CDECL MissionSuccessFailMenu_ShowRetryDialog(uint8_t* menu, uint32_t entry_esp);
 extern "C" void MissionSuccessFailMenu_ShowRetryDialog_entry(void);
 // 0x003341e0 (ret 4): state +0x58 2 (reloading): once +0x5c is set unpause (cl_paused 0, the fade, cg_norender 0,

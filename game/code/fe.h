@@ -116,9 +116,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Profile_SetDefaults(uint8_t* profile);
 extern "C" void Profile_SetDefaults_entry(void);
 // 0x0032d660: the "UI_Type" sound alias (S_FindSoundByHash) played at the origin (S_PlaySoundAlias, volumes -1).
 void XB_CDECL UI_PlayTypeSound();
-// 0x003307a0: from the pause menu: with a checkpoint to reload (0x008dd1cf == 1) g_reloading 1 and "reboot",
+// 0x003307a0: from the mission success/fail menu (retry dialog, HandleSelect): with a checkpoint to reload (0x008dd1cf == 1) g_reloading 1 and "reboot",
 // returns 1; else the front end's dialog state 4, cl_paused 1 and the front end's vtable +0xc (7), returns 0.
-uint8_t XB_CDECL PauseMenu_ReloadCheckpoint();
+uint8_t XB_CDECL MissionSuccessFailMenu_ReloadCheckpoint();
 
 
 // UI elements (title C++ objects): +0x04 fade alpha, +0x08 depth, +0x0c fade time, +0x10 flags (bit 4 fading in,
@@ -144,7 +144,7 @@ void XB_REGS1 XB_STDCALL UIQuad_SetVertexPositions(const float* xs, uint8_t* qua
 // 0x003104f0: vertex UVs from four (u, v, w) points (ECX).
 void XB_REGS3 XB_CDECL UIQuad_SetCornerUVs(uint8_t* quad, uint32_t unused_edx, const float* points);
 // 0x00310520: vertex UVs from separate u (EAX) and v (ECX) arrays.
-void XB_REGS3 XB_STDCALL UIPictureBlock_SetVertexUVs(const float* us, uint32_t unused_edx, const float* vs,
+void XB_REGS3 XB_STDCALL UIQuad_SetVertexUVs(const float* us, uint32_t unused_edx, const float* vs,
                                                      uint8_t* quad);
 // 0x00310560 (quad in EAX; keeps ECX/EDX, its caller loops on them): places each base point at (x, y) minus its
 // offset from the points' bounding-box centre times (sx, sy).
@@ -161,8 +161,8 @@ uint8_t* XB_REGS3 XB_CDECL Color_Modulate(uint32_t unused_eax, uint32_t unused_e
                                           uint32_t b);
 // 0x00317240 (out in EAX, source in ECX; keeps XMM5): out = (max u, max v, 0) over the four vertices of the quad
 // at ECX + 8 - the vertex UVs when ECX is a UI quad.
-extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_GetMaxCorner(float* out, const uint8_t* source);
-extern "C" void UIQuad_GetMaxCorner_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_GetMaxUV(float* out, const uint8_t* source);
+extern "C" void UIQuad_GetMaxUV_entry(void);
 // 0x003172f0 (quad in EAX, vertex in ESI): the vertex colour's alpha byte = alpha * 255.
 extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_SetVertexAlpha(uint8_t* quad, int32_t vertex, float alpha);
 extern "C" void UIQuad_SetVertexAlpha_entry(void);
@@ -425,11 +425,11 @@ FE_FRAME_FUNCTION(FE_BonusWeaponCategoryLabel)
 FE_FRAME_FUNCTION(FE_BonusMenuLabel)
 // 0x00333060 (menu in EDI; movie name on the stack, ret 4): plays a bonus movie: the music handle stopped, the old
 // movie and image freed, CL_PlayMovie (ESI = name), then +0x44 = 5 and FE_BonusCEMainLoadImage.
-FE_FRAME_FUNCTION(FE_BonusStopMovie)
+FE_FRAME_FUNCTION(SpecialMaterialsMenu_PlayMovie)
 // 0x003330f0 (index in EAX, menu in ECX): the collector's-edition movies: rows 0-3 play Bringing / TheMen / the
 // multiplayer map (+0x48: MPKass, MPMaub, MPTroina) / Behind; row 4 opens dialog screen 0x13. Nothing while a movie
 // plays (+0x3c).
-FE_FRAME_FUNCTION(FE_BonusMovieFileName)
+FE_FRAME_FUNCTION(SpecialMaterialsMenu_HandleSelect)
 // 0x00338710 (slot in EAX; menu on the stack, ret 4): with room on the card (MemDlg_CheckFreeSpace2) the slot into
 // 0x0095f480 +0x11ec; an empty slot asks MEM_XBOX_OVERWRITE_CONFIRM (NO selected); else (mode 3: the default
 // profile applied to 0x008dce30 and CL_ApplyProfileSettings) ProfileMenu_ShowSaveWarning.
@@ -443,10 +443,10 @@ FE_FRAME_FUNCTION(FE_ControlsUpdateText)
 // 0x003367a0 (menu in ECX; pad on the stack, ret 4; main menu vtable 0x0082906c slot): the sign-in text (0x0095f478)
 // by the Live state (signing in / signed in as <gamertag> / the sign-in error); the first time the start-up movies
 // (legal, ATVI, Treyarch, intro) and the music; else the selected item and the backdrop shaders.
-FE_FRAME_FUNCTION(FE_MainMenu_UpdateSignIn)
+FE_FRAME_FUNCTION(MainMenu_Update)
 // 0x0031af60 (vtable slot, menu in ECX): the loading screen: the quotes / chapters around +0x190, the panel, the
 // picture +0x18c at (320, 240), the help bar, the movie frame and the menu.
-FE_FRAME_FUNCTION(FE_DrawLoadingQuote)
+FE_FRAME_FUNCTION(ChapterMenu_Draw)
 // 0x003346e0 (menu on the stack, ret 4): the save device and free space checked at start-up; the dialogs closed.
 FE_FRAME_FUNCTION(FE_CheckStartupStorage)
 // 0x003175b0 (owner in EDI): two 22 x 22 cross pictures (normal_cross: ironcrosswhite at +0x08, ace_cross:

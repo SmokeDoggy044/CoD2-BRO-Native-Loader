@@ -2920,11 +2920,11 @@ void XB_CDECL CL_ApplyFrontEndReturnState() {
     cg_call_regs(0x00292cb0, &regs, nullptr, 0);  // Stream_WaitForLoad
 }
 
-PLATFORM_ASM_ENTRY(CL_ResumeFromPause_entry, "pushl 4(%esp)\n"
-                                             "pushl %esi\n" PLATFORM_ASM_CALL(CL_ResumeFromPause) "addl $8, %esp\n"
+PLATFORM_ASM_ENTRY(CL_UpdatePauseOverlay_entry, "pushl 4(%esp)\n"
+                                             "pushl %esi\n" PLATFORM_ASM_CALL(CL_UpdatePauseOverlay) "addl $8, %esp\n"
                                              "ret $4")
 
-void XB_CDECL CL_ResumeFromPause(uint8_t* menu, float dt) {
+void XB_CDECL CL_UpdatePauseOverlay(uint8_t* menu, float dt) {
     using Method1 = void XB_THISCALL(uint8_t*, uint32_t);
     auto method = [](uint8_t* object, uint32_t slot) {
         return title_function<Method1>(field<uint32_t>(field<uint8_t*>(object, 0), slot));

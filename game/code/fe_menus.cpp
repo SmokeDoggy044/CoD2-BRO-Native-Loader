@@ -526,7 +526,7 @@ void XB_CDECL MissionSuccessFailMenu_ShowRetryDialog(uint8_t* menu, uint32_t ent
         add_button_inline(kNo, kOnNo);
     } else if (field<uint32_t>(menu, 0x58) == 0) {
         show_dialog(0x0082abcc);       // MEM_SAVE_QUIT
-        add_button(kYes, 0x003307a0);  // PauseMenu_ReloadCheckpoint
+        add_button(kYes, 0x003307a0);  // MissionSuccessFailMenu_ReloadCheckpoint
         add_button(kNo, kOnRetryYes);
     } else {
         show_dialog(0x0082c8c8);  // MEM_QUIT_WARNING
@@ -565,7 +565,7 @@ void XB_CDECL MissionSuccessFailMenu_HandleSelect(uint8_t* menu, int32_t index, 
         call(field<uint8_t*>(menu, 0x4c), 0x78, kEmptyString);
         menu[0x5d] = 0;
         if (index == 0)
-            title_call(0x003307a0, TitleRegs{});  // PauseMenu_ReloadCheckpoint
+            title_call(0x003307a0, TitleRegs{});  // MissionSuccessFailMenu_ReloadCheckpoint
         else if (index == 1)
             title_call(0x0032d340, TitleRegs{});  // MissionSuccessFailMenu_OnRetryYes
         return;

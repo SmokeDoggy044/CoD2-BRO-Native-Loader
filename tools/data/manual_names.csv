@@ -3296,7 +3296,7 @@ address,name,kind,confidence,evidence
 002e91f0,G_EntDetachAll,function,medium,clears the 7 attachment slots (+0x3d8) and G_DObjUpdate; GScr_DetachAll
 0030c070,FE_BonusArtCategoryLabel,function,medium,returns the BONUS_ART_DIR/CHAR_CONCEPT/LEVEL_CONCEPT/... string for an index
 0030c130,FE_BonusMovieLabel,function,medium,returns BONUS_BRINGING/VETERANS/MP_MAP/BEHIND/CE_ARTS for an index
-003330f0,FE_BonusMovieFileName,function,medium,switch to the bonus movie names Bringing/TheMen/MPKass/MPMaub/MPTroina/Behind
+003330f0,SpecialMaterialsMenu_HandleSelect,function,medium,switch to the bonus movie names Bringing/TheMen/MPKass/MPMaub/MPTroina/Behind
 0030c240,Save_CheckVersion,function,medium,compares the save header against the version strings 9-21-05 / 9-21-05CE
 0030cd70,FE_FormatPlayTime,function,medium,"va(""%s%i:%s%i:%s%i"") of hours/minutes/seconds with leading zeros"
 0030d0b0,FE_FormatPlayTime2,function,medium,"same formatting as FE_FormatPlayTime, other caller"
@@ -3305,7 +3305,7 @@ address,name,kind,confidence,evidence
 0030e0f0,FE_CommandDisplayName,function,medium,"maps bound commands (+attack, +speed, +melee, toggle cl_run, +sprint, ...) to FEMENU_CMD_* labels"
 00312bd0,FE_BonusLevelLabel,function,medium,BONUS_BONUS_LEVEL_%i or BONUS_LOCKED
 00319b40,Key_GetKeyNameForCommand,function,medium,"searches key_bindings for the command (+activate, toggle cl_run, +speed) and returns Key_KeynumToString"
-0031af60,FE_DrawLoadingQuote,function,medium,draws FEMENU_CHAPTER_%i and FEMENU_QUOTE_%i on the loading screen
+0031af60,ChapterMenu_Draw,function,medium,draws FEMENU_CHAPTER_%i and FEMENU_QUOTE_%i on the loading screen
 0031be80,FE_BonusVehicleSetText,function,medium,BONUS_VEH_%i_%i_NAME/_INFO and the %i / %i page counter
 0031cc30,FE_BonusWeaponSetText,function,medium,BONUS_WEAP_%i_%i_NAME/_INFO and the %i / %i page counter
 0031c5d0,FE_BonusVehicleCategoryLabel,function,medium,BONUS_BONUS_LAND/AIR/SEA/ARTILLERY/ANTI_AIR/ROCKET or BONUS_LOCKED
@@ -3321,7 +3321,7 @@ address,name,kind,confidence,evidence
 0032d660,UI_PlayTypeSound,function,medium,S_PlaySoundAlias UI_Type
 0032dde0,CL_TogglePause,function,medium,CL_KeyEvent: toggles cl_paused and pauses all sound channels
 0032dec0,CL_PauseForDialog,function,medium,UI_ShowDialog: sets cl_paused
-0032df90,CL_ResumeFromPause,function,medium,"clears cl_paused, S_ResumeAllChannels"
+0032df90,CL_UpdatePauseOverlay,function,medium,"clears cl_paused, S_ResumeAllChannels"
 0032eac0,SCR_DrawLoadingScreen,function,medium,"SV_Map_f: draws the level loading screen (zone text, quads, nglEndFrame)"
 00332e20,CL_ApplyProfileSettings,function,medium,"sets cl_sensitivityX/Y, m_pitch, g_vehControlMode, cl_run, controller config and sound volumes from the profile; Com_Init/SV_SpawnServer"
 00331340,FE_ApplyControlSettings,function,medium,"options menu: writes sensitivity, invert pitch, vehicle control mode, cl_run cvars and executes the controller config"
@@ -3814,7 +3814,7 @@ address,name,kind,confidence,evidence
 000cac90,File_Close,function,medium,"called on the handle after the bonus images are released"
 0031ff30,FE_LoadTheatreBackground,function,medium,"loads textures\\<lang>\\europe/africa/sicily.dds by the last mission (0x008dce48: 1-5 africa, 6-8 sicily) as texLoad; from CL_ApplyFrontEndReturnState"
 003341e0,MissionSuccessFailMenu_HandleSelect,function,medium,"(2026-10-25, was PauseMenu_HandleSelect) slot 14 of 0x00828d18 = the MissionSuccessFail screen; vtable slot (no callers): resume (cl_paused 0, cg_norender 0, S_ResumeAllChannels, clears the key catcher) or the reload-checkpoint confirm dialog (MEM_DIALOG_YES/NO, FEMENU_RELOADING)"
-003367a0,FE_MainMenu_UpdateSignIn,function,low,"vtable slot: Live sign-in state text (FEMENU_SIGNING_IN/SIGNIN_FAILED/PASSCODE_NEEDED/NOT_SIGNED_IN) and music_mainmenu"
+003367a0,MainMenu_Update,function,low,"vtable slot: Live sign-in state text (FEMENU_SIGNING_IN/SIGNIN_FAILED/PASSCODE_NEEDED/NOT_SIGNED_IN) and music_mainmenu"
 002c7f00,G_ApplyCheckpointStart,function,low,"from G_SpawnGEntityFromSpawnVars: when the spawner's name equals 0x00988c58, sets the checkpoint cvar and moves info_player_start to its origin/angles"
 002ddf80,G_SetPoseFromPhysics,function,low,"clears the trajectory deltas, origin from entity +0x190, angles via MatrixToAngles, SV_LinkEntity; from the vehicle/physics-object updates"
 0031a490,FE_BonusCELoadImage,function,medium,"'bonus_ce\\%s%i\\%s%i_%i[f].dds' (artdir/level/liber/misc_/over_) like FE_BonusVehicleLoadImage"
@@ -3933,7 +3933,7 @@ address,name,kind,confidence,evidence
 002c0b80,Path_InitAfterLoad,function,low,"from Stream_LoadLpth: g_connectpaths, walks the path data (type 9 records) to connect nodes"
 002c75f0,CM_LoadMapFile,function,low,"opens the map name CM_LoadMap stored at 0x009355d8: FS_FOpenFileRead of the map file, reads the 0x138-byte header, Z_MallocDebug with 'c:\\cod\\code\\game\\cm_load.cpp'"
 002d55d0,CL_RefreshConfigstrings,function,low,"from SV_MapRestart/SV_SpawnServer: cgame VM_Call 0x16, then each changed configstring copied and VM_Call 0x15 (CG_ConfigStringModified)"
-0030fca0,Subtitle_Draw,function,medium,"draws the subtitle text Subtitle_Start set up (0x0095f474, position 0x00926e2c/0x00926e80) with nglListAddTextf; CG_Draw2D, CL_PlayMovie, FE_DrawLoadingQuote"
+0030fca0,Subtitle_Draw,function,medium,"draws the subtitle text Subtitle_Start set up (0x0095f474, position 0x00926e2c/0x00926e80) with nglListAddTextf; CG_Draw2D, CL_PlayMovie, ChapterMenu_Draw"
 002bd520,S_StartAliasVoice,function,low,"from S_PlaySoundAlias: allocates a voice, MUSIC group check, volume/pitch/position params via SndVoice_SetParam"
 002f06b0,CL_LoadFrontEndZone,function,low,"from CL_StartHunkUsers: finds zone 'FrontEnd' (StringMap_Find) and starts its stream request"
 0030bf90,FE_BonusCESetText,function,low,"'%i / %i' counter with the item count per CE page (0x26, 0xf, 3, ...); from FE_BonusCELoadImage"
@@ -11259,7 +11259,7 @@ address,name,kind,confidence,evidence
 002c1060,CM_PointLeafnum_r,function,medium,"(EAX node, point): walks cm nodes (cm +0xc, 0x10 bytes, child -1 = node) by plane side until a leaf; returns its index; Q3 CM_PointLeafnum_r; CM_BoxLeafnums_r"
 002c6630,CM_FilterBoxCandidates,function,medium,"thiscall candidate lists (entities +0x800/+0x804, triangles +0x1000/+0x1004) -> EAX/arg outputs: keeps those with contents & mask whose AABB overlaps mins/maxs (SSE maxps/movmskps), max 0x200; ActorMove_*, Vehicle_UpdatePhysics"
 002cb0f0,CM_GatherBoxCandidates,function,medium,"(maxs, out tris, out ents, EDI mins): bumps cm +0x60 checkcount, tests each submodel box of 0x0095f4fc and collects with 0x002c6840; ActorMove_*, G_ComputeGroundTilt, Vehicle_UpdatePhysics, GScr_LocationalTraceSurface"
-0030c300,Save_ProfilesDirExists,function,medium,"lists the save directory (0x000d19e0, 0x4c-byte entries) and returns 1 when an entry is named 'Profiles'; FE_DrawLoadingQuote, MemDlg_* and FE_SaveSlotsUpdateText"
+0030c300,Save_ProfilesDirExists,function,medium,"lists the save directory (0x000d19e0, 0x4c-byte entries) and returns 1 when an entry is named 'Profiles'; ChapterMenu_Draw, MemDlg_* and FE_SaveSlotsUpdateText"
 00315210,UIMenu_Init,function,medium,"ESI = widget, EDI = item count, (owner, a, b, short, flags): base vtable 0x0082a628, Heap_Alloc16 item array (+4), selection -1 (+0x22), flags +0x2a, owner +8; 35 derived constructors"
 0032ea00,UIMenu_FreeItems,function,medium,"ESI = widget: deletes each item (count +0x26, array +4), Z_Free, stops the widget's sound handle +0x2c (S_StopChannel) and clears the fields"
 00331fb0,SCR_LoadingPump,function,medium,"when not paused (0x0095f916) and a loading screen is up (0x0095f454): advances its timer from rdtsc (0x0095f45c), updates it (0x00331f70) and File_PumpRequests; Movie_Open, CL_PlayMovie, memory-unit dialogs"
@@ -11835,7 +11835,7 @@ address,name,kind,confidence,evidence
 00012370,UI_DialogSetDefaultButton,function,medium,"(EAX manager, short index): active dialog +0x22 = index, +0x5a = 1; Dialog_LayoutButtons then selects that button (vtable +0x88)"
 00012390,UI_DialogLayoutButtons,function,high,"(EAX manager, bool stacked): active dialog (+4[+0xc != 0]) in EDI, AL = arg, jumps to Dialog_LayoutButtons; called after UI_DialogAddButton"
 0031f4b0,Dialog_LayoutButtons,function,medium,"(EDI dialog, AL stacked): stores AL at +0x16, positions the +0x34 buttons side by side (x 280/360) or stacked, selects +0x22 when +0x5a; end of UI_ShowDialog and 35 more"
-000cf100,Movie_GetFrameTexture,function,medium,"(ECX movie 0x0095f454): returns +0x30; stored into the full-screen quad (0x0095f458 +0x60) before nglListAddQuad in every loading/movie draw (FE_DrawLoadingQuote, CL_PlayMovie)"
+000cf100,Movie_GetFrameTexture,function,medium,"(ECX movie 0x0095f454): returns +0x30; stored into the full-screen quad (0x0095f458 +0x60) before nglListAddQuad in every loading/movie draw (ChapterMenu_Draw, CL_PlayMovie)"
 000cf1e0,Movie_QueueReads,function,medium,"(ECX movie): fills a 4-slot ring (+0x80 head, +0x84 tail, request handles +0x58[i]) with File_QueueRead chunk requests of +0x14 bytes from file offset +0x50 + +0x7c, last chunk sector-rounded; Movie_IsReady"
 000c9db0,File_GetRequestStatus,function,medium,"(request handle): HandlePool_Resolve on the request pool 0x00920798 (0x44-byte records 0x00920810), maps state +0x2c through File_RequestStateToStatus, -1 for a stale handle; Stream_*, SndBank_PollLoad, File_ReadAt"
 000c9490,File_RequestStateToStatus,function,medium,"(EAX request state): 0/1 -> 4, 2 -> 0, 3/4 -> 1, 5 -> 2, 6/7 -> 3, else -1; File_GetRequestStatus, File_PumpRequests"
@@ -12075,7 +12075,7 @@ address,name,kind,confidence,evidence
 00828c50,DifficultyMenu_vtable,data,medium,FrontEndMenu screen 13 (UIGridMenu_Init inline); slot 16 = FE_DifficultyMenu_Init; difficulty_menu.panel -> screens[13]
 0082a068,CreateProfileMenu_vtable,data,medium,FrontEndMenu screen 14 (UIGridMenu subclass); createprofile_menu.panel -> screens[14]
 00828ed0,ProfileMenu_vtable,data,medium,FrontEndMenu screen 15; singleprofile_menu.panel -> screens[15]
-008299f0,ChapterMenu_vtable,data,medium,FrontEndMenu screen 17; singlechapter_menu.panel -> screens[17]; slot 10 = FE_DrawLoadingQuote
+008299f0,ChapterMenu_vtable,data,medium,FrontEndMenu screen 17; singlechapter_menu.panel -> screens[17]; slot 10 = ChapterMenu_Draw
 00828ac0,SpecialMaterialsMenu_vtable,data,medium,FrontEndMenu screen 18; specialmaterials_menu.panel -> screens[18]
 00829ed8,SpecialConceptMenu_vtable,data,medium,FrontEndMenu screen 19; specialconcept_menu.panel -> screens[19]
 008289f8,PauseMenu_vtable,data,medium,InGameScreens screen 0 (inline UIMenu_Init); pause_menu.panel -> FE_SetupPauseMenu(screens[0])
@@ -12498,7 +12498,7 @@ address,name,kind,confidence,evidence
 00318f30,HudCompGrenadeCook_Dtor,function,high,"stores HudCompGrenadeCook_vtable, deletes the 6 segments and ring, back to HudComponent_vtable"
 00311350,HudCompTankReticle_Draw,function,medium,HudCompTankReticle_vtable slot 3: reticle +8 then 4 tics when cg flag 0x100000 is set and cg +0xfb8 != 1
 0098ad14,hudCompass_lastNeedleTime,data,medium,cg_time of the last HudCompCompass_UpdateNeedle step (gaps > 500 ms skip the spring)
-00011220,Live_GetCurrentUser,function,medium,"returns mgr+0x30 + idx*0xfe8 (idx = +0x44d0, 0 when +0x4470==1); FE_MainMenu_UpdateSignIn prints its +0x10 wide name (""%S"") on sign-in state 2"
+00011220,Live_GetCurrentUser,function,medium,"returns mgr+0x30 + idx*0xfe8 (idx = +0x44d0, 0 when +0x4470==1); MainMenu_Update prints its +0x10 wide name (""%S"") on sign-in state 2"
 00011b80,IN_PadConsumeAllPressed,function,medium,"IN_PadConsumePressed(pad, i) for i 0..15; G_CheckMissionEnd"
 000121d0,Panel_DeletingDtor,function,medium,"Panel_FreeElements, Mem_AlignedFree of [3] and [0], Z_Free(this) if flags&1; FE_SetupPanel"
 00013e30,Vec3_IsNonZero,function,medium,"returns 0 when all three floats equal the zero global 00922eb8, else 1; GScr_Vehicle_SetTurretTargetEnt (offset arg)"
@@ -12705,7 +12705,7 @@ address,name,kind,confidence,evidence
 0032df40,DialogMgr_Dtor,function,high,"DialogMgr_DeletingDtor: vtable = DialogMgr_vtable, frees the object at +0x1c, deleting-dtors the two dialogs (+4 array), UIScreenMgr_Dtor"
 0032e310,UIOptionItem_PlaySelectSound,function,medium,"UIOptionItem_Next: if sounds enabled (+0x28) and the previous handle (+0x24) is not still playing (SndVoice_GetState 4), S_PlaySoundAlias of 'UI_Select'"
 00331f70,SCR_UpdateLoadingSubtitle,function,medium,SCR_LoadingPump: subtitle clock 0x0092708c += msec/1000; Subtitle_Start once it passes the next cue time 0x00926e24 while subtitles are on (0x0095f474)
-00333060,FE_BonusStopMovie,function,medium,"FE_BonusMovieFileName: stops sound and movie, nglResetDeviceBindings, releases the frame texture (+100), closes the file (+0x5c) and frees its buffer (+0x60)"
+00333060,SpecialMaterialsMenu_PlayMovie,function,medium,"SpecialMaterialsMenu_HandleSelect: stops sound and movie, nglResetDeviceBindings, releases the frame texture (+100), closes the file (+0x5c) and frees its buffer (+0x60)"
 00333640,AutosaveMenu_ShowNoSaveDialog,function,medium,"AutosaveMenu_Update: UI_ShowDialog on 0x0095f900 with one button 'MEM_CONTINUE_WO_SAVING' (callback 0x003125d0), Dialog_LayoutButtons"
 00334070,MissionSuccessFailMenu_ShowRetryDialog,function,medium,MissionSuccessFailMenu_HandleSelect: dialog with MEM_DIALOG_YES (MissionSuccessFailMenu_OnRetryYes) / MEM_DIALOG_NO (0x0030cf90) when 0x008dd1cf == 1
 00334ca0,ProfileMenu_ShowSaveErrorDialog,function,medium,"ProfileMenu_Update: by error state +0x48/+0x4c shows MEM_DIALOG_OK, MEM_RETURN_TO_MAIN or MEM_CONTINUE_WO_SAVING dialogs"
@@ -12782,7 +12782,7 @@ address,name,kind,confidence,evidence
 00247f70,VehNode_FillUnsetValue08,function,medium,(DI node index): same as VehNode_FillUnsetValue0c for the node value +8 (unset < 0): nearest set value along the previous/next links; VehNode_LinkAll
 0014ebc0,ScrField_h4ced49f6_PopFront,function,medium,"field h4ced49f6 (single-word crack 'enemyque', unconfirmed); shifts the int array field 0x4ced49f6 (HashKeyNoCase ""enemyque"", keyhash_crack) one left and sets the last slot to 0x00922e84 (undefined); BroScr_TankHullGunnerThink"
 00011870,UIText_SetScale,function,medium,"UIText_vtable 0x0082a450 slot 23: (x, y) into +0x38/+0x3c (the scale pair UIText_LayoutLines passes to nglGetTextExtent), +0x40 = 0, then UIText_LayoutLines"
-00310520,UIPictureBlock_SetVertexUVs,function,medium,"thiscall (block, EAX u[4], v[4]): nglSetQuadVertexUV on the block's quad (+0x40) for vertices 0-3; from the gap method 0x000119b0 that picks block [index] of the picture's +0x20 vector"
+00310520,UIQuad_SetVertexUVs,function,medium,"thiscall (block, EAX u[4], v[4]): nglSetQuadVertexUV on the block's quad (+0x40) for vertices 0-3; from the gap method 0x000119b0 that picks block [index] of the picture's +0x20 vector"
 0032c430,UIPicture_GetBoundsMax,function,medium,"(EAX picture, out vec3): max x/y over the four quad vertices (+0x40/+0x54/+0x68/+0x7c, y +4) of every vertex block in +0x20 (count +0x28), z = 0x00922eb8"
 0032c200,UIPicture_GetBoundsMin,function,medium,same as UIPicture_GetBoundsMax with min: smallest vertex x/y over the picture's vertex blocks
 00011ac0,UIPicture_GetHeight,function,medium,UIPicture_vtable 0x0082a2c0 slot 45 (also 0x00828eac): UIPicture_GetBoundsMax.y - UIPicture_GetBoundsMin.y
@@ -13407,7 +13407,7 @@ address,name,kind,confidence,evidence
 00314340,DialogMgr_DrawOverlay,function,low,"(EAX manager): DialogMgr_DrawBackground, then in pushed ngl scenes draws the +0x2c and +0x28 elements (slot 0x3c) unless +0x28's text (slot 0xa0) is empty; flag +0x44 & 4: viewport (180,140)-(460,340) and a row layout from +0x28 slot 0xc4 (0x14 per row)"
 003141c0,DialogMgr_DrawBackground,function,low,"(ESI manager): pushed scene without clear/depth; per 0x0095f8f8 sets the alpha (slot 0x7c) of the +0x10/+0x14/+0x1c/+0x20 pictures by the +0x45 mode and draws them (slot 0x44), +0x30 +0x18 = 0 / -1"
 00321940,UIPicture_SetColorRGB,function,medium,"slot 29 of UIPicture_vtable (0x0082a334, also 0x00828e6c): nglSetQuadVertexColor on the 4 vertices of every quad (+0x20, count +0x28) with the new RGB and each vertex's own alpha; next to UIPicture_SetTexture (slot 26)"
-00317240,UIQuad_GetMaxCorner,function,low,"(ECX quad, EAX out vec3): largest x and y over the 4 corner positions (+0x48/+0x5c/+0x70/+0x84, y +4), z 0; reached by pointer"
+00317240,UIQuad_GetMaxUV,function,low,"(ECX quad, EAX out vec3): largest x and y over the 4 corner positions (+0x48/+0x5c/+0x70/+0x84, y +4), z 0; reached by pointer"
 00320f20,UITextLine_Init,function,medium,"(ESI line, EAX text, font, scale): assigns the text, counts '~' button tokens (2 slots each, +0x1c), allocates the token table (+0x18) and lays it out with UITextLine_LayoutTokens, else measures the plain width (+0x10); UIText_WrapLines"
 003207f0,UITextLine_LayoutTokens,function,medium,"(line, font scale): per '~' segment nglGetTextExtent (ui_fonts[+0]) accumulates the width, stores {char index, x} pairs in the token table (+0x18, 8 bytes each), UI_TranslateButtonToken replaces the token with its glyph; UITextLine_Init"
 000112f0,UIElement_SetDepth,function,medium,"UIElement_vtable slot 9 (shared by UITextBase/UIText): stores float +8; UIText_Init calls it with (layer*1000 + clamp(z,0,1000))*0.125, HUD setup sets GetDepth()+1"
@@ -13947,7 +13947,7 @@ address,name,kind,confidence,evidence
 00321830,UIWorldPicture_Construct,function,medium,"UIPicture_Init then vtable 0x00828df8 and world point +0x40..+0x48 = 0; no references (dead copy, the class is otherwise unused)"
 00828df8,UIWorldPicture_vtable,data,medium,UIPicture_vtable copy (same slots 0-49) plus slot 51 UIWorldPicture_UpdateScreenPos; stored only by UIWorldPicture_Construct
 00331590,AdvancedOptionsMenu_ResumeGame,function,medium,"AdvancedOptionsMenu_vtable slot 19 (+0x4c, button 2): FE_ApplyControlSettings, 0x0095f919 = 0, S_ResumeAllChannels, cl_paused 0, copies the pause screen option into 0x008dce69"
-00331c50,DialogMgr_Update,function,medium,"DialogMgr_vtable slot 4 (UIScreenMgr_Update override, dt): active screen Update(dt), HandleInput, CL_ResumeFromPause, then slot 8 with 1 (front end 0x0095f8f8 up) or 4"
+00331c50,DialogMgr_Update,function,medium,"DialogMgr_vtable slot 4 (UIScreenMgr_Update override, dt): active screen Update(dt), HandleInput, CL_UpdatePauseOverlay, then slot 8 with 1 (front end 0x0095f8f8 up) or 4"
 002fdef0,IntHashMap_EraseByString,function,medium,"hashes a string (ScrIface_HashStringNoCase), IntHashMap_Find, IntHashMap_Erase unless at the end sentinel 0x0095fe08; returns true when erased; no references"
 0030f380,UIFontTable_SetByName,function,medium,"(EAX name, EDI table, ESI font): R_FindFont of the name; table +4[idx] = font, +0x3c[idx] = font != 0; as UI_SetFontByName on a local table; no references"
 00315360,UI_SetFontByName,function,medium,"(EAX name, ESI font): R_FindFont; ui_fonts[idx] = font, 0x0095f90c[idx] = font != 0; no references"
@@ -14048,3 +14048,24 @@ address,name,kind,confidence,evidence
 000cf140,Movie_HasPendingReads,function,high,"(ECX movie): any of the four read requests +0x58..+0x64 != -1; Movie_Stop waits on it (gap)"
 000cf370,MovieBase_Start,function,medium,"MovieBase vtable slot 1 (gap): Mem_AlignedAlloc memory/read buffers/frame, nglCreateTexture x2 (owned bits), Reset, state 1, Movie_QueueReads, plane pointers +0x118..+0x13c by format"
 000cf820,Movie_ReadCallback,function,medium,"(status, request, movie) cdecl: the File_QueueRead completion pointer Movie_QueueReads stores; status 1 ignored, else Movie_OnReadComplete (gap)"
+0030ea00,UI_StickDirectionHeld,function,medium,menu input: the stick held in a direction (2026-10-26 client batch)
+0032de50,CL_PauseIntoFrontEnd,function,medium,pauses the game into the in-game front end (2026-10-26 client batch)
+00313610,LoadingMenu_ShowMissions,function,medium,LoadingMenu: shows its mission dots (2026-10-26 client batch)
+00313360,LoadAfricaMenu_ShowMissions,function,medium,LoadAfricaMenu: shows its mission dots (2026-10-26 client batch)
+00313120,LoadSicilyMenu_ShowMissions,function,medium,LoadSicilyMenu: shows its mission dots (2026-10-26 client batch)
+0030cfb0,MissionSuccessFailMenu_ClearTexts,function,medium,clears the menu's texts (2026-10-26 client batch)
+0030e390,GameplayMenu_UpdateLabelColors,function,medium,label colours by selection (2026-10-26 client batch)
+0030e4c0,AdvancedOptionsMenu_UpdateLabelColors,function,medium,label colours by selection (2026-10-26 client batch)
+0031ee10,AdvancedOptionsMenu_SetSliderBar,function,medium,slider bar position (2026-10-26 client batch)
+0031e9d0,ControllerConfigMenu_UpdateSliderA,function,medium,first slider (2026-10-26 client batch)
+0031e810,ControllerConfigMenu_UpdateSliderB,function,medium,second slider (2026-10-26 client batch)
+0030f950,UI_GetTextWidth,function,medium,text width (2026-10-26 client batch)
+00315cd0,UIText_FadeColour,function,medium,text colour fade (2026-10-26 client batch)
+00012480,UITextLine_VectorDeletingDtor,function,medium,the text lines' vector delete (UIText dtor 0x00320790; fe.h)
+0031a390,SpecialConceptMenu_NextItem,function,medium,"EAX = 1, menu in ECX/ESI: the category's next item (fe_special.h)"
+000cfb20,MovieVid_Idct,function,medium,video decoder inverse DCT (movie_vid.cpp)
+000cea00,MovieVid_ReadMotionDelta,function,medium,video decoder motion vector delta (movie_vid.cpp)
+000d0860,MovieVid_ConvertYuv8,function,medium,video decoder YUV conversion (movie_vid.cpp)
+003173e0,UIQuad_Fill,function,medium,"quad in EAX, points in ECX; UVs, colours, depth on the stack (fe.cpp)"
+00322b30,UI_FindLocalizedTexture,function,medium,"name in ESI: the texture, the language-prefixed one first (fe.cpp)"
+00316480,Panel_ReadVec3,function,medium,"offset in ECX, data in EAX, out in EDI: three LE floats (ui_panel.cpp)"

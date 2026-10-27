@@ -540,7 +540,7 @@ void XB_CDECL UI_PlayTypeSound() {
                                           0xbf800000, 0xbf800000, 0xbf800000, 0xbf800000);  // S_PlaySoundAlias
 }
 
-uint8_t XB_CDECL PauseMenu_ReloadCheckpoint() {
+uint8_t XB_CDECL MissionSuccessFailMenu_ReloadCheckpoint() {
     char* const one = const_cast<char*>(text_at(0x0082e058));  // "1"
     if (title_global<uint8_t>(0x008dd1cf) == 1) {
         title_global<uint8_t>(0x0095ee08) = 1;
@@ -621,7 +621,7 @@ void XB_REGS3 XB_CDECL UIQuad_SetCornerUVs(uint8_t* quad, uint32_t, const float*
     for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexUV(screen_quad(quad), i, points[i * 3], points[i * 3 + 1]);
 }
 
-void XB_REGS3 XB_STDCALL UIPictureBlock_SetVertexUVs(const float* us, uint32_t, const float* vs, uint8_t* quad) {
+void XB_REGS3 XB_STDCALL UIQuad_SetVertexUVs(const float* us, uint32_t, const float* vs, uint8_t* quad) {
     for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexUV(screen_quad(quad), i, us[i], vs[i]);
 }
 
@@ -733,16 +733,16 @@ uint8_t* XB_REGS3 XB_CDECL Color_Modulate(uint32_t, uint32_t, uint8_t* out, uint
     return out;
 }
 
-PLATFORM_ASM_ENTRY(UIQuad_GetMaxCorner_entry,
+PLATFORM_ASM_ENTRY(UIQuad_GetMaxUV_entry,
                    "subl $16, %esp\n"
                    "movups %xmm5, (%esp)\n"
                    "pushl %ecx\n"
-                   "pushl %eax\n" PLATFORM_ASM_CALL(UIQuad_GetMaxCorner) "addl $8, %esp\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIQuad_GetMaxUV) "addl $8, %esp\n"
                    "movups (%esp), %xmm5\n"
                    "addl $16, %esp\n"
                    "ret")
 
-void XB_CDECL UIQuad_GetMaxCorner(float* out, const uint8_t* source) {
+void XB_CDECL UIQuad_GetMaxUV(float* out, const uint8_t* source) {
     const NglQuadVertex* const v = reinterpret_cast<const NglQuadVertex*>(source + 0x40);
     float u = v[0].u, w = v[0].v;
     for (int32_t i = 1; i < 4; ++i) {
@@ -2903,9 +2903,9 @@ uint32_t XB_CDECL FE_BonusMenuLabel(const FrameIn* in, uint32_t entry_esp) {
     return 0;
 }
 
-FE_FRAME_ENTRY(FE_BonusStopMovie, "ret $4")
+FE_FRAME_ENTRY(SpecialMaterialsMenu_PlayMovie, "ret $4")
 
-uint32_t XB_CDECL FE_BonusStopMovie(const FrameIn* in, uint32_t entry_esp) {
+uint32_t XB_CDECL SpecialMaterialsMenu_PlayMovie(const FrameIn* in, uint32_t entry_esp) {
     Frame f(in, entry_esp);
     uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->edi});
     f.word(0x4) = in->esi;  // push esi
@@ -2931,9 +2931,9 @@ uint32_t XB_CDECL FE_BonusStopMovie(const FrameIn* in, uint32_t entry_esp) {
     return f.call(0x4, 0x003330e6, 0x0031a900);  // FE_BonusCEMainLoadImage
 }
 
-FE_FRAME_ENTRY(FE_BonusMovieFileName, "ret")
+FE_FRAME_ENTRY(SpecialMaterialsMenu_HandleSelect, "ret")
 
-uint32_t XB_CDECL FE_BonusMovieFileName(const FrameIn* in, uint32_t entry_esp) {
+uint32_t XB_CDECL SpecialMaterialsMenu_HandleSelect(const FrameIn* in, uint32_t entry_esp) {
     Frame f(in, entry_esp);
     uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
     f.word(0x4) = in->edi;  // push edi
@@ -2941,7 +2941,7 @@ uint32_t XB_CDECL FE_BonusMovieFileName(const FrameIn* in, uint32_t entry_esp) {
     if (menu[0x3c]) return in->eax;  // a movie is playing
     const uint32_t index = in->eax;
     field<int32_t>(menu, 0x40) = field<int16_t>(menu, 0x22);
-    auto play = [&](uint32_t ret, uint32_t name) { return f.call(0x4, ret, 0x00333060, name); };  // FE_BonusStopMovie
+    auto play = [&](uint32_t ret, uint32_t name) { return f.call(0x4, ret, 0x00333060, name); };  // SpecialMaterialsMenu_PlayMovie
     switch (index) {
         case 0:
             return play(0x00333117, 0x0082a998);  // "Bringing"
@@ -3206,9 +3206,9 @@ uint32_t XB_CDECL FE_ControlsUpdateText(const FrameIn* in, uint32_t entry_esp) {
     return result;
 }
 
-FE_FRAME_ENTRY(FE_MainMenu_UpdateSignIn, "ret $4")
+FE_FRAME_ENTRY(MainMenu_Update, "ret $4")
 
-uint32_t XB_CDECL FE_MainMenu_UpdateSignIn(const FrameIn* in, uint32_t entry_esp) {
+uint32_t XB_CDECL MainMenu_Update(const FrameIn* in, uint32_t entry_esp) {
     Frame f(in, entry_esp);
     uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
     const uint32_t pad = stack_word(entry_esp + 4);
@@ -3318,9 +3318,9 @@ uint32_t XB_CDECL FE_MainMenu_UpdateSignIn(const FrameIn* in, uint32_t entry_esp
     return result;
 }
 
-FE_FRAME_ENTRY(FE_DrawLoadingQuote, "ret")
+FE_FRAME_ENTRY(ChapterMenu_Draw, "ret")
 
-uint32_t XB_CDECL FE_DrawLoadingQuote(const FrameIn* in, uint32_t entry_esp) {
+uint32_t XB_CDECL ChapterMenu_Draw(const FrameIn* in, uint32_t entry_esp) {
     Frame f(in, entry_esp);
     uint8_t* const menu = reinterpret_cast<uint8_t*>(uintptr_t{in->ecx});
     f.word(0x18) = in->ebx;  // push ebx

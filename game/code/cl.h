@@ -471,8 +471,8 @@ void XB_CDECL CL_ApplyFrontEndReturnState();
 // 0x0032df90 (menu in ESI, dt on the stack, ret 4): the pause overlay's update: resume (flag 8: 0x0095f900 vtable
 // +0xc (-1), sounds and cl_paused 0 unless its flag 1), children shown, slide timer +0x40 and the slide-in/out
 // position +0x3c (3 per 0.01 s) sent to child 3 (vtable +0x8c), both backgrounds' colour (vtable +0x90).
-extern "C" PLATFORM_HIDDEN void XB_CDECL CL_ResumeFromPause(uint8_t* menu, float dt);
-extern "C" void CL_ResumeFromPause_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_UpdatePauseOverlay(uint8_t* menu, float dt);
+extern "C" void CL_UpdatePauseOverlay_entry(void);
 // 0x00332230 (name in ESI): opens the movie, waits for its buffers, subtitles "MOVIE", then frames (identity view
 // moved 10 along z) until the last frame or a skip; Movie_Stop(1).
 extern "C" PLATFORM_HIDDEN void XB_CDECL CL_PlayMovie(const char* name);

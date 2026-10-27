@@ -1390,7 +1390,7 @@ void XB_THISCALL DialogMgr_Update(uint8_t* mgr, uint32_t dt) {
     TitleRegs regs{};
     regs.esi = address_of(field<uint8_t*>(mgr, 0x1c));
     const uint32_t args[1] = {dt};
-    ui_call_regs(0x0032df90, &regs, 1, args);  // the overlay's fade (CL_ResumeFromPause)
+    ui_call_regs(0x0032df90, &regs, 1, args);  // the overlay's fade (CL_UpdatePauseOverlay)
     call(mgr, 0x20, title_global<uint32_t>(0x0095f8f8) ? 1 : 4);
 }
 
