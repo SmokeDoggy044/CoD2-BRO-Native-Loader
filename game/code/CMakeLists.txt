@@ -17,6 +17,8 @@ set(game_code_sources
     fe_options.cpp
     fe_profile.cpp
     fe_setup.cpp
+    fe_setup_bonus.cpp
+    fe_setup_special.cpp
     fe_special.cpp
     functions.cpp
     fx.cpp

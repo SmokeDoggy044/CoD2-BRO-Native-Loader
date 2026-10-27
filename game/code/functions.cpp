@@ -15,6 +15,8 @@
 #include "fe_options.h"
 #include "fe_profile.h"
 #include "fe_setup.h"
+#include "fe_setup_bonus.h"
+#include "fe_setup_special.h"
 #include "fe_special.h"
 #include "fx.h"
 #include "fx_cmd.h"
