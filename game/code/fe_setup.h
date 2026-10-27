@@ -64,6 +64,14 @@ extern "C" void FE_SetupCreateProfileMenu_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FE_SetupLoginStatus(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
 extern "C" void FE_SetupLoginStatus_entry(void);
 
+// 0x0032a910 (panel in EAX, its file name in EDX; the owner on the stack, ret 4): the panel set up by its file name -
+// each FE_Setup* helper with its menu (from the front-end / in-game screen lists, the dialog manager or the owner), the
+// title screen's help text, the HUD's vtable +4; an unknown panel is deleted. FE_SetupPanelAt is the C version
+// behind FE_SetupPanel_entry (the entry's registers and ESP).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FE_SetupPanelAt(uint8_t* panel, const char* name, uint32_t entry,
+                                                              uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void FE_SetupPanel_entry(void);
+
 // 0x00327de0 (menu in ECX, panel in EAX): panel to +0x34 (Panel_SetLayer 2), three items with their texts, the
 // title, the arrows hidden, the volume bar to +0x3c, the Helpbar copy to +0x38, two more pictures hidden.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupSoundMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
@@ -88,6 +96,26 @@ extern "C" void FE_SetupOptionsMenu_entry(void);
 // (+0x5c 0.7), the Helpbar1 / Helpbar2 copies to +0x38 / +0x3c, the background pictures and help texts 10 lower.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupPauseMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
 extern "C" void FE_SetupPauseMenu_entry(void);
+
+// 0x00329480 (menu in ESI, panel in EAX): the in-game options panel: panel to +0x34 (Panel_SetLayer 2), the title,
+// twelve items with their texts (all scaled 0.7), the value texts +0x38..+0x50, the row arrows +0x54..+0x88 (+0xb4
+// the first one's +0xac), three bars +0x8c..+0x94, the Helpbar1..3 copies to +0x98..+0xa0; outside English the
+// subtitles row hidden and the rows below moved up.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupAdvancedOptionsMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupAdvancedOptionsMenu_entry(void);
+
+// 0x00328720 (menu in ESI, panel in EAX): panel to +0x34 (Panel_SetLayer 2), seven items with their texts (items 3 /
+// 4 scaled 0.7), the title, the on/off texts to +0x3c..+0x4c, the arrows to +0x50..+0x74 (+0x78 the first one's
+// +0xac), the Helpbar copy to +0x38, mp_menu / mp_back hidden; outside English the subtitles item and its arrows off.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupGameplayMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupGameplayMenu_entry(void);
+
+// 0x00328210 (menu in ESI, panel in EAX): panel to +0x34 (Panel_SetLayer 2), seven items with their texts, the title,
+// the on/off and layout texts +0x3c..+0x44, the slider arrows +0x48..+0x5c (+0xc4 the first one's +0xac), the
+// sensitivity bars +0x60 / +0x64, the button-layout labels +0x68..+0xb4 (the two clicks black), mp_menu / mp_back
+// hidden, the Helpbar copy to +0x38.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupControllerConfigMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupControllerConfigMenu_entry(void);
 
 // 0x00327fd0 (menu in ESI, panel in EAX): panel to +0x34 (Panel_SetLayer 2), three items with their texts, the size
 // selection text to +0x3c, the title, the arrows to +0x44 / +0x48 (+0x4c the left one's +0xac), the Helpbar copy to
