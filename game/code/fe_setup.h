@@ -79,6 +79,16 @@ extern "C" void FE_SetupProfileMenu_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupMainMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
 extern "C" void FE_SetupMainMenu_entry(void);
 
+// 0x00328af0 (menu in ECX, panel in EAX): panel to +0x34 (Panel_SetLayer 2), three items with their texts spread
+// around half their gap, the Helpbar copy to +0x38, mp_menu / mp_back hidden.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupOptionsMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupOptionsMenu_entry(void);
+
+// 0x00329c80 (menu in ESI, panel in EAX): panel to +0x34 (Panel_SetLayer 2), the title, five items with their texts
+// (+0x5c 0.7), the Helpbar1 / Helpbar2 copies to +0x38 / +0x3c, the background pictures and help texts 10 lower.
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SetupPauseMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp);
+extern "C" void FE_SetupPauseMenu_entry(void);
+
 // 0x00327fd0 (menu in ESI, panel in EAX): panel to +0x34 (Panel_SetLayer 2), three items with their texts, the size
 // selection text to +0x3c, the title, the arrows to +0x44 / +0x48 (+0x4c the left one's +0xac), the Helpbar copy to
 // +0x38, mp_menu / mp_back hidden, item 0 +0x20 (1).

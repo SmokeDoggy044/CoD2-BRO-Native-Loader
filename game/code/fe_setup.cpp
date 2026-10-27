@@ -49,6 +49,7 @@ using WordMethod = void XB_THISCALL(uint8_t*, uint32_t);
 using GetMethod = long double XB_THISCALL(uint8_t*);  // an x87 result
 using IntMethod = int32_t XB_THISCALL(uint8_t*);
 using ColourMethod = uint32_t* XB_THISCALL(uint8_t*, uint32_t*);
+using PairMethod = void XB_THISCALL(uint8_t*, float, float);
 
 void call(uint8_t* object, uint32_t offset, uint32_t a) { method<WordMethod>(object, offset)(object, a); }
 long double get(uint8_t* object, uint32_t offset) { return method<GetMethod>(object, offset)(object); }
@@ -90,11 +91,11 @@ uint8_t* copy_text_colour(uint8_t* source, uint32_t colour, uint32_t ecx, uint32
     return UIText_Construct(block, kind, bits(x), bits(y), 0, 0, bits(scale), colour, ecx, edx);
 }
 
-// The Helpbar copy at `help_offset` (+0x13c (1)) with the help text `text` (+0x6c at the original's ESP `top`; EBX = the
-// copy, EDI = the source text).
+// The copy of the panel text `source_name` (default Helpbar) at `help_offset` (+0x13c (1)) with the help text `text`
+// (+0x6c at the original's ESP `top`; EBX = the copy, EDI = the source text).
 void setup_help(uint32_t top, TitleRegs regs, uint8_t* menu, uint32_t panel_offset, uint32_t help_offset,
-                uint32_t text = 0x0082c37c) {
-    uint8_t* const source = Panel_FindText(text_at(kHelpbar), field<uint8_t*>(menu, panel_offset));
+                uint32_t text = 0x0082c37c, uint32_t source_name = kHelpbar) {
+    uint8_t* const source = Panel_FindText(text_at(source_name), field<uint8_t*>(menu, panel_offset));
     uint8_t* const copy = copy_text(source, 0);
     field<uint8_t*>(menu, help_offset) = copy;
     call(field<uint8_t*>(menu, help_offset), 0x13c, 1);
@@ -549,6 +550,86 @@ void XB_CDECL FE_SetupScreenMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_e
     if (mp_menu) call(mp_menu, 0x7c, 0);
     if (back) call(back, 0x7c, 0);
     call(item(menu, 0), 0x20, 1);
+}
+
+SETUP_GAP_ENTRY(FE_SetupOptionsMenu, "%ecx")
+
+void XB_CDECL FE_SetupOptionsMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp) {
+    const uint32_t top = entry_esp - 0x14;  // 8 bytes of locals, push ebx / esi / edi
+    field<uint8_t*>(menu, 0x34) = panel;
+    Panel_SetLayer(panel, 2);
+    static constexpr uint32_t kNames[3] = {0x0082c370, 0x0082c364, 0x0082c35c};  // Gameplay / Controller / Sound
+    TitleRegs regs{};
+    regs.esi = address_of(menu);
+    add_items(top, regs, menu, 0x34, kNames, 3);
+    regs.ebx = kNames[2];
+    regs.edi = field<uint32_t>(menu, 0);
+    static constexpr uint32_t kItemTexts[3] = {0x0082c348, 0x0082c334, 0x0082c324};
+    for (uint32_t i = 0; i < 3; ++i) {
+        const uint32_t args[1] = {kItemTexts[i]};
+        method_at(top, regs, item(menu, i), 0x30, 1, args);
+    }
+    // Items 0 and 1 move by half the gap between them, item 2 the other way (+0x70 y, +0x6c x, +0x2c (x, y)).
+    const float second = static_cast<float>(get(item(menu, 1), 0x70));
+    const double half = static_cast<double>((second - get(item(menu, 0), 0x70)) * 0.5L);
+    for (uint32_t i = 0; i < 3; ++i) {
+        uint8_t* const entry = item(menu, i);
+        const float y = static_cast<float>(i < 2 ? get(entry, 0x70) + half : get(entry, 0x70) - half);
+        const float x = static_cast<float>(get(entry, 0x6c));
+        method<PairMethod>(entry, 0x2c)(entry, x, y);
+    }
+    setup_help(top, regs, menu, 0x34, 0x38);
+    uint8_t* const mp_menu = find_picture(menu, 0x0082c31c);  // "mp_menu"
+    uint8_t* const back = find_picture(menu, 0x0082c314);     // "mp_back"
+    if (mp_menu) call(mp_menu, 0x7c, 0);
+    if (back) call(back, 0x7c, 0);
+}
+
+SETUP_GAP_ENTRY(FE_SetupPauseMenu, "%esi")
+
+void XB_CDECL FE_SetupPauseMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp) {
+    const uint32_t top = entry_esp - 12;  // push ecx / ebx / edi
+    field<uint8_t*>(menu, 0x34) = panel;
+    Panel_SetLayer(panel, 2);
+    TitleRegs regs{};
+    regs.esi = address_of(menu);
+    uint8_t* const title = Panel_FindText(text_at(0x0082c9b8), field<uint8_t*>(menu, 0x34));  // "GamePaused"
+    regs.ebx = 0x0082c9b8;
+    regs.edi = address_of(panel);
+    const uint32_t title_args[1] = {0x0082c9a8};  // "FEMENU_PAUSED"
+    method_at(top, regs, title, 0x6c, 1, title_args);
+    // Resume / Options / Restart / Quit / XBoxLive
+    static constexpr uint32_t kNames[5] = {0x0082c9a0, 0x0082c998, 0x0082c990, 0x0082c988, 0x0082c97c};
+    add_items(top, regs, menu, 0x34, kNames, 5);
+    regs.ebx = kNames[4];
+    regs.edi = field<uint32_t>(menu, 0);
+    static constexpr struct {
+        uint32_t index, text;
+    } kItemTexts[5] = {{1, 0x0082c96c}, {2, 0x0082c954}, {0, 0x0082c940}, {3, 0x0082c92c}, {4, 0x0082c91c}};
+    for (const auto& entry : kItemTexts) {
+        const uint32_t args[1] = {entry.text};
+        method_at(top, regs, item(menu, entry.index), 0x30, 1, args);
+    }
+    for (uint32_t i = 0; i < 5; ++i) call(item(menu, i), 0x5c, 0x3f333333);  // 0.7
+    setup_help(top, regs, menu, 0x34, 0x38, 0x0082c8f4, 0x0082c910);  // "FEMENU_HELPBAR_UNPAUSE_FULL", "Helpbar1"
+    setup_help(top, regs, menu, 0x34, 0x3c, 0x0082ca0c, 0x0082c8e8);  // "FEMENU_HELPBAR_SELECT", "Helpbar2"
+    // PauseBackground and whitelines 10 lower (+0xa0 y, +0x9c x, +0x8c (x, y)), then both help texts (+0xcc y,
+    // +0xc8 x, +0x7c (x, y)).
+    static constexpr uint32_t kPictures[2] = {0x0082ca44, 0x0082c8dc};
+    for (const uint32_t name : kPictures) {
+        uint8_t* const picture = find_picture(menu, name);
+        if (!picture) continue;
+        const float y = static_cast<float>(get(picture, 0xa0) + 10.0f);
+        const float x = static_cast<float>(get(picture, 0x9c));
+        method<PairMethod>(picture, 0x8c)(picture, x, y);
+    }
+    static constexpr uint32_t kHelps[2] = {0x38, 0x3c};
+    for (const uint32_t offset : kHelps) {
+        uint8_t* const text = field<uint8_t*>(menu, offset);
+        const float y = static_cast<float>(get(text, 0xcc) + 10.0f);
+        const float x = static_cast<float>(get(text, 0xc8));
+        method<PairMethod>(text, 0x7c)(text, x, y);
+    }
 }
 
 }  // namespace game
