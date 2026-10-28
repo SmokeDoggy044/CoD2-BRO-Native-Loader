@@ -44,14 +44,19 @@ We've also named 2,659 of the game's global variables.
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 1,084 | 1,028 | 7 | 48 | 0 | 0 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,910 | 433 | 38 | 0 | 1,225 | 210 |
+| Game logic (entities, AI, weapons, physics, level-script runtime) | 1,626 | 278 | 16 | 0 | 1,123 | 205 |
+| Animation (animation trees, the animation codec) | 284 | 155 | 22 | 0 | 102 | 5 |
 | Client game (HUD, view, effects on screen) | 300 | 167 | 22 | 0 | 96 | 15 |
 | Engine core (memory, files, settings, commands, containers, math) | 960 | 233 | 16 | 0 | 646 | 54 |
 | Client and menus | 761 | 473 | 200 | 6 | 33 | 49 |
-| Server, collision, compression | 254 | 112 | 14 | 0 | 119 | 9 |
+| Server | 82 | 45 | 11 | 0 | 19 | 7 |
+| Collision | 108 | 66 | 2 | 0 | 38 | 2 |
+| Compression (zlib) | 64 | 1 | 1 | 0 | 62 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 12 | 0 | 0 | 1,986 | 6 |
 | Level-script helpers in the engine code | 1,444 | 0 | 0 | 0 | 1,389 | 48 |
-| Sound, streaming, online | 329 | 106 | 4 | 0 | 194 | 24 |
+| Sound | 141 | 42 | 1 | 0 | 86 | 11 |
+| Streaming (asset loading, zones) | 161 | 64 | 3 | 0 | 87 | 7 |
+| Online (Xbox Live glue) | 27 | 0 | 0 | 0 | 21 | 6 |
 | Microsoft library code built into the game (replaced, not rewritten) | 2,084 | 0 | 0 | 0 | 11 | 466 |
 | Not sorted into a part yet | 63 | 0 | 0 | 0 | 0 | 63 |
 

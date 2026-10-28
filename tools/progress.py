@@ -189,16 +189,21 @@ def main():
 
 
 # README "By part of the game" rows: label -> progress.py modules
-PARTS = [
+PARTS = [  # one row per module (user, 2026-10-27: modules are pushed one at a time)
     ("Renderer (scenes, materials, shaders, models, effects)", {"renderer"}),
-    ("Game logic (entities, AI, animation, weapons, level-script runtime)", {"game", "xanim"}),
+    ("Game logic (entities, AI, weapons, physics, level-script runtime)", {"game"}),
+    ("Animation (animation trees, the animation codec)", {"xanim"}),
     ("Client game (HUD, view, effects on screen)", {"cgame"}),
     ("Engine core (memory, files, settings, commands, containers, math)", {"qcommon"}),
     ("Client and menus", {"client"}),
-    ("Server, collision, compression", {"server", "collision", "zlib"}),
+    ("Server", {"server"}),
+    ("Collision", {"collision"}),
+    ("Compression (zlib)", {"zlib"}),
     ("Script engine (script VM, entity bindings, built-in script functions)", {"script"}),
     ("Level-script helpers in the engine code", {"levelscript"}),
-    ("Sound, streaming, online", {"sound", "streaming", "online"}),
+    ("Sound", {"sound"}),
+    ("Streaming (asset loading, zones)", {"streaming"}),
+    ("Online (Xbox Live glue)", {"online"}),
     ("Microsoft library code built into the game (replaced, not rewritten)", {"mslib", "crt"}),
 ]
 
