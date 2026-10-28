@@ -615,4 +615,52 @@ uint8_t XB_REGS1 XB_CDECL CM_SightTraceThroughWorld(uint8_t* tw, const float* st
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_SightTraceRay(const float* start, const float* end);
 extern "C" void CM_SightTraceRay_entry(void);
 
+// Q3 windings ({numpoints, points[] of 3 floats}; c_active_windings 0x00927b28, c_peak_windings 0x00929b00). All dead
+// here: nothing calls CheckWinding, BaseWindingForPlane or AddWindingToConvexHull, so neither their callees.
+// 0x002b2260 (winding in EDI; result in XMM0): Q3's WindingArea - the fan's half cross-product lengths (__CIsqrt,
+// x87 sum stored as float per step).
+extern "C" PLATFORM_HIDDEN float XB_CDECL WindingArea(const uint8_t* w);
+extern "C" void WindingArea_entry(void);
+// 0x002b2340 (winding in ESI, normal out in EDI; dist out on the stack): Q3's WindingPlane - (p2 - p0) x (p1 - p0)
+// normalized (__CIsqrt; zero length clears it), dist = p0 . normal.
+extern "C" PLATFORM_HIDDEN void XB_CDECL WindingPlane(const uint8_t* w, float* normal, float* dist);
+extern "C" void WindingPlane_entry(void);
+// 0x002bac30 (winding in EAX): Q3's CheckWinding (__break 1 on each failed check).
+void XB_REGS1 XB_CDECL CheckWinding(const uint8_t* w);
+// 0x002bb370 (winding in EBX): Q3's CopyWinding (AllocWinding inlined: Z_Malloc + Com_Memset, then the copy).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CopyWinding(const uint8_t* w);
+extern "C" void CopyWinding_entry(void);
+// 0x002bb3d0 (normal in EAX; dist on the stack): Q3's BaseWindingForPlane (MAX_WORLD_COORD 131072; x87 fabs and
+// compares, __CIsqrt).
+uint8_t* XB_REGS1 XB_CDECL BaseWindingForPlane(const float* normal, float dist);
+// 0x002c10e0: Q3's AddWindingToConvexHull (128-point hull, ON_EPSILON 0.1; FreeWinding / AllocWinding inlined).
+void XB_CDECL AddWindingToConvexHull(const uint8_t* w, uint8_t** hull, const float* normal);
+// 0x002c75f0 (dead: no caller; lump in ECX, out on the stack): reads lump `lump` of the map file named at 0x009355d8
+// (header 0x138 bytes, lumps {length, offset}) into a Z_MallocDebug block ("hunk", also 0x0093e6b0), skipping to it
+// in the zip (unztell / reopen when seeking back) or with fseek; returns the length (0 for an empty lump).
+int32_t XB_REGS3 XB_CDECL CM_LoadMapFile(uint32_t, uint32_t, uint32_t lump, uint8_t** out);
+// 0x0001d340 (normal out in EAX, triangle plane in EDX, point out in ESI; center, radius, a, b, c on the stack): a
+// sphere touching the back of a triangle - plane distance (a - center) . n in [-radius, 0], then the closest point
+// (Ericson's region tests on a, b, c relative to the center): face -> point = center + dist * n, normal = n; vertex or
+// edge -> squared distance above 0.0001 and within radius^2: point = center + v, normal = v / -|v| (x87 sqrt). AL.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_SphereTriangleContact(float* normal_out, const float* plane, float* point_out,
+                                                                    const float* center, float radius, const float* a,
+                                                                    const float* b, const float* c);
+extern "C" void CM_SphereTriangleContact_entry(void);
+// 0x002d9db0 (dead: no caller): the sphere's contacts with world mesh triangles - per world tree meeting the sphere's
+// box, the quad-tree leaf at the center, its non-brush objects meeting the box, triangles from the box-tree walk:
+// CM_SphereTriangleContact into normals[count] / points[count] (16 bytes each), ++*count per contact (no bound).
+void XB_CDECL CM_SphereWorldMeshContacts(const float* center, float radius, float* points, float* normals, int32_t* count);
+// 0x000ae500 (dead: no caller or pointer; thiscall, 7 stack words, the fifth unused): CM_Mesh_IntersectRay without
+// the sphere test, nearest hit by *fraction (fraction * (da - db) > da): out starts as end and holds the nearest
+// crossing point (+0) and plane (+0x10); *fraction = da / (da - db) of each nearer hit. AL = any hit.
+uint8_t XB_THISCALL CM_TriMesh_TraceSegment(uint8_t* mesh, const float* start, const float* end, const float* mins,
+                                            const float* maxs, uint32_t unused, float* fraction, float* out);
+// 0x00259990 (dead: no caller): three spheres up the capsule (z + radius, z + 35, z + 70 - radius) pushed out of the
+// listed entities' brush models (handles at list +0x30, count +0; in each entity's frame, G_GetEntityMatrix), the
+// listed brushes (+0x800, count +0x804) and triangles (+0x1000 {mesh, triangle}, count +0x1004); the origin is
+// written back after each sphere. AL = anything pushed.
+uint8_t XB_CDECL CM_PushCapsuleOutOfListedObjects(float* origin, float radius, const uint8_t* triangles,
+                                                  const uint8_t* brushes, const int32_t* entities);
+
 }  // namespace game

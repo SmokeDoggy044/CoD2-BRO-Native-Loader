@@ -4744,4 +4744,590 @@ int32_t XB_CDECL CM_SightTraceRay(const float* start, const float* end) {
     return CM_SightTraceRayThroughWorldTrees(tw, reinterpret_cast<const float*>(tw), reinterpret_cast<const float*>(tw + 0x10)) ? 1 : 0;
 }
 
+namespace {
+
+using Break = void XB_CDECL(uint32_t, const char*, ...);
+void cm_break(uint32_t level, uint32_t text) { title_function<Break>(0x002938f0)(level, ptr<const char>(text)); }
+
+void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }  // Z_Malloc
+
+void com_memcpy(void* dst, const void* src, uint32_t size) {
+    title_function<void XB_CDECL(void*, const void*, uint32_t)>(0x00293ab0)(dst, src, size);  // Com_MemcpyPrefetch
+}
+
+float* winding_point(const uint8_t* w, int32_t i) { return reinterpret_cast<float*>(const_cast<uint8_t*>(w) + 4 + i * 12); }
+
+uint8_t* alloc_winding(int32_t points) {
+    int32_t& active = title_global<int32_t>(0x00927b28);
+    ++active;
+    if (active > title_global<int32_t>(0x00929b00)) title_global<int32_t>(0x00929b00) = active;
+    const uint32_t size = static_cast<uint32_t>(points) * 12 + 4;
+    uint8_t* w = static_cast<uint8_t*>(z_malloc(size));
+    Com_Memset(w, 0, size);
+    return w;
+}
+
+// x87 compares (FCOMIP / FUCOMIP) of floats.
+bool x87_greater(float a, float b) { return static_cast<long double>(a) > static_cast<long double>(b); }
+bool x87_is_zero(float a) { return static_cast<long double>(a) == 0.0L; }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(WindingArea_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(WindingArea) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL WindingArea(const uint8_t* w) {
+    float total = 0.0f;
+    const int32_t n = *reinterpret_cast<const int32_t*>(w);
+    if (n <= 2) return total;
+    const float* p0 = winding_point(w, 0);
+    for (int32_t i = 1; i < n - 1; ++i) {
+        const float* p1 = winding_point(w, i);
+        const float* p2 = winding_point(w, i + 1);
+        const float ay = p2[1] - p0[1], az = p2[2] - p0[2];
+        const float by = p1[1] - p0[1], bz = p1[2] - p0[2];
+        const float ax = p2[0] - p0[0], bx = p1[0] - p0[0];
+        const float cx = az * by - ay * bz;
+        const float cz = ay * bx - ax * by;
+        const float cy = ax * bz - az * bx;
+        const float squared = (cz * cz + cy * cy) + cx * cx;
+        const float length = ci_sqrt_store(squared);
+        total = static_cast<float>(static_cast<long double>(length) * title_global<float>(0x0083eb24) + total);  // 0.5
+    }
+    return total;
+}
+
+PLATFORM_ASM_ENTRY(WindingPlane_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(WindingPlane) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL WindingPlane(const uint8_t* w, float* normal, float* dist) {
+    const float* p0 = winding_point(w, 0);
+    const float* p1 = winding_point(w, 1);
+    const float* p2 = winding_point(w, 2);
+    const float ay = p2[1] - p0[1], az = p2[2] - p0[2];
+    const float by = p1[1] - p0[1], bz = p1[2] - p0[2];
+    const float ax = p2[0] - p0[0], bx = p1[0] - p0[0];
+    const float nx = ay * bz - az * by;
+    const float nz = ax * by - ay * bx;
+    normal[2] = nz;
+    const float ny = az * bx - ax * bz;
+    const float squared = (nz * nz + ny * ny) + nx * nx;
+    normal[0] = nx;
+    normal[1] = ny;
+    const float length = ci_sqrt_store(squared);
+    if (x87_is_zero(length)) {
+        normal[2] = 0.0f;
+        normal[1] = 0.0f;
+        normal[0] = 0.0f;
+    } else {
+        const float inverse = title_global<float>(0x0083eb20) / length;  // 1
+        normal[0] = nx * inverse;
+        normal[1] = ny * inverse;
+        normal[2] = nz * inverse;
+    }
+    *dist = (p0[0] * normal[0] + p0[2] * normal[2]) + p0[1] * normal[1];
+}
+
+void XB_REGS1 XB_CDECL CheckWinding(const uint8_t* w) {
+    const int32_t points = *reinterpret_cast<const int32_t*>(w);
+    if (points < 3) title_function<Break>(0x002938f0)(1, ptr<const char>(0x00833e44), points);  // "%i points"
+    const float area = WindingArea(w);
+    if (title_global<float>(0x0083eb20) > area)
+        title_function<Break>(0x002938f0)(1, ptr<const char>(0x00833e2c), static_cast<double>(area));  // "%f area"
+    float facenormal[3], facedist;
+    WindingPlane(w, facenormal, &facedist);
+    for (int32_t i = 0; i < *reinterpret_cast<const int32_t*>(w); ++i) {
+        const float* p1 = winding_point(w, i);
+        for (int32_t j = 0; j < 3; ++j)
+            if (p1[j] > title_global<float>(0x0083ec04) || title_global<float>(0x0083ec00) > p1[j])  // +-131072
+                title_function<Break>(0x002938f0)(1, ptr<const char>(0x00833e10), static_cast<double>(p1[j]));
+        const int32_t next = i + 1 == *reinterpret_cast<const int32_t*>(w) ? 0 : i + 1;
+        const float d = ((p1[2] * facenormal[2] + p1[1] * facenormal[1]) + facenormal[0] * p1[0]) - facedist;
+        if (title_global<float>(0x0083ebfc) > d || d > title_global<float>(0x0083ebf8)) cm_break(1, 0x00833df0);  // off plane
+        const float* p2 = winding_point(w, next);
+        const float dz = p2[2] - p1[2], dy = p2[1] - p1[1], dx = p2[0] - p1[0];
+        const float edge = ci_sqrt_store((dz * dz + dy * dy) + dx * dx);
+        if (x87_greater(title_global<float>(0x0083ebf8), edge)) cm_break(1, 0x00833dd0);  // degenerate edge
+        const float e0 = dz * facenormal[1] - dy * facenormal[2];
+        const float e2 = dy * facenormal[0] - dx * facenormal[1];
+        const float e1 = dx * facenormal[2] - dz * facenormal[0];
+        const float length = ci_sqrt_store((e2 * e2 + e1 * e1) + e0 * e0);
+        float n0 = 0.0f, n1 = 0.0f, n2 = 0.0f;
+        if (!x87_is_zero(length)) {
+            const float inverse = title_global<float>(0x0083eb20) / length;
+            n0 = inverse * e0;
+            n1 = inverse * e1;
+            n2 = inverse * e2;
+        }
+        const float edgedist = ((p1[2] * n2 + p1[1] * n1) + n0 * p1[0]) + title_global<float>(0x0083ebf8);
+        for (int32_t k = 0; k < *reinterpret_cast<const int32_t*>(w); ++k) {
+            if (k == i) continue;
+            const float* p = winding_point(w, k);
+            const float dk = (p[2] * n2 + p[0] * n0) + n1 * p[1];
+            if (dk > edgedist) cm_break(1, 0x00833db4);  // non-convex
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(CopyWinding_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(CopyWinding) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL CopyWinding(const uint8_t* w) {
+    uint8_t* copy = alloc_winding(*reinterpret_cast<const int32_t*>(w));
+    com_memcpy(copy, w, static_cast<uint32_t>(*reinterpret_cast<const int32_t*>(w)) * 12 + 4);
+    return copy;
+}
+
+uint8_t* XB_REGS1 XB_CDECL BaseWindingForPlane(const float* normal, float dist) {
+    float max = title_global<float>(0x0083ec00);  // -131072
+    int32_t x = -1;
+    for (int32_t i = 0; i < 3; ++i) {
+        const float v = abs_bits(normal[i]);
+        if (x87_greater(v, max)) {
+            if (i < 2) max = v;
+            x = i;
+        } else if (i == 2 && x == -1) {
+            cm_break(1, 0x00833eac);  // "no axis found"
+        }
+    }
+    float vx = 0.0f, vy = 0.0f, vz = 0.0f;
+    if (x >= 0) {
+        if (x <= 1)
+            vz = title_global<float>(0x0083eb20);
+        else if (x == 2)
+            vx = title_global<float>(0x0083eb20);
+    }
+    const float v = (normal[2] * vz + normal[0] * vx) + normal[1] * vy;
+    const float neg = vy - v;
+    vx = neg * normal[0] + vx;
+    vy = normal[1] * neg + vy;
+    vz = normal[2] * neg + vz;
+    const float length = ci_sqrt_store((vz * vz + vy * vy) + vx * vx);
+    if (x87_is_zero(length)) {
+        vx = vy = vz = 0.0f;
+    } else {
+        const float inverse = title_global<float>(0x0083eb20) / length;
+        vx = inverse * vx;
+        vy = inverse * vy;
+        vz = inverse * vz;
+    }
+    const float org[3] = {normal[0] * dist, normal[1] * dist, normal[2] * dist};
+    float rx = normal[2] * vy - normal[1] * vz;
+    float ry = normal[0] * vz - normal[2] * vx;
+    float rz = normal[1] * vx - normal[0] * vy;
+    const float big = title_global<float>(0x0083ec04);  // 131072
+    vx *= big;
+    vy *= big;
+    vz *= big;
+    rx *= big;
+    ry *= big;
+    rz *= big;
+    uint8_t* w = alloc_winding(4);
+    float* p = reinterpret_cast<float*>(w + 4);
+    const float sx = org[0] - rx, ax = rx + org[0];
+    const float sy = org[1] - ry, ay = ry + org[1];
+    const float sz = org[2] - rz, az = rz + org[2];
+    p[0] = sx + vx;
+    p[1] = sy + vy;
+    p[2] = sz + vz;
+    p[3] = ax + vx;
+    p[4] = ay + vy;
+    p[5] = az + vz;
+    p[6] = ax - vx;
+    p[7] = ay - vy;
+    p[8] = az - vz;
+    p[9] = sx - vx;
+    p[10] = sy - vy;
+    p[11] = sz - vz;
+    *reinterpret_cast<int32_t*>(w) = 4;
+    return w;
+}
+
+void XB_CDECL AddWindingToConvexHull(const uint8_t* w, uint8_t** hull, const float* normal) {
+    if (!*hull) {
+        *hull = CopyWinding(w);
+        return;
+    }
+    float hull_points[128][3], new_points[128][3], hull_dirs[128][3];
+    int32_t hull_side[128];
+    int32_t count = *reinterpret_cast<const int32_t*>(*hull);
+    com_memcpy(hull_points, *hull + 4, static_cast<uint32_t>(count) * 12);
+    for (int32_t i = 0; i < *reinterpret_cast<const int32_t*>(w); ++i) {
+        const float* p = winding_point(w, i);
+        for (int32_t j = 0; j < count; ++j) {
+            const int32_t k = (j + 1) % count;
+            const float dz = hull_points[k][2] - hull_points[j][2];
+            const float dy = hull_points[k][1] - hull_points[j][1];
+            const float dx = hull_points[k][0] - hull_points[j][0];
+            const float length = ci_sqrt_store((dz * dz + dy * dy) + dx * dx);
+            float nx = 0.0f, ny = 0.0f, nz = 0.0f;
+            if (!x87_is_zero(length)) {
+                const float inverse = title_global<float>(0x0083eb20) / length;
+                nx = inverse * dx;
+                ny = inverse * dy;
+                nz = inverse * dz;
+            }
+            hull_dirs[j][0] = normal[1] * nz - normal[2] * ny;
+            hull_dirs[j][1] = normal[2] * nx - normal[0] * nz;
+            hull_dirs[j][2] = normal[0] * ny - normal[1] * nx;
+        }
+        bool outside = false;
+        for (int32_t j = 0; j < count; ++j) {
+            const float d = (hull_dirs[j][2] * (p[2] - hull_points[j][2]) + hull_dirs[j][1] * (p[1] - hull_points[j][1])) +
+                            hull_dirs[j][0] * (p[0] - hull_points[j][0]);
+            if (d >= title_global<float>(0x0083ebf8)) outside = true;
+            hull_side[j] = d >= title_global<float>(0x0083ebfc) ? 1 : 0;
+        }
+        if (!outside) continue;
+        int32_t j = 0;
+        for (; j < count; ++j)
+            if (!hull_side[j % count] && hull_side[(j + 1) % count]) break;
+        if (j == count) continue;
+        new_points[0][0] = p[0];
+        new_points[0][1] = p[1];
+        new_points[0][2] = p[2];
+        int32_t added = 1;
+        j = (j + 1) % count;
+        for (int32_t k = 0; k < count; ++k) {
+            if (hull_side[(j + k) % count] && hull_side[(j + k + 1) % count]) continue;
+            const float* copy = hull_points[(j + k + 1) % count];
+            new_points[added][0] = copy[0];
+            new_points[added][1] = copy[1];
+            new_points[added][2] = copy[2];
+            ++added;
+        }
+        count = added;
+        com_memcpy(hull_points, new_points, static_cast<uint32_t>(count) * 12);
+    }
+    uint8_t* old = *hull;
+    if (*reinterpret_cast<uint32_t*>(old) == 0xdeaddead) cm_break(0, 0x00833ed0);  // "freed a freed winding"
+    *reinterpret_cast<uint32_t*>(old) = 0xdeaddead;
+    --title_global<int32_t>(0x00927b28);
+    z_free(old);
+    uint8_t* result = alloc_winding(count);
+    *reinterpret_cast<int32_t*>(result) = count;
+    *hull = result;
+    com_memcpy(result + 4, hull_points, static_cast<uint32_t>(count) * 12);
+}
+
+int32_t XB_REGS3 XB_CDECL CM_LoadMapFile(uint32_t, uint32_t, uint32_t lump, uint8_t** out) {
+    uint32_t header[0x4e];
+    int32_t file = 0;
+    title_global<uint32_t>(0x00940280) = 1;
+    title_function<int32_t XB_CDECL(const char*, int32_t*, uint32_t, uint32_t)>(0x0029cde0)(  // FS_FOpenFileRead
+        ptr<const char>(0x009355d8), &file, 0, 0);
+    if (!file) {
+        const char* text = title_function<const char* XB_CDECL(const char*, ...)>(0x002a93d0)(  // va
+            ptr<const char>(0x00833f2c), ptr<const char>(0x009355d8));
+        title_function<Break>(0x002938f0)(1, text);
+    }
+    using FsRead = int32_t XB_CDECL(void*, int32_t, int32_t);
+    using FsClose = void XB_CDECL(int32_t);
+    title_function<FsRead>(0x00297af0)(header, 0x138, file);
+    const int32_t length = static_cast<int32_t>(header[2 + lump * 2]);
+    if (!length) {
+        title_function<FsClose>(0x00297d70)(file);
+        return 0;
+    }
+    int32_t skip = static_cast<int32_t>(header[3 + lump * 2]) - 0x138;
+    const uint32_t handle = 0x009477a0 + static_cast<uint32_t>(file) * 0x120;  // fsh[file]
+    if (title_global<uint32_t>(handle + 0x18)) {  // in a zip
+        if (skip) {
+            const uint32_t zip = title_global<uint32_t>(handle);
+            const int32_t position = title_function<int32_t XB_CDECL(uint32_t)>(0x00057810)(zip);  // unztell
+            int32_t remaining = skip;
+            if (skip < 0) {
+                title_function<int32_t XB_CDECL(uint32_t, uint32_t)>(0x000572f0)(  // unzSetCurrentFileInfoPosition
+                    title_global<uint32_t>(handle), title_global<uint32_t>(handle + 0x14));
+                title_function<int32_t XB_CDECL(uint32_t)>(0x00057bd0)(title_global<uint32_t>(handle));  // unzOpenCurrentFile
+                remaining = skip + position;
+            }
+            static uint8_t buffer[0x10000];
+            while (remaining) {
+                int32_t read;
+                if (remaining < 0x10000) {
+                    read = title_function<FsRead>(0x00297af0)(buffer, remaining, file);
+                    remaining = 0;
+                } else {
+                    read = title_function<FsRead>(0x00297af0)(buffer, 0x10000, file);
+                    remaining -= 0x10000;
+                }
+                if (!read) break;
+            }
+        }
+    } else {
+        title_function<int32_t XB_CDECL(uint32_t, int32_t, int32_t)>(0x001f06fb)(title_global<uint32_t>(handle), skip, 1);  // fseek
+    }
+    void* block = title_function<void* XB_CDECL(int32_t, const char*, const char*, int32_t)>(0x00042c20)(  // Z_MallocDebug
+        length, ptr<const char>(0x0083534c), ptr<const char>(0x00833f0c), 0xed);
+    title_global<void*>(0x0093e6b0) = block;
+    title_function<FsRead>(0x00297af0)(block, length, file);
+    title_function<FsClose>(0x00297d70)(file);
+    *out = title_global<uint8_t*>(0x0093e6b0);
+    return length;
+}
+
+PLATFORM_ASM_ENTRY(CM_SphereTriangleContact_entry,
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_SphereTriangleContact) "addl $32, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL CM_SphereTriangleContact(float* normal_out, const float* plane, float* point_out, const float* center,
+                                          float radius, const float* a, const float* b, const float* c) {
+    const Lanes origin = lanes(center);
+    const Lanes n = lanes(plane);
+    const Lanes va = sub(lanes(a), origin);
+    const float dist = sum_xyz(mul(va, n));
+    if (dist > 0.0f) return 0;
+    if (0.0f - radius > dist) return 0;
+    const Lanes vb = sub(lanes(b), origin);
+    const Lanes vc = sub(lanes(c), origin);
+    const float aa = sum_xyz(mul(va, va));
+    const float ab = sum_xyz(mul(va, vb));
+    const float ac = sum_xyz(mul(va, vc));
+    Lanes v;
+    float squared;
+    bool face = false;
+    if (ab >= aa && ac >= aa) {
+        v = va;
+        squared = aa;
+        std::memcpy(normal_out, v.v, 16);
+    } else {
+        const float bb = sum_xyz(mul(vb, vb));
+        const float bc = sum_xyz(mul(vb, vc));
+        if (ab >= bb && bc >= bb) {
+            v = vb;
+            squared = bb;
+            std::memcpy(normal_out, v.v, 16);
+        } else {
+            const float cc = sum_xyz(mul(vc, vc));
+            if (ac >= cc && bc >= cc) {
+                v = vc;
+                squared = cc;
+                std::memcpy(normal_out, v.v, 16);
+            } else {
+                bool edge = false;
+                if (bb >= ab && aa >= ab) {
+                    const float u = aa - ab;
+                    const float w = bb - ab;
+                    if (bc * u + ac * w >= bb * aa - ab * ab) {
+                        const float inverse = title_global<float>(0x0083eb20) / (u + w);
+                        const float s = inverse * u;
+                        const float t = inverse * w;
+                        v = add(mul(splat(t), va), mul(splat(s), vb));
+                        edge = true;
+                    }
+                }
+                if (!edge && cc >= ac && aa >= ac) {
+                    const float u = aa - ac;
+                    const float w = cc - ac;
+                    if (bc * u + ab * w >= cc * aa - ac * ac) {
+                        const float inverse = title_global<float>(0x0083eb20) / (u + w);
+                        const float t = inverse * w;
+                        const float s = inverse * u;
+                        v = add(mul(splat(t), va), mul(splat(s), vc));
+                        edge = true;
+                    }
+                }
+                if (!edge && cc >= bc && bb >= bc) {
+                    const float u = cc - bc;
+                    const float w = bb - bc;
+                    if (ac * w + ab * u >= bb * cc - bc * bc) {
+                        const float inverse = title_global<float>(0x0083eb20) / (w + u);
+                        const float t = inverse * u;
+                        const float s = inverse * w;
+                        v = add(mul(splat(t), vb), mul(splat(s), vc));
+                        edge = true;
+                    }
+                }
+                if (!edge) face = true;
+                if (edge) {
+                    std::memcpy(normal_out, v.v, 16);
+                    v = lanes(normal_out);
+                    squared = sum_xyz(mul(v, v));
+                }
+            }
+        }
+    }
+    if (face) {
+        const Lanes point = add(origin, mul(splat(dist), n));
+        std::memcpy(point_out, point.v, 16);
+        copy_vec4(normal_out, plane);
+        return 1;
+    }
+    if (!(squared > title_global<float>(0x0083ed50))) return 0;  // 0.0001
+    if (!(radius * radius >= squared)) return 0;
+    const float length = platform_x87_sqrt(squared);
+    const Lanes point = add(origin, lanes(normal_out));
+    std::memcpy(point_out, point.v, 16);
+    const Lanes normal = div_lanes(lanes(normal_out), splat(-length));
+    std::memcpy(normal_out, normal.v, 16);
+    return 1;
+}
+
+void XB_CDECL CM_SphereWorldMeshContacts(const float* center, float radius, float* points, float* normals, int32_t* count) {
+    const Lanes c = lanes(center);
+    const Lanes r = splat(radius);
+    alignas(16) float lo[4], hi[4];
+    {
+        const Lanes l = sub(c, r);
+        const Lanes h = add(c, r);
+        std::memcpy(lo, l.v, 16);
+        std::memcpy(hi, h.v, 16);
+    }
+    *count = 0;
+    for (int32_t k = 0; k < at<int32_t>(title_global<uint8_t*>(0x0095f4fc), 0xc); ++k) {
+        uint8_t* tree = ptr(at<uint32_t>(title_global<uint8_t*>(0x0095f4fc), 0x10 + k * 4));
+        if (!inside_xyz(sub(lanes(reinterpret_cast<const float*>(tree + 0x40)), lanes(hi)),
+                        sub(lanes(lo), lanes(reinterpret_cast<const float*>(tree + 0x50)))))
+            continue;
+        alignas(16) float cell_center[4], cell_half[4];
+        const uint8_t* leaf = CM_QuadTreeFindLeaf(tree, center, cell_center, cell_half);
+        const int32_t n = *reinterpret_cast<const int32_t*>(leaf);
+        for (int32_t j = 0; j < n; ++j) {
+            const uint32_t index = (*reinterpret_cast<const uint16_t* const*>(leaf + 4))[j];
+            const uint32_t meshes = at<uint32_t>(tree, 0x30);
+            uint8_t* object = static_cast<int32_t>(index) < static_cast<int32_t>(meshes)
+                                  ? ptr(at<uint32_t>(tree, 0x34) + index * 0x50)
+                                  : ptr(at<uint32_t>(tree, 0x3c) + ((index - meshes) << 6));
+            const uint32_t slot = at<uint32_t>(ptr(at<uint32_t>(object, 0)), 0x20);
+            if (title_function<int32_t XB_THISCALL(uint8_t*)>(slot)(object) == 9) continue;
+            const Lanes oc = lanes(reinterpret_cast<const float*>(object + 0x10));
+            const Lanes oh = lanes(reinterpret_cast<const float*>(object + 0x20));
+            if (!inside_xyz(sub(sub(oc, oh), lanes(hi)), sub(lanes(lo), add(oc, oh)))) continue;
+            uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+            stack[0] = 0;
+            stack[2] = 0;
+            stack[1] = *reinterpret_cast<const uint16_t*>(object + 0x40);
+            title_global<uint16_t>(0x0090a620) = 3;
+            for (uint16_t node = CM_BoxTreeStack_Next(object, lo, hi); node != 0xffff;
+                 node = CM_BoxTreeStack_Next(object, lo, hi)) {
+                const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(object + 0x34);
+                const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(object + 0x3c))[node];
+                const float* v0 = reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16);
+                const float* v1 = reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16);
+                const float* v2 = reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16);
+                const float* plane = reinterpret_cast<const float*>(*reinterpret_cast<uint8_t* const*>(object + 0x44) + node * 16);
+                const int32_t i = *count;
+                if (CM_SphereTriangleContact(normals + i * 4, plane, points + i * 4, center, radius, v0, v1, v2)) ++*count;
+            }
+        }
+    }
+}
+
+uint8_t XB_THISCALL CM_TriMesh_TraceSegment(uint8_t* mesh, const float* start, const float* end, const float* mins,
+                                            const float* maxs, uint32_t, float* fraction, float* out) {
+    const Lanes d = sub(lanes(end), lanes(start));
+    copy_vec4(out, end);
+    uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+    title_global<uint16_t>(0x0090a620) = 0;
+    stack[0] = 0;
+    stack[2] = 0;
+    uint8_t hit = 0;
+    stack[1] = *reinterpret_cast<const uint16_t*>(mesh + 0x40);
+    title_global<uint16_t>(0x0090a620) = 3;
+    for (uint16_t node = CM_BoxTreeStack_Next(mesh, mins, maxs); node != 0xffff; node = CM_BoxTreeStack_Next(mesh, mins, maxs)) {
+        alignas(16) float plane[4];
+        copy_vec4(plane, *reinterpret_cast<uint8_t* const*>(mesh + 0x44) + node * 16);
+        const Lanes p = lanes(plane);
+        if (0.0f <= sum_xyz(mul(d, p))) continue;
+        const float da = plane_distance(p, lanes(start));
+        const float db = plane_distance(p, lanes(out));
+        if (0.0f <= db * da) continue;
+        const float diff = da - db;
+        if (!(*fraction * diff > da)) continue;
+        const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(mesh + 0x34);
+        const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(mesh + 0x3c))[node];
+        const Lanes v0 = lanes(reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16));
+        const Lanes v1 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16));
+        const Lanes v2 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16));
+        const Lanes tmax = max_lanes(max_lanes(v0, v1), v2);
+        const Lanes tmin = min_lanes(min_lanes(v0, v1), v2);
+        if (!inside_xyz(sub(tmin, lanes(maxs)), sub(lanes(mins), tmax))) continue;
+        const float t = da / diff;
+        const Lanes point = add(lanes(start), mul(splat(t), d));
+        const float s1 = edge_side(sub(v0, v1), sub(point, v1), p);
+        const float s2 = edge_side(sub(v1, v2), sub(point, v2), p);
+        const float s3 = edge_side(sub(v2, v0), sub(point, v0), p);
+        const float order[4] = {s3, s2, s1, s1};
+        int32_t mask = 0;
+        for (int32_t i = 0; i < 4; ++i)
+            if (order[i] < 0.0f) mask |= 1 << i;
+        if (mask & 7) continue;
+        *fraction = t;
+        copy_vec4(out + 4, plane);
+        std::memcpy(out, point.v, 16);
+        hit = 1;
+    }
+    return hit;
+}
+
+uint8_t XB_CDECL CM_PushCapsuleOutOfListedObjects(float* origin, float radius, const uint8_t* triangles,
+                                                  const uint8_t* brushes, const int32_t* entities) {
+    const float offsets[3] = {radius, radius + title_global<float>(0x0083f09c), title_global<float>(0x0083eda0) - radius};
+    uint8_t hit = 0;
+    for (int32_t s = 0; s < 3; ++s) {
+        alignas(16) float p[4];
+        copy_vec4(p, origin);
+        p[2] = offsets[s] + p[2];
+        for (int32_t e = 0; e < entities[0]; ++e) {
+            const uint32_t handle = static_cast<uint32_t>(entities[0xc + e]);
+            const uint32_t index = handle & 0xfff;
+            if (static_cast<int32_t>(index) >= 0x540) continue;
+            if ((handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) continue;
+            uint8_t* ent = title_global<uint8_t*>(0x0097a968 + index * 8);  // g_entityHandleTable
+            if (!ent) continue;
+            if (!at<uint32_t>(ent, 0xdc)) continue;
+            alignas(16) float m[16];
+            G_GetEntityMatrix(ent, m);
+            const uint32_t* model = ptr<const uint32_t>(at<uint32_t>(ent, 0xdc));
+            const Lanes r0 = lanes(m), r1 = lanes(m + 4), r2 = lanes(m + 8), o = lanes(m + 12);
+            const Lanes col0 = {{r0.v[0], r1.v[0], r2.v[0], r2.v[0]}};
+            const Lanes col1 = {{r0.v[1], r1.v[1], r2.v[1], r2.v[1]}};
+            const Lanes col2 = {{r0.v[2], r1.v[2], r2.v[2], r2.v[2]}};
+            const Lanes dl = sub(lanes(p), o);
+            const Lanes local = add(add(mul(col0, splat(dl.v[0])), mul(col1, splat(dl.v[1]))), mul(col2, splat(dl.v[2])));
+            alignas(16) float l[4];
+            std::memcpy(l, local.v, 16);
+            for (uint32_t k = 0; k < model[0]; ++k) hit |= CM_PushPointOutOfBrush(ptr(model[1] + k * 0x40), l, radius, l);
+            const Lanes lv = lanes(l);
+            const Lanes world = add(add(add(o, mul(r0, splat(lv.v[0]))), mul(r1, splat(lv.v[1]))), mul(r2, splat(lv.v[2])));
+            std::memcpy(p, world.v, 16);
+        }
+        const int32_t brush_count = *reinterpret_cast<const int32_t*>(brushes + 0x804);
+        for (int32_t b = 0; b < brush_count; ++b)
+            hit |= CM_PushPointOutOfBrush((*reinterpret_cast<uint8_t* const* const*>(brushes + 0x800))[b], p, radius, p);
+        const int32_t triangle_count = *reinterpret_cast<const int32_t*>(triangles + 0x1004);
+        const uint32_t* entry = *reinterpret_cast<const uint32_t* const*>(triangles + 0x1000);
+        for (int32_t t = 0; t < triangle_count; ++t, entry += 2) {
+            const uint8_t* mesh = ptr(entry[0]);
+            const uint32_t tri = entry[1];
+            alignas(16) float plane[4], v0[4], v1[4], v2[4];
+            copy_vec4(plane, *reinterpret_cast<uint8_t* const*>(mesh + 0x44) + tri * 16);
+            const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(mesh + 0x3c))[tri];
+            const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(mesh + 0x34);
+            copy_vec4(v0, rows + (flags & 0x3f) * 16);
+            copy_vec4(v1, rows + ((flags >> 6) & 0x3f) * 16);
+            copy_vec4(v2, rows + ((flags >> 12) & 0x3f) * 16);
+            hit |= CM_PushSphereOutOfTriangle(p, 0, p, radius, v0, v1, v2, plane);
+        }
+        copy_vec4(origin, p);
+        origin[2] = origin[2] - offsets[s];
+    }
+    return hit;
+}
+
 }  // namespace game
