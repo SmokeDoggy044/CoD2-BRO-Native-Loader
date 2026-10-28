@@ -1,6 +1,7 @@
 address,name,kind,reason
 0001f0b0,nglVertexWriter_Init,debug,debug/dev only (user 2026-10-27)
 0001f120,nglMeshBuilder_AddPosSection,debug,debug/dev only (user 2026-10-27)
+0002bd30,InGameLiveOptionsMenu_DeletingDtor,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
 00045790,nglInitShaders,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
 000468b0,cdDebug_AddToList,no data,no shipped data reaches it (user 2026-10-27)
 000469b0,cdDebug_Draw,no data,no shipped data reaches it (user 2026-10-27)
@@ -35,6 +36,11 @@ address,name,kind,reason
 000967c0,FxEffectStage_Release,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
 0009a5a0,FxRenderer_NewOp5b,no data,no shipped data reaches it (user 2026-10-27)
 0009ebf0,FxOp5b_AddToList,no data,no shipped data reaches it (user 2026-10-27)
+002226e0,InGameLiveOptionsMenu_Draw,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
+00222750,XboxLiveMenu_Draw,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
+00223e10,InGameLiveOptionsMenu_Dtor,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
+00224060,InGameLiveOptionsMenu_ShowConfirmDialog,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
+00224160,InGameLiveOptionsMenu_ShowDashboardDialog,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
 00234ef0,R_DrawBackBufferOverlay,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
 00238750,R_EntityLodDistance,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
 0023e680,R_FindEffectByName,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"

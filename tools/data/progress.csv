@@ -778,7 +778,7 @@ address,name,section,module,state,tested,matched
 0002ba90,LiveRecord_Construct,.text,online,named,0,0
 0002bb20,FUN_0002bb20,.text,online,unnamed,0,0
 0002bce0,LiveMgr_DeletingDtor,.text,online,named,0,0
-0002bd30,InGameLiveOptionsMenu_DeletingDtor,.text,client,untested,0,0
+0002bd30,InGameLiveOptionsMenu_DeletingDtor,.text,client,set-aside,0,0
 0002bd50,PathNode_Construct,.text,game,settled,368,368
 0002bdc0,FUN_0002bdc0,.text,game,unnamed,0,0
 0002be40,FUN_0002be40,.text,game,unnamed,0,0
@@ -7922,8 +7922,8 @@ address,name,section,module,state,tested,matched
 00221fc0,FUN_00221fc0,.text,online,unnamed,0,0
 002220e0,LiveMgr_SetInput,.text,online,named,0,0
 002221b0,Sys_ReadLaunchInfo,.text,qcommon,named,0,0
-002226e0,InGameLiveOptionsMenu_Draw,.text,client,untested,0,0
-00222750,XboxLiveMenu_Draw,.text,client,untested,0,0
+002226e0,InGameLiveOptionsMenu_Draw,.text,client,set-aside,0,0
+00222750,XboxLiveMenu_Draw,.text,client,set-aside,0,0
 002228e0,Live_PollNotifications,.text,online,named,0,0
 002229d0,FUN_002229d0,.text,online,unnamed,0,0
 00222aa0,Voice_RegisterLocalTalkers,.text,sound,named,0,0
@@ -7943,11 +7943,11 @@ address,name,section,module,state,tested,matched
 00223730,Live_Frame,.text,online,named,0,0
 00223800,Sys_ListFilteredFiles,.text,qcommon,named,0,0
 00223bf0,Sys_ListFiles,.text,qcommon,named,0,0
-00223e10,InGameLiveOptionsMenu_Dtor,.text,client,untested,0,0
+00223e10,InGameLiveOptionsMenu_Dtor,.text,client,set-aside,0,0
 00223e80,InGameLiveOptionsMenu_Construct,.text,client,matched,8,8
 00223ed0,XboxLiveMenu_Construct,.text,client,matched,2,2
-00224060,InGameLiveOptionsMenu_ShowConfirmDialog,.text,client,untested,0,0
-00224160,InGameLiveOptionsMenu_ShowDashboardDialog,.text,client,untested,0,0
+00224060,InGameLiveOptionsMenu_ShowConfirmDialog,.text,client,set-aside,0,0
+00224160,InGameLiveOptionsMenu_ShowDashboardDialog,.text,client,set-aside,0,0
 002248b0,LiveMgr_Dtor,.text,online,named,0,0
 00224920,LiveMgr_Construct,.text,online,named,0,0
 00224970,Live_Render,.text,online,named,0,0

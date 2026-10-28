@@ -47,7 +47,7 @@ We've also named 2,659 of the game's global variables.
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 1,910 | 433 | 38 | 0 | 1,225 | 210 |
 | Client game (HUD, view, effects on screen) | 300 | 167 | 22 | 0 | 96 | 15 |
 | Engine core (memory, files, settings, commands, containers, math) | 960 | 233 | 16 | 0 | 646 | 54 |
-| Client and menus | 761 | 473 | 206 | 0 | 33 | 49 |
+| Client and menus | 761 | 473 | 200 | 6 | 33 | 49 |
 | Server, collision, compression | 254 | 112 | 14 | 0 | 119 | 9 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 12 | 0 | 0 | 1,986 | 6 |
 | Level-script helpers in the engine code | 1,444 | 0 | 0 | 0 | 1,389 | 48 |
