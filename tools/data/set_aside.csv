@@ -1,0 +1,49 @@
+address,name,kind,reason
+0001f0b0,nglVertexWriter_Init,debug,debug/dev only (user 2026-10-27)
+0001f120,nglMeshBuilder_AddPosSection,debug,debug/dev only (user 2026-10-27)
+00045790,nglInitShaders,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
+000468b0,cdDebug_AddToList,no data,no shipped data reaches it (user 2026-10-27)
+000469b0,cdDebug_Draw,no data,no shipped data reaches it (user 2026-10-27)
+0005ea10,nglDrawSingleQuadFrame,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+000634d0,nglSaveScreenshot,host,host file/screenshot or D3D resource code (user 2026-10-27)
+00064300,nglResetDevice,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
+000649e0,nglSelectVideoMode,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
+00064bc0,nglInit,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
+00068f70,nglBuildBoneMatrixPalette,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0006ae70,nglWriteTGA,host,host file/screenshot or D3D resource code (user 2026-10-27)
+0006afe0,nglSaveTextureTGA,host,host file/screenshot or D3D resource code (user 2026-10-27)
+0006cb80,nglDebugDrawSphereMesh,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0006cc50,nglDebugDrawBoxMesh,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0006cd30,nglDebugDrawPyramidMesh,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0006d240,nglDebugDrawAxes,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0006d390,nglDebugLineBatch_Draw,debug,debug/dev only (user 2026-10-27)
+0006e9c0,nglInitFrameBuffers,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
+0006f080,nglCreateNormalCubeMap,host,host file/screenshot or D3D resource code (user 2026-10-27)
+00078500,nglInitMultisample,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
+00079020,nglParseDDSPalette,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+000795c0,nglDumpCamera,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+00079950,nglDumpSceneMeshes,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0007a860,nglMeshFile_RelocateSection3,no data,no shipped data reaches it (user 2026-10-27)
+0007b180,nglLockPalette,host,host file/screenshot or D3D resource code (user 2026-10-27)
+0007b250,nglCreateDDSPalette,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0007b670,nglDebugShader_Draw,debug,debug/dev only (user 2026-10-27)
+0007b810,nglDumpPrintf,debug,debug/dev only (user 2026-10-27)
+0007bac0,Anim_InitManagers,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
+000939f0,nglGetFreeMemory,debug,debug/dev only (user 2026-10-27)
+00093a50,nglReadFile,host,host file/screenshot or D3D resource code (user 2026-10-27)
+00093b90,nglFreeFileBuffer,host,host file/screenshot or D3D resource code (user 2026-10-27)
+000967c0,FxEffectStage_Release,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0009a5a0,FxRenderer_NewOp5b,no data,no shipped data reaches it (user 2026-10-27)
+0009ebf0,FxOp5b_AddToList,no data,no shipped data reaches it (user 2026-10-27)
+00234ef0,R_DrawBackBufferOverlay,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+00238750,R_EntityLodDistance,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0023e680,R_FindEffectByName,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+0023fab0,R_ParseTextIcon,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+00241860,RE_DrawTextWithIcons,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+00241a30,RE_TextWidthWithIcons,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+002be7c0,XModel_FreeAnimStates,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+002ec280,FXCmd_Type2AtOrigin,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+00379a50,AtExit_FxScriptStrings_970844,exit,atexit destructor: the title never exits (untestable by design)
+00379a80,AtExit_FxScriptStrings_9718a0,exit,atexit destructor: the title never exits (untestable by design)
+00379ab0,AtExit_FxScriptStrings_96e90c,exit,atexit destructor: the title never exits (untestable by design)
+00379ae0,AtExit_FxScriptStrings_971970,exit,atexit destructor: the title never exits (untestable by design)

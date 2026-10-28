@@ -1698,7 +1698,7 @@
 00068560 nglSelectMeshLod
 00068680 nglScaleMeshMatrix
 00068850 nglListAddMesh
-00068f70 FUN_00068f70
+00068f70 nglBuildBoneMatrixPalette
 00069b00 nglEmpty_GetName
 00069b40 nglSkipList_RemoveIndirect
 00069c60 nglSkipList_Clear

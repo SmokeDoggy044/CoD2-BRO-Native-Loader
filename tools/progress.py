@@ -15,7 +15,9 @@ usage: tools/progress.py [--module NAME [--state STATE]] [--readme]
   --state STATE  only those in one state (unnamed, named, decompiled, untested, ...)
 
 States: unnamed; library (named by signature: C runtime, XAPI, thunks to them);
-named (by us, not decompiled); untested (decompiled, no conclusive test yet);
+named (by us, not decompiled); untested (decompiled, no conclusive test yet); set-aside
+(decompiled, not tested by decision: tools/data/set_aside.csv - dead code, boot/exit paths, debug
+and host code; its C stays, it is not counted as rewritten);
 inconclusive (tests ran, none conclusive); mismatched (mismatch or drift on
 record); accepted (mismatches on record, all of a kind tools/data/accepted.csv accepts: values
 the title never sets, such as stale stack - its latest issue must still match the listed
@@ -97,6 +99,9 @@ def main():
             if (int(r["matched"]) >= OFFLINE_MATCHED and not int(r["mismatched"])
                     and float(r["coverage"]) >= OFFLINE_COVERAGE):
                 offline.add(int(r["address"], 16))
+    set_aside = set()
+    if (DATA / "set_aside.csv").exists():
+        set_aside = {int(r["address"], 16) for r in csv.DictReader(open(DATA / "set_aside.csv"))}
     accepted = {}
     if (DATA / "accepted.csv").exists():
         for r in csv.DictReader(open(DATA / "accepted.csv")):
@@ -135,6 +140,8 @@ def main():
                 state = "matched"
             elif a in offline:
                 state = "offline"
+            elif a in set_aside:
+                state = "set-aside"
             elif tested:
                 state = "inconclusive"
             else:
@@ -231,10 +238,13 @@ def write_readme(rows, excluded):
             "**Rewritten** means it has been turned into C++ and passed the in-game comparison",
             f"(below), or, for {n(sum(1 for r in rows if r[4] == 'offline'))} functions the campaign never runs, "
             "the same comparison offline on random inputs.",
+            "**Set aside** functions have been turned into C++ but will not be tested, by decision: dead code",
+            "nothing calls, start-up and exit code, debug and developer tools, and code that only talks",
+            "to the Xbox hardware or its files. A native build replaces most of these anyway.",
             f"We've also named {n(len(globals_))} of the game's global variables.", "",
             "### By part of the game", "",
-            "| Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |",
-            "|---|---:|---:|---:|---:|---:|"]
+            "| Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |",
+            "|---|---:|---:|---:|---:|---:|---:|"]
     assigned = set()
     for label, mods in PARTS + [("Not sorted into a part yet", None)]:
         if mods is None:
@@ -244,7 +254,7 @@ def write_readme(rows, excluded):
             rs = [r for r in text if r[3] in mods]
         c = collections.Counter(r[4] for r in rs)
         waiting = c["untested"] + c["inconclusive"] + c["mismatched"]
-        out.append(f"| {label} | {n(len(rs))} | {n(done_(rs))} | {n(waiting)} | {n(c['named'])} | {n(c['unnamed'])} |")
+        out.append(f"| {label} | {n(len(rs))} | {n(done_(rs))} | {n(waiting)} | {n(c['set-aside'])} | {n(c['named'])} | {n(c['unnamed'])} |")
     ms = [r for r in text if r[3] in ("mslib", "crt")]
     lib = sum(1 for r in ms if r[4] == "library")
     out += ["", f"The Microsoft library row is Microsoft's own code that was built into the game (the C",
