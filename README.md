@@ -235,6 +235,8 @@ For the details:
   comparison works
 - [docs/nal_animation.md](docs/nal_animation.md): the NAL animation codec (channel
   classes, vtable slots, stream formats)
+- [docs/renderer-inventory.md](docs/renderer-inventory.md): what the decompiled renderer
+  still asks the Xbox graphics libraries to do (first step of our own renderer)
 - [docs/rendering.md](docs/rendering.md), [docs/multiplayer.md](docs/multiplayer.md)
   and [docs/playtesting.md](docs/playtesting.md): graphics, multiplayer and testing
   in the native loader
