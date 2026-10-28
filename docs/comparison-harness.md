@@ -133,7 +133,12 @@ registers and calls the dispatcher. For a tested call:
   xbcmp_resume pops EFLAGS and returns through two words it pushes below that ESP; it zeroes
   the EFLAGS word again afterwards (MOV), else the original's never-written locals there read
   0x00200246 on one side only (0x0008d3f0's result w: 156 false mismatches). The target word at
-  ESP - 4 stays.
+  ESP - 4 would stay: it held the original's address on one side and the decompiled entry's on
+  the other, and NAL_Clip_FindChannelByName / FindPosOriChannel / FindFloat3Channel copy the word
+  below their entry ESP into out[3] (68 false mismatches). Test processes therefore resume into
+  `xbcmp_test_jump`, which zeroes that word (MOV, flags kept) and jumps to the function through
+  `xbcmp_test_target`, so it reads 0 on both sides (2026-10-28: the three then matched 63 of 63;
+  a `--compare-all` run of mission 4, 32,856 tests, showed no other function changing).
 - Then it clears the soft-dirty bits (`/proc/self/clear_refs`) and runs the function
   with the caller's registers and a return address of `xbcmp_landing`, which saves
   the registers and x87/SSE state (FXSAVE). Pages written are the soft-dirty ones
@@ -293,8 +298,10 @@ the remedy: its asm entry rebuilds the original's frame (the same aligned ESP, l
 by pointer at the original's offsets) with 128 KB kept free below it, and every call goes
 through `title_call_at` with ESP where the original's call has it (frame minus the words it
 still had pushed). After calls into our own functions the 16 KB below are zeroed again (the
-title's later reads of uninitialized locals then see what a fresh test has). Stale-stack
-reads inside title callees can still differ (R_AddEntityModel's subtree): bisect by calling
+title's later reads of uninitialized locals then see what a fresh test has). A gap must clear
+what the callees' pass-through file calls zero (128 KB below their ESP, File calls above): with
+a 128 KB gap Stream_UpdateLoad's File_PumpRequests zeroed its own C frame in tests (a return to
+0); its gap is 192 KB. Stale-stack reads inside title callees can still differ (R_AddEntityModel's subtree): bisect by calling
 original addresses instead of ours for groups of callees.
 
 Debugging variables: `XBCMP_ONLY=name,name` hooks only those functions and keeps testing
