@@ -462,6 +462,8 @@ address,name,tested,matched,nan,mismatched,coverage
 0027e190,CG_AltWeapon_f,3799,3799,0,0,88.6
 002800a0,CG_CenterPrint,3467,3467,0,0,29.0
 0028d7d0,ResourceManager_Destruct,1078,1078,0,0,69.4
+0028d8b0,ZoneRecord_GetContext,3759,3759,0,0,100.0
+0028ef40,StreamMem_Free,1023,1023,0,0,100.0
 0028f740,R_DrawTextWithShadow_2,3453,3046,407,0,97.6
 00292ee0,Key_TranslateButtonName,3804,3804,0,0,65.0
 00295d90,FS_ReturnPath,3452,3452,0,0,100.0
@@ -535,6 +537,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002b48d0,IN_LeftUp,3751,3751,0,0,100.0
 002b48e0,IN_LeftDown,3758,3758,0,0,100.0
 002b4d80,BG_GetWeaponSpread,1663,1663,0,0,60.7
+002b7010,Stream_LoadSpg,1692,1692,0,0,100.0
 002b8200,SV_ConnectionlessPacket,3638,3638,0,0,100.0
 002b96c0,PathNode_IsLinkInBadPlace,2554,2554,0,0,100.0
 002bab30,CM_AdjustAreaPortalState,3979,3979,0,0,46.9
