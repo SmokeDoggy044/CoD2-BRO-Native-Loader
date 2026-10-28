@@ -601,4 +601,10 @@ extern "C" void R_AddSimpleInstancesToScene_entry(void);
 void XB_REGS1 XB_STDCALL R_SampleLightGridStatic(int32_t cell, const RLightGrid* grid, const float* point,
                                                  float* directions, float* colors);
 
+// 0x00234ef0: two full-screen quads in scenes of their own (mode 1, no clears, colour write
+// mask 0x10101): a plain one, then the back buffer texture (nglGetBackBufferTexture) over
+// it with blend mode 8. No references (dead).
+void XB_CDECL R_DrawBackBufferOverlay();
+
+
 }  // namespace game

@@ -76,7 +76,7 @@ struct DObj {
                               // its +4 (group range) is the finest LOD allowed (DObj_SetMinLod)
     uint8_t unknown6c[0x88 - 0x6c];
     const uint8_t* owner;     // +0x88, an entity: its +0x2a4 flag 0x40000000 lifts lod_limit
-    uint8_t unknown8c[0x90 - 0x8c];
+    uint32_t handle;          // +0x8c, its slot in the DObj handle table (0x00981370 / 0x00981418)
     int32_t lod;              // +0x90, the distance LOD
     int32_t forced_lod;       // +0x94, -1 = none (DObj_SetForcedLod)
     int32_t min_lod;          // +0x98, -1 = none (DObj_SetMinLod)
@@ -291,5 +291,13 @@ void XB_CDECL XModel_CalcBoneChildrenOrtho(const XModel* model, uint8_t* matrice
 // bone with the normal rotated out of its space, -1 for no hit.
 int32_t XB_CDECL XModel_TraceParts(const uint8_t* model, uint8_t* trace, const uint8_t* skeleton, const float* start,
                                    const float* end, uint32_t content_mask);
+
+// 0x0023aff0 (EAX = client index, ESI = the new DObj, 0xa0 bytes; returned): the DObj
+// constructor (CG_RegisterWeapon, G_DObjCreateForEnt after their 0xa0-byte allocation):
+// models, trees, clip states, owner, LOD and cull flags cleared (forced/min LOD -1), and a
+// handle (+0x8c) from the DObj handle table 0x00981370 whose slot (0x00981418) points back.
+extern "C" PLATFORM_HIDDEN DObj* XB_CDECL DObj_Ctor(int32_t client_index, DObj* obj);
+
+extern "C" void DObj_Ctor_entry(void);
 
 }  // namespace game

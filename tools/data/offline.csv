@@ -473,6 +473,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00299800,Com_PushEvent,3853,3853,0,0,92.5
 0029a810,FS_AddFileToList,1787,1787,0,0,95.4
 0029ae90,FxShakeRumbleComponent_Stop,1113,1113,0,0,100.0
+0029b0b0,FxComponent_OwnerGone,3820,3820,0,0,100.0
 0029e6e0,Cvar_Set,1835,1835,0,0,100.0
 0029fc30,Cvar_Restart_f,1985,1985,0,0,100.0
 0029fcc0,Cvar_Reset_f,3981,3981,0,0,88.9
@@ -575,3 +576,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00322d10,UIQuad_SetVertexAlphaScaled,1974,1974,0,0,100.0
 0032cf50,Profile_SetDefaults,2440,2440,0,0,47.3
 00332b90,UIQuad_ApplyMatrix,3666,3666,0,0,100.0
+003769e0,StaticInit_DownVec4_9717e0,4000,4000,0,0,100.0
+003785e0,StaticInit_ngl_multisampleScale,4000,4000,0,0,100.0
+00378d40,StaticInit_FxParticleBounds,4000,4000,0,0,100.0
+00379de0,StaticInit_Vtable_8bb124,4000,4000,0,0,100.0

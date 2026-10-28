@@ -492,4 +492,11 @@ void XB_REGS1 XB_CDECL SCR_DrawLaunchLoadingScreen(uint32_t alpha);
 // cl_running 1.
 void XB_CDECL CL_Init();
 
+// 0x0001d1b0 (ESI = cl, the client state 0x00960160; returned): its constructor, run by the
+// static initializer 0x00376450 before the title's main - a few fields cleared and the
+// configstrings (+0x558, 0x400 script strings) constructed empty.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ClientActive_Ctor(uint8_t* cl);
+
+extern "C" void ClientActive_Ctor_entry(void);
+
 }  // namespace game

@@ -1791,4 +1791,11 @@ int32_t XB_CDECL HandlePool_Resolve(const uint8_t* pool, int32_t handle) {
     return int32_t(uint32_t(handle) & *reinterpret_cast<const uint32_t*>(pool + 0x24));
 }
 
+uint8_t* XB_THISCALL HashStrMap_Ctor(uint8_t* map) {
+    *reinterpret_cast<uint32_t*>(map) = 0;
+    *reinterpret_cast<uint32_t*>(map + 4) = 0;
+    return map;
+}
+
+
 }  // namespace game

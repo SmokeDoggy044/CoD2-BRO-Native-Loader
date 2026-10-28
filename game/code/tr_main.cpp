@@ -3917,4 +3917,33 @@ void XB_REGS1 XB_STDCALL R_SampleLightGridStatic(int32_t cell, const RLightGrid*
     }
 }
 
+void XB_CDECL R_DrawBackBufferOverlay() {
+    // A full-screen quad with the default settings (colour write mask 0x10101), then the back
+    // buffer drawn over it with blend mode 8, each in its own scene (mode 1) with no clears.
+    NglQuad quad;
+    nglPushScene(1);
+    nglSetClearFlags(0);
+    nglSetColorWriteMask(0x10101);
+    nglInitQuad(&quad);
+    float height = static_cast<float>(nglGetScreenHeight());
+    float width = static_cast<float>(nglGetScreenWidth());
+    nglSetQuadRect(&quad, 0.0f, 0.0f, width, height);
+    nglListAddQuad(&quad);
+    nglPopScene();
+
+    NglQuad copy;
+    nglPushScene(1);
+    nglSetClearFlags(0);
+    nglSetColorWriteMask(0x10101);
+    nglInitQuad(&copy);
+    nglSetQuadTexture(&copy, nglGetBackBufferTexture());
+    height = static_cast<float>(nglGetScreenHeight());
+    width = static_cast<float>(nglGetScreenWidth());
+    nglSetQuadRect(&copy, 0.0f, 0.0f, width, height);
+    nglSetQuadBlend(&copy, 8, 0);
+    nglListAddQuad(&copy);
+    nglPopScene();
+}
+
+
 }  // namespace game

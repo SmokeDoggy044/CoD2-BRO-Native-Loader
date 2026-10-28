@@ -5583,4 +5583,65 @@ void XB_CDECL FxSoundComponent_Dtor(uint8_t* component) {
     component_base_dtor(component);
 }
 
+uint8_t* const* XB_THISCALL FxSystem_UpdateBounds(const uint8_t* system, uint32_t /*unused*/) {
+    alignas(16) float box[8];  // a scratch box nothing reads
+    return FxSystem_GetBounds(system, box);
+}
+
+uint32_t XB_CDECL FxSystemPool_Refresh() {
+    uint8_t* pool = title_global<uint8_t*>(0x00909994) + 8;  // fx_systemPool's memory pool
+    const int32_t& slots = *reinterpret_cast<const int32_t*>(pool);
+    FxNop_9b960();
+    // Every pooled system's definition (+0x48) loses flag +0xc0, then gets it back while it is 0
+    // (both loops run: the result is every definition flagged).
+    for (int32_t i = 0; i < slots; ++i) {
+        const uint32_t system = FxPool_SlotAddress(pool, static_cast<uint32_t>(i));
+        if (system) FxEffect_ClearFlagC0(*reinterpret_cast<uint8_t**>(address_to_pointer(system) + 0x48));
+    }
+    for (int32_t i = 0; i < slots; ++i) {
+        const uint32_t system = FxPool_SlotAddress(pool, static_cast<uint32_t>(i));
+        if (!system) continue;
+        uint8_t* definition = *reinterpret_cast<uint8_t**>(address_to_pointer(system) + 0x48);
+        if (definition && !*reinterpret_cast<const uint32_t*>(definition + 0xc0)) FxEffect_SetFlagC0(definition);
+    }
+    // Bounds of every pooled system, then of every active one (0x009099ac, count 0x00909b8c),
+    // into a scratch box.
+    alignas(16) float box[8];
+    for (int32_t i = 0; i < slots; ++i) {
+        const uint32_t system = FxPool_SlotAddress(pool, static_cast<uint32_t>(i));
+        if (system) FxSystem_GetBounds(address_to_pointer(system), box);
+    }
+    const int32_t& active = title_global<int32_t>(0x00909b8c);
+    for (int32_t i = 0; i < active; ++i) {
+        const uint8_t* system = title_global<uint8_t*>(0x009099ac + i * 4);
+        if (system) FxSystem_GetBounds(system, box);
+    }
+    return static_cast<uint32_t>(active);
+}
+
+void XB_THISCALL FxSystemPool_Destroy(uint8_t* pool_object) {
+    uint8_t* pool = pool_object + 8;
+    FxPool_FreeSlotTable(pool);
+    uint8_t* systems = *reinterpret_cast<uint8_t**>(pool_object);
+    int32_t left = *reinterpret_cast<const int32_t*>(pool_object + 4);
+    for (uint8_t* system = systems; left > 0; --left, system += 0x70) FxSystem_Destroy(system);
+    particle_heap_free(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(systems)));
+    apsMemoryPool_FreeSlots(pool);
+    title_global<uint32_t>(0x00909994) = 0;  // fx_systemPool
+}
+
+uint32_t XB_THISCALL FxComponent_OwnerGone(const uint8_t* component) {
+    // The owner handle (+0xc) in G_EntHandleToEnt's table (0x0097a968: {entity, generation},
+    // 0x540 slots; the generation in the handle's upper 20 bits).
+    const uint32_t handle = *reinterpret_cast<const uint32_t*>(component + 0xc);
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8) &&
+        title_global<uint32_t>(0x0097a968 + index * 8))
+        return index & ~0xffu;
+    // Gone: done unless flag 1 of +0x10 keeps it (AL; EAX's upper bytes are the index's).
+    const uint32_t keep = component[0x10] & 1;
+    return (index & ~0xffu) | (keep ? 0u : 1u);
+}
+
+
 }  // namespace game

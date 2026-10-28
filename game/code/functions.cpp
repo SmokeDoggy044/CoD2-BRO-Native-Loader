@@ -38,6 +38,7 @@
 #include "param_set.h"
 #include "qcommon.h"
 #include "r_init.h"
+#include "r_static_init.h"
 #include "script_string.h"
 #include "shaders.h"
 #include "snd.h"
@@ -199,6 +200,7 @@ const Function kFunctions[] = {
     {"QuatTrans_ToMat44", 0x0001cbe0, 0, code(&QuatTrans_ToMat44), 0, Result::Eax, Status::Compare},
     {"AnimWeights_SetAll", 0x0001cdc0, 0, code(&AnimWeights_SetAll_entry), 0, Result::Eax, Status::Compare},
     {"DObj_SetLod", 0x0001d0f0, 0, code(&DObj_SetLod_entry), 0, Result::None, Status::Compare},
+    {"ClientActive_Ctor", 0x0001d1b0, 0, code(&ClientActive_Ctor_entry), 0, Result::Eax, Status::Compare},
     {"nglMeshBuilder_AddIndexRun", 0x0001d230, 0, code(&nglMeshBuilder_AddIndexRun), 0, Result::Eax, Status::Compare},
     {"nglMeshBuilder_AddStrip", 0x0001d280, 0, code(&nglMeshBuilder_AddStrip), 8, Result::None, Status::Compare},
     {"SceneFX_DeletingDtor", 0x0001d880, 0, code(&SceneFX_DeletingDtor), 4, Result::Eax, Status::Compare},
@@ -1140,6 +1142,7 @@ const Function kFunctions[] = {
     {"nglReadFile", 0x00093a50, 0, code(&nglReadFile), 0, Result::Al, Status::Compare},
     {"nglFreeFileBuffer", 0x00093b90, 0, code(&nglFreeFileBuffer), 4, Result::None, Status::Compare},
     {"nglShaderList_InitAll", 0x00093be0, 0, code(&nglShaderList_InitAll), 0, Result::None, Status::Compare},
+    {"HashStrMap_Ctor", 0x00093c00, 0, code(&HashStrMap_Ctor), 0, Result::Eax, Status::Compare},
     {"ShaderCache_RandomLevel", 0x00093c30, 0, code(&ShaderCache_RandomLevel), 0, Result::Eax, Status::Compare},
     {"ShaderCache_FindOrAdd", 0x00093c70, 0, code(&ShaderCache_FindOrAdd), 8, Result::Eax, Status::Compare},
     {"ShaderCache_Init", 0x00094070, 0, code(&ShaderCache_Init), 0, Result::None, Status::Compare},
@@ -1154,10 +1157,13 @@ const Function kFunctions[] = {
     {"FxSystem_SetParamFloat", 0x00094920, 0, code(&FxSystem_SetParamFloat), 8, Result::None, Status::Compare},
     {"FxSystem_GetEmitterParam", 0x00094960, 0, code(&FxSystem_GetEmitterParam), 4, Result::St0, Status::Compare},
     {"FxSystem_GetBounds", 0x000949e0, 0, code(&FxSystem_GetBounds), 4, Result::Eax, Status::Compare},
+    {"FxSystem_UpdateBounds", 0x00094ab0, 0, code(&FxSystem_UpdateBounds), 4, Result::Eax, Status::Compare},
     {"FxSystemList_UpdateBounds", 0x00095060, 0, code(&FxSystemList_UpdateBounds), 0, Result::None, Status::Compare},
+    {"FxSystemPool_Refresh", 0x000950b0, 0, code(&FxSystemPool_Refresh), 0, Result::Eax, Status::Compare},
     {"FxSystemPool_Init", 0x000951c0, 0, code(&FxSystemPool_Init), 0, Result::None, Status::Compare},
     {"FX_StopEffect", 0x00095210, 0, code(&FX_StopEffect), 8, Result::None, Status::Compare},
     {"FxSystem_AllocArray", 0x00095f20, 0, code(&FxSystem_AllocArray), 0, Result::Eax, Status::Compare},
+    {"FxSystemPool_Destroy", 0x00095f80, 0, code(&FxSystemPool_Destroy), 0, Result::None, Status::Compare},
     {"FxEffect_SetName", 0x00096370, 0, code(&FxEffect_SetName), 4, Result::None, Status::Compare},
     {"FxEffectStage_CollectFormat", 0x000963c0, 0, code(&FxEffectStage_CollectFormat), 0, Result::None, Status::Compare},
     {"FxEffect_SetMatrix", 0x00096400, 0, code(&FxEffect_SetMatrix), 4, Result::None, Status::Compare},
@@ -1613,6 +1619,7 @@ const Function kFunctions[] = {
     {"RE_ClearScene", 0x00234cc0, 0, code(&RE_ClearScene), 0, Result::None, Status::Compare},
     {"R_ClearFrameLists", 0x00234cf0, 0, code(&R_ClearFrameLists), 0, Result::None, Status::Compare},
     {"R_ClearAlpha", 0x00234d90, 0, code(&R_ClearAlpha), 0, Result::None, Status::Compare},
+    {"R_DrawBackBufferOverlay", 0x00234ef0, 0, code(&R_DrawBackBufferOverlay), 0, Result::None, Status::Compare},
     {"myGLMultMatrix", 0x002352c0, 0, code(&myGLMultMatrix), 0, Result::None, Status::Compare},
     {"R_CullPointAndRadius", 0x00235890, 0, code(&R_CullPointAndRadius_entry), 0, Result::Eax, Status::Compare},
     {"R_CullLocalPointAndRadius", 0x00235910, 0, code(&R_CullLocalPointAndRadius_entry), 0, Result::Eax, Status::Compare},
@@ -1662,6 +1669,7 @@ const Function kFunctions[] = {
     {"DObj_AnyModelHasFlags", 0x0023a560, 0, code(&DObj_AnyModelHasFlags_entry), 0, Result::Eax, Status::Compare},
     {"DObj_TraceBoneBoxes", 0x0023a590, 0, code(&DObj_TraceBoneBoxes), 24, Result::None, Status::Compare},
     {"DObj_GetTagIndex", 0x0023aea0, 0, code(&DObj_GetTagIndex_entry), 0, Result::Eax, Status::Compare},
+    {"DObj_Ctor", 0x0023aff0, 0, code(&DObj_Ctor_entry), 0, Result::Eax, Status::Compare},
     {"XModel_GetBoneCount", 0x0023b1e0, 0, code(&XModel_GetBoneCount), 4, Result::Eax, Status::Compare},
     {"R_DrawFilledRect", 0x0023b230, 0, code(&R_DrawFilledRect_entry), 20, Result::None, Status::Compare},
     {"R_SetInstanceColor", 0x0023b2e0, 0, code(&R_SetInstanceColor_entry), 0, Result::None, Status::Compare},
@@ -2212,6 +2220,7 @@ const Function kFunctions[] = {
     {"FxShakeRumbleComponent_Stop", 0x0029ae90, 0, code(&FxShakeRumbleComponent_Stop), 0, Result::None, Status::Compare},
     {"FxComponent_GetEntityOrigin", 0x0029af30, 0, code(&FxComponent_GetEntityOrigin), 0, Result::Eax, Status::Compare},
     {"FxSoundComponent_SetParent", 0x0029b010, 0, code(&FxSoundComponent_SetParent), 4, Result::None, Status::Compare},
+    {"FxComponent_OwnerGone", 0x0029b0b0, 0, code(&FxComponent_OwnerGone), 0, Result::Eax, Status::Compare},
     {"FxComponent_GetPosition", 0x0029b0f0, 0, code(&FxComponent_GetPosition), 0, Result::Eax, Status::Compare},
     {"ShakeRumble_Start", 0x0029b1f0, 0, code(&ShakeRumble_Start), 12, Result::Eax, Status::Compare},
     {"ParamChoiceList_PickPerGroup", 0x0029b320, 0, code(&ParamChoiceList_PickPerGroup), 0, Result::None, Status::Compare},
@@ -3044,6 +3053,21 @@ const Function kFunctions[] = {
     {"ProfileMenu_OnProfilesRead", 0x0033a2a0, 0, code(&ProfileMenu_OnProfilesRead_entry), 4, Result::None, Status::Compare},
     {"ProfileMenu_Update", 0x0033a640, 0, code(&ProfileMenu_Update_entry), 4, Result::None, Status::Compare},
     {"SCR_UpdateLoadingDots", 0x0033ac10, 0, code(&SCR_UpdateLoadingDots_entry), 0, Result::None, Status::Compare},
+    {"StaticInit_DownVec4_9717e0", 0x003769e0, 0, code(&StaticInit_DownVec4_9717e0), 0, Result::None, Status::Compare},
+    {"StaticInit_ngl_multisampleScale", 0x003785e0, 0, code(&StaticInit_ngl_multisampleScale), 0, Result::None, Status::Compare},
+    {"StaticInit_FxParticleBounds", 0x00378d40, 0, code(&StaticInit_FxParticleBounds), 0, Result::None, Status::Compare},
+    {"AtExit_FxScriptStrings_970844", 0x00379a50, 0, code(&AtExit_FxScriptStrings_970844), 0, Result::None, Status::Compare},
+    {"AtExit_FxScriptStrings_9718a0", 0x00379a80, 0, code(&AtExit_FxScriptStrings_9718a0), 0, Result::None, Status::Compare},
+    {"AtExit_FxScriptStrings_96e90c", 0x00379ab0, 0, code(&AtExit_FxScriptStrings_96e90c), 0, Result::None, Status::Compare},
+    {"AtExit_FxScriptStrings_971970", 0x00379ae0, 0, code(&AtExit_FxScriptStrings_971970), 0, Result::None, Status::Compare},
+    {"AtExit_ReleaseScriptString_971908", 0x00379b10, 0, code(&AtExit_ReleaseScriptString_971908), 0, Result::None, Status::Compare},
+    {"AtExit_FxEffectList", 0x00379c60, 0, code(&AtExit_FxEffectList), 0, Result::None, Status::Compare},
+    {"AtExit_FxEffectPool", 0x00379c80, 0, code(&AtExit_FxEffectPool), 0, Result::None, Status::Compare},
+    {"AtExit_FreeAligned_988714", 0x00379ca0, 0, code(&AtExit_FreeAligned_988714), 0, Result::None, Status::Compare},
+    {"AtExit_HashStrMap_902ac0", 0x00379da0, 0, code(&AtExit_HashStrMap_902ac0), 0, Result::None, Status::Compare},
+    {"AtExit_HashStrMap_902ad4", 0x00379db0, 0, code(&AtExit_HashStrMap_902ad4), 0, Result::None, Status::Compare},
+    {"AtExit_HashStrMap_903fe0", 0x00379dc0, 0, code(&AtExit_HashStrMap_903fe0), 0, Result::None, Status::Compare},
+    {"StaticInit_Vtable_8bb124", 0x00379de0, 0, code(&StaticInit_Vtable_8bb124), 0, Result::None, Status::Compare},
 };
 
 }  // namespace

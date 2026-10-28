@@ -3281,4 +3281,32 @@ void XB_CDECL CL_Init() {
               1);  // cl_running 1
 }
 
+PLATFORM_ASM_ENTRY(ClientActive_Ctor_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ClientActive_Ctor) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL ClientActive_Ctor(uint8_t* cl) {
+    // Script string fields cleared and the 0x400 configstrings (+0x558, 0x009606b8 in the
+    // global) constructed empty (ScriptString_FromRep with no rep).
+    auto word = [cl](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(cl + offset); };
+    word(0x80) = 0;
+    word(0x9c) = 0;
+    word(0xb8) = 0;
+    word(0x488) = 0;
+    word(0x4e0) = 0;
+    word(0x4e4) = 0;
+    word(0x524) = 0;
+    ScriptString* strings = reinterpret_cast<ScriptString*>(cl + 0x558);
+    for (int i = 0; i < 0x400; ++i) ScriptString_FromRep(strings + i, nullptr);
+    word(0x21f0) = 0;
+    word(0x220c) = 0;
+    word(0x2228) = 0;
+    word(0x25f8) = 0;
+    word(0x2650) = 0;
+    word(0x2654) = 0;
+    word(0x2694) = 0;
+    return cl;
+}
+
+
 }  // namespace game

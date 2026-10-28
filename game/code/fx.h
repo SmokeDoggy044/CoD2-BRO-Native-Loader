@@ -827,4 +827,22 @@ void XB_THISCALL FxSoundComponent_Resume(uint8_t* component);
 extern "C" PLATFORM_HIDDEN void XB_CDECL FxSoundComponent_Dtor(uint8_t* component);
 extern "C" void FxSoundComponent_Dtor_entry(void);
 
+// 0x00094ab0 (thiscall, one stack word it never reads, ret 4): FxSystem_GetBounds into a
+// scratch box nothing reads; returns its result. No references (dead).
+uint8_t* const* XB_THISCALL FxSystem_UpdateBounds(const uint8_t* system, uint32_t unused);
+// 0x000950b0 (FX_ResetParticleSystem's tail jump): every pooled system's definition (+0x48)
+// gets flag +0xc0 cleared and set again, then FxSystem_GetBounds of every pooled and every
+// active system (0x009099ac, count 0x00909b8c) into a scratch box. Returns the active count.
+uint32_t XB_CDECL FxSystemPool_Refresh();
+// 0x00095f80 (thiscall): the system pool's teardown, FxSystemPool_Init's reverse - slot
+// table freed, each of the `+4` systems (array +0, 0x70 bytes each) destroyed, the array
+// given back to the particle heap (slot 2), the memory pool's slots freed, fx_systemPool
+// (0x00909994) cleared. Only caller 0x00095640, reached from 0x0009c190: no references (dead).
+void XB_THISCALL FxSystemPool_Destroy(uint8_t* pool);
+// 0x0029b0b0 (vtable 0x00837624 slot 6, the component base's "done"; called by the slot 6 of
+// vtable 0x008376fc, 0x0029d620): 1 in AL when the owner entity handle (+0xc, table
+// 0x0097a968) no longer resolves and flag 1 of +0x10 does not keep the component.
+uint32_t XB_THISCALL FxComponent_OwnerGone(const uint8_t* component);
+
+
 }  // namespace game

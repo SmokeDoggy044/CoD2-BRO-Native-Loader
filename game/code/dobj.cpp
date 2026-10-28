@@ -1224,4 +1224,47 @@ int32_t XB_CDECL XModel_TraceParts(const uint8_t* model, uint8_t* trace, const u
     return hit_bone;
 }
 
+// EntHandleTable_Alloc (0x00027f30): EAX = the table (free-slot bits, then {object,
+// generation} pairs at +0xa8), EBX = where the new handle goes (returned).
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL EntHandleTable_Alloc_call(uint32_t table, uint32_t* out);
+PLATFORM_ASM_ENTRY(EntHandleTable_Alloc_call,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %eax\n"
+                   "movl 12(%esp), %ebx\n"
+                   "movl $0x00027f30, %ecx\n"
+                   "call *%ecx\n"
+                   "popl %ebx\n"
+                   "ret")
+
+PLATFORM_ASM_ENTRY(DObj_Ctor_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DObj_Ctor) "addl $8, %esp\n"
+                   "ret")
+
+DObj* XB_CDECL DObj_Ctor(int32_t client_index, DObj* obj) {
+    uint8_t* self = reinterpret_cast<uint8_t*>(obj);
+    auto word = [self](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(self + offset); };
+    obj->client_index = client_index;
+    for (uint32_t offset = 0x38; offset <= 0x54; offset += 4) word(offset) = 0;  // models
+    obj->owner = nullptr;
+    obj->handle = 0;
+    obj->forced_lod = -1;
+    obj->min_lod = -1;
+    obj->lod = 0;
+    obj->cull_flags = 0;
+    // A handle from the DObj table (0x00981370; objects at 0x00981418 + slot * 8).
+    uint32_t handle;
+    handle = *EntHandleTable_Alloc_call(0x00981370, &handle);
+    obj->handle = handle;
+    const uint32_t slot = handle & 0xfff;
+    if (slot < 0x540) title_global<uint32_t>(0x00981418 + slot * 8) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(obj));
+    // The per-model anim trees (+0) and clip states (+0x68).
+    for (uint32_t i = 0; i < 8; ++i) {
+        word(i * 4) = 0;
+        word(0x68 + i * 4) = 0;
+    }
+    return obj;
+}
+
+
 }  // namespace game

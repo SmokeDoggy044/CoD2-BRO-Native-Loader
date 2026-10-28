@@ -323,4 +323,10 @@ int32_t XB_CDECL HandlePool_Next(const uint8_t* pool, int32_t handle);
 // 0x000cb440: the item index of a live handle (handle & mask), -1 for a stale or invalid one.
 int32_t XB_CDECL HandlePool_Resolve(const uint8_t* pool, int32_t handle);
 
+// 0x00093c00 (thiscall): a map's constructor - its first two words cleared; returns it. Run by
+// the static initializers of the shader caches (0x00902ac0, 0x00902ad4) and the NAL class
+// maps (0x00903fe0, 0x00903ff4), before the title's main.
+uint8_t* XB_THISCALL HashStrMap_Ctor(uint8_t* map);
+
+
 }  // namespace game
