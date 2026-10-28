@@ -381,4 +381,32 @@ void XB_STDCALL S_StopAllChannels(uint8_t* channels);
 // (tail jump) SndHw_Update (Xbox DirectSound layer, title code).
 uint32_t XB_CDECL SndSys_Update();
 
+// 0x002c31a0 (channel in EAX; S_StopAllChannels' playing / paused channels): with a voice, its params again from
+// the channel - 0 = base (+0x1c) * volume (+0x10), 1 = pitch (+0xc), 0x19 = near (+0x14), 0x1a = far (+0x18),
+// 0x1c = 4.0 (twice) - then its origin from the source (+0x28: +0x30) or else the owner entity (+0x20, handle table
+// 0x0097a968: +0x140) and a zero velocity (0x0082e110).
+void XB_REGS1 XB_CDECL S_ReapplyChannelParams(uint8_t* channel);
+// 0x002c8ed0 (sound system in EAX; SV_Shutdown): S_StopAllSounds, the level bank (+0x6014) freed, SndArena_Reset,
+// +0x6000 freed (Z_Free) and cleared; then from the last channel down, each live owner entity (+0x20) gets the
+// channel's pending notify (+0x2c, Scr_Notify).
+void XB_REGS1 XB_CDECL S_FreeLevelSounds(uint8_t* system);
+// 0x002c8f60 (stdcall manager): File_PumpRequests, SndSys_Update; the level entity (0x0095f534 +8) gets
+// "wbk_unloaded" / "wbk_loaded" for the flags +4 / +5 (both cleared); then every wave bank with a key: loading (1)
+// and done -> 2 + "wbk_loaded", loading and gone -> 0, file closed, key -1 + "wbk_loaded" (sic); unloading (3) and
+// gone -> 0, key -1 + "wbk_unloaded".
+void XB_STDCALL S_CheckWaveBankNotifies(uint8_t* manager);
+// 0x002ce760 (manager in EDI; 32-byte name, no_wait on the stack, ret 8): the bank with that name has its loaded
+// (2) wave banks freed (SndBank_Free, File_Close; state 3, file -1) and, unless no_wait, waits for each
+// (S_CheckWaveBankNotifies while SndBank_IsLoading >= 0); manager +4 = 1 for a wave bank not loaded or an unknown
+// name.
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_UnloadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t no_wait);
+extern "C" void S_UnloadSoundBank_entry(void);
+// 0x000c8de0 (the loaded request; SndBank_PollLoad): bank = request +0x18 gets +0x80/+0x84/+0x88 = request +0x10 /
+// +0x14 / +0x20, +0x8c = !(request +4 bit 1); its offsets +0x44 (entries), +0x54, +0x5c, +0x64 (names) made
+// pointers (-1 -> null), +0x10 / +0x18 moved by +0x84; then each 0x28-byte entry (+0x40 count): +0x24 = bank +0x80,
+// +0x10 its group (SndGroup_FindByName of the name), +0 / +0x14 / +0x18 pointers, +0x1c moved by +0x84 (+5 bit 1) or
+// +0x88, +5 bit 0 cleared with +6; each new param block (+0x14, ascending) has param 1 scaled by 0x008bed0c when
+// 0x008bed10 is set.
+void XB_CDECL SndBank_Relocate(uint8_t* request);
+
 }  // namespace game

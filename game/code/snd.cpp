@@ -2074,7 +2074,7 @@ void XB_STDCALL S_StopAllChannels(uint8_t* channels) {
             }
             if (emitter_word<int32_t>(channel, 0) == -1) continue;
             if (channel[8] || playing_state(voice_state(emitter_word<uint32_t>(channel, 0))))
-                title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002c31a0)(channel);  // S_ReapplyChannelParams
+                S_ReapplyChannelParams(channel);
             if (emitter_word<int32_t>(channel, 0) == -1 || channel[8]) continue;
             if (playing_state(voice_state(emitter_word<uint32_t>(channel, 0)))) continue;
             S_StopChannel(channel);
@@ -2082,7 +2082,7 @@ void XB_STDCALL S_StopAllChannels(uint8_t* channels) {
             if (emitter_word<int32_t>(channel, 0x20) == solo) {
                 if (emitter_word<int32_t>(channel, 0) == -1) continue;
                 if (channel[8] || playing_state(voice_state(emitter_word<uint32_t>(channel, 0)))) {
-                    title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002c31a0)(channel);  // S_ReapplyChannelParams
+                    S_ReapplyChannelParams(channel);
                     continue;
                 }
             }
@@ -2119,6 +2119,221 @@ uint32_t XB_CDECL SndSys_Update() {
         SndHw_ReleaseSlot(uint32_t(i));
     }
     return title_function<uint32_t XB_CDECL()>(0x000c7730)();  // SndHw_Update (tail jump)
+}
+
+// --- Channel params, level sounds, wave banks ---
+
+void XB_REGS1 XB_CDECL S_ReapplyChannelParams(uint8_t* channel) {
+    int32_t& voice = emitter_word<int32_t>(channel, 0);
+    if (voice == -1) return;
+    const uint32_t volume = emitter_word<uint32_t>(channel, 0x10);
+    SndVoice_SetParam(voice, 0, float_bits(emitter_word<float>(channel, 0x1c) * bits_float(volume)));
+    emitter_word<uint32_t>(channel, 0x10) = volume;
+    const uint32_t pitch = emitter_word<uint32_t>(channel, 0xc);
+    if (voice != -1) {
+        SndVoice_SetParam(voice, 1, pitch);
+        emitter_word<uint32_t>(channel, 0xc) = pitch;
+    }
+    const uint32_t far_bits = emitter_word<uint32_t>(channel, 0x18);
+    const uint32_t near_bits = emitter_word<uint32_t>(channel, 0x14);
+    if (voice != -1) {
+        SndVoice_SetParam(voice, 0x19, near_bits);
+        SndVoice_SetParam(voice, 0x1a, far_bits);
+        SndVoice_SetParam(voice, 0x1c, 0x40800000);  // 4.0
+        emitter_word<uint32_t>(channel, 0x14) = near_bits;
+        emitter_word<uint32_t>(channel, 0x18) = far_bits;
+    }
+    SndVoice_SetParam(voice, 0x1c, 0x40800000);
+    const uint32_t handle = emitter_word<uint32_t>(channel, 0x20);
+    const uint32_t index = handle & 0xfff;
+    const uint8_t* entity = nullptr;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        entity = title_global<const uint8_t*>(0x0097a968 + index * 8);
+    const uint8_t* const source = emitter_word<const uint8_t*>(channel, 0x28);
+    uint32_t origin[3];
+    if (source) {
+        if (voice != -1) {
+            std::memcpy(origin, source + 0x30, 12);
+            SndVoice_SetOrigin(voice, origin);
+        }
+    } else {
+        if (!entity) return;
+        uint32_t position[4];
+        std::memcpy(position, entity + 0x140, 16);
+        if (voice != -1) {
+            std::memcpy(origin, position, 12);
+            SndVoice_SetOrigin(voice, origin);
+        }
+    }
+    uint32_t velocity[4];
+    std::memcpy(velocity, &title_global<uint32_t>(0x0082e110), 16);  // zero vector
+    if (voice == -1) return;
+    std::memcpy(origin, velocity, 12);
+    SndVoice_SetVelocity(voice, origin);
+}
+
+void XB_REGS1 XB_CDECL S_FreeLevelSounds(uint8_t* system) {
+    S_StopAllSounds(system);
+    const uint32_t bank = emitter_word<uint32_t>(system, 0x6014);
+    if (bank != 0xffffffffu) SndBank_Free(bank);
+    SndArena_Reset();
+    menu_z_free(emitter_word<void*>(system, 0x6000));
+    emitter_word<uint32_t>(system, 0x6000) = 0;
+    for (int32_t i = 0x1ff; i >= 0; --i) {
+        uint8_t* const channel = system + uint32_t(i) * 0x30;
+        const uint32_t handle = emitter_word<uint32_t>(channel, 0x20);
+        const uint32_t index = handle & 0xfff;
+        if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) continue;
+        uint8_t* const entity = title_global<uint8_t*>(0x0097a968 + index * 8);
+        if (!entity) continue;
+        if (const uint32_t notify = emitter_word<uint32_t>(channel, 0x2c)) Scr_Notify(entity, notify);
+    }
+}
+
+namespace {
+
+// The level entity (0x0095f534 +8) gets the notify `name` ("wbk_loaded" / "wbk_unloaded").
+void notify_level(uint32_t name) {
+    uint8_t* const entity = emitter_word<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8);
+    if (!entity) return;
+    Scr_Notify(entity, Com_HashKeyNoCase(0, &title_global<const char>(name)));
+}
+
+constexpr uint32_t kWbkUnloaded = 0x00837560;  // "wbk_unloaded"
+constexpr uint32_t kWbkLoaded = 0x00837570;    // "wbk_loaded"
+
+void file_close(uint32_t file) { title_function<void XB_CDECL(uint32_t)>(0x000cac90)(file); }  // File_Close
+
+}  // namespace
+
+void XB_STDCALL S_CheckWaveBankNotifies(uint8_t* manager) {
+    title_function<void XB_CDECL()>(0x000ca690)();  // File_PumpRequests
+    SndSys_Update();
+    if (manager[4]) notify_level(kWbkUnloaded);
+    if (manager[5]) notify_level(kWbkLoaded);
+    manager[4] = 0;
+    manager[5] = 0;
+    for (int32_t bank = 0; bank < emitter_word<int32_t>(manager, 8); ++bank) {
+        for (uint32_t wave = 0; wave < 6; ++wave) {
+            uint8_t* const slot = manager + 0x30 + uint32_t(bank) * 0x84 + wave * 4;
+            uint32_t& state = emitter_word<uint32_t>(slot, 0);
+            int32_t& key = emitter_word<int32_t>(slot, 0x48);
+            if (key == -1) continue;
+            const int32_t loading = SndBank_IsLoading(uint32_t(key));
+            if (state == 1) {
+                if (loading == 0) {
+                    state = 2;
+                } else if (loading == -1) {
+                    const uint32_t file = emitter_word<uint32_t>(slot, 0x30);
+                    state = 0;
+                    file_close(file);
+                    emitter_word<int32_t>(slot, 0x30) = -1;
+                    key = -1;
+                } else {
+                    continue;
+                }
+                notify_level(kWbkLoaded);
+            } else if (state == 3) {
+                if (loading != -1) continue;
+                state = 0;
+                key = -1;
+                notify_level(kWbkUnloaded);
+            }
+        }
+    }
+}
+
+PLATFORM_ASM_ENTRY(S_UnloadSoundBank_entry, "pushl 8(%esp)\n"
+                                            "pushl 8(%esp)\n"
+                                            "pushl %edi\n" PLATFORM_ASM_CALL(S_UnloadSoundBank) "addl $12, %esp\n"
+                                            "ret $8")
+
+void XB_CDECL S_UnloadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t no_wait) {
+    for (int32_t i = 0; i < emitter_word<int32_t>(manager, 8); ++i) {
+        uint8_t* const bank = manager + 0xc + uint32_t(i) * 0x84;
+        uint32_t k = 0;
+        while (k < 8 && emitter_word<uint32_t>(bank, k * 4) == name[k]) ++k;
+        if (k < 8) continue;
+        for (uint32_t wave = 0; wave < 6; ++wave) {
+            if (emitter_word<uint32_t>(bank, 0x24 + wave * 4) != 2) {
+                manager[4] = 1;
+                continue;
+            }
+            SndBank_Free(emitter_word<uint32_t>(bank, 0x6c + wave * 4));
+            file_close(emitter_word<uint32_t>(bank, 0x54 + wave * 4));
+            emitter_word<uint32_t>(bank, 0x24 + wave * 4) = 3;
+            emitter_word<int32_t>(bank, 0x54 + wave * 4) = -1;
+            if (uint8_t(no_wait)) continue;
+            if (SndBank_IsLoading(emitter_word<uint32_t>(bank, 0x6c + wave * 4)) < 0) continue;
+            do {
+                S_CheckWaveBankNotifies(manager);
+            } while (SndBank_IsLoading(emitter_word<uint32_t>(bank, 0x6c + wave * 4)) >= 0);
+        }
+        return;
+    }
+    manager[4] = 1;
+}
+
+namespace {
+
+// A bank offset made a pointer: -1 -> null.
+uint32_t rebase(uint32_t offset, uint32_t base) { return offset == 0xffffffffu ? 0 : offset + base; }
+
+}  // namespace
+
+void XB_CDECL SndBank_Relocate(uint8_t* request) {
+    const uint32_t scale_enabled = title_global<uint32_t>(0x008bed10);
+    const float scale = title_global<float>(0x008bed0c);
+    uint8_t* const bank = emitter_word<uint8_t*>(request, 0x18);
+    const uint32_t base = uint32_t(uintptr_t(bank));
+    emitter_word<uint32_t>(bank, 0x80) = emitter_word<uint32_t>(request, 0x10);
+    emitter_word<uint32_t>(bank, 0x84) = emitter_word<uint32_t>(request, 0x14);
+    emitter_word<uint32_t>(bank, 0x88) = emitter_word<uint32_t>(request, 0x20);
+    bank[0x8c] = uint8_t(~(emitter_word<uint32_t>(request, 4) >> 1) & 1);
+    emitter_word<uint32_t>(bank, 0x44) = rebase(emitter_word<uint32_t>(bank, 0x44), base);
+    emitter_word<uint32_t>(bank, 0x54) = rebase(emitter_word<uint32_t>(bank, 0x54), base);
+    emitter_word<uint32_t>(bank, 0x5c) = rebase(emitter_word<uint32_t>(bank, 0x5c), base);
+    emitter_word<uint32_t>(bank, 0x64) = rebase(emitter_word<uint32_t>(bank, 0x64), base);
+    const uint32_t data = emitter_word<uint32_t>(bank, 0x84);
+    const uint32_t a = emitter_word<uint32_t>(bank, 0x18) + data;
+    const uint32_t b = emitter_word<uint32_t>(bank, 0x10) + data;
+    emitter_word<uint32_t>(bank, 0x18) = a;
+    emitter_word<uint32_t>(bank, 0x10) = b;
+    uint32_t previous = 0;
+    for (int32_t i = 0; i < emitter_word<int32_t>(bank, 0x40); ++i) {
+        uint8_t* const entry = emitter_word<uint8_t*>(bank, 0x44) + uint32_t(i) * 0x28;
+        emitter_word<uint32_t>(entry, 0x24) = emitter_word<uint32_t>(bank, 0x80);
+        uint32_t group = 0;
+        if (const uint32_t names = emitter_word<uint32_t>(bank, 0x64)) {
+            const uint32_t name = emitter_word<uint32_t>(entry, 0x10);
+            if (name != 0xffffffffu && names + name != 0)
+                group = uint32_t(uintptr_t(SndGroup_FindByName(reinterpret_cast<const char*>(uintptr_t{names + name}))));
+        }
+        emitter_word<uint32_t>(entry, 0x10) = group;
+        const uint32_t names = emitter_word<uint32_t>(bank, 0x64);
+        emitter_word<uint32_t>(entry, 0) =
+            names && emitter_word<uint32_t>(entry, 0) != 0xffffffffu ? names + emitter_word<uint32_t>(entry, 0) : 0;
+        const uint32_t blocks = emitter_word<uint32_t>(bank, 0x54);
+        const uint32_t params =
+            blocks && emitter_word<uint32_t>(entry, 0x14) != 0xffffffffu ? emitter_word<uint32_t>(entry, 0x14) + blocks : 0;
+        emitter_word<uint32_t>(entry, 0x14) = params;
+        const uint32_t extra = emitter_word<uint32_t>(bank, 0x5c);
+        emitter_word<uint32_t>(entry, 0x18) =
+            extra && emitter_word<uint32_t>(entry, 0x18) != 0xffffffffu ? extra + emitter_word<uint32_t>(entry, 0x18) : 0;
+        const uint8_t flags = entry[5];
+        emitter_word<uint32_t>(entry, 0x1c) += flags & 2 ? emitter_word<uint32_t>(bank, 0x84) : emitter_word<uint32_t>(bank, 0x88);
+        if (entry[6] && (flags & 1)) entry[5] = uint8_t(flags & 0xfe);
+        if (previous >= params) continue;
+        if (scale_enabled && params) {
+            uint32_t* const block = reinterpret_cast<uint32_t*>(uintptr_t{params});
+            const int32_t at = Snd_MaskBitIndex64(block, 1, 0);
+            if (at != -1) {
+                float& value = *reinterpret_cast<float*>(uintptr_t{params + 8 + uint32_t(at) * 4});
+                value = scale * value;
+            }
+        }
+        previous = emitter_word<uint32_t>(entry, 0x14);
+    }
 }
 
 }  // namespace game
