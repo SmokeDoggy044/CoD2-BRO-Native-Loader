@@ -4,6 +4,8 @@
 
 #include "cg_ents.h"
 #include "cm.h"
+#include "fx_load.h"
+#include "nal_anim.h"
 #include "lanes.h"
 #include "ngl.h"
 #include "qcommon.h"
@@ -1413,6 +1415,273 @@ uint32_t XB_REGS2 XB_STDCALL Stream_RelocateZone(uint32_t, uint8_t* image, uint3
         ++i;
         offset += 0x18;
     } while (i < word_at<uint32_t>(image, 0xc));
+    return i;
+}
+
+PLATFORM_ASM_ENTRY(Stream_AddClipToZone_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Stream_AddClipToZone) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Stream_AddClipToZone(uint32_t clip, uint32_t streams) {
+    return add_to_zone(streams, clip, clip + 8, 0x98, false);
+}
+
+PLATFORM_ASM_ENTRY(Stream_AddClipSetToZone_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Stream_AddClipSetToZone) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Stream_AddClipSetToZone(uint32_t set, uint32_t streams) {
+    NAL_ClipSetPlayer_Create(reinterpret_cast<uint8_t*>(uintptr_t{set}), 0, 0);
+    return add_to_zone(streams, set, set + 0x10, 0xa8, false);
+}
+
+uint32_t XB_THISCALL ZoneClipManager_Add(const uint8_t* self, uint32_t object) {
+    return zone_manager_add(self, object, [](uint32_t o) { return Stream_AddClipToZone(o, streams()); });
+}
+
+uint32_t XB_THISCALL ZoneClipSetManager_Add(const uint8_t* self, uint32_t object) {
+    return zone_manager_add(self, object, [](uint32_t o) { return Stream_AddClipSetToZone(o, streams()); });
+}
+
+namespace {
+
+// The value word of entry i of a zone map's entry list (8 bytes each, +list), the index wrapped to 0 at +count.
+uint32_t& zone_entry_value(uint8_t* zone, uint32_t count, uint32_t list, uint32_t i) {
+    return word_at<uint32_t>(word_at<uint8_t*>(zone, list), wrap_index(i, word_at<uint32_t>(zone, count)) * 8 + 4);
+}
+
+uint8_t* zone_of(const uint8_t* streams, uint32_t id) { return word_at<uint8_t*>(streams, 0x5c + id * 4); }
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL Stream_ReleaseFonts(const uint8_t* streams, uint32_t, uint32_t id) {
+    uint8_t* const zone = zone_of(streams, id);
+    if (!zone) return;
+    for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0x20); ++i) {
+        nglReleaseFont(as_pointer(zone_entry_value(zone, 0x20, 0x24, i)));
+        zone_entry_value(zone, 0x20, 0x24, i) = 0;
+    }
+}
+
+void XB_REGS3 XB_CDECL Stream_ReleaseEffects(const uint8_t* streams, uint32_t, uint32_t id) {
+    uint8_t* const zone = zone_of(streams, id);
+    if (!zone) return;
+    for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0xd0); ++i) {
+        uint8_t* const effect = static_cast<uint8_t*>(as_pointer(zone_entry_value(zone, 0xd0, 0xd4, i)));
+        if (effect) {
+            FxEffectDef_Release(effect);
+            title_function<void XB_CDECL(void*)>(0x000428d0)(effect);  // Z_Free
+        }
+        zone_entry_value(zone, 0xd0, 0xd4, i) = 0;
+    }
+}
+
+void XB_REGS1 XB_STDCALL Stream_ReleaseZoneSkeletons(uint32_t id, uint8_t* streams) {
+    streams[0x54] = 1;
+    uint8_t* const zone = zone_of(streams, id);
+    if (zone) {
+        for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0xc0); ++i) {
+            NAL_Skeleton_Release(zone_entry_value(zone, 0xc0, 0xc4, i));
+            zone_entry_value(zone, 0xc0, 0xc4, i) = 0;
+        }
+    }
+    streams[0x54] = 0;
+}
+
+void XB_REGS1 XB_STDCALL Stream_ReleaseTextures(uint32_t id, uint8_t* streams) {
+    streams[0xc] = 1;
+    uint8_t* const zone = zone_of(streams, id);
+    if (zone) {
+        for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0x10); ++i) {
+            uint8_t* const texture = static_cast<uint8_t*>(as_pointer(zone_entry_value(zone, 0x10, 0x14, i)));
+            if (texture && (texture[0x28] & 1)) {
+                const bool pending = word_at<uint32_t>(texture, 0xc) == 3;
+                if (pending) {
+                    streams[0xc] = 0;
+                    streams[0xe] = 1;
+                }
+                nglReleaseTexture(texture);
+                if (pending) streams[0xc] = 1;
+            }
+            zone_entry_value(zone, 0x10, 0x14, i) = 0;
+        }
+    }
+    streams[0xc] = 0;
+}
+
+void XB_STDCALL Stream_ReleaseMeshFiles(uint8_t* streams, uint32_t id) {
+    streams[0x24] = 1;
+    streams[0x18] = 1;
+    uint8_t* const zone = zone_of(streams, id);
+    if (zone) {
+        for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0x40); ++i) {
+            const uint32_t file = zone_entry_value(zone, 0x40, 0x44, i);
+            if (!file) continue;
+            nglReleaseMeshFile(as_pointer(file));
+            zone_entry_value(zone, 0x40, 0x44, i) = 0;
+        }
+        for (uint32_t i = 0; i < word_at<uint32_t>(zone, 0x30); ++i) zone_entry_value(zone, 0x30, 0x34, i) = 0;
+    }
+    streams[0x24] = 0;
+    streams[0x18] = 0;
+}
+
+uint32_t* XB_REGS2 XB_STDCALL Stream_ForEachAssetWithPrefix(uint32_t, uint32_t zone_set, const uint8_t* zones,
+                                                            uint32_t* out, const char* prefix, uint32_t length,
+                                                            uint32_t callback, uint32_t) {
+    uint32_t list[0x21];
+    list[0] = 0;
+    Stream_ListSearchZones(zone_set, list);
+    for (uint32_t i = 0; i < list[0]; ++i) {
+        const uint32_t id = list[1 + i];
+        if (id == 0xffffffff) continue;
+        const uint8_t* const zone = word_at<const uint8_t*>(zones, 4 + id * 4);
+        if (!zone) continue;
+        for (uint32_t j = 0; j < word_at<uint32_t>(zone, 0x10); ++j) {
+            const uint8_t* const asset =
+                word_at<const uint8_t* const*>(zone, 0x14)[wrap_index(j, word_at<uint32_t>(zone, 0x10))];
+            const char* const name = word_at<const char*>(asset, 0);
+            if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(  // _strncmp
+                    name, prefix, length) != 0)
+                continue;
+            title_function<void XB_CDECL(const char*, const uint8_t*)>(callback)(
+                word_at<const char*>(asset, 0) + length + 1, asset);
+        }
+    }
+    *out = 0;
+    return out;
+}
+
+uint32_t XB_REGS3 XB_CDECL Stream_SeekNextItem(uint32_t, uint32_t, uint8_t* request) {
+    const uint32_t group_offset = word_at<uint32_t>(request, 0x80) * 0x18;
+    const uint32_t item = word_at<uint32_t>(request, 0xd4);
+    const uint8_t* const image = word_at<const uint8_t*>(request, 0x7c);
+    if (item == word_at<uint16_t>(word_at<const uint8_t*>(image, 8), group_offset + 0xe)) {
+        word_at<uint32_t>(request, 0xe0) = 3;
+        word_at<uint32_t>(request, 0xd8) = 0;
+        return group_offset;
+    }
+    const uint8_t* const group = word_at<const uint8_t*>(image, 8) + group_offset;
+    const uint8_t* const entry = word_at<const uint8_t*>(group, 0x14) + item * 0x14;
+    const uint8_t* const table = word_at<const uint8_t*>(group, 0x10);
+    const uint32_t address = word_at<uint32_t>(table, word_at<uint32_t>(entry, 0xc) * 0x1c + 0x14) +
+                             word_at<uint32_t>(entry, 0x10);
+    word_at<uint32_t>(request, 0xd8) = address;
+    return address;
+}
+
+uint32_t XB_REGS3 XB_STDCALL Stream_FindInZones(uint32_t active, uint32_t, const uint32_t* hashed, uint32_t streams,
+                                                uint32_t zone, uint32_t) {
+    return stream_find(streams, zone, hashed, static_cast<uint8_t>(active),
+                       [](uint32_t hash, const char* key, const uint8_t* z) { return ZoneMap28_Lookup(hash, key, z); });
+}
+
+PLATFORM_ASM_ENTRY(Stream_RelocateAnimTrees_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Stream_RelocateAnimTrees) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Stream_RelocateAnimTrees(uint8_t* data, uint8_t* table) {
+    relocate_pack(data, 8);
+    word_at<uint32_t>(table, 4) = address_of(data);
+    for (uint32_t i = 0; i < word_at<uint32_t>(data, 0); ++i) {
+        uint8_t* const group = word_at<uint8_t*>(data, 4) + wrap_index(i, word_at<uint32_t>(data, 0)) * 12;
+        for (uint32_t j = 0; j < word_at<uint32_t>(group, 4); ++j) {
+            uint8_t* const node = word_at<uint8_t*>(group, 8) + wrap_index(j, word_at<uint32_t>(group, 4)) * 0x38;
+            word_at<uint32_t>(node, 0x28) = 0;
+            word_at<uint32_t>(node, 0x24) = 0;
+        }
+    }
+}
+
+void XB_CDECL Stream_LoadAtrb(char*, uint8_t* data, uint32_t, uint32_t) {
+    Stream_RelocateAnimTrees(data, title_global<uint8_t*>(0x0095f524));
+}
+
+uint32_t XB_REGS1 XB_STDCALL Stream_RelocateDcg(uint8_t* data, uint8_t* table, uint32_t zone) {
+    uint32_t cursor = 8;
+    Dcg_RelocateModels(&cursor, reinterpret_cast<uint32_t*>(data), address_of(data));
+    word_at<uint32_t>(table, 4 + zone * 4) = address_of(data);
+    uint32_t i = 0;
+    if (word_at<uint32_t>(data, 0) == 0) return 0;
+    uint32_t offset = 0;
+    do {
+        uint8_t* const model = word_at<uint8_t*>(data, 4) + offset;
+        for (uint32_t j = 0; j < word_at<uint32_t>(model, 0); ++j) {
+            uint8_t* const brush = word_at<uint8_t*>(model, 4) + j * 0x40;
+            const uint32_t flags = word_at<uint32_t>(brush, 8);
+            word_at<uint32_t>(brush, 0) = 0x008325ec;  // CM_Brush_vtable
+            if (flags & 0x1000000) word_at<uint32_t>(brush, 8) = flags & ~0x1000000u;
+            const uint32_t moved = word_at<uint32_t>(brush, 8);
+            if (moved & 0x4000) word_at<uint32_t>(brush, 8) = (moved & ~0x4000u) | 0x1000000;
+        }
+        ++i;
+        offset += 0x50;
+    } while (i < word_at<uint32_t>(data, 0));
+    return i;
+}
+
+void XB_CDECL Stream_LoadDcg(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    Stream_RelocateDcg(data, title_global<uint8_t*>(0x0095f500), zone);
+}
+
+PLATFORM_ASM_ENTRY(Stream_AddFreeBlock_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Stream_AddFreeBlock) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Stream_AddFreeBlock(uint32_t start, uint8_t* context, uint32_t size) {
+    if (size <= 0x2000 || word_at<int32_t>(context, 0x8c) >= 0xb) return 0;
+    const uint32_t heap = title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x00044850)(  // SmallHeap_Alloc
+        title_global<uint32_t>(0x0095f628), 0x494, 0);
+    title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x00042470)(  // Heap_Init
+        heap, (start + 0x1f) & ~0x1fu, start + size, 0);
+    const int32_t count = word_at<int32_t>(context, 0x8c);
+    if (count < 0xc) {
+        word_at<uint32_t>(context, 0x90 + uint32_t(count) * 4) = heap;
+        ++word_at<int32_t>(context, 0x8c);
+    }
+    return 0;
+}
+
+uint32_t XB_REGS2 XB_STDCALL MemContext_AddFreeBlock(uint8_t* context, uint32_t size, uint32_t start) {
+    uint8_t* last = nullptr;
+    const uint32_t count = word_at<uint32_t>(context, 0x8c);
+    if (count) {
+        const int32_t top = int32_t(count) - 1;
+        last = word_at<uint8_t*>(context, 0x90 + uint32_t(top > 0 ? top : 0) * 4);
+    }
+    uint8_t* const heap = static_cast<uint8_t*>(as_pointer(Stream_AddFreeBlock(start, context, size)));
+    if (heap && last) {
+        word_at<uint32_t>(heap, 0x490) = word_at<uint32_t>(last, 0x490);
+        word_at<uint32_t>(last, 0x490) = address_of(heap);
+    }
+    return address_of(heap);
+}
+
+PLATFORM_ASM_ENTRY(Stream_ResolveXmbParts_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Stream_ResolveXmbParts) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Stream_ResolveXmbParts(uint8_t* list, uint32_t zone_set) {
+    uint32_t i = 0;
+    if (word_at<uint32_t>(list, 0x10) == 0) return 0;
+    do {
+        uint8_t* const model = word_at<uint8_t**>(list, 0x14)[i];
+        for (uint32_t slot = 0x24; slot <= 0x34; slot += 4) {
+            if (!word_at<uint8_t*>(model, slot)) continue;
+            uint32_t file = 0;
+            ZoneStringMap_Lookup(0, zone_set, title_global<const uint8_t*>(0x0095f6b0), &file,
+                                 word_at<const char*>(word_at<uint8_t*>(model, slot), 4), 0, nullptr);
+            word_at<uint32_t>(word_at<uint8_t*>(model, slot), 8) = file;
+            if (!word_at<uint32_t>(model, 0x20)) word_at<uint32_t>(model, 0x20) = word_at<uint32_t>(word_at<uint8_t*>(model, slot), 8);
+        }
+        ++i;
+    } while (i < word_at<uint32_t>(list, 0x10));
     return i;
 }
 

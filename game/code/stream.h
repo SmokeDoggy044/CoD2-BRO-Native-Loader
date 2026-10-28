@@ -321,4 +321,74 @@ extern "C" void Stream_UnrelocateZone_entry(void);
 // `skip` set each group's +0x14 is cleared instead of walking its sub-entries.
 uint32_t XB_REGS2 XB_STDCALL Stream_RelocateZone(uint32_t unused_eax, uint8_t* image, uint32_t skip);
 
+// 0x0028e740 / 0x0028e6e0 (clip / clip set in ESI; stream system on the stack, ret 4): the object stored in the map
+// +0x98 (clip, hashed name +8) / +0xa8 (clip set, hashed name +0x10) of the zone on top of the global context's
+// stack; returns the entry's previous value. The clip set first gets its player (NAL_ClipSetPlayer_Create(set, 0, 0)).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddClipToZone(uint32_t clip, uint32_t streams);
+extern "C" void Stream_AddClipToZone_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddClipSetToZone(uint32_t set, uint32_t streams);
+extern "C" void Stream_AddClipSetToZone_entry(void);
+// 0x00025d30 / 0x00025dd0: ZoneTextureManager_Add's pattern with Stream_AddClipToZone / Stream_AddClipSetToZone.
+uint32_t XB_THISCALL ZoneClipManager_Add(const uint8_t* self, uint32_t object);
+uint32_t XB_THISCALL ZoneClipSetManager_Add(const uint8_t* self, uint32_t object);
+
+// Zone releases (stream system, zone id): each entry of one of the zone's maps (zone = system +0x5c + id * 4) released
+// and cleared. 0x0028cef0 (system in EAX, id in ECX): fonts (+0x20 count, +0x24 entries; nglReleaseFont).
+// 0x0028cd60 (same registers): effects (+0xd0, +0xd4; FxEffectDef_Release + Z_Free of each set one).
+void XB_REGS3 XB_CDECL Stream_ReleaseFonts(const uint8_t* streams, uint32_t unused_edx, uint32_t id);
+void XB_REGS3 XB_CDECL Stream_ReleaseEffects(const uint8_t* streams, uint32_t unused_edx, uint32_t id);
+// 0x0028cde0 (id in EAX; system on the stack, ret 4): skeletons (+0xc0, +0xc4; NAL_Skeleton_Release) with the
+// system's +0x54 byte set meanwhile.
+void XB_REGS1 XB_STDCALL Stream_ReleaseZoneSkeletons(uint32_t id, uint8_t* streams);
+// 0x0028cf40 (id in EAX; system on the stack, ret 4): textures (+0x10, +0x14) whose flags +0x28 bit 0 are set, with
+// +0xc set meanwhile; for a texture in state 3 (+0xc) +0xc is cleared and +0xe set around its nglReleaseTexture.
+void XB_REGS1 XB_STDCALL Stream_ReleaseTextures(uint32_t id, uint8_t* streams);
+// 0x0028ce60 (stdcall): the mesh files (+0x40, +0x44; nglReleaseMeshFile of the set ones), then the meshes' entries
+// (+0x30, +0x34) cleared, with the system's +0x24 and +0x18 bytes set meanwhile.
+void XB_STDCALL Stream_ReleaseMeshFiles(uint8_t* streams, uint32_t id);
+
+// 0x00024820 (zone set in EDX; zone table, out, prefix, prefix length, callback, an unread word on the stack, ret
+// 0x18): for every zone of the set's search list (table +4 + id * 4), every asset of its list (+0x14, count +0x10)
+// whose name (+0) starts with the prefix: callback(name + length + 1, asset) (cdecl). *out = 0; returns out.
+uint32_t* XB_REGS2 XB_STDCALL Stream_ForEachAssetWithPrefix(uint32_t unused_eax, uint32_t zone_set,
+                                                            const uint8_t* zones, uint32_t* out, const char* prefix,
+                                                            uint32_t length, uint32_t callback, uint32_t unused);
+
+// 0x0028c240 (request in ECX): the next item of the request's current group (+0x7c image, +0x80 group, +0xd4 item):
+// none left -> state +0xe0 = 3 and +0xd8 = 0; else +0xd8 = the item's address (group +0x10 table, entry +0xc * 0x1c
+// + 0x14, plus the item's offset +0x10).
+uint32_t XB_REGS3 XB_CDECL Stream_SeekNextItem(uint32_t unused_eax, uint32_t unused_edx, uint8_t* request);
+
+// 0x002904b0 (active byte in AL, hashed name in ECX; stream system, zone, an unread word on the stack, ret 0xc):
+// Stream_FindTexture's search over the zone map +0x28.
+uint32_t XB_REGS3 XB_STDCALL Stream_FindInZones(uint32_t active, uint32_t unused_edx, const uint32_t* hashed,
+                                                uint32_t streams, uint32_t zone, uint32_t unused);
+
+// 0x002aeab0 (data in ESI; table on the stack, ret 4): the pack's relocation table (+8) applied, table +4 = data, and
+// each anim tree's (+4 list of 12-byte groups, count +0; per group +8 list of 0x38-byte nodes, count +4) +0x28 and
+// +0x24 cleared. 0x002aeb70 (load handler): with rm_animTrees (0x0095f524).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_RelocateAnimTrees(uint8_t* data, uint8_t* table);
+extern "C" void Stream_RelocateAnimTrees_entry(void);
+void XB_CDECL Stream_LoadAtrb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+// 0x002caa40 (data in EAX; table, zone on the stack, ret 8): Dcg_RelocateModels (cursor 8), table +4 + zone * 4 =
+// data, then every brush (models +4, 0x50 bytes, count +0; brushes +4, 0x40 bytes, count +0) gets the CM_Brush
+// vtable and its flags (+8) bit 0x4000 moved to 0x1000000. 0x002caba0 (load handler): with the table 0x0095f500.
+uint32_t XB_REGS1 XB_STDCALL Stream_RelocateDcg(uint8_t* data, uint8_t* table, uint32_t zone);
+void XB_CDECL Stream_LoadDcg(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+
+// 0x0028c1c0 (start in EAX, memory context in ESI; size on the stack, ret 4): a block above 0x2000 bytes with fewer than
+// 0xb heaps on the context (+0x8c count, +0x90 list) becomes a heap (a 0x494-byte header from stream_heapHeaderPool
+// 0x0095f628, Heap_Init over the 32-aligned start .. start + size), added when below 0xc. Returns 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddFreeBlock(uint32_t start, uint8_t* context, uint32_t size);
+extern "C" void Stream_AddFreeBlock_entry(void);
+// 0x0028d860 (context in EAX, size in EDX; start on the stack, ret 4): Stream_AddFreeBlock, and a returned heap is
+// linked (+0x490) after the context's last one (never: it returns 0).
+uint32_t XB_REGS2 XB_STDCALL MemContext_AddFreeBlock(uint8_t* context, uint32_t size, uint32_t start);
+
+// 0x0023cfb0 (model list in EBX: +0x14 entries, count +0x10; zone set on the stack, ret 4): each model's five part
+// slots (+0x24..+0x34) get their part file (+8) from rm_xmpb (0x0095f6b0) by the part's name (+4)
+// (ZoneStringMap_Lookup), and the model's +0x20 the first one found when unset.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_ResolveXmbParts(uint8_t* list, uint32_t zone_set);
+extern "C" void Stream_ResolveXmbParts_entry(void);
+
 }  // namespace game
