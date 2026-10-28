@@ -17,6 +17,9 @@
 #include <mutex>
 
 #include "backend.h"
+#include "imgui.h"
+#include "imgui_impl_dx9.h"
+#include "imgui_impl_sdl3.h"
 #include "d3d9_api.h"
 #include "d3d9_draw.h"
 #include "d3d9_overlay.h"
@@ -82,6 +85,11 @@ bool write_bmp(const char* path, const uint8_t* pixels, int32_t pitch, uint32_t 
 class D3D9Backend final : public Backend {
 public:
     ~D3D9Backend() override {
+        if (menu_ready_) {
+            ImGui_ImplDX9_Shutdown();
+            ImGui_ImplSDL3_Shutdown();
+            ImGui::DestroyContext();
+        }
         overlay_.reset();
         notice_.reset();
         draw_.reset();
@@ -204,6 +212,9 @@ public:
         draw_ = std::make_unique<D3D9Draw>(device_, draw_config);
         overlay_ = std::make_unique<D3D9Overlay>(device_);
         notice_ = std::make_unique<D3D9Overlay>(device_);
+        pc_menu_ = config.pc_menu;
+        pc_menu_shown_ = config.pc_menu_shown;
+        menu_font_ = config.menu_font;
         LOG_INFO("render", "D3D9 device: %ux%u, rendering at %.2fx%.2f, window %dx%d%s, swap chain %ux%u",
                  config.width, config.height, static_cast<double>(draw_config.render_scale_x()),
                  static_cast<double>(draw_config.render_scale), pixel_width, pixel_height,
@@ -225,11 +236,22 @@ public:
         D3DADAPTER_IDENTIFIER9 id{};
         if (SUCCEEDED(d3d_->GetAdapterIdentifier(D3DADAPTER_DEFAULT, 0, &id)))
             LOG_INFO("render", "%s, adapter: %s", name, id.Description);
+        // Translated vertex programs are vs_3_0 and use constants up to c202; an adapter
+        // whose hardware can't run them gets the runtime's software vertex processing.
+        DWORD vertex_processing = D3DCREATE_HARDWARE_VERTEXPROCESSING;
+        D3DCAPS9 caps{};
+        if (SUCCEEDED(d3d_->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps)) &&
+            (caps.VertexShaderVersion < D3DVS_VERSION(3, 0) || caps.MaxVertexShaderConst < 256)) {
+            LOG_WARN("render", "%s: hardware vertex shaders %u.%u with %u constants; using software vertex processing",
+                     name, static_cast<unsigned>(D3DSHADER_VERSION_MAJOR(caps.VertexShaderVersion)),
+                     static_cast<unsigned>(D3DSHADER_VERSION_MINOR(caps.VertexShaderVersion)),
+                     static_cast<unsigned>(caps.MaxVertexShaderConst));
+            vertex_processing = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+        }
         // The title calls D3D from more than one thread (its vertical blank callback
         // and loading screens), so let the runtime serialize.
         const HRESULT hr = d3d_->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, pp.hDeviceWindow,
-                                              D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED |
-                                                  D3DCREATE_FPU_PRESERVE,
+                                              vertex_processing | D3DCREATE_MULTITHREADED | D3DCREATE_FPU_PRESERVE,
                                               &pp, &device_);
         if (FAILED(hr)) {
             LOG_WARN("render", "%s: CreateDevice failed: %08x", name, static_cast<unsigned>(hr));
@@ -376,6 +398,7 @@ public:
             const int scale = std::max(1, static_cast<int>(area_height) / 320);
             notice_->draw(swap_chain, notice_lines_, D3D9Overlay::kCentre, static_cast<int>(area_height) * 7 / 10,
                           scale, static_cast<int>(area_width));
+            if (menu_open_) draw_menu(swap_chain);
             swap_chain->Release();
         }
         device_->Present(&area, nullptr, nullptr, nullptr);
@@ -454,11 +477,25 @@ public:
         device_->EndScene();
     }
 
+    float* map_vertices(uint32_t vertex_count, uint32_t attributes) override {
+        return draw_->map_vertices(vertex_count, attributes);
+    }
+
+    bool has_cached_vertices(uint64_t key, uint64_t content) override {
+        return draw_->has_cached_vertices(key, content);
+    }
+
     bool pump_events() override {
         if (closed_) return false;
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return false;
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && pc_menu_ &&
+                (event.key.scancode == SDL_SCANCODE_GRAVE || (menu_open_ && event.key.scancode == SDL_SCANCODE_ESCAPE))) {
+                set_menu_open(!menu_open_);
+                continue;
+            }
+            if (menu_open_) ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F12 && !event.key.repeat)
                 mark_requested_ = true;
             if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F11 && !event.key.repeat)
@@ -500,6 +537,69 @@ public:
     }
 
 private:
+    // The PC menu (BackendConfig::pc_menu). Dear ImGui is set up the first time it opens.
+    bool init_menu() {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        io.IniFilename = nullptr;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
+        ImGui::StyleColorsDark();
+        int window_width = 0, window_height = 0;
+        SDL_GetWindowSize(window_, &window_width, &window_height);
+        const float size = std::clamp(static_cast<float>(window_height) / 34.0f, 15.0f, 48.0f);
+        if (menu_font_.empty() || !io.Fonts->AddFontFromFileTTF(menu_font_.c_str(), size)) {
+            ImFontConfig font;
+            font.SizePixels = std::round(size);
+            io.Fonts->AddFontDefault(&font);
+        }
+        ImGui::GetStyle().ScaleAllSizes(size / 16.0f);
+        // InitForD3D asserts outside Windows (DXVK is D3D9 there too); both only set up SDL input.
+        if (!ImGui_ImplSDL3_InitForOther(window_) || !ImGui_ImplDX9_Init(device_)) {
+            LOG_ERROR("render", "the PC menu cannot start (Dear ImGui)");
+            ImGui::DestroyContext();
+            pc_menu_ = nullptr;
+            return false;
+        }
+        menu_ready_ = true;
+        return true;
+    }
+
+    void set_menu_open(bool open) {
+        if (open == menu_open_ || (open && !menu_ready_ && !init_menu())) return;
+        menu_open_ = open;
+        if (pc_menu_shown_) pc_menu_shown_(open);  // the game's input first, so it does not take the mouse
+        if (open) {
+            menu_recapture_ = SDL_GetWindowRelativeMouseMode(window_);
+            SDL_SetWindowRelativeMouseMode(window_, false);
+        } else if (menu_recapture_) {
+            SDL_SetWindowRelativeMouseMode(window_, true);
+        }
+        LOG_INFO("render", "PC menu %s", open ? "opened" : "closed");
+    }
+
+    // Draws the menu on `target` (the swap chain's back buffer), at the window's size.
+    void draw_menu(IDirect3DSurface9* target) {
+        ImGui_ImplDX9_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+        ImGui::NewFrame();
+        const bool keep = pc_menu_();
+        ImGui::Render();
+        IDirect3DSurface9 *old_target = nullptr, *old_depth = nullptr;
+        device_->GetRenderTarget(0, &old_target);
+        device_->GetDepthStencilSurface(&old_depth);
+        device_->SetRenderTarget(0, target);
+        device_->SetDepthStencilSurface(nullptr);
+        device_->BeginScene();
+        ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+        device_->EndScene();
+        device_->SetRenderTarget(0, old_target);
+        device_->SetDepthStencilSurface(old_depth);
+        release(old_target);
+        release(old_depth);
+        if (!keep) set_menu_open(false);
+    }
+
     // Copies the title's back buffer to `dest` through the gamma ramp. False (the
     // caller copies it plainly) while the ramp is the identity or the pass fails.
     bool draw_with_gamma(IDirect3DSurface9* swap_chain, const RECT& dest) {
@@ -617,6 +717,12 @@ private:
     bool mark_requested_ = false;
     bool highlight_toggled_ = false;
     bool closed_ = false;
+    bool (*pc_menu_)() = nullptr;               // BackendConfig::pc_menu
+    void (*pc_menu_shown_)(bool) = nullptr;      // BackendConfig::pc_menu_shown
+    std::string menu_font_;
+    bool menu_ready_ = false;      // Dear ImGui is set up
+    bool menu_open_ = false;
+    bool menu_recapture_ = false;  // the mouse was captured when the menu opened
     std::unique_ptr<D3D9Overlay> overlay_;
     std::vector<std::string> overlay_lines_;
     std::unique_ptr<D3D9Overlay> notice_;  // its own, so neither redraws its text every frame

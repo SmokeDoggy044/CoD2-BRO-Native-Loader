@@ -5,10 +5,10 @@ add_library(platform STATIC
     settings.cpp
 )
 if(WIN32)
-    target_sources(platform PRIVATE file_win32.cpp udp_win32.cpp vmem_win32.cpp)
-    target_link_libraries(platform PUBLIC ws2_32)
+    target_sources(platform PRIVATE file_win32.cpp https_win32.cpp udp_win32.cpp vmem_win32.cpp)
+    target_link_libraries(platform PUBLIC ws2_32 winhttp)
 else()
-    target_sources(platform PRIVATE file_posix.cpp udp_posix.cpp vmem_posix.cpp)
+    target_sources(platform PRIVATE file_posix.cpp https_posix.cpp udp_posix.cpp vmem_posix.cpp)
 endif()
 target_include_directories(platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # 64-bit file offsets for pread/pwrite in 32-bit builds.

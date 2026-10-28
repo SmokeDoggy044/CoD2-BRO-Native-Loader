@@ -6,8 +6,10 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
+#include <initializer_list>
 #include <iterator>
 #include <mutex>
 #include <cstdint>
@@ -21,6 +23,7 @@
 
 #include "compiler.h"
 #include "crash.h"
+#include "bindings.h"
 #include "devices.h"
 #include "filesystem.h"
 #include "float_env.h"
@@ -28,6 +31,7 @@
 #include "key_prompts.h"
 #include "kernel.h"
 #include "log.h"
+#include "release_map.h"
 #include "symbols.h"
 #include "xbe.h"
 #include "xbox_d3d_api.h"
@@ -148,9 +152,10 @@ void install_rdtsc_patches(std::span<const RdtscSite> sites) {
     int installed = 0;
     for (size_t i = 0; i < sites.size(); ++i) {
         const RdtscSite& site = sites[i];
-        auto* code = reinterpret_cast<uint8_t*>(uintptr_t{site.address});
+        const uint32_t address = title_address(site.address, "(RDTSC)");
+        auto* code = reinterpret_cast<uint8_t*>(uintptr_t{address});
         if (code[0] != 0x0F || code[1] != 0x31) {
-            LOG_WARN("patches", "%08x: not RDTSC; left alone", site.address);
+            LOG_WARN("patches", "%08x: not RDTSC; left alone", address);
             continue;
         }
         uint8_t* t = pool + i * kTrampolineSize;
@@ -354,10 +359,15 @@ void remap_keyboard_actions(const input::PadState& default_layout, input::PadSta
 // Return and Backspace (the menu keys), and the D-pad the arrow keys.
 TitlePatchConfig::ButtonPrompts g_button_prompts = TitlePatchConfig::ButtonPrompts::Auto;
 
-// The keyboard's and mouse's control for each of kPadControls in the default layout
-// (input/devices.h).
-constexpr const char* kDefaultKeys[] = {"F", "C", "R", "Space", "V", "G", "@rmb", "@lmb", "X", "Shift", "1", "", "Q", "E"};
-static_assert(std::size(kDefaultKeys) == std::size(kPadControls));
+// The player's action for each of kPadControls in the default layout (input/bindings.h);
+// its first input is the key shown.
+constexpr input::Action kPadActions[] = {
+    input::Action::Use,   input::Action::Crouch,  input::Action::Reload,          input::Action::Jump,
+    input::Action::Melee, input::Action::Grenade, input::Action::Aim,             input::Action::Fire,
+    input::Action::RightStickClick, input::Action::Sprint, input::Action::NextWeapon, input::Action::DpadDown,
+    input::Action::LeanLeft, input::Action::LeanRight,
+};
+static_assert(std::size(kPadActions) == std::size(kPadControls));
 
 text::PromptIcon prompt_icon(const PadControl& control) {
     using text::PromptIcon;
@@ -390,7 +400,8 @@ void update_button_prompts() {
                                    [](const PadControl& control) { return *key_binding(control.key_code) != 0; });
     for (size_t i = 0; i < std::size(kPadControls); ++i) {
         const PadControl& from = kPadControls[i];
-        if (!*kDefaultKeys[i]) continue;
+        const std::string key = input::prompt_label(input::bindings()[kPadActions[i]][0]);
+        if (key.empty()) continue;
         // Where remap_keyboard_actions sends this key's control.
         const PadControl* to = bound ? nullptr : &from;
         for (const char* command : {from.command, similar_command(from.command)}) {
@@ -400,7 +411,7 @@ void update_button_prompts() {
         }
         if (!to) continue;
         const PromptIcon icon = prompt_icon(*to);
-        if (icon != PromptIcon::Count && label(icon).empty()) label(icon) = kDefaultKeys[i];
+        if (icon != PromptIcon::Count && label(icon).empty()) label(icon) = key;
     }
     // The fixed keys (menu keys, Escape, Tab) give their buttons in every layout.
     const bool menu = input::in_menu();
@@ -430,17 +441,21 @@ void update_button_prompts() {
 // connect before it (CL_SystemInfoChanged -> Cvar_SetCheatState) resets cheat cvars.
 // Cvar_Set2 refuses cheat cvars (flag 0x200: most r_ and debug cvars) while sv_cheats is
 // 0, so --exec forces it to 1 first (client and server share the cvar).
-constexpr uint32_t kCallClientFrame = 0x002f27a4;
-constexpr uint32_t kClientFrame = 0x002f1e60;
-constexpr uint32_t kUiStarted = 0x00933ee4;
-constexpr uint32_t kLevelToStart = 0x0095f920;
-constexpr uint32_t kCampaignLevel = 0x008dce48;
+struct StartLevelSites {
+    uint32_t call_client_frame = 0x002f27a4;
+    uint32_t client_frame = 0x002f1e60;
+    uint32_t ui_started = 0x00933ee4;
+    uint32_t level_to_start = 0x0095f920;
+    uint32_t campaign_level = 0x008dce48;
+};
+StartLevelSites g_start_sites;
 constexpr uint32_t kCbufAddText = 0x002aabb0;
 constexpr uint32_t kCvarSet2 = 0x0029c030;
 constexpr uint32_t kClsState = 0x0092bdf0;
 constexpr int32_t kClsStateActive = 2;
 
 int32_t g_start_level = -1;  // pending until the UI is up
+bool g_campaign = true;
 std::string g_exec_text;     // pending until the level is active
 std::vector<TitlePatchConfig::ForcedCall> g_forced_calls;  // count: tests still to start
 uint64_t g_active_ms = 0;    // when the level became active (0: not yet)
@@ -474,11 +489,17 @@ void force_calls(const compare::TitleRegisters* saved, bool scene) {
     std::erase_if(g_forced_calls, [](const auto& forced) { return forced.count == 0; });
 }
 
+}  // namespace
+
+int32_t campaign_level() { return g_campaign ? title<int32_t>(g_start_sites.campaign_level) : -1; }
+
+namespace {
+
 void XB_CDECL client_frame_hook(const compare::TitleRegisters* saved) {
     force_calls(saved, false);
-    if (g_start_level >= 0 && title<int32_t>(kUiStarted) != 0) {
-        title<int32_t>(kLevelToStart) = g_start_level;
-        title<int32_t>(kCampaignLevel) = g_start_level;
+    if (g_start_level >= 0 && title<int32_t>(g_start_sites.ui_started) != 0) {
+        title<int32_t>(g_start_sites.level_to_start) = g_start_level;
+        title<int32_t>(g_start_sites.campaign_level) = g_start_level;
         LOG_INFO("patches", "starting mission %d", g_start_level);
         g_start_level = -1;
     }
@@ -494,19 +515,20 @@ void XB_CDECL client_frame_hook(const compare::TitleRegisters* saved) {
     if (g_start_level >= 0 || !g_exec_text.empty() || !g_forced_calls.empty()) return;
     // The call returns into this thunk; later frames run the original call again (--compare tests of CL_Frame
     // would otherwise reach host code on every frame).
-    put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{kCallClientFrame}), 0xE8,
-              reinterpret_cast<const void*>(uintptr_t{kClientFrame}));
+    put_rel32(reinterpret_cast<uint8_t*>(uintptr_t{g_start_sites.call_client_frame}), 0xE8,
+              reinterpret_cast<const void*>(uintptr_t{g_start_sites.client_frame}));
 }
 
 // pushad; pushfd; push esp; call client_frame_hook; pop eax; popfd; popad; jmp FUN_002f1e60
 void install_client_frame_hook(int32_t level, const std::string& exec_text,
                                const std::vector<TitlePatchConfig::ForcedCall>& forced_calls) {
     if (level < 0 && exec_text.empty() && forced_calls.empty()) return;
-    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kCallClientFrame});
+    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_start_sites.call_client_frame});
     uint32_t relative;
     std::memcpy(&relative, site + 1, 4);
-    if (site[0] != 0xE8 || kCallClientFrame + 5 + relative != kClientFrame) {
-        LOG_WARN("patches", "%08x: not the call to the client frame; --level/--exec ignored", kCallClientFrame);
+    if (site[0] != 0xE8 || g_start_sites.call_client_frame + 5 + relative != g_start_sites.client_frame) {
+        LOG_WARN("patches", "%08x: not the call to the client frame; --level/--exec ignored",
+                 g_start_sites.call_client_frame);
         return;
     }
     auto* thunk = alloc_code(64);
@@ -520,7 +542,7 @@ void install_client_frame_hook(int32_t level, const std::string& exec_text,
     *t++ = 0x58;  // pop eax (popad restores it)
     *t++ = 0x9D;  // popfd
     *t++ = 0x61;  // popad
-    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{kClientFrame}));
+    put_rel32(t, 0xE9, reinterpret_cast<const void*>(uintptr_t{g_start_sites.client_frame}));
     put_rel32(site, 0xE8, thunk);
     g_start_level = level;
     g_exec_text = exec_text;
@@ -715,13 +737,16 @@ void install_menu_render_hooks() {
 // it gets a child scene of its own, made like the pause screen's in FUN_003153d0, and
 // is narrowed around x = 50 of 640, the anchor the HUD's left-hand components use
 // (FUN_00311800).
-constexpr uint32_t kObjectivesCall = 0x00281f8f;
-constexpr uint32_t kObjectivesDraw = 0x0027e630;
-constexpr uint32_t kSceneCreate = 0x00062fc0;  // (mode) a child of the current scene, made current
-constexpr uint32_t kScenePop = 0x0005e730;     // the parent becomes current
-constexpr uint32_t kSceneSetClear = 0x0005e430;  // scene +0x360
-constexpr uint32_t kSceneSetFlag384 = 0x0005e490;
-constexpr uint32_t kSceneSetFlag385 = 0x0005e4b0;
+struct ObjectivesSites {
+    uint32_t call = 0x00281f8f;
+    uint32_t draw = 0x0027e630;
+    uint32_t scene_create = 0x00062fc0;  // (mode) a child of the current scene, made current
+    uint32_t scene_pop = 0x0005e730;     // the parent becomes current
+    uint32_t scene_set_clear = 0x0005e430;  // scene +0x360
+    uint32_t scene_set_flag384 = 0x0005e490;
+    uint32_t scene_set_flag385 = 0x0005e4b0;
+};
+ObjectivesSites g_objectives;
 constexpr float kObjectivesAnchor = 50.0f / 640.0f;
 MenuScenes g_objectives_scenes;
 bool g_objectives_scene = false;  // made one this call
@@ -732,25 +757,25 @@ uint32_t call_title(uint32_t address, Args... args) {
 }
 
 void XB_CDECL objectives_begin() {
-    g_objectives_scene = title<uint32_t>(g_menus.current_scene) != 0 && call_title(kSceneCreate, 0) != 0;
+    g_objectives_scene = title<uint32_t>(g_menus.current_scene) != 0 && call_title(g_objectives.scene_create, 0) != 0;
     if (g_objectives_scene) {
-        call_title(kSceneSetClear, 0);
-        call_title(kSceneSetFlag385, 0);
-        call_title(kSceneSetFlag384, 0);
+        call_title(g_objectives.scene_set_clear, 0);
+        call_title(g_objectives.scene_set_flag385, 0);
+        call_title(g_objectives.scene_set_flag384, 0);
     }
     g_objectives_scenes = {0, 0, g_objectives_scene ? title<uint32_t>(g_menus.current_scene) : 0,
                            title<uint32_t>(g_menus.engine_frame)};
 }
 
 void XB_CDECL objectives_end() {
-    if (g_objectives_scene) call_title(kScenePop);
+    if (g_objectives_scene) call_title(g_objectives.scene_pop);
 }
 
 void install_objectives_hook() {
-    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kObjectivesCall});
+    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_objectives.call});
     if (site[0] != 0xE8 || site + 5 + *reinterpret_cast<int32_t*>(site + 1) !=
-                               reinterpret_cast<uint8_t*>(uintptr_t{kObjectivesDraw})) {
-        LOG_WARN("patches", "%08x: not the objectives draw call; objectives stay stretched", kObjectivesCall);
+                               reinterpret_cast<uint8_t*>(uintptr_t{g_objectives.draw})) {
+        LOG_WARN("patches", "%08x: not the objectives draw call; objectives stay stretched", g_objectives.call);
         return;
     }
     auto* thunk = alloc_code(64);
@@ -758,7 +783,7 @@ void install_objectives_hook() {
     // begin; push dword [esp+4]; call FUN_0027e630; add esp,4; end; ret
     uint8_t* t = put_preserving_call(thunk, &objectives_begin);
     *t++ = 0xFF, *t++ = 0x74, *t++ = 0x24, *t++ = 0x04;
-    put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{kObjectivesDraw}));
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{g_objectives.draw}));
     t += 5;
     *t++ = 0x83, *t++ = 0xC4, *t++ = 0x04;
     t = put_preserving_call(t, &objectives_end);
@@ -821,18 +846,138 @@ void XB_CDECL locked_heap_free_in(uint32_t heap, uint32_t pointer) {
 }
 
 void install_multiplayer_heap_lock() {
+    constexpr const char* kWhat = "(heap lock)";
     // push ebx; mov ebx,[esp+8]
     g_heap_alloc = reinterpret_cast<HeapAlloc>(
-        hook_with_original(0x00043a10, std::to_array<uint8_t>({0x53, 0x8b, 0x5c, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_alloc)));
+        hook_with_original(title_address(0x00043a10, kWhat), std::to_array<uint8_t>({0x53, 0x8b, 0x5c, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_alloc)));
     // mov eax,[0x00451638]
+    auto aligned_prologue = std::to_array<uint8_t>({0xa1, 0, 0, 0, 0});
+    const uint32_t heap_alignment = title_address(0x00451638, kWhat);
+    std::memcpy(&aligned_prologue[1], &heap_alignment, 4);
     g_heap_aligned_alloc = reinterpret_cast<HeapAlignedAlloc>(hook_with_original(
-        0x00043850, std::to_array<uint8_t>({0xa1, 0x38, 0x16, 0x45, 0x00}), reinterpret_cast<const void*>(&locked_heap_aligned_alloc)));
+        title_address(0x00043850, kWhat), aligned_prologue, reinterpret_cast<const void*>(&locked_heap_aligned_alloc)));
     // push esi; mov esi,[esp+8]
     g_heap_free = reinterpret_cast<HeapFree>(
-        hook_with_original(0x00043630, std::to_array<uint8_t>({0x56, 0x8b, 0x74, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_free)));
+        hook_with_original(title_address(0x00043630, kWhat), std::to_array<uint8_t>({0x56, 0x8b, 0x74, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_free)));
     // mov ecx,[esp+8]; mov eax,[esp+4]
     g_heap_free_in = reinterpret_cast<HeapFreeIn>(hook_with_original(
-        0x00043470, std::to_array<uint8_t>({0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x04}), reinterpret_cast<const void*>(&locked_heap_free_in)));
+        title_address(0x00043470, kWhat), std::to_array<uint8_t>({0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x04}), reinterpret_cast<const void*>(&locked_heap_free_in)));
+}
+
+// --- Wider than 16:9 (experimental) ----------------------------------------------------
+//
+// In widescreen mode (cg_widescreen) the 3D view is 16:9: R_RenderView (0x002473a9) and
+// nglSetDefaultSceneParams (0x00062ac0) load the scene aspect "movss xmm0,[16/9]" from
+// 0x0083f254. Pointing both at our own value widens the view (the vertical field of
+// view stays: Hor+). The culling frustum needs nothing: in widescreen CG_CalcFov sets
+// fov_x to 2 atan(16/9) = 121 degrees, wider than a 32:9 view at the game's fov.
+// The HUD stays laid out for 16:9 and is narrowed into the middle: CG_DrawActive ends
+// in "jmp CG_Draw2D" (0x00286c0c -> 0x00285f80), which goes through a thunk noting
+// the current scene (RE_StretchPic adds its quad to it) and the scenes allocated
+// meanwhile, like the in-game menus' (in_game_menu_draw). All NGL scenes are
+// perspective ones, so the projection does not tell 2D apart.
+// MP: 0x003d5240, loaded at 0x000638f0 and 0x001b4b09; jmp 0x001f71ac -> 0x001f67c0.
+struct AspectSites {
+    uint32_t constant;
+    uint32_t loads[2];  // movss xmm0,[constant]
+    uint32_t draw_2d_jump, draw_2d;
+    uint32_t hud_draw_slot, hud_draw;  // 0: none
+};
+constexpr AspectSites kCampaignAspect = {0x0083f254, {0x00062ac0, 0x002473a9}, 0x00286c0c, 0x00285f80,
+                                         0x0082a5ec, 0x00311940};
+constexpr AspectSites kMultiplayerAspect = {0x003d5240, {0x000638f0, 0x001b4b09}, 0x001f71ac, 0x001f67c0, 0, 0};
+float g_display_aspect = 16.0f / 9.0f;
+float g_scene_aspect = 16.0f / 9.0f;  // the title reads it (32-bit address)
+MenuScenes g_hud_scenes[2];  // CG_Draw2D's, the HUD manager's draw's
+
+void scale_fixed_fov();  // Field of view, below
+
+template <int N>
+void XB_CDECL hud_render_begin() {
+    if (N == 0) scale_fixed_fov();  // CG_Draw2D: cgame is drawing a level
+    const uint32_t allocator = title<uint32_t>(g_menus.frame_allocator);
+    g_hud_scenes[N] = {allocator, allocator, title<uint32_t>(g_menus.current_scene),
+                       title<uint32_t>(g_menus.engine_frame)};
+}
+
+template <int N>
+void XB_CDECL hud_render_end() {
+    g_hud_scenes[N].end = title<uint32_t>(g_menus.frame_allocator);
+}
+
+bool is_hud_scene(uint32_t scene, uint32_t frame) {
+    for (const MenuScenes& h : g_hud_scenes)
+        if (h.frame == frame && (scene == h.scene || (scene >= h.begin && scene < h.end))) return true;
+    return false;
+}
+
+// CG_DrawActive's "jmp CG_Draw2D" through a thunk (hud_render_begin<0>/end<0>); the
+// wide picture and the field of view both use it, so it goes in once.
+bool install_draw_2d_hook(const AspectSites& sites) {
+    static bool installed = false;
+    if (installed) return true;
+    auto* jump = reinterpret_cast<uint8_t*>(uintptr_t{sites.draw_2d_jump});
+    int32_t relative = 0;
+    std::memcpy(&relative, jump + 1, 4);
+    if (jump[0] != 0xE9 || sites.draw_2d_jump + 5 + relative != sites.draw_2d) {
+        LOG_WARN("patches", "%08x: not the jump to CG_Draw2D", sites.draw_2d_jump);
+        return false;
+    }
+    auto* thunk = alloc_code(32);
+    if (!thunk) return false;
+    // hud_render_begin; call CG_Draw2D; hud_render_end; ret
+    uint8_t* t = put_preserving_call(thunk, &hud_render_begin<0>);
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{sites.draw_2d}));
+    t = put_preserving_call(t + 5, &hud_render_end<0>);
+    *t = 0xC3;
+    put_rel32(jump, 0xE9, thunk);
+    installed = true;
+    return true;
+}
+
+bool install_hud_scenes(const AspectSites& sites) {
+    if (!install_draw_2d_hook(sites)) return false;
+    if (!sites.hud_draw_slot) return true;
+    // The HUD manager's draw (vtable 0x0082a5d8 slot 0x14, thiscall, no arguments; the
+    // in-game UI calls it from FUN_003154b0 before CG_Draw2D) puts the compass, health
+    // and the like into a scene of its own.
+    auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{sites.hud_draw_slot});
+    if (*slot != sites.hud_draw) {
+        LOG_WARN("patches", "%08x: not the HUD manager's draw", sites.hud_draw_slot);
+        return false;
+    }
+    auto* draw = alloc_code(32);
+    if (!draw) return false;
+    // begin; call draw (ecx kept); end; ret
+    uint8_t* t = put_preserving_call(draw, &hud_render_begin<1>);
+    put_rel32(t, 0xE8, reinterpret_cast<const void*>(uintptr_t{sites.hud_draw}));
+    t = put_preserving_call(t + 5, &hud_render_end<1>);
+    *t = 0xC3;
+    *slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(draw));
+    return true;
+}
+
+void install_display_aspect(const AspectSites& sites, float aspect) {
+    if (aspect <= 0) return;
+    g_display_aspect = aspect;
+    if (std::fabs(aspect - 16.0f / 9.0f) < 0.001f) return;
+    for (uint32_t load : sites.loads) {
+        const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{load});
+        uint32_t operand = 0;
+        std::memcpy(&operand, code + 4, 4);
+        if (code[0] != 0xF3 || code[1] != 0x0F || code[2] != 0x10 || code[3] != 0x05 || operand != sites.constant) {
+            LOG_WARN("patches", "%08x: not the scene aspect load; the view stays 16:9 (stretched)", load);
+            return;
+        }
+    }
+    if (!install_hud_scenes(sites)) {
+        LOG_WARN("patches", "the view stays 16:9 (stretched; the HUD could not be kept at 16:9)");
+        return;
+    }
+    g_scene_aspect = aspect;
+    const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_scene_aspect));
+    for (uint32_t load : sites.loads) std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{load}) + 4, &address, 4);
+    LOG_WARN("patches", "experimental: %.3f:1 picture (the view widens, the HUD stays 16:9 in the middle)", aspect);
 }
 
 // --- Frame rate -------------------------------------------------------------------
@@ -850,7 +995,20 @@ void install_multiplayer_heap_lock() {
 // wait is chosen where it is set up - FUN_00064580 (a D3D callback inserted by the
 // frame end) and 0x000649c0 both jump to 0x00064370 - with 2 vblanks while a movie
 // frame was decoded in the last few frames.
-// MP: the same code (FUN_00065520, 0x000652d0, decoder vtable 0x0038e830).
+//
+// The wait itself is a spin on the pending flag (0x0090288c, cleared by the vblank
+// callback): "cmp byte [flag],bl; jne $-6" right before D3DDevice_Swap. It is replaced
+// by a call that sleeps until the next vertical blank, so the title thread leaves the
+// core to the graphics driver's thread (issue #8: a dual-core laptop at 20 fps).
+//
+// A frame that missed its vertical blank waits for the next one with modes 1/2 (on the
+// Xbox too): at 30 fps a 34 ms frame is shown at 50 ms, so a PC slightly too slow for
+// 30 drops to 20. Unless late_frames_wait, the "late frames do not wait" flag of modes
+// 3/4 is set as well: a late frame is shown at once and the next one counts its
+// vertical blanks from there (between 20 and 30 fps instead of 20). Frames on time are
+// paced as before.
+// MP: the same code (FUN_00065520, 0x000652d0, decoder vtable 0x0038e830, spin
+// 0x00066123 on 0x004523ec).
 struct FramePacing {
     uint32_t set_frame_interval;
     uint32_t frame_vblanks;
@@ -859,14 +1017,19 @@ struct FramePacing {
     uint32_t wait_jumps[2];
     uint32_t movie_next_frame_slot;
     uint32_t movie_next_frame;
+    uint32_t frame_wait_spin;
+    uint32_t frame_pending;
 };
 constexpr FramePacing kCampaignPacing = {0x000645c0, 0x008a2cb0, 0x00902878, 0x00064370,
-                                         {0x000645ad, 0x000649d8}, 0x007cf398, 0x000ce210};
+                                         {0x000645ad, 0x000649d8}, 0x007cf398, 0x000ce210,
+                                         0x000651c3, 0x0090288c};
 constexpr FramePacing kMultiplayerPacing = {0x00065520, 0x003e8850, 0x004523d8, 0x000652d0,
-                                            {0x0006550d, 0x00065938}, 0x0038e838, 0x000cf050};
+                                            {0x0006550d, 0x00065938}, 0x0038e838, 0x000cf050,
+                                            0x00066123, 0x004523ec};
 FramePacing g_pacing = kCampaignPacing;
 uint32_t g_frame_vblanks = 2;      // per frame outside movies
 bool g_frame_wait = true;          // false: the title asked for mode 0 (no wait)
+bool g_late_frames_wait = false;   // TitlePatchConfig::late_frames_wait
 uint32_t g_movie_frame = 0;        // engine_frame at the last movie frame
 bool g_movie_seen = false;
 bool g_movie_pacing = false;
@@ -874,7 +1037,7 @@ bool g_movie_pacing = false;
 void XB_CDECL set_frame_interval(uint32_t mode) {
     if (mode > 4) return;
     g_frame_wait = mode != 0;
-    title<uint32_t>(g_pacing.late_no_wait) = mode >= 3 ? 1 : 0;
+    title<uint32_t>(g_pacing.late_no_wait) = mode >= 3 || !g_late_frames_wait ? 1 : 0;
     title<uint32_t>(g_pacing.frame_vblanks) = g_frame_wait ? g_frame_vblanks : 0;
 }
 
@@ -895,13 +1058,189 @@ void XB_CDECL choose_frame_wait() {
     title<uint32_t>(g_pacing.frame_vblanks) = movie ? 2 : g_frame_vblanks;
 }
 
-void install_frame_rate(int32_t frame_rate) {
+// --- Field of view ----------------------------------------------------------------------
+//
+// cg_fov (vmCvar 0x0094c3e0, value +8; default 70, horizontal degrees at 4:3: the game
+// widens it Hor+) is set through Cvar_SetValue (0x0029fdd0, cdecl (name, float); it
+// forces the change) on the title's thread at the frame end, again if a level start
+// put the default back. In widescreen CG_CalcFov sets the culling fov_x to
+// 2 atan(16/9) from the constants 9 (0x0083eef8) and 16 (0x0083ebb8), loaded at
+// 0x00284727 and 0x00284735 ("movss xmm0,[9]" / "movss xmm0,[16]"): those loads read
+// our pair instead, which stays 1 : 16/9 (the same 121 degrees) until a wide picture
+// with a high fov needs more (this fov_x also places the damage direction icons).
+// Campaign only for now.
+struct FovSites {
+    uint32_t vm_value;
+    uint32_t set_value;
+    uint32_t current_weapon_def;  // CG_GetCurrentWeaponDef, cdecl, eax
+    uint32_t gun_fov_load;        // R_RenderView, the gun scene's "mov ecx,[ebx+0x128]" (viewParms fov_y)
+    uint32_t refdef_fov_y;        // cg.refdef fov_y (CG_CalcFov)
+    uint32_t zoom;                // cg zoom fraction, 0 (hip) .. 1 (aiming down sights)
+    uint32_t cull_loads[2];  // movss xmm0,[a]; movss xmm0,[b]
+    uint32_t cull_constants[2];
+};
+constexpr FovSites kCampaignFov = {0x0094c3e8, 0x0029fdd0, 0x002bc750, 0x002475de, 0x00972ba4, 0x009725d8,
+                                   {0x00284727, 0x00284735}, {0x0083eef8, 0x0083ebb8}};
+constexpr uint8_t kGunFovLoad[6] = {0x8B, 0x8B, 0x28, 0x01, 0x00, 0x00};  // mov ecx,[ebx+0x128]
+constexpr uint32_t kWeaponFixedFov = 0x848;  // weapon def: a fov of its own (tanks, mounted guns), else 0
+constexpr float kGameFov = 70.0f;           // cg_fov's default
+const FovSites* g_fov = nullptr;
+std::atomic<float> g_fov_wanted{0.0f};  // 0: the game's own
+uint32_t g_fov_set_frame = 0;
+float g_cull[2] = {1.0f, 16.0f / 9.0f};  // the title reads them (32-bit addresses)
+float g_gun_fov_y = 0.0f;                 // the title reads it while the gun's own fov is on
+bool g_gun_fov_ok = false;                // the gun scene's fov load is where expected
+bool g_gun_fov_on = false;                // ... and reads g_gun_fov_y
+
+void install_field_of_view(const FovSites* sites, const AspectSites& aspect_sites, float degrees) {
+    if (!sites || !install_draw_2d_hook(aspect_sites)) return;
+    for (int i = 0; i < 2; ++i) {
+        const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{sites->cull_loads[i]});
+        uint32_t operand = 0;
+        std::memcpy(&operand, code + 4, 4);
+        if (code[0] != 0xF3 || code[1] != 0x0F || code[2] != 0x10 || code[3] != 0x05 ||
+            operand != sites->cull_constants[i]) {
+            LOG_WARN("patches", "%08x: not the widescreen culling fov; no field of view setting", sites->cull_loads[i]);
+            return;
+        }
+    }
+    for (int i = 0; i < 2; ++i) {
+        const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_cull[i]));
+        std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{sites->cull_loads[i]}) + 4, &address, 4);
+    }
+    g_gun_fov_ok = std::memcmp(reinterpret_cast<const void*>(uintptr_t{sites->gun_fov_load}), kGunFovLoad, 6) == 0;
+    if (!g_gun_fov_ok)
+        LOG_WARN("patches", "%08x: not the gun scene's fov; the gun widens with the view", sites->gun_fov_load);
+    g_fov = sites;
+    if (degrees > 0) {
+        g_fov_wanted = degrees;
+        LOG_INFO("patches", "field of view %.0f", static_cast<double>(degrees));
+    }
+}
+
+void set_gun_fov(float wanted);  // below
+
+// On the title's thread at the frame end.
+void apply_field_of_view() {
+    if (!g_fov) return;
+    const float current = title<float>(g_fov->vm_value);
+    const float wanted = g_fov_wanted.load();
+    const uint32_t frame = title<uint32_t>(g_menus.engine_frame);
+    // cgame is up (its vmCvar has a value) and has had a few frames to pick up the last set.
+    if (wanted > 0 && current > 0 && current != wanted && frame - g_fov_set_frame > 10) {
+        static const char kName[] = "cg_fov";
+        call_title(g_fov->set_value, kName, wanted);
+        g_fov_set_frame = frame;
+    }
+    set_gun_fov(wanted);
+    // The culling fov_x: wide enough for this picture at this fov, plus a margin.
+    constexpr float kPi = 3.14159265f;
+    const float fov = std::max(current, wanted);
+    const float half_width = g_display_aspect * 0.75f * std::tan(fov * kPi / 360.0f) * 1.05f;
+    g_cull[1] = std::max(16.0f / 9.0f, half_width);
+}
+
+// CG_GetViewFov returns the weapon def's own fov (+0x848) instead of cg_fov where it has
+// one: a tank's view (55) or a mounted gun's. That fov is widened by as much as cg_fov
+// is (in tan(fov / 2)), on the title's thread while cgame draws a level (CG_Draw2D),
+// keeping the original to come back to; zoomed sights (+0x624) stay as they are.
+struct ScaledFov {
+    uint32_t def;
+    float original, written;
+};
+std::vector<ScaledFov> g_scaled_fovs;
+
+float widen_fov(float fov, float wanted) {
+    constexpr float kHalfRadians = 3.14159265f / 360.0f;
+    return std::atan(std::tan(fov * kHalfRadians) * std::tan(wanted * kHalfRadians) /
+                     std::tan(kGameFov * kHalfRadians)) / kHalfRadians;
+}
+
+void scale_fixed_fov() {
+    if (!g_fov) return;
+    const float wanted = g_fov_wanted.load();
+    if (wanted <= 0) return;
+    const uint32_t def = call_title(g_fov->current_weapon_def);
+    if (!def) return;
+    float& fixed = title<float>(def + kWeaponFixedFov);
+    auto it = std::find_if(g_scaled_fovs.begin(), g_scaled_fovs.end(), [def](const ScaledFov& s) { return s.def == def; });
+    if (it == g_scaled_fovs.end()) {
+        if (fixed <= 0) return;
+        g_scaled_fovs.push_back({def, fixed, fixed});
+        it = g_scaled_fovs.end() - 1;
+    } else if (fixed != it->written) {
+        it->original = fixed;  // a new level's def at the same place
+    }
+    if (it->original <= 0) return;
+    const float target = wanted == kGameFov ? it->original : widen_fov(it->original, wanted);
+    if (fixed != target) fixed = it->written = target;
+}
+
+// The gun (view model) has a scene of its own in R_RenderView, set up with the view's
+// fov_y; at a wider fov it shrinks and shows what the game's 70 keeps off screen (the
+// front hand under the rifle). Off the default, that scene's fov load
+// "mov ecx,[ebx+0x128]" becomes "mov ecx,[g_gun_fov_y]": at the hip the view's fov_y
+// narrowed back by the fov's factor (in tan(fov / 2)), aiming down sights the view's own
+// (zoomed sights are not widened), blended by the zoom fraction. It follows the view a
+// frame late (computed at the frame end), so at the default the original load is back.
+void set_gun_fov(float wanted) {
+    if (!g_gun_fov_ok) return;
+    const bool on = wanted > 0 && wanted != kGameFov;
+    if (on) {
+        constexpr float kHalfRadians = 3.14159265f / 360.0f;
+        const float factor = std::tan(wanted * kHalfRadians) / std::tan(kGameFov * kHalfRadians);
+        const float zoom = std::clamp(title<float>(g_fov->zoom), 0.0f, 1.0f);
+        const float view = std::tan(title<float>(g_fov->refdef_fov_y) * kHalfRadians);
+        g_gun_fov_y = std::atan(view / factor * (1.0f - zoom) + view * zoom) / kHalfRadians;
+    }
+    if (on == g_gun_fov_on) return;
+    auto* code = reinterpret_cast<uint8_t*>(uintptr_t{g_fov->gun_fov_load});
+    if (on) {
+        const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_gun_fov_y));
+        code[0] = 0x8B, code[1] = 0x0D;  // mov ecx,[address]
+        std::memcpy(code + 2, &address, 4);
+    } else {
+        std::memcpy(code, kGunFovLoad, 6);
+    }
+    g_gun_fov_on = on;
+}
+
+void XB_CDECL wait_frame_start() {
+    apply_field_of_view();
+    const auto& pending = *reinterpret_cast<volatile uint8_t*>(uintptr_t{g_pacing.frame_pending});
+    for (;;) {
+        const uint32_t seen = render::vertical_blanks_done();
+        if (!pending) return;
+        render::wait_vertical_blank_after(seen, 50);
+    }
+}
+
+void install_frame_wait() {
+    auto* site = reinterpret_cast<uint8_t*>(uintptr_t{g_pacing.frame_wait_spin});
+    uint8_t spin[8] = {0x38, 0x1D, 0, 0, 0, 0, 0x75, 0xF8};  // cmp [pending],bl; jne $-6
+    std::memcpy(spin + 2, &g_pacing.frame_pending, 4);
+    if (std::memcmp(site, spin, sizeof(spin)) != 0) {
+        LOG_WARN("patches", "%08x: not the frame end's wait; it spins", g_pacing.frame_wait_spin);
+        return;
+    }
+    auto* thunk = alloc_code(16);
+    if (!thunk) return;
+    *put_preserving_call(thunk, &wait_frame_start) = 0xC3;
+    put_rel32(site, 0xE8, thunk);
+    std::memset(site + 5, 0x90, 3);
+}
+
+void install_frame_rate(int32_t frame_rate, bool late_frames_wait) {
     g_frame_vblanks = frame_rate == 60 ? 1 : 2;
+    g_late_frames_wait = late_frames_wait;
+    install_frame_wait();
     install_jump(g_pacing.set_frame_interval, reinterpret_cast<const void*>(&set_frame_interval));
     // MP sets the interval only in its intro movie player (FUN_0029ab90, mode 2, never
     // reset); before that its static 1 applies. Start at the chosen rate either way.
     title<uint32_t>(g_pacing.frame_vblanks) = g_frame_vblanks;
-    LOG_INFO("patches", "%d fps (%u vertical blanks per frame)", frame_rate, g_frame_vblanks);
+    title<uint32_t>(g_pacing.late_no_wait) = late_frames_wait ? 0 : 1;
+    LOG_INFO("patches", "%d fps (%u vertical blanks per frame)%s", frame_rate, g_frame_vblanks,
+             late_frames_wait ? "; late frames wait for the next one" : "");
     if (g_frame_vblanks == 2) return;
 
     auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{g_pacing.movie_next_frame_slot});
@@ -1125,6 +1464,12 @@ void XB_CDECL menu_pointer(uint32_t manager) {
     }
 
     input::set_menu_pointer();
+    // Once a session, when the front end's menus first come up: where the PC menu is.
+    static bool pc_menu_told = false;
+    if (!pc_menu_told && g_menu_pointer.front_end && manager == title<uint32_t>(g_menu_pointer.front_end)) {
+        pc_menu_told = true;
+        render::show_notice({"PC settings", "Press ` (the key below Esc) at any time: field of view and more."}, 6);
+    }
     input::PointerState pointer = input::take_pointer();
     float x = 0, y = 0;
     if (!pointer.inside || !render::window_to_screen(pointer.x, pointer.y, x, y)) return;
@@ -1215,14 +1560,27 @@ void install_menu_pointer() {
 
 }  // namespace
 
-float in_game_menu_draw() {
+void set_field_of_view(float degrees) { g_fov_wanted = degrees; }
+float field_of_view() { return g_fov_wanted.load(); }
+float game_field_of_view() { return g_fov ? title<float>(g_fov->vm_value) : 0.0f; }
+bool field_of_view_supported() { return g_fov != nullptr; }
+
+render::UiNarrowing in_game_menu_draw() {
     const uint32_t scene = title<uint32_t>(g_menus.current_scene);
     const MenuScenes& m = g_menu_scenes;
     const MenuScenes& o = g_objectives_scenes;
     const uint32_t frame = title<uint32_t>(g_menus.engine_frame);
-    if (m.frame == frame && (scene == m.scene || (scene >= m.begin && scene < m.end))) return 0.5f;
-    if (o.frame == frame && o.scene != 0 && scene == o.scene) return kObjectivesAnchor;
-    return -1.0f;
+    const float menu = 4.0f / 3.0f / g_display_aspect;
+    const float hud = std::min(1.0f, 16.0f / 9.0f / g_display_aspect);  // 16:9 layout into the picture
+    if (m.frame == frame && (scene == m.scene || (scene >= m.begin && scene < m.end))) return {0.5f, menu};
+    if (o.frame == frame && o.scene != 0 && scene == o.scene) {
+        // 4:3 around the HUD's left anchor within the 16:9 layout (k1), that layout
+        // around the centre (k2): one narrowing by k1 k2 around the point both keep.
+        const float k1 = 0.75f, k2 = hud, a = kObjectivesAnchor;
+        return {(0.5f * (1.0f - k2) + k2 * a * (1.0f - k1)) / (1.0f - k1 * k2), k1 * k2};
+    }
+    if (hud < 1.0f && is_hud_scene(scene, frame)) return {0.5f, hud};
+    return {};
 }
 
 namespace {
@@ -1377,11 +1735,12 @@ struct TitleData {
 };
 
 const TitleData kTitles[] = {
-    {{TitleId::Campaign, "default.xbe", "default_xbe_symbols.txt", 0x003f8318, 0x003f8328, 0x003f5c68, 0x007a9f78},
+    {{TitleId::Campaign, "default.xbe", "default_xbe_symbols.txt", "default_xbe_signatures.txt", 0x003f8318,
+      0x003f8328, 0x003f5c68, 0x007a9f78, 0x7426a4b9ea0d1071},
      kCampaignPatches, kCampaignRdtscSites, kCampaignSdkAliases, kCampaignSdkKeepOriginal, 0x00897908, 0x00897910,
      0x0095f6fc},
-    {{TitleId::Multiplayer, "codmp_xboxf.xbe", "codmp_xbe_symbols.txt", 0x0032a358, 0x0032a368, 0x00327ca8,
-      0x003693d8},
+    {{TitleId::Multiplayer, "codmp_xboxf.xbe", "codmp_xbe_symbols.txt", "codmp_xbe_signatures.txt", 0x0032a358,
+      0x0032a368, 0x00327ca8, 0x003693d8, 0x144ecea5f2744258},
      kMultiplayerPatches, kMultiplayerRdtscSites, kMultiplayerSdkAliases, kMultiplayerSdkKeepOriginal, 0x003dd49c,
      0x003dd4a4, 0x004b2fec},
 };
@@ -1393,6 +1752,56 @@ const TitleData& title_data(const TitleInfo& info) {
 }
 
 const SymbolTable* g_symbols = nullptr;
+
+// Every address in the tables above is the supported build's; in another release they
+// move to where the same code and data are there (release_map.h). Zero means none.
+void relocate(const char* what, std::initializer_list<uint32_t*> addresses) {
+    for (uint32_t* address : addresses)
+        if (*address) *address = title_address(*address, what);
+}
+ClientAddresses relocated(ClientAddresses c) {
+    relocate("(mouse look)", {&c.call_mouse_move, &c.mouse_move, &c.view_flags, &c.view_allow_flags, &c.vehicle,
+                              &c.sensitivity, &c.pitch, &c.yaw, &c.freelook, &c.cl_freelook, &c.m_pitch,
+                              &c.key_bindings});
+    return c;
+}
+MenuRenderSites relocated(MenuRenderSites m) {
+    relocate("(menu render)", {&m.screen_calls[0], &m.screen_calls[1], &m.menu_calls[0], &m.menu_calls[1],
+                               &m.menu_jump, &m.current_scene, &m.frame_allocator, &m.engine_frame});
+    return m;
+}
+AspectSites relocated(AspectSites a) {
+    relocate("(widescreen)", {&a.constant, &a.loads[0], &a.loads[1], &a.draw_2d_jump, &a.draw_2d, &a.hud_draw_slot,
+                              &a.hud_draw});
+    return a;
+}
+FramePacing relocated(FramePacing f) {
+    relocate("(frame pacing)", {&f.set_frame_interval, &f.frame_vblanks, &f.late_no_wait, &f.wait_setup,
+                                &f.wait_jumps[0], &f.wait_jumps[1], &f.movie_next_frame_slot, &f.movie_next_frame,
+                                &f.frame_wait_spin, &f.frame_pending});
+    return f;
+}
+FovSites relocated(FovSites f) {
+    relocate("(field of view)", {&f.vm_value, &f.set_value, &f.current_weapon_def, &f.gun_fov_load, &f.refdef_fov_y,
+                                 &f.zoom, &f.cull_loads[0], &f.cull_loads[1], &f.cull_constants[0],
+                                 &f.cull_constants[1]});
+    return f;
+}
+MenuPointerSites relocated(MenuPointerSites m) {
+    relocate("(menu mouse)", {&m.screen_poll, &m.text_draw, &m.text_widget_vtable, &m.front_end, &m.dialogs,
+                              &m.press_start_vtable});
+    return m;
+}
+StartLevelSites relocated(StartLevelSites l) {
+    relocate("(--level)", {&l.call_client_frame, &l.client_frame, &l.ui_started, &l.level_to_start,
+                           &l.campaign_level});
+    return l;
+}
+ObjectivesSites relocated(ObjectivesSites o) {
+    relocate("(objectives)", {&o.call, &o.draw, &o.scene_create, &o.scene_pop, &o.scene_set_clear,
+                              &o.scene_set_flag384, &o.scene_set_flag385});
+    return o;
+}
 
 // Every function in a replaced library's section that we do not replace starts with
 // "call sdk_trap", so reaching original SDK code (it would touch hardware) stops with
@@ -1444,7 +1853,8 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
         // shorter than a CALL are left alone (they would clobber their neighbour).
         const std::vector<uint32_t> entries =
             symbols.in_range(section->virtual_addr, section->virtual_addr + section->virtual_size);
-        std::vector<uint32_t> keep(data.sdk_keep_original.begin(), data.sdk_keep_original.end());
+        std::vector<uint32_t> keep;
+        for (uint32_t address : data.sdk_keep_original) keep.push_back(title_address(address, "(SDK kept)"));
         for (const char* name : kSdkKeepOriginalNames)
             for (uint32_t address : symbols.find(name)) keep.push_back(address);
         for (size_t i = 0; i < entries.size(); ++i) {
@@ -1457,7 +1867,8 @@ bool install_sdk_replacements(const XbeImage& image, const SymbolTable& symbols,
         for (const xbox::KernelImpl& function : library.functions) {
             std::vector<uint32_t> addresses = symbols.find(function.name);
             for (const SdkAlias& alias : data.sdk_aliases)
-                if (std::strcmp(alias.name, function.name) == 0) addresses.push_back(alias.address);
+                if (std::strcmp(alias.name, function.name) == 0)
+                    addresses.push_back(title_address(alias.address, alias.name));
             if (addresses.empty()) {
                 if (library.partial)
                     LOG_DEBUG("patches", "%s: %s not linked into this title", library.name, function.name);
@@ -1626,28 +2037,38 @@ std::pair<uint32_t, uint32_t> scene_force_thunk() {
 
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {
     const TitleData& data = title_data(title);
-    g_online_pointer = data.online_pointer;
+    g_online_pointer = title_address(data.online_pointer, "(Xbox Live state)");
     for (const Patch& patch : data.patches) {
-        install_jump(patch.address, patch.replacement);
-        LOG_DEBUG("patches", "%08x: %s", patch.address, patch.what);
+        const uint32_t address = title_address(patch.address, patch.what);
+        install_jump(address, patch.replacement);
+        LOG_DEBUG("patches", "%08x: %s", address, patch.what);
     }
-    std::memset(reinterpret_cast<void*>(uintptr_t{data.launch_hook_table}), 0,
+    const uint32_t launch_hooks = title_address(data.launch_hook_table, "(launch hooks)");
+    std::memset(reinterpret_cast<void*>(uintptr_t{launch_hooks}), 0,
                 data.launch_hook_table_end - data.launch_hook_table);
     install_rdtsc_patches(data.rdtsc_sites);
     g_mouse_degrees_per_count = config.mouse_degrees_per_count;
-    g_client = title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient;
+    g_client = relocated(title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient);
     const bool campaign = title.id == TitleId::Campaign;
+    g_campaign = campaign;
     g_aim_assist = campaign ? AimAssist{0x002db7d0, 0x500} : AimAssist{0x0024c940, 0x510};
-    g_menus = campaign ? kCampaignMenus : kMultiplayerMenus;
-    g_pacing = campaign ? kCampaignPacing : kMultiplayerPacing;
+    g_aim_assist.function = title_address(g_aim_assist.function, "(aim assist)");
+    g_menus = relocated(campaign ? kCampaignMenus : kMultiplayerMenus);
+    g_pacing = relocated(campaign ? kCampaignPacing : kMultiplayerPacing);
+    g_menu_pointer = relocated(campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer);
     if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
     input::set_action_remap(&remap_keyboard_actions);  // input side, not the game's code
     if (config.pc_features) {
         install_mouse_look();
         if (!config.aim_assist) disable_aim_assist();
-        install_frame_rate(config.frame_rate);
+        install_frame_rate(config.frame_rate, config.late_frames_wait);
+        static AspectSites aspect;  // g_fov points into these
+        static FovSites fov;
+        aspect = relocated(campaign ? kCampaignAspect : kMultiplayerAspect);
+        if (campaign) fov = relocated(kCampaignFov);
+        install_display_aspect(aspect, config.display_aspect);
+        install_field_of_view(campaign ? &fov : nullptr, aspect, config.field_of_view);
         install_menu_render_hooks();
-        g_menu_pointer = campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer;
         install_menu_pointer();
         g_button_prompts = config.button_prompts;
     } else {
@@ -1656,6 +2077,8 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     }
     if (!campaign) return;  // the objectives panel, --level and --exec are campaign-only
 
+    g_start_sites = relocated(StartLevelSites{});
+    g_objectives = relocated(ObjectivesSites{});
     install_client_frame_hook(config.start_level, config.exec_text, config.forced_calls);
     install_scene_hook(config.forced_calls);
     if (config.pc_features) install_objectives_hook();

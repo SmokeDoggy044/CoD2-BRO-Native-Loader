@@ -14,7 +14,7 @@ add_library(render STATIC
     texture_decode.cpp
 )
 target_include_directories(render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(render PUBLIC xbox platform)
+target_link_libraries(render PUBLIC xbox platform imgui_dx9)
 
 # D3D9 from DXVK (dxvk-native) on Linux. Fedora: dxvk-native-devel, plus its .i686
 # package for the loader. On Windows nothing is linked: the back end loads DXVK's

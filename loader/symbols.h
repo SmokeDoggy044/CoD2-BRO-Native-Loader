@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,6 +29,10 @@ public:
 
     // Addresses of all functions in [start, end), ascending.
     std::vector<uint32_t> in_range(uint32_t start, uint32_t end) const;
+
+    // Moves each function to `where(address)` (another release, release_map.h); those
+    // it finds nothing for are dropped. Returns how many were.
+    size_t relocate(const std::function<std::optional<uint32_t>(uint32_t)>& where);
 
 private:
     struct Entry {

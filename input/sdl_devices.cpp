@@ -1,6 +1,7 @@
 // Host input devices on SDL3. See devices.h.
 
 #include "devices.h"
+#include "bindings.h"
 
 #include <SDL3/SDL.h>
 
@@ -55,10 +56,11 @@ void refresh_ports() {
 
 uint8_t analog(bool pressed) { return pressed ? 0xFF : 0; }
 
-// Mouse: relative motion while captured, and the wheel as a short D-pad-up press.
+// Mouse: relative motion while captured, and the wheel as a short press of what it is
+// bound to.
 std::mutex g_mouse_mutex;
 float g_mouse_dx = 0.0f, g_mouse_dy = 0.0f;
-std::atomic<int64_t> g_wheel_until_ms{0};
+std::atomic<int64_t> g_wheel_up_until_ms{0}, g_wheel_down_until_ms{0};
 std::atomic<ActionRemap> g_action_remap{nullptr};
 constexpr int64_t kWheelPressMs = 80;  // long enough for the title's next poll
 
@@ -72,6 +74,10 @@ int g_left_clicks = 0, g_right_clicks = 0, g_wheel_steps = 0;
 // window); F10 or focus loss clear it.
 std::atomic<bool> g_recapture{false};
 std::atomic<Device> g_last_device{Device::Keyboard};
+std::atomic<bool> g_blocked{false};  // set_game_input_blocked
+// After the menu closes, port 0 stays neutral until the keys and buttons that closed it
+// are let go (Escape would pause the game, a click would fire).
+std::atomic<bool> g_wait_release{false};
 constexpr int kStickDeadZone = 12000, kTriggerDeadZone = 8000;  // SDL axis units
 std::mutex g_tap_mutex;
 PadState g_tap;  // guarded by g_tap_mutex
@@ -108,6 +114,7 @@ void follow_menu_mode(SDL_Window* window) {
 
 // Runs on the thread that pumps window events (the renderer's).
 bool SDLCALL watch_event(void*, SDL_Event* event) {
+    if (g_blocked.load()) return true;  // our menu has the mouse
     switch (event->type) {
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
@@ -162,7 +169,7 @@ bool SDLCALL watch_event(void*, SDL_Event* event) {
                 std::lock_guard lock(g_mouse_mutex);
                 g_wheel_steps += event->wheel.y > 0.0f ? 1 : event->wheel.y < 0.0f ? -1 : 0;
             } else if (event->wheel.y != 0.0f) {
-                g_wheel_until_ms = now_ms() + kWheelPressMs;
+                (event->wheel.y > 0.0f ? g_wheel_up_until_ms : g_wheel_down_until_ms) = now_ms() + kWheelPressMs;
             }
             break;
         case SDL_EVENT_WINDOW_FOCUS_GAINED:
@@ -227,11 +234,34 @@ void read_keyboard_mouse(PadState& state) {
     int key_count = 0;
     const bool* keys = SDL_GetKeyboardState(&key_count);
     const auto key = [&](SDL_Scancode code) { return code < key_count && keys[code]; };
-    const auto stick = [&](SDL_Scancode minus, SDL_Scancode plus) { return (key(plus) - key(minus)) * 32767; };
-    add_axis(state.thumb_lx, stick(SDL_SCANCODE_A, SDL_SCANCODE_D));
-    add_axis(state.thumb_ly, stick(SDL_SCANCODE_S, SDL_SCANCODE_W));
-    add_axis(state.thumb_rx, stick(SDL_SCANCODE_J, SDL_SCANCODE_L));
-    add_axis(state.thumb_ry, stick(SDL_SCANCODE_K, SDL_SCANCODE_I));
+    // Action keys (bindings.h), in the default layout. In menu mode the mouse points
+    // instead.
+    const bool menus = menu_mode();
+    const SDL_MouseButtonFlags mouse = menus ? 0 : SDL_GetMouseState(nullptr, nullptr);
+    const int64_t now = now_ms();
+    const bool wheel_up = !menus && now < g_wheel_up_until_ms.load();
+    const bool wheel_down = !menus && now < g_wheel_down_until_ms.load();
+    const Bindings& bound = bindings();
+    const auto held = [&](Action action) {
+        for (InputCode input : bound[action]) {
+            if (!input) continue;
+            if (input < kMouseButton) {
+                if (key(static_cast<SDL_Scancode>(input))) return true;
+            } else if (input <= kMouseButton + 5) {
+                if (mouse & SDL_BUTTON_MASK(input - kMouseButton)) return true;
+            } else if ((input == kWheelUp || input == kWheel) && wheel_up) {
+                return true;
+            } else if ((input == kWheelDown || input == kWheel) && wheel_down) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const auto stick = [&](Action minus, Action plus) { return (held(plus) - held(minus)) * 32767; };
+    add_axis(state.thumb_lx, stick(Action::MoveLeft, Action::MoveRight));
+    add_axis(state.thumb_ly, stick(Action::MoveBack, Action::MoveForward));
+    add_axis(state.thumb_rx, stick(Action::LookLeft, Action::LookRight));
+    add_axis(state.thumb_ry, stick(Action::LookDown, Action::LookUp));
 
     // Menu keys: fixed buttons in every layout.
     const std::pair<bool, uint16_t> menu_digital[] = {
@@ -244,32 +274,18 @@ void read_keyboard_mouse(PadState& state) {
     state.analog_buttons[kA] = std::max(state.analog_buttons[kA], analog(key(SDL_SCANCODE_RETURN)));
     state.analog_buttons[kB] = std::max(state.analog_buttons[kB], analog(key(SDL_SCANCODE_BACKSPACE)));
 
-    // Action keys, in the default layout. In menu mode the mouse points instead.
     PadState actions;
-    const bool menus = menu_mode();
-    const bool wheel = !menus && now_ms() < g_wheel_until_ms.load();
-    const std::pair<bool, uint16_t> digital[] = {
-        {key(SDL_SCANCODE_1) || wheel, kDpadUp},
-        {key(SDL_SCANCODE_Q), kDpadLeft},
-        {key(SDL_SCANCODE_E), kDpadRight},
-        {key(SDL_SCANCODE_LSHIFT), kLeftThumb},
-        {key(SDL_SCANCODE_X), kRightThumb},
+    const std::pair<Action, uint16_t> digital[] = {
+        {Action::NextWeapon, kDpadUp},     {Action::DpadDown, kDpadDown},   {Action::LeanLeft, kDpadLeft},
+        {Action::LeanRight, kDpadRight},   {Action::Sprint, kLeftThumb},    {Action::RightStickClick, kRightThumb},
     };
-    for (auto [pressed, bit] : digital)
-        if (pressed) actions.buttons |= bit;
-
-    const SDL_MouseButtonFlags mouse = menus ? 0 : SDL_GetMouseState(nullptr, nullptr);
-    const std::pair<bool, AnalogButton> buttons[] = {
-        {key(SDL_SCANCODE_F), kA},
-        {key(SDL_SCANCODE_C) || key(SDL_SCANCODE_LCTRL), kB},
-        {key(SDL_SCANCODE_R), kX},
-        {key(SDL_SCANCODE_SPACE), kY},
-        {key(SDL_SCANCODE_V) || (mouse & SDL_BUTTON_MMASK), kBlack},
-        {key(SDL_SCANCODE_G), kWhite},
-        {(mouse & SDL_BUTTON_RMASK) != 0, kLeftTrigger},
-        {(mouse & SDL_BUTTON_LMASK) != 0, kRightTrigger},
+    for (auto [action, bit] : digital)
+        if (held(action)) actions.buttons |= bit;
+    const std::pair<Action, AnalogButton> buttons[] = {
+        {Action::Use, kA},     {Action::Crouch, kB},  {Action::Reload, kX}, {Action::Jump, kY},
+        {Action::Melee, kBlack}, {Action::Grenade, kWhite}, {Action::Aim, kLeftTrigger}, {Action::Fire, kRightTrigger},
     };
-    for (auto [pressed, index] : buttons) actions.analog_buttons[index] = analog(pressed);
+    for (auto [action, index] : buttons) actions.analog_buttons[index] = analog(held(action));
 
     if (ActionRemap remap = g_action_remap.load()) {
         PadState active;
@@ -322,7 +338,7 @@ PointerState take_pointer() {
         pointer.wheel = std::exchange(g_wheel_steps, 0);
     }
     SDL_Window* window = SDL_GetMouseFocus();
-    if (!menu_mode() || !window || !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) ||
+    if (g_blocked.load() || !menu_mode() || !window || !(SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) ||
         SDL_GetWindowRelativeMouseMode(window)) {
         if (pointer.left_clicks || pointer.right_clicks)
             LOG_DEBUG("input", "menu clicks dropped: %s",
@@ -349,9 +365,18 @@ void tap(const PadState& buttons) {
 
 void take_mouse_motion(float& dx, float& dy) {
     std::lock_guard lock(g_mouse_mutex);
-    dx = g_mouse_dx;
-    dy = g_mouse_dy;
+    dx = g_blocked.load() ? 0.0f : g_mouse_dx;
+    dy = g_blocked.load() ? 0.0f : g_mouse_dy;
     g_mouse_dx = g_mouse_dy = 0.0f;
+}
+
+void set_game_input_blocked(bool blocked) {
+    g_blocked = blocked;
+    g_wait_release = !blocked;
+    std::lock_guard lock(g_mouse_mutex);
+    g_mouse_dx = g_mouse_dy = 0.0f;
+    g_pointer_moved = false;
+    g_left_clicks = g_right_clicks = g_wheel_steps = 0;
 }
 
 uint32_t connected_ports() {
@@ -370,6 +395,14 @@ bool read_port(uint32_t port, PadState& state) {
     state = PadState{};
     if (port >= kPortCount) return false;
     std::lock_guard lock(g_mutex);
+    if (g_blocked.load()) return port == 0 || g_ports[port] != nullptr;
+    if (port == 0 && g_wait_release.load()) {
+        const bool* keys = SDL_GetKeyboardState(nullptr);
+        if (keys[SDL_SCANCODE_ESCAPE] || keys[SDL_SCANCODE_GRAVE] || keys[SDL_SCANCODE_RETURN] ||
+            keys[SDL_SCANCODE_SPACE] || SDL_GetMouseState(nullptr, nullptr))
+            return true;
+        g_wait_release = false;
+    }
     if (g_ports[port]) read_gamepad(g_ports[port], state);
     if (port == 0) {
         read_keyboard_mouse(state);

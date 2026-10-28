@@ -1,11 +1,13 @@
 #include "xbe.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 
 #include "log.h"
 #include "os.h"
+#include "release_map.h"
 
 namespace loader {
 
@@ -24,6 +26,10 @@ T* at(uint32_t address) {
 
 void add_shared_page_ref(uint32_t counter_addr, int delta) {
     if (counter_addr) *at<uint16_t>(counter_addr) += delta;
+}
+
+void fnv1a(uint64_t& hash, const void* bytes, size_t size) {
+    for (size_t i = 0; i < size; ++i) hash = (hash ^ static_cast<const uint8_t*>(bytes)[i]) * 0x100000001b3ull;
 }
 
 }  // namespace
@@ -113,6 +119,27 @@ XbeSectionHeader* XbeImage::find_section(uint32_t address) const {
         if (address >= section->virtual_addr && address - section->virtual_addr < section->virtual_size)
             return section;
     return nullptr;
+}
+
+uint64_t XbeImage::code_fingerprint() const {
+    uint64_t hash = 0xcbf29ce484222325ull;
+    for (const XbeSectionHeader* section : sections()) {
+        const std::string name = section_name(*section);
+        fnv1a(hash, name.c_str(), name.size() + 1);
+        fnv1a(hash, &section->virtual_addr, 4);
+        fnv1a(hash, &section->virtual_size, 4);
+        if (!is_data_section(name)) fnv1a(hash, section->digest, sizeof(section->digest));
+    }
+    return hash;
+}
+
+void XbeImage::log_sections() const {
+    for (const XbeSectionHeader* section : sections()) {
+        char digest[41];
+        for (int i = 0; i < 20; ++i) snprintf(digest + 2 * i, 3, "%02x", section->digest[i]);
+        LOG_INFO("xbe", "  %-10s %08x size %08x sha1 %s", section_name(*section).c_str(), section->virtual_addr,
+                 section->virtual_size, digest);
+    }
 }
 
 void XbeImage::copy_section_data(const XbeSectionHeader& section) {

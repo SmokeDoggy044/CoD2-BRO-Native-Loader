@@ -40,6 +40,17 @@ std::vector<uint32_t> SymbolTable::in_range(uint32_t start, uint32_t end) const 
     return found;
 }
 
+size_t SymbolTable::relocate(const std::function<std::optional<uint32_t>(uint32_t)>& where) {
+    std::vector<Entry> moved;
+    for (Entry& entry : entries_)
+        if (const std::optional<uint32_t> address = where(entry.address))
+            moved.push_back({*address, std::move(entry.name)});
+    const size_t dropped = entries_.size() - moved.size();
+    std::sort(moved.begin(), moved.end(), [](const Entry& a, const Entry& b) { return a.address < b.address; });
+    entries_ = std::move(moved);
+    return dropped;
+}
+
 std::string SymbolTable::function_at(uint32_t address) const {
     char buffer[32];
     auto it = std::upper_bound(entries_.begin(), entries_.end(), address,

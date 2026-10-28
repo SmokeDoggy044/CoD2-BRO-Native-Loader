@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(cod_bro_port VERSION 0.1.4 LANGUAGES C CXX)
+project(cod_bro_port VERSION 0.1.14 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -86,6 +86,7 @@ if(WIN32)
 else()
     find_package(SDL3 REQUIRED CONFIG)
 endif()
+include(cmake/imgui.cmake)
 
 add_subdirectory(platform)
 add_subdirectory(xbox)

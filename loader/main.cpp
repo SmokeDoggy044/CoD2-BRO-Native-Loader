@@ -18,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "bindings.h"
 #include "compare.h"
 #include "crash.h"
 #include "diag_summary.h"
@@ -28,7 +29,9 @@
 #include "log.h"
 #include "os.h"
 #include "patches.h"
+#include "pc_menu.h"
 #include "profiler.h"
+#include "release_map.h"
 #include "paths.h"
 #include "program.h"
 #include "script.h"
@@ -66,14 +69,21 @@ struct Options {
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
     bool widescreen = true;
+    float field_of_view = 0;      // cg_fov; 0: the game's own (70)
+    float aspect = 16.0f / 9.0f;  // with widescreen: the picture's shape (wider than 16:9: experimental)
     uint32_t language = 1;  // XC_LANGUAGE
     uint32_t screenshot_interval = 0;
     std::optional<fs::path> screenshot_dir;
     bool silent = false;
     std::string press_script;
     float mouse_sensitivity = 0.11f;
+    input::Bindings bindings = input::default_bindings();  // --keys
+    std::string bindings_error;  // a word of --keys it did not know (logged; the rest applies)
     bool aim_assist = true;
     int32_t frame_rate = 60;
+    bool late_frames_wait = false;
+    bool any_release = false;    // start an XBE whose build is not the supported one (testing)
+    std::optional<fs::path> write_signatures;  // write the XBE's signatures there and exit
     int32_t start_level = -1;
     std::string exec_text;       // --exec
     std::vector<loader::TitlePatchConfig::ForcedCall> forced_calls;  // --force
@@ -85,6 +95,7 @@ struct Options {
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
     uint32_t diag_seconds = 10;
+    std::optional<std::string> profile;  // --profile, else XB_PROFILE
     // Set by a title reboot (see reboot_title), not by users.
     std::optional<int> launch_data_fd;
     std::optional<int64_t> session_start_ns;
@@ -101,6 +112,16 @@ bool g_tell_player = false;    // error boxes (not in scripted runs)
 void tell_player(const std::string& what) {
     if (!g_tell_player) return;
     loader::os::show_error("Call of Duty 2: Big Red One", what + "\n\nDetails are in the log:\n" + g_log_path.string());
+}
+
+// The mapped image, for release_map.h.
+loader::ImageBytes image_bytes(const loader::XbeImage& image) {
+    loader::ImageBytes bytes;
+    bytes.base = image.base();
+    bytes.bytes = {reinterpret_cast<const uint8_t*>(uintptr_t{image.base()}), image.size()};
+    for (const loader::XbeSectionHeader* section : image.sections())
+        bytes.sections.push_back({image.section_name(*section), section->virtual_addr, section->virtual_size});
+    return bytes;
 }
 
 int startup_failed(const std::string& what) {
@@ -127,7 +148,9 @@ void print_usage(const char* program) {
         "  --scale N        window size as a multiple of the game's resolution (default 2)\n"
         "  --render-scale X render resolution as a multiple of the game's 640x480 (default: the\n"
         "                   window's or screen's height; above it = supersampling, e.g. 4)\n"
-        "  --aspect A       16:9 (default: the game's widescreen mode, wider view and HUD) or 4:3\n"
+        "  --aspect A       16:9 (default: the game's widescreen mode, wider view and HUD) or 4:3;\n"
+        "                   wider, e.g. 21:9, 32:9 or 3440:1440, is experimental (wider view,\n"
+        "                   the HUD stays 16:9 in the middle)\n"
         "  --anisotropy N   anisotropic filtering for mipmapped textures, 1-16 (default 16;\n"
         "                   1 = what the game asks for)\n"
         "  --brightness X   0.5-2.0 (default 1: as on the Xbox; higher = brighter midtones)\n"
@@ -149,9 +172,24 @@ void print_usage(const char* program) {
         "                   game is paused (DIR/marks.txt), draw dump in the log; new warnings\n"
         "                   and errors are marked by themselves; F11 shows draws that need\n"
         "                   missing features in magenta; DIR/summary.txt on exit\n"
+        "  --profile auto[,S]  each time the frame rate drops under 80%% of its aim (24 at 30 fps;\n"
+        "                   at most once a minute, 20 times), log for S seconds (default 10)\n"
+        "                   where each thread spends its time (START,S: once, from START\n"
+        "                   seconds on; XB_PROFILE does the same)\n"
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
+        "  --keys LIST      keyboard and mouse bindings that differ from the defaults, e.g.\n"
+        "                   \"fire=mouse1 jump=space crouch=left-ctrl crouch=c\" (the launcher's\n"
+        "                   Controls tab writes them; input/bindings.h)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
+        "  --fov DEG        field of view in degrees across a 4:3 picture (50-120, default 70\n"
+        "                   as the game; campaign); also in the PC menu (` key while playing)\n"
+        "  --late-frames show|wait  a frame that missed its vertical blank is shown at once\n"
+        "                   (default) or waits for the next one (as on the Xbox: 30 fps drops to 20)\n"
+        "  --any-release    start another release's multiplayer executable even where the\n"
+        "                   port's changes were not all found in it (testing: expect crashes)\n"
+        "  --write-signatures FILE  write the supported XBE's function signatures, for\n"
+        "                   finding its addresses in other releases (tools/data), and exit\n"
         "  --level N        start mission N (0-13, 0 = prologue) once the menus are up (testing)\n"
         "  --exec \"CMDS\"    console commands/cvars, e.g. \"r_showtris 1; god\", run once the\n"
         "                   level is active (testing; first boot only)\n"
@@ -221,12 +259,16 @@ std::optional<Options> parse_args(int argc, char** argv) {
             }
         } else if (arg == "--aspect") {
             const std::string aspect = i + 1 < argc ? argv[++i] : "";
-            if (aspect == "16:9") {
-                options.widescreen = true;
-            } else if (aspect == "4:3") {
+            float w = 0, h = 0;
+            char end = 0;
+            if (aspect == "4:3") {
                 options.widescreen = false;
+            } else if (std::sscanf(aspect.c_str(), "%f:%f%c", &w, &h, &end) == 2 && h > 0 &&
+                       w / h >= 16.0f / 9.0f - 0.001f && w / h <= 4.0f) {
+                options.widescreen = true;
+                options.aspect = aspect == "16:9" ? 16.0f / 9.0f : w / h;
             } else {
-                std::fprintf(stderr, "--aspect needs 16:9 or 4:3\n");
+                std::fprintf(stderr, "--aspect needs 4:3, 16:9 or wider W:H up to 4:1 (e.g. 21:9)\n");
                 return std::nullopt;
             }
         } else if (arg == "--anisotropy") {
@@ -271,6 +313,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.language = found->second;
+        } else if (arg == "--keys") {
+            options.bindings_error.clear();
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--keys needs a list of action=key\n");
+                return std::nullopt;
+            }
+            input::parse_bindings(argv[++i], options.bindings, &options.bindings_error);
         } else if (arg == "--button-prompts") {
             using Prompts = loader::TitlePatchConfig::ButtonPrompts;
             const std::string value = i + 1 < argc ? argv[++i] : "";
@@ -307,6 +356,23 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.frame_rate = std::stoi(value);
+        } else if (arg == "--fov") {
+            if (i + 1 >= argc || (options.field_of_view = std::strtof(argv[++i], nullptr)) < 50.0f ||
+                options.field_of_view > 120.0f) {
+                std::fprintf(stderr, "--fov needs degrees across a 4:3 picture (50-120; the game's own is 70)\n");
+                return std::nullopt;
+            }
+        } else if (arg == "--any-release") {
+            options.any_release = true;
+        } else if (arg == "--write-signatures") {
+            if (!(options.write_signatures = value())) return std::nullopt;
+        } else if (arg == "--late-frames") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "show" && value != "wait") {
+                std::fprintf(stderr, "--late-frames needs show or wait\n");
+                return std::nullopt;
+            }
+            options.late_frames_wait = value == "wait";
         } else if (arg == "--brightness") {
             options.brightness = i + 1 < argc ? std::strtof(argv[++i], nullptr) : 0.0f;
             if (!(options.brightness >= 0.5f && options.brightness <= 2.0f)) {
@@ -371,6 +437,12 @@ std::optional<Options> parse_args(int argc, char** argv) {
                     return std::nullopt;
                 }
             }
+        } else if (arg == "--profile") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--profile needs auto[,SECONDS] or START,SECONDS\n");
+                return std::nullopt;
+            }
+            options.profile = argv[++i];
         } else if (arg == "--launch-data" && i + 1 < argc) {
             options.launch_data_fd = std::atoi(argv[++i]);
         } else if (arg == "--session-start" && i + 1 < argc) {
@@ -574,7 +646,8 @@ int loader_main(int argc, char** argv) {
         fs::create_directories(platform::user_data_dir(), ec);
         g_log_path = platform::user_data_dir() / "log.txt";
         if (!options->launch_data_fd) fs::remove(g_log_path, ec);
-        if (!platform::log_set_file(g_log_path.string().c_str()))
+        constexpr long kPlayerLogLimit = 8l << 20;
+        if (!platform::log_set_file(g_log_path.string().c_str(), kPlayerLogLimit))
             std::fprintf(stderr, "cannot write %s\n", g_log_path.string().c_str());
     }
     loader::set_fatal_exit_hook([](bool error) {
@@ -611,32 +684,87 @@ int loader_main(int argc, char** argv) {
     const fs::path xbe = options->xbe.value_or(*assets / (options->multiplayer ? "codmp_xboxf.xbe" : "default.xbe"));
     const loader::TitleInfo* title = loader::find_title(xbe.filename().string());
     if (!title) return startup_failed(xbe.filename().string() + " is not one of the game's executables");
+    // Wider than 16:9 keeps the HUD at 16:9 through the campaign's HUD manager, which
+    // multiplayer does not have (patches.cpp, "Wider than 16:9").
+    float aspect = options->aspect;
+    if (title->id == loader::TitleId::Multiplayer && aspect > 16.0f / 9.0f + 0.001f) {
+        LOG_WARN("loader", "multiplayer: pictures wider than 16:9 are campaign only for now; 16:9");
+        aspect = 16.0f / 9.0f;
+    }
     if (!image.load(xbe)) return startup_failed("cannot load " + xbe.string());
+    // A release has the data files next to the loader; builds use the source tree's.
+    auto data_file = [](const char* name) {
+        const fs::path next_to_loader = platform::executable_dir() / name;
+        return fs::exists(next_to_loader) ? next_to_loader : fs::path(COD_BRO_SYMBOLS_DIR) / name;
+    };
+    const bool other_build = image.code_fingerprint() != title->code_fingerprint;
+    bool release_map_ready = false;
+    if (other_build) {
+        LOG_WARN("loader", "%s is another build (time stamp %08x, code fingerprint %016llx) than the supported one "
+                 "(%016llx); its sections:", xbe.filename().string().c_str(), image.header().time_date,
+                 static_cast<unsigned long long>(image.code_fingerprint()),
+                 static_cast<unsigned long long>(title->code_fingerprint));
+        image.log_sections();
+        // The port's addresses are the supported build's; find where they are in this one.
+        loader::ReleaseSignatures signatures;
+        const fs::path signature_path = data_file(title->signature_file);
+        if (signatures.load(signature_path)) {
+            loader::ReleaseMap map;
+            map.build(signatures, image_bytes(image));
+            loader::set_release_map(map);
+            release_map_ready = true;
+        } else {
+            LOG_ERROR("loader", "cannot read %s; the port's changes cannot be placed in this build",
+                      signature_path.string().c_str());
+        }
+        // Without the map, another release's campaign ran on 0.1.8 (issue #9: the
+        // French/Spanish/Italian disc), but its multiplayer crashed.
+        if (!release_map_ready && title->id == loader::TitleId::Multiplayer && !options->any_release)
+            return startup_failed(std::string(title->signature_file) + " is missing or damaged");
+    }
     g_xbe = xbe;
 
     static loader::SymbolTable symbols;
-    // A release has it next to the loader; builds use the source tree's.
-    fs::path symbol_path = platform::executable_dir() / title->symbol_file;
-    if (options->symbols)
-        symbol_path = *options->symbols;
-    else if (!fs::exists(symbol_path))
-        symbol_path = fs::path(COD_BRO_SYMBOLS_DIR) / title->symbol_file;
+    const fs::path symbol_path = options->symbols ? *options->symbols : data_file(title->symbol_file);
     if (symbols.load(symbol_path))
         LOG_INFO("loader", "%zu symbols from %s", symbols.size(), symbol_path.string().c_str());
     else
         LOG_WARN("loader", "no symbols at %s; backtraces will show addresses only", symbol_path.string().c_str());
+    if (options->write_signatures) {
+        if (other_build) return startup_failed("--write-signatures needs the supported build");
+        const loader::ReleaseSignatures signatures =
+            loader::make_signatures(image_bytes(image), symbols.in_range(0, 0xFFFFFFFF));
+        if (!signatures.save(*options->write_signatures))
+            return startup_failed("cannot write " + options->write_signatures->string());
+        LOG_INFO("loader", "%zu function signatures and %zu data references written to %s",
+                 signatures.functions.size(), signatures.data.size(), options->write_signatures->string().c_str());
+        return 0;
+    }
+    if (release_map_ready) {
+        loader::release_map().log_summary(&symbols);
+        // Names and the SDK replacements follow the functions to where they are here.
+        const size_t dropped = symbols.relocate([](uint32_t address) { return loader::release_map().find(address); });
+        if (dropped) LOG_INFO("release", "%zu symbols are in changed code and were left out", dropped);
+    }
 
     loader::install_crash_handler(image, symbols);
-    loader::start_profiler_from_env(image, symbols);
+    loader::start_profiler(options->profile ? options->profile->c_str() : std::getenv("XB_PROFILE"),
+                         static_cast<uint32_t>(options->frame_rate), image, symbols);
     loader::os::release_reserved_ranges();
     log_disc_languages(*assets, options->language);
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
+    if (!options->bindings_error.empty())
+        LOG_WARN("input", "keys setting: %s (ignored; the rest applies)", options->bindings_error.c_str());
+    if (const std::string keys = input::format_bindings(options->bindings); !keys.empty())
+        LOG_INFO("input", "keys: %s", keys.c_str());
+    input::set_bindings(options->bindings);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
-                                           options->frame_rate, options->button_prompts,
-                                           options->pc_patches.value_or(!options->compare), options->exec_text,
-                                           options->forced_calls});
+                                           options->frame_rate, options->late_frames_wait,
+                                           options->widescreen ? aspect : 0.0f, options->field_of_view,
+                                           options->button_prompts, options->pc_patches.value_or(!options->compare),
+                                           options->exec_text, options->forced_calls});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
@@ -658,10 +786,13 @@ int loader_main(int argc, char** argv) {
         };
     if (key_prompts) d3d_config.backend.replacement_version = &text::key_prompt_version;
     if (options->widescreen) {
-        d3d_config.backend.display_aspect = 16.0f / 9.0f;
+        d3d_config.backend.display_aspect = aspect;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts
         d3d_config.backend.narrow_ui_draw = &loader::in_game_menu_draw;
     }
+    d3d_config.backend.pc_menu = &loader::pc_menu;
+    d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
+    d3d_config.backend.menu_font = (platform::executable_dir() / "fonts" / "Jost-500-Medium.ttf").string();
     d3d_config.backend.fullscreen = options->fullscreen;
     d3d_config.backend.render_scale = options->render_scale;  // 0: the back end picks
     d3d_config.screenshot_interval = options->screenshot_interval;
@@ -674,9 +805,9 @@ int loader_main(int argc, char** argv) {
         fs::create_directories(*options->screenshot_dir);
         d3d_config.screenshot_dir = options->screenshot_dir->string();
     }
-    d3d_config.device_pointer = title->d3d_device_pointer;
-    d3d_config.render_state = title->d3d_render_state;
-    d3d_config.texture_state = title->d3d_texture_state;
+    d3d_config.device_pointer = loader::title_address(title->d3d_device_pointer, "(D3D device pointer)");
+    d3d_config.render_state = loader::title_address(title->d3d_render_state, "(D3D render states)");
+    d3d_config.texture_state = loader::title_address(title->d3d_texture_state, "(D3D texture states)");
     d3d_config.device_failed = [] {
         loader::run_fatal_exit_hook(false);
         tell_player(
@@ -685,7 +816,7 @@ int loader_main(int argc, char** argv) {
         std::_Exit(1);
     };
     render::configure(d3d_config);
-    input::configure({title->gamepad_type});
+    input::configure({loader::title_address(title->gamepad_type, "(gamepad device type)")});
     if (!options->press_script.empty() && !input::set_script(options->press_script)) return 1;
     if (!loader::install_sdk_replacements(image, symbols, *title)) {
         LOG_ERROR("loader", "SDK replacements need the symbol file (%s)", symbol_path.string().c_str());
@@ -717,6 +848,17 @@ int loader_main(int argc, char** argv) {
     compare.after_fork = audio::release_after_fork;
     loader::compare::install(game::functions(), compare);
     std::atexit([] { loader::compare::flush(); });
+    if (const size_t missed = loader::missed_title_addresses()) {
+        LOG_WARN("loader", "%zu of the port's changes were not found in this release (see above)", missed);
+        // The campaign started anyway before there was a map (0.1.8 on the issue #9 disc).
+        if (title->id == loader::TitleId::Multiplayer && !options->any_release)
+            return startup_failed(xbe.filename().string() +
+                                  " is from another release of the game, and some of the places the port changes "
+                                  "were not found in it (the log lists them; please attach the log and mention "
+                                  "your disc's region and languages in a report)");
+    } else if (release_map_ready) {
+        LOG_INFO("loader", "all of the port's changes were found in this release");
+    }
 
     // The title's initial thread. Like the Xbox's, it has no TLS block (TlsData is
     // null); XAPI only creates TLS for the threads it starts itself.

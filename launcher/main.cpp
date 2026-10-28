@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "bindings.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -22,6 +23,8 @@
 #include "paths.h"
 #include "program.h"
 #include "settings.h"
+#include "update_check.h"
+#include "updater.h"
 
 namespace fs = std::filesystem;
 
@@ -31,7 +34,7 @@ namespace {
 // a changed default still reaches players who never touched that setting.
 struct Choices {
     std::string assets;  // empty: <executable dir>/assets
-    bool widescreen = true;
+    std::string aspect = "16:9";  // 4:3, 16:9, or wider W:H (experimental)
     bool fullscreen = false;
     int scale = 2;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
@@ -41,12 +44,23 @@ struct Choices {
     int fps = 60;
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
+    input::Bindings bindings = input::default_bindings();
     bool aim_assist = true;
     std::string button_prompts = "auto";  // auto, keyboard, controller
     bool silent = false;
     std::string language = "english";  // the console's: english, german, french, spanish, italian
     int net_port = 3074;  // system link: UDP net_port .. net_port + 3
+    // Launcher only: saved as "false" (which the game skips) when off.
+    bool check_updates = true;
 };
+
+// The width over the height of an aspect setting ("W:H"), or 0 if it is not one.
+float aspect_ratio(const std::string& aspect) {
+    float w = 0, h = 0;
+    char end = 0;
+    if (std::sscanf(aspect.c_str(), "%f:%f%c", &w, &h, &end) != 2 || !(w > 0) || !(h > 0)) return 0;
+    return w / h;
+}
 
 std::string number(float value) {
     char text[32];
@@ -57,7 +71,10 @@ std::string number(float value) {
 Choices read_choices(const platform::Settings& settings) {
     Choices c;
     if (auto v = settings.get("assets")) c.assets = *v;
-    if (auto v = settings.get("aspect")) c.widescreen = *v != "4:3";
+    // What the game takes (--aspect): 4:3, or 16:9 up to 4:1.
+    if (auto v = settings.get("aspect");
+        v && (*v == "4:3" || (aspect_ratio(*v) >= 16.0f / 9.0f - 0.001f && aspect_ratio(*v) <= 4.0f)))
+        c.aspect = *v;
     if (auto v = settings.get("fullscreen")) c.fullscreen = *v == "true";
     if (auto v = settings.get("scale")) c.scale = std::clamp(std::atoi(v->c_str()), 1, 8);
     if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
@@ -68,11 +85,13 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
+    if (auto v = settings.get("keys")) input::parse_bindings(*v, c.bindings);
     if (auto v = settings.get("aim-assist")) c.aim_assist = *v != "off";
     if (auto v = settings.get("button-prompts"); v && (*v == "keyboard" || *v == "controller")) c.button_prompts = *v;
     if (auto v = settings.get("silent")) c.silent = *v == "true";
     if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
+    if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
     return c;
 }
 
@@ -86,7 +105,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
             settings.set(key, value);
     };
     put("assets", c.assets.empty(), c.assets);
-    put("aspect", c.widescreen == d.widescreen, c.widescreen ? "16:9" : "4:3");
+    put("aspect", c.aspect == d.aspect, c.aspect);
     put("fullscreen", c.fullscreen == d.fullscreen, c.fullscreen ? "true" : "false");
     put("scale", c.scale == d.scale, std::to_string(c.scale));
     put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
@@ -96,11 +115,13 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("fps", c.fps == d.fps, std::to_string(c.fps));
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
+    put("keys", c.bindings == d.bindings, input::format_bindings(c.bindings));
     put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
     put("button-prompts", c.button_prompts == d.button_prompts, c.button_prompts);
     put("silent", c.silent == d.silent, c.silent ? "true" : "false");
     put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
+    put("check-updates", c.check_updates == d.check_updates, "false");
 }
 
 fs::path asset_dir(const Choices& c) { return c.assets.empty() ? platform::default_asset_dir() : fs::path(c.assets); }
@@ -142,7 +163,48 @@ void help_marker(const char* text) {
 class Launcher {
 public:
     explicit Launcher(SDL_Window* window)
-        : window_(window), settings_(platform::load_settings()), choices_(read_choices(settings_)) {}
+        : window_(window), settings_(platform::load_settings()), choices_(read_choices(settings_)) {
+        launcher::remove_update_leftovers(platform::executable_dir());
+        if (choices_.check_updates) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+    }
+
+    // While a key cell waits for its key (controls()): takes key presses, mouse buttons
+    // and the wheel before the UI sees them. True if it took `event`.
+    bool capture_event(const SDL_Event& event) {
+        if (!capturing_) return false;
+        input::InputCode input = 0;
+        switch (event.type) {
+            case SDL_EVENT_KEY_DOWN:
+                if (event.key.repeat) return true;
+                if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
+                    capturing_.reset();
+                    return true;
+                }
+                input = static_cast<input::InputCode>(event.key.scancode);
+                break;
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                if (event.button.button < 1 || event.button.button > 5) return true;
+                input = static_cast<input::InputCode>(input::kMouseButton + event.button.button);
+                break;
+            case SDL_EVENT_MOUSE_WHEEL:
+                if (event.wheel.y == 0.0f) return true;
+                input = event.wheel.y > 0.0f ? input::kWheelUp : input::kWheelDown;
+                break;
+            case SDL_EVENT_KEY_UP:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                return true;
+            default:
+                return false;
+        }
+        if (input::is_reserved(input)) {
+            key_notice_ = input::input_name(input) + " is kept for the menus and the loader.";
+        } else {
+            input::bind(choices_.bindings, capturing_->first, capturing_->second, input);
+            key_notice_.clear();
+        }
+        capturing_.reset();
+        return true;
+    }
 
     // One frame of the UI. Returns false once the launcher should close.
     bool frame() {
@@ -158,17 +220,108 @@ public:
         ImGui::SetNextWindowSize(viewport->WorkSize);
         ImGui::Begin("launcher", nullptr,
                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
-        game_files();
-        display();
-        controls();
-        system_link();
-        reporting();
+        update_notice();
+        if (!platform::has_game_files(asset_dir(choices_)))
+            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "No game files yet: see Game files on the General tab.");
+        // The tabs scroll on their own; the buttons stay at the bottom.
+        const ImGuiStyle& style = ImGui::GetStyle();
+        float footer = ImGui::GetFrameHeight() + style.ItemSpacing.y * 2 + style.SeparatorTextBorderSize;
+        if (!error_.empty()) footer += ImGui::GetTextLineHeightWithSpacing();
+        ImGui::BeginChild("tabs", ImVec2(0, -footer));
+        if (ImGui::BeginTabBar("sections")) {
+            tab("General", [&] { general(); });
+            tab("Graphics", [&] { graphics(); });
+            tab("Controls", [&] { controls(); });
+            tab("Multiplayer", [&] { system_link(); });
+            tab("Help", [&] { reporting(); });
+            ImGui::EndTabBar();
+        }
+        ImGui::EndChild();
         const bool keep_open = buttons();
         ImGui::End();
-        return keep_open;
+        return keep_open && !restart_after_update();
     }
 
 private:
+    template <typename Body>
+    static void tab(const char* name, Body body) {
+        if (!ImGui::BeginTabItem(name)) return;
+        ImGui::Spacing();
+        // Controls get the left 60%, labels the rest.
+        ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+        body();
+        ImGui::PopItemWidth();
+        ImGui::EndTabItem();
+    }
+
+    void general() {
+        game_files();
+        ImGui::SeparatorText("Language and sound");
+        language_and_sound();
+        updates();
+    }
+
+    // At the top while a newer release is out: a link to it and, in an installed
+    // release (not a dev build), Update now.
+    void update_notice() {
+        if (!update_) return;
+        const launcher::UpdateCheck::Result r = update_->result();
+        if (r.status != launcher::UpdateCheck::Status::Available) return;
+        ImGui::TextColored(ImVec4(0.45f, 0.75f, 1.0f, 1), "Version %s is available (this is %s).", r.version.c_str(),
+                           COD_BRO_VERSION);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Download page") && !SDL_OpenURL(r.url.c_str()))
+            LOG_WARN("launcher", "cannot open %s: %s", r.url.c_str(), SDL_GetError());
+        if (!updater_ && launcher::is_release_install(platform::executable_dir())) {
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Update now"))
+                updater_.emplace(COD_BRO_RELEASES, r.tag, r.version, COD_BRO_PACKAGE, platform::executable_dir());
+        }
+        if (!updater_) return;
+        const launcher::Updater::Result u = updater_->result();
+        if (u.status == launcher::Updater::Status::Failed)
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "Update failed: %s", u.message.c_str());
+        else
+            ImGui::TextColored(ImVec4(0.45f, 0.75f, 1.0f, 1), "%s", u.message.c_str());
+    }
+
+    // While an update downloads or installs, the game must not start.
+    bool updating() const {
+        return updater_ && updater_->result().status != launcher::Updater::Status::Failed;
+    }
+
+    // Once an update is installed: saves the options and starts the new launcher.
+    // Returns true when this one should close.
+    bool restart_after_update() {
+        if (!updater_ || restarted_ || updater_->result().status != launcher::Updater::Status::Installed) return false;
+        restarted_ = true;
+        write_choices(choices_, settings_);
+        platform::save_settings(settings_);
+        if (platform::start_program(platform::sibling_executable("cod_bro_launcher"))) return true;
+        error_ = "The update is installed; start the launcher again to use it.";
+        return false;
+    }
+
+    void updates() {
+        ImGui::SeparatorText("Updates");
+        if (ImGui::Checkbox("Check for updates", &choices_.check_updates) && choices_.check_updates && !update_)
+            update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+        help_marker("When the launcher opens, asks GitHub for the newest release and shows a link to it "
+                    "if it is newer. Update now downloads and installs it, then restarts the launcher; your "
+                    "game files, saves and settings stay as they are. Nothing is installed by itself.");
+        ImGui::SameLine();
+        const char* status = "";
+        if (update_ && choices_.check_updates) {
+            switch (update_->result().status) {
+                case launcher::UpdateCheck::Status::Checking: status = ": checking..."; break;
+                case launcher::UpdateCheck::Status::UpToDate: status = ": up to date"; break;
+                case launcher::UpdateCheck::Status::Available: status = ": an update is available"; break;
+                case launcher::UpdateCheck::Status::Failed: status = ": could not check"; break;
+            }
+        }
+        ImGui::TextDisabled("Version %s%s", COD_BRO_VERSION, status);
+    }
+
     void game_files() {
         ImGui::SeparatorText("Game files");
         const fs::path dir = asset_dir(choices_);
@@ -190,11 +343,35 @@ private:
         }
     }
 
-    void display() {
-        ImGui::SeparatorText("Display");
-        int aspect = choices_.widescreen ? 0 : 1;
-        ImGui::Combo("Aspect ratio", &aspect, "16:9 (widescreen)\0" "4:3 (original)\0");
-        choices_.widescreen = aspect == 0;
+    void graphics() {
+        ImGui::SeparatorText("Window");
+        // The screen's own shape, offered when it is wider than 16:9 (3440x1440 is a little
+        // wider than 21:9).
+        std::string screen;
+        if (const SDL_DisplayMode* display = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window_)))
+            if (display->h > 0 && display->w * 9 > display->h * 16 + 9)
+                screen = std::to_string(display->w) + ":" + std::to_string(display->h);
+        std::vector<std::pair<std::string, std::string>> aspects = {
+            {"16:9", "16:9 (widescreen)"},
+            {"4:3", "4:3 (original)"},
+            {"21:9", "21:9 ultrawide (experimental)"},
+            {"32:9", "32:9 super ultrawide (experimental)"}};
+        if (!screen.empty() && screen != "21:9" && screen != "32:9")
+            aspects.push_back({screen, "Your screen, " + screen + " (experimental)"});
+        if (std::none_of(aspects.begin(), aspects.end(), [&](const auto& a) { return a.first == choices_.aspect; }))
+            aspects.push_back({choices_.aspect, choices_.aspect + " (experimental)"});
+        if (ImGui::BeginCombo("Aspect ratio", std::find_if(aspects.begin(), aspects.end(), [&](const auto& a) {
+                                                  return a.first == choices_.aspect;
+                                              })->second.c_str())) {
+            for (const auto& [value, label] : aspects)
+                if (ImGui::Selectable(label.c_str(), value == choices_.aspect)) choices_.aspect = value;
+            ImGui::EndCombo();
+        }
+        const float ratio = aspect_ratio(choices_.aspect);
+        if (ratio > 16.0f / 9.0f + 0.001f)
+            help_marker("Experimental. The view gets wider; the HUD and the menus keep their 16:9 and 4:3 "
+                        "places in the middle. Campaign only: multiplayer stays 16:9. Some screens may "
+                        "not look right yet (please report them).");
 
         int mode = choices_.fullscreen ? 1 : 0;
         ImGui::Combo("Display mode", &mode, "Window\0" "Fullscreen\0");
@@ -202,13 +379,14 @@ private:
         help_marker("Alt+Enter switches between the two while playing.");
 
         const int height = 480 * choices_.scale;
-        const int width = choices_.widescreen ? (height * 16 + 4) / 9 : 640 * choices_.scale;
+        const int width = static_cast<int>(height * ratio + 0.5f);
         ImGui::BeginDisabled(choices_.fullscreen);
         ImGui::SliderInt("Window size", &choices_.scale, 1, 8, "x%d", ImGuiSliderFlags_AlwaysClamp);
         ImGui::SameLine();
         ImGui::TextDisabled("%dx%d", width, height);
         ImGui::EndDisabled();
 
+        ImGui::SeparatorText("Picture");
         // What "render at window/screen size" means in render scale (the game's 480 lines).
         float native_scale = static_cast<float>(choices_.scale);
         if (choices_.fullscreen)
@@ -224,7 +402,7 @@ private:
                                ImGuiSliderFlags_AlwaysClamp);
             const int render_height = static_cast<int>(480 * choices_.render_scale + 0.5f);
             ImGui::SameLine();
-            ImGui::TextDisabled("%dx%d", choices_.widescreen ? (render_height * 16 + 4) / 9 : render_height * 4 / 3,
+            ImGui::TextDisabled("%dx%d", static_cast<int>(render_height * ratio + 0.5f),
                                 render_height);
         }
 
@@ -262,13 +440,15 @@ private:
     }
 
     void controls() {
-        ImGui::SeparatorText("Controls and sound");
+        ImGui::SeparatorText("Mouse and keyboard");
         ImGui::SliderFloat("Mouse sensitivity", &choices_.mouse_sensitivity, 0.01f, 1.0f, "%.2f",
                            ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
         help_marker("Degrees the view turns per mouse count.");
         ImGui::Checkbox("Aim assist", &choices_.aim_assist);
         help_marker("The view follows an enemy under the crosshair, as on the Xbox. Applies to the "
                     "controller and the mouse alike, in the campaign and in multiplayer.");
+        keys();
+        ImGui::SeparatorText("On screen");
         static constexpr const char* kPrompts[] = {"auto", "keyboard", "controller"};
         int prompts = 0;
         while (prompts < 2 && choices_.button_prompts != kPrompts[prompts]) ++prompts;
@@ -276,8 +456,56 @@ private:
         choices_.button_prompts = kPrompts[prompts];
         help_marker("The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox "
                     "controller's. They follow the controller style chosen in the game's options.");
-        ImGui::Checkbox("Mute sound", &choices_.silent);
+    }
 
+    // The keyboard and mouse bindings (input/bindings.h): click a cell, then press a key,
+    // a mouse button or turn the wheel; right-click clears it.
+    void keys() {
+        ImGui::SeparatorText("Keys");
+        ImGui::TextWrapped("Click a key, then press the new key or mouse button (Esc cancels, right-click "
+                           "clears it).");
+        help_marker("The actions of the game's Default controller style. With another style chosen in the "
+                    "game's options, each key keeps its action. Fixed: the arrow keys, Enter and Backspace "
+                    "(menus), Esc (pause), Tab (objectives), F10 (frees the mouse).");
+        if (!key_notice_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "%s", key_notice_.c_str());
+        if (!ImGui::BeginTable("keys", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
+        ImGui::TableSetupColumn("Action");
+        ImGui::TableSetupColumn("Key");
+        ImGui::TableSetupColumn("Other key");
+        ImGui::TableHeadersRow();
+        for (size_t a = 0; a < input::kActionCount; ++a) {
+            const auto action = static_cast<input::Action>(a);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(input::action_label(action));
+            if (action == input::Action::DpadDown) help_marker("Nothing in the Default style; other styles use it.");
+            for (size_t slot = 0; slot < input::kInputsPerAction; ++slot) {
+                ImGui::TableNextColumn();
+                ImGui::PushID(static_cast<int>(a * input::kInputsPerAction + slot));
+                const bool waiting = capturing_ && capturing_->first == action && capturing_->second == slot;
+                const std::string name = input::input_name(choices_.bindings[action][slot]);
+                const std::string label = waiting ? "Press a key..." : name.empty() ? "-" : name;
+                if (ImGui::Button(label.c_str(), ImVec2(-FLT_MIN, 0))) {
+                    capturing_.emplace(action, slot);
+                    key_notice_.clear();
+                }
+                if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+                    input::bind(choices_.bindings, action, slot, 0);
+                    capturing_.reset();
+                }
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndTable();
+        if (ImGui::Button("Default keys")) {
+            choices_.bindings = input::default_bindings();
+            capturing_.reset();
+            key_notice_.clear();
+        }
+    }
+
+    void language_and_sound() {
         static constexpr const char* kLanguages[] = {"english", "german", "french", "spanish", "italian"};
         int language = 0;
         while (language < 4 && choices_.language != kLanguages[language]) ++language;
@@ -286,12 +514,13 @@ private:
         help_marker("The Xbox's language setting. The game can only use languages that are on your disc: "
                     "the North American Standard Edition disc is English only, a European disc has its own languages (and may "
                     "have no English). The log lists the disc's languages.");
+        ImGui::Checkbox("Mute sound", &choices_.silent);
     }
 
     // Multiplayer over the local network (online/lan.h): every game on the LAN has to use
     // the same ports.
     void system_link() {
-        ImGui::SeparatorText("Multiplayer");
+        ImGui::SeparatorText("System Link");
         ImGui::TextWrapped("System Link plays with other PCs on your local network, or with a second copy "
                            "of the game on this PC. Xbox Live is not available.");
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7);
@@ -319,11 +548,16 @@ private:
             open_folder((data ? fs::path(*data) : platform::user_data_dir()) / "E" / "UDATA");
         }
         help_marker("One folder per game profile with its saves, as on the Xbox hard disk.");
+        ImGui::SeparatorText("Low frame rate");
+        ImGui::Checkbox("Measure performance", &profile_);
+        help_marker("For reports about a low frame rate: the next game started from here writes to its "
+                    "log where the time goes: 10 seconds each time the frame rate drops to under 80% of its setting (at most once a minute). "
+                    "It is not saved; tick it again for later reports.");
     }
 
     bool buttons() {
         ImGui::Separator();
-        const bool ready = platform::has_game_files(asset_dir(choices_));
+        const bool ready = platform::has_game_files(asset_dir(choices_)) && !updating();
         ImGui::BeginDisabled(!ready);
         const bool campaign = ImGui::Button("Play", ImVec2(ImGui::GetFontSize() * 7, 0));
         ImGui::SameLine();
@@ -333,13 +567,16 @@ private:
         ImGui::EndDisabled();
         const bool play = campaign || multiplayer;
         ImGui::SameLine();
-        if (ImGui::Button("Reset to defaults")) {
+        const bool quit = ImGui::Button("Quit");
+        const char* reset_label = "Reset to defaults";
+        ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(reset_label).x -
+                        ImGui::GetStyle().FramePadding.x * 2);
+        if (ImGui::Button(reset_label)) {
             const std::string assets = choices_.assets;  // the game files stay where they are
             choices_ = Choices{};
             choices_.assets = assets;
         }
-        ImGui::SameLine();
-        const bool quit = ImGui::Button("Quit");
+        ImGui::SetItemTooltip("Every option on every tab back to its default; the game files folder stays.");
         if (!error_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s", error_.c_str());
 
         if (play || quit) {
@@ -353,6 +590,7 @@ private:
             const fs::path game = platform::sibling_executable(COD_BRO_GAME_EXECUTABLE);
             std::vector<std::string> args;
             if (multiplayer) args.push_back("--multiplayer");
+            if (profile_) args.insert(args.end(), {"--profile", "auto"});
             if (!platform::start_program(game, args)) {
                 error_ = "Cannot start " + game.string();
                 return true;
@@ -365,6 +603,12 @@ private:
     platform::Settings settings_;
     Choices choices_;
     std::string error_;
+    std::optional<launcher::UpdateCheck> update_;
+    std::optional<launcher::Updater> updater_;
+    bool restarted_ = false;
+    bool profile_ = false;  // Measure performance: --profile auto, not saved
+    std::optional<std::pair<input::Action, size_t>> capturing_;  // the key cell waiting for a key
+    std::string key_notice_;
 };
 
 }  // namespace
@@ -375,8 +619,12 @@ int main(int, char**) {
         return 1;
     }
     const float ui_scale = std::max(1.0f, SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
-    SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale),
-                                          static_cast<int>(580 * ui_scale), SDL_WINDOW_HIGH_PIXEL_DENSITY);
+    // Tall enough for every option; on a short screen the rest scrolls.
+    int height = static_cast<int>(440 * ui_scale);
+    if (SDL_Rect usable; SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable))
+        height = std::min(height, usable.h - static_cast<int>(40 * ui_scale));
+    SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale), height,
+                                          SDL_WINDOW_HIGH_PIXEL_DENSITY);
     SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
     if (!renderer) {
         LOG_ERROR("launcher", "window: %s", SDL_GetError());
@@ -399,8 +647,8 @@ int main(int, char**) {
     for (bool running = true; running;) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT) running = false;
+            if (!launcher.capture_event(event)) ImGui_ImplSDL3_ProcessEvent(&event);
         }
         if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
             SDL_Delay(10);

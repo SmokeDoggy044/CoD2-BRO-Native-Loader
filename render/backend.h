@@ -29,6 +29,13 @@ struct TextureReplacement {
     std::vector<uint32_t> pixels;  // A8R8G8B8, width * height; mipmaps are made from it
 };
 
+// How to narrow one draw of UI laid out for a narrower shape than the picture's
+// (BackendConfig::narrow_ui_draw): x' = a w + (x - a w) * factor.
+struct UiNarrowing {
+    float anchor = -1.0f;  // a, a fraction of the width; negative: not narrowed
+    float factor = 1.0f;
+};
+
 struct BackendConfig {
     // Horizontal render scale: render_scale widened to the display aspect.
     float render_scale_x() const {
@@ -55,11 +62,19 @@ struct BackendConfig {
     // movies; the title lays them out for its back buffer's shape only) are shown at
     // that shape instead, centred between black bars.
     bool pillarbox_flat_frames = false;
-    // With a wider display_aspect: asked per draw; while the title draws UI laid out for
-    // its back buffer's shape over the wide picture (in-game menus), the x to narrow it
-    // to that shape around, as a fraction of the width (0.5 = the centre); otherwise
-    // negative. Draws spanning the full width are not narrowed.
-    float (*narrow_ui_draw)() = nullptr;
+    // With a wider display_aspect: asked per draw into the back buffer over a 3D scene;
+    // while the title draws UI laid out for a narrower shape than the picture's (in-game
+    // menus: the back buffer's; the HUD on an ultrawide picture: 16:9), where and how
+    // much to narrow it. Draws spanning the full width are not narrowed.
+    UiNarrowing (*narrow_ui_draw)() = nullptr;
+    // The in-game PC menu, opened and closed with the key below Escape (` ~) and closed
+    // with Escape: Dear ImGui over the picture while the title keeps running. pc_menu
+    // makes its widgets each frame (ImGui calls, from present() on the title's thread)
+    // and returns false to close it; pc_menu_shown is told when it opens and closes.
+    // Null: no menu.
+    bool (*pc_menu)() = nullptr;
+    void (*pc_menu_shown)(bool open) = nullptr;
+    std::string menu_font;  // a TTF for the menu; empty: Dear ImGui's own
     // Anisotropic filtering for mipmapped textures the title filters linearly (PC
     // option; the Xbox titles rarely used it). 1 = the title's own filters.
     uint32_t anisotropy = 1;
@@ -97,6 +112,12 @@ struct DrawInput {
     const uint32_t* indices = nullptr;  // null: vertices in order
     uint32_t index_count = 0;
     float depth_max = 16777215.0f;  // the depth buffer's largest value (screen-space z range)
+    // Non-zero: the vertices come from title vertex buffers that stayed the same for a
+    // few frames (the world, models), identified by `vertex_key` with contents hashing to
+    // `vertex_content`; the back end may keep them converted. `vertices` is null when
+    // has_cached_vertices said it has them.
+    uint64_t vertex_key = 0;
+    uint64_t vertex_content = 0;
 };
 
 class Backend {
@@ -129,6 +150,22 @@ public:
 
     // Draws to the current render target with the current Xbox state.
     virtual void draw(const DrawInput& input) = 0;
+
+    // Room for the next draw's converted vertices (`attributes` float4s each) in the back
+    // end's own draw buffer, so they are written once instead of copied; null: use other
+    // memory. Pass the pointer as DrawInput::vertices to the next draw.
+    virtual float* map_vertices(uint32_t vertex_count, uint32_t attributes) {
+        (void)vertex_count;
+        (void)attributes;
+        return nullptr;
+    }
+    // Whether the back end still holds the vertices of DrawInput::vertex_key with these
+    // contents, so the next draw can pass null vertices.
+    virtual bool has_cached_vertices(uint64_t key, uint64_t content) {
+        (void)key;
+        (void)content;
+        return false;
+    }
 
     // Handles window events. Returns false once the user closed the window.
     virtual bool pump_events() = 0;

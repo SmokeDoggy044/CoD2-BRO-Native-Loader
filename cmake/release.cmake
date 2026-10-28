@@ -1,6 +1,6 @@
 # The player release (route B, 32-bit Linux): `cmake --install` / `cpack` lay out
 #
-#   cod_bro_launcher, cod_bro_loader, default_xbe_symbols.txt, codmp_xbe_symbols.txt, README.txt
+#   cod_bro_launcher, cod_bro_loader, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
 #   lib/libcod_bro_game.so     the decompiled game code
 #   assets/README.md          the player copies the game dump here
 #   lib/                      the libraries the executables need beyond glibc and
@@ -39,7 +39,9 @@ install(RUNTIME_DEPENDENCY_SET release_libraries
     POST_EXCLUDE_REGEXES "^/lib64/" "^/usr/lib64/")
 
 install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
-              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt DESTINATION .)
+              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_signatures.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/assets/README.md DESTINATION assets)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
 # Fonts for sharper text (SIL OFL; their licenses and sources in fonts/).
@@ -60,7 +62,7 @@ FetchContent_GetProperties(imgui SOURCE_DIR imgui_source_dir)
 install(FILES "${imgui_source_dir}/LICENSE.txt" DESTINATION LICENSES/bundled RENAME Dear-ImGui.txt)
 FetchContent_GetProperties(stb SOURCE_DIR stb_source_dir)
 install(FILES "${stb_source_dir}/LICENSE" DESTINATION LICENSES/bundled RENAME stb.txt)
-set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype (built into cod_bro_loader)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nFonts in fonts/: SIL Open Font License 1.1, see fonts/README.md and fonts/licenses/\n")
+set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher and cod_bro_loader)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype (built into cod_bro_loader)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nFonts in fonts/: SIL Open Font License 1.1, see fonts/README.md and fonts/licenses/\n")
 if(COD_BRO_RELEASE_DEPS)
     file(GLOB dep_licenses "${COD_BRO_RELEASE_DEPS}/licenses/*.txt")
     list(FILTER dep_licenses EXCLUDE REGEX "/BUNDLED\\.txt$")
@@ -79,7 +81,7 @@ else()
         "libdisplay-info|libdisplay-info|libdisplay-info|/usr/share/licenses/libdisplay-info/LICENSE|https://gitlab.freedesktop.org/emersion/libdisplay-info"
         "libstdc++|GCC-runtime-GPL-3.0|GCC runtime (libstdc++, libgcc_s): GPL-3.0|/usr/share/licenses/libgcc/COPYING3|https://gcc.gnu.org"
         "libstdc++|GCC-runtime-exception|GCC runtime (libstdc++, libgcc_s): runtime library exception|/usr/share/licenses/libgcc/COPYING.RUNTIME|")
-    set(bundled_text "Libraries bundled in lib/ (and Dear ImGui, built into cod_bro_launcher).\n")
+    set(bundled_text "Libraries bundled in lib/ (and Dear ImGui, built into cod_bro_launcher and cod_bro_loader).\n")
     string(APPEND bundled_text "Versions are the Fedora packages the release was built with; their sources\n")
     string(APPEND bundled_text "are at the upstream links and https://src.fedoraproject.org/rpms/<package>.\n")
     string(APPEND bundled_text "OpenAL Soft is LGPL: lib/libopenal.so.1 can be replaced with any compatible build.\n\n")

@@ -6,6 +6,22 @@ add_executable(settings_test settings_test.cpp)
 target_link_libraries(settings_test PRIVATE platform)
 add_test(NAME settings_test COMMAND settings_test)
 
+add_executable(update_check_test update_check_test.cpp)
+target_link_libraries(update_check_test PRIVATE launcher_update)
+add_test(NAME update_check_test COMMAND update_check_test)
+
+# Keyboard and mouse bindings (input/bindings.h).
+add_executable(bindings_test bindings_test.cpp)
+target_link_libraries(bindings_test PRIVATE input_bindings SDL3::SDL3)
+add_test(NAME bindings_test COMMAND bindings_test)
+
+# Finding the supported build's addresses in another release (loader/release_map.h).
+add_executable(release_map_test release_map_test.cpp ${PROJECT_SOURCE_DIR}/loader/release_map.cpp
+               ${PROJECT_SOURCE_DIR}/loader/symbols.cpp)
+target_include_directories(release_map_test PRIVATE ${PROJECT_SOURCE_DIR}/loader)
+target_link_libraries(release_map_test PRIVATE platform)
+add_test(NAME release_map_test COMMAND release_map_test)
+
 # The virtual Xbox LAN (system link) over loopback UDP.
 add_executable(lan_test lan_test.cpp ${PROJECT_SOURCE_DIR}/online/lan.cpp)
 target_include_directories(lan_test PRIVATE ${PROJECT_SOURCE_DIR}/online)
@@ -35,6 +51,12 @@ add_executable(frame_pacing_test frame_pacing_test.cpp)
 target_include_directories(frame_pacing_test PRIVATE ${PROJECT_SOURCE_DIR}/render)
 target_link_libraries(frame_pacing_test PRIVATE xbox)
 add_test(NAME frame_pacing_test COMMAND frame_pacing_test)
+
+# The D3D9 shader translator (token assembly only; no D3D9 needed).
+add_executable(d3d9_shader_test d3d9_shader_test.cpp ${PROJECT_SOURCE_DIR}/render/d3d9_shader.cpp)
+target_include_directories(d3d9_shader_test PRIVATE ${PROJECT_SOURCE_DIR}/render)
+target_link_libraries(d3d9_shader_test PRIVATE xbox)
+add_test(NAME d3d9_shader_test COMMAND d3d9_shader_test)
 
 # The NAL entropy mode decoders against the title's own code (runs default.xbe's bytes;
 # skipped without the game files).

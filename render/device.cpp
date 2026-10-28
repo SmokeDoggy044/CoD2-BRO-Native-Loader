@@ -4,12 +4,14 @@
 // - Everything the title submits is executed (or dropped) synchronously, so fences are
 //   always passed and InsertCallback runs its callback at once.
 // - The vertical blank callback runs on our own 60 Hz thread at DISPATCH_LEVEL, like
-//   the Xbox's DPC. Titles pace their frames with it (CoD2: BRO busy-waits on a flag
-//   that its callback clears), so it must keep running.
+//   the Xbox's DPC. Titles pace their frames with it (CoD2: BRO waits on a flag that
+//   its callback clears; the loader turns that spin into wait_vertical_blank_after),
+//   so it must keep running.
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -53,6 +55,9 @@ struct State {
     XbVBlankData* vblank_data = nullptr;
     std::atomic<uint32_t> vblank_count{0};
     std::atomic<uint32_t> vblank_callback{0};
+    std::mutex vblank_done_mutex;
+    std::condition_variable vblank_done_changed;
+    uint32_t vblank_done = 0;  // vertical blanks whose callback has run (vertical_blanks_done)
     XbDisplayMode display_mode{};  // from CreateDevice's parameters
     std::mutex notice_mutex;  // show_notice may come from any title thread
     std::vector<std::string> notice;
@@ -136,14 +141,19 @@ void vblank_thread(double hz) {
         next += period;
         std::this_thread::sleep_until(next);
         const uint32_t count = ++g.vblank_count;
-        const uint32_t callback = g.vblank_callback.load();
-        if (!callback) continue;
-        g.vblank_data->vblank = count;
-        g.vblank_data->swap = g.swap_count;
-        g.vblank_data->flags = 0;
-        const uint8_t old_irql = xbox::raise_irql_to(xbox::kDispatchLevel);
-        call_title(callback, {to_xbox_ptr(g.vblank_data)});  // cdecl; call_guest restores ESP
-        xbox::lower_irql_to(old_irql);
+        if (const uint32_t callback = g.vblank_callback.load()) {
+            g.vblank_data->vblank = count;
+            g.vblank_data->swap = g.swap_count;
+            g.vblank_data->flags = 0;
+            const uint8_t old_irql = xbox::raise_irql_to(xbox::kDispatchLevel);
+            call_title(callback, {to_xbox_ptr(g.vblank_data)});  // cdecl; call_guest restores ESP
+            xbox::lower_irql_to(old_irql);
+        }
+        {
+            std::lock_guard lock(g.vblank_done_mutex);
+            ++g.vblank_done;
+        }
+        g.vblank_done_changed.notify_all();
     }
 }
 
@@ -336,6 +346,15 @@ std::mutex g_auto_mutex;
 std::vector<std::string> g_auto_pending;  // "category: text", guarded by g_auto_mutex
 std::atomic<bool> g_frames_shown{false};
 std::atomic<bool> g_frame_rate_changed{false};
+// Session seconds up to which frames_last_second() reports 0 (not measured): the game
+// was paused for a --diag note (the automatic profile took that for a slow spot).
+std::atomic<int64_t> g_unmeasured_until{-1};
+
+int64_t session_second() {
+    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
+                                                            platform::session_start())
+        .count();
+}
 
 void diag_observer(platform::LogLevel level, const char* category, const char* text) {
     if (!g_frames_shown.load(std::memory_order_relaxed)) return;
@@ -409,9 +428,11 @@ void diagnostics() {
         LOG_INFO("diag", "MARK %u at %llds, frame %u: %s", marks, static_cast<long long>(seconds), g.swap_count,
                  shot.c_str());
         if (g.config.pause_audio) g.config.pause_audio(true);
+        g_unmeasured_until.store(INT64_MAX, std::memory_order_relaxed);
         const auto note = g.backend->prompt({"MARK " + std::to_string(marks) + " saved - game paused",
                                              "What is wrong here? (one or two sentences)"});
         if (g.config.pause_audio) g.config.pause_audio(false);
+        g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
         const std::string text = note ? *note : "";
         LOG_INFO("diag", "MARK %u note: %s", marks, note ? text.c_str() : "(none)");
         if (std::FILE* file = std::fopen(marks_path.c_str(), "a")) {
@@ -488,11 +509,10 @@ std::atomic<uint32_t> g_frames_shown_count{0};
 void count_frame() {
     static int64_t second = -1;
     static uint32_t frames = 0;
-    const int64_t now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
-                                                                         platform::session_start())
-                            .count();
+    const int64_t now = session_second();
     if (now != second) {
-        if (second >= 0) g_frames_last_second.store(now == second + 1 ? frames : 0, std::memory_order_relaxed);
+        const bool measured = now == second + 1 && second > g_unmeasured_until.load(std::memory_order_relaxed);
+        if (second >= 0) g_frames_last_second.store(measured ? frames : 0, std::memory_order_relaxed);
         second = now;
         frames = 0;
     }
@@ -638,9 +658,24 @@ void texture_written(XbPtr resource) {
 uint32_t frames_last_second() { return g_frames_last_second.load(std::memory_order_relaxed); }
 uint32_t frames_shown() { return g_frames_shown_count.load(std::memory_order_relaxed); }
 
+std::atomic<uint32_t> g_frame_rate_target{0};
+
 void frame_rate_changed(uint32_t fps) {
     LOG_INFO("frames", "target %u fps", fps);
+    g_frame_rate_target.store(fps, std::memory_order_relaxed);
     g_frame_rate_changed = true;
+}
+
+uint32_t frame_rate_target() { return g_frame_rate_target.load(std::memory_order_relaxed); }
+
+uint32_t vertical_blanks_done() {
+    std::lock_guard lock(g.vblank_done_mutex);
+    return g.vblank_done;
+}
+
+void wait_vertical_blank_after(uint32_t seen, uint32_t timeout_ms) {
+    std::unique_lock lock(g.vblank_done_mutex);
+    g.vblank_done_changed.wait_for(lock, std::chrono::milliseconds(timeout_ms), [seen] { return g.vblank_done != seen; });
 }
 
 void show_notice(std::vector<std::string> lines, double seconds) {

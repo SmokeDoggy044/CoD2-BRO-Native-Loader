@@ -7,7 +7,8 @@
 // the order they are plugged in and keep their port until unplugged.
 //
 // Keyboard and mouse, on the pad buttons of CoD BRO's default layout (config/
-// default.cfg); the action in brackets:
+// default.cfg); the action in brackets. These are the default bindings; the player's
+// own come from bindings.h (the launcher's Controls tab):
 //   WASD left stick (move)          IJKL right stick (look; the mouse looks directly,
 //                                   see take_mouse_motion)
 //   left mouse  right trigger (fire)     right mouse  left trigger (aim down sights)
@@ -94,6 +95,11 @@ Device last_device();
 
 // The title shows a menu (set_menu_pointer was called in the last 0.25 s).
 bool in_menu();
+
+// While our own in-game menu is open (render's PC menu): every port reads as nothing
+// pressed, mouse motion and pointing are dropped and clicks do not capture the mouse.
+// The title keeps running.
+void set_game_input_blocked(bool blocked);
 
 // Sets a port's rumble motors (0-65535; left is the low-frequency one).
 void set_rumble(uint32_t port, uint16_t left, uint16_t right);

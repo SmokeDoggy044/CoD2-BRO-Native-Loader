@@ -73,6 +73,29 @@ Everything else is a 4:3 layout:
 Checked: missions 1-2, pause menu and its Options, objectives (mission 4, against
 `--aspect 4:3`). Not checked: death/mission failed screens, dialogs.
 
+### Wider than 16:9 (experimental)
+
+`--aspect W:H` wider than 16:9 (launcher: 21:9, 32:9, the screen's shape), campaign
+only (multiplayer has no HUD manager and stays 16:9). The 3D view takes the picture's
+aspect: R_RenderView and nglSetDefaultSceneParams load it with `movss xmm0,[0x0083f254]`
+(16/9), pointed at our value instead; the vertical field of view stays (Hor+). Culling
+needs nothing: in widescreen CG_CalcFov sets fov_x to 2 atan(16/9) = 121 degrees, wider
+than a 32:9 view at the game's fov.
+
+The HUD stays a 16:9 layout narrowed into the middle, which in Hor+ is exactly the
+16:9 picture, so 3D-anchored HUD items stay on their targets. Every NGL scene is a
+perspective one (`+0x300` = 1, 2D included), so 2D scenes are told apart by who
+makes them, like the menus': the HUD manager's draw (vtable 0x0082a5d8 slot 0x14 =
+0x00311940, called from the in-game UI's FUN_003154b0; compass, health) and CG_Draw2D
+(CG_DrawActive's tail jump at 0x00286c0c; RE_StretchPic adds quads to the current
+scene: crosshair, centre prints). The renderer's narrowing takes an anchor and a factor
+per draw (`UiNarrowing`): menus 4:3 around the centre, the objectives panel 4:3 around
+x = 50 of 640 inside the 16:9 layout, the HUD 16:9; only into the back buffer.
+
+Checked: mission 2 at 21:9 (HUD, objectives, pause menu), mission 1 cutscene; 16:9
+unchanged. Not checked: scopes and binoculars (side bars drawn as quads would only
+cover the 16:9 part), death/mission failed screens, missions 3+, 32:9 in play.
+
 ## Upscalers (assessment 2026-10-18, not started)
 
 - Spatial (FSR 1 / sharpening): one pass on the finished scene before the HUD/menu
@@ -91,3 +114,25 @@ modes/formats, raster states, first vertex) plus each vertex program's microcode
 after the k-th - with `--screenshots` on frame n-1, bisect for the draw that breaks
 it. In a `--diag` session, F12 dumps the next frame's draws and F11 shows draws that
 need untranslated features in magenta ([playtesting.md](playtesting.md)).
+
+## Field of view and the PC menu
+
+The key below Escape (`` ` ``/`~`) opens the PC menu: Dear ImGui (render's own copy, Direct3D 9
+and SDL3 back ends) drawn over the presented frame while the title keeps running; the
+title's input is blocked meanwhile (`input::set_game_input_blocked`), and after it closes
+port 0 stays neutral until Escape/`` ` ``/Return/Space and the mouse buttons are let go.
+Contents: `loader/pc_menu.cpp`; what changed is saved to settings.ini (`fov = N`) on close.
+
+Field of view (campaign; `--fov DEG`, 50-120): cg_fov (default 70, degrees across 4:3,
+Hor+ in widescreen), set with Cvar_SetValue at the frame end. Three more places:
+- Weapon defs with a fov of their own (`+0x848`: tanks 55, mounted guns), which
+  CG_GetViewFov returns instead of cg_fov, are widened by the same factor in
+  tan(fov / 2) while cgame draws (CG_Draw2D hook), keeping the original.
+- The gun's scene in R_RenderView takes the view's fov_y (`mov ecx,[ebx+0x128]` at
+  0x002475de); off the default it reads a value narrowed back by that factor at the
+  hip and the view's own when zoomed, so the gun looks as at 70 (at 120 the front hand
+  showed under the rifle). One frame late; the original load is back at 70.
+- The widescreen culling fov_x (2 atan(16/9), constants loaded at 0x00284727/0x00284735)
+  grows when a wide picture at a high fov needs more.
+
+Checked: mission 2 (tank) and mission 4 (rifle, hip and sights) at 50-120, user-tested.
