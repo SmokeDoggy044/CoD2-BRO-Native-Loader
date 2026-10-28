@@ -274,4 +274,180 @@ extern "C" void StreamMem_GetBlock_entry(void);
 extern "C" PLATFORM_HIDDEN float XB_CDECL Zone_UpdatePriority(uint8_t* zone);
 extern "C" void Zone_UpdatePriority_entry(void);
 
+// --- Streaming module push (2026-10-28) ---
+
+// Zone*Manager vtable slot 0 (thiscall, flags on the stack, ret 4): the deleting destructor of the managers that
+// wrap the previous one (+4) while a zone loads. The texture, mesh file and mesh managers hand the previous one back
+// to ngl (nglSet*Manager); the clip, clip set, anim and skel managers store it in their global (0x00909830,
+// 0x00909828, 0x0090982c, 0x00909838). Then the base vtable, Mem_AlignedFree when flags bit 0. Returns the object.
+uint8_t* XB_THISCALL ZoneTextureManager_Destruct(uint8_t* self, uint32_t flags);    // 0x000258d0
+uint8_t* XB_THISCALL ZoneMeshFileManager_Destruct(uint8_t* self, uint32_t flags);   // 0x00025930
+uint8_t* XB_THISCALL ZoneMeshManager_Destruct(uint8_t* self, uint32_t flags);       // 0x00025990
+uint8_t* XB_THISCALL ZoneClipManager_Destruct(uint8_t* self, uint32_t flags);       // 0x000259f0
+uint8_t* XB_THISCALL ZoneClipSetManager_Destruct(uint8_t* self, uint32_t flags);    // 0x00025a40
+uint8_t* XB_THISCALL ZoneAnimManager_Destruct(uint8_t* self, uint32_t flags);       // 0x00025a90
+uint8_t* XB_THISCALL ZoneSkelManager_Destruct(uint8_t* self, uint32_t flags);       // 0x00025ae0
+
+// 0x0002bf80 (zone set in EDX; zone table, out, key, an unread word, out zone id on the stack, ret 0x14): the key
+// looked up (StringMap_Find) in the string map (+8) of each zone of the set's search list (Stream_ListSearchZones,
+// table +4 + id * 4); *out = the first hit's entry (+0x14 list, count +0x10, index wrapped to 0) and *out_id = its
+// zone id (when out_id is set); *out = 0 when none or the set is -1. Returns out.
+uint32_t* XB_REGS2 XB_STDCALL ZoneStringMap_Lookup(uint32_t unused_eax, uint32_t zone_set, const uint8_t* zones,
+                                                   uint32_t* out, const char* key, uint32_t unused,
+                                                   uint32_t* out_id);
+
+// 0x0028d360 (memory in EDX, passed on to StreamMem_CountFree; 4 stack words, ret 0x10, only the second read): 0
+// when `needed` is above the free slot count, else 1 (also for NaN). Dead: no call, pointer or immediate.
+uint8_t XB_REGS2 XB_STDCALL StreamMem_HasSpace(uint32_t unused_eax, const uint32_t* memory, uint32_t unused0,
+                                               float needed, uint32_t unused2, uint32_t unused3);
+
+// 0x00024e40 (value in EDX, load progress record in ECX): +0 = value; 0x0095f61c = (+4 + value) / 1024 (signed)
+// and 0x0095f618 = that as unsigned on the x87 over (0 - +8) + +0xc, or 0 when that range is 0.
+void XB_REGS3 XB_CDECL Stream_SetLoadProgress(uint32_t unused_eax, int32_t value, uint8_t* record);
+
+// Load handlers (cdecl: name, data, size, zone): the pack's relocation table (+0x18) applied and the data stored in
+// rm_cfgstr (0x0095f5d4) / rm_dlg (0x0095f5ac) at +4 + zone * 4; returns the zone. 0x002d0d40: CM_LoadWorldTree
+// with cm_worldTrees (0x0095f4fc).
+uint32_t XB_CDECL Stream_LoadCfgstr(char* name, uint8_t* data, uint32_t size, uint32_t zone);  // 0x00298570
+uint32_t XB_CDECL Stream_LoadDlg(char* name, uint8_t* data, uint32_t size, uint32_t zone);     // 0x00299250
+void XB_CDECL Stream_LoadCg(char* name, uint8_t* data, uint32_t size, uint32_t zone);           // 0x002d0d40
+
+// Zone images: +8 asset groups (relative to the image when stored, 24 bytes each, count +0xc), each with +0x10 and
+// +0x14 pointers and +0xe sub-entries (20 bytes each at +0x14: +0 a pointer, +4 a pointer or 0).
+// 0x00024b90 (image in ESI): every pointer made relative to the image again (the group list last).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_UnrelocateZone(uint8_t* image);
+extern "C" void Stream_UnrelocateZone_entry(void);
+// 0x00024c10 (image in EDX; skip byte on the stack, ret 4): the group list and the pointers made absolute; with
+// `skip` set each group's +0x14 is cleared instead of walking its sub-entries.
+uint32_t XB_REGS2 XB_STDCALL Stream_RelocateZone(uint32_t unused_eax, uint8_t* image, uint32_t skip);
+
+// 0x0028e740 / 0x0028e6e0 (clip / clip set in ESI; stream system on the stack, ret 4): the object stored in the map
+// +0x98 (clip, hashed name +8) / +0xa8 (clip set, hashed name +0x10) of the zone on top of the global context's
+// stack; returns the entry's previous value. The clip set first gets its player (NAL_ClipSetPlayer_Create(set, 0, 0)).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddClipToZone(uint32_t clip, uint32_t streams);
+extern "C" void Stream_AddClipToZone_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddClipSetToZone(uint32_t set, uint32_t streams);
+extern "C" void Stream_AddClipSetToZone_entry(void);
+// 0x00025d30 / 0x00025dd0: ZoneTextureManager_Add's pattern with Stream_AddClipToZone / Stream_AddClipSetToZone.
+uint32_t XB_THISCALL ZoneClipManager_Add(const uint8_t* self, uint32_t object);
+uint32_t XB_THISCALL ZoneClipSetManager_Add(const uint8_t* self, uint32_t object);
+
+// Zone releases (stream system, zone id): each entry of one of the zone's maps (zone = system +0x5c + id * 4) released
+// and cleared. 0x0028cef0 (system in EAX, id in ECX): fonts (+0x20 count, +0x24 entries; nglReleaseFont).
+// 0x0028cd60 (same registers): effects (+0xd0, +0xd4; FxEffectDef_Release + Z_Free of each set one).
+void XB_REGS3 XB_CDECL Stream_ReleaseFonts(const uint8_t* streams, uint32_t unused_edx, uint32_t id);
+void XB_REGS3 XB_CDECL Stream_ReleaseEffects(const uint8_t* streams, uint32_t unused_edx, uint32_t id);
+// 0x0028cde0 (id in EAX; system on the stack, ret 4): skeletons (+0xc0, +0xc4; NAL_Skeleton_Release) with the
+// system's +0x54 byte set meanwhile.
+void XB_REGS1 XB_STDCALL Stream_ReleaseZoneSkeletons(uint32_t id, uint8_t* streams);
+// 0x0028cf40 (id in EAX; system on the stack, ret 4): textures (+0x10, +0x14) whose flags +0x28 bit 0 are set, with
+// +0xc set meanwhile; for a texture in state 3 (+0xc) +0xc is cleared and +0xe set around its nglReleaseTexture.
+void XB_REGS1 XB_STDCALL Stream_ReleaseTextures(uint32_t id, uint8_t* streams);
+// 0x0028ce60 (stdcall): the mesh files (+0x40, +0x44; nglReleaseMeshFile of the set ones), then the meshes' entries
+// (+0x30, +0x34) cleared, with the system's +0x24 and +0x18 bytes set meanwhile.
+void XB_STDCALL Stream_ReleaseMeshFiles(uint8_t* streams, uint32_t id);
+
+// 0x00024820 (zone set in EDX; zone table, out, prefix, prefix length, callback, an unread word on the stack, ret
+// 0x18): for every zone of the set's search list (table +4 + id * 4), every asset of its list (+0x14, count +0x10)
+// whose name (+0) starts with the prefix: callback(name + length + 1, asset) (cdecl). *out = 0; returns out.
+uint32_t* XB_REGS2 XB_STDCALL Stream_ForEachAssetWithPrefix(uint32_t unused_eax, uint32_t zone_set,
+                                                            const uint8_t* zones, uint32_t* out, const char* prefix,
+                                                            uint32_t length, uint32_t callback, uint32_t unused);
+
+// 0x0028c240 (request in ECX): the next item of the request's current group (+0x7c image, +0x80 group, +0xd4 item):
+// none left -> state +0xe0 = 3 and +0xd8 = 0; else +0xd8 = the item's address (group +0x10 table, entry +0xc * 0x1c
+// + 0x14, plus the item's offset +0x10).
+uint32_t XB_REGS3 XB_CDECL Stream_SeekNextItem(uint32_t unused_eax, uint32_t unused_edx, uint8_t* request);
+
+// 0x002904b0 (active byte in AL, hashed name in ECX; stream system, zone, an unread word on the stack, ret 0xc):
+// Stream_FindTexture's search over the zone map +0x28.
+uint32_t XB_REGS3 XB_STDCALL Stream_FindInZones(uint32_t active, uint32_t unused_edx, const uint32_t* hashed,
+                                                uint32_t streams, uint32_t zone, uint32_t unused);
+
+// 0x002aeab0 (data in ESI; table on the stack, ret 4): the pack's relocation table (+8) applied, table +4 = data, and
+// each anim tree's (+4 list of 12-byte groups, count +0; per group +8 list of 0x38-byte nodes, count +4) +0x28 and
+// +0x24 cleared. 0x002aeb70 (load handler): with rm_animTrees (0x0095f524).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_RelocateAnimTrees(uint8_t* data, uint8_t* table);
+extern "C" void Stream_RelocateAnimTrees_entry(void);
+void XB_CDECL Stream_LoadAtrb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+// 0x002caa40 (data in EAX; table, zone on the stack, ret 8): Dcg_RelocateModels (cursor 8), table +4 + zone * 4 =
+// data, then every brush (models +4, 0x50 bytes, count +0; brushes +4, 0x40 bytes, count +0) gets the CM_Brush
+// vtable and its flags (+8) bit 0x4000 moved to 0x1000000. 0x002caba0 (load handler): with the table 0x0095f500.
+uint32_t XB_REGS1 XB_STDCALL Stream_RelocateDcg(uint8_t* data, uint8_t* table, uint32_t zone);
+void XB_CDECL Stream_LoadDcg(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+
+// 0x0028c1c0 (start in EAX, memory context in ESI; size on the stack, ret 4): a block above 0x2000 bytes with fewer than
+// 0xb heaps on the context (+0x8c count, +0x90 list) becomes a heap (a 0x494-byte header from stream_heapHeaderPool
+// 0x0095f628, Heap_Init over the 32-aligned start .. start + size), added when below 0xc. Returns 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_AddFreeBlock(uint32_t start, uint8_t* context, uint32_t size);
+extern "C" void Stream_AddFreeBlock_entry(void);
+// 0x0028d860 (context in EAX, size in EDX; start on the stack, ret 4): Stream_AddFreeBlock, and a returned heap is
+// linked (+0x490) after the context's last one (never: it returns 0).
+uint32_t XB_REGS2 XB_STDCALL MemContext_AddFreeBlock(uint8_t* context, uint32_t size, uint32_t start);
+
+// 0x0023cfb0 (model list in EBX: +0x14 entries, count +0x10; zone set on the stack, ret 4): each model's five part
+// slots (+0x24..+0x34) get their part file (+8) from rm_xmpb (0x0095f6b0) by the part's name (+4)
+// (ZoneStringMap_Lookup), and the model's +0x20 the first one found when unset.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_ResolveXmbParts(uint8_t* list, uint32_t zone_set);
+extern "C" void Stream_ResolveXmbParts_entry(void);
+
+// 0x0028eb90 (managers in ESI): the zone managers object's destructor (ZoneManagers vtable 0x00838300): its seven
+// embedded managers (+4 texture, +0x10 mesh file, +0x1c mesh, +0x28 clip, +0x34 clip set, +0x40 anim, +0x4c skel; the
+// previous one at +4 each) get their base vtables and hand the previous managers back, then ResourceManager_Destruct
+// (tail jump). 0x000251a0 (vtable slot 0, thiscall, flags, ret 4): it, then Z_Free when flags bit 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ZoneManagers_Destruct(uint8_t* self);
+extern "C" void ZoneManagers_Destruct_entry(void);
+uint8_t* XB_THISCALL ZoneManagers_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x000251c0 / 0x00025880 (vtable slot 0, thiscall, flags, ret 4): the zone graph (removes its "ZoneGraph" command
+// first) / its base: ResourceManager_Destruct, Z_Free when flags bit 0.
+uint8_t* XB_THISCALL ZoneGraph_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL ZoneGraphBase_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x0028f620 (graph in ESI, Com_Init): registered as resource manager (list 0x009719fc, count 0x009719f8, at most
+// 0x14), +4..+0x18f cleared, the ZoneGraph vtable, +0x1c4/+0x1cc = -1, +0x1c8/+0x1d0 = 0, 0x0001b9a0 added to the
+// callback list 0x00988784 (count 0x00988780, at most 0x20), +0x190/+0x194 = 0 and the "ZoneGraph" command
+// (0x0028c430). Returns the graph.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ZoneGraph_Init(uint8_t* self);
+extern "C" void ZoneGraph_Init_entry(void);
+
+// 0x002c0310 (stdcall: table, zone): every simple instance chain (+0x24 list of 16-byte entries, +4 the chain, next
+// +0x14; count +0x20) of table +4 + zone * 4 freed (cdSimpleInstance_FreeList, Mem_AlignedFree) and its entry
+// cleared; for zone != -1 inside MemContext_Push/Pop of the zone with the loading flags 0x0095f5d0 = 1 and 0x0095f5d1
+// = 0 (0x0095f5d0 restored after). Returns the saved flag in AL.
+uint8_t XB_STDCALL Zone_FreeSimpleInstances(const uint8_t* table, uint32_t zone);
+
+// 0x0028d4c0 (source bit arrays in EDX; target memory, n on the stack, ret 8): moves slot bits (+0 and +8, two words
+// each; slot count = target +0x10) to the target: the n-th full slot (both bits; every one when n = -1), else (none
+// moved, or n = -1) the n-th half slot counting on (one bit each, every one when n = -1).
+uint32_t XB_REGS2 XB_STDCALL StreamMem_MoveSlots(uint32_t unused_eax, uint32_t* from, uint32_t* to, int32_t n);
+
+// 0x000292a0 (bsp tree in EAX): every node (+0xc, 16 bytes each, count +8) marked 0xffff at +0 gets its child
+// indices +8 and +0xc made node pointers and its leaf index +4 a leaf pointer (+0x14 list, count +0x10); indices
+// past the end wrap to 0. EAX is handed back.
+uint8_t* XB_REGS1 XB_CDECL Stream_RelocateBtrNodes(uint8_t* tree);
+// 0x0023a1b0 (load handler): cm (0x0095f6b8) = the data, its relocation table (+0x7c) applied and the tree's nodes
+// relocated; the map name (0x00988bd8, 0x10c bytes cleared first, with the error callback 0x0095e634 when a map was
+// loaded, 0x0095e394) and its base name without extension (0x00988c58) set, 0x0095e608 = the name; SV_ClearWorld.
+void XB_CDECL Stream_LoadBtr(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+// 0x0023d040 (data in EAX, zone in ESI; table on the stack, ret 4): the relocation table (+0x18) applied,
+// Stream_ResolveXmbParts with the zone, table +4 + zone * 4 = data. Returns the table. Dead: no call, pointer or
+// immediate.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Stream_LoadXmbInto(uint8_t* data, uint32_t zone, uint8_t* table);
+extern "C" void Stream_LoadXmbInto_entry(void);
+// 0x002c6030 (name in EAX, path data in EBX; node blocks on the stack, ret 4): with a zone table (blocks +0x194) the
+// data's seven pointers (+0x10..+0x28) and the table's +0xc entries of +0x28 (8 bytes each) are made absolute; the
+// block whose name is the file's base name (Path_FindZoneBlockIndex) gets the data (blocks +8 + index * 4) and
+// Path_RelocateNodeBlock when the data's type (+0) is 2. 0x00290df0 (load handler): with g_pathNodeBlocks.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_RelocatePathData(const char* name, uint8_t* data, uint8_t* blocks);
+extern "C" void Stream_RelocatePathData_entry(void);
+void XB_CDECL Stream_LoadZpth(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+
+// 0x00290f00 (stdcall: zone record): inside MemContext_Push/Pop of its zone (+0x74) every resource manager (list
+// 0x009719fc, count 0x009719f8) gets vtable slot 1 (thiscall, zone), then FX_KillEffectsOnEntity and
+// CodNote_FreeForZone of the zone.
+void XB_STDCALL Stream_UnloadNotifyManagers(const uint8_t* record);
+// 0x002c4020 (zone in EBX): every note of the list at 0x008dda50 (sentinel 0x008dda54; next at +0) whose zone
+// (+0x24) matches is freed (CodNote_Free), the next one read first; the list's last node is not checked.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CodNote_FreeForZone(uint32_t zone);
+extern "C" void CodNote_FreeForZone_entry(void);
+
 }  // namespace game

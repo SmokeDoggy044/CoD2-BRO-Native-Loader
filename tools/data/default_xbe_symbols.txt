@@ -8129,7 +8129,7 @@
 0023cd30 R_CellForViewOrigin
 0023cda0 R_SetDefaultLighting
 0023cea0 XModel_Free
-0023cfb0 FUN_0023cfb0
+0023cfb0 Stream_ResolveXmbParts
 0023d040 Stream_LoadXmbInto
 0023d070 XModel_TraceParts
 0023d5a0 FX_PlayEffectWithAxis
@@ -8844,7 +8844,7 @@
 0028d4c0 StreamMem_MoveSlots
 0028d5e0 StreamMem_Alloc
 0028d7d0 ResourceManager_Destruct
-0028d860 FUN_0028d860
+0028d860 MemContext_AddFreeBlock
 0028d8b0 ZoneRecord_GetContext
 0028d920 Stream_GetFileType
 0028e030 Stream_LoadFli
@@ -9617,7 +9617,7 @@
 002c3bd0 AnimTree_ClearSiblingGoalWeights
 002c3e60 AnimTree_ClearGoalWeight_r
 002c3ed0 AnimTree_AllocInfo
-002c4020 FUN_002c4020
+002c4020 CodNote_FreeForZone
 002c4070 G_FreeAllCodNotes
 002c40c0 G_FreeCodNote
 002c4110 G_CreateCodNote

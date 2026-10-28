@@ -14162,3 +14162,6 @@ address,name,kind,confidence,evidence
 002bdbd0,SndBankList_IsLoaded,function,medium,"from the body (server module push 2026-10-28)"
 002c1ff0,LevelPersist_Free,function,medium,"from the body (server module push 2026-10-28)"
 002aa480,MSG_ReadStringLine,function,medium,"from the body (server module push 2026-10-28)"
+0023cfb0,Stream_ResolveXmbParts,function,medium,"from the body (streaming module push 2026-10-28)"
+0028d860,MemContext_AddFreeBlock,function,medium,"from the body (streaming module push 2026-10-28)"
+002c4020,CodNote_FreeForZone,function,medium,"from the body (streaming module push 2026-10-28)"
