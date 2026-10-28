@@ -13,3 +13,4 @@ tools/data/default_xbe_matchdata.tsv
 tools/data/cod4_reference.csv
 tools/data/*.csv.lock
 __pycache__/
+tools/data/functions_twice.csv
