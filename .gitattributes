@@ -1,0 +1,3 @@
+# The loader and the decompilation repository merge each other (shared history), but each
+# keeps its own README: run `git config merge.ours.driver true` once per clone.
+README.md merge=ours
