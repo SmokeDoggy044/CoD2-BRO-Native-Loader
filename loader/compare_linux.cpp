@@ -2,8 +2,8 @@
 //
 // A tested function's entry jumps to a stub (push index; jmp xbcmp_entry) that saves
 // the caller's registers and calls xbcmp_dispatch. For a sampled call the dispatcher
-// forks a child, which forks again at once, so that both start from the same copy of
-// memory: the child runs the original, the grandchild the decompiled version. Before
+// forks a child, which forks two test processes at once, so that both start from the same
+// copy of memory: one runs the original, the other the decompiled version. Before
 // running, each makes every host mapping non-executable except the title's code, the
 // harness's own section (xbcmp_text), the decompiled code and the C runtime, then
 // clears the soft-dirty bits. A call into any other host code faults and ends the
@@ -23,7 +23,10 @@
 
 #include <dlfcn.h>
 #include <fcntl.h>
+#include <linux/audit.h>
+#include <linux/filter.h>
 #include <linux/fs.h>
+#include <linux/seccomp.h>
 #include <poll.h>
 #include <signal.h>
 #include <sys/file.h>
@@ -93,10 +96,10 @@ constexpr uint32_t kMaxDirty = 32768;  // 128 MB written by one call
 constexpr uint32_t kPagemapChunk = 2048;
 constexpr uint32_t kScanRegions = 512;  // runs of written pages per PAGEMAP_SCAN call
 
-constexpr uint32_t kSdkLogBytes = 64 * 1024;
+constexpr uint32_t kSdkLogBytes = 512 * 1024;
 constexpr uint32_t kMaxSdkSpecs = 128;
 constexpr uint32_t kZeroedStack = 16 * 1024;  // below the caller's ESP in test processes
-constexpr uint32_t kMaxSdkArgs = 6;
+constexpr uint32_t kMaxSdkArgs = 10;
 constexpr uint32_t kMaxSdkData = 4096;  // per pointer argument
 constexpr uint32_t kPushDwords = 8192;  // the BeginPush stand-in's space
 constexpr uint32_t kStandInSurfaces = 64;  // the GetSurfaceLevel2 stand-in's pool
@@ -143,6 +146,9 @@ struct Report {
     uint32_t signal, eip, fault_address, esp, stack_word;  // kSignal
     uint32_t sdk_log_bytes, sdk_calls;
     uint32_t sdk_overflow;  // the log was full: the test is inconclusive
+    uint32_t pass_blocked;  // kSignal on a pass-through export it would not run: PassBlock
+    uint32_t pass_spec;     // that export's spec index
+    uint32_t pass_calls;    // pass-through calls made
     uint32_t dirty_count;
     uint32_t scan_pages;  // pages the dirty scan read from pagemap
     // CLOCK_MONOTONIC ns: process started, maps read, bits cleared, function returned,
@@ -152,6 +158,21 @@ struct Report {
 
 struct Range {
     uint32_t begin, end, protection;
+};
+
+// File calls run for real (pass-through, SdkStandIn::Pass*): while a kernel export runs, the
+// loader's code is executable and the title's is not, so that a title routine the export calls
+// (an APC: ReadFileEx's completion) and the export's return are seen and switch back. Each frame
+// is an export (`address` = its caller's return address) or a title callback from host code
+// (`address` = where it returns into the host).
+enum PassBlock : uint32_t { kPassNone, kPassWrites, kPassDepth };
+constexpr uint32_t kMaxPassDepth = 8;
+constexpr uint32_t kMaxPassRanges = 64;
+constexpr uint32_t kMaxPassName = 512;  // path bytes logged
+constexpr uint32_t kPassZeroedStack = 128 * 1024;  // below a pass-through call's ESP
+struct PassFrame {
+    uint32_t callback;
+    uint32_t address;
 };
 
 // Everything a test process writes after it cleared the soft-dirty bits, in one
@@ -178,12 +199,21 @@ struct alignas(4096) ChildArea {
     uint32_t push_buffer[kPushDwords];
     uint32_t surface_count;  // stand-in surfaces handed out
     StandInSurface surfaces[kStandInSurfaces];
+    // Pass-through file calls: the loader's code ranges (made executable while an export runs)
+    // and the title's (made non-executable then), with their usual protection.
+    uint32_t pass_host_count, pass_title_count;
+    Range pass_host[kMaxPassRanges];
+    Range pass_title[kMaxPassRanges];
+    uint32_t pass_depth, pass_host_mode;
+    PassFrame pass_frames[kMaxPassDepth];
+    uint32_t stack_limit;  // the calling thread's lowest stack address (0: unknown)
     uint8_t signal_stack[64 * 1024];
     uint8_t stack[64 * 1024];
 };
 
 SdkSpec g_sdk_specs[kMaxSdkSpecs];
 uint32_t g_sdk_spec_count = 0;
+uint32_t g_pass_result_spec = 0xFFFFFFFF;  // the "(result)" record after a pass-through call
 
 }  // namespace
 }  // namespace loader::compare
@@ -205,6 +235,8 @@ void xbcmp_landing();
 [[noreturn]] void xbcmp_resume(const Context* context);
 [[noreturn]] void xbcmp_dispatch(EntryFrame* frame);
 [[noreturn]] void xbcmp_child_finish();
+void xbcmp_pass_return();
+void xbcmp_pass_done(uint32_t* frame);
 }
 
 // xbcmp_entry: [esp] = function index (pushed by its stub), [esp+4] = return address.
@@ -272,6 +304,19 @@ xbcmp_landing:
     cld
     call xbcmp_child_finish
     ud2
+
+    .globl xbcmp_pass_return
+xbcmp_pass_return:
+    pushl $0
+    pushfl
+    pushal
+    cld
+    pushl %esp
+    call xbcmp_pass_done
+    addl $4, %esp
+    popal
+    popfl
+    ret
     .popsection
 )");
 
@@ -618,14 +663,127 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
     case SdkStandIn::LevelCount:
     case SdkStandIn::SurfaceLevel:
     case SdkStandIn::Clock:
+    case SdkStandIn::Pass:
+    case SdkStandIn::PassCreateFile:
+    case SdkStandIn::PassOpenFile:
+    case SdkStandIn::PassAttributes:
+    case SdkStandIn::PassDirectory:
+    case SdkStandIn::PassSetInformation:
     case SdkStandIn::None: break;
     }
     return false;
 }
 
+// --- Pass-through file calls -----------------------------------------------------
+
+// Host mode: the loader's code executable, the title's not (an export runs); title mode: as
+// the test started.
+XBCMP_CODE void pass_mode(ChildArea& c, bool host) {
+    for (uint32_t i = 0; i < c.pass_host_count; ++i) {
+        const Range& r = c.pass_host[i];
+        sys3(SYS_mprotect, r.begin, r.end - r.begin, r.protection | (host ? PROT_EXEC : 0));
+    }
+    for (uint32_t i = 0; i < c.pass_title_count; ++i) {
+        const Range& r = c.pass_title[i];
+        sys3(SYS_mprotect, r.begin, r.end - r.begin, host ? r.protection & ~uint32_t{PROT_EXEC} : r.protection);
+    }
+    c.pass_host_mode = host ? 1 : 0;
+}
+
+// Whether a pass-through call leaves every file as it is (it may run).
+XBCMP_CODE bool pass_allowed(const SdkSpec& spec, const uint32_t* values) {
+    // FILE_WRITE_DATA, FILE_APPEND_DATA, FILE_WRITE_EA, FILE_WRITE_ATTRIBUTES, DELETE, WRITE_DAC,
+    // WRITE_OWNER, MAXIMUM_ALLOWED, GENERIC_ALL, GENERIC_WRITE.
+    constexpr uint32_t kWriteAccess = 0x2 | 0x4 | 0x10 | 0x100 | 0x10000 | 0x40000 | 0x80000 | 0x02000000 |
+                                      0x10000000 | 0x40000000;
+    constexpr uint32_t kDeleteOnClose = 0x1000;
+    switch (spec.stand_in) {
+    case SdkStandIn::PassCreateFile:  // (handle*, access, attributes, iosb, size*, attributes, share, disposition, options)
+        return spec.arg_count == 9 && !(values[1] & kWriteAccess) && values[7] == 1 /* FILE_OPEN */ &&
+               !(values[8] & kDeleteOnClose);
+    case SdkStandIn::PassOpenFile:  // (handle*, access, attributes, iosb, share, options)
+        return spec.arg_count == 6 && !(values[1] & kWriteAccess) && !(values[5] & kDeleteOnClose);
+    case SdkStandIn::PassSetInformation:  // (handle, iosb, information, length, class)
+        return spec.arg_count == 5 && values[4] == 14;  // FilePositionInformation
+    default: return true;
+    }
+}
+
+// A name in the log: [root directory][length][bytes padded to words], from an ANSI_STRING
+// {u16 length, u16 maximum, char* buffer}; [kSdkNull or kSdkBad][0] without one.
+XBCMP_CODE bool pass_log_name(ChildArea& c, uint32_t root, uint32_t string) {
+    if (!string) return sdk_log_put(c, kSdkNull) && sdk_log_put(c, 0);
+    const auto* ansi = reinterpret_cast<const uint32_t*>(uintptr_t{string});
+    if (!readable(c, string, 8)) return sdk_log_put(c, kSdkBad) && sdk_log_put(c, 0);
+    const uint32_t length = ansi[0] & 0xFFFF;
+    if (length > kMaxPassName || (length && !readable(c, ansi[1], length)))
+        return sdk_log_put(c, kSdkBad) && sdk_log_put(c, 0);
+    bool ok = sdk_log_put(c, root) && sdk_log_put(c, length);
+    const auto* text = reinterpret_cast<const uint8_t*>(uintptr_t{ansi[1]});
+    for (uint32_t at = 0; at < length && ok; at += 4) {
+        uint32_t word = 0;
+        for (uint32_t k = 0; k < 4 && at + k < length; ++k) word |= uint32_t{text[at + k]} << (8 * k);
+        ok = sdk_log_put(c, word);
+    }
+    return ok;
+}
+
+// The name a pass-through call logs after its arguments (false: none).
+XBCMP_CODE bool pass_log_extra(ChildArea& c, const SdkSpec& spec, const uint32_t* values) {
+    uint32_t attributes = 0;  // OBJECT_ATTRIBUTES {root, ANSI_STRING* name, attributes}
+    if (spec.stand_in == SdkStandIn::PassCreateFile || spec.stand_in == SdkStandIn::PassOpenFile)
+        attributes = values[2];
+    else if (spec.stand_in == SdkStandIn::PassAttributes)
+        attributes = values[0];
+    else if (spec.stand_in == SdkStandIn::PassDirectory)
+        return pass_log_name(c, 0, values[8]);
+    else
+        return true;
+    if (!attributes) return pass_log_name(c, 0, 0);
+    if (!readable(c, attributes, 12)) return sdk_log_put(c, kSdkBad) && sdk_log_put(c, 0);
+    const auto* a = reinterpret_cast<const uint32_t*>(uintptr_t{attributes});
+    return pass_log_name(c, a[0], a[1]);
+}
+
+// A fault while a pass-through export runs: host code calling title code (an APC), or that
+// title code returning into the host. False for anything else.
+XBCMP_CODE bool pass_fault(ChildArea& c, greg_t* gregs) {
+    if (!c.pass_depth) return false;
+    const auto eip = static_cast<uint32_t>(gregs[REG_EIP]);
+    const auto esp = static_cast<uint32_t>(gregs[REG_ESP]);
+    const bool in_title = eip - c.image_begin < c.image_end - c.image_begin;
+    if (c.pass_host_mode && in_title) {
+        if (c.pass_depth == kMaxPassDepth || !in_scan_range(c, esp, 4)) return false;
+        c.pass_frames[c.pass_depth++] = {1, *reinterpret_cast<const uint32_t*>(uintptr_t{esp})};
+        pass_mode(c, false);
+        return true;
+    }
+    const PassFrame& top = c.pass_frames[c.pass_depth - 1];
+    if (!c.pass_host_mode && !in_title && top.callback && eip == top.address) {
+        --c.pass_depth;
+        pass_mode(c, true);
+        return true;
+    }
+    return false;
+}
+
+// A pass-through export returned (into xbcmp_pass_return): `frame` = pushad, EFLAGS, the slot
+// for the address it goes on at. Logs the result and switches back to title mode.
+extern "C" XBCMP_CODE void xbcmp_pass_done(uint32_t* frame) {
+    ChildArea& c = xbcmp_child;
+    if (!c.pass_depth || c.pass_frames[c.pass_depth - 1].callback) {
+        c.report.status = kHarnessError;
+        child_send(c);
+    }
+    frame[9] = c.pass_frames[--c.pass_depth].address;
+    if (!sdk_log_put(c, g_pass_result_spec) || !sdk_log_put(c, frame[7])) c.report.sdk_overflow = 1;
+    pass_mode(c, false);
+}
+
 // A fault on the entry of a recorded SDK replacement: log the call and return to the
 // caller as the replacement would (EAX = 0, stack arguments popped). False if `eip`
 // is not one (or the caller's stack cannot be read): the test then ends as usual.
+// A pass-through export (SdkStandIn::Pass*) is logged and then runs (pass_mode).
 XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
     const auto eip = static_cast<uint32_t>(gregs[REG_EIP]);
     uint32_t index = 0;
@@ -641,6 +799,14 @@ XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
         values[i] = arg.where == kSdkEcx   ? static_cast<uint32_t>(gregs[REG_ECX])
                     : arg.where == kSdkEdx ? static_cast<uint32_t>(gregs[REG_EDX])
                                            : stack[1 + arg.slot];
+    }
+    const bool pass = spec.stand_in >= SdkStandIn::Pass;  // not is_pass(): an out-of-line call at -O0
+    if (pass) {
+        if (c.pass_depth == kMaxPassDepth || !c.pass_host_count || !pass_allowed(spec, values)) {
+            c.report.pass_blocked = c.pass_depth == kMaxPassDepth || !c.pass_host_count ? kPassDepth : kPassWrites;
+            c.report.pass_spec = index;
+            return false;
+        }
     }
     bool ok = sdk_log_put(c, index);
     for (uint32_t i = 0; i < spec.arg_count && ok; ++i) {
@@ -667,6 +833,21 @@ XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
             }
         }
     }
+    if (pass) {
+        if (!ok || !pass_log_extra(c, spec, values)) c.report.sdk_overflow = 1;
+        // The dead stack below reads as zeros, as at a test's start: the export's frames go
+        // there, and host code that copies bytes it never set (struct padding) would otherwise
+        // copy what the two sides' different frames left there into host memory.
+        const uint32_t room = c.stack_limit && esp > c.stack_limit ? esp - c.stack_limit : 0;  // no std::min here
+        const uint32_t floor = esp - (room < kPassZeroedStack ? room : kPassZeroedStack);
+        for (auto* p = reinterpret_cast<uint32_t*>(uintptr_t{floor}); p < stack; ++p) *p = 0;
+        ++c.report.sdk_calls;
+        ++c.report.pass_calls;
+        c.pass_frames[c.pass_depth++] = {0, stack[0]};
+        *const_cast<uint32_t*>(stack) = addr_of(reinterpret_cast<const void*>(&xbcmp_pass_return));
+        pass_mode(c, true);
+        return true;  // the export runs from its entry now
+    }
     if (!ok) c.report.sdk_overflow = 1;
     uint32_t result = 0;
     if (spec.stand_in == SdkStandIn::Clock)
@@ -684,7 +865,7 @@ extern "C" XBCMP_CODE void xbcmp_child_signal(int signal, siginfo_t* info, void*
     ChildArea& c = xbcmp_child;
     auto& gregs = static_cast<ucontext_t*>(context)->uc_mcontext.gregs;
     if (signal == SIGSEGV && addr_of(info->si_addr) == static_cast<uint32_t>(gregs[REG_EIP]) &&
-        record_sdk_call(c, gregs))
+        (pass_fault(c, gregs) || record_sdk_call(c, gregs)))
         return;
     c.report.status = kSignal;
     c.report.signal = static_cast<uint32_t>(signal);
@@ -960,26 +1141,64 @@ std::string describe(uint32_t address) {
 
 // --- Test process, before the mprotect (the C runtime still works) ----------------
 
-bool contains(const std::string& text, const char* part) { return text.find(part) != std::string::npos; }
+bool contains(std::string_view text, const char* part) { return text.find(part) != std::string_view::npos; }
+
+// /proc/self/maps, read without the heap: the two test processes must leave the host heap
+// as they found it before a test (pass-through exports allocate there, and the pages they
+// write are compared - with whatever else is on them).
+char g_maps_text[1024 * 1024];
+
+// The lines of `text` (each ends in a NUL, prepare_maps), one at a time.
+bool next_line(std::string_view& text, std::string_view& line) {
+    if (text.empty()) return false;
+    const size_t end = std::min(text.find('\0'), text.size());
+    line = text.substr(0, end);
+    text.remove_prefix(std::min(end + 1, text.size()));
+    return true;
+}
 
 bool prepare_maps(ChildArea& c) {
-    std::string maps;
     const int fd = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
     if (fd < 0) return false;
-    char buffer[4096];
-    for (ssize_t n; (n = read(fd, buffer, sizeof(buffer))) > 0;) maps.append(buffer, static_cast<size_t>(n));
+    size_t size = 0;
+    for (ssize_t n; size < sizeof(g_maps_text) - 1 &&
+                    (n = read(fd, g_maps_text + size, sizeof(g_maps_text) - 1 - size)) > 0;)
+        size += static_cast<size_t>(n);
     close(fd);
+    if (size == sizeof(g_maps_text) - 1) return false;
+    // Each line ends in a NUL for sscanf (the newlines become NULs).
+    for (size_t i = 0; i < size; ++i)
+        if (g_maps_text[i] == '\n') g_maps_text[i] = 0;
+    g_maps_text[size] = 0;
+    const std::string_view maps(g_maps_text, size);
 
     const uint32_t section_begin = addr(__start_xbcmp_text) & ~(kPage - 1);
     const uint32_t section_end = (addr(__stop_xbcmp_text) + kPage - 1) & ~(kPage - 1);
     c.scan_count = c.protect_count = 0;
-    std::istringstream lines(maps);
-    for (std::string line; std::getline(lines, line);) {
+    c.pass_host_count = c.pass_title_count = 0;
+    // Pass-through exports run in the mapping that holds them (the loader's code).
+    uint32_t pass_address = 0;
+    for (uint32_t i = 0; i < g_sdk_spec_count && !pass_address; ++i)
+        if (is_pass(g_sdk_specs[i].stand_in)) pass_address = g_sdk_specs[i].host_address;
+    std::string_view pass_mapping;
+    {
+        std::string_view lines = maps, line;
+        while (pass_address && next_line(lines, line)) {
+            unsigned long begin = 0, end = 0;
+            int name_at = 0;
+            if (std::sscanf(line.data(), "%lx-%lx %*s %*s %*s %*s %n", &begin, &end, &name_at) < 2) continue;
+            if (pass_address >= begin && pass_address < end && name_at > 0)
+                pass_mapping = line.substr(static_cast<size_t>(name_at));
+        }
+    }
+    std::string_view lines = maps, line;
+    while (next_line(lines, line)) {
         unsigned long begin = 0, end = 0;
         char perms[8] = {};
         int name_at = 0;
-        if (std::sscanf(line.c_str(), "%lx-%lx %7s %*s %*s %*s %n", &begin, &end, perms, &name_at) < 3) continue;
-        const std::string name = name_at > 0 ? line.substr(static_cast<size_t>(name_at)) : "";
+        if (std::sscanf(line.data(), "%lx-%lx %7s %*s %*s %*s %n", &begin, &end, perms, &name_at) < 3) continue;
+        const std::string_view name =
+            name_at > 0 && static_cast<size_t>(name_at) <= line.size() ? line.substr(static_cast<size_t>(name_at)) : "";
         const auto b = static_cast<uint32_t>(begin);
         const auto e = static_cast<uint32_t>(end);
         const bool writable = perms[1] == 'w';
@@ -990,7 +1209,14 @@ bool prepare_maps(ChildArea& c) {
             c.scan[c.scan_count++] = {b, e, 0};
         }
         if (perms[2] != 'x') continue;
-        if (b < g_config.image_end && e > g_config.image_begin) continue;  // the title's code
+        if (b < g_config.image_end && e > g_config.image_begin) {  // the title's code
+            if (c.pass_title_count == kMaxPassRanges) return false;
+            const uint32_t protection = PROT_READ | PROT_EXEC | (writable ? PROT_WRITE : 0);
+            c.pass_title[c.pass_title_count++] = {std::max(b, g_config.image_begin & ~(kPage - 1)),
+                                                  std::min(e, (g_config.image_end + kPage - 1) & ~(kPage - 1)),
+                                                  protection};
+            continue;
+        }
         if (name == "[vdso]" || name == "[vsyscall]") continue;
         bool allowed = false;
         for (const std::string& library : g_config.libraries) allowed |= contains(name, library.c_str());
@@ -1008,6 +1234,7 @@ bool prepare_maps(ChildArea& c) {
             }
             protect(from, to);
         };
+        const uint32_t first = c.protect_count;
         if (section_begin < e && section_end > b) {
             add(b, section_begin);
             add(section_end, e);
@@ -1015,8 +1242,108 @@ bool prepare_maps(ChildArea& c) {
             add(b, e);
         }
         if (c.protect_count == kMaxRanges) return false;
+        if (!pass_mapping.empty() && name == pass_mapping) {
+            for (uint32_t i = first; i < c.protect_count; ++i) {
+                if (c.pass_host_count == kMaxPassRanges) return false;
+                c.pass_host[c.pass_host_count++] = c.protect[i];
+            }
+        }
     }
-    return true;
+    // There is always host code to protect (the loader's): none means the maps were misread,
+    // and a test would run host code freely.
+    return c.protect_count > 0 && c.scan_count > 0;
+}
+
+// A seccomp filter for a test process: no system call that changes a file, sends data or
+// starts a process works there (EPERM), and writes and ioctls go only to the harness's own
+// files (its report pipe, clear_refs, pagemap). Pass-through file calls run the loader's own
+// export code in test processes; this keeps "a test never touches the game's files" true for
+// whatever that code (or its logging) would do.
+bool install_file_guard(const ChildArea& c) {
+    // No padding: the vectors' heap blocks must hold the same bytes on both sides (they are
+    // freed, and host memory pages a pass-through call writes later are compared whole).
+    struct Insn {
+        uint32_t code;
+        uint32_t k;
+        int jt, jf;  // label numbers, -1 = the next instruction
+    };
+    enum Label { kAllow, kDeny, kCheckFd, kCheckIoctl, kCheckOpen1, kCheckOpen2, kCheckMmap, kLabels };
+    std::vector<Insn> code;
+    int label_at[kLabels] = {};
+    const auto stmt = [&](uint32_t op, uint32_t k) { code.push_back({op, k, -1, -1}); };
+    const auto jump = [&](uint32_t k, int to) { code.push_back({BPF_JMP | BPF_JEQ | BPF_K, k, to, -1}); };
+    const auto label = [&](Label l) { label_at[l] = static_cast<int>(code.size()); };
+    const auto arg = [](int i) { return static_cast<uint32_t>(offsetof(seccomp_data, args) + 8 * i); };
+    stmt(BPF_LD | BPF_W | BPF_ABS, offsetof(seccomp_data, arch));
+    jump(AUDIT_ARCH_I386, -1);
+    code.back().jf = kDeny;
+    stmt(BPF_LD | BPF_W | BPF_ABS, offsetof(seccomp_data, nr));
+    static const int kDenied[] = {
+        SYS_unlink, SYS_unlinkat, SYS_rename, SYS_renameat, SYS_renameat2, SYS_mkdir, SYS_mkdirat, SYS_rmdir,
+        SYS_truncate, SYS_truncate64, SYS_ftruncate, SYS_ftruncate64, SYS_fallocate, SYS_link, SYS_linkat,
+        SYS_symlink, SYS_symlinkat, SYS_chmod, SYS_fchmod, SYS_fchmodat, SYS_chown, SYS_lchown, SYS_fchown,
+        SYS_chown32, SYS_lchown32, SYS_fchown32, SYS_fchownat, SYS_utime, SYS_utimes, SYS_utimensat,
+        SYS_futimesat, SYS_fsync, SYS_fdatasync, SYS_sync, SYS_syncfs, SYS_sync_file_range, SYS_msync,
+        SYS_creat, SYS_mknod, SYS_mknodat, SYS_setxattr, SYS_lsetxattr, SYS_fsetxattr, SYS_removexattr,
+        SYS_lremovexattr, SYS_fremovexattr, SYS_sendfile, SYS_sendfile64, SYS_splice, SYS_copy_file_range,
+        SYS_socketcall, SYS_socket, SYS_connect, SYS_sendto, SYS_sendmsg, SYS_sendmmsg, SYS_execve,
+        SYS_execveat, SYS_fork, SYS_vfork, SYS_clone, SYS_clone3, SYS_ptrace, SYS_process_vm_writev,
+        SYS_io_uring_setup, SYS_io_uring_enter, SYS_io_submit, SYS_openat2, SYS_name_to_handle_at,
+        SYS_open_by_handle_at,
+    };
+    for (int nr : kDenied) jump(static_cast<uint32_t>(nr), kDeny);
+    for (int nr : {SYS_write, SYS_writev, SYS_pwrite64, SYS_pwritev, SYS_pwritev2}) jump(static_cast<uint32_t>(nr), kCheckFd);
+    jump(SYS_ioctl, kCheckIoctl);
+    jump(SYS_open, kCheckOpen1);
+    jump(SYS_openat, kCheckOpen2);
+    jump(SYS_mmap2, kCheckMmap);
+    stmt(BPF_JMP | BPF_JA, 0);
+    code.back().jt = kAllow;  // JA: resolved through jt below
+    constexpr uint32_t kWriting = O_WRONLY | O_RDWR | O_CREAT | O_TRUNC | O_APPEND;
+    label(kCheckFd);
+    stmt(BPF_LD | BPF_W | BPF_ABS, arg(0));
+    jump(static_cast<uint32_t>(c.out), kAllow);
+    jump(static_cast<uint32_t>(c.clear_refs_fd), kAllow);
+    stmt(BPF_JMP | BPF_JA, 0);
+    code.back().jt = kDeny;
+    label(kCheckIoctl);
+    stmt(BPF_LD | BPF_W | BPF_ABS, arg(0));
+    jump(static_cast<uint32_t>(c.pagemap_fd), kAllow);
+    stmt(BPF_JMP | BPF_JA, 0);
+    code.back().jt = kDeny;
+    label(kCheckOpen1);
+    stmt(BPF_LD | BPF_W | BPF_ABS, arg(1));
+    code.push_back({BPF_JMP | BPF_JSET | BPF_K, kWriting, kDeny, kAllow});
+    label(kCheckOpen2);
+    stmt(BPF_LD | BPF_W | BPF_ABS, arg(2));
+    code.push_back({BPF_JMP | BPF_JSET | BPF_K, kWriting, kDeny, kAllow});
+    label(kCheckMmap);  // a writable shared mapping writes its file
+    stmt(BPF_LD | BPF_W | BPF_ABS, arg(3));
+    code.push_back({BPF_JMP | BPF_JSET | BPF_K, MAP_SHARED, -1, kAllow});
+    stmt(BPF_LD | BPF_W | BPF_ABS, arg(2));
+    code.push_back({BPF_JMP | BPF_JSET | BPF_K, PROT_WRITE, kDeny, kAllow});
+    label(kAllow);
+    stmt(BPF_RET | BPF_K, SECCOMP_RET_ALLOW);
+    label(kDeny);
+    stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM);
+
+    std::vector<sock_filter> program;
+    for (size_t i = 0; i < code.size(); ++i) {
+        const Insn& insn = code[i];
+        const auto offset = [&](int to) -> int { return to < 0 ? 0 : label_at[to] - static_cast<int>(i) - 1; };
+        const int jt = offset(insn.jt), jf = offset(insn.jf);
+        if (jt < 0 || jt > 255 || jf < 0 || jf > 255) return false;
+        if (insn.code == (BPF_JMP | BPF_JA))
+            program.push_back(BPF_STMT(static_cast<uint16_t>(insn.code), static_cast<uint32_t>(jt)));
+        else if (BPF_CLASS(insn.code) == BPF_JMP)
+            program.push_back(BPF_JUMP(static_cast<uint16_t>(insn.code), insn.k, static_cast<uint8_t>(jt),
+                                       static_cast<uint8_t>(jf)));
+        else
+            program.push_back(BPF_STMT(static_cast<uint16_t>(insn.code), insn.k));
+    }
+    sock_fprog fprog{static_cast<unsigned short>(program.size()), program.data()};
+    return prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0 &&
+           syscall(SYS_seccomp, SECCOMP_SET_MODE_FILTER, 0, &fprog) == 0;
 }
 
 // `unused`: the other pipe ends this process inherited. They must be closed: a pipe
@@ -1027,6 +1354,20 @@ bool prepare_maps(ChildArea& c) {
     ChildArea& c = xbcmp_child;
     for (int fd : unused) close(fd);
     if (g_verdict_fd >= 0) close(g_verdict_fd);
+    // The same descriptor table on both sides: the pipe ends move above all eight pipe
+    // descriptors (the same numbers in both processes), so files the pass-through exports
+    // open get the same numbers on both sides (they are stored in host memory).
+    {
+        int top = std::max(out, in);
+        for (int fd : unused) top = std::max(top, fd);
+        const int moved_out = fcntl(out, F_DUPFD_CLOEXEC, top + 1);
+        const int moved_in = fcntl(in, F_DUPFD_CLOEXEC, top + 1);
+        if (moved_out < 0 || moved_in < 0) _exit(1);
+        close(out);
+        close(in);
+        out = moved_out;
+        in = moved_in;
+    }
     // Gone with the process that forked it, and in any case after a while.
     const pid_t parent = getppid();
     prctl(PR_SET_PDEATHSIG, SIGKILL);
@@ -1039,6 +1380,8 @@ bool prepare_maps(ChildArea& c) {
     c.report = {};
     c.push_dwords = 0;
     c.surface_count = 0;
+    c.pass_depth = c.pass_host_mode = 0;
+    c.stack_limit = stack_limit;
     c.report.t_entered = now_ns();
     c.image_begin = g_config.image_begin;
     c.image_end = g_config.image_end;
@@ -1083,6 +1426,10 @@ bool prepare_maps(ChildArea& c) {
     auto* frame = reinterpret_cast<uint32_t*>(uintptr_t{c.start.esp});
     for (uint32_t i = 0; i < c.start.stack_words; ++i) frame[1 + i] = c.start.stack[i];
     frame[0] = addr(reinterpret_cast<const void*>(&xbcmp_landing));
+    if (!install_file_guard(c)) {
+        c.report.status = kHarnessError;
+        child_send(c);
+    }
     child_run(c);
 }
 
@@ -1170,8 +1517,14 @@ std::string hex(uint32_t value) {
     return text;
 }
 
+std::vector<std::string> g_sdk_names;  // per g_sdk_specs entry
+
 std::string signal_text(const Side& side) {
     const Report& r = side.report;
+    if (r.status == kSignal && r.pass_blocked && r.pass_spec < g_sdk_names.size())
+        return std::string(side.what) + " made a file call the harness does not run (" +
+               (r.pass_blocked == kPassWrites ? "it would change a file" : "nested too deep") + "): " +
+               g_sdk_names[r.pass_spec] + " from " + describe(r.stack_word);
     if (r.status == kTooManyWrites) return std::string(side.what) + " wrote too much memory";
     if (r.status == kHarnessError) return std::string(side.what) + ": harness error";
     const bool host_call = r.signal == SIGSEGV && r.fault_address == r.eip &&
@@ -1215,7 +1568,6 @@ uint32_t mxcsr(const Context& c) {
     return value;
 }
 
-std::vector<std::string> g_sdk_names;  // per g_sdk_specs entry
 
 // One recorded call's length in log words at `at`, or 0 if the log is damaged.
 size_t sdk_record_words(const std::vector<uint32_t>& log, size_t at) {
@@ -1231,6 +1583,12 @@ size_t sdk_record_words(const std::vector<uint32_t>& log, size_t at) {
     if (spec.stand_in == SdkStandIn::PushEnd) {
         if (p >= log.size()) return 0;
         p += 1 + size_t{log[p]};
+    }
+    // Pass-through calls with a name: root directory, length, the bytes (pass_log_name).
+    if (spec.stand_in == SdkStandIn::PassCreateFile || spec.stand_in == SdkStandIn::PassOpenFile ||
+        spec.stand_in == SdkStandIn::PassAttributes || spec.stand_in == SdkStandIn::PassDirectory) {
+        if (p + 1 >= log.size()) return 0;
+        p += 2 + (size_t{log[p + 1]} + 3) / 4;
     }
     return p <= log.size() ? p - at : 0;
 }
@@ -1439,6 +1797,26 @@ void compare_memory(const Hook& hook, const Context& entry, uint32_t limit, cons
     }
 }
 
+// What a test process that timed out is doing, from /proc/PID/syscall (the coordinator is its
+// ancestor, so it may read it): " (running)", " (waiting: futex)" - a lock or a wait for a
+// thread the test process does not have -, another system call by number, or "".
+std::string timeout_state(uint32_t pid) {
+    char path[64];
+    std::snprintf(path, sizeof(path), "/proc/%u/syscall", pid);
+    const int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return "";
+    char text[128] = {};
+    const ssize_t n = read(fd, text, sizeof(text) - 1);
+    close(fd);
+    if (n <= 0) return "";
+    if (std::strncmp(text, "running", 7) == 0) return " (running)";
+    const long number = std::strtol(text, nullptr, 10);
+    if (number == SYS_futex || number == SYS_futex_time64) return " (waiting: futex)";
+    if (number == SYS_nanosleep || number == SYS_clock_nanosleep || number == SYS_clock_nanosleep_time64)
+        return " (sleeping)";
+    return " (in system call " + std::to_string(number) + ")";
+}
+
 // In the coordinator: forks the two test processes and compares their results.
 Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
     Verdict verdict;
@@ -1450,12 +1828,23 @@ Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
     const uint64_t t_fork = now_ns();
     const pid_t child = fork();
     if (child == 0) {
-        // Same memory for both: fork the second test process before anything runs.
-        const pid_t grandchild = fork();
-        if (grandchild == 0) child_main(false, b_out[1], b_in[0], 0, {a_out[0], a_out[1], a_in[0], a_in[1], b_out[0], b_in[1]}, hook, entry,
-                                        stack_limit);
-        child_main(true, a_out[1], a_in[0], grandchild, {a_out[0], a_in[1], b_out[0], b_out[1], b_in[0], b_in[1]}, hook,
-                   entry, stack_limit);
+        // Same memory for both: this process forks both test processes before anything
+        // runs and waits for them. Both are forks of a fork, so glibc's fork handlers ran as
+        // often in each (the child's handler rewrites the malloc arenas' bookkeeping): the
+        // host heap is the same on both sides, which pass-through file calls rely on.
+        const pid_t original = fork();
+        if (original == 0)
+            child_main(true, a_out[1], a_in[0], 0, {a_out[0], a_in[1], b_out[0], b_out[1], b_in[0], b_in[1]}, hook,
+                       entry, stack_limit);
+        const pid_t decompiled = original > 0 ? fork() : -1;
+        if (decompiled == 0)
+            child_main(false, b_out[1], b_in[0], 0, {a_out[0], a_out[1], a_in[0], a_in[1], b_out[0], b_in[1]}, hook,
+                       entry, stack_limit);
+        for (int fd : {a_out[0], a_out[1], a_in[0], a_in[1], b_out[0], b_out[1], b_in[0], b_in[1]}) close(fd);
+        prctl(PR_SET_PDEATHSIG, SIGKILL);  // gone with the coordinator; the test processes with it
+        for (pid_t pid : {original, decompiled})
+            if (pid > 0) waitpid(pid, nullptr, 0);
+        _exit(0);
     }
     const uint64_t t_forked = now_ns();
     for (int fd : {a_out[1], a_in[0], b_out[1], b_in[0]}) close(fd);
@@ -1488,8 +1877,9 @@ Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
         // A test process that hangs (a wait for another thread, which does not exist
         // there) or died without a report.
         for (Side& side : sides) {
+            const std::string state = side.pid && !side.answered ? timeout_state(side.pid) : "";
             if (side.pid) kill(static_cast<pid_t>(side.pid), SIGKILL);
-            if (!side.answered) verdict.add(Outcome::Inconclusive, std::string(side.what) + " timed out");
+            if (!side.answered) verdict.add(Outcome::Inconclusive, std::string(side.what) + " timed out" + state);
         }
         finish();
         if (verdict.details.empty()) verdict.add(Outcome::Inconclusive, "test process failed");
@@ -1535,8 +1925,12 @@ Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
         return verdict;
     }
     compare_registers(hook, entry, a.result, b.result, verdict);
+    // With file calls a different call explains the rest (the host heap the exports use differs
+    // then): it comes first.
+    const bool files = a.report.pass_calls || b.report.pass_calls;
+    if (files) compare_sdk_logs(a, b, verdict);
     compare_memory(hook, entry, stack_limit, pages, a, b, verdict);
-    compare_sdk_logs(a, b, verdict);
+    if (!files) compare_sdk_logs(a, b, verdict);
     const uint64_t t_compared = now_ns();
     const Report& ra = a.report;
     const Report& rb = b.report;
@@ -1958,6 +2352,11 @@ void install(std::span<const game::Function> functions, const Config& config) {
     // XBCMP_EVERY=N: test every N-th call after the first ones (with XBCMP_ONLY, to
     // reach calls the default sampling skips).
     if (const char* every = std::getenv("XBCMP_EVERY")) g_config.every = static_cast<uint32_t>(std::atoi(every));
+    // XBCMP_TIMEOUT_MS=N: a longer limit per test (long synchronous loads: SV_SpawnServer).
+    if (const char* timeout = std::getenv("XBCMP_TIMEOUT_MS")) {
+        const int ms = std::atoi(timeout);
+        if (ms > 0) g_config.timeout_ms = static_cast<uint32_t>(ms);
+    }
     xbcmp_child_stack_top = addr(xbcmp_child.stack + sizeof(xbcmp_child.stack));
     g_sdk_spec_count = 0;
     g_sdk_names.clear();
@@ -1973,6 +2372,18 @@ void install(std::span<const game::Function> functions, const Config& config) {
         }
         g_sdk_specs[g_sdk_spec_count++] = spec;
         g_sdk_names.push_back(call.name);
+    }
+    // A pass-through call's result (EAX) is a record of its own after the call: calls made
+    // inside it (APCs) come in between. Its address is never a fault address (xbcmp_text).
+    g_pass_result_spec = 0xFFFFFFFF;
+    if (g_sdk_spec_count < kMaxSdkSpecs) {
+        SdkSpec spec{};
+        spec.host_address = addr(reinterpret_cast<const void*>(&xbcmp_pass_return));
+        if (parse_sdk_args("s", spec)) {
+            g_pass_result_spec = g_sdk_spec_count;
+            g_sdk_specs[g_sdk_spec_count++] = spec;
+            g_sdk_names.push_back("(result)");
+        }
     }
     int replaced = 0, settled = 0;
     const std::map<uint32_t, Row> earlier =

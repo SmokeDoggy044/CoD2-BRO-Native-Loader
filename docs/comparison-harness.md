@@ -110,15 +110,20 @@ registers and calls the dispatcher. For a tested call:
   at once with the original, through a trampoline, so it always continues with the
   original's results. Up to `Config::parallel` tests (default: half the CPUs) run at
   once; a sampled call that finds them all busy is not tested.
-- The coordinator forks a child, which forks a grandchild before anything runs, so
-  that both start from the same copy of memory: the child runs the **original**, the
-  grandchild the **decompiled** version.
+- The coordinator forks a child, which forks two test processes before anything runs and
+  waits for them, so that both start from the same copy of memory: one runs the
+  **original**, the other the **decompiled** version. (Until 2026-10-28 the child ran the
+  original and forked the other itself; glibc's fork handler then rewrote the malloc arenas'
+  bookkeeping in one side only.)
 - Each test process first makes every host mapping **non-executable** except the
   title's code, the harness's section (`xbcmp_text`), `libcod_bro_game.so` and the C
   runtime (libc, libm, libstdc++, libgcc_s, ld.so). Any call into other host code -
   a kernel export, an SDK replacement, the window, GPU or sound - faults, and the
   test ends as *inconclusive* with the caller named. So a test process can never
-  touch the game's devices, sockets or files.
+  touch the game's devices, sockets or files. File calls are the exception (below, File
+  calls); a seccomp filter (`install_file_guard`) keeps them read-only: in a test process
+  every system call that changes a file, sends data or starts a process fails with EPERM,
+  and writes and ioctls reach only the harness's own pipe, clear_refs and pagemap.
 - The dead stack below the caller's stack pointer (up to 16 KB, within the thread's
   stack) is zeroed as the function starts (`xbcmp_resume`), on both sides. Code that
   sends uninitialized locals - shader constant blocks whose unused lanes the title
@@ -234,6 +239,50 @@ caller's frame, which differs between the sides); what is written there is compa
 any other write. The first test through the lock path found a real bug
 (nglUpdateFogTable wrapped its columns at the width instead of the height); a planted
 0xfe in its texels was caught (4 of 53 calls, the ones that refill the table).
+
+## File calls
+
+The title's statically linked XAPI file functions (CreateFileA, ReadFile/ReadFileEx,
+SetFilePointer, GetFileSize, CloseHandle, FindFirstFileA, XGetDiskClusterSizeA,
+XGetFilePhysicalSortKey, GetOverlappedResult, SleepEx...) end in kernel exports. Those are
+**pass-through** calls in test processes (`SdkStandIn::Pass*`, the kernel list in
+`recorded_sdk_calls`, loader/patches.cpp): NtCreateFile/NtOpenFile (FILE_OPEN without write
+access only), NtReadFile, NtQueryInformationFile, NtSetInformationFile (the file position
+only), NtQueryFullAttributesFile, NtQueryDirectoryFile, NtQueryVolumeInformationFile,
+IoQueryVolumeInformation, NtClose, ObReferenceObjectByHandle/ObfDereferenceObject,
+NtWaitForSingleObjectEx, KeDelayExecutionThread, RtlInitAnsiString and RtlNtStatusToDosError.
+Each side runs the loader's own export in its own process (a copy of the game), so its
+handles, file positions, events and queued APCs stay consistent with its own title memory;
+nothing is replayed between the sides. Both sides' calls go into the recorded-call log -
+the arguments, the path or file mask (OBJECT_ATTRIBUTES / ANSI_STRING contents), then a
+`(result)` record with EAX - and must agree like any recorded call; with file calls in a test
+the log is compared before memory, so a different call is the first issue reported ("SDK call
+2 NtCreateFile: arguments differ at word 12"). Calls that would change a file (write access,
+create or overwrite dispositions, delete on close, NtSetInformationFile other than
+FilePositionInformation) and NtWriteFile, NtFlushBuffersFile and the rest end the test as
+inconclusive with the reason ("made a file call the harness does not run (it would change a
+file): NtCreateFile from 001e7dc1 XAPILIB::CreateFileA+0x6b").
+
+While an export runs, the loader's code is executable and the title's is not
+(`pass_mode`); the export returns through `xbcmp_pass_return`, which logs the result and
+switches back. A title routine the export calls (an APC from an alertable wait: ReadFileEx's
+completion) faults, runs in title mode, and switches back when it returns into the host (a
+stack of frames, 8 deep). The dead stack below each pass-through call's ESP (128 KB within the
+thread's stack) is zeroed first: host code copies struct padding it never set.
+Determinism of the host side: the host heap is compared like any written page, and the two
+sides must leave the same bytes there. Three things made them differ and were fixed: the
+fork order above, the pipe descriptors (both sides now move theirs above all eight pipe
+numbers, so files opened later get the same descriptor numbers on both sides) and
+heap blocks the test processes free before the test (prepare_maps reads /proc/self/maps into a
+static buffer; the seccomp builder has no padding). Checked by running the original on both
+sides: StreamRequest_OpenFile, Stream_QueueLoad and StreamRequest_Init, 41 tests, all matched.
+
+What stays inconclusive: anything waiting for another title thread - the file system's request
+thread (File_InitSystem's CreateThread), which a test process does not have: Stream_LoadSync
+and SV_SpawnServer spin in Stream_Update until it finishes; such tests time out, and the timeout
+message says what the test process was doing (" (running)", " (waiting: futex)", from
+/proc/PID/syscall). `XBCMP_TIMEOUT_MS=N` raises the per-test limit for long synchronous work.
+The recorded-call log holds 512 KB per side (level streaming makes many calls).
 
 ## Callers that rebuild the original's frame
 
@@ -473,8 +522,9 @@ nglVec4ToColor (alpha from blue: 75 of 285).
 - A decompiled function taken by address in the loader executable would get its
   PLT entry, which is host code to the harness: take addresses inside the library
   (`game::functions()` does).
-- Calls into kernel exports and SDK replacements not recorded (above) end a test, so
-  functions that need them (files, locks, D3D getters and Lock) stay inconclusive. Possible later: pure stand-ins for
+- Calls into kernel exports and SDK replacements not recorded or passed through (above) end
+  a test, so functions that need them (file writes, locks, D3D getters and Lock) stay
+  inconclusive. Possible later: pure stand-ins for
   common ones inside the test processes (critical sections without contention,
   Rtl string functions).
 - Later, optional: record a function's inputs during play and replay them offline

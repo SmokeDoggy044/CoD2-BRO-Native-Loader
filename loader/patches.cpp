@@ -1498,6 +1498,28 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         {"KeQuerySystemTime", "x", compare::SdkStandIn::SystemTime},
         {"RtlEnterCriticalSection", "s"},
         {"RtlLeaveCriticalSection", "s"},
+        // File calls (XAPI's CreateFileA, ReadFile(Ex), SetFilePointer, GetFileSize, CloseHandle,
+        // FindFirstFileA, XGetDiskClusterSizeA, GetOverlappedResult, SleepEx...): pass-through, the
+        // loader's export runs in the test process; only calls that leave the files as they are.
+        // Pointers that may be into the caller's frame (status blocks, out parameters) are `x`.
+        {"NtCreateFile", "x s x x x s s s s", compare::SdkStandIn::PassCreateFile},
+        {"NtOpenFile", "x s x x s s", compare::SdkStandIn::PassOpenFile},
+        {"NtReadFile", "s s s s x x s s:8", compare::SdkStandIn::Pass},
+        {"NtQueryInformationFile", "s x x s s", compare::SdkStandIn::Pass},
+        {"NtSetInformationFile", "s x s:a3*1 s s", compare::SdkStandIn::PassSetInformation},
+        {"NtQueryFullAttributesFile", "x x", compare::SdkStandIn::PassAttributes},
+        {"NtQueryDirectoryFile", "s s s s x x s s x s", compare::SdkStandIn::PassDirectory},
+        {"NtQueryVolumeInformationFile", "s x x s s", compare::SdkStandIn::Pass},
+        {"NtClose", "s", compare::SdkStandIn::Pass},
+        {"NtWaitForSingleObjectEx", "s s s s:8", compare::SdkStandIn::Pass},
+        {"KeDelayExecutionThread", "s s s:8", compare::SdkStandIn::Pass},
+        // XGetFilePhysicalSortKey: the file object's volume information, by reference.
+        {"ObReferenceObjectByHandle", "s s x", compare::SdkStandIn::Pass},
+        {"ObfDereferenceObject", "ecx", compare::SdkStandIn::Pass},
+        {"IoQueryVolumeInformation", "s s s x x", compare::SdkStandIn::Pass},
+        // String and status helpers the XAPI file functions call (no state).
+        {"RtlInitAnsiString", "x x", compare::SdkStandIn::Pass},
+        {"RtlNtStatusToDosError", "s", compare::SdkStandIn::Pass},
     };
     for (const RecordedCall& call : kRecordedKernelCalls) {
         uint32_t host = 0;

@@ -56,7 +56,21 @@ enum class SdkStandIn : uint8_t {
     // KeQuerySystemTime(time): *time = 0 on both sides (GetSystemTimeAsFileTime -> CRT _clock: the file
     // request and sound bank timers, CL_Frame).
     SystemTime,
+    // Kernel file exports that test processes run for real (pass-through, docs/comparison-harness.md
+    // "File calls"): each side runs the loader's own export on its own copy of the process, so its
+    // handles, file positions, events and APCs stay consistent with its title memory. Both sides'
+    // calls are logged (arguments, the path, then the result) and must agree. Anything that would
+    // change a file ends the test as inconclusive instead.
+    Pass,               // runs as it is
+    PassCreateFile,     // NtCreateFile: only FILE_OPEN without write access; logs the path (arg 2)
+    PassOpenFile,       // NtOpenFile: only without write access; logs the path (arg 2)
+    PassAttributes,     // NtQueryFullAttributesFile: logs the path (arg 0)
+    PassDirectory,      // NtQueryDirectoryFile: logs the file mask (ANSI_STRING*, arg 8)
+    PassSetInformation, // NtSetInformationFile: FilePositionInformation (14) only
 };
+
+// Whether a recorded call is a pass-through (runs the real export in the test process).
+constexpr bool is_pass(SdkStandIn s) { return s >= SdkStandIn::Pass; }
 
 struct SdkCall {
     const char* name;
@@ -100,8 +114,7 @@ struct Config {
     // is not tested.
     uint32_t parallel = 0;
     // SDK replacements recorded in test processes (any other ends a test as inconclusive).
-    std::vector<SdkCall> sdk_calls;
-};
+    std::vector<SdkCall> sdk_calls;};
 
 // Hooks `functions`: Replaced ones always, Compare ones only when testing is enabled.
 // Call once, before the title runs. `functions` must outlive the process.
