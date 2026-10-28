@@ -14185,3 +14185,8 @@ address,name,kind,confidence,evidence
 002775f0,CG_SetObjectiveMessage,function,medium,"from the body (cgame module push 2026-10-28)"
 00278790,CG_AddAdsGunOffset,function,medium,"from the body (cgame module push 2026-10-28)"
 002788b0,CG_AddWeaponIdleSway,function,medium,"from the body (cgame module push 2026-10-28)"
+00278400,CG_UpdateWeaponLag,function,medium,"from the body (cgame module push 2026-10-28)"
+00282ef0,CG_RotateAnglesByView,function,medium,"from the body (cgame module push 2026-10-28)"
+002808b0,CG_PlayViewWeaponAnim,function,medium,"from the body (cgame module push 2026-10-28)"
+002803d0,CG_OffsetViewForward,function,medium,"from the body (cgame module push 2026-10-28)"
+002812d0,CG_ApplyVehicleTurnToView,function,medium,"from the body (cgame module push 2026-10-28)"

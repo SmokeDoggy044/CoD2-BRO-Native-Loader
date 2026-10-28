@@ -8632,7 +8632,7 @@
 00278150 CG_DrawFlashFade
 002782a0 CG_StoreQuantizedGunAngles
 00278350 CG_StoreGunOffsetFromView
-00278400 FUN_00278400
+00278400 CG_UpdateWeaponLag
 00278790 CG_AddAdsGunOffset
 002788b0 CG_AddWeaponIdleSway
 002789f0 Angles2Normalize180
@@ -8729,11 +8729,11 @@
 0027fe10 CG_StartShakeCamera
 0027ff20 CG_ProjectViewDirToScreen
 002800a0 CG_CenterPrint
-002803d0 FUN_002803d0
+002803d0 CG_OffsetViewForward
 002807a0 CG_ViewToWorld
-002808b0 FUN_002808b0
+002808b0 CG_PlayViewWeaponAnim
 00280ed0 CG_UpdateViewWeaponAdsAnims
-002812d0 FUN_002812d0
+002812d0 CG_ApplyVehicleTurnToView
 00281ad0 CG_OffsetFirstPersonView
 00281f30 CG_DrawObjectives
 00281fa0 CG_PointContents
@@ -8744,7 +8744,7 @@
 002824f0 CG_DrawViewDirIcon
 00282620 CG_DrawAdsOverlay
 00282d10 CG_CalculateWeaponPosition
-00282ef0 FUN_00282ef0
+00282ef0 CG_RotateAnglesByView
 00283120 CG_CreateViewWeaponDObj
 002832b0 CG_RegisterWeapon
 002840e0 CG_UpdateViewWeaponAnim
