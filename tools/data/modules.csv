@@ -1,5 +1,5 @@
 kind,pattern,module,note
-# A function's module: the first matching name prefix (regex at the start of the name), else the first address range it falls in, else "unassigned".
+# A function's module: the first matching name prefix (regex at the start of the name), else its row in module_hints.csv (provisional, tools/sort_unnamed.py), else the first address range it falls in, else "mslib" for a library-named function, else "unassigned".
 prefix,(ngl|cd[A-Z]|Shader|R_|RE_|RB_|GLimp|myGL|DObj|XModel|FX_|tr_),renderer,NGL scenes/state/textures/meshes, shader classes, tr_* refexport side, models, effects
 prefix,(CG_|cg_),cgame,
 prefix,(CL_|UI_|FE_|Con_|Key_|IN_|SCR_|Menu_|Field_),client,client and front-end UI
@@ -67,3 +67,8 @@ prefix,(Ent_Callback348Stub|Pain_Func|ShakeRumble_StartByName$),game,entity call
 prefix,(BaseWindingForPlane$),collision,Q3 polylib (2026-10-25 zero-caller pass)
 prefix,(BroLvl_oran_SetupEvent4Chains$),levelscript,oran hangar chain setup compiled into .text (2026-10-25 zero-caller pass)
 prefix,(Veh_),game,vehicle helpers (2026-10-25)
+range,0x0002bfa1-0x000423ae,mslib,XGRAPHICS TrueType font rasteriser (xfont/fsg/sfac/itrp): unnamed ones are the library's functions the signature matcher missed (2026-10-27)
+range,0x000d27b9-0x001199d1,mslib,XVOICE codec and UIX menu library block (2026-10-27)
+range,0x001e6d14-0x001fa3d6,mslib,XAPILIB and LIBCMT block (2026-10-27)
+range,0x00379dfb-0x00379e38,mslib,UIX feature destructors registered with atexit (2026-10-27)
+range,0x0033ac80-0x0033afd0,mslib,LIBCMT x87 intrinsics (__CIfmod..__CItan) and their helpers (2026-10-27)

@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,536 | 2,536 | 8,657 |
+| Engine and game code (`.text`) | 11,193 | 8,610 | 2,536 | 8,657 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,524** | **2,536** | **13,981** |
+| **Total** | **16,517** | **11,598** | **2,536** | **13,981** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -40,22 +40,23 @@ We've also named 2,659 of the game's global variables.
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,063 | 1,018 | 44 | 0 | 0 |
-| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,666 | 432 | 39 | 1,191 | 0 |
-| Client game (HUD, view, effects on screen) | 284 | 165 | 24 | 95 | 0 |
-| Engine core (memory, files, settings, commands, containers, math) | 896 | 234 | 14 | 637 | 0 |
-| Client and menus | 707 | 458 | 220 | 29 | 0 |
-| Server, collision, compression | 239 | 111 | 15 | 113 | 0 |
-| Script engine (script VM, entity bindings, built-in script functions) | 1,993 | 12 | 0 | 1,981 | 0 |
-| Level-script helpers in the engine code | 1,396 | 0 | 0 | 1,389 | 0 |
-| Sound, streaming, online | 305 | 106 | 4 | 194 | 0 |
-| Microsoft C runtime pieces the library matcher missed (replaced, not rewritten) | 11 | 0 | 0 | 11 | 0 |
-| Not sorted into a part yet | 2,633 | 0 | 0 | 0 | 1,026 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,086 | 1,018 | 44 | 15 | 8 |
+| Game logic (entities, AI, animation, weapons, level-script runtime) | 1,910 | 432 | 39 | 1,225 | 210 |
+| Client game (HUD, view, effects on screen) | 300 | 165 | 24 | 96 | 15 |
+| Engine core (memory, files, settings, commands, containers, math) | 959 | 234 | 14 | 646 | 54 |
+| Client and menus | 760 | 458 | 220 | 33 | 49 |
+| Server, collision, compression | 254 | 111 | 15 | 119 | 9 |
+| Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 12 | 0 | 1,986 | 6 |
+| Level-script helpers in the engine code | 1,444 | 0 | 0 | 1,389 | 48 |
+| Sound, streaming, online | 329 | 106 | 4 | 194 | 24 |
+| Microsoft library code built into the game (replaced, not rewritten) | 2,084 | 0 | 0 | 11 | 466 |
+| Not sorted into a part yet | 63 | 0 | 0 | 0 | 63 |
 
-1,607 of the unsorted functions are Microsoft's own library code that was built into
-the game (the C runtime, the Xbox system library, the UIX menu library, the voice
-codec). We recognise them by comparing their bytes with the Xbox SDK's libraries, so
-they have their real names; they still count towards the total.
+The Microsoft library row is Microsoft's own code that was built into the game (the C
+runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType
+font rasteriser). We recognise 1,607 of these functions by comparing their bytes with
+the Xbox SDK's libraries, so they have their real names; the unnamed ones sit in the
+same blocks. They still count towards the total.
 <!-- progress:end -->
 
 Most functions aren't sorted into a part yet. That happens as they get named: until

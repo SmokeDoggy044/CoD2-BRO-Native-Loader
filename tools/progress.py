@@ -3,7 +3,10 @@
 
 Reads the symbol file, the XBE's section table, our name lists (manual_names.csv,
 applied q3_name_proposals.csv), game/code/functions.cpp (decompiled functions) and
-functions.csv (comparison results); modules come from tools/data/modules.csv.
+functions.csv (comparison results); modules come from tools/data/modules.csv
+(name prefix first, then tools/data/module_hints.csv - provisional modules by address,
+see tools/sort_unnamed.py - then address ranges); library-named functions that
+nothing else sorts go to "mslib".
 Writes tools/data/progress.csv (one row per function) and prints a summary.
 
 usage: tools/progress.py [--module NAME [--state STATE]] [--readme]
@@ -61,7 +64,10 @@ def load_modules():
             else:
                 lo, hi = (int(x, 16) for x in pattern.split("-"))
                 ranges.append((lo, hi, module))
-    return prefixes, ranges
+    hints = {}
+    if (DATA / "module_hints.csv").exists():
+        hints = {int(r["address"], 16): r["module"] for r in csv.DictReader(open(DATA / "module_hints.csv"))}
+    return prefixes, ranges, hints
 
 
 def main():
@@ -95,7 +101,7 @@ def main():
     if (DATA / "accepted.csv").exists():
         for r in csv.DictReader(open(DATA / "accepted.csv")):
             accepted[int(r["address"], 16)] = re.compile(r["issue"])
-    prefixes, ranges = load_modules()
+    prefixes, ranges, hints = load_modules()
     secs = sections()
 
     rows = []
@@ -108,8 +114,10 @@ def main():
             module = sec.lower()
         else:
             module = next((m for p, m in prefixes if p.match(name)), None)
-            module = module or next((m for lo, hi, m in ranges if lo <= a < hi), None) or "unassigned"
+            module = module or hints.get(a) or next((m for lo, hi, m in ranges if lo <= a < hi), None)
         unnamed = name.startswith("FUN_") or name.startswith("thunk_FUN_")
+        if module is None:
+            module = "mslib" if not unnamed and a not in ours else "unassigned"
         r = results.get(a)
         tested = matched = 0
         if a in decompiled:
@@ -184,7 +192,7 @@ PARTS = [
     ("Script engine (script VM, entity bindings, built-in script functions)", {"script"}),
     ("Level-script helpers in the engine code", {"levelscript"}),
     ("Sound, streaming, online", {"sound", "streaming", "online"}),
-    ("Microsoft C runtime pieces the library matcher missed (replaced, not rewritten)", {"crt"}),
+    ("Microsoft library code built into the game (replaced, not rewritten)", {"mslib", "crt"}),
 ]
 
 
@@ -237,11 +245,13 @@ def write_readme(rows, excluded):
         c = collections.Counter(r[4] for r in rs)
         waiting = c["untested"] + c["inconclusive"] + c["mismatched"]
         out.append(f"| {label} | {n(len(rs))} | {n(done_(rs))} | {n(waiting)} | {n(c['named'])} | {n(c['unnamed'])} |")
-    lib = sum(1 for r in text if r[3] not in assigned and r[4] == "library")
-    out += ["", f"{n(lib)} of the unsorted functions are Microsoft's own library code that was built into",
-            "the game (the C runtime, the Xbox system library, the UIX menu library, the voice",
-            "codec). We recognise them by comparing their bytes with the Xbox SDK's libraries, so",
-            "they have their real names; they still count towards the total."]
+    ms = [r for r in text if r[3] in ("mslib", "crt")]
+    lib = sum(1 for r in ms if r[4] == "library")
+    out += ["", f"The Microsoft library row is Microsoft's own code that was built into the game (the C",
+            "runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType",
+            f"font rasteriser). We recognise {n(lib)} of these functions by comparing their bytes with",
+            "the Xbox SDK's libraries, so they have their real names; the unnamed ones sit in the",
+            "same blocks. They still count towards the total."]
     pct = round(100 * named_(rows) / len(rows))
     intro = [f"It's early days: about {pct}% of the functions have a name, and {n(done_(rows))} have been",
              "rewritten in C++. The renderer is the part we're working on now."]
