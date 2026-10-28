@@ -640,4 +640,41 @@ extern "C" void StreamRequest_Start_entry(void);
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL StreamRequest_OpenFile(uint8_t* record);
 extern "C" void StreamRequest_OpenFile_entry(void);
 
+// --- Streaming module push, third part (2026-10-28) ---
+
+// Zone images (request +0x7c): groups +8 (0x18 bytes each, count +0xc; name +0 (8 chars: "AUDIO", "VIDEO", "ANIM"),
+// item count u16 +0xc, entry count u16 +0xe, items +0x10, entries +0x14). Items (0x1c bytes): file offset +0, size +4,
+// flags +0xc (1 slot memory, 2 heap, 4 read, 8 owns its buffer), read request +0x10 (-1 none), buffer +0x14, buffer
+// size +0x18. Entries (0x14 bytes): name +0, size +8, item +0xc, offset in the item +0x10. The request's current group
+// is +0x80, its entry +0xd4, that entry's data +0xd8; slot bits +0x54 (the zone's) and +0x64 (one-slot item buffers).
+
+// 0x0028f2f0 (stdcall: request): its file's reads aborted (+0x88 = -1), the current group's item reads cleared, the
+// +0x64 slots handed back (StreamMem_MoveSlots), owned item buffers freed; the image copied to a Heap_Alloc16 block
+// (unrelocated, copied, relocated; +0x84 = +0x7c = it), 0x0095f610 cleared, the file closed: +0x50 = -1, +0xdc = 0.
+void XB_STDCALL StreamRequest_Cancel(uint8_t* record);
+// 0x00291960 (request in EDI): finished item reads of the current group (File_GetRequestStatus -1) marked read (flag 4,
+// load progress 0x0095f738 advanced by the 32 KB-rounded size); with none pending, the next unread item with a size
+// queued (File_QueueRequestEx at its offset into its buffer, callback 0x00291940, priority 0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_PollChunkReads(uint8_t* record);
+extern "C" void Stream_PollChunkReads_entry(void);
+// 0x00292220 (request in EAX): 1 in AL when the current entry's item is read (flag 4, or its request done) or its read
+// has reached the entry's end (File_GetRequestProgress); else 0, with the progress shown (Stream_SetLoadProgress).
+uint8_t XB_REGS1 XB_CDECL Stream_IsChunkReady(uint8_t* record);
+// 0x002920c0 (name in EAX, stream system in EDI; kind, 16-byte block on the stack, ret 0x14): a file not on the disc is
+// looked up in the pak (+0x18: its zone's file name +8 instead), else UI_ShowDamagedDiscScreen; a request (0xe4 bytes
+// from 0x0095f624, StreamRequest_Init) linked at the list's end (+0x370), stored in slot +0x1c (the next free one of 99
+// becomes +0x1c), state +0x10 = 0, +0x20 = its id, and by kind 0 / 7 / 2 also +0x2c / +0x28 / +0x34. Returns the id.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_QueueLoad(uint8_t* system, const char* name, uint32_t kind,
+                                                              const uint32_t* block);
+extern "C" void Stream_QueueLoad_entry(void);
+// 0x00291610 (stdcall: zone selector manager, data, zone): relocated (+0x18), data +0x40 = zone; each selector's
+// (+0x10 count, +0x14 list) name +0x20 and each box set's (+0x34 count, +0x38 list; entries +0x1c count, +0x20 list,
+// 12 bytes each) name +0 resolved to the pak's zone (+0x24 / +4; 0 without a pak or name); the data stored at manager
+// +4 + zone * 4 and linked at the end of the +0x1cc chain (+0x3c), +0x1d0 + 1, the view +0x1c0 / +0x1a0 = data +0x24 /
+// +0x28 (Stream_SetViewPosition). Then 0x00988ce0 = the "sky" texture (Stream_FindInZones in the zone of the first
+// listed request with kind 2, else -1); returns it.
+uint32_t XB_STDCALL Stream_ParseZbb(uint8_t* manager, uint8_t* data, uint32_t zone);
+// 0x0028bea0 Space (load handler): a bare RET; unhookable, not in kFunctions.
+void XB_CDECL Stream_LoadSpace(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+
 }  // namespace game

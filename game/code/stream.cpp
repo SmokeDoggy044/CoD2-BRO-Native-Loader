@@ -3246,4 +3246,271 @@ uint32_t XB_CDECL StreamRequest_OpenFile(uint8_t* record) {
     return result;
 }
 
+
+// --- Streaming module push, third part ---
+
+namespace {
+
+void file_pump() { title_function<void XB_CDECL()>(0x000ca690)(); }  // File_PumpRequests
+
+int32_t file_status(int32_t request) {
+    return title_function<int32_t XB_CDECL(int32_t)>(0x000c9db0)(request);  // File_GetRequestStatus
+}
+
+uint8_t* load_progress() { return &title_global<uint8_t>(0x0095f738); }
+
+// The request's current group of its zone image (+0x7c groups +8, index +0x80).
+uint8_t* current_group(const uint8_t* record) {
+    return word_at<uint8_t*>(word_at<uint8_t*>(record, 0x7c), 8) + word_at<uint32_t>(record, 0x80) * 0x18;
+}
+
+uint8_t* group_item(const uint8_t* group, uint32_t index) { return word_at<uint8_t*>(group, 0x10) + index * 0x1c; }
+
+// Slot bit arrays (two words each, then the second pair): any slot set.
+bool has_slots(const uint8_t* bits) {
+    for (uint32_t i = 0; i < 2; ++i)
+        if (word_at<uint32_t>(bits, i * 4)) return true;
+    for (uint32_t i = 0; i < 2; ++i)
+        if (word_at<uint32_t>(bits, 8 + i * 4)) return true;
+    return false;
+}
+
+// The image moved out of the shared read buffer into its own Heap_Alloc16 block (+0x84 = +0x7c = it).
+uint8_t* keep_image(uint8_t* record) {
+    uint8_t* const copy = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c30)(  // Heap_Alloc16
+        word_at<uint32_t>(word_at<uint8_t*>(record, 0x7c), 0x10));
+    Stream_UnrelocateZone(word_at<uint8_t*>(record, 0x7c));
+    const uint8_t* const image = word_at<uint8_t*>(record, 0x7c);
+    platform_rep_movs(copy, image, word_at<uint32_t>(image, 0x10));
+    return copy;
+}
+
+// Owned item buffers (flag 8, and `mask` bits) of the current group freed and cleared.
+void free_item_buffers(uint8_t* record, uint32_t mask) {
+    const uint8_t* const group = current_group(record);
+    for (int32_t i = 0; i < int32_t(word_at<uint16_t>(group, 0xc)); ++i) {
+        uint8_t* const item = group_item(group, uint32_t(i));
+        const uint32_t flags = word_at<uint32_t>(item, 0xc);
+        if (!(flags & 8) || (flags & mask) != mask) continue;
+        if (word_at<uint32_t>(item, 0x14)) z_free(word_at<uint32_t>(item, 0x14));
+        word_at<uint32_t>(item, 0x14) = 0;
+        word_at<uint32_t>(item, 0x18) = 0;
+    }
+}
+
+// The pak's zone (+0x18: string map +8, count +0x10, zones +0x14) of a name, 0 without a pak or match.
+uint32_t pak_zone_of(const char* name) {
+    const uint8_t* const pak = word_at<const uint8_t*>(global_context(), 0x18);
+    if (!pak) return 0;
+    const uint32_t* const found = Stream_StringMapFind_call(pak + 8, &name);
+    if (!found) return 0;
+    return word_at<const uint32_t*>(pak, 0x14)[wrap_index(*found, word_at<uint32_t>(pak, 0x10))];
+}
+
+}  // namespace
+
+void XB_STDCALL StreamRequest_Cancel(uint8_t* record) {
+    file_pump();
+    const int32_t file = word_at<int32_t>(record, 0x50);
+    if (file != -1) {
+        title_function<void XB_CDECL(int32_t)>(0x000cac20)(file);  // File_AbortRequestsForFile
+        word_at<int32_t>(record, 0x88) = -1;
+    }
+    if (word_at<uint8_t*>(record, 0x7c)) {
+        for (int32_t i = 0; i < int32_t(word_at<uint16_t>(current_group(record), 0xc)); ++i) {
+            uint8_t* const item = group_item(current_group(record), uint32_t(i));
+            if (word_at<int32_t>(item, 0x10) != -1) word_at<int32_t>(item, 0x10) = -1;
+        }
+    }
+    if (has_slots(record + 0x64))
+        StreamMem_MoveSlots(0, reinterpret_cast<uint32_t*>(record + 0x64), title_global<uint32_t*>(0x0095f62c), -1);
+    free_item_buffers(record, 0);
+    uint8_t* const copy = keep_image(record);
+    word_at<uint8_t*>(record, 0x84) = copy;
+    word_at<uint8_t*>(record, 0x7c) = copy;
+    Stream_RelocateZone(0, copy, 1);
+    title_global<uint8_t>(0x0095f610) = 0;
+    file_pump();
+    title_function<int32_t XB_CDECL(int32_t)>(0x000cac90)(word_at<int32_t>(record, 0x50));  // File_Close
+    word_at<int32_t>(record, 0x50) = -1;
+    word_at<uint32_t>(record, 0xdc) = 0;
+}
+
+PLATFORM_ASM_ENTRY(Stream_PollChunkReads_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Stream_PollChunkReads) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Stream_PollChunkReads(uint8_t* record) {
+    file_pump();
+    int32_t pending = 0;
+    for (int32_t i = 0; i < int32_t(word_at<uint16_t>(current_group(record), 0xc)); ++i) {
+        uint8_t* const item = group_item(current_group(record), uint32_t(i));
+        const int32_t request = word_at<int32_t>(item, 0x10);
+        if (request == -1) continue;
+        const int32_t status = file_status(request);
+        if (status != -1) {
+            ++pending;
+            continue;
+        }
+        word_at<int32_t>(item, 0x10) = status;
+        word_at<uint32_t>(item, 0xc) |= 4;
+        const uint32_t size = (word_at<uint32_t>(item, 4) + 0x7fff) & 0xffff8000;
+        Stream_SetLoadProgress(0, int32_t(size), load_progress());
+        const float zero = 0.0f;
+        title_global<float>(0x0095f744) = (zero - title_global<float>(0x0095f740)) + title_global<float>(0x0095f744);
+        title_global<float>(0x0095f740) = zero;
+        title_global<uint32_t>(0x0095f73c) += size;
+        title_global<uint32_t>(0x0095f738) = 0;
+    }
+    if (pending >= 1) return;
+    for (int32_t i = 0; i < int32_t(word_at<uint16_t>(current_group(record), 0xc)); ++i) {
+        uint8_t* const item = group_item(current_group(record), uint32_t(i));
+        if (word_at<int32_t>(item, 0x10) == -1 && !(item[0xc] & 4) && word_at<uint32_t>(item, 4)) {
+            const uint32_t size = (word_at<uint32_t>(item, 4) + 0x7fff) & 0xffff8000;
+            const int32_t request = title_function<int32_t XB_CDECL(int32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
+                0x000cae70)(word_at<int32_t>(record, 0x50), word_at<uint32_t>(item, 0), word_at<uint32_t>(item, 0x14),
+                            size, 0x00291940);  // File_QueueRequestEx
+            word_at<int32_t>(item, 0x10) = request;
+            title_function<uint32_t XB_CDECL(int32_t, uint32_t)>(0x000c9df0)(request, 0);  // File_SetRequestPriority
+            ++pending;
+            title_global<float>(0x0095f740) = 0.0f;
+            title_global<uint32_t>(0x0095f738) = 0;
+        }
+        if (pending == 1) return;
+    }
+}
+
+uint8_t XB_REGS1 XB_CDECL Stream_IsChunkReady(uint8_t* record) {
+    const uint8_t* const entry = word_at<uint8_t*>(current_group(record), 0x14) + word_at<uint32_t>(record, 0xd4) * 0x14;
+    Stream_PollChunkReads(record);
+    const uint8_t* const item = group_item(current_group(record), word_at<uint32_t>(entry, 0xc));
+    if (item[0xc] & 4) return 1;
+    const int32_t request = word_at<int32_t>(item, 0x10);
+    if (request == -1) return 0;
+    if (file_status(request) == -1) return 1;
+    const uint32_t needed = word_at<uint32_t>(record, 0xd8) - word_at<uint32_t>(item, 0x14) + word_at<uint32_t>(entry, 8);
+    // File_GetRequestProgress writes {bytes read, time}, or nothing for an unknown request (tests zero the dead stack).
+    uint32_t progress[2] = {};
+    title_function<void XB_CDECL(int32_t, uint32_t*)>(0x000c9ea0)(request, progress);
+    if (progress[0] >= needed) return 1;
+    Stream_SetLoadProgress(0, int32_t(progress[0]), load_progress());
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(Stream_QueueLoad_entry,
+                   "leal 8(%esp), %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Stream_QueueLoad) "addl $16, %esp\n"
+                   "ret $0x14")
+
+uint32_t XB_CDECL Stream_QueueLoad(uint8_t* system, const char* name, uint32_t kind, const uint32_t* block) {
+    using FileExists = int32_t XB_CDECL(uint32_t, const char*);
+    const uint32_t device = title_global<uint32_t>(0x0095f6f4);
+    const char* file = name;
+    if (!title_function<FileExists>(0x000cae10)(device, name)) {  // File_Exists
+        bool found = false;
+        const uint8_t* const pak = word_at<const uint8_t*>(system, 0x18);
+        if (pak) {
+            file = reinterpret_cast<const char*>(pak + 8);  // the original's EBX after StringMap_Find
+            const uint32_t* const index = Stream_StringMapFind_call(pak + 8, &name);
+            if (index && word_at<const uint32_t*>(pak, 0x14)[wrap_index(*index, word_at<uint32_t>(pak, 0x10))]) {
+                const uint8_t* const zone = title_function<uint8_t* XB_REGS3 XB_CDECL(uint8_t*, uint32_t, const char*)>(
+                    0x0028fad0)(system, 0, name);  // Pak_FindZone
+                file = word_at<const char*>(zone, 8);
+                found = title_function<FileExists>(0x000cae10)(device, file) != 0;
+            }
+        }
+        if (!found) title_function<void XB_CDECL(uint32_t)>(0x0033aa20)(0x0095f8d0);  // UI_ShowDamagedDiscScreen
+    }
+    const uint32_t id = word_at<uint32_t>(system, 0x1c);
+    uint8_t* record = reinterpret_cast<uint8_t*>(uintptr_t{title_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(
+        0x00044850)(title_global<uint32_t>(0x0095f624), 0xe4, 0)});  // SmallHeap_Alloc
+    if (record) record = StreamRequest_Init(record, file, kind, id, block);
+    word_at<uint8_t*>(record, 0) = system + 0x36c;  // a failed allocation writes through null, as the original
+    uint8_t* const last = word_at<uint8_t*>(system, 0x370);
+    word_at<uint8_t*>(record, 4) = last;
+    word_at<uint8_t*>(last, 0) = record;
+    const uint32_t count = word_at<uint32_t>(system, 0x364) + 1;
+    word_at<uint8_t*>(system, 0x370) = record;
+    word_at<uint32_t>(system, 0x364) = count;
+    word_at<uint8_t*>(system, 0x38 + id * 4) = record;
+    if (word_at<uint32_t>(record, 0x48) == 6) ++word_at<uint32_t>(system, 0x578);
+    int32_t next = word_at<int32_t>(system, 0x1c);
+    do {
+        next = (next + 1) % 0x63;
+    } while (word_at<uint32_t>(system, 0x38 + uint32_t(next) * 4));
+    word_at<int32_t>(system, 0x1c) = next;
+    word_at<uint32_t>(system, 0x10) = 0;
+    word_at<uint32_t>(system, 0x20) = id;
+    if (kind == 0)
+        word_at<uint32_t>(system, 0x2c) = id;
+    else if (kind == 7)
+        word_at<uint32_t>(system, 0x28) = id;
+    else if (kind == 2)
+        word_at<uint32_t>(system, 0x34) = id;
+    return id;
+}
+
+uint32_t XB_STDCALL Stream_ParseZbb(uint8_t* manager, uint8_t* data, uint32_t zone) {
+    relocate_pack(data, 0x18);
+    word_at<uint32_t>(data, 0x40) = zone;
+    for (uint32_t i = 0; i < word_at<uint32_t>(data, 0x10); ++i) {
+        uint8_t* const selector = word_at<uint8_t**>(data, 0x14)[wrap_index(i, word_at<uint32_t>(data, 0x10))];
+        word_at<uint32_t>(selector, 0x24) =
+            word_at<const uint8_t*>(global_context(), 0x18) ? pak_zone_of(word_at<const char*>(selector, 0x20)) : 0;
+    }
+    for (uint32_t j = 0; j < word_at<uint32_t>(data, 0x34); ++j) {
+        uint8_t* const list = word_at<uint8_t**>(data, 0x38)[wrap_index(j, word_at<uint32_t>(data, 0x34))] + 0x1c;
+        for (uint32_t k = 0; k < word_at<uint32_t>(list, 0); ++k) {
+            uint8_t* const entry = word_at<uint8_t*>(list, 4) + wrap_index(k, word_at<uint32_t>(list, 0)) * 12;
+            word_at<uint32_t>(entry, 4) =
+                word_at<const uint8_t*>(global_context(), 0x18) ? pak_zone_of(word_at<const char*>(entry, 0)) : 0;
+        }
+    }
+    word_at<uint8_t*>(manager, 4 + zone * 4) = data;
+    int32_t last = word_at<int32_t>(manager, 0x1cc);
+    if (last == -1) {
+        word_at<uint32_t>(manager, 0x1cc) = zone;
+    } else {
+        int32_t next = word_at<int32_t>(word_at<uint8_t*>(manager, 4 + uint32_t(last) * 4), 0x3c);
+        while (next != -1) {
+            last = next;
+            next = word_at<int32_t>(word_at<uint8_t*>(manager, 4 + uint32_t(last) * 4), 0x3c);
+        }
+        word_at<uint32_t>(word_at<uint8_t*>(manager, 4 + uint32_t(last) * 4), 0x3c) = zone;
+    }
+    ++word_at<uint32_t>(manager, 0x1d0);
+    word_at<uint32_t>(manager, 0x1c0) = word_at<uint32_t>(data, 0x24);
+    uint8_t view[16];
+    std::memcpy(view, data + 0x28, 16);
+    std::memcpy(manager + 0x1a0, view, 16);
+    // One 16-aligned local: the view position for Stream_SetViewPosition, then the hashed "sky".
+    alignas(16) uint32_t local[8] = {};
+    std::memcpy(local, data + 0x28, 16);
+    Stream_SetViewPosition(manager, word_at<uint32_t>(data, 0x24), reinterpret_cast<const float*>(local), 0);
+    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x00011060)(local, title_text(0x008330c0));  // HashStr_Init
+    uint8_t* const system = global_context();
+    uint8_t* node = word_at<uint8_t*>(system, 0x368);
+    uint8_t* next = node ? word_at<uint8_t*>(node, 0) : nullptr;
+    uint32_t id = 0xffffffff;
+    if (node != system + 0x36c && next) {
+        for (;;) {
+            if (word_at<uint32_t>(node, 0x48) == 2) {
+                id = word_at<uint32_t>(node, 0x74);
+                break;
+            }
+            node = next;
+            next = word_at<uint8_t*>(next, 0);
+            if (!next) break;
+        }
+    }
+    const uint32_t sky = Stream_FindInZones(0, 0, local, title_global<uint32_t>(0x0095f630), id, 0);
+    title_global<uint32_t>(0x00988ce0) = sky;
+    return sky;
+}
+
+void XB_CDECL Stream_LoadSpace(char*, uint8_t*, uint32_t, uint32_t) {}
+
 }  // namespace game
