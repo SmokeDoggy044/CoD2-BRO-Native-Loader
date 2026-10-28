@@ -507,6 +507,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002ac0b0,IN_MLookDown,4000,4000,0,0,100.0
 002acb40,CG_WeaponSlotFromName,3692,3692,0,0,100.0
 002aecd0,AnimTree_IsLeafOrSynced,2949,2949,0,0,100.0
+002aed00,AnimTree_SetSyncFlag_r,1434,1434,0,0,98.6
 002b00a0,Q_strcat,1264,1264,0,0,100.0
 002b00f0,Q_stricmp,3679,3679,0,0,100.0
 002b0250,COM_ParseExt,3478,3478,0,0,26.8
