@@ -1281,7 +1281,7 @@ void stop_all_sounds() {
 }
 
 void stop_all_channels() {
-    title_function<void XB_STDCALL(uint32_t)>(0x002c8c20)(title_global<uint32_t>(0x0095f4c4));  // S_StopAllChannels
+    title_function<void XB_STDCALL(uint32_t)>(0x002c8c20)(title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
 }
 
 }  // namespace
@@ -1526,7 +1526,7 @@ void XB_CDECL CL_Frame(uint32_t entry, const TitleRegs* in) {
     title_global<uint32_t>(top + 0xc) = time;
     call_at(top, 0x000ca690, regs);  // File_PumpRequests
     const uint32_t sound = title_global<uint32_t>(0x0095f4c4);
-    call_at(top, 0x002c8c20, regs, Args{{sound}, 1});  // S_StopAllChannels
+    call_at(top, 0x002c8c20, regs, Args{{sound}, 1});  // S_UpdateChannels
     const uint32_t banks = title_global<uint32_t>(0x0095f4c0);
     call_at(top, 0x002c8f60, regs, Args{{banks}, 1});  // S_CheckWaveBankNotifies
     if (title_global<uint32_t>(0x0095e608)) {

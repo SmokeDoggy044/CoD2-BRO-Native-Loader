@@ -14201,3 +14201,4 @@ address,name,kind,confidence,evidence
 0031e3b0,SoundMenu_UpdateSliders,function,medium,"from the body (sound module push 2026-10-28)"
 00221710,Voice_UpdateTalkerMode,function,medium,"from the body (sound module push 2026-10-28)"
 00221920,Voice_InitNotifications,function,medium,"from the body (sound module push 2026-10-28)"
+002c8c20,S_UpdateChannels,function,medium,"per-frame channel update: SndSys_Update, then per channel re-apply or stop by voice state and the solo owner 0x008dda84 (was S_StopAllChannels, 2026-10-28)"

@@ -2842,7 +2842,7 @@ const Function kFunctions[] = {
     {"IN_UpDown", 0x002c7de0, 0, code(&IN_UpDown), 0, Result::None, Status::Compare},
     {"S_UpdateCrossfade", 0x002c8830, 0, code(&S_UpdateCrossfade), 4, Result::None, Status::Compare},
     {"S_StopSoundHandle", 0x002c8bc0, 0, code(&S_StopSoundHandle_entry), 0, Result::None, Status::Compare},
-    {"S_StopAllChannels", 0x002c8c20, 0, code(&S_StopAllChannels), 4, Result::None, Status::Compare},
+    {"S_UpdateChannels", 0x002c8c20, 0, code(&S_UpdateChannels), 4, Result::None, Status::Compare},
     {"S_StopUnpausedChannels", 0x002c8d30, 0, code(&S_StopUnpausedChannels), 0, Result::None, Status::Compare},
     {"S_StopAllSounds", 0x002c8d60, 0, code(&S_StopAllSounds_entry), 0, Result::None, Status::Compare},
     {"S_FreeLevelSounds", 0x002c8ed0, 0, code(&S_FreeLevelSounds), 0, Result::None, Status::Compare},

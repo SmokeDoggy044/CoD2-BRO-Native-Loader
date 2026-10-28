@@ -4123,7 +4123,7 @@ void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart) {
         TitleRegs regs{};
         regs.ebx = title_global<uint32_t>(0x0095f4c4);
         cg_call_regs(0x002c8d60, &regs, nullptr, 0);  // S_StopAllSounds
-        title_function<void XB_STDCALL(uint32_t)>(0x002c8c20)(title_global<uint32_t>(0x0095f4c4));  // S_StopAllChannels
+        title_function<void XB_STDCALL(uint32_t)>(0x002c8c20)(title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
     }
     const char* const info = configstring(0x009606c4);
     TitleRegs regs{};

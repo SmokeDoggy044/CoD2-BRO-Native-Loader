@@ -2746,7 +2746,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002c7de0,IN_UpDown,compare,28,18,18,0,0,0,""
 002c8830,S_UpdateCrossfade,compare,14181,7136,7136,0,0,0,""
 002c8bc0,S_StopSoundHandle,compare,109,101,101,0,0,0,""
-002c8c20,S_StopAllChannels,compare,23349,367,0,0,0,367,"original called host code at 080ad80c from 000c79ac SndHw_Update+0x27c [.text]"
+002c8c20,S_UpdateChannels,compare,23349,367,0,0,0,367,"original called host code at 080ad80c from 000c79ac SndHw_Update+0x27c [.text]"
 002c8d30,S_StopUnpausedChannels,compare,13,21,21,0,0,0,""
 002c8d60,S_StopAllSounds,compare,1325,820,0,0,0,820,"original called host code at 080ad61f from 000c783c SndHw_Update+0x10c [.text]"
 002c8ed0,S_FreeLevelSounds,compare,0,4,0,0,0,4,"original called host code at 080ad61f from 000c783c SndHw_Update+0x10c [.text]"

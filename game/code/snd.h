@@ -109,7 +109,7 @@ extern "C" void S_StopChannel_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL S_StopSoundHandle(uint32_t* handle);
 extern "C" void S_StopSoundHandle_entry(void);
 // 0x002c8d60 (sound system in EBX): S_StopChannel on all 0x200 channels (0x30 bytes each), stops the crossfade's
-// first channel (0x0095f4cc) and resets the crossfade (state 2, length and time 0), then S_StopAllChannels.
+// first channel (0x0095f4cc) and resets the crossfade (state 2, length and time 0), then S_UpdateChannels.
 extern "C" PLATFORM_HIDDEN void XB_CDECL S_StopAllSounds(uint8_t* system);
 extern "C" void S_StopAllSounds_entry(void);
 
@@ -373,7 +373,7 @@ uint8_t* XB_THISCALL SoundBankManager_DeletingDtor(uint8_t* manager, uint32_t fl
 // bytes) with no solo owner (0x008dda84 = -1): a finished voice with +9 set stopped, a playing or paused (+8) one
 // re-applied (S_ReapplyChannelParams), a finished one stopped; with a solo owner the channels of that owner (+0x20)
 // re-applied while playing or paused, every other channel with a voice stopped.
-void XB_STDCALL S_StopAllChannels(uint8_t* channels);
+void XB_STDCALL S_UpdateChannels(uint8_t* channels);
 // 0x000c3700: with both guard strings intact (0x0090a89c "NSL_WORK_GUARD0", 0x0090a8a0 "NSL_WORK_GUARD1"; else
 // nothing): the frame time 0x0090a8a4 (0 on the first frame), Snd_UpdateTime into 0x0090a8ac, frame count
 // 0x0090a8b0; SndBank_UpdateLoads, SndVoice_ApplyParams, SndSource_CommitDirty, Snd_UpdateListenerAxis; every
@@ -381,7 +381,7 @@ void XB_STDCALL S_StopAllChannels(uint8_t* channels);
 // (tail jump) SndHw_Update (Xbox DirectSound layer, title code).
 uint32_t XB_CDECL SndSys_Update();
 
-// 0x002c31a0 (channel in EAX; S_StopAllChannels' playing / paused channels): with a voice, its params again from
+// 0x002c31a0 (channel in EAX; S_UpdateChannels' playing / paused channels): with a voice, its params again from
 // the channel - 0 = base (+0x1c) * volume (+0x10), 1 = pitch (+0xc), 0x19 = near (+0x14), 0x1a = far (+0x18),
 // 0x1c = 4.0 (twice) - then its origin from the source (+0x28: +0x30) or else the owner entity (+0x20, handle table
 // 0x0097a968: +0x140) and a zero velocity (0x0082e110).

@@ -570,7 +570,7 @@ void XB_CDECL S_StopAllSounds(uint8_t* system) {
     emitter_word<uint32_t>(current, 0x1c) = 2;
     emitter_word<float>(current, 0x14) = 0.0f;
     emitter_word<float>(current, 0x18) = 0.0f;
-    title_function<void XB_STDCALL(uint8_t*)>(0x002c8c20)(system);  // S_StopAllChannels
+    title_function<void XB_STDCALL(uint8_t*)>(0x002c8c20)(system);  // S_UpdateChannels
 }
 
 void XB_CDECL SndSource_CommitDirty() {
@@ -2062,7 +2062,7 @@ uint8_t* XB_THISCALL SoundBankManager_DeletingDtor(uint8_t* manager, uint32_t fl
 
 // --- Per-frame update ---
 
-void XB_STDCALL S_StopAllChannels(uint8_t* channels) {
+void XB_STDCALL S_UpdateChannels(uint8_t* channels) {
     SndSys_Update();
     for (uint32_t i = 0; i < 0x200; ++i) {
         uint8_t* const channel = channels + i * 0x30;

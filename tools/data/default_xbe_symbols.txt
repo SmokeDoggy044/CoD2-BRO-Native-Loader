@@ -9669,7 +9669,7 @@
 002c84e0 PM_NoclipMove
 002c8830 S_UpdateCrossfade
 002c8bc0 S_StopSoundHandle
-002c8c20 S_StopAllChannels
+002c8c20 S_UpdateChannels
 002c8d30 S_StopUnpausedChannels
 002c8d60 S_StopAllSounds
 002c8ed0 S_FreeLevelSounds

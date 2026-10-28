@@ -3499,7 +3499,7 @@ uint32_t XB_CDECL FE_FadeOut(const FrameIn* in, uint32_t entry_esp) {
                     field<float>(channel, 0x10) = *f.local<float>(0x68);
                 }
             }
-            f.call(0x70, 0x0032d97a, 0x002c8c20, title_global<uint32_t>(0x0095f4c4));  // S_StopAllChannels
+            f.call(0x70, 0x0032d97a, 0x002c8c20, title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
             // two frames of the black quad at the fade alpha (0x008d2088 << 24)
             const uint32_t quad = f.entry - 0x64;
             for (uint32_t frames = 2; frames; --frames) {
@@ -3532,7 +3532,7 @@ uint32_t XB_CDECL FE_FadeOut(const FrameIn* in, uint32_t entry_esp) {
     f.call(0x70, 0x0032da15, 0x002c8d60);                                 // S_StopAllSounds (EBX)
     const uint32_t mode = f.call(0x70, 0x0032da1a, 0x000c34f0);           // Snd_GetSpeakerMode
     f.call(0x70, 0x0032da20, 0x000c3500, mode);                           // S_SetMasterAttenuation
-    return f.call(0x70, 0x0032da2f, 0x002c8c20, title_global<uint32_t>(0x0095f4c4));  // S_StopAllChannels
+    return f.call(0x70, 0x0032da2f, 0x002c8c20, title_global<uint32_t>(0x0095f4c4));  // S_UpdateChannels
 }
 
 FE_FRAME_ENTRY(FE_LoadPanel, "ret")
