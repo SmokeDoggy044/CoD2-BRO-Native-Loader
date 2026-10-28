@@ -148,4 +148,23 @@ extern "C" void CG_AddGunMoveOffset_entry(void);
 // 0x002782a0 (angles in ECX): the ADS view's quantized pitch/yaw into 0x00972fa0/4.
 void XB_THISCALL CG_StoreQuantizedGunAngles(const float* angles);
 
+// 0x002b7060 (channel in EDI; result in XMM0): 1-D gradient noise over the channel's octaves
+// (+0 start, +4 octaves, +8 frequency, +0xc amplitude).
+extern "C" PLATFORM_HIDDEN float XB_CDECL CameraShake_NoiseSample(float* channel);
+extern "C" void CameraShake_NoiseSample_entry(void);
+// 0x002c3710 (type in EAX, shake in ESI; stdcall out vector): adds the shake's noise offset to out.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CameraShake_ComputeOffset(int32_t type, uint8_t* shake, float* out);
+extern "C" void CameraShake_ComputeOffset_entry(void);
+// 0x002c9270 (manager in ECX; stdcall view matrix): the active shakes rotate the view matrix. Returns it.
+float* XB_THISCALL CameraShake_Evaluate(uint8_t* manager, float* view);
+
+// 0x00278790 (angles in EDI; under CG_CalculateWeaponAngles): the ADS pitch offset (weapon +0x770 x
+// the ADS fraction, direction tracked in 0x00972a74) plus CG_CalcGunRotOffset, kept in 0x00972aa4 and
+// added to angles.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_AddAdsGunOffset(float* angles);
+extern "C" void CG_AddAdsGunOffset_entry(void);
+// 0x002788b0 (angles in EDX; under CG_CalculateWeaponAngles): the weapon's idle sway by stance, sines
+// of the time on the x87.
+void XB_REGS2 XB_CDECL CG_AddWeaponIdleSway(uint32_t unused, float* angles);
+
 }  // namespace game

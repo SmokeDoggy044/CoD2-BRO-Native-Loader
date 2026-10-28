@@ -13,6 +13,7 @@
 #include "g_utils.h"
 #include "ngl.h"
 #include "qcommon.h"
+#include "script_string.h"
 #include "title_data.h"
 #include "tr_main.h"
 
@@ -3162,6 +3163,35 @@ int32_t XB_CDECL HudElem_Alloc() {
         return index;
     }
     return -1;
+}
+
+void XB_CDECL CG_InitServerCommandHashes() {
+    // The case-blind hashes of the 21 server commands CG_ServerCommand dispatches on (0x0094c500):
+    // startCam, stopCam, cp, cs, print, gm, gmb, object_update, object_complete, opendeadscreen,
+    // openvictoryscreen, clientLevelShot, saveshot, mu_play, mu_stop, snd_fade, scr_fade, fog, ls,
+    // popupopen, popupclose.
+    static const uint32_t kNames[21] = {0x00838c58, 0x00838c50, 0x00838c4c, 0x008352e8, 0x00838c44, 0x008325c0,
+                                        0x008325bc, 0x00838c34, 0x00838c24, 0x00838c14, 0x00838c00, 0x008352d8,
+                                        0x00838bf4, 0x00838bec, 0x00838be4, 0x00838bd8, 0x00838bcc, 0x00838bc8,
+                                        0x00838bc4, 0x00838bb8, 0x00831d88};
+    for (uint32_t i = 0; i < 21; ++i) title_global<uint32_t>(0x0094c500 + i * 4) = 0;
+    for (uint32_t i = 0; i < 21; ++i)
+        title_global<uint32_t>(0x0094c500 + i * 4) =
+            Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{kNames[i]}));
+}
+
+PLATFORM_ASM_ENTRY(CG_SetObjectiveMessage_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_SetObjectiveMessage) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_SetObjectiveMessage(const char* text) {
+    // The objective message (ScriptString 0x00975810) shown for 3 s (0x0095f65c); the same text while
+    // it shows does not restart it.
+    float& timer = title_global<float>(0x0095f65c);
+    if (!(0.0f >= timer) && ScriptString_Equals(&title_global<ScriptString>(0x00975810), text)) return;
+    timer = g(0x0083ec9c);  // 3
+    title_function<void XB_THISCALL(ScriptString*, const char*)>(0x0011dd20)(&title_global<ScriptString>(0x00975810),
+                                                                            text);  // ScriptString_AssignCString
 }
 
 }  // namespace game

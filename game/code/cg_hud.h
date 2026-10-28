@@ -156,4 +156,21 @@ void XB_THISCALL HudCompGrenadeCook_Setup(uint8_t* self, uint8_t* panel);
 // 0x00319110 (vtable +8): the clip / reserve ammo texts of the current weapon.
 void XB_THISCALL HudCompAmmo_Update(uint8_t* self, uint32_t dt);
 
+// 0x00318840 (vtable +8): the tank health bar's quad from the player tank's health.
+void XB_THISCALL HudCompTankHealth_Update(uint8_t* self, uint32_t dt);
+// 0x00330350 (vtable +4): the HUD panel to every component's setup, the hint text and scroll bar.
+void XB_THISCALL HudManager_Setup(uint8_t* self, uint8_t* panel);
+
+// The tank shells indicator (vtable 0x00829664; no Ghidra functions): 0x00012400 deleting destructor
+// (no children), 0x003242b0 setup ("tankshells03" / "tankshells02"), 0x00318780 update (the player
+// tank's shell state, game import +0x798, into +0x10), 0x003113a0 draw (+8 with +0x10, else +0xc),
+// 0x00318750 widescreen (both pictures scaled for the aspect).
+uint8_t* XB_THISCALL HudCompTankShells_DeletingDtor(uint8_t* self, uint32_t flags);
+void XB_THISCALL HudCompTankShells_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompTankShells_Update(uint8_t* self, uint32_t dt);
+void XB_THISCALL HudCompTankShells_Draw(uint8_t* self);
+void XB_THISCALL HudCompTankShells_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+// 0x00011fc0 (no Ghidra function): the shared HUD component vtable +0x14, visible (+4) = the flag's byte.
+void XB_THISCALL HudComponent_SetVisible(uint8_t* self, uint32_t on);
+
 }  // namespace game

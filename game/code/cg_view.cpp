@@ -1649,4 +1649,220 @@ void XB_THISCALL CG_StoreQuantizedGunAngles(const float* angles) {
     title_global<uint32_t>(0x00972fa4) = title_global<uint32_t>(0x00972bf4);
 }
 
+namespace {
+
+template <typename T>
+T& field(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CameraShake_NoiseSample_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CameraShake_NoiseSample) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL CameraShake_NoiseSample(float* channel) {
+    // 1-D gradient noise (Noise_Init's tables: permutation 0x0093e758, gradients 0x0093eff0) at
+    // channel[0] (a random start in 0..16383 once out of range) + time * frequency [2], summed over
+    // the octave count [1] (frequency doubling, amplitude halving), times the amplitude [3].
+    if (0.0f > channel[0] || channel[0] > g(0x0083ee50))  // 16384
+        channel[0] = static_cast<float>(title_function<int32_t XB_CDECL()>(0x001efcc0)() % 16384);  // rand
+    const float t = static_cast<float>(gi(0x0097253c)) * g(0x0083eb4c) * channel[2] + channel[0];
+    float sum = 0.0f;
+    float amplitude = g(0x0083eb20);
+    const uint32_t* const octaves = reinterpret_cast<const uint32_t*>(channel + 1);
+    for (uint32_t i = 1; i <= *octaves; ++i) {
+        const float x = platform_x87_mul(static_cast<float>(static_cast<int32_t>(i)), t);
+        if (!gi(0x0095f560)) title_function<void XB_CDECL()>(0x002a7da0)();  // Noise_Init
+        const float v = x + g(0x0083ed4c);                                 // 4096
+        const int32_t n = static_cast<int32_t>(v);
+        const uint32_t index = static_cast<uint32_t>(n) & 0xff;
+        const float f = v - static_cast<float>(n);
+        const float g0 = g(0x0093eff0 + static_cast<uint32_t>(gi(0x0093e758 + index * 4)) * 4);
+        const float g1 = g(0x0093eff0 + static_cast<uint32_t>(gi(0x0093e758 + ((index + 1) & 0xff) * 4)) * 4);
+        const float a = g0 * f;
+        const float b = (f - g(0x0083eb20)) * g1 - a;
+        const float s = (g(0x0083ec9c) - f * g(0x0083eba8)) * f * f;  // 3 - 2f
+        const float value = b * s + a;
+        sum = value * amplitude + sum;
+        amplitude = amplitude * g(0x0083eb24);  // 0.5
+    }
+    return channel[3] * sum;
+}
+
+PLATFORM_ASM_ENTRY(CameraShake_ComputeOffset_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CameraShake_ComputeOffset) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL CameraShake_ComputeOffset(int32_t type, uint8_t* shake, float* out) {
+    // Adds the shake's two noise channels (+0xc x, +0x1c y) to out's x/y (all four lanes, ADDPS):
+    // scaled by the strength +4, faded in over the last 0.1 of the time left (+0x30); type 0 also by
+    // +0x2c and the time left, type 1 only while time is left; other types add nothing.
+    const float left = field<float>(shake, 0x30);
+    float scale = field<float>(shake, 4);
+    float x;
+    float y;
+    if (type == 0) {
+        if (g(0x0083ebf8) > field<float>(shake, 0x30))
+            scale = field<float>(shake, 0x30) * g(0x0083eb98) * field<float>(shake, 4);  // 0.1, 10
+        y = CameraShake_NoiseSample(&field<float>(shake, 0x1c)) * field<float>(shake, 0x2c) * scale * left;
+        x = CameraShake_NoiseSample(&field<float>(shake, 0xc)) * field<float>(shake, 0x2c) * scale * left;
+    } else if (type == 1) {
+        if (field<float>(shake, 0x30) != g(0x0083eafc) && g(0x0083ebf8) > field<float>(shake, 0x30))
+            scale = field<float>(shake, 0x30) * g(0x0083eb98) * field<float>(shake, 4);
+        y = CameraShake_NoiseSample(&field<float>(shake, 0x1c)) * scale;
+        x = CameraShake_NoiseSample(&field<float>(shake, 0xc)) * scale;
+    } else {
+        return;
+    }
+    const float offset[4] = {x, y, 0.0f, 0.0f};
+    float sum[4];
+    for (uint32_t i = 0; i < 4; ++i) sum[i] = out[i] + offset[i];
+    for (uint32_t i = 0; i < 4; ++i) out[i] = sum[i];
+}
+
+float* XB_THISCALL CameraShake_Evaluate(uint8_t* manager, float* view) {
+    // Unless paused (0x0094c7a4): each of the 5 active shakes (+0xc, 0x40 apart; +0x3c active) advances
+    // its phase (+4 += rate +8 * frame time 0x008ddaa0) and, for timed types (table 0x008d5138, 0x20
+    // per type: duration +4 > 0), its time left (+0x30; off at 0); its offset (CameraShake_ComputeOffset
+    // with the table's mode +2) becomes a rotation applied to the view matrix's rotation; the
+    // translation row stays.
+    if (gi(0x0094c7a4)) return view;
+    const float dt = g(0x008ddaa0);
+    uint8_t* slot = manager + 0xc;
+    for (int32_t n = 5; n != 0; --n, slot += 0x40) {
+        if (!field<uint32_t>(slot, 0x3c)) continue;
+        const uint8_t* row = &title_global<uint8_t>(0x008d5138);
+        while (*reinterpret_cast<const int16_t*>(row) != field<int32_t>(slot, 0)) row += 0x20;
+        if (field<float>(slot, 8) != 0.0f) field<float>(slot, 4) = field<float>(slot, 8) * dt + field<float>(slot, 4);
+        if (*reinterpret_cast<const float*>(row + 4) > 0.0f) {
+            const float left = field<float>(slot, 0x30) - dt;
+            field<float>(slot, 0x30) = left;
+            if (0.0f >= left) field<uint32_t>(slot, 0x3c) = 0;
+        }
+        if (!field<uint32_t>(slot, 0x3c)) continue;
+        alignas(16) float offset[4] = {g(0x0082e680), g(0x0082e684), g(0x0082e688), g(0x0082e68c)};
+        CameraShake_ComputeOffset(*reinterpret_cast<const int16_t*>(row + 2), slot, offset);
+        alignas(16) float q[4] = {};
+        alignas(16) float m[4] = {};
+        alignas(16) float matrix[16] = {};
+        title_function<void XB_REGS3 XB_CDECL(uint32_t, const float*, float*)>(0x002c90c0)(0, offset, q);  // Quat_FromRotationVector
+        title_function<uint32_t XB_REGS3 XB_STDCALL(const float*, uint32_t, float*, float*)>(0x002ae350)(view, 0, m, m);  // Mat44_ToQuatTranslation
+        const float r1 = q[3] * m[3] - m[0] * q[0] + q[2] * m[2] + q[1] * m[1];
+        const float r2 = q[2] * m[1] + q[3] * m[0] + q[0] * m[3] - m[2] * q[1];
+        const float r3 = m[1] * q[3] + m[2] * q[0] + q[1] * m[3] - q[2] * m[0];
+        const float r0 = m[2] * q[3] + q[1] * m[0] + q[2] * m[3] - m[1] * q[0];
+        m[3] = r1;
+        m[0] = r2;
+        m[1] = r3;
+        m[2] = r0;
+        title_function<uint32_t XB_REGS3 XB_STDCALL(uint32_t, uint32_t, float*, const float*)>(0x002bdc80)(0, 0, matrix, m);  // Quat_ToMat44
+        for (uint32_t i = 12; i < 16; ++i) matrix[i] = view[i];
+        for (uint32_t i = 0; i < 16; ++i) view[i] = matrix[i];
+    }
+    return view;
+}
+
+PLATFORM_ASM_ENTRY(CG_AddAdsGunOffset_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CG_AddAdsGunOffset) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_AddAdsGunOffset(float* angles) {
+    // For weapons with an aim-down-sight blend (+0x6dc): while the ADS fraction (0x009725d8) is
+    // between 0 and 1 its direction (0x00972a74: 1 rising) is tracked against the last fraction
+    // (0x00972a70; reset with 0x00972a78 = 0 when that was 0 or 1); the pitch offset is the
+    // weapon's +0x770 times the fraction. CG_CalcGunRotOffset adds the sway; the offset
+    // (0x00972aa4) is added to angles.
+    float offset[3] = {0.0f, 0.0f, 0.0f};
+    const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[gi(0x009725d0)];
+    if (*reinterpret_cast<const uint32_t*>(def + 0x6dc)) {
+        const float ads = g(0x009725d8);
+        const float one = g(0x0083eb20);
+        if (ads != one && ads != 0.0f) {
+            const float last = g(0x00972a70);
+            uint32_t rising;
+            if (ads == last)
+                rising = title_global<uint32_t>(0x00972a74);
+            else
+                rising = ads >= last ? 1 : 0;
+            if (last == one || last == 0.0f) {
+                title_global<uint32_t>(0x00972a74) = rising;
+                title_global<float>(0x00972a78) = 0.0f;
+            }
+        }
+        title_global<float>(0x00972a70) = ads;
+        offset[0] = wf(0x770) * ads;
+    }
+    CG_CalcGunRotOffset(offset);
+    title_global<float>(0x00972aa4) = offset[0];
+    title_global<float>(0x00972aa8) = offset[1];
+    title_global<float>(0x00972aac) = offset[2];
+    const float x = angles[0] + offset[0];
+    angles[1] = angles[1] + offset[1];
+    angles[2] = angles[2] + offset[2];
+    angles[0] = x;
+}
+
+namespace {
+
+// *out += sin(time * rate) * a * scale, all on the x87 (FILD, FMUL, FSIN, FMUL ST(1), FMUL, FADD, FSTP).
+void x87_add_sine_sway(const int32_t* time, const float* rate, long double a, const float* scale, float* out) {
+    __asm__ volatile(
+        "fldt %1\n\t"
+        "fildl %2\n\t"
+        "fmuls %3\n\t"
+        "fsin\n\t"
+        "fmul %%st(1), %%st\n\t"
+        "fmuls %4\n\t"
+        "fadds %0\n\t"
+        "fstps %0\n\t"
+        "fstp %%st(0)"
+        : "+m"(*out)
+        : "m"(a), "m"(*time), "m"(*rate), "m"(*scale)
+        : "st", "st(1)");
+}
+
+}  // namespace
+
+void XB_REGS2 XB_CDECL CG_AddWeaponIdleSway(uint32_t, float* angles) {
+    // The weapon's idle sway (+0x684, 80 when 0; blended to +0x680 by the ADS fraction for ADS
+    // weapons) scaled by the stance factor (0x00972ab0, moving at 0.0005 per ms towards prone +0x68c /
+    // crouch +0x688 / 1): sines of the time at 0.0005, 0.0007 and 0.001 rad/ms into roll (0.04), yaw
+    // and pitch (0.01), on the x87.
+    const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[gi(0x009725d0)];
+    float sway;
+    if (*reinterpret_cast<const uint32_t*>(def + 0x6dc)) {
+        sway = (wf(0x680) - wf(0x684)) * g(0x009725d8) + wf(0x684);
+    } else {
+        sway = wf(0x684);
+        if (sway == g(0x0083eafc)) sway = g(0x0083ee48);  // 0 -> 80
+    }
+    const uint8_t flags = title_global<uint8_t>(0x0097257c);
+    const float target = (flags & 1) ? wf(0x68c) : (flags & 2) ? wf(0x688) : g(0x0083eb20);
+    float& factor = title_global<float>(0x00972ab0);
+    const float current = factor;
+    if (target != current) {
+        const float step = static_cast<float>(gi(0x00972534)) * g(0x0083ee44);
+        if (target > current) {
+            const float next = step + current;
+            factor = next;
+            if (next > target) factor = target;
+        } else {
+            const float next = current - step;
+            factor = next;
+            if (target > next) factor = target;
+        }
+    }
+    const long double a = static_cast<long double>(factor) * sway;
+    const int32_t* const time = &title_global<int32_t>(0x0097253c);
+    x87_add_sine_sway(time, &g(0x0083ee44), a, &g(0x0083ed7c), &angles[2]);
+    x87_add_sine_sway(time, &g(0x0083ee40), a, &g(0x0083eb94), &angles[1]);
+    x87_add_sine_sway(time, &g(0x0083eb4c), a, &g(0x0083eb94), &angles[0]);
+}
+
 }  // namespace game

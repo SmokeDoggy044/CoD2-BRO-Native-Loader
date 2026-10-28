@@ -10,6 +10,8 @@
 #include "stream.h"
 #include "ngl.h"
 #include "title_data.h"
+#include "ui_menu.h"
+#include "ui_panel.h"
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
                                                             uint32_t edi);
@@ -1416,5 +1418,134 @@ void XB_THISCALL HudCompAmmo_Update(uint8_t* self, uint32_t) {
                                                     static_cast<uint32_t>(reinterpret_cast<uintptr_t>(buffer)));
     field<uint8_t>(self, 0x1c) = 0;
 }
+
+void XB_THISCALL HudCompTankHealth_Update(uint8_t* self, uint32_t) {
+    // The player tank's ("player_tank", game import 0x0095f49c +0x84) health fraction (+0x350 over the
+    // first health seen, +0x18) clamped to 0..1 sets the bar's quad (+0xc's first quad): its far x
+    // edge moves to the fraction of the picture's width (scale +0x34) and its far u by the fraction;
+    // horizontal unless the quad's first two u (+0x48 / +0x5c) are within 0.001.
+    if (!visible(self) || !object_at(self, 0xc)) return;
+    uint32_t handle = 0;
+    float fraction = 0.0f;
+    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&handle, hud_text(0x0082dd9c));  // ScriptString_FromCString
+    using FindFn = uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
+    const uint32_t entity = title_function<FindFn>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x84))(
+        &handle, title_global<uint32_t>(0x0095f8c8), 0, 0, 0);
+    title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&handle);  // ScriptString_Release
+    if (entity) {
+        handle = entity;
+        if (field<float>(self, 0x18) == gf(0x0083eb34)) {  // -1: not seen yet
+            if (field<int32_t>(G_EntHandleToEnt(&handle), 0x350) > 0)
+                field<float>(self, 0x18) = static_cast<float>(field<int32_t>(G_EntHandleToEnt(&handle), 0x350));
+        }
+        fraction = static_cast<float>(field<int32_t>(G_EntHandleToEnt(&handle), 0x350)) / field<float>(self, 0x18);
+    }
+    const float one = gf(0x0083eb20);
+    if (0.0f > fraction)
+        fraction = 0.0f;
+    else if (fraction > one)
+        fraction = one;
+    uint8_t* const bar = object_at(self, 0xc);
+    float used = fraction;
+    if (fraction > one) used = gf(0x0083eba8) - fraction;
+    uint8_t* const q = field<uint8_t*>(field<uint8_t*>(bar, 0x20), 0);
+    const float x0 = field<float>(q, 0x40);
+    const float x1 = field<float>(q, 0x48);
+    const float y0 = field<float>(q, 0x44);
+    const float y1 = field<float>(q, 0x80);
+    const float right = (field<float>(q, 0x24) - field<float>(q, 0)) * field<float>(bar, 0x34) * used + x0;
+    const float u1 = field<float>(q, 0x5c);
+    const float epsilon = gf(0x0083eb4c);
+    const bool vertical = x1 >= u1 ? epsilon > x1 - u1 : epsilon > u1 - x1;
+    float xs[4] = {x0, vertical ? x0 : right, vertical ? right : x0, right};
+    float ys[4] = {y0, vertical ? y1 : y0, vertical ? y0 : y1, y1};
+    NglQuad* const quad = reinterpret_cast<NglQuad*>(q + 0x40);
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(quad, i, xs[i], ys[i]);
+    const float a = field<float>(q, 0x48);
+    const float b = field<float>(q, 0x4c);
+    const float c = field<float>(q, 0x88);
+    const float a1 = a + used;
+    const float us[4] = {a, vertical ? a : a1, vertical ? a1 : a, a1};
+    const float vs[4] = {b, vertical ? c : b, vertical ? b : c, c};
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexUV(quad, i, us[i], vs[i]);
+}
+
+void XB_THISCALL HudManager_Setup(uint8_t* self, uint8_t* panel) {
+    // The HUD panel (+0x44, layer 7) handed to each component's setup (vtable +4; not the bomber map,
+    // icon count, meter or attached slots), then the hint text: a copy of the panel's "HintString"
+    // (UIText_Construct with its kind +0xb0, position +0xc8 / +0xcc, scale +0xa4, flags from +0xb4),
+    // two lines (+0x13c), white (+0x90), and the scroll bar of 0x0095f900's +0x1c.
+    field<uint8_t*>(self, 0x44) = panel;
+    Panel_SetLayer(panel, 7);
+    static const uint32_t kSlots[12] = {4, 8, 0xc, 0x10, 0x14, 0x18, 0x28, 0x2c, 0x34, 0x30, 0x38, 0x40};
+    for (uint32_t i = 0; i < 12; ++i)
+        if (uint8_t* const component = object_at(self, kSlots[i]))
+            method<WordMethod>(component, 4)(component, field<uint32_t>(self, 0x44));
+    uint8_t* const source = Panel_FindText(hud_text(0x0082dfe0), field<uint8_t*>(self, 0x44));
+    uint8_t* hint = static_cast<uint8_t*>(hud_malloc(0x98));
+    if (hint) {
+        using PtrMethod = uint32_t* XB_THISCALL(uint8_t*, uint32_t*);
+        using FloatGet = float XB_THISCALL(uint8_t*);
+        using WordGet = uint32_t XB_THISCALL(uint8_t*);
+        uint32_t scratch = 0;
+        const uint32_t scale = *method<PtrMethod>(source, 0xb4)(source, &scratch);
+        const float layer = method<FloatGet>(source, 0xa4)(source);
+        const float y = method<FloatGet>(source, 0xcc)(source);
+        const float x = method<FloatGet>(source, 0xc8)(source);
+        const uint32_t kind = method<WordGet>(source, 0xb0)(source);
+        uint32_t xb, yb, lb;
+        std::memcpy(&xb, &x, 4);
+        std::memcpy(&yb, &y, 4);
+        std::memcpy(&lb, &layer, 4);
+        hint = UIText_Construct(hint, static_cast<int32_t>(kind), xb, yb, 0, 0, lb, scale, 0, 0);
+    }
+    field<uint8_t*>(self, 0x3c) = hint;
+    method<WordMethod>(hint, 0x13c)(hint, 2);
+    method<WordMethod>(object_at(self, 0x3c), 0x90)(object_at(self, 0x3c), 0xffffffffu);
+    UIScrollBar_Construct(field<uint8_t*>(title_global<uint8_t*>(0x0095f900), 0x1c));
+}
+
+// ---- The tank shells indicator (HudCompTankShells, vtable 0x00829664; no Ghidra functions) ----
+// +8 / +0xc the two shell pictures, +0x10 which one shows.
+
+uint8_t* XB_THISCALL HudCompTankShells_DeletingDtor(uint8_t* self, uint32_t flags) {
+    field<uint32_t>(self, 0) = 0x008286fc;  // HudComponent vtable
+    if (flags & 1) z_free(self);
+    return self;
+}
+
+void XB_THISCALL HudCompTankShells_Setup(uint8_t* self, uint8_t* panel) {
+    field<uint8_t*>(self, 8) = Panel_FindPicture(panel, hud_text(0x0082dd8c));    // "tankshells03"
+    field<uint8_t*>(self, 0xc) = Panel_FindPicture(panel, hud_text(0x0082dd7c));  // "tankshells02"
+}
+
+void XB_THISCALL HudCompTankShells_Update(uint8_t* self, uint32_t) {
+    // While visible with pictures: the player tank's ("player_tank") shell state (game import +0x798).
+    if (!visible(self) || !object_at(self, 8)) return;
+    uint32_t name = 0;
+    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011eb50)(&name, hud_text(0x0082dd9c));  // ScriptString_FromCString
+    uint8_t* const import = title_global<uint8_t*>(0x0095f49c);
+    using FindFn = uint32_t XB_CDECL(uint32_t*, uint32_t, uint32_t, uint32_t, uint32_t);
+    const uint32_t entity =
+        title_function<FindFn>(field<uint32_t>(import, 0x84))(&name, title_global<uint32_t>(0x0095f8c8), 0, 0, 0);
+    title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&name);  // ScriptString_Release
+    if (!entity) return;
+    using StateFn = uint32_t XB_CDECL(uint32_t);
+    field<uint8_t>(self, 0x10) =
+        static_cast<uint8_t>(title_function<StateFn>(field<uint32_t>(title_global<uint8_t*>(0x0095f49c), 0x798))(entity));
+}
+
+void XB_THISCALL HudCompTankShells_Draw(uint8_t* self) {
+    if (!visible(self) || !object_at(self, 8)) return;
+    draw(object_at(self, field<uint8_t>(self, 0x10) ? 8 : 0xc));
+}
+
+void XB_THISCALL HudCompTankShells_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x) {
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, 8), center_x);
+    UIPicture_ScaleXForAspect(widescreen, object_at(self, 0xc), center_x);
+}
+
+// 0x00011fc0: every HUD component's vtable +0x14 (set visible, +4).
+void XB_THISCALL HudComponent_SetVisible(uint8_t* self, uint32_t on) { field<uint8_t>(self, 4) = uint8_t(on); }
 
 }  // namespace game
