@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "nal_math.h"
+#include "ngl.h"
 #include "qcommon.h"
 #include "title_data.h"
 
@@ -1841,6 +1842,150 @@ uint32_t XB_CDECL Anim_InitManagers(uint32_t config) {
     title_global<uint32_t>(0x00903d78) = config;
     title_global<uint32_t>(0x00903f9c) = config;
     return config;
+}
+
+
+namespace {
+
+// The managers' pass walk (twin of ngl.cpp's texture/mesh managers' for_each_pass): an
+// iterator from slot 5; per pass 1..passes, from its start (slot 1) while valid (slot 2):
+// the current item (slot 4) visited (manager slot 8: item, pass, context); a positive result
+// steps on (slot 3), else the iterator restarts (slot 1), and a zero one with `notify` calls
+// the manager's slot 1. The iterator is deleted (slot 0) at the end.
+void manager_for_each_pass(void** self, uint8_t notify, uint32_t context, int32_t passes) {
+    using Create = void** XB_THISCALL(void**);
+    using Step = void XB_THISCALL(void**);
+    using Valid = uint8_t XB_THISCALL(void**);
+    using Current = uint32_t XB_THISCALL(void**);
+    using Visit = int32_t XB_THISCALL(void**, uint32_t, int32_t, uint32_t);
+    using Delete = void XB_THISCALL(void**, uint32_t);
+    const auto slot = [](void** object, int index) {
+        return reinterpret_cast<uintptr_t>(static_cast<void**>(object[0])[index]);
+    };
+    void** it = title_function<Create>(slot(self, 5))(self);
+    for (int32_t pass = 1; pass <= passes; ++pass) {
+        title_function<Step>(slot(it, 1))(it);
+        while (title_function<Valid>(slot(it, 2))(it)) {
+            const uint32_t item = title_function<Current>(slot(it, 4))(it);
+            const int32_t result = title_function<Visit>(slot(self, 8))(self, item, pass, context);
+            if (result > 0) {
+                title_function<Step>(slot(it, 3))(it);
+            } else {
+                title_function<Step>(slot(it, 1))(it);
+            }
+            if (result == 0 && notify) title_function<Step>(slot(self, 1))(self);
+        }
+    }
+    if (it) title_function<Delete>(slot(it, 0))(it, 1);
+}
+
+// The 32-byte name of a listed object (+0x10 in the anim managers' lists).
+const uint32_t* anim_manager_name(const uint32_t* object) { return object + 4; }
+
+}  // namespace
+
+void XB_THISCALL NalManagerKey8_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes) {
+    manager_for_each_pass(self, notify, context, passes);
+}
+
+void XB_THISCALL AnimManager_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes) {
+    manager_for_each_pass(self, notify, context, passes);
+}
+
+const uint32_t* XB_THISCALL AnimManager_SkipListInsert(NglSkipList* self, const uint32_t* object) {
+    // nglSkipList_Insert's search on the name at +0x10: an object with the same name is
+    // returned (nothing inserted); else a node of random height is linked in, null returned.
+    if (!self->head) nglSkipList_InitHead(self);
+    const uint32_t* key = anim_manager_name(object);
+    NglSkipListNode* update[17];
+    NglSkipListNode* current = self->head;
+    NglSkipListNode* node;
+    int32_t level = self->level;
+    do {
+        node = current->next[level];
+        while (node) {
+            const uint32_t* other = anim_manager_name(node->key);
+            int i = 0;
+            while (i < 8 && other[i] == key[i]) ++i;
+            if (i == 8 || key[i] < other[i]) break;
+            current = node;
+            node = current->next[level];
+        }
+        update[level] = current;
+    } while (--level >= 0);
+    if (node) {
+        const uint32_t* other = anim_manager_name(node->key);
+        for (int i = 0; other[i] == key[i];) {
+            if (++i >= 8) return node->key;
+        }
+    }
+    int32_t height = nglSkipList_RandomLevel(self);
+    if (height > self->level) {
+        height = self->level + 1;
+        self->level = height;
+        update[height] = self->head;
+    }
+    auto* fresh = static_cast<NglSkipListNode*>(Mem_AlignedAlloc(static_cast<uint32_t>(height) * 4 + 8, 4, 0));
+    fresh->key = object;
+    for (int32_t i = height; i >= 0; --i) {
+        fresh->next[i] = update[i]->next[i];
+        update[i]->next[i] = fresh;
+    }
+    return nullptr;
+}
+
+const uint32_t* XB_THISCALL AnimManager_SkipListFind(const NglSkipList* self, const uint32_t* key) {
+    // nglSkipList_Find on the name at +0x10 of each object.
+    const NglSkipListNode* current = self->head;
+    if (!current) return nullptr;
+    int32_t level = self->level;
+    const NglSkipListNode* node;
+    do {
+        node = current->next[level];
+        while (node) {
+            const uint32_t* other = anim_manager_name(node->key);
+            int i = 0;
+            while (other[i] == key[i]) {
+                if (++i >= 8) return node->key;
+            }
+            if (key[i] < other[i]) break;  // down a level
+            current = node;
+            node = current->next[level];
+        }
+    } while (--level >= 0);
+    // The original compares the node it last stopped at once more.
+    if (node) {
+        const uint32_t* other = anim_manager_name(node->key);
+        for (int i = 0; other[i] == key[i];) {
+            if (++i >= 8) return node->key;
+        }
+    }
+    return nullptr;
+}
+
+void XB_CDECL StaticInit_AnimHashStrings() {
+    // The "generic" clip class's registry entry (0x00903fac: vtable 0x007c23ac, +4 the next
+    // entry, +8 the name hash, +0x28/+0x2c the class words of 0x00903f98/0x00903fdc), pushed
+    // on the class list 0x00909840.
+    uint32_t name[8];
+    title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(name, 0x007c2dcc);  // HashStr_Init, "generic"
+    title_global<uint32_t>(0x00903fb0) = title_global<uint32_t>(0x00909840);
+    for (uint32_t i = 0; i < 8; ++i) (&title_global<uint32_t>(0x00903fb4))[i] = name[i];
+    const uint32_t clip_class = title_global<uint32_t>(0x00903f98);
+    const uint32_t generic_class = title_global<uint32_t>(0x00903fdc);
+    title_global<uint32_t>(0x00909840) = 0x00903fac;
+    title_global<uint32_t>(0x00903fac) = 0x007c23ac;
+    title_global<uint32_t>(0x00903fd4) = clip_class;
+    title_global<uint32_t>(0x00903fd8) = generic_class;
+}
+
+void XB_CDECL StaticInit_Vec4_909850() {
+    // The default root record's rotation (0x00909850): the identity quaternion (0, 0, 0, 1).
+    uint32_t* v = &title_global<uint32_t>(0x00909850);
+    v[0] = 0;
+    v[1] = 0;
+    v[2] = 0;
+    v[3] = title_global<uint32_t>(0x0083eb20);  // 1.0f
 }
 
 }  // namespace game

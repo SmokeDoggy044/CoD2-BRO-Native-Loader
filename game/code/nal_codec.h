@@ -519,5 +519,17 @@ void XB_CDECL NAL_Float2_SkipFixedBlock(const uint32_t* context);
 void XB_CDECL NAL_Float4_CopyChannels(const uint8_t* group, uint8_t** dst, uint8_t** src);
 // 0x00081f50 (stdcall): one cached frame of 16-byte channels skipped (cursor aligned to 16).
 uint32_t XB_STDCALL NAL_Packed16_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+// 0x00022a00 / 0x00022a60 / 0x00022ac0 (the "COD_Note" channel class's SkipBlock,
+// DecodeFrames and DecodeBlock slots; stdcall, 4 / 7 / 5 words, only the context read): each
+// active channel's length-prefixed block ({size, data}) stepped over in stream A (context[3],
+// aligned to 4). The notes are read from the clip data later (NAL_Clip_FindChannelData).
+// Return the group (context[1]).
+uint32_t XB_STDCALL NAL_CodNote_SkipBlock(const uint32_t* context, uint32_t, uint32_t, uint32_t);
+uint32_t XB_STDCALL NAL_CodNote_DecodeFrames(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                             uint32_t);
+uint32_t XB_STDCALL NAL_CodNote_DecodeBlock(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t);
+// 0x00023390 (context in EDI): the same block skip (behind 0x00022ba0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_SkipActiveChannelBlocks(const uint32_t* context);
+extern "C" void NAL_SkipActiveChannelBlocks_entry(void);
 
 }  // namespace game

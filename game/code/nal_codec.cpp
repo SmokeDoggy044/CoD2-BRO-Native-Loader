@@ -2527,6 +2527,42 @@ void XB_CDECL NAL_Float4_CopyChannels(const uint8_t* group, uint8_t** dst, uint8
     *src += bytes;
 }
 
+namespace {
+
+// Every active channel's block, length-prefixed ({size including the word, data}), stepped
+// over in stream A (context[3], aligned to 4 first). Returns the group (context[1]).
+uint32_t skip_sized_blocks(const uint32_t* context) {
+    uint8_t** stream = reinterpret_cast<uint8_t**>(static_cast<uintptr_t>(context[3]));
+    *stream = align4(*stream);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (!channel_active(context, i)) continue;
+        uint8_t* block = *stream;
+        *stream = block + *reinterpret_cast<const uint32_t*>(block);
+    }
+    return context[1];
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL NAL_CodNote_SkipBlock(const uint32_t* context, uint32_t, uint32_t, uint32_t) {
+    return skip_sized_blocks(context);
+}
+
+uint32_t XB_STDCALL NAL_CodNote_DecodeFrames(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                             uint32_t) {
+    return skip_sized_blocks(context);
+}
+
+uint32_t XB_STDCALL NAL_CodNote_DecodeBlock(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t) {
+    return skip_sized_blocks(context);
+}
+
+PLATFORM_ASM_ENTRY(NAL_SkipActiveChannelBlocks_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(NAL_SkipActiveChannelBlocks) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL NAL_SkipActiveChannelBlocks(const uint32_t* context) { return skip_sized_blocks(context); }
+
 uint32_t XB_STDCALL NAL_Packed16_SkipCachedFrame(const uint32_t* context, uint8_t** cursor) {
     *cursor = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*cursor) + 0xf) & ~uintptr_t{0xf});
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {

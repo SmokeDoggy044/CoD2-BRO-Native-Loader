@@ -51,11 +51,17 @@ extern "C" void AnimWeights_Construct_entry(void);
 // 0x0001dc10 (this in EBX, kind in EAX, name in ECX, blend-in time in XMM0; callee pops 4):
 // the script for the entity named like `name` (or the camera), with its clip's root and
 // pelvis channels and channel weights.
-extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL AnimScript_Construct(uint8_t* self, uint32_t kind, const uint32_t* name,
-                                                                 float blend_in, uint32_t blend_out);
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL AnimScript_Construct(uint32_t entry, uint8_t* self, uint32_t kind,
+                                                                 const uint32_t* name, uint32_t blend_in,
+                                                                 uint32_t blend_out, uint32_t esi, uint32_t edi);
 extern "C" void AnimScript_Construct_entry(void);
 // 0x0001eb40 (vtable slot 3): weights deleted, the entity's script flags cleared,
 // notetracks released, the script freed.
 void XB_THISCALL AnimScript_Destroy(uint8_t* self);
+
+// 0x0001de20 (AnimScript vtable slot; thiscall, callee pops 4): the script's notetracks
+// (+0x30) rebuilt from the clip's "COD_Note" channel, as XAnim_BuildNotetracks; returns a
+// new track over the clip (null without memory).
+uint8_t* XB_THISCALL AnimScript_LoadNotetracks(uint8_t* self, uint8_t* clip);
 
 }  // namespace game
