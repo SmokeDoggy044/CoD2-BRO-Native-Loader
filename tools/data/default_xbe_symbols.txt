@@ -439,7 +439,7 @@
 0001c2d0 FUN_0001c2d0
 0001c320 SoundBankManager_DeletingDtor
 0001c340 SoundRef_GetParam0
-0001c360 FUN_0001c360
+0001c360 FxTransform_Init
 0001c3b0 Quat_Slerp
 0001c5b0 Mat44_MultiplyInPlace
 0001c890 Quat_ToMat33
@@ -8605,11 +8605,11 @@
 002766a0 CG_ScoresUp_f
 002766d0 CG_KickWeapon
 00276900 CG_HasWeapon
-00276a30 FUN_00276a30
+00276a30 CG_AddGunMoveOffset
 00276b10 CG_WriteSaveState
 00276b90 CG_SaveViewModelAnimTrees
-00276bd0 FUN_00276bd0
-00276c70 FUN_00276c70
+00276bd0 CG_ViewWeaponAnimsInactive
+00276c70 CG_ViewWeaponAnimsFinished
 00276d00 CG_BobCycleVertical
 00276d50 CG_BobCycleLateral
 00276dd0 CG_UpdateGunKick
@@ -8630,7 +8630,7 @@
 00277ed0 CG_ScreenFade
 002780a0 CG_DrawDamageBlend
 00278150 CG_DrawFlashFade
-002782a0 FUN_002782a0
+002782a0 CG_StoreQuantizedGunAngles
 00278350 CG_StoreGunOffsetFromView
 00278400 FUN_00278400
 00278790 FUN_00278790
@@ -8696,7 +8696,7 @@
 0027cad0 CG_ClearState
 0027cc30 CG_Shutdown
 0027cc80 CG_GetHudElemText
-0027cd20 FUN_0027cd20
+0027cd20 CG_ItemPickup
 0027cdc0 CG_DrawRotatedQuadPic
 0027cf40 CG_DrawRotatedPic
 0027d180 CG_DrawStatusLabel

@@ -143,7 +143,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0001c100,CM_Brush_DeletingDtor,compare,0,20,20,0,0,0,""
 0001c210,RefEntity_Clear,compare,10006,207,207,0,0,0,""
 0001c340,SoundRef_GetParam0,compare,6722,120,120,0,0,0,""
-0001c360,FxTransform_Init,compare,27,32,24,0,8,0,"new got Segmentation fault at f7d83a7f [host] libcod_bro_game.so: _ZN4game16FxTransform_InitEjPKjS1_Pjj+0x7a, address 0000000c"
+0001c360,FxTransform_Init,compare,27,24,24,0,0,0,""
 0001c3b0,Quat_Slerp,compare,12849828,568,568,0,0,0,""
 0001c5b0,Mat44_MultiplyInPlace,compare,9307728,541,541,0,0,0,""
 0001c890,Quat_ToMat33,compare,1356822,412,412,0,0,0,""
