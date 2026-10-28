@@ -90,6 +90,10 @@ used. Check that the call does work before counting it: FxSystemList_DestroyAll(
 matched 39 times with its list count ([0x00909b8c]) 0 on every client frame of missions 1 and 4 -
 only the early return ran; the row was reset. Functions nothing calls or points to (no CALL/JMP,
 no pointer in data: XModel_FreeAnimStates) are dead code and not tested (user, 2026-10-25).
+`&N` is the address of stack word N in the test processes, so stack words can stand in for an object's fields or a
+short string: `nglMaterial_LoadTextureRef(&1-0x18,[0x902700]+0x54)` (a material whose name field +0x18 is word 1),
+`RE_ParseButtonToken(ebx=&0-0x800,0,&4,&0,&0,0x427b6261,0x4f545455,0x7d315f4e,0x00006463)` ("ab{BUTTON_1}cd" in
+words 4-7, the out buffer in dead stack below).
 A `scene:` prefix (`--force "scene:nglDebugDrawLine(...)@5*10"`) starts the test from R_RenderView's call of
 R_AddSimpleInstancesToScene (0x0024758a) instead, with the main scene pushed: draw-list code (nglListAddMesh/AddText,
 *_AddToList) reads ngl_curScene (0x0090259c), which is null at the client frame. That thunk also runs inside the

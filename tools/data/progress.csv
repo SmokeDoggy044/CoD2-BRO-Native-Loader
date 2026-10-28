@@ -660,8 +660,8 @@ address,name,section,module,state,tested,matched
 000251c0,ZoneGraph_DeletingDtor,.text,streaming,named,0,0
 00025230,NalManagerKey8_ForEachPass,.text,xanim,named,0,0
 00025330,FixedStr512_BaseName,.text,qcommon,settled,143,143
-000253f0,nglTextureManager_ForEachPass,.text,renderer,untested,0,0
-00025570,nglMeshManager_ForEachPass,.text,renderer,untested,0,0
+000253f0,nglTextureManager_ForEachPass,.text,renderer,matched,100,60
+00025570,nglMeshManager_ForEachPass,.text,renderer,matched,180,40
 00025750,AnimManager_ForEachPass,.text,xanim,named,0,0
 00025880,ZoneGraphBase_DeletingDtor,.text,streaming,named,0,0
 000258d0,ZoneTextureManager_Destruct,.text,streaming,named,0,0
@@ -1258,7 +1258,7 @@ address,name,section,module,state,tested,matched
 000474e0,ShaderPCUV_AddToList,.text,renderer,settled,101,101
 00047590,nglSetDecalZBias,.text,renderer,settled,2291,273
 00047650,ShaderPCUV_GetName,.text,renderer,settled,111,111
-00047670,nglMaterial_LoadTextureRef,.text,renderer,untested,0,0
+00047670,nglMaterial_LoadTextureRef,.text,renderer,matched,20,20
 000476b0,nglSetTextureAnimFrame,.text,renderer,settled,383,383
 000479b0,cdGunSight_AddToList,.text,renderer,settled,149,149
 00047a30,cdGunSight_Toggle,.text,renderer,matched,1,1
@@ -1621,7 +1621,7 @@ address,name,section,module,state,tested,matched
 00063600,nglTextureIsStale,.text,renderer,settled,245,245
 00063630,nglReleaseTexture,.text,renderer,settled,148,142
 00063650,nglLoadAnimatedTextureList,.text,renderer,settled,100,100
-00063870,nglGenerateRenderTargetMips,.text,renderer,untested,0,0
+00063870,nglGenerateRenderTargetMips,.text,renderer,matched,40,40
 00063a70,nglInitTextureManager,.text,renderer,settled,371,195
 00063b80,nglTextCursor_NextToken,.text,renderer,settled,103,103
 00063c40,nglSkipList_RemoveTexture,.text,renderer,offline,0,0
@@ -1660,7 +1660,7 @@ address,name,section,module,state,tested,matched
 00066310,nglGetTextSizef,.text,renderer,settled,323,323
 00066490,nglListAddTextf,.text,renderer,settled,106,106
 00066500,nglInitFontManager,.text,renderer,matched,2,2
-000665d0,nglResourceManager_ForEachPass,.text,renderer,untested,0,0
+000665d0,nglResourceManager_ForEachPass,.text,renderer,matched,140,60
 000666f0,nglResourceManager_Find,.text,renderer,settled,102,102
 00066760,nglSkipList_InitHead,.text,renderer,settled,100,100
 000667a0,nglFontManager_DeletingDtor,.text,renderer,offline,0,0
@@ -1700,7 +1700,7 @@ address,name,section,module,state,tested,matched
 00068850,nglListAddMesh,.text,renderer,settled,1020,1020
 00068f70,FUN_00068f70,.text,renderer,offline,0,0
 00069b00,nglEmpty_GetName,.text,renderer,offline,0,0
-00069b40,nglSkipList_RemoveIndirect,.text,renderer,untested,0,0
+00069b40,nglSkipList_RemoveIndirect,.text,renderer,inconclusive,30,0
 00069c60,nglSkipList_Clear,.text,renderer,offline,0,0
 00069ca0,nglSkipList_ClearIndirect,.text,renderer,offline,0,0
 00069e00,nglSkipList_Insert,.text,renderer,settled,103,103
@@ -1803,7 +1803,7 @@ address,name,section,module,state,tested,matched
 000754f0,nglRenderTranslucentList,.text,renderer,accepted,257216,179598
 00075780,nglSetDefaultRenderStates,.text,renderer,settled,344,344
 00075ac0,nglSetBlendMode,.text,renderer,settled,580,580
-00075d90,nglRestoreRenderStates,.text,renderer,untested,0,0
+00075d90,nglRestoreRenderStates,.text,renderer,matched,60,60
 00075ed0,nglInitRenderStates,.text,renderer,settled,375,375
 00076050,nglStateCache_SetBlendColor,.text,renderer,settled,157,157
 000760a0,nglSetPixelShaderProgramCached,.text,renderer,settled,2444,2444
@@ -2234,7 +2234,7 @@ address,name,section,module,state,tested,matched
 0009c330,FxParamBlock_Set,.text,renderer,settled,170,170
 0009c350,FxParamBlock_SetSlot,.text,renderer,settled,105,105
 0009c3c0,FxAction_Compact,.text,renderer,offline,0,0
-0009c470,FxAction_Destroy,.text,renderer,untested,0,0
+0009c470,FxAction_Destroy,.text,renderer,matched,80,40
 0009c520,FxAction_Init,.text,renderer,settled,155,155
 0009c5a0,FxPtrArray_InitFill,.text,renderer,settled,113,113
 0009c620,apsPtrVector_Resize,.text,qcommon,settled,100,100
@@ -2396,7 +2396,7 @@ address,name,section,module,state,tested,matched
 000a4460,apsOrientToVelocity,.text,qcommon,untested,0,0
 000a4640,apsActionAngleToVelocity_Apply,.text,qcommon,settled,118,118
 000a4ac0,apsAtan2,.text,qcommon,settled,146,146
-000a4d10,FxAction_DeletingDtor,.text,renderer,untested,0,0
+000a4d10,FxAction_DeletingDtor,.text,renderer,matched,160,80
 000a4d30,Mat44_TransformVector,.text,qcommon,settled,309,309
 000a4ed0,FxVectorOp_Init9330,.text,renderer,settled,157,157
 000a4f20,FxSphereDomain_Within,.text,renderer,offline,0,0
@@ -8970,7 +8970,7 @@ address,name,section,module,state,tested,matched
 00295f90,FS_HashFileName,.text,qcommon,offline,0,0
 002960a0,SCR_UpdateLoadingIcon,.text,client,settled,101,101
 00296200,SCR_DrawLoadingText,.text,client,settled,101,101
-00296350,RE_ParseButtonToken,.text,renderer,untested,0,0
+00296350,RE_ParseButtonToken,.text,renderer,matched,30,30
 002963f0,StringTable_Load,.text,qcommon,named,0,0
 00296710,FUN_00296710,.text,unassigned,unnamed,0,0
 002969a0,FX_RandomInOctaves,.text,renderer,settled,113,113

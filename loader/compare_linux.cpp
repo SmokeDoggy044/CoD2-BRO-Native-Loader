@@ -2066,10 +2066,23 @@ void install(std::span<const game::Function> functions, const Config& config) {
 
 namespace {
 
+// The return address slot of the forced call being parsed ("&N" values).
+uint32_t g_force_esp;
+
 // One force_call argument value: a number, "[E]" (the title word at E, read without
-// faulting), then any "+N" / "-N".
+// faulting), "&N" (the address of stack word N in the test processes: a stack word can
+// stand in for a field of an object the call needs), then any "+N" / "-N".
 bool parse_value(std::string_view& text, uint32_t& value, std::string& error) {
-    if (!text.empty() && text[0] == '[') {
+    if (!text.empty() && text[0] == '&') {
+        text.remove_prefix(1);
+        const std::string digits(text.substr(0, text.find_first_not_of("0123456789")));
+        if (digits.empty()) {
+            error = "& needs a stack word index";
+            return false;
+        }
+        value = g_force_esp + 4 + 4 * static_cast<uint32_t>(std::stoul(digits));
+        text.remove_prefix(digits.size());
+    } else if (!text.empty() && text[0] == '[') {
         text.remove_prefix(1);
         uint32_t at = 0;
         if (!parse_value(text, at, error)) return false;
@@ -2137,6 +2150,7 @@ ForceResult force_call(const char* name, const char* args, const char* when, con
     context.eflags = registers.eflags;
     context.esp = esp;
     context.target = hook->trampoline;
+    g_force_esp = esp;
     std::string_view text = args ? args : "";
     while (!text.empty()) {
         uint32_t* to = nullptr;
