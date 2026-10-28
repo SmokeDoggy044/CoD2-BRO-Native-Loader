@@ -2888,6 +2888,7 @@ void XB_CDECL CL_ApplyFrontEndReturnState() {
     title_global<uint32_t>(0x0092bdf4) &= ~2u;  // cls.keyCatchers
     if (title_global<uint8_t>(0x0095ee01)) {
         CL_ApplyProfileSettings(&title_global<uint8_t>(0x008dce30));
+        title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute, its tail jump
         if (!title_global<int32_t>(0x008dce50)) SV_SetSkillHard();
         if (title_global<int32_t>(0x008dce50) == 1) SV_SetSkillMedium();
         if (title_global<int32_t>(0x008dce50) == 2) SV_SetSkillEasy();
@@ -3033,7 +3034,11 @@ void set_handle_volume(uint32_t handle, float volume) {
 
 }  // namespace
 
+// The original ends in a tail jump to Cbuf_Execute, which then runs at the entry ESP, where the
+// commands it executes lie (cmd's current text, 0x00927f50, points there): the entry jumps there
+// too. C callers call Cbuf_Execute after CL_ApplyProfileSettings themselves.
 PLATFORM_ASM_ENTRY(CL_ApplyProfileSettings_entry, "pushl %edi\n" PLATFORM_ASM_CALL(CL_ApplyProfileSettings) "addl $4, %esp\n"
+                                                  "pushl $0x002c62b0\n"  // Cbuf_Execute
                                                   "ret")
 
 void XB_CDECL CL_ApplyProfileSettings(uint8_t* profile) {
@@ -3075,7 +3080,7 @@ void XB_CDECL CL_ApplyProfileSettings(uint8_t* profile) {
     case 4: break;
     default: Cbuf_AddText(&title_global<const char>(0x0082dff4)); break;  // exec style_h.cfg (inlined)
     }
-    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute (a tail jump)
+    // Cbuf_Execute follows: a tail jump in the original (CL_ApplyProfileSettings_entry).
 }
 
 namespace {
