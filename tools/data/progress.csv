@@ -44,7 +44,7 @@ address,name,section,module,state,tested,matched
 000122e0,UIDialog_DeletingDtor,.text,client,untested,0,0
 00012320,UI_DialogAddButton,.text,client,matched,6,6
 00012370,UI_DialogSetDefaultButton,.text,client,offline,0,0
-00012390,UI_DialogLayoutButtons,.text,client,untested,0,0
+00012390,UI_DialogLayoutButtons,.text,client,matched,1,1
 000123b0,HudManager_DeletingDtor,.text,cgame,named,0,0
 000123d0,Sentient_EnemyTeam,.text,game,settled,149,149
 00012440,HudCompCompass_DeletingDtor,.text,cgame,named,0,0
@@ -100,7 +100,7 @@ address,name,section,module,state,tested,matched
 000133b0,MissionSuccessFailMenu_DeletingDtor,.text,client,untested,0,0
 000133d0,AutosaveMenu_Dtor,.text,client,untested,0,0
 00013440,AutosaveMenu_DeletingDtor,.text,client,untested,0,0
-00013460,ChapterMenu_Dtor,.text,client,untested,0,0
+00013460,ChapterMenu_Dtor,.text,client,matched,1,1
 000134c0,ChapterMenu_DeletingDtor,.text,client,matched,1,1
 000134e0,SpecialMaterialsMenu_Dtor,.text,client,untested,0,0
 00013560,SpecialMaterialsMenu_DeletingDtor,.text,client,untested,0,0
@@ -113,8 +113,8 @@ address,name,section,module,state,tested,matched
 00013720,FUN_00013720,.text,client,unnamed,0,0
 000137a0,DialogMgr_DeletingDtor,.text,client,untested,0,0
 000137c0,BonusCharactersMenu_DeletingDtor,.text,client,matched,4,4
-000137e0,BonusVehiclesMenu_DeletingDtor,.text,client,untested,0,0
-00013800,BonusConceptsMenu_DeletingDtor,.text,client,untested,0,0
+000137e0,BonusVehiclesMenu_DeletingDtor,.text,client,matched,2,2
+00013800,BonusConceptsMenu_DeletingDtor,.text,client,matched,2,2
 00013820,CreateProfileMenu_DeletingDtor,.text,client,matched,4,4
 00013840,ProfileSave_DeletingDtor,.text,qcommon,named,0,0
 00013860,G_EntHandleToEnt,.text,game,settled,406,406
@@ -9268,7 +9268,7 @@ address,name,section,module,state,tested,matched
 002ac060,IN_MLookUp,.text,client,offline,0,0
 002ac0b0,IN_MLookDown,.text,client,offline,0,0
 002ac200,CL_CgameSystemCalls,.text,client,untested,0,0
-002ac450,CL_ClearConfigstrings,.text,client,untested,0,0
+002ac450,CL_ClearConfigstrings,.text,client,inconclusive,3,0
 002ac510,CL_GetSnapshot,.text,client,settled,303,303
 002ac630,CL_GetUserCmd,.text,client,settled,356,356
 002ac770,FUN_002ac770,.text,game,unnamed,0,0
@@ -9631,9 +9631,9 @@ address,name,section,module,state,tested,matched
 002c4ed0,SV_AllocServerStatic,.text,server,settled,104,104
 002c4f50,SV_RestartGameProgs,.text,server,named,0,0
 002c4fe0,SV_ExecuteClientMessage,.text,server,settled,117,117
-002c5140,SV_SetSkillEasy,.text,server,untested,0,0
+002c5140,SV_SetSkillEasy,.text,server,matched,1,1
 002c51a0,SV_SetSkillMedium,.text,server,matched,11,11
-002c5200,SV_SetSkillHard,.text,server,untested,0,0
+002c5200,SV_SetSkillHard,.text,server,matched,1,1
 002c5260,Loc_FindEntryValue,.text,qcommon,named,0,0
 002c5310,Loc_FindStringEntry,.text,qcommon,named,0,0
 002c5400,Loc_AddStringEntry,.text,qcommon,named,0,0
@@ -10805,7 +10805,7 @@ address,name,section,module,state,tested,matched
 0031bf70,FE_BonusVehicleLoadImage,.text,client,inconclusive,46,0
 0031c0e0,FUN_0031c0e0,.text,client,unnamed,0,0
 0031c260,BonusVehiclesMenu_OnRight,.text,client,inconclusive,48,0
-0031c290,BonusVehiclesMenu_OnLeft,.text,client,untested,0,0
+0031c290,BonusVehiclesMenu_OnLeft,.text,client,inconclusive,2,0
 0031c2c0,BonusVehiclesMenu_OnDown,.text,client,matched,18,3
 0031c380,BonusVehiclesMenu_OnUp,.text,client,untested,0,0
 0031c5d0,FE_BonusVehicleCategoryLabel,.text,client,matched,1,1
@@ -10827,7 +10827,7 @@ address,name,section,module,state,tested,matched
 0031d6f0,BonusCharactersMenu_OnDown,.text,client,matched,20,1
 0031d730,BonusCharactersMenu_OnUp,.text,client,inconclusive,1,0
 0031d820,BonusCharactersMenu_Draw,.text,client,matched,46,46
-0031d880,FE_BonusCharacterLabel,.text,client,untested,0,0
+0031d880,FE_BonusCharacterLabel,.text,client,matched,1,1
 0031d980,BonusCharactersMenu_RestoreSelection,.text,client,inconclusive,2,0
 0031d9d0,FE_BonusMainLoadImage,.text,client,inconclusive,41,0
 0031db10,FUN_0031db10,.text,client,unnamed,0,0
@@ -10844,7 +10844,7 @@ address,name,section,module,state,tested,matched
 0031e190,LoadAfricaMenu_SetMissionRange,.text,client,matched,6,6
 0031e210,LoadAfricaMenu_Draw,.text,client,settled,944,944
 0031e270,LoadAfricaMenu_RestoreSelection,.text,client,matched,3,3
-0031e2a0,LoadingMenu_SetMissionRange,.text,client,untested,0,0
+0031e2a0,LoadingMenu_SetMissionRange,.text,client,matched,1,1
 0031e320,LoadingMenu_Draw,.text,client,settled,112,112
 0031e380,LoadingMenu_RestoreSelection,.text,client,untested,0,0
 0031e3b0,FUN_0031e3b0,.text,sound,unnamed,0,0
@@ -10929,7 +10929,7 @@ address,name,section,module,state,tested,matched
 00328e90,FUN_00328e90,.text,client,unnamed,0,0
 00328f70,FE_SetupMainMenu,.text,client,matched,8,8
 003291a0,AdvancedOptionsMenu_LoadSettings,.text,client,matched,9,9
-00329330,AdvancedOptionsMenu_ResetDefaults,.text,client,untested,0,0
+00329330,AdvancedOptionsMenu_ResetDefaults,.text,client,matched,1,1
 00329480,FE_SetupAdvancedOptionsMenu,.text,client,matched,10,10
 00329c50,AdvancedOptionsMenu_RestoreSelection,.text,client,matched,9,9
 00329c80,FE_SetupPauseMenu,.text,client,matched,18,18
@@ -10995,9 +10995,9 @@ address,name,section,module,state,tested,matched
 003308a0,FUN_003308a0,.text,client,unnamed,0,0
 003308f0,ProfileMenu_Construct,.text,client,matched,4,4
 00330980,CreateProfileMenu_Dtor,.text,client,matched,4,4
-00330a40,BonusConceptsMenu_Dtor,.text,client,untested,0,0
+00330a40,BonusConceptsMenu_Dtor,.text,client,matched,2,2
 00330ab0,BonusConceptsMenu_Construct,.text,client,matched,1,1
-00330b30,BonusVehiclesMenu_Dtor,.text,client,untested,0,0
+00330b30,BonusVehiclesMenu_Dtor,.text,client,matched,2,2
 00330bb0,BonusVehiclesMenu_Construct,.text,client,matched,5,5
 00330c40,BonusWeaponsMenu_Construct,.text,client,matched,4,4
 00330cd0,BonusCharactersMenu_Dtor,.text,client,matched,4,4
@@ -11011,10 +11011,10 @@ address,name,section,module,state,tested,matched
 00331150,GameplayMenu_Construct,.text,client,matched,4,4
 00331210,SinglePlayerMenu_Construct,.text,client,matched,8,8
 003312f0,MainMenu_Construct,.text,client,matched,12,12
-00331340,FE_ApplyControlSettings,.text,client,untested,0,0
+00331340,FE_ApplyControlSettings,.text,client,inconclusive,2,0
 00331590,AdvancedOptionsMenu_ResumeGame,.text,client,inconclusive,3,0
 003315e0,AdvancedOptionsMenu_Construct,.text,client,matched,4,4
-00331680,InGameScreens_Construct,.text,client,untested,0,0
+00331680,InGameScreens_Construct,.text,client,matched,3,3
 00331920,UIDialog_Construct,.text,client,matched,16,16
 003319e0,UI_ShowDialog,.text,client,matched,2,2
 00331c50,DialogMgr_Update,.text,client,settled,452,452
@@ -11061,8 +11061,8 @@ address,name,section,module,state,tested,matched
 00335d60,FE_ControlsUpdateText,.text,client,inconclusive,12,0
 00335fe0,ControllerConfigMenu_ChangeValue,.text,client,matched,32,32
 00336460,SinglePlayerMenu_Update,.text,client,matched,89,87
-00336490,PauseMenu_ShowRestartDialog,.text,client,untested,0,0
-00336580,PauseMenu_ShowQuitDialog,.text,client,untested,0,0
+00336490,PauseMenu_ShowRestartDialog,.text,client,matched,1,1
+00336580,PauseMenu_ShowQuitDialog,.text,client,matched,2,2
 003367a0,MainMenu_Update,.text,client,settled,157,103
 00336ad0,FrontEndMenu_Construct,.text,client,matched,8,8
 00337050,FE_CreateMenus,.text,client,matched,8,8
@@ -11083,7 +11083,7 @@ address,name,section,module,state,tested,matched
 00338960,ProfileMenu_CheckStorage,.text,client,inconclusive,8,0
 00338b70,CreateProfileMenu_Finish,.text,client,inconclusive,2,0
 00338c40,CreateProfileMenu_HandleSelect,.text,client,matched,22,21
-00338d70,FE_DifficultyMenu_Init,.text,client,untested,0,0
+00338d70,FE_DifficultyMenu_Init,.text,client,inconclusive,2,0
 00338e40,SoundMenu_RestoreSelection,.text,sound,named,0,0
 00338f50,ControllerConfigMenu_RestoreSelection,.text,client,inconclusive,4,0
 00339050,GameplayMenu_RestoreSelection,.text,client,matched,3,3
