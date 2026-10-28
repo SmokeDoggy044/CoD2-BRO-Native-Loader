@@ -553,4 +553,32 @@ extern "C" void NAL_Packed16EntropyIKSpin_Blend_entry(void);
 void XB_STDCALL NAL_Float4_Blend(int32_t count, float* dst, const float* a, const float* b, float t);
 void XB_STDCALL NAL_Float4_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights);
 
+// 0x00080b30 / 0x00081840 (cdecl, 5 words; record = the 5th): four int8 / int16 values
+// scaled by record[2] plus record[1] (the int8 one through NAL_Float4_AddTo).
+void XB_CDECL NAL_Packed8_DequantizeFloat4(float* out, const int8_t* in, uint32_t, uint32_t, const float* record);
+void XB_CDECL NAL_Packed16_DequantizeFloat4(float* out, const int16_t* in, uint32_t, uint32_t, const float* record);
+// 0x00080a00 / 0x00081700 (Evaluate slots, stdcall 5 words): the packed entropy Float3
+// Evaluate over four components (16-byte defaults, cursor 4 / 8 bytes per value).
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                      const uint8_t* defaults, const int32_t* offsets);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                       const uint8_t* defaults, const int32_t* offsets);
+// 0x00080910 / 0x00081630 (SkipBlock slots, stdcall 4 words): per active channel four
+// prefixed streams skipped, cursor + 4 / 8 (the int16 one aligned to 2 first).
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+// 0x00080140 / 0x00080e20 (DecodeFrames slots, stdcall 7 words): the packed entropy Float3
+// DecodeFrames with readers 0x40 and four values apart.
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                          uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                           uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride);
+// 0x00082500 / 0x00082c30 / 0x00082680 (SkipBlock slots, stdcall 4 words): the position /
+// orientation classes' block skips (32-byte records; the trajectory one moves stream B too;
+// the entropy one skips four prefixed streams per channel).
+uint32_t XB_STDCALL NAL_PositionOrientation_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream,
+                                                      uint32_t frames);
+uint32_t XB_STDCALL NAL_TrajPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t frames);
+uint32_t XB_STDCALL NAL_EntropyPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+
 }  // namespace game

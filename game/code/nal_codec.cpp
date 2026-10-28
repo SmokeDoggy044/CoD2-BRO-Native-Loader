@@ -2191,7 +2191,8 @@ uint32_t packed_float3_decode_block(const uint32_t* context, uint8_t** data, uin
     return context[1];
 }
 
-template <typename T, typename Dequantize>
+// N = 3 or 4 components (the Float4 classes copy 16-byte defaults and step 4 values).
+template <typename T, typename Dequantize, uint32_t N = 3>
 uint32_t packed_float3_evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor, const uint8_t* defaults,
                                 const int32_t* offsets, Dequantize dequantize) {
     uint8_t** stream_a = context_stream(context, 2);
@@ -2208,9 +2209,9 @@ uint32_t packed_float3_evaluate(const uint32_t* context, uint8_t* pose, uint8_t*
                 dequantize(reinterpret_cast<float*>(pose + offset), reinterpret_cast<const T*>(*cursor), 0, 0,
                            reinterpret_cast<const float*>(*stream_a));
             else
-                std::memcpy(pose + offset, defaults + offset, 0xc);
+                std::memcpy(pose + offset, defaults + offset, N * 4);
         }
-        if (active) *cursor += 3 * sizeof(T);
+        if (active) *cursor += N * sizeof(T);
         *stream_a += 0xc;
     }
     return context[1];
@@ -2499,7 +2500,7 @@ void decode_packed_float3(uint8_t* readers, uint8_t* out, float* buffer, uint32_
 // Their DecodeFrames: per active channel the channel decoder on (readers, out, the float buffer,
 // -, count, stride, the unaligned stream A, &block scale, the channel's ranges, stream B); readers
 // +0x30, out + 3 components; stream A moves 12 (three ranges) per channel.
-template <uint32_t Size, typename Decode>
+template <uint32_t Size, typename Decode, uint32_t N = 3>
 uint32_t decode_packed_float3_frames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t buffer,
                                      uint32_t arg5, uint32_t count, int32_t stride, Decode decode) {
     uint8_t** stream_a = context_stream(context, 2);
@@ -2515,8 +2516,8 @@ uint32_t decode_packed_float3_frames(const uint32_t* context, uint8_t** dst, uin
         if (channel_active(context, i)) {
             decode(*readers, *dst, buffer, arg5, count, stride, raw_a, reinterpret_cast<const float*>(block_scale),
                    reinterpret_cast<const float*>(*stream_a), static_cast<uint32_t>(reinterpret_cast<uintptr_t>(*stream_b)));
-            *readers += 0x30;
-            *dst += 3 * Size;
+            *readers += 0x10 * N;
+            *dst += N * Size;
         }
         *stream_a += 0xc;
     }
@@ -2835,6 +2836,161 @@ uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_Blend(uint32_t entry, int32_t count,
         *slot = left;
     } while (left);
     return left;
+}
+
+
+// ---- The packed entropy Float4 classes (no shipped data uses them): the Float3 code with a
+// fourth component; stream A still moves 12 bytes (three shared ranges) per channel.
+
+void XB_CDECL NAL_Packed8_DequantizeFloat4(float* out, const int8_t* in, uint32_t, uint32_t, const float* record) {
+    // Through NAL_Float4_AddTo: the four products plus a splat of the bias.
+    const float x = static_cast<float>(in[0]);
+    const float y = static_cast<float>(in[1]);
+    const float z = static_cast<float>(in[2]);
+    const float w = static_cast<float>(in[3]);
+    const float bias = record[1];
+    const float splat[4] = {bias, bias, bias, bias};
+    const float scale = record[2];
+    const float product[4] = {mul_first(scale, x), mul_first(y, scale), mul_first(z, scale), mul_first(w, scale)};
+    float sum[4];
+    const float* result = NAL_Float4_AddTo(product, sum, splat);
+    std::memcpy(out, result, 16);
+}
+
+void XB_CDECL NAL_Packed16_DequantizeFloat4(float* out, const int16_t* in, uint32_t, uint32_t, const float* record) {
+    // Every input read before the first store (out may overlap in).
+    const float scale = record[2];
+    const float bias = record[1];
+    const float x = static_cast<float>(in[0]);
+    const float y = static_cast<float>(in[1]);
+    const float z = static_cast<float>(in[2]);
+    const float w = static_cast<float>(in[3]);
+    float r[4];
+    r[0] = mul_first(scale, x);
+    r[0] += bias;
+    r[1] = mul_first(y, scale);
+    r[1] += bias;
+    r[2] = mul_first(z, scale);
+    r[2] += bias;
+    r[3] = mul_first(w, scale);
+    r[3] += bias;
+    std::memcpy(out, r, 16);
+}
+
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                      const uint8_t* defaults, const int32_t* offsets) {
+    return packed_float3_evaluate<int8_t, decltype(&NAL_Packed8_DequantizeFloat4), 4>(context, pose, cursor, defaults,
+                                                                                       offsets, NAL_Packed8_DequantizeFloat4);
+}
+
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                       const uint8_t* defaults, const int32_t* offsets) {
+    return packed_float3_evaluate<int16_t, decltype(&NAL_Packed16_DequantizeFloat4), 4>(
+        context, pose, cursor, defaults, offsets, NAL_Packed16_DequantizeFloat4);
+}
+
+namespace {
+
+// Their SkipBlock: stream B aligned + 4 (block scale), stream A aligned; per active channel its
+// four prefixed streams skipped and the cursor moved one value; stream A 12 per channel.
+uint32_t packed_float4_skip_block(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t size) {
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    if (size == 8) *cursor = reinterpret_cast<uint8_t*>((reinterpret_cast<uintptr_t>(*cursor) + 1) & ~static_cast<uintptr_t>(1));
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            NAL_SkipPrefixedStreams4(stream);
+            *cursor += size;
+        }
+        *stream_a += 0xc;
+    }
+    return context[1];
+}
+
+// The channel decoders are not decompiled yet: by title address.
+void packed8_float4_channel_frames(uint8_t* r, uint8_t* o, uint32_t b, uint32_t a5, uint32_t n, int32_t s, uint32_t raw,
+                                   const float* bs, const float* ranges, uint32_t sb) {
+    title_function<void XB_CDECL(uint8_t*, uint8_t*, uint32_t, uint32_t, uint32_t, int32_t, uint32_t, const float*,
+                                 const float*, uint32_t)>(0x00080230)(r, o, b, a5, n, s, raw, bs, ranges,
+                                                                      sb);  // NAL_Packed8EntropyFloat4_DecodeChannelFrames
+}
+
+void packed16_float4_channel_frames(uint8_t* r, uint8_t* o, uint32_t b, uint32_t a5, uint32_t n, int32_t s, uint32_t raw,
+                                    const float* bs, const float* ranges, uint32_t sb) {
+    title_function<void XB_CDECL(uint8_t*, uint8_t*, uint32_t, uint32_t, uint32_t, int32_t, uint32_t, const float*,
+                                 const float*, uint32_t)>(0x00080f20)(r, o, b, a5, n, s, raw, bs, ranges,
+                                                                      sb);  // NAL_Packed16EntropyFloat4_DecodeChannelFrames
+}
+
+}  // namespace
+
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    return packed_float4_skip_block(context, cursor, stream, 4);
+}
+
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    return packed_float4_skip_block(context, cursor, stream, 8);
+}
+
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                          uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride) {
+    return decode_packed_float3_frames<1, decltype(&packed8_float4_channel_frames), 4>(
+        context, dst, readers, buffer, arg5, count, stride, packed8_float4_channel_frames);
+}
+
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                           uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride) {
+    return decode_packed_float3_frames<2, decltype(&packed16_float4_channel_frames), 4>(
+        context, dst, readers, buffer, arg5, count, stride, packed16_float4_channel_frames);
+}
+
+// ---- Position/orientation block skips (classes no shipped data uses).
+
+uint32_t XB_STDCALL NAL_PositionOrientation_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream,
+                                                      uint32_t frames) {
+    // Cursor aligned to 16; per active channel the stream (aligned to 16) moves `frames`
+    // 32-byte records and the cursor one.
+    *cursor = align16(*cursor);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align16(*stream) + (frames << 5);
+        *cursor += 0x20;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_TrajPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t frames) {
+    // As NAL_PositionOrientation_SkipBlock, stream B (aligned to 16) moving one record too.
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align16(*cursor);
+    *stream_b = align16(*stream_b);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (!channel_active(context, i)) continue;
+        *stream = align16(*stream) + (frames << 5);
+        *cursor += 0x20;
+        *stream_b += 0x20;
+    }
+    return context[1];
+}
+
+uint32_t XB_STDCALL NAL_EntropyPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t) {
+    // NAL_EntropyTrajPosOri_SkipBlock without stream B's records: four prefixed streams per
+    // active channel, cursor +0x20; stream A 8 per channel.
+    uint8_t** stream_a = context_stream(context, 2);
+    uint8_t** stream_b = context_stream(context, 3);
+    *cursor = align16(*cursor);
+    *stream_b = align4(*stream_b) + 4;
+    *stream_a = align4(*stream_a);
+    for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
+        if (channel_active(context, i)) {
+            NAL_SkipPrefixedStreams4(stream);
+            *cursor += 0x20;
+        }
+        *stream_a += 8;
+    }
+    return context[1];
 }
 
 }  // namespace game
