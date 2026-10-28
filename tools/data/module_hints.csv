@@ -4,7 +4,7 @@ address,module,source,evidence
 00015540,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers -"
 0001b5c0,game,auto,"callers: prev script, next qcommon, callers game"
 0001c360,cgame,auto,"callers: prev sound, next qcommon, callers cgame"
-0001d1b0,renderer,auto,"neighbours: prev renderer, next renderer, callers -"
+0001d1b0,client,manual,ClientActive_Ctor: builds cl (0x00960160) configstrings; called from the static init 0x00376450 (dec-rfin)
 0001ed50,qcommon,auto,"callers+neighbours: prev qcommon, next qcommon, callers qcommon"
 0001edb0,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers game"
 0001f740,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers -"
@@ -48,10 +48,6 @@ address,module,source,evidence
 00044810,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers -"
 00093250,xanim,auto,"callers: prev xanim, next qcommon, callers xanim"
 000938f0,qcommon,auto,"callers: prev xanim, next qcommon, callers qcommon"
-00093c00,renderer,auto,"neighbours: prev renderer, next renderer, callers -"
-00094ab0,renderer,auto,"neighbours: prev renderer, next renderer, callers -"
-000950b0,renderer,auto,"callers+neighbours: prev renderer, next renderer, callers renderer"
-00095f80,renderer,auto,"neighbours: prev renderer, next renderer, callers -"
 000ad140,game,auto,"neighbours: prev game, next game, callers -"
 000af120,game,auto,"neighbours: prev game, next game, callers -"
 000af460,game,auto,"neighbours: prev game, next game, callers -"
@@ -246,8 +242,6 @@ address,module,source,evidence
 0022d650,game,auto,"neighbours: prev game, next game, callers -"
 0022fb70,game,auto,"callers+neighbours: prev game, next game, callers game"
 00231710,game,auto,"neighbours: prev game, next game, callers -"
-00234ef0,renderer,auto,"neighbours: prev renderer, next renderer, callers -"
-0023aff0,renderer,auto,"neighbours: prev renderer, next renderer, callers cgame,game"
 0023cfb0,streaming,auto,"callers: prev renderer, next streaming, callers streaming"
 00247ad0,game,auto,"callers: prev renderer, next game, callers game"
 00247d50,game,auto,"callers+neighbours: prev game, next game, callers game"
@@ -307,7 +301,6 @@ address,module,source,evidence
 002991c0,server,auto,"callers: prev renderer, next streaming, callers server"
 0029a020,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers game"
 0029acb0,script,auto,"callers: prev game, next renderer, callers script"
-0029b0b0,renderer,auto,"neighbours: prev renderer, next renderer, callers -"
 0029c570,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers server"
 0029ea20,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers -"
 002a2c40,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers script"
@@ -488,11 +481,11 @@ address,module,source,evidence
 00379d30,qcommon,manual,CrtInitStub_379d30: bare ret in the static initializer/atexit block
 00379d50,game,manual,AtExit_ReleaseScriptStrings_98aa74: ScriptString_Release over 0x20 entries from 0x0098aa74 (G_InitGame side)
 00379d70,game,manual,StaticInit_List_8feba0: empty list heads at 0x008feba0 (Scr_DispatchAnimNotetrack)
-00379da0,renderer,manual,AtExit_HashStrMap_902ac0: HashStrMap_Clear ecx=0x00902ac0 (ngl globals)
-00379db0,renderer,manual,AtExit_HashStrMap_902ad4: HashStrMap_Clear ecx=0x00902ad4 (ngl globals)
-00379dc0,renderer,manual,AtExit_HashStrMap_903fe0: HashStrMap_Clear ecx=0x00903fe0 (DObj_*)
+00379da0,renderer,manual,AtExit_ShaderCache_902ac0: HashStrMap_Clear ecx=0x00902ac0 (ngl globals)
+00379db0,renderer,manual,AtExit_ShaderCache_902ad4: HashStrMap_Clear ecx=0x00902ad4 (ngl globals)
+00379dc0,renderer,manual,AtExit_NalClassMap_903fe0: HashStrMap_Clear ecx=0x00903fe0 (DObj_*)
 00379dd0,xanim,manual,AtExit_HashStrMap_903ff4: HashStrMap_Clear ecx=0x00903ff4 (NAL_AnimState_*)
-00379de0,renderer,manual,StaticInit_Vtable_8bb124: stores vtable 0x0083760c at 0x008bb124 (Anim_InitManagers)
+00379de0,renderer,manual,StaticInit_NalConfig_8bb124: stores vtable 0x0083760c at 0x008bb124 (Anim_InitManagers)
 00379df0,qcommon,manual,StaticInit_Vtable_8bb768: stores vtable 0x007c4d90 at 0x008bb768 (apsPtrArray_*)
 00379e50,script,manual,AtExit_ScrFree_922e90: Scr_Free of 0x00922e90 (level-script globals)
 00379e70,script,manual,AtExit_ScriptKeyTable: ScriptKeyTable_Clear ecx=0x00922e94 (g_scrEmptyKeyTable)

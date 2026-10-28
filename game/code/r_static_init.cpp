@@ -77,12 +77,12 @@ void XB_CDECL AtExit_FxEffectPool() { free_aligned_global(0x00988804); }
 
 void XB_CDECL AtExit_FreeAligned_988714() { free_aligned_global(0x00988714); }
 
-void XB_CDECL AtExit_HashStrMap_902ac0() { hash_str_map_clear(0x00902ac0); }
+void XB_CDECL AtExit_ShaderCache_902ac0() { hash_str_map_clear(0x00902ac0); }
 
-void XB_CDECL AtExit_HashStrMap_902ad4() { hash_str_map_clear(0x00902ad4); }
+void XB_CDECL AtExit_ShaderCache_902ad4() { hash_str_map_clear(0x00902ad4); }
 
-void XB_CDECL AtExit_HashStrMap_903fe0() { hash_str_map_clear(0x00903fe0); }
+void XB_CDECL AtExit_NalClassMap_903fe0() { hash_str_map_clear(0x00903fe0); }
 
-void XB_CDECL StaticInit_Vtable_8bb124() { title_global<uint32_t>(0x008bb124) = 0x0083760c; }
+void XB_CDECL StaticInit_NalConfig_8bb124() { title_global<uint32_t>(0x008bb124) = 0x0083760c; }
 
 }  // namespace game

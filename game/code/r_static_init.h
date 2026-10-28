@@ -37,11 +37,11 @@ void XB_CDECL AtExit_FxEffectPool();
 void XB_CDECL AtExit_FreeAligned_988714();
 // 0x00379da0, 0x00379db0, 0x00379dc0: HashStrMap_Clear (0x00094010, thiscall) of the shader
 // caches 0x00902ac0 / 0x00902ad4 and the NAL class map 0x00903fe0 (tail jumps).
-void XB_CDECL AtExit_HashStrMap_902ac0();
-void XB_CDECL AtExit_HashStrMap_902ad4();
-void XB_CDECL AtExit_HashStrMap_903fe0();
+void XB_CDECL AtExit_ShaderCache_902ac0();
+void XB_CDECL AtExit_ShaderCache_902ad4();
+void XB_CDECL AtExit_NalClassMap_903fe0();
 // 0x00379de0: the vtable 0x0083760c stored in the static object 0x008bb124 (the NAL
 // library's default configuration, NAL_Init's fallback).
-void XB_CDECL StaticInit_Vtable_8bb124();
+void XB_CDECL StaticInit_NalConfig_8bb124();
 
 }  // namespace game

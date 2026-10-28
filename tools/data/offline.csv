@@ -579,4 +579,4 @@ address,name,tested,matched,nan,mismatched,coverage
 003769e0,StaticInit_DownVec4_9717e0,4000,4000,0,0,100.0
 003785e0,StaticInit_ngl_multisampleScale,4000,4000,0,0,100.0
 00378d40,StaticInit_FxParticleBounds,4000,4000,0,0,100.0
-00379de0,StaticInit_Vtable_8bb124,4000,4000,0,0,100.0
+00379de0,StaticInit_NalConfig_8bb124,4000,4000,0,0,100.0

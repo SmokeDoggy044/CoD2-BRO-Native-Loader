@@ -456,7 +456,7 @@
 0001cfc0 CM_FindInlineModelInList
 0001cff0 CM_WorldTree_Fixup
 0001d0f0 DObj_SetLod
-0001d1b0 FUN_0001d1b0
+0001d1b0 ClientActive_Ctor
 0001d230 nglMeshBuilder_AddIndexRun
 0001d280 nglMeshBuilder_AddStrip
 0001d340 CM_SphereTriangleContact
@@ -2079,7 +2079,7 @@
 00093a50 nglReadFile
 00093b90 nglFreeFileBuffer
 00093be0 nglShaderList_InitAll
-00093c00 FUN_00093c00
+00093c00 HashStrMap_Ctor
 00093c30 ShaderCache_RandomLevel
 00093c70 ShaderCache_FindOrAdd
 00093dc0 HashStrMap_Remove
@@ -2101,14 +2101,14 @@
 00094960 FxSystem_GetEmitterParam
 00094990 FxSystem_SwapParams
 000949e0 FxSystem_GetBounds
-00094ab0 FUN_00094ab0
+00094ab0 FxSystem_UpdateBounds
 00094ad0 FxSystem_Destroy
 00094c60 FxSystem_Update
 00094ef0 FxSystem_IsFinished
 00094f60 FxSystem_Draw
 00094fc0 FxSystem_UpdateSortKey
 00095060 FxSystemList_UpdateBounds
-000950b0 FUN_000950b0
+000950b0 FxSystemPool_Refresh
 000951c0 FxSystemPool_Init
 00095210 FX_StopEffect
 00095250 FxSystemList_Update
@@ -2131,7 +2131,7 @@
 00095e20 FxBox_Sphere
 00095e80 FxEmitter_Draw
 00095f20 FxSystem_AllocArray
-00095f80 FUN_00095f80
+00095f80 FxSystemPool_Destroy
 00095fd0 FxMatrix_Multiply
 00096370 FxEffect_SetName
 000963c0 FxEffectStage_CollectFormat
@@ -8045,7 +8045,7 @@
 00234cc0 RE_ClearScene
 00234cf0 R_ClearFrameLists
 00234d90 R_ClearAlpha
-00234ef0 FUN_00234ef0
+00234ef0 R_DrawBackBufferOverlay
 002352c0 myGLMultMatrix
 00235890 R_CullPointAndRadius
 00235910 R_CullLocalPointAndRadius
@@ -8103,7 +8103,7 @@
 0023a560 DObj_AnyModelHasFlags
 0023a590 DObj_TraceBoneBoxes
 0023aea0 DObj_GetTagIndex
-0023aff0 FUN_0023aff0
+0023aff0 DObj_Ctor
 0023b1e0 XModel_GetBoneCount
 0023b230 R_DrawFilledRect
 0023b2e0 R_SetInstanceColor
@@ -9056,7 +9056,7 @@
 0029ae90 FxShakeRumbleComponent_Stop
 0029af30 FxComponent_GetEntityOrigin
 0029b010 FxSoundComponent_SetParent
-0029b0b0 FUN_0029b0b0
+0029b0b0 FxComponent_OwnerGone
 0029b0f0 FxComponent_GetPosition
 0029b1f0 ShakeRumble_Start
 0029b320 ParamChoiceList_PickPerGroup
@@ -11179,11 +11179,11 @@
 00379d30 CrtInitStub_379d30
 00379d50 AtExit_ReleaseScriptStrings_98aa74
 00379d70 StaticInit_List_8feba0
-00379da0 AtExit_HashStrMap_902ac0
-00379db0 AtExit_HashStrMap_902ad4
-00379dc0 AtExit_HashStrMap_903fe0
+00379da0 AtExit_ShaderCache_902ac0
+00379db0 AtExit_ShaderCache_902ad4
+00379dc0 AtExit_NalClassMap_903fe0
 00379dd0 AtExit_HashStrMap_903ff4
-00379de0 StaticInit_Vtable_8bb124
+00379de0 StaticInit_NalConfig_8bb124
 00379df0 StaticInit_Vtable_8bb768
 00379dfb FUN_00379dfb
 00379e10 FUN_00379e10

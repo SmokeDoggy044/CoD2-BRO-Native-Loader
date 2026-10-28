@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 70% of the functions have a name, and 2,536 have been
+It's early days: about 70% of the functions have a name, and 2,543 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,24 +27,24 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,610 | 2,536 | 8,657 |
+| Engine and game code (`.text`) | 11,193 | 8,618 | 2,543 | 8,650 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,598** | **2,536** | **13,981** |
+| **Total** | **16,517** | **11,606** | **2,543** | **13,974** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 425 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 430 functions the campaign never runs, the same comparison offline on random inputs.
 We've also named 2,659 of the game's global variables.
 
 ### By part of the game
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,086 | 1,018 | 44 | 15 | 8 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,084 | 1,025 | 58 | 0 | 0 |
 | Game logic (entities, AI, animation, weapons, level-script runtime) | 1,910 | 432 | 39 | 1,225 | 210 |
 | Client game (HUD, view, effects on screen) | 300 | 165 | 24 | 96 | 15 |
-| Engine core (memory, files, settings, commands, containers, math) | 959 | 234 | 14 | 646 | 54 |
-| Client and menus | 760 | 458 | 220 | 33 | 49 |
+| Engine core (memory, files, settings, commands, containers, math) | 960 | 234 | 15 | 646 | 54 |
+| Client and menus | 761 | 458 | 221 | 33 | 49 |
 | Server, collision, compression | 254 | 111 | 15 | 119 | 9 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 12 | 0 | 1,986 | 6 |
 | Level-script helpers in the engine code | 1,444 | 0 | 0 | 1,389 | 48 |

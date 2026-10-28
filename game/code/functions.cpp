@@ -3064,10 +3064,10 @@ const Function kFunctions[] = {
     {"AtExit_FxEffectList", 0x00379c60, 0, code(&AtExit_FxEffectList), 0, Result::None, Status::Compare},
     {"AtExit_FxEffectPool", 0x00379c80, 0, code(&AtExit_FxEffectPool), 0, Result::None, Status::Compare},
     {"AtExit_FreeAligned_988714", 0x00379ca0, 0, code(&AtExit_FreeAligned_988714), 0, Result::None, Status::Compare},
-    {"AtExit_HashStrMap_902ac0", 0x00379da0, 0, code(&AtExit_HashStrMap_902ac0), 0, Result::None, Status::Compare},
-    {"AtExit_HashStrMap_902ad4", 0x00379db0, 0, code(&AtExit_HashStrMap_902ad4), 0, Result::None, Status::Compare},
-    {"AtExit_HashStrMap_903fe0", 0x00379dc0, 0, code(&AtExit_HashStrMap_903fe0), 0, Result::None, Status::Compare},
-    {"StaticInit_Vtable_8bb124", 0x00379de0, 0, code(&StaticInit_Vtable_8bb124), 0, Result::None, Status::Compare},
+    {"AtExit_ShaderCache_902ac0", 0x00379da0, 0, code(&AtExit_ShaderCache_902ac0), 0, Result::None, Status::Compare},
+    {"AtExit_ShaderCache_902ad4", 0x00379db0, 0, code(&AtExit_ShaderCache_902ad4), 0, Result::None, Status::Compare},
+    {"AtExit_NalClassMap_903fe0", 0x00379dc0, 0, code(&AtExit_NalClassMap_903fe0), 0, Result::None, Status::Compare},
+    {"StaticInit_NalConfig_8bb124", 0x00379de0, 0, code(&StaticInit_NalConfig_8bb124), 0, Result::None, Status::Compare},
 };
 
 }  // namespace
