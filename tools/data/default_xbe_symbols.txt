@@ -9467,7 +9467,7 @@
 002b7ad0 AnimTree_MarkSync_r
 002b7ba0 DObj_GetAnimRootTransform
 002b7c60 AnimTree_CheckNotes_r
-002b7de0 FUN_002b7de0
+002b7de0 AnimData_InitNode
 002b7e40 XAnim_BuildNotetracks
 002b80f0 SV_UpdateServerCommandsToClient
 002b8200 SV_ConnectionlessPacket
@@ -9866,7 +9866,7 @@
 002e4280 G_CalcLinkedEntityMatrix
 002e44b0 G_EntLinkToWithOffset
 002e4570 AnimTree_SampleRootTransform
-002e4650 FUN_002e4650
+002e4650 AnimTree_SampleRootTransformBetween
 002e4750 SV_SendClientMessages
 002e4800 Loc_LoadStrings
 002e4940 CM_SightTraceThroughWorld

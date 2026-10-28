@@ -98,3 +98,8 @@ address,name,kind,reason
 002d0680,CM_DrawWorldTreeDebug,debug,"debug draw, only with manager +4 bit 0 set; flag-off exit matched 12603 (2026-10-28)"
 0028d360,StreamMem_HasSpace,dead,"dead code: no caller, data pointer or immediate (xbefind, 2026-10-28)"
 0023d040,Stream_LoadXmbInto,dead,"dead code: no caller, data pointer or immediate (xbefind, 2026-10-28)"
+0008ee40,NAL_ClipSetPlayer_Create,no data,"clip-set player: no shipped data uses it (zone +0xb0 table always empty; only caller Stream_AddClipSetToZone never called) (2026-10-28)"
+0008f0d0,NAL_ClipSetPlayer_Init,no data,"clip-set player: no shipped data uses it (zone +0xb0 table always empty; only caller Stream_AddClipSetToZone never called) (2026-10-28)"
+0008ee80,NAL_ClipSetPlayer_Update,no data,"clip-set player: no shipped data uses it (zone +0xb0 table always empty; only caller Stream_AddClipSetToZone never called) (2026-10-28)"
+0008e060,NAL_Manager828_Release,no data,"clip-set player: no shipped data uses it (zone +0xb0 table always empty; only caller Stream_AddClipSetToZone never called) (2026-10-28)"
+002b7de0,AnimData_InitNode,dead,"no CALL/JMP or immediate anywhere in the XBE (2026-10-28)"

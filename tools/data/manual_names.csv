@@ -14165,3 +14165,5 @@ address,name,kind,confidence,evidence
 0023cfb0,Stream_ResolveXmbParts,function,medium,"from the body (streaming module push 2026-10-28)"
 0028d860,MemContext_AddFreeBlock,function,medium,"from the body (streaming module push 2026-10-28)"
 002c4020,CodNote_FreeForZone,function,medium,"from the body (streaming module push 2026-10-28)"
+002e4650,AnimTree_SampleRootTransformBetween,function,medium,"from the body (xanim module push 2026-10-28)"
+002b7de0,AnimData_InitNode,function,medium,"from the body (xanim module push 2026-10-28)"

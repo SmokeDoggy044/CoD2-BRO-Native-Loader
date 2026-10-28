@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 70% of the functions have a name, and 2,660 have been
+It's early days: about 70% of the functions have a name, and 2,698 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,13 +27,13 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,630 | 2,660 | 8,533 |
+| Engine and game code (`.text`) | 11,193 | 8,632 | 2,698 | 8,495 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,618** | **2,660** | **13,857** |
+| **Total** | **16,517** | **11,620** | **2,698** | **13,819** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 441 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 446 functions the campaign never runs, the same comparison offline on random inputs.
 **Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
 and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
 its files (these are in C++ already). The Xbox Live code is set aside without being
@@ -46,7 +46,7 @@ We've also named 2,659 of the game's global variables.
 |---|---:|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 1,085 | 1,029 | 7 | 48 | 0 | 0 |
 | Game logic (entities, AI, weapons, physics, level-script runtime) | 1,627 | 279 | 16 | 0 | 1,123 | 205 |
-| Animation (animation trees, the animation codec) | 284 | 155 | 22 | 0 | 102 | 5 |
+| Animation (animation trees, the animation codec) | 284 | 193 | 16 | 5 | 67 | 3 |
 | Client game (HUD, view, effects on screen) | 300 | 167 | 22 | 0 | 96 | 15 |
 | Engine core (memory, files, settings, commands, containers, math) | 961 | 234 | 16 | 0 | 646 | 54 |
 | Client and menus | 761 | 473 | 200 | 6 | 33 | 49 |
