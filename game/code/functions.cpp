@@ -2006,6 +2006,7 @@ const Function kFunctions[] = {
     {"CG_SetNextSnap", 0x0028aaa0, 0, code(&CG_SetNextSnap_entry), 0, Result::None, Status::Compare},
     {"CG_TransitionSnapshot", 0x0028abd0, 0, code(&CG_TransitionSnapshot), 0, Result::None, Status::Compare},
     {"CG_ProcessSnapshots", 0x0028b220, 0, code(&CG_ProcessSnapshots_entry), 0, Result::None, Status::Compare},
+    {"Stream_LoadSpace", 0x0028bea0, 0, code(&Stream_LoadSpace), 16, Result::None, Status::Compare},
     {"Stream_Alloc", 0x0028beb0, 0, code(&Stream_Alloc_entry), 0, Result::Eax, Status::Compare},
     {"Stream_RemoveFreeBlocks", 0x0028c050, 0, code(&Stream_RemoveFreeBlocks), 4, Result::None, Status::Compare},
     {"Stream_AddFreeBlock", 0x0028c1c0, 0, code(&Stream_AddFreeBlock_entry), 4, Result::Eax, Status::Compare},

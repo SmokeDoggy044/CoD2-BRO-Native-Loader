@@ -690,7 +690,8 @@ void XB_STDCALL Stream_BeginZoneLoad(uint8_t* record);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_UpdateLoad(uint32_t entry, uint8_t* record);
 extern "C" void Stream_UpdateLoad_entry(void);
 void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record);
-// 0x0028bea0 Space (load handler): a bare RET; unhookable, not in kFunctions.
+// 0x0028bea0 Space (load handler, returned by Stream_GetLoadHandler at 0x0029260c): a bare RET
+// (four INT3s of padding follow, so it is hookable).
 void XB_CDECL Stream_LoadSpace(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 
 }  // namespace game
