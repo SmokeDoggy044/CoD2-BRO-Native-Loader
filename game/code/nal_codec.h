@@ -580,5 +580,43 @@ uint32_t XB_STDCALL NAL_PositionOrientation_SkipBlock(const uint32_t* context, u
                                                       uint32_t frames);
 uint32_t XB_STDCALL NAL_TrajPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t frames);
 uint32_t XB_STDCALL NAL_EntropyPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+// 0x00080230 / 0x00080f20 (cdecl, 10 words as NAL_Packed8EntropyFloat3_DecodeChannelFrames; asm
+// entries pass the argument block): the packed entropy Float3 channel decoder over four
+// components; its temporaries end in the buffer, count and ranges slots.
+extern "C" void NAL_Packed8EntropyFloat4_DecodeChannelFrames_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed8EntropyFloat4_DecodeChannelFrames(uint32_t* args);
+extern "C" void NAL_Packed16EntropyFloat4_DecodeChannelFrames_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed16EntropyFloat4_DecodeChannelFrames(uint32_t* args);
+// 0x00080590 / 0x00081290 (cdecl, 8 words; asm entries): NAL_Packed8/16EntropyFloat3_DecodeChannelBlock
+// over four components.
+extern "C" void NAL_Packed8EntropyFloat4_DecodeChannelBlock_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed8EntropyFloat4_DecodeChannelBlock(uint32_t* args);
+extern "C" void NAL_Packed16EntropyFloat4_DecodeChannelBlock_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed16EntropyFloat4_DecodeChannelBlock(uint32_t* args);
+// 0x000804c0 / 0x000811c0 (DecodeBlock slots, stdcall 5 words): the packed entropy Float3
+// DecodeBlock with 4 / 8-byte values (the int16 one aligned to 2).
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream,
+                                                         uint32_t frames, int32_t stride);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream,
+                                                          uint32_t frames, int32_t stride);
+// 0x000823a0 / 0x00082450 / 0x00082580 (DecodeFrames / DecodeBlock / Evaluate slots, stdcall 7 / 5 / 5
+// words): the plain position/orientation class - 32-byte records copied (from per-channel source
+// pointers in the readers, from the stream, from the cursor; defaults for inactive channels).
+uint32_t XB_STDCALL NAL_PositionOrientation_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                         uint32_t, int32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_PositionOrientation_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream,
+                                                        int32_t frames, int32_t stride);
+uint32_t XB_STDCALL NAL_PositionOrientation_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                     const uint8_t* defaults, const int32_t* offsets);
+// 0x00082750 / 0x00085170 / 0x00085240 / 0x000853b0 (Evaluate / BeginBlock / DecodeFrames /
+// DecodeBlock slots, stdcall 5 / 4 / 7 / 5 words): the entropy position/orientation class -
+// NAL_EntropyTrajPosOri's without stream B's per-channel records (Evaluate copies 32-byte records).
+uint32_t XB_STDCALL NAL_EntropyPosOri_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                               const uint8_t* defaults, const int32_t* offsets);
+uint32_t XB_STDCALL NAL_EntropyPosOri_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, uint32_t count);
+uint32_t XB_STDCALL NAL_EntropyPosOri_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers, uint32_t,
+                                                   uint32_t, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_EntropyPosOri_DecodeBlock(const uint32_t* context, uint8_t** data, uint8_t** stream, uint32_t frames,
+                                                  int32_t stride);
 
 }  // namespace game

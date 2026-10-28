@@ -199,7 +199,9 @@ address,name,tested,matched,nan,mismatched,coverage
 0007fe20,NAL_EntropyFloat4_SkipBlock,3121,3121,0,0,100.0
 00080060,nglShader_Nop,4000,4000,0,0,100.0
 00080070,NAL_PackedEntropyFloat4_BeginBlock,3051,3051,0,0,100.0
-00080140,NAL_Packed8EntropyFloat4_DecodeFrames,3022,3022,0,0,94.4
+00080140,NAL_Packed8EntropyFloat4_DecodeFrames,2913,2913,0,0,94.4
+000804c0,NAL_Packed8EntropyFloat4_DecodeBlock,3060,3060,0,0,95.0
+00080590,NAL_Packed8EntropyFloat4_DecodeChannelBlock,1003,1003,0,0,97.6
 00080910,NAL_Packed8EntropyFloat4_SkipBlock,3242,3242,0,0,100.0
 00080a00,NAL_Packed8EntropyFloat4_Evaluate,3264,3264,0,0,58.2
 00080b30,NAL_Packed8_DequantizeFloat4,3513,3513,0,0,100.0
@@ -207,7 +209,9 @@ address,name,tested,matched,nan,mismatched,coverage
 00080c60,NAL_Float3_SkipFixedBlock,3265,3265,0,0,100.0
 00080cb0,NAL_Float4_CopyChannels,1914,1914,0,0,100.0
 00080d60,NAL_EntropyFloat4_InitReaders,3472,3472,0,0,91.1
-00080e20,NAL_Packed16EntropyFloat4_DecodeFrames,2852,2852,0,0,100.0
+00080e20,NAL_Packed16EntropyFloat4_DecodeFrames,2847,2847,0,0,94.8
+000811c0,NAL_Packed16EntropyFloat4_DecodeBlock,3047,3047,0,0,95.2
+00081290,NAL_Packed16EntropyFloat4_DecodeChannelBlock,1013,1013,0,0,97.6
 00081630,NAL_Packed16EntropyFloat4_SkipBlock,3134,3134,0,0,100.0
 00081700,NAL_Packed16EntropyFloat4_Evaluate,3074,3074,0,0,91.2
 00081840,NAL_Packed16_DequantizeFloat4,3496,3496,0,0,100.0
@@ -225,8 +229,12 @@ address,name,tested,matched,nan,mismatched,coverage
 00081fb0,NAL_Packed8Quat_SkipBlock,3154,3154,0,0,100.0
 00082080,NAL_Packed8Quat_SkipCachedFrame,2873,2873,0,0,100.0
 000820e0,NAL_Packed16Quat_SkipBlock,3105,3105,0,0,100.0
+000823a0,NAL_PositionOrientation_DecodeFrames,2135,2135,0,0,97.0
+00082450,NAL_PositionOrientation_DecodeBlock,3055,3055,0,0,100.0
 00082500,NAL_PositionOrientation_SkipBlock,2932,2932,0,0,100.0
+00082580,NAL_PositionOrientation_Evaluate,2965,2965,0,0,97.3
 00082680,NAL_EntropyPosOri_SkipBlock,3059,3059,0,0,100.0
+00082750,NAL_EntropyPosOri_Evaluate,3111,3111,0,0,93.4
 000828d0,NAL_Float2_SkipFixedBlock,3330,3330,0,0,100.0
 00082920,NAL_PosOri_InitState,3697,3697,0,0,100.0
 000829b0,NAL_Cursor_Skip32,3824,3824,0,0,100.0
@@ -254,6 +262,9 @@ address,name,tested,matched,nan,mismatched,coverage
 000848a0,NAL_EntropyQuat_DecodeFrames,2974,2974,0,0,97.4
 00084f30,NAL_Packed8Quat_Evaluate,3243,3243,0,0,55.1
 00085060,Byte3_ToQuat,3554,3554,0,0,100.0
+00085170,NAL_EntropyPosOri_BeginBlock,3001,3001,0,0,100.0
+00085240,NAL_EntropyPosOri_DecodeFrames,2822,2822,0,0,65.6
+000853b0,NAL_EntropyPosOri_DecodeBlock,3012,3012,0,0,95.2
 00085600,NAL_EntropyTrajPosOri_BeginBlock,3039,3039,0,0,100.0
 000856e0,NAL_EntropyTrajPosOri_BeginChannel,1024,1024,0,0,90.8
 000857b0,NAL_EntropyTrajPosOri_DecodeFrames,2870,2870,0,0,64.9
