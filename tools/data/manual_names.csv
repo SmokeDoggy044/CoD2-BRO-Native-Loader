@@ -14171,3 +14171,6 @@ address,name,kind,confidence,evidence
 0028eaa0,Stream_AddZoneRawFile,function,medium,"from the body (streaming module push 2026-10-28)"
 0028ef90,Stream_SetupZoneHeaps,function,medium,"from the body (streaming module push 2026-10-28)"
 002c3500,SoundBank_AddPart,function,medium,"from the body (streaming module push 2026-10-28)"
+00022be0,NAL_Clip_FindChannelByName,function,medium,"from the body (xanim module push 2026-10-28)"
+00022d10,NAL_Clip_FindChannelData,function,medium,"from the body (xanim module push 2026-10-28)"
+0001cd80,AnimWeights_Construct,function,medium,"from the body (xanim module push 2026-10-28)"

@@ -447,7 +447,7 @@
 0001cae0 QuatTrans_Concat
 0001cbe0 QuatTrans_ToMat44
 0001cd40 FUN_0001cd40
-0001cd80 FUN_0001cd80
+0001cd80 AnimWeights_Construct
 0001cdc0 AnimWeights_SetAll
 0001ce00 FUN_0001ce00
 0001ce30 CM_WorldTreeNodes_Fixup
@@ -571,8 +571,8 @@
 00022ac0 NAL_CodNote_DecodeBlock
 00022ba0 FUN_00022ba0
 00022bb0 EmptyVFunc_Ret8
-00022be0 FUN_00022be0
-00022d10 FUN_00022d10
+00022be0 NAL_Clip_FindChannelByName
+00022d10 NAL_Clip_FindChannelData
 00022df0 Scr_NotifyWithString
 00022eb0 NAL_Clip_FindPosOriChannel
 00023000 NAL_Clip_FindFloat3Channel
