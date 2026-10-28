@@ -31,6 +31,8 @@
 
 #include "unzip.h"
 
+#include <cstring>
+
 #include "title_data.h"
 
 namespace game {
@@ -1017,24 +1019,32 @@ int32_t XB_CDECL inflate_codes(InflateBlocksState* s, ZStream* z, int32_t r_in) 
 
 PLATFORM_ASM_ENTRY(huft_build_entry,
                    // The original never writes two words of its frame: r's padding (the word at
-                   // entry - 0xd8, upper half) and r.base before the first code (entry - 0xd4).
-                   "pushl -0xd4(%esp)\n"
-                   "pushl -0xd4(%esp)\n"  // entry - 0xd8 after the first push
-                   "pushl 40(%esp)\n"
-                   "pushl 40(%esp)\n"
-                   "pushl 40(%esp)\n"
-                   "pushl 40(%esp)\n"
-                   "pushl 40(%esp)\n"
-                   "pushl 40(%esp)\n"
-                   "pushl 40(%esp)\n"
-                   "pushl 40(%esp)\n"
+                   // entry - 0xd8, whose low half r's exop and bits overwrite) and the one at
+                   // entry - 0xd4 (r.base before the first code). The C version gets both and
+                   // leaves them as the original would: r's last value, the other word untouched.
+                   "pushl -0xd4(%esp)\n"  // entry - 0xd4
+                   "pushl -0xd4(%esp)\n"  // entry - 0xd8
+                   "movl %esp, %edx\n"
+                   "pushl %edx\n"
+                   "pushl 44(%esp)\n"
+                   "pushl 44(%esp)\n"
+                   "pushl 44(%esp)\n"
+                   "pushl 44(%esp)\n"
+                   "pushl 44(%esp)\n"
+                   "pushl 44(%esp)\n"
+                   "pushl 44(%esp)\n"
+                   "pushl 44(%esp)\n"
                    "pushl %eax\n"
-                   "pushl %ecx\n" PLATFORM_ASM_CALL(huft_build) "addl $48, %esp\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(huft_build) "addl $44, %esp\n"
+                   "popl %edx\n"
+                   "movl %edx, -0xd4(%esp)\n"
+                   "popl %edx\n"
+                   "movl %edx, -0xd4(%esp)\n"
                    "ret")
 
 int32_t XB_CDECL huft_build(uint32_t* b, uint32_t* m, uint32_t n_in, uint32_t s, const uint32_t* d,
                             const uint32_t* e, InflateHuft** t, InflateHuft* hp, uint32_t* hn, uint32_t* v,
-                            uint32_t stale_pad, uint32_t stale_base) {
+                            uint32_t* frame) {
     constexpr uint32_t BMAX = 15;
     uint32_t n = n_in;
     uint32_t a;
@@ -1057,12 +1067,14 @@ int32_t XB_CDECL huft_build(uint32_t* b, uint32_t* m, uint32_t n_in, uint32_t s,
     int32_t y;
     uint32_t z;
 
-    // r's padding and its base before the first code are stack words the original never sets.
-    r.exop = 0;
-    r.bits = 0;
-    r.pad[0] = static_cast<uint8_t>(stale_pad >> 16);
-    r.pad[1] = static_cast<uint8_t>(stale_pad >> 24);
-    r.base = stale_base;
+    // r's first word and its base before the first code are stack words the original never
+    // sets; the first word is written back as r's last value (the original keeps r there).
+    std::memcpy(&r, &frame[0], 4);
+    r.base = frame[1];
+    auto done = [&](int32_t result) {
+        std::memcpy(&frame[0], &r, 4);
+        return result;
+    };
 
     // Generate counts for each bit length.
     for (i = 0; i <= BMAX; i++) c[i] = 0;
@@ -1074,7 +1086,7 @@ int32_t XB_CDECL huft_build(uint32_t* b, uint32_t* m, uint32_t n_in, uint32_t s,
     if (c[0] == n) {  // null input--all zero length codes
         *t = nullptr;
         *m = 0;
-        return Z_OK;
+        return done(Z_OK);
     }
 
     // Find minimum and maximum length, bound *m by those.
@@ -1091,8 +1103,8 @@ int32_t XB_CDECL huft_build(uint32_t* b, uint32_t* m, uint32_t n_in, uint32_t s,
 
     // Adjust last length count to fill out codes, if needed.
     for (y = 1 << j; j < i; j++, y <<= 1)
-        if ((y -= static_cast<int32_t>(c[j])) < 0) return Z_DATA_ERROR;
-    if ((y -= static_cast<int32_t>(c[i])) < 0) return Z_DATA_ERROR;
+        if ((y -= static_cast<int32_t>(c[j])) < 0) return done(Z_DATA_ERROR);
+    if ((y -= static_cast<int32_t>(c[i])) < 0) return done(Z_DATA_ERROR);
     c[i] += static_cast<uint32_t>(y);
 
     // Generate starting offsets into the value table for each length.
@@ -1136,7 +1148,7 @@ int32_t XB_CDECL huft_build(uint32_t* b, uint32_t* m, uint32_t n_in, uint32_t s,
                         }
                 }
                 z = 1u << j;
-                if (*hn + z > MANY) return Z_DATA_ERROR;
+                if (*hn + z > MANY) return done(Z_DATA_ERROR);
                 u[h] = q = hp + *hn;
                 *hn += z;
                 if (h) {
@@ -1180,7 +1192,7 @@ int32_t XB_CDECL huft_build(uint32_t* b, uint32_t* m, uint32_t n_in, uint32_t s,
             }
         }
     }
-    return y != 0 && g != 1 ? Z_BUF_ERROR : Z_OK;
+    return done(y != 0 && g != 1 ? Z_BUF_ERROR : Z_OK);
 }
 
 int32_t XB_CDECL inflate_trees_bits(uint32_t* c, uint32_t* bb, InflateHuft** tb, InflateHuft* hp, ZStream* z) {
@@ -1236,6 +1248,998 @@ int32_t XB_CDECL inflate_trees_dynamic(uint32_t nl, uint32_t nd, uint32_t* c, ui
     }
     zfree(z, v);
     return Z_OK;
+}
+
+// ---- deflate.c -----------------------------------------------------------------------
+
+namespace {
+
+constexpr int32_t INIT_STATE = 42;
+constexpr int32_t BUSY_STATE = 113;
+constexpr int32_t FINISH_STATE = 666;
+constexpr uint32_t MIN_MATCH = 3;
+constexpr uint32_t MAX_MATCH = 258;
+constexpr uint32_t MIN_LOOKAHEAD = MAX_MATCH + MIN_MATCH + 1;
+constexpr uint32_t TOO_FAR = 4096;
+constexpr int32_t need_more = 0, block_done = 1, finish_started = 2, finish_done = 3;
+
+// z_errmsg[2 - err]
+const char* err_msg(int32_t err) { return title_global<const char*>(0x008a0c14u + static_cast<uint32_t>(2 - err) * 4); }
+
+uint32_t max_dist(const DeflateState* s) { return s->w_size - MIN_LOOKAHEAD; }
+
+void put_byte(DeflateState* s, uint8_t c) { s->pending_buf[s->pending++] = c; }
+
+void update_hash(DeflateState* s, uint32_t& h, uint32_t c) { h = ((h << s->hash_shift) ^ c) & s->hash_mask; }
+
+// INSERT_STRING: returns the previous head of the hash chain.
+uint32_t insert_string(DeflateState* s, uint32_t str) {
+    update_hash(s, s->ins_h, s->window[str + (MIN_MATCH - 1)]);
+    const uint32_t match_head = s->head[s->ins_h];
+    s->prev[str & s->w_mask] = static_cast<uint16_t>(match_head);
+    s->head[s->ins_h] = static_cast<uint16_t>(str);
+    return match_head;
+}
+
+void clear_hash(DeflateState* s) {
+    s->head[s->hash_size - 1] = 0;
+    std::memset(s->head, 0, (s->hash_size - 1) * sizeof(uint16_t));
+}
+
+// _length_code[256] and _dist_code[512] (trees.h).
+uint8_t length_code(uint32_t len) { return title_global<const uint8_t>(0x007bbc80u + len); }
+uint8_t d_code(uint32_t dist) {
+    return dist < 256 ? title_global<const uint8_t>(0x007bba80u + dist)
+                      : title_global<const uint8_t>(0x007bba80u + 256 + (dist >> 7));
+}
+
+// _tr_tally_lit / _tr_tally_dist: true when the literal buffer is full.
+bool tally_lit(DeflateState* s, uint8_t cc) {
+    s->d_buf[s->last_lit] = 0;
+    s->l_buf[s->last_lit++] = cc;
+    s->dyn_ltree[cc].fc++;
+    return s->last_lit == s->lit_bufsize - 1;
+}
+bool tally_dist(DeflateState* s, uint32_t distance, uint32_t length) {
+    const uint8_t len = static_cast<uint8_t>(length);
+    uint16_t dist = static_cast<uint16_t>(distance);
+    s->d_buf[s->last_lit] = dist;
+    s->l_buf[s->last_lit++] = len;
+    dist--;
+    s->dyn_ltree[length_code(len) + 256 + 1].fc++;
+    s->dyn_dtree[d_code(dist)].fc++;
+    return s->last_lit == s->lit_bufsize - 1;
+}
+
+// FLUSH_BLOCK_ONLY
+void flush_block_only(DeflateState* s, int32_t eof) {
+    _tr_flush_block(s, s->block_start >= 0 ? &s->window[static_cast<uint32_t>(s->block_start)] : nullptr,
+                    static_cast<uint32_t>(static_cast<int32_t>(s->strstart) - s->block_start), eof);
+    s->block_start = static_cast<int32_t>(s->strstart);
+    flush_pending(s->strm);
+}
+
+}  // namespace
+
+int32_t XB_CDECL compress2(uint8_t* dest, uint32_t* dest_len, const uint8_t* source, uint32_t source_len,
+                           int32_t level) {
+    ZStream stream{};
+    stream.next_in = source;
+    stream.avail_in = source_len;
+    stream.next_out = dest;
+    stream.avail_out = *dest_len;
+    stream.zalloc = 0;
+    stream.zfree = 0;
+    stream.opaque = 0;
+    int32_t err =
+        deflateInit_(&stream, level, reinterpret_cast<const char*>(uintptr_t{kZlibVersion}), sizeof(ZStream));
+    if (err != Z_OK) return err;
+    err = deflate(&stream, 4);  // Z_FINISH
+    if (err != Z_STREAM_END) {
+        deflateEnd(&stream);
+        return err == Z_OK ? Z_BUF_ERROR : err;
+    }
+    *dest_len = stream.total_out;
+    return deflateEnd(&stream);
+}
+
+DeflateState* XB_REGS3 XB_CDECL putShortMSB(DeflateState* s, uint32_t /*edx_unused*/, uint32_t b) {
+    put_byte(s, static_cast<uint8_t>(b >> 8));
+    put_byte(s, static_cast<uint8_t>(b & 0xff));
+    return s;
+}
+
+void XB_REGS1 XB_CDECL flush_pending(ZStream* strm) {
+    DeflateState* state = static_cast<DeflateState*>(strm->state);
+    uint32_t len = static_cast<uint32_t>(state->pending);
+    if (len > strm->avail_out) len = strm->avail_out;
+    if (len == 0) return;
+    platform_rep_movs(strm->next_out, state->pending_out, len);
+    strm->next_out += len;
+    static_cast<DeflateState*>(strm->state)->pending_out += len;
+    strm->total_out += len;
+    strm->avail_out -= len;
+    static_cast<DeflateState*>(strm->state)->pending -= static_cast<int32_t>(len);
+    state = static_cast<DeflateState*>(strm->state);
+    if (state->pending == 0) state->pending_out = state->pending_buf;
+}
+
+int32_t XB_CDECL deflate(ZStream* strm, int32_t flush) {
+    if (strm == nullptr || strm->state == nullptr || flush > 4 || flush < 0) return Z_STREAM_ERROR;
+    DeflateState* s = static_cast<DeflateState*>(strm->state);
+    if (strm->next_out == nullptr || (strm->next_in == nullptr && strm->avail_in != 0) ||
+        (s->status == FINISH_STATE && flush != 4)) {
+        strm->msg = err_msg(Z_STREAM_ERROR);
+        return Z_STREAM_ERROR;
+    }
+    if (strm->avail_out == 0) {
+        strm->msg = err_msg(Z_BUF_ERROR);
+        return Z_BUF_ERROR;
+    }
+    s->strm = strm;
+    const int32_t old_flush = s->last_flush;
+    s->last_flush = flush;
+
+    // The zlib header.
+    if (s->status == INIT_STATE) {
+        uint32_t header = (8 + ((s->w_bits - 8) << 4)) << 8;
+        uint32_t level_flags = static_cast<uint32_t>((s->level - 1) >> 1);
+        if (level_flags > 3) level_flags = 3;
+        header |= level_flags << 6;
+        if (s->strstart != 0) header |= 0x20;  // PRESET_DICT
+        header += 31 - (header % 31);
+        s->status = BUSY_STATE;
+        putShortMSB(s, 0, header);
+        if (s->strstart != 0) {
+            putShortMSB(s, 0, strm->adler >> 16);
+            putShortMSB(s, 0, strm->adler & 0xffff);
+        }
+        strm->adler = 1;
+    }
+
+    // Flush as much pending output as possible.
+    if (s->pending != 0) {
+        flush_pending(strm);
+        if (strm->avail_out == 0) {
+            s->last_flush = -1;
+            return Z_OK;
+        }
+    } else if (strm->avail_in == 0 && flush <= old_flush && flush != 4) {
+        strm->msg = err_msg(Z_BUF_ERROR);
+        return Z_BUF_ERROR;
+    }
+    if (s->status == FINISH_STATE && strm->avail_in != 0) {
+        strm->msg = err_msg(Z_BUF_ERROR);
+        return Z_BUF_ERROR;
+    }
+
+    // Start a new block or continue the current one.
+    if (strm->avail_in != 0 || s->lookahead != 0 || (flush != 0 && s->status != FINISH_STATE)) {
+        const uint32_t func = title_global<uint32_t>(0x007bb298u + static_cast<uint32_t>(s->level) * 12);
+        const int32_t bstate = title_function<int32_t XB_CDECL(DeflateState*, int32_t)>(func)(s, flush);
+        if (bstate == finish_started || bstate == finish_done) s->status = FINISH_STATE;
+        if (bstate == need_more || bstate == finish_started) {
+            if (strm->avail_out == 0) s->last_flush = -1;
+            return Z_OK;
+        }
+        if (bstate == block_done) {
+            if (flush == 1) {  // Z_PARTIAL_FLUSH
+                _tr_align(s);
+            } else {
+                _tr_stored_block(s, nullptr, 0, 0);
+                if (flush == 3) clear_hash(s);  // Z_FULL_FLUSH: forget history
+            }
+            flush_pending(strm);
+            if (strm->avail_out == 0) {
+                s->last_flush = -1;
+                return Z_OK;
+            }
+        }
+    }
+    if (flush != 4) return Z_OK;
+    if (s->noheader) return Z_STREAM_END;
+
+    // The zlib trailer (adler32).
+    putShortMSB(s, 0, strm->adler >> 16);
+    putShortMSB(s, 0, strm->adler & 0xffff);
+    flush_pending(strm);
+    s->noheader = -1;  // write the trailer only once
+    return s->pending != 0 ? Z_OK : Z_STREAM_END;
+}
+
+int32_t XB_CDECL deflateEnd(ZStream* strm) {
+    if (strm == nullptr || strm->state == nullptr) return Z_STREAM_ERROR;
+    const int32_t status = static_cast<DeflateState*>(strm->state)->status;
+    if (status != INIT_STATE && status != BUSY_STATE && status != FINISH_STATE) return Z_STREAM_ERROR;
+    if (static_cast<DeflateState*>(strm->state)->pending_buf)
+        zfree(strm, static_cast<DeflateState*>(strm->state)->pending_buf);
+    if (static_cast<DeflateState*>(strm->state)->head) zfree(strm, static_cast<DeflateState*>(strm->state)->head);
+    if (static_cast<DeflateState*>(strm->state)->prev) zfree(strm, static_cast<DeflateState*>(strm->state)->prev);
+    if (static_cast<DeflateState*>(strm->state)->window)
+        zfree(strm, static_cast<DeflateState*>(strm->state)->window);
+    zfree(strm, strm->state);
+    strm->state = nullptr;
+    return status == BUSY_STATE ? Z_DATA_ERROR : Z_OK;
+}
+
+void XB_REGS2 XB_CDECL lm_init(uint32_t /*eax_unused*/, DeflateState* s) {
+    s->window_size = 2 * s->w_size;
+    clear_hash(s);
+    // configuration_table[level]: good_length, max_lazy, nice_length, max_chain, func.
+    const uint32_t config = 0x007bb290u + static_cast<uint32_t>(s->level) * 12;
+    s->max_lazy_match = title_global<const uint16_t>(config + 2);
+    s->good_match = title_global<const uint16_t>(config + 0);
+    s->nice_match = title_global<const uint16_t>(config + 4);
+    s->max_chain_length = title_global<const uint16_t>(config + 6);
+    s->strstart = 0;
+    s->block_start = 0;
+    s->lookahead = 0;
+    s->match_length = s->prev_length = MIN_MATCH - 1;
+    s->match_available = 0;
+    s->ins_h = 0;
+}
+
+PLATFORM_ASM_ENTRY(longest_match_entry,
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(longest_match) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL longest_match(DeflateState* s, uint32_t cur_match) {
+    uint32_t chain_length = s->max_chain_length;
+    uint8_t* scan = s->window + s->strstart;
+    uint8_t* match;
+    int32_t len;
+    int32_t best_len = static_cast<int32_t>(s->prev_length);
+    int32_t nice_match = s->nice_match;
+    const uint32_t limit = s->strstart > max_dist(s) ? s->strstart - max_dist(s) : 0;
+    const uint16_t* prev = s->prev;
+    const uint32_t wmask = s->w_mask;
+    uint8_t* strend = s->window + s->strstart + MAX_MATCH;
+    uint8_t scan_end1 = scan[best_len - 1];
+    uint8_t scan_end = scan[best_len];
+
+    if (s->prev_length >= s->good_match) chain_length >>= 2;
+    if (static_cast<uint32_t>(nice_match) > s->lookahead) nice_match = static_cast<int32_t>(s->lookahead);
+
+    do {
+        match = s->window + cur_match;
+        if (match[best_len] != scan_end || match[best_len - 1] != scan_end1 || *match != *scan ||
+            *++match != scan[1])
+            continue;
+        scan += 2, match++;
+        do {
+        } while (*++scan == *++match && *++scan == *++match && *++scan == *++match && *++scan == *++match &&
+                 *++scan == *++match && *++scan == *++match && *++scan == *++match && *++scan == *++match &&
+                 scan < strend);
+        len = static_cast<int32_t>(MAX_MATCH) - static_cast<int32_t>(strend - scan);
+        scan = strend - MAX_MATCH;
+        if (len > best_len) {
+            s->match_start = cur_match;
+            best_len = len;
+            if (len >= nice_match) break;
+            scan_end1 = scan[best_len - 1];
+            scan_end = scan[best_len];
+        }
+    } while ((cur_match = prev[cur_match & wmask]) > limit && --chain_length != 0);
+
+    if (static_cast<uint32_t>(best_len) <= s->lookahead) return static_cast<uint32_t>(best_len);
+    return s->lookahead;
+}
+
+PLATFORM_ASM_ENTRY(fill_window_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(fill_window) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL fill_window(DeflateState* s) {
+    uint32_t n, m;
+    uint16_t* p;
+    uint32_t more;
+    const uint32_t wsize = s->w_size;
+    do {
+        more = s->window_size - s->lookahead - s->strstart;
+        if (more == 0 && s->strstart == 0 && s->lookahead == 0) {
+            more = wsize;
+        } else if (more == 0xffffffffu) {
+            more--;
+        } else if (s->strstart >= wsize + max_dist(s)) {
+            platform_rep_movs(s->window, s->window + wsize, wsize);
+            s->match_start -= wsize;
+            s->strstart -= wsize;
+            s->block_start -= static_cast<int32_t>(wsize);
+            n = s->hash_size;
+            p = &s->head[n];
+            do {
+                m = *--p;
+                *p = static_cast<uint16_t>(m >= wsize ? m - wsize : 0);
+            } while (--n);
+            n = wsize;
+            p = &s->prev[n];
+            do {
+                m = *--p;
+                *p = static_cast<uint16_t>(m >= wsize ? m - wsize : 0);
+            } while (--n);
+            more += wsize;
+        }
+        if (s->strm->avail_in == 0) return;
+
+        // read_buf
+        ZStream* strm = s->strm;
+        uint8_t* buf = s->window + s->strstart + s->lookahead;
+        uint32_t len = strm->avail_in;
+        if (len > more) len = more;
+        if (len != 0) {
+            strm->avail_in -= len;
+            if (!static_cast<DeflateState*>(strm->state)->noheader) strm->adler = adler32(strm->adler, strm->next_in, len);
+            platform_rep_movs(buf, strm->next_in, len);
+            strm->next_in += len;
+            strm->total_in += len;
+        }
+        n = len;
+
+        s->lookahead += n;
+        if (s->lookahead >= MIN_MATCH) {
+            s->ins_h = s->window[s->strstart];
+            update_hash(s, s->ins_h, s->window[s->strstart + 1]);
+        }
+    } while (s->lookahead < MIN_LOOKAHEAD && s->strm->avail_in != 0);
+}
+
+int32_t XB_CDECL deflate_stored(DeflateState* s, int32_t flush) {
+    uint32_t max_block_size = 0xffff;
+    if (max_block_size > s->pending_buf_size - 5) max_block_size = s->pending_buf_size - 5;
+    for (;;) {
+        if (s->lookahead <= 1) {
+            fill_window(s);
+            if (s->lookahead == 0 && flush == 0) return need_more;
+            if (s->lookahead == 0) break;  // flush the current block
+        }
+        s->strstart += s->lookahead;
+        s->lookahead = 0;
+        const uint32_t max_start = static_cast<uint32_t>(s->block_start) + max_block_size;
+        if (s->strstart == 0 || s->strstart >= max_start) {
+            s->lookahead = s->strstart - max_start;
+            s->strstart = max_start;
+            flush_block_only(s, 0);
+            if (s->strm->avail_out == 0) return need_more;
+        }
+        if (s->strstart - static_cast<uint32_t>(s->block_start) >= max_dist(s)) {
+            flush_block_only(s, 0);
+            if (s->strm->avail_out == 0) return need_more;
+        }
+    }
+    flush_block_only(s, flush == 4);
+    if (s->strm->avail_out == 0) return flush == 4 ? finish_started : need_more;
+    return flush == 4 ? finish_done : block_done;
+}
+
+int32_t XB_CDECL deflate_fast(DeflateState* s, int32_t flush) {
+    uint32_t hash_head = 0;
+    bool bflush;
+    for (;;) {
+        if (s->lookahead < MIN_LOOKAHEAD) {
+            fill_window(s);
+            if (s->lookahead < MIN_LOOKAHEAD && flush == 0) return need_more;
+            if (s->lookahead == 0) break;
+        }
+        if (s->lookahead >= MIN_MATCH) hash_head = insert_string(s, s->strstart);
+        if (hash_head != 0 && s->strstart - hash_head <= max_dist(s)) {
+            if (s->strategy != 2) s->match_length = longest_match(s, hash_head);  // Z_HUFFMAN_ONLY
+        }
+        if (s->match_length >= MIN_MATCH) {
+            bflush = tally_dist(s, s->strstart - s->match_start, s->match_length - MIN_MATCH);
+            s->lookahead -= s->match_length;
+            if (s->match_length <= s->max_lazy_match && s->lookahead >= MIN_MATCH) {
+                s->match_length--;
+                do {
+                    s->strstart++;
+                    hash_head = insert_string(s, s->strstart);
+                } while (--s->match_length != 0);
+                s->strstart++;
+            } else {
+                s->strstart += s->match_length;
+                s->match_length = 0;
+                s->ins_h = s->window[s->strstart];
+                update_hash(s, s->ins_h, s->window[s->strstart + 1]);
+            }
+        } else {
+            bflush = tally_lit(s, s->window[s->strstart]);
+            s->lookahead--;
+            s->strstart++;
+        }
+        if (bflush) {
+            flush_block_only(s, 0);
+            if (s->strm->avail_out == 0) return need_more;
+        }
+    }
+    flush_block_only(s, flush == 4);
+    if (s->strm->avail_out == 0) return flush == 4 ? finish_started : need_more;
+    return flush == 4 ? finish_done : block_done;
+}
+
+int32_t XB_CDECL deflate_slow(DeflateState* s, int32_t flush) {
+    uint32_t hash_head = 0;
+    bool bflush;
+    for (;;) {
+        if (s->lookahead < MIN_LOOKAHEAD) {
+            fill_window(s);
+            if (s->lookahead < MIN_LOOKAHEAD && flush == 0) return need_more;
+            if (s->lookahead == 0) break;
+        }
+        if (s->lookahead >= MIN_MATCH) hash_head = insert_string(s, s->strstart);
+
+        s->prev_length = s->match_length, s->prev_match = s->match_start;
+        s->match_length = MIN_MATCH - 1;
+        if (hash_head != 0 && s->prev_length < s->max_lazy_match && s->strstart - hash_head <= max_dist(s)) {
+            if (s->strategy != 2) s->match_length = longest_match(s, hash_head);
+            if (s->match_length <= 5 &&
+                (s->strategy == 1 || (s->match_length == MIN_MATCH && s->strstart - s->match_start > TOO_FAR)))
+                s->match_length = MIN_MATCH - 1;  // Z_FILTERED, or a short far match
+        }
+        if (s->prev_length >= MIN_MATCH && s->match_length <= s->prev_length) {
+            const uint32_t max_insert = s->strstart + s->lookahead - MIN_MATCH;
+            bflush = tally_dist(s, s->strstart - 1 - s->prev_match, s->prev_length - MIN_MATCH);
+            s->lookahead -= s->prev_length - 1;
+            s->prev_length -= 2;
+            do {
+                if (++s->strstart <= max_insert) hash_head = insert_string(s, s->strstart);
+            } while (--s->prev_length != 0);
+            s->match_available = 0;
+            s->match_length = MIN_MATCH - 1;
+            s->strstart++;
+            if (bflush) {
+                flush_block_only(s, 0);
+                if (s->strm->avail_out == 0) return need_more;
+            }
+        } else if (s->match_available) {
+            bflush = tally_lit(s, s->window[s->strstart - 1]);
+            if (bflush) flush_block_only(s, 0);
+            s->strstart++;
+            s->lookahead--;
+            if (s->strm->avail_out == 0) return need_more;
+        } else {
+            s->match_available = 1;
+            s->strstart++;
+            s->lookahead--;
+        }
+    }
+    if (s->match_available) {
+        tally_lit(s, s->window[s->strstart - 1]);
+        s->match_available = 0;
+    }
+    flush_block_only(s, flush == 4);
+    if (s->strm->avail_out == 0) return flush == 4 ? finish_started : need_more;
+    return flush == 4 ? finish_done : block_done;
+}
+
+int32_t XB_CDECL deflateReset(ZStream* strm) {
+    if (strm == nullptr || strm->state == nullptr || strm->zalloc == 0 || strm->zfree == 0) return Z_STREAM_ERROR;
+    DeflateState* s = static_cast<DeflateState*>(strm->state);
+    strm->total_in = strm->total_out = 0;
+    strm->msg = nullptr;
+    strm->data_type = 2;  // Z_UNKNOWN
+    s->pending = 0;
+    s->pending_out = s->pending_buf;
+    if (s->noheader < 0) s->noheader = 0;  // was set to -1 by deflate(..., Z_FINISH)
+    s->status = s->noheader ? BUSY_STATE : INIT_STATE;
+    strm->adler = 1;
+    s->last_flush = 0;
+    _tr_init(s);
+    lm_init(0, s);
+    return Z_OK;
+}
+
+int32_t XB_CDECL deflateInit2_(ZStream* strm, int32_t level_in, int32_t method, int32_t window_bits_in,
+                               int32_t mem_level, int32_t strategy, const char* version, int32_t stream_size) {
+    int32_t level = level_in;
+    int32_t window_bits = window_bits_in;
+    int32_t noheader = 0;
+    const char* my_version = title_global<const char*>(0x008a0c10);  // ZLIB_VERSION
+    if (version == nullptr || version[0] != my_version[0] || stream_size != static_cast<int32_t>(sizeof(ZStream)))
+        return Z_VERSION_ERROR;
+    if (strm == nullptr) return Z_STREAM_ERROR;
+    strm->msg = nullptr;
+    if (strm->zalloc == 0) {
+        strm->zalloc = kZcalloc;
+        strm->opaque = 0;
+    }
+    if (strm->zfree == 0) strm->zfree = kZcfree;
+    if (level == -1) level = 6;  // Z_DEFAULT_COMPRESSION
+    if (window_bits < 0) {      // suppress the zlib header
+        noheader = 1;
+        window_bits = -window_bits;
+    }
+    if (mem_level < 1 || mem_level > 9 || method != 8 || window_bits < 9 || window_bits > 15 || level < 0 ||
+        level > 9 || strategy < 0 || strategy > 2)
+        return Z_STREAM_ERROR;
+
+    DeflateState* s = static_cast<DeflateState*>(zalloc(strm, 1, sizeof(DeflateState)));
+    if (s == nullptr) return Z_MEM_ERROR;
+    strm->state = s;
+    s->strm = strm;
+    s->noheader = noheader;
+    s->w_bits = static_cast<uint32_t>(window_bits);
+    s->w_size = 1u << s->w_bits;
+    s->w_mask = s->w_size - 1;
+    s->hash_bits = static_cast<uint32_t>(mem_level) + 7;
+    s->hash_size = 1u << s->hash_bits;
+    s->hash_mask = s->hash_size - 1;
+    s->hash_shift = (s->hash_bits + MIN_MATCH - 1) / MIN_MATCH;
+    s->window = static_cast<uint8_t*>(zalloc(strm, s->w_size, 2));
+    s->prev = static_cast<uint16_t*>(zalloc(strm, s->w_size, 2));
+    s->head = static_cast<uint16_t*>(zalloc(strm, s->hash_size, 2));
+    s->lit_bufsize = 1u << (mem_level + 6);
+    uint16_t* overlay = static_cast<uint16_t*>(zalloc(strm, s->lit_bufsize, 4));
+    s->pending_buf = reinterpret_cast<uint8_t*>(overlay);
+    s->pending_buf_size = s->lit_bufsize * 4;
+    if (s->window == nullptr || s->prev == nullptr || s->head == nullptr || s->pending_buf == nullptr) {
+        strm->msg = err_msg(Z_MEM_ERROR);
+        deflateEnd(strm);
+        return Z_MEM_ERROR;
+    }
+    s->d_buf = overlay + s->lit_bufsize / sizeof(uint16_t);
+    s->l_buf = s->pending_buf + 3 * s->lit_bufsize;
+    s->level = level;
+    s->strategy = strategy;
+    s->method = static_cast<uint8_t>(method);
+    return deflateReset(strm);
+}
+
+int32_t XB_CDECL deflateInit_(ZStream* strm, int32_t level, const char* version, int32_t stream_size) {
+    return deflateInit2_(strm, level, 8, 15, 8, 0, version, stream_size);  // Z_DEFLATED, MAX_WBITS, DEF_MEM_LEVEL
+}
+
+// ---- trees.c -------------------------------------------------------------------------
+
+namespace {
+
+constexpr int32_t L_CODES = 286;
+constexpr int32_t D_CODES = 30;
+constexpr int32_t BL_CODES = 19;
+constexpr int32_t HEAP_SIZE = 2 * L_CODES + 1;
+constexpr int32_t MAX_BITS = 15;
+constexpr int32_t END_BLOCK = 256;
+constexpr int32_t REP_3_6 = 16, REPZ_3_10 = 17, REPZ_11_138 = 18;
+constexpr int32_t SMALLEST = 1;
+
+const CtData* static_ltree() { return &title_global<const CtData>(0x007bb588); }
+const CtData* static_dtree() { return &title_global<const CtData>(0x007bba08); }
+uint8_t bl_order(int32_t i) { return title_global<const uint8_t>(0x007bb574u + static_cast<uint32_t>(i)); }
+int32_t extra_lbits(uint32_t i) { return title_global<const int32_t>(0x007bb438u + i * 4); }
+int32_t extra_dbits(uint32_t i) { return title_global<const int32_t>(0x007bb4b0u + i * 4); }
+int32_t base_length(uint32_t i) { return title_global<const int32_t>(0x007bbd80u + i * 4); }
+int32_t base_dist(uint32_t i) { return title_global<const int32_t>(0x007bbdf8u + i * 4); }
+
+void put_short(DeflateState* s, uint32_t w) {
+    put_byte(s, static_cast<uint8_t>(w & 0xff));
+    put_byte(s, static_cast<uint8_t>(static_cast<uint16_t>(w) >> 8));
+}
+
+void send_bits(DeflateState* s, int32_t value, int32_t length) {
+    if (s->bi_valid > 16 - length) {
+        const int32_t val = value;
+        s->bi_buf = static_cast<uint16_t>(s->bi_buf | (val << s->bi_valid));
+        put_short(s, s->bi_buf);
+        s->bi_buf = static_cast<uint16_t>(static_cast<uint16_t>(val) >> (16 - s->bi_valid));
+        s->bi_valid += length - 16;
+    } else {
+        s->bi_buf = static_cast<uint16_t>(s->bi_buf | (value << s->bi_valid));
+        s->bi_valid += length;
+    }
+}
+
+void send_code(DeflateState* s, int32_t c, const CtData* tree) { send_bits(s, tree[c].fc, tree[c].dl); }
+
+bool smaller(const CtData* tree, int32_t n, int32_t m, const uint8_t* depth) {
+    return tree[n].fc < tree[m].fc || (tree[n].fc == tree[m].fc && depth[n] <= depth[m]);
+}
+
+}  // namespace
+
+void XB_REGS2 XB_CDECL init_block(uint32_t /*eax_unused*/, DeflateState* s) {
+    for (int32_t n = 0; n < L_CODES; n++) s->dyn_ltree[n].fc = 0;
+    for (int32_t n = 0; n < D_CODES; n++) s->dyn_dtree[n].fc = 0;
+    for (int32_t n = 0; n < BL_CODES; n++) s->bl_tree[n].fc = 0;
+    s->dyn_ltree[END_BLOCK].fc = 1;
+    s->opt_len = s->static_len = 0;
+    s->last_lit = s->matches = 0;
+}
+
+void XB_CDECL _tr_init(DeflateState* s) {
+    s->l_desc.dyn_tree = s->dyn_ltree;
+    s->l_desc.stat_desc = &title_global<const StaticTreeDesc>(0x008a0c3c);  // static_l_desc
+    s->d_desc.dyn_tree = s->dyn_dtree;
+    s->d_desc.stat_desc = &title_global<const StaticTreeDesc>(0x008a0c50);  // static_d_desc
+    s->bl_desc.dyn_tree = s->bl_tree;
+    s->bl_desc.stat_desc = &title_global<const StaticTreeDesc>(0x008a0c64);  // static_bl_desc
+    s->bi_buf = 0;
+    s->bi_valid = 0;
+    s->last_eob_len = 8;  // enough lookahead for inflate
+    init_block(0, s);
+}
+
+PLATFORM_ASM_ENTRY(pqdownheap_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(pqdownheap) "addl $12, %esp\n"
+                   "ret")
+
+DeflateState* XB_CDECL pqdownheap(DeflateState* s, CtData* tree, int32_t k_in) {
+    int32_t k = k_in;
+    const int32_t v = s->heap[k];
+    int32_t j = k << 1;  // left son of k
+    while (j <= s->heap_len) {
+        if (j < s->heap_len && smaller(tree, s->heap[j + 1], s->heap[j], s->depth)) j++;
+        if (smaller(tree, v, s->heap[j], s->depth)) break;
+        s->heap[k] = s->heap[j];
+        k = j;
+        j <<= 1;
+    }
+    s->heap[k] = v;
+    return s;
+}
+
+DeflateState* XB_REGS3 XB_CDECL gen_bitlen(DeflateState* s, uint32_t /*edx_unused*/, TreeDesc* desc) {
+    CtData* tree = desc->dyn_tree;
+    const int32_t max_code = desc->max_code;
+    const CtData* stree = desc->stat_desc->static_tree;
+    const int32_t* extra = desc->stat_desc->extra_bits;
+    const int32_t base = desc->stat_desc->extra_base;
+    const int32_t max_length = desc->stat_desc->max_length;
+    int32_t h, n, m, bits, xbits;
+    uint16_t f;
+    int32_t overflow = 0;
+
+    for (bits = 0; bits <= MAX_BITS; bits++) s->bl_count[bits] = 0;
+    tree[s->heap[s->heap_max]].dl = 0;  // root of the heap
+
+    for (h = s->heap_max + 1; h < HEAP_SIZE; h++) {
+        n = s->heap[h];
+        bits = tree[tree[n].dl].dl + 1;
+        if (bits > max_length) bits = max_length, overflow++;
+        tree[n].dl = static_cast<uint16_t>(bits);
+        if (n > max_code) continue;  // not a leaf node
+        s->bl_count[bits]++;
+        xbits = 0;
+        if (n >= base) xbits = extra[n - base];
+        f = tree[n].fc;
+        s->opt_len += static_cast<uint32_t>(f) * static_cast<uint32_t>(bits + xbits);
+        if (stree) s->static_len += static_cast<uint32_t>(f) * static_cast<uint32_t>(stree[n].dl + xbits);
+    }
+    if (overflow == 0) return s;
+
+    // Find the first bit length which could increase.
+    do {
+        bits = max_length - 1;
+        while (s->bl_count[bits] == 0) bits--;
+        s->bl_count[bits]--;
+        s->bl_count[bits + 1] += 2;
+        s->bl_count[max_length]--;
+        overflow -= 2;
+    } while (overflow > 0);
+
+    // Recompute all bit lengths, scanning in increasing frequency.
+    for (bits = max_length; bits != 0; bits--) {
+        n = s->bl_count[bits];
+        while (n != 0) {
+            m = s->heap[--h];
+            if (m > max_code) continue;
+            if (tree[m].dl != static_cast<uint32_t>(bits)) {
+                s->opt_len += static_cast<uint32_t>((bits - static_cast<int32_t>(tree[m].dl)) *
+                                                    static_cast<int32_t>(tree[m].fc));
+                tree[m].dl = static_cast<uint16_t>(bits);
+            }
+            n--;
+        }
+    }
+    return s;
+}
+
+PLATFORM_ASM_ENTRY(gen_codes_entry,
+                   "pushl %edx\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(gen_codes) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL gen_codes(CtData* tree, int32_t max_code, const uint16_t* bl_count) {
+    uint16_t next_code[MAX_BITS + 1];
+    uint16_t code = 0;
+    for (int32_t bits = 1; bits <= MAX_BITS; bits++)
+        next_code[bits] = code = static_cast<uint16_t>((code + bl_count[bits - 1]) << 1);
+    for (int32_t n = 0; n <= max_code; n++) {
+        int32_t len = tree[n].dl;
+        if (len == 0) continue;
+        // bi_reverse(next_code[len]++, len)
+        uint32_t c = next_code[len]++;
+        uint32_t res = 0;
+        do {
+            res |= c & 1;
+            c >>= 1, res <<= 1;
+        } while (--len > 0);
+        tree[n].fc = static_cast<uint16_t>(res >> 1);
+    }
+}
+
+PLATFORM_ASM_ENTRY(build_tree_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(build_tree) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL build_tree(DeflateState* s, TreeDesc* desc) {
+    CtData* tree = desc->dyn_tree;
+    const CtData* stree = desc->stat_desc->static_tree;
+    const int32_t elems = desc->stat_desc->elems;
+    int32_t n, m;
+    int32_t max_code = -1;
+    int32_t node;
+
+    s->heap_len = 0, s->heap_max = HEAP_SIZE;
+    for (n = 0; n < elems; n++) {
+        if (tree[n].fc != 0) {
+            s->heap[++(s->heap_len)] = max_code = n;
+            s->depth[n] = 0;
+        } else {
+            tree[n].dl = 0;
+        }
+    }
+    // Force at least two codes of non zero frequency.
+    while (s->heap_len < 2) {
+        node = s->heap[++(s->heap_len)] = (max_code < 2 ? ++max_code : 0);
+        tree[node].fc = 1;
+        s->depth[node] = 0;
+        s->opt_len--;
+        if (stree) s->static_len -= stree[node].dl;
+    }
+    desc->max_code = max_code;
+
+    for (n = s->heap_len / 2; n >= 1; n--) pqdownheap(s, tree, n);
+
+    node = elems;
+    do {
+        // pqremove
+        n = s->heap[SMALLEST];
+        s->heap[SMALLEST] = s->heap[s->heap_len--];
+        pqdownheap(s, tree, SMALLEST);
+        m = s->heap[SMALLEST];
+        s->heap[--(s->heap_max)] = n;
+        s->heap[--(s->heap_max)] = m;
+        tree[node].fc = static_cast<uint16_t>(tree[n].fc + tree[m].fc);
+        s->depth[node] = static_cast<uint8_t>((s->depth[n] >= s->depth[m] ? s->depth[n] : s->depth[m]) + 1);
+        tree[n].dl = tree[m].dl = static_cast<uint16_t>(node);
+        s->heap[SMALLEST] = node++;
+        pqdownheap(s, tree, SMALLEST);
+    } while (s->heap_len >= 2);
+    s->heap[--(s->heap_max)] = s->heap[SMALLEST];
+
+    gen_bitlen(s, 0, desc);
+    gen_codes(tree, max_code, s->bl_count);
+}
+
+void XB_REGS3 XB_CDECL scan_tree(CtData* tree, uint32_t /*edx_unused*/, int32_t max_code, DeflateState* s) {
+    int32_t prevlen = -1;
+    int32_t curlen;
+    int32_t nextlen = tree[0].dl;
+    int32_t count = 0;
+    int32_t max_count = 7;
+    int32_t min_count = 4;
+    if (nextlen == 0) max_count = 138, min_count = 3;
+    tree[max_code + 1].dl = 0xffff;  // guard
+    for (int32_t n = 0; n <= max_code; n++) {
+        curlen = nextlen;
+        nextlen = tree[n + 1].dl;
+        if (++count < max_count && curlen == nextlen) {
+            continue;
+        } else if (count < min_count) {
+            s->bl_tree[curlen].fc = static_cast<uint16_t>(s->bl_tree[curlen].fc + count);
+        } else if (curlen != 0) {
+            if (curlen != prevlen) s->bl_tree[curlen].fc++;
+            s->bl_tree[REP_3_6].fc++;
+        } else if (count <= 10) {
+            s->bl_tree[REPZ_3_10].fc++;
+        } else {
+            s->bl_tree[REPZ_11_138].fc++;
+        }
+        count = 0;
+        prevlen = curlen;
+        if (nextlen == 0) {
+            max_count = 138, min_count = 3;
+        } else if (curlen == nextlen) {
+            max_count = 6, min_count = 3;
+        } else {
+            max_count = 7, min_count = 4;
+        }
+    }
+}
+
+DeflateState* XB_REGS3 XB_CDECL send_tree(DeflateState* s, uint32_t /*edx_unused*/, CtData* tree,
+                                          int32_t max_code) {
+    int32_t prevlen = -1;
+    int32_t curlen;
+    int32_t nextlen = tree[0].dl;
+    int32_t count = 0;
+    int32_t max_count = 7;
+    int32_t min_count = 4;
+    if (nextlen == 0) max_count = 138, min_count = 3;
+    for (int32_t n = 0; n <= max_code; n++) {
+        curlen = nextlen;
+        nextlen = tree[n + 1].dl;
+        if (++count < max_count && curlen == nextlen) {
+            continue;
+        } else if (count < min_count) {
+            do {
+                send_code(s, curlen, s->bl_tree);
+            } while (--count != 0);
+        } else if (curlen != 0) {
+            if (curlen != prevlen) {
+                send_code(s, curlen, s->bl_tree);
+                count--;
+            }
+            send_code(s, REP_3_6, s->bl_tree);
+            send_bits(s, count - 3, 2);
+        } else if (count <= 10) {
+            send_code(s, REPZ_3_10, s->bl_tree);
+            send_bits(s, count - 3, 3);
+        } else {
+            send_code(s, REPZ_11_138, s->bl_tree);
+            send_bits(s, count - 11, 7);
+        }
+        count = 0;
+        prevlen = curlen;
+        if (nextlen == 0) {
+            max_count = 138, min_count = 3;
+        } else if (curlen == nextlen) {
+            max_count = 6, min_count = 3;
+        } else {
+            max_count = 7, min_count = 4;
+        }
+    }
+    return s;
+}
+
+int32_t XB_REGS1 XB_CDECL build_bl_tree(DeflateState* s) {
+    scan_tree(s->dyn_ltree, 0, s->l_desc.max_code, s);
+    scan_tree(s->dyn_dtree, 0, s->d_desc.max_code, s);
+    build_tree(s, &s->bl_desc);
+    int32_t max_blindex;
+    for (max_blindex = BL_CODES - 1; max_blindex >= 3; max_blindex--)
+        if (s->bl_tree[bl_order(max_blindex)].dl != 0) break;
+    s->opt_len += static_cast<uint32_t>(3 * (max_blindex + 1) + 5 + 5 + 4);
+    return max_blindex;
+}
+
+DeflateState* XB_REGS1 XB_CDECL send_all_trees(DeflateState* s, int32_t lcodes, int32_t dcodes, int32_t blcodes) {
+    send_bits(s, lcodes - 257, 5);
+    send_bits(s, dcodes - 1, 5);
+    send_bits(s, blcodes - 4, 4);
+    for (int32_t rank = 0; rank < blcodes; rank++) send_bits(s, s->bl_tree[bl_order(rank)].dl, 3);
+    send_tree(s, 0, s->dyn_ltree, lcodes - 1);
+    send_tree(s, 0, s->dyn_dtree, dcodes - 1);
+    return s;
+}
+
+DeflateState* XB_CDECL _tr_stored_block(DeflateState* s, const uint8_t* buf, uint32_t stored_len, int32_t eof) {
+    send_bits(s, (0 << 1) + eof, 3);  // STORED_BLOCK
+    return copy_block(s, buf, stored_len, 1);
+}
+
+void XB_CDECL _tr_align(DeflateState* s) {
+    send_bits(s, 1 << 1, 3);  // STATIC_TREES
+    send_code(s, END_BLOCK, static_ltree());
+    bi_flush(s);
+    // Of the 10 bits for the empty block, at least 9 must be sent before the next block's EOB.
+    if (1 + s->last_eob_len + 10 - s->bi_valid < 9) {
+        send_bits(s, 1 << 1, 3);
+        send_code(s, END_BLOCK, static_ltree());
+        bi_flush(s);
+    }
+    s->last_eob_len = 7;
+}
+
+void XB_CDECL _tr_flush_block(DeflateState* s, const uint8_t* buf, uint32_t stored_len, int32_t eof) {
+    uint32_t opt_lenb, static_lenb;
+    int32_t max_blindex = 0;
+    if (s->level > 0) {
+        if (s->data_type == 2) set_data_type(s);  // Z_UNKNOWN
+        build_tree(s, &s->l_desc);
+        build_tree(s, &s->d_desc);
+        max_blindex = build_bl_tree(s);
+        opt_lenb = (s->opt_len + 3 + 7) >> 3;
+        static_lenb = (s->static_len + 3 + 7) >> 3;
+        if (static_lenb <= opt_lenb) opt_lenb = static_lenb;
+    } else {
+        opt_lenb = static_lenb = stored_len + 5;  // force a stored block
+    }
+    if (stored_len + 4 <= opt_lenb && buf != nullptr) {
+        _tr_stored_block(s, buf, stored_len, eof);
+    } else if (static_lenb == opt_lenb) {
+        send_bits(s, (1 << 1) + eof, 3);  // STATIC_TREES
+        compress_block(s, static_ltree(), static_dtree());
+    } else {
+        send_bits(s, (2 << 1) + eof, 3);  // DYN_TREES
+        send_all_trees(s, s->l_desc.max_code + 1, s->d_desc.max_code + 1, max_blindex + 1);
+        compress_block(s, s->dyn_ltree, s->dyn_dtree);
+    }
+    init_block(0, s);
+    if (eof) bi_windup(s);
+}
+
+DeflateState* XB_REGS1 XB_CDECL compress_block(DeflateState* s, const CtData* ltree, const CtData* dtree) {
+    uint32_t dist;
+    int32_t lc;
+    uint32_t lx = 0;
+    uint32_t code;
+    int32_t extra;
+    if (s->last_lit != 0) do {
+            dist = s->d_buf[lx];
+            lc = s->l_buf[lx++];
+            if (dist == 0) {
+                send_code(s, lc, ltree);  // literal byte
+            } else {
+                // A match: the length code, its extra bits, then the distance.
+                code = length_code(static_cast<uint32_t>(lc));
+                send_code(s, static_cast<int32_t>(code) + 256 + 1, ltree);
+                extra = extra_lbits(code);
+                if (extra != 0) {
+                    lc -= base_length(code);
+                    send_bits(s, lc, extra);
+                }
+                dist--;
+                code = d_code(dist);
+                send_code(s, static_cast<int32_t>(code), dtree);
+                extra = extra_dbits(code);
+                if (extra != 0) {
+                    dist -= static_cast<uint32_t>(base_dist(code));
+                    send_bits(s, static_cast<int32_t>(dist), extra);
+                }
+            }
+        } while (lx < s->last_lit);
+    send_code(s, END_BLOCK, ltree);
+    s->last_eob_len = ltree[END_BLOCK].dl;
+    return s;
+}
+
+void XB_FASTCALL set_data_type(DeflateState* s) {
+    int32_t n = 0;
+    uint32_t ascii_freq = 0;
+    uint32_t bin_freq = 0;
+    while (n < 7) bin_freq += s->dyn_ltree[n++].fc;
+    while (n < 128) ascii_freq += s->dyn_ltree[n++].fc;
+    while (n < 256) bin_freq += s->dyn_ltree[n++].fc;
+    s->data_type = static_cast<uint8_t>(bin_freq > (ascii_freq >> 2) ? 0 : 1);  // Z_BINARY : Z_ASCII
+}
+
+DeflateState* XB_REGS1 XB_CDECL bi_flush(DeflateState* s) {
+    if (s->bi_valid == 16) {
+        put_short(s, s->bi_buf);
+        s->bi_buf = 0;
+        s->bi_valid = 0;
+    } else if (s->bi_valid >= 8) {
+        put_byte(s, static_cast<uint8_t>(s->bi_buf));
+        s->bi_buf >>= 8;
+        s->bi_valid -= 8;
+    }
+    return s;
+}
+
+DeflateState* XB_REGS1 XB_CDECL bi_windup(DeflateState* s) {
+    if (s->bi_valid > 8) {
+        put_short(s, s->bi_buf);
+    } else if (s->bi_valid > 0) {
+        put_byte(s, static_cast<uint8_t>(s->bi_buf));
+    }
+    s->bi_buf = 0;
+    s->bi_valid = 0;
+    return s;
+}
+
+DeflateState* XB_REGS3 XB_CDECL copy_block(DeflateState* s, const uint8_t* buf, uint32_t len, int32_t header) {
+    bi_windup(s);
+    s->last_eob_len = 8;
+    if (header) {
+        put_short(s, static_cast<uint16_t>(len));
+        put_short(s, static_cast<uint16_t>(~len));
+    }
+    while (len--) put_byte(s, *buf++);
+    return s;
 }
 
 }  // namespace game
