@@ -3,9 +3,11 @@
 #include <cstring>
 
 #include "actor.h"
+#include "cl.h"
 #include "fe.h"
 #include "g_utils.h"
 #include "qcommon.h"
+#include "stream.h"
 #include "ngl.h"
 #include "title_data.h"
 
@@ -413,20 +415,19 @@ using PositionMethod = void XB_THISCALL(uint8_t*, uint32_t, uint32_t);
 using RotationMethod = void XB_THISCALL(uint8_t*, float, uint32_t);
 using PairMethod = void XB_THISCALL(uint8_t*, uint32_t, uint32_t);
 using GetMethod = long double XB_THISCALL(uint8_t*);
-using FitMethod = float XB_THISCALL(uint8_t*, float, float, uint32_t);
-using SizeMethod = void XB_THISCALL(uint8_t*, uint32_t, float);
 
 void reset_rotation(uint8_t* p) { call(p, 0x90); }
 void set_position(uint8_t* p, uint32_t x, uint32_t y) { method<PositionMethod>(p, 0x8c)(p, x, y); }
 void set_alpha(uint8_t* p, uint32_t alpha) { method<WordMethod>(p, 0x78)(p, alpha); }
 void set_rotation(uint8_t* p, float radians) { method<RotationMethod>(p, 0x4c)(p, radians, 1); }
 
-// The widescreen needle: vtable +0xa0 (0.75, 1, 1) fits it, +0x50 (50, fit) sizes it.
+// The widescreen needle: vtable +0x50 (50, its y (+0xa0), 0.75, 1, 1) scales it about (50, y).
 void fit_needle(uint8_t* compass) {
+    using ScaleAboutMethod = void XB_THISCALL(uint8_t*, uint32_t, float, uint32_t, uint32_t, uint32_t);
     uint8_t* const needle = object_at(compass, 8);
-    const float fit = method<FitMethod>(needle, 0xa0)(needle, 0.75f, 1.0f, 1);
+    const float y = static_cast<float>(method<GetMethod>(needle, 0xa0)(needle));
     uint8_t* const again = object_at(compass, 8);
-    method<SizeMethod>(again, 0x50)(again, 0x42480000u, fit);  // 50.0
+    method<ScaleAboutMethod>(again, 0x50)(again, 0x42480000u, y, 0x3f400000u, 0x3f800000u, 1);  // 50, 0.75, 1
 }
 
 // An angle in degrees through the 16-bit angle (182.044 per degree, & 0xffff, 360 / 65536).
@@ -1002,6 +1003,418 @@ void XB_CDECL HudCompCompass_UpdateNeedle(uint8_t* compass) {
     } else {
         set_rotation(needle, radians);
     }
+}
+
+// ---- The HUD manager (vtable 0x0082a5d8) and component setup ----
+// Manager slots (+4 .. +0x40): compass, stance, health, ammo, weapon name, hint, bomber map, icon count,
+// meter, tank health, tank shells, grenades (+0x30), grenade cook (+0x34), tank icon (+0x38), the attached
+// component (+0x3c), tank reticle (+0x40); +0x44 cleared with +0x3c, +0x48 / +0x4c / +0x50 8-byte
+// strings, +0x54 keys looked up, +0x58 widescreen, +0x5c layout mode, +0x60 the hint timer.
+
+namespace {
+
+void* hud_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }  // Z_Malloc
+const char* hud_text(uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); }
+
+// A component allocation: vtable, visible byte, the listed dwords cleared.
+uint8_t* new_component(uint32_t size, uint32_t vtable, uint8_t visible_flag, const uint8_t* zeroed, uint32_t count) {
+    uint8_t* const p = static_cast<uint8_t*>(hud_malloc(size));
+    if (!p) return nullptr;
+    field<uint8_t>(p, 4) = visible_flag;
+    field<uint32_t>(p, 0) = vtable;
+    for (uint32_t i = 0; i < count; ++i) field<uint32_t>(p, zeroed[i]) = 0;
+    return p;
+}
+
+// The 16 white vertex colours and 12 corner coordinates handed to a picture's vtable +0x3c (quad setup).
+struct QuadSetup {
+    uint8_t colors[16];
+    float corners[12];
+};
+
+void quad_setup(QuadSetup& q, float size) {
+    std::memset(q.colors, 0xff, sizeof q.colors);
+    const float corners[12] = {0.0f, 0.0f, 0.0f, size, 0.0f, 0.0f, 0.0f, size, 0.0f, size, size, 0.0f};
+    for (uint32_t i = 0; i < 12; ++i) q.corners[i] = corners[i];
+}
+
+using QuadMethod = void XB_THISCALL(uint8_t*, float*, uint8_t*, uint32_t, uint32_t, const char*);
+using GetSetMethod = void XB_THISCALL(uint8_t*, float, float);
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(HudManager_Create_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(HudManager_Create) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL HudManager_Create(uint8_t* self) {
+    field<uint32_t>(self, 0) = 0x0082a5d8;  // HudManager vtable
+    uint8_t* p = static_cast<uint8_t*>(hud_malloc(0x13dc));
+    field<uint8_t*>(self, 4) = p ? HudCompCompass_Ctor(0, p) : nullptr;
+    static const uint8_t kStance[8] = {8, 0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x24};
+    if ((p = new_component(0x34, 0x0082a5a0, 1, kStance, 8))) {
+        field<int32_t>(p, 0x28) = -1;
+        field<int32_t>(p, 0x2c) = -1;
+    }
+    field<uint8_t*>(self, 8) = p;
+    static const uint8_t kHealth[4] = {8, 0xc, 0x10, 0x14};
+    if ((p = new_component(0x24, 0x008290a8, 1, kHealth, 4))) {
+        field<float>(p, 0x1c) = 0.0f;
+        field<float>(p, 0x18) = 0.0f;
+        field<uint8_t>(p, 0x20) = 0;
+    }
+    field<uint8_t*>(self, 0xc) = p;
+    static const uint8_t kAmmo[3] = {8, 0xc, 0x10};
+    field<uint8_t*>(self, 0x10) = new_component(0x20, 0x00828ddc, 1, kAmmo, 3);
+    p = static_cast<uint8_t*>(hud_malloc(0x18));
+    field<uint8_t*>(self, 0x14) = p ? HudCompWeaponName_Ctor(p) : nullptr;
+    static const uint8_t kGrenades[4] = {8, 0xc, 0x10, 0x1c};
+    field<uint8_t*>(self, 0x30) = new_component(0x20, 0x008287e4, 1, kGrenades, 4);
+    static const uint8_t kCook[7] = {8, 0xc, 0x10, 0x14, 0x18, 0x1c, 0x20};
+    if ((p = new_component(0x30, 0x0082a5bc, 1, kCook, 7))) {
+        field<float>(p, 0x24) = gf(0x0083eb34);  // -1
+        field<float>(p, 0x28) = gf(0x0083eb34);
+        field<uint8_t>(p, 0x2c) = title_global<uint8_t>(0x008dce69);
+    }
+    field<uint8_t*>(self, 0x34) = p;
+    if ((p = static_cast<uint8_t*>(hud_malloc(0x228)))) {
+        field<uint8_t>(p, 4) = 1;
+        field<uint32_t>(p, 0) = 0x00829d0c;  // HudCompHint vtable
+        std::memset(p + 8, 0, 0x210);
+        field<uint32_t>(p, 0x218) = 0;
+        field<int32_t>(p, 0x21c) = -1;
+        field<int32_t>(p, 0x220) = -2;
+        field<uint8_t>(p, 0x224) = 0;
+        field<uint8_t>(p, 0x225) = 0;
+    }
+    field<uint8_t*>(self, 0x18) = p;
+    static const uint8_t kBomber[14] = {0x30, 8, 0xc, 0x10, 0x14, 0x18, 0x1c, 0x20, 0x24, 0x28, 0x2c, 0x34, 0x38, 0x3c};
+    if ((p = new_component(0x60, 0x0082908c, 1, kBomber, 14))) {
+        for (uint32_t offset = 0x48; offset <= 0x5c; offset += 4) field<float>(p, offset) = 0.0f;
+        field<int32_t>(p, 0x44) = -1;
+    }
+    field<uint8_t*>(self, 0x1c) = p;
+    static const uint8_t kIcons[3] = {8, 0xc, 0x10};
+    if ((p = new_component(0x1c, 0x00828800, 1, kIcons, 3))) {
+        field<uint8_t>(p, 0x14) = 0;
+        field<uint32_t>(p, 0x18) = 0;
+    }
+    field<uint8_t*>(self, 0x20) = p;
+    p = static_cast<uint8_t*>(hud_malloc(0xf0));
+    field<uint8_t*>(self, 0x24) = p ? HudCompMeter_Ctor(p) : nullptr;
+    if ((p = static_cast<uint8_t*>(hud_malloc(0x1c)))) {
+        field<float>(p, 0x18) = gf(0x0083eb34);
+        field<uint32_t>(p, 0) = 0x008299d4;  // HudCompTankHealth vtable
+        field<uint32_t>(p, 8) = 0;
+        field<uint32_t>(p, 0xc) = 0;
+        field<uint32_t>(p, 0x10) = 0;
+        field<uint8_t>(p, 4) = 0;
+        field<float>(p, 0x14) = 0.0f;
+    }
+    field<uint8_t*>(self, 0x28) = p;
+    static const uint8_t kShells[2] = {8, 0xc};
+    if ((p = new_component(0x14, 0x00829664, 0, kShells, 2))) field<uint8_t>(p, 0x10) = 1;
+    field<uint8_t*>(self, 0x2c) = p;
+    field<uint8_t*>(self, 0x38) = new_component(0x10, 0x00829164, 0, kShells, 2);
+    static const uint8_t kReticle[4] = {8, 0x10, 0x14, 0xc};
+    field<uint8_t*>(self, 0x40) = new_component(0x48, 0x0082a6ec, 0, kReticle, 4);
+    field<uint32_t>(self, 0x3c) = 0;
+    field<uint32_t>(self, 0x44) = 0;
+    using Alloc16 = uint8_t* XB_CDECL(uint32_t);
+    for (uint32_t offset = 0x48; offset <= 0x50; offset += 4) {
+        uint8_t* const text = title_function<Alloc16>(0x00042c30)(8);  // Heap_Alloc16
+        field<uint8_t*>(self, offset) = text;
+        text[0] = 0;
+    }
+    field<uint8_t>(self, 0x54) = 0;
+    field<uint32_t>(self, 0x58) = 0;
+    field<uint32_t>(self, 0x5c) = 0;
+    field<float>(self, 0x60) = gf(0x0083eb34);
+    return self;
+}
+
+void XB_THISCALL HudManager_Dtor(uint8_t* self) {
+    static const uint32_t kSlots[15] = {4,    8,    0xc,  0x10, 0x14, 0x18, 0x1c, 0x20,
+                                        0x24, 0x28, 0x2c, 0x30, 0x34, 0x38, 0x40};
+    field<uint32_t>(self, 0) = 0x0082a5d8;  // HudManager vtable
+    for (uint32_t i = 0; i < 15; ++i)
+        if (uint8_t* const component = object_at(self, kSlots[i])) destroy(component);
+    if (uint8_t* const attached = object_at(self, 0x3c)) destroy(attached);
+    z_free(object_at(self, 0x48));
+    z_free(object_at(self, 0x4c));
+    z_free(object_at(self, 0x50));
+}
+
+namespace {
+
+void update_component(uint8_t* component, uint32_t dt) { method<WordMethod>(component, 8)(component, dt); }
+
+}  // namespace
+
+void XB_THISCALL HudManager_Update(uint8_t* self, uint32_t dt) {
+    // Looks the button names up once (+0x54), updates the always-on components (vtable +8 with the
+    // frame time), follows the widescreen flag (0x00948f64), the layout's extra components (mode 1:
+    // meter, 2: bomber map, 3: tank health and shells), runs the hint timer (+0x60: -1 off, ends at 8).
+    if (!field<uint8_t>(self, 0x54)) Key_GetKeyNameForCommand(self);
+    static const uint32_t kSlots[9] = {4, 8, 0xc, 0x10, 0x14, 0x18, 0x30, 0x34, 0x38};
+    for (uint32_t i = 0; i < 9; ++i)
+        if (uint8_t* const component = object_at(self, kSlots[i])) update_component(component, dt);
+    const int32_t widescreen = title_global<int32_t>(0x00948f64);
+    if (field<int32_t>(self, 0x58) != widescreen) {
+        HudManager_SetWidescreen(self, widescreen != 0 ? 1 : 0);
+        field<int32_t>(self, 0x58) = title_global<int32_t>(0x00948f64);
+    }
+    if (field<int32_t>(self, 0x5c) == 1) update_component(object_at(self, 0x24), dt);
+    if (object_at(self, 0x1c) && field<int32_t>(self, 0x5c) == 2) update_component(object_at(self, 0x1c), dt);
+    if (field<int32_t>(self, 0x5c) == 3) {
+        if (object_at(self, 0x28)) update_component(object_at(self, 0x28), dt);
+        if (object_at(self, 0x2c)) update_component(object_at(self, 0x2c), dt);
+    }
+    const float off = gf(0x0083eb34);  // -1
+    float timer = field<float>(self, 0x60);
+    if (timer > off) {
+        timer = timer + bits_float(dt);
+        field<float>(self, 0x60) = timer;
+        if (timer >= gf(0x0083ed78)) field<float>(self, 0x60) = off;  // 8
+    }
+    if (object_at(self, 0x40)) update_component(object_at(self, 0x40), dt);
+}
+
+PLATFORM_ASM_ENTRY(HudManager_SetWidescreen_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(HudManager_SetWidescreen) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL HudManager_SetWidescreen(uint8_t* self, uint32_t widescreen) {
+    // Each component's vtable +0x18 (widescreen, centre x): 50 at the left, 590 at the right, 320 centred.
+    static const uint32_t kCentres[16] = {0x42480000, 0x42480000, 0x44138000, 0x44138000, 0x44138000, 0x43a00000,
+                                          0x42480000, 0x44138000, 0x43a00000, 0x44138000, 0x44138000, 0x44138000,
+                                          0x43a00000, 0x42480000, 0,          0x43a00000};
+    for (uint32_t slot = 1; slot <= 16; ++slot) {
+        if (slot == 15) continue;  // the attached component (+0x3c)
+        uint8_t* const component = object_at(self, slot * 4);
+        if (!component) continue;
+        method<PairMethod>(component, 0x18)(component, widescreen, kCentres[slot - 1]);
+    }
+}
+
+// The original has no frame: its callees run at its entry ESP (they leave frame-depth values in the
+// dead stack), with the caller's EBX / EDI.
+PLATFORM_ASM_ENTRY(HudText_SetStringByHash_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(HudText_SetStringByHash) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL HudText_SetStringByHash(uint8_t* self, uint32_t hash, uint32_t entry_esp, uint32_t ebx, uint32_t edi) {
+    // The text (+0x3c) shows the localized string with that hash (rm_locStrings 0x0095f5d8; +8 or +0xc:
+    // vtable +0x140 with width 400, scale -1), "STRING NOT FOUND!" (+0x6c) when missing, "" for -1
+    // (+0x78; then +0x60 = -1, else 0).
+    const auto at = [](const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); };
+    uint8_t* const text = object_at(self, 0x3c);
+    TitleRegs regs{};
+    regs.ebx = ebx;
+    regs.edi = edi;
+    regs.esi = at(self);
+    regs.ecx = at(text);
+    regs.eax = field<uint32_t>(text, 0);
+    if (hash == 0xffffffffu) {
+        const uint32_t args[1] = {0x0082dfeb};  // ""
+        title_call_at_regs(entry_esp, field<uint32_t>(field<uint8_t*>(text, 0), 0x78), &regs, 1, args);
+        field<float>(self, 0x60) = gf(0x0083eb34);
+        return;
+    }
+    TitleRegs find = regs;
+    find.eax = title_global<uint32_t>(0x0095f5d8);
+    find.ecx = 0;
+    const uint32_t find_args[1] = {hash};
+    uint8_t* const entry = reinterpret_cast<uint8_t*>(
+        uintptr_t{title_call_at_regs(entry_esp, 0x002984f0, &find, 1, find_args)});  // Zone_FindByHash
+    uint32_t string = 0;
+    if (entry) {
+        string = field<uint32_t>(entry, 8);
+        if (!string) string = field<uint32_t>(entry, 0xc);
+    }
+    uint8_t* const target = object_at(self, 0x3c);
+    regs.ecx = at(target);
+    regs.eax = field<uint32_t>(target, 0);
+    if (string) {
+        regs.edx = string;
+        const uint32_t args[3] = {string, 0x190, 0xbf800000u};  // width 400, scale -1
+        title_call_at_regs(entry_esp, field<uint32_t>(field<uint8_t*>(target, 0), 0x140), &regs, 3, args);
+    } else {
+        regs.edx = regs.eax;
+        const uint32_t args[1] = {0x0082dfcc};  // "STRING NOT FOUND!"
+        title_call_at_regs(entry_esp, field<uint32_t>(field<uint8_t*>(target, 0), 0x6c), &regs, 1, args);
+    }
+    field<float>(self, 0x60) = 0.0f;
+}
+
+PLATFORM_ASM_ENTRY(HudCompWeaponName_Ctor_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(HudCompWeaponName_Ctor) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL HudCompWeaponName_Ctor(uint8_t* self) {
+    // The name text (+8: kind 0 at (537, 362), layer 7, scale 0.54, colour 0xffd2cfb2) and its background
+    // picture (+0xc); +0x10 = -1, +0x14 cleared.
+    field<uint8_t>(self, 4) = 1;
+    field<uint32_t>(self, 0) = 0x00829d28;  // HudCompWeaponName vtable
+    uint8_t* text = static_cast<uint8_t*>(hud_malloc(0x60));
+    if (text)
+        text = UIText_Init(text, 0, hud_text(0x0082dfeb), 0x44064000u, 0x43b50000u, 0, 7, 0x3f0a3d71u, 0x20, 0x40,
+                           0xffd2cfb2u);
+    field<uint8_t*>(self, 8) = text;
+    field<uint8_t>(self, 0x14) = 0;
+    field<int32_t>(self, 0x10) = -1;
+    uint8_t* picture = static_cast<uint8_t*>(hud_malloc(0x40));
+    if (picture) picture = UIPicture_Init(picture, hud_text(0x0082ddf0));  // "weapon_name_background"
+    field<uint8_t*>(self, 0xc) = picture;
+    return self;
+}
+
+void XB_THISCALL HudCompWeaponName_Setup(uint8_t* self, uint8_t*) {
+    // The background picture's quad: white, unit corners, layer 7, size 10, "weaponnameback".
+    QuadSetup q;
+    quad_setup(q, gf(0x0083eb20));
+    uint8_t* const picture = object_at(self, 0xc);
+    method<QuadMethod>(picture, 0x3c)(picture, q.corners, q.colors, 7, 0x41200000u, hud_text(0x0082dde0));
+}
+
+void XB_THISCALL HudCompGrenades_Setup(uint8_t* self, uint8_t* panel) {
+    field<uint8_t*>(self, 8) = Panel_FindPicture(panel, hud_text(0x0082dec8));     // "us_grenade"
+    field<uint8_t*>(self, 0xc) = Panel_FindPicture(panel, hud_text(0x0082deb8));   // "german_grenade"
+    field<uint8_t*>(self, 0x10) = Panel_FindText(hud_text(0x0082dea8), panel);      // "grenadecount"
+}
+
+void XB_THISCALL HudCompAmmo_Setup(uint8_t* self, uint8_t* panel) {
+    // "hudammo" picture; the clip and total texts coloured 0xffb8b89b (vtable +0x90) at scale 0.6 (+0x60).
+    field<uint8_t*>(self, 8) = Panel_FindPicture(panel, hud_text(0x0082def4));
+    uint8_t* const clip = Panel_FindText(hud_text(0x0082dee8), panel);  // "clipammo"
+    field<uint8_t*>(self, 0xc) = clip;
+    method<WordMethod>(clip, 0x90)(clip, 0xffb8b89bu);
+    method<WordMethod>(object_at(self, 0xc), 0x60)(object_at(self, 0xc), 0x3f19999au);
+    uint8_t* const total = Panel_FindText(hud_text(0x0082dedc), panel);  // "totalammo"
+    field<uint8_t*>(self, 0x10) = total;
+    method<WordMethod>(total, 0x90)(total, 0xffb8b89bu);
+    method<WordMethod>(object_at(self, 0x10), 0x60)(object_at(self, 0x10), 0x3f19999au);
+}
+
+void XB_THISCALL HudCompTankIcon_Setup(uint8_t* self, uint8_t* panel) {
+    // The body and turret pictures ("Tank_Base" / "Tank_Turret", 64-unit quads "tankbody" / "tankturret")
+    // placed by the "stance_stand" picture: x + 20 (x87), y - 5, the turret 17 higher.
+    uint8_t* const stance = Panel_FindPicture(panel, hud_text(0x0082df98));
+    const float cx = static_cast<float>(method<GetMethod>(stance, 0x9c)(stance));
+    const float cy = static_cast<float>(method<GetMethod>(stance, 0xa0)(stance));
+    QuadSetup q;
+    quad_setup(q, gf(0x00830c1c));  // 64
+    uint8_t* p = static_cast<uint8_t*>(hud_malloc(0x40));
+    field<uint8_t*>(self, 8) = p ? UIPicture_Init(p, hud_text(0x0082dd30)) : nullptr;
+    p = static_cast<uint8_t*>(hud_malloc(0x40));
+    p = p ? UIPicture_Init(p, hud_text(0x0082dd24)) : nullptr;
+    uint8_t* const body = object_at(self, 8);
+    field<uint8_t*>(self, 0xc) = p;
+    method<QuadMethod>(body, 0x3c)(body, q.corners, q.colors, 7, 0, hud_text(0x0082dd18));
+    uint8_t* const turret = object_at(self, 0xc);
+    method<QuadMethod>(turret, 0x3c)(turret, q.corners, q.colors, 7, 0, hud_text(0x0082dd0c));
+    const float x = platform_x87_add(cx, gf(0x0083eb5c));  // 20
+    const float y = cy - gf(0x0083ece8);                   // 5
+    uint8_t* const body2 = object_at(self, 8);
+    method<GetSetMethod>(body2, 0x8c)(body2, x, y);
+    uint8_t* const turret2 = object_at(self, 0xc);
+    method<GetSetMethod>(turret2, 0x8c)(turret2, x, y - gf(0x0083eed0));  // 17
+}
+
+void XB_THISCALL HudCompGrenadeCook_Setup(uint8_t* self, uint8_t* panel) {
+    // The six "GrenadeCook1..6" segments and "GrenadeCookring", moved by (320, 240) minus the ring's
+    // position (x87) and given alpha 100 (vtable +0x78).
+    static const uint32_t kNames[7] = {0x0082de68, 0x0082de58, 0x0082de48, 0x0082de38,
+                                       0x0082de28, 0x0082de18, 0x0082de08};
+    for (uint32_t i = 0; i < 7; ++i) field<uint8_t*>(self, 8 + i * 4) = Panel_FindPicture(panel, hud_text(kNames[i]));
+    uint8_t* const ring = object_at(self, 0x20);
+    const float dx = static_cast<float>(static_cast<long double>(gf(0x0083ec64)) - method<GetMethod>(ring, 0x9c)(ring));
+    uint8_t* const ring2 = object_at(self, 0x20);
+    const float dy = static_cast<float>(static_cast<long double>(gf(0x0083eed4)) - method<GetMethod>(ring2, 0xa0)(ring2));
+    for (uint32_t i = 0; i < 7; ++i) {
+        uint8_t* const picture = object_at(self, 8 + i * 4);
+        const float y = static_cast<float>(method<GetMethod>(picture, 0xa0)(picture) + dy);
+        const float x = static_cast<float>(method<GetMethod>(picture, 0x9c)(picture) + dx);
+        uint8_t* const again = object_at(self, 8 + i * 4);
+        method<GetSetMethod>(again, 0x8c)(again, x, y);
+        uint8_t* const third = object_at(self, 8 + i * 4);
+        method<WordMethod>(third, 0x78)(third, 0x42c80000u);  // 100
+    }
+}
+
+void XB_THISCALL HudCompAmmo_Update(uint8_t* self, uint32_t) {
+    // The weapon (0x00947fa4 when held per the bit list 0x00972940, else the snapshot entity's +3): the
+    // clip (0x009727d0 by the ammo slot +0x5a0; none for clipless +0x6ec) and reserve ammo
+    // (BG_GetTotalReserveAmmo of 0x00972550), capped at 999, as "%2i" / "%i"; hidden (+0x1c) with no
+    // weapon, in a vehicle (0x00972610 bit 0x100000) or without a snapshot; type 5 untouched, type 8
+    // shows the reserve only when +0x6f4.
+    if (!visible(self)) return;
+    uint8_t* const snap = title_global<uint8_t*>(0x00971aa8);
+    if ((title_global<uint32_t>(0x00972610) & 0x100000) || !snap) {
+        field<uint8_t>(self, 0x1c) = 1;
+        return;
+    }
+    int32_t weapon = title_global<int32_t>(0x00947fa4);
+    if (weapon < 0 || weapon >= title_global<int32_t>(0x0095f4d4) ||
+        !(title_global<uint32_t>(0x00972940 + static_cast<uint32_t>(weapon >> 5) * 4) & (1u << (weapon & 0x1f))))
+        weapon = G_EntHandleToEnt(&field<uint32_t>(snap, 0x8c))[3];
+    if (!weapon) {
+        field<uint8_t>(self, 0x1c) = 1;
+        return;
+    }
+    uint8_t* const* const defs = title_global<uint8_t* const*>(0x0095f4d8);
+    uint8_t* const def = defs[weapon];
+    if (field<int32_t>(def, 0x98) == 5) return;
+    using ReserveFn = int32_t XB_REGS1 XB_CDECL(int32_t, uint8_t*);
+    const int32_t total = title_function<ReserveFn>(0x002b4fd0)(weapon, &title_global<uint8_t>(0x00972550));
+    field<int32_t>(self, 0x18) = total;
+    field<int32_t>(self, 0x14) = -1;
+    uint8_t* const def2 = title_global<uint8_t* const*>(0x0095f4d8)[weapon];
+    if (!field<uint32_t>(def2, 0x6ec))
+        field<int32_t>(self, 0x14) = title_global<int32_t>(0x009727d0 + field<uint32_t>(def2, 0x5a0) * 4);
+    const int32_t clip = field<int32_t>(self, 0x14);
+    bool show_clip = clip >= 0;
+    bool show_total = total >= 0;
+    if (clip > 999) field<int32_t>(self, 0x14) = 999;
+    if (total > 999) field<int32_t>(self, 0x18) = 999;
+    if (field<int32_t>(def, 0x98) == 8) {
+        show_clip = false;
+        if (!field<uint32_t>(def, 0x6f4)) show_total = false;
+    }
+    char buffer[0x20];
+    buffer[0] = 0;
+    using SprintfFn = int32_t XB_CDECL(char*, const char*, ...);
+    SprintfFn* const title_sprintf = title_function<SprintfFn>(0x001ee901);
+    uint8_t* const clip_text = object_at(self, 0xc);
+    if (show_clip) {
+        title_sprintf(buffer, hud_text(0x0082ded8), field<int32_t>(self, 0x14));  // "%2i"
+        method<WordMethod>(clip_text, 0x78)(clip_text, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(buffer)));
+        if (show_total) {
+            title_sprintf(buffer, hud_text(0x0082ded4), field<int32_t>(self, 0x18));  // "%i"
+        } else {
+            method<WordMethod>(object_at(self, 0x10), 0x78)(object_at(self, 0x10), 0x0082dfeb);  // ""
+            field<uint8_t>(self, 0x1c) = 0;
+            return;
+        }
+    } else {
+        if (!show_total) {
+            field<uint8_t>(self, 0x1c) = 0;
+            return;
+        }
+        title_sprintf(buffer, hud_text(0x0082ded4), field<int32_t>(self, 0x18));
+        method<WordMethod>(object_at(self, 0xc), 0x78)(object_at(self, 0xc), 0x0082dfeb);
+    }
+    method<WordMethod>(object_at(self, 0x10), 0x78)(object_at(self, 0x10),
+                                                    static_cast<uint32_t>(reinterpret_cast<uintptr_t>(buffer)));
+    field<uint8_t>(self, 0x1c) = 0;
 }
 
 }  // namespace game

@@ -127,4 +127,33 @@ extern "C" void HudCompCompass_UpdateActorMarkers_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_UpdateNeedle(uint8_t* compass);
 extern "C" void HudCompCompass_UpdateNeedle_entry(void);
 
+// The HUD manager and component setup (layout in cg_hud.cpp).
+// 0x0031a020 (manager in ESI): vtable, the components allocated and constructed, the three 8-byte
+// strings (Heap_Alloc16), the rest cleared, hint timer -1. Returns the manager.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL HudManager_Create(uint8_t* self);
+extern "C" void HudManager_Create_entry(void);
+// 0x00319f20: deletes the components (+0x40 before the attached +0x3c), frees the three strings.
+void XB_THISCALL HudManager_Dtor(uint8_t* self);
+// 0x00319df0 (vtable +0xc): the per-frame component updates (frame time on the stack).
+void XB_THISCALL HudManager_Update(uint8_t* self, uint32_t dt);
+// 0x00311800 (manager in ESI; stdcall widescreen flag): every component's vtable +0x18 with its centre x.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudManager_SetWidescreen(uint8_t* self, uint32_t widescreen);
+extern "C" void HudManager_SetWidescreen_entry(void);
+// 0x0032ced0 (element in ESI, hash in EAX): the text +0x3c set from the localized string with that hash.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudText_SetStringByHash(uint8_t* self, uint32_t hash, uint32_t entry_esp,
+                                                               uint32_t ebx, uint32_t edi);
+extern "C" void HudText_SetStringByHash_entry(void);
+// 0x00318bf0 (this in EDI): vtable, the name text and background picture. Returns this.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL HudCompWeaponName_Ctor(uint8_t* self);
+extern "C" void HudCompWeaponName_Ctor_entry(void);
+// Component setups (vtable +4, the HUD panel on the stack): 0x00318b30 weapon name, 0x00324480 grenades,
+// 0x003244c0 ammo, 0x00323fa0 tank icon, 0x00324330 grenade cook.
+void XB_THISCALL HudCompWeaponName_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompGrenades_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompAmmo_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompTankIcon_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompGrenadeCook_Setup(uint8_t* self, uint8_t* panel);
+// 0x00319110 (vtable +8): the clip / reserve ammo texts of the current weapon.
+void XB_THISCALL HudCompAmmo_Update(uint8_t* self, uint32_t dt);
+
 }  // namespace game
