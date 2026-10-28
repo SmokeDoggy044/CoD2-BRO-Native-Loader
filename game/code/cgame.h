@@ -401,4 +401,11 @@ void XB_CDECL AtExit_ReleaseScriptString_975810();
 // 0x002f6160: the first free script HUD element reset, or -1.
 int32_t XB_CDECL HudElem_Alloc();
 
+// 0x002774a0 (under CG_ClearState): the 21 server-command hashes (0x0094c500) CG_ServerCommand compares.
+void XB_CDECL CG_InitServerCommandHashes();
+// 0x002775f0 (text in ESI; object_update / object_complete): the objective message 0x00975810 shown
+// for 3 s (0x0095f65c) unless the same text is showing.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_SetObjectiveMessage(const char* text);
+extern "C" void CG_SetObjectiveMessage_entry(void);
+
 }  // namespace game

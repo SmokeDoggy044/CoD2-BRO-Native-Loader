@@ -14181,3 +14181,7 @@ address,name,kind,confidence,evidence
 00276c70,CG_ViewWeaponAnimsFinished,function,medium,"from the body (cgame module push 2026-10-28)"
 002782a0,CG_StoreQuantizedGunAngles,function,medium,"from the body (cgame module push 2026-10-28)"
 0027cd20,CG_ItemPickup,function,medium,"from the body (cgame module push 2026-10-28)"
+002774a0,CG_InitServerCommandHashes,function,medium,"from the body (cgame module push 2026-10-28)"
+002775f0,CG_SetObjectiveMessage,function,medium,"from the body (cgame module push 2026-10-28)"
+00278790,CG_AddAdsGunOffset,function,medium,"from the body (cgame module push 2026-10-28)"
+002788b0,CG_AddWeaponIdleSway,function,medium,"from the body (cgame module push 2026-10-28)"

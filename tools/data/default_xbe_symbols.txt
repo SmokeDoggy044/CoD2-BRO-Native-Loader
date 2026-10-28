@@ -8615,8 +8615,8 @@
 00276dd0 CG_UpdateGunKick
 00276f70 CG_ShellShockViewKick
 002770f0 CG_ReadShellShockCvars
-002774a0 FUN_002774a0
-002775f0 FUN_002775f0
+002774a0 CG_InitServerCommandHashes
+002775f0 CG_SetObjectiveMessage
 00277630 CG_Error
 00277660 CG_Printf
 00277700 CG_DrawHudElemAlignedText
@@ -8633,8 +8633,8 @@
 002782a0 CG_StoreQuantizedGunAngles
 00278350 CG_StoreGunOffsetFromView
 00278400 FUN_00278400
-00278790 FUN_00278790
-002788b0 FUN_002788b0
+00278790 CG_AddAdsGunOffset
+002788b0 CG_AddWeaponIdleSway
 002789f0 Angles2Normalize180
 00278ae0 CG_CalcWeaponBob
 00278cb0 CG_CopySaveState

@@ -81,4 +81,96 @@ void XB_REGS1 XB_CDECL HudManager_Layout3(uint8_t* manager);
 // 0x0032ce80 (mode in EAX, manager in ECX): switches the layout when the mode changes.
 void XB_REGS3 XB_CDECL HudManager_SetLayoutMode(uint32_t mode, uint32_t unused, uint8_t* manager);
 
+// The compass (vtable 0x0082884c; layout in cg_hud.cpp).
+// 0x00318400 (this in EDX): vtable, visible, pictures/markers/needle cleared. Returns this.
+uint8_t* XB_REGS2 XB_CDECL HudCompCompass_Ctor(uint32_t unused, uint8_t* self);
+// 0x00318380 (this in ESI): deletes the eight pictures, then the base vtable.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_Dtor(uint8_t* self);
+extern "C" void HudCompCompass_Dtor_entry(void);
+// 0x00317fb0: the needle's rotation again (refitted in widescreen), the frame pictures scaled for the aspect.
+void XB_THISCALL HudCompCompass_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+// 0x00318040 (vtable +0xc; no Ghidra function): while visible, the frame and the marker lists; only the
+// objectives with +0x3c.
+void XB_THISCALL HudCompCompass_Draw(uint8_t* self);
+// 0x00311270 (this in EDI): the 16 objective markers (above / below / level picture, the pulse ring).
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_DrawMarkerList(uint8_t* self);
+extern "C" void HudCompCompass_DrawMarkerList_entry(void);
+// 0x00317d90 (this in EAX): the 25 tank markers with their own pictures (+0x24), rotated by yaw + 90.
+void XB_REGS1 XB_CDECL HudCompCompass_DrawTankMarkers(uint8_t* self);
+// 0x00317e50 / 0x00317f00 (this in EBX): the 32 actor (+0x40, picture +0x14) / firing-enemy (+0x540,
+// picture +0x2c) markers rotated by the view yaw minus their yaw.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_DrawActorMarkers(uint8_t* self);
+extern "C" void HudCompCompass_DrawActorMarkers_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_DrawFiringEnemies(uint8_t* self);
+extern "C" void HudCompCompass_DrawFiringEnemies_entry(void);
+// 0x003111a0 (marker in ECX, start time in XMM2): the pulse (0x0094bd2c pulses over 0x0094ac44 ms):
+// ring alpha +0x10 (up then down), scale +0x14 (halved after the first), pulsing +0x18.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_UpdateMarkerPulse(uint8_t* marker, float start);
+extern "C" void HudCompCompass_UpdateMarkerPulse_entry(void);
+// 0x00337810 (compass in EBX, marker in ESI, distance in XMM0; stdcall angle, pulse start, pulse flag):
+// the marker's screen position and alpha from the distance and angle; shown; pulse when flagged.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_PlaceMarker(uint8_t* compass, uint8_t* marker, float distance,
+                                                                  float angle, float pulse_start, uint32_t pulse);
+extern "C" void HudCompCompass_PlaceMarker_entry(void);
+// 0x00339c30 (vtable +8): while visible, the needle and markers (only objectives with +0x3c).
+void XB_THISCALL HudCompCompass_Update(uint8_t* self, uint32_t unused);
+// 0x003379b0 (compass in EAX): the 16 objective markers.
+void XB_REGS1 XB_CDECL HudCompCompass_UpdateObjectives(uint8_t* compass);
+// 0x00337b70: the firing-enemy markers (enemies whose actor fired within 2 s).
+void XB_STDCALL HudCompCompass_UpdateFiringEnemies(uint8_t* compass);
+// 0x00339450 / 0x00339830 (compass in EAX): the tank / actor markers (entities and the snapshot's own).
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_UpdateTankMarkers(uint8_t* compass, uint32_t stale);
+extern "C" void HudCompCompass_UpdateTankMarkers_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_UpdateActorMarkers(uint8_t* compass, uint32_t stale);
+extern "C" void HudCompCompass_UpdateActorMarkers_entry(void);
+// 0x003180a0 (compass in ESI): the needle's damped swing to the view yaw.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompCompass_UpdateNeedle(uint8_t* compass);
+extern "C" void HudCompCompass_UpdateNeedle_entry(void);
+
+// The HUD manager and component setup (layout in cg_hud.cpp).
+// 0x0031a020 (manager in ESI): vtable, the components allocated and constructed, the three 8-byte
+// strings (Heap_Alloc16), the rest cleared, hint timer -1. Returns the manager.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL HudManager_Create(uint8_t* self);
+extern "C" void HudManager_Create_entry(void);
+// 0x00319f20: deletes the components (+0x40 before the attached +0x3c), frees the three strings.
+void XB_THISCALL HudManager_Dtor(uint8_t* self);
+// 0x00319df0 (vtable +0xc): the per-frame component updates (frame time on the stack).
+void XB_THISCALL HudManager_Update(uint8_t* self, uint32_t dt);
+// 0x00311800 (manager in ESI; stdcall widescreen flag): every component's vtable +0x18 with its centre x.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudManager_SetWidescreen(uint8_t* self, uint32_t widescreen);
+extern "C" void HudManager_SetWidescreen_entry(void);
+// 0x0032ced0 (element in ESI, hash in EAX): the text +0x3c set from the localized string with that hash.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudText_SetStringByHash(uint8_t* self, uint32_t hash, uint32_t entry_esp,
+                                                               uint32_t ebx, uint32_t edi);
+extern "C" void HudText_SetStringByHash_entry(void);
+// 0x00318bf0 (this in EDI): vtable, the name text and background picture. Returns this.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL HudCompWeaponName_Ctor(uint8_t* self);
+extern "C" void HudCompWeaponName_Ctor_entry(void);
+// Component setups (vtable +4, the HUD panel on the stack): 0x00318b30 weapon name, 0x00324480 grenades,
+// 0x003244c0 ammo, 0x00323fa0 tank icon, 0x00324330 grenade cook.
+void XB_THISCALL HudCompWeaponName_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompGrenades_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompAmmo_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompTankIcon_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompGrenadeCook_Setup(uint8_t* self, uint8_t* panel);
+// 0x00319110 (vtable +8): the clip / reserve ammo texts of the current weapon.
+void XB_THISCALL HudCompAmmo_Update(uint8_t* self, uint32_t dt);
+
+// 0x00318840 (vtable +8): the tank health bar's quad from the player tank's health.
+void XB_THISCALL HudCompTankHealth_Update(uint8_t* self, uint32_t dt);
+// 0x00330350 (vtable +4): the HUD panel to every component's setup, the hint text and scroll bar.
+void XB_THISCALL HudManager_Setup(uint8_t* self, uint8_t* panel);
+
+// The tank shells indicator (vtable 0x00829664; no Ghidra functions): 0x00012400 deleting destructor
+// (no children), 0x003242b0 setup ("tankshells03" / "tankshells02"), 0x00318780 update (the player
+// tank's shell state, game import +0x798, into +0x10), 0x003113a0 draw (+8 with +0x10, else +0xc),
+// 0x00318750 widescreen (both pictures scaled for the aspect).
+uint8_t* XB_THISCALL HudCompTankShells_DeletingDtor(uint8_t* self, uint32_t flags);
+void XB_THISCALL HudCompTankShells_Setup(uint8_t* self, uint8_t* panel);
+void XB_THISCALL HudCompTankShells_Update(uint8_t* self, uint32_t dt);
+void XB_THISCALL HudCompTankShells_Draw(uint8_t* self);
+void XB_THISCALL HudCompTankShells_SetWidescreen(uint8_t* self, uint32_t widescreen, float center_x);
+// 0x00011fc0 (no Ghidra function): the shared HUD component vtable +0x14, visible (+4) = the flag's byte.
+void XB_THISCALL HudComponent_SetVisible(uint8_t* self, uint32_t on);
+
 }  // namespace game
