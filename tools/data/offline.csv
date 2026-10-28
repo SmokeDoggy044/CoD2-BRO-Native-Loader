@@ -557,6 +557,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002d70a0,G_SetMovedir,3643,3643,0,0,59.5
 002f6080,HudElem_SetDefaults,3800,3800,0,0,100.0
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
+002f6840,AnimTree_FreeNotetracks,1745,1745,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
 0030cd70,FE_FormatPlayTime,2094,2094,0,0,87.2
 0030cdf0,FE_SplitPlayTime2,3316,3316,0,0,100.0
