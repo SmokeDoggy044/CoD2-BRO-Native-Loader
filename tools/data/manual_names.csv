@@ -14174,3 +14174,4 @@ address,name,kind,confidence,evidence
 00022be0,NAL_Clip_FindChannelByName,function,medium,"from the body (xanim module push 2026-10-28)"
 00022d10,NAL_Clip_FindChannelData,function,medium,"from the body (xanim module push 2026-10-28)"
 0001cd80,AnimWeights_Construct,function,medium,"from the body (xanim module push 2026-10-28)"
+00093250,NAL_IK_BuildChainMatrices,function,medium,"builds the IK chain frame (dir, n x dir, n, origin) and upper/lower = B*A, C*A (xanim push 2026-10-28)"

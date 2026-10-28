@@ -1497,47 +1497,154 @@ void XB_CDECL AnimData_Purge(uint32_t clip) {
 
 namespace {
 
+uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(address)); }
+
+// A rebuilt original frame: `s` is the original's ESP after its prologue. Each call runs
+// at that ESP with the original's registers, and the original's return address is put back
+// where the call left ours, so the dead stack below looks as the original leaves it.
+struct SampleFrame {
+    uint32_t s;
+    uint32_t call(uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count, const uint32_t* args) const {
+        const uint32_t result = title_call_at_regs(s, function, &regs, count, args);
+        stack_word(s - count * 4 - 4) = ret;
+        return result;
+    }
+};
+
 // The root transform {quaternion, position} of the node's clip between `previous` and
-// `time`, concatenated onto *out (a temporary track and state over the clip).
-void sample_root(uint8_t* node, float* out, float time, float previous) {
-    // Every callee by title address: in tests the original then runs on both sides (the
-    // heap keeps a word the C allocation path writes differently; NAL_AnimTrack_Sample's C
-    // version still mismatches).
-    if (!u32_ref(node, 0x24)) AnimData_EnsureLoaded(node);
-    uint8_t* clip = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
+// `time`, concatenated onto *out (a temporary track and state over the clip). Both
+// samplers share this body (0x002e4570 / 0x002e4650, `base` = the function): push ebp;
+// and esp,-16; sub esp,0x54; push ebx/esi/edi. Every callee runs at the original's ESP
+// with its registers: NAL_AnimTrack_Sample's channel code copies a never-written stack
+// word (the position's w lane) into the state data (+0x5c), and with our C frame there
+// that word was ours.
+void sample_root(uint32_t entry, uint32_t base, uint8_t* node, float* out, uint32_t time, uint32_t previous,
+                 const TitleRegs& in) {
+    const SampleFrame f{((entry - 4) & ~15u) - 0x60};
+    const bool between = base == 0x002e4650;
+    const uint32_t r = between ? 0xe0 : 0;  // the return addresses after the shared prefix
+    stack_word(f.s + 8) = in.ebx;
+    stack_word(f.s + 4) = in.esi;
+    stack_word(f.s + 0) = in.edi;
+    const uint32_t state = f.s + 0x10;    // AnimState
+    const uint32_t root = f.s + 0x20;     // the clip's root record
+    const uint32_t product = f.s + 0x40;  // QuatTrans_Concat's result
+    const uint32_t node_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node));
+    uint32_t eax = u32_ref(node, 0x24);
+    if (!eax)
+        eax = f.call(0x002e458a + r, 0x002bfb90, TitleRegs{0, in.ebx, in.ecx, in.edx, in.esi, node_a}, 0,
+                     nullptr);  // AnimData_EnsureLoaded
+    const uint32_t clip = u32_ref(node, 0x24);
     if (!clip) return;
-    uint8_t* skeleton = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x30)));
-    uint8_t* memory = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00093950)(0x30, 4, 0);  // Mem_AlignedAlloc
+    const uint32_t skeleton = stack_word(clip + 0x30);
+    const uint32_t alloc_args[] = {0x30, 4, 0};
+    const uint32_t memory = f.call(0x002e45a3 + r, 0x00093950, TitleRegs{eax, in.ebx, in.ecx, in.edx, clip, skeleton}, 3,
+                                   alloc_args);  // Mem_AlignedAlloc
     if (!memory) return;
-    uint8_t* track = title_function<uint8_t* XB_THISCALL(uint8_t*, uint8_t*, uint8_t*)>(0x00087dd0)(memory, clip, skeleton);  // NAL_AnimTrack_Construct
+    const uint32_t construct_args[] = {clip, skeleton};
+    const uint32_t track = f.call(0x002e45b7 + r, 0x00087dd0, TitleRegs{memory, in.ebx, memory, 0, clip, skeleton}, 2,
+                                  construct_args);  // NAL_AnimTrack_Construct
     if (!track) return;
-    uint8_t* generic = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(track, 0xc)));
-    if (generic && u32_ref(generic, 0) != title_global<uint32_t>(0x00903fdc)) generic = nullptr;
-    AnimState state;
-    title_function<AnimState* XB_THISCALL(AnimState*, uint8_t*, int32_t)>(0x00087ad0)(&state, generic, 0);  // NAL_AnimState_Init
-    title_function<void XB_THISCALL(uint8_t*, float, float, AnimState*, const AnimState*, int32_t, uint32_t)>(0x000881c0)(
-        track, time, previous, &state, reinterpret_cast<const AnimState*>(generic + 0xc8),
-        static_cast<int32_t>(u32_ref(generic, 0x60)) - 1, 0);  // NAL_AnimTrack_Sample
-    alignas(16) uint32_t root[8];
-    title_function<int32_t XB_THISCALL(uint8_t*, const AnimState*, uint32_t*)>(0x00086d30)(state.clip, &state, root);  // NAL_GenericAnim_GetRootTransform
-    // QuatTrans_Concat leaves the position's w lane unwritten and the whole block is copied:
-    // the title's lane is a never-set stack word (zero in tests).
-    alignas(16) float product[8] = {};
-    float* result = title_function<float* XB_CDECL(float*, const float*, const float*)>(0x0001cae0)(
-        product, out, reinterpret_cast<const float*>(root));  // QuatTrans_Concat
-    platform_rep_movs(out, result, 0x20);
-    const uint32_t destroy = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(u32_ref(track, 0)));
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(destroy)(track, 1);  // deleting destructor
-    title_function<void XB_THISCALL(AnimState*)>(0x00086da0)(&state);  // NAL_AnimState_Destroy
+    uint32_t generic = stack_word(track + 0xc);
+    eax = track;
+    if (generic) {
+        eax = stack_word(generic);
+        if (eax != title_global<uint32_t>(0x00903fdc)) generic = 0;
+    }
+    const uint32_t init_args[] = {generic, 0};
+    f.call(0x002e45e0 + r, 0x00087ad0, TitleRegs{eax, track, state, 0, generic, skeleton}, 2,
+           init_args);  // NAL_AnimState_Init
+    if (between) {
+        // A step that wrapped (from > to) runs to to + 1, kept in the `to` argument slot.
+        const float from = bits_float(previous);
+        float to = bits_float(time);
+        if (from > to) {
+            to = to + title_global<float>(0x0083eb20);
+            std::memcpy(&time, &to, 4);
+            stack_word(entry + 0xc) = time;
+        }
+    }
+    const uint32_t count = stack_word(generic + 0x60) - 1;
+    const uint32_t sample_args[] = {time, previous, state, generic + 0xc8, count, 0};
+    const uint32_t sampled = f.call(between ? 0x002e46fe : 0x002e4600, 0x000881c0,
+                                    TitleRegs{between ? previous : time, track, track, state, generic + 0xc8, skeleton}, 6,
+                                    sample_args);  // NAL_AnimTrack_Sample
+    const uint32_t root_args[] = {state, root};
+    f.call(between ? 0x002e4711 : 0x002e4613, 0x00086d30,
+           TitleRegs{sampled, track, stack_word(state), state, generic + 0xc8, skeleton}, 2,
+           root_args);  // NAL_GenericAnim_GetRootTransform
+    const uint32_t out_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out));
+    // QuatTrans_Concat leaves the position's w lane unwritten and the whole product is
+    // copied out: the original's word there is never set (zero in tests; with a C caller
+    // above, it held that caller's leftovers).
+    stack_word(product + 0x1c) = 0;
+    const uint32_t concat_args[] = {product, out_a, root};
+    const uint32_t result = f.call(between ? 0x002e4724 : 0x002e4626, 0x0001cae0,
+                                   TitleRegs{root, track, product, 0, generic + 0xc8, out_a}, 3,
+                                   concat_args);  // QuatTrans_Concat
+    platform_rep_movs(out, reinterpret_cast<const float*>(static_cast<uintptr_t>(result)), 0x20);
+    const uint32_t vtable = stack_word(track);
+    const uint32_t one[] = {1};
+    f.call(between ? 0x002e4738 : 0x002e463a, stack_word(vtable),
+           TitleRegs{result, track, track, vtable, result + 0x20, out_a + 0x20}, 1, one);  // deleting destructor
+    f.call(between ? 0x002e4741 : 0x002e4643, 0x00086da0,
+           TitleRegs{0, track, state, 0, result + 0x20, out_a + 0x20}, 0, nullptr);  // NAL_AnimState_Destroy
 }
 
 }  // namespace
 
+// (node in EAX; out, time / out, from, to): the body in C below a gap, with the entry's
+// registers and ESP.
+PLATFORM_ASM_ENTRY(AnimTree_SampleRootTransform_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ebx\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl %eax\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AnimTree_SampleRootTransform) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_SampleRootTransform(uint32_t entry, uint8_t* node, float* out, uint32_t time_bits, uint32_t ebx,
+                                           uint32_t ecx, uint32_t edx, uint32_t esi, uint32_t edi) {
+    sample_root(entry, 0x002e4570, node, out, time_bits, 0, TitleRegs{0, ebx, ecx, edx, esi, edi});
+}
+
+PLATFORM_ASM_ENTRY(AnimTree_SampleRootTransformBetween_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ebx\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl %eax\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AnimTree_SampleRootTransformBetween) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_SampleRootTransformBetween(uint32_t entry, uint8_t* node, float* out, uint32_t from_bits,
+                                                  uint32_t to_bits, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+                                                  uint32_t edi) {
+    sample_root(entry, 0x002e4650, node, out, to_bits, from_bits, TitleRegs{0, ebx, ecx, edx, esi, edi});
+}
 
 namespace {
 
-// The two samplers by title address for their callers: their C versions still mismatch
-// (a heap word below), and in tests the original then runs on both sides.
+// The two samplers by title address (asm entries; the root-delta getters copy out only the
+// direction and position, so the depth they run at does not show).
 void sample_call(uint8_t* node, float* out, uint32_t time) {
     title_function<void XB_REGS1 XB_CDECL(uint8_t*, float*, uint32_t)>(0x002e4570)(node, out, time);  // AnimTree_SampleRootTransform
 }
@@ -1547,18 +1654,6 @@ void sample_between_call(uint8_t* node, float* out, uint32_t from, uint32_t to) 
 }
 
 }  // namespace
-
-void XB_REGS1 XB_CDECL AnimTree_SampleRootTransform(uint8_t* node, float* out, uint32_t time_bits) {
-    sample_root(node, out, bits_float(time_bits), 0.0f);
-}
-
-void XB_REGS1 XB_CDECL AnimTree_SampleRootTransformBetween(uint8_t* node, float* out, uint32_t from_bits, uint32_t to_bits) {
-    // A step that wrapped (from > to) runs to to + 1.
-    const float from = bits_float(from_bits);
-    float to = bits_float(to_bits);
-    if (from > to) to = to + title_global<float>(0x0083eb20);
-    sample_root(node, out, to, from);
-}
 
 namespace {
 
@@ -1816,7 +1911,34 @@ const float* blend_weight(const uint8_t* tree, const uint8_t* node, int32_t i, u
 
 }  // namespace
 
-void XB_CDECL AnimTree_CalcRootDelta_r(uint8_t* tree, uint32_t index, float* out, uint32_t, uint32_t) {
+// The body in C below a gap: the samplers and the recursion run at the original's ESP
+// (the samplers copy a never-written product word, the position's w, into *out: with our
+// C frame above them it held our leftovers).
+PLATFORM_ASM_ENTRY(AnimTree_CalcRootDelta_r_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AnimTree_CalcRootDelta_r) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_CalcRootDelta_r(uint32_t entry, uint8_t* tree, uint32_t index, float* out, uint32_t ebx,
+                                       uint32_t esi, uint32_t edi) {
+    // push ebp; and esp,-16; sub esp,0xb4; push ebx/esi/edi.
+    const SampleFrame f{((entry - 4) & ~15u) - 0xc0};
+    stack_word(f.s + 8) = ebx;
+    stack_word(f.s + 4) = esi;
+    stack_word(f.s + 0) = edi;
+    float* const child = reinterpret_cast<float*>(static_cast<uintptr_t>(f.s + 0x60));  // the original's slot
+    const uint32_t tree_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
+    const uint32_t out_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out));
     // Down single active children to a leaf (its root transform at the info's time, or
     // over the last step unless 0x00929cc8 is set) or to a node with several: those blend
     // their children's deltas by normalized weight (positions lerped, rotations slerped).
@@ -1830,10 +1952,17 @@ void XB_CDECL AnimTree_CalcRootDelta_r(uint8_t* tree, uint32_t index, float* out
             const uint16_t id = info_index(tree, index);
             if (!id) return;
             uint8_t* info = info_at(id);
-            if (title_global<uint8_t>(0x00929cc8))
-                sample_call(node, out, u32_ref(info, 0x10));
-            else
-                sample_between_call(node, out, u32_ref(info, 0x14), u32_ref(info, 0x10));
+            const uint32_t node_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node));
+            const uint32_t nodes = *reinterpret_cast<const uint32_t*>(anims + 8);
+            if (title_global<uint8_t>(0x00929cc8)) {
+                const uint32_t args[] = {out_a, u32_ref(info, 0x10)};
+                f.call(0x002e6911, 0x002e4570, TitleRegs{node_a, node_a, out_a, tree_a, goal, nodes}, 2,
+                       args);  // AnimTree_SampleRootTransform
+            } else {
+                const uint32_t args[] = {out_a, u32_ref(info, 0x14), u32_ref(info, 0x10)};
+                f.call(0x002e692a, 0x002e4650, TitleRegs{node_a, node_a, out_a, args[2], goal, nodes}, 3,
+                       args);  // AnimTree_SampleRootTransformBetween
+            }
             return;
         }
         int32_t i = 0;
@@ -1880,11 +2009,19 @@ void XB_CDECL AnimTree_CalcRootDelta_r(uint8_t* tree, uint32_t index, float* out
             const float inv = one / total;
             for (; a < n; ++a) weights[a] = inv * weights[a];
         }
-        AnimTree_CalcRootDelta_r(tree, u16_at(node, 0x36) + indices[0], out, 1, 1);
+        const uint32_t node_a = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node));
+        const uint32_t first_args[] = {tree_a, u16_at(node, 0x36) + static_cast<uint32_t>(indices[0]), out_a, 1, 1};
+        f.call(0x002e6be7, 0x002e67d0, TitleRegs{tree_a, static_cast<uint32_t>(n), node_a, first_args[1], goal, out_a}, 5,
+               first_args);  // AnimTree_CalcRootDelta_r
         for (int32_t s = 1; s < n; ++s) {
             const float t = one / (weights[s - 1] / weights[s] + one);
-            alignas(16) float child[8] = {0.0f, 0.0f, 0.0f, one, 0.0f, 0.0f, 0.0f, 0.0f};
-            AnimTree_CalcRootDelta_r(tree, u16_at(node, 0x36) + indices[s], child, 0, 1);
+            // The child starts as identity; its w lane (+0x1c) is never set.
+            const float identity[7] = {0.0f, 0.0f, 0.0f, one, 0.0f, 0.0f, 0.0f};
+            std::memcpy(child, identity, sizeof identity);
+            const uint32_t child_args[] = {tree_a, u16_at(node, 0x36) + static_cast<uint32_t>(indices[s]), f.s + 0x60, 0, 1};
+            f.call(0x002e6ca6, 0x002e67d0,
+                   TitleRegs{tree_a, static_cast<uint32_t>(n), tree_a, child_args[1], static_cast<uint32_t>(s), out_a + 0x10},
+                   5, child_args);  // AnimTree_CalcRootDelta_r
             const float keep = one - t;
             const float x = out[4] * keep + child[4] * t;
             const float y = out[5] * keep + child[5] * t;
@@ -1912,7 +2049,8 @@ void XB_CDECL AnimTree_GetTreeRootDelta(uint8_t* tree, uint32_t index, float* di
     title_global<uint8_t>(0x00929cc8) = 1;
     title_global<uint32_t>(0x0092980c) = 1;
     alignas(16) float transform[8] = {0.0f, 0.0f, 0.0f, title_global<float>(0x0083eb20), 0.0f, 0.0f, 0.0f, 0.0f};
-    AnimTree_CalcRootDelta_r(tree, index, transform, 1, 0);
+    title_function<void XB_CDECL(uint8_t*, uint32_t, float*, uint32_t, uint32_t)>(0x002e67d0)(tree, index, transform, 1,
+                                                                                            0);  // AnimTree_CalcRootDelta_r
     alignas(16) float axis[16];
     Quat_ToMat33(axis, transform);
     std::memcpy(&direction[0], &axis[0], 4);
@@ -1985,6 +2123,21 @@ void XB_CDECL AnimTree_DebugDraw_r(const uint8_t* tree, uint32_t index, int32_t 
     R_DrawTextWithShadow(color, text, depth * 12 + 0x10, (*line + 2) << 4, 0.0f, one);
     ++*line;
     for (int32_t i = 0; i < count; ++i) AnimTree_DebugDraw_r(tree, u16_at(node, 0x36) + i, depth + 1, line);
+}
+
+
+void XB_CDECL AtExit_ReleaseScriptStrings_965ce0() {
+    // The 1024 script strings (4 bytes each) below 0x00965ce0, last first.
+    for (uint32_t i = 1; i <= 0x400; ++i)
+        title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(0x00965ce0 - i * 4);  // ScriptString_Release
+}
+
+void XB_CDECL AtExit_ReleaseScriptString_965ce8() {
+    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(0x00965ce8);  // ScriptString_Release
+}
+
+void XB_CDECL AtExit_HashStrMap_903ff4() {
+    title_function<void XB_THISCALL(uint32_t)>(0x00094010)(0x00903ff4);  // HashStrMap_Clear
 }
 
 }  // namespace game

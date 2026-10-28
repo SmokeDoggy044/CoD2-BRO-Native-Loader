@@ -184,9 +184,16 @@ void XB_CDECL AnimTree_ProcessNotetracks(uint8_t* info, const uint8_t* node);
 void XB_CDECL AnimData_Purge(uint32_t clip);
 // 0x002e4570 (node in EAX): the node clip's root transform at `time` concatenated onto *out
 // ({quaternion, position}, 32 bytes).
-void XB_REGS1 XB_CDECL AnimTree_SampleRootTransform(uint8_t* node, float* out, uint32_t time);
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_SampleRootTransform(uint32_t entry, uint8_t* node, float* out,
+                                                                     uint32_t time, uint32_t ebx, uint32_t ecx,
+                                                                     uint32_t edx, uint32_t esi, uint32_t edi);
+extern "C" void AnimTree_SampleRootTransform_entry(void);
 // 0x002e4650 (node in EAX): the same between `from` and `to` (to + 1 when it wrapped).
-void XB_REGS1 XB_CDECL AnimTree_SampleRootTransformBetween(uint8_t* node, float* out, uint32_t from, uint32_t to);
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_SampleRootTransformBetween(uint32_t entry, uint8_t* node, float* out,
+                                                                            uint32_t from, uint32_t to, uint32_t ebx,
+                                                                            uint32_t ecx, uint32_t edx, uint32_t esi,
+                                                                            uint32_t edi);
+extern "C" void AnimTree_SampleRootTransformBetween_entry(void);
 // 0x002e6650 (index in EAX, anim data in ECX, direction in EDI, position in ESI): a leaf's
 // root transform at `time` as row 0's x, y and the position (identity for other nodes).
 extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_GetRootDelta(uint32_t index, const uint8_t* anims, float* direction,
@@ -214,7 +221,10 @@ void XB_CDECL XAnim_BuildNotetracks(uint8_t* node);
 // 0x002e67d0: the root transform of node `index` onto *out: a leaf's (at its time with
 // 0x00929cc8, else over its last step), single active children followed down, several
 // blended by normalized weight (goal weights with 0x0092980c).
-void XB_CDECL AnimTree_CalcRootDelta_r(uint8_t* tree, uint32_t index, float* out, uint32_t unused_a, uint32_t unused_b);
+// (Two more pushed words are never read.)
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_CalcRootDelta_r(uint32_t entry, uint8_t* tree, uint32_t index, float* out,
+                                                                 uint32_t ebx, uint32_t esi, uint32_t edi);
+extern "C" void AnimTree_CalcRootDelta_r_entry(void);
 // 0x002e7520 (tree in EDX, index in ECX, direction in EDI, position in ESI): the subtree's
 // blended root transform as AnimTree_GetRootDelta gives it.
 extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_GetTreeRootDelta(uint8_t* tree, uint32_t index, float* direction,
@@ -224,5 +234,13 @@ extern "C" void AnimTree_GetTreeRootDelta_entry(void);
 // 0x002c4310: one debug text line per node with weight (name or index, weights, times),
 // children indented one step deeper; *line counts the lines.
 void XB_CDECL AnimTree_DebugDraw_r(const uint8_t* tree, uint32_t index, int32_t depth, int32_t* line);
+
+
+// 0x00379a10: the 1024 script strings below 0x00965ce0 released, last first (atexit).
+void XB_CDECL AtExit_ReleaseScriptStrings_965ce0();
+// 0x00379a30: the script string at 0x00965ce8 released (atexit, tail jump).
+void XB_CDECL AtExit_ReleaseScriptString_965ce8();
+// 0x00379dd0: HashStrMap_Clear of the map at 0x00903ff4 (atexit, tail jump).
+void XB_CDECL AtExit_HashStrMap_903ff4();
 
 }  // namespace game

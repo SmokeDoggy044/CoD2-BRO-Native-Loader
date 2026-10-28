@@ -224,4 +224,23 @@ uint8_t* XB_THISCALL NAL_GenericAnim_DeletingDtor(uint8_t* self, uint32_t flags)
 // not hookable.
 uint32_t XB_CDECL Anim_InitManagers(uint32_t config);
 
+
+struct NglSkipList;
+// 0x00025230 / 0x00025750 (thiscall, callee pops 12): the anim managers' pass walk, the
+// twin of nglTextureManager_ForEachPass: per pass 1..passes every item the manager's
+// iterator gives visited (slot 8: item, pass, context), restarting unless it returns > 0;
+// a zero result with `notify` calls the manager's slot 1.
+void XB_THISCALL NalManagerKey8_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes);
+void XB_THISCALL AnimManager_ForEachPass(void** self, uint8_t notify, uint32_t context, int32_t passes);
+// 0x00083db0 (thiscall, callee pops 4): nglSkipList_Insert on the object's name at +0x10;
+// returns the listed object of that name or null after inserting.
+const uint32_t* XB_THISCALL AnimManager_SkipListInsert(NglSkipList* self, const uint32_t* object);
+// 0x00083f70 (thiscall, callee pops 4): the listed object whose name (+0x10) is `key`, or null.
+const uint32_t* XB_THISCALL AnimManager_SkipListFind(const NglSkipList* self, const uint32_t* key);
+// 0x00378830: the "generic" clip class's registry entry 0x00903fac (vtable 0x007c23ac, name
+// hash, class words) pushed on the class list 0x00909840.
+void XB_CDECL StaticInit_AnimHashStrings();
+// 0x00378ca0: the identity quaternion at 0x00909850 (the default root record).
+void XB_CDECL StaticInit_Vec4_909850();
+
 }  // namespace game

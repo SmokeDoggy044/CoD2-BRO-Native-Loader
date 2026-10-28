@@ -519,5 +519,66 @@ void XB_CDECL NAL_Float2_SkipFixedBlock(const uint32_t* context);
 void XB_CDECL NAL_Float4_CopyChannels(const uint8_t* group, uint8_t** dst, uint8_t** src);
 // 0x00081f50 (stdcall): one cached frame of 16-byte channels skipped (cursor aligned to 16).
 uint32_t XB_STDCALL NAL_Packed16_SkipCachedFrame(const uint32_t* context, uint8_t** cursor);
+// 0x00022a00 / 0x00022a60 / 0x00022ac0 (the "COD_Note" channel class's SkipBlock,
+// DecodeFrames and DecodeBlock slots; stdcall, 4 / 7 / 5 words, only the context read): each
+// active channel's length-prefixed block ({size, data}) stepped over in stream A (context[3],
+// aligned to 4). The notes are read from the clip data later (NAL_Clip_FindChannelData).
+// Return the group (context[1]).
+uint32_t XB_STDCALL NAL_CodNote_SkipBlock(const uint32_t* context, uint32_t, uint32_t, uint32_t);
+uint32_t XB_STDCALL NAL_CodNote_DecodeFrames(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                             uint32_t);
+uint32_t XB_STDCALL NAL_CodNote_DecodeBlock(const uint32_t* context, uint32_t, uint32_t, uint32_t, uint32_t);
+// 0x00023390 (context in EDI): the same block skip (behind 0x00022ba0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_SkipActiveChannelBlocks(const uint32_t* context);
+extern "C" void NAL_SkipActiveChannelBlocks_entry(void);
+
+// 0x0008cc40 (a in ECX, b in EAX; out, t, 1 - t): the blend of two 0x50-byte IK-spin
+// records into out by their IK weights (+0x3c): spin quaternions (+0, +0x10) slerped and
+// +0x40 moved, the IK half ({q2, position}, +0x42) taken whole when a weight is 0 or 1;
+// built in the original's stack record and copied out whole (stale words included).
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed16EntropyIKSpin_Lerp(uint32_t entry, const uint8_t* a, const uint8_t* b,
+                                                                        uint8_t* out, float t, float u);
+extern "C" void NAL_Packed16EntropyIKSpin_Lerp_entry(void);
+// 0x0008d1e0 (Blend slot; stdcall, 5 words): out[i] = NAL_Packed16EntropyIKSpin_Lerp(a[i],
+// b[i], t) over `count` records. Returns 0 (count when it is <= 0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_Blend(uint32_t entry, int32_t count, uint8_t* out,
+                                                                             const uint8_t* a, const uint8_t* b,
+                                                                             uint32_t t_bits, uint32_t ebx, uint32_t esi,
+                                                                             uint32_t edi);
+extern "C" void NAL_Packed16EntropyIKSpin_Blend_entry(void);
+
+// 0x0008c0c0 / 0x0008c4a0 (Float4 classes' Blend slots; stdcall, 5 words): dst = a * (1 - t)
+// + b * t per lane over `count` four-float values; the weighted one takes t from **weights,
+// advancing *weights per value.
+void XB_STDCALL NAL_Float4_Blend(int32_t count, float* dst, const float* a, const float* b, float t);
+void XB_STDCALL NAL_Float4_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights);
+
+// 0x00080b30 / 0x00081840 (cdecl, 5 words; record = the 5th): four int8 / int16 values
+// scaled by record[2] plus record[1] (the int8 one through NAL_Float4_AddTo).
+void XB_CDECL NAL_Packed8_DequantizeFloat4(float* out, const int8_t* in, uint32_t, uint32_t, const float* record);
+void XB_CDECL NAL_Packed16_DequantizeFloat4(float* out, const int16_t* in, uint32_t, uint32_t, const float* record);
+// 0x00080a00 / 0x00081700 (Evaluate slots, stdcall 5 words): the packed entropy Float3
+// Evaluate over four components (16-byte defaults, cursor 4 / 8 bytes per value).
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                      const uint8_t* defaults, const int32_t* offsets);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_Evaluate(const uint32_t* context, uint8_t* pose, uint8_t** cursor,
+                                                       const uint8_t* defaults, const int32_t* offsets);
+// 0x00080910 / 0x00081630 (SkipBlock slots, stdcall 4 words): per active channel four
+// prefixed streams skipped, cursor + 4 / 8 (the int16 one aligned to 2 first).
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
+// 0x00080140 / 0x00080e20 (DecodeFrames slots, stdcall 7 words): the packed entropy Float3
+// DecodeFrames with readers 0x40 and four values apart.
+uint32_t XB_STDCALL NAL_Packed8EntropyFloat4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                          uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride);
+uint32_t XB_STDCALL NAL_Packed16EntropyFloat4_DecodeFrames(const uint32_t* context, uint8_t** dst, uint8_t** readers,
+                                                           uint32_t buffer, uint32_t arg5, uint32_t count, int32_t stride);
+// 0x00082500 / 0x00082c30 / 0x00082680 (SkipBlock slots, stdcall 4 words): the position /
+// orientation classes' block skips (32-byte records; the trajectory one moves stream B too;
+// the entropy one skips four prefixed streams per channel).
+uint32_t XB_STDCALL NAL_PositionOrientation_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream,
+                                                      uint32_t frames);
+uint32_t XB_STDCALL NAL_TrajPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t frames);
+uint32_t XB_STDCALL NAL_EntropyPosOri_SkipBlock(const uint32_t* context, uint8_t** cursor, uint8_t** stream, uint32_t);
 
 }  // namespace game
