@@ -188,4 +188,7 @@ void XB_CDECL CG_CalcLinkedViewOrigin();
 // AddLeanToPosition (0x002d9cc0): position in ESI, lean in XMM1, cdecl (yaw, a, b).
 extern "C" PLATFORM_HIDDEN void XB_CDECL cg_add_lean(float* position, float lean, float yaw, float a, float b);
 
+// 0x00284d00 (tag in EAX, DObj in ECX): the tag's world matrix from the cent's angles/origin; 0 for an unknown tag.
+uint32_t XB_REGS3 XB_CDECL CG_DObjGetWorldTagMatrix(uint32_t tag, uint32_t unused, DObj* obj, uint8_t* cent, float* out);
+
 }  // namespace game

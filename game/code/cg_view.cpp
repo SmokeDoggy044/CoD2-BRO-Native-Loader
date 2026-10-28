@@ -1613,4 +1613,40 @@ void XB_REGS1 XB_CDECL CG_CalculateWeaponPosition(float* origin) {
     CG_StoreGunOffsetFromView(0, 0, origin);
 }
 
+PLATFORM_ASM_ENTRY(CG_AddGunMoveOffset_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CG_AddGunMoveOffset) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_AddGunMoveOffset(float* origin) {
+    // CG_CalcGunMoveOffset into a zeroed local, kept at 0x00972a98..0x00972aa0 and added to
+    // the origin (the same steps CG_CalculateWeaponPosition inlines).
+    float offset[3] = {0.0f, 0.0f, 0.0f};
+    CG_CalcGunMoveOffset(offset);
+    title_global<float>(0x00972a98) = offset[0];
+    title_global<float>(0x00972a9c) = offset[1];
+    title_global<float>(0x00972aa0) = offset[2];
+    const float x = origin[0] + offset[0];
+    origin[1] = origin[1] + offset[1];
+    origin[0] = x;
+    origin[2] = origin[2] + offset[2];
+}
+
+void XB_THISCALL CG_StoreQuantizedGunAngles(const float* angles) {
+    // With the weapon's ADS view flag (def +0x6dc) and a non-zero ADS fraction (0x009725d8):
+    // pitch and yaw through ANGLE2SHORT / SHORT2ANGLE into 0x00972fa0 / 0x00972fa4; else the
+    // angles at 0x00972bf0 / 0x00972bf4.
+    const uint8_t* def = title_global<const uint8_t* const*>(0x0095f4d8)[title_global<int32_t>(0x009725d0)];
+    if (*reinterpret_cast<const uint32_t*>(def + 0x6dc) && !(g(0x009725d8) == g(0x0083eafc))) {
+        const float to_short = g(0x0083ebd8);  // 65536 / 360
+        const float to_angle = g(0x0083ebd4);  // 360 / 65536
+        title_global<float>(0x00972fa0) =
+            static_cast<float>(static_cast<int32_t>(angles[0] * to_short) & 0xffff) * to_angle;
+        title_global<float>(0x00972fa4) =
+            static_cast<float>(static_cast<int32_t>(angles[1] * to_short) & 0xffff) * to_angle;
+        return;
+    }
+    title_global<uint32_t>(0x00972fa0) = title_global<uint32_t>(0x00972bf0);
+    title_global<uint32_t>(0x00972fa4) = title_global<uint32_t>(0x00972bf4);
+}
+
 }  // namespace game

@@ -2970,4 +2970,198 @@ void XB_CDECL CG_ParseConfigStringFloat11() {
     title_global<float>(0x009730a4) = title_function<float XB_CDECL(const char*)>(0x001ef056)(configstring_text(0x009606e4));  // atof
 }
 
+// --- Push batch 2 ---
+
+namespace {
+
+// The rumble system's two lists of playing rumbles (head +8 + 16 * motor, end sentinel 4 bytes
+// on, count 4 bytes before), each node {+0 next, +4 previous, +8 id, +0x28 script string}.
+uint32_t& word_at(uint32_t address) { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); }
+
+}  // namespace
+
+uint8_t XB_REGS2 XB_STDCALL Rumble_IsActive(uint32_t, uint8_t* rumble, uint32_t id) {
+    for (uint32_t motor = 0; motor < 2; ++motor) {
+        const uint32_t list = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rumble)) + 8 + motor * 0x10;
+        uint32_t node = word_at(list);
+        uint32_t next = node ? word_at(node) : 0;
+        if (node == list + 4 || !next) continue;
+        do {
+            if (word_at(node + 8) == id) return 1;
+            node = next;
+            next = word_at(next);
+        } while (next);
+    }
+    return 0;
+}
+
+void XB_REGS1 XB_STDCALL Rumble_Stop(uint8_t* rumble, uint32_t id) {
+    // The first rumble with that id in each list is unlinked, its script string released and the
+    // node returned to the small heap (0x0095f5c8).
+    for (uint32_t motor = 0; motor < 2; ++motor) {
+        const uint32_t list = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rumble)) + 8 + motor * 0x10;
+        uint32_t node = word_at(list);
+        uint32_t next = node ? word_at(node) : 0;
+        if (node == list + 4 || !next) continue;
+        for (;;) {
+            if (word_at(node + 8) == id) {
+                word_at(word_at(node) + 4) = word_at(node + 4);
+                word_at(word_at(node + 4)) = word_at(node);
+                word_at(node) = 0;
+                word_at(node + 4) = 0;
+                --word_at(list - 4);
+                title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(node + 0x28);  // ScriptString_Release
+                title_function<void XB_THISCALL(uint32_t, uint32_t)>(0x00044910)(title_global<uint32_t>(0x0095f5c8),
+                                                                                 node);  // SmallHeap_Free
+                break;
+            }
+            if (!next) break;
+            node = next;
+            next = word_at(next);
+            if (!next) break;
+        }
+    }
+}
+
+uint32_t XB_CDECL CG_GetGrenadeAmmoCount() {
+    // The ammo (clip + stock) of every owned weapon of class 5 (grenades, def +0x98).
+    uint32_t total = 0;
+    for (int32_t weapon = 1; weapon <= title_global<int32_t>(0x0095f4d4); ++weapon) {
+        if (!owns_weapon(weapon)) continue;
+        const uint8_t* def = weapon_def(weapon);
+        if (*reinterpret_cast<const int32_t*>(def + 0x98) != 5) continue;
+        total += title_global<uint32_t>(0x009727d0 + *reinterpret_cast<const uint32_t*>(def + 0x5a0) * 4) +
+                 title_global<uint32_t>(0x00972660 + *reinterpret_cast<const uint32_t*>(def + 0x598) * 4);
+    }
+    return total;
+}
+
+void XB_CDECL CG_FxRestart_f() {
+    title_function<void XB_CDECL()>(0x0023b800)();  // FX_InitEffectPool
+    title_function<void XB_CDECL()>(0x0023b6d0)();  // FX_ClearEffects
+    title_function<void XB_CDECL()>(0x00094170)();  // FX_ResetParticleSystem
+    title_function<void XB_CDECL()>(0x00236aa0)();  // FX_FreeAllEffectLights
+}
+
+void XB_REGS3 XB_CDECL CG_ItemPickup(uint32_t, uint32_t, int32_t item) {
+    // Q3's CG_ItemPickup: the pickup (0x00972ecc) and its times (0x00972ed0 / 0x00972ed4); a
+    // weapon item (bg_itemlist 0x0096bd10 + item * 0x34: type +0x24 == 1, tag +0x28) is requested
+    // through the vmCvars 0x0094c230 (time) and 0x00947f98 (weapon) unless one is pending (its
+    // integer 0x00947fa4).
+    const uint8_t* entry = &title_global<uint8_t>(0x0096bd10 + static_cast<uint32_t>(item) * 0x34);
+    title_global<int32_t>(0x00972ecc) = item;
+    const int32_t time = cg_time();
+    const int32_t weapon = *reinterpret_cast<const int32_t*>(entry + 0x28);
+    title_global<int32_t>(0x00972ed0) = time;
+    title_global<int32_t>(0x00972ed4) = time;
+    if (*reinterpret_cast<const int32_t*>(entry + 0x24) != 1 || title_global<int32_t>(0x00947fa4)) return;
+    set_vm_cvar(0x0094c230, va_int(time));
+    set_vm_cvar(0x00947f98, va_int(weapon));
+}
+
+uint32_t XB_REGS3 XB_STDCALL FxTransform_Init(uint32_t, const uint32_t* quat, const uint32_t* origin, uint32_t* out,
+                                              uint32_t id) {
+    // An effect transform block: the rotation (EDX) at +0, the position (ECX) at +0x10, +0x20 = id;
+    // returns the block.
+    for (uint32_t i = 0; i < 4; ++i) out[i] = quat[i];
+    for (uint32_t i = 0; i < 4; ++i) out[4 + i] = origin[i];
+    out[8] = id;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out));
+}
+
+namespace {
+
+// CG_DrawWhiteStringFont5 / 4: white text with the given alpha, 1/3 scale, 14 units lower.
+void draw_white_string(const char* text, float x, float y, float alpha, uint32_t font, float width, uint32_t style) {
+    using DrawText = void XB_CDECL(float, float, uint32_t, float, const float*, const char*, float, uint32_t, uint32_t);
+    const float one = g(0x0083eb20);
+    const float color[4] = {one, one, one, alpha};
+    const float top = (y + g(0x0083ebb8)) - g(0x0083eba8);  // + 16 - 2
+    title_function<DrawText>(title_global<uint32_t>(0x00928578))(x, top, font, 0x1.555556p-2f /* 1/3 */, color, text,
+                                                                 width, 0, style);
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL CG_DrawWhiteStringFont5(const char* text, float x, float y, float alpha) {
+    draw_white_string(text, x, y, alpha, 5, 8.0f, 0);
+}
+
+void XB_REGS1 XB_CDECL CG_DrawWhiteStringFont4(const char* text, float x, float y, float alpha) {
+    draw_white_string(text, x, y, alpha, 4, 16.0f, 3);
+}
+
+uint8_t XB_THISCALL CG_ViewWeaponAnimsInactive(const uint8_t* tree) {
+    // Whether view-weapon anims 9, 10, 12 and 11 (the tree's anim-info indices +0x2a, +0x2c,
+    // +0x30, +0x2e; 0 = none) all have zero weight (anim info +0x14; NaN counts as weight).
+    static const uint32_t kOffsets[4] = {0x2a, 0x2c, 0x30, 0x2e};
+    for (uint32_t k = 0; k < 4; ++k) {
+        const uint16_t index = *reinterpret_cast<const uint16_t*>(tree + kOffsets[k]);
+        if (!index) continue;
+        if (!(title_global<float>(0x00965d14 + index * 0x30u) == 0.0f)) return 0;
+    }
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(CG_ViewWeaponAnimsFinished_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_ViewWeaponAnimsFinished) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL CG_ViewWeaponAnimsFinished(const uint8_t* tree, uint8_t* weapon) {
+    // 0 (and the weapon's +0x80 = -1) while one of anims 4..22 still runs (an anim info whose time
+    // +0 did not pass its previous time +4, is not at 1, and whose frame +8 is not past +0xa) or
+    // the ADS fraction 0x009725d8 is strictly between 0.01 and 0.99; else 1.
+    const float one = g(0x0083eb20);
+    for (uint32_t i = 4; i < 0x17; ++i) {
+        const uint16_t index = *reinterpret_cast<const uint16_t*>(tree + 0x18 + i * 2);
+        if (!index) continue;
+        const uint8_t* info = &title_global<uint8_t>(0x00965d00 + index * 0x30u);
+        if (*reinterpret_cast<const float*>(info + 4) > *reinterpret_cast<const float*>(info)) continue;
+        if (*reinterpret_cast<const float*>(info) == one) continue;
+        if (*reinterpret_cast<const int16_t*>(info + 8) <= *reinterpret_cast<const int16_t*>(info + 0xa)) {
+            *reinterpret_cast<int32_t*>(weapon + 0x80) = -1;
+            return 0;
+        }
+    }
+    const float ads = g(0x009725d8);
+    if (ads > g(0x0083eb94) && g(0x0083ed08) > ads) {
+        *reinterpret_cast<int32_t*>(weapon + 0x80) = -1;
+        return 0;
+    }
+    return 1;
+}
+
+void XB_CDECL AtExit_ReleaseScriptString_975810() {
+    title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(0x00975810);  // ScriptString_Release
+}
+
+int32_t XB_CDECL HudElem_Alloc() {
+    // The first free script HUD element (16 x 0x7c at 0x0094cc88, +0 in use) reset to its
+    // defaults (scale +0xc = 1, +0x1c = -1, the rest 0); -1 when all are used.
+    int32_t index = 0;
+    for (uint32_t offset = 0; offset < 0x7c0; offset += 0x7c, ++index) {
+        if (title_global<uint32_t>(0x0094cc88 + offset)) continue;
+        uint8_t* elem = &title_global<uint8_t>(0x0094cc88 + static_cast<uint32_t>(index) * 0x7c);
+        auto word = [elem](uint32_t at) -> uint32_t& { return *reinterpret_cast<uint32_t*>(elem + at); };
+        *reinterpret_cast<float*>(elem + 0xc) = g(0x0083eb20);
+        word(0) = 1;
+        word(4) = 0;
+        word(8) = 0;
+        word(0x10) = 0;
+        word(0x14) = 0;
+        word(0x18) = 0;
+        word(0x1c) = 0xffffffffu;
+        for (uint32_t at = 0x20; at <= 0x2c; at += 4) word(at) = 0;
+        *reinterpret_cast<float*>(elem + 0x6c) = 0.0f;
+        for (uint32_t at = 0x30; at <= 0x48; at += 4) word(at) = 0;
+        word(0x5c) = 0;
+        word(0x60) = 0;
+        *reinterpret_cast<float*>(elem + 0x64) = 0.0f;
+        word(0x68) = 0;
+        return index;
+    }
+    return -1;
+}
+
 }  // namespace game

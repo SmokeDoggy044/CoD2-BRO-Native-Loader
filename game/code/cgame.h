@@ -373,4 +373,32 @@ extern "C" void CG_DrawHudElem_entry(void);
 // "^0".."^9" and line breaks not counted.
 int32_t XB_REGS2 XB_CDECL Loc_CountChars(uint32_t unused, const char* text);
 
+// 0x00298c50 (rumble system in EDX): whether a rumble with that id plays on either motor list.
+uint8_t XB_REGS2 XB_STDCALL Rumble_IsActive(uint32_t unused, uint8_t* rumble, uint32_t id);
+// 0x00298ca0 (rumble system in EAX): stops (unlinks and frees) the first rumble with that id per motor list.
+void XB_REGS1 XB_STDCALL Rumble_Stop(uint8_t* rumble, uint32_t id);
+// 0x0027a240: the ammo (clip + stock) of every owned grenade-class weapon.
+uint32_t XB_CDECL CG_GetGrenadeAmmoCount();
+// 0x0027ad20: "fxrestart" - the effect pool, effects, particles and effect lights reset.
+void XB_CDECL CG_FxRestart_f();
+// 0x0027cd20 (item in ECX): Q3's CG_ItemPickup; a weapon item is requested through two vmCvars.
+void XB_REGS3 XB_CDECL CG_ItemPickup(uint32_t unused_eax, uint32_t unused_edx, int32_t item);
+// 0x0001c360 (rotation in EDX, position in ECX): fills an effect transform block {rotation,
+// position, id}; returns it.
+uint32_t XB_REGS3 XB_STDCALL FxTransform_Init(uint32_t unused, const uint32_t* quat, const uint32_t* origin,
+                                              uint32_t* out, uint32_t id);
+// 0x00275f40 / 0x00275ff0 (text in EAX): white text with the alpha, font 5 / 4 (no callers).
+void XB_REGS1 XB_CDECL CG_DrawWhiteStringFont5(const char* text, float x, float y, float alpha);
+void XB_REGS1 XB_CDECL CG_DrawWhiteStringFont4(const char* text, float x, float y, float alpha);
+// 0x00276bd0 (anim tree in ECX): whether view-weapon anims 9-12 all have zero weight.
+uint8_t XB_THISCALL CG_ViewWeaponAnimsInactive(const uint8_t* tree);
+// 0x00276c70 (anim tree in ESI, weapon state in EDI): 1 when no view-weapon anim 4..22 runs and
+// no ADS transition; else 0 with the state's +0x80 = -1.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CG_ViewWeaponAnimsFinished(const uint8_t* tree, uint8_t* weapon);
+extern "C" void CG_ViewWeaponAnimsFinished_entry(void);
+// 0x00379b20: atexit - ScriptString_Release of 0x00975810.
+void XB_CDECL AtExit_ReleaseScriptString_975810();
+// 0x002f6160: the first free script HUD element reset, or -1.
+int32_t XB_CDECL HudElem_Alloc();
+
 }  // namespace game

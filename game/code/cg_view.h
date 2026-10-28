@@ -142,4 +142,10 @@ void XB_REGS3 XB_CDECL CG_StoreGunOffsetFromView(uint32_t unused_eax, uint32_t u
 // 0x00282d10 (origin in EAX): the view weapon's origin.
 void XB_REGS1 XB_CDECL CG_CalculateWeaponPosition(float* origin);
 
+// 0x00276a30 (origin in EDI): CG_CalcGunMoveOffset kept at 0x00972a98 and added to the origin (no callers).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_AddGunMoveOffset(float* origin);
+extern "C" void CG_AddGunMoveOffset_entry(void);
+// 0x002782a0 (angles in ECX): the ADS view's quantized pitch/yaw into 0x00972fa0/4.
+void XB_THISCALL CG_StoreQuantizedGunAngles(const float* angles);
+
 }  // namespace game

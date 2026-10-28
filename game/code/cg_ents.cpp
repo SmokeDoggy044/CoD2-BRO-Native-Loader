@@ -1,6 +1,7 @@
 #include "cg_ents.h"
 
 #include "cg_view.h"
+#include "cl.h"
 #include "cgame.h"
 #include "dobj.h"
 #include "fx.h"
@@ -1738,6 +1739,25 @@ void XB_CDECL CG_CalcLinkedViewOrigin() {
     title_global<float>(0x00972bf0) = g(0x00972bf0) + at<float>(ent, 0x90);
     title_global<float>(0x00972bb4) = m[13];
     title_global<float>(0x00972bb8) = m[14] - g(0x009725fc);
+}
+
+uint32_t XB_REGS3 XB_CDECL CG_DObjGetWorldTagMatrix(uint32_t tag, uint32_t, DObj* obj, uint8_t* cent, float* out) {
+    // The tag's bone matrix (CL_DObjGetBoneMatrix) times the cent's placement - axis from its
+    // angles (+0x70; rows forward, -right, up), origin +0x60 - into out; 0 for an unknown tag.
+    const uint8_t* bone = CL_DObjGetBoneMatrix(tag, obj);
+    if (!bone) return 0;
+    float right[3];
+    float placement[12];
+    uint32_t args[2] = {addr(cent + 0x70), addr(placement)};
+    AnglesToAxis(args, right, placement + 6);
+    placement[3] = 0.0f - right[0];
+    placement[5] = 0.0f - right[2];
+    placement[4] = 0.0f - right[1];
+    placement[9] = at<float>(cent, 0x60);
+    placement[10] = at<float>(cent, 0x64);
+    placement[11] = at<float>(cent, 0x68);
+    MatrixMultiply43To44(placement, out, reinterpret_cast<const float*>(bone));
+    return 1;
 }
 
 }  // namespace game
