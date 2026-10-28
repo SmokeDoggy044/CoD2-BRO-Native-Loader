@@ -1482,6 +1482,584 @@ void XB_CDECL CG_LoadViewModelAnimTrees() {
     }
 }
 
+namespace {
+
+uint32_t& wd(uint32_t address) { return title_global<uint32_t>(address); }
+uint8_t bt(uint32_t address) { return title_global<uint8_t>(address); }
+
+// CG_RegisterWeapon's frame: `s` is the original's ESP after `sub esp,0x168` and its four pushes. Its locals
+// live at the original's addresses (s + 0x13 the shared-tag flag, +0x14 a model handle / temporary, +0x18 the
+// weapon def, +0x1c the client weapon record, +0x20 a model handle, later the view-model tree, +0x24 the model
+// count, +0x28 the memory context, +0x2c the arms tree, +0x30 the item, +0x34 four 16-byte DObj_Create models
+// {model, bone name script string, 0, tree}, +0x78 the arms tree name). Each call runs at `s` (less the words
+// still pushed) with the original's registers, and the original's return address is put back where the call
+// left ours: the callees (model and anim loads) leave words in the dead stack that later calls read.
+struct WeaponFrame {
+    uint32_t s;
+    uint32_t& at(uint32_t offset) const { return wd(s + offset); }
+    uint32_t call(uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count = 0,
+                  const uint32_t* args = nullptr, uint32_t outstanding = 0) const {
+        const uint32_t top = s - outstanding * 4;
+        const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+        wd(top - count * 4 - 4) = ret;
+        return result;
+    }
+};
+
+// The four model entries' bone-name script strings released, the last first (ScriptString_Release, ECX).
+void release_bone_names(const WeaponFrame& f, uint32_t ret, TitleRegs r) {
+    r.esi = f.s + 0x78;
+    for (r.edi = 4; r.edi; --r.edi) {
+        r.esi -= 0x10;
+        r.ecx = r.esi;
+        r.eax = f.call(ret, 0x0011d640, r);
+    }
+}
+
+// Each entry of an anim-tree table (+4 count, +8 entries of 0x38 bytes) gets its clip (+0x24) looked up
+// again: NAL_FindClip's result when it is a generic clip (vtable 0x00903f98), else 0; +0x2c cleared first.
+void find_tree_clips(const WeaponFrame& f, TitleRegs& r, uint32_t table, uint32_t ret) {
+    r.eax = wd(table + 4);
+    r.edi = 0;
+    if (!r.eax) return;
+    do {
+        r.eax = r.edi < wd(table + 4) ? r.edi : 0;
+        r.ecx = wd(table + 8);
+        r.eax = r.eax * 0x38 + r.ecx;
+        r.esi = r.eax;
+        wd(r.esi + 0x2c) = 0;
+        const uint32_t arg = r.esi;
+        r.eax = f.call(ret, 0x0008d950, r, 1, &arg);  // NAL_FindClip
+        if (r.eax) {
+            r.ecx = wd(r.eax);
+            if (r.ecx != wd(0x00903f98)) r.eax = 0;
+        }
+        wd(r.esi + 0x24) = r.eax;
+        r.eax = wd(table + 4);
+        ++r.edi;
+    } while (r.edi < r.eax);
+}
+
+// Table entry `index` (entry 0 when the table is shorter), in EAX and EDI as the original leaves them.
+void tree_entry(TitleRegs& r, uint32_t table, uint32_t index) {
+    r.ecx = wd(table + 4);
+    r.eax = r.ecx > index ? index : 0;
+    r.ecx = wd(table + 8);
+    r.eax = r.eax * 0x38 + r.ecx;
+    r.edi = r.eax;
+}
+
+// A new anim tree's root info: goal weight cleared below the root, the root's info (allocated when it has
+// none) at weight 1 at once, its parents activated, its time reset and its next notetrack found.
+void start_tree(const WeaponFrame& f, TitleRegs& r, uint32_t tree, bool first, const uint32_t (&ret)[5]) {
+    r.edi = tree;
+    {
+        const uint32_t args[3] = {tree, 0, 0};
+        r.eax = f.call(ret[0], 0x002c3e60, r, 3, args);  // AnimTree_ClearGoalWeight_r
+    }
+    const uint16_t index = title_global<uint16_t>(tree + 0x18);
+    r.eax = (r.eax & 0xffff0000u) | index;
+    wd(0x00928588) = tree;
+    if (!index) {
+        const uint32_t arg = tree;
+        r.eax = 0;
+        r.eax = f.call(ret[1], 0x002c3ed0, r, 1, &arg);  // AnimTree_AllocInfo
+        r.ecx = r.eax;
+    } else {
+        r.eax = index;
+        r.ecx = 0x00965cf0 + index * 0x30u;
+    }
+    const uint32_t info = r.ecx;
+    const float one = g(0x0083eb20);
+    const float zero = 0.0f;
+    const float epsilon = g(0x0083eb4c);
+    const float difference = one - title_global<float>(info + 0x24);
+    std::memcpy(&f.at(0x14), &difference, 4);
+    const uint32_t magnitude = f.at(0x14) & 0x7fffffffu;
+    if (first)
+        r.eax = magnitude;
+    else
+        r.edx = magnitude;
+    f.at(0x14) = magnitude;
+    float absolute;
+    std::memcpy(&absolute, &magnitude, 4);
+    const float blend = absolute * zero;
+    title_global<float>(info + 0x20) = one;
+    title_global<float>(info + 0x1c) = blend;
+    if (epsilon > blend) {
+        title_global<float>(info + 0x1c) = zero;
+        title_global<float>(info + 0x24) = one;
+    } else if (title_global<float>(info + 0x24) == zero) {
+        title_global<float>(info + 0x24) = epsilon;
+    }
+    if (first) r.ebx = 0xffffffffu;
+    title_global<float>(info + 0x28) = one;
+    title_global<uint16_t>(info + 2) = 0xffff;
+    title_global<uint16_t>(info) = 0;
+    const uint32_t zeros[2] = {0, 0};
+    r.eax = 0;
+    r.eax = f.call(ret[2], 0x002cf220, r, 1, zeros);  // AnimTree_ActivateParents
+    r.eax = f.call(ret[3], 0x002be5a0, r, 2, zeros, 1);  // AnimTree_ResetTime (ActivateParents' word still pushed)
+    r.edx = 0;
+    r.eax = f.call(ret[4], 0x002aebf0, r);  // AnimTree_UpdateNoteIndex
+}
+
+// __break 1 when a def's anim name (def + field) is set and table entry `index` is a looping anim (+0x34 bit 0;
+// from the entry itself when it has +0x20, else from its clip, loaded first).
+void check_not_looping(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint32_t table, uint32_t field,
+                       uint32_t index, uint32_t ret_load, uint32_t ret_break, bool name_in_edx) {
+    const uint32_t name = wd(def + field);
+    if (name_in_edx)
+        r.edx = name;
+    else
+        r.eax = name;
+    if (!bt(name)) return;
+    tree_entry(r, table, index);
+    uint32_t looping;
+    if (title_global<uint16_t>(r.edi + 0x20)) {
+        looping = bt(r.edi + 0x34) & 1u;
+    } else {
+        r.eax = wd(r.edi + 0x24);
+        if (!r.eax) r.eax = f.call(ret_load, 0x002bfb90, r);  // AnimData_EnsureLoaded
+        r.edi = wd(r.edi + 0x24);
+        looping = r.edi ? bt(r.edi + 0x34) & 1u : 0;
+    }
+    r.eax = looping;
+    if (!looping) return;
+    if (name_in_edx)
+        r.eax = wd(def + field);
+    else
+        r.ecx = wd(def + field);
+    const uint32_t args[3] = {1, 0x008388d8, wd(def + field)};
+    r.eax = f.call(ret_break, 0x002938f0, r, 3, args);  // __break
+}
+
+// The view model (def +0x14 set): the DObj from up to four models - def +0x18, def +0x14 on "tag_weapon",
+// the hands (+0x1c on +0x24's bone) and the extra model (+0x20 on +0x28's bone) - with the view-model anim
+// tree (def +8, the "<name>_arms" tree too when the model shares tag_b models), the anim rates (ms fields
+// / clip length) in the record, and the looping checks of the two anims that must not loop. False without the
+// anim tree (the original returns then).
+bool register_view_model(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint32_t rec) {
+    r.eax = wd(def + 0x18);
+    r.esi = 0;
+    if (!r.eax || !bt(r.eax)) {
+        r.edx = wd(def + 0xc);
+        const uint32_t args[3] = {1, 0x00838954, r.edx};
+        r.eax = f.call(0x002833bc, 0x002938f0, r, 3, args);  // __break
+    }
+    r.eax = wd(def + 0x30);
+    if (!r.eax || !bt(r.eax)) {
+        r.eax = wd(def + 0xc);
+        const uint32_t args[3] = {1, 0x00838920, r.eax};
+        r.eax = f.call(0x002833db, 0x002938f0, r, 3, args);  // __break
+    }
+    r.ecx = wd(0x0095f638);
+    r.edx = wd(r.ecx + 0x34);
+    r.ecx = wd(0x0095f6ac);
+    {
+        const uint32_t args[3] = {r.ecx, f.s + 0x20, r.edx};
+        r.eax = wd(def + 0x18);
+        r.eax = f.call(0x002833fc, 0x00241f40, r, 3, args);  // R_RegisterModel (name in EAX, ret 0xc)
+    }
+    r.edx = f.at(0x20);
+    r.ecx = f.s + 0x38;
+    f.at(0x34) = r.edx;
+    {
+        const uint32_t arg = 0;
+        r.eax = f.call(0x0028340e, 0x0011e0f0, r, 1, &arg);  // ScrCall_sprintf
+    }
+    r.eax = wd(0x0095f638);
+    f.at(0x3c) = 0;
+    r.ecx = wd(r.eax + 0x34);
+    r.eax = wd(0x0095f6ac);
+    r.edx = f.s + 0x20;
+    {
+        const uint32_t args[3] = {r.eax, r.edx, r.ecx};
+        r.eax = wd(def + 0x14);
+        r.eax = f.call(0x0028342e, 0x00241f40, r, 3, args);  // R_RegisterModel
+    }
+    r.ecx = f.at(0x20);
+    f.at(0x44) = r.ecx;
+    r.ecx = f.s + 0x48;
+    {
+        const uint32_t arg = 0x00838914;  // "tag_weapon"
+        r.eax = f.call(0x00283444, 0x0011dd20, r, 1, &arg);  // ScriptString_AssignCString
+    }
+    r.eax = f.at(0x44);
+    f.at(0x4c) = 0;
+    title_global<uint8_t>(f.s + 0x13) = 0;
+    if (r.eax) {
+        r.esi = wd(r.eax + 0x20);
+        r.eax = wd(r.esi + 0x38);
+        if (r.eax) {
+            r.eax = f.call(0x00283464, 0x00278d80, r);  // CG_ShareWeaponTagBModels
+            title_global<uint8_t>(f.s + 0x13) = 1;
+        }
+    }
+    r.esi = def;
+    r.eax = wd(def + 0x1c);
+    f.at(0x24) = 2;
+    if (bt(r.eax)) {
+        r.edx = wd(0x0095f638);
+        r.ecx = wd(r.edx + 0x34);
+        const uint32_t args[4] = {f.s + 0x14, r.eax, r.ecx, 6};
+        r.eax = f.s + 0x14;
+        f.at(0x24) = 3;
+        r.eax = f.call(0x0028349c, 0x00243fb0, r, 4, args);  // RE_RegisterModel
+        r.ecx = wd(r.eax);
+        f.at(0x54) = r.ecx;
+        r.edx = wd(def + 0x24);
+        r.ecx = f.s + 0x58;
+        const uint32_t arg = r.edx;
+        r.eax = f.call(0x002834b2, 0x0011dd20, r, 1, &arg);  // ScriptString_AssignCString
+        f.at(0x5c) = 0;
+    }
+    r.ecx = wd(def + 0x20);
+    if (bt(r.ecx)) {
+        r.edi = def;
+        r.eax = wd(def + 0x1c);
+        const uint8_t hands = bt(r.eax);
+        r.edx = (r.edx & ~0xffu) | hands;
+        f.at(0x24) = f.at(0x24) + 1;
+        r.esi = hands ? 3 : 2;
+        r.edx = wd(0x0095f638);
+        r.eax = wd(r.edx + 0x34);
+        const uint32_t args[4] = {f.s + 0x14, r.ecx, r.eax, 6};
+        r.eax = f.s + 0x14;
+        r.eax = f.call(0x002834f9, 0x00243fb0, r, 4, args);  // RE_RegisterModel
+        r.ecx = wd(r.eax);
+        r.esi <<= 4;
+        f.at(0x34 + r.esi) = r.ecx;
+        r.edx = wd(def + 0x28);
+        r.ecx = f.s + 0x38 + r.esi;
+        const uint32_t arg = r.edx;
+        r.eax = f.call(0x00283512, 0x0011dd20, r, 1, &arg);  // ScriptString_AssignCString
+        f.at(0x3c + r.esi) = 0;
+        r.esi = def;
+    }
+    r.eax = wd(def + 8);
+    r.ecx = wd(0x0095f524);
+    uint32_t table;
+    {
+        const uint32_t arg = r.eax;
+        r.eax = wd(r.ecx + 4);
+        table = r.eax = f.call(0x00283530, 0x00026050, r, 1, &arg);  // NameTable12_FindFrom1 (table in EAX, ret 4)
+    }
+    if (!table) {
+        // No anim tree: the model entries destroyed (vector_call_iterator, stdcall) and the function returns.
+        r.edx = f.s + 0x34;
+        const uint32_t args[4] = {f.s + 0x34, 0x10, 4, 0x0001ec00};
+        f.call(0x00283549, 0x00011280, r, 4, args);
+        return false;
+    }
+    find_tree_clips(f, r, table, 0x00283580);
+    const bool shared = bt(f.s + 0x13) != 0;
+    r.eax = (r.eax & ~0xffu) | bt(f.s + 0x13);
+    r.esi = def;
+    if (shared) {
+        r.edx = wd(def + 8);
+        const uint32_t args[4] = {f.s + 0x78, 0x0082d800, r.edx, 0x0083890c};  // "%s%s", name, "_arms"
+        r.eax = f.s + 0x78;
+        r.eax = f.call(0x002835c5, 0x001ee901, r, 4, args);  // _sprintf
+        r.edx = wd(0x0095f524);
+        r.eax = wd(r.edx + 4);
+        r.ecx = f.s + 0x78;
+        const uint32_t arg = r.ecx;
+        r.ebx = r.eax = f.call(0x002835db, 0x00026050, r, 1, &arg);  // NameTable12_FindFrom1
+        find_tree_clips(f, r, r.ebx, 0x00283606);
+        r.esi = def;
+    }
+    {
+        const uint32_t args[2] = {0, table};
+        r.eax = f.call(0x00283630, 0x002c4a00, r, 2, args);  // AnimTree_Create
+        f.at(0x20) = r.eax;
+    }
+    r.eax = (r.eax & ~0xffu) | bt(f.s + 0x13);
+    if (shared) {
+        const uint32_t args[2] = {0, r.ebx};
+        r.eax = f.call(0x00283647, 0x002c4a00, r, 2, args);  // AnimTree_Create
+        f.at(0x2c) = r.eax;
+    }
+    r.ebx = rec;
+    r.edx = 0x3f800000;
+    for (uint32_t offset = 4; offset <= 0x64; offset += 4) wd(rec + offset) = 0x3f800000;
+    // Anim rates: 1000 x the clip's length (1 without a clip) / the def's time (ms) for that anim, 0 when the
+    // time is not positive.
+    struct Rate {
+        uint32_t field, index, out, ret;
+    };
+    static const Rate kRates[10] = {
+        {0x5e8, 5, 0x18, 0x002836d6},  {0x5ec, 8, 0x24, 0x00283746},  {0x5f0, 9, 0x28, 0x002837ac},
+        {0x5f4, 10, 0x2c, 0x00283812}, {0x5fc, 11, 0x30, 0x00283878}, {0x5f0, 12, 0x34, 0x002838de},
+        {0x60c, 13, 0x38, 0x00283944}, {0x608, 14, 0x3c, 0x002839aa}, {0x614, 15, 0x40, 0x00283a10},
+        {0x610, 16, 0x44, 0x00283a76},
+    };
+    for (const Rate& rate : kRates) {
+        r.eax = wd(def + rate.field);
+        float value = 0.0f;
+        if (static_cast<int32_t>(r.eax) > 0) {
+            tree_entry(r, table, rate.index);
+            r.eax = wd(r.edi + 0x24);
+            if (!r.eax) r.eax = f.call(rate.ret, 0x002bfb90, r);  // AnimData_EnsureLoaded
+            r.edi = wd(r.edi + 0x24);
+            value = r.edi ? title_global<float>(r.edi + 0x38) : g(0x0083eb20);
+            value = value * g(0x0083eb9c);
+            value = value / static_cast<float>(title_global<int32_t>(def + rate.field));
+        }
+        title_global<float>(rec + rate.out) = value;
+    }
+    {
+        static const uint32_t kRets[5] = {0x00283ab9, 0x00283ad3, 0x00283b69, 0x00283b72, 0x00283b7c};
+        const uint32_t tree = f.at(0x20);
+        start_tree(f, r, tree, true, kRets);
+        f.at(0x40) = tree;
+    }
+    r.eax = (r.eax & ~0xffu) | bt(f.s + 0x13);
+    if (shared) {
+        static const uint32_t kRets[5] = {0x00283b9a, 0x00283bb4, 0x00283c48, 0x00283c51, 0x00283c5b};
+        const uint32_t tree = f.at(0x2c);
+        start_tree(f, r, tree, false, kRets);
+        f.at(0x50) = tree;
+    }
+    check_not_looping(f, r, def, table, 0x88, 0x17, 0x00283c9f, 0x00283cc9, false);
+    check_not_looping(f, r, def, table, 0x8c, 0x18, 0x00283d0c, 0x00283d36, true);
+    // The DObj: 0xa0 bytes from the memory context (MemContext_Alloc_r, ECX = context, ret 8), else the heap.
+    r.eax = f.at(0x28);
+    bool heap = true;
+    if (r.eax != r.ebx) {
+        const int32_t context = static_cast<int32_t>(r.eax);
+        r.ecx = context >= 0 && context < 0x63 ? wd(wd(0x0095f638) + static_cast<uint32_t>(context) * 4 + 0x38) : 0;
+        const uint32_t args[2] = {0x10, 0xa0};
+        r.eax = f.call(0x00283d64, 0x0028c0f0, r, 2, args);  // MemContext_Alloc_r
+        heap = !r.eax;
+    }
+    if (heap) {
+        const uint32_t args[2] = {0x10, 0xa0};
+        r.eax = f.call(0x00283d74, 0x00042c50, r, 2, args);  // Heap_AllocAligned
+    }
+    r.esi = r.eax;
+    if (r.esi) {
+        r.eax = f.at(0x28);
+        r.esi = r.eax = f.call(0x00283d86, 0x0023aff0, r);  // DObj_Ctor
+    }
+    {
+        r.edx = f.at(0x24);
+        r.eax = f.at(0x20);
+        const uint32_t args[2] = {r.edx, r.esi};
+        r.ecx = 0;
+        r.edx = f.s + 0x34;
+        r.eax = f.call(0x00283da1, 0x00245ff0, r, 2, args);  // DObj_Create
+    }
+    wd(rec) = r.esi;
+    r.esi = rec + 0x68;
+    r.eax = def;
+    r.ecx = wd(def + 0x18);
+    {
+        const uint32_t args[3] = {rec + 0x68, r.ecx, 0x17};
+        r.eax = f.call(0x00283dba, 0x001eed80, r, 3, args, 2);  // _strncpy (DObj_Create's words still pushed)
+    }
+    r.edi = def;
+    title_global<uint8_t>(rec + 0x7f) = 0;
+    r.esi = rec;
+    return true;
+}
+
+// The world models (def +0x57c, +0x580: the second defaults to the first), the item icon and its
+// "<icon>_select" version, the def's shaders, and the display, mode and AI overlay names translated
+// (cl_languagetranslate 0x00929b4c: Loc_HashKey in the localized strings; "NO STRING" for an entry
+// without text), each falling back to the untranslated text (__break 7 with the two dev flags set).
+void register_weapon_assets(const WeaponFrame& f, TitleRegs& r, uint32_t def, uint32_t rec) {
+    r.eax = wd(def + 0x57c);
+    if (bt(r.eax)) {
+        r.edx = wd(0x0095f638);
+        r.ecx = wd(r.edx + 0x34);
+        const uint32_t args[3] = {wd(0x0095f6ac), f.s + 0x14, r.ecx};
+        r.ecx = wd(0x0095f6ac);
+        r.edx = f.s + 0x14;
+        r.eax = f.call(0x00283def, 0x00241f40, r, 3, args);  // R_RegisterModel
+        r.edx = f.at(0x14);
+        wd(rec + 0x98) = r.edx;
+    }
+    r.eax = wd(def + 0x580);
+    if (bt(r.eax)) {
+        r.ecx = wd(0x0095f638);
+        r.edx = wd(r.ecx + 0x34);
+        const uint32_t args[3] = {wd(0x0095f6ac), f.s + 0x14, r.edx};
+        r.ecx = f.s + 0x14;
+        r.edx = wd(0x0095f6ac);
+        r.eax = f.call(0x00283e1f, 0x00241f40, r, 3, args);  // R_RegisterModel
+        r.eax = f.at(0x14);
+        wd(rec + 0x9c) = r.eax;
+    } else {
+        r.ecx = wd(rec + 0x98);
+        wd(rec + 0x9c) = r.ecx;
+    }
+    r.ebx = f.at(0x30);
+    r.edx = wd(r.ebx + 0x14);
+    r.eax = f.call(0x00283e43, 0x0023ec30, r);  // RE_RegisterShader (name in EDX)
+    wd(rec + 0xa0) = r.eax;
+    r.edx = wd(r.ebx + 0x14);
+    {
+        const uint32_t args[2] = {0x008388cc, r.edx};  // "%s_select"
+        r.eax = f.call(0x00283e57, 0x002a93d0, r, 2, args);  // va
+    }
+    r.edx = r.eax;
+    r.eax = f.call(0x00283e61, 0x0023ec30, r);  // RE_RegisterShader
+    wd(rec + 0xa4) = r.eax;
+    r.edx = wd(r.ebx + 0x18);
+    r.eax = f.call(0x00283e6f, 0x0023ec30, r);  // RE_RegisterShader
+    wd(rec + 0xa8) = r.eax;
+    struct Shader {
+        uint32_t field, out, ret;
+    };
+    static const Shader kShaders[5] = {
+        {0x4bc, 0xb8, 0x00283e85}, {0x4c0, 0xbc, 0x00283e9b}, {0x634, 0xc0, 0x00283eb1},
+        {0x584, 0xac, 0x00283ec7}, {0x58c, 0xb0, 0x00283edd},
+    };
+    for (const Shader& shader : kShaders) {
+        r.edx = wd(def + shader.field);
+        if (!bt(r.edx)) continue;
+        r.eax = f.call(shader.ret, 0x0023ec30, r);  // RE_RegisterShader
+        wd(rec + shader.out) = r.eax;
+    }
+    struct Text {
+        uint32_t field, out, format, ret_hash, ret_find, ret_break;
+    };
+    static const Text kTexts[3] = {
+        {0x0c, 0x8c, 0x00838898, 0x00283f10, 0x00283f18, 0x00283f68},
+        {0x90, 0x90, 0x00838868, 0x00283f9e, 0x00283fa6, 0x00283ff9},
+        {0x10, 0x94, 0x0083882c, 0x0028402f, 0x00284037, 0x00284081},
+    };
+    r.ecx = wd(0x00929b4c);
+    for (uint32_t k = 0; k < 3; ++k) {
+        const Text& text = kTexts[k];
+        r.eax = wd(def + text.field);
+        bool translate = false;
+        if (r.ecx) {
+            r.edx = wd(r.ecx + 0x20);
+            if (r.edx && bt(r.eax)) {
+                const uint8_t second = bt(r.eax + 1);
+                if (k < 2)
+                    r.edx = (r.edx & ~0xffu) | second;
+                else
+                    r.ecx = (r.ecx & ~0xffu) | second;
+                translate = second != 0;
+            }
+        }
+        if (translate) {
+            r.edi = wd(0x0095f5d8);
+            r.esi = r.eax;
+            r.eax = f.call(text.ret_hash, 0x00024440, r);  // Loc_HashKey (text in ESI)
+            const uint32_t arg = r.eax;
+            r.eax = r.edi;
+            r.eax = f.call(text.ret_find, 0x002984f0, r, 1, &arg);  // Zone_FindByHash (ret 4)
+            if (r.eax) {
+                r.esi = wd(r.eax + 8);
+                if (!r.esi) r.esi = 0x008379b4;  // "NO STRING"
+            }
+            if (k < 2) r.ecx = wd(0x00929b4c);
+            r.edi = def;
+            r.eax = r.esi;
+            r.esi = rec;
+        }
+        wd(rec + text.out) = r.eax;
+        if (r.eax) continue;
+        if (wd(0x00949984) && wd(0x009491a4)) {
+            // (The original keeps the cvar in ECX across this __break; it is not reached in the shipped data.)
+            const uint32_t args[4] = {7, text.format, wd(def + 8), wd(def + text.field)};
+            r.eax = k == 1 ? args[2] : args[3];
+            if (k == 0) r.edx = args[2];
+            if (k == 1) r.edx = args[3];
+            if (k == 2) r.ecx = args[2];
+            r.eax = f.call(text.ret_break, 0x002938f0, r, 4, args);  // __break
+        }
+        if (k == 0)
+            r.eax = wd(def + text.field);
+        else
+            r.edx = wd(def + text.field);
+        wd(rec + text.out) = wd(def + text.field);
+    }
+}
+
+}  // namespace
+
+// Every call runs at the original's ESP with its registers and the locals at the original's frame addresses
+// (the model entries DObj_Create reads, the arms tree name, the model handles): the entry moves the C frame
+// below a gap (the model and anim loads make file calls) and hands over the entry ESP and the registers.
+PLATFORM_ASM_ENTRY(CG_RegisterWeapon_entry,
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl 28(%esp)\n" PLATFORM_ASM_CALL(CG_RegisterWeapon) "addl $32, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_RegisterWeapon(uint32_t entry_esp, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+                                uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Q3's CG_RegisterWeapon (cdecl weapon): once per weapon (client record 0x00975fa8 + weapon * 0xc4, +0x85
+    // registered) with a def (bg_weaponDefs 0x0095f4d8): the record cleared, its item (0x0096bd10 + weapon *
+    // 0x34, +0x88) registered, the view model when the def has one (+0x80 = -1), then the other assets. The
+    // four bone-name script strings of the model entries live across the whole function.
+    const WeaponFrame f{entry_esp - 0x178};
+    f.at(0xc) = ebx;
+    f.at(8) = ebp;
+    f.at(4) = esi;
+    f.at(0) = edi;
+    const uint32_t weapon = wd(entry_esp + 4);
+    TitleRegs r{eax, 0, ecx, edx, esi, edi};
+    for (uint32_t k = 0; k < 4; ++k) {
+        r.esi = f.s + 0x40 + k * 0x10;
+        r.edi = 4 - k;
+        r.ecx = r.esi - 8;
+        f.at(0x34 + k * 0x10) = 0;
+        const uint32_t arg = 0;
+        r.eax = f.call(0x002832dc, 0x0011d5d0, r, 1, &arg);  // ScriptString_FromRep
+        f.at(0x40 + k * 0x10) = 0;
+    }
+    r.esi = f.s + 0x80;
+    r.edi = 0;
+    r.eax = wd(0x0095f638);
+    r.ecx = wd(r.eax + 0x34);
+    f.at(0x2c) = 0;
+    f.at(0x28) = r.ecx;
+    if (!weapon) {
+        release_bone_names(f, 0x0028330d, r);
+        return;
+    }
+    r.edx = wd(0x0095f4d8);
+    const uint32_t def = r.ecx = wd(r.edx + weapon * 4);
+    const uint32_t rec = r.eax = 0x00975fa8 + weapon * 0xc4;
+    const uint8_t registered = bt(rec + 0x85);
+    r.edx = (r.edx & ~0xffu) | registered;
+    f.at(0x1c) = rec;
+    f.at(0x18) = def;
+    if (registered || !def) {
+        release_bone_names(f, 0x002840ca, r);
+        return;
+    }
+    r.esi = rec;
+    for (uint32_t k = 0; k < 0x31; ++k) wd(rec + k * 4) = 0;
+    r.ecx = 0;
+    r.edi = rec + 0xc4;
+    const uint32_t item = r.eax = weapon * 0x34 + 0x0096bd10;
+    title_global<uint8_t>(rec + 0x85) = 1;
+    f.at(0x30) = item;
+    wd(rec + 0x88) = item;
+    r.eax = f.call(0x00283380, 0x00285d50, r, 1, &weapon);  // CG_RegisterItemVisuals
+    r.edi = def;
+    wd(rec + 0x80) = 0xffffffffu;
+    r.ecx = wd(def + 0x14);
+    r.eax = (r.eax & ~0xffu) | bt(r.ecx);
+    if (bt(r.ecx) && !register_view_model(f, r, def, rec)) return;
+    register_weapon_assets(f, r, def, rec);
+    release_bone_names(f, 0x002840a0, r);
+}
+
 void XB_REGS1 XB_CDECL CG_DrawObjectiveList(const float* color, float alpha) {
     // The objectives screen: the "CGAME_MISSIONOBJECTIVES" title underlined (shadow at 40,101
     // in black, line at 39,100 in `color`), then up to the last 6 objectives (0x009730c8,
@@ -4450,7 +5028,7 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
                         if (command_time - ps_time > 1) title_global<int32_t>(0x009746d4) = ps_time + 1;
                     }
                     regs.eax = title_global<uint32_t>(0x009746d0);
-                    call(0x002e5530, 3, pm_args);  // PM_UpdateViewAngles (the move)
+                    call(0x002e5530, 3, pm_args);  // PM_UpdateViewAngles again, the previous command as old (no Pmove on the client)
                     word(0xc) = 1;
                 }
             }

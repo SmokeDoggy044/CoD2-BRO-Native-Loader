@@ -232,6 +232,12 @@ void XB_CDECL CG_RegisterItemVisuals(uint32_t index);
 void XB_CDECL CG_RegisterItems();
 // 0x00285da0: every used weapon view model registered with its animation tree reset.
 void XB_CDECL CG_LoadViewModelAnimTrees();
+// 0x002832b0 (cdecl weapon): Q3's CG_RegisterWeapon - the weapon's view-model DObj (view model, hands,
+// "tag_weapon" model, optional extra models), its anim trees and rates, models, icons and translated names.
+// The C version gets the entry ESP and EAX, EBX, ECX, EDX, ESI, EDI, EBP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_RegisterWeapon(uint32_t entry_esp, uint32_t eax, uint32_t ebx, uint32_t ecx,
+                                                           uint32_t edx, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void CG_RegisterWeapon_entry(void);
 
 // 0x0027e630 (colour in EAX, cdecl alpha): the objectives list screen.
 void XB_REGS1 XB_CDECL CG_DrawObjectiveList(const float* color, float alpha);
