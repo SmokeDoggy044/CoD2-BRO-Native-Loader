@@ -2135,6 +2135,8 @@ ForceResult force_call(const char* name, const char* args, const char* when, con
         std::string_view text = when;
         uint32_t value = 0;
         if (!parse_value(text, value, error) || !text.empty()) {
+            // A guard that cannot be read yet (the objects it walks do not exist): later.
+            if (error.starts_with("cannot read")) return ForceResult::Busy;
             if (error.empty()) error = "unexpected " + std::string(text);
             return ForceResult::Failed;
         }

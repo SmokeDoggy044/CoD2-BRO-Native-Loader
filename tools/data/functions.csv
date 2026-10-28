@@ -1254,7 +1254,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0009e490,FxNode_AddToScene,compare,262577,398,398,0,0,0,""
 0009e500,FxOpdd_InitShaders,compare,271,8,8,0,0,0,""
 0009e530,FxOpdd_Init,compare,0,0,0,0,0,0,""
-0009e560,FxOpdd_AddToList,compare,0,0,0,0,0,0,""
+0009e560,FxOpdd_AddToList,compare,0,108,108,0,0,0,""
 0009e690,FxOp1dd_InitShaders,compare,271,29,29,0,0,0,""
 0009e6c0,FxOp1dd_Init,compare,793,157,157,0,0,0,""
 0009e6f0,FxOp1dd_AddToList,compare,14071,108,108,0,0,0,""

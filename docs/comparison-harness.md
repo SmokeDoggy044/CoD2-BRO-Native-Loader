@@ -90,7 +90,8 @@ used. Check that the call does work before counting it: FxSystemList_DestroyAll(
 matched 39 times with its list count ([0x00909b8c]) 0 on every client frame of missions 1 and 4 -
 only the early return ran; the row was reset. Functions nothing calls or points to (no CALL/JMP,
 no pointer in data: XModel_FreeAnimStates) are dead code and not tested (user, 2026-10-25).
-`&N` is the address of stack word N in the test processes, so stack words can stand in for an object's fields or a
+A `?W` guard that cannot be read yet (the objects it walks do not exist before the level has them) counts as
+"not now", not as a failed spec. `&N` is the address of stack word N in the test processes, so stack words can stand in for an object's fields or a
 short string: `nglMaterial_LoadTextureRef(&1-0x18,[0x902700]+0x54)` (a material whose name field +0x18 is word 1),
 `RE_ParseButtonToken(ebx=&0-0x800,0,&4,&0,&0,0x427b6261,0x4f545455,0x7d315f4e,0x00006463)` ("ab{BUTTON_1}cd" in
 words 4-7, the out buffer in dead stack below).
@@ -393,7 +394,9 @@ field (as wide as it needs at least) at one chunk offset (half the time in the f
 (3/4) or in one; otherwise a word copied from a slot or an arena field to a slot (not into another
 argument's chunk), or to an arena field the same way, sometimes a run of 2-8 (an array of equal
 values), sometimes a second field too. FxRenderer_NewOp5b's switch on a 16-bit field that must be
-4..7, FxConst_Within's two floats that must be equal. Coverage is noisy: the same function lands
+4..7, FxConst_Within's two floats that must be equal. A third dictionary kind (and a corpus mutation) sets an argument to a word 1-3 pointer steps from another argument through
+arena fields: an object a structure the call gets already holds (a skip list's remove of a listed node's key,
+`[[[list+8]+4]]`: nglSkipList_RemoveIndirect 68-84% -> 94-100%). Coverage is noisy: the same function lands
 on 44% or 90% depending on the random stream (bimodal: one lucky input breeds), so compare such
 changes over several `LEAF_SEED=N` (default 0). The x87 control word and MXCSR vary per input (24/53/64-bit
 precision, truncation; FTZ, round down). The calls run on their own stack. Random words never

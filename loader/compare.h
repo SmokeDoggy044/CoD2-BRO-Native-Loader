@@ -135,8 +135,8 @@ const uint8_t* in_test_flag();
 // game as if the title code that holds `registers` had called it with its return address
 // slot at `esp`; the game itself goes on without the call. `args`: comma-separated
 // "eax=E" ... "ebp=E" (not esp) and stack words in order; E is a number, "[E]" (the title
-// word there), "&N" (the address of stack word N), "E+N" or "E-N". `when` (empty: always): an E that must be nonzero now, else
-// Busy. Busy: no free test slot or `when` is 0 (try again later). Failed: why in
+// word there), "&N" (the address of stack word N), "E+N" or "E-N". `when` (empty: always): an E that must be nonzero (and readable) now,
+// else Busy. Busy: no free test slot or `when` is 0 (try again later). Failed: why in
 // `error` (not hooked - settled, not Compare or no --compare -, a bad argument); Started: the
 // values used, in `error` too.
 ForceResult force_call(const char* name, const char* args, const char* when, const TitleRegisters& registers,

@@ -103,7 +103,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000683a0,nglSelectMeshLodWithMatrix,2727,2727,0,0,100.0
 00068f70,nglBuildBoneMatrixPalette,2225,2225,0,0,97.5
 00069b00,nglEmpty_GetName,3813,3813,0,0,100.0
-00069b40,nglSkipList_RemoveIndirect,1889,1889,0,0,67.9
+00069b40,nglSkipList_RemoveIndirect,1805,1805,0,0,93.6
 00069c60,nglSkipList_Clear,1939,1939,0,0,100.0
 00069ca0,nglSkipList_ClearIndirect,1758,1758,0,0,100.0
 0006a220,nglMeshFileManager_DeletingDtor,1837,1837,0,0,100.0

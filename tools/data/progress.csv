@@ -1700,7 +1700,7 @@ address,name,section,module,state,tested,matched
 00068850,nglListAddMesh,.text,renderer,settled,1020,1020
 00068f70,FUN_00068f70,.text,renderer,offline,0,0
 00069b00,nglEmpty_GetName,.text,renderer,offline,0,0
-00069b40,nglSkipList_RemoveIndirect,.text,renderer,inconclusive,30,0
+00069b40,nglSkipList_RemoveIndirect,.text,renderer,offline,30,0
 00069c60,nglSkipList_Clear,.text,renderer,offline,0,0
 00069ca0,nglSkipList_ClearIndirect,.text,renderer,offline,0,0
 00069e00,nglSkipList_Insert,.text,renderer,settled,103,103
@@ -2277,7 +2277,7 @@ address,name,section,module,state,tested,matched
 0009e490,FxNode_AddToScene,.text,renderer,settled,398,398
 0009e500,FxOpdd_InitShaders,.text,renderer,matched,8,8
 0009e530,FxOpdd_Init,.text,renderer,offline,0,0
-0009e560,FxOpdd_AddToList,.text,renderer,untested,0,0
+0009e560,FxOpdd_AddToList,.text,renderer,settled,108,108
 0009e690,FxOp1dd_InitShaders,.text,renderer,matched,29,29
 0009e6c0,FxOp1dd_Init,.text,renderer,settled,157,157
 0009e6f0,FxOp1dd_AddToList,.text,renderer,settled,108,108

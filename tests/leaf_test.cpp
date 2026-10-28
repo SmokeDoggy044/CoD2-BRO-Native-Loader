@@ -1515,8 +1515,26 @@ int main() {
                 gen.plant(v, 4, gen.field_offset(4), gen.below(2) ? 1 : 2 + gen.below(7));  // or a few in a row
                 if (gen.below(2)) gen.plant(v, 4, gen.field_offset(4));  // and another field equal to it
             };
+            // An argument that is an object another argument already holds: 1-3 pointer steps
+            // from a slot through arena fields (a skip list's remove of a listed object:
+            // [[[list+8]+4]], the first node's key). Not kept apart from other arguments.
+            const auto chain_word = [&] {
+                const auto n = static_cast<uint32_t>(slot_values.size());
+                uint32_t from = gen.below(n);
+                for (int tries = 0; tries < 8 && slot_values[from] - lo >= kArenaSize; ++tries) from = gen.below(n);
+                uint32_t v = slot_values[from];
+                for (uint32_t steps = 1 + gen.below(3); steps; --steps) {
+                    const uint32_t at = v - lo + (gen.below(4) ? 4 * gen.below(4) : gen.field_offset(4));
+                    if (v - lo >= kArenaSize || at > kArenaSize - 4) return;
+                    std::memcpy(&v, arena + at, 4);
+                }
+                const uint32_t to = gen.below(n - 1);
+                set_slot(to < from ? to : to + 1, v);
+            };
             const auto dictionary = [&] {
-                if (!leaf.constants.empty() && gen.below(2))
+                if (gen.below(4) == 0)
+                    chain_word();
+                else if (!leaf.constants.empty() && gen.below(2))
                     plant_constant();
                 else
                     copy_word();
@@ -1539,6 +1557,8 @@ int main() {
                         for (int tries = 0; tries < 8 && chunk_taken(k, v); ++tries) v = gen.value();
                         if (chunk_taken(k, v)) v = gen.below(8);
                         set_slot(k, v);
+                    } else if (kind == 3 && gen.below(2)) {
+                        chain_word();
                     } else if (kind == 3) {  // the x87 control word and MXCSR
                         std::memcpy(input.fx_in, &kControl[gen.below(4)], 2);
                         std::memcpy(input.fx_in + 24, &kMxcsr[gen.below(4)], 4);
