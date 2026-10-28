@@ -3678,48 +3678,85 @@ void register_groups(uint8_t* record) {
 
 }  // namespace
 
-void XB_STDCALL Stream_UpdateLoad(uint8_t* record) {
-    file_pump();
+// Its callees run where the original calls them, with the original's registers, and its return addresses are put
+// back where the calls left ours: File_PumpRequests and the state-2 subtree (the load handlers' file reads) leave
+// words in the dead stack that later calls copy into title memory. The frame: entry - 0xfc after the four pushes
+// (state 0 and File_PumpRequests), entry - 0x100 after push ebx (states 2 and 3). The gap is 192 KB: in tests the
+// pass-through file calls zero 128 KB below their ESP, which with 128 KB reached this C frame (a return to 0).
+PLATFORM_ASM_ENTRY(Stream_UpdateLoad_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl 8(%ebp)\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Stream_UpdateLoad) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret $4")
+
+namespace {
+
+// A call at `top` (the original's ESP before the call's pushes) that leaves the original's return address `ret`.
+uint32_t load_call(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count = 0,
+                   const uint32_t* args = nullptr) {
+    const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+    title_global<uint32_t>(top - count * 4 - 4) = ret;
+    return result;
+}
+
+}  // namespace
+
+void XB_CDECL Stream_UpdateLoad(uint32_t entry, uint8_t* record) {
+    const uint32_t top = entry - 0xfc;
+    const uint32_t rec = address_of(record);
+    load_call(top, 0x002926d5, 0x000ca690, TitleRegs{});  // File_PumpRequests
     const uint32_t state = word_at<uint32_t>(record, 0xe0);
     uint32_t done = title_global<uint32_t>(0x0095f614);
     title_global<uint32_t>(0x0095f614) = 0;
     if (state == 0) {
         // The image header read: relocated in the shared buffer, then the items' buffers set up.
-        if (file_status(word_at<int32_t>(record, 0x88)) != -1) return;
-        Stream_SetLoadProgress(0, 0x8000, load_progress());
+        const uint32_t request = word_at<uint32_t>(record, 0x88);
+        const uint32_t status = load_call(top, 0x00292b75, 0x000c9db0, TitleRegs{request, 0, 0, 0, 0, done}, 1,
+                                          &request);  // File_GetRequestStatus
+        if (status != 0xffffffff) return;
+        load_call(top, 0x00292b90, 0x00024e40, TitleRegs{status, 0, 0x0095f738, 0x8000, 0, done});  // Stream_SetLoadProgress
         const float zero = 0.0f;
         title_global<float>(0x0095f744) = (zero - title_global<float>(0x0095f740)) + title_global<float>(0x0095f744);
         title_global<float>(0x0095f740) = zero;
         title_global<uint32_t>(0x0095f73c) += 0x8000;
         title_global<uint32_t>(0x0095f738) = 0;
-        uint8_t* const image = word_at<uint8_t*>(record, 0x84);
-        word_at<uint8_t*>(record, 0x7c) = image;
-        Stream_RelocateZone(0, image, 0);
+        const uint32_t image = word_at<uint32_t>(record, 0x84);
+        word_at<uint32_t>(record, 0x7c) = image;
+        const uint32_t skip = 0;
+        load_call(top, 0x00292bdd, 0x00024c10, TitleRegs{0, 0, 0, image, 0, done}, 1, &skip);  // Stream_RelocateZone
         word_at<int32_t>(record, 0x88) = -1;
-        Stream_BeginZoneLoad(record);
+        load_call(top, 0x00292bed, 0x00291b00, TitleRegs{0, 0, 0, 0, 0, done}, 1, &rec);  // Stream_BeginZoneLoad
         return;
     }
+    const uint32_t frame = entry - 0x100;
     if (state == 2) {
         // Each ready entry handed to its file type's load handler, until 0x008fef6c files' worth this frame.
+        uint32_t name = 0, size = 0;
         while (done < title_global<uint32_t>(0x008fef6c)) {
-            if (!Stream_IsChunkReady(record)) return;
-            const uint8_t* const entry =
+            if (!uint8_t(load_call(frame, 0x00292af7, 0x00292220, TitleRegs{rec, name, 0, 0, size, done})))
+                return;  // Stream_IsChunkReady
+            const uint8_t* const item =
                 word_at<uint8_t*>(current_group(record), 0x14) + word_at<uint32_t>(record, 0xd4) * 0x14;
-            char* const name = word_at<char*>(entry, 0);
-            const uint32_t size = word_at<uint32_t>(entry, 8);
-            done += Stream_GetFileType(name);
-            const TitleRegs regs{address_of(record), address_of(name), 0, 0, size, done};
+            name = word_at<uint32_t>(item, 0);
+            size = word_at<uint32_t>(item, 8);
+            done += load_call(frame, 0x00292b28, 0x0028d920, TitleRegs{name, name, 0, 0, size, done});  // Stream_GetFileType
             const uint32_t args[3] = {word_at<uint32_t>(record, 0xd8), size, word_at<uint32_t>(record, 0x74)};
-            cg_call_regs(0x00292650, &regs, args, 3);  // Stream_RunLoadHandler
+            const uint32_t popped = load_call(frame, 0x00292b3d, 0x00292650, TitleRegs{rec, name, 0, 0, size, done}, 3,
+                                              args);  // Stream_RunLoadHandler
             ++word_at<uint32_t>(record, 0xd4);
-            Stream_SeekNextItem(0, 0, record);
+            load_call(frame, 0x00292b4a, 0x0028c240, TitleRegs{popped, name, rec, 0, size, done});  // Stream_SeekNextItem
             if (!word_at<uint32_t>(record, 0xd8)) return;
         }
         return;
     }
     if (state != 3) return;
     // All entries loaded: the file closed, the script told, the later groups registered, the image kept.
-    title_function<int32_t XB_CDECL(int32_t)>(0x000cac90)(word_at<int32_t>(record, 0x50));  // File_Close
+    const uint32_t file = word_at<uint32_t>(record, 0x50);
+    load_call(frame, 0x0029270b, 0x000cac90, TitleRegs{file, 0, 0, 0, 0, done}, 1, &file);  // File_Close
     word_at<int32_t>(record, 0x50) = -1;
     word_at<uint32_t>(record, 0xdc) = 0;
     if (!word_at<uint32_t>(record, 0x78)) word_at<uint32_t>(record, 0x78) = find_context(word_at<uint32_t>(record, 0x74));
@@ -3740,7 +3777,7 @@ void XB_STDCALL Stream_UpdateLoad(uint8_t* record) {
 void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record) {
     const uint32_t state = word_at<uint32_t>(record, 0xdc);
     if (state == 1)
-        Stream_UpdateLoad(record);
+        update_load(record);
     else if (state == 2)
         Stream_UpdateUnload(record);
 }

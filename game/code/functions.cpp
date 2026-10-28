@@ -2169,7 +2169,7 @@ const Function kFunctions[] = {
     {"Stream_QueueLoad", 0x002920c0, 0, code(&Stream_QueueLoad_entry), 20, Result::Eax, Status::Compare},
     {"Stream_IsChunkReady", 0x00292220, 0, code(&Stream_IsChunkReady), 0, Result::Al, Status::Compare},
     {"Stream_BeginZoneLoad", 0x00291b00, 0, code(&Stream_BeginZoneLoad), 4, Result::None, Status::Compare},
-    {"Stream_UpdateLoad", 0x002926c0, 0, code(&Stream_UpdateLoad), 4, Result::None, Status::Compare},
+    {"Stream_UpdateLoad", 0x002926c0, 0, code(&Stream_UpdateLoad_entry), 4, Result::None, Status::Compare},
     {"Stream_UpdateRequest", 0x00292c00, 0, code(&Stream_UpdateRequest), 0, Result::None, Status::Compare},
     {"SCR_DrawLoadingIcon", 0x00292e60, 0, code(&SCR_DrawLoadingIcon), 0, Result::None, Status::Compare},
     {"Key_TranslateButtonName", 0x00292ee0, 0, code(&Key_TranslateButtonName), 0, Result::Eax, Status::Compare},

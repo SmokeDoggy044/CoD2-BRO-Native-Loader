@@ -686,7 +686,9 @@ void XB_STDCALL Stream_BeginZoneLoad(uint8_t* record);
 // Stream_RunLoadHandler, then Stream_SeekNextItem; 3 done -> file closed, Scr_NotifyLoaded, the later groups registered
 // (AUDIO sound bank parts / VIDEO context / ANIM raw files), +0x64 slots returned, owned buffers (flags 8 and 1) freed,
 // the image kept in its own block (as StreamRequest_Cancel).
-void XB_STDCALL Stream_UpdateLoad(uint8_t* record);
+// C body: `entry` the entry ESP (Stream_UpdateLoad_entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_UpdateLoad(uint32_t entry, uint8_t* record);
+extern "C" void Stream_UpdateLoad_entry(void);
 void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record);
 // 0x0028bea0 Space (load handler): a bare RET; unhookable, not in kFunctions.
 void XB_CDECL Stream_LoadSpace(char* name, uint8_t* data, uint32_t size, uint32_t zone);
