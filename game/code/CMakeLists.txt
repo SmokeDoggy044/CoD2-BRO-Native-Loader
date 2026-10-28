@@ -52,6 +52,7 @@ set(game_code_sources
     ui_menu.cpp
     ui_panel.cpp
     unzip.cpp
+    zlib.cpp
     xanim.cpp
 )
 # Linux loader builds: a shared library, so that the comparison harness can tell this
