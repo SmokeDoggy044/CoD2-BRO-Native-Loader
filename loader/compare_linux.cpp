@@ -75,11 +75,11 @@ struct alignas(16) Context {
     uint32_t pad;
     // force_call: stack arguments the test processes write above the return address slot.
     uint32_t stack_words;
-    uint32_t stack[8];
+    uint32_t stack[32];
 };
 static_assert(offsetof(Context, eax) == 512 && offsetof(Context, esp) == 528 && offsetof(Context, edi) == 540);
 static_assert(offsetof(Context, eflags) == 544 && offsetof(Context, target) == 548 &&
-              offsetof(Context, zero_below) == 552 && sizeof(Context) == 608);
+              offsetof(Context, zero_below) == 552 && sizeof(Context) == 704);
 
 // What xbcmp_entry leaves on the stack: pushad, pushfd, the stub's index, the
 // caller's return address.
@@ -221,6 +221,11 @@ uint32_t g_pass_result_spec = 0xFFFFFFFF;  // the "(result)" record after a pass
 using loader::compare::ChildArea;
 using loader::compare::Context;
 using loader::compare::EntryFrame;
+
+namespace {
+uint32_t g_pokes[8][2];  // XBCMP_POKE: {address, word}
+uint32_t g_poke_count;
+}  // namespace
 
 extern "C" {
 ChildArea xbcmp_child;
@@ -1428,6 +1433,9 @@ bool install_file_guard(const ChildArea& c) {
         child_send(c);
     }
     c.report.t_mapped = now_ns();
+    // XBCMP_POKE: title words both sides get before the test (not counted as written).
+    for (uint32_t i = 0; i < g_poke_count; ++i)
+        *reinterpret_cast<uint32_t*>(uintptr_t{g_pokes[i][0]}) = g_pokes[i][1];
     std::memcpy(&c.start, &context, sizeof(Context));
     xbcmp_test_target = run_original ? hook.address : hook.code;
     c.start.target = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&xbcmp_test_jump));
@@ -2371,6 +2379,23 @@ void install(std::span<const game::Function> functions, const Config& config) {
         const int ms = std::atoi(timeout);
         if (ms > 0) g_config.timeout_ms = static_cast<uint32_t>(ms);
     }
+    // XBCMP_POKE=ADDR=VALUE[,ADDR=VALUE]: words written in every test process before the
+    // test, on both sides (Stream_LoadSync: 0x008bfd80=0, the file system's single-thread
+    // mode, so the caller pumps the devices - a test process has no file request thread).
+    g_poke_count = 0;
+    if (const char* poke = std::getenv("XBCMP_POKE")) {
+        for (const char* at = poke; *at && g_poke_count < std::size(g_pokes);) {
+            char* end = nullptr;
+            const auto where = static_cast<uint32_t>(std::strtoul(at, &end, 0));
+            if (*end != '=') break;
+            const auto value = static_cast<uint32_t>(std::strtoul(end + 1, &end, 0));
+            g_pokes[g_poke_count][0] = where;
+            g_pokes[g_poke_count++][1] = value;
+            LOG_INFO("compare", "XBCMP_POKE: [%08x] = %08x in test processes", where, value);
+            if (*end != ',') break;
+            at = end + 1;
+        }
+    }
     xbcmp_child_stack_top = addr(xbcmp_child.stack + sizeof(xbcmp_child.stack));
     g_sdk_spec_count = 0;
     g_sdk_names.clear();
@@ -2496,7 +2521,8 @@ uint32_t g_force_esp;
 
 // One force_call argument value: a number, "[E]" (the title word at E, read without
 // faulting), "&N" (the address of stack word N in the test processes: a stack word can
-// stand in for a field of an object the call needs), then any "+N" / "-N".
+// stand in for a field of an object the call needs), then any "+N" / "-N" / "*N" (right to left:
+// "A+B*C" is A + B * C, "A*B+C" is A * (B + C)).
 bool parse_value(std::string_view& text, uint32_t& value, std::string& error) {
     if (!text.empty() && text[0] == '&') {
         text.remove_prefix(1);
@@ -2522,7 +2548,7 @@ bool parse_value(std::string_view& text, uint32_t& value, std::string& error) {
             return false;
         }
     } else {
-        const std::string digits(text.substr(0, text.find_first_of(",]+-", 1)));
+        const std::string digits(text.substr(0, text.find_first_of(",]+-*=", 1)));
         char* end = nullptr;
         value = static_cast<uint32_t>(std::strtoul(digits.c_str(), &end, 0));
         if (digits.empty() || *end) {
@@ -2531,12 +2557,12 @@ bool parse_value(std::string_view& text, uint32_t& value, std::string& error) {
         }
         text.remove_prefix(digits.size());
     }
-    while (!text.empty() && (text[0] == '+' || text[0] == '-')) {
-        const bool minus = text[0] == '-';
+    while (!text.empty() && (text[0] == '+' || text[0] == '-' || text[0] == '*')) {
+        const char op = text[0];
         text.remove_prefix(1);
         uint32_t offset = 0;
         if (!parse_value(text, offset, error)) return false;
-        value = minus ? value - offset : value + offset;
+        value = op == '-' ? value - offset : op == '*' ? value * offset : value + offset;
     }
     return true;
 }
@@ -2559,7 +2585,15 @@ ForceResult force_call(const char* name, const char* args, const char* when, con
     if (when && *when) {
         std::string_view text = when;
         uint32_t value = 0;
-        if (!parse_value(text, value, error) || !text.empty()) {
+        bool parsed = parse_value(text, value, error);
+        // "?A=B": the call is made on frames where A equals B.
+        if (parsed && !text.empty() && text[0] == '=') {
+            text.remove_prefix(1);
+            uint32_t other = 0;
+            parsed = parse_value(text, other, error);
+            value = value == other;
+        }
+        if (!parsed || !text.empty()) {
             // A guard that cannot be read yet (the objects it walks do not exist): later.
             if (error.starts_with("cannot read")) return ForceResult::Busy;
             if (error.empty()) error = "unexpected " + std::string(text);
@@ -2590,7 +2624,7 @@ ForceResult force_call(const char* name, const char* args, const char* when, con
             }
         if (!to) {
             if (context.stack_words == std::size(context.stack)) {
-                error = "more than 8 stack words";
+                error = "more than 32 stack words";
                 return ForceResult::Failed;
             }
             to = &context.stack[context.stack_words++];

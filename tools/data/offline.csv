@@ -489,6 +489,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0027cf40,CG_DrawRotatedPic,4000,4000,0,0,100.0
 0027e190,CG_AltWeapon_f,3799,3799,0,0,88.6
 002800a0,CG_CenterPrint,3467,3467,0,0,29.0
+0028bea0,Stream_LoadSpace,4000,4000,0,0,100.0
 0028d7d0,ResourceManager_Destruct,1078,1078,0,0,69.4
 0028d8b0,ZoneRecord_GetContext,3759,3759,0,0,100.0
 0028ef40,StreamMem_Free,1023,1023,0,0,100.0

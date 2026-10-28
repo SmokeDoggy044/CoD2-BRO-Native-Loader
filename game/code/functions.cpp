@@ -2024,6 +2024,7 @@ const Function kFunctions[] = {
     {"CG_RegisterGraphics", 0x0028b6a0, 0, code(&CG_RegisterGraphics), 0, Result::None, Status::Compare},
     {"CG_Init", 0x0028b7c0, 0, code(&CG_Init), 0, Result::None, Status::Compare},
     {"CG_vmMain", 0x0028b960, 0, code(&CG_vmMain_entry), 28, Result::Eax, Status::Compare},
+    {"Stream_LoadSpace", 0x0028bea0, 0, code(&Stream_LoadSpace), 16, Result::None, Status::Compare},
     {"Stream_Alloc", 0x0028beb0, 0, code(&Stream_Alloc_entry), 0, Result::Eax, Status::Compare},
     {"Stream_RemoveFreeBlocks", 0x0028c050, 0, code(&Stream_RemoveFreeBlocks), 4, Result::None, Status::Compare},
     {"Stream_AddFreeBlock", 0x0028c1c0, 0, code(&Stream_AddFreeBlock_entry), 4, Result::Eax, Status::Compare},
