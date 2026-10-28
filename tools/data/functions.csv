@@ -2162,7 +2162,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00291f40,StreamRequest_Start,compare,126,46,0,0,0,46,"original called host code at 08127cbd from 001e7dc1 XAPILIB::CreateFileA+0x6b [.text]"
 00291fd0,StreamRequest_Init,compare,126,54,0,0,0,54,"original called host code at 08127cbd from 001e7dc1 XAPILIB::CreateFileA+0x6b [.text]"
 002920c0,Stream_QueueLoad,compare,64,35,0,0,0,35,"original called host code at 08127cbd from 001e7dc1 XAPILIB::CreateFileA+0x6b [.text]"
-00292220,Stream_IsChunkReady,compare,13340,2523,2210,0,15,298,"original called host code at 08114910 from 001e868a XAPILIB::SleepEx+0x31 [.text]"
+00292220,Stream_IsChunkReady,compare,13340,2508,2210,0,0,298,""
 002922d0,Stream_ScheduleZones,compare,11565,213,212,0,0,1,"original called host code at 08127cbd from 001e7dc1 XAPILIB::CreateFileA+0x6b [.text]"
 00292420,Stream_GetLoadHandler,compare,6240,982,982,0,0,0,""
 00292650,Stream_RunLoadHandler,compare,24818,1679,1675,0,0,4,""

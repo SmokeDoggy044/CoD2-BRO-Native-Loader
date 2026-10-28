@@ -106,3 +106,5 @@ address,name,kind,reason
 00025dd0,ZoneClipSetManager_Add,dead,"only call site 0x0008dffe sits in gap 0x0008df80, which nothing references (2026-10-28)"
 0028e6e0,Stream_AddClipSetToZone,dead,"no CALL, pointer or immediate (2026-10-28)"
 00290e30,Stream_LoadDdsmp,no data,"no shipped file has the .ddsmp type (unpacked/ and sp packs searched, 2026-10-28)"
+00290350,Stream_FindMapA8,no data,"only caller is the clip-set manager Find (gap 0x00025d90, vtable 0x00838118 slot 2); nothing looks clip sets up (2026-10-28)"
+00292c00,Stream_UpdateRequest,dead,"gap function: no CALL/JMP and no pointer (2026-10-28)"
