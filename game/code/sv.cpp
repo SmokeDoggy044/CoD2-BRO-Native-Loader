@@ -3,9 +3,14 @@
 #include <cstring>
 
 #include "cg_ents.h"
+#include "cl.h"
 #include "cm.h"
+#include "dobj.h"
+#include "fx.h"
 #include "lanes.h"
 #include "qcommon.h"
+#include "r_init.h"
+#include "snd.h"
 #include "title_data.h"
 #include "tr_main.h"
 #include "g_utils.h"
@@ -2032,6 +2037,743 @@ int32_t XB_CDECL SV_EntitySightTrace(const float* end, const float* maxs, const 
                                                       mins, maxs, reinterpret_cast<const uint32_t*>(model),
                                                       content_mask, angles, capsule_flag);
     return blocked ? -1 : 0;  // NEG + SBB
+}
+
+namespace {
+
+using VmCall1 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t);
+using VmCall2 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t);
+using VmCall3 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t);
+using VmCall4 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t);
+using VmCall5 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+using VmCall6 = int32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                          uint32_t);
+constexpr uint32_t kVmCall = 0x002a84e0;
+uint8_t* gvm() { return title_global<uint8_t*>(0x0095f50c); }
+void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Malloc's free
+uint8_t* z_malloc(uint32_t size) { return title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+void script_string_release(void* s) { title_function<void XB_THISCALL(void*)>(0x0011d640)(s); }
+// The packet counter SV_PacketEvent also bumps (never 0).
+void bump_packet_count() {
+    if (!++title_global<int32_t>(0x0093fc28)) title_global<int32_t>(0x0093fc28) = 1;
+}
+uint32_t word(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+void std_list_clear(uint8_t* list, uint8_t* owner) {  // 0x00015810 (list in ESI)
+    const TitleRegs regs = {0, 0, 0, 0, word(list), word(owner)};
+    cg_call_regs(0x00015810, &regs, nullptr, 0);
+}
+
+}  // namespace
+
+void XB_CDECL SV_TraceDObjModels(const uint8_t* obj, const float* start, const float* end, uint32_t content_mask,
+                                 uint8_t* results) {
+    const uint8_t* skeleton = nullptr;
+    if (const uint8_t* bones = *reinterpret_cast<uint8_t* const*>(obj + 0x20))
+        skeleton = bones + static_cast<uint32_t>(obj[0x60]) * 0x40 + 0x30;
+    alignas(16) uint8_t trace[0x40] = {};
+    field<uint32_t>(results, 0x14) = 0;
+    field<uint32_t>(results, 0x18) = 0;
+    results[0x1c] = 0;
+    results[0x1d] = 0;
+    std::memcpy(trace + 0x20, results, 4);  // fraction
+    for (int32_t i = 0; i < obj[0x2e]; ++i) {
+        const uint8_t* model = reinterpret_cast<uint8_t* const*>(obj + 0x38)[i];
+        const uint8_t* const* lods = reinterpret_cast<uint8_t* const*>(model + 0x24);
+        int32_t lod = 0;
+        while (!lods[lod]) ++lod;
+        const uint8_t* parts = *reinterpret_cast<uint8_t* const*>(lods[lod] + 8);
+        int32_t bone = XModel_TraceParts(model, trace, skeleton, start, end, content_mask);
+        if (bone >= 0) {
+            if (static_cast<uint32_t>(bone) >= *reinterpret_cast<const uint32_t*>(parts + 0x10)) bone = 0;
+            field<uint32_t>(results, 0x14) =
+                *reinterpret_cast<const uint32_t*>(*reinterpret_cast<uint8_t* const*>(parts + 0x14) + bone * 12 + 4);
+        }
+        skeleton += *reinterpret_cast<const uint32_t*>(parts + 0x10) << 6;
+    }
+    std::memcpy(results, trace + 0x20, 4);
+    std::memcpy(results + 8, trace + 0x10, 12);
+    std::memcpy(results + 4, trace + 0x24, 4);
+}
+
+void XB_REGS1 XB_CDECL FxSystem_FreeLevel(uint8_t* fx) {
+    for (uint32_t i = 0; i < field<uint32_t>(fx, 0); ++i) {
+        uint32_t* effect = reinterpret_cast<uint32_t**>(fx + 4)[i];
+        if (!effect) continue;
+        FX_FreeEffectComponents(effect);
+        title_function<void XB_THISCALL(uint8_t*, void*)>(0x00044910)(title_global<uint8_t*>(0x0095f5bc),
+                                                                       effect);  // SmallHeap_Free
+    }
+    for (uint32_t i = 0; i < field<uint32_t>(fx, 0x804); ++i) {
+        uint8_t* object = reinterpret_cast<uint8_t**>(fx + 0x808)[i];
+        if (!object) continue;
+        title_function<void XB_THISCALL(uint8_t*, uint32_t)>(field<uint32_t>(field<uint8_t*>(object, 0), 0))(object, 1);
+    }
+    for (uint32_t offset = 0x8f1c - 0x210; offset >= 0xb1c; offset -= 0x210) script_string_release(fx + offset);
+}
+
+// The VM calls run at the original's ESP (entry, no frame): the game stores a stack address at 0x00929b40.
+PLATFORM_ASM_ENTRY(SV_GameRestartFrame_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_GameRestartFrame) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL SV_GameRestartFrame(uint32_t entry_esp, uint32_t flag, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    bump_packet_count();
+    title_global<uint32_t>(0x0095f510) = 1;
+    const uint32_t time = title_global<uint32_t>(0x00964cd0);
+    const uint32_t frame[3] = {8, flag, time};
+    const TitleRegs regs = {1, ebx, flag, word(gvm()), esi, edi};
+    title_call_at_regs(entry_esp, kVmCall, &regs, 3, frame);
+    const TitleRegs regs2 = {1, ebx, flag, word(gvm()), esi, edi};
+    title_global<uint32_t>(0x0095f510) = 0;
+    const uint32_t check[4] = {0x13, 8, flag, time};
+    title_global<uint32_t>(0x0092f094) = title_call_at_regs(entry_esp, kVmCall, &regs2, 4, check);
+}
+void XB_CDECL SV_ClearWorld() {
+    const uint8_t* cm = title_global<uint8_t*>(0x0095f6b8);
+    title_global<uint32_t>(0x00935688) = 0x009356b0;
+    for (uint32_t offset = 0; offset < 0x8fdc; offset += 0x24)
+        title_global<uint32_t>(0x009356c8 + offset) = 0x009356d4 + offset;
+    title_global<uint32_t>(0x0093e6a4) = 0;
+    const float* bounds = reinterpret_cast<const float*>(cm + 0x64);  // mins +0x64, maxs +0x70
+    const float x = bounds[3] - bounds[0];
+    const float y = bounds[4] - bounds[1];
+    const uint32_t axis = y >= x ? 1 : 0;  // comiss; jb (unordered: x)
+    title_global<uint32_t>(0x00935664) = axis;
+    title_global<float>(0x00935670) = (bounds[3 + axis] + bounds[axis]) * title_global<float>(0x0083eb24);  // 0.5
+    title_global<uint32_t>(0x00935680) = 0x0093568c;
+    title_global<uint32_t>(0x00935684) = 0x0093568c;
+    title_global<uint32_t>(0x00935660) = *reinterpret_cast<const uint32_t*>(cm + 0x50);
+    title_global<uint32_t>(0x00935658) = *reinterpret_cast<const uint32_t*>(cm + 0x54);
+    title_global<uint32_t>(0x0093565c) = *reinterpret_cast<const uint32_t*>(cm + 0x4c);
+}
+
+PLATFORM_ASM_ENTRY(SV_FreeClientFrames_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(SV_FreeClientFrames) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL SV_FreeClientFrames(uint8_t* client) {
+    if (!field<uint32_t>(client, 4)) return;
+    z_free(field<void*>(client, 8));
+    z_free(field<void*>(client, 0x10));
+    z_free(field<void*>(client, 0xc));
+    field<uint32_t>(client, 4) = 0;
+}
+
+PLATFORM_ASM_ENTRY(SV_AllocClientFrames_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(SV_AllocClientFrames) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL SV_AllocClientFrames(uint32_t count, uint8_t* client) {
+    const uint32_t size = count * 3 << 7;
+    field<uint32_t>(client, 4) = size;
+    uint8_t* frames = z_malloc(size);
+    Com_Memset(frames, 0, size);
+    field<uint8_t*>(client, 8) = frames;
+    uint8_t* a = z_malloc(count * 4);
+    Com_Memset(a, 0, count * 4);
+    field<uint8_t*>(client, 0x10) = a;
+    uint8_t* b = z_malloc(count * 4);
+    Com_Memset(b, 0, count * 4);
+    uint8_t* const first = field<uint8_t*>(client, 8);
+    field<uint8_t*>(client, 0xc) = b;
+    field<uint8_t*>(client, 0x14) = first;
+    return first;
+}
+
+void XB_REGS1 XB_CDECL SV_ConnectionlessPacket(uint8_t* msg, uint32_t type, uint32_t ip, uint32_t ipx1, uint32_t ipx2,
+                                               uint32_t port_word) {
+    using AdrToString = const char* XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    field<int32_t>(msg, 0x10) = 0;
+    MSG_ReadLong(msg);
+    const TitleRegs line_regs = {0, 0, 0, 0, 0, word(msg)};
+    // 0x002aa480 (msg in EDI; Q3's MSG_ReadStringLine, its own buffer 0x0098b3c8)
+    Cmd_TokenizeString(reinterpret_cast<const char*>(uintptr_t{cg_call_regs(0x002aa480, &line_regs, nullptr, 0)}), 0);
+    const char* command = title_global<uint32_t>(0x00934248) ? title_global<const char*>(0x0092df90)  // cmd_argv[0]
+                                                             : title_text(0x0082dfeb);                // ""
+    title_function<AdrToString>(0x002aa2f0)(type, ip, ipx1, ipx2, port_word);  // NET_AdrToString
+    if (command && !Q_stricmpn(command, title_text(0x008341e4), 99999)) return;  // "disconnect"
+    title_function<AdrToString>(0x002aa2f0)(type, ip, ipx1, ipx2, port_word);
+}
+
+void XB_CDECL SV_ClearServer() {
+    if (uint8_t* client = title_global<uint8_t*>(0x00927e8c)) SV_FreeClientFrames(client);
+    for (uint32_t address = 0x00964ce0; address < 0x00965ce0; address += 4) {
+        if (void* rep = title_global<void*>(address)) {
+            title_function<void XB_THISCALL(void*)>(0x0011d5b0)(rep);  // ScriptStringRep_Release
+            title_global<void*>(address) = nullptr;
+        }
+    }
+    Com_Memset32(&title_global<uint32_t>(0x00964cd0), 0, 0x406);
+    title_global<uint32_t>(0x0092f548) = 0;
+}
+
+PLATFORM_ASM_ENTRY(SV_GetConfigstring_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(SV_GetConfigstring) "addl $12, %esp\n"
+                   "ret")
+
+char* XB_CDECL SV_GetConfigstring(int32_t index, int32_t size, char* buffer) {
+    using Strncpy = char* XB_CDECL(char*, const char*, int32_t);
+    if (size < 1) title_function<void XB_CDECL(uint32_t, const char*, int32_t)>(kBreak)(1, title_text(0x00832d58), size);
+    if (index < 0 || index >= 0x400)
+        title_function<void XB_CDECL(uint32_t, const char*, int32_t)>(kBreak)(1, title_text(0x00832d34), index);
+    const char* text = title_global<const char*>(0x00964ce0 + static_cast<uint32_t>(index) * 4);
+    char* result = title_function<Strncpy>(0x001eed80)(buffer, text ? text + 6 : nullptr, size - 1);  // _strncpy
+    buffer[size - 1] = 0;
+    return result;
+}
+
+void XB_THISCALL SV_LinkStaticModelToSector(uint8_t* inst) {
+    const uint8_t* cm = title_global<uint8_t*>(0x0095f6b8);
+    float mins[2] = {field<float>(const_cast<uint8_t*>(cm), 0x64), field<float>(const_cast<uint8_t*>(cm), 0x68)};
+    float maxs[2] = {field<float>(const_cast<uint8_t*>(cm), 0x70), field<float>(const_cast<uint8_t*>(cm), 0x74)};
+    const uint32_t contents = field<uint32_t>(field<uint8_t*>(inst, 0x68), 0x40);
+    uint8_t* node = reinterpret_cast<uint8_t*>(uintptr_t{0x00935664});
+    uint8_t* const null_sector = reinterpret_cast<uint8_t*>(uintptr_t{0x0093568c});
+    for (;;) {
+        field<uint32_t>(node, 4) |= contents;
+        const uint32_t axis = field<uint32_t>(node, 0);
+        const float dist = field<float>(node, 0xc);
+        uint8_t* child;
+        if (field<float>(inst, 0xa0 + axis * 4) > dist) {  // comiss; jbe
+            mins[axis] = dist;
+            child = field<uint8_t*>(node, 0x1c);
+        } else if (dist > field<float>(inst, 0xac + axis * 4)) {
+            maxs[axis] = dist;
+            child = field<uint8_t*>(node, 0x20);
+        } else {
+            break;
+        }
+        if (child == null_sector) break;
+        node = child;
+    }
+    field<uint8_t*>(inst, 0xdc) = field<uint8_t*>(node, 0x14);
+    field<uint8_t*>(node, 0x14) = inst;
+    SV_SplitSector(node, mins, maxs);
+}
+
+uint8_t XB_REGS1 XB_STDCALL SndBankList_IsLoaded(const uint8_t* list, const uint32_t* hash) {
+    const int32_t count = *reinterpret_cast<const int32_t*>(list + 8);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint32_t* entry = reinterpret_cast<const uint32_t*>(list + 0xc + i * 0x84);
+        int32_t k = 0;
+        while (k < 8 && entry[k] == hash[k]) ++k;
+        if (k < 8) continue;
+        for (int32_t s = 0; s < 6; ++s) {
+            const uint32_t state = entry[9 + s];
+            if (state == 1 || state == 3) return 0;
+        }
+        return 1;
+    }
+    return 1;
+}
+
+void XB_REGS1 XB_CDECL LevelPersist_Free(uint8_t* data) {
+    if (void* p = field<void*>(data, 0x580)) z_free(p);
+    field<uint32_t>(data, 0x580) = 0;
+    field<uint32_t>(data, 0x584) = 0;
+    field<uint32_t>(data, 0x588) = 0;
+    std_list_clear(data + 0x570, data);
+    z_free(field<void*>(data, 0x574));
+    field<uint32_t>(data, 0x574) = 0;
+    if (void* p = field<void*>(data, 0x560)) {
+        Mem_AlignedFree(p);
+        field<uint32_t>(data, 0x560) = 0;
+    }
+    script_string_release(data + 0x55c);
+    script_string_release(data + 0x558);
+    for (uint32_t offset = 0x554 - 0x1c; offset >= 0x394; offset -= 0x1c) script_string_release(data + offset);
+    if (void* p = field<void*>(data, 0x364)) z_free(p);
+    field<uint32_t>(data, 0x364) = 0;
+    field<uint32_t>(data, 0x368) = 0;
+    field<uint32_t>(data, 0x36c) = 0;
+    std_list_clear(data + 0x354, data);
+    z_free(field<void*>(data, 0x358));
+    field<uint32_t>(data, 0x358) = 0;
+    for (uint32_t offset = 0x1c; offset >= 8; offset -= 4) script_string_release(data + offset);
+}
+
+// The title callees run at the original's ESPs (entry - 0x10 below its four saved registers): GAME_INIT stores a
+// stack address at 0x00929b40.
+PLATFORM_ASM_ENTRY(SV_RestartGameProgs_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_RestartGameProgs) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL SV_RestartGameProgs(uint32_t entry_esp, uint32_t savegame, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    const uint32_t top = entry_esp - 0x10;
+    const uint32_t size = title_global<uint32_t>(0x00965ce4);
+    (void)esi;  // ESI holds the size by the first call
+    const TitleRegs malloc_regs = {size, ebx, 0, 0, size, edi};
+    uint8_t* copy = reinterpret_cast<uint8_t*>(uintptr_t{title_call_at_regs(top, 0x00042c10, &malloc_regs, 1, &size)});
+    const uint32_t memset_args[3] = {word(copy), 0, size};
+    const TitleRegs memset_regs = {word(copy), word(copy), 0, 0, size, edi};
+    title_call_at_regs(top - 4, 0x002971a0, &memset_regs, 3, memset_args);  // Com_Memset
+    const uint8_t* source = title_global<uint8_t*>(0x00965ce0);
+    const uint32_t copied = title_global<uint32_t>(0x00965ce4);
+    std::memcpy(copy, source, copied);
+    title_global<uint8_t*>(0x00965ce0) = copy;
+    const uint32_t shutdown[6] = {1, savegame, word(copy), 0, size, size};  // Com_Memset's and Z_Malloc's words below
+    const TitleRegs vm_regs = {copied, word(copy), copied & 3, word(gvm()), word(source) + copied, word(copy) + copied};
+    title_call_at_regs(top, kVmCall, &vm_regs, 6, shutdown);
+    const uint32_t sv0 = title_global<uint32_t>(0x00964cd0);
+    const TitleRegs ms_regs = {0, word(copy), sv0, 0, word(source) + copied, word(copy) + copied};
+    const uint32_t time = title_call_at_regs(top - 0xc, 0x0029c6b0, &ms_regs, 0, nullptr);  // Com_Milliseconds
+    const uint32_t init[5] = {0, time, 1, savegame, sv0};
+    const TitleRegs init_regs = {time, word(copy), sv0, word(gvm()), word(source) + copied, word(copy) + copied};
+    const uint32_t result = title_call_at_regs(top, kVmCall, &init_regs, 5, init);
+    field<uint32_t>(title_global<uint8_t*>(0x00927e8c), 0x164) = 0;
+    return result;
+}
+void XB_REGS1 XB_CDECL SV_CheckAutosave(char* name) {
+    char map[0x80];
+    if (const uint8_t* cvar = Cvar_FindVar(title_text(0x00835230))) {  // "mapname"
+        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(
+            map, *reinterpret_cast<const char* const*>(cvar + 4), 0x7f);  // _strncpy
+        map[0x7f] = 0;
+    } else {
+        map[0] = 0;
+    }
+    const int32_t length = static_cast<int32_t>(std::strlen(map));
+    for (int32_t i = 0; i < length; ++i) {
+        const char c = map[i];
+        if (c == '/') {
+            map[i] = '-';
+            continue;
+        }
+        const int32_t e = c;
+        if ((e >= 'a' && e <= 'z') || (e >= 'A' && e <= 'Z') || (e >= '0' && e <= '9') || e == '_' || e == '-')
+            continue;
+        if (c == '\\') continue;
+        name[0] = 0;
+        return;
+    }
+    const uint32_t args[2] = {0x00832f48, word(map)};  // "save/autosave/%s.svg"
+    Com_sprintf(name, 0x80, args);
+    if (title_function<int32_t XB_CDECL(const char*, void*)>(0x002a1fd0)(name, nullptr) < 0) name[0] = 0;  // FS_ReadFile
+}
+
+void XB_CDECL SV_ShutdownServer() {
+    const uint8_t* running = title_global<uint8_t*>(0x0093fcf0);  // com_sv_running
+    if (!running || !field<uint32_t>(const_cast<uint8_t*>(running), 0x20)) return;
+    SV_ShutdownGameProgs();
+    SV_ClearServer();
+    if (void* client = title_global<void*>(0x00927e8c)) z_free(client);
+    std::memset(&title_global<uint32_t>(0x00927e84), 0, 15 * 4);  // svs
+    Cvar_Set2(title_text(0x00832cb8), const_cast<char*>(title_text(0x0082e098)), 1);  // "sv_running", "0"
+    title_global<uint32_t>(0x00927e84) = 0;
+    const uint8_t* full = title_global<uint8_t*>(0x00947704);
+    if (!full || !field<uint32_t>(const_cast<uint8_t*>(full), 0x20)) return;
+    Cvar_Set2(title_text(0x00835238), const_cast<char*>(title_text(0x0082e058)), 1);  // "r_uiFullScreen", "1"
+    CL_ClearState();
+    title_global<uint32_t>(0x0092bdf0) = 0;  // cls.state
+}
+
+void XB_CDECL SV_ConnectLocalClient(uint32_t type, uint32_t ip, uint32_t ipx1, uint32_t ipx2, uint32_t port_word) {
+    uint8_t* const client = title_global<uint8_t*>(0x00927e8c);
+    std::memset(client, 0, 0xec0);
+    const TitleRegs regs = {0, 0, 0, 0, word(client), title_global<uint32_t>(0x0095f534)};
+    cg_call_regs(0x002ddf10, &regs, nullptr, 0);  // G_AllocPlayerEntity (EDI)
+    field<uint32_t>(client, 0x164) = field<uint32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4), 0x224);
+    uint8_t* const chan = client + 0x690;
+    std::memset(chan, 0, 0x830);
+    const uint32_t from[5] = {type, ip, ipx1, ipx2, port_word};
+    std::memcpy(chan + 8, from, sizeof from);
+    field<uint32_t>(chan, 0x1c) = 0;
+    field<uint32_t>(chan, 0x20) = 0;
+    field<uint32_t>(chan, 0) = 1;
+    field<uint32_t>(chan, 0x24) = 1;
+    SV_AllocClientFrames(0x40, client);
+    field<uint32_t>(client, 0) = 1;
+    field<int32_t>(client, 0x2c) = -1;
+}
+
+// The title callees run at the original's ESP (entry, no frame): GAME_INIT stores a stack address at 0x00929b40.
+PLATFORM_ASM_ENTRY(SV_InitGameProgs_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_InitGameProgs) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL SV_InitGameProgs(uint32_t entry_esp, uint32_t savegame, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    const uint32_t create[2] = {0x00832df0, 0x002a8750};  // "game", SV_GameSystemCalls
+    const TitleRegs regs = {0, ebx, 0, 0, esi, edi};
+    uint8_t* vm = reinterpret_cast<uint8_t*>(uintptr_t{title_call_at_regs(entry_esp, 0x002f2b80, &regs, 2, create)});  // VM_Create
+    title_global<uint8_t*>(0x0095f50c) = vm;
+    if (!vm) {
+        const uint32_t args[2] = {0, 0x00832dd4};
+        title_call_at_regs(entry_esp, kBreak, &regs, 2, args);
+    }
+    const uint32_t sv0 = title_global<uint32_t>(0x00964cd0);
+    title_global<uint32_t>(0x00965ce4) = 0;
+    title_global<uint32_t>(0x00965ce0) = 0;
+    const TitleRegs ms_regs = {sv0, ebx, savegame, 0, esi, edi};
+    const uint32_t time = title_call_at_regs(entry_esp - 0xc, 0x0029c6b0, &ms_regs, 0, nullptr);  // Com_Milliseconds
+    const uint32_t init[5] = {0, time, 0, savegame, sv0};
+    const TitleRegs init_regs = {time, ebx, savegame, word(gvm()), esi, edi};
+    title_call_at_regs(entry_esp, kVmCall, &init_regs, 5, init);
+    field<uint32_t>(title_global<uint8_t*>(0x00927e8c), 0x164) = 0;
+}
+
+namespace {
+
+// Deleting destructor (vtable slot `slot`, argument 1) of the object in `address`, then the global cleared.
+void delete_object(uint32_t address, uint32_t slot) {
+    if (uint8_t* object = title_global<uint8_t*>(address))
+        title_function<void XB_THISCALL(uint8_t*, uint32_t)>(field<uint32_t>(field<uint8_t*>(object, 0), slot * 4))(
+            object, 1);
+    title_global<uint32_t>(address) = 0;
+}
+
+// A level block freed after its own release function (EAX = the block), then the global cleared.
+void free_block(uint32_t address, uint32_t release) {
+    if (uint8_t* block = title_global<uint8_t*>(address)) {
+        if (release) {
+            const TitleRegs regs = {word(block), 0, 0, 0, 0, word(block)};
+            cg_call_regs(release, &regs, nullptr, 0);
+        }
+        z_free(block);
+    }
+    title_global<uint32_t>(address) = 0;
+}
+
+uint32_t check_reload_status() { return title_function<uint32_t XB_CDECL()>(0x002f3de0)(); }  // CheckReloadStatus
+
+}  // namespace
+
+void XB_CDECL SV_Shutdown() {
+    free_block(0x0095f5e0, 0);
+    free_block(0x0095f4e0, 0x002c1ff0);  // LevelPersist_Free
+    static const uint32_t kManagers1[] = {0x0095f564, 0x0095f5d8, 0x0095f4f4, 0x0095f5d4,
+                                          0x0095f534, 0x0095f4f8, 0x0095f5ac};
+    for (const uint32_t address : kManagers1) delete_object(address, 0);
+    free_block(0x0095f5b4, 0x002991c0);  // FxSystem_FreeLevel
+    delete_object(0x0095f5a8, 0);
+    delete_object(0x0095f640, 0);
+    free_block(0x0095f4cc, 0x002ce6a0);
+    free_block(0x0095f4c8, 0);
+    delete_object(0x0095f4c0, 0);
+    free_block(0x0095f4c4, 0x002c8ed0);  // S_FreeLevelSounds
+    static const uint32_t kManagers2[] = {0x0095f6b0, 0x0095f6ac, 0x0095f718, 0x0095f6a0, 0x0095f630};
+    for (const uint32_t address : kManagers2) delete_object(address, 0);
+    free_block(0x0095f62c, 0x0028ef40);  // StreamMem_Free
+    PakRender_Shutdown();
+    delete_object(0x0095f480, 1);
+    if (uint8_t* rumble = title_global<uint8_t*>(0x0095f5c4)) {
+        IN_StopAllRumble(rumble);
+        z_free(rumble);
+    }
+    title_global<uint32_t>(0x0095f5c4) = 0;
+    title_function<void XB_CDECL()>(0x000bee40)();  // Phys_DestroyWorld
+    uint32_t eax = title_global<uint32_t>(0x00947704);
+    if (eax && field<uint32_t>(title_global<uint8_t*>(0x00947704), 0x20)) {
+        Cvar_Set2(title_text(0x00835238), const_cast<char*>(title_text(0x0082e058)), 1);  // "r_uiFullScreen", "1"
+        CL_ClearState();
+        eax = 0;
+        title_global<uint32_t>(0x0092bdf0) = 0;  // cls.state
+    }
+    CL_ShutdownCGame(eax);
+    CL_ApplyFrontEndReturnState();
+    if (const uint32_t function = title_global<uint32_t>(0x009284e8)) title_function<void XB_CDECL(uint32_t)>(function)(0);
+    title_global<uint32_t>(0x0092be80) = 0;
+    SV_ShutdownServer();
+    CL_StartHunkUsers();
+}
+
+// The title callees run at the original's ESP (entry - 8, below its saved EBX/ESI): the game stores a stack address
+// at 0x00929b40.
+PLATFORM_ASM_ENTRY(SV_RestartClient_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %edi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_RestartClient) "addl $28, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL SV_RestartClient(uint32_t entry_esp, uint8_t* client, uint32_t first, uint32_t savegame, uint32_t ebx,
+                               uint32_t esi, uint32_t edi) {
+    (void)ebx;
+    (void)edi;
+    const uint32_t top = entry_esp - 8;
+    const int32_t index = static_cast<int32_t>(word(client) - title_global<uint32_t>(0x00927e8c)) / 0xec0;
+    uint8_t* const ent = reinterpret_cast<uint8_t**>(title_global<uint8_t*>(0x0095f534) + 4)[index];
+    field<uint32_t>(client, 0x164) = field<uint32_t>(ent, 0x224);
+    const uint32_t number = field<uint32_t>(ent, 0x224);
+    const TitleRegs regs = {number, savegame, 0, 0, word(ent), word(client)};
+    title_call_at_regs(top, 0x00251730, &regs, 1, &number);  // ClientConnect
+    field<int32_t>(client, 0x168) = -1;
+    const uint32_t current = field<uint32_t>(ent, 0x224);
+    const uint32_t begin[3] = {3, current, number};  // + ClientConnect's word
+    const TitleRegs vm_regs = {0, savegame, 0, word(gvm()), current, word(client)};
+    title_call_at_regs(top, kVmCall, &vm_regs, 3, begin);
+    if (first && savegame) return;
+    (void)esi;
+    const uint32_t msec = 0x32;
+    const TitleRegs info_regs = {0, savegame, 0, 0, current, word(client)};
+    title_call_at_regs(top, 0x002c4e50, &info_regs, 1, &msec);  // SV_UpdateInfoConfigstrings
+    bump_packet_count();
+    title_global<uint32_t>(0x0095f510) = 1;
+    const uint32_t spawn[2] = {7, savegame};
+    const TitleRegs spawn_regs = {0, savegame, 0, word(gvm()), 1, word(client)};
+    title_call_at_regs(top, kVmCall, &spawn_regs, 2, spawn);
+    bump_packet_count();
+    title_global<uint32_t>(0x0095f510) = 1;
+    const TitleRegs frame_regs = {0, savegame, 0, 0, 1, word(client)};
+    title_call_at_regs(top, 0x00274660, &frame_regs, 1, &msec);  // G_RunFrame
+    title_global<uint32_t>(0x0095f510) = 0;
+}
+// The game-side callees run at the original's ESPs (entry - 0x24, its frame and four saved registers), by title
+// address where they are ours: the game stores a stack address at 0x00929b40.
+PLATFORM_ASM_ENTRY(SV_MapRestart_entry,
+                   "movl %esp, %ecx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %ecx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(SV_MapRestart) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL SV_MapRestart(uint32_t entry_esp, uint32_t savegame, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    (void)esi;
+    const uint32_t top = entry_esp - 0x24;
+    const TitleRegs entry_regs = {0, ebx, 0, 0, esi, edi};
+    const uint32_t lock = 0x00988520;
+    title_call_at_regs(top, 0x00249010, &entry_regs, 1, &lock);
+    const int32_t frame_time = title_global<int32_t>(0x00947710);  // com_frameTime
+    title_global<uint8_t>(0x0093ef68) = 0;
+    title_global<uint32_t>(0x00929c00) = 0;
+    if (frame_time == title_global<int32_t>(0x00964cd8)) return 1;
+    if (!field<uint32_t>(title_global<uint8_t*>(0x0093fcf0), 0x20)) return 1;  // com_sv_running
+    title_global<uint32_t>(0x0092f548) = 0;
+    title_global<uint32_t>(0x00964cd4) = 1;
+    Cvar_Set2(title_text(0x0082ca00), const_cast<char*>(title_text(0x0082e058)), 1);  // "cl_paused", "1"
+    const uint32_t one = 1;
+    if (title_call_at_regs(top - 0xc, 0x002c4f50, &entry_regs, 1, &one)) return 0;  // SV_RestartGameProgs
+    CL_ClearState();
+    title_global<uint32_t>(0x00964cdc) = title_global<uint32_t>(0x00964cd8);
+    const uint32_t time = title_global<uint32_t>(0x00947710);
+    title_global<uint32_t>(0x00964cd8) = time;
+    const uint32_t va_args[2] = {0x0082ded4, time};  // "%i"
+    Cvar_Set2(title_text(0x008340dc), va(va_args), 1);  // "sv_serverid"
+    uint8_t* const local = title_global<uint8_t*>(0x00927e8c);
+    SV_FreeClientFrames(local);
+    title_function<void XB_CDECL()>(0x002c0ce0)();  // Netchan_Init
+    const uint32_t loopback[5] = {2, 0, 0, 0, 0};
+    const TitleRegs connect_regs = {0, 2, 0, 0, 0, 0};
+    title_call_at_regs(top - 0x14, 0x002e03a0, &connect_regs, 5, loopback);  // SV_ConnectLocalClient
+    title_call_at_regs(top - 0x14, 0x002c1b80, &connect_regs, 5, loopback);  // CL_ResetLocalConnection
+    title_global<uint32_t>(0x0092f094) = 0;
+    if (!savegame) Cvar_Set2(title_text(0x0082bc68), const_cast<char*>(title_text(0x0082e058)), 1);  // "cg_norender"
+    const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);  // g_pathNodeBlocks
+    const TitleRegs path_regs = {0, 2, 0, 0, savegame, blocks};
+    title_call_at_regs(top, 0x002b99f0, &path_regs, 0, nullptr);  // PathNode_ParseAllScriptKeys
+    title_call_at_regs(top, 0x002c5ff0, &path_regs, 0, nullptr);  // PathNode_ResolveAllAnimScripts
+    if (title_global<uint32_t>(0x0095bf0c)) {
+        const TitleRegs regs = {0, blocks, blocks, 0, savegame, blocks};
+        title_call_at_regs(top, 0x002b9870, &regs, 0, nullptr);  // Path_ResetLinkList2048
+    }
+    uint8_t* const client = title_global<uint8_t*>(0x00927e8c);
+    title_global<uint8_t>(0x00986015) = 1;
+    title_global<uint8_t>(0x00986016) = 1;
+    const uint32_t restart[2] = {1, savegame};
+    const TitleRegs client_regs = {0, blocks, 0, 0, savegame, word(client)};
+    title_call_at_regs(top, 0x002f2e70, &client_regs, 2, restart);  // SV_RestartClient
+    title_call_at_regs(top, 0x002ac450, &client_regs, 0, nullptr);  // CL_ClearConfigstrings
+    const TitleRegs frame_regs = {0, blocks, savegame, 0, savegame, word(client)};
+    title_call_at_regs(top, 0x002a86e0, &frame_regs, 0, nullptr);  // SV_GameRestartFrame
+    if (title_global<uint32_t>(0x00927e8c)) {
+        const uint32_t command = 0x15;
+        const TitleRegs vm_regs = {0, blocks, 0, word(gvm()), savegame, word(client)};
+        title_call_at_regs(top, kVmCall, &vm_regs, 1, &command);
+        const TitleRegs send_regs = {0, title_global<uint32_t>(0x00927e8c), 0, 0, savegame, word(client)};
+        title_call_at_regs(top, 0x002e4750, &send_regs, 0, nullptr);  // SV_SendClientMessages
+        title_global<uint32_t>(0x0092f548) = 0;
+    }
+    field<uint32_t>(client, 0x2c) = field<uint32_t>(client, 0x6b4);
+    const uint32_t strings = 0x00964ce0;
+    const TitleRegs refresh_regs = {0, blocks, 0, 0, savegame, word(client)};
+    title_call_at_regs(top, 0x002d55d0, &refresh_regs, 1, &strings);  // CL_RefreshConfigstrings
+    const uint32_t limit = title_global<uint32_t>(0x0092f094);
+    title_global<uint32_t>(0x0092bdf0) = 2;  // cls.state
+    title_global<uint32_t>(0x009606b0) = limit;
+    title_global<uint32_t>(0x009606b4) = limit;
+    Cvar_Set2(title_text(0x0082ca00), const_cast<char*>(title_text(0x0082e098)), 1);  // "cl_paused", "0"
+    title_global<uint32_t>(0x00964cd4) = 2;
+    return 1;
+}
+uint32_t XB_CDECL SV_LoadLastSave_f() {
+    char* const name = &title_global<char>(0x0093ef68);
+    SV_CheckAutosave(name);
+    if (!name[0]) title_function<void XB_CDECL(uint32_t, const char*)>(kBreak)(1, title_text(0x00832f30));
+    if (!field<uint32_t>(title_global<uint8_t*>(0x0093fcf0), 0x20)) return check_reload_status();
+    return 0;
+}
+
+uint32_t XB_CDECL SV_LoadGame_f() {
+    using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
+    using Strstr = char* XB_CDECL(const char*, const char*);
+    Strstr* const strstr_ = title_function<Strstr>(0x001efb10);
+    if (const uint32_t reloading = field<uint32_t>(title_global<uint8_t*>(0x0093f800), 0x20)) {
+        if (reloading != 0x20) return reloading;
+        Cvar_Set2(title_text(0x0082c89c), const_cast<char*>(title_text(0x0082e098)), 1);  // "g_reloading", "0"
+    }
+    char* const name = &title_global<char>(0x0093ef68);
+    const char* arg = title_global<uint32_t>(0x00934248) > 1 ? title_global<const char*>(0x0092df94) : title_text(0x0082dfeb);
+    title_function<Strncpy>(0x001eed80)(name, arg, 0x7f);
+    name[0x7f] = 0;
+    if (!name[0]) return 0;
+    if (std::strncmp(name, title_text(0x00832fd0), 5) && std::strncmp(name, title_text(0x00832fc8), 5)) {  // "save/", "save\"
+        const uint32_t va_args[2] = {0x00832fc0, word(name)};  // "save/%s"
+        title_function<Strncpy>(0x001eed80)(name, va(va_args), 0x7f);
+        name[0x7f] = 0;
+    }
+    const char* dot = strstr_(name, title_text(0x0082d700));  // "."
+    if (!dot || std::strncmp(strstr_(name, title_text(0x0082d700)) + 1, title_text(0x00832f64), 3))  // "svg"
+        Q_strcat(0x80, name, title_text(0x00832fd8));  // ".svg"
+    while (strstr_(name, title_text(0x00832f60))) *strstr_(name, title_text(0x00832f60)) = '/';  // "\\"
+    if (!field<uint32_t>(title_global<uint8_t*>(0x0093fcf0), 0x20)) return check_reload_status();
+    return 0;
+}
+
+void XB_CDECL StaticInit_Vec4_960110() {
+    const uint32_t a = title_global<uint32_t>(0x0083f1f4);
+    const uint32_t b = title_global<uint32_t>(0x0083f180);
+    const uint32_t v[4] = {a, a, b, a};
+    std::memcpy(&title_global<uint32_t>(0x00960110), v, 16);
+}
+
+void XB_CDECL StaticInit_Vec4_95ff70() {
+    const uint32_t a = title_global<uint32_t>(0x00830c1c);
+    const uint32_t b = title_global<uint32_t>(0x0083ecdc);
+    const uint32_t v[4] = {a, a, b, a};
+    std::memcpy(&title_global<uint32_t>(0x0095ff70), v, 16);
+}
+
+void XB_CDECL SV_Map_f() {
+    using Strnicmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
+    Strnicmp* const strnicmp_ = title_function<Strnicmp>(0x001f1486);  // __strnicmp
+    const char* arg = title_text(0x0082dfeb);  // ""
+    if (title_global<uint32_t>(0x00934248) > 1) {  // cmd_argc
+        arg = title_global<const char*>(0x0092df94);
+        if (!arg) return;
+    }
+    if (const uint32_t reloading = field<uint32_t>(title_global<uint8_t*>(0x0093f800), 0x20))
+        if (reloading != 2) return;
+    char map[0x80];
+    for (int32_t i = 0;; ++i) {  // inline strcpy (no bound)
+        map[i] = arg[i];
+        if (!arg[i]) break;
+    }
+    Q_strlwr(map);
+    S_StopAllSounds(title_global<uint8_t*>(0x0095f4c4));
+    if (!title_global<uint8_t>(0x00940178)) {
+        uint32_t movie = 0;
+        if (!strnicmp_(arg, title_text(0x0082bc60), 12)) {  // "oran"
+            SCR_DrawLoadingScreen();
+            movie = 0x0082ba24;  // "Op_Torch"
+        } else if (!strnicmp_(arg, title_text(0x0082bc34), 12)) {  // "gela"
+            movie = 0x0082ba18;  // "Op_Husky"
+        } else if (!strnicmp_(arg, title_text(0x0082bcc0), 12)) {
+            movie = 0x0082ba0c;  // "Op_Ovrld"
+        }
+        if (movie) CL_PlayMovie(title_text(movie));
+    }
+    static const uint32_t kChapters[14] = {0x008325d0, 0x0082bc60, 0x00833fd8, 0x0082bc48, 0x0082bc3c,
+                                           0x0082cc0c, 0x0082bc34, 0x0082bc28, 0x0082bc20, 0x0082bcc0,
+                                           0x0082bcb8, 0x0082bcac, 0x0082bca0, 0x0082bc90};
+    int32_t& chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
+    int32_t current = chapter;
+    for (int32_t i = 0; i < 14; ++i) {
+        if (!strnicmp_(arg, title_text(kChapters[i]), 12)) {
+            chapter = current = i;
+            break;
+        }
+    }
+    if (current > title_global<int32_t>(0x008dce44)) title_global<int32_t>(0x008dce44) = current;  // g_chaptersUnlocked
+    using Strstr = char* XB_CDECL(const char*, const char*);
+    const uint32_t savegame = title_function<Strstr>(0x001efb10)(map, title_text(0x00832fd8)) ? 1 : 0;  // ".svg"
+    char spawn[0x80];
+    if (savegame) {
+        char path[0x80];
+        if (Q_stricmpn(map, title_text(0x00832fd0), 5) && Q_stricmpn(map, title_text(0x00832fc8), 5)) {
+            const uint32_t args[2] = {0x00832fc0, word(map)};  // "save/%s"
+            Com_sprintf(path, 0x80, args);
+        } else {
+            for (int32_t i = 0;; ++i) {
+                path[i] = map[i];
+                if (!map[i]) break;
+            }
+        }
+        using ReadFile = int32_t XB_CDECL(const char*, uint8_t**);
+        if (title_function<ReadFile>(0x002a1fd0)(path, nullptr) < 0) return;  // FS_ReadFile
+        uint8_t* data = nullptr;
+        title_function<ReadFile>(0x002a1fd0)(path, &data);
+        const uint32_t name_length = data[4];
+        std::memcpy(spawn, data + 5, name_length);
+        spawn[name_length] = 0;
+        for (int32_t i = 0;; ++i) {
+            map[i] = spawn[i];
+            if (!spawn[i]) break;
+        }
+        const uint8_t* rest = data + 5 + name_length;
+        const uint32_t value_length = rest[0];
+        char value[0x100];
+        std::memcpy(value, rest + 1, value_length);
+        value[value_length] = 0;
+        Cvar_Set2(title_text(0x00832fb4), value, 1);
+        z_free(data);
+    }
+    Cvar_Get(title_text(0x00832fec), title_text(0x0082e058), 0x64);
+    const char* command = title_global<uint32_t>(0x00934248) ? title_global<const char*>(0x0092df90) : title_text(0x0082dfeb);
+    if (!Q_stricmpn(command, title_text(0x00832fb0), 2)) command += 2;  // "sp"
+    if (command) Q_stricmpn(command, title_text(0x00832fa8), 99999);  // result unused
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(spawn, map, 0x7f);  // _strncpy
+    spawn[0x7f] = 0;
+    if (uint8_t* record = title_global<uint8_t*>(0x0095f8f8)) field<int32_t>(record, 0xc) = -1;
+    title_function<void XB_CDECL(const char*, uint32_t)>(0x002f3140)(spawn, savegame);  // SV_SpawnServer
+    Cvar_Set2(title_text(0x008340d0), const_cast<char*>(title_text(0x0082e058)), 1);
 }
 
 }  // namespace game

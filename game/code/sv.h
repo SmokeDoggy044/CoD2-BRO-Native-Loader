@@ -301,4 +301,111 @@ extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SV_EntitySightTrace(const float* end
                                                                 uint32_t content_mask, uint32_t capsule_flag);
 extern "C" void SV_EntitySightTrace_entry(void);
 
+
+// 0x0023da30 (DObj, start, end, content mask, results): every model of the DObj (+0x2e count, +0x38 list) through
+// XModel_TraceParts with its part of the skeleton (+0x20, from bone +0x60 * 0x40 + 0x30); a hit's bone becomes the
+// part's +0x14 record's +4 word in results +0x14. Results: +0 fraction (in/out), +4 trace +0x24, +8 normal,
+// +0x18 zeroed, +0x1c/+0x1d cleared.
+void XB_CDECL SV_TraceDObjModels(const uint8_t* obj, const float* start, const float* end, uint32_t content_mask,
+                                 uint8_t* results);
+// 0x002991c0 (FX system in EAX, the level's 0x0095f5b4): frees its effects (+0 count, +4 list: components and the
+// small-heap block), deletes its +0x808 objects (+0x804 count, vtable slot 0 with 1) and releases the 64 script
+// strings at +0xb1c (0x210 apart, last first).
+void XB_REGS1 XB_CDECL FxSystem_FreeLevel(uint8_t* fx);
+// 0x002a86e0 (restart flag in ECX): one game frame for a restart - VM_Call(8, flag, sv +0) with 0x0095f510 set,
+// then VM_Call(0x13) into 0x0092f094 (0x0093fc28 counts packets, never 0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_GameRestartFrame(uint32_t entry_esp, uint32_t flag, uint32_t ebx, uint32_t esi,
+                                                            uint32_t edi);
+extern "C" void SV_GameRestartFrame_entry(void);
+// 0x002aad90: Q3's SV_ClearWorld - the sector free list (0x3fc sectors of 0x24 bytes from 0x009356b0), the root
+// split on the longer world axis at its midpoint, both children the null sector, cm +0x4c..+0x54 copied.
+void XB_CDECL SV_ClearWorld();
+// 0x002af4f0 (client in ESI): frees the frame buffers SV_AllocClientFrames made (+8, +0x10, +0xc) and clears
+// the count (+4) when it is set.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_FreeClientFrames(uint8_t* client);
+extern "C" void SV_FreeClientFrames_entry(void);
+// 0x002af580 (count in EAX, client in ESI): count * 0x180 bytes of snapshot frames (+8, size +4, also +0x14) and
+// two count-dword arrays (+0x10, +0xc), all zeroed.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL SV_AllocClientFrames(uint32_t count, uint8_t* client);
+extern "C" void SV_AllocClientFrames_entry(void);
+// 0x002b8200 (msg in EAX; from address by value): reads the -1 sequence and the command line (0x002aa480), tokenizes it; nothing
+// is answered (NET_AdrToString runs once, again unless argv 0 is "disconnect").
+void XB_REGS1 XB_CDECL SV_ConnectionlessPacket(uint8_t* msg, uint32_t type, uint32_t ip, uint32_t ipx1, uint32_t ipx2,
+                                               uint32_t port_word);
+// 0x002b82d0: frees the local client's frames, releases the 0x400 configstrings (0x00964ce0) and clears sv
+// (0x00964cd0, 0x1018 bytes) and 0x0092f548.
+void XB_CDECL SV_ClearServer();
+// 0x002b8390 (index in EAX, size in ESI, buffer in EDI): configstring `index` (text at +6 of its string record)
+// copied with a NUL (__break 1 for a size under 1 or an index outside 0..0x3ff); EAX = _strncpy's result.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL SV_GetConfigstring(int32_t index, int32_t size, char* buffer);
+extern "C" void SV_GetConfigstring_entry(void);
+// 0x002ba910 (static model in ECX): walks from the root while the model's bounds (+0xa0 / +0xac) lie on one side
+// of the split (contents ORed in), links the model at that sector's +0x14 (chain +0xdc), then SV_SplitSector over
+// the region narrowed on the way (x/y of the world bounds).
+void XB_THISCALL SV_LinkStaticModelToSector(uint8_t* inst);
+// 0x002bdbd0 (bank list in EAX; 32-byte name hash on the stack): 0 when the 0x84-byte entry with that hash (+0xc,
+// +8 count) has one of its six states (+0x30..+0x44) at 1 or 3 (still loading), else 1 (also when none matches).
+uint8_t XB_REGS1 XB_STDCALL SndBankList_IsLoaded(const uint8_t* list, const uint32_t* hash);
+// 0x002c1ff0 (persistent level data in EAX, the level's 0x0095f4e0): frees its buffers (+0x580, +0x574 list
+// +0x570, +0x560 aligned, +0x364, +0x358 list +0x354) and releases its script strings (+0x55c, +0x558, 16 at
+// +0x394 0x1c apart, 6 at +8).
+void XB_REGS1 XB_CDECL LevelPersist_Free(uint8_t* data);
+// 0x002c4f50: Q3's SV_RestartGameProgs - the saved game buffer (0x00965ce0, size 0x00965ce4) copied into a new
+// block, VM_Call(1, savegame) (GAME_SHUTDOWN), VM_Call(0, Com_Milliseconds(), 1, savegame, sv +0) (GAME_INIT);
+// EAX = the init result, the client's +0x164 cleared.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SV_RestartGameProgs(uint32_t entry_esp, uint32_t savegame, uint32_t ebx,
+                                                                uint32_t esi, uint32_t edi);
+extern "C" void SV_RestartGameProgs_entry(void);
+// 0x002ca360 (name buffer in EAX, 0x80 bytes): "save/autosave/<mapname>.svg" from cvar mapname ('/' becomes '-'; any other
+// character than letters, digits, '_', '-' and '\\' gives ""); "" unless FS_ReadFile
+// finds it.
+void XB_REGS1 XB_CDECL SV_CheckAutosave(char* name);
+// 0x002d86b0: Q3's SV_ShutdownServer when com_sv_running is set: game progs, SV_ClearServer, the client block
+// freed, svs cleared (15 dwords at 0x00927e84), sv_running "0"; with 0x00947704 set r_uiFullScreen "1",
+// CL_ClearState and cls.state 0.
+void XB_CDECL SV_ShutdownServer();
+// 0x002e03a0 (from address by value): the local client (0x00927e8c) cleared, its player entity allocated
+// (G_AllocPlayerEntity, EDI = 0x0095f534), its netchan (+0x690) cleared and given the address, 0x40 frames.
+void XB_CDECL SV_ConnectLocalClient(uint32_t type, uint32_t ip, uint32_t ipx1, uint32_t ipx2, uint32_t port_word);
+// 0x002f2d30: Q3's SV_InitGameProgs - VM_Create("game", SV_GameSystemCalls) into gvm (__break 0 when null), no
+// saved game buffer, VM_Call(0, Com_Milliseconds(), 0, savegame, sv +0), the client's +0x164 cleared.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_InitGameProgs(uint32_t entry_esp, uint32_t savegame, uint32_t ebx, uint32_t esi,
+                                                         uint32_t edi);
+extern "C" void SV_InitGameProgs_entry(void);
+// 0x002a6e00: Q3's SV_Shutdown for a level end - frees the level's managers and blocks (0x0095f5e0 ... 0x0095f5c4:
+// deleting destructors, LevelPersist_Free, FxSystem_FreeLevel, 0x002ce6a0, S_FreeLevelSounds, StreamMem_Free,
+// IN_StopAllRumble), PakRender_Shutdown, Phys_DestroyWorld, r_uiFullScreen "1" + CL_ClearState when 0x00947704
+// is set, CL_ShutdownCGame, the front-end return state, re's shutdown (0x009284e8) with 0, SV_ShutdownServer, then
+// CL_StartHunkUsers (tail jump).
+void XB_CDECL SV_Shutdown();
+// 0x002f2e70 (client in EDI; first, savegame on the stack): the client's entity number from its player entity,
+// ClientConnect, VM_Call(3) (GAME_CLIENT_BEGIN); unless both flags are set also SV_UpdateInfoConfigstrings(50),
+// VM_Call(7, savegame) and G_RunFrame(50) with 0x0095f510 set.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_RestartClient(uint32_t entry_esp, uint8_t* client, uint32_t first,
+                                                         uint32_t savegame, uint32_t ebx, uint32_t esi, uint32_t edi);
+extern "C" void SV_RestartClient_entry(void);
+// 0x002f2f50: Q3's SV_MapRestart - 1 (nothing done) when the frame time is the restart's or the server is off;
+// else cl_paused "1", SV_RestartGameProgs (0 when it fails), a new sv_serverid, the local client reconnected
+// (frames, netchan, CL_ResetLocalConnection), path node script keys, SV_RestartClient, one game frame
+// (SV_GameRestartFrame, VM_Call(0x15), SV_SendClientMessages), configstrings refreshed, cls.state 2, cl_paused "0".
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SV_MapRestart(uint32_t entry_esp, uint32_t savegame, uint32_t ebx,
+                                                          uint32_t esi, uint32_t edi);
+extern "C" void SV_MapRestart_entry(void);
+// 0x002f4510 ("loadlastsave"): SV_CheckAutosave into 0x0093ef68 (__break 1 EXE_ERR_NO_LAST_SAVE when there is
+// none), then CheckReloadStatus (tail jump) unless the server runs.
+uint32_t XB_CDECL SV_LoadLastSave_f();
+// 0x002f4550 ("loadgame"): with g_reloading 0 or 0x20 (then set "0"), argv 1 into 0x0093ef68 with "save/" in front
+// unless it starts so (or "save\"), ".svg" appended unless its first '.' is followed by "svg", '\' turned into
+// '/'; then CheckReloadStatus (tail jump) unless the server runs.
+uint32_t XB_CDECL SV_LoadGame_f();
+// 0x003767b0, 0x003767f0: CRT static initializers of two vec4 constants (x, x, z, x) at 0x00960110 (from 0x0083f1f4,
+// 0x0083f180) and 0x0095ff70 (0x00830c1c, 0x0083ecdc).
+void XB_CDECL StaticInit_Vec4_960110();
+void XB_CDECL StaticInit_Vec4_95ff70();
+// 0x002f3f40 ("map"): with g_reloading 0 or 2, argv 1 lowered; the chapter movie (oran, gela and a third map) unless
+// 0x00940178 is set; g_currentChapter from the 14-map table (g_chaptersUnlocked raised to it); a ".svg" name is a
+// saved game: its file (under "save/") gives the map name and a cvar value (0x00832fb4); then SV_SpawnServer with
+// the save flag and cvar 0x008340d0 "1".
+void XB_CDECL SV_Map_f();
+
 }  // namespace game
