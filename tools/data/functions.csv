@@ -2479,7 +2479,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002d0d60,CM_WorldTreeManager_Construct,compare,4,4,4,0,0,0,""
 002d1460,Cmd_Init,compare,311,27,27,0,0,0,""
 002d1980,CM_SegmentCrossesMesh,compare,39353,5713,5713,0,0,0,""
-002d1ce0,CM_RayHitsMeshTriangle,compare,70096,12462,12462,0,0,0,""
+002d1ce0,CM_RetestCachedMeshTriangle,compare,70096,12462,12462,0,0,0,""
 002d1f30,CM_PushSphereOutOfTriangle,compare,91137,5265,5265,0,0,0,""
 002d27c0,CM_RayHitsWorldMeshes,compare,0,0,0,0,0,0,""
 002d2b50,CM_TraceSegmentThroughCandidates,compare,138018,12148,12148,0,0,0,""

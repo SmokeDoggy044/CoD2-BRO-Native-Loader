@@ -80,3 +80,19 @@ address,name,kind,reason
 00379a80,AtExit_FxScriptStrings_9718a0,exit,atexit destructor: the title never exits (untestable by design)
 00379ab0,AtExit_FxScriptStrings_96e90c,exit,atexit destructor: the title never exits (untestable by design)
 00379ae0,AtExit_FxScriptStrings_971970,exit,atexit destructor: the title never exits (untestable by design)
+002cc750,CM_BoxLeafnums_r_2,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+000ae500,CM_TriMesh_TraceSegment,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+00259990,CM_PushCapsuleOutOfListedObjects,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002bac30,CheckWinding,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002b2260,WindingArea,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002b2340,WindingPlane,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002bb3d0,BaseWindingForPlane,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002c10e0,AddWindingToConvexHull,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002bb370,CopyWinding,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002c75f0,CM_LoadMapFile,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002d9db0,CM_SphereWorldMeshContacts,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+0001d340,CM_SphereTriangleContact,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002da080,CM_SightTraceRay,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+002e4940,CM_SightTraceThroughWorld,dead,"dead code: no caller, stored pointer or immediate (2026-10-28)"
+00379920,AtExit_FreeWorldTrees,exit,"atexit destructor: the title never exits (2026-10-28)"
+002d0680,CM_DrawWorldTreeDebug,debug,"debug draw, only with manager +4 bit 0 set; flag-off exit matched 12603 (2026-10-28)"

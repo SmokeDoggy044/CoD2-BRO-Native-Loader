@@ -4565,15 +4565,15 @@ uint8_t XB_THISCALL CM_Mesh_IntersectRay(uint8_t* mesh, const float* start, cons
     return hit;
 }
 
-PLATFORM_ASM_ENTRY(CM_RayHitsMeshTriangle_entry,
+PLATFORM_ASM_ENTRY(CM_RetestCachedMeshTriangle_entry,
                    "pushl 12(%esp)\n"
                    "pushl 12(%esp)\n"
                    "pushl 12(%esp)\n"
                    "pushl %ebx\n"
-                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_RayHitsMeshTriangle) "addl $20, %esp\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_RetestCachedMeshTriangle) "addl $20, %esp\n"
                    "ret")
 
-uint8_t XB_CDECL CM_RayHitsMeshTriangle(uint8_t* const* mesh_ref, float* out, const float* start, const float* end,
+uint8_t XB_CDECL CM_RetestCachedMeshTriangle(uint8_t* const* mesh_ref, float* out, const float* start, const float* end,
                                        int32_t* triangle) {
     const uint8_t* mesh = *mesh_ref;
     const int32_t index = *triangle;

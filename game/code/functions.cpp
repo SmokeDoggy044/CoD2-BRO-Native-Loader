@@ -2580,7 +2580,7 @@ const Function kFunctions[] = {
     {"CM_WorldTreeManager_Construct", 0x002d0d60, 0, code(&CM_WorldTreeManager_Construct_entry), 0, Result::Eax, Status::Compare},
     {"Cmd_Init", 0x002d1460, 0, code(&Cmd_Init), 0, Result::None, Status::Compare},
     {"CM_SegmentCrossesMesh", 0x002d1980, 0, code(&CM_SegmentCrossesMesh_entry), 16, Result::Al, Status::Compare},
-    {"CM_RayHitsMeshTriangle", 0x002d1ce0, 0, code(&CM_RayHitsMeshTriangle_entry), 12, Result::Al, Status::Compare},
+    {"CM_RetestCachedMeshTriangle", 0x002d1ce0, 0, code(&CM_RetestCachedMeshTriangle_entry), 12, Result::Al, Status::Compare},
     {"CM_PushSphereOutOfTriangle", 0x002d1f30, 0, code(&CM_PushSphereOutOfTriangle), 20, Result::Al, Status::Compare},
     {"CM_RayHitsWorldMeshes", 0x002d27c0, 0, code(&CM_RayHitsWorldMeshes), 16, Result::Al, Status::Compare},
     {"CM_TraceSegmentThroughCandidates", 0x002d2b50, 0, code(&CM_TraceSegmentThroughCandidates), 28, Result::None, Status::Compare},

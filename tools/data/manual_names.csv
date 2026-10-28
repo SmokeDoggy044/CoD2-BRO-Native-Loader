@@ -14152,3 +14152,5 @@ address,name,kind,confidence,evidence
 0023aff0,DObj_Ctor,function,high,"EAX = client index (+0x34), ESI = new 0xa0-byte DObj (returned): models/trees/clip states/owner/lod/cull cleared, forced/min LOD -1, handle +0x8c from EntHandleTable_Alloc(0x00981370) with slot 0x00981418 pointing back; CG_RegisterWeapon, G_DObjCreateForEnt after the allocation"
 0029b0b0,FxComponent_OwnerGone,function,medium,"slot 6 (done) of the component base vtable 0x00837624; called by 0x0029d620 (slot 6 of vtable 0x008376fc): AL 1 when the owner entity handle (+0xc, table 0x0097a968, 0x540 slots, generation >> 12) no longer resolves and flag 1 of +0x10 is clear"
 00068f70,nglBuildBoneMatrixPalette,function,medium,"named with its C (game/code, no callers: dead); the Ghidra name was never applied"
+002ab010,CM_SectorTree_UnlinkOwner_r,function,medium,"unlinks entries with a matching +0xe0 owner from the sector tree 0x00935664 and rebuilds sector contents; callers Zone_RemoveActive (2026-10-28)"
+002d1ce0,CM_RetestCachedMeshTriangle,function,medium,"re-tests the cached mesh triangle for a vehicle wheel segment before the full mesh walk (2026-10-28)"

@@ -596,9 +596,9 @@ uint8_t XB_THISCALL CM_Mesh_IntersectRay(uint8_t* mesh, const float* start, cons
 // re-tests the cached triangle *triangle of the mesh: start at least 0.0001 in front of its plane, end not in front,
 // the crossing point ((start de - end ds) / (de - ds), as a reciprocal product) inside all three edges -> out
 // gets the point (+0) and the plane (+0x10), returns 1; else *triangle = -1, returns 0.
-extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_RayHitsMeshTriangle(uint8_t* const* mesh_ref, float* out, const float* start,
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_RetestCachedMeshTriangle(uint8_t* const* mesh_ref, float* out, const float* start,
                                                                   const float* end, int32_t* triangle);
-extern "C" void CM_RayHitsMeshTriangle_entry(void);
+extern "C" void CM_RetestCachedMeshTriangle_entry(void);
 // 0x002d0680 (world tree manager in ECX; a per-frame debug draw callback through the thunk at 0x0001d0d0, only with
 // manager +4 bit 0 set): for each world tree (only 0x008fef14 unless -1) holding the view position of
 // 0x0095f534 +4 (+0x140), every mesh whose box is within 0x008fef10 of it is drawn once per checkcount as a

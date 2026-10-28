@@ -9246,7 +9246,7 @@
 002aaf00 CM_FloodArea_r
 002aaf90 CM_ClusterPVS
 002aafc0 CM_StoreLeafs
-002ab010 FUN_002ab010
+002ab010 CM_SectorTree_UnlinkOwner_r
 002ab2e0 CM_LeafArea
 002ab300 CM_LeafCluster
 002ab470 SCR_AdjustFrom640
@@ -9760,7 +9760,7 @@
 002d1460 Cmd_Init
 002d14b0 FUN_002d14b0
 002d1980 CM_SegmentCrossesMesh
-002d1ce0 FUN_002d1ce0
+002d1ce0 CM_RetestCachedMeshTriangle
 002d1f30 CM_PushSphereOutOfTriangle
 002d2410 Phys_SphereTouchesTriangle
 002d27c0 CM_RayHitsWorldMeshes

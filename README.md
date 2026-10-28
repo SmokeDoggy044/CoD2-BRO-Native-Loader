@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 70% of the functions have a name, and 2,564 have been
+It's early days: about 70% of the functions have a name, and 2,590 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -22,18 +22,18 @@ Developed with AI: see [Made with AI](#made-with-ai).
 ## Progress
 
 <!-- progress:start (tools/progress.py --readme) -->
-*As of 2026-10-27. The numbers come from `tools/progress.py`, which tracks every
+*As of 2026-10-28. The numbers come from `tools/progress.py`, which tracks every
 function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,618 | 2,564 | 8,629 |
+| Engine and game code (`.text`) | 11,193 | 8,620 | 2,590 | 8,603 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,606** | **2,564** | **13,953** |
+| **Total** | **16,517** | **11,608** | **2,590** | **13,927** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 435 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 438 functions the campaign never runs, the same comparison offline on random inputs.
 **Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
 and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
 its files (these are in C++ already). The Xbox Live code is set aside without being
@@ -51,7 +51,7 @@ We've also named 2,659 of the game's global variables.
 | Engine core (memory, files, settings, commands, containers, math) | 960 | 233 | 16 | 0 | 646 | 54 |
 | Client and menus | 761 | 473 | 200 | 6 | 33 | 49 |
 | Server | 82 | 45 | 11 | 0 | 19 | 7 |
-| Collision | 108 | 66 | 2 | 0 | 38 | 2 |
+| Collision | 108 | 92 | 1 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 1 | 1 | 0 | 62 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 12 | 0 | 0 | 1,986 | 6 |
 | Level-script helpers in the engine code | 1,444 | 0 | 0 | 0 | 1,389 | 48 |
