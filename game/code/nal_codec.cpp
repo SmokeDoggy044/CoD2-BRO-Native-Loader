@@ -840,6 +840,76 @@ void XB_STDCALL NAL_Float3_BlendWeighted(int32_t count, float* dst, const float*
     }
 }
 
+namespace {
+
+// x * y with x as the destination operand (a NaN there wins over one in y).
+float mul_first(float x, float y) {
+    float p = x;
+    p *= y;
+    return p;
+}
+
+// One four-float value of the Float4 blends: dst = a * u + b * t per lane, the eight inputs
+// read before the stores. The title's unrolled copies put the operands in different
+// orders, which only shows in NaN payloads: `u_first` lanes compute u * a (else a * u),
+// `t_first` lanes t * b (else b * t).
+void blend_value(float* dst, const float* a, const float* b, float u, float t, uint32_t u_first, uint32_t t_first) {
+    const float x[4] = {a[0], a[1], a[2], a[3]};
+    const float y[4] = {b[0], b[1], b[2], b[3]};
+    float r[4];
+    for (uint32_t k = 0; k < 4; ++k) {
+        const float p = (u_first >> k) & 1 ? mul_first(u, x[k]) : mul_first(x[k], u);
+        const float q = (t_first >> k) & 1 ? mul_first(t, y[k]) : mul_first(y[k], t);
+        float sum = p;
+        sum += q;
+        r[k] = sum;
+    }
+    std::memcpy(dst, r, 16);
+}
+
+}  // namespace
+
+void XB_STDCALL NAL_Float4_Blend(int32_t count, float* dst, const float* a, const float* b, float t) {
+    // The Float3 blend over four lanes, unrolled four values at a time as the title does.
+    const float one_minus = title_global<float>(0x0083eb20) - t;
+    platform_keep(one_minus);  // computed before the count test (MXCSR flags)
+    static const uint8_t kUFirst[4] = {1, 8, 0, 0};
+    static const uint8_t kTFirst[4] = {0, 4, 0, 0};
+    int32_t done = 0;
+    if (count >= 4) {
+        const uint32_t groups = (static_cast<uint32_t>(count - 4) >> 2) + 1;
+        for (uint32_t g = 0; g < groups; ++g)
+            for (uint32_t v = 0; v < 4; ++v, dst += 4, a += 4, b += 4)
+                blend_value(dst, a, b, one_minus, t, kUFirst[v], kTFirst[v]);
+        done = static_cast<int32_t>(groups * 4);
+    }
+    for (int32_t left = count - done; left > 0; --left, dst += 4, a += 4, b += 4)
+        blend_value(dst, a, b, one_minus, t, 1, 0);
+}
+
+void XB_STDCALL NAL_Float4_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights) {
+    // As NAL_Float4_Blend with t from **weights (*weights advanced per value).
+    const auto value = [&](uint32_t u_first) {
+        const float t = **weights;
+        const float x[4] = {a[0], a[1], a[2], a[3]};
+        const float y[4] = {b[0], b[1], b[2], b[3]};
+        const float one_minus = title_global<float>(0x0083eb20) - **weights;
+        blend_value(dst, x, y, one_minus, t, u_first, 0);
+        ++*weights;
+        dst += 4;
+        a += 4;
+        b += 4;
+    };
+    int32_t done = 0;
+    if (count >= 4) {
+        const uint32_t groups = (static_cast<uint32_t>(count - 4) >> 2) + 1;
+        for (uint32_t g = 0; g < groups; ++g)
+            for (uint32_t v = 0; v < 4; ++v) value(v == 0 ? 1 : 0);
+        done = static_cast<int32_t>(groups * 4);
+    }
+    for (int32_t left = count - done; left > 0; --left) value(1);
+}
+
 uint32_t XB_STDCALL NAL_Float3_BeginBlock(const uint32_t* context, uint8_t** readers, uint8_t** stream, int32_t frames) {
     *readers = align4(*readers);
     for (int32_t i = 0; i < static_cast<int32_t>(channel_count(context_group(context))); ++i) {
@@ -2569,6 +2639,202 @@ uint32_t XB_STDCALL NAL_Packed16_SkipCachedFrame(const uint32_t* context, uint8_
         if (channel_active(context, i)) *cursor += 0x10;
     }
     return context[1];
+}
+
+
+namespace {
+
+const float& ik_float(const uint8_t* record, uint32_t offset) {
+    return *reinterpret_cast<const float*>(record + offset);
+}
+int16_t ik_short(const uint8_t* record, uint32_t offset) { return *reinterpret_cast<const int16_t*>(record + offset); }
+void ik_set_short(uint8_t* record, uint32_t offset, int32_t value) {
+    *reinterpret_cast<uint16_t*>(record + offset) = static_cast<uint16_t>(value);
+}
+// a's int16 at `offset` moved towards b's by s (truncated).
+int32_t ik_lerp_short(const uint8_t* a, const uint8_t* b, uint32_t offset, float s) {
+    const int32_t from = ik_short(a, offset);
+    return static_cast<int32_t>(static_cast<float>(ik_short(b, offset) - from) * s) + from;
+}
+// Quat_Slerp by title address: its C version differs from the original in NaN payloads on
+// NaN inputs (found by the offline test of NAL_Packed16EntropyIKSpin_Lerp).
+const float* ik_quat_slerp(float* out, const uint8_t* a, const uint8_t* b, float s) {
+    return title_function<const float* XB_CDECL(float*, const uint8_t*, const uint8_t*, float)>(0x0001c3b0)(out, a, b,
+                                                                                                          s);  // Quat_Slerp
+}
+// x * v + y * s with the title's operand order (the left operand is the destination: a NaN
+// there wins over one in the other operand).
+float ik_mix(float x, float v, float y, float s) {
+    float p = x;
+    p *= v;
+    float q = y;
+    q *= s;
+    p += q;
+    return p;
+}
+void ik_slerp(uint8_t* dst, const uint8_t* a, const uint8_t* b, float s) {
+    alignas(16) float q[4];
+    std::memcpy(dst, ik_quat_slerp(q, a, b, s), 16);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(NAL_Packed16EntropyIKSpin_Lerp_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(NAL_Packed16EntropyIKSpin_Lerp) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL NAL_Packed16EntropyIKSpin_Lerp(uint32_t entry, const uint8_t* a, const uint8_t* b, uint8_t* out, float t,
+                                             float u) {
+    // The 0x50-byte record ({q0, q1} the spin part with its int16 +0x40, {q2, position} the
+    // IK part with +0x42, +0x3c the IK weight) is built where the original's frame has it
+    // (push ebp; and esp,-16; sub 0x64; three pushes) and copied out whole: the words a path
+    // does not write (+0x44.., and the half a weight of 0 or 1 leaves out) keep that
+    // stack's old contents. Weights of exactly 0 or 1 copy or slerp halves; others blend
+    // them by the weights (t on b, u = 1 - t on a).
+    uint8_t* r = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(((entry - 4) & ~15u) - 0x50));
+    const float zero = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    const float wa = ik_float(a, 0x3c);
+    const float wb = ik_float(b, 0x3c);
+    const auto finish = [&] { platform_rep_movs(out, r, 0x50); };
+    // The IK half slerped by s (position lerped by s, a's by v), +0x42 moved by s.
+    const auto ik_half = [&](float s, float v) {
+        alignas(16) float q[4];
+        const float* blended = ik_quat_slerp(q, a + 0x20, b + 0x20, s);
+        std::memcpy(r + 0x20, blended, 16);
+        const float x = ik_mix(ik_float(a, 0x30), v, ik_float(b, 0x30), s);
+        const float y = ik_mix(ik_float(a, 0x34), v, ik_float(b, 0x34), s);
+        const float z = ik_mix(ik_float(a, 0x38), v, ik_float(b, 0x38), s);
+        std::memcpy(r + 0x30, &x, 4);
+        std::memcpy(r + 0x34, &y, 4);
+        std::memcpy(r + 0x38, &z, 4);
+        ik_set_short(r, 0x42, ik_lerp_short(a, b, 0x42, s));
+        finish();
+    };
+    const auto copy_spin = [&](const uint8_t* from) {
+        std::memcpy(r, from, 0x20);
+        ik_set_short(r, 0x40, ik_short(from, 0x40));
+    };
+    const auto copy_ik = [&](const uint8_t* from) {
+        std::memcpy(r + 0x20, from + 0x20, 0x1c);
+        ik_set_short(r, 0x42, ik_short(from, 0x42));
+        finish();
+    };
+    if (wa == zero && wb == zero) {
+        std::memcpy(r + 0x3c, &zero, 4);
+        ik_slerp(r, a, b, t);
+        ik_slerp(r + 0x10, a + 0x10, b + 0x10, t);
+        ik_set_short(r, 0x40, ik_lerp_short(a, b, 0x40, t));
+        finish();
+        return;
+    }
+    if (wa == one && wb == one) {
+        std::memcpy(r + 0x3c, &one, 4);
+        ik_half(t, u);
+        return;
+    }
+    if (wa == zero && wb == one) {
+        copy_spin(a);
+        std::memcpy(r + 0x3c, &t, 4);
+        copy_ik(b);
+        return;
+    }
+    if (wa == one && wb == zero) {
+        copy_spin(b);
+        std::memcpy(r + 0x3c, &u, 4);
+        copy_ik(a);
+        return;
+    }
+    const float weight = t * wb + u * wa;
+    std::memcpy(r + 0x3c, &weight, 4);
+    if (wb == one) {
+        copy_spin(a);
+    } else if (wa == one) {
+        copy_spin(b);
+    } else {
+        const float ub = u * wb;
+        const float ta = t * wa;
+        const float s = ta + ub == zero ? zero : ta / (ta + ub);
+        ik_slerp(r, a, b, s);
+        ik_slerp(r + 0x10, a + 0x10, b + 0x10, s);
+        ik_set_short(r, 0x40, ik_lerp_short(a, b, 0x40, s));
+    }
+    if (wb == zero) {
+        copy_ik(a);
+        return;
+    }
+    if (wa == zero) {
+        copy_ik(b);
+        return;
+    }
+    const float ta = t * wa;
+    const float s = one - ta / (u * wb + ta);
+    ik_half(s, one - s);
+}
+
+PLATFORM_ASM_ENTRY(NAL_Packed16EntropyIKSpin_Blend_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(NAL_Packed16EntropyIKSpin_Blend) "addl $36, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $0x14")
+
+uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_Blend(uint32_t entry, int32_t count, uint8_t* out, const uint8_t* a,
+                                                  const uint8_t* b, uint32_t t_bits, uint32_t ebx, uint32_t esi,
+                                                  uint32_t edi) {
+    // out[i] = Lerp(a[i], b[i], t) over `count` 0x50-byte records, each Lerp at the original's
+    // ESP (push ecx, four pushes, three arguments) so its record lands where the original's
+    // does; 1 - t kept in the push ecx slot, the count in its own argument slot.
+    float t;
+    std::memcpy(&t, &t_bits, 4);
+    const float u = title_global<float>(0x0083eb20) - t;
+    std::memcpy(reinterpret_cast<void*>(static_cast<uintptr_t>(entry - 4)), &u, 4);
+    if (count <= 0) return static_cast<uint32_t>(count);
+    uint32_t* slot = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(entry + 4));
+    *slot = static_cast<uint32_t>(count);
+    const uint32_t top = entry - 0x14;
+    uint32_t u_bits;
+    std::memcpy(&u_bits, &u, 4);
+    uint32_t o = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out));
+    uint32_t x = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(a));
+    uint32_t y = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b));
+    (void)ebx;
+    (void)esi;
+    (void)edi;
+    uint32_t left;
+    do {
+        const uint32_t args[] = {o, t_bits, u_bits};
+        const TitleRegs regs{y, y, x, 0, o, x};
+        title_call_at_regs(top, 0x0008cc40, &regs, 3, args);  // NAL_Packed16EntropyIKSpin_Lerp
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(top - 0x10)) = 0x0008d224;
+        o += 0x50;
+        x += 0x50;
+        y += 0x50;
+        left = *slot - 1;
+        *slot = left;
+    } while (left);
+    return left;
 }
 
 }  // namespace game

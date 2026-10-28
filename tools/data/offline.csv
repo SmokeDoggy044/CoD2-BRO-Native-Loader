@@ -15,6 +15,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0001f0f0,nglPosMaterial_CreateVertexWriter,3822,3822,0,0,100.0
 0001f1a0,nglVertexWriter_Clone,3827,3827,0,0,100.0
 000229d0,NAL_AsGenericClip,3846,3846,0,0,100.0
+00022a60,NAL_CodNote_DecodeFrames,3006,3006,0,0,100.0
 00023840,ParamList_Delete,1291,1291,0,0,100.0
 00023870,ParamSet_Destruct,1287,1287,0,0,100.0
 000238b0,ParamSet_Delete,1465,1465,0,0,100.0
@@ -259,6 +260,10 @@ address,name,tested,matched,nan,mismatched,coverage
 00086ae0,Mat44_InverseRigid,3672,3670,2,0,100.0
 00086cb0,NAL_AnimTrackBase_DeletingDtor,3617,3617,0,0,100.0
 00087cb0,NAL_Skeleton_BoneTransform,1221,1221,0,0,96.4
+0008c0c0,NAL_Float4_Blend,3922,3922,0,0,100.0
+0008c4a0,NAL_Float4_BlendWeighted,3896,3896,0,0,100.0
+0008cc40,NAL_Packed16EntropyIKSpin_Lerp,3372,3372,0,0,75.1
+0008d1e0,NAL_Packed16EntropyIKSpin_Blend,3904,3904,0,0,100.0
 0008d2d0,NAL_Trajectory_AccumulateRoot2,2839,2540,299,0,100.0
 0008d510,NAL_Packed16EntropyIKSpin_DecodeChannel,1900,1857,43,0,100.0
 0008d6b0,NAL_EntropyReader_DecodeShorts,1181,1181,0,0,100.0

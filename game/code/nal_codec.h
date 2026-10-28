@@ -532,4 +532,25 @@ uint32_t XB_STDCALL NAL_CodNote_DecodeBlock(const uint32_t* context, uint32_t, u
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_SkipActiveChannelBlocks(const uint32_t* context);
 extern "C" void NAL_SkipActiveChannelBlocks_entry(void);
 
+// 0x0008cc40 (a in ECX, b in EAX; out, t, 1 - t): the blend of two 0x50-byte IK-spin
+// records into out by their IK weights (+0x3c): spin quaternions (+0, +0x10) slerped and
+// +0x40 moved, the IK half ({q2, position}, +0x42) taken whole when a weight is 0 or 1;
+// built in the original's stack record and copied out whole (stale words included).
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Packed16EntropyIKSpin_Lerp(uint32_t entry, const uint8_t* a, const uint8_t* b,
+                                                                        uint8_t* out, float t, float u);
+extern "C" void NAL_Packed16EntropyIKSpin_Lerp_entry(void);
+// 0x0008d1e0 (Blend slot; stdcall, 5 words): out[i] = NAL_Packed16EntropyIKSpin_Lerp(a[i],
+// b[i], t) over `count` records. Returns 0 (count when it is <= 0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_Packed16EntropyIKSpin_Blend(uint32_t entry, int32_t count, uint8_t* out,
+                                                                             const uint8_t* a, const uint8_t* b,
+                                                                             uint32_t t_bits, uint32_t ebx, uint32_t esi,
+                                                                             uint32_t edi);
+extern "C" void NAL_Packed16EntropyIKSpin_Blend_entry(void);
+
+// 0x0008c0c0 / 0x0008c4a0 (Float4 classes' Blend slots; stdcall, 5 words): dst = a * (1 - t)
+// + b * t per lane over `count` four-float values; the weighted one takes t from **weights,
+// advancing *weights per value.
+void XB_STDCALL NAL_Float4_Blend(int32_t count, float* dst, const float* a, const float* b, float t);
+void XB_STDCALL NAL_Float4_BlendWeighted(int32_t count, float* dst, const float* a, const float* b, const float** weights);
+
 }  // namespace game

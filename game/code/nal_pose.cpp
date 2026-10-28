@@ -284,4 +284,42 @@ uint32_t XB_THISCALL NAL_GenericAnim_EvaluatePose(uint8_t* clip, uint8_t* state,
     return 0;
 }
 
+
+float* XB_CDECL NAL_IK_BuildChainMatrices(float length, float sin_a, float cos_a, float sin_b, float cos_b,
+                                          const float* origin, const float* dir, const float* pole, float sin_t,
+                                          float cos_t, float* upper, float* lower) {
+    // The chain's frame A: rows dir, m = n x dir, n = |dir x pole| (the plane normal), origin
+    // (w 0, 0, 0, 1). The upper bone is B * A and the lower C * A (all lanes, as
+    // Mat44_MultiplyInPlace); B turns by angle a, C by b and sits `length` along B's x, both
+    // twisted about x by t.
+    const float zero = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    const float c0 = pole[2] * dir[1] - dir[2] * pole[1];
+    const float c1 = dir[2] * pole[0] - dir[0] * pole[2];
+    const float c2 = dir[0] * pole[1] - pole[0] * dir[1];
+    const float inv = platform_x87_rcp_norm4(c0, c1, c2, 0.0f, one);  // 1 / sqrt on the x87
+    const float n2 = c2 * inv;
+    const float n0 = inv * c0;
+    const float n1 = inv * c1;
+    const float m0 = dir[2] * n1 - n2 * dir[1];
+    const float m1 = dir[0] * n2 - dir[2] * n0;
+    const float m2 = n0 * dir[1] - dir[0] * n1;
+    alignas(16) float a[16] = {dir[0], dir[1], dir[2], zero, m0, m1, m2, zero,
+                               n0, n1, n2, zero, origin[0], origin[1], origin[2], one};
+    const float neg_sin_t = zero - sin_t;
+    alignas(16) float b[16] = {cos_a, sin_a * cos_t, sin_a * sin_t, zero, zero - sin_a, cos_a * cos_t, cos_a * sin_t, zero,
+                               zero, neg_sin_t, cos_t, zero, zero, zero, zero, one};
+    alignas(16) float product[16];
+    Mat44_MultiplyInPlace(b, product, a);
+    std::memcpy(upper, product, 64);
+    const float reach = length * sin_a;
+    alignas(16) float c[16] = {cos_b, zero - sin_b * cos_t, zero - sin_b * sin_t, zero,
+                               sin_b, cos_b * cos_t, cos_b * sin_t, zero,
+                               zero, neg_sin_t, cos_t, zero,
+                               length * cos_a, reach * cos_t, reach * sin_t, one};
+    Mat44_MultiplyInPlace(c, product, a);
+    std::memcpy(lower, product, 64);
+    return lower + 12;
+}
+
 }  // namespace game
