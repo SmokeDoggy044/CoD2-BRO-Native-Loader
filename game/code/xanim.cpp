@@ -6,6 +6,7 @@
 #include "g_scr_runtime.h"
 #include "nal_anim.h"
 #include "qcommon.h"
+#include "stream.h"
 #include "title_data.h"
 
 namespace game {
@@ -845,3 +846,516 @@ void XB_REGS1 XB_CDECL AnimTree_SetGoalWeight(uint32_t index, uint8_t* tree, uin
 }
 
 }  // namespace game
+
+namespace game {
+
+namespace {
+
+// MemContextScope_Enter (0x0028fcc0): flag in AL, context in ECX, the scope {context, saved
+// 0x0095f5d0} on the stack (callee pops 4); pushes the context unless it is -1.
+extern "C" PLATFORM_HIDDEN void XB_CDECL xanim_scope_enter(uint32_t flag, int32_t context, uint32_t* scope);
+PLATFORM_ASM_ENTRY(xanim_scope_enter,
+                   "movl 4(%esp), %eax\n"
+                   "movl 8(%esp), %ecx\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x0028fcc0, %edx\n"
+                   "call *%edx\n"
+                   "ret")
+
+void build_notetracks(uint8_t* node) {
+    title_function<void XB_CDECL(uint8_t*)>(0x002b7e40)(node);  // XAnim_BuildNotetracks
+}
+
+uint32_t& u32_ref(uint8_t* p, uint32_t offset) { return *reinterpret_cast<uint32_t*>(p + offset); }
+uint16_t& u16_ref(uint8_t* p, uint32_t offset) { return *reinterpret_cast<uint16_t*>(p + offset); }
+
+}  // namespace
+
+uint32_t XB_REGS1 XB_CDECL AnimTree_AllocInfo(uint32_t index, uint8_t* tree) {
+    // The head of the free list (info 0 +0xc) becomes node `index`'s info.
+    uint16_t& head = title_global<uint16_t>(0x00965cfc);
+    const uint16_t id = head;
+    if (!id) {
+        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        return 0;
+    }
+    ++u32_ref(tree, 0x14);
+    uint8_t* info = info_at(id);
+    head = u16_at(info, 0xc);
+    u16_ref(info_at(head), 0xa) = 0;
+    u16_ref(tree, 0x18 + index * 2) = id;
+    Com_Memset(info + 0x10, 0, 0x20);
+    u16_ref(info, 0) = 0;
+    u32_ref(info, 4) = 0;
+    u16_ref(info, 2) = 0xffff;
+    u16_ref(info, 8) = 0;
+    uint8_t* node = anim_node(tree_anims(tree), index);
+    if (u16_at(node, 0x20)) return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
+    // A leaf gets its first notetrack's name (+4) and a track over its clip, made in the
+    // tree's memory context.
+    if (!u32_ref(node, 0x24)) {
+        AnimData_EnsureLoaded(node);
+        if (!u32_ref(node, 0x24)) return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
+    }
+    if (const uint32_t notes = u32_ref(node, 0x28))
+        u32_ref(info, 4) = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(notes + 4));
+    else
+        build_notetracks(node);
+    uint32_t scope[2] = {0, 0};
+    xanim_scope_enter(1, static_cast<int32_t>(u32_ref(tree, 0x10)), scope);
+    uint8_t* clip = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
+    uint8_t* skeleton = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x30)));
+    uint8_t* track = static_cast<uint8_t*>(Mem_AlignedAlloc(0x30, 4, 0));
+    if (track) track = NAL_AnimTrack_Construct(track, clip, skeleton);
+    u32_ref(info, 0x2c) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(track));
+    if (scope[0] != 0xffffffffu) {
+        title_global<uint8_t>(0x0095f5d1) = 0;
+        title_global<uint8_t>(0x0095f5d0) = static_cast<uint8_t>(scope[1]);
+        MemContext_Pop(title_global<uint8_t*>(0x0095f638));
+    }
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
+}
+
+// (goal in XMM2, tree, index, blend time): XMM5-7 kept (AnimTree_SetKnob relies on them).
+PLATFORM_ASM_ENTRY(AnimTree_ClearSiblingGoalWeights_entry,
+                   "subl $0x60, %esp\n"
+                   "movups %xmm2, 0x00(%esp)\n"
+                   "movups %xmm3, 0x10(%esp)\n"
+                   "movups %xmm4, 0x20(%esp)\n"
+                   "movups %xmm5, 0x30(%esp)\n"
+                   "movups %xmm6, 0x40(%esp)\n"
+                   "movups %xmm7, 0x50(%esp)\n"
+                   "pushl 0x6c(%esp)\n"
+                   "pushl 0x6c(%esp)\n"
+                   "pushl 0x6c(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm2, (%esp)\n" PLATFORM_ASM_CALL(AnimTree_ClearSiblingGoalWeights) "addl $16, %esp\n"
+                   "movups 0x00(%esp), %xmm2\n"
+                   "movups 0x10(%esp), %xmm3\n"
+                   "movups 0x20(%esp), %xmm4\n"
+                   "movups 0x30(%esp), %xmm5\n"
+                   "movups 0x40(%esp), %xmm6\n"
+                   "movups 0x50(%esp), %xmm7\n"
+                   "addl $0x60, %esp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_ClearSiblingGoalWeights(float goal, uint8_t* tree, uint32_t index, uint32_t blend_bits) {
+    if (!index) return;
+    // The siblings fade out over the largest weight change among them (node `index` counts
+    // |goal - weight|) times the blend time; under 0.001 at once.
+    const uint8_t* anims = tree_anims(tree);
+    const uint8_t* parent = anim_node(anims, u16_at(anim_node(anims, index), 0x22));
+    const int32_t count = u16_at(parent, 0x20);
+    float largest = 0.0f;
+    for (int32_t i = 0; i < count; ++i) {
+        const uint32_t child = u16_at(parent, 0x36) + i;
+        const uint16_t id = info_index(tree, child);
+        float change = id ? info_float(info_at(id), 0x24) : 0.0f;
+        if (child == index) change = abs_difference(goal, change);
+        if (change > largest) largest = change;
+    }
+    float time = largest * bits_float(blend_bits);
+    if (title_global<float>(0x0083eb4c) > time) time = 0.0f;
+    uint32_t time_bits;
+    std::memcpy(&time_bits, &time, 4);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint32_t child = u16_at(parent, 0x36) + i;
+        if (child != index) AnimTree_ClearGoalWeight(tree, child, time_bits);
+    }
+}
+
+// (index in EAX, goal in XMM5; tree, blend time, rate, anim, unused, restart).
+PLATFORM_ASM_ENTRY(AnimTree_SetKnob_entry,
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm5, (%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AnimTree_SetKnob) "addl $32, %esp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_SetKnob(uint32_t index, float goal, uint8_t* tree, uint32_t blend_bits, uint32_t rate_bits,
+                               uint32_t anim, uint32_t, uint32_t restart) {
+    // The siblings fade out (ClearSiblingGoalWeights), then SetGoalWeightClamped's steps.
+    if (title_global<float>(0x0083eb4c) > goal) goal = 0.0f;
+    AnimTree_ClearSiblingGoalWeights(goal, tree, index, blend_bits);
+    uint32_t goal_bits;
+    std::memcpy(&goal_bits, &goal, 4);
+    title_global<uint32_t>(0x00928588) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
+    AnimTree_SetGoalWeightInternal(index, anim, goal_bits, blend_bits, rate_bits, 0);
+    AnimTree_ActivateParents(index, blend_bits);
+    AnimTree_ResetTime(index, restart);
+    AnimTree_UpdateNoteIndex(0, index);
+}
+
+// (index in EAX, tree in ESI; stop node, goal, blend time, rate, anim, unused, restart).
+PLATFORM_ASM_ENTRY(AnimTree_SetKnobAll_entry,
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl 28(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AnimTree_SetKnobAll) "addl $36, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL AnimTree_SetKnobAll(uint32_t index, uint8_t* tree, uint32_t stop, uint32_t goal_bits, uint32_t blend_bits,
+                                      uint32_t rate_bits, uint32_t anim, uint32_t, uint32_t restart) {
+    // SetKnob on node `index`, then every parent up to `stop` (exclusive; 1 when the root is
+    // reached first, else Internal's result) goes to goal 1 with its siblings faded out.
+    title_global<uint32_t>(0x00928588) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
+    if (title_global<float>(0x0083eb4c) > bits_float(goal_bits)) goal_bits = 0;
+    AnimTree_ClearSiblingGoalWeights(bits_float(goal_bits), tree, index, blend_bits);
+    const uint32_t result = AnimTree_SetGoalWeightInternal(index, anim, goal_bits, blend_bits, rate_bits, 0);
+    AnimTree_ActivateParents(index, blend_bits);
+    AnimTree_ResetTime(index, restart);
+    AnimTree_UpdateNoteIndex(0, index);
+    if (!index) return 1;
+    uint8_t* global_tree = current_tree();
+    while (true) {
+        index = u16_at(anim_node(tree_anims(tree), index), 0x22);
+        if (index == stop) return result;
+        const float one = title_global<float>(0x0083eb20);
+        AnimTree_ClearSiblingGoalWeights(one, tree, index, blend_bits);
+        uint8_t* info;
+        if (const uint16_t id = info_index(global_tree, index)) {
+            info = info_at(id);
+        } else {
+            info = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(AnimTree_AllocInfo(index, global_tree)));
+            global_tree = current_tree();
+        }
+        const float blend = index ? bits_float(blend_bits) : 0.0f;
+        const float time = abs_difference(one, info_float(info, 0x24)) * blend;
+        info_float(info, 0x20) = one;
+        info_float(info, 0x1c) = time;
+        if (title_global<float>(0x0083eb4c) > time) {
+            info_float(info, 0x1c) = 0.0f;
+            info_float(info, 0x24) = one;
+        } else if (info_float(info, 0x24) == 0.0f) {
+            info_float(info, 0x24) = title_global<float>(0x0083eb4c);
+        }
+        info_float(info, 0x28) = one;
+        u16_ref(info, 2) = 0xffff;
+        u16_ref(info, 0) = 0;
+        AnimTree_ResetTime(index, restart);
+        AnimTree_UpdateNoteIndex(0, index);
+        if (!index) return 1;
+    }
+}
+
+void XB_REGS3 XB_CDECL AnimTree_CopyInfos(const uint8_t* src, uint32_t, uint8_t* dst) {
+    // dst gets src's anim infos node by node (whole 0x30-byte copies); nodes without one
+    // in src lose theirs.
+    const int32_t count = static_cast<int32_t>(*reinterpret_cast<const uint32_t*>(tree_anims(src) + 4));
+    for (int32_t i = 0; i < count; ++i) {
+        const uint16_t from = info_index(src, i);
+        const uint16_t to = info_index(dst, i);
+        if (!from) {
+            if (to) {
+                AnimTree_FreeInfo(dst, to);
+                u16_ref(dst, 0x18 + i * 2) = 0;
+            }
+            continue;
+        }
+        uint8_t* info = to ? info_at(to) : reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(AnimTree_AllocInfo(i, dst)));
+        platform_rep_movs(info, info_at(from), 0x30);
+    }
+}
+
+void XB_CDECL AnimTree_BlendWeights_r(uint32_t index) {
+    uint8_t* tree = current_tree();
+    const uint16_t id = info_index(tree, index);
+    if (!id) return;
+    uint8_t* info = info_at(id);
+    // The weight moves toward the goal by the frame time 0x0092f550 over the blend time
+    // left (+0x1c); the previous time and frame (+0x14/+0x1a) take the current ones.
+    const float frame_time = title_global<float>(0x0092f550);
+    const float epsilon = title_global<float>(0x0083eb4c);
+    u32_ref(info, 0x14) = u32_ref(info, 0x10);
+    const uint16_t frame = u16_at(info, 0x18);
+    const bool done = frame_time + epsilon > info_float(info, 0x1c);
+    u16_ref(info, 0x1a) = frame;
+    if (done) {
+        u32_ref(info, 0x24) = u32_ref(info, 0x20);
+        info_float(info, 0x1c) = 0.0f;
+    } else {
+        const float weight = (info_float(info, 0x20) - info_float(info, 0x24)) / info_float(info, 0x1c) * frame_time +
+                             info_float(info, 0x24);
+        info_float(info, 0x24) = weight;
+        if (title_global<float>(0x0083efdc) > weight) info_float(info, 0x24) = info_float(info, 0x20) * epsilon;
+        info_float(info, 0x1c) = info_float(info, 0x1c) - frame_time;
+    }
+    const uint8_t* node = anim_node(tree_anims(tree), index);
+    const int32_t count = u16_at(node, 0x20);
+    const bool stopped = info_float(info, 0x24) == 0.0f && info_float(info, 0x20) == 0.0f;
+    if (!count) {
+        if (!stopped) return;
+        AnimTree_FreeInfo(current_tree(), id);
+        u16_ref(current_tree(), 0x18 + index * 2) = 0;
+        return;
+    }
+    if (!stopped) {
+        for (int32_t i = 0; i < count; ++i) AnimTree_BlendWeights_r(u16_at(node, 0x36) + i);
+        return;
+    }
+    // A stopped parent frees its info once nothing below it stays active.
+    bool active = false;
+    for (int32_t i = 0; i < count; ++i)
+        if (AnimTree_FreeInactive_r(u16_at(node, 0x36) + i)) active = true;
+    if (active) return;
+    AnimTree_FreeInfo(current_tree(), id);
+    u16_ref(current_tree(), 0x18 + index * 2) = 0;
+}
+
+// (model in EDI, frame time in XMM0).
+PLATFORM_ASM_ENTRY(AnimTree_BlendWeightsForModel_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(AnimTree_BlendWeightsForModel) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_BlendWeightsForModel(const uint8_t* model, float frame_time) {
+    // The model's trees (+0, count byte +0x2e) blend their weights by the frame time.
+    if (!u32_ref(const_cast<uint8_t*>(model), 0)) return;
+    title_global<float>(0x0092f550) = frame_time;
+    for (int32_t i = 0; i < model[0x2e]; ++i) {
+        const uint32_t tree = *reinterpret_cast<const uint32_t*>(model + i * 4);
+        title_global<uint32_t>(0x00928588) = tree;
+        if (tree) AnimTree_BlendWeights_r(0);
+    }
+}
+
+// (index, time step): XMM0 = the result; XMM2-7 kept.
+XANIM_XMM0_ENTRY(AnimTree_AdvanceTime_r_2, "pushl 0x70(%esp)\n pushl 0x70(%esp)\n", "12")
+
+void XB_CDECL AnimTree_AdvanceTime_r_2(uint32_t index, uint32_t dt_bits, float* result) {
+    // The notetrack check of a time step (the notes the step would pass are only looked at
+    // in builds with them): 1 unless a leaf or synced node actually moves; its new time and
+    // frames go to 0x00927f58/0x00935114.. for the check, nothing in the info changes.
+    const float one = title_global<float>(0x0083eb20);
+    uint8_t* tree = current_tree();
+    const uint16_t id = info_index(tree, index);
+    *result = one;
+    if (!id) return;
+    uint8_t* info = info_at(id);
+    if (info_float(info, 0x24) == 0.0f || info_float(info, 0x20) == 0.0f) return;
+    const uint8_t* node = anim_node(tree_anims(tree), index);
+    const int32_t count = u16_at(node, 0x20);
+    const float dt = bits_float(dt_bits);
+    float step;
+    bool wrap;
+    if (!count) {
+        const uint8_t* clip = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(u32_ref(const_cast<uint8_t*>(node), 0x24)));
+        float frequency = one;
+        if (clip) {
+            const float length = *reinterpret_cast<const float*>(clip + 0x38);
+            frequency = length == 0.0f ? 0.0f : one / length;
+        }
+        step = info_float(info, 0x28) * frequency * dt;
+        if (step == 0.0f) return;
+        wrap = clip && (clip[0x34] & 1);
+    } else if (node[0x34] & 3) {
+        float frequency;
+        AnimTree_GetAvgFrequency_r(index, &frequency);
+        step = frequency * info_float(info, 0x28) * dt;
+        if (step == 0.0f) return;
+        wrap = !(node[0x34] & 2);
+    } else {
+        // The least result over the children, at the step times the rate.
+        const float scaled = info_float(info, 0x28) * dt;
+        if (scaled == 0.0f) return;
+        uint32_t scaled_bits;
+        std::memcpy(&scaled_bits, &scaled, 4);
+        float least = one;
+        for (int32_t i = 0; i < count; ++i) {
+            float r;
+            AnimTree_AdvanceTime_r_2(u16_at(node, 0x36) + i, scaled_bits, &r);
+            if (platform_x87_greater(least, r)) least = r;
+        }
+        *result = least;
+        return;
+    }
+    float time = info_float(info, 0x14) + step;
+    const uint16_t previous_frame = u16_at(info, 0x1a);
+    uint16_t frame = previous_frame;
+    if (!wrap) {
+        if (time >= one) time = one;
+    } else {
+        while (time >= one) {
+            time = time - one;
+            ++frame;
+        }
+    }
+    const int16_t current_frame = static_cast<int16_t>(u16_at(info, 0x18));
+    const float frames = static_cast<float>(static_cast<int16_t>(frame) - current_frame);
+    if (info_float(info, 0x10) - time > frames) return;
+    title_global<uint32_t>(0x0093e754) = u32_ref(info, 0x14);
+    title_global<uint16_t>(0x0092f090) = static_cast<uint16_t>(current_frame);
+    title_global<float>(0x0093510c) = step;
+    title_global<uint16_t>(0x00935114) = previous_frame;
+    title_global<float>(0x00927f58) = time;
+    title_global<uint32_t>(0x0093424c) = u32_ref(info, 0x10);
+    if (!count)
+        *result = AnimTree_CheckLeafNotes();
+    else
+        AnimTree_CheckNotes_r(info, node, result);
+}
+
+void XB_CDECL AnimTree_AdvanceTime_r(uint32_t index, uint32_t dt_bits, uint32_t notify_arg) {
+    // Moves node `index` and its subtree on by the time step: leaves by rate / anim length
+    // (looping anims wrap and count frames, others stop at 1), synced nodes by their
+    // children's average frequency (then SetTime_r), the rest pass the step times their
+    // rate down. Notetracks passed are processed when `notify` is set and the goal is not 0.
+    uint8_t* tree = current_tree();
+    const uint16_t id = info_index(tree, index);
+    if (!id) return;
+    uint8_t* info = info_at(id);
+    if (info_float(info, 0x24) == 0.0f) return;
+    uint8_t notify = static_cast<uint8_t>(notify_arg);
+    if (info_float(info, 0x20) == 0.0f) notify = 0;
+    uint8_t* node = anim_node(tree_anims(tree), index);
+    const int32_t count = u16_at(node, 0x20);
+    const float one = title_global<float>(0x0083eb20);
+    const float dt = bits_float(dt_bits);
+    if (count && !(node[0x34] & 3)) {
+        const float scaled = info_float(info, 0x28) * dt;
+        uint32_t scaled_bits;
+        std::memcpy(&scaled_bits, &scaled, 4);
+        for (int32_t i = 0; i < count; ++i) AnimTree_AdvanceTime_r(u16_at(node, 0x36) + i, scaled_bits, notify);
+        return;
+    }
+    float time;
+    bool wrap;
+    if (!count) {
+        if (!u32_ref(node, 0x24)) AnimData_EnsureLoaded(node);
+        const uint8_t* clip = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
+        float frequency = one;
+        if (clip) {
+            const float length = *reinterpret_cast<const float*>(clip + 0x38);
+            frequency = length == 0.0f ? 0.0f : one / length;
+        }
+        time = info_float(info, 0x28) * frequency * dt + info_float(info, 0x14);
+        wrap = clip && (clip[0x34] & 1);
+    } else {
+        float frequency;
+        AnimTree_GetAvgFrequency_r(index, &frequency);
+        time = info_float(info, 0x14) + frequency * info_float(info, 0x28) * dt;
+        wrap = !(node[0x34] & 2);
+    }
+    uint16_t frame = u16_at(info, 0x1a);
+    if (!wrap) {
+        if (time >= one)
+            time = one;
+        else if (0.0f >= time)
+            return;
+    } else {
+        while (0.0f > time) {
+            time = time + one;
+            --frame;
+        }
+        while (time >= one) {
+            time = time - one;
+            ++frame;
+        }
+    }
+    const uint16_t current_frame = u16_at(info, 0x18);
+    const float frames = static_cast<float>(static_cast<int16_t>(frame) - static_cast<int16_t>(current_frame));
+    if (info_float(info, 0x10) - time > frames) return;
+    if (!count) {
+        if (notify) {
+            title_global<float>(0x00927f58) = time;
+            title_global<uint32_t>(0x0093e754) = u32_ref(info, 0x10);
+            title_global<uint16_t>(0x00935114) = current_frame;
+            title_function<void XB_CDECL(uint8_t*, const uint8_t*)>(0x002c45f0)(info, node);  // AnimTree_ProcessNotetracks
+        }
+        u16_ref(info, 0x18) = frame;
+        info_float(info, 0x10) = time;
+        return;
+    }
+    title_global<float>(0x00927f58) = time;
+    if (notify) {
+        title_global<uint32_t>(0x0093e754) = u32_ref(info, 0x10);
+        title_global<uint16_t>(0x00935114) = current_frame;
+        AnimTree_ProcessNotetracks_r(info, node);
+    }
+    title_global<uint16_t>(0x0093ef64) = frame;
+    AnimTree_SetTime_r(index);
+}
+
+// (index in ESI; model, time step, until-done byte).
+PLATFORM_ASM_ENTRY(AnimTree_AdvanceTimeForModel_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(AnimTree_AdvanceTimeForModel) "addl $16, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL AnimTree_AdvanceTimeForModel(uint32_t index, const uint8_t* model, uint32_t dt_bits, uint32_t until_done) {
+    // Each of the model's trees advances by the time step; with `until_done` a tree whose
+    // notetrack check gives r < 1 advances only to r x step + 0.001 (if that is within the
+    // step) and the result is 1 when the last such tree did.
+    if (!*reinterpret_cast<const uint32_t*>(model)) return 0;
+    title_global<uint32_t>(0x0095f51c) = *reinterpret_cast<const uint32_t*>(model + 0x88);
+    uint8_t stopped = 0;
+    for (int32_t i = 0; i < model[0x2e]; ++i) {
+        const uint32_t tree = *reinterpret_cast<const uint32_t*>(model + i * 4);
+        title_global<uint32_t>(0x00928588) = tree;
+        if (!tree) continue;
+        if (!static_cast<uint8_t>(until_done)) {
+            AnimTree_AdvanceTime_r(index, dt_bits, 0);
+            stopped = 0;
+            continue;
+        }
+        float r;
+        AnimTree_AdvanceTime_r_2(index, dt_bits, &r);
+        if (r == title_global<float>(0x0083eb20)) {
+            AnimTree_AdvanceTime_r(index, dt_bits, 1);
+            stopped = 0;
+            continue;
+        }
+        const float dt = bits_float(dt_bits);
+        const float step = r * dt + title_global<float>(0x0083eb4c);
+        if (!(dt >= step)) continue;  // NaN too
+        uint32_t step_bits;
+        std::memcpy(&step_bits, &step, 4);
+        AnimTree_AdvanceTime_r(index, step_bits, 1);
+        stopped = 1;
+    }
+    return stopped;
+}
+
+// (anim-tree table entry in EBX; flag byte: keep the notetracks and sync flags).
+PLATFORM_ASM_ENTRY(AnimTree_Setup_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(AnimTree_Setup) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_Setup(uint32_t entry, uint32_t keep) {
+    // Every node of the entry is announced through the function at 0x0095f49c +0x858
+    // (entry name hash, entry, the node's name, index) and loses its clip and stamp;
+    // without `keep` its notetracks are rebuilt and the sync flags marked from the root.
+    const uint8_t* table = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+        *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f524) + 4))));
+    const uint32_t entries = *reinterpret_cast<const uint32_t*>(table);
+    uint8_t* anims = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(*reinterpret_cast<const uint32_t*>(table + 4) +
+                                                                       (entry < entries ? entry : 0) * 12));
+    uint32_t name[8];
+    title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(name, u32_ref(anims, 0));  // HashStr_Init
+    for (uint32_t i = 0; i < u32_ref(anims, 4); ++i) {
+        uint8_t* node = anim_node(anims, i);
+        const uint32_t announce = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f49c) + 0x858));
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(announce)(name[0], entry, u32_ref(node, 0), i);
+        u32_ref(node, 0x2c) = 0;
+        u32_ref(node, 0x24) = 0;
+        if (!static_cast<uint8_t>(keep)) build_notetracks(node);
+    }
+    if (!static_cast<uint8_t>(keep)) AnimTree_MarkSync_r(anims, 0);
+}
+
+}  // namespace game
+

@@ -130,4 +130,49 @@ uint32_t XB_REGS3 XB_CDECL AnimTree_SetGoalWeightClamped(uint8_t* tree, uint32_t
 void XB_REGS1 XB_CDECL AnimTree_SetGoalWeight(uint32_t index, uint8_t* tree, uint32_t goal, uint32_t blend, uint32_t rate,
                                               uint32_t anim, uint32_t unused, uint32_t restart);
 
+// 0x002c3ed0 (index in EAX): the free list's head info for node `index` (cleared, notetrack
+// -1); a leaf with a clip also gets its first notetrack's name (+4) or its notetracks
+// built, and a track (+0x2c) made in the tree's memory context. 0 when the list is empty.
+uint32_t XB_REGS1 XB_CDECL AnimTree_AllocInfo(uint32_t index, uint8_t* tree);
+// 0x002c3bd0 (goal in XMM2): the siblings of node `index` fade out over the largest weight
+// change among them times the blend time. Keeps XMM5-7.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_ClearSiblingGoalWeights(float goal, uint8_t* tree, uint32_t index,
+                                                                         uint32_t blend);
+extern "C" void AnimTree_ClearSiblingGoalWeights_entry(void);
+// 0x002d7db0 (index in EAX, goal in XMM5): siblings faded out, then SetGoalWeightClamped's
+// steps on node `index`.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_SetKnob(uint32_t index, float goal, uint8_t* tree, uint32_t blend,
+                                                         uint32_t rate, uint32_t anim, uint32_t unused, uint32_t restart);
+extern "C" void AnimTree_SetKnob_entry(void);
+// 0x002cf330 (index in EAX, tree in ESI): SetKnob on node `index`, then its parents up to
+// `stop` go to goal 1 with their siblings faded out; 1 when the root was reached.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL AnimTree_SetKnobAll(uint32_t index, uint8_t* tree, uint32_t stop, uint32_t goal,
+                                                                uint32_t blend, uint32_t rate, uint32_t anim, uint32_t unused,
+                                                                uint32_t restart);
+extern "C" void AnimTree_SetKnobAll_entry(void);
+// 0x002c9890 (src in EAX, dst in ECX): dst takes src's anim infos (no callers: dead).
+void XB_REGS3 XB_CDECL AnimTree_CopyInfos(const uint8_t* src, uint32_t unused_edx, uint8_t* dst);
+// 0x002c9c20: weights of node `index` and below move toward their goals by the frame time
+// 0x0092f550; stopped nodes free their infos.
+void XB_CDECL AnimTree_BlendWeights_r(uint32_t index);
+// 0x002cf530 (model in EDI, frame time in XMM0): BlendWeights_r over each of the model's trees.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_BlendWeightsForModel(const uint8_t* model, float frame_time);
+extern "C" void AnimTree_BlendWeightsForModel_entry(void);
+// 0x002bf7d0 (XMM0): the notetrack check of a time step from node `index` (1, or the least
+// result of the checks below; the checks are compiled out). XMM2-7 kept.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_AdvanceTime_r_2(uint32_t index, uint32_t dt, float* result);
+extern "C" void AnimTree_AdvanceTime_r_2_entry(void);
+// 0x002cf580: node `index` and its subtree move on by the time step `dt` (notetracks
+// processed when `notify`).
+void XB_CDECL AnimTree_AdvanceTime_r(uint32_t index, uint32_t dt, uint32_t notify);
+// 0x002d7f20 (index in ESI): AdvanceTime_r over each of the model's trees; with
+// `until_done` only up to the next notetrack, 1 when it stopped short.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL AnimTree_AdvanceTimeForModel(uint32_t index, const uint8_t* model, uint32_t dt,
+                                                                        uint32_t until_done);
+extern "C" void AnimTree_AdvanceTimeForModel_entry(void);
+// 0x002fc670 (entry in EBX): the entry's nodes announced (0x0095f49c +0x858) and their clips
+// dropped; unless `keep`, notetracks rebuilt and sync flags marked.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_Setup(uint32_t entry, uint32_t keep);
+extern "C" void AnimTree_Setup_entry(void);
+
 }  // namespace game
