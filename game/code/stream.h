@@ -450,4 +450,194 @@ void XB_STDCALL Stream_UnloadNotifyManagers(const uint8_t* record);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CodNote_FreeForZone(uint32_t zone);
 extern "C" void CodNote_FreeForZone_entry(void);
 
+// --- Streaming module push, second part (2026-10-28) ---
+
+// 0x002ee600 (data in EAX, scene table in EBX, zone in EDI): relocated (table +0x4c), table +4 + zone * 4 = data; a
+// free block (+0x48 start, +8 size) handed to the zone's memory context (global context +0x38 + zone * 4 for zones
+// 0..0x62, else none) with MemContext_AddFreeBlock; the +0x40 byte list (count +0x40, list +0x44) cleared, then
+// Scn_SpawnZone(table, zone) and table +0x194 = data + 0x40 when that list is not empty. Returns Scn_SpawnZone's EAX.
+// 0x002ee680 (load handler): with scn_zoneScenes (0x0095f4f8).
+// Both run their title callee at the original's ESP (`entry` = the entry ESP).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_ParseScn(uint8_t* data, uint8_t* table, uint32_t zone,
+                                                             uint32_t entry);
+extern "C" void Stream_ParseScn_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_LoadScn(uint32_t entry, uint8_t* data, uint32_t zone);
+extern "C" void Stream_LoadScn_entry(void);
+// 0x00291300 Xmpb: relocated (+0x18), Stream_ResolveXmpbSkeletons(data, zone), rm_xmpb (0x0095f6b0) +4 + zone * 4.
+// 0x0028e030 Fli: Pak_ParseFli (EAX data, ECX global context; tail jump). 0x002b7010 Spg: the first free slot of
+// rm_spg (0x0095f564, 32 slots of 12 bytes at +4, -1 = free; none: slot address 0 after Sys_DebugBreak) = {zone, ?,
+// data}, then relocated (+0x18). 0x0028bea0 Space: a bare RET (unhookable).
+uint32_t XB_CDECL Stream_LoadXmpb(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadFli(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+uint32_t XB_CDECL Stream_LoadSpg(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+
+// 0x0028d8b0 (zone record in ESI): the record's memory context (+0x78), looked up by its zone id (+0x74) on the
+// global context (MemContext_FindById) and cached when unset.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ZoneRecord_GetContext(uint8_t* record);
+extern "C" void ZoneRecord_GetContext_entry(void);
+// 0x0028ef40 (memory in EAX): Sys_DebugBreak for each slot not free in both bit arrays, then Z_Free of the base (+0x18).
+void XB_REGS1 XB_CDECL StreamMem_Free(uint32_t* memory);
+// 0x0028beb0 (size in EBX): 0 for 0; else a 0x1000-aligned block from heap 0 (Heap_SelectByIndex/Heap_SetCurrent
+// around Heap_AllocAligned), Sys_DebugBreak when out of memory.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Stream_Alloc(uint32_t size);
+extern "C" void Stream_Alloc_entry(void);
+// 0x002909d0 (banks in ESI, Com_Init): the stream memory (layout above): num_banks (default 0x21) slots, 0xa0 when
+// g_connectpaths is not 0, of 0xc0000 bytes, every slot marked free in both arrays (bit index i >> 5 words past the
+// arrays, as the original: past 64 slots they reach the count), the base from Stream_Alloc's pattern; 0x00947b10 /
+// 0x00947b14 = base / size. Returns the banks.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL Stream_InitBanks(uint32_t* banks);
+extern "C" void Stream_InitBanks_entry(void);
+// 0x0028f4b0 (Com_InitSmallHeap): the small heaps 0x0095f624 (0xe4-byte blocks, 12 per page) and
+// stream_heapHeaderPool 0x0095f628 (0x494-byte heap headers, 16 per page), each SmallHeap_Init over a Z_Malloc'd
+// 0x3c-byte object (0 when that fails).
+void XB_CDECL Stream_InitSmallHeaps();
+
+// 0x0028c050 (stdcall: zone record): each of its heaps (+0x90 list, count +0x8c) dropped from the heap list
+// 0x008ff4a8 (count 0x008ff5a8; the last one moved into its place), 0x00042560(heap) and its header returned to
+// stream_heapHeaderPool (SmallHeap_Free); then the count is 0.
+uint32_t XB_STDCALL Stream_RemoveFreeBlocks(uint8_t* context);
+// 0x0028f1a0 (stdcall: zone record): global context +0x18 = 0 when the record has no pak (+0x48); the context's block
+// (record +0x78 -> +0x44) freed (MemContext_Free_r on the zone's context, else Z_Free) and cleared;
+// Stream_RemoveFreeBlocks; then with slots in its bit arrays (+0x54, two words each) StreamMem_MoveSlots(record +0x54,
+// 0x0095f62c, -1), else every item (+0x7c image: groups +8 of 0x18 bytes, count +0xc; items +0x10 of 0x1c bytes,
+// count u16 +0xc) with flag 8 (+0xc) gets its +0x14 freed and cleared. State +0xdc = 3.
+uint32_t XB_STDCALL Stream_FreeZoneMemory(uint8_t* record);
+// 0x00290c00 (stdcall: stream system, zone id), flags +0x30/+0x3c/+0x48 set meanwhile, on zone = system +0x5c + id *
+// 4: anims (+0x90; each one's +0x34 chain (next +4) through system +0x2c's vtable slot 4 and AnimData_Purge, then
+// NAL_AnimFile_Release), map +0xa0 cleared, managers (+0xb0, NAL_Manager828_Release), blocks (+0xe0; freed as in
+// Stream_FreeZoneMemory, every entry cleared).
+void XB_STDCALL Stream_ReleaseAnims(uint8_t* streams, uint32_t id);
+// 0x00290e70 (zone record in EBX): inside MemContext_Push/Pop of its zone the Stream_Release* functions, then system
+// +0x5c + id * 4 = 0. Returns MemContext_Pop's id.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_ReleaseZoneResources(const uint8_t* record);
+extern "C" void Stream_ReleaseZoneResources_entry(void);
+
+// 0x00292420 (extension in EAX): the load handler for the extension's hashed name (HashStr_Init), or 0.
+uint32_t XB_REGS1 XB_CDECL Stream_GetLoadHandler(const char* extension);
+// 0x00292650 (zone record in EAX, file name in EBX; data, size, zone on the stack, ret 0xc): inside MemContext_Push/Pop
+// of the record's zone, the handler for the text after the name's last '.' (name + 1 without one) runs with (name,
+// data, size, zone). Returns MemContext_Pop's id.
+// It runs the handler at the original's ESP (`entry`, with the caller's ESI/EDI).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_RunLoadHandler(uint32_t entry, const uint8_t* record, char* name,
+                                                                   uint8_t* data, uint32_t size, uint32_t zone,
+                                                                   uint32_t esi, uint32_t edi);
+extern "C" void Stream_RunLoadHandler_entry(void);
+
+// 0x0028d920 (name in EAX): the file type of the text from the name's last '.' (the whole name without one), compared
+// without case (__stricmp) in the original's order: 1 (textures, meshes, fonts, anims, skeletons, morphs, .atrb, .wbk,
+// .cg/.dcg), 10 (cells, .scn, .bpe, .menus, .panel, .spg) or 0 (packs); unknown: Sys_DebugBreak and 0.
+uint32_t XB_REGS1 XB_CDECL Stream_GetFileType(const char* name);
+// 0x0028f850 (thiscall: memory context system; id, out list {count, ids[0x20]}, seen bits[4], ret 0xc): the zone id
+// (when not -1) appended and marked seen; with packs (system +0x18) its context (MemContext_FindById): a cached search
+// set (+0x44, four bit words) adds every set id 0..98 not seen yet; else the children (+0x20 list, count +0x1c; id
+// +0x28) are collected into a local list/bit set (recursively), the set is cached (16 bytes, MemContext_AllocOrHeap16 of
+// the context's zone +0x28 when set) and its ids not seen yet appended.
+void XB_THISCALL Stream_CollectSearchZones_r(uint8_t* system, uint32_t id, uint32_t* out, uint32_t* seen);
+// 0x00241d00 (stdcall: model list (+0x14 list, count +0x10), zone): each model's skeleton (name +0x34) found
+// (Stream_FindSkel) into +0x38; per part (+0x14, 12 bytes, count +0x10) its name's ScrIface_HashStringNoCase into +4 and
+// the name inserted into the hash map 0x0095fe00 (key {hash, 0x20-byte fixed string}); and each set +0x24 entry's
+// (count +0x20) Stream_FindInZones result into +0x2c (count +0x28). Returns the model count.
+uint32_t XB_STDCALL Stream_ResolveXmpbSkeletons(uint8_t* list, uint32_t zone);
+// 0x0028d5e0 (memory in EAX; out, then a 16-byte block whose second float is the slot count wanted, ret 0x14): with
+// fewer free (StreamMem_CountFree, written over the block) Sys_DebugBreak and out = 0; else whole slots (both bits) are
+// taken while at least 1.0 is wanted, then for a rest above 0 the first half slot (one bit), else the first slot's first
+// half. The taken bits {first array, second array} go to memory +0x1c and out. Returns out.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL StreamMem_Alloc(uint32_t* memory, uint32_t* out, float* block);
+extern "C" void StreamMem_Alloc_entry(void);
+// 0x002c5c60 (resource manager vtable slot 1 at 0x0083278c, thiscall, zone, ret 4): the zone removed from the active list (+0x19c ids,
+// +0x10 paired values, count +0xc; the last one moved in). If it was there: Actor_ResetSentientInfo for each used actor
+// (g_actors), the box at 0x0095f534 -> +4 (+0x430 = FLT_MAX, +0x440 = -FLT_MAX), Vehicle_ResetCachedBounds and +0 of the
+// 0x84-byte records 0x0094d95c..0x0095029c cleared.
+void XB_THISCALL Zone_RemoveActive(uint8_t* self, uint32_t zone);
+// Raw files of a zone (map +0xd8, count +0xe0, entries +0xe4: a 16-aligned {data, size} record each).
+// 0x0028ea20 (was FUN_0028ea20; name or 0 in EAX, stream system in EDX, zone id in ECX; out data, out size, ret 8): the
+// record of the name's HashStr_Hash; 1 with *data/*size set, 0 when missing (or id -1, or no zone).
+uint8_t XB_REGS3 XB_STDCALL Stream_FindZoneRawFile(const char* name, uint8_t* streams, uint32_t id, uint32_t* data,
+                                                   uint32_t* size);
+// 0x0028eaa0 (was FUN_0028eaa0; name in EAX, zone id in ECX; stream system, data, size, ret 0xc): a record {data, size}
+// (MemContext_Alloc_r of the zone's context, else Heap_AllocAligned) stored under the hash of the name's base name; a
+// name not in the map writes through address 0, as the original. Returns the entry's value address.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL Stream_AddZoneRawFile(const char* name, uint32_t id, uint8_t* streams,
+                                                                    uint32_t data, uint32_t size);
+extern "C" void Stream_AddZoneRawFile_entry(void);
+// 0x0028ef90 (was FUN_0028ef90; zone record in EAX): with slots in its bit arrays (+0x54): the unused tail of each item
+// buffer of its current group (+0x7c image, +0x80 group; last item first, flags +0xc & 3 clear, buffer +0x14, size +8,
+// used +4 rounded up to 32 KB) becomes a heap (Stream_AddFreeBlock), until 0xc heaps; the zone's children's contexts
+// with heaps (+0x8c) are listed (+0xc4, count +0xc0, at most 4); for a pak in state 2 (+0x48) its heaps and theirs are
+// appended to the heap list 0x008ff4a8 (count 0x008ff5a8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_SetupZoneHeaps(uint8_t* record);
+extern "C" void Stream_SetupZoneHeaps_entry(void);
+// 0x002c3500 (was FUN_002c3500; hashed name in EAX; sound bank table, part index, zone, data, ret 0x10): the bank with
+// that name (table +0xc, 0x84 bytes each, count +8) gets data at +0x3c + index * 4; a new one (fewer than 16) is
+// {hashed name, zone, six 0, six 0 (index set), twelve -1}, copied in by 0x0001f740.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SoundBank_AddPart(const uint32_t* hashed, uint8_t* table, uint32_t index,
+                                                         uint32_t zone, uint32_t data);
+extern "C" void SoundBank_AddPart_entry(void);
+
+// The stream system (0x0095f640): state +0x10 (0 swap, 1 retire, 2 schedule), request slot +0x20 (zone records at +0x38 +
+// id * 4, -1 = none), zone +0x24 / +0x354 (current) / +0x358 (next), idle byte +0x14, request list +0x368 (sentinel
+// +0x36c, next at +0) with its count +0x364.
+// 0x00292c20 (system in EAX): 0x00902b76 = 1, Pak_UpdateLoadProgress, every listed request in state 1 (+0xdc) gets
+// Stream_UpdateLoad and in state 2 Stream_UpdateUnload (a node is handled while its next is set); then by state
+// Stream_UpdateZoneSwap / Stream_RetireRequest / Stream_ScheduleZones (Sys_DebugBreak for others).
+void XB_REGS1 XB_CDECL Stream_Update(uint8_t* system);
+// 0x002922d0 (system in EAX; Stream_Update's state 2): frame counter 0x008d9d38 + 1; the next zone to load
+// (Pak_FindNextZoneToLoad, +0x358) is queued (Stream_QueueLoad, its id at +0x28; +0x354/+0x24 = it) when its priority is
+// below FLT_MAX and its slot count (+0x10) fits the free stream memory; else the zone to unload (Pak_FindZoneToUnload)
+// at priority FLT_MAX or above the next one's starts unloading (+0x354/+0x24, +0x20 = its id); else the idle byte is set.
+void XB_REGS1 XB_CDECL Stream_ScheduleZones(uint8_t* system);
+// 0x00291400 (system in EAX; state 0): with paks (+0x18) and more than two requests, a swap when the current zone's
+// (+0x24, else +0x354) priority is above the next one's (FLT_MAX without one), is not 0 and the next one is not the
+// current one; with the request slot's zone in state 0 (or a swap with its +0xe0 = 2): the current zone referenced
+// (Zone_AddRef_r), then a swap unloads (Stream_BeginZoneUnload of +0x20), else Pak_LoadCellMeshesForZone, state 2,
+// +0x20 = -1, +0x24/+0x354 = 0.
+void XB_REGS1 XB_CDECL Stream_UpdateZoneSwap(uint8_t* system);
+// 0x00291850 (system in ESI; state 1): once the request slot's record is done (state 3, or no slot) it is unlinked, the
+// current zone released (Zone_Release_r, its +0x28 = -1), the slot id cleared in the system (+0x2c / +0x28 / +0x34 for
+// memory context kinds 0 / 7 / 2), slot and +0x1c4 entry cleared, state 2, then StreamRequest_Destroy and SmallHeap_Free
+// (0x0095f624).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_RetireRequest(uint8_t* system);
+extern "C" void Stream_RetireRequest_entry(void);
+// 0x00291280 (id in EAX, system in EDI): request slot = id, state 1, +0x354 = the record's context; a pak in state 6
+// (+0x48) lowers +0x578; a loading record (+0xdc = 1) is cancelled; +0xe0 = 4, +0xdc = 2, Pak_ReleaseCellMeshesForZone.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_BeginZoneUnload(uint32_t id, uint8_t* system);
+extern "C" void Stream_BeginZoneUnload_entry(void);
+// 0x00290f70 (record in EAX): unload steps by +0xe0: 4 Stream_UnloadNotifyManagers (-> 5), 5
+// Stream_ReleaseZoneResources (-> 6), 6 Stream_FreeZoneMemory and Scr_NotifyUnloaded of the context's +4.
+void XB_REGS1 XB_CDECL Stream_UpdateUnload(uint8_t* record);
+// 0x00291330 (record in EAX): the unload at once (cancelled when loading, cell meshes released, managers notified,
+// resources and memory freed).
+void XB_REGS1 XB_CDECL Stream_UnloadZoneNow(uint8_t* record);
+// 0x00291380 (record in EAX): state 0 unloads at once, 1 and 2 Sys_DebugBreak; its read buffer (+0x84, unless the shared
+// 0x0095f608) freed, +0x84/+0x7c cleared; its heap headers (+0x90, count +0x8c) back to stream_heapHeaderPool.
+void XB_REGS1 XB_CDECL StreamRequest_Destroy(uint8_t* record);
+// 0x00292d10 (system in EAX; six stack words, ret 0x18): Stream_QueueLoad (EAX = the second word; the first, then words
+// 3-6), then Stream_Update until the state leaves 0. Returns the queued id (-1 = none, no update).
+uint32_t XB_REGS1 XB_STDCALL Stream_LoadSync(uint8_t* system, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                             uint32_t a5, uint32_t a6);
+// 0x00292cb0 (system in EAX, id in EBX): Stream_BeginZoneUnload, Stream_Update while the state is 1; then with the slot
+// empty a listed request of that zone (+0x74) is Sys_DebugBreak (tail jump).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_WaitForLoad(uint8_t* system, uint32_t id);
+extern "C" void Stream_WaitForLoad_entry(void);
+// 0x00292d70 (thiscall: system, zone, ret 4): a zone not loaded yet (slot +0x28 unset or its record not in state 0): frame
+// counter + 1, +0x34 = 0, its unloaded children first (Zone_FindUnloadedChild, recursively), then queued
+// (Stream_QueueLoad: EAX = +8, name +0, block +0xc) into +0x28 and Stream_Update until the state leaves 0. Returns +0x28.
+uint32_t XB_THISCALL Stream_StartRequest(uint8_t* system, uint8_t* zone);
+// 0x00291fd0 (record in ESI, name in EAX; pak, zone id, then a 16-byte block on the stack, ret 0x18): the record
+// cleared (name +8, 0x40-byte fixed string; pak +0x48, id +0x74; -1 at +0x50/+0x80/+0x88/+0xd4; +0xdc = 1, +0xe0 = 3),
+// the load progress globals zeroed, then StreamRequest_Start with the block. Returns the record.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL StreamRequest_Init(uint8_t* record, const char* name, uint32_t pak,
+                                                               uint32_t id, const uint32_t* block);
+extern "C" void StreamRequest_Init_entry(void);
+// 0x00291f40 (record in EAX; a 16-byte block on the stack whose second float is the slot count, ret 0x10): a count that
+// rounds (+0.5, truncated) above 0 gets stream memory (StreamMem_Alloc of 0x0095f62c into the block's slots, copied to
+// +0x54); +0xdc = 1, +0xe0 = 0, StreamRequest_OpenFile.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL StreamRequest_Start(uint8_t* record, uint32_t* block);
+extern "C" void StreamRequest_Start_entry(void);
+// 0x00291eb0 (record in ESI): the file (name +8) opened (File_OpenReadEx, handle +0x50, size +0x4c) with 0x0095f610 set
+// meanwhile; on failure +0x84/+0xdc = 0; else its read queued (File_QueueRequestEx into the shared buffer 0x0095f608,
+// size 0x0095f60c, callback 0x00291940; +0x88) at priority 0, progress globals and +0xe0 cleared.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL StreamRequest_OpenFile(uint8_t* record);
+extern "C" void StreamRequest_OpenFile_entry(void);
+
 }  // namespace game

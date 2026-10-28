@@ -8861,8 +8861,8 @@
 0028e7e0 Stream_AddMeshFileToZone
 0028e880 Stream_AddMeshToZone
 0028e930 Stream_AddTextureToZone
-0028ea20 FUN_0028ea20
-0028eaa0 FUN_0028eaa0
+0028ea20 Stream_FindZoneRawFile
+0028eaa0 Stream_AddZoneRawFile
 0028eb90 ZoneManagers_Destruct
 0028ec30 ResourceManager_Construct
 0028ee00 Stream_LoadStb
@@ -8871,7 +8871,7 @@
 0028ee80 Stream_LoadBmips
 0028eeb0 Stream_HashFileName
 0028ef40 StreamMem_Free
-0028ef90 FUN_0028ef90
+0028ef90 Stream_SetupZoneHeaps
 0028f1a0 Stream_FreeZoneMemory
 0028f2f0 StreamRequest_Cancel
 0028f4b0 Stream_InitSmallHeaps
@@ -9608,7 +9608,7 @@
 002c3120 S_PlaySoundAlias2
 002c31a0 FUN_002c31a0
 002c3400 S_StopChannel
-002c3500 FUN_002c3500
+002c3500 SoundBank_AddPart
 002c3710 CameraShake_ComputeOffset
 002c3870 G_FreeAllEntities
 002c3960 FUN_002c3960

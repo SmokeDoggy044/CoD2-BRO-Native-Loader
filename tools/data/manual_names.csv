@@ -14167,3 +14167,7 @@ address,name,kind,confidence,evidence
 002c4020,CodNote_FreeForZone,function,medium,"from the body (streaming module push 2026-10-28)"
 002e4650,AnimTree_SampleRootTransformBetween,function,medium,"from the body (xanim module push 2026-10-28)"
 002b7de0,AnimData_InitNode,function,medium,"from the body (xanim module push 2026-10-28)"
+0028ea20,Stream_FindZoneRawFile,function,medium,"from the body (streaming module push 2026-10-28)"
+0028eaa0,Stream_AddZoneRawFile,function,medium,"from the body (streaming module push 2026-10-28)"
+0028ef90,Stream_SetupZoneHeaps,function,medium,"from the body (streaming module push 2026-10-28)"
+002c3500,SoundBank_AddPart,function,medium,"from the body (streaming module push 2026-10-28)"

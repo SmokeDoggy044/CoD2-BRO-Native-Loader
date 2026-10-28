@@ -103,3 +103,6 @@ address,name,kind,reason
 0008ee80,NAL_ClipSetPlayer_Update,no data,"clip-set player: no shipped data uses it (zone +0xb0 table always empty; only caller Stream_AddClipSetToZone never called) (2026-10-28)"
 0008e060,NAL_Manager828_Release,no data,"clip-set player: no shipped data uses it (zone +0xb0 table always empty; only caller Stream_AddClipSetToZone never called) (2026-10-28)"
 002b7de0,AnimData_InitNode,dead,"no CALL/JMP or immediate anywhere in the XBE (2026-10-28)"
+00025dd0,ZoneClipSetManager_Add,dead,"only call site 0x0008dffe sits in gap 0x0008df80, which nothing references (2026-10-28)"
+0028e6e0,Stream_AddClipSetToZone,dead,"no CALL, pointer or immediate (2026-10-28)"
+00290e30,Stream_LoadDdsmp,no data,"no shipped file has the .ddsmp type (unpacked/ and sp packs searched, 2026-10-28)"
