@@ -4,6 +4,7 @@
 #include "anim_script.h"
 #include "bg_misc.h"
 #include "cg_ents.h"
+#include "cg_hud.h"
 #include "cg_view.h"
 #include "cgame.h"
 #include "cl.h"
@@ -2964,6 +2965,18 @@ const Function kFunctions[] = {
     {"UIQuad_PlaceScaled", 0x00310560, 0, code(&UIQuad_PlaceScaled_entry), 16, Result::None, Status::Compare},
     {"UIQuad_SetWipe", 0x00310820, 0, code(&UIQuad_SetWipe_entry), 16, Result::None, Status::Compare},
     {"UI_DrawPillarboxBars", 0x00310e10, 0, code(&UI_DrawPillarboxBars), 4, Result::None, Status::Compare},
+    {"HudCompMeter_SetCount", 0x00311090, 0, code(&HudCompMeter_SetCount), 4, Result::None, Status::Compare},
+    {"HudCompHint_Draw", 0x003110e0, 0, code(&HudCompHint_Draw), 0, Result::None, Status::Compare},
+    {"HudCompTankIcon_Draw", 0x00311330, 0, code(&HudCompTankIcon_Draw), 0, Result::None, Status::Compare},
+    {"HudCompTankReticle_Draw", 0x00311350, 0, code(&HudCompTankReticle_Draw), 0, Result::None, Status::Compare},
+    {"HudCompTankHealth_Draw", 0x003113d0, 0, code(&HudCompTankHealth_Draw), 0, Result::None, Status::Compare},
+    {"HudCompWeaponName_Draw", 0x00311400, 0, code(&HudCompWeaponName_Draw), 0, Result::None, Status::Compare},
+    {"HudCompGrenadeCook_Draw", 0x003115b0, 0, code(&HudCompGrenadeCook_Draw), 0, Result::None, Status::Compare},
+    {"HudCompGrenades_Draw", 0x00311610, 0, code(&HudCompGrenades_Draw), 0, Result::None, Status::Compare},
+    {"HudCompAmmo_Draw", 0x00311640, 0, code(&HudCompAmmo_Draw), 0, Result::None, Status::Compare},
+    {"HudCompHealth_Draw", 0x00311670, 0, code(&HudCompHealth_Draw), 0, Result::None, Status::Compare},
+    {"HudCompStance_Draw", 0x003116c0, 0, code(&HudCompStance_Draw), 0, Result::None, Status::Compare},
+    {"HudManager_Detach", 0x00311ae0, 0, code(&HudManager_Detach), 4, Result::None, Status::Compare},
     {"SpecialConceptMenu_OnLeave", 0x003122e0, 0, code(&SpecialConceptMenu_OnLeave), 4, Result::None, Status::Compare},
     {"SpecialMaterialsMenu_OnLeave", 0x00312340, 0, code(&SpecialMaterialsMenu_OnLeave), 4, Result::None, Status::Compare},
     {"FE_SaveSlotsUpdateText", 0x00312690, 0, code(&FE_SaveSlotsUpdateText_entry), 0, Result::None, Status::Compare},
@@ -3018,7 +3031,10 @@ const Function kFunctions[] = {
     {"UIQuad_GetMaxUV", 0x00317240, 0, code(&UIQuad_GetMaxUV_entry), 0, Result::None, Status::Compare},
     {"UIQuad_SetVertexAlpha", 0x003172f0, 0, code(&UIQuad_SetVertexAlpha_entry), 4, Result::None, Status::Compare},
     {"UIQuad_SetVertexColor", 0x00317350, 0, code(&UIQuad_SetVertexColor), 4, Result::None, Status::Compare},
+    {"HudCompIconCount_SetWidescreen", 0x00317550, 0, code(&HudCompIconCount_SetWidescreen), 8, Result::None, Status::Compare},
     {"FE_LiberatorCreateCrossIcons", 0x003175b0, 0, code(&FE_LiberatorCreateCrossIcons_entry), 0, Result::None, Status::Compare},
+    {"HudCompMeter_Ctor", 0x00317bd0, 0, code(&HudCompMeter_Ctor), 0, Result::Eax, Status::Compare},
+    {"HudCompGrenadeCook_Dtor", 0x00318f30, 0, code(&HudCompGrenadeCook_Dtor_entry), 0, Result::None, Status::Compare},
     {"Key_GetKeyNameForCommand", 0x00319b40, 0, code(&Key_GetKeyNameForCommand_entry), 0, Result::None, Status::Compare},
     {"FE_BonusCELoadImage", 0x0031a490, 0, code(&FE_BonusCELoadImage_entry), 0, Result::None, Status::Compare},
     {"SpecialConceptMenu_OnRight", 0x0031a750, 0, code(&SpecialConceptMenu_OnRight_entry), 4, Result::None, Status::Compare},
