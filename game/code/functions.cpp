@@ -1969,6 +1969,7 @@ const Function kFunctions[] = {
     {"CG_CalculateWeaponPosition", 0x00282d10, 0, code(&CG_CalculateWeaponPosition), 0, Result::None, Status::Compare},
     {"CG_RotateAnglesByView", 0x00282ef0, 0, code(&CG_RotateAnglesByView_entry), 0, Result::None, Status::Compare},
     {"CG_CreateViewWeaponDObj", 0x00283120, 0, code(&CG_CreateViewWeaponDObj_entry), 0, Result::None, Status::Compare},
+    {"CG_RegisterWeapon", 0x002832b0, 0, code(&CG_RegisterWeapon_entry), 4, Result::None, Status::Compare},
     {"CG_UpdateViewWeaponAnim", 0x002840e0, 0, code(&CG_UpdateViewWeaponAnim), 8, Result::None, Status::Compare},
     {"CG_DrawHudElems", 0x00284b90, 0, code(&CG_DrawHudElems), 0, Result::None, Status::Compare},
     {"CG_Vehicle", 0x00284bf0, 0, code(&CG_Vehicle), 4, Result::None, Status::Compare},
