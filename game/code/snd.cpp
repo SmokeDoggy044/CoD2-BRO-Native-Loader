@@ -1031,4 +1031,304 @@ int32_t XB_CDECL SndBank_PollLoad(uint8_t* request) {
     return r[0];
 }
 
+uint32_t XB_CDECL Snd_GetSpeakerMode() {
+    const int32_t value = title_global<int32_t>(0x008bd650);
+    const uint32_t sign = uint32_t(value >> 31);
+    return (uint32_t(value) ^ sign) - sign;
+}
+
+uint32_t XB_REGS3 XB_CDECL SndArena_Alloc(uint32_t, uint32_t, uint32_t alignment, uint32_t size) {
+    uint32_t& used = title_global<uint32_t>(0x0090a894);
+    const uint32_t old_used = used;
+    const uint32_t base = title_global<uint32_t>(0x0090a890);
+    const uint32_t aligned = (old_used + base + alignment - 1) / alignment * alignment;
+    const uint32_t new_used = old_used + (size + alignment) - 1;
+    used = new_used;
+    if (!base) return 1;
+    return title_global<uint32_t>(0x0090a898) >= new_used ? aligned : 0;
+}
+
+void XB_CDECL SndArena_EmptyStub() {}
+
+void XB_CDECL Snd_Printf() {}
+
+void XB_CDECL SndSys_EmptyStub() {}
+
+void XB_CDECL SndArena_Reset() {
+    SndArena_EmptyStub();
+    title_global<uint32_t>(0x0090a890) = 0;
+    title_global<uint32_t>(0x0090a894) = 0;
+    title_global<uint32_t>(0x0090a898) = 0;
+}
+
+void* XB_CDECL SndBank_AllocAligned64(uint32_t size) { return Mem_AlignedAlloc(size, 0x40, 0); }
+
+namespace {
+
+constexpr uint32_t kSndMemFreed = 0x80000000u;
+constexpr uint32_t kSndMemBlockCount = 0x40;
+
+uint32_t& snd_mem_block(int32_t index) { return title_global<uint32_t>(0x0091f548 + uint32_t(index) * 4); }
+int32_t& snd_mem_low_top() { return title_global<int32_t>(0x008bed08); }
+int32_t& snd_mem_high_bottom() { return title_global<int32_t>(0x008bed04); }
+
+}  // namespace
+
+uint32_t XB_CDECL SndMem_Compact(uint32_t* low_end, uint32_t* high_end) {
+    int32_t low = snd_mem_low_top();
+    uint32_t high_total = title_global<uint32_t>(0x0091f64c);
+    uint32_t low_total = 0;
+    if (low >= 0) {
+        while (snd_mem_block(low) & kSndMemFreed) {
+            --low;
+            snd_mem_block(low + 1) = 0;
+            if (low < 0) break;
+        }
+    }
+    snd_mem_low_top() = low;
+    for (int32_t i = low; i >= 0; --i) low_total += snd_mem_block(i) & ~kSndMemFreed;
+    int32_t high = snd_mem_high_bottom();
+    while (high < int32_t(kSndMemBlockCount) && (snd_mem_block(high) & kSndMemFreed)) {
+        snd_mem_block(high) = 0;
+        ++high;
+    }
+    snd_mem_high_bottom() = high;
+    if (high < int32_t(kSndMemBlockCount)) {
+        // A pointer walk up to the end of the table (signed compare), as in the original.
+        for (uint32_t at = 0x0091f548 + uint32_t(high) * 4; int32_t(at) < int32_t(0x0091f648); at += 4)
+            high_total -= title_global<uint32_t>(at) & ~kSndMemFreed;
+    }
+    if (low_end) *low_end = low_total;
+    if (high_end) *high_end = high_total;
+    const uint32_t free_bytes = high_total - low_total;
+    title_global<uint32_t>(0x0091f650) = free_bytes;
+    return free_bytes;
+}
+
+uint32_t XB_CDECL SndMem_Alloc(uint32_t flags, int32_t size) {
+    const uint32_t rounded = uint32_t((size + 0x23f) / 0x240 * 0x240);
+    uint32_t low_end = 0, high_end = 0;
+    if (SndMem_Compact(&low_end, &high_end) < rounded) return 0;
+    const int32_t next = snd_mem_low_top() + 1;
+    const int32_t high = snd_mem_high_bottom();
+    if (next >= high) return 0;
+    if (flags & 1) {
+        const uint32_t address = title_global<uint32_t>(0x0091f648) - rounded + high_end;
+        snd_mem_high_bottom() = high - 1;
+        snd_mem_block(high - 1) = rounded;
+        SndMem_Compact(nullptr, nullptr);
+        return address;
+    }
+    snd_mem_low_top() = next;
+    snd_mem_block(next) = rounded;
+    const uint32_t address = title_global<uint32_t>(0x0091f648) + low_end;
+    SndMem_Compact(nullptr, nullptr);
+    return address;
+}
+
+uint32_t XB_CDECL SndMem_GetBase() { return title_global<uint32_t>(0x0091f648); }
+
+uint32_t XB_CDECL SndMem_GetSize() { return title_global<uint32_t>(0x0091f64c); }
+
+void XB_CDECL SndMem_Init(uint32_t address, uint32_t size) {
+    title_global<uint32_t>(0x0091f648) = (address + 0x23f) / 0x240 * 0x240;
+    title_global<uint32_t>(0x0091f64c) = (size - 0x240) / 0x240 * 0x240;
+    snd_mem_high_bottom() = int32_t(kSndMemBlockCount);
+    snd_mem_low_top() = -1;
+}
+
+void XB_CDECL SndMem_Free(uint32_t address) {
+    if (!address) return;
+    const uint32_t offset = address - title_global<uint32_t>(0x0091f648);
+    uint32_t end = title_global<uint32_t>(0x0091f64c);
+    if (offset >= end) return;
+    const int32_t low = snd_mem_low_top();
+    uint32_t start = 0;
+    for (int32_t i = 0; low >= 0 && i <= low; ++i) {
+        if (start == offset) {
+            if (int32_t(snd_mem_block(i)) < 0) break;
+            snd_mem_block(i) |= kSndMemFreed;
+            SndMem_Compact(nullptr, nullptr);
+            return;
+        }
+        start += snd_mem_block(i) & ~kSndMemFreed;
+    }
+    const int32_t high = snd_mem_high_bottom();
+    if (high > int32_t(kSndMemBlockCount) - 1) return;
+    for (int32_t i = int32_t(kSndMemBlockCount) - 1; i >= high; --i) {
+        end -= snd_mem_block(i) & ~kSndMemFreed;
+        if (end == offset) {
+            if (int32_t(snd_mem_block(i)) < 0) return;
+            snd_mem_block(i) |= kSndMemFreed;
+            SndMem_Compact(nullptr, nullptr);
+            return;
+        }
+    }
+}
+
+// ECX is restored as in the original (its frame slot is a PUSH ECX).
+PLATFORM_ASM_ENTRY(Snd_NormalizeVectorDup_entry,
+                   "pushl %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Snd_NormalizeVectorDup) "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float* XB_CDECL Snd_NormalizeVectorDup(float* out, const float* in) {
+    const long double x = in[0], y = in[1], z = in[2];
+    long double length = (x * x + y * y) + z * z;
+    __asm__("fsqrt" : "+t"(length));
+    const float rounded = static_cast<float>(length);
+    const long double epsilon = title_global<float>(0x007ce5c8);
+    if (epsilon >= length) {  // FCOMIP; JB (unordered: normalize)
+        out[0] = 0.0f;
+        out[1] = 0.0f;
+        out[2] = 0.0f;
+        return out;
+    }
+    const float inv = 1.0f / rounded;
+    out[0] = in[0];
+    const float in1 = in[1];
+    const float p0 = out[0] * inv;
+    out[1] = in1;
+    const float in2 = in[2];
+    out[0] = p0;
+    const float p1 = inv * out[1];
+    out[2] = in2;
+    out[1] = p1;
+    out[2] = out[2] * inv;
+    return out;
+}
+
+void XB_CDECL Snd_SetListenerOrigin(const uint32_t* origin) {
+    for (uint32_t i = 0; i < 3; ++i) title_global<uint32_t>(0x008bda6c + i * 4) = origin[i];
+    title_global<uint32_t>(0x008bda18) |= 0x380000;
+}
+
+void XB_CDECL Snd_SetListenerOrientation(const uint32_t* a, const uint32_t* b) {
+    for (uint32_t i = 0; i < 3; ++i) title_global<uint32_t>(0x008bdae4 + i * 4) = b[i];
+    for (uint32_t i = 0; i < 3; ++i) title_global<uint32_t>(0x008bdad8 + i * 4) = a[i];
+    float* const first = &title_global<float>(0x008bdad8);
+    float* const second = &title_global<float>(0x008bdae4);
+    Snd_NormalizeVectorDup(first, first);
+    Snd_NormalizeVectorDup(second, second);
+    title_global<uint32_t>(0x008bda1c) |= 0xfc000;
+}
+
+uint32_t XB_REGS1 XB_CDECL SndFormat_GetChannelCount(const uint8_t* format) {
+    if (!format) return 0;
+    const uint8_t mask = format[6];
+    if (!mask) return 1;
+    const uint8_t pairs = uint8_t(((mask >> 1) & 0x55) + (mask & 0x55));
+    const uint8_t nibbles = uint8_t(((pairs >> 2) & 0x33) + (pairs & 0x33));
+    return uint32_t(nibbles >> 4) + (nibbles & 0xf);
+}
+
+const char* XB_CDECL SndBank_GetEntryGroupName(uint32_t handle) {
+    const uint8_t* const entry = SndBank_GetSoundEntry(handle);
+    if (!entry) return nullptr;
+    return reinterpret_cast<const char*>(emitter_word<uint8_t*>(entry, 0x10) + 0x108);
+}
+
+uint32_t XB_CDECL SndBank_GetEntryFlag3(uint32_t handle) {
+    const uint8_t* const entry = SndBank_GetSoundEntry(handle);
+    if (!entry) return 0;
+    return uint32_t(entry[5] >> 3) & 1;
+}
+
+uint32_t XB_CDECL Snd_PopCount64_2(uint32_t low, uint32_t high) { return Snd_PopCount64(low, high); }
+
+uint32_t XB_CDECL Snd_PopCount64_3(uint32_t low, uint32_t high) { return Snd_PopCount64(low, high); }
+
+int32_t XB_REGS1 XB_CDECL Snd_MaskBitIndex64(const uint32_t* mask, uint32_t bit_low, uint32_t bit_high) {
+    const uint32_t low = mask[0];
+    const uint32_t high = mask[1];
+    if ((low & bit_low) != bit_low || (high & bit_high) != bit_high) return -1;
+    const uint64_t below = ((uint64_t{bit_high} << 32 | bit_low) * 2) - 1;
+    return int32_t(Snd_PopCount64_2(uint32_t(below) & low, uint32_t(below >> 32) & high)) - 1;
+}
+
+int32_t XB_CDECL SndBank_IsLoading(uint32_t key) {
+    const uint32_t slot = 0x008bd770 + ((key >> 16) % 12) * 32;
+    if (title_global<uint32_t>(slot) != key) return -1;
+    return title_global<uint32_t>(slot + 4) != 3 ? 1 : 0;
+}
+
+uint32_t XB_CDECL SndBank_AddLoadRequest(uint32_t a, int32_t file, uint32_t b, uint32_t c) {
+    if (file == -1) return 0xffffffffu;
+    uint32_t slot = 0;
+    for (; slot < 12; ++slot) {
+        if (title_global<uint32_t>(0x008bd770 + slot * 32 + 4) == 0) break;
+    }
+    if (slot == 12) return 0xffffffffu;
+    uint8_t* const record = &title_global<uint8_t>(0x008bd770 + slot * 32);
+    const uint32_t generation = emitter_word<uint16_t>(record, 2);
+    uint32_t key = (((generation / 12) + 1) * 3 << 18) & 0x7fff0000u;
+    key = (key + (slot << 16)) | 0xffff;
+    emitter_word<uint32_t>(record, 8) = a;
+    emitter_word<uint32_t>(record, 0x10) = b;
+    uint32_t& serial = title_global<uint32_t>(0x0090a93c);
+    emitter_word<uint32_t>(record, 0x14) = serial;
+    ++serial;
+    emitter_word<int32_t>(record, 0xc) = file;
+    emitter_word<uint32_t>(record, 0) = key;
+    emitter_word<uint32_t>(record, 4) = 1;
+    emitter_word<uint32_t>(record, 0x18) = 0;
+    emitter_word<uint32_t>(record, 0x1c) = c;
+    return key;
+}
+
+uint32_t XB_CDECL SndBank_LoadFromFile(uint32_t a, int32_t file, uint32_t b) {
+    return SndBank_AddLoadRequest(a, file, b, 0xffffffffu);
+}
+
+PLATFORM_ASM_ENTRY(SndBank_FindSound_entry, "pushl %esi\n"
+                                            "pushl %eax\n" PLATFORM_ASM_CALL(SndBank_FindSound) "addl $8, %esp\n"
+                                            "ret")
+
+int32_t XB_CDECL SndBank_FindSound(const char* name, const uint8_t* bank) {
+    using Compare = int32_t XB_CDECL(const void*, const void*);
+    using Search = void* XB_CDECL(const void*, const void*, uint32_t, uint32_t, Compare*);
+    const uint32_t key = name ? uint32_t(uintptr_t(name)) : 0x0082dfebu;
+    const auto* const found = static_cast<const uint8_t*>(title_function<Search>(0x001f123f)(
+        &key, emitter_word<uint8_t*>(bank, 0x44), emitter_word<uint32_t>(bank, 0x40), 0x28,
+        title_function<Compare>(0x000c5790)));  // _bsearch
+    if (!found) return -1;
+    return int32_t(found - emitter_word<uint8_t*>(bank, 0x44)) / 40;
+}
+
+PLATFORM_ASM_ENTRY(Snd_ApproxAngle2D_entry, "subl $8, %esp\n"
+                                            "movss %xmm1, 4(%esp)\n"
+                                            "movss %xmm0, (%esp)\n" PLATFORM_ASM_CALL(Snd_ApproxAngle2D) "fstps (%esp)\n"
+                                            "movss (%esp), %xmm0\n"
+                                            "addl $8, %esp\n"
+                                            "ret")
+
+float XB_CDECL Snd_ApproxAngle2D(float x, float y) {
+    const float zero = 0.0f;
+    const float scale = title_global<float>(0x0083eea0);
+    const float c1 = title_global<float>(0x0083eba8);
+    const float c2 = title_global<float>(0x007bd0c8);
+    const float c3 = title_global<float>(0x0083ec5c);
+    if (y == zero && x == zero) return zero * scale;
+    if (x > zero) {
+        if (y > zero) {
+            if (y > x) return x / y * scale;
+            return (c1 - y / x) * scale;
+        }
+        if (x > zero - y) return (c1 - y / x) * scale;
+        return (x / y + c2) * scale;
+    }
+    if (zero > y) {
+        if (zero - y > zero - x) return (x / y - c2) * scale;
+        return (c3 - y / x) * scale;
+    }
+    if (zero - x > y) {
+        if (x == zero) return zero * scale;
+        return (c3 - y / x) * scale;
+    }
+    if (y == zero) return zero * scale;
+    return x / y * scale;
+}
+
 }  // namespace game

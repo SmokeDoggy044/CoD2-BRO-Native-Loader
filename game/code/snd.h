@@ -165,4 +165,69 @@ void XB_CDECL SndBank_UpdateLoads();
 // File_QueueRequest / 0x000c9db0. Returns the state.
 int32_t XB_CDECL SndBank_PollLoad(uint8_t* request);
 
+// 0x000c34f0: |master attenuation| (0x008bd650; CDQ/XOR/SUB).
+uint32_t XB_CDECL Snd_GetSpeakerMode();
+// 0x000c3550 (alignment in ECX, size on the stack): bump allocator over the arena {base 0x0090a890, used +4, size +8}:
+// returns base + used rounded up to the alignment, used += size + alignment - 1; 0 when that passes the size, 1 (and
+// only the count) without a base.
+uint32_t XB_REGS3 XB_CDECL SndArena_Alloc(uint32_t unused_eax, uint32_t unused_edx, uint32_t alignment, uint32_t size);
+// 0x000c36e0: SndArena_EmptyStub, then the arena's base, used and size = 0.
+void XB_CDECL SndArena_Reset();
+// 0x000c7010 / 0x000cb0f0 / 0x000c72f0: empty (a bare RET; offline-tested only).
+void XB_CDECL SndArena_EmptyStub();
+void XB_CDECL Snd_Printf();
+void XB_CDECL SndSys_EmptyStub();
+// 0x000c37f0: Mem_AlignedAlloc(size, 0x40, 0).
+void* XB_CDECL SndBank_AllocAligned64(uint32_t size);
+// 0x000c8180: the sound memory's two block stacks (64 sizes at 0x0091f548, bit 31 = freed; the low stack grows up
+// to 0x008bed08, the high one down from 0x40 to 0x008bed04): pops freed blocks off both tops (zeroing them), then
+// *low_end = the low blocks' total, *high_end = size - the high blocks' total (either may be null); the free space
+// 0x0091f650 = high_end - low_end (returned).
+uint32_t XB_CDECL SndMem_Compact(uint32_t* low_end, uint32_t* high_end);
+// 0x000c8250 (flags, size): a block of size rounded up to 576 bytes (signed), from the top of the high stack
+// (flags bit 0) or the low one; null when there is no room or both stacks are full.
+uint32_t XB_CDECL SndMem_Alloc(uint32_t flags, int32_t size);
+// 0x000c8300 / 0x000c8310: the sound memory's base 0x0091f648 / size 0x0091f64c.
+uint32_t XB_CDECL SndMem_GetBase();
+uint32_t XB_CDECL SndMem_GetSize();
+// 0x000c8320: base = address rounded up to 576, size = (size - 576) rounded down to 576, both stacks empty.
+void XB_CDECL SndMem_Init(uint32_t address, uint32_t size);
+// 0x000c8380: marks the block starting at `address` freed (low stack first, then the high one) and compacts.
+void XB_CDECL SndMem_Free(uint32_t address);
+// 0x000c6240 (out in EAX, in in ECX): Snd_NormalizeVector with another store order; ECX kept.
+extern "C" PLATFORM_HIDDEN float* XB_CDECL Snd_NormalizeVectorDup(float* out, const float* in);
+extern "C" void Snd_NormalizeVectorDup_entry(void);
+// 0x000c65c0: the listener position (mix state +0x54) = origin, dirty bits 0x380000.
+void XB_CDECL Snd_SetListenerOrigin(const uint32_t* origin);
+// 0x000c6640: the listener axes (mix state +0xc0 = a, +0xcc = b; b copied first), normalized in place; dirty bits
+// 0xfc000 in the mask's high word.
+void XB_CDECL Snd_SetListenerOrientation(const uint32_t* a, const uint32_t* b);
+// 0x000c6710 (format in EAX): the number of bits of the channel mask byte +6 (1 when 0); 0 for null.
+uint32_t XB_REGS1 XB_CDECL SndFormat_GetChannelCount(const uint8_t* format);
+// 0x000c5990: the group name (+0x108 of the entry's group +0x10) of a sound handle, or null.
+const char* XB_CDECL SndBank_GetEntryGroupName(uint32_t handle);
+// 0x000c5a80: bit 3 of the sound entry's flag byte +5 (0 without an entry).
+uint32_t XB_CDECL SndBank_GetEntryFlag3(uint32_t handle);
+// 0x000c8c10 / 0x000c5560: copies of Snd_PopCount64.
+uint32_t XB_CDECL Snd_PopCount64_2(uint32_t low, uint32_t high);
+uint32_t XB_CDECL Snd_PopCount64_3(uint32_t low, uint32_t high);
+// 0x000c8d30 (mask pointer in EAX, bit on the stack): the index of a set bit among the mask's set bits, -1 if unset.
+int32_t XB_REGS1 XB_CDECL Snd_MaskBitIndex64(const uint32_t* mask, uint32_t bit_low, uint32_t bit_high);
+// 0x000c5c20: a bank slot's load state: -1 when the key is not the slot's, else 1 while not loaded (state 3).
+int32_t XB_CDECL SndBank_IsLoading(uint32_t key);
+// 0x000c5b90: takes the first free bank slot (state 0 at +4; 12 slots of 0x20 at 0x008bd770): key = next
+// generation * 12 + slot in the high half | 0xffff, state 1, +8 a, +0xc file, +0x10 b, +0x14 serial 0x0090a93c++,
+// +0x18 0, +0x1c c. Returns the key, -1 for file -1 or no free slot.
+uint32_t XB_CDECL SndBank_AddLoadRequest(uint32_t a, int32_t file, uint32_t b, uint32_t c);
+// 0x000c6180: SndBank_AddLoadRequest(a, file, b, -1).
+uint32_t XB_CDECL SndBank_LoadFromFile(uint32_t a, int32_t file, uint32_t b);
+// 0x000c57b0 (name in EAX, bank in ESI; no callers): the index of a name in the bank's sorted entries (bsearch,
+// "" for null), -1 if none.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL SndBank_FindSound(const char* name, const uint8_t* bank);
+extern "C" void SndBank_FindSound_entry(void);
+// 0x000c8090 (x in XMM0, y in XMM1, result in XMM0; only caller the uncalled 0x000c88c0): an octant approximation
+// of atan2 scaled by 0x0083eea0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Snd_ApproxAngle2D(float x, float y);
+extern "C" void Snd_ApproxAngle2D_entry(void);
+
 }  // namespace game
