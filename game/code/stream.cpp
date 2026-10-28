@@ -3513,4 +3513,235 @@ uint32_t XB_STDCALL Stream_ParseZbb(uint8_t* manager, uint8_t* data, uint32_t zo
 
 void XB_CDECL Stream_LoadSpace(char*, uint8_t*, uint32_t, uint32_t) {}
 
+
+void XB_STDCALL Stream_BeginZoneLoad(uint8_t* record) {
+    uint32_t blocks[0x20][2] = {};
+    int32_t count = 0;
+    const uint8_t* const image = word_at<uint8_t*>(record, 0x7c);
+    word_at<int32_t>(record, 0x80) = -1;
+    for (uint32_t i = 0; i < word_at<uint32_t>(word_at<uint8_t*>(record, 0x7c), 0xc); ++i)
+        if (!word_at<uint8_t*>(image, 8)[i * 0x18]) word_at<uint32_t>(record, 0x80) = i;
+    if (word_at<int32_t>(record, 0x80) == -1) return;
+    uint8_t* const group = word_at<uint8_t*>(image, 8) + word_at<uint32_t>(record, 0x80) * 0x18;
+    uint32_t* const zone_bits = reinterpret_cast<uint32_t*>(record + 0x54);
+    uint32_t* const item_bits = reinterpret_cast<uint32_t*>(record + 0x64);
+    // The zone's slots become the buffers of its first items.
+    if (has_slots(record + 0x54)) {
+        const int32_t used =
+            int32_t(StreamMem_CountUsed(title_global<const uint8_t*>(0x0095f62c), zone_bits));
+        for (int32_t n = 0; n < used; ++n) {
+            uint32_t block[2];
+            StreamMem_GetBlock(zone_bits, title_global<const uint8_t*>(0x0095f62c), block, n);
+            if (!block[0]) debug_break();
+            if (!block[1]) debug_break();
+            if (count < 0x20) {
+                blocks[count][0] = block[0];
+                blocks[count][1] = block[1];
+                ++count;
+            }
+        }
+    }
+    for (int32_t i = 0; i < int32_t(word_at<uint16_t>(group, 0xc)); ++i) {
+        uint8_t* const item = group_item(group, uint32_t(i));
+        const uint32_t flags = word_at<uint32_t>(item, 0xc);
+        const bool slot = (flags & 1) != 0;
+        const bool heap = ((flags >> 1) & 1) != 0;
+        if (i < count) {
+            word_at<uint32_t>(item, 0x14) = blocks[i][0];
+            word_at<uint32_t>(item, 0x18) = blocks[i][1];
+        }
+        if (!has_slots(record + 0x54) || slot) {
+            uint32_t address = 0;
+            uint32_t size = 0;
+            bool own = true;
+            if (heap) {
+                address = address_of(Stream_Alloc(word_at<uint32_t>(item, 4)));  // inlined in the original
+                own = false;
+            } else if (slot && word_at<uint32_t>(item, 4) < word_at<uint32_t>(title_global<uint8_t*>(0x0095f62c), 0x14)) {
+                const float one = title_global<float>(0x0083eb20);
+                float wanted[4] = {one, one, one, 0.0f};  // one slot
+                uint32_t out[4];
+                const uint32_t* const taken = StreamMem_Alloc(title_global<uint32_t*>(0x0095f62c), out, wanted);
+                for (uint32_t k = 0; k < 4; ++k) item_bits[k] = taken[k];
+                if (has_slots(record + 0x64)) {
+                    uint32_t block[2];
+                    StreamMem_GetBlock(item_bits, title_global<const uint8_t*>(0x0095f62c), block, 0);
+                    if (block[0]) {
+                        address = block[0];
+                        size = block[1];
+                        own = false;
+                    }
+                }
+            }
+            if (own) {
+                size = (word_at<uint32_t>(item, 4) + 0x7fff) & 0xffff8000;
+                address = address_of(Stream_Alloc(size));
+                word_at<uint32_t>(item, 0xc) |= 8;
+            }
+            word_at<uint32_t>(item, 0x18) = size;
+            word_at<uint32_t>(item, 0x14) = address;
+        }
+        word_at<int32_t>(item, 0x10) = -1;
+    }
+    word_at<uint32_t>(record, 0xe0) = 2;
+    Stream_PollChunkReads(record);
+    word_at<uint32_t>(record, 0xd4) = 0;
+    const uint8_t* const current = current_group(record);
+    if (!word_at<uint16_t>(current, 0xe)) {
+        word_at<uint32_t>(record, 0xe0) = 3;
+        word_at<uint32_t>(record, 0xd8) = 0;
+        Stream_SetupZoneHeaps(record);
+        return;
+    }
+    const uint8_t* const entry = word_at<uint8_t*>(current, 0x14);
+    word_at<uint32_t>(record, 0xd8) =
+        word_at<uint32_t>(group_item(current, word_at<uint32_t>(entry, 0xc)), 0x14) + word_at<uint32_t>(entry, 0x10);
+    Stream_SetupZoneHeaps(record);
+}
+
+namespace {
+
+int32_t title_strncmp(const void* a, uint32_t b, uint32_t count) {
+    return title_function<int32_t XB_CDECL(const void*, const char*, uint32_t)>(0x001eeaf0)(a, title_text(b), count);
+}
+
+uint32_t find_context(uint32_t id) {
+    return title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(0x0028e550)(global_context(), id);  // MemContext_FindById
+}
+
+void hash_name(uint32_t* out, const char* text) {
+    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x00011060)(out, text);  // HashStr_Init
+}
+
+// A sound file's language from its name: .en. 0, .de. 1, .fr. 2, .es. 3, .it. 4, else 5.
+uint32_t sound_language(const char* name) {
+    static const uint32_t kTags[] = {0x008379a4, 0x00837994, 0x0083799c, 0x0083798c, 0x00837984};
+    for (uint32_t i = 0; i < 5; ++i)
+        if (title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10)(name, title_text(kTags[i])))  // _strstr
+            return i;
+    return 5;
+}
+
+// The groups after the loaded one: "AUDIO" registers its sound bank parts (one bank, named after the first file),
+// "VIDEO" caches the zone's memory context, "ANIM" stores its files as zone raw files.
+void register_groups(uint8_t* record) {
+    for (uint32_t g = word_at<uint32_t>(record, 0x80) + 1; g < word_at<uint32_t>(word_at<uint8_t*>(record, 0x7c), 0xc);
+         ++g) {
+        const uint8_t* const group = word_at<uint8_t*>(word_at<uint8_t*>(record, 0x7c), 8) + g * 0x18;
+        uint32_t bank[8] = {};
+        if (!title_strncmp(group, 0x0083847c, 8)) {  // AUDIO
+            for (int32_t j = 0; j < int32_t(word_at<uint16_t>(group, 0xe)); ++j) {
+                const uint8_t* const entry = word_at<uint8_t*>(group, 0x14) + uint32_t(j) * 0x14;
+                const uint32_t language = sound_language(word_at<const char*>(entry, 0));
+                // The original's stack buffers, zeroed as tests have its dead stack: the hashed names are copied out whole.
+                char text[0x80] = {};
+                int32_t length = 0;
+                Q_strncpyLen(text, &length, 0x7f, word_at<const char*>(entry, 0));
+                text[0x7f] = static_cast<char>(length);
+                if (text[0]) {
+                    for (char* p = text;;) {
+                        if (*p == '.') {
+                            *p = 0;
+                            break;
+                        }
+                        const char next = p[1];
+                        ++p;
+                        if (!next) break;
+                    }
+                }
+                uint32_t hashed[8] = {};
+                hash_name(hashed, text);
+                const uint32_t data = word_at<uint32_t>(group_item(group, word_at<uint32_t>(entry, 0xc)), 0) +
+                                      word_at<uint32_t>(entry, 0x10);
+                SoundBank_AddPart(hashed, title_global<uint8_t*>(0x0095f4c0), language, word_at<uint32_t>(record, 0x74),
+                                  data);  // rm_soundBanks
+                if (j == 0) {
+                    uint32_t first[8] = {};
+                    hash_name(first, text);
+                    std::memcpy(bank, first, sizeof(bank));
+                }
+            }
+            title_function<void XB_STDCALL(uint32_t, const uint32_t*, uint32_t)>(0x002ce8f0)(  // S_LoadSoundBank
+                title_global<uint32_t>(0x0095f4c0), bank, 1);
+        } else if (!title_strncmp(group, 0x00838474, 8)) {  // VIDEO
+            if (!word_at<uint32_t>(record, 0x78)) word_at<uint32_t>(record, 0x78) = find_context(word_at<uint32_t>(record, 0x74));
+        } else if (!title_strncmp(group, 0x0083846c, 8)) {  // ANIM
+            for (int32_t j = 0; j < int32_t(word_at<uint16_t>(group, 0xe)); ++j) {
+                const uint8_t* const entry = word_at<uint8_t*>(group, 0x14) + uint32_t(j) * 0x14;
+                const uint32_t data = word_at<uint32_t>(entry, 0x10) + word_at<uint32_t>(word_at<uint8_t*>(group, 0x10), 0);
+                Stream_AddZoneRawFile(word_at<const char*>(entry, 0), word_at<uint32_t>(record, 0x74),
+                                      title_global<uint8_t*>(0x0095f630), data, word_at<uint32_t>(entry, 8));
+            }
+        }
+    }
+}
+
+}  // namespace
+
+void XB_STDCALL Stream_UpdateLoad(uint8_t* record) {
+    file_pump();
+    const uint32_t state = word_at<uint32_t>(record, 0xe0);
+    uint32_t done = title_global<uint32_t>(0x0095f614);
+    title_global<uint32_t>(0x0095f614) = 0;
+    if (state == 0) {
+        // The image header read: relocated in the shared buffer, then the items' buffers set up.
+        if (file_status(word_at<int32_t>(record, 0x88)) != -1) return;
+        Stream_SetLoadProgress(0, 0x8000, load_progress());
+        const float zero = 0.0f;
+        title_global<float>(0x0095f744) = (zero - title_global<float>(0x0095f740)) + title_global<float>(0x0095f744);
+        title_global<float>(0x0095f740) = zero;
+        title_global<uint32_t>(0x0095f73c) += 0x8000;
+        title_global<uint32_t>(0x0095f738) = 0;
+        uint8_t* const image = word_at<uint8_t*>(record, 0x84);
+        word_at<uint8_t*>(record, 0x7c) = image;
+        Stream_RelocateZone(0, image, 0);
+        word_at<int32_t>(record, 0x88) = -1;
+        Stream_BeginZoneLoad(record);
+        return;
+    }
+    if (state == 2) {
+        // Each ready entry handed to its file type's load handler, until 0x008fef6c files' worth this frame.
+        while (done < title_global<uint32_t>(0x008fef6c)) {
+            if (!Stream_IsChunkReady(record)) return;
+            const uint8_t* const entry =
+                word_at<uint8_t*>(current_group(record), 0x14) + word_at<uint32_t>(record, 0xd4) * 0x14;
+            char* const name = word_at<char*>(entry, 0);
+            const uint32_t size = word_at<uint32_t>(entry, 8);
+            done += Stream_GetFileType(name);
+            const TitleRegs regs{address_of(record), address_of(name), 0, 0, size, done};
+            const uint32_t args[3] = {word_at<uint32_t>(record, 0xd8), size, word_at<uint32_t>(record, 0x74)};
+            cg_call_regs(0x00292650, &regs, args, 3);  // Stream_RunLoadHandler
+            ++word_at<uint32_t>(record, 0xd4);
+            Stream_SeekNextItem(0, 0, record);
+            if (!word_at<uint32_t>(record, 0xd8)) return;
+        }
+        return;
+    }
+    if (state != 3) return;
+    // All entries loaded: the file closed, the script told, the later groups registered, the image kept.
+    title_function<int32_t XB_CDECL(int32_t)>(0x000cac90)(word_at<int32_t>(record, 0x50));  // File_Close
+    word_at<int32_t>(record, 0x50) = -1;
+    word_at<uint32_t>(record, 0xdc) = 0;
+    if (!word_at<uint32_t>(record, 0x78)) word_at<uint32_t>(record, 0x78) = find_context(word_at<uint32_t>(record, 0x74));
+    title_function<void XB_CDECL(uint32_t)>(0x002fb480)(word_at<uint32_t>(word_at<uint8_t*>(record, 0x78), 4));  // Scr_NotifyLoaded
+    register_groups(record);
+    if (has_slots(record + 0x64))
+        StreamMem_MoveSlots(0, reinterpret_cast<uint32_t*>(record + 0x64), title_global<uint32_t*>(0x0095f62c), -1);
+    free_item_buffers(record, 1);
+    uint8_t* const copy = keep_image(record);
+    title_global<uint8_t>(0x0095f610) = 0;
+    word_at<uint8_t*>(record, 0x84) = copy;
+    word_at<uint8_t*>(record, 0x7c) = copy;
+    Stream_RelocateZone(0, copy, 1);
+}
+
+// 0x00292c00 (was FUN_00292c00; record in EAX): state +0xdc 1 Stream_UpdateLoad, 2 Stream_UpdateUnload. Dead: no call,
+// pointer or immediate (Stream_Update has the same switch inline).
+void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record) {
+    const uint32_t state = word_at<uint32_t>(record, 0xdc);
+    if (state == 1)
+        Stream_UpdateLoad(record);
+    else if (state == 2)
+        Stream_UpdateUnload(record);
+}
 }  // namespace game

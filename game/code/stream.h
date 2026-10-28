@@ -674,6 +674,20 @@ extern "C" void Stream_QueueLoad_entry(void);
 // +0x28 (Stream_SetViewPosition). Then 0x00988ce0 = the "sky" texture (Stream_FindInZones in the zone of the first
 // listed request with kind 2, else -1); returns it.
 uint32_t XB_STDCALL Stream_ParseZbb(uint8_t* manager, uint8_t* data, uint32_t zone);
+// 0x00291b00 (stdcall: request): the last group with an empty name (+0) becomes the current one (+0x80; none: return);
+// the zone's slots (+0x54, StreamMem_GetBlock, at most 32) become the first items' buffers; then each item without a
+// slot buffer (or with flag 1) gets one: flag 2 a heap block (Stream_Alloc of its size), flag 1 under the slot size a
+// one-slot buffer (StreamMem_Alloc into +0x64), else a 32 KB-rounded Stream_Alloc block (flag 8); every read cleared.
+// +0xe0 = 2, Stream_PollChunkReads, entry +0xd4 = 0 and its data +0xd8 (none: +0xe0 = 3), Stream_SetupZoneHeaps.
+void XB_STDCALL Stream_BeginZoneLoad(uint8_t* record);
+// 0x002926c0 (stdcall: request; Stream_Update for loading requests): by +0xe0 after File_PumpRequests (0x0095f614
+// cleared, its old value the files done this frame): 0 header read -> relocated in place (+0x7c = +0x84) and
+// Stream_BeginZoneLoad; 2 while under 0x008fef6c files: each ready entry (Stream_IsChunkReady) through
+// Stream_RunLoadHandler, then Stream_SeekNextItem; 3 done -> file closed, Scr_NotifyLoaded, the later groups registered
+// (AUDIO sound bank parts / VIDEO context / ANIM raw files), +0x64 slots returned, owned buffers (flags 8 and 1) freed,
+// the image kept in its own block (as StreamRequest_Cancel).
+void XB_STDCALL Stream_UpdateLoad(uint8_t* record);
+void XB_REGS1 XB_CDECL Stream_UpdateRequest(uint8_t* record);
 // 0x0028bea0 Space (load handler): a bare RET; unhookable, not in kFunctions.
 void XB_CDECL Stream_LoadSpace(char* name, uint8_t* data, uint32_t size, uint32_t zone);
 
