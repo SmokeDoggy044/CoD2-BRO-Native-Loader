@@ -40,6 +40,7 @@
 #include "thread_env.h"
 #include "xbe.h"
 #include "xbox_d3d_api.h"
+#include "test_mode.h"
 #include "xbox_dsound.h"
 #include "xbox_input.h"
 #include "xonline.h"
@@ -707,6 +708,13 @@ int loader_main(int argc, char** argv) {
     if (options->compare) compare.host_code.push_back(loader::scene_force_thunk());
     if (options->compare)
         compare.results = fs::path(COD_BRO_SYMBOLS_DIR) / (compare.multiplayer ? "functions_mp.csv" : "functions.csv");
+    // Test processes run the DirectSound replacements without output (audio/test_mode.h).
+    if (options->compare)
+        audio::set_test_mode(loader::compare::in_test_flag(), [](audio::TestLock which) {
+            loader::compare::host_lock_held(static_cast<uint32_t>(which));
+        });
+    compare.before_fork = audio::hold_for_fork;
+    compare.after_fork = audio::release_after_fork;
     loader::compare::install(game::functions(), compare);
     std::atexit([] { loader::compare::flush(); });
 

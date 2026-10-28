@@ -21,6 +21,16 @@ void configure(const OutputConfig& config);
 // without the library prefix). The loader redirects each function it finds.
 std::span<const xbox::KernelImpl> dsound_functions();
 
+// The buffer, stream and media object methods titles call through vtables, by our own
+// names (Stream_GetStatus, Media_Process, ...).
+std::span<const xbox::KernelImpl> dsound_methods();
+
+// Around the comparison harness's fork of the game (each test's copy): every DirectSound
+// lock is taken first (the mixer thread's current voice finishes), so that the copy's
+// voices are consistent and unlocked; release in both processes after the fork.
+void hold_for_fork();
+void release_after_fork();
+
 // Pauses or resumes all sound output (diagnostics: while the title is frozen).
 void set_paused(bool paused);
 

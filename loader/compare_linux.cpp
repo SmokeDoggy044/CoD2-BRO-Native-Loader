@@ -97,7 +97,7 @@ constexpr uint32_t kPagemapChunk = 2048;
 constexpr uint32_t kScanRegions = 512;  // runs of written pages per PAGEMAP_SCAN call
 
 constexpr uint32_t kSdkLogBytes = 512 * 1024;
-constexpr uint32_t kMaxSdkSpecs = 128;
+constexpr uint32_t kMaxSdkSpecs = 256;
 constexpr uint32_t kZeroedStack = 16 * 1024;  // below the caller's ESP in test processes
 constexpr uint32_t kMaxSdkArgs = 10;
 constexpr uint32_t kMaxSdkData = 4096;  // per pointer argument
@@ -139,7 +139,8 @@ struct SdkSpec {
     SdkArg args[kMaxSdkArgs];
 };
 
-enum ReportStatus : uint32_t { kOk, kSignal, kTooManyWrites, kHarnessError };
+// kHostLocked: a pass-through call found a host lock held at the fork (host_lock_held).
+enum ReportStatus : uint32_t { kOk, kSignal, kTooManyWrites, kHarnessError, kHostLocked };
 
 struct Report {
     uint32_t status;
@@ -147,7 +148,8 @@ struct Report {
     uint32_t sdk_log_bytes, sdk_calls;
     uint32_t sdk_overflow;  // the log was full: the test is inconclusive
     uint32_t pass_blocked;  // kSignal on a pass-through export it would not run: PassBlock
-    uint32_t pass_spec;     // that export's spec index
+    uint32_t pass_spec;     // that export's spec index (also: the latest pass-through call's)
+    uint32_t host_lock;     // kHostLocked: which lock (audio::TestLock)
     uint32_t pass_calls;    // pass-through calls made
     uint32_t dirty_count;
     uint32_t scan_pages;  // pages the dirty scan read from pagemap
@@ -225,6 +227,7 @@ using loader::compare::EntryFrame;
 namespace {
 uint32_t g_pokes[8][2];  // XBCMP_POKE: {address, word}
 uint32_t g_poke_count;
+bool g_original_twice;  // XBCMP_ORIGINAL_TWICE
 }  // namespace
 
 extern "C" {
@@ -687,6 +690,7 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
     case SdkStandIn::PassAttributes:
     case SdkStandIn::PassDirectory:
     case SdkStandIn::PassSetInformation:
+    case SdkStandIn::PassSound:
     case SdkStandIn::None: break;
     }
     return false;
@@ -798,6 +802,27 @@ extern "C" XBCMP_CODE void xbcmp_pass_done(uint32_t* frame) {
     pass_mode(c, false);
 }
 
+}  // namespace
+}  // namespace loader::compare
+
+// A pass-through export found a host lock that another thread held at the fork (it stays held
+// in the copy): ends the test as inconclusive instead of waiting forever. Host code calls it.
+[[noreturn]] XBCMP_CODE void loader::compare::host_lock_held(uint32_t which) {
+    ChildArea& c = xbcmp_child;
+    c.report.status = kHostLocked;
+    c.report.host_lock = which;
+    c.report.stack_word = 0;  // the title's call: the innermost export frame's return address
+    for (uint32_t i = c.pass_depth; i > 0; --i)
+        if (!c.pass_frames[i - 1].callback) {
+            c.report.stack_word = c.pass_frames[i - 1].address;
+            break;
+        }
+    child_send(c);
+}
+
+namespace loader::compare {
+namespace {
+
 // A fault on the entry of a recorded SDK replacement: log the call and return to the
 // caller as the replacement would (EAX = 0, stack arguments popped). False if `eip`
 // is not one (or the caller's stack cannot be read): the test then ends as usual.
@@ -857,10 +882,12 @@ XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
         // there, and host code that copies bytes it never set (struct padding) would otherwise
         // copy what the two sides' different frames left there into host memory.
         const uint32_t room = c.stack_limit && esp > c.stack_limit ? esp - c.stack_limit : 0;  // no std::min here
-        const uint32_t floor = esp - (room < kPassZeroedStack ? room : kPassZeroedStack);
+        const uint32_t zeroed = spec.stand_in == SdkStandIn::PassSound ? kZeroedStack : kPassZeroedStack;
+        const uint32_t floor = esp - (room < zeroed ? room : zeroed);
         for (auto* p = reinterpret_cast<uint32_t*>(uintptr_t{floor}); p < stack; ++p) *p = 0;
         ++c.report.sdk_calls;
         ++c.report.pass_calls;
+        c.report.pass_spec = index;
         c.pass_frames[c.pass_depth++] = {0, stack[0]};
         *const_cast<uint32_t*>(stack) = addr_of(reinterpret_cast<const void*>(&xbcmp_pass_return));
         pass_mode(c, true);
@@ -1479,7 +1506,7 @@ bool install_file_guard(const ChildArea& c) {
     for (uint32_t i = 0; i < g_poke_count; ++i)
         *reinterpret_cast<uint32_t*>(uintptr_t{g_pokes[i][0]}) = g_pokes[i][1];
     std::memcpy(&c.start, &context, sizeof(Context));
-    xbcmp_test_target = run_original ? hook.address : hook.code;
+    xbcmp_test_target = run_original || g_original_twice ? hook.address : hook.code;
     c.start.target = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&xbcmp_test_jump));
     // The dead stack below the caller's ESP reads as zeros on both sides: code that
     // sends uninitialized locals (unused lanes of a shader constant block) sends the
@@ -1591,6 +1618,13 @@ std::string signal_text(const Side& side) {
                g_sdk_names[r.pass_spec] + " from " + describe(r.stack_word);
     if (r.status == kTooManyWrites) return std::string(side.what) + " wrote too much memory";
     if (r.status == kHarnessError) return std::string(side.what) + ": harness error";
+    if (r.status == kHostLocked) {
+        static const char* const kLocks[] = {"?", "DirectSound state", "a voice", "the stream callbacks"};
+        const char* lock = kLocks[r.host_lock < std::size(kLocks) ? r.host_lock : 0];
+        return std::string(side.what) + " found " + lock + " locked at the fork (another thread held it): " +
+               (r.pass_spec < g_sdk_names.size() ? g_sdk_names[r.pass_spec] : std::string("?")) + " from " +
+               describe(r.stack_word);
+    }
     const bool host_call = r.signal == SIGSEGV && r.fault_address == r.eip &&
                            !(r.eip >= g_config.image_begin && r.eip < g_config.image_end);
     if (host_call)
@@ -1639,6 +1673,7 @@ size_t sdk_record_words(const std::vector<uint32_t>& log, size_t at) {
     const SdkSpec& spec = g_sdk_specs[log[at]];
     size_t p = at + 1;
     for (uint32_t i = 0; i < spec.arg_count; ++i) {
+        if (spec.args[i].kind == kSdkUnlogged) continue;  // `x`: nothing in the log
         if (p >= log.size()) return 0;
         const uint32_t word = log[p++];
         if (spec.args[i].kind != kSdkValue && word != kSdkNull && word != kSdkBad) p += (word + 3) / 4;
@@ -1979,7 +2014,8 @@ Verdict run_test(const Hook& hook, const Context& entry, uint32_t stack_limit) {
     if (b.report.status != kOk) {
         // The original ran through; the new version reaching host code the original
         // did not need is inconclusive too (e.g. a C runtime call we do not allow).
-        verdict.add(is_host_call(b.report) || b.report.status == kHarnessError ? Outcome::Inconclusive
+        verdict.add(is_host_call(b.report) || b.report.status == kHarnessError || b.report.status == kHostLocked
+                        ? Outcome::Inconclusive
                                                                                 : Outcome::Mismatched,
                     signal_text(b));
         return verdict;
@@ -2230,7 +2266,9 @@ bool start_test(Collector& collector, Hook& hook, uint64_t call, const Context& 
     int verdict[2];
     if (pipe2(verdict, O_CLOEXEC)) return false;
     const uint64_t t_call = now_ns();
+    if (g_config.before_fork) g_config.before_fork();
     const pid_t pid = fork();
+    if (g_config.after_fork) g_config.after_fork();
     if (pid == 0) {
         close(verdict[0]);
         close(collector.game_alive[1]);
@@ -2420,6 +2458,15 @@ void install(std::span<const game::Function> functions, const Config& config) {
     if (const char* timeout = std::getenv("XBCMP_TIMEOUT_MS")) {
         const int ms = std::atoi(timeout);
         if (ms > 0) g_config.timeout_ms = static_cast<uint32_t>(ms);
+    }
+    // XBCMP_ORIGINAL_TWICE=1: both test processes run the original (a determinism check of the
+    // harness and its pass-through calls: every test must match). The counts go into
+    // functions_twice.csv beside the results file instead (not tracked; delete it after).
+    if (const char* twice = std::getenv("XBCMP_ORIGINAL_TWICE"); twice && *twice == '1') {
+        g_original_twice = true;
+        if (!g_config.results.empty()) g_config.results.replace_filename("functions_twice.csv");
+        LOG_INFO("compare", "XBCMP_ORIGINAL_TWICE: the original runs on both sides; counts go to %s",
+                 g_config.results.string().c_str());
     }
     // XBCMP_POKE=ADDR=VALUE[,ADDR=VALUE]: words written in every test process before the
     // test, on both sides (Stream_LoadSync: 0x008bfd80=0, the file system's single-thread

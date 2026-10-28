@@ -1529,6 +1529,88 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         if (!host) LOG_WARN("patches", "%s: recorded kernel call without an implementation", call.name);
         calls.push_back({call.name, host, call.args, call.stand_in, nullptr});
     }
+    // DirectSound (SndHw_Update and the rest of the title's sound layer): pass-through like the
+    // file calls - each test process runs our replacement on its own copy of the voices, with no
+    // output there (audio/test_mode.h: no OpenAL, no mixer thread, so play positions and statuses
+    // stay as they were at the fork, the same on both sides). Arguments are logged; output
+    // pointers (maybe into the caller's frame) are `x`, structures by content. Functions shared
+    // by buffers and streams are one entry (the first name). The vtable methods use our names.
+    static const RecordedCall kRecordedSoundCalls[] = {
+        {"DirectSoundCreate", "s x s", compare::SdkStandIn::PassSound},
+        {"DirectSoundCreateBuffer", "s:24 x", compare::SdkStandIn::PassSound},
+        {"DirectSoundCreateStream", "s:24 x", compare::SdkStandIn::PassSound},
+        {"DirectSoundDoWork", "", compare::SdkStandIn::PassSound},
+        {"DirectSoundUseFullHRTF", "", compare::SdkStandIn::PassSound},
+        {"IDirectSound_CommitDeferredSettings", "s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_CreateSoundBuffer", "s s:24 x s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_DownloadEffectsImage", "s s s s x", compare::SdkStandIn::PassSound},
+        {"IDirectSound_EnableHeadphones", "s s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_Release", "s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_SetDistanceFactor", "s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_SetEffectData", "s s s s:a4*1 s s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_SetMixBinHeadroom", "s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_SetOrientation", "s s s s s s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_SetPosition", "s s s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_SetVelocity", "s s s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSound_SynchPlayback", "s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_GetStatus", "s x", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_Pause", "s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_Play", "s s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_PlayEx", "s s s s", compare::SdkStandIn::PassSound},  // the timestamp: 2 words
+        {"IDirectSoundBuffer_Release", "s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetAllParameters", "s s:76 s", compare::SdkStandIn::PassSound},  // DS3DBUFFER
+        {"IDirectSoundBuffer_SetBufferData", "s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetCurrentPosition", "s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetEG", "s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetFormat", "s s:18", compare::SdkStandIn::PassSound},  // WAVEFORMATEX
+        {"IDirectSoundBuffer_SetFrequency", "s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetHeadroom", "s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetLoopRegion", "s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetMixBins", "s s:8", compare::SdkStandIn::PassSound},  // DSMIXBINS
+        {"IDirectSoundBuffer_SetMode", "s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetPlayRegion", "s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetRolloffCurve", "s s:a2*4 s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_SetVolume", "s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_Stop", "s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundBuffer_StopEx", "s s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundStream_FlushEx", "s s s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundStream_Pause", "s s", compare::SdkStandIn::PassSound},
+        {"IDirectSoundStream_SetFormat", "s s:18", compare::SdkStandIn::PassSound},
+        {"IDirectSoundStream_SetMixBinVolumes_8", "s s:8", compare::SdkStandIn::PassSound},
+        {"XAudioCreateAdpcmFormat", "s s x", compare::SdkStandIn::PassSound},
+        {"XAudioCreatePcmFormat", "s s s x", compare::SdkStandIn::PassSound},
+        {"XAudioDownloadEffectsImage", "s s s x", compare::SdkStandIn::PassSound},
+        {"XFileCreateMediaObjectAsync", "s s x", compare::SdkStandIn::PassSound},
+        {"Stream_AddRef", "s", compare::SdkStandIn::PassSound},
+        {"Stream_Release", "s", compare::SdkStandIn::PassSound},
+        {"Stream_GetInfo", "s x", compare::SdkStandIn::PassSound},
+        {"Stream_GetStatus", "s x", compare::SdkStandIn::PassSound},
+        {"Stream_Process", "s s:24 s:24", compare::SdkStandIn::PassSound},  // XMEDIAPACKETs
+        {"Stream_Discontinuity", "s", compare::SdkStandIn::PassSound},
+        {"Stream_Flush", "s", compare::SdkStandIn::PassSound},
+        {"Media_AddRef", "s", compare::SdkStandIn::PassSound},
+        {"Media_Release", "s", compare::SdkStandIn::PassSound},
+        {"Media_GetInfo", "s x", compare::SdkStandIn::PassSound},
+        {"Media_GetStatus", "s x", compare::SdkStandIn::PassSound},
+        {"Media_Process", "s s:24 s:24", compare::SdkStandIn::PassSound},
+        {"Media_Nothing", "s", compare::SdkStandIn::PassSound},
+        {"Media_Seek", "s s s x", compare::SdkStandIn::PassSound},
+        {"Media_GetLength", "s x", compare::SdkStandIn::PassSound},
+    };
+    for (const RecordedCall& call : kRecordedSoundCalls) {
+        uint32_t host = 0;
+        for (const auto table : {audio::dsound_functions(), audio::dsound_methods()})
+            for (const xbox::KernelImpl& function : table)
+                if (std::strcmp(function.name, call.name) == 0)
+                    host = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function.address));
+        if (!host) {
+            LOG_WARN("patches", "%s: recorded sound call without a replacement", call.name);
+            continue;
+        }
+        bool shared = false;  // an alias of an entry already recorded
+        for (const compare::SdkCall& earlier : calls) shared |= earlier.host_address == host;
+        if (!shared) calls.push_back({call.name, host, call.args, call.stand_in, nullptr});
+    }
     // The RDTSC trampolines' clock (Sys_Milliseconds and the frame timers): 0 on both sides
     // (the trampolines themselves stay executable: rdtsc_trampolines).
     calls.push_back({"title_rdtsc", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&title_rdtsc)), "",

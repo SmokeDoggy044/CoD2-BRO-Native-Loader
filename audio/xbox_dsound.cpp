@@ -31,6 +31,7 @@
 #include "filesystem.h"
 #include "log.h"
 #include "objects.h"
+#include "test_mode.h"
 #include "types.h"
 
 namespace audio {
@@ -186,13 +187,17 @@ struct State {
 
 State& g = *new State;  // used by the mixer thread until exit: never destroyed
 
+// The output, or none in a test process of the comparison harness (test_mode.h): there the
+// voices only keep their state, and nothing reaches OpenAL.
+Output* out() { return in_test() ? nullptr : g.output.get(); }
+
 // DSEFFECTIMAGEDESC for titles that look at it: no effects.
 uint32_t g_empty_effect_image[64] = {};
 
 // --- Vtables -------------------------------------------------------------------------------
 
 [[noreturn]] void vtable_trap(const char* type, int slot) {
-    LOG_ERROR("audio", "%s method #%d called through its vtable: not implemented", type, slot);
+    if (!in_test()) LOG_ERROR("audio", "%s method #%d called through its vtable: not implemented", type, slot);
     std::abort();
 }
 
@@ -229,7 +234,7 @@ T* object_impl(XbPtr pointer, uint32_t magic) {
 
 VoiceImpl* voice_of(XbPtr pointer) {
     VoiceImpl* voice = object_impl<VoiceImpl>(pointer, kMagicVoice);
-    if (!voice) LOG_WARN("audio", "%08x is not a DirectSound buffer or stream", pointer);
+    if (!voice && !in_test()) LOG_WARN("audio", "%08x is not a DirectSound buffer or stream", pointer);
     return voice;
 }
 
@@ -266,7 +271,8 @@ float distance_gain(const VoiceImpl& v) {
 }
 
 void update_voice(VoiceImpl& v) {
-    if (!v.source) return;
+    Output* const o = out();
+    if (!v.source || !o) return;
     const Format format = v.voice.format();
     Output::SourceParams params;
     params.gain = db_gain(v.volume) * db_gain(-int32_t(v.headroom)) * distance_gain(v);
@@ -280,16 +286,18 @@ void update_voice(VoiceImpl& v) {
     } else {
         params.placement = Output::Placement::Direct;
     }
-    g.output->update(v.source, params);
+    o->update(v.source, params);
 }
 
 void update_listener() {
+    Output* const o = out();
+    if (!o) return;
     float position[3], velocity[3], at[3], up[3];
     to_al(g.listener.position, position);
     to_al(g.listener.velocity, velocity);
     to_al(g.listener.front, at);
     to_al(g.listener.top, up);
-    g.output->set_listener(position, velocity, at, up);
+    o->set_listener(position, velocity, at, up);
 }
 
 // Speakers the voice is routed to decide its panning when it is not 3D.
@@ -309,27 +317,34 @@ void set_mix_bins(VoiceImpl& v, XbPtr mix_bins) {
 bool set_format(VoiceImpl& v, XbPtr wave_format) {
     const std::optional<Format> format = parse_wave_format(from_xbox_ptr<const void>(wave_format));
     if (!format) {
-        LOG_WARN("audio", "unsupported wave format (tag %04x)",
+        if (!in_test())
+            LOG_WARN("audio", "unsupported wave format (tag %04x)",
                  wave_format ? *from_xbox_ptr<const uint16_t>(wave_format) : 0u);
         return false;
     }
     v.voice.stop();
     v.voice.set_format(*format);
-    if (v.source) g.output->reformat(v.source);
+    if (Output* o = out(); o && v.source) o->reformat(v.source);
     return true;
 }
 
 // Called with the voice locked, possibly on the mixer thread.
 void packet_done(VoiceImpl& v, const Packet& packet, uint32_t status) {
     if (v.callback) {
-        std::lock_guard lock(g.callbacks_mutex);
+        Guard lock(g.callbacks_mutex, TestLock::Callbacks);
         g.callbacks.push_back({v.callback, {v.context, packet.completion, status}});
     } else if (packet.completion) {
         xbox::set_event_handle(packet.completion);
     }
 }
 
+// Starts the voice's output (OpenAL source) as its state now says.
+void sync(VoiceImpl& v) {
+    if (Output* o = out(); o && v.source) o->sync(v.source);
+}
+
 bool ensure_output() {
+    if (in_test()) return true;  // voices without output
     if (!g.output) g.output = Output::open(g.config);
     return g.output != nullptr;
 }
@@ -341,7 +356,8 @@ VoiceImpl* create_voice(bool stream, uint32_t flags, XbPtr wave_format, XbPtr mi
     v->guest = {to_xbox_ptr(voice_vtable().data()), kMagicVoice, v};
     v->flags = flags;
     v->voice.on_packet_done = [v](const Packet& packet, uint32_t status) { packet_done(*v, packet, status); };
-    v->source = g.output->add_source(v->voice);
+    Output* const o = out();
+    v->source = o ? o->add_source(v->voice) : nullptr;
     if (wave_format) set_format(*v, wave_format);
     set_mix_bins(*v, mix_bins);
     update_voice(*v);
@@ -351,7 +367,7 @@ VoiceImpl* create_voice(bool stream, uint32_t flags, XbPtr wave_format, XbPtr mi
 
 template <typename Change>
 uint32_t change_3d(XbPtr self, uint32_t apply, Change change) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     VoiceImpl* v = voice_of(self);
     if (!v) return kInvalidArg;
     if (apply == kDeferred) {
@@ -367,7 +383,7 @@ uint32_t change_3d(XbPtr self, uint32_t apply, Change change) {
 
 template <typename Change>
 uint32_t change_voice(XbPtr self, Change change) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     VoiceImpl* v = voice_of(self);
     if (!v) return kInvalidArg;
     change(*v);
@@ -378,7 +394,7 @@ uint32_t change_voice(XbPtr self, Change change) {
 
 uint32_t XB_STDCALL DirectSoundCreate(XbPtr device_guid, XbPtr* direct_sound, XbPtr outer) {
     (void)device_guid, (void)outer;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     if (!ensure_output()) return kFail;
     static const Vtable vtable = make_traps<DeviceTrap>(std::make_integer_sequence<int, kVtableSlots>{});
     g.device = {to_xbox_ptr(vtable.data()), kMagicDevice, nullptr};
@@ -389,12 +405,12 @@ uint32_t XB_STDCALL DirectSoundCreate(XbPtr device_guid, XbPtr* direct_sound, Xb
 
 uint32_t XB_STDCALL IDirectSound_Release(XbPtr self) {
     (void)self;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     return g.device_refs > 0 ? static_cast<uint32_t>(--g.device_refs) : 0;
 }
 
 uint32_t XB_STDCALL DirectSoundCreateBuffer(const XbDsBufferDesc* desc, XbPtr* buffer) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     if (!desc || !ensure_output()) return kInvalidArg;
     VoiceImpl* v = create_voice(false, desc->flags, desc->format, desc->mix_bins);
     if (desc->buffer_bytes) {
@@ -411,7 +427,7 @@ uint32_t XB_STDCALL IDirectSound_CreateSoundBuffer(XbPtr self, const XbDsBufferD
 }
 
 uint32_t XB_STDCALL DirectSoundCreateStream(const XbDsStreamDesc* desc, XbPtr* stream) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     if (!desc || !ensure_output()) return kInvalidArg;
     VoiceImpl* v = create_voice(true, desc->flags, desc->format, desc->mix_bins);
     v->max_packets = std::max<uint32_t>(desc->max_attached_packets, 1);
@@ -423,7 +439,7 @@ uint32_t XB_STDCALL DirectSoundCreateStream(const XbDsStreamDesc* desc, XbPtr* s
 
 uint32_t XB_STDCALL IDirectSound_SetPosition(XbPtr self, float x, float y, float z, uint32_t apply) {
     (void)self;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     Listener& l = apply == kDeferred ? g.pending_listener : g.listener;
     if (apply == kDeferred && !g.listener_pending) l = g.listener;
     l.position[0] = x, l.position[1] = y, l.position[2] = z;
@@ -437,7 +453,7 @@ uint32_t XB_STDCALL IDirectSound_SetPosition(XbPtr self, float x, float y, float
 
 uint32_t XB_STDCALL IDirectSound_SetVelocity(XbPtr self, float x, float y, float z, uint32_t apply) {
     (void)self;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     Listener& l = apply == kDeferred ? g.pending_listener : g.listener;
     if (apply == kDeferred && !g.listener_pending) l = g.listener;
     l.velocity[0] = x, l.velocity[1] = y, l.velocity[2] = z;
@@ -449,7 +465,7 @@ uint32_t XB_STDCALL IDirectSound_SetVelocity(XbPtr self, float x, float y, float
 uint32_t XB_STDCALL IDirectSound_SetOrientation(XbPtr self, float front_x, float front_y, float front_z, float top_x,
                                                 float top_y, float top_z, uint32_t apply) {
     (void)self;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     Listener& l = apply == kDeferred ? g.pending_listener : g.listener;
     if (apply == kDeferred && !g.listener_pending) l = g.listener;
     l.front[0] = front_x, l.front[1] = front_y, l.front[2] = front_z;
@@ -466,9 +482,10 @@ uint32_t XB_STDCALL IDirectSound_SetDistanceFactor(XbPtr self, float meters_per_
 
 uint32_t XB_STDCALL IDirectSound_CommitDeferredSettings(XbPtr self) {
     (void)self;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     if (!g.output) return kOk;
-    g.output->begin_batch();
+    Output* const o = out();
+    if (o) o->begin_batch();
     if (g.listener_pending) {
         g.listener = g.pending_listener;
         g.listener_pending = false;
@@ -482,30 +499,31 @@ uint32_t XB_STDCALL IDirectSound_CommitDeferredSettings(XbPtr self) {
         }
         update_voice(*v);
     }
-    g.output->end_batch();
+    if (o) o->end_batch();
     return kOk;
 }
 
 uint32_t XB_STDCALL IDirectSound_SynchPlayback(XbPtr self) {
     (void)self;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     if (!g.output) return kOk;
-    g.output->begin_batch();
+    Output* const o = out();
+    if (o) o->begin_batch();
     for (VoiceImpl* v : g.voices) {
         if (!v->synch_play && !v->synch_resume) continue;
         if (v->synch_play) v->voice.play(v->synch_looping, v->synch_from_start);
         if (v->synch_resume) v->voice.set_paused(false);
         v->synch_play = v->synch_resume = false;
-        g.output->sync(v->source);
+        sync(*v);
     }
-    g.output->end_batch();
+    if (o) o->end_batch();
     return kOk;
 }
 
 uint32_t XB_STDCALL IDirectSound_EnableHeadphones(XbPtr self, uint32_t enabled) {
     (void)self;
-    std::lock_guard lock(g.mutex);
-    if (g.output) g.output->set_hrtf(enabled != 0);
+    Guard lock(g.mutex, TestLock::State);
+    if (Output* o = out()) o->set_hrtf(enabled != 0);
     return kOk;
 }
 
@@ -534,24 +552,28 @@ uint32_t XB_STDCALL IDirectSound_SetMixBinHeadroom(XbPtr self, uint32_t mix_bin,
     return kOk;
 }
 
-void XB_STDCALL DirectSoundUseFullHRTF() {}
+// Void in the SDK; EAX = 0 here, so that it is the same in every call (the comparison
+// harness logs it).
+uint32_t XB_STDCALL DirectSoundUseFullHRTF() { return kOk; }
 
 // Runs stream callbacks; the APU interrupt would have run them.
-void XB_STDCALL DirectSoundDoWork() {
+uint32_t XB_STDCALL DirectSoundDoWork() {  // void in the SDK
     std::deque<Callback> callbacks;
     {
-        std::lock_guard lock(g.callbacks_mutex);
+        Guard lock(g.callbacks_mutex, TestLock::Callbacks);
         callbacks.swap(g.callbacks);
     }
     const auto call_guest = xbox::kernel_config().call_guest;
     for (const Callback& callback : callbacks)
         if (call_guest) call_guest(callback.routine, callback.args, 3);
+    return kOk;
 }
 
 // --- Formats ---------------------------------------------------------------------------------
 
 // WORD arguments arrive in 4-byte stack slots.
-void XB_STDCALL XAudioCreatePcmFormat(uint32_t channels, uint32_t samples_per_second, uint32_t bits, uint8_t* format) {
+uint32_t XB_STDCALL XAudioCreatePcmFormat(uint32_t channels, uint32_t samples_per_second, uint32_t bits,
+                                          uint8_t* format) {  // void in the SDK
     const auto block_align = static_cast<uint16_t>((channels & 0xFFFF) * (bits & 0xFFFF) / 8);
     const uint16_t words[] = {1, static_cast<uint16_t>(channels)};
     std::memcpy(format, words, 4);
@@ -559,9 +581,11 @@ void XB_STDCALL XAudioCreatePcmFormat(uint32_t channels, uint32_t samples_per_se
     std::memcpy(format + 4, rates, 8);
     const uint16_t tail[] = {block_align, static_cast<uint16_t>(bits), 0};
     std::memcpy(format + 12, tail, 6);
+    return kOk;
 }
 
-void XB_STDCALL XAudioCreateAdpcmFormat(uint32_t channels, uint32_t samples_per_second, uint8_t* format) {
+uint32_t XB_STDCALL XAudioCreateAdpcmFormat(uint32_t channels, uint32_t samples_per_second,
+                                            uint8_t* format) {  // void in the SDK
     const auto block_align = static_cast<uint16_t>(36 * (channels & 0xFFFF));
     const uint16_t words[] = {0x69, static_cast<uint16_t>(channels)};
     std::memcpy(format, words, 4);
@@ -569,12 +593,13 @@ void XB_STDCALL XAudioCreateAdpcmFormat(uint32_t channels, uint32_t samples_per_
     std::memcpy(format + 4, rates, 8);
     const uint16_t tail[] = {block_align, 4, 2, 64};  // block align, bits, cbSize, samples per block
     std::memcpy(format + 12, tail, 8);
+    return kOk;
 }
 
 // --- Buffers ---------------------------------------------------------------------------------
 
 uint32_t XB_STDCALL IDirectSoundBuffer_SetFormat(XbPtr self, XbPtr format) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     VoiceImpl* v = voice_of(self);
     if (!v) return kInvalidArg;
     if (!set_format(*v, format)) return kInvalidArg;
@@ -611,7 +636,7 @@ uint32_t play(XbPtr self, uint32_t flags) {
             return;
         }
         v.voice.play(looping, from_start);
-        g.output->sync(v.source);
+        sync(v);
     });
 }
 
@@ -629,7 +654,7 @@ uint32_t stop(XbPtr self) {
     return change_voice(self, [&](VoiceImpl& v) {
         v.synch_play = v.synch_resume = false;
         v.voice.stop();
-        g.output->sync(v.source);
+        sync(v);
     });
 }
 
@@ -647,7 +672,7 @@ uint32_t pause(XbPtr self, uint32_t flags) {
             return;
         }
         v.voice.set_paused(flags != kPauseResume);  // PAUSE, or (streams) PAUSENOACTIVATE
-        g.output->sync(v.source);
+        sync(v);
     });
 }
 
@@ -665,12 +690,12 @@ uint32_t XB_STDCALL IDirectSoundBuffer_GetStatus(XbPtr self, uint32_t* status) {
 }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_Release(XbPtr self) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     VoiceImpl* v = voice_of(self);
     if (!v) return 0;
     if (--v->refs == 0) {
         v->voice.stop();
-        g.output->sync(v->source);
+        sync(*v);
         // The voice object stays allocated: the mixer may still hold it.
     }
     return static_cast<uint32_t>(std::max(v->refs, 0));
@@ -751,7 +776,7 @@ uint32_t XB_STDCALL IDirectSoundStream_FlushEx(XbPtr self, int64_t timestamp, ui
 
 // XMediaObject methods, called through the vtable.
 uint32_t XB_STDCALL Stream_AddRef(XbPtr self) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     VoiceImpl* v = voice_of(self);
     return v ? static_cast<uint32_t>(++v->refs) : 0;
 }
@@ -777,7 +802,7 @@ uint32_t XB_STDCALL Stream_GetStatus(XbPtr self, uint32_t* status) {
 
 uint32_t XB_STDCALL Stream_Process(XbPtr self, const XbMediaPacket* input, const XbMediaPacket* output) {
     (void)output;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     VoiceImpl* v = voice_of(self);
     if (!v || !input) return kInvalidArg;
     Packet packet;
@@ -787,7 +812,7 @@ uint32_t XB_STDCALL Stream_Process(XbPtr self, const XbMediaPacket* input, const
     packet.completed = from_xbox_ptr<uint32_t>(input->completed_size);
     packet.completion = input->completion;
     if (!v->voice.submit(packet, v->max_packets)) return kFail;
-    g.output->sync(v->source);  // streams start with their first packet
+    sync(*v);  // streams start with their first packet
     return kOk;
 }
 
@@ -827,13 +852,13 @@ struct MediaImpl {
 MediaImpl* media_of(XbPtr pointer) { return object_impl<MediaImpl>(pointer, kMagicMedia); }
 
 uint32_t XB_STDCALL Media_AddRef(XbPtr self) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     return m ? static_cast<uint32_t>(++m->refs) : 0;
 }
 
 uint32_t XB_STDCALL Media_Release(XbPtr self) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     if (!m) return 0;
     const int refs = --m->refs;
@@ -860,7 +885,7 @@ uint32_t XB_STDCALL Media_GetStatus(XbPtr self, uint32_t* status) {
 
 uint32_t XB_STDCALL Media_Process(XbPtr self, const XbMediaPacket* input, const XbMediaPacket* output) {
     (void)input;
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     if (!m || !output) return kInvalidArg;
     uint32_t done = 0;
@@ -879,7 +904,7 @@ uint32_t XB_STDCALL Media_Nothing(XbPtr self) {  // Discontinuity, Flush, DoWork
 }
 
 uint32_t XB_STDCALL Media_Seek(XbPtr self, int32_t offset, uint32_t origin, uint32_t* absolute) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     if (!m) return kInvalidArg;
     const int64_t base = origin == 1 ? int64_t(m->position) : origin == 2 ? int64_t(m->file->size().value_or(0)) : 0;
@@ -889,7 +914,7 @@ uint32_t XB_STDCALL Media_Seek(XbPtr self, int32_t offset, uint32_t origin, uint
 }
 
 uint32_t XB_STDCALL Media_GetLength(XbPtr self, uint32_t* length) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     if (!m) return kInvalidArg;
     *length = static_cast<uint32_t>(m->file->size().value_or(0));
@@ -917,10 +942,11 @@ uint32_t XB_STDCALL XFileCreateMediaObjectAsync(Handle file, uint32_t max_packet
     (void)max_packets;
     std::shared_ptr<platform::File> host = xbox::host_file(file);
     if (!host) {
-        LOG_WARN("audio", "XFileCreateMediaObjectAsync: handle %08x is not an open file", file);
+        if (!in_test())
+            LOG_WARN("audio", "XFileCreateMediaObjectAsync: handle %08x is not an open file", file);
         return kInvalidArg;
     }
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     auto* m = new MediaImpl();
     m->guest = {to_xbox_ptr(media_vtable().data()), kMagicMedia, m};
     m->file = std::move(host);
@@ -989,10 +1015,40 @@ const xbox::KernelImpl kFunctions[] = {
     DS(XFileCreateMediaObjectAsync),
 };
 
+// Methods titles call through the vtables (not by SDK name): the comparison harness runs
+// them in its test processes like the functions above.
+const xbox::KernelImpl kMethods[] = {
+    DS(Stream_AddRef),     DS(Stream_Release),       DS(Stream_GetInfo), DS(Stream_GetStatus),
+    DS(Stream_Process),    DS(Stream_Discontinuity), DS(Stream_Flush),   DS(Media_AddRef),
+    DS(Media_Release),     DS(Media_GetInfo),        DS(Media_GetStatus), DS(Media_Process),
+    DS(Media_Nothing),     DS(Media_Seek),           DS(Media_GetLength),
+};
+
 }  // namespace
 
+TestMode g_test_mode;
+
+void set_test_mode(const volatile uint8_t* in_test, void (*lock_held)(TestLock which)) {
+    g_test_mode = {in_test, lock_held};
+}
+
+std::span<const xbox::KernelImpl> dsound_methods() { return kMethods; }
+
+// The lock order everywhere: the state, then a voice, then the callbacks (render: voice, callbacks).
+void hold_for_fork() {
+    g.mutex.lock();
+    for (const VoiceImpl* v : g.voices) v->voice.hold();
+    g.callbacks_mutex.lock();
+}
+
+void release_after_fork() {
+    g.callbacks_mutex.unlock();
+    for (auto v = g.voices.rbegin(); v != g.voices.rend(); ++v) (*v)->voice.release();
+    g.mutex.unlock();
+}
+
 void configure(const OutputConfig& config) {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     g.config = config;
 }
 
@@ -1003,7 +1059,7 @@ void set_paused(bool paused) {
 }
 
 Output* output() {
-    std::lock_guard lock(g.mutex);
+    Guard lock(g.mutex, TestLock::State);
     return g.output.get();
 }
 

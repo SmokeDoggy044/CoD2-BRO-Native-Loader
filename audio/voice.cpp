@@ -1,12 +1,14 @@
 #include "voice.h"
 
+#include "test_mode.h"
+
 #include <algorithm>
 #include <cstring>
 
 namespace audio {
 
 void Voice::set_format(const Format& format) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     format_ = format;
     block_.assign(format.block_align, 0);
     block_fill_ = 0;
@@ -16,14 +18,14 @@ void Voice::set_format(const Format& format) {
 }
 
 Format Voice::format() const {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     return format_;
 }
 
 // --- Buffers --------------------------------------------------------------------------
 
 void Voice::set_buffer_data(const uint8_t* data, uint32_t size) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     data_ = data;
     data_size_ = size;
     play_start_ = play_length_ = loop_start_ = loop_length_ = 0;
@@ -31,29 +33,29 @@ void Voice::set_buffer_data(const uint8_t* data, uint32_t size) {
 }
 
 void Voice::set_play_region(uint32_t start, uint32_t length) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     play_start_ = start;
     play_length_ = length;
 }
 
 void Voice::set_loop_region(uint32_t start, uint32_t length) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     loop_start_ = start;
     loop_length_ = length;
 }
 
 void Voice::set_position(uint32_t offset) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     cursor_ = std::min(format_.bytes_to_frames(offset), format_.bytes_to_frames(region_bytes()));
 }
 
 uint32_t Voice::position() const {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     return format_.frames_to_bytes(cursor_);
 }
 
 void Voice::play(bool looping, bool from_start) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     if (from_start) cursor_ = 0;
     looping_ = looping;
     playing_ = true;
@@ -65,7 +67,7 @@ void Voice::stop() {
         flush();
         return;
     }
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     playing_ = false;
     paused_ = false;
 }
@@ -78,7 +80,7 @@ uint32_t Voice::region_bytes() const {
 // --- Streams --------------------------------------------------------------------------
 
 bool Voice::submit(const Packet& packet, size_t max_packets) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     if (packets_.size() >= max_packets) return false;
     if (packet.status) *packet.status = kPacketPending;
     if (packet.completed) *packet.completed = 0;
@@ -90,17 +92,17 @@ bool Voice::submit(const Packet& packet, size_t max_packets) {
 }
 
 size_t Voice::queued_packets() const {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     return packets_.size();
 }
 
 void Voice::discontinuity() {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     if (playing_) ending_ = true;
 }
 
 void Voice::flush() {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     for (Packet& packet : packets_) {
         const uint32_t played = &packet == &packets_.front() ? packet_offset_ : 0;
         finish_packet(packet, kPacketFlushed, played);
@@ -121,34 +123,34 @@ void Voice::finish_packet(Packet& packet, uint32_t status, uint32_t played) {
 // --- Both -----------------------------------------------------------------------------
 
 void Voice::set_paused(bool paused) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     paused_ = paused;
 }
 
 bool Voice::paused() const {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     return paused_;
 }
 
 bool Voice::playing() const {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     return playing_;
 }
 
 bool Voice::looping() const {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     return looping_;
 }
 
 bool Voice::starved() const {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     return starved_;
 }
 
 // --- Rendering ------------------------------------------------------------------------
 
 size_t Voice::render(int16_t* out, size_t frames) {
-    std::lock_guard lock(mutex_);
+    Guard lock(mutex_, TestLock::Voice);
     if (!playing_ || format_.block_align == 0) return 0;
     if (paused_) {
         std::memset(out, 0, frames * format_.channels * sizeof(int16_t));

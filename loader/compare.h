@@ -67,6 +67,10 @@ enum class SdkStandIn : uint8_t {
     PassAttributes,     // NtQueryFullAttributesFile: logs the path (arg 0)
     PassDirectory,      // NtQueryDirectoryFile: logs the file mask (ANSI_STRING*, arg 8)
     PassSetInformation, // NtSetInformationFile: FilePositionInformation (14) only
+    // The DirectSound replacements (audio/test_mode.h: no output in test processes). Like Pass, but
+    // only 16 KB below the call are zeroed (their host frames are small; decompiled callers that
+    // run title code 128 KB below their own frame, CL_Frame, would lose it to 128 KB).
+    PassSound,
 };
 
 // Whether a recorded call is a pass-through (runs the real export in the test process).
@@ -114,7 +118,13 @@ struct Config {
     // is not tested.
     uint32_t parallel = 0;
     // SDK replacements recorded in test processes (any other ends a test as inconclusive).
-    std::vector<SdkCall> sdk_calls;};
+    std::vector<SdkCall> sdk_calls;
+    // Around the game's fork of each test: host state that pass-through calls use (the
+    // DirectSound replacements) is locked before, so that the copy holds it between changes,
+    // and released after, in the game and in the copy.
+    void (*before_fork)() = nullptr;
+    void (*after_fork)() = nullptr;
+};
 
 // Hooks `functions`: Replaced ones always, Compare ones only when testing is enabled.
 // Call once, before the title runs. `functions` must outlive the process.
@@ -142,6 +152,11 @@ enum class ForceResult { Started, Busy, Failed };
 // Nonzero in --compare's test processes (host code other than the harness and the game
 // library is not executable there): title-side thunks check it before calling the loader.
 const uint8_t* in_test_flag();
+
+// In a test process: a pass-through SDK call (the DirectSound replacements) found a host lock
+// that another thread held at the fork; ends the test as inconclusive, naming `which`
+// (audio::TestLock). Never returns.
+[[noreturn]] void host_lock_held(uint32_t which);
 
 // Tests a call the title does not make (shutdown and free paths the campaign never
 // reaches): the hooked function `name` runs, original and decompiled, on a copy of the

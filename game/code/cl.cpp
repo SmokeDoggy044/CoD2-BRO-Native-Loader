@@ -1440,10 +1440,12 @@ void XB_CDECL SCR_UpdateScreen(uint32_t entry) {
     if (state == 2) title_global<int32_t>(0x0095f4ec) = 0;
 }
 
-// The C frame sits 0x20000 below the original's; `regs` = the entry registers (TitleRegs order).
+// The C frame sits 0x30000 below the original's (File_PumpRequests' pass-through reads zero
+// 128 KB below their ESP in tests: 0x20000 lost the frame, 2 of 302 tests in mission 6);
+// `regs` = the entry registers (TitleRegs order).
 PLATFORM_ASM_ENTRY(CL_Frame_entry, "pushl %ebp\n"
                                    "movl %esp, %ebp\n"
-                                   GAME_GAP_ESP("0x20000")
+                                   GAME_GAP_ESP("0x30000")
                                    "pushl %edi\n"
                                    "pushl %esi\n"
                                    "pushl %edx\n"

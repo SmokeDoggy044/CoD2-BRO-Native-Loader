@@ -3,6 +3,8 @@
 
 #include "compare.h"
 
+#include <cstdlib>
+
 #include "hooks.h"
 #include "log.h"
 
@@ -26,6 +28,8 @@ const uint8_t* in_test_flag() {
     static const uint8_t never = 0;
     return &never;
 }
+
+void host_lock_held(uint32_t) { std::abort(); }
 
 ForceResult force_call(const char*, const char*, const char*, const TitleRegisters&, uint32_t, std::string& error) {
     error = "--compare works on Linux only";

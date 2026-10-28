@@ -297,6 +297,48 @@ system in its single-thread mode (File_PumpRequests then pumps the devices itsel
 waiting for the request thread), which is how Stream_LoadSync can finish in a test process.
 The recorded-call log holds 512 KB per side (level streaming makes many calls).
 
+## Sound calls
+
+The title's sound layer (SndHw_Update 0x000c7730 and the rest) calls the DirectSound/XAudio
+replacements in `audio/` (buffers, streams, the listener, XMediaObject methods through our own
+vtables). In test processes these are pass-through calls too (`SdkStandIn::PassSound`, the
+`kRecordedSoundCalls` table in loader/patches.cpp: the SDK functions and the vtable methods,
+`audio::dsound_methods()`, by our names): each side runs our replacement on its own copy of the
+voices. Their arguments are logged (structures by content: DSBUFFERDESC, DS3DBUFFER, WAVEFORMATEX,
+DSMIXBINS, XMEDIAPACKET, rolloff curves; output pointers are `x`), then the result, and must agree.
+Since 2026-10-28 that made SndSys_Update, S_UpdateChannels, S_CheckWaveBankNotifies,
+S_StopAllSounds, CL_ClearState, CL_MapLoading, FE_FadeOut and CL_Frame testable (they all ended
+"called host code from SndHw_Update" before).
+
+- No output there (`audio/test_mode.h`): `audio::set_test_mode` gets the harness's in-test flag, and
+  with it set the replacements make no OpenAL call (no device, no mixer thread, nothing logged);
+  voices created in a test have no source. Voices keep the state they had at the fork, so play
+  positions, packet statuses and GetStatus results are the same on both sides.
+- The fork: the game's OpenAL mixer thread changes voices at any time and holds a voice's lock
+  while it renders. `Config::before_fork` / `after_fork` (`audio::hold_for_fork` /
+  `release_after_fork`) take every DirectSound lock (state, voices, stream callbacks, in that order)
+  around the game's fork of each coordinator, so the copy is consistent and unlocked (the mixer
+  waits a few microseconds). A lock still held in a test process (`audio::Guard` tries it) ends the
+  test as inconclusive with the reason ("original found a voice locked at the fork (another thread
+  held it): Stream_GetStatus from 000c79ac SndHw_Update+0x27c"; `compare::host_lock_held`) instead
+  of waiting forever; without the fork locking that hit about 1 test in 40.
+- Only 16 KB below a sound call's ESP are zeroed (128 KB for file calls): decompiled callers that
+  run title code below their own frame keep 128 KB free there, and with 128 KB zeroing CL_Frame's
+  sound calls returned into a zeroed C frame. CL_Frame's gap is now 0x30000: File_PumpRequests'
+  file reads under it still lost the frame twice in 302 tests with 0x20000.
+- Void SDK functions (DirectSoundDoWork, DirectSoundUseFullHRTF, XAudioCreatePcmFormat,
+  XAudioCreateAdpcmFormat) return EAX = 0: their "(result)" record held stack garbage that
+  differed between the sides' frames.
+- Proof of determinism: `XBCMP_ORIGINAL_TWICE=1` runs the original on both sides (counts go to
+  `tools/data/functions_twice.csv`, not functions.csv; delete it afterwards). Missions 1 and 4/5:
+  SndSys_Update 725, S_UpdateChannels 390, S_CheckWaveBankNotifies 357, CL_Frame 344 and the rest,
+  all matched; the only inconclusive tests were other host code (input rumble, renderer, level load
+  timeouts, the `--force` client-frame hook inside CL_Frame).
+
+The same runs fixed the log reader: records with `x` arguments were parsed with a word per `x`
+(nothing is logged for them), so two different logs read as "SDK call log damaged" instead of
+naming the call.
+
 ## Callers that rebuild the original's frame
 
 A decompiled caller runs its callees deeper on the stack than the original, and some title
@@ -312,7 +354,8 @@ a 128 KB gap Stream_UpdateLoad's File_PumpRequests zeroed its own C frame in tes
 0); its gap is 192 KB. Stale-stack reads inside title callees can still differ (R_AddEntityModel's subtree): bisect by calling
 original addresses instead of ours for groups of callees.
 
-Debugging variables: `XBCMP_ONLY=name,name` hooks only those functions and keeps testing
+Debugging variables: `XBCMP_ORIGINAL_TWICE=1` (both sides run the original, Sound calls);
+`XBCMP_ONLY=name,name` hooks only those functions and keeps testing
 them past 100 matches (settled ones too); `XBCMP_EVERY=N` tests every N-th call instead of
 every 64th (reaches calls the sampling skips); `XBCMP_SHOW=N` lists N runs of differences
 per report (default 6; above 6 also the entry ESP and the stack limit). Reports are capped at

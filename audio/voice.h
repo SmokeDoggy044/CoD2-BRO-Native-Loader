@@ -74,6 +74,11 @@ public:
     // fewer than asked means the voice ended (it is no longer playing).
     size_t render(int16_t* out, size_t frames);
 
+    // The comparison harness's fork (xbox_dsound.h, hold_for_fork): the voice locked, so that
+    // the copy sees it between changes.
+    void hold() const { mutex_.lock(); }
+    void release() const { mutex_.unlock(); }
+
     // Called (from render, with the voice locked - keep it short) when a packet
     // completes or is flushed, after its status words are written.
     std::function<void(const Packet& packet, uint32_t status)> on_packet_done;
