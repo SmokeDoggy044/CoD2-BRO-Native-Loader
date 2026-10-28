@@ -144,7 +144,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0007be80,NAL_PosOri_TypeId,4000,4000,0,0,100.0
 0007be90,NAL_PosOri_ValueSize,4000,4000,0,0,100.0
 0007bec0,NAL_Const16,4000,4000,0,0,100.0
-0007bed0,AnimManager_SkipListRemove,1877,1877,0,0,66.7
+0007bed0,AnimManager_SkipListRemove,1701,1701,0,0,95.5
 0007c260,NAL_RleReader_ReadBytes,1844,1844,0,0,100.0
 0007c2b0,NAL_SignalCounter_DecodeBlock,3213,3213,0,0,95.3
 0007c360,NAL_SignalCounter_SkipBlock,3043,3043,0,0,100.0
@@ -178,10 +178,10 @@ address,name,tested,matched,nan,mismatched,coverage
 0007e1a0,NAL_Packed8EntropyFloat3_DecodeFrames,3053,3053,0,0,94.4
 0007e480,NAL_Packed8EntropyFloat3_DecodeBlock,3162,3162,0,0,94.9
 0007e550,NAL_Packed8EntropyFloat3_DecodeChannelBlock,1031,1031,0,0,100.0
-0007e8a0,NAL_Packed8EntropyFloat3_Evaluate,3205,3205,0,0,67.6
+0007e8a0,NAL_Packed8EntropyFloat3_Evaluate,3223,3223,0,0,53.7
 0007e9d0,NAL_Packed8_DequantizeFloat3,3532,3532,0,0,100.0
 0007ea70,NAL_PackedEntropyFloat3_BeginBlock,3100,3100,0,0,100.0
-0007eb40,NAL_EntropyFloat3_InitReaders,3487,3487,0,0,89.3
+0007eb40,NAL_EntropyFloat3_InitReaders,3479,3479,0,0,89.3
 0007ebd0,NAL_Packed16EntropyFloat3_DecodeFrames,2906,2906,0,0,94.8
 0007eed0,NAL_Packed16EntropyFloat3_DecodeBlock,2994,2994,0,0,95.2
 0007efa0,NAL_Packed16EntropyFloat3_DecodeChannelBlock,1025,1025,0,0,97.9
@@ -192,7 +192,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0007f760,NAL_Float4_SkipBlock,3073,3073,0,0,100.0
 0007f940,NAL_Float4_SkipCachedFrame,3196,3196,0,0,100.0
 0007f9a0,NAL_EntropyFloat4_BeginBlock,3141,3141,0,0,100.0
-0007fa70,NAL_EntropyFloat4_DecodeFrames,2886,2886,0,0,64.8
+0007fa70,NAL_EntropyFloat4_DecodeFrames,2976,2976,0,0,64.8
 0007fbe0,NAL_EntropyFloat4_DecodeBlock,2981,2981,0,0,95.2
 0007fcb0,NAL_EntropyFloat4_DecodeChannelBlock,1557,1557,0,0,100.0
 0007fe20,NAL_EntropyFloat4_SkipBlock,3121,3121,0,0,100.0
@@ -228,7 +228,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00083500,NAL_Packed16EntropyIKSpin_DecodeFrames,2769,2769,0,0,93.8
 00083600,NAL_Packed16EntropyIKSpin_DecodeBlock,3148,3148,0,0,100.0
 00083690,NAL_Packed16EntropyIKSpin_SkipBlock,3101,3101,0,0,100.0
-00083720,NAL_Packed16EntropyIKSpin_Evaluate,3105,3105,0,0,81.0
+00083720,NAL_Packed16EntropyIKSpin_Evaluate,3053,3053,0,0,37.1
 00083860,NAL_Packed16EntropyIKSpin_Dequantize,3441,3441,0,0,100.0
 00083a30,NAL_Packed16EntropyIKSpin_ApplyStatic,3279,3279,0,0,100.0
 00083ae0,NAL_Packed16EntropyIKSpin_ApplyWraps,3238,3238,0,0,100.0
@@ -240,11 +240,11 @@ address,name,tested,matched,nan,mismatched,coverage
 00083ce0,NAL_Packed16EntropyIKSpin_InitState,3663,3663,0,0,100.0
 000842e0,NAL_EntropyQuat_BeginBlock,3021,3021,0,0,100.0
 000848a0,NAL_EntropyQuat_DecodeFrames,2974,2974,0,0,97.4
-00084f30,NAL_Packed8Quat_Evaluate,3256,3256,0,0,68.2
+00084f30,NAL_Packed8Quat_Evaluate,3243,3243,0,0,55.1
 00085060,Byte3_ToQuat,3554,3554,0,0,100.0
 00085600,NAL_EntropyTrajPosOri_BeginBlock,3039,3039,0,0,100.0
 000856e0,NAL_EntropyTrajPosOri_BeginChannel,1024,1024,0,0,90.8
-000857b0,NAL_EntropyTrajPosOri_DecodeFrames,2858,2858,0,0,64.9
+000857b0,NAL_EntropyTrajPosOri_DecodeFrames,2870,2870,0,0,64.9
 00085a10,AnimManager2c9c_DeletingDtor,1825,1825,0,0,100.0
 00085a40,AnimManager2ce8_DeletingDtor,1817,1817,0,0,100.0
 00085a70,AnimManager2d34_DeletingDtor,1760,1760,0,0,100.0
@@ -258,7 +258,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00086920,NAL_Packed16EntropyIKSpin_BeginChannel,1008,1008,0,0,100.0
 00086ae0,Mat44_InverseRigid,3672,3670,2,0,100.0
 00086cb0,NAL_AnimTrackBase_DeletingDtor,3617,3617,0,0,100.0
-00087cb0,NAL_Skeleton_BoneTransform,1312,1312,0,0,86.9
+00087cb0,NAL_Skeleton_BoneTransform,1221,1221,0,0,96.4
 0008d2d0,NAL_Trajectory_AccumulateRoot2,2839,2540,299,0,100.0
 0008d510,NAL_Packed16EntropyIKSpin_DecodeChannel,1900,1857,43,0,100.0
 0008d6b0,NAL_EntropyReader_DecodeShorts,1181,1181,0,0,100.0
@@ -297,7 +297,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00092c20,NAL_EntropyMode3A,1743,1743,0,0,100.0
 00092d40,NAL_EntropyMode3B,1673,1673,0,0,100.0
 00092e60,NAL_EntropyMode3C,1814,1814,0,0,83.5
-00092f80,NAL_EntropyMode3D,1791,1791,0,0,78.2
+00092f80,NAL_EntropyMode3D,1669,1669,0,0,100.0
 00093090,NAL_EntropyMode1E,1975,1975,0,0,100.0
 000930b0,NAL_IK_TwoBoneAngles,3359,3347,12,0,100.0
 00093b90,nglFreeFileBuffer,3828,3828,0,0,85.7
@@ -431,6 +431,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00249e70,Vehicle_FreeDefs,1737,1737,0,0,100.0
 0024acb0,G_EndGame,4000,4000,0,0,100.0
 0024ad30,HudElem_ClearAll,4000,4000,0,0,100.0
+0024b700,XAnim_HasNotetrack,1567,1567,0,0,100.0
 0024c5a0,G_FreeFieldStrings,3444,3444,0,0,100.0
 0024e5b0,SP_info_notnull_big,3804,3804,0,0,100.0
 0024e620,SP_info_notnull,3818,3818,0,0,100.0
@@ -505,6 +506,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002ac060,IN_MLookUp,3828,3828,0,0,100.0
 002ac0b0,IN_MLookDown,4000,4000,0,0,100.0
 002acb40,CG_WeaponSlotFromName,3692,3692,0,0,100.0
+002aecd0,AnimTree_IsLeafOrSynced,2949,2949,0,0,100.0
 002b00a0,Q_strcat,1264,1264,0,0,100.0
 002b00f0,Q_stricmp,3679,3679,0,0,100.0
 002b0250,COM_ParseExt,3478,3478,0,0,26.8

@@ -48,6 +48,7 @@
 #include "ui_menu.h"
 #include "ui_panel.h"
 #include "unzip.h"
+#include "xanim.h"
 
 namespace game {
 
@@ -1045,6 +1046,7 @@ const Function kFunctions[] = {
     {"NAL_AnimTrack_Dtor", 0x00087420, 0, code(&NAL_AnimTrack_Dtor), 0, Result::None, Status::Compare},
     {"NAL_AnimTrack_Construct", 0x00087dd0, 0, code(&NAL_AnimTrack_Construct), 8, Result::Eax, Status::Compare},
     {"NAL_GenericAnim_ExtractState", 0x0008af60, 0, code(&NAL_GenericAnim_ExtractState), 20, Result::None, Status::Compare},
+    {"NAL_AnimTrack_DeletingDtor", 0x0008b480, 0, code(&NAL_AnimTrack_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"NAL_ChannelClass_Register", 0x0008b4d0, 0, code(&NAL_ChannelClass_Register), 0, Result::Eax, Status::Compare},
     {"NAL_EntropyReader_DecodeShorts", 0x0008d6b0, 0, code(&NAL_EntropyReader_DecodeShorts), 28, Result::None, Status::Compare},
     {"NAL_Packed16EntropyIKSpin_DecodeChannel", 0x0008d510, 0, code(&NAL_Packed16EntropyIKSpin_DecodeChannel), 0, Result::None, Status::Compare},
@@ -1087,6 +1089,8 @@ const Function kFunctions[] = {
     {"NAL_FindSkeleton", 0x0008e0d0, 0, code(&NAL_FindSkeleton), 4, Result::Eax, Status::Compare},
     {"NAL_Skeleton_Register", 0x0008e130, 0, code(&NAL_Skeleton_Register), 4, Result::Eax, Status::Compare},
     {"NAL_Skeleton_Release", 0x0008e2c0, 0, code(&NAL_Skeleton_Release), 4, Result::Eax, Status::Compare},
+    {"NAL_AnimPlayer_DeletingDtor", 0x0008e330, 0, code(&NAL_AnimPlayer_DeletingDtor), 4, Result::Eax, Status::Compare},
+    {"NAL_StreamedAnim_DeletingDtor", 0x0008e350, 0, code(&NAL_StreamedAnim_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"NAL_StreamedAnim_Dtor", 0x0008e370, 0, code(&NAL_StreamedAnim_Dtor), 0, Result::None, Status::Compare},
     {"NAL_StreamedAnim_Create", 0x0008e3f0, 0, code(&NAL_StreamedAnim_Create), 24, Result::Eax, Status::Compare},
     {"NAL_StreamedAnim_Setup", 0x0008e480, 0, code(&NAL_StreamedAnim_Setup), 0, Result::None, Status::Compare},
@@ -1753,11 +1757,13 @@ const Function kFunctions[] = {
     {"multi_wait", 0x002482e0, 0, code(&multi_wait), 0, Result::Eax, Status::Compare},
     {"Use_trigger_use", 0x002488d0, 0, code(&Use_trigger_use), 0, Result::None, Status::Compare},
     {"G_Error", 0x00248af0, 0, code(&G_Error_entry), 0, Result::Eax, Status::Compare},
+    {"AnimTree_HasAnimEnded", 0x00249ae0, 0, code(&AnimTree_HasAnimEnded), 4, Result::Eax, Status::Compare},
     {"G_AddSpawnVarToken", 0x00249c00, 0, code(&G_AddSpawnVarToken), 0, Result::Eax, Status::Compare},
     {"G_RunThink", 0x0024ac50, 0, code(&G_RunThink_entry), 4, Result::None, Status::Compare},
     {"G_EndGame", 0x0024acb0, 0, code(&G_EndGame), 0, Result::None, Status::Compare},
     {"HudElem_ClearAll", 0x0024ad30, 0, code(&HudElem_ClearAll), 0, Result::None, Status::Compare},
     {"G_EntityList_Compact", 0x0024b140, 0, code(&G_EntityList_Compact), 0, Result::Eax, Status::Compare},
+    {"XAnim_HasNotetrack", 0x0024b700, 0, code(&XAnim_HasNotetrack), 8, Result::Al, Status::Compare},
     {"DebugDraw_AddTriangleIfEnabled", 0x0024f790, 0, code(&DebugDraw_AddTriangleIfEnabled), 8, Result::None, Status::Compare},
     {"DebugDraw_AddLineIfEnabled", 0x0024f7d0, 0, code(&DebugDraw_AddLineIfEnabled_entry), 0, Result::None, Status::Compare},
     {"SP_corona", 0x0024fdd0, 0, code(&SP_corona), 4, Result::None, Status::Compare},
@@ -2306,6 +2312,7 @@ const Function kFunctions[] = {
     {"SV_Shutdown", 0x002a6e00, 0, code(&SV_Shutdown), 0, Result::None, Status::Compare},
     {"CameraShake_AllocSlot", 0x002a7f70, 0, code(&CameraShake_AllocSlot), 0, Result::Eax, Status::Compare},
     {"G_AddEvent", 0x002a80b0, 0, code(&G_AddEvent), 8, Result::Eax, Status::Compare},
+    {"AnimData_FindNotetrack", 0x002a8330, 0, code(&AnimData_FindNotetrack_entry), 0, Result::Eax, Status::Compare},
     {"SV_ClearAcknowledgedCommands", 0x002a8610, 0, code(&SV_ClearAcknowledgedCommands_entry), 0, Result::None, Status::Compare},
     {"SV_GameRestartFrame", 0x002a86e0, 0, code(&SV_GameRestartFrame_entry), 0, Result::None, Status::Compare},
     {"SV_GameSystemCalls", 0x002a8750, 0, code(&SV_GameSystemCalls), 4, Result::Eax, Status::Compare},
@@ -2379,6 +2386,13 @@ const Function kFunctions[] = {
     {"SoundRef_SetVolumeScale", 0x002adea0, 0, code(&SoundRef_SetVolumeScale_entry), 4, Result::None, Status::Compare},
     {"CameraShake_SetAmplitude", 0x002ae740, 0, code(&CameraShake_SetAmplitude_entry), 4, Result::Eax, Status::Compare},
     {"CameraShake_InitSlot", 0x002ae780, 0, code(&CameraShake_InitSlot_entry), 4, Result::None, Status::Compare},
+    {"AnimTree_UpdateNoteIndex", 0x002aebf0, 0, code(&AnimTree_UpdateNoteIndex), 0, Result::None, Status::Compare},
+    {"AnimTree_IsLeafOrSynced", 0x002aecd0, 0, code(&AnimTree_IsLeafOrSynced), 0, Result::Eax, Status::Compare},
+    {"AnimTree_FindHeaviestLeaf_r", 0x002aedb0, 0, code(&AnimTree_FindHeaviestLeaf_r), 4, Result::Eax, Status::Compare},
+    {"AnimTree_HasActiveLeaf_r", 0x002aee60, 0, code(&AnimTree_HasActiveLeaf_r), 8, Result::Al, Status::Compare},
+    {"AnimTree_ParentsActive", 0x002aeef0, 0, code(&AnimTree_ParentsActive_entry), 0, Result::Al, Status::Compare},
+    {"AnimTree_SetTime_r", 0x002aefe0, 0, code(&AnimTree_SetTime_r), 4, Result::None, Status::Compare},
+    {"AnimTree_CheckLeafNotes", 0x002af080, 0, code(&AnimTree_CheckLeafNotes_entry), 4, Result::Xmm0, Status::Compare},
     {"AnimTree_Free", 0x002af200, 0, code(&AnimTree_Free_entry), 0, Result::None, Status::Compare},
     {"SV_WriteSnapshotToClient", 0x002af350, 0, code(&SV_WriteSnapshotToClient_entry), 0, Result::None, Status::Compare},
     {"SV_AddServerCommand", 0x002af3d0, 0, code(&SV_AddServerCommand), 8, Result::None, Status::Compare},
@@ -2511,6 +2525,7 @@ const Function kFunctions[] = {
     {"G_SetSoundDoneNotify", 0x002be3e0, 0, code(&G_SetSoundDoneNotify_entry), 0, Result::None, Status::Compare},
     {"XModel_FreeAnimStates", 0x002be7c0, 0, code(&XModel_FreeAnimStates_entry), 0, Result::None, Status::Compare},
     {"AnimTree_CalcPose_r", 0x002beb60, 0, code(&AnimTree_CalcPose_r), 24, Result::Al, Status::Compare},
+    {"AnimTree_NotifyNotetrack", 0x002bfaa0, 0, code(&AnimTree_NotifyNotetrack), 4, Result::None, Status::Compare},
     {"SV_SendServerCommand", 0x002bfd10, 0, code(&SV_SendServerCommand_entry), 4, Result::None, Status::Compare},
     {"SV_SetConfigstring", 0x002bfd80, 0, code(&SV_SetConfigstring), 8, Result::None, Status::Compare},
     {"SV_AdjustAreaPortalState", 0x002bffb0, 0, code(&SV_AdjustAreaPortalState), 0, Result::None, Status::Compare},
