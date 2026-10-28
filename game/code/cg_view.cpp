@@ -4,8 +4,10 @@
 
 #include "cg_ents.h"
 #include "cgame.h"
+#include "dobj.h"
 #include "g_utils.h"
 #include "lanes.h"
+#include "nal_math.h"
 #include "ngl.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -151,6 +153,264 @@ void XB_CDECL CG_CalcGunMoveOffset(float* out) {
     float* cur = &title_global<float>(0x00972ab4);
     settle(cur, target, 0x54c, 0x548, 0x0094a2a0);
     add_sway(out, cur);
+}
+
+PLATFORM_ASM_ENTRY(CG_UpdateWeaponLag_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CG_UpdateWeaponLag) "addl $4, %esp\n"
+                   "ret")
+
+namespace {
+
+// One axis of CG_UpdateWeaponLag over `dt` seconds: the offset moves by its speed and stops at
+// +-limit (the speed cut there when it points outwards), the speed is pulled back by
+// spring * dt, damped by speed * dt * damping and slowed by friction * dt (not past 0), then
+// capped at +-max_speed.
+void lag_axis(float& offset, float& speed, float limit, float dt, float spring, float damping, float friction,
+              float max_speed) {
+    float pos = speed * dt + offset;
+    offset = pos;
+    float v = speed;
+    if (pos > limit) {
+        offset = limit;
+        if (v > 0.0f) v = 0.0f;
+        pos = offset;
+    } else {
+        const float low = 0.0f - limit;
+        if (low > pos) {
+            offset = low;
+            if (0.0f > v) v = 0.0f;
+            pos = offset;
+        }
+    }
+    if (pos > 0.0f)
+        v = v - dt * spring;
+    else if (0.0f > pos)
+        v = dt * spring + v;
+    v = v - v * dt * damping;
+    const float drag = dt * friction;
+    if (v > 0.0f) {
+        v = v - drag;
+        speed = v;
+        if (0.0f > v) speed = v = 0.0f;
+    } else {
+        v = drag + v;
+        speed = v;
+        if (v > 0.0f) speed = v = 0.0f;
+    }
+    if (v > max_speed) {
+        speed = max_speed;
+    } else {
+        const float low = 0.0f - max_speed;
+        if (low > v) speed = low;
+    }
+}
+
+}  // namespace
+
+void XB_CDECL CG_UpdateWeaponLag(float* angles) {
+    // The view weapon's angle lag (weapons with def +0x6dc): offsets 0x00972fb4/b8 (+0x00972fbc,
+    // never moved) with speeds 0x00972fc0/c4 stepped in slices of at most 5 ms of the frame time,
+    // with the spring, damping, max speed and friction of the current weapon (+0x78c.. hip,
+    // +0x7d4.. while aiming, blended by 0x009725d8) and the limits +0x690/+0x694; an axis that is
+    // within 0.25 and moves under 1 snaps to rest, and when both rest the slices stop. Then
+    // added to the angles (ESI).
+    const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[title_global<int32_t>(0x009725d0)];
+    const float k = g(0x009725d8);
+    if (!*reinterpret_cast<const uint32_t*>(def + 0x6dc)) return;
+    const float friction_d = wf(0x798) - wf(0x7e0);
+    const float spring = (wf(0x78c) - wf(0x7d4)) * k + wf(0x7d4);
+    const float max_speed = (wf(0x790) - wf(0x7d8)) * k + wf(0x7d8);
+    const float damping = (wf(0x794) - wf(0x7dc)) * k + wf(0x7dc);
+    const float friction = friction_d * k + wf(0x7e0);
+    float& offset0 = title_global<float>(0x00972fb4);
+    float& offset1 = title_global<float>(0x00972fb8);
+    float& speed0 = title_global<float>(0x00972fc0);
+    float& speed1 = title_global<float>(0x00972fc4);
+    int32_t ms = gi(0x00972534);
+    if (ms > 0) {
+        do {
+            int32_t step;
+            if (ms > 5) {
+                step = 5;
+                ms -= 5;
+            } else {
+                step = ms;
+                ms = 0;
+            }
+            const float dt = static_cast<float>(step) * g(0x0083eb4c);  // 0.001
+            const float rest = g(0x0083ec24);                           // 0.25
+            const float one = g(0x0083eb20);
+            bool rest0 = false;
+            if (platform_x87_greater(rest, abs_bits(offset0)) && platform_x87_greater(one, abs_bits(speed0))) {
+                offset0 = 0.0f;
+                speed0 = 0.0f;
+                rest0 = true;
+            } else {
+                lag_axis(offset0, speed0, wf(0x690), dt, spring, damping, friction, max_speed);
+            }
+            if (platform_x87_greater(rest, abs_bits(offset1)) && platform_x87_greater(one, abs_bits(speed1))) {
+                offset1 = 0.0f;
+                speed1 = 0.0f;
+                if (rest0) break;
+            } else {
+                lag_axis(offset1, speed1, wf(0x694), dt, spring, damping, friction, max_speed);
+            }
+        } while (ms > 0);
+    }
+    angles[0] = angles[0] + offset0;
+    angles[1] = offset1 + angles[1];
+    angles[2] = title_global<float>(0x00972fbc) + angles[2];
+}
+
+PLATFORM_ASM_ENTRY(CG_RotateAnglesByView_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(CG_RotateAnglesByView) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_RotateAnglesByView(float* angles) {
+    // The angles (EBX) as an axis {forward, left, up} times the view angles' axis (refdef
+    // 0x00972bf0), back to angles (AxisToAngles 0x002a27f0): angles relative to the view
+    // turned into world angles.
+    float forward1[3], right1[3], up1[3];
+    uint32_t args1[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles)),
+                         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward1))};
+    AnglesToAxis(args1, right1, up1);
+    const float left1[3] = {0.0f - right1[0], 0.0f - right1[1], 0.0f - right1[2]};
+    float forward2[3], right2[3], up2[3];
+    uint32_t args2[2] = {0x00972bf0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward2))};
+    AnglesToAxis(args2, right2, up2);
+    const float l0 = 0.0f - right2[0];
+    const float l2 = 0.0f - right2[2];
+    const float l1 = 0.0f - right2[1];
+    const float* const w1 = forward1;
+    const float* const u1 = up1;
+    const float* const w2 = forward2;
+    const float* const u2 = up2;
+    float axis[9];
+    axis[0] = ((u2[0] * w1[2]) + (w1[1] * l0)) + (w1[0] * w2[0]);
+    axis[1] = ((u2[1] * w1[2]) + (w1[1] * l1)) + (w2[1] * w1[0]);
+    axis[2] = ((u2[2] * w1[2]) + (w1[1] * l2)) + (w2[2] * w1[0]);
+    axis[3] = ((u2[0] * left1[2]) + (l0 * left1[1])) + (w2[0] * left1[0]);
+    axis[4] = ((u2[1] * left1[2]) + (w2[1] * left1[0])) + (l1 * left1[1]);
+    axis[5] = ((u2[2] * left1[2]) + (w2[2] * left1[0])) + (l2 * left1[1]);
+    axis[6] = ((u1[2] * u2[0]) + (u1[1] * l0)) + (u1[0] * w2[0]);
+    axis[7] = ((u1[2] * u2[1]) + (u1[0] * w2[1])) + (u1[1] * l1);
+    axis[8] = ((u1[2] * u2[2]) + (u1[0] * w2[2])) + (u1[1] * l2);
+    TitleRegs regs{};
+    regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles));
+    regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(axis));
+    cg_call_regs(0x002a27f0, &regs, nullptr, 0);  // AxisToAngles
+}
+
+void XB_CDECL CG_ApplyVehicleTurnToView() {
+    // The vehicle's turn since the last frame carried into the view: A = the axis {forward,
+    // left, up} of the vehicle angles 0x009729bc, M (0x008fef7c, 3x3) the previous frame's A
+    // transposed (0x008fef78 = M not valid). The view axis C (of 0x009725ec) times M A gives
+    // the new view angles 0x009725ec/f0, and cl_viewangles (0x00961798..a0) = those minus the
+    // delta angles (0x009725a4.. as 16-bit, 0x009725f4 for roll); 0x009725f4 = minus the roll of
+    // C A^T. Zero vehicle angles, another view state (0x00972574 != 1) or flags 0x106000 only
+    // store M = A^T.
+    float a[9], right[3];
+    uint32_t args[2] = {0x009729bc, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&a[0]))};
+    AnglesToAxis(args, right, &a[6]);
+    float* const m = &title_global<float>(0x008fef7c);
+    uint32_t& invalid = title_global<uint32_t>(0x008fef78);
+    const float* const vehicle = &title_global<float>(0x009729bc);
+    a[3] = 0.0f - right[0];
+    a[4] = 0.0f - right[1];
+    a[5] = 0.0f - right[2];
+    auto store_transposed = [m, &a]() {
+        m[0] = a[0];
+        m[2] = a[6];
+        m[3] = a[1];
+        m[5] = a[7];
+        m[6] = a[2];
+        m[1] = a[3];
+        m[4] = a[4];
+        m[7] = a[5];
+        m[8] = a[8];
+    };
+    if (vehicle[0] == 0.0f && vehicle[1] == 0.0f && vehicle[2] == 0.0f) {
+        invalid = 1;
+        store_transposed();
+        return;
+    }
+    if (gi(0x00972574) != 1 || (title_global<uint32_t>(0x00972610) & 0x106000)) {
+        invalid = 1;
+        store_transposed();
+        return;
+    }
+    if (invalid) {
+        // MatrixTranspose (0x00295020, EAX = dst, ECX = src) of A into M.
+        uint32_t* const dst = reinterpret_cast<uint32_t*>(m);
+        const uint32_t* const src = reinterpret_cast<const uint32_t*>(a);
+        static const uint8_t kFrom[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
+        for (int i = 0; i < 9; ++i) dst[i] = src[kFrom[i]];
+        invalid = 0;
+    }
+    float b[9];
+    b[0] = ((m[2] * a[6]) + (m[1] * a[3])) + (m[0] * a[0]);
+    b[1] = ((a[7] * m[2]) + (m[0] * a[1])) + (m[1] * a[4]);
+    b[2] = ((a[8] * m[2]) + (a[2] * m[0])) + (m[1] * a[5]);
+    b[3] = ((m[5] * a[6]) + (m[4] * a[3])) + (m[3] * a[0]);
+    b[4] = ((a[7] * m[5]) + (m[3] * a[1])) + (m[4] * a[4]);
+    b[5] = ((a[8] * m[5]) + (a[2] * m[3])) + (m[4] * a[5]);
+    b[6] = ((m[8] * a[6]) + (m[7] * a[3])) + (m[6] * a[0]);
+    b[7] = ((a[7] * m[8]) + (m[6] * a[1])) + (m[7] * a[4]);
+    b[8] = ((a[8] * m[8]) + (a[2] * m[6])) + (m[7] * a[5]);
+    store_transposed();
+    float c[9], angles[3];
+    uint32_t args2[2] = {0x009725ec, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&c[0]))};
+    AnglesToAxis(args2, angles, &c[6]);
+    c[3] = 0.0f - angles[0];
+    c[4] = 0.0f - angles[1];
+    c[5] = 0.0f - angles[2];
+    float d[9];
+    d[0] = ((c[2] * b[6]) + (c[1] * b[3])) + (c[0] * b[0]);
+    d[1] = ((c[2] * b[7]) + (c[1] * b[4])) + (b[1] * c[0]);
+    d[2] = ((c[2] * b[8]) + (c[1] * b[5])) + (b[2] * c[0]);
+    d[3] = ((c[5] * b[6]) + (c[4] * b[3])) + (c[3] * b[0]);
+    d[4] = ((c[5] * b[7]) + (c[4] * b[4])) + (c[3] * b[1]);
+    d[5] = ((c[5] * b[8]) + (c[4] * b[5])) + (c[3] * b[2]);
+    d[6] = ((c[8] * b[6]) + (c[7] * b[3])) + (c[6] * b[0]);
+    d[7] = ((c[8] * b[7]) + (c[7] * b[4])) + (c[6] * b[1]);
+    d[8] = ((c[8] * b[8]) + (c[7] * b[5])) + (c[6] * b[2]);
+    TitleRegs regs{};
+    regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles));
+    regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(d));
+    cg_call_regs(0x002a27f0, &regs, nullptr, 0);  // AxisToAngles
+    const float k = g(0x0083ebd4);
+    const float pitch = angles[0];
+    const float yaw = angles[1];
+    float delta0 = static_cast<float>(gi(0x009725a4));
+    float delta1 = static_cast<float>(gi(0x009725a8));
+    float delta2 = static_cast<float>(gi(0x009725ac));
+    delta1 = delta1 * k;
+    delta0 = delta0 * k;
+    title_global<float>(0x009725ec) = pitch;
+    const float view_pitch = pitch - delta0;
+    title_global<float>(0x009725f0) = yaw;
+    const float view_yaw = yaw - delta1;
+    delta2 = delta2 * k;
+    const float view_roll = g(0x009725f4) - delta2;
+    angles[2] = view_roll;
+    title_global<float>(0x009617a0) = view_roll;
+    angles[0] = view_pitch;
+    angles[1] = view_yaw;
+    title_global<float>(0x00961798) = view_pitch;
+    title_global<float>(0x0096179c) = view_yaw;
+    float e[9];
+    e[0] = ((c[2] * a[2]) + (c[1] * a[1])) + (c[0] * a[0]);
+    e[1] = ((c[2] * a[5]) + (c[1] * a[4])) + (c[0] * a[3]);
+    e[2] = ((c[2] * a[8]) + (c[1] * a[7])) + (a[6] * c[0]);
+    e[3] = ((c[5] * a[2]) + (c[4] * a[1])) + (c[3] * a[0]);
+    e[4] = ((c[5] * a[5]) + (c[4] * a[4])) + (c[3] * a[3]);
+    e[5] = ((c[5] * a[8]) + (c[4] * a[7])) + (c[3] * a[6]);
+    e[6] = ((c[8] * a[2]) + (c[7] * a[1])) + (c[6] * a[0]);
+    e[7] = ((c[8] * a[5]) + (c[7] * a[4])) + (c[6] * a[3]);
+    e[8] = ((c[8] * a[8]) + (c[7] * a[7])) + (c[6] * a[6]);
+    regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(e));
+    cg_call_regs(0x002a27f0, &regs, nullptr, 0);  // AxisToAngles
+    title_global<float>(0x009725f4) = 0.0f - angles[2];
 }
 
 void XB_CDECL CG_UpdateGunKick() {
@@ -891,6 +1151,66 @@ float title_atan2(float y, float x, float inverse) {
 
 }  // namespace
 
+namespace {
+
+// The title CRT's __CIsqrt of an x87 value (argument and result in ST), stored as float.
+float title_ci_sqrt_ext(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+}  // namespace
+
+// The original keeps the length in its cdecl argument slot: the entry hands the C version the
+// slot's address, and it writes the slot's final value.
+PLATFORM_ASM_ENTRY(CG_OffsetViewForward_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_OffsetViewForward) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_OffsetViewForward(float* distance_slot) {
+    // The refdef origin (0x00972bb0) moved `distance` along the view axis' forward (0x00972bc0);
+    // the view pitch (0x00972bf0) re-derived from the view angles' forward times 0x008fef74 as
+    // seen from the moved origin (each component (k f + o) - o): -atan2(z, max(1, hypot(x, y)))
+    // in degrees, 0 when both are 0.
+    using ext = long double;
+    const float distance = *distance_slot;
+    float forward[3], right[3], up[3];
+    uint32_t args[2] = {0x00972bf0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward))};
+    AnglesToAxis(args, right, up);
+    const float k = g(0x008fef74);
+    float* const org = &title_global<float>(0x00972bb0);
+    const float o1 = g(0x00972bc4) * distance + org[1];
+    const float o0 = g(0x00972bc0) * distance + org[0];
+    const float o2 = g(0x00972bc8) * distance + org[2];
+    const float d1 = (k * forward[1] + o1) - o1;
+    const float d0 = (k * forward[0] + o0) - o0;
+    const float d2 = (k * forward[2] + o2) - o2;
+    org[0] = o0;
+    org[1] = o1;
+    org[2] = o2;
+    float h = title_ci_sqrt_ext(static_cast<ext>(d1) * static_cast<ext>(d1) + static_cast<ext>(d0) * static_cast<ext>(d0));
+    *distance_slot = h;
+    const float one = g(0x0083eb20);
+    if (platform_x87_greater(one, h)) {
+        h = one;
+        *distance_slot = h;
+    }
+    const float abs_h = abs_bits(h);
+    const float abs_z = abs_bits(d2);
+    if (static_cast<ext>(abs_h) + static_cast<ext>(abs_z) == 0.0L) {
+        title_global<float>(0x00972bf0) = 0.0f * g(0x0083f0e0);
+        return;
+    }
+    const float length = title_ci_sqrt_ext(static_cast<ext>(h) * static_cast<ext>(h) + static_cast<ext>(d2) * static_cast<ext>(d2));
+    const float inverse = static_cast<float>(static_cast<ext>(one) / static_cast<ext>(length));
+    title_global<float>(0x00972bf0) = title_atan2(h, d2, inverse) * g(0x0083f0e0);
+}
+
 uint32_t XB_CDECL CG_CalcFov() {
     // Q3's CG_CalcFov: fov_x from CG_GetViewFov at a 4:3 aspect, fov_y = atan2(3 / ...) (or
     // 2 * atan(9/16) with 0x00948f64), under water (CG_PointContents of the view origin,
@@ -1061,6 +1381,156 @@ void XB_CDECL CG_StopShellShockSound() {
     if (second) channel = sound_channel(second);
     if (channel) stop_channel(channel);
     title_global<uint32_t>(0x00973a6c) = 0;
+}
+
+// The calls run at the original's ESP with its registers, the stack blocks they get at the
+// original's frame addresses (the sound starters' subtree reads words pushed by nested
+// callees): the entry moves the C frame below a gap and hands over the entry ESP and
+// EBX (params), ESI and EDI.
+PLATFORM_ASM_ENTRY(CG_UpdateShellShockSound_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %edx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(CG_UpdateShellShockSound) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_UpdateShellShockSound(uint32_t entry_esp, const uint8_t* params, uint32_t esi, uint32_t edi) {
+    // The shell shock's sound (cdecl elapsed, duration): the mix (10 volumes from params
+    // +0x34, faded in over +0x1c ms before the end or over +0x18 ms from the start) and the
+    // "shock_loop" alias (handle 0x00973a68) at 1 - the fade-out over +0x60 ms, "shock_end"
+    // (0x00973a6c) started once and played from +0x64 ms before the end (0x00973a54 = the
+    // time it is due). Without +0x14 the sound stops.
+    const int32_t elapsed = *reinterpret_cast<const int32_t*>(static_cast<uintptr_t>(entry_esp + 4));
+    const int32_t duration = *reinterpret_cast<const int32_t*>(static_cast<uintptr_t>(entry_esp + 8));
+    const uint32_t frame = ((entry_esp - 4) & ~15u) - 0x60;
+    auto at = [frame](uint32_t offset) { return frame + offset; };
+    float& scale_slot = *reinterpret_cast<float*>(static_cast<uintptr_t>(at(8)));
+    float* volumes = reinterpret_cast<float*>(static_cast<uintptr_t>(at(0x38)));
+    const auto pi = [params](uint32_t offset) { return *reinterpret_cast<const int32_t*>(params + offset); };
+    TitleRegs regs{};
+    regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(params));
+    regs.esi = esi;
+    regs.edi = edi;
+    if (!pi(0x14)) {
+        title_call_at_regs(frame, 0x0027b860, &regs, 0, nullptr);  // CG_StopShellShockSound
+        return;
+    }
+    const float one = g(0x0083eb20);
+    const int32_t fade_in = pi(0x1c);
+    const int32_t left = pi(0x5c) - elapsed + fade_in + duration;
+    float f;
+    bool clamp = true;
+    if (left < fade_in) {
+        f = static_cast<float>(left) / static_cast<float>(fade_in);
+    } else if (elapsed < pi(0x18)) {
+        f = static_cast<float>(elapsed) / static_cast<float>(pi(0x18));
+    } else {
+        f = one;
+        clamp = false;
+    }
+    if (clamp && 0.0f > f) f = 0.0f;
+    const float* mix = reinterpret_cast<const float*>(params + 0x34);
+    for (int i = 0; i < 10; ++i) volumes[i] = (mix[i] - one) * f + one;
+    const int32_t fade_out = pi(0x60);
+    const int32_t until = pi(0x64) - elapsed + fade_out + duration;
+    uint32_t end_handle;
+    if (until > 0) {
+        if (fade_out) {
+            const float out = static_cast<float>(until) / static_cast<float>(fade_out);
+            f = one - out;
+            if (0.0f > f) f = 0.0f;
+        }
+        const float scale = one - f;
+        scale_slot = scale;
+        uint32_t channel = 0;
+        uint32_t handle = title_global<uint32_t>(0x00973a68);
+        bool set = false;
+        if (handle) {
+            channel = sound_channel(handle);
+            regs.esi = channel;
+            set = channel != 0;
+        }
+        if (!set && !(scale == 0.0f)) {
+            const uint32_t sound = title_global<uint32_t>(0x0095f4c4);
+            for (int k = 0; k < 4; ++k) {
+                title_global<uint32_t>(at(0x10 + 4 * k)) = title_global<uint32_t>(0x0082e110 + 4 * k);
+                title_global<uint32_t>(at(0x20 + 4 * k)) = title_global<uint32_t>(0x0082e290 + 4 * k);
+            }
+            regs.eax = title_global<uint32_t>(0x0082e298);
+            regs.ecx = title_global<uint32_t>(0x0082e29c);
+            regs.edx = title_global<uint32_t>(0x0082e294);
+            regs.esi = 0;
+            regs.edi = sound;
+            const uint32_t name[1] = {0x00838b0c};  // "shock_loop"
+            const uint32_t alias = title_call_at_regs(frame, 0x000c5810, &regs, 1, name);  // S_FindSoundByHash
+            handle = 0;
+            if (alias != 0xffffffffu) {
+                regs.eax = alias;
+                regs.ecx = sound;
+                regs.edx = at(0xc);
+                const uint32_t minus_one = 0xbf800000u;
+                const uint32_t args[10] = {at(0xc), 0, 1, 0, at(0x20), at(0x10), minus_one, minus_one, minus_one, minus_one};
+                title_call_at_regs(frame, 0x002c30a0, &regs, 10, args);  // S_PlaySoundAlias
+                handle = title_global<uint32_t>(at(0xc));
+            }
+            title_global<uint32_t>(0x00973a68) = handle;
+            channel = sound_channel(handle);
+            regs.esi = channel;
+            set = channel != 0;
+        }
+        if (set) {
+            const int32_t voice = *reinterpret_cast<const int32_t*>(static_cast<uintptr_t>(channel));
+            if (voice != -1) {
+                float* fields = reinterpret_cast<float*>(static_cast<uintptr_t>(channel));
+                const float value = fields[7] * scale_slot;
+                uint32_t value_bits;
+                std::memcpy(&value_bits, &value, 4);
+                regs.eax = static_cast<uint32_t>(voice);
+                regs.ecx = handle >> 12;
+                regs.edx = handle >> 12;
+                regs.esi = channel;
+                regs.edi = static_cast<uint32_t>(elapsed);
+                const uint32_t args[3] = {static_cast<uint32_t>(voice), 0, value_bits};
+                title_call_at_regs(frame, 0x000c44f0, &regs, 3, args);  // SndVoice_SetParam
+                fields[4] = scale_slot;
+            }
+        }
+        regs.edi = static_cast<uint32_t>(elapsed);
+        end_handle = title_global<uint32_t>(0x00973a6c);
+        if (!end_handle) {
+            regs.eax = title_global<uint32_t>(0x0095f4c4);
+            regs.ecx = 0;
+            const uint32_t args[4] = {at(0xc), 0x00838b00, 0, 1};  // "shock_end"
+            const uint32_t out = title_call_at_regs(frame, 0x00025f70, &regs, 4, args);  // S_PlayLocalSoundByHash
+            end_handle = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(out));
+            title_global<uint32_t>(0x00973a6c) = end_handle;
+        }
+    } else {
+        end_handle = title_global<uint32_t>(0x00973a6c);
+    }
+    const int32_t now = title_global<int32_t>(0x0097253c);
+    const int32_t due = pi(0x64) - elapsed + now + duration;
+    if (now < due) {
+        if (title_global<int32_t>(0x00973a54)) title_global<int32_t>(0x00973a54) = 0;
+        return;
+    }
+    if (due == title_global<int32_t>(0x00973a54)) return;
+    title_global<int32_t>(0x00973a54) = due;
+    if (!end_handle) return;
+    const uint32_t channel = sound_channel(end_handle);
+    if (!channel) return;
+    const int32_t voice = *reinterpret_cast<const int32_t*>(static_cast<uintptr_t>(channel));
+    if (voice == -1) return;
+    regs.eax = static_cast<uint32_t>(voice);
+    regs.ecx = end_handle >> 12;
+    regs.edx = end_handle >> 12;
+    regs.edi = static_cast<uint32_t>(duration);
+    const uint32_t args[1] = {static_cast<uint32_t>(voice)};
+    title_call_at_regs(frame, 0x000c3ff0, &regs, 1, args);  // SndVoice_Play
 }
 
 PLATFORM_ASM_ENTRY(CG_UpdateShellShock_entry,
@@ -1863,6 +2333,405 @@ void XB_REGS2 XB_CDECL CG_AddWeaponIdleSway(uint32_t, float* angles) {
     x87_add_sine_sway(time, &g(0x0083ee44), a, &g(0x0083ed7c), &angles[2]);
     x87_add_sine_sway(time, &g(0x0083ee40), a, &g(0x0083eb94), &angles[1]);
     x87_add_sine_sway(time, &g(0x0083eb4c), a, &g(0x0083eb94), &angles[0]);
+}
+
+// The original ends in a tail jump to CG_StoreQuantizedGunAngles (thiscall, ECX = angles).
+PLATFORM_ASM_ENTRY(CG_CalculateWeaponAngles_entry,
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_CalculateWeaponAngles) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_CalculateWeaponAngles(float* angles) {
+    // The view weapon's angles (EAX): the lean roll ((2 - |l|) l x -2 of 0x0097259c), the ADS
+    // offset and idle sway, the kick 0x00972fcc.. (minus the view kick 0x00972f94.. without the
+    // lag spring), the landing dip (since 0x00972f60: eased in over 100 and out over 400 ms x
+    // (1 + ADS) / 2, less with weapon +0x638 while aiming; pitch/roll by 0x00972f80 / 2, yaw by
+    // 0x00972f84), the lag spring, normalized to +-180, turned by the view and stored quantized.
+    angles[2] = 0.0f;
+    angles[1] = 0.0f;
+    angles[0] = 0.0f;
+    const float lean = g(0x0097259c);
+    if (!(lean == 0.0f)) angles[2] = (g(0x0083eba8) - abs_bits(lean)) * lean * g(0x0083ec5c);
+    CG_AddAdsGunOffset(angles);
+    CG_AddWeaponIdleSway(0, angles);
+    angles[0] = angles[0] + g(0x00972fcc);
+    angles[1] = angles[1] + g(0x00972fd0);
+    angles[2] = g(0x00972fd4) + angles[2];
+    const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[gi(0x009725d0)];
+    if (!*reinterpret_cast<const uint32_t*>(def + 0x6dc)) {
+        angles[0] = angles[0] - g(0x00972f94);
+        angles[1] = angles[1] - g(0x00972f98);
+        angles[2] = angles[2] - g(0x00972f9c);
+    }
+    const int32_t start = gi(0x00972f60);
+    if (start) {
+        const float ads = g(0x009725d8);
+        const float one = g(0x0083eb20);
+        const float half = g(0x0083eb24);
+        float scale = (ads + one) * half;
+        const float in_time = scale * g(0x0083eb90);
+        const float out_time = scale * g(0x0083f11c);
+        if (!(ads == 0.0f) && *reinterpret_cast<const uint32_t*>(weapon() + 0x638))
+            scale = (one - ads * g(0x0083eb58)) * scale;
+        const float dt = static_cast<float>(gi(0x0097253c) - start);
+        float f;
+        bool apply = true;
+        if (in_time > dt) {
+            const float q = dt / in_time;
+            f = (g(0x0083eba8) - abs_bits(q)) * q;
+        } else {
+            const float q = (dt - in_time) / out_time;
+            const float r = one - q;
+            if (r > 0.0f) {
+                const float u = one - r;
+                f = one - (g(0x0083eba8) - abs_bits(u)) * u;
+            } else {
+                apply = false;
+                f = 0.0f;
+            }
+        }
+        if (apply) {
+            const float y = angles[1];
+            f = f * scale;
+            angles[0] = g(0x00972f80) * f * half + angles[0];
+            angles[1] = y - g(0x00972f84) * f;
+            angles[2] = g(0x00972f84) * f * half + angles[2];
+        }
+    }
+    CG_UpdateWeaponLag(angles);
+    TitleRegs regs{};
+    regs.esi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles));
+    cg_call_regs(0x002789f0, &regs, nullptr, 0);  // Angles2Normalize180
+    CG_RotateAnglesByView(angles);
+    CG_StoreQuantizedGunAngles(angles);
+}
+
+// The title callees run at the original's ESP with its registers and the locals (the ADS
+// fraction / scale, the draw flag, the gun angles) at the original's frame addresses: the
+// entry moves the C frame below a gap (weapon registration can read files) and hands over the
+// entry ESP and EBX/ESI/EDI.
+PLATFORM_ASM_ENTRY(CG_AddViewWeapon_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %edx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(CG_AddViewWeapon) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_AddViewWeapon(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi) {
+    // Q3's CG_AddViewWeapon (cdecl ps): nothing in third person (0x00972548) or with ps +0xc0 &
+    // 0x106000; without a weapon (ps +0x80) the gun angles 0x00972fa0.. take the view's pitch and
+    // yaw. Else the weapon registered, bob and sway, the hand (the local client's refEntity +0x80)
+    // placed: position, the view-forward offset for type-3 weapons while flag 0x20 (0x008fef70),
+    // the offsets 0x00949500 / 0x00947d60 / 0x009489c0 along the view axes, the angles and axis
+    // (AnglesToAxisLeft2), the anims and CG_AddPlayerWeapon (drawn unless cg_drawGun 0x00949864
+    // is 0, or not 2 with an ADS overlay).
+    const uint32_t ps_addr = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(entry_esp + 4));
+    uint8_t* const ps = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(ps_addr));
+    const uint32_t frame = entry_esp - 0x18;  // after sub esp,0x14 and push ebp
+    uint32_t& scale_slot = title_global<uint32_t>(entry_esp - 0x14);
+    uint32_t& draw_slot = title_global<uint32_t>(entry_esp - 0x10);
+    const uint32_t angles = entry_esp - 0xc;
+    draw_slot = 1;
+    if (gi(0x00972548)) return;
+    TitleRegs regs{};
+    regs.ebx = ebx;
+    regs.esi = esi;
+    regs.edi = edi;
+    const int32_t draw_gun = gi(0x00949864);
+    if (draw_gun != 2) {
+        if (!draw_gun) {
+            draw_slot = 0;
+        } else {
+            regs.eax = static_cast<uint32_t>(draw_gun);
+            regs.ecx = entry_esp - 0x14;
+            if (title_call_at_regs(frame, 0x002765f0, &regs, 0, nullptr)) draw_slot = 0;  // CG_GetAdsOverlayFraction
+        }
+    }
+    if (*reinterpret_cast<const uint32_t*>(ps + 0xc0) & 0x106000) return;
+    const int32_t weapon_index = *reinterpret_cast<const int32_t*>(ps + 0x80);
+    if (weapon_index <= 0) {
+        title_global<float>(0x00972fa0) = g(0x00972bf0);
+        title_global<float>(0x00972fa4) = g(0x00972bf4);
+        title_global<float>(0x00972fa8) = 0.0f;
+        title_global<float>(0x00972fac) = 0.0f;
+        title_global<float>(0x00972fb0) = 0.0f;
+        return;
+    }
+    const uint32_t top = frame - 0xc;  // after push ebx, esi, edi
+    regs.eax = static_cast<uint32_t>(weapon_index);
+    const uint32_t weapon_arg[1] = {static_cast<uint32_t>(weapon_index)};
+    regs.eax = title_call_at_regs(top, 0x002832b0, &regs, 1, weapon_arg);  // CG_RegisterWeapon
+    const uint32_t rec = 0x00975fa8 + static_cast<uint32_t>(*reinterpret_cast<const int32_t*>(ps + 0x80)) * 0xc4;
+    regs.ebx = rec;
+    regs.eax = title_call_at_regs(top, 0x00278ae0, &regs, 0, nullptr);  // CG_CalcWeaponBob
+    regs.eax = title_call_at_regs(top, 0x0027a2b0, &regs, 0, nullptr);  // CG_CalcWeaponSway
+    const uint32_t cent = title_global<uint32_t>(title_global<uint32_t>(0x0095f534) + 4);
+    regs.esi = cent;
+    regs.eax = title_global<uint32_t>(0x0095f534);
+    const uint32_t ref = title_call_at_regs(top, 0x002be200, &regs, 0, nullptr);  // CG_GetEntityRefEntity
+    const uint32_t hand = ref + 0x80;
+    float* const origin = reinterpret_cast<float*>(static_cast<uintptr_t>(hand + 0x3c));
+    regs.esi = hand;
+    regs.edi = hand + 0x3c;
+    regs.eax = hand + 0x3c;
+    title_call_at_regs(top, 0x00282d10, &regs, 0, nullptr);  // CG_CalculateWeaponPosition
+    scale_slot = 0;
+    if (title_global<uint8_t>(0x0097257c) & 0x20) {
+        const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[gi(0x009725d0)];
+        if (*reinterpret_cast<const int32_t*>(def + 0x98) == 3) {
+            const uint32_t forward = title_global<uint32_t>(0x008fef70);
+            scale_slot = forward;
+            regs.ecx = forward;
+            regs.eax = reinterpret_cast<uintptr_t>(def);
+            regs.edx = title_global<uint32_t>(0x0095f4d8);
+            const uint32_t args[1] = {forward};
+            title_call_at_regs(top, 0x002803d0, &regs, 1, args);  // CG_OffsetViewForward
+        }
+    }
+    const float k0 = g(0x00949500);
+    const float k1 = g(0x00947d60);
+    const float k2 = g(0x009489c0);
+    origin[0] = g(0x00972bc0) * k0 + origin[0];
+    origin[1] = g(0x00972bc4) * k0 + origin[1];
+    const float z = g(0x00972bc8) * k0 + origin[2];
+    origin[2] = z;
+    origin[0] = g(0x00972bcc) * k1 + origin[0];
+    origin[1] = g(0x00972bd0) * k1 + origin[1];
+    origin[2] = g(0x00972bd4) * k1 + z;
+    origin[0] = g(0x00972bd8) * k2 + origin[0];
+    origin[1] = g(0x00972bdc) * k2 + origin[1];
+    origin[2] = g(0x00972be0) * k2 + origin[2];
+    regs.eax = angles;
+    title_call_at_regs(top, 0x00285af0, &regs, 0, nullptr);  // CG_CalculateWeaponAngles
+    regs.eax = angles;
+    regs.edx = hand + 0x14;
+    const uint32_t axis_arg[1] = {hand + 0x14};
+    title_call_at_regs(top, 0x002a45b0, &regs, 1, axis_arg);  // AnglesToAxisLeft2
+    const uint32_t anim_args[2] = {ps_addr, rec};
+    title_call_at_regs(top - 4, 0x002840e0, &regs, 2, anim_args);  // CG_UpdateViewWeaponAnim
+    *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(hand + 4)) = 0xc;
+    regs.eax = title_global<uint32_t>(title_global<uint32_t>(0x0095f534) + 4);
+    regs.ecx = ps_addr;
+    regs.edx = title_global<uint32_t>(0x0095f534);
+    const uint32_t add_args[3] = {hand, draw_slot, scale_slot};
+    title_call_at_regs(top - 0xc, 0x00288850, &regs, 3, add_args);  // CG_AddPlayerWeapon
+}
+
+namespace {
+
+// MatrixMultiply (0x002956b0: b in EAX, out in EDX, cdecl a): out = a b, 3x3.
+void matrix_multiply(const float* a, const float* b, float* out) {
+    TitleRegs regs{};
+    regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(b));
+    regs.edx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(out));
+    const uint32_t args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(a))};
+    cg_call_regs(0x002956b0, &regs, args, 1);
+}
+
+// MatrixTranspose (0x00295020) of src into dst.
+void matrix_transpose(const float* src, float* dst) {
+    uint32_t* const d = reinterpret_cast<uint32_t*>(dst);
+    const uint32_t* const s = reinterpret_cast<const uint32_t*>(src);
+    static const uint8_t kFrom[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
+    for (int i = 0; i < 9; ++i) d[i] = s[kFrom[i]];
+}
+
+void axis_to_angles(float* angles, const float* axis) {
+    TitleRegs regs{};
+    regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles));
+    regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(axis));
+    cg_call_regs(0x002a27f0, &regs, nullptr, 0);  // AxisToAngles
+}
+
+}  // namespace
+
+void XB_CDECL CG_CalcVehicleViewAngles() {
+    // The view in the player's vehicle (entity handle 0x009729b8): its "tag_player" axis A
+    // (G_DObjGetWorldTagMatrix after CG_CalcEntityLerpPositions); with flag 0x100000 the turn
+    // since the last frame (M = 0x00972c44, the last A transposed; 0x00972c40 = not valid) is
+    // carried into the view angles 0x009725ec (pitch only unless flag 0x200000; only while
+    // 0x00972a34 == 1), cl_viewangles = those minus the delta angles, 0x009725f4 = minus the
+    // roll of C A^T. Otherwise only M = A^T. Skipped in the tank's alternative camera
+    // (0x009481e4 with 0x00972a38 == 2) unless the entity's +2 is 1.
+    const uint32_t handle = title_global<uint32_t>(0x009729b8);
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540) return;
+    if ((handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return;
+    uint8_t* const cent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (!cent) return;
+    if (gi(0x009481e4) && gi(0x00972a38) == 2 && cent[2] != 1) return;
+    CG_CalcEntityLerpPositions(cent);
+    if (!(title_global<uint8_t>(0x0098ebe8) & 1)) {
+        title_global<uint32_t>(0x0098ebe8) |= 1;
+        title_global<uint32_t>(0x0098ebe4) = Com_HashKeyNoCase(0, &title_global<const char>(0x00838a54));  // "tag_player"
+    }
+    const DObj* const obj = *reinterpret_cast<const DObj* const*>(cent + 0x22c);
+    if (!obj) return;
+    const int32_t tag = DObj_GetTagIndex(obj, title_global<uint32_t>(0x0098ebe4));
+    if (tag < 0) return;
+    alignas(16) float tag_matrix[16];
+    using TagMatrixFn = void XB_CDECL(uint8_t*, int32_t, float*);
+    title_function<TagMatrixFn>(0x002e3780)(cent, tag, tag_matrix);  // G_DObjGetWorldTagMatrix
+    float a[9];
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c) a[r * 3 + c] = tag_matrix[r * 4 + c];
+    float* const m = &title_global<float>(0x00972c44);
+    if (!(title_global<uint32_t>(0x00972610) & 0x100000) || !title_global<uint32_t>(0x009729b8)) {
+        m[0] = a[0];
+        m[1] = a[3];
+        m[2] = a[6];
+        m[3] = a[1];
+        m[4] = a[4];
+        m[5] = a[7];
+        m[6] = a[2];
+        m[7] = a[5];
+        m[8] = a[8];
+        return;
+    }
+    if (title_global<uint32_t>(0x00972c40)) {
+        matrix_transpose(a, m);
+        title_global<uint32_t>(0x00972c40) = 0;
+    }
+    float turn[9];
+    matrix_multiply(m, a, turn);
+    matrix_transpose(a, m);
+    float c[9];
+    title_function<void XB_REGS1 XB_CDECL(const float*, float*)>(0x002a45b0)(&title_global<float>(0x009725ec), c);  // AnglesToAxisLeft2
+    float view[9];
+    matrix_multiply(c, turn, view);
+    float angles[3];
+    axis_to_angles(angles, view);
+    float pitch, yaw;
+    if (gi(0x00972a34) == 1) {
+        pitch = angles[0];
+        title_global<float>(0x009725ec) = pitch;
+        if (title_global<uint32_t>(0x00972610) & 0x200000) {
+            yaw = angles[1];
+            title_global<float>(0x009725f0) = yaw;
+        } else {
+            yaw = g(0x009725f0);
+        }
+    } else {
+        pitch = g(0x009725ec);
+        yaw = g(0x009725f0);
+    }
+    const float k = g(0x0083ebd4);
+    float d0 = static_cast<float>(gi(0x009725a4));
+    float d1 = static_cast<float>(gi(0x009725a8));
+    float d2 = static_cast<float>(gi(0x009725ac));
+    d0 = d0 * k;
+    pitch = pitch - d0;
+    float roll = g(0x009725f4);
+    d1 = d1 * k;
+    yaw = yaw - d1;
+    d2 = d2 * k;
+    roll = roll - d2;
+    angles[0] = pitch;
+    angles[1] = yaw;
+    angles[2] = roll;
+    title_global<float>(0x00961798) = pitch;
+    title_global<float>(0x0096179c) = yaw;
+    title_global<float>(0x009617a0) = roll;
+    matrix_multiply(c, m, view);
+    axis_to_angles(angles, view);
+    title_global<float>(0x009725f4) = 0.0f - angles[2];
+}
+
+uint32_t XB_CDECL CG_CalcViewValues() {
+    // Q3's CG_CalcViewValues: the refdef (0x00972b90, 0x18 words) cleared; a cube-map capture
+    // (0x00971a8c) has its own. A scripted camera (0x00935538) takes its axis and origin from the
+    // quaternion + position at 0x00960040 (through a fixed axis swap), else the vehicle views and
+    // the predicted origin / view angles. The bob cycle (0x00973a80) and xy speed (0x00973a84;
+    // 0x00972568 on the ground 500 ms after landing), the step offset (0x00972ad8.. fading out
+    // over 0x0094b9c8 ms from 0x00972ad4), the linked view, then the third-person, tank or
+    // first-person offsets; the axis from the angles and CG_CalcFov's result.
+    for (uint32_t k = 0; k < 0x18; ++k) title_global<uint32_t>(0x00972b90 + k * 4) = 0;
+    if (title_global<uint32_t>(0x00971a8c)) {
+        CG_CalcCubemapViewValues();
+        return 0;
+    }
+    if (title_global<uint8_t>(0x00935538)) {
+        alignas(16) float r0[4], r1[4], r2[4], r3[4];
+        const float one = g(0x0083eb20);
+        const float minus_one = g(0x0083eb34);
+        r3[0] = 0.0f; r3[1] = 0.0f; r3[2] = 0.0f; r3[3] = one;
+        r2[0] = 0.0f; r2[1] = one; r2[2] = 0.0f; r2[3] = 0.0f;
+        r1[0] = minus_one; r1[1] = 0.0f; r1[2] = 0.0f; r1[3] = 0.0f;
+        r0[0] = 0.0f; r0[1] = 0.0f; r0[2] = minus_one; r0[3] = 0.0f;
+        alignas(16) float m[16], t[16], product[16];
+        Mat44_FromRows(m, r0, r1, r2, r3);
+        QuatTrans_ToMat44(t, 0, &title_global<float>(0x00960040));
+        Mat44_MultiplyInPlace(m, product, t);
+        for (int k = 0; k < 3; ++k) {
+            title_global<float>(0x00972bc0 + k * 4) = m[k];
+            title_global<float>(0x00972bcc + k * 4) = m[4 + k];
+            title_global<float>(0x00972bd8 + k * 4) = m[8 + k];
+        }
+        for (int k = 0; k < 3; ++k) title_global<float>(0x00972bb0 + k * 4) = m[12 + k];
+        TitleRegs regs{};
+        regs.eax = 0x00972bf0;
+        regs.ecx = 0x00972bc0;
+        cg_call_regs(0x002a27f0, &regs, nullptr, 0);  // AxisToAngles
+    }
+    CG_CalcVrect();
+    const float two_pi = g(0x0083edac);
+    float cycle = static_cast<float>(static_cast<int32_t>(title_global<uint32_t>(0x00972578) & 0xff)) / g(0x0083eb8c);
+    cycle = cycle * two_pi + two_pi;
+    title_global<float>(0x00973a80) = cycle;
+    if (title_global<uint8_t>(0x0097257c) & 0x10) {
+        if (gi(0x0097253c) - gi(0x009725c0) < 500)
+            title_global<float>(0x00973a84) = 0.0f;
+        else
+            title_global<uint32_t>(0x00973a84) = title_global<uint32_t>(0x00972568);
+    } else {
+        const float x = g(0x00972560);
+        const float y = g(0x00972564);
+        title_global<float>(0x00973a84) = title_ci_sqrt(x * x + y * y);
+    }
+    CG_CalcVehicleViewAngles();
+    CG_ApplyVehicleTurnToView();
+    if (!title_global<uint8_t>(0x00935538)) {
+        for (int k = 0; k < 3; ++k) {
+            title_global<uint32_t>(0x00972bb0 + k * 4) = title_global<uint32_t>(0x00972550 + k * 4);
+        }
+        for (int k = 0; k < 3; ++k) {
+            title_global<uint32_t>(0x00972bf0 + k * 4) = title_global<uint32_t>(0x009725ec + k * 4);
+        }
+    }
+    const int32_t state = gi(0x00972574);
+    if (state != 1 && state != 5) {
+        const float duration = g(0x0094b9c8);
+        if (duration > 0.0f) {
+            const float dt = static_cast<float>(gi(0x0097253c) - gi(0x00972ad4));
+            const float f = (duration - dt) / duration;
+            if (f > 0.0f && g(0x0083eb20) > f) {
+                for (int k = 0; k < 3; ++k)
+                    title_global<float>(0x00972bb0 + k * 4) = g(0x00972ad8 + k * 4) * f + g(0x00972bb0 + k * 4);
+            } else {
+                title_global<int32_t>(0x00972ad4) = 0;
+            }
+        }
+    }
+    CG_CalcLinkedViewOrigin();
+    if (!title_global<uint8_t>(0x00935538)) {
+        if (gi(0x00972548))
+            title_function<void XB_CDECL()>(0x002873e0)();  // CG_OffsetThirdPersonView
+        else if (gi(0x009481e4) && gi(0x00972a38) == 2 && (title_global<uint32_t>(0x00972610) & 0x100000) &&
+                 gi(0x009729b8))
+            title_function<void XB_CDECL()>(0x00286da0)();  // CG_OffsetAltTankCamView
+        else
+            CG_OffsetFirstPersonView();
+    }
+    float right[3];
+    uint32_t args[2] = {0x00972bf0, 0x00972bc0};
+    AnglesToAxis(args, right, &title_global<float>(0x00972bd8));
+    title_global<float>(0x00972bcc) = 0.0f - right[0];
+    title_global<float>(0x00972bd0) = 0.0f - right[1];
+    title_global<float>(0x00972bd4) = 0.0f - right[2];
+    return CG_CalcFov();
 }
 
 }  // namespace game

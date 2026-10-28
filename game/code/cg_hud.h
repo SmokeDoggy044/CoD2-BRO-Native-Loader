@@ -64,6 +64,8 @@ uint8_t* XB_THISCALL HudCompCompass_DeletingDtor(uint8_t* self, uint32_t flags);
 void XB_THISCALL HudCompIconCount_Draw(uint8_t* self);
 // 0x00310d60: the bomber map and its markers in two pushed scenes without depth.
 void XB_THISCALL HudCompBomberMap_Draw(uint8_t* self);
+// 0x003374e0: vtable +0xc: the map, markers and plane icons turned to the player's yaw; dt (float) fades the cursor.
+void XB_THISCALL HudCompBomberMap_Update(uint8_t* self, uint32_t dt_bits);
 // 0x003116f0: the stance from the player flags; its highlight fades for a second after a change.
 void XB_THISCALL HudCompStance_Update(uint8_t* self, uint32_t unused);
 // 0x00317ac0 (manager in ESI, component in EDX, colour 0..3 in EDI): the component's colour.
@@ -155,6 +157,8 @@ void XB_THISCALL HudCompTankIcon_Setup(uint8_t* self, uint8_t* panel);
 void XB_THISCALL HudCompGrenadeCook_Setup(uint8_t* self, uint8_t* panel);
 // 0x00319110 (vtable +8): the clip / reserve ammo texts of the current weapon.
 void XB_THISCALL HudCompAmmo_Update(uint8_t* self, uint32_t dt);
+// 0x00319370: vtable +0xc: the health bar (+8, coloured) and its falling trail (+0x14).
+void XB_THISCALL HudCompHealth_Update(uint8_t* self, uint32_t dt);
 
 // 0x00318840 (vtable +8): the tank health bar's quad from the player tank's health.
 void XB_THISCALL HudCompTankHealth_Update(uint8_t* self, uint32_t dt);

@@ -262,9 +262,39 @@ extern "C" void HudElem_GetTimerValue_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawHudElemClock(const uint8_t* he, const uint8_t* rect);
 extern "C" void CG_DrawHudElemClock_entry(void);
 
+// 0x002808b0 (weapon in EAX, anim in EBX; cdecl object, blend): view-weapon anim `anim` played on
+// each of the object's anim trees, the others blended out (plus the aiming fire kick).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_PlayViewWeaponAnim(uint32_t weapon, uint32_t anim, uint8_t* obj,
+                                                               uint32_t blend_bits);
+extern "C" void CG_PlayViewWeaponAnim_entry(void);
+
+// 0x00280ed0 (tree in EAX; cdecl weapon anim record): the ADS in/out anims follow the ADS fraction.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_UpdateViewWeaponAdsAnims(uint8_t* tree, const uint8_t* rec);
+extern "C" void CG_UpdateViewWeaponAdsAnims_entry(void);
+// 0x0027cad0 (restart in EAX): Q3's CG_Init state clearing (cg zeroed, objectives, configstrings).
+void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart);
+// 0x0027e2f0 (snap in EAX): Q3's CG_SetInitialSnapshot; the first one closes the loading screen.
+void XB_REGS1 XB_CDECL CG_SetInitialSnapshot(uint8_t* snap);
+// 0x0028b7c0: Q3's CG_Init.
+void XB_CDECL CG_Init();
+// 0x0028b960: Q3's vmMain for the cgame (cdecl command and up to six arguments).
+// The C version gets the entry ESP, EBX and EDI.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi);
+extern "C" void CG_vmMain_entry(void);
+// 0x0027cc30: Q3's CG_Shutdown.
+void XB_CDECL CG_Shutdown();
+// 0x0028b6a0: Q3's CG_RegisterGraphics.
+void XB_CDECL CG_RegisterGraphics();
+// 0x002840e0 (cdecl ps, weapon record): the view weapon's anims for the player's weapon anim.
+void XB_CDECL CG_UpdateViewWeaponAnim(uint8_t* ps, uint8_t* rec);
+
 // 0x00281f30: the objectives screen while it is up; 1 when drawn.
 uint32_t XB_CDECL CG_DrawObjectives();
 
+// 0x0029e700 (cdecl names, count, text, session name): "<cvar> <value>" lines into the named
+// cvars; 1 when each was set. The C version gets the argument block (the text slot advances).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL CG_ShellShock_ParseParams(uint32_t* args);
+extern "C" void CG_ShellShock_ParseParams_entry(void);
 // 0x0027c8f0 (name in EAX): scripts/<name>.shock into the shell shock cvars; 0 if missing.
 uint32_t XB_REGS1 XB_CDECL CG_ShellShock_LoadParams(const char* name);
 // 0x0027c990 (cdecl name): the shell shock cvars saved as scripts/<name>.shock.

@@ -1548,4 +1548,180 @@ void XB_THISCALL HudCompTankShells_SetWidescreen(uint8_t* self, uint32_t widescr
 // 0x00011fc0: every HUD component's vtable +0x14 (set visible, +4).
 void XB_THISCALL HudComponent_SetVisible(uint8_t* self, uint32_t on) { field<uint8_t>(self, 4) = uint8_t(on); }
 
+namespace {
+
+// A bar picture's first quad filled to `value` (clamped to 0..1) of its width, as
+// HudCompTankHealth_Update does it: the far x edge at value * width * scale (+0x34), the far u
+// moved by the value; horizontal unless the quad's first two u are within 0.001.
+void fill_bar(uint8_t* bar, float value) {
+    const float one = gf(0x0083eb20);
+    if (0.0f > value)
+        value = 0.0f;
+    else if (value > one)
+        value = one;
+    const float scale = field<float>(bar, 0x34);
+    uint8_t* const q = field<uint8_t*>(field<uint8_t*>(bar, 0x20), 0);
+    float used = value;
+    if (value > one) used = gf(0x0083eba8) - value;
+    const float x0 = field<float>(q, 0x40);
+    const float x1 = field<float>(q, 0x48);
+    const float y0 = field<float>(q, 0x44);
+    const float y1 = field<float>(q, 0x80);
+    const float right = (field<float>(q, 0x24) - field<float>(q, 0)) * scale * used + x0;
+    const float u1 = field<float>(q, 0x5c);
+    const float epsilon = gf(0x0083eb4c);
+    const bool vertical = x1 >= u1 ? epsilon > x1 - u1 : epsilon > u1 - x1;
+    const float xs[4] = {x0, vertical ? x0 : right, vertical ? right : x0, right};
+    const float ys[4] = {y0, vertical ? y1 : y0, vertical ? y0 : y1, y1};
+    NglQuad* const quad = reinterpret_cast<NglQuad*>(q + 0x40);
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(quad, i, xs[i], ys[i]);
+    const float a = field<float>(q, 0x48);
+    const float b = field<float>(q, 0x4c);
+    const float c = field<float>(q, 0x88);
+    const float a1 = a + used;
+    const float us[4] = {a, vertical ? a : a1, vertical ? a1 : a, a1};
+    const float vs[4] = {b, vertical ? c : b, vertical ? b : c, c};
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexUV(quad, i, us[i], vs[i]);
+}
+
+// A colour's channel from 0..1: x87 product with 255, truncated (_ftol).
+uint32_t channel_byte(float f) {
+    return static_cast<uint32_t>(static_cast<int64_t>(static_cast<long double>(f) * static_cast<long double>(gf(0x0083eb8c)))) & 0xff;
+}
+
+}  // namespace
+
+void XB_THISCALL HudCompHealth_Update(uint8_t* self, uint32_t) {
+    // The player's health fraction (snapshot ps +0x100 over +0x108, 0 without either; clamped,
+    // +0x18) fills the bar +8 (vtable +0x70 = colour: byte 2 = 0.7, or (1 - f) * 1.4 above
+    // half; byte 1 = 0.4, or (f + 0.2) * 0.4 + 0.3 up to half). The trail (+0x1c) falls 0.0012
+    // per ms towards it and, while above, fills the bar +0x14 in 0xffff0000 (+0x20 = shown).
+    if (!visible(self)) return;
+    uint8_t* const snap = title_global<uint8_t*>(0x00971aa8);
+    if (!snap) return;
+    uint8_t* const ps = snap + 0x10;
+    if (!ps) return;
+    const int32_t health = field<int32_t>(ps, 0x100);
+    const int32_t max = field<int32_t>(ps, 0x108);
+    float& value = field<float>(self, 0x18);
+    if (health && max) {
+        const float f = static_cast<float>(health) / static_cast<float>(max);
+        value = f;
+        if (0.0f > f)
+            value = 0.0f;
+        else if (f > gf(0x0083eb20))
+            value = gf(0x0083eb20);
+    } else {
+        value = 0.0f;
+    }
+    if (value > 0.0f) {
+        float green = gf(0x0083ed28);  // 0.7
+        float red = gf(0x0083ec44);    // 0.4
+        const float v = value;
+        if (v > gf(0x0083eb24))
+            green = (gf(0x0083eb20) - v) * gf(0x0083ee1c);
+        else
+            red = (value + gf(0x0083eca0)) * red + gf(0x0083066c);
+        const uint32_t red_byte = channel_byte(red);
+        const uint32_t green_byte = channel_byte(green);
+        const uint32_t color = 0xff000000u | green_byte << 16 | red_byte << 8;
+        method<WordMethod>(object_at(self, 8), 0x70)(object_at(self, 8), color);
+        fill_bar(object_at(self, 8), value);
+    }
+    float& trail = field<float>(self, 0x1c);
+    if (trail > value) {
+        const float t = trail - static_cast<float>(title_global<int32_t>(0x00972534)) * gf(0x0083ee18);
+        trail = t;
+        if (value >= t) field<uint32_t>(self, 0x1c) = field<uint32_t>(self, 0x18);
+    } else {
+        field<uint32_t>(self, 0x1c) = field<uint32_t>(self, 0x18);
+    }
+    if (!(trail > value)) {
+        field<uint8_t>(self, 0x20) = 0;
+        return;
+    }
+    method<WordMethod>(object_at(self, 0x14), 0x70)(object_at(self, 0x14), 0xffff0000u);
+    fill_bar(object_at(self, 0x14), trail);
+    field<uint8_t>(self, 0x20) = 1;
+}
+
+void XB_THISCALL HudCompBomberMap_Update(uint8_t* self, uint32_t dt_bits) {
+    // While visible with a map (+0x30): the map and its ten markers (+8..+0x2c) turned to the
+    // player's yaw (client +4 -> +0x23c -> +0xa0, through a 16-bit angle) - while 0x00948f64
+    // also re-centred at (+0x58, +0x5c) and scaled (0.75, 1) from 50 at their height; the three
+    // plane icons (+0x34..+0x3c) on circles of radius +0x48.. around that centre (x 0.75 and 3
+    // left while 0x00948f64; the third opposite), +0x44's at full alpha with the cursor +0x40
+    // on it, the cursor's alpha 1 - its fade (+0x54, down by dt per frame).
+    using FloatsMethod = void XB_THISCALL(uint8_t*, float, float, float, float, uint32_t);
+    using FloatMethod = void XB_THISCALL(uint8_t*, float);
+    if (!visible(self) || !object_at(self, 0x30)) return;
+    const uint8_t* const client = field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4);
+    const float yaw = field<float>(field<uint8_t*>(const_cast<uint8_t*>(client), 0x23c), 0xa0);
+    const int32_t short_angle = static_cast<int32_t>(yaw * gf(0x0083ebd8)) & 0xffff;
+    const float angle = static_cast<float>(short_angle) * gf(0x0083ebd4) * gf(0x0083ed00) / gf(0x0083eb60);
+    uint32_t angle_bits;
+    std::memcpy(&angle_bits, &angle, 4);
+    auto turn = [&](uint32_t offset) {
+        if (title_global<uint32_t>(0x00948f64)) {
+            call(object_at(self, offset), 0x90);
+            method<GetSetMethod>(object_at(self, offset), 0x8c)(object_at(self, offset), field<float>(self, 0x58),
+                                                                 field<float>(self, 0x5c));
+            method<PairMethod>(object_at(self, offset), 0x4c)(object_at(self, offset), angle_bits, 1);
+            uint8_t* const p = object_at(self, offset);
+            const float height = static_cast<float>(method<GetMethod>(p, 0xa0)(p));
+            method<FloatsMethod>(object_at(self, offset), 0x50)(object_at(self, offset), 50.0f, height,
+                                                                gf(0x0083eb58), gf(0x0083eb20), 1);
+        } else {
+            method<PairMethod>(object_at(self, offset), 0x4c)(object_at(self, offset), angle_bits, 1);
+        }
+    };
+    for (uint32_t i = 0; i < 10; ++i) turn(8 + i * 4);
+    turn(0x30);
+    for (int32_t i = 0; i < 3; ++i) {
+        const bool wide = title_global<uint32_t>(0x00948f64) != 0;
+        const float radius = field<float>(self, 0x48 + i * 4);
+        float sine, cosine, x, y;
+        if (i == 2) {
+            FastSinCos(&sine, 0, &cosine, angle + gf(0x0083ed00));
+            y = field<float>(self, 0x5c) - cosine * radius;
+            const float k = wide ? gf(0x0083eb58) : gf(0x0083eb20);
+            x = k * sine * radius;
+        } else {
+            FastSinCos(&sine, 0, &cosine, angle);
+            y = field<float>(self, 0x5c) - radius * cosine;
+            const float k = wide ? gf(0x0083eb58) : gf(0x0083eb20);
+            x = k * radius * sine;
+        }
+        x = x + field<float>(self, 0x58);
+        if (wide) x = x - gf(0x0083ec9c);
+        uint8_t* const icon = object_at(self, 0x34 + i * 4);
+        method<GetSetMethod>(icon, 0x8c)(icon, x, y);
+        uint8_t* const again = object_at(self, 0x34 + i * 4);
+        method<WordMethod>(again, 0x7c)(again, i == field<int32_t>(self, 0x44) ? 0x3f800000u : 0);
+    }
+    const int32_t current = field<int32_t>(self, 0x44);
+    if (current < 0) return;
+    uint8_t* const icon = object_at(self, 0x34 + current * 4);
+    const float cy = static_cast<float>(method<GetMethod>(icon, 0xa0)(icon));
+    const float cx = static_cast<float>(method<GetMethod>(icon, 0x9c)(icon));
+    method<GetSetMethod>(object_at(self, 0x40), 0x8c)(object_at(self, 0x40), cx, cy);
+    float& fade = field<float>(self, 0x54);
+    const float one = gf(0x0083eb20);
+    if (fade > one) fade = one;
+    if (fade > 0.0f) {
+        float dt;
+        std::memcpy(&dt, &dt_bits, 4);
+        fade = fade - dt;
+    }
+    if (0.0f > fade) fade = 0.0f;
+    uint8_t* const cursor = object_at(self, 0x40);
+    if (!(fade > 0.0f)) {
+        method<WordMethod>(cursor, 0x7c)(cursor, 0);
+        return;
+    }
+    const float alpha = static_cast<float>(static_cast<long double>(title_global<double>(0x0083eb10)) - static_cast<long double>(fade));
+    method<FloatMethod>(cursor, 0x64)(cursor, alpha);
+    method<WordMethod>(object_at(self, 0x40), 0x7c)(object_at(self, 0x40), 0x3f800000u);
+}
+
 }  // namespace game

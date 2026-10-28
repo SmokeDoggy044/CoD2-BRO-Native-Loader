@@ -27,6 +27,18 @@ extern "C" void CG_CalcGunRotOffset_entry(void);
 // 0x009725f8 is 0x00972974 or 0x00972970; rates +0x548/+0x54c plus 0x0094a2a0.
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_CalcGunMoveOffset(float* out);
 extern "C" void CG_CalcGunMoveOffset_entry(void);
+// 0x00278400 (angles in ESI): the view weapon's angle lag spring (0x00972fb4..) added to the angles.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_UpdateWeaponLag(float* angles);
+extern "C" void CG_UpdateWeaponLag_entry(void);
+// 0x00282ef0 (angles in EBX): the angles' axis times the view angles' axis, back to angles.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_RotateAnglesByView(float* angles);
+extern "C" void CG_RotateAnglesByView_entry(void);
+// 0x002812d0: the vehicle's turn since the last frame (0x008fef7c) carried into the view angles.
+void XB_CDECL CG_ApplyVehicleTurnToView();
+// 0x002803d0 (cdecl distance): the refdef origin moved along the view's forward, the view pitch
+// re-derived; the C version gets the argument slot (the original leaves the length there).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_OffsetViewForward(float* distance_slot);
+extern "C" void CG_OffsetViewForward_entry(void);
 // 0x00276dd0: the gun kick springs (angles 0x00972f88, velocities 0x00972f94) stepped
 // in 5 ms pieces of the frame time: pushed back (2400, or the weapon's +0x7ac/+0x7f4
 // by aim while 0x009725d0), damped, settled at 0 on a sign change and clamped to 10.
@@ -109,6 +121,11 @@ void XB_CDECL CG_DrawDamageDirectionIcons();
 
 // 0x0027b860: the shell shock sound stopped (mix restored, both looping channels).
 void XB_CDECL CG_StopShellShockSound();
+// 0x0027c5c0 (params EBX, cdecl elapsed, duration): the shell shock's sound mix and its loop
+// and end sounds; the C version gets the entry ESP and the entry EBX/ESI/EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_UpdateShellShockSound(uint32_t entry_esp, const uint8_t* params,
+                                                                  uint32_t esi, uint32_t edi);
+extern "C" void CG_UpdateShellShockSound_entry(void);
 // 0x0027e540 (start EAX, duration ESI, cdecl params): runs or ends the shell shock effects.
 extern "C" PLATFORM_HIDDEN void XB_CDECL CG_UpdateShellShock(int32_t start, int32_t duration, const uint8_t* params);
 extern "C" void CG_UpdateShellShock_entry(void);
@@ -166,5 +183,16 @@ extern "C" void CG_AddAdsGunOffset_entry(void);
 // 0x002788b0 (angles in EDX; under CG_CalculateWeaponAngles): the weapon's idle sway by stance, sines
 // of the time on the x87.
 void XB_REGS2 XB_CDECL CG_AddWeaponIdleSway(uint32_t unused, float* angles);
+// 0x00285af0 (angles in EAX): the view weapon's angles (lean, ADS offset, sway, kick, landing dip,
+// lag spring), turned by the view and stored quantized.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_CalculateWeaponAngles(float* angles);
+extern "C" void CG_CalculateWeaponAngles_entry(void);
+// 0x00289540 (cdecl ps): Q3's CG_AddViewWeapon. The C version gets the entry ESP and EBX/ESI/EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_AddViewWeapon(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi);
+extern "C" void CG_AddViewWeapon_entry(void);
+// 0x002864a0: the view angles in the player's vehicle, turned with its "tag_player" axis.
+void XB_CDECL CG_CalcVehicleViewAngles();
+// 0x002880a0: Q3's CG_CalcViewValues; returns CG_CalcFov's result (under water).
+uint32_t XB_CDECL CG_CalcViewValues();
 
 }  // namespace game

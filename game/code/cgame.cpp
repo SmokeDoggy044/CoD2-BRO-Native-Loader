@@ -11,11 +11,13 @@
 #include "dobj.h"
 #include "fx.h"
 #include "g_utils.h"
+#include "lanes.h"
 #include "ngl.h"
 #include "qcommon.h"
 #include "script_string.h"
 #include "title_data.h"
 #include "tr_main.h"
+#include "xanim.h"
 
 // Calls a title function that takes EAX, ESI and EDI (tr_main.cpp).
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL title_call_regs(uint32_t function, uint32_t eax, uint32_t esi,
@@ -2778,6 +2780,89 @@ const char* shock_path(const char* name) {
 
 }  // namespace
 
+// The original advances its text argument slot in place: the entry hands the C version the
+// argument block, and it writes the slot as the original does.
+PLATFORM_ASM_ENTRY(CG_ShellShock_ParseParams_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_ShellShock_ParseParams) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL CG_ShellShock_ParseParams(uint32_t* args) {
+    // (names, count, text, session name): "<cvar> <value>" lines, each name of the list set
+    // (Cvar_Set2, forced) to the next token on its line, the rest of the line skipped; 1 when
+    // every name was set at least once. The parse session's unget (+0x84; +0x88 = the token
+    // at +0 is still valid) is inlined, as is the session's end.
+    const char* const* names = reinterpret_cast<const char* const*>(static_cast<uintptr_t>(args[0]));
+    const int32_t count = static_cast<int32_t>(args[1]);
+    const char*& text = *reinterpret_cast<const char**>(&args[2]);
+    uint8_t seen[0x10000];
+    std::memset(seen, 0, static_cast<uint32_t>(count));
+    int32_t found = 0;
+    Com_BeginParseSession(reinterpret_cast<const char*>(static_cast<uintptr_t>(args[3])));
+    uint8_t* info = title_global<uint8_t*>(0x008d4ca0);
+    auto field = [](uint8_t* p, uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(p + offset); };
+    for (;;) {
+        if (field(info, 0x84)) {
+            field(info, 0x84) = 0;
+            text = reinterpret_cast<const char*>(static_cast<uintptr_t>(field(info, 0x98)));
+            field(info, 0x80) = field(info, 0x94);
+        }
+        const char* token = COM_ParseExt(&text, 1);
+        if (!*token) break;
+        if (count > 0) {
+            int32_t i = 0;
+            while (title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(token, names[i])) {  // __stricmp
+                if (++i >= count) break;
+            }
+            if (i < count) {
+                uint8_t* p = title_global<uint8_t*>(0x008d4ca0);
+                char* value;
+                if (!field(p, 0x84)) {
+                    value = COM_ParseExt(&text, 0);
+                } else {
+                    field(p, 0x84) = 0;
+                    if (field(p, 0x88)) {
+                        text = reinterpret_cast<const char*>(static_cast<uintptr_t>(field(p, 0x98)));
+                        field(p, 0x80) = field(p, 0x94);
+                        value = COM_ParseExt(&text, 0);
+                    } else {
+                        value = reinterpret_cast<char*>(p);
+                    }
+                }
+                Cvar_Set2(names[i], value, 1);
+                if (!seen[i]) {
+                    seen[i] = 1;
+                    ++found;
+                }
+            }
+            info = title_global<uint8_t*>(0x008d4ca0);
+        }
+        // The rest of the line skipped (a newline counts a line).
+        const char* c = text;
+        if (!c) continue;
+        int32_t ch = static_cast<signed char>(*c);
+        if (ch) {
+            for (;;) {
+                ++c;
+                if (ch == '\n') {
+                    ++field(info, 0x80);
+                    break;
+                }
+                ch = static_cast<signed char>(*c);
+                if (!ch) break;
+            }
+        }
+        text = c;
+    }
+    int32_t depth = title_global<int32_t>(0x00927f54);
+    if (depth == 0)
+        title_function<void XB_CDECL(uint32_t, const char*)>(0x002938f0)(0, &title_global<const char>(0x008338c8));
+    --depth;
+    title_global<int32_t>(0x00927f54) = depth;
+    title_global<uint8_t*>(0x008d4ca0) = &title_global<uint8_t>(0x008d3ae0 + depth * 0x11c);
+    return found == count;
+}
+
 uint32_t XB_REGS1 XB_CDECL CG_ShellShock_LoadParams(const char* name) {
     // Reads scripts/<name>.shock into the shell shock cvars (0x0029e700 over the 0x1c names
     // at 0x008da5f0) and updates their vmCvars (0x008da660); 0 when the file is missing.
@@ -3131,6 +3216,607 @@ uint8_t XB_CDECL CG_ViewWeaponAnimsFinished(const uint8_t* tree, uint8_t* weapon
         return 0;
     }
     return 1;
+}
+
+namespace {
+
+uint8_t* view_anim_info(uint32_t info) { return &title_global<uint8_t>(0x00965cf0 + info * 0x30); }
+float& info_f(uint8_t* info, uint32_t offset) { return *reinterpret_cast<float*>(info + offset); }
+
+// The inlined goal-weight setter: goal (+0x20) reached over |goal - weight| x blend (+0x1c;
+// at once under 0.001, else a weight of 0 starts at goal x 0.001), the rate (+0x28), no
+// notetrack (+2 = -1) and +0 cleared.
+void view_anim_set_goal(uint8_t* info, float goal, float blend, float rate) {
+    const float r = abs_bits(goal - info_f(info, 0x24)) * blend;
+    info_f(info, 0x20) = goal;
+    info_f(info, 0x1c) = r;
+    if (g(0x0083eb4c) > r) {
+        info_f(info, 0x1c) = 0.0f;
+        info_f(info, 0x24) = goal;
+    } else if (info_f(info, 0x24) == 0.0f) {
+        info_f(info, 0x24) = goal * g(0x0083eb4c);
+    }
+    info_f(info, 0x28) = rate;
+    *reinterpret_cast<uint16_t*>(info + 2) = 0xffff;
+    *reinterpret_cast<uint16_t*>(info) = 0;
+}
+
+// Node `node` of `tree` to `goal` over `blend` (allocated when missing and `create`), then
+// its parents (blend time `parents_bits`), its time (restart unless `keep`) and notetrack.
+void view_anim_node(uint8_t* tree, uint32_t node, float goal, float blend, float rate, bool create,
+                    uint32_t parents_bits, uint32_t keep) {
+    const uint16_t index = *reinterpret_cast<const uint16_t*>(tree + 0x18 + node * 2);
+    title_global<uint8_t*>(0x00928588) = tree;
+    uint8_t* info = nullptr;
+    if (index)
+        info = view_anim_info(index);
+    else if (create)
+        info = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(AnimTree_AllocInfo(node, tree)));
+    if (info) view_anim_set_goal(info, goal, blend, rate);
+    AnimTree_ActivateParents(node, parents_bits);
+    AnimTree_ResetTime(node, keep);
+    AnimTree_UpdateNoteIndex(0, node);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CG_PlayViewWeaponAnim_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_PlayViewWeaponAnim) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_PlayViewWeaponAnim(uint32_t weapon, uint32_t anim, uint8_t* obj, uint32_t blend_bits) {
+    // On each anim tree of the view weapon's object (+0x2e trees at +0): view-weapon anim
+    // `anim` (1..24) to weight 1 at once, the others to 0 over `blend`, each at the weapon's
+    // rate (0x00975fa8 + weapon * 0xc4, +4 per anim). While aiming, the fire anims 9-11 also
+    // kick anim 24 (to 1, then to 0 over 0.3), clear 23 and blend `anim` in again over 0.3.
+    // The checks for node 0 (goal 1, rate 1) can never fire and are left out.
+    const uint8_t* const rates = &title_global<uint8_t>(0x00975fa8 + weapon * 0xc4);
+    auto rate_of = [rates](uint32_t node) { return *reinterpret_cast<const float*>(rates + 4 + node * 4); };
+    float blend;
+    std::memcpy(&blend, &blend_bits, 4);
+    const float one = g(0x0083eb20);
+    for (uint32_t t = 0; t < obj[0x2e]; ++t) {
+        uint8_t* const tree = reinterpret_cast<uint8_t* const*>(obj)[t];
+        if (!tree) continue;
+        for (uint32_t i = 1; i < 0x19; ++i) {
+            if (i == anim)
+                view_anim_node(tree, i, one, 0.0f, rate_of(i), true, 0, 1);
+            else
+                view_anim_node(tree, i, 0.0f, blend, rate_of(i), false, blend_bits, 0);
+        }
+        if (!(g(0x009725d8) > 0.0f)) continue;
+        if (anim != 10 && anim != 9 && anim != 11) continue;
+        const float kick = g(0x0083066c);  // 0.3
+        view_anim_node(tree, 0x18, one, 0.0f, rate_of(0x18), true, 0, 1);
+        view_anim_node(tree, 0x18, 0.0f, kick, rate_of(0x18), false, 0x3e99999au, 0);
+        view_anim_node(tree, 0x17, 0.0f, 0.0f, rate_of(0x17), false, 0, 1);
+        view_anim_node(tree, anim, 0.0f, 0.0f, rate_of(anim), false, 0, 1);
+        view_anim_node(tree, anim, one, kick, rate_of(anim), true, 0x3e99999au, 1);
+    }
+}
+
+namespace {
+
+// An anim info's time (+0x10, +0x14) set to t, its frames (+0x18, +0x1a) to 0.
+void view_anim_set_time(uint16_t index, float t) {
+    uint8_t* const info = view_anim_info(index);
+    info_f(info, 0x10) = t;
+    *reinterpret_cast<uint16_t*>(info + 0x18) = 0;
+    info_f(info, 0x14) = t;
+    *reinterpret_cast<uint16_t*>(info + 0x1a) = 0;
+}
+
+uint32_t float_word(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(CG_UpdateViewWeaponAdsAnims_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CG_UpdateViewWeaponAdsAnims) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL CG_UpdateViewWeaponAdsAnims(uint8_t* tree, const uint8_t* rec) {
+    // The ADS in/out anims 23 and 24 of a view-weapon tree (EAX; rec = the weapon's anim
+    // record, rates at +4 per anim): while the ADS fraction 0x009725d8 is between 0 and 1 their
+    // times follow it (23 at the fraction, 24 at 1 - it, when they have weight); at 0 or 1 both
+    // go to 0 at once. Then, aiming in with the first of anims 9, 10, 12 that has weight (12
+    // without a weight test) at full weight and under 0.4 s left (length x (1 - time) x rate),
+    // that anim fades out over 0.3 / rate and 24 restarts at full weight at 1 - the fraction.
+    const float aim = g(0x009725d8);
+    const float one = g(0x0083eb20);
+    auto rate_of = [rec](uint32_t node) { return *reinterpret_cast<const float*>(rec + 4 + node * 4); };
+    auto word = [tree](uint32_t node) { return *reinterpret_cast<const uint16_t*>(tree + 0x18 + node * 2); };
+    auto weight = [](uint16_t index) -> const float& { return info_f(view_anim_info(index), 0x24); };
+    if (!(aim == 0.0f) && !(aim == one)) {
+        const uint16_t in = word(0x17);
+        if (in && !(weight(in) == 0.0f)) view_anim_set_time(in, aim);
+        const uint16_t out = word(0x18);
+        if (out && !(weight(out) == 0.0f)) view_anim_set_time(out, one - aim);
+    } else {
+        view_anim_node(tree, 0x17, 0.0f, 0.0f, rate_of(0x17), false, 0, 1);
+        view_anim_node(tree, 0x18, 0.0f, 0.0f, rate_of(0x18), false, 0, 1);
+    }
+    const float aim2 = g(0x009725d8);
+    float w = 0.0f;
+    uint32_t anim = 9;
+    const uint16_t i9 = word(9);
+    if (i9 && !(weight(i9) == 0.0f)) {
+        w = weight(i9);
+    } else {
+        anim = 0xa;
+        const uint16_t i10 = word(0xa);
+        if (i10 && !(weight(i10) == 0.0f)) {
+            w = weight(i10);
+        } else {
+            anim = 0xc;
+            const uint16_t i12 = word(0xc);
+            w = i12 ? weight(i12) : 0.0f;
+        }
+    }
+    if (!(aim2 > 0.0f)) return;
+    if (!(w == g(0x0083eb20))) return;
+    float t = 0.0f;
+    if (const uint16_t index = word(anim)) t = info_f(view_anim_info(index), 0x10);
+    const uint8_t* const anims = *reinterpret_cast<uint8_t* const*>(tree + 8);
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(anims + 4);
+    uint8_t* const node = *reinterpret_cast<uint8_t* const*>(anims + 8) + (anim >= count ? 0 : anim) * 0x38;
+    if (!*reinterpret_cast<const uint32_t*>(node + 0x24)) AnimData_EnsureLoaded(node);
+    const uint8_t* const clip = *reinterpret_cast<uint8_t* const*>(node + 0x24);
+    const float length = clip ? *reinterpret_cast<const float*>(clip + 0x38) : g(0x0083eb20);
+    const float left = (length - length * t) * rate_of(anim);
+    if (!(g(0x0083ec44) > left)) return;
+    const float fade = static_cast<float>(static_cast<long double>(rate_of(anim)) * static_cast<long double>(g(0x0083066c)));
+    const uint32_t fade_bits = float_word(fade);
+    const uint32_t rate_bits = float_word(rate_of(anim));
+    AnimTree_SetGoalWeightClamped(tree, 0, anim, 0, fade_bits, rate_bits, 0, 0, 0);
+    AnimTree_SetGoalWeightClamped(tree, 0, 0x18, 0, 0, float_word(rate_of(0x18)), 0, 0, 1);
+    AnimTree_SetGoalWeightClamped(tree, 0, 0x18, 0x3f800000u, fade_bits, float_word(rate_of(0x18)), 0, 0, 1);
+    AnimTree_SetGoalWeightClamped(tree, 0, 0x17, 0, 0, float_word(rate_of(0x17)), 0, 0, 1);
+    const uint16_t out = word(0x18);
+    const float rest = g(0x0083eb20) - g(0x009725d8);
+    if (out) view_anim_set_time(out, rest);
+}
+
+void XB_CDECL CG_UpdateViewWeaponAnim(uint8_t* ps, uint8_t* rec) {
+    // The view weapon's anims (rec = 0x00975fa8 + weapon * 0xc4: +0 object, +0x80 the anim
+    // last started): the ADS anims, then on a new weapon anim (ps +0x4ec, flag 0x200 masked) the
+    // matching view anim (CG_PlayViewWeaponAnim; 23/24 blend in over 0.3 once anims 9-12 rest,
+    // idle (0/23) waits for the running ones and picks 20 / 3 / 1 / 2 by weapon type, sprint flag
+    // and clip; 2 alternates 17 and 4 for type-3 non-ADS weapons). Unknown anims play 1.
+    uint8_t* const obj = *reinterpret_cast<uint8_t**>(rec);
+    if (!obj) return;
+    uint8_t* const tree = *reinterpret_cast<uint8_t**>(obj);
+    const int32_t weapon = *reinterpret_cast<const int32_t*>(ps + 0x80);
+    const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[weapon];
+    const int32_t state = *reinterpret_cast<const int32_t*>(ps + 0x84);
+    uint32_t sprint = 0;
+    if ((state == 5 && *reinterpret_cast<const int32_t*>(ps + 0x34) - *reinterpret_cast<const int32_t*>(def + 0x80c) > 0) ||
+        state == 0xe)
+        sprint = 0;
+    else if (ps[0x2c] & 0x20)
+        sprint = 1;
+    TitleRegs regs{};
+    regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tree));
+    regs.esi = regs.eax;
+    regs.edi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(def));
+    regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(obj));
+    const uint32_t ads_args[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rec))};
+    cg_call_regs(0x00280ed0, &regs, ads_args, 1);  // CG_UpdateViewWeaponAdsAnims
+    const int32_t current = *reinterpret_cast<const int32_t*>(ps + 0x4ec);
+    if (current == *reinterpret_cast<const int32_t*>(rec + 0x80)) return;
+    static const uint8_t kAnims[24] = {0,    1,    0,   6,   7,    0x11, 0x12, 0x13, 8,    0xe, 0xd,  9,
+                                       0xa,  0xb,  0xc, 0x10, 0xf,  5,    1,    0x15, 0x16, 0,   0,    0};
+    const uint32_t kick = 0x3e99999au;  // 0.3
+    const uint32_t sel = static_cast<uint32_t>(current) & ~0x200u;
+    uint32_t anim = 1;
+    uint32_t blend = 0;
+    switch (sel > 0x17 ? 1 : sel) {
+    case 0:
+    case 0x17: {
+        if (!CG_ViewWeaponAnimsFinished(tree, rec)) return;
+        const int32_t type = *reinterpret_cast<const int32_t*>(def + 0x98);
+        if ((type == 3 || type == 8) && (ps[0x2c] & 0x20)) {
+            anim = 0x14;
+        } else if (sprint) {
+            anim = 3;
+        } else {
+            const uint32_t clip = *reinterpret_cast<const uint32_t*>(
+                title_global<uint8_t* const*>(0x0095f4d8)[*reinterpret_cast<const int32_t*>(ps + 0x80)] + 0x5a0);
+            anim = *reinterpret_cast<const uint32_t*>(ps + 0x280 + clip * 4) ? 1 : 2;
+        }
+        break;
+    }
+    case 2:
+        if (!*reinterpret_cast<const uint32_t*>(def + 0x6dc) && *reinterpret_cast<const int32_t*>(def + 0x9c) == 3) {
+            CG_PlayViewWeaponAnim(static_cast<uint32_t>(*reinterpret_cast<const int32_t*>(ps + 0x80)),
+                                  title_global<uint8_t>(0x0098ad48) ? 0x11 : 4, obj, 0);
+            title_global<uint8_t>(0x0098ad48) = title_global<uint8_t>(0x0098ad48) == 0;
+            *reinterpret_cast<int32_t*>(rec + 0x80) = *reinterpret_cast<const int32_t*>(ps + 0x4ec);
+            return;
+        }
+        anim = 4;
+        break;
+    case 0x15:
+    case 0x16:
+        if (!CG_ViewWeaponAnimsInactive(tree)) return;
+        anim = sel == 0x15 ? 0x17 : 0x18;
+        blend = kick;
+        break;
+    default:
+        anim = kAnims[sel];
+        break;
+    }
+    CG_PlayViewWeaponAnim(static_cast<uint32_t>(*reinterpret_cast<const int32_t*>(ps + 0x80)), anim, obj, blend);
+    *reinterpret_cast<int32_t*>(rec + 0x80) = *reinterpret_cast<const int32_t*>(ps + 0x4ec);
+}
+
+void XB_CDECL CG_Shutdown() {
+    // The voice volume scale back to 0, the weapon models freed, the loaded string table
+    // (0x0095f59c when 0x0095f5a0 is 2) freed, then every FX system destroyed (tail jump).
+    title_function<void XB_CDECL(uint32_t)>(0x000c5390)(0);  // Snd_SetVoiceVolumeScale
+    CG_FreeWeaponModels();
+    if (title_global<int32_t>(0x0095f5a0) == 2) {
+        title_function<void XB_CDECL(void*)>(0x000428d0)(title_global<void*>(0x0095f59c));  // Z_Free
+        title_global<uint32_t>(0x0095f59c) = 0;
+        title_global<uint32_t>(0x0095f5a0) = 0;
+    }
+    FxSystemList_DestroyAll(&title_global<uint8_t>(0x009099a8));
+}
+
+void XB_CDECL CG_RegisterGraphics() {
+    // Q3's CG_RegisterGraphics: the effect pools reset, seven shaders, the weapon tables
+    // (0x00949a98, 0x800 bytes; 0x00975fa8, 0x4670 bytes) cleared, the items, then the inline
+    // models of configstrings 0x21.. (until an empty one, at most 0x7f) into 0x00975948, with
+    // loading-screen refreshes between.
+    FX_InitEffectPool();
+    FX_ClearEffects();
+    FX_ResetParticleSystem();
+    FX_FreeAllEffectLights();
+    auto refresh = []() { title_function<void XB_CDECL()>(0x002f1e60)(); };  // SCR_UpdateScreen
+    refresh();
+    static const uint32_t kShaders[7][2] = {{0x00838dac, 0x00975c4c}, {0x00838d9c, 0x00975c58}, {0x00838d80, 0x00975c5c},
+                                           {0x00838d64, 0x00975c60}, {0x00838d4c, 0x00975c64}, {0x00838d3c, 0x00975c50},
+                                           {0x00838d30, 0x00975c54}};
+    for (uint32_t k = 0; k < 7; ++k)
+        title_global<uint8_t*>(kShaders[k][1]) = RE_RegisterShader(0, &title_global<const char>(kShaders[k][0]));
+    refresh();
+    for (uint32_t k = 0; k < 0x200; ++k) title_global<uint32_t>(0x00949a98 + k * 4) = 0;
+    for (uint32_t k = 0; k < 0x119c; ++k) title_global<uint32_t>(0x00975fa8 + k * 4) = 0;
+    refresh();
+    CG_RegisterItems();
+    refresh();
+    refresh();
+    uint32_t handle = 0;
+    for (int32_t i = 0x21; i - 0x20 < 0x80; ++i) {
+        const char* name = nullptr;
+        if (i >= 0 && i < 0x400) {
+            const uint8_t* const string = title_global<const uint8_t*>(0x009606b8 + static_cast<uint32_t>(i) * 4);
+            if (string) name = reinterpret_cast<const char*>(string + 6);
+        }
+        if (!*name) break;
+        R_RegisterModel(name, title_global<uint32_t>(0x0095f6ac), &handle,
+                        *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0095f638) + 0x34));
+        title_global<uint32_t>(0x00975948 + static_cast<uint32_t>(i - 0x21) * 4) = handle;
+    }
+    refresh();
+}
+
+void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart) {
+    // Q3's CG_Init part that clears cg (0x00971a80, 0x2010 bytes; +0x24 = `restart`): the
+    // server-command hashes, on a restart the weapons again (BG_InitWeapons; a loaded string
+    // table marked unloaded), the local entities, objectives 16..31, the gravity / time scale
+    // configstrings (import 0x00928520 and 0x009730a4), all sounds stopped unless the music
+    // channel (0x009600f4) is still playing, the serverinfo read, cg_thirdPerson 0, land and step
+    // times -1 and the vehicle turn matrix marked invalid (0x00972c40).
+    CG_InitServerCommandHashes();
+    if (restart) {
+        if (title_global<int32_t>(0x0095f5a0) == 2) title_global<int32_t>(0x0095f5a0) = 0;
+        title_function<void XB_CDECL()>(0x002cdf00)();  // BG_InitWeapons
+    }
+    for (uint32_t k = 0; k < 0x804; ++k) title_global<uint32_t>(0x00971a80 + k * 4) = 0;
+    title_global<uint32_t>(0x00971aa4) = restart;
+    title_global<uint32_t>(0x00973a68) = 0;
+    title_global<uint32_t>(0x00973a6c) = 0;
+    CG_InitLocalEntities();
+    for (int32_t i = 0x10; i < 0x20; ++i) CG_ParseObjective(i);
+    using AtofFn = float XB_CDECL(const char*);
+    auto configstring = [](uint32_t address) -> const char* {
+        const uint8_t* const string = title_global<const uint8_t*>(address);
+        return string ? reinterpret_cast<const char*>(string + 6) : nullptr;
+    };
+    const float first = title_function<AtofFn>(0x001ef056)(configstring(0x009606dc));
+    uint32_t first_bits;
+    std::memcpy(&first_bits, &first, 4);
+    title_function<void XB_CDECL(uint32_t)>(title_global<uint32_t>(0x00928520))(first_bits);
+    title_global<float>(0x009730a4) = title_function<AtofFn>(0x001ef056)(configstring(0x009606e4));
+    const uint32_t handle = title_global<uint32_t>(0x009600f4);
+    const uint32_t index = handle & 0xfff;
+    const bool playing = index < 0x200 && (handle >> 12) == title_global<uint32_t>(0x00962864 + index * 8) &&
+                         title_global<uint32_t>(0x00962860 + index * 8);
+    if (!playing) {
+        TitleRegs regs{};
+        regs.ebx = title_global<uint32_t>(0x0095f4c4);
+        cg_call_regs(0x002c8d60, &regs, nullptr, 0);  // S_StopAllSounds
+        title_function<void XB_STDCALL(uint32_t)>(0x002c8c20)(title_global<uint32_t>(0x0095f4c4));  // S_StopAllChannels
+    }
+    const char* const info = configstring(0x009606c4);
+    TitleRegs regs{};
+    regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
+    regs.edi = 0x00838d2c;
+    cg_call_regs(0x002b8f50, &regs, nullptr, 0);  // Info_ValueForKey
+    regs.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info));
+    regs.edi = 0x00838d28;
+    const uint32_t value = cg_call_regs(0x002b8f50, &regs, nullptr, 0);  // Info_ValueForKey
+    title_function<int32_t XB_CDECL(uint32_t)>(0x001eeb81)(value);  // _atol (result unused)
+    const uint32_t name = title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(0x00948388) * 0x2c);
+    title_function<uint8_t* XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0029c030)(name, 0x0082e098, 1);  // Cvar_Set2(.., "0")
+    cg_cvar_update(0x00948388);
+    title_global<int32_t>(0x00972af4) = -1;
+    title_global<int32_t>(0x00972aec) = -1;
+    title_global<uint32_t>(0x00972c40) = 1;
+}
+
+void XB_REGS1 XB_CDECL CG_SetInitialSnapshot(uint8_t* snap) {
+    // Q3's CG_SetInitialSnapshot (snap in EAX): cg.snap, the time from it, the entities' +0x418
+    // cleared (list 0x0097d370, 0x0097d36c of them). On the first one of a level (0x0094a974) the
+    // fade (0x009730b8..) reset and the loading screen closed: the chapter's front-end page
+    // (g_currentChapter <= 0, <= 5, <= 8, else; the three later ones started with 2.0) told to
+    // continue, and when the front end is in state 6 its loading panel hidden, the cvars and
+    // command 0x0082bc74 run, the free sound channels stopped and the rest resumed, the key
+    // catcher 2 cleared and the keys released (tail jump to Key_ClearStates).
+    using UiWord = void XB_THISCALL(uint8_t*, uint32_t);
+    auto method_of = [](uint8_t* object, uint32_t offset) {
+        return title_function<UiWord>(*reinterpret_cast<uint32_t*>(*reinterpret_cast<uint8_t**>(object) + offset));
+    };
+    auto field_ptr = [](uint8_t* object, uint32_t offset) { return *reinterpret_cast<uint8_t**>(object + offset); };
+    const int32_t count = title_global<int32_t>(0x0097d36c);
+    title_global<uint8_t*>(0x00971aa8) = snap;
+    title_global<uint32_t>(0x00971aa4) = 1;
+    title_global<uint32_t>(0x00971a84) = *reinterpret_cast<const uint32_t*>(snap + 0x8c);
+    const int32_t time = *reinterpret_cast<const int32_t*>(snap + 4);
+    title_global<int32_t>(0x0097253c) = time;
+    title_global<int32_t>(0x00972540) = time;
+    for (uint32_t p = 0x0097d370; p != 0x0097d370 + static_cast<uint32_t>(count) * 4; p += 4)
+        if (uint8_t* const ent = title_global<uint8_t*>(p)) *reinterpret_cast<uint32_t*>(ent + 0x418) = 0;
+    if (!title_global<uint32_t>(0x0094a974)) return;
+    title_global<float>(0x009730b8) = g(0x0083eb20);
+    title_global<int32_t>(0x009730c0) = title_global<int32_t>(0x0097253c);
+    title_global<uint32_t>(0x009730c4) = 0;
+    title_global<float>(0x009730bc) = g(0x0083eb20);
+    using CvarSetFn = uint8_t* XB_CDECL(uint32_t, uint32_t, uint32_t);
+    title_function<CvarSetFn>(0x0029c030)(0x0082ca00, 0x0082e058, 1);  // Cvar_Set2
+    const int32_t chapter = title_global<int32_t>(0x008dce48);
+    title_global<uint32_t>(0x0092bdf4) = 2;
+    title_global<uint8_t>(0x008d50dd) = 1;
+    uint8_t* const pages = field_ptr(title_global<uint8_t*>(0x0095f8fc), 4);
+    uint8_t* page;
+    uint32_t text_slot;
+    if (chapter <= 0) {
+        page = field_ptr(pages, 0x14);
+        page[0x38] = 1;
+        text_slot = 0x58;
+    } else {
+        uint32_t start;
+        if (chapter <= 5) {
+            page = field_ptr(pages, 0xc);
+            start = 0x003134e0;
+            text_slot = 0x124;
+        } else if (chapter <= 8) {
+            page = field_ptr(pages, 0x10);
+            start = 0x00313240;
+            text_slot = 0xa8;
+        } else {
+            page = field_ptr(pages, 8);
+            start = 0x00313790;
+            text_slot = 0x10c;
+        }
+        page[0x38] = 1;
+        TitleRegs regs{};
+        regs.eax = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(page));
+        regs.ebx = 1;
+        regs.esi = regs.eax;
+        const uint32_t args[1] = {0x40000000u};  // 2.0
+        cg_call_regs(start, &regs, args, 1);  // stdcall (page in EAX, 2.0)
+    }
+    if (title_global<uint8_t>(0x0093fcd0)) method_of(page, 0x60)(page, 0);
+    uint8_t* const text = field_ptr(page, text_slot);
+    method_of(text, 0x6c)(text, 0x0082bcd4);
+    uint8_t* const fe = title_global<uint8_t*>(0x0095f8fc);
+    if (*reinterpret_cast<const int32_t*>(fe + 0xc) != 6) return;
+    uint8_t* const panel = field_ptr(field_ptr(fe, 4), 0x18);
+    uint8_t* const element = *reinterpret_cast<uint8_t**>(field_ptr(panel, 4));
+    panel[0x5c] = 1;
+    method_of(element, 0x34)(element, 0x0082dfeb);  // ""
+    title_global<uint32_t>(0x008d9d48) = 1;
+    panel[0x54] = 0;
+    title_function<CvarSetFn>(0x0029c030)(0x0082ca00, 0x0082e098, 1);  // Cvar_Set2(.., "0")
+    Cbuf_AddText(&title_global<const char>(0x0082bc74));
+    title_function<CvarSetFn>(0x0029c030)(0x0082bc68, 0x0082e098, 1);
+    title_global<uint8_t>(0x0095f919) = 0;
+    uint32_t channel = title_global<uint32_t>(0x0095f4c4);
+    for (uint32_t left = 0x200; left; --left, channel += 0x30) {
+        if (title_global<uint8_t>(channel + 8)) continue;
+        TitleRegs regs{};
+        regs.ebx = 1;
+        regs.esi = left;
+        regs.edi = channel;
+        cg_call_regs(0x002c3400, &regs, nullptr, 0);  // S_StopChannel
+    }
+    TitleRegs regs{};
+    regs.eax = title_global<uint32_t>(0x0095f4c4);
+    regs.ebx = 1;
+    cg_call_regs(0x002b6ba0, &regs, nullptr, 0);  // S_ResumeAllChannels
+    title_global<uint32_t>(0x0092bdf4) &= ~2u;
+    Key_ClearStates();
+}
+
+void XB_CDECL CG_Init() {
+    // Q3's CG_Init: cgs (0x00975818), the weapon tables cleared; the white / soft-line /
+    // friendly-fire shaders, cvars and console commands; glconfig (0x0092beb8, 0xa0 bytes) and the
+    // 640x480 screen scales; the game name checked ("cod-sp"), the map name, weapons, the map
+    // loaded (imports 0x00928514 / 0x009284fc, checksum 0x00964cd0), the graphics and configstring
+    // assets, then the state cleared - with loading-screen refreshes between.
+    for (uint32_t k = 0; k < 0x1e3; ++k) title_global<uint32_t>(0x00975818 + k * 4) = 0;
+    for (uint32_t k = 0; k < 0x119c; ++k) title_global<uint32_t>(0x00975fa8 + k * 4) = 0;
+    for (uint32_t k = 0; k < 0x200; ++k) title_global<uint32_t>(0x00949a98 + k * 4) = 0;
+    static const uint32_t kShaders[4][2] = {
+        {0x00838cf4, 0x00975c3c}, {0x00838ce8, 0x00975c40}, {0x00838cdc, 0x00975c44}, {0x00838ccc, 0x00975c48}};
+    for (uint32_t k = 0; k < 4; ++k)
+        title_global<uint8_t*>(kShaders[k][1]) = RE_RegisterShader(0, &title_global<const char>(kShaders[k][0]));
+    CG_RegisterCvars();
+    CG_InitConsoleCommands();
+    const uint8_t* const cs2 = title_global<const uint8_t*>(0x009606c0);
+    for (uint32_t k = 0; k < 0x28; ++k) title_global<uint32_t>(0x00975818 + k * 4) = title_global<uint32_t>(0x0092beb8 + k * 4);
+    title_global<float>(0x009758b8) = static_cast<float>(title_global<int32_t>(0x0097589c)) * g(0x0083ec14);
+    title_global<float>(0x009758bc) = static_cast<float>(title_global<int32_t>(0x009758a0)) * g(0x0083ec10);
+    const char* const game = cs2 ? reinterpret_cast<const char*>(cs2 + 6) : nullptr;
+    if (std::strcmp(game, &title_global<const char>(0x0083366c)))  // "cod-sp"
+        CG_Error(&title_global<const char>(0x00838ca8), &title_global<const char>(0x0083366c), game);
+    CG_ParseServerinfo();
+    title_function<void XB_CDECL()>(0x002cdf00)();  // BG_InitWeapons
+    auto refresh = []() { title_function<void XB_CDECL()>(0x002f1e60)(); };  // SCR_UpdateScreen
+    refresh();
+    refresh();
+    for (uint32_t k = 0; k < 0x18; ++k) title_global<uint32_t>(0x00972b90 + k * 4) = 0;
+    title_function<void XB_CDECL()>(title_global<uint32_t>(0x00928514))();
+    refresh();
+    uint32_t checksum = 0;
+    title_function<void XB_CDECL(uint32_t, uint32_t*)>(title_global<uint32_t>(0x009284fc))(0x009758c4, &checksum);
+    title_global<uint32_t>(0x00964cd0) = checksum;
+    refresh();
+    refresh();
+    refresh();
+    CG_RegisterGraphics();
+    refresh();
+    refresh();
+    refresh();
+    CG_PrecacheConfigStringAssets();
+    refresh();
+    refresh();
+    CG_ClearState(0);
+}
+
+// Every call runs at the original's ESP (entry - 4, after its push esi) with its registers:
+// the per-frame call reaches CG_DrawActiveFrame's whole subtree. The entry moves the C frame
+// below a gap and hands over the entry ESP, EBX and EDI.
+PLATFORM_ASM_ENTRY(CG_vmMain_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %edx\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(CG_vmMain) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi) {
+    // Q3's vmMain for the cgame (cdecl command, arguments a1..a6): 0 init, 1 shutdown, 2 console
+    // command (its result), 3 draw frame (a1 in ECX, a2 in EAX, a4..a6 on the stack), 8 whether
+    // model a1 is registered (0x00975944), 9 a DObj skeleton, 11 a camera shake (origin a3,
+    // scale *a1, duration a2, radius a4), 12 returns 1, 13-16 save/load of the view-model trees
+    // and save state, 19 the view origin into a1, 20 a restart, 21 configstring a1 changed, 22
+    // the time set; 4, 5, 7, 17, 18, 23, 24 do nothing; others are an error (-1).
+    auto arg = [entry_esp](uint32_t k) { return title_global<uint32_t>(entry_esp + 4 + 4 * k); };
+    const int32_t command = static_cast<int32_t>(arg(0));
+    const uint32_t top = entry_esp - 4;
+    TitleRegs regs{};
+    regs.ebx = ebx;
+    regs.edi = edi;
+    regs.esi = 0;
+    regs.eax = static_cast<uint32_t>(command);
+    auto call = [&](uint32_t function, uint32_t count, const uint32_t* args) {
+        return title_call_at_regs(top, function, &regs, count, args);
+    };
+    switch (command) {
+    case 0:
+        call(0x0028b7c0, 0, nullptr);  // CG_Init
+        return 0;
+    case 1:
+        call(0x0027cc30, 0, nullptr);  // CG_Shutdown
+        return 0;
+    case 2:
+        return static_cast<int32_t>(call(0x00279dd0, 0, nullptr));  // CG_ConsoleCommand
+    case 3: {
+        regs.eax = arg(2);
+        regs.ecx = arg(1);
+        regs.edx = arg(4);
+        const uint32_t args[3] = {arg(4), arg(5), arg(6)};
+        call(0x0028b340, 3, args);  // CG_DrawActiveFrame
+        return 0;
+    }
+    case 4:
+    case 5:
+    case 7:
+    case 17:
+    case 18:
+    case 23:
+    case 24:
+        return 0;
+    case 8:
+        return title_global<uint32_t>(0x00975944 + arg(1) * 4) != 0;
+    case 9: {
+        regs.eax = arg(2);
+        regs.ecx = arg(1);
+        regs.edx = arg(3);
+        const uint32_t args[3] = {arg(1), arg(2), arg(3)};
+        call(0x0027f8e0, 3, args);  // CL_DObjCreateSkeleton
+        return 0;
+    }
+    case 11: {
+        // The scale goes in XMM0: through the C version's argument.
+        const float radius = static_cast<float>(static_cast<int32_t>(arg(4)));
+        float scale;
+        std::memcpy(&scale, reinterpret_cast<const void*>(static_cast<uintptr_t>(arg(1))), 4);
+        CG_StartShakeCamera(reinterpret_cast<const float*>(static_cast<uintptr_t>(arg(3))), scale,
+                            static_cast<int32_t>(arg(2)), radius);
+        return 0;
+    }
+    case 12:
+        return 1;
+    case 13:
+        call(0x00276b90, 0, nullptr);  // CG_SaveViewModelAnimTrees
+        return 0;
+    case 14:
+        call(0x00285da0, 0, nullptr);  // CG_LoadViewModelAnimTrees
+        return 0;
+    case 15:
+        call(0x00278cb0, 0, nullptr);  // CG_CopySaveState
+        return 0;
+    case 16:
+        call(0x00276b10, 0, nullptr);  // CG_WriteSaveState
+        return 0;
+    case 19: {
+        uint32_t* const out = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(arg(1)));
+        out[0] = title_global<uint32_t>(0x00972bb0);
+        out[1] = title_global<uint32_t>(0x00972bb4);
+        out[2] = title_global<uint32_t>(0x00972bb8);
+        return 0;
+    }
+    case 20:
+        regs.eax = 1;
+        call(0x0027cad0, 0, nullptr);  // CG_ClearState
+        return 0;
+    case 21:
+        regs.eax = arg(1);
+        call(0x002867a0, 0, nullptr);  // CG_ConfigStringModified
+        return 0;
+    case 22:
+        title_global<uint32_t>(0x0097253c) = arg(1);
+        title_global<uint32_t>(0x00972540) = arg(1);
+        return 0;
+    default: {
+        const uint32_t args[2] = {0x00838dbc, static_cast<uint32_t>(command)};
+        call(0x00277630, 2, args);  // CG_Error
+        return -1;
+    }
+    }
 }
 
 void XB_CDECL AtExit_ReleaseScriptString_975810() {
