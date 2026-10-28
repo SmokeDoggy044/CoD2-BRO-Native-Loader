@@ -10,6 +10,11 @@ add_executable(update_check_test update_check_test.cpp)
 target_link_libraries(update_check_test PRIVATE launcher_update)
 add_test(NAME update_check_test COMMAND update_check_test)
 
+# Keyboard and mouse bindings (input/bindings.h).
+add_executable(bindings_test bindings_test.cpp)
+target_link_libraries(bindings_test PRIVATE input_bindings SDL3::SDL3)
+add_test(NAME bindings_test COMMAND bindings_test)
+
 # Finding the supported build's addresses in another release (loader/release_map.h).
 add_executable(release_map_test release_map_test.cpp ${PROJECT_SOURCE_DIR}/loader/release_map.cpp
                ${PROJECT_SOURCE_DIR}/loader/symbols.cpp)

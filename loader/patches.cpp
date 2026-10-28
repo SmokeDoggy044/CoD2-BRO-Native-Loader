@@ -22,6 +22,7 @@
 
 #include "compiler.h"
 #include "crash.h"
+#include "bindings.h"
 #include "devices.h"
 #include "filesystem.h"
 #include "float_env.h"
@@ -351,10 +352,15 @@ void remap_keyboard_actions(const input::PadState& default_layout, input::PadSta
 // Return and Backspace (the menu keys), and the D-pad the arrow keys.
 TitlePatchConfig::ButtonPrompts g_button_prompts = TitlePatchConfig::ButtonPrompts::Auto;
 
-// The keyboard's and mouse's control for each of kPadControls in the default layout
-// (input/devices.h).
-constexpr const char* kDefaultKeys[] = {"F", "C", "R", "Space", "V", "G", "@rmb", "@lmb", "X", "Shift", "1", "", "Q", "E"};
-static_assert(std::size(kDefaultKeys) == std::size(kPadControls));
+// The player's action for each of kPadControls in the default layout (input/bindings.h);
+// its first input is the key shown.
+constexpr input::Action kPadActions[] = {
+    input::Action::Use,   input::Action::Crouch,  input::Action::Reload,          input::Action::Jump,
+    input::Action::Melee, input::Action::Grenade, input::Action::Aim,             input::Action::Fire,
+    input::Action::RightStickClick, input::Action::Sprint, input::Action::NextWeapon, input::Action::DpadDown,
+    input::Action::LeanLeft, input::Action::LeanRight,
+};
+static_assert(std::size(kPadActions) == std::size(kPadControls));
 
 text::PromptIcon prompt_icon(const PadControl& control) {
     using text::PromptIcon;
@@ -387,7 +393,8 @@ void update_button_prompts() {
                                    [](const PadControl& control) { return *key_binding(control.key_code) != 0; });
     for (size_t i = 0; i < std::size(kPadControls); ++i) {
         const PadControl& from = kPadControls[i];
-        if (!*kDefaultKeys[i]) continue;
+        const std::string key = input::prompt_label(input::bindings()[kPadActions[i]][0]);
+        if (key.empty()) continue;
         // Where remap_keyboard_actions sends this key's control.
         const PadControl* to = bound ? nullptr : &from;
         for (const char* command : {from.command, similar_command(from.command)}) {
@@ -397,7 +404,7 @@ void update_button_prompts() {
         }
         if (!to) continue;
         const PromptIcon icon = prompt_icon(*to);
-        if (icon != PromptIcon::Count && label(icon).empty()) label(icon) = kDefaultKeys[i];
+        if (icon != PromptIcon::Count && label(icon).empty()) label(icon) = key;
     }
     // The fixed keys (menu keys, Escape, Tab) give their buttons in every layout.
     const bool menu = input::in_menu();

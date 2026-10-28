@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "bindings.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -43,6 +44,7 @@ struct Choices {
     int fps = 60;
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
+    input::Bindings bindings = input::default_bindings();
     bool aim_assist = true;
     std::string button_prompts = "auto";  // auto, keyboard, controller
     bool silent = false;
@@ -83,6 +85,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
+    if (auto v = settings.get("keys")) input::parse_bindings(*v, c.bindings);
     if (auto v = settings.get("aim-assist")) c.aim_assist = *v != "off";
     if (auto v = settings.get("button-prompts"); v && (*v == "keyboard" || *v == "controller")) c.button_prompts = *v;
     if (auto v = settings.get("silent")) c.silent = *v == "true";
@@ -112,6 +115,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("fps", c.fps == d.fps, std::to_string(c.fps));
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
+    put("keys", c.bindings == d.bindings, input::format_bindings(c.bindings));
     put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
     put("button-prompts", c.button_prompts == d.button_prompts, c.button_prompts);
     put("silent", c.silent == d.silent, c.silent ? "true" : "false");
@@ -162,6 +166,44 @@ public:
         : window_(window), settings_(platform::load_settings()), choices_(read_choices(settings_)) {
         launcher::remove_update_leftovers(platform::executable_dir());
         if (choices_.check_updates) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+    }
+
+    // While a key cell waits for its key (controls()): takes key presses, mouse buttons
+    // and the wheel before the UI sees them. True if it took `event`.
+    bool capture_event(const SDL_Event& event) {
+        if (!capturing_) return false;
+        input::InputCode input = 0;
+        switch (event.type) {
+            case SDL_EVENT_KEY_DOWN:
+                if (event.key.repeat) return true;
+                if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
+                    capturing_.reset();
+                    return true;
+                }
+                input = static_cast<input::InputCode>(event.key.scancode);
+                break;
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+                if (event.button.button < 1 || event.button.button > 5) return true;
+                input = static_cast<input::InputCode>(input::kMouseButton + event.button.button);
+                break;
+            case SDL_EVENT_MOUSE_WHEEL:
+                if (event.wheel.y == 0.0f) return true;
+                input = event.wheel.y > 0.0f ? input::kWheelUp : input::kWheelDown;
+                break;
+            case SDL_EVENT_KEY_UP:
+            case SDL_EVENT_MOUSE_BUTTON_UP:
+                return true;
+            default:
+                return false;
+        }
+        if (input::is_reserved(input)) {
+            key_notice_ = input::input_name(input) + " is kept for the menus and the loader.";
+        } else {
+            input::bind(choices_.bindings, capturing_->first, capturing_->second, input);
+            key_notice_.clear();
+        }
+        capturing_.reset();
+        return true;
     }
 
     // One frame of the UI. Returns false once the launcher should close.
@@ -405,6 +447,7 @@ private:
         ImGui::Checkbox("Aim assist", &choices_.aim_assist);
         help_marker("The view follows an enemy under the crosshair, as on the Xbox. Applies to the "
                     "controller and the mouse alike, in the campaign and in multiplayer.");
+        keys();
         ImGui::SeparatorText("On screen");
         static constexpr const char* kPrompts[] = {"auto", "keyboard", "controller"};
         int prompts = 0;
@@ -413,6 +456,53 @@ private:
         choices_.button_prompts = kPrompts[prompts];
         help_marker("The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox "
                     "controller's. They follow the controller style chosen in the game's options.");
+    }
+
+    // The keyboard and mouse bindings (input/bindings.h): click a cell, then press a key,
+    // a mouse button or turn the wheel; right-click clears it.
+    void keys() {
+        ImGui::SeparatorText("Keys");
+        ImGui::TextWrapped("Click a key, then press the new key or mouse button (Esc cancels, right-click "
+                           "clears it).");
+        help_marker("The actions of the game's Default controller style. With another style chosen in the "
+                    "game's options, each key keeps its action. Fixed: the arrow keys, Enter and Backspace "
+                    "(menus), Esc (pause), Tab (objectives), F10 (frees the mouse).");
+        if (!key_notice_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "%s", key_notice_.c_str());
+        if (!ImGui::BeginTable("keys", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
+        ImGui::TableSetupColumn("Action");
+        ImGui::TableSetupColumn("Key");
+        ImGui::TableSetupColumn("Other key");
+        ImGui::TableHeadersRow();
+        for (size_t a = 0; a < input::kActionCount; ++a) {
+            const auto action = static_cast<input::Action>(a);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(input::action_label(action));
+            if (action == input::Action::DpadDown) help_marker("Nothing in the Default style; other styles use it.");
+            for (size_t slot = 0; slot < input::kInputsPerAction; ++slot) {
+                ImGui::TableNextColumn();
+                ImGui::PushID(static_cast<int>(a * input::kInputsPerAction + slot));
+                const bool waiting = capturing_ && capturing_->first == action && capturing_->second == slot;
+                const std::string name = input::input_name(choices_.bindings[action][slot]);
+                const std::string label = waiting ? "Press a key..." : name.empty() ? "-" : name;
+                if (ImGui::Button(label.c_str(), ImVec2(-FLT_MIN, 0))) {
+                    capturing_.emplace(action, slot);
+                    key_notice_.clear();
+                }
+                if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+                    input::bind(choices_.bindings, action, slot, 0);
+                    capturing_.reset();
+                }
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndTable();
+        if (ImGui::Button("Default keys")) {
+            choices_.bindings = input::default_bindings();
+            capturing_.reset();
+            key_notice_.clear();
+        }
     }
 
     void language_and_sound() {
@@ -517,6 +607,8 @@ private:
     std::optional<launcher::Updater> updater_;
     bool restarted_ = false;
     bool profile_ = false;  // Measure performance: --profile auto, not saved
+    std::optional<std::pair<input::Action, size_t>> capturing_;  // the key cell waiting for a key
+    std::string key_notice_;
 };
 
 }  // namespace
@@ -555,8 +647,8 @@ int main(int, char**) {
     for (bool running = true; running;) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT) running = false;
+            if (!launcher.capture_event(event)) ImGui_ImplSDL3_ProcessEvent(&event);
         }
         if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
             SDL_Delay(10);

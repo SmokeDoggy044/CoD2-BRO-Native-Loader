@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "bindings.h"
 #include "crash.h"
 #include "diag_summary.h"
 #include "kernel.h"
@@ -72,6 +73,8 @@ struct Options {
     bool silent = false;
     std::string press_script;
     float mouse_sensitivity = 0.11f;
+    input::Bindings bindings = input::default_bindings();  // --keys
+    std::string bindings_error;  // a word of --keys it did not know (logged; the rest applies)
     bool aim_assist = true;
     int32_t frame_rate = 60;
     bool late_frames_wait = false;
@@ -164,6 +167,9 @@ void print_usage(const char* program) {
         "                   where each thread spends its time (START,S: once, from START\n"
         "                   seconds on; XB_PROFILE does the same)\n"
         "  --mouse-sensitivity DEG  degrees the view turns per mouse count (default 0.11)\n"
+        "  --keys LIST      keyboard and mouse bindings that differ from the defaults, e.g.\n"
+        "                   \"fire=mouse1 jump=space crouch=left-ctrl crouch=c\" (the launcher's\n"
+        "                   Controls tab writes them; input/bindings.h)\n"
         "  --aim-assist on|off  the view following an enemy under the crosshair (default on)\n"
         "  --fps 60|30      frame rate (default 60; 30 as on the Xbox; movies always play at 30)\n"
         "  --fov DEG        field of view in degrees across a 4:3 picture (50-120, default 70\n"
@@ -278,6 +284,13 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.language = found->second;
+        } else if (arg == "--keys") {
+            options.bindings_error.clear();
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--keys needs a list of action=key\n");
+                return std::nullopt;
+            }
+            input::parse_bindings(argv[++i], options.bindings, &options.bindings_error);
         } else if (arg == "--button-prompts") {
             using Prompts = loader::TitlePatchConfig::ButtonPrompts;
             const std::string value = i + 1 < argc ? argv[++i] : "";
@@ -649,6 +662,11 @@ int loader_main(int argc, char** argv) {
     if (!xbox::kernel_init(kernel_config(*options, *assets, xbe))) return startup_failed("cannot set up the Xbox memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
     loader::install_kernel_thunks(image);
+    if (!options->bindings_error.empty())
+        LOG_WARN("input", "keys setting: %s (ignored; the rest applies)", options->bindings_error.c_str());
+    if (const std::string keys = input::format_bindings(options->bindings); !keys.empty())
+        LOG_INFO("input", "keys: %s", keys.c_str());
+    input::set_bindings(options->bindings);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
                                            options->frame_rate, options->late_frames_wait,
                                            options->widescreen ? aspect : 0.0f, options->field_of_view,

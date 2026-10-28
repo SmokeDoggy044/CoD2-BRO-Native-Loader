@@ -34,7 +34,8 @@ Prototype 0.1.13. The single-player campaign is playable from the menus through
 the missions: 1 to 5 tested through, 6 started. It runs at 60 fps (or the game's
 30), with the game's own widescreen mode (wider ultrawide pictures experimental),
 higher render resolutions, borderless fullscreen, a field of view setting (the
-in-game PC menu, `` ` `` key), controllers, and keyboard and mouse. Multiplayer runs over System Link
+in-game PC menu, `` ` `` key), controllers, and keyboard and mouse with bindings of your own (the launcher's
+Controls tab, mouse buttons 4 and 5 included). Multiplayer runs over System Link
 on the local network ([docs/multiplayer.md](docs/multiplayer.md)); Xbox Live is not
 available. The Windows version is tested on Windows and under Wine. Details and
 next steps: [docs/status.md](docs/status.md).
@@ -212,7 +213,7 @@ own (the game skips keys set to false). Without game files and without
 
 Common options: `--aspect 16:9|4:3` (or wider, e.g. `21:9`, `32:9`, `3440:1440`: experimental, campaign only), `--fullscreen`/`--windowed` (Alt+Enter switches
 while playing), `--scale N` (window size), `--render-scale X`,
-`--anisotropy N`, `--brightness X`, `--sharp-text on|off`, `--button-prompts auto|keyboard|controller`, `--language L`, `--mouse-sensitivity DEG`, `--aim-assist on|off`, `--fps 60|30`, `--late-frames show|wait`, `--fov DEG` (also the in-game PC menu: the `` ` `` key), `--level N` (start a mission directly),
+`--anisotropy N`, `--brightness X`, `--sharp-text on|off`, `--button-prompts auto|keyboard|controller`, `--language L`, `--mouse-sensitivity DEG`, `--keys LIST` (key bindings, as the launcher writes them), `--aim-assist on|off`, `--fps 60|30`, `--late-frames show|wait`, `--fov DEG` (also the in-game PC menu: the `` ` `` key), `--level N` (start a mission directly),
 `--multiplayer` (start multiplayer), `--net-port N` (System Link UDP ports N..N+3),
 `--diag DIR` (playtesting, see [docs/playtesting.md](docs/playtesting.md)),
 `--debug`/`--trace`. Playtests and performance checks use the optimized
@@ -222,7 +223,7 @@ in heavy scenes). Profiling (Linux and Windows): `--profile auto[,SECONDS]` (or
 time a second runs under 80% of the frame rate aimed at (at most once a minute, 20 times a run, naming the
 mission), or once with `START,SECONDS`, and logs where the time went;
 `XB_PROFILE_OUT=FILE` adds every sampled address. Release packages are stripped:
-`tools/resolve_profile.py LOG BINARY` names our own offsets from the unstripped build. The keyboard layout is in `input/devices.h`: WASD, mouse look,
+`tools/resolve_profile.py LOG BINARY` names our own offsets from the unstripped build. The default keyboard layout is in `input/devices.h`, the bindings in `input/bindings.h`: WASD, mouse look,
 Tab shows the objectives while held, Escape pauses. The menus take the mouse (point,
 click, right click = back, wheel = up/down; `install_menu_pointer` in
 `loader/patches.cpp`). In a level, click the window to capture the mouse; F10 or
