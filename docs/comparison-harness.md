@@ -82,10 +82,14 @@ features patch cannot become `Replaced` until that patch calls the decompiled ve
 tests N calls of a hooked function the title does not make - shutdown and free paths (the campaign
 reboots instead of shutting down) - on copies of the game: `compare::force_call` starts an ordinary
 test from the client frame's call site (`client_frame_hook`, at most one per spec and frame, from S
-seconds after the level is active, on frames where W is nonzero), as if the title had called NAME
-there; the game goes on without the call. ARGS: `eax=` ... `ebp=` and up to 8 stack words, written
+seconds after the level is active, on frames where W is nonzero, or with `?A=B` where A equals B), as if the title had called NAME
+there; the game goes on without the call. ARGS: `eax=` ... `ebp=` and up to 32 stack words (8 before
+2026-10-28; NAL_IK_BuildChainMatrices takes 12 and its three vectors follow them), written
 above the return slot in the test processes (dead stack there); values are numbers, `[E]` (the
-title word at E, read without faulting) and `E+N`/`E-N`. The log's `force:` line shows the values
+title word at E, read without faulting) and `E+N`/`E-N`/`E*N`, evaluated right to left (`A+B*C` is
+A + B * C, `A*B+C` is A * (B + C)): the view weapon's anim tree is
+`[[0x975fa8+[0x009725d0]*0xc4]]`, and `?[R+0xdc]+[[R+0x7c]+0x10]*0=1` waits for a zone record R
+that is loading (state 1) and has its image (the `*0` term only has to be readable). The log's `force:` line shows the values
 used. Check that the call does work before counting it: FxSystemList_DestroyAll(ecx=0x009099a8)
 matched 39 times with its list count ([0x00909b8c]) 0 on every client frame of missions 1 and 4 -
 only the early return ran; the row was reset. Functions nothing calls or points to (no CALL/JMP,
@@ -287,6 +291,10 @@ thread (File_InitSystem's CreateThread), which a test process does not have: Str
 and SV_SpawnServer spin in Stream_Update until it finishes; such tests time out, and the timeout
 message says what the test process was doing (" (running)", " (waiting: futex)", from
 /proc/PID/syscall). `XBCMP_TIMEOUT_MS=N` raises the per-test limit for long synchronous work.
+`XBCMP_POKE=ADDR=VALUE[,...]` (up to 8) writes title words in every test process before the
+test, on both sides and before the written-page tracking starts: `0x008bfd80=0` puts the file
+system in its single-thread mode (File_PumpRequests then pumps the devices itself instead of
+waiting for the request thread), which is how Stream_LoadSync can finish in a test process.
 The recorded-call log holds 512 KB per side (level streaming makes many calls).
 
 ## Callers that rebuild the original's frame
