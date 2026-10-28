@@ -143,10 +143,8 @@ void XB_REGS1 XB_CDECL SV_TraceStaticModels(const float* start, uint8_t* results
 // for the point clip, the static-model flag, one more): Q3's SV_Trace - CM_BoxTrace against the world (hit entity
 // = the world's number), the static models, then the entities: the point walk for a zero-size box, else the box
 // walk with endpos recomputed from the original start/end.
-extern "C" PLATFORM_HIDDEN void XB_CDECL SV_Trace(const float* start, uint8_t* results, const float* mins,
-                                                 const float* maxs, const float* end, uint32_t pass,
-                                                 uint32_t content_mask, uint32_t capsule_flag, uint32_t arg7,
-                                                 uint32_t arg8, uint32_t static_models, uint32_t arg10);
+// The C body: the rebuilt frame (ESP after the original's prologue), the entry EBP (arguments at +8), EBX.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_Trace(uint32_t frame, uint32_t ebp, uint32_t start);
 extern "C" void SV_Trace_entry(void);
 
 // 0x002c0f60 (mins in EAX, maxs in EDI, p in ESI, q on the stack, leave fraction in XMM4): slab test of the
@@ -252,8 +250,9 @@ void XB_CDECL SV_CapsuleTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, co
 // 0x002e9440 (cdecl: two words for the world part, results, start, end, pass entity, content mask): the point trace
 // behind GScr_LocationalTraceSurface - the world through the title's 0x002d4a60 (end in EAX), then the point
 // entity walk with the hit-box flag set (no priority table, radius scale 0); no endpos recompute.
-void XB_CDECL SV_LocationalTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, const float* start, const float* end,
-                                 uint32_t pass, uint32_t content_mask);
+// The C body: the rebuilt frame (ESP after the original's prologue) and the entry EBP (arguments at +8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SV_LocationalTrace(uint32_t frame, uint32_t ebp, uint32_t entry_esi);
+extern "C" void SV_LocationalTrace_entry(void);
 
 // 0x002cc880 (start in EAX, static model in ECX; clip block, end, content mask on the stack): one static model of
 // SV_TraceStaticModels_r - its XModel's base skeleton (XModel_CalcSkeleton into an alloca'd buffer, bones of the
@@ -402,6 +401,14 @@ uint32_t XB_CDECL SV_LoadGame_f();
 // 0x0083f180) and 0x0095ff70 (0x00830c1c, 0x0083ecdc).
 void XB_CDECL StaticInit_Vec4_960110();
 void XB_CDECL StaticInit_Vec4_95ff70();
+// 0x002f3140 (map name, savegame flag): Q3's SV_SpawnServer for the local game - client and cgame shut down, the
+// file system restarted, cvars (mapname, sv_serverid ...), the local client connected, configstrings cleared; the
+// previous map freed (effects, stream zones, path nodes, anim trees); the map's stream entry, load sound and sound
+// banks (+0x24 flags), CM_LoadMap and the zone stream, SV_InitGameProgs, the skill cvars, five settle frames, the
+// server/system info configstrings, path-node script keys and anim scripts, the client begun, the cgame started,
+// the map's sound bank waited for; loading bar steps 0.85 / 0.95 / 1.0 / 0.95. The asm entry rebuilds the frame.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t ebx, uint32_t esi);
+extern "C" void SV_SpawnServer_entry(void);
 // 0x002f3f40 ("map"): with g_reloading 0 or 2, argv 1 lowered; the chapter movie (oran, gela and a third map) unless
 // 0x00940178 is set; g_currentChapter from the 14-map table (g_chaptersUnlocked raised to it); a ".svg" name is a
 // saved game: its file (under "save/") gives the map name and a cvar value (0x00832fb4); then SV_SpawnServer with

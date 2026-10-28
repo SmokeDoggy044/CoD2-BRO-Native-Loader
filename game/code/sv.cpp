@@ -1097,30 +1097,29 @@ void XB_REGS1 XB_CDECL SV_TraceStaticModels(const float* start, uint8_t* results
     std::memcpy(results, clip.trace, 0x40);
 }
 
+// The original's frame rebuilt below the entry (push ebp; and esp,-16; sub esp,0x108; push esi, edi), the C
+// body below a 128 KB gap: every callee runs at the original's ESP with its registers, so the entity walks'
+// partly written local traces (copied into the results when nearer) pick up the same stale words - CM_BoxTrace's
+// and SV_TraceStaticModels' leftovers, with the original's return addresses and EBP written back.
 PLATFORM_ASM_ENTRY(SV_Trace_entry,
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl 44(%esp)\n"
-                   "pushl %ebx\n" PLATFORM_ASM_CALL(SV_Trace) "addl $48, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "andl $-16, %esp\n"
+                   "subl $0x108, %esp\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "movl %esp, %edi\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebx\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(SV_Trace) "movl %edi, %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "movl %ebp, %esp\n"
+                   "popl %ebp\n"
                    "ret")
 
 namespace {
-
-uint32_t pass_owner(uint32_t handle) {
-    const uint32_t index = handle & 0xfff;
-    if (index >= 0x540 || title_global<uint32_t>(0x0097a96c + index * 8) != (handle >> 12) ||
-        !title_global<uint8_t*>(0x0097a968 + index * 8))
-        return 0;
-    return field<uint32_t>(G_EntHandleToEnt(&handle), 0x1a0);
-}
 
 // SV_Trace's entity part for a box (shared with SV_CapsuleTrace): the clip block (+0 -extents, +0x10 extents,
 // +0x20 extents + 1, start/end moved to the box center, the world trace, pass/owner/mask/capsule), the sector
@@ -1173,52 +1172,106 @@ void trace_entities_box(const float* start, uint8_t* results, const float* mins,
 
 }  // namespace
 
-void XB_CDECL SV_Trace(const float* start, uint8_t* results, const float* mins, const float* maxs, const float* end,
-                       uint32_t pass, uint32_t content_mask, uint32_t capsule_flag, uint32_t arg7, uint32_t arg8,
-                       uint32_t static_models, uint32_t arg10) {
-    alignas(16) uint8_t trace[0x40] = {};
-    CM_BoxTrace(nullptr, 0, maxs, trace, start, end, mins, nullptr, content_mask, capsule_flag);
-    const float fraction = field<float>(trace, 0x20);
-    field<uint32_t>(trace, 0x30) =
+void XB_CDECL SV_Trace(uint32_t frame, uint32_t ebp, uint32_t start) {
+    auto at = [](uint32_t address) -> uint32_t& { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); };
+    auto vec = [](uint32_t address) { return reinterpret_cast<float*>(uintptr_t{address}); };
+    // The callee's return address and its pushed EBP (all four walkers start with push ebp), as the original's
+    // call leaves them below its pushed arguments.
+    auto after_call = [&](uint32_t pushed, uint32_t return_address) {
+        at(frame - pushed - 4) = return_address;
+        at(frame - pushed - 8) = ebp;
+    };
+    const uint32_t results = at(ebp + 8), mins = at(ebp + 0xc), maxs = at(ebp + 0x10), end = at(ebp + 0x14);
+    const uint32_t pass = at(ebp + 0x18), content_mask = at(ebp + 0x1c), capsule_flag = at(ebp + 0x20);
+    const uint32_t trace = frame + 0xd0;
+    for (uint32_t i = 0; i < 0x40; i += 4) at(trace + i) = 0;
+    const TitleRegs box_regs = {0, start, maxs, end, maxs, mins};
+    const uint32_t box_args[7] = {trace, start, end, mins, 0, content_mask, capsule_flag};
+    title_call_at_regs(frame, 0x002e5030, &box_regs, 7, box_args);  // CM_BoxTrace
+    after_call(0x1c, 0x002e9b35);
+    const float fraction = *vec(trace + 0x20);
+    at(trace + 0x30) =
         fraction != 1.0f ? field<uint32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224) : 0;
-    if (fraction == 0.0f) {
-        std::memcpy(results, trace, 0x40);
-        return;
+    auto finish = [&](uint32_t from) { std::memcpy(vec(results), vec(from), 0x40); };
+    if (fraction == 0.0f) return finish(trace);
+    if (at(ebp + 0x2c)) {  // the static-model flag
+        const TitleRegs regs = {start, start, end, trace, maxs, mins};
+        const uint32_t args[3] = {trace, end, content_mask};
+        title_call_at_regs(frame, 0x002db3e0, &regs, 3, args);  // SV_TraceStaticModels
+        after_call(0xc, 0x002e9b93);
+        if (*vec(trace + 0x20) == 0.0f) return finish(trace);
     }
-    if (static_models) {
-        title_function<void XB_REGS1 XB_CDECL(const float*, uint8_t*, const float*, uint32_t)>(0x002db3e0)(
-            start, trace, end, content_mask);
-        if (field<float>(trace, 0x20) == 0.0f) {
-            std::memcpy(results, trace, 0x40);
-            return;
-        }
-    }
-    const float size = ((((maxs[0] - mins[0]) + maxs[1]) - mins[1]) + maxs[2]) - mins[2];
+    const float* lo = vec(mins);
+    const float* hi = vec(maxs);
+    const float size = ((((hi[0] - lo[0]) + hi[1]) - lo[1]) + hi[2]) - lo[2];
+    // The owner: G_EntHandleToEnt(EAX = &pass) when the handle is live (it pushes ESI only).
+    auto owner_of = [&](uint32_t edi) -> uint32_t {
+        const uint32_t index = pass & 0xfff;
+        if (index >= 0x540 || title_global<uint32_t>(0x0097a96c + index * 8) != (pass >> 12)) return 0;
+        const uint32_t table = title_global<uint32_t>(0x0097a968 + index * 8);
+        if (!table) return 0;
+        const TitleRegs regs = {ebp + 0x18, start, table, title_global<uint32_t>(0x0097a96c + index * 8),
+                                frame + 0x110, edi};
+        const uint32_t ent = title_call_at_regs(frame, 0x00013860, &regs, 0, nullptr);
+        at(frame - 4) = edi == frame + 0x90 ? 0x002e9cab : 0x002e9d4b;
+        return field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{ent}), 0x1a0);
+    };
     if (size == 0.0f) {
-        struct alignas(16) {
-            float start[4];
-            float end[4];
-            uint8_t trace[0x40];
-            uint32_t pass, owner, mask, arg7;
-            uint32_t arg10, arg8;
-            uint32_t pad[2];
-        } clip = {};
-        std::memcpy(clip.trace, trace, 0x40);
-        clip.owner = 0;
-        clip.mask = content_mask;
-        std::memcpy(clip.start, start, 16);
-        std::memcpy(clip.end, end, 16);
-        clip.arg8 = arg8;
-        clip.pass = pass;
-        clip.arg7 = arg7;
-        clip.arg10 = arg10;
-        clip.owner = pass_owner(pass);
-        title_function<void XB_CDECL(void*, uint32_t, uint32_t, uint32_t, const float*, const float*)>(0x002e84d0)(
-            &clip, 0x00935664, 0, field<uint32_t>(clip.trace, 0x20), clip.start, clip.end);
-        std::memcpy(results, clip.trace, 0x40);
-        return;
+        // Point clip at +0x30: start, end, the trace, pass, owner, mask, arguments 7, 10 (float), 8.
+        const uint32_t clip = frame + 0x30;
+        std::memcpy(vec(clip), vec(start), 16);
+        std::memcpy(vec(clip + 0x10), vec(end), 16);
+        std::memcpy(vec(clip + 0x20), vec(trace), 0x40);
+        at(clip + 0x64) = 0;
+        at(clip + 0x68) = content_mask;
+        at(clip + 0x60) = pass;
+        at(clip + 0x6c) = at(ebp + 0x24);
+        at(clip + 0x70) = at(ebp + 0x30);
+        at(clip + 0x74) = at(ebp + 0x28);
+        at(clip + 0x64) = owner_of(frame + 0x90);
+        const TitleRegs regs = {clip, start, at(clip + 0x40), clip, frame + 0x110, frame + 0x90};
+        const uint32_t args[6] = {clip, 0x00935664, 0, at(clip + 0x40), clip, clip + 0x10};
+        title_call_at_regs(frame, 0x002e84d0, &regs, 6, args);  // SV_PointTraceToEntities_r
+        after_call(0x18, 0x002e9cd6);
+        return finish(clip + 0x20);
     }
-    trace_entities_box(start, results, mins, maxs, end, trace, pass, pass_owner(pass), content_mask, capsule_flag);
+    // Box clip at +0x30: -extents, extents, extents + 1, start / end moved to the box center, the trace, pass,
+    // owner, mask, capsule flag.
+    const uint32_t clip = frame + 0x30;
+    std::memcpy(vec(clip + 0x50), vec(trace), 0x40);
+    at(clip + 0x94) = 0;
+    at(clip + 0x98) = content_mask;
+    at(clip + 0x90) = pass;
+    at(clip + 0x9c) = capsule_flag;
+    at(clip + 0x94) = owner_of(frame + 0xc0);
+    const Lanes half = {{0.5f, 0.5f, 0.5f, 0.5f}};
+    const Lanes extents = mul(sub(lanes(hi), lanes(lo)), half);
+    std::memcpy(vec(clip + 0x10), extents.v, 16);
+    const Lanes sign = lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e0b0}));
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint32_t a, b;
+        std::memcpy(&a, &extents.v[i], 4);
+        std::memcpy(&b, &sign.v[i], 4);
+        at(clip + i * 4) = a ^ b;
+    }
+    const Lanes outer = add(extents, lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e640})));
+    std::memcpy(vec(clip + 0x20), outer.v, 16);
+    const Lanes center = mul(add(lanes(hi), lanes(lo)), half);
+    std::memcpy(vec(clip + 0x30), add(lanes(vec(start)), center).v, 16);
+    std::memcpy(vec(clip + 0x40), add(lanes(vec(end)), center).v, 16);
+    std::memcpy(vec(frame + 0x20), lo, 16);  // the original's temporaries
+    std::memcpy(vec(frame + 0x10), vec(end), 16);
+    const TitleRegs regs = {at(clip + 0x70), start, clip, clip + 0x30, end, frame + 0xc0};
+    const uint32_t args[6] = {clip, 0x00935664, 0, at(clip + 0x70), clip + 0x30, clip + 0x40};
+    title_call_at_regs(frame, 0x002e88d0, &regs, 6, args);  // SV_ClipMoveToEntities_r
+    after_call(0x18, 0x002e9e7c);
+    const float hit = *vec(clip + 0x70);
+    if (*vec(trace + 0x20) > hit) {  // the fraction after the static models
+        const Lanes from = lanes(vec(start));
+        std::memcpy(vec(frame + 0x10), from.v, 16);
+        std::memcpy(vec(clip + 0x50), add(from, mul(sub(lanes(vec(end)), from), hit)).v, 16);
+    }
+    finish(clip + 0x50);
 }
 
 void XB_CDECL SV_SetConfigstring(int32_t index, const char* value) {
@@ -1773,46 +1826,78 @@ void XB_CDECL SV_CapsuleTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, co
     trace_entities_box(start, results, mins, maxs, end, trace, pass, owner, content_mask, 1);
 }
 
-void XB_CDECL SV_LocationalTrace(uint32_t arg0, uint32_t arg1, uint8_t* results, const float* start, const float* end,
-                                 uint32_t pass, uint32_t content_mask) {
-    alignas(16) uint8_t trace[0x40] = {};
-    title_function<void XB_REGS1 XB_CDECL(const float*, uint32_t, uint32_t, uint8_t*, const float*, uint32_t)>(
-        0x002d4a60)(end, arg0, arg1, trace, start, content_mask);  // the world part
-    const float fraction = field<float>(trace, 0x20);
-    field<uint32_t>(trace, 0x30) =
+// The original's frame rebuilt below the entry (push ebp; and esp,-16; sub esp,0xc4; push ebx, esi, edi), the C
+// body below a 128 KB gap: both callees run at the original's ESP with its registers (as SV_Trace: the entity
+// walk's partly written local trace picks up the world trace's leftovers).
+PLATFORM_ASM_ENTRY(SV_LocationalTrace_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "andl $-16, %esp\n"
+                   "subl $0xc4, %esp\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "movl %esp, %edi\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %esi\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(SV_LocationalTrace) "movl %edi, %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebx\n"
+                   "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+void XB_CDECL SV_LocationalTrace(uint32_t frame, uint32_t ebp, uint32_t entry_esi) {
+    auto at = [](uint32_t address) -> uint32_t& { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); };
+    auto after_call = [&](uint32_t pushed, uint32_t return_address) {
+        at(frame - pushed - 4) = return_address;
+        at(frame - pushed - 8) = ebp;  // both callees start with push ebp
+    };
+    const uint32_t arg0 = at(ebp + 8), arg1 = at(ebp + 0xc), results = at(ebp + 0x10);
+    const uint32_t start = at(ebp + 0x14), end = at(ebp + 0x18), pass = at(ebp + 0x1c), mask = at(ebp + 0x20);
+    const uint32_t trace = frame + 0x90;
+    for (uint32_t i = 0; i < 0x40; i += 4) at(trace + i) = 0;
+    const TitleRegs world_regs = {end, end, arg0, trace, entry_esi, trace + 0x40};
+    const uint32_t world_args[5] = {arg0, arg1, trace, start, mask};
+    title_call_at_regs(frame, 0x002d4a60, &world_regs, 5, world_args);  // the world part (end in EAX)
+    after_call(0x14, 0x002e9481);
+    float fraction;
+    std::memcpy(&fraction, &at(trace + 0x20), 4);
+    at(trace + 0x30) =
         fraction != 1.0f ? field<uint32_t>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 8), 0x224) : 0;
-    if (fraction == 0.0f) {
-        std::memcpy(results, trace, 0x40);
-        return;
+    uint32_t from = trace;
+    if (fraction != 0.0f) {
+        // Point clip at +0x10: start, end, the trace, pass, owner, mask, the hit-box flag, radius scale 0, priority 0.
+        const uint32_t clip = frame + 0x10;
+        at(clip + 0x64) = 0;
+        std::memcpy(&at(clip + 0x20), &at(trace), 0x40);
+        at(clip + 0x68) = mask;
+        std::memcpy(&at(clip), &at(start), 16);
+        std::memcpy(&at(clip + 0x10), &at(end), 16);
+        at(clip + 0x60) = pass;
+        at(clip + 0x6c) = 1;
+        at(clip + 0x74) = 0;
+        at(clip + 0x70) = 0;  // 0.0f
+        uint32_t esi = trace + 0x40, edi = clip + 0x60;
+        if (pass) {
+            const uint32_t index = pass & 0xfff;
+            esi = 0;
+            if (index < 0x540) {
+                edi = title_global<uint32_t>(0x0097a96c + index * 8);
+                if ((pass >> 12) == edi) esi = title_global<uint32_t>(0x0097a968 + index * 8);
+            }
+            at(clip + 0x64) = *reinterpret_cast<volatile uint32_t*>(uintptr_t{esi + 0x1a0});  // no null check
+        }
+        const uint32_t hit = at(clip + 0x40);
+        const TitleRegs regs = {hit, end, clip, 0, esi, edi};
+        const uint32_t args[6] = {clip, 0x00935664, 0, hit, clip, clip + 0x10};
+        title_call_at_regs(frame, 0x002e84d0, &regs, 6, args);  // SV_PointTraceToEntities_r
+        after_call(0x18, 0x002e958a);
+        from = clip + 0x20;
     }
-    struct alignas(16) {
-        float start[4];
-        float end[4];
-        uint8_t trace[0x40];
-        uint32_t pass, owner, mask, hit_boxes;
-        float scale;
-        uint32_t priority;
-        uint32_t pad[2];
-    } clip = {};
-    std::memcpy(clip.trace, trace, 0x40);
-    clip.owner = 0;
-    clip.mask = content_mask;
-    std::memcpy(clip.start, start, 16);
-    std::memcpy(clip.end, end, 16);
-    clip.pass = pass;
-    clip.hit_boxes = 1;
-    clip.priority = 0;
-    clip.scale = 0.0f;
-    if (pass) {
-        const uint32_t index = pass & 0xfff;
-        uint8_t* ent = nullptr;
-        if (index < 0x540 && title_global<uint32_t>(0x0097a96c + index * 8) == (pass >> 12))
-            ent = title_global<uint8_t*>(0x0097a968 + index * 8);
-        clip.owner = *reinterpret_cast<volatile uint32_t*>(ent + 0x1a0);  // no null check, as in the original
-    }
-    SV_PointTraceToEntities_r(reinterpret_cast<uint8_t*>(&clip), reinterpret_cast<uint8_t*>(uintptr_t{0x00935664}),
-                              0.0f, field<float>(clip.trace, 0x20), clip.start, clip.end);
-    std::memcpy(results, clip.trace, 0x40);
+    std::memcpy(reinterpret_cast<void*>(uintptr_t{results}), &at(from), 0x40);
 }
 
 int32_t XB_CDECL SV_EntityVisibleFromPoint(const float* point, uint32_t handle) {
@@ -2689,6 +2774,463 @@ void XB_CDECL StaticInit_Vec4_95ff70() {
     const uint32_t b = title_global<uint32_t>(0x0083ecdc);
     const uint32_t v[4] = {a, a, b, a};
     std::memcpy(&title_global<uint32_t>(0x0095ff70), v, 16);
+}
+
+// The original's frame rebuilt below the entry (push ebp; and esp,-16; sub esp,0x464; push ebx, esi, edi), the C
+// body below a 128 KB gap: every callee runs at the original's ESP with its registers (many take them in EAX, ECX,
+// EBX, ESI or EDI), by its title address, with the original's return address written back after the call.
+PLATFORM_ASM_ENTRY(SV_SpawnServer_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   "andl $-16, %esp\n"
+                   "subl $0x464, %esp\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "movl %esp, %edi\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(SV_SpawnServer) "movl %edi, %esp\n"
+                   "popl %edi\n"
+                   "popl %esi\n"
+                   "popl %ebx\n"
+                   "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+namespace {
+
+// The rebuilt frame: `frame` = the original's ESP after its prologue. call() runs a title function with
+// `pending` words still pushed above its arguments (cdecl arguments the original pops later), the registers the
+// original has at that call, and puts the original's return address where the call left it.
+struct SpawnFrame {
+    uint32_t frame;
+    uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;
+    static uint32_t& at(uint32_t address) { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); }
+    template <typename... A>
+    uint32_t call(uint32_t pending, uint32_t function, uint32_t return_address, A... args) {
+        const uint32_t list[sizeof...(A) + 1] = {static_cast<uint32_t>(args)..., 0};
+        const uint32_t top = frame - 4 * pending;
+        const TitleRegs regs = {eax, ebx, ecx, edx, esi, edi};
+        eax = title_call_at_regs(top, function, &regs, sizeof...(A), list);
+        at(top - 4 * sizeof...(A) - 4) = return_address;
+        return eax;
+    }
+};
+
+constexpr uint32_t kVa = 0x002a93d0, kCvarSet = 0x0029c030, kCvarGet = 0x0029c2d0, kScreen = 0x002f1e60;
+constexpr uint32_t kVmCallAt = 0x002a84e0, kStreamUpdate = 0x00292c20, kHashInit = 0x00011060;
+constexpr uint32_t kRunFrame = 0x00274660, kInfoStrings = 0x002c4e50, kRefresh = 0x002d55d0;
+
+// The loading progress after each stage: front end (0x0095f8fc) +4's dots panel (+0x14, ESI) before chapter 1,
+// else the bar of chapters 1-5 (+0xc), 6-8 (+0x10) or later (+8) with the fraction pushed; then SCR_UpdateScreen.
+void spawn_progress(SpawnFrame& f, uint32_t fraction, const uint32_t (&returns)[5]) {
+    const int32_t chapter = title_global<int32_t>(0x008dce48);
+    const uint32_t fe = title_global<uint32_t>(0x0095f8fc);
+    const uint32_t panels = SpawnFrame::at(fe + 4);
+    f.eax = static_cast<uint32_t>(chapter);
+    f.ecx = fe;
+    f.edx = panels;
+    if (chapter <= 0) {
+        f.esi = SpawnFrame::at(panels + 0x14);
+        f.call(0, 0x0033ac10, returns[0]);  // SCR_UpdateLoadingDots
+    } else {
+        uint32_t function = 0x00313790, slot = 8, ret = returns[3];
+        if (chapter <= 5) function = 0x003134e0, slot = 0xc, ret = returns[1];
+        else if (chapter <= 8) function = 0x00313240, slot = 0x10, ret = returns[2];
+        f.eax = SpawnFrame::at(panels + slot);
+        f.call(0, function, ret, fraction);
+    }
+    f.call(0, kScreen, returns[4]);
+}
+
+void spawn_frame_counter(uint32_t reset) {
+    uint32_t& counter = title_global<uint32_t>(0x0093fc28);
+    if (++counter == 0) counter = reset;
+}
+
+}  // namespace
+
+uint32_t XB_CDECL SV_SpawnServer(uint32_t frame, uint32_t ebp, uint32_t entry_ebx, uint32_t entry_esi) {
+    SpawnFrame f{frame};
+    auto at = SpawnFrame::at;
+    const uint32_t name = at(ebp + 8), savegame = at(ebp + 0xc);
+    f.ebx = entry_ebx;
+    f.esi = entry_esi;
+    f.edi = name;
+    f.call(0, kVa, 0x002f315d, 0x00835224, name);
+    f.call(2, 0x002c9fe0, 0x002f3163, f.eax);  // Com_ReadHunkUsage
+    f.eax = title_global<uint32_t>(0x00940284);  // fs_debug
+    f.ecx = at(f.eax + 0x20);
+    if (f.ecx == 2) f.call(0, kCvarSet, 0x002f3184, 0x00832c80, 0x0082e098, 1);
+    f.call(0, kCvarGet, 0x002f3198, 0x00834458, 0x0082e098, 0x21);
+    f.ecx = at(f.eax + 0x20);
+    f.eax = title_global<uint32_t>(0x0098f2c8);
+    f.esi = 0;
+    title_global<uint32_t>(0x008db11c) = f.ecx;
+    title_global<uint8_t>(0x0093ef68) = 0;
+    title_global<uint32_t>(0x00929c00) = 0;
+    if (!f.eax) title_global<uint32_t>(0x0098f2c8) = f.call(0, kCvarGet, 0x002f31cd, 0x00832fec, 0x0082e058, 0x64);
+    f.call(0, 0x002f2890, 0x002f31da);  // CL_MapLoading
+    f.call(0, 0x002b4910, 0x002f31df);  // CL_ShutdownCGame
+    f.call(0, 0x002f0750, 0x002f31e4);  // CL_ApplyFrontEndReturnState
+    f.eax = title_global<uint32_t>(0x009284e8);  // re's first slot
+    if (f.eax) f.call(0, f.eax, 0x002f31f0, 0);
+    f.edx = title_global<uint32_t>(0x0095f50c);  // gvm
+    title_global<uint32_t>(0x0092be80) = 0;
+    if (f.edx) {
+        f.call(0, kVmCallAt, 0x002f320b, 1, 0);  // GAME_SHUTDOWN
+        f.edx = title_global<uint32_t>(0x0095f50c);
+        f.call(2, 0x002971a0, 0x002f321d, f.edx, 0, 0x8c);  // Com_Memset
+        title_global<uint32_t>(0x0095f514) = 0;
+        title_global<uint32_t>(0x0095f50c) = 0;
+    }
+    f.call(0, 0x002b82d0, 0x002f3231);  // SV_ClearServer
+    f.ebx = 1;
+    f.call(0, 0x0029a5c0, 0x002f323c, 1);  // FS_Shutdown
+    f.call(1, 0x002b1ca0, 0x002f3241);     // Sys_Milliseconds
+    f.call(1, 0x001efcb3, 0x002f3247, f.eax);  // srand
+    f.call(2, 0x002a3370, 0x002f324d, 0);      // FS_Restart
+    f.eax = title_global<uint32_t>(0x0095f580);
+    f.ecx = title_global<uint32_t>(0x0095f578);
+    if (f.eax != f.ecx) {
+        f.call(0, 0x00297990, 0x002f3264);  // FS_FreeSearchPaths
+        title_global<uint32_t>(0x0095f580) = title_global<uint32_t>(0x0095f578);
+    }
+    f.eax = title_global<uint32_t>(0x0095f584);
+    if (f.eax != title_global<uint32_t>(0x0095f57c)) {
+        f.call(0, 0x00297950, 0x002f3280);  // FS_FreePackList
+        f.ecx = title_global<uint32_t>(0x0095f57c);
+        title_global<uint32_t>(0x0095f584) = f.ecx;
+    }
+    title_global<uint32_t>(0x0092f548) = 0;
+    title_global<uint32_t>(0x00964cd4) = 1;
+    f.call(0, kCvarSet, 0x002f32a8, 0x0082ca00, 0x0082e058, 1);  // cl_paused 0
+    title_global<uint32_t>(0x00927e94) = 0;
+    f.call(3, kCvarSet, 0x002f32be, 0x008344c8, 0x0082c874, 1);
+    f.call(6, kCvarSet, 0x002f32ca, 0x00835230, name, 1);
+    const uint32_t frame_time = title_global<uint32_t>(0x00947710);  // com_frameTime
+    title_global<uint32_t>(0x00964cd8) = frame_time;
+    title_global<uint32_t>(0x00964cdc) = frame_time;
+    f.eax = frame_time;
+    f.call(9, kVa, 0x002f32e4, 0x0082ded4, frame_time);
+    f.call(11, kCvarSet, 0x002f32f0, 0x008340dc, f.eax, 1);
+    f.call(14, 0x002f0a50, 0x002f32f5);  // CL_StartHunkUsers
+    f.call(14, kCvarSet, 0x002f3305, 0x00835238, 0x0082e098, 1);
+    f.call(0, kScreen, 0x002f330d);
+    f.call(0, kCvarSet, 0x002f331d, 0x0082ca00, 0x0082e058, 1);
+    f.call(3, 0x00299710, 0x002f3327, 0x00832cb8);  // Cvar_FindVar
+    if (!f.eax || field<float>(reinterpret_cast<uint8_t*>(uintptr_t{f.eax}), 0x1c) == 0.0f) {
+        f.call(0, 0x0029c570, 0x002f3345);
+        f.call(0, 0x002c4ed0, 0x002f334a);  // SV_AllocServerStatic
+    } else {
+        title_global<uint32_t>(0x0095f590) = 1;
+    }
+    f.call(0, 0x002c0ce0, 0x002f3357);  // Netchan_Init
+    // The local address {NA_LOOPBACK 2, 0, 0, 0, 0} by value, twice.
+    f.esi = f.edi = f.ebx = 0;
+    f.eax = 2;
+    f.edx = frame - 0x14;
+    at(frame + 0x10) = 0;
+    f.call(0, 0x002e03a0, 0x002f337e, 2, 0, 0, 0, 0);  // SV_ConnectLocalClient
+    f.eax = 2;
+    f.ecx = frame - 0x14;
+    f.call(0, 0x002c1b80, 0x002f3398, 2, 0, 0, 0, 0);  // CL_ResetLocalConnection
+    for (f.esi = 0x00964ce0; f.esi < 0x00965ce0; f.esi += 4) {
+        f.ecx = f.esi;
+        f.call(0, 0x0011dd20, 0x002f33ac, 0x0082dfeb);  // ScriptString_AssignCString(configstring, "")
+    }
+    f.call(0, kScreen, 0x002f33bc);
+    f.eax = title_global<uint32_t>(0x0095f6b8);  // cm
+    f.ebx = 0;
+    if (f.eax) {
+        f.esi = title_global<uint32_t>(0x0095f5b4);
+        f.call(0, 0x0029b860, 0x002f33d6);  // FX_FreeAllEffects
+        f.esi = f.edi = title_global<uint32_t>(0x0095f638);
+        f.call(0, 0x0028ca90, 0x002f33e5, 1);  // Pak_ResetZoneDistances
+        f.esi += 0x14;
+        title_global<uint8_t>(f.esi) = 0;
+        do {
+            f.eax = f.edi;
+            f.call(0, kStreamUpdate, 0x002f33f7);
+        } while (!title_global<uint8_t>(f.esi));
+        f.ecx = title_global<uint32_t>(0x0095f6e4);
+        title_global<uint32_t>(0x0095f6b8) = 0;
+        title_global<uint32_t>(0x0095f4bc) = 0;
+        if (f.ecx) {
+            const uint32_t handles = f.ecx;
+            f.eax = at(handles - 4);
+            f.ebx = handles - 4;
+            f.esi = f.eax * 0x1c + handles;
+            if (static_cast<int32_t>(f.eax) - 1 >= 0) {
+                for (f.edi = f.eax; f.edi; --f.edi) {
+                    f.esi -= 0x1c;
+                    f.ecx = f.esi;
+                    f.call(0, 0x00029560, 0x002f342f);  // FX_ReleaseEffectHandle
+                }
+            }
+            f.call(0, 0x000428d0, 0x002f3438, f.ebx);  // Z_Free
+            title_global<uint32_t>(0x0095f6e4) = 0;
+            f.ebx = 0;
+        }
+        const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);  // g_pathNodeBlocks
+        f.edx = title_global<uint32_t>(0x0095f4fc);                  // cm_worldTrees
+        at(blocks + 0x194) = 0;
+        title_global<uint8_t>(0x00986015) = 0;
+        title_global<uint8_t>(0x00986014) = 1;
+        title_global<uint8_t>(0x00986016) = 0;
+        for (uint32_t i = 0; i < 0x63; ++i) at(blocks + 8 + i * 4) = 0;
+        const uint32_t trees = title_global<uint32_t>(0x0095f524) + 4;  // rm_animTrees
+        at(f.edx + 0xc) = 0;
+        for (uint32_t i = 0; i < 0x63; ++i) at(trees + i * 4) = 0;
+        f.edi = trees + 0x63 * 4;
+        f.ecx = 0;
+        f.eax = 0;
+        title_global<uint32_t>(0x0095f68c) = 0;
+    }
+    // The map's entry in the stream system's map table (+0x18: string map +8, count +0x10, entries +0x14).
+    f.eax = title_global<uint32_t>(0x0095f638);
+    f.esi = at(f.eax + 0x18);
+    if (!f.esi) {
+        f.ebx = 0;
+    } else {
+        f.ecx = name;
+        f.edx = frame + 0xc;
+        f.ebx = f.esi + 8;
+        at(frame + 0xc) = name;
+        f.call(0, 0x000249a0, 0x002f34b6, frame + 0xc);  // StringMap_Find
+        if (f.eax) {
+            uint32_t index = at(f.eax);
+            if (index >= at(f.esi + 0x10)) index = 0;
+            f.ecx = at(f.esi + 0x14);
+            f.eax = at(f.ecx + index * 4);
+        }
+        f.ebx = f.eax;
+    }
+    const uint32_t map = f.ebx;
+    at(title_global<uint32_t>(0x0095f638) + 0x35c) = 0x002f2b00;
+    f.esi = title_global<uint32_t>(0x0095f4c4);
+    at(frame + 0x3c) = title_global<uint32_t>(0x0092bdf0);  // cls.state
+    for (uint32_t i = 0; i < 16; i += 4) {
+        at(frame + 0x40 + i) = title_global<uint32_t>(0x0082e110 + i);
+        at(frame + 0x10 + i) = title_global<uint32_t>(0x0082e290 + i);
+    }
+    title_global<uint32_t>(0x0092bdf0) = 2;
+    f.edi = 0;
+    f.eax = name;
+    f.ecx = title_global<uint32_t>(0x0082e298);
+    f.edx = title_global<uint32_t>(0x0082e29c);
+    f.call(0, kVa, 0x002f3552, 0x00832c78, name);  // the map's load sound alias
+    if (f.eax) {
+        f.call(0, 0x000c5810, 0x002f355f, f.eax);  // S_FindSoundByHash
+        if (f.eax == 0xffffffff) {
+            f.eax = 0;
+        } else {
+            f.ecx = f.esi;
+            f.call(0, 0x002c30a0, 0x002f359a, frame + 0xc, 0, 1, 0, frame + 0x10, frame + 0x40, 0xbf800000,
+                   0xbf800000, 0xbf800000, 0xbf800000);  // S_PlaySoundAlias (-1 x4)
+            f.eax = at(frame + 0xc);
+        }
+    }
+    f.edx = at(frame + 0x3c);
+    title_global<uint32_t>(0x009600f4) = f.eax;
+    title_global<uint32_t>(0x0092bdf0) = f.edx;
+    // The map's sound banks: flag bits 0-7 of +0x24.
+    static const uint32_t kBanks[8][3] = {
+        {0x00832c70, 0x002f35c1, 0x002f35d4}, {0x00832c68, 0x002f35e8, 0x002f35fa},
+        {0x00832c60, 0x002f360e, 0x002f3621}, {0x00832c58, 0x002f3635, 0x002f3648},
+        {0x00832c50, 0x002f365c, 0x002f366e}, {0x00832c48, 0x002f3682, 0x002f3695},
+        {0x00832c40, 0x002f36a9, 0x002f36bc}, {0x00832c38, 0x002f36d1, 0x002f36e3}};
+    for (uint32_t bit = 0; bit < 8; ++bit) {
+        if (!(title_global<uint8_t>(map + 0x24) & (1u << bit))) continue;
+        f.ecx = frame + 0x10;
+        f.call(0, kHashInit, kBanks[bit][1], kBanks[bit][0]);
+        f.ecx = title_global<uint32_t>(0x0095f4c0);  // rm_soundBanks
+        f.eax = f.edx = frame + 0x10;
+        f.call(0, 0x002ce8f0, kBanks[bit][2], f.ecx, frame + 0x10, 1);  // S_LoadSoundBank
+    }
+    f.ecx = title_global<uint32_t>(0x0095f638);
+    f.call(0, 0x00292d70, 0x002f36ef, map);  // Stream_StartRequest
+    at(frame - 4) = 0;
+    f.ecx = name;
+    f.call(1, kVa, 0x002f36ff, 0x00832c18, name);  // "/cod/data/game/uo/maps/%s.bsp"
+    f.call(0, 0x002c1ae0, 0x002f3707, 0);          // CM_LoadMap
+    f.eax = f.edi = title_global<uint32_t>(0x0095f638);
+    f.esi = f.eax + 0x14;
+    title_global<uint8_t>(f.esi) = 0;
+    title_global<uint8_t>(f.eax + 0x360) = 0;
+    do {
+        f.eax = f.edi;
+        f.call(0, kStreamUpdate, 0x002f3727);
+    } while (!title_global<uint8_t>(f.esi));
+    f.edi = title_global<uint32_t>(0x0095f4c0);
+    f.call(0, 0x002ce9c0, 0x002f3737);  // S_WaitForWaveBanks
+    f.edi = at(map + 0x28);
+    f.esi = title_global<uint32_t>(0x0095f638);
+    f.call(0, 0x0028f6c0, 0x002f3745);  // MemContext_Push
+    f.call(0, kScreen, 0x002f374a);
+    f.edx = savegame;
+    f.call(0, 0x002f2d30, 0x002f3753, savegame);  // SV_InitGameProgs
+    f.eax = title_global<uint32_t>(0x0095f638);
+    at(f.eax + 0x35c) = 0;
+    f.edi = 0x008dce30;
+    f.call(0, 0x00332e20, 0x002f376f);  // CL_ApplyProfileSettings
+    // The difficulty (0x008dce50: 0, 1, 2) into its cvars, the reload cvar 2 when 0x0093f800 is set.
+    struct Skill {
+        uint32_t value, set_return, va_return, cvar_return, reload_va, reload_set;
+    };
+    static const Skill kSkills[3] = {{0x0083300c, 0x002f3789, 0x002f3795, 0x002f37a2, 0x002f37be, 0x002f37cb},
+                                     {0x00832fe4, 0x002f37ec, 0x002f37f7, 0x002f3803, 0x002f381f, 0x002f382b},
+                                     {0x00832fe0, 0x002f3847, 0x002f3853, 0x002f385f, 0x002f387c, 0x002f3888}};
+    for (uint32_t skill = 0; skill < 3; ++skill) {
+        if (skill == 1) f.edi = 1;
+        if (title_global<uint32_t>(0x008dce50) != skill) continue;
+        f.call(0, kCvarSet, kSkills[skill].set_return, 0x00832ff8, kSkills[skill].value, 1);
+        f.call(3, kVa, kSkills[skill].va_return, 0x008325b8, skill);
+        f.call(5, kCvarSet, kSkills[skill].cvar_return, 0x00832fec, f.eax, 1);
+        f.ecx = title_global<uint32_t>(0x0093f800);
+        f.eax = at(f.ecx + 0x20);
+        if (!f.eax) continue;
+        f.call(0, kVa, kSkills[skill].reload_va, 0x008325b8, 2);
+        f.call(2, kCvarSet, kSkills[skill].reload_set, 0x0082c89c, f.eax, 1);  // g_reloading
+    }
+    f.ebx = 0;
+    spawn_progress(f, 0x3f59999a, {0x002f38a9, 0x002f38c5, 0x002f38dd, 0x002f38f0, 0x002f38f5});  // 0.85
+    title_global<uint32_t>(0x0092f094) = 0;
+    for (f.esi = 5; f.esi; --f.esi) {
+        f.call(0, kInfoStrings, 0x002f3907, 0x32);
+        spawn_frame_counter(1);
+        title_global<uint32_t>(0x0095f510) = 1;
+        f.call(0, kRunFrame, 0x002f392a, 0x32);  // G_RunFrame(50)
+        title_global<uint32_t>(0x0095f510) = 0;
+    }
+    spawn_progress(f, 0x3f733333, {0x002f394f, 0x002f396c, 0x002f3984, 0x002f3996, 0x002f399b});  // 0.95
+    f.call(0, kCvarSet, 0x002f39ab, 0x008340c8, 0x0082dfeb, 1);
+    f.call(3, kCvarSet, 0x002f39bb, 0x008340bc, 0x0082dfeb, 1);
+    // The serverinfo (flag 8) and systeminfo (flag 4) strings from the cvar list (next at +0x24).
+    title_global<uint8_t>(0x0093fd78) = 0;
+    for (f.esi = title_global<uint32_t>(0x0093fcec); f.esi; f.esi = at(f.esi + 0x24)) {
+        if (!(title_global<uint8_t>(f.esi + 0x10) & 8)) continue;
+        f.edx = at(f.esi + 4);
+        f.eax = at(f.esi);
+        f.call(0, 0x002afdb0, 0x002f39e6, 0x0093fd78, f.edx);  // Info_SetValueForKey_Big
+    }
+    f.eax = frame + 0x70;
+    f.call(0, 0x001eed80, 0x002f3a04, frame + 0x70, 0x0093fd78, 0x3ff);  // _strncpy
+    title_global<uint32_t>(0x009403ec) &= ~8u;  // cvar_modifiedFlags
+    title_global<uint8_t>(frame + 0x46f) = 0;
+    f.eax = title_global<uint32_t>(0x009403ec);
+    f.ecx = frame + 0x70;
+    f.call(3, 0x002bfd80, 0x002f3a24, 1, frame + 0x70);  // SV_SetConfigstring(CS_SERVERINFO)
+    title_global<uint8_t>(0x0093f818) = 0;
+    for (f.esi = title_global<uint32_t>(0x0093fcec); f.esi; f.esi = at(f.esi + 0x24)) {
+        if (!(title_global<uint8_t>(f.esi + 0x10) & 4)) continue;
+        f.eax = at(f.esi + 4);
+        f.ecx = at(f.esi);
+        f.call(0, 0x002aff40, 0x002f3a4d, 0x0093f818);  // Info_SetValueForKey
+    }
+    f.call(0, 0x002bfd80, 0x002f3a62, 0, 0x0093f818);  // SV_SetConfigstring(CS_SYSTEMINFO)
+    f.ecx = title_global<uint32_t>(0x009403ec) & ~4u;
+    title_global<uint32_t>(0x009403ec) = f.ecx;
+    f.call(2, kCvarSet, 0x002f3a81, 0x0082bc68, 0x0082e058, 1);  // cg_norender 0
+    spawn_progress(f, 0x3f800000, {0x002f3a9e, 0x002f3abb, 0x002f3ad2, 0x002f3ae5, 0x002f3aea});  // 1.0
+    // The path nodes' script keys, then their anim scripts (blocks +0x194: count +0xc; slots from +8).
+    const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);
+    at(frame + 0xc) = blocks;
+    f.esi = blocks + 0x194;
+    const uint32_t passes[2][2] = {{0x002b0e80, 0x002f3b20}, {0x002c0950, 0x002f3b53}};
+    for (uint32_t pass = 0; pass < 2; ++pass) {
+        if (!at(f.esi) || static_cast<int32_t>(at(at(f.esi) + 0xc)) <= 0) continue;
+        f.edi = 0;
+        for (f.ebx = blocks + 8; static_cast<int32_t>(f.edi) < static_cast<int32_t>(at(at(f.esi) + 0xc));
+             ++f.edi, f.ebx += 4) {
+            if (!at(f.ebx)) continue;
+            f.eax = blocks;
+            f.ecx = f.edi;
+            f.call(0, passes[pass][0], passes[pass][1]);
+        }
+        f.eax = at(at(f.esi) + 0xc);
+    }
+    if (title_global<uint32_t>(0x0095bf0c)) {
+        f.ecx = blocks;
+        f.call(0, 0x002b9870, 0x002f3b72);  // Path_ResetLinkList2048
+    }
+    // The local client (svs 0x00927e8c) and its player entity (client 0 of 0x0095f534's list).
+    f.edi = title_global<uint32_t>(0x00927e8c);
+    f.ecx = title_global<uint32_t>(0x0095f534);
+    f.edx = 0;
+    title_global<uint8_t>(0x00986015) = 1;
+    title_global<uint8_t>(0x00986016) = 1;
+    f.esi = at(f.ecx + 4);
+    f.eax = at(f.esi + 0x224);
+    at(f.edi + 0x164) = f.eax;
+    f.call(0, 0x00251730, 0x002f3bbd, f.eax);  // ClientConnect
+    f.edx = title_global<uint32_t>(0x0095f50c);
+    at(f.edi + 0x168) = 0xffffffff;
+    f.esi = at(f.esi + 0x224);
+    f.call(1, kVmCallAt, 0x002f3bdb, 3, f.esi);  // GAME_CLIENT_BEGIN
+    f.call(3, kInfoStrings, 0x002f3be2, 0x32);
+    spawn_frame_counter(1);
+    f.ebx = 1;
+    f.edx = title_global<uint32_t>(0x0095f50c);
+    title_global<uint32_t>(0x0095f510) = 1;
+    f.call(0, kVmCallAt, 0x002f3c14, 7, savegame);
+    spawn_frame_counter(1);
+    title_global<uint32_t>(0x0095f510) = 1;
+    f.call(0, kRunFrame, 0x002f3c37, 0x32);
+    f.eax = at(f.edi + 0x6b4);
+    title_global<uint32_t>(0x0095f510) = 0;
+    at(f.edi + 0x2c) = f.eax;
+    f.call(1, kRefresh, 0x002f3c54, 0x00964ce0);  // CL_RefreshConfigstrings
+    f.call(0, 0x002f2db0, 0x002f3c5c);            // CL_InitCGame
+    spawn_progress(f, 0x3f733333, {0x002f3c76, 0x002f3c92, 0x002f3caa, 0x002f3cbd, 0x002f3cc2});
+    spawn_frame_counter(1);
+    f.eax = title_global<uint32_t>(0x00964cd0);
+    f.ecx = savegame;
+    f.edx = title_global<uint32_t>(0x0095f50c);
+    title_global<uint32_t>(0x0095f510) = 1;
+    f.call(0, kVmCallAt, 0x002f3ced, 8, savegame, f.eax);
+    f.edx = title_global<uint32_t>(0x0095f50c);
+    title_global<uint32_t>(0x0095f510) = 0;
+    title_global<uint32_t>(0x0092f094) = f.call(3, kVmCallAt, 0x002f3d04, 0x13);
+    if (title_global<uint32_t>(0x00927e8c)) {
+        f.edx = title_global<uint32_t>(0x0095f50c);
+        f.call(0, kVmCallAt, 0x002f3d22, 0x15);
+        f.ebx = title_global<uint32_t>(0x00927e8c);
+        f.call(0, 0x002e4750, 0x002f3d30);  // SV_SendClientMessages
+        title_global<uint32_t>(0x0092f548) = 0;
+        f.ebx = 1;
+    }
+    f.call(0, 0x002a40f0, 0x002f3d44);  // Com_EventLoop
+    f.edx = at(f.edi + 0x6b4);
+    at(f.edi + 0x2c) = f.edx;
+    f.call(0, kRefresh, 0x002f3d57, 0x00964ce0);
+    // Wait until the map's own sound bank is loaded.
+    f.esi = title_global<uint32_t>(0x0095f4c0);
+    f.eax = name;
+    f.ecx = frame + 0x50;
+    f.call(0, kHashInit, 0x002f3d6d, name);
+    f.ecx = frame + 0x50;
+    f.eax = f.esi;
+    f.call(0, 0x002bdbd0, 0x002f3d79, frame + 0x50);  // SndBankList_IsLoaded
+    while (!(f.eax & 0xff)) {
+        f.call(0, 0x002c8f60, 0x002f3d86, f.esi);  // S_CheckWaveBankNotifies
+        f.edx = frame + 0x50;
+        f.eax = f.esi;
+        f.call(0, 0x002bdbd0, 0x002f3d92, frame + 0x50);
+    }
+    const uint32_t checksum = title_global<uint32_t>(0x0092f094);
+    f.eax = checksum;
+    f.esi = 2;
+    title_global<uint32_t>(0x0092bdf0) = 2;
+    title_global<uint32_t>(0x009606b0) = checksum;
+    title_global<uint32_t>(0x009606b4) = checksum;
+    f.call(0, kCvarSet, 0x002f3dc0, 0x0082ca00, 0x0082e058, f.ebx);
+    f.edx = title_global<uint32_t>(0x0095f638);
+    title_global<uint32_t>(0x00964cd4) = 2;
+    return f.call(0, 0x0028c690, 0x002f3dd4);  // MemContext_Pop
 }
 
 void XB_CDECL SV_Map_f() {
