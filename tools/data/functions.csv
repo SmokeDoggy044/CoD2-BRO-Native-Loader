@@ -1005,7 +1005,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00083c60,AnimManager_SkipListClear,compare,0,0,0,0,0,0,""
 00083ca0,NalManager_SkipListClearKey8,compare,0,0,0,0,0,0,""
 00083ce0,NAL_Packed16EntropyIKSpin_InitState,compare,0,0,0,0,0,0,""
-00083db0,AnimManager_SkipListInsert,compare,0,32,0,0,0,32,"original got Segmentation fault at 00083de0 AnimManager_SkipListInsert+0x30 [.text], address 00e4204c"
+00083db0,AnimManager_SkipListInsert,compare,0,52,20,0,0,32,"original got Segmentation fault at 00083de0 AnimManager_SkipListInsert+0x30 [.text], address 00e4204c"
 00083f70,AnimManager_SkipListFind,compare,5413,119,119,0,0,0,""
 000842e0,NAL_EntropyQuat_BeginBlock,compare,0,0,0,0,0,0,""
 000843c0,NAL_QuatReader_Init,compare,280592,312,312,0,0,0,""
