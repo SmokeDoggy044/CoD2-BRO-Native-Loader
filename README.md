@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 71% of the functions have a name, and 3,003 have been
+It's early days: about 71% of the functions have a name, and 3,014 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,666 | 3,003 | 8,190 |
+| Engine and game code (`.text`) | 11,193 | 8,666 | 3,014 | 8,179 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,654** | **3,003** | **13,514** |
+| **Total** | **16,517** | **11,654** | **3,014** | **13,503** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -49,13 +49,13 @@ We've also named 2,659 of the game's global variables.
 | Animation (animation trees, the animation codec) | 284 | 256 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 299 | 293 | 0 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 961 | 234 | 16 | 0 | 646 | 54 |
-| Client and menus | 761 | 477 | 196 | 6 | 33 | 49 |
+| Client and menus | 761 | 481 | 192 | 6 | 33 | 49 |
 | Server | 80 | 71 | 9 | 0 | 0 | 0 |
 | Collision | 108 | 93 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 1 | 1 | 0 | 62 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 12 | 0 | 0 | 1,986 | 6 |
 | Level-script helpers in the engine code | 1,444 | 0 | 0 | 0 | 1,389 | 48 |
-| Sound | 143 | 105 | 13 | 24 | 0 | 0 |
+| Sound | 143 | 112 | 6 | 24 | 0 | 0 |
 | Streaming (asset loading, zones) | 158 | 151 | 0 | 7 | 0 | 0 |
 | Online (Xbox Live glue) | 27 | 0 | 0 | 27 | 0 | 0 |
 | Microsoft library code built into the game (replaced, not rewritten) | 2,084 | 0 | 0 | 0 | 11 | 466 |

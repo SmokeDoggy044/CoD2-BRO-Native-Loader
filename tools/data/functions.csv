@@ -2913,7 +2913,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002f10d0,CL_InitRef,compare,131,30,30,0,0,0,""
 002f1e60,SCR_UpdateScreen,compare,24855,17880,5955,0,0,11925,"original called host code at 080abbdd from 000c7cbe SndHw_Update+0x58e [.text]"
 002f20a0,CL_Init,compare,130,55,0,0,55,0,"0095e678 XAPILIB::OHCD_fQueueTransferRequest+0x1ab77c [.data] [3] 904183 vs 000000; 0095e68c XAPILIB::OHCD_fQueueTransferRequest+0x1ab790 [.data] [3] 9c4183 vs 000000"
-002f2630,CL_Frame,compare,750871,8813,450,0,2,8361,"SDK call log full"
+002f2630,CL_Frame,compare,750871,8625,264,0,0,8361,"SDK call log full"
 002f2890,CL_MapLoading,compare,276,211,6,0,0,205,"original called host code at 080ac105 from 000c7cbe SndHw_Update+0x58e [.text]"
 002f2d30,SV_InitGameProgs,compare,112,88,88,0,0,0,""
 002f2db0,CL_InitCGame,compare,125,6,0,0,0,6,"00964cd0 XAPILIB::OHCD_fQueueTransferRequest+0x1b1dd4 [.data] [4] 70d01308 vs 00c22a00; SDK call log full"
