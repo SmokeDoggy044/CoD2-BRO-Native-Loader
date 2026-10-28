@@ -40,6 +40,11 @@ pinned at commit 0f8e252 of 2024-07-30; its own `COPYING` is the GPL-2.0 text; i
 | `d3d8types_wine.h` (from Wine) | LGPL-2.1-or-later | `LGPL-2.1-or-later.txt` |
 | `xboxdef.h` | no notice in the file; the package's `COPYING` (GPL-2.0) | `GPL-2.0-or-later.txt` |
 
+`game/code/zlib.cpp` and `game/code/unzip.cpp`: decompiled from the title's linked copies of
+zlib 1.1.4 (Copyright (C) 1995-2002 Jean-loup Gailly and Mark Adler, zlib license) and unzip 0.15
+(Copyright (C) 1998 Gilles Vollant, the zlib license), using the upstream sources as a guide; each
+file keeps its upstream notice. The zlib license allows use in GPL software.
+
 `fonts/`: unmodified fonts under the SIL Open Font License 1.1 (EB Garamond, Jost,
 Liberation Serif, Anton); sources and license texts in `fonts/README.md` and
 `fonts/licenses/`. They are shipped as separate files next to the programs, which
