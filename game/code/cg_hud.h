@@ -50,4 +50,35 @@ void XB_REGS1 XB_STDCALL HudCompMeter_SetCount(uint8_t* self, uint32_t count);
 extern "C" PLATFORM_HIDDEN void XB_CDECL HudCompGrenadeCook_Dtor(uint8_t* self);
 extern "C" void HudCompGrenadeCook_Dtor_entry(void);
 
+// 0x00011fd0, 0x00012010, 0x00012050, 0x000120a0, 0x000120e0: deleting destructors - the
+// class vtable, the owned UI elements deleted, the HudComponent vtable, Z_Free with flag bit 0.
+uint8_t* XB_THISCALL HudCompHealth_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL HudCompAmmo_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL HudCompGrenades_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL HudCompWeaponName_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL HudCompHint_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x000123b0, 0x00012440: HudManager_Dtor / HudCompCompass_Dtor (this in ESI), then Z_Free with flag bit 0.
+uint8_t* XB_THISCALL HudManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL HudCompCompass_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00310b80: the icons (count +0x10) in rows of 8, the highlighted one (+0x18) with the second picture.
+void XB_THISCALL HudCompIconCount_Draw(uint8_t* self);
+// 0x00310d60: the bomber map and its markers in two pushed scenes without depth.
+void XB_THISCALL HudCompBomberMap_Draw(uint8_t* self);
+// 0x003116f0: the stance from the player flags; its highlight fades for a second after a change.
+void XB_THISCALL HudCompStance_Update(uint8_t* self, uint32_t unused);
+// 0x00317ac0 (manager in ESI, component in EDX, colour 0..3 in EDI): the component's colour.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudManager_SetComponentColor(uint8_t* manager, int32_t component, int32_t color);
+extern "C" void HudManager_SetComponentColor_entry(void);
+// 0x00319c20, 0x00319cb0, 0x00319d50 (manager in ESI): the slot visibility of HUD layouts 2, none, default.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudManager_Layout2(uint8_t* manager);
+extern "C" void HudManager_Layout2_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudManager_HideAll(uint8_t* manager);
+extern "C" void HudManager_HideAll_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL HudManager_LayoutDefault(uint8_t* manager);
+extern "C" void HudManager_LayoutDefault_entry(void);
+// 0x003246c0 (manager in EAX): layout 3 (the default one with other slots).
+void XB_REGS1 XB_CDECL HudManager_Layout3(uint8_t* manager);
+// 0x0032ce80 (mode in EAX, manager in ECX): switches the layout when the mode changes.
+void XB_REGS3 XB_CDECL HudManager_SetLayoutMode(uint32_t mode, uint32_t unused, uint8_t* manager);
+
 }  // namespace game
