@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "cg_ents.h"
+#include "cm.h"
 #include "lanes.h"
 #include "ngl.h"
 #include "qcommon.h"
@@ -1223,6 +1224,196 @@ float XB_CDECL Zone_UpdatePriority(uint8_t* zone) {
     word_at<uint32_t>(zone, 0x40) = frame;
     word_at<float>(zone, 0x3c) = priority;
     return priority;
+}
+
+// --- Streaming module push (2026-10-28) ---
+
+namespace {
+
+// Zone*Manager deleting destructors: `derived` is set first, the previous manager handed back, then the base vtable.
+uint8_t* zone_manager_destruct(uint8_t* self, uint32_t flags, uint32_t derived, uint32_t base,
+                               void (*restore)(uint32_t previous)) {
+    const uint32_t previous = word_at<uint32_t>(self, 4);
+    word_at<uint32_t>(self, 0) = derived;
+    restore(previous);
+    word_at<uint32_t>(self, 0) = base;
+    if (flags & 1) Mem_AlignedFree(self);
+    return self;
+}
+
+void* as_pointer(uint32_t value) { return reinterpret_cast<void*>(uintptr_t{value}); }
+
+}  // namespace
+
+uint8_t* XB_THISCALL ZoneTextureManager_Destruct(uint8_t* self, uint32_t flags) {
+    return zone_manager_destruct(self, flags, 0x0083813c, 0x008381cc,
+                                 [](uint32_t previous) { nglSetTextureManager(as_pointer(previous)); });
+}
+
+uint8_t* XB_THISCALL ZoneMeshFileManager_Destruct(uint8_t* self, uint32_t flags) {
+    return zone_manager_destruct(self, flags, 0x00838184, 0x00838270,
+                                 [](uint32_t previous) { nglSetMeshFileManager(as_pointer(previous)); });
+}
+
+uint8_t* XB_THISCALL ZoneMeshManager_Destruct(uint8_t* self, uint32_t flags) {
+    return zone_manager_destruct(self, flags, 0x008382b8, 0x00838228,
+                                 [](uint32_t previous) { nglSetMeshManager(as_pointer(previous)); });
+}
+
+uint8_t* XB_THISCALL ZoneClipManager_Destruct(uint8_t* self, uint32_t flags) {
+    return zone_manager_destruct(self, flags, 0x00838160, 0x00838160,
+                                 [](uint32_t previous) { title_global<uint32_t>(0x00909830) = previous; });
+}
+
+uint8_t* XB_THISCALL ZoneClipSetManager_Destruct(uint8_t* self, uint32_t flags) {
+    return zone_manager_destruct(self, flags, 0x008380f4, 0x008380f4,
+                                 [](uint32_t previous) { title_global<uint32_t>(0x00909828) = previous; });
+}
+
+uint8_t* XB_THISCALL ZoneAnimManager_Destruct(uint8_t* self, uint32_t flags) {
+    return zone_manager_destruct(self, flags, 0x008381f0, 0x008381f0,
+                                 [](uint32_t previous) { title_global<uint32_t>(0x0090982c) = previous; });
+}
+
+uint8_t* XB_THISCALL ZoneSkelManager_Destruct(uint8_t* self, uint32_t flags) {
+    return zone_manager_destruct(self, flags, 0x00838294, 0x00838294,
+                                 [](uint32_t previous) { title_global<uint32_t>(0x00909838) = previous; });
+}
+
+namespace {
+
+// StringMap_Find (0x000249a0): map in EBX, a pointer to the key's pointer on the stack (stdcall); a pointer to the
+// entry's index or null.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL Stream_StringMapFind_call(const uint8_t* map, const char* const* key);
+PLATFORM_ASM_ENTRY(Stream_StringMapFind_call,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x000249a0, %eax\n"
+                   "call *%eax\n"
+                   "popl %ebx\n"
+                   "ret")
+
+}  // namespace
+
+uint32_t* XB_REGS2 XB_STDCALL ZoneStringMap_Lookup(uint32_t, uint32_t zone_set, const uint8_t* zones, uint32_t* out,
+                                                   const char* key, uint32_t, uint32_t* out_id) {
+    if (zone_set == 0xffffffff) {
+        *out = 0;
+        return out;
+    }
+    uint32_t list[0x21];
+    list[0] = 0;
+    Stream_ListSearchZones(zone_set, list);
+    for (int32_t i = 0; i < static_cast<int32_t>(list[0]); ++i) {
+        const uint32_t id = list[1 + i];
+        if (id == 0xffffffff) continue;
+        const uint8_t* const zone = word_at<const uint8_t*>(zones, 4 + id * 4);
+        if (!zone) continue;
+        const uint32_t* const found = Stream_StringMapFind_call(zone + 8, &key);
+        if (!found) continue;
+        if (out_id) *out_id = id;
+        uint32_t index = *found;
+        if (index >= word_at<uint32_t>(zone, 0x10)) index = 0;
+        *out = word_at<const uint32_t*>(zone, 0x14)[index];
+        return out;
+    }
+    *out = 0;
+    return out;
+}
+
+uint8_t XB_REGS2 XB_STDCALL StreamMem_HasSpace(uint32_t, const uint32_t* memory, uint32_t, float needed, uint32_t,
+                                               uint32_t) {
+    float free[4];
+    StreamMem_CountFree(memory, free);
+    if (needed > free[1]) return 0;
+    return 1;
+}
+
+void XB_REGS3 XB_CDECL Stream_SetLoadProgress(uint32_t, int32_t value, uint8_t* record) {
+    const int32_t total = word_at<int32_t>(record, 4) + value;
+    word_at<int32_t>(record, 0) = value;
+    const int32_t kilobytes = total / 1024;
+    const float range = (0.0f - word_at<float>(record, 8)) + word_at<float>(record, 0xc);
+    title_global<int32_t>(0x0095f61c) = kilobytes;
+    if (range == 0.0f) {
+        title_global<float>(0x0095f618) = 0.0f;
+        return;
+    }
+    // FILD (+2^32 when negative), FDIV, FSTP: the x87 under the title's precision control (the * 1 is exact).
+    title_global<float>(0x0095f618) =
+        platform_x87_div_mul(platform_x87_unsigned_to_float(static_cast<uint32_t>(kilobytes)), range, 1.0f);
+}
+
+uint32_t XB_CDECL Stream_LoadCfgstr(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    relocate_pack(data, 0x18);
+    title_global<uint32_t>(title_global<uint32_t>(0x0095f5d4) + 4 + zone * 4) = address_of(data);
+    return zone;
+}
+
+uint32_t XB_CDECL Stream_LoadDlg(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    relocate_pack(data, 0x18);
+    title_global<uint32_t>(title_global<uint32_t>(0x0095f5ac) + 4 + zone * 4) = address_of(data);
+    return zone;
+}
+
+void XB_CDECL Stream_LoadCg(char*, uint8_t* data, uint32_t, uint32_t zone) {
+    CM_LoadWorldTree(title_global<uint8_t*>(0x0095f4fc), data, zone);
+}
+
+PLATFORM_ASM_ENTRY(Stream_UnrelocateZone_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Stream_UnrelocateZone) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Stream_UnrelocateZone(uint8_t* image) {
+    const uint32_t base = address_of(image);
+    uint32_t i = 0;
+    if (word_at<uint32_t>(image, 0xc) == 0) {
+        word_at<uint32_t>(image, 8) -= base;
+        return 0;
+    }
+    uint32_t offset = 0;
+    do {
+        uint8_t* const group = word_at<uint8_t*>(image, 8) + offset;
+        for (int32_t j = 0; j < int32_t(word_at<uint16_t>(group, 0xe)); ++j) {
+            uint32_t* const sub = reinterpret_cast<uint32_t*>(word_at<uint8_t*>(group, 0x14) + j * 0x14);
+            sub[0] -= base;
+            sub[1] = sub[1] ? sub[1] - base : 0;
+        }
+        word_at<uint32_t>(group, 0x10) -= base;
+        word_at<uint32_t>(group, 0x14) -= base;
+        ++i;
+        offset += 0x18;
+    } while (i < word_at<uint32_t>(image, 0xc));
+    word_at<uint32_t>(image, 8) -= base;
+    return i;
+}
+
+uint32_t XB_REGS2 XB_STDCALL Stream_RelocateZone(uint32_t, uint8_t* image, uint32_t skip) {
+    const uint32_t base = address_of(image);
+    word_at<uint32_t>(image, 8) += base;
+    if (word_at<uint32_t>(image, 0xc) == 0) return 0;
+    uint32_t i = 0;
+    uint32_t offset = 0;
+    do {
+        uint8_t* const group = word_at<uint8_t*>(image, 8) + offset;
+        const uint32_t first = word_at<uint32_t>(group, 0x10) + base;
+        const uint32_t second = word_at<uint32_t>(group, 0x14) + base;
+        word_at<uint32_t>(group, 0x10) = first;
+        word_at<uint32_t>(group, 0x14) = second;
+        if (static_cast<uint8_t>(skip)) {
+            word_at<uint32_t>(group, 0x14) = 0;
+        } else {
+            for (int32_t j = 0; j < int32_t(word_at<uint16_t>(group, 0xe)); ++j) {
+                uint32_t* const sub = reinterpret_cast<uint32_t*>(word_at<uint8_t*>(group, 0x14) + j * 0x14);
+                sub[0] += base;
+                sub[1] = sub[1] ? sub[1] + base : 0;
+            }
+        }
+        ++i;
+        offset += 0x18;
+    } while (i < word_at<uint32_t>(image, 0xc));
+    return i;
 }
 
 }  // namespace game
