@@ -391,4 +391,63 @@ uint32_t XB_REGS2 XB_STDCALL MemContext_AddFreeBlock(uint8_t* context, uint32_t 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Stream_ResolveXmbParts(uint8_t* list, uint32_t zone_set);
 extern "C" void Stream_ResolveXmbParts_entry(void);
 
+// 0x0028eb90 (managers in ESI): the zone managers object's destructor (ZoneManagers vtable 0x00838300): its seven
+// embedded managers (+4 texture, +0x10 mesh file, +0x1c mesh, +0x28 clip, +0x34 clip set, +0x40 anim, +0x4c skel; the
+// previous one at +4 each) get their base vtables and hand the previous managers back, then ResourceManager_Destruct
+// (tail jump). 0x000251a0 (vtable slot 0, thiscall, flags, ret 4): it, then Z_Free when flags bit 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ZoneManagers_Destruct(uint8_t* self);
+extern "C" void ZoneManagers_Destruct_entry(void);
+uint8_t* XB_THISCALL ZoneManagers_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x000251c0 / 0x00025880 (vtable slot 0, thiscall, flags, ret 4): the zone graph (removes its "ZoneGraph" command
+// first) / its base: ResourceManager_Destruct, Z_Free when flags bit 0.
+uint8_t* XB_THISCALL ZoneGraph_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL ZoneGraphBase_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x0028f620 (graph in ESI, Com_Init): registered as resource manager (list 0x009719fc, count 0x009719f8, at most
+// 0x14), +4..+0x18f cleared, the ZoneGraph vtable, +0x1c4/+0x1cc = -1, +0x1c8/+0x1d0 = 0, 0x0001b9a0 added to the
+// callback list 0x00988784 (count 0x00988780, at most 0x20), +0x190/+0x194 = 0 and the "ZoneGraph" command
+// (0x0028c430). Returns the graph.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ZoneGraph_Init(uint8_t* self);
+extern "C" void ZoneGraph_Init_entry(void);
+
+// 0x002c0310 (stdcall: table, zone): every simple instance chain (+0x24 list of 16-byte entries, +4 the chain, next
+// +0x14; count +0x20) of table +4 + zone * 4 freed (cdSimpleInstance_FreeList, Mem_AlignedFree) and its entry
+// cleared; for zone != -1 inside MemContext_Push/Pop of the zone with the loading flags 0x0095f5d0 = 1 and 0x0095f5d1
+// = 0 (0x0095f5d0 restored after). Returns the saved flag in AL.
+uint8_t XB_STDCALL Zone_FreeSimpleInstances(const uint8_t* table, uint32_t zone);
+
+// 0x0028d4c0 (source bit arrays in EDX; target memory, n on the stack, ret 8): moves slot bits (+0 and +8, two words
+// each; slot count = target +0x10) to the target: the n-th full slot (both bits; every one when n = -1), else (none
+// moved, or n = -1) the n-th half slot counting on (one bit each, every one when n = -1).
+uint32_t XB_REGS2 XB_STDCALL StreamMem_MoveSlots(uint32_t unused_eax, uint32_t* from, uint32_t* to, int32_t n);
+
+// 0x000292a0 (bsp tree in EAX): every node (+0xc, 16 bytes each, count +8) marked 0xffff at +0 gets its child
+// indices +8 and +0xc made node pointers and its leaf index +4 a leaf pointer (+0x14 list, count +0x10); indices
+// past the end wrap to 0. EAX is handed back.
+uint8_t* XB_REGS1 XB_CDECL Stream_RelocateBtrNodes(uint8_t* tree);
+// 0x0023a1b0 (load handler): cm (0x0095f6b8) = the data, its relocation table (+0x7c) applied and the tree's nodes
+// relocated; the map name (0x00988bd8, 0x10c bytes cleared first, with the error callback 0x0095e634 when a map was
+// loaded, 0x0095e394) and its base name without extension (0x00988c58) set, 0x0095e608 = the name; SV_ClearWorld.
+void XB_CDECL Stream_LoadBtr(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+// 0x0023d040 (data in EAX, zone in ESI; table on the stack, ret 4): the relocation table (+0x18) applied,
+// Stream_ResolveXmbParts with the zone, table +4 + zone * 4 = data. Returns the table. Dead: no call, pointer or
+// immediate.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Stream_LoadXmbInto(uint8_t* data, uint32_t zone, uint8_t* table);
+extern "C" void Stream_LoadXmbInto_entry(void);
+// 0x002c6030 (name in EAX, path data in EBX; node blocks on the stack, ret 4): with a zone table (blocks +0x194) the
+// data's seven pointers (+0x10..+0x28) and the table's +0xc entries of +0x28 (8 bytes each) are made absolute; the
+// block whose name is the file's base name (Path_FindZoneBlockIndex) gets the data (blocks +8 + index * 4) and
+// Path_RelocateNodeBlock when the data's type (+0) is 2. 0x00290df0 (load handler): with g_pathNodeBlocks.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Stream_RelocatePathData(const char* name, uint8_t* data, uint8_t* blocks);
+extern "C" void Stream_RelocatePathData_entry(void);
+void XB_CDECL Stream_LoadZpth(char* name, uint8_t* data, uint32_t size, uint32_t zone);
+
+// 0x00290f00 (stdcall: zone record): inside MemContext_Push/Pop of its zone (+0x74) every resource manager (list
+// 0x009719fc, count 0x009719f8) gets vtable slot 1 (thiscall, zone), then FX_KillEffectsOnEntity and
+// CodNote_FreeForZone of the zone.
+void XB_STDCALL Stream_UnloadNotifyManagers(const uint8_t* record);
+// 0x002c4020 (zone in EBX): every note of the list at 0x008dda50 (sentinel 0x008dda54; next at +0) whose zone
+// (+0x24) matches is freed (CodNote_Free), the next one read first; the list's last node is not checked.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CodNote_FreeForZone(uint32_t zone);
+extern "C" void CodNote_FreeForZone_entry(void);
+
 }  // namespace game
