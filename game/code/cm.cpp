@@ -3,10 +3,12 @@
 #include <cstring>
 
 #include "lanes.h"
+#include "ngl.h"
 #include "g_script.h"
 #include "qcommon.h"
 #include "r_init.h"
 #include "sv.h"
+#include "tr_main.h"
 #include "title_data.h"
 
 namespace game {
@@ -4460,6 +4462,286 @@ void XB_CDECL AtExit_FreeWorldTrees() {
     if (void* block = title_global<void*>(0x00960034)) Mem_AlignedFree(block);
     title_global<uint32_t>(0x00960034) = 0;
     title_global<uint32_t>(0x00960030) = 0;
+}
+
+namespace {
+
+// CMPLTPS a < b; true when lanes 0-2 all are.
+bool less_xyz(const Lanes& a, const Lanes& b) {
+    int32_t mask = 0;
+    for (int32_t i = 0; i < 4; ++i)
+        if (a.v[i] < b.v[i]) mask |= 1 << i;
+    return (mask & 7) == 7;
+}
+
+void copy_vec4(void* dst, const void* src) {
+    for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(dst, i * 4) = at<uint32_t>(const_cast<void*>(src), i * 4);
+}
+
+}  // namespace
+
+float* XB_THISCALL CM_TriMesh_Support(const uint8_t* mesh, float* out, const float* dir) {
+    const Lanes d = lanes(dir);
+    const int32_t count = *reinterpret_cast<const int32_t*>(mesh + 0x30);
+    const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(mesh + 0x34);
+    float best = sum_xyz(mul(lanes(reinterpret_cast<const float*>(rows)), d));
+    int32_t index = 0;
+    for (int32_t i = 1; i < count; ++i) {
+        const float dot = sum_xyz(mul(lanes(reinterpret_cast<const float*>(rows + i * 16)), d));
+        if (dot > best) {
+            index = i;
+            best = dot;
+        }
+    }
+    copy_vec4(out, rows + index * 16);
+    return out;
+}
+
+uint8_t XB_THISCALL CM_Mesh_IntersectRay(uint8_t* mesh, const float* start, const float* end, float* out,
+                                         uint32_t* triangle, uint32_t) {
+    const Lanes a = lanes(start);
+    const Lanes c = sub(lanes(reinterpret_cast<const float*>(mesh + 0x10)), a);
+    float best = title_global<float>(0x007cc500);  // 1 (lanes 1-3 of the vector are never read)
+    const float dist2 = sum_xyz(mul(c, c));
+    const float radius = *reinterpret_cast<const float*>(mesh + 0x1c);
+    const float r2 = radius * radius;
+    const Lanes d = sub(lanes(end), a);
+    platform_keep(d);
+    if (!(dist2 <= r2)) {
+        const float t = sum_xyz(mul(c, d));
+        if (!(0.0f <= t)) return 0;
+        const float dd = sum_xyz(mul(d, d));
+        const float cd = sum_xyz(mul(d, c));
+        if (!(dist2 * dd - cd * cd <= r2 * dd)) return 0;
+    }
+    uint16_t* stack = reinterpret_cast<uint16_t*>(uintptr_t{0x0090a020});
+    title_global<uint16_t>(0x0090a620) = 0;
+    stack[1] = *reinterpret_cast<const uint16_t*>(mesh + 0x40);
+    uint8_t hit = 0;
+    stack[0] = 0;
+    stack[2] = 0;
+    alignas(16) float lo[4], hi[4];
+    {
+        const Lanes b = lanes(end);
+        const Lanes l = min_lanes(a, b);
+        const Lanes h = max_lanes(a, b);
+        std::memcpy(lo, l.v, 16);
+        std::memcpy(hi, h.v, 16);
+    }
+    title_global<uint16_t>(0x0090a620) = 3;
+    for (uint16_t node = CM_BoxTreeStack_Next(mesh, lo, hi); node != 0xffff; node = CM_BoxTreeStack_Next(mesh, lo, hi)) {
+        alignas(16) float plane[4];
+        copy_vec4(plane, *reinterpret_cast<uint8_t* const*>(mesh + 0x44) + node * 16);
+        const Lanes p = lanes(plane);
+        if (0.0f <= sum_xyz(mul(d, p))) continue;
+        const float da = plane_distance(p, lanes(start));
+        const float db = plane_distance(p, lanes(end));
+        if (0.0f <= da * db) continue;
+        const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(mesh + 0x34);
+        const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(mesh + 0x3c))[node];
+        const Lanes v0 = lanes(reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16));
+        const Lanes v1 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16));
+        const Lanes v2 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16));
+        const Lanes tmin = min_lanes(min_lanes(v0, v1), v2);
+        const Lanes tmax = max_lanes(max_lanes(v0, v1), v2);
+        if (!inside_xyz(sub(tmin, lanes(hi)), sub(lanes(lo), tmax))) continue;
+        const float frac = da / (da - db);
+        if (best <= frac) continue;
+        const Lanes point = add(lanes(start), mul(d, splat(frac)));
+        const float s1 = edge_side(sub(v0, v1), sub(point, v1), p);
+        const float s2 = edge_side(sub(v1, v2), sub(point, v2), p);
+        const float s3 = edge_side(sub(v2, v0), sub(point, v0), p);
+        const float order[4] = {s3, s2, s1, s1};  // SHUFPS lanes; CMPLTPS on all four
+        int32_t mask = 0;
+        for (int32_t i = 0; i < 4; ++i)
+            if (order[i] < 0.0f) mask |= 1 << i;
+        if (mask & 7) continue;
+        best = frac;
+        copy_vec4(out + 4, plane);
+        std::memcpy(out, point.v, 16);
+        *triangle = node;
+        hit = 1;
+    }
+    return hit;
+}
+
+PLATFORM_ASM_ENTRY(CM_RayHitsMeshTriangle_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_RayHitsMeshTriangle) "addl $20, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL CM_RayHitsMeshTriangle(uint8_t* const* mesh_ref, float* out, const float* start, const float* end,
+                                       int32_t* triangle) {
+    const uint8_t* mesh = *mesh_ref;
+    const int32_t index = *triangle;
+    const float* plane = reinterpret_cast<const float*>(*reinterpret_cast<uint8_t* const*>(mesh + 0x44) + index * 16);
+    const Lanes p = lanes(plane);
+    const float w = plane[3];
+    const float ds = sum_xyz(mul(p, lanes(start))) + w;
+    const float de = sum_xyz(mul(p, lanes(end))) + w;
+    if (title_global<float>(0x0083ed50) > ds || de > title_global<float>(0x0083eafc)) {  // 0.0001, 0
+        *triangle = -1;
+        return 0;
+    }
+    const uint32_t flags = (*reinterpret_cast<const uint32_t* const*>(mesh + 0x3c))[index];
+    const uint8_t* rows = *reinterpret_cast<uint8_t* const*>(mesh + 0x34);
+    const Lanes scaled_end = mul(lanes(end), splat(ds));
+    const Lanes scaled_start = mul(lanes(start), splat(de));
+    const float inverse = title_global<float>(0x0083eb20) / (de - ds);  // 1
+    const Lanes point = mul(sub(scaled_start, scaled_end), splat(inverse));
+    const Lanes v0 = lanes(reinterpret_cast<const float*>(rows + (flags & 0x3f) * 16));
+    const Lanes v1 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 6) & 0x3f) * 16));
+    const Lanes v2 = lanes(reinterpret_cast<const float*>(rows + ((flags >> 12) & 0x3f) * 16));
+    const float s1 = edge_side(sub(v0, v1), sub(point, v1), p);
+    const float s2 = edge_side(sub(v1, v2), sub(point, v2), p);
+    const float s3 = edge_side(sub(v2, v0), sub(point, v0), p);
+    const float order[4] = {s3, s2, s1, s1};
+    const float* zero = &title_global<float>(0x0082e680);
+    int32_t mask = 0;
+    for (int32_t i = 0; i < 4; ++i)
+        if (order[i] < zero[i]) mask |= 1 << i;
+    if (mask & 7) {
+        *triangle = -1;
+        return 0;
+    }
+    copy_vec4(out + 4, plane);
+    std::memcpy(out, point.v, 16);
+    return 1;
+}
+
+void XB_THISCALL CM_DrawWorldTreeDebug(uint8_t* manager) {
+    const uint8_t* viewer = ptr(at<uint32_t>(title_global<uint8_t*>(0x0095f534), 4));
+    if (!viewer) return;
+    alignas(16) uint32_t view_bits[4];
+    view_bits[0] = at<uint32_t>(const_cast<uint8_t*>(viewer), 0x140);
+    view_bits[1] = at<uint32_t>(const_cast<uint8_t*>(viewer), 0x144);
+    view_bits[2] = at<uint32_t>(const_cast<uint8_t*>(viewer), 0x148);
+    view_bits[3] = view_bits[0];
+    if (!(manager[4] & 1)) return;
+    uint8_t* cm = clip_map();
+    ++at<int32_t>(cm, 0x60);
+    alignas(16) float view_f[4];
+    std::memcpy(view_f, view_bits, 16);
+    const Lanes view = lanes(view_f);
+    for (int32_t k = 0; k < at<int32_t>(title_global<uint8_t*>(0x0095f4fc), 0xc); ++k) {
+        const int32_t only = title_global<int32_t>(0x008fef14);
+        if (only != -1 && k != only) continue;
+        uint8_t* tree = ptr(at<uint32_t>(title_global<uint8_t*>(0x0095f4fc), 0x10 + k * 4));
+        if (!less_xyz(lanes(reinterpret_cast<const float*>(tree + 0x40)), view)) continue;
+        if (!less_xyz(view, lanes(reinterpret_cast<const float*>(tree + 0x50)))) continue;
+        const int32_t total = at<int32_t>(tree, 0x30) + at<int32_t>(tree, 0x38);
+        for (int32_t i = 0; i < total; ++i) {
+            const int32_t meshes = at<int32_t>(tree, 0x30);
+            uint8_t* object = i < meshes ? ptr(at<uint32_t>(tree, 0x34) + static_cast<uint32_t>(i) * 0x50)
+                                         : ptr(at<uint32_t>(tree, 0x3c) + (static_cast<uint32_t>(i - meshes) << 6));
+            const int32_t a = static_cast<int32_t>(addr(object));
+            const float scale = title_global<float>(0x0083ef78);  // 0.004
+            const float red = static_cast<float>(a & 0xff) * scale;
+            const float green = static_cast<float>((a >> 4) & 0xff) * scale;
+            const float blue = static_cast<float>((a >> 8) & 0xff) * scale;
+            const Lanes center = lanes(reinterpret_cast<const float*>(object + 0x10));
+            const Lanes half = lanes(reinterpret_cast<const float*>(object + 0x20));
+            const Lanes lo = sub(center, half);
+            const Lanes hi = add(center, half);
+            const Lanes offset = sub(max_lanes(min_lanes(view, hi), lo), view);
+            const float dist2 = sum_xyz(mul(offset, offset));
+            const float range = title_global<float>(0x008fef10);
+            if (dist2 > range * range) continue;
+            const uint32_t slot = at<uint32_t>(ptr(at<uint32_t>(object, 0)), 0x20);
+            if (title_function<int32_t XB_THISCALL(uint8_t*)>(slot)(object) == 9) continue;
+            if (at<int32_t>(object, 0xc) == at<int32_t>(cm, 0x60)) continue;
+            at<int32_t>(object, 0xc) = at<int32_t>(cm, 0x60);
+            const int32_t n = at<int32_t>(object, 0x40);
+            if (!n) continue;
+            nglMeshBuilder_Begin(0x40000, 1, 0, nullptr);
+            uint32_t* material = nglMeshBuilder_AddPosSection(title_global<uint32_t>(0x0098877c), static_cast<uint32_t>(n) * 3,
+                                                              static_cast<uint32_t>(n), 0, nullptr);
+            uint32_t writer[3] = {0, 0, 0};
+            nglVertexWriter_Init(writer, material);
+            const uint32_t* writer_material = ptr<const uint32_t>(writer[2]);
+            uint32_t cursor = writer[1];
+            for (int32_t t = 0; t < n; ++t) {
+                const uint32_t flags = ptr<const uint32_t>(at<uint32_t>(object, 0x3c))[t];
+                const uint32_t rows = at<uint32_t>(object, 0x34);
+                uint32_t corner[3][4];
+                copy_vec4(corner[0], ptr(rows + (flags & 0x3f) * 16));
+                copy_vec4(corner[1], ptr(rows + ((flags >> 6) & 0x3f) * 16));
+                copy_vec4(corner[2], ptr(rows + ((flags >> 12) & 0x3f) * 16));
+                nglMeshBuilder_AddStrip(3, 0xc);
+                for (int32_t v = 0; v < 3; ++v) {
+                    if (v) ++cursor;
+                    uint8_t* section = ptr(writer_material[1]);
+                    uint32_t* vertex = ptr<uint32_t>(at<uint32_t>(section, 0x54) + at<uint32_t>(section, 0x44) + cursor * 12);
+                    vertex[0] = corner[v][0];
+                    vertex[1] = corner[v][1];
+                    vertex[2] = corner[v][2];
+                }
+                uint8_t* section = ptr(writer_material[1]);
+                if (!(at<uint32_t>(section, 0x24) & 0x40000)) nglVertexBuffer_Unlock(reinterpret_cast<uint32_t*>(section + 0x44));
+                ++cursor;
+            }
+            uint32_t block = title_global<uint32_t>(0x009025a8);  // ngl_frameArenaPtr
+            const uint32_t slots = title_global<uint32_t>(0x00902904);
+            alignas(16) float colour[4] = {red, green, blue, title_global<float>(0x0083eb20)};
+            block = (block + 7) & ~7u;
+            ptr<uint32_t>(block)[0] = 0;
+            title_global<uint32_t>(0x009025a8) = block + slots * 4 + 8;
+            ptr<uint32_t>(block)[1] = 0;
+            uint32_t* params = ptr<uint32_t>(block);
+            R_SetInstanceColor(&params, colour);
+            const Lanes s = splat(title_global<float>(0x0082e140));
+            alignas(16) float matrix[16];
+            const Lanes r0 = mul(lanes(&title_global<float>(0x0082e160)), s);
+            const Lanes r1 = mul(lanes(&title_global<float>(0x0082e170)), s);
+            const Lanes r2 = mul(lanes(&title_global<float>(0x0082e180)), s);
+            std::memcpy(matrix, r0.v, 16);
+            std::memcpy(matrix + 4, r1.v, 16);
+            std::memcpy(matrix + 8, r2.v, 16);
+            copy_vec4(matrix + 12, &title_global<uint8_t>(0x0082e290));
+            uint32_t* mesh = nglMeshBuilder_End();
+            nglListAddMesh(reinterpret_cast<uint8_t*>(mesh), matrix, nullptr, reinterpret_cast<const uint32_t*>(&params));
+        }
+    }
+}
+
+uint8_t XB_REGS1 XB_CDECL CM_SightTraceThroughWorld(uint8_t* tw, const float* start, const float* end) {
+    ++cm_field<int32_t>(0x60);  // checkcount
+    if (at<uint32_t>(tw, 0xfc)) return CM_SightTraceRayThroughWorldTrees(tw, start, end);
+    return CM_SightTraceThroughWorldTrees(tw);
+}
+
+PLATFORM_ASM_ENTRY(CM_SightTraceRay_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(CM_SightTraceRay) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL CM_SightTraceRay(const float* start, const float* end) {
+    const int32_t checkcount = ++cm_field<int32_t>(0x60);
+    alignas(16) uint8_t tw[0x170];
+    Com_Memset(tw, 0, 0x170);
+    for (uint32_t i = 0; i < 3; ++i) {
+        at<uint32_t>(tw, 0x40 + i * 4) = title_global<uint32_t>(0x0082e290 + i * 4);
+        at<uint32_t>(tw, 0x50 + i * 4) = title_global<uint32_t>(0x0082e290 + i * 4);
+    }
+    copy_vec4(tw, start);
+    copy_vec4(tw + 0x10, end);
+    at<float>(tw, 0x120) = title_global<float>(0x0083eb20);  // fraction 1
+    const Lanes s = lanes(reinterpret_cast<const float*>(tw));
+    const Lanes e = lanes(reinterpret_cast<const float*>(tw + 0x10));
+    const Lanes delta = sub(e, s);
+    std::memcpy(tw + 0xe0, delta.v, 16);
+    at<float>(tw, 0xf0) = sum_xyz(mul(delta, delta));
+    at<uint32_t>(tw, 0xf8) = 0x0280d003;  // contents
+    at<int32_t>(tw, 0x4c) = checkcount;
+    at<int32_t>(tw, 0x5c) = checkcount;
+    const Lanes lo = min_lanes(s, e);
+    const Lanes hi = max_lanes(s, e);
+    std::memcpy(tw + 0x20, lo.v, 16);
+    std::memcpy(tw + 0x30, hi.v, 16);
+    return CM_SightTraceRayThroughWorldTrees(tw, reinterpret_cast<const float*>(tw), reinterpret_cast<const float*>(tw + 0x10)) ? 1 : 0;
 }
 
 }  // namespace game

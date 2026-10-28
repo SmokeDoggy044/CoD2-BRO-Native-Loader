@@ -581,4 +581,38 @@ void XB_CDECL StaticInit_Vec4x4_960120();
 // 0x00379920 (atexit): Mem_AlignedFree of 0x00960034, it and its count 0x00960030 cleared.
 void XB_CDECL AtExit_FreeWorldTrees();
 
+// 0x000aceb0 (vtable slot 2 of CM_Mesh / CM_TriMesh; thiscall): the support point - the vertex (+0x34, count
+// +0x30, 16-byte rows) with the largest dot product with `dir` (the first one on ties) copied to out; returns out.
+float* XB_THISCALL CM_TriMesh_Support(const uint8_t* mesh, float* out, const float* dir);
+// 0x000adf20 (vtable slot 5 of CM_Mesh; thiscall, 5 stack words, the last unused): the nearest triangle the
+// segment start -> end crosses. A start outside the mesh's bounding sphere (+0x10 center, +0x1c radius) needs the
+// segment to head towards it and to pass within the radius. Then the box-tree walk over the segment's bounds:
+// facing planes (delta.normal < 0) with the ends on opposite sides, triangle bounds meeting the segment's,
+// the crossing point inside all three edges and nearer than the best so far (from 1). A hit writes the
+// point (out +0) and the plane (out +0x10) and the triangle to *triangle. Returns 1 when anything was hit.
+uint8_t XB_THISCALL CM_Mesh_IntersectRay(uint8_t* mesh, const float* start, const float* end, float* out,
+                                         uint32_t* triangle, uint32_t unused);
+// 0x002d1ce0 (mesh pointer's address in EAX, out in EBX; start, end, triangle on the stack; unnamed in Ghidra):
+// re-tests the cached triangle *triangle of the mesh: start at least 0.0001 in front of its plane, end not in front,
+// the crossing point ((start de - end ds) / (de - ds), as a reciprocal product) inside all three edges -> out
+// gets the point (+0) and the plane (+0x10), returns 1; else *triangle = -1, returns 0.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_RayHitsMeshTriangle(uint8_t* const* mesh_ref, float* out, const float* start,
+                                                                  const float* end, int32_t* triangle);
+extern "C" void CM_RayHitsMeshTriangle_entry(void);
+// 0x002d0680 (world tree manager in ECX; a per-frame debug draw callback through the thunk at 0x0001d0d0, only with
+// manager +4 bit 0 set): for each world tree (only 0x008fef14 unless -1) holding the view position of
+// 0x0095f534 +4 (+0x140), every mesh whose box is within 0x008fef10 of it is drawn once per checkcount as a
+// frame-memory position mesh (its triangles as 3-vertex strips) tinted from its own address bytes (* 0.004).
+// Brushes (vtable slot 8 = 9) are skipped.
+void XB_THISCALL CM_DrawWorldTreeDebug(uint8_t* manager);
+// 0x002e4940 (dead: no caller; trace work in EAX; start, end on the stack): checkcount bumped, then
+// CM_SightTraceRayThroughWorldTrees for ray work (+0xfc set), else CM_SightTraceThroughWorldTrees.
+uint8_t XB_REGS1 XB_CDECL CM_SightTraceThroughWorld(uint8_t* tw, const float* start, const float* end);
+// 0x002da080 (dead: no caller; start in EDI, end in ESI): a point sight trace - a zeroed 0x170-byte trace work
+// with start (+0), end (+0x10), their bounds (+0x20/+0x30), a zero box (+0x40/+0x50, the w lanes = checkcount),
+// delta (+0xe0) and its squared length (+0xf0), contents 0x280d003 (+0xf8), fraction 1 (+0x120), through
+// CM_SightTraceRayThroughWorldTrees. Returns 1 when blocked.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CM_SightTraceRay(const float* start, const float* end);
+extern "C" void CM_SightTraceRay_entry(void);
+
 }  // namespace game
