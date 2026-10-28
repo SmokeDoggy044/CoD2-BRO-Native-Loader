@@ -9024,7 +9024,7 @@
 00298f50 ParamChoiceList_PickRandom
 002990d0 ParamChoice_GetFlags
 00299150 FX_IsEffectActive
-002991c0 FUN_002991c0
+002991c0 FxSystem_FreeLevel
 00299250 Stream_LoadDlg
 00299280 ZoneAliasList_NextVariant
 00299310 ParamSet_TestCondition
@@ -9179,7 +9179,7 @@
 002a84e0 VM_Call
 002a8580 VM_DllSyscall
 002a8610 SV_ClearAcknowledgedCommands
-002a86e0 FUN_002a86e0
+002a86e0 SV_GameRestartFrame
 002a8750 SV_GameSystemCalls
 002a8960 Loc_StripLineComment
 002a89f0 Loc_MatchKeyword
@@ -9224,7 +9224,7 @@
 002aa1c0 NET_GetLoopPacket
 002aa260 NET_CompareAdr
 002aa2f0 NET_AdrToString
-002aa480 MSG_ReadString
+002aa480 MSG_ReadStringLine
 002aa4f0 MSG_ReadString
 002aa560 MSG_ReadFloat
 002aa5b0 MSG_ReadLong
@@ -9240,7 +9240,7 @@
 002aac40 Cmd_Wait_f
 002aac90 CL_RefCM_GetEntry
 002aacb0 SV_UnlinkEntity
-002aad90 FUN_002aad90
+002aad90 SV_ClearWorld
 002aae40 SV_AllocSector
 002aaec0 CM_AreasConnected
 002aaf00 CM_FloodArea_r
@@ -9316,7 +9316,7 @@
 002af280 VM_Clear
 002af350 SV_WriteSnapshotToClient
 002af3d0 SV_AddServerCommand
-002af4f0 FUN_002af4f0
+002af4f0 SV_FreeClientFrames
 002af580 SV_AllocClientFrames
 002af5e0 SV_ShutdownGameProgs
 002af930 Loc_ReadLine
@@ -9471,7 +9471,7 @@
 002b7e40 XAnim_BuildNotetracks
 002b80f0 SV_UpdateServerCommandsToClient
 002b8200 SV_ConnectionlessPacket
-002b82d0 FUN_002b82d0
+002b82d0 SV_ClearServer
 002b8390 SV_GetConfigstring
 002b8420 G_EntGetTagIndex
 002b8450 G_UpdateEntityLOD
@@ -9541,7 +9541,7 @@
 002bd520 S_StartAliasVoice
 002bd770 S_StartAliasVoice2
 002bda60 SoundManager_Ctor
-002bdbd0 FUN_002bdbd0
+002bdbd0 SndBankList_IsLoaded
 002bdc80 Quat_ToMat44
 002bde90 ShakeRumble_StartByName
 002bdf10 IN_Frame
@@ -9590,7 +9590,7 @@
 002c1d60 Key_Unbindall_f
 002c1db0 Key_Unbind_f
 002c1e00 Field_AdjustScroll
-002c1ff0 FUN_002c1ff0
+002c1ff0 LevelPersist_Free
 002c20e0 PM_FinishWeaponMelee
 002c2170 FUN_002c2170
 002c21f0 PM_SetWeaponFireTimers

@@ -535,6 +535,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002b48d0,IN_LeftUp,3751,3751,0,0,100.0
 002b48e0,IN_LeftDown,3758,3758,0,0,100.0
 002b4d80,BG_GetWeaponSpread,1663,1663,0,0,60.7
+002b8200,SV_ConnectionlessPacket,3638,3638,0,0,100.0
 002b96c0,PathNode_IsLinkInBadPlace,2554,2554,0,0,100.0
 002bab30,CM_AdjustAreaPortalState,3979,3979,0,0,46.9
 002bffb0,SV_AdjustAreaPortalState,3057,3057,0,0,100.0
@@ -585,6 +586,8 @@ address,name,tested,matched,nan,mismatched,coverage
 00376480,StaticInit_Vec4x4_95ff30,4000,4000,0,0,100.0
 00376530,StaticInit_Vec4x4_963870,4000,4000,0,0,100.0
 003765d0,StaticInit_Vec4x4_960120,4000,4000,0,0,100.0
+003767b0,StaticInit_Vec4_960110,4000,4000,0,0,100.0
+003767f0,StaticInit_Vec4_95ff70,4000,4000,0,0,100.0
 003769e0,StaticInit_DownVec4_9717e0,4000,4000,0,0,100.0
 003785e0,StaticInit_ngl_multisampleScale,4000,4000,0,0,100.0
 00378d40,StaticInit_FxParticleBounds,4000,4000,0,0,100.0
