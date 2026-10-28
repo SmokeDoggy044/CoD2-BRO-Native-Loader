@@ -1119,6 +1119,48 @@ bool relative_transfer(const uint8_t* code, uint32_t& length, uint32_t& target) 
     return false;
 }
 
+// True when the function's own code at `address` branches back into the hook's bytes
+// (address, address + moved): the hook's JMP overwrites them, so such a branch lands in the
+// middle of it (CoD BRO S_WaitForWaveBanks loops back to 0x002ce9c1, its `push edi` - every
+// run crashed at boot). A linear sweep from the end of the moved bytes over what the
+// trampoline decoder knows plus RET/indirect calls and jumps/string ops; it stops at a
+// RET/JMP no earlier branch jumps past (the function's end) or at an instruction it cannot
+// size (then it found nothing - best effort, not a proof).
+bool branches_into_entry(uint32_t address, uint32_t moved) {
+    const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{address});
+    uint32_t at = moved, furthest = 0;
+    for (uint32_t steps = 0; steps < 0x4000; ++steps) {
+        const uint8_t* p = code + at;
+        uint32_t length = 0, target = 0;
+        bool end = false;
+        if (conditional_branch(p, length, target) || relative_transfer(p, length, target)) {
+            if (target > address && target < address + moved) return true;
+            if (target > address + at && target - address > furthest) furthest = target - address;
+            end = p[0] == 0xE9 || p[0] == 0xEB;
+        } else if (p[0] == 0xC3 || p[0] == 0xC2) {
+            length = p[0] == 0xC3 ? 1 : 3;
+            end = true;
+        } else if (p[0] == 0xFF) {
+            const uint32_t reg = (p[1] >> 3) & 7;
+            uint8_t probe[16];  // sized as FF /0 (inc): the same operand bytes
+            std::memcpy(probe, p, sizeof(probe));
+            probe[1] = static_cast<uint8_t>(p[1] & ~0x38);
+            length = instruction_length(probe);
+            end = reg == 4 || reg == 5;
+        } else if (const uint32_t rep = p[0] == 0xF3 || p[0] == 0xF2 ? 1 : 0;
+                   (p[rep] >= 0xA4 && p[rep] <= 0xA7) || (p[rep] >= 0xAA && p[rep] <= 0xAF) ||
+                   (!rep && (p[0] == 0x98 || p[0] == 0x9E || p[0] == 0x9F || p[0] == 0x9B))) {
+            length = rep + 1;
+        } else {
+            length = instruction_length(p);
+        }
+        if (!length) return false;
+        at += length;
+        if (end && at > furthest) return false;
+    }
+    return false;
+}
+
 // Copies the entry instructions [entry, entry + moved) into `out`, re-encoding
 // conditional branches as near branches to the same targets and relative CALL/JMP as
 // above. Returns the bytes written.
@@ -2468,6 +2510,11 @@ void install(std::span<const game::Function> functions, const Config& config) {
         }
         if (!movable) {
             LOG_WARN("compare", "%s: cannot move the instruction at %08x; not tested", function.name, address + moved);
+            continue;
+        }
+        if (branches_into_entry(address, moved)) {
+            LOG_WARN("compare", "%s: its code branches into the hooked bytes %08x..%08x; not tested", function.name,
+                     address + 1, address + moved - 1);
             continue;
         }
         uint8_t* code = alloc_code(moved * 3 + 5 + 32);  // a 2-byte branch becomes 6, a CALL 10

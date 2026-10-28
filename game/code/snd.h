@@ -311,6 +311,9 @@ void XB_REGS1 XB_CDECL S_StopCrossfadeChannels(const uint32_t* handles);
 // (GetParam(0) * their fade (+0xc / +0x10) * volume), the channel +0x10 the product.
 extern "C" PLATFORM_HIDDEN void XB_CDECL S_SetHandleVolume(uint8_t* fade, uint32_t volume_bits);
 extern "C" void S_SetHandleVolume_entry(void);
+// 0x002bdbd0 (bank list in EAX; 32-byte name hash on the stack): 0 when the 0x84-byte entry with that hash (+0xc,
+// +8 count) has one of its six states (+0x30..+0x44) at 1 or 3 (still loading), else 1 (also when none matches).
+uint8_t XB_REGS1 XB_STDCALL SndBankList_IsLoaded(const uint8_t* list, const uint32_t* hash);
 // 0x002ce9c0 (bank manager in EDI): S_CheckWaveBankNotifies until no wave bank state (+0x30.., 6 per 0x84-byte
 // bank) is 1 or 3.
 extern "C" PLATFORM_HIDDEN void XB_CDECL S_WaitForWaveBanks(uint8_t* manager);
@@ -325,5 +328,95 @@ extern "C" void S_OpenWaveBank_entry(void);
 // name opens its common wave bank (5) and the one of the language 0x0095f5dc from its zone's path (+0x20);
 // manager +5 = 1 for an unknown name.
 void XB_STDCALL S_LoadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t no_wait);
+
+// --- Sound options menu (vtable 0x00829fa0; UIMenu subclass, ui_menu.h) ---
+// Fields after the UIMenu base: +0x34 the panel, +0x38 the help bar text, +0x3c the volume slider (+0x20 -> its
+// quads: background +0x00, bar +0x40; +0x34 width), +0x40 the volume 0..50.
+
+// 0x00330f80 (owner in EAX, menu in ECX): UIMenu_Init (3 items at (320, 240), 8, no flags), flags +0x2a |= 0x180,
+// the vtable, +0x33 = 5, volume 50. Returns the menu.
+uint8_t* XB_REGS3 XB_CDECL SoundMenu_Construct(uint8_t* owner, uint32_t unused_edx, uint8_t* menu);
+// 0x00012950 (menu in EAX): the panel deleted (Panel_Delete's steps), the help bar deleted (vtable +0x00 (1)), then
+// the UIMenu part (UIMenu_FreeItems).
+void XB_REGS1 XB_CDECL SoundMenu_Dtor(uint8_t* menu);
+// 0x00012a60: the destructor, Z_Free with flags bit 0. Returns the menu.
+uint8_t* XB_THISCALL SoundMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
+// 0x0031e710: the panel (Panel_Draw), the help bar text (FEMENU_HELPBAR_BACK on row 0, else FEMENU_OP_HELPBAR) and
+// its draw (+0x3c), UIMenu_Draw; unless 0x0095f916 the background movie (vtable +0x08, the subtitles, its frame
+// texture into the quad 0x0095f458 +0x60, nglListAddQuad).
+void XB_THISCALL SoundMenu_Draw(uint8_t* menu);
+// 0x000129c0 / 0x00012a10 (ret 4, the pad unused): on row 0 the volume -1 / +1, clamped to 0..50 (the move sound
+// vtable +0x14 unless clamped), then SoundMenu_UpdateSliders.
+void XB_THISCALL SoundMenu_OnLeft(uint8_t* menu, uint32_t pad);
+void XB_THISCALL SoundMenu_OnRight(uint8_t* menu, uint32_t pad);
+// 0x00338e40: UIMenu_RestoreSelection, the background movie "Propgnda" opened full screen once (0x0095f91a), the
+// volume from 0x008dce88, then (tail jump) SoundMenu_UpdateSliders.
+uint32_t XB_THISCALL SoundMenu_RestoreSelection(uint8_t* menu);
+// 0x0031e3b0 (menu in EAX): v = volume * 0.02; the slider's bar quad (+0x40 of its quads) gets x from its left edge
+// to left + (right - left) * width (+0x34) * clamp(v, 0, 1), u to u0 + that fraction (vertex order by whether the
+// quad's x edges are 0.001 apart); the crossfade 0x0095f4cc volume v (S_SetHandleVolume), the sound system's
+// 0x0095f4c4 +0x6018 = v clamped to 0..1, master volume 1 - (1 - it)^2. Returns S_SetMasterVolume's result.
+uint32_t XB_REGS1 XB_CDECL SoundMenu_UpdateSliders(uint8_t* menu);
+
+// 0x000c6fb0: the voice type of a format (AL): 2 for kind (+4) 6; without +5 bit 1: 5 / 6 (bit 0 set / clear);
+// 6 channels: 1; 2 channels: 7 above 24000 Hz (+0x20), else 8; otherwise 3 / 4 (bit 0 set / clear).
+uint8_t XB_CDECL SndFormat_GetVoiceType(const uint8_t* format);
+
+// 0x002b6d60 (stdcall manager): the vtable 0x008327a8; every loaded wave bank of every bank (key +0x6c, file +0x54,
+// six per 0x84-byte bank from +0xc, count +8 re-read) freed (SndBank_Free, File_Close, both set to -1); then
+// ResourceManager_Destruct.
+void XB_STDCALL SoundBankManager_Dtor(uint8_t* manager);
+// 0x0001c320: the destructor, Z_Free with flags bit 0. Returns the manager.
+uint8_t* XB_THISCALL SoundBankManager_DeletingDtor(uint8_t* manager, uint32_t flags);
+
+// 0x002c8c20 (stdcall channel table; the per-frame channel update): SndSys_Update, then per channel (0x200 of 0x30
+// bytes) with no solo owner (0x008dda84 = -1): a finished voice with +9 set stopped, a playing or paused (+8) one
+// re-applied (S_ReapplyChannelParams), a finished one stopped; with a solo owner the channels of that owner (+0x20)
+// re-applied while playing or paused, every other channel with a voice stopped.
+void XB_STDCALL S_StopAllChannels(uint8_t* channels);
+// 0x000c3700: with both guard strings intact (0x0090a89c "NSL_WORK_GUARD0", 0x0090a8a0 "NSL_WORK_GUARD1"; else
+// nothing): the frame time 0x0090a8a4 (0 on the first frame), Snd_UpdateTime into 0x0090a8ac, frame count
+// 0x0090a8b0; SndBank_UpdateLoads, SndVoice_ApplyParams, SndSource_CommitDirty, Snd_UpdateListenerAxis; every
+// voice record whose sound (+0xc8) is gone while +0xc0 is set freed (SndVoice_Free +0xcc, SndHw_ReleaseSlot); then
+// (tail jump) SndHw_Update (Xbox DirectSound layer, title code).
+uint32_t XB_CDECL SndSys_Update();
+
+// 0x002c31a0 (channel in EAX; S_StopAllChannels' playing / paused channels): with a voice, its params again from
+// the channel - 0 = base (+0x1c) * volume (+0x10), 1 = pitch (+0xc), 0x19 = near (+0x14), 0x1a = far (+0x18),
+// 0x1c = 4.0 (twice) - then its origin from the source (+0x28: +0x30) or else the owner entity (+0x20, handle table
+// 0x0097a968: +0x140) and a zero velocity (0x0082e110).
+void XB_REGS1 XB_CDECL S_ReapplyChannelParams(uint8_t* channel);
+// 0x002c8ed0 (sound system in EAX; SV_Shutdown): S_StopAllSounds, the level bank (+0x6014) freed, SndArena_Reset,
+// +0x6000 freed (Z_Free) and cleared; then from the last channel down, each live owner entity (+0x20) gets the
+// channel's pending notify (+0x2c, Scr_Notify).
+void XB_REGS1 XB_CDECL S_FreeLevelSounds(uint8_t* system);
+// 0x002c8f60 (stdcall manager): File_PumpRequests, SndSys_Update; the level entity (0x0095f534 +8) gets
+// "wbk_unloaded" / "wbk_loaded" for the flags +4 / +5 (both cleared); then every wave bank with a key: loading (1)
+// and done -> 2 + "wbk_loaded", loading and gone -> 0, file closed, key -1 + "wbk_loaded" (sic); unloading (3) and
+// gone -> 0, key -1 + "wbk_unloaded".
+void XB_STDCALL S_CheckWaveBankNotifies(uint8_t* manager);
+// 0x002ce760 (manager in EDI; 32-byte name, no_wait on the stack, ret 8): the bank with that name has its loaded
+// (2) wave banks freed (SndBank_Free, File_Close; state 3, file -1) and, unless no_wait, waits for each
+// (S_CheckWaveBankNotifies while SndBank_IsLoading >= 0); manager +4 = 1 for a wave bank not loaded or an unknown
+// name.
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_UnloadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t no_wait);
+extern "C" void S_UnloadSoundBank_entry(void);
+// 0x000c8de0 (the loaded request; SndBank_PollLoad): bank = request +0x18 gets +0x80/+0x84/+0x88 = request +0x10 /
+// +0x14 / +0x20, +0x8c = !(request +4 bit 1); its offsets +0x44 (entries), +0x54, +0x5c, +0x64 (names) made
+// pointers (-1 -> null), +0x10 / +0x18 moved by +0x84; then each 0x28-byte entry (+0x40 count): +0x24 = bank +0x80,
+// +0x10 its group (SndGroup_FindByName of the name), +0 / +0x14 / +0x18 pointers, +0x1c moved by +0x84 (+5 bit 1) or
+// +0x88, +5 bit 0 cleared with +6; each new param block (+0x14, ascending) has param 1 scaled by 0x008bed0c when
+// 0x008bed10 is set.
+void XB_CDECL SndBank_Relocate(uint8_t* request);
+
+// 0x002ce370 (crossfade in EAX, alias name in EDX; fade time on the stack, ret 4; nothing while 0x0096d968 is set
+// or without a name): the ambient alias on a free channel of 0x0095f4c4 (S_PlaySoundAlias: origin 0x0082e290,
+// velocity 0x0082e110, all four values from the sound) into handle +4; +0x10 = 0, state +0x1c = 1, length +0x14 =
+// the fade time, +0x18 = 0; a live channel gets its volume (param 0 = base * GetParam(0) * master +8 * +0x10).
+void XB_REGS2 XB_STDCALL S_AmbientPlay(uint8_t* fade, const char* name, uint32_t time_bits);
+// 0x002ce520 (crossfade in EAX; alias name on the stack, ret 4; nothing while 0x0096d968 is set or without a name):
+// the old music (+0) stopped (S_StopSoundHandle), the alias started like S_AmbientPlay's into +0, with param 0 =
+// base * (GetParam(0) * +0xc * master +8).
+void XB_REGS1 XB_STDCALL Music_Play(uint8_t* fade, const char* name);
 
 }  // namespace game

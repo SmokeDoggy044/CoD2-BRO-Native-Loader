@@ -532,8 +532,16 @@ nglVec4ToColor (alpha from blue: 75 of 285).
 - Functions whose first 5 bytes hold a call, a jump or an instruction the decoder
   does not know are not hooked (logged). Conditional branches there are moved
   (re-encoded as near branches in the trampoline) unless they jump back into those
-  5 bytes. Code elsewhere that jumps back into those bytes would break the
-  trampoline; MSVC prologues do not.
+  5 bytes. Code elsewhere in the function that branches back into those bytes (a loop
+  whose head is the second instruction) would land in the middle of the hook's JMP: since
+  2026-10-28 the hook sweeps the function's code linearly from the moved bytes to its end
+  (the first RET/JMP no earlier branch jumps past) and refuses it ("its code branches into
+  the hooked bytes ..; not tested"). CoD BRO S_WaitForWaveBanks (jumps back to
+  0x002ce9c1) crashed every run at boot before; the first run refused it and five more
+  (IN_PadConsumeAllPressed, strcmpcasenosensitive_internal, FS_FilenameCompare,
+  CG_WeaponSlotFromName, Key_Unbindall_f), all real loops back to their second
+  instruction. The sweep stops at an instruction it cannot size, so it is best effort;
+  branches from other functions are not looked for.
 - A decompiled function taken by address in the loader executable would get its
   PLT entry, which is host code to the harness: take addresses inside the library
   (`game::functions()` does).

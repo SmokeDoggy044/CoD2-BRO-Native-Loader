@@ -2349,22 +2349,6 @@ void XB_THISCALL SV_LinkStaticModelToSector(uint8_t* inst) {
     SV_SplitSector(node, mins, maxs);
 }
 
-uint8_t XB_REGS1 XB_STDCALL SndBankList_IsLoaded(const uint8_t* list, const uint32_t* hash) {
-    const int32_t count = *reinterpret_cast<const int32_t*>(list + 8);
-    for (int32_t i = 0; i < count; ++i) {
-        const uint32_t* entry = reinterpret_cast<const uint32_t*>(list + 0xc + i * 0x84);
-        int32_t k = 0;
-        while (k < 8 && entry[k] == hash[k]) ++k;
-        if (k < 8) continue;
-        for (int32_t s = 0; s < 6; ++s) {
-            const uint32_t state = entry[9 + s];
-            if (state == 1 || state == 3) return 0;
-        }
-        return 1;
-    }
-    return 1;
-}
-
 void XB_REGS1 XB_CDECL LevelPersist_Free(uint8_t* data) {
     if (void* p = field<void*>(data, 0x580)) z_free(p);
     field<uint32_t>(data, 0x580) = 0;

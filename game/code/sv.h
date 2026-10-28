@@ -342,9 +342,6 @@ extern "C" void SV_GetConfigstring_entry(void);
 // of the split (contents ORed in), links the model at that sector's +0x14 (chain +0xdc), then SV_SplitSector over
 // the region narrowed on the way (x/y of the world bounds).
 void XB_THISCALL SV_LinkStaticModelToSector(uint8_t* inst);
-// 0x002bdbd0 (bank list in EAX; 32-byte name hash on the stack): 0 when the 0x84-byte entry with that hash (+0xc,
-// +8 count) has one of its six states (+0x30..+0x44) at 1 or 3 (still loading), else 1 (also when none matches).
-uint8_t XB_REGS1 XB_STDCALL SndBankList_IsLoaded(const uint8_t* list, const uint32_t* hash);
 // 0x002c1ff0 (persistent level data in EAX, the level's 0x0095f4e0): frees its buffers (+0x580, +0x574 list
 // +0x570, +0x560 aligned, +0x364, +0x358 list +0x354) and releases its script strings (+0x55c, +0x558, 16 at
 // +0x394 0x1c apart, 6 at +8).
