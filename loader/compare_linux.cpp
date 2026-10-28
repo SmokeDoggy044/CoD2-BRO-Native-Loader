@@ -228,10 +228,14 @@ uint32_t xbcmp_child_stack_top;
 // Set in test processes: a hooked function reached there (a callee of the tested one)
 // runs its original straight from the stub, since the dispatcher is not executable.
 uint8_t xbcmp_in_test;
+// Test processes: the function xbcmp_test_jump continues to (the original or the decompiled
+// entry), set just before the run.
+uint32_t xbcmp_test_target;
 extern char __start_xbcmp_text[];
 extern char __stop_xbcmp_text[];
 void xbcmp_entry();
 void xbcmp_landing();
+void xbcmp_test_jump();
 [[noreturn]] void xbcmp_resume(const Context* context);
 [[noreturn]] void xbcmp_dispatch(EntryFrame* frame);
 [[noreturn]] void xbcmp_child_finish();
@@ -244,7 +248,11 @@ void xbcmp_pass_done(uint32_t* frame);
 // context->target with ESP = context->esp, after zeroing context->zero_below bytes
 // below that ESP (a multiple of 4). The EFLAGS word it pops is zeroed again (MOV keeps
 // the flags): code reading never-written locals there (CoD BRO 0x0008d3f0's result w)
-// would see EFLAGS on the original's side only. The target word at ESP - 4 stays.
+// would see EFLAGS on the original's side only. The target word at ESP - 4 stays: in
+// test processes the target is xbcmp_test_jump, which zeroes that word (MOV) and jumps
+// to xbcmp_test_target, so both sides start with 0 there (it held the original's address
+// on one side and the decompiled entry's on the other: NAL_Clip_FindChannelByName copies
+// the word below its entry ESP into its result).
 // xbcmp_landing: where a test process's function returns; saves the registers into
 // xbcmp_child.result, switches to the area's stack and reports.
 asm(R"(
@@ -286,6 +294,11 @@ xbcmp_resume:
     popfl
     movl $0, -4(%esp)
     ret
+
+    .globl xbcmp_test_jump
+xbcmp_test_jump:
+    movl $0, -4(%esp)
+    jmp *xbcmp_test_target
 
     .globl xbcmp_landing
 xbcmp_landing:
@@ -1416,7 +1429,8 @@ bool install_file_guard(const ChildArea& c) {
     }
     c.report.t_mapped = now_ns();
     std::memcpy(&c.start, &context, sizeof(Context));
-    c.start.target = run_original ? hook.address : hook.code;
+    xbcmp_test_target = run_original ? hook.address : hook.code;
+    c.start.target = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&xbcmp_test_jump));
     // The dead stack below the caller's ESP reads as zeros on both sides: code that
     // sends uninitialized locals (unused lanes of a shader constant block) sends the
     // same bytes then, and the decompiled version writes zeros there.
