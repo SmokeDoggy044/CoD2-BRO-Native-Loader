@@ -1500,29 +1500,50 @@ namespace {
 // The root transform {quaternion, position} of the node's clip between `previous` and
 // `time`, concatenated onto *out (a temporary track and state over the clip).
 void sample_root(uint8_t* node, float* out, float time, float previous) {
+    // Every callee by title address: in tests the original then runs on both sides (the
+    // heap keeps a word the C allocation path writes differently; NAL_AnimTrack_Sample's C
+    // version still mismatches).
     if (!u32_ref(node, 0x24)) AnimData_EnsureLoaded(node);
     uint8_t* clip = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
     if (!clip) return;
     uint8_t* skeleton = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x30)));
-    uint8_t* memory = static_cast<uint8_t*>(Mem_AlignedAlloc(0x30, 4, 0));
+    uint8_t* memory = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x00093950)(0x30, 4, 0);  // Mem_AlignedAlloc
     if (!memory) return;
-    uint8_t* track = NAL_AnimTrack_Construct(memory, clip, skeleton);
+    uint8_t* track = title_function<uint8_t* XB_THISCALL(uint8_t*, uint8_t*, uint8_t*)>(0x00087dd0)(memory, clip, skeleton);  // NAL_AnimTrack_Construct
     if (!track) return;
     uint8_t* generic = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(track, 0xc)));
     if (generic && u32_ref(generic, 0) != title_global<uint32_t>(0x00903fdc)) generic = nullptr;
     AnimState state;
-    NAL_AnimState_Init(&state, generic, 0);
-    // By title address: the C NAL_AnimTrack_Sample still mismatches (tests run the original).
+    title_function<AnimState* XB_THISCALL(AnimState*, uint8_t*, int32_t)>(0x00087ad0)(&state, generic, 0);  // NAL_AnimState_Init
     title_function<void XB_THISCALL(uint8_t*, float, float, AnimState*, const AnimState*, int32_t, uint32_t)>(0x000881c0)(
         track, time, previous, &state, reinterpret_cast<const AnimState*>(generic + 0xc8),
         static_cast<int32_t>(u32_ref(generic, 0x60)) - 1, 0);  // NAL_AnimTrack_Sample
     alignas(16) uint32_t root[8];
-    NAL_GenericAnim_GetRootTransform(state.clip, &state, root);
-    alignas(16) float product[8];
-    platform_rep_movs(out, QuatTrans_Concat(product, out, reinterpret_cast<const float*>(root)), 0x20);
+    title_function<int32_t XB_THISCALL(uint8_t*, const AnimState*, uint32_t*)>(0x00086d30)(state.clip, &state, root);  // NAL_GenericAnim_GetRootTransform
+    // QuatTrans_Concat leaves the position's w lane unwritten and the whole block is copied:
+    // the title's lane is a never-set stack word (zero in tests).
+    alignas(16) float product[8] = {};
+    float* result = title_function<float* XB_CDECL(float*, const float*, const float*)>(0x0001cae0)(
+        product, out, reinterpret_cast<const float*>(root));  // QuatTrans_Concat
+    platform_rep_movs(out, result, 0x20);
     const uint32_t destroy = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(u32_ref(track, 0)));
     title_function<void XB_THISCALL(uint8_t*, uint32_t)>(destroy)(track, 1);  // deleting destructor
-    NAL_AnimState_Destroy(&state);
+    title_function<void XB_THISCALL(AnimState*)>(0x00086da0)(&state);  // NAL_AnimState_Destroy
+}
+
+}  // namespace
+
+
+namespace {
+
+// The two samplers by title address for their callers: their C versions still mismatch
+// (a heap word below), and in tests the original then runs on both sides.
+void sample_call(uint8_t* node, float* out, uint32_t time) {
+    title_function<void XB_REGS1 XB_CDECL(uint8_t*, float*, uint32_t)>(0x002e4570)(node, out, time);  // AnimTree_SampleRootTransform
+}
+
+void sample_between_call(uint8_t* node, float* out, uint32_t from, uint32_t to) {
+    title_function<void XB_REGS1 XB_CDECL(uint8_t*, float*, uint32_t, uint32_t)>(0x002e4650)(node, out, from, to);  // AnimTree_SampleRootTransformBetween
 }
 
 }  // namespace
@@ -1551,9 +1572,9 @@ void root_delta(uint32_t index, const uint8_t* anims, float* direction, float* p
     alignas(16) float transform[8] = {0.0f, 0.0f, 0.0f, title_global<float>(0x0083eb20), 0.0f, 0.0f, 0.0f, 0.0f};
     if (!u16_at(node, 0x20)) {
         if (between)
-            AnimTree_SampleRootTransformBetween(node, transform, from_bits, to_bits);
+            sample_between_call(node, transform, from_bits, to_bits);
         else
-            AnimTree_SampleRootTransform(node, transform, from_bits);
+            sample_call(node, transform, from_bits);
     }
     alignas(16) float axis[16];
     Quat_ToMat33(axis, transform);
@@ -1810,9 +1831,9 @@ void XB_CDECL AnimTree_CalcRootDelta_r(uint8_t* tree, uint32_t index, float* out
             if (!id) return;
             uint8_t* info = info_at(id);
             if (title_global<uint8_t>(0x00929cc8))
-                AnimTree_SampleRootTransform(node, out, u32_ref(info, 0x10));
+                sample_call(node, out, u32_ref(info, 0x10));
             else
-                AnimTree_SampleRootTransformBetween(node, out, u32_ref(info, 0x14), u32_ref(info, 0x10));
+                sample_between_call(node, out, u32_ref(info, 0x14), u32_ref(info, 0x10));
             return;
         }
         int32_t i = 0;
