@@ -11,6 +11,7 @@
 #include "ngl.h"
 #include "qcommon.h"
 #include "title_data.h"
+#include "xanim.h"
 
 namespace game {
 
@@ -2732,6 +2733,412 @@ uint32_t XB_CDECL CG_CalcViewValues() {
     title_global<float>(0x00972bd0) = 0.0f - right[1];
     title_global<float>(0x00972bd4) = 0.0f - right[2];
     return CG_CalcFov();
+}
+
+// The title callees run at the original's ESP with its registers and the brass matrix at the
+// original's frame address: the entry moves the C frame below a gap (weapon registration can
+// read files) and hands over the entry ESP and EAX (cent), ECX (ps), EBX.
+PLATFORM_ASM_ENTRY(CG_AddPlayerWeapon_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %edx\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(CG_AddPlayerWeapon) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_AddPlayerWeapon(uint32_t entry_esp, uint8_t* cent, uint8_t* ps, uint32_t ebx) {
+    // Q3's CG_AddPlayerWeapon for the view weapon (cent EAX, ps ECX; cdecl hand refEntity, draw
+    // flag, forward offset): nothing while 0x00973008 or with ps flags 0x106000; the weapon
+    // registered, its flash sound; the client's weapon refEntity (+0x80) takes the hand's frame
+    // and, with a weapon DObj (record +0), the DObj (+0x54), flags 0x8c, the eye position plus
+    // the lean (ps +0x4c over yaw +0xa0), its anims blended and advanced (the node by the last
+    // view anim, rec +0x80) and its skeleton; then the hand's origin and axis moved by the view
+    // offsets (0x00949500 + the forward offset, 0x00947d60, 0x009489c0), drawn when asked,
+    // copied to 0x00972fd8.., and the "tag_brass" origin (0x0094a4d8) from its bone matrix.
+    const uint32_t hand_addr = title_global<uint32_t>(entry_esp + 4);
+    const uint32_t draw = title_global<uint32_t>(entry_esp + 8);
+    const float forward = title_global<float>(entry_esp + 0xc);
+    const uint8_t* const hand = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(hand_addr));
+    const uint32_t top = entry_esp - 0x84;
+    const int32_t weapon = *reinterpret_cast<const int32_t*>(ps + 0x80);
+    const uint32_t has_ps = ps != nullptr;
+    title_global<uint32_t>(entry_esp - 0x74) = has_ps;
+    if (has_ps && title_global<uint32_t>(0x00973008)) return;
+    if (*reinterpret_cast<const uint32_t*>(cent + 0x10) & 0x106000) return;
+    TitleRegs regs{};
+    regs.eax = has_ps;
+    regs.ebx = ebx;
+    regs.esi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(cent));
+    regs.edi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ps));
+    const uint32_t weapon_arg[1] = {static_cast<uint32_t>(weapon)};
+    regs.eax = title_call_at_regs(top, 0x002832b0, &regs, 1, weapon_arg);  // CG_RegisterWeapon
+    uint8_t* const rec = &title_global<uint8_t>(0x00975fa8 + static_cast<uint32_t>(weapon) * 0xc4);
+    regs.eax = title_call_at_regs(top, 0x00288510, &regs, 0, nullptr);  // CG_UpdateFlashSound
+    uint8_t* const ref = reinterpret_cast<uint8_t*>(
+        static_cast<uintptr_t>(title_call_at_regs(top, 0x002be200, &regs, 0, nullptr) + 0x80));  // CG_GetEntityRefEntity
+    auto u = [](const void* p, uint32_t offset) -> uint32_t& {
+        return *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(p) + offset);
+    };
+    auto f = [](const void* p, uint32_t offset) -> float& {
+        return *reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(p) + offset);
+    };
+    u(ref, 8) = u(hand, 8);
+    u(ref, 0xc) = u(hand, 0xc);
+    u(ref, 0x10) = u(hand, 0x10);
+    u(ref, 4) = u(hand, 4);
+    regs.ebx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ref));
+    regs.esi = regs.ebx + 8;
+    if (!title_global<uint32_t>(entry_esp - 0x74) || !u(rec, 0)) return;
+    u(ref, 0) = 1;
+    u(ref, 0x54) = u(rec, 0);
+    u(ref, 4) = 0x8c;
+    u(ref, 8) = u(ps, 0);
+    u(ref, 0xc) = u(ps, 4);
+    const float z = f(ps, 8);
+    f(ref, 0x10) = z;
+    f(ref, 0x10) = f(ps, 0xac) + z;
+    AddLeanToPosition(&f(ref, 8), f(ps, 0x4c), f(ps, 0xa0), 16.0f, 20.0f);
+    const float dt = static_cast<float>(title_global<int32_t>(0x00972534)) * g(0x0083eb4c);
+    uint8_t* const obj = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u(rec, 0)));
+    regs.edi = u(rec, 0);
+    AnimTree_BlendWeightsForModel(obj, dt);
+    static const uint8_t kNodes[24] = {1, 0, 0, 0, 7, 0, 0, 0, 8, 0xe, 0xd, 9, 0xa, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3};
+    const uint32_t anim = u(rec, 0x80);
+    regs.esi = anim > 0x17 ? 0 : kNodes[anim];
+    const float dt2 = static_cast<float>(title_global<int32_t>(0x00972534)) * g(0x0083eb4c);
+    uint32_t dt_bits;
+    std::memcpy(&dt_bits, &dt2, 4);
+    const uint32_t advance[3] = {u(rec, 0), dt_bits, 1};
+    title_call_at_regs(top, 0x002d7f20, &regs, 3, advance);  // AnimTree_AdvanceTimeForModel
+    const uint32_t skeleton[1] = {u(rec, 0)};
+    title_call_at_regs(top, 0x002df880, &regs, 1, skeleton);  // DObj_UpdateSkeletons
+    u(ref, 0x3c) = u(hand, 0x3c);
+    u(ref, 0x40) = u(hand, 0x40);
+    u(ref, 0x44) = u(hand, 0x44);
+    for (uint32_t k = 0; k < 9; ++k) u(ref, 0x14 + k * 4) = u(hand, 0x14 + k * 4);  // AxisCopy
+    for (uint32_t c = 0; c < 3; ++c) {
+        const float a = (g(0x00949500) + forward) * g(0x00972bc0 + c * 4) + f(ref, 0x3c + c * 4);
+        f(ref, 0x3c + c * 4) = a;
+        const float b = g(0x00972bcc + c * 4) * g(0x00947d60) + a;
+        f(ref, 0x3c + c * 4) = b;
+        f(ref, 0x3c + c * 4) = g(0x00972bd8 + c * 4) * g(0x009489c0) + b;
+    }
+    regs.edi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ref)) + 0x14;
+    if (draw) {
+        const uint32_t entity[1] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ref))};
+        title_call_at_regs(top, 0x002387e0, &regs, 1, entity);  // R_AddViewModelRefEntity
+    }
+    for (uint32_t k = 0; k < 3; ++k) u(&title_global<uint8_t>(0x00972fd8), k * 4) = u(ref, 0x3c + k * 4);
+    for (uint32_t k = 0; k < 9; ++k) u(&title_global<uint8_t>(0x00972fe4), k * 4) = u(ref, 0x14 + k * 4);
+    if (!(title_global<uint8_t>(0x0098f1d0) & 1)) {
+        title_global<uint32_t>(0x0098f1d0) |= 1;
+        title_global<uint32_t>(0x0098f1cc) = Com_HashKeyNoCase(0, &title_global<const char>(0x008387b8));  // "tag_brass"
+    }
+    const DObj* const dobj = reinterpret_cast<const DObj*>(static_cast<uintptr_t>(u(rec, 0)));
+    const int32_t tag = DObj_GetTagIndex(dobj, title_global<uint32_t>(0x0098f1cc));
+    if (tag <= -1) return;
+    uint32_t mats = u(dobj, 0x20);
+    if (mats) mats = static_cast<uint32_t>(reinterpret_cast<const uint8_t*>(dobj)[0x60]) * 0x40 + mats + 0x30;
+    float* const local = &title_global<float>(entry_esp - 0x70);
+    for (uint32_t k = 0; k < 9; ++k) u(local, k * 4) = u(ref, 0x14 + k * 4);
+    for (uint32_t k = 0; k < 3; ++k) u(local, 0x24 + k * 4) = u(ref, 0x3c + k * 4);
+    float* const out = &title_global<float>(entry_esp - 0x40);
+    MatrixMultiply43To44(local, out, reinterpret_cast<const float*>(static_cast<uintptr_t>(static_cast<uint32_t>(tag) * 0x40 + mats)));
+    for (uint32_t k = 0; k < 3; ++k) u(&title_global<uint8_t>(0x0094a4d8), k * 4) = u(out, 0x30 + k * 4);
+}
+
+// Every call runs at the original's ESP with its registers and the effect transforms built at
+// the original's frame addresses (direction lanes ByteToDir leaves unset are read as the w of a
+// rotation; the FX commands copy partly filled stack blocks): the entry moves the C frame below a
+// gap and hands over the entry ESP, EAX (event), ECX (cent) and EBX (player-state event flag).
+PLATFORM_ASM_ENTRY(CG_EntityEvent_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %edx\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(CG_EntityEvent) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CG_EntityEvent(uint32_t entry_esp, int32_t event, uint8_t* cent, uint32_t from_ps) {
+    // Q3's CG_EntityEvent (event in EAX, cent in ECX, EBX = from the player state): entity events
+    // 1..0x5c play the cent's effect pairs (FXCmd types 0 and 1 at its origin; kinds 1 / 2 / 3 / 0
+    // for 1-0x17 / 0x18-0x2e / 0x2f-0x45 / 0x46-0x5c, the effect index from the start of the range);
+    // player-state events 0x5d-0x73 land and 0x74-0x8a fall (the view dip from the fall speed,
+    // capped at 24), for the client's own entity only. Then the rest by table: footsteps in bushes,
+    // stance (cl_stance 0/1/2 unless 0x0094bdbc), step-up smoothing, item and ammo pickups, weapon
+    // sounds, firing (CG_FireWeapon), empty clicks, melee sounds, grenade and impact effects at the
+    // entity's +0x140, the tracer and 0x0024bce0.
+    const uint32_t top = (((entry_esp - 4) & ~15u) - 0xd8) - 8;
+    auto word = [top](uint32_t offset) -> uint32_t& { return title_global<uint32_t>(top + offset); };
+    auto addr = [](const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); };
+    TitleRegs regs{};
+    regs.ebx = from_ps;
+    regs.esi = static_cast<uint32_t>(event);
+    regs.edi = addr(cent);
+    auto call = [&](uint32_t function, uint32_t count, const uint32_t* args) {
+        return title_call_at_regs(top, function, &regs, count, args);
+    };
+    if (!event) return;
+    const uint32_t parm = cent[4];
+    const uint32_t ent = *reinterpret_cast<const uint32_t*>(cent + 0x224);
+    word(0x38) = parm;
+    word(0x3c) = ent;
+    auto quat = [&]() {
+        for (uint32_t k = 0; k < 4; ++k) word(0x10 + k * 4) = title_global<uint32_t>(0x0082e290 + k * 4);
+    };
+    auto effects = [&](uint32_t kind, uint32_t index) {
+        quat();
+        for (uint32_t k = 0; k < 4; ++k) word(0x20 + k * 4) = *reinterpret_cast<const uint32_t*>(cent + 0x20 + k * 4);
+        regs.esi = index;
+        regs.eax = title_global<uint32_t>(0x0082e29c);
+        regs.ecx = top + 0x10;
+        regs.edx = top + 0x20;
+        const uint32_t init[2] = {top + 0x50, index};
+        uint32_t transform = call(0x0001c360, 2, init);  // FxTransform_Init
+        regs.eax = addr(cent);
+        const uint32_t first[2] = {kind, transform};
+        call(0x002a6c40, 2, first);  // FXCmd_Type0AtTransform
+        quat();
+        regs.ecx = top + 0x10;
+        regs.edx = top + 0x20;
+        const uint32_t init2[2] = {top + 0x50, 0xffffffffu};
+        transform = call(0x0001c360, 2, init2);
+        regs.eax = addr(cent);
+        const uint32_t second[2] = {kind, transform};
+        call(0x002a6b70, 2, second);  // FXCmd_Type1AtTransform
+    };
+    if (!from_ps) {
+        if (event >= 1 && event < 0x18) return effects(1, static_cast<uint32_t>(event - 1));
+        if (event >= 0x46 && event < 0x5d) return effects(0, static_cast<uint32_t>(event - 0x46));
+        if (event >= 0x18 && event < 0x2f) return effects(2, static_cast<uint32_t>(event - 0x18));
+        if (event >= 0x2f && event < 0x46) return effects(3, static_cast<uint32_t>(event - 0x2f));
+    } else {
+        if (event >= 0x5d && event < 0x74) {
+            if (ent != title_global<uint32_t>(0x009725cc)) return;
+            title_global<float>(0x00972af0) = 0.0f - static_cast<float>(static_cast<int32_t>(parm));
+            title_global<int32_t>(0x00972af4) = title_global<int32_t>(0x0097253c);
+            return;
+        }
+        if (event >= 0x74 && event < 0x8b) {
+            if (ent != title_global<uint32_t>(0x009725cc)) return;
+            const float low = g(0x00934be0);
+            const float speed = (g(0x0092bd68) - low) * (static_cast<float>(static_cast<int32_t>(parm)) * g(0x0083eb94)) + low;
+            const float floor = g(0x0083eccc);  // 12
+            if (floor >= speed) return;
+            int32_t dip = static_cast<int32_t>(((speed - floor) * g(0x0083ee7c) + g(0x0083eb20)) * g(0x0083100c));
+            if (dip > 0x18)
+                dip = 0x18;
+            else if (dip <= 0)
+                return;
+            title_global<float>(0x00972af0) = 0.0f - static_cast<float>(dip);
+            title_global<int32_t>(0x00972af4) = title_global<int32_t>(0x0097253c);
+            return;
+        }
+    }
+    const uint32_t index = static_cast<uint32_t>(event - 0x8b);
+    if (index > 0x3b) return;
+    const uint8_t* const def = title_global<uint8_t* const*>(0x0095f4d8)[cent[3]];
+    auto weapon_sound = [&](uint32_t kind) {
+        regs.eax = addr(cent);
+        const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), kind};
+        call(0x002a62d0, 2, args);  // FXCmd_PlayWeaponSound
+    };
+    auto weapon_loop = [&](uint32_t kind) {
+        regs.eax = addr(cent);
+        const uint32_t args[3] = {*reinterpret_cast<const uint32_t*>(def + 8), kind, 0};
+        call(0x002a63d0, 3, args);  // FXCmd_PlayWeaponSoundLoop
+    };
+    auto alias = [&](uint32_t name) {
+        regs.ecx = addr(cent);
+        const uint32_t args[4] = {name, 0, 0xffffffffu, 0};
+        call(0x002a6990, 4, args);  // FXCmd_PlaySoundAlias
+    };
+    auto fire = [&](uint32_t k) {
+        regs.eax = addr(cent);
+        regs.ecx = addr(cent);
+        const uint32_t args[2] = {static_cast<uint32_t>(event), k};
+        call(0x002893b0, 2, args);  // CG_FireWeapon
+    };
+    auto stance = [&](uint32_t value) {
+        if (title_global<uint32_t>(0x0094bdbc)) return;
+        regs.eax = value;
+        const uint32_t args[1] = {0x00948778};  // vm cl_stance
+        call(0x0029fe40, 1, args);  // Cvar_SetByVmIndex
+    };
+    regs.eax = parm;
+    regs.edx = ent;
+    switch (event) {
+    case 0x8b:
+        if (!from_ps) alias(0x008399b8);  // "Body_Bushes"
+        return;
+    case 0x8e:
+        return stance(0x0082e098);  // "0"
+    case 0x8f:
+        return stance(0x0082e058);  // "1"
+    case 0x90:
+        return stance(0x008351bc);  // "2"
+    case 0x91: {
+        if (ent != title_global<uint32_t>(0x009725cc) || title_global<uint32_t>(0x0094b66c)) return;
+        const int32_t now = title_global<int32_t>(0x0097253c);
+        const int32_t since = now - title_global<int32_t>(0x00972aec);
+        float old = 0.0f;
+        if (since < 100)
+            old = static_cast<float>(100 - since) * g(0x00972ae8) * g(0x0083eb94) * g(0x0083ec18);
+        const float change = static_cast<float>(static_cast<int32_t>(parm) - 0x80) + old;
+        float& step = title_global<float>(0x00972ae8);
+        step = change;
+        if (change > g(0x0083ef04))
+            step = g(0x0083ef04);  // 24
+        else if (g(0x0083f238) > change)
+            step = g(0x0083f238);  // -16
+        title_global<int32_t>(0x00972aec) = now;
+        return;
+    }
+    case 0x94:
+    case 0x95:
+    case 0x96:
+        if (from_ps || static_cast<int32_t>(parm) < 1 || parm >= 0x88) return;
+        if (event == 0x94)
+            alias(0x008399a8);  // "WEAPON_PICKUP"
+        else if (event == 0x96)
+            alias(0x0083999c);  // "AMMO_PICKUP"
+        if (word(0x3c) != *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00971aa8) + 0x8c)) return;
+        regs.ecx = word(0x38);
+        call(0x0027cd20, 0, nullptr);  // CG_ItemPickup
+        return;
+    case 0x9b:
+        if (!from_ps) weapon_loop(0x10);
+        return;
+    case 0x9c:
+        if (!from_ps) weapon_loop(0x11);
+        return;
+    case 0x97:
+        if (ent != *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00971aa8) + 0x8c)) return;
+        call(0x0027df30, 0, nullptr);  // CG_OutOfAmmoChange
+        return;
+    case 0x9d:
+        return weapon_sound(0x13);
+    case 0x9f:
+        if (!from_ps) weapon_sound(0x12);
+        return;
+    case 0xa0:
+        if (!from_ps) weapon_sound(0x15);
+        return;
+    case 0xa1:
+        if (!from_ps) weapon_sound(0x16);
+        return;
+    case 0xae:
+        if (!from_ps) return;
+        fire(0);
+        fire(1);
+        return;
+    case 0xaf:
+        if (!from_ps) return;
+        fire(2);
+        fire(3);
+        return;
+    case 0xad:
+        if (from_ps) fire(0);
+        return;
+    case 0xa7:
+        if (from_ps) weapon_sound(0xd);
+        return;
+    case 0xa8:
+        if (from_ps) {
+            regs.eax = addr(cent);
+            const uint32_t args[1] = {static_cast<uint32_t>(event)};
+            call(0x002887f0, 1, args);  // CG_FireWeaponEmpty
+        }
+        return;
+    case 0xa9:
+        if (!from_ps) alias(0x00839990);  // "MELEE_SWIPE"
+        return;
+    case 0xab:
+        if (!from_ps) alias(0x00839984);  // "MELEE_HIT"
+        return;
+    case 0xc6: {
+        if (from_ps) return;
+        // Rotation {0, 0, 1, (unset)} at +0x40, the entity's +0x140 vector at +0x20.
+        word(0x20) = *reinterpret_cast<const uint32_t*>(cent + 0x140);
+        word(0x14) = 0;
+        word(0x28) = *reinterpret_cast<const uint32_t*>(cent + 0x148);
+        word(0x10) = 0;
+        word(0x24) = *reinterpret_cast<const uint32_t*>(cent + 0x144);
+        word(0x2c) = *reinterpret_cast<const uint32_t*>(cent + 0x14c);
+        word(0x44) = word(0x14);
+        title_global<float>(top + 0x18) = g(0x0083eb20);
+        word(0x40) = word(0x10);
+        word(0x48) = word(0x18);
+        word(0x4c) = word(0x1c);
+        regs.eax = cent[2];
+        regs.ecx = top + 0x40;
+        regs.edx = top + 0x20;
+        const uint32_t init[2] = {top + 0x50, cent[2]};
+        const uint32_t transform = call(0x0001c360, 2, init);  // FxTransform_Init
+        regs.eax = addr(cent);
+        const uint32_t args[2] = {0x00839978, transform};  // "fraggrenade"
+        call(0x002a5fd0, 2, args);  // FXCmd_Type7AtTransform
+        return;
+    }
+    case 0xb6: {
+        regs.ecx = top + 0x10;
+        call(0x00295b40, 0, nullptr);  // ByteToDir (EAX = parm)
+        if (from_ps) return;
+        regs.esi = addr(def);
+        regs.ecx = top + 0x10;
+        regs.edx = addr(cent) + 0x140;
+        const uint32_t init[2] = {top + 0x80, cent[5]};
+        const uint32_t transform = call(0x0001c360, 2, init);  // FxTransform_Init
+        regs.eax = addr(cent);
+        const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), transform};
+        call(0x002a60e0, 2, args);  // FXCmd_Type6AtTransform
+        return;
+    }
+    case 0xba:
+    case 0xbb: {
+        regs.ecx = top + 0x10;
+        call(0x00295b40, 0, nullptr);  // ByteToDir (EAX = parm)
+        if (cent[5] == 8) return;
+        for (uint32_t k = 0; k < 4; ++k) word(0x40 + k * 4) = *reinterpret_cast<const uint32_t*>(cent + 0x140 + k * 4);
+        for (uint32_t k = 0; k < 4; ++k) word(0x20 + k * 4) = word(0x10 + k * 4);
+        if (from_ps) return;
+        regs.esi = addr(def);
+        regs.ecx = top + 0x20;
+        regs.edx = top + 0x40;
+        const uint32_t init[2] = {top + 0xb0, cent[2]};
+        const uint32_t transform = call(0x0001c360, 2, init);  // FxTransform_Init
+        regs.eax = addr(cent);
+        const uint32_t args[2] = {*reinterpret_cast<const uint32_t*>(def + 8), transform};
+        call(0x002a5fd0, 2, args);  // FXCmd_Type7AtTransform
+        return;
+    }
+    case 0xb0: {
+        word(0x28) = *reinterpret_cast<const uint32_t*>(cent + 0x28);
+        word(0x2c) = *reinterpret_cast<const uint32_t*>(cent + 0x20);
+        word(0x24) = *reinterpret_cast<const uint32_t*>(cent + 0x24);
+        word(0x20) = *reinterpret_cast<const uint32_t*>(cent + 0x20);
+        regs.esi = cent[3];
+        regs.edi = addr(cent) + 0x80;
+        regs.edx = top + 0x20;
+        const uint32_t args[2] = {top + 0x20, addr(cent) + 0x80};
+        call(0x0027ab40, 2, args);  // CG_MaybeSpawnTracer
+        return;
+    }
+    case 0xc5: {
+        regs.eax = addr(cent);
+        const uint32_t args[1] = {parm};
+        call(0x0024bce0, 1, args);
+        return;
+    }
+    default:
+        return;
+    }
 }
 
 }  // namespace game

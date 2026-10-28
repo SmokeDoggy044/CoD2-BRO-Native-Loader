@@ -194,5 +194,13 @@ extern "C" void CG_AddViewWeapon_entry(void);
 void XB_CDECL CG_CalcVehicleViewAngles();
 // 0x002880a0: Q3's CG_CalcViewValues; returns CG_CalcFov's result (under water).
 uint32_t XB_CDECL CG_CalcViewValues();
+// 0x00288850 (cent EAX, ps ECX; cdecl hand, draw, forward offset): Q3's CG_AddPlayerWeapon for the
+// view weapon. The C version gets the entry ESP, EAX, ECX and EBX.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_AddPlayerWeapon(uint32_t entry_esp, uint8_t* cent, uint8_t* ps, uint32_t ebx);
+extern "C" void CG_AddPlayerWeapon_entry(void);
+// 0x00289790 (event EAX, cent ECX, from-player-state flag EBX): Q3's CG_EntityEvent. The C version
+// gets the entry ESP and EAX, ECX, EBX.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_EntityEvent(uint32_t entry_esp, int32_t event, uint8_t* cent, uint32_t from_ps);
+extern "C" void CG_EntityEvent_entry(void);
 
 }  // namespace game

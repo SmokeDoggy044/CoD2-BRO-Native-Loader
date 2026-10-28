@@ -274,13 +274,32 @@ extern "C" void CG_UpdateViewWeaponAdsAnims_entry(void);
 // 0x0027cad0 (restart in EAX): Q3's CG_Init state clearing (cg zeroed, objectives, configstrings).
 void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart);
 // 0x0027e2f0 (snap in EAX): Q3's CG_SetInitialSnapshot; the first one closes the loading screen.
-void XB_REGS1 XB_CDECL CG_SetInitialSnapshot(uint8_t* snap);
-// 0x0028b7c0: Q3's CG_Init.
-void XB_CDECL CG_Init();
+// The C version gets the entry ESP, EAX (snap), EBX, ESI and EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_SetInitialSnapshot(uint32_t entry_esp, uint8_t* snap, uint32_t ebx,
+                                                               uint32_t esi, uint32_t edi);
+extern "C" void CG_SetInitialSnapshot_entry(void);
+// 0x0028b7c0: Q3's CG_Init; the C version gets the entry ECX.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_Init(uint32_t ecx);
+extern "C" void CG_Init_entry(void);
 // 0x0028b960: Q3's vmMain for the cgame (cdecl command and up to six arguments).
-// The C version gets the entry ESP, EBX and EDI.
-extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi);
+// The C version gets the entry ESP, EBX, EDI, ECX and EDX.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL CG_vmMain(uint32_t entry_esp, uint32_t ebx, uint32_t edi, uint32_t ecx, uint32_t edx);
 extern "C" void CG_vmMain_entry(void);
+// 0x00283120 (cdecl weapon, hands name): the view weapon's DObj rebuilt; the C version gets the entry ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_CreateViewWeaponDObj(uint32_t entry_esp);
+extern "C" void CG_CreateViewWeaponDObj_entry(void);
+// 0x002867a0 (index in EAX): Q3's CG_ConfigStringModified.
+void XB_REGS1 XB_CDECL CG_ConfigStringModified(int32_t index);
+// 0x00287ab0: Q3's CG_ServerCommand (hashed command names).
+void XB_CDECL CG_ServerCommand();
+// 0x0028b340 (stereo view in EAX, server time in ECX; cdecl cube-map face, size, demo flag): Q3's
+// CG_DrawActiveFrame. The C version gets the entry ESP, EAX, ECX, ESI and EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_DrawActiveFrame(uint32_t entry_esp, int32_t stereo, int32_t server_time,
+                                                            uint32_t esi, uint32_t edi);
+extern "C" void CG_DrawActiveFrame_entry(void);
+// 0x0028acc0: Q3's CG_PredictPlayerState. The C version gets the entry ESP and EBX/ESI/EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t esi, uint32_t edi);
+extern "C" void CG_PredictPlayerState_entry(void);
 // 0x0027cc30: Q3's CG_Shutdown.
 void XB_CDECL CG_Shutdown();
 // 0x0028b6a0: Q3's CG_RegisterGraphics.
