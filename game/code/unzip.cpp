@@ -44,9 +44,6 @@ uint32_t title_fread(void* buf, uint32_t size, uint32_t count, void* f) {
 int32_t title_fclose(void* f) { return title_function<int32_t XB_CDECL(void*)>(0x001f0790)(f); }
 void* title_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x001f0d14)(size); }
 void title_free(void* p) { title_function<void XB_CDECL(void*)>(0x001f0c69)(p); }
-int32_t inflate(ZStream* z, int32_t flush) {
-    return title_function<int32_t XB_CDECL(ZStream*, int32_t)>(0x00058020)(z, flush);
-}
 
 // Quake 3's unzlocal_getShort/getLong: fread into one stack word whatever the result, so a
 // failed read keeps the word's last value (a short read only its low half); shorts are

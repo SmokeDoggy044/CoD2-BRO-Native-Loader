@@ -101,12 +101,16 @@ int32_t XB_CDECL inflateEnd(ZStream* z);
 int32_t XB_CDECL inflateInit2_(ZStream* z, int32_t w, const char* version, int32_t stream_size);
 // 0x00058000
 int32_t XB_CDECL inflateInit_(ZStream* z, const char* version, int32_t stream_size);
+// 0x00058020
+int32_t XB_CDECL inflate(ZStream* z, int32_t flush);
 // 0x000585c0
 uint32_t XB_CDECL crc32(uint32_t crc, const uint8_t* buf, uint32_t len);
 // 0x0005a010
 void XB_CDECL inflate_blocks_reset(InflateBlocksState* s, ZStream* z, uint32_t* c);
 // 0x0005a090
 InflateBlocksState* XB_CDECL inflate_blocks_new(ZStream* z, uint32_t checkfn, uint32_t w);
+// 0x0005a130
+int32_t XB_CDECL inflate_blocks(InflateBlocksState* s, ZStream* z, int32_t r);
 // 0x0005acc0
 int32_t XB_CDECL inflate_blocks_free(InflateBlocksState* s, ZStream* z);
 // 0x0005ada0
@@ -116,8 +120,22 @@ void* XB_CDECL zcalloc(uint32_t opaque, uint32_t items, uint32_t size);
 // 0x0005ca10
 InflateCodesState* XB_CDECL inflate_codes_new(uint32_t bl, uint32_t bd, const InflateHuft* tl,
                                               const InflateHuft* td, ZStream* z);
+// 0x0005ca50
+int32_t XB_CDECL inflate_codes(InflateBlocksState* s, ZStream* z, int32_t r);
 // 0x0005d170
 void XB_CDECL inflate_codes_free(InflateCodesState* c, ZStream* z);
+// 0x0005d190 (b in ECX, m in EAX): builds the Huffman decoding tables for n code lengths.
+// stale_pad/stale_base: two frame words the original never sets (the asm entry reads them).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL huft_build(uint32_t* b, uint32_t* m, uint32_t n, uint32_t s,
+                                                       const uint32_t* d, const uint32_t* e, InflateHuft** t,
+                                                       InflateHuft* hp, uint32_t* hn, uint32_t* v,
+                                                       uint32_t stale_pad, uint32_t stale_base);
+extern "C" void huft_build_entry(void);
+// 0x0005d680
+int32_t XB_CDECL inflate_trees_bits(uint32_t* c, uint32_t* bb, InflateHuft** tb, InflateHuft* hp, ZStream* z);
+// 0x0005d730
+int32_t XB_CDECL inflate_trees_dynamic(uint32_t nl, uint32_t nd, uint32_t* c, uint32_t* bl, uint32_t* bd,
+                                       InflateHuft** tl, InflateHuft** td, InflateHuft* hp, ZStream* z);
 // 0x0005d8f0: copies what it can from the window to the output.
 int32_t XB_CDECL inflate_flush(InflateBlocksState* s, ZStream* z, int32_t r);
 
