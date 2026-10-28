@@ -5,6 +5,7 @@
 #include "lanes.h"
 #include "g_script.h"
 #include "qcommon.h"
+#include "r_init.h"
 #include "sv.h"
 #include "title_data.h"
 
@@ -4082,6 +4083,383 @@ uint8_t XB_CDECL CM_SightTraceThroughWorldTrees(uint8_t* tw) {
         }
     }
     return 0;
+}
+
+namespace {
+
+template <typename T>
+T& at(void* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(static_cast<uint8_t*>(base) + offset);
+}
+
+template <typename T = uint8_t>
+T* ptr(uint32_t address) {
+    return reinterpret_cast<T*>(uintptr_t{address});
+}
+
+uint32_t addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }  // Z_Free
+
+void align_cursor(uint32_t* cursor, uint32_t mask) {
+    while (*cursor & mask) ++*cursor;
+}
+
+// The cursor rounded up to 16 becomes the array's pointer (cursor + base); the cursor moves past `bytes`.
+uint32_t place_array(uint32_t* cursor, uint32_t base, uint32_t bytes) {
+    align_cursor(cursor, 0xf);
+    const uint32_t pointer = *cursor + base;
+    *cursor += bytes;
+    return pointer;
+}
+
+// A Mem_AlignedFree'd {count, pointer} pair at +offset - 4 / +offset, both cleared.
+void free_counted_array(uint8_t* object, uint32_t offset) {
+    if (void* block = ptr<void>(at<uint32_t>(object, offset))) Mem_AlignedFree(block);
+    at<uint32_t>(object, offset) = 0;
+    at<uint32_t>(object, offset - 4) = 0;
+}
+
+// Flag 0x4000 of an object's +8 word becomes 0x1000000 (an old 0x1000000 cleared first).
+void move_object_flag(uint8_t* object) {
+    uint32_t flags = at<uint32_t>(object, 8);
+    if (flags & 0x1000000) at<uint32_t>(object, 8) = flags & 0xfeffffff;
+    flags = at<uint32_t>(object, 8);
+    if (flags & 0x4000) at<uint32_t>(object, 8) = (flags & 0xffffbfff) | 0x1000000;
+}
+
+void copy_words(uint8_t* dst, uint32_t src, uint32_t count) {
+    for (uint32_t i = 0; i < count; ++i) at<uint32_t>(dst, i * 4) = title_global<uint32_t>(src + i * 4);
+}
+
+void store_vec4(uint32_t address, uint32_t x, uint32_t y, uint32_t z, uint32_t w) {
+    const uint32_t lanes[4] = {x, y, z, w};
+    std::memcpy(&title_global<uint8_t>(address), lanes, sizeof lanes);
+}
+
+}  // namespace
+
+void XB_THISCALL CM_TriMesh_Dtor(uint8_t* mesh) {
+    at<uint32_t>(mesh, 0) = 0x0083270c;  // CM_TriMesh vtable
+    free_counted_array(mesh, 0x4c);
+    free_counted_array(mesh, 0x44);
+    free_counted_array(mesh, 0x3c);
+    free_counted_array(mesh, 0x34);
+}
+
+uint8_t* XB_THISCALL CM_TriMesh_DeletingDtor(uint8_t* mesh, uint32_t flags) {
+    CM_TriMesh_Dtor(mesh);
+    if (flags & 1) z_free(mesh);
+    return mesh;
+}
+
+uint8_t* XB_THISCALL CM_Mesh_DeletingDtor(uint8_t* mesh, uint32_t flags) {
+    at<uint32_t>(mesh, 0) = 0x00832680;  // CM_Mesh vtable
+    CM_TriMesh_Dtor(mesh);
+    if (flags & 1) z_free(mesh);
+    return mesh;
+}
+
+uint8_t* XB_THISCALL CM_Brush_DeletingDtor(uint8_t* brush, uint32_t flags) {
+    at<uint32_t>(brush, 0) = 0x008325ec;  // CM_Brush vtable
+    free_counted_array(brush, 0x34);
+    if (flags & 1) z_free(brush);
+    return brush;
+}
+
+uint8_t* XB_THISCALL CM_WorldTreeManager_DeletingDtor(uint8_t* manager, uint32_t flags) {
+    at<uint32_t>(manager, 0) = 0x00832734;  // CM_WorldTreeManager vtable
+    CM_BrushArray_Free(reinterpret_cast<uint32_t*>(manager + 0x190));
+    ResourceManager_Destruct(manager);
+    if (flags & 1) z_free(manager);
+    return manager;
+}
+
+PLATFORM_ASM_ENTRY(CM_BrushArray_Free_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CM_BrushArray_Free) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CM_BrushArray_Free(uint32_t* array) {
+    if (!array[1]) return;
+    for (uint32_t i = 0; i < array[0]; ++i) {
+        uint8_t* brush = ptr(array[1] + i * 0x40);
+        const uint32_t slot = at<uint32_t>(ptr(at<uint32_t>(brush, 0)), 0x24);
+        title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t)>(slot)(brush, 0);
+    }
+    Mem_AlignedFree(ptr<void>(array[1]));
+    array[1] = 0;
+    array[0] = 0;
+}
+
+void XB_REGS1 XB_STDCALL CM_BrushArray_Alloc(uint32_t* array, uint32_t count) {
+    CM_BrushArray_Free(array);
+    if (!count) return;
+    array[1] = addr(Mem_AlignedAlloc(count << 6, 0x10, 0));
+    for (uint32_t i = 0; i < count; ++i) {
+        uint8_t* brush = ptr(array[1] + i * 0x40);
+        if (!brush) continue;
+        at<uint32_t>(brush, 0) = 0x0083263c;  // PhysShape vtable
+        copy_words(brush + 0x10, 0x0082e290, 3);
+        at<uint32_t>(brush, 0x1c) = 0;
+        at<uint32_t>(brush, 4) = 0xffffffff;
+        at<uint32_t>(brush, 8) = 0xffffffff;
+        at<uint32_t>(brush, 0xc) = 0xffffffff;
+        at<uint32_t>(brush, 0) = 0x008325ec;  // CM_Brush vtable
+        at<uint32_t>(brush, 0x30) = 0;
+        at<uint32_t>(brush, 0x34) = 0;
+    }
+    if (array[1]) array[0] = count;
+}
+
+PLATFORM_ASM_ENTRY(CM_InitBoxHull_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CM_InitBoxHull) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL CM_InitBoxHull(uint8_t* hull) {
+    at<uint32_t>(hull, 0) = 0;
+    at<uint32_t>(hull, 4) = 0;
+    CM_BrushArray_Alloc(reinterpret_cast<uint32_t*>(hull), 1);
+    copy_words(hull + 0x30, 0x0082e290, 4);
+    at<uint32_t>(hull, 0x40) = 0;  // 0.0f
+    at<uint32_t>(hull, 0x44) = 0;
+    at<uint32_t>(hull, 0x48) = 0;
+    copy_words(hull + 0x10, 0x0082e290, 4);
+    copy_words(hull + 0x20, 0x0082e290, 4);
+    return hull;
+}
+
+PLATFORM_ASM_ENTRY(CM_WorldTreeManager_Construct_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(CM_WorldTreeManager_Construct) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL CM_WorldTreeManager_Construct(uint8_t* manager) {
+    at<uint32_t>(manager, 0) = 0x00838220;  // ResourceManager vtable
+    uint32_t& count = title_global<uint32_t>(0x009719f8);
+    if (static_cast<int32_t>(count) < 20) {
+        title_global<uint32_t>(0x009719fc + count * 4) = addr(manager);
+        ++count;
+    }
+    at<uint32_t>(manager, 0) = 0x00832734;  // CM_WorldTreeManager vtable
+    CM_InitBoxHull(manager + 0x190);
+    std::memset(manager + 4, 0, 0x63 * 4);
+    title_global<uint32_t>(0x0095f504) = addr(manager + 0x190);
+    return manager;
+}
+
+void XB_REGS3 XB_CDECL CM_WorldMesh_Fixup(uint32_t* cursor, uint32_t base, uint8_t* mesh) {
+    at<uint32_t>(mesh, 0x34) = place_array(cursor, base, at<uint32_t>(mesh, 0x30) << 4);
+    at<uint32_t>(mesh, 0x3c) = place_array(cursor, base, at<uint32_t>(mesh, 0x38) << 2);
+    at<uint32_t>(mesh, 0x44) = place_array(cursor, base, at<uint32_t>(mesh, 0x40) << 4);
+    at<uint32_t>(mesh, 0x4c) = place_array(cursor, base, at<uint32_t>(mesh, 0x48));
+}
+
+PLATFORM_ASM_ENTRY(CM_WorldTreeNodes_Fixup_entry,
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_WorldTreeNodes_Fixup) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL CM_WorldTreeNodes_Fixup(uint32_t* cursor, uint8_t* tree, uint32_t base) {
+    at<uint32_t>(tree, 4) = place_array(cursor, base, at<uint32_t>(tree, 0) << 1);
+    at<uint32_t>(tree, 0xc) = place_array(cursor, base, at<uint32_t>(tree, 8) << 3);
+    at<uint32_t>(tree, 0x28) = place_array(cursor, base, at<uint32_t>(tree, 0x24) << 4);
+    for (uint32_t i = 0; i < at<uint32_t>(tree, 8); ++i) {
+        uint8_t* leaf = ptr(at<uint32_t>(tree, 0xc) + i * 8);
+        at<uint32_t>(leaf, 4) = place_array(cursor, base, at<uint32_t>(leaf, 0) << 1);
+    }
+}
+
+PLATFORM_ASM_ENTRY(CM_WorldTree_Fixup_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CM_WorldTree_Fixup) "addl $12, %esp\n"
+                   "ret $8")
+
+void XB_CDECL CM_WorldTree_Fixup(uint32_t* cursor, uint8_t* tree, uint32_t base) {
+    at<uint32_t>(tree, 0x34) = place_array(cursor, base, at<uint32_t>(tree, 0x30) * 0x50);
+    for (uint32_t i = 0; i < at<uint32_t>(tree, 0x30); ++i) CM_WorldMesh_Fixup(cursor, base, ptr(at<uint32_t>(tree, 0x34) + i * 0x50));
+    at<uint32_t>(tree, 0x3c) = place_array(cursor, base, at<uint32_t>(tree, 0x38) << 6);
+    for (uint32_t i = 0; i < at<uint32_t>(tree, 0x38); ++i) {
+        uint8_t* brush = ptr(at<uint32_t>(tree, 0x3c) + i * 0x40);
+        at<uint32_t>(brush, 0x34) = place_array(cursor, base, at<uint32_t>(brush, 0x30) << 4);
+    }
+    CM_WorldTreeNodes_Fixup(cursor, tree, base);
+    align_cursor(cursor, 3);
+}
+
+PLATFORM_ASM_ENTRY(CM_LoadWorldTree_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(CM_LoadWorldTree) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL CM_LoadWorldTree(uint8_t* manager, uint8_t* tree, uint32_t id) {
+    uint32_t cursor = 0x80;
+    CM_WorldTree_Fixup(&cursor, tree, addr(tree));
+    at<uint32_t>(manager, 0x10 + at<uint32_t>(manager, 0xc) * 4) = addr(tree);
+    at<uint32_t>(manager, 0x19c + at<uint32_t>(manager, 0xc) * 4) = id;
+    ++at<uint32_t>(manager, 0xc);
+    for (uint32_t i = 0; i < at<uint32_t>(tree, 0x38); ++i) {
+        uint8_t* brush = ptr(at<uint32_t>(tree, 0x3c) + i * 0x40);
+        at<uint32_t>(brush, 0) = 0x008325ec;  // CM_Brush vtable
+        move_object_flag(brush);
+    }
+    for (uint32_t i = 0; i < at<uint32_t>(tree, 0x30); ++i) {
+        uint8_t* mesh = ptr(at<uint32_t>(tree, 0x34) + i * 0x50);
+        at<uint32_t>(mesh, 0) = 0x00832680;  // CM_Mesh vtable
+        move_object_flag(mesh);
+    }
+}
+
+PLATFORM_ASM_ENTRY(Dcg_RelocateModel_entry,
+                   "pushl %ebx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Dcg_RelocateModel) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Dcg_RelocateModel(uint32_t* cursor, uint8_t* model, uint32_t base) {
+    at<uint32_t>(model, 4) = place_array(cursor, base, at<uint32_t>(model, 0) << 6);
+    for (uint32_t i = 0; i < at<uint32_t>(model, 0); ++i) {
+        uint8_t* brush = ptr(at<uint32_t>(model, 4) + i * 0x40);
+        at<uint32_t>(brush, 0x34) = place_array(cursor, base, at<uint32_t>(brush, 0x30) << 4);
+    }
+    align_cursor(cursor, 3);
+}
+
+PLATFORM_ASM_ENTRY(Dcg_RelocateModels_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Dcg_RelocateModels) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Dcg_RelocateModels(uint32_t* cursor, uint32_t* list, uint32_t base) {
+    list[1] = place_array(cursor, base, list[0] * 0x50);
+    for (uint32_t i = 0; i < list[0]; ++i) Dcg_RelocateModel(cursor, ptr(list[1] + i * 0x50), base);
+    align_cursor(cursor, 3);
+}
+
+PLATFORM_ASM_ENTRY(CM_FindInlineModelInList_entry,
+                   "pushl %edi\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(CM_FindInlineModelInList) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL CM_FindInlineModelInList(const uint32_t* list, uint32_t key) {
+    const uint32_t count = list[0];
+    for (uint32_t i = 0; i < count; ++i) {
+        uint8_t* model = ptr(list[1] + i * 0x50);
+        if (at<uint32_t>(model, 0x48) == key) return model;
+    }
+    return nullptr;
+}
+
+PLATFORM_ASM_ENTRY(CM_FindInlineModel_entry,
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CM_FindInlineModel) "addl $12, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL CM_FindInlineModel(uint32_t key, uint32_t index, const uint8_t* lists) {
+    const uint32_t* list = ptr<const uint32_t>(*reinterpret_cast<const uint32_t*>(lists + index * 4 + 4));
+    const uint32_t fallback = at<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x34);
+    if (list) {
+        if (uint8_t* model = CM_FindInlineModelInList(list, key)) return model;
+    }
+    const uint32_t* other = ptr<const uint32_t>(*reinterpret_cast<const uint32_t*>(lists + fallback * 4 + 4));
+    if (!other) return nullptr;
+    return CM_FindInlineModelInList(other, key);
+}
+
+uint32_t XB_CDECL CM_SectorTree_UnlinkOwner_r(uint32_t owner, uint8_t* sector) {
+    uint8_t* entry = ptr(at<uint32_t>(sector, 0x14));
+    at<uint32_t>(sector, 4) = 0;
+    uint8_t* previous = nullptr;
+    for (; entry; entry = ptr(at<uint32_t>(entry, 0xdc))) {
+        if (at<uint32_t>(entry, 0xe0) == owner) {
+            const uint32_t next = at<uint32_t>(entry, 0xdc);
+            if (previous)
+                at<uint32_t>(previous, 0xdc) = next;
+            else
+                at<uint32_t>(sector, 0x14) = next;
+        } else {
+            at<uint32_t>(sector, 4) |= at<uint32_t>(ptr(at<uint32_t>(entry, 0x68)), 0x40);
+            previous = entry;
+        }
+    }
+    if (uint8_t* child = ptr(at<uint32_t>(sector, 0x1c))) {
+        const uint32_t contents = CM_SectorTree_UnlinkOwner_r(owner, child);
+        at<uint32_t>(sector, 4) = at<uint32_t>(sector, 4) | contents;
+    }
+    if (uint8_t* child = ptr(at<uint32_t>(sector, 0x20))) {
+        const uint32_t contents = CM_SectorTree_UnlinkOwner_r(owner, child);
+        at<uint32_t>(sector, 4) = at<uint32_t>(sector, 4) | contents;
+    }
+    return at<uint32_t>(sector, 4);
+}
+
+void XB_CDECL CM_BoxLeafnums_r_2(uint8_t* list, uint32_t nodenum) {
+    const uint8_t* base = cm_field<uint8_t*>(0xc);
+    const float* mins = reinterpret_cast<const float*>(list + 0x10);
+    const float* maxs = reinterpret_cast<const float*>(list + 0x20);
+    for (;;) {
+        const uint8_t* node = cm_leaf(nodenum);
+        if (*reinterpret_cast<const uint16_t*>(node) != 0xffff) {
+            title_function<void XB_CDECL(uint8_t*, uint32_t)>(*reinterpret_cast<uint32_t*>(list + 0x34))(list, nodenum);
+            return;
+        }
+        const float* plane_ptr = *reinterpret_cast<const float* const*>(node + 4);
+        const Lanes plane = lanes(plane_ptr);
+        Lanes far_corner, near_corner;
+        for (int32_t i = 0; i < 4; ++i) {
+            far_corner.v[i] = 0.0f <= plane.v[i] ? maxs[i] : mins[i];
+            near_corner.v[i] = plane.v[i] <= 0.0f ? maxs[i] : mins[i];
+        }
+        const Lanes p1 = mul(far_corner, plane);
+        const float d1 = (p1.v[0] + p1.v[1]) + p1.v[2];
+        platform_keep(p1);
+        const Lanes p2 = mul(near_corner, plane);
+        const float d2 = (p2.v[0] + p2.v[1]) + p2.v[2];
+        platform_keep(p2);
+        int32_t side = 0;
+        if (d1 >= plane_ptr[3]) side = 1;
+        if (plane_ptr[3] > d2) side |= 2;
+        if (side == 3) {
+            CM_BoxLeafnums_r_2(list, static_cast<uint32_t>((*reinterpret_cast<const uint8_t* const*>(node + 8) - base) >> 4));
+            nodenum = static_cast<uint32_t>((*reinterpret_cast<const uint8_t* const*>(node + 0xc) - base) >> 4);
+        } else {
+            nodenum = static_cast<uint32_t>((*reinterpret_cast<const uint8_t* const*>(node + 4 + side * 4) - base) >> 4);
+        }
+    }
+}
+
+void XB_CDECL StaticInit_Vec4x4_95ff30() {
+    const uint32_t one = title_global<uint32_t>(0x0083eb20);        // 1.0f
+    const uint32_t minus_one = title_global<uint32_t>(0x0083eb34);  // -1.0f
+    store_vec4(0x0095ff30, minus_one, minus_one, 0, minus_one);
+    store_vec4(0x0095ff40, minus_one, one, 0, minus_one);
+    store_vec4(0x0095ff50, one, minus_one, 0, one);
+    store_vec4(0x0095ff60, one, one, 0, one);
+}
+
+void XB_CDECL StaticInit_Vec4x4_963870() {
+    const uint32_t minus_one = title_global<uint32_t>(0x0083eb34);  // -1.0f
+    store_vec4(0x00963870, minus_one, minus_one, 0, minus_one);
+    store_vec4(0x00963880, minus_one, 0, 0, minus_one);
+    store_vec4(0x00963890, 0, minus_one, 0, 0);
+    store_vec4(0x009638a0, 0, 0, 0, 0);
+}
+
+void XB_CDECL StaticInit_Vec4x4_960120() {
+    const uint32_t one = title_global<uint32_t>(0x0083eb20);  // 1.0f
+    store_vec4(0x00960120, 0, 0, 0, 0);
+    store_vec4(0x00960130, 0, one, 0, 0);
+    store_vec4(0x00960140, one, 0, 0, one);
+    store_vec4(0x00960150, one, one, 0, one);
+}
+
+void XB_CDECL AtExit_FreeWorldTrees() {
+    if (void* block = title_global<void*>(0x00960034)) Mem_AlignedFree(block);
+    title_global<uint32_t>(0x00960034) = 0;
+    title_global<uint32_t>(0x00960030) = 0;
 }
 
 }  // namespace game

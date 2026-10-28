@@ -502,4 +502,83 @@ uint8_t XB_CDECL CM_SightTraceRayThroughWorldTrees(uint8_t* tw, const float* sta
 extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL CM_SightTraceThroughWorldTrees(uint8_t* tw);
 extern "C" void CM_SightTraceThroughWorldTrees_entry(void);
 
+// World trees (.cg data, relocated in place): a tree has +0x00 node count / +0x04 nodes (2 bytes each), +0x08
+// leaf count / +0x0c leaves {count, pointer to count 2-byte entries}, +0x24 count / +0x28 16-byte records,
+// +0x30 mesh count / +0x34 meshes (0x50 bytes: CM_Mesh), +0x38 brush count / +0x3c brushes (0x40 bytes: CM_Brush).
+// The fixups turn the data offsets into pointers: each array starts at the cursor rounded up to 16, the
+// pointer is cursor + base, the cursor then moves past the array; the cursor ends rounded up to 4.
+
+// 0x0001bdc0 (thiscall): the triangle mesh destructor - CM_TriMesh vtable, then Mem_AlignedFree of the arrays at
+// +0x4c, +0x44, +0x3c, +0x34 (each pointer and its count before it cleared).
+void XB_THISCALL CM_TriMesh_Dtor(uint8_t* mesh);
+// 0x0001bec0 / 0x0001c0c0 (vtable slot 9): CM_TriMesh_Dtor (the CM_Mesh one sets its vtable first), then Z_Free
+// with flags bit 0. Return the mesh.
+uint8_t* XB_THISCALL CM_TriMesh_DeletingDtor(uint8_t* mesh, uint32_t flags);
+uint8_t* XB_THISCALL CM_Mesh_DeletingDtor(uint8_t* mesh, uint32_t flags);
+// 0x0001c100 (vtable slot 9): Mem_AlignedFree of the side array (+0x34, count +0x30, both cleared), then Z_Free
+// with flags bit 0. Returns the brush.
+uint8_t* XB_THISCALL CM_Brush_DeletingDtor(uint8_t* brush, uint32_t flags);
+// 0x0001d8b0 (vtable slot 0): CM_BrushArray_Free of the box hull (+0x190), ResourceManager_Destruct, then
+// Z_Free with flags bit 0. Returns the manager.
+uint8_t* XB_THISCALL CM_WorldTreeManager_DeletingDtor(uint8_t* manager, uint32_t flags);
+// 0x0001fda0 (array {count, brushes} in ESI): each brush's vtable slot 9 with flags 0, Mem_AlignedFree, both
+// words cleared (only when the array pointer is set).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_BrushArray_Free(uint32_t* array);
+extern "C" void CM_BrushArray_Free_entry(void);
+// 0x0001fa90 (array in EAX; count on the stack): CM_BrushArray_Free, then count 0x40-byte brushes
+// (Mem_AlignedAlloc, 16-byte aligned): vtable CM_Brush, +4..+0xc -1, +0x10 the zero vector of 0x0082e290 with w 0,
+// +0x30/+0x34 0. The count is stored when the allocation succeeded.
+void XB_REGS1 XB_STDCALL CM_BrushArray_Alloc(uint32_t* array, uint32_t count);
+// 0x002cab00 (hull in ESI): one brush (CM_BrushArray_Alloc), +0x10/+0x20/+0x30 the vector 0x0082e290 {0,0,0,1},
+// +0x40/+0x44 0.0f, +0x48 0. Returns the hull.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CM_InitBoxHull(uint8_t* hull);
+extern "C" void CM_InitBoxHull_entry(void);
+// 0x002d0d60 (manager in EBX): the inlined ResourceManager registration (0x009719f8 list of 20), the
+// CM_WorldTreeManager vtable, CM_InitBoxHull(+0x190), +4..+0x190 zeroed, 0x0095f504 = the hull. Returns the manager.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CM_WorldTreeManager_Construct(uint8_t* manager);
+extern "C" void CM_WorldTreeManager_Construct_entry(void);
+// 0x0001be40 (cursor in EAX, base in EDX, mesh in ECX): the mesh's arrays +0x34 (count +0x30, 16 bytes each),
+// +0x3c (+0x38, 4 bytes), +0x44 (+0x40, 16 bytes), +0x4c (+0x48 bytes).
+void XB_REGS3 XB_CDECL CM_WorldMesh_Fixup(uint32_t* cursor, uint32_t base, uint8_t* mesh);
+// 0x0001ce30 (cursor in EAX, tree in ECX, base in EDI): the tree's nodes (+4), leaves (+0xc), records (+0x28),
+// then each leaf's entries (2 bytes each).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_WorldTreeNodes_Fixup(uint32_t* cursor, uint8_t* tree, uint32_t base);
+extern "C" void CM_WorldTreeNodes_Fixup_entry(void);
+// 0x0001cff0 (cursor in ESI; tree, base on the stack, stdcall): the meshes (CM_WorldMesh_Fixup each), the brushes
+// (each one's sides +0x34, count +0x30, 16 bytes each), CM_WorldTreeNodes_Fixup; the cursor ends 4-aligned.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_WorldTree_Fixup(uint32_t* cursor, uint8_t* tree, uint32_t base);
+extern "C" void CM_WorldTree_Fixup_entry(void);
+// 0x002d0c60 (manager in EBX, tree in EDI; id on the stack, stdcall): CM_WorldTree_Fixup from offset 0x80 with the
+// tree as base, the tree added to the manager (+0xc count, +0x10 trees, +0x19c ids); each brush and mesh gets its
+// vtable and flag 0x4000 (+8) moved to 0x1000000 (an old 0x1000000 cleared first).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CM_LoadWorldTree(uint8_t* manager, uint8_t* tree, uint32_t id);
+extern "C" void CM_LoadWorldTree_entry(void);
+// 0x0001ced0 (cursor in EAX, model in EDX, base in EBX): an inline model's brushes (+4, count +0, 0x40 bytes) and
+// each brush's sides (+0x34, count +0x30); the cursor ends 4-aligned.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Dcg_RelocateModel(uint32_t* cursor, uint8_t* model, uint32_t base);
+extern "C" void Dcg_RelocateModel_entry(void);
+// 0x0001cf50 (cursor in ESI, list {count, models} in EDI; base on the stack, stdcall): the 0x50-byte models, then
+// Dcg_RelocateModel each; the cursor ends 4-aligned.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Dcg_RelocateModels(uint32_t* cursor, uint32_t* list, uint32_t base);
+extern "C" void Dcg_RelocateModels_entry(void);
+// 0x0001cfc0 (list {count, models} in ECX, key in EDI): the 0x50-byte model whose +0x48 is the key, or null.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CM_FindInlineModelInList(const uint32_t* list, uint32_t key);
+extern "C" void CM_FindInlineModelInList_entry(void);
+// 0x002afb10 (key in EAX, index in ECX, model lists in EBX): the key in list `index` (lists + 4 + index * 4),
+// else in the list indexed by +0x34 of 0x0095f638, else null.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CM_FindInlineModel(uint32_t key, uint32_t index, const uint8_t* lists);
+extern "C" void CM_FindInlineModel_entry(void);
+// 0x002ab010 (unnamed in Ghidra): unlinks every entry whose owner (+0xe0) is `owner` from the sector's list (+0x14,
+// next at +0xdc) and its children's (+0x1c, +0x20), rebuilding the contents (+4) from what stays (entry +0x68 ->
+// +0x40). Returns the sector's contents. The tree is the server's sector tree (0x00935664).
+uint32_t XB_CDECL CM_SectorTree_UnlinkOwner_r(uint32_t owner, uint8_t* sector);
+// 0x002cc750 (dead: only its own recursion calls it): CM_BoxLeafnums_r without the nearest-plane distance.
+void XB_CDECL CM_BoxLeafnums_r_2(uint8_t* list, uint32_t nodenum);
+// 0x00376480 / 0x00376530 / 0x003765d0 (static initializers): four 16-byte vectors each.
+void XB_CDECL StaticInit_Vec4x4_95ff30();
+void XB_CDECL StaticInit_Vec4x4_963870();
+void XB_CDECL StaticInit_Vec4x4_960120();
+// 0x00379920 (atexit): Mem_AlignedFree of 0x00960034, it and its count 0x00960030 cleared.
+void XB_CDECL AtExit_FreeWorldTrees();
+
 }  // namespace game
