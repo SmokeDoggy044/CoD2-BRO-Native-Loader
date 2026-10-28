@@ -34,9 +34,10 @@ function of the game.*
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
 (below), or, for 435 functions the campaign never runs, the same comparison offline on random inputs.
-**Set aside** functions have been turned into C++ but will not be tested, by decision: dead code
-nothing calls, start-up and exit code, debug and developer tools, and code that only talks
-to the Xbox hardware or its files. A native build replaces most of these anyway.
+**Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
+and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
+its files (these are in C++ already). The Xbox Live code is set aside without being
+rewritten: the service is gone. A native build replaces most of these anyway.
 We've also named 2,659 of the game's global variables.
 
 ### By part of the game
@@ -56,7 +57,7 @@ We've also named 2,659 of the game's global variables.
 | Level-script helpers in the engine code | 1,444 | 0 | 0 | 0 | 1,389 | 48 |
 | Sound | 141 | 42 | 1 | 0 | 86 | 11 |
 | Streaming (asset loading, zones) | 161 | 64 | 3 | 0 | 87 | 7 |
-| Online (Xbox Live glue) | 27 | 0 | 0 | 0 | 21 | 6 |
+| Online (Xbox Live glue) | 27 | 0 | 0 | 27 | 0 | 0 |
 | Microsoft library code built into the game (replaced, not rewritten) | 2,084 | 0 | 0 | 0 | 11 | 466 |
 | Not sorted into a part yet | 63 | 0 | 0 | 0 | 0 | 63 |
 

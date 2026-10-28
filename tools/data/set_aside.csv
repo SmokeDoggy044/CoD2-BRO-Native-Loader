@@ -1,6 +1,10 @@
 address,name,kind,reason
+00011220,Live_GetCurrentUser,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
 0001f0b0,nglVertexWriter_Init,debug,debug/dev only (user 2026-10-27)
 0001f120,nglMeshBuilder_AddPosSection,debug,debug/dev only (user 2026-10-27)
+0002ba90,LiveRecord_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+0002bb20,FUN_0002bb20,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+0002bce0,LiveMgr_DeletingDtor,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
 0002bd30,InGameLiveOptionsMenu_DeletingDtor,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
 00045790,nglInitShaders,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
 000468b0,cdDebug_AddToList,no data,no shipped data reaches it (user 2026-10-27)
@@ -36,11 +40,34 @@ address,name,kind,reason
 000967c0,FxEffectStage_Release,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
 0009a5a0,FxRenderer_NewOp5b,no data,no shipped data reaches it (user 2026-10-27)
 0009ebf0,FxOp5b_AddToList,no data,no shipped data reaches it (user 2026-10-27)
+00220de0,Net_UnregisterSessionKeys,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00220e60,Net_RegisterSessionKey,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00220fd0,Live_IsXuidMuted,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00221090,Live_RequestMutelist,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00221450,Live_EmptyStub,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00221db0,Live_StartPlayersFeature,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00221e60,FUN_00221e60,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00221eb0,FUN_00221eb0,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00221f30,Live_StartLogonFeature,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00221fc0,FUN_00221fc0,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+002220e0,LiveMgr_SetInput,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
 002226e0,InGameLiveOptionsMenu_Draw,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
 00222750,XboxLiveMenu_Draw,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
+002228e0,Live_PollNotifications,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+002229d0,FUN_002229d0,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00222c20,LiveMgr_SetVoiceEnabled,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00222d20,FUN_00222d20,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00222df0,LiveMgrBase_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00223380,Live_LogOff,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+002235e0,Live_HandleExit,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00223730,Live_Frame,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
 00223e10,InGameLiveOptionsMenu_Dtor,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
 00224060,InGameLiveOptionsMenu_ShowConfirmDialog,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
 00224160,InGameLiveOptionsMenu_ShowDashboardDialog,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
+002248b0,LiveMgr_Dtor,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00224920,LiveMgr_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00224970,Live_Render,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
+00224a50,Live_Init,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
 00234ef0,R_DrawBackBufferOverlay,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
 00238750,R_EntityLodDistance,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
 0023e680,R_FindEffectByName,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"

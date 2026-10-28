@@ -16,8 +16,8 @@ usage: tools/progress.py [--module NAME [--state STATE]] [--readme]
 
 States: unnamed; library (named by signature: C runtime, XAPI, thunks to them);
 named (by us, not decompiled); untested (decompiled, no conclusive test yet); set-aside
-(decompiled, not tested by decision: tools/data/set_aside.csv - dead code, boot/exit paths, debug
-and host code; its C stays, it is not counted as rewritten);
+(not tested by decision: tools/data/set_aside.csv - dead code, boot/exit paths, debug and host
+code; its C stays, it is not counted as rewritten; Xbox Live code is set aside before decompiling);
 inconclusive (tests ran, none conclusive); mismatched (mismatch or drift on
 record); accepted (mismatches on record, all of a kind tools/data/accepted.csv accepts: values
 the title never sets, such as stale stack - its latest issue must still match the listed
@@ -146,6 +146,8 @@ def main():
                 state = "inconclusive"
             else:
                 state = "untested"
+        elif a in set_aside:  # not decompiled either (Xbox Live code): nothing left to do
+            state = "set-aside"
         elif unnamed:
             state = "unnamed"
         elif a in ours:
@@ -179,7 +181,7 @@ def main():
     summary(lambda r: r[2])
     print()
     summary(lambda r: r[3] if r[2] == ".text" else "levels")
-    named = sum(1 for r in rows if r[4] not in ("unnamed", "library"))
+    named = sum(1 for r in rows if r[4] not in ("unnamed", "library") and not r[1].startswith("FUN_"))
     done = sum(1 for r in rows if r[4] in REWRITTEN)
     total = len(rows)  # library functions in .text stay counted (user decision 2026-10-18)
     print(f"\ncounter: named {named}/{total} · matched {done}/{total}")
@@ -225,7 +227,7 @@ def replace_block(s, name, lines):
 def write_readme(rows, excluded):
     import datetime
     n = lambda x: f"{x:,}"
-    named_ = lambda rs: sum(1 for r in rs if r[4] not in ("unnamed", "library"))
+    named_ = lambda rs: sum(1 for r in rs if r[4] not in ("unnamed", "library") and not r[1].startswith("FUN_"))
     done_ = lambda rs: sum(1 for r in rs if r[4] in REWRITTEN)
     text = [r for r in rows if r[2] == ".text"]
     levels = [r for r in rows if r[2] == "levels"]
@@ -243,9 +245,10 @@ def write_readme(rows, excluded):
             "**Rewritten** means it has been turned into C++ and passed the in-game comparison",
             f"(below), or, for {n(sum(1 for r in rows if r[4] == 'offline'))} functions the campaign never runs, "
             "the same comparison offline on random inputs.",
-            "**Set aside** functions have been turned into C++ but will not be tested, by decision: dead code",
-            "nothing calls, start-up and exit code, debug and developer tools, and code that only talks",
-            "to the Xbox hardware or its files. A native build replaces most of these anyway.",
+            "**Set aside** functions will not be tested, by decision: dead code nothing calls, start-up",
+            "and exit code, debug and developer tools, and code that only talks to the Xbox hardware or",
+            "its files (these are in C++ already). The Xbox Live code is set aside without being",
+            "rewritten: the service is gone. A native build replaces most of these anyway.",
             f"We've also named {n(len(globals_))} of the game's global variables.", "",
             "### By part of the game", "",
             "| Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |",
