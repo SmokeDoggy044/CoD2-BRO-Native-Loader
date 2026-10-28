@@ -5028,7 +5028,7 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
                         if (command_time - ps_time > 1) title_global<int32_t>(0x009746d4) = ps_time + 1;
                     }
                     regs.eax = title_global<uint32_t>(0x009746d0);
-                    call(0x002e5530, 3, pm_args);  // PM_UpdateViewAngles (the move)
+                    call(0x002e5530, 3, pm_args);  // PM_UpdateViewAngles again, the previous command as old (no Pmove on the client)
                     word(0xc) = 1;
                 }
             }
