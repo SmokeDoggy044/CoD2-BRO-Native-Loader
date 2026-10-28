@@ -175,4 +175,54 @@ extern "C" void AnimTree_AdvanceTimeForModel_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_Setup(uint32_t entry, uint32_t keep);
 extern "C" void AnimTree_Setup_entry(void);
 
+// 0x002c45f0: the notetracks passed by the step 0x0093e754 -> 0x00927f58 notified to the
+// entity 0x0095f51c (AnimTree_NotifyNotetrack; "weapsound" tracks to 0x0095f534's +4), the
+// info's notify with "end" when the anim ends; the next notetrack (+2) found again.
+void XB_CDECL AnimTree_ProcessNotetracks(uint8_t* info, const uint8_t* node);
+// 0x002c4ae0: every node of the anim-tree table using `clip` drops it (live trees free its
+// infos; clip, child count, notetracks and stamp cleared).
+void XB_CDECL AnimData_Purge(uint32_t clip);
+// 0x002e4570 (node in EAX): the node clip's root transform at `time` concatenated onto *out
+// ({quaternion, position}, 32 bytes).
+void XB_REGS1 XB_CDECL AnimTree_SampleRootTransform(uint8_t* node, float* out, uint32_t time);
+// 0x002e4650 (node in EAX): the same between `from` and `to` (to + 1 when it wrapped).
+void XB_REGS1 XB_CDECL AnimTree_SampleRootTransformBetween(uint8_t* node, float* out, uint32_t from, uint32_t to);
+// 0x002e6650 (index in EAX, anim data in ECX, direction in EDI, position in ESI): a leaf's
+// root transform at `time` as row 0's x, y and the position (identity for other nodes).
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_GetRootDelta(uint32_t index, const uint8_t* anims, float* direction,
+                                                              float* position, uint32_t time);
+extern "C" void AnimTree_GetRootDelta_entry(void);
+// 0x002e6710: the same between `from` and `to`.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_GetRootDeltaBetween(uint32_t index, const uint8_t* anims, float* direction,
+                                                                     float* position, uint32_t from, uint32_t to);
+extern "C" void AnimTree_GetRootDeltaBetween_entry(void);
+// 0x00022be0 (generic clip in EDI, callee pops 12): the channel of `type` on bone `bone`
+// (32-byte name hashes) as {clip, group, channel in group}; out[0] = 0 when there is none.
+// out[1..3] start as three never-set locals of the title (stale1..3, read by the entry).
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Clip_FindChannelByName(uint8_t* generic, uint32_t* out, const uint32_t* bone,
+                                                                   const uint32_t* type, uint32_t stale1, uint32_t stale2,
+                                                                   uint32_t stale3);
+extern "C" void NAL_Clip_FindChannelByName_entry(void);
+// 0x00022d10 (clip in EBX, callee pops 4): the data of that channel in the clip's stream, 0
+// when the clip does not have it.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL NAL_Clip_FindChannelData(uint8_t* clip, const uint32_t* channel);
+extern "C" void NAL_Clip_FindChannelData_entry(void);
+// 0x002b7e40: the node's notetracks (+0x28) from its clip's "COD_Note" channel, ended by
+// "end" at time 1 and a terminator record.
+void XB_CDECL XAnim_BuildNotetracks(uint8_t* node);
+
+// 0x002e67d0: the root transform of node `index` onto *out: a leaf's (at its time with
+// 0x00929cc8, else over its last step), single active children followed down, several
+// blended by normalized weight (goal weights with 0x0092980c).
+void XB_CDECL AnimTree_CalcRootDelta_r(uint8_t* tree, uint32_t index, float* out, uint32_t unused_a, uint32_t unused_b);
+// 0x002e7520 (tree in EDX, index in ECX, direction in EDI, position in ESI): the subtree's
+// blended root transform as AnimTree_GetRootDelta gives it.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_GetTreeRootDelta(uint8_t* tree, uint32_t index, float* direction,
+                                                                  float* position);
+extern "C" void AnimTree_GetTreeRootDelta_entry(void);
+
+// 0x002c4310: one debug text line per node with weight (name or index, weights, times),
+// children indented one step deeper; *line counts the lines.
+void XB_CDECL AnimTree_DebugDraw_r(const uint8_t* tree, uint32_t index, int32_t depth, int32_t* line);
+
 }  // namespace game

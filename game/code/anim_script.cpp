@@ -2,7 +2,9 @@
 
 #include <cstring>
 
+#include "g_utils.h"
 #include "nal_anim.h"
+#include "qcommon.h"
 #include "title_data.h"
 
 namespace game {
@@ -404,6 +406,200 @@ void XB_CDECL AnimScript_Update(uint32_t entry, uint8_t* self, uint8_t* track, u
     f.call(0x0001eb17, 0x00086da0, TitleRegs{0, 0, state, 0, ent, note}, 0, nullptr);  // NAL_AnimState_Destroy
     title_global<uint8_t>(0x0095f5d1) = 0;
     title_global<uint8_t>(0x0095f5d0) = saved;
+}
+
+}  // namespace game
+
+namespace game {
+
+namespace {
+
+// NAL_Clip_FindPosOriChannel / NAL_Clip_FindFloat3Channel: the first channel on bone
+// `bone` named `name` whose object's slot 0 gives the class `kind`; out = {clip, group,
+// channel in group}; out[1..3] start as the title's never-set locals (read by the entries).
+void find_typed_channel(uint8_t* generic, uint32_t* out, const uint32_t* bone, const uint32_t* name, uint32_t kind,
+                        uint32_t stale1, uint32_t stale2, uint32_t stale3) {
+    out[0] = 0;
+    out[1] = stale1;
+    out[2] = stale2;
+    out[3] = stale3;
+    int32_t channel = 0;
+    for (int32_t g = 0; g < static_cast<int32_t>(word(addr(generic) + 0x84)); ++g) {
+        for (int32_t k = 0; k < static_cast<int32_t>(word(word(addr(generic) + 0x88) + g * 0x30 + 0x28)); ++k, ++channel) {
+            const uint32_t* record = ptr<uint32_t>(word(addr(generic) + 0x80) + channel * 0x28);
+            int32_t i = 0;
+            while (i < 8 && name[i] == record[i]) ++i;
+            if (i < 8) continue;
+            const uint32_t* bone_name = ptr<uint32_t>(word(addr(generic) + 0x74) + record[8] * 0x30);
+            i = 0;
+            while (i < 8 && bone[i] == bone_name[i]) ++i;
+            if (i < 8) continue;
+            const uint32_t object = word(word(addr(generic) + 0x88) + g * 0x30 + 0x20);
+            if (title_function<uint32_t XB_THISCALL(uint32_t)>(word(word(object)))(object) != kind) continue;
+            out[0] = addr(generic);
+            out[1] = word(addr(generic) + 0x88) + g * 0x30;
+            out[2] = static_cast<uint32_t>(k);
+            return;
+        }
+    }
+}
+
+// A title channel finder (generic clip in ESI, callee pops 12) by address.
+extern "C" PLATFORM_HIDDEN void XB_CDECL anim_find_channel_call(uint32_t function, uint8_t* generic, uint32_t* out,
+                                                               const uint32_t* bone, const uint32_t* name);
+PLATFORM_ASM_ENTRY(anim_find_channel_call,
+                   "pushl %esi\n"
+                   "movl 12(%esp), %esi\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "movl 20(%esp), %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+uint32_t* hash_str(uint32_t* out, uint32_t text) {
+    return title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(out, text);  // HashStr_Init
+}
+
+}  // namespace
+
+// (generic clip in ESI; out, bone name, channel name; callee pops 12).
+PLATFORM_ASM_ENTRY(NAL_Clip_FindPosOriChannel_entry,
+                   "pushl -4(%esp)\n"
+                   "pushl -4(%esp)\n"
+                   "pushl -4(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(NAL_Clip_FindPosOriChannel) "addl $28, %esp\n"
+                   "ret $12")
+
+void XB_CDECL NAL_Clip_FindPosOriChannel(uint8_t* generic, uint32_t* out, const uint32_t* bone, const uint32_t* name, uint32_t stale1,
+                                         uint32_t stale2, uint32_t stale3) {
+    find_typed_channel(generic, out, bone, name, 0x00909824, stale1, stale2, stale3);
+}
+
+PLATFORM_ASM_ENTRY(NAL_Clip_FindFloat3Channel_entry,
+                   "pushl -4(%esp)\n"
+                   "pushl -4(%esp)\n"
+                   "pushl -4(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(NAL_Clip_FindFloat3Channel) "addl $28, %esp\n"
+                   "ret $12")
+
+void XB_CDECL NAL_Clip_FindFloat3Channel(uint8_t* generic, uint32_t* out, const uint32_t* bone, const uint32_t* name, uint32_t stale1,
+                                         uint32_t stale2, uint32_t stale3) {
+    find_typed_channel(generic, out, bone, name, 0x00909820, stale1, stale2, stale3);
+}
+
+// (weights in ESI, generic clip in EAX).
+PLATFORM_ASM_ENTRY(AnimWeights_Construct_entry,
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(AnimWeights_Construct) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL AnimWeights_Construct(uint8_t* weights, uint8_t* generic) {
+    // vtable 0x00832758, the clip and one zeroed float per channel (+0x7c).
+    word(addr(weights) + 4) = addr(generic);
+    word(addr(weights)) = 0x00832758;
+    float* values = static_cast<float*>(Mem_AlignedAlloc(word(addr(generic) + 0x7c) * 4, 4, 0));
+    word(addr(weights) + 8) = addr(values);
+    const uint32_t count = word(word(addr(weights) + 4) + 0x7c);
+    for (uint32_t i = 0; i < count; ++i) word(addr(values) + i * 4) = 0;
+    return weights;
+}
+
+// (this in EBX, kind in EAX, name {HashStr} in ECX, blend-in time in XMM0; blend-out time;
+// callee pops 4).
+PLATFORM_ASM_ENTRY(AnimScript_Construct_entry,
+                   "pushl 4(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm0, (%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(AnimScript_Construct) "addl $20, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL AnimScript_Construct(uint8_t* self, uint32_t kind, const uint32_t* name, float blend_in, uint32_t blend_out) {
+    // A script on the entity whose +0x288 matches the name's hash (handle +0x2c, flag
+    // 0x40000000 set on it): its clip's root channel ("Trajectory" on "fakeroot" or
+    // "tag_origin", +0xa8), the pelvis position channel (+0xb8) and channel weights
+    // (+0xc8). The name "camera" is the camera kind (+0x28 bit 0).
+    const uint32_t s = addr(self);
+    word(s) = 0x00832624;
+    word(s + 4) = kind;
+    for (uint32_t i = 0; i < 8; ++i) word(s + 8 + i * 4) = name[i];
+    word(s + 0x28) = 0;
+    word(s + 0x2c) = 0;
+    word(s + 0x30) = 0;
+    word(s + 0x40) = 0;
+    word(s + 0xa8) = 0;
+    word(s + 0xb8) = 0;
+    flt(s + 0xcc) = blend_in;
+    word(s + 0xc8) = 0;
+    word(s + 0xd0) = blend_out;
+    uint32_t camera[8];
+    const uint32_t* hash = hash_str(camera, 0x00832a58);  // "camera"
+    uint32_t i = 0;
+    while (i < 8 && name[i] == hash[i]) ++i;
+    if (i == 8) {
+        word(s + 0x28) |= 1;
+        word(s + 0x2c) = 0;
+        return self;
+    }
+    const uint32_t key = Com_HashKeyNoCase(0, ptr<const char>(s + 0xc));
+    uint8_t* ent = G_FindEntityByIntField(ptr<uint8_t>(0x0097a8c0), 0x288, static_cast<int32_t>(key));
+    if (!ent) return self;
+    word(s + 0x2c) = word(addr(ent) + 0x224);
+    if (const uint32_t model = word(addr(ent) + 0x22c)) {
+        const uint32_t lods = word(model + 0x38);
+        uint32_t k = 0;
+        while (!word(lods + 0x24 + k * 4)) ++k;
+        const uint32_t clip = word(word(word(lods + 0x24 + k * 4) + 8) + 0x38);
+        uint8_t* generic = clip && word(clip) == title_global<uint32_t>(0x00903fdc) ? ptr<uint8_t>(clip) : nullptr;
+        if (word(word(addr(ent) + 0x22c) + 0x68)) {
+            uint32_t a[8];
+            uint32_t b[8];
+            hash_str(a, 0x00832a4c);  // "Trajectory"
+            hash_str(b, 0x00832b10);  // "fakeroot"
+            anim_find_channel_call(0x00022eb0, generic, ptr<uint32_t>(s + 0xa8), b, a);
+            if (!word(s + 0xa8)) {
+                hash_str(b, 0x00832a4c);  // "Trajectory"
+                hash_str(a, 0x00832b04);  // "tag_origin"
+                anim_find_channel_call(0x00022eb0, generic, ptr<uint32_t>(s + 0xa8), a, b);
+            }
+            hash_str(b, 0x00832a40);  // "Position"
+            hash_str(a, 0x00832a30);  // "Bip01 Pelvis"
+            anim_find_channel_call(0x00023000, generic, ptr<uint32_t>(s + 0xb8), a, b);
+            uint8_t* memory = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0xc);  // Z_Malloc
+            word(s + 0xc8) = memory ? addr(AnimWeights_Construct(memory, generic)) : 0;
+        }
+    }
+    word(addr(ent) + 0x2a4) |= 0x40000000;
+    return self;
+}
+
+void XB_THISCALL AnimScript_Destroy(uint8_t* self) {
+    // The weights deleted, the entity's script flags cleared (handle +0x2c), the
+    // notetracks (+0x30) released, then the script itself freed.
+    const uint32_t s = addr(self);
+    if (const uint32_t weights = word(s + 0xc8))
+        title_function<void XB_THISCALL(uint32_t, uint32_t)>(word(word(weights) + 4))(weights, 1);
+    const uint32_t handle = word(s + 0x2c);
+    const uint32_t slot = handle & 0xfff;
+    if (slot < 0x540 && (handle >> 12) == word(0x0097a96c + slot * 8))
+        if (const uint32_t ent = word(0x0097a968 + slot * 8)) word(ent + 0x2a4) &= 0x3bffffffu;
+    if (const uint32_t notes = word(s + 0x30)) {
+        const int32_t count = *ptr<int32_t>(notes - 4);
+        for (int32_t k = count - 1; k >= 0; --k)
+            title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(notes + k * 12);  // ScriptString_Release
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(notes - 4);               // Z_Free
+    }
+    word(s + 0x30) = 0;
+    title_function<void XB_CDECL(uint32_t)>(0x000428d0)(s);  // Z_Free
 }
 
 }  // namespace game

@@ -5,9 +5,12 @@
 #include "dobj.h"
 #include "g_scr_runtime.h"
 #include "nal_anim.h"
+#include "nal_math.h"
 #include "qcommon.h"
+#include "script_string.h"
 #include "stream.h"
 #include "title_data.h"
+#include "tr_main.h"
 
 namespace game {
 
@@ -602,7 +605,7 @@ uint8_t XB_CDECL AnimTree_FreeInactive_r(uint32_t index) {
 }
 
 void XB_CDECL AnimTree_ProcessNotetracks_r(uint8_t* info, const uint8_t* node) {
-    title_function<void XB_CDECL(uint8_t*, const uint8_t*)>(0x002c45f0)(info, node);  // AnimTree_ProcessNotetracks
+    AnimTree_ProcessNotetracks(info, node);
     for (int32_t i = 0; i < u16_at(node, 0x20); ++i) {
         const uint32_t child = u16_at(node, 0x36) + i;
         const uint8_t* tree = current_tree();
@@ -657,7 +660,7 @@ void XB_CDECL AnimData_EnsureLoaded(uint8_t* node) {
     uint32_t clip = NAL_FindClip(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)));
     if (clip && *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(clip)) != title_global<uint32_t>(0x00903f98)) clip = 0;
     *reinterpret_cast<uint32_t*>(node + 0x24) = clip;
-    title_function<void XB_CDECL(uint8_t*)>(0x002b7e40)(node);  // XAnim_BuildNotetracks
+    XAnim_BuildNotetracks(node);
 }
 
 XANIM_XMM0_ENTRY(AnimTree_EnsureAnimLoaded, "pushl 0x6c(%esp)\n", "8")
@@ -862,9 +865,7 @@ PLATFORM_ASM_ENTRY(xanim_scope_enter,
                    "call *%edx\n"
                    "ret")
 
-void build_notetracks(uint8_t* node) {
-    title_function<void XB_CDECL(uint8_t*)>(0x002b7e40)(node);  // XAnim_BuildNotetracks
-}
+void build_notetracks(uint8_t* node) { XAnim_BuildNotetracks(node); }
 
 uint32_t& u32_ref(uint8_t* p, uint32_t offset) { return *reinterpret_cast<uint32_t*>(p + offset); }
 uint16_t& u16_ref(uint8_t* p, uint32_t offset) { return *reinterpret_cast<uint16_t*>(p + offset); }
@@ -1271,7 +1272,7 @@ void XB_CDECL AnimTree_AdvanceTime_r(uint32_t index, uint32_t dt_bits, uint32_t 
             title_global<float>(0x00927f58) = time;
             title_global<uint32_t>(0x0093e754) = u32_ref(info, 0x10);
             title_global<uint16_t>(0x00935114) = current_frame;
-            title_function<void XB_CDECL(uint8_t*, const uint8_t*)>(0x002c45f0)(info, node);  // AnimTree_ProcessNotetracks
+            AnimTree_ProcessNotetracks(info, node);
         }
         u16_ref(info, 0x18) = frame;
         info_float(info, 0x10) = time;
@@ -1359,3 +1360,610 @@ void XB_CDECL AnimTree_Setup(uint32_t entry, uint32_t keep) {
 
 }  // namespace game
 
+namespace game {
+
+namespace {
+
+// A notetrack record (12 bytes): +0 the note's string, +4 its name (0 ends the list), +8 time.
+float note_time(uint32_t note) { return *reinterpret_cast<const float*>(static_cast<uintptr_t>(note + 8)); }
+uint32_t note_name(uint32_t note) { return *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(note + 4)); }
+const uint32_t* note_name_ptr(uint32_t note) { return reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(note + 4)); }
+uint8_t* notify_entity() { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f51c))); }
+
+}  // namespace
+
+void XB_CDECL AnimTree_ProcessNotetracks(uint8_t* info, const uint8_t* node) {
+    // The notetracks the step from 0x0093e754 to 0x00927f58 passed are sent to the notify
+    // entity 0x0095f51c (a "weapsound" track goes to 0x0095f534's +4 and every note of it
+    // as the notify "weapsound"); the info's notify (+4) with "end" (0x00965ce8) when the
+    // anim ends. Wrapped steps send the tail of the list, then the head.
+    uint8_t weapsound = 0;
+    const uint32_t notes = u32_ref(const_cast<uint8_t*>(node), 0x28);
+    if (notes) {
+        const uint32_t first = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(notes));
+        if (first && first + 6 && *reinterpret_cast<const char*>(static_cast<uintptr_t>(first + 6))) {
+            const char* text = reinterpret_cast<const char*>(static_cast<uintptr_t>(first ? first + 6 : 0));
+            if (title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10)(text, &title_global<char>(0x00832af8))) {  // strstr
+                title_global<uint32_t>(0x0095f51c) = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f534) + 4));
+                weapsound = 1;
+            }
+        }
+    }
+    uint8_t* ent = notify_entity();
+    if (!ent) return;
+    uint32_t* notify = &u32_ref(info, 4);
+    if (!*notify) return;
+    const uint32_t entity = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+    const float previous = title_global<float>(0x0093e754);
+    const float one = title_global<float>(0x0083eb20);
+    if (previous == one) {
+        anim_notify_with_string_call(entity, *notify, 0x00965ce8);
+        return;
+    }
+    if (u16_at(node, 0x20)) {
+        const uint16_t note_node = u16_at(info, 0);
+        if (!note_node) {
+            const float time = title_global<float>(0x00927f58);
+            if (previous > time || time == one) anim_notify_with_string_call(entity, *notify, 0x00965ce8);
+            return;
+        }
+        node = anim_node(tree_anims(current_tree()), note_node);
+    }
+    const int16_t next = static_cast<int16_t>(u16_at(info, 2));
+    if (next < 0) return;
+    const float time = title_global<float>(0x00927f58);
+    uint32_t note = u32_ref(const_cast<uint8_t*>(node), 0x28) + next * 12;
+    if (previous > time) {
+        if (time > note_time(note)) {
+            do {
+                AnimTree_NotifyNotetrack(note, notify_entity(), notify, note_name_ptr(note));
+                note += 12;
+            } while (note_name(note) && title_global<float>(0x00927f58) > note_time(note));
+        } else {
+            if (previous > note_time(note)) return;
+            do {
+                AnimTree_NotifyNotetrack(note, notify_entity(), notify, note_name_ptr(note));
+                note += 12;
+            } while (note_name(note));
+            for (note = u32_ref(const_cast<uint8_t*>(node), 0x28); title_global<float>(0x00927f58) > note_time(note); note += 12)
+                AnimTree_NotifyNotetrack(note, notify_entity(), notify, note_name_ptr(note));
+        }
+        u16_ref(info, 2) = static_cast<uint16_t>(AnimData_FindNotetrack(node, title_global<float>(0x00927f58)));
+        return;
+    }
+    if (time == one) {
+        if (previous > note_time(note)) return;
+        do {
+            AnimTree_NotifyNotetrack(note, notify_entity(), notify, note_name_ptr(note));
+            note += 12;
+        } while (note_name(note));
+        return;
+    }
+    const float first_time = note_time(note);
+    if (first_time >= time) return;
+    if (previous > first_time) return;
+    do {
+        uint32_t hash;
+        const uint32_t* sent = notify;
+        if (weapsound) {
+            hash = Com_HashKeyNoCase(0, &title_global<char>(0x00832af8));
+            sent = &hash;
+        }
+        AnimTree_NotifyNotetrack(note, notify_entity(), sent, note_name_ptr(note));
+        note += 12;
+    } while (note_name(note) && title_global<float>(0x00927f58) > note_time(note));
+    u16_ref(info, 2) = static_cast<uint16_t>(AnimData_FindNotetrack(node, title_global<float>(0x00927f58)));
+}
+
+}  // namespace game
+
+namespace game {
+
+void XB_CDECL AnimData_Purge(uint32_t clip) {
+    // Every node of the anim-tree table (entries 1..) that uses `clip` loses it: the live
+    // trees over that entry (list 0x008dda40, ended by 0x008dda44) free the node's info, and
+    // the node drops its clip, child count, notetracks and stamp.
+    const uint8_t* table = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+        *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f524) + 4))));
+    for (uint32_t e = 1; e < *reinterpret_cast<const uint32_t*>(table); ++e) {
+        const uint32_t entries = *reinterpret_cast<const uint32_t*>(table);
+        uint8_t* anims = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(*reinterpret_cast<const uint32_t*>(table + 4) +
+                                                                           (e < entries ? e : 0) * 12));
+        for (uint32_t i = 0; i < u32_ref(anims, 4); ++i) {
+            if (u32_ref(anim_node(anims, i), 0x24) != clip) continue;
+            uint8_t* tree = title_global<uint8_t*>(0x008dda40);
+            uint8_t* next = tree ? reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(tree, 0))) : nullptr;
+            if (tree != &title_global<uint8_t>(0x008dda44) && next) {
+                while (true) {
+                    if (u32_ref(tree, 8) == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(anims)))
+                        if (const uint16_t id = u16_at(tree, 0x18 + i * 2)) {
+                            AnimTree_FreeInfo(tree, id);
+                            u16_ref(tree, 0x18 + i * 2) = 0;
+                        }
+                    if (!next) break;
+                    tree = next;
+                    next = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(next, 0)));
+                    if (!next) break;
+                }
+            }
+            uint8_t* node = anim_node(anims, i);
+            u32_ref(node, 0x24) = 0;
+            u16_ref(node, 0x20) = 0;
+            if (u32_ref(node, 0x28)) free_notetracks(node);
+            u32_ref(node, 0x2c) = 0;
+        }
+    }
+}
+
+namespace {
+
+// The root transform {quaternion, position} of the node's clip between `previous` and
+// `time`, concatenated onto *out (a temporary track and state over the clip).
+void sample_root(uint8_t* node, float* out, float time, float previous) {
+    if (!u32_ref(node, 0x24)) AnimData_EnsureLoaded(node);
+    uint8_t* clip = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
+    if (!clip) return;
+    uint8_t* skeleton = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x30)));
+    uint8_t* memory = static_cast<uint8_t*>(Mem_AlignedAlloc(0x30, 4, 0));
+    if (!memory) return;
+    uint8_t* track = NAL_AnimTrack_Construct(memory, clip, skeleton);
+    if (!track) return;
+    uint8_t* generic = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(track, 0xc)));
+    if (generic && u32_ref(generic, 0) != title_global<uint32_t>(0x00903fdc)) generic = nullptr;
+    AnimState state;
+    NAL_AnimState_Init(&state, generic, 0);
+    // By title address: the C NAL_AnimTrack_Sample still mismatches (tests run the original).
+    title_function<void XB_THISCALL(uint8_t*, float, float, AnimState*, const AnimState*, int32_t, uint32_t)>(0x000881c0)(
+        track, time, previous, &state, reinterpret_cast<const AnimState*>(generic + 0xc8),
+        static_cast<int32_t>(u32_ref(generic, 0x60)) - 1, 0);  // NAL_AnimTrack_Sample
+    alignas(16) uint32_t root[8];
+    NAL_GenericAnim_GetRootTransform(state.clip, &state, root);
+    alignas(16) float product[8];
+    platform_rep_movs(out, QuatTrans_Concat(product, out, reinterpret_cast<const float*>(root)), 0x20);
+    const uint32_t destroy = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(u32_ref(track, 0)));
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(destroy)(track, 1);  // deleting destructor
+    NAL_AnimState_Destroy(&state);
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL AnimTree_SampleRootTransform(uint8_t* node, float* out, uint32_t time_bits) {
+    sample_root(node, out, bits_float(time_bits), 0.0f);
+}
+
+void XB_REGS1 XB_CDECL AnimTree_SampleRootTransformBetween(uint8_t* node, float* out, uint32_t from_bits, uint32_t to_bits) {
+    // A step that wrapped (from > to) runs to to + 1.
+    const float from = bits_float(from_bits);
+    float to = bits_float(to_bits);
+    if (from > to) to = to + title_global<float>(0x0083eb20);
+    sample_root(node, out, to, from);
+}
+
+namespace {
+
+// The root transform of node `index` (identity when it is not a leaf) as a forward
+// direction (row 0's x, y) and a position.
+void root_delta(uint32_t index, const uint8_t* anims, float* direction, float* position, bool between, uint32_t from_bits,
+                uint32_t to_bits) {
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(anims + 4);
+    uint8_t* node = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(*reinterpret_cast<const uint32_t*>(anims + 8) +
+                                                                      (index < count ? index : 0) * 0x38));
+    alignas(16) float transform[8] = {0.0f, 0.0f, 0.0f, title_global<float>(0x0083eb20), 0.0f, 0.0f, 0.0f, 0.0f};
+    if (!u16_at(node, 0x20)) {
+        if (between)
+            AnimTree_SampleRootTransformBetween(node, transform, from_bits, to_bits);
+        else
+            AnimTree_SampleRootTransform(node, transform, from_bits);
+    }
+    alignas(16) float axis[16];
+    Quat_ToMat33(axis, transform);
+    std::memcpy(&direction[0], &axis[0], 4);
+    std::memcpy(&direction[1], &axis[1], 4);
+    std::memcpy(position, &transform[4], 12);
+}
+
+}  // namespace
+
+// (index in EAX, anim data in ECX, direction out in EDI, position out in ESI; time).
+PLATFORM_ASM_ENTRY(AnimTree_GetRootDelta_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AnimTree_GetRootDelta) "addl $20, %esp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_GetRootDelta(uint32_t index, const uint8_t* anims, float* direction, float* position, uint32_t time) {
+    root_delta(index, anims, direction, position, false, time, 0);
+}
+
+// (index in EAX, anim data in ECX, direction out in EDI, position out in ESI; from, to).
+PLATFORM_ASM_ENTRY(AnimTree_GetRootDeltaBetween_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AnimTree_GetRootDeltaBetween) "addl $24, %esp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_GetRootDeltaBetween(uint32_t index, const uint8_t* anims, float* direction, float* position,
+                                           uint32_t from, uint32_t to) {
+    root_delta(index, anims, direction, position, true, from, to);
+}
+
+}  // namespace game
+
+namespace game {
+
+// (generic clip in EDI; out, bone name, channel type; callee pops 12).
+// The three never-set locals the title copies into out[1..3] are read from below the entry
+// ESP, where the original's frame has them.
+PLATFORM_ASM_ENTRY(NAL_Clip_FindChannelByName_entry,
+                   "pushl -4(%esp)\n"
+                   "pushl -4(%esp)\n"
+                   "pushl -4(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl 24(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(NAL_Clip_FindChannelByName) "addl $28, %esp\n"
+                   "ret $12")
+
+void XB_CDECL NAL_Clip_FindChannelByName(uint8_t* generic, uint32_t* out, const uint32_t* bone, const uint32_t* type,
+                                         uint32_t stale1, uint32_t stale2, uint32_t stale3) {
+    // The channels (+0x80, 0x28 bytes: +0 type name hash, +0x20 bone) of each group (+0x88,
+    // 0x30 bytes: +0x20 the channel object, +0x28 count; group count +0x84) are matched on
+    // their 32-byte type and bone name hashes (bones +0x74, 0x30 bytes). The match's
+    // object gets its slot 0 call; out = {clip, group, channel in group}. The title copies
+    // three never-set locals into out[1..3] first.
+    out[0] = 0;
+    out[1] = stale1;
+    out[2] = stale2;
+    out[3] = stale3;
+    int32_t channel = 0;
+    for (int32_t g = 0; g < static_cast<int32_t>(u32_ref(generic, 0x84)); ++g) {
+        const int32_t count = static_cast<int32_t>(u32_ref(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(generic, 0x88) + g * 0x30)), 0x28));
+        const uint8_t* record = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(u32_ref(generic, 0x80) + channel * 0x28));
+        for (int32_t k = 0; k < count; ++k, ++channel, record += 0x28) {
+            const uint32_t* words = reinterpret_cast<const uint32_t*>(record);
+            int32_t i = 0;
+            while (i < 8 && type[i] == words[i]) ++i;
+            if (i < 8) continue;
+            const uint32_t* name = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(u32_ref(generic, 0x74) + words[8] * 0x30));
+            i = 0;
+            while (i < 8 && bone[i] == name[i]) ++i;
+            if (i < 8) continue;
+            const uint32_t object = u32_ref(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(generic, 0x88) + g * 0x30)), 0x20);
+            const uint32_t vtable = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(object));
+            title_function<void XB_THISCALL(uint32_t)>(*reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(vtable)))(object);
+            out[0] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(generic));
+            out[1] = u32_ref(generic, 0x88) + g * 0x30;
+            out[2] = static_cast<uint32_t>(k);
+            return;
+        }
+    }
+}
+
+// (clip in EBX; channel from NAL_Clip_FindChannelByName; callee pops 4).
+PLATFORM_ASM_ENTRY(NAL_Clip_FindChannelData_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(NAL_Clip_FindChannelData) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL NAL_Clip_FindChannelData(uint8_t* clip, const uint32_t* channel) {
+    // Walks the clip's data (+0x50) group by group (slots 0x50/0x54/0x58 of the group's
+    // object) and over each present channel (bit first + j of the mask +0x54; slot 0x5c
+    // skips one) up to the wanted one: its data, 0 when it is not present.
+    uint32_t data = u32_ref(clip, 0x50);
+    const uint8_t* generic = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x30)));
+    uint8_t* group = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(*reinterpret_cast<const uint32_t*>(generic + 0x88)));
+    const auto call = [&data](uint8_t* g, uint32_t slot) {
+        const uint32_t object = u32_ref(g, 0x20);
+        const uint32_t vtable = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(object));
+        title_function<void XB_THISCALL(uint32_t, uint32_t*)>(*reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(vtable + slot)))(object, &data);
+    };
+    for (int32_t g = 0; g < static_cast<int32_t>(*reinterpret_cast<const uint32_t*>(generic + 0x84)); ++g, group += 0x30) {
+        call(group, 0x50);
+        call(group, 0x54);
+        call(group, 0x58);
+        for (int32_t j = 0; j < static_cast<int32_t>(u32_ref(group, 0x28)); ++j) {
+            const int32_t bit = static_cast<int32_t>(u32_ref(group, 0x24)) + j;
+            const uint32_t* mask = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x54)));
+            if (!(mask[bit / 32] & (1u << (bit & 31)))) continue;
+            if (channel[1] == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(group)) && channel[2] == static_cast<uint32_t>(j))
+                return data;
+            call(group, 0x5c);
+        }
+    }
+    return 0;
+}
+
+namespace {
+
+// The notetrack name hash: rotate left 5, xor the lower-cased (A-Z only) signed char.
+uint32_t note_hash(const char* text) {
+    uint32_t hash = 0;
+    if (!text) return 0;
+    for (; *text; ++text) {
+        char c = *text;
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + 0x20);
+        hash = ((hash >> 27) | (hash << 5)) ^ static_cast<uint32_t>(static_cast<int32_t>(static_cast<signed char>(c)));
+    }
+    return hash;
+}
+
+uint32_t* hash_str_init(uint32_t* out, uint32_t text) {
+    return title_function<uint32_t* XB_THISCALL(uint32_t*, uint32_t)>(0x00011060)(out, text);  // HashStr_Init
+}
+
+void assign_cstring(uint32_t* note, const char* text) {
+    title_function<void XB_THISCALL(uint32_t*, const char*)>(0x0011dd20)(note, text);  // ScriptString_AssignCString
+}
+
+}  // namespace
+
+void XB_CDECL XAnim_BuildNotetracks(uint8_t* node) {
+    // The clip's "COD_Note" channel (on "fakeroot", else "tag_origin"): +4 note count, +8
+    // name count, then {name index, frame} pairs and the names. Records {string, name hash,
+    // frame / clip frames (+0x44)} plus "end" at 1 and a terminator (name 0, time -666);
+    // without notes only the last two.
+    uint32_t cursor[4] = {0, 0, 0, 0};
+    uint32_t* note = nullptr;
+    const uint8_t* data = nullptr;
+    if (u32_ref(node, 0x24)) {
+        uint32_t type[8];
+        uint32_t bone[8];
+        hash_str_init(type, 0x00832b1c);  // "COD_Note"
+        hash_str_init(bone, 0x00832b10);  // "fakeroot"
+        uint8_t* clip = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
+        NAL_Clip_FindChannelByName(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x30))), cursor, bone, type, 0, 0, 0);
+        if (!cursor[0]) {
+            hash_str_init(type, 0x00832b1c);  // "COD_Note"
+            hash_str_init(bone, 0x00832b04);  // "tag_origin"
+            clip = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
+            NAL_Clip_FindChannelByName(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(clip, 0x30))), cursor, bone, type, 0, 0, 0);
+        }
+        if (cursor[0])
+            data = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+                NAL_Clip_FindChannelData(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24))), cursor)));
+    }
+    if (data) {
+        const char* names[1024];
+        const int32_t count = *reinterpret_cast<const int32_t*>(data + 4);
+        const char* text = reinterpret_cast<const char*>(data + 0xc + count * 8);
+        for (int32_t i = 0; i < *reinterpret_cast<const int32_t*>(data + 8); ++i) {
+            names[i] = text;
+            const char* end = text;
+            while (*end++) {
+            }
+            text = end;
+        }
+        const uint32_t records = *reinterpret_cast<const uint32_t*>(data + 4) + 2;
+        uint32_t* memory = title_function<uint32_t* XB_CDECL(uint32_t)>(0x00042c30)(records * 12 + 4);  // Heap_Alloc16
+        if (memory) {
+            memory[0] = records;
+            note = memory + 1;
+            for (uint32_t k = 0; k < records; ++k) ScriptString_FromRep(reinterpret_cast<ScriptString*>(note + k * 3), nullptr);
+        }
+        u32_ref(node, 0x28) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(note));
+        if (*reinterpret_cast<const uint32_t*>(data + 8)) {
+            const uint32_t* pairs = reinterpret_cast<const uint32_t*>(data + 0xc);
+            for (int32_t i = 0; i < *reinterpret_cast<const int32_t*>(data + 4); ++i, note += 3) {
+                assign_cstring(note, names[pairs[i * 2]]);
+                note[1] = note_hash(names[pairs[i * 2]]);
+                const uint8_t* clip = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
+                const float time = static_cast<float>(static_cast<int32_t>(pairs[i * 2 + 1])) /
+                                   static_cast<float>(*reinterpret_cast<const int32_t*>(clip + 0x44));
+                std::memcpy(&note[2], &time, 4);
+            }
+        }
+    } else {
+        uint32_t* memory = title_function<uint32_t* XB_CDECL(uint32_t)>(0x00042c30)(0x1c);  // Heap_Alloc16
+        if (memory) {
+            memory[0] = 2;
+            note = memory + 1;
+            title_function<void XB_STDCALL(uint32_t*, uint32_t, uint32_t, uint32_t)>(0x00011240)(note, 0xc, 2, 0x0001dc00);  // eh_vector_constructor_iterator
+        }
+        u32_ref(node, 0x28) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(note));
+    }
+    const char* end = &title_global<char>(0x00832b28);  // "end"
+    assign_cstring(note, end);
+    note[1] = note_hash(end);
+    note[2] = title_global<uint32_t>(0x0083eb20);
+    note += 3;
+    if (const uint32_t rep = note[0]) {
+        title_function<void XB_THISCALL(uint32_t)>(0x0011d5b0)(rep);  // ScriptStringRep_Release
+        note[0] = 0;
+    }
+    note[1] = 0;
+    note[2] = title_global<uint32_t>(0x0083ee54);
+}
+
+}  // namespace game
+
+namespace game {
+
+namespace {
+
+// The weight a root-delta blend uses for child `i` of `node`: goal weight (+0x20) when
+// 0x0092980c is set, else weight (+0x24); null without an info.
+const float* blend_weight(const uint8_t* tree, const uint8_t* node, int32_t i, uint32_t goal) {
+    const uint16_t id = info_index(tree, u16_at(node, 0x36) + i);
+    if (!id) return nullptr;
+    return &info_float(info_at(id), goal ? 0x20 : 0x24);
+}
+
+}  // namespace
+
+void XB_CDECL AnimTree_CalcRootDelta_r(uint8_t* tree, uint32_t index, float* out, uint32_t, uint32_t) {
+    // Down single active children to a leaf (its root transform at the info's time, or
+    // over the last step unless 0x00929cc8 is set) or to a node with several: those blend
+    // their children's deltas by normalized weight (positions lerped, rotations slerped).
+    const uint32_t goal = title_global<uint32_t>(0x0092980c);
+    const float one = title_global<float>(0x0083eb20);
+    const uint8_t* anims = tree_anims(tree);
+    while (true) {
+        uint8_t* node = anim_node(anims, index);
+        const int32_t count = u16_at(node, 0x20);
+        if (!count) {
+            const uint16_t id = info_index(tree, index);
+            if (!id) return;
+            uint8_t* info = info_at(id);
+            if (title_global<uint8_t>(0x00929cc8))
+                AnimTree_SampleRootTransform(node, out, u32_ref(info, 0x10));
+            else
+                AnimTree_SampleRootTransformBetween(node, out, u32_ref(info, 0x14), u32_ref(info, 0x10));
+            return;
+        }
+        int32_t i = 0;
+        const float* w = nullptr;
+        for (; i < count; ++i) {
+            w = blend_weight(tree, node, i, goal);
+            if (w && !(*w == 0.0f)) break;
+        }
+        if (i >= count) return;
+        float weights[24];
+        int32_t indices[24];
+        weights[0] = *w;
+        indices[0] = i;
+        int32_t n = 1;
+        for (int32_t j = i + 1; j < count; ++j) {
+            const float* v = blend_weight(tree, node, j, goal);
+            if (!v || *v == 0.0f) continue;
+            weights[n] = *v;
+            indices[n] = j;
+            ++n;
+        }
+        if (n == 1) {
+            index = u16_at(node, 0x36) + i;
+            continue;
+        }
+        float total = 0.0f;
+        int32_t a = 0;
+        if (n >= 4) {
+            do {
+                total = (((weights[a] + total) + weights[a + 1]) + weights[a + 2]) + weights[a + 3];
+                a += 4;
+            } while (a < n - 3);
+        }
+        for (; a < n; ++a) total = weights[a] + total;
+        a = 0;
+        if (n >= 4) {
+            const float inv = one / total;
+            do {
+                for (int32_t k = 0; k < 4; ++k) weights[a + k] = inv * weights[a + k];
+                a += 4;
+            } while (a < n - 3);
+        }
+        if (a < n) {
+            const float inv = one / total;
+            for (; a < n; ++a) weights[a] = inv * weights[a];
+        }
+        AnimTree_CalcRootDelta_r(tree, u16_at(node, 0x36) + indices[0], out, 1, 1);
+        for (int32_t s = 1; s < n; ++s) {
+            const float t = one / (weights[s - 1] / weights[s] + one);
+            alignas(16) float child[8] = {0.0f, 0.0f, 0.0f, one, 0.0f, 0.0f, 0.0f, 0.0f};
+            AnimTree_CalcRootDelta_r(tree, u16_at(node, 0x36) + indices[s], child, 0, 1);
+            const float keep = one - t;
+            const float x = out[4] * keep + child[4] * t;
+            const float y = out[5] * keep + child[5] * t;
+            const float z = out[6] * keep + child[6] * t;
+            std::memcpy(&out[4], &x, 4);
+            std::memcpy(&out[5], &y, 4);
+            std::memcpy(&out[6], &z, 4);
+            alignas(16) float rotation[4];
+            platform_rep_movs(out, Quat_Slerp(rotation, out, child, t), 16);
+        }
+        return;
+    }
+}
+
+// (tree in EDX, index in ECX, direction out in EDI, position out in ESI).
+PLATFORM_ASM_ENTRY(AnimTree_GetTreeRootDelta_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(AnimTree_GetTreeRootDelta) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL AnimTree_GetTreeRootDelta(uint8_t* tree, uint32_t index, float* direction, float* position) {
+    // The blended root transform of the subtree at its current times, by goal weight.
+    title_global<uint8_t>(0x00929cc8) = 1;
+    title_global<uint32_t>(0x0092980c) = 1;
+    alignas(16) float transform[8] = {0.0f, 0.0f, 0.0f, title_global<float>(0x0083eb20), 0.0f, 0.0f, 0.0f, 0.0f};
+    AnimTree_CalcRootDelta_r(tree, index, transform, 1, 0);
+    alignas(16) float axis[16];
+    Quat_ToMat33(axis, transform);
+    std::memcpy(&direction[0], &axis[0], 4);
+    std::memcpy(&direction[1], &axis[1], 4);
+    std::memcpy(position, &transform[4], 12);
+}
+
+}  // namespace game
+
+namespace game {
+
+namespace {
+
+// FLD DWORD / FSTP QWORD: a float widened on the x87 for a printf argument (no MXCSR flags).
+double x87_widen(const float& value) {
+    double result;
+    __asm__("flds %1\n\tfstpl %0" : "=m"(result) : "m"(value) : "st");
+    return result;
+}
+
+using VaFn = const char* XB_CDECL(uint32_t, ...);
+
+}  // namespace
+
+void XB_CDECL AnimTree_DebugDraw_r(const uint8_t* tree, uint32_t index, int32_t depth, int32_t* line) {
+    // One line per node with weight: name (or index), weight:goal, for leaves and synced
+    // nodes the time:previous time, for leaves also the step in seconds; children indented.
+    const uint16_t id = info_index(tree, index);
+    if (!id) return;
+    const uint8_t* anims = tree_anims(tree);
+    uint8_t* node = anim_node(anims, index);
+    uint8_t* info = info_at(id);
+    if (info_float(info, 0x24) == 0.0f) return;
+    const int32_t count = u16_at(node, 0x20);
+    const float one = title_global<float>(0x0083eb20);
+    const char* text;
+    if (!count) {
+        float step = info_float(info, 0x10) - info_float(info, 0x14);
+        if (0.0f > step) step = step + one;
+        if (!u32_ref(node, 0x24)) AnimData_EnsureLoaded(node);
+        const uint8_t* clip = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(u32_ref(node, 0x24)));
+        if (clip) {
+            float frequency = 0.0f;
+            const float length = *reinterpret_cast<const float*>(clip + 0x38);
+            if (!(length == 0.0f)) frequency = one / length;
+            step = step / frequency;
+        } else {
+            step = 0.0f;
+        }
+        const uint32_t name = clip ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(clip + 0xc)) : 0x00832aec;  // "<unknown>"
+        text = title_function<VaFn>(0x002a93d0)(0x00832ac8, name, x87_widen(info_float(info, 0x24)), x87_widen(info_float(info, 0x20)),
+                                                x87_widen(info_float(info, 0x10)), x87_widen(info_float(info, 0x14)), x87_widen(step));
+    } else {
+        const uint32_t entries = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(
+            *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f524) + 4)) + 4));
+        const int32_t entry = (static_cast<int32_t>(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(anims)) - entries)) / 12;
+        const uint32_t handle = (static_cast<uint32_t>(entry) << 16) + index;
+        const bool timed = AnimTree_IsLeafOrSynced(index, 0, anims);
+        const uint32_t names = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f49c) + 0x870));
+        const uint32_t name = title_function<uint32_t XB_CDECL(uint32_t)>(names)(handle);
+        if (timed)
+            text = title_function<VaFn>(0x002a93d0)(name ? 0x00832aac : 0x00832a90, name ? name : index,
+                                                    x87_widen(info_float(info, 0x24)), x87_widen(info_float(info, 0x20)),
+                                                    x87_widen(info_float(info, 0x10)), x87_widen(info_float(info, 0x14)));
+        else
+            text = title_function<VaFn>(0x002a93d0)(name ? 0x00832a80 : 0x00832a70, name ? name : index,
+                                                    x87_widen(info_float(info, 0x24)), x87_widen(info_float(info, 0x20)));
+    }
+    const float color[4] = {one, one, one, one};
+    R_DrawTextWithShadow(color, text, depth * 12 + 0x10, (*line + 2) << 4, 0.0f, one);
+    ++*line;
+    for (int32_t i = 0; i < count; ++i) AnimTree_DebugDraw_r(tree, u16_at(node, 0x36) + i, depth + 1, line);
+}
+
+}  // namespace game

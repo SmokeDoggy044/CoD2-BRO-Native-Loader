@@ -33,4 +33,29 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL AnimScript_Update(uint32_t entry, uint8
                                                            uint32_t previous, float elapsed, uint32_t unused,
                                                            uint32_t ebx, uint32_t esi, uint32_t edi);
 
+// 0x00022eb0 / 0x00023000 (generic clip in ESI, callee pops 12): the channel on bone `bone`
+// named `name` of the PosOri (0x00909824) / Float3 (0x00909820) class as {clip, group,
+// channel in group}; out[0] = 0 when there is none.
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Clip_FindPosOriChannel(uint8_t* generic, uint32_t* out, const uint32_t* bone,
+                                                                   const uint32_t* name, uint32_t stale1, uint32_t stale2,
+                                                                   uint32_t stale3);
+extern "C" void NAL_Clip_FindPosOriChannel_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL NAL_Clip_FindFloat3Channel(uint8_t* generic, uint32_t* out, const uint32_t* bone,
+                                                                   const uint32_t* name, uint32_t stale1, uint32_t stale2,
+                                                                   uint32_t stale3);
+extern "C" void NAL_Clip_FindFloat3Channel_entry(void);
+// 0x0001cd80 (weights in ESI, generic clip in EAX): vtable 0x00832758, the clip and a zeroed
+// float per channel (+0x7c). Returns the weights.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL AnimWeights_Construct(uint8_t* weights, uint8_t* generic);
+extern "C" void AnimWeights_Construct_entry(void);
+// 0x0001dc10 (this in EBX, kind in EAX, name in ECX, blend-in time in XMM0; callee pops 4):
+// the script for the entity named like `name` (or the camera), with its clip's root and
+// pelvis channels and channel weights.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL AnimScript_Construct(uint8_t* self, uint32_t kind, const uint32_t* name,
+                                                                 float blend_in, uint32_t blend_out);
+extern "C" void AnimScript_Construct_entry(void);
+// 0x0001eb40 (vtable slot 3): weights deleted, the entity's script flags cleared,
+// notetracks released, the script freed.
+void XB_THISCALL AnimScript_Destroy(uint8_t* self);
+
 }  // namespace game
