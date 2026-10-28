@@ -1557,4 +1557,301 @@ void XB_CDECL SndBank_CancelLoad(int32_t* request) {
     request[0] = 0x100;
 }
 
+namespace {
+
+uint32_t float_bits(float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, 4);
+    return bits;
+}
+
+float bits_float(uint32_t bits) {
+    float value;
+    std::memcpy(&value, &bits, 4);
+    return value;
+}
+
+// A value argument when positive, else the sound's param (default `fallback`).
+uint32_t param_or_default(uint32_t value_bits, uint32_t alias, uint32_t param, float fallback) {
+    if (bits_float(value_bits) > title_global<float>(0x0083eafc)) return value_bits;
+    return float_bits(SndVoice_GetParam(alias, param, fallback));
+}
+
+// S_StartAliasVoice / S_StartAliasVoice2: `queue_only` = the second (SndVoice_Queue first, no SndVoice_Play).
+void start_alias_voice(bool queue_only, uint32_t eax, uint8_t* channel, uint32_t alias, uint32_t volume,
+                       uint32_t pitch, uint32_t near_bits, uint32_t far_bits, const uint32_t* origin,
+                       const uint32_t* velocity, uint32_t owner, uint32_t any_slot) {
+    using Stricmp = int32_t XB_CDECL(const char*, const char*);
+    emitter_word<uint32_t>(channel, 4) = alias;
+    channel[9] = uint8_t(eax);
+    const int32_t voice = SndVoice_Create(alias, any_slot & 0xff);
+    emitter_word<int32_t>(channel, 0) = voice;
+    if (voice == -1) return;
+    if (queue_only) SndVoice_Queue(voice);
+    const char* group = SndBank_GetEntryGroupName(alias);
+    if (uintptr_t(group) < 0x10000) group = reinterpret_cast<const char*>(uintptr_t{0x0083755c});
+    // Both results are unused (a stripped debug check).
+    if (title_function<Stricmp>(0x001f1443)(group, reinterpret_cast<const char*>(uintptr_t{0x0083755c})))
+        title_function<Stricmp>(0x001f1443)(group, reinterpret_cast<const char*>(uintptr_t{0x00837554}));
+    emitter_word<float>(channel, 0x1c) = title_global<float>(0x0083eb20);
+    const uint32_t v0 = param_or_default(volume, alias, 0, 1.0f);
+    if (emitter_word<int32_t>(channel, 0) != -1) {
+        SndVoice_SetParam(emitter_word<int32_t>(channel, 0), 0,
+                          float_bits(emitter_word<float>(channel, 0x1c) * bits_float(v0)));
+        emitter_word<uint32_t>(channel, 0x10) = v0;
+    }
+    const uint32_t v1 = param_or_default(pitch, alias, 1, 1.0f);
+    if (emitter_word<int32_t>(channel, 0) != -1) {
+        SndVoice_SetParam(emitter_word<int32_t>(channel, 0), 1, v1);
+        emitter_word<uint32_t>(channel, 0xc) = v1;
+    }
+    const uint32_t v3 = param_or_default(far_bits, alias, 0x1a, 1500.0f);
+    const uint32_t v2 = param_or_default(near_bits, alias, 0x19, 50.0f);
+    if (emitter_word<int32_t>(channel, 0) != -1) {
+        SndVoice_SetParam(emitter_word<int32_t>(channel, 0), 0x19, v2);
+        SndVoice_SetParam(emitter_word<int32_t>(channel, 0), 0x1a, v3);
+        SndVoice_SetParam(emitter_word<int32_t>(channel, 0), 0x1c, 0x40800000);  // 4.0
+        const int32_t current = emitter_word<int32_t>(channel, 0);
+        emitter_word<uint32_t>(channel, 0x14) = v2;
+        emitter_word<uint32_t>(channel, 0x18) = v3;
+        if (current != -1) {
+            const uint32_t position[3] = {origin[0], origin[1], origin[2]};
+            SndVoice_SetOrigin(current, position);
+            if (emitter_word<int32_t>(channel, 0) != -1) {
+                const uint32_t speed[3] = {velocity[0], velocity[1], velocity[2]};
+                SndVoice_SetVelocity(emitter_word<int32_t>(channel, 0), speed);
+            }
+        }
+    }
+    SndVoice_GetSound(emitter_word<int32_t>(channel, 0));  // result unused
+    if (!queue_only) SndVoice_Play(emitter_word<int32_t>(channel, 0));
+    emitter_word<uint32_t>(channel, 0x20) = owner;
+}
+
+}  // namespace
+
+// EAX (AL), ESI channel, EDI alias, 8 stack words, ret 0x20.
+#define SND_START_ALIAS_ENTRY(NAME)                                                                                   \
+    PLATFORM_ASM_ENTRY(NAME##_entry, "pushl 32(%esp)\n"                                                               \
+                                     "pushl 32(%esp)\n"                                                               \
+                                     "pushl 32(%esp)\n"                                                               \
+                                     "pushl 32(%esp)\n"                                                               \
+                                     "pushl 32(%esp)\n"                                                               \
+                                     "pushl 32(%esp)\n"                                                               \
+                                     "pushl 32(%esp)\n"                                                               \
+                                     "pushl 32(%esp)\n"                                                               \
+                                     "pushl %edi\n"                                                                   \
+                                     "pushl %esi\n"                                                                   \
+                                     "pushl %eax\n" PLATFORM_ASM_CALL(NAME) "addl $44, %esp\n"                        \
+                                     "ret $0x20")
+
+SND_START_ALIAS_ENTRY(S_StartAliasVoice)
+SND_START_ALIAS_ENTRY(S_StartAliasVoice2)
+
+void XB_CDECL S_StartAliasVoice(uint32_t eax, uint8_t* channel, uint32_t alias, uint32_t volume, uint32_t pitch,
+                                uint32_t near_bits, uint32_t far_bits, const uint32_t* origin, const uint32_t* velocity,
+                                uint32_t owner, uint32_t any_slot) {
+    start_alias_voice(false, eax, channel, alias, volume, pitch, near_bits, far_bits, origin, velocity, owner, any_slot);
+}
+
+void XB_CDECL S_StartAliasVoice2(uint32_t eax, uint8_t* channel, uint32_t alias, uint32_t volume, uint32_t pitch,
+                                 uint32_t near_bits, uint32_t far_bits, const uint32_t* origin, const uint32_t* velocity,
+                                 uint32_t owner, uint32_t any_slot) {
+    start_alias_voice(true, eax, channel, alias, volume, pitch, near_bits, far_bits, origin, velocity, owner, any_slot);
+}
+
+namespace {
+
+// HandleTable512_Alloc (0x0001ee70): table in EAX, out pointer in EBX; returns EBX.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL snd_handle_table_alloc(uint8_t* table, uint32_t* out);
+PLATFORM_ASM_ENTRY(snd_handle_table_alloc, "pushl %ebx\n"
+                                           "movl 8(%esp), %eax\n"
+                                           "movl 12(%esp), %ebx\n"
+                                           "movl $0x0001ee70, %ecx\n"
+                                           "call *%ecx\n"
+                                           "popl %ebx\n"
+                                           "ret")
+
+}  // namespace
+
+int32_t XB_REGS3 XB_CDECL S_AllocChannelHandle(uint32_t, uint32_t, uint8_t* table) {
+    int32_t index = 0;
+    while (emitter_word<int32_t>(table, uint32_t(index) * 0x30) != -1) {
+        if (uint32_t(++index) >= 0x200) return -1;
+    }
+    uint8_t* const channel = table + uint32_t(index) * 0x30;
+    SoundHandle_Free(&title_global<uint8_t>(0x00962820), emitter_word<uint32_t>(channel, 0x24));
+    uint32_t handle = 0;
+    const uint32_t value = *snd_handle_table_alloc(&title_global<uint8_t>(0x00962820), &handle);
+    emitter_word<uint32_t>(channel, 0x24) = value;
+    const uint32_t slot = value & 0xfff;
+    if (slot < 0x200) title_global<uint8_t*>(0x00962860 + slot * 8) = channel;
+    return index;
+}
+
+uint32_t* XB_REGS3 XB_STDCALL S_PlaySoundAlias(uint32_t alias, uint32_t, uint8_t* table, uint32_t* out, uint32_t a1,
+                                               uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                               uint32_t a7, uint32_t a8, uint32_t a9) {
+    const int32_t index = S_AllocChannelHandle(0, 0, table);
+    if (index < 0) {
+        title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+        *out = 0;
+        return out;
+    }
+    if (alias == 0xffffffffu || title_global<int32_t>(0x0092bdf0) == 1) {  // cls_state
+        *out = 0;
+        return out;
+    }
+    uint8_t* const channel = table + uint32_t(index) * 0x30;
+    S_StartAliasVoice(a3, channel, alias, a6, a7, a8, a9, reinterpret_cast<const uint32_t*>(uintptr_t(a4)),
+                      reinterpret_cast<const uint32_t*>(uintptr_t(a5)), a1, a2);
+    *out = emitter_word<uint32_t>(channel, 0x24);
+    return out;
+}
+
+uint32_t* XB_REGS1 XB_STDCALL S_PlayLocalSoundByHash(uint8_t* table, uint32_t* out, const char* name, uint32_t owner,
+                                                     uint32_t any_slot) {
+    uint32_t velocity[4], origin[4];
+    for (uint32_t i = 0; i < 4; ++i) {
+        velocity[i] = title_global<uint32_t>(0x0082e110 + i * 4);
+        origin[i] = title_global<uint32_t>(0x0082e290 + i * 4);
+    }
+    const int32_t alias = S_FindSoundByHash(name);
+    const int32_t index = S_AllocChannelHandle(0, 0, table);
+    if (index < 0) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (index < 0 || alias == -1) {
+        *out = 0;
+        return out;
+    }
+    uint8_t* const channel = table + uint32_t(index) * 0x30;
+    S_StartAliasVoice2(0, channel, uint32_t(alias), 0xbf800000, 0xbf800000, 0xbf800000, 0xbf800000, origin, velocity,
+                       owner, any_slot);
+    *out = emitter_word<uint32_t>(channel, 0x24);
+    return out;
+}
+
+void XB_REGS1 XB_CDECL S_StopUnpausedChannels(uint8_t* channels) {
+    for (uint32_t i = 0; i < 0x200; ++i) {
+        if (!channels[i * 0x30 + 8]) S_StopChannel(channels + i * 0x30);
+    }
+}
+
+void XB_REGS1 XB_CDECL S_StopCrossfadeChannels(const uint32_t* handles) {
+    if (SoundHandle_Resolve(&handles[0])) S_StopChannel(SoundHandle_Resolve(&handles[0]));
+    if (SoundHandle_Resolve(&handles[1])) S_StopChannel(SoundHandle_Resolve(&handles[1]));
+}
+
+namespace {
+
+// One channel of S_SetHandleVolume: param 0 of its voice = base (+0x1c) * (GetParam(0) * volume * master); +0x10 =
+// the product.
+void set_handle_volume(const uint8_t* fade, const uint32_t* handle, float volume) {
+    if (!SoundHandle_Resolve(handle)) return;
+    using GetParam = long double XB_CDECL(uint32_t, uint32_t, float);
+    const long double param = title_function<GetParam>(0x000c59b0)(emitter_word<uint32_t>(SoundHandle_Resolve(handle), 4),
+                                                                   0, 1.0f);  // SndVoice_GetParam
+    const float product = float(param * volume * emitter_word<float>(fade, 8));
+    uint8_t* const channel = SoundHandle_Resolve(handle);
+    const int32_t voice = emitter_word<int32_t>(channel, 0);
+    if (voice == -1) return;
+    SndVoice_SetParam(voice, 0, float_bits(emitter_word<float>(channel, 0x1c) * product));
+    emitter_word<float>(channel, 0x10) = product;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(S_SetHandleVolume_entry, "subl $4, %esp\n"
+                                            "movss %xmm0, (%esp)\n"
+                                            "pushl %eax\n" PLATFORM_ASM_CALL(S_SetHandleVolume) "addl $8, %esp\n"
+                                            "ret")
+
+void XB_CDECL S_SetHandleVolume(uint8_t* fade, uint32_t volume_bits) {
+    emitter_word<uint32_t>(fade, 8) = volume_bits;
+    set_handle_volume(fade, &emitter_word<uint32_t>(fade, 0), emitter_word<float>(fade, 0xc));
+    set_handle_volume(fade, &emitter_word<uint32_t>(fade, 4), emitter_word<float>(fade, 0x10));
+}
+
+PLATFORM_ASM_ENTRY(S_WaitForWaveBanks_entry, "pushl %edi\n" PLATFORM_ASM_CALL(S_WaitForWaveBanks) "addl $4, %esp\n"
+                                             "ret")
+
+void XB_CDECL S_WaitForWaveBanks(uint8_t* manager) {
+    bool done;
+    do {
+        title_function<void XB_STDCALL(uint8_t*)>(0x002c8f60)(manager);  // S_CheckWaveBankNotifies
+        done = true;
+        const int32_t count = emitter_word<int32_t>(manager, 8);
+        for (int32_t i = 0; i < count; ++i) {
+            for (uint32_t j = 0; j < 6; ++j) {
+                const int32_t state = emitter_word<int32_t>(manager, 0x30 + uint32_t(i) * 0x84 + j * 4);
+                if (state == 1 || state == 3) done = false;
+            }
+        }
+        if (count <= 0) break;
+    } while (!done);
+}
+
+// S_OpenWaveBank (0x002ce830): path in EAX, bank entry in EDI, wave bank index in ESI; (manager, no_wait) on the
+// stack, ret 8.
+PLATFORM_ASM_ENTRY(S_OpenWaveBank_entry, "pushl 8(%esp)\n"
+                                         "pushl 8(%esp)\n"
+                                         "pushl %esi\n"
+                                         "pushl %edi\n"
+                                         "pushl %eax\n" PLATFORM_ASM_CALL(S_OpenWaveBank) "addl $20, %esp\n"
+                                         "ret $8")
+
+void XB_CDECL S_OpenWaveBank(const char* path, uint8_t* bank, uint32_t index, uint8_t* manager, uint32_t no_wait) {
+    using OpenRead = int32_t XB_CDECL(uint32_t, const char*);
+    const uint32_t name = emitter_word<uint32_t>(bank, 0x3c + index * 4);
+    const int32_t file = title_function<OpenRead>(0x000c9d40)(title_global<uint32_t>(0x0095f6f4), path);  // File_OpenRead
+    emitter_word<int32_t>(bank, 0x54 + index * 4) = file;
+    if (file == -1 || emitter_word<int32_t>(bank, 0x6c + index * 4) != -1) {
+        manager[5] = 1;
+        return;
+    }
+    const uint32_t key = SndBank_LoadFromFile(0, file, name);
+    emitter_word<uint32_t>(bank, 0x6c + index * 4) = key;
+    emitter_word<uint32_t>(bank, 0x24 + index * 4) = 1;
+    if (key == 0xffffffffu) {
+        manager[5] = 1;
+        title_function<void XB_CDECL(int32_t)>(0x000cac90)(emitter_word<int32_t>(bank, 0x54 + index * 4));  // File_Close
+        emitter_word<int32_t>(bank, 0x54 + index * 4) = -1;
+        return;
+    }
+    if (uint8_t(no_wait)) return;
+    if (SndBank_IsLoading(key) == 1) {
+        do {
+            title_function<void XB_STDCALL(uint8_t*)>(0x002c8f60)(manager);  // S_CheckWaveBankNotifies
+        } while (SndBank_IsLoading(emitter_word<uint32_t>(bank, 0x6c + index * 4)) == 1);
+    }
+    TitleRegs regs{};
+    regs.eax = title_global<uint32_t>(0x0095f638);
+    const uint32_t one = 0x3f800000;
+    cg_call_regs(0x0028bd30, &regs, &one, 1);  // Pak_ReportProgress (EAX, 1.0; ret 4)
+}
+
+void XB_STDCALL S_LoadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t no_wait) {
+    const int32_t count = emitter_word<int32_t>(manager, 8);
+    uint8_t* bank = nullptr;
+    for (int32_t i = 0; i < count && !bank; ++i) {
+        uint8_t* const candidate = manager + 0xc + uint32_t(i) * 0x84;
+        bool same = true;
+        for (uint32_t k = 0; k < 8 && same; ++k) same = emitter_word<uint32_t>(candidate, k * 4) == name[k];
+        if (same) bank = candidate;
+    }
+    if (!bank) {
+        manager[5] = 1;
+        return;
+    }
+    const int32_t zone = emitter_word<int32_t>(bank, 0x20);
+    uint32_t path = 8;
+    if (zone >= 0 && zone < 0x63) path += title_global<uint32_t>(title_global<uint32_t>(0x0095f638) + uint32_t(zone) * 4 + 0x38);
+    const char* const dir = reinterpret_cast<const char*>(uintptr_t(path));
+    if (emitter_word<uint32_t>(bank, 0x50)) S_OpenWaveBank(dir, bank, 5, manager, no_wait);
+    if (emitter_word<uint32_t>(bank, 0x3c + title_global<uint32_t>(0x0095f5dc) * 4)) {
+        S_OpenWaveBank(dir, bank, title_global<uint32_t>(0x0095f5dc), manager, no_wait);
+        if (emitter_word<uint32_t>(bank, 0x3c + title_global<uint32_t>(0x0095f5dc) * 4)) return;
+    }
+    if (!emitter_word<uint32_t>(bank, 0x50)) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+}
+
 }  // namespace game

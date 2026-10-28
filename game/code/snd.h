@@ -274,5 +274,56 @@ void XB_REGS1 XB_CDECL S_PauseAllChannels(uint8_t* channels);
 // 0x000c91e0: a bank load request not idle (-1) or cancelled (0x100) aborts its file request (+8) and becomes
 // cancelled.
 void XB_CDECL SndBank_CancelLoad(int32_t* request);
+// 0x002bd520 / 0x002bd770 (byte in AL, channel in ESI, alias in EDI; volume, pitch, near, far (float bits; <= 0 =
+// the sound's param 0 / 1 / 0x19 / 0x1a, defaults 1, 1, 50, 1500), origin, velocity, owner, any_slot; ret 0x20):
+// channel alias +4, byte +9, voice +0 (SndVoice_Create; nothing more without one); the voice gets params 0 (base
+// +0x1c = 1.0 times the volume), 1, 0x19, 0x1a and 0x1c = 4.0, its origin and velocity; the channel keeps volume
+// +0x10, pitch +0xc, near +0x14, far +0x18, owner +0x20. The first starts the voice (SndVoice_Play), the second only
+// queues it (SndVoice_Queue).
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_StartAliasVoice(uint32_t eax, uint8_t* channel, uint32_t alias, uint32_t volume,
+                                                           uint32_t pitch, uint32_t near_bits, uint32_t far_bits,
+                                                           const uint32_t* origin, const uint32_t* velocity,
+                                                           uint32_t owner, uint32_t any_slot);
+extern "C" void S_StartAliasVoice_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_StartAliasVoice2(uint32_t eax, uint8_t* channel, uint32_t alias,
+                                                            uint32_t volume, uint32_t pitch, uint32_t near_bits,
+                                                            uint32_t far_bits, const uint32_t* origin,
+                                                            const uint32_t* velocity, uint32_t owner, uint32_t any_slot);
+extern "C" void S_StartAliasVoice2_entry(void);
+// 0x002bd3b0 (channel table in ECX): the first channel without a voice (0x200 of 0x30 bytes), -1 if none; its old
+// handle (+0x24) is freed and a new one allocated (HandleTable512_Alloc, table 0x00962820) that points at it.
+int32_t XB_REGS3 XB_CDECL S_AllocChannelHandle(uint32_t unused_eax, uint32_t unused_edx, uint8_t* table);
+// 0x002c30a0 (alias in EAX, channel table in ECX; out + 9 words, ret 0x28): S_PlaySoundAlias2 with
+// S_StartAliasVoice, and nothing while cls_state (0x0092bdf0) is 1.
+uint32_t* XB_REGS3 XB_STDCALL S_PlaySoundAlias(uint32_t alias, uint32_t unused_edx, uint8_t* table, uint32_t* out,
+                                               uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5,
+                                               uint32_t a6, uint32_t a7, uint32_t a8, uint32_t a9);
+// 0x00025f70 (channel table in EAX; out, name, owner, any_slot; ret 0x10): the sound by name on a free channel
+// (S_StartAliasVoice2, all four values from the sound, origin 0x0082e290, velocity 0x0082e110); out = its handle or
+// 0. Returns out.
+uint32_t* XB_REGS1 XB_STDCALL S_PlayLocalSoundByHash(uint8_t* table, uint32_t* out, const char* name, uint32_t owner,
+                                                     uint32_t any_slot);
+// 0x002c8d30 (channels in EAX): S_StopChannel on every channel whose paused flag +8 is clear.
+void XB_REGS1 XB_CDECL S_StopUnpausedChannels(uint8_t* channels);
+// 0x002ce6a0 (handle pair in EAX): S_StopChannel on the live channels of both handles (the crossfade's).
+void XB_REGS1 XB_CDECL S_StopCrossfadeChannels(const uint32_t* handles);
+// 0x002bd140 (crossfade in EAX, volume in XMM0): +8 = volume; both channels' voices get param 0 = base (+0x1c) *
+// (GetParam(0) * their fade (+0xc / +0x10) * volume), the channel +0x10 the product.
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_SetHandleVolume(uint8_t* fade, uint32_t volume_bits);
+extern "C" void S_SetHandleVolume_entry(void);
+// 0x002ce9c0 (bank manager in EDI): S_CheckWaveBankNotifies until no wave bank state (+0x30.., 6 per 0x84-byte
+// bank) is 1 or 3.
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_WaitForWaveBanks(uint8_t* manager);
+extern "C" void S_WaitForWaveBanks_entry(void);
+// 0x002ce830 (see the entry): opens wave bank `index` of a bank entry (file +0x54, key +0x6c, state +0x24 = 1;
+// SndBank_LoadFromFile with the name +0x3c) and, unless no_wait, waits for it and reports progress; failures set
+// manager +5.
+extern "C" PLATFORM_HIDDEN void XB_CDECL S_OpenWaveBank(const char* path, uint8_t* bank, uint32_t index,
+                                                        uint8_t* manager, uint32_t no_wait);
+extern "C" void S_OpenWaveBank_entry(void);
+// 0x002ce8f0 (stdcall manager, 32-byte name, no_wait): the manager's bank (0x84 bytes from +0xc, count +8) with that
+// name opens its common wave bank (5) and the one of the language 0x0095f5dc from its zone's path (+0x20);
+// manager +5 = 1 for an unknown name.
+void XB_STDCALL S_LoadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t no_wait);
 
 }  // namespace game
