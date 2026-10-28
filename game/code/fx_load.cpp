@@ -30,6 +30,14 @@ void op_head(uint8_t* self, uint32_t vtable) {
     at<uint32_t>(self, 0) = vtable;
 }
 
+// A 16-byte block copied as the title does it (one MOVUPS load, then the stores): the same
+// result when the two ranges overlap.
+void copy16(uint8_t* dst, const uint8_t* src) {
+    uint8_t block[16];
+    std::memcpy(block, src, 16);
+    std::memcpy(dst, block, 16);
+}
+
 // The effect memory's allocator (0x008bb760, vtable slot 1: size, alignment). Some callers
 // clear the allocation context word 0x00909948 around the call.
 uint8_t* fx_alloc(uint32_t size, uint32_t alignment) {
@@ -176,12 +184,12 @@ uint8_t* XB_THISCALL FxOp53_Init(uint8_t* self, const uint8_t* src) {
     at<uint32_t>(self, 4) = 0;
     at<uint32_t>(self, 8) = 0;
     at<uint32_t>(self, 0) = 0x007c8490;
-    std::memcpy(self + 0x20, src + 0x14, 16);
+    copy16(self + 0x20, src + 0x14);
     at<uint32_t>(self, 0x30) = at<uint32_t>(src, 0);
     at<uint32_t>(self, 0x34) = at<uint32_t>(src, 4);
     at<uint32_t>(self, 0x38) = at<uint32_t>(src, 0x28);
     at<uint32_t>(self, 0x3c) = at<uint32_t>(src, 0x2c);
-    std::memcpy(self + 0x10, src + 8, 16);
+    copy16(self + 0x10, src + 8);
     at<uint32_t>(self, 4) = at<uint32_t>(src, 0x24) ? 0x853 : 0x53;
     return self;
 }
@@ -374,14 +382,13 @@ uint8_t* XB_THISCALL FxOpdd_Init(uint8_t* self, const uint8_t* src) {
 uint8_t* XB_THISCALL FxOpGrid_Init(uint8_t* self, const uint8_t* src) {
     FxOp53_Init(self, src);
     at<uint32_t>(self, 0) = 0x007c8220;
-    const int32_t columns = at<int32_t>(src, 0x30);
-    const int32_t rows = at<int32_t>(src, 0x34);
-    at<float>(self, 0x40) = static_cast<float>(columns);
-    at<float>(self, 0x44) = static_cast<float>(rows * columns - 1);
+    // columns (+0x30) and rows (+0x34) read again for each store, as the original does
+    at<float>(self, 0x40) = static_cast<float>(at<int32_t>(src, 0x30));
+    at<float>(self, 0x44) = static_cast<float>(at<int32_t>(src, 0x34) * at<int32_t>(src, 0x30) - 1);
     const float one = title_global<float>(0x0083eb20);
-    at<float>(self, 0x48) = one / static_cast<float>(columns);
-    at<float>(self, 0x4c) = one / static_cast<float>(rows);
-    std::memcpy(self + 0x10, src + 8, 16);
+    at<float>(self, 0x48) = one / static_cast<float>(at<int32_t>(src, 0x30));
+    at<float>(self, 0x4c) = one / static_cast<float>(at<int32_t>(src, 0x34));
+    copy16(self + 0x10, src + 8);
     at<uint32_t>(self, 4) = at<uint32_t>(src, 0x24) ? 0x953 : 0x153;
     return self;
 }

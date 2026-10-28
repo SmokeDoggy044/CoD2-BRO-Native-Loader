@@ -151,10 +151,12 @@ uint32_t skip_block(const uint32_t* context, uint8_t** cursor, uint8_t** stream,
 
 template <typename T>
 void dequantize3(float* out, const T* in, const float* record) {
+    // every input read before the first store, as the original does (out may overlap in)
     const float scale = record[2], bias = record[1];
-    out[0] = scale * static_cast<float>(in[0]) + bias;
-    out[1] = static_cast<float>(in[1]) * scale + bias;
-    out[2] = static_cast<float>(in[2]) * scale + bias;
+    const float x = static_cast<float>(in[0]), y = static_cast<float>(in[1]), z = static_cast<float>(in[2]);
+    out[0] = scale * x + bias;
+    out[1] = y * scale + bias;
+    out[2] = z * scale + bias;
 }
 
 }  // namespace
