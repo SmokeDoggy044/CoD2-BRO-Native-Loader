@@ -229,5 +229,50 @@ extern "C" void SndBank_FindSound_entry(void);
 // of atan2 scaled by 0x0083eea0.
 extern "C" PLATFORM_HIDDEN float XB_CDECL Snd_ApproxAngle2D(float x, float y);
 extern "C" void Snd_ApproxAngle2D_entry(void);
+// 0x000c35a0: the voice and source pools in the sound arena (only while nothing is allocated, else -1): config
+// {voices, sources, +8, +0xc} (copied to 0x008bd654; null keeps the last), a 16-byte header (0x0090a89c), per voice
+// 12 + 0xf8 bytes (0x0090a8dc / 0x0090a8e0), per source 12 + 0xc8 (0x0090a90c / 0x0090a910), 16 more
+// (0x0090a8a0). Returns the arena's used bytes, or -1 when an allocation fails with a base (without a base the
+// arena only counts: a sizing pass).
+uint32_t XB_CDECL SndVoice_AllocPools(const uint32_t* config);
+// 0x000c3d00: a new voice (pool 0x0090a8b4) for a sound: record cleared, sound +0xc8, owner +0xcc -1, state +0xd4
+// 1, play length +0xe0 = entry +0xc * 1000 / entry +0x20 (64-bit); streamed sounds (entry +5 bit 0) get defaults
+// for params 0x19/0x1a/0x1c (bit 0x40 of +0xd6 with `any_slot`), others a hardware slot (+0xd0; none and not
+// `any_slot`: the handle is freed, -1); then the entry's param set (+0x14) unpacked and params 0, 1, 0x1b = 1.0 with
+// their dirty bits. Returns the handle, -1 without an entry or record.
+int32_t XB_CDECL SndVoice_Create(uint32_t sound, uint32_t any_slot);
+// 0x000c3f50: releases a voice's hardware slot (+0xd0) and its handle.
+void XB_CDECL SndVoice_Free(int32_t voice);
+// 0x000c3fb0 / 0x000c3ff0: a voice's play flags +0xd6 |= 1 (queued) / |= 3 (queued and playing).
+void XB_CDECL SndVoice_Queue(int32_t voice);
+void XB_CDECL SndVoice_Play(int32_t voice);
+// 0x000c41b0 / 0x000c4220: a voice's pause count +0xd2 up / down (not below 0; Resume needs a sound entry); on the
+// first pause a stopping voice (state 5) loses bit 2 of +0xd7, others get bit 1, and the last resume undoes it.
+void XB_CDECL SndVoice_Pause(int32_t voice);
+void XB_CDECL SndVoice_Resume(int32_t voice);
+// 0x000c47d0: a voice's velocity (+0x68) = the vector, dirty bits 0x1c00000.
+void XB_CDECL SndVoice_SetVelocity(int32_t voice, const uint32_t* velocity);
+// 0x000c4910: a voice's source (+0xcc; -1 without a source record): the source's params (+0x10 + 4 * i) that are set
+// in either of its masks (+0/+8, 64-bit) are copied and those bits added to the voice's dirty mask.
+void XB_CDECL SndVoice_SetSource(int32_t voice, int32_t source);
+// 0x000c5390: the voice volume scale 0x008bd768 = scale, then SndVoice_ForEach(0x000c5270) (returned).
+uint32_t XB_CDECL Snd_SetVoiceVolumeScale(uint32_t scale_bits);
+// 0x000c5400: the sound entry of a voice's sound (+0xc8); -1 (as a pointer) for a dead handle.
+uint8_t* XB_CDECL SndVoice_GetSound(int32_t voice);
+// 0x000c59b0: param `param` (< 0x2e) of a sound's param set (entry +0x14: 64-bit mask, then the set params' values),
+// else `fallback` (ST0).
+float XB_CDECL SndVoice_GetParam(uint32_t sound, uint32_t param, float fallback);
+// 0x000c6490: the "master" group (0x007ce5cc) gets volume +8 and flag bit 0, then S_SetMasterAttenuation(
+// Snd_GetSpeakerMode()) (returned).
+int32_t XB_CDECL S_SetMasterVolume(uint32_t volume_bits);
+// 0x000c64d0: the "master" group's volume (+8), 0 without the group (ST0).
+float XB_CDECL Snd_GetMasterGroupVolume();
+// 0x002b6ba0 / 0x002b6be0 (channels in EAX): every one of the 0x200 channels (0x30 bytes) with a voice resumes /
+// pauses it and gets paused flag +8 = 0 / 1.
+void XB_REGS1 XB_CDECL S_ResumeAllChannels(uint8_t* channels);
+void XB_REGS1 XB_CDECL S_PauseAllChannels(uint8_t* channels);
+// 0x000c91e0: a bank load request not idle (-1) or cancelled (0x100) aborts its file request (+8) and becomes
+// cancelled.
+void XB_CDECL SndBank_CancelLoad(int32_t* request);
 
 }  // namespace game

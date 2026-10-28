@@ -1331,4 +1331,230 @@ float XB_CDECL Snd_ApproxAngle2D(float x, float y) {
     return x / y * scale;
 }
 
+uint32_t XB_CDECL SndVoice_AllocPools(const uint32_t* config) {
+    if (title_global<uint32_t>(0x0090a894)) return 0xffffffffu;
+    uint32_t voices, sources;
+    if (config) {
+        voices = config[0];
+        title_global<uint32_t>(0x008bd654) = voices;
+        sources = config[1];
+        title_global<uint32_t>(0x008bd658) = sources;
+        title_global<uint32_t>(0x008bd65c) = config[2];
+        title_global<uint32_t>(0x008bd660) = config[3];
+    } else {
+        sources = title_global<uint32_t>(0x008bd658);
+        voices = title_global<uint32_t>(0x008bd654);
+    }
+    const uint32_t base = title_global<uint32_t>(0x0090a890);
+    struct Pool {
+        uint32_t address, alignment, size;
+    };
+    const Pool pools[] = {{0x0090a8dc, 8, voices * 12},
+                          {0x0090a8e0, 8, voices * 0xf8},
+                          {0x0090a90c, 8, sources * 12},
+                          {0x0090a910, 8, sources * 0xc8},
+                          {0x0090a8a0, 0x10, 0x10}};
+    const uint32_t header = SndArena_Alloc(0, 0, 0x10, 0x10);  // inlined in the original
+    title_global<uint32_t>(0x0090a89c) = header;
+    bool ok = header != 0;
+    for (uint32_t i = 0; ok && i < 5; ++i) {
+        const uint32_t block = SndArena_Alloc(0, 0, pools[i].alignment, pools[i].size);
+        title_global<uint32_t>(pools[i].address) = block;
+        ok = block != 0;
+    }
+    if (!ok && base) return 0xffffffffu;
+    return title_global<uint32_t>(0x0090a894);
+}
+
+namespace {
+
+using PoolAlloc = int32_t XB_CDECL(uint8_t*);
+using PoolFree = void XB_CDECL(uint8_t*, int32_t);
+
+}  // namespace
+
+int32_t XB_CDECL SndVoice_Create(uint32_t sound, uint32_t any_slot) {
+    const uint8_t* const entry = SndBank_GetSoundEntry(sound);
+    if (!entry) return -1;
+    const int32_t handle = title_function<PoolAlloc>(0x000cb510)(kVoicePool);  // HandlePool_Alloc
+    const int32_t index = HandlePool_Resolve(kVoicePool, handle);
+    if (index == -1) return -1;
+    uint8_t* const record = title_global<uint8_t*>(0x0090a8e0) + uint32_t(index) * 0xf8;
+    if (!record) return -1;
+    std::memset(record, 0, 0xf8);
+    emitter_word<uint32_t>(record, 0xc8) = sound;
+    emitter_word<uint16_t>(record, 0xd0) = 0xffff;
+    record[0xd4] = 1;
+    emitter_word<int32_t>(record, 0xcc) = -1;
+    const uint16_t rate = emitter_word<uint16_t>(entry, 0x20);
+    emitter_word<uint32_t>(record, 0xe0) =
+        rate ? uint32_t(uint64_t{emitter_word<uint32_t>(entry, 0xc)} * 1000 / rate) : 0;
+    if (entry[5] & 1) {
+        const uint32_t dirty = emitter_word<uint32_t>(record, 8);
+        emitter_word<float>(record, 0x74) = title_global<float>(0x0083eb98);
+        emitter_word<float>(record, 0x78) = title_global<float>(0x0083ee38);
+        emitter_word<float>(record, 0x80) = title_global<float>(0x0083eb20);
+        emitter_word<uint32_t>(record, 8) = dirty | 0x16000000;
+        if (any_slot) record[0xd6] |= 0x40;
+    } else {
+        const int32_t slot = SndHw_AllocSlot(sound, uint32_t(handle), any_slot);
+        emitter_word<uint16_t>(record, 0xd0) = uint16_t(slot);
+        if (uint16_t(slot) == 0xffff && !any_slot) {
+            title_function<PoolFree>(0x000cb580)(kVoicePool, handle);  // HandlePool_Free
+            return -1;
+        }
+    }
+    const float one = title_global<float>(0x0083eb20);
+    if (const uint32_t* const params = emitter_word<const uint32_t*>(entry, 0x14)) {
+        using Unpack = void XB_CDECL(uint8_t*, uint32_t, uint32_t, const uint32_t*);
+        title_function<Unpack>(0x000c3b40)(record + 0x10, params[0], params[1], params + 2);  // BitMask64_Unpack
+        const uint32_t* const set = emitter_word<const uint32_t*>(entry, 0x14);
+        emitter_word<uint32_t>(record, 8) |= set[0];
+        emitter_word<uint32_t>(record, 0xc) |= set[1];
+    }
+    emitter_word<uint32_t>(record, 8) |= 0x8000003;
+    emitter_word<float>(record, 0x14) = one;
+    emitter_word<float>(record, 0x10) = one;
+    emitter_word<float>(record, 0x7c) = one;
+    return handle;
+}
+
+void XB_CDECL SndVoice_Free(int32_t voice) {
+    const uint8_t* const record = voice_record_of(voice);
+    if (!record) return;
+    const int16_t slot = emitter_word<int16_t>(record, 0xd0);
+    if (slot != -1) SndHw_ReleaseSlot(uint32_t(int32_t(slot)));
+    title_function<PoolFree>(0x000cb580)(kVoicePool, voice);  // HandlePool_Free
+}
+
+void XB_CDECL SndVoice_Queue(int32_t voice) {
+    if (uint8_t* const record = voice_record_of(voice)) record[0xd6] |= 1;
+}
+
+void XB_CDECL SndVoice_Play(int32_t voice) {
+    if (uint8_t* const record = voice_record_of(voice)) record[0xd6] |= 3;
+}
+
+void XB_CDECL SndVoice_Pause(int32_t voice) {
+    uint8_t* const record = voice_record_of(voice);
+    if (!record) return;
+    uint16_t& count = emitter_word<uint16_t>(record, 0xd2);
+    const uint16_t old = count;
+    count = uint16_t(old + 1);
+    if (old) return;
+    if (record[0xd4] == 5)
+        record[0xd7] &= 0xfb;
+    else
+        record[0xd7] |= 2;
+}
+
+void XB_CDECL SndVoice_Resume(int32_t voice) {
+    uint8_t* const record = voice_record_of(voice);
+    if (!record || !SndBank_GetSoundEntry(emitter_word<uint32_t>(record, 0xc8))) return;
+    uint16_t& count = emitter_word<uint16_t>(record, 0xd2);
+    if (!count) return;
+    count = uint16_t(count - 1);
+    if (count) return;
+    if (record[0xd4] == 5)
+        record[0xd7] |= 4;
+    else
+        record[0xd7] &= 0xfd;
+}
+
+void XB_CDECL SndVoice_SetVelocity(int32_t voice, const uint32_t* velocity) {
+    uint8_t* const record = voice_record_of(voice);
+    if (!record) return;
+    for (uint32_t i = 0; i < 3; ++i) emitter_word<uint32_t>(record, 0x68 + i * 4) = velocity[i];
+    emitter_word<uint32_t>(record, 8) |= 0x1c00000;
+}
+
+void XB_CDECL SndVoice_SetSource(int32_t voice, int32_t source) {
+    const int32_t source_index = HandlePool_Resolve(&title_global<uint8_t>(0x0090a8e4), source);
+    const uint8_t* const source_record =
+        source_index == -1 ? nullptr : title_global<uint8_t*>(0x0090a910) + uint32_t(source_index) * 0xc8;
+    uint8_t* const record = voice_record_of(voice);
+    if (!record) return;
+    if (!source_record) {
+        emitter_word<int32_t>(record, 0xcc) = -1;
+        return;
+    }
+    const uint32_t low = emitter_word<uint32_t>(source_record, 8) | emitter_word<uint32_t>(source_record, 0);
+    const uint32_t high = emitter_word<uint32_t>(source_record, 0xc) | emitter_word<uint32_t>(source_record, 4);
+    const uint32_t old_high = emitter_word<uint32_t>(record, 0xc);
+    emitter_word<int32_t>(record, 0xcc) = source;
+    const uint32_t old_low = emitter_word<uint32_t>(record, 8);
+    emitter_word<uint32_t>(record, 0xc) = old_high | high;
+    emitter_word<uint32_t>(record, 8) = old_low | low;
+    const uint64_t mask = uint64_t{high} << 32 | low;
+    for (uint32_t i = 0; i < 0x2e; ++i) {
+        if (mask & (uint64_t{1} << i))
+            emitter_word<uint32_t>(record, 0x10 + i * 4) = emitter_word<uint32_t>(source_record, 0x10 + i * 4);
+    }
+}
+
+uint32_t XB_CDECL Snd_SetVoiceVolumeScale(uint32_t scale_bits) {
+    title_global<uint32_t>(0x008bd768) = scale_bits;
+    return SndVoice_ForEach(title_function<void XB_CDECL(int32_t)>(0x000c5270));
+}
+
+uint8_t* XB_CDECL SndVoice_GetSound(int32_t voice) {
+    const int32_t index = HandlePool_Resolve(kVoicePool, voice);
+    if (index == -1) return reinterpret_cast<uint8_t*>(uintptr_t{0xffffffffu});
+    const uint8_t* const record = title_global<uint8_t*>(0x0090a8e0) + uint32_t(index) * 0xf8;
+    if (!record) return nullptr;
+    return SndBank_GetSoundEntry(emitter_word<uint32_t>(record, 0xc8));
+}
+
+float XB_CDECL SndVoice_GetParam(uint32_t sound, uint32_t param, float fallback) {
+    const uint8_t* const entry = SndBank_GetSoundEntry(sound);
+    if (!entry || param >= 0x2e) return fallback;
+    const uint32_t* const params = emitter_word<const uint32_t*>(entry, 0x14);
+    if (!params) return fallback;
+    using IndexOfBit = int32_t XB_REGS1 XB_CDECL(const uint32_t*, uint32_t, uint32_t);
+    const uint64_t bit = uint64_t{1} << param;
+    const int32_t index =
+        title_function<IndexOfBit>(0x000c56b0)(params, uint32_t(bit), uint32_t(bit >> 32));  // BitMask64_IndexOfBit
+    if (index == -1) return fallback;
+    return *reinterpret_cast<const float*>(params + 2 + index);
+}
+
+int32_t XB_CDECL S_SetMasterVolume(uint32_t volume_bits) {
+    if (uint8_t* const group = SndGroup_FindByName(reinterpret_cast<const char*>(uintptr_t{0x007ce5cc}))) {
+        emitter_word<uint32_t>(group, 0) |= 1;
+        emitter_word<uint32_t>(group, 8) = volume_bits;
+    }
+    return S_SetMasterAttenuation(int32_t(Snd_GetSpeakerMode()));
+}
+
+float XB_CDECL Snd_GetMasterGroupVolume() {
+    const uint8_t* const group = SndGroup_FindByName(reinterpret_cast<const char*>(uintptr_t{0x007ce5cc}));
+    return group ? emitter_word<float>(group, 8) : 0.0f;
+}
+
+void XB_REGS1 XB_CDECL S_ResumeAllChannels(uint8_t* channels) {
+    for (uint32_t i = 0; i < 0x200; ++i) {
+        uint8_t* const channel = channels + i * 0x30;
+        const int32_t voice = emitter_word<int32_t>(channel, 0);
+        if (voice == -1) continue;
+        SndVoice_Resume(voice);
+        channel[8] = 0;
+    }
+}
+
+void XB_REGS1 XB_CDECL S_PauseAllChannels(uint8_t* channels) {
+    for (uint32_t i = 0; i < 0x200; ++i) {
+        uint8_t* const channel = channels + i * 0x30;
+        const int32_t voice = emitter_word<int32_t>(channel, 0);
+        if (voice == -1) continue;
+        SndVoice_Pause(voice);
+        channel[8] = 1;
+    }
+}
+
+void XB_CDECL SndBank_CancelLoad(int32_t* request) {
+    if (request[0] == -1 || request[0] == 0x100) return;
+    if (request[2] != -1) title_function<void XB_CDECL(int32_t)>(0x000ca0e0)(request[2]);  // File_AbortRequest
+    request[0] = 0x100;
+}
+
 }  // namespace game
