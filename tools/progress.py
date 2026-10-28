@@ -248,7 +248,7 @@ def write_readme(rows, excluded):
             "**Set aside** functions will not be tested, by decision: dead code nothing calls, start-up",
             "and exit code, debug and developer tools, and code that only talks to the Xbox hardware or",
             "its files (these are in C++ already). The Xbox Live code is set aside without being",
-            "rewritten: the service is gone. A native build replaces most of these anyway.",
+            "rewritten: the service is gone. Our own engine replaces all of this.",
             f"We've also named {n(len(globals_))} of the game's global variables.", "",
             "### By part of the game", "",
             "| Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |",
