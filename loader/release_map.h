@@ -46,7 +46,7 @@ struct FunctionSignature {
     uint32_t body;
 };
 
-// An address in a data section that code refers to, and one place in a function
+// An address in the image that code refers to, and one place in a function
 // that holds it. Data moves within its section too (the Collector's Edition
 // multiplayer XBE has the same code as ours, but part of .data in another order), so
 // where a variable is in another build is read from that place in the same code there.
@@ -82,8 +82,9 @@ public:
 
     // Where `address` of the supported build lies in this one: a function's entry
     // needs its first bytes found, an address inside it the whole function (unchanged
-    // code). A data address is where code that refers to it (or to the nearest
-    // variables on both sides, if they moved alike) refers to here. nullopt: in code
+    // code). A data address (also one in changed code: a library's variables after its
+    // code) is where code that refers to it (or to the nearest variables on both sides,
+    // if they moved alike) refers to here. nullopt: in code
     // this release changed, in data whose place is unknown, or in a section it does
     // not have.
     std::optional<uint32_t> find(uint32_t address) const;
@@ -120,7 +121,10 @@ private:
     };
     const Section* section_of(uint32_t address) const;
     const Function* function_at(uint32_t address) const;
-    std::optional<int32_t> data_delta(uint32_t address, const Section& section) const;
+    // How a variable in [start, end) moved, from the references to it or its nearest
+    // neighbours there; `otherwise` without any.
+    std::optional<int32_t> data_delta(uint32_t address, uint32_t start, uint32_t end,
+                                      std::optional<int32_t> otherwise) const;
 
     bool built_ = false;
     std::vector<Section> sections_;

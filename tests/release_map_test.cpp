@@ -1,6 +1,7 @@
 // ReleaseMap (loader/release_map.h): finding the supported build's functions and data
 // in a build where code grew in the middle, later sections moved and data moved
-// within its section (as the European multiplayer XBE of issue #9).
+// within its section (as the European multiplayer XBE of issue #9), and variables
+// after the code in its section changed (as D3D's in that XBE).
 
 #include <cstdint>
 #include <cstdio>
@@ -31,6 +32,8 @@ constexpr int kFunctions = 60;
 constexpr int kGrown = 30;           // this function gets 0x30 more bytes in its middle
 constexpr uint32_t kGrowth = 0x30;
 constexpr int kVariables = 40;
+constexpr uint32_t kTail = 0x40;  // variables after the code, in .text (as an SDK library's)
+constexpr int kTailVariables[] = {38, 39};
 
 struct Build {
     std::vector<uint8_t> bytes;
@@ -96,6 +99,12 @@ Build make_build(bool grow, const std::vector<uint32_t>& variable_at) {
         at += static_cast<uint32_t>(body.size());
         while (at % 16) code.push_back(0xCC), ++at;
     }
+    // The tail: a symbol like a function's, with other contents in the other build.
+    while (at % 0x20) code.push_back(0xCC), ++at;
+    build.functions.push_back(at);
+    code.resize(code.size() + kTail, 0);
+    code[code.size() - kTail + 0x10] = grow ? 1 : 2;
+    at += kTail;
     const uint32_t text_size = at - text;
     const uint32_t data = (at + 0x1F) & ~0x1Fu;  // XBE sections: 0x20 apart
     build.sections = {{".text", text, text_size}, {".data", data, 0x400}};
@@ -113,6 +122,7 @@ std::vector<uint32_t> variables(uint32_t data, bool shuffled) {
         for (int v = 10; v < 20; ++v) at[v] += 0x80;
         at[5] = data + 0x3F0;
     }
+    for (int v : kTailVariables) at[v] = data - kTail + 0x20 + 0x10 * (v - kTailVariables[0]);
     return at;
 }
 
@@ -128,7 +138,7 @@ int main() {
     CHECK(other_data > supported_data, "the data section did not move");
 
     loader::ReleaseSignatures signatures = loader::make_signatures(supported.view(), supported.functions);
-    CHECK(signatures.functions.size() == kFunctions);
+    CHECK(signatures.functions.size() == kFunctions + 1);
     CHECK(signatures.data.size() == kVariables, "%zu data references", signatures.data.size());
 
     const auto path = std::filesystem::temp_directory_path() / "release_map_test_signatures.txt";
@@ -145,12 +155,13 @@ int main() {
 
     // The supported build itself maps onto itself.
     map.build(loaded, supported.view());
-    CHECK(map.unchanged() == kFunctions && map.missing() == 0);
+    CHECK(map.unchanged() == kFunctions + 1 && map.missing() == 0);
     for (uint32_t f : supported.functions) CHECK(map.find(f + 3) == f + 3);
 
     map.build(loaded, other.view());
     CHECK(map.unchanged() == kFunctions - 1, "%zu unchanged", map.unchanged());
     CHECK(map.entry_only() == 1, "%zu entry only", map.entry_only());
+    CHECK(map.missing() == 1, "%zu missing (the tail)", map.missing());
     for (int f = 0; f < kFunctions; ++f) {
         const uint32_t ours = supported.functions[f], theirs = other.functions[f];
         CHECK(map.find(ours) == theirs, "function %d", f);
@@ -168,6 +179,9 @@ int main() {
     CHECK(map.find(ours[2] + 4) == theirs[2] + 4);
     CHECK(map.find(ours[12] + 4) == theirs[12] + 4);
     CHECK(!map.find(ours[9] + 8), "between variables 9 and 10");
+    // In the changed tail: where code refers to; between its variables, as they moved.
+    CHECK(map.find(ours[38] + 4) == theirs[38] + 4);
+    CHECK(!map.find(supported.functions[kFunctions]), "the tail's start");
     // A guess in changed code moves like the function it is in.
     CHECK(map.guess(supported.functions[kGrown] + 40) == other.functions[kGrown] + 40);
 

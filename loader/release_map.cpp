@@ -273,9 +273,10 @@ ReleaseSignatures make_signatures(const ImageBytes& image, std::span<const uint3
         function.head = code_hash(image, function.address, std::min(kHeadBytes, function.length));
         function.body = walk_code(code, function.length, image.end() - function.address, function.address,
                                   image.base, image.end(), [&](uint32_t offset) {
+            // Variables in code sections too: the SDK libraries keep theirs after their
+            // code (D3D's device pointer and state arrays; issue #9).
             const uint32_t target = read32(code + offset);
-            const ImageSection* in = find_section(image.sections, target);
-            if (in && is_data_section(in->name)) sites.try_emplace(target, function.address + offset);
+            if (find_section(image.sections, target)) sites.try_emplace(target, function.address + offset);
         });
         result.functions.push_back(function);
     }
@@ -411,8 +412,8 @@ const ReleaseMap::Function* ReleaseMap::function_at(uint32_t address) const {
     return address - it->signature.address < it->signature.length ? &*it : nullptr;
 }
 
-std::optional<int32_t> ReleaseMap::data_delta(uint32_t address, const Section& section) const {
-    const uint32_t start = section.supported.address, end = start + section.supported.size;
+std::optional<int32_t> ReleaseMap::data_delta(uint32_t address, uint32_t start, uint32_t end,
+                                              std::optional<int32_t> otherwise) const {
     auto it = std::lower_bound(data_.begin(), data_.end(), address,
                                [](const Data& d, uint32_t a) { return d.target < a; });
     if (it != data_.end() && it->target == address) return it->known ? std::optional(it->delta) : std::nullopt;
@@ -433,7 +434,7 @@ std::optional<int32_t> ReleaseMap::data_delta(uint32_t address, const Section& s
     if (below && above) return below->delta == above->delta ? std::optional(below->delta) : std::nullopt;
     if (below) return below->delta;
     if (above) return above->delta;
-    return section.delta;
+    return otherwise;
 }
 
 std::optional<uint32_t> ReleaseMap::find(uint32_t address) const {
@@ -442,10 +443,16 @@ std::optional<uint32_t> ReleaseMap::find(uint32_t address) const {
     if (!section || !section->delta) return std::nullopt;
     std::optional<int32_t> delta;
     if (is_data_section(section->supported.name)) {
-        delta = data_delta(address, *section);
+        const uint32_t start = section->supported.address;
+        delta = data_delta(address, start, start + section->supported.size, section->delta);
     } else if (const Function* function = function_at(address)) {
         const bool entry = address == function->signature.address;
         if (function->match == Match::Whole || (function->match == Match::Entry && entry)) delta = function->delta;
+        // Changed "code" can be a library's variables after its code: where code that
+        // refers to them refers to here, as in a data section.
+        else if (!entry)
+            delta = data_delta(address, function->signature.address,
+                               function->signature.address + function->signature.length, std::nullopt);
     } else {
         delta = section->delta;  // before the section's first function
     }
