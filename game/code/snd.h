@@ -409,4 +409,14 @@ extern "C" void S_UnloadSoundBank_entry(void);
 // 0x008bed10 is set.
 void XB_CDECL SndBank_Relocate(uint8_t* request);
 
+// 0x002ce370 (crossfade in EAX, alias name in EDX; fade time on the stack, ret 4; nothing while 0x0096d968 is set
+// or without a name): the ambient alias on a free channel of 0x0095f4c4 (S_PlaySoundAlias: origin 0x0082e290,
+// velocity 0x0082e110, all four values from the sound) into handle +4; +0x10 = 0, state +0x1c = 1, length +0x14 =
+// the fade time, +0x18 = 0; a live channel gets its volume (param 0 = base * GetParam(0) * master +8 * +0x10).
+void XB_REGS2 XB_STDCALL S_AmbientPlay(uint8_t* fade, const char* name, uint32_t time_bits);
+// 0x002ce520 (crossfade in EAX; alias name on the stack, ret 4; nothing while 0x0096d968 is set or without a name):
+// the old music (+0) stopped (S_StopSoundHandle), the alias started like S_AmbientPlay's into +0, with param 0 =
+// base * (GetParam(0) * +0xc * master +8).
+void XB_REGS1 XB_STDCALL Music_Play(uint8_t* fade, const char* name);
+
 }  // namespace game

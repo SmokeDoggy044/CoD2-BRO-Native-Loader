@@ -2792,6 +2792,8 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 002cd640,IN_DownDown,compare,0,0,0,0,0,0,""
 002cd690,CL_ConfigstringModified,compare,2933,2143,2143,0,0,0,""
 002cde20,CG_SelectWeapon,compare,130,107,107,0,0,0,""
+002ce370,S_AmbientPlay,compare,0,4,4,0,0,0,""
+002ce520,Music_Play,compare,9,13,13,0,0,0,""
 002ce6a0,S_StopCrossfadeChannels,compare,0,8,8,0,0,0,""
 002ce760,S_UnloadSoundBank,compare,0,16,16,0,0,0,""
 002ce830,S_OpenWaveBank,compare,107,34,34,0,0,0,""

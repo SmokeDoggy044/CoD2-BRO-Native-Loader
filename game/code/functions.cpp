@@ -2888,6 +2888,8 @@ const Function kFunctions[] = {
     {"IN_DownDown", 0x002cd640, 0, code(&IN_DownDown), 0, Result::None, Status::Compare},
     {"CL_ConfigstringModified", 0x002cd690, 0, code(&CL_ConfigstringModified), 0, Result::None, Status::Compare},
     {"CG_SelectWeapon", 0x002cde20, 0, code(&CG_SelectWeapon_entry), 0, Result::Eax, Status::Compare},
+    {"S_AmbientPlay", 0x002ce370, 0, code(&S_AmbientPlay), 4, Result::None, Status::Compare},
+    {"Music_Play", 0x002ce520, 0, code(&Music_Play), 4, Result::None, Status::Compare},
     {"S_StopCrossfadeChannels", 0x002ce6a0, 0, code(&S_StopCrossfadeChannels), 0, Result::None, Status::Compare},
     {"S_UnloadSoundBank", 0x002ce760, 0, code(&S_UnloadSoundBank_entry), 8, Result::None, Status::Compare},
     {"S_OpenWaveBank", 0x002ce830, 0, code(&S_OpenWaveBank_entry), 8, Result::None, Status::Compare},

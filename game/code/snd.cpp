@@ -2336,4 +2336,60 @@ void XB_CDECL SndBank_Relocate(uint8_t* request) {
     }
 }
 
+// --- Ambient sound and music ---
+
+namespace {
+
+// The alias `name` started on a free channel of 0x0095f4c4 at the origin 0x0082e290 with velocity 0x0082e110 (all
+// four values from the sound); its handle, 0 for an unknown name.
+uint32_t start_fade_alias(const char* name) {
+    uint32_t velocity[4];
+    uint32_t origin[4];
+    std::memcpy(velocity, &title_global<uint32_t>(0x0082e110), 16);
+    std::memcpy(origin, &title_global<uint32_t>(0x0082e290), 16);
+    uint8_t* const table = title_global<uint8_t*>(0x0095f4c4);
+    const int32_t alias = S_FindSoundByHash(name);
+    if (alias == -1) return 0;
+    uint32_t handle;
+    S_PlaySoundAlias(uint32_t(alias), 0, table, &handle, 0, 1, 0, uint32_t(uintptr_t(origin)),
+                     uint32_t(uintptr_t(velocity)), 0xbf800000, 0xbf800000, 0xbf800000, 0xbf800000);
+    return handle;
+}
+
+}  // namespace
+
+void XB_REGS2 XB_STDCALL S_AmbientPlay(uint8_t* fade, const char* name, uint32_t time_bits) {
+    if (title_global<uint32_t>(0x0096d968) || !name) return;
+    uint32_t* const handle = &emitter_word<uint32_t>(fade, 4);
+    if (SoundHandle_Resolve(handle)) {
+        emitter_word<uint32_t>(fade, 0x1c) = 2;
+        emitter_word<float>(fade, 0x14) = 0.0f;
+        emitter_word<float>(fade, 0x18) = 0.0f;
+    }
+    *handle = start_fade_alias(name);
+    emitter_word<float>(fade, 0x10) = 0.0f;
+    emitter_word<uint32_t>(fade, 0x1c) = 1;
+    emitter_word<uint32_t>(fade, 0x14) = time_bits;
+    emitter_word<float>(fade, 0x18) = 0.0f;
+    float volume;
+    set_fade_volume(fade, handle, emitter_word<float>(fade, 0x10), &volume);
+}
+
+void XB_REGS1 XB_STDCALL Music_Play(uint8_t* fade, const char* name) {
+    if (title_global<uint32_t>(0x0096d968) || !name) return;
+    uint32_t* const handle = &emitter_word<uint32_t>(fade, 0);
+    if (SoundHandle_Resolve(handle)) S_StopSoundHandle(handle);
+    *handle = start_fade_alias(name);
+    if (!SoundHandle_Resolve(handle)) return;
+    using GetParam = long double XB_CDECL(uint32_t, uint32_t, float);
+    const long double param = title_function<GetParam>(0x000c59b0)(emitter_word<uint32_t>(SoundHandle_Resolve(handle), 4),
+                                                                   0, 1.0f);  // SndVoice_GetParam
+    const float volume = float(param * emitter_word<float>(fade, 0xc) * emitter_word<float>(fade, 8));
+    uint8_t* const channel = SoundHandle_Resolve(handle);
+    const int32_t voice = emitter_word<int32_t>(channel, 0);
+    if (voice == -1) return;
+    SndVoice_SetParam(voice, 0, float_bits(emitter_word<float>(channel, 0x1c) * volume));
+    emitter_word<float>(channel, 0x10) = volume;
+}
+
 }  // namespace game
