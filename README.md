@@ -46,7 +46,7 @@ We've also named 2,659 of the game's global variables.
 |---|---:|---:|---:|---:|---:|---:|
 | Renderer (scenes, materials, shaders, models, effects) | 1,086 | 1,030 | 7 | 48 | 0 | 0 |
 | Game logic (entities, AI, weapons, physics, level-script runtime) | 1,627 | 279 | 16 | 0 | 1,123 | 205 |
-| Animation (animation trees, the animation codec) | 284 | 246 | 26 | 12 | 0 | 0 |
+| Animation (animation trees, the animation codec) | 284 | 246 | 22 | 16 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 299 | 227 | 1 | 6 | 56 | 9 |
 | Engine core (memory, files, settings, commands, containers, math) | 961 | 234 | 16 | 0 | 646 | 54 |
 | Client and menus | 761 | 477 | 196 | 6 | 33 | 49 |
