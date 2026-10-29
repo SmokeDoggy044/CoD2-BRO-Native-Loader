@@ -2522,7 +2522,11 @@ void install(std::span<const game::Function> functions, const Config& config) {
         if (!address) continue;
         if (function.status == game::Status::Replaced) {
             // The C uses the supported build's addresses throughout: another release keeps the original.
-            if (!release_map().identity()) {
+            // XBCMP_ORIGINALS=1 keeps every original, XBCMP_ORIGINALS=name,name those (finding which
+            // replaced function a problem comes from).
+            static const char* const originals = std::getenv("XBCMP_ORIGINALS");
+            const bool original = originals && (std::strcmp(originals, "1") == 0 || listed_in(originals, function.name));
+            if (!release_map().identity() || original) {
                 ++kept_original;
                 continue;
             }
@@ -2613,8 +2617,8 @@ void install(std::span<const game::Function> functions, const Config& config) {
         LOG_INFO("compare", "%d decompiled functions replace the originals", replaced);
     }
     if (kept_original)
-        LOG_INFO("compare", "another release of the game: its own code runs (%d decompiled functions are for the supported one)",
-                 kept_original);
+        LOG_INFO("compare", "%s: the originals run (%d decompiled functions not installed)",
+                 release_map().identity() ? "XBCMP_ORIGINALS" : "another release of the game", kept_original);
 }
 
 namespace {

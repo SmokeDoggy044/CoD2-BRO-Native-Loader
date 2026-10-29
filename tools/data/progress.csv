@@ -9468,7 +9468,7 @@ address,name,section,module,state,tested,matched
 002b7200,IN_PadQueueEvents,.text,client,matched,40,40
 002b74c0,GScr_ClearEntFlag4000000,.text,script,named,0,0
 002b7500,G_SetEntityInList960070,.text,game,settled,101,101
-002b75c0,Scr_Notify,.text,game,settled,386,386
+002b75c0,Scr_Notify,.text,game,settled,8741,8741
 002b7640,G_SetAngle,.text,game,settled,116,116
 002b7690,G_SetAngle2,.text,game,settled,404,404
 002b76e0,G_SetOrigin,.text,game,settled,100,100
@@ -10290,7 +10290,7 @@ address,name,section,module,state,tested,matched
 002fbc40,Scr_QueueNotifyCallback29,.text,game,untested,0,0
 002fbcd0,Scr_QueueNotifyWithString,.text,game,named,0,0
 002fbd70,Scr_QueueNotifyCallback26,.text,game,untested,0,0
-002fbe00,Scr_QueueNotify,.text,game,settled,154,154
+002fbe00,Scr_QueueNotify,.text,game,settled,649,649
 002fbea0,Scr_SaveThreadLocals,.text,game,named,0,0
 002fbec0,GScr_EntHasNotifyListener,.text,script,named,0,0
 002fbf20,GScr_DebugLine,.text,script,named,0,0
