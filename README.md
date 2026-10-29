@@ -6,7 +6,9 @@ can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
 It's early days: about 71% of the functions have a name, and 3,273 have been
-rewritten in C++. The renderer is the part we're working on now.
+rewritten in C++. The renderer, animation, client game, collision and streaming code is
+done or nearly; the engine core (memory, files, settings, commands) is the part we're
+working on now.
 <!-- intro:end -->
 
 **Just want to play?** Use the
