@@ -51,8 +51,10 @@ European French/Spanish/Italian disc) are found through a release map (see
 and next steps: [docs/status.md](docs/status.md).
 
 > **This branch (`beta`) is where rewritten modules are staged:** it brings the
-> decompiled code into the loader, one module at a time (the renderer first, then
-> others such as audio). Nothing here is in a release yet.
+> decompiled code into the loader, one module at a time - audio first, then the
+> renderer. The game's whole sound system now runs as rewritten source code here
+> (126 functions in place of the originals); our own audio back end comes next.
+> Nothing here is in a release yet.
 
 ### The rewritten renderer
 
