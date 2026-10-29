@@ -477,4 +477,57 @@ uint32_t* XB_STDCALL std_vector_UfillN4(uint32_t* dest, uint32_t count, const ui
 // 0x0017cd90: a 24-byte list node {next, prev, key, DynArray copy of value + 4} from Scr_Alloc.
 uint32_t* XB_STDCALL std_list_BuyNodeKeyArray(uint32_t next, uint32_t prev, const uint32_t* value);
 
+// --- qcommon push 4 (high half) ---
+
+// 0x001e47e0 / 0x001e48f0 / 0x001e5e30 (thiscall, ret 4): push_back of a 12 / 24 / 52-byte element; a full array
+// grows to size + 4 (DynArray_Alloc*_FillUndefined, elements copied, old block Scr_Free'd).
+void XB_THISCALL DynArray_PushBack12_2(DynArray* array, const uint32_t* value);
+void XB_THISCALL DynArray_PushBack24_2(DynArray* array, const uint32_t* value);
+void XB_THISCALL DynArray_Push52(DynArray* array, const uint32_t* value);
+// 0x0028cbd0 (fli in EAX, pak in ECX): pak +0x18 = fli, its relocation table (+0x18 offset) made absolute and
+// relocated; the fli name (+0x1c) picks g_languageIndex (once: "de" 1, "eu" 3 / 4 / 2 by XGetLanguage 5 / 6 / other,
+// else 0) and two region flags ("ck"/"ce" 0x0095e7f8, "ck"/"uk" 0x0095ee00); then Loc_AppendLanguageSuffix and
+// Pak_AssignZoneIdsByName.
+void XB_REGS3 XB_CDECL Pak_ParseFli(uint8_t* fli, uint32_t unused_edx, uint8_t* pak);
+// 0x0028e040 (pak in EAX): the StreamMem_CountUsed sum (0x0095f62c, node +0x54) over the loaded zones whose
+// Zone_UpdatePriority is not 0. Dead (no reference). The code at 0x0028e0b0 is a second dead function.
+uint32_t XB_REGS1 XB_CDECL Pak_CountActiveSlots(uint8_t* pak);
+// 0x0028e3e0 (pak in EAX): the loaded zone with the highest positive Zone_UpdatePriority (0 for zones whose
+// +0x2c is above 1); null if none. Node +0x78 caches MemContext_FindById(node +0x74).
+uint8_t* XB_REGS1 XB_CDECL Pak_FindZoneToUnload(uint8_t* pak);
+// 0x00297280 (filter in EAX): Q3's Com_Filter (*, ?, [set] wildcards; _toupper unless casesensitive).
+int32_t XB_REGS1 XB_CDECL Com_Filter(const char* filter, const char* name, int32_t casesensitive);
+// 0x00299cc0 (name in EAX, filter in EDX): Q3's Com_FilterPath - both copied (127 chars) with '\\' and ':' as '/'.
+int32_t XB_REGS2 XB_CDECL Com_FilterPath(const char* name, const char* filter, int32_t casesensitive);
+// 0x0029c620: Com_GetRealEvent until an empty event, each one Com_PushEvent'ed (no reference: dead).
+void XB_CDECL Com_PushAllRealEvents();
+// 0x0029c6b0: Q3's Com_Milliseconds - real events pushed until an empty one; returns its time.
+int32_t XB_CDECL Com_Milliseconds();
+// 0x0029c700 (out in ESI): Q3's Com_GetEvent - the next pushed event, else Com_GetRealEvent. Returns out.
+extern "C" PLATFORM_HIDDEN SysEvent* XB_CDECL Com_GetEvent(SysEvent* out);
+extern "C" void Com_GetEvent_entry(void);
+// 0x002a26a0 / 0x002a27f0 (angles out in EAX, rows in ECX: stride 16 / 12): Q3's AxisToAngles - vectoangles of
+// row 0, row 1 rotated by -yaw about z and -pitch about y (FastSinCos, x87 degree-to-radian), roll from its pitch.
+void XB_REGS3 XB_CDECL MatrixToAngles(float* angles, uint32_t unused_edx, const float* matrix);
+void XB_REGS3 XB_CDECL AxisToAngles(float* angles, uint32_t unused_edx, const float* axis);
+// 0x002a2c40 (vector in ESI; out on the stack): vectoangles into a local, copied to out.
+extern "C" PLATFORM_HIDDEN void XB_CDECL vectoangles_ToOut(const float* v, float* out);
+extern "C" void vectoangles_ToOut_entry(void);
+// 0x002a7da0: once (0x0095f560): permutation 0x0093e758 (shuffled with _rand) and gradients 0x0093eff0
+// ((rand % 512 - 256) / 256), the first 258 entries of both repeated after 256.
+void XB_CDECL Noise_Init();
+// 0x00297990 (list in EAX): Q3's search path list freed (pack: unzClose, buffer, pack; dir; the node).
+void XB_REGS1 XB_CDECL FS_FreeSearchPaths(uint8_t* list);
+// 0x0023c400 (box in EDI: mins +0, maxs +0x10; 3x3 axis in ESI; bounds on the stack): the 8 corners rotated by the
+// axis, each added with 0x00029380 (aligned 4-lane point, lane 3 never set).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Bounds_AddPoints8(const float* axis, const float* box, float* bounds);
+extern "C" void Bounds_AddPoints8_entry(void);
+// 0x0029ea20 (maxs in EAX, mins in ECX, point on the stack): MINPS / MAXPS of aligned 4-lane vectors. Dead.
+void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* maxs, uint32_t unused_edx, float* mins, const float* point);
+// 0x002d8a10 (this in ESI): the world tree registry (cm_worldTrees 0x0095f4fc): ResourceManager part, vtable
+// 0x00832788, debug draw 0x0001d0d0 on the 32-entry list 0x00988784, +4..+0x19c zeroed, command "cg"
+// (0x002afb90: debug flag +4 bit 0). Returns this.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CM_WorldTrees_Construct(uint8_t* self);
+extern "C" void CM_WorldTrees_Construct_entry(void);
+
 }  // namespace game

@@ -2354,4 +2354,364 @@ uint32_t* XB_STDCALL std_list_BuyNodeKeyArray(uint32_t next, uint32_t prev, cons
     return node;
 }
 
+// --- qcommon push 4 (high half) ---
+
+namespace {
+
+uint32_t u32(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+const char* tstr(uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); }
+
+template <uint32_t Words>
+void dynarray_push(DynArray* array, const uint32_t* value, uint32_t* (XB_STDCALL* alloc)(uint32_t, uint32_t)) {
+    if (array->size >= array->capacity) {
+        const uint32_t capacity = array->size + 4;
+        uint32_t* data = alloc(capacity, array->size + 1);
+        for (uint32_t i = 0; i < array->size; ++i)
+            for (uint32_t k = 0; k < Words; ++k) data[i * Words + k] = array->data[i * Words + k];
+        if (array->data) Scr_Free(array->data);
+        array->data = data;
+        array->capacity = capacity;
+    }
+    uint32_t* slot = array->data + array->size * Words;
+    for (uint32_t k = 0; k < Words; ++k) slot[k] = value[k];
+    ++array->size;
+}
+
+}  // namespace
+
+void XB_THISCALL DynArray_PushBack12_2(DynArray* array, const uint32_t* value) {
+    dynarray_push<3>(array, value, &DynArray_Alloc12_FillUndefined);
+}
+
+void XB_THISCALL DynArray_PushBack24_2(DynArray* array, const uint32_t* value) {
+    dynarray_push<6>(array, value, &DynArray_Alloc24_FillUndefined_2);
+}
+
+void XB_THISCALL DynArray_Push52(DynArray* array, const uint32_t* value) {
+    dynarray_push<13>(array, value, &DynArray_Alloc52_FillUndefined);
+}
+
+void XB_REGS3 XB_CDECL Pak_ParseFli(uint8_t* fli, uint32_t, uint8_t* pak) {
+    const auto strstr_ = title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10);  // _strstr
+    const auto get_language = title_function<uint32_t XB_STDCALL()>(0x001e6f2a);           // XGetLanguage
+    pk<uint32_t>(pak, 0x18) = u32(fli);
+    uint8_t* table = fli + pk<uint32_t>(fli, 0x18);
+    pk<uint32_t>(fli, 0x18) = u32(table);
+    Pack_RelocateTable(reinterpret_cast<PackRelocTable*>(table), u32(fli));
+    const char* name = reinterpret_cast<const char*>(pk_ptr(pak, 0x18) + 0x1c);
+    int32_t& language = title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+    if (!language) {
+        if (strstr_(name, tstr(0x0082d010))) {  // "de"
+            language = 1;
+        } else if (strstr_(name, tstr(0x00838378))) {  // "eu"
+            if (get_language() == 5)
+                language = 3;
+            else
+                language = get_language() == 6 ? 4 : 2;
+        } else {
+            language = 0;
+        }
+    }
+    if (strstr_(name, tstr(0x00838374)) || strstr_(name, tstr(0x00838370)))  // "ck", "ce"
+        title_global<uint8_t>(0x0095e7f8) = 1;
+    if (strstr_(name, tstr(0x00838374)) || strstr_(name, tstr(0x0083836c)))  // "ck", "uk"
+        title_global<uint8_t>(0x0095ee00) = 1;
+    Loc_AppendLanguageSuffix();
+    Pak_AssignZoneIdsByName(pak);
+}
+
+namespace {
+
+// The zone record of a loaded-list node: +0x78 caches MemContext_FindById(+0x74).
+uint8_t* node_zone(uint8_t* node) {
+    if (!pk<uint32_t>(node, 0x78))
+        pk<uint32_t>(node, 0x78) = u32(MemContext_FindById(title_global<uint8_t*>(0x0095f638), pk<int32_t>(node, 0x74)));
+    return pk_ptr(node, 0x78);
+}
+
+}  // namespace
+
+uint32_t XB_REGS1 XB_CDECL Pak_CountActiveSlots(uint8_t* pak) {
+    uint32_t count = 0;
+    uint8_t* next;
+    uint8_t* node = loaded_first(pak, &next);
+    while (next) {
+        if (!(Zone_UpdatePriority(node_zone(node)) == title_global<float>(0x0083eafc)))  // UCOMISS + JNP: NaN counts
+            count += StreamMem_CountUsed(title_global<uint8_t*>(0x0095f62c), reinterpret_cast<const uint32_t*>(node + 0x54));
+        node = next;
+        next = pk_ptr(next, 0);
+    }
+    return count;
+}
+
+uint8_t* XB_REGS1 XB_CDECL Pak_FindZoneToUnload(uint8_t* pak) {
+    float best = 0.0f;
+    uint8_t* result = nullptr;
+    uint8_t* next;
+    uint8_t* node = loaded_first(pak, &next);
+    while (next) {
+        uint8_t* zone = node_zone(node);
+        float priority = Zone_UpdatePriority(zone);
+        if (pk<uint32_t>(zone, 0x2c) > 1) priority = 0.0f;
+        if (priority > best) {
+            best = priority;
+            result = zone;
+        }
+        node = next;
+        next = pk_ptr(next, 0);
+    }
+    return result;
+}
+
+int32_t XB_REGS1 XB_CDECL Com_Filter(const char* filter, const char* name, int32_t casesensitive) {
+    const auto toupper_ = title_function<int32_t XB_CDECL(int32_t)>(0x001efd6d);  // LIBCMT::_toupper
+    char buf[0x84];
+    while (*filter) {
+        if (*filter == '*') {
+            ++filter;
+            int32_t i = 0;
+            for (; *filter && *filter != '*' && *filter != '?'; ++i) buf[i] = *filter++;
+            buf[i] = 0;
+            const size_t length = std::strlen(buf);
+            if (length) {
+                const char* found = Com_StringContains(name, buf, casesensitive);
+                if (!found) return 0;
+                name = found + std::strlen(buf);
+            }
+        } else if (*filter == '?') {
+            ++filter;
+            ++name;
+        } else if (*filter == '[' && filter[1] == '[') {
+            ++filter;
+        } else if (*filter == '[') {
+            ++filter;
+            bool found = false;
+            while (*filter && !found) {
+                if (*filter == ']' && filter[1] != ']') break;
+                if (filter[1] == '-' && filter[2] && (filter[2] != ']' || filter[3] == ']')) {
+                    if (casesensitive) {
+                        if (*name >= *filter && *name <= filter[2]) found = true;
+                    } else {
+                        const int32_t low = toupper_(*filter);
+                        if (toupper_(*name) >= low) {
+                            const int32_t high = toupper_(filter[2]);
+                            if (toupper_(*name) <= high) found = true;
+                        }
+                    }
+                    filter += 3;
+                } else {
+                    if (casesensitive) {
+                        if (*filter == *name) found = true;
+                    } else {
+                        const int32_t a = toupper_(*filter);
+                        if (a == toupper_(*name)) found = true;
+                    }
+                    ++filter;
+                }
+            }
+            if (!found) return 0;
+            while (*filter) {
+                if (*filter == ']' && filter[1] != ']') break;
+                ++filter;
+            }
+            ++filter;
+            ++name;
+        } else {
+            if (casesensitive) {
+                if (*filter != *name) return 0;
+            } else {
+                const int32_t a = toupper_(*filter);
+                if (a != toupper_(*name)) return 0;
+            }
+            ++filter;
+            ++name;
+        }
+    }
+    return 1;
+}
+
+int32_t XB_REGS2 XB_CDECL Com_FilterPath(const char* name, const char* filter, int32_t casesensitive) {
+    char new_name[0x80];
+    char new_filter[0x80];
+    int32_t i = 0;
+    for (; i < 0x7f && filter[i]; ++i) new_filter[i] = filter[i] == '\\' || filter[i] == ':' ? '/' : filter[i];
+    new_filter[i] = 0;
+    for (i = 0; i < 0x7f && name[i]; ++i) new_name[i] = name[i] == '\\' || name[i] == ':' ? '/' : name[i];
+    new_name[i] = 0;
+    return Com_Filter(new_filter, new_name, casesensitive);
+}
+
+void XB_CDECL Com_PushAllRealEvents() {
+    for (;;) {
+        SysEvent real;
+        SysEvent ev = *Com_GetRealEvent(&real);
+        if (!ev.type) return;
+        Com_PushEvent(reinterpret_cast<const uint32_t*>(&ev));
+    }
+}
+
+int32_t XB_CDECL Com_Milliseconds() {
+    for (;;) {
+        SysEvent real;
+        SysEvent ev = *Com_GetRealEvent(&real);
+        if (!ev.type) return ev.time;
+        Com_PushEvent(reinterpret_cast<const uint32_t*>(&ev));
+    }
+}
+
+PLATFORM_ASM_ENTRY(Com_GetEvent_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Com_GetEvent) "addl $4, %esp\n"
+                   "ret")
+
+SysEvent* XB_CDECL Com_GetEvent(SysEvent* out) {
+    int32_t& tail = title_global<int32_t>(0x0095f58c);  // com_pushedEventsTail
+    if (title_global<int32_t>(0x0095f588) > tail) {     // com_pushedEventsHead
+        ++tail;
+        *out = *reinterpret_cast<const SysEvent*>(uintptr_t{0x00940400 + ((tail - 1) & 0x3f) * 0x18});
+        return out;
+    }
+    SysEvent real;
+    *out = *Com_GetRealEvent(&real);
+    return out;
+}
+
+namespace {
+
+// AxisToAngles with row 1 at `row1`: FastSinCos of -angle * pi / 180 on the x87.
+void axis_to_angles(float* angles, const float* row0, const float* row1) {
+    const float pi = title_global<float>(0x0083ed00);
+    const float k180 = title_global<float>(0x0083eb60);
+    vectoangles(row0, angles);
+    const float rx = row1[0], ry = row1[1], rz = row1[2];
+    float s1, c1, s2, c2;
+    FastSinCos(&s1, 0, &c1, static_cast<float>(-static_cast<long double>(angles[1]) * pi / k180));
+    const float tx = c1 * rx - s1 * ry;
+    const float ty = c1 * ry + s1 * rx;
+    FastSinCos(&s2, 0, &c2, static_cast<float>(-static_cast<long double>(angles[0]) * pi / k180));
+    float right[3];
+    right[0] = tx * c2 + s2 * rz;
+    right[1] = ty;
+    right[2] = c2 * rz - tx * s2;
+    const float pitch = vectopitch(right);
+    if (0.0f > right[1])
+        angles[2] = (0.0f > pitch ? k180 : title_global<float>(0x0083ebd0)) + pitch;
+    else
+        angles[2] = 0.0f - pitch;
+}
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL MatrixToAngles(float* angles, uint32_t, const float* matrix) {
+    axis_to_angles(angles, matrix, matrix + 4);
+}
+
+void XB_REGS3 XB_CDECL AxisToAngles(float* angles, uint32_t, const float* axis) {
+    axis_to_angles(angles, axis, axis + 3);
+}
+
+PLATFORM_ASM_ENTRY(vectoangles_ToOut_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(vectoangles_ToOut) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL vectoangles_ToOut(const float* v, float* out) {
+    float angles[3];
+    vectoangles(v, angles);
+    out[0] = angles[0];
+    out[1] = angles[1];
+    out[2] = angles[2];
+}
+
+void XB_CDECL Noise_Init() {
+    if (title_global<uint32_t>(0x0095f560)) return;
+    const auto rand_ = title_function<int32_t XB_CDECL()>(0x001efcc0);  // _rand
+    title_global<uint32_t>(0x0095f560) = 1;
+    int32_t* perm = &title_global<int32_t>(0x0093e758);
+    float* grad = &title_global<float>(0x0093eff0);
+    for (int32_t i = 0; i < 0x100; ++i) {
+        perm[i] = i;
+        grad[i] = static_cast<float>(rand_() % 0x200 - 0x100) * title_global<float>(0x0083ebe4);  // 1/256
+    }
+    for (int32_t i = 0xff; i != 0; --i) {
+        const int32_t k = perm[i];
+        const int32_t j = rand_() % 0x100;
+        perm[i] = perm[j];
+        perm[j] = k;
+    }
+    for (int32_t i = 0; i < 0x102; ++i) {
+        perm[0x100 + i] = perm[i];
+        reinterpret_cast<uint32_t*>(grad)[0x100 + i] = reinterpret_cast<const uint32_t*>(grad)[i];
+    }
+}
+
+void XB_REGS1 XB_CDECL FS_FreeSearchPaths(uint8_t* list) {
+    for (uint8_t* path = list; path;) {
+        uint8_t* next = pk_ptr(path, 0);
+        if (pk<uint32_t>(path, 4)) {
+            unzClose(reinterpret_cast<UnzState*>(pk_ptr(pk_ptr(path, 4), 0x180)));
+            Z_Free(pk_ptr(pk_ptr(path, 4), 0x19c));
+            Z_Free(pk_ptr(path, 4));
+        }
+        if (pk<uint32_t>(path, 8)) Z_Free(pk_ptr(path, 8));
+        Z_Free(path);
+        path = next;
+    }
+}
+
+PLATFORM_ASM_ENTRY(Bounds_AddPoints8_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Bounds_AddPoints8) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Bounds_AddPoints8(const float* m, const float* box, float* bounds) {
+    const auto add_point = title_function<void XB_REGS3 XB_CDECL(float*, uint32_t, const float*)>(0x00029380);
+    for (int32_t i = 0; i < 8; ++i) {
+        const float x = (i & 4) ? box[0] : box[4];
+        const float y = (i & 2) ? box[1] : box[5];
+        const float z = (i & 1) ? box[2] : box[6];
+        alignas(16) float point[4] = {};
+        point[0] = (m[0] * x + z * m[6]) + y * m[3];
+        point[1] = (m[4] * y + m[7] * z) + m[1] * x;
+        point[2] = (m[8] * z + m[2] * x) + y * m[5];
+        add_point(bounds, 0, point);
+    }
+}
+
+void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* maxs, uint32_t, float* mins, const float* point) {
+    float p[4], m[4];
+    for (int32_t i = 0; i < 4; ++i) p[i] = point[i];
+    for (int32_t i = 0; i < 4; ++i) m[i] = mins[i];
+    for (int32_t i = 0; i < 4; ++i) mins[i] = m[i] < p[i] ? m[i] : p[i];  // MINPS mins, point: point if unordered
+    for (int32_t i = 0; i < 4; ++i) p[i] = point[i];
+    for (int32_t i = 0; i < 4; ++i) m[i] = maxs[i];
+    for (int32_t i = 0; i < 4; ++i) maxs[i] = m[i] > p[i] ? m[i] : p[i];  // MAXPS maxs, point
+}
+
+PLATFORM_ASM_ENTRY(CM_WorldTrees_Construct_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CM_WorldTrees_Construct) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL CM_WorldTrees_Construct(uint8_t* self) {
+    pk<uint32_t>(self, 0) = 0x00838220;  // ResourceManager vtable
+    const int32_t count = title_global<int32_t>(0x009719f8);
+    if (count < 0x14) {
+        title_global<uint32_t>(0x009719fc + static_cast<uint32_t>(count) * 4) = u32(self);
+        ++title_global<int32_t>(0x009719f8);
+    }
+    pk<uint32_t>(self, 0) = 0x00832788;
+    const int32_t debug = title_global<int32_t>(0x00988780);
+    if (debug < 0x20) {
+        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(debug) * 4) = 0x0001d0d0;
+        ++title_global<int32_t>(0x00988780);
+    }
+    pk<uint32_t>(self, 0xc) = 0;
+    std::memset(self + 0x10, 0, 0x63 * 4);
+    pk<uint32_t>(self, 4) = 0;
+    pk<uint32_t>(self, 8) = 0;
+    pk<uint32_t>(self, 4) &= ~1u;
+    Cmd_AddCommand(tstr(0x00833520), 0x002afb90);  // "cg"
+    return self;
+}
+
 }  // namespace game
