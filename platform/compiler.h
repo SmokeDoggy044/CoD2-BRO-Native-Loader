@@ -385,6 +385,20 @@ inline std::int32_t platform_x87_mul_ftol(float a, float b) {
             : "st");
     return static_cast<std::int32_t>(result);
 }
+// MSVC's _ftol of lg 2 * log2(x) * k on the x87 (FLD, FLDLG2, FXCH, FYL2X, FMUL; the
+// caller's precision control), a chopping FISTP through 64 bits, low half: a volume in
+// hundredths of a decibel from a linear one (k = 2000).
+inline std::int32_t platform_x87_log10_mul_ftol(float x, float k) {
+    std::int64_t result;
+    std::uint16_t control, chop;
+    __asm__("fnstcw %0" : "=m"(control));
+    chop = static_cast<std::uint16_t>(control | 0x0c00);
+    __asm__("flds %1\n\tfldlg2\n\tfxch %%st(1)\n\tfyl2x\n\tfmuls %2\n\tfldcw %3\n\tfistpll %0\n\tfldcw %4"
+            : "=m"(result)
+            : "m"(x), "m"(k), "m"(chop), "m"(control)
+            : "st", "st(1)");
+    return static_cast<std::int32_t>(result);
+}
 // An int to float on the x87: FILD, FSTP (rounded by the caller's rounding control). No MXCSR
 // flags, unlike CVTSI2SS (precision flag above 2^24).
 inline float platform_x87_int_to_float(std::int32_t value) {
@@ -590,6 +604,9 @@ inline std::int32_t platform_x87_add_mul_mul_add_ftol(float a, float b, float c,
 inline std::int32_t platform_x87_round_to_int(float x) { return static_cast<std::int32_t>(std::nearbyint(x)); }
 inline float platform_x87_int_mul(std::int32_t value, float factor) { return static_cast<float>(value) * factor; }
 inline std::int32_t platform_x87_mul_ftol(float a, float b) { return static_cast<std::int32_t>(static_cast<std::int64_t>(a * b)); }
+inline std::int32_t platform_x87_log10_mul_ftol(float x, float k) {
+    return static_cast<std::int32_t>(static_cast<std::int64_t>(std::log10(x) * k));
+}
 inline void platform_rep_movs(void* dst, const void* src, std::uint32_t bytes) {
     auto* d = static_cast<volatile unsigned char*>(dst);
     const auto* q = static_cast<const volatile unsigned char*>(src);

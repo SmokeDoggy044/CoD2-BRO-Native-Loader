@@ -1877,6 +1877,455 @@ void XB_STDCALL S_LoadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t
     if (!emitter_word<uint32_t>(bank, 0x50)) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
 }
 
+// --- Hardware voices: DirectSound buffers and streams ---
+//
+// A hardware slot (0x0090a940, 0x6c bytes, one per voice record) holds the voice's
+// DirectSound buffer (+0), the buffer's wave format (+4), and for streamed sounds the file
+// media object (+0x2c), the DirectSound stream (+0x30) and a ring of two packets ({status,
+// needs-fill flag, bytes} at +0x38 + 12 * i over the slot's memory at +0x34), with the stream
+// length (+0x50), bytes left (+0x58), the packet that ends it (+0x5c), packet size (+0x60),
+// data offset (+0x64) and the voice record (+0x68).
+
+namespace {
+
+constexpr uint32_t kPending = 0x8000000au;  // E_PENDING: a packet the stream has not completed
+
+// A title object's vtable slot (byte offset), called stdcall with the object first.
+template <typename F>
+F* snd_method(uint8_t* object, uint32_t offset) {
+    return title_function<F>(snd_at<uint32_t>(snd_at<uint8_t*>(object, 0), offset));
+}
+
+uint32_t direct_sound() { return title_global<uint32_t>(0x00911540); }
+
+void synch_playback() { title_function<int32_t XB_STDCALL(uint32_t)>(0x003c76c3)(direct_sound()); }  // IDirectSound_SynchPlayback
+
+// The mix bins for `channels` (1: by the voice's flag +0xc3 bit 0, 2, 6; else null) in table
+// half `second` (DSMIXBINS pairs at 0x008bec94..).
+uint32_t mix_bins(uint32_t channels, const uint8_t* voice, uint32_t second) {
+    uint32_t table = 0;
+    if (channels == 1)
+        table = (voice[0xc3] & 1) ? 0x008beca4 : 0x008becc4;
+    else if (channels == 2)
+        table = 0x008becb4;
+    else if (channels == 6)
+        table = 0x008bec94;
+    return table ? table + second * 8 : 0;
+}
+
+// A speaker map's channel count: its bits counted, no bits = mono.
+uint32_t speaker_channels(uint8_t map) {
+    if (!map) return 1;
+    uint8_t v = uint8_t(((map >> 1) & 0x55) + (map & 0x55));
+    v = uint8_t(((v >> 2) & 0x33) + (v & 0x33));
+    return uint32_t(v >> 4) + (v & 0xf);
+}
+
+}  // namespace
+
+int32_t XB_THISCALL SndStream_ReadPacket(uint8_t* slot, uint32_t index) {
+    // XMEDIAPACKET {buffer, size, completed size, status, context, timestamp}.
+    uint32_t packet[6] = {snd_at<uint32_t>(slot, 0x60) * index + snd_at<uint32_t>(slot, 0x34), 0, 0, 0, 0, 0};
+    const uint32_t size = snd_at<uint32_t>(slot, 0x60);
+    packet[1] = size;
+    const uint32_t left = snd_at<uint32_t>(slot, 0x58);
+    if (left < size) {
+        snd_at<uint32_t>(slot, 0x40 + index * 12) = left;
+        packet[1] = (left + 0xfff) & ~0xfffu;
+    }
+    uint32_t* const needs_fill = &snd_at<uint32_t>(slot, 0x3c + index * 12);
+    *needs_fill = 0;
+    uint8_t* const source = snd_at<uint8_t*>(slot, 0x2c);
+    uint32_t* const status = &snd_at<uint32_t>(slot, 0x38 + index * 12);
+    packet[3] = uint32_t(uintptr_t(status));
+    const int32_t result =
+        snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*, uint32_t*)>(source, 0x10)(source, nullptr, packet);  // Process
+    snd_at<uint32_t>(slot, 0x58) -= snd_at<uint32_t>(slot, 0x40 + index * 12);
+    if (snd_at<uint32_t>(slot, 0x58) == 0) {
+        snd_at<uint32_t>(slot, 0x5c) = index;
+    } else if (result < 0 && uint32_t(result) != kPending) {
+        *needs_fill = 1;
+        *status = 0;
+        snd_at<uint32_t>(slot, 0x40 + index * 12) = snd_at<uint32_t>(slot, 0x60);
+    }
+    return 0;
+}
+
+int32_t XB_THISCALL SndStream_Update(uint8_t* slot) {
+    uint8_t* const source = snd_at<uint8_t*>(slot, 0x2c);
+    snd_method<int32_t XB_STDCALL(uint8_t*)>(source, 0x24)(source);  // DoWork
+    uint32_t source_status;
+    snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*)>(source, 0xc)(source, &source_status);  // GetStatus
+    if (!(source_status & 2)) return 0;  // no output ready
+    for (;;) {
+        const uint32_t last = snd_at<uint32_t>(slot, 0x5c);
+        uint32_t index;
+        if (last != 0xffffffffu && snd_at<uint32_t>(slot, 0x38 + last * 12) != kPending &&
+            snd_at<uint32_t>(slot, 0x3c + last * 12) == 1) {
+            index = last;
+        } else {
+            for (index = 0; index < 2 && snd_at<uint32_t>(slot, 0x38 + index * 12) == kPending; ++index) {}
+            if (index == 2) return 0;
+        }
+        uint32_t* const needs_fill = &snd_at<uint32_t>(slot, 0x3c + index * 12);
+        uint8_t* const voice = snd_at<uint8_t*>(slot, 0x68);
+        if (*needs_fill == 1) {
+            if (last != 0xffffffffu && voice[0xc0] == 4) {
+                // The last packet went out: the voice ends once the stream stops playing.
+                const uint32_t end = snd_at<uint32_t>(slot, 0x5c);
+                if (index != end || snd_at<uint32_t>(slot, 0x38 + end * 12) == kPending) return 0;
+                uint8_t* const stream = snd_at<uint8_t*>(slot, 0x30);
+                uint32_t stream_status;
+                snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*)>(stream, 0xc)(stream, &stream_status);  // GetStatus
+                if (stream_status & 0x10000) return 0;
+                voice[0xc0] = 6;
+                return 0;
+            }
+            if (snd_at<uint32_t>(slot, 0x58) == 0) {
+                if (voice[0xc0] == 2) voice[0xc0] = 3;
+                return 0;
+            }
+            SndStream_ReadPacket(slot, index);  // never fails
+            continue;
+        }
+        if (voice[0xc0] == 2) {
+            voice[0xc0] = 3;
+            return 0;
+        }
+        if (voice[0xc0] != 4) return 0;
+        // A filled packet goes to the stream; the stream's last one loops the file or ends it.
+        uint32_t packet[6] = {snd_at<uint32_t>(slot, 0x60) * index + snd_at<uint32_t>(slot, 0x34), 0, 0, 0, 0, 0};
+        packet[3] = uint32_t(uintptr_t(&snd_at<uint32_t>(slot, 0x38 + index * 12)));
+        packet[1] = snd_at<uint32_t>(slot, 0x40 + index * 12);
+        *needs_fill = 1;
+        uint8_t* const stream = snd_at<uint8_t*>(slot, 0x30);
+        const int32_t result =
+            snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*, uint32_t*)>(stream, 0x10)(stream, packet, nullptr);  // Process
+        snd_at<uint32_t>(slot, 0x40 + index * 12) = snd_at<uint32_t>(slot, 0x60);
+        if (snd_at<uint32_t>(slot, 0x5c) == index) {
+            if (voice[0xc3] & 8) {
+                snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t, uint32_t, uint32_t)>(source, 0x1c)(
+                    source, snd_at<uint32_t>(slot, 0x64), 0, 0);  // Seek to the data
+                snd_at<uint32_t>(slot, 0x58) = snd_at<uint32_t>(slot, 0x50);
+                snd_at<uint32_t>(slot, 0x5c) = 0xffffffffu;
+            } else {
+                snd_method<int32_t XB_STDCALL(uint8_t*)>(stream, 0x14)(stream);  // Discontinuity
+            }
+        }
+        if (result < 0) return result;
+    }
+}
+
+int32_t XB_THISCALL SndStream_SetFormat(uint8_t* slot, uint8_t* voice, const uint8_t* sound) {
+    uint8_t*& source = snd_at<uint8_t*>(slot, 0x2c);
+    if (source) snd_method<int32_t XB_STDCALL(uint8_t*)>(source, 4)(source);  // Release
+    source = nullptr;
+    snd_at<uint32_t>(slot, 0x50) = 0;
+    snd_at<uint32_t>(slot, 0x5c) = 0xffffffffu;
+    uint8_t format[0x14];  // WAVEFORMATEX / XBOXADPCMWAVEFORMAT; other formats leave it unset
+    const uint32_t rate = *reinterpret_cast<const uint16_t*>(sound + 0x20);
+    switch (sound[4]) {
+    case 1:
+    case 2:
+        title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint8_t*)>(0x003c6436)(
+            SndFormat_GetChannelCount(sound), rate, sound[4] == 1 ? 8 : 16, format);  // XAudioCreatePcmFormat
+        break;
+    case 5:
+        title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint8_t*)>(0x003c643b)(
+            SndFormat_GetChannelCount(sound), rate, format);  // XAudioCreateAdpcmFormat
+        break;
+    }
+    uint8_t* const stream = snd_at<uint8_t*>(slot, 0x30);
+    title_function<int32_t XB_STDCALL(uint8_t*, uint8_t*)>(0x003c8ac9)(stream, format);  // IDirectSoundStream_SetFormat
+    if (const uint32_t bins = mix_bins(*reinterpret_cast<const uint16_t*>(format + 2), voice, 0))
+        title_function<int32_t XB_STDCALL(uint8_t*, uint32_t)>(0x003c845a)(stream, bins);  // IDirectSoundStream_SetMixBins
+    const uint32_t* const file = title_function<const uint32_t* XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
+        0x000ca910)(*reinterpret_cast<const uint32_t*>(sound + 0x24), 0, 0, 0, 0);  // File_GetNativeHandle
+    const int32_t result = title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint8_t**)>(0x003c7a83)(
+        *file, 2, &source);  // XFileCreateMediaObjectAsync
+    if (result < 0) return result;
+    const uint32_t samples = *reinterpret_cast<const uint32_t*>(sound + 0xc);
+    switch (sound[4]) {
+    case 1: snd_at<uint32_t>(slot, 0x50) = SndFormat_GetChannelCount(sound) * samples << 3; break;
+    case 2: snd_at<uint32_t>(slot, 0x50) = SndFormat_GetChannelCount(sound) * samples << 4; break;
+    case 5: snd_at<uint32_t>(slot, 0x50) = SndFormat_GetChannelCount(sound) * (samples >> 6) * 36; break;
+    }
+    snd_at<uint32_t>(slot, 0x58) = snd_at<uint32_t>(slot, 0x50);
+    const uint32_t offset = *reinterpret_cast<const uint32_t*>(sound + 0x1c);
+    snd_at<uint32_t>(slot, 0x64) = offset;
+    snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t, uint32_t, uint32_t)>(source, 0x1c)(source, offset, 0, 0);  // Seek
+    for (uint32_t i = 0; i < 2; ++i) {
+        snd_at<uint32_t>(slot, 0x40 + i * 12) = snd_at<uint32_t>(slot, 0x60);
+        snd_at<uint32_t>(slot, 0x38 + i * 12) = 0;
+        snd_at<uint32_t>(slot, 0x3c + i * 12) = 1;
+    }
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(SndVoice_SetMixBins_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(SndVoice_SetMixBins) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL SndVoice_SetMixBins(uint8_t* slot, uint32_t second) {
+    const uint8_t* const voice = snd_at<uint8_t*>(slot, 0x68);
+    const uint32_t index = second != 0;
+    const uint32_t channels = speaker_channels(voice[0xc4]);
+    if (voice[0xc3] & 2) {
+        const uint32_t bins = mix_bins(channels, voice, index);
+        if (!bins) {
+            Snd_Printf();  // "Unsupported channelCount/speakerMap combo for the streaming sound"
+            return;
+        }
+        title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c845a)(snd_at<uint32_t>(slot, 0x30), bins);  // IDirectSoundStream_SetMixBins
+        return;
+    }
+    if (channels != 1 && channels != 2) {
+        Snd_Printf();  // "Unsupported channelCount/speakerMap combo for the non-streaming sound"
+        return;
+    }
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c83b5)(snd_at<uint32_t>(slot, 0),
+                                                                        mix_bins(channels, voice, index));  // IDirectSoundBuffer_SetMixBins
+}
+
+PLATFORM_ASM_ENTRY(SndVoice_SetupBuffer_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(SndVoice_SetupBuffer) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL SndVoice_SetupBuffer(uint8_t* slot, const uint8_t* sound, uint8_t* voice) {
+    snd_at<uint8_t*>(slot, 0x68) = voice;
+    if (voice[0xc3] & 2) {
+        SndStream_SetFormat(slot, voice, sound);
+        voice[0xc0] = 2;
+        return;
+    }
+    const uint32_t buffer = snd_at<uint32_t>(slot, 0);
+    uint8_t* const format = slot + 4;  // WAVEFORMATEX (+ ADPCM samples per block)
+    const uint16_t channels = uint16_t(speaker_channels(sound[6]));
+    *reinterpret_cast<uint16_t*>(format + 2) = channels;
+    *reinterpret_cast<uint32_t*>(format + 4) = *reinterpret_cast<const uint16_t*>(sound + 0x20);
+    const uint8_t kind = sound[4];
+    if (kind == 5) {
+        const uint16_t block = uint16_t(channels * 36);
+        *reinterpret_cast<uint16_t*>(format) = 0x69;  // Xbox ADPCM
+        *reinterpret_cast<uint16_t*>(format + 0x12) = 0x40;
+        *reinterpret_cast<uint16_t*>(format + 0x10) = 2;
+        *reinterpret_cast<uint16_t*>(format + 0xe) = 4;
+        *reinterpret_cast<uint16_t*>(format + 0xc) = block;
+        *reinterpret_cast<uint32_t*>(format + 8) = (*reinterpret_cast<const uint32_t*>(format + 4) >> 6) * block;
+    } else if (kind == 1 || kind == 2) {
+        const uint16_t bits = kind == 1 ? 8 : 16;
+        *reinterpret_cast<uint16_t*>(format) = 1;  // PCM
+        *reinterpret_cast<uint16_t*>(format + 0xe) = bits;
+        const uint16_t block = uint16_t(bits * channels / 8);
+        *reinterpret_cast<uint16_t*>(format + 0xc) = block;
+        *reinterpret_cast<uint32_t*>(format + 8) = block * *reinterpret_cast<const uint32_t*>(format + 4);
+    } else {
+        Snd_Printf();  // "Invalid non-streaming format 0x%8.8X"
+        voice[0xc0] = 6;
+        return;
+    }
+    title_function<int32_t XB_STDCALL(uint32_t, uint8_t*)>(0x003c8a8d)(buffer, format);  // IDirectSoundBuffer_SetFormat
+    const uint16_t format_channels = *reinterpret_cast<const uint16_t*>(format + 2);
+    if (format_channels == 1 || format_channels == 2)
+        title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c83b5)(buffer, mix_bins(format_channels, voice, 0));  // IDirectSoundBuffer_SetMixBins
+    const uint32_t block = *reinterpret_cast<const uint16_t*>(format + 0xc);
+    const uint32_t length = (*reinterpret_cast<const uint32_t*>(sound + 0xc) >> 6) * block;
+    const uint32_t start = *reinterpret_cast<const uint32_t*>(sound + 0x1c) - SndMem_GetBase();
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003c8435)(buffer, start, length);  // IDirectSoundBuffer_SetPlayRegion
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003c77cf)(
+        buffer, 0, (*reinterpret_cast<const uint32_t*>(sound + 0xc) >> 6) * block);  // IDirectSoundBuffer_SetLoopRegion
+    title_function<int32_t XB_STDCALL(uint32_t, int32_t)>(0x003c76db)(buffer, 0);  // IDirectSoundBuffer_SetVolume
+    voice[0xc0] = 3;
+}
+
+uint32_t XB_CDECL SndHw_Update() {
+    // snd_speakerMode: a negative value is a request (1-3 speakers, 4 headphones).
+    int32_t mode = title_global<int32_t>(0x008bd650);
+    if (mode < 0) {
+        mode = -mode;
+        title_global<int32_t>(0x008bd650) = mode;
+        if (mode > 0 && mode <= 3)
+            title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c7687)(direct_sound(), 0);  // IDirectSound_EnableHeadphones
+        else if (mode == 4)
+            title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c7687)(direct_sound(), 1);
+        else
+            Snd_Printf();  // "Invalid speaker mode set"
+    }
+    uint32_t synch = 0;
+    for (int32_t i = 0; i < title_global<int32_t>(0x008bed00); ++i) {
+        uint8_t* const slot = &title_global<uint8_t>(0x0090a940 + uint32_t(i) * 0x6c);
+        uint8_t* const voice = &title_global<uint8_t>(0x00911548 + uint32_t(i) * 0xe0);
+        // Voice record: state +0xc0 (1 new, 2 stream starting, 3 ready, 4 playing, 5 paused, 6 done,
+        // 7 stopping), requests +0xc1 (1 play, 2 pause, 4 resume, 8 stop, 0x10 restart, 0x20/0x40
+        // mix bins), flags +0xc3 (1 3D, 2 streamed, 8 looping), dirty parameter bits +0.
+        uint8_t& state = voice[0xc0];
+        uint8_t& requests = voice[0xc1];
+        if (!state) continue;
+        const uint8_t* const sound = SndBank_GetSoundEntry(snd_at<uint32_t>(voice, 0xc8));
+        const bool streamed = voice[0xc3] & 2;
+        uint8_t* const stream = streamed ? snd_at<uint8_t*>(slot, 0x30) : nullptr;
+        const uint32_t buffer = streamed ? 0 : snd_at<uint32_t>(slot, 0);
+        if (state == 1) {
+            if (!sound) {
+                state = 6;
+                continue;
+            }
+            SndVoice_SetupBuffer(slot, sound, voice);
+        }
+        if (state != 7 && (requests & 8)) {
+            requests &= ~8;
+            state = 7;
+            if (stream)
+                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t, uint32_t, uint32_t)>(0x003c7840)(stream, 0, 0, 1);  // IDirectSoundStream_FlushEx
+            else
+                title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x003c778f)(buffer, 0, 0, 2);  // IDirectSoundBuffer_StopEx
+        }
+        uint32_t status;
+        if (state == 7) {
+            // Stopped once nothing plays any more; a restart request makes it new again.
+            if (stream) {
+                snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*)>(stream, 0xc)(stream, &status);  // GetStatus
+                if (status & 0x30000) continue;
+            } else {
+                title_function<int32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003c77ef)(buffer, &status);  // IDirectSoundBuffer_GetStatus
+                if (!buffer || (status & 3)) continue;
+            }
+            state = (requests >> 4) & 1;
+            requests &= ~0x10;
+            continue;
+        }
+        if (state == 2) SndStream_Update(slot);
+        if (state == 3 && (requests & 1)) {
+            if (synch++ >= 0x10) {
+                synch_playback();
+                synch = 0;
+            }
+            if (buffer)
+                title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x003c772f)(
+                    buffer, 0, 0, ((voice[0xc3] & 8) | 0x30) >> 3);  // IDirectSoundBuffer_Play
+            requests &= ~1;
+            state = 4;
+        } else if (state == 5 && (requests & 4)) {
+            if (synch++ >= 0x10) {
+                synch_playback();
+                synch = 0;
+            }
+            if (stream)
+                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t)>(0x003c783b)(stream, 2);  // IDirectSoundStream_Pause
+            else
+                title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c77b3)(buffer, 2);  // IDirectSoundBuffer_Pause
+            requests &= ~4;
+            state = 4;
+        } else if (state != 4) {
+            continue;
+        }
+        if (requests & 2) {
+            if (stream)
+                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t)>(0x003c783b)(stream, 1);  // IDirectSoundStream_Pause
+            else
+                title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c77b3)(buffer, 1);  // IDirectSoundBuffer_Pause
+            requests &= ~2;
+            state = 5;
+            continue;
+        }
+        if (state != 4) continue;
+        if (stream) {
+            snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*)>(stream, 0xc)(stream, &status);  // GetStatus
+            SndStream_Update(slot);
+        } else {
+            title_function<int32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003c77ef)(buffer, &status);  // IDirectSoundBuffer_GetStatus
+            if (!(status & 3)) state = 6;
+        }
+        if (requests & 0x20) SndVoice_SetMixBins(slot, 1);
+        if (requests & 0x40) SndVoice_SetMixBins(slot, 0);
+        requests &= 0x9f;
+        const uint32_t dirty = snd_at<uint32_t>(voice, 0);
+        snd_at<uint32_t>(voice, 0) = 0;
+        snd_at<uint32_t>(voice, 4) = 0;
+        const float one = title_global<float>(0x0083eb20);
+        if ((voice[0xc3] & 1) && (dirty & 0x1ff80000)) {
+            float doppler = snd_at<float>(voice, 0x74);
+            float rolloff = snd_at<float>(voice, 0x78);
+            if (0.0f > doppler)
+                doppler = 0.0f;
+            else if (doppler > title_global<float>(0x0083eb98))  // 10
+                doppler = title_global<float>(0x0083eb98);
+            if (0.0f > rolloff)
+                rolloff = 0.0f;
+            else if (rolloff > title_global<float>(0x0083eb9c))  // 1000
+                rolloff = title_global<float>(0x0083eb9c);
+            // DS3DBUFFER: size, position, velocity, cone angles, cone orientation, cone outside
+            // volume, min/max distance, mode, distance/rolloff/doppler factors.
+            uint32_t params[19] = {};
+            float* const f = reinterpret_cast<float*>(params);
+            for (uint32_t k = 0; k < 6; ++k) params[1 + k] = snd_at<uint32_t>(voice, 0x54 + k * 4);
+            f[9] = 0.0f;
+            f[11] = 0.0f;
+            float min_distance = snd_at<float>(voice, 0x6c);
+            const float max_distance = snd_at<float>(voice, 0x70);
+            params[0] = 0x4c;
+            f[10] = one;
+            f[13] = min_distance;
+            f[14] = max_distance;
+            const float margin = title_global<float>(0x0083ebf8);  // 0.1
+            if (margin > min_distance) {
+                min_distance = margin;
+                f[13] = min_distance;
+            }
+            min_distance += margin;
+            if (min_distance > max_distance) f[14] = min_distance;
+            f[16] = one;
+            f[17] = rolloff;
+            f[18] = doppler;
+            if (stream)
+                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t*, uint32_t)>(0x003c845f)(stream, params, 1);  // IDirectSoundStream_SetAllParameters
+            if (buffer)
+                title_function<int32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t)>(0x003c83d1)(buffer, params, 1);  // IDirectSoundBuffer_SetAllParameters
+        }
+        if (dirty & 1) {
+            float volume = snd_at<float>(voice, 8);
+            const float floor = title_global<float>(0x0083ed50);  // 0.0001
+            if (floor > volume)
+                volume = floor;
+            else if (volume > one)
+                volume = one;
+            const int32_t level = platform_x87_log10_mul_ftol(volume, title_global<float>(0x0083ecc8));  // * 2000
+            if (stream)
+                title_function<int32_t XB_STDCALL(uint8_t*, int32_t)>(0x003c7827)(stream, level);  // IDirectSoundStream_SetVolume
+            else
+                title_function<int32_t XB_STDCALL(uint32_t, int32_t)>(0x003c76db)(buffer, level);  // IDirectSoundBuffer_SetVolume
+        }
+        if ((dirty & 2) && sound) {
+            uint32_t frequency = uint32_t(platform_x87_mul_add_ftol(
+                *reinterpret_cast<const uint16_t*>(sound + 0x20), snd_at<float>(voice, 0xc), 0, false));
+            if (frequency < 0xbc)
+                frequency = 0xbc;
+            else if (frequency > 0x2edef)
+                frequency = 0x2edef;
+            if (stream)
+                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t)>(0x003c8455)(stream, frequency);  // IDirectSoundStream_SetFrequency
+            else
+                title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c8399)(buffer, frequency);  // IDirectSoundBuffer_SetFrequency
+        }
+    }
+    // The listener, deferred settings committed, voices started together.
+    uint8_t* const mix = Snd_GetMixState();
+    const auto word = [mix](uint32_t offset) { return snd_at<uint32_t>(mix, offset); };
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x003c934d)(
+        direct_sound(), word(0x54), word(0x58), word(0x5c), 1);  // IDirectSound_SetPosition
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x003c9382)(
+        direct_sound(), word(0x60), word(0x64), word(0x68), 1);  // IDirectSound_SetVelocity
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
+        0x003c9303)(direct_sound(), word(0xc0), word(0xc4), word(0xc8), word(0xcc), word(0xd0), word(0xd4),
+                    1);  // IDirectSound_SetOrientation
+    title_function<int32_t XB_STDCALL(uint32_t)>(0x003c8f89)(direct_sound());  // IDirectSound_CommitDeferredSettings
+    synch_playback();
+    return title_function<uint32_t XB_STDCALL()>(0x003c7858)();  // DirectSoundDoWork
+}
+
 // --- Sound options menu ---
 
 namespace {
@@ -2118,7 +2567,7 @@ uint32_t XB_CDECL SndSys_Update() {
         SndVoice_Free(emitter_word<int32_t>(voice, 0xcc));
         SndHw_ReleaseSlot(uint32_t(i));
     }
-    return title_function<uint32_t XB_CDECL()>(0x000c7730)();  // SndHw_Update (tail jump)
+    return SndHw_Update();  // tail jump
 }
 
 // --- Channel params, level sounds, wave banks ---

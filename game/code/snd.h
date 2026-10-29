@@ -143,6 +143,24 @@ int32_t XB_CDECL SndHw_AllocSlot(uint32_t sound, uint32_t owner, uint32_t any_sl
 // 0x000c85c0: the listener axes from the mix state (+0xc0..+0xd4): three cross products normalized (0x0091f654,
 // 9 floats), then the two vectors 0x008bd668 / 0x008bd688 expressed in them (0x008bd678 / 0x008bd698).
 void XB_CDECL Snd_UpdateListenerAxis();
+// The hardware voices (slot 0x0090a940 per voice record, 0x6c bytes; snd.cpp "Hardware voices"):
+// 0x000c7220 (thiscall slot, packet index): reads the file's next packet into the slot's ring.
+int32_t XB_THISCALL SndStream_ReadPacket(uint8_t* slot, uint32_t index);
+// 0x000c7540 (thiscall slot): file work, ring packets refilled and queued on the stream, loops and the end.
+int32_t XB_THISCALL SndStream_Update(uint8_t* slot);
+// 0x000c7020 (thiscall slot, voice, sound entry): stream format, mix bins, file media object, packet ring.
+int32_t XB_THISCALL SndStream_SetFormat(uint8_t* slot, uint8_t* voice, const uint8_t* sound);
+// 0x000c6790 (ESI slot, ECX second mix-bin set): the voice's mix bins by its channel count.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SndVoice_SetMixBins(uint8_t* slot, uint32_t second);
+extern "C" void SndVoice_SetMixBins_entry(void);
+// 0x000c7300 (ECX slot, EDI sound entry, cdecl voice record): a new voice's buffer format, regions and mix
+// bins (state 3), or its stream (state 2); an unknown format ends it (state 6).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SndVoice_SetupBuffer(uint8_t* slot, const uint8_t* sound, uint8_t* voice);
+extern "C" void SndVoice_SetupBuffer_entry(void);
+// 0x000c7730: speaker mode requests, then per voice record its state machine on the DirectSound buffer or
+// stream (setup, stop, play, pause, resume), 3D parameters, volume and frequency from the dirty bits; then the
+// listener, CommitDeferredSettings, SynchPlayback, DirectSoundDoWork (its result).
+uint32_t XB_CDECL SndHw_Update();
 
 // 0x000c4af0: per voice of the pool 0x0090a8b4 - its
 // source's dirty parameters (pool 0x0090a8e4) copied in, distance cull against the range (+0x78; hardware slot
