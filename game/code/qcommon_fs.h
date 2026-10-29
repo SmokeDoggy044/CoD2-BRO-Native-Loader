@@ -379,4 +379,54 @@ const float* XB_REGS3 XB_CDECL Mat43_UntransformPoint(const float* m, uint32_t, 
 // 0x002a32e0 (no callers): {cos a, sin a} * r for random a in [0, 360) degrees and r in [0, 1).
 float* XB_CDECL RandomPointInUnitCircle(float* x, float* y);
 
+// --- Pak zones and memory contexts (pak = the stream pak 0x0095f638: zone vector +0x18 {+0x10 size, +0x14
+// data}, slot records +0x38[99], context cache +0x1c4[99], loaded list +0x368 (sentinel +0x36c)) ---
+// 0x0028e550: the memory context of zone slot id: cached in +0x1c4[id]; from the slot record's +0x78
+// (ZoneRecord_GetContext), else the zone whose +0x28 is id; 0 without zones or for id -1.
+uint8_t* XB_THISCALL MemContext_FindById(uint8_t* pak, int32_t id);
+// 0x0028fcc0 (flag byte in AL, id in ECX): scope {+0 id, +4 old 0x0095f5d0}; for id != -1 stores AL in
+// 0x0095f5d1, sets 0x0095f5d0 and pushes id on the pak's context stack (MemContext_Push). Returns scope.
+uint8_t* XB_REGS3 XB_STDCALL MemContextScope_Enter(uint32_t flag, uint32_t, int32_t id, uint8_t* scope);
+// 0x0028ccf0 (out in ESI): appends each loaded zone's id (+0x74) to out {count, ids[32]} (up to 32).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Pak_CollectLoadedZoneIds(int32_t* out);
+extern "C" void Pak_CollectLoadedZoneIds_entry(void);
+// 0x0028cb00 (pak in EDI): every zone whose name (+8) contains a loaded zone's name (+8) gets that
+// zone's id (+0x74) in +0x28, and +0x2c = 1 when it was 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Pak_AssignZoneIdsByName(uint8_t* pak);
+extern "C" void Pak_AssignZoneIdsByName_entry(void);
+// 0x0028e460 (pak in EBX): of the zones not loaded (no slot, or slot state +0xdc 3) the one with the
+// lowest Zone_UpdatePriority (ties: the one whose Zone_FindUnloadedChild is another zone); then that
+// zone when its slot state is 0, else its unloaded child (itself without one). 0 for none.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Pak_FindNextZoneToLoad(uint8_t* pak);
+extern "C" void Pak_FindNextZoneToLoad_entry(void);
+// 0x0028e180 (pak in EDX): calls the progress callback +0x35c with (1 - 0x008d9d3c - 0x008d9d40) *
+// done / total (0x0095f62c +0x10): per loaded zone in state 1 (+0xdc) LoadBits_Progress(+0x54), in
+// state 2/3 (+0xe0) one per flagged (+0xc & 4) item whose +0x18 is the full (+0x14) or half count.
+void XB_REGS2 XB_CDECL Pak_UpdateLoadProgress(uint32_t, uint8_t* pak);
+// 0x00290020 (pak in ESI): clears the pak, registers PakRender and the progressbar/renderpaks/
+// renderheaps cvars, allocates the 0x9000-byte block 0x0095f608 and adds callback 0x0001b9a0 to the
+// 32-entry list 0x00988784 (count 0x00988780). Returns pak.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Pak_Init(uint8_t* pak);
+extern "C" void Pak_Init_entry(void);
+// 0x00290fe0 / 0x00291090: R_LoadCellMeshes(mesh +0x20, release 1 / 0) for each mesh (+0x30 count,
+// +0x34 data) of every cell whose zone (+0x24) has id +0x28 == id, over the cell lists chained from
+// +0x1cc through each list's +0x3c.
+void XB_STDCALL Pak_ReleaseCellMeshesForZone(uint8_t* ctx, int32_t id);
+void XB_STDCALL Pak_LoadCellMeshesForZone(uint8_t* ctx, int32_t id);
+// 0x002939d0 (mode in EAX; no callers): modes 0 and 2 touch every 32nd byte of the first 4 KB.
+void XB_REGS1 XB_CDECL Com_Prefetch(uint32_t mode, const uint8_t* data, int32_t size);
+// 0x00293ab0: touches the source like Com_Prefetch, then copies 32-byte blocks from the last down,
+// then the rest 16/8/4/2/1 forward.
+void XB_CDECL Com_MemcpyPrefetch(uint8_t* dst, const uint8_t* src, int32_t count);
+// 0x002999e0: 1 when a console line starts "safe" or "cvar_restart" (that line is emptied), else 0x0095f594.
+uint32_t XB_CDECL Com_SafeMode();
+// 0x00299890 (out in EBX): the next event from the journal file (com_journal 2) or Sys_GetEvent (written
+// to the journal for com_journal 1). Returns out.
+extern "C" PLATFORM_HIDDEN SysEvent* XB_CDECL Com_GetRealEvent(SysEvent* out);
+extern "C" void Com_GetRealEvent_entry(void);
+// 0x0029d4a0 (pointer table 0x002f115b only): 1 when fopen(homepath/gamedir/name, "rb") succeeds.
+uint32_t XB_CDECL FS_FileExists(const char* name);
+// 0x00250a10 ("where"): prints the client's origin (+0x23c, vtos) and copies it to 0x00947f18.
+void XB_CDECL Cmd_Where_f(uint8_t* ent);
+
 }  // namespace game

@@ -593,11 +593,14 @@ address,name,tested,matched,nan,mismatched,coverage
 0027e190,CG_AltWeapon_f,3799,3799,0,0,88.6
 002800a0,CG_CenterPrint,3467,3467,0,0,29.0
 0028bea0,Stream_LoadSpace,4000,4000,0,0,100.0
+0028cb00,Pak_AssignZoneIdsByName,1836,1836,0,0,89.0
 0028d7d0,ResourceManager_Destruct,1078,1078,0,0,69.4
 0028d8b0,ZoneRecord_GetContext,3759,3759,0,0,100.0
 0028ef40,StreamMem_Free,1023,1023,0,0,100.0
 0028f740,R_DrawTextWithShadow_2,3453,3046,407,0,97.6
 00292ee0,Key_TranslateButtonName,3804,3804,0,0,65.0
+002939d0,Com_Prefetch,3973,3973,0,0,100.0
+00293ab0,Com_MemcpyPrefetch,1881,1881,0,0,100.0
 00293d20,Com_StringContains,3646,3646,0,0,87.8
 00293e10,Rand_StepSeed,4000,4000,0,0,94.4
 00294190,AxisCopy,3693,3693,0,0,100.0
@@ -614,6 +617,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00299310,ParamSet_TestCondition,1788,1788,0,0,11.4
 00299670,Cvar_Shutdown,1506,1506,0,0,100.0
 00299800,Com_PushEvent,3848,3848,0,0,92.5
+002999e0,Com_SafeMode,3925,3925,0,0,90.2
 0029a810,FS_AddFileToList,1764,1764,0,0,95.4
 0029ab20,FS_IsCfgMenuOrDatFile,3808,3808,0,0,87.9
 0029ae90,FxShakeRumbleComponent_Stop,1015,1015,0,0,100.0
