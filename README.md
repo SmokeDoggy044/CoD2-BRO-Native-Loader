@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 71% of the functions have a name, and 3,031 have been
+It's early days: about 71% of the functions have a name, and 3,036 have been
 rewritten in C++. The renderer is the part we're working on now.
 <!-- intro:end -->
 
@@ -27,9 +27,9 @@ function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,193 | 8,666 | 3,031 | 8,162 |
+| Engine and game code (`.text`) | 11,193 | 8,674 | 3,036 | 8,157 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,517** | **11,654** | **3,031** | **13,486** |
+| **Total** | **16,517** | **11,662** | **3,036** | **13,481** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -44,22 +44,22 @@ We've also named 2,659 of the game's global variables.
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,086 | 1,030 | 7 | 48 | 0 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,094 | 1,035 | 7 | 51 | 0 | 0 |
 | Game logic (entities, AI, weapons, physics, level-script runtime) | 1,627 | 279 | 16 | 0 | 1,123 | 205 |
 | Animation (animation trees, the animation codec) | 284 | 256 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 299 | 293 | 0 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 961 | 234 | 16 | 0 | 646 | 54 |
 | Client and menus | 761 | 481 | 192 | 6 | 33 | 49 |
-| Server | 80 | 71 | 9 | 0 | 0 | 0 |
+| Server | 79 | 70 | 9 | 0 | 0 | 0 |
 | Collision | 108 | 93 | 0 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
 | Script engine (script VM, entity bindings, built-in script functions) | 2,004 | 12 | 0 | 0 | 1,986 | 6 |
 | Level-script helpers in the engine code | 1,444 | 0 | 0 | 0 | 1,389 | 48 |
 | Sound | 143 | 112 | 6 | 24 | 0 | 0 |
 | Streaming (asset loading, zones) | 158 | 151 | 0 | 7 | 0 | 0 |
-| Online (Xbox Live glue) | 27 | 0 | 0 | 27 | 0 | 0 |
+| Online (Xbox Live glue) | 21 | 0 | 0 | 21 | 0 | 0 |
 | Microsoft library code built into the game (replaced, not rewritten) | 2,084 | 0 | 0 | 0 | 11 | 466 |
-| Not sorted into a part yet | 63 | 1 | 0 | 0 | 0 | 62 |
+| Not sorted into a part yet | 62 | 2 | 0 | 6 | 0 | 54 |
 
 The Microsoft library row is Microsoft's own code that was built into the game (the C
 runtime, the Xbox system library, the UIX menu library, the voice codec, the TrueType

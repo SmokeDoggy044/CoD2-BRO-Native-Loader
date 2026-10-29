@@ -68,10 +68,10 @@ RopZCmpAlwaysRead. D3D's render-state shadow (0x003f840c-0x003f8514) and dirty f
 
 ## Not covered by C yet (`--xbe`)
 
-- **8 FX draw functions, 0x000a7930-0x000ac3b0**, unnamed and with no module (vtable slots
-  near 0x007c733c; entered through small thunks such as 0x000a7920). Each calls about 38 D3D
-  render-state setters. The renderer was counted complete without them, because they sit in
-  "unassigned". They need naming, decompiling and sorting into the renderer.
+- ~~8 FX draw functions, 0x000a7930-0x000ac3b0~~: done 2026-10-28 (fx_load.cpp `draw_op_quads`, one
+  shared body with a per-class layout table; thunks `FxOp*_Draw`, bodies `FxOp*_DrawQuads`). FxOp53, Grid,
+  1dd, 9d5 and 15b matched (160-6458 tests each). dd, d5 and 5b are set aside as "no data": their op
+  classes' Init never runs in missions 0-9.
 - **UI_ShowDiscErrorScreen** (client): the dirty-disc screen draws with D3D surfaces itself.
 - **PersistDisplay** before a reboot: Cmd_LaunchMultiplayer_f, Cmd_RelaunchTitle_f,
   FUN_003352d0.
