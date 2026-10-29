@@ -9001,7 +9001,6 @@ address,name,section,module,state,tested,matched
 002979f0,FS_FreeFileList,.text,qcommon,offline,0,0
 00297a30,FS_FreeFile,.text,qcommon,offline,0,0
 00297a60,FS_Write,.text,qcommon,untested,0,0
-00297a69,FUN_00297a69,.text,qcommon,unnamed,0,0
 00297af0,FS_Read,.text,qcommon,matched,8,4
 00297bdf,FUN_00297bdf,.text,qcommon,unnamed,0,0
 00297d10,FS_FilenameCompare,.text,qcommon,offline,0,0

@@ -259,7 +259,6 @@ address,module,source,evidence
 0026eab0,game,auto,"callers+neighbours: prev game, next game, callers game"
 00271b20,game,auto,"neighbours: prev game, next game, callers script"
 00297470,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers game"
-00297a69,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers -"
 00297bdf,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers -"
 00298b20,game,auto,"callers: prev client, next game, callers game"
 0029a020,qcommon,auto,"neighbours: prev qcommon, next qcommon, callers game"
