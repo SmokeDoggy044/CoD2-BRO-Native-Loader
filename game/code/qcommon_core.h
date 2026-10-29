@@ -221,4 +221,45 @@ uint32_t XB_CDECL BytesToBlocks(uint32_t bytes_lo, uint32_t bytes_hi);
 // out of range. Port 8 reads past the table (the return address); callers handle 8 before.
 int32_t XB_CDECL Save_PortToDevice(int32_t port, uint32_t* controller, uint32_t* slot);
 
+// File system (0x000c9230..0x000cb590): devices {count 0x008bfe7c, list 0x008bfe80}, open files = handle
+// pool 0x009207e8 over 36-byte records at 0x00920820 (+0 size, +4 device bit, +8 the aliased handle when
+// +0x20 == 1) with driver data at 0x00920824 + 0x00920828 * index; requests = pool 0x00920798 over
+// 0x44-byte records at 0x00920810 (+0x18 start time, +0x2c state, +0x34 bytes done).
+// 0x000c9230: releases the file mutex (0x00920784) when 0x008bfd80 == 1.
+void XB_CDECL File_UnlockMutex();
+// 0x000c9250 (bit in ECX): the first device whose mask (*device[+8]) has 1 << bit, else -1.
+int32_t XB_REGS3 XB_CDECL File_FindDeviceForBit(uint32_t, uint32_t, uint32_t bit);
+// 0x000c9320 (handle in ESI): the open file's record (through its alias when +0x20 == 1), else 0.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL File_GetRecord(int32_t handle);
+extern "C" void File_GetRecord_entry(void);
+// 0x000c9390: the open file's device bit (record +4), else -1.
+int32_t XB_CDECL File_GetDeviceBit(int32_t handle);
+// 0x000c93d0 (handle in ESI): the open file's driver data (aliased like File_GetRecord), else 0.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL File_GetDriverData(int32_t handle);
+extern "C" void File_GetDriverData_entry(void);
+// 0x000c9490 (state in EAX; ECX/EDX kept for the callers): request state 0..7 -> status
+// {4, 4, 0, 1, 1, 2, 3, 3}, else -1.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL File_RequestStateToStatus(uint32_t state);
+extern "C" void File_RequestStateToStatus_entry(void);
+// 0x000c9910: each device's shutdown callback (vtable +4, slot +8), last device first.
+void XB_CDECL File_ShutdownDevices();
+// 0x000c9940: out = the device info words (+0x14: [+8], [0], [+4]) of the device for `bit`; returns
+// out, or 0 when there is none.
+uint32_t* XB_CDECL File_GetDeviceInfoForBit(uint32_t bit, uint32_t* out);
+// 0x000c9d10: the open file's size, else -1.
+int32_t XB_CDECL File_GetSize(int32_t handle);
+// 0x000c9db0: the request's status (File_RequestStateToStatus), else -1.
+int32_t XB_CDECL File_GetRequestStatus(int32_t handle);
+// 0x000c9ea0: out = {bytes done, Snd_UpdateTime() - start}; out unwritten for a dead handle. Returns out.
+uint32_t* XB_CDECL File_GetRequestProgress(int32_t handle, uint32_t* out);
+// Handle pool {data +0, free list +4, used list +0x10 (next, prev, -1), stride +0x1c, count +0x20,
+// index mask +0x24}; each element starts {next, prev, handle} (handle bit 31 = free).
+// 0x000cb390: all `count` elements (stride >= 12, count < 2^20) on the free list; false when invalid.
+uint8_t XB_CDECL HandlePool_Init(uint8_t* pool, uint8_t* data, int32_t count, uint32_t stride);
+// 0x000cb510: moves the first free element to the used list with the next generation of its handle;
+// -1 when none is free.
+int32_t XB_CDECL HandlePool_Alloc(uint8_t* pool);
+// 0x000cb580: moves a live handle's element back to the free list (bit 31 set).
+void XB_CDECL HandlePool_Free(uint8_t* pool, int32_t handle);
+
 }  // namespace game

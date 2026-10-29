@@ -479,7 +479,9 @@ address,name,tested,matched,nan,mismatched,coverage
 000c8310,SndMem_GetSize,4000,4000,0,0,100.0
 000c8320,SndMem_Init,4000,4000,0,0,100.0
 000c8380,SndMem_Free,3268,3268,0,0,86.6
+000c9d10,File_GetSize,2816,2816,0,0,56.2
 000cb0f0,Snd_Printf,4000,4000,0,0,100.0
+000cb390,HandlePool_Init,2555,2555,0,0,100.0
 000cbf60,MovieVid_ReadIntraCoeffs,2414,2414,0,0,100.0
 000cf130,Movie_SetAudioTrack,3808,3808,0,0,100.0
 000cf950,MovieVid_AddBlock,1838,1838,0,0,100.0

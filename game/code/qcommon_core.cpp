@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "lanes.h"
+#include "qcommon.h"
 #include "snd.h"
 #include "title_data.h"
 
@@ -1011,6 +1012,189 @@ int32_t XB_CDECL Save_PortToDevice(int32_t port, uint32_t* controller, uint32_t*
     *controller = kControllers[port / 2];
     *slot = kSlots[port % 2];
     return 0;
+}
+
+void XB_CDECL File_UnlockMutex() {
+    if (title_global<int32_t>(0x008bfd80) == 1)
+        title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e85f5)(title_global<uint32_t>(0x00920784));  // ReleaseMutex
+}
+
+int32_t XB_REGS3 XB_CDECL File_FindDeviceForBit(uint32_t, uint32_t, uint32_t bit) {
+    const int32_t count = title_global<int32_t>(0x008bfe7c);
+    if (count <= 0) return -1;
+    const uint32_t wanted = 1u << (bit & 0x1f);
+    const uint8_t* const* const devices = title_global<const uint8_t* const*>(0x008bfe80);
+    for (int32_t i = 0; i < count; ++i)
+        if (*pointer_at<const uint32_t>(devices[i], 8) & wanted) return i;
+    return -1;
+}
+
+namespace {
+
+constexpr uint32_t kFilePool = 0x009207e8;
+constexpr uint32_t kRequestPool = 0x00920798;
+
+const uint8_t* pool_at(uint32_t address) { return &title_global<uint8_t>(address); }
+
+// The file record's index for a handle, through the alias of an aliased record (+0x20 == 1).
+int32_t resolve_file(int32_t handle) {
+    const int32_t index = HandlePool_Resolve(pool_at(kFilePool), handle);
+    int32_t target = -1;
+    if (index != -1) {
+        const uint8_t* const record = title_global<const uint8_t*>(0x00920820) + index * 36;
+        if (record) target = word_at(record, 0x20) == 1 ? static_cast<int32_t>(word_at(record, 8)) : handle;
+    }
+    return HandlePool_Resolve(pool_at(kFilePool), target);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(File_GetRecord_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(File_GetRecord) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL File_GetRecord(int32_t handle) {
+    const int32_t index = resolve_file(handle);
+    if (index == -1) return nullptr;
+    return title_global<uint8_t*>(0x00920820) + index * 36;
+}
+
+int32_t XB_CDECL File_GetDeviceBit(int32_t handle) {
+    const uint8_t* const record = File_GetRecord(handle);
+    return record ? static_cast<int32_t>(word_at(record, 4)) : -1;
+}
+
+PLATFORM_ASM_ENTRY(File_GetDriverData_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(File_GetDriverData) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL File_GetDriverData(int32_t handle) {
+    const int32_t index = resolve_file(handle);
+    if (index == -1) return nullptr;
+    return title_global<uint8_t*>(0x00920824) + title_global<uint32_t>(0x00920828) * static_cast<uint32_t>(index);
+}
+
+PLATFORM_ASM_ENTRY(File_RequestStateToStatus_entry,
+                   "pushl %ecx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(File_RequestStateToStatus) "addl $4, %esp\n"
+                   "popl %edx\n"
+                   "popl %ecx\n"
+                   "ret")
+
+int32_t XB_CDECL File_RequestStateToStatus(uint32_t state) {
+    static const int32_t kStatus[8] = {4, 4, 0, 1, 1, 2, 3, 3};
+    return state > 7 ? -1 : kStatus[state];
+}
+
+void XB_CDECL File_ShutdownDevices() {
+    using Shutdown = void XB_CDECL(uint8_t*);
+    for (int32_t i = title_global<int32_t>(0x008bfe7c) - 1; i >= 0; --i) {
+        uint8_t* const device = title_global<uint8_t* const*>(0x008bfe80)[i];
+        const uint32_t callback = word_at(pointer_at<const uint8_t>(device, 4), 8);
+        if (callback) reinterpret_cast<Shutdown*>(uintptr_t{callback})(device);
+    }
+}
+
+uint32_t* XB_CDECL File_GetDeviceInfoForBit(uint32_t bit, uint32_t* out) {
+    const int32_t index = File_FindDeviceForBit(0, 0, bit);
+    if (index == -1) return nullptr;
+    const uint8_t* const device = title_global<const uint8_t* const*>(0x008bfe80)[index];
+    if (!device) return nullptr;
+    out[0] = word_at(pointer_at<const uint8_t>(device, 0x14), 8);
+    out[1] = word_at(pointer_at<const uint8_t>(device, 0x14), 0);
+    out[2] = word_at(pointer_at<const uint8_t>(device, 0x14), 4);
+    return out;
+}
+
+int32_t XB_CDECL File_GetSize(int32_t handle) {
+    const int32_t index = HandlePool_Resolve(pool_at(kFilePool), handle);
+    if (index == -1) return -1;
+    const uint8_t* const record = title_global<const uint8_t*>(0x00920820) + index * 36;
+    return record ? static_cast<int32_t>(word_at(record, 0)) : -1;
+}
+
+int32_t XB_CDECL File_GetRequestStatus(int32_t handle) {
+    const int32_t index = HandlePool_Resolve(pool_at(kRequestPool), handle);
+    if (index == -1) return -1;
+    const uint8_t* const request = title_global<const uint8_t*>(0x00920810) + index * 0x44;
+    return request ? File_RequestStateToStatus(word_at(request, 0x2c)) : -1;
+}
+
+uint32_t* XB_CDECL File_GetRequestProgress(int32_t handle, uint32_t* out) {
+    const int32_t index = HandlePool_Resolve(pool_at(kRequestPool), handle);
+    if (index == -1) return out;
+    const uint8_t* const request = title_global<const uint8_t*>(0x00920810) + index * 0x44;
+    if (!request) return out;
+    out[0] = word_at(request, 0x34);
+    out[1] = title_function<uint32_t XB_CDECL()>(0x000cb200)() - word_at(request, 0x18);  // Snd_UpdateTime
+    return out;
+}
+
+namespace {
+
+// Links node in before head (at the list's tail).
+void list_push_back(uint8_t* head, uint8_t* node) {
+    word_at(node, 0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(head));
+    word_at(node, 4) = word_at(head, 4);
+    word_at(pointer_at<uint8_t>(head, 4), 0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node));
+    word_at(head, 4) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node));
+}
+
+void list_unlink(uint8_t* node) {
+    word_at(pointer_at<uint8_t>(node, 4), 0) = word_at(node, 0);
+    word_at(pointer_at<uint8_t>(node, 0), 4) = word_at(node, 4);
+}
+
+}  // namespace
+
+uint8_t XB_CDECL HandlePool_Init(uint8_t* pool, uint8_t* data, int32_t count, uint32_t stride) {
+    if (count <= 0 || static_cast<uint32_t>(count) > 0xfffff || stride < 0xc) return 0;
+    uint32_t bits = 0;
+    int32_t rest = count;
+    do {
+        rest >>= 1;
+        ++bits;
+    } while (rest);
+    word_at(pool, 0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data));
+    word_at(pool, 0x1c) = stride;
+    word_at(pool, 0x20) = static_cast<uint32_t>(count);
+    word_at(pool, 0x24) = (1u << (bits & 0x1f)) - 1;
+    for (uint32_t head = 4; head <= 0x10; head += 0xc) {
+        uint8_t* const list = pool + head;
+        word_at(list, 8) = 0xffffffffu;
+        word_at(list, 0) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list));
+        word_at(list, 4) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(list));
+    }
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const node = pointer_at<uint8_t>(pool, 0) + word_at(pool, 0x1c) * static_cast<uint32_t>(i);
+        word_at(node, 8) = static_cast<uint32_t>(i) | 0x80000000u;
+        list_push_back(pool + 4, node);
+    }
+    return 1;
+}
+
+int32_t XB_CDECL HandlePool_Alloc(uint8_t* pool) {
+    uint8_t* const node = pointer_at<uint8_t>(pool, 4);
+    if (node == pool + 4) return -1;
+    list_unlink(node);
+    list_push_back(pool + 0x10, node);
+    uint32_t handle = (word_at(node, 8) + word_at(pool, 0x24) + 1) & 0x7fffffffu;
+    word_at(node, 8) = handle;
+    if (!(handle & ~(word_at(pool, 0x24) | 0x80000000u))) word_at(node, 8) = word_at(pool, 0x24) + handle + 1;
+    return static_cast<int32_t>(word_at(node, 8));
+}
+
+void XB_CDECL HandlePool_Free(uint8_t* pool, int32_t handle) {
+    if (handle < 0) return;
+    const uint32_t index = word_at(pool, 0x24) & static_cast<uint32_t>(handle);
+    if (index >= word_at(pool, 0x20)) return;
+    uint8_t* const node = pointer_at<uint8_t>(pool, 0) + word_at(pool, 0x1c) * index;
+    const uint32_t current = word_at(node, 8);
+    if (static_cast<uint32_t>(handle) != current) return;
+    word_at(node, 8) = current | 0x80000000u;
+    list_unlink(node);
+    list_push_back(pool + 4, node);
 }
 
 }  // namespace game
