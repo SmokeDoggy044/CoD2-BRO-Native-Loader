@@ -10,6 +10,7 @@
 #include "movie.h"
 #include "ngl.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "r_init.h"
 #include "title_data.h"
 #include "ui_menu.h"
@@ -2334,6 +2335,353 @@ void XB_CDECL SndBank_Relocate(uint8_t* request) {
         }
         previous = emitter_word<uint32_t>(entry, 0x14);
     }
+}
+
+// --- Sound startup (DirectSound device, voices) ---
+// The DirectSound/XAPI calls go to their title addresses for now; our own audio interface replaces them later.
+
+namespace {
+
+struct XbWaveFormat {  // WAVEFORMATEX: 0x12 bytes on the Xbox (packed); only its fields are written here
+    uint16_t tag;
+    uint16_t channels;
+    uint32_t samples_per_sec;
+    uint32_t avg_bytes_per_sec;
+    uint16_t block_align;
+    uint16_t bits_per_sample;
+    uint16_t extra_size;
+};
+
+struct XbAdpcmWaveFormat {  // XBOXADPCMWAVEFORMAT (WAVEFORMATEX + samples per block)
+    uint16_t tag;
+    uint16_t channels;
+    uint32_t samples_per_sec;
+    uint32_t avg_bytes_per_sec;
+    uint16_t block_align;
+    uint16_t bits_per_sample;
+    uint16_t extra_size;
+    uint16_t samples_per_block;
+};
+
+struct XbBufferDesc {  // DSBUFFERDESC
+    uint32_t size;
+    uint32_t flags;
+    uint32_t buffer_bytes;
+    uint32_t format;
+    uint32_t mix_bins;
+    uint32_t input_mix_bin;
+};
+
+struct XbStreamDesc {  // DSSTREAMDESC
+    uint32_t flags;
+    uint32_t max_attached_packets;
+    uint32_t format;
+    uint32_t callback;
+    uint32_t context;
+    uint32_t mix_bins;
+};
+
+struct XbEnvelopeDesc {  // DSENVELOPEDESC
+    uint32_t eg;
+    uint32_t mode;
+    uint32_t delay;
+    uint32_t attack;
+    uint32_t hold;
+    uint32_t decay;
+    uint32_t release;
+    uint32_t sustain;
+    int32_t pitch_scale;
+    int32_t filter_cutoff;
+};
+
+#if UINTPTR_MAX == 0xFFFFFFFF
+static_assert(sizeof(XbAdpcmWaveFormat) == 0x14);
+static_assert(offsetof(XbWaveFormat, extra_size) == 0x10);
+static_assert(sizeof(XbBufferDesc) == 0x18);
+static_assert(sizeof(XbStreamDesc) == 0x18);
+static_assert(sizeof(XbEnvelopeDesc) == 0x28);
+#endif
+
+constexpr uint32_t kDirectSound = 0x00911540;       // the IDirectSound pointer
+constexpr uint32_t kHwSlots = 0x0090a940;           // 256 hardware slots of 0x6c bytes
+constexpr uint32_t kRolloffCurve = 0x008becd4;      // 11 points: 1.0, 0.9, ..., 0.1, 0.0
+constexpr uint32_t kDsCaps3d = 0x10;                // DSBCAPS_CTRL3D / DSSTREAMCAPS_CTRL3D
+
+using DsCreateStream = int32_t XB_STDCALL(const XbStreamDesc*, uint32_t*);
+using DsCreateBuffer = int32_t XB_STDCALL(const XbBufferDesc*, uint32_t*);
+using DsSetHeadroom = int32_t XB_STDCALL(uint32_t, uint32_t);
+using DsSetMode = int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t);
+using DsSetEnvelope = int32_t XB_STDCALL(uint32_t, const XbEnvelopeDesc*);
+using DsSetRolloff = int32_t XB_STDCALL(uint32_t, const float*, uint32_t, uint32_t);
+using DsSetBufferData = int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t);
+using DsSetRegion = int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t);
+
+int32_t create_stream(const XbStreamDesc* desc, uint32_t* out) {
+    return title_function<DsCreateStream>(0x003c95fb)(desc, out);  // DirectSoundCreateStream
+}
+int32_t create_buffer(const XbBufferDesc* desc, uint32_t* out) {
+    return title_function<DsCreateBuffer>(0x003c95a4)(desc, out);  // DirectSoundCreateBuffer
+}
+void set_buffer_data(uint32_t buffer, uint32_t data, uint32_t size) {
+    title_function<DsSetBufferData>(0x003c8aa9)(buffer, data, size);  // IDirectSoundBuffer_SetBufferData
+}
+
+// The slot's format (written before the create, also when it fails): 16-bit PCM at 44.1 kHz.
+void write_slot_format(uint8_t* slot, uint16_t channels) {
+    XbWaveFormat& format = *reinterpret_cast<XbWaveFormat*>(slot + 4);
+    format.tag = 1;
+    format.channels = channels;
+    format.samples_per_sec = 44100;
+    format.avg_bytes_per_sec = channels == 1 ? 0x15888 : 0x2b110;
+    format.block_align = uint16_t(channels * 2);
+    format.bits_per_sample = 16;
+    format.extra_size = 0;
+}
+
+// DirectSoundCreateStream into slot +0x30 (5 packets, no callback, default mix bins).
+int32_t create_slot_stream(uint8_t* slot, uint16_t channels, uint32_t flags) {
+    write_slot_format(slot, channels);
+    XbStreamDesc desc = {};
+    desc.flags = flags;
+    desc.max_attached_packets = 5;
+    desc.format = uint32_t(uintptr_t(slot + 4));
+    return create_stream(&desc, reinterpret_cast<uint32_t*>(slot + 0x30));
+}
+
+// DirectSoundCreateBuffer into slot +0 (no data of its own; it plays from the whole sound memory).
+int32_t create_slot_buffer(uint8_t* slot, uint16_t channels, uint32_t flags) {
+    write_slot_format(slot, channels);
+    XbBufferDesc desc = {};
+    desc.size = sizeof(XbBufferDesc);
+    desc.flags = flags;
+    desc.format = uint32_t(uintptr_t(slot + 4));
+    return create_buffer(&desc, reinterpret_cast<uint32_t*>(slot));
+}
+
+// A created stream's packet memory (two packets of `packet` bytes, low stack), headroom 0, then (3D) mode normal
+// deferred, the envelope and (3D) the rolloff curve.
+void setup_slot_stream(uint8_t* slot, uint8_t& kind, uint8_t kind_code, uint32_t packet, bool is_3d,
+                       const XbEnvelopeDesc* envelope) {
+    kind = kind_code;
+    *reinterpret_cast<uint32_t*>(slot + 0x60) = packet;
+    *reinterpret_cast<uint32_t*>(slot + 0x34) = SndMem_Alloc(0, int32_t(packet * 2));
+    const uint32_t stream = *reinterpret_cast<uint32_t*>(slot + 0x30);
+    title_function<DsSetHeadroom>(0x003c7831)(stream, 0);  // IDirectSoundStream_SetHeadroom
+    if (is_3d) title_function<DsSetMode>(0x003c8464)(stream, 0, 1);  // IDirectSoundStream_SetMode
+    title_function<DsSetEnvelope>(0x003c782c)(stream, envelope);  // IDirectSoundStream_SetEG
+    if (is_3d) {
+        title_function<DsSetRolloff>(0x003c8469)(stream, &title_global<float>(kRolloffCurve), 11, 1);  // SetRolloffCurve
+    }
+}
+
+// A created buffer: headroom 0, the whole sound memory as its data, then (3D) mode, the envelope, (3D) rolloff.
+void setup_slot_buffer(uint8_t* slot, uint8_t& kind, uint8_t kind_code, bool is_3d, const XbEnvelopeDesc* envelope) {
+    const uint32_t buffer = *reinterpret_cast<uint32_t*>(slot);
+    kind = kind_code;
+    title_function<DsSetHeadroom>(0x003c7713)(buffer, 0);  // IDirectSoundBuffer_SetHeadroom
+    const uint32_t size = SndMem_GetSize();
+    const uint32_t base = SndMem_GetBase();
+    set_buffer_data(*reinterpret_cast<uint32_t*>(slot), base, size);
+    if (is_3d) title_function<DsSetMode>(0x003c83f1)(*reinterpret_cast<uint32_t*>(slot), 0, 1);  // SetMode
+    title_function<DsSetEnvelope>(0x003c76f7)(*reinterpret_cast<uint32_t*>(slot), envelope);  // IDirectSoundBuffer_SetEG
+    if (is_3d) {
+        title_function<DsSetRolloff>(0x003c8411)(*reinterpret_cast<uint32_t*>(slot), &title_global<float>(kRolloffCurve),
+                                                 11, 1);  // IDirectSoundBuffer_SetRolloffCurve
+    }
+}
+
+}  // namespace
+
+uint32_t XB_CDECL SndSys_Init(uint32_t arena) {
+    uint32_t& base = title_global<uint32_t>(0x0090a890);
+    if (base) return base;
+    uint32_t& used = title_global<uint32_t>(0x0090a894);
+    title_global<uint32_t>(0x0090a898) = used;
+    used = 0;
+    base = arena;
+    const uint32_t pools = SndVoice_AllocPools(nullptr);
+    if (int32_t(pools) < 0) return pools;
+    std::memcpy(title_global<uint8_t*>(0x0090a89c), &title_global<uint8_t>(0x007ce5b8), 16);  // "NSL_WORK_GUARD0"
+    std::memcpy(title_global<uint8_t*>(0x0090a8a0), &title_global<uint8_t>(0x007ce5a8), 16);  // "NSL_WORK_GUARD1"
+    HandlePool_Init(&title_global<uint8_t>(0x0090a8b4), title_global<uint8_t*>(0x0090a8dc),
+                    title_global<int32_t>(0x008bd654), 12);
+    HandlePool_Init(&title_global<uint8_t>(0x0090a8e4), title_global<uint8_t*>(0x0090a90c),
+                    title_global<int32_t>(0x008bd658), 12);
+    uint8_t* const groups = Snd_GetGroups();
+    uint8_t* const mix = Snd_GetMixState();
+    const float one = title_global<float>(0x0083eb20);
+    auto set = [](uint8_t* record, uint32_t offset, float value) { *reinterpret_cast<float*>(record + offset) = value; };
+    set(groups, 0x8, one);
+    set(groups, 0xc, one);
+    set(groups, 0x18, 0.0f);
+    set(groups, 0x1c, 0.0f);
+    set(mix, 0x8, one);
+    set(mix, 0xc, one);
+    set(mix, 0x18, 0.0f);
+    set(mix, 0x1c, 0.0f);
+    set(mix, 0x54, 0.0f);
+    set(mix, 0x58, 0.0f);
+    set(mix, 0x5c, 0.0f);
+    set(mix, 0xc0, 0.0f);
+    set(mix, 0xc4, 0.0f);
+    set(mix, 0xc8, one);
+    set(mix, 0xcc, 0.0f);
+    set(mix, 0xd0, one);
+    set(mix, 0xd4, 0.0f);
+    SndSys_InitDirectSound();
+    return SndSys_Update();
+}
+
+uint32_t XB_CDECL SndSys_InitDirectSound() {
+    struct {
+        uint32_t reverb_index = 0xffffffffu;  // DSEFFECTIMAGELOC: I3DL2 reverb -1, crosstalk 0
+        uint32_t crosstalk_index = 0;
+    } location;
+    uint32_t image_desc;  // out (LPDSEFFECTIMAGEDESC), unused
+    title_function<int32_t XB_STDCALL(void*, uint32_t*, void*)>(0x003c955d)(nullptr, &title_global<uint32_t>(kDirectSound),
+                                                                            nullptr);  // DirectSoundCreate
+    title_function<int32_t XB_STDCALL(uint32_t, const void*, uint32_t, const void*, uint32_t*)>(0x003c7636)(
+        title_global<uint32_t>(kDirectSound), &title_global<uint8_t>(0x008bed18), title_global<uint32_t>(0x008bfd68),
+        &location, &image_desc);  // IDirectSound_DownloadEffectsImage
+    title_function<int32_t XB_STDCALL(uint32_t, float, uint32_t)>(0x003c92df)(title_global<uint32_t>(kDirectSound), 1.0f,
+                                                                              1);  // SetDistanceFactor, deferred
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c7687)(title_global<uint32_t>(kDirectSound),
+                                                                       0);  // IDirectSound_EnableHeadphones
+    title_function<void XB_STDCALL()>(0x003c63cd)();  // DirectSoundUseFullHRTF
+    const uint32_t memory = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e763a)(
+        0x780000, 0xffffffffu, 0, 0x204);  // XPhysicalAlloc: 7.5 MB, any address, PAGE_READWRITE | PAGE_NOCACHE
+    SndMem_Init(memory, 0x780000);
+    title_function<void XB_CDECL(int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t)>(0x000c68d0)(
+        1, 1, 1, 1, 7, 0x24, 7, 0x24);  // SndSys_CreateVoiceBuffers (its entry wants a title caller's stack)
+    title_global<uint32_t>(0x003e45f4) = 0;  // a DirectSound library word
+    return 1;
+}
+
+// The entry moves the C frame below a gap: SetEG gets the envelope's address, which the tests log as a word, so the
+// envelope sits where the original keeps it (entry ESP - 0x28: sub esp,0x88 + 4 pushes, local +0x70).
+PLATFORM_ASM_ENTRY(SndSys_CreateVoiceBuffers_entry, "movl %esp, %eax\n"
+                                                    GAME_GAP_ESP("0x20000")
+                                                    "pushl %ebp\n"
+                                                    "movl %eax, %ebp\n"
+                                                    "leal 4(%ebp), %ecx\n"
+                                                    "pushl %ecx\n"
+                                                    "pushl %ebp\n" PLATFORM_ASM_CALL(SndSys_CreateVoiceBuffers)
+                                                    "addl $8, %esp\n"
+                                                    "popl %ebp\n"
+                                                    "popl %esp\n"
+                                                    "ret")
+
+void XB_CDECL SndSys_CreateVoiceBuffers(uint32_t entry, const int32_t* args) {
+    // Local copies: the original counts down in its argument slots (mono3d_a, stereo_a, big_a, big_b, mono3d_b,
+    // mono3d_buffers, stereo_b, stereo_buffers).
+    int32_t counts[8];
+    for (int i = 0; i < 8; ++i) counts[i] = args[i];
+    XbEnvelopeDesc& envelope = *reinterpret_cast<XbEnvelopeDesc*>(uintptr_t(entry - 0x28));
+    envelope = {};
+    envelope.eg = 1;    // DSEG_AMPLITUDE
+    envelope.mode = 2;  // DSEG_MODE_HOLD
+    envelope.sustain = 0xff;
+    std::memset(&title_global<uint8_t>(kHwSlots), 0, 0x1b00 * 4);
+    uint32_t& slot_count = title_global<uint32_t>(0x008bed00);
+    uint32_t index = 0;
+    for (; index < 256; ++index) {
+        uint8_t* const slot = &title_global<uint8_t>(kHwSlots + index * 0x6c);
+        uint8_t& kind = SndVoice_Get(index)[0xc2];
+        if (counts[0] > 0) {
+            --counts[0];
+            if (create_slot_stream(slot, 1, kDsCaps3d) == 0) {
+                setup_slot_stream(slot, kind, 3, 0x12000, true, &envelope);
+                continue;
+            }
+            counts[4] = 0;  // sic: the failure clears count 4, count 0 is tried again next round
+        }
+        if (counts[1] > 0) {
+            --counts[1];
+            if (create_slot_stream(slot, 2, 0) == 0) {
+                setup_slot_stream(slot, kind, 4, 0x1b000, false, &envelope);
+                continue;
+            }
+            counts[6] = 0;  // sic: count 6, as above
+        }
+        if (counts[2] > 0) {
+            --counts[2];
+            if (create_slot_stream(slot, 2, 0) == 0) {
+                setup_slot_stream(slot, kind, 7, 0x48000, false, &envelope);
+                continue;
+            }
+            counts[2] = 0;
+        }
+        if (counts[3] > 0) {
+            --counts[3];
+            if (create_slot_stream(slot, 2, 0) == 0) {
+                setup_slot_stream(slot, kind, 8, 0x48000, false, &envelope);
+                continue;
+            }
+            counts[3] = 0;
+        }
+        if (counts[4] > 0) {
+            --counts[4];
+            if (create_slot_stream(slot, 1, kDsCaps3d) == 0) {
+                setup_slot_stream(slot, kind, 3, 0x12000, true, &envelope);
+                continue;
+            }
+            counts[4] = 0;
+        }
+        if (counts[6] > 0) {
+            --counts[6];
+            if (create_slot_stream(slot, 2, 0) == 0) {
+                setup_slot_stream(slot, kind, 4, 0x1b000, false, &envelope);
+                continue;
+            }
+            counts[6] = 0;
+        }
+        if (counts[5] > 0) {
+            --counts[5];
+            if (create_slot_buffer(slot, 1, kDsCaps3d) == 0) {
+                setup_slot_buffer(slot, kind, 5, true, &envelope);
+                continue;
+            }
+            counts[5] = 0;
+        }
+        if (counts[7] <= 0) break;
+        --counts[7];
+        if (create_slot_buffer(slot, 2, 0) != 0) break;
+        setup_slot_buffer(slot, kind, 6, false, &envelope);
+    }
+    slot_count = index;
+}
+
+uint8_t XB_CDECL SndSys_InitDevice() {
+    XbAdpcmWaveFormat format = {};
+    format.tag = 0x69;  // WAVE_FORMAT_XBOX_ADPCM
+    format.channels = 2;
+    format.samples_per_sec = 48000;
+    format.avg_bytes_per_sec = 54000;
+    format.block_align = 0x48;
+    format.bits_per_sample = 4;
+    format.extra_size = 2;
+    format.samples_per_block = 64;
+    XbBufferDesc desc = {};
+    desc.size = sizeof(XbBufferDesc);
+    desc.buffer_bytes = 0x12000;
+    desc.format = uint32_t(uintptr_t(&format));
+    uint32_t direct_sound = 0;
+    if (title_function<int32_t XB_STDCALL(void*, uint32_t*, void*)>(0x003c955d)(nullptr, &direct_sound, nullptr) < 0) {
+        return 0;  // DirectSoundCreate
+    }
+    uint32_t& buffer = title_global<uint32_t>(0x00920850);  // movie_audioBuffer
+    if (title_function<int32_t XB_STDCALL(uint32_t, const XbBufferDesc*, uint32_t*, void*)>(0x003c92bb)(
+            direct_sound, &desc, &buffer, nullptr) < 0) {  // IDirectSound_CreateSoundBuffer
+        return 0;
+    }
+    void* const data = Mem_AlignedAlloc(0x12000, 0x1000, 0);
+    title_global<void*>(0x00920848) = data;
+    std::memset(data, 0, 0x12000);
+    set_buffer_data(buffer, title_global<uint32_t>(0x00920848), 0x12000);
+    title_function<DsSetRegion>(0x003c8435)(buffer, 0, 0x12000);  // IDirectSoundBuffer_SetPlayRegion
+    title_function<DsSetRegion>(0x003c77cf)(buffer, 0, 0);         // IDirectSoundBuffer_SetLoopRegion: all
+    if (title_function<uint32_t XB_STDCALL()>(0x001e75df)() == 3) Movie_SetDropLateFrames(1);  // XGetVideoStandard: PAL-I
+    return 1;
 }
 
 // --- Ambient sound and music ---
