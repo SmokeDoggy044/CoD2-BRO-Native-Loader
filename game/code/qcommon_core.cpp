@@ -2,6 +2,8 @@
 
 #include <cstring>
 
+#include "lanes.h"
+#include "snd.h"
 #include "title_data.h"
 
 namespace game {
@@ -554,6 +556,313 @@ uint8_t XB_THISCALL SmallHeap_Owns(const uint32_t* heaps, uint32_t ptr) {
 
 void XB_CDECL Mem_SetAllocatorHooks(const uint32_t* hooks) {
     for (uint32_t i = 0; i < 6; ++i) title_global<uint32_t>(0x009098d8 + i * 4) = hooks[i];
+}
+
+namespace {
+
+// The title's packed normalize: lanes * (Newton step of the rsqrt estimate of |x^2 + y^2 + z^2|),
+// or * the zero vector's lane 0 when the sum is 0 (a NaN sum takes the Newton path).
+float* normalize_lanes(float* out, const float* v, uint32_t three, uint32_t half, uint32_t zero) {
+    const Lanes in = lanes(v);
+    const Lanes squares = mul(in, in);
+    platform_keep(squares);
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float scale;
+    if (sum == 0.0f) {
+        scale = title_global<float>(zero);
+    } else {
+        const float a = abs_bits(sum);
+        const float r = platform_rsqrt_estimate(a);
+        scale = ((title_global<float>(three) - (r * r) * a) * r) * title_global<float>(half);
+    }
+    const Lanes result = mul(in, scale);
+    for (int i = 0; i < 4; ++i) out[i] = result.v[i];
+    return out;
+}
+
+void store4(float* out, const Lanes& v) {
+    for (int i = 0; i < 4; ++i) out[i] = v.v[i];
+}
+
+Lanes splat(float f) { return {{f, f, f, f}}; }
+
+}  // namespace
+
+float* XB_CDECL Vec3A_Normalize(float* out, const float* v) {
+    return normalize_lanes(out, v, 0x0082e660, 0x0082e670, 0x0082e6a0);
+}
+
+float* XB_CDECL Vec3A_NormalizeDup(float* out, const float* v) {
+    return normalize_lanes(out, v, 0x007cd630, 0x007cd640, 0x007cd670);
+}
+
+float* XB_CDECL Vec3_Scale(float* out, float x, float y, float z, float s) {
+    const float rx = x * s;
+    const float ry = y * s;
+    const float rz = z * s;
+    out[0] = rx;
+    out[1] = ry;
+    out[2] = rz;
+    return out;
+}
+
+void XB_REGS3 XB_CDECL Sphere_Merge(const float* center_b, float* radius_a, float* center_a, float radius_b) {
+    const Lanes d = sub(lanes(center_b), lanes(center_a));
+    const Lanes squares = mul(d, d);
+    platform_keep(squares);
+    const float distance2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+    const float diff = radius_b - *radius_a;
+    if (diff * diff >= distance2) {
+        if (radius_b > *radius_a) {  // B holds A
+            const uint32_t* const from = reinterpret_cast<const uint32_t*>(center_b);
+            uint32_t* const to = reinterpret_cast<uint32_t*>(center_a);
+            for (int i = 0; i < 4; ++i) to[i] = from[i];
+            *radius_a = radius_b;
+        }
+        return;
+    }
+    // On the x87: the new radius (distance + ra + rb) / 2 and the offset fraction diff / distance.
+    const long double distance = platform_x87_sqrt_ext(static_cast<long double>(distance2));
+    *radius_a = static_cast<float>(((distance + *radius_a) + radius_b) * title_global<float>(0x0083eb24));
+    const float t = static_cast<float>(static_cast<long double>(diff) / distance);
+    const Lanes a = lanes(center_a);  // re-read after the radius store
+    const Lanes b = lanes(center_b);
+    const Lanes sum = add(add(b, a), mul(splat(t), d));
+    store4(center_a, mul(splat(title_global<float>(0x0083eb24)), sum));
+}
+
+float* XB_CDECL PhysBody_RotateVector(float* out, const uint8_t* body, const float* v) {
+    if (body[0x144] & 0x10) {
+        const uint32_t* const from = reinterpret_cast<const uint32_t*>(v);
+        uint32_t* const to = reinterpret_cast<uint32_t*>(out);
+        for (int i = 0; i < 4; ++i) to[i] = from[i];
+        return out;
+    }
+    const Lanes in = lanes(v);
+    const float* const m = reinterpret_cast<const float*>(body);
+    const Lanes r = add(add(mul(lanes(m), splat(in.v[0])), mul(lanes(m + 4), splat(in.v[1]))),
+                        mul(lanes(m + 8), splat(in.v[2])));
+    store4(out, r);
+    return out;
+}
+
+long double XB_CDECL FastAcos(float x) {
+    const float a = abs_bits(x);
+    float r;
+    if (platform_x87_greater(title_global<float>(0x0083eb24), a)) {  // 0.5 > |x|: asin series
+        const float a2 = a * a;
+        const float a3 = a2 * a;
+        const float t1 = a3 * title_global<float>(0x0083ee9c);
+        const float a5 = a3 * a2;
+        const float t2 = a5 * title_global<float>(0x0083ee98);
+        const float t3 = (a5 * a2) * title_global<float>(0x0083ee94);
+        r = ((t3 + t2) + t1) + a;
+    } else {
+        const float s = platform_x87_sqrt_abs_sub_mul(title_global<float>(0x0083eb20), a, title_global<float>(0x0083eb24));
+        const float s2 = s * s;
+        const float s3 = s2 * s;
+        const float t0 = s * title_global<float>(0x0083eba8);
+        const float t1 = s3 * title_global<float>(0x0083ee90);
+        const float s5 = s3 * s2;
+        const float t2 = s5 * title_global<float>(0x0083ed2c);
+        const float t3 = (s5 * s2) * title_global<float>(0x0083ee8c);
+        r = (((t3 - t2) - t1) - t0) + title_global<float>(0x0083ee88);
+    }
+    const float half_pi = title_global<float>(0x0083ed0c);
+    const float v = 0.0f > x ? 0.0f - r : r;
+    return static_cast<long double>(half_pi) - static_cast<long double>(v);
+}
+
+float XB_CDECL RayPlaneIntersectFrac(const float* a, const float* n, const float* b, const float* d) {
+    const Lanes normal = lanes(n);
+    const Lanes nd = mul(normal, lanes(d));
+    platform_keep(nd);
+    const float denominator = (nd.v[0] + nd.v[1]) + nd.v[2];
+    if (platform_x87_greater(title_global<float>(0x0083ed50), abs_bits(denominator)))
+        return title_global<float>(0x007cc950);  // 1e20
+    const Lanes w = mul(normal, sub(lanes(a), lanes(b)));
+    platform_keep(w);
+    return ((w.v[0] + w.v[1]) + w.v[2]) / denominator;
+}
+
+void XB_CDECL BitMask64_Unpack(uint32_t* dst, uint32_t mask_lo, uint32_t mask_hi, const uint32_t* src) {
+    uint64_t mask = (uint64_t{mask_hi} << 32) | mask_lo;
+    for (uint64_t bit = 1; mask; bit <<= 1, ++dst) {
+        if (mask & bit) {
+            mask &= ~bit;
+            *dst = *src++;
+        }
+    }
+}
+
+int32_t XB_REGS1 XB_CDECL BitMask64_IndexOfBit(const uint32_t* mask, uint32_t bit_lo, uint32_t bit_hi) {
+    const uint32_t lo = mask[0], hi = mask[1];
+    if ((lo & bit_lo) != bit_lo || (hi & bit_hi) != bit_hi) return -1;
+    const uint64_t below = ((uint64_t{bit_hi} << 32 | bit_lo) * 2) - 1;
+    return static_cast<int32_t>(Snd_PopCount64_3(static_cast<uint32_t>(below) & lo,
+                                                 static_cast<uint32_t>(below >> 32) & hi)) - 1;
+}
+
+uint32_t XB_CDECL apsColor_PackScaled(const float* scale, const float* color) {
+    const Lanes factors = {{scale[0], scale[1], scale[2], title_global<float>(0x0083eb20)}};
+    const Lanes c = mul(mul(lanes(color), splat(title_global<float>(0x0083eb8c))), factors);
+    const float zero = title_global<float>(0x0083eafc);
+    const float top = title_global<float>(0x0083eb8c);
+    float clamped[4];
+    for (int i = 0; i < 4; ++i) {
+        const float low = zero > c.v[i] ? zero : c.v[i];  // MAXPS 0, c
+        clamped[i] = top < low ? top : low;              // MINPS 255, m
+    }
+    uint32_t packed = static_cast<uint32_t>(platform_ftol(clamped[3])) << 8;
+    packed = (packed | static_cast<uint32_t>(platform_ftol(clamped[0]))) << 8;
+    packed = (packed | static_cast<uint32_t>(platform_ftol(clamped[1]))) << 8;
+    return static_cast<uint32_t>(platform_ftol(clamped[2])) | packed;
+}
+
+float* XB_CDECL Mat34_FromAxisSinCos(float* out, const float* axis, float sine, float cosine) {
+    const Lanes a = lanes(axis);
+    const Lanes k = splat(title_global<float>(0x0083eb20) - cosine);
+    const Lanes p = mul({{a.v[0] * a.v[0], a.v[1], a.v[2], a.v[3]}}, k);  // MULSS, then MULPS
+    const Lanes q = mul(mul(a, splat(a.v[1])), k);
+    const Lanes r = mul(mul(a, splat(a.v[2])), k);
+    const Lanes s = mul(mul(a, a), k);
+    const Lanes t = mul(a, splat(sine));
+    platform_keep(p);
+    platform_keep(q);
+    platform_keep(r);
+    platform_keep(s);
+    const float d0 = p.v[0] + cosine;
+    store4(out, {{d0, t.v[2] + q.v[0], r.v[0] - t.v[1], d0}});
+    const float e0 = q.v[0] - t.v[2];
+    store4(out + 4, {{e0, s.v[1] + cosine, t.v[0] + r.v[1], e0}});
+    const float f0 = t.v[1] + r.v[0];
+    store4(out + 8, {{f0, r.v[1] - t.v[0], s.v[2] + cosine, f0}});
+    return out + 8;
+}
+
+void XB_CDECL Mat34_FromRotationVector(float* out, const float* v, float scale) {
+    const Lanes in = lanes(v);
+    const Lanes squares = mul(in, in);
+    platform_keep(squares);
+    const float length2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float length = length2;  // 0 or NaN
+    if (!(length2 == 0.0f || length2 != length2)) {
+        const float r = platform_rsqrt_estimate(length2);
+        const float lr = length2 * r;
+        length = ((title_global<float>(0x007cd630) - lr * r) * lr) * title_global<float>(0x007cd640);
+    }
+    if (title_global<float>(0x0083effc) > length) {
+        Matrix_Identity(out);
+        return;
+    }
+    const long double angle = static_cast<long double>(length) * scale;
+    const float inverse = title_global<float>(0x0083eb20) / length;
+    alignas(16) float axis[4];
+    store4(axis, mul(splat(inverse), in));
+    const float cosine = static_cast<float>(platform_x87_cos_ext(angle));
+    const float sine = static_cast<float>(platform_x87_sin_ext(angle));
+    Mat34_FromAxisSinCos(out, axis, sine, cosine);
+}
+
+namespace {
+
+Lanes yzxw(const Lanes& v) { return {{v.v[1], v.v[2], v.v[0], v.v[3]}}; }
+
+// a x b as the title's packed code: (a * b.yzx - a.yzx * b).yzx.
+Lanes cross_packed(const Lanes& a, const Lanes& b) { return yzxw(sub(mul(a, yzxw(b)), mul(yzxw(a), b))); }
+
+}  // namespace
+
+void XB_CDECL Mat34_RotationBetweenVectors(float* out, const float* a, const float* b) {
+    const Lanes va = lanes(a), vb = lanes(b);
+    const Lanes c = cross_packed(va, vb);
+    const Lanes squares = mul(c, c);
+    platform_keep(squares);
+    const float length2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+    if (title_global<float>(0x0083effc) > length2) {
+        Matrix_Identity(out);
+        return;
+    }
+    const Lanes products = mul(va, vb);
+    const float sine = static_cast<float>(platform_x87_sqrt_ext(static_cast<long double>(length2)));
+    const float inverse = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / sine);
+    alignas(16) float axis[4];
+    store4(axis, mul(c, splat(inverse)));
+    platform_keep(products);
+    const float dot = (products.v[0] + products.v[1]) + products.v[2];
+    const long double dd = static_cast<long double>(dot) * dot;
+    const long double ss = static_cast<long double>(sine) * sine;
+    const float h = static_cast<float>(platform_x87_sqrt_ext(dd + ss));
+    const float r = title_global<float>(0x0083eb20) / h;
+    const float cosine = r * dot;
+    const float s = r * sine;
+    Mat34_FromAxisSinCos(out, axis, s, cosine);
+}
+
+void XB_REGS3 XB_CDECL Quat_RotationBetween(const float* a, uint32_t, const float* b, float* out) {
+    const Lanes va = lanes(a), vb = lanes(b);
+    alignas(16) float c[4];
+    store4(c, cross_packed(va, vb));
+    const Lanes products = mul(va, vb);
+    platform_keep(products);
+    const float dot = (products.v[0] + products.v[1]) + products.v[2];
+    const Lanes squares = mul(lanes(c), lanes(c));
+    platform_keep(squares);
+    const float length2 = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float sine = length2;  // 0 or NaN
+    if (!(length2 == 0.0f || length2 != length2)) {
+        const float r = platform_rsqrt_estimate(length2);
+        const float lr = length2 * r;
+        sine = ((title_global<float>(0x0082e660) - lr * r) * lr) * title_global<float>(0x0082e670);
+    }
+    alignas(16) float unit[4];
+    const Lanes n = lanes(Vec3A_Normalize(unit, c));
+    const Lanes m = sub(n, mul(n, splat(dot)));
+    const Lanes ns = mul(n, splat(sine));
+    Lanes q;  // -ns: the sign bits of 0x0082e0b0
+    for (int i = 0; i < 4; ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &ns.v[i], 4);
+        q.v[i] = from_bits(bits ^ title_global<uint32_t>(0x0082e0b0 + i * 4));
+    }
+    const Lanes row0 = add(Lanes{{dot, ns.v[2], q.v[1], q.v[1]}}, mul(m, splat(n.v[0])));
+    const Lanes row1 = add(Lanes{{q.v[2], dot, ns.v[0], ns.v[0]}}, mul(m, splat(n.v[1])));
+    const Lanes row2 = add(Lanes{{ns.v[1], q.v[0], dot, dot}}, mul(m, splat(n.v[2])));
+    store4(out, row0);
+    store4(out + 4, row1);
+    store4(out + 8, row2);
+    uint32_t* const last = reinterpret_cast<uint32_t*>(out + 12);
+    for (int i = 0; i < 4; ++i) last[i] = title_global<uint32_t>(0x0082e290 + i * 4);
+}
+
+void XB_CDECL Mat44_InverseRigid_2(float* out, const float* m) {
+    if (out == m) {
+        alignas(16) float copy[16];
+        Mat44_InverseRigid_2(copy, m);
+        platform_rep_movs(out, copy, 0x40);
+        return;
+    }
+    alignas(16) float rows[12];
+    platform_rep_movs(rows, m, 0x30);
+    const float* const r0 = rows;
+    const float* const r1 = rows + 4;
+    const float* const r2 = rows + 8;
+    const float t0[4] = {r0[0], r1[0], r2[0], r2[0]};
+    const float t1[4] = {r0[1], r1[1], r2[1], r2[1]};
+    const float t2[4] = {r0[2], r1[2], r2[2], r2[2]};
+    std::memcpy(rows, t0, 16);
+    std::memcpy(rows + 4, t1, 16);
+    std::memcpy(rows + 8, t2, 16);
+    platform_rep_movs(out, rows, 0x30);
+    const Lanes t = lanes(m + 12);  // read after the rows are stored
+    const Lanes sum = add(add(mul(lanes(out), splat(t.v[0])), mul(lanes(out + 4), splat(t.v[1]))),
+                          mul(lanes(out + 8), splat(t.v[2])));
+    uint32_t* const last = reinterpret_cast<uint32_t*>(out + 12);
+    for (int i = 0; i < 4; ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &sum.v[i], 4);
+        last[i] = bits ^ title_global<uint32_t>(0x0082e0b0 + i * 4);
+    }
 }
 
 }  // namespace game

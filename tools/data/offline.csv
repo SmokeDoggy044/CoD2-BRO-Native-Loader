@@ -59,6 +59,8 @@ address,name,tested,matched,nan,mismatched,coverage
 00028160,DebugDraw_QueueLine,1708,1708,0,0,100.0
 000282b0,DebugDraw_QueueTriangle,1840,1840,0,0,100.0
 00029710,nglPolyVertexWriter_Clone,3835,3835,0,0,100.0
+00029aa0,Vec3A_Normalize,3506,3506,0,0,100.0
+00029ff0,Quat_RotationBetween,3338,999,2339,0,100.0
 000442a0,Str_EqualN,3690,3690,0,0,100.0
 00044d30,cdOcean_SetWaveOrigin,3770,3770,0,0,76.2
 00044df0,cdOcean_SetWaveDirection,2107,2107,0,0,100.0
@@ -461,6 +463,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000a5240,FxSphereSurfaceDomain_Within,3683,3683,0,0,100.0
 000a5570,FxYHemisphereDomain_Generate,3384,3384,0,0,100.0
 000a58b0,FxSphereSurfaceDomain_Generate,3658,3658,0,0,99.1
+000a7570,FastAcos,4000,4000,0,0,100.0
 000c36e0,SndArena_Reset,3776,3776,0,0,100.0
 000c41b0,SndVoice_Pause,2816,2816,0,0,29.6
 000c4220,SndVoice_Resume,2816,2816,0,0,21.1
@@ -484,6 +487,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0011b470,Scr_IntToFloat,3839,3839,0,0,100.0
 0011d730,ScriptString_FindLast,3118,3118,0,0,98.2
 0011d7a0,ScriptString_SetChar,3686,3686,0,0,100.0
+0011fd80,Vec3_Scale,3807,3807,0,0,100.0
 0017b630,std_Fill4,1354,1354,0,0,100.0
 0017b650,std_CopyBackward4,1897,1897,0,0,100.0
 0017cd50,std_vector_Erase4,1223,1223,0,0,100.0

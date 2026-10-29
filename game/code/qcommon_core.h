@@ -137,4 +137,43 @@ uint8_t XB_THISCALL SmallHeap_Owns(const uint32_t* heaps, uint32_t ptr);
 // Mem_AlignedAlloc calls).
 void XB_CDECL Mem_SetAllocatorHooks(const uint32_t* hooks);
 
+// 0x00029aa0: out = v / |v| (16-byte aligned, 4 lanes; |v|^2 summed (x^2 + y^2) + z^2, rsqrt estimate
+// and one Newton step); a zero vector scales by 0 (0x0082e6a0). Returns out.
+float* XB_CDECL Vec3A_Normalize(float* out, const float* v);
+// 0x000b88c0: the same with an unaligned load of v (constants at 0x007cd5f0..0x007cd670).
+float* XB_CDECL Vec3A_NormalizeDup(float* out, const float* v);
+// 0x0011fd80: out = (x, y, z) * s. Returns out. No callers, no stored pointer (dead).
+float* XB_CDECL Vec3_Scale(float* out, float x, float y, float z, float s);
+// 0x0002a230: grows sphere A (center_a aligned, *radius_a) to hold sphere B (center_b, radius_b):
+// B contains A -> A = B; A contains B -> unchanged; else the smallest sphere around both.
+void XB_REGS3 XB_CDECL Sphere_Merge(const float* center_b, float* radius_a, float* center_a, float radius_b);
+// 0x0002ac30: out = body's rotation rows (+0, +0x10, +0x20) times v (4 lanes, unaligned store);
+// v unchanged when flag 0x10 of +0x144 is set. Returns out.
+float* XB_CDECL PhysBody_RotateVector(float* out, const uint8_t* body, const float* v);
+// 0x000a7570: arccos(x) by odd polynomials (|x| < 0.5: pi/2 - asin series; else 2 asin of
+// sqrt((1 - |x|) / 2)), on the x87.
+long double XB_CDECL FastAcos(float x);
+// 0x000aff30: dot(n, a - b) / dot(n, d), or 1e20 when |dot(n, d)| < 0.0001 (all aligned).
+float XB_CDECL RayPlaneIntersectFrac(const float* a, const float* n, const float* b, const float* d);
+// 0x000c3b40: for each set bit i of the 64-bit mask, dst[i] = the next word of src.
+void XB_CDECL BitMask64_Unpack(uint32_t* dst, uint32_t mask_lo, uint32_t mask_hi, const uint32_t* src);
+// 0x000c56b0: the index of `bit` among the set bits of *mask (bits below it counted), -1 when not
+// all of `bit` is set.
+int32_t XB_REGS1 XB_CDECL BitMask64_IndexOfBit(const uint32_t* mask, uint32_t bit_lo, uint32_t bit_hi);
+// 0x000a7670: ARGB of color (aligned, 0..1) * 255 * (scale.xyz, 1), clamped to [0, 255], truncated.
+uint32_t XB_CDECL apsColor_PackScaled(const float* scale, const float* color);
+// 0x000b8ed0: rotation rows 0-2 about the unit axis (aligned) from its sine and cosine (each row's w
+// = its x). Returns out + 8.
+float* XB_CDECL Mat34_FromAxisSinCos(float* out, const float* axis, float sine, float cosine);
+// 0x000b9080: rotation by |v| * scale about v (aligned); identity when |v| < 1e-5.
+void XB_CDECL Mat34_FromRotationVector(float* out, const float* v, float scale);
+// 0x000b9180: the rotation turning a towards b (aligned) about a x b; identity when |a x b|^2 < 1e-5.
+void XB_CDECL Mat34_RotationBetweenVectors(float* out, const float* a, const float* b);
+// 0x00029ff0: out = the 4x4 rotation (rows 0-2, row 3 = 0x0082e290) turning a towards b (aligned):
+// cos I + sin [n]x + (n - n cos) n^T with n = a x b normalized, cos = a.b, sin = |a x b|.
+void XB_REGS3 XB_CDECL Quat_RotationBetween(const float* a, uint32_t, const float* b, float* out);
+// 0x00029e30: out = the inverse of the rigid 4x4 m: rows 0-2 transposed, row 3 = -(R^T t)
+// (out == m: through a local copy).
+void XB_CDECL Mat44_InverseRigid_2(float* out, const float* m);
+
 }  // namespace game
