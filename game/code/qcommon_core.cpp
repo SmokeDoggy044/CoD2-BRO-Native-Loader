@@ -4,6 +4,7 @@
 
 #include "lanes.h"
 #include "qcommon.h"
+#include "r_init.h"
 #include "snd.h"
 #include "title_data.h"
 
@@ -2185,6 +2186,526 @@ void XB_CDECL File_Close(int32_t handle) {
         --word_at(parent, 0x10);
         handle = static_cast<int32_t>(word_at(record, 8));
     }
+}
+
+namespace {
+
+uint32_t addr32(const void* p) {
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));
+}
+
+
+uint8_t* manager_deleting_dtor(uint8_t* self, uint32_t vtable, uint32_t flags) {
+    if (vtable) word_at(self, 0) = vtable;
+    ResourceManager_Destruct(self);
+    if (flags & 1) Z_Free(self);
+    return self;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL ResourceManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0, flags);
+}
+
+uint8_t* XB_THISCALL AnimTreeManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083261c, flags);
+}
+
+uint8_t* XB_THISCALL SpgManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x00832660, flags);
+}
+
+uint8_t* XB_THISCALL DlgManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x00837728, flags);
+}
+
+uint8_t* XB_THISCALL LocStringManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083765c, flags);
+}
+
+uint8_t* XB_THISCALL DbManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x008376a0, flags);
+}
+
+uint8_t* XB_THISCALL CfgstrManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x00837618, flags);
+}
+
+uint8_t* XB_THISCALL ModelManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083be8c, flags);
+}
+
+uint8_t* XB_THISCALL XmpbManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083bea4, flags);
+}
+
+uint8_t* XB_THISCALL AitbManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083ce3c, flags);
+}
+
+uint8_t* XB_THISCALL HeapAllocator_DeletingDtor(uint8_t* self, uint32_t flags) {
+    uint8_t* const block = pointer_at<uint8_t>(self, 4);
+    word_at(self, 0) = 0x008376c4;  // HeapAllocator vtable
+    Z_Free(block);
+    word_at(self, 0) = 0x0083760c;  // base allocator vtable
+    if (flags & 1) Z_Free(self);
+    return self;
+}
+
+uint8_t* XB_THISCALL ProfileSave_DeletingDtor(uint8_t* self, uint32_t flags) {
+    title_function<void XB_THISCALL(uint8_t*)>(0x003124f0)(self);  // ProfileSave_Dtor
+    if (flags & 1) Z_Free(self);
+    return self;
+}
+
+void* XB_STDCALL AlignedAllocator_Alloc(uint32_t size, uint32_t alignment) {
+    if (!size) return nullptr;
+    return Mem_AlignedAlloc(size, alignment, 0);
+}
+
+namespace {
+
+char* printf_with_length(char* buffer, uint32_t last, const char* format, void* args) {
+    buffer[last] = 0;
+    buffer[0] = 0;
+    title_function<int32_t XB_CDECL(char*, const char*, void*)>(0x001eea95)(buffer, format, args);  // _vsprintf
+    buffer[last] = static_cast<char>(std::strlen(buffer));
+    return buffer;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(ShortString_Printf_entry,
+                   "leal 8(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ShortString_Printf) "addl $12, %esp\n"
+                   "ret")
+
+char* XB_CDECL ShortString_Printf(char* buffer, const char* format, void* args) {
+    return printf_with_length(buffer, 0x7f, format, args);
+}
+
+PLATFORM_ASM_ENTRY(FixedStr64_Printf_entry,
+                   "leal 8(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FixedStr64_Printf) "addl $12, %esp\n"
+                   "ret")
+
+char* XB_CDECL FixedStr64_Printf(char* buffer, const char* format, void* args) {
+    return printf_with_length(buffer, 0x3f, format, args);
+}
+
+void XB_THISCALL std_vector_Tidy4(uint8_t* vector) {
+    uint8_t* const data = pointer_at<uint8_t>(vector, 4);
+    if (data) Z_Free(data);
+    word_at(vector, 4) = 0;
+    word_at(vector, 8) = 0;
+    word_at(vector, 0xc) = 0;
+}
+
+namespace {
+
+void list_clear(uint8_t* list) {
+    uint8_t* const head = pointer_at<uint8_t>(list, 4);
+    uint8_t* node = pointer_at<uint8_t>(head, 0);
+    word_at(head, 0) = addr32(head);
+    uint8_t* const head2 = pointer_at<uint8_t>(list, 4);
+    word_at(head2, 4) = addr32(head2);
+    const bool empty = node == pointer_at<uint8_t>(list, 4);
+    word_at(list, 8) = 0;
+    if (empty) return;
+    for (;;) {
+        uint8_t* const next = pointer_at<uint8_t>(node, 0);
+        Z_Free(node);
+        node = next;
+        if (next == pointer_at<uint8_t>(list, 4)) return;
+    }
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(std_list_Clear_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_list_Clear) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL std_list_Clear(uint8_t* list) {
+    list_clear(list);
+}
+
+void XB_THISCALL std_list_Clear_2(uint8_t* list) {
+    list_clear(list);
+}
+
+namespace {
+
+// The creators' common part: a 4-aligned heap block, the ResourceManager vtable, registered in the
+// manager table (0x009719fc, count 0x009719f8, at most 20), then the class vtable and the global.
+uint8_t* create_manager(uint32_t size, uint32_t global) {
+    uint8_t* const manager = Heap_AllocAligned(4, size);
+    if (!manager) {
+        title_global<uint32_t>(global) = 0;
+        return nullptr;
+    }
+    word_at(manager, 0) = 0x00838220;  // ResourceManager vtable
+    const int32_t count = title_global<int32_t>(0x009719f8);
+    if (count < 0x14) {
+        title_global<uint32_t>(0x009719fc + static_cast<uint32_t>(count) * 4) = addr32(manager);
+        title_global<int32_t>(0x009719f8) = count + 1;
+    }
+    return manager;
+}
+
+void create_plain_manager(uint32_t vtable, uint32_t global) {
+    uint8_t* const manager = create_manager(0x190, global);
+    if (!manager) return;
+    std::memset(manager + 4, 0, 0x63 * 4);
+    word_at(manager, 0) = vtable;
+    title_global<uint32_t>(global) = addr32(manager);
+}
+
+}  // namespace
+
+void XB_CDECL ResourceManager_CreateModels() {
+    create_plain_manager(0x0083be98, 0x0095f6ac);
+}
+
+void XB_CDECL ResourceManager_CreateXmpb() {
+    create_plain_manager(0x0083beb0, 0x0095f6b0);
+}
+
+void XB_CDECL ResourceManager_CreateLgrid() {
+    create_plain_manager(0x0083be70, 0x0095f6a0);
+}
+
+void XB_CDECL ResourceManager_CreateLevel() {
+    uint8_t* const manager = create_manager(0xc, 0x0095f534);
+    if (!manager) return;
+    word_at(manager, 0) = 0x00832614;
+    word_at(manager, 8) = 0;
+    word_at(manager, 4) = 0;
+    title_global<uint32_t>(0x0095f534) = addr32(manager);
+}
+
+void XB_CDECL ResourceManager_CreateAnimTrees() {
+    create_plain_manager(0x0083261c, 0x0095f524);
+}
+
+void XB_CDECL ResourceManager_CreateLocStrings() {
+    create_plain_manager(0x00837668, 0x0095f5d8);
+}
+
+void XB_CDECL ResourceManager_CreateSoundBanks() {
+    uint8_t* const manager = create_manager(0x84c, 0x0095f4c0);
+    if (!manager) return;
+    word_at(manager, 0) = 0x008327a8;  // SoundBankManager vtable
+    manager[4] = 0;
+    manager[5] = 0;
+    SoundBankTable_Init(manager + 8);
+    title_global<uint32_t>(0x0095f4c0) = addr32(manager);
+}
+
+void XB_CDECL ResourceManager_CreateDlg() {
+    create_plain_manager(0x00837728, 0x0095f5ac);
+}
+
+void XB_CDECL ResourceManager_CreateAitb() {
+    create_plain_manager(0x0083ce48, 0x0095f718);
+}
+
+void XB_CDECL ResourceManager_CreateDb() {
+    create_plain_manager(0x008376ac, 0x0095f5a8);
+}
+
+void XB_CDECL ResourceManager_CreateCfgstr() {
+    create_plain_manager(0x00837650, 0x0095f5d4);
+}
+
+PLATFORM_ASM_ENTRY(NameMap_NodeCtor_entry,
+                   "pushl %eax\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(NameMap_NodeCtor) "addl $16, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL NameMap_NodeCtor(uint8_t* node, uint32_t next, uint32_t prev, const uint8_t* value) {
+    word_at(node, 0) = next;
+    word_at(node, 4) = prev;
+    word_at(node, 8) = word_at(value, 0);
+    int32_t length = static_cast<int32_t>(next);
+    char* const name = reinterpret_cast<char*>(node + 0xc);
+    FixedStr_Copy(name, &length, 0x1f, reinterpret_cast<const char*>(value + 4), value[4 + 0x1f]);
+    name[0x1f] = static_cast<char>(length);
+    return node;
+}
+
+uint32_t* XB_REGS1 XB_STDCALL DynArray_AllocAlignedZeroed(uint32_t capacity, uint32_t count) {
+    uint32_t* const data = static_cast<uint32_t*>(Mem_AlignedAlloc(capacity * 4, 4, 0));
+    uint32_t* const end = data + count;
+    for (uint32_t* p = data; p != end; ++p) {
+        if (p) *p = 0;
+    }
+    return data;
+}
+
+PLATFORM_ASM_ENTRY(DynArray_Alloc12_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DynArray_Alloc12) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL DynArray_Alloc12(uint32_t capacity, uint32_t count) {
+    uint32_t* const data = static_cast<uint32_t*>(Mem_AlignedAlloc(capacity * 12, 4, 0));
+    uint32_t* const end = data + count * 3;
+    for (uint32_t* p = data; p != end; p += 3) {
+        if (p) {
+            p[0] = 0;
+            p[1] = 0;
+            p[2] = 0;
+        }
+    }
+    return data;
+}
+
+namespace {
+
+// MSVC std::string (0x1c bytes): +4 the buffer (or its pointer from 16 capacity on), +0x14 size, +0x18
+// capacity. Tidy: free a heap buffer, back to the 15-char local one, empty.
+void string_tidy(uint8_t* s) {
+    if (word_at(s, 0x18) >= 0x10) Z_Free(pointer_at<uint8_t>(s, 4));
+    word_at(s, 0x18) = 0xf;
+    word_at(s, 0x14) = 0;
+    s[4] = 0;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(std_string_DestroyRange_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(std_string_DestroyRange) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL std_string_DestroyRange(uint8_t* first, uint8_t* last) {
+    for (uint8_t* s = first; s != last; s += 0x1c) string_tidy(s);
+}
+
+PLATFORM_ASM_ENTRY(LocEntry_Dtor_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(LocEntry_Dtor) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL LocEntry_Dtor(uint8_t* entry) {
+    string_tidy(entry + 0x1c);
+    string_tidy(entry);
+}
+
+PLATFORM_ASM_ENTRY(std_map_string_DestroyValue_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_map_string_DestroyValue) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL std_map_string_DestroyValue(uint8_t* value) {
+    string_tidy(value + 0x38);
+    string_tidy(value + 0x1c);
+    string_tidy(value);
+}
+
+uint32_t* XB_REGS2 XB_CDECL std_UninitializedFillN4_2(uint32_t, const uint32_t* value, uint32_t* dst, uint32_t count) {
+    for (; count; --count, ++dst) {
+        if (dst) *dst = *value;
+    }
+    return dst;
+}
+
+uint32_t* XB_REGS2 XB_CDECL std_UninitializedCopy4_2(uint32_t, const uint32_t* last, const uint32_t* first, uint32_t* dst) {
+    for (; first != last; ++first, ++dst) {
+        if (dst) *dst = *first;
+    }
+    return dst;
+}
+
+namespace {
+
+// A list head node: Z_Malloc'd, next and prev pointing at itself (the allocator's exception frame
+// around it has no effect).
+uint8_t* buy_list_head(uint32_t size) {
+    uint8_t* const head = Z_Malloc(size);
+    if (head) word_at(head, 0) = addr32(head);
+    uint8_t* const prev = head + 4;
+    if (prev) word_at(prev, 0) = addr32(head);
+    return head;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL std_list_BuyHeadNameMap() {
+    return buy_list_head(0x2c);
+}
+
+uint8_t* XB_CDECL std_list_BuyHeadZ() {
+    return buy_list_head(0x10);
+}
+
+uint8_t* XB_THISCALL std_list_BuyNode8(const uint32_t* value, uint32_t next, uint32_t prev) {
+    uint8_t* const node = Z_Malloc(0x10);
+    if (node) {
+        word_at(node, 0) = next;
+        word_at(node, 4) = prev;
+        word_at(node, 8) = value[0];
+        word_at(node, 0xc) = value[1];
+    }
+    return node;
+}
+
+PLATFORM_ASM_ENTRY(AnglesToForward_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(AnglesToForward) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL AnglesToForward(const float* angles, float* forward) {
+    // (cos pitch * cos yaw, cos pitch * sin yaw, -sin pitch).
+    const float to_radians = title_global<float>(0x0083edd8);
+    float sy, cy, sp, cp;
+    FastSinCos(&sy, 0, &cy, angles[1] * to_radians);
+    FastSinCos(&sp, 0, &cp, angles[0] * to_radians);
+    forward[1] = cp * sy;
+    forward[0] = cp * cy;
+    forward[2] = 0.0f - sp;
+}
+
+PLATFORM_ASM_ENTRY(PtrVector_PushBack_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PtrVector_PushBack) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL PtrVector_PushBack(uint8_t* vector, const uint32_t* item) {
+    // {data, capacity, count}: grows by 1 up to 3 elements, then by 4 (Mem_AlignedAlloc, 4-aligned).
+    const int32_t count = static_cast<int32_t>(word_at(vector, 8));
+    if (!(count < static_cast<int32_t>(word_at(vector, 4)))) {
+        const int32_t capacity = count > 3 ? count + 4 : count + 1;
+        uint32_t* const data = static_cast<uint32_t*>(Mem_AlignedAlloc(static_cast<uint32_t>(capacity) * 4, 4, 0));
+        for (int32_t i = 0; i < static_cast<int32_t>(word_at(vector, 8)); ++i) data[i] = pointer_at<uint32_t>(vector, 0)[i];
+        void* const old = pointer_at<void>(vector, 0);
+        if (old) {
+            Mem_AlignedFree(old);
+            word_at(vector, 0) = 0;
+        }
+        word_at(vector, 0) = addr32(data);
+        word_at(vector, 4) = static_cast<uint32_t>(capacity);
+    }
+    const uint32_t index = word_at(vector, 8);
+    pointer_at<uint32_t>(vector, 0)[index] = *item;
+    word_at(vector, 8) = word_at(vector, 8) + 1;
+}
+
+namespace {
+
+// The 4-byte DynArray allocator: SmallHeap (0x0095f4a4) when the size fits its largest pool
+// (+0x28 table, pool count +0x24), else the heap 0x0095f4a0 (4-aligned); every int zeroed.
+uint32_t* alloc_ints_zeroed(uint32_t count) {
+    uint8_t* const small = title_global<uint8_t*>(0x0095f4a4);
+    const uint32_t size = count << 2;
+    int32_t last = static_cast<int32_t>(word_at(small, 0x24)) - 1;
+    if (last <= 0) last = 0;
+    const int32_t limit = *reinterpret_cast<const int16_t*>(small + 0x28 + last * 2);
+    uint8_t* data = nullptr;
+    if (!(size > static_cast<uint32_t>(limit))) data = SmallHeap_Alloc(small, size, 0);
+    if (!data) {
+        data = Heap_AllocFromHeap(title_global<uint8_t*>(0x0095f4a0), size, 4);
+        if (!data) return nullptr;  // the original runs into an int3 here
+    }
+    uint32_t* const ints = reinterpret_cast<uint32_t*>(data);
+    uint32_t* const end = reinterpret_cast<uint32_t*>(data + size);
+    for (uint32_t* p = ints; p != end; ++p) {
+        if (p) *p = 0;
+    }
+    return ints;
+}
+
+}  // namespace
+
+uint32_t* XB_STDCALL DynArray_AllocIntsZeroed(uint32_t count, uint32_t) {
+    return alloc_ints_zeroed(count);
+}
+
+uint32_t* XB_STDCALL DynArray_AllocIntsZeroed_2(uint32_t count) {
+    return alloc_ints_zeroed(count);
+}
+
+PLATFORM_ASM_ENTRY(PtrVector_Resize_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PtrVector_Resize) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL PtrVector_Resize(uint8_t* vector, int32_t size) {
+    // {data, capacity, count}: within the capacity only the count changes; else a new exact-size
+    // block (Mem_AlignedAlloc) takes the old elements and the old one is freed.
+    if (!(size > static_cast<int32_t>(word_at(vector, 4)))) {
+        word_at(vector, 8) = static_cast<uint32_t>(size);
+        return;
+    }
+    uint32_t* const data = static_cast<uint32_t*>(Mem_AlignedAlloc(static_cast<uint32_t>(size) * 4, 4, 0));
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(vector, 8)); ++i) data[i] = pointer_at<uint32_t>(vector, 0)[i];
+    void* const old = pointer_at<void>(vector, 0);
+    if (old) {
+        Mem_AlignedFree(old);
+        word_at(vector, 0) = 0;
+    }
+    word_at(vector, 0) = addr32(data);
+    word_at(vector, 4) = static_cast<uint32_t>(size);
+    word_at(vector, 8) = static_cast<uint32_t>(size);
+}
+
+namespace {
+
+// DynArray {data, capacity, count} of ints: a new zeroed block of `capacity` takes the elements; the
+// old one goes back to the SmallHeap that owns it or to the heap 0x0095f4a0.
+void dynarray_regrow(uint8_t* array, uint32_t capacity) {
+    uint32_t* const data = DynArray_AllocIntsZeroed(capacity, word_at(array, 8));
+    for (uint32_t i = 0; i < word_at(array, 8); ++i) data[i] = pointer_at<uint32_t>(array, 0)[i];
+    uint8_t* const old = pointer_at<uint8_t>(array, 0);
+    if (old) {
+        uint8_t* const small = title_global<uint8_t*>(0x0095f4a4);
+        if (SmallHeap_Owns(reinterpret_cast<const uint32_t*>(small), addr32(old))) {
+            SmallHeap_Free(title_global<uint8_t*>(0x0095f4a4), old);
+        } else {
+            Heap_FreeIn2(title_global<uint32_t>(0x0095f4a0), old);
+        }
+    }
+    word_at(array, 0) = addr32(data);
+    word_at(array, 4) = capacity;
+}
+
+}  // namespace
+
+void XB_THISCALL DynArray_Reserve(uint8_t* array, uint32_t capacity) {
+    if (capacity > word_at(array, 4)) dynarray_regrow(array, capacity);
+}
+
+uint32_t XB_THISCALL DynArray_PushBack(uint8_t* array, const uint32_t* item) {
+    const uint32_t count = word_at(array, 8);
+    if (!(count < word_at(array, 4))) dynarray_regrow(array, count + 4);
+    const uint32_t index = word_at(array, 8);
+    pointer_at<uint32_t>(array, 0)[index] = *item;
+    word_at(array, 8) = word_at(array, 8) + 1;
+    return index;
+}
+
+uint32_t XB_REGS3 XB_CDECL std_list_IncSize_4(uint32_t eax, uint8_t* list, uint32_t count) {
+    const uint32_t size = word_at(list, 8);
+    if (!(0x1fffffffu - size >= count)) {
+        // "list<T> too long": the title's length_error throw (never returns).
+        return title_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(0x00028b40)(eax, list, count);
+    }
+    word_at(list, 8) = size + count;
+    return size + count;
+}
+
+uint32_t XB_THISCALL std_list_Insert8(const uint32_t* value, uint8_t* list, uint8_t* where) {
+    uint8_t* const node = std_list_BuyNode8(value, addr32(where), word_at(where, 4));
+    const uint32_t size = std_list_IncSize_4(0, list, 1);
+    word_at(where, 4) = addr32(node);
+    word_at(pointer_at<uint8_t>(node, 4), 0) = addr32(node);
+    return size;
 }
 
 }  // namespace game

@@ -385,4 +385,115 @@ void XB_CDECL File_AbortRequestsForFile(uint32_t file);
 // handle freed; an alias drops a reference of its file (+8) and closes that one in turn.
 void XB_CDECL File_Close(int32_t handle);
 
+// Manager deleting destructors (vtable slot 0): the class vtable (none for the base), ResourceManager_Destruct,
+// Z_Free with flags bit 0; return the manager. 0x00024eb0 ResourceManager, 0x0001ebd0 AnimTree, 0x0001ed20 Spg,
+// 0x000242c0 Dlg, 0x00024490 LocString, 0x000245d0 Db, 0x00024600 Cfgstr, 0x00029960 Model, 0x00029990 Xmpb,
+// 0x0002bf50 Aitb.
+uint8_t* XB_THISCALL ResourceManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimTreeManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL SpgManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL DlgManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL LocStringManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL DbManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL CfgstrManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL ModelManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL XmpbManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AitbManager_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00024400: Z_Free of the block (+4) under the HeapAllocator vtable, then the base vtable 0x0083760c and
+// Z_Free of the allocator with flags bit 0.
+uint8_t* XB_THISCALL HeapAllocator_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00013840: ProfileSave_Dtor (0x003124f0), then Z_Free with flags bit 0.
+uint8_t* XB_THISCALL ProfileSave_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00094120 (slot 1 of the aligned allocator table 0x007c4d90; this unused): 0 for size 0, else
+// Mem_AlignedAlloc(size, alignment, 0).
+void* XB_STDCALL AlignedAllocator_Alloc(uint32_t size, uint32_t alignment);
+// 0x00013940 / 0x00029680 (buffer in ESI, varargs): _vsprintf into a 128 / 64-byte string whose last byte
+// holds the length (cleared first, with the first byte); returns the buffer.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL ShortString_Printf(char* buffer, const char* format, void* args);
+extern "C" void ShortString_Printf_entry(void);
+extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr64_Printf(char* buffer, const char* format, void* args);
+extern "C" void FixedStr64_Printf_entry(void);
+// 0x00028ad0: vector tidy - Z_Free of the data (+4) when set, +4/+8/+0xc cleared.
+void XB_THISCALL std_vector_Tidy4(uint8_t* vector);
+// 0x00015810 (list in ESI) / 0x00028b00 (list in ECX): the head (+4) linked to itself, size (+8) 0, then
+// every old node freed (Z_Free) up to the head.
+extern "C" PLATFORM_HIDDEN void XB_CDECL std_list_Clear(uint8_t* list);
+extern "C" void std_list_Clear_entry(void);
+void XB_THISCALL std_list_Clear_2(uint8_t* list);
+
+// Com_Init's manager creators: a 4-aligned heap block (Heap_AllocAligned) under the ResourceManager vtable,
+// registered in the manager table (0x009719fc, count 0x009719f8, at most 20), zeroed (0x63 words after the
+// vtable), the class vtable, stored in the global (0 when the allocation fails). 0x00023900 models
+// (0x0095f6ac), 0x00023960 xmpb (0x0095f6b0), 0x000239c0 lgrid (0x0095f6a0), 0x00023d80 anim trees
+// (0x0095f524), 0x00023e70 loc strings (0x0095f5d8), 0x00023f30 dlg (0x0095f5ac), 0x00023f90 aitb
+// (0x0095f718), 0x00023ff0 db (0x0095f5a8), 0x00024050 cfgstr (0x0095f5d4).
+void XB_CDECL ResourceManager_CreateModels();
+void XB_CDECL ResourceManager_CreateXmpb();
+void XB_CDECL ResourceManager_CreateLgrid();
+void XB_CDECL ResourceManager_CreateAnimTrees();
+void XB_CDECL ResourceManager_CreateLocStrings();
+void XB_CDECL ResourceManager_CreateDlg();
+void XB_CDECL ResourceManager_CreateAitb();
+void XB_CDECL ResourceManager_CreateDb();
+void XB_CDECL ResourceManager_CreateCfgstr();
+// 0x00023a20: the level manager 0x0095f534 (0xc bytes, vtable 0x00832614: +4 player entity, +8 level entity).
+void XB_CDECL ResourceManager_CreateLevel();
+// 0x00023ed0: the sound bank manager 0x0095f4c0 (0x84c bytes, vtable 0x008327a8, +4/+5 flags 0,
+// SoundBankTable_Init of +8).
+void XB_CDECL ResourceManager_CreateSoundBanks();
+// 0x000158e0 (node ESI, next ECX, prev EDX, value EAX): a name-map list node: links, the key dword, the
+// FixedStr32 name (FixedStr_Copy, length byte +0x1f).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL NameMap_NodeCtor(uint8_t* node, uint32_t next, uint32_t prev,
+                                                             const uint8_t* value);
+extern "C" void NameMap_NodeCtor_entry(void);
+// 0x00028530 (capacity EAX, count): Mem_AlignedAlloc(capacity * 4, 4, 0), the first count ints zeroed.
+uint32_t* XB_REGS1 XB_STDCALL DynArray_AllocAlignedZeroed(uint32_t capacity, uint32_t count);
+// 0x0001ff10 (capacity EAX, count ESI): the same for 12-byte elements.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL DynArray_Alloc12(uint32_t capacity, uint32_t count);
+extern "C" void DynArray_Alloc12_entry(void);
+// 0x00023510 (first EAX, last EDI): every std::string (0x1c bytes) in the range tidied (heap buffer freed,
+// empty, capacity 15).
+extern "C" PLATFORM_HIDDEN void XB_CDECL std_string_DestroyRange(uint8_t* first, uint8_t* last);
+extern "C" void std_string_DestroyRange_entry(void);
+// 0x0001daf0 (entry in ESI): its two strings (+0x1c, then +0) tidied.
+extern "C" PLATFORM_HIDDEN void XB_CDECL LocEntry_Dtor(uint8_t* entry);
+extern "C" void LocEntry_Dtor_entry(void);
+
+// 0x0001f810 (value in ESI): the name map's value {string, string, string, int} - strings +0x38, +0x1c,
+// +0 tidied.
+extern "C" PLATFORM_HIDDEN void XB_CDECL std_map_string_DestroyValue(uint8_t* value);
+extern "C" void std_map_string_DestroyValue_entry(void);
+// 0x0001b810 (value EDX; dst, count): uninitialized_fill_n of dwords (null slots skipped); returns the end.
+uint32_t* XB_REGS2 XB_CDECL std_UninitializedFillN4_2(uint32_t, const uint32_t* value, uint32_t* dst, uint32_t count);
+// 0x0001b880 (last EDX; first, dst): uninitialized_copy of dwords; returns the destination end.
+uint32_t* XB_REGS2 XB_CDECL std_UninitializedCopy4_2(uint32_t, const uint32_t* last, const uint32_t* first, uint32_t* dst);
+// 0x00015540 / 0x000215e0: a list head (Z_Malloc 0x2c / 0x10 bytes) linked to itself.
+uint8_t* XB_CDECL std_list_BuyHeadNameMap();
+uint8_t* XB_CDECL std_list_BuyHeadZ();
+// 0x00015850 (value in ECX): a 16-byte list node {next, prev, value[0], value[1]} (Z_Malloc).
+uint8_t* XB_THISCALL std_list_BuyNode8(const uint32_t* value, uint32_t next, uint32_t prev);
+// 0x00013c60 (angles EDI, forward ESI): (cos pitch cos yaw, cos pitch sin yaw, -sin pitch) (FastSinCos).
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnglesToForward(const float* angles, float* forward);
+extern "C" void AnglesToForward_entry(void);
+// 0x000138c0 (vector in ESI; item): {data, capacity, count} push_back; grows to count + 1 up to 3, else
+// count + 4 (Mem_AlignedAlloc / Mem_AlignedFree).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PtrVector_PushBack(uint8_t* vector, const uint32_t* item);
+extern "C" void PtrVector_PushBack_entry(void);
+// 0x0001b660 (capacity, unused) / 0x0001b6d0 (capacity): count ints from SmallHeap 0x0095f4a4 when they fit
+// its largest pool, else from the heap 0x0095f4a0, all zeroed. Ghidra ends both at an inline int3 (the
+// allocation-failure break): the bodies run to 0x0001b6c3 / 0x0001b733.
+uint32_t* XB_STDCALL DynArray_AllocIntsZeroed(uint32_t count, uint32_t);
+uint32_t* XB_STDCALL DynArray_AllocIntsZeroed_2(uint32_t count);
+// 0x00013970 (vector ESI, size EBX): resize; a larger size than the capacity reallocates exactly.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PtrVector_Resize(uint8_t* vector, int32_t size);
+extern "C" void PtrVector_Resize_entry(void);
+// 0x00015a10 / 0x00015b50: DynArray {data, capacity, count} reserve / push_back (grows by 4; returns
+// the index): the new block from DynArray_AllocIntsZeroed, the old one back to its SmallHeap or heap.
+void XB_THISCALL DynArray_Reserve(uint8_t* array, uint32_t capacity);
+uint32_t XB_THISCALL DynArray_PushBack(uint8_t* array, const uint32_t* item);
+// 0x00028b40 (list EDX, count ECX): size (+8) += count; "list<T> too long" past 0x1fffffff.
+uint32_t XB_REGS3 XB_CDECL std_list_IncSize_4(uint32_t eax, uint8_t* list, uint32_t count);
+// 0x00015760 (value in ECX; list, where): a new node before where.
+uint32_t XB_THISCALL std_list_Insert8(const uint32_t* value, uint8_t* list, uint8_t* where);
+
 }  // namespace game
