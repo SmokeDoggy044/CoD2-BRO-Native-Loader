@@ -427,6 +427,32 @@ extern "C" void S_UnloadSoundBank_entry(void);
 // 0x008bed10 is set.
 void XB_CDECL SndBank_Relocate(uint8_t* request);
 
+// Sound startup (Xbox DirectSound device setup; untestable by design, kept as C for our own audio backend).
+// 0x000c3850 (arena; SoundManager_Ctor): once (arena base 0x0090a890 unset): base = arena, size 0x0090a898 = the
+// sizing pass's used bytes 0x0090a894, used 0; SndVoice_AllocPools(null) (< 0: returned); the guard strings
+// "NSL_WORK_GUARD0" / "NSL_WORK_GUARD1" into *0x0090a89c / *0x0090a8a0, the voice pool 0x0090a8b4 (0x0090a8dc,
+// 0x008bd654 records) and source pool 0x0090a8e4 (0x0090a90c, 0x008bd658) made (HandlePool_Init, 12-byte
+// headers); group 0 and mix state volumes 1, listener cleared with forward (0,0,1) / up (0,1,0) at mix +0xc0;
+// SndSys_InitDirectSound, then (tail jump) SndSys_Update.
+uint32_t XB_CDECL SndSys_Init(uint32_t arena);
+// 0x000c7490: DirectSoundCreate into 0x00911540, the effects image 0x008bed18 (0x008bfd68 = 0x1050 bytes; reverb
+// index -1, crosstalk 0), distance factor 1 (deferred), headphones off, full HRTF, 7.5 MB of uncached physical memory
+// for SndMem_Init, SndSys_CreateVoiceBuffers(1, 1, 1, 1, 7, 36, 7, 36); DSOUND word 0x003e45f4 = 0; returns 1.
+uint32_t XB_CDECL SndSys_InitDirectSound();
+// 0x000c68d0 (eight voice counts): clears the 256 hardware slots (0x6c bytes at 0x0090a940: +0 buffer, +4 format,
+// +0x30 stream, +0x34 packet memory, +0x60 packet size) and fills one slot per round from the first count left, in
+// the order 0, 1, 2, 3, 4, 6, 5, 7: 3D mono stream (counts 0 and 4, kind 3 in voice +0xc2), stereo stream (1 and 6,
+// kind 4), big stereo streams (2: kind 7, 3: kind 8), 3D mono buffer (5, kind 5), stereo buffer (7, kind 6). 0x008bed00 = slots filled. A failed create zeroes a count (kind 0 zeroes count 4,
+// kind 1 count 6); a failed stereo buffer ends the setup.
+// Entry: cdecl (mono3d_a, stereo_a, big_a, big_b, mono3d_b, mono3d_buffers, stereo_b, stereo_buffers); the C gets
+// the entry ESP and the argument block.
+extern "C" PLATFORM_HIDDEN void XB_CDECL SndSys_CreateVoiceBuffers(uint32_t entry, const int32_t* args);
+extern "C" void SndSys_CreateVoiceBuffers_entry(void);
+// 0x000ce070 (Sys_Main): the movie sound buffer movie_audioBuffer 0x00920850 (Xbox ADPCM stereo 48 kHz, 0x12000
+// bytes looping over a zeroed 4 KB-aligned block 0x00920848); PAL-I video (XGetVideoStandard 3) sets
+// Movie_SetDropLateFrames(1). False when DirectSoundCreate or CreateSoundBuffer fails.
+uint8_t XB_CDECL SndSys_InitDevice();
+
 // 0x002ce370 (crossfade in EAX, alias name in EDX; fade time on the stack, ret 4; nothing while 0x0096d968 is set
 // or without a name): the ambient alias on a free channel of 0x0095f4c4 (S_PlaySoundAlias: origin 0x0082e290,
 // velocity 0x0082e110, all four values from the sound) into handle +4; +0x10 = 0, state +0x1c = 1, length +0x14 =
