@@ -575,6 +575,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0028f740,R_DrawTextWithShadow_2,3453,3046,407,0,97.6
 00292ee0,Key_TranslateButtonName,3804,3804,0,0,65.0
 00293d20,Com_StringContains,3646,3646,0,0,87.8
+00293e10,Rand_StepSeed,4000,4000,0,0,94.4
 00294190,AxisCopy,3693,3693,0,0,100.0
 00295b40,ByteToDir,3826,3826,0,0,100.0
 00295b80,DirToByte,3830,3830,0,0,100.0
@@ -723,6 +724,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00322c70,UIQuad_GetVertexMax,3655,3655,0,0,100.0
 00322d10,UIQuad_SetVertexAlphaScaled,1948,1948,0,0,100.0
 0032cf50,Profile_SetDefaults,2440,2440,0,0,47.3
+003304f0,Profile_ApplySkill,3696,3696,0,0,100.0
 00332b90,UIQuad_ApplyMatrix,3644,3644,0,0,100.0
 00376480,StaticInit_Vec4x4_95ff30,4000,4000,0,0,100.0
 00376530,StaticInit_Vec4x4_963870,4000,4000,0,0,100.0

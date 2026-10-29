@@ -309,4 +309,38 @@ const char* XB_CDECL Com_StringContains(const char* str1, const char* str2, int3
 // "dat"* (Q_stricmpn 99999).
 int32_t XB_REGS1 XB_CDECL FS_IsCfgMenuOrDatFile(const char* ext);
 
+// --- File handles (fsh 0x009477a0, 0x120 bytes each: +0 FILE* or unzFile, +4 unique zip,
+// +8 handleSync, +0x18 zipFile) ---
+
+// 0x00295bf0 (f in EAX): fflush of the handle's FILE.
+void XB_REGS1 XB_CDECL FS_Flush(int32_t f);
+// 0x00297a60 (the body from 0x00297a69 was FUN_00297a69): Q3's FS_Write - fwrite until done
+// (one retry after a 0, 0 on -1), fflush with handleSync; returns len, 0 for handle 0.
+// Keeps the retry flag in its f argument slot.
+int32_t XB_CDECL FS_Write(const void* buffer, int32_t len, int32_t f);
+// 0x00297af0: Q3's FS_Read - unzReadCurrentFile for zip handles, else fread until done (a
+// second 0 returns the bytes read; -1 calls __break and goes on).
+int32_t XB_CDECL FS_Read(void* buffer, int32_t len, int32_t f);
+// 0x00297d70: closes the handle (unzCloseCurrentFile + unzClose for unique zip handles, or
+// fclose) and clears its slot.
+void XB_CDECL FS_FCloseFile(int32_t f);
+// 0x00298000 (f in EAX): the zip entry's uncompressed size (unz +0x44), else ftell at the end
+// (position restored).
+int32_t XB_REGS1 XB_CDECL FS_filelength(int32_t f);
+
+// 0x00293e10 (a in XMM0, b in XMM1; result in XMM0): steps the LCG at 0x008d5a70 (MSVC rand
+// constants) and returns b + (a - b) * (seed >> 17) / 32768.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Rand_StepSeed(float a, float b);
+extern "C" void Rand_StepSeed_entry(void);
+// 0x002c0ce0: Q3's Netchan_Init - showpackets/showdrop cvars and the cleared loopbacks.
+void XB_CDECL Netchan_Init();
+// 0x002f6320: the value (node + 0xc) for key in the int hash map at 0x0095fe00, 0 when absent.
+uint8_t* XB_CDECL IntHashMap_FindValue(int32_t key);
+// 0x003304f0 (profile in ESI): SV_SetSkillHard/Medium/Easy for skill +0x20 = 0/1/2.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Profile_ApplySkill(const uint8_t* profile);
+extern "C" void Profile_ApplySkill_entry(void);
+// 0x0029e4d0: "toggle <cvar> [values...]": with no values 0 <-> 1 ("%i" of !value), else the
+// value after the current one (the first value when not found).
+void XB_CDECL Cvar_Toggle_f();
+
 }  // namespace game

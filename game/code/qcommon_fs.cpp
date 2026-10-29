@@ -7,8 +7,10 @@
 #include "fx_load.h"
 #include "g_scr_runtime.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "sv.h"
 #include "title_data.h"
+#include "unzip.h"
 
 namespace game {
 
@@ -1228,6 +1230,216 @@ int32_t XB_REGS1 XB_CDECL FS_IsCfgMenuOrDatFile(const char* ext) {
     if (!ext) return 0;
     if (!Q_stricmpn(ext, &title_global<const char>(0x00837fb8), 99999)) return 1;  // "menu"
     return Q_stricmpn(ext, &title_global<const char>(0x00837fb4), 99999) ? 0 : 1;  // "dat"
+}
+
+// --- File handles ---
+
+namespace {
+
+constexpr uint32_t kFsh = 0x009477a0;
+constexpr uint32_t kBreak = 0x002938f0;
+
+struct FileHandle {
+    void* file;           // FILE* or unzFile
+    int32_t unique;       // zip handle owns its unzFile
+    int32_t handle_sync;
+    uint8_t name[0x0c];
+    int32_t zip_file;
+    uint8_t rest[0x104];
+};
+static_assert(sizeof(FileHandle) == 0x120);
+
+FileHandle& file_handle(int32_t f) { return title_global<FileHandle>(kFsh + static_cast<uint32_t>(f) * 0x120); }
+
+using FileRw = int32_t XB_CDECL(void*, uint32_t, uint32_t, void*);
+using FileOp = int32_t XB_CDECL(void*);
+using FileSeek = int32_t XB_CDECL(void*, int32_t, int32_t);
+
+int32_t crt_fread(void* buffer, uint32_t size, uint32_t count, void* file) {
+    return title_function<FileRw>(0x001f019a)(buffer, size, count, file);
+}
+int32_t crt_fwrite(const void* buffer, uint32_t size, uint32_t count, void* file) {
+    return title_function<FileRw>(0x001f047d)(const_cast<void*>(buffer), size, count, file);
+}
+int32_t crt_fflush(void* file) { return title_function<FileOp>(0x001efefe)(file); }
+int32_t crt_ftell(void* file) { return title_function<FileOp>(0x001f062b)(file); }
+int32_t crt_fseek(void* file, int32_t offset, int32_t origin) {
+    return title_function<FileSeek>(0x001f06fb)(file, offset, origin);
+}
+int32_t crt_fclose(void* file) { return title_function<FileOp>(0x001f0790)(file); }
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL FS_Flush(int32_t f) { crt_fflush(file_handle(f).file); }
+
+int32_t XB_CDECL FS_Write(const void* buffer, int32_t len, int32_t f) {
+    if (!f) return 0;
+    FileHandle& handle = file_handle(f);
+    void* const file = handle.file;
+    int32_t remaining = len;
+    const uint8_t* buf = static_cast<const uint8_t*>(buffer);
+    bool tried = false;
+    while (remaining) {
+        const int32_t written = crt_fwrite(buf, 1, static_cast<uint32_t>(remaining), file);
+        if (!written) {
+            if (tried) return 0;
+            tried = true;
+        } else if (written == -1) {
+            return 0;
+        }
+        remaining -= written;
+        buf += written;
+    }
+    if (handle.handle_sync) crt_fflush(file);
+    return len;
+}
+
+int32_t XB_CDECL FS_Read(void* buffer, int32_t len, int32_t f) {
+    if (!f) return 0;
+    FileHandle& handle = file_handle(f);
+    if (handle.zip_file)
+        return unzReadCurrentFile(static_cast<UnzState*>(handle.file), buffer, static_cast<uint32_t>(len));
+    int32_t remaining = len;
+    uint8_t* buf = static_cast<uint8_t*>(buffer);
+    bool tried = false;
+    while (remaining) {
+        const int32_t read = crt_fread(buf, 1, static_cast<uint32_t>(remaining), handle.file);
+        if (!read) {
+            if (tried) return len - remaining;
+            tried = true;
+        } else if (read == -1) {
+            title_function<void XB_CDECL(int32_t, const char*)>(kBreak)(0, &title_global<const char>(0x00837f94));
+        }
+        remaining -= read;
+        buf += read;
+    }
+    return len;
+}
+
+void XB_CDECL FS_FCloseFile(int32_t f) {
+    FileHandle& handle = file_handle(f);
+    if (handle.zip_file) {
+        unzCloseCurrentFile(static_cast<UnzState*>(handle.file));
+        if (handle.unique) unzClose(static_cast<UnzState*>(handle.file));
+    } else if (handle.file) {
+        crt_fclose(handle.file);
+    }
+    Com_Memset(reinterpret_cast<uint8_t*>(&handle), 0, 0x120);
+}
+
+int32_t XB_REGS1 XB_CDECL FS_filelength(int32_t f) {
+    FileHandle& handle = file_handle(f);
+    if (handle.zip_file) return *reinterpret_cast<const int32_t*>(static_cast<const uint8_t*>(handle.file) + 0x44);
+    void* const file = handle.file;
+    const int32_t pos = crt_ftell(file);
+    crt_fseek(file, 0, 2);
+    const int32_t end = crt_ftell(file);
+    crt_fseek(file, pos, 0);
+    return end;
+}
+
+// --- Misc ---
+
+// Callers keep XMM2-XMM7 (and XMM1, the original only reads it) across the call.
+PLATFORM_ASM_ENTRY(Rand_StepSeed_entry,
+                   "subl $112, %esp\n"
+                   "movups %xmm1, 0(%esp)\n"
+                   "movups %xmm2, 16(%esp)\n"
+                   "movups %xmm3, 32(%esp)\n"
+                   "movups %xmm4, 48(%esp)\n"
+                   "movups %xmm5, 64(%esp)\n"
+                   "movups %xmm6, 80(%esp)\n"
+                   "movups %xmm7, 96(%esp)\n"
+                   "subl $8, %esp\n"
+                   "movss %xmm1, 4(%esp)\n"
+                   "movss %xmm0, (%esp)\n" PLATFORM_ASM_CALL(Rand_StepSeed) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $8, %esp\n"
+                   "movups 0(%esp), %xmm1\n"
+                   "movups 16(%esp), %xmm2\n"
+                   "movups 32(%esp), %xmm3\n"
+                   "movups 48(%esp), %xmm4\n"
+                   "movups 64(%esp), %xmm5\n"
+                   "movups 80(%esp), %xmm6\n"
+                   "movups 96(%esp), %xmm7\n"
+                   "addl $112, %esp\n"
+                   "ret")
+
+float XB_CDECL Rand_StepSeed(float a, float b) {
+    uint32_t& seed = title_global<uint32_t>(0x008d5a70);
+    seed = seed * 0x343fd + 0x269ec3;
+    const uint32_t r = seed >> 17;  // below 2^15: the 2^32 correction never applies
+    const float rf = platform_x87_int_to_float(static_cast<int32_t>(r));
+    float value = a - b;
+    value = value * rf;
+    value = value / title_global<float>(0x0083ebc8);  // 32768
+    return value + b;
+}
+
+void XB_CDECL Netchan_Init() {
+    const char* const zero = &title_global<const char>(0x0082e098);  // "0"
+    title_global<uint8_t*>(0x00927c30) = Cvar_Get(&title_global<const char>(0x00833c5c), zero, 0x100);  // showpackets
+    title_global<uint8_t*>(0x00935118) = Cvar_Get(&title_global<const char>(0x00833c50), zero, 0x100);  // showdrop
+    uint32_t* loopbacks = &title_global<uint32_t>(0x00928590);
+    for (uint32_t i = 0; i < 0x49e; ++i) loopbacks[i] = 0;
+}
+
+uint8_t* XB_CDECL IntHashMap_FindValue(int32_t key) {
+    uint32_t node = 0;
+    IntHashMap_Find(&node, &key, &title_global<const uint8_t>(0x0095fe00));
+    if (node == title_global<uint32_t>(0x0095fe08)) return nullptr;
+    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(node)) + 0xc;
+}
+
+PLATFORM_ASM_ENTRY(Profile_ApplySkill_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Profile_ApplySkill) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Profile_ApplySkill(const uint8_t* profile) {
+    const volatile int32_t* skill = reinterpret_cast<const volatile int32_t*>(profile + 0x20);
+    if (*skill == 0) SV_SetSkillHard();
+    if (*skill == 1) SV_SetSkillMedium();
+    if (*skill == 2) SV_SetSkillEasy();
+}
+
+namespace {
+
+const char* cmd_arg(int32_t argc, int32_t index) {
+    return static_cast<uint32_t>(index) < static_cast<uint32_t>(argc) ? title_global<const char*>(0x0092df90 + index * 4)
+                                                                      : &title_global<const char>(0x0082dfeb);  // ""
+}
+
+void cvar_set2(const char* name, const char* value) {
+    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(name, value, 0);  // Cvar_Set2
+}
+
+}  // namespace
+
+void XB_CDECL Cvar_Toggle_f() {
+    const int32_t argc = title_global<int32_t>(0x00934248);  // cmd_argc
+    if (argc < 2) return;
+    if (argc == 2) {
+        const uint8_t* var = Cvar_FindVar(title_global<const char*>(0x0092df94));
+        float value = 0.0f;
+        if (var) value = *reinterpret_cast<const float*>(var + 0x1c);
+        const int32_t now = title_global<int32_t>(0x00934248);
+        const uint32_t toggled = static_cast<int32_t>(value) == 0 ? 1 : 0;
+        const char* name = cmd_arg(now, 1);
+        const uint32_t args[2] = {0x0082ded4, toggled};  // "%i"
+        cvar_set2(name, va(args));
+        return;
+    }
+    const uint8_t* var = Cvar_FindVar(cmd_arg(argc, 1));
+    const char* current = var ? *reinterpret_cast<const char* const*>(var + 4) : &title_global<const char>(0x0082dfeb);
+    const int32_t count = title_global<int32_t>(0x00934248);
+    for (int32_t i = 2; i < count - 1; ++i) {
+        if (!std::strcmp(current, cmd_arg(count, i))) {
+            const char* next = cmd_arg(count, i + 1);
+            cvar_set2(cmd_arg(count, 1), next);
+            return;
+        }
+    }
+    cvar_set2(cmd_arg(count, 1), cmd_arg(count, 2));
 }
 
 }  // namespace game
