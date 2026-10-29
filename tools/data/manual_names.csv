@@ -14239,3 +14239,7 @@ address,name,kind,confidence,evidence
 0002ac30,PhysBody_RotateVector,function,medium,"was a duplicate Mat44_TransformVector (0xa4d30 has it); checks flag 0x10 at +0x144 (qcommon push 2, 2026-10-28)"
 000d0dd0,SaveRequest_NextFile,function,medium,"qcommon push 2 low half: named from the body during decompile (2026-10-28)"
 000c9390,File_GetDeviceBit,function,medium,"qcommon push 2 low half: named from the body during decompile (2026-10-28)"
+00044080,Mem_GetDebugPoolEnd,function,medium,"qcommon push 3 low half: named from the body during decompile (2026-10-28)"
+000440a0,Mem_GetDebugPoolStart,function,medium,"qcommon push 3 low half: named from the body during decompile (2026-10-28)"
+00044810,SmallHeap_Destroy,function,medium,"qcommon push 3 low half: named from the body during decompile (2026-10-28)"
+000caf20,File_QueueRequestAlt,function,medium,"qcommon push 3 low half: named from the body during decompile (2026-10-28)"

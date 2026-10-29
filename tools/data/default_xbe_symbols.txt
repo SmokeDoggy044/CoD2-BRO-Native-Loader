@@ -1188,8 +1188,8 @@
 00043fb0 Mem_AllocPhysicalPools
 00044040 Mem_GetPhysicalPoolEnd
 00044060 Mem_GetPhysicalPoolStart
-00044080 FUN_00044080
-000440a0 FUN_000440a0
+00044080 Mem_GetDebugPoolEnd
+000440a0 Mem_GetDebugPoolStart
 000440c0 Mem_GetWCPoolEnd
 000440e0 Mem_GetWCPoolStart
 00044160 Mem_DebugPrintf
@@ -1203,7 +1203,7 @@
 000445d0 FUN_000445d0
 00044620 SmallHeap_InitPool
 00044770 SmallHeap_Init
-00044810 FUN_00044810
+00044810 SmallHeap_Destroy
 00044850 SmallHeap_Alloc
 00044910 SmallHeap_Free
 00044960 SmallHeap_Owns
@@ -2797,7 +2797,7 @@
 000cae10 File_Exists
 000cae70 File_QueueRequestEx
 000caed0 File_QueueRequest
-000caf20 FUN_000caf20
+000caf20 File_QueueRequestAlt
 000caff0 File_ReadAt
 000cb0f0 Snd_Printf
 000cb200 Snd_UpdateTime
