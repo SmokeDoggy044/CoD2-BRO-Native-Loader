@@ -205,4 +205,142 @@ extern "C" void AngleNormalize180Quantized_entry(void);
 extern "C" PLATFORM_HIDDEN float XB_CDECL AngleDeltaQuantized(float a, float b);
 extern "C" void AngleDeltaQuantized_entry(void);
 
+// --- Vector and matrix helpers (q_math) ---
+
+// 0x00294190: copies a 3x3 axis (9 words, out in EAX, in in ECX).
+void XB_REGS3 XB_CDECL AxisCopy(float* out, uint32_t unused_edx, const float* in);
+// 0x00295020: out = transpose(in) for a 3x3 matrix (out in EAX, in in ECX).
+void XB_REGS3 XB_CDECL MatrixTranspose(float* out, uint32_t unused_edx, const float* in);
+// 0x00295b40 (index in EAX, out in ECX; ECX kept): Q3's ByteToDir over bytedirs
+// (0x008d52d8, 162 entries); out of range gives the zero vector.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ByteToDir(int32_t index, float* out);
+extern "C" void ByteToDir_entry(void);
+// 0x00295b80 (dir in ESI): Q3's DirToByte - the bytedirs index with the largest dot
+// product above 0 (0 for a null dir). Only AL is written.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL DirToByte(const float* dir);
+extern "C" void DirToByte_entry(void);
+// 0x00297800 (a in EAX, b in ECX): 2D distance on the x87 (title __CIsqrt), in ST0.
+float XB_REGS3 XB_CDECL Vec2Distance(const float* a, uint32_t unused_edx, const float* b);
+// 0x00297840 (a in EAX, b in ECX): 3D distance on the x87. No callers (dead).
+float XB_REGS3 XB_CDECL Vec3Distance(const float* a, uint32_t unused_edx, const float* b);
+// 0x00297700 (v in ESI; length left in XMM0, ECX kept): normalizes a 2D vector in place
+// unless its length is 0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Vec2Normalize(float* v);
+extern "C" void Vec2Normalize_entry(void);
+// 0x00297770 (v in ESI; length left in XMM0, ECX kept): Q3's VectorNormalize.
+extern "C" PLATFORM_HIDDEN float XB_CDECL VectorNormalize(float* v);
+extern "C" void VectorNormalize_entry(void);
+// 0x002975c0 (in in ESI, out in EDI; length left in XMM0, ECX kept): Q3's
+// VectorNormalize2 (zero vector out for length 0).
+extern "C" PLATFORM_HIDDEN float XB_CDECL VectorNormalize2(const float* in, float* out);
+extern "C" void VectorNormalize2_entry(void);
+// 0x002956b0 (in2 in EAX, out in EDX kept, in1 on the stack): Q3's MatrixMultiply,
+// out = in1 * in2 (3x3).
+extern "C" PLATFORM_HIDDEN void XB_CDECL MatrixMultiply(const float* in1, const float* in2, float* out);
+extern "C" void MatrixMultiply_entry(void);
+// 0x002954a0 (in2 in EAX, out in EDX kept, in1 on the stack): 4x3 (axis + origin)
+// product, out = in1 * in2.
+extern "C" PLATFORM_HIDDEN void XB_CDECL MatrixMultiply43(const float* in1, const float* in2, float* out);
+extern "C" void MatrixMultiply43_entry(void);
+// 0x00297500 (out in EAX, in in ECX): inverse of an orthonormal 4x3 matrix (transposed
+// axis, origin = -(origin * axis^T)).
+void XB_REGS3 XB_CDECL MatrixInverse43(float* out, uint32_t unused_edx, const float* in);
+// 0x0029a060 (b in ESI, a in EDI, out on the stack): out[i] = AngleDelta(a[i], b[i])
+// (Q_fmod); the original keeps a temporary in its argument slot.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnglesNormalize180(const float* b, const float* a, float* out);
+extern "C" void AnglesNormalize180_entry(void);
+// 0x00299d50 (a in EAX, b in ECX, origin in ESI, plane out in EDI): Q3's PlaneFromPoints
+// with (a - origin) x (b - origin); 0 (unnormalized normal, no dist) for a zero normal.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL PlaneFromPoints(const float* a, const float* b, const float* origin,
+                                                            float* plane);
+extern "C" void PlaneFromPoints_entry(void);
+// 0x002a3180 (16-byte aligned vector in ECX, kept): normalizes all four lanes by the xyz
+// length from RSQRTSS with one Newton step (DIVPS).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vec3NormalizeSimd(float* v);
+extern "C" void Vec3NormalizeSimd_entry(void);
+
+// --- Localization text helpers ---
+
+// Double-byte classifiers for Loc_PopSemicolonToken (code = lead << 8 | trail; ECX and EDX
+// kept). The C versions take (EAX, ECX) and return the whole EAX: the ones that set only
+// AL keep the rest of their EAX (Big5Char: ECX >> 8).
+// 0x002a8b40 (code in EAX): 0xa1a0 < code < 0xa1ae.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsKsc5601Punct(uint32_t code, uint32_t ecx);
+extern "C" void Loc_IsKsc5601Punct_entry(void);
+// 0x002a8b80 (code in EAX): 0x8140 <= code < 0x8152.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsShiftJisPunct(uint32_t code, uint32_t ecx);
+extern "C" void Loc_IsShiftJisPunct_entry(void);
+// 0x002a8ba0 (lead in AL, trail in CL).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsShiftJisChar(uint32_t eax, uint32_t ecx);
+extern "C" void Loc_IsShiftJisChar_entry(void);
+// 0x002a8bd0 (code in EAX): 0xa140 <= code < 0xa154.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsBig5Punct(uint32_t code, uint32_t ecx);
+extern "C" void Loc_IsBig5Punct_entry(void);
+// 0x002a8bf0 (code in ECX).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsBig5Char(uint32_t eax, uint32_t code);
+extern "C" void Loc_IsBig5Char_entry(void);
+// 0x002a8c20 (lead in AL, trail in CL): 0 or 1 in EAX.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsKsc5601Char(uint32_t eax, uint32_t ecx);
+extern "C" void Loc_IsKsc5601Char_entry(void);
+// 0x002afa40 (code in ECX): 0 or 1 in EAX.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsGb2312Char(uint32_t eax, uint32_t code);
+extern "C" void Loc_IsGb2312Char_entry(void);
+// 0x002a8960 (line in EAX): cuts the line at the first "//" outside double quotes (quotes
+// counted from the line start), then strips trailing whitespace from the last search start.
+void XB_REGS1 XB_CDECL Loc_StripLineComment(char* line);
+// 0x002a89f0 (keyword in EDI, cursor in ESI): 1 and the cursor moved past the keyword and
+// following tabs/spaces when *cursor starts with it (_strnicmp), else 0.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Loc_MatchKeyword(const char* keyword, char** cursor);
+extern "C" void Loc_MatchKeyword_entry(void);
+// 0x002a8a80 (name in EAX): a copy in 0x0098b220 without the extension after the last '.'
+// (when it follows every '\\' and '/').
+char* XB_REGS1 XB_CDECL Loc_StripFileExtension(const char* name);
+// 0x002a8ae0 (path in EAX): a copy in 0x0098b2a0 cut at its last '\\' or '/'.
+char* XB_REGS1 XB_CDECL Com_DirName(const char* path);
+// 0x002a9570 (n in EAX, s1 in EDX, s2 in ECX): Q3's Q_strncmp (-1/0/1). No callers (dead).
+int32_t XB_REGS3 XB_CDECL Q_strncmp(int32_t n, const char* s1, const char* s2);
+// 0x002b78b0 (v in EAX): Q3's vtos, "(%i %i %i)" in one of 8 32-byte buffers (0x0098ba68,
+// index 0x0098bb68).
+char* XB_REGS1 XB_CDECL vtos(const float* v);
+// 0x00293d20: Q3's Com_StringContains (title _toupper when not case sensitive); keeps the
+// moving str1 in its argument slot.
+const char* XB_CDECL Com_StringContains(const char* str1, const char* str2, int32_t casesensitive);
+// 0x0029ab20 (extension in EAX, leading '.' skipped): 1 for "cfg" (_stricmp), "menu"* or
+// "dat"* (Q_stricmpn 99999).
+int32_t XB_REGS1 XB_CDECL FS_IsCfgMenuOrDatFile(const char* ext);
+
+// --- File handles (fsh 0x009477a0, 0x120 bytes each: +0 FILE* or unzFile, +4 unique zip,
+// +8 handleSync, +0x18 zipFile) ---
+
+// 0x00295bf0 (f in EAX): fflush of the handle's FILE.
+void XB_REGS1 XB_CDECL FS_Flush(int32_t f);
+// 0x00297a60 (the body from 0x00297a69 was FUN_00297a69): Q3's FS_Write - fwrite until done
+// (one retry after a 0, 0 on -1), fflush with handleSync; returns len, 0 for handle 0.
+// Keeps the retry flag in its f argument slot.
+int32_t XB_CDECL FS_Write(const void* buffer, int32_t len, int32_t f);
+// 0x00297af0: Q3's FS_Read - unzReadCurrentFile for zip handles, else fread until done (a
+// second 0 returns the bytes read; -1 calls __break and goes on).
+int32_t XB_CDECL FS_Read(void* buffer, int32_t len, int32_t f);
+// 0x00297d70: closes the handle (unzCloseCurrentFile + unzClose for unique zip handles, or
+// fclose) and clears its slot.
+void XB_CDECL FS_FCloseFile(int32_t f);
+// 0x00298000 (f in EAX): the zip entry's uncompressed size (unz +0x44), else ftell at the end
+// (position restored).
+int32_t XB_REGS1 XB_CDECL FS_filelength(int32_t f);
+
+// 0x00293e10 (a in XMM0, b in XMM1; result in XMM0): steps the LCG at 0x008d5a70 (MSVC rand
+// constants) and returns b + (a - b) * (seed >> 17) / 32768.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Rand_StepSeed(float a, float b);
+extern "C" void Rand_StepSeed_entry(void);
+// 0x002c0ce0: Q3's Netchan_Init - showpackets/showdrop cvars and the cleared loopbacks.
+void XB_CDECL Netchan_Init();
+// 0x002f6320: the value (node + 0xc) for key in the int hash map at 0x0095fe00, 0 when absent.
+uint8_t* XB_CDECL IntHashMap_FindValue(int32_t key);
+// 0x003304f0 (profile in ESI): SV_SetSkillHard/Medium/Easy for skill +0x20 = 0/1/2.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Profile_ApplySkill(const uint8_t* profile);
+extern "C" void Profile_ApplySkill_entry(void);
+// 0x0029e4d0: "toggle <cvar> [values...]": with no values 0 <-> 1 ("%i" of !value), else the
+// value after the current one (the first value when not found).
+void XB_CDECL Cvar_Toggle_f();
+
 }  // namespace game

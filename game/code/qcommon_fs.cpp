@@ -3,11 +3,14 @@
 #include <cstring>
 
 #include "fx.h"
+#include "lanes.h"
 #include "fx_load.h"
 #include "g_scr_runtime.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "sv.h"
 #include "title_data.h"
+#include "unzip.h"
 
 namespace game {
 
@@ -720,5 +723,723 @@ PLATFORM_ASM_ENTRY(AngleDeltaQuantized_entry,
                    "ret")
 
 float XB_CDECL AngleDeltaQuantized(float a, float b) { return angle_quantize_wrap(a - b); }
+
+// --- Vector and matrix helpers (q_math) ---
+
+namespace {
+
+constexpr uint32_t kByteDirs = 0x008d52d8;  // bytedirs[162][3]
+constexpr uint32_t kZero = 0x0083eafc;      // 0.0f
+constexpr uint32_t kOne = 0x0083eb20;       // 1.0f
+
+// The title CRT's __CIsqrt of an x87 value, stored as float.
+float ci_sqrt(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// FUCOMIP against 0 (no MXCSR flags): true for nonzero and NaN.
+bool x87_nonzero(float value) { return static_cast<long double>(value) != title_global<float>(kZero); }
+
+void copy_word(void* dst, const void* src) { std::memcpy(dst, src, 4); }
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL AxisCopy(float* out, uint32_t, const float* in) {
+    for (int i = 0; i < 9; ++i) copy_word(out + i, in + i);
+}
+
+void XB_REGS3 XB_CDECL MatrixTranspose(float* out, uint32_t, const float* in) {
+    static const int kSource[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
+    for (int i = 0; i < 9; ++i) copy_word(out + i, in + kSource[i]);
+}
+
+PLATFORM_ASM_ENTRY(ByteToDir_entry,
+                   "pushl %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ByteToDir) "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+void XB_CDECL ByteToDir(int32_t index, float* out) {
+    if (index < 0 || index >= 162) {
+        out[0] = 0.0f;
+        out[1] = 0.0f;
+        out[2] = 0.0f;
+        return;
+    }
+    const float* dir = &title_global<float>(kByteDirs + index * 12);
+    copy_word(out, dir);
+    copy_word(out + 1, dir + 1);
+    copy_word(out + 2, dir + 2);
+}
+
+PLATFORM_ASM_ENTRY(DirToByte_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(DirToByte) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL DirToByte(const float* dir) {
+    uint8_t best = 0;
+    if (!dir) return best;
+    float best_dot = 0.0f;
+    for (uint8_t i = 0; i < 162; ++i) {
+        const float* table = &title_global<float>(kByteDirs + i * 12);
+        float dot = table[2] * dir[2];
+        dot = dot + table[0] * dir[0];
+        dot = dot + table[1] * dir[1];
+        if (dot > best_dot) {
+            best_dot = dot;
+            best = i;
+        }
+    }
+    return best;
+}
+
+float XB_REGS3 XB_CDECL Vec2Distance(const float* a, uint32_t, const float* b) {
+    const float dx = static_cast<float>(static_cast<long double>(a[0]) - b[0]);
+    const float dy = static_cast<float>(static_cast<long double>(a[1]) - b[1]);
+    const long double sum = static_cast<long double>(dy) * dy + static_cast<long double>(dx) * dx;
+    return ci_sqrt(sum);
+}
+
+float XB_REGS3 XB_CDECL Vec3Distance(const float* a, uint32_t, const float* b) {
+    const float dx = static_cast<float>(static_cast<long double>(a[0]) - b[0]);
+    const float dy = static_cast<float>(static_cast<long double>(a[1]) - b[1]);
+    const float dz = static_cast<float>(static_cast<long double>(a[2]) - b[2]);
+    long double sum = static_cast<long double>(dz) * dz + static_cast<long double>(dy) * dy;
+    sum = sum + static_cast<long double>(dx) * dx;
+    return ci_sqrt(sum);
+}
+
+// The three normalizers keep ECX (push/pop around the body) and leave the length in XMM0.
+PLATFORM_ASM_ENTRY(Vec2Normalize_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Vec2Normalize) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float XB_CDECL Vec2Normalize(float* v) {
+    const float x = v[0];
+    const float y = v[1];
+    const float length = ci_sqrt(x * x + y * y);
+    if (x87_nonzero(length)) {
+        const float scale = title_global<float>(kOne) / length;
+        const float nx = v[0] * scale;
+        const float ny = scale * v[1];
+        v[0] = nx;
+        v[1] = ny;
+    }
+    return length;
+}
+
+PLATFORM_ASM_ENTRY(VectorNormalize_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(VectorNormalize) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float XB_CDECL VectorNormalize(float* v) {
+    const float x = v[0];
+    const float y = v[1];
+    const float z = v[2];
+    const float length = ci_sqrt((x * x + y * y) + z * z);
+    if (x87_nonzero(length)) {
+        const float scale = title_global<float>(kOne) / length;
+        v[0] = v[0] * scale;
+        const float ny = scale * v[1];
+        const float nz = scale * v[2];
+        v[1] = ny;
+        v[2] = nz;
+    }
+    return length;
+}
+
+PLATFORM_ASM_ENTRY(VectorNormalize2_entry,
+                   "pushl %ecx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(VectorNormalize2) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float XB_CDECL VectorNormalize2(const float* in, float* out) {
+    const float x = in[0];
+    const float y = in[1];
+    const float z = in[2];
+    const float length = ci_sqrt((x * x + y * y) + z * z);
+    if (x87_nonzero(length)) {
+        const float scale = title_global<float>(kOne) / length;
+        out[0] = in[0] * scale;
+        out[1] = scale * in[1];
+        out[2] = scale * in[2];
+    } else {
+        out[2] = 0.0f;
+        out[1] = 0.0f;
+        out[0] = 0.0f;
+    }
+    return length;
+}
+
+// Both products keep EDX (out) for their callers.
+PLATFORM_ASM_ENTRY(MatrixMultiply_entry,
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n"
+                   "pushl 16(%esp)\n" PLATFORM_ASM_CALL(MatrixMultiply) "addl $12, %esp\n"
+                   "popl %edx\n"
+                   "ret")
+
+void XB_CDECL MatrixMultiply(const float* a, const float* b, float* out) {
+    out[0] = (a[0] * b[0] + a[1] * b[3]) + b[6] * a[2];
+    out[1] = (a[1] * b[4] + b[7] * a[2]) + b[1] * a[0];
+    out[2] = (a[1] * b[5] + b[8] * a[2]) + b[2] * a[0];
+    out[3] = (a[4] * b[3] + a[3] * b[0]) + a[5] * b[6];
+    out[4] = (a[5] * b[7] + a[4] * b[4]) + a[3] * b[1];
+    out[5] = (a[5] * b[8] + a[4] * b[5]) + a[3] * b[2];
+    out[6] = (a[6] * b[0] + b[6] * a[8]) + a[7] * b[3];
+    out[7] = (b[7] * a[8] + b[4] * a[7]) + b[1] * a[6];
+    out[8] = (b[8] * a[8] + b[5] * a[7]) + b[2] * a[6];
+}
+
+PLATFORM_ASM_ENTRY(MatrixMultiply43_entry,
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n"
+                   "pushl 16(%esp)\n" PLATFORM_ASM_CALL(MatrixMultiply43) "addl $12, %esp\n"
+                   "popl %edx\n"
+                   "ret")
+
+void XB_CDECL MatrixMultiply43(const float* a, const float* b, float* out) {
+    out[0] = (a[0] * b[0] + a[1] * b[3]) + b[6] * a[2];
+    out[3] = (a[4] * b[3] + a[3] * b[0]) + a[5] * b[6];
+    out[6] = (a[7] * b[3] + a[6] * b[0]) + a[8] * b[6];
+    out[1] = (a[1] * b[4] + b[7] * a[2]) + b[1] * a[0];
+    out[4] = (a[5] * b[7] + a[4] * b[4]) + a[3] * b[1];
+    out[7] = (a[8] * b[7] + a[7] * b[4]) + a[6] * b[1];
+    out[2] = (a[0] * b[2] + a[1] * b[5]) + b[8] * a[2];
+    out[5] = (a[5] * b[8] + a[4] * b[5]) + a[3] * b[2];
+    out[8] = (a[8] * b[8] + a[7] * b[5]) + a[6] * b[2];
+    out[9] = ((a[10] * b[3] + a[9] * b[0]) + a[11] * b[6]) + b[9];
+    out[10] = ((a[11] * b[7] + a[10] * b[4]) + a[9] * b[1]) + b[10];
+    out[11] = ((a[11] * b[8] + a[10] * b[5]) + a[9] * b[2]) + b[11];
+}
+
+void XB_REGS3 XB_CDECL MatrixInverse43(float* out, uint32_t, const float* in) {
+    copy_word(out + 0, in + 0);
+    copy_word(out + 1, in + 3);
+    copy_word(out + 2, in + 6);
+    copy_word(out + 3, in + 1);
+    const float out3 = out[3];
+    copy_word(out + 4, in + 4);
+    copy_word(out + 5, in + 7);
+    copy_word(out + 6, in + 2);
+    const float out6 = out[6];
+    copy_word(out + 7, in + 5);
+    copy_word(out + 8, in + 8);
+    const float nx = 0.0f - in[9];
+    const float nz = 0.0f - in[11];
+    const float ny = 0.0f - in[10];
+    out[9] = (out3 * ny + out6 * nz) + out[0] * nx;
+    out[10] = (out[4] * ny + out[7] * nz) + nx * out[1];
+    const float last = ny * out[5];
+    out[11] = (out[8] * nz + out[2] * nx) + last;
+}
+
+PLATFORM_ASM_ENTRY(AnglesNormalize180_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(AnglesNormalize180) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL AnglesNormalize180(const float* b, const float* a, float* out) {
+    for (int i = 0; i < 3; ++i) out[i] = Q_fmod(a[i], b[i]);
+}
+
+PLATFORM_ASM_ENTRY(PlaneFromPoints_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PlaneFromPoints) "addl $16, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL PlaneFromPoints(const float* a, const float* b, const float* origin, float* plane) {
+    const float d1y = a[1] - origin[1];
+    const float d1z = a[2] - origin[2];
+    const float d2y = b[1] - origin[1];
+    const float d2z = b[2] - origin[2];
+    const float d1x = a[0] - origin[0];
+    const float d2x = b[0] - origin[0];
+    const float nx = d1y * d2z - d1z * d2y;
+    const float nz = d1x * d2y - d1y * d2x;
+    plane[2] = nz;
+    const float ny = d1z * d2x - d1x * d2z;
+    const float length = ci_sqrt((nz * nz + ny * ny) + nx * nx);
+    plane[0] = nx;
+    plane[1] = ny;
+    if (!x87_nonzero(length)) return 0;
+    const float scale = title_global<float>(kOne) / length;
+    const float z = nz * scale;
+    const float x = nx * scale;
+    const float y = ny * scale;
+    plane[2] = z;
+    plane[0] = x;
+    plane[1] = y;
+    const float zd = z * origin[2];
+    plane[3] = (origin[0] * x + zd) + origin[1] * y;
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Vec3NormalizeSimd_entry,
+                   "pushl %ecx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Vec3NormalizeSimd) "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+void XB_CDECL Vec3NormalizeSimd(float* v) {
+    const Lanes value = lanes(v);
+    const Lanes squares = mul(value, value);
+    platform_keep(squares);
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float length = sum;
+    // UCOMISS; JNE: zero and NaN keep the sum.
+    if (!(sum == title_global<float>(0x0082e680) || sum != sum)) {
+        const float estimate = platform_rsqrt_estimate(sum);
+        const float t = sum * estimate;
+        const float u = t * estimate;
+        length = title_global<float>(0x0082e660) - u;  // 3
+        length = length * t;
+        length = length * title_global<float>(0x0082e670);  // 0.5
+    }
+    if (length != title_global<float>(kZero)) {
+        const Lanes result = {{value.v[0] / length, value.v[1] / length, value.v[2] / length, value.v[3] / length}};
+        std::memcpy(v, result.v, 16);
+    }
+}
+
+// --- Localization text helpers ---
+
+// The double-byte classifiers keep ECX and EDX (Loc_PopSemicolonToken reads both after the
+// call); their C versions take (EAX, ECX) and return the whole EAX.
+#define LOC_CLASSIFIER_ENTRY(name)                                     \
+    PLATFORM_ASM_ENTRY(name##_entry,                                   \
+                       "pushl %ecx\n"                                  \
+                       "pushl %edx\n"                                  \
+                       "pushl %ecx\n"                                  \
+                       "pushl %eax\n" PLATFORM_ASM_CALL(name) "addl $8, %esp\n" \
+                       "popl %edx\n"                                   \
+                       "popl %ecx\n"                                   \
+                       "ret")
+
+namespace {
+
+uint32_t with_al(uint32_t eax, bool value) { return (eax & 0xffffff00u) | (value ? 1u : 0u); }
+
+}  // namespace
+
+LOC_CLASSIFIER_ENTRY(Loc_IsKsc5601Punct)
+uint32_t XB_CDECL Loc_IsKsc5601Punct(uint32_t code, uint32_t) {
+    return with_al(code, code > 0xa1a0 && code < 0xa1ae);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsShiftJisPunct)
+uint32_t XB_CDECL Loc_IsShiftJisPunct(uint32_t code, uint32_t) {
+    return with_al(code, code >= 0x8140 && code < 0x8152);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsShiftJisChar)
+uint32_t XB_CDECL Loc_IsShiftJisChar(uint32_t eax, uint32_t ecx) {
+    const uint8_t lead = static_cast<uint8_t>(eax);
+    const uint8_t trail = static_cast<uint8_t>(ecx);
+    const bool lead_ok = (lead >= 0x81 && lead <= 0x9f) || (lead >= 0xe0 && lead <= 0xef);
+    const bool trail_ok = (trail >= 0x40 && trail <= 0x7e) || (trail >= 0x80 && trail <= 0xfc);
+    return with_al(eax, lead_ok && trail_ok);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsBig5Punct)
+uint32_t XB_CDECL Loc_IsBig5Punct(uint32_t code, uint32_t) {
+    return with_al(code, code >= 0xa140 && code < 0xa154);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsBig5Char)
+uint32_t XB_CDECL Loc_IsBig5Char(uint32_t, uint32_t code) {
+    const uint32_t high = code >> 8;
+    const uint8_t lead = static_cast<uint8_t>(high);
+    const uint8_t trail = static_cast<uint8_t>(code);
+    const bool lead_ok = (lead >= 0xa1 && lead <= 0xc6) || (lead >= 0xc9 && lead <= 0xf9);
+    const bool trail_ok = (trail >= 0x40 && trail <= 0x7e) || (trail >= 0xa1 && trail <= 0xfe);
+    return with_al(high, lead_ok && trail_ok);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsKsc5601Char)
+uint32_t XB_CDECL Loc_IsKsc5601Char(uint32_t eax, uint32_t ecx) {
+    const uint8_t lead = static_cast<uint8_t>(eax);
+    const uint8_t trail = static_cast<uint8_t>(ecx);
+    return lead >= 0xb0 && lead <= 0xc8 && trail > 0xa0 && trail < 0xff ? 1 : 0;
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsGb2312Char)
+uint32_t XB_CDECL Loc_IsGb2312Char(uint32_t, uint32_t code) {
+    const uint8_t lead = static_cast<uint8_t>(code >> 8);
+    const uint8_t trail = static_cast<uint8_t>(code);
+    return lead >= 0xa1 && lead <= 0xf7 && trail > 0xa0 && trail < 0xff ? 1 : 0;
+}
+
+#undef LOC_CLASSIFIER_ENTRY
+
+namespace {
+
+using StrStr = const char* XB_CDECL(const char*, const char*);
+using StrRChr = char* XB_CDECL(const char*, int32_t);
+using CharClass = int32_t XB_CDECL(int32_t);
+using StrICmp = int32_t XB_CDECL(const char*, const char*);
+using StrNICmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
+
+constexpr uint32_t kStrStr = 0x001efb10;
+constexpr uint32_t kStrRChr = 0x001efd40;
+constexpr uint32_t kIsSpace = 0x001eefa0;
+constexpr uint32_t kToUpper = 0x001efd6d;
+constexpr uint32_t kStrICmp = 0x001f1443;
+constexpr uint32_t kStrNICmp = 0x001f1486;
+
+void copy_string(char* dest, const char* src) {
+    char c;
+    do {
+        c = *src++;
+        *dest++ = c;
+    } while (c);
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL Loc_StripLineComment(char* line) {
+    const char* const comment = &title_global<const char>(0x008333ac);  // "//"
+    char* start = line;
+    int32_t quotes = 0;
+    char* found = const_cast<char*>(title_function<StrStr>(kStrStr)(start, comment));
+    if (!found) return;
+    for (;;) {
+        const int32_t length = static_cast<int32_t>(found - start);
+        for (int32_t i = 0; i < length; ++i)
+            if (start[i] == '"') ++quotes;
+        if (!(quotes & 1)) break;
+        start = found + 1;
+        found = const_cast<char*>(title_function<StrStr>(kStrStr)(start, comment));
+        if (!found) return;
+    }
+    *found = 0;
+    if (!*start) return;
+    int32_t i = static_cast<int32_t>(std::strlen(start)) - 1;
+    while (i >= 0) {
+        if (!title_function<CharClass>(kIsSpace)(static_cast<signed char>(start[i]))) return;
+        --i;
+        start[i + 1] = 0;
+    }
+}
+
+PLATFORM_ASM_ENTRY(Loc_MatchKeyword_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Loc_MatchKeyword) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL Loc_MatchKeyword(const char* keyword, char** cursor) {
+    if (title_function<StrNICmp>(kStrNICmp)(keyword, *cursor, static_cast<uint32_t>(std::strlen(keyword))))
+        return 0;
+    char* p = *cursor + std::strlen(keyword);
+    for (;;) {
+        *cursor = p;
+        if (*p != '\t' && *p != ' ') break;
+        ++p;
+    }
+    return 1;
+}
+
+char* XB_REGS1 XB_CDECL Loc_StripFileExtension(const char* name) {
+    char* const buffer = &title_global<char>(0x0098b220);
+    copy_string(buffer, name);
+    char* const dot = title_function<StrRChr>(kStrRChr)(buffer, '.');
+    char* const backslash = title_function<StrRChr>(kStrRChr)(buffer, '\\');
+    char* const slash = title_function<StrRChr>(kStrRChr)(buffer, '/');
+    if (dot && (!backslash || dot > backslash) && (!slash || dot > slash)) *dot = 0;
+    return buffer;
+}
+
+char* XB_REGS1 XB_CDECL Com_DirName(const char* path) {
+    char* const buffer = &title_global<char>(0x0098b2a0);
+    copy_string(buffer, path);
+    char* const backslash = title_function<StrRChr>(kStrRChr)(buffer, '\\');
+    char* last = title_function<StrRChr>(kStrRChr)(buffer, '/');
+    if (backslash > last) last = backslash;
+    if (last) *last = 0;
+    return buffer;
+}
+
+int32_t XB_REGS3 XB_CDECL Q_strncmp(int32_t n, const char* s1, const char* s2) {
+    int32_t left = n;
+    for (;;) {
+        const int32_t c1 = static_cast<signed char>(*s1++);
+        const int32_t c2 = static_cast<signed char>(*s2++);
+        if (left-- == 0) return 0;
+        if (c1 != c2) return c1 >= c2 ? 1 : -1;
+        if (!c1) return 0;
+    }
+}
+
+char* XB_REGS1 XB_CDECL vtos(const float* v) {
+    uint32_t& index = title_global<uint32_t>(0x0098bb68);
+    const uint32_t slot = index;
+    const int32_t y = static_cast<int32_t>(v[1]);
+    char* const buffer = &title_global<char>(0x0098ba68 + slot * 32);
+    index = (slot + 1) & 7;
+    const int32_t z = static_cast<int32_t>(v[2]);
+    const int32_t x = static_cast<int32_t>(v[0]);
+    const uint32_t args[4] = {0x00832864, static_cast<uint32_t>(x), static_cast<uint32_t>(y),  // "(%i %i %i)"
+                              static_cast<uint32_t>(z)};
+    Com_sprintf(buffer, 32, args);
+    return buffer;
+}
+
+const char* XB_CDECL Com_StringContains(const char* str1, const char* str2, int32_t casesensitive) {
+    const int32_t length = static_cast<int32_t>(std::strlen(str1)) - static_cast<int32_t>(std::strlen(str2));
+    for (int32_t i = 0; i <= length; ++i, ++str1) {
+        int32_t j = 0;
+        for (; str2[j]; ++j) {
+            if (casesensitive) {
+                if (str1[j] != str2[j]) break;
+            } else {
+                const int32_t a = title_function<CharClass>(kToUpper)(static_cast<signed char>(str1[j]));
+                if (a != title_function<CharClass>(kToUpper)(static_cast<signed char>(str2[j]))) break;
+            }
+        }
+        if (!str2[j]) return str1;
+    }
+    return nullptr;
+}
+
+int32_t XB_REGS1 XB_CDECL FS_IsCfgMenuOrDatFile(const char* ext) {
+    if (*ext == '.') ++ext;
+    if (!title_function<StrICmp>(kStrICmp)(ext, &title_global<const char>(0x00837fc0))) return 1;  // "cfg"
+    if (!ext) return 0;
+    if (!Q_stricmpn(ext, &title_global<const char>(0x00837fb8), 99999)) return 1;  // "menu"
+    return Q_stricmpn(ext, &title_global<const char>(0x00837fb4), 99999) ? 0 : 1;  // "dat"
+}
+
+// --- File handles ---
+
+namespace {
+
+constexpr uint32_t kFsh = 0x009477a0;
+constexpr uint32_t kBreak = 0x002938f0;
+
+struct FileHandle {
+    void* file;           // FILE* or unzFile
+    int32_t unique;       // zip handle owns its unzFile
+    int32_t handle_sync;
+    uint8_t name[0x0c];
+    int32_t zip_file;
+    uint8_t rest[0x104];
+};
+static_assert(sizeof(FileHandle) == 0x120);
+
+FileHandle& file_handle(int32_t f) { return title_global<FileHandle>(kFsh + static_cast<uint32_t>(f) * 0x120); }
+
+using FileRw = int32_t XB_CDECL(void*, uint32_t, uint32_t, void*);
+using FileOp = int32_t XB_CDECL(void*);
+using FileSeek = int32_t XB_CDECL(void*, int32_t, int32_t);
+
+int32_t crt_fread(void* buffer, uint32_t size, uint32_t count, void* file) {
+    return title_function<FileRw>(0x001f019a)(buffer, size, count, file);
+}
+int32_t crt_fwrite(const void* buffer, uint32_t size, uint32_t count, void* file) {
+    return title_function<FileRw>(0x001f047d)(const_cast<void*>(buffer), size, count, file);
+}
+int32_t crt_fflush(void* file) { return title_function<FileOp>(0x001efefe)(file); }
+int32_t crt_ftell(void* file) { return title_function<FileOp>(0x001f062b)(file); }
+int32_t crt_fseek(void* file, int32_t offset, int32_t origin) {
+    return title_function<FileSeek>(0x001f06fb)(file, offset, origin);
+}
+int32_t crt_fclose(void* file) { return title_function<FileOp>(0x001f0790)(file); }
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL FS_Flush(int32_t f) { crt_fflush(file_handle(f).file); }
+
+int32_t XB_CDECL FS_Write(const void* buffer, int32_t len, int32_t f) {
+    if (!f) return 0;
+    FileHandle& handle = file_handle(f);
+    void* const file = handle.file;
+    int32_t remaining = len;
+    const uint8_t* buf = static_cast<const uint8_t*>(buffer);
+    bool tried = false;
+    while (remaining) {
+        const int32_t written = crt_fwrite(buf, 1, static_cast<uint32_t>(remaining), file);
+        if (!written) {
+            if (tried) return 0;
+            tried = true;
+        } else if (written == -1) {
+            return 0;
+        }
+        remaining -= written;
+        buf += written;
+    }
+    if (handle.handle_sync) crt_fflush(file);
+    return len;
+}
+
+int32_t XB_CDECL FS_Read(void* buffer, int32_t len, int32_t f) {
+    if (!f) return 0;
+    FileHandle& handle = file_handle(f);
+    if (handle.zip_file)
+        return unzReadCurrentFile(static_cast<UnzState*>(handle.file), buffer, static_cast<uint32_t>(len));
+    int32_t remaining = len;
+    uint8_t* buf = static_cast<uint8_t*>(buffer);
+    bool tried = false;
+    while (remaining) {
+        const int32_t read = crt_fread(buf, 1, static_cast<uint32_t>(remaining), handle.file);
+        if (!read) {
+            if (tried) return len - remaining;
+            tried = true;
+        } else if (read == -1) {
+            title_function<void XB_CDECL(int32_t, const char*)>(kBreak)(0, &title_global<const char>(0x00837f94));
+        }
+        remaining -= read;
+        buf += read;
+    }
+    return len;
+}
+
+void XB_CDECL FS_FCloseFile(int32_t f) {
+    FileHandle& handle = file_handle(f);
+    if (handle.zip_file) {
+        unzCloseCurrentFile(static_cast<UnzState*>(handle.file));
+        if (handle.unique) unzClose(static_cast<UnzState*>(handle.file));
+    } else if (handle.file) {
+        crt_fclose(handle.file);
+    }
+    Com_Memset(reinterpret_cast<uint8_t*>(&handle), 0, 0x120);
+}
+
+int32_t XB_REGS1 XB_CDECL FS_filelength(int32_t f) {
+    FileHandle& handle = file_handle(f);
+    if (handle.zip_file) return *reinterpret_cast<const int32_t*>(static_cast<const uint8_t*>(handle.file) + 0x44);
+    void* const file = handle.file;
+    const int32_t pos = crt_ftell(file);
+    crt_fseek(file, 0, 2);
+    const int32_t end = crt_ftell(file);
+    crt_fseek(file, pos, 0);
+    return end;
+}
+
+// --- Misc ---
+
+// Callers keep XMM2-XMM7 (and XMM1, the original only reads it) across the call.
+PLATFORM_ASM_ENTRY(Rand_StepSeed_entry,
+                   "subl $112, %esp\n"
+                   "movups %xmm1, 0(%esp)\n"
+                   "movups %xmm2, 16(%esp)\n"
+                   "movups %xmm3, 32(%esp)\n"
+                   "movups %xmm4, 48(%esp)\n"
+                   "movups %xmm5, 64(%esp)\n"
+                   "movups %xmm6, 80(%esp)\n"
+                   "movups %xmm7, 96(%esp)\n"
+                   "subl $8, %esp\n"
+                   "movss %xmm1, 4(%esp)\n"
+                   "movss %xmm0, (%esp)\n" PLATFORM_ASM_CALL(Rand_StepSeed) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $8, %esp\n"
+                   "movups 0(%esp), %xmm1\n"
+                   "movups 16(%esp), %xmm2\n"
+                   "movups 32(%esp), %xmm3\n"
+                   "movups 48(%esp), %xmm4\n"
+                   "movups 64(%esp), %xmm5\n"
+                   "movups 80(%esp), %xmm6\n"
+                   "movups 96(%esp), %xmm7\n"
+                   "addl $112, %esp\n"
+                   "ret")
+
+float XB_CDECL Rand_StepSeed(float a, float b) {
+    uint32_t& seed = title_global<uint32_t>(0x008d5a70);
+    seed = seed * 0x343fd + 0x269ec3;
+    const uint32_t r = seed >> 17;  // below 2^15: the 2^32 correction never applies
+    const float rf = platform_x87_int_to_float(static_cast<int32_t>(r));
+    float value = a - b;
+    value = value * rf;
+    value = value / title_global<float>(0x0083ebc8);  // 32768
+    return value + b;
+}
+
+void XB_CDECL Netchan_Init() {
+    const char* const zero = &title_global<const char>(0x0082e098);  // "0"
+    title_global<uint8_t*>(0x00927c30) = Cvar_Get(&title_global<const char>(0x00833c5c), zero, 0x100);  // showpackets
+    title_global<uint8_t*>(0x00935118) = Cvar_Get(&title_global<const char>(0x00833c50), zero, 0x100);  // showdrop
+    uint32_t* loopbacks = &title_global<uint32_t>(0x00928590);
+    for (uint32_t i = 0; i < 0x49e; ++i) loopbacks[i] = 0;
+}
+
+uint8_t* XB_CDECL IntHashMap_FindValue(int32_t key) {
+    uint32_t node = 0;
+    IntHashMap_Find(&node, &key, &title_global<const uint8_t>(0x0095fe00));
+    if (node == title_global<uint32_t>(0x0095fe08)) return nullptr;
+    return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(node)) + 0xc;
+}
+
+PLATFORM_ASM_ENTRY(Profile_ApplySkill_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Profile_ApplySkill) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Profile_ApplySkill(const uint8_t* profile) {
+    const volatile int32_t* skill = reinterpret_cast<const volatile int32_t*>(profile + 0x20);
+    if (*skill == 0) SV_SetSkillHard();
+    if (*skill == 1) SV_SetSkillMedium();
+    if (*skill == 2) SV_SetSkillEasy();
+}
+
+namespace {
+
+const char* cmd_arg(int32_t argc, int32_t index) {
+    return static_cast<uint32_t>(index) < static_cast<uint32_t>(argc) ? title_global<const char*>(0x0092df90 + index * 4)
+                                                                      : &title_global<const char>(0x0082dfeb);  // ""
+}
+
+void cvar_set2(const char* name, const char* value) {
+    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(name, value, 0);  // Cvar_Set2
+}
+
+}  // namespace
+
+void XB_CDECL Cvar_Toggle_f() {
+    const int32_t argc = title_global<int32_t>(0x00934248);  // cmd_argc
+    if (argc < 2) return;
+    if (argc == 2) {
+        const uint8_t* var = Cvar_FindVar(title_global<const char*>(0x0092df94));
+        float value = 0.0f;
+        if (var) value = *reinterpret_cast<const float*>(var + 0x1c);
+        const int32_t now = title_global<int32_t>(0x00934248);
+        const uint32_t toggled = static_cast<int32_t>(value) == 0 ? 1 : 0;
+        const char* name = cmd_arg(now, 1);
+        const uint32_t args[2] = {0x0082ded4, toggled};  // "%i"
+        cvar_set2(name, va(args));
+        return;
+    }
+    const uint8_t* var = Cvar_FindVar(cmd_arg(argc, 1));
+    const char* current = var ? *reinterpret_cast<const char* const*>(var + 4) : &title_global<const char>(0x0082dfeb);
+    const int32_t count = title_global<int32_t>(0x00934248);
+    for (int32_t i = 2; i < count - 1; ++i) {
+        if (!std::strcmp(current, cmd_arg(count, i))) {
+            const char* next = cmd_arg(count, i + 1);
+            cvar_set2(cmd_arg(count, 1), next);
+            return;
+        }
+    }
+    cvar_set2(cmd_arg(count, 1), cmd_arg(count, 2));
+}
 
 }  // namespace game
