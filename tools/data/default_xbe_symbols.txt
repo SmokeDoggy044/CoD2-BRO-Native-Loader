@@ -1169,6 +1169,7 @@
 00042c10 Z_Malloc
 00042c20 Z_MallocDebug
 00042c30 Heap_Alloc16
+00042c40 Heap_Alloc16_2
 00042c50 Heap_AllocAligned
 00042c60 Heap_AllocAligned
 00042ca0 Heap_SetCurrent
@@ -1177,14 +1178,20 @@
 00042de0 Heap_AllocFromHeap
 00042e30 Heap_FreeIn2
 00042e50 ThisCall_ReturnThis
+00042ea0 Heap_InitBins
 00042f00 Heap_EnsureInit
 00043020 Heap_GetMallInfo
 00043150 Heap_MallInfo
+00043160 Heap_Mallopt
 00043260 Heap_FreeBlock
 00043350 Heap_SysAlloc
 00043500 Heap_Malloc
 00043b70 Heap_MallocAligned
 00043d30 Heap_IndependentAlloc
+00043ef0 Heap_Valloc
+00043f20 Heap_Pvalloc
+00043f60 Heap_IndependentCalloc
+00043f90 Heap_IndependentComalloc
 00043fb0 Mem_AllocPhysicalPools
 00044040 Mem_GetPhysicalPoolEnd
 00044060 Mem_GetPhysicalPoolStart
@@ -2780,6 +2787,7 @@
 000c9d10 File_GetSize
 000c9d40 File_OpenRead
 000c9d60 File_OpenReadEx
+000c9d80 File_OpenMode7
 000c9db0 File_GetRequestStatus
 000c9df0 File_SetRequestPriority
 000c9ea0 File_GetRequestProgress
@@ -2795,10 +2803,13 @@
 000cac90 File_Close
 000cad40 File_InitSystem
 000cae10 File_Exists
+000cae40 File_GetSizeByName
 000cae70 File_QueueRequestEx
 000caed0 File_QueueRequest
 000caf20 File_QueueRequestAlt
+000caf80 File_QueueRequestMaybeAlt
 000caff0 File_ReadAt
+000cb060 File_ReadAtAlt
 000cb0f0 Snd_Printf
 000cb200 Snd_UpdateTime
 000cb390 HandlePool_Init
@@ -7931,7 +7942,6 @@
 00222d20 FUN_00222d20
 00222df0 LiveMgrBase_Construct
 00222f20 Sys_GetEvent
-00222f70 FUN_00222f70
 00222fa0 Sys_QueEvent
 00223040 FS_DirectoryHasFiles
 00223140 FE_SetupInGameLiveOptions
@@ -9002,7 +9012,7 @@
 00297a30 FS_FreeFile
 00297a60 FS_Write
 00297af0 FS_Read
-00297bdf FUN_00297bdf
+00297b90 FS_FilesAreEqual
 00297d10 FS_FilenameCompare
 00297d70 FS_FCloseFile
 00297df0 FS_CopyFile
@@ -9137,7 +9147,7 @@
 002a3570 FxShakeRumbleComponent_Update
 002a3820 FX_AddShakeRumbleComponents
 002a40f0 Com_EventLoop
-002a4440 FUN_002a4440
+002a4440 Plane_PitchAlongYaw
 002a4520 YawToAxis
 002a45b0 AnglesToAxisLeft2
 002a4610 AnglesToAxisLeft
@@ -9561,6 +9571,7 @@
 002bfad0 AnimTree_FreeInfo
 002bfb90 AnimData_EnsureLoaded
 002bfc10 Mat43_UntransformPoint
+002bfcb0 Msg_TransmitWithEOF
 002bfd10 SV_SendServerCommand
 002bfd80 SV_SetConfigstring
 002bffb0 SV_AdjustAreaPortalState
