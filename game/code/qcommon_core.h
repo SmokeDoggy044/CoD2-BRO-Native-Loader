@@ -312,4 +312,36 @@ uint32_t XB_CDECL Mem_GetWCPoolStart();
 // heap 0 current. Returns 1.
 uint32_t XB_CDECL Heap_InitDefaultHeaps();
 
+// 0x00043350 (heap in EAX): dlmalloc's sysmalloc over Heap_Sbrk (no mmap): grows the top by whole pages
+// (+0x45c), merging with the old top when contiguous, else fencing the old top (5, 5) and freeing it;
+// sbrked +0x464 (peak +0x468), total peak +0x470; nb bytes from the new top or errno ENOMEM and null.
+uint8_t* XB_REGS1 XB_CDECL Heap_SysAlloc(uint8_t* heap, uint32_t nb);
+// 0x00043500: dlmalloc 2.7 malloc in the current heap: fast bin, small bin, unsorted scan (sorting into
+// bins, binmap +0x434), best large fit, binmap search, top, Heap_EnsureInit + retry, Heap_SysAlloc.
+uint8_t* XB_CDECL Heap_Malloc(uint32_t bytes);
+// 0x00043b70: memalign: Heap_Malloc for align <= 8, else align raised to a power of two >= 16; the lead
+// and tail of an over-sized block go back through Heap_FreeBlock.
+uint8_t* XB_CDECL Heap_MallocAligned(uint32_t align, uint32_t bytes);
+// 0x00043020 (dead: only Heap_MallInfo calls it): mallinfo of the current heap into out[10]; returns out.
+uint32_t* XB_CDECL Heap_GetMallInfo(uint32_t* out);
+// 0x00043150 (dead: no callers): Heap_GetMallInfo into a local.
+void XB_CDECL Heap_MallInfo();
+// Small-block heaps: count +0, pools +4 (8), size limits +0x28 (8 int16, count +0x24), +0x38 no pools,
+// +0x39 pools off, +0x3a no fallback. Pool (0x28 bytes): block size +0, blocks +4, free +8, tag +0xc,
+// align +0x10, peak used +0x14, block range [+0x18, +0x1c], free list +0x24 (links at block + 4).
+// 0x00044620 (pool in ECX; returns it): `count` blocks of `block_size` (Heap_AllocAligned), each tagged
+// {tag (16 bit), 0, 0} and pushed on the free list.
+uint8_t* XB_THISCALL SmallHeap_InitPool(uint8_t* pool, uint32_t block_size, uint32_t count, uint32_t tag,
+                                        uint32_t align);
+// 0x00044770 (heap in ECX; returns it): one Z_Malloc'd pool per config entry {size, align, count} after the
+// count (config[0]); the first 8 are kept, with their sizes as limits.
+uint8_t* XB_THISCALL SmallHeap_Init(uint8_t* heap, const uint32_t* config, uint32_t no_pools, uint32_t no_fallback);
+// 0x00044810 (heap in ECX; dead: no callers, no pointer): Z_Free of each pool's blocks and the pool.
+void XB_THISCALL SmallHeap_Destroy(uint8_t* heap);
+// 0x00044850 (heap in ECX): a free block of the first pool whose limit (int16) fits the size's low 16 bits,
+// counting the peak; else (no_pool, +0x39) Heap_AllocAligned(16, size) unless +0x3a (null).
+uint8_t* XB_THISCALL SmallHeap_Alloc(uint8_t* heap, uint32_t size, uint32_t no_pool);
+// 0x00044910 (heap in ECX): back on the free list of the pool whose block range holds mem, else Z_Free.
+void XB_THISCALL SmallHeap_Free(uint8_t* heap, uint8_t* mem);
+
 }  // namespace game

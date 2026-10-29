@@ -1510,4 +1510,466 @@ uint32_t XB_CDECL Heap_InitDefaultHeaps() {
     return 1;
 }
 
+namespace {
+
+uint8_t* bin_at(uint8_t* heap, uint32_t index) { return heap + 0x2c + index * 8; }
+
+uint32_t& bin_map(uint8_t* heap, uint32_t block) { return word_at(heap, 0x434 + block * 4); }
+
+uint32_t large_bin_index(uint32_t size) {
+    if ((size >> 6) <= 0x20) return (size >> 6) + 0x38;
+    if ((size >> 9) <= 0x14) return (size >> 9) + 0x5b;
+    if ((size >> 12) <= 0xa) return (size >> 12) + 0x6e;
+    if ((size >> 15) <= 4) return (size >> 15) + 0x77;
+    if ((size >> 18) <= 2) return (size >> 18) + 0x7c;
+    return 0x7e;
+}
+
+void set_errno_nomem() { *title_function<int32_t* XB_CDECL()>(0x001f0ac5)() = 12; }  // _errno, ENOMEM
+
+// Splits nb bytes off victim (size bytes); the rest becomes the only unsorted chunk.
+uint8_t* split_to_unsorted(uint8_t* heap, uint8_t* victim, uint32_t size, uint32_t nb, bool last_remainder) {
+    uint8_t* const unsorted = heap + 0x34;
+    uint8_t* const remainder = victim + nb;
+    const uint32_t remainder_size = size - nb;
+    set_ptr(heap, 0x3c, remainder);
+    set_ptr(heap, 0x40, remainder);
+    if (last_remainder) set_ptr(heap, 0x30, remainder);
+    set_ptr(remainder, 8, unsorted);
+    set_ptr(remainder, 0xc, unsorted);
+    word_at(victim, 4) = nb | 1;
+    word_at(remainder, 4) = remainder_size | 1;
+    word_at(remainder + remainder_size, 0) = remainder_size;
+    return victim + 8;
+}
+
+uint8_t* use_whole(uint8_t* victim, uint32_t size) {
+    word_at(victim + size, 4) |= 1;
+    return victim + 8;
+}
+
+}  // namespace
+
+uint8_t* XB_REGS1 XB_CDECL Heap_SysAlloc(uint8_t* heap, uint32_t nb) {
+    uint8_t* const old_top = chunk_ptr(heap, 0x2c);
+    const uint32_t old_head = word_at(old_top, 4);
+    const uint32_t page_mask = word_at(heap, 0x45c) - 1;
+    const uint32_t old_size = old_head & ~3u;
+    uint32_t size = word_at(heap, 0x448) + nb + 0x10;
+    if (!(heap[0] & 2)) size -= old_size;
+    size = (size + page_mask) & ~page_mask;
+    if (static_cast<int32_t>(size) <= 0) {
+        set_errno_nomem();
+        return nullptr;
+    }
+    const uint32_t brk = Heap_Sbrk(size);
+    if (brk == 0xffffffffu) {
+        set_errno_nomem();
+        return nullptr;
+    }
+    word_at(heap, 0x464) += size;
+    if (brk == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(old_top)) + old_size) {
+        word_at(old_top, 4) = (size + old_size) | 1;
+    } else {
+        uint32_t correction = 0;
+        uint32_t aligned_brk = brk;
+        uint32_t snd_brk;
+        bool have_second = true;
+        if (!(heap[0] & 2)) {
+            const uint32_t front = brk & 7;
+            if (front) {
+                correction = 8 - front;
+                aligned_brk = brk + correction;
+            }
+            correction += old_size;
+            const uint32_t end = correction + size + brk;
+            correction += ((end + page_mask) & ~page_mask) - end;
+            snd_brk = Heap_Sbrk(correction);
+            if (snd_brk == 0xffffffffu) {
+                correction = 0;
+                snd_brk = Heap_Sbrk(0);
+                have_second = snd_brk != 0xffffffffu;
+            }
+        } else {
+            snd_brk = Heap_Sbrk(0);
+            have_second = snd_brk != 0xffffffffu;
+        }
+        if (have_second) {
+            uint8_t* const top = heap_ptr(aligned_brk);
+            set_ptr(heap, 0x2c, top);
+            word_at(top, 4) = (correction - aligned_brk + snd_brk) | 1;
+            word_at(heap, 0x464) += correction;
+            if (old_size) {
+                const uint32_t fence = (old_size - 0xc) & ~7u;
+                word_at(old_top, 4) = fence | 1;
+                word_at(old_top + fence, 4) = 5;
+                word_at(old_top + fence, 8) = 5;
+                if (fence >= 0x10) Heap_FreeBlock(old_top + 8);
+            }
+        }
+    }
+    uint32_t sum = word_at(heap, 0x464);
+    if (sum > word_at(heap, 0x468)) word_at(heap, 0x468) = sum;
+    sum += word_at(heap, 0x460);
+    if (sum > word_at(heap, 0x470)) word_at(heap, 0x470) = sum;
+    uint8_t* const top = chunk_ptr(heap, 0x2c);
+    const uint32_t top_size = word_at(top, 4) & ~3u;
+    if (top_size < nb + 0x10) {
+        set_errno_nomem();
+        return nullptr;
+    }
+    uint8_t* const remainder = top + nb;
+    set_ptr(heap, 0x2c, remainder);
+    word_at(top, 4) = nb | 1;
+    word_at(remainder, 4) = (top_size - nb) | 1;
+    return top + 8;
+}
+
+uint8_t* XB_CDECL Heap_Malloc(uint32_t bytes) {
+    uint8_t* const heap = heap_ptr(Heap_GetCurrent());
+    if (bytes >= 0xffffffe0u) {
+        set_errno_nomem();
+        return nullptr;
+    }
+    const uint32_t padded = bytes + 0xb;
+    const uint32_t nb = padded < 0x10 ? 0x10 : padded & ~7u;
+    const uint32_t max_fast = word_at(heap, 0);
+    if (nb <= max_fast) {
+        uint8_t* const fast_bin = heap + (nb >> 3) * 4 - 4;
+        uint8_t* const victim = chunk_ptr(fast_bin, 0);
+        if (victim) {
+            word_at(fast_bin, 0) = word_at(victim, 8);
+            return victim + 8;
+        }
+    }
+    uint32_t index;
+    if (nb < 0x200) {
+        index = nb >> 3;
+        uint8_t* const bin = bin_at(heap, index);
+        uint8_t* const victim = chunk_ptr(bin, 0xc);
+        if (victim != bin) {
+            if (!victim) {
+                Heap_EnsureInit(heap);
+            } else {
+                uint8_t* const back = chunk_ptr(victim, 0xc);
+                word_at(victim + nb, 4) |= 1;
+                set_ptr(bin, 0xc, back);
+                set_ptr(back, 8, bin);
+                return victim + 8;
+            }
+        }
+    } else {
+        index = large_bin_index(nb);
+        if (!(max_fast & 1)) Heap_EnsureInit(heap);
+    }
+    uint8_t* const unsorted = heap + 0x34;
+    for (;;) {
+        uint8_t* victim;
+        while ((victim = chunk_ptr(heap, 0x40)) != unsorted) {
+            uint32_t size = word_at(victim, 4) & ~3u;
+            uint8_t* back = chunk_ptr(victim, 0xc);
+            if (nb < 0x200 && back == unsorted && victim == chunk_ptr(heap, 0x30) && size > nb + 0x10)
+                return split_to_unsorted(heap, victim, size, nb, true);
+            set_ptr(heap, 0x40, back);
+            set_ptr(back, 8, unsorted);
+            if (size == nb) return use_whole(victim, size);
+            uint32_t victim_index;
+            uint8_t* forward;
+            if (size < 0x200) {
+                victim_index = size >> 3;
+                back = bin_at(heap, victim_index);
+                forward = chunk_ptr(back, 8);
+            } else {
+                victim_index = large_bin_index(size);
+                back = bin_at(heap, victim_index);
+                forward = chunk_ptr(back, 8);
+                if (forward != back) {
+                    size |= 1;
+                    uint8_t* const last = chunk_ptr(back, 0xc);
+                    if (size <= word_at(last, 4)) {
+                        forward = back;
+                        back = last;
+                    } else {
+                        while (size < word_at(forward, 4)) forward = chunk_ptr(forward, 8);
+                        back = chunk_ptr(forward, 0xc);
+                    }
+                }
+            }
+            bin_map(heap, victim_index >> 5) |= 1u << (victim_index & 0x1f);
+            set_ptr(victim, 0xc, back);
+            set_ptr(victim, 8, forward);
+            set_ptr(forward, 0xc, victim);
+            set_ptr(back, 8, victim);
+        }
+        if (nb >= 0x200) {
+            uint8_t* const bin = bin_at(heap, index);
+            victim = chunk_ptr(bin, 0xc);
+            if (victim != bin && word_at(chunk_ptr(bin, 8), 4) >= nb) {
+                uint32_t size = word_at(victim, 4) & ~3u;
+                while (size < nb) {
+                    victim = chunk_ptr(victim, 0xc);
+                    size = word_at(victim, 4) & ~3u;
+                }
+                chunk_unlink(victim);
+                if (size - nb < 0x10) return use_whole(victim, size);
+                return split_to_unsorted(heap, victim, size, nb, false);
+            }
+        }
+        ++index;
+        uint8_t* bin = bin_at(heap, index);
+        uint32_t block = index >> 5;
+        uint32_t map = bin_map(heap, block);
+        uint32_t bit = 1u << (index & 0x1f);
+        bool use_top = false;
+        for (;;) {
+            if (bit > map || !bit) {
+                do {
+                    if (++block >= 4) break;
+                    map = bin_map(heap, block);
+                } while (!map);
+                if (block >= 4) {
+                    use_top = true;
+                    break;
+                }
+                bin = bin_at(heap, block << 5);
+                bit = 1;
+            }
+            while (!(map & bit)) {
+                bit <<= 1;
+                bin += 8;
+            }
+            victim = chunk_ptr(bin, 0xc);
+            if (victim == bin) {
+                map &= ~bit;
+                bin_map(heap, block) = map;
+                bin += 8;
+                bit <<= 1;
+                continue;
+            }
+            const uint32_t size = word_at(victim, 4) & ~3u;
+            uint8_t* const back = chunk_ptr(victim, 0xc);
+            set_ptr(bin, 0xc, back);
+            set_ptr(back, 8, bin);
+            if (size - nb < 0x10) return use_whole(victim, size);
+            return split_to_unsorted(heap, victim, size, nb, nb < 0x200);
+        }
+        if (use_top) {
+            victim = chunk_ptr(heap, 0x2c);
+            const uint32_t size = word_at(victim, 4) & ~3u;
+            if (size >= nb + 0x10) {
+                uint8_t* const remainder = victim + nb;
+                set_ptr(heap, 0x2c, remainder);
+                word_at(victim, 4) = nb | 1;
+                word_at(remainder, 4) = (size - nb) | 1;
+                return victim + 8;
+            }
+            if (word_at(heap, 0) & 1) return Heap_SysAlloc(heap, nb);
+            Heap_EnsureInit(heap);
+            index = nb >> 3;
+        }
+    }
+}
+
+uint8_t* XB_CDECL Heap_MallocAligned(uint32_t align, uint32_t bytes) {
+    if (align <= 8) return Heap_Malloc(bytes);
+    if (align < 0x10) align = 0x10;
+    if (align & (align - 1)) {
+        uint32_t power = 0x10;
+        if (align > power) {
+            do power <<= 1;
+            while (power < align);
+        }
+        align = power;
+    }
+    if (bytes >= 0xffffffe0u) {
+        set_errno_nomem();
+        return nullptr;
+    }
+    const uint32_t padded = bytes + 0xb;
+    const uint32_t nb = padded < 0x10 ? 0x10 : padded & ~7u;
+    uint8_t* const mem = Heap_Malloc(align + nb + 0x10);
+    if (!mem) return nullptr;
+    uint8_t* p = mem - 8;
+    const uint32_t address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mem));
+    if (address % align) {
+        uint8_t* aligned = heap_ptr(((address + align - 1) & (0u - align)) - 8);
+        if (static_cast<uint32_t>(aligned - p) < 0x10) aligned += align;
+        const uint32_t lead = static_cast<uint32_t>(aligned - p);
+        const uint32_t head = word_at(p, 4);
+        const uint32_t new_size = (head & ~3u) - lead;
+        if (head & 2) {
+            const uint32_t prev = word_at(p, 0);
+            word_at(aligned, 4) = new_size | 2;
+            word_at(aligned, 0) = prev + lead;
+            return aligned + 8;
+        }
+        word_at(aligned, 4) = new_size | 1;
+        word_at(aligned + new_size, 4) |= 1;
+        word_at(p, 4) = (word_at(p, 4) & 1) | lead;
+        Heap_FreeBlock(p + 8);
+        p = aligned;
+    }
+    const uint32_t head = word_at(p, 4);
+    if (!(head & 2)) {
+        const uint32_t size = head & ~3u;
+        if (size > nb + 0x10) {
+            word_at(p + nb, 4) = (size - nb) | 1;
+            word_at(p, 4) = (word_at(p, 4) & 1) | nb;
+            Heap_FreeBlock(p + nb + 8);
+        }
+    }
+    return p + 8;
+}
+
+uint32_t* XB_CDECL Heap_GetMallInfo(uint32_t* out) {
+    uint8_t* const heap = heap_ptr(Heap_GetCurrent());
+    if (!chunk_ptr(heap, 0x2c)) Heap_EnsureInit(heap);
+    const uint32_t top_size = word_at(chunk_ptr(heap, 0x2c), 4) & ~3u;
+    uint32_t avail = top_size;
+    uint32_t fast_blocks = 0;
+    uint32_t fast_avail = 0;
+    uint32_t blocks = 1;
+    for (uint32_t i = 0; i < 10; ++i) {
+        for (const uint8_t* p = chunk_ptr(heap, 4 + i * 4); p; p = chunk_ptr(p, 8)) {
+            ++fast_blocks;
+            fast_avail += word_at(p, 4) & ~3u;
+        }
+    }
+    avail += fast_avail;
+    for (uint32_t i = 0; i < 0x7f; ++i) {
+        uint8_t* const bin = heap + 0x34 + i * 8;
+        for (const uint8_t* p = chunk_ptr(bin, 0xc); p != bin; p = chunk_ptr(p, 0xc)) {
+            ++blocks;
+            avail += word_at(p, 4) & ~3u;
+        }
+    }
+    const uint32_t arena = word_at(heap, 0x464);
+    const uint32_t info[10] = {arena,
+                               blocks,
+                               fast_blocks,
+                               word_at(heap, 0x450),
+                               word_at(heap, 0x460),
+                               word_at(heap, 0x470),
+                               fast_avail,
+                               arena - avail,
+                               avail,
+                               top_size};
+    for (uint32_t i = 0; i < 10; ++i) out[i] = info[i];
+    return out;
+}
+
+void XB_CDECL Heap_MallInfo() {
+    uint32_t info[10];
+    Heap_GetMallInfo(info);
+}
+
+uint8_t* XB_THISCALL SmallHeap_InitPool(uint8_t* pool, uint32_t block_size, uint32_t count, uint32_t tag,
+                                        uint32_t align) {
+    const uint32_t total = block_size * count;
+    word_at(pool, 4) = count;
+    word_at(pool, 8) = count;
+    word_at(pool, 0x10) = align;
+    word_at(pool, 0) = block_size;
+    word_at(pool, 0xc) = tag;
+    word_at(pool, 0x14) = 0;
+    word_at(pool, 0x18) = 0;
+    word_at(pool, 0x20) = 0;
+    word_at(pool, 0x24) = 0;
+    uint8_t* block = Heap_AllocAligned(word_at(pool, 0x10), total);
+    set_ptr(pool, 0x1c, block + total);
+    const uint32_t last = word_at(pool, 4) - 1;
+    set_ptr(pool, 0x18, block);
+    if (static_cast<int32_t>(last) < 0) return pool;
+    for (uint32_t left = last + 1; left; --left) {
+        uint8_t* node = nullptr;
+        if (block) {
+            const uint16_t tag16 = static_cast<uint16_t>(word_at(pool, 0xc));
+            std::memcpy(block, &tag16, 2);
+            block[2] = 0;
+            block[3] = 0;
+            word_at(block, 4) = 0;
+            node = block;
+        }
+        node += 4;
+        word_at(node, 0) = word_at(pool, 0x24);
+        set_ptr(pool, 0x24, node);
+        block += block_size;
+    }
+    return pool;
+}
+
+uint8_t* XB_THISCALL SmallHeap_Init(uint8_t* heap, const uint32_t* config, uint32_t no_pools, uint32_t no_fallback) {
+    word_at(heap, 0) = 0;
+    word_at(heap, 0x24) = 0;
+    heap[0x38] = static_cast<uint8_t>(no_pools);
+    heap[0x39] = 0;
+    heap[0x3a] = static_cast<uint8_t>(no_fallback);
+    uint32_t index = 0;
+    for (const uint32_t* entry = config + 1; entry != config + 1 + config[0] * 3; entry += 3, ++index) {
+        uint8_t* pool = Z_Malloc(0x28);
+        if (pool) pool = SmallHeap_InitPool(pool, entry[0], entry[2], index & 0xffff, entry[1]);
+        const int32_t pools = static_cast<int32_t>(word_at(heap, 0));
+        if (pools < 8) {
+            set_ptr(heap, 4 + pools * 4, pool);
+            ++word_at(heap, 0);
+        }
+        const int32_t sizes = static_cast<int32_t>(word_at(heap, 0x24));
+        if (sizes < 8) {
+            std::memcpy(heap + 0x28 + sizes * 2, entry, 2);
+            ++word_at(heap, 0x24);
+        }
+    }
+    return heap;
+}
+
+void XB_THISCALL SmallHeap_Destroy(uint8_t* heap) {
+    for (uint8_t* slot = heap + 4; slot != heap + 4 + word_at(heap, 0) * 4; slot += 4) {
+        uint8_t* const pool = chunk_ptr(slot, 0);
+        if (!pool) continue;
+        Z_Free(chunk_ptr(pool, 0x18));
+        Z_Free(pool);
+    }
+}
+
+uint8_t* XB_THISCALL SmallHeap_Alloc(uint8_t* heap, uint32_t size, uint32_t no_pool) {
+    if (!static_cast<uint8_t>(no_pool) && !heap[0x39]) {
+        for (int32_t i = 0; i < static_cast<int32_t>(word_at(heap, 0x24)); ++i) {
+            int16_t limit;
+            std::memcpy(&limit, heap + 0x28 + i * 2, 2);
+            if (static_cast<int32_t>(size & 0xffff) > limit) continue;
+            uint8_t* const pool = chunk_ptr(heap, 4 + i * 4);
+            if (!word_at(pool, 8)) continue;
+            uint8_t* const node = chunk_ptr(pool, 0x24);
+            if (!node) continue;
+            word_at(pool, 0x24) = word_at(node, 0);
+            uint8_t* const block = node - 4;
+            const uint32_t free_count = word_at(pool, 8) - 1;
+            word_at(pool, 8) = free_count;
+            uint32_t used = word_at(pool, 4) - free_count;
+            const uint32_t peak = word_at(pool, 0x14);
+            if (peak > used) used = peak;
+            word_at(pool, 0x14) = used;
+            if (block) return block;
+        }
+    }
+    if (heap[0x3a]) return nullptr;
+    return Heap_AllocAligned(0x10, size);
+}
+
+void XB_THISCALL SmallHeap_Free(uint8_t* heap, uint8_t* mem) {
+    if (!mem) return;
+    const uint32_t ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mem));
+    uint8_t* const end = heap + 4 + word_at(heap, 0) * 4;
+    for (uint8_t* slot = heap + 4; slot != end; slot += 4) {
+        uint8_t* const pool = chunk_ptr(slot, 0);
+        if (ptr < word_at(pool, 0x18) || ptr > word_at(pool, 0x1c)) continue;
+        ++word_at(pool, 8);
+        uint8_t* const node = mem + 4;
+        word_at(node, 0) = word_at(pool, 0x24);
+        set_ptr(pool, 0x24, node);
+        return;
+    }
+    Z_Free(mem);
+}
+
 }  // namespace game
