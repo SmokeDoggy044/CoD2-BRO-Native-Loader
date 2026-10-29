@@ -1197,4 +1197,317 @@ void XB_CDECL HandlePool_Free(uint8_t* pool, int32_t handle) {
     list_push_back(pool + 4, node);
 }
 
+namespace {
+
+// dlmalloc state at a heap (0x494 bytes each, 8 from 0x008ff638): max_fast (+0, bit 0 set = no fast
+// chunks), fast bins (+4), top (+0x2c), bins from +0x34 (unsorted = +0x34, its fd +0x3c); bytes in use
+// +0x488, peak +0x48c, next heap to try +0x490, region [+0x474, +0x478), capacity +0x484.
+// Chunks: prev_size +0, size +4 (bit 0 previous in use, bit 1 not ours), fd +8, bk +0xc.
+uint8_t* chunk_ptr(const uint8_t* base, uint32_t offset) { return pointer_at<uint8_t>(base, offset); }
+
+void set_ptr(uint8_t* base, uint32_t offset, const uint8_t* value) {
+    word_at(base, offset) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(value));
+}
+
+void chunk_unlink(uint8_t* chunk) {
+    uint8_t* const fd = chunk_ptr(chunk, 8);
+    uint8_t* const bk = chunk_ptr(chunk, 0xc);
+    set_ptr(fd, 0xc, bk);
+    set_ptr(bk, 8, fd);
+}
+
+// 0x008ff638 when the system heap flag (0x008ffabc) is set, else 0.
+uint32_t system_heap() { return title_global<uint32_t>(0x008ffabc) ? 0x008ff638u : 0u; }
+
+void debug_break() { title_function<void XB_CDECL()>(0x00042460)(); }  // Sys_DebugBreak
+
+uint8_t* heap_ptr(uint32_t heap) { return reinterpret_cast<uint8_t*>(uintptr_t{heap}); }
+
+}  // namespace
+
+uint8_t* XB_REGS1 XB_CDECL Heap_InitBins(uint8_t* heap) {
+    uint8_t* const first = heap + 0x34;
+    uint8_t* bin = first;
+    for (uint32_t i = 0x7f; i; --i) {
+        set_ptr(bin, 0xc, bin);
+        set_ptr(bin, 8, bin);
+        bin += 8;
+    }
+    word_at(heap, 0x448) = 0;
+    word_at(heap, 0x454) = 0;
+    word_at(heap, 0x44c) = 0x20000;
+    word_at(heap, 0x444) = 0x20000;
+    word_at(heap, 0) = (word_at(heap, 0) & 2) | 0x49;
+    set_ptr(heap, 0x2c, first);
+    word_at(heap, 0x45c) = 0x2000;
+    return heap;
+}
+
+void XB_CDECL Heap_EnsureInit(uint8_t* heap) {
+    uint32_t max_fast = word_at(heap, 0);
+    if (!max_fast) {
+        Heap_InitBins(heap);
+        return;
+    }
+    max_fast |= 1;
+    word_at(heap, 0) = max_fast;
+    uint8_t* const last_bin = heap + (max_fast >> 3) * 4 - 4;
+    uint8_t* bin = heap + 4;
+    uint8_t* current;
+    do {
+        uint8_t* p = chunk_ptr(bin, 0);
+        if (p) {
+            word_at(bin, 0) = 0;
+            do {
+                const uint32_t head = word_at(p, 4);
+                uint8_t* const next = chunk_ptr(p, 8);
+                uint32_t size = head & ~1u;
+                uint8_t* const next_chunk = p + size;
+                const uint32_t next_size = word_at(next_chunk, 4) & ~3u;
+                if (!(head & 1)) {
+                    const uint32_t prev_size = word_at(p, 0);
+                    size += prev_size;
+                    p -= prev_size;
+                    chunk_unlink(p);
+                }
+                if (next_chunk != chunk_ptr(heap, 0x2c)) {
+                    const uint32_t next_in_use = word_at(next_chunk + next_size, 4) & 1;
+                    word_at(next_chunk, 4) = next_size;
+                    if (!next_in_use) {
+                        size += next_size;
+                        chunk_unlink(next_chunk);
+                    }
+                    uint8_t* const unsorted = heap + 0x34;
+                    uint8_t* const first = chunk_ptr(heap, 0x3c);
+                    set_ptr(unsorted, 8, p);
+                    set_ptr(first, 0xc, p);
+                    word_at(p, 4) = size | 1;
+                    set_ptr(p, 0xc, unsorted);
+                    set_ptr(p, 8, first);
+                    word_at(p + size, 0) = size;
+                } else {
+                    word_at(p, 4) = (next_size + size) | 1;
+                    set_ptr(heap, 0x2c, p);
+                }
+                p = next;
+            } while (p);
+        }
+        current = bin;
+        bin += 4;
+    } while (current != last_bin);
+}
+
+void XB_CDECL Heap_FreeBlock(uint8_t* mem) {
+    uint8_t* const heap = heap_ptr(Heap_GetCurrent());
+    if (!mem) return;
+    uint8_t* p = mem - 8;
+    const uint32_t head = word_at(p, 4);
+    uint32_t size = head & ~3u;
+    const uint32_t max_fast = word_at(heap, 0);
+    if (size <= max_fast) {
+        word_at(heap, 0) = max_fast & ~1u;
+        uint8_t* const bin = heap + (size >> 3) * 4 - 4;
+        word_at(p, 8) = word_at(bin, 0);
+        set_ptr(bin, 0, p);
+        return;
+    }
+    if (head & 2) return;
+    uint8_t* const next_chunk = p + size;
+    const uint32_t next_size = word_at(next_chunk, 4) & ~3u;
+    if (!(head & 1)) {
+        const uint32_t prev_size = word_at(p, 0);
+        size += prev_size;
+        p -= prev_size;
+        chunk_unlink(p);
+    }
+    if (next_chunk != chunk_ptr(heap, 0x2c)) {
+        const uint32_t next_in_use = word_at(next_chunk + next_size, 4) & 1;
+        word_at(next_chunk, 4) = next_size;
+        if (!next_in_use) {
+            chunk_unlink(next_chunk);
+            size += next_size;
+        }
+        uint8_t* const first = chunk_ptr(heap, 0x3c);
+        uint8_t* const unsorted = heap + 0x34;
+        set_ptr(p, 8, first);
+        set_ptr(p, 0xc, unsorted);
+        set_ptr(unsorted, 8, p);
+        set_ptr(first, 0xc, p);
+        word_at(p, 4) = size | 1;
+        word_at(p + size, 0) = size;
+    } else {
+        size += next_size;
+        word_at(p, 4) = size | 1;
+        set_ptr(heap, 0x2c, p);
+    }
+    if (size >= 0x10000 && !(word_at(heap, 0) & 1)) Heap_EnsureInit(heap);
+}
+
+void XB_CDECL Heap_Free(uint8_t* mem) {
+    const uint32_t ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mem));
+    if (title_global<uint32_t>(0x00901ae8) == system_heap()) {
+        for (int32_t i = 0; i < title_global<int32_t>(0x008ff630); ++i) {
+            const uint32_t start = title_global<uint32_t>(0x008ff5b0 + i * 8);
+            if (ptr < start || ptr >= title_global<uint32_t>(0x008ff5b4 + i * 8) + start) continue;
+            if (title_global<uint8_t>(0x00901aec)) debug_break();
+        }
+    }
+    uint8_t* const heap = current_heap();
+    if (!mem) return;
+    word_at(heap, 0x488) -= word_at(mem - 4, 0) & ~3u;
+    Heap_FreeBlock(mem);
+}
+
+void XB_CDECL Heap_FreeIn(uint32_t heap, uint8_t* mem) {
+    const uint32_t saved = title_global<uint32_t>(0x00901ae8);
+    title_global<uint32_t>(0x00901ae8) = heap;
+    Heap_Free(mem);
+    title_global<uint32_t>(0x00901ae8) = saved;
+}
+
+uint8_t XB_CDECL Heap_FreeFromOwner(uint8_t* heap, uint8_t* mem) {
+    const uint32_t ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mem));
+    const uint32_t flag = title_global<uint32_t>(0x008ffabc);
+    for (;;) {
+        if (ptr >= word_at(heap, 0x474) && ptr < word_at(heap, 0x478)) {
+            Heap_FreeIn(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(heap)), mem);
+            return 1;
+        }
+        const uint32_t next = word_at(heap, 0x490);
+        if (!next || next == (flag ? 0x008ff638u : 0u)) return 0;
+        heap = heap_ptr(next);
+    }
+}
+
+void XB_CDECL Z_Free(uint8_t* mem) {
+    if (!mem) return;
+    const uint32_t ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mem));
+    for (int32_t i = 0; i < title_global<int32_t>(0x008ff5a8); ++i) {
+        if (Heap_FreeFromOwner(heap_ptr(title_global<uint32_t>(0x008ff4a8 + i * 4)), mem)) return;
+    }
+    for (uint32_t i = 0; i < 8; ++i) {
+        const uint8_t* const heap = heap_ptr(0x008ff638 + i * 0x494);
+        if (word_at(heap, 0x484) && ptr >= word_at(heap, 0x474) && ptr < word_at(heap, 0x478)) {
+            Heap_FreeIn(0x008ff638 + i * 0x494, mem);
+            return;
+        }
+    }
+    const uint8_t* const heap = current_heap();
+    if (ptr >= word_at(heap, 0x474) && ptr < word_at(heap, 0x478)) Heap_Free(mem);
+}
+
+void XB_THISCALL Heap_FreeIn2(uint32_t heap, uint8_t* mem) { Heap_FreeIn(heap, mem); }
+
+namespace {
+
+// Heap_AllocAligned / Z_Malloc after the allocation: count the chunk in the current heap (+0x488,
+// peak +0x48c), else retry in the next heap (+0x490) and, from the system heap, in each owner heap.
+template <typename Retry>
+uint8_t* account_or_retry(uint8_t* result, Retry retry) {
+    uint8_t* heap = current_heap();
+    if (result) {
+        word_at(heap, 0x488) += word_at(result - 4, 0) & ~3u;
+        heap = current_heap();
+        const uint32_t used = word_at(heap, 0x488);
+        if (word_at(heap, 0x48c) < used) word_at(heap, 0x48c) = used;
+        return result;
+    }
+    const uint32_t saved = title_global<uint32_t>(0x00901ae8);
+    const uint32_t next = word_at(heap, 0x490);
+    if (next) {
+        title_global<uint32_t>(0x00901ae8) = next;
+        result = retry();
+        title_global<uint32_t>(0x00901ae8) = saved;
+    }
+    if (result || saved != system_heap()) return result;
+    for (int32_t i = 0; i < title_global<int32_t>(0x008ff5a8); ++i) {
+        title_global<uint32_t>(0x00901ae8) = title_global<uint32_t>(0x008ff4a8 + i * 4);
+        result = retry();
+        title_global<uint32_t>(0x00901ae8) = saved;
+        if (result) return result;
+    }
+    if (title_global<uint8_t>(0x00901aec)) debug_break();
+    return result;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL Heap_AllocAligned(uint32_t align, uint32_t size) {
+    if (!title_global<uint32_t>(0x00901ad8)) Heap_InitDefaultHeaps();
+    uint8_t* const result = title_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(0x00043b70)(align, size);  // Heap_MallocAligned
+    return account_or_retry(result, [=] { return Heap_AllocAligned(align, size); });
+}
+
+uint8_t* XB_CDECL Heap_Alloc16(uint32_t size) { return Heap_AllocAligned(0x10, size); }
+
+uint8_t* XB_CDECL Heap_Alloc16_2(uint32_t size) { return Heap_AllocAligned(0x10, size); }
+
+uint8_t* XB_CDECL Z_Malloc(uint32_t size) {
+    if (!size) return nullptr;
+    if (!title_global<uint32_t>(0x00901ad8)) Heap_InitDefaultHeaps();
+    uint8_t* const result = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00043500)(size);  // Heap_Malloc
+    return account_or_retry(result, [=] { return Z_Malloc(size); });
+}
+
+uint8_t* XB_THISCALL Heap_CreateFromZone(uint8_t* heap, uint32_t size) {
+    uint8_t* const memory = Z_Malloc(size);
+    const uint32_t base = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(memory));
+    Heap_Init(heap, base, base + size, 0);
+    return heap;
+}
+
+uint8_t* XB_THISCALL Heap_AllocFromHeap(uint8_t* heap, uint32_t size, uint32_t align) {
+    if (word_at(heap, 0x488) + size > word_at(heap, 0x484)) return nullptr;
+    const uint32_t saved = Heap_SetCurrent(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(heap)));
+    uint8_t* const result = Heap_AllocAligned(align, size);
+    Heap_SetCurrent(saved);
+    return result;
+}
+
+namespace {
+
+// The pool getters: Mem_AllocPhysicalPools (0x00043fb0, XPhysicalAlloc) when the value is still 0.
+uint32_t pool_value(uint32_t address) {
+    if (!title_global<uint32_t>(address)) title_function<void XB_CDECL()>(0x00043fb0)();
+    return title_global<uint32_t>(address);
+}
+
+}  // namespace
+
+uint32_t XB_CDECL Mem_GetPhysicalPoolEnd() { return pool_value(0x00901af4); }
+uint32_t XB_CDECL Mem_GetPhysicalPoolStart() { return pool_value(0x00901af0); }
+uint32_t XB_CDECL Mem_GetDebugPoolEnd() { return pool_value(0x00901b00); }
+uint32_t XB_CDECL Mem_GetDebugPoolStart() { return pool_value(0x00901afc); }
+uint32_t XB_CDECL Mem_GetWCPoolEnd() { return pool_value(0x00901b0c); }
+uint32_t XB_CDECL Mem_GetWCPoolStart() { return pool_value(0x00901b08); }
+
+uint32_t XB_CDECL Heap_InitDefaultHeaps() {
+    if (title_global<uint32_t>(0x00901ad8)) return 1;
+    for (uint32_t i = 0; i < 0x928; ++i) title_global<uint32_t>(0x008ff638 + i * 4) = 0;
+    title_global<uint32_t>(0x00901ad8) = (Mem_GetPhysicalPoolStart() + 0x1f) & ~0x1fu;
+    const uint32_t end = Mem_GetPhysicalPoolEnd() & ~0x1fu;
+    title_global<uint32_t>(0x00901adc) = end;
+    const uint32_t start = title_global<uint32_t>(0x00901ad8);
+    if (start < end) Heap_Init(heap_ptr(0x008ff638), start, end, 0);
+    const uint32_t wc_start = Mem_GetWCPoolStart();
+    if (wc_start < Mem_GetWCPoolEnd()) {
+        const uint32_t wc_end = Mem_GetWCPoolEnd();
+        Heap_Init(heap_ptr(0x008fff60), Mem_GetWCPoolStart(), wc_end, 0);
+    }
+    if (Mem_GetDebugPoolStart() != 0xffffffffu) {
+        title_global<uint32_t>(0x00901ae0) = (Mem_GetDebugPoolStart() + 0x1f) & ~0x1fu;
+        const uint32_t debug_end = Mem_GetDebugPoolEnd() & ~0x1fu;
+        title_global<uint32_t>(0x00901ae4) = debug_end;
+        const uint32_t debug_start = title_global<uint32_t>(0x00901ae0);
+        if (debug_start < debug_end) {
+            Heap_Init(heap_ptr(0x008ffacc), debug_start, debug_end, 0);
+            title_function<void XB_CDECL(uint32_t, uint32_t, ...)>(0x00044160)(  // Mem_DebugPrintf
+                0, 0x007b324c, title_global<uint32_t>(0x008fff50));             // "create debug heap size=%i\n"
+        }
+        title_global<uint32_t>(0x008ffac8) = 0x008ffacc;
+    }
+    title_global<uint32_t>(0x00901ae8) = 0x008ff638;
+    return 1;
+}
+
 }  // namespace game

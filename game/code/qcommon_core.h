@@ -262,4 +262,54 @@ int32_t XB_CDECL HandlePool_Alloc(uint8_t* pool);
 // 0x000cb580: moves a live handle's element back to the free list (bit 31 set).
 void XB_CDECL HandlePool_Free(uint8_t* pool, int32_t handle);
 
+// Heaps (dlmalloc 2.7 without mmap/trim; layout at Heap_EnsureInit in the .cpp). Current heap 0x00901ae8.
+// 0x00042ea0 (heap in EAX; gap function; returns it): empty bins (127 self-linked pairs from +0x34),
+// top = +0x34, max_fast 0x48 | 1 | (old & 2), trim/mmap thresholds 0x20000, page size 0x2000.
+uint8_t* XB_REGS1 XB_CDECL Heap_InitBins(uint8_t* heap);
+// 0x00042f00: Heap_InitBins when max_fast is 0, else merges every fast-bin chunk with its free
+// neighbours into the unsorted bin (or the top) - dlmalloc's malloc_consolidate.
+void XB_CDECL Heap_EnsureInit(uint8_t* heap);
+// 0x00043260: frees a chunk of the current heap: fast bin up to max_fast, nothing for bit-1 chunks, else
+// merged into the unsorted bin or the top; Heap_EnsureInit when 0x10000+ bytes got free with fast chunks.
+void XB_CDECL Heap_FreeBlock(uint8_t* mem);
+// 0x00042680: in the system heap, Sys_DebugBreak for a block inside a pool (0x008ff5b0 {start, size}
+// x 0x008ff630) when 0x00901aec is set; then +0x488 -= chunk size and Heap_FreeBlock (tail jump).
+void XB_CDECL Heap_Free(uint8_t* mem);
+// 0x00042710: Heap_Free with `heap` current.
+void XB_CDECL Heap_FreeIn(uint32_t heap, uint8_t* mem);
+// 0x00042870: frees mem in the first heap of the +0x490 chain whose region holds it (stops at null or the
+// system heap); 1 when freed.
+uint8_t XB_CDECL Heap_FreeFromOwner(uint8_t* heap, uint8_t* mem);
+// 0x000428d0: frees mem in its owner chain (0x008ff4a8 x 0x008ff5a8), else the first of the 8 heaps with
+// a size whose region holds it, else the current heap if its region holds it.
+void XB_CDECL Z_Free(uint8_t* mem);
+// 0x00042e30 (heap in ECX): Heap_FreeIn.
+void XB_THISCALL Heap_FreeIn2(uint32_t heap, uint8_t* mem);
+// 0x00042af0: Heap_MallocAligned in the current heap (default heaps made first), counted in +0x488/peak
+// +0x48c; on failure the next heap (+0x490), then from the system heap each owner heap; Sys_DebugBreak
+// (0x00901aec set) when all fail.
+uint8_t* XB_CDECL Heap_AllocAligned(uint32_t align, uint32_t size);
+// 0x00042c30: Heap_AllocAligned(16, size).
+uint8_t* XB_CDECL Heap_Alloc16(uint32_t size);
+// 0x00042c40: the same body (stored as a pointer at 0x000ca133).
+uint8_t* XB_CDECL Heap_Alloc16_2(uint32_t size);
+// 0x00042cb0: Heap_AllocAligned's twin over Heap_Malloc; size 0 returns null.
+uint8_t* XB_CDECL Z_Malloc(uint32_t size);
+// 0x00042da0 (heap in ECX; returns it): Heap_Init over a new Z_Malloc block of `size`.
+uint8_t* XB_THISCALL Heap_CreateFromZone(uint8_t* heap, uint32_t size);
+// 0x00042de0 (heap in ECX): Heap_AllocAligned in `heap` unless used + size exceeds its capacity (null).
+uint8_t* XB_THISCALL Heap_AllocFromHeap(uint8_t* heap, uint32_t size, uint32_t align);
+// 0x00044040..0x000440e0: pool bounds, Mem_AllocPhysicalPools first while the value is 0. Physical
+// 0x00901af0/f4, debug 0x00901afc/0x00901b00 (-1 = none), write-combined 0x00901b08/0c.
+uint32_t XB_CDECL Mem_GetPhysicalPoolEnd();
+uint32_t XB_CDECL Mem_GetPhysicalPoolStart();
+uint32_t XB_CDECL Mem_GetDebugPoolEnd();
+uint32_t XB_CDECL Mem_GetDebugPoolStart();
+uint32_t XB_CDECL Mem_GetWCPoolEnd();
+uint32_t XB_CDECL Mem_GetWCPoolStart();
+// 0x00042740: once (0x00901ad8 = 0): clears the 8 heaps, heap 0 over the physical pool (32-byte
+// aligned), heap 2 over the write-combined one, heap 1 over the debug pool (chained from heap 0);
+// heap 0 current. Returns 1.
+uint32_t XB_CDECL Heap_InitDefaultHeaps();
+
 }  // namespace game
