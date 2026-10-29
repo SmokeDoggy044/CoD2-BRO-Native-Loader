@@ -2339,4 +2339,164 @@ void XB_THISCALL std_list_Clear_2(uint8_t* list) {
     list_clear(list);
 }
 
+namespace {
+
+// The creators' common part: a 4-aligned heap block, the ResourceManager vtable, registered in the
+// manager table (0x009719fc, count 0x009719f8, at most 20), then the class vtable and the global.
+uint8_t* create_manager(uint32_t size, uint32_t global) {
+    uint8_t* const manager = Heap_AllocAligned(4, size);
+    if (!manager) {
+        title_global<uint32_t>(global) = 0;
+        return nullptr;
+    }
+    word_at(manager, 0) = 0x00838220;  // ResourceManager vtable
+    const int32_t count = title_global<int32_t>(0x009719f8);
+    if (count < 0x14) {
+        title_global<uint32_t>(0x009719fc + static_cast<uint32_t>(count) * 4) = addr32(manager);
+        title_global<int32_t>(0x009719f8) = count + 1;
+    }
+    return manager;
+}
+
+void create_plain_manager(uint32_t vtable, uint32_t global) {
+    uint8_t* const manager = create_manager(0x190, global);
+    if (!manager) return;
+    std::memset(manager + 4, 0, 0x63 * 4);
+    word_at(manager, 0) = vtable;
+    title_global<uint32_t>(global) = addr32(manager);
+}
+
+}  // namespace
+
+void XB_CDECL ResourceManager_CreateModels() {
+    create_plain_manager(0x0083be98, 0x0095f6ac);
+}
+
+void XB_CDECL ResourceManager_CreateXmpb() {
+    create_plain_manager(0x0083beb0, 0x0095f6b0);
+}
+
+void XB_CDECL ResourceManager_CreateLgrid() {
+    create_plain_manager(0x0083be70, 0x0095f6a0);
+}
+
+void XB_CDECL ResourceManager_CreateLevel() {
+    uint8_t* const manager = create_manager(0xc, 0x0095f534);
+    if (!manager) return;
+    word_at(manager, 0) = 0x00832614;
+    word_at(manager, 8) = 0;
+    word_at(manager, 4) = 0;
+    title_global<uint32_t>(0x0095f534) = addr32(manager);
+}
+
+void XB_CDECL ResourceManager_CreateAnimTrees() {
+    create_plain_manager(0x0083261c, 0x0095f524);
+}
+
+void XB_CDECL ResourceManager_CreateLocStrings() {
+    create_plain_manager(0x00837668, 0x0095f5d8);
+}
+
+void XB_CDECL ResourceManager_CreateSoundBanks() {
+    uint8_t* const manager = create_manager(0x84c, 0x0095f4c0);
+    if (!manager) return;
+    word_at(manager, 0) = 0x008327a8;  // SoundBankManager vtable
+    manager[4] = 0;
+    manager[5] = 0;
+    SoundBankTable_Init(manager + 8);
+    title_global<uint32_t>(0x0095f4c0) = addr32(manager);
+}
+
+void XB_CDECL ResourceManager_CreateDlg() {
+    create_plain_manager(0x00837728, 0x0095f5ac);
+}
+
+void XB_CDECL ResourceManager_CreateAitb() {
+    create_plain_manager(0x0083ce48, 0x0095f718);
+}
+
+void XB_CDECL ResourceManager_CreateDb() {
+    create_plain_manager(0x008376ac, 0x0095f5a8);
+}
+
+void XB_CDECL ResourceManager_CreateCfgstr() {
+    create_plain_manager(0x00837650, 0x0095f5d4);
+}
+
+PLATFORM_ASM_ENTRY(NameMap_NodeCtor_entry,
+                   "pushl %eax\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(NameMap_NodeCtor) "addl $16, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL NameMap_NodeCtor(uint8_t* node, uint32_t next, uint32_t prev, const uint8_t* value) {
+    word_at(node, 0) = next;
+    word_at(node, 4) = prev;
+    word_at(node, 8) = word_at(value, 0);
+    int32_t length = static_cast<int32_t>(next);
+    char* const name = reinterpret_cast<char*>(node + 0xc);
+    FixedStr_Copy(name, &length, 0x1f, reinterpret_cast<const char*>(value + 4), value[4 + 0x1f]);
+    name[0x1f] = static_cast<char>(length);
+    return node;
+}
+
+uint32_t* XB_REGS1 XB_STDCALL DynArray_AllocAlignedZeroed(uint32_t capacity, uint32_t count) {
+    uint32_t* const data = static_cast<uint32_t*>(Mem_AlignedAlloc(capacity * 4, 4, 0));
+    uint32_t* const end = data + count;
+    for (uint32_t* p = data; p != end; ++p) {
+        if (p) *p = 0;
+    }
+    return data;
+}
+
+PLATFORM_ASM_ENTRY(DynArray_Alloc12_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DynArray_Alloc12) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL DynArray_Alloc12(uint32_t capacity, uint32_t count) {
+    uint32_t* const data = static_cast<uint32_t*>(Mem_AlignedAlloc(capacity * 12, 4, 0));
+    uint32_t* const end = data + count * 3;
+    for (uint32_t* p = data; p != end; p += 3) {
+        if (p) {
+            p[0] = 0;
+            p[1] = 0;
+            p[2] = 0;
+        }
+    }
+    return data;
+}
+
+namespace {
+
+// MSVC std::string (0x1c bytes): +4 the buffer (or its pointer from 16 capacity on), +0x14 size, +0x18
+// capacity. Tidy: free a heap buffer, back to the 15-char local one, empty.
+void string_tidy(uint8_t* s) {
+    if (word_at(s, 0x18) >= 0x10) Z_Free(pointer_at<uint8_t>(s, 4));
+    word_at(s, 0x18) = 0xf;
+    word_at(s, 0x14) = 0;
+    s[4] = 0;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(std_string_DestroyRange_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(std_string_DestroyRange) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL std_string_DestroyRange(uint8_t* first, uint8_t* last) {
+    for (uint8_t* s = first; s != last; s += 0x1c) string_tidy(s);
+}
+
+PLATFORM_ASM_ENTRY(LocEntry_Dtor_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(LocEntry_Dtor) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL LocEntry_Dtor(uint8_t* entry) {
+    string_tidy(entry + 0x1c);
+    string_tidy(entry);
+}
+
 }  // namespace game

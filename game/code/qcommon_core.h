@@ -421,4 +421,42 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL std_list_Clear(uint8_t* list);
 extern "C" void std_list_Clear_entry(void);
 void XB_THISCALL std_list_Clear_2(uint8_t* list);
 
+// Com_Init's manager creators: a 4-aligned heap block (Heap_AllocAligned) under the ResourceManager vtable,
+// registered in the manager table (0x009719fc, count 0x009719f8, at most 20), zeroed (0x63 words after the
+// vtable), the class vtable, stored in the global (0 when the allocation fails). 0x00023900 models
+// (0x0095f6ac), 0x00023960 xmpb (0x0095f6b0), 0x000239c0 lgrid (0x0095f6a0), 0x00023d80 anim trees
+// (0x0095f524), 0x00023e70 loc strings (0x0095f5d8), 0x00023f30 dlg (0x0095f5ac), 0x00023f90 aitb
+// (0x0095f718), 0x00023ff0 db (0x0095f5a8), 0x00024050 cfgstr (0x0095f5d4).
+void XB_CDECL ResourceManager_CreateModels();
+void XB_CDECL ResourceManager_CreateXmpb();
+void XB_CDECL ResourceManager_CreateLgrid();
+void XB_CDECL ResourceManager_CreateAnimTrees();
+void XB_CDECL ResourceManager_CreateLocStrings();
+void XB_CDECL ResourceManager_CreateDlg();
+void XB_CDECL ResourceManager_CreateAitb();
+void XB_CDECL ResourceManager_CreateDb();
+void XB_CDECL ResourceManager_CreateCfgstr();
+// 0x00023a20: the level manager 0x0095f534 (0xc bytes, vtable 0x00832614: +4 player entity, +8 level entity).
+void XB_CDECL ResourceManager_CreateLevel();
+// 0x00023ed0: the sound bank manager 0x0095f4c0 (0x84c bytes, vtable 0x008327a8, +4/+5 flags 0,
+// SoundBankTable_Init of +8).
+void XB_CDECL ResourceManager_CreateSoundBanks();
+// 0x000158e0 (node ESI, next ECX, prev EDX, value EAX): a name-map list node: links, the key dword, the
+// FixedStr32 name (FixedStr_Copy, length byte +0x1f).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL NameMap_NodeCtor(uint8_t* node, uint32_t next, uint32_t prev,
+                                                             const uint8_t* value);
+extern "C" void NameMap_NodeCtor_entry(void);
+// 0x00028530 (capacity EAX, count): Mem_AlignedAlloc(capacity * 4, 4, 0), the first count ints zeroed.
+uint32_t* XB_REGS1 XB_STDCALL DynArray_AllocAlignedZeroed(uint32_t capacity, uint32_t count);
+// 0x0001ff10 (capacity EAX, count ESI): the same for 12-byte elements.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL DynArray_Alloc12(uint32_t capacity, uint32_t count);
+extern "C" void DynArray_Alloc12_entry(void);
+// 0x00023510 (first EAX, last EDI): every std::string (0x1c bytes) in the range tidied (heap buffer freed,
+// empty, capacity 15).
+extern "C" PLATFORM_HIDDEN void XB_CDECL std_string_DestroyRange(uint8_t* first, uint8_t* last);
+extern "C" void std_string_DestroyRange_entry(void);
+// 0x0001daf0 (entry in ESI): its two strings (+0x1c, then +0) tidied.
+extern "C" PLATFORM_HIDDEN void XB_CDECL LocEntry_Dtor(uint8_t* entry);
+extern "C" void LocEntry_Dtor_entry(void);
+
 }  // namespace game
