@@ -574,6 +574,9 @@ address,name,tested,matched,nan,mismatched,coverage
 0028ef40,StreamMem_Free,1023,1023,0,0,100.0
 0028f740,R_DrawTextWithShadow_2,3453,3046,407,0,97.6
 00292ee0,Key_TranslateButtonName,3804,3804,0,0,65.0
+00294190,AxisCopy,3693,3693,0,0,100.0
+00295b40,ByteToDir,3826,3826,0,0,100.0
+00295b80,DirToByte,3830,3830,0,0,100.0
 00295d90,FS_ReturnPath,3452,3452,0,0,100.0
 00295eb0,FS_CreatePath,3802,3802,0,0,92.9
 00295f90,FS_HashFileName,3817,3817,0,0,100.0
@@ -593,6 +596,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0029fcc0,Cvar_Reset_f,3955,3955,0,0,88.9
 0029fce0,Cvar_SetA_f,3958,3958,0,0,28.6
 0029fd20,Cvar_SetS_f,3970,3970,0,0,28.6
+002a3180,Vec3NormalizeSimd,3748,3748,0,0,100.0
 002a8750,SV_GameSystemCalls,3841,3841,0,0,100.0
 002a8a40,COM_SkipPath,3816,3816,0,0,100.0
 002a8e40,G_EntList190_Disable,3200,3200,0,0,94.4

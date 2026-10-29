@@ -205,4 +205,58 @@ extern "C" void AngleNormalize180Quantized_entry(void);
 extern "C" PLATFORM_HIDDEN float XB_CDECL AngleDeltaQuantized(float a, float b);
 extern "C" void AngleDeltaQuantized_entry(void);
 
+// --- Vector and matrix helpers (q_math) ---
+
+// 0x00294190: copies a 3x3 axis (9 words, out in EAX, in in ECX).
+void XB_REGS3 XB_CDECL AxisCopy(float* out, uint32_t unused_edx, const float* in);
+// 0x00295020: out = transpose(in) for a 3x3 matrix (out in EAX, in in ECX).
+void XB_REGS3 XB_CDECL MatrixTranspose(float* out, uint32_t unused_edx, const float* in);
+// 0x00295b40 (index in EAX, out in ECX; ECX kept): Q3's ByteToDir over bytedirs
+// (0x008d52d8, 162 entries); out of range gives the zero vector.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ByteToDir(int32_t index, float* out);
+extern "C" void ByteToDir_entry(void);
+// 0x00295b80 (dir in ESI): Q3's DirToByte - the bytedirs index with the largest dot
+// product above 0 (0 for a null dir). Only AL is written.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL DirToByte(const float* dir);
+extern "C" void DirToByte_entry(void);
+// 0x00297800 (a in EAX, b in ECX): 2D distance on the x87 (title __CIsqrt), in ST0.
+float XB_REGS3 XB_CDECL Vec2Distance(const float* a, uint32_t unused_edx, const float* b);
+// 0x00297840 (a in EAX, b in ECX): 3D distance on the x87. No callers (dead).
+float XB_REGS3 XB_CDECL Vec3Distance(const float* a, uint32_t unused_edx, const float* b);
+// 0x00297700 (v in ESI; length left in XMM0, ECX kept): normalizes a 2D vector in place
+// unless its length is 0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Vec2Normalize(float* v);
+extern "C" void Vec2Normalize_entry(void);
+// 0x00297770 (v in ESI; length left in XMM0, ECX kept): Q3's VectorNormalize.
+extern "C" PLATFORM_HIDDEN float XB_CDECL VectorNormalize(float* v);
+extern "C" void VectorNormalize_entry(void);
+// 0x002975c0 (in in ESI, out in EDI; length left in XMM0, ECX kept): Q3's
+// VectorNormalize2 (zero vector out for length 0).
+extern "C" PLATFORM_HIDDEN float XB_CDECL VectorNormalize2(const float* in, float* out);
+extern "C" void VectorNormalize2_entry(void);
+// 0x002956b0 (in2 in EAX, out in EDX kept, in1 on the stack): Q3's MatrixMultiply,
+// out = in1 * in2 (3x3).
+extern "C" PLATFORM_HIDDEN void XB_CDECL MatrixMultiply(const float* in1, const float* in2, float* out);
+extern "C" void MatrixMultiply_entry(void);
+// 0x002954a0 (in2 in EAX, out in EDX kept, in1 on the stack): 4x3 (axis + origin)
+// product, out = in1 * in2.
+extern "C" PLATFORM_HIDDEN void XB_CDECL MatrixMultiply43(const float* in1, const float* in2, float* out);
+extern "C" void MatrixMultiply43_entry(void);
+// 0x00297500 (out in EAX, in in ECX): inverse of an orthonormal 4x3 matrix (transposed
+// axis, origin = -(origin * axis^T)).
+void XB_REGS3 XB_CDECL MatrixInverse43(float* out, uint32_t unused_edx, const float* in);
+// 0x0029a060 (b in ESI, a in EDI, out on the stack): out[i] = AngleDelta(a[i], b[i])
+// (Q_fmod); the original keeps a temporary in its argument slot.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnglesNormalize180(const float* b, const float* a, float* out);
+extern "C" void AnglesNormalize180_entry(void);
+// 0x00299d50 (a in EAX, b in ECX, origin in ESI, plane out in EDI): Q3's PlaneFromPoints
+// with (a - origin) x (b - origin); 0 (unnormalized normal, no dist) for a zero normal.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL PlaneFromPoints(const float* a, const float* b, const float* origin,
+                                                            float* plane);
+extern "C" void PlaneFromPoints_entry(void);
+// 0x002a3180 (16-byte aligned vector in ECX, kept): normalizes all four lanes by the xyz
+// length from RSQRTSS with one Newton step (DIVPS).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Vec3NormalizeSimd(float* v);
+extern "C" void Vec3NormalizeSimd_entry(void);
+
 }  // namespace game

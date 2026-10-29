@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "fx.h"
+#include "lanes.h"
 #include "fx_load.h"
 #include "g_scr_runtime.h"
 #include "qcommon.h"
@@ -720,5 +721,306 @@ PLATFORM_ASM_ENTRY(AngleDeltaQuantized_entry,
                    "ret")
 
 float XB_CDECL AngleDeltaQuantized(float a, float b) { return angle_quantize_wrap(a - b); }
+
+// --- Vector and matrix helpers (q_math) ---
+
+namespace {
+
+constexpr uint32_t kByteDirs = 0x008d52d8;  // bytedirs[162][3]
+constexpr uint32_t kZero = 0x0083eafc;      // 0.0f
+constexpr uint32_t kOne = 0x0083eb20;       // 1.0f
+
+// The title CRT's __CIsqrt of an x87 value, stored as float.
+float ci_sqrt(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// FUCOMIP against 0 (no MXCSR flags): true for nonzero and NaN.
+bool x87_nonzero(float value) { return static_cast<long double>(value) != title_global<float>(kZero); }
+
+void copy_word(void* dst, const void* src) { std::memcpy(dst, src, 4); }
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL AxisCopy(float* out, uint32_t, const float* in) {
+    for (int i = 0; i < 9; ++i) copy_word(out + i, in + i);
+}
+
+void XB_REGS3 XB_CDECL MatrixTranspose(float* out, uint32_t, const float* in) {
+    static const int kSource[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
+    for (int i = 0; i < 9; ++i) copy_word(out + i, in + kSource[i]);
+}
+
+PLATFORM_ASM_ENTRY(ByteToDir_entry,
+                   "pushl %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ByteToDir) "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+void XB_CDECL ByteToDir(int32_t index, float* out) {
+    if (index < 0 || index >= 162) {
+        out[0] = 0.0f;
+        out[1] = 0.0f;
+        out[2] = 0.0f;
+        return;
+    }
+    const float* dir = &title_global<float>(kByteDirs + index * 12);
+    copy_word(out, dir);
+    copy_word(out + 1, dir + 1);
+    copy_word(out + 2, dir + 2);
+}
+
+PLATFORM_ASM_ENTRY(DirToByte_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(DirToByte) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL DirToByte(const float* dir) {
+    uint8_t best = 0;
+    if (!dir) return best;
+    float best_dot = 0.0f;
+    for (uint8_t i = 0; i < 162; ++i) {
+        const float* table = &title_global<float>(kByteDirs + i * 12);
+        float dot = table[2] * dir[2];
+        dot = dot + table[0] * dir[0];
+        dot = dot + table[1] * dir[1];
+        if (dot > best_dot) {
+            best_dot = dot;
+            best = i;
+        }
+    }
+    return best;
+}
+
+float XB_REGS3 XB_CDECL Vec2Distance(const float* a, uint32_t, const float* b) {
+    const float dx = static_cast<float>(static_cast<long double>(a[0]) - b[0]);
+    const float dy = static_cast<float>(static_cast<long double>(a[1]) - b[1]);
+    const long double sum = static_cast<long double>(dy) * dy + static_cast<long double>(dx) * dx;
+    return ci_sqrt(sum);
+}
+
+float XB_REGS3 XB_CDECL Vec3Distance(const float* a, uint32_t, const float* b) {
+    const float dx = static_cast<float>(static_cast<long double>(a[0]) - b[0]);
+    const float dy = static_cast<float>(static_cast<long double>(a[1]) - b[1]);
+    const float dz = static_cast<float>(static_cast<long double>(a[2]) - b[2]);
+    long double sum = static_cast<long double>(dz) * dz + static_cast<long double>(dy) * dy;
+    sum = sum + static_cast<long double>(dx) * dx;
+    return ci_sqrt(sum);
+}
+
+// The three normalizers keep ECX (push/pop around the body) and leave the length in XMM0.
+PLATFORM_ASM_ENTRY(Vec2Normalize_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Vec2Normalize) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float XB_CDECL Vec2Normalize(float* v) {
+    const float x = v[0];
+    const float y = v[1];
+    const float length = ci_sqrt(x * x + y * y);
+    if (x87_nonzero(length)) {
+        const float scale = title_global<float>(kOne) / length;
+        const float nx = v[0] * scale;
+        const float ny = scale * v[1];
+        v[0] = nx;
+        v[1] = ny;
+    }
+    return length;
+}
+
+PLATFORM_ASM_ENTRY(VectorNormalize_entry,
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(VectorNormalize) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float XB_CDECL VectorNormalize(float* v) {
+    const float x = v[0];
+    const float y = v[1];
+    const float z = v[2];
+    const float length = ci_sqrt((x * x + y * y) + z * z);
+    if (x87_nonzero(length)) {
+        const float scale = title_global<float>(kOne) / length;
+        v[0] = v[0] * scale;
+        const float ny = scale * v[1];
+        const float nz = scale * v[2];
+        v[1] = ny;
+        v[2] = nz;
+    }
+    return length;
+}
+
+PLATFORM_ASM_ENTRY(VectorNormalize2_entry,
+                   "pushl %ecx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(VectorNormalize2) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $8, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+float XB_CDECL VectorNormalize2(const float* in, float* out) {
+    const float x = in[0];
+    const float y = in[1];
+    const float z = in[2];
+    const float length = ci_sqrt((x * x + y * y) + z * z);
+    if (x87_nonzero(length)) {
+        const float scale = title_global<float>(kOne) / length;
+        out[0] = in[0] * scale;
+        out[1] = scale * in[1];
+        out[2] = scale * in[2];
+    } else {
+        out[2] = 0.0f;
+        out[1] = 0.0f;
+        out[0] = 0.0f;
+    }
+    return length;
+}
+
+// Both products keep EDX (out) for their callers.
+PLATFORM_ASM_ENTRY(MatrixMultiply_entry,
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n"
+                   "pushl 16(%esp)\n" PLATFORM_ASM_CALL(MatrixMultiply) "addl $12, %esp\n"
+                   "popl %edx\n"
+                   "ret")
+
+void XB_CDECL MatrixMultiply(const float* a, const float* b, float* out) {
+    out[0] = (a[0] * b[0] + a[1] * b[3]) + b[6] * a[2];
+    out[1] = (a[1] * b[4] + b[7] * a[2]) + b[1] * a[0];
+    out[2] = (a[1] * b[5] + b[8] * a[2]) + b[2] * a[0];
+    out[3] = (a[4] * b[3] + a[3] * b[0]) + a[5] * b[6];
+    out[4] = (a[5] * b[7] + a[4] * b[4]) + a[3] * b[1];
+    out[5] = (a[5] * b[8] + a[4] * b[5]) + a[3] * b[2];
+    out[6] = (a[6] * b[0] + b[6] * a[8]) + a[7] * b[3];
+    out[7] = (b[7] * a[8] + b[4] * a[7]) + b[1] * a[6];
+    out[8] = (b[8] * a[8] + b[5] * a[7]) + b[2] * a[6];
+}
+
+PLATFORM_ASM_ENTRY(MatrixMultiply43_entry,
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n"
+                   "pushl 16(%esp)\n" PLATFORM_ASM_CALL(MatrixMultiply43) "addl $12, %esp\n"
+                   "popl %edx\n"
+                   "ret")
+
+void XB_CDECL MatrixMultiply43(const float* a, const float* b, float* out) {
+    out[0] = (a[0] * b[0] + a[1] * b[3]) + b[6] * a[2];
+    out[3] = (a[4] * b[3] + a[3] * b[0]) + a[5] * b[6];
+    out[6] = (a[7] * b[3] + a[6] * b[0]) + a[8] * b[6];
+    out[1] = (a[1] * b[4] + b[7] * a[2]) + b[1] * a[0];
+    out[4] = (a[5] * b[7] + a[4] * b[4]) + a[3] * b[1];
+    out[7] = (a[8] * b[7] + a[7] * b[4]) + a[6] * b[1];
+    out[2] = (a[0] * b[2] + a[1] * b[5]) + b[8] * a[2];
+    out[5] = (a[5] * b[8] + a[4] * b[5]) + a[3] * b[2];
+    out[8] = (a[8] * b[8] + a[7] * b[5]) + a[6] * b[2];
+    out[9] = ((a[10] * b[3] + a[9] * b[0]) + a[11] * b[6]) + b[9];
+    out[10] = ((a[11] * b[7] + a[10] * b[4]) + a[9] * b[1]) + b[10];
+    out[11] = ((a[11] * b[8] + a[10] * b[5]) + a[9] * b[2]) + b[11];
+}
+
+void XB_REGS3 XB_CDECL MatrixInverse43(float* out, uint32_t, const float* in) {
+    copy_word(out + 0, in + 0);
+    copy_word(out + 1, in + 3);
+    copy_word(out + 2, in + 6);
+    copy_word(out + 3, in + 1);
+    const float out3 = out[3];
+    copy_word(out + 4, in + 4);
+    copy_word(out + 5, in + 7);
+    copy_word(out + 6, in + 2);
+    const float out6 = out[6];
+    copy_word(out + 7, in + 5);
+    copy_word(out + 8, in + 8);
+    const float nx = 0.0f - in[9];
+    const float nz = 0.0f - in[11];
+    const float ny = 0.0f - in[10];
+    out[9] = (out3 * ny + out6 * nz) + out[0] * nx;
+    out[10] = (out[4] * ny + out[7] * nz) + nx * out[1];
+    const float last = ny * out[5];
+    out[11] = (out[8] * nz + out[2] * nx) + last;
+}
+
+PLATFORM_ASM_ENTRY(AnglesNormalize180_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(AnglesNormalize180) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL AnglesNormalize180(const float* b, const float* a, float* out) {
+    for (int i = 0; i < 3; ++i) out[i] = Q_fmod(a[i], b[i]);
+}
+
+PLATFORM_ASM_ENTRY(PlaneFromPoints_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(PlaneFromPoints) "addl $16, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL PlaneFromPoints(const float* a, const float* b, const float* origin, float* plane) {
+    const float d1y = a[1] - origin[1];
+    const float d1z = a[2] - origin[2];
+    const float d2y = b[1] - origin[1];
+    const float d2z = b[2] - origin[2];
+    const float d1x = a[0] - origin[0];
+    const float d2x = b[0] - origin[0];
+    const float nx = d1y * d2z - d1z * d2y;
+    const float nz = d1x * d2y - d1y * d2x;
+    plane[2] = nz;
+    const float ny = d1z * d2x - d1x * d2z;
+    const float length = ci_sqrt((nz * nz + ny * ny) + nx * nx);
+    plane[0] = nx;
+    plane[1] = ny;
+    if (!x87_nonzero(length)) return 0;
+    const float scale = title_global<float>(kOne) / length;
+    const float z = nz * scale;
+    const float x = nx * scale;
+    const float y = ny * scale;
+    plane[2] = z;
+    plane[0] = x;
+    plane[1] = y;
+    const float zd = z * origin[2];
+    plane[3] = (origin[0] * x + zd) + origin[1] * y;
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Vec3NormalizeSimd_entry,
+                   "pushl %ecx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Vec3NormalizeSimd) "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+
+void XB_CDECL Vec3NormalizeSimd(float* v) {
+    const Lanes value = lanes(v);
+    const Lanes squares = mul(value, value);
+    platform_keep(squares);
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float length = sum;
+    // UCOMISS; JNE: zero and NaN keep the sum.
+    if (!(sum == title_global<float>(0x0082e680) || sum != sum)) {
+        const float estimate = platform_rsqrt_estimate(sum);
+        const float t = sum * estimate;
+        const float u = t * estimate;
+        length = title_global<float>(0x0082e660) - u;  // 3
+        length = length * t;
+        length = length * title_global<float>(0x0082e670);  // 0.5
+    }
+    if (length != title_global<float>(kZero)) {
+        const Lanes result = {{value.v[0] / length, value.v[1] / length, value.v[2] / length, value.v[3] / length}};
+        std::memcpy(v, result.v, 16);
+    }
+}
 
 }  // namespace game
