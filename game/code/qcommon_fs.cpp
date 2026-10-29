@@ -1023,4 +1023,211 @@ void XB_CDECL Vec3NormalizeSimd(float* v) {
     }
 }
 
+// --- Localization text helpers ---
+
+// The double-byte classifiers keep ECX and EDX (Loc_PopSemicolonToken reads both after the
+// call); their C versions take (EAX, ECX) and return the whole EAX.
+#define LOC_CLASSIFIER_ENTRY(name)                                     \
+    PLATFORM_ASM_ENTRY(name##_entry,                                   \
+                       "pushl %ecx\n"                                  \
+                       "pushl %edx\n"                                  \
+                       "pushl %ecx\n"                                  \
+                       "pushl %eax\n" PLATFORM_ASM_CALL(name) "addl $8, %esp\n" \
+                       "popl %edx\n"                                   \
+                       "popl %ecx\n"                                   \
+                       "ret")
+
+namespace {
+
+uint32_t with_al(uint32_t eax, bool value) { return (eax & 0xffffff00u) | (value ? 1u : 0u); }
+
+}  // namespace
+
+LOC_CLASSIFIER_ENTRY(Loc_IsKsc5601Punct)
+uint32_t XB_CDECL Loc_IsKsc5601Punct(uint32_t code, uint32_t) {
+    return with_al(code, code > 0xa1a0 && code < 0xa1ae);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsShiftJisPunct)
+uint32_t XB_CDECL Loc_IsShiftJisPunct(uint32_t code, uint32_t) {
+    return with_al(code, code >= 0x8140 && code < 0x8152);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsShiftJisChar)
+uint32_t XB_CDECL Loc_IsShiftJisChar(uint32_t eax, uint32_t ecx) {
+    const uint8_t lead = static_cast<uint8_t>(eax);
+    const uint8_t trail = static_cast<uint8_t>(ecx);
+    const bool lead_ok = (lead >= 0x81 && lead <= 0x9f) || (lead >= 0xe0 && lead <= 0xef);
+    const bool trail_ok = (trail >= 0x40 && trail <= 0x7e) || (trail >= 0x80 && trail <= 0xfc);
+    return with_al(eax, lead_ok && trail_ok);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsBig5Punct)
+uint32_t XB_CDECL Loc_IsBig5Punct(uint32_t code, uint32_t) {
+    return with_al(code, code >= 0xa140 && code < 0xa154);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsBig5Char)
+uint32_t XB_CDECL Loc_IsBig5Char(uint32_t, uint32_t code) {
+    const uint32_t high = code >> 8;
+    const uint8_t lead = static_cast<uint8_t>(high);
+    const uint8_t trail = static_cast<uint8_t>(code);
+    const bool lead_ok = (lead >= 0xa1 && lead <= 0xc6) || (lead >= 0xc9 && lead <= 0xf9);
+    const bool trail_ok = (trail >= 0x40 && trail <= 0x7e) || (trail >= 0xa1 && trail <= 0xfe);
+    return with_al(high, lead_ok && trail_ok);
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsKsc5601Char)
+uint32_t XB_CDECL Loc_IsKsc5601Char(uint32_t eax, uint32_t ecx) {
+    const uint8_t lead = static_cast<uint8_t>(eax);
+    const uint8_t trail = static_cast<uint8_t>(ecx);
+    return lead >= 0xb0 && lead <= 0xc8 && trail > 0xa0 && trail < 0xff ? 1 : 0;
+}
+
+LOC_CLASSIFIER_ENTRY(Loc_IsGb2312Char)
+uint32_t XB_CDECL Loc_IsGb2312Char(uint32_t, uint32_t code) {
+    const uint8_t lead = static_cast<uint8_t>(code >> 8);
+    const uint8_t trail = static_cast<uint8_t>(code);
+    return lead >= 0xa1 && lead <= 0xf7 && trail > 0xa0 && trail < 0xff ? 1 : 0;
+}
+
+#undef LOC_CLASSIFIER_ENTRY
+
+namespace {
+
+using StrStr = const char* XB_CDECL(const char*, const char*);
+using StrRChr = char* XB_CDECL(const char*, int32_t);
+using CharClass = int32_t XB_CDECL(int32_t);
+using StrICmp = int32_t XB_CDECL(const char*, const char*);
+using StrNICmp = int32_t XB_CDECL(const char*, const char*, uint32_t);
+
+constexpr uint32_t kStrStr = 0x001efb10;
+constexpr uint32_t kStrRChr = 0x001efd40;
+constexpr uint32_t kIsSpace = 0x001eefa0;
+constexpr uint32_t kToUpper = 0x001efd6d;
+constexpr uint32_t kStrICmp = 0x001f1443;
+constexpr uint32_t kStrNICmp = 0x001f1486;
+
+void copy_string(char* dest, const char* src) {
+    char c;
+    do {
+        c = *src++;
+        *dest++ = c;
+    } while (c);
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL Loc_StripLineComment(char* line) {
+    const char* const comment = &title_global<const char>(0x008333ac);  // "//"
+    char* start = line;
+    int32_t quotes = 0;
+    char* found = const_cast<char*>(title_function<StrStr>(kStrStr)(start, comment));
+    if (!found) return;
+    for (;;) {
+        const int32_t length = static_cast<int32_t>(found - start);
+        for (int32_t i = 0; i < length; ++i)
+            if (start[i] == '"') ++quotes;
+        if (!(quotes & 1)) break;
+        start = found + 1;
+        found = const_cast<char*>(title_function<StrStr>(kStrStr)(start, comment));
+        if (!found) return;
+    }
+    *found = 0;
+    if (!*start) return;
+    int32_t i = static_cast<int32_t>(std::strlen(start)) - 1;
+    while (i >= 0) {
+        if (!title_function<CharClass>(kIsSpace)(static_cast<signed char>(start[i]))) return;
+        --i;
+        start[i + 1] = 0;
+    }
+}
+
+PLATFORM_ASM_ENTRY(Loc_MatchKeyword_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Loc_MatchKeyword) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL Loc_MatchKeyword(const char* keyword, char** cursor) {
+    if (title_function<StrNICmp>(kStrNICmp)(keyword, *cursor, static_cast<uint32_t>(std::strlen(keyword))))
+        return 0;
+    char* p = *cursor + std::strlen(keyword);
+    for (;;) {
+        *cursor = p;
+        if (*p != '\t' && *p != ' ') break;
+        ++p;
+    }
+    return 1;
+}
+
+char* XB_REGS1 XB_CDECL Loc_StripFileExtension(const char* name) {
+    char* const buffer = &title_global<char>(0x0098b220);
+    copy_string(buffer, name);
+    char* const dot = title_function<StrRChr>(kStrRChr)(buffer, '.');
+    char* const backslash = title_function<StrRChr>(kStrRChr)(buffer, '\\');
+    char* const slash = title_function<StrRChr>(kStrRChr)(buffer, '/');
+    if (dot && (!backslash || dot > backslash) && (!slash || dot > slash)) *dot = 0;
+    return buffer;
+}
+
+char* XB_REGS1 XB_CDECL Com_DirName(const char* path) {
+    char* const buffer = &title_global<char>(0x0098b2a0);
+    copy_string(buffer, path);
+    char* const backslash = title_function<StrRChr>(kStrRChr)(buffer, '\\');
+    char* last = title_function<StrRChr>(kStrRChr)(buffer, '/');
+    if (backslash > last) last = backslash;
+    if (last) *last = 0;
+    return buffer;
+}
+
+int32_t XB_REGS3 XB_CDECL Q_strncmp(int32_t n, const char* s1, const char* s2) {
+    int32_t left = n;
+    for (;;) {
+        const int32_t c1 = static_cast<signed char>(*s1++);
+        const int32_t c2 = static_cast<signed char>(*s2++);
+        if (left-- == 0) return 0;
+        if (c1 != c2) return c1 >= c2 ? 1 : -1;
+        if (!c1) return 0;
+    }
+}
+
+char* XB_REGS1 XB_CDECL vtos(const float* v) {
+    uint32_t& index = title_global<uint32_t>(0x0098bb68);
+    const uint32_t slot = index;
+    const int32_t y = static_cast<int32_t>(v[1]);
+    char* const buffer = &title_global<char>(0x0098ba68 + slot * 32);
+    index = (slot + 1) & 7;
+    const int32_t z = static_cast<int32_t>(v[2]);
+    const int32_t x = static_cast<int32_t>(v[0]);
+    const uint32_t args[4] = {0x00832864, static_cast<uint32_t>(x), static_cast<uint32_t>(y),  // "(%i %i %i)"
+                              static_cast<uint32_t>(z)};
+    Com_sprintf(buffer, 32, args);
+    return buffer;
+}
+
+const char* XB_CDECL Com_StringContains(const char* str1, const char* str2, int32_t casesensitive) {
+    const int32_t length = static_cast<int32_t>(std::strlen(str1)) - static_cast<int32_t>(std::strlen(str2));
+    for (int32_t i = 0; i <= length; ++i, ++str1) {
+        int32_t j = 0;
+        for (; str2[j]; ++j) {
+            if (casesensitive) {
+                if (str1[j] != str2[j]) break;
+            } else {
+                const int32_t a = title_function<CharClass>(kToUpper)(static_cast<signed char>(str1[j]));
+                if (a != title_function<CharClass>(kToUpper)(static_cast<signed char>(str2[j]))) break;
+            }
+        }
+        if (!str2[j]) return str1;
+    }
+    return nullptr;
+}
+
+int32_t XB_REGS1 XB_CDECL FS_IsCfgMenuOrDatFile(const char* ext) {
+    if (*ext == '.') ++ext;
+    if (!title_function<StrICmp>(kStrICmp)(ext, &title_global<const char>(0x00837fc0))) return 1;  // "cfg"
+    if (!ext) return 0;
+    if (!Q_stricmpn(ext, &title_global<const char>(0x00837fb8), 99999)) return 1;  // "menu"
+    return Q_stricmpn(ext, &title_global<const char>(0x00837fb4), 99999) ? 0 : 1;  // "dat"
+}
+
 }  // namespace game

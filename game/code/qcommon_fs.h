@@ -259,4 +259,54 @@ extern "C" void PlaneFromPoints_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Vec3NormalizeSimd(float* v);
 extern "C" void Vec3NormalizeSimd_entry(void);
 
+// --- Localization text helpers ---
+
+// Double-byte classifiers for Loc_PopSemicolonToken (code = lead << 8 | trail; ECX and EDX
+// kept). The C versions take (EAX, ECX) and return the whole EAX: the ones that set only
+// AL keep the rest of their EAX (Big5Char: ECX >> 8).
+// 0x002a8b40 (code in EAX): 0xa1a0 < code < 0xa1ae.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsKsc5601Punct(uint32_t code, uint32_t ecx);
+extern "C" void Loc_IsKsc5601Punct_entry(void);
+// 0x002a8b80 (code in EAX): 0x8140 <= code < 0x8152.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsShiftJisPunct(uint32_t code, uint32_t ecx);
+extern "C" void Loc_IsShiftJisPunct_entry(void);
+// 0x002a8ba0 (lead in AL, trail in CL).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsShiftJisChar(uint32_t eax, uint32_t ecx);
+extern "C" void Loc_IsShiftJisChar_entry(void);
+// 0x002a8bd0 (code in EAX): 0xa140 <= code < 0xa154.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsBig5Punct(uint32_t code, uint32_t ecx);
+extern "C" void Loc_IsBig5Punct_entry(void);
+// 0x002a8bf0 (code in ECX).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsBig5Char(uint32_t eax, uint32_t code);
+extern "C" void Loc_IsBig5Char_entry(void);
+// 0x002a8c20 (lead in AL, trail in CL): 0 or 1 in EAX.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsKsc5601Char(uint32_t eax, uint32_t ecx);
+extern "C" void Loc_IsKsc5601Char_entry(void);
+// 0x002afa40 (code in ECX): 0 or 1 in EAX.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_IsGb2312Char(uint32_t eax, uint32_t code);
+extern "C" void Loc_IsGb2312Char_entry(void);
+// 0x002a8960 (line in EAX): cuts the line at the first "//" outside double quotes (quotes
+// counted from the line start), then strips trailing whitespace from the last search start.
+void XB_REGS1 XB_CDECL Loc_StripLineComment(char* line);
+// 0x002a89f0 (keyword in EDI, cursor in ESI): 1 and the cursor moved past the keyword and
+// following tabs/spaces when *cursor starts with it (_strnicmp), else 0.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Loc_MatchKeyword(const char* keyword, char** cursor);
+extern "C" void Loc_MatchKeyword_entry(void);
+// 0x002a8a80 (name in EAX): a copy in 0x0098b220 without the extension after the last '.'
+// (when it follows every '\\' and '/').
+char* XB_REGS1 XB_CDECL Loc_StripFileExtension(const char* name);
+// 0x002a8ae0 (path in EAX): a copy in 0x0098b2a0 cut at its last '\\' or '/'.
+char* XB_REGS1 XB_CDECL Com_DirName(const char* path);
+// 0x002a9570 (n in EAX, s1 in EDX, s2 in ECX): Q3's Q_strncmp (-1/0/1). No callers (dead).
+int32_t XB_REGS3 XB_CDECL Q_strncmp(int32_t n, const char* s1, const char* s2);
+// 0x002b78b0 (v in EAX): Q3's vtos, "(%i %i %i)" in one of 8 32-byte buffers (0x0098ba68,
+// index 0x0098bb68).
+char* XB_REGS1 XB_CDECL vtos(const float* v);
+// 0x00293d20: Q3's Com_StringContains (title _toupper when not case sensitive); keeps the
+// moving str1 in its argument slot.
+const char* XB_CDECL Com_StringContains(const char* str1, const char* str2, int32_t casesensitive);
+// 0x0029ab20 (extension in EAX, leading '.' skipped): 1 for "cfg" (_stricmp), "menu"* or
+// "dat"* (Q_stricmpn 99999).
+int32_t XB_REGS1 XB_CDECL FS_IsCfgMenuOrDatFile(const char* ext);
+
 }  // namespace game
