@@ -2842,7 +2842,7 @@ const Function kFunctions[] = {
     {"CG_ShellShock_ParseParams", 0x0029e700, 0, code(&CG_ShellShock_ParseParams_entry), 0, Result::Eax, Status::Compare},
     {"Com_Freeze_f", 0x0029e8d0, 0, code(&Com_Freeze_f), 0, Result::None, Status::Compare},
     {"Com_StartupVariable", 0x0029e930, 0, code(&Com_StartupVariable), 4, Result::None, Status::Compare},
-    {"Bounds_AddPointSimd", 0x0029ea20, 0, code(&Bounds_AddPointSimd), 4, Result::None, Status::Compare},
+    {"Bounds_AddPointSplit", 0x0029ea20, 0, code(&Bounds_AddPointSplit), 4, Result::None, Status::Compare},
     {"FS_AddGameDirectories", 0x0029ea50, 0, code(&FS_AddGameDirectories_entry), 0, Result::None, Status::Compare},
     {"FxSoundComponent_Resume", 0x0029ed60, 0, code(&FxSoundComponent_Resume), 0, Result::None, Status::Compare},
     {"FxSoundComponent_Dtor", 0x0029ee30, 0, code(&FxSoundComponent_Dtor_entry), 0, Result::None, Status::Compare},

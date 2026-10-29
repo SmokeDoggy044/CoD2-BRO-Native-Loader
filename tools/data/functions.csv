@@ -2744,7 +2744,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0029e700,CG_ShellShock_ParseParams,compare,0,32,32,0,0,0,""
 0029e8d0,Com_Freeze_f,compare,0,32,0,0,0,32,"original timed out (running); new timed out (running)"
 0029e930,Com_StartupVariable,compare,996,120,120,0,0,0,""
-0029ea20,Bounds_AddPointSimd,compare,0,0,0,0,0,0,""
+0029ea20,Bounds_AddPointSplit,compare,0,0,0,0,0,0,""
 0029ea50,FS_AddGameDirectories,compare,0,0,0,0,0,0,""
 0029ed60,FxSoundComponent_Resume,compare,154,105,105,0,0,0,""
 0029ee30,FxSoundComponent_Dtor,compare,5940,2986,2986,0,0,0,""

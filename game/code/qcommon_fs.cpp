@@ -2679,7 +2679,7 @@ void XB_CDECL Bounds_AddPoints8(const float* m, const float* box, float* bounds)
     }
 }
 
-void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* maxs, uint32_t, float* mins, const float* point) {
+void XB_REGS3 XB_CDECL Bounds_AddPointSplit(float* maxs, uint32_t, float* mins, const float* point) {
     float p[4], m[4];
     for (int32_t i = 0; i < 4; ++i) p[i] = point[i];
     for (int32_t i = 0; i < 4; ++i) m[i] = mins[i];

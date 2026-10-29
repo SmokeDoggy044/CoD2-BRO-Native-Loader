@@ -632,7 +632,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0029b0b0,FxComponent_OwnerGone,3849,3849,0,0,100.0
 0029c8c0,Mat44_GetAxis,1810,1810,0,0,100.0
 0029e6e0,Cvar_Set,1601,1601,0,0,100.0
-0029ea20,Bounds_AddPointSimd,3307,3307,0,0,100.0
+0029ea20,Bounds_AddPointSplit,3307,3307,0,0,100.0
 0029fc30,Cvar_Restart_f,1988,1988,0,0,60.4
 0029fcc0,Cvar_Reset_f,3955,3955,0,0,88.9
 0029fce0,Cvar_SetA_f,3958,3958,0,0,28.6

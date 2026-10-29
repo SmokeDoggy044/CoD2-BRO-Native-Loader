@@ -523,7 +523,7 @@ void XB_REGS1 XB_CDECL FS_FreeSearchPaths(uint8_t* list);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Bounds_AddPoints8(const float* axis, const float* box, float* bounds);
 extern "C" void Bounds_AddPoints8_entry(void);
 // 0x0029ea20 (maxs in EAX, mins in ECX, point on the stack): MINPS / MAXPS of aligned 4-lane vectors. Dead.
-void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* maxs, uint32_t unused_edx, float* mins, const float* point);
+void XB_REGS3 XB_CDECL Bounds_AddPointSplit(float* maxs, uint32_t unused_edx, float* mins, const float* point);
 // 0x002d8a10 (this in ESI): the world tree registry (cm_worldTrees 0x0095f4fc): ResourceManager part, vtable
 // 0x00832788, debug draw 0x0001d0d0 on the 32-entry list 0x00988784, +4..+0x19c zeroed, command "cg"
 // (0x002afb90: debug flag +4 bit 0). Returns this.

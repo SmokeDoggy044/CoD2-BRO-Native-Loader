@@ -8859,6 +8859,7 @@
 0028d920 Stream_GetFileType
 0028e030 Stream_LoadFli
 0028e040 Pak_CountActiveSlots
+0028e0b0 Pak_HasZoneNamed
 0028e180 Pak_UpdateLoadProgress
 0028e3e0 Pak_FindZoneToUnload
 0028e460 Pak_FindNextZoneToLoad
@@ -9079,7 +9080,7 @@
 0029c030 Cvar_Set2
 0029c2d0 Cvar_Get
 0029c4f0 Cvar_WriteNamedValues
-0029c570 FUN_0029c570
+0029c570 Com_ResetNodeRing
 0029c5b0 Com_Shutdown
 0029c620 Com_PushAllRealEvents
 0029c6b0 Com_Milliseconds
@@ -9094,6 +9095,7 @@
 0029d4a0 FS_FileExists
 0029d500 Scr_UnlinkEntityWaitList
 0029d5f0 Loc_GetString
+0029d620 FxComponentB_IsOwnerGone
 0029d7c0 FxSoundComponent_Update
 0029df60 FxSoundComponent_Create
 0029e1c0 FX_CollectTriggers
@@ -9104,7 +9106,7 @@
 0029e700 CG_ShellShock_ParseParams
 0029e8d0 Com_Freeze_f
 0029e930 Com_StartupVariable
-0029ea20 Bounds_AddPointSimd
+0029ea20 Bounds_AddPointSplit
 0029ea50 FS_AddGameDirectories
 0029ea80 FS_ListFilteredFiles
 0029ed00 Scr_PruneEntityWaitLists
@@ -9134,6 +9136,7 @@
 002a22d0 FxShakeRumble_GetFalloff
 002a23b0 Cvar_Init
 002a2510 Com_RunAndTimeServerPacket
+002a2560 Vec3_RotateByAngles
 002a26a0 MatrixToAngles
 002a27f0 AxisToAngles
 002a2af0 AnglesToAxis
@@ -9184,7 +9187,7 @@
 002a80b0 G_AddEvent
 002a8260 G_StartCodNote
 002a8330 AnimData_FindNotetrack
-002a8410 FUN_002a8410
+002a8410 Com_InitNodeRing
 002a84e0 VM_Call
 002a8580 VM_DllSyscall
 002a8610 SV_ClearAcknowledgedCommands
@@ -9823,7 +9826,7 @@
 002d87a0 SV_SetBrushModel
 002d8850 Loc_LoadStringFile
 002d8960 Loc_ParseStringBuffer
-002d8a10 FUN_002d8a10
+002d8a10 CM_WorldTrees_Construct
 002d8a90 G_ApplySpawnFields
 002d90f0 Scn_AddModelInstances
 002d9970 Scn_AddStaticModel
