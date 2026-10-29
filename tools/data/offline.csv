@@ -560,6 +560,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002488d0,Use_trigger_use,3804,3804,0,0,100.0
 002489f0,SP_sound_blend,3816,3816,0,0,100.0
 00248af0,G_Error,3827,3827,0,0,100.0
+00248dd0,Q_CleanStrLower,3636,3636,0,0,100.0
 00249c00,G_AddSpawnVarToken,1929,1929,0,0,100.0
 00249e70,Vehicle_FreeDefs,1737,1737,0,0,100.0
 0024acb0,G_EndGame,4000,4000,0,0,100.0
@@ -600,7 +601,9 @@ address,name,tested,matched,nan,mismatched,coverage
 0028d7d0,ResourceManager_Destruct,1078,1078,0,0,69.4
 0028d8b0,ZoneRecord_GetContext,3759,3759,0,0,100.0
 0028ef40,StreamMem_Free,1023,1023,0,0,100.0
+0028f5c0,Pak_FindZoneByName,1945,1945,0,0,100.0
 0028f740,R_DrawTextWithShadow_2,3453,3046,407,0,97.6
+0028fad0,Pak_FindZone,2315,2315,0,0,100.0
 00292ee0,Key_TranslateButtonName,3804,3804,0,0,65.0
 002939d0,Com_Prefetch,3973,3973,0,0,100.0
 00293ab0,Com_MemcpyPrefetch,1881,1881,0,0,100.0
@@ -676,6 +679,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002ac060,IN_MLookUp,3828,3828,0,0,100.0
 002ac0b0,IN_MLookDown,4000,4000,0,0,100.0
 002acb40,CG_WeaponSlotFromName,3692,3692,0,0,100.0
+002ae350,Mat44_ToQuatTranslation,3500,3500,0,0,98.1
 002aecd0,AnimTree_IsLeafOrSynced,2949,2949,0,0,100.0
 002aed00,AnimTree_SetSyncFlag_r,1434,1434,0,0,98.6
 002af930,Loc_ReadLine,3576,3576,0,0,66.0
@@ -720,6 +724,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002b96c0,PathNode_IsLinkInBadPlace,2554,2554,0,0,100.0
 002ba530,NET_OutOfBandPrint,1889,1889,0,0,100.0
 002bab30,CM_AdjustAreaPortalState,3979,3979,0,0,46.9
+002bdc80,Quat_ToMat44,3528,3528,0,0,100.0
 002bfc10,Mat43_UntransformPoint,1831,1826,5,0,100.0
 002bffb0,SV_AdjustAreaPortalState,3057,3057,0,0,100.0
 002c0120,Loc_CountChars,3772,3772,0,0,37.1
@@ -729,6 +734,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002c1e00,Field_AdjustScroll,2205,2205,0,0,56.1
 002c5140,SV_SetSkillEasy,1,1,0,0,100.0
 002c5200,SV_SetSkillHard,1,1,0,0,100.0
+002c5bb0,Loc_InitCvars,1157,1157,0,0,92.3
 002ccf40,CL_DecAnimWeight_f,1687,1687,0,0,100.0
 002ccfb0,CL_IncAnimWeight_f,1796,1796,0,0,100.0
 002cd5f0,IN_DownUp,1080,1080,0,0,90.9
@@ -754,6 +760,8 @@ address,name,tested,matched,nan,mismatched,coverage
 00310520,UIQuad_SetVertexUVs,3479,3479,0,0,100.0
 00310560,UIQuad_PlaceScaled,3822,3822,0,0,100.0
 00310820,UIQuad_SetWipe,3824,3824,0,0,94.3
+00312130,Profile_Copy,3645,3645,0,0,100.0
+003124f0,ProfileSave_Dtor,2786,2786,0,0,100.0
 00312e30,Profile_SumMissionStats,3758,3758,0,0,100.0
 00315360,UI_SetFontByName,3826,3826,0,0,100.0
 003158a0,UITextLine_Dtor,3013,3013,0,0,100.0
@@ -787,3 +795,4 @@ address,name,tested,matched,nan,mismatched,coverage
 00379db0,AtExit_ShaderCache_902ad4,4000,4000,0,0,100.0
 00379dc0,AtExit_NalClassMap_903fe0,4000,4000,0,0,100.0
 00379de0,StaticInit_NalConfig_8bb124,4000,4000,0,0,100.0
+00379df0,StaticInit_Vtable_8bb768,4000,4000,0,0,100.0

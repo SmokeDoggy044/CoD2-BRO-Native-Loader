@@ -5,6 +5,7 @@
 #include "cm.h"
 #include "fx.h"
 #include "lanes.h"
+#include "nal_math.h"
 #include "fx_load.h"
 #include "g_scr_runtime.h"
 #include "qcommon.h"
@@ -2567,7 +2568,7 @@ SysEvent* XB_CDECL Com_GetEvent(SysEvent* out) {
     int32_t& tail = title_global<int32_t>(0x0095f58c);  // com_pushedEventsTail
     if (title_global<int32_t>(0x0095f588) > tail) {     // com_pushedEventsHead
         ++tail;
-        *out = *reinterpret_cast<const SysEvent*>(uintptr_t{0x00940400 + ((tail - 1) & 0x3f) * 0x18});
+        *out = *reinterpret_cast<const SysEvent*>(static_cast<uintptr_t>(0x00940400u + static_cast<uint32_t>((tail - 1) & 0x3f) * 0x18u));
         return out;
     }
     SysEvent real;
@@ -2712,6 +2713,326 @@ uint8_t* XB_CDECL CM_WorldTrees_Construct(uint8_t* self) {
     pk<uint32_t>(self, 4) &= ~1u;
     Cmd_AddCommand(tstr(0x00833520), 0x002afb90);  // "cg"
     return self;
+}
+
+void XB_CDECL Loc_InitCvars() {
+    title_global<uint8_t*>(0x0093f7fc) = Cvar_Get(tstr(0x0083349c), tstr(0x0082e098), 0x21);  // cl_language
+    title_global<uint8_t*>(0x0092efe8) = Cvar_Get(tstr(0x00833484), tstr(0x0082e098), 0);     // cl_languagesavailable
+    title_global<uint8_t*>(0x00929b4c) = Cvar_Get(tstr(0x0083346c), tstr(0x0082e058), 0x20);  // cl_languagetranslate
+    title_global<uint8_t*>(0x0093f804) = Cvar_Get(tstr(0x00833458), tstr(0x0082e098), 0);     // cl_languagewarnings
+    title_global<uint8_t*>(0x00927b2c) = Cvar_Get(tstr(0x0083343c), tstr(0x0082e098), 0);     // ..aserrors
+    Cvar_Get(tstr(0x0083349c), tstr(0x0082e098), 0x21);
+    const int32_t language = pk<int32_t>(title_global<uint8_t*>(0x0093f7fc), 0x20);
+    title_global<uint32_t>(0x0093e750) = language >= 8 && language <= 0xc ? 1 : 0;
+}
+
+uint8_t* XB_REGS3 XB_CDECL Profile_Copy(uint8_t* dst, uint32_t, uint8_t* src) {
+    for (uint32_t i = 0; i < 0x10; ++i) dst[i] = src[i];
+    pk<uint32_t>(dst, 0x10) = pk<uint32_t>(src, 0x10);
+    pk<uint32_t>(dst, 0x14) = pk<uint32_t>(src, 0x14);
+    pk<uint32_t>(dst, 0x18) = pk<uint32_t>(src, 0x18);
+    pk<uint32_t>(dst, 0x1c) = pk<uint32_t>(src, 0x1c);
+    pk<uint32_t>(dst, 0x20) = pk<uint32_t>(src, 0x20);
+    pk<uint8_t>(dst, 0x24) = pk<uint8_t>(src, 0x24);
+    pk<uint8_t>(dst, 0x25) = pk<uint8_t>(src, 0x25);
+    pk<uint32_t>(dst, 0x28) = pk<uint32_t>(src, 0x28);
+    pk<uint32_t>(dst, 0x2c) = pk<uint32_t>(src, 0x2c);
+    pk<uint32_t>(dst, 0x30) = pk<uint32_t>(src, 0x30);
+    pk<uint32_t>(dst, 0x34) = pk<uint32_t>(src, 0x34);
+    pk<uint8_t>(dst, 0x38) = pk<uint8_t>(src, 0x38);
+    pk<uint8_t>(dst, 0x39) = pk<uint8_t>(src, 0x39);
+    pk<uint8_t>(dst, 0x3a) = pk<uint8_t>(src, 0x3a);
+    pk<uint32_t>(dst, 0x3c) = pk<uint32_t>(src, 0x3c);
+    pk<uint8_t>(dst, 0x40) = pk<uint8_t>(src, 0x40);
+    pk<uint8_t>(dst, 0x41) = pk<uint8_t>(src, 0x41);
+    pk<uint8_t>(dst, 0x42) = pk<uint8_t>(src, 0x42);
+    pk<uint32_t>(dst, 0x44) = pk<uint32_t>(src, 0x44);
+    pk<uint32_t>(dst, 0x48) = pk<uint32_t>(src, 0x48);
+    pk<uint32_t>(dst, 0x4c) = pk<uint32_t>(src, 0x4c);
+    pk<uint8_t>(dst, 0x50) = pk<uint8_t>(src, 0x50);
+    pk<uint32_t>(dst, 0x54) = pk<uint32_t>(src, 0x54);
+    pk<uint32_t>(dst, 0x58) = pk<uint32_t>(src, 0x58);
+    pk<uint8_t>(dst, 0x5c) = pk<uint8_t>(src, 0x5c);
+    pk<uint8_t>(dst, 0x5d) = pk<uint8_t>(src, 0x5d);
+    pk<uint32_t>(dst, 0x60) = pk<uint32_t>(src, 0x60);
+    pk<uint32_t>(dst, 0x64) = pk<uint32_t>(src, 0x64);
+    pk<uint32_t>(dst, 0x68) = pk<uint32_t>(src, 0x68);
+    pk<uint32_t>(dst, 0x6c) = pk<uint32_t>(src, 0x6c);
+    pk<uint32_t>(dst, 0x70) = pk<uint32_t>(src, 0x70);
+    pk<uint32_t>(dst, 0x74) = pk<uint32_t>(src, 0x74);
+    pk<uint32_t>(dst, 0x78) = pk<uint32_t>(src, 0x78);
+    pk<uint32_t>(dst, 0x7c) = pk<uint32_t>(src, 0x7c);
+    pk<uint32_t>(dst, 0x80) = pk<uint32_t>(src, 0x80);
+    pk<uint32_t>(dst, 0x84) = pk<uint32_t>(src, 0x84);
+    pk<uint32_t>(dst, 0x88) = pk<uint32_t>(src, 0x88);
+    pk<uint32_t>(dst, 0x8c) = pk<uint32_t>(src, 0x8c);
+    pk<uint32_t>(dst, 0x90) = pk<uint32_t>(src, 0x90);
+    pk<uint32_t>(dst, 0x94) = pk<uint32_t>(src, 0x94);
+    pk<uint32_t>(dst, 0x98) = pk<uint32_t>(src, 0x98);
+    pk<uint32_t>(dst, 0x9c) = pk<uint32_t>(src, 0x9c);
+    pk<uint32_t>(dst, 0xa0) = pk<uint32_t>(src, 0xa0);
+    pk<uint32_t>(dst, 0xdc) = pk<uint32_t>(src, 0xdc);
+    for (uint32_t i = 0; i < 0xe; ++i) pk<uint32_t>(dst, 0xa4 + i * 4) = pk<uint32_t>(src, 0xa4 + i * 4);
+    pk<uint8_t>(dst, 0xe0) = pk<uint8_t>(src, 0xe0);
+    pk<uint32_t>(dst, 0xe4) = pk<uint32_t>(src, 0xe4);
+    pk<uint8_t>(dst, 0x39c) = pk<uint8_t>(src, 0x39c);
+    pk<uint8_t>(dst, 0x39f) = pk<uint8_t>(src, 0x39f);
+    return dst;
+}
+
+void XB_THISCALL ProfileSave_Dtor(uint8_t* self) {
+    pk<uint32_t>(self, 0) = 0x008287dc;
+    for (uint32_t i = 0; i < 4; ++i) Z_Free(pk_ptr(self, 0x11c0 + i * 4));
+    Z_Free(pk_ptr(self, 0x11bc));
+}
+
+void XB_CDECL StaticInit_Mat44() {
+    const float one = title_global<float>(0x0083eb20);
+    const float r0[4] = {one, 0.0f, 0.0f, 0.0f};
+    const float r1[4] = {0.0f, one, 0.0f, 0.0f};
+    const float r2[4] = {0.0f, 0.0f, one, 0.0f};
+    const float r3[4] = {0.0f, 0.0f, 0.0f, one};
+    Mat44_FromRows(&title_global<float>(0x00909880), r0, r1, r2, r3);
+}
+
+void XB_CDECL StaticInit_Vtable_8bb768() { title_global<uint32_t>(0x008bb768) = 0x007c4d90; }
+
+namespace {
+
+// StringMap_Find (0x000249a0): map in EBX, a pointer to the key's pointer on the stack (stdcall).
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL qfs_StringMap_Find(const uint8_t* map, const char* const* key);
+PLATFORM_ASM_ENTRY(qfs_StringMap_Find,
+                   "pushl %ebx\n"
+                   "movl 8(%esp), %ebx\n"
+                   "pushl 12(%esp)\n"
+                   "movl $0x000249a0, %eax\n"
+                   "call *%eax\n"
+                   "popl %ebx\n"
+                   "ret")
+
+// The value of `name` in a zone's string map (+8; index past the count +0x10 reads element 0 of +0x14).
+uint32_t zone_string_value(uint8_t* zone, const char* const* key, bool* found) {
+    const uint32_t* entry = qfs_StringMap_Find(zone + 8, key);
+    *found = entry != nullptr;
+    if (!entry) return 0;
+    uint32_t index = *entry;
+    if (index >= pk<uint32_t>(zone, 0x10)) index = 0;
+    return pk<uint32_t>(pk_ptr(zone, 0x14), index * 4);
+}
+
+}  // namespace
+
+uint32_t XB_REGS1 XB_STDCALL Pak_FindZoneByName(const char* name, uint8_t* pak) {
+    const char* key = name;
+    for (int32_t id = pk<int32_t>(pak, 0x1cc); id != -1; id = pk<int32_t>(pk_ptr(pak, 4 + id * 4), 0x3c)) {
+        bool found;
+        const uint32_t value = zone_string_value(pk_ptr(pak, 4 + id * 4), &key, &found);
+        if (found && value) return value;
+    }
+    return 0;
+}
+
+uint32_t XB_REGS3 XB_CDECL Pak_FindZone(uint8_t* context, uint32_t, const char* name) {
+    uint8_t* zone = pk_ptr(context, 0x18);
+    if (!zone) return 0;
+    const char* key = name;
+    bool found;
+    return zone_string_value(zone, &key, &found);
+}
+
+uint8_t XB_THISCALL MemContext_Free_r(uint8_t* context, uint8_t* mem) {
+    if (!mem) return 1;
+    const int32_t heaps = pk<int32_t>(context, 0x8c);
+    for (int32_t i = 0; i < heaps; ++i) {
+        uint8_t* heap = pk_ptr(context, 0x90 + i * 4);
+        if (heap && mem >= pk_ptr(heap, 0x474) && mem < pk_ptr(heap, 0x478)) {
+            Heap_FreeIn(u32(heap), mem);
+            return 1;
+        }
+    }
+    for (int32_t i = 0; i < pk<int32_t>(context, 0xc0); ++i)
+        if (MemContext_Free_r(pk_ptr(context, 0xc4 + i * 4), mem)) return 1;
+    return 0;
+}
+
+uint8_t* XB_THISCALL MemContext_Alloc_r(uint8_t* context, uint32_t align, uint32_t size) {
+    if (size == 0xffffffffu) size = 0x400;
+    for (int32_t i = 0; i < pk<int32_t>(context, 0x8c); ++i) {
+        uint8_t* heap = pk_ptr(context, 0x90 + i * 4);
+        const uint32_t used = pk<uint32_t>(heap, 0x488);
+        const uint32_t capacity = pk<uint32_t>(heap, 0x484);
+        if (used + size >= capacity || capacity == used) continue;
+        const uint32_t previous = Heap_SetCurrent(u32(heap));
+        uint8_t* mem = Heap_AllocAligned(align, size);
+        Heap_SetCurrent(previous);
+        if (mem) return mem;
+    }
+    for (int32_t i = 0; i < pk<int32_t>(context, 0xc0); ++i)
+        if (uint8_t* mem = MemContext_Alloc_r(pk_ptr(context, 0xc4 + i * 4), align, size)) return mem;
+    return nullptr;
+}
+
+PLATFORM_ASM_ENTRY(MemContext_AllocOrHeap_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(MemContext_AllocOrHeap) "addl $16, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL MemContext_AllocOrHeap(int32_t slot, uint8_t* pak, uint32_t align, uint32_t size) {
+    if (slot != -1) {
+        uint8_t* context = slot >= 0 && slot < 0x63 ? pk_ptr(pak, 0x38 + static_cast<uint32_t>(slot) * 4) : nullptr;
+        if (uint8_t* mem = MemContext_Alloc_r(context, align, size)) return mem;
+    }
+    return Heap_AllocAligned(align, size);
+}
+
+PLATFORM_ASM_ENTRY(Loc_GetString_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Loc_GetString) "addl $4, %esp\n"
+                   "ret")
+
+const char* XB_CDECL Loc_GetString(const char* key) {
+    if (!key) return key;
+    const uint32_t hash = title_function<uint32_t XB_REGS1 XB_CDECL(const char*)>(0x00024440)(key);  // Loc_HashKey
+    const uint8_t* entry = Zone_FindByHash(title_global<const uint8_t*>(0x0095f5d8), hash);  // rm_locStrings
+    if (!entry) return key;
+    const char* text = reinterpret_cast<const char*>(uintptr_t{*reinterpret_cast<const uint32_t*>(entry + 8)});
+    return text ? text : tstr(0x008379b4);  // "NO STRING"
+}
+
+void XB_THISCALL Pak_PushZoneIds_r(uint8_t* pak, uint8_t* zone) {
+    for (uint32_t i = 0; i < pk<uint32_t>(zone, 0x1c); ++i) {
+        const uint32_t index = i < pk<uint32_t>(zone, 0x1c) ? i : 0;
+        Pak_PushZoneIds_r(pak, pk_ptr(pk_ptr(zone, 0x20), index * 4));
+    }
+    const int32_t count = pk<int32_t>(pak, 0x374);
+    if (count < 0x80) {
+        pk<uint32_t>(pak, 0x378 + static_cast<uint32_t>(count) * 4) = pk<uint32_t>(zone, 0x28);
+        ++pk<int32_t>(pak, 0x374);
+    }
+}
+
+void XB_REGS3 XB_CDECL Q_CleanStrLower(char* dst, uint32_t, const char* src) {
+    const auto tolower_ = title_function<int32_t XB_CDECL(int32_t)>(0x001eed48);  // tolower
+    while (*src) {
+        if (*src == 0x1b) {
+            src += 2;
+            continue;
+        }
+        if (*src >= 0x20) *dst++ = static_cast<char>(tolower_(*src));
+        ++src;
+    }
+    *dst = 0;
+}
+
+// Runs where the original's call puts SV_PacketEvent (by-value address on the stack), with its registers.
+PLATFORM_ASM_ENTRY(Com_RunAndTimeServerPacket_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %edi\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl 8(%ebp)\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Com_RunAndTimeServerPacket) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
+                   "ret")
+
+uint32_t XB_CDECL Com_RunAndTimeServerPacket(uint32_t entry, uint32_t msg, const uint32_t* from, uint32_t ebx,
+                                             uint32_t edi) {
+    const auto sys_milliseconds = title_function<uint32_t XB_CDECL()>(0x002b1ca0);
+    uint8_t* speeds = title_global<uint8_t*>(0x009403e8);  // com_speeds
+    if (pk<uint32_t>(speeds, 0x20)) sys_milliseconds();
+    const uint32_t words[5] = {from[0], from[1], from[2], from[3], from[4]};
+    const TitleRegs regs = {msg, ebx, entry - 0x14, from[4], u32(from), edi};
+    title_call_at_regs(entry, 0x002c9de0, &regs, 5, words);  // SV_PacketEvent
+    speeds = title_global<uint8_t*>(0x009403e8);
+    if (pk<uint32_t>(speeds, 0x20)) return sys_milliseconds();
+    return u32(speeds);
+}
+
+void XB_REGS3 XB_STDCALL Quat_ToMat44(uint32_t, const float* translation, float* out, const float* q) {
+    const float x = q[0], y = q[1], z = q[2], w = q[3];
+    const float xx = x * x, yy = y * y, zz = z * z;
+    const float s = title_global<float>(0x0083eba8) / (((w * w + xx) + yy) + zz);  // 2
+    const float xxs = xx * s, zzs = zz * s, yys = yy * s;
+    const float xy = (y * x) * s;
+    const float yw = (y * s) * w;
+    const float xz = (x * s) * z;
+    const float xw = (x * s) * w;
+    const float yz = (y * s) * z;
+    const float wz = (s * w) * z;
+    const float one = title_global<float>(0x0083eb20);
+    const float r00 = one - (zzs + yys);
+    const float yx = yys + xxs;
+    out[0] = r00;
+    out[1] = wz + xy;
+    out[2] = xz - yw;
+    out[3] = r00;
+    const float r10 = xy - wz;
+    const float r11 = one - (zzs + xxs);
+    out[4] = r10;
+    out[5] = r11;
+    out[6] = yz + xw;
+    out[7] = r10;
+    const float r20 = yw + xz;
+    out[8] = r20;
+    out[9] = yz - xw;
+    out[10] = one - yx;
+    out[11] = r20;
+    uint32_t* row3 = reinterpret_cast<uint32_t*>(out + 12);
+    const uint32_t* source = translation ? reinterpret_cast<const uint32_t*>(translation)
+                                         : &title_global<uint32_t>(0x0082e290);  // {0, 0, 0, 1}
+    for (int32_t i = 0; i < 4; ++i) row3[i] = source[i];
+}
+
+uint32_t XB_REGS2 XB_STDCALL Mat44_ToQuatTranslation(const float* m, float* translation, float* q) {
+    if (translation) {
+        for (int32_t i = 0; i < 4; ++i)
+            reinterpret_cast<uint32_t*>(translation)[i] = reinterpret_cast<const uint32_t*>(m)[12 + i];
+    }
+    const float one = title_global<float>(0x0083eb20);
+    const float half = title_global<float>(0x0083eb24);
+    const float yz = m[5] + m[10];
+    const float trace = yz + m[0];
+    // r = sqrt(radicand + 1) on the x87; the quaternion part is r * 0.5, the others scale by 0.5 / (float)r.
+    const auto root = [&](long double radicand, float* big) {
+        const long double r = platform_x87_sqrt_ext(radicand + one);
+        const float rf = static_cast<float>(r);
+        const float scale = half / rf;
+        *big = static_cast<float>(r * half);
+        return scale;
+    };
+    if (trace >= 0.0f) {
+        const float s = root(trace, &q[3]);
+        q[0] = (m[6] - m[9]) * s;
+        q[1] = (m[8] - m[2]) * s;
+        q[2] = (m[1] - m[4]) * s;
+    } else {
+        int32_t i = m[5] > m[0] ? 1 : 0;
+        if (m[10] > m[i * 5]) i = 2;
+        if (i == 2) {
+            const float s = root(static_cast<long double>(m[10]) - (static_cast<long double>(m[5]) + m[0]), &q[2]);
+            q[0] = (m[8] + m[2]) * s;
+            q[1] = (m[9] + m[6]) * s;
+            q[3] = (m[1] - m[4]) * s;
+        } else if (i == 1) {
+            const float s = root(static_cast<long double>(m[5]) - (static_cast<long double>(m[0]) + m[10]), &q[1]);
+            q[2] = (m[9] + m[6]) * s;
+            q[0] = (m[4] + m[1]) * s;
+            q[3] = (m[8] - m[2]) * s;
+        } else {
+            const float s = root(static_cast<long double>(m[0]) - yz, &q[0]);
+            q[1] = (m[4] + m[1]) * s;
+            q[2] = (m[8] + m[2]) * s;
+            q[3] = (m[6] - m[9]) * s;
+        }
+    }
+    const long double a = q[0], b = q[1], c = q[2], d = q[3];
+    const long double length = platform_x87_sqrt_ext(((a * a + b * b) + c * c) + d * d);
+    const long double error = platform_x87_abs_ext(one - length);
+    return static_cast<long double>(title_global<float>(0x0083ed50)) > error ? 1 : 0;  // 0.0001
 }
 
 }  // namespace game

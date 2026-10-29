@@ -530,4 +530,57 @@ void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* maxs, uint32_t unused_edx, flo
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL CM_WorldTrees_Construct(uint8_t* self);
 extern "C" void CM_WorldTrees_Construct_entry(void);
 
+
+// --- batch 2 ---
+
+// 0x002c5bb0: the cl_language* cvars (0x0093f7fc cl_language, 0x0092efe8 ..savailable, 0x00929b4c ..translate,
+// 0x0093f804 ..warnings, 0x00927b2c ..warningsaserrors; cl_language asked twice); 0x0093e750 = language 8..12.
+void XB_CDECL Loc_InitCvars();
+// 0x00312130 (dst in EAX, src in ECX): a profile's saved fields copied (name 16 bytes, +0x10..+0xe4, +0x39c,
+// +0x39f). Returns dst.
+uint8_t* XB_REGS3 XB_CDECL Profile_Copy(uint8_t* dst, uint32_t unused_edx, uint8_t* src);
+// 0x003124f0 (thiscall): vtable 0x008287dc, Z_Free of the four buffers +0x11c0 and of +0x11bc.
+void XB_THISCALL ProfileSave_Dtor(uint8_t* self);
+// 0x00378c10: static initializer - 0x00909880 = the 4x4 identity (Mat44_FromRows).
+void XB_CDECL StaticInit_Mat44();
+// 0x00379df0: static initializer - 0x008bb768 = 0x007c4d90.
+void XB_CDECL StaticInit_Vtable_8bb768();
+// 0x0028f5c0 (name in EAX; pak on the stack, ret 4): the value of name in the string maps of the pak's zone chain
+// (id +0x1cc, zone +4 + 4 * id, next id +0x3c); 0 if none.
+uint32_t XB_REGS1 XB_STDCALL Pak_FindZoneByName(const char* name, uint8_t* pak);
+// 0x0028fad0 (context in EAX, name in ECX): the value of name in the string map of the context's zone (+0x18).
+uint32_t XB_REGS3 XB_CDECL Pak_FindZone(uint8_t* context, uint32_t unused_edx, const char* name);
+// 0x0028bfc0 (thiscall, ret 4): mem freed in the context heap (+0x90, count +0x8c; range +0x474..+0x478) that holds
+// it, else in a child context (+0xc4, count +0xc0); 1 if freed (or null), else 0.
+uint8_t XB_THISCALL MemContext_Free_r(uint8_t* context, uint8_t* mem);
+// 0x0028c0f0 (thiscall, ret 8): Heap_AllocAligned(align, size) in the first context heap with room (used +0x488,
+// capacity +0x484), else in a child context; size -1 = 0x400. Null if none.
+uint8_t* XB_THISCALL MemContext_Alloc_r(uint8_t* context, uint32_t align, uint32_t size);
+// 0x0028c560 (slot in EAX, pak in ECX, align in EDI, size in ESI): MemContext_Alloc_r in the pak's context for
+// that slot (+0x38, slots 0..0x62), else (or slot -1) Heap_AllocAligned.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL MemContext_AllocOrHeap(int32_t slot, uint8_t* pak, uint32_t align,
+                                                                 uint32_t size);
+extern "C" void MemContext_AllocOrHeap_entry(void);
+// 0x0029d5f0 (key in ESI): the localized text of key (Loc_HashKey, Zone_FindByHash in rm_locStrings, entry +8);
+// key itself if not found, "NO STRING" for an empty entry. The code at 0x0029d620 is another function.
+extern "C" PLATFORM_HIDDEN const char* XB_CDECL Loc_GetString(const char* key);
+extern "C" void Loc_GetString_entry(void);
+// 0x0028bc50 (thiscall, ret 4): the zone's children (+0x20, count +0x1c) first, then its id (+0x28) appended to
+// the pak's list (+0x378, count +0x374, at most 0x80).
+void XB_THISCALL Pak_PushZoneIds_r(uint8_t* pak, uint8_t* zone);
+// 0x00248dd0 (dst in EAX, src in ECX): src lowercased (tolower) without control characters, ESC skipping two. Dead.
+void XB_REGS3 XB_CDECL Q_CleanStrLower(char* dst, uint32_t unused_edx, const char* src);
+// 0x002a2510 (from address in ESI; msg on the stack): SV_PacketEvent(msg in EAX, the 5-word address by value),
+// Sys_Milliseconds before and after while com_speeds is set (results unused). The code at 0x002a2560 is another
+// (dead) function.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Com_RunAndTimeServerPacket(uint32_t entry, uint32_t msg,
+                                                                     const uint32_t* from, uint32_t ebx, uint32_t edi);
+extern "C" void Com_RunAndTimeServerPacket_entry(void);
+// 0x002bdc80 (translation in EDX, out in ECX; quaternion on the stack, ret 4): a 4x4 rotation from the quaternion
+// scaled by 2 / |q|^2 (each row's 4th word repeats its first diagonal-term pair), row 3 = translation or {0,0,0,1}.
+void XB_REGS3 XB_STDCALL Quat_ToMat44(uint32_t unused_eax, const float* translation, float* out, const float* q);
+// 0x002ae350 (matrix in EAX, translation out in EDX or null; quaternion out on the stack, ret 4): the matrix's
+// rotation as a quaternion (x87 sqrt of the trace or the largest diagonal term); 1 if |q| is within 0.0001 of 1.
+uint32_t XB_REGS2 XB_STDCALL Mat44_ToQuatTranslation(const float* m, float* translation, float* q);
+
 }  // namespace game
