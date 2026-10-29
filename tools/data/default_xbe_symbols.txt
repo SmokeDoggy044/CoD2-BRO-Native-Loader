@@ -753,7 +753,7 @@
 0002a620 RagdollCapsule_CollideWorld
 0002a910 RagdollCapsule_GetBoundingSphere
 0002ab10 Phys_UndoAttachedPushes
-0002ac30 Mat44_TransformVector
+0002ac30 PhysBody_RotateVector
 0002ad30 PhysContact_ComputeBias_2
 0002ade0 PhysWorld_AllocContact
 0002ae40 PhysContacts_Add
@@ -2768,7 +2768,7 @@
 000c9230 File_UnlockMutex
 000c9250 File_FindDeviceForBit
 000c9320 File_GetRecord
-000c9390 FUN_000c9390
+000c9390 File_GetDeviceBit
 000c93d0 File_GetDriverData
 000c9490 File_RequestStateToStatus
 000c9530 FUN_000c9530
@@ -2885,7 +2885,7 @@
 000d0d00 Save_GetBufferSize
 000d0d10 SaveRequest_SetFileName
 000d0d50 SaveRequest_AddFile
-000d0dd0 FUN_000d0dd0
+000d0dd0 SaveRequest_NextFile
 000d0e30 SaveRequest_GetFileName
 000d0e40 Save_GetOpState
 000d0e60 Save_SetDriveNames

@@ -14236,3 +14236,6 @@ address,name,kind,confidence,evidence
 0029a020,AngleDeltaQuantized,function,medium,"qcommon push high half: named from the body during decompile (2026-10-28)"
 0029ea20,Bounds_AddPointSimd,function,medium,"qcommon push high half: named from the body during decompile (2026-10-28)"
 002a2c40,vectoangles_ToOut,function,medium,"qcommon push high half: named from the body during decompile (2026-10-28)"
+0002ac30,PhysBody_RotateVector,function,medium,"was a duplicate Mat44_TransformVector (0xa4d30 has it); checks flag 0x10 at +0x144 (qcommon push 2, 2026-10-28)"
+000d0dd0,SaveRequest_NextFile,function,medium,"qcommon push 2 low half: named from the body during decompile (2026-10-28)"
+000c9390,File_GetDeviceBit,function,medium,"qcommon push 2 low half: named from the body during decompile (2026-10-28)"
