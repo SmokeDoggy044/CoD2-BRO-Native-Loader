@@ -583,4 +583,36 @@ void XB_REGS3 XB_STDCALL Quat_ToMat44(uint32_t unused_eax, const float* translat
 // rotation as a quaternion (x87 sqrt of the trace or the largest diagonal term); 1 if |q| is within 0.0001 of 1.
 uint32_t XB_REGS2 XB_STDCALL Mat44_ToQuatTranslation(const float* m, float* translation, float* q);
 
+
+// --- batch 3 ---
+
+// 0x002a8410: the 512-node ring at 0x00965cfa (0x30-byte nodes, prev / next index words +0 / +2), node 0's
+// floats +6 / +0xa and words +0xe / +0x10 zeroed, the name string 0x00965ce8 = "end".
+void XB_CDECL Com_InitNodeRing();
+// 0x0029c570: 0x0095f590 cleared, the ring's name string cleared (ScriptString_Clear unless empty),
+// Com_InitNodeRing, 0x0095f590 = 1.
+void XB_CDECL Com_ResetNodeRing();
+// 0x0029c5b0: Q3's Com_Shutdown - the ring flag and name cleared, logfile and com_journalFile closed.
+void XB_CDECL Com_Shutdown();
+// 0x0029ea50 (path in EDI, dir in EBX): FS_AddGameDirectory(path, dir, 1, i) for i = 13..0, then (path, dir, 0, 0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FS_AddGameDirectories(uint32_t path, uint32_t dir);
+extern "C" void FS_AddGameDirectories_entry(void);
+// 0x002ca9e0: cl_language asked again, 0x0093e750 = language 8..12, cl_languagesavailable forced to "1", then
+// Loc_ClearStrings (tail call).
+void XB_CDECL Loc_Init();
+// 0x00300b30: {value, name as a 32-byte fixed string} inserted into the name map 0x0095fe00 (HashMap_Insert).
+void XB_CDECL NameMap_Insert(uint32_t value, const char* name);
+// 0x002ca7e0 (key in EAX, mode in EDI; out, context on the stack): out = Loc_GetString(key) when
+// cl_languagetranslate is set and key has 2+ characters, else key; returns 1 (0 for a failed lookup in mode 1).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_TranslateString(const char* key, char* out, const char* context,
+                                                                int32_t mode);
+extern "C" void Loc_TranslateString_entry(void);
+// 0x002fdef0 (name in EAX): the name map entry of ScrIface_HashStringNoCase(name) erased; 1 if found. Dead.
+uint8_t XB_REGS1 XB_CDECL IntHashMap_EraseByString(const char* name);
+// 0x0029e8d0: "freeze <seconds>": spins on Com_Milliseconds until the time has passed (debug command).
+void XB_CDECL Com_Freeze_f();
+// 0x002c90c0 (rotation vector in EDX, aligned; quaternion out in ECX): angle = |v| (RSQRTSS + one Newton step),
+// axis = v / angle; {axis sin(angle/2), cos(angle/2)} normalized on the x87; identity for a zero vector.
+void XB_REGS3 XB_CDECL Quat_FromRotationVector(uint32_t unused_eax, const float* v, float* out);
+
 }  // namespace game

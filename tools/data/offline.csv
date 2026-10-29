@@ -735,6 +735,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002c5140,SV_SetSkillEasy,1,1,0,0,100.0
 002c5200,SV_SetSkillHard,1,1,0,0,100.0
 002c5bb0,Loc_InitCvars,1157,1157,0,0,92.3
+002c90c0,Quat_FromRotationVector,2059,2059,0,0,100.0
 002ccf40,CL_DecAnimWeight_f,1687,1687,0,0,100.0
 002ccfb0,CL_IncAnimWeight_f,1796,1796,0,0,100.0
 002cd5f0,IN_DownUp,1080,1080,0,0,90.9

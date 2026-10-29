@@ -3035,4 +3035,216 @@ uint32_t XB_REGS2 XB_STDCALL Mat44_ToQuatTranslation(const float* m, float* tran
     return static_cast<long double>(title_global<float>(0x0083ed50)) > error ? 1 : 0;  // 0.0001
 }
 
+void XB_CDECL Com_InitNodeRing() {
+    for (int32_t i = 1; i <= 0x200; ++i) {
+        uint8_t* node = &title_global<uint8_t>(0x00965cfa + static_cast<uint32_t>(i - 1) * 0x30);
+        pk<uint16_t>(node, 0) = static_cast<uint16_t>((i + 0x1fe) % 0x200);
+        pk<uint16_t>(node, 2) = static_cast<uint16_t>(i % 0x200);
+    }
+    title_global<float>(0x00965d00) = 0.0f;
+    title_global<float>(0x00965d04) = 0.0f;
+    title_global<uint16_t>(0x00965d08) = 0;
+    title_global<uint16_t>(0x00965d0a) = 0;
+    title_function<void XB_THISCALL(uint8_t*, const char*)>(0x0011dd20)(&title_global<uint8_t>(0x00965ce8),
+                                                                       tstr(0x00832b28));  // "end"
+}
+
+namespace {
+
+// The ring's name string (0x00965ce8, text at +6) cleared unless empty.
+void clear_ring_name() {
+    const uint32_t text = title_global<uint32_t>(0x00965ce8);
+    if (text && text + 6 && *reinterpret_cast<const char*>(uintptr_t{text + 6}))
+        title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(&title_global<uint8_t>(0x00965ce8));  // ScriptString_Clear
+}
+
+}  // namespace
+
+void XB_CDECL Com_ResetNodeRing() {
+    if (title_global<uint32_t>(0x0095f590)) title_global<uint32_t>(0x0095f590) = 0;
+    clear_ring_name();
+    Com_InitNodeRing();
+    title_global<uint32_t>(0x0095f590) = 1;
+}
+
+void XB_CDECL Com_Shutdown() {
+    if (title_global<uint32_t>(0x0095f590)) title_global<uint32_t>(0x0095f590) = 0;
+    clear_ring_name();
+    if (const int32_t log = title_global<int32_t>(0x009476fc)) {  // logfile
+        FS_FCloseFile(log);
+        title_global<int32_t>(0x009476fc) = 0;
+    }
+    if (const int32_t journal = title_global<int32_t>(0x0093fce0)) {  // com_journalFile
+        FS_FCloseFile(journal);
+        title_global<int32_t>(0x0093fce0) = 0;
+    }
+}
+
+PLATFORM_ASM_ENTRY(FS_AddGameDirectories_entry,
+                   "pushl %ebx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(FS_AddGameDirectories) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL FS_AddGameDirectories(uint32_t path, uint32_t dir) {
+    const auto add = title_function<void XB_REGS3 XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int32_t)>(
+        0x0029cb60);  // FS_AddGameDirectory (ECX + 3 stack words)
+    for (int32_t i = 0xd; i >= 0; --i) add(0, 0, path, dir, 1, i);
+    add(0, 0, path, dir, 0, 0);
+}
+
+void XB_CDECL Loc_Init() {
+    Cvar_Get(tstr(0x0083349c), tstr(0x0082e098), 0x21);  // cl_language
+    const int32_t language = pk<int32_t>(title_global<uint8_t*>(0x0093f7fc), 0x20);
+    title_global<uint32_t>(0x0093e750) = language >= 8 && language <= 0xc ? 1 : 0;
+    Cvar_Set2(tstr(0x00833484), const_cast<char*>(tstr(0x0082e058)), 1);  // cl_languagesavailable "1"
+    title_function<void XB_CDECL()>(0x002ca5e0)();     // Loc_ClearStrings
+}
+
+namespace {
+
+// HashMap_Insert (0x000148b0): map in ESI, out and pair on the stack (stdcall).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL qfs_HashMap_Insert(uint8_t* map, uint32_t* out, const void* pair);
+PLATFORM_ASM_ENTRY(qfs_HashMap_Insert,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "movl $0x000148b0, %eax\n"
+                   "call *%eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+// IntHashMap_Erase (0x00014af0): map in EDI, out in EBX, the node on the stack (stdcall).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL qfs_IntHashMap_Erase(uint8_t* map, uint32_t* out, uint32_t node);
+PLATFORM_ASM_ENTRY(qfs_IntHashMap_Erase,
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "movl 12(%esp), %edi\n"
+                   "movl 16(%esp), %ebx\n"
+                   "pushl 20(%esp)\n"
+                   "movl $0x00014af0, %eax\n"
+                   "call *%eax\n"
+                   "popl %edi\n"
+                   "popl %ebx\n"
+                   "ret")
+
+}  // namespace
+
+void XB_CDECL NameMap_Insert(uint32_t value, const char* name) {
+    // Locals the original leaves partly unset (zero in tests): out (+0, starts as the copy length), the name copy
+    // (+8), the pair {value, 32-byte fixed string} (+0x28).
+    struct Pair {
+        uint32_t value;
+        char key[0x20];
+    };
+    int32_t length = 0;
+    char copy[0x20] = {};
+    Q_strncpyLen(copy, &length, 0x1f, name);
+    copy[0x1f] = static_cast<char>(length);
+    Pair pair = {};
+    pair.value = value;
+    int32_t key_length = 0;
+    FixedStr_Copy(pair.key, &key_length, 0x1f, copy, static_cast<uint8_t>(length));
+    pair.key[0x1f] = static_cast<char>(key_length);
+    uint32_t out[2] = {static_cast<uint32_t>(length), 0};
+    qfs_HashMap_Insert(&title_global<uint8_t>(0x0095fe00), out, &pair);
+}
+
+PLATFORM_ASM_ENTRY(Loc_TranslateString_entry,
+                   "pushl %edi\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Loc_TranslateString) "addl $16, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Loc_TranslateString(const char* key, char* out, const char* context, int32_t mode) {
+    const auto va_ = title_function<const char* XB_CDECL(const char*, ...)>(0x002a93d0);
+    const uint8_t* translate = title_global<const uint8_t*>(0x00929b4c);  // cl_languagetranslate
+    const char* text = key;
+    if (translate && pk<uint32_t>(const_cast<uint8_t*>(translate), 0x20) && key[0] && key[1]) text = Loc_GetString(key);
+    if (!text) {
+        const uint8_t* warnings = title_global<const uint8_t*>(0x0093f804);
+        if (warnings && pk<uint32_t>(const_cast<uint8_t*>(warnings), 0x20)) {
+            const uint8_t* errors = title_global<const uint8_t*>(0x00927b2c);
+            if (errors && pk<uint32_t>(const_cast<uint8_t*>(errors), 0x20) && mode != 1)
+                title_function<void XB_CDECL(uint32_t, const char*, ...)>(0x002938f0)(7, tstr(0x008333d4), context, key);
+            text = va_(tstr(0x00835264), key);  // "^1UNLOCALIZED(^7%s^1)^7"
+        } else {
+            text = va_(tstr(0x0082ddd4), key);  // "%s"
+        }
+        if (mode == 1) return 0;
+    }
+    char c;
+    do {
+        c = *text;
+        *out++ = c;
+        ++text;
+    } while (c);
+    return 1;
+}
+
+uint8_t XB_REGS1 XB_CDECL IntHashMap_EraseByString(const char* name) {
+    const int32_t hash = title_function<int32_t XB_CDECL(const char*)>(0x002f5470)(name);  // ScrIface_HashStringNoCase
+    uint32_t node = 0;
+    IntHashMap_Find(&node, &hash, &title_global<uint8_t>(0x0095fe00));
+    if (node == title_global<uint32_t>(0x0095fe08)) return 0;
+    qfs_IntHashMap_Erase(&title_global<uint8_t>(0x0095fe00), &node, node);
+    return 1;
+}
+
+void XB_CDECL Com_Freeze_f() {
+    if (title_global<int32_t>(0x00934248) != 2) return;  // cmd_argc
+    const float seconds = title_function<float XB_CDECL(const char*)>(0x001ef056)(
+        reinterpret_cast<const char*>(uintptr_t{title_global<uint32_t>(0x0092df94)}));  // atof(argv[1])
+    const int32_t start = Com_Milliseconds();
+    for (;;) {
+        const int32_t elapsed = Com_Milliseconds() - start;
+        const long double s = static_cast<long double>(static_cast<double>(elapsed)) * title_global<double>(0x0083ef88);
+        if (s > static_cast<long double>(seconds)) return;
+    }
+}
+
+void XB_REGS3 XB_CDECL Quat_FromRotationVector(uint32_t, const float* v, float* out) {
+    // MULPS v * v over all four lanes (MXCSR flags), the length from lanes 0-2.
+    float sq[4];
+    for (int32_t i = 0; i < 4; ++i) sq[i] = v[i] * v[i];
+    platform_keep(sq);
+    const float n = (sq[0] + sq[1]) + sq[2];
+    float length;
+    if (n == 0.0f || n != n) {  // UCOMISS + JNE: equal or unordered
+        length = n;
+    } else {
+        const float r = platform_rsqrt_estimate(n);
+        const float nr = n * r;
+        length = ((title_global<float>(0x0082e660) - nr * r) * nr) * title_global<float>(0x0082e670);  // 3, 0.5
+    }
+    if (length == 0.0f) {
+        out[2] = 0.0f;
+        out[1] = 0.0f;
+        out[0] = 0.0f;
+        out[3] = title_global<float>(0x0083eb20);
+        return;
+    }
+    const float one = title_global<float>(0x0083eb20);
+    const long double half_angle = static_cast<long double>(length) * title_global<float>(0x0083eb24);
+    const float inv = one / length;
+    const float s = static_cast<float>(platform_x87_sin_ext(half_angle));
+    float a[4];
+    for (int32_t i = 0; i < 4; ++i) a[i] = s * (v[i] * inv);  // MULPS twice, all lanes
+    platform_keep(a);
+    const float a0 = a[0];
+    out[0] = a0;
+    const float a1 = s * (v[1] * inv);
+    out[1] = a1;
+    const float a2 = s * (v[2] * inv);
+    const float c = static_cast<float>(platform_x87_cos_ext(half_angle));
+    const long double la2 = a2, la1 = a1, lc = c, la0 = a0;
+    const float norm = static_cast<float>(platform_x87_sqrt_ext(((la2 * la2 + la1 * la1) + lc * lc) + la0 * la0));
+    const float k = one / norm;
+    out[0] = k * a0;
+    out[1] = k * a1;
+    out[2] = k * a2;
+    out[3] = k * c;
+}
+
 }  // namespace game
