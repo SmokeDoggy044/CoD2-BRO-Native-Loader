@@ -343,4 +343,40 @@ extern "C" void Profile_ApplySkill_entry(void);
 // value after the current one (the first value when not found).
 void XB_CDECL Cvar_Toggle_f();
 
+// --- Angles from vectors (the title's arcsine series, see Vec3_PitchDegrees in cm.h) ---
+// 0x002a0210 (vector in ESI, angles out in EDI): {vectopitch, vectoyaw_2, 0} (no wrap to [0, 360)).
+extern "C" PLATFORM_HIDDEN void XB_CDECL vectoangles_2(const float* v, float* angles);
+extern "C" void vectoangles_2_entry(void);
+// 0x002a0850 (vector in ESI, angles out in EDI): {Vec3_PitchDegrees, vectoyaw, 0}, both in [0, 360).
+extern "C" PLATFORM_HIDDEN void XB_CDECL vectoangles(const float* v, float* angles);
+extern "C" void vectoangles_entry(void);
+// 0x002a0ea0 (vector in ESI; XMM0): pitch in degrees (-180, 180]: -90 / 90 straight up / down.
+extern "C" PLATFORM_HIDDEN float XB_CDECL vectopitch(const float* v);
+extern "C" void vectopitch_entry(void);
+// 0x002a1540 (vector in ECX; XMM0): yaw atan2(y, x) in degrees (-180, 180], 0 for x = y = 0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL vectoyaw_2(const float* v);
+extern "C" void vectoyaw_2_entry(void);
+// 0x002a1830 (vector in ECX; XMM0): vectoyaw_2 wrapped to [0, 360).
+extern "C" PLATFORM_HIDDEN float XB_CDECL vectoyaw(const float* v);
+extern "C" void vectoyaw_entry(void);
+// 0x002a4440 (plane normal in EAX, yaw in degrees; XMM0): the pitch (Vec3_PitchDegrees) of the yaw
+// direction {cos, sin, 0} projected onto the plane. Proposed name (was FUN_002a4440).
+extern "C" PLATFORM_HIDDEN float XB_CDECL Plane_PitchAlongYaw(const float* normal, float yaw);
+extern "C" void Plane_PitchAlongYaw_entry(void);
+// 0x002a4520 (axis in ESI): rows {cos, sin, 0}, {0 - sin, 0 - (0 - cos), 0}, {0, 0, 1} of yaw degrees.
+extern "C" PLATFORM_HIDDEN void XB_CDECL YawToAxis(float* axis, float yaw);
+extern "C" void YawToAxis_entry(void);
+// 0x002a45b0 / 0x002a4610 (angles in EAX): AnglesToAxis rows {forward, 0 - right, up}.
+void XB_REGS1 XB_CDECL AnglesToAxisLeft2(const float* angles, float* axis);
+void XB_REGS1 XB_CDECL AnglesToAxisLeft(const float* angles, float* axis);
+// 0x002db350 (angles in ECX, 4-float rows out in EBX; no callers): AnglesToAxisLeft into rows of 4.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnglesToAxisVec4(const float* angles, float* out);
+extern "C" void AnglesToAxisVec4_entry(void);
+// 0x0029c8c0 (no callers): the first three lanes of the 4x4 matrix's rows 0-2 into a 3x3 axis.
+float* XB_REGS3 XB_CDECL Mat44_GetAxis(float* out, uint32_t, const float* m);
+// 0x002bfc10 (no callers): out = axis rows (m[0..8]) . (p - m[9..11]).
+const float* XB_REGS3 XB_CDECL Mat43_UntransformPoint(const float* m, uint32_t, float* out, const float* p);
+// 0x002a32e0 (no callers): {cos a, sin a} * r for random a in [0, 360) degrees and r in [0, 1).
+float* XB_CDECL RandomPointInUnitCircle(float* x, float* y);
+
 }  // namespace game

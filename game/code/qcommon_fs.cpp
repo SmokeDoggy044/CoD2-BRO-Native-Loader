@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "cm.h"
 #include "fx.h"
 #include "lanes.h"
 #include "fx_load.h"
@@ -1440,6 +1441,258 @@ void XB_CDECL Cvar_Toggle_f() {
         }
     }
     cvar_set2(cmd_arg(count, 1), cmd_arg(count, 2));
+}
+
+// --- Angles from vectors ---
+
+namespace {
+
+// The title CRT's __CIsqrt of an x87 value, stored as float.
+float vec_ci_sqrt(long double x) {
+    float result;
+    __asm__ volatile("fldt %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+// FLD/FABS/FSTP DWORD (a signalling NaN comes back quiet).
+float x87_abs(float x) {
+    float result;
+    __asm__("flds %1\n\tfabs\n\tfstps %0" : "=m"(result) : "m"(x) : "st");
+    return result;
+}
+
+// t + t^3 / 6 + (0.075 t^5 + 0.054 t^7) on SSE (t < 0.5).
+float asin_series_near(float t) {
+    const float t2 = t * t;
+    const float t3 = t2 * t;
+    const float t5 = t3 * t2;
+    const float t7 = t5 * t2;
+    return ((t3 * title_global<float>(0x0083ee9c)) +
+            ((t5 * title_global<float>(0x0083ee98)) + (t7 * title_global<float>(0x0083ee94)))) +
+           t;
+}
+
+// t >= 0.5: s = __CIsqrt(|(1 - t) * 0.5|) (x87), then (((s^7 c - 0.15 s^5) - s^3 / 3) - 2 s) + pi / 2.
+float asin_series_far(float t) {
+    const float u = static_cast<float>(
+        (static_cast<long double>(title_global<float>(0x0083eb20)) - t) * title_global<float>(0x0083eb24));
+    const float s = vec_ci_sqrt(x87_abs(u));
+    const float s2 = s * s;
+    const float s3 = s2 * s;
+    const float two_s = s * title_global<float>(0x0083eba8);
+    const float s5 = s3 * s2;
+    const float s7 = s5 * s2;
+    return (((s7 * title_global<float>(0x0083ee8c) - s5 * title_global<float>(0x0083ed2c)) -
+             s3 * title_global<float>(0x0083ee90)) -
+            two_s) +
+           title_global<float>(0x0083ee88);
+}
+
+float asin_series(float t) {
+    return title_global<float>(0x0083eb24) > t ? asin_series_near(t) : asin_series_far(t);
+}
+
+// atan2(b, a) in radians from the two components (a = x for the yaw, the xy length for the pitch);
+// length = __CIsqrt of the x87 sum b^2 + a^2, 0 when |b| + |a| is 0.
+float atan2_series(float a, float b) {
+    const float abs_a = x87_abs(a);
+    const float abs_b = x87_abs(b);
+    if (static_cast<long double>(abs_b) + abs_a == 0.0L) return 0.0f;  // FUCOMIP (a NaN goes on)
+    const float length = vec_ci_sqrt(static_cast<long double>(b) * b + static_cast<long double>(a) * a);
+    const float inv = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / length);
+    float r;
+    if (abs_b > abs_a)
+        r = title_global<float>(0x0083ed0c) - asin_series(inv * abs_a);  // pi / 2 -
+    else
+        r = asin_series(inv * abs_b);
+    const float zero = 0.0f;
+    if (zero > a) r = title_global<float>(0x0083ed00) - r;  // pi -
+    if (zero > b) r = zero - r;
+    return r;
+}
+
+// The yaw before the wrap: degrees in (-180, 180], 0 for x = y = 0 (UCOMISS + JP: exactly 0).
+float yaw_degrees(const float* v) {
+    if (v[1] == 0.0f && v[0] == 0.0f) return 0.0f;
+    const float r = atan2_series(v[0], v[1]);
+    return (r * title_global<float>(0x0083eb60)) / title_global<float>(0x0083ed00);  // * 180 / pi
+}
+
+// The pitch before the wrap: (-180, 180] (r * -180 / pi); x = y = 0 gives `vertical` (z > 0) or 90.
+float pitch_degrees(const float* v, uint32_t vertical) {
+    if (v[1] == 0.0f && v[0] == 0.0f) return v[2] > 0.0f ? title_global<float>(vertical) : title_global<float>(0x0083eb64);
+    const float a = vec_ci_sqrt(static_cast<long double>(v[1] * v[1] + v[0] * v[0]));
+    const float r = atan2_series(a, v[2]);
+    return (r * title_global<float>(0x0083ebd0)) / title_global<float>(0x0083ed00);
+}
+
+float wrap_360(float degrees) {
+    if (0.0f > degrees) degrees = degrees + title_global<float>(0x0083ebcc);
+    return degrees;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(vectoangles_2_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(vectoangles_2) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL vectoangles_2(const float* v, float* angles) {
+    const float yaw = yaw_degrees(v);
+    const float pitch = pitch_degrees(v, 0x0083efc8);  // -90
+    angles[0] = pitch;
+    angles[1] = yaw;
+    angles[2] = 0.0f;
+}
+
+PLATFORM_ASM_ENTRY(vectoangles_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(vectoangles) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL vectoangles(const float* v, float* angles) {
+    const float yaw = v[1] == 0.0f && v[0] == 0.0f ? 0.0f : wrap_360(yaw_degrees(v));
+    float pitch = pitch_degrees(v, 0x0083efcc);  // 270
+    if (!(v[1] == 0.0f && v[0] == 0.0f)) pitch = wrap_360(pitch);
+    angles[0] = pitch;
+    angles[1] = yaw;
+    angles[2] = 0.0f;
+}
+
+#define XMM0_RESULT_TAIL(pop) "addl $" #pop ", %esp\n" "subl $4, %esp\n" "fstps (%esp)\n" "movss (%esp), %xmm0\n" "addl $4, %esp\n" "ret"
+
+PLATFORM_ASM_ENTRY(vectopitch_entry, "pushl %esi\n" PLATFORM_ASM_CALL(vectopitch) XMM0_RESULT_TAIL(4))
+
+float XB_CDECL vectopitch(const float* v) { return pitch_degrees(v, 0x0083efc8); }
+
+PLATFORM_ASM_ENTRY(vectoyaw_2_entry, "pushl %ecx\n" PLATFORM_ASM_CALL(vectoyaw_2) XMM0_RESULT_TAIL(4))
+
+float XB_CDECL vectoyaw_2(const float* v) { return yaw_degrees(v); }
+
+PLATFORM_ASM_ENTRY(vectoyaw_entry, "pushl %ecx\n" PLATFORM_ASM_CALL(vectoyaw) XMM0_RESULT_TAIL(4))
+
+float XB_CDECL vectoyaw(const float* v) {
+    if (v[1] == 0.0f && v[0] == 0.0f) return 0.0f;  // returns before the wrap
+    return wrap_360(yaw_degrees(v));
+}
+
+PLATFORM_ASM_ENTRY(Plane_PitchAlongYaw_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Plane_PitchAlongYaw) XMM0_RESULT_TAIL(8))
+
+float XB_CDECL Plane_PitchAlongYaw(const float* n, float yaw) {
+    float s, c;  // c lands in the yaw argument slot in the original (arg_bytes 4)
+    FastSinCos(&s, 0, &c, platform_x87_mul(yaw, title_global<float>(0x0083edd8)));
+    const float zero = 0.0f;
+    const float inv = title_global<float>(0x0083eb20) / (((n[0] * n[0]) + (n[1] * n[1])) + (n[2] * n[2]));
+    const float d = (((n[0] * c) + (s * n[1])) + (n[2] * zero)) * inv;
+    const float px = (n[0] * inv) * d;
+    const float py = (inv * n[1]) * d;
+    const float pz = (inv * n[2]) * d;
+    float p[3] = {c - px, s - py, zero - pz};
+    return Vec3_PitchDegrees(p);
+}
+
+PLATFORM_ASM_ENTRY(YawToAxis_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(YawToAxis) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL YawToAxis(float* axis, float yaw) {
+    float s, c;  // c lands in the yaw argument slot in the original (arg_bytes 4)
+    FastSinCos(&s, 0, &c, platform_x87_mul(yaw, title_global<float>(0x0083edd8)));
+    const float zero = 0.0f;
+    if (axis) {
+        axis[0] = c;
+        axis[1] = s;
+        axis[2] = zero;
+    }
+    const float minus_c = zero - c;
+    axis[8] = title_global<float>(0x0083eb20);
+    axis[3] = zero - s;
+    const float row1_y = zero - minus_c;
+    const float row1_z = zero - zero;
+    axis[6] = zero;
+    axis[7] = zero;
+    axis[4] = row1_y;
+    axis[5] = row1_z;
+}
+
+namespace {
+
+void angles_to_axis_left(const float* angles, float* axis) {
+    uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles)),
+                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(axis))};
+    float right[3];
+    AnglesToAxis(args, right, axis + 6);
+    const float zero = 0.0f;
+    axis[3] = zero - right[0];
+    axis[4] = zero - right[1];
+    axis[5] = zero - right[2];
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL AnglesToAxisLeft2(const float* angles, float* axis) { angles_to_axis_left(angles, axis); }
+
+void XB_REGS1 XB_CDECL AnglesToAxisLeft(const float* angles, float* axis) { angles_to_axis_left(angles, axis); }
+
+PLATFORM_ASM_ENTRY(AnglesToAxisVec4_entry,
+                   "pushl %ebx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(AnglesToAxisVec4) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL AnglesToAxisVec4(const float* angles, float* out) {
+    float axis[9];
+    uint32_t args[2] = {static_cast<uint32_t>(reinterpret_cast<uintptr_t>(angles)),
+                        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(axis))};
+    AnglesToAxis(args, axis + 3, axis + 6);
+    const float zero = 0.0f;
+    out[0] = axis[0];
+    out[1] = axis[1];
+    out[2] = axis[2];
+    out[4] = zero - axis[3];
+    out[5] = zero - axis[4];
+    out[6] = zero - axis[5];
+    out[8] = axis[6];
+    out[9] = axis[7];
+    out[10] = axis[8];
+}
+
+float* XB_REGS3 XB_CDECL Mat44_GetAxis(float* out, uint32_t, const float* m) {
+    for (int32_t row = 0; row < 3; ++row) {  // whole row loaded (MOVAPS through a stack copy), 3 lanes stored
+        uint32_t words[4];
+        std::memcpy(words, m + 4 * row, 16);
+        std::memcpy(out + 4 * row, words, 12);
+    }
+    return out;
+}
+
+const float* XB_REGS3 XB_CDECL Mat43_UntransformPoint(const float* m, uint32_t, float* out, const float* p) {
+    const float d1 = p[1] - m[10];
+    const float d2 = p[2] - m[11];
+    const float d0 = p[0] - m[9];
+    out[0] = ((m[2] * d2) + (m[1] * d1)) + (m[0] * d0);
+    out[1] = ((m[5] * d2) + (m[4] * d1)) + (m[3] * d0);
+    out[2] = ((m[8] * d2) + (m[7] * d1)) + (m[6] * d0);
+    return m;
+}
+
+float* XB_CDECL RandomPointInUnitCircle(float* x, float* y) {
+    const auto rand = title_function<int32_t XB_CDECL()>(0x001efcc0);  // _rand
+    const float range = title_global<float>(0x0083ebc8);                // 32768
+    const float angle = (static_cast<float>(rand()) / range) * title_global<float>(0x0083ebcc);
+    const float radius = static_cast<float>(rand()) / range;
+    const float radians = (angle * title_global<float>(0x0083ed00)) / title_global<float>(0x0083eb60);
+    float s, c;
+    FastSinCos(&s, 0, &c, radians);
+    *x = c * radius;
+    *y = s * radius;
+    return x;
 }
 
 }  // namespace game
