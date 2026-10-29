@@ -865,4 +865,152 @@ void XB_CDECL Mat44_InverseRigid_2(float* out, const float* m) {
     }
 }
 
+namespace {
+
+// The title's inline strcpy (byte loop, front to back).
+void copy_string(char* dst, const char* src) {
+    char c;
+    do {
+        c = *src++;
+        *dst++ = c;
+    } while (c);
+}
+
+}  // namespace
+
+uint32_t XB_CDECL Save_GetLastResult() { return title_global<uint32_t>(0x00920aa4); }
+
+void XB_CDECL Save_SetLastResult(uint32_t result) { title_global<uint32_t>(0x00920aa4) = result; }
+
+void XB_CDECL Save_SetPathPrefix(const char* prefix) { copy_string(&title_global<char>(0x00920aa8), prefix); }
+
+uint32_t XB_CDECL Save_GetData() {
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&title_global<char>(0x00920aa8)));
+}
+
+void XB_CDECL Save_SetPort(int32_t port) { title_global<int32_t>(0x008c02d0) = port; }
+
+int32_t XB_CDECL Save_GetPort() { return title_global<int32_t>(0x008c02d0); }
+
+void XB_CDECL Save_SetListener(uint32_t listener) { title_global<uint32_t>(0x00920af0) = listener; }
+
+void XB_CDECL Save_SetDeviceRemovedListener(uint32_t listener) { title_global<uint32_t>(0x00920af8) = listener; }
+
+uint32_t XB_CDECL Save_GetBuffer() { return title_global<uint32_t>(0x00920ae8); }
+
+uint32_t XB_CDECL Save_GetBufferSize() { return title_global<uint32_t>(0x00920aec); }
+
+uint32_t XB_CDECL Save_GetOpState() { return title_global<uint32_t>(0x00920af4); }
+
+int32_t XB_CDECL Save_LastPort() { return 8; }
+
+void XB_THISCALL SaveRequest_SetFileName(uint8_t* request, const char* name) {
+    copy_string(reinterpret_cast<char*>(request + 0x248), name);
+    word_at(request, 0x240) = 0;
+    word_at(request, 0x244) = 0;
+}
+
+uint8_t XB_THISCALL SaveRequest_AddFile(uint8_t* request, const char* name, uint32_t a, uint32_t b) {
+    const uint32_t count = word_at(request, 0x244);
+    if (count >= 8) return 0;
+    copy_string(reinterpret_cast<char*>(request + count * 0x40), name);
+    word_at(request, 0x200 + word_at(request, 0x244) * 4) = a;
+    word_at(request, 0x220 + word_at(request, 0x244) * 4) = b;
+    ++word_at(request, 0x244);
+    return 1;
+}
+
+uint8_t XB_THISCALL SaveRequest_NextFile(uint8_t* request, char* name, uint32_t* a, uint32_t* b) {
+    const uint32_t cursor = word_at(request, 0x240);
+    if (!(cursor < word_at(request, 0x244))) return 0;
+    copy_string(name, reinterpret_cast<const char*>(request + cursor * 0x40));
+    *a = word_at(request, 0x200 + word_at(request, 0x240) * 4);
+    *b = word_at(request, 0x220 + word_at(request, 0x240) * 4);
+    ++word_at(request, 0x240);
+    return 1;
+}
+
+char* XB_THISCALL SaveRequest_GetFileName(uint8_t* request) { return reinterpret_cast<char*>(request + 0x248); }
+
+uint8_t* XB_THISCALL SaveRequest_Init(uint8_t* request, const char* name) {
+    copy_string(reinterpret_cast<char*>(request + 0x248), name);
+    word_at(request, 0x240) = 0;
+    word_at(request, 0x244) = 0;
+    return request;
+}
+
+void XB_CDECL Save_SetDriveNames(const char* names) {
+    using Port = int32_t XB_CDECL();
+    int32_t port = title_function<Port>(0x000d13c0)();  // Save_FirstPort (0)
+    for (; port <= Save_LastPort(); ++port)
+        copy_string(&title_global<char>(0x00920860) + port * 0x40, names + port * 0x40);
+}
+
+namespace {
+
+void close_save_handles() {
+    using Close = uint32_t XB_STDCALL(uint32_t);
+    title_global<uint32_t>(0x00920eb0) = 0;
+    const uint32_t file = title_global<uint32_t>(0x00920eac);
+    if (file) {
+        title_function<Close>(0x001e7b0b)(file);  // CloseHandle
+        title_global<uint32_t>(0x00920eac) = 0;
+    }
+}
+
+}  // namespace
+
+void XB_CDECL Save_CloseFileHandles() {
+    using Close = uint32_t XB_STDCALL(uint32_t);
+    close_save_handles();
+    const uint32_t find = title_global<uint32_t>(0x00920da0);
+    if (find) {
+        title_function<Close>(0x001e7b0b)(find);
+        title_global<uint32_t>(0x00920da0) = 0;
+    }
+}
+
+void XB_CDECL Save_CloseDevice() {
+    using Close = uint32_t XB_STDCALL(uint32_t);
+    close_save_handles();
+    const uint32_t find = title_global<uint32_t>(0x00920da0);
+    if (find) title_function<Close>(0x001e7b0b)(find);
+    title_global<uint8_t>(0x00920da8) = 0;
+    title_global<uint32_t>(0x00920da0) = 0;
+    for (uint32_t i = 0; i < 4; ++i) title_global<uint32_t>(0x00920d90 + i * 4) = 0;  // overlapped
+    title_global<uint8_t>(0x008c02d8) = 0;
+    title_global<uint8_t>(0x008c02d4) = '?';
+}
+
+int32_t XB_CDECL Save_TranslateError(int32_t error) {
+    switch (error) {
+        case 0: return 0;
+        case 0x55: return -17;
+        case 0x70: return -3;
+        case 0x48f: return -10;
+        default: return -1;
+    }
+}
+
+uint32_t XB_CDECL Save_Init(uint32_t value) {
+    title_global<uint32_t>(0x00920afc) = value;
+    Save_SetDriveNames(&title_global<char>(0x007cfa40));
+    Save_SetPort(8);
+    Save_SetLastResult(0);
+    return Save_GetLastResult();
+}
+
+uint32_t XB_CDECL BytesToBlocks(uint32_t bytes_lo, uint32_t bytes_hi) {
+    return static_cast<uint32_t>(((uint64_t{bytes_hi} << 32 | bytes_lo) + 0x3fff) >> 14);
+}
+
+int32_t XB_CDECL Save_PortToDevice(int32_t port, uint32_t* controller, uint32_t* slot) {
+    if (port < 0 || port > 8) return -18;
+    static const uint32_t kControllers[5] = {0, 1, 2, 3, 0};  // [4]: the original's return address
+    static const uint32_t kSlots[2] = {0, 1};
+    *controller = kControllers[port / 2];
+    *slot = kSlots[port % 2];
+    return 0;
+}
+
 }  // namespace game

@@ -176,4 +176,49 @@ void XB_REGS3 XB_CDECL Quat_RotationBetween(const float* a, uint32_t, const floa
 // (out == m: through a local copy).
 void XB_CDECL Mat44_InverseRigid_2(float* out, const float* m);
 
+// Save device state (0x000d0c40..0x000d1640): last result 0x00920aa4, path prefix 0x00920aa8, port
+// 0x008c02d0, buffer/size 0x00920ae8/ec, listener 0x00920af0, op state 0x00920af4, removed listener
+// 0x00920af8, drive names 0x00920860 (64 bytes per port 0..8).
+uint32_t XB_CDECL Save_GetLastResult();                   // 0x000d0c40
+void XB_CDECL Save_SetLastResult(uint32_t result);        // 0x000d0c50
+void XB_CDECL Save_SetPathPrefix(const char* prefix);     // 0x000d0c60: strcpy to 0x00920aa8
+uint32_t XB_CDECL Save_GetData();                         // 0x000d0c80: the address 0x00920aa8
+void XB_CDECL Save_SetPort(int32_t port);                 // 0x000d0c90
+int32_t XB_CDECL Save_GetPort();                          // 0x000d0ca0
+void XB_CDECL Save_SetListener(uint32_t listener);        // 0x000d0cb0
+void XB_CDECL Save_SetDeviceRemovedListener(uint32_t listener);  // 0x000d0cc0
+uint32_t XB_CDECL Save_GetBuffer();                       // 0x000d0cf0
+uint32_t XB_CDECL Save_GetBufferSize();                   // 0x000d0d00
+uint32_t XB_CDECL Save_GetOpState();                      // 0x000d0e40
+int32_t XB_CDECL Save_LastPort();                         // 0x000d13d0: 8
+// Save request: up to 8 files {name[64] at +0, word +0x200, word +0x220}, cursor +0x240, count
+// +0x244, file name +0x248.
+// 0x000d0d10: copies the file name and empties the list.
+void XB_THISCALL SaveRequest_SetFileName(uint8_t* request, const char* name);
+// 0x000d0d50: appends a file (false when 8 are listed).
+uint8_t XB_THISCALL SaveRequest_AddFile(uint8_t* request, const char* name, uint32_t a, uint32_t b);
+// 0x000d0dd0: the next listed file (false after the last): name copied out, both words.
+uint8_t XB_THISCALL SaveRequest_NextFile(uint8_t* request, char* name, uint32_t* a, uint32_t* b);
+// 0x000d0e30: request + 0x248.
+char* XB_THISCALL SaveRequest_GetFileName(uint8_t* request);
+// 0x000d11d0: SaveRequest_SetFileName; returns the request.
+uint8_t* XB_THISCALL SaveRequest_Init(uint8_t* request, const char* name);
+// 0x000d0e60: copies the 64-byte drive names of ports Save_FirstPort..Save_LastPort.
+void XB_CDECL Save_SetDriveNames(const char* names);
+// 0x000d12c0: closes the save file (0x00920eac) and the enumeration handle (0x00920da0), clears the
+// op callback (0x00920eb0).
+void XB_CDECL Save_CloseFileHandles();
+// 0x000d1300: Save_CloseFileHandles, then resets the overlapped block (0x00920d90..9c), 0x00920da8,
+// 0x008c02d8 and the drive letter 0x008c02d4 ('?').
+void XB_CDECL Save_CloseDevice();
+// 0x000d1360: Xbox error code -> save result (0 -> 0, 0x55 -> -17, 0x70 -> -3, 0x48f -> -10, else -1).
+int32_t XB_CDECL Save_TranslateError(int32_t error);
+// 0x000d1410: 0x00920afc = value, default drive names (0x007cfa40), port 8, result 0; returns the result.
+uint32_t XB_CDECL Save_Init(uint32_t value);
+// 0x000d1610: (bytes + 0x3fff) >> 14 (16 KB blocks); the high half goes to ECX (no caller reads it).
+uint32_t XB_CDECL BytesToBlocks(uint32_t bytes_lo, uint32_t bytes_hi);
+// 0x000d1630: memory-unit port 0..7 -> controller port/slot {0, 1, 2, 3}[port / 2], port % 2; -18 when
+// out of range. Port 8 reads past the table (the return address); callers handle 8 before.
+int32_t XB_CDECL Save_PortToDevice(int32_t port, uint32_t* controller, uint32_t* slot);
+
 }  // namespace game
