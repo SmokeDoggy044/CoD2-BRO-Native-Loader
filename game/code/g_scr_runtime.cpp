@@ -60,7 +60,9 @@ void queue_notify(uint32_t* node) {
     title_global<uint32_t*>(0x008dd204) = node;
 }
 
-using NotifyHandler = void XB_STDCALL(uint8_t*, uint32_t, const uint32_t*);
+// G_EntityRunNotifyCallbacks (0x002b6de0): the entity's callback block (+0x234) in ECX, then the entity, the
+// notify and the parameter block (ret 0xc).
+using NotifyHandler = void XB_THISCALL(uint32_t, uint8_t*, uint32_t, const uint32_t*);
 
 uint32_t entity_number(const uint8_t* ent) { return *reinterpret_cast<const uint32_t*>(ent + 0x224); }
 
@@ -81,8 +83,8 @@ void XB_CDECL Scr_Notify(uint8_t* ent, uint32_t notify) {
         node[4] = 0;
     }
     queue_notify(node);
-    if (*reinterpret_cast<const uint32_t*>(ent + 0x234))
-        title_function<NotifyHandler>(0x002b6de0)(ent, notify, nullptr);
+    if (const uint32_t handlers = *reinterpret_cast<const uint32_t*>(ent + 0x234))
+        title_function<NotifyHandler>(0x002b6de0)(handlers, ent, notify, nullptr);
 }
 
 // The handler gets the parameter block's address and keeps it in a global (0x008dd1e4) for the
@@ -176,8 +178,9 @@ void XB_CDECL Scr_QueueNotify(uint32_t handle, uint32_t notify) {
     const uint32_t index = handle & 0xfff;
     if (index >= 0x540 || (handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return;
     uint8_t* ent = title_global<uint8_t*>(0x0097a968 + index * 8);
-    if (ent && *reinterpret_cast<const uint32_t*>(ent + 0x234))
-        title_function<NotifyHandler>(0x002b6de0)(ent, notify, nullptr);
+    if (!ent) return;
+    if (const uint32_t handlers = *reinterpret_cast<const uint32_t*>(ent + 0x234))
+        title_function<NotifyHandler>(0x002b6de0)(handlers, ent, notify, nullptr);
 }
 
 namespace {
