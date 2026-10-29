@@ -343,4 +343,138 @@ extern "C" void Profile_ApplySkill_entry(void);
 // value after the current one (the first value when not found).
 void XB_CDECL Cvar_Toggle_f();
 
+// --- Angles from vectors (the title's arcsine series, see Vec3_PitchDegrees in cm.h) ---
+// 0x002a0210 (vector in ESI, angles out in EDI): {vectopitch, vectoyaw_2, 0} (no wrap to [0, 360)).
+extern "C" PLATFORM_HIDDEN void XB_CDECL vectoangles_2(const float* v, float* angles);
+extern "C" void vectoangles_2_entry(void);
+// 0x002a0850 (vector in ESI, angles out in EDI): {Vec3_PitchDegrees, vectoyaw, 0}, both in [0, 360).
+extern "C" PLATFORM_HIDDEN void XB_CDECL vectoangles(const float* v, float* angles);
+extern "C" void vectoangles_entry(void);
+// 0x002a0ea0 (vector in ESI; XMM0): pitch in degrees (-180, 180]: -90 / 90 straight up / down.
+extern "C" PLATFORM_HIDDEN float XB_CDECL vectopitch(const float* v);
+extern "C" void vectopitch_entry(void);
+// 0x002a1540 (vector in ECX; XMM0): yaw atan2(y, x) in degrees (-180, 180], 0 for x = y = 0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL vectoyaw_2(const float* v);
+extern "C" void vectoyaw_2_entry(void);
+// 0x002a1830 (vector in ECX; XMM0): vectoyaw_2 wrapped to [0, 360).
+extern "C" PLATFORM_HIDDEN float XB_CDECL vectoyaw(const float* v);
+extern "C" void vectoyaw_entry(void);
+// 0x002a4440 (plane normal in EAX, yaw in degrees; XMM0): the pitch (Vec3_PitchDegrees) of the yaw
+// direction {cos, sin, 0} projected onto the plane. Proposed name (was FUN_002a4440).
+extern "C" PLATFORM_HIDDEN float XB_CDECL Plane_PitchAlongYaw(const float* normal, float yaw);
+extern "C" void Plane_PitchAlongYaw_entry(void);
+// 0x002a4520 (axis in ESI): rows {cos, sin, 0}, {0 - sin, 0 - (0 - cos), 0}, {0, 0, 1} of yaw degrees.
+extern "C" PLATFORM_HIDDEN void XB_CDECL YawToAxis(float* axis, float yaw);
+extern "C" void YawToAxis_entry(void);
+// 0x002a45b0 / 0x002a4610 (angles in EAX): AnglesToAxis rows {forward, 0 - right, up}.
+void XB_REGS1 XB_CDECL AnglesToAxisLeft2(const float* angles, float* axis);
+void XB_REGS1 XB_CDECL AnglesToAxisLeft(const float* angles, float* axis);
+// 0x002db350 (angles in ECX, 4-float rows out in EBX; no callers): AnglesToAxisLeft into rows of 4.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnglesToAxisVec4(const float* angles, float* out);
+extern "C" void AnglesToAxisVec4_entry(void);
+// 0x0029c8c0 (no callers): the first three lanes of the 4x4 matrix's rows 0-2 into a 3x3 axis.
+float* XB_REGS3 XB_CDECL Mat44_GetAxis(float* out, uint32_t, const float* m);
+// 0x002bfc10 (no callers): out = axis rows (m[0..8]) . (p - m[9..11]).
+const float* XB_REGS3 XB_CDECL Mat43_UntransformPoint(const float* m, uint32_t, float* out, const float* p);
+// 0x002a32e0 (no callers): {cos a, sin a} * r for random a in [0, 360) degrees and r in [0, 1).
+float* XB_CDECL RandomPointInUnitCircle(float* x, float* y);
+
+// --- Pak zones and memory contexts (pak = the stream pak 0x0095f638: zone vector +0x18 {+0x10 size, +0x14
+// data}, slot records +0x38[99], context cache +0x1c4[99], loaded list +0x368 (sentinel +0x36c)) ---
+// 0x0028e550: the memory context of zone slot id: cached in +0x1c4[id]; from the slot record's +0x78
+// (ZoneRecord_GetContext), else the zone whose +0x28 is id; 0 without zones or for id -1.
+uint8_t* XB_THISCALL MemContext_FindById(uint8_t* pak, int32_t id);
+// 0x0028fcc0 (flag byte in AL, id in ECX): scope {+0 id, +4 old 0x0095f5d0}; for id != -1 stores AL in
+// 0x0095f5d1, sets 0x0095f5d0 and pushes id on the pak's context stack (MemContext_Push). Returns scope.
+uint8_t* XB_REGS3 XB_STDCALL MemContextScope_Enter(uint32_t flag, uint32_t, int32_t id, uint8_t* scope);
+// 0x0028ccf0 (out in ESI): appends each loaded zone's id (+0x74) to out {count, ids[32]} (up to 32).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Pak_CollectLoadedZoneIds(int32_t* out);
+extern "C" void Pak_CollectLoadedZoneIds_entry(void);
+// 0x0028cb00 (pak in EDI): every zone whose name (+8) contains a loaded zone's name (+8) gets that
+// zone's id (+0x74) in +0x28, and +0x2c = 1 when it was 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Pak_AssignZoneIdsByName(uint8_t* pak);
+extern "C" void Pak_AssignZoneIdsByName_entry(void);
+// 0x0028e460 (pak in EBX): of the zones not loaded (no slot, or slot state +0xdc 3) the one with the
+// lowest Zone_UpdatePriority (ties: the one whose Zone_FindUnloadedChild is another zone); then that
+// zone when its slot state is 0, else its unloaded child (itself without one). 0 for none.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Pak_FindNextZoneToLoad(uint8_t* pak);
+extern "C" void Pak_FindNextZoneToLoad_entry(void);
+// 0x0028e180 (pak in EDX): calls the progress callback +0x35c with (1 - 0x008d9d3c - 0x008d9d40) *
+// done / total (0x0095f62c +0x10): per loaded zone in state 1 (+0xdc) LoadBits_Progress(+0x54), in
+// state 2/3 (+0xe0) one per flagged (+0xc & 4) item whose +0x18 is the full (+0x14) or half count.
+void XB_REGS2 XB_CDECL Pak_UpdateLoadProgress(uint32_t, uint8_t* pak);
+// 0x00290020 (pak in ESI): clears the pak, registers PakRender and the progressbar/renderpaks/
+// renderheaps cvars, allocates the 0x9000-byte block 0x0095f608 and adds callback 0x0001b9a0 to the
+// 32-entry list 0x00988784 (count 0x00988780). Returns pak.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Pak_Init(uint8_t* pak);
+extern "C" void Pak_Init_entry(void);
+// 0x00290fe0 / 0x00291090: R_LoadCellMeshes(mesh +0x20, release 1 / 0) for each mesh (+0x30 count,
+// +0x34 data) of every cell whose zone (+0x24) has id +0x28 == id, over the cell lists chained from
+// +0x1cc through each list's +0x3c.
+void XB_STDCALL Pak_ReleaseCellMeshesForZone(uint8_t* ctx, int32_t id);
+void XB_STDCALL Pak_LoadCellMeshesForZone(uint8_t* ctx, int32_t id);
+// 0x002939d0 (mode in EAX; no callers): modes 0 and 2 touch every 32nd byte of the first 4 KB.
+void XB_REGS1 XB_CDECL Com_Prefetch(uint32_t mode, const uint8_t* data, int32_t size);
+// 0x00293ab0: touches the source like Com_Prefetch, then copies 32-byte blocks from the last down,
+// then the rest 16/8/4/2/1 forward.
+void XB_CDECL Com_MemcpyPrefetch(uint8_t* dst, const uint8_t* src, int32_t count);
+// 0x002999e0: 1 when a console line starts "safe" or "cvar_restart" (that line is emptied), else 0x0095f594.
+uint32_t XB_CDECL Com_SafeMode();
+// 0x00299890 (out in EBX): the next event from the journal file (com_journal 2) or Sys_GetEvent (written
+// to the journal for com_journal 1). Returns out.
+extern "C" PLATFORM_HIDDEN SysEvent* XB_CDECL Com_GetRealEvent(SysEvent* out);
+extern "C" void Com_GetRealEvent_entry(void);
+// 0x0029d4a0 (pointer table 0x002f115b only): 1 when fopen(homepath/gamedir/name, "rb") succeeds.
+uint32_t XB_CDECL FS_FileExists(const char* name);
+// 0x00250a10 ("where"): prints the client's origin (+0x23c, vtos) and copies it to 0x00947f18.
+void XB_CDECL Cmd_Where_f(uint8_t* ent);
+
+// --- Net channel, loopback, parsing, localization, profiles ---
+// 0x002b13b0 (chan in EAX, msg in EBX): Q3's Netchan_Process: reads the sequence (+2 qport bytes on a
+// server channel, chan +0 == 1); 0 for an old/duplicate one, else dropped (+4) = gap - 1, incoming
+// sequence (+0x20) = it, 1. The showdrop/showpackets prints are gone (NET_AdrToString still runs).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Netchan_Process(uint8_t* chan, uint8_t* msg);
+extern "C" void Netchan_Process_entry(void);
+// 0x002b1480 (chan in EAX): sequence (+0x24, then incremented), qport 0 on a client channel (+0 == 0),
+// data, copied into the other side's loopback (0x00928590 + (+0 ^ 1) * 0x93c: data, +0x930 size, +0x938
+// count). Returns that loopback.
+uint8_t* XB_REGS1 XB_CDECL Netchan_Transmit(uint8_t* chan, int32_t length, const uint8_t* data);
+// 0x002ba530 (sock in EAX; adr by value, format, ...): "\xff\xff\xff\xff" + vsprintf into the other
+// side's loopback (without the terminator). Returns the length.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL NET_OutOfBandPrint(uint32_t sock, const uint32_t* args);
+extern "C" void NET_OutOfBandPrint_entry(void);
+// 0x002b9080: COM_ParseExt(data_p, no line breaks), or the ungot token (0x008d4ca0 +0x84; restores
+// *data_p and the line from +0x98/+0x94 when +0x88 is set, else returns the parse info itself).
+char* XB_THISCALL Com_ParseOnLine(const char** data_p);
+// 0x002aa480 (msg in EDI): the string at the read position into 0x0098b3c8 (empty when 256+ long
+// or past the size), advancing past its terminator.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL MSG_ReadStringLine(uint8_t* msg);
+extern "C" void MSG_ReadStringLine_entry(void);
+// 0x002af930 (cursor in EAX, line out in EBX; one unused stack word): the next line (up to "\n"),
+// skipping the following "\r\n" characters, trailing white space cut and the comment stripped
+// (Loc_StripLineComment). 0 at the end of the text.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_ReadLine(const char** cursor, char* line);
+extern "C" void Loc_ReadLine_entry(void);
+// 0x002ae040 (vtable only): the 32 entries {id, ?, data} (+4, 12 bytes): the one with id gets -1 / 0.
+void XB_THISCALL SpgManager_Unload(uint8_t* manager, int32_t id);
+// 0x002b6fc0 (this in EAX): ResourceManager base (registered in the 20-entry list 0x009719fc, count
+// 0x009719f8), SpgManager vtable, 32 empty entries, 0x00909940 = 0x002ae1b0. Returns this.
+uint8_t* XB_REGS1 XB_CDECL SpgManager_Construct(uint8_t* self);
+// 0x0030f3f0: once (0x0098ad11): appends "_" and the language name (0x008d5a80[g_languageIndex]) to the
+// 31-character name 0x0095f828 (length byte 0x0095f847).
+void XB_CDECL Loc_AppendLanguageSuffix();
+// 0x0030c240 (header in EDI): 1 when it starts with the build date ("9-21-05", "9-21-05CE" when
+// 0x0095e7f8 is set; 25 characters) and its +0x3c0 string equals Save_GetData's.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL Save_CheckVersion(const char* header);
+extern "C" void Save_CheckVersion_entry(void);
+// 0x00312e30: out[18] = the sums of the first 17 dwords of the unlocked chapters' 0x48-byte records
+// (g_chaptersUnlocked, 14 when 0x008dce54 is set; none below 1); out[17] = 0.
+void XB_STDCALL Profile_SumMissionStats(const int32_t* chapters, int32_t* out);
+// 0x0017be80: push_back of a 24-byte element (grows by 4 through DynArray_Alloc24_FillUndefined).
+void XB_THISCALL DynArray_PushBack24(DynArray* array, const uint32_t* value);
+// 0x0017cbe0: std_UninitializedFillN4(dest, count, value); returns dest + count.
+uint32_t* XB_STDCALL std_vector_UfillN4(uint32_t* dest, uint32_t count, const uint32_t* value);
+// 0x0017cd90: a 24-byte list node {next, prev, key, DynArray copy of value + 4} from Scr_Alloc.
+uint32_t* XB_STDCALL std_list_BuyNodeKeyArray(uint32_t next, uint32_t prev, const uint32_t* value);
+
 }  // namespace game
