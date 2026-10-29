@@ -429,4 +429,52 @@ uint32_t XB_CDECL FS_FileExists(const char* name);
 // 0x00250a10 ("where"): prints the client's origin (+0x23c, vtos) and copies it to 0x00947f18.
 void XB_CDECL Cmd_Where_f(uint8_t* ent);
 
+// --- Net channel, loopback, parsing, localization, profiles ---
+// 0x002b13b0 (chan in EAX, msg in EBX): Q3's Netchan_Process: reads the sequence (+2 qport bytes on a
+// server channel, chan +0 == 1); 0 for an old/duplicate one, else dropped (+4) = gap - 1, incoming
+// sequence (+0x20) = it, 1. The showdrop/showpackets prints are gone (NET_AdrToString still runs).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Netchan_Process(uint8_t* chan, uint8_t* msg);
+extern "C" void Netchan_Process_entry(void);
+// 0x002b1480 (chan in EAX): sequence (+0x24, then incremented), qport 0 on a client channel (+0 == 0),
+// data, copied into the other side's loopback (0x00928590 + (+0 ^ 1) * 0x93c: data, +0x930 size, +0x938
+// count). Returns that loopback.
+uint8_t* XB_REGS1 XB_CDECL Netchan_Transmit(uint8_t* chan, int32_t length, const uint8_t* data);
+// 0x002ba530 (sock in EAX; adr by value, format, ...): "\xff\xff\xff\xff" + vsprintf into the other
+// side's loopback (without the terminator). Returns the length.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL NET_OutOfBandPrint(uint32_t sock, const uint32_t* args);
+extern "C" void NET_OutOfBandPrint_entry(void);
+// 0x002b9080: COM_ParseExt(data_p, no line breaks), or the ungot token (0x008d4ca0 +0x84; restores
+// *data_p and the line from +0x98/+0x94 when +0x88 is set, else returns the parse info itself).
+char* XB_THISCALL Com_ParseOnLine(const char** data_p);
+// 0x002aa480 (msg in EDI): the string at the read position into 0x0098b3c8 (empty when 256+ long
+// or past the size), advancing past its terminator.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL MSG_ReadStringLine(uint8_t* msg);
+extern "C" void MSG_ReadStringLine_entry(void);
+// 0x002af930 (cursor in EAX, line out in EBX; one unused stack word): the next line (up to "\n"),
+// skipping the following "\r\n" characters, trailing white space cut and the comment stripped
+// (Loc_StripLineComment). 0 at the end of the text.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Loc_ReadLine(const char** cursor, char* line);
+extern "C" void Loc_ReadLine_entry(void);
+// 0x002ae040 (vtable only): the 32 entries {id, ?, data} (+4, 12 bytes): the one with id gets -1 / 0.
+void XB_THISCALL SpgManager_Unload(uint8_t* manager, int32_t id);
+// 0x002b6fc0 (this in EAX): ResourceManager base (registered in the 20-entry list 0x009719fc, count
+// 0x009719f8), SpgManager vtable, 32 empty entries, 0x00909940 = 0x002ae1b0. Returns this.
+uint8_t* XB_REGS1 XB_CDECL SpgManager_Construct(uint8_t* self);
+// 0x0030f3f0: once (0x0098ad11): appends "_" and the language name (0x008d5a80[g_languageIndex]) to the
+// 31-character name 0x0095f828 (length byte 0x0095f847).
+void XB_CDECL Loc_AppendLanguageSuffix();
+// 0x0030c240 (header in EDI): 1 when it starts with the build date ("9-21-05", "9-21-05CE" when
+// 0x0095e7f8 is set; 25 characters) and its +0x3c0 string equals Save_GetData's.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL Save_CheckVersion(const char* header);
+extern "C" void Save_CheckVersion_entry(void);
+// 0x00312e30: out[18] = the sums of the first 17 dwords of the unlocked chapters' 0x48-byte records
+// (g_chaptersUnlocked, 14 when 0x008dce54 is set; none below 1); out[17] = 0.
+void XB_STDCALL Profile_SumMissionStats(const int32_t* chapters, int32_t* out);
+// 0x0017be80: push_back of a 24-byte element (grows by 4 through DynArray_Alloc24_FillUndefined).
+void XB_THISCALL DynArray_PushBack24(DynArray* array, const uint32_t* value);
+// 0x0017cbe0: std_UninitializedFillN4(dest, count, value); returns dest + count.
+uint32_t* XB_STDCALL std_vector_UfillN4(uint32_t* dest, uint32_t count, const uint32_t* value);
+// 0x0017cd90: a 24-byte list node {next, prev, key, DynArray copy of value + 4} from Scr_Alloc.
+uint32_t* XB_STDCALL std_list_BuyNodeKeyArray(uint32_t next, uint32_t prev, const uint32_t* value);
+
 }  // namespace game

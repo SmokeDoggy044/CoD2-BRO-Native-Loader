@@ -2103,4 +2103,255 @@ void XB_CDECL Cmd_Where_f(uint8_t* ent) {
     } while (c);
 }
 
+// --- Net channel, loopback, parsing, localization, profiles ---
+
+namespace {
+
+uint8_t* loopback_of(uint32_t sock) { return &title_global<uint8_t>(0x00928590 + (sock ^ 1) * 0x93c); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Netchan_Process_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Netchan_Process) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Netchan_Process(uint8_t* chan, uint8_t* msg) {
+    const auto shown = [] {
+        return pk<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{title_global<uint32_t>(0x00935118)}), 0x20) ||
+               pk<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{title_global<uint32_t>(0x00927c30)}), 0x20);
+    };
+    pk<int32_t>(msg, 0x10) = 0;
+    const int32_t sequence = MSG_ReadLong(msg);
+    if (pk<int32_t>(chan, 0) == 1) pk<int32_t>(msg, 0x10) += 2;
+    if (sequence <= pk<int32_t>(chan, 0x20)) {
+        if (shown()) NET_AdrToString(chan + 8);
+        return 0;
+    }
+    const int32_t dropped = sequence - pk<int32_t>(chan, 0x20) - 1;
+    pk<int32_t>(chan, 4) = dropped;
+    if (dropped > 0 && shown()) NET_AdrToString(chan + 8);
+    pk<int32_t>(chan, 0x20) = sequence;
+    return 1;
+}
+
+uint8_t* XB_REGS1 XB_CDECL Netchan_Transmit(uint8_t* chan, int32_t length, const uint8_t* data) {
+    const auto error = title_function<void XB_CDECL(uint32_t, const char*, int32_t)>(0x002938f0);  // __break
+    if (length > 0x800) error(1, reinterpret_cast<const char*>(uintptr_t{0x00833c30}), length);
+    if (length >= 0x8ca) error(1, reinterpret_cast<const char*>(uintptr_t{0x00833c0c}), 0);
+    uint8_t packet[0x930] = {};
+    const uint32_t sequence = pk<uint32_t>(chan, 0x24);
+    std::memcpy(packet, &sequence, 4);
+    int32_t size = 4;
+    pk<uint32_t>(chan, 0x24) = pk<uint32_t>(chan, 0x24) + 1;
+    if (pk<uint32_t>(chan, 0) == 0) size += 2;  // qport 0
+    platform_rep_movs(packet + size, data, static_cast<uint32_t>(length));
+    uint8_t* loopback = loopback_of(pk<uint32_t>(chan, 0));
+    ++pk<int32_t>(loopback, 0x938);
+    size += length;
+    platform_rep_movs(loopback, packet, static_cast<uint32_t>(size));
+    pk<int32_t>(loopback, 0x930) = size;
+    return loopback;
+}
+
+PLATFORM_ASM_ENTRY(NET_OutOfBandPrint_entry,
+                   "leal 4(%esp), %ecx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(NET_OutOfBandPrint) "addl $8, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL NET_OutOfBandPrint(uint32_t sock, const uint32_t* args) {
+    // args: the address (5 words), the format, then the variable arguments (MSVC va_list = their address).
+    char text[0x800];
+    text[0] = text[1] = text[2] = text[3] = static_cast<char>(0xff);
+    title_function<int32_t XB_CDECL(char*, const char*, const void*)>(0x001eea95)(  // _vsprintf
+        text + 4, reinterpret_cast<const char*>(uintptr_t{args[5]}), args + 6);
+    const int32_t length = static_cast<int32_t>(std::strlen(text));
+    uint8_t* loopback = loopback_of(sock);
+    ++pk<int32_t>(loopback, 0x938);
+    platform_rep_movs(loopback, text, static_cast<uint32_t>(length));
+    pk<int32_t>(loopback, 0x930) = length;
+    return length;
+}
+
+char* XB_THISCALL Com_ParseOnLine(const char** data_p) {
+    uint8_t* info = reinterpret_cast<uint8_t*>(uintptr_t{title_global<uint32_t>(0x008d4ca0)});
+    if (pk<uint32_t>(info, 0x84)) {
+        const uint32_t restore = pk<uint32_t>(info, 0x88);
+        pk<uint32_t>(info, 0x84) = 0;
+        if (!restore) return reinterpret_cast<char*>(info);
+        *data_p = reinterpret_cast<const char*>(uintptr_t{pk<uint32_t>(info, 0x98)});
+        pk<uint32_t>(info, 0x80) = pk<uint32_t>(info, 0x94);
+    }
+    return COM_ParseExt(data_p, 0);
+}
+
+PLATFORM_ASM_ENTRY(MSG_ReadStringLine_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(MSG_ReadStringLine) "addl $4, %esp\n"
+                   "ret")
+
+char* XB_CDECL MSG_ReadStringLine(uint8_t* msg) {
+    char* const out = &title_global<char>(0x0098b3c8);
+    const int32_t read = pk<int32_t>(msg, 0x10);
+    const char* text = reinterpret_cast<const char*>(pk_ptr(msg, 4)) + read;
+    const int32_t length = static_cast<int32_t>(std::strlen(text));
+    if (length >= 0x100 || read + length >= pk<int32_t>(msg, 0xc)) {
+        out[0] = 0;
+        return out;
+    }
+    char* d = out;
+    char c;
+    do {
+        c = *text++;
+        *d++ = c;
+    } while (c);
+    pk<int32_t>(msg, 0x10) = pk<int32_t>(msg, 0x10) + static_cast<int32_t>(std::strlen(out)) + 1;
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(Loc_ReadLine_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Loc_ReadLine) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Loc_ReadLine(const char** cursor, char* line) {
+    const auto strchr_ = title_function<const char* XB_CDECL(const char*, int32_t)>(0x001ef5e0);  // _strchr
+    if (!**cursor) return 0;
+    const char* newline = strchr_(*cursor, '\n');
+    if (newline) {
+        const int32_t length = static_cast<int32_t>(newline - *cursor);
+        title_function<char* XB_CDECL(char*, const char*, int32_t)>(0x001eed80)(line, *cursor, length);  // _strncpy
+        line[length] = 0;
+        *cursor += length;
+        while (**cursor) {
+            if (!strchr_(reinterpret_cast<const char*>(uintptr_t{0x008333a8}), **cursor)) break;  // "\r\n"
+            ++*cursor;
+        }
+    } else {
+        const char* s = *cursor;
+        char* d = line;
+        char c;
+        do {
+            c = *s++;
+            *d++ = c;
+        } while (c);
+        *cursor += std::strlen(*cursor);
+    }
+    if (!line[0]) return 1;
+    int32_t i = static_cast<int32_t>(std::strlen(line)) - 1;
+    while (i >= 0) {
+        if (!title_function<int32_t XB_CDECL(int32_t)>(0x001eefa0)(line[i])) break;  // _isspace
+        --i;
+        line[i + 1] = 0;
+    }
+    Loc_StripLineComment(line);
+    return 1;
+}
+
+void XB_THISCALL SpgManager_Unload(uint8_t* manager, int32_t id) {
+    for (int32_t i = 0; i < 0x20; ++i) {
+        uint8_t* entry = manager + 4 + i * 12;
+        if (pk<int32_t>(entry, 0) == id) {
+            pk<int32_t>(entry, 0) = -1;
+            pk<uint32_t>(entry, 8) = 0;
+            return;
+        }
+    }
+}
+
+uint8_t* XB_REGS1 XB_CDECL SpgManager_Construct(uint8_t* self) {
+    const uint32_t me = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(self));
+    pk<uint32_t>(self, 0) = 0x00838220;  // ResourceManager vtable
+    const int32_t count = title_global<int32_t>(0x009719f8);
+    if (count < 0x14) {
+        title_global<uint32_t>(0x009719fc + static_cast<uint32_t>(count) * 4) = me;
+        ++title_global<int32_t>(0x009719f8);
+    }
+    pk<uint32_t>(self, 0) = 0x00832660;  // SpgManager vtable
+    for (int32_t i = 0; i < 0x20; ++i) {
+        pk<int32_t>(self, 4 + i * 12) = -1;
+        pk<uint32_t>(self, 12 + i * 12) = 0;
+    }
+    title_global<uint32_t>(0x00909940) = 0x002ae1b0;
+    return self;
+}
+
+void XB_CDECL Loc_AppendLanguageSuffix() {
+    if (title_global<uint8_t>(0x0098ad11)) return;
+    char* const name = &title_global<char>(0x0095f828);
+    uint8_t& length = title_global<uint8_t>(0x0095f847);
+    title_global<uint8_t>(0x0098ad11) = 1;
+    if (length < 0x1e) {
+        name[length] = '_';
+        ++length;
+        name[length] = 0;
+    }
+    int32_t current = length;
+    const char* language =
+        reinterpret_cast<const char*>(uintptr_t{title_global<uint32_t>(0x008d5a80 + title_global<uint32_t>(0x0095f5dc) * 4)});
+    Str_AppendBounded(name, &current, 0x1f, language);
+    length = static_cast<uint8_t>(current);
+}
+
+PLATFORM_ASM_ENTRY(Save_CheckVersion_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Save_CheckVersion) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t XB_CDECL Save_CheckVersion(const char* header) {
+    const char* date = reinterpret_cast<const char*>(uintptr_t{title_global<uint8_t>(0x0095e7f8) ? 0x0082ab00 : 0x0082aaf8});
+    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(header, date, 0x19))  // _strncmp
+        return 0;
+    const char* a = header + 0x3c0;
+    const char* b = reinterpret_cast<const char*>(uintptr_t{Save_GetData()});
+    for (;; ++a, ++b) {
+        if (*a != *b) return 0;
+        if (!*a) return 1;
+    }
+}
+
+void XB_STDCALL Profile_SumMissionStats(const int32_t* chapters, int32_t* out) {
+    int32_t sums[18] = {};
+    const int32_t unlocked = title_global<int32_t>(0x008dce44);  // g_chaptersUnlocked
+    if (unlocked >= 1) {
+        const int32_t count = title_global<uint8_t>(0x008dce54) ? 0xe : unlocked;
+        for (int32_t c = 0; c < count; ++c)
+            for (int32_t k = 0; k < 17; ++k) sums[k] += chapters[c * 18 + k];
+    }
+    std::memcpy(out, sums, sizeof sums);
+}
+
+void XB_THISCALL DynArray_PushBack24(DynArray* array, const uint32_t* value) {
+    if (array->size >= array->capacity) {
+        const uint32_t capacity = array->size + 4;
+        uint32_t* data = DynArray_Alloc24_FillUndefined(capacity, array->size + 1);
+        for (uint32_t i = 0; i < array->size; ++i)
+            for (int32_t k = 0; k < 6; ++k) data[i * 6 + k] = array->data[i * 6 + k];
+        if (array->data) Scr_Free(array->data);
+        array->data = data;
+        array->capacity = capacity;
+    }
+    uint32_t* slot = array->data + array->size * 6;
+    for (int32_t k = 0; k < 6; ++k) slot[k] = value[k];
+    ++array->size;
+}
+
+uint32_t* XB_STDCALL std_vector_UfillN4(uint32_t* dest, uint32_t count, const uint32_t* value) {
+    std_UninitializedFillN4(dest, count, value);
+    return dest + count;
+}
+
+uint32_t* XB_STDCALL std_list_BuyNodeKeyArray(uint32_t next, uint32_t prev, const uint32_t* value) {
+    uint32_t* node = Scr_Alloc(0x18, 4);
+    if (node) {
+        node[0] = next;
+        node[1] = prev;
+        node[2] = value[0];
+        node[3] = 0;
+        node[4] = 0;
+        node[5] = 0;
+        DynArray_Assign4(reinterpret_cast<DynArray*>(node + 3), reinterpret_cast<const DynArray*>(value + 1));
+    }
+    return node;
+}
+
 }  // namespace game

@@ -510,6 +510,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0011fd80,Vec3_Scale,3807,3807,0,0,100.0
 0017b630,std_Fill4,1354,1354,0,0,100.0
 0017b650,std_CopyBackward4,1897,1897,0,0,100.0
+0017cbe0,std_vector_UfillN4,1015,1015,0,0,100.0
 0017cd50,std_vector_Erase4,1223,1223,0,0,100.0
 001ef700,std_exception_Ctor,3801,3801,0,0,100.0
 001fa680,Actor_ForgetEnemyLastKnownTime,2698,2698,0,0,100.0
@@ -655,6 +656,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002a9b30,SkipWhitespace,3826,3826,0,0,100.0
 002a9cf0,Com_BeginParseSession,1947,1947,0,0,100.0
 002aa2f0,NET_AdrToString,4000,4000,0,0,100.0
+002aa480,MSG_ReadStringLine,1983,1983,0,0,100.0
 002aaa10,Cmd_ArgsFrom,2886,2886,0,0,96.2
 002aaac0,Cmd_Argc,4000,4000,0,0,100.0
 002aac40,Cmd_Wait_f,3998,3998,0,0,100.0
@@ -671,6 +673,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002acb40,CG_WeaponSlotFromName,3692,3692,0,0,100.0
 002aecd0,AnimTree_IsLeafOrSynced,2949,2949,0,0,100.0
 002aed00,AnimTree_SetSyncFlag_r,1434,1434,0,0,98.6
+002af930,Loc_ReadLine,3576,3576,0,0,66.0
 002afa40,Loc_IsGb2312Char,4000,4000,0,0,100.0
 002b00a0,Q_strcat,1264,1264,0,0,100.0
 002b00f0,Q_stricmp,3679,3679,0,0,100.0
@@ -704,10 +707,13 @@ address,name,tested,matched,nan,mismatched,coverage
 002b4d80,BG_GetWeaponSpread,1663,1663,0,0,60.7
 002b6ba0,S_ResumeAllChannels,1005,1005,0,0,100.0
 002b6be0,S_PauseAllChannels,1022,1022,0,0,100.0
+002b6fc0,SpgManager_Construct,2067,2067,0,0,100.0
 002b7010,Stream_LoadSpg,1692,1692,0,0,100.0
 002b78b0,vtos,2027,2027,0,0,100.0
 002b8200,SV_ConnectionlessPacket,3638,3638,0,0,100.0
+002b9080,Com_ParseOnLine,3501,3501,0,0,100.0
 002b96c0,PathNode_IsLinkInBadPlace,2554,2554,0,0,100.0
+002ba530,NET_OutOfBandPrint,1889,1889,0,0,100.0
 002bab30,CM_AdjustAreaPortalState,3979,3979,0,0,46.9
 002bfc10,Mat43_UntransformPoint,1831,1826,5,0,100.0
 002bffb0,SV_AdjustAreaPortalState,3057,3057,0,0,100.0
@@ -729,6 +735,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
 002f6840,AnimTree_FreeNotetracks,1745,1745,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
+0030c240,Save_CheckVersion,3813,3813,0,0,30.6
 0030cd70,FE_FormatPlayTime,2094,2094,0,0,87.2
 0030cdf0,FE_SplitPlayTime2,3316,3316,0,0,100.0
 0030d0b0,FE_FormatPlayTime2,1999,1999,0,0,87.2
@@ -742,6 +749,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00310520,UIQuad_SetVertexUVs,3479,3479,0,0,100.0
 00310560,UIQuad_PlaceScaled,3822,3822,0,0,100.0
 00310820,UIQuad_SetWipe,3824,3824,0,0,94.3
+00312e30,Profile_SumMissionStats,3758,3758,0,0,100.0
 00315360,UI_SetFontByName,3826,3826,0,0,100.0
 003158a0,UITextLine_Dtor,3013,3013,0,0,100.0
 003159c0,UITextBase_CopyFrom,2454,2454,0,0,100.0
