@@ -2053,6 +2053,166 @@ void XB_THISCALL FxOp1d5_Draw(uint8_t* node) {
 
 namespace {
 
+// What differs between the eight quad-particle draws: the record offsets and whether the op
+// has a texture atlas. Colour: the node's colour (+0x60) scaled by {1, 1, 1, alpha} (alpha
+// record offset) or by a record vector (colour_scale). Height scales the up axis, width the
+// right axis (the same offset when the quad is square).
+struct QuadOpLayout {
+    uint32_t vertex_shader, pixel_shader;
+    bool colour_scale;  // record +0x10 is a scale vector, else +0x10 is alpha alone
+    uint32_t direction, angle, height, width;
+    int32_t frame;  // atlas frame offset, -1: no atlas (the whole texture)
+};
+
+constexpr QuadOpLayout kFxOp53Quads = {0x0090a00c, 0x0090a014, false, 0x20, 0x14, 0x0c, 0x0c, -1};
+constexpr QuadOpLayout kFxOpddQuads = {0x00909fa0, 0x00909f9c, true, 0x30, 0x20, 0x24, 0x0c, -1};
+constexpr QuadOpLayout kFxOpd5Quads = {0x00909fd0, 0x00909fcc, false, 0x24, 0x14, 0x18, 0x0c, -1};
+constexpr QuadOpLayout kFxOp5bQuads = {0x00909ff0, 0x00909fec, true, 0x2c, 0x20, 0x0c, 0x0c, -1};
+constexpr QuadOpLayout kFxOp1ddQuads = {0x00909fb0, 0x00909fac, true, 0x34, 0x20, 0x24, 0x0c, 0x28};
+constexpr QuadOpLayout kFxOp9d5Quads = {0x00909fbc, 0x00909fc4, false, 0x28, 0x14, 0x18, 0x0c, 0x1c};
+constexpr QuadOpLayout kFxOp15bQuads = {0x00909fe0, 0x00909fdc, true, 0x30, 0x20, 0x0c, 0x0c, 0x24};
+constexpr QuadOpLayout kFxOpGridQuads = {0x0090a000, 0x00909ffc, false, 0x24, 0x14, 0x0c, 0x0c, 0x18};
+
+// The body the eight node Draw thunks share (one template instance each in the original). The
+// node comes through a pointer to the thunk's copy of it. Node flags (+0x7c): bit 0 camera-facing
+// axes, bit 1 axes from the direction and the line to the camera, else the op's direction frame
+// (+0x10); bit 3 fog. Each instance is one quad {centre +- up +- right} in the quad batch.
+uint8_t* current_scene() { return reinterpret_cast<uint8_t*>(title_global<uint32_t>(0x0090259c)); }
+
+void draw_op_quads(uint8_t* const* node_ref, const QuadOpLayout& layout) {
+    const uint8_t* op = at<const uint8_t*>(*node_ref, 0x80);
+    nglQuadBatch_SetMaterial(at<NglTexture*>(op, 0x30), at<uint32_t>(op, 0x34),
+                             static_cast<uint8_t>((at<uint32_t>(*node_ref, 0x7c) >> 3) & 1), 0);
+    // Constants 6..9: the scene's view * projection (+0x190), transposed.
+    const float* view_projection =
+        reinterpret_cast<const float*>(reinterpret_cast<const uint8_t*>(title_global<uint32_t>(0x0090259c)) + 0x190);
+    alignas(16) float transposed[16];
+    for (int r = 0; r < 4; ++r)
+        for (int k = 0; k < 4; ++k) transposed[r * 4 + k] = view_projection[k * 4 + r];
+    title_function<SetVertexConstants>(0x003e7490)(6, transposed, 0x10);  // NotInlineFast
+    // NV2A 0x358 from the scene (+0x380) without bit 24, no depth writes while drawing.
+    set_simple_state<uint32_t>(0x00902fa8, 0x00040358, at<uint32_t>(current_scene(), 0x380) & 0xfeffffffu);
+    const uint8_t saved_z_write = title_global<uint8_t>(0x00902f7c);
+    set_simple_state<uint8_t>(0x00902f7c, 0x0004035c, 0);
+    const uint8_t* scene = current_scene();
+    FxShader_SetFadeConstant(0xffffffaau, at<float>(scene, 0x388), at<float>(scene, 0x38c), at<float>(scene, 0x390),
+                             at<float>(scene, 0x394));
+    FxShader_SetDepthRangeConstant(0xffffffabu, at<float>(op, 0x38), at<float>(op, 0x3c));
+    nglSetVertexShaderCached(&title_global<NglShaderRef>(layout.vertex_shader));
+    nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(layout.pixel_shader));
+
+    const uint32_t flags = at<uint32_t>(*node_ref, 0x7c);
+    bool toward_camera = false;
+    alignas(16) float forward[4];  // the camera position when toward_camera
+    alignas(16) float right[4];
+    alignas(16) float up[4];
+    if (flags & 1) {
+        FxCamera_BillboardAxes(forward, right, up);
+    } else if (flags & 2) {
+        std::memcpy(forward, current_scene() + 0x250, 16);
+        toward_camera = true;
+    } else {
+        FxAxis_Frame(reinterpret_cast<const float*>(at<const uint8_t*>(*node_ref, 0x80) + 0x10), forward, right, up);
+    }
+
+    uint32_t count = at<uint32_t>(*node_ref, 0x74);
+    if (count == 0) return;
+    uint8_t* quad = nglQuadBatch_Reserve(static_cast<int32_t>(count));
+    if (!quad) return;
+    const uint32_t stride = at<uint32_t>(*node_ref, 0x78);
+    const uint8_t* instance = node_instances(*node_ref);
+    // The atlas (op +0x40 columns, +0x44 last frame, +0x48 cell width in u, +0x4c cell height in v).
+    float columns = 0.0f, last_frame = 0.0f, cell_u = 0.0f, cell_v = 0.0f;
+    if (layout.frame >= 0) {
+        const uint8_t* atlas_op = at<const uint8_t*>(*node_ref, 0x80);
+        columns = at<float>(atlas_op, 0x40);
+        last_frame = at<float>(atlas_op, 0x44);
+        cell_u = at<float>(atlas_op, 0x48);
+        cell_v = at<float>(atlas_op, 0x4c);
+    }
+    const float one = title_global<float>(0x0083eb20);
+    do {
+        const uint8_t* record = instance;
+        instance += stride;
+        alignas(16) float point[4];
+        std::memcpy(point, record, 16);
+        alignas(16) float centre_out[4];
+        const float* centre_ptr =
+            Mat44_TransformPoint(centre_out, reinterpret_cast<const float*>(*node_ref + 0x10), point);
+        const Lanes centre = lanes(centre_ptr);
+        alignas(16) float alpha_scale[4] = {one, one, one, at<float>(record, 0x10)};
+        const float* scale = layout.colour_scale ? reinterpret_cast<const float*>(record + 0x10) : alpha_scale;
+        const uint32_t argb = title_function<uint32_t XB_CDECL(const float*, const float*)>(0x000a7670)(
+            reinterpret_cast<const float*>(*node_ref + 0x60), scale);  // apsColor_PackScaled
+        Lanes up_axis, right_axis;
+        if (toward_camera) {
+            // Up along the record's direction; right across it and the line from the camera.
+            const Lanes d = sub(centre, lanes(forward));
+            const Lanes n = normalized(lanes(reinterpret_cast<const float*>(record + layout.direction)));
+            const Lanes a = mul(d, Lanes{{n.v[1], n.v[2], n.v[0], n.v[3]}});
+            const Lanes b = mul(Lanes{{d.v[1], d.v[2], d.v[0], d.v[3]}}, n);
+            const Lanes c = sub(a, b);
+            const Lanes cross = {{c.v[1], c.v[2], c.v[0], c.v[3]}};
+            up_axis = n;
+            right_axis = mul(normalized(cross), title_global<float>(0x00909984));
+        } else {
+            float sine, cosine;
+            apsSinCos(at<float>(record, layout.angle), &sine, &cosine);
+            up_axis = add(mul(lanes(up), cosine), mul(lanes(right), sine));
+            right_axis = sub(mul(lanes(right), cosine), mul(lanes(up), sine));
+        }
+        const Lanes height = mul(up_axis, at<float>(record, layout.height));
+        const Lanes width = mul(right_axis, at<float>(record, layout.width));
+        float u0 = 0.0f, v0 = 0.0f, u1 = one, v1 = one;
+        if (layout.frame >= 0) {
+            float frame = at<float>(record, static_cast<uint32_t>(layout.frame));
+            if (0.0f > frame) frame = 0.0f;
+            if (frame > last_frame) frame = last_frame;
+            const float row = static_cast<float>(static_cast<int32_t>(frame * cell_u));
+            const int32_t row_start = static_cast<int32_t>(row * columns);
+            v0 = row * cell_v;
+            u0 = static_cast<float>(static_cast<int32_t>(frame) - row_start) * cell_u;
+            u1 = u0 + cell_u;
+            v1 = v0 + cell_v;
+        }
+        const Lanes top = add(centre, height);
+        const Lanes bottom = sub(centre, height);
+        const Lanes corners[4] = {add(top, width), add(bottom, width), sub(top, width), sub(bottom, width)};
+        const float us[4] = {u0, u0, u1, u1};
+        const float vs[4] = {v0, v1, v0, v1};
+        for (int i = 0; i < 4; ++i) {
+            uint8_t* vertex = quad + i * 0x18;
+            std::memcpy(vertex, corners[i].v, 12);
+            at<uint32_t>(vertex, 0xc) = argb;
+            at<float>(vertex, 0x10) = us[i];
+            at<float>(vertex, 0x14) = vs[i];
+        }
+        quad += 0x60;
+    } while (--count != 0);
+    nglQuadBatch_Draw();
+    set_simple_state<uint32_t>(0x00902fa8, 0x00040358, at<uint32_t>(current_scene(), 0x380));
+    set_simple_state<uint8_t>(0x00902f7c, 0x0004035c, saved_z_write);
+}
+
+}  // namespace
+
+#define FX_OP_QUADS(name, layout)                                                     \
+    void XB_THISCALL name##Quads(uint8_t* const* node_ref) { draw_op_quads(node_ref, layout); } \
+    void XB_THISCALL name(uint8_t* node) { name##Quads(&node); }
+
+FX_OP_QUADS(FxOp53_Draw, kFxOp53Quads)
+FX_OP_QUADS(FxOpdd_Draw, kFxOpddQuads)
+FX_OP_QUADS(FxOpd5_Draw, kFxOpd5Quads)
+FX_OP_QUADS(FxOp5b_Draw, kFxOp5bQuads)
+FX_OP_QUADS(FxOp1dd_Draw, kFxOp1ddQuads)
+FX_OP_QUADS(FxOp9d5_Draw, kFxOp9d5Quads)
+FX_OP_QUADS(FxOp15b_Draw, kFxOp15bQuads)
+FX_OP_QUADS(FxOpGrid_Draw, kFxOpGridQuads)
+
+#undef FX_OP_QUADS
+
+namespace {
+
 void set_constant(uint32_t base, const float* v) {
     title_function<void XB_FASTCALL(uint32_t, const float*)>(0x003e7440)(base + 0x60, v);  // SetVertexShaderConstant1Fast
 }

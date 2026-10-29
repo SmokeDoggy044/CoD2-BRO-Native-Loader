@@ -333,6 +333,28 @@ uint32_t XB_THISCALL FxOp1d5_AddToList(const uint8_t* op, uint32_t a0, uint32_t 
 // texture-atlas cell from the frame (+0x1c) and the view angle around the particle.
 void XB_THISCALL FxOp31_Draw(uint8_t* node);
 void XB_THISCALL FxOp1d5_Draw(uint8_t* node);
+// 0x000a7920 / 0x000a8380 / 0x000aae80 / 0x000ac3a0 / 0x000a98a0 / 0x000aa370 / 0x000ab8e0 / 0x000a8da0:
+// FxOp53 / dd / d5 / 5b / 1dd / 9d5 / 15b / Grid node Draw (node vtables 0x007c733c, 0x007c7344,
+// 0x007c7abc, 0x007c7fbc, 0x007c75c4, 0x007c783c, 0x007c7d3c, 0x007c75bc): thunks handing a pointer
+// to their copy of the node to the *Quads bodies (+0x10 each). One quad per instance in the quad
+// batch: camera-facing, direction + camera line, or the op's direction frame, rotated by the
+// record's angle; the last four pick a texture-atlas cell by the record's frame.
+void XB_THISCALL FxOp53_Draw(uint8_t* node);
+void XB_THISCALL FxOp53_DrawQuads(uint8_t* const* node_ref);
+void XB_THISCALL FxOpdd_Draw(uint8_t* node);
+void XB_THISCALL FxOpdd_DrawQuads(uint8_t* const* node_ref);
+void XB_THISCALL FxOpd5_Draw(uint8_t* node);
+void XB_THISCALL FxOpd5_DrawQuads(uint8_t* const* node_ref);
+void XB_THISCALL FxOp5b_Draw(uint8_t* node);
+void XB_THISCALL FxOp5b_DrawQuads(uint8_t* const* node_ref);
+void XB_THISCALL FxOp1dd_Draw(uint8_t* node);
+void XB_THISCALL FxOp1dd_DrawQuads(uint8_t* const* node_ref);
+void XB_THISCALL FxOp9d5_Draw(uint8_t* node);
+void XB_THISCALL FxOp9d5_DrawQuads(uint8_t* const* node_ref);
+void XB_THISCALL FxOp15b_Draw(uint8_t* node);
+void XB_THISCALL FxOp15b_DrawQuads(uint8_t* const* node_ref);
+void XB_THISCALL FxOpGrid_Draw(uint8_t* node);
+void XB_THISCALL FxOpGrid_DrawQuads(uint8_t* const* node_ref);
 
 // 0x0009db30 / 0x0009dbb0: vertex shader constant base + 0x60: a distance fade {scale, offset}
 // from near/far distances and alphas (range 1 when equal) / a depth range {1/(f-n), -n/(f-n)}

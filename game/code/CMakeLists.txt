@@ -41,6 +41,8 @@ set(game_code_sources
     ngl_debug.cpp
     param_set.cpp
     qcommon.cpp
+    qcommon_core.cpp
+    qcommon_fs.cpp
     r_init.cpp
     r_static_init.cpp
     script_string.cpp
@@ -52,8 +54,8 @@ set(game_code_sources
     ui_menu.cpp
     ui_panel.cpp
     unzip.cpp
-    zlib.cpp
     xanim.cpp
+    zlib.cpp
 )
 # Linux loader builds: a shared library, so that the comparison harness can tell this
 # code apart from the loader's (its test processes keep only this library, the C
