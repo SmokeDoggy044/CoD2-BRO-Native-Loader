@@ -4,6 +4,7 @@
 
 #include "lanes.h"
 #include "qcommon.h"
+#include "r_init.h"
 #include "snd.h"
 #include "title_data.h"
 
@@ -2185,6 +2186,157 @@ void XB_CDECL File_Close(int32_t handle) {
         --word_at(parent, 0x10);
         handle = static_cast<int32_t>(word_at(record, 8));
     }
+}
+
+namespace {
+
+uint32_t addr32(const void* p) {
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p));
+}
+
+
+uint8_t* manager_deleting_dtor(uint8_t* self, uint32_t vtable, uint32_t flags) {
+    if (vtable) word_at(self, 0) = vtable;
+    ResourceManager_Destruct(self);
+    if (flags & 1) Z_Free(self);
+    return self;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL ResourceManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0, flags);
+}
+
+uint8_t* XB_THISCALL AnimTreeManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083261c, flags);
+}
+
+uint8_t* XB_THISCALL SpgManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x00832660, flags);
+}
+
+uint8_t* XB_THISCALL DlgManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x00837728, flags);
+}
+
+uint8_t* XB_THISCALL LocStringManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083765c, flags);
+}
+
+uint8_t* XB_THISCALL DbManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x008376a0, flags);
+}
+
+uint8_t* XB_THISCALL CfgstrManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x00837618, flags);
+}
+
+uint8_t* XB_THISCALL ModelManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083be8c, flags);
+}
+
+uint8_t* XB_THISCALL XmpbManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083bea4, flags);
+}
+
+uint8_t* XB_THISCALL AitbManager_DeletingDtor(uint8_t* self, uint32_t flags) {
+    return manager_deleting_dtor(self, 0x0083ce3c, flags);
+}
+
+uint8_t* XB_THISCALL HeapAllocator_DeletingDtor(uint8_t* self, uint32_t flags) {
+    uint8_t* const block = pointer_at<uint8_t>(self, 4);
+    word_at(self, 0) = 0x008376c4;  // HeapAllocator vtable
+    Z_Free(block);
+    word_at(self, 0) = 0x0083760c;  // base allocator vtable
+    if (flags & 1) Z_Free(self);
+    return self;
+}
+
+uint8_t* XB_THISCALL ProfileSave_DeletingDtor(uint8_t* self, uint32_t flags) {
+    title_function<void XB_THISCALL(uint8_t*)>(0x003124f0)(self);  // ProfileSave_Dtor
+    if (flags & 1) Z_Free(self);
+    return self;
+}
+
+void* XB_STDCALL AlignedAllocator_Alloc(uint32_t size, uint32_t alignment) {
+    if (!size) return nullptr;
+    return Mem_AlignedAlloc(size, alignment, 0);
+}
+
+namespace {
+
+char* printf_with_length(char* buffer, uint32_t last, const char* format, void* args) {
+    buffer[last] = 0;
+    buffer[0] = 0;
+    title_function<int32_t XB_CDECL(char*, const char*, void*)>(0x001eea95)(buffer, format, args);  // _vsprintf
+    buffer[last] = static_cast<char>(std::strlen(buffer));
+    return buffer;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(ShortString_Printf_entry,
+                   "leal 8(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ShortString_Printf) "addl $12, %esp\n"
+                   "ret")
+
+char* XB_CDECL ShortString_Printf(char* buffer, const char* format, void* args) {
+    return printf_with_length(buffer, 0x7f, format, args);
+}
+
+PLATFORM_ASM_ENTRY(FixedStr64_Printf_entry,
+                   "leal 8(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FixedStr64_Printf) "addl $12, %esp\n"
+                   "ret")
+
+char* XB_CDECL FixedStr64_Printf(char* buffer, const char* format, void* args) {
+    return printf_with_length(buffer, 0x3f, format, args);
+}
+
+void XB_THISCALL std_vector_Tidy4(uint8_t* vector) {
+    uint8_t* const data = pointer_at<uint8_t>(vector, 4);
+    if (data) Z_Free(data);
+    word_at(vector, 4) = 0;
+    word_at(vector, 8) = 0;
+    word_at(vector, 0xc) = 0;
+}
+
+namespace {
+
+void list_clear(uint8_t* list) {
+    uint8_t* const head = pointer_at<uint8_t>(list, 4);
+    uint8_t* node = pointer_at<uint8_t>(head, 0);
+    word_at(head, 0) = addr32(head);
+    uint8_t* const head2 = pointer_at<uint8_t>(list, 4);
+    word_at(head2, 4) = addr32(head2);
+    const bool empty = node == pointer_at<uint8_t>(list, 4);
+    word_at(list, 8) = 0;
+    if (empty) return;
+    for (;;) {
+        uint8_t* const next = pointer_at<uint8_t>(node, 0);
+        Z_Free(node);
+        node = next;
+        if (next == pointer_at<uint8_t>(list, 4)) return;
+    }
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(std_list_Clear_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_list_Clear) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL std_list_Clear(uint8_t* list) {
+    list_clear(list);
+}
+
+void XB_THISCALL std_list_Clear_2(uint8_t* list) {
+    list_clear(list);
 }
 
 }  // namespace game

@@ -385,4 +385,40 @@ void XB_CDECL File_AbortRequestsForFile(uint32_t file);
 // handle freed; an alias drops a reference of its file (+8) and closes that one in turn.
 void XB_CDECL File_Close(int32_t handle);
 
+// Manager deleting destructors (vtable slot 0): the class vtable (none for the base), ResourceManager_Destruct,
+// Z_Free with flags bit 0; return the manager. 0x00024eb0 ResourceManager, 0x0001ebd0 AnimTree, 0x0001ed20 Spg,
+// 0x000242c0 Dlg, 0x00024490 LocString, 0x000245d0 Db, 0x00024600 Cfgstr, 0x00029960 Model, 0x00029990 Xmpb,
+// 0x0002bf50 Aitb.
+uint8_t* XB_THISCALL ResourceManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AnimTreeManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL SpgManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL DlgManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL LocStringManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL DbManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL CfgstrManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL ModelManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL XmpbManager_DeletingDtor(uint8_t* self, uint32_t flags);
+uint8_t* XB_THISCALL AitbManager_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00024400: Z_Free of the block (+4) under the HeapAllocator vtable, then the base vtable 0x0083760c and
+// Z_Free of the allocator with flags bit 0.
+uint8_t* XB_THISCALL HeapAllocator_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00013840: ProfileSave_Dtor (0x003124f0), then Z_Free with flags bit 0.
+uint8_t* XB_THISCALL ProfileSave_DeletingDtor(uint8_t* self, uint32_t flags);
+// 0x00094120 (slot 1 of the aligned allocator table 0x007c4d90; this unused): 0 for size 0, else
+// Mem_AlignedAlloc(size, alignment, 0).
+void* XB_STDCALL AlignedAllocator_Alloc(uint32_t size, uint32_t alignment);
+// 0x00013940 / 0x00029680 (buffer in ESI, varargs): _vsprintf into a 128 / 64-byte string whose last byte
+// holds the length (cleared first, with the first byte); returns the buffer.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL ShortString_Printf(char* buffer, const char* format, void* args);
+extern "C" void ShortString_Printf_entry(void);
+extern "C" PLATFORM_HIDDEN char* XB_CDECL FixedStr64_Printf(char* buffer, const char* format, void* args);
+extern "C" void FixedStr64_Printf_entry(void);
+// 0x00028ad0: vector tidy - Z_Free of the data (+4) when set, +4/+8/+0xc cleared.
+void XB_THISCALL std_vector_Tidy4(uint8_t* vector);
+// 0x00015810 (list in ESI) / 0x00028b00 (list in ECX): the head (+4) linked to itself, size (+8) 0, then
+// every old node freed (Z_Free) up to the head.
+extern "C" PLATFORM_HIDDEN void XB_CDECL std_list_Clear(uint8_t* list);
+extern "C" void std_list_Clear_entry(void);
+void XB_THISCALL std_list_Clear_2(uint8_t* list);
+
 }  // namespace game
