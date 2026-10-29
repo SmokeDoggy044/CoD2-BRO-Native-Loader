@@ -285,3 +285,7 @@ address,name,kind,reason
 000cb780,FileDevice_AlignTransfer,host,"XAPI device layer; our own engine replaces it, not decompiled (2026-10-28)"
 000d1500,Save_CalculateSignature,host,"XCalculateSignature* save signing; not decompiled (2026-10-28)"
 0011fd80,Vec3_Scale,dead,"no CALL/JMP or immediate (xbefind); C kept, offline 3807/3807 (2026-10-28)"
+0029fcc0,Cvar_Reset_f,crash,"untestable: the original crashes - Cvar_Set2(name, NULL, 0) takes strlen(value) at 0x0029c052; C kept (2026-10-28)"
+00297840,Vec3Distance,dead,"no CALL/JMP or pointer (xbefind); C kept (2026-10-28)"
+002a9570,Q_strncmp,dead,"no CALL/JMP or pointer (xbefind); C kept, offline 3638/3638 (2026-10-28)"
+00297b90,FS_FilesAreEqual,dead,"uncreated gap function (opens two files rb, compares sizes and bytes); no CALL/JMP or pointer, no C (2026-10-28)"
