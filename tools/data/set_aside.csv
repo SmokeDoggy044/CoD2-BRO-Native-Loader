@@ -323,3 +323,6 @@ address,name,kind,reason
 002fdef0,IntHashMap_EraseByString,dead,"no CALL/JMP or immediate; C kept (2026-10-29)"
 002a2560,Vec3_RotateByAngles,dead,"no CALL/JMP or immediate; no C (2026-10-29)"
 0029e8d0,Com_Freeze_f,debug,"developer freeze command: spins on Com_Milliseconds, inconclusive in test processes; C kept (2026-10-29)"
+00093a10,Sys_GetStackBounds,boot,"called only from Anim_InitManagers; probes the stack with XQueryMemoryProtect (2026-10-29)"
+0001fa20,HandleTable512_ReportFull,debug,"only when the table is full: reports entries, then Sys_DebugBreak; not decompiled (2026-10-29)"
+000299c0,EntHandleTable_ReportFull,debug,"only when the table is full: reports entries, then Sys_DebugBreak; not decompiled (2026-10-29)"

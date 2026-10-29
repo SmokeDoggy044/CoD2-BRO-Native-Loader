@@ -182,7 +182,7 @@
 000152b0 BitSet256_NextSet
 000153b0 std_string_CtorCStr
 000153f0 std_string_Copy
-00015540 FUN_00015540
+00015540 std_list_BuyHeadNameMap
 000155d0 std_list_BuyNodeNameMap
 00015650 std_vector_ConstructN4Z
 000156f0 std_vector_Xlen_2
@@ -499,7 +499,7 @@
 0001f500 std_set_string_Find
 0001f560 std_tree_InsertUnique29
 0001f740 SoundBankSlot_Copy
-0001f810 FUN_0001f810
+0001f810 std_map_string_DestroyValue
 0001f880 std_string_AppendNChar
 0001f950 std_string_Find
 0001fa20 HandleTable512_ReportFull
@@ -601,7 +601,7 @@
 00023900 ResourceManager_CreateModels
 00023960 ResourceManager_CreateXmpb
 000239c0 ResourceManager_CreateLgrid
-00023a20 FUN_00023a20
+00023a20 ResourceManager_CreateLevel
 00023a70 FXCmd_InitPlacement
 00023ad0 FUN_00023ad0
 00023b20 ParamSet_AddFxOverrides
@@ -711,8 +711,8 @@
 00028780 HashMap_Insert_10
 000289c0 UintHashMap_Find
 00028a50 std_vector_Resize4_8
-00028ad0 FUN_00028ad0
-00028b00 FUN_00028b00
+00028ad0 std_vector_Tidy4
+00028b00 std_list_Clear_2
 00028b40 std_list_IncSize_4
 00028bd0 FUN_00028bd0
 00028c70 std_vector_InsertN4_8
@@ -2093,7 +2093,8 @@
 00093f10 HashStrMap_Find
 00094010 HashStrMap_Clear
 00094070 ShaderCache_Init
-00094120 apsAlloc
+00094100 AlignedAllocator_DeletingDtor
+00094120 AlignedAllocator_Alloc
 00094140 Mem_AlignedFreeCall
 00094150 FxNull_Query
 00094160 FxShaderClass_Create
