@@ -59,6 +59,7 @@
 #include "compiler.h"
 #include "float_env.h"
 #include "hooks.h"
+#include "release_map.h"
 #include "log.h"
 
 namespace loader::compare {
@@ -2513,13 +2514,18 @@ void install(std::span<const game::Function> functions, const Config& config) {
             g_sdk_names.push_back("(result)");
         }
     }
-    int replaced = 0, settled = 0;
+    int replaced = 0, settled = 0, kept_original = 0;
     const std::map<uint32_t, Row> earlier =
         config.enabled && config.enough_matches ? read_rows(config.results) : std::map<uint32_t, Row>{};
     for (const game::Function& function : functions) {
         const uint32_t address = config.multiplayer ? function.multiplayer : function.campaign;
         if (!address) continue;
         if (function.status == game::Status::Replaced) {
+            // The C uses the supported build's addresses throughout: another release keeps the original.
+            if (!release_map().identity()) {
+                ++kept_original;
+                continue;
+            }
             install_jump(address, function.code);
             g_replaced.push_back(&function);
             ++replaced;
@@ -2606,6 +2612,9 @@ void install(std::span<const game::Function> functions, const Config& config) {
     } else if (replaced) {
         LOG_INFO("compare", "%d decompiled functions replace the originals", replaced);
     }
+    if (kept_original)
+        LOG_INFO("compare", "another release of the game: its own code runs (%d decompiled functions are for the supported one)",
+                 kept_original);
 }
 
 namespace {
