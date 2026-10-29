@@ -50,9 +50,9 @@ European French/Spanish/Italian disc) are found through a release map (see
 [Tools](#tools)). The Windows version is tested on Windows and under Wine. Details
 and next steps: [docs/status.md](docs/status.md).
 
-> **This branch (`renderer`) is in progress:** it brings the decompiled code into
-> the loader. The switch from the original renderer to the rewritten one is being
-> prepared here and is not in a release yet.
+> **This branch (`beta`) is where rewritten modules are staged:** it brings the
+> decompiled code into the loader, one module at a time (the renderer first, then
+> others such as audio). Nothing here is in a release yet.
 
 ### The rewritten renderer
 
