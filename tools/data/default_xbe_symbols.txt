@@ -129,7 +129,7 @@
 00013c60 AnglesToForward
 00013ce0 AnglesToRightNoPitch
 00013d90 std_exception_CtorString
-00013df0 FUN_00013df0
+00013df0 KeyList_Contains
 00013e30 Vec3_IsNonZero
 00013e70 Scr_Length
 00013ea0 Scr_LengthSquared
@@ -477,8 +477,8 @@
 0001ec40 FUN_0001ec40
 0001ec70 IN_JoyApplyThreshold
 0001ed20 SpgManager_DeletingDtor
-0001ed50 FUN_0001ed50
-0001edb0 FUN_0001edb0
+0001ed50 SoundBankTable_Init
+0001edb0 Array48_GetOrFirst
 0001edd0 std_string_AssignCStr
 0001edf0 std_string_AppendCStr
 0001ee70 HandleTable512_Alloc
@@ -498,7 +498,7 @@
 0001f460 std_set_string_Subscript
 0001f500 std_set_string_Find
 0001f560 std_tree_InsertUnique29
-0001f740 FUN_0001f740
+0001f740 SoundBankSlot_Copy
 0001f810 FUN_0001f810
 0001f880 std_string_AppendNChar
 0001f950 std_string_Find
@@ -545,15 +545,15 @@
 00021ee0 FUN_00021ee0
 00021f80 std_set_string_BuyNode
 00022010 std_tree_Erase29
-00022300 FUN_00022300
-000223b0 FUN_000223b0
+00022300 std_tree_LowerBound29
+000223b0 std_tree_UpperBound29
 00022460 FUN_00022460
 00022500 std_tree_Dec29
 00022560 std_tree_NodeCtor29
-000225e0 FUN_000225e0
-00022600 FUN_00022600
-00022620 FUN_00022620
-00022640 FUN_00022640
+000225e0 std_map_string_Max
+00022600 std_map_string_Min
+00022620 std_set_string_Max
+00022640 std_set_string_Min
 00022660 std_set_string_Dec
 000226c0 std_set_string_Inc
 00022720 std_map_string_Dec
@@ -638,7 +638,7 @@
 000248f0 FUN_000248f0
 00024940 ParamChoice_GetValue
 000249a0 StringMap_Find
-00024a30 FUN_00024a30
+00024a30 LoadBits_Progress
 00024b90 Stream_UnrelocateZone
 00024c10 Stream_RelocateZone
 00024cb0 Stream_BoundsContainPoint
@@ -681,7 +681,7 @@
 00025f70 S_PlayLocalSoundByHash
 00026050 NameTable12_FindFrom1
 000260d0 Mat44_FromRows
-000261d0 FUN_000261d0
+000261d0 BlockTail80_Clear
 000262a0 Quat_FromAxis3
 000264d0 G_NotifyWithEntity_2
 000265a0 G_NotifyWithEntity
@@ -1156,7 +1156,7 @@
 000423ad FUN_000423ad
 00042460 Sys_DebugBreak
 00042470 Heap_Init
-00042560 FUN_00042560
+00042560 Heap_DetachRegion
 00042680 Heap_Free
 00042710 Heap_FreeIn
 00042740 Heap_InitDefaultHeaps
@@ -2071,7 +2071,7 @@
 00092f80 NAL_EntropyMode3D
 000930b0 NAL_IK_TwoBoneAngles
 00093250 NAL_IK_BuildChainMatrices
-000938f0 FUN_000938f0
+000938f0 Mem_SetAllocatorHooks
 00093950 Mem_AlignedAlloc
 000939b0 Mem_AlignedFree
 000939f0 nglGetFreeMemory
