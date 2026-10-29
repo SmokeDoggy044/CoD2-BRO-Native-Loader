@@ -14232,3 +14232,7 @@ address,name,kind,confidence,evidence
 000261d0,BlockTail80_Clear,function,medium,"qcommon push low half: named from the body during decompile (2026-10-28)"
 00042560,Heap_DetachRegion,function,medium,"qcommon push low half: named from the body during decompile (2026-10-28)"
 000938f0,Mem_SetAllocatorHooks,function,medium,"qcommon push low half: named from the body during decompile (2026-10-28)"
+00297470,AngleNormalize180Quantized,function,medium,"qcommon push high half: named from the body during decompile (2026-10-28)"
+0029a020,AngleDeltaQuantized,function,medium,"qcommon push high half: named from the body during decompile (2026-10-28)"
+0029ea20,Bounds_AddPointSimd,function,medium,"qcommon push high half: named from the body during decompile (2026-10-28)"
+002a2c40,vectoangles_ToOut,function,medium,"qcommon push high half: named from the body during decompile (2026-10-28)"

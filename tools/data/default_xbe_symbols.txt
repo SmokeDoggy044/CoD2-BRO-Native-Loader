@@ -8988,7 +8988,7 @@
 002970c0 Com_AddStartupCommands
 002971a0 Com_Memset
 00297280 Com_Filter
-00297470 FUN_00297470
+00297470 AngleNormalize180Quantized
 002974a0 Q_fmod
 00297500 MatrixInverse43
 002975c0 VectorNormalize2
@@ -9041,7 +9041,7 @@
 00299cc0 Com_FilterPath
 00299d50 PlaneFromPoints
 00299f00 RadiusFromBounds
-0029a020 FUN_0029a020
+0029a020 AngleDeltaQuantized
 0029a060 AnglesNormalize180
 0029a230 PerpendicularVector
 0029a430 FX_AxesFromForward
@@ -9095,7 +9095,7 @@
 0029e700 CG_ShellShock_ParseParams
 0029e8d0 Com_Freeze_f
 0029e930 Com_StartupVariable
-0029ea20 FUN_0029ea20
+0029ea20 Bounds_AddPointSimd
 0029ea50 FS_AddGameDirectories
 0029ea80 FS_ListFilteredFiles
 0029ed00 Scr_PruneEntityWaitLists
@@ -9128,7 +9128,7 @@
 002a26a0 MatrixToAngles
 002a27f0 AxisToAngles
 002a2af0 AnglesToAxis
-002a2c40 FUN_002a2c40
+002a2c40 vectoangles_ToOut
 002a2c80 RotatePointAroundVector
 002a3180 Vec3NormalizeSimd
 002a3240 Vec4Normalize
