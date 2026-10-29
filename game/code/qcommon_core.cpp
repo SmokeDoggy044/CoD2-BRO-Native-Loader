@@ -1972,4 +1972,219 @@ void XB_THISCALL SmallHeap_Free(uint8_t* heap, uint8_t* mem) {
     Z_Free(mem);
 }
 
+namespace {
+
+constexpr uint32_t kDevicePool = 0x009207c0;
+
+bool file_threaded() { return title_global<int32_t>(0x008bfd80) == 1; }
+
+void file_lock() {
+    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x001e86ab)(title_global<uint32_t>(0x00920784),  // WaitForSingleObject
+                                                                       0xffffffffu);
+}
+
+void file_release() { title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e85f5)(title_global<uint32_t>(0x00920784)); }  // ReleaseMutex
+
+uint8_t* file_record(int32_t handle) {
+    const int32_t index = HandlePool_Resolve(pool_at(kFilePool), handle);
+    return index == -1 ? nullptr : title_global<uint8_t*>(0x00920820) + index * 36;
+}
+
+uint8_t* file_request(int32_t handle) {
+    const int32_t index = HandlePool_Resolve(pool_at(kRequestPool), handle);
+    return index == -1 ? nullptr : title_global<uint8_t*>(0x00920810) + index * 0x44;
+}
+
+uint8_t* file_device(uint32_t handle) {
+    const int32_t index = HandlePool_Resolve(pool_at(kDevicePool), static_cast<int32_t>(handle));
+    return index == -1 ? nullptr : title_global<uint8_t*>(0x0092081c) + index * 16;
+}
+
+void pump_requests() { title_function<void XB_CDECL()>(0x000ca690)(); }  // File_PumpRequests
+
+template <typename F>
+F* driver_op(const uint8_t* driver, uint32_t table, uint32_t slot) {
+    return reinterpret_cast<F*>(uintptr_t{word_at(pointer_at<const uint8_t>(driver, table), slot)});
+}
+
+}  // namespace
+
+void XB_CDECL File_SetDevicePriority(uint32_t device, uint32_t priority) {
+    uint8_t* const record = file_device(device ? device : title_global<uint32_t>(0x008bfd6c));
+    if (!record) return;
+    if (file_threaded()) file_lock();
+    word_at(record, 0xc) = priority;
+    int32_t next = HandlePool_First(pool_at(kRequestPool));
+    while (next != -1) {
+        const int32_t handle = next;
+        next = HandlePool_Next(pool_at(kRequestPool), handle);
+        uint8_t* const request = file_request(handle);
+        if (word_at(request, 8) == device)
+            word_at(request, 0x20) = (word_at(request, 0x20) & 0xff) | (priority << 8);
+    }
+    if (file_threaded()) file_release();
+}
+
+int32_t XB_CDECL File_Open(uint32_t bit, const char* path, uint32_t mode, uint32_t* size) {
+    char name[0x100];
+    const int32_t device = File_FindDeviceForBit(0, 0, bit);
+    if (device == -1) return -1;
+    const uint8_t* const driver = title_global<const uint8_t* const*>(0x008bfe80)[device];
+    if (!driver) return -1;
+    using Resolve = int32_t XB_CDECL(uint32_t, const char*, char*, uint32_t);
+    if (driver_op<Resolve>(driver, 8, 4)(bit, path, name, 0x100)) return -1;
+    if (file_threaded()) file_lock();
+    const int32_t handle = HandlePool_Alloc(&title_global<uint8_t>(kFilePool));
+    if (handle == -1) {
+        if (file_threaded()) file_release();
+        return -1;
+    }
+    uint8_t* const record = file_record(handle);
+    word_at(record, 0x20) = 0;
+    word_at(record, 0x10) = 0;
+    word_at(record, 0xc) = mode;
+    word_at(record, 8) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(driver));
+    word_at(record, 4) = bit;
+    uint8_t* const data = File_GetDriverData(handle);
+    const uint32_t hint = size ? *size : 0;
+    using OpenOp = int32_t XB_CDECL(uint8_t*, const char*, uint32_t, uint32_t);
+    using SizeOp = int32_t XB_CDECL(uint8_t*, uint32_t*);
+    uint32_t info[2] = {0, 0};
+    if (driver_op<OpenOp>(driver, 0xc, 8)(data, name, mode, hint) || driver_op<SizeOp>(driver, 0xc, 0x10)(data, info)) {
+        if (file_threaded()) file_release();
+        HandlePool_Free(&title_global<uint8_t>(kFilePool), handle);
+        return -1;
+    }
+    const uint32_t file_size = info[1];
+    if (size) *size = file_size;
+    word_at(record, 0) = file_size;
+    File_UnlockMutex();
+    return handle;
+}
+
+int32_t XB_CDECL File_OpenRead(uint32_t bit, const char* path) { return File_Open(bit, path, 1, nullptr); }
+
+int32_t XB_CDECL File_OpenReadEx(uint32_t bit, const char* path, uint32_t* size) { return File_Open(bit, path, 1, size); }
+
+void XB_CDECL File_SetRequestPriority(int32_t handle, uint32_t priority) {
+    if (file_threaded()) file_lock();
+    uint8_t* const request = file_request(handle);
+    if (request) word_at(request, 0x20) = (word_at(request, 0x20) & 0xff00) | priority;
+    if (file_threaded()) file_release();
+}
+
+int32_t XB_CDECL File_QueueRead(const uint32_t* desc) {
+    if (!file_record(static_cast<int32_t>(desc[0]))) return -1;
+    const uint8_t* const device = file_device(desc[1] ? desc[1] : title_global<uint32_t>(0x008bfd6c));
+    if (!device) return -1;
+    if (file_threaded()) file_lock();
+    const int32_t handle = HandlePool_Alloc(&title_global<uint8_t>(kRequestPool));
+    if (handle == -1) {
+        if (file_threaded()) file_release();
+        return -1;
+    }
+    uint8_t* const request = file_request(handle);
+    word_at(request, 4) = desc[3];
+    word_at(request, 0xc) = desc[0];
+    word_at(request, 8) = desc[1];
+    word_at(request, 0x20) = (word_at(device, 0xc) << 8) | desc[4];
+    word_at(request, 0x10) = desc[2];
+    word_at(request, 0x14) = desc[9];
+    const uint32_t now = Snd_UpdateTime();
+    word_at(request, 0x18) = now;
+    word_at(request, 0x1c) = desc[8] ? desc[8] + now : 0x7fffffffu;
+    word_at(request, 0x30) = now;
+    word_at(request, 0x2c) = 0;
+    word_at(request, 0x24) = desc[6];
+    word_at(request, 0x28) = desc[7];
+    word_at(request, 0) = desc[5];
+    word_at(request, 0x34) = 0;
+    if (file_threaded()) {
+        file_release();
+        if (file_threaded()) title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e857d)(title_global<uint32_t>(0x00920788));  // SetEvent
+    }
+    return handle;
+}
+
+void XB_CDECL File_AbortRequest(int32_t handle) {
+    if (file_threaded()) file_lock();
+    uint8_t* const request = file_request(handle);
+    if (request) {
+        const uint32_t state = word_at(request, 0x2c);
+        if (state == 1) word_at(request, 0x2c) = 3;
+        else if (state != 3) word_at(request, 0x2c) = 4;
+    }
+    if (file_threaded()) file_release();
+}
+
+uint32_t XB_CDECL File_Exists(uint32_t bit, const char* path) {
+    const int32_t handle = File_OpenRead(bit, path);
+    File_Close(handle);
+    return handle != -1;
+}
+
+int32_t XB_CDECL File_QueueRequestEx(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size, uint32_t arg5) {
+    const uint32_t desc[10] = {file, 0, arg5, 0, 2, buffer, offset, size, 0, 0};
+    return File_QueueRead(desc);
+}
+
+int32_t XB_CDECL File_QueueRequest(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size) {
+    const uint32_t desc[10] = {file, 0, 0, 0, 2, buffer, offset, size, 0, 0};
+    return File_QueueRead(desc);
+}
+
+int32_t XB_CDECL File_QueueRequestAlt(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size) {
+    const uint32_t desc[10] = {file, 0, 0, 1, 2, buffer, offset, size, 0, 0};
+    return File_QueueRead(desc);
+}
+
+int32_t XB_CDECL File_ReadAt(uint32_t file, uint32_t buffer, uint32_t offset, uint32_t size) {
+    const int32_t handle = File_QueueRequest(file, buffer, offset, size);
+    if (handle == -1) return -1;
+    pump_requests();
+    for (;;) {
+        const int32_t status = File_GetRequestStatus(handle);
+        if (status == -1) return static_cast<int32_t>(size);
+        if (status == 3) {
+            File_AbortRequest(handle);
+            return 0;
+        }
+        pump_requests();
+    }
+}
+
+void XB_CDECL File_AbortRequestsForFile(uint32_t file) {
+    int32_t next = HandlePool_First(pool_at(kRequestPool));
+    if (next == -1) return;
+    do {
+        const int32_t handle = next;
+        const uint8_t* const request = file_request(handle);
+        next = HandlePool_Next(pool_at(kRequestPool), handle);
+        if (word_at(request, 0xc) == file) File_AbortRequest(handle);
+    } while (next != -1);
+}
+
+void XB_CDECL File_Close(int32_t handle) {
+    for (;;) {
+        uint8_t* const record = file_record(handle);
+        if (!record) return;
+        File_AbortRequestsForFile(static_cast<uint32_t>(handle));
+        const uint32_t kind = word_at(record, 0x20);
+        if (kind == 0) {
+            if (word_at(record, 0x10)) return;
+            const uint8_t* const driver = pointer_at<const uint8_t>(record, 8);
+            using CloseOp = void XB_CDECL(uint8_t*);
+            CloseOp* const close = driver_op<CloseOp>(driver, 0xc, 0xc);
+            close(File_GetDriverData(handle));
+            HandlePool_Free(&title_global<uint8_t>(kFilePool), handle);
+            return;
+        }
+        if (kind != 1) return;
+        // An alias: drop a reference of the file it shares (+8), then close that one.
+        uint8_t* const parent = file_record(static_cast<int32_t>(word_at(record, 8)));
+        --word_at(parent, 0x10);
+        handle = static_cast<int32_t>(word_at(record, 8));
+    }
+}
+
 }  // namespace game
