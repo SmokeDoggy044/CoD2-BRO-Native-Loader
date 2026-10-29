@@ -484,6 +484,10 @@ address,name,tested,matched,nan,mismatched,coverage
 0011b470,Scr_IntToFloat,3839,3839,0,0,100.0
 0011d730,ScriptString_FindLast,3118,3118,0,0,98.2
 0011d7a0,ScriptString_SetChar,3686,3686,0,0,100.0
+0017b630,std_Fill4,1354,1354,0,0,100.0
+0017b650,std_CopyBackward4,1897,1897,0,0,100.0
+0017cd50,std_vector_Erase4,1223,1223,0,0,100.0
+001ef700,std_exception_Ctor,3801,3801,0,0,100.0
 001fa680,Actor_ForgetEnemyLastKnownTime,2698,2698,0,0,100.0
 001fb460,Actor_CriticalSection_Start,3814,3814,0,0,100.0
 001fb4e0,BadPlace_FindByName,3666,3666,0,0,82.6
@@ -593,6 +597,12 @@ address,name,tested,matched,nan,mismatched,coverage
 002a8a40,COM_SkipPath,3816,3816,0,0,100.0
 002a8e40,G_EntList190_Disable,3200,3200,0,0,94.4
 002a9610,Char_IsDigit,4000,4000,0,0,100.0
+002a96c0,FloatSwap,4000,4000,0,0,100.0
+002a9700,Long64NoSwap,4000,4000,0,0,100.0
+002a9710,Long64Swap,4000,4000,0,0,100.0
+002a9780,LongSwap,4000,4000,0,0,100.0
+002a97b0,ShortNoSwap,4000,4000,0,0,100.0
+002a97c0,ShortSwap,4000,4000,0,0,100.0
 002a9a60,Com_ParseCommaToken,3505,3505,0,0,89.5
 002a9b30,SkipWhitespace,3826,3826,0,0,100.0
 002a9cf0,Com_BeginParseSession,1947,1947,0,0,100.0

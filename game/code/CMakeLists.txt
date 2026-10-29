@@ -42,6 +42,7 @@ set(game_code_sources
     param_set.cpp
     qcommon.cpp
     qcommon_core.cpp
+    qcommon_fs.cpp
     r_init.cpp
     r_static_init.cpp
     script_string.cpp
