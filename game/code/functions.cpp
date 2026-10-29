@@ -3743,7 +3743,7 @@ const Function kFunctions[] = {
     {"LoadingMenu_Draw", 0x0031e320, 0, code(&LoadingMenu_Draw), 0, Result::None, Status::Compare},
     {"LoadingMenu_RestoreSelection", 0x0031e380, 0, code(&LoadingMenu_RestoreSelection_entry), 0, Result::None, Status::Compare},
     {"SoundMenu_UpdateSliders", 0x0031e3b0, 0, code(&SoundMenu_UpdateSliders), 0, Result::None, Status::Compare},
-    {"SoundMenu_Draw", 0x0031e710, 0, code(&SoundMenu_Draw), 0, Result::None, Status::Compare},
+    {"SoundMenu_Draw", 0x0031e710, 0, code(&SoundMenu_Draw_entry), 0, Result::None, Status::Compare},
     {"ScreenMenu_Draw", 0x0031e790, 0, code(&ScreenMenu_Draw), 0, Result::None, Status::Compare},
     {"ControllerConfigMenu_Draw", 0x0031eb90, 0, code(&ControllerConfigMenu_Draw_entry), 0, Result::None, Status::Compare},
     {"GameplayMenu_Draw", 0x0031ec10, 0, code(&GameplayMenu_Draw_entry), 0, Result::None, Status::Compare},

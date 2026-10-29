@@ -362,7 +362,9 @@ uint8_t* XB_THISCALL SoundMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
 // 0x0031e710: the panel (Panel_Draw), the help bar text (FEMENU_HELPBAR_BACK on row 0, else FEMENU_OP_HELPBAR) and
 // its draw (+0x3c), UIMenu_Draw; unless 0x0095f916 the background movie (vtable +0x08, the subtitles, its frame
 // texture into the quad 0x0095f458 +0x60, nglListAddQuad).
-void XB_THISCALL SoundMenu_Draw(uint8_t* menu);
+// (the C version under DRAW_GAP_ENTRY: menu, entry ESP, ESI, EDI)
+extern "C" PLATFORM_HIDDEN void XB_CDECL SoundMenu_Draw(uint8_t* menu, uint32_t entry_esp, uint32_t esi, uint32_t edi);
+extern "C" void SoundMenu_Draw_entry(void);
 // 0x000129c0 / 0x00012a10 (ret 4, the pad unused): on row 0 the volume -1 / +1, clamped to 0..50 (the move sound
 // vtable +0x14 unless clamped), then SoundMenu_UpdateSliders.
 void XB_THISCALL SoundMenu_OnLeft(uint8_t* menu, uint32_t pad);

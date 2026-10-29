@@ -65,8 +65,8 @@ address,name,section,module,state,tested,matched
 00012820,ScreenMenu_Dtor,.text,client,matched,1,1
 00012930,ScreenMenu_DeletingDtor,.text,client,matched,1,1
 00012950,SoundMenu_Dtor,.text,sound,untested,0,0
-000129c0,SoundMenu_OnLeft,.text,sound,matched,8,8
-00012a10,SoundMenu_OnRight,.text,sound,matched,8,8
+000129c0,SoundMenu_OnLeft,.text,sound,settled,231,231
+00012a10,SoundMenu_OnRight,.text,sound,settled,139,139
 00012a60,SoundMenu_DeletingDtor,.text,sound,untested,0,0
 00012a80,OptionsMenu_Dtor,.text,client,matched,4,4
 00012b60,OptionsMenu_DeletingDtor,.text,client,matched,4,4
@@ -10861,13 +10861,13 @@ address,name,section,module,state,tested,matched
 0031e2a0,LoadingMenu_SetMissionRange,.text,client,matched,1,1
 0031e320,LoadingMenu_Draw,.text,client,settled,112,112
 0031e380,LoadingMenu_RestoreSelection,.text,client,untested,0,0
-0031e3b0,SoundMenu_UpdateSliders,.text,sound,matched,12,12
-0031e710,SoundMenu_Draw,.text,sound,untested,0,0
+0031e3b0,SoundMenu_UpdateSliders,.text,sound,settled,371,371
+0031e710,SoundMenu_Draw,.text,sound,settled,460,460
 0031e790,ScreenMenu_Draw,.text,client,untested,0,0
 0031e810,ControllerConfigMenu_UpdateSliderB,.text,client,named,0,0
 0031e9d0,ControllerConfigMenu_UpdateSliderA,.text,client,named,0,0
 0031eb90,ControllerConfigMenu_Draw,.text,client,matched,18,18
-0031ec10,GameplayMenu_Draw,.text,client,matched,19,19
+0031ec10,GameplayMenu_Draw,.text,client,settled,124,124
 0031ee10,AdvancedOptionsMenu_SetSliderBar,.text,client,named,0,0
 0031f050,AdvancedOptionsMenu_ToggleSelected,.text,client,matched,24,24
 0031f3e0,AdvancedOptionsMenu_Draw,.text,client,settled,2692,2692
@@ -11018,7 +11018,7 @@ address,name,section,module,state,tested,matched
 00330d60,BonusCharactersMenu_Construct,.text,client,matched,4,4
 00330de0,BonusMaterialsMenu_Construct,.text,client,matched,4,4
 00330e80,LoadMaubeugeMenu_Construct,.text,client,untested,0,0
-00330f80,SoundMenu_Construct,.text,sound,matched,8,8
+00330f80,SoundMenu_Construct,.text,sound,matched,9,9
 00330fd0,ScreenMenu_Construct,.text,client,matched,4,4
 00331030,CL_ExecControllerConfig,.text,client,inconclusive,19,0
 003310d0,ControllerConfigMenu_Construct,.text,client,matched,4,4
@@ -11098,7 +11098,7 @@ address,name,section,module,state,tested,matched
 00338b70,CreateProfileMenu_Finish,.text,client,inconclusive,2,0
 00338c40,CreateProfileMenu_HandleSelect,.text,client,matched,22,21
 00338d70,FE_DifficultyMenu_Init,.text,client,inconclusive,2,0
-00338e40,SoundMenu_RestoreSelection,.text,sound,untested,0,0
+00338e40,SoundMenu_RestoreSelection,.text,sound,matched,6,6
 00338f50,ControllerConfigMenu_RestoreSelection,.text,client,inconclusive,4,0
 00339050,GameplayMenu_RestoreSelection,.text,client,matched,3,3
 00339110,OptionsMenu_RestoreSelection,.text,client,matched,11,11

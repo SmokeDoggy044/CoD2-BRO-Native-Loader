@@ -5,6 +5,7 @@
 #include "cg_ents.h"
 #include "cl.h"
 #include "fe.h"
+#include "fe_options.h"
 #include "fx.h"
 #include "g_scr_runtime.h"
 #include "movie.h"
@@ -2393,15 +2394,16 @@ uint8_t* XB_THISCALL SoundMenu_DeletingDtor(uint8_t* menu, uint32_t flags) {
     return menu;
 }
 
-void XB_THISCALL SoundMenu_Draw(uint8_t* menu) {
+DRAW_GAP_ENTRY(SoundMenu_Draw)
+
+void XB_CDECL SoundMenu_Draw(uint8_t* menu, uint32_t entry_esp, uint32_t esi, uint32_t edi) {
     if (uint8_t* const panel = menu_field<uint8_t*>(menu, 0x34)) {
         TitleRegs regs{};
         regs.esi = uint32_t(uintptr_t(panel));
         regs.edi = uint32_t(uintptr_t(menu));
         ui_call_regs(0x00310010, &regs, 0, nullptr);  // Panel_Draw
     }
-    // FEMENU_HELPBAR_BACK / FEMENU_OP_HELPBAR
-    menu_call(menu_field<uint8_t*>(menu, 0x38), 0x6c, menu_field<int16_t>(menu, 0x22) < 1 ? 0x0082c560u : 0x0082c37cu);
+    set_help_bar_at(menu, entry_esp, esi, edi, {0x0031e734, 0x0031e740}, 1);
     menu_call(menu_field<uint8_t*>(menu, 0x38), 0x3c);
     UIMenu_Draw(menu);
     if (title_global<uint8_t>(0x0095f916) || !title_global<uint8_t*>(0x0095f454)) return;

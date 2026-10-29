@@ -25,7 +25,20 @@
 
 #include "compiler.h"
 
+// Options Draws that set the help bar text (+0x6c), which keeps a stack address: the entry moves the C frame below
+// a gap and the call runs at the original's ESP (after push esi / push edi), leaving its return address there. The C
+// version takes (menu, entry ESP, ESI, EDI).
+#define DRAW_GAP_ENTRY(name)                                                                                      \
+    PLATFORM_ASM_ENTRY(name##_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"                   \
+                                     "pushl %edi\n pushl %esi\n pushl %edx\n pushl %ecx\n" PLATFORM_ASM_CALL(name)  \
+                                     "addl $16, %esp\n popl %esp\n ret")
+
 namespace game {
+
+// The help bar +0x38: FEMENU_HELPBAR_BACK above row `back_rows`, else FEMENU_OP_HELPBAR, at entry - 8 (EDI = the
+// menu, ESI = the panel); `rets`: the return addresses of the two calls.
+void set_help_bar_at(uint8_t* menu, uint32_t entry_esp, uint32_t esi, uint32_t edi, const uint32_t (&rets)[2],
+                     int16_t back_rows);
 
 // 0x00012a80 / 0x00012640 / 0x00012730 / 0x00012820 (menu in EAX): the panel +0x34 deleted (Panel_Delete), the
 // object +0x38 deleted (vtable +0 (1)), then the UIMenu part (UIMenu_FreeItems). 0x00012c00: the same without the
