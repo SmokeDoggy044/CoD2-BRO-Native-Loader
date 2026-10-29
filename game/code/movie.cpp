@@ -42,13 +42,6 @@ uint32_t dsound_get_status(void* buffer) {
     return status;
 }
 
-// FLDLG2; FXCH; FYL2X; FMUL k: lg 2 * log2(x) * k on the x87, as _ftol truncates it.
-int32_t x87_log10_mul_ftol(float x, float k) {
-    long double result;
-    __asm__("fldlg2\n\tfxch %%st(1)\n\tfyl2x\n\tfmuls %2" : "=t"(result) : "0"(static_cast<long double>(x)), "m"(k));
-    return static_cast<int32_t>(static_cast<int64_t>(result));
-}
-
 // The title CRT.
 char* crt_strncpy(char* dst, const char* src, uint32_t n) {
     return title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(dst, src, n);
@@ -129,7 +122,7 @@ void XB_THISCALL Movie_StartAudio(Movie* movie) {
         const float one = title_global<float>(0x0083eb20);
         if (volume > one) volume = one;
     }
-    const int32_t level = x87_log10_mul_ftol(volume, title_global<float>(0x0083ecc8));  // * 2000
+    const int32_t level = platform_x87_log10_mul_ftol(volume, title_global<float>(0x0083ecc8));  // * 2000
     title_function<int32_t XB_STDCALL(void*, int32_t)>(0x003c76db)(audio_buffer(), level);  // IDirectSoundBuffer_SetVolume
     if (dsound_get_status(audio_buffer()) & 1) return;
     title_function<int32_t XB_STDCALL(void*, uint32_t)>(0x003c780b)(audio_buffer(), title_global<uint32_t>(0x0092084c));  // SetCurrentPosition

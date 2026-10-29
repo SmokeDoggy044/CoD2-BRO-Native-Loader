@@ -8,7 +8,9 @@
 
 namespace audio {
 
-enum class Codec : uint8_t { Pcm, XboxAdpcm };
+// 16 bits, so Format has no padding: voices copy formats built on the stack, and a padding
+// byte would carry whatever the stack held there (comparison tests read host memory).
+enum class Codec : uint16_t { Pcm, XboxAdpcm };
 
 struct Format {
     Codec codec = Codec::Pcm;
@@ -23,6 +25,7 @@ struct Format {
     uint32_t frames_to_bytes(uint32_t frames) const { return frames / frames_per_block() * block_align; }
     bool operator==(const Format&) const = default;
 };
+static_assert(sizeof(Format) == 12, "Format must have no padding");
 
 // Reads an Xbox WAVEFORMATEX (or XBOXADPCMWAVEFORMAT) from memory. Null if the
 // format is not one the APU plays.

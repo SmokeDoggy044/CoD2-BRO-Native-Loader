@@ -77,7 +77,8 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(compare_test_code PRIVATE ${PROJECT_SOURCE_DIR}/platform)
     target_link_libraries(compare_test_code PRIVATE cod_bro_options)
     add_executable(compare_test compare_test.cpp ${PROJECT_SOURCE_DIR}/loader/compare_linux.cpp
-                   ${PROJECT_SOURCE_DIR}/loader/hooks.cpp)
+                   ${PROJECT_SOURCE_DIR}/loader/hooks.cpp ${PROJECT_SOURCE_DIR}/loader/release_map.cpp
+                   ${PROJECT_SOURCE_DIR}/loader/symbols.cpp)
     target_include_directories(compare_test PRIVATE ${PROJECT_SOURCE_DIR}/loader ${PROJECT_SOURCE_DIR}/game/code
                                ${PROJECT_SOURCE_DIR}/render)
     set_source_files_properties(${PROJECT_SOURCE_DIR}/loader/compare_linux.cpp TARGET_DIRECTORY compare_test

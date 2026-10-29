@@ -6,18 +6,27 @@
 #include <cstdlib>
 
 #include "hooks.h"
+#include "release_map.h"
 #include "log.h"
 
 namespace loader::compare {
 
 void install(std::span<const game::Function> functions, const Config& config) {
-    int replaced = 0;
+    int replaced = 0, kept_original = 0;
     for (const game::Function& function : functions) {
         const uint32_t address = config.multiplayer ? function.multiplayer : function.campaign;
         if (!address || function.status != game::Status::Replaced) continue;
+        // The C uses the supported build's addresses throughout: another release keeps the original.
+        if (!release_map().identity()) {
+            ++kept_original;
+            continue;
+        }
         install_jump(address, function.code);
         ++replaced;
     }
+    if (kept_original)
+        LOG_INFO("compare", "another release of the game: its own code runs (%d decompiled functions are for the supported one)",
+                 kept_original);
     if (config.enabled) LOG_WARN("compare", "--compare works on Linux only; the originals run");
     if (replaced) LOG_INFO("compare", "%d decompiled functions replace the originals", replaced);
 }
