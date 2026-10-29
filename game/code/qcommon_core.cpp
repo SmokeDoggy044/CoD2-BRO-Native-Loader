@@ -2499,4 +2499,213 @@ void XB_CDECL LocEntry_Dtor(uint8_t* entry) {
     string_tidy(entry);
 }
 
+PLATFORM_ASM_ENTRY(std_map_string_DestroyValue_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_map_string_DestroyValue) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL std_map_string_DestroyValue(uint8_t* value) {
+    string_tidy(value + 0x38);
+    string_tidy(value + 0x1c);
+    string_tidy(value);
+}
+
+uint32_t* XB_REGS2 XB_CDECL std_UninitializedFillN4_2(uint32_t, const uint32_t* value, uint32_t* dst, uint32_t count) {
+    for (; count; --count, ++dst) {
+        if (dst) *dst = *value;
+    }
+    return dst;
+}
+
+uint32_t* XB_REGS2 XB_CDECL std_UninitializedCopy4_2(uint32_t, const uint32_t* last, const uint32_t* first, uint32_t* dst) {
+    for (; first != last; ++first, ++dst) {
+        if (dst) *dst = *first;
+    }
+    return dst;
+}
+
+namespace {
+
+// A list head node: Z_Malloc'd, next and prev pointing at itself (the allocator's exception frame
+// around it has no effect).
+uint8_t* buy_list_head(uint32_t size) {
+    uint8_t* const head = Z_Malloc(size);
+    if (head) word_at(head, 0) = addr32(head);
+    uint8_t* const prev = head + 4;
+    if (prev) word_at(prev, 0) = addr32(head);
+    return head;
+}
+
+}  // namespace
+
+uint8_t* XB_CDECL std_list_BuyHeadNameMap() {
+    return buy_list_head(0x2c);
+}
+
+uint8_t* XB_CDECL std_list_BuyHeadZ() {
+    return buy_list_head(0x10);
+}
+
+uint8_t* XB_THISCALL std_list_BuyNode8(const uint32_t* value, uint32_t next, uint32_t prev) {
+    uint8_t* const node = Z_Malloc(0x10);
+    if (node) {
+        word_at(node, 0) = next;
+        word_at(node, 4) = prev;
+        word_at(node, 8) = value[0];
+        word_at(node, 0xc) = value[1];
+    }
+    return node;
+}
+
+PLATFORM_ASM_ENTRY(AnglesToForward_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(AnglesToForward) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL AnglesToForward(const float* angles, float* forward) {
+    // (cos pitch * cos yaw, cos pitch * sin yaw, -sin pitch).
+    const float to_radians = title_global<float>(0x0083edd8);
+    float sy, cy, sp, cp;
+    FastSinCos(&sy, 0, &cy, angles[1] * to_radians);
+    FastSinCos(&sp, 0, &cp, angles[0] * to_radians);
+    forward[1] = cp * sy;
+    forward[0] = cp * cy;
+    forward[2] = 0.0f - sp;
+}
+
+PLATFORM_ASM_ENTRY(PtrVector_PushBack_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PtrVector_PushBack) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL PtrVector_PushBack(uint8_t* vector, const uint32_t* item) {
+    // {data, capacity, count}: grows by 1 up to 3 elements, then by 4 (Mem_AlignedAlloc, 4-aligned).
+    const int32_t count = static_cast<int32_t>(word_at(vector, 8));
+    if (!(count < static_cast<int32_t>(word_at(vector, 4)))) {
+        const int32_t capacity = count > 3 ? count + 4 : count + 1;
+        uint32_t* const data = static_cast<uint32_t*>(Mem_AlignedAlloc(static_cast<uint32_t>(capacity) * 4, 4, 0));
+        for (int32_t i = 0; i < static_cast<int32_t>(word_at(vector, 8)); ++i) data[i] = pointer_at<uint32_t>(vector, 0)[i];
+        void* const old = pointer_at<void>(vector, 0);
+        if (old) {
+            Mem_AlignedFree(old);
+            word_at(vector, 0) = 0;
+        }
+        word_at(vector, 0) = addr32(data);
+        word_at(vector, 4) = static_cast<uint32_t>(capacity);
+    }
+    const uint32_t index = word_at(vector, 8);
+    pointer_at<uint32_t>(vector, 0)[index] = *item;
+    word_at(vector, 8) = word_at(vector, 8) + 1;
+}
+
+namespace {
+
+// The 4-byte DynArray allocator: SmallHeap (0x0095f4a4) when the size fits its largest pool
+// (+0x28 table, pool count +0x24), else the heap 0x0095f4a0 (4-aligned); every int zeroed.
+uint32_t* alloc_ints_zeroed(uint32_t count) {
+    uint8_t* const small = title_global<uint8_t*>(0x0095f4a4);
+    const uint32_t size = count << 2;
+    int32_t last = static_cast<int32_t>(word_at(small, 0x24)) - 1;
+    if (last <= 0) last = 0;
+    const int32_t limit = *reinterpret_cast<const int16_t*>(small + 0x28 + last * 2);
+    uint8_t* data = nullptr;
+    if (!(size > static_cast<uint32_t>(limit))) data = SmallHeap_Alloc(small, size, 0);
+    if (!data) {
+        data = Heap_AllocFromHeap(title_global<uint8_t*>(0x0095f4a0), size, 4);
+        if (!data) return nullptr;  // the original runs into an int3 here
+    }
+    uint32_t* const ints = reinterpret_cast<uint32_t*>(data);
+    uint32_t* const end = reinterpret_cast<uint32_t*>(data + size);
+    for (uint32_t* p = ints; p != end; ++p) {
+        if (p) *p = 0;
+    }
+    return ints;
+}
+
+}  // namespace
+
+uint32_t* XB_STDCALL DynArray_AllocIntsZeroed(uint32_t count, uint32_t) {
+    return alloc_ints_zeroed(count);
+}
+
+uint32_t* XB_STDCALL DynArray_AllocIntsZeroed_2(uint32_t count) {
+    return alloc_ints_zeroed(count);
+}
+
+PLATFORM_ASM_ENTRY(PtrVector_Resize_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PtrVector_Resize) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL PtrVector_Resize(uint8_t* vector, int32_t size) {
+    // {data, capacity, count}: within the capacity only the count changes; else a new exact-size
+    // block (Mem_AlignedAlloc) takes the old elements and the old one is freed.
+    if (!(size > static_cast<int32_t>(word_at(vector, 4)))) {
+        word_at(vector, 8) = static_cast<uint32_t>(size);
+        return;
+    }
+    uint32_t* const data = static_cast<uint32_t*>(Mem_AlignedAlloc(static_cast<uint32_t>(size) * 4, 4, 0));
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(vector, 8)); ++i) data[i] = pointer_at<uint32_t>(vector, 0)[i];
+    void* const old = pointer_at<void>(vector, 0);
+    if (old) {
+        Mem_AlignedFree(old);
+        word_at(vector, 0) = 0;
+    }
+    word_at(vector, 0) = addr32(data);
+    word_at(vector, 4) = static_cast<uint32_t>(size);
+    word_at(vector, 8) = static_cast<uint32_t>(size);
+}
+
+namespace {
+
+// DynArray {data, capacity, count} of ints: a new zeroed block of `capacity` takes the elements; the
+// old one goes back to the SmallHeap that owns it or to the heap 0x0095f4a0.
+void dynarray_regrow(uint8_t* array, uint32_t capacity) {
+    uint32_t* const data = DynArray_AllocIntsZeroed(capacity, word_at(array, 8));
+    for (uint32_t i = 0; i < word_at(array, 8); ++i) data[i] = pointer_at<uint32_t>(array, 0)[i];
+    uint8_t* const old = pointer_at<uint8_t>(array, 0);
+    if (old) {
+        uint8_t* const small = title_global<uint8_t*>(0x0095f4a4);
+        if (SmallHeap_Owns(reinterpret_cast<const uint32_t*>(small), addr32(old))) {
+            SmallHeap_Free(title_global<uint8_t*>(0x0095f4a4), old);
+        } else {
+            Heap_FreeIn2(title_global<uint32_t>(0x0095f4a0), old);
+        }
+    }
+    word_at(array, 0) = addr32(data);
+    word_at(array, 4) = capacity;
+}
+
+}  // namespace
+
+void XB_THISCALL DynArray_Reserve(uint8_t* array, uint32_t capacity) {
+    if (capacity > word_at(array, 4)) dynarray_regrow(array, capacity);
+}
+
+uint32_t XB_THISCALL DynArray_PushBack(uint8_t* array, const uint32_t* item) {
+    const uint32_t count = word_at(array, 8);
+    if (!(count < word_at(array, 4))) dynarray_regrow(array, count + 4);
+    const uint32_t index = word_at(array, 8);
+    pointer_at<uint32_t>(array, 0)[index] = *item;
+    word_at(array, 8) = word_at(array, 8) + 1;
+    return index;
+}
+
+uint32_t XB_REGS3 XB_CDECL std_list_IncSize_4(uint32_t eax, uint8_t* list, uint32_t count) {
+    const uint32_t size = word_at(list, 8);
+    if (!(0x1fffffffu - size >= count)) {
+        // "list<T> too long": the title's length_error throw (never returns).
+        return title_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(0x00028b40)(eax, list, count);
+    }
+    word_at(list, 8) = size + count;
+    return size + count;
+}
+
+uint32_t XB_THISCALL std_list_Insert8(const uint32_t* value, uint8_t* list, uint8_t* where) {
+    uint8_t* const node = std_list_BuyNode8(value, addr32(where), word_at(where, 4));
+    const uint32_t size = std_list_IncSize_4(0, list, 1);
+    word_at(where, 4) = addr32(node);
+    word_at(pointer_at<uint8_t>(node, 4), 0) = addr32(node);
+    return size;
+}
+
 }  // namespace game

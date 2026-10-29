@@ -5,6 +5,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000115f0,UITextBase_GetText,3513,3513,0,0,100.0
 00011ac0,UIPicture_GetHeight,1875,1875,0,0,100.0
 00012370,UI_DialogSetDefaultButton,3571,3571,0,0,100.0
+00013840,ProfileSave_DeletingDtor,2999,2999,0,0,100.0
 00013a00,Scr_Atan,4000,4000,0,0,100.0
 00013a10,Scr_Atan2,4000,4000,0,0,100.0
 00013e70,Scr_Length,3809,3809,0,0,100.0
@@ -16,12 +17,15 @@ address,name,tested,matched,nan,mismatched,coverage
 0001b640,std_CopyBackward4_2,1405,1405,0,0,100.0
 0001d1b0,ClientActive_Ctor,2101,2101,0,0,100.0
 0001d880,SceneFX_DeletingDtor,1009,1009,0,0,100.0
+0001daf0,LocEntry_Dtor,3347,3347,0,0,100.0
 0001ed50,SoundBankTable_Init,3704,3704,0,0,100.0
 0001edb0,Array48_GetOrFirst,3837,3837,0,0,100.0
 0001efd0,DynArray_Erase12,1249,1249,0,0,100.0
 0001f0f0,nglPosMaterial_CreateVertexWriter,3822,3822,0,0,100.0
 0001f1a0,nglVertexWriter_Clone,3827,3827,0,0,100.0
 0001f340,std_vector_string_Size,3843,3843,0,0,100.0
+0001f810,std_map_string_DestroyValue,2947,2947,0,0,100.0
+0001ff10,DynArray_Alloc12,1893,1893,0,0,100.0
 00020990,HandleBits512_Invert,3677,3677,0,0,100.0
 00020db0,std_map_string_LowerBound,3417,3417,0,0,100.0
 00021200,std_map_string_LowerBound_2,3491,3491,0,0,94.1
@@ -47,6 +51,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00022970,std_tree_Inc29,3624,3624,0,0,71.1
 000229d0,NAL_AsGenericClip,3846,3846,0,0,100.0
 00022a60,NAL_CodNote_DecodeFrames,3006,3006,0,0,100.0
+00023510,std_string_DestroyRange,1016,1016,0,0,100.0
 00023840,ParamList_Delete,1291,1291,0,0,100.0
 00023870,ParamSet_Destruct,1287,1287,0,0,100.0
 000238b0,ParamSet_Delete,1465,1465,0,0,100.0

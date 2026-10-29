@@ -459,4 +459,41 @@ extern "C" void std_string_DestroyRange_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL LocEntry_Dtor(uint8_t* entry);
 extern "C" void LocEntry_Dtor_entry(void);
 
+// 0x0001f810 (value in ESI): the name map's value {string, string, string, int} - strings +0x38, +0x1c,
+// +0 tidied.
+extern "C" PLATFORM_HIDDEN void XB_CDECL std_map_string_DestroyValue(uint8_t* value);
+extern "C" void std_map_string_DestroyValue_entry(void);
+// 0x0001b810 (value EDX; dst, count): uninitialized_fill_n of dwords (null slots skipped); returns the end.
+uint32_t* XB_REGS2 XB_CDECL std_UninitializedFillN4_2(uint32_t, const uint32_t* value, uint32_t* dst, uint32_t count);
+// 0x0001b880 (last EDX; first, dst): uninitialized_copy of dwords; returns the destination end.
+uint32_t* XB_REGS2 XB_CDECL std_UninitializedCopy4_2(uint32_t, const uint32_t* last, const uint32_t* first, uint32_t* dst);
+// 0x00015540 / 0x000215e0: a list head (Z_Malloc 0x2c / 0x10 bytes) linked to itself.
+uint8_t* XB_CDECL std_list_BuyHeadNameMap();
+uint8_t* XB_CDECL std_list_BuyHeadZ();
+// 0x00015850 (value in ECX): a 16-byte list node {next, prev, value[0], value[1]} (Z_Malloc).
+uint8_t* XB_THISCALL std_list_BuyNode8(const uint32_t* value, uint32_t next, uint32_t prev);
+// 0x00013c60 (angles EDI, forward ESI): (cos pitch cos yaw, cos pitch sin yaw, -sin pitch) (FastSinCos).
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnglesToForward(const float* angles, float* forward);
+extern "C" void AnglesToForward_entry(void);
+// 0x000138c0 (vector in ESI; item): {data, capacity, count} push_back; grows to count + 1 up to 3, else
+// count + 4 (Mem_AlignedAlloc / Mem_AlignedFree).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PtrVector_PushBack(uint8_t* vector, const uint32_t* item);
+extern "C" void PtrVector_PushBack_entry(void);
+// 0x0001b660 (capacity, unused) / 0x0001b6d0 (capacity): count ints from SmallHeap 0x0095f4a4 when they fit
+// its largest pool, else from the heap 0x0095f4a0, all zeroed. Ghidra ends both at an inline int3 (the
+// allocation-failure break): the bodies run to 0x0001b6c3 / 0x0001b733.
+uint32_t* XB_STDCALL DynArray_AllocIntsZeroed(uint32_t count, uint32_t);
+uint32_t* XB_STDCALL DynArray_AllocIntsZeroed_2(uint32_t count);
+// 0x00013970 (vector ESI, size EBX): resize; a larger size than the capacity reallocates exactly.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PtrVector_Resize(uint8_t* vector, int32_t size);
+extern "C" void PtrVector_Resize_entry(void);
+// 0x00015a10 / 0x00015b50: DynArray {data, capacity, count} reserve / push_back (grows by 4; returns
+// the index): the new block from DynArray_AllocIntsZeroed, the old one back to its SmallHeap or heap.
+void XB_THISCALL DynArray_Reserve(uint8_t* array, uint32_t capacity);
+uint32_t XB_THISCALL DynArray_PushBack(uint8_t* array, const uint32_t* item);
+// 0x00028b40 (list EDX, count ECX): size (+8) += count; "list<T> too long" past 0x1fffffff.
+uint32_t XB_REGS3 XB_CDECL std_list_IncSize_4(uint32_t eax, uint8_t* list, uint32_t count);
+// 0x00015760 (value in ECX; list, where): a new node before where.
+uint32_t XB_THISCALL std_list_Insert8(const uint32_t* value, uint8_t* list, uint8_t* where);
+
 }  // namespace game
