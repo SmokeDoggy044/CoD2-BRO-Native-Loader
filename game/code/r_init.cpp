@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "ngl.h"
+#include "ngl_gfx.h"
 #include "qcommon.h"
 #include "title_data.h"
 
@@ -212,6 +213,7 @@ uint32_t XB_CDECL nglAssemblePixelShader_body(uint32_t entry, uint32_t ebx, uint
     std::strcat(source, reinterpret_cast<const char*>(uintptr_t{body}));
     const uint32_t buffer = assemble_at(frame, frame + 4, TitleRegs{0, ebx, 0, 0, esi, edi});
     *reinterpret_cast<uint32_t*>(uintptr_t{args[0]}) = *reinterpret_cast<const uint32_t*>(uintptr_t{buffer + 4});
+    ngl_gfx_shader_key(*reinterpret_cast<const uint32_t*>(uintptr_t{args[0]}), args[1]);
     if (const auto loaded = renderer_pc_hooks().shader_loaded)
         loaded(args[0], 'p', args[1], *reinterpret_cast<const uint32_t*>(uintptr_t{args[0]}), 0);
     return buffer;
@@ -256,6 +258,7 @@ uint32_t XB_CDECL nglAssembleVertexShader_body(uint32_t entry, uint32_t ebx, uin
     uint32_t* const out = reinterpret_cast<uint32_t*>(uintptr_t{args[1]});
     out[0] = *reinterpret_cast<const uint32_t*>(uintptr_t{buffer + 4});
     out[1] = args[0];
+    ngl_gfx_shader_key(out[0], args[3]);
     if (const auto loaded = renderer_pc_hooks().shader_loaded) loaded(args[1], 'v', args[3], out[0], args[0]);
     return args[1];
 }
@@ -425,13 +428,13 @@ void XB_CDECL nglInit() {
     // Texture stage states of the four stages (D3D's state block, 0x80 bytes per stage).
     uint32_t dirty = title_global<uint32_t>(0x003f8320);
     for (uint32_t stage = 0; stage < 4; ++stage) {
-        uint32_t* const state = &title_global<uint32_t>(0x003f5ca8 + stage * 0x80);
-        state[-4] = 1;
-        state[0] = 1;
-        state[5] = 0;
-        state[-12] = 2;
-        state[-13] = 2;
-        state[-11] = 2;
+        const uint32_t state = 0x003f5ca8 + stage * 0x80;  // field 16
+        xb::set_d3d_state(state - 16, 1);
+        xb::set_d3d_state(state, 1);
+        xb::set_d3d_state(state + 20, 0);
+        xb::set_d3d_state(state - 48, 2);  // min filter: linear
+        xb::set_d3d_state(state - 52, 2);  // mag filter
+        xb::set_d3d_state(state - 44, 2);  // mip filter
         dirty |= (1u << stage) | 0xc00;
     }
     title_global<uint32_t>(0x003f8320) = dirty;

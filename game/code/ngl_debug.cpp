@@ -5,6 +5,7 @@
 #include "lanes.h"
 #include "ngl.h"
 #include "qcommon.h"
+#include "ngl_gfx.h"
 #include "title_data.h"
 
 namespace game {
@@ -279,7 +280,7 @@ void XB_THISCALL nglDebugLineBatch_Draw(uint8_t* self) {
     const auto field = [self](uint32_t offset) -> uint32_t& { return *reinterpret_cast<uint32_t*>(self + offset); };
     uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
     if (cull_mode != 0) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // SetRenderState_CullMode
+        xb::set_render_state(0x003e80f0, 0);  // SetRenderState_CullMode
         cull_mode = 0;
     }
     nglSetBlendMode(&title_global<uint8_t>(0x00902f08), 0, 0, 0);
@@ -312,7 +313,7 @@ void XB_THISCALL nglDebugLineBatch_Draw(uint8_t* self) {
             for (int32_t r = 0; r < 4; ++r) constants[c * 4 + r] = rows[r].v[c];
         }
         using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
-        title_function<SetConstants>(0x003e7490)(6, constants, 16);  // NotInlineFast
+        xb::set_vertex_constants(6, constants, 16);  // NotInlineFast
         nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903cc8));
     }
     nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903cb4));

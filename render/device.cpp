@@ -631,6 +631,9 @@ void resource_destroyed(XbPtr /*resource*/) {}
 
 Backend* backend() { return g.backend.get(); }
 
+XbPtr current_render_target() { return device_field<XbPtr>(kDeviceRenderTarget); }
+XbPtr current_depth_stencil() { return device_field<XbPtr>(kDeviceDepthStencil); }
+
 bool begin_draw() {
     if (!g.backend) return false;
     platform::HostFloatEnv float_env;

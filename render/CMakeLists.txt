@@ -6,6 +6,7 @@ add_library(render STATIC
     d3d9_shader.cpp
     device.cpp
     gfx_d3d9.cpp
+    gfx_verify.cpp
     draw.cpp
     nv2a.cpp
     resource.cpp

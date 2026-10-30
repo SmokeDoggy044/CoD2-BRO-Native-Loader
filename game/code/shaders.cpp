@@ -4,6 +4,7 @@
 
 #include "lanes.h"
 #include "qcommon.h"
+#include "ngl_gfx.h"
 #include "title_data.h"
 
 namespace game {
@@ -530,7 +531,7 @@ uint8_t* state_cache() { return &title_global<uint8_t>(0x00902f08); }
 void set_cull_mode(uint32_t mode) {
     uint32_t& cached = title_global<uint32_t>(0x00902fac);
     if (cached == mode) return;
-    title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(mode);
+    xb::set_render_state(0x003e80f0, mode);
     cached = mode;
 }
 
@@ -547,13 +548,13 @@ void set_scene_fog(uint8_t enable = 1) {
     color = color << 8 | static_cast<uint32_t>(platform_ftol(b));
     uint32_t& cached_color = title_global<uint32_t>(0x00902f94);
     if (cached_color != color) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e8090)(color);  // SetRenderState_FogColor
+        xb::set_render_state(0x003e8090, color);  // SetRenderState_FogColor
         cached_color = color;
     }
     uint8_t& fog_enabled = title_global<uint8_t>(0x00902f93);
     if (fog_enabled != enable) {
         title_global<uint32_t>(0x003f8320) |= 0x2000;
-        title_global<uint32_t>(0x003f8498) = enable;
+        xb::set_d3d_state(0x003f8498, enable);
         fog_enabled = enable;
     }
 }
@@ -570,15 +571,15 @@ void set_transform_constants(int32_t slot, const NglMeshNode* node) {
 // Vertex constants 6..9: the node's world * view * projection (transposed).
 void set_world_view_projection(const NglMeshNode* node) {
     using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
-    title_function<SetConstants>(0x003e7490)(6, draw_node(node)->world_view_projection, 16);  // NotInlineFast
+    xb::set_vertex_constants(6, draw_node(node)->world_view_projection, 16);  // NotInlineFast
 }
 
 // The material's texture (+0x1c) on stage 0, and stage 0's texture states marked dirty.
 void set_material_texture(const NglMeshNode* node) {
     nglSetTexture(0, *reinterpret_cast<NglTexture* const*>(node->material + 0x1c), 2, 3);
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c68) = 1;
-    title_global<uint32_t>(0x003f5c6c) = 1;
+    xb::set_d3d_state(0x003f5c68, 1);
+    xb::set_d3d_state(0x003f5c6c, 1);
 }
 
 const NglShaderRef* shader_ref(uint32_t address) { return &title_global<NglShaderRef>(address); }
@@ -611,7 +612,7 @@ void set_object_lights(const NglMeshNode* node) {
     nglComputeObjectLights(draw, constants + 16, constants + 32);
     std::memcpy(constants, draw->world_view_projection, 64);
     using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
-    title_function<SetConstants>(0x003e7490)(6, constants, 48);  // NotInlineFast
+    xb::set_vertex_constants(6, constants, 48);  // NotInlineFast
 }
 
 // After states set behind nglSetBlendMode's back: its cache no longer applies.
@@ -685,8 +686,8 @@ void XB_THISCALL cdPrelit_Draw(const NglMeshNode* node) {
     if (NglTexture* second = *reinterpret_cast<NglTexture* const*>(node->material + 0x24)) {
         nglSetTexture(1, second, 2, 3);
         title_global<uint32_t>(0x003f8320) |= 2;
-        title_global<uint32_t>(0x003f5ce8) = 3;
-        title_global<uint32_t>(0x003f5cec) = 3;
+        xb::set_d3d_state(0x003f5ce8, 3);
+        xb::set_d3d_state(0x003f5cec, 3);
     }
     nglSetVertexShaderCached(shader_ref(0x00902064));
     nglSetPixelShaderProgramCached(pick_shader(0x00902070, 0x00902060));
@@ -727,8 +728,8 @@ void XB_THISCALL ShaderPCUV_Draw(const NglMeshNode* node) {
     nglSetTexture(0, *reinterpret_cast<NglTexture* const*>(node->material + 0x1c), static_cast<uint8_t>(address_flags), 3);
     const uint8_t flags = node->material[0x24];
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c68) = (flags & 0x40) ? 3 : 1;
-    title_global<uint32_t>(0x003f5c6c) = (flags & 0x80) ? 3 : 1;
+    xb::set_d3d_state(0x003f5c68, (flags & 0x40) ? 3 : 1);
+    xb::set_d3d_state(0x003f5c6c, (flags & 0x80) ? 3 : 1);
     title_global<uint32_t>(0x003f8320) |= 1;
     nglSetPixelShaderProgramCached(shader_ref(0x00901fa0));
     set_transform_constants(-0x56, node);
@@ -779,7 +780,7 @@ void compute_object_lights(const NglMeshNode* node, float* constants) {
 
 void set_vertex_constants(uint32_t first, const float* constants, uint32_t count) {
     using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
-    title_function<SetConstants>(0x003e7490)(first, constants, count);  // NotInlineFast
+    xb::set_vertex_constants(first, constants, count);  // NotInlineFast
 }
 
 // The alpha test on (0x204, 0x80) without blending, and the blend cache reset.
@@ -875,12 +876,12 @@ void XB_THISCALL cdDebug_Draw(const NglMeshNode* node) {
     uint8_t& fog_enabled = title_global<uint8_t>(0x00902f93);
     if (fog_enabled != 0) {
         title_global<uint32_t>(0x003f8320) |= 0x2000;
-        title_global<uint32_t>(0x003f8498) = 0;
+        xb::set_d3d_state(0x003f8498, 0);
         fog_enabled = 0;
     }
     set_world_view_projection(node);
     using SetConstant1 = void XB_FASTCALL(uint32_t, const float*);
-    title_function<SetConstant1>(0x003e7440)(0xc, color);  // SetVertexShaderConstant1Fast
+    xb::set_vertex_constant(0xc, color);  // SetVertexShaderConstant1Fast
     nglSetVertexShaderCached(shader_ref(0x00901f88));
     nglSetPixelShaderProgramCached(shader_ref(0x00901f90));
     set_transform_constants(-0x56, node);
@@ -934,8 +935,8 @@ void XB_THISCALL cdWater_Draw(const NglMeshNode* node) {
     NglTexture* second = *reinterpret_cast<NglTexture* const*>(material + 0x24);
     nglSetTexture(1, second, 2, 3);
     title_global<uint32_t>(0x003f8320) |= 2;
-    title_global<uint32_t>(0x003f5ce8) = 3;
-    title_global<uint32_t>(0x003f5cec) = 3;
+    xb::set_d3d_state(0x003f5ce8, 3);
+    xb::set_d3d_state(0x003f5cec, 3);
     nglSetVertexShaderCached(shader_ref(0x009021a4));
     const bool reflective = *reinterpret_cast<NglTexture* const*>(node->material + 0x24) != nullptr &&
                             R_GetDebugViewMode() != 1;
@@ -1097,8 +1098,8 @@ void XB_THISCALL cdOcean_SetWaveConstants(const NglMeshNode* node) {
     using GetSlot = int32_t XB_THISCALL(const NglMeshNode*);
     const int32_t slot = reinterpret_cast<GetSlot*>(node->vtable[6])(node);
     using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
-    title_function<SetConstants>(0x003e7490)(slot + 0x60, c, 100);  // NotInlineFast
-    title_function<void XB_STDCALL(uint32_t, const float*, uint32_t)>(0x003e7a50)(0, pixel, 1);  // SetPixelShaderConstant
+    xb::set_vertex_constants(slot + 0x60, c, 100);  // NotInlineFast
+    xb::set_pixel_constants(0, pixel, 1);  // SetPixelShaderConstant
 }
 
 void XB_THISCALL cdOcean_Draw(const NglMeshNode* node) {
@@ -1107,13 +1108,13 @@ void XB_THISCALL cdOcean_Draw(const NglMeshNode* node) {
     // Alpha test and blending off, D3D's own render state copies too.
     uint8_t* cache = state_cache();
     if (cache[0x50] != 0) {
-        title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(0x00040300, 0);  // SetRenderState_Simple
-        title_global<uint32_t>(0x003f8418) = 0;
+        xb::set_render_state_simple(0x00040300, 0);  // SetRenderState_Simple
+        xb::set_d3d_state(0x003f8418, 0);
         cache[0x50] = 0;
     }
     if (cache[0x5c] != 0) {
-        title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(0x00040304, 0);
-        title_global<uint32_t>(0x003f8414) = 0;
+        xb::set_render_state_simple(0x00040304, 0);
+        xb::set_d3d_state(0x003f8414, 0);
         cache[0x5c] = 0;
     }
     // Stages 1..3 (bits 0..2): the material's textures at +0x28/+0x30/+0x38. With the
@@ -1132,29 +1133,29 @@ void XB_THISCALL cdOcean_Draw(const NglMeshNode* node) {
     }
     nglSetTexture(0, *reinterpret_cast<NglTexture* const*>(material + 0x20), 2, 3);
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c68) = 1;
-    title_global<uint32_t>(0x003f5c6c) = 1;
+    xb::set_d3d_state(0x003f5c68, 1);
+    xb::set_d3d_state(0x003f5c6c, 1);
     if (NglTexture* t = *reinterpret_cast<NglTexture* const*>(node->material + 0x28); t && (stages & 1)) {
         nglSetTexture(1, t, 2, 3);
         title_global<uint32_t>(0x003f8320) |= 2;
-        title_global<uint32_t>(0x003f5ce8) = 1;
-        title_global<uint32_t>(0x003f5cec) = 1;
+        xb::set_d3d_state(0x003f5ce8, 1);
+        xb::set_d3d_state(0x003f5cec, 1);
     } else {
         stages &= ~1u;
     }
     if (NglTexture* t = *reinterpret_cast<NglTexture* const*>(node->material + 0x30); t && (stages & 2)) {
         nglSetTexture(2, t, 2, 3);
         title_global<uint32_t>(0x003f8320) |= 4;
-        title_global<uint32_t>(0x003f5d68) = 1;
-        title_global<uint32_t>(0x003f5d6c) = 1;
+        xb::set_d3d_state(0x003f5d68, 1);
+        xb::set_d3d_state(0x003f5d6c, 1);
     } else {
         stages &= ~2u;
     }
     if (NglTexture* t = *reinterpret_cast<NglTexture* const*>(node->material + 0x38); t && (stages & 4)) {
         nglSetTexture(3, t, 2, 3);
         title_global<uint32_t>(0x003f8320) |= 8;
-        title_global<uint32_t>(0x003f5de8) = 3;
-        title_global<uint32_t>(0x003f5dec) = 3;
+        xb::set_d3d_state(0x003f5de8, 3);
+        xb::set_d3d_state(0x003f5dec, 3);
     } else {
         stages &= ~4u;
     }
@@ -1212,9 +1213,9 @@ struct WorldClass {
 void set_projector_texture(uint32_t stage, NglTexture* texture) {
     nglSetTexture(stage, texture, 2, 3);
     title_global<uint32_t>(0x003f8320) |= 1u << stage;
-    title_global<uint32_t>(0x003f5c68 + stage * 0x80) = 4;
-    title_global<uint32_t>(0x003f5c6c + stage * 0x80) = 4;
-    title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e8ba0)(stage, 0);  // SetTextureState_BorderColor
+    xb::set_d3d_state(0x003f5c68 + stage * 0x80, 4);
+    xb::set_d3d_state(0x003f5c6c + stage * 0x80, 4);
+    xb::set_border_color(stage, 0);  // SetTextureState_BorderColor
 }
 
 void draw_world(const NglMeshNode* node, const WorldClass& k);
@@ -1239,8 +1240,8 @@ void XB_THISCALL cdPropeller_Draw(const NglMeshNode* node) {
     set_vertex_constants(6, constants, 52);
     nglSetTexture(0, *reinterpret_cast<NglTexture* const*>(node->material + 0x1c), 2, 3);
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c68) = 3;
-    title_global<uint32_t>(0x003f5c6c) = 3;
+    xb::set_d3d_state(0x003f5c68, 3);
+    xb::set_d3d_state(0x003f5c6c, 3);
     nglSetVertexShaderCached(shader_ref(0x00902024));
     nglSetPixelShaderProgramCached(pick_shader(0x0090202c, 0x00902030));
     set_transform_constants(-0x4a, node);
@@ -1357,7 +1358,7 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
         for (uint32_t stage = 0; stage < 4; ++stage) {
             nglSetTexture(stage, dynamic_light, 2, 3);
             title_global<uint32_t>(0x003f8320) |= 1u << stage;
-            for (uint32_t i = 0; i < 3; ++i) title_global<uint32_t>(0x003f5c68 + stage * 0x80 + i * 4) = 3;
+            for (uint32_t i = 0; i < 3; ++i) xb::set_d3d_state(0x003f5c68 + stage * 0x80 + i * 4, 3);
         }
         int32_t n = light_count;
         if (n > 2) {
@@ -1378,8 +1379,8 @@ void cdWorld_textures(const NglMeshNode* node, NglTexture* projector, bool& ligh
     if (NglTexture* second = *reinterpret_cast<NglTexture* const*>(node->material + 0x24)) {
         nglSetTexture(1, second, 2, 3);
         title_global<uint32_t>(0x003f8320) |= 2;
-        title_global<uint32_t>(0x003f5ce8) = 3;
-        title_global<uint32_t>(0x003f5cec) = 3;
+        xb::set_d3d_state(0x003f5ce8, 3);
+        xb::set_d3d_state(0x003f5cec, 3);
         lightmap = true;
     }
     if (projector) {
@@ -1394,13 +1395,13 @@ void cdWorldBlend_textures(const NglMeshNode* node, NglTexture* projector, bool&
     set_material_texture(node);
     nglSetTexture(1, *reinterpret_cast<NglTexture* const*>(node->material + 0x24), 2, 3);
     title_global<uint32_t>(0x003f8320) |= 2;
-    title_global<uint32_t>(0x003f5ce8) = 1;
-    title_global<uint32_t>(0x003f5cec) = 1;
+    xb::set_d3d_state(0x003f5ce8, 1);
+    xb::set_d3d_state(0x003f5cec, 1);
     if (NglTexture* third = *reinterpret_cast<NglTexture* const*>(node->material + 0x2c)) {
         nglSetTexture(2, third, 2, 3);
         title_global<uint32_t>(0x003f8320) |= 4;
-        title_global<uint32_t>(0x003f5d68) = 3;
-        title_global<uint32_t>(0x003f5d6c) = 3;
+        xb::set_d3d_state(0x003f5d68, 3);
+        xb::set_d3d_state(0x003f5d6c, 3);
         lightmap = true;
     }
     if (projector) {
@@ -1435,8 +1436,8 @@ void XB_THISCALL cdAirplaneMetal_Draw(const NglMeshNode* node) {
     set_material_texture(node);
     nglSetTexture(1, *reinterpret_cast<NglTexture* const*>(node->material + 0x24), 2, 3);
     title_global<uint32_t>(0x003f8320) |= 2;
-    title_global<uint32_t>(0x003f5ce8) = 1;
-    title_global<uint32_t>(0x003f5cec) = 1;
+    xb::set_d3d_state(0x003f5ce8, 1);
+    xb::set_d3d_state(0x003f5cec, 1);
     nglSetVertexShaderCached(shader_ref(0x00902080));
     nglSetPixelShaderProgramCached(shader_ref(0x00902078));
     NglMeshDrawNode* draw = draw_node(node);
@@ -1466,7 +1467,7 @@ void XB_THISCALL cdAirplaneMetal_Draw(const NglMeshNode* node) {
     set_scene_fog();
     // Pixel shader constant 0: (0, 0, 0, the material's +0x28).
     alignas(16) const float shine[4] = {0, 0, 0, *reinterpret_cast<const float*>(node->material + 0x28)};
-    title_function<void XB_STDCALL(uint32_t, const float*, uint32_t)>(0x003e7a50)(0, shine, 1);  // SetPixelShaderConstant
+    xb::set_pixel_constants(0, shine, 1);  // SetPixelShaderConstant
     nglDrawMeshSection(node->section);
     reset_blend_cache();
 }
@@ -1484,7 +1485,7 @@ void XB_THISCALL cdSky_Draw(const NglMeshNode* node) {
         uint8_t& fog_enabled = title_global<uint8_t>(0x00902f93);
         if (fog_enabled != 0) {
             title_global<uint32_t>(0x003f8320) |= 0x2000;
-            title_global<uint32_t>(0x003f8498) = 0;
+            xb::set_d3d_state(0x003f8498, 0);
             fog_enabled = 0;
         }
     };
@@ -1495,11 +1496,11 @@ void XB_THISCALL cdSky_Draw(const NglMeshNode* node) {
     const uint32_t saved_z_enable = z_enable;
     const uint8_t saved_z_write = z_write;
     if (z_enable != 0) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e8210)(0);  // SetRenderState_ZEnable
+        xb::set_render_state(0x003e8210, 0);  // SetRenderState_ZEnable
         z_enable = 0;
     }
     if (z_write != 0) {
-        title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(0x0004035c, 0);  // SetRenderState_Simple
+        xb::set_render_state_simple(0x0004035c, 0);  // SetRenderState_Simple
         z_write = 0;
     }
 
@@ -1538,11 +1539,11 @@ void XB_THISCALL cdSky_Draw(const NglMeshNode* node) {
     fog_off();
     nglDrawMeshSection(node->section);
     if (z_enable != saved_z_enable) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e8210)(saved_z_enable);
+        xb::set_render_state(0x003e8210, saved_z_enable);
         z_enable = saved_z_enable;
     }
     if (z_write != saved_z_write) {
-        title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(0x0004035c, saved_z_write);
+        xb::set_render_state_simple(0x0004035c, saved_z_write);
         z_write = saved_z_write;
     }
     reset_blend_cache();
@@ -1567,13 +1568,13 @@ void XB_THISCALL cdGlass_Draw(const NglMeshNode* node) {
     if (!texture) texture = title_global<NglTexture*>(0x00902700);
     nglSetTexture(0, texture, 2, 3);
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c68) = 1;
-    title_global<uint32_t>(0x003f5c6c) = 1;
+    xb::set_d3d_state(0x003f5c68, 1);
+    xb::set_d3d_state(0x003f5c6c, 1);
     if (NglTexture* second = *reinterpret_cast<NglTexture* const*>(node->material + 0x24)) {
         nglSetTexture(1, second, 2, 3);
         title_global<uint32_t>(0x003f8320) |= 2;
-        title_global<uint32_t>(0x003f5ce8) = 1;
-        title_global<uint32_t>(0x003f5cec) = 1;
+        xb::set_d3d_state(0x003f5ce8, 1);
+        xb::set_d3d_state(0x003f5cec, 1);
     }
     nglSetVertexShaderCached(shader_ref(0x00901fd8 + (variant + lit * 2) * 8));
     nglSetPixelShaderProgramCached(shader_ref(0x00901fd0 + variant * 4));
@@ -1610,7 +1611,7 @@ void XB_THISCALL cdGlass_Draw(const NglMeshNode* node) {
     // Pixel shader constants 0 and 1: zero and 0.5 in every lane.
     const float half = title_global<float>(0x0083eb24);
     alignas(16) const float pixel[8] = {0, 0, 0, 0, half, half, half, half};
-    title_function<void XB_STDCALL(uint32_t, const float*, uint32_t)>(0x003e7a50)(0, pixel, 2);  // SetPixelShaderConstant
+    xb::set_pixel_constants(0, pixel, 2);  // SetPixelShaderConstant
     set_transform_constants(-0x47, node);
     set_scene_fog();
     nglDrawMeshSection(node->section);
@@ -1651,7 +1652,7 @@ template <typename T>
 void set_inline_state(uint32_t address, uint32_t method, T value) {
     T& cached = title_global<T>(address);
     if (cached == value) return;
-    title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(method, value);  // SetRenderState_Simple
+    xb::set_render_state_simple(method, value);  // SetRenderState_Simple
     cached = value;
 }
 
