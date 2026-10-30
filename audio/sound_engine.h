@@ -10,6 +10,7 @@
 #include <mutex>
 #include <span>
 
+#include "category_volumes.h"
 #include "kernel.h"
 #include "output.h"
 #include "sound_device.h"
@@ -43,6 +44,11 @@ void release_after_fork();
 // Our improvements on or off while playing (the PC menu); OutputConfig::enhanced at first.
 void set_enhanced(bool enhanced);
 bool enhanced();
+
+// The player's volume per kind of sound, original and enhanced alike (settings, PC menu); any
+// time, also before the device opens.
+void set_category_volumes(const CategoryVolumes& volumes);
+CategoryVolumes category_volumes();
 
 // Pauses or resumes all sound output (diagnostics: while the title is frozen).
 void set_paused(bool paused);

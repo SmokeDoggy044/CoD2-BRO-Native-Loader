@@ -49,8 +49,9 @@ struct VoiceStatus {
 
 enum class SpatialMode : uint8_t { World, HeadRelative, Off };
 
-// What a voice plays (the game's sound groups SFX, VOICE, MUSIC, GUI).
-enum class Category : uint8_t { Effects, Dialogue, Music, Interface };
+// What a voice plays (the game's sound groups SFX, VOICE, MUSIC, GUI). Ambience: the level
+// background beds, which the game plays as MUSIC (snd.cpp, Music_Play: by the alias name).
+enum class Category : uint8_t { Effects, Dialogue, Music, Interface, Ambience };
 
 struct Spatial {
     float position[3] = {0, 0, 0};

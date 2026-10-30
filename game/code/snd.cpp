@@ -1,5 +1,6 @@
 #include "snd.h"
 
+#include <atomic>
 #include <cstring>
 
 #include "cg_ents.h"
@@ -1908,12 +1909,54 @@ audio::SoundDevice& device() { return *g_sound; }
 
 void synch_playback() { device().start_synched(); }  // IDirectSound_SynchPlayback
 
-// A sound entry's category, by its group's name (entry +0x10; the name at group +0x108).
-audio::Category sound_category(const uint8_t* sound) {
+// Our addition: the sound ids (bank << 16 | index) last started as level ambience (ambience_sound). The game plays
+// its background beds through the music path (Music_Play, group MUSIC), so only the alias name tells them apart.
+std::atomic<uint32_t> g_ambience_sounds[32];
+
+// Remembers (or forgets) `sound` as ambience; ids are reused by the next level's banks, so every start says again.
+void set_ambience_sound(int32_t sound, bool ambience) {
+    if (sound == -1) return;
+    const uint32_t id = uint32_t(sound) + 1;  // 0: a free slot
+    for (auto& slot : g_ambience_sounds)
+        if (slot.load(std::memory_order_relaxed) == id) {
+            if (!ambience) slot.store(0, std::memory_order_relaxed);
+            return;
+        }
+    if (!ambience) return;
+    for (auto& slot : g_ambience_sounds) {
+        uint32_t free = 0;
+        if (slot.compare_exchange_strong(free, id, std::memory_order_relaxed)) return;
+    }
+    g_ambience_sounds[id % 32].store(id, std::memory_order_relaxed);  // full: replace one
+}
+
+bool is_ambience_sound(uint32_t sound) {
+    for (const auto& slot : g_ambience_sounds)
+        if (slot.load(std::memory_order_relaxed) == sound + 1) return true;
+    return false;
+}
+
+// Music_Play's aliases: the music is "music_mainmenu", "BG_MX_<level>_<event>" and a few "BG_<name>MX"; every other
+// "BG_" alias is a background bed (BG_Battle_Med, BG_Buch_Snow_int, BG_PROLOGUE_BRIEFING, ...).
+bool is_ambience_alias(const char* name) {
+    const auto upper = [](char c) { return c >= 'a' && c <= 'z' ? char(c - 'a' + 'A') : c; };
+    const auto starts = [&](const char* prefix) {
+        for (size_t i = 0; prefix[i]; ++i)
+            if (upper(name[i]) != prefix[i]) return false;
+        return true;
+    };
+    const size_t length = std::strlen(name);
+    if (!starts("BG_") || starts("BG_MX_")) return false;
+    return !(length >= 2 && upper(name[length - 2]) == 'M' && upper(name[length - 1]) == 'X');
+}
+
+// A voice's category: by its sound entry's group (+0x10; the name at group +0x108), ambience as remembered above.
+audio::Category sound_category(uint32_t id, const uint8_t* sound) {
     const auto* group = *reinterpret_cast<const char* const*>(sound + 0x10);
-    if (!group) return audio::Category::Effects;
-    const char* name = group + 0x108;
+    const char* name = group ? group + 0x108 : "";
     if (!std::strncmp(name, "VOICE", 0x20)) return audio::Category::Dialogue;
+    if (is_ambience_sound(id)) return audio::Category::Ambience;
+    if (!group) return audio::Category::Effects;
     if (!std::strncmp(name, "MUSIC", 0x20)) return audio::Category::Music;
     if (!std::strncmp(name, "GUI", 0x20)) return audio::Category::Interface;
     return audio::Category::Effects;
@@ -2200,7 +2243,8 @@ uint32_t XB_CDECL SndHw_Update() {
                 continue;
             }
             SndVoice_SetupBuffer(slot, sound, voice);
-            device().set_category(stream ? stream : buffer, sound_category(sound));  // our addition
+            device().set_category(stream ? stream : buffer,
+                                  sound_category(snd_at<uint32_t>(voice, 0xc8), sound));  // our addition
         }
         if (state != 7 && (requests & 8)) {
             requests &= ~8;
@@ -3040,8 +3084,8 @@ uint8_t XB_CDECL SndSys_InitDevice() {
 namespace {
 
 // The alias `name` started on a free channel of 0x0095f4c4 at the origin 0x0082e290 with velocity 0x0082e110 (all
-// four values from the sound); its handle, 0 for an unknown name.
-uint32_t start_fade_alias(const char* name) {
+// four values from the sound); its handle, 0 for an unknown name. `ambience`: our volume category for it.
+uint32_t start_fade_alias(const char* name, bool ambience) {
     uint32_t velocity[4];
     uint32_t origin[4];
     std::memcpy(velocity, &title_global<uint32_t>(0x0082e110), 16);
@@ -3049,6 +3093,7 @@ uint32_t start_fade_alias(const char* name) {
     uint8_t* const table = title_global<uint8_t*>(0x0095f4c4);
     const int32_t alias = S_FindSoundByHash(name);
     if (alias == -1) return 0;
+    set_ambience_sound(alias, ambience);  // our addition (snd sound_category)
     uint32_t handle;
     S_PlaySoundAlias(uint32_t(alias), 0, table, &handle, 0, 1, 0, uint32_t(uintptr_t(origin)),
                      uint32_t(uintptr_t(velocity)), 0xbf800000, 0xbf800000, 0xbf800000, 0xbf800000);
@@ -3065,7 +3110,7 @@ void XB_REGS2 XB_STDCALL S_AmbientPlay(uint8_t* fade, const char* name, uint32_t
         emitter_word<float>(fade, 0x14) = 0.0f;
         emitter_word<float>(fade, 0x18) = 0.0f;
     }
-    *handle = start_fade_alias(name);
+    *handle = start_fade_alias(name, true);
     emitter_word<float>(fade, 0x10) = 0.0f;
     emitter_word<uint32_t>(fade, 0x1c) = 1;
     emitter_word<uint32_t>(fade, 0x14) = time_bits;
@@ -3078,7 +3123,7 @@ void XB_REGS1 XB_STDCALL Music_Play(uint8_t* fade, const char* name) {
     if (title_global<uint32_t>(0x0096d968) || !name) return;
     uint32_t* const handle = &emitter_word<uint32_t>(fade, 0);
     if (SoundHandle_Resolve(handle)) S_StopSoundHandle(handle);
-    *handle = start_fade_alias(name);
+    *handle = start_fade_alias(name, is_ambience_alias(name));
     if (!SoundHandle_Resolve(handle)) return;
     using GetParam = long double XB_CDECL(uint32_t, uint32_t, float);
     const long double param = title_function<GetParam>(0x000c59b0)(emitter_word<uint32_t>(SoundHandle_Resolve(handle), 4),

@@ -21,6 +21,7 @@
 #include "imgui_impl_sdlrenderer3.h"
 #include "log.h"
 #include "output_devices.h"
+#include "category_volumes.h"
 #include "reverb_tuning.h"
 #include "paths.h"
 #include "program.h"
@@ -54,6 +55,7 @@ struct Choices {
     std::string speakers = "auto";   // auto, stereo, headphones, quad, 5.1, 7.1
     std::string audio_device;        // empty: the system's
     audio::ReverbTuning reverb;
+    audio::CategoryVolumes volumes;
     std::string language = "english";  // the console's: english, german, french, spanish, italian
     int net_port = 3074;  // system link: UDP net_port .. net_port + 3
     // Launcher only: saved as "false" (which the game skips) when off.
@@ -101,6 +103,7 @@ Choices read_choices(const platform::Settings& settings) {
         c.speakers = *v;
     if (auto v = settings.get("audio-device")) c.audio_device = *v;
     if (auto v = settings.get("reverb")) c.reverb = audio::ReverbTuning::parse(*v);
+    if (auto v = settings.get("volume")) c.volumes = audio::CategoryVolumes::parse(*v);
     if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
     if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
@@ -135,6 +138,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("speakers", c.speakers == d.speakers, c.speakers);
     put("audio-device", c.audio_device.empty(), c.audio_device);
     put("reverb", c.reverb == d.reverb, c.reverb.format());
+    put("volume", c.volumes == d.volumes, c.volumes.format());
     put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
     put("check-updates", c.check_updates == d.check_updates, "false");
@@ -566,6 +570,20 @@ private:
             ImGui::EndCombo();
         }
         help_marker("A device that is gone when the game starts falls back to the system default.");
+
+        ImGui::SliderFloat("Effects volume", &choices_.volumes.effects, 0.0f, 100.0f, "%.0f%%",
+                           ImGuiSliderFlags_AlwaysClamp);
+        help_marker("Gunfire, explosions, vehicles, footsteps, the menus' sounds.");
+        ImGui::SliderFloat("Ambience volume", &choices_.volumes.ambience, 0.0f, 100.0f, "%.0f%%",
+                           ImGuiSliderFlags_AlwaysClamp);
+        help_marker("The levels' background: distant battle, wind, rain, the hum of a room.");
+        ImGui::SliderFloat("Dialogue volume", &choices_.volumes.dialogue, 0.0f, 100.0f, "%.0f%%",
+                           ImGuiSliderFlags_AlwaysClamp);
+        help_marker("Orders, squad chatter, briefings.");
+        ImGui::SliderFloat("Music volume", &choices_.volumes.music, 0.0f, 100.0f, "%.0f%%",
+                           ImGuiSliderFlags_AlwaysClamp);
+        help_marker("On top of the game's own volume setting, for Original and Enhanced sound "
+                    "alike. Also adjustable while playing: PC menu (` key).");
 
         ImGui::BeginDisabled(choices_.audio != "enhanced");
         if (ImGui::TreeNode("Advanced reverb")) {
