@@ -525,6 +525,7 @@ uint32_t XB_STDCALL D3DDevice_Swap(uint32_t /*flags*/) {
     platform::HostFloatEnv float_env;
     count_frame();
     upload_back_buffer_writes();
+    g.backend->finish_picture();  // before screenshots, so they show it as it is shown
     if (!g.config.diag_dir.empty()) diagnostics();
     {
         std::lock_guard lock(g.notice_mutex);

@@ -116,6 +116,27 @@ state. Missions 4, 1, 6 and the front end: no draw reaches the Xbox path any mor
   device creation and presentation (device.cpp, Backend::present), and the Xbox state calls the
   wrappers still make (they keep XB_XBOX_DRAWS working; they go with the D3D8 library).
 
+**Enhanced graphics, 2026-10-30 (user: switchable improvements like enhanced sound; for review).**
+One master switch, Original (the picture as on the Xbox, at the PC's resolution) or Enhanced,
+and each improvement on its own switch; amounts default to neutral (0) so players choose them
+(the enhanced-sound rule). `--graphics original|enhanced` (settings.ini `graphics`; original
+with --pc-patches off), `--graphics-features "K=V ..."` (settings.ini `graphics-features`,
+render/enhanced_graphics.h), the launcher's Graphics tab, the PC menu's Graphics tab (live,
+saved on closing).
+- Anti-aliasing (`fxaa`, on): render/post/fxaa.hlsl, edges by luma contrast blended along
+  their direction (FXAA 3 console idea). Frames with a 3D scene only, so menus stay crisp; the
+  in-game HUD gets it too (a later refinement: run it before the HUD).
+- Anisotropic filtering (`anisotropic`, on): the existing level (--anisotropy, launcher's Texture
+  filtering) now only with enhanced graphics.
+- Sharpening (`sharpen` + `sharpness` 0..1, default 0): render/post/sharpen.hlsl, contrast
+  adaptive (CAS idea): strong in flat areas, weak at hard edges.
+- Colour vibrance (`vibrance` + `vibrance_amount` -1..1, default 0): weak colours raised more
+  than strong ones.
+- Texture detail (`texture_detail` + `lod_bias` -2..0, default 0): mipmap bias of our draws.
+- The post passes (render/d3d9_post.cpp) run on the back buffer in `Backend::finish_picture()`
+  (before screenshots and the brightness pass), shaders compiled with vkd3d like the title's
+  (render/post, cmake/embed_named_shaders.cmake).
+
 **R4 - the C onto the interface, one draw path at a time**, with screenshot diffs against the
 current path: text and quads, meshes (incl. recorded push buffers), fog, render-target mips, FX,
 debug lines; then device setup and presentation. Done when no renderer C touches NV2A or D3D8.

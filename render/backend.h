@@ -145,6 +145,10 @@ public:
     // Saves the back buffer as a 24-bit BMP. Returns false (logged) on failure.
     virtual bool save_back_buffer(const char* path) = 0;
 
+    // The frame is drawn: last passes on the back buffer itself (enhanced graphics' post passes),
+    // before screenshots and present().
+    virtual void finish_picture() {}
+
     // Shows the back buffer.
     virtual void present() = 0;
 

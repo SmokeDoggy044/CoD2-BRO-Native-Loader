@@ -10,6 +10,7 @@
 #include "d3d9_draw.h"
 #include "d3d_internal.h"
 #include "float_env.h"
+#include "enhanced_graphics.h"
 #include "log.h"
 #include "texture_hash.h"
 #include "title_shaders.h"
@@ -992,6 +993,7 @@ private:
 
         // Textures and samplers.
         const uint32_t anisotropy = draw_.anisotropy();
+        const GraphicsFeatures features = active_graphics_features();
         for (uint32_t slot = 0; slot < kGfxTextureSlots; ++slot) {
             float scale[2];
             IDirect3DBaseTexture9* texture = resolve_texture(bound_textures_[slot], scale);
@@ -1012,8 +1014,11 @@ private:
                 min_filter = D3DTEXF_ANISOTROPIC;
                 max_anisotropy = std::max<DWORD>(max_anisotropy, anisotropy);
             }
+            // Enhanced graphics' texture detail: mipmaps chosen sharper.
+            float bias = s.lod_bias;
+            if (texture->GetLevelCount() > 1 && features.texture_detail) bias += features.lod_bias;
             DWORD lod_bias;
-            std::memcpy(&lod_bias, &s.lod_bias, 4);
+            std::memcpy(&lod_bias, &bias, 4);
             device_->SetSamplerState(slot, D3DSAMP_MINFILTER, min_filter);
             device_->SetSamplerState(slot, D3DSAMP_MIPFILTER, filter(s.mip));
             device_->SetSamplerState(slot, D3DSAMP_MIPMAPLODBIAS, lod_bias);

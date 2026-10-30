@@ -24,6 +24,7 @@
 #include "diag_summary.h"
 #include "functions.h"
 #include "gfx_device.h"
+#include "enhanced_graphics.h"
 #include "gfx_verify.h"
 #include "ngl.h"
 #include "ngl_gfx.h"
@@ -88,6 +89,8 @@ struct Options {
     audio::ReverbTuning reverb;  // --reverb
     audio::CategoryVolumes volumes;  // --volume
     audio::EnhancedFeatures features;  // --enhanced
+    bool graphics_enhanced = true;               // --graphics
+    render::GraphicsFeatures graphics_features;  // --graphics-features
     std::string press_script;
     float mouse_sensitivity = 0.11f;
     input::Bindings bindings = input::default_bindings();  // --keys
@@ -175,6 +178,13 @@ void print_usage(const char* program) {
         "  --enhanced \"K=0|1 ...\"  enhanced sound's improvements one by one (default all on):\n"
         "                   resampler, voices (more than the Xbox's), reverb, occlusion,\n"
         "                   close_boost (the close_ volumes); also in the PC menu\n"
+        "  --graphics original|enhanced  the picture as on the Xbox (at the PC's resolution), or with\n"
+        "                   our improvements (default enhanced; original with --pc-patches off;\n"
+        "                   PC menu: live switch)\n"
+        "  --graphics-features \"K=V ...\"  enhanced graphics' improvements one by one (default\n"
+        "                   all on): fxaa, anisotropic (its level: --anisotropy), sharpen with\n"
+        "                   sharpness=0..1, vibrance with vibrance_amount=-1..1, texture_detail\n"
+        "                   with lod_bias=-2..0 (amounts default 0: no change); also in the PC menu\n"
         "  --memory MB      Xbox memory budget (default 64, like a retail Xbox; devkit: 128)\n"
         "  --fullscreen     borderless fullscreen (Alt+Enter switches while playing)\n"
         "  --windowed       in a window (default; overrides fullscreen in settings.ini)\n"
@@ -242,7 +252,7 @@ void print_usage(const char* program) {
         "                   aim assist off, widescreen menus and objectives (default on); off\n"
         "                   keeps only what the game needs to run on a PC (and --level), and\n"
         "                   defaults to 4:3, the game's fonts, render scale 1, no anisotropic\n"
-        "                   filtering, brightness 1 and the original sound\n",
+        "                   filtering, brightness 1, the original sound and original graphics\n",
         program);
 }
 
@@ -523,6 +533,19 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.features = audio::EnhancedFeatures::parse(argv[++i]);
+        } else if (arg == "--graphics") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "original" && value != "enhanced") {
+                std::fprintf(stderr, "--graphics needs original or enhanced\n");
+                return std::nullopt;
+            }
+            options.graphics_enhanced = value == "enhanced";
+        } else if (arg == "--graphics-features") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--graphics-features needs features, e.g. \"fxaa=0 sharpness=0.5\"\n");
+                return std::nullopt;
+            }
+            options.graphics_features = render::GraphicsFeatures::parse(argv[++i]);
         } else if (arg == "--audio-device") {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--audio-device needs a device name\n");
@@ -699,6 +722,7 @@ int loader_main(int argc, char** argv) {
         unless_given("--anisotropy", parsed->anisotropy, uint32_t{1});
         unless_given("--brightness", parsed->brightness, 1.0f);
         unless_given("--audio", parsed->audio_enhanced, false);
+        unless_given("--graphics", parsed->graphics_enhanced, false);
     }
     const std::optional<Options>& options = parsed;
     g_args.assign(argv, argv + argc);
@@ -852,6 +876,11 @@ int loader_main(int argc, char** argv) {
     audio_config.device = options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default;
     audio_config.device_name = options->audio_device;
     audio_config.speakers = options->speakers;
+    render::set_graphics(options->graphics_enhanced, options->graphics_features);
+    if (const std::string changed = options->graphics_features.format(); options->graphics_enhanced)
+        LOG_INFO("render", "enhanced graphics%s%s", changed.empty() ? "" : ": ", changed.c_str());
+    else
+        LOG_INFO("render", "original graphics");
     audio_config.enhanced = options->audio_enhanced;
     audio_config.features = options->features;
     if (const std::string off = options->features.format(); !off.empty())

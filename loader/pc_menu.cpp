@@ -7,6 +7,7 @@
 #include <string>
 
 #include "devices.h"
+#include "enhanced_graphics.h"
 #include "imgui.h"
 #include "log.h"
 #include "patches.h"
@@ -25,6 +26,8 @@ bool g_enhanced_on_open = false;
 audio::ReverbTuning g_reverb_on_open;
 audio::CategoryVolumes g_volumes_on_open;
 audio::EnhancedFeatures g_features_on_open;
+bool g_graphics_on_open = false;
+render::GraphicsFeatures g_graphics_features_on_open;
 
 // The volume per kind of sound's sliders (audio::CategoryVolumes); true if one moved.
 bool volume_sliders(audio::CategoryVolumes& v) {
@@ -160,6 +163,55 @@ void sound_tab() {
     ImGui::EndDisabled();
 }
 
+// One amount's slider under its switch; true if it moved.
+bool amount_slider(const char* label, float& value, float low, float high, const char* format, const char* help) {
+    ImGui::Indent();
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
+    const bool changed = ImGui::SliderFloat(label, &value, low, high, format, ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SameLine();
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", help);
+    ImGui::Unindent();
+    return changed;
+}
+
+void graphics_tab() {
+    ImGui::SeparatorText("Enhanced graphics");
+    bool enhanced = render::graphics_enhanced();
+    render::GraphicsFeatures f = render::graphics_features();
+    bool changed = ImGui::Checkbox("Enhanced graphics", &enhanced);
+    ImGui::TextDisabled("Off: the picture as on the Xbox (at your resolution). On: the improvements\n"
+                        "below that are switched on. Changes show at once.");
+    ImGui::BeginDisabled(!enhanced);
+    ImGui::Indent();
+    changed |= feature_switch("Anti-aliasing (FXAA)", f.fxaa,
+                              "Smooths jagged edges in the 3D picture. Menus are left as they are.");
+    changed |= feature_switch("Anisotropic filtering", f.anisotropic,
+                              "Sharp textures on the ground and walls seen at a slant. Its level is\n"
+                              "chosen in the launcher (Graphics: Texture filtering).");
+    changed |= feature_switch("Sharpening", f.sharpen,
+                              "Contrast-adaptive sharpening of the 3D picture: more detail without\n"
+                              "halos at hard edges. 0 = none.");
+    if (f.sharpen)
+        changed |= amount_slider("Sharpness", f.sharpness, 0.0f, 1.0f, "%.2f",
+                                 "How strong the sharpening is (0: none, the default).");
+    changed |= feature_switch("Colour vibrance", f.vibrance,
+                              "Stronger colours where they are weak (the game's palette is muted);\n"
+                              "below 0 greyer. 0 = the game's colours.");
+    if (f.vibrance)
+        changed |= amount_slider("Vibrance", f.vibrance_amount, -1.0f, 1.0f, "%+.2f",
+                                 "0 = the game's colours (the default).");
+    changed |= feature_switch("Texture detail", f.texture_detail,
+                              "Sharper textures in the distance (finer mipmaps). Too far below 0\n"
+                              "makes them shimmer when moving. 0 = the game's choice.");
+    if (f.texture_detail)
+        changed |= amount_slider("Detail bias", f.lod_bias, -2.0f, 0.0f, "%.2f",
+                                 "Mipmap bias: lower is sharper (0: the game's, the default).");
+    ImGui::Unindent();
+    ImGui::EndDisabled();
+    if (changed) render::set_graphics(enhanced, f);
+}
+
 }  // namespace
 
 bool pc_menu() {
@@ -174,6 +226,10 @@ bool pc_menu() {
     if (ImGui::BeginTabBar("pc_menu_tabs")) {
         if (ImGui::BeginTabItem("General")) {
             general_tab();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Graphics")) {
+            graphics_tab();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Sound")) {
@@ -197,7 +253,30 @@ void pc_menu_shown(bool open) {
         g_reverb_on_open = game::SndEnv_Tuning();
         g_volumes_on_open = audio::category_volumes();
         g_features_on_open = audio::enhanced_features();
+        g_graphics_on_open = render::graphics_enhanced();
+        g_graphics_features_on_open = render::graphics_features();
         return;
+    }
+    if (const bool graphics = render::graphics_enhanced(); graphics != g_graphics_on_open) {
+        platform::Settings settings = platform::load_settings();
+        settings.set("graphics", graphics ? "enhanced" : "original");
+        if (platform::save_settings(settings))
+            LOG_INFO("loader", "%s graphics saved", graphics ? "enhanced" : "original");
+        else
+            LOG_WARN("loader", "cannot save the graphics setting to %s", platform::settings_path().string().c_str());
+    }
+    if (const render::GraphicsFeatures features = render::graphics_features();
+        !(features == g_graphics_features_on_open)) {
+        platform::Settings settings = platform::load_settings();
+        const std::string text = features.format();
+        if (text.empty())
+            settings.erase("graphics-features");
+        else
+            settings.set("graphics-features", text);
+        if (platform::save_settings(settings))
+            LOG_INFO("loader", "enhanced graphics saved: %s", text.empty() ? "the defaults" : text.c_str());
+        else
+            LOG_WARN("loader", "cannot save the graphics settings to %s", platform::settings_path().string().c_str());
     }
     if (const audio::CategoryVolumes volumes = audio::category_volumes(); !(volumes == g_volumes_on_open)) {
         platform::Settings settings = platform::load_settings();

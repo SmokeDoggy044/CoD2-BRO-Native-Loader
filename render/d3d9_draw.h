@@ -44,7 +44,8 @@ public:
     uint32_t target_surface_height() const { return target_surface_height_; }
     bool target_ok() const { return target_ok_; }
     bool depth_is_d16() const { return depth_d16_; }
-    uint32_t anisotropy() const { return anisotropy_; }
+    // The anisotropic filtering level in effect (1 unless enhanced graphics has it on).
+    uint32_t anisotropy() const;
     // A title texture by its Xbox header (and P8 palette header, else 0) as a D3D9 texture,
     // decoded and kept current like a bound stage's; `scale` gets the texel -> normalized
     // factors (linear formats). Null if it cannot be decoded.
