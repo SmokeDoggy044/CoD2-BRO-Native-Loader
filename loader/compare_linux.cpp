@@ -2451,17 +2451,6 @@ bool parse_sdk_args(const char* text, SdkSpec& spec) {
     return true;
 }
 
-// Whether `name` is one of the comma-separated names in `list`.
-bool listed_in(const char* list, const char* name) {
-    const std::string_view names(list), wanted(name);
-    for (size_t at = 0; at <= names.size();) {
-        const size_t comma = std::min(names.find(',', at), names.size());
-        if (names.substr(at, comma - at) == wanted) return true;
-        at = comma + 1;
-    }
-    return false;
-}
-
 void install(std::span<const game::Function> functions, const Config& config) {
     g_config = config;
     // The protection pass below walks these in address order.
@@ -2536,12 +2525,7 @@ void install(std::span<const game::Function> functions, const Config& config) {
         const uint32_t address = config.multiplayer ? function.multiplayer : function.campaign;
         if (!address) continue;
         if (function.status == game::Status::Replaced) {
-            // The C uses the supported build's addresses throughout: another release keeps the original.
-            // XBCMP_ORIGINALS=1 keeps every original, XBCMP_ORIGINALS=name,name those (finding which
-            // replaced function a problem comes from).
-            static const char* const originals = std::getenv("XBCMP_ORIGINALS");
-            const bool original = originals && (std::strcmp(originals, "1") == 0 || listed_in(originals, function.name));
-            if (!release_map().identity() || original) {
+            if (keeps_original(function)) {
                 ++kept_original;
                 continue;
             }

@@ -16,8 +16,7 @@ void install(std::span<const game::Function> functions, const Config& config) {
     for (const game::Function& function : functions) {
         const uint32_t address = config.multiplayer ? function.multiplayer : function.campaign;
         if (!address || function.status != game::Status::Replaced) continue;
-        // The C uses the supported build's addresses throughout: another release keeps the original.
-        if (!release_map().identity()) {
+        if (keeps_original(function)) {
             ++kept_original;
             continue;
         }

@@ -27,10 +27,12 @@
 #include "devices.h"
 #include "filesystem.h"
 #include "float_env.h"
+#include "functions.h"
 #include "hooks.h"
 #include "key_prompts.h"
 #include "kernel.h"
 #include "log.h"
+#include "ngl.h"
 #include "release_map.h"
 #include "sound_engine.h"
 #include "symbols.h"
@@ -457,6 +459,9 @@ constexpr int32_t kClsStateActive = 2;
 
 int32_t g_start_level = -1;  // pending until the UI is up
 bool g_campaign = true;
+// The renderer module runs as C (Status::Replaced): its PC changes go through
+// game::renderer_pc_hooks() instead of patches into its original code, which no longer runs.
+bool g_renderer_c = false;
 std::string g_exec_text;     // pending until the level is active
 std::vector<TitlePatchConfig::ForcedCall> g_forced_calls;  // count: tests still to start
 uint64_t g_active_ms = 0;    // when the level became active (0: not yet)
@@ -563,6 +568,10 @@ void XB_CDECL scene_hook(const compare::TitleRegisters* saved) { force_calls(sav
 // cmp byte [in_test], 0; jne R_AddSimpleInstancesToScene; then as the client frame's thunk
 void install_scene_hook(const std::vector<TitlePatchConfig::ForcedCall>& forced_calls) {
     if (std::none_of(forced_calls.begin(), forced_calls.end(), [](const auto& f) { return f.scene; })) return;
+    if (g_renderer_c) {
+        LOG_WARN("patches", "R_RenderView runs as C; scene: forced calls ignored (XBCMP_ORIGINALS=R_RenderView)");
+        return;
+    }
     auto* site = reinterpret_cast<uint8_t*>(uintptr_t{kCallAddSimpleInstances});
     uint32_t relative;
     std::memcpy(&relative, site + 1, 4);
@@ -963,6 +972,7 @@ void install_display_aspect(const AspectSites& sites, float aspect) {
     g_display_aspect = aspect;
     if (std::fabs(aspect - 16.0f / 9.0f) < 0.001f) return;
     for (uint32_t load : sites.loads) {
+        if (g_renderer_c) break;
         const auto* code = reinterpret_cast<const uint8_t*>(uintptr_t{load});
         uint32_t operand = 0;
         std::memcpy(&operand, code + 4, 4);
@@ -976,8 +986,12 @@ void install_display_aspect(const AspectSites& sites, float aspect) {
         return;
     }
     g_scene_aspect = aspect;
-    const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_scene_aspect));
-    for (uint32_t load : sites.loads) std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{load}) + 4, &address, 4);
+    if (g_renderer_c) {
+        game::renderer_pc_hooks().wide_aspect = &g_scene_aspect;
+    } else {
+        const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_scene_aspect));
+        for (uint32_t load : sites.loads) std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{load}) + 4, &address, 4);
+    }
     LOG_WARN("patches", "experimental: %.3f:1 picture (the view widens, the HUD stays 16:9 in the middle)", aspect);
 }
 
@@ -1109,7 +1123,8 @@ void install_field_of_view(const FovSites* sites, const AspectSites& aspect_site
         const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_cull[i]));
         std::memcpy(reinterpret_cast<uint8_t*>(uintptr_t{sites->cull_loads[i]}) + 4, &address, 4);
     }
-    g_gun_fov_ok = std::memcmp(reinterpret_cast<const void*>(uintptr_t{sites->gun_fov_load}), kGunFovLoad, 6) == 0;
+    g_gun_fov_ok =
+        g_renderer_c || std::memcmp(reinterpret_cast<const void*>(uintptr_t{sites->gun_fov_load}), kGunFovLoad, 6) == 0;
     if (!g_gun_fov_ok)
         LOG_WARN("patches", "%08x: not the gun scene's fov; the gun widens with the view", sites->gun_fov_load);
     g_fov = sites;
@@ -1195,6 +1210,11 @@ void set_gun_fov(float wanted) {
         g_gun_fov_y = std::atan(view / factor * (1.0f - zoom) + view * zoom) / kHalfRadians;
     }
     if (on == g_gun_fov_on) return;
+    g_gun_fov_on = on;
+    if (g_renderer_c) {
+        game::renderer_pc_hooks().gun_fov_y = on ? &g_gun_fov_y : nullptr;
+        return;
+    }
     auto* code = reinterpret_cast<uint8_t*>(uintptr_t{g_fov->gun_fov_load});
     if (on) {
         const auto address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_gun_fov_y));
@@ -1203,7 +1223,6 @@ void set_gun_fov(float wanted) {
     } else {
         std::memcpy(code, kGunFovLoad, 6);
     }
-    g_gun_fov_on = on;
 }
 
 void XB_CDECL wait_frame_start() {
@@ -1232,6 +1251,18 @@ void install_frame_wait() {
 }
 
 void install_frame_rate(int32_t frame_rate, bool late_frames_wait) {
+    if (g_renderer_c) {
+        // Our own renderer's frame loop brings native frame rates (stage 3); until then the C
+        // paces at the title's own 30 fps. Its frame end still waits without spinning.
+        g_frame_vblanks = 2;
+        g_late_frames_wait = late_frames_wait;
+        title<uint32_t>(g_pacing.late_no_wait) = late_frames_wait ? 0 : 1;
+        game::renderer_pc_hooks().frame_wait = &wait_frame_start;
+        render::frame_rate_changed(30);
+        LOG_INFO("patches", "30 fps: the renderer runs as C%s",
+                 frame_rate == 60 ? " (60 fps comes back with our own frame loop)" : "");
+        return;
+    }
     g_frame_vblanks = frame_rate == 60 ? 1 : 2;
     g_late_frames_wait = late_frames_wait;
     install_frame_wait();
@@ -2102,6 +2133,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     g_client = relocated(title.id == TitleId::Campaign ? kCampaignClient : kMultiplayerClient);
     const bool campaign = title.id == TitleId::Campaign;
     g_campaign = campaign;
+    g_renderer_c = campaign && compare::replaced(game::functions(), 0x00247350);  // R_RenderView
     g_aim_assist = campaign ? AimAssist{0x002db7d0, 0x500} : AimAssist{0x0024c940, 0x510};
     g_aim_assist.function = title_address(g_aim_assist.function, "(aim assist)");
     g_menus = relocated(campaign ? kCampaignMenus : kMultiplayerMenus);

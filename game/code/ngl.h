@@ -11,6 +11,22 @@
 
 namespace game {
 
+// PC additions the loader hands the renderer C in place of its patches into the original code.
+// All unset (the default, and in --compare runs): exactly the original's behaviour.
+struct RendererPcHooks {
+    // In place of the 16:9 scene aspect constant (0x0083f254) where nglSetDefaultSceneParams and
+    // R_RenderView read it: pictures wider than 16:9.
+    const float* wide_aspect = nullptr;
+    // Set: the gun (view model) scene's fov_y in R_RenderView instead of the view's own.
+    const float* gun_fov_y = nullptr;
+    // Called in place of nglEndFrame's spin on the pending frame (0x0090288c): returns once the
+    // flag is clear.
+    void (*frame_wait)() = nullptr;
+};
+RendererPcHooks& renderer_pc_hooks();
+// The 16:9 scene aspect, or the wider one in RendererPcHooks.
+float wide_scene_aspect();
+
 // Only the fields the decompiled functions use so far.
 struct NglTexture {
     uint8_t unknown00[0x4];
