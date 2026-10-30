@@ -89,6 +89,33 @@ pixel constants, render target, viewport). `game::ngl_gfx_state()` returns it.
 - Found on the way: `nglSetTextureAddressMode` writes the stage's mag/min/mip filters (and max
   anisotropy), not its address modes (worth a rename).
 
+**R4b - every draw of the renderer on our interface, 2026-10-30.** Text, 2D quads, the
+DrawVerticesUP draws (render-target mips, both fog passes, debug lines), meshes (DrawVertices /
+DrawIndexedVertices from the title's vertex buffers), quad batches (particles, FX) and clears go
+through `game::ngl_gfx_draw_user` / the `game::xb` draw wrappers onto GfxDevice with the recorded
+state. Missions 4, 1, 6 and the front end: no draw reaches the Xbox path any more.
+- Vertices stay in title memory for now: `draw_user` takes a cache key (the title buffer range);
+  the D3D9 back end hashes the draw's bytes and draws from a kept copy while they stay the same
+  (made the second time the same contents come), else streams them.
+- Indexed draws pass the vertex range the indices use, the indices rebased; indexed quads become
+  triangles.
+- Packed normals (NORMPACKED3, 20 declaration inputs) are unpacked by the vertex shader: the
+  shader tool makes a variant of a program per declaration that gives it packed normals
+  (`vs_KEY_DECLARATION.hlsl`, 22), fed the raw bytes (UByte4). PBYTE4 is UByte4N.
+- The screen-space shaders (text, quads, mips, fog: nglInitShaderConstantTable) are in
+  render/shaders too: 144 programs + 22 variants, all identical to the Xbox path's translation
+  (tests/title_shader_test, variants fed packed bytes against the decoded floats).
+- Wide pictures: the D3D9 back end narrows UI drawn over a 3D scene like the Xbox path
+  (BackendConfig::narrow_ui_draw, x range of the positions).
+- Checks: `XB_DRAWS_ALTERNATE=1` draws on every other frame through each path; paused scenes
+  in missions 4, 1 and 6 (world, FX, fog, menu) are pixel-identical between them.
+  `XB_XBOX_DRAWS=1` keeps every draw on the Xbox path. Frame time: the same (game thread 46.6%
+  busy vs 46.1% at 30 fps; hashing the vertices replaces the Xbox path's conversion).
+- Still on the Xbox side: the YUV quads (movie frames; not drawn in these runs), recorded push
+  buffers (none seen), the textures (read from title memory through the Xbox path's cache),
+  device creation and presentation (device.cpp, Backend::present), and the Xbox state calls the
+  wrappers still make (they keep XB_XBOX_DRAWS working; they go with the D3D8 library).
+
 **R4 - the C onto the interface, one draw path at a time**, with screenshot diffs against the
 current path: text and quads, meshes (incl. recorded push buffers), fog, render-target mips, FX,
 debug lines; then device setup and presentation. Done when no renderer C touches NV2A or D3D8.

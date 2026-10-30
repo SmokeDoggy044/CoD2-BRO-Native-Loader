@@ -15,12 +15,27 @@
 
 namespace render {
 struct GfxState;
+enum class Primitive : uint8_t;
 }
 
 namespace game {
 
 // The whole recorded state (derived fields brought up to date).
 const render::GfxState* ngl_gfx_state();
+
+// Draws that are ours: on when there is a device (game::gfx()) and XB_XBOX_DRAWS is not set (for
+// screenshot diffs against the Xbox path).
+// XB_DRAWS_ALTERNATE=1: ours on every other frame (screenshot diffs of one paused scene).
+bool ngl_gfx_own_draws();
+// After each frame is shown (nglEndFrame).
+void ngl_gfx_end_frame();
+
+// Draws `count` vertices of `stride` bytes from caller memory with the recorded state on our
+// device; the layout is the selected vertex declaration's. False when it cannot (logged once per
+// reason): the caller draws through the Xbox path instead.
+// `indices` (may be null) index into `vertices`; `cache_key` as GfxDevice::draw_user's.
+bool ngl_gfx_draw_user(render::Primitive primitive, const void* vertices, uint32_t count, uint32_t stride,
+                       const uint16_t* indices = nullptr, uint32_t index_count = 0, uint64_t cache_key = 0);
 
 // A shader's key in render/shaders: the title data that names it (tools/shader_hlsl.py). Told
 // by nglVertexShader_Init / nglPixelShader_Init and the boot assemblers.
@@ -54,6 +69,17 @@ void set_pixel_shader(uint32_t handle);
 // D3DDevice_SetRenderTarget / SetRenderTargetFast (surface headers) / SetViewport (D3DVIEWPORT8).
 void set_render_target(uint32_t color, uint32_t depth, bool fast);
 void set_viewport(const void* viewport);
+// D3DDevice_DrawVerticesUP (Xbox D3DPRIMITIVETYPE, vertices in caller memory): drawn by us when
+// it can be (ngl_gfx_own_draws), else by the Xbox path.
+void draw_vertices_up(uint32_t primitive, uint32_t count, const void* vertices, uint32_t stride);
+// D3DDevice_SetVertexShaderInputDirect (declaration, stream count, STREAMINPUT {buffer header,
+// stride, offset}...).
+void set_vertex_input(uint32_t declaration, uint32_t stream_count, const void* streams);
+// D3DDevice_DrawVertices / DrawIndexedVertices (16-bit indices in title memory) from stream 0, and
+// D3DDevice_Clear (Xbox flags: 0xF0 colour, 1 depth, 2 stencil): ours when they can be.
+void draw_vertices(uint32_t primitive, uint32_t start, uint32_t count);
+void draw_indexed_vertices(uint32_t primitive, uint32_t index_count, const void* indices);
+void clear(uint32_t rect_count, const void* rects, uint32_t flags, uint32_t color, float depth, uint32_t stencil);
 void set_vertex_constant(uint32_t slot, const float* values);
 void set_vertex_constants(uint32_t slot, const float* values, uint32_t dwords);
 void set_pixel_constants(uint32_t reg, const float* values, uint32_t count);

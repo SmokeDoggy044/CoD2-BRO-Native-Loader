@@ -444,8 +444,7 @@ void XB_CDECL nglInit() {
     nglInitFrameBuffers();
     for (uint32_t i = 0; i < title_global<uint32_t>(0x0090275c) + 1; ++i) {
         nglSetRenderTargetCached(nglGetBackBufferTexture(), 0, nullptr, 6);
-        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, float, uint32_t)>(0x003ead90)(
-            0, 0, 0xf3, 0, 1.0f, 0);                                  // D3DDevice_Clear
+        xb::clear(0, 0, 0xf3, 0, 1.0f, 0);                                  // D3DDevice_Clear
         title_function<void XB_STDCALL(uint32_t)>(0x003eabe0)(0);  // D3DDevice_Swap
     }
     title_function<void XB_STDCALL(uint32_t)>(0x003e6260)(0x000643e0);  // D3DDevice_SetVerticalBlankCallback

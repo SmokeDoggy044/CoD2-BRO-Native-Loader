@@ -70,6 +70,16 @@ ps,008a0658,cdWorld_Register
 ps,008a0848,cdBackground_Register
 ps,008a0940,cdBackground_Register
 ps,008a0ae8,cdSky_Register
+ps,008a3c28,drawn by nglRenderTextNode
+ps,008a3d20,drawn by nglDrawQuad
+ps,008a3e18,drawn by nglGenerateRenderTargetMips
+ps,008a3f10,nglInitShaderConstantTable
+ps,008a4008,drawn by nglDrawFogPass
+ps,008a4100,nglInitShaderConstantTable
+ps,008a41f8,nglInitShaderConstantTable
+ps,008a42e8,nglInitShaderConstantTable
+ps,008a43d8,nglInitShaderConstantTable
+ps,008a44c8,nglInitShaderConstantTable
 ps,008baeb8,drawn by nglDebugShader_Draw
 ps,008bbeb8,FxOp31_InitShaders
 ps,008bc1c8,FxOp1d5_InitShaders
@@ -85,37 +95,67 @@ vs,007b3710,nglInitShaders (assembled at boot)
 vs,00899630,cdDebug_Register
 vs,00899810,ShaderPCUV_Register
 vs,00899a00,cdGunSight_Register
+vs,00899a00_00897d30,cdGunSight_Register
 vs,00899d70,cdGun_Register
+vs,00899d70_00897e70,cdGun_Register
 vs,0089a0e0,cdGlass_InitVertexShaders[0]
+vs,0089a0e0_00897fb0,cdGlass_InitVertexShaders[0]
 vs,0089a1b8,cdGlass_InitVertexShaders[1]
+vs,0089a1b8_00897fb0,cdGlass_InitVertexShaders[1]
 vs,0089a360,cdGlass_InitVertexShaders[2]
+vs,0089a360_00897fb0,cdGlass_InitVertexShaders[2]
 vs,0089a4a8,cdGlass_InitVertexShaders[3]
+vs,0089a4a8_00897fb0,cdGlass_InitVertexShaders[3]
 vs,0089aa00,cdSimpleAlpha_InitVertexShaders[0]
+vs,0089aa00_008980f0,cdSimpleAlpha_InitVertexShaders[0]
 vs,0089aa78,cdSimpleAlpha_InitVertexShaders[1]
+vs,0089aa78_008980f0,cdSimpleAlpha_InitVertexShaders[1]
 vs,0089b030,cdPropeller_Register
+vs,0089b030_00898230,cdPropeller_Register
 vs,0089b4d0,cdDecal_Register
 vs,0089b7c0,cdChar_Register
+vs,0089b7c0_008984b0,cdChar_Register
 vs,0089bcd0,cdPrelit_Register
 vs,0089c0b0,cdAirplaneMetal_Register
+vs,0089c0b0_00898730,cdAirplaneMetal_Register
 vs,0089c4d0,cdSimpleUVAnim_Register
+vs,0089c4d0_00898870,cdSimpleUVAnim_Register
 vs,0089c850,cdSimplePrelit_Register
 vs,0089ca40,cdSimple_Register
+vs,0089ca40_00898af0,cdSimple_Register
 vs,0089cdb0,cdRiver_Register
 vs,0089da40,cdOcean_Register
 vs,0089e730,cdWater_Register
 vs,0089ea20,cdWorldBlend_InitVertexShaders[0]
+vs,0089ea20_00898ff0,cdWorldBlend_InitVertexShaders[0]
 vs,0089eaf8,cdWorldBlend_InitVertexShaders[1]
+vs,0089eaf8_00898ff0,cdWorldBlend_InitVertexShaders[1]
 vs,0089ec48,cdWorldBlend_InitVertexShaders2[0]
+vs,0089ec48_00898ff0,cdWorldBlend_InitVertexShaders2[0]
 vs,0089edd0,cdWorldBlend_InitVertexShaders2[1]
+vs,0089edd0_00898ff0,cdWorldBlend_InitVertexShaders2[1]
 vs,0089f770,cdWorldVertexLit_Register
 vs,0089fa60,cdWorld_InitVertexShaders[0]
+vs,0089fa60_00899270,cdWorld_InitVertexShaders[0]
 vs,0089fb28,cdWorld_InitVertexShaders[1]
+vs,0089fb28_00899270,cdWorld_InitVertexShaders[1]
 vs,0089fc58,cdWorld_InitVertexShaders2[0]
+vs,0089fc58_00899270,cdWorld_InitVertexShaders2[0]
 vs,0089fde0,cdWorld_InitVertexShaders2[1]
+vs,0089fde0_00899270,cdWorld_InitVertexShaders2[1]
 vs,008a0780,cdBackground_Register
 vs,008a0a70,cdSky_Register
+vs,008a35e8,drawn by nglRenderTextNode
+vs,008a3630,drawn by nglGenerateRenderTargetMips
+vs,008a3668,nglInitShaderConstantTable
+vs,008a36b0,nglInitShaderConstantTable
+vs,008a3718,nglInitShaderConstantTable
+vs,008a37f0,nglInitShaderConstantTable
+vs,008a3918,nglInitShaderConstantTable
+vs,008a3a80,nglInitShaderConstantTable
 vs,008bae50,drawn by nglDebugShader_Draw
 vs,008bbdc0,FxOp31_InitShaders
+vs,008bbdc0_008bbc90,FxOp31_InitShaders
 vs,008bc110,FxOp1d5_InitShaders
 vs,008bc320,FxOpdd_InitShaders
 vs,008bc560,FxOp1dd_InitShaders

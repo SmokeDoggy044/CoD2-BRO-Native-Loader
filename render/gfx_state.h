@@ -33,6 +33,8 @@ struct GfxState {
     // Transition: the title's render target and depth surface headers (D3DSurface), and its
     // viewport (title pixels of the target; min_z / max_z as D3D's).
     uint32_t color_target = 0, depth_target = 0;
+    // Vertex stream 0 (SetVertexShaderInputDirect): the title's vertex buffer header, stride, offset.
+    uint32_t stream_buffer = 0, stream_stride = 0, stream_offset = 0;
     Viewport viewport;
     float vs_constants[192][4] = {};
     float ps_constants[18][4] = {};  // c0-c7 stage C0, c8-c15 C1, c16 c17 the final C0 C1

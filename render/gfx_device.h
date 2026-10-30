@@ -109,6 +109,7 @@ enum class AttributeType : uint8_t {
     Float1, Float2, Float3, Float4,
     Color,    // 4 x 8-bit unsigned normalized, B G R A in memory (D3DCOLOR), read as rgba
     UByte4,   // 4 x 8-bit unsigned integers, read as floats
+    UByte4N,  // 4 x 8-bit unsigned normalized, in order (x, y, z, w)
     Short2, Short4,      // signed integers, read as floats
     Short2N, Short4N,    // signed normalized
     Half2, Half4,
@@ -245,7 +246,9 @@ public:
     virtual ShaderId create_shader(ShaderStage stage, const ShaderCode& code) = 0;
     // One of the title's shaders translated to HLSL (render/shaders/vs_KEY.hlsl, ps_KEY.hlsl:
     // KEY is the title data naming it, tools/shader_hlsl.py); 0 if there is none by that key.
-    virtual ShaderId create_title_shader(ShaderStage stage, uint32_t key) = 0;
+    // `variant`: a vertex program's form for a vertex declaration with packed normals (given as
+    // AttributeType::UByte4, unpacked by the shader), named by the declaration; 0 = none.
+    virtual ShaderId create_title_shader(ShaderStage stage, uint32_t key, uint32_t variant = 0) = 0;
     virtual void destroy_shader(ShaderId shader) = 0;
     virtual LayoutId create_layout(const VertexLayout& layout) = 0;  // kept until the device goes
 
@@ -281,10 +284,12 @@ public:
     virtual void draw(Primitive primitive, uint32_t first_vertex, uint32_t vertex_count) = 0;
     virtual void draw_indexed(Primitive primitive, uint32_t first_index, uint32_t index_count,
                               int32_t base_vertex) = 0;
-    // Vertices (and 16-bit indices, may be null) from caller memory, copied into the back end's
-    // own stream buffers: stream 0 with `stride`, other streams unbound.
+    // Vertices (and 16-bit indices into them, may be null) from caller memory, copied into the
+    // back end's own stream buffers: stream 0 with `stride`, other streams unbound. `cache_key`
+    // (non-zero) names vertex data that often stays the same between frames (a title vertex
+    // buffer's range): while its contents do, the back end draws from a copy it keeps.
     virtual void draw_user(Primitive primitive, const void* vertices, uint32_t vertex_count, uint32_t stride,
-                           const uint16_t* indices, uint32_t index_count) = 0;
+                           const uint16_t* indices, uint32_t index_count, uint64_t cache_key = 0) = 0;
 
     // --- Diagnostics ---
     // The target's pixels at the title's size (A8R8G8B8, width * height); false on failure.

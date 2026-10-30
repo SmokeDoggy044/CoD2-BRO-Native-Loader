@@ -54,6 +54,15 @@ float4 nv_log(float s) {
 float4 nv_rcc(float s) { return clamp(1 / s, -1.884467e19, 1.884467e19); }
 float4 nv_dst(float4 a, float4 b) { return float4(1, a.y * b.y, a.z, b.w); }
 
+// NORMPACKED3 (11:11:10 signed normalized x, y, z), given as its four bytes (UBYTE4): (x, y, z, 1).
+float4 nv_normpacked3(float4 b) {
+    const float x = b.x + (b.y - 8 * floor(b.y / 8)) * 256;
+    const float y = floor(b.y / 8) + (b.z - 64 * floor(b.z / 64)) * 32;
+    const float z = floor(b.z / 64) + b.w * 4;
+    return float4(max((x >= 1024 ? x - 2048 : x) / 1023, -1), max((y >= 1024 ? y - 2048 : y) / 1023, -1),
+                  max((z >= 512 ? z - 1024 : z) / 511, -1), 1);
+}
+
 // Screen space (title pixels, depth buffer units) -> clip space: w' = w, or 1 where w is 0.
 VsOut nv_epilogue(float4 pos, float4 d0, float4 d1, float4 t0, float4 t1, float4 t2, float4 t3, float fog) {
     VsOut o;
@@ -244,7 +253,7 @@ EPILOGUE_READS = {"R12": "xyzw", "oD0": "xyzw", "oD1": "xyzw", "oT0": "xyzw", "o
                   "oT3": "xyzw", "oFog": "x"}
 
 
-def translate_vertex_program(blob, key, users):
+def translate_vertex_program(blob, key, users, packed=(), declaration=None):
     count = struct.unpack_from("<H", blob, 2)[0]
     notes, inputs = set(), set()
     body = []
@@ -292,8 +301,13 @@ def translate_vertex_program(blob, key, users):
     params = ", ".join(f"float4 v{v} : TEXCOORD{v}" for v in sorted(inputs))
     out = [f"// Vertex program {key} ({count} instructions), translated from NV2A microcode by",
            "// tools/shader_hlsl.py; generated, do not edit.", f"// Used by: {users}."]
+    packed = [v for v in packed if v in inputs]
+    if packed:
+        out.append(f"// With vertex declaration {declaration}: " + ", ".join(f"v{v}" for v in packed) +
+                   " packed normals (NORMPACKED3), given as their bytes.")
     out += [f"// Note: {n}." for n in sorted(notes)]
     out += ["", "#define VERTEX_SHADER", '#include "nv2a.hlsli"', "", f"VsOut main({params}) {{"]
+    out += [f"    v{v} = nv_normpacked3(v{v});" for v in packed]
     out += declarations + [""] + body
     out += ["", "    return nv_epilogue(R12, oD0, oD1, oT0, oT1, oT2, oT3, oFog.x);", "}", ""]
     return "\n".join(out)
@@ -544,7 +558,22 @@ def slot_owners():
                 drawn.setdefault(int(m.group(1), 16), f"drawn by {name}")
     for slot, text in drawn.items():
         owners.setdefault(slot, text)
+    # The screen-space shaders loaded from a table (nglInitShaderConstantTable's {slot, word} pairs).
+    text = (ROOT / "game/code/ngl.cpp").read_text()
+    start = text.find("void XB_CDECL nglInitShaderConstantTable()")
+    table = text[start:text.find("kStored", start)] if start >= 0 else ""
+    for m in re.finditer(r"\{0x([0-9a-f]+), 0x[0-9a-f]+\}", table):
+        owners.setdefault(int(m.group(1), 16), "nglInitShaderConstantTable")
     return owners
+
+
+def packed_inputs(dump, declaration):
+    """The inputs a vertex declaration (VERTEXSHADERINPUT x 16) gives as NORMPACKED3 (0x16)."""
+    path = dump / f"decl_{declaration}.bin"
+    if not path.exists():
+        return []
+    data = path.read_bytes()
+    return [v for v in range(16) if struct.unpack_from("<I", data, v * 16 + 8)[0] == 0x16]
 
 
 def main():
@@ -556,11 +585,16 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     owners = slot_owners()
     users = {}  # (kind, key) -> set of owner names
+    declarations = {}  # vertex key -> declarations it is set up with
     for row in csv.reader((dump / "shaders.csv").open()):
         kind, key, slot = row[0], row[1], int(row[2], 16)
         users.setdefault((kind, key), set()).add(owners.get(slot, f"slot {slot:08x}"))
+        if kind == "v" and int(row[3], 16):
+            declarations.setdefault(key, set()).add(row[3])
 
     (out_dir / "nv2a.hlsli").write_text(COMMON)
+    for old in out_dir.glob("*.hlsl"):
+        old.unlink()
     manifest = []
     for (kind, key), names in sorted(users.items()):
         prefix = "vs" if kind == "v" else "ps"
@@ -569,6 +603,13 @@ def main():
         text = translate_vertex_program(blob, key, who) if kind == "v" else translate_pixel_shader(blob, key, who)
         (out_dir / f"{prefix}_{key}.hlsl").write_text(text)
         manifest.append((prefix, key, who))
+        # Variants for the declarations that give it packed normals (vs_KEY_DECLARATION).
+        for declaration in sorted(declarations.get(key, ())):
+            packed = packed_inputs(dump, declaration)
+            if kind == "v" and packed:
+                text = translate_vertex_program(blob, key, who, packed, declaration)
+                (out_dir / f"vs_{key}_{declaration}.hlsl").write_text(text)
+                manifest.append(("vs", f"{key}_{declaration}", who))
     with (out_dir / "manifest.csv").open("w", newline="") as f:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["stage", "key", "used_by"])
