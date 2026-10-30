@@ -8,6 +8,7 @@
 #include "qcommon.h"
 #include "shaders.h"
 #include "stream.h"
+#include "ngl_gfx.h"
 #include "title_data.h"
 
 namespace game {
@@ -3291,20 +3292,20 @@ void XB_CDECL R_DrawFogPass() {
     using SetState = void XB_STDCALL(uint32_t);
     uint32_t& fill_mode = title_global<uint32_t>(0x00902fb0);
     if (fill_mode != 0x1b02) {
-        title_function<SetState>(0x003e88a0)(0x1b02);  // SetRenderState_FillMode: solid
+        xb::set_render_state(0x003e88a0, 0x1b02);  // SetRenderState_FillMode: solid
         fill_mode = 0x1b02;
     }
     uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
     if (cull_mode != 0) {
-        title_function<SetState>(0x003e80f0)(0);  // SetRenderState_CullMode
+        xb::set_render_state(0x003e80f0, 0);  // SetRenderState_CullMode
         cull_mode = 0;
     }
     NglTexture* back_buffer = nglGetBackBufferTexture();
     // D3D's texture stage shadows (title memory): stages 0..3 clamp in u and v.
     title_global<uint32_t>(0x003f8320) |= 0xf;
     for (uint32_t stage = 0; stage < 4; ++stage) {
-        title_global<uint32_t>(0x003f5c68 + stage * 0x80) = 3;
-        title_global<uint32_t>(0x003f5c6c + stage * 0x80) = 3;
+        xb::set_d3d_state(0x003f5c68 + stage * 0x80, 3);
+        xb::set_d3d_state(0x003f5c6c + stage * 0x80, 3);
     }
     uint8_t* const blend = &title_global<uint8_t>(0x00902f08);
     nglSetBlendMode(blend, 0, 0, 0);

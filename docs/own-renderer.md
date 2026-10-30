@@ -76,6 +76,19 @@ render/CMakeLists.txt) and embedded; `GfxDevice::create_title_shader(stage, key)
 - Not covered: draws without a pixel shader (the fixed-function combiners D3D9Draw builds from
   texture stage state) and without a vertex program; R4 adds what those draws need.
 
+**R4a - the renderer C's state in our own terms, 2026-10-30.** Every Xbox graphics call of the
+renderer C that sets state goes through a wrapper in `game::xb` (game/code/ngl_gfx.cpp, 160 sites
+rewritten): it still makes the Xbox call (the Xbox path draws what is not ours yet) and records
+what it means in a `render::GfxState` (render/gfx_state.h: blend and alpha test, depth/stencil,
+raster, fog, samplers, textures and palettes, shaders with their render/shaders keys, vertex and
+pixel constants, render target, viewport). `game::ngl_gfx_state()` returns it.
+- `XB_GFX_VERIFY=1` compares it with the Xbox path's state before every one of its draws
+  (render/gfx_verify.cpp) and logs each field that differs, plus a coverage summary. Missions 4,
+  1 and 6 (100 s each, 0.3-1.75 million draws) and the front-end menus: no difference in any
+  field. Not exercised there: stencil, fixed-function draws (every draw had a pixel shader).
+- Found on the way: `nglSetTextureAddressMode` writes the stage's mag/min/mip filters (and max
+  anisotropy), not its address modes (worth a rename).
+
 **R4 - the C onto the interface, one draw path at a time**, with screenshot diffs against the
 current path: text and quads, meshes (incl. recorded push buffers), fog, render-target mips, FX,
 debug lines; then device setup and presentation. Done when no renderer C touches NV2A or D3D8.

@@ -38,6 +38,7 @@ set(game_code_sources
     nal_math.cpp
     nal_pose.cpp
     ngl.cpp
+    ngl_gfx.cpp
     ngl_debug.cpp
     param_set.cpp
     qcommon.cpp

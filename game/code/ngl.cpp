@@ -7,6 +7,7 @@
 #include "lanes.h"
 #include "qcommon.h"
 #include "shaders.h"
+#include "ngl_gfx.h"
 #include "title_data.h"
 
 namespace game {
@@ -747,12 +748,14 @@ void XB_CDECL nglRelocateMeshSection(uint8_t* new_base, uint8_t* old_base, uint8
 void XB_CDECL nglVertexShader_Init(uint32_t* shader, uint32_t declaration, uint32_t program) {
     shader[0] = program;
     shader[1] = declaration;
+    ngl_gfx_shader_key(program, program);
     if (const auto loaded = renderer_pc_hooks().shader_loaded)
         loaded(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(shader)), 'v', program, program, declaration);
 }
 
 void XB_CDECL nglPixelShader_Init(uint32_t* shader, uint32_t definition) {
     shader[0] = definition;
+    ngl_gfx_shader_key(definition, definition);
     if (const auto loaded = renderer_pc_hooks().shader_loaded)
         loaded(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(shader)), 'p', definition, definition, 0);
 }
@@ -1281,12 +1284,12 @@ float* XB_CDECL nglGetTargetSampleScale(float* out, const NglRenderTarget* targe
 void XB_THISCALL nglSetTextureAddressMode(uint8_t* self, uint32_t stage, uint8_t flags, uint32_t border) {
     uint32_t& cached = *reinterpret_cast<uint32_t*>(self + 0x20 + stage * 4);
     uint32_t& dirty = title_global<uint32_t>(0x003f8320);
-    uint32_t* state = &title_global<uint32_t>(0x003f5c74 + (stage << 7));
+    const uint32_t state = 0x003f5c74 + (stage << 7);  // mag, min, mip filter
     const uint32_t bit = 1u << (stage & 31);
     auto set = [&](uint32_t mode, uint32_t u, uint32_t v, uint32_t w) {
-        state[0] = u;
-        state[1] = v;
-        state[2] = w;
+        xb::set_d3d_state(state, u);
+        xb::set_d3d_state(state + 4, v);
+        xb::set_d3d_state(state + 8, w);
         dirty |= bit;
         cached = mode;
     };
@@ -1297,7 +1300,7 @@ void XB_THISCALL nglSetTextureAddressMode(uint8_t* self, uint32_t stage, uint8_t
     } else if (flags & 8) {
         if (cached != 8) set(8, 3, 3, 2);
         dirty |= bit;
-        state[5] = border;  // +0x14
+        xb::set_d3d_state(state + 0x14, border);  // max anisotropy
     } else if (cached != 1) {
         set(1, 1, 1, 1);
     }
@@ -2214,14 +2217,14 @@ void XB_THISCALL nglSetDecalZBias(uint8_t* self, uint32_t bias) {
     if (!(cached_bias == offset_bias)) {
         uint32_t bits;
         std::memcpy(&bits, &offset_bias, 4);
-        title_function<SetRenderStateSimple>(0x003e89f0)(0x00040388, bits);  // polygon offset bias
+        xb::set_render_state_simple(0x00040388, bits);  // polygon offset bias
         cached_bias = offset_bias;
     }
     const float factor = b * -0.25f;
     if (!(cached_factor == factor)) {
         uint32_t bits;
         std::memcpy(&bits, &factor, 4);
-        title_function<SetRenderStateSimple>(0x003e89f0)(0x00040384, bits);  // polygon offset factor
+        xb::set_render_state_simple(0x00040384, bits);  // polygon offset factor
         cached_factor = factor;
     }
 }
@@ -2314,7 +2317,7 @@ namespace {
 
 // The D3D functions the state code calls (replaced by the port's own in route B).
 void set_render_state_simple(uint32_t method, uint32_t value) {
-    title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(method, value);
+    xb::set_render_state_simple(method, value);
 }
 
 uint32_t address_of(const void* pointer) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pointer)); }
@@ -2336,7 +2339,7 @@ void XB_THISCALL nglStateCache_SetAlphaTestEnable(uint8_t* self, uint8_t enable)
 void XB_THISCALL nglStateCache_SetFogEnable(uint8_t* self, uint8_t enable) {
     if (self[0x8b] == enable) return;
     title_global<uint32_t>(0x003f8320) |= 0x2000;
-    title_global<uint32_t>(0x003f8498) = enable;
+    xb::set_d3d_state(0x003f8498, enable);
     self[0x8b] = enable;
 }
 
@@ -2368,7 +2371,7 @@ void XB_THISCALL nglStateCache_SetBlendColor(uint8_t* self, uint32_t color) {
     uint32_t& cached = *reinterpret_cast<uint32_t*>(self + 0x6c);
     if (cached == color) return;
     set_render_state_simple(0x0004034c, color);
-    title_global<uint32_t>(0x003f8454) = color;  // D3D's D3DRS_BLENDCOLOR
+    xb::set_d3d_state(0x003f8454, color);  // D3D's D3DRS_BLENDCOLOR
     cached = color;
 }
 
@@ -2444,21 +2447,19 @@ void XB_THISCALL nglSetBlendMode(uint8_t* self, uint32_t mode, uint32_t alpha, u
 void XB_CDECL nglSetPixelShaderProgramCached(const NglShaderRef* shader) {
     uint32_t& cached = title_global<uint32_t>(0x00903c10);
     if (shader->program == cached) return;
-    title_function<void XB_STDCALL(uint32_t)>(0x003e77e0)(shader->program);  // SetPixelShaderProgram
+    xb::set_pixel_shader_program(shader->program);  // SetPixelShaderProgram
     cached = shader->program;
 }
 
 void XB_CDECL nglSetVertexShaderCached(const NglShaderRef* shader) {
-    using LoadProgram = void XB_STDCALL(uint32_t, uint32_t);
-    using SelectDirect = void XB_STDCALL(uint32_t, uint32_t);
     uint32_t& cached_program = title_global<uint32_t>(0x00903c08);
     uint32_t& cached_format = title_global<uint32_t>(0x00903c0c);
     if (shader->program == cached_program && shader->format == cached_format) return;
-    title_function<LoadProgram>(0x003e6ea0)(shader->program, 0);  // LoadVertexShaderProgram
+    xb::load_vertex_program(shader->program);  // LoadVertexShaderProgram
     if (shader->format == cached_format) {
-        title_function<SelectDirect>(0x003e6f40)(0, 0);  // SelectVertexShaderDirect
+        xb::select_vertex_shader(0);  // SelectVertexShaderDirect
     } else {
-        title_function<SelectDirect>(0x003e6f40)(shader->format, 0);
+        xb::select_vertex_shader(shader->format);
         cached_format = shader->format;
     }
     cached_program = shader->program;
@@ -2467,16 +2468,16 @@ void XB_CDECL nglSetVertexShaderCached(const NglShaderRef* shader) {
 void XB_CDECL nglSetPaletteCached(uint32_t stage, uint8_t* palette) {
     uint8_t*& cached = title_global<uint8_t* [4]>(0x00903d48)[stage];
     if (palette == cached) return;
-    title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e6160)(stage, *reinterpret_cast<uint32_t*>(palette + 0xc));
+    xb::set_palette(stage, *reinterpret_cast<uint32_t*>(palette + 0xc));
     cached = palette;
 }
 
 void XB_CDECL nglUnbindTextures() {
     using SetStageObject = void XB_STDCALL(uint32_t, uint32_t);
-    for (uint32_t stage = 0; stage < 4; ++stage) title_function<SetStageObject>(0x003e6160)(stage, 0);  // SetPalette
+    for (uint32_t stage = 0; stage < 4; ++stage) xb::set_palette(stage, 0);  // SetPalette
     uint32_t* palettes = title_global<uint32_t[4]>(0x00903d48);
     for (uint32_t stage = 0; stage < 4; ++stage) palettes[stage] = 0;
-    for (uint32_t stage = 0; stage < 4; ++stage) title_function<SetStageObject>(0x003e5f70)(stage, 0);  // SetTexture
+    for (uint32_t stage = 0; stage < 4; ++stage) xb::set_texture(stage, 0);  // SetTexture
     uint32_t* textures = title_global<uint32_t[4]>(0x008a2e60);
     uint32_t* formats = title_global<uint32_t[4]>(0x008a2e70);
     uint32_t* address_modes = title_global<uint32_t[4]>(0x008a2e80);
@@ -2502,12 +2503,9 @@ void XB_CDECL nglSetTexture(uint32_t stage, NglTexture* texture, uint8_t address
         const uint8_t* d3d = t->d3d_texture;
         if ((t->flags & 0x100) && format == formats[stage]) {
             // Same format: only the texture's data and format words change.
-            using SwitchTexture = void XB_FASTCALL(uint32_t, uint32_t, uint32_t);
-            title_function<SwitchTexture>(0x003e6130)(title_global<uint32_t[4]>(0x00831600)[stage],
-                                                     *reinterpret_cast<const uint32_t*>(d3d + 4),
-                                                     *reinterpret_cast<const uint32_t*>(d3d + 0xc));
+            xb::switch_texture(stage, title_global<uint32_t[4]>(0x00831600)[stage], address_of(d3d));
         } else {
-            title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e5f70)(stage, address_of(d3d));  // SetTexture
+            xb::set_texture(stage, address_of(d3d));  // SetTexture
         }
         formats[stage] = format;
         textures[stage] = address_of(t->d3d_texture);
@@ -2565,14 +2563,14 @@ void XB_CDECL nglSetTransformConstants(int32_t slot, NglMeshDrawNode* node, floa
     constants[6] = p.v[2];
     constants[7] = 1.0f;
     using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
-    title_function<SetConstants>(0x003e7490)(static_cast<uint32_t>(slot + 0x60), constants, 8);  // NotInlineFast
+    xb::set_vertex_constants(static_cast<uint32_t>(slot + 0x60), constants, 8);  // NotInlineFast
 }
 
 void XB_CDECL nglSetObjectLightConstants(int32_t slot, NglMeshDrawNode* node) {
     alignas(16) float constants[32];  // directions[16], colours[16]
     nglComputeObjectLights(node, constants, constants + 16);
     using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
-    title_function<SetConstants>(0x003e7490)(static_cast<uint32_t>(slot + 0x60), constants, 32);  // NotInlineFast
+    xb::set_vertex_constants(static_cast<uint32_t>(slot + 0x60), constants, 32);  // NotInlineFast
 }
 
 namespace {
@@ -2618,7 +2616,7 @@ void XB_CDECL nglSetSkinningConstants(int32_t slot, NglMeshDrawNode* node, const
     alignas(16) const float info[4] = {title_global<float>(0x007bf6d4), static_cast<float>(slot),
                                        title_global<float>(0x00903c70), title_global<float>(0x00903c74)};
     using SetConstant1 = void XB_FASTCALL(uint32_t, const float*);
-    title_function<SetConstant1>(0x003e7440)(0, info);  // SetVertexShaderConstant1Fast
+    xb::set_vertex_constant(0, info);  // SetVertexShaderConstant1Fast
     const uint32_t flags = params[0];
     for (uint32_t i = 0; i < section->bone_count; ++i) {
         float* out = matrices + i * 12;
@@ -2650,10 +2648,10 @@ void XB_CDECL nglSetSkinningConstants(int32_t slot, NglMeshDrawNode* node, const
     }
     const uint32_t count = section->bone_count * 3;
     if (count == 1) {
-        title_function<SetConstant1>(0x003e7440)(static_cast<uint32_t>(slot + 0x60), matrices);
+        xb::set_vertex_constant(static_cast<uint32_t>(slot + 0x60), matrices);
     } else {
         using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
-        title_function<SetConstants>(0x003e7490)(static_cast<uint32_t>(slot + 0x60), matrices, count * 4);  // NotInlineFast
+        xb::set_vertex_constants(static_cast<uint32_t>(slot + 0x60), matrices, count * 4);  // NotInlineFast
     }
 }
 
@@ -2710,15 +2708,15 @@ void XB_THISCALL nglRenderTextNode(NglTextNode* node) {
     if (!font->texture) return;
     uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
     if (cull_mode) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // D3DDevice_SetRenderState_CullMode
+        xb::set_render_state(0x003e80f0, 0);  // D3DDevice_SetRenderState_CullMode
         cull_mode = 0;
     }
     nglSetBlendMode(&title_global<uint8_t>(0x00902f08), font->blend_mode, font->blend_alpha, 0x80);
     // D3D's deferred texture stage states, stage 0 (dirty bit 1).
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c68) = (texture_flags & 0x40) ? 3 : 1;
+    xb::set_d3d_state(0x003f5c68, (texture_flags & 0x40) ? 3 : 1);
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c6c) = (texture_flags & 0x80) ? 3 : 1;
+    xb::set_d3d_state(0x003f5c6c, (texture_flags & 0x80) ? 3 : 1);
     nglSetTexture(0, font->texture, static_cast<uint8_t>(texture_flags), 3);
     nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903c9c));
     nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903cc4));
@@ -2860,16 +2858,16 @@ void XB_CDECL nglRenderSceneTree() {
     uint8_t& z_write = title_global<uint8_t>(0x00902f7c);
     const uint8_t depth_write = current_scene()->depth_enable;
     if (z_write != depth_write) {
-        title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(0x0004035c, depth_write);  // SetRenderState_Simple
-        title_global<uint32_t>(0x003f8428) = depth_write;
+        xb::set_render_state_simple(0x0004035c, depth_write);  // SetRenderState_Simple
+        xb::set_d3d_state(0x003f8428, depth_write);
         z_write = depth_write;
     }
     nglRenderOpaqueList(current_scene()->opaque_nodes, current_scene()->opaque_count, 0);
     run_callback(1);
     if (current_scene()->translucent_count != 0) {
         if (z_write != 0) {
-            title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(0x0004035c, 0);  // SetRenderState_Simple
-            title_global<uint32_t>(0x003f8428) = 0;
+            xb::set_render_state_simple(0x0004035c, 0);  // SetRenderState_Simple
+            xb::set_d3d_state(0x003f8428, 0);
             z_write = 0;
         }
         nglRenderTranslucentList(current_scene()->translucent_nodes, current_scene()->translucent_count, 0);
@@ -3041,9 +3039,9 @@ void XB_CDECL nglSetRenderTargetCached(NglTexture* target, uint32_t level, NglTe
     uint32_t& cached_color = title_global<uint32_t>(0x00903c80);
     uint32_t& cached_depth = title_global<uint32_t>(0x00903c84);
     if (cached_color == color && cached_depth == depth_surface) {
-        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e55b0)(cached_color, cached_depth, 0);  // SetRenderTargetFast
+        xb::set_render_target(cached_color, cached_depth, true);  // SetRenderTargetFast
     } else {
-        title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e52b0)(color, depth_surface);  // SetRenderTarget
+        xb::set_render_target(color, depth_surface, false);  // SetRenderTarget
     }
     cached_color = color;
     cached_depth = depth_surface;
@@ -3120,21 +3118,21 @@ void XB_CDECL nglQuadBatch_SetMaterial(NglTexture* texture, uint32_t blend, uint
     uint8_t* cache = &title_global<uint8_t>(0x00902f08);
     auto set_byte = [cache](uint32_t offset, uint8_t value, uint32_t method) {
         if (cache[offset] != value) {
-            title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+            xb::set_render_state_simple(method, value);
             cache[offset] = value;
         }
     };
     auto set = [cache](uint32_t offset, uint32_t value, uint32_t method) {
         uint32_t& field = *reinterpret_cast<uint32_t*>(cache + offset);
         if (field != value) {
-            title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+            xb::set_render_state_simple(method, value);
             field = value;
         }
     };
     nglSetTexture(0, texture, 2, 3);
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c68) = 3;
-    title_global<uint32_t>(0x003f5c6c) = 3;
+    xb::set_d3d_state(0x003f5c68, 3);
+    xb::set_d3d_state(0x003f5c6c, 3);
     if (title_global<uint32_t>(0x00909f50) != 0) {
         set_byte(0x5c, 0, 0x00040304);  // alpha blend enable
         set_byte(0x50, 0, 0x00040300);  // alpha test enable
@@ -3146,7 +3144,7 @@ void XB_CDECL nglQuadBatch_SetMaterial(NglTexture* texture, uint32_t blend, uint
     }
     uint32_t& cull_mode = *reinterpret_cast<uint32_t*>(cache + 0xa4);
     if (cull_mode != 0) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // SetRenderState_CullMode
+        xb::set_render_state(0x003e80f0, 0);  // SetRenderState_CullMode
         cull_mode = 0;
     }
     *reinterpret_cast<int32_t*>(cache + 0xec) = -1;
@@ -3154,7 +3152,7 @@ void XB_CDECL nglQuadBatch_SetMaterial(NglTexture* texture, uint32_t blend, uint
     *reinterpret_cast<uint32_t*>(cache + 0xe8) = 9;
     if (cache[0x8b] != fog) {
         title_global<uint32_t>(0x003f8320) |= 0x2000;  // D3DRS_FOGENABLE
-        title_global<uint32_t>(0x003f8498) = fog;
+        xb::set_d3d_state(0x003f8498, fog);
         cache[0x8b] = fog;
     }
     switch (blend) {
@@ -3236,23 +3234,23 @@ void XB_THISCALL nglRestoreRenderStates(uint8_t* self) {
     auto field = [self](uint32_t offset) { return *reinterpret_cast<uint32_t*>(self + offset); };
     // Simple states also go into D3D's render-state shadow (title memory).
     auto simple = [](uint32_t method, uint32_t value, uint32_t shadow) {
-        title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+        xb::set_render_state_simple(method, value);
         title_global<uint32_t>(shadow) = value;
     };
-    title_function<SetState>(0x003e88a0)(field(0xa8));  // SetRenderState_FillMode
-    title_function<SetState>(0x003e80f0)(field(0xa4));  // SetRenderState_CullMode
+    xb::set_render_state(0x003e88a0, field(0xa8));  // SetRenderState_FillMode
+    xb::set_render_state(0x003e80f0, field(0xa4));  // SetRenderState_CullMode
     simple(0x00040310, self[0xc9], 0x003f842c);
     simple(0x00040300, self[0x50], 0x003f8418);
     simple(0x00040304, self[0x5c], 0x003f8414);
-    title_function<SetState>(0x003e82b0)(self[0]);      // SetRenderState_StencilEnable
-    title_function<SetState>(0x003e8800)(field(0x4c));  // SetRenderState_MultiSampleMask
+    xb::set_render_state(0x003e82b0, self[0]);      // SetRenderState_StencilEnable
+    xb::set_render_state(0x003e8800, field(0x4c));  // SetRenderState_MultiSampleMask
     simple(0x00040358, field(0xa0), 0x003f8434);
     title_global<uint32_t>(0x003f8320) |= 0x2000;       // D3DRS_FOGENABLE dirty
-    title_global<uint32_t>(0x003f8498) = self[0x8b];
-    title_function<SetState>(0x003e8010)(self[0xc8]);   // SetRenderState_EdgeAntiAlias
-    title_function<SetState>(0x003e88f0)(field(0xb0));  // SetRenderState_BackFillMode
-    title_function<SetState>(0x003e8840)(field(0x68));  // SetRenderState_LogicOp
-    title_function<SetState>(0x003e8530)(self[0xb4]);   // SetRenderState_YuvEnable
+    xb::set_d3d_state(0x003f8498, self[0x8b]);
+    xb::set_render_state(0x003e8010, self[0xc8]);   // SetRenderState_EdgeAntiAlias
+    xb::set_render_state(0x003e88f0, field(0xb0));  // SetRenderState_BackFillMode
+    xb::set_render_state(0x003e8840, field(0x68));  // SetRenderState_LogicOp
+    xb::set_render_state(0x003e8530, self[0xb4]);   // SetRenderState_YuvEnable
     simple(0x00040384, field(0x84), 0x003f845c);        // polygon offset factor
     simple(0x00040388, field(0x80), 0x003f8460);        // polygon offset bias
     // Forget the blend mode (nglStateCache_SetBlendMode's +0xe8/+0xec/+0xf0).
@@ -3270,13 +3268,13 @@ void XB_CDECL nglInitShaderConstants(uint8_t init_table) {
     auto f = [](uint32_t address) { return title_global<float>(address); };
     // c1: 0, 0.5, 1, 2; c2: pi, 0.5, 2pi, 1/2pi; c3/c4: the cos/sin Taylor coefficients.
     alignas(16) float c[4] = {0.0f, f(0x0083eb24), f(0x0083eb20), f(0x0083eba8)};
-    title_function<SetConstant1>(0x003e7440)(1, c);  // SetVertexShaderConstant1Fast
+    xb::set_vertex_constant(1, c);  // SetVertexShaderConstant1Fast
     c[0] = f(0x0083ed00); c[1] = f(0x0083eb24); c[2] = f(0x0083edac); c[3] = f(0x0083f118);
-    title_function<SetConstant1>(0x003e7440)(2, c);
+    xb::set_vertex_constant(2, c);
     c[0] = f(0x0083eb20); c[1] = f(0x0083eb28); c[2] = f(0x007bf6cc); c[3] = f(0x007bf6d0);
-    title_function<SetConstant1>(0x003e7440)(3, c);
+    xb::set_vertex_constant(3, c);
     c[0] = f(0x0083eb20); c[1] = f(0x007bf6c4); c[2] = f(0x0083ed98); c[3] = f(0x007bf6c8);
-    title_function<SetConstant1>(0x003e7440)(4, c);
+    xb::set_vertex_constant(4, c);
     if (init_table) nglInitShaderConstantTable();
 }
 
@@ -3325,19 +3323,19 @@ void XB_CDECL nglGenerateRenderTargetMips(NglTexture* texture) {
     if (levels <= 1 || !(texture->flags & 0x1000)) return;
     uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
     if (cull_mode != 0) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // SetRenderState_CullMode
+        xb::set_render_state(0x003e80f0, 0);  // SetRenderState_CullMode
         cull_mode = 0;
     }
     nglSetBlendMode(&title_global<uint8_t>(0x00902f08), 0, 0, 0);
     nglSetTexture(0, texture, 2, 3);
     // D3D's texture stage shadows (title memory): stage 0 address modes, then +0x7c.
-    title_global<uint32_t>(0x003f5c68) = 3;
+    xb::set_d3d_state(0x003f5c68, 3);
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c6c) = 3;
+    xb::set_d3d_state(0x003f5c6c, 3);
     nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903ca8));
     nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903d08));
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c7c) = 0;
+    xb::set_d3d_state(0x003f5c7c, 0);
     const float u = title_global<float>(0x00903c70);  // ngl_multisampleScale
     const float v = title_global<float>(0x00903c74);
     float quad[4][5] = {{0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
@@ -3373,29 +3371,29 @@ void XB_THISCALL nglSetDefaultRenderStates(uint8_t* self) {
     using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
     auto field = [self](uint32_t offset) { return *reinterpret_cast<uint32_t*>(self + offset); };
     auto simple = [](uint32_t method, uint32_t value, uint32_t shadow) {
-        title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+        xb::set_render_state_simple(method, value);
         title_global<uint32_t>(shadow) = value;
     };
-    title_function<SetState>(0x003e82b0)(self[0x0]);  // SetRenderState_StencilEnable
+    xb::set_render_state(0x003e82b0, self[0x0]);  // SetRenderState_StencilEnable
     simple(0x00040374, field(0x4), 0x003f8438);
     simple(0x00040378, field(0x8), 0x003f843c);
     simple(0x00040364, field(0xc), 0x003f8440);
-    title_function<SetState>(0x003e8360)(field(0x10));  // SetRenderState_StencilFail
+    xb::set_render_state(0x003e8360, field(0x10));  // SetRenderState_StencilFail
     simple(0x00040368, field(0x14), 0x003f8444);
     simple(0x0004036c, field(0x18), 0x003f8448);
     simple(0x00040360, field(0x1c), 0x003f844c);
     // Inlined setters: D3D's dirty bits (0x003f8320) and render-state shadows.
     title_global<uint32_t>(0x003f8320) |= 0x900;
-    title_global<uint32_t>(0x003f8500) = self[0x20];
-    title_global<uint32_t>(0x003f8504) = self[0x21];
-    title_global<uint32_t>(0x003f84f8) = field(0x24);
-    title_global<uint32_t>(0x003f84fc) = field(0x28);
-    title_global<uint32_t>(0x003f8508) = field(0x2c);
-    title_global<uint32_t>(0x003f850c) = field(0x30);
-    title_global<uint32_t>(0x003f8510) = field(0x34);
-    title_global<uint32_t>(0x003f8514) = field(0x38);
-    title_function<SetState>(0x003e87c0)(self[0x3c]);  // SetRenderState_MultiSampleAntiAlias
-    title_function<SetState>(0x003e8800)(field(0x4c));  // SetRenderState_MultiSampleMask
+    xb::set_d3d_state(0x003f8500, self[0x20]);
+    xb::set_d3d_state(0x003f8504, self[0x21]);
+    xb::set_d3d_state(0x003f84f8, field(0x24));
+    xb::set_d3d_state(0x003f84fc, field(0x28));
+    xb::set_d3d_state(0x003f8508, field(0x2c));
+    xb::set_d3d_state(0x003f850c, field(0x30));
+    xb::set_d3d_state(0x003f8510, field(0x34));
+    xb::set_d3d_state(0x003f8514, field(0x38));
+    xb::set_render_state(0x003e87c0, self[0x3c]);  // SetRenderState_MultiSampleAntiAlias
+    xb::set_render_state(0x003e8800, field(0x4c));  // SetRenderState_MultiSampleMask
     simple(0x00040300, self[0x50], 0x003f8418);
     simple(0x0004033c, field(0x54), 0x003f8410);
     simple(0x00040340, field(0x58), 0x003f841c);
@@ -3404,21 +3402,21 @@ void XB_THISCALL nglSetDefaultRenderStates(uint8_t* self) {
     simple(0x00040348, field(0x64), 0x003f8424);
     simple(0x00040350, field(0x70), 0x003f8450);
     simple(0x0004035c, self[0x74], 0x003f8428);
-    title_function<SetState>(0x003e8210)(field(0x78));  // SetRenderState_ZEnable
+    xb::set_render_state(0x003e8210, field(0x78));  // SetRenderState_ZEnable
     simple(0x00040354, field(0x7c), 0x003f840c);
     simple(0x00040384, field(0x84), 0x003f845c);
     simple(0x00040388, field(0x80), 0x003f8460);
     title_global<uint32_t>(0x003f8320) |= 0x2000;  // D3DRS_FOGENABLE
-    title_global<uint32_t>(0x003f8498) = self[0x8b];
-    title_function<SetState>(0x003e8090)(field(0x8c));  // SetRenderState_FogColor
+    xb::set_d3d_state(0x003f8498, self[0x8b]);
+    xb::set_render_state(0x003e8090, field(0x8c));  // SetRenderState_FogColor
     simple(0x00040358, field(0xa0), 0x003f8434);
-    title_function<SetState>(0x003e80f0)(field(0xa4));  // SetRenderState_CullMode
-    title_function<SetState>(0x003e88a0)(field(0xa8));  // SetRenderState_FillMode
+    xb::set_render_state(0x003e80f0, field(0xa4));  // SetRenderState_CullMode
+    xb::set_render_state(0x003e88a0, field(0xa8));  // SetRenderState_FillMode
     simple(0x0004037c, field(0xac), 0x003f8430);
-    title_function<SetState>(0x003e8010)(self[0xc8]);  // SetRenderState_EdgeAntiAlias
+    xb::set_render_state(0x003e8010, self[0xc8]);  // SetRenderState_EdgeAntiAlias
     simple(0x00040310, self[0xc9], 0x003f842c);
     title_global<uint32_t>(0x003f8320) |= 0x3000;
-    title_global<uint32_t>(0x003f84c4) = self[0xe6];
+    xb::set_d3d_state(0x003f84c4, self[0xe6]);
     simple(0x00040338, self[0x90], 0x003f846c);
     title_global<uint32_t>(0x00903c08) = 0;
     title_global<uint32_t>(0x00903c0c) = 0;
@@ -3546,7 +3544,7 @@ template <typename T>
 void set_cached_simple_state(uint32_t cache, uint32_t method, uint32_t shadow, T value) {
     T& cached = title_global<T>(cache);
     if (cached == value) return;
-    title_function<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(method, value);  // SetRenderState_Simple
+    xb::set_render_state_simple(method, value);  // SetRenderState_Simple
     title_global<uint32_t>(shadow) = value;
     cached = value;
 }
@@ -3559,7 +3557,7 @@ void XB_CDECL nglDrawFogPass() {
     nglUpdateFogTable();
     uint32_t& z_enable = title_global<uint32_t>(0x00902f80);
     if (z_enable != 0) {
-        title_function<SetState>(0x003e8210)(0);  // SetRenderState_ZEnable
+        xb::set_render_state(0x003e8210, 0);  // SetRenderState_ZEnable
         z_enable = 0;
     }
     const uint8_t saved_z_write = title_global<uint8_t>(0x00902f7c);
@@ -3574,22 +3572,22 @@ void XB_CDECL nglDrawFogPass() {
     set_cached_simple_state<uint32_t>(0x00902f6c, 0x00040348, 0x003f8424, 0x303);
     uint32_t& fill_mode = title_global<uint32_t>(0x00902fb0);
     if (fill_mode != 0x1b02) {
-        title_function<SetState>(0x003e88a0)(0x1b02);  // SetRenderState_FillMode: solid
+        xb::set_render_state(0x003e88a0, 0x1b02);  // SetRenderState_FillMode: solid
         fill_mode = 0x1b02;
     }
     uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
     if (cull_mode != 0) {
-        title_function<SetState>(0x003e80f0)(0);  // SetRenderState_CullMode
+        xb::set_render_state(0x003e80f0, 0);  // SetRenderState_CullMode
         cull_mode = 0;
     }
     nglSetTexture(0, &title_global<NglTexture>(0x00902e78), 1, 3);
     nglSetTexture(1, title_global<NglTexture*>(0x00902e70), 1, 3);
     // D3D's texture stage shadows (title memory): stages 0 and 1 clamp in u and v.
-    title_global<uint32_t>(0x003f5c68) = 3;
-    title_global<uint32_t>(0x003f5c6c) = 3;
-    title_global<uint32_t>(0x003f5ce8) = 3;
+    xb::set_d3d_state(0x003f5c68, 3);
+    xb::set_d3d_state(0x003f5c6c, 3);
+    xb::set_d3d_state(0x003f5ce8, 3);
     title_global<uint32_t>(0x003f8320) |= 3;
-    title_global<uint32_t>(0x003f5cec) = 3;
+    xb::set_d3d_state(0x003f5cec, 3);
     nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903c9c));
     nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00903cb8));
     const float width = platform_x87_unsigned_to_float(title_global<uint32_t>(0x00902e88));
@@ -3619,7 +3617,7 @@ void XB_CDECL nglDrawFogPass() {
         6, 4, strip, sizeof(strip[0]));  // DrawVerticesUP
     set_cached_simple_state<uint8_t>(0x00902f7c, 0x0004035c, 0x003f8428, saved_z_write);
     if (z_enable != 1) {
-        title_function<SetState>(0x003e8210)(1);
+        xb::set_render_state(0x003e8210, 1);
         z_enable = 1;
     }
     title_global<uint32_t>(0x00902ff0) = 9;
@@ -3777,7 +3775,7 @@ void XB_CDECL nglBeginSceneRender(NglScene* target_scene) {
     // A render state through the title's cache (cache) and D3D's shadow table (shadow).
     auto simple = [](uint32_t method, uint32_t value, uint32_t shadow, uint32_t cache) {
         if (title_global<uint32_t>(cache) == value) return;
-        title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+        xb::set_render_state_simple(method, value);
         title_global<uint32_t>(shadow) = value;
         title_global<uint32_t>(cache) = value;
     };
@@ -3794,31 +3792,31 @@ void XB_CDECL nglBeginSceneRender(NglScene* target_scene) {
     uint8_t& stencil_enable = title_global<uint8_t>(0x00902f08);
     if (!target_scene->depth_enable && !target_scene->depth_test) {
         if (z_enable != 0) {
-            title_function<SetState>(0x003e8210)(0);  // SetRenderState_ZEnable
+            xb::set_render_state(0x003e8210, 0);  // SetRenderState_ZEnable
             z_enable = 0;
         }
     } else {
         if (z_enable != 1) {
-            title_function<SetState>(0x003e8210)(1);
+            xb::set_render_state(0x003e8210, 1);
             z_enable = 1;
         }
         if (target_scene->depth_test) {
             simple(0x00040354, 0x203, 0x003f840c, 0x00902f84);  // depth function
-            title_function<SetState>(0x003e8650)(0);  // SetRenderState_RopZCmpAlwaysRead
+            xb::set_render_state(0x003e8650, 0);  // SetRenderState_RopZCmpAlwaysRead
             title_global<uint8_t>(0x00902feb) = 0;
         } else {
             if (!stencil_enable) {
-                title_function<SetState>(0x003e82b0)(1);  // SetRenderState_StencilEnable
+                xb::set_render_state(0x003e82b0, 1);  // SetRenderState_StencilEnable
                 stencil_enable = 1;
                 simple(0x00040364, 0x207, 0x003f8440, 0x00902f14);  // stencil function
                 simple(0x0004036c, 0xff, 0x003f8448, 0x00902f20);
                 simple(0x00040378, 0, 0x003f843c, 0x00902f10);
             } else {
-                title_function<SetState>(0x003e82b0)(0);
+                xb::set_render_state(0x003e82b0, 0);
                 stencil_enable = 0;
             }
             simple(0x00040354, 0x207, 0x003f840c, 0x00902f84);
-            title_function<SetState>(0x003e8650)(1);
+            xb::set_render_state(0x003e8650, 1);
             title_global<uint8_t>(0x00902feb) = 1;
         }
     }
@@ -3861,7 +3859,7 @@ void XB_CDECL nglBeginSceneRender(NglScene* target_scene) {
     }
     viewport.min_z = 0.0f;
     viewport.max_z = one;
-    title_function<void XB_STDCALL(const void*)>(0x003e5cc0)(&viewport);  // SetViewport
+    xb::set_viewport(&viewport);  // SetViewport
 
     scene = current_scene();
     if (scene->clear_flags) {
@@ -5638,7 +5636,7 @@ void XB_CDECL nglDrawSingleQuadFrame() {
 void XB_CDECL nglDrawQuad(NglQuad* quad) {
     uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
     if (cull_mode) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // D3DDevice_SetRenderState_CullMode
+        xb::set_render_state(0x003e80f0, 0);  // D3DDevice_SetRenderState_CullMode
         cull_mode = 0;
     }
     nglSetBlendMode(&title_global<uint8_t>(0x00902f08), quad->blend_mode, quad->blend_arg, 0x80);
@@ -5662,16 +5660,16 @@ void XB_CDECL nglDrawQuad(NglQuad* quad) {
         const uint32_t flags = quad->flags;
         // D3D's deferred texture stage states, stage 0 (dirty bit 1).
         title_global<uint32_t>(0x003f8320) |= 1;
-        title_global<uint32_t>(0x003f5c68) = (flags & 0x40) ? 3 : 1;
+        xb::set_d3d_state(0x003f5c68, (flags & 0x40) ? 3 : 1);
         title_global<uint32_t>(0x003f8320) |= 1;
-        title_global<uint32_t>(0x003f5c6c) = (flags & 0x80) ? 3 : 1;
+        xb::set_d3d_state(0x003f5c6c, (flags & 0x80) ? 3 : 1);
         title_global<uint32_t>(0x009026fc) = *reinterpret_cast<const uint32_t*>(
             reinterpret_cast<const uint8_t*>(current_scene()) + 0x3d4);
         nglSetTexture(0, texture, static_cast<uint8_t>(quad->flags), 3);
         if (static_cast<uint8_t>(texture->flags) == 8) {
             yuv = true;
             if (title_global<uint8_t>(0x00902fbc) != 1) {
-                title_function<void XB_STDCALL(uint32_t)>(0x003e8530)(1);  // D3DDevice_SetRenderState_YuvEnable
+                xb::set_render_state(0x003e8530, 1);  // D3DDevice_SetRenderState_YuvEnable
                 title_global<uint8_t>(0x00902fbc) = 1;
             }
         }
@@ -5720,7 +5718,7 @@ void XB_CDECL nglDrawQuad(NglQuad* quad) {
     title_global<uint32_t>(0x00903c98) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(push));
     title_function<void XB_STDCALL(uint32_t)>(0x003ebaa0)(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(push)));  // EndPush
     if (yuv && title_global<uint8_t>(0x00902fbc)) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e8530)(0);  // D3DDevice_SetRenderState_YuvEnable
+        xb::set_render_state(0x003e8530, 0);  // D3DDevice_SetRenderState_YuvEnable
         title_global<uint8_t>(0x00902fbc) = 0;
     }
 }
@@ -5820,7 +5818,7 @@ uint8_t XB_CDECL nglInitMultisample(uint32_t type) {
     title_global<float>(0x008a3514) = y_samples;
     uint8_t& state = title_global<uint8_t>(0x00902f44);
     if (state != static_cast<uint8_t>(antialias)) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e87c0)(antialias ? 1 : 0);  // SetRenderState_MultiSampleAntiAlias
+        xb::set_render_state(0x003e87c0, antialias ? 1 : 0);  // SetRenderState_MultiSampleAntiAlias
         state = antialias ? 1 : 0;
     }
     title_global<uint32_t>(0x008a3518) = type;
@@ -6207,7 +6205,7 @@ void call_frame_hook(uint32_t function, uint32_t argument) {
 void XB_CDECL nglEndFrame() {
     nglFlushDebugLineBatch();
     alignas(16) float sample[4] = {0.0f, 0.0f, title_global<float>(0x00903c70), title_global<float>(0x00903c74)};
-    title_function<void XB_FASTCALL(uint32_t, const float*)>(0x003e7440)(0, sample);  // SetVertexShaderConstant1Fast
+    xb::set_vertex_constant(0, sample);  // SetVertexShaderConstant1Fast
     if (title_global<uint8_t>(0x00902c00)) title_function<void XB_CDECL()>(0x00064780)();  // nglDrawFpsCounter
     if (title_global<uint8_t>(0x00902c01)) title_function<void XB_CDECL()>(0x0006bb50)();  // nglDrawFrameTimeBar
     // Frame statistics in seconds: CPU time since nglBeginFrame (0x00902be4), the render
@@ -6233,8 +6231,8 @@ void XB_CDECL nglEndFrame() {
     if (title_global<uint32_t>(0x00903c54) == buffer) buffer = title_global<uint32_t>(0x00903c4c);
     title_global<uint32_t>(0x00903c54) = buffer;
     title_global<uint32_t>(0x00903c50) = buffer;
-    title_function<void XB_STDCALL(uint32_t)>(0x003e72b0)(0);  // D3DDevice_SetVertexShader
-    title_function<void XB_STDCALL(uint32_t)>(0x003e7820)(0);  // D3DDevice_SetPixelShader
+    xb::set_vertex_shader(0);  // D3DDevice_SetVertexShader
+    xb::set_pixel_shader(0);   // D3DDevice_SetPixelShader
     static const uint32_t kCleared[6] = {0x00903c08, 0x00903c0c, 0x00903c10, 0x00903c88, 0x00903c8c, 0x00903c90};
     for (const uint32_t address : kCleared) title_global<uint32_t>(address) = 0;
     title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect

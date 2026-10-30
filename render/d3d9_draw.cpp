@@ -14,6 +14,7 @@
 
 #include "d3d9_shader.h"
 #include "d3d_internal.h"
+#include "gfx_verify.h"
 #include "log.h"
 #include "nv2a.h"
 #include "shader_state.h"
@@ -899,6 +900,7 @@ bool D3D9Draw::magenta_shader() {
 }
 
 void D3D9Draw::draw(const DrawInput& input) {
+    verify_gfx_state(frame_, has_depth_);
     Caches& caches = *caches_;
     const uint32_t vertex_count_or_indices = input.indices ? input.index_count : input.vertex_count;
     const uint32_t primitives = primitive_count(input.primitive, vertex_count_or_indices);

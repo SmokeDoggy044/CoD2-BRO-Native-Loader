@@ -74,6 +74,10 @@ struct ViewState {
 };
 ViewState& view_state();
 
+// The device's current render target and depth buffer (title D3DSurface headers; 0 = none).
+XbPtr current_render_target();
+XbPtr current_depth_stencil();
+
 class Backend;
 Backend* backend();
 

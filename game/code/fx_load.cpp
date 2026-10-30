@@ -7,6 +7,7 @@
 #include "lanes.h"
 #include "ngl.h"
 #include "stream.h"
+#include "ngl_gfx.h"
 #include "title_data.h"
 
 namespace game {
@@ -1856,7 +1857,7 @@ template <typename T>
 void set_simple_state(uint32_t cache, uint32_t method, T value) {
     T& cached = title_global<T>(cache);
     if (cached == value) return;
-    title_function<SetRenderStateSimple>(0x003e89f0)(method, value);
+    xb::set_render_state_simple(method, value);
     cached = value;
 }
 
@@ -1872,9 +1873,9 @@ void XB_THISCALL FxOp31_Draw(uint8_t* node) {
     const uint8_t* op = at<const uint8_t*>(node, 0x80);
     nglSetTexture(0, at<NglTexture*>(op, 0x10), 2, 3);
     // D3D's stage 0 shadows (title memory): wrap in u and v, marked dirty.
-    title_global<uint32_t>(0x003f5c68) = 1;
+    xb::set_d3d_state(0x003f5c68, 1);
     title_global<uint32_t>(0x003f8320) |= 1;
-    title_global<uint32_t>(0x003f5c6c) = 1;
+    xb::set_d3d_state(0x003f5c6c, 1);
     // Alpha test (greater, ref 0), blending source alpha + (1 - source alpha), no culling.
     set_simple_state<uint8_t>(0x00902f64, 0x00040304, 1);
     set_simple_state<uint8_t>(0x00902f58, 0x00040300, 1);
@@ -1882,7 +1883,7 @@ void XB_THISCALL FxOp31_Draw(uint8_t* node) {
     set_simple_state<uint32_t>(0x00902f60, 0x00040340, 0);
     uint32_t& cull_mode = title_global<uint32_t>(0x00902fac);
     if (cull_mode != 0) {
-        title_function<void XB_STDCALL(uint32_t)>(0x003e80f0)(0);  // SetRenderState_CullMode
+        xb::set_render_state(0x003e80f0, 0);  // SetRenderState_CullMode
         cull_mode = 0;
     }
     set_simple_state<uint32_t>(0x00902f78, 0x00040350, 0x8006);
@@ -1896,7 +1897,7 @@ void XB_THISCALL FxOp31_Draw(uint8_t* node) {
     uint8_t& dirty = title_global<uint8_t>(0x00902f93);
     if (dirty) {
         title_global<uint32_t>(0x003f8320) |= 0x2000;
-        title_global<uint32_t>(0x003f8498) = 0;
+        xb::set_d3d_state(0x003f8498, 0);
         dirty = 0;
     }
     const uint8_t* mesh = at<const uint8_t*>(op, 0xc);
@@ -1936,7 +1937,7 @@ void XB_THISCALL FxOp31_Draw(uint8_t* node) {
         alignas(16) float inverse[16];
         const float* to_object = FxMatrix_RigidInverse(inverse, world);
         FxNode_ComputeObjectLights(constants + 16, constants + 32, to_object, at<uint8_t*>(node, 0x84), sphere);
-        title_function<SetVertexConstants>(0x003e7490)(6, constants, 0x34);  // NotInlineFast
+        xb::set_vertex_constants(6, constants, 0x34);  // NotInlineFast
         nglDrawMeshSection(at<const NglMeshSection*>(at<const uint8_t*>(mesh, 0xc), 4));
     } while (--count != 0);
     set_simple_state<uint8_t>(0x00902f7c, 0x0004035c, saved_z_write);
@@ -1951,7 +1952,7 @@ void XB_THISCALL FxOp1d5_Draw(uint8_t* node) {
     alignas(16) float transposed[16];
     for (int r = 0; r < 4; ++r)
         for (int k = 0; k < 4; ++k) transposed[r * 4 + k] = view_projection[k * 4 + r];
-    title_function<SetVertexConstants>(0x003e7490)(6, transposed, 0x10);  // NotInlineFast
+    xb::set_vertex_constants(6, transposed, 0x10);  // NotInlineFast
     nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00909f8c));
     nglSetPixelShaderProgramCached(&title_global<NglShaderRef>(0x00909f94));
     uint32_t count = at<uint32_t>(node, 0x74);
@@ -2089,7 +2090,7 @@ void draw_op_quads(uint8_t* const* node_ref, const QuadOpLayout& layout) {
     alignas(16) float transposed[16];
     for (int r = 0; r < 4; ++r)
         for (int k = 0; k < 4; ++k) transposed[r * 4 + k] = view_projection[k * 4 + r];
-    title_function<SetVertexConstants>(0x003e7490)(6, transposed, 0x10);  // NotInlineFast
+    xb::set_vertex_constants(6, transposed, 0x10);  // NotInlineFast
     // NV2A 0x358 from the scene (+0x380) without bit 24, no depth writes while drawing.
     set_simple_state<uint32_t>(0x00902fa8, 0x00040358, at<uint32_t>(current_scene(), 0x380) & 0xfeffffffu);
     const uint8_t saved_z_write = title_global<uint8_t>(0x00902f7c);
@@ -2214,7 +2215,7 @@ FX_OP_QUADS(FxOpGrid_Draw, kFxOpGridQuads)
 namespace {
 
 void set_constant(uint32_t base, const float* v) {
-    title_function<void XB_FASTCALL(uint32_t, const float*)>(0x003e7440)(base + 0x60, v);  // SetVertexShaderConstant1Fast
+    xb::set_vertex_constant(base + 0x60, v);  // SetVertexShaderConstant1Fast
 }
 
 }  // namespace
