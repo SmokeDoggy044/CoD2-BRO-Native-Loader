@@ -427,6 +427,7 @@ void diagnostics() {
         g.backend->save_back_buffer(shot.c_str());
         LOG_INFO("diag", "MARK %u at %llds, frame %u: %s", marks, static_cast<long long>(seconds), g.swap_count,
                  shot.c_str());
+        if (g.config.log_audio) g.config.log_audio();
         if (g.config.pause_audio) g.config.pause_audio(true);
         g_unmeasured_until.store(INT64_MAX, std::memory_order_relaxed);
         const auto note = g.backend->prompt({"MARK " + std::to_string(marks) + " saved - game paused",

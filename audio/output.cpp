@@ -25,6 +25,8 @@ public:
     ALuint source = 0;
     ALuint buffer = 0;
     uint32_t channels = 0;  // of the current callback buffer
+    ALuint filter = 0;      // the direct sound's low-pass (EFX), made when first wanted
+    bool filtered = false;  // attached
 };
 
 namespace {
@@ -243,6 +245,7 @@ Output::~Output() {
     for (auto& source : sources_) {
         alDeleteSources(1, &source->source);
         alDeleteBuffers(1, &source->buffer);
+        if (source->filter) alDeleteFilters(1, &source->filter);
     }
     if (reverb_slot_) alDeleteAuxiliaryEffectSlots(1, &reverb_slot_);
     if (reverb_effect_) alDeleteEffects(1, &reverb_effect_);
@@ -313,7 +316,11 @@ void Output::reformat(Source* source) {
 
 void Output::update(Source* source, const SourceParams& params) {
     const ALuint s = source->source;
-    alSourcef(s, AL_GAIN, params.gain);
+    // A louder reverb send: the whole source louder, the direct sound's filter down by as much
+    // (EFX filters do not amplify).
+    const float send = reverb_slot_ ? std::clamp(params.send_gain, 1.0f, 4.0f) : 1.0f;
+    alSourcef(s, AL_MAX_GAIN, 4.0f);
+    alSourcef(s, AL_GAIN, params.gain * send);
     alSourcef(s, AL_PITCH, params.pitch);
     alSourcei(s, AL_DIRECT_CHANNELS_SOFT, params.placement == Placement::Direct ? AL_TRUE : AL_FALSE);
     alSourcei(s, AL_SOURCE_RELATIVE, params.placement == Placement::World ? AL_FALSE : AL_TRUE);
@@ -321,6 +328,21 @@ void Output::update(Source* source, const SourceParams& params) {
     if (reverb_slot_)
         alSource3i(s, AL_AUXILIARY_SEND_FILTER, params.reverb_send ? ALint(reverb_slot_) : AL_EFFECTSLOT_NULL, 0,
                    AL_FILTER_NULL);
+    // The filter's values are copied when it is attached: attached again after each change.
+    const float direct_gain = params.direct_gain / send;
+    const bool filter = direct_gain < 1.0f || params.direct_gain_hf < 1.0f;
+    if (reverb_slot_ && (filter || source->filtered)) {
+        if (filter && !source->filter) {
+            alGenFilters(1, &source->filter);
+            alFilteri(source->filter, AL_FILTER_TYPE, AL_FILTER_LOWPASS);
+        }
+        if (filter) {
+            alFilterf(source->filter, AL_LOWPASS_GAIN, std::clamp(direct_gain, 0.0f, 1.0f));
+            alFilterf(source->filter, AL_LOWPASS_GAINHF, std::clamp(params.direct_gain_hf, 0.0f, 1.0f));
+        }
+        alSourcei(s, AL_DIRECT_FILTER, filter ? ALint(source->filter) : AL_FILTER_NULL);
+        source->filtered = filter;
+    }
     if (al_failed("updating a voice"))
         LOG_WARN("audio", "  (gain %g, pitch %g, placement %d, position %g %g %g)", double(params.gain),
                  double(params.pitch), int(params.placement), double(params.position[0]), double(params.position[1]),

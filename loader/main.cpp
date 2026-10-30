@@ -872,6 +872,7 @@ int loader_main(int argc, char** argv) {
         d3d_config.diag_dir = options->diag_dir->string();
         d3d_config.diag_seconds = options->diag_seconds;
         d3d_config.pause_audio = &audio::set_paused;
+        d3d_config.log_audio = [] { audio::log_voices(&game::SndEnv_DescribeOcclusion); };
     }
     if (options->screenshot_dir) {
         fs::create_directories(*options->screenshot_dir);

@@ -55,6 +55,7 @@ struct VoiceImpl {
     uint32_t rate = 0;
     float pan = 0.0f;
     bool reverb_send = false;
+    float occlusion = 0.0f;
     Category category = Category::Effects;
     Spatial current, pending;
     bool has_pending = false;
@@ -104,6 +105,7 @@ public:
     void set_category(VoiceId voice, Category category) override;
     void set_environment(const Environment& environment) override;
     bool enhanced() override;
+    void set_occlusion(VoiceId voice, float amount) override;
 
     std::mutex mutex;  // everything below except `callbacks`; never taken by the mixer
     OutputConfig config;
@@ -130,6 +132,7 @@ private:
     float distance_gain(const VoiceImpl& v);
     void update(VoiceImpl& v);
     friend void audio::set_enhanced(bool enhanced);
+    friend void audio::log_voices(void (*)(const float*, const float*, char*, size_t));
     friend void audio::set_category_volumes(const CategoryVolumes& volumes);
     void update_listener();
     void sync(VoiceImpl& v);
@@ -217,6 +220,15 @@ void Engine::update(VoiceImpl& v) {
     // Enhanced: effects and dialogue are heard in the room (the game asks for no reverb send).
     params.reverb_send = v.reverb_send || (config.enhanced && (v.category == Category::Effects ||
                                                                 v.category == Category::Dialogue));
+    // Enhanced: a blocked world voice through a low-pass (full: -3 dB, a further -6 dB at 5 kHz:
+    // what comes through walls, gently as Steam Audio's transmission),
+    // and heard a little more through the room: its reverb send up to +3 dB (sound reaching the
+    // listener by reflections; +6 dB made blocked gunfire in the open a wash, playtest 10-30).
+    if (config.enhanced && v.occlusion > 0.0f && is_spatial(v)) {
+        params.direct_gain = 1.0f - 0.3f * v.occlusion;
+        params.direct_gain_hf = 1.0f - 0.5f * v.occlusion;
+        if (params.reverb_send) params.send_gain = 1.0f + 0.4f * v.occlusion;
+    }
     o->update(v.source, params);
 }
 
@@ -529,6 +541,15 @@ bool Engine::enhanced() {
     return config.enhanced;
 }
 
+void Engine::set_occlusion(VoiceId id, float amount) {
+    change(id, [&](VoiceImpl& v) {
+        amount = std::clamp(amount, 0.0f, 1.0f);
+        if (v.occlusion == amount) return;
+        v.occlusion = amount;
+        update(v);
+    });
+}
+
 }  // namespace
 
 SoundDevice& sound_device() { return g; }
@@ -545,7 +566,7 @@ std::span<const xbox::KernelImpl> device_methods() {
         "SoundDevice::set_spatial_mode", "SoundDevice::set_distance_curve", "SoundDevice::set_listener",
         "SoundDevice::listener", "SoundDevice::commit", "SoundDevice::start_synched", "SoundDevice::set_headphones",
         "SoundDevice::do_work", "SoundDevice::set_category", "SoundDevice::set_environment",
-        "SoundDevice::enhanced",
+        "SoundDevice::enhanced", "SoundDevice::set_occlusion",
     };
     static const std::vector<xbox::KernelImpl> methods = [] {
         void* const* vtable = *reinterpret_cast<void* const* const*>(&g);
@@ -628,6 +649,32 @@ CategoryVolumes category_volumes() {
 
 void set_paused(bool paused) {
     if (g.output) g.output->set_paused(paused);
+}
+
+void log_voices(void (*describe)(const float listener[3], const float source[3], char* out, size_t size)) {
+    Guard lock(g.mutex, TestLock::State);
+    static const char* const kCategories[] = {"effects", "dialogue", "music", "interface", "ambience"};
+    int count = 0;
+    for (VoiceImpl* v : g.voices) {
+        if (!v->refs || !v->voice.playing() || !g.is_spatial(*v)) continue;
+        const float* p = v->current.position;
+        const float* l = g.current_listener.position;
+        const float d = std::sqrt((p[0] - l[0]) * (p[0] - l[0]) + (p[1] - l[1]) * (p[1] - l[1]) +
+                                  (p[2] - l[2]) * (p[2] - l[2]));
+        LOG_INFO("audio", "voice %08x %s: distance %.0f (min %.0f, max %.0f), distance gain %.2f, volume %.2f, "
+                 "occlusion %.2f",
+                 unsigned(reinterpret_cast<uintptr_t>(&v->header)),
+                 kCategories[size_t(v->category)], double(d), double(v->current.min_distance),
+                 double(v->current.max_distance), double(g.distance_gain(*v)), double(v->volume),
+                 double(v->occlusion));
+        if (describe && v->occlusion > 0.0f) {
+            char text[2048];
+            describe(l, p, text, sizeof(text));
+            LOG_INFO("audio", "  %s", text);
+        }
+        ++count;
+    }
+    LOG_INFO("audio", "%d world voices playing (%s sound)", count, g.config.enhanced ? "enhanced" : "original");
 }
 
 Output* output() {

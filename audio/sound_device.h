@@ -152,6 +152,9 @@ public:
     // (OutputConfig::enhanced).
     virtual void set_environment(const Environment& environment) = 0;
     virtual bool enhanced() = 0;
+    // Enhanced only: how much of a world voice's direct sound is blocked on its way to the
+    // listener (0 clear .. 1 behind a wall): quieter and duller; its reverb send stays.
+    virtual void set_occlusion(VoiceId voice, float amount) = 0;
 
 protected:
     ~SoundDevice() = default;

@@ -24,7 +24,9 @@
 #include "snd_env.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdio>
 #include <mutex>
 
 #include "cm.h"
@@ -139,6 +141,43 @@ Hit trace(const float start[3], const float direction[3]) {
     return {fraction * kRange, fraction < 1.0f, (*reinterpret_cast<const uint32_t*>(results + 0x24) >> 20) & 31};
 }
 
+// The share of the line from the listener `a` to a point `b` near a source that is blocked: 0
+// clear, 1 a wall, glass less. Hits within kListenerGap of the listener (a wall the player leans
+// against or stands in) and kPointGap of the point do not count, nor does a line starting inside
+// a wall (fraction 0; playtest 10-30: everything muffled at a ruin's window).
+struct Line {
+    float share = 0;     // blocked: 0 clear, 1 a wall, 0.35 glass
+    float fraction = 1;  // of the traced part; 0: started inside a wall
+    float hit[3] = {0, 0, 0};
+    uint32_t flags = 0, contents = 0;
+    bool traced = false;  // false: too short to count
+};
+
+Line trace_line(const float a[3], const float b[3]) {
+    constexpr float kListenerGap = 32.0f, kPointGap = 12.0f;  // world units
+    Line line;
+    const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    const float length = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    if (length <= kListenerGap + kPointGap) return line;
+    const float s = kListenerGap / length, t = kPointGap / length;
+    alignas(16) uint8_t results[0x40] = {};
+    alignas(16) const float zero[4] = {0, 0, 0, 0};
+    alignas(16) float from[4] = {a[0] + d[0] * s, a[1] + d[1] * s, a[2] + d[2] * s, 0};
+    alignas(16) float end[4] = {b[0] - d[0] * t, b[1] - d[1] * t, b[2] - d[2] * t, 0};
+    CM_BoxTrace(nullptr, 0, zero, results, from, end, zero, nullptr, kSolidMask, 0);
+    line.traced = true;
+    line.fraction = *reinterpret_cast<const float*>(results + 0x20);
+    for (int k = 0; k < 3; ++k) line.hit[k] = reinterpret_cast<const float*>(results)[k];
+    line.flags = *reinterpret_cast<const uint32_t*>(results + 0x24);
+    line.contents = *reinterpret_cast<const uint32_t*>(results + 0x28);
+    if (line.fraction >= 1.0f || line.fraction <= 0.0f) return line;
+    constexpr uint32_t kGlass = 9;
+    line.share = ((line.flags >> 20) & 31) == kGlass ? 0.35f : 1.0f;
+    return line;
+}
+
+float blocked(const float a[3], const float b[3]) { return trace_line(a, b).share; }
+
 // What the rays found.
 struct Probe {
     float level[8];      // distances, world units (kRange: open)
@@ -184,7 +223,8 @@ Environment environment_of(const Probe& p, const audio::ReverbTuning& t) {
     nearest = std::min(nearest, p.up);
 
     Environment e;
-    e.room = lerp(-3000.0f, -300.0f, enclosure);
+    // Enclosed: -1000 mB as the I3DL2 room presets (was -300: small stone rooms rang, playtest 10-30).
+    e.room = lerp(-3000.0f, -1000.0f, enclosure);
     e.room_hf = lerp(-1200.0f, -100.0f, 1.0f - p.alpha.high);
     e.room_rolloff = 0.0f;
     e.decay_time = decay;
@@ -193,7 +233,7 @@ Environment environment_of(const Probe& p, const audio::ReverbTuning& t) {
     e.reflections = lerp(-2400.0f, -400.0f, reflectance * reflectance * std::clamp(1.0f - nearest / 1200.0f, 0.0f, 1.0f));
     e.reflections_delay = std::min(2.0f * nearest * m / kSpeedOfSound, 0.3f);
     // The late reverb: as loud as the roof is closed.
-    e.reverb = lerp(-2600.0f, 200.0f, 1.0f - p.sky);
+    e.reverb = lerp(-2600.0f, 0.0f, 1.0f - p.sky);
     e.reverb_delay = std::clamp(4.0f * volume / surface / kSpeedOfSound, 0.005f, 0.1f);
     e.diffusion = lerp(30.0f, 100.0f, 1.0f - p.sky) * lerp(1.0f, 0.6f, p.metal);  // metal rings
     e.density = 100.0f;
@@ -307,6 +347,126 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l) {
     s.current = s.active ? mix(s.current, target, 0.25f) : target;
     s.active = true;
     device.set_environment(facing(s.current, l));
+}
+
+namespace {
+
+constexpr int kOcclusionPoints = 7;
+
+// SndEnv_Occlusion's points; false when the source is at the listener.
+bool occlusion_points(const float listener[3], const float source[3], std::array<float, 3> (&points)[kOcclusionPoints]) {
+    // Volumetric, as Steam Audio's occlusion: lines to points spread over a sphere around the
+    // source (radius kRadius, its size), the share blocked. The centre is at shoulder height (the
+    // origin is mostly a soldier's feet); one point leans towards the listener (where a rifle's
+    // muzzle is: a soldier back from a window or round a corner is heard through the opening),
+    // the others to the sides, above and below. Earlier tries (playtests 10-30) - one line, the
+    // clearest of three, five above and beside - muffled gunfire in plain sight.
+    constexpr float kRadius = 40.0f;  // world units
+    const float centre[3] = {source[0], source[1], source[2] + 48};
+    float toward[3] = {listener[0] - centre[0], listener[1] - centre[1], listener[2] - centre[2]};
+    const float length = std::sqrt(toward[0] * toward[0] + toward[1] * toward[1] + toward[2] * toward[2]);
+    if (length < 1.0f) return false;
+    for (float& v : toward) v /= length;
+    float side[3] = {-toward[1], toward[0], 0};
+    const float flat = std::sqrt(side[0] * side[0] + side[1] * side[1]);
+    if (flat > 1e-3f) {
+        side[0] /= flat;
+        side[1] /= flat;
+    } else {
+        side[0] = 1;
+        side[1] = 0;
+    }
+    auto at = [&](float f, float s, float u) {
+        return std::array<float, 3>{centre[0] + (toward[0] * f + side[0] * s) * kRadius,
+                                    centre[1] + (toward[1] * f + side[1] * s) * kRadius,
+                                    centre[2] + (toward[2] * f + side[2] * s + u) * kRadius};
+    };
+    const std::array<float, 3> list[kOcclusionPoints] = {
+        at(0, 0, 0), at(1, 0, 0), at(0.7f, 0, 0.7f), at(0, 1, 0), at(0, -1, 0), at(0, 0, 1), at(0, 0, -0.7f),
+    };
+    std::copy(std::begin(list), std::end(list), std::begin(points));
+    return true;
+}
+
+}  // namespace
+
+// Sound bends over and round what blocks it (playtest 10-30: a tank behind a parapet, all lines
+// clipping its top, came out muffled though plainly in view): when the line to the centre is
+// blocked, a way over or round the hit - points above it and to its sides - with both legs clear
+// is looked for, and the sound is only as muffled as that detour is long (the path idea of
+// Rainbow Six Siege's and Hitman's propagation, over one edge). Returns 0..1 (1: no way found).
+float detour(const float listener[3], const float point[3], const Line& line) {
+    const float d[3] = {point[0] - listener[0], point[1] - listener[1], point[2] - listener[2]};
+    const float straight = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    float side[3] = {-d[1], d[0], 0};
+    const float flat = std::sqrt(side[0] * side[0] + side[1] * side[1]);
+    if (flat > 1e-3f) {
+        side[0] /= flat;
+        side[1] /= flat;
+    }
+    // Over the top first (low walls, parapets, rubble), then round either side.
+    static const float kSteps[] = {24, 48, 96, 160};
+    float best = 1.0f;
+    for (const float step : kSteps) {
+        const float candidates[3][3] = {
+            {line.hit[0], line.hit[1], line.hit[2] + step},
+            {line.hit[0] + side[0] * step, line.hit[1] + side[1] * step, line.hit[2]},
+            {line.hit[0] - side[0] * step, line.hit[1] - side[1] * step, line.hit[2]},
+        };
+        for (const auto& edge : candidates) {
+            if (blocked(listener, edge) > 0.0f || blocked(edge, point) > 0.0f) continue;
+            const float a[3] = {edge[0] - listener[0], edge[1] - listener[1], edge[2] - listener[2]};
+            const float b[3] = {point[0] - edge[0], point[1] - edge[1], point[2] - edge[2]};
+            const float extra = std::sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) +
+                                std::sqrt(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]) - straight;
+            // Grazing an edge already costs a little; 200 units (5 m) further round: all.
+            best = std::min(best, 0.2f + 0.8f * std::clamp(extra / 200.0f, 0.0f, 1.0f));
+        }
+        if (best < 1.0f) break;  // the nearest way found
+    }
+    return best;
+}
+
+float SndEnv_Occlusion(const float listener[3], const float source[3]) {
+    std::array<float, 3> points[kOcclusionPoints];
+    if (!world_loaded() || !occlusion_points(listener, source, points)) return 0.0f;
+    // In view - the line to the sound's centre or to the point towards the listener (a muzzle)
+    // clear: the direct sound is heard in full (user 10-30: what bounces off walls only adds).
+    const Line centre = trace_line(listener, points[0].data());
+    if (centre.share <= 0.0f || blocked(listener, points[1].data()) <= 0.0f) return 0.0f;
+    // Hidden: the share of the sphere's lines blocked (some may pass round an edge), at most as
+    // much as the shortest way round the obstacle costs.
+    float sum = centre.share;
+    for (int i = 1; i < kOcclusionPoints; ++i) sum += blocked(listener, points[i].data());
+    return std::min(sum / float(kOcclusionPoints), detour(listener, points[0].data(), centre));
+}
+
+void SndEnv_DescribeOcclusion(const float listener[3], const float source[3], char* out, size_t size) {
+    std::array<float, 3> points[kOcclusionPoints];
+    if (!size) return;
+    out[0] = 0;
+    if (!world_loaded() || !occlusion_points(listener, source, points)) return;
+    size_t used = size_t(std::snprintf(out, size, "listener %.0f %.0f %.0f source %.0f %.0f %.0f:", listener[0],
+                                       listener[1], listener[2], source[0], source[1], source[2]));
+    if (used < size) used += size_t(std::snprintf(out + used, size - used, " occlusion %.2f", SndEnv_Occlusion(listener, source)));
+    for (const auto& point : points) {
+        if (used >= size) break;
+        const Line line = trace_line(listener, point.data());
+        const float d[3] = {line.hit[0] - listener[0], line.hit[1] - listener[1], line.hit[2] - listener[2]};
+        const float from_listener = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        const float e[3] = {point[0] - line.hit[0], point[1] - line.hit[1], point[2] - line.hit[2]};
+        const float to_point = std::sqrt(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
+        if (!line.traced)
+            used += size_t(std::snprintf(out + used, size - used, " [short]"));
+        else if (line.fraction >= 1.0f)
+            used += size_t(std::snprintf(out + used, size - used, " [clear]"));
+        else
+            used += size_t(std::snprintf(out + used, size - used,
+                                         " [%s at %.0f %.0f %.0f, %.0f from listener, %.0f before point, contents %x, "
+                                         "flags %x]",
+                                         line.fraction <= 0.0f ? "inside" : "hit", line.hit[0], line.hit[1],
+                                         line.hit[2], from_listener, to_point, line.contents, line.flags));
+    }
 }
 
 void SndEnv_SetTuning(const audio::ReverbTuning& tuning) {
