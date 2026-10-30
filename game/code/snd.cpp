@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstring>
 
 #include "cg_ents.h"
@@ -2222,6 +2223,62 @@ void XB_CDECL SndVoice_SetupBuffer(uint8_t* slot, const uint8_t* sound, uint8_t*
     voice[0xc0] = 3;
 }
 
+namespace {
+
+// Our addition (enhanced): occlusion of the playing 3D voices, lines from the listener through the
+// world's collision (SndEnv_Occlusion). A voice is traced when it starts (so a shot behind a wall
+// starts muffled), then 8 voices per update in turn (each about every 0.1-0.5 s), and glides to the
+// new value. Voices near the listener (its own gun, footsteps) are never occluded.
+struct Occlusion {
+    int32_t owner = -1;  // the voice record's owner (+0xcc) when traced; another: a new sound
+    float target = 0.0f, current = 0.0f;
+};
+Occlusion g_occlusion[256];
+uint32_t g_occlusion_next = 0;
+
+void update_occlusion(const float listener[3]) {
+    constexpr uint32_t kPerUpdate = 8;
+    constexpr float kNear = 48.0f;  // world units
+    const uint32_t count = std::min(title_global<uint32_t>(0x008bed00), 256u);
+    auto target_of = [&](const float* position) {
+        const float d[3] = {position[0] - listener[0], position[1] - listener[1], position[2] - listener[2]};
+        if (d[0] * d[0] + d[1] * d[1] + d[2] * d[2] < kNear * kNear) return 0.0f;
+        return SndEnv_Occlusion(listener, position);
+    };
+    uint32_t budget = kPerUpdate;
+    for (uint32_t n = 0; n < count; ++n) {
+        const uint32_t i = (g_occlusion_next + n) % count;
+        uint8_t* const slot = &title_global<uint8_t>(0x0090a940 + i * 0x6c);
+        uint8_t* const voice = &title_global<uint8_t>(0x00911548 + i * 0xe0);
+        Occlusion& o = g_occlusion[i];
+        if (voice[0xc0] != 4 || !(voice[0xc3] & 1)) {  // not a playing 3D voice
+            o.owner = -1;
+            continue;
+        }
+        const audio::VoiceId id = voice_id(slot, (voice[0xc3] & 2) ? 0x30 : 0);
+        const float* const position = &snd_at<float>(voice, 0x54);
+        const int32_t owner = snd_at<int32_t>(voice, 0xcc);
+        if (o.owner != owner) {
+            if (!position[0] && !position[1] && !position[2]) continue;  // not placed yet: next update
+            o.owner = owner;
+            o.target = o.current = target_of(position);
+            device().set_occlusion(id, o.current);
+            continue;
+        }
+        if (budget) {
+            --budget;
+            g_occlusion_next = i + 1;
+            o.target = target_of(position);
+        }
+        const float step = (o.target - o.current) * 0.2f;
+        if (std::fabs(step) < 0.002f && o.current == o.target) continue;
+        o.current = std::fabs(o.target - o.current) < 0.01f ? o.target : o.current + step;
+        device().set_occlusion(id, o.current);
+    }
+}
+
+}  // namespace
+
 uint32_t XB_CDECL SndHw_Update() {
     // snd_speakerMode: a negative value is a request (1-3 speakers, 4 headphones).
     int32_t mode = title_global<int32_t>(0x008bd650);
@@ -2380,7 +2437,10 @@ uint32_t XB_CDECL SndHw_Update() {
     }
     device().set_listener(listener, audio::Apply::Deferred);
     // Enhanced only (our addition): the reverb around the listener.
-    if (device().enhanced()) SndEnv_Update(device(), listener);
+    if (device().enhanced()) {
+        SndEnv_Update(device(), listener);
+        update_occlusion(listener.position);
+    }
     device().commit();
     synch_playback();
     device().do_work();

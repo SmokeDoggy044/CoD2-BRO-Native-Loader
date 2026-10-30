@@ -53,6 +53,11 @@ CategoryVolumes category_volumes();
 // Pauses or resumes all sound output (diagnostics: while the title is frozen).
 void set_paused(bool paused);
 
+// Diagnostics (a playtest mark): logs every playing world voice with its distance, level by
+// distance, volume and occlusion; `describe` (optional) explains each occluded one's occlusion
+// from the listener's and the voice's positions (game coordinates).
+void log_voices(void (*describe)(const float listener[3], const float source[3], char* out, size_t size) = nullptr);
+
 // The output, once the device is open (tests render through it).
 Output* output();
 
