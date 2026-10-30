@@ -8,8 +8,9 @@
 //   rays and A = surface x absorption by material, open sky and missing walls absorbing all;
 // - first reflections: after the way to the nearest wall and back; the late reverb after the
 //   mean free path (4 V / S);
-// - level: how enclosed the place is (walls around, a roof overhead); brightness: how hard
-//   the surfaces are. An open field stays dry, a roofless ruin gives reflections and little
+// - level: how enclosed the place is (walls around, a roof overhead); brightness: the same
+//   Sabine at high frequencies (surfaces' high-frequency absorption and the air's) over the
+//   mid one, so carpet and grass dull the tail and stone keeps it bright. An open field stays dry, a roofless ruin gives reflections and little
 //   tail, a stone cellar rings;
 // - direction: the reflections come from the near, hard walls (a stone wall on the right and
 //   open ground on the left: from the right), the late reverb leans the same way; turned
@@ -44,35 +45,50 @@ constexpr float kSpeedOfSound = 343;  // metres per second
 constexpr uint32_t kSolidMask = 1 | 0x10;
 constexpr Environment kSilent{};
 
-// How hard (reflective) each surface type is, 0 soft .. 1 hard. The type is bits 20-24 of a
-// hit's surface flags, as the game's surface parameter table (0x008d4e68, 16-byte rows: name,
-// clears solid, surface flags, contents) assigns them to the material names.
-constexpr float kHardness[32] = {
-    0.6f,  // 0 default
-    0.4f,  // 1 bark
-    0.9f,  // 2 brick
-    0.1f,  // 3 carpet
-    0.1f,  // 4 cloth
-    0.9f,  // 5 concrete
-    0.3f,  // 6 dirt
-    0.2f,  // 7 flesh
-    0.15f, // 8 foliage
-    1.0f,  // 9 glass
-    0.2f,  // 10 grass
-    0.5f,  // 11 gravel
-    0.9f,  // 12 ice
-    1.0f,  // 13 metal
-    0.25f, // 14 mud
-    0.3f,  // 15 paper
-    0.8f,  // 16 plaster
-    0.9f,  // 17 rock
-    0.25f, // 18 sand
-    0.1f,  // 19 snow
-    0.6f,  // 20 water
-    0.5f,  // 21 wood
-    0.85f, // 22 asphalt
-    0.6f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f, 0.6f,  // unused
+// Each surface type's absorption coefficient (share of the sound a surface takes in) at mid
+// (500-1000 Hz) and high (2-4 kHz) frequencies. The type is bits 20-24 of a hit's surface flags,
+// as the game's surface parameter table (0x008d4e68, 16-byte rows: name, clears solid, surface
+// flags, contents) assigns them to the material names. Values: octave-band tables of building
+// materials (sengpielaudio.com "Absorption Coefficients of Building Materials and Finishes";
+// window glass, brick, plaster, concrete, wood, carpet, curtains, water/ice, people), Egan
+// "Architectural Acoustics" for loose gravel, CNOSSOS-EU ground factors (grass, soil and snow
+// soft, gravel roads and hard ground reflecting) for the ground; "est." = no measured figure
+// found, estimated from similar surfaces.
+struct Absorption {
+    float mid, high;
 };
+constexpr Absorption kAbsorption[32] = {
+    {0.05f, 0.05f},  // 0 default (est.: an ordinary finished wall)
+    {0.12f, 0.15f},  // 1 bark (est.: rough wood)
+    {0.035f, 0.06f}, // 2 brick, unglazed
+    {0.25f, 0.62f},  // 3 carpet on concrete
+    {0.62f, 0.65f},  // 4 cloth (heavy curtain)
+    {0.03f, 0.04f},  // 5 concrete (between smooth and painted block)
+    {0.35f, 0.50f},  // 6 dirt (loose soil, est. between dry and moist)
+    {0.44f, 0.50f},  // 7 flesh (people)
+    {0.30f, 0.50f},  // 8 foliage (not traced: not solid)
+    {0.15f, 0.055f}, // 9 glass, window
+    {0.50f, 0.60f},  // 10 grass
+    {0.67f, 0.70f},  // 11 gravel, loose (Egan)
+    {0.014f, 0.022f},// 12 ice
+    {0.035f, 0.02f}, // 13 metal (est.: like a large glass plate)
+    {0.15f, 0.20f},  // 14 mud (est.: wet soil absorbs far less)
+    {0.15f, 0.20f},  // 15 paper (est.)
+    {0.025f, 0.045f},// 16 plaster, smooth
+    {0.01f, 0.02f},  // 17 rock (marble/stone)
+    {0.30f, 0.45f},  // 18 sand (est.: dry sand soft, wet sand hard)
+    {0.60f, 0.85f},  // 19 snow (est.: very absorbent)
+    {0.014f, 0.022f},// 20 water
+    {0.10f, 0.08f},  // 21 wood (wood on joists / plywood)
+    {0.02f, 0.03f},  // 22 asphalt (est.: like smooth concrete)
+    {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f},
+    {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f},  // unused
+};
+// What the rays do not see takes in sound as well: furniture, debris, openings, people. Without
+// it, Sabine with stone's 0.01 gives a 4 x 4 x 3 m stone room nearly 10 s; with it ~1.2 s.
+constexpr float kClutter = 0.07f;
+// Air takes in high frequencies too (energy attenuation per metre near 5 kHz, 20 C, 50 % humidity).
+constexpr float kAirHigh = 0.009f;
 constexpr uint32_t kMetal = 13;
 
 float lerp(float a, float b, float t) { return a + (b - a) * t; }
@@ -126,8 +142,8 @@ struct Probe {
     float down;          // to the floor
     int walls = 0;       // level rays that hit
     float sky = 0;       // share of upward rays that hit nothing
-    float hardness = 0;  // average over the hits
-    float metal = 0;     // share of the hits on metal
+    Absorption alpha{0, 0};  // average over the hits
+    float metal = 0;         // share of the hits on metal
     float reflections_from[3] = {0, 0, 0};  // world direction (length: focus)
     float reverb_from[3] = {0, 0, 0};
 };
@@ -146,13 +162,18 @@ Environment environment_of(const Probe& p) {
     const float wall_area = 2.0f * (width + depth) * height;
     const float surface = 2.0f * floor_area + wall_area;
 
-    // Absorption: hard surfaces ~0.03 (stone, metal), soft ones ~0.5 (earth, foliage, cloth);
-    // the open part of the roof and the missing walls absorb everything.
-    const float alpha = lerp(0.5f, 0.03f, p.hardness);
+    // Sabine at mid and high frequencies: the surfaces' absorption, the open part of the roof and
+    // the missing walls taking in everything; at high frequencies the air too (4 m V).
     const float open_walls = 1.0f - float(p.walls) / 8;
-    const float absorption = floor_area * alpha + floor_area * (p.sky + (1.0f - p.sky) * alpha) +
-                             wall_area * (open_walls + (1.0f - open_walls) * alpha);
-    const float decay = std::clamp(0.161f * volume / std::max(absorption, 0.1f), 0.1f, 8.0f);
+    auto absorption = [&](float alpha) {
+        return floor_area * alpha + floor_area * (p.sky + (1.0f - p.sky) * alpha) +
+               wall_area * (open_walls + (1.0f - open_walls) * alpha);
+    };
+    const float decay =
+        std::clamp(0.161f * volume / std::max(absorption(p.alpha.mid + kClutter), 0.1f), 0.1f, 8.0f);
+    const float decay_high =
+        0.161f * volume / std::max(absorption(p.alpha.high + kClutter) + 4.0f * kAirHigh * volume, 0.1f);
+    const float reflectance = 1.0f - p.alpha.mid;
 
     float nearest = kRange;
     for (float d : p.level) nearest = std::min(nearest, d);
@@ -160,12 +181,12 @@ Environment environment_of(const Probe& p) {
 
     Environment e;
     e.room = lerp(-3000.0f, -300.0f, enclosure);
-    e.room_hf = lerp(-1200.0f, -100.0f, p.hardness);
+    e.room_hf = lerp(-1200.0f, -100.0f, 1.0f - p.alpha.high);
     e.room_rolloff = 0.0f;
     e.decay_time = decay;
-    e.decay_hf_ratio = lerp(0.4f, 1.0f, p.hardness);
-    // Close hard walls give strong first reflections.
-    e.reflections = lerp(-2400.0f, -400.0f, p.hardness * std::clamp(1.0f - nearest / 1200.0f, 0.0f, 1.0f));
+    e.decay_hf_ratio = std::clamp(decay_high / decay, 0.1f, 2.0f);
+    // Close reflecting walls give strong first reflections.
+    e.reflections = lerp(-2400.0f, -400.0f, reflectance * reflectance * std::clamp(1.0f - nearest / 1200.0f, 0.0f, 1.0f));
     e.reflections_delay = std::min(2.0f * nearest * m / kSpeedOfSound, 0.3f);
     // The late reverb: as loud as the roof is closed.
     e.reverb = lerp(-2600.0f, 200.0f, 1.0f - p.sky);
@@ -235,7 +256,8 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l) {
     int hits = 0;
     auto material = [&](const Hit& hit) {
         if (!hit.hit) return;
-        p.hardness += kHardness[hit.type];
+        p.alpha.mid += kAbsorption[hit.type].mid;
+        p.alpha.high += kAbsorption[hit.type].high;
         p.metal += hit.type == kMetal ? 1.0f : 0.0f;
         ++hits;
     };
@@ -247,7 +269,7 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l) {
         material(hit);
         if (!hit.hit) continue;
         // Reflections from near, hard walls; the late reverb from hard ones at any distance.
-        const float hard = kHardness[hit.type];
+        const float hard = 1.0f - kAbsorption[hit.type].mid;  // reflectance
         const float near = hard * std::clamp(1.0f - hit.distance / 1200.0f, 0.0f, 1.0f);
         for (int k = 0; k < 3; ++k) {
             p.reflections_from[k] += near * kLevel[i][k];
@@ -269,7 +291,7 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l) {
     const Hit floor = trace(listener, kDown);
     p.down = floor.hit ? floor.distance : 64.0f;
     material(floor);
-    p.hardness = hits ? p.hardness / float(hits) : 0.5f;
+    p.alpha = hits ? Absorption{p.alpha.mid / float(hits), p.alpha.high / float(hits)} : Absorption{0.05f, 0.05f};
     p.metal = hits ? p.metal / float(hits) : 0.0f;
     const Environment target = environment_of(p);
     // A new place fades in over about half a second (probes 10 times a second).
