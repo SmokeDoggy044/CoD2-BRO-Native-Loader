@@ -81,7 +81,7 @@ int32_t Snd_CountBusyVoices() {
     }
     // Its only caller, FX_AddSoundComponents, drops an effect's sounds over 15 busy voices (35-86% of them in
     // battles, measured 10-30). Enhanced sound has the voices to spare: the budget becomes 64 (busy * 16 / 65 > 15).
-    if (device().enhanced()) busy = busy * 16 / 65;
+    if (device().has(audio::Feature::Voices)) busy = busy * 16 / 65;
     return busy;
 }
 
@@ -1963,7 +1963,31 @@ bool is_ambience_alias(const char* name) {
     return !(length >= 2 && upper(name[length - 2]) == 'M' && upper(name[length - 1]) == 'X');
 }
 
-// A voice's category: by its sound entry's group (+0x10; the name at group +0x108), ambience as remembered above.
+// `part` in the alias name, ignoring case.
+bool alias_has(const char* name, const char* part) {
+    if (!name) return false;
+    for (const char* at = name; *at; ++at) {
+        size_t i = 0;
+        while (part[i] && at[i] && (at[i] | 0x20) == (part[i] | 0x20)) ++i;
+        if (!part[i]) return true;
+    }
+    return false;
+}
+
+// Weapon fire, by the alias name: "<WEAPON>_FIRE_3RD" with its "_RINGOFF" and "_DIST"
+// layers (THOMPSON, M1GARAND, MP40, KAR98, mg42, mg34_COAX, AA_FAST, STUKA, ...), the tanks' "<TANK>_GUN_SHOT_3P" and
+// "_GUN_RINGOFF_3P" (seen in the prologue 10-30); the player's own is "_FIRE_1ST" (not placed in the world).
+bool is_gunfire_alias(const char* name) {
+    const auto has = [&](const char* part) { return alias_has(name, part); };
+    return has("_FIRE_3RD") || has("_GUN_SHOT_3P") || has("_GUN_RINGOFF_3P");
+}
+
+// Bullets: impacts "IMP_Bullet_<Dirt|Wood|Masonry|Flesh|Metal_..>_NN[LMG|HMG]" and flybys "WhizBySound_NN" (the
+// names in the level packs).
+bool is_bullet_alias(const char* name) { return alias_has(name, "IMP_BULLET_") || alias_has(name, "WHIZBYSOUND"); }
+
+// A voice's category: by its sound entry's group (+0x10; the name at group +0x108), ambience as remembered above,
+// gunfire and bullets by the alias name.
 audio::Category sound_category(uint32_t id, const uint8_t* sound) {
     const auto* group = *reinterpret_cast<const char* const*>(sound + 0x10);
     const char* name = group ? group + 0x108 : "";
@@ -1972,6 +1996,10 @@ audio::Category sound_category(uint32_t id, const uint8_t* sound) {
     if (!group) return audio::Category::Effects;
     if (!std::strncmp(name, "MUSIC", 0x20)) return audio::Category::Music;
     if (!std::strncmp(name, "GUI", 0x20)) return audio::Category::Interface;
+    const char* const alias = Snd_GetAliasName(id);
+    if (is_gunfire_alias(alias)) return audio::Category::Gunfire;
+    if (alias_has(alias, "_FIRE_1ST")) return audio::Category::OwnGunfire;
+    if (is_bullet_alias(alias)) return audio::Category::Bullets;
     return audio::Category::Effects;
 }
 
@@ -2438,11 +2466,9 @@ uint32_t XB_CDECL SndHw_Update() {
         listener.top[k] = snd_at<float>(mix, 0xcc + k * 4);
     }
     device().set_listener(listener, audio::Apply::Deferred);
-    // Enhanced only (our addition): the reverb around the listener.
-    if (device().enhanced()) {
-        SndEnv_Update(device(), listener);
-        update_occlusion(listener.position);
-    }
+    // Enhanced only (our additions): the reverb around the listener, occlusion.
+    if (device().has(audio::Feature::Reverb)) SndEnv_Update(device(), listener);
+    if (device().has(audio::Feature::Occlusion)) update_occlusion(listener.position);
     device().commit();
     synch_playback();
     device().do_work();
@@ -3163,7 +3189,7 @@ void add_enhanced_slots() {
 }
 
 uint32_t usable_slots() {
-    if (!device().enhanced()) return std::min(g_original_slots, title_global<uint32_t>(0x008bed00));
+    if (!device().has(audio::Feature::Voices)) return std::min(g_original_slots, title_global<uint32_t>(0x008bed00));
     add_enhanced_slots();
     return title_global<uint32_t>(0x008bed00) + 1;  // the last one too
 }

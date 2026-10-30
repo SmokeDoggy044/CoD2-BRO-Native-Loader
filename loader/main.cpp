@@ -82,6 +82,7 @@ struct Options {
     std::string audio_device;    // empty: the system's
     audio::ReverbTuning reverb;  // --reverb
     audio::CategoryVolumes volumes;  // --volume
+    audio::EnhancedFeatures features;  // --enhanced
     std::string press_script;
     float mouse_sensitivity = 0.11f;
     input::Bindings bindings = input::default_bindings();  // --keys
@@ -162,7 +163,12 @@ void print_usage(const char* program) {
         "  --volume \"K=V ...\"  volume per kind of sound in percent (0..100, default 100):\n"
         "                   effects=P, ambience=P (the levels' background), dialogue=P,\n"
         "                   music=P; on top of the game's own slider,\n"
-        "                   original and enhanced sound alike; also in the PC menu\n"
+        "                   original and enhanced sound alike; enhanced only: close_gunfire=DB,\n"
+        "                   own_gunfire=DB, close_bullets=DB (0..12, default 0: louder nearby);\n"
+        "                   also in the PC menu\n"
+        "  --enhanced \"K=0|1 ...\"  enhanced sound's improvements one by one (default all on):\n"
+        "                   resampler, voices (more than the Xbox's), reverb, occlusion,\n"
+        "                   close_boost (the close_ volumes); also in the PC menu\n"
         "  --memory MB      Xbox memory budget (default 64, like a retail Xbox; devkit: 128)\n"
         "  --fullscreen     borderless fullscreen (Alt+Enter switches while playing)\n"
         "  --windowed       in a window (default; overrides fullscreen in settings.ini)\n"
@@ -502,6 +508,12 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.volumes = audio::CategoryVolumes::parse(argv[++i]);
+        } else if (arg == "--enhanced") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--enhanced needs features, e.g. \"reverb=0 occlusion=1\"\n");
+                return std::nullopt;
+            }
+            options.features = audio::EnhancedFeatures::parse(argv[++i]);
         } else if (arg == "--audio-device") {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--audio-device needs a device name\n");
@@ -832,6 +844,9 @@ int loader_main(int argc, char** argv) {
     audio_config.device_name = options->audio_device;
     audio_config.speakers = options->speakers;
     audio_config.enhanced = options->audio_enhanced;
+    audio_config.features = options->features;
+    if (const std::string off = options->features.format(); !off.empty())
+        LOG_INFO("audio", "enhanced sound without: %s", off.c_str());
     audio::configure(audio_config);
     game::SndEnv_SetTuning(options->reverb);
     if (const std::string reverb = options->reverb.format(); !reverb.empty())
