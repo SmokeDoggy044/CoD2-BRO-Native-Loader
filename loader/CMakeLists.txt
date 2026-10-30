@@ -1,5 +1,6 @@
 # Route-B only: deleted once the game no longer needs the original XBE.
 set(loader_sources
+    compare_common.cpp
     crash.cpp
     diag_summary.cpp
     hooks.cpp

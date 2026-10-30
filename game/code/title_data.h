@@ -55,8 +55,18 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed);
 // pushes the ESP it started with, so the epilogue undoes it with `popl %esp` once the words
 // pushed after it are gone (an `addl $gap, %esp` popped a wrong return address or registers:
 // EDI after R_AddEntityModel_entry, in R_RenderView's nested calls).
-#define GAME_GAP_ESP(gap)                                                                 \
-    "subl $(" gap "+0x10000), %esp\n pushl %eax\n pushl %ecx\n pushl %edx\n"              \
-    "leal 12+0x10000(%esp), %eax\n pushl %eax\n" PLATFORM_ASM_CALL(game_body_esp)         \
-    "movl %esp, %ecx\n movl %eax, %esp\n leal 16+0x10000+" gap "(%ecx), %edx\n pushl %edx\n"      \
-    "movl 4(%ecx), %edx\n movl 12(%ecx), %eax\n movl 8(%ecx), %ecx\n"
+// The scratch also stays below the floor's limit (FS:[0x14], platform_set_title_frame_limit):
+// an entry reached from a callee at the original's position (R_AddEntityModel_entry under our
+// R_RenderView, live) would otherwise put it on the caller's live C frame, which lies about one
+// gap below that position too. Its top word is the ESP the scratch would have had (S = entry
+// ESP - gap - 64 KB), so the entry's ESP is S + gap + 64 KB either way.
+#define GAME_GAP_ESP(gap)                                                                          \
+    "subl $(" gap "+0x10000), %esp\n"                                                              \
+    "cmpl $0, %fs:0x14\n je 7f\n cmpl %fs:0x14, %esp\n jbe 7f\n"                                  \
+    "xchgl %esp, %fs:0x14\n pushl %fs:0x14\n pushl %eax\n leal 8(%esp), %eax\n"                   \
+    "movl %eax, %fs:0x14\n popl %eax\n jmp 8f\n"                                                  \
+    "7:\n pushl %esp\n"                                                                           \
+    "8:\n pushl %eax\n pushl %ecx\n pushl %edx\n"                                                 \
+    "movl 12(%esp), %eax\n addl $0x10000, %eax\n pushl %eax\n" PLATFORM_ASM_CALL(game_body_esp)    \
+    "movl %esp, %ecx\n movl %eax, %esp\n movl 16(%ecx), %edx\n addl $(" gap "+0x10000), %edx\n"     \
+    "pushl %edx\n movl 4(%ecx), %edx\n movl 12(%ecx), %eax\n movl 8(%ecx), %ecx\n"

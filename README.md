@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 71% of the functions have a name, and 3,368 have been
+It's early days: about 71% of the functions have a name, and 3,420 have been
 rewritten in C++. The renderer, animation, client game, collision and streaming code is
 done or nearly; the engine core (memory, files, settings, commands) is the part we're
 working on now.
@@ -24,18 +24,18 @@ Developed with AI: see [Made with AI](#made-with-ai).
 ## Progress
 
 <!-- progress:start (tools/progress.py --readme) -->
-*As of 2026-10-29. The numbers come from `tools/progress.py`, which tracks every
+*As of 2026-10-30. The numbers come from `tools/progress.py`, which tracks every
 function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 11,207 | 8,732 | 3,368 | 7,839 |
+| Engine and game code (`.text`) | 11,207 | 8,732 | 3,420 | 7,787 |
 | Mission scripts (14 level sections) | 5,324 | 2,988 | 0 | 5,324 |
-| **Total** | **16,531** | **11,720** | **3,368** | **13,163** |
+| **Total** | **16,531** | **11,720** | **3,420** | **13,111** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
-(below), or, for 589 functions the campaign never runs, the same comparison offline on random inputs.
+(below), or, for 400 functions the campaign never runs, the same comparison offline on random inputs.
 **Set aside** functions will not be tested, by decision: dead code nothing calls, start-up
 and exit code, debug and developer tools, and code that only talks to the Xbox hardware or
 its files (these are in C++ already). The Xbox Live code is set aside without being
@@ -46,7 +46,7 @@ We've also named 2,659 of the game's global variables.
 
 | Part | Functions | Rewritten | Decompiled, waiting for a test | Set aside | Named, not decompiled yet | Not named yet |
 |---|---:|---:|---:|---:|---:|---:|
-| Renderer (scenes, materials, shaders, models, effects) | 1,095 | 1,034 | 8 | 51 | 1 | 0 |
+| Renderer (scenes, materials, shaders, models, effects) | 1,095 | 1,086 | 8 | 0 | 0 | 0 |
 | Game logic (entities, AI, weapons, physics, level-script runtime) | 1,628 | 280 | 16 | 0 | 1,123 | 205 |
 | Animation (animation trees, the animation codec) | 284 | 256 | 0 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 299 | 293 | 0 | 6 | 0 | 0 |
@@ -239,6 +239,7 @@ For the details:
   classes, vtable slots, stream formats)
 - [docs/renderer-inventory.md](docs/renderer-inventory.md): what the decompiled renderer
   still asks the Xbox graphics libraries to do (first step of our own renderer)
+- [docs/own-renderer.md](docs/own-renderer.md): our own renderer, step by step
 - [docs/rendering.md](docs/rendering.md), [docs/multiplayer.md](docs/multiplayer.md)
   and [docs/playtesting.md](docs/playtesting.md): graphics, multiplayer and testing
   in the native loader

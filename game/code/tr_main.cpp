@@ -1953,17 +1953,23 @@ namespace {
 PLATFORM_TLS_FIXED thread_local uint32_t t_host_floor;  // title_data.h: game_floor_enter
 }  // namespace
 
+// title_call_at*'s own pushes below its floor.
+constexpr uint32_t kFloorMargin = 256;
+
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_floor_enter(uint32_t floor) {
     const uint32_t previous = t_host_floor;
     t_host_floor = floor;
+    platform_set_title_frame_limit(floor ? floor - kFloorMargin : 0);
     return previous;
 }
 
-extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous) { t_host_floor = previous; }
+extern "C" PLATFORM_HIDDEN void XB_CDECL game_floor_leave(uint32_t previous) {
+    t_host_floor = previous;
+    platform_set_title_frame_limit(previous ? previous - kFloorMargin : 0);
+}
 
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL game_body_esp(uint32_t proposed) {
-    constexpr uint32_t kMargin = 256;  // the helper's own pushes below its floor
-    if (t_host_floor && t_host_floor - kMargin < proposed) proposed = t_host_floor - kMargin;
+    if (t_host_floor && t_host_floor - kFloorMargin < proposed) proposed = t_host_floor - kFloorMargin;
     // GAME_GAP_ESP pushes the entry's ESP at the result - 4 before it reads the registers back
     // from its scratch (this argument and the 12 bytes above it): stay clear of them.
     const uint32_t scratch = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&proposed));
@@ -2718,7 +2724,7 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
     static const uint32_t kZero[] = {0};
     at(0, &nglPushScene, 1, kOne);
     at(0, &R_SetupFog);
-    const uint32_t aspect[] = {float_bits(title_global<uint32_t>(0x00948f64) ? title_global<float>(0x0083f254)
+    const uint32_t aspect[] = {float_bits(title_global<uint32_t>(0x00948f64) ? wide_scene_aspect()
                                                                              : title_global<float>(0x0083eb80))};
     at(0, &nglSetAspect, 1, aspect);
     float far_z = *reinterpret_cast<const float*>(parms + 0x174);
@@ -2789,7 +2795,9 @@ void XB_CDECL R_RenderView(const uint8_t* parms, uint8_t* frame) {
     *reinterpret_cast<int32_t*>(shadow_cvar + 0x20) = 0;
     title_global<uint8_t>(0x0095f6d2) = 1;
     at(1, &nglPushScene, 1, kOne);
-    const uint32_t view_model_perspective[] = {fov, 0x3f000000, 0x43000000};  // 0.5, 128
+    const float* gun_fov_y = renderer_pc_hooks().gun_fov_y;
+    const uint32_t view_model_perspective[] = {gun_fov_y ? float_bits(*gun_fov_y) : fov, 0x3f000000,
+                                               0x43000000};  // 0.5, 128
     at(2, &nglSetPerspective, 3, view_model_perspective);
     static const uint32_t kClearFlags[] = {3};
     at(5, &nglSetClearFlags, 1, kClearFlags);

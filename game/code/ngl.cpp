@@ -11,6 +11,17 @@
 
 namespace game {
 
+RendererPcHooks& renderer_pc_hooks() {
+    static RendererPcHooks hooks;
+    return hooks;
+}
+
+float wide_scene_aspect() {
+    const float* aspect = renderer_pc_hooks().wide_aspect;
+    return aspect ? *aspect : title_global<float>(0x0083f254);
+}
+
+
 namespace {
 
 NglScene*& current_scene() { return title_global<NglScene*>(0x0090259c); }
@@ -3160,7 +3171,7 @@ void XB_CDECL nglSetDefaultSceneParams() {
     const float right = static_cast<float>(nglGetScreenWidth() - 1);
     nglSetViewportRect(0.0f, 0.0f, right, bottom);
     current_scene()->aspect = title_global<uint8_t>(0x00902899)  // ngl_widescreen
-                                  ? title_global<float>(0x0083f254)   // 16/9
+                                  ? wide_scene_aspect()               // 16/9
                                   : title_global<float>(0x0083eb80);  // 4/3
     nglUpdateScene(1);
     NglScene* scene = current_scene();
@@ -6218,8 +6229,11 @@ void XB_CDECL nglEndFrame() {
     title_function<void XB_STDCALL(uint32_t)>(0x003e6210)(title_global<uint32_t>(0x0090286c));  // wait on the last fence
     title_global<uint32_t>(0x0090286c) = title_function<uint32_t XB_STDCALL()>(0x003e68f0)();  // D3DDevice_InsertFence
     call_frame_hook(0x009025b8, 0x009025bc);
-    while (*static_cast<volatile uint8_t*>(&title_global<uint8_t>(0x0090288c))) {
-    }
+    if (renderer_pc_hooks().frame_wait)
+        renderer_pc_hooks().frame_wait();
+    else
+        while (*static_cast<volatile uint8_t*>(&title_global<uint8_t>(0x0090288c))) {
+        }
     title_function<void XB_STDCALL(uint32_t)>(0x003eabe0)(0);  // D3DDevice_Swap
     if (title_global<uint32_t>(0x008a3518) != 0x11) nglRestoreRenderStates(&title_global<uint8_t>(0x00902f08));
     ++title_global<uint32_t>(0x009028e0);

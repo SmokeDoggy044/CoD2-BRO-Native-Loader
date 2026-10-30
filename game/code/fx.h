@@ -844,5 +844,9 @@ void XB_THISCALL FxSystemPool_Destroy(uint8_t* pool);
 // 0x0097a968) no longer resolves and flag 1 of +0x10 does not keep the component.
 uint32_t XB_THISCALL FxComponent_OwnerGone(const uint8_t* component);
 
+// 0x0029d620 (vtable 0x008376fc slot 6, 0x00837714; thiscall): 1 in AL when the component's
+// definition (+0x2c) has no byte +0xc, 0 when it does not follow an owner (flag 2 of +0x2a),
+// otherwise FxComponent_OwnerGone.
+uint32_t XB_THISCALL FxComponentB_IsOwnerGone(const uint8_t* component);
 
 }  // namespace game

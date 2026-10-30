@@ -5644,4 +5644,13 @@ uint32_t XB_THISCALL FxComponent_OwnerGone(const uint8_t* component) {
 }
 
 
+uint32_t XB_THISCALL FxComponentB_IsOwnerGone(const uint8_t* component) {
+    // Its definition (+0x2c) without byte +0xc: always done.
+    const uint8_t* definition = *reinterpret_cast<uint8_t* const*>(component + 0x2c);
+    if (!definition[0xc]) return 1;
+    // Flag 2 of +0x2a: follows its owner entity.
+    if (!(component[0x2a] & 2)) return 0;
+    return (FxComponent_OwnerGone(component) & 0xff) ? 1u : 0u;
+}
+
 }  // namespace game

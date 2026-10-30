@@ -1,5 +1,5 @@
 address,name,issue,reason
-00074330,nglRenderSceneTree,"SetVertexShaderConstantNotInlineFast: arguments differ at word (21|52) |SDK call log full","a title shader Draw sends a constant lane it never sets: dead stack (the original's 0x0007553c or older values vs a host return address on our side)"
+00074330,nglRenderSceneTree,"SetVertexShaderConstantNotInlineFast: arguments differ at word (21|27|52) |SDK call log full","a title shader Draw sends a constant lane it never sets: dead stack (the original's 0x0007553c or older values vs a host return address on our side; word 27 since 10-29: 0 vs a frame address, the same lane kind after the sound C changed the stack)"
 000754f0,nglRenderTranslucentList,"SetVertexShaderConstantNotInlineFast: arguments differ at word (21|52) ","the same uninitialized constant lane as nglRenderSceneTree (the walker's dead stack)"
 00247350,R_RenderView,"[0-9a-f]{8} \[host\] \[\d+\] [0-9a-f]+(\.\.)? vs 0+(\.\.)?(;|$)","mesh-record matrix lanes R_AddEntityModel's subtree never sets: the original's stale stack vs zeros after our stack scrub"
 002df880,DObj_UpdateSkeletons,"[0-9a-f]{7}c \[host\] \[\d\] ","the quaternion w word (+0x1c, at 0xc mod 16) that Blend/AccumulateRoot never write: stale stack"

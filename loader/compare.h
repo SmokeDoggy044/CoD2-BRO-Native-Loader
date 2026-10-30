@@ -128,6 +128,15 @@ struct Config {
     void (*after_fork)() = nullptr;
 };
 
+// Whether `name` is one of the comma-separated names in `list`.
+bool listed_in(const char* list, const char* name);
+// A Replaced function that keeps its original all the same: another release of the game, or
+// XBCMP_ORIGINALS=1 / =name,name.
+bool keeps_original(const game::Function& function);
+// Whether the campaign function at this address runs as C (Replaced, not kept original): patches
+// inside its original code never run then.
+bool replaced(std::span<const game::Function> functions, uint32_t campaign_address);
+
 // Hooks `functions`: Replaced ones always, Compare ones only when testing is enabled.
 // Call once, before the title runs. `functions` must outlive the process.
 void install(std::span<const game::Function> functions, const Config& config);

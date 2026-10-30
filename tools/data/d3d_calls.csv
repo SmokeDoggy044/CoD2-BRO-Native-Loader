@@ -8,7 +8,8 @@ fx_load.cpp,1898,FxOp31_Draw,renderer,D3D,003f8320,,data,
 fx_load.cpp,1899,FxOp31_Draw,renderer,D3D,003f8498,,data,
 fx_load.cpp,1939,FxOp31_Draw,renderer,D3D,003e7490,D3D8LTCG::D3DDevice_SetVertexShaderConstantNotInlineFast,call,NotInlineFast
 fx_load.cpp,1954,FxOp1d5_Draw,renderer,D3D,003e7490,D3D8LTCG::D3DDevice_SetVertexShaderConstantNotInlineFast,call,NotInlineFast
-fx_load.cpp,2057,set_constant,helper,D3D,003e7440,D3D8LTCG::D3DDevice_SetVertexShaderConstant1Fast,call,SetVertexShaderConstant1Fast
+fx_load.cpp,2092,draw_op_quads,helper,D3D,003e7490,D3D8LTCG::D3DDevice_SetVertexShaderConstantNotInlineFast,call,NotInlineFast
+fx_load.cpp,2217,set_constant,helper,D3D,003e7440,D3D8LTCG::D3DDevice_SetVertexShaderConstant1Fast,call,SetVertexShaderConstant1Fast
 ngl.cpp,1258,nglSetTextureAddressMode,renderer,D3D,003f8320,,data,
 ngl.cpp,1259,nglSetTextureAddressMode,renderer,D3D,003f5c74,,data,
 ngl.cpp,1760,nglFreeTexture,renderer,D3D,003e75e0,D3D8LTCG::D3DDevice_SetVertexShaderInputDirect,call,SetVertexShaderInputDirect

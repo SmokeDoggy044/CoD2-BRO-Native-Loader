@@ -102,6 +102,19 @@ template <typename T>
 inline void platform_keep(const T&) {}
 #endif
 
+// FS:[0x14], NT_TIB.ArbitraryUserPointer, on title threads (FS is our KPCR on Linux, the
+// TEB on Windows, whose loader restores the word after its own brief use; the title never
+// reads it): the lowest address of this thread's live host frames below a title-position
+// call, minus a margin, for the decompiled code's asm entries (game/code/title_data.h
+// GAME_GAP_ESP); 0 = none. Title threads only: host threads have no usable FS on Linux.
+#if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+inline void platform_set_title_frame_limit(uint32_t limit) {
+    __asm__ volatile("movl %0, %%fs:0x14" : : "r"(limit) : "memory");
+}
+#else
+inline void platform_set_title_frame_limit(uint32_t) {}
+#endif
+
 // The x87 FSIN/FCOS the title uses, rounded by the caller's precision control and
 // stored as float like the title does. Other builds use the C library (route C).
 #if defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
