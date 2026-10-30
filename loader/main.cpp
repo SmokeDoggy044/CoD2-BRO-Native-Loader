@@ -81,6 +81,7 @@ struct Options {
     audio::OutputConfig::Speakers speakers = audio::OutputConfig::Speakers::Auto;
     std::string audio_device;    // empty: the system's
     audio::ReverbTuning reverb;  // --reverb
+    audio::CategoryVolumes volumes;  // --volume
     std::string press_script;
     float mouse_sensitivity = 0.11f;
     input::Bindings bindings = input::default_bindings();  // --keys
@@ -158,6 +159,10 @@ void print_usage(const char* program) {
         "  --reverb \"K=V ...\"  enhanced reverb adjustments: amount=DB (-12..12), decay=X\n"
         "                   (0.25..4), brightness=X (0.5..2), reflections=DB (-12..12),\n"
         "                   clutter=A (0..0.3, default 0.07); also in the PC menu\n"
+        "  --volume \"K=V ...\"  volume per kind of sound in percent (0..100, default 100):\n"
+        "                   effects=P, ambience=P (the levels' background), dialogue=P,\n"
+        "                   music=P; on top of the game's own slider,\n"
+        "                   original and enhanced sound alike; also in the PC menu\n"
         "  --memory MB      Xbox memory budget (default 64, like a retail Xbox; devkit: 128)\n"
         "  --fullscreen     borderless fullscreen (Alt+Enter switches while playing)\n"
         "  --windowed       in a window (default; overrides fullscreen in settings.ini)\n"
@@ -491,6 +496,12 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.reverb = audio::ReverbTuning::parse(argv[++i]);
+        } else if (arg == "--volume") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--volume needs volumes, e.g. \"music=50 effects=80\"\n");
+                return std::nullopt;
+            }
+            options.volumes = audio::CategoryVolumes::parse(argv[++i]);
         } else if (arg == "--audio-device") {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--audio-device needs a device name\n");
@@ -825,6 +836,9 @@ int loader_main(int argc, char** argv) {
     game::SndEnv_SetTuning(options->reverb);
     if (const std::string reverb = options->reverb.format(); !reverb.empty())
         LOG_INFO("audio", "reverb adjustments: %s", reverb.c_str());
+    audio::set_category_volumes(options->volumes);
+    if (const std::string volumes = options->volumes.format(); !volumes.empty())
+        LOG_INFO("audio", "volumes: %s", volumes.c_str());
     game::set_sound_device(&audio::sound_device());  // the decompiled sound code's device
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;

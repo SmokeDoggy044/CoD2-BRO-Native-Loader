@@ -5,7 +5,7 @@
 # Mission 4 by default: the A presses do not kill the player there (in mission 5
 # they fire the turret and fail the mission).
 #
-# usage: tools/smoke_test.sh OUT_DIR [MISSION] [SECONDS]
+# usage: tools/smoke_test.sh OUT_DIR [MISSION] [SECONDS] [LOADER OPTIONS...]
 # Result: OUT_DIR/stdout.txt, OUT_DIR/frame_*.bmp (every 1200 frames),
 # OUT_DIR/last.png (the last three frames side by side); prints the warning/error
 # count and how the run ended.
@@ -14,7 +14,7 @@ out=${1:?usage: $0 OUT_DIR [MISSION] [SECONDS]}
 mission=${2:-4}
 seconds=${3:-130}
 port=$(cd "$(dirname "$0")/.." && pwd)
-loader=$port/build/linux-loader/bin/cod_bro_loader
+loader=${LOADER:-$port/build/linux-loader/bin/cod_bro_loader}
 saves=${XDG_DATA_HOME:-$HOME/.local/share}/cod_bro
 
 press="a@10"
@@ -24,7 +24,7 @@ for t in $(seq 14 4 110); do press+=",a@$t"; done
 rm -rf "$out" && mkdir -p "$out"
 cp -a "$saves" "$out/data"  # the run must not touch the real saves
 timeout -s INT -k 15 "$seconds" "$loader" --data "$out/data" --silent --level "$mission" \
-    --press "$press" --screenshots 1200 "$out" > "$out/stdout.txt" 2>&1
+    --press "$press" --screenshots 1200 "$out" "${@:4}" > "$out/stdout.txt" 2>&1
 status=$?
 rm -rf "$out/data"
 

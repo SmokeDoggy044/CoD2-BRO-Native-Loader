@@ -10,6 +10,10 @@ add_executable(reverb_tuning_test reverb_tuning_test.cpp)
 target_include_directories(reverb_tuning_test PRIVATE ${PROJECT_SOURCE_DIR}/audio)
 add_test(NAME reverb_tuning_test COMMAND reverb_tuning_test)
 
+add_executable(category_volumes_test category_volumes_test.cpp)
+target_include_directories(category_volumes_test PRIVATE ${PROJECT_SOURCE_DIR}/audio)
+add_test(NAME category_volumes_test COMMAND category_volumes_test)
+
 add_executable(update_check_test update_check_test.cpp)
 target_link_libraries(update_check_test PRIVATE launcher_update)
 add_test(NAME update_check_test COMMAND update_check_test)

@@ -23,6 +23,22 @@ constexpr int kMinFov = 50, kMaxFov = 120;
 float g_fov_on_open = 0;
 bool g_enhanced_on_open = false;
 audio::ReverbTuning g_reverb_on_open;
+audio::CategoryVolumes g_volumes_on_open;
+
+// The volume per kind of sound's sliders (audio::CategoryVolumes); true if one moved.
+bool volume_sliders(audio::CategoryVolumes& v) {
+    bool changed = false;
+    const float width = ImGui::GetFontSize() * 14;
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Effects volume", &v.effects, 0.0f, 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Ambience volume", &v.ambience, 0.0f, 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Dialogue volume", &v.dialogue, 0.0f, 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Music volume", &v.music, 0.0f, 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
+    return changed;
+}
 
 // The reverb adjustments' sliders (audio::ReverbTuning); true if one moved.
 bool reverb_sliders(audio::ReverbTuning& t) {
@@ -78,6 +94,11 @@ bool pc_menu() {
     }
 
     ImGui::Separator();
+    audio::CategoryVolumes volumes = audio::category_volumes();
+    if (volume_sliders(volumes)) audio::set_category_volumes(volumes);
+    ImGui::TextDisabled("On top of the game's own volume setting.");
+
+    ImGui::Separator();
     bool enhanced = audio::enhanced();
     if (ImGui::Checkbox("Enhanced sound", &enhanced)) audio::set_enhanced(enhanced);
     ImGui::TextDisabled("Off: the sound as on the Xbox. On: reverb by the place you are in\n"
@@ -102,7 +123,19 @@ void pc_menu_shown(bool open) {
         g_fov_on_open = field_of_view();
         g_enhanced_on_open = audio::enhanced();
         g_reverb_on_open = game::SndEnv_Tuning();
+        g_volumes_on_open = audio::category_volumes();
         return;
+    }
+    if (const audio::CategoryVolumes volumes = audio::category_volumes(); !(volumes == g_volumes_on_open)) {
+        platform::Settings settings = platform::load_settings();
+        if (const std::string text = volumes.format(); text.empty())
+            settings.erase("volume");
+        else
+            settings.set("volume", text);
+        if (platform::save_settings(settings))
+            LOG_INFO("loader", "volumes saved: %s", volumes.format().c_str());
+        else
+            LOG_WARN("loader", "cannot save the volumes to %s", platform::settings_path().string().c_str());
     }
     if (const audio::ReverbTuning reverb = game::SndEnv_Tuning(); !(reverb == g_reverb_on_open)) {
         platform::Settings settings = platform::load_settings();

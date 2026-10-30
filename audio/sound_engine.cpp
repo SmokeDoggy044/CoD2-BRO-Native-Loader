@@ -107,6 +107,7 @@ public:
 
     std::mutex mutex;  // everything below except `callbacks`; never taken by the mixer
     OutputConfig config;
+    CategoryVolumes volumes;
     std::unique_ptr<Output> output;
     XbPtr vtable = 0;
     std::vector<VoiceImpl*> voices;  // never freed: the mixer may still hold a released one
@@ -129,6 +130,7 @@ private:
     float distance_gain(const VoiceImpl& v);
     void update(VoiceImpl& v);
     friend void audio::set_enhanced(bool enhanced);
+    friend void audio::set_category_volumes(const CategoryVolumes& volumes);
     void update_listener();
     void sync(VoiceImpl& v);
     void packet_done(VoiceImpl& v, const Packet& packet, uint32_t status);
@@ -200,7 +202,7 @@ void Engine::update(VoiceImpl& v) {
     if (!v.source || !o) return;
     const Format format = v.voice.format();
     Output::SourceParams params;
-    params.gain = v.volume * v.headroom * distance_gain(v);
+    params.gain = v.volume * v.headroom * distance_gain(v) * volumes.gain(v.category);
     params.pitch = v.rate && format.rate ? std::clamp(float(v.rate) / float(format.rate), 1.0f / 64, 16.0f) : 1.0f;
     if (is_spatial(v)) {
         params.placement =
@@ -606,6 +608,22 @@ void set_enhanced(bool enhanced) {
 bool enhanced() {
     Guard lock(g.mutex, TestLock::State);
     return g.config.enhanced;
+}
+
+void set_category_volumes(const CategoryVolumes& volumes) {
+    Guard lock(g.mutex, TestLock::State);
+    if (g.volumes == volumes) return;
+    g.volumes = volumes;
+    if (Output* o = g.output.get()) {
+        o->begin_batch();
+        for (VoiceImpl* v : g.voices) g.update(*v);
+        o->end_batch();
+    }
+}
+
+CategoryVolumes category_volumes() {
+    Guard lock(g.mutex, TestLock::State);
+    return g.volumes;
 }
 
 void set_paused(bool paused) {
