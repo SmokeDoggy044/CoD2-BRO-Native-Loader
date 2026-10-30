@@ -14,6 +14,7 @@
 
 #include "d3d9_shader.h"
 #include "d3d_internal.h"
+#include "enhanced_graphics.h"
 #include "gfx_verify.h"
 #include "log.h"
 #include "nv2a.h"
@@ -393,6 +394,8 @@ bool D3D9Draw::set_render_target(const SurfaceDesc& color, const SurfaceDesc* de
     device_->SetDepthStencilSurface(depth_surface);
     return true;
 }
+
+uint32_t D3D9Draw::anisotropy() const { return active_graphics_features().anisotropic ? anisotropy_ : 1; }
 
 void D3D9Draw::forget_render_target(uint32_t data) {
     auto it = caches_->targets.find(data);
@@ -1015,9 +1018,9 @@ void D3D9Draw::draw(const DrawInput& input) {
         device_->SetSamplerState(stage, D3DSAMP_MAGFILTER, texture_filter(s[kTssMagFilter], false));
         DWORD min_filter = texture_filter(s[kTssMinFilter], false);
         DWORD max_anisotropy = std::max<uint32_t>(1, s[kTssMaxAnisotropy]);
-        if (anisotropy_ > 1 && min_filter != D3DTEXF_POINT && texture->GetLevelCount() > 1) {
+        if (const uint32_t level = anisotropy(); level > 1 && min_filter != D3DTEXF_POINT && texture->GetLevelCount() > 1) {
             min_filter = D3DTEXF_ANISOTROPIC;
-            max_anisotropy = std::max<DWORD>(max_anisotropy, anisotropy_);
+            max_anisotropy = std::max<DWORD>(max_anisotropy, level);
         }
         device_->SetSamplerState(stage, D3DSAMP_MINFILTER, min_filter);
         device_->SetSamplerState(stage, D3DSAMP_MIPFILTER, texture_filter(s[kTssMipFilter], true));

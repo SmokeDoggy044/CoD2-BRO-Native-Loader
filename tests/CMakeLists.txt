@@ -72,6 +72,12 @@ target_link_libraries(gfx_device_test PRIVATE render xbox)
 add_test(NAME gfx_device_test COMMAND gfx_device_test)
 set_tests_properties(gfx_device_test PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
 
+# Enhanced graphics' settings text (header only).
+add_executable(graphics_features_test graphics_features_test.cpp)
+target_include_directories(graphics_features_test PRIVATE ${PROJECT_SOURCE_DIR}/render)
+target_link_libraries(graphics_features_test PRIVATE xbox)
+add_test(NAME graphics_features_test COMMAND graphics_features_test)
+
 # The translated title shaders against the Xbox path's translation (XB_SHADER_DUMP=a --dump-shaders
 # directory; skipped without one).
 add_executable(title_shader_test title_shader_test.cpp)

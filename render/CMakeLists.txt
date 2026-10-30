@@ -15,6 +15,9 @@ add_library(render STATIC
     texture.cpp
     texture_decode.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/post_shaders.cpp
+    d3d9_post.cpp
+    graphics_settings.cpp
 )
 target_include_directories(render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -60,3 +63,28 @@ else()
     pkg_check_modules(DXVK_D3D9 REQUIRED IMPORTED_TARGET dxvk-d3d9)
     target_link_libraries(render PRIVATE SDL3::SDL3 PkgConfig::DXVK_D3D9)
 endif()
+
+# The post passes (enhanced graphics: post/*.hlsl; vs_3_0 for post_vs, ps_3_0 for the rest).
+file(GLOB post_shader_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/post/*.hlsl)
+set(post_shader_binaries "")
+foreach(hlsl ${post_shader_sources})
+    get_filename_component(name ${hlsl} NAME_WE)
+    if(name STREQUAL "post_vs")
+        set(profile vs_3_0)
+    else()
+        set(profile ps_3_0)
+    endif()
+    set(binary ${CMAKE_CURRENT_BINARY_DIR}/post/${name}.d3dbc)
+    add_custom_command(OUTPUT ${binary}
+                       COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/post
+                       COMMAND ${VKD3D_COMPILER} -x hlsl -p ${profile} -b d3dbc -o ${binary} ${hlsl}
+                       DEPENDS ${hlsl}
+                       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/post
+                       VERBATIM)
+    list(APPEND post_shader_binaries ${binary})
+endforeach()
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/post_shaders.cpp
+                   COMMAND ${CMAKE_COMMAND} -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/post_shaders.cpp
+                           "-DINPUTS=${post_shader_binaries}" -P ${PROJECT_SOURCE_DIR}/cmake/embed_named_shaders.cmake
+                   DEPENDS ${post_shader_binaries} ${PROJECT_SOURCE_DIR}/cmake/embed_named_shaders.cmake
+                   VERBATIM)

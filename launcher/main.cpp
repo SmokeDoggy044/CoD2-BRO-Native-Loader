@@ -23,6 +23,7 @@
 #include "output_devices.h"
 #include "category_volumes.h"
 #include "enhanced_features.h"
+#include "enhanced_graphics.h"
 #include "reverb_tuning.h"
 #include "paths.h"
 #include "program.h"
@@ -45,6 +46,8 @@ struct Choices {
     int anisotropy = 16;
     float brightness = 1.0f;
     bool sharp_text = true;
+    std::string graphics = "enhanced";  // original, enhanced
+    render::GraphicsFeatures graphics_features;
     int fps = 60;
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
@@ -91,6 +94,8 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
     if (auto v = settings.get("brightness")) c.brightness = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 2.0f);
     if (auto v = settings.get("sharp-text")) c.sharp_text = *v != "off";
+    if (auto v = settings.get("graphics"); v && *v == "original") c.graphics = *v;
+    if (auto v = settings.get("graphics-features")) c.graphics_features = render::GraphicsFeatures::parse(*v);
     if (auto v = settings.get("fps")) c.fps = *v == "30" ? 30 : 60;
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
@@ -130,6 +135,8 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("anisotropy", c.anisotropy == d.anisotropy, std::to_string(c.anisotropy));
     put("brightness", c.brightness == d.brightness, number(c.brightness));
     put("sharp-text", c.sharp_text == d.sharp_text, c.sharp_text ? "on" : "off");
+    put("graphics", c.graphics == d.graphics, c.graphics);
+    put("graphics-features", c.graphics_features == d.graphics_features, c.graphics_features.format());
     put("fps", c.fps == d.fps, std::to_string(c.fps));
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
     put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
@@ -451,6 +458,48 @@ private:
         ImGui::Checkbox("Sharper text", &choices_.sharp_text);
         help_marker("Draws the game's text again at the render resolution, from free fonts that look like "
                     "the original ones (included with the game). Off: the original low-resolution letters.");
+
+        ImGui::SeparatorText("Enhanced graphics");
+        bool enhanced = choices_.graphics == "enhanced";
+        ImGui::Checkbox("Enhanced graphics", &enhanced);
+        choices_.graphics = enhanced ? "enhanced" : "original";
+        help_marker("Off: the picture as on the Xbox (at your resolution). On: the improvements below that "
+                    "are switched on. Also switchable while playing in the PC menu (` key), each one too.");
+        ImGui::BeginDisabled(!enhanced);
+        ImGui::Indent();
+        render::GraphicsFeatures& g = choices_.graphics_features;
+        ImGui::Checkbox("Anti-aliasing (FXAA)", &g.fxaa);
+        help_marker("Smooths jagged edges in the 3D picture. Menus are left as they are.");
+        ImGui::Checkbox("Anisotropic filtering", &g.anisotropic);
+        help_marker("Sharp textures on the ground and walls seen at a slant, at the Texture filtering level "
+                    "above.");
+        ImGui::Checkbox("Sharpening", &g.sharpen);
+        help_marker("Contrast-adaptive sharpening of the 3D picture: more detail without halos at hard edges.");
+        ImGui::BeginDisabled(!g.sharpen);
+        ImGui::Indent();
+        ImGui::SliderFloat("Sharpness", &g.sharpness, 0.0f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+        help_marker("0 = none (the default).");
+        ImGui::Unindent();
+        ImGui::EndDisabled();
+        ImGui::Checkbox("Colour vibrance", &g.vibrance);
+        help_marker("Stronger colours where they are weak (the game's palette is muted); below 0 greyer.");
+        ImGui::BeginDisabled(!g.vibrance);
+        ImGui::Indent();
+        ImGui::SliderFloat("Vibrance", &g.vibrance_amount, -1.0f, 1.0f, "%+.2f", ImGuiSliderFlags_AlwaysClamp);
+        help_marker("0 = the game's colours (the default).");
+        ImGui::Unindent();
+        ImGui::EndDisabled();
+        ImGui::Checkbox("Texture detail", &g.texture_detail);
+        help_marker("Sharper textures in the distance (finer mipmaps); too far below 0 they shimmer when "
+                    "moving.");
+        ImGui::BeginDisabled(!g.texture_detail);
+        ImGui::Indent();
+        ImGui::SliderFloat("Detail bias", &g.lod_bias, -2.0f, 0.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+        help_marker("0 = the game's choice (the default); lower is sharper.");
+        ImGui::Unindent();
+        ImGui::EndDisabled();
+        ImGui::Unindent();
+        ImGui::EndDisabled();
 
 #ifdef _WIN32
         static constexpr const char* kD3D9[] = {"auto", "dxvk", "system"};

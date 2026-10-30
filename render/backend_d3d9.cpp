@@ -23,6 +23,8 @@
 #include "d3d9_api.h"
 #include "d3d9_draw.h"
 #include "d3d9_overlay.h"
+#include "d3d9_post.h"
+#include "enhanced_graphics.h"
 #include "d3d9_shader.h"
 #include "gfx_d3d9.h"
 #include "log.h"
@@ -94,6 +96,7 @@ public:
         overlay_.reset();
         notice_.reset();
         gfx_.reset();
+        post_.reset();
         draw_.reset();
         release(gamma_table_);
         release(gamma_shader_);
@@ -214,6 +217,7 @@ public:
             draw_config.render_scale = static_cast<float>(std::max(pixel_height, 1)) / height_;
         draw_ = std::make_unique<D3D9Draw>(device_, draw_config);
         gfx_ = create_d3d9_gfx_device(device_, *draw_, draw_config);
+        post_ = std::make_unique<D3D9Post>(device_);
         overlay_ = std::make_unique<D3D9Overlay>(device_);
         notice_ = std::make_unique<D3D9Overlay>(device_);
         pc_menu_ = config.pc_menu;
@@ -406,6 +410,13 @@ public:
             swap_chain->Release();
         }
         device_->Present(&area, nullptr, nullptr, nullptr);
+    }
+
+    void finish_picture() override {
+        // Enhanced graphics' post passes, on frames with a 3D scene (menus stay untouched).
+        if (!draw_->frame_is_flat())
+            post_->apply(draw_->target_texture(back_buffer_data_), draw_->target_surface(back_buffer_data_),
+                         active_graphics_features());
     }
 
     void present() override {
@@ -714,6 +725,7 @@ private:
     IDirect3DSurface9* upload_ = nullptr;
     std::unique_ptr<D3D9Draw> draw_;
     std::unique_ptr<D3D9GfxDevice> gfx_;  // on draw_'s targets
+    std::unique_ptr<D3D9Post> post_;      // enhanced graphics' post passes
     uint32_t width_ = 0, height_ = 0;
     float aspect_ = 4.0f / 3.0f;                      // the picture's shape (BackendConfig::display_aspect)
     uint32_t swap_width_ = 0, swap_height_ = 0;     // the largest display's size
