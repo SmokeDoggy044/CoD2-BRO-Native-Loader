@@ -67,6 +67,9 @@ std::vector<ALCint> context_attributes(Speakers speakers, int hrtf, std::vector<
     } else if (hrtf >= 0) {
         a.insert(a.end(), {ALC_HRTF_SOFT, hrtf ? ALC_TRUE : ALC_FALSE});
     }
+    // Room for enhanced sound's voices (OpenAL Soft's default is 256 sources in all; the game has up to 246 slots
+    // + the movie + voice chat).
+    a.insert(a.end(), {ALC_MONO_SOURCES, 480, ALC_STEREO_SOURCES, 32});
     a.push_back(0);
     return a;
 }
