@@ -21,6 +21,7 @@
 #include "imgui_impl_sdlrenderer3.h"
 #include "log.h"
 #include "output_devices.h"
+#include "reverb_tuning.h"
 #include "paths.h"
 #include "program.h"
 #include "settings.h"
@@ -52,6 +53,7 @@ struct Choices {
     std::string audio = "enhanced";  // original, enhanced
     std::string speakers = "auto";   // auto, stereo, headphones, quad, 5.1, 7.1
     std::string audio_device;        // empty: the system's
+    audio::ReverbTuning reverb;
     std::string language = "english";  // the console's: english, german, french, spanish, italian
     int net_port = 3074;  // system link: UDP net_port .. net_port + 3
     // Launcher only: saved as "false" (which the game skips) when off.
@@ -98,6 +100,7 @@ Choices read_choices(const platform::Settings& settings) {
         v && (*v == "stereo" || *v == "headphones" || *v == "quad" || *v == "5.1" || *v == "7.1"))
         c.speakers = *v;
     if (auto v = settings.get("audio-device")) c.audio_device = *v;
+    if (auto v = settings.get("reverb")) c.reverb = audio::ReverbTuning::parse(*v);
     if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
     if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
@@ -131,6 +134,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("audio", c.audio == d.audio, c.audio);
     put("speakers", c.speakers == d.speakers, c.speakers);
     put("audio-device", c.audio_device.empty(), c.audio_device);
+    put("reverb", c.reverb == d.reverb, c.reverb.format());
     put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
     put("check-updates", c.check_updates == d.check_updates, "false");
@@ -562,6 +566,29 @@ private:
             ImGui::EndCombo();
         }
         help_marker("A device that is gone when the game starts falls back to the system default.");
+
+        ImGui::BeginDisabled(choices_.audio != "enhanced");
+        if (ImGui::TreeNode("Advanced reverb")) {
+            audio::ReverbTuning& t = choices_.reverb;
+            ImGui::SliderFloat("Amount", &t.amount, -12.0f, 12.0f, "%+.1f dB", ImGuiSliderFlags_AlwaysClamp);
+            help_marker("The reverb's overall level.");
+            ImGui::SliderFloat("Decay", &t.decay, 0.25f, 4.0f, "x%.2f",
+                               ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
+            help_marker("How long the reverb lasts, times what the room's size and materials give.");
+            ImGui::SliderFloat("Brightness", &t.brightness, 0.5f, 2.0f, "x%.2f",
+                               ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
+            help_marker("Below 1 the reverb's highs die away sooner (darker), above 1 later (brighter).");
+            ImGui::SliderFloat("Early reflections", &t.reflections, -12.0f, 12.0f, "%+.1f dB",
+                               ImGuiSliderFlags_AlwaysClamp);
+            help_marker("The first echoes off nearby walls.");
+            ImGui::SliderFloat("Room clutter", &t.clutter, 0.0f, 0.3f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+            help_marker("What soaks up sound besides the walls the game knows about (furniture, debris, "
+                        "openings). Lower makes rooms ring longer. Default 0.07.");
+            if (ImGui::Button("Default reverb")) t = audio::ReverbTuning{};
+            ImGui::TextDisabled("Also adjustable while playing: PC menu (` key).");
+            ImGui::TreePop();
+        }
+        ImGui::EndDisabled();
         ImGui::Checkbox("Mute sound", &choices_.silent);
     }
 
