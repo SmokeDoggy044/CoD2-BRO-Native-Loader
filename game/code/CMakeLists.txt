@@ -48,6 +48,7 @@ set(game_code_sources
     script_string.cpp
     shaders.cpp
     snd.cpp
+    snd_env.cpp
     stream.cpp
     sv.cpp
     tr_main.cpp

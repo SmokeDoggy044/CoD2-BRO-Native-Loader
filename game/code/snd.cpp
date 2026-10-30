@@ -12,6 +12,7 @@
 #include "ngl.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
+#include "snd_env.h"
 #include "r_init.h"
 #include "sound_device.h"
 #include "title_data.h"
@@ -1907,6 +1908,17 @@ audio::SoundDevice& device() { return *g_sound; }
 
 void synch_playback() { device().start_synched(); }  // IDirectSound_SynchPlayback
 
+// A sound entry's category, by its group's name (entry +0x10; the name at group +0x108).
+audio::Category sound_category(const uint8_t* sound) {
+    const auto* group = *reinterpret_cast<const char* const*>(sound + 0x10);
+    if (!group) return audio::Category::Effects;
+    const char* name = group + 0x108;
+    if (!std::strncmp(name, "VOICE", 0x20)) return audio::Category::Dialogue;
+    if (!std::strncmp(name, "MUSIC", 0x20)) return audio::Category::Music;
+    if (!std::strncmp(name, "GUI", 0x20)) return audio::Category::Interface;
+    return audio::Category::Effects;
+}
+
 // The original's mix bins for `channels` (1: by the voice's flag +0xc3 bit 0, 2, 6; else null) in
 // table half `second` (DSMIXBINS at 0x008bec94..). Every table sends the voice to the speakers
 // (3D mono: the 3D bins, centre and LFE; other mono: front left and right; stereo; 5.1); the
@@ -2188,6 +2200,7 @@ uint32_t XB_CDECL SndHw_Update() {
                 continue;
             }
             SndVoice_SetupBuffer(slot, sound, voice);
+            device().set_category(stream ? stream : buffer, sound_category(sound));  // our addition
         }
         if (state != 7 && (requests & 8)) {
             requests &= ~8;
@@ -2310,6 +2323,8 @@ uint32_t XB_CDECL SndHw_Update() {
         listener.top[k] = snd_at<float>(mix, 0xcc + k * 4);
     }
     device().set_listener(listener, audio::Apply::Deferred);
+    // Enhanced only (our addition): the reverb around the listener.
+    if (device().enhanced()) SndEnv_Update(device(), listener);
     device().commit();
     synch_playback();
     device().do_work();
