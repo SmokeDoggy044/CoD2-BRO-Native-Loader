@@ -1,17 +1,14 @@
-// Xbox DirectSound replacement. See dsound.h.
+// Xbox DirectSound replacement. See xbox_dsound.h.
 //
-// Semantics follow the XDK and what CoD2: BRO relies on:
+// A translation onto our own sound device (sound_device.h): DirectSound's units and objects
+// become the device's. Semantics follow the XDK and what CoD2: BRO relies on:
 // - Volumes and headroom are in hundredths of a dB (attenuation); frequency in Hz
 //   (0 = the format's rate).
-// - 3D settings may be deferred (apply = DS3D_DEFERRED) until
-//   CommitDeferredSettings. Distance attenuation is computed here from the voice's
-//   min/max distance and rolloff factor, or its rolloff curve (points spaced evenly
-//   between min and max distance); OpenAL only pans/spatializes.
+// - 3D settings may be deferred (apply = DS3D_DEFERRED) until CommitDeferredSettings.
 // - Play/Pause with the SYNCHPLAYBACK flag wait for IDirectSound_SynchPlayback.
-// - Effects (DSP images, effect data, mix bin headroom) are accepted and ignored: the
-//   title's own sounds never route to the effects, only the voice-chat code uses them.
-// - Coordinates: DirectSound is left-handed (+z forward), OpenAL right-handed, so z is
-//   negated on the way out.
+// - Effects (DSP images, effect data, mix bin headroom) are accepted and ignored; a voice
+//   routed to the I3DL2 mix bin has its reverb send on.
+// - Buffer and stream objects are the device's voices (a voice id is the object's address).
 
 #include "xbox_dsound.h"
 
@@ -23,6 +20,7 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -57,7 +55,8 @@ constexpr uint32_t kModeNormal = 0, kModeHeadRelative = 1, kModeDisable = 2;
 constexpr uint32_t kBufferPlaying = 0x1, kBufferPaused = 0x2, kBufferLooping = 0x4;
 constexpr uint32_t kStreamReady = 0x1, kStreamPlaying = 0x10000, kStreamPaused = 0x20000, kStreamStarved = 0x40000;
 constexpr uint32_t kMediaAcceptOutput = 0x2;  // XMO_STATUSF_ACCEPT_OUTPUT_DATA
-constexpr uint32_t kMagicDevice = 0x444E5344, kMagicVoice = 0x4F565344, kMagicMedia = 0x4F4D4658;
+constexpr uint32_t kMagicDevice = 0x444E5344, kMagicMedia = 0x4F4D4658;
+constexpr uint32_t kMixBinI3dl2 = 10;  // DSMIXBIN_I3DL2
 
 // --- Structures in title memory --------------------------------------------------------
 
@@ -126,70 +125,15 @@ struct GuestObject {
 
 // --- State -----------------------------------------------------------------------------
 
-struct Ds3d {
-    float position[3] = {0, 0, 0};
-    float velocity[3] = {0, 0, 0};
-    float min_distance = 1.0f;
-    float max_distance = 1.0e9f;
-    uint32_t mode = kModeNormal;
-    float rolloff_factor = 1.0f;
-};
+SoundDevice& dev() { return sound_device(); }
 
-struct VoiceImpl {
-    explicit VoiceImpl(bool is_stream) : voice(is_stream ? Voice::Kind::Stream : Voice::Kind::Buffer), stream(is_stream) {}
-
+struct DeviceObject {
     GuestObject guest{};
-    int refs = 1;
-    Voice voice;
-    const bool stream;
-    Output::Source* source = nullptr;
-    uint32_t flags = 0;
-    uint32_t max_packets = 0;
-    XbPtr callback = 0, context = 0;
-    std::vector<uint8_t> own_data;  // when the title gives a size but no data
-
-    int32_t volume = 0;     // hundredths of a dB
-    uint32_t headroom = 0;  // hundredths of a dB
-    uint32_t frequency = 0;
-    float pan = 0.0f;  // -1 left .. 1 right, for 2D mono voices
-    Ds3d current, pending;
-    bool has_pending = false;
-    std::vector<float> curve;
-
-    bool synch_play = false, synch_looping = false, synch_from_start = false, synch_resume = false;
+    int refs = 0;
 };
-
-struct Listener {
-    float position[3] = {0, 0, 0};
-    float velocity[3] = {0, 0, 0};
-    float front[3] = {0, 0, 1};
-    float top[3] = {0, 1, 0};
-};
-
-struct Callback {
-    XbPtr routine;
-    uint32_t args[3];
-};
-
-struct State {
-    std::mutex mutex;  // everything below except `callbacks`; never taken by the mixer
-    OutputConfig config;
-    std::unique_ptr<Output> output;
-    GuestObject device{};
-    int device_refs = 0;
-    std::vector<VoiceImpl*> voices;  // never freed: titles create a fixed pool
-    Listener listener, pending_listener;
-    bool listener_pending = false;
-
-    std::mutex callbacks_mutex;
-    std::deque<Callback> callbacks;  // stream callbacks, run by DirectSoundDoWork
-};
-
-State& g = *new State;  // used by the mixer thread until exit: never destroyed
-
-// The output, or none in a test process of the comparison harness (test_mode.h): there the
-// voices only keep their state, and nothing reaches OpenAL.
-Output* out() { return in_test() ? nullptr : g.output.get(); }
+DeviceObject g_device;
+std::mutex g_device_mutex;
+std::mutex g_media_mutex;  // the file media objects
 
 // DSEFFECTIMAGEDESC for titles that look at it: no effects.
 uint32_t g_empty_effect_image[64] = {};
@@ -232,161 +176,88 @@ T* object_impl(XbPtr pointer, uint32_t magic) {
     return object && object->magic == magic ? static_cast<T*>(object->impl) : nullptr;
 }
 
-VoiceImpl* voice_of(XbPtr pointer) {
-    VoiceImpl* voice = object_impl<VoiceImpl>(pointer, kMagicVoice);
+// A buffer or stream: the engine's voice id is the object's address.
+VoiceId voice_of(XbPtr pointer) {
+    const VoiceId voice = voice_from_object(pointer);
     if (!voice && !in_test()) LOG_WARN("audio", "%08x is not a DirectSound buffer or stream", pointer);
     return voice;
 }
 
 float db_gain(int32_t hundredths) { return hundredths <= -10000 ? 0.0f : std::pow(10.0f, hundredths / 2000.0f); }
 
-void to_al(const float in[3], float out[3]) {
-    out[0] = in[0];
-    out[1] = in[1];
-    out[2] = -in[2];
-}
-
-bool spatial(const VoiceImpl& v) {
-    return (v.flags & kCaps3D) && v.voice.format().channels == 1 && v.current.mode != kModeDisable;
-}
-
-float distance_gain(const VoiceImpl& v) {
-    if (!spatial(v)) return 1.0f;
-    const Ds3d& p = v.current;
-    float d[3];
-    for (int i = 0; i < 3; ++i) d[i] = p.position[i] - (p.mode == kModeHeadRelative ? 0.0f : g.listener.position[i]);
-    const float distance = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-    const float min = std::max(p.min_distance, 1.0e-4f);
-    const float max = std::max(p.max_distance, min);
-    if ((v.flags & kCapsMuteAtMaxDistance) && distance >= max) return 0.0f;
-    if (!v.curve.empty()) {
-        if (distance <= min || v.curve.size() == 1) return v.curve.front();
-        if (distance >= max) return v.curve.back();
-        const float t = (distance - min) / (max - min) * float(v.curve.size() - 1);
-        const auto i = static_cast<size_t>(t);
-        return v.curve[i] + (v.curve[i + 1] - v.curve[i]) * (t - float(i));
-    }
-    const float clamped = std::min(distance, max);
-    return clamped <= min ? 1.0f : min / (min + p.rolloff_factor * (clamped - min));
-}
-
-void update_voice(VoiceImpl& v) {
-    Output* const o = out();
-    if (!v.source || !o) return;
-    const Format format = v.voice.format();
-    Output::SourceParams params;
-    params.gain = db_gain(v.volume) * db_gain(-int32_t(v.headroom)) * distance_gain(v);
-    params.pitch = v.frequency && format.rate ? std::clamp(float(v.frequency) / float(format.rate), 1.0f / 64, 16.0f) : 1.0f;
-    if (spatial(v)) {
-        params.placement = v.current.mode == kModeHeadRelative ? Output::Placement::Relative : Output::Placement::World;
-        to_al(v.current.position, params.position);
-    } else if (format.channels == 1) {
-        params.placement = Output::Placement::Relative;
-        params.position[0] = v.pan;
-    } else {
-        params.placement = Output::Placement::Direct;
-    }
-    o->update(v.source, params);
-}
-
-void update_listener() {
-    Output* const o = out();
-    if (!o) return;
-    float position[3], velocity[3], at[3], up[3];
-    to_al(g.listener.position, position);
-    to_al(g.listener.velocity, velocity);
-    to_al(g.listener.front, at);
-    to_al(g.listener.top, up);
-    o->set_listener(position, velocity, at, up);
-}
-
-// Speakers the voice is routed to decide its panning when it is not 3D.
-void set_mix_bins(VoiceImpl& v, XbPtr mix_bins) {
-    v.pan = 0.0f;
+// Speakers the voice is routed to: its panning when it is not 3D, and the I3DL2 bin (10) is
+// the reverb send.
+void set_mix_bins(VoiceId voice, XbPtr mix_bins) {
+    float pan = 0.0f;
+    bool reverb = false;
     const auto* bins = from_xbox_ptr<const XbMixBins>(mix_bins);
-    if (!bins || !bins->pairs) return;
-    const auto* pairs = from_xbox_ptr<const uint32_t>(bins->pairs);
-    bool left = false, right = false;
-    for (uint32_t i = 0; i < bins->count; ++i) {
-        left |= pairs[2 * i] == 0 || pairs[2 * i] == 4;   // front/back left
-        right |= pairs[2 * i] == 1 || pairs[2 * i] == 5;  // front/back right
+    if (bins && bins->pairs) {
+        const auto* pairs = from_xbox_ptr<const uint32_t>(bins->pairs);
+        bool left = false, right = false;
+        for (uint32_t i = 0; i < bins->count; ++i) {
+            left |= pairs[2 * i] == 0 || pairs[2 * i] == 4;   // front/back left
+            right |= pairs[2 * i] == 1 || pairs[2 * i] == 5;  // front/back right
+            reverb |= pairs[2 * i] == kMixBinI3dl2;
+        }
+        if (left != right) pan = left ? -1.0f : 1.0f;
     }
-    if (left != right) v.pan = left ? -1.0f : 1.0f;
+    dev().set_pan(voice, pan);
+    dev().set_reverb_send(voice, reverb);
 }
 
-bool set_format(VoiceImpl& v, XbPtr wave_format) {
-    const std::optional<Format> format = parse_wave_format(from_xbox_ptr<const void>(wave_format));
-    if (!format) {
-        if (!in_test())
-            LOG_WARN("audio", "unsupported wave format (tag %04x)",
-                 wave_format ? *from_xbox_ptr<const uint16_t>(wave_format) : 0u);
-        return false;
-    }
-    v.voice.stop();
-    v.voice.set_format(*format);
-    if (Output* o = out(); o && v.source) o->reformat(v.source);
-    return true;
-}
-
-// Called with the voice locked, possibly on the mixer thread.
-void packet_done(VoiceImpl& v, const Packet& packet, uint32_t status) {
-    if (v.callback) {
-        Guard lock(g.callbacks_mutex, TestLock::Callbacks);
-        g.callbacks.push_back({v.callback, {v.context, packet.completion, status}});
-    } else if (packet.completion) {
-        xbox::set_event_handle(packet.completion);
-    }
-}
-
-// Starts the voice's output (OpenAL source) as its state now says.
-void sync(VoiceImpl& v) {
-    if (Output* o = out(); o && v.source) o->sync(v.source);
-}
-
-bool ensure_output() {
-    if (in_test()) return true;  // voices without output
-    if (!g.output) g.output = Output::open(g.config);
-    return g.output != nullptr;
+std::optional<Format> wave_format(XbPtr pointer) {
+    const std::optional<Format> format = parse_wave_format(from_xbox_ptr<const void>(pointer));
+    if (!format && !in_test())
+        LOG_WARN("audio", "unsupported wave format (tag %04x)", pointer ? *from_xbox_ptr<const uint16_t>(pointer) : 0u);
+    return format;
 }
 
 const Vtable& voice_vtable();
 
-VoiceImpl* create_voice(bool stream, uint32_t flags, XbPtr wave_format, XbPtr mix_bins) {
-    auto* v = new VoiceImpl(stream);
-    v->guest = {to_xbox_ptr(voice_vtable().data()), kMagicVoice, v};
-    v->flags = flags;
-    v->voice.on_packet_done = [v](const Packet& packet, uint32_t status) { packet_done(*v, packet, status); };
-    Output* const o = out();
-    v->source = o ? o->add_source(v->voice) : nullptr;
-    if (wave_format) set_format(*v, wave_format);
-    set_mix_bins(*v, mix_bins);
-    update_voice(*v);
-    g.voices.push_back(v);
-    return v;
+void ensure_vtable() {
+    static const bool done = [] {
+        set_voice_vtable(to_xbox_ptr(voice_vtable().data()));
+        return true;
+    }();
+    (void)done;
 }
 
-template <typename Change>
-uint32_t change_3d(XbPtr self, uint32_t apply, Change change) {
-    Guard lock(g.mutex, TestLock::State);
-    VoiceImpl* v = voice_of(self);
-    if (!v) return kInvalidArg;
-    if (apply == kDeferred) {
-        if (!v->has_pending) v->pending = v->current;
-        change(v->pending);
-        v->has_pending = true;
-    } else {
-        change(v->current);
-        update_voice(*v);
-    }
-    return kOk;
+VoiceId create_voice(bool stream, uint32_t flags, XbPtr format_pointer, XbPtr mix_bins, uint32_t max_packets,
+                     uint32_t buffer_bytes) {
+    ensure_vtable();
+    VoiceDesc desc;
+    desc.stream = stream;
+    desc.spatial = flags & kCaps3D;
+    desc.mute_at_max_distance = flags & kCapsMuteAtMaxDistance;
+    desc.max_packets = max_packets;
+    desc.buffer_bytes = buffer_bytes;
+    const std::optional<Format> format = format_pointer ? wave_format(format_pointer) : std::nullopt;
+    const VoiceId voice = dev().create_voice(desc, format ? &*format : nullptr);
+    if (voice) set_mix_bins(voice, mix_bins);
+    return voice;
 }
 
+Spatial to_spatial(const XbDs3dBuffer& p) {
+    Spatial s;
+    std::copy(p.position, p.position + 3, s.position);
+    std::copy(p.velocity, p.velocity + 3, s.velocity);
+    s.min_distance = p.min_distance;
+    s.max_distance = p.max_distance;
+    s.rolloff_factor = p.rolloff_factor;
+    s.doppler_factor = p.doppler_factor;
+    s.mode = p.mode == kModeHeadRelative ? SpatialMode::HeadRelative
+           : p.mode == kModeDisable      ? SpatialMode::Off
+                                         : SpatialMode::World;
+    return s;
+}
+
+Apply apply_of(uint32_t apply) { return apply == kDeferred ? Apply::Deferred : Apply::Now; }
+
 template <typename Change>
-uint32_t change_voice(XbPtr self, Change change) {
-    Guard lock(g.mutex, TestLock::State);
-    VoiceImpl* v = voice_of(self);
-    if (!v) return kInvalidArg;
-    change(*v);
+uint32_t change_listener(uint32_t apply, Change change) {
+    Listener listener = dev().listener(apply_of(apply));
+    change(listener);
+    dev().set_listener(listener, apply_of(apply));
     return kOk;
 }
 
@@ -394,30 +265,27 @@ uint32_t change_voice(XbPtr self, Change change) {
 
 uint32_t XB_STDCALL DirectSoundCreate(XbPtr device_guid, XbPtr* direct_sound, XbPtr outer) {
     (void)device_guid, (void)outer;
-    Guard lock(g.mutex, TestLock::State);
-    if (!ensure_output()) return kFail;
+    ensure_vtable();
+    if (!dev().open()) return kFail;
+    Guard lock(g_device_mutex, TestLock::State);
     static const Vtable vtable = make_traps<DeviceTrap>(std::make_integer_sequence<int, kVtableSlots>{});
-    g.device = {to_xbox_ptr(vtable.data()), kMagicDevice, nullptr};
-    ++g.device_refs;
-    *direct_sound = to_xbox_ptr(&g.device);
+    g_device.guest = {to_xbox_ptr(vtable.data()), kMagicDevice, nullptr};
+    ++g_device.refs;
+    *direct_sound = to_xbox_ptr(&g_device.guest);
     return kOk;
 }
 
 uint32_t XB_STDCALL IDirectSound_Release(XbPtr self) {
     (void)self;
-    Guard lock(g.mutex, TestLock::State);
-    return g.device_refs > 0 ? static_cast<uint32_t>(--g.device_refs) : 0;
+    Guard lock(g_device_mutex, TestLock::State);
+    return g_device.refs > 0 ? static_cast<uint32_t>(--g_device.refs) : 0;
 }
 
 uint32_t XB_STDCALL DirectSoundCreateBuffer(const XbDsBufferDesc* desc, XbPtr* buffer) {
-    Guard lock(g.mutex, TestLock::State);
-    if (!desc || !ensure_output()) return kInvalidArg;
-    VoiceImpl* v = create_voice(false, desc->flags, desc->format, desc->mix_bins);
-    if (desc->buffer_bytes) {
-        v->own_data.assign(desc->buffer_bytes, 0);
-        v->voice.set_buffer_data(v->own_data.data(), desc->buffer_bytes);
-    }
-    *buffer = to_xbox_ptr(&v->guest);
+    if (!desc || !dev().open()) return kInvalidArg;
+    const VoiceId voice = create_voice(false, desc->flags, desc->format, desc->mix_bins, 0, desc->buffer_bytes);
+    if (!voice) return kInvalidArg;
+    *buffer = voice;
     return kOk;
 }
 
@@ -427,52 +295,32 @@ uint32_t XB_STDCALL IDirectSound_CreateSoundBuffer(XbPtr self, const XbDsBufferD
 }
 
 uint32_t XB_STDCALL DirectSoundCreateStream(const XbDsStreamDesc* desc, XbPtr* stream) {
-    Guard lock(g.mutex, TestLock::State);
-    if (!desc || !ensure_output()) return kInvalidArg;
-    VoiceImpl* v = create_voice(true, desc->flags, desc->format, desc->mix_bins);
-    v->max_packets = std::max<uint32_t>(desc->max_attached_packets, 1);
-    v->callback = desc->callback;
-    v->context = desc->context;
-    *stream = to_xbox_ptr(&v->guest);
+    if (!desc || !dev().open()) return kInvalidArg;
+    const VoiceId voice = create_voice(true, desc->flags, desc->format, desc->mix_bins,
+                                       std::max<uint32_t>(desc->max_attached_packets, 1), 0);
+    if (!voice) return kInvalidArg;
+    if (desc->callback) dev().set_packet_callback(voice, desc->callback, desc->context);
+    *stream = voice;
     return kOk;
 }
 
 uint32_t XB_STDCALL IDirectSound_SetPosition(XbPtr self, float x, float y, float z, uint32_t apply) {
     (void)self;
-    Guard lock(g.mutex, TestLock::State);
-    Listener& l = apply == kDeferred ? g.pending_listener : g.listener;
-    if (apply == kDeferred && !g.listener_pending) l = g.listener;
-    l.position[0] = x, l.position[1] = y, l.position[2] = z;
-    g.listener_pending |= apply == kDeferred;
-    if (apply != kDeferred) {
-        update_listener();
-        for (VoiceImpl* v : g.voices) update_voice(*v);
-    }
-    return kOk;
+    return change_listener(apply, [&](Listener& l) { l.position[0] = x, l.position[1] = y, l.position[2] = z; });
 }
 
 uint32_t XB_STDCALL IDirectSound_SetVelocity(XbPtr self, float x, float y, float z, uint32_t apply) {
     (void)self;
-    Guard lock(g.mutex, TestLock::State);
-    Listener& l = apply == kDeferred ? g.pending_listener : g.listener;
-    if (apply == kDeferred && !g.listener_pending) l = g.listener;
-    l.velocity[0] = x, l.velocity[1] = y, l.velocity[2] = z;
-    g.listener_pending |= apply == kDeferred;
-    if (apply != kDeferred) update_listener();
-    return kOk;
+    return change_listener(apply, [&](Listener& l) { l.velocity[0] = x, l.velocity[1] = y, l.velocity[2] = z; });
 }
 
 uint32_t XB_STDCALL IDirectSound_SetOrientation(XbPtr self, float front_x, float front_y, float front_z, float top_x,
                                                 float top_y, float top_z, uint32_t apply) {
     (void)self;
-    Guard lock(g.mutex, TestLock::State);
-    Listener& l = apply == kDeferred ? g.pending_listener : g.listener;
-    if (apply == kDeferred && !g.listener_pending) l = g.listener;
-    l.front[0] = front_x, l.front[1] = front_y, l.front[2] = front_z;
-    l.top[0] = top_x, l.top[1] = top_y, l.top[2] = top_z;
-    g.listener_pending |= apply == kDeferred;
-    if (apply != kDeferred) update_listener();
-    return kOk;
+    return change_listener(apply, [&](Listener& l) {
+        l.front[0] = front_x, l.front[1] = front_y, l.front[2] = front_z;
+        l.top[0] = top_x, l.top[1] = top_y, l.top[2] = top_z;
+    });
 }
 
 uint32_t XB_STDCALL IDirectSound_SetDistanceFactor(XbPtr self, float meters_per_unit, uint32_t apply) {
@@ -482,48 +330,19 @@ uint32_t XB_STDCALL IDirectSound_SetDistanceFactor(XbPtr self, float meters_per_
 
 uint32_t XB_STDCALL IDirectSound_CommitDeferredSettings(XbPtr self) {
     (void)self;
-    Guard lock(g.mutex, TestLock::State);
-    if (!g.output) return kOk;
-    Output* const o = out();
-    if (o) o->begin_batch();
-    if (g.listener_pending) {
-        g.listener = g.pending_listener;
-        g.listener_pending = false;
-        update_listener();
-    }
-    // The listener may have moved, so every voice's distance gain is refreshed.
-    for (VoiceImpl* v : g.voices) {
-        if (v->has_pending) {
-            v->current = v->pending;
-            v->has_pending = false;
-        }
-        update_voice(*v);
-    }
-    if (o) o->end_batch();
+    dev().commit();
     return kOk;
 }
 
 uint32_t XB_STDCALL IDirectSound_SynchPlayback(XbPtr self) {
     (void)self;
-    Guard lock(g.mutex, TestLock::State);
-    if (!g.output) return kOk;
-    Output* const o = out();
-    if (o) o->begin_batch();
-    for (VoiceImpl* v : g.voices) {
-        if (!v->synch_play && !v->synch_resume) continue;
-        if (v->synch_play) v->voice.play(v->synch_looping, v->synch_from_start);
-        if (v->synch_resume) v->voice.set_paused(false);
-        v->synch_play = v->synch_resume = false;
-        sync(*v);
-    }
-    if (o) o->end_batch();
+    dev().start_synched();
     return kOk;
 }
 
 uint32_t XB_STDCALL IDirectSound_EnableHeadphones(XbPtr self, uint32_t enabled) {
     (void)self;
-    Guard lock(g.mutex, TestLock::State);
-    if (Output* o = out()) o->set_hrtf(enabled != 0);
+    dev().set_headphones(enabled != 0);
     return kOk;
 }
 
@@ -556,16 +375,9 @@ uint32_t XB_STDCALL IDirectSound_SetMixBinHeadroom(XbPtr self, uint32_t mix_bin,
 // harness logs it).
 uint32_t XB_STDCALL DirectSoundUseFullHRTF() { return kOk; }
 
-// Runs stream callbacks; the APU interrupt would have run them.
+// Runs stream callbacks.
 uint32_t XB_STDCALL DirectSoundDoWork() {  // void in the SDK
-    std::deque<Callback> callbacks;
-    {
-        Guard lock(g.callbacks_mutex, TestLock::Callbacks);
-        callbacks.swap(g.callbacks);
-    }
-    const auto call_guest = xbox::kernel_config().call_guest;
-    for (const Callback& callback : callbacks)
-        if (call_guest) call_guest(callback.routine, callback.args, 3);
+    dev().do_work();
     return kOk;
 }
 
@@ -598,45 +410,41 @@ uint32_t XB_STDCALL XAudioCreateAdpcmFormat(uint32_t channels, uint32_t samples_
 
 // --- Buffers ---------------------------------------------------------------------------------
 
-uint32_t XB_STDCALL IDirectSoundBuffer_SetFormat(XbPtr self, XbPtr format) {
-    Guard lock(g.mutex, TestLock::State);
-    VoiceImpl* v = voice_of(self);
-    if (!v) return kInvalidArg;
-    if (!set_format(*v, format)) return kInvalidArg;
-    update_voice(*v);
+uint32_t XB_STDCALL IDirectSoundBuffer_SetFormat(XbPtr self, XbPtr format_pointer) {
+    const VoiceId voice = voice_of(self);
+    const std::optional<Format> format = wave_format(format_pointer);
+    if (!voice || !format) return kInvalidArg;
+    return dev().set_format(voice, *format) ? kOk : kInvalidArg;
+}
+
+// Runs `call` on the voice behind `self`.
+template <typename Call>
+uint32_t with_voice(XbPtr self, Call call) {
+    const VoiceId voice = voice_of(self);
+    if (!voice) return kInvalidArg;
+    call(voice);
     return kOk;
 }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_SetBufferData(XbPtr self, XbPtr data, uint32_t size) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        v.voice.set_buffer_data(data ? from_xbox_ptr<const uint8_t>(data) : v.own_data.data(),
-                                data ? size : static_cast<uint32_t>(v.own_data.size()));
-    });
+    return with_voice(self, [&](VoiceId v) { dev().set_buffer_data(v, from_xbox_ptr<const uint8_t>(data), size); });
 }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_SetPlayRegion(XbPtr self, uint32_t start, uint32_t length) {
-    return change_voice(self, [&](VoiceImpl& v) { v.voice.set_play_region(start, length); });
+    return with_voice(self, [&](VoiceId v) { dev().set_play_region(v, start, length); });
 }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_SetLoopRegion(XbPtr self, uint32_t start, uint32_t length) {
-    return change_voice(self, [&](VoiceImpl& v) { v.voice.set_loop_region(start, length); });
+    return with_voice(self, [&](VoiceId v) { dev().set_loop_region(v, start, length); });
 }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_SetCurrentPosition(XbPtr self, uint32_t offset) {
-    return change_voice(self, [&](VoiceImpl& v) { v.voice.set_position(offset); });
+    return with_voice(self, [&](VoiceId v) { dev().set_position(v, offset); });
 }
 
 uint32_t play(XbPtr self, uint32_t flags) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        const bool looping = flags & kPlayLooping, from_start = flags & kPlayFromStart;
-        if (flags & kPlaySynch) {
-            v.synch_play = true;
-            v.synch_looping = looping;
-            v.synch_from_start = from_start;
-            return;
-        }
-        v.voice.play(looping, from_start);
-        sync(v);
+    return with_voice(self, [&](VoiceId v) {
+        dev().play(v, flags & kPlayLooping, flags & kPlayFromStart, flags & kPlaySynch ? Start::WithSynch : Start::Now);
     });
 }
 
@@ -651,11 +459,7 @@ uint32_t XB_STDCALL IDirectSoundBuffer_PlayEx(XbPtr self, int64_t timestamp, uin
 }
 
 uint32_t stop(XbPtr self) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        v.synch_play = v.synch_resume = false;
-        v.voice.stop();
-        sync(v);
-    });
+    return with_voice(self, [](VoiceId v) { dev().stop(v); });
 }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_Stop(XbPtr self) { return stop(self); }
@@ -666,62 +470,46 @@ uint32_t XB_STDCALL IDirectSoundBuffer_StopEx(XbPtr self, int64_t timestamp, uin
 }
 
 uint32_t pause(XbPtr self, uint32_t flags) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        if (flags == kPauseSynch) {
-            v.synch_resume = true;
-            return;
-        }
-        v.voice.set_paused(flags != kPauseResume);  // PAUSE, or (streams) PAUSENOACTIVATE
-        sync(v);
+    return with_voice(self, [&](VoiceId v) {
+        if (flags == kPauseSynch)
+            dev().resume(v, Start::WithSynch);
+        else if (flags == kPauseResume)
+            dev().resume(v, Start::Now);
+        else
+            dev().pause(v);  // PAUSE, or (streams) PAUSENOACTIVATE
     });
 }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_Pause(XbPtr self, uint32_t flags) { return pause(self, flags); }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_GetStatus(XbPtr self, uint32_t* status) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        uint32_t s = 0;
-        const bool playing = v.voice.playing() || v.synch_play;
-        if (playing && !v.voice.paused()) s |= kBufferPlaying;
-        if (playing && v.voice.paused()) s |= kBufferPaused;
-        if (playing && v.voice.looping()) s |= kBufferLooping;
-        *status = s;
+    return with_voice(self, [&](VoiceId v) {
+        const VoiceStatus s = dev().status(v);
+        uint32_t bits = 0;
+        if (s.playing && !s.paused) bits |= kBufferPlaying;
+        if (s.playing && s.paused) bits |= kBufferPaused;
+        if (s.looping) bits |= kBufferLooping;
+        *status = bits;
     });
 }
 
 uint32_t XB_STDCALL IDirectSoundBuffer_Release(XbPtr self) {
-    Guard lock(g.mutex, TestLock::State);
-    VoiceImpl* v = voice_of(self);
-    if (!v) return 0;
-    if (--v->refs == 0) {
-        v->voice.stop();
-        sync(*v);
-        // The voice object stays allocated: the mixer may still hold it.
-    }
-    return static_cast<uint32_t>(std::max(v->refs, 0));
+    const VoiceId voice = voice_of(self);
+    return voice ? dev().release(voice) : 0;
 }
 
 // --- Shared buffer/stream parameters --------------------------------------------------------
 
 uint32_t XB_STDCALL Voice_SetVolume(XbPtr self, int32_t volume) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        v.volume = volume;
-        update_voice(v);
-    });
+    return with_voice(self, [&](VoiceId v) { dev().set_volume(v, db_gain(volume)); });
 }
 
 uint32_t XB_STDCALL Voice_SetHeadroom(XbPtr self, uint32_t headroom) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        v.headroom = headroom;
-        update_voice(v);
-    });
+    return with_voice(self, [&](VoiceId v) { dev().set_headroom(v, db_gain(-int32_t(headroom))); });
 }
 
 uint32_t XB_STDCALL Voice_SetFrequency(XbPtr self, uint32_t frequency) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        v.frequency = frequency;
-        update_voice(v);
-    });
+    return with_voice(self, [&](VoiceId v) { dev().set_rate(v, frequency); });
 }
 
 uint32_t XB_STDCALL Voice_SetEG(XbPtr self, XbPtr envelope) {
@@ -730,10 +518,7 @@ uint32_t XB_STDCALL Voice_SetEG(XbPtr self, XbPtr envelope) {
 }
 
 uint32_t XB_STDCALL Voice_SetMixBins(XbPtr self, XbPtr mix_bins) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        set_mix_bins(v, mix_bins);
-        update_voice(v);
-    });
+    return with_voice(self, [&](VoiceId v) { set_mix_bins(v, mix_bins); });
 }
 
 uint32_t XB_STDCALL Voice_SetMixBinVolumes(XbPtr self, XbPtr mix_bins) {
@@ -742,26 +527,19 @@ uint32_t XB_STDCALL Voice_SetMixBinVolumes(XbPtr self, XbPtr mix_bins) {
 }
 
 uint32_t XB_STDCALL Voice_SetAllParameters(XbPtr self, const XbDs3dBuffer* p, uint32_t apply) {
-    return change_3d(self, apply, [&](Ds3d& d) {
-        std::copy(p->position, p->position + 3, d.position);
-        std::copy(p->velocity, p->velocity + 3, d.velocity);
-        d.min_distance = p->min_distance;
-        d.max_distance = p->max_distance;
-        d.mode = p->mode;
-        d.rolloff_factor = p->rolloff_factor;
-    });
+    return with_voice(self, [&](VoiceId v) { dev().set_spatial(v, to_spatial(*p), apply_of(apply)); });
 }
 
 uint32_t XB_STDCALL Voice_SetMode(XbPtr self, uint32_t mode, uint32_t apply) {
-    return change_3d(self, apply, [&](Ds3d& d) { d.mode = mode; });
+    const SpatialMode spatial = mode == kModeHeadRelative ? SpatialMode::HeadRelative
+                              : mode == kModeDisable      ? SpatialMode::Off
+                                                          : SpatialMode::World;
+    return with_voice(self, [&](VoiceId v) { dev().set_spatial_mode(v, spatial, apply_of(apply)); });
 }
 
 uint32_t XB_STDCALL Voice_SetRolloffCurve(XbPtr self, const float* points, uint32_t count, uint32_t apply) {
     (void)apply;
-    return change_voice(self, [&](VoiceImpl& v) {
-        v.curve.assign(points, points + (points ? count : 0));
-        update_voice(v);
-    });
+    return with_voice(self, [&](VoiceId v) { dev().set_distance_curve(v, points, count); });
 }
 
 // --- Streams ---------------------------------------------------------------------------------
@@ -776,48 +554,45 @@ uint32_t XB_STDCALL IDirectSoundStream_FlushEx(XbPtr self, int64_t timestamp, ui
 
 // XMediaObject methods, called through the vtable.
 uint32_t XB_STDCALL Stream_AddRef(XbPtr self) {
-    Guard lock(g.mutex, TestLock::State);
-    VoiceImpl* v = voice_of(self);
-    return v ? static_cast<uint32_t>(++v->refs) : 0;
+    const VoiceId voice = voice_of(self);
+    return voice ? dev().add_ref(voice) : 0;
 }
 
 uint32_t XB_STDCALL Stream_Release(XbPtr self) { return IDirectSoundBuffer_Release(self); }
 
 uint32_t XB_STDCALL Stream_GetInfo(XbPtr self, XbMediaInfo* info) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        *info = {0x1 /* XMO_STREAMF_FIXED_SAMPLE_SIZE */, v.voice.format().block_align, 0, 0};
-    });
+    (void)self;
+    *info = {0x1 /* XMO_STREAMF_FIXED_SAMPLE_SIZE */, 0, 0, 0};
+    return kOk;
 }
 
 uint32_t XB_STDCALL Stream_GetStatus(XbPtr self, uint32_t* status) {
-    return change_voice(self, [&](VoiceImpl& v) {
-        uint32_t s = 0;
-        if (v.voice.queued_packets() < v.max_packets) s |= kStreamReady;
-        if (v.voice.playing() && !v.voice.paused()) s |= kStreamPlaying;
-        if (v.voice.paused()) s |= kStreamPaused;
-        if (v.voice.starved()) s |= kStreamStarved;
-        *status = s;
+    return with_voice(self, [&](VoiceId v) {
+        const VoiceStatus s = dev().status(v);
+        uint32_t bits = 0;
+        if (s.accepts_packets) bits |= kStreamReady;
+        if (s.playing && !s.paused) bits |= kStreamPlaying;
+        if (s.paused) bits |= kStreamPaused;
+        if (s.starved) bits |= kStreamStarved;
+        *status = bits;
     });
 }
 
 uint32_t XB_STDCALL Stream_Process(XbPtr self, const XbMediaPacket* input, const XbMediaPacket* output) {
     (void)output;
-    Guard lock(g.mutex, TestLock::State);
-    VoiceImpl* v = voice_of(self);
-    if (!v || !input) return kInvalidArg;
+    const VoiceId voice = voice_of(self);
+    if (!voice || !input) return kInvalidArg;
     Packet packet;
     packet.data = from_xbox_ptr<const uint8_t>(input->buffer);
     packet.size = input->max_size;
     packet.status = from_xbox_ptr<uint32_t>(input->status);
     packet.completed = from_xbox_ptr<uint32_t>(input->completed_size);
     packet.completion = input->completion;
-    if (!v->voice.submit(packet, v->max_packets)) return kFail;
-    sync(*v);  // streams start with their first packet
-    return kOk;
+    return dev().submit(voice, packet) ? kOk : kFail;
 }
 
 uint32_t XB_STDCALL Stream_Discontinuity(XbPtr self) {
-    return change_voice(self, [&](VoiceImpl& v) { v.voice.discontinuity(); });
+    return with_voice(self, [](VoiceId v) { dev().end_stream(v); });
 }
 
 uint32_t XB_STDCALL Stream_Flush(XbPtr self) { return stop(self); }
@@ -852,13 +627,13 @@ struct MediaImpl {
 MediaImpl* media_of(XbPtr pointer) { return object_impl<MediaImpl>(pointer, kMagicMedia); }
 
 uint32_t XB_STDCALL Media_AddRef(XbPtr self) {
-    Guard lock(g.mutex, TestLock::State);
+    Guard lock(g_media_mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     return m ? static_cast<uint32_t>(++m->refs) : 0;
 }
 
 uint32_t XB_STDCALL Media_Release(XbPtr self) {
-    Guard lock(g.mutex, TestLock::State);
+    Guard lock(g_media_mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     if (!m) return 0;
     const int refs = --m->refs;
@@ -885,7 +660,7 @@ uint32_t XB_STDCALL Media_GetStatus(XbPtr self, uint32_t* status) {
 
 uint32_t XB_STDCALL Media_Process(XbPtr self, const XbMediaPacket* input, const XbMediaPacket* output) {
     (void)input;
-    Guard lock(g.mutex, TestLock::State);
+    Guard lock(g_media_mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     if (!m || !output) return kInvalidArg;
     uint32_t done = 0;
@@ -904,7 +679,7 @@ uint32_t XB_STDCALL Media_Nothing(XbPtr self) {  // Discontinuity, Flush, DoWork
 }
 
 uint32_t XB_STDCALL Media_Seek(XbPtr self, int32_t offset, uint32_t origin, uint32_t* absolute) {
-    Guard lock(g.mutex, TestLock::State);
+    Guard lock(g_media_mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     if (!m) return kInvalidArg;
     const int64_t base = origin == 1 ? int64_t(m->position) : origin == 2 ? int64_t(m->file->size().value_or(0)) : 0;
@@ -914,7 +689,7 @@ uint32_t XB_STDCALL Media_Seek(XbPtr self, int32_t offset, uint32_t origin, uint
 }
 
 uint32_t XB_STDCALL Media_GetLength(XbPtr self, uint32_t* length) {
-    Guard lock(g.mutex, TestLock::State);
+    Guard lock(g_media_mutex, TestLock::State);
     MediaImpl* m = media_of(self);
     if (!m) return kInvalidArg;
     *length = static_cast<uint32_t>(m->file->size().value_or(0));
@@ -946,7 +721,7 @@ uint32_t XB_STDCALL XFileCreateMediaObjectAsync(Handle file, uint32_t max_packet
             LOG_WARN("audio", "XFileCreateMediaObjectAsync: handle %08x is not an open file", file);
         return kInvalidArg;
     }
-    Guard lock(g.mutex, TestLock::State);
+    Guard lock(g_media_mutex, TestLock::State);
     auto* m = new MediaImpl();
     m->guest = {to_xbox_ptr(media_vtable().data()), kMagicMedia, m};
     m->file = std::move(host);
@@ -1034,33 +809,15 @@ void set_test_mode(const volatile uint8_t* in_test, void (*lock_held)(TestLock w
 
 std::span<const xbox::KernelImpl> dsound_methods() { return kMethods; }
 
-// The lock order everywhere: the state, then a voice, then the callbacks (render: voice, callbacks).
-void hold_for_fork() {
-    g.mutex.lock();
-    for (const VoiceImpl* v : g.voices) v->voice.hold();
-    g.callbacks_mutex.lock();
-}
-
-void release_after_fork() {
-    g.callbacks_mutex.unlock();
-    for (auto v = g.voices.rbegin(); v != g.voices.rend(); ++v) (*v)->voice.release();
-    g.mutex.unlock();
-}
-
-void configure(const OutputConfig& config) {
-    Guard lock(g.mutex, TestLock::State);
-    g.config = config;
-}
-
-std::span<const xbox::KernelImpl> dsound_functions() { return kFunctions; }
-
-void set_paused(bool paused) {
-    if (g.output) g.output->set_paused(paused);
-}
-
-Output* output() {
-    Guard lock(g.mutex, TestLock::State);
-    return g.output.get();
+std::span<const xbox::KernelImpl> dsound_functions() {
+    static const bool registered = [] {
+        add_fork_lock(g_device_mutex);
+        add_fork_lock(g_media_mutex);
+        ensure_vtable();
+        return true;
+    }();
+    (void)registered;
+    return kFunctions;
 }
 
 }  // namespace audio

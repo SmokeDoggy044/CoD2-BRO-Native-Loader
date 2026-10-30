@@ -23,6 +23,7 @@
 #include "crash.h"
 #include "diag_summary.h"
 #include "functions.h"
+#include "snd.h"
 #include "kernel.h"
 #include "kernel_memory.h"
 #include "kernel_thunks.h"
@@ -768,6 +769,7 @@ int loader_main(int argc, char** argv) {
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
     audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
+    game::set_sound_device(&audio::sound_device());  // the decompiled sound code's device
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;
     d3d_config.backend.anisotropy = options->anisotropy;

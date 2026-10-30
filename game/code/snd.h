@@ -9,7 +9,15 @@
 
 #include "compiler.h"
 
+namespace audio {
+class SoundDevice;
+}
+
 namespace game {
+
+// Our sound device (audio/sound_device.h), which the sound code drives in place of DirectSound. The loader sets it
+// before the title runs.
+void set_sound_device(audio::SoundDevice* device);
 
 // 0x000c8450: the number of voice records (0x008bed00).
 uint32_t XB_CDECL SndVoice_GetCount();
