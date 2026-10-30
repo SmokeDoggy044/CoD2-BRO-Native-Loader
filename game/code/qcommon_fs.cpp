@@ -898,11 +898,11 @@ PLATFORM_ASM_ENTRY(MatrixMultiply_entry,
                    "pushl %edx\n"
                    "pushl %edx\n"
                    "pushl %eax\n"
-                   "pushl 16(%esp)\n" PLATFORM_ASM_CALL(MatrixMultiply) "addl $12, %esp\n"
+                   "pushl 16(%esp)\n" PLATFORM_ASM_CALL(MatrixMultiply3x3) "addl $12, %esp\n"
                    "popl %edx\n"
                    "ret")
 
-void XB_CDECL MatrixMultiply(const float* a, const float* b, float* out) {
+void XB_CDECL MatrixMultiply3x3(const float* a, const float* b, float* out) {
     out[0] = (a[0] * b[0] + a[1] * b[3]) + b[6] * a[2];
     out[1] = (a[1] * b[4] + b[7] * a[2]) + b[1] * a[0];
     out[2] = (a[1] * b[5] + b[8] * a[2]) + b[2] * a[0];

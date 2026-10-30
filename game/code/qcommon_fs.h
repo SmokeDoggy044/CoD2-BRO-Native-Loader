@@ -234,9 +234,9 @@ extern "C" void VectorNormalize_entry(void);
 // VectorNormalize2 (zero vector out for length 0).
 extern "C" PLATFORM_HIDDEN float XB_CDECL VectorNormalize2(const float* in, float* out);
 extern "C" void VectorNormalize2_entry(void);
-// 0x002956b0 (in2 in EAX, out in EDX kept, in1 on the stack): Q3's MatrixMultiply,
-// out = in1 * in2 (3x3).
-extern "C" PLATFORM_HIDDEN void XB_CDECL MatrixMultiply(const float* in1, const float* in2, float* out);
+// 0x002956b0 MatrixMultiply (in2 in EAX, out in EDX kept, in1 on the stack): Q3's, out = in1 * in2 (3x3).
+// The C is MatrixMultiply3x3: SDL3 (statically linked on Windows) has a MatrixMultiply of its own.
+extern "C" PLATFORM_HIDDEN void XB_CDECL MatrixMultiply3x3(const float* in1, const float* in2, float* out);
 extern "C" void MatrixMultiply_entry(void);
 // 0x002954a0 (in2 in EAX, out in EDX kept, in1 on the stack): 4x3 (axis + origin)
 // product, out = in1 * in2.

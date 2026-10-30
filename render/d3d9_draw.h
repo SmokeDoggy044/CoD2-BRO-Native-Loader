@@ -35,6 +35,27 @@ public:
     IDirect3DSurface9* target_surface(uint32_t data);
     IDirect3DTexture9* target_texture(uint32_t data);
     bool has_depth() const { return has_depth_; }
+
+    // For GfxDevice (gfx_d3d9.cpp), drawing on the same device and targets.
+    // The current target: its size as the title sees it and the D3D9 surface's.
+    uint32_t target_width() const { return target_width_; }
+    uint32_t target_height() const { return target_height_; }
+    uint32_t target_surface_width() const { return target_surface_width_; }
+    uint32_t target_surface_height() const { return target_surface_height_; }
+    bool target_ok() const { return target_ok_; }
+    bool depth_is_d16() const { return depth_d16_; }
+    uint32_t anisotropy() const { return anisotropy_; }
+    // A title texture by its Xbox header (and P8 palette header, else 0) as a D3D9 texture,
+    // decoded and kept current like a bound stage's; `scale` gets the texel -> normalized
+    // factors (linear formats). Null if it cannot be decoded.
+    IDirect3DBaseTexture9* xbox_texture(uint32_t texture_header, uint32_t palette_header, float (&scale)[2]);
+    // The render target at `data` to sample (a copy while it is the one drawn into).
+    IDirect3DTexture9* sample_target(uint32_t data);
+    // A draw wrote depth (the frame is not flat) / needed something untranslated.
+    void note_depth_write() { frame_writes_depth_ = true; }
+    void note_unsupported() { ++unsupported_draws_; }
+    bool highlight() const { return highlight_; }
+    uint32_t frame() const { return frame_; }
     void dump_next_frame() {
         dump_frame_ = frame_ + 1;
         dump_index_ = 0;
@@ -57,6 +78,9 @@ private:
     struct CachedVertices;
     // The texture bound to a stage as a D3D9 texture (created or updated), or null.
     CachedTexture* texture_for_stage(uint32_t stage);
+    // The same from the texture's NV2A format register, D3D Size field and P8 palette header.
+    CachedTexture* texture_for(uint32_t data, uint32_t format, uint32_t size_field, uint32_t palette_header,
+                               uint32_t stage);
     // Makes `entry` hold `replacement` (BackendConfig::replace_texture), with a full
     // mipmap chain if `mipmaps`. False if the texture cannot be created.
     bool upload_replacement(CachedTexture& entry, const TextureReplacement& replacement, bool mipmaps);
@@ -89,6 +113,7 @@ private:
     uint32_t target_data_ = 0, target_width_ = 0, target_height_ = 0;
     uint32_t target_surface_width_ = 0, target_surface_height_ = 0;
     bool has_depth_ = false;
+    bool depth_d16_ = false;
     bool target_ok_ = false;
     uint32_t frame_ = 1;
     uint32_t dump_frame_ = 0;  // XB_DUMP_FRAME / XB_DUMP_STOP, see dump_draw

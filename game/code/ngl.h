@@ -9,7 +9,18 @@
 
 #include "compiler.h"
 
+namespace render {
+class GfxDevice;
+}
+
 namespace game {
+
+// Our graphics interface (render/gfx_device.h), which the renderer C moves onto one draw path
+// at a time (docs/own-renderer.md, R4). The loader sets where it comes from before the title
+// runs: the device exists once the title has created its Direct3D device (nglInit).
+void set_gfx_device(render::GfxDevice* (*device)());
+// Null before that, and with nothing set (--compare test processes).
+render::GfxDevice* gfx();
 
 // PC additions the loader hands the renderer C in place of its patches into the original code.
 // All unset (the default, and in --compare runs): exactly the original's behaviour.

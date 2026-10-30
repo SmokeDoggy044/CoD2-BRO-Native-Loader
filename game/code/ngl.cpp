@@ -11,6 +11,14 @@
 
 namespace game {
 
+namespace {
+render::GfxDevice* (*g_gfx_device)() = nullptr;
+}
+
+void set_gfx_device(render::GfxDevice* (*device)()) { g_gfx_device = device; }
+
+render::GfxDevice* gfx() { return g_gfx_device ? g_gfx_device() : nullptr; }
+
 RendererPcHooks& renderer_pc_hooks() {
     static RendererPcHooks hooks;
     return hooks;

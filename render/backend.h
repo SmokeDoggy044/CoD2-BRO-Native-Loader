@@ -13,6 +13,8 @@
 
 namespace render {
 
+class GfxDevice;
+
 // A surface the title draws into (render target or depth buffer). Its memory address
 // identifies it: textures at the same address show what was drawn into it.
 struct SurfaceDesc {
@@ -47,6 +49,7 @@ struct BackendConfig {
     SurfaceDesc back_buffer;    // what present() shows
     SurfaceDesc depth_stencil;  // the device's own depth buffer (data 0 = none)
     uint32_t window_scale = 1;
+    bool hidden_window = false;  // tests: draw without showing a window
     // Borderless fullscreen on the window's display (Alt+Enter switches while playing).
     bool fullscreen = false;
     // Render targets are this many times the size the title asked for (the title still
@@ -198,6 +201,9 @@ public:
     // narrowed into the middle of a wider picture, at the picture's height. False
     // before the first frame. Any thread.
     virtual bool window_to_screen(float x, float y, float& screen_x, float& screen_y) = 0;
+    // Our own graphics interface on the same device and targets (gfx_device.h); null if the
+    // back end has none.
+    virtual GfxDevice* gfx_device() { return nullptr; }
 };
 
 // Null if the window or device cannot be created (logged).
