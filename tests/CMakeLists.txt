@@ -66,6 +66,12 @@ target_include_directories(d3d9_shader_test PRIVATE ${PROJECT_SOURCE_DIR}/render
 target_link_libraries(d3d9_shader_test PRIVATE xbox)
 add_test(NAME d3d9_shader_test COMMAND d3d9_shader_test)
 
+# Our graphics interface on a real D3D9 device (hidden window; skipped without one).
+add_executable(gfx_device_test gfx_device_test.cpp)
+target_link_libraries(gfx_device_test PRIVATE render xbox)
+add_test(NAME gfx_device_test COMMAND gfx_device_test)
+set_tests_properties(gfx_device_test PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
+
 # The NAL entropy mode decoders against the title's own code (runs default.xbe's bytes;
 # skipped without the game files).
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

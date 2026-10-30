@@ -370,6 +370,7 @@ bool D3D9Draw::set_render_target(const SurfaceDesc& color, const SurfaceDesc* de
 
     // Depth: by its Xbox address, at least as large as the target (D3D9 requires it).
     has_depth_ = false;
+    depth_d16_ = depth && (depth->format == kFmtD16 || depth->format == kFmtLinD16);
     IDirect3DSurface9* depth_surface = nullptr;
     if (depth && depth->data) {
         DepthBuffer& d = caches.depths[depth->data];
@@ -380,7 +381,7 @@ bool D3D9Draw::set_render_target(const SurfaceDesc& color, const SurfaceDesc* de
         if (!d.surface) {
             d.width = width;
             d.height = height;
-            const bool d16 = depth->format == kFmtD16 || depth->format == kFmtLinD16;
+            const bool d16 = depth_d16_;
             if (FAILED(device_->CreateDepthStencilSurface(d.width, d.height, d16 ? D3DFMT_D16 : D3DFMT_D24S8,
                                                           D3DMULTISAMPLE_NONE, 0, FALSE, &d.surface, nullptr)))
                 LOG_ERROR("render", "depth buffer %ux%u at %08x: cannot create", d.width, d.height, depth->data);
@@ -645,6 +646,38 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
         const auto* pixels = from_xbox_ptr<XbPixelContainer>(bound.texture);
         if (pixels->resource.data == data) size_field = pixels->size;
     }
+    return texture_for(data, format, size_field, bound.palette, stage);
+}
+
+IDirect3DBaseTexture9* D3D9Draw::xbox_texture(uint32_t texture_header, uint32_t palette_header,
+                                              float (&scale)[2]) {
+    if (!texture_header) return nullptr;
+    const auto* pixels = from_xbox_ptr<XbPixelContainer>(texture_header);
+    if (!pixels->format) return nullptr;
+    CachedTexture* entry = texture_for(pixels->resource.data, pixels->format, pixels->size, palette_header, 0);
+    if (!entry) return nullptr;
+    scale[0] = entry->scale[0];
+    scale[1] = entry->scale[1];
+    return entry->texture;
+}
+
+IDirect3DTexture9* D3D9Draw::sample_target(uint32_t data) {
+    auto it = caches_->targets.find(data);
+    if (it == caches_->targets.end()) return nullptr;
+    Target& t = it->second;
+    if (data != target_data_) return t.texture;
+    if (!t.copy)
+        device_->CreateTexture(t.surface_width, t.surface_height, 1, D3DUSAGE_RENDERTARGET, t.format,
+                               D3DPOOL_DEFAULT, &t.copy, nullptr);
+    IDirect3DSurface9* copy_surface = nullptr;
+    if (!t.copy || FAILED(t.copy->GetSurfaceLevel(0, &copy_surface))) return t.texture;
+    device_->StretchRect(t.surface, nullptr, copy_surface, nullptr, D3DTEXF_NONE);
+    copy_surface->Release();
+    return t.copy;
+}
+
+D3D9Draw::CachedTexture* D3D9Draw::texture_for(uint32_t data, uint32_t format, uint32_t size_field,
+                                               uint32_t palette_header, uint32_t stage) {
     TextureLayout layout;
     const bool described = describe_texture(format, size_field, layout);
 
@@ -652,18 +685,7 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
     // drawn into goes through a copy.
     if (auto it = caches_->targets.find(data); it != caches_->targets.end()) {
         Target& t = it->second;
-        t.sampled.texture = t.texture;
-        if (data == target_data_) {
-            if (!t.copy)
-                device_->CreateTexture(t.surface_width, t.surface_height, 1, D3DUSAGE_RENDERTARGET, t.format,
-                                       D3DPOOL_DEFAULT, &t.copy, nullptr);
-            IDirect3DSurface9* copy_surface = nullptr;
-            if (t.copy && SUCCEEDED(t.copy->GetSurfaceLevel(0, &copy_surface))) {
-                device_->StretchRect(t.surface, nullptr, copy_surface, nullptr, D3DTEXF_NONE);
-                copy_surface->Release();
-                t.sampled.texture = t.copy;
-            }
-        }
+        t.sampled.texture = sample_target(data);
         const bool linear = described ? layout.linear : true;
         t.sampled.scale[0] = linear ? 1.0f / t.width : 1.0f;
         t.sampled.scale[1] = linear ? 1.0f / t.height : 1.0f;
@@ -677,8 +699,8 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
     }
     const uint32_t* palette = nullptr;
     uint32_t palette_data = 0;
-    if (layout.color_format == 0x0B && bound.palette) {  // P8
-        palette_data = from_xbox_ptr<XbResource>(bound.palette)->data;
+    if (layout.color_format == 0x0B && palette_header) {  // P8
+        palette_data = from_xbox_ptr<XbResource>(palette_header)->data;
         palette = from_xbox_ptr<uint32_t>(palette_data | 0x80000000u);
     }
 

@@ -23,6 +23,8 @@
 #include "crash.h"
 #include "diag_summary.h"
 #include "functions.h"
+#include "gfx_device.h"
+#include "ngl.h"
 #include "snd.h"
 #include "snd_env.h"
 #include "kernel.h"
@@ -855,6 +857,7 @@ int loader_main(int argc, char** argv) {
     if (const std::string volumes = options->volumes.format(); !volumes.empty())
         LOG_INFO("audio", "volumes: %s", volumes.c_str());
     game::set_sound_device(&audio::sound_device());  // the decompiled sound code's device
+    game::set_gfx_device(&render::gfx_device);        // and the renderer C's (once the title made its device)
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;
     d3d_config.backend.anisotropy = options->anisotropy;

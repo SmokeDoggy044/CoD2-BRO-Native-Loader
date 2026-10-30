@@ -23,10 +23,33 @@ XModel_GetBoneCount, XModel_CalcBoneChildren, FxComponentB_IsOwnerGone, FXCmd_Ty
   R_RenderView). The floor's limit is now kept in FS:[0x14] and the scratch stays below it
   (title_data.h). `tools/bisect_replaced.py` finds the Replaced function behind a failure.
 
-**R2 - the interface and a D3D9 back end.** `render::GfxDevice`: textures, vertex/index buffers,
-render targets, blend/depth/stencil/cull/fog/sampler state, shaders, draws, clear, present. It
-shares the D3D9 device of the current path (render/backend_d3d9.cpp), which stays for what still
-uses the Xbox libraries: movies (client), the dirty-disc screen, other releases, XBCMP_ORIGINALS.
+**R2 - the interface and a D3D9 back end, 2026-10-30.** `render::GfxDevice` (render/gfx_device.h,
+declarations only): textures (2D, cube, volume; linear data in our own formats), vertex/index
+buffers (static, dynamic with Discard/NoOverwrite), shaders (bytecode per back end, `ShaderCode`),
+vertex layouts (inputs 0-15 = HLSL TEXCOORDn, as the NV2A's v0-v15), render targets, state as
+whole blocks (blend + alpha test, depth/stencil, raster + polygon offset, sampler per slot, fog,
+viewport, scissor), draws (`draw`, `draw_indexed`, `draw_user` from caller memory; quads drawn as
+triangles) and `read_target` for screenshot diffs. Sizes are the title's pixels; render scale,
+display shape and anisotropic filtering are the back end's business. Reserved constants the back
+end fills each draw: vertex c192-c193 screen-to-clip of the current viewport (the NV2A programs
+output screen space; pixel centres and render scale included), c194 fog; pixel c18-c25 texel
+scale per slot (the title's linear textures), c26 fog colour.
+- Back end: render/gfx_d3d9.cpp on the D3D9Draw of the current path: same device, same targets
+  (by Xbox address; ours get keys above title memory), same texture cache. Every draw sets its
+  whole state, as the Xbox path does, so the two mix in one frame. Draws that write depth count
+  for the flat-frame test (pillarboxing).
+- Transition: `xbox_texture(header, palette)` gives an id for a title texture, decoded and kept
+  current by the Xbox path's cache (sharp-text replacements and PC filtering included);
+  `TargetDesc::xbox_data` makes our target the title's surface at that address.
+- Presentation stays with `Backend::present` (device.cpp's Swap) until R4's last part.
+- The game library gets the device through `game::gfx()` (ngl.h; the loader sets
+  `game::set_gfx_device(&render::gfx_device)`); null before the title created its device and
+  in test processes.
+- Test: tests/gfx_device_test (hidden window, real device; skipped without one): exact pixel
+  coverage at render scales 1 and 2, viewport, scissor, a texture through one of our targets,
+  blending, indexed buffers, depth.
+- Not done yet: what R4 needs as it goes (UI narrowing for converted UI draws, frame dump of
+  GfxDevice draws, freeing our depth targets before shutdown).
 
 **R3 - shaders.** A tool translates every vertex microcode program and register-combiner setup
 the shader classes load (their Init tables; the boot-assembled ones from their source text) once

@@ -5,6 +5,7 @@ add_library(render STATIC
     d3d9_overlay.cpp
     d3d9_shader.cpp
     device.cpp
+    gfx_d3d9.cpp
     draw.cpp
     nv2a.cpp
     resource.cpp

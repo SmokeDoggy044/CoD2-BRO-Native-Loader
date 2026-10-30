@@ -24,6 +24,7 @@
 #include "d3d9_draw.h"
 #include "d3d9_overlay.h"
 #include "d3d9_shader.h"
+#include "gfx_d3d9.h"
 #include "log.h"
 #include "paths.h"
 
@@ -92,6 +93,7 @@ public:
         }
         overlay_.reset();
         notice_.reset();
+        gfx_.reset();
         draw_.reset();
         release(gamma_table_);
         release(gamma_shader_);
@@ -123,7 +125,8 @@ public:
         constexpr SDL_WindowFlags kWindowFlags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE;
 #endif
         window_ = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(window_width),
-                                   static_cast<int>(window_height), kWindowFlags);
+                                   static_cast<int>(window_height),
+                                   kWindowFlags | (config.hidden_window ? SDL_WINDOW_HIDDEN : 0));
         if (!window_) {
             LOG_ERROR("render", "window: %s", SDL_GetError());
             return false;
@@ -210,6 +213,7 @@ public:
         if (draw_config.render_scale <= 0)  // the window's (or the screen's) height
             draw_config.render_scale = static_cast<float>(std::max(pixel_height, 1)) / height_;
         draw_ = std::make_unique<D3D9Draw>(device_, draw_config);
+        gfx_ = create_d3d9_gfx_device(device_, *draw_, draw_config);
         overlay_ = std::make_unique<D3D9Overlay>(device_);
         notice_ = std::make_unique<D3D9Overlay>(device_);
         pc_menu_ = config.pc_menu;
@@ -407,7 +411,10 @@ public:
     void present() override {
         show(overlay_lines_);
         draw_->end_frame();
+        gfx_->end_frame();
     }
+
+    GfxDevice* gfx_device() override { return gfx_.get(); }
 
     double refresh_rate() override {
         const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window_));
@@ -706,6 +713,7 @@ private:
     IDirect3DSurface9* staging_ = nullptr;  // CPU-written back buffer upload
     IDirect3DSurface9* upload_ = nullptr;
     std::unique_ptr<D3D9Draw> draw_;
+    std::unique_ptr<D3D9GfxDevice> gfx_;  // on draw_'s targets
     uint32_t width_ = 0, height_ = 0;
     float aspect_ = 4.0f / 3.0f;                      // the picture's shape (BackendConfig::display_aspect)
     uint32_t swap_width_ = 0, swap_height_ = 0;     // the largest display's size
