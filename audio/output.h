@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -24,8 +25,15 @@ namespace audio {
 
 struct OutputConfig {
     enum class Device { Default, Loopback, ManualLoopback };
+    // Auto: what the system's output has, headphones (HRTF) when the game asks for them.
+    // Otherwise this layout, whatever the game asks for.
+    enum class Speakers { Auto, Stereo, Headphones, Quad, Surround51, Surround71 };
     Device device = Device::Default;  // ManualLoopback: nothing renders unless render() is called
     uint32_t rate = 48000;            // loopback rate
+    std::string device_name;          // Default: this output device (empty: the system's)
+    Speakers speakers = Speakers::Auto;
+    // Our improvements (resampling here; the sound device's own); false: as on the Xbox.
+    bool enhanced = false;
 };
 
 class Output {
@@ -55,6 +63,7 @@ public:
     // Between begin_batch() and end_batch() changes apply together.
     void begin_batch();
     void end_batch();
+    // The game's headphone choice (Speakers::Auto only; otherwise the layout decides).
     bool set_hrtf(bool enabled);
     // Stops all output until resumed (the voices do not advance).
     void set_paused(bool paused);
@@ -67,7 +76,12 @@ private:
     Output() = default;
     void drive_loopback();
 
+    bool reset_device();
+
     ALCdevice* device_ = nullptr;
+    OutputConfig::Speakers speakers_ = OutputConfig::Speakers::Auto;
+    int hrtf_ = -1;          // the game's headphone choice (Speakers::Auto), -1: none yet
+    int resampler_ = -1;     // the sources' (AL_SOFT_source_resampler), -1: OpenAL's default
     ALCcontext* context_ = nullptr;
     bool loopback_ = false;
     uint32_t rate_ = 48000;

@@ -76,6 +76,9 @@ struct Options {
     uint32_t screenshot_interval = 0;
     std::optional<fs::path> screenshot_dir;
     bool silent = false;
+    bool audio_enhanced = true;  // --audio
+    audio::OutputConfig::Speakers speakers = audio::OutputConfig::Speakers::Auto;
+    std::string audio_device;    // empty: the system's
     std::string press_script;
     float mouse_sensitivity = 0.11f;
     input::Bindings bindings = input::default_bindings();  // --keys
@@ -143,6 +146,12 @@ void print_usage(const char* program) {
         "  --debug          debug logging\n"
         "  --trace          log every kernel call (implies --debug)\n"
         "  --silent         no sound output (audio still runs, into a silent device)\n"
+        "  --audio original|enhanced  the sound as on the Xbox, or with our improvements\n"
+        "                   (default enhanced; original with --pc-patches off): best resampling\n"
+        "  --speakers auto|stereo|headphones|quad|5.1|7.1  speaker layout (default auto: the\n"
+        "                   output's own, HRTF when the game's settings ask for headphones);\n"
+        "                   headphones = 3D sound for headphones (HRTF) always\n"
+        "  --audio-device NAME  output device (default: the system's; the launcher lists them)\n"
         "  --memory MB      Xbox memory budget (default 64, like a retail Xbox; devkit: 128)\n"
         "  --fullscreen     borderless fullscreen (Alt+Enter switches while playing)\n"
         "  --windowed       in a window (default; overrides fullscreen in settings.ini)\n"
@@ -209,7 +218,7 @@ void print_usage(const char* program) {
         "                   aim assist off, widescreen menus and objectives (default on); off\n"
         "                   keeps only what the game needs to run on a PC (and --level), and\n"
         "                   defaults to 4:3, the game's fonts, render scale 1, no anisotropic\n"
-        "                   filtering and brightness 1\n",
+        "                   filtering, brightness 1 and the original sound\n",
         program);
 }
 
@@ -450,6 +459,32 @@ std::optional<Options> parse_args(int argc, char** argv) {
             options.session_start_ns = std::strtoll(argv[++i], nullptr, 10);
         } else if (arg == "--silent") {
             options.silent = true;
+        } else if (arg == "--audio") {
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            if (value != "original" && value != "enhanced") {
+                std::fprintf(stderr, "--audio needs original or enhanced\n");
+                return std::nullopt;
+            }
+            options.audio_enhanced = value == "enhanced";
+        } else if (arg == "--speakers") {
+            using Speakers = audio::OutputConfig::Speakers;
+            static const std::pair<const char*, Speakers> kLayouts[] = {
+                {"auto", Speakers::Auto}, {"stereo", Speakers::Stereo},       {"headphones", Speakers::Headphones},
+                {"quad", Speakers::Quad}, {"5.1", Speakers::Surround51}, {"7.1", Speakers::Surround71}};
+            const std::string value = i + 1 < argc ? argv[++i] : "";
+            const auto* layout = std::find_if(std::begin(kLayouts), std::end(kLayouts),
+                                              [&](const auto& l) { return value == l.first; });
+            if (layout == std::end(kLayouts)) {
+                std::fprintf(stderr, "--speakers needs auto, stereo, headphones, quad, 5.1 or 7.1\n");
+                return std::nullopt;
+            }
+            options.speakers = layout->second;
+        } else if (arg == "--audio-device") {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--audio-device needs a device name\n");
+                return std::nullopt;
+            }
+            options.audio_device = argv[++i];
         } else if (arg == "--compare" || arg == "--compare-all") {
             options.compare = true;
             options.compare_all |= arg == "--compare-all";
@@ -619,6 +654,7 @@ int loader_main(int argc, char** argv) {
         unless_given("--render-scale", parsed->render_scale, 1.0f);
         unless_given("--anisotropy", parsed->anisotropy, uint32_t{1});
         unless_given("--brightness", parsed->brightness, 1.0f);
+        unless_given("--audio", parsed->audio_enhanced, false);
     }
     const std::optional<Options>& options = parsed;
     g_args.assign(argv, argv + argc);
@@ -768,7 +804,12 @@ int loader_main(int argc, char** argv) {
                                            options->exec_text, options->forced_calls});
     if (!loader::prepare_fs_access(image)) return startup_failed("cannot prepare the game's code");
     online::configure_network({options->net_port});
-    audio::configure({options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default});
+    audio::OutputConfig audio_config;
+    audio_config.device = options->silent ? audio::OutputConfig::Device::Loopback : audio::OutputConfig::Device::Default;
+    audio_config.device_name = options->audio_device;
+    audio_config.speakers = options->speakers;
+    audio_config.enhanced = options->audio_enhanced;
+    audio::configure(audio_config);
     game::set_sound_device(&audio::sound_device());  // the decompiled sound code's device
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;

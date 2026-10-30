@@ -36,3 +36,8 @@ else()
 endif()
 
 target_link_libraries(audio PUBLIC xbox platform)
+
+# The output device list alone (the launcher).
+add_library(audio_devices STATIC output_devices.cpp)
+target_include_directories(audio_devices PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(audio_devices PUBLIC OpenAL::OpenAL)

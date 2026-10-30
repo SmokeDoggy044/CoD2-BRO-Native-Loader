@@ -240,7 +240,9 @@ void test_stream_voice() {
 }
 
 void test_api(const std::filesystem::path& root) {
-    configure({OutputConfig::Device::ManualLoopback, 48000});
+    OutputConfig config;
+    config.device = OutputConfig::Device::ManualLoopback;
+    configure(config);
     XbPtr device = 0;
     CHECK(ds<uint32_t(XB_STDCALL*)(XbPtr, XbPtr*, XbPtr)>("DirectSoundCreate")(0, &device, 0) == 0 && device);
     CHECK(output() && output()->is_loopback());
