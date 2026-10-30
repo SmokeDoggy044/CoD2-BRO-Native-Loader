@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 
 #include "cm.h"
 #include "sound_device.h"
@@ -84,9 +85,12 @@ constexpr Absorption kAbsorption[32] = {
     {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f},
     {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f}, {0.05f, 0.05f},  // unused
 };
-// What the rays do not see takes in sound as well: furniture, debris, openings, people. Without
-// it, Sabine with stone's 0.01 gives a 4 x 4 x 3 m stone room nearly 10 s; with it ~1.2 s.
-constexpr float kClutter = 0.07f;
+// What the rays do not see takes in sound as well: furniture, debris, openings, people
+// (ReverbTuning::clutter, 0.07 by default). Without it, Sabine with stone's 0.01 gives a
+// 4 x 4 x 3 m stone room nearly 10 s; with it ~1.2 s.
+
+std::mutex g_tuning_mutex;
+audio::ReverbTuning g_tuning;
 // Air takes in high frequencies too (energy attenuation per metre near 5 kHz, 20 C, 50 % humidity).
 constexpr float kAirHigh = 0.009f;
 constexpr uint32_t kMetal = 13;
@@ -148,7 +152,7 @@ struct Probe {
     float reverb_from[3] = {0, 0, 0};
 };
 
-Environment environment_of(const Probe& p) {
+Environment environment_of(const Probe& p, const audio::ReverbTuning& t) {
     const float enclosure = 0.6f * (1.0f - p.sky) + 0.4f * float(p.walls) / 8;
     if (enclosure <= 0.02f) return kSilent;  // an open field: dry
 
@@ -170,9 +174,9 @@ Environment environment_of(const Probe& p) {
                wall_area * (open_walls + (1.0f - open_walls) * alpha);
     };
     const float decay =
-        std::clamp(0.161f * volume / std::max(absorption(p.alpha.mid + kClutter), 0.1f), 0.1f, 8.0f);
+        std::clamp(0.161f * volume / std::max(absorption(p.alpha.mid + t.clutter), 0.1f), 0.1f, 8.0f);
     const float decay_high =
-        0.161f * volume / std::max(absorption(p.alpha.high + kClutter) + 4.0f * kAirHigh * volume, 0.1f);
+        0.161f * volume / std::max(absorption(p.alpha.high + t.clutter) + 4.0f * kAirHigh * volume, 0.1f);
     const float reflectance = 1.0f - p.alpha.mid;
 
     float nearest = kRange;
@@ -194,6 +198,11 @@ Environment environment_of(const Probe& p) {
     e.diffusion = lerp(30.0f, 100.0f, 1.0f - p.sky) * lerp(1.0f, 0.6f, p.metal);  // metal rings
     e.density = 100.0f;
     e.hf_reference = 5000.0f;
+    // The player's adjustments (millibels = dB x 100).
+    e.room += t.amount * 100.0f;
+    e.decay_time = std::clamp(e.decay_time * t.decay, 0.1f, 20.0f);
+    e.decay_hf_ratio = std::clamp(e.decay_hf_ratio * t.brightness, 0.1f, 2.0f);
+    e.reflections += t.reflections * 100.0f;
     // World directions for now (SndEnv_Update turns them to the listener).
     for (int i = 0; i < 3; ++i) {
         e.reflections_pan[i] = p.reflections_from[i];
@@ -293,11 +302,21 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l) {
     material(floor);
     p.alpha = hits ? Absorption{p.alpha.mid / float(hits), p.alpha.high / float(hits)} : Absorption{0.05f, 0.05f};
     p.metal = hits ? p.metal / float(hits) : 0.0f;
-    const Environment target = environment_of(p);
+    const Environment target = environment_of(p, SndEnv_Tuning());
     // A new place fades in over about half a second (probes 10 times a second).
     s.current = s.active ? mix(s.current, target, 0.25f) : target;
     s.active = true;
     device.set_environment(facing(s.current, l));
+}
+
+void SndEnv_SetTuning(const audio::ReverbTuning& tuning) {
+    std::lock_guard lock(g_tuning_mutex);
+    g_tuning = tuning;
+}
+
+audio::ReverbTuning SndEnv_Tuning() {
+    std::lock_guard lock(g_tuning_mutex);
+    return g_tuning;
 }
 
 }  // namespace game

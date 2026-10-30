@@ -11,6 +11,7 @@
 #include "log.h"
 #include "patches.h"
 #include "settings.h"
+#include "snd_env.h"
 #include "sound_engine.h"
 
 namespace loader {
@@ -21,6 +22,31 @@ constexpr int kGameFov = 70;  // cg_fov's default (cgame cvarTable)
 constexpr int kMinFov = 50, kMaxFov = 120;
 float g_fov_on_open = 0;
 bool g_enhanced_on_open = false;
+audio::ReverbTuning g_reverb_on_open;
+
+// The reverb adjustments' sliders (audio::ReverbTuning); true if one moved.
+bool reverb_sliders(audio::ReverbTuning& t) {
+    bool changed = false;
+    const float width = ImGui::GetFontSize() * 14;
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Amount", &t.amount, -12.0f, 12.0f, "%+.1f dB", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Decay", &t.decay, 0.25f, 4.0f, "x%.2f",
+                                  ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Brightness", &t.brightness, 0.5f, 2.0f, "x%.2f",
+                                  ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Early reflections", &t.reflections, -12.0f, 12.0f, "%+.1f dB",
+                                  ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetNextItemWidth(width);
+    changed |= ImGui::SliderFloat("Room clutter", &t.clutter, 0.0f, 0.3f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+    if (ImGui::Button("Default reverb")) {
+        t = audio::ReverbTuning{};
+        changed = true;
+    }
+    return changed;
+}
 
 }  // namespace
 
@@ -56,6 +82,13 @@ bool pc_menu() {
     if (ImGui::Checkbox("Enhanced sound", &enhanced)) audio::set_enhanced(enhanced);
     ImGui::TextDisabled("Off: the sound as on the Xbox. On: reverb by the place you are in\n"
                         "and finer resampling. Switch while standing still to compare.");
+    if (enhanced && ImGui::TreeNode("Advanced reverb")) {
+        audio::ReverbTuning tuning = game::SndEnv_Tuning();
+        if (reverb_sliders(tuning)) game::SndEnv_SetTuning(tuning);
+        ImGui::TextDisabled("Room clutter: what soaks up sound besides the walls (furniture,\n"
+                            "debris); lower makes rooms ring longer.");
+        ImGui::TreePop();
+    }
 
     ImGui::Separator();
     if (ImGui::Button("Close")) open = false;
@@ -68,7 +101,19 @@ void pc_menu_shown(bool open) {
     if (open) {
         g_fov_on_open = field_of_view();
         g_enhanced_on_open = audio::enhanced();
+        g_reverb_on_open = game::SndEnv_Tuning();
         return;
+    }
+    if (const audio::ReverbTuning reverb = game::SndEnv_Tuning(); !(reverb == g_reverb_on_open)) {
+        platform::Settings settings = platform::load_settings();
+        if (const std::string text = reverb.format(); text.empty())
+            settings.erase("reverb");
+        else
+            settings.set("reverb", text);
+        if (platform::save_settings(settings))
+            LOG_INFO("loader", "reverb adjustments saved: %s", reverb.format().c_str());
+        else
+            LOG_WARN("loader", "cannot save the reverb adjustments to %s", platform::settings_path().string().c_str());
     }
     const bool enhanced = audio::enhanced();
     if (enhanced != g_enhanced_on_open) {
