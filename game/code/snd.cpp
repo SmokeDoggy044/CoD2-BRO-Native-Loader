@@ -13,6 +13,7 @@
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "r_init.h"
+#include "sound_device.h"
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
@@ -1879,11 +1880,13 @@ void XB_STDCALL S_LoadSoundBank(uint8_t* manager, const uint32_t* name, uint32_t
     if (!emitter_word<uint32_t>(bank, 0x50)) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
 }
 
-// --- Hardware voices: DirectSound buffers and streams ---
+// --- Hardware voices: buffers and streams of our sound device ---
 //
-// A hardware slot (0x0090a940, 0x6c bytes, one per voice record) holds the voice's
-// DirectSound buffer (+0), the buffer's wave format (+4), and for streamed sounds the file
-// media object (+0x2c), the DirectSound stream (+0x30) and a ring of two packets ({status,
+// The original drove DirectSound here; the C drives our own sound device (audio/sound_device.h)
+// in its place, with the same requests in the same order. A hardware slot (0x0090a940, 0x6c bytes,
+// one per voice record) holds the voice's buffer voice (+0, where the original kept its
+// DirectSound buffer), the buffer's wave format (+4), and for streamed sounds the file
+// media object (+0x2c), the stream voice (+0x30) and a ring of two packets ({status,
 // needs-fill flag, bytes} at +0x38 + 12 * i over the slot's memory at +0x34), with the stream
 // length (+0x50), bytes left (+0x58), the packet that ends it (+0x5c), packet size (+0x60),
 // data offset (+0x64) and the voice record (+0x68).
@@ -1898,12 +1901,16 @@ F* snd_method(uint8_t* object, uint32_t offset) {
     return title_function<F>(snd_at<uint32_t>(snd_at<uint8_t*>(object, 0), offset));
 }
 
-uint32_t direct_sound() { return title_global<uint32_t>(0x00911540); }
+audio::SoundDevice* g_sound = nullptr;
 
-void synch_playback() { title_function<int32_t XB_STDCALL(uint32_t)>(0x003c76c3)(direct_sound()); }  // IDirectSound_SynchPlayback
+audio::SoundDevice& device() { return *g_sound; }
 
-// The mix bins for `channels` (1: by the voice's flag +0xc3 bit 0, 2, 6; else null) in table
-// half `second` (DSMIXBINS pairs at 0x008bec94..).
+void synch_playback() { device().start_synched(); }  // IDirectSound_SynchPlayback
+
+// The original's mix bins for `channels` (1: by the voice's flag +0xc3 bit 0, 2, 6; else null) in
+// table half `second` (DSMIXBINS at 0x008bec94..). Every table sends the voice to the speakers
+// (3D mono: the 3D bins, centre and LFE; other mono: front left and right; stereo; 5.1); the
+// second half adds the I3DL2 reverb bin, so `second` is the voice's reverb send.
 uint32_t mix_bins(uint32_t channels, const uint8_t* voice, uint32_t second) {
     uint32_t table = 0;
     if (channels == 1)
@@ -1923,7 +1930,25 @@ uint32_t speaker_channels(uint8_t map) {
     return uint32_t(v >> 4) + (v & 0xf);
 }
 
+// The routing a mix bins table stands for (mix_bins: nonzero).
+void set_routing(audio::VoiceId voice, uint32_t second) {
+    device().set_pan(voice, 0.0f);
+    device().set_reverb_send(voice, second != 0);
+}
+
+// XAudioCreatePcmFormat / XAudioCreateAdpcmFormat.
+audio::Format pcm_format(uint16_t channels, uint32_t rate, uint16_t bits) {
+    return {audio::Codec::Pcm, channels, rate, bits, uint16_t(channels * bits / 8)};
+}
+audio::Format adpcm_format(uint16_t channels, uint32_t rate) {
+    return {audio::Codec::XboxAdpcm, channels, rate, 4, uint16_t(channels * 36)};
+}
+
+uint32_t voice_id(uint8_t* slot, uint32_t offset) { return snd_at<uint32_t>(slot, offset); }
+
 }  // namespace
+
+void set_sound_device(audio::SoundDevice* device) { g_sound = device; }
 
 int32_t XB_THISCALL SndStream_ReadPacket(uint8_t* slot, uint32_t index) {
     // XMEDIAPACKET {buffer, size, completed size, status, context, timestamp}.
@@ -1976,10 +2001,8 @@ int32_t XB_THISCALL SndStream_Update(uint8_t* slot) {
                 // The last packet went out: the voice ends once the stream stops playing.
                 const uint32_t end = snd_at<uint32_t>(slot, 0x5c);
                 if (index != end || snd_at<uint32_t>(slot, 0x38 + end * 12) == kPending) return 0;
-                uint8_t* const stream = snd_at<uint8_t*>(slot, 0x30);
-                uint32_t stream_status;
-                snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*)>(stream, 0xc)(stream, &stream_status);  // GetStatus
-                if (stream_status & 0x10000) return 0;
+                const audio::VoiceStatus status = device().status(voice_id(slot, 0x30));
+                if (status.playing && !status.paused) return 0;
                 voice[0xc0] = 6;
                 return 0;
             }
@@ -1996,13 +2019,13 @@ int32_t XB_THISCALL SndStream_Update(uint8_t* slot) {
         }
         if (voice[0xc0] != 4) return 0;
         // A filled packet goes to the stream; the stream's last one loops the file or ends it.
-        uint32_t packet[6] = {snd_at<uint32_t>(slot, 0x60) * index + snd_at<uint32_t>(slot, 0x34), 0, 0, 0, 0, 0};
-        packet[3] = uint32_t(uintptr_t(&snd_at<uint32_t>(slot, 0x38 + index * 12)));
-        packet[1] = snd_at<uint32_t>(slot, 0x40 + index * 12);
+        audio::Packet packet;
+        packet.data = reinterpret_cast<const uint8_t*>(uintptr_t{snd_at<uint32_t>(slot, 0x60) * index + snd_at<uint32_t>(slot, 0x34)});
+        packet.status = &snd_at<uint32_t>(slot, 0x38 + index * 12);
+        packet.size = snd_at<uint32_t>(slot, 0x40 + index * 12);
         *needs_fill = 1;
-        uint8_t* const stream = snd_at<uint8_t*>(slot, 0x30);
-        const int32_t result =
-            snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*, uint32_t*)>(stream, 0x10)(stream, packet, nullptr);  // Process
+        const audio::VoiceId stream = voice_id(slot, 0x30);
+        const int32_t result = device().submit(stream, packet) ? 0 : int32_t(0x80004005u);  // Process (E_FAIL when full)
         snd_at<uint32_t>(slot, 0x40 + index * 12) = snd_at<uint32_t>(slot, 0x60);
         if (snd_at<uint32_t>(slot, 0x5c) == index) {
             if (voice[0xc3] & 8) {
@@ -2011,7 +2034,7 @@ int32_t XB_THISCALL SndStream_Update(uint8_t* slot) {
                 snd_at<uint32_t>(slot, 0x58) = snd_at<uint32_t>(slot, 0x50);
                 snd_at<uint32_t>(slot, 0x5c) = 0xffffffffu;
             } else {
-                snd_method<int32_t XB_STDCALL(uint8_t*)>(stream, 0x14)(stream);  // Discontinuity
+                device().end_stream(stream);  // Discontinuity
             }
         }
         if (result < 0) return result;
@@ -2024,23 +2047,15 @@ int32_t XB_THISCALL SndStream_SetFormat(uint8_t* slot, uint8_t* voice, const uin
     source = nullptr;
     snd_at<uint32_t>(slot, 0x50) = 0;
     snd_at<uint32_t>(slot, 0x5c) = 0xffffffffu;
-    uint8_t format[0x14];  // WAVEFORMATEX / XBOXADPCMWAVEFORMAT; other formats leave it unset
+    // The original left its format unset (stack bytes) for other kinds; here the stream keeps its format.
     const uint32_t rate = *reinterpret_cast<const uint16_t*>(sound + 0x20);
-    switch (sound[4]) {
-    case 1:
-    case 2:
-        title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint8_t*)>(0x003c6436)(
-            SndFormat_GetChannelCount(sound), rate, sound[4] == 1 ? 8 : 16, format);  // XAudioCreatePcmFormat
-        break;
-    case 5:
-        title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint8_t*)>(0x003c643b)(
-            SndFormat_GetChannelCount(sound), rate, format);  // XAudioCreateAdpcmFormat
-        break;
+    const uint16_t channels = uint16_t(SndFormat_GetChannelCount(sound));
+    const audio::VoiceId stream = voice_id(slot, 0x30);
+    if (sound[4] == 1 || sound[4] == 2 || sound[4] == 5) {
+        device().set_format(stream, sound[4] == 5 ? adpcm_format(channels, rate)
+                                                 : pcm_format(channels, rate, sound[4] == 1 ? 8 : 16));
+        if (mix_bins(channels, voice, 0)) set_routing(stream, 0);
     }
-    uint8_t* const stream = snd_at<uint8_t*>(slot, 0x30);
-    title_function<int32_t XB_STDCALL(uint8_t*, uint8_t*)>(0x003c8ac9)(stream, format);  // IDirectSoundStream_SetFormat
-    if (const uint32_t bins = mix_bins(*reinterpret_cast<const uint16_t*>(format + 2), voice, 0))
-        title_function<int32_t XB_STDCALL(uint8_t*, uint32_t)>(0x003c845a)(stream, bins);  // IDirectSoundStream_SetMixBins
     const uint32_t* const file = title_function<const uint32_t* XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
         0x000ca910)(*reinterpret_cast<const uint32_t*>(sound + 0x24), 0, 0, 0, 0);  // File_GetNativeHandle
     const int32_t result = title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint8_t**)>(0x003c7a83)(
@@ -2079,15 +2094,14 @@ void XB_CDECL SndVoice_SetMixBins(uint8_t* slot, uint32_t second) {
             Snd_Printf();  // "Unsupported channelCount/speakerMap combo for the streaming sound"
             return;
         }
-        title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c845a)(snd_at<uint32_t>(slot, 0x30), bins);  // IDirectSoundStream_SetMixBins
+        set_routing(voice_id(slot, 0x30), index);
         return;
     }
     if (channels != 1 && channels != 2) {
         Snd_Printf();  // "Unsupported channelCount/speakerMap combo for the non-streaming sound"
         return;
     }
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c83b5)(snd_at<uint32_t>(slot, 0),
-                                                                        mix_bins(channels, voice, index));  // IDirectSoundBuffer_SetMixBins
+    set_routing(voice_id(slot, 0), index);
 }
 
 PLATFORM_ASM_ENTRY(SndVoice_SetupBuffer_entry,
@@ -2103,7 +2117,7 @@ void XB_CDECL SndVoice_SetupBuffer(uint8_t* slot, const uint8_t* sound, uint8_t*
         voice[0xc0] = 2;
         return;
     }
-    const uint32_t buffer = snd_at<uint32_t>(slot, 0);
+    const audio::VoiceId buffer = voice_id(slot, 0);
     uint8_t* const format = slot + 4;  // WAVEFORMATEX (+ ADPCM samples per block)
     const uint16_t channels = uint16_t(speaker_channels(sound[6]));
     *reinterpret_cast<uint16_t*>(format + 2) = channels;
@@ -2129,17 +2143,15 @@ void XB_CDECL SndVoice_SetupBuffer(uint8_t* slot, const uint8_t* sound, uint8_t*
         voice[0xc0] = 6;
         return;
     }
-    title_function<int32_t XB_STDCALL(uint32_t, uint8_t*)>(0x003c8a8d)(buffer, format);  // IDirectSoundBuffer_SetFormat
-    const uint16_t format_channels = *reinterpret_cast<const uint16_t*>(format + 2);
-    if (format_channels == 1 || format_channels == 2)
-        title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c83b5)(buffer, mix_bins(format_channels, voice, 0));  // IDirectSoundBuffer_SetMixBins
+    const uint32_t rate = *reinterpret_cast<const uint32_t*>(format + 4);
+    device().set_format(buffer, kind == 5 ? adpcm_format(channels, rate) : pcm_format(channels, rate, kind == 1 ? 8 : 16));
+    if (channels == 1 || channels == 2) set_routing(buffer, 0);
     const uint32_t block = *reinterpret_cast<const uint16_t*>(format + 0xc);
     const uint32_t length = (*reinterpret_cast<const uint32_t*>(sound + 0xc) >> 6) * block;
     const uint32_t start = *reinterpret_cast<const uint32_t*>(sound + 0x1c) - SndMem_GetBase();
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003c8435)(buffer, start, length);  // IDirectSoundBuffer_SetPlayRegion
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003c77cf)(
-        buffer, 0, (*reinterpret_cast<const uint32_t*>(sound + 0xc) >> 6) * block);  // IDirectSoundBuffer_SetLoopRegion
-    title_function<int32_t XB_STDCALL(uint32_t, int32_t)>(0x003c76db)(buffer, 0);  // IDirectSoundBuffer_SetVolume
+    device().set_play_region(buffer, start, length);
+    device().set_loop_region(buffer, 0, length);
+    device().set_volume(buffer, 1.0f);  // the original's SetVolume(0): 0 dB
     voice[0xc0] = 3;
 }
 
@@ -2150,9 +2162,9 @@ uint32_t XB_CDECL SndHw_Update() {
         mode = -mode;
         title_global<int32_t>(0x008bd650) = mode;
         if (mode > 0 && mode <= 3)
-            title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c7687)(direct_sound(), 0);  // IDirectSound_EnableHeadphones
+            device().set_headphones(false);
         else if (mode == 4)
-            title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c7687)(direct_sound(), 1);
+            device().set_headphones(true);
         else
             Snd_Printf();  // "Invalid speaker mode set"
     }
@@ -2168,8 +2180,8 @@ uint32_t XB_CDECL SndHw_Update() {
         if (!state) continue;
         const uint8_t* const sound = SndBank_GetSoundEntry(snd_at<uint32_t>(voice, 0xc8));
         const bool streamed = voice[0xc3] & 2;
-        uint8_t* const stream = streamed ? snd_at<uint8_t*>(slot, 0x30) : nullptr;
-        const uint32_t buffer = streamed ? 0 : snd_at<uint32_t>(slot, 0);
+        const audio::VoiceId stream = streamed ? voice_id(slot, 0x30) : 0;
+        const audio::VoiceId buffer = streamed ? 0 : voice_id(slot, 0);
         if (state == 1) {
             if (!sound) {
                 state = 6;
@@ -2180,20 +2192,15 @@ uint32_t XB_CDECL SndHw_Update() {
         if (state != 7 && (requests & 8)) {
             requests &= ~8;
             state = 7;
-            if (stream)
-                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t, uint32_t, uint32_t)>(0x003c7840)(stream, 0, 0, 1);  // IDirectSoundStream_FlushEx
-            else
-                title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x003c778f)(buffer, 0, 0, 2);  // IDirectSoundBuffer_StopEx
+            device().stop(stream ? stream : buffer);  // FlushEx / StopEx (an envelope release: at once)
         }
-        uint32_t status;
         if (state == 7) {
             // Stopped once nothing plays any more; a restart request makes it new again.
             if (stream) {
-                snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*)>(stream, 0xc)(stream, &status);  // GetStatus
-                if (status & 0x30000) continue;
+                const audio::VoiceStatus status = device().status(stream);
+                if (status.playing || status.paused) continue;  // the playing or paused bit
             } else {
-                title_function<int32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003c77ef)(buffer, &status);  // IDirectSoundBuffer_GetStatus
-                if (!buffer || (status & 3)) continue;
+                if (!buffer || device().status(buffer).playing) continue;
             }
             state = (requests >> 4) & 1;
             requests &= ~0x10;
@@ -2205,9 +2212,8 @@ uint32_t XB_CDECL SndHw_Update() {
                 synch_playback();
                 synch = 0;
             }
-            if (buffer)
-                title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x003c772f)(
-                    buffer, 0, 0, ((voice[0xc3] & 8) | 0x30) >> 3);  // IDirectSoundBuffer_Play
+            // From the start, with the next synch; streams start with their packets.
+            if (buffer) device().play(buffer, voice[0xc3] & 8, true, audio::Start::WithSynch);
             requests &= ~1;
             state = 4;
         } else if (state == 5 && (requests & 4)) {
@@ -2215,32 +2221,23 @@ uint32_t XB_CDECL SndHw_Update() {
                 synch_playback();
                 synch = 0;
             }
-            if (stream)
-                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t)>(0x003c783b)(stream, 2);  // IDirectSoundStream_Pause
-            else
-                title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c77b3)(buffer, 2);  // IDirectSoundBuffer_Pause
+            device().resume(stream ? stream : buffer, audio::Start::WithSynch);
             requests &= ~4;
             state = 4;
         } else if (state != 4) {
             continue;
         }
         if (requests & 2) {
-            if (stream)
-                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t)>(0x003c783b)(stream, 1);  // IDirectSoundStream_Pause
-            else
-                title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c77b3)(buffer, 1);  // IDirectSoundBuffer_Pause
+            device().pause(stream ? stream : buffer);
             requests &= ~2;
             state = 5;
             continue;
         }
         if (state != 4) continue;
-        if (stream) {
-            snd_method<int32_t XB_STDCALL(uint8_t*, uint32_t*)>(stream, 0xc)(stream, &status);  // GetStatus
-            SndStream_Update(slot);
-        } else {
-            title_function<int32_t XB_STDCALL(uint32_t, uint32_t*)>(0x003c77ef)(buffer, &status);  // IDirectSoundBuffer_GetStatus
-            if (!(status & 3)) state = 6;
-        }
+        if (stream)
+            SndStream_Update(slot);  // (the original read the stream's status first and did not use it)
+        else if (!device().status(buffer).playing)
+            state = 6;
         if (requests & 0x20) SndVoice_SetMixBins(slot, 1);
         if (requests & 0x40) SndVoice_SetMixBins(slot, 0);
         requests &= 0x9f;
@@ -2259,33 +2256,29 @@ uint32_t XB_CDECL SndHw_Update() {
                 rolloff = 0.0f;
             else if (rolloff > title_global<float>(0x0083eb9c))  // 1000
                 rolloff = title_global<float>(0x0083eb9c);
-            // DS3DBUFFER: size, position, velocity, cone angles, cone orientation, cone outside
-            // volume, min/max distance, mode, distance/rolloff/doppler factors.
-            uint32_t params[19] = {};
-            float* const f = reinterpret_cast<float*>(params);
-            for (uint32_t k = 0; k < 6; ++k) params[1 + k] = snd_at<uint32_t>(voice, 0x54 + k * 4);
-            f[9] = 0.0f;
-            f[11] = 0.0f;
+            // Position, velocity, min/max distance (the minimum at least 0.1, the maximum at least 0.1
+            // beyond it), rolloff and doppler; deferred. (The original also set cone angles 0 and its
+            // orientation (0, 1, 0) - no cone - and distance factor 1.)
+            audio::Spatial spatial;
+            for (uint32_t k = 0; k < 3; ++k) {
+                spatial.position[k] = snd_at<float>(voice, 0x54 + k * 4);
+                spatial.velocity[k] = snd_at<float>(voice, 0x60 + k * 4);
+            }
             float min_distance = snd_at<float>(voice, 0x6c);
             const float max_distance = snd_at<float>(voice, 0x70);
-            params[0] = 0x4c;
-            f[10] = one;
-            f[13] = min_distance;
-            f[14] = max_distance;
+            spatial.min_distance = min_distance;
+            spatial.max_distance = max_distance;
             const float margin = title_global<float>(0x0083ebf8);  // 0.1
             if (margin > min_distance) {
                 min_distance = margin;
-                f[13] = min_distance;
+                spatial.min_distance = min_distance;
             }
             min_distance += margin;
-            if (min_distance > max_distance) f[14] = min_distance;
-            f[16] = one;
-            f[17] = rolloff;
-            f[18] = doppler;
-            if (stream)
-                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t*, uint32_t)>(0x003c845f)(stream, params, 1);  // IDirectSoundStream_SetAllParameters
-            if (buffer)
-                title_function<int32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t)>(0x003c83d1)(buffer, params, 1);  // IDirectSoundBuffer_SetAllParameters
+            if (min_distance > max_distance) spatial.max_distance = min_distance;
+            spatial.rolloff_factor = rolloff;
+            spatial.doppler_factor = doppler;
+            if (stream) device().set_spatial(stream, spatial, audio::Apply::Deferred);
+            if (buffer) device().set_spatial(buffer, spatial, audio::Apply::Deferred);
         }
         if (dirty & 1) {
             float volume = snd_at<float>(voice, 8);
@@ -2294,11 +2287,8 @@ uint32_t XB_CDECL SndHw_Update() {
                 volume = floor;
             else if (volume > one)
                 volume = one;
-            const int32_t level = platform_x87_log10_mul_ftol(volume, title_global<float>(0x0083ecc8));  // * 2000
-            if (stream)
-                title_function<int32_t XB_STDCALL(uint8_t*, int32_t)>(0x003c7827)(stream, level);  // IDirectSoundStream_SetVolume
-            else
-                title_function<int32_t XB_STDCALL(uint32_t, int32_t)>(0x003c76db)(buffer, level);  // IDirectSoundBuffer_SetVolume
+            // The original handed DirectSound log10(volume) * 2000 hundredths of a dB: the same level.
+            device().set_volume(stream ? stream : buffer, volume);
         }
         if ((dirty & 2) && sound) {
             uint32_t frequency = uint32_t(platform_x87_mul_add_ftol(
@@ -2307,25 +2297,23 @@ uint32_t XB_CDECL SndHw_Update() {
                 frequency = 0xbc;
             else if (frequency > 0x2edef)
                 frequency = 0x2edef;
-            if (stream)
-                title_function<int32_t XB_STDCALL(uint8_t*, uint32_t)>(0x003c8455)(stream, frequency);  // IDirectSoundStream_SetFrequency
-            else
-                title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c8399)(buffer, frequency);  // IDirectSoundBuffer_SetFrequency
+            device().set_rate(stream ? stream : buffer, frequency);
         }
     }
     // The listener, deferred settings committed, voices started together.
     uint8_t* const mix = Snd_GetMixState();
-    const auto word = [mix](uint32_t offset) { return snd_at<uint32_t>(mix, offset); };
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x003c934d)(
-        direct_sound(), word(0x54), word(0x58), word(0x5c), 1);  // IDirectSound_SetPosition
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x003c9382)(
-        direct_sound(), word(0x60), word(0x64), word(0x68), 1);  // IDirectSound_SetVelocity
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(
-        0x003c9303)(direct_sound(), word(0xc0), word(0xc4), word(0xc8), word(0xcc), word(0xd0), word(0xd4),
-                    1);  // IDirectSound_SetOrientation
-    title_function<int32_t XB_STDCALL(uint32_t)>(0x003c8f89)(direct_sound());  // IDirectSound_CommitDeferredSettings
+    audio::Listener listener;
+    for (uint32_t k = 0; k < 3; ++k) {
+        listener.position[k] = snd_at<float>(mix, 0x54 + k * 4);
+        listener.velocity[k] = snd_at<float>(mix, 0x60 + k * 4);
+        listener.front[k] = snd_at<float>(mix, 0xc0 + k * 4);
+        listener.top[k] = snd_at<float>(mix, 0xcc + k * 4);
+    }
+    device().set_listener(listener, audio::Apply::Deferred);
+    device().commit();
     synch_playback();
-    return title_function<uint32_t XB_STDCALL()>(0x003c7858)();  // DirectSoundDoWork
+    device().do_work();
+    return 0;  // DirectSoundDoWork's EAX (void; our replacement returned 0)
 }
 
 // --- Sound options menu ---
@@ -2788,8 +2776,8 @@ void XB_CDECL SndBank_Relocate(uint8_t* request) {
     }
 }
 
-// --- Sound startup (DirectSound device, voices) ---
-// The DirectSound/XAPI calls go to their title addresses for now; our own audio interface replaces them later.
+// --- Sound startup (the sound device, voices) ---
+// The original's DirectSound calls are our sound device's here (XPhysicalAlloc and XGetVideoStandard stay title calls).
 
 namespace {
 
@@ -2803,79 +2791,12 @@ struct XbWaveFormat {  // WAVEFORMATEX: 0x12 bytes on the Xbox (packed); only it
     uint16_t extra_size;
 };
 
-struct XbAdpcmWaveFormat {  // XBOXADPCMWAVEFORMAT (WAVEFORMATEX + samples per block)
-    uint16_t tag;
-    uint16_t channels;
-    uint32_t samples_per_sec;
-    uint32_t avg_bytes_per_sec;
-    uint16_t block_align;
-    uint16_t bits_per_sample;
-    uint16_t extra_size;
-    uint16_t samples_per_block;
-};
-
-struct XbBufferDesc {  // DSBUFFERDESC
-    uint32_t size;
-    uint32_t flags;
-    uint32_t buffer_bytes;
-    uint32_t format;
-    uint32_t mix_bins;
-    uint32_t input_mix_bin;
-};
-
-struct XbStreamDesc {  // DSSTREAMDESC
-    uint32_t flags;
-    uint32_t max_attached_packets;
-    uint32_t format;
-    uint32_t callback;
-    uint32_t context;
-    uint32_t mix_bins;
-};
-
-struct XbEnvelopeDesc {  // DSENVELOPEDESC
-    uint32_t eg;
-    uint32_t mode;
-    uint32_t delay;
-    uint32_t attack;
-    uint32_t hold;
-    uint32_t decay;
-    uint32_t release;
-    uint32_t sustain;
-    int32_t pitch_scale;
-    int32_t filter_cutoff;
-};
-
 #if UINTPTR_MAX == 0xFFFFFFFF
-static_assert(sizeof(XbAdpcmWaveFormat) == 0x14);
 static_assert(offsetof(XbWaveFormat, extra_size) == 0x10);
-static_assert(sizeof(XbBufferDesc) == 0x18);
-static_assert(sizeof(XbStreamDesc) == 0x18);
-static_assert(sizeof(XbEnvelopeDesc) == 0x28);
 #endif
 
-constexpr uint32_t kDirectSound = 0x00911540;       // the IDirectSound pointer
-constexpr uint32_t kHwSlots = 0x0090a940;           // 256 hardware slots of 0x6c bytes
-constexpr uint32_t kRolloffCurve = 0x008becd4;      // 11 points: 1.0, 0.9, ..., 0.1, 0.0
-constexpr uint32_t kDsCaps3d = 0x10;                // DSBCAPS_CTRL3D / DSSTREAMCAPS_CTRL3D
-
-using DsCreateStream = int32_t XB_STDCALL(const XbStreamDesc*, uint32_t*);
-using DsCreateBuffer = int32_t XB_STDCALL(const XbBufferDesc*, uint32_t*);
-using DsSetHeadroom = int32_t XB_STDCALL(uint32_t, uint32_t);
-using DsSetMode = int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t);
-using DsSetEnvelope = int32_t XB_STDCALL(uint32_t, const XbEnvelopeDesc*);
-using DsSetRolloff = int32_t XB_STDCALL(uint32_t, const float*, uint32_t, uint32_t);
-using DsSetBufferData = int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t);
-using DsSetRegion = int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t);
-
-int32_t create_stream(const XbStreamDesc* desc, uint32_t* out) {
-    return title_function<DsCreateStream>(0x003c95fb)(desc, out);  // DirectSoundCreateStream
-}
-int32_t create_buffer(const XbBufferDesc* desc, uint32_t* out) {
-    return title_function<DsCreateBuffer>(0x003c95a4)(desc, out);  // DirectSoundCreateBuffer
-}
-void set_buffer_data(uint32_t buffer, uint32_t data, uint32_t size) {
-    title_function<DsSetBufferData>(0x003c8aa9)(buffer, data, size);  // IDirectSoundBuffer_SetBufferData
-}
+constexpr uint32_t kHwSlots = 0x0090a940;       // 256 hardware slots of 0x6c bytes
+constexpr uint32_t kRolloffCurve = 0x008becd4;  // 11 points: 1.0, 0.9, ..., 0.1, 0.0
 
 // The slot's format (written before the create, also when it fails): 16-bit PCM at 44.1 kHz.
 void write_slot_format(uint8_t* slot, uint16_t channels) {
@@ -2889,56 +2810,48 @@ void write_slot_format(uint8_t* slot, uint16_t channels) {
     format.extra_size = 0;
 }
 
-// DirectSoundCreateStream into slot +0x30 (5 packets, no callback, default mix bins).
-int32_t create_slot_stream(uint8_t* slot, uint16_t channels, uint32_t flags) {
+// A stream voice into slot +0x30 (5 packets; 3D: placed in the world). False without one.
+bool create_slot_stream(uint8_t* slot, uint16_t channels, bool is_3d) {
     write_slot_format(slot, channels);
-    XbStreamDesc desc = {};
-    desc.flags = flags;
-    desc.max_attached_packets = 5;
-    desc.format = uint32_t(uintptr_t(slot + 4));
-    return create_stream(&desc, reinterpret_cast<uint32_t*>(slot + 0x30));
+    audio::VoiceDesc desc;
+    desc.stream = true;
+    desc.spatial = is_3d;
+    desc.max_packets = 5;
+    const audio::Format format = pcm_format(channels, 44100, 16);
+    *reinterpret_cast<uint32_t*>(slot + 0x30) = device().create_voice(desc, &format);
+    return *reinterpret_cast<uint32_t*>(slot + 0x30) != 0;
 }
 
-// DirectSoundCreateBuffer into slot +0 (no data of its own; it plays from the whole sound memory).
-int32_t create_slot_buffer(uint8_t* slot, uint16_t channels, uint32_t flags) {
+// A buffer voice into slot +0 (no data of its own; it plays from the whole sound memory).
+bool create_slot_buffer(uint8_t* slot, uint16_t channels, bool is_3d) {
     write_slot_format(slot, channels);
-    XbBufferDesc desc = {};
-    desc.size = sizeof(XbBufferDesc);
-    desc.flags = flags;
-    desc.format = uint32_t(uintptr_t(slot + 4));
-    return create_buffer(&desc, reinterpret_cast<uint32_t*>(slot));
+    audio::VoiceDesc desc;
+    desc.spatial = is_3d;
+    const audio::Format format = pcm_format(channels, 44100, 16);
+    *reinterpret_cast<uint32_t*>(slot) = device().create_voice(desc, &format);
+    return *reinterpret_cast<uint32_t*>(slot) != 0;
 }
 
-// A created stream's packet memory (two packets of `packet` bytes, low stack), headroom 0, then (3D) mode normal
-// deferred, the envelope and (3D) the rolloff curve.
-void setup_slot_stream(uint8_t* slot, uint8_t& kind, uint8_t kind_code, uint32_t packet, bool is_3d,
-                       const XbEnvelopeDesc* envelope) {
+// The 3D voices' level by distance: the original's rolloff curve (linear from the minimum to the maximum distance).
+void set_slot_curve(audio::VoiceId voice) { device().set_distance_curve(voice, &title_global<float>(kRolloffCurve), 11); }
+
+// A created stream's packet memory (two packets of `packet` bytes, low stack), then (3D) the rolloff curve. (The
+// original also set headroom 0, mode normal and an amplitude envelope held at full level: the voice's defaults.)
+void setup_slot_stream(uint8_t* slot, uint8_t& kind, uint8_t kind_code, uint32_t packet, bool is_3d) {
     kind = kind_code;
     *reinterpret_cast<uint32_t*>(slot + 0x60) = packet;
     *reinterpret_cast<uint32_t*>(slot + 0x34) = SndMem_Alloc(0, int32_t(packet * 2));
-    const uint32_t stream = *reinterpret_cast<uint32_t*>(slot + 0x30);
-    title_function<DsSetHeadroom>(0x003c7831)(stream, 0);  // IDirectSoundStream_SetHeadroom
-    if (is_3d) title_function<DsSetMode>(0x003c8464)(stream, 0, 1);  // IDirectSoundStream_SetMode
-    title_function<DsSetEnvelope>(0x003c782c)(stream, envelope);  // IDirectSoundStream_SetEG
-    if (is_3d) {
-        title_function<DsSetRolloff>(0x003c8469)(stream, &title_global<float>(kRolloffCurve), 11, 1);  // SetRolloffCurve
-    }
+    if (is_3d) set_slot_curve(*reinterpret_cast<uint32_t*>(slot + 0x30));
 }
 
-// A created buffer: headroom 0, the whole sound memory as its data, then (3D) mode, the envelope, (3D) rolloff.
-void setup_slot_buffer(uint8_t* slot, uint8_t& kind, uint8_t kind_code, bool is_3d, const XbEnvelopeDesc* envelope) {
-    const uint32_t buffer = *reinterpret_cast<uint32_t*>(slot);
+// A created buffer: the whole sound memory as its data, then (3D) the rolloff curve (defaults as above).
+void setup_slot_buffer(uint8_t* slot, uint8_t& kind, uint8_t kind_code, bool is_3d) {
+    const audio::VoiceId buffer = *reinterpret_cast<uint32_t*>(slot);
     kind = kind_code;
-    title_function<DsSetHeadroom>(0x003c7713)(buffer, 0);  // IDirectSoundBuffer_SetHeadroom
     const uint32_t size = SndMem_GetSize();
     const uint32_t base = SndMem_GetBase();
-    set_buffer_data(*reinterpret_cast<uint32_t*>(slot), base, size);
-    if (is_3d) title_function<DsSetMode>(0x003c83f1)(*reinterpret_cast<uint32_t*>(slot), 0, 1);  // SetMode
-    title_function<DsSetEnvelope>(0x003c76f7)(*reinterpret_cast<uint32_t*>(slot), envelope);  // IDirectSoundBuffer_SetEG
-    if (is_3d) {
-        title_function<DsSetRolloff>(0x003c8411)(*reinterpret_cast<uint32_t*>(slot), &title_global<float>(kRolloffCurve),
-                                                 11, 1);  // IDirectSoundBuffer_SetRolloffCurve
-    }
+    device().set_buffer_data(buffer, reinterpret_cast<const uint8_t*>(uintptr_t{base}), size);
+    if (is_3d) set_slot_curve(buffer);
 }
 
 }  // namespace
@@ -2984,21 +2897,10 @@ uint32_t XB_CDECL SndSys_Init(uint32_t arena) {
 }
 
 uint32_t XB_CDECL SndSys_InitDirectSound() {
-    struct {
-        uint32_t reverb_index = 0xffffffffu;  // DSEFFECTIMAGELOC: I3DL2 reverb -1, crosstalk 0
-        uint32_t crosstalk_index = 0;
-    } location;
-    uint32_t image_desc;  // out (LPDSEFFECTIMAGEDESC), unused
-    title_function<int32_t XB_STDCALL(void*, uint32_t*, void*)>(0x003c955d)(nullptr, &title_global<uint32_t>(kDirectSound),
-                                                                            nullptr);  // DirectSoundCreate
-    title_function<int32_t XB_STDCALL(uint32_t, const void*, uint32_t, const void*, uint32_t*)>(0x003c7636)(
-        title_global<uint32_t>(kDirectSound), &title_global<uint8_t>(0x008bed18), title_global<uint32_t>(0x008bfd68),
-        &location, &image_desc);  // IDirectSound_DownloadEffectsImage
-    title_function<int32_t XB_STDCALL(uint32_t, float, uint32_t)>(0x003c92df)(title_global<uint32_t>(kDirectSound), 1.0f,
-                                                                              1);  // SetDistanceFactor, deferred
-    title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x003c7687)(title_global<uint32_t>(kDirectSound),
-                                                                       0);  // IDirectSound_EnableHeadphones
-    title_function<void XB_STDCALL()>(0x003c63cd)();  // DirectSoundUseFullHRTF
+    // The original created DirectSound (its pointer at 0x00911540, read only by this and SndHw_Update), downloaded
+    // the DSP image 0x008bed18 (no I3DL2 reverb in it), set the distance factor 1 (doppler only) and full HRTF.
+    device().open();
+    device().set_headphones(false);
     const uint32_t memory = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e763a)(
         0x780000, 0xffffffffu, 0, 0x204);  // XPhysicalAlloc: 7.5 MB, any address, PAGE_READWRITE | PAGE_NOCACHE
     SndMem_Init(memory, 0x780000);
@@ -3008,8 +2910,8 @@ uint32_t XB_CDECL SndSys_InitDirectSound() {
     return 1;
 }
 
-// The entry moves the C frame below a gap: SetEG gets the envelope's address, which the tests log as a word, so the
-// envelope sits where the original keeps it (entry ESP - 0x28: sub esp,0x88 + 4 pushes, local +0x70).
+// The entry moves the C frame below a gap (it was there for the original's SetEG envelope address, which the tests
+// logged as a word: entry ESP - 0x28; no envelope is passed any more).
 PLATFORM_ASM_ENTRY(SndSys_CreateVoiceBuffers_entry, "movl %esp, %eax\n"
                                                     GAME_GAP_ESP("0x20000")
                                                     "pushl %ebp\n"
@@ -3027,11 +2929,7 @@ void XB_CDECL SndSys_CreateVoiceBuffers(uint32_t entry, const int32_t* args) {
     // mono3d_buffers, stereo_b, stereo_buffers).
     int32_t counts[8];
     for (int i = 0; i < 8; ++i) counts[i] = args[i];
-    XbEnvelopeDesc& envelope = *reinterpret_cast<XbEnvelopeDesc*>(uintptr_t(entry - 0x28));
-    envelope = {};
-    envelope.eg = 1;    // DSEG_AMPLITUDE
-    envelope.mode = 2;  // DSEG_MODE_HOLD
-    envelope.sustain = 0xff;
+    (void)entry;  // the original's envelope (DSEG_AMPLITUDE, hold, sustain 0xff) sat at entry ESP - 0x28
     std::memset(&title_global<uint8_t>(kHwSlots), 0, 0x1b00 * 4);
     uint32_t& slot_count = title_global<uint32_t>(0x008bed00);
     uint32_t index = 0;
@@ -3040,97 +2938,84 @@ void XB_CDECL SndSys_CreateVoiceBuffers(uint32_t entry, const int32_t* args) {
         uint8_t& kind = SndVoice_Get(index)[0xc2];
         if (counts[0] > 0) {
             --counts[0];
-            if (create_slot_stream(slot, 1, kDsCaps3d) == 0) {
-                setup_slot_stream(slot, kind, 3, 0x12000, true, &envelope);
+            if (create_slot_stream(slot, 1, true)) {
+                setup_slot_stream(slot, kind, 3, 0x12000, true);
                 continue;
             }
             counts[4] = 0;  // sic: the failure clears count 4, count 0 is tried again next round
         }
         if (counts[1] > 0) {
             --counts[1];
-            if (create_slot_stream(slot, 2, 0) == 0) {
-                setup_slot_stream(slot, kind, 4, 0x1b000, false, &envelope);
+            if (create_slot_stream(slot, 2, false)) {
+                setup_slot_stream(slot, kind, 4, 0x1b000, false);
                 continue;
             }
             counts[6] = 0;  // sic: count 6, as above
         }
         if (counts[2] > 0) {
             --counts[2];
-            if (create_slot_stream(slot, 2, 0) == 0) {
-                setup_slot_stream(slot, kind, 7, 0x48000, false, &envelope);
+            if (create_slot_stream(slot, 2, false)) {
+                setup_slot_stream(slot, kind, 7, 0x48000, false);
                 continue;
             }
             counts[2] = 0;
         }
         if (counts[3] > 0) {
             --counts[3];
-            if (create_slot_stream(slot, 2, 0) == 0) {
-                setup_slot_stream(slot, kind, 8, 0x48000, false, &envelope);
+            if (create_slot_stream(slot, 2, false)) {
+                setup_slot_stream(slot, kind, 8, 0x48000, false);
                 continue;
             }
             counts[3] = 0;
         }
         if (counts[4] > 0) {
             --counts[4];
-            if (create_slot_stream(slot, 1, kDsCaps3d) == 0) {
-                setup_slot_stream(slot, kind, 3, 0x12000, true, &envelope);
+            if (create_slot_stream(slot, 1, true)) {
+                setup_slot_stream(slot, kind, 3, 0x12000, true);
                 continue;
             }
             counts[4] = 0;
         }
         if (counts[6] > 0) {
             --counts[6];
-            if (create_slot_stream(slot, 2, 0) == 0) {
-                setup_slot_stream(slot, kind, 4, 0x1b000, false, &envelope);
+            if (create_slot_stream(slot, 2, false)) {
+                setup_slot_stream(slot, kind, 4, 0x1b000, false);
                 continue;
             }
             counts[6] = 0;
         }
         if (counts[5] > 0) {
             --counts[5];
-            if (create_slot_buffer(slot, 1, kDsCaps3d) == 0) {
-                setup_slot_buffer(slot, kind, 5, true, &envelope);
+            if (create_slot_buffer(slot, 1, true)) {
+                setup_slot_buffer(slot, kind, 5, true);
                 continue;
             }
             counts[5] = 0;
         }
         if (counts[7] <= 0) break;
         --counts[7];
-        if (create_slot_buffer(slot, 2, 0) != 0) break;
-        setup_slot_buffer(slot, kind, 6, false, &envelope);
+        if (!create_slot_buffer(slot, 2, false)) break;
+        setup_slot_buffer(slot, kind, 6, false);
     }
     slot_count = index;
 }
 
 uint8_t XB_CDECL SndSys_InitDevice() {
-    XbAdpcmWaveFormat format = {};
-    format.tag = 0x69;  // WAVE_FORMAT_XBOX_ADPCM
-    format.channels = 2;
-    format.samples_per_sec = 48000;
-    format.avg_bytes_per_sec = 54000;
-    format.block_align = 0x48;
-    format.bits_per_sample = 4;
-    format.extra_size = 2;
-    format.samples_per_block = 64;
-    XbBufferDesc desc = {};
-    desc.size = sizeof(XbBufferDesc);
+    // The movies' sound: a stereo Xbox ADPCM buffer at 48 kHz over 0x12000 bytes the movie player fills (the
+    // original made a second DirectSound for it).
+    if (!device().open()) return 0;
+    audio::VoiceDesc desc;
     desc.buffer_bytes = 0x12000;
-    desc.format = uint32_t(uintptr_t(&format));
-    uint32_t direct_sound = 0;
-    if (title_function<int32_t XB_STDCALL(void*, uint32_t*, void*)>(0x003c955d)(nullptr, &direct_sound, nullptr) < 0) {
-        return 0;  // DirectSoundCreate
-    }
+    const audio::Format format = adpcm_format(2, 48000);
     uint32_t& buffer = title_global<uint32_t>(0x00920850);  // movie_audioBuffer
-    if (title_function<int32_t XB_STDCALL(uint32_t, const XbBufferDesc*, uint32_t*, void*)>(0x003c92bb)(
-            direct_sound, &desc, &buffer, nullptr) < 0) {  // IDirectSound_CreateSoundBuffer
-        return 0;
-    }
+    buffer = device().create_voice(desc, &format);
+    if (!buffer) return 0;
     void* const data = Mem_AlignedAlloc(0x12000, 0x1000, 0);
     title_global<void*>(0x00920848) = data;
     std::memset(data, 0, 0x12000);
-    set_buffer_data(buffer, title_global<uint32_t>(0x00920848), 0x12000);
-    title_function<DsSetRegion>(0x003c8435)(buffer, 0, 0x12000);  // IDirectSoundBuffer_SetPlayRegion
-    title_function<DsSetRegion>(0x003c77cf)(buffer, 0, 0);         // IDirectSoundBuffer_SetLoopRegion: all
+    device().set_buffer_data(buffer, title_global<const uint8_t*>(0x00920848), 0x12000);
+    device().set_play_region(buffer, 0, 0x12000);
+    device().set_loop_region(buffer, 0, 0);  // all
     if (title_function<uint32_t XB_STDCALL()>(0x001e75df)() == 3) Movie_SetDropLateFrames(1);  // XGetVideoStandard: PAL-I
     return 1;
 }

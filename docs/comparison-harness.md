@@ -309,6 +309,9 @@ DSMIXBINS, XMEDIAPACKET, rolloff curves; output pointers are `x`), then the resu
 Since 2026-10-28 that made SndSys_Update, S_UpdateChannels, S_CheckWaveBankNotifies,
 S_StopAllSounds, CL_ClearState, CL_MapLoading, FE_FadeOut and CL_Frame testable (they all ended
 "called host code from SndHw_Update" before).
+Since 2026-10-29 the decompiled sound code (Replaced) calls our own sound device
+(audio/sound_device.h) instead of DirectSound, which test processes do not record yet: callers that
+reach SndSys_Update end inconclusive again until the recording moves to the device (status.md, 2b).
 
 - No output there (`audio/test_mode.h`): `audio::set_test_mode` gets the harness's in-test flag, and
   with it set the replacements make no OpenAL call (no device, no mixer thread, nothing logged);

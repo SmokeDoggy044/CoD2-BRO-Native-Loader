@@ -1,5 +1,6 @@
-# Xbox DirectSound on OpenAL Soft (portable).
+# Our sound device on OpenAL Soft, and the Xbox DirectSound replacement on top (portable).
 add_library(audio STATIC
+    sound_engine.cpp
     xbox_dsound.cpp
     format.cpp
     output.cpp
