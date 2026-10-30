@@ -747,9 +747,15 @@ void XB_CDECL nglRelocateMeshSection(uint8_t* new_base, uint8_t* old_base, uint8
 void XB_CDECL nglVertexShader_Init(uint32_t* shader, uint32_t declaration, uint32_t program) {
     shader[0] = program;
     shader[1] = declaration;
+    if (const auto loaded = renderer_pc_hooks().shader_loaded)
+        loaded(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(shader)), 'v', program, program, declaration);
 }
 
-void XB_CDECL nglPixelShader_Init(uint32_t* shader, uint32_t definition) { shader[0] = definition; }
+void XB_CDECL nglPixelShader_Init(uint32_t* shader, uint32_t definition) {
+    shader[0] = definition;
+    if (const auto loaded = renderer_pc_hooks().shader_loaded)
+        loaded(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(shader)), 'p', definition, definition, 0);
+}
 
 uint8_t XB_THISCALL nglIndexBuffer_Init(uint8_t** self, uint8_t* data, uint32_t /*size*/) {
     *self = data;

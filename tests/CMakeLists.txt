@@ -72,6 +72,13 @@ target_link_libraries(gfx_device_test PRIVATE render xbox)
 add_test(NAME gfx_device_test COMMAND gfx_device_test)
 set_tests_properties(gfx_device_test PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
 
+# The translated title shaders against the Xbox path's translation (XB_SHADER_DUMP=a --dump-shaders
+# directory; skipped without one).
+add_executable(title_shader_test title_shader_test.cpp)
+target_link_libraries(title_shader_test PRIVATE render xbox)
+add_test(NAME title_shader_test COMMAND title_shader_test)
+set_tests_properties(title_shader_test PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+
 # The NAL entropy mode decoders against the title's own code (runs default.xbe's bytes;
 # skipped without the game files).
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

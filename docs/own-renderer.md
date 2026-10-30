@@ -51,10 +51,30 @@ scale per slot (the title's linear textures), c26 fog colour.
 - Not done yet: what R4 needs as it goes (UI narrowing for converted UI draws, frame dump of
   GfxDevice draws, freeing our depth targets before shutdown).
 
-**R3 - shaders.** A tool translates every vertex microcode program and register-combiner setup
-the shader classes load (their Init tables; the boot-assembled ones from their source text) once
-into readable HLSL files, committed; compiled to D3D9 bytecode at build time with vkd3d-shader
-(user, 2026-10-30).
+**R3 - shaders, 2026-10-30.** Every shader program the renderer sets up is HLSL of our own in
+render/shaders (126 files: 44 vertex programs, 82 register-combiner setups; manifest.csv says which
+C function sets each up), compiled at build time with vkd3d-shader (`vkd3d-compiler`, required;
+render/CMakeLists.txt) and embedded; `GfxDevice::create_title_shader(stage, key)` makes one.
+- Key: the title data naming the program: the microcode blob or D3DPIXELSHADERDEF address the
+  shader class's Init passes, or for the four screen-space shaders assembled at boot the address
+  of their source text. All 126 are set up at boot (the same set in missions 4 and 6).
+- Made by `tools/shader_hlsl.py DUMP_DIR` from what the loader records with `--dump-shaders DIR`
+  (a hook in nglVertexShader_Init / nglPixelShader_Init / the assemblers,
+  RendererPcHooks::shader_loaded). Files are generated: change the tool and run it again.
+- The translation mirrors render/d3d9_shader.cpp (the Xbox path's, checked in game): one HLSL
+  statement per NV2A instruction or combiner term, with the instruction named in a comment.
+  What that translation took from the draw-time state are reserved constants now: the fog mode
+  (vertex c194.z, `Fog::mode`) and alpha kill per stage (pixel c27, `SamplerState::alpha_kill`;
+  as on the Xbox path it also discards on stages without a texture).
+- Size: vkd3d's shader model 3 code is unoptimized; the temporaries are only zeroed where a program
+  reads them before writing, which keeps the largest vertex program at 404 instructions (512 is
+  vs_3_0's minimum). Pixel shaders: at most 185.
+- Test: tests/title_shader_test (XB_SHADER_DUMP=DIR; skipped without it) draws every shader and the
+  Xbox path's translation of the same program with random inputs on a real device and compares
+  the pixels: pixel shaders with alpha kill off and on, vertex programs output by output (colours,
+  texture coordinates, fog in all four modes). All 126 identical (2026-10-30).
+- Not covered: draws without a pixel shader (the fixed-function combiners D3D9Draw builds from
+  texture stage state) and without a vertex program; R4 adds what those draws need.
 
 **R4 - the C onto the interface, one draw path at a time**, with screenshot diffs against the
 current path: text and quads, meshes (incl. recorded push buffers), fog, render-target mips, FX,

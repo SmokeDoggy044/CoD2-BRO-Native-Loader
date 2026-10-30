@@ -10,6 +10,7 @@ set(loader_sources
     pc_menu.cpp
     profiler.cpp
     seh.cpp
+    shader_dump.cpp
     release_map.cpp
     symbols.cpp
     thread_env.cpp

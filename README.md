@@ -201,9 +201,9 @@ repository with its submodule:
     git clone --recursive https://github.com/SmokeDoggy044/CoD2-BRO-Decomp.git
 
 The game runs as a 32-bit program, so you'll need the 32-bit development
-libraries. On Fedora:
+libraries, and vkd3d's shader compiler for the renderer's shaders. On Fedora:
 
-    sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686
+    sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686 vkd3d-compiler
 
 Then build, run the tests and start the game with the comparison switched on:
 

@@ -42,11 +42,12 @@ constexpr uint32_t kGfxVertexInputs = 16;
 // c192.xyz + c193.xyz maps them into the current viewport (render scale and pixel centres
 // included); shaders that output clip space ignore it.
 constexpr uint32_t kGfxVsScreenToClip = 192;  // two registers
-constexpr uint32_t kGfxVsFog = 194;           // Fog::bias, Fog::scale, 0, 0
+constexpr uint32_t kGfxVsFog = 194;           // Fog::bias, Fog::scale, Fog::mode, 0
 // Reserved pixel constants.
 constexpr uint32_t kGfxPsTexcoordScale = 18;  // c18..c25 per texture slot: (sx, sy, 1, 1), texel ->
                                               // normalized for the title's linear textures, else 1
 constexpr uint32_t kGfxPsFogColor = 26;       // Fog::color as rgba
+constexpr uint32_t kGfxPsAlphaKill = 27;      // x..w: SamplerState::alpha_kill of slots 0-3 (1 or 0)
 
 // --- Resources ---
 
@@ -192,10 +193,17 @@ struct SamplerState {
     uint32_t max_level = 0;  // the largest mip level used (0 = the full texture)
     uint32_t anisotropy = 1;  // the title's own; the PC setting raises it for mipmapped textures
     uint32_t border = 0;
+    // The NV2A's alpha kill: pixels where this slot's texture alpha is 0 are discarded (the
+    // shader does it: kGfxPsAlphaKill; slots 0-3).
+    bool alpha_kill = false;
 };
 
-// Fog is the shaders' work: the back end hands them these (kGfxVsFog, kGfxPsFogColor).
+// Fog is the shaders' work: the back end hands them these (kGfxVsFog, kGfxPsFogColor). The
+// factor from the distance d the vertex program writes (the NV2A's formulas): linear
+// bias + d * scale - 1, exp bias + 2^(16 d scale) - 1.5, exp2 bias + 2^(-32 (d scale)^2) - 1.5.
+enum class FogMode : uint8_t { Off, Linear, Exp, Exp2 };
 struct Fog {
+    FogMode mode = FogMode::Off;
     float bias = 0.0f, scale = 0.0f;
     uint32_t color = 0;
 };
@@ -235,6 +243,9 @@ public:
 
     // --- Shaders and vertex layouts ---
     virtual ShaderId create_shader(ShaderStage stage, const ShaderCode& code) = 0;
+    // One of the title's shaders translated to HLSL (render/shaders/vs_KEY.hlsl, ps_KEY.hlsl:
+    // KEY is the title data naming it, tools/shader_hlsl.py); 0 if there is none by that key.
+    virtual ShaderId create_title_shader(ShaderStage stage, uint32_t key) = 0;
     virtual void destroy_shader(ShaderId shader) = 0;
     virtual LayoutId create_layout(const VertexLayout& layout) = 0;  // kept until the device goes
 
