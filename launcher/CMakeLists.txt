@@ -12,7 +12,7 @@ target_compile_definitions(launcher_update PRIVATE COD_BRO_VERSION="${PROJECT_VE
 add_executable(cod_bro_launcher WIN32
     main.cpp
 )
-target_link_libraries(cod_bro_launcher PRIVATE imgui_sdlrenderer launcher_update platform input_bindings)
+target_link_libraries(cod_bro_launcher PRIVATE imgui_sdlrenderer launcher_update platform input_bindings audio_devices)
 target_compile_definitions(cod_bro_launcher PRIVATE COD_BRO_VERSION="${PROJECT_VERSION}"
     COD_BRO_RELEASES="SmokeDoggy044/CoD2-BRO-Native-Loader")
 # This platform's release archive (cmake/release*.cmake, packaging/sniper): the updater fetches it.

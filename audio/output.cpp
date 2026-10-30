@@ -6,6 +6,8 @@
 #include <AL/alext.h>
 
 #include <chrono>
+#include <cstring>
+#include <vector>
 
 #include "log.h"
 
@@ -40,22 +42,80 @@ ALsizei AL_APIENTRY render_callback(void* user, void* data, ALsizei bytes) noexc
     return static_cast<ALsizei>(produced * frame_bytes);  // short: the source stops after this
 }
 
+using Speakers = OutputConfig::Speakers;
+
+// The context's attributes for a speaker layout and, with Speakers::Auto, the game's
+// headphone choice (-1: none yet, so OpenAL decides). `extra` comes first (loopback format).
+std::vector<ALCint> context_attributes(Speakers speakers, int hrtf, std::vector<ALCint> extra = {}) {
+    std::vector<ALCint> a = std::move(extra);
+    ALCint mode = 0;
+    switch (speakers) {
+        case Speakers::Auto: break;
+        case Speakers::Stereo: mode = ALC_STEREO_BASIC_SOFT; break;
+        case Speakers::Headphones: mode = ALC_STEREO_HRTF_SOFT; break;
+        case Speakers::Quad: mode = ALC_QUAD_SOFT; break;
+        case Speakers::Surround51: mode = ALC_SURROUND_5_1_SOFT; break;
+        case Speakers::Surround71: mode = ALC_SURROUND_7_1_SOFT; break;
+    }
+    if (mode) {
+        a.insert(a.end(), {ALC_OUTPUT_MODE_SOFT, mode, ALC_HRTF_SOFT, speakers == Speakers::Headphones});
+    } else if (hrtf >= 0) {
+        a.insert(a.end(), {ALC_HRTF_SOFT, hrtf ? ALC_TRUE : ALC_FALSE});
+    }
+    a.push_back(0);
+    return a;
+}
+
+const char* mode_name(ALCint mode) {
+    switch (mode) {
+        case ALC_MONO_SOFT: return "mono";
+        case ALC_STEREO_SOFT: return "stereo";
+        case ALC_STEREO_BASIC_SOFT: return "stereo";
+        case ALC_STEREO_UHJ_SOFT: return "stereo (UHJ)";
+        case ALC_STEREO_HRTF_SOFT: return "headphones (HRTF)";
+        case ALC_QUAD_SOFT: return "quad";
+        case ALC_SURROUND_5_1_SOFT: return "5.1";
+        case ALC_SURROUND_6_1_SOFT: return "6.1";
+        case ALC_SURROUND_7_1_SOFT: return "7.1";
+        default: return "other";
+    }
+}
+
+// Enhanced: OpenAL Soft's best resampler (its default is a cubic spline).
+int best_resampler() {
+    if (!alIsExtensionPresent("AL_SOFT_source_resampler")) return -1;
+    const ALint count = alGetInteger(AL_NUM_RESAMPLERS_SOFT);
+    for (ALint i = 0; i < count; ++i)
+        if (const ALchar* name = alGetStringiSOFT(AL_RESAMPLER_NAME_SOFT, i); name && !std::strcmp(name, "23rd order Sinc"))
+            return i;
+    return count > 0 ? count - 1 : -1;  // the list goes from worst to best
+}
+
 }  // namespace
 
 std::unique_ptr<Output> Output::open(const OutputConfig& config) {
     std::unique_ptr<Output> output(new Output());
     output->rate_ = config.rate;
-    if (config.device == OutputConfig::Device::Default) output->device_ = alcOpenDevice(nullptr);
+    output->speakers_ = config.speakers;
+    if (config.device == OutputConfig::Device::Default && !config.device_name.empty()) {
+        output->device_ = alcOpenDevice(config.device_name.c_str());
+        if (!output->device_)
+            LOG_WARN("audio", "no audio output device \"%s\"; the system's is used", config.device_name.c_str());
+    }
+    if (config.device == OutputConfig::Device::Default && !output->device_) output->device_ = alcOpenDevice(nullptr);
     if (output->device_) {
-        output->context_ = alcCreateContext(output->device_, nullptr);
+        output->context_ = alcCreateContext(output->device_, context_attributes(config.speakers, -1).data());
     } else {
         if (config.device == OutputConfig::Device::Default)
             LOG_WARN("audio", "no audio output device; sound plays into a silent loopback device");
         output->loopback_ = true;
         output->device_ = alcLoopbackOpenDeviceSOFT(nullptr);
-        const ALCint attributes[] = {ALC_FORMAT_CHANNELS_SOFT, ALC_STEREO_SOFT,  ALC_FORMAT_TYPE_SOFT, ALC_SHORT_SOFT,
-                                     ALC_FREQUENCY,           ALCint(config.rate), 0};
-        if (output->device_) output->context_ = alcCreateContext(output->device_, attributes);
+        // Loopback renders stereo 16-bit frames for render(), whatever the layout setting.
+        const std::vector<ALCint> attributes =
+            context_attributes(Speakers::Auto, -1, {ALC_FORMAT_CHANNELS_SOFT, ALC_STEREO_SOFT, ALC_FORMAT_TYPE_SOFT,
+                                                    ALC_SHORT_SOFT, ALC_FREQUENCY, ALCint(config.rate)});
+        output->speakers_ = Speakers::Auto;
+        if (output->device_) output->context_ = alcCreateContext(output->device_, attributes.data());
     }
     if (!output->context_ || !alcMakeContextCurrent(output->context_)) {
         LOG_ERROR("audio", "cannot create an OpenAL context");
@@ -69,9 +129,14 @@ std::unique_ptr<Output> Output::open(const OutputConfig& config) {
     // caller; OpenAL only pans. No doppler for now.
     alDistanceModel(AL_NONE);
     alDopplerFactor(0.0f);
+    if (config.enhanced) output->resampler_ = best_resampler();
     const char* name = alcGetString(output->device_, ALC_ALL_DEVICES_SPECIFIER);
-    LOG_INFO("audio", "OpenAL %s on %s%s", alGetString(AL_VERSION), output->loopback_ ? "loopback" : (name ? name : "?"),
-             config.device == OutputConfig::Device::ManualLoopback ? " (manual)" : "");
+    ALCint mode = 0;
+    alcGetIntegerv(output->device_, ALC_OUTPUT_MODE_SOFT, 1, &mode);
+    LOG_INFO("audio", "OpenAL %s on %s%s, %s, resampler %s", alGetString(AL_VERSION),
+             output->loopback_ ? "loopback" : (name ? name : "?"),
+             config.device == OutputConfig::Device::ManualLoopback ? " (manual)" : "", mode_name(mode),
+             output->resampler_ >= 0 ? alGetStringiSOFT(AL_RESAMPLER_NAME_SOFT, output->resampler_) : "default");
     if (output->loopback_ && config.device != OutputConfig::Device::ManualLoopback)
         output->driver_ = std::thread([raw = output.get()] { raw->drive_loopback(); });
     return output;
@@ -118,6 +183,7 @@ Output::Source* Output::add_source(Voice& voice) {
     auto source = std::make_unique<Source>(voice);
     alGenSources(1, &source->source);
     alGenBuffers(1, &source->buffer);
+    if (resampler_ >= 0) alSourcei(source->source, AL_SOURCE_RESAMPLER_SOFT, resampler_);
     Source* raw = source.get();
     sources_.push_back(std::move(source));
     reformat(raw);
@@ -176,9 +242,17 @@ void Output::begin_batch() { alDeferUpdatesSOFT(); }
 void Output::end_batch() { alProcessUpdatesSOFT(); }
 
 bool Output::set_hrtf(bool enabled) {
-    if (loopback_) return false;
-    const ALCint attributes[] = {ALC_HRTF_SOFT, enabled ? ALC_TRUE : ALC_FALSE, 0};
-    return alcResetDeviceSOFT(device_, attributes) == ALC_TRUE;
+    if (loopback_ || speakers_ != Speakers::Auto || hrtf_ == int(enabled)) return false;
+    hrtf_ = enabled;
+    return reset_device();
+}
+
+bool Output::reset_device() {
+    const bool reset = alcResetDeviceSOFT(device_, context_attributes(speakers_, hrtf_).data()) == ALC_TRUE;
+    ALCint mode = 0;
+    alcGetIntegerv(device_, ALC_OUTPUT_MODE_SOFT, 1, &mode);
+    LOG_INFO("audio", "output %s%s", mode_name(mode), reset ? "" : " (the device could not be reset)");
+    return reset;
 }
 
 }  // namespace audio

@@ -20,6 +20,7 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 #include "log.h"
+#include "output_devices.h"
 #include "paths.h"
 #include "program.h"
 #include "settings.h"
@@ -48,6 +49,9 @@ struct Choices {
     bool aim_assist = true;
     std::string button_prompts = "auto";  // auto, keyboard, controller
     bool silent = false;
+    std::string audio = "enhanced";  // original, enhanced
+    std::string speakers = "auto";   // auto, stereo, headphones, quad, 5.1, 7.1
+    std::string audio_device;        // empty: the system's
     std::string language = "english";  // the console's: english, german, french, spanish, italian
     int net_port = 3074;  // system link: UDP net_port .. net_port + 3
     // Launcher only: saved as "false" (which the game skips) when off.
@@ -89,6 +93,11 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("aim-assist")) c.aim_assist = *v != "off";
     if (auto v = settings.get("button-prompts"); v && (*v == "keyboard" || *v == "controller")) c.button_prompts = *v;
     if (auto v = settings.get("silent")) c.silent = *v == "true";
+    if (auto v = settings.get("audio"); v && *v == "original") c.audio = *v;
+    if (auto v = settings.get("speakers");
+        v && (*v == "stereo" || *v == "headphones" || *v == "quad" || *v == "5.1" || *v == "7.1"))
+        c.speakers = *v;
+    if (auto v = settings.get("audio-device")) c.audio_device = *v;
     if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
     if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
@@ -119,6 +128,9 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
     put("button-prompts", c.button_prompts == d.button_prompts, c.button_prompts);
     put("silent", c.silent == d.silent, c.silent ? "true" : "false");
+    put("audio", c.audio == d.audio, c.audio);
+    put("speakers", c.speakers == d.speakers, c.speakers);
+    put("audio-device", c.audio_device.empty(), c.audio_device);
     put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
     put("check-updates", c.check_updates == d.check_updates, "false");
@@ -256,8 +268,10 @@ private:
 
     void general() {
         game_files();
-        ImGui::SeparatorText("Language and sound");
-        language_and_sound();
+        ImGui::SeparatorText("Language");
+        language();
+        ImGui::SeparatorText("Sound");
+        sound();
         updates();
     }
 
@@ -505,7 +519,7 @@ private:
         }
     }
 
-    void language_and_sound() {
+    void language() {
         static constexpr const char* kLanguages[] = {"english", "german", "french", "spanish", "italian"};
         int language = 0;
         while (language < 4 && choices_.language != kLanguages[language]) ++language;
@@ -514,6 +528,39 @@ private:
         help_marker("The Xbox's language setting. The game can only use languages that are on your disc: "
                     "the North American Standard Edition disc is English only, a European disc has its own languages (and may "
                     "have no English). The log lists the disc's languages.");
+    }
+
+    void sound() {
+        int enhanced = choices_.audio == "enhanced" ? 1 : 0;
+        ImGui::Combo("Sound", &enhanced, "Original\0" "Enhanced\0");
+        choices_.audio = enhanced ? "enhanced" : "original";
+        help_marker("Original: as on the Xbox. Enhanced: our improvements (so far: finer resampling, "
+                    "so pitched and lower-rate sounds are cleaner).");
+
+        static constexpr std::pair<const char*, const char*> kSpeakers[] = {
+            {"auto", "Automatic"}, {"stereo", "Stereo speakers"}, {"headphones", "Headphones (3D sound)"},
+            {"quad", "Quad (4.0)"}, {"5.1", "Surround 5.1"},       {"7.1", "Surround 7.1"}};
+        const auto* speakers = std::find_if(std::begin(kSpeakers), std::end(kSpeakers),
+                                            [&](const auto& l) { return choices_.speakers == l.first; });
+        if (ImGui::BeginCombo("Speakers", speakers->second)) {
+            for (const auto& [value, label] : kSpeakers)
+                if (ImGui::Selectable(label, value == choices_.speakers)) choices_.speakers = value;
+            ImGui::EndCombo();
+        }
+        help_marker("Automatic: what your output device has, with 3D sound for headphones when the "
+                    "game's own settings ask for headphones. Otherwise this layout, whatever the game's "
+                    "settings say. Headphones (3D sound) places sounds around you, also above and "
+                    "behind (HRTF).");
+
+        if (!audio_devices_) audio_devices_ = audio::output_devices();
+        if (ImGui::BeginCombo("Output device",
+                              choices_.audio_device.empty() ? "System default" : choices_.audio_device.c_str())) {
+            if (ImGui::Selectable("System default", choices_.audio_device.empty())) choices_.audio_device.clear();
+            for (const std::string& name : *audio_devices_)
+                if (ImGui::Selectable(name.c_str(), name == choices_.audio_device)) choices_.audio_device = name;
+            ImGui::EndCombo();
+        }
+        help_marker("A device that is gone when the game starts falls back to the system default.");
         ImGui::Checkbox("Mute sound", &choices_.silent);
     }
 
@@ -605,6 +652,7 @@ private:
     std::string error_;
     std::optional<launcher::UpdateCheck> update_;
     std::optional<launcher::Updater> updater_;
+    std::optional<std::vector<std::string>> audio_devices_;  // listed once
     bool restarted_ = false;
     bool profile_ = false;  // Measure performance: --profile auto, not saved
     std::optional<std::pair<input::Action, size_t>> capturing_;  // the key cell waiting for a key
