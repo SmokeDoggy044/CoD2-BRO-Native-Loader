@@ -223,8 +223,12 @@ Environment environment_of(const Probe& p, const audio::ReverbTuning& t) {
     nearest = std::min(nearest, p.up);
 
     Environment e;
-    // Enclosed: -1000 mB as the I3DL2 room presets (was -300: small stone rooms rang, playtest 10-30).
-    e.room = lerp(-3000.0f, -1000.0f, enclosure);
+    // Enclosed: -1000 mB as the I3DL2 room presets (was -300: small stone rooms rang, playtest 10-30),
+    // + up to 2 dB for enclosed hard places (stone, concrete, brick: user 10-30, -1000 a little dry
+    // there only): by enclosure and by how little the surfaces take in (mid absorption 0.03: all,
+    // 0.15 and up: none).
+    const float hard = std::clamp((0.15f - p.alpha.mid) / 0.12f, 0.0f, 1.0f);
+    e.room = lerp(-3000.0f, -1000.0f, enclosure) + 200.0f * enclosure * hard;
     e.room_hf = lerp(-1200.0f, -100.0f, 1.0f - p.alpha.high);
     e.room_rolloff = 0.0f;
     e.decay_time = decay;

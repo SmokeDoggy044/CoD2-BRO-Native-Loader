@@ -2237,6 +2237,7 @@ Occlusion g_occlusion[256];
 uint32_t g_occlusion_next = 0;
 
 void update_occlusion(const float listener[3]) {
+    if (!std::isfinite(listener[0]) || !std::isfinite(listener[1]) || !std::isfinite(listener[2])) return;
     constexpr uint32_t kPerUpdate = 8;
     constexpr float kNear = 48.0f;  // world units
     const uint32_t count = std::min(title_global<uint32_t>(0x008bed00), 256u);
@@ -2257,6 +2258,7 @@ void update_occlusion(const float listener[3]) {
         }
         const audio::VoiceId id = voice_id(slot, (voice[0xc3] & 2) ? 0x30 : 0);
         const float* const position = &snd_at<float>(voice, 0x54);
+        if (!std::isfinite(position[0]) || !std::isfinite(position[1]) || !std::isfinite(position[2])) continue;
         const int32_t owner = snd_at<int32_t>(voice, 0xcc);
         if (o.owner != owner) {
             if (!position[0] && !position[1] && !position[2]) continue;  // not placed yet: next update

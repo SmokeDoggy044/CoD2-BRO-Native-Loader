@@ -229,6 +229,17 @@ void Engine::update(VoiceImpl& v) {
         params.direct_gain_hf = 1.0f - 0.5f * v.occlusion;
         if (params.reverb_send) params.send_gain = 1.0f + 0.4f * v.occlusion;
     }
+    // A position or level that is not a number (seen once, 10-30: an entity gone NaN just before a
+    // crash in the animation code) would be refused by OpenAL on every update: the voice is muted
+    // at the origin instead, and it is logged once.
+    if (!std::isfinite(params.gain) || !std::isfinite(params.position[0]) || !std::isfinite(params.position[1]) ||
+        !std::isfinite(params.position[2])) {
+        static bool logged = false;
+        if (!logged) LOG_WARN("audio", "a voice's position or level is not a number: muted");
+        logged = true;
+        params.gain = 0.0f;
+        params.position[0] = params.position[1] = params.position[2] = 0.0f;
+    }
     o->update(v.source, params);
 }
 
