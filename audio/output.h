@@ -16,6 +16,7 @@
 #include <thread>
 #include <vector>
 
+#include "enhanced_features.h"
 #include "sound_device.h"
 #include "voice.h"
 
@@ -33,8 +34,10 @@ struct OutputConfig {
     uint32_t rate = 48000;            // loopback rate
     std::string device_name;          // Default: this output device (empty: the system's)
     Speakers speakers = Speakers::Auto;
-    // Our improvements (resampling here; the sound device's own); false: as on the Xbox.
+    // Our improvements (resampling here; the sound device's own); false: as on the Xbox. Each
+    // of them also on its own (features).
     bool enhanced = false;
+    EnhancedFeatures features;
 };
 
 class Output {
@@ -69,9 +72,9 @@ public:
     void end_batch();
     // The game's headphone choice (Speakers::Auto only; otherwise the layout decides).
     bool set_hrtf(bool enabled);
-    // Our improvements on or off while playing (OutputConfig::enhanced at first): the resampler
-    // of every source; off silences the reverb.
-    void set_enhanced(bool enhanced);
+    // Our improvements on or off while playing (OutputConfig::enhanced and features at first):
+    // the best resampler on every source, the reverb (off silences it).
+    void set_enhanced(bool resampler, bool reverb);
     // The reverb sources with reverb_send feed (EFX; ignored while not enhanced). Logs changes
     // that can be heard (at most once a second).
     void set_environment(const Environment& environment);
@@ -91,7 +94,7 @@ private:
     ALCdevice* device_ = nullptr;
     OutputConfig::Speakers speakers_ = OutputConfig::Speakers::Auto;
     int hrtf_ = -1;          // the game's headphone choice (Speakers::Auto), -1: none yet
-    bool enhanced_ = false;
+    bool resampler_on_ = false, reverb_on_ = false;
     int best_resampler_ = -1;     // enhanced sources' (AL_SOFT_source_resampler), -1: none found
     int default_resampler_ = -1;  // the others'
     unsigned reverb_slot_ = 0, reverb_effect_ = 0;  // EFX, 0: none

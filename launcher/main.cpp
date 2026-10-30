@@ -22,6 +22,7 @@
 #include "log.h"
 #include "output_devices.h"
 #include "category_volumes.h"
+#include "enhanced_features.h"
 #include "reverb_tuning.h"
 #include "paths.h"
 #include "program.h"
@@ -56,6 +57,7 @@ struct Choices {
     std::string audio_device;        // empty: the system's
     audio::ReverbTuning reverb;
     audio::CategoryVolumes volumes;
+    audio::EnhancedFeatures features;
     std::string language = "english";  // the console's: english, german, french, spanish, italian
     int net_port = 3074;  // system link: UDP net_port .. net_port + 3
     // Launcher only: saved as "false" (which the game skips) when off.
@@ -104,6 +106,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("audio-device")) c.audio_device = *v;
     if (auto v = settings.get("reverb")) c.reverb = audio::ReverbTuning::parse(*v);
     if (auto v = settings.get("volume")) c.volumes = audio::CategoryVolumes::parse(*v);
+    if (auto v = settings.get("enhanced")) c.features = audio::EnhancedFeatures::parse(*v);
     if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
     if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
@@ -139,6 +142,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("audio-device", c.audio_device.empty(), c.audio_device);
     put("reverb", c.reverb == d.reverb, c.reverb.format());
     put("volume", c.volumes == d.volumes, c.volumes.format());
+    put("enhanced", c.features == d.features, c.features.format());
     put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
     put("check-updates", c.check_updates == d.check_updates, "false");
@@ -251,6 +255,7 @@ public:
         if (ImGui::BeginTabBar("sections")) {
             tab("General", [&] { general(); });
             tab("Graphics", [&] { graphics(); });
+            tab("Sound", [&] { sound(); });
             tab("Controls", [&] { controls(); });
             tab("Multiplayer", [&] { system_link(); });
             tab("Help", [&] { reporting(); });
@@ -278,8 +283,6 @@ private:
         game_files();
         ImGui::SeparatorText("Language");
         language();
-        ImGui::SeparatorText("Sound");
-        sound();
         updates();
     }
 
@@ -539,13 +542,7 @@ private:
     }
 
     void sound() {
-        int enhanced = choices_.audio == "enhanced" ? 1 : 0;
-        ImGui::Combo("Sound", &enhanced, "Original\0" "Enhanced\0");
-        choices_.audio = enhanced ? "enhanced" : "original";
-        help_marker("Original: as on the Xbox. Enhanced: our improvements: reverb that follows the place "
-                    "you are in (room size, walls, stone or wood, open sky), and finer resampling. Also "
-                    "switchable while playing in the PC menu (` key).");
-
+        ImGui::SeparatorText("Output");
         static constexpr std::pair<const char*, const char*> kSpeakers[] = {
             {"auto", "Automatic"}, {"stereo", "Stereo speakers"}, {"headphones", "Headphones (3D sound)"},
             {"quad", "Quad (4.0)"}, {"5.1", "Surround 5.1"},       {"7.1", "Surround 7.1"}};
@@ -570,7 +567,9 @@ private:
             ImGui::EndCombo();
         }
         help_marker("A device that is gone when the game starts falls back to the system default.");
+        ImGui::Checkbox("Mute sound", &choices_.silent);
 
+        ImGui::SeparatorText("Volume");
         ImGui::SliderFloat("Effects volume", &choices_.volumes.effects, 0.0f, 100.0f, "%.0f%%",
                            ImGuiSliderFlags_AlwaysClamp);
         help_marker("Gunfire, explosions, vehicles, footsteps, the menus' sounds.");
@@ -584,8 +583,23 @@ private:
                            ImGuiSliderFlags_AlwaysClamp);
         help_marker("On top of the game's own volume setting, for Original and Enhanced sound "
                     "alike. Also adjustable while playing: PC menu (` key).");
-
-        ImGui::BeginDisabled(choices_.audio != "enhanced");
+        ImGui::SeparatorText("Enhanced sound");
+        bool enhanced = choices_.audio == "enhanced";
+        ImGui::Checkbox("Enhanced sound", &enhanced);
+        choices_.audio = enhanced ? "enhanced" : "original";
+        help_marker("Off: the sound as on the Xbox. On: the improvements below that are switched on. Also "
+                    "switchable while playing in the PC menu (` key), each improvement too.");
+        ImGui::BeginDisabled(!enhanced);
+        ImGui::Indent();
+        audio::EnhancedFeatures& f = choices_.features;
+        ImGui::Checkbox("Finer resampling", &f.resampler);
+        help_marker("OpenAL's best resampler (23rd order Sinc) instead of its default.");
+        ImGui::Checkbox("More voices", &f.voices);
+        help_marker("Up to 192 sounds placed in the world at once instead of the Xbox's 36, and effects "
+                    "drop fewer of their sounds in busy fights.");
+        ImGui::Checkbox("Reverb", &f.reverb);
+        help_marker("Reverb that follows the place you are in: room size, walls, stone or wood, open sky.");
+        ImGui::BeginDisabled(!f.reverb);
         if (ImGui::TreeNode("Advanced reverb")) {
             audio::ReverbTuning& t = choices_.reverb;
             ImGui::SliderFloat("Amount", &t.amount, -12.0f, 12.0f, "%+.1f dB", ImGuiSliderFlags_AlwaysClamp);
@@ -607,7 +621,23 @@ private:
             ImGui::TreePop();
         }
         ImGui::EndDisabled();
-        ImGui::Checkbox("Mute sound", &choices_.silent);
+        ImGui::Checkbox("Occlusion", &f.occlusion);
+        help_marker("Sounds behind walls and buildings muffled; in view, heard in full.");
+        ImGui::Checkbox("Close-range boost", &f.close_boost);
+        help_marker("Gunfire and bullets louder near you: full within 15 m, fading to the game's own level "
+                    "at 30 m (your own gunfire always full). The game mixes them quietly; 0 dB = its level.");
+        ImGui::BeginDisabled(!f.close_boost);
+        ImGui::Indent();
+        ImGui::SliderFloat("Others' gunfire", &choices_.volumes.close_gunfire, 0.0f, 12.0f, "%+.1f dB",
+                           ImGuiSliderFlags_AlwaysClamp);
+        ImGui::SliderFloat("Your gunfire", &choices_.volumes.own_gunfire, 0.0f, 12.0f, "%+.1f dB",
+                           ImGuiSliderFlags_AlwaysClamp);
+        ImGui::SliderFloat("Bullet impacts and flybys", &choices_.volumes.close_bullets, 0.0f, 12.0f, "%+.1f dB",
+                           ImGuiSliderFlags_AlwaysClamp);
+        ImGui::Unindent();
+        ImGui::EndDisabled();
+        ImGui::Unindent();
+        ImGui::EndDisabled();
     }
 
     // Multiplayer over the local network (online/lan.h): every game on the LAN has to use

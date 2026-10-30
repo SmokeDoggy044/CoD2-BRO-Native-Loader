@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "enhanced_features.h"
 #include "format.h"
 #include "packet.h"
 
@@ -51,7 +52,9 @@ enum class SpatialMode : uint8_t { World, HeadRelative, Off };
 
 // What a voice plays (the game's sound groups SFX, VOICE, MUSIC, GUI). Ambience: the level
 // background beds, which the game plays as MUSIC (snd.cpp, Music_Play: by the alias name).
-enum class Category : uint8_t { Effects, Dialogue, Music, Interface, Ambience };
+// Gunfire: others' weapon shots; Bullets: impacts and flybys; OwnGunfire: the player's shots (all
+// effects, by the alias name; enhanced sound raises them nearby, CategoryVolumes).
+enum class Category : uint8_t { Effects, Dialogue, Music, Interface, Ambience, Gunfire, Bullets, OwnGunfire };
 
 struct Spatial {
     float position[3] = {0, 0, 0};
@@ -155,6 +158,8 @@ public:
     // Enhanced only: how much of a world voice's direct sound is blocked on its way to the
     // listener (0 clear .. 1 behind a wall): quieter and duller; its reverb send stays.
     virtual void set_occlusion(VoiceId voice, float amount) = 0;
+    // Enhanced and this improvement switched on (EnhancedFeatures).
+    virtual bool has(Feature feature) = 0;
 
 protected:
     ~SoundDevice() = default;

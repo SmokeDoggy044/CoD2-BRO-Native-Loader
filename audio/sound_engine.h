@@ -44,6 +44,9 @@ void release_after_fork();
 // Our improvements on or off while playing (the PC menu); OutputConfig::enhanced at first.
 void set_enhanced(bool enhanced);
 bool enhanced();
+// Each improvement on or off (OutputConfig::features at first); they apply while enhanced.
+void set_enhanced_features(const EnhancedFeatures& features);
+EnhancedFeatures enhanced_features();
 
 // The player's volume per kind of sound, original and enhanced alike (settings, PC menu); any
 // time, also before the device opens.

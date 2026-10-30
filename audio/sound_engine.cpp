@@ -106,6 +106,9 @@ public:
     void set_environment(const Environment& environment) override;
     bool enhanced() override;
     void set_occlusion(VoiceId voice, float amount) override;
+    bool has(Feature feature) override;
+    bool feature_on(Feature feature) const { return config.enhanced && config.features.has(feature); }  // locked
+    void apply_enhanced();  // locked: after config.enhanced or features changed
 
     std::mutex mutex;  // everything below except `callbacks`; never taken by the mixer
     OutputConfig config;
@@ -132,6 +135,7 @@ private:
     float distance_gain(const VoiceImpl& v);
     void update(VoiceImpl& v);
     friend void audio::set_enhanced(bool enhanced);
+    friend void audio::set_enhanced_features(const EnhancedFeatures& features);
     friend void audio::log_voices(void (*)(const float*, const float*, char*, size_t));
     friend void audio::set_category_volumes(const CategoryVolumes& volumes);
     void update_listener();
@@ -206,6 +210,17 @@ void Engine::update(VoiceImpl& v) {
     const Format format = v.voice.format();
     Output::SourceParams params;
     params.gain = v.volume * v.headroom * distance_gain(v) * volumes.gain(v.category);
+    if (feature_on(Feature::CloseBoost) && (v.category == Category::Gunfire || v.category == Category::OwnGunfire ||
+                                            v.category == Category::Bullets)) {
+        float distance = 0.0f;  // not placed: the player's own
+        if (is_spatial(v)) {
+            const float* p = v.current.position;
+            const float* l = current_listener.position;
+            distance = std::sqrt((p[0] - l[0]) * (p[0] - l[0]) + (p[1] - l[1]) * (p[1] - l[1]) +
+                                 (p[2] - l[2]) * (p[2] - l[2]));
+        }
+        params.gain *= volumes.close_gain(v.category, distance);
+    }
     params.pitch = v.rate && format.rate ? std::clamp(float(v.rate) / float(format.rate), 1.0f / 64, 16.0f) : 1.0f;
     if (is_spatial(v)) {
         params.placement =
@@ -218,16 +233,30 @@ void Engine::update(VoiceImpl& v) {
         params.placement = Output::Placement::Direct;
     }
     // Enhanced: effects and dialogue are heard in the room (the game asks for no reverb send).
-    params.reverb_send = v.reverb_send || (config.enhanced && (v.category == Category::Effects ||
-                                                                v.category == Category::Dialogue));
+    params.reverb_send = v.reverb_send || (feature_on(Feature::Reverb) && (v.category == Category::Effects ||
+                                                                            v.category == Category::Gunfire ||
+                                                                            v.category == Category::OwnGunfire ||
+                                                                            v.category == Category::Bullets ||
+                                                                            v.category == Category::Dialogue));
     // Enhanced: a blocked world voice through a low-pass (full: -3 dB, a further -6 dB at 5 kHz:
     // what comes through walls, gently as Steam Audio's transmission),
     // and heard a little more through the room: its reverb send up to +3 dB (sound reaching the
     // listener by reflections; +6 dB made blocked gunfire in the open a wash, playtest 10-30).
-    if (config.enhanced && v.occlusion > 0.0f && is_spatial(v)) {
+    if (feature_on(Feature::Occlusion) && v.occlusion > 0.0f && is_spatial(v)) {
         params.direct_gain = 1.0f - 0.3f * v.occlusion;
         params.direct_gain_hf = 1.0f - 0.5f * v.occlusion;
         if (params.reverb_send) params.send_gain = 1.0f + 0.4f * v.occlusion;
+    }
+    // A position or level that is not a number (seen once, 10-30: an entity gone NaN just before a
+    // crash in the animation code) would be refused by OpenAL on every update: the voice is muted
+    // at the origin instead, and it is logged once.
+    if (!std::isfinite(params.gain) || !std::isfinite(params.position[0]) || !std::isfinite(params.position[1]) ||
+        !std::isfinite(params.position[2])) {
+        static bool logged = false;
+        if (!logged) LOG_WARN("audio", "a voice's position or level is not a number: muted");
+        logged = true;
+        params.gain = 0.0f;
+        params.position[0] = params.position[1] = params.position[2] = 0.0f;
     }
     o->update(v.source, params);
 }
@@ -533,12 +562,26 @@ void Engine::set_category(VoiceId id, Category category) {
 
 void Engine::set_environment(const Environment& environment) {
     Guard lock(mutex, TestLock::State);
-    if (Output* o = out(); o && config.enhanced) o->set_environment(environment);
+    if (Output* o = out(); o && feature_on(Feature::Reverb)) o->set_environment(environment);
 }
 
 bool Engine::enhanced() {
     Guard lock(mutex, TestLock::State);
     return config.enhanced;
+}
+
+bool Engine::has(Feature feature) {
+    Guard lock(mutex, TestLock::State);
+    return feature_on(feature);
+}
+
+void Engine::apply_enhanced() {
+    if (Output* o = output.get()) {
+        o->begin_batch();
+        o->set_enhanced(feature_on(Feature::Resampler), feature_on(Feature::Reverb));
+        for (VoiceImpl* v : voices) update(*v);
+        o->end_batch();
+    }
 }
 
 void Engine::set_occlusion(VoiceId id, float amount) {
@@ -566,7 +609,7 @@ std::span<const xbox::KernelImpl> device_methods() {
         "SoundDevice::set_spatial_mode", "SoundDevice::set_distance_curve", "SoundDevice::set_listener",
         "SoundDevice::listener", "SoundDevice::commit", "SoundDevice::start_synched", "SoundDevice::set_headphones",
         "SoundDevice::do_work", "SoundDevice::set_category", "SoundDevice::set_environment",
-        "SoundDevice::enhanced", "SoundDevice::set_occlusion",
+        "SoundDevice::enhanced", "SoundDevice::set_occlusion", "SoundDevice::has",
     };
     static const std::vector<xbox::KernelImpl> methods = [] {
         void* const* vtable = *reinterpret_cast<void* const* const*>(&g);
@@ -618,12 +661,20 @@ void set_enhanced(bool enhanced) {
     Guard lock(g.mutex, TestLock::State);
     if (g.config.enhanced == enhanced) return;
     g.config.enhanced = enhanced;
-    if (Output* o = g.output.get()) {
-        o->begin_batch();
-        o->set_enhanced(enhanced);
-        for (VoiceImpl* v : g.voices) g.update(*v);
-        o->end_batch();
-    }
+    LOG_INFO("audio", "%s sound", enhanced ? "enhanced" : "original");
+    g.apply_enhanced();
+}
+
+void set_enhanced_features(const EnhancedFeatures& features) {
+    Guard lock(g.mutex, TestLock::State);
+    if (g.config.features == features) return;
+    g.config.features = features;
+    g.apply_enhanced();
+}
+
+EnhancedFeatures enhanced_features() {
+    Guard lock(g.mutex, TestLock::State);
+    return g.config.features;
 }
 
 bool enhanced() {
@@ -653,7 +704,7 @@ void set_paused(bool paused) {
 
 void log_voices(void (*describe)(const float listener[3], const float source[3], char* out, size_t size)) {
     Guard lock(g.mutex, TestLock::State);
-    static const char* const kCategories[] = {"effects", "dialogue", "music", "interface", "ambience"};
+    static const char* const kCategories[] = {"effects", "dialogue", "music", "interface", "ambience", "gunfire", "bullets", "own gunfire"};
     int count = 0;
     for (VoiceImpl* v : g.voices) {
         if (!v->refs || !v->voice.playing() || !g.is_spatial(*v)) continue;

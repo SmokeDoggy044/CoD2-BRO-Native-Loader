@@ -233,7 +233,7 @@ std::unique_ptr<Output> Output::open(const OutputConfig& config) {
     alcGetIntegerv(output->device_, ALC_OUTPUT_MODE_SOFT, 1, &mode);
     LOG_INFO("audio", "OpenAL %s on %s%s, %s", alGetString(AL_VERSION), output->loopback_ ? "loopback" : (name ? name : "?"),
              config.device == OutputConfig::Device::ManualLoopback ? " (manual)" : "", mode_name(mode));
-    output->set_enhanced(config.enhanced);
+    output->set_enhanced(config.enhanced && config.features.resampler, config.enhanced && config.features.reverb);
     if (output->loopback_ && config.device != OutputConfig::Device::ManualLoopback)
         output->driver_ = std::thread([raw = output.get()] { raw->drive_loopback(); });
     return output;
@@ -283,7 +283,7 @@ Output::Source* Output::add_source(Voice& voice) {
     auto source = std::make_unique<Source>(voice);
     alGenSources(1, &source->source);
     alGenBuffers(1, &source->buffer);
-    if (enhanced_ && best_resampler_ >= 0) alSourcei(source->source, AL_SOURCE_RESAMPLER_SOFT, best_resampler_);
+    if (resampler_on_ && best_resampler_ >= 0) alSourcei(source->source, AL_SOURCE_RESAMPLER_SOFT, best_resampler_);
     Source* raw = source.get();
     sources_.push_back(std::move(source));
     reformat(raw);
@@ -349,22 +349,23 @@ void Output::update(Source* source, const SourceParams& params) {
                  double(params.position[2]));
 }
 
-void Output::set_enhanced(bool enhanced) {
-    enhanced_ = enhanced;
-    if (best_resampler_ >= 0)
+void Output::set_enhanced(bool resampler, bool reverb) {
+    if (best_resampler_ >= 0 && resampler != resampler_on_)
         for (auto& source : sources_)
-            alSourcei(source->source, AL_SOURCE_RESAMPLER_SOFT, enhanced ? best_resampler_ : default_resampler_);
-    if (reverb_slot_ && !enhanced) {
+            alSourcei(source->source, AL_SOURCE_RESAMPLER_SOFT, resampler ? best_resampler_ : default_resampler_);
+    resampler_on_ = resampler;
+    reverb_on_ = reverb;
+    if (reverb_slot_ && !reverb) {
         set_reverb_effect(reverb_effect_, eax_reverb_, Environment{});
         alAuxiliaryEffectSloti(reverb_slot_, AL_EFFECTSLOT_EFFECT, ALint(reverb_effect_));
     }
-    LOG_INFO("audio", "%s sound: resampler %s, reverb %s", enhanced ? "enhanced" : "original",
-             enhanced && best_resampler_ >= 0 ? alGetStringiSOFT(AL_RESAMPLER_NAME_SOFT, best_resampler_) : "default",
-             !reverb_slot_ ? "unavailable" : enhanced ? (eax_reverb_ ? "EAX reverb" : "standard reverb") : "off");
+    LOG_INFO("audio", "resampler %s, reverb %s",
+             resampler && best_resampler_ >= 0 ? alGetStringiSOFT(AL_RESAMPLER_NAME_SOFT, best_resampler_) : "default",
+             !reverb_slot_ ? "unavailable" : reverb ? (eax_reverb_ ? "EAX reverb" : "standard reverb") : "off");
 }
 
 void Output::set_environment(const Environment& environment) {
-    if (!reverb_slot_ || !enhanced_) return;
+    if (!reverb_slot_ || !reverb_on_) return;
     // Changes worth a log line: 3 dB in a level, a fifth of the decay time.
     const Environment& l = logged_;
     const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
