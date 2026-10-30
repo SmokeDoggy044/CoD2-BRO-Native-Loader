@@ -11,6 +11,7 @@
 #include "log.h"
 #include "patches.h"
 #include "settings.h"
+#include "sound_engine.h"
 
 namespace loader {
 
@@ -19,6 +20,7 @@ namespace {
 constexpr int kGameFov = 70;  // cg_fov's default (cgame cvarTable)
 constexpr int kMinFov = 50, kMaxFov = 120;
 float g_fov_on_open = 0;
+bool g_enhanced_on_open = false;
 
 }  // namespace
 
@@ -50,6 +52,12 @@ bool pc_menu() {
     }
 
     ImGui::Separator();
+    bool enhanced = audio::enhanced();
+    if (ImGui::Checkbox("Enhanced sound", &enhanced)) audio::set_enhanced(enhanced);
+    ImGui::TextDisabled("Off: the sound as on the Xbox. On: reverb by the place you are in\n"
+                        "and finer resampling. Switch while standing still to compare.");
+
+    ImGui::Separator();
     if (ImGui::Button("Close")) open = false;
     ImGui::End();
     return open;
@@ -59,7 +67,17 @@ void pc_menu_shown(bool open) {
     input::set_game_input_blocked(open);
     if (open) {
         g_fov_on_open = field_of_view();
+        g_enhanced_on_open = audio::enhanced();
         return;
+    }
+    const bool enhanced = audio::enhanced();
+    if (enhanced != g_enhanced_on_open) {
+        platform::Settings settings = platform::load_settings();
+        settings.set("audio", enhanced ? "enhanced" : "original");
+        if (platform::save_settings(settings))
+            LOG_INFO("loader", "%s sound saved", enhanced ? "enhanced" : "original");
+        else
+            LOG_WARN("loader", "cannot save the sound setting to %s", platform::settings_path().string().c_str());
     }
     const float fov = field_of_view();
     if (fov == g_fov_on_open) return;

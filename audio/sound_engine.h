@@ -40,6 +40,10 @@ void add_fork_lock(std::mutex& mutex);
 void hold_for_fork();
 void release_after_fork();
 
+// Our improvements on or off while playing (the PC menu); OutputConfig::enhanced at first.
+void set_enhanced(bool enhanced);
+bool enhanced();
+
 // Pauses or resumes all sound output (diagnostics: while the title is frozen).
 void set_paused(bool paused);
 

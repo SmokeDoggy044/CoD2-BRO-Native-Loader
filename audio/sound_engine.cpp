@@ -55,6 +55,7 @@ struct VoiceImpl {
     uint32_t rate = 0;
     float pan = 0.0f;
     bool reverb_send = false;
+    Category category = Category::Effects;
     Spatial current, pending;
     bool has_pending = false;
     std::vector<float> curve;
@@ -100,6 +101,9 @@ public:
     void start_synched() override;
     void set_headphones(bool enabled) override;
     void do_work() override;
+    void set_category(VoiceId voice, Category category) override;
+    void set_environment(const Environment& environment) override;
+    bool enhanced() override;
 
     std::mutex mutex;  // everything below except `callbacks`; never taken by the mixer
     OutputConfig config;
@@ -124,6 +128,7 @@ private:
     bool is_spatial(const VoiceImpl& v);
     float distance_gain(const VoiceImpl& v);
     void update(VoiceImpl& v);
+    friend void audio::set_enhanced(bool enhanced);
     void update_listener();
     void sync(VoiceImpl& v);
     void packet_done(VoiceImpl& v, const Packet& packet, uint32_t status);
@@ -207,6 +212,9 @@ void Engine::update(VoiceImpl& v) {
     } else {
         params.placement = Output::Placement::Direct;
     }
+    // Enhanced: effects and dialogue are heard in the room (the game asks for no reverb send).
+    params.reverb_send = v.reverb_send || (config.enhanced && (v.category == Category::Effects ||
+                                                                v.category == Category::Dialogue));
     o->update(v.source, params);
 }
 
@@ -501,6 +509,24 @@ void Engine::do_work() {
         if (call_guest) call_guest(callback.routine, callback.args, 3);
 }
 
+void Engine::set_category(VoiceId id, Category category) {
+    change(id, [&](VoiceImpl& v) {
+        if (v.category == category) return;
+        v.category = category;
+        update(v);
+    });
+}
+
+void Engine::set_environment(const Environment& environment) {
+    Guard lock(mutex, TestLock::State);
+    if (Output* o = out(); o && config.enhanced) o->set_environment(environment);
+}
+
+bool Engine::enhanced() {
+    Guard lock(mutex, TestLock::State);
+    return config.enhanced;
+}
+
 }  // namespace
 
 SoundDevice& sound_device() { return g; }
@@ -516,7 +542,8 @@ std::span<const xbox::KernelImpl> device_methods() {
         "SoundDevice::set_rate", "SoundDevice::set_pan", "SoundDevice::set_reverb_send", "SoundDevice::set_spatial",
         "SoundDevice::set_spatial_mode", "SoundDevice::set_distance_curve", "SoundDevice::set_listener",
         "SoundDevice::listener", "SoundDevice::commit", "SoundDevice::start_synched", "SoundDevice::set_headphones",
-        "SoundDevice::do_work",
+        "SoundDevice::do_work", "SoundDevice::set_category", "SoundDevice::set_environment",
+        "SoundDevice::enhanced",
     };
     static const std::vector<xbox::KernelImpl> methods = [] {
         void* const* vtable = *reinterpret_cast<void* const* const*>(&g);
@@ -562,6 +589,23 @@ void release_after_fork() {
     for (auto v = g.voices.rbegin(); v != g.voices.rend(); ++v) (*v)->voice.release();
     g.mutex.unlock();
     for (auto m = g.fork_locks.rbegin(); m != g.fork_locks.rend(); ++m) (*m)->unlock();
+}
+
+void set_enhanced(bool enhanced) {
+    Guard lock(g.mutex, TestLock::State);
+    if (g.config.enhanced == enhanced) return;
+    g.config.enhanced = enhanced;
+    if (Output* o = g.output.get()) {
+        o->begin_batch();
+        o->set_enhanced(enhanced);
+        for (VoiceImpl* v : g.voices) g.update(*v);
+        o->end_batch();
+    }
+}
+
+bool enhanced() {
+    Guard lock(g.mutex, TestLock::State);
+    return g.config.enhanced;
 }
 
 void set_paused(bool paused) {

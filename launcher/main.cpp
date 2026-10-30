@@ -534,8 +534,9 @@ private:
         int enhanced = choices_.audio == "enhanced" ? 1 : 0;
         ImGui::Combo("Sound", &enhanced, "Original\0" "Enhanced\0");
         choices_.audio = enhanced ? "enhanced" : "original";
-        help_marker("Original: as on the Xbox. Enhanced: our improvements (so far: finer resampling, "
-                    "so pitched and lower-rate sounds are cleaner).");
+        help_marker("Original: as on the Xbox. Enhanced: our improvements: reverb that follows the place "
+                    "you are in (room size, walls, stone or wood, open sky), and finer resampling. Also "
+                    "switchable while playing in the PC menu (` key).");
 
         static constexpr std::pair<const char*, const char*> kSpeakers[] = {
             {"auto", "Automatic"}, {"stereo", "Stereo speakers"}, {"headphones", "Headphones (3D sound)"},

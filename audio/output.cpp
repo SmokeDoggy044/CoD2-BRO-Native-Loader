@@ -4,8 +4,13 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
+#include <AL/efx.h>
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <mutex>
+#include <utility>
 #include <cstring>
 #include <vector>
 
@@ -91,6 +96,80 @@ int best_resampler() {
     return count > 0 ? count - 1 : -1;  // the list goes from worst to best
 }
 
+// An OpenAL error raised since the last check, logged with `what` (each call site and error
+// at most 10 times). True if it was logged (callers then add details).
+bool al_failed(const char* what) {
+    const ALenum error = alGetError();
+    if (error == AL_NO_ERROR) return false;
+    static std::mutex mutex;
+    static std::vector<std::pair<const char*, ALenum>> seen;
+    std::lock_guard lock(mutex);
+    if (std::count(seen.begin(), seen.end(), std::make_pair(what, error)) < 10) {
+        seen.emplace_back(what, error);
+        LOG_WARN("audio", "OpenAL error %04x: %s", unsigned(error), what);
+        return true;
+    }
+    return false;
+}
+
+// Millibels to a linear gain.
+float gain_of(float millibels) { return std::pow(10.0f, millibels / 2000.0f); }
+
+// EFX's reverb from an I3DL2 environment (the mapping of OpenAL Soft's efx-presets.h, which
+// are the I3DL2/EAX presets), each value clamped to EFX's range.
+void set_reverb_effect(ALuint effect, bool eax, const Environment& e) {
+    const float density = std::clamp(e.density / 100.0f, 0.0f, 1.0f);
+    const float diffusion = std::clamp(e.diffusion / 100.0f, 0.0f, 1.0f);
+    const float gain = std::clamp(gain_of(e.room), 0.0f, 1.0f);
+    const float gain_hf = std::clamp(gain_of(e.room_hf), 0.0f, 1.0f);
+    const float decay = std::clamp(e.decay_time, 0.1f, 20.0f);
+    const float decay_hf = std::clamp(e.decay_hf_ratio, 0.1f, 2.0f);
+    const float reflections = std::clamp(gain_of(e.reflections), 0.0f, 3.16f);
+    const float reflections_delay = std::clamp(e.reflections_delay, 0.0f, 0.3f);
+    const float late = std::clamp(gain_of(e.reverb), 0.0f, 10.0f);
+    const float late_delay = std::clamp(e.reverb_delay, 0.0f, 0.1f);
+    const float rolloff = std::clamp(e.room_rolloff, 0.0f, 10.0f);
+    if (eax) {
+        alEffectf(effect, AL_EAXREVERB_DENSITY, density);
+        alEffectf(effect, AL_EAXREVERB_DIFFUSION, diffusion);
+        alEffectf(effect, AL_EAXREVERB_GAIN, gain);
+        alEffectf(effect, AL_EAXREVERB_GAINHF, gain_hf);
+        alEffectf(effect, AL_EAXREVERB_DECAY_TIME, decay);
+        alEffectf(effect, AL_EAXREVERB_DECAY_HFRATIO, decay_hf);
+        alEffectf(effect, AL_EAXREVERB_REFLECTIONS_GAIN, reflections);
+        alEffectf(effect, AL_EAXREVERB_REFLECTIONS_DELAY, reflections_delay);
+        alEffectf(effect, AL_EAXREVERB_LATE_REVERB_GAIN, late);
+        alEffectf(effect, AL_EAXREVERB_LATE_REVERB_DELAY, late_delay);
+        alEffectf(effect, AL_EAXREVERB_HFREFERENCE, std::clamp(e.hf_reference, 1000.0f, 20000.0f));
+        alEffectf(effect, AL_EAXREVERB_ROOM_ROLLOFF_FACTOR, rolloff);
+        alEffecti(effect, AL_EAXREVERB_DECAY_HFLIMIT, AL_TRUE);
+        // OpenAL Soft (1.24) folds a fully focused pan back to the middle in stereo: at most 0.6.
+        auto pan = [](const float in[3], float out[3]) {
+            const float length = std::sqrt(in[0] * in[0] + in[1] * in[1] + in[2] * in[2]);
+            const float scale = length > 0.6f ? 0.6f / length : 1.0f;
+            for (int i = 0; i < 3; ++i) out[i] = in[i] * scale;
+        };
+        float reflections_pan[3], reverb_pan[3];
+        pan(e.reflections_pan, reflections_pan);
+        pan(e.reverb_pan, reverb_pan);
+        alEffectfv(effect, AL_EAXREVERB_REFLECTIONS_PAN, reflections_pan);  // x right, y up, z ahead
+        alEffectfv(effect, AL_EAXREVERB_LATE_REVERB_PAN, reverb_pan);
+    } else {
+        alEffectf(effect, AL_REVERB_DENSITY, density);
+        alEffectf(effect, AL_REVERB_DIFFUSION, diffusion);
+        alEffectf(effect, AL_REVERB_GAIN, gain);
+        alEffectf(effect, AL_REVERB_GAINHF, gain_hf);
+        alEffectf(effect, AL_REVERB_DECAY_TIME, decay);
+        alEffectf(effect, AL_REVERB_DECAY_HFRATIO, decay_hf);
+        alEffectf(effect, AL_REVERB_REFLECTIONS_GAIN, reflections);
+        alEffectf(effect, AL_REVERB_REFLECTIONS_DELAY, reflections_delay);
+        alEffectf(effect, AL_REVERB_LATE_REVERB_GAIN, late);
+        alEffectf(effect, AL_REVERB_LATE_REVERB_DELAY, late_delay);
+        alEffectf(effect, AL_REVERB_ROOM_ROLLOFF_FACTOR, rolloff);
+        alEffecti(effect, AL_REVERB_DECAY_HFLIMIT, AL_TRUE);
+    }
+}
+
 }  // namespace
 
 std::unique_ptr<Output> Output::open(const OutputConfig& config) {
@@ -129,14 +208,27 @@ std::unique_ptr<Output> Output::open(const OutputConfig& config) {
     // caller; OpenAL only pans. No doppler for now.
     alDistanceModel(AL_NONE);
     alDopplerFactor(0.0f);
-    if (config.enhanced) output->resampler_ = best_resampler();
+    output->best_resampler_ = best_resampler();
+    if (output->best_resampler_ >= 0) output->default_resampler_ = alGetInteger(AL_DEFAULT_RESAMPLER_SOFT);
+    if (alcIsExtensionPresent(output->device_, "ALC_EXT_EFX")) {
+        alGenEffects(1, &output->reverb_effect_);
+        alEffecti(output->reverb_effect_, AL_EFFECT_TYPE, AL_EFFECT_EAXREVERB);
+        output->eax_reverb_ = alGetError() == AL_NO_ERROR;
+        if (!output->eax_reverb_) alEffecti(output->reverb_effect_, AL_EFFECT_TYPE, AL_EFFECT_REVERB);
+        alGenAuxiliaryEffectSlots(1, &output->reverb_slot_);
+        set_reverb_effect(output->reverb_effect_, output->eax_reverb_, Environment{});  // silent at first
+        alAuxiliaryEffectSloti(output->reverb_slot_, AL_EFFECTSLOT_EFFECT, ALint(output->reverb_effect_));
+        if (alGetError() != AL_NO_ERROR) {
+            LOG_WARN("audio", "cannot set up the reverb (EFX); no reverb");
+            output->reverb_slot_ = 0;
+        }
+    }
     const char* name = alcGetString(output->device_, ALC_ALL_DEVICES_SPECIFIER);
     ALCint mode = 0;
     alcGetIntegerv(output->device_, ALC_OUTPUT_MODE_SOFT, 1, &mode);
-    LOG_INFO("audio", "OpenAL %s on %s%s, %s, resampler %s", alGetString(AL_VERSION),
-             output->loopback_ ? "loopback" : (name ? name : "?"),
-             config.device == OutputConfig::Device::ManualLoopback ? " (manual)" : "", mode_name(mode),
-             output->resampler_ >= 0 ? alGetStringiSOFT(AL_RESAMPLER_NAME_SOFT, output->resampler_) : "default");
+    LOG_INFO("audio", "OpenAL %s on %s%s, %s", alGetString(AL_VERSION), output->loopback_ ? "loopback" : (name ? name : "?"),
+             config.device == OutputConfig::Device::ManualLoopback ? " (manual)" : "", mode_name(mode));
+    output->set_enhanced(config.enhanced);
     if (output->loopback_ && config.device != OutputConfig::Device::ManualLoopback)
         output->driver_ = std::thread([raw = output.get()] { raw->drive_loopback(); });
     return output;
@@ -149,6 +241,8 @@ Output::~Output() {
         alDeleteSources(1, &source->source);
         alDeleteBuffers(1, &source->buffer);
     }
+    if (reverb_slot_) alDeleteAuxiliaryEffectSlots(1, &reverb_slot_);
+    if (reverb_effect_) alDeleteEffects(1, &reverb_effect_);
     alcMakeContextCurrent(nullptr);
     if (context_) alcDestroyContext(context_);
     if (device_) alcCloseDevice(device_);
@@ -183,7 +277,7 @@ Output::Source* Output::add_source(Voice& voice) {
     auto source = std::make_unique<Source>(voice);
     alGenSources(1, &source->source);
     alGenBuffers(1, &source->buffer);
-    if (resampler_ >= 0) alSourcei(source->source, AL_SOURCE_RESAMPLER_SOFT, resampler_);
+    if (enhanced_ && best_resampler_ >= 0) alSourcei(source->source, AL_SOURCE_RESAMPLER_SOFT, best_resampler_);
     Source* raw = source.get();
     sources_.push_back(std::move(source));
     reformat(raw);
@@ -192,8 +286,14 @@ Output::Source* Output::add_source(Voice& voice) {
 
 void Output::reformat(Source* source) {
     const Format format = source->voice.format();
+    al_failed("left over before a voice's new format");
     alSourceStop(source->source);
     alSourcei(source->source, AL_BUFFER, 0);
+    if (al_failed("detaching a voice's callback buffer")) {
+        ALint state = 0;
+        alGetSourcei(source->source, AL_SOURCE_STATE, &state);
+        LOG_WARN("audio", "  (source %u state %04x)", source->source, unsigned(state));
+    }
     source->channels = 0;
     const ALenum al = al_format(format.channels);
     if (!al || format.block_align == 0) {
@@ -202,8 +302,10 @@ void Output::reformat(Source* source) {
     }
     source->channels = format.channels;
     alBufferCallbackSOFT(source->buffer, al, static_cast<ALsizei>(format.rate), render_callback, source);
+    if (al_failed("setting up a callback buffer"))
+        LOG_WARN("audio", "  (%u channels, %u Hz, block %u)", format.channels, format.rate, format.block_align);
     alSourcei(source->source, AL_BUFFER, static_cast<ALint>(source->buffer));
-    if (alGetError() != AL_NO_ERROR) LOG_WARN("audio", "cannot set up a callback buffer");
+    al_failed("attaching a voice's callback buffer");
 }
 
 void Output::update(Source* source, const SourceParams& params) {
@@ -213,6 +315,48 @@ void Output::update(Source* source, const SourceParams& params) {
     alSourcei(s, AL_DIRECT_CHANNELS_SOFT, params.placement == Placement::Direct ? AL_TRUE : AL_FALSE);
     alSourcei(s, AL_SOURCE_RELATIVE, params.placement == Placement::World ? AL_FALSE : AL_TRUE);
     alSourcefv(s, AL_POSITION, params.position);
+    if (reverb_slot_)
+        alSource3i(s, AL_AUXILIARY_SEND_FILTER, params.reverb_send ? ALint(reverb_slot_) : AL_EFFECTSLOT_NULL, 0,
+                   AL_FILTER_NULL);
+    if (al_failed("updating a voice"))
+        LOG_WARN("audio", "  (gain %g, pitch %g, placement %d, position %g %g %g)", double(params.gain),
+                 double(params.pitch), int(params.placement), double(params.position[0]), double(params.position[1]),
+                 double(params.position[2]));
+}
+
+void Output::set_enhanced(bool enhanced) {
+    enhanced_ = enhanced;
+    if (best_resampler_ >= 0)
+        for (auto& source : sources_)
+            alSourcei(source->source, AL_SOURCE_RESAMPLER_SOFT, enhanced ? best_resampler_ : default_resampler_);
+    if (reverb_slot_ && !enhanced) {
+        set_reverb_effect(reverb_effect_, eax_reverb_, Environment{});
+        alAuxiliaryEffectSloti(reverb_slot_, AL_EFFECTSLOT_EFFECT, ALint(reverb_effect_));
+    }
+    LOG_INFO("audio", "%s sound: resampler %s, reverb %s", enhanced ? "enhanced" : "original",
+             enhanced && best_resampler_ >= 0 ? alGetStringiSOFT(AL_RESAMPLER_NAME_SOFT, best_resampler_) : "default",
+             !reverb_slot_ ? "unavailable" : enhanced ? (eax_reverb_ ? "EAX reverb" : "standard reverb") : "off");
+}
+
+void Output::set_environment(const Environment& environment) {
+    if (!reverb_slot_ || !enhanced_) return;
+    // Changes worth a log line: 3 dB in a level, a fifth of the decay time.
+    const Environment& l = logged_;
+    const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
+    if (now - logged_at_ >= 1000 &&
+        (std::abs(environment.room - l.room) >= 300 || std::abs(environment.reflections - l.reflections) >= 300 ||
+         std::abs(environment.reverb - l.reverb) >= 300 ||
+         std::abs(environment.decay_time - l.decay_time) >= 0.2f * std::max(l.decay_time, 0.1f))) {
+        LOG_INFO("audio", "reverb: level %.0f mB, decay %.2f s, reflections %.0f mB at %.0f ms, late %.0f mB",
+                 double(environment.room), double(environment.decay_time), double(environment.reflections),
+                 double(environment.reflections_delay * 1000), double(environment.reverb));
+        logged_ = environment;
+        logged_at_ = now;
+    }
+    set_reverb_effect(reverb_effect_, eax_reverb_, environment);
+    // The slot takes the effect's values when it is attached again.
+    alAuxiliaryEffectSloti(reverb_slot_, AL_EFFECTSLOT_EFFECT, ALint(reverb_effect_));
 }
 
 void Output::sync(Source* source) {

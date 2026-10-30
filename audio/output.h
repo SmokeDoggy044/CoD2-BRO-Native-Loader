@@ -16,6 +16,7 @@
 #include <thread>
 #include <vector>
 
+#include "sound_device.h"
 #include "voice.h"
 
 typedef struct ALCdevice ALCdevice;
@@ -44,6 +45,7 @@ public:
         float pitch = 1.0f;
         Placement placement = Placement::Direct;  // Direct: channels straight to speakers
         float position[3] = {0, 0, 0};            // OpenAL coordinates (right-handed)
+        bool reverb_send = false;                 // to set_environment's reverb
     };
     class Source;
 
@@ -65,6 +67,12 @@ public:
     void end_batch();
     // The game's headphone choice (Speakers::Auto only; otherwise the layout decides).
     bool set_hrtf(bool enabled);
+    // Our improvements on or off while playing (OutputConfig::enhanced at first): the resampler
+    // of every source; off silences the reverb.
+    void set_enhanced(bool enhanced);
+    // The reverb sources with reverb_send feed (EFX; ignored while not enhanced). Logs changes
+    // that can be heard (at most once a second).
+    void set_environment(const Environment& environment);
     // Stops all output until resumed (the voices do not advance).
     void set_paused(bool paused);
 
@@ -81,7 +89,13 @@ private:
     ALCdevice* device_ = nullptr;
     OutputConfig::Speakers speakers_ = OutputConfig::Speakers::Auto;
     int hrtf_ = -1;          // the game's headphone choice (Speakers::Auto), -1: none yet
-    int resampler_ = -1;     // the sources' (AL_SOFT_source_resampler), -1: OpenAL's default
+    bool enhanced_ = false;
+    int best_resampler_ = -1;     // enhanced sources' (AL_SOFT_source_resampler), -1: none found
+    int default_resampler_ = -1;  // the others'
+    unsigned reverb_slot_ = 0, reverb_effect_ = 0;  // EFX, 0: none
+    Environment logged_;          // the last environment logged
+    int64_t logged_at_ = 0;       // steady clock, milliseconds
+    bool eax_reverb_ = false;  // AL_EFFECT_EAXREVERB, else the standard reverb
     ALCcontext* context_ = nullptr;
     bool loopback_ = false;
     uint32_t rate_ = 48000;
