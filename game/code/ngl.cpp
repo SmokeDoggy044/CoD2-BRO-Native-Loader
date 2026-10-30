@@ -3,10 +3,12 @@
 #include <cstdarg>
 #include <cmath>
 #include <cstring>
+#include <vector>
 
 #include "lanes.h"
 #include "qcommon.h"
 #include "shaders.h"
+#include "gfx_device.h"
 #include "ngl_gfx.h"
 #include "title_data.h"
 
@@ -1323,6 +1325,20 @@ void XB_CDECL nglInitShaderConstantTable() {
     };
     for (const auto& entry : kLoaded) title_global<uint32_t>(entry[0]) = title_global<uint32_t>(entry[1]);
     for (const auto& entry : kStored) title_global<uint32_t>(entry[0]) = entry[1];
+    // The loaded words are shader programs (the screen-space shaders: text, quads, mips, fog): a
+    // vertex program blob (header type 0x2078; its declaration in the next word) or a pixel shader
+    // definition (1-8 combiner stages). Ours are found by the program itself (render/shaders).
+    for (const auto& entry : kLoaded) {
+        const uint32_t program = title_global<uint32_t>(entry[0]);
+        if (!program) continue;
+        const auto* words = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(program));
+        const bool vertex = (words[0] & 0xFFFF) == 0x2078;
+        const uint32_t stages = words[53] & 0xFF;  // D3DPIXELSHADERDEF combiner count
+        if (!vertex && (stages < 1 || stages > 8)) continue;
+        ngl_gfx_shader_key(program, program);
+        if (const auto loaded = renderer_pc_hooks().shader_loaded)
+            loaded(entry[0], vertex ? 'v' : 'p', program, program, vertex ? title_global<uint32_t>(entry[0] + 4) : 0);
+    }
 }
 
 uint8_t* XB_REGS1 XB_CDECL nglSelectMeshLod(uint8_t* table, int8_t flags, const uint8_t* params,
@@ -1785,7 +1801,7 @@ void XB_CDECL nglFreeTexture(NglTexture* texture) {
         title_global<uint32_t>(0x00903c88) = 0;
         title_global<uint32_t>(0x00903c8c) = 0;
         title_global<uint32_t>(0x00903c90) = 0;
-        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+        xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
         nglUnbindTextures();
         title_function<void XB_CDECL()>(0x003e6200)();
     }
@@ -2526,7 +2542,7 @@ void XB_CDECL nglSetVertexStreams(const uint8_t* vertex_buffer, uint32_t stride,
     if (buffer == cached_buffer && stride == cached_stride && offset == cached_offset) return;
     const Stream stream = {buffer, stride, offset};
     using InputDirect = void XB_STDCALL(uint32_t, uint32_t, const Stream*);
-    title_function<InputDirect>(0x003e75e0)(title_global<uint32_t>(0x00903c0c), 1, &stream);  // SetVertexShaderInputDirect
+    xb::set_vertex_input(title_global<uint32_t>(0x00903c0c), 1, &stream);  // SetVertexShaderInputDirect
     cached_buffer = buffer;
     cached_stride = stride;
     cached_offset = offset;
@@ -2536,11 +2552,12 @@ void XB_CDECL nglDrawMeshSection(const NglMeshSection* section) {
     using Draw = void XB_STDCALL(uint32_t, uint32_t, uint32_t);
     nglSetVertexStreams(section->vertex_buffer, section->stride, 0);
     if (!section->index_count) {
-        title_function<Draw>(0x003e98c0)(section->primitive, 0, section->vertex_count);  // DrawVertices
+        xb::draw_vertices(section->primitive, 0, section->vertex_count);  // DrawVertices
     } else if (section->has_push_buffer) {
         title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003ebf10)(section->push_buffer, 0);  // RunPushBuffer
     } else {
-        title_function<Draw>(0x003e9990)(section->primitive, section->index_count, section->indices);  // DrawIndexedVertices
+        xb::draw_indexed_vertices(section->primitive, section->index_count,
+                                  reinterpret_cast<const void*>(static_cast<uintptr_t>(section->indices)));  // DrawIndexedVertices
     }
 }
 
@@ -2736,24 +2753,19 @@ void XB_THISCALL nglRenderTextNode(NglTextNode* node) {
     title_global<uint32_t>(0x00903c8c) = 0;
     title_global<uint32_t>(0x00903c90) = 0;
     // D3DDevice_SetVertexShaderInputDirect
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);
-    // 24 dwords per glyph, a begin/end pair and one header per run.
-    const uint32_t dwords = ((glyphs * 3) << 5 >> 2) + run_count + 5;
-    auto* push = reinterpret_cast<uint32_t*>(
-        static_cast<uintptr_t>(title_function<uint32_t XB_STDCALL(uint32_t)>(0x003eba40)(dwords)));  // BeginPush
-    push[0] = 0x000417fc;  // begin: quads
-    push[1] = 8;
-    push += 2;
-    for (; run; run = run->next) {
-        const uint32_t color = run->color;
-        float pen_x = run->x;
-        const float pen_y = run->y;
-        const float scale_x = run->scale_x;
-        const float scale_y = run->scale_y;
-        *push++ = run->glyph_count * 0x600000 + 0x40001818;  // vertex data, 24 dwords a glyph
-        for (uint32_t left = run->length; left; --left) {
-            const uint8_t code = static_cast<uint8_t>(*run->text);
-            font = node->font;
+    xb::set_vertex_input(0, 0, 0);
+    // A run's glyphs as quads of {x, y, z, colour, u, v} (24 dwords a glyph) at `out`; advances
+    // the run's text when `advance` (the original does, drawing).
+    auto run_vertices = [node, z](NglTextRun* r, uint32_t* out, bool advance) {
+        const uint32_t color = r->color;
+        float pen_x = r->x;
+        const float pen_y = r->y;
+        const float scale_x = r->scale_x;
+        const float scale_y = r->scale_y;
+        const char* text = r->text;
+        for (uint32_t left = r->length; left; --left) {
+            const uint8_t code = static_cast<uint8_t>(*text);
+            NglFont* font = node->font;
             const NglFontGlyph glyph = font->glyphs[code - font->first_glyph];
             const float* uv = node->font->uvs[static_cast<uint8_t>(code - static_cast<uint8_t>(node->font->first_glyph))];
             const float x0 = static_cast<float>(glyph.offset_x) * scale_x + pen_x;
@@ -2766,18 +2778,42 @@ void XB_THISCALL nglRenderTextNode(NglTextNode* node) {
             const float u1 = (uv[2] - u0) + u0;
             const float vertices[4][4] = {{x0, y0, u0, v0}, {x1, y0, u1, v0}, {x1, y1, u1, v1}, {x0, y1, u0, v1}};
             for (const auto& v : vertices) {
-                std::memcpy(&push[0], &v[0], 4);
-                std::memcpy(&push[1], &v[1], 4);
-                std::memcpy(&push[2], &z, 4);
-                push[3] = color;
-                std::memcpy(&push[4], &v[2], 4);
-                std::memcpy(&push[5], &v[3], 4);
-                push += 6;
+                std::memcpy(&out[0], &v[0], 4);
+                std::memcpy(&out[1], &v[1], 4);
+                std::memcpy(&out[2], &z, 4);
+                out[3] = color;
+                std::memcpy(&out[4], &v[2], 4);
+                std::memcpy(&out[5], &v[3], 4);
+                out += 6;
             }
             const NglFontGlyph& original = node->font->glyphs[code - node->font->first_glyph];
-            ++run->text;
-            pen_x = platform_x87_unsigned_mul_add(static_cast<uint32_t>(original.advance), run->scale_x, pen_x);
+            ++text;
+            pen_x = platform_x87_unsigned_mul_add(static_cast<uint32_t>(original.advance), r->scale_x, pen_x);
         }
+        if (advance) r->text = text;
+        return out;
+    };
+    if (ngl_gfx_own_draws()) {
+        static std::vector<uint32_t> vertices;
+        vertices.resize(static_cast<size_t>(glyphs) * 24);
+        uint32_t* out = vertices.data();
+        for (NglTextRun* r = run; r; r = r->next) out = run_vertices(r, out, false);
+        const auto count = static_cast<uint32_t>((out - vertices.data()) / 6);
+        if (ngl_gfx_draw_user(render::Primitive::Quads, vertices.data(), count, 24)) {
+            runs = nullptr;
+            return;
+        }
+    }
+    // 24 dwords per glyph, a begin/end pair and one header per run.
+    const uint32_t dwords = ((glyphs * 3) << 5 >> 2) + run_count + 5;
+    auto* push = reinterpret_cast<uint32_t*>(
+        static_cast<uintptr_t>(title_function<uint32_t XB_STDCALL(uint32_t)>(0x003eba40)(dwords)));  // BeginPush
+    push[0] = 0x000417fc;  // begin: quads
+    push[1] = 8;
+    push += 2;
+    for (; run; run = run->next) {
+        *push++ = run->glyph_count * 0x600000 + 0x40001818;  // vertex data, 24 dwords a glyph
+        push = run_vertices(run, push, true);
     }
     push[0] = 0x000417fc;  // end
     push[1] = 0;
@@ -2921,7 +2957,7 @@ void XB_CDECL nglResetDeviceBindings() {
     title_global<uint32_t>(0x00903c88) = 0;
     title_global<uint32_t>(0x00903c8c) = 0;
     title_global<uint32_t>(0x00903c90) = 0;
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
     nglUnbindTextures();
     title_function<void XB_CDECL()>(0x003e6200)();
     title_global<uint32_t>(0x009028e0) += 2;  // ngl_frameCount
@@ -3100,7 +3136,7 @@ void XB_CDECL nglQuadBatch_Draw() {
     nglSetVertexStreams(title_global<const uint8_t* [2]>(0x00909f20)[buffer], 0x18, 0);
     const uint8_t* indices = *title_global<uint8_t**>(0x00909f28) + title_global<int32_t>(0x00909f38) * 2;
     using Draw = void XB_STDCALL(uint32_t, uint32_t, const uint8_t*);
-    title_function<Draw>(0x003e9990)(5, title_global<int32_t>(0x00909f30) * 6, indices);  // DrawIndexedVertices, triangle list
+    xb::draw_indexed_vertices(5, title_global<int32_t>(0x00909f30) * 6, indices);  // DrawIndexedVertices, triangle list
     const int32_t quads = title_global<int32_t>(0x00909f30);
     title_global<int32_t>(0x00909f38) += quads * 6;
     title_global<int32_t>(0x00909f48) += quads;
@@ -3353,9 +3389,8 @@ void XB_CDECL nglGenerateRenderTargetMips(NglTexture* texture) {
         title_global<uint32_t>(0x00903c88) = 0;
         title_global<uint32_t>(0x00903c8c) = 0;
         title_global<uint32_t>(0x00903c90) = 0;
-        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
-        title_function<void XB_STDCALL(uint32_t, uint32_t, const void*, uint32_t)>(0x003e9710)(
-            6, 4, quad, sizeof(quad[0]));  // DrawVerticesUP: a quad list
+        xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
+        xb::draw_vertices_up(6, 4, quad, sizeof(quad[0]));  // DrawVerticesUP: a triangle strip
     }
     // Forget the cached texture stage states.
     for (uint32_t i = 0; i < 4; ++i) {
@@ -3612,9 +3647,8 @@ void XB_CDECL nglDrawFogPass() {
     title_global<uint32_t>(0x00903c88) = 0;
     title_global<uint32_t>(0x00903c8c) = 0;
     title_global<uint32_t>(0x00903c90) = 0;
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
-    title_function<void XB_STDCALL(uint32_t, uint32_t, const void*, uint32_t)>(0x003e9710)(
-        6, 4, strip, sizeof(strip[0]));  // DrawVerticesUP
+    xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
+    xb::draw_vertices_up(6, 4, strip, sizeof(strip[0]));  // DrawVerticesUP
     set_cached_simple_state<uint8_t>(0x00902f7c, 0x0004035c, 0x003f8428, saved_z_write);
     if (z_enable != 1) {
         xb::set_render_state(0x003e8210, 1);
@@ -3873,8 +3907,7 @@ void XB_CDECL nglBeginSceneRender(NglScene* target_scene) {
         color = (color | ftol(c[0])) << 8;
         color = (color | ftol(c[1])) << 8;
         color |= ftol(c[2]);
-        title_function<void XB_STDCALL(uint32_t, const void*, uint32_t, uint32_t, float, uint32_t)>(0x003ead90)(
-            0, nullptr, scene->clear_flags, color, scene->clear_depth, scene->flags);  // Clear
+        xb::clear(0, nullptr, scene->clear_flags, color, scene->clear_depth, scene->flags);  // Clear
         scene = current_scene();
     }
     simple(0x00040358, scene->color_write_mask, 0x003f8434, 0x00902fa8);
@@ -5694,15 +5727,28 @@ void XB_CDECL nglDrawQuad(NglQuad* quad) {
     title_global<uint32_t>(0x00903c88) = 0;
     title_global<uint32_t>(0x00903c8c) = 0;
     title_global<uint32_t>(0x00903c90) = 0;
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
+    // Vertices 0, 1, 3, 2: x, y, z, colour, u, v.
+    static const int kOrder[4] = {0, 1, 3, 2};
+    if (!yuv && ngl_gfx_own_draws()) {  // YUV textures (movie frames) stay on the Xbox path for now
+        uint32_t vertices[4][6];
+        for (int n = 0; n < 4; ++n) {
+            const NglQuadVertex& q = v[kOrder[n]];
+            std::memcpy(&vertices[n][0], &q.x, 4);
+            std::memcpy(&vertices[n][1], &q.y, 4);
+            std::memcpy(&vertices[n][2], &z, 4);
+            vertices[n][3] = q.color;
+            std::memcpy(&vertices[n][4], &q.u, 4);
+            std::memcpy(&vertices[n][5], &q.v, 4);
+        }
+        if (ngl_gfx_draw_user(render::Primitive::Quads, vertices, 4, 24)) return;
+    }
     auto* push = reinterpret_cast<uint32_t*>(
         static_cast<uintptr_t>(title_function<uint32_t XB_STDCALL(uint32_t)>(0x003eba40)(0x1d)));  // BeginPush
     push[0] = 0x000417fc;  // begin: quads
     push[1] = 8;
     push[2] = 0x40601818;  // 24 dwords of vertex data
     push += 3;
-    // Vertices 0, 1, 3, 2: x, y, z, colour, u, v.
-    static const int kOrder[4] = {0, 1, 3, 2};
     for (const int i : kOrder) {
         std::memcpy(&push[0], &v[i].x, 4);
         std::memcpy(&push[1], &v[i].y, 4);
@@ -5892,7 +5938,7 @@ void XB_CDECL nglSetFrameMemorySize(uint32_t kind, uint32_t size, uint8_t reallo
         title_global<uint32_t>(0x00903c88) = 0;
         title_global<uint32_t>(0x00903c8c) = 0;
         title_global<uint32_t>(0x00903c90) = 0;
-        title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+        xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
         nglUnbindTextures();
         title_function<void XB_CDECL()>(0x003e6200)();  // D3DDevice_BlockUntilIdle
     }
@@ -6096,7 +6142,7 @@ uint8_t XB_CDECL nglSaveTextureTGA(NglTexture* texture, const char* name) {
     title_global<uint32_t>(0x00903c88) = 0;
     title_global<uint32_t>(0x00903c8c) = 0;
     title_global<uint32_t>(0x00903c90) = 0;
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
     nglUnbindTextures();
     title_function<void XB_CDECL()>(0x003e6200)();  // D3DDevice_BlockUntilIdle
     char path[0x400];
@@ -6235,7 +6281,7 @@ void XB_CDECL nglEndFrame() {
     xb::set_pixel_shader(0);   // D3DDevice_SetPixelShader
     static const uint32_t kCleared[6] = {0x00903c08, 0x00903c0c, 0x00903c10, 0x00903c88, 0x00903c8c, 0x00903c90};
     for (const uint32_t address : kCleared) title_global<uint32_t>(address) = 0;
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
     call_frame_hook(0x009025c0, 0x009025c4);
     title_global<float>(0x00902bd8) = ticks_to_seconds(title_clock() - global64(0x00902b90));
     title_function<void XB_STDCALL(uint32_t)>(0x003e6210)(title_global<uint32_t>(0x0090286c));  // wait on the last fence
@@ -6247,6 +6293,7 @@ void XB_CDECL nglEndFrame() {
         while (*static_cast<volatile uint8_t*>(&title_global<uint8_t>(0x0090288c))) {
         }
     title_function<void XB_STDCALL(uint32_t)>(0x003eabe0)(0);  // D3DDevice_Swap
+    ngl_gfx_end_frame();
     if (title_global<uint32_t>(0x008a3518) != 0x11) nglRestoreRenderStates(&title_global<uint8_t>(0x00902f08));
     ++title_global<uint32_t>(0x009028e0);
     set_global64(0x00902b90, title_clock());

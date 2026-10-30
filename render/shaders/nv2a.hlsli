@@ -29,6 +29,15 @@ float4 nv_log(float s) {
 float4 nv_rcc(float s) { return clamp(1 / s, -1.884467e19, 1.884467e19); }
 float4 nv_dst(float4 a, float4 b) { return float4(1, a.y * b.y, a.z, b.w); }
 
+// NORMPACKED3 (11:11:10 signed normalized x, y, z), given as its four bytes (UBYTE4): (x, y, z, 1).
+float4 nv_normpacked3(float4 b) {
+    const float x = b.x + (b.y - 8 * floor(b.y / 8)) * 256;
+    const float y = floor(b.y / 8) + (b.z - 64 * floor(b.z / 64)) * 32;
+    const float z = floor(b.z / 64) + b.w * 4;
+    return float4(max((x >= 1024 ? x - 2048 : x) / 1023, -1), max((y >= 1024 ? y - 2048 : y) / 1023, -1),
+                  max((z >= 512 ? z - 1024 : z) / 511, -1), 1);
+}
+
 // Screen space (title pixels, depth buffer units) -> clip space: w' = w, or 1 where w is 0.
 VsOut nv_epilogue(float4 pos, float4 d0, float4 d1, float4 t0, float4 t1, float4 t2, float4 t3, float fog) {
     VsOut o;

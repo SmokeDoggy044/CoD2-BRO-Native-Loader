@@ -330,12 +330,11 @@ void XB_THISCALL nglDebugLineBatch_Draw(uint8_t* self) {
     title_global<uint32_t>(0x00903c88) = 0;
     title_global<uint32_t>(0x00903c8c) = 0;
     title_global<uint32_t>(0x00903c90) = 0;
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
+    xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
     // D3D's primitive-to-vertex count table {multiplier, offset}.
     const uint32_t* table = &title_global<uint32_t>(0x00831780);
     const uint32_t vertex_count = table[primitive * 2] * primitives + table[primitive * 2 + 1];
-    title_function<void XB_STDCALL(uint32_t, uint32_t, const void*, uint32_t)>(0x003e9710)(
-        primitive, vertex_count, vertices, 16);  // DrawVerticesUP
+    xb::draw_vertices_up(primitive, vertex_count, vertices, 16);  // DrawVerticesUP
 }
 
 void XB_CDECL nglInitDebugMeshes() {

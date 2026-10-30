@@ -11,6 +11,7 @@
 #include "d3d_internal.h"
 #include "float_env.h"
 #include "log.h"
+#include "texture_hash.h"
 #include "title_shaders.h"
 #include "xbox_d3d.h"
 
@@ -143,6 +144,7 @@ BYTE decl_type(AttributeType t) {
         case AttributeType::Float4: return D3DDECLTYPE_FLOAT4;
         case AttributeType::Color: return D3DDECLTYPE_D3DCOLOR;
         case AttributeType::UByte4: return D3DDECLTYPE_UBYTE4;
+        case AttributeType::UByte4N: return D3DDECLTYPE_UBYTE4N;
         case AttributeType::Short2: return D3DDECLTYPE_SHORT2;
         case AttributeType::Short4: return D3DDECLTYPE_SHORT4;
         case AttributeType::Short2N: return D3DDECLTYPE_SHORT2N;
@@ -195,7 +197,9 @@ constexpr uint32_t kOwnTargetBase = 0xC0000000u;
 
 class Impl final : public D3D9GfxDevice {
 public:
-    Impl(IDirect3DDevice9* device, D3D9Draw& draw, const BackendConfig& config) : device_(device), draw_(draw) {
+    Impl(IDirect3DDevice9* device, D3D9Draw& draw, const BackendConfig& config)
+        : device_(device), draw_(draw), narrow_ui_draw_(config.narrow_ui_draw), back_width_(config.width),
+          back_height_(config.height) {
         device_->AddRef();
         Target back;
         back.desc = config.back_buffer;
@@ -213,6 +217,7 @@ public:
         for (auto& [id, b] : buffers_) release(b.buffer);
         for (auto& [id, s] : shaders_) release(s.object);
         for (auto* d : layouts_) release(d);
+        for (auto& [key, k] : kept_) release(k.buffer);
         release(user_vertices_);
         release(user_indices_);
         release(quad_indices_);
@@ -222,7 +227,19 @@ public:
 
     bool open() override { return true; }
 
-    void end_frame() override {}
+    void end_frame() override {
+        // Kept vertices unused for a while go.
+        if (draw_.frame() % 60) return;
+        for (auto it = kept_.begin(); it != kept_.end();) {
+            if (draw_.frame() - it->second.used_frame > 300) {
+                if (it->second.buffer) kept_bytes_ -= it->second.bytes;
+                release(it->second.buffer);
+                it = kept_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
 
     // --- Textures ---
 
@@ -423,12 +440,12 @@ public:
         return id;
     }
 
-    ShaderId create_title_shader(ShaderStage stage, uint32_t key) override {
+    ShaderId create_title_shader(ShaderStage stage, uint32_t key, uint32_t variant) override {
         const char kind = stage == ShaderStage::Vertex ? 'v' : 'p';
         for (unsigned i = 0; i < kTitleShaderCount; ++i)
-            if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key)
+            if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key && kTitleShaders[i].variant == variant)
                 return create_shader(stage, {kTitleShaders[i].d3d9, kTitleShaders[i].d3d9_bytes});
-        LOG_ERROR("render", "gfx: no title %s shader %08x", kind == 'v' ? "vertex" : "pixel", key);
+        LOG_ERROR("render", "gfx: no title %s shader %08x (variant %08x)", kind == 'v' ? "vertex" : "pixel", key, variant);
         return 0;
     }
 
@@ -457,6 +474,7 @@ public:
             return 0;
         }
         layouts_.push_back(declaration);
+        layout_attributes_.emplace_back(layout.attributes, layout.attributes + layout.count);
         return static_cast<LayoutId>(layouts_.size());
     }
 
@@ -594,11 +612,13 @@ public:
     }
 
     void draw_user(Primitive primitive, const void* vertices, uint32_t vertex_count, uint32_t stride,
-                   const uint16_t* indices, uint32_t index_count) override {
+                   const uint16_t* indices, uint32_t index_count, uint64_t cache_key) override {
         platform::HostFloatEnv float_env;
         const uint32_t primitives = primitive_count(primitive, indices ? index_count : vertex_count);
         if (!primitives || !vertices || !stride || (indices && primitive == Primitive::Quads)) return;
-        if (!prepare(primitive) || !create_user_buffers()) return;
+        float x_range[2];
+        const bool has_range = position_range(vertices, vertex_count, stride, x_range);
+        if (!prepare(primitive, has_range ? x_range : nullptr) || !create_user_buffers()) return;
         const uint32_t bytes = vertex_count * stride;
         const uint32_t index_bytes = indices ? index_count * 2 : 0;
         if (bytes > kUserVertexBytes || index_bytes > kUserIndexBytes) {
@@ -606,21 +626,26 @@ public:
             warn_once(once, "draw_user: more vertices than its stream buffer holds");
             return;
         }
-        // Vertices at a multiple of the stride, so they are addressed by vertex index.
-        uint32_t offset = (user_vertex_offset_ + stride - 1) / stride * stride;
-        DWORD flags = D3DLOCK_NOOVERWRITE;
-        if (offset + bytes > kUserVertexBytes) {
-            offset = 0;
-            flags = D3DLOCK_DISCARD;
+        uint32_t first_vertex = 0;
+        if (IDirect3DVertexBuffer9* kept = kept_vertices(cache_key, vertices, bytes)) {
+            device_->SetStreamSource(0, kept, 0, stride);
+        } else {
+            // Vertices at a multiple of the stride, so they are addressed by vertex index.
+            uint32_t offset = (user_vertex_offset_ + stride - 1) / stride * stride;
+            DWORD flags = D3DLOCK_NOOVERWRITE;
+            if (offset + bytes > kUserVertexBytes) {
+                offset = 0;
+                flags = D3DLOCK_DISCARD;
+            }
+            void* memory = nullptr;
+            if (FAILED(user_vertices_->Lock(offset, bytes, &memory, flags))) return;
+            std::memcpy(memory, vertices, bytes);
+            user_vertices_->Unlock();
+            user_vertex_offset_ = offset + bytes;
+            device_->SetStreamSource(0, user_vertices_, 0, stride);
+            first_vertex = offset / stride;
         }
-        void* memory = nullptr;
-        if (FAILED(user_vertices_->Lock(offset, bytes, &memory, flags))) return;
-        std::memcpy(memory, vertices, bytes);
-        user_vertices_->Unlock();
-        user_vertex_offset_ = offset + bytes;
-        device_->SetStreamSource(0, user_vertices_, 0, stride);
         for (uint32_t s = 1; s < kGfxVertexStreams; ++s) device_->SetStreamSource(s, nullptr, 0, 0);
-        const uint32_t first_vertex = offset / stride;
         if (primitive == Primitive::Quads) {
             draw_quads(first_vertex, vertex_count);
             return;
@@ -630,7 +655,8 @@ public:
             return;
         }
         uint32_t index_offset = user_index_offset_;
-        flags = D3DLOCK_NOOVERWRITE;
+        DWORD flags = D3DLOCK_NOOVERWRITE;
+        void* memory = nullptr;
         if (index_offset + index_bytes > kUserIndexBytes) {
             index_offset = 0;
             flags = D3DLOCK_DISCARD;
@@ -783,6 +809,33 @@ private:
         return true;
     }
 
+    // draw_user's cache: the vertices of `key` from a kept copy while they stay the same (made
+    // the second time the same contents come), else null (streamed).
+    IDirect3DVertexBuffer9* kept_vertices(uint64_t key, const void* vertices, uint32_t bytes) {
+        if (!key) return nullptr;
+        const uint64_t content = hash_bytes(vertices, bytes);
+        Kept& k = kept_[key];
+        k.used_frame = draw_.frame();
+        if (k.buffer && k.content == content && k.bytes == bytes) return k.buffer;
+        if (k.content != content || k.bytes != bytes) {
+            k.content = content;
+            k.bytes = bytes;
+            release(k.buffer);  // changed: streamed until it repeats
+            return nullptr;
+        }
+        void* memory = nullptr;
+        if (FAILED(device_->CreateVertexBuffer(bytes, D3DUSAGE_WRITEONLY | software_usage(), 0, D3DPOOL_MANAGED,
+                                               &k.buffer, nullptr)) ||
+            FAILED(k.buffer->Lock(0, bytes, &memory, 0))) {
+            release(k.buffer);
+            return nullptr;
+        }
+        std::memcpy(memory, vertices, bytes);
+        k.buffer->Unlock();
+        kept_bytes_ += bytes;
+        return k.buffer;
+    }
+
     // Quads from `first_vertex` with the shared quad index buffer (v0 v1 v2, v0 v2 v3 each).
     void draw_quads(uint32_t first_vertex, uint32_t vertex_count) {
         if (!quad_indices_) {
@@ -828,7 +881,40 @@ private:
     }
 
     // Everything but the streams, for a draw now; false if it cannot draw.
-    bool prepare(Primitive primitive) {
+    // The x range of input 0 (screen-space positions) of caller vertices; false if the layout has
+    // no float position there.
+    bool position_range(const void* vertices, uint32_t count, uint32_t stride, float (&range)[2]) const {
+        if (layout_ == 0 || layout_ > layout_attributes_.size() || !count) return false;
+        for (const VertexAttribute& a : layout_attributes_[layout_ - 1]) {
+            if (a.input != 0 || a.stream != 0 || a.type < AttributeType::Float1 || a.type > AttributeType::Float4)
+                continue;
+            const auto* bytes = static_cast<const uint8_t*>(vertices) + a.offset;
+            std::memcpy(&range[0], bytes, 4);
+            range[1] = range[0];
+            for (uint32_t i = 1; i < count; ++i) {
+                float x;
+                std::memcpy(&x, bytes + i * stride, 4);
+                range[0] = std::min(range[0], x);
+                range[1] = std::max(range[1], x);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // UI laid out for a narrower shape than the picture's, drawn into the back buffer over a 3D
+    // scene: how it is narrowed (BackendConfig::narrow_ui_draw, as D3D9Draw::narrow_ui).
+    UiNarrowing narrowing(const float* x_range) const {
+        if (!x_range || !narrow_ui_draw_ || draw_.frame_is_flat() || draw_.target_width() != back_width_ ||
+            draw_.target_height() != back_height_)
+            return {};
+        const UiNarrowing n = narrow_ui_draw_();
+        if (n.anchor < 0.0f || n.factor >= 1.0f) return {};
+        // Full-width quads (dimming, letterbox bars) keep covering the picture.
+        return x_range[0] <= 1.0f && x_range[1] >= static_cast<float>(back_width_) - 1.0f ? UiNarrowing{} : n;
+    }
+
+    bool prepare(Primitive primitive, const float* x_range = nullptr) {
         (void)primitive;
         begin_draw();
         if (!draw_.target_ok()) return false;
@@ -870,6 +956,12 @@ private:
                     static_cast<LONG>(to_surface(static_cast<float>(scissor_.top), sy, surface_height)),
                     static_cast<LONG>(to_surface(static_cast<float>(scissor_.right), sx, surface_width)),
                     static_cast<LONG>(to_surface(static_cast<float>(scissor_.bottom), sy, surface_height))};
+        const UiNarrowing narrow = narrowing(x_range);
+        if (narrow.anchor >= 0.0f) {
+            const float at = surface_width * narrow.anchor;
+            clip.left = static_cast<LONG>(std::lround(at + (clip.left - at) * narrow.factor));
+            clip.right = static_cast<LONG>(std::lround(at + (clip.right - at) * narrow.factor));
+        }
         device_->SetScissorRect(&clip);
 
         // Screen space (title pixels, centres on integers) -> clip space of the viewport: the
@@ -887,6 +979,11 @@ private:
         reserved[5] = 1.0f - (sy - 1.0f - 2.0f * vy) / vh;
         reserved[6] = -v.min_z / z_range;
         reserved[7] = 0.0f;
+        if (narrow.anchor >= 0.0f) {  // x' = a + (x - a) * k, a in title pixels
+            const float a = narrow.anchor * width;
+            reserved[4] += a * (1.0f - narrow.factor) * reserved[0];
+            reserved[0] *= narrow.factor;
+        }
         reserved[8] = fog_.bias;
         reserved[9] = fog_.scale;
         reserved[10] = static_cast<float>(fog_.mode);
@@ -984,6 +1081,9 @@ private:
     std::unordered_map<BufferId, Buffer> buffers_;
     std::unordered_map<ShaderId, Shader> shaders_;
     std::vector<IDirect3DVertexDeclaration9*> layouts_;  // LayoutId - 1
+    std::vector<std::vector<VertexAttribute>> layout_attributes_;
+    UiNarrowing (*narrow_ui_draw_)();  // BackendConfig::narrow_ui_draw
+    uint32_t back_width_, back_height_;
     std::unordered_map<TargetId, Target> targets_;
     TargetId back_buffer_ = 0, depth_buffer_ = 0;
     TargetId color_target_ = 0, depth_target_ = 0;
@@ -1010,6 +1110,13 @@ private:
     uint32_t user_vertex_offset_ = 0, user_index_offset_ = 0;
     bool user_buffers_failed_ = false;
     IDirect3DIndexBuffer9* quad_indices_ = nullptr;
+    struct Kept {
+        IDirect3DVertexBuffer9* buffer = nullptr;
+        uint64_t content = 0;
+        uint32_t bytes = 0, used_frame = 0;
+    };
+    std::unordered_map<uint64_t, Kept> kept_;  // draw_user's cache_key
+    uint64_t kept_bytes_ = 0;
     IDirect3DSurface9* staging_ = nullptr;  // read_target
 };
 

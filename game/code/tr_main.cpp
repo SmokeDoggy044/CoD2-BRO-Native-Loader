@@ -3261,9 +3261,8 @@ void fog_pass_draw(uint32_t primitive, const void* vertices, uint32_t stride) {
     title_global<uint32_t>(0x00903c88) = 0;
     title_global<uint32_t>(0x00903c8c) = 0;
     title_global<uint32_t>(0x00903c90) = 0;
-    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x003e75e0)(0, 0, 0);  // SetVertexShaderInputDirect
-    title_function<void XB_STDCALL(uint32_t, uint32_t, const void*, uint32_t)>(0x003e9710)(
-        primitive, 4, vertices, stride);  // DrawVerticesUP
+    xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
+    xb::draw_vertices_up(primitive, 4, vertices, stride);  // DrawVerticesUP
 }
 
 // {x, y, z, colour, u, v}; texture coordinates in texels.

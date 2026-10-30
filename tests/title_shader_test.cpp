@@ -220,12 +220,31 @@ void test_pixel_shaders(Harness& h, const std::string& dir, const std::vector<ui
     for (uint32_t slot = 0; slot < 4; ++slot) g.set_texture(slot, 0);
 }
 
-void test_vertex_programs(Harness& h, const std::string& dir, const std::vector<uint32_t>& keys) {
+// NORMPACKED3 as the Xbox path decodes it (render/draw.cpp): 11:11:10 signed normalized, w 1.
+void unpack_normal(uint32_t v, float* out) {
+    auto extend = [](uint32_t value, int bits) {
+        return static_cast<float>(static_cast<int32_t>(value << (32 - bits)) >> (32 - bits));
+    };
+    out[0] = std::max(extend(v & 0x7FF, 11) / 1023.0f, -1.0f);
+    out[1] = std::max(extend(v >> 11 & 0x7FF, 11) / 1023.0f, -1.0f);
+    out[2] = std::max(extend(v >> 22, 10) / 511.0f, -1.0f);
+    out[3] = 1.0f;
+}
+
+// One vertex program with every input given; `packed`: the inputs given as packed normals
+// (ours: the variant for `declaration`, fed the packed bytes; the reference: the decoded floats).
+struct VertexCase {
+    uint32_t key, declaration;
+    uint32_t packed;  // input mask
+};
+
+void test_vertex_programs(Harness& h, const std::string& dir, const std::vector<VertexCase>& cases) {
     GfxDevice& g = *h.gfx;
     Random random;
     VertexAttribute attributes[16];
     for (uint8_t i = 0; i < 16; ++i) attributes[i] = {i, 0, AttributeType::Float4, static_cast<uint16_t>(i * 16)};
     const LayoutId layout = g.create_layout({attributes, 16});
+    std::map<uint32_t, LayoutId> packed_layouts;  // by packed input mask
     struct Varying {
         const char* name;
         uint32_t kind, index;
@@ -236,15 +255,28 @@ void test_vertex_programs(Harness& h, const std::string& dir, const std::vector<
     for (int i = 0; i < 7; ++i) shows[i] = h.shader(ShaderStage::Pixel, show_varying_shader(varyings[i].kind, varyings[i].index));
 
     uint32_t failed = 0, total_covered = 0, runs = 0;
-    for (const uint32_t key : keys) {
+    for (const VertexCase& c : cases) {
+        const uint32_t key = c.key;
         char name[32];
         std::snprintf(name, sizeof(name), "/vs_%08x.bin", key);
         const std::vector<uint8_t> blob = read_file(dir + name);
         if (blob.size() < 4) continue;
         const uint32_t count = blob[2] | blob[3] << 8;
         const auto* instructions = reinterpret_cast<const uint32_t(*)[4]>(blob.data() + 4);
-        const ShaderId ours = g.create_title_shader(ShaderStage::Vertex, key);
-        CHECK(ours != 0, "vs %08x: not built", key);
+        const ShaderId ours = g.create_title_shader(ShaderStage::Vertex, key, c.packed ? c.declaration : 0);
+        CHECK(ours != 0, "vs %08x (%08x): not built", key, c.declaration);
+        LayoutId ours_layout = layout;
+        if (c.packed) {
+            LayoutId& l = packed_layouts[c.packed];
+            if (!l) {
+                VertexAttribute a[16];
+                for (uint8_t i = 0; i < 16; ++i)
+                    a[i] = {i, 0, (c.packed >> i & 1) ? AttributeType::UByte4 : AttributeType::Float4,
+                            static_cast<uint16_t>(i * 16)};
+                l = g.create_layout({a, 16});
+            }
+            ours_layout = l;
+        }
 
         // Random constants and inputs; enough triangles that about a tenth of the target is drawn.
         std::vector<float> constants(192 * 4);
@@ -256,6 +288,15 @@ void test_vertex_programs(Harness& h, const std::string& dir, const std::vector<
                                                                  : k == 1 ? random.uniform(0, kHeight)
                                                                  : k == 3 ? 1.0f
                                                                           : random.uniform(-1, 1));
+        // Packed inputs: random packed words for ours, their decoded floats for the reference.
+        std::vector<float> packed_vertices = vertices;
+        for (uint32_t v = 0; v < 3 * 256; ++v)
+            for (uint32_t i = 0; i < 16; ++i) {
+                if (!(c.packed >> i & 1)) continue;
+                const uint32_t word = random.next();
+                std::memcpy(&packed_vertices[v * 64 + i * 4], &word, 4);
+                unpack_normal(word, &vertices[v * 64 + i * 4]);
+            }
         for (int fog_mode = 0; fog_mode < 4; ++fog_mode) {
             Fog fog;
             fog.mode = static_cast<FogMode>(fog_mode);
@@ -267,15 +308,16 @@ void test_vertex_programs(Harness& h, const std::string& dir, const std::vector<
                 d3d9::translate_vertex_program(instructions, count, 0xFFFF, static_cast<d3d9::FogMode>(fog_mode)));
             for (int i = fog_mode ? 6 : 0; i < 7; ++i) {  // fog modes only matter to the fog output
                 const auto expected = h.draw(theirs, shows[i], layout, vertices, 256, Primitive::Triangles);
-                const auto actual = h.draw(ours, shows[i], layout, vertices, 256, Primitive::Triangles);
+                const auto actual =
+                    h.draw(ours, shows[i], ours_layout, c.packed ? packed_vertices : vertices, 256, Primitive::Triangles);
                 ++runs;
                 total_covered += covered(expected);
                 const uint32_t wrong = differences(expected, actual, 2);
                 // Edges may round differently; more than a few pixels is a translation error.
                 if (wrong > 4) {
                     ++failed;
-                    std::printf("vs %08x %s (fog mode %d): %u pixels differ of %u covered\n", key, varyings[i].name,
-                                fog_mode, wrong, covered(expected));
+                    std::printf("vs %08x (%08x) %s (fog mode %d): %u pixels differ of %u covered\n", key,
+                                c.declaration, varyings[i].name, fog_mode, wrong, covered(expected));
                 }
             }
             g.destroy_shader(theirs);
@@ -283,7 +325,7 @@ void test_vertex_programs(Harness& h, const std::string& dir, const std::vector<
         g.destroy_shader(ours);
     }
     CHECK(failed == 0, "%u vertex program runs differ", failed);
-    std::printf("vertex programs: %zu compared, %u runs differ, %u pixels covered per run on average\n", keys.size(),
+    std::printf("vertex programs: %zu compared, %u runs differ, %u pixels covered per run on average\n", cases.size(),
                 failed, runs ? total_covered / runs : 0);
 }
 
@@ -313,7 +355,28 @@ int main() {
         return 77;
     }
     test_pixel_shaders(h, dir, keys['p']);
-    test_vertex_programs(h, dir, keys['v']);
+    // Each vertex program, and its variant for every declaration giving it packed normals.
+    std::vector<VertexCase> cases;
+    for (const uint32_t key : keys['v']) cases.push_back({key, 0, 0});
+    std::ifstream again(std::string(dir) + "/shaders.csv");
+    for (std::string line; std::getline(again, line);) {
+        if (line.size() < 28 || line[0] != 'v') continue;
+        const uint32_t key = static_cast<uint32_t>(std::stoul(line.substr(2, 8), nullptr, 16));
+        const uint32_t declaration = static_cast<uint32_t>(std::stoul(line.substr(20, 8), nullptr, 16));
+        char name[32];
+        std::snprintf(name, sizeof(name), "/decl_%08x.bin", declaration);
+        const std::vector<uint8_t> inputs = read_file(std::string(dir) + name);
+        uint32_t packed = 0;
+        for (uint32_t v = 0; v < 16 && inputs.size() >= 256; ++v) {
+            uint32_t format;
+            std::memcpy(&format, inputs.data() + v * 16 + 8, 4);
+            if (format == 0x16) packed |= 1u << v;
+        }
+        bool seen = false;
+        for (const VertexCase& c : cases) seen |= c.key == key && c.declaration == declaration;
+        if (packed && !seen) cases.push_back({key, declaration, packed});
+    }
+    test_vertex_programs(h, dir, cases);
     if (test::g_failures) return 1;
     std::printf("title_shader_test: ok\n");
     return 0;
