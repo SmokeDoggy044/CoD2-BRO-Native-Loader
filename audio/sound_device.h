@@ -30,9 +30,11 @@ struct VoiceDesc {
     bool stream = false;
     bool spatial = false;               // positioned in the world (mono voices)
     bool mute_at_max_distance = false;  // silent beyond the maximum distance
+    uint8_t reserved = 0;               // no padding: the comparison harness logs it by content
     uint32_t max_packets = 0;           // streams: packets that may be queued (at least 1)
     uint32_t buffer_bytes = 0;          // buffers: zeroed memory of the voice's own (0: none)
 };
+static_assert(sizeof(VoiceDesc) == 12, "VoiceDesc must have no padding");
 
 enum class Start : uint8_t { Now, WithSynch };
 enum class Apply : uint8_t { Now, Deferred };

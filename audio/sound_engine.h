@@ -8,13 +8,19 @@
 // keep their state.
 
 #include <mutex>
+#include <span>
 
+#include "kernel.h"
 #include "output.h"
 #include "sound_device.h"
 
 namespace audio {
 
 SoundDevice& sound_device();
+
+// The device's methods (named "SoundDevice::<method>") and their entries, for the comparison
+// harness: the decompiled code calls them, so test processes run them as pass-through calls.
+std::span<const xbox::KernelImpl> device_methods();
 
 // Call before the device opens (optional; default: the system's output).
 void configure(const OutputConfig& config);
