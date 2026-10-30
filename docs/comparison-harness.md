@@ -310,8 +310,16 @@ Since 2026-10-28 that made SndSys_Update, S_UpdateChannels, S_CheckWaveBankNotif
 S_StopAllSounds, CL_ClearState, CL_MapLoading, FE_FadeOut and CL_Frame testable (they all ended
 "called host code from SndHw_Update" before).
 Since 2026-10-29 the decompiled sound code (Replaced) calls our own sound device
-(audio/sound_device.h) instead of DirectSound, which test processes do not record yet: callers that
-reach SndSys_Update end inconclusive again until the recording moves to the device (status.md, 2b).
+(audio/sound_device.h) instead of DirectSound. Its methods are pass-through calls as well
+(`kRecordedDeviceCalls` in loader/patches.cpp, entries from `audio::device_methods()`, the device's
+vtable): the C's virtual call faults on the method's entry, is logged and runs. Original code reaches
+the device inside a DirectSound translation, already in host mode, so only the DirectSound call is
+logged there. Member functions take `this` in the first stack slot; status() and listener() return
+their structure through a hidden pointer before it (`x`). Results: `ret:al` for bools (the rest of
+EAX is stale), `ret:void` for void methods and the structure returns (EAX = the caller's buffer).
+Structures are logged by content without padding (VoiceDesc has an explicit reserved byte; Spatial
+41 bytes, up to its mode). First run (mission 4, XBCMP_ONLY): CL_Frame 79 matched, no inconclusive
+test besides the `--level` hook's frame; CL_ClearState, CL_MapLoading, FE_FadeOut matched.
 
 - No output there (`audio/test_mode.h`): `audio::set_test_mode` gets the harness's in-test flag, and
   with it set the replacements make no OpenAL call (no device, no mixer thread, nothing logged);

@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <deque>
+#include <iterator>
 #include <memory>
 #include <vector>
 
@@ -503,6 +504,28 @@ void Engine::do_work() {
 }  // namespace
 
 SoundDevice& sound_device() { return g; }
+
+std::span<const xbox::KernelImpl> device_methods() {
+    // SoundDevice's virtual functions in declaration order (sound_device.h): its vtable's slots.
+    static const char* const kNames[] = {
+        "SoundDevice::open", "SoundDevice::create_voice", "SoundDevice::add_ref", "SoundDevice::release",
+        "SoundDevice::set_format", "SoundDevice::set_buffer_data", "SoundDevice::set_play_region",
+        "SoundDevice::set_loop_region", "SoundDevice::set_position", "SoundDevice::play", "SoundDevice::submit",
+        "SoundDevice::end_stream", "SoundDevice::set_packet_callback", "SoundDevice::stop", "SoundDevice::pause",
+        "SoundDevice::resume", "SoundDevice::status", "SoundDevice::set_volume", "SoundDevice::set_headroom",
+        "SoundDevice::set_rate", "SoundDevice::set_pan", "SoundDevice::set_reverb_send", "SoundDevice::set_spatial",
+        "SoundDevice::set_spatial_mode", "SoundDevice::set_distance_curve", "SoundDevice::set_listener",
+        "SoundDevice::listener", "SoundDevice::commit", "SoundDevice::start_synched", "SoundDevice::set_headphones",
+        "SoundDevice::do_work",
+    };
+    static const std::vector<xbox::KernelImpl> methods = [] {
+        void* const* vtable = *reinterpret_cast<void* const* const*>(&g);
+        std::vector<xbox::KernelImpl> list;
+        for (size_t i = 0; i < std::size(kNames); ++i) list.push_back({kNames[i], vtable[i]});
+        return list;
+    }();
+    return methods;
+}
 
 void configure(const OutputConfig& config) {
     Guard lock(g.mutex, TestLock::State);

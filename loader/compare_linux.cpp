@@ -131,9 +131,15 @@ struct SdkArg {
     uint32_t bytes;      // kSdkBytes: size; kSdkScaledBytes: bytes per count
 };
 
+// What a pass-through call's "(result)" record holds: EAX, its low byte (a C++ bool: the rest
+// is whatever the register held), or nothing (void, or a structure returned through memory:
+// EAX is then the caller's buffer, a stack address).
+enum SdkResult : uint8_t { kResultEax, kResultAl, kResultNone };
+
 struct SdkSpec {
     uint32_t host_address;
     SdkStandIn stand_in;
+    SdkResult result;  // pass-through calls
     const uint32_t* value;
     uint32_t stack_slots;  // popped on return (stdcall/fastcall)
     uint32_t arg_count;
@@ -176,6 +182,7 @@ constexpr uint32_t kPassZeroedStack = 128 * 1024;  // below a pass-through call'
 struct PassFrame {
     uint32_t callback;
     uint32_t address;
+    uint32_t result;  // exports: SdkResult
 };
 
 // Everything a test process writes after it cleared the soft-dirty bits, in one
@@ -777,7 +784,7 @@ XBCMP_CODE bool pass_fault(ChildArea& c, greg_t* gregs) {
     const bool in_title = eip - c.image_begin < c.image_end - c.image_begin;
     if (c.pass_host_mode && in_title) {
         if (c.pass_depth == kMaxPassDepth || !in_scan_range(c, esp, 4)) return false;
-        c.pass_frames[c.pass_depth++] = {1, *reinterpret_cast<const uint32_t*>(uintptr_t{esp})};
+        c.pass_frames[c.pass_depth++] = {1, *reinterpret_cast<const uint32_t*>(uintptr_t{esp}), kResultNone};
         pass_mode(c, false);
         return true;
     }
@@ -798,8 +805,11 @@ extern "C" XBCMP_CODE void xbcmp_pass_done(uint32_t* frame) {
         c.report.status = kHarnessError;
         child_send(c);
     }
-    frame[9] = c.pass_frames[--c.pass_depth].address;
-    if (!sdk_log_put(c, g_pass_result_spec) || !sdk_log_put(c, frame[7])) c.report.sdk_overflow = 1;
+    const PassFrame& done = c.pass_frames[--c.pass_depth];
+    frame[9] = done.address;
+    if (done.result != kResultNone &&
+        (!sdk_log_put(c, g_pass_result_spec) || !sdk_log_put(c, done.result == kResultAl ? frame[7] & 0xFF : frame[7])))
+        c.report.sdk_overflow = 1;
     pass_mode(c, false);
 }
 
@@ -889,7 +899,7 @@ XBCMP_CODE bool record_sdk_call(ChildArea& c, greg_t* gregs) {
         ++c.report.sdk_calls;
         ++c.report.pass_calls;
         c.report.pass_spec = index;
-        c.pass_frames[c.pass_depth++] = {0, stack[0]};
+        c.pass_frames[c.pass_depth++] = {0, stack[0], spec.result};
         *const_cast<uint32_t*>(stack) = addr_of(reinterpret_cast<const void*>(&xbcmp_pass_return));
         pass_mode(c, true);
         return true;  // the export runs from its entry now
@@ -2394,7 +2404,12 @@ std::map<uint32_t, Row> read_rows(const std::filesystem::path& path) {
 bool parse_sdk_args(const char* text, SdkSpec& spec) {
     std::istringstream words(text);
     spec.arg_count = spec.stack_slots = 0;
+    spec.result = kResultEax;
     for (std::string word; words >> word;) {
+        if (word == "ret:al" || word == "ret:void") {  // pass-through calls: the result record
+            spec.result = word == "ret:al" ? kResultAl : kResultNone;
+            continue;
+        }
         if (spec.arg_count == kMaxSdkArgs) return false;
         SdkArg& arg = spec.args[spec.arg_count];
         arg = {};

@@ -26,6 +26,8 @@ namespace loader::compare {
 // its value, `:aK*N` = the same with the value of argument K times N bytes, or `:aK*aM`
 // = argument K times argument M bytes; `x` = a stack slot that is not logged (an output
 // pointer, maybe into the caller's stack frame, which differs between the two sides).
+// Pass-through calls log their result (EAX) after the call; `ret:al` logs only AL (a C++
+// bool), `ret:void` nothing (void, or a structure returned through a hidden pointer).
 // What a recorded call does besides being logged: most return 0 and change nothing.
 // The reference-count stand-ins work on the resource's count (the low 16 bits of its
 // first word, in title memory, or of a pool surface) as render does, a surface's first

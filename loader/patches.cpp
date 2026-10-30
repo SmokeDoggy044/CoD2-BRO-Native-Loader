@@ -32,6 +32,7 @@
 #include "kernel.h"
 #include "log.h"
 #include "release_map.h"
+#include "sound_engine.h"
 #include "symbols.h"
 #include "xbe.h"
 #include "xbox_d3d_api.h"
@@ -2021,6 +2022,56 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         bool shared = false;  // an alias of an entry already recorded
         for (const compare::SdkCall& earlier : calls) shared |= earlier.host_address == host;
         if (!shared) calls.push_back({call.name, host, call.args, call.stand_in, nullptr});
+    }
+    // Our sound device (audio/sound_device.h), which the decompiled sound code calls: pass-through
+    // like the DirectSound calls (the replacements translate onto it, so original code reaches it
+    // as well, inside a recorded DirectSound call). Member functions: `this` first; a structure
+    // returned through memory (status, listener) has the caller's buffer before it (`x`).
+    // Structures by content: VoiceDesc 12, Format 12, Packet 20, Spatial 41 (up to its mode),
+    // Listener 48.
+    static const RecordedCall kRecordedDeviceCalls[] = {
+        {"SoundDevice::open", "s ret:al"},
+        {"SoundDevice::create_voice", "s s:12 s:12"},
+        {"SoundDevice::add_ref", "s s"},
+        {"SoundDevice::release", "s s"},
+        {"SoundDevice::set_format", "s s s:12 ret:al"},
+        {"SoundDevice::set_buffer_data", "s s s s ret:void"},
+        {"SoundDevice::set_play_region", "s s s s ret:void"},
+        {"SoundDevice::set_loop_region", "s s s s ret:void"},
+        {"SoundDevice::set_position", "s s s ret:void"},
+        {"SoundDevice::play", "s s s s s ret:void"},
+        {"SoundDevice::submit", "s s s:20 ret:al"},
+        {"SoundDevice::end_stream", "s s ret:void"},
+        {"SoundDevice::set_packet_callback", "s s s s ret:void"},
+        {"SoundDevice::stop", "s s ret:void"},
+        {"SoundDevice::pause", "s s ret:void"},
+        {"SoundDevice::resume", "s s s ret:void"},
+        {"SoundDevice::status", "x s s ret:void"},
+        {"SoundDevice::set_volume", "s s s ret:void"},
+        {"SoundDevice::set_headroom", "s s s ret:void"},
+        {"SoundDevice::set_rate", "s s s ret:void"},
+        {"SoundDevice::set_pan", "s s s ret:void"},
+        {"SoundDevice::set_reverb_send", "s s s ret:void"},
+        {"SoundDevice::set_spatial", "s s s:41 s ret:void"},
+        {"SoundDevice::set_spatial_mode", "s s s s ret:void"},
+        {"SoundDevice::set_distance_curve", "s s s:a3*4 s ret:void"},
+        {"SoundDevice::set_listener", "s s:48 s ret:void"},
+        {"SoundDevice::listener", "x s s ret:void"},
+        {"SoundDevice::commit", "s ret:void"},
+        {"SoundDevice::start_synched", "s ret:void"},
+        {"SoundDevice::set_headphones", "s s ret:void"},
+        {"SoundDevice::do_work", "s ret:void"},
+    };
+    for (const RecordedCall& call : kRecordedDeviceCalls) {
+        uint32_t host = 0;
+        for (const xbox::KernelImpl& method : audio::device_methods())
+            if (std::strcmp(method.name, call.name) == 0)
+                host = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(method.address));
+        if (!host) {
+            LOG_WARN("patches", "%s: recorded device call without a method", call.name);
+            continue;
+        }
+        calls.push_back({call.name, host, call.args, compare::SdkStandIn::PassSound, nullptr});
     }
     // The RDTSC trampolines' clock (Sys_Milliseconds and the frame timers): 0 on both sides
     // (the trampolines themselves stay executable: rdtsc_trampolines).
