@@ -1,5 +1,6 @@
 #include "snd.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 
@@ -67,12 +68,19 @@ PLATFORM_ASM_ENTRY(S_StartAliasVoice2_call,
 
 }  // namespace
 
+namespace {
+audio::SoundDevice& device();  // below
+}  // namespace
+
 int32_t Snd_CountBusyVoices() {
     const uint32_t count = SndVoice_GetCount();
     int32_t busy = 0;
     for (uint32_t i = 0; i < count; ++i) {
         if (voice_state(ref_word(SndVoice_Get(i), 0xcc))) ++busy;
     }
+    // Its only caller, FX_AddSoundComponents, drops an effect's sounds over 15 busy voices (35-86% of them in
+    // battles, measured 10-30). Enhanced sound has the voices to spare: the budget becomes 64 (busy * 16 / 65 > 15).
+    if (device().enhanced()) busy = busy * 16 / 65;
     return busy;
 }
 
@@ -692,10 +700,14 @@ float* XB_CDECL Snd_NormalizeVector(float* out, const float* in) {
     return out;
 }
 
+namespace {
+uint32_t usable_slots();  // below SndSys_CreateVoiceBuffers
+}  // namespace
+
 int32_t XB_CDECL SndHw_AllocSlot(uint32_t sound, uint32_t owner, uint32_t any_slot) {
     uint8_t* entry = SndBank_GetSoundEntry(sound);
     const uint8_t type = static_cast<uint8_t>(title_function<uint32_t XB_CDECL(uint8_t*)>(0x000c6fb0)(entry));
-    const int32_t last = static_cast<int32_t>(title_global<uint32_t>(0x008bed00)) - 1;
+    const int32_t last = static_cast<int32_t>(usable_slots()) - 1;  // original: the slot count
     for (int32_t slot = 0; slot < last; ++slot) {
         if (!any_slot && slot <= 1) continue;
         uint8_t* record = reinterpret_cast<uint8_t*>(uintptr_t{0x00911548 + static_cast<uint32_t>(slot) * 0xe0});
@@ -2855,6 +2867,7 @@ static_assert(offsetof(XbWaveFormat, extra_size) == 0x10);
 #endif
 
 constexpr uint32_t kHwSlots = 0x0090a940;       // 256 hardware slots of 0x6c bytes
+uint32_t g_original_slots = 0;                  // SndSys_CreateVoiceBuffers' slot count (ours)
 constexpr uint32_t kRolloffCurve = 0x008becd4;  // 11 points: 1.0, 0.9, ..., 0.1, 0.0
 
 // The slot's format (written before the create, also when it fails): 16-bit PCM at 44.1 kHz.
@@ -3057,7 +3070,43 @@ void XB_CDECL SndSys_CreateVoiceBuffers(uint32_t entry, const int32_t* args) {
         setup_slot_buffer(slot, kind, 6, false);
     }
     slot_count = index;
+    g_original_slots = index;
 }
+
+namespace {
+
+// Enhanced sound's voices beyond the original's (36 mono 3D effect voices, full in the prologue's
+// and Tunisia's battles): mono 3D
+// buffer slots appended after the original slots up to kEnhanced3dVoices of them, once, the first time a slot is
+// wanted while enhanced (so also after switching to it while playing). Original sound uses only the original
+// slots (as the original, all but the last), whatever has been added.
+constexpr uint32_t kEnhanced3dVoices = 192;
+
+void add_enhanced_slots() {
+    static bool added = false;
+    if (added || !g_original_slots) return;  // added, or not set up yet
+    added = true;
+    uint32_t& slot_count = title_global<uint32_t>(0x008bed00);
+    uint32_t mono3d = 0;
+    for (uint32_t i = 0; i < slot_count; ++i) mono3d += SndVoice_Get(i)[0xc2] == 5;
+    while (mono3d < kEnhanced3dVoices && slot_count < 256) {
+        uint8_t* const slot = &title_global<uint8_t>(kHwSlots + slot_count * 0x6c);
+        uint8_t* const hardware = SndVoice_Get(slot_count);
+        std::memset(hardware, 0, 0xe0);
+        if (!create_slot_buffer(slot, 1, true)) break;
+        setup_slot_buffer(slot, hardware[0xc2], 5, true);
+        ++slot_count;
+        ++mono3d;
+    }
+}
+
+uint32_t usable_slots() {
+    if (!device().enhanced()) return std::min(g_original_slots, title_global<uint32_t>(0x008bed00));
+    add_enhanced_slots();
+    return title_global<uint32_t>(0x008bed00) + 1;  // the last one too
+}
+
+}  // namespace
 
 uint8_t XB_CDECL SndSys_InitDevice() {
     // The movies' sound: a stereo Xbox ADPCM buffer at 48 kHz over 0x12000 bytes the movie player fills (the
