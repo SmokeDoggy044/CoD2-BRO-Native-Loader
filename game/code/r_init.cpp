@@ -212,6 +212,8 @@ uint32_t XB_CDECL nglAssemblePixelShader_body(uint32_t entry, uint32_t ebx, uint
     std::strcat(source, reinterpret_cast<const char*>(uintptr_t{body}));
     const uint32_t buffer = assemble_at(frame, frame + 4, TitleRegs{0, ebx, 0, 0, esi, edi});
     *reinterpret_cast<uint32_t*>(uintptr_t{args[0]}) = *reinterpret_cast<const uint32_t*>(uintptr_t{buffer + 4});
+    if (const auto loaded = renderer_pc_hooks().shader_loaded)
+        loaded(args[0], 'p', args[1], *reinterpret_cast<const uint32_t*>(uintptr_t{args[0]}), 0);
     return buffer;
 }
 
@@ -254,6 +256,7 @@ uint32_t XB_CDECL nglAssembleVertexShader_body(uint32_t entry, uint32_t ebx, uin
     uint32_t* const out = reinterpret_cast<uint32_t*>(uintptr_t{args[1]});
     out[0] = *reinterpret_cast<const uint32_t*>(uintptr_t{buffer + 4});
     out[1] = args[0];
+    if (const auto loaded = renderer_pc_hooks().shader_loaded) loaded(args[1], 'v', args[3], out[0], args[0]);
     return args[1];
 }
 

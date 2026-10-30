@@ -11,6 +11,7 @@
 #include "d3d_internal.h"
 #include "float_env.h"
 #include "log.h"
+#include "title_shaders.h"
 #include "xbox_d3d.h"
 
 namespace render {
@@ -420,6 +421,15 @@ public:
         const ShaderId id = next_id_++;
         shaders_[id] = s;
         return id;
+    }
+
+    ShaderId create_title_shader(ShaderStage stage, uint32_t key) override {
+        const char kind = stage == ShaderStage::Vertex ? 'v' : 'p';
+        for (unsigned i = 0; i < kTitleShaderCount; ++i)
+            if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key)
+                return create_shader(stage, {kTitleShaders[i].d3d9, kTitleShaders[i].d3d9_bytes});
+        LOG_ERROR("render", "gfx: no title %s shader %08x", kind == 'v' ? "vertex" : "pixel", key);
+        return 0;
     }
 
     void destroy_shader(ShaderId id) override {
@@ -879,7 +889,8 @@ private:
         reserved[7] = 0.0f;
         reserved[8] = fog_.bias;
         reserved[9] = fog_.scale;
-        reserved[10] = reserved[11] = 0.0f;
+        reserved[10] = static_cast<float>(fog_.mode);
+        reserved[11] = 0.0f;
         device_->SetVertexShaderConstantF(0, vs_constants_.data(), kGfxVsFog + 1);
 
         // Textures and samplers.
@@ -914,7 +925,9 @@ private:
             device_->SetSamplerState(slot, D3DSAMP_BORDERCOLOR, s.border);
         }
         unpack_color(fog_.color, ps_constants_.data() + kGfxPsFogColor * 4);
-        device_->SetPixelShaderConstantF(0, ps_constants_.data(), kGfxPsFogColor + 1);
+        for (uint32_t slot = 0; slot < 4; ++slot)
+            ps_constants_[kGfxPsAlphaKill * 4 + slot] = samplers_[slot].alpha_kill ? 1.0f : 0.0f;
+        device_->SetPixelShaderConstantF(0, ps_constants_.data(), kGfxPsAlphaKill + 1);
 
         // Blend, depth, stencil, raster.
         const bool has_depth = draw_.has_depth();
@@ -990,7 +1003,7 @@ private:
     Stream streams_[kGfxVertexStreams];
     BufferId index_buffer_ = 0;
     std::vector<float> vs_constants_ = std::vector<float>((kGfxVsFog + 1) * 4);
-    std::vector<float> ps_constants_ = std::vector<float>((kGfxPsFogColor + 1) * 4);
+    std::vector<float> ps_constants_ = std::vector<float>((kGfxPsAlphaKill + 1) * 4);
 
     IDirect3DVertexBuffer9* user_vertices_ = nullptr;  // draw_user
     IDirect3DIndexBuffer9* user_indices_ = nullptr;

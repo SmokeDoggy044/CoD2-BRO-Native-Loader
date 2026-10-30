@@ -40,6 +40,7 @@
 #include "program.h"
 #include "script.h"
 #include "settings.h"
+#include "shader_dump.h"
 #include "kapf.h"
 #include "key_prompts.h"
 #include "sharp_text.h"
@@ -104,6 +105,7 @@ struct Options {
     std::set<std::string> given;     // options named on the command line or in settings.ini
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
+    std::optional<fs::path> shader_dump_dir;  // --dump-shaders
     uint32_t diag_seconds = 10;
     std::optional<std::string> profile;  // --profile, else XB_PROFILE
     // Set by a title reboot (see reboot_title), not by users.
@@ -196,6 +198,7 @@ void print_usage(const char* program) {
         "  --press LIST     scripted presses on port 0, e.g. start@20,a@25.5,back@80+4 (seconds after\n"
         "                   start, +S holds the button S seconds;\n"
         "                   buttons: a b x y black white lt rt start back up down left right ls rs)\n"
+        "  --dump-shaders DIR  every shader program the renderer sets up, for tools/shader_hlsl.py\n"
         "  --diag DIR [S]   diagnostics while playing: DIR/log.txt, a screenshot every S seconds\n"
         "                   (default 10); F12 marks a problem: screenshot, a note typed while the\n"
         "                   game is paused (DIR/marks.txt), draw dump in the log; new warnings\n"
@@ -457,6 +460,8 @@ std::optional<Options> parse_args(int argc, char** argv) {
                 return std::nullopt;
             }
             options.forced_calls.push_back(forced);
+        } else if (arg == "--dump-shaders") {
+            if (!(options.shader_dump_dir = value())) return std::nullopt;
         } else if (arg == "--diag") {
             if (!(options.diag_dir = value())) return std::nullopt;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -857,6 +862,7 @@ int loader_main(int argc, char** argv) {
     if (const std::string volumes = options->volumes.format(); !volumes.empty())
         LOG_INFO("audio", "volumes: %s", volumes.c_str());
     game::set_sound_device(&audio::sound_device());  // the decompiled sound code's device
+    if (options->shader_dump_dir) loader::start_shader_dump(*options->shader_dump_dir);
     game::set_gfx_device(&render::gfx_device);        // and the renderer C's (once the title made its device)
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;

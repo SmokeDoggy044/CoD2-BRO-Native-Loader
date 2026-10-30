@@ -33,6 +33,12 @@ struct RendererPcHooks {
     // Called in place of nglEndFrame's spin on the pending frame (0x0090288c): returns once the
     // flag is clear.
     void (*frame_wait)() = nullptr;
+    // Told about every shader program a shader slot gets (the loader's --dump-shaders, for the shader
+    // tool of our own renderer, docs/own-renderer.md R3). kind 'v': a vertex program (its function
+    // blob, and the vertex input declaration), 'p': a pixel shader definition (D3DPIXELSHADERDEF).
+    // `key`: the title data that names it: the program itself, or for the shaders assembled at
+    // boot the address of their source text.
+    void (*shader_loaded)(uint32_t slot, char kind, uint32_t key, uint32_t program, uint32_t declaration) = nullptr;
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.
