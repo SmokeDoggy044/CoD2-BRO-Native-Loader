@@ -39,12 +39,14 @@ constexpr uint32_t kProbeEvery = 6;   // sound updates (60 per second)
 constexpr float kRange = 3000.0f;     // world units (inches)
 constexpr float kMetres = 0.0254f;    // per world unit
 constexpr float kSpeedOfSound = 343;  // metres per second
-constexpr uint32_t kSolidMask = 1;    // CONTENTS_SOLID
+// Solid surfaces and glass (glass is not solid, contents 0x10; foliage 0x2 and water 0x20 are
+// left out: leaves barely reflect, water is underfoot).
+constexpr uint32_t kSolidMask = 1 | 0x10;
 constexpr Environment kSilent{};
 
 // How hard (reflective) each surface type is, 0 soft .. 1 hard. The type is bits 20-24 of a
-// hit's surface flags, in Call of Duty's order; verified here at two points: the mission 1
-// ground is 6 (dirt), and G_RunMissile treats 20 (water) apart (0x002740d7).
+// hit's surface flags, as the game's surface parameter table (0x008d4e68, 16-byte rows: name,
+// clears solid, surface flags, contents) assigns them to the material names.
 constexpr float kHardness[32] = {
     0.6f,  // 0 default
     0.4f,  // 1 bark
