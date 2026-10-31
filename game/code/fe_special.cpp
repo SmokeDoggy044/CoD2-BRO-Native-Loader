@@ -463,6 +463,18 @@ void XB_CDECL ChapterMenu_UpdateList(uint8_t* menu) {
     call(field<uint8_t*>(menu, 0x74 + uint32_t(field<int32_t>(menu, 0x190)) * 4), 0x64, field<uint32_t>(menu, 0x1a4));
 }
 
+void XB_THISCALL ChapterMenu_OnDown(uint8_t* menu, uint32_t) {
+    if (!menu[0x1b0]) return;
+    const int32_t state = field<int32_t>(menu, 0x1b4);
+    if (state == 2 || state == 3) field<int32_t>(menu, 0x1b4) = state + 1;
+}
+
+void XB_THISCALL ChapterMenu_OnUp(uint8_t* menu, uint32_t) {
+    if (!menu[0x1b0]) return;
+    const int32_t state = field<int32_t>(menu, 0x1b4);
+    if (state == 0 || state == 1) field<int32_t>(menu, 0x1b4) = state + 1;
+}
+
 void XB_THISCALL ChapterMenu_OnButton100(uint8_t* menu, uint32_t) {
     if (!menu[0x1b0]) return;
     const int32_t state = field<int32_t>(menu, 0x1b4);
@@ -516,6 +528,31 @@ void XB_THISCALL ChapterMenu_OnLeft(uint8_t* menu, uint32_t) {
     UIGridMenu_MoveLeft(menu);
     const int32_t row = selection(menu);
     if (row != old) chapter_moved(menu, row, old);
+}
+
+// Both triggers (pad buttons 9 and 8) held arm the button sequence; letting go resets it.
+void XB_THISCALL ChapterMenu_Update(uint8_t* menu, float dt) {
+    if (!title_global<uint8_t>(0x0095f91e)) {
+        if (!menu[0x1a8])
+            UIMenu_Update(menu, dt);
+        else
+            ChapterMenu_SlideStep(menu, dt);
+    }
+    bool held = false;
+    int32_t pad = title_global<int32_t>(0x008d50d8);
+    IN_PadCreate();
+    if (IN_PadButtonDown(pad, 9)) {
+        pad = title_global<int32_t>(0x008d50d8);
+        IN_PadCreate();
+        held = IN_PadButtonDown(pad, 8) != 0;
+    }
+    if (held) {
+        menu[0x1b0] = 1;
+    } else {
+        menu[0x1b0] = 0;
+        field<int32_t>(menu, 0x1b4) = 0;
+    }
+    SCR_LoadingPump();
 }
 
 // --- Collector's edition: leaving ---

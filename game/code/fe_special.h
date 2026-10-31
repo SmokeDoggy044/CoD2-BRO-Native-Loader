@@ -77,6 +77,9 @@ extern "C" void ChapterMenu_SlideStep_entry(void);
 // texts' +0x64 = +0x1a4.
 extern "C" PLATFORM_HIDDEN void XB_CDECL ChapterMenu_UpdateList(uint8_t* menu);
 extern "C" void ChapterMenu_UpdateList_entry(void);
+// 0x0030c690 / 0x0030c6c0 (ret 4): the button sequence only (down: 2, 3 / up: 0, 1 one on).
+void XB_THISCALL ChapterMenu_OnDown(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ChapterMenu_OnUp(uint8_t* menu, uint32_t pad);
 // 0x0030cc20 (ret 4): the button sequence: state 8 / 10 one on; at 12 all 14 chapters unlocked (0x008dce44 = 14,
 // 0x008dce54 = 1), every +0x3c element's alpha 0 and item +0x20 (0).
 void XB_THISCALL ChapterMenu_OnButton100(uint8_t* menu, uint32_t pad);
@@ -85,6 +88,9 @@ void XB_THISCALL ChapterMenu_OnButton100(uint8_t* menu, uint32_t pad);
 // chapter, moving, the new chapter's x (+0x74 element's +0x9c) into +0x198, the move sound (+0x10).
 void XB_THISCALL ChapterMenu_OnRight(uint8_t* menu, uint32_t pad);
 void XB_THISCALL ChapterMenu_OnLeft(uint8_t* menu, uint32_t pad);
+// 0x003332f0 (ret 4): unless 0x0095f91e, UIMenu_Update or (while sliding, +0x1a8) the slide step; the sequence
+// armed (+0x1b0) while both triggers are held on the active pad, else disarmed and reset (+0x1b4 = 0); SCR_LoadingPump.
+void XB_THISCALL ChapterMenu_Update(uint8_t* menu, float dt);
 
 // 0x003122e0 (ret 4): nglResetDeviceBindings, the texture +0x4c released and cleared, the image file +0x44 closed
 // (and its buffer +0x48 freed), +0x48 cleared, then row 0 selected (+0x88 (0, 1)).

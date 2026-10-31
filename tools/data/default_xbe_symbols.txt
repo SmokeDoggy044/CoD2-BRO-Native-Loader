@@ -10632,6 +10632,8 @@
 0030c240 Save_CheckVersion
 0030c300 Save_ProfilesDirExists
 0030c4d0 SaveSlot_Init
+0030c690 ChapterMenu_OnDown
+0030c6c0 ChapterMenu_OnUp
 0030c6f0 ChapterMenu_SlideStep
 0030c9a0 ChapterMenu_UpdateList
 0030cc20 ChapterMenu_OnButton100
@@ -11093,6 +11095,7 @@
 00332e20 CL_ApplyProfileSettings
 00333060 SpecialMaterialsMenu_PlayMovie
 003330f0 SpecialMaterialsMenu_HandleSelect
+003332f0 ChapterMenu_Update
 00333380 ChapterMenu_Construct
 003334b0 AutosaveMenu_ShowSaveWarning
 00333640 AutosaveMenu_ShowNoSaveDialog
