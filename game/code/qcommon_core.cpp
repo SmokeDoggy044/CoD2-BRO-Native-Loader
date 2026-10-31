@@ -2,7 +2,10 @@
 
 #include <cstring>
 
+#include "actor.h"
+#include "g_scr_runtime.h"
 #include "lanes.h"
+#include "ngl.h"
 #include "qcommon.h"
 #include "qcommon_fs.h"
 #include "r_init.h"
@@ -5032,6 +5035,259 @@ void XB_THISCALL HashMap_CopyFrom_7(const HashMap* source, HashMap* map) {
             node = node->next;
         }
     }
+}
+
+uint32_t XB_REGS1 XB_CDECL Loc_HashKey(const char* text) {
+    // HashStr_Hash on unsigned bytes: rol(hash, 5) ^ c, letters lowered.
+    uint32_t hash = 0;
+    using CharFn = int32_t XB_CDECL(int32_t);
+    for (const uint8_t* p = reinterpret_cast<const uint8_t*>(text); *p; ++p) {
+        uint8_t c = *p;
+        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<uint8_t>(title_function<CharFn>(0x001eed48)(*p));  // _isalpha, tolower
+        hash = ((hash >> 27) | (hash << 5)) ^ c;
+    }
+    return hash;
+}
+
+PLATFORM_ASM_ENTRY(StringMap_Find_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(StringMap_Find) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t* XB_CDECL StringMap_Find(const uint32_t* map, const char* const* name) {
+    // {count, entries {name, value}} kept as an implicit binary tree (children 2i+1 / 2i+2, ordered by
+    // _stricmp); an empty key (Map_EmptyKey) ends the walk. Returns &value or null.
+    using StrICmp = int32_t XB_CDECL(const char*, const char*);
+    uint32_t index = 0;
+    if (!map[0]) return nullptr;
+    do {
+        const char* const key = reinterpret_cast<const char*>(uintptr_t{dword_ptr(map[1])[index * 2]});
+        if (!title_function<StrICmp>(0x001f1443)(key, *name)) return dword_ptr(map[1]) + index * 2 + 1;  // _stricmp
+        const char* const again = reinterpret_cast<const char*>(uintptr_t{dword_ptr(map[1])[index * 2]});
+        index = title_function<StrICmp>(0x001f1443)(again, *name) >= 0 ? index * 2 + 1 : index * 2 + 2;
+        if (index >= map[0]) break;
+        const uint32_t* const entry = dword_ptr(map[1]) + index * 2;
+        const uint32_t* const empty = reinterpret_cast<const uint32_t*>(Map_EmptyKey(8));
+        if (entry[0] == empty[0] && entry[1] == empty[1]) break;
+    } while (index < map[0]);
+    return nullptr;
+}
+
+PLATFORM_ASM_ENTRY(EntHandleTable_Alloc_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(EntHandleTable_Alloc) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL EntHandleTable_Alloc(uint32_t* table, uint32_t* out) {
+    // HandleTable512_Alloc on the entity bit array (EntBits_IterNext; generation at +0xac + slot * 8;
+    // a full table reports through EntHandleTable_ReportFull, table in ESI).
+    uint32_t iterator[4] = {addr32(table), table[0], 0, 0xffffffffu};
+    EntBits_IterNext(iterator);
+    const int32_t slot = static_cast<int32_t>(iterator[3]);
+    table[slot >> 5] &= ~(1u << (slot & 0x1f));
+    if (slot == -1) qcore_call_esi(addr32(table), 0x000299c0);  // EntHandleTable_ReportFull
+    *out = (word_at(reinterpret_cast<const uint8_t*>(table), 0xac + static_cast<uint32_t>(slot) * 8) << 12) |
+           static_cast<uint32_t>(slot);
+    return out;
+}
+
+namespace {
+
+// Aligned DynArray {data, capacity, count}: a new block of `capacity` ints from DynArray_AllocAlignedZeroed
+// (the first `zeroed` cleared) takes the elements, the old one is freed.
+void aligned_regrow(uint8_t* array, int32_t capacity, uint32_t zeroed) {
+    uint32_t* const data = DynArray_AllocAlignedZeroed(static_cast<uint32_t>(capacity), zeroed);
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(array, 8)); ++i) data[i] = pointer_at<uint32_t>(array, 0)[i];
+    void* const old = pointer_at<void>(array, 0);
+    if (old) {
+        Mem_AlignedFree(old);
+        word_at(array, 0) = 0;
+    }
+    word_at(array, 0) = addr32(data);
+    word_at(array, 4) = static_cast<uint32_t>(capacity);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(DynArray_ReserveAligned_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(DynArray_ReserveAligned) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL DynArray_ReserveAligned(uint8_t* array, int32_t capacity) {
+    if (capacity > static_cast<int32_t>(word_at(array, 4))) aligned_regrow(array, capacity, word_at(array, 8));
+}
+
+PLATFORM_ASM_ENTRY(DynArray_PushBackAligned_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(DynArray_PushBackAligned) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL DynArray_PushBackAligned(uint8_t* array, const uint32_t* item) {
+    // push_back: full arrays grow by 1 up to 4 elements, then by 4. Returns the new element's index.
+    const int32_t count = static_cast<int32_t>(word_at(array, 8));
+    if (!(count < static_cast<int32_t>(word_at(array, 4)))) {
+        aligned_regrow(array, count > 3 ? count + 4 : count + 1, static_cast<uint32_t>(count + 1));
+    }
+    const uint32_t index = word_at(array, 8);
+    pointer_at<uint32_t>(array, 0)[index] = *item;
+    word_at(array, 8) = word_at(array, 8) + 1;
+    return index;
+}
+
+PLATFORM_ASM_ENTRY(DynArray_ResizeAligned_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(DynArray_ResizeAligned) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL DynArray_ResizeAligned(uint8_t* array, int32_t size) {
+    // resize: new slots zeroed (null slots skipped); past the capacity an exact-size block
+    // (Mem_AlignedAlloc, 4-aligned) takes the elements.
+    if (!(size > static_cast<int32_t>(word_at(array, 4)))) {
+        if (size > static_cast<int32_t>(word_at(array, 8))) {
+            const uint32_t data = word_at(array, 0);
+            const uint32_t end = data + static_cast<uint32_t>(size) * 4;
+            for (uint32_t p = data + word_at(array, 8) * 4; p != end; p += 4) {
+                if (p) *dword_ptr(p) = 0;
+            }
+        }
+        word_at(array, 8) = static_cast<uint32_t>(size);
+        return;
+    }
+    const uint32_t bytes = static_cast<uint32_t>(size) * 4;
+    const uint32_t data = addr32(Mem_AlignedAlloc(bytes, 4, 0));
+    for (uint32_t p = data; p != data + bytes; p += 4) {
+        if (p) *dword_ptr(p) = 0;
+    }
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(array, 8)); ++i) dword_ptr(data)[i] = pointer_at<uint32_t>(array, 0)[i];
+    void* const old = pointer_at<void>(array, 0);
+    if (old) {
+        Mem_AlignedFree(old);
+        word_at(array, 0) = 0;
+    }
+    word_at(array, 0) = data;
+    word_at(array, 4) = static_cast<uint32_t>(size);
+    word_at(array, 8) = static_cast<uint32_t>(size);
+}
+
+void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* bounds, uint32_t, const float* point) {
+    // mins (+0) / maxs (+0x10) widened to the point lane by lane (x, y, z; NaN x replaces). The original
+    // compares all four lanes (CMPLTPS) for y and z: the C compares them too for the same MXCSR flags.
+    uint32_t* const bits = reinterpret_cast<uint32_t*>(bounds);
+    const uint32_t* const point_bits = reinterpret_cast<const uint32_t*>(point);
+    if (!(bounds[0] <= point[0])) bits[0] = point_bits[0];
+    for (int32_t lane = 1; lane < 3; ++lane) {
+        bool less[4];
+        for (int32_t i = 0; i < 4; ++i) less[i] = point[i] < bounds[i];
+        platform_keep(less);
+        if (less[lane]) bits[lane] = point_bits[lane];
+    }
+    if (!(point[0] <= bounds[4])) bits[4] = point_bits[0];
+    for (int32_t lane = 1; lane < 3; ++lane) {
+        bool less[4];
+        for (int32_t i = 0; i < 4; ++i) less[i] = bounds[4 + i] < point[i];
+        platform_keep(less);
+        if (less[lane]) bits[4 + lane] = point_bits[lane];
+    }
+}
+
+namespace {
+
+// A skip-list node key: 8 dwords compared from the first, unsigned. 0 = equal, 1 = key below the node's,
+// -1 = above.
+int32_t skip_compare(const uint32_t* key, const uint32_t* node) {
+    for (int32_t i = 0; i < 8; ++i) {
+        if (node[i] != key[i]) return key[i] < node[i] ? 1 : -1;
+    }
+    return 0;
+}
+
+uint32_t* skip_forward(uint32_t node, int32_t level) { return dword_ptr(node + 0x28 + static_cast<uint32_t>(level) * 4); }
+
+}  // namespace
+
+uint32_t XB_THISCALL HashStrMap_Find(const uint32_t* map, const uint32_t* key) {
+    // Skip list {nil +0, header +4, level +0x10}; nodes: key (8 dwords), refs +0x24, forward[] +0x28.
+    int32_t level = static_cast<int32_t>(map[4]);
+    uint32_t node = map[1];
+    uint32_t next = *skip_forward(node, level);
+    for (;;) {
+        const int32_t order = skip_compare(key, dword_ptr(next));
+        if (!order) return next;
+        if (order <= 0) {
+            node = next;
+        } else {
+            --level;
+            if (level < 0) break;
+        }
+        next = *skip_forward(node, level);
+    }
+    return skip_compare(key, dword_ptr(next)) ? 0 : next;
+}
+
+int32_t XB_THISCALL HashStrMap_Remove(uint32_t* map, const uint32_t* key) {
+    // One reference of the key's node dropped (-1 when absent); at 0 it is unlinked at every level, freed
+    // (Mem_AlignedFree) and empty top levels dropped. Returns the references left.
+    const int32_t top = static_cast<int32_t>(map[4]);
+    uint32_t update[16] = {};
+    uint32_t node = map[1];
+    uint32_t next = 0;
+    for (int32_t level = top; level >= 0;) {
+        next = *skip_forward(node, level);
+        if (skip_compare(key, dword_ptr(next)) < 0) {
+            node = next;
+            continue;
+        }
+        update[level] = node;
+        --level;
+    }
+    if (skip_compare(key, dword_ptr(next))) return -1;
+    const int32_t refs = static_cast<int32_t>(dword_ptr(next)[9]) - 1;
+    dword_ptr(next)[9] = static_cast<uint32_t>(refs);
+    if (refs > 0) return refs;
+    for (int32_t i = 0; i <= top; ++i) {
+        if (*skip_forward(update[i], i) != next) break;
+        *skip_forward(update[i], i) = *skip_forward(next, i);
+    }
+    Mem_AlignedFree(dword_ptr(next));
+    int32_t level = top;
+    while (*skip_forward(map[1], level) == map[0] && level > 0) --level;
+    map[4] = static_cast<uint32_t>(level);
+    return refs;
+}
+
+void XB_THISCALL HashStrMap_Clear(uint32_t* map) {
+    // Every node released until gone (the node's own key passed), then the nil and header nodes freed.
+    if (map[1]) {
+        while (*skip_forward(map[1], 0) != map[0]) HashStrMap_Remove(map, dword_ptr(*skip_forward(map[1], 0)));
+    }
+    if (map[0]) Mem_AlignedFree(dword_ptr(map[0]));
+    if (map[1]) Mem_AlignedFree(dword_ptr(map[1]));
+    map[0] = 0;
+    map[1] = 0;
+}
+
+namespace {
+
+// {data, capacity, count} reserve: a block of `capacity` from `alloc` (stdcall capacity, count) takes the
+// elements and the old block goes back to Scr_Free.
+void ptr_array_reserve(uint32_t* array, uint32_t capacity, uint32_t alloc) {
+    if (!(capacity > array[1])) return;
+    uint32_t* const data = title_function<uint32_t* XB_STDCALL(uint32_t, uint32_t)>(alloc)(capacity, array[2]);
+    for (uint32_t i = 0; i < array[2]; ++i) data[i] = dword_ptr(array[0])[i];
+    if (array[0]) Scr_Free(dword_ptr(array[0]));
+    array[0] = addr32(data);
+    array[1] = capacity;
+}
+
+}  // namespace
+
+void XB_THISCALL PtrArray_Reserve(uint32_t* array, uint32_t capacity) {
+    ptr_array_reserve(array, capacity, 0x0011f660);  // Scr_AllocPtrArray
+}
+
+void XB_THISCALL PtrArray_Reserve2(uint32_t* array, uint32_t capacity) {
+    ptr_array_reserve(array, capacity, 0x0045a410);  // the PROLOGUE overlay's copy of Scr_AllocPtrArray
 }
 
 }  // namespace game

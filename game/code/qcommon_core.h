@@ -759,4 +759,32 @@ void XB_REGS2 XB_STDCALL std_vector_ClearAndPush4(const uint32_t* value_ptr, Vec
 // 0x0001fdf0 (source in ECX; destination; callee pops 4): hash_map operator= of the Z_Malloc'd instance.
 void XB_THISCALL HashMap_CopyFrom_7(const HashMap* source, HashMap* map);
 
+// 0x00024440 (text in EAX): HashStr_Hash on unsigned bytes (the localization key hash).
+uint32_t XB_REGS1 XB_CDECL Loc_HashKey(const char* text);
+// 0x000249a0 (map in EBX; &name; callee pops 4): {count, {name, value}} implicit-tree lookup; &value or null.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL StringMap_Find(const uint32_t* map, const char* const* name);
+extern "C" void StringMap_Find_entry(void);
+// 0x00027f30 (table EAX, out EBX): HandleTable512_Alloc on the entity bits (generation +0xac).
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL EntHandleTable_Alloc(uint32_t* table, uint32_t* out);
+extern "C" void EntHandleTable_Alloc_entry(void);
+// 0x000280a0 (array ESI, capacity EBX) / 0x000280f0 (array ESI; item) / 0x00028470 (array EDI; size): aligned
+// DynArray {data, capacity, count} reserve / push_back / resize (Mem_AlignedAlloc'd blocks).
+extern "C" PLATFORM_HIDDEN void XB_CDECL DynArray_ReserveAligned(uint8_t* array, int32_t capacity);
+extern "C" void DynArray_ReserveAligned_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL DynArray_PushBackAligned(uint8_t* array, const uint32_t* item);
+extern "C" void DynArray_PushBackAligned_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL DynArray_ResizeAligned(uint8_t* array, int32_t size);
+extern "C" void DynArray_ResizeAligned_entry(void);
+// 0x00029380 (bounds EAX, point ECX): mins/maxs (16-aligned vectors) widened to the point.
+void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* bounds, uint32_t, const float* point);
+// 0x00093f10 / 0x00093dc0 / 0x00094010: skip list keyed by 32-byte hashed names {nil, header, .., level +0x10}:
+// find (node or 0), release one reference (unlinked and freed at 0), clear.
+uint32_t XB_THISCALL HashStrMap_Find(const uint32_t* map, const uint32_t* key);
+int32_t XB_THISCALL HashStrMap_Remove(uint32_t* map, const uint32_t* key);
+void XB_THISCALL HashStrMap_Clear(uint32_t* map);
+// 0x0011f6a0 / 0x0011f6f0 (callee pops 4): {data, capacity, count} reserve (Scr_AllocPtrArray / the
+// PROLOGUE copy 0x0045a410; old block Scr_Free'd).
+void XB_THISCALL PtrArray_Reserve(uint32_t* array, uint32_t capacity);
+void XB_THISCALL PtrArray_Reserve2(uint32_t* array, uint32_t capacity);
+
 }  // namespace game
