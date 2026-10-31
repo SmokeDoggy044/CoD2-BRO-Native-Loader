@@ -38,8 +38,14 @@ and finished parts come over to this one.
 
 ## Status
 
-Prototype 0.1.14. The single-player campaign is playable from the menus through
-the missions: 1 to 5 tested through, 6 started. It runs at 60 fps (or the game's
+Prototype 0.2.0. The single-player campaign is playable from the menus through
+the missions: 1 to 6 tested through. Since 0.2.0 the game's renderer and sound run as
+decompiled C on our own back ends (a graphics interface with a Direct3D 9 back end, an
+OpenAL sound engine), each with switchable improvements under an "Enhanced" master switch
+(graphics: anti-aliasing, anisotropic filtering, sharpening, colour vibrance, texture
+detail; sound: a higher-quality resampler, more voices, reverb, occlusion behind walls,
+louder close gunfire) for those who want them, and the original
+picture and sound for those who don't. It runs at 60 fps (or the game's
 30), with the game's own widescreen mode (wider ultrawide pictures experimental),
 higher render resolutions, borderless fullscreen, a field of view setting (the
 in-game PC menu, `` ` `` key), controllers, and keyboard and mouse with bindings of
