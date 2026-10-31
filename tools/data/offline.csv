@@ -12,6 +12,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00013fa0,Scr_Closer,3525,3525,0,0,100.0
 00014470,Scr_Log,4000,4000,0,0,100.0
 00014780,HandleTable256_Init,3315,3315,0,0,100.0
+00014af0,IntHashMap_Erase,1657,1657,0,0,100.0
 00015190,BitSet256_Complement,3654,3654,0,0,100.0
 00015790,std_vector_Erase4_2,1271,1271,0,0,100.0
 0001b640,std_CopyBackward4_2,1405,1405,0,0,100.0
@@ -46,6 +47,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000226c0,std_set_string_Inc,3545,3545,0,0,100.0
 00022720,std_map_string_Dec,3581,3581,0,0,100.0
 00022780,std_map_string_Inc,3603,3603,0,0,86.8
+000227e0,std_tree_EraseSubtree29,3761,3761,0,0,100.0
 00022840,std_tree_Max29,3584,3584,0,0,100.0
 00022860,std_tree_Min29,3642,3642,0,0,100.0
 00022970,std_tree_Inc29,3624,3624,0,0,71.1
@@ -508,6 +510,8 @@ address,name,tested,matched,nan,mismatched,coverage
 000d0dd0,SaveRequest_NextFile,1811,1811,0,0,100.0
 000d0e30,SaveRequest_GetFileName,2304,2304,0,0,100.0
 000d0e40,Save_GetOpState,2303,2303,0,0,100.0
+000d1030,Save_ErrorString,4000,4000,0,0,12.3
+000d11c0,Save_Const700,4000,4000,0,0,100.0
 000d1360,Save_TranslateError,2432,2432,0,0,90.0
 000d1610,BytesToBlocks,4000,4000,0,0,100.0
 000d1630,Save_PortToDevice,3972,3964,0,8,91.4

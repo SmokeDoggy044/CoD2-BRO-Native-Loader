@@ -5654,4 +5654,180 @@ uint32_t XB_CDECL Save_BeginWrite(const uint32_t* request) { return save_begin(r
 
 uint32_t XB_CDECL Save_BeginRead(const uint32_t* request) { return save_begin(request, 1); }
 
+// --- Saves: blocking wrappers, delete, error strings, the async callbacks (push 8) ---
+
+int32_t XB_CDECL Save_GetPrevMemoryUnit() {
+    // The unit before the selected port (Save_EnumMemoryUnits' order, wrapping to the last); -1 for none.
+    int32_t ports[9];
+    const int32_t count = Save_EnumMemoryUnits(ports);
+    if (count <= 0) return -1;
+    const int32_t port = title_global<int32_t>(0x008c02d0);
+    if (port == ports[0]) return ports[count - 1];
+    for (int32_t i = count - 1; i >= 0; --i) {
+        if (port > ports[i]) return ports[i];
+    }
+    return -1;
+}
+
+uint32_t XB_CDECL Save_WriteAndWait(const uint32_t* request) {
+    if (!Save_BeginWrite(request)) {
+        while (Save_Update()) {
+        }
+    }
+    return title_global<uint32_t>(0x00920aa4);
+}
+
+uint32_t XB_CDECL Save_ReadAndWait(const uint32_t* request) {
+    if (!Save_BeginRead(request)) {
+        while (Save_Update()) {
+        }
+    }
+    return title_global<uint32_t>(0x00920aa4);
+}
+
+uint32_t XB_CDECL Save_DeleteAndWait(const char* name) {
+    if (!Save_BeginDelete(name)) {
+        while (Save_Update()) {
+        }
+    }
+    return title_global<uint32_t>(0x00920aa4);
+}
+
+uint32_t XB_CDECL Save_NotifyListener4AndWait() {
+    if (!Save_NotifyListener4()) {
+        while (Save_Update()) {
+        }
+    }
+    return title_global<uint32_t>(0x00920aa4);
+}
+
+uint32_t XB_CDECL Save_ErrorString(int32_t error) {
+    // The message of a save result code (-104..-100 and -18..0; "Unknown error" otherwise).
+    static constexpr uint32_t kLow[5] = {0x007cf874, 0x007cf88c, 0x007cf8a0, 0x007cf8b4, 0x007cf8c4};  // -104..-100
+    static constexpr uint32_t kHigh[19] = {0x007cf8d0, 0x007cf8e4, 0x007cf8f0, 0x007cf900, 0x007cf918,
+                                           0x007cf92c, 0x007cf940, 0x007cf94c, 0x007cf95c, 0x007cf968,
+                                           0x007cf97c, 0x007cf990, 0x007cf9a4, 0x007cf9c8, 0x007cf9ec,
+                                           0x007cfa04, 0x007cfa10, 0x007cfa24, 0x007cfa34};  // -18..0
+    const uint32_t index = static_cast<uint32_t>(error) + 0x68;
+    if (index > 0x68) return 0x007cf864;  // "Unknown error"
+    if (index < 5) return kLow[index];
+    if (index >= 0x56) return kHigh[index - 0x56];
+    return 0x007cf864;
+}
+
+uint32_t XB_CDECL Save_Const700() { return 0x700; }
+
+uint32_t XB_CDECL Save_NotifyListener4() {
+    // listener->vtable[0](4), then the last result.
+    save_notify(title_global<uint32_t>(0x00920af0), 4);
+    return Save_GetLastResult();
+}
+
+int32_t XB_CDECL Save_DeleteSaveGame(const char* name) {
+    // XDeleteSaveGame(drive, wide name), the error translated as Save_TranslateError does.
+    uint16_t wide[0x40];
+    wide[0] = 0;
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, const char*, int32_t, uint16_t*, int32_t)>(0x001e96a4)(
+        0, 0, name, -1, wide, 0x3f);  // MultiByteToWideChar
+    const int32_t error = title_function<int32_t XB_STDCALL(const char*, const uint16_t*)>(0x001e921f)(
+        save_drive_root(), wide);  // XDeleteSaveGame
+    return Save_TranslateError(error);
+}
+
+uint32_t XB_CDECL Save_GetSectorSize() { return save_sector_size(); }
+
+uint32_t XB_CDECL Save_BeginDelete(const char* name) {
+    // State 3: the device mounted, the save game opened (XCreateSaveGame) and deleted, the device
+    // unmounted and closed; the listener is told the state either way (synchronous, no file operation).
+    if (title_global<uint32_t>(kSaveOpState)) {
+        Save_SetLastResult(0xffffffefu);
+        return Save_GetLastResult();
+    }
+    title_global<uint32_t>(kSaveOpState) = 3;
+    SaveRequest_SetFileName(save_request(), name);
+    Save_SetLastResult(static_cast<uint32_t>(Save_MountDevice()));
+    if (!Save_GetLastResult()) {
+        Save_SetLastResult(static_cast<uint32_t>(Save_CreateSaveGame(SaveRequest_GetFileName(save_request()))));
+        if (!Save_GetLastResult()) {
+            Save_SetLastResult(static_cast<uint32_t>(Save_DeleteSaveGame(SaveRequest_GetFileName(save_request()))));
+            if (!Save_GetLastResult()) {
+                Save_SetLastResult(static_cast<uint32_t>(Save_UnmountDevice()));
+                Save_GetLastResult();
+                Save_CloseDevice();
+                SaveRequest_SetFileName(save_request(), save_empty_name());
+                const uint32_t listener = title_global<uint32_t>(0x00920af0);
+                const uint32_t state = title_global<uint32_t>(kSaveOpState);
+                title_global<uint32_t>(kSaveOpState) = 0;
+                save_notify(listener, state);
+                return Save_GetLastResult();
+            }
+        }
+    }
+    save_abort_unmount_first();
+    return Save_GetLastResult();
+}
+
+namespace {
+
+uint32_t save_overlapped_result(uint32_t* transferred) {
+    return title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t*, uint32_t)>(0x001e7cf1)(
+        title_global<uint32_t>(0x00920eac), 0x00920d90, transferred, 0);  // GetOverlappedResult
+}
+
+uint32_t save_last_error() { return title_function<uint32_t XB_STDCALL()>(0x001e7c84)(); }  // GetLastError
+
+}  // namespace
+
+int32_t XB_CDECL Save_AsyncWriteCallback() {
+    // Save_Update's step while writing: the finished sector counted, the next one written overlapped
+    // (-17 = still going); the whole buffer written closes the file (0). ERROR_DEVICE_NOT_CONNECTED -10.
+    uint32_t transferred;
+    if (!save_overlapped_result(&transferred)) return save_last_error() != 0x48f ? -17 : -10;
+    title_global<uint32_t>(0x00920d98) += transferred;
+    if (title_global<uint32_t>(0x00920d98) >= Save_GetBufferSize()) {
+        Save_CloseFileHandles();
+        return 0;
+    }
+    const uint32_t sector = save_sector_size();
+    const uint32_t buffer = Save_GetBuffer() + title_global<uint32_t>(0x00920d98);
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e8017)(
+        title_global<uint32_t>(0x00920eac), buffer, sector, 0, 0x00920d90);  // WriteFile
+    return -17;
+}
+
+int32_t XB_CDECL Save_AsyncReadCallback() {
+    // Save_Update's step while reading: the finished sector counted, the next one read overlapped (-17);
+    // done (or EOF, or a read that completed at once) closes the file (0); a size mismatch -1.
+    uint32_t transferred;
+    if (!save_overlapped_result(&transferred)) {
+        if (save_last_error() != 0x26) return -17;
+        Save_CloseFileHandles();
+        return 0;
+    }
+    title_global<uint32_t>(0x00920d98) += transferred;
+    const uint32_t size = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x001e84e1)(
+        title_global<uint32_t>(0x00920eac), 0);  // GetFileSize
+    if (size == Save_GetBufferSize()) {
+        const uint32_t end = save_sector_size() + title_global<uint32_t>(0x00920d98);
+        if (end > Save_GetBufferSize()) {
+            if (title_global<uint32_t>(0x00920d98) == Save_GetBufferSize()) {
+                Save_CloseFileHandles();
+                return 0;
+            }
+        } else {
+            const uint32_t sector = save_sector_size();
+            const uint32_t buffer = Save_GetBuffer() + title_global<uint32_t>(0x00920d98);
+            if (title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e7f2a)(
+                    title_global<uint32_t>(0x00920eac), buffer, sector, 0, 0x00920d90) ||  // ReadFile
+                save_last_error() == 0x26) {
+                Save_CloseFileHandles();
+                return 0;
+            }
+            return -17;
+        }
+    }
+    Save_CloseFileHandles();
+    return -1;
+}
+
 }  // namespace game

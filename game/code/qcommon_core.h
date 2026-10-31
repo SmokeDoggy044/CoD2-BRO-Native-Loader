@@ -804,5 +804,19 @@ uint8_t XB_CDECL Save_StartFileOp();                     // 0x000d23d0
 uint8_t XB_CDECL Save_Update();                          // 0x000d24a0
 uint32_t XB_CDECL Save_BeginWrite(const uint32_t* request);  // 0x000d2620
 uint32_t XB_CDECL Save_BeginRead(const uint32_t* request);   // 0x000d26f0
+// Push 8: the blocking wrappers (begin, then Save_Update until idle), delete, error strings, async callbacks.
+int32_t XB_CDECL Save_GetPrevMemoryUnit();                    // 0x000d0f60 (no callers)
+uint32_t XB_CDECL Save_WriteAndWait(const uint32_t* request);  // 0x000d0fb0 (no callers)
+uint32_t XB_CDECL Save_ReadAndWait(const uint32_t* request);   // 0x000d0fd0
+uint32_t XB_CDECL Save_DeleteAndWait(const char* name);        // 0x000d0ff0 (no callers)
+uint32_t XB_CDECL Save_NotifyListener4AndWait();               // 0x000d1010 (no callers)
+uint32_t XB_CDECL Save_ErrorString(int32_t error);             // 0x000d1030 (no callers): a title string
+uint32_t XB_CDECL Save_Const700();                             // 0x000d11c0 (no callers)
+uint32_t XB_CDECL Save_NotifyListener4();                      // 0x000d13f0
+int32_t XB_CDECL Save_DeleteSaveGame(const char* name);        // 0x000d1850
+uint32_t XB_CDECL Save_GetSectorSize();                        // 0x000d1980 (no callers)
+uint32_t XB_CDECL Save_BeginDelete(const char* name);          // 0x000d1c40
+int32_t XB_CDECL Save_AsyncWriteCallback();                    // 0x000d1ef0 (stored in 0x00920eb0)
+int32_t XB_CDECL Save_AsyncReadCallback();                     // 0x000d1f90 (stored in 0x00920eb0)
 
 }  // namespace game
