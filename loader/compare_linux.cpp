@@ -27,6 +27,32 @@
 #include <linux/filter.h>
 #include <linux/fs.h>
 #include <linux/seccomp.h>
+
+// PAGEMAP_SCAN (Linux 6.7) from older headers (the Steam Runtime's, for the player release): the
+// kernel's ABI as linux/fs.h has it. A kernel without it fails the ioctl and the pagemap path runs.
+#ifndef PAGEMAP_SCAN
+struct page_region {
+    __u64 start;
+    __u64 end;
+    __u64 categories;
+};
+struct pm_scan_arg {
+    __u64 size;
+    __u64 flags;
+    __u64 start;
+    __u64 end;
+    __u64 walk_end;
+    __u64 vec;
+    __u64 vec_len;
+    __u64 max_pages;
+    __u64 category_inverted;
+    __u64 category_mask;
+    __u64 category_anyof_mask;
+    __u64 return_mask;
+};
+#define PAGE_IS_SOFT_DIRTY (1 << 7)
+#define PAGEMAP_SCAN _IOWR('f', 16, struct pm_scan_arg)
+#endif
 #include <poll.h>
 #include <signal.h>
 #include <sys/file.h>
