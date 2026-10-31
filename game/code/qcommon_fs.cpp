@@ -10,9 +10,13 @@
 #include "movie.h"
 #include "nal_math.h"
 #include "fx_load.h"
+#include "actor.h"
 #include "g_scr_runtime.h"
+#include "g_utils.h"
+#include "g_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
+#include "script_string.h"
 #include "snd.h"
 #include "sv.h"
 #include "tr_main.h"
@@ -5031,6 +5035,978 @@ void XB_CDECL StaticInit_LocStrings() {
 
 void XB_CDECL AtExit_LocStrings() {
     title_function<uint32_t XB_STDCALL(uint32_t)>(0x0001d9d0)(0x0095fe70);  // destructor
+}
+
+// --- qcommon push 7 (high half): arrays of hash maps, shuffles, 28/52-byte records ---
+
+namespace {
+
+// Arrays of hash maps: ctor thiscall (traits, unused), dtor and copy_from (operator=) thiscall; `dtor_assign` is
+// the destructor address the assign instance calls (a jump thunk in one instance).
+struct HashMapArrayInstance {
+    uint32_t ctor, dtor, dtor_assign, copy_from;
+    uint8_t* (XB_STDCALL* alloc)(uint32_t);
+};
+
+void hash_map_construct(uint8_t* element, uint32_t ctor) {
+    // The original passes its own argument slot twice, holding the element's address at that point.
+    uint32_t slot = u32(element);
+    title_function<void XB_THISCALL(uint8_t*, uint32_t*, uint32_t*)>(ctor)(element, &slot, &slot);
+}
+
+uint8_t* dynarray_alloc_hash_map(uint32_t count, uint32_t ctor) {
+    const uint32_t bytes = count * 0x28;
+    uint8_t* const data = reinterpret_cast<uint8_t*>(Scr_Alloc(bytes, 4));
+    for (uint8_t* element = data; element != data + bytes; element += 0x28)
+        if (element) hash_map_construct(element, ctor);
+    return data;
+}
+
+void dynarray_resize_hash_map(DynArray* array, uint32_t size, uint32_t capacity, const HashMapArrayInstance& inst) {
+    uint8_t* const data = reinterpret_cast<uint8_t*>(array->data);
+    if (size <= array->capacity) {
+        const uint32_t old_size = array->size;
+        if (size > old_size) {
+            for (uint8_t* element = data + old_size * 0x28; element != data + size * 0x28; element += 0x28)
+                if (element) hash_map_construct(element, inst.ctor);
+        } else if (size < old_size) {
+            for (uint8_t* element = data + size * 0x28; element != data + old_size * 0x28; element += 0x28)
+                title_function<void XB_THISCALL(uint8_t*)>(inst.dtor)(element);
+        }
+        array->size = size;
+        return;
+    }
+    uint8_t* const fresh = inst.alloc(capacity);
+    uint8_t* copy = fresh;
+    for (uint32_t i = 0, offset = 0;; ++i, offset += 0x28, copy += 0x28) {
+        const uint32_t old_size = array->size;
+        if (i >= (old_size >= size ? size : old_size)) break;
+        uint8_t* const source = reinterpret_cast<uint8_t*>(array->data) + offset;
+        if (copy != source) title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(inst.copy_from)(copy, source);
+    }
+    uint8_t* const old = reinterpret_cast<uint8_t*>(array->data);
+    if (old) {
+        for (uint8_t* element = old; element != old + array->size * 0x28; element += 0x28)
+            title_function<void XB_THISCALL(uint8_t*)>(inst.dtor)(element);
+        Scr_Free(array->data);
+    }
+    array->data = reinterpret_cast<uint32_t*>(fresh);
+    array->capacity = capacity;
+    array->size = size;
+}
+
+void dynarray_assign_hash_map(DynArray* array, const DynArray* source, const HashMapArrayInstance& inst) {
+    uint8_t* const old = reinterpret_cast<uint8_t*>(array->data);
+    if (old) {
+        for (uint8_t* element = old; element != old + array->size * 0x28; element += 0x28)
+            title_function<void XB_THISCALL(uint8_t*)>(inst.dtor_assign)(element);
+        Scr_Free(array->data);
+    }
+    if (!source->size) {
+        array->data = nullptr;
+        array->size = 0;
+        array->capacity = 0;
+        return;
+    }
+    uint8_t* const fresh = inst.alloc(source->capacity);
+    uint8_t* copy = fresh;
+    for (int32_t i = 0, offset = 0; i < static_cast<int32_t>(source->size); ++i, offset += 0x28, copy += 0x28) {
+        uint8_t* const from = reinterpret_cast<uint8_t*>(source->data) + offset;
+        if (copy != from) title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(inst.copy_from)(copy, from);
+    }
+    array->data = reinterpret_cast<uint32_t*>(fresh);
+    array->size = source->size;
+    array->capacity = source->capacity;
+}
+
+const HashMapArrayInstance kHashMapArray1{0x0045f8b0, 0x0045ebe0, 0x0011aa90, 0x0045f650, &DynArray_AllocHashMap};
+const HashMapArrayInstance kHashMapArray2{0x0045fc30, 0x0045ec50, 0x0045f220, 0x0045f760, &DynArray_AllocHashMap_2};
+
+// Shuffle: element i swaps with element Scr_RandomInt(size), each access through At (resize thiscall
+// (index + 1, index + 4) when index >= size).
+template <uint32_t kSize>
+void dynarray_shuffle(DynArray* array, uint32_t resize) {
+    const auto at = [array, resize](uint32_t index) {
+        if (index >= array->size)
+            title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(resize)(array, index + 1, index + 4);
+        return reinterpret_cast<uint8_t*>(array->data) + index * kSize;
+    };
+    if (static_cast<int32_t>(array->size) <= 0) return;
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) {
+        const uint32_t j = static_cast<uint32_t>(title_function<int32_t XB_CDECL(int32_t)>(
+            title_global<uint32_t>(0x0092222c))(static_cast<int32_t>(array->size)));  // Scr_RandomInt
+        uint32_t temp[kSize / 4];
+        std::memcpy(temp, at(i), kSize);
+        const uint32_t* const other = reinterpret_cast<const uint32_t*>(at(j));
+        uint32_t* const dest = reinterpret_cast<uint32_t*>(at(i));
+        for (uint32_t w = 0; w < kSize / 4; ++w) dest[w] = other[w];
+        std::memcpy(at(j), temp, kSize);
+    }
+}
+
+// 28-byte record assignment: words copied, the two script strings assigned.
+void record28_assign(uint8_t* dest, uint8_t* source) {
+    pk<uint32_t>(dest, 0) = pk<uint32_t>(source, 0);
+    title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(dest + 4, source + 4);  // ScriptString_Assign
+    pk<uint32_t>(dest, 8) = pk<uint32_t>(source, 8);
+    title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(dest + 0xc, source + 0xc);
+    pk<uint32_t>(dest, 0x10) = pk<uint32_t>(source, 0x10);
+    pk<uint32_t>(dest, 0x14) = pk<uint32_t>(source, 0x14);
+    pk<uint32_t>(dest, 0x18) = pk<uint32_t>(source, 0x18);
+}
+
+void record28_release(uint8_t* record) {
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(record + 0xc);  // ScriptString_Release
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(record + 4);
+}
+
+constexpr uint32_t kRecord28Ctor = 0x0045bcd0;
+constexpr uint32_t kRecord28Dtor = 0x00458fd0;
+
+}  // namespace
+
+uint8_t* XB_STDCALL DynArray_AllocHashMap(uint32_t count) { return dynarray_alloc_hash_map(count, 0x0045f8b0); }
+uint8_t* XB_STDCALL DynArray_AllocHashMap_2(uint32_t count) { return dynarray_alloc_hash_map(count, 0x0045fc30); }
+
+void XB_THISCALL DynArray_ResizeHashMap(DynArray* array, uint32_t size, uint32_t capacity) {
+    dynarray_resize_hash_map(array, size, capacity, kHashMapArray1);
+}
+void XB_THISCALL DynArray_ResizeHashMap_2(DynArray* array, uint32_t size, uint32_t capacity) {
+    dynarray_resize_hash_map(array, size, capacity, kHashMapArray2);
+}
+void XB_THISCALL DynArray_AssignHashMap(DynArray* array, const DynArray* source) {
+    dynarray_assign_hash_map(array, source, kHashMapArray1);
+}
+void XB_THISCALL DynArray_AssignHashMap_2(DynArray* array, const DynArray* source) {
+    dynarray_assign_hash_map(array, source, kHashMapArray2);
+}
+
+uint8_t* XB_THISCALL DynArray_AtHashMap(DynArray* array, uint32_t index) {
+    if (index >= array->size) DynArray_ResizeHashMap(array, index + 1, index + 4);
+    return reinterpret_cast<uint8_t*>(array->data) + index * 0x28;
+}
+
+void XB_CDECL DynArray_Shuffle(DynArray* array) { dynarray_shuffle<4>(array, 0x00015a90); }
+void XB_CDECL DynArray_Shuffle_2(DynArray* array) { dynarray_shuffle<4>(array, 0x0045cad0); }
+void XB_CDECL DynArray_Shuffle12(DynArray* array) { dynarray_shuffle<12>(array, 0x0045cde0); }
+void XB_CDECL DynArray_ShuffleInt(DynArray* array) { dynarray_shuffle<4>(array, 0x0045cad0); }
+void XB_CDECL DynArray_Shuffle_3(DynArray* array) { dynarray_shuffle<4>(array, 0x0045c4a0); }
+
+void XB_CDECL DynArray_ShuffleString(DynArray* array) {
+    constexpr uint32_t kResize = 0x0045c2e0;
+    const auto at = [array](uint32_t index) {
+        if (index >= array->size)
+            title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(kResize)(array, index + 1, index + 4);
+        return reinterpret_cast<uint8_t*>(array->data) + index * 4;
+    };
+    if (static_cast<int32_t>(array->size) <= 0) return;
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) {
+        const uint32_t j = static_cast<uint32_t>(title_function<int32_t XB_CDECL(int32_t)>(
+            title_global<uint32_t>(0x0092222c))(static_cast<int32_t>(array->size)));  // Scr_RandomInt
+        uint32_t temp = 0;
+        title_function<void XB_THISCALL(uint32_t*, uint8_t*)>(0x0011d5e0)(&temp, at(i));  // ScriptString_Copy
+        uint8_t* const other = at(j);
+        title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(at(i), other);  // ScriptString_Assign
+        title_function<void XB_THISCALL(uint8_t*, uint32_t*)>(0x0011d600)(at(j), &temp);
+        title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&temp);  // ScriptString_Release
+    }
+}
+
+void XB_THISCALL DynArray_Erase28(DynArray* array, uint8_t* where) {
+    uint8_t* const end = reinterpret_cast<uint8_t*>(array->data) + array->size * 0x1c;
+    if (where == end) return;
+    uint8_t* const last = end - 0x1c;
+    for (uint8_t* record = where; record != last; record += 0x1c) record28_assign(record, record + 0x1c);
+    title_function<void XB_THISCALL(uint8_t*)>(kRecord28Dtor)(last);
+    --array->size;
+}
+
+uint8_t* XB_STDCALL DynArray_Alloc28(uint32_t count, uint32_t) {
+    const uint32_t bytes = count * 0x1c;
+    uint8_t* const data = reinterpret_cast<uint8_t*>(Scr_Alloc(bytes, 4));
+    for (uint8_t* record = data; record != data + bytes; record += 0x1c)
+        if (record) title_function<void XB_THISCALL(uint8_t*)>(kRecord28Ctor)(record);
+    return data;
+}
+
+void XB_THISCALL DynArray_Reserve28(DynArray* array, uint32_t size, uint32_t capacity) {
+    uint8_t* const data = reinterpret_cast<uint8_t*>(array->data);
+    if (size <= array->capacity) {
+        const uint32_t old_size = array->size;
+        if (size > old_size) {
+            for (uint8_t* record = data + old_size * 0x1c; record != data + size * 0x1c; record += 0x1c)
+                if (record) title_function<void XB_THISCALL(uint8_t*)>(kRecord28Ctor)(record);
+        } else if (size < old_size) {
+            for (uint8_t* record = data + size * 0x1c; record != data + old_size * 0x1c; record += 0x1c)
+                record28_release(record);
+        }
+        array->size = size;
+        return;
+    }
+    uint8_t* const fresh = title_function<uint8_t* XB_STDCALL(uint32_t)>(0x0045c120)(capacity);
+    for (uint32_t i = 0;; ++i) {
+        const uint32_t old_size = array->size;
+        if (i >= (old_size >= size ? size : old_size)) break;
+        record28_assign(fresh + i * 0x1c, reinterpret_cast<uint8_t*>(array->data) + i * 0x1c);
+    }
+    uint8_t* const old = reinterpret_cast<uint8_t*>(array->data);
+    if (old) {
+        for (uint8_t* record = old; record != old + array->size * 0x1c; record += 0x1c) record28_release(record);
+        Scr_Free(array->data);
+    }
+    array->data = reinterpret_cast<uint32_t*>(fresh);
+    array->capacity = capacity;
+    array->size = size;
+}
+
+void XB_THISCALL DynArray_PushBack28(DynArray* array, const uint8_t* value) {
+    if (array->size >= array->capacity) {
+        const uint32_t capacity = array->size + 4;
+        uint8_t* const fresh = DynArray_Alloc28(capacity, array->size + 1);
+        for (uint32_t i = 0; i < array->size; ++i)
+            record28_assign(fresh + i * 0x1c, reinterpret_cast<uint8_t*>(array->data) + i * 0x1c);
+        uint8_t* const old = reinterpret_cast<uint8_t*>(array->data);
+        if (old) {
+            for (uint8_t* record = old; record != old + array->size * 0x1c; record += 0x1c)
+                title_function<void XB_THISCALL(uint8_t*)>(kRecord28Dtor)(record);
+            Scr_Free(array->data);
+        }
+        array->data = reinterpret_cast<uint32_t*>(fresh);
+        array->capacity = capacity;
+    }
+    const uint32_t size = array->size;
+    uint8_t* const record = reinterpret_cast<uint8_t*>(array->data) + size * 0x1c;
+    array->size = size + 1;
+    record28_assign(record, const_cast<uint8_t*>(value));
+}
+
+void XB_THISCALL DynArray_Resize52(DynArray* array, uint32_t size, uint32_t capacity) {
+    if (size <= array->capacity) {
+        const uint32_t old_size = array->size;
+        if (size > old_size) {
+            uint8_t* const data = reinterpret_cast<uint8_t*>(array->data);
+            for (uint8_t* element = data + old_size * 0x34; element != data + size * 0x34; element += 0x34) {
+                if (!element) continue;
+                uint32_t* const words = reinterpret_cast<uint32_t*>(element);
+                words[0] = title_global<uint32_t>(kScrUndefinedInt);
+                words[1] = 0;
+                words[2] = 0;
+                words[3] = title_global<uint32_t>(0x00922eb4);
+                for (int i = 4; i < 7; ++i) words[i] = title_global<uint32_t>(kScrUndefinedVecFloat);
+                for (int i = 7; i < 13; ++i) words[i] = title_global<uint32_t>(kScrUndefinedFloat);
+            }
+        }
+        array->size = size;
+        return;
+    }
+    uint8_t* const fresh = title_function<uint8_t* XB_STDCALL(uint32_t)>(0x0045c1a0)(capacity);
+    for (uint32_t i = 0;; ++i) {
+        const uint32_t old_size = array->size;
+        if (i >= (old_size >= size ? size : old_size)) break;
+        std::memcpy(fresh + i * 0x34, reinterpret_cast<uint8_t*>(array->data) + i * 0x34, 0x34);
+    }
+    if (array->data) Scr_Free(array->data);
+    array->data = reinterpret_cast<uint32_t*>(fresh);
+    array->capacity = capacity;
+    array->size = size;
+}
+
+
+// --- qcommon push 7 (high half), batch 2: list/map instances, string throws, Sys_ListFiles, game commands ---
+
+namespace {
+
+// _Xran/_Xlen: a std::string from the message, a logic_error-derived exception from it, _CxxThrowException.
+[[noreturn]] void std_throw_string_error(uint32_t message, uint32_t vtable, uint32_t throw_info) {
+    alignas(4) uint8_t text[0x1c] = {};
+    alignas(4) uint8_t error[0x28] = {};
+    std_string_CtorCStr(text, tstr(message));
+    std_exception_CtorString(error, text);
+    pk<uint32_t>(error, 0) = vtable;
+    title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x001f2302)(error, throw_info);  // _CxxThrowException
+    for (;;) {
+    }
+}
+
+// buy_head, clear, insert_range, resize, construct_n, copy_from
+constexpr HashMapInstance kHashMap6{0x0045ca60, 0x0045ca00, 0x001e67d0, 0x0045f250, 0, 0x001e6880};
+
+}  // namespace
+
+uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_4(uint8_t* next, uint8_t* prev, const uint32_t* value) {
+    return list_buy_node_key_array(next, prev, value, 0x0045c270);  // DynArray_Assign4 (PROLOGUE copy)
+}
+uint32_t XB_THISCALL std_list_IncSize_3(uint8_t* list, uint32_t count) { return list_inc_size(list, count, 0x0fffffff); }
+void XB_THISCALL std_list_InsertRange_6(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0045caa0, 0x0045ead0);  // PROLOGUE BuyNode, IncSize
+}
+void XB_THISCALL HashMap_CopyFrom_6(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, kHashMap6); }
+HashMap* XB_THISCALL HashMap_CopyCtor_6(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, kHashMap6);
+}
+
+void XB_CDECL std_string_Xran() { std_throw_string_error(0x008278d0, 0x00832778, 0x00895b68); }  // out_of_range
+void XB_CDECL std_string_Xlen() { std_throw_string_error(0x008278e8, 0x007f7784, 0x00895af4); }  // length_error
+
+// --- Sys_ file listing (FindFirstFile/FindNextFile) ---
+
+namespace {
+
+using FindFirst = uint32_t XB_STDCALL(const char*, uint8_t*);
+using FindNext = int32_t XB_STDCALL(uint32_t, uint8_t*);
+using CloseHandleFn = int32_t XB_STDCALL(uint32_t);
+constexpr uint32_t kFindFirstFile = 0x001e79ad;
+constexpr uint32_t kFindNextFile = 0x001e7aba;
+constexpr uint32_t kCloseHandle = 0x001e7b0b;
+
+bool is_dot_or_cvs(const char* name) {
+    return !Q_stricmpn(name, tstr(0x0082d700), 99999) ||  // "."
+           !Q_stricmpn(name, tstr(0x008380a4), 99999) ||  // ".."
+           !Q_stricmpn(name, tstr(0x0083cac4), 99999);    // "CVS"
+}
+
+// The shared tail: a zeroed Z_Malloc copy of the first `count` names plus a null terminator.
+char** copy_file_list(char* const* list, int32_t count) {
+    const uint32_t bytes = static_cast<uint32_t>(count) * 4 + 4;
+    char** const copy = reinterpret_cast<char**>(Z_Malloc(bytes));
+    Com_Memset(reinterpret_cast<uint8_t*>(copy), 0, bytes);
+    int32_t i = 0;
+    if (count > 0) {
+        for (; i < count; ++i) copy[i] = list[i];
+    }
+    copy[i] = nullptr;
+    return copy;
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL Sys_ListFilteredFiles(const char* basedir, const char* subdirs, const char* filter,
+                                            char** list, int32_t* numfiles) {
+    if (*numfiles >= 0xfff) return;
+    char search[0x80];
+    if (std::strlen(subdirs)) {
+        const uint32_t args[3] = {0x0083cad0, u32(basedir), u32(subdirs)};  // "%s\%s\*"
+        Com_sprintf(search, 0x80, args);
+    } else {
+        const uint32_t args[2] = {0x0083cac8, u32(basedir)};  // "%s\*"
+        Com_sprintf(search, 0x80, args);
+    }
+    uint8_t data[0x140] = {};  // WIN32_FIND_DATAA: attributes +0, cFileName +0x2c
+    const uint32_t handle = title_function<FindFirst>(kFindFirstFile)(search, data);
+    if (handle == 0xffffffff) return;
+    const char* const name = reinterpret_cast<const char*>(data + 0x2c);
+    do {
+        if ((data[0] & 0x10) && is_dot_or_cvs(name)) continue;
+        if (*numfiles >= 0xfff) break;
+        char filename[0x80];
+        if (subdirs) {
+            const uint32_t args[3] = {0x0083cabc, u32(subdirs), u32(name)};  // "%s\%s"
+            Com_sprintf(filename, 0x80, args);
+        } else {
+            const uint32_t args[2] = {0x0082ddd4, u32(name)};  // "%s"
+            Com_sprintf(filename, 0x80, args);
+        }
+        if (!Com_FilterPath(filename, filter, 0)) continue;
+        list[*numfiles] = CopyString(filename);
+        ++*numfiles;
+    } while (title_function<FindNext>(kFindNextFile)(handle, data));
+    title_function<CloseHandleFn>(kCloseHandle)(handle);
+}
+
+char** XB_REGS3 XB_CDECL Sys_ListFiles(uint32_t, const char* filter, const char* extension, const char* directory,
+                                       int32_t* numfiles, int32_t wantsubs) {
+    char* list[0x1000];
+    if (filter) {
+        int32_t nfiles = 0;
+        Sys_ListFilteredFiles(directory, tstr(0x0082dfeb), filter, list, &nfiles);
+        list[nfiles] = nullptr;
+        *numfiles = nfiles;
+        if (!nfiles) return nullptr;
+        return copy_file_list(list, nfiles);
+    }
+    uint32_t flag = 0x10;
+    if (!extension) {
+        extension = tstr(0x0082dfeb);
+    } else if (extension[0] == '/' && !extension[1]) {
+        extension = tstr(0x0082dfeb);
+        flag = 0;
+    }
+    char search[0x80];
+    const uint32_t args[3] = {0x0083cab4, u32(directory), u32(extension)};  // "%s\*%s"
+    Com_sprintf(search, 0x80, args);
+    uint8_t data[0x140] = {};
+    int32_t nfiles = 0;
+    const uint32_t handle = title_function<FindFirst>(kFindFirstFile)(search, data);
+    if (handle == 0xffffffff) {
+        *numfiles = 0;
+        return nullptr;
+    }
+    const char* const name = reinterpret_cast<const char*>(data + 0x2c);
+    do {
+        const uint32_t subdir = data[0] & 0x10u;
+        if (!wantsubs ? !(subdir ^ flag) : !subdir) continue;
+        if (subdir && is_dot_or_cvs(name)) continue;
+        list[nfiles] = CopyString(name);
+        if (++nfiles == 0xfff) break;
+    } while (title_function<FindNext>(kFindNextFile)(handle, data));
+    list[nfiles] = nullptr;
+    title_function<CloseHandleFn>(kCloseHandle)(handle);
+    *numfiles = nfiles;
+    if (!nfiles) return nullptr;
+    return copy_file_list(list, nfiles);
+}
+
+// --- Boot: small-block pools ---
+
+PLATFORM_ASM_ENTRY(Mem_InitSmallBlockPools_entry,
+                   "pushl %ebx\n pushl %eax\n" PLATFORM_ASM_CALL(Mem_InitSmallBlockPools) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL Mem_InitSmallBlockPools(uint32_t effect_pool_size, uint32_t large) {
+    const uint8_t large_pools = static_cast<uint8_t>(large);
+    title_global<uint8_t>(0x0095f6dc) = large_pools;
+    if (large_pools) effect_pool_size = 0x400000;
+    FxSet_8bb860(effect_pool_size);
+    FxSet_8bb864(500);
+    FxSet_8bb866(250);
+    FxSet_8bb868(200);
+    FX_InitParticleLibrary();
+    if (large_pools) {
+        Mem_InitLargeBlockPools();
+    } else {
+        apsAddPool(400, 0x10);
+        apsAddPool(400, 0x20);
+        apsAddPool(400, 0x40);
+        apsAddPool(400, 0x80);
+    }
+    uint8_t* const heap = Z_Malloc(0x494);
+    if (!heap) {
+        title_global<uint32_t>(0x0095f6d8) = 0;
+        return heap;
+    }
+    uint8_t* const created = Heap_CreateFromZone(heap, 0x40000);
+    title_global<uint32_t>(0x0095f6d8) = u32(created);
+    return created;
+}
+
+// --- Game console commands (ent = the client's gentity) ---
+
+namespace {
+
+constexpr uint32_t kCmdArgc = 0x00934248;
+constexpr uint32_t kCmdArgv = 0x0092df90;  // char* [], argv[0] first
+constexpr uint32_t kStrncpy = 0x001eed80;
+constexpr uint32_t kAtol = 0x001eeb81;
+constexpr uint32_t kAtof = 0x001ef056;  // returns a double in ST0; stored as a float
+
+void title_strncpy(char* dest, const char* source, uint32_t count) {
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(kStrncpy)(dest, source, count);
+}
+int32_t title_atol(const char* text) { return title_function<int32_t XB_CDECL(const char*)>(kAtol)(text); }
+float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(kAtof)(text); }
+
+const char* cmd_argv(uint32_t index) { return title_global<const char*>(kCmdArgv + index * 4); }
+
+void send_to_client(uint8_t* ent, uint32_t text) {
+    SV_GameSendServerCommand(tstr(text), pk<uint32_t>(ent, 0x224));
+}
+
+void send_va_to_client(uint8_t* ent, uint32_t format) {
+    const uint32_t handle = pk<uint32_t>(ent, 0x224);
+    const uint32_t args[1] = {format};
+    SV_GameSendServerCommand(va(args), handle);
+}
+
+// TeleportPlayer (ent in EAX, origin in ECX), SetClientViewAngle (angles in EAX, ent in EDX), SV_LinkEntity.
+void teleport_with_angles(uint8_t* ent, const float* origin, const float* angles) {
+    TitleRegs regs{};
+    regs.eax = u32(ent);
+    regs.ecx = u32(origin);
+    qc_call_regs(0x0024eec0, &regs, 0, nullptr);
+    regs = TitleRegs{};
+    regs.eax = u32(angles);
+    regs.edx = u32(ent);
+    qc_call_regs(0x0024ebf0, &regs, 0, nullptr);
+    SV_LinkEntity(ent);
+}
+
+}  // namespace
+
+void XB_CDECL Cmd_MenuResponse_f(uint8_t* ent) {
+    char id[0x80];
+    char response[0x80];
+    if (title_global<int32_t>(kCmdArgc) != 3) {
+        id[0] = 0;
+        std::memcpy(response, "bad", 4);
+    } else {
+        title_strncpy(id, cmd_argv(1), 0x7f);
+        id[0x7f] = 0;
+        const int32_t menu = title_atol(id);
+        if (menu >= 0 && menu < 1) SV_GetConfigstring(menu + 0x272, 0x80, id);
+        const char* const text = title_global<uint32_t>(kCmdArgc) > 2 ? cmd_argv(2) : tstr(0x0082dfeb);
+        title_strncpy(response, text, 0x7f);
+        response[0x7f] = 0;
+    }
+    ScriptString name{};
+    ScriptString value{};
+    using FromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
+    ScriptString* const name_ref = title_function<FromCString>(0x0011eb50)(&name, id);
+    ScriptString* const value_ref = title_function<FromCString>(0x0011eb50)(&value, response);
+    TitleRegs regs{};
+    regs.ebx = u32(ent);
+    const uint32_t args[3] = {title_global<uint32_t>(0x0097a71c), u32(value_ref), u32(name_ref)};  // "menuresponse"
+    qc_call_regs(0x00029000, &regs, 3, args);  // G_NotifyWithTwoStrings (ent in EBX)
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&value);  // ScriptString_Release
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&name);
+}
+
+void XB_CDECL Cmd_JumpToNode_f(uint8_t* ent) {
+    if (!title_global<int32_t>(kCheatsEnabled)) {
+        send_to_client(ent, 0x0083bd78);  // "print \"GAME_CHEATSNOTENABLED\""
+        return;
+    }
+    if (title_global<int32_t>(kCmdArgc) != 2) {
+        send_to_client(ent, 0x0083bc64);  // usage
+        return;
+    }
+    char text[0x80];
+    title_strncpy(text, cmd_argv(1), 0x7f);
+    text[0x7f] = 0;
+    const int32_t node_index = title_atol(text);
+    uint8_t* const blocks = title_global<uint8_t*>(0x0095f4f4);  // g_pathNodeBlocks
+    if (node_index < 0 || node_index >= pk<int32_t>(pk_ptr(blocks, 0x194), 4)) {
+        const uint32_t handle = pk<uint32_t>(ent, 0x224);
+        const uint32_t args[2] = {0x0083bc3c, pk<uint32_t>(pk_ptr(blocks, 0x194), 4)};  // node count message
+        SV_GameSendServerCommand(va(args), handle);
+        return;
+    }
+    const uint16_t handle = static_cast<uint16_t>(node_index);
+    uint8_t* const node = PathNode_FromHandleInTable(&handle, blocks);
+    float angles[3];
+    angles[0] = 0.0f;
+    std::memcpy(&angles[1], node + 0x50, 4);  // yaw
+    angles[2] = 0.0f;
+    teleport_with_angles(ent, reinterpret_cast<const float*>(node + 0x44), angles);
+}
+
+void XB_CDECL Cmd_SetViewpos_f(uint8_t* ent) {
+    if (!title_global<int32_t>(kCheatsEnabled)) {
+        send_to_client(ent, 0x0083bd78);
+        return;
+    }
+    if (title_global<int32_t>(kCmdArgc) != 5) {
+        send_to_client(ent, 0x0083bc90);  // usage
+        return;
+    }
+    float angles[3];
+    angles[2] = 0.0f;
+    angles[0] = 0.0f;
+    float origin[3];
+    char text[0x80];
+    for (uint32_t i = 1; i <= 3; ++i) {
+        const char* const arg = i < title_global<uint32_t>(kCmdArgc) ? cmd_argv(i) : tstr(0x0082dfeb);
+        title_strncpy(text, arg, 0x7f);
+        text[0x7f] = 0;
+        origin[i - 1] = title_atof(text);
+    }
+    const char* const yaw = title_global<uint32_t>(kCmdArgc) > 4 ? cmd_argv(4) : tstr(0x0082dfeb);
+    title_strncpy(text, yaw, 0x7f);
+    text[0x7f] = 0;
+    angles[1] = title_atof(text);
+    teleport_with_angles(ent, origin, angles);
+}
+
+void XB_CDECL Cmd_DropWeapon_f(uint8_t* ent) {
+    if (!title_global<int32_t>(0x00955184)) return;
+    if (!title_global<int32_t>(kCheatsEnabled)) return;
+    TitleRegs regs{};
+    regs.edi = u32(ent);
+    const uint32_t args[2] = {ent[3], 0};
+    if (qc_call_regs(0x00268350, &regs, 2, args)) G_AddEvent(ent, 0x97, 0);  // Drop_Weapon (ent in EDI)
+}
+
+void XB_CDECL Cmd_Kill_f(uint8_t* ent) {
+    if (title_global<int32_t>(0x0095bf9c)) return;
+    pk<uint32_t>(ent, 0x2a4) &= ~1u;
+    uint8_t* const client = pk_ptr(ent, 0x23c);
+    pk<int32_t>(ent, 0x350) = 0;
+    pk<int32_t>(client, 0x100) = 0;
+    using PlayerDie = void XB_CDECL(uint8_t*, uint8_t*, uint8_t*, int32_t, int32_t, uint32_t, uint32_t, uint32_t,
+                                    uint32_t);
+    title_function<PlayerDie>(0x00269450)(ent, ent, ent, 100000, 0x15, 0, 0, 0, 0);  // player_die
+}
+
+void XB_CDECL Cmd_Give_f(uint8_t* ent) {
+    if (!title_global<int32_t>(kCheatsEnabled)) {
+        send_va_to_client(ent, 0x0083bd78);
+        return;
+    }
+    if (pk<int32_t>(ent, 0x350) <= 0) {
+        send_va_to_client(ent, 0x0083bd58);  // "print \"GAME_MUSTBEALIVECOMMAND\""
+        return;
+    }
+    using ConcatArgs = const char* XB_REGS3 XB_CDECL(uint32_t, uint32_t, int32_t);
+    const int32_t amount = title_atol(title_function<ConcatArgs>(0x0024d250)(0, 0, 2));
+    const char* const name = title_function<ConcatArgs>(0x0024d250)(0, 0, 1);
+    if (!name || !std::strlen(name)) return;
+    Q_stricmpn(name, tstr(0x0083bd34), 99999);  // "all" (the result is not used)
+    int32_t health;
+    if (amount) {
+        health = pk<int32_t>(ent, 0x350) + amount;
+    } else {
+        pk<uint32_t>(pk_ptr(ent, 0x23c), 0x108) = title_global<uint32_t>(0x00950cec);
+        health = title_global<int32_t>(0x00950cec);
+    }
+    const int32_t last_weapon = title_global<int32_t>(0x0095f4d4);  // bg_lastWeaponIndex
+    pk<int32_t>(ent, 0x350) = health;
+    title_global<uint32_t>(0x00986018) = 1;
+    for (int32_t weapon = 1; weapon <= last_weapon; ++weapon)
+        BG_GivePlayerWeapon(static_cast<uint32_t>(weapon), pk_ptr(ent, 0x23c));
+    title_global<uint32_t>(0x00986018) = 0;
+    using AddAmmo = void XB_REGS1 XB_CDECL(uint8_t*, int32_t, int32_t, int32_t);
+    const auto has_weapon = [ent](int32_t weapon) {
+        return (pk<uint32_t>(pk_ptr(ent, 0x23c), 0x3f0 + (weapon >> 5) * 4) & (1u << (weapon & 0x1f))) != 0;
+    };
+    if (amount) {
+        const int32_t current = pk<int32_t>(pk_ptr(ent, 0x23c), 0x80);
+        if (current) title_function<AddAmmo>(0x0024e7a0)(ent, current, amount, 1);
+    } else {
+        for (int32_t weapon = 1; weapon <= last_weapon; ++weapon)
+            if (has_weapon(weapon)) title_function<AddAmmo>(0x0024e7a0)(ent, weapon, 998, 1);
+    }
+    if (Q_stricmpn(name, tstr(0x0083bd24), 7) || !amount) return;  // "allammo"
+    const int32_t last = title_global<int32_t>(0x0095f4d4);
+    for (int32_t weapon = 1; weapon <= last; ++weapon)
+        if (has_weapon(weapon)) title_function<AddAmmo>(0x0024e7a0)(ent, weapon, amount, 1);
+}
+
+// Cmd_Activate_f (ent in ESI): every title callee gets the original's registers (use/touch callbacks and the
+// notify helpers read ESI/EDI/EBX).
+PLATFORM_ASM_ENTRY(Cmd_Activate_f_entry,
+                   "pushl %edi\n pushl %ebx\n pushl %esi\n" PLATFORM_ASM_CALL(Cmd_Activate_f) "addl $12, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry_edi) {
+    TitleRegs regs{};
+    regs.esi = u32(ent);
+    regs.ebx = entry_ebx;
+    regs.edi = entry_edi;
+    const auto call_func = [&regs](uint32_t table, uint8_t* self, uint8_t* other, uint8_t* third) {
+        const uint32_t index = pk<uint32_t>(self, table == 0x008da814 ? 0x338 : 0x33c);
+        regs.eax = index;
+        regs.ecx = index;
+        const uint32_t args[3] = {u32(self), u32(other), u32(third)};
+        qc_call_regs(title_global<uint32_t>(table + index * 4), &regs, 3, args);
+    };
+    constexpr uint32_t kUseFuncs = 0x008da840;    // entityUseFuncs
+    constexpr uint32_t kTouchFuncs = 0x008da814;  // entityTouchFuncs
+    const auto notify = [&regs, ent](uint8_t* target, uint32_t name) {
+        regs.eax = u32(ent);
+        regs.edi = u32(target);
+        const uint32_t args[1] = {name};
+        qc_call_regs(0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle (ent in EAX, notified in EDI)
+    };
+    if (pk<uint32_t>(ent, 0x2a4) & 0x100000) return 0;
+    pk<uint32_t>(pk_ptr(ent, 0x23c), 0x628) = 0;
+    regs.ecx = u32(ent);
+    uint8_t* const turret = reinterpret_cast<uint8_t*>(qc_call_regs(0x0024bb30, &regs, 0, nullptr));  // G_GetPlayerTurret
+    if (turret) {
+        call_func(kUseFuncs, turret, ent, ent);
+        return 1;
+    }
+    if (ent[0x297]) {
+        ent[0x297] = (pk<uint32_t>(pk_ptr(ent, 0x23c), 0xc0) & 0x6000) ? 2 : 0;
+        return 1;
+    }
+    {
+        const uint32_t args[1] = {u32(ent)};
+        qc_call_regs(0x00267e10, &regs, 1, args);  // Player_UpdateCursorHints
+    }
+    uint8_t* const ps = pk_ptr(ent, 0x23c);
+    regs.ebx = u32(ps);
+    if (!pk<uint32_t>(ps, 0x4c0)) return 0;
+    uint8_t* const target = G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(ps + 0x4c0));
+    regs.edi = u32(target);
+    if (pk<uint32_t>(target, 0x240)) {
+        notify(target, title_global<uint32_t>(0x0097a818));  // "trigger"
+        return 1;
+    }
+    if (!pk<uint32_t>(target, 0x25c)) return 1;
+    if (title_function<uint8_t XB_THISCALL(uint8_t*)>(0x00011200)(target + 0x25c)) return 1;  // ScriptString_IsEmpty
+    const uint32_t classname = pk<uint32_t>(target, 0x260);
+    if (classname == title_global<uint32_t>(0x0097a6dc) || classname == title_global<uint32_t>(0x0097a6e0)) {
+        regs.eax = u32(target);
+        const uint32_t args[1] = {u32(ent)};
+        qc_call_regs(0x002710e0, &regs, 1, args);  // TryDoor (door in EAX)
+        return 1;
+    }
+    if (classname == title_global<uint32_t>(0x0097a81c)) {  // "trigger_use"
+        notify(target, title_global<uint32_t>(0x0097a818));
+        call_func(kUseFuncs, target, ent, ent);
+        return 1;
+    }
+    switch (target[0]) {
+    case 0xe:
+        regs.ecx = u32(ent);
+        regs.edx = u32(target);
+        if (!qc_call_regs(0x0024dc10, &regs, 0, nullptr)) return 0;
+        call_func(kUseFuncs, target, ent, ent);
+        return 1;
+    case 0x2:
+        regs.eax = u32(target);
+        if (qc_call_regs(0x00248e10, &regs, 0, nullptr)) {
+            pk<uint32_t>(ps, 0x628) = pk<uint32_t>(target, 0x224);
+            pk<uint32_t>(pk_ptr(ent, 0x23c), 0x62c) = title_global<uint32_t>(0x0098540c);  // level.time
+            return 0;
+        }
+        notify(target, title_global<uint32_t>(0x0097a814));  // "touch"
+        if (!pk<uint32_t>(target, 0x338)) return 0;
+        target[0x297] = 1;
+        call_func(kTouchFuncs, target, ent, nullptr);
+        return 1;
+    case 0xa:
+        if (!Turret_IsUsableBy(ent, 0, target)) return 0;
+        call_func(kUseFuncs, target, ent, ent);
+        return 1;
+    default:
+        break;
+    }
+    if (classname != title_global<uint32_t>(0x0097a784)) return 1;  // "script_brushmodel"
+    notify(target, title_global<uint32_t>(0x0097a818));
+    if (!pk<uint32_t>(target, 0x33c)) return 0;
+    call_func(kUseFuncs, target, ent, ent);
+    return 1;
+}
+
+
+// --- qcommon push 7 (high half), batch 3: clock, boot heaps, localized-string lookups ---
+
+int32_t XB_CDECL Sys_Milliseconds() {
+    // The RDTSC sites (0x002b1caf / 0x002b1ce9) are patched by the loader; C reads the same clock through XAPI
+    // QueryPerformanceCounter (0x001ed6ca).
+    const auto clock = [] {
+        uint32_t counter[2] = {0, 0};
+        title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+        return (uint64_t{counter[1]} << 32) | counter[0];
+    };
+    uint32_t& base_low = title_global<uint32_t>(0x0098b7f8);
+    uint32_t& base_high = title_global<uint32_t>(0x0098b7fc);
+    if (title_global<uint8_t>(0x008fef19)) {
+        const uint64_t now = clock();
+        base_low = static_cast<uint32_t>(now);
+        base_high = static_cast<uint32_t>(now >> 32);
+        title_global<uint8_t>(0x008fef19) = 0;
+    }
+    const uint64_t ticks = clock() - ((uint64_t{base_high} << 32) | base_low);
+    // Unsigned 64-bit to x87: FILD of the low 63 bits plus 2^63 for the top bit, times 1 / 733333.3, _ftol.
+    const uint32_t low_part[2] = {static_cast<uint32_t>(ticks), static_cast<uint32_t>(ticks >> 32) & 0x7fffffffu};
+    const uint32_t sign_part[2] = {0, static_cast<uint32_t>(ticks >> 32) & 0x80000000u};
+    long double ms;
+    __asm__("fildll %1\n\tfildll %2\n\tfchs\n\tfaddp %%st, %%st(1)\n\tfmuls %3"
+            : "=t"(ms)
+            : "m"(low_part), "m"(sign_part), "m"(title_global<float>(0x0083ed64)));
+    return static_cast<int32_t>(static_cast<int64_t>(ms));
+}
+
+void XB_CDECL Com_PrintfStub(const char* format, ...) {
+    // Formats into a 32000-byte local (_vsprintf) and drops the text.
+    static_assert(sizeof(char) == 1);
+    char buffer[0x7d00];
+    va_list args;
+    va_start(args, format);
+    uint32_t list = u32(args);
+    va_end(args);
+    title_function<int32_t XB_CDECL(char*, const char*, uint32_t)>(0x001eea95)(buffer, format, list);  // _vsprintf
+}
+
+void XB_CDECL FS_InitPackBuffers() {
+    uint32_t config[5] = {0x400, 0x20, 0x400, 3, 0};
+    uint8_t* const memory = Z_Malloc(File_Configure(config));
+    title_global<uint32_t>(0x0095f63c) = u32(memory);
+    File_InitSystem(memory);
+    uint32_t info[3] = {0, 0, 0};
+    File_GetDeviceInfoForBit(title_global<uint32_t>(0x0095f6f4), info);
+    // The largest of the three device sizes (0x008d9d44).
+    const uint32_t larger = info[0] > info[1] ? info[0] : info[1];
+    title_global<uint32_t>(0x008d9d44) = larger <= info[2] ? info[2] : larger;
+}
+
+void XB_CDECL Com_InitSmallHeap() {
+    // {count, 16 x {size, align, count}}: five pools of 0x14 / 0x20 / 0x40 / 0x80 / 0x100 bytes.
+    uint32_t config[1 + 16 * 3];
+    config[0] = 0;
+    for (int32_t i = 0; i < 16; ++i) {
+        config[1 + i * 3] = 0;
+        config[2 + i * 3] = 4;
+        config[3 + i * 3] = 0;
+    }
+    static const uint32_t kPools[5][3] = {
+        {0x14, 4, 0x1000}, {0x20, 0x10, 0x800}, {0x40, 0x10, 0x800}, {0x80, 0x10, 0x400}, {0x100, 0x10, 0x1c2}};
+    for (const auto& pool : kPools) {
+        const uint32_t n = config[0];
+        if (static_cast<int32_t>(n) >= 16) continue;
+        config[1 + n * 3] = pool[0];
+        config[2 + n * 3] = pool[1];
+        config[3 + n * 3] = pool[2];
+        config[0] = n + 1;
+    }
+    uint8_t* heap = Z_Malloc(0x3c);
+    if (heap) heap = SmallHeap_Init(heap, config, 0, 0);
+    static const uint32_t kHeapPointers[] = {0x00947700, 0x0095f570, 0x0095f568, 0x0095f574, 0x0095f56c,
+                                             0x0095f5cc, 0x0095f494, 0x0095f488, 0x0095f48c, 0x0095f6d4,
+                                             0x0095f598, 0x0095f5bc, 0x0095f5c8, 0x0095f520, 0x0095f498};
+    for (uint32_t address : kHeapPointers) title_global<uint32_t>(address) = u32(heap);
+    Stream_InitSmallHeaps();
+    title_function<void XB_CDECL()>(0x002f67a0)();  // ScrThread_InitDataHeap
+}
+
+// --- Localized strings: map 0x0095fee8 (head 0x0095feec, size 0x0095fef0) of name -> {text +0x28, alternate
+// text +0x44 (used while 0x0095fef4), value +0x60} ---
+
+namespace {
+
+// A temporary std::string of `text` (the original's local), handed to a title tree search that takes the
+// tree in EDI, the key in ESI and the result slot in EBX; the string's heap buffer freed after.
+uint8_t* loc_tree_find(uint32_t find, uint8_t* tree, const char* text, uint8_t** out) {
+    alignas(4) uint8_t key[0x1c] = {};
+    pk<uint32_t>(key, 0x18) = 0xf;
+    pk<uint32_t>(key, 0x14) = 0;
+    key[4] = 0;
+    std_string_AssignN(key, text, static_cast<uint32_t>(std::strlen(text)));
+    TitleRegs regs{};
+    regs.edi = u32(tree);
+    regs.esi = u32(key);
+    regs.ebx = u32(out);
+    qc_call_regs(find, &regs, 0, nullptr);
+    if (pk<uint32_t>(key, 0x18) >= 0x10) Z_Free(pk_ptr(key, 4));
+    return *out;
+}
+
+constexpr uint32_t kLocMap = 0x0095fee8;
+constexpr uint32_t kMapStringFind = 0x0001f2e0;  // std_map_string_Find
+constexpr uint32_t kSetStringFind = 0x0001f500;  // std_set_string_Find
+
+const char* std_string_c_str(uint8_t* text) {
+    return pk<uint32_t>(text, 0x18) >= 0x10 ? reinterpret_cast<const char*>(pk_ptr(text, 4))
+                                            : reinterpret_cast<const char*>(text + 4);
+}
+
+}  // namespace
+
+uint32_t XB_REGS2 XB_CDECL Loc_FindEntryValue(uint32_t, const char* name) {
+    uint8_t* node = nullptr;
+    loc_tree_find(kMapStringFind, &title_global<uint8_t>(kLocMap), name, &node);
+    return node == title_global<uint8_t*>(kLocMap + 4) ? 0 : pk<uint32_t>(node, 0x60);
+}
+
+const char* XB_REGS2 XB_CDECL Loc_FindStringEntry(uint32_t, const char* name, int32_t alternate) {
+    uint8_t* node = nullptr;
+    loc_tree_find(kMapStringFind, &title_global<uint8_t>(kLocMap), name, &node);
+    if (node == title_global<uint8_t*>(kLocMap + 4)) return nullptr;
+    if (alternate && title_global<uint32_t>(0x0095fef4)) return std_string_c_str(node + 0x44);
+    return std_string_c_str(node + 0x28);
+}
+
+uint32_t XB_REGS2 XB_STDCALL Loc_FindFlagBit(uint32_t, const char* name, uint8_t* state) {
+    uint8_t* node = nullptr;  // the original uses its argument slot
+    loc_tree_find(kSetStringFind, state + 0x98, name, &node);
+    return node == pk_ptr(state, 0x9c) ? 0 : pk<uint32_t>(node, 0x28);
+}
+
+void XB_CDECL Loc_ClearStrings() {
+    std_map_string_EraseSubtree(&title_global<uint8_t>(kLocMap), pk_ptr(title_global<uint8_t*>(kLocMap + 4), 4));
+    pk<uint32_t>(title_global<uint8_t*>(kLocMap + 4), 4) = title_global<uint32_t>(kLocMap + 4);
+    uint8_t* const head = title_global<uint8_t*>(kLocMap + 4);
+    title_global<uint32_t>(0x0095fef0) = 0;
+    pk<uint32_t>(head, 0) = u32(head);
+    pk<uint32_t>(title_global<uint8_t*>(kLocMap + 4), 8) = title_global<uint32_t>(kLocMap + 4);
+    title_global<uint32_t>(0x0095fe70) = 0;
+    std_string_AssignN(&title_global<uint8_t>(0x0095fe74), tstr(0x0082dfeb), 0);
+    std_string_AssignN(&title_global<uint8_t>(0x0095fe90), tstr(0x0082dfeb), 0);
+}
+
+PLATFORM_ASM_ENTRY(Loc_PopSemicolonToken_entry,
+                   "pushl %ecx\n pushl %esi\n" PLATFORM_ASM_CALL(Loc_PopSemicolonToken) "addl $4, %esp\n"
+                   "popl %ecx\n ret")
+
+char* XB_CDECL Loc_PopSemicolonToken(uint8_t* text) {
+    if (!std::strlen(std_string_c_str(text))) return nullptr;
+    char* const token = &title_global<char>(0x0098bb78);
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(token, std_string_c_str(text), 0x7f);
+    title_global<char>(0x0098bbf7) = 0;
+    char* const semicolon = title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(token, ';');  // strchr
+    if (semicolon) {
+        *semicolon = 0;
+        std_string_Erase(text, 0, static_cast<uint32_t>(semicolon - token) + 1);
+    } else {
+        std_string_Erase(text, 0, 0xffffffff);
+    }
+    return token;
+}
+
+const char* XB_REGS1 XB_CDECL Loc_ReplaceNewlineEscapes(const char* text) {
+    uint8_t* const buffer = &title_global<uint8_t>(0x0098bcdc);  // function-static std::string
+    if (!(title_global<uint32_t>(0x0098bcf8) & 1)) {
+        title_global<uint32_t>(0x0098bcf8) |= 1;
+        title_global<uint32_t>(0x0098bcf4) = 0xf;
+        title_global<uint32_t>(0x0098bcf0) = 0;
+        title_global<uint8_t>(0x0098bce0) = 0;
+        title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(0x00379960);  // _atexit
+    }
+    std_string_AssignN(buffer, text, static_cast<uint32_t>(std::strlen(text)));
+    for (uint32_t pos = std_string_Find(0, buffer, tstr(0x0082d278), 2); pos != 0xffffffff;  // "\n" escape
+         pos = std_string_Find(0, buffer, tstr(0x0082d278), 2)) {
+        const_cast<char*>(std_string_c_str(buffer))[pos] = '\n';
+        std_string_Erase(buffer, pos + 1, 1);
+    }
+    return std_string_c_str(buffer);
+}
+
+// Loc_BeginStringFile (path in EAX, state in EDI).
+PLATFORM_ASM_ENTRY(Loc_BeginStringFile_entry,
+                   "pushl 4(%esp)\n pushl %edi\n pushl %eax\n" PLATFORM_ASM_CALL(Loc_BeginStringFile)
+                   "addl $12, %esp\n ret $4")
+
+void XB_CDECL Loc_BeginStringFile(const char* path, uint8_t* state, uint32_t value) {
+    char name[0x80];
+    const char* const base = COM_SkipPath(0, Loc_StripFileExtension(path));
+    std::strcpy(name, base);
+    title_function<char* XB_CDECL(char*)>(0x001fa3d5)(name);  // _strupr
+    std_string_AssignN(state + 0x3c, name, static_cast<uint32_t>(std::strlen(name)));
+    const char* const dir = COM_SkipPath(0, Com_DirName(path));
+    std_string_AssignN(state + 0x58, dir, static_cast<uint32_t>(std::strlen(dir)));
+    const int32_t differs = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // _stricmp
+        std_string_c_str(state + 0x58), tstr(0x00833518));
+    pk<uint32_t>(state, 0x74) = differs ? 0 : 1;
+    pk<uint32_t>(state, 0x84) = value;
+}
+
+void XB_CDECL Loc_LoadStringDir_r(const char* extension, const char* dir, uint8_t* out) {
+    const auto free_list = [](char** list) {
+        if (!list) return;
+        for (char** name = list; *name; ++name) Z_Free(reinterpret_cast<uint8_t*>(*name));
+        Z_Free(reinterpret_cast<uint8_t*>(list));
+    };
+    const auto title_sprintf = title_function<int32_t XB_CDECL(char*, const char*, const char*, const char*)>(0x001ee901);
+    char path[0x80];
+    int32_t ndirs = 0;
+    char** const dirs = FS_ListFilteredFiles(dir, tstr(0x0082d70c), nullptr, &ndirs);  // "/"
+    for (int32_t i = 0; i < ndirs; ++i) {
+        const char* const name = dirs[i];
+        if (!name[0] || name[0] == '.') continue;
+        title_sprintf(path, tstr(0x00833208), dir, name);  // "%s/%s"
+        Loc_LoadStringDir_r(extension, path, out);
+    }
+    int32_t nfiles = 0;
+    char** const files = FS_ListFilteredFiles(dir, extension, nullptr, &nfiles);
+    for (int32_t i = 0; i < nfiles; ++i) {
+        title_sprintf(path, tstr(0x00833208), dir, files[i]);
+        std_string_AppendN(static_cast<uint32_t>(std::strlen(path)), out, path);
+        std_string_AppendNChar(out, 1, ';');
+        ++title_global<int32_t>(0x00929cd8);
+    }
+    free_list(files);
+    free_list(dirs);
 }
 
 }  // namespace game

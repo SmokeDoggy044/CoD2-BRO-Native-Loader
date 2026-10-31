@@ -838,4 +838,138 @@ void XB_CDECL StaticInit_LocStrings();
 // 0x00379950: atexit: destroys the localized-string tables (0x0001d9d0).
 void XB_CDECL AtExit_LocStrings();
 
+// --- qcommon push 7 (high half) ---
+
+// 0x0017ec50 (callee pops 4): count hash maps (0x28 B) from Scr_Alloc, each constructed by the
+// PROLOGUE-section HashMap_Ctor 0x0045f8b0 with traits = the original's argument slot, which then holds the
+// element's own address (the traits byte is the address's low byte). _2 (0x0017ece0): ctor 0x0045fc30.
+uint8_t* XB_STDCALL DynArray_AllocHashMap(uint32_t count);
+uint8_t* XB_STDCALL DynArray_AllocHashMap_2(uint32_t count);
+// 0x0017eec0: resize an array of hash maps; new slots constructed (traits as in DynArray_AllocHashMap),
+// dropped ones destroyed; past the capacity a new block of `capacity` maps gets min(size, old size) maps
+// assigned (HashMap_CopyFrom) and the old maps are destroyed and freed. _2 (0x0017f0d0): other instances.
+void XB_THISCALL DynArray_ResizeHashMap(DynArray* array, uint32_t size, uint32_t capacity);
+void XB_THISCALL DynArray_ResizeHashMap_2(DynArray* array, uint32_t size, uint32_t capacity);
+// 0x0017f020: copy-assign an array of hash maps (old maps destroyed and freed first). _2: 0x0017f230.
+void XB_THISCALL DynArray_AssignHashMap(DynArray* array, const DynArray* source);
+void XB_THISCALL DynArray_AssignHashMap_2(DynArray* array, const DynArray* source);
+// 0x0017f2e0: element `index` of an array of hash maps, growing it to index + 1 (capacity index + 4).
+uint8_t* XB_THISCALL DynArray_AtHashMap(DynArray* array, uint32_t index);
+// 0x001a95e0: shuffles a 4-byte array: each element i swaps with element Scr_RandomInt(size) (every access
+// through the array's At, which grows it: DynArray_Resize 0x00015a90). The original keeps the byte offset
+// of i in its own argument slot. _2 (0x001a96d0) / ShuffleInt (0x001a98e0): resize 0x0045cad0 (ShuffleInt
+// copies through XMM0); _3 (0x001a99d0): resize 0x0045c4a0. Shuffle12 (0x001a97c0): 12-byte elements
+// (resize 0x0045cde0). ShuffleString (0x001a9ac0): script strings (copy/assign/release; resize 0x0045c2e0).
+void XB_CDECL DynArray_Shuffle(DynArray* array);
+void XB_CDECL DynArray_Shuffle_2(DynArray* array);
+void XB_CDECL DynArray_Shuffle12(DynArray* array);
+void XB_CDECL DynArray_ShuffleInt(DynArray* array);
+void XB_CDECL DynArray_Shuffle_3(DynArray* array);
+void XB_CDECL DynArray_ShuffleString(DynArray* array);
+
+// 28-byte script record: {word, script string, word, script string, three words}; constructor 0x0045bcd0,
+// destructor 0x00458fd0 (releases both strings).
+// 0x001e4880: erase(where): later records assigned down one, the last one destroyed, size - 1.
+void XB_THISCALL DynArray_Erase28(DynArray* array, uint8_t* where);
+// 0x001e58a0 (callee pops 8): count constructed records from Scr_Alloc.
+uint8_t* XB_STDCALL DynArray_Alloc28(uint32_t count, uint32_t unused);
+// 0x001e59f0: resize; new records constructed, dropped ones' strings released; past the capacity a new
+// block (0x0045c120, capacity records) gets the first min(size, old size) assigned, the old block's strings
+// are released and it is freed.
+void XB_THISCALL DynArray_Reserve28(DynArray* array, uint32_t size, uint32_t capacity);
+// 0x001e5bc0: push_back(value): a full array moves to a new block of size + 4 records first.
+void XB_THISCALL DynArray_PushBack28(DynArray* array, const uint8_t* value);
+// 0x001e5ce0: resize a 52-byte array: new slots get DynArray_Alloc52_FillUndefined's values; past the
+// capacity a new block (0x0045c1a0, capacity elements) gets the old elements copied, the old block freed.
+void XB_THISCALL DynArray_Resize52(DynArray* array, uint32_t size, uint32_t capacity);
+
+// 0x001e63d0 (callee pops 12): list node {next, prev, key, DynArray assigned (0x0045c270) from value + 4}.
+uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_4(uint8_t* next, uint8_t* prev, const uint32_t* value);
+// 0x001e6470: list size += count; past 0x0fffffff MSVC's "list<T> too long" length_error. Returns the size.
+uint32_t XB_THISCALL std_list_IncSize_3(uint8_t* list, uint32_t count);
+// 0x001e67d0: list::insert(where, first, last) for HashMap_CopyFrom_6 (PROLOGUE BuyNode 0x0045caa0,
+// IncSize 0x0045ead0).
+void XB_THISCALL std_list_InsertRange_6(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t);
+// 0x001e6880 / 0x001e6990: HashMap_CopyFrom / HashMap_CopyCtor, sixth instance (PROLOGUE helpers).
+void XB_THISCALL HashMap_CopyFrom_6(HashMap* map, const HashMap* source);
+HashMap* XB_THISCALL HashMap_CopyCtor_6(HashMap* map, const HashMap* source);
+// 0x001ee881 / 0x001ee8c1: MSVC std::_String_base::_Xran / _Xlen: throw out_of_range("invalid string
+// position") / length_error("string too long") (never return).
+void XB_CDECL std_string_Xran();
+void XB_CDECL std_string_Xlen();
+// 0x00223800 (basedir in EAX): Q3's Sys_ListFilteredFiles without the recursion: FindFirstFile over
+// "basedir\subdirs\*" (or "basedir\*" for an empty subdirs), every entry but the "." / ".." / "CVS"
+// directories named "subdirs\name" (or "name" for a null subdirs) and kept when Com_FilterPath matches
+// (CopyString into list[*numfiles]); stops at 0xfff names.
+void XB_REGS1 XB_CDECL Sys_ListFilteredFiles(const char* basedir, const char* subdirs, const char* filter,
+                                            char** list, int32_t* numfiles);
+// 0x00223bf0 (filter in EDX, extension in ECX): Q3's Sys_ListFiles: with a filter, Sys_ListFilteredFiles
+// from `directory`; else "directory\*extension" (extension "/" = directories), files or (wantsubs)
+// directories, skipping "." / ".." / "CVS", at most 0xfff. Returns a null-terminated Z_Malloc copy of the
+// list, null when empty.
+char** XB_REGS3 XB_CDECL Sys_ListFiles(uint32_t, const char* filter, const char* extension, const char* directory,
+                                       int32_t* numfiles, int32_t wantsubs);
+// 0x00236c80 (large pools flag in BL, effect pool size in EAX): stores the flag (0x0095f6dc), the effect
+// pool sizes (0x400000 with large pools, else EAX), FX_InitParticleLibrary, the large-block pools or four
+// 400-entry small pools (16..128 bytes), then the 0x40000-byte zone heap 0x0095f6d8. Boot only (Sys_Main).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Mem_InitSmallBlockPools(uint32_t effect_pool_size, uint32_t large);
+extern "C" void Mem_InitSmallBlockPools_entry(void);
+// Game console commands (cdecl, ent = the issuing client's gentity; 0x00954f34 = cheats enabled).
+// 0x0024ea60: "menuresponse <menu> <response>": notify "menuresponse" on ent with (menu name, response); a
+// menu index 0 becomes config string 0x272; wrong argument counts send ("", "bad").
+void XB_CDECL Cmd_MenuResponse_f(uint8_t* ent);
+// 0x00258d90: "jumptonode <n>" (cheats): teleports to path node n (origin +0x44, yaw +0x50).
+void XB_CDECL Cmd_JumpToNode_f(uint8_t* ent);
+// 0x00258eb0: "setviewpos x y z yaw" (cheats): TeleportPlayer, SetClientViewAngle, SV_LinkEntity.
+void XB_CDECL Cmd_SetViewpos_f(uint8_t* ent);
+// 0x002694e0: drop the current weapon (Drop_Weapon, event 0x97) when 0x00955184 and cheats are set.
+void XB_CDECL Cmd_DropWeapon_f(uint8_t* ent);
+// 0x00269520: "kill": unless 0x0095bf9c, health 0, flag bit 0 cleared, player_die (mod 0x15, damage 100000).
+void XB_CDECL Cmd_Kill_f(uint8_t* ent);
+// 0x0026d480: Q3's Cmd_Give_f, BRO form (cheats, alive): every weapon (BG_GivePlayerWeapon with 0x00986018
+// set), health + amount (or max health 0x00950cec), ammo for the current weapon (amount) or 998 for every
+// owned weapon; "allammo <n>" adds n to every owned weapon.
+void XB_CDECL Cmd_Give_f(uint8_t* ent);
+// 0x00271300 (ent in ESI): the use button: a mounted turret's use, the cursor-hint target's use/touch
+// (doors via TryDoor, trigger_use, type 0xe/0x2/0xa entities, script brushmodels) with "trigger"/"touch"
+// notifies. Returns 1 when something was used.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry_edi);
+extern "C" void Cmd_Activate_f_entry(void);
+
+// 0x002b1ca0: milliseconds since the first call: RDTSC ticks (the first call stores the base 0x0098b7f8 and
+// clears 0x008fef19) as an unsigned 64-bit x87 value times 1 / 733333.3 (0x0083ed64), _ftol.
+int32_t XB_CDECL Sys_Milliseconds();
+// 0x002a9be0: formats into a 32000-byte local (_vsprintf) and drops it (a disabled print).
+void XB_CDECL Com_PrintfStub(const char* format, ...);
+// 0x0028c490: the file system's memory (File_Configure {0x400, 0x20, 0x400, 3, 0}, Z_Malloc into
+// 0x0095f63c, File_InitSystem) and 0x008d9d44 = the largest of the boot device's three sizes. Boot only.
+void XB_CDECL FS_InitPackBuffers();
+// 0x00299af0: the small-block heap (SmallHeap_Init over five pools 0x14..0x100 bytes) stored in 15 heap
+// pointers, then Stream_InitSmallHeaps and ScrThread_InitDataHeap. Boot only (Com_Init).
+void XB_CDECL Com_InitSmallHeap();
+// 0x002c5260 (name in EDX): the localized entry's value (+0x60), 0 when not in the map 0x0095fee8.
+uint32_t XB_REGS2 XB_CDECL Loc_FindEntryValue(uint32_t unused, const char* name);
+// 0x002c5310 (name in EDX): the entry's text (+0x28), or its alternate text (+0x44) when `alternate` and
+// 0x0095fef4 are set; null when not found.
+const char* XB_REGS2 XB_CDECL Loc_FindStringEntry(uint32_t unused, const char* name, int32_t alternate);
+// 0x002c5700 (name in EDX; callee pops 4): the flag's bit (+0x28 of the set node) in the parser state's
+// flag set (+0x98, head +0x9c), 0 when not registered.
+uint32_t XB_REGS2 XB_STDCALL Loc_FindFlagBit(uint32_t unused, const char* name, uint8_t* state);
+// 0x002ca5e0: empties the localized-string map (0x0095fee8) and the two current-file strings.
+void XB_CDECL Loc_ClearStrings();
+// 0x002b86b0 (std::string in ESI; ECX kept): the text up to the first ';' (at most 127 chars, in 0x0098bb78),
+// erased from the string with the ';' (all of it when there is none); null for an empty string.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL Loc_PopSemicolonToken(uint8_t* text);
+extern "C" void Loc_PopSemicolonToken_entry(void);
+// 0x002c5920 (text in EAX): a copy with every "\n" escape turned into a newline, in a function-static
+// std::string (0x0098bcdc, guard 0x0098bcf8, atexit 0x00379960). Returns its text.
+const char* XB_REGS1 XB_CDECL Loc_ReplaceNewlineEscapes(const char* text);
+// 0x002c5a00 (path in EAX, parser state in EDI; callee pops 4): state +0x3c = the file's base name in upper
+// case, +0x58 = its directory's name, +0x74 = that directory is 0x00833518 (case-insensitive), +0x84 = value.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Loc_BeginStringFile(const char* path, uint8_t* state, uint32_t value);
+extern "C" void Loc_BeginStringFile_entry(void);
+// 0x002ca430: appends "dir/file;" to `out` for every `extension` file under dir (subfolders first, recursively,
+// names starting with '.' skipped), counting them in 0x00929cd8.
+void XB_CDECL Loc_LoadStringDir_r(const char* extension, const char* dir, uint8_t* out);
+
 }  // namespace game
