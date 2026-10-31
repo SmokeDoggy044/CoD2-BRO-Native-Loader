@@ -4379,7 +4379,7 @@ int32_t XB_CDECL FileDevice_GetOverallStatus() {
 }
 
 const char* XB_CDECL FileDevice_StatusName(int32_t status) {
-    // FileDevice_GetOverallStatus's value as text. Dead; Ghidra splits its case blocks into 0x000caa81..99.
+    // FileDevice_GetOverallStatus's value as text. Dead; case blocks 0x000caa81..99, jump table 0x000caaa0.
     switch (status) {
     case -1: return &title_global<const char>(0x00417fe4);  // "INVALID"
     case 0: return &title_global<const char>(0x007ce6e8);   // "IDLE"
