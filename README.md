@@ -105,6 +105,34 @@ over. Overall progress, part by part, is tracked in the decompilation repository
 
 Controls and options are in the `README.txt` inside the archive.
 
+### Antivirus warnings (Windows)
+
+Some antivirus programs flag `cod_bro_launcher.exe` and `cod_bro_loader.exe`. On
+VirusTotal, 0.2.0's files get `Gen:Variant.Babar.740485` from about 8 of 71 engines: Bitdefender
+and engines that use Bitdefender's. The other engines report nothing. We believe these
+are false positives, and we want you to know why they
+happen rather than find out by surprise:
+
+- **"Gen:Variant" is a generic match**, not a known piece of malware: the engine
+  recognises behaviour that malware also has.
+- **The launcher downloads and installs updates**: its *Update now* fetches the new
+  release from this repository's GitHub releases, checks it against SHA256SUMS.txt,
+  unpacks it with Windows' own `tar` and replaces the program files in its folder.
+  Self-updaters do what malware "downloaders" do, so they are often flagged.
+- **The loader runs another program's code**: `cod_bro_loader.exe` is a tiny program
+  that reserves memory at fixed addresses, loads the original Xbox game's code into
+  it from your dump and changes parts of it while it runs. That is how the native
+  loader works (see below), and it is also what some malware does.
+- **The files are not code-signed**: a signing certificate costs money every year,
+  and this is a free hobby project. Unsigned files get more suspicion.
+
+What you can do to check: all the source code is in this repository; each release's
+archives come with SHA256SUMS.txt; the release notes link to the VirusTotal results
+of its files; you can build it yourself (see [Building](#building)); and the launcher
+is optional: `cod_bro_loader.exe` runs the game alone, reading `settings.ini`, and you
+can update by downloading releases yourself. If your antivirus quarantines a file,
+restore it only if you trust this explanation.
+
 ## How the native loader works
 
 - **Memory:** the XBE goes to its own base address (0x10000), the Xbox's
