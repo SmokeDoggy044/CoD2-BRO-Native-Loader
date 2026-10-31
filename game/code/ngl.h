@@ -37,6 +37,12 @@ struct RendererPcHooks {
     // Called in place of nglEndFrame's spin on the pending frame (0x0090288c): returns once the
     // flag is clear.
     void (*frame_wait)() = nullptr;
+    // In place of nglSetVBlankMode's body (the loader's frame rate: the title's mode 2 becomes its
+    // vertical blanks per frame).
+    void (*set_vblank_mode)(uint32_t mode) = nullptr;
+    // At nglWaitFrameInterval's entry: may set this frame's interval (0x008a2cb0; movies show one
+    // movie frame per game frame, so they keep 2 vertical blanks).
+    void (*choose_frame_interval)() = nullptr;
     // Told about every shader program a shader slot gets (the loader's --dump-shaders, for the shader
     // tool of our own renderer, docs/own-renderer.md R3). kind 'v': a vertex program (its function
     // blob, and the vertex input declaration), 'p': a pixel shader definition (D3DPIXELSHADERDEF).
@@ -414,8 +420,8 @@ bool XB_CDECL nglTextureIsStale(const NglTexture* texture);
 uint32_t XB_CDECL nglIsPAL50();
 
 // 0x000645c0: vertical blanks per frame (mode 0..2 = 0, 1, 2; 3 and 4 = 1 and 2 plus a
-// flag at 0x00902878); other modes are ignored. The loader's 60 fps pacing replaces
-// it (--pc-patches).
+// flag at 0x00902878); other modes are ignored. The loader's frame rate replaces it
+// (RendererPcHooks::set_vblank_mode).
 void XB_CDECL nglSetVBlankMode(uint32_t mode);
 
 // Per-frame bump allocators (no null check; `align` a power of two).

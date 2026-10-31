@@ -4,7 +4,8 @@ Goal (user, 2026-10-28): the native loader gets a modern renderer that does not 
 translating Xbox graphics code. The decompiled renderer C stops calling the Xbox graphics
 libraries (D3D8, D3DX, XGraphics: 348 accesses, [renderer-inventory.md](renderer-inventory.md))
 and calls a small interface of our own; back ends: D3D9 first, then D3D11, Vulkan, D3D12.
-The 60 fps patch is not carried over: native frame pacing (stage 3) replaces it.
+60 fps: the loader's frame rate through the renderer C's hooks (R5, user 2026-10-30); native frame
+pacing of our own engine later.
 
 ## Steps
 
@@ -15,8 +16,7 @@ XModel_GetBoneCount, XModel_CalcBoneChildren, FxComponentB_IsOwnerGone, FXCmd_Ty
 - The loader's patches into renderer code go through `game::renderer_pc_hooks()` (ngl.h)
   instead: wider-than-16:9 scene aspect, the gun scene's fov, the frame end's wait (no spin;
   applies the field of view). All unset in --compare runs.
-- 30 fps until stage 3 (user, 2026-10-30): the frame rate patch is not installed while the
-  renderer is C; `--fps 60` logs that 60 fps comes back with our own frame loop.
+- Frame rate: 30 fps from R1 until R5, which gave the C hooks for it (see R5).
 - `scene:` forced calls are ignored while R_RenderView is C (`XBCMP_ORIGINALS=R_RenderView`).
 - Found by the first live run: GAME_GAP_ESP's scratch landed on a caller's live C frame when an
   entry was reached from a callee at the original's position (R_AddEntityModel_entry under
@@ -135,6 +135,11 @@ state. Missions 4, 1, 6 and the front end: no draw reaches the Xbox path any mor
 - Presentation: `GfxDevice::present()` (`xb::swap` in nglInit and nglEndFrame); the frame's end
   (post passes, diag, screenshots, window events) is render's `show_frame()`, which D3DDevice_Swap
   also calls.
+- 60 fps (`--fps`, default 60): RendererPcHooks `set_vblank_mode` (nglSetVBlankMode's body: the
+  loader's vertical blanks per frame) and `choose_frame_interval` (nglWaitFrameInterval's entry:
+  2 vertical blanks while a movie shows frames, found by the decoder's next-frame vtable slot as
+  before), in place of the old patch's jumps into the original's code. Mission 4: 59.7 fps
+  average over 129 s; intro movies at 30.
 - Checks: paused A/B scenes in missions 4, 1, 6 as before R5 (a few pixels off by at most 3/255,
   present in de44ed7 already); front end, logos and intro movies on ours, no texture warnings.
   The full-check stagger counts checks per texture instead of frames: by frame number it fell

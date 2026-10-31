@@ -1251,22 +1251,18 @@ void install_frame_wait() {
 }
 
 void install_frame_rate(int32_t frame_rate, bool late_frames_wait) {
-    if (g_renderer_c) {
-        // Our own renderer's frame loop brings native frame rates (stage 3); until then the C
-        // paces at the title's own 30 fps. Its frame end still waits without spinning.
-        g_frame_vblanks = 2;
-        g_late_frames_wait = late_frames_wait;
-        title<uint32_t>(g_pacing.late_no_wait) = late_frames_wait ? 0 : 1;
-        game::renderer_pc_hooks().frame_wait = &wait_frame_start;
-        render::frame_rate_changed(30);
-        LOG_INFO("patches", "30 fps: the renderer runs as C%s",
-                 frame_rate == 60 ? " (60 fps comes back with our own frame loop)" : "");
-        return;
-    }
     g_frame_vblanks = frame_rate == 60 ? 1 : 2;
     g_late_frames_wait = late_frames_wait;
-    install_frame_wait();
-    install_jump(g_pacing.set_frame_interval, reinterpret_cast<const void*>(&set_frame_interval));
+    if (g_renderer_c) {
+        // The renderer runs as C: its hooks instead of patches into the original's code.
+        game::RendererPcHooks& hooks = game::renderer_pc_hooks();
+        hooks.frame_wait = &wait_frame_start;
+        hooks.set_vblank_mode = &set_frame_interval;
+        if (g_frame_vblanks != 2) hooks.choose_frame_interval = &choose_frame_wait;
+    } else {
+        install_frame_wait();
+        install_jump(g_pacing.set_frame_interval, reinterpret_cast<const void*>(&set_frame_interval));
+    }
     // MP sets the interval only in its intro movie player (FUN_0029ab90, mode 2, never
     // reset); before that its static 1 applies. Start at the chosen rate either way.
     title<uint32_t>(g_pacing.frame_vblanks) = g_frame_vblanks;
@@ -1276,6 +1272,20 @@ void install_frame_rate(int32_t frame_rate, bool late_frames_wait) {
     if (g_frame_vblanks == 2) return;
 
     auto* slot = reinterpret_cast<uint32_t*>(uintptr_t{g_pacing.movie_next_frame_slot});
+    if (g_renderer_c) {
+        if (*slot != g_pacing.movie_next_frame) {
+            LOG_WARN("patches", "%08x: not the movie decoder's next-frame slot; movies play too fast",
+                     g_pacing.movie_next_frame_slot);
+            return;
+        }
+        auto* thunk = alloc_code(32);
+        if (!thunk) return;
+        // movie_frame; jmp 0x000ce210 (ecx = the decoder, kept by the preserving call)
+        put_rel32(put_preserving_call(thunk, &movie_frame), 0xE9,
+                  reinterpret_cast<const void*>(uintptr_t{g_pacing.movie_next_frame}));
+        *slot = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(thunk));
+        return;
+    }
     for (uint32_t address : g_pacing.wait_jumps) {
         auto* site = reinterpret_cast<uint8_t*>(uintptr_t{address});
         if (site[0] != 0xE9 || site + 5 + *reinterpret_cast<int32_t*>(site + 1) !=

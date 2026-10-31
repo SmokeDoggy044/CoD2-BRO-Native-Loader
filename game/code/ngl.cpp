@@ -576,6 +576,7 @@ bool XB_CDECL nglTextureIsStale(const NglTexture* texture) {
 uint32_t XB_CDECL nglIsPAL50() { return title_global<uint8_t>(0x009028bc) == 1 ? 1 : 0; }
 
 void XB_CDECL nglSetVBlankMode(uint32_t mode) {
+    if (renderer_pc_hooks().set_vblank_mode) return renderer_pc_hooks().set_vblank_mode(mode);
     if (mode > 4) return;
     title_global<uint32_t>(0x008a2cb0) = mode >= 3 ? mode - 2 : mode;  // vertical blanks
     title_global<uint32_t>(0x00902878) = mode >= 3 ? 1 : 0;
@@ -6190,6 +6191,7 @@ void XB_CDECL nglWaitFrameInterval() {
     // With a frame interval set (0x008a2cb0 vertical blanks): until that many have passed since
     // the last frame start (0x009028e4 counts them; 0x00902878 = late frames do not wait) the
     // frame stays pending (0x0090288c = 1); else a new frame starts at the clock's low word.
+    if (renderer_pc_hooks().choose_frame_interval) renderer_pc_hooks().choose_frame_interval();
     const uint32_t interval = title_global<uint32_t>(0x008a2cb0);
     if (interval) {
         if (!title_global<uint32_t>(0x00902878) ||
