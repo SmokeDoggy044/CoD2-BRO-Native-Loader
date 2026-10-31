@@ -76,6 +76,12 @@ void XB_THISCALL AdvancedOptionsMenu_OnDown(uint8_t* menu, uint32_t pad);
 // 0x0030e080 (menu in ESI): labels +0x3c / +0x40 / +0x44 coloured like items 0 / 1 / 4.
 extern "C" PLATFORM_HIDDEN void XB_CDECL ControllerConfigMenu_UpdateLabelColors(uint8_t* menu);
 extern "C" void ControllerConfigMenu_UpdateLabelColors_entry(void);
+// 0x0030e390 (menu in EBX): the five labels +0x3c.. coloured like items 0-4 (item vtable +0x84 colour, label +0x90).
+extern "C" PLATFORM_HIDDEN void XB_CDECL GameplayMenu_UpdateLabelColors(uint8_t* menu);
+extern "C" void GameplayMenu_UpdateLabelColors_entry(void);
+// 0x0030e4c0 (menu in ESI): the seven on / off labels +0x38.. coloured like items 0, 1, 4, 5, 7, 8, 9.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AdvancedOptionsMenu_UpdateLabelColors(uint8_t* menu);
+extern "C" void AdvancedOptionsMenu_UpdateLabelColors_entry(void);
 // 0x0030e320 / 0x0030e2f0 (menu in EAX): on / off of +0xcc into the label +0x3c / +0xcd into +0x40, then the label
 // colours.
 void XB_REGS1 XB_CDECL ControllerConfigMenu_UpdateInvertAimText(uint8_t* menu);

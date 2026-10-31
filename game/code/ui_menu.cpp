@@ -307,6 +307,14 @@ void XB_THISCALL UIMenu_Dtor(uint8_t* menu) {
     UIMenu_FreeItems(menu);
 }
 
+uint8_t* XB_THISCALL StartupStorageMenu_DeletingDtor(uint8_t* menu, uint32_t flags) {
+    field<uint32_t>(menu, 0x34) = 0x00829e0c;  // the device-removed listener's vtable
+    field<uint32_t>(menu, 0) = 0x0082a628;     // UIMenu vtable
+    UIMenu_FreeItems(menu);
+    if (flags & 1) z_free(menu);
+    return menu;
+}
+
 void XB_THISCALL UIMenu_OnAccept(uint8_t* menu, uint32_t) {
     if (selection(menu) < 0) return;
     if (item_hidden(menu, selection(menu))) return;

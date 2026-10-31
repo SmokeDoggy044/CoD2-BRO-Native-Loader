@@ -72,6 +72,9 @@ void XB_REGS1 XB_STDCALL UI_DialogLayoutButtons(uint8_t* mgr, uint8_t flag);
 // 0x00013690 / 0x0032eab0: UIMenu_FreeItems (frees the menu with flags bit 0).
 uint8_t* XB_THISCALL UIMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
 void XB_THISCALL UIMenu_Dtor(uint8_t* menu);
+// 0x00013720: the startup storage check screen (vtable 0x00829e10, built by 0x003308a0 in FrontEndMenu_Construct; its
+// update runs FE_CheckStartupStorage): listener +0x34 (Save_SetDeviceRemovedListener) reset, the UIMenu part.
+uint8_t* XB_THISCALL StartupStorageMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
 // 0x0030ef20 (ret 4, the argument unused): accept (vtable +0x38) the selection when it is a shown item.
 void XB_THISCALL UIMenu_OnAccept(uint8_t* menu, uint32_t unused);
 // 0x0030ef50: selects (+0x88 (index, 0)) the first shown item.

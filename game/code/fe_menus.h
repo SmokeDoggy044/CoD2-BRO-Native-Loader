@@ -73,6 +73,9 @@ extern "C" void InGameLiveOptionsMenu_ShowDashboardDialog_entry(void);
 // +0x40, the text into +0x44 (vtable +0x6c).
 extern "C" PLATFORM_HIDDEN void XB_CDECL MissionSuccessFailMenu_SetFailedText(uint8_t* menu, uint32_t text);
 extern "C" void MissionSuccessFailMenu_SetFailedText_entry(void);
+// 0x0030cfb0 (menu in ESI): the texts +0x40 and +0x44 set to "" (vtable +0x78).
+extern "C" PLATFORM_HIDDEN void XB_CDECL MissionSuccessFailMenu_ClearTexts(uint8_t* menu);
+extern "C" void MissionSuccessFailMenu_ClearTexts_entry(void);
 // 0x0032d340: the retry button: 0x0095ee08 = 1, g_reloading 1, "reboot". Returns 0 (AL).
 uint8_t XB_CDECL MissionSuccessFailMenu_OnRetryYes();
 // 0x00334070 (stdcall, ret 4): with a checkpoint (0x008dd1cf == 1) or the state +0x58 set: MEM_QUIT_WARNING, YES

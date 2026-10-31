@@ -496,6 +496,15 @@ void XB_CDECL InGameLiveOptionsMenu_ShowDashboardDialog(uint32_t entry_esp) {
 
 // --- Mission success / fail ---
 
+PLATFORM_ASM_ENTRY(MissionSuccessFailMenu_ClearTexts_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(MissionSuccessFailMenu_ClearTexts) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL MissionSuccessFailMenu_ClearTexts(uint8_t* menu) {
+    call(field<uint8_t*>(menu, 0x40), 0x78, 0x0082dfeb);  // ""
+    call(field<uint8_t*>(menu, 0x44), 0x78, 0x0082dfeb);
+}
+
 PLATFORM_ASM_ENTRY(MissionSuccessFailMenu_SetFailedText_entry,
                    "pushl 4(%esp)\n"
                    "pushl %esi\n" PLATFORM_ASM_CALL(MissionSuccessFailMenu_SetFailedText) "addl $8, %esp\n"

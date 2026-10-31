@@ -57,6 +57,18 @@ extern "C" void FE_CommandDisplayName_entry(void);
 // FEMENU_OP_HELPBAR when +0x4c is set or the selected slot is empty, else FEMENU_LOAD_HELPBAR_XBOX.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SaveSlotsUpdateText(uint32_t entry, uint8_t* menu, uint32_t edi);
 extern "C" void FE_SaveSlotsUpdateText_entry(void);
+// 0x0030cf70 / 0x00312850 (menu in EAX): every save slot marked empty (+0x5c / +0x6c + slot * 12), then the slot texts
+// (AutosaveMenu_UpdateSlotTexts / FE_SaveSlotsUpdateText, menu in ESI). The C versions get the entry ESP, ESI, EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AutosaveMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi,
+                                                                     uint32_t edi);
+extern "C" void AutosaveMenu_MarkSlotsEmpty_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi,
+                                                                    uint32_t edi);
+extern "C" void ProfileMenu_MarkSlotsEmpty_entry(void);
+// 0x0030ccb0 (menu in ESI): the autosave menu's slot texts: FEMENU_OP_CORRUPT on all four with the card corrupt
+// (+0x35), else per slot FEMENU_OP_NEW (empty, +0x5c + slot * 12) or its name (+0x54 + slot * 12), all vtable +0x30.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AutosaveMenu_UpdateSlotTexts(uint32_t entry, uint8_t* menu, uint32_t edi);
+extern "C" void AutosaveMenu_UpdateSlotTexts_entry(void);
 // 0x00312ad0 (menu in ESI): "%i / %i" of the concept category's current item (+0x8c + index * 4) and its count
 // (the 0x48-byte level records at 0x0095f968, entry index + 1; 0 while that level is locked: 0x008dce54 clear and
 // 0x008dce44 not above it) into the label +0x3c.
@@ -125,6 +137,8 @@ uint8_t XB_CDECL MissionSuccessFailMenu_ReloadCheckpoint();
 // bit 5 fading out, bits 6-7 alignment).
 // 0x000112f0 (vtable slot): the depth +0x08.
 void XB_THISCALL UIElement_SetDepth(uint8_t* element, float depth);
+// 0x00011300: the depth +8 (x87); unhookable (ret in the first 5 bytes).
+long double XB_THISCALL UIElement_GetDepth(uint8_t* element);
 // 0x0030fc20 (vtable slot): alignment bits 6-7 of the flags +0x10: 0 -> 0x40, 2 -> 0x80, else none.
 void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align);
 // 0x00315e70: advances a fade by dt / the fade time +0x0c when vtable slot +0x30 says the element is shown; a fade in
@@ -290,6 +304,13 @@ extern "C" void UIText_Dtor_entry(void);
 uint8_t* XB_THISCALL UIText_DeletingDtor(uint8_t* text, uint32_t flags);
 // 0x0030f900: when shown, draw lines (vtable +0x100) of the range +0x88/+0x8c when scrolled, else (0, +0x78).
 void XB_THISCALL UIText_Draw(uint8_t* text);
+// 0x00012480 (lines in EAX, flags on the stack, ret 4): the text lines' vector deleting destructor (0x20-byte lines:
+// buffer +0x18 freed, script string +0x14 released; flag 2 = an array with its count at -4, last line first; flag 1 =
+// free the block). Returns the block.
+uint8_t* XB_REGS1 XB_STDCALL UITextLine_VectorDeletingDtor(uint8_t* lines, uint32_t flags);
+// 0x0030f950 (kind in EAX, text in EDX): the text's width in the kind's font (ui_fonts; none for kind 7) at (scale,
+// scale) as an unsigned value on the x87; 0 (0x0083eafc) for no text or kind 8.
+long double XB_REGS2 XB_CDECL UI_GetTextWidth(int32_t kind, const char* text, float scale);
 // 0x0030f880: line height and spacing +0x68/+0x6c = spacing, or for -1 the height of "!" at the text's scale.
 void XB_THISCALL UIText_SetLineSpacing(uint8_t* text, int32_t spacing);
 // 0x00321030: the height of the text at its scale (x87, unsigned).

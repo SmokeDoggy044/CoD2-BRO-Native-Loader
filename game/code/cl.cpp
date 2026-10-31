@@ -9,6 +9,7 @@
 #include "ngl.h"
 #include "ngl_debug.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "r_init.h"
 #include "script_string.h"
 #include "snd.h"
@@ -1355,6 +1356,18 @@ uint32_t float_bits(float value) {
 
 }  // namespace
 
+// Unhookable (an indirect call in the first 5 bytes); registered through this gap entry like SCR_UpdateScreen's.
+PLATFORM_ASM_ENTRY(SCR_DrawScreenField_entry, "movl %esp, %eax\n"
+                                              GAME_GAP_ESP("0x20000")
+                                              "pushl %ebp\n"
+                                              "movl %eax, %ebp\n"
+                                              "pushl %ebp\n" PLATFORM_ASM_CALL(SCR_DrawScreenFieldAt) "addl $4, %esp\n"
+                                              "popl %ebp\n"
+                                              "popl %esp\n"
+                                              "ret")
+
+void XB_CDECL SCR_DrawScreenFieldAt(uint32_t entry) { SCR_DrawScreenField(entry); }
+
 void SCR_DrawScreenField(uint32_t entry) {
     call_at(entry, title_global<uint32_t>(0x00928548), {}, Args{{0}, 1});  // re.BeginFrame(0)
     const int32_t state = title_global<int32_t>(0x0092bdf0);   // cls.state
@@ -2001,6 +2014,23 @@ void XB_CDECL IN_PadStopAllRumble() {
     }
 }
 
+void XB_CDECL RumbleQueue_FreeRange(uint32_t cur, uint32_t next, uint32_t, uint32_t end_next) {
+    if (next == end_next) return;
+    uint32_t node = cur;
+    uint32_t following = next;
+    do {
+        uint8_t* const dead = reinterpret_cast<uint8_t*>(uintptr_t{node});
+        if (following) {
+            node = following;
+            following = *reinterpret_cast<uint32_t*>(uintptr_t{following});
+        }
+        if (dead) {
+            title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(dead + 0x28);  // ScriptString_Release
+            SmallHeap_Free(title_global<uint8_t*>(0x0095f5c8), dead);
+        }
+    } while (following != end_next);
+}
+
 void XB_REGS1 XB_CDECL IN_StopAllRumble(uint8_t* rumble) {
     for (int32_t motor = 0; motor < 2; ++motor) {
         const int32_t pad = title_global<int32_t>(0x008dcf18);
@@ -2021,6 +2051,8 @@ void XB_REGS1 XB_CDECL IN_StopAllRumble(uint8_t* rumble) {
                                                                                                    0);
     }
 }
+
+void XB_CDECL CL_Disconnect_f() {}
 
 void XB_CDECL IN_SprintUp() {}
 
@@ -2859,69 +2891,107 @@ void XB_CDECL CL_Shutdown() {
 
 namespace {
 
-constexpr uint32_t kFrontEnd = 0x0095f8fc;
+// One call where the original's call puts it: ESP at `top` before its stack arguments, the original's return address
+// left in the dead stack afterwards (the front-end open and pause methods store the address of a stack local in a
+// heap word, 0x100006a8).
+struct ReturnStateCalls {
+    uint32_t ebx, esi, edi;
+    void call(uint32_t top, uint32_t function, uint32_t ret, uint32_t eax = 0, uint32_t ecx = 0, uint32_t edx = 0,
+              uint32_t count = 0, const uint32_t* args = nullptr) const {
+        const TitleRegs regs{eax, ebx, ecx, edx, esi, edi};
+        title_call_at_regs(top, function, &regs, count, args);
+        *reinterpret_cast<uint32_t*>(uintptr_t{top - 4 * count - 4}) = ret;
+    }
+    void cl_paused_1(uint32_t top, uint32_t ret, uint32_t eax) const {
+        static constexpr uint32_t kArgs[3] = {0x0082ca00, 0x0082e058, 1};  // "cl_paused", "1"
+        call(top, 0x0029c030, ret, eax, 0, 0, 3, kArgs);                   // Cvar_Set2
+    }
+};
 
-// The front end opened over the paused game in `mode` (0x0032de50, front end in ESI: 0x0095f919 = 1, cl_paused 1,
-// vtable +0xc (mode)), inlined or called.
-void open_front_end(uint32_t mode, bool call) {
-    uint8_t* const fe = title_global<uint8_t*>(kFrontEnd);
+// The front end opened over the paused game in `mode`: inlined (0x0095f919 = 1, cl_paused 1, vtable +0xc (mode)) or
+// through 0x0032de50 (front end in ESI; its tail-called method pops the word). `rets` = the Cvar_Set2 and method
+// return addresses (inlined) or the call's.
+void open_front_end(ReturnStateCalls& c, uint32_t top, uint32_t mode, bool call, uint32_t chapter, uint32_t ret0,
+                    uint32_t ret1 = 0, bool vtable_in_edx = false) {
+    const uint32_t fe = title_global<uint32_t>(0x0095f8fc);
+    const uint32_t args[1] = {mode};
     if (call) {
-        TitleRegs regs{};
-        regs.esi = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(fe));
-        const uint32_t args[1] = {mode};
-        cg_call_regs(0x0032de50, &regs, args, 1);  // (its tail-called method pops the word)
+        c.esi = fe;
+        c.call(top, 0x0032de50, ret0, chapter, 0, 0, 1, args);  // CL_PauseIntoFrontEnd
         return;
     }
+    c.esi = fe;
     title_global<uint8_t>(0x0095f919) = 1;
-    Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e058)),
-              1);  // cl_paused 1
-    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(field<uint32_t>(field<uint8_t*>(fe, 0), 0xc))(fe, mode);
-}
-
-void load_theatre_background() {
-    TitleRegs regs{};
-    regs.eax = 0x0095f8d0;  // g_uiRoot
-    cg_call_regs(0x0031ff30, &regs, nullptr, 0);  // FE_LoadTheatreBackground
+    c.cl_paused_1(top, ret0, chapter);
+    const uint32_t vtable = field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{fe}), 0);
+    const uint32_t method = field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{vtable}), 0xc);
+    c.call(top, method, ret1, vtable_in_edx ? 0 : vtable, fe, vtable_in_edx ? vtable : 0, 1, args);
 }
 
 }  // namespace
 
-void XB_CDECL CL_ApplyFrontEndReturnState() {
+// The entry runs our frame below a gap (the callees read files: 0x30000) and hands over the entry ESP, EBX, ESI, EDI.
+PLATFORM_ASM_ENTRY(CL_ApplyFrontEndReturnState_entry, "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x30000")
+                   "pushl %eax\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(CL_ApplyFrontEndReturnStateAt) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL CL_ApplyFrontEndReturnStateAt(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi) {
     title_global<uint32_t>(0x0092bdf4) &= ~2u;  // cls.keyCatchers
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry - 4}) = ebx;  // push ebx; push esi
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry - 8}) = esi;
+    const uint32_t top = entry - 8;
+    ReturnStateCalls c{1, esi, edi};  // mov ebx,1
     if (title_global<uint8_t>(0x0095ee01)) {
-        CL_ApplyProfileSettings(&title_global<uint8_t>(0x008dce30));
-        title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute, its tail jump
-        if (!title_global<int32_t>(0x008dce50)) SV_SetSkillHard();
-        if (title_global<int32_t>(0x008dce50) == 1) SV_SetSkillMedium();
-        if (title_global<int32_t>(0x008dce50) == 2) SV_SetSkillEasy();
+        *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = edi;  // push edi
+        c.edi = 0x008dce30;
+        c.call(top - 4, 0x00332e20, 0x002f077e, title_global<uint8_t>(0x0095ee01));  // CL_ApplyProfileSettings
+        c.edi = edi;
+        if (!title_global<int32_t>(0x008dce50)) c.call(top, 0x002c5200, 0x002f078d);       // SV_SetSkillHard
+        if (title_global<int32_t>(0x008dce50) == 1) c.call(top, 0x002c51a0, 0x002f079a);   // SV_SetSkillMedium
+        if (title_global<int32_t>(0x008dce50) == 2) c.call(top, 0x002c5140, 0x002f07a8);   // SV_SetSkillEasy
         const int32_t chapter = title_global<int32_t>(0x008dce48);  // g_currentChapter
+        const uint32_t eax = static_cast<uint32_t>(chapter);
         if (chapter <= 0)
-            open_front_end(5, false);
+            open_front_end(c, top, 5, false, eax, 0x002f07cd, 0x002f07d9);
         else if (chapter <= 5)
-            open_front_end(3, false);
+            open_front_end(c, top, 3, false, eax, 0x002f07f6, 0x002f0802, true);
         else
-            open_front_end(chapter <= 8 ? 4 : 2, true);
-        load_theatre_background();
+            open_front_end(c, top, chapter <= 8 ? 4 : 2, true, eax, 0x002f0814);
+        c.call(top, 0x0031ff30, 0x002f081e, 0x0095f8d0);  // FE_LoadTheatreBackground(g_uiRoot)
     }
     if (!title_global<uint8_t>(0x0095f918)) return;
-    uint8_t* const overlay = title_global<uint8_t*>(0x0095f8f8);
+    const uint32_t overlay = title_global<uint32_t>(0x0095f8f8);
     title_global<uint8_t>(0x0095f918) = 0;
-    if (overlay) title_function<void XB_THISCALL(uint8_t*, int32_t)>(field<uint32_t>(field<uint8_t*>(overlay, 0), 0))(overlay, 1);
-    title_global<uint8_t*>(0x0095f8f8) = nullptr;
+    if (overlay) {
+        static constexpr uint32_t kOne[1] = {1};
+        const uint32_t vtable = field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{overlay}), 0);
+        c.call(top, field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{vtable}), 0), 0x002f0841, vtable, overlay, 0, 1,
+               kOne);  // deleting destructor
+    }
+    title_global<uint32_t>(0x0095f8f8) = 0;
     if (title_global<uint8_t>(0x0095ee01)) return;
     const int32_t chapter = title_global<int32_t>(0x008dce48);
+    const uint32_t eax = static_cast<uint32_t>(chapter);
     if (chapter <= 0)
-        open_front_end(5, false);
+        open_front_end(c, top, 5, false, eax, 0x002f0879, 0x002f0885, true);
     else
-        open_front_end(chapter <= 5 ? 3 : chapter <= 8 ? 4 : 2, true);
-    load_theatre_background();
+        open_front_end(c, top, chapter <= 5 ? 3 : chapter <= 8 ? 4 : 2, true, eax, 0x002f08a6);
+    c.call(top, 0x0031ff30, 0x002f08b0, 0x0095f8d0);  // FE_LoadTheatreBackground(g_uiRoot)
     uint8_t* const zone = title_global<uint8_t*>(0x0095f4f0);
     field<uint32_t>(zone, 0x34) = title_global<uint32_t>(0x0082eed0);  // FLT_MAX
-    TitleRegs regs{};
-    regs.eax = title_global<uint32_t>(0x0095f638);
-    regs.ebx = field<uint32_t>(zone, 0x28);
-    cg_call_regs(0x00292cb0, &regs, nullptr, 0);  // Stream_WaitForLoad
+    c.ebx = field<uint32_t>(zone, 0x28);
+    c.call(top, 0x00292cb0, 0x002f08cf, title_global<uint32_t>(0x0095f638));  // Stream_WaitForLoad
 }
+
+void XB_CDECL CL_ApplyFrontEndReturnState() { title_function<void XB_CDECL()>(0x002f0750)(); }
 
 PLATFORM_ASM_ENTRY(CL_UpdatePauseOverlay_entry, "pushl 4(%esp)\n"
                                              "pushl %esi\n" PLATFORM_ASM_CALL(CL_UpdatePauseOverlay) "addl $8, %esp\n"
@@ -3282,6 +3352,11 @@ void XB_CDECL CL_Init() {
     title_global<uint8_t*>(0x00929b0c) = Cvar_Get(&title_global<const char>(0x0083441c), &title_global<const char>(0x0082e098), 0x0);
     Cmd_AddCommand(&title_global<const char>(0x00834190), 0x002b2880);
     CL_InitRef();
+    // CL_InitRef never sets refimport words 0x12 and 0x17; in the original they are this function's last pushed
+    // arguments still on the stack (names 0x00834190 at entry-0x44 and 0x0083419c at entry-0x30), which GetRefAPI
+    // copies into ri (0x0095e630).
+    title_global<uint32_t>(0x0095e678) = 0x00834190;
+    title_global<uint32_t>(0x0095e68c) = 0x0083419c;
     title_global<int32_t>(0x00933ee4) = 1;  // UI started
     title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute
     Cvar_Set2(&title_global<const char>(0x00834184), const_cast<char*>(&title_global<const char>(0x0082e058)),

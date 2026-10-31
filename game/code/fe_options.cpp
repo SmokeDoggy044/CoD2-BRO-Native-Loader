@@ -301,6 +301,23 @@ void XB_CDECL ControllerConfigMenu_UpdateLabelColors(uint8_t* menu) {
     copy_color(menu_item(menu, 4), field<uint8_t*>(menu, 0x44));
 }
 
+PLATFORM_ASM_ENTRY(GameplayMenu_UpdateLabelColors_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(GameplayMenu_UpdateLabelColors) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL GameplayMenu_UpdateLabelColors(uint8_t* menu) {
+    for (uint32_t i = 0; i < 5; ++i) copy_color(menu_item(menu, i), field<uint8_t*>(menu, 0x3c + i * 4));
+}
+
+PLATFORM_ASM_ENTRY(AdvancedOptionsMenu_UpdateLabelColors_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(AdvancedOptionsMenu_UpdateLabelColors) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL AdvancedOptionsMenu_UpdateLabelColors(uint8_t* menu) {
+    static constexpr uint32_t kItems[7] = {0, 1, 4, 5, 7, 8, 9};  // labels +0x38..+0x50
+    for (uint32_t i = 0; i < 7; ++i) copy_color(menu_item(menu, kItems[i]), field<uint8_t*>(menu, 0x38 + i * 4));
+}
+
 void XB_REGS1 XB_CDECL ControllerConfigMenu_UpdateInvertAimText(uint8_t* menu) {
     show_on_off(field<uint8_t*>(menu, 0x3c), menu[0xcc]);
     ControllerConfigMenu_UpdateLabelColors(menu);
