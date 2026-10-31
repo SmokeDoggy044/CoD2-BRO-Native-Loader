@@ -129,6 +129,17 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL AutosaveMenu_ShowUnformattedDialog(uint
 extern "C" void AutosaveMenu_ShowUnformattedDialog_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileMenu_ShowUnformattedDialog(uint32_t entry_esp);
 extern "C" void ProfileMenu_ShowUnformattedDialog_entry(void);
+// 0x00334b10: 0x008d50dd = 0, ProfileSave_PrepareRequest, Save_BeginRead (saves + 4); when it returns 0 the
+// MEM_XBOX_LOAD_WARNING dialog (no buttons, laid out).
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileMenu_StartLoad(uint32_t entry_esp);
+extern "C" void ProfileMenu_StartLoad_entry(void);
+// 0x003352d0: MEM_XBOX_ERROR_NO_SAVE_DATA with MEM_DIALOG_OK (0x0031b250).
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileMenu_ShowNoSaveDataDialog(uint32_t entry_esp);
+extern "C" void ProfileMenu_ShowNoSaveDataDialog_entry(void);
+// 0x00338610 (menu in EAX): with +0x4c == 1 ProfileMenu_StartLoad (tail jump), else MEM_UNSAVED_LOAD_CONFIRM with
+// yes (0x00013300) / no (0x00338520), no selected.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileMenu_ConfirmLoad(uint8_t* menu, uint32_t entry_esp);
+extern "C" void ProfileMenu_ConfirmLoad_entry(void);
 // 0x00333d00: MEM_XBOX_ERROR_NO_SAVE_DATA with MEM_DIALOG_OK (0x003125d0).
 extern "C" PLATFORM_HIDDEN void XB_CDECL AutosaveMenu_ShowNoSaveDataDialog(uint32_t entry_esp);
 extern "C" void AutosaveMenu_ShowNoSaveDataDialog_entry(void);

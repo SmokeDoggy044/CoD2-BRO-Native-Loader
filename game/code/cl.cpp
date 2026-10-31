@@ -9,6 +9,7 @@
 #include "ngl.h"
 #include "ngl_debug.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "r_init.h"
 #include "script_string.h"
 #include "snd.h"
@@ -1590,6 +1591,59 @@ void XB_CDECL CL_PauseIntoFrontEnd(uint8_t*) {
     title_global<uint8_t>(0x0095f919) = 1;
     Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e058)),
               1);  // cl_paused 1
+}
+
+PLATFORM_ASM_ENTRY(DifficultyMenu_StartGame_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(DifficultyMenu_StartGame) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL DifficultyMenu_StartGame(int32_t difficulty, uint8_t* menu) {
+    int32_t& skill = title_global<int32_t>(0x008dce50);
+    switch (difficulty) {
+    case 0:
+        SV_SetSkillHard();
+        skill = 0;
+        break;
+    case 1:
+        SV_SetSkillMedium();
+        skill = 1;
+        break;
+    case 2:
+        SV_SetSkillEasy();
+        skill = 2;
+        break;
+    default:
+        return;
+    }
+    title_global<uint8_t>(0x00940178) = 1;
+    S_StopAllSounds(title_global<uint8_t*>(0x0095f4c4));
+    Movie_Stop(0);
+    title_global<int32_t>(0x0095f920) = field<int32_t>(menu, 0x48);  // the level to start
+    int32_t chapter = field<int32_t>(menu, 0x48);
+    int32_t& current = title_global<int32_t>(0x008dce48);  // g_currentChapter
+    current = chapter;
+    if (chapter < 0) {
+        chapter = 0;
+        current = 0;
+    }
+    int32_t& unlocked = title_global<int32_t>(0x008dce44);  // g_chaptersUnlocked
+    if (unlocked < chapter) unlocked = chapter;
+}
+
+void XB_CDECL AtExit_ReleaseScriptStrings_9616b8() {
+    for (uint32_t i = 1; i <= 0x400; ++i)
+        title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(0x009616b8 - i * 4);  // ScriptString_Release
+}
+
+void XB_CDECL AtExit_StringVector_9600fc() {
+    if (uint8_t* const first = title_global<uint8_t*>(0x009600fc)) {
+        std_string_DestroyRange(first, title_global<uint8_t*>(0x00960100));
+        Z_Free(title_global<uint8_t*>(0x009600fc));
+    }
+    title_global<uint32_t>(0x009600fc) = 0;
+    title_global<uint32_t>(0x00960100) = 0;
+    title_global<uint32_t>(0x00960104) = 0;
 }
 
 void XB_REGS3 XB_CDECL CL_PauseForDialog(uint32_t, uint8_t keep_running, uint8_t* dialog) {

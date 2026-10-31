@@ -623,6 +623,9 @@ PROFILE_GAP_ENTRY(ProfileMenu_ShowFormatSuccessDialog_entry, "", ProfileMenu_Sho
 PROFILE_GAP_ENTRY(AutosaveMenu_OnProfilesRead_entry, "pushl %ebx\n", AutosaveMenu_OnProfilesRead, "8", "ret")
 PROFILE_GAP_ENTRY(ProfileMenu_OnProfilesRead_entry, "pushl 4(%edx)\n", ProfileMenu_OnProfilesRead, "8", "ret $4")
 PROFILE_GAP_ENTRY(ProfileMenu_ShowSaveErrorDialog_entry, "pushl %eax\n", ProfileMenu_ShowSaveErrorDialog, "8", "ret")
+PROFILE_GAP_ENTRY(ProfileMenu_StartLoad_entry, "", ProfileMenu_StartLoad, "4", "ret")
+PROFILE_GAP_ENTRY(ProfileMenu_ShowNoSaveDataDialog_entry, "", ProfileMenu_ShowNoSaveDataDialog, "4", "ret")
+PROFILE_GAP_ENTRY(ProfileMenu_ConfirmLoad_entry, "pushl %eax\n", ProfileMenu_ConfirmLoad, "8", "ret")
 PROFILE_GAP_ENTRY(ProfileMenu_ShowSaveSuccessDialog_entry, "pushl %eax\n", ProfileMenu_ShowSaveSuccessDialog, "8",
                   "ret")
 PROFILE_GAP_ENTRY(AutosaveMenu_ShowDeleteSuccessDialog_entry, "pushl %eax\n", AutosaveMenu_ShowDeleteSuccessDialog,
@@ -768,6 +771,39 @@ void XB_CDECL AutosaveMenu_ShowUnformattedDialog(uint32_t entry_esp) {
 
 void XB_CDECL ProfileMenu_ShowUnformattedDialog(uint32_t entry_esp) {
     unformatted_dialog(0x0030d2e0, 0x0031b250, entry_esp);
+}
+
+void XB_CDECL ProfileMenu_StartLoad(uint32_t entry_esp) {
+    AtTop at(entry_esp - 4);  // push esi (push edi for the dialog)
+    uint8_t* const s = saves();
+    title_global<uint8_t>(0x008d50dd) = 0;
+    TitleRegs regs{};
+    regs.eax = address_of(s);
+    regs.esi = address_of(s);
+    title_call(kProfileSave_PrepareRequest, regs);
+    regs.esi = address_of(s + 4);
+    const uint32_t args[1] = {address_of(s + 4)};
+    if (title_call(kSave_BeginRead, regs, 1, args) != 0) return;
+    show_dialog(0x0082adf4);  // MEM_XBOX_LOAD_WARNING
+    layout_buttons();
+}
+
+void XB_CDECL ProfileMenu_ShowNoSaveDataDialog(uint32_t entry_esp) {
+    AtTop at(entry_esp - 8);
+    one_button_dialog(0x0082b094, kDialogOk, 0x0031b250);  // MEM_XBOX_ERROR_NO_SAVE_DATA
+}
+
+void XB_CDECL ProfileMenu_ConfirmLoad(uint8_t* menu, uint32_t entry_esp) {
+    if (field<int32_t>(menu, 0x4c) == 1) {
+        tail_call(entry_esp, 0x00334b10, eax_regs(address_of(menu)));  // ProfileMenu_StartLoad
+        return;
+    }
+    AtTop at(entry_esp - 8);
+    show_dialog(0x0082ae50);  // MEM_UNSAVED_LOAD_CONFIRM
+    add_button_inline(kDialogYes, 0x00013300);
+    add_button_inline(kDialogNo, 0x00338520);
+    select_no();
+    layout_buttons();
 }
 
 void XB_CDECL AutosaveMenu_ShowNoSaveDataDialog(uint32_t entry_esp) {

@@ -307,6 +307,15 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL CL_TogglePause(uint8_t* menu);
 // 1), cl_paused 1, then the manager's +0x0c (screen).
 extern "C" void CL_PauseIntoFrontEnd_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CL_PauseIntoFrontEnd(uint8_t* mgr);  // the part before the tail call
+// 0x0032d800 (difficulty in EAX, menu in ESI): skill hard / medium / easy for 0 / 1 / 2 (0x008dce50 = it; others:
+// nothing), 0x00940178 = 1, every sound stopped, Movie_Stop(0), the level to start (0x0095f920) and the current
+// chapter = +0x48 (at least 0), the unlocked chapters raised to it.
+extern "C" PLATFORM_HIDDEN void XB_CDECL DifficultyMenu_StartGame(int32_t difficulty, uint8_t* menu);
+extern "C" void DifficultyMenu_StartGame_entry(void);
+// 0x00379900 (atexit): ScriptString_Release of the 0x400 strings below 0x009616b8, last first.
+void XB_CDECL AtExit_ReleaseScriptStrings_9616b8();
+// 0x003799c0 (atexit): the string vector 0x009600fc (first, last, end) destroyed and freed, its words cleared.
+void XB_CDECL AtExit_StringVector_9600fc();
 // 0x0032dec0 (keep_running in DL, dialog in ECX): sets the dialog's flag bits from its mode (+0xc) and the cvar at
 // 0x0093fcd8, activates it (vtable +0xc) and pauses the game (cl_paused 1) unless that cvar is set or the mission
 // overlay is up.

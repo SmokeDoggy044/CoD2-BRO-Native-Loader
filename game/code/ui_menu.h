@@ -262,6 +262,13 @@ void XB_REGS1 XB_CDECL MainMenu_Dtor(uint8_t* menu);
 uint8_t* XB_THISCALL MainMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
 // 0x003312f0 (owner in EAX, menu in ECX): a five-row UIMenu at (320, 240), layer 8; fields cleared. Returns it.
 uint8_t* XB_REGS3 XB_CDECL MainMenu_Construct(uint8_t* owner, uint32_t unused_edx, uint8_t* menu);
+// 0x00331d80 (owner in EAX, menu in ECX): a row-less UIMenu at (320, 240), layer 8, flags +0x2a | 0x40; fields
+// cleared; the TitleMenu vtable. Returns it.
+uint8_t* XB_REGS3 XB_CDECL TitleMenu_Construct(uint8_t* owner, uint32_t unused_edx, uint8_t* menu);
+// 0x003308a0 (owner in EAX, menu in ECX; a front-end screen, vtable 0x00829e10): a row-less UIMenu at (0,
+// 0), layer 8, with +0x34 a device-removed listener (vtable 0x00829e0c, Save_SetDeviceRemovedListener); +0x38..+0x41
+// cleared. Returns it.
+uint8_t* XB_REGS3 XB_CDECL StorageMenu_Construct(uint8_t* owner, uint32_t unused_edx, uint8_t* menu);
 // 0x000122b0: UIScreenMgr_Dtor, freed with flags bit 0.
 uint8_t* XB_THISCALL InGameScreens_DeletingDtor(uint8_t* mgr, uint32_t flags);
 // 0x00313ce0 (ret 4): the active screen's update (+0x30 (dt)), then the manager's (+0x14).
@@ -281,6 +288,10 @@ void XB_THISCALL UIRoot_Dtor(uint8_t* root);
 
 // 0x00013670: UIRoot_Dtor, then Z_Free with flags bit 0. Returns the root.
 uint8_t* XB_THISCALL UIRoot_DeletingDtor(uint8_t* root, uint32_t flags);
+// 0x00379890 (atexit): UIRoot_Dtor of g_uiRoot.
+void XB_CDECL AtExit_UIRoot();
+// 0x00372ef0 (static initializer): the UI colour words 0x0095fd30.. (built byte-wise in stack words).
+void XB_CDECL StaticInit_UIColors_95fd30();
 // 0x00312f60 (table in EAX): the chapter table cleared, then its fixed values.
 void XB_REGS1 XB_CDECL UIRoot_InitChapterTable(uint8_t* table);
 // 0x00331e90 (root in ESI): the UI root's fields, chapter table and an empty root menu. Returns the root.

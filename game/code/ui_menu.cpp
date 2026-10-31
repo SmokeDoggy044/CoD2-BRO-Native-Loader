@@ -1656,6 +1656,32 @@ uint8_t* XB_REGS3 XB_CDECL MainMenu_Construct(uint8_t* owner, uint32_t, uint8_t*
     return menu;
 }
 
+uint8_t* XB_REGS3 XB_CDECL TitleMenu_Construct(uint8_t* owner, uint32_t, uint8_t* menu) {
+    init_screen_menu(menu, 0, owner);
+    menu[0x2a] |= 0x40;
+    menu[0x33] = 0;
+    menu[0x3c] = 0;
+    field<uint32_t>(menu, 0x40) = 0;
+    field<uint32_t>(menu, 0x34) = 0;
+    field<uint32_t>(menu, 0) = 0x008297f0;  // TitleMenu vtable
+    field<float>(menu, 0x38) = 0.0f;
+    return menu;
+}
+
+uint8_t* XB_REGS3 XB_CDECL StorageMenu_Construct(uint8_t* owner, uint32_t, uint8_t* menu) {
+    UIMenu_Init(menu, 0, owner, 0, 0, 8, 0);
+    field<uint32_t>(menu, 0x34) = 0x00829ab4;
+    field<uint32_t>(menu, 0) = 0x00829e10;     // vtable
+    field<uint32_t>(menu, 0x34) = 0x00829e0c;  // the device-removed listener's vtable
+    title_function<void XB_CDECL(uint8_t*)>(0x000d0cc0)(menu + 0x34);  // Save_SetDeviceRemovedListener
+    field<uint32_t>(menu, 0x38) = 0;
+    menu[0x3c] = 0;
+    menu[0x3d] = 0;
+    menu[0x40] = 0;
+    menu[0x41] = 0;
+    return menu;
+}
+
 uint8_t* XB_THISCALL InGameScreens_DeletingDtor(uint8_t* mgr, uint32_t flags) {
     field<uint32_t>(mgr, 0) = 0x008286cc;  // InGameScreens vtable
     UIScreenMgr_Dtor(mgr);
@@ -1803,6 +1829,45 @@ void XB_THISCALL UIRoot_Dtor(uint8_t* root) {
     delete_object(field<uint8_t*>(root, 0x20));
     delete_object(field<uint8_t*>(root, 0x24));
     delete_object(field<uint8_t*>(root, 0x34));
+}
+
+void XB_CDECL AtExit_UIRoot() { UIRoot_Dtor(&title_global<uint8_t>(0x0095f8d0)); }  // g_uiRoot
+
+void XB_CDECL StaticInit_UIColors_95fd30() {
+    // (global, ARGB colour) in the original's store order.
+    static const uint32_t kColors[][2] = {
+        {0x0095fd30, 0xffb4b4b4},
+        {0x0095fd34, 0xff8c3232},
+        {0x0095fd38, 0xff8c3232},
+        {0x0095fd40, 0x8c8c8c8c},
+        {0x0095fd44, 0xffb4b4b4},
+        {0x0095fd48, 0xffb4b4b4},
+        {0x0095fd50, 0xffb4b4b4},
+        {0x0095fd54, 0xffffffff},
+        {0x0095fd58, 0xffffffff},
+        {0x0095fd60, 0xff000000},
+        {0x0095fd64, 0xff8c3232},
+        {0x0095fd68, 0xff8c3232},
+        {0x0095fd70, 0xffffffff},
+        {0x0095fd74, 0xff8c3232},
+        {0x0095fd78, 0xff8c3232},
+        {0x0095fd80, 0xaa282119},
+        {0x0095fd84, 0xff282119},
+        {0x0095fd88, 0xff282119},
+        {0x0095fd90, 0x8c1f2c2c},
+        {0x0095fda0, 0x8c491c1b},
+        {0x0095fdb0, 0xffb4b4b4},
+        {0x0095fd94, 0xff1f2c2c},
+        {0x0095fd98, 0xff1f2c2c},
+        {0x0095fda4, 0xff491c1b},
+        {0x0095fda8, 0xff491c1b},
+        {0x0095fdb4, 0xffb4b4b4},
+        {0x0095fdb8, 0xffb4b4b4},
+        {0x0095fdc0, 0xffa89c8d},
+        {0x0095fdc4, 0xffebba50},
+        {0x0095fdc8, 0xffebba50}
+    };
+    for (const auto& color : kColors) title_global<uint32_t>(color[0]) = color[1];
 }
 
 uint8_t* XB_THISCALL UIRoot_DeletingDtor(uint8_t* root, uint32_t flags) {

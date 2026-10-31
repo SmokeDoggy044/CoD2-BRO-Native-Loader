@@ -227,6 +227,39 @@ char* XB_REGS3 XB_CDECL Panel_ReadCString(uint32_t* offset, uint32_t, uint8_t* d
     return reinterpret_cast<char*>(data + o);
 }
 
+void XB_REGS2 XB_CDECL UI_EulerMatrix(const float* angles, float* out) {
+    const float s0 = platform_x87_sin(angles[0]);
+    const float c0 = platform_x87_cos(angles[0]);
+    const float s1 = platform_x87_sin(angles[1]);
+    const float c1 = platform_x87_cos(angles[1]);
+    const float s2 = platform_x87_sin(angles[2]);
+    const float c2 = platform_x87_cos(angles[2]);
+    const float s2s1 = s2 * s1;
+    const float s2c1 = s2 * c1;
+    const float c2c1 = c2 * c1;
+    const float c2s1 = c2 * s1;
+    float l[16];
+    l[0] = s2s1 * s0 + c2c1;
+    l[1] = platform_x87_mul(s2, c0);
+    l[2] = s2c1 * s0 - c2s1;
+    l[3] = 0.0f;
+    l[4] = c2s1 * s0 - s2c1;
+    l[5] = platform_x87_mul(c2, c0);
+    l[6] = c2c1 * s0 + s2s1;
+    l[7] = 0.0f;
+    l[8] = s1 * c0;
+    l[9] = 0.0f - s0;
+    l[10] = c1 * c0;
+    l[11] = 0.0f;
+    l[12] = 0.0f;
+    // The rows as the original copies them out of its stack block (a 3x3 copy whose words the 16-byte stores
+    // overlap): (l0, l1, l2, l0), (l3, l4, l5, l6), (l6, l7, l8, l0), (l9, l10, l11, l12).
+    static constexpr int32_t kWords[16] = {0, 1, 2, 0, 3, 4, 5, 6, 6, 7, 8, 0, 9, 10, 11, 12};
+    float r[16];
+    for (int32_t i = 0; i < 16; ++i) r[i] = l[kWords[i]];
+    std::memcpy(out, r, sizeof r);
+}
+
 PLATFORM_ASM_ENTRY(Panel_ReadTransform_entry,
                    "pushl 8(%esp)\n"
                    "pushl 8(%esp)\n"

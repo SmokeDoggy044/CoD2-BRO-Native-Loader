@@ -645,7 +645,7 @@ void XB_CDECL BonusMaterialsMenu_UpdateNewFlags(uint8_t* menu) {
     menu[0x65] = 0;
     for (int32_t c = 0; c < 14; ++c) {
         const int32_t unlocked = title_global<int32_t>(0x008dce44);  // g_chaptersUnlocked
-        if (c > unlocked - 1) continue;
+        if (c > int32_t(uint32_t(unlocked) - 1u)) continue;  // wraps like the original's LEA
         const int32_t value = title_global<uint8_t>(0x008dce54) || unlocked > c
                                   ? title_global<int32_t>(0x0095f968 + uint32_t(c) * 0x48)
                                   : 0;

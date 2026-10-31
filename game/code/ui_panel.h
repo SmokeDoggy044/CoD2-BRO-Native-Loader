@@ -54,6 +54,9 @@ char* XB_REGS3 XB_CDECL Panel_ReadCString(uint32_t* offset, uint32_t unused_edx,
 // (x, y, z, x).
 extern "C" PLATFORM_HIDDEN void XB_CDECL Panel_ReadTransform(uint32_t* offset, float* out, const uint8_t* data);
 extern "C" void Panel_ReadTransform_entry(void);
+// 0x0032f9f0 (angles in EAX, out in EDX; dead: no callers): a rotation from three angles (x87 FSIN / FCOS),
+// stored as four rows whose words repeat (see the body).
+void XB_REGS2 XB_CDECL UI_EulerMatrix(const float* angles, float* out);
 // 0x0032c0b0 (data in EAX, offset in EDI; record on the stack, ret 4): a material record: +8 the colour (bytes 2, 1,
 // 0, 3), +0xc textured; if so +4 the name (Panel_ReadCString), +0 its texture (UI_FindLocalizedTexture) and three
 // flag bytes +0xd..+0xf.
