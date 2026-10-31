@@ -125,3 +125,85 @@
 00339c70,AutosaveMenu_ShowDeleteSuccessDialog,front end,callers ProfileSave_OnSaveOpComplete+0xc3; 0 calls in level runs (front-end menus only)
 0033a130,ProfileMenu_OnSaveOpFailed,front end,callers ProfileSave_OnSaveOpComplete+0x47; 0 calls in level runs (front-end menus only)
 0033a640,ProfileMenu_Update,front end,vtable slot .rdata 00828f00; steered menu run 2026-10-26: 149 inconclusive at Save_Update host code (memory-unit save operation)
+000117a0,UIText_SetHorzAlign,not reached,UIText vtable slot 0x0082a49c only; 0 calls in all level runs; menus may reach it in the steered run
+00011870,UIText_SetScale,not reached,UIText vtable slot 0x0082a4ac only; 0 calls in all level runs; menus may reach it in the steered run
+00011f90,UIScreenMgr_DeletingDtor,matched,"forced 6/6 matched (ecx=[0x0095f8fc] the in-game screens, flags 1, missions 1,4); UIScreenMgr vtable 0x0082a5f8 slot 0 only"
+00012140,UIRootMenu_Dtor,matched,"forced 6/6 matched (eax=[0x0095f8f4] = g_uiRoot+0x24, vtable guard 0x00829280; missions 1,4); only caller UIRootMenu_DeletingDtor"
+000121b0,UIRootMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[0x0095f8f4], flags 1; missions 1,4); vtable 0x00829280 slot 0 only"
+000121d0,Panel_DeletingDtor,matched,"forced 6/6 matched (esi=[[[[0x0095f8fc]+4]]+0x34] the pause menu's panel, flags 1; missions 1,4); only caller FE_SetupPanel+0x5ef (replacing a panel)"
+000122b0,InGameScreens_DeletingDtor,matched,"forced 6/6 matched (ecx=[0x0095f8fc], flags 1, missions 1,4); vtable 0x008286cc slot 0 only, the UI root is never destroyed"
+000122e0,UIDialog_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f900]+4]] the dialog manager's first dialog, vtable guard 0x00829d48, flags 1; missions 1,4); vtable slot 0 only"
+00012b80,PauseMenu_Dtor,matched,"forced 6/6 matched (eax=[[[0x0095f8fc]+4]+0x0], the in-game screens' menu, vtable guard 0x008289f8; missions 1,4); only caller PauseMenu_DeletingDtor, the screens are never destroyed"
+00012be0,PauseMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f8fc]+4]+0x0], flags 1, vtable guard 0x008289f8; missions 1,4); vtable slot 0 only, the screens are never destroyed"
+00012c00,AdvancedOptionsMenu_Dtor,matched,"forced 6/6 matched (eax=[[[0x0095f8fc]+4]+0x4], the in-game screens' menu, vtable guard 0x0082a388; missions 1,4); only caller AdvancedOptionsMenu_DeletingDtor, the screens are never destroyed"
+00012c80,AdvancedOptionsMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f8fc]+4]+0x4], flags 1, vtable guard 0x0082a388; missions 1,4); vtable slot 0 only, the screens are never destroyed"
+00012ca0,LoadingMenu_Dtor,matched,"forced 6/6 matched (eax=[[[0x0095f8fc]+4]+0x8], the in-game screens' menu, vtable guard 0x00829180; missions 1,4); only caller LoadingMenu_DeletingDtor, the screens are never destroyed"
+00012d00,LoadingMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f8fc]+4]+0x8], flags 1, vtable guard 0x00829180; missions 1,4); vtable slot 0 only, the screens are never destroyed"
+00012d20,LoadAfricaMenu_Dtor,matched,"forced 6/6 matched (eax=[[[0x0095f8fc]+4]+0xc], the in-game screens' menu, vtable guard 0x0082a1f8; missions 1,4); only caller LoadAfricaMenu_DeletingDtor, the screens are never destroyed"
+00012d80,LoadAfricaMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f8fc]+4]+0xc], flags 1, vtable guard 0x0082a1f8; missions 1,4); vtable slot 0 only, the screens are never destroyed"
+00012da0,LoadSicilyMenu_Dtor,matched,"forced 6/6 matched (eax=[[[0x0095f8fc]+4]+0x10], the in-game screens' menu, vtable guard 0x00828718; missions 1,4); only caller LoadSicilyMenu_DeletingDtor, the screens are never destroyed"
+00012e00,LoadSicilyMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f8fc]+4]+0x10], flags 1, vtable guard 0x00828718; missions 1,4); vtable slot 0 only, the screens are never destroyed"
+00012e20,LoadMaubeugeMenu_Dtor,matched,"forced 6/6 matched (eax=[[[0x0095f8fc]+4]+0x14], the in-game screens' menu, vtable guard 0x008295a0; missions 1,4); only caller LoadMaubeugeMenu_DeletingDtor, the screens are never destroyed"
+00012e80,LoadMaubeugeMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f8fc]+4]+0x14], flags 1, vtable guard 0x008295a0; missions 1,4); vtable slot 0 only, the screens are never destroyed"
+000130d0,BonusWeaponsMenu_OnBack,host,"BonusWeaponsMenu vtable slot 0x008288cc (bonus menu); menu run: 5 tested, all inconclusive: FE_BonusWeaponFreeImage -> File_Close -> XAPILIB::CloseHandle (host file call, no stand-in); conclusive only with a CloseHandle stand-in"
+00013120,BonusWeaponsMenu_OnA,front end,BonusWeaponsMenu vtable slot 0x008288c8 only; 0 calls (bonus gallery menu); FE_BonusWeaponLoadImage reaches CloseHandle like OnBack
+00013170,BonusVehiclesMenu_OnBack,host,"BonusVehiclesMenu vtable slot 0x00829b1c (bonus menu); menu run: 3 tested, all inconclusive: FE_BonusVehicleFreeImage -> File_Close -> XAPILIB::CloseHandle (host file call, no stand-in)"
+000131c0,BonusVehiclesMenu_OnA,front end,BonusVehiclesMenu vtable slot 0x00829b18 only; 0 calls (bonus gallery menu); FE_BonusVehicleLoadImage reaches CloseHandle like OnBack
+00013200,BonusConceptsMenu_OnBack,host,"BonusConceptsMenu vtable slot 0x00828ffc (bonus menu); menu run: 18 tested, all inconclusive: FE_BonusConceptFreeImage -> File_Close -> XAPILIB::CloseHandle (host file call, no stand-in)"
+00013250,BonusConceptsMenu_OnA,host,"BonusConceptsMenu vtable slot 0x00828ff8 (bonus menu); menu run: 16 tested, all inconclusive: FE_BonusConceptLoadImage -> FE_BonusConceptFreeImage -> XAPILIB::CloseHandle (host file call, no stand-in)"
+00013330,MissionSuccessFailMenu_Dtor,matched,"forced 6/6 matched (eax=[[[0x0095f8fc]+4]+0x18], the in-game screens' menu, vtable guard 0x00828d18; missions 1,4); only caller MissionSuccessFailMenu_DeletingDtor, the screens are never destroyed"
+000133b0,MissionSuccessFailMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f8fc]+4]+0x18], flags 1, vtable guard 0x00828d18; missions 1,4); vtable slot 0 only, the screens are never destroyed"
+000133d0,AutosaveMenu_Dtor,matched,"forced 6/6 matched (eax=[[[0x0095f8fc]+4]+0x1c], the in-game screens' menu, vtable guard 0x0082a130; missions 1,4); only caller AutosaveMenu_DeletingDtor, the screens are never destroyed"
+00013440,AutosaveMenu_DeletingDtor,matched,"forced 6/6 matched (ecx=[[[0x0095f8fc]+4]+0x1c], flags 1, vtable guard 0x0082a130; missions 1,4); vtable slot 0 only, the screens are never destroyed"
+000134e0,SpecialMaterialsMenu_Dtor,front end,only SpecialMaterialsMenu_DeletingDtor; the menu lives in the front end's screens (0x0095f8f8 is null in levels)
+00013560,SpecialMaterialsMenu_DeletingDtor,front end,SpecialMaterialsMenu vtable 0x00828ac0 slot 0 only; front-end screen (0x0095f8f8 is null in levels)
+00013580,SpecialConceptMenu_Dtor,front end,only SpecialConceptMenu_DeletingDtor; the menu lives in the front end's screens (0x0095f8f8 is null in levels)
+00013630,SpecialConceptMenu_OnA,front end,SpecialConceptMenu vtable slot 0x00829f38 only; 0 calls (bonus concept art menu)
+00013650,SpecialConceptMenu_DeletingDtor,front end,SpecialConceptMenu vtable 0x00829ed8 slot 0 only; front-end screen (0x0095f8f8 is null in levels)
+00013670,UIRoot_DeletingDtor,matched,"forced 6/6 matched (ecx=0x0095f8d0, flags 0, missions 1,4); UIRoot vtable 0x0082a5f4 slot 0 only, the UI root is never destroyed"
+00013690,UIMenu_DeletingDtor,matched,"forced 8/8 matched (ecx=[[[0x0095f900]+4]] a dialog as its UIMenu base, flags 1; missions 1,4); UIMenu vtable 0x0082a628 slot 0 (and 0x008294d8/0x0083c7e0) only"
+000136c0,UIOptionItem_DeletingDtor,front end,"UIOptionItem vtable 0x00829680 slot 0 only; option items are built only by TitleMenu_Accept (0x003146da, front end)"
+000137a0,DialogMgr_DeletingDtor,matched,"forced 6/6 matched (ecx=[0x0095f900], flags 1, missions 1,4); vtable 0x0082881c slot 0 only"
+00055bc0,IN_PadCheckDeviceChanges,host,"IN_PadUpdate (13776 tested, all inconclusive): XGetDeviceChanges/XInputOpen/XInputGetState reach our input back end (host code); conclusive only with an input stand-in"
+00055d10,IN_PadInit,host,"IN_PadCreate (18 tested, all inconclusive): XInitDevices/XGetDevices/XInputOpen/XInputSetState reach our input back end (host code)"
+00055e70,IN_PadUpdate,host,"IN_Frame/Com_Init/G_CheckMissionEnd/Movie_CheckSkipInput (14621 tested, all inconclusive): IN_PadCheckDeviceChanges + XInputGetState reach our input back end (host code)"
+00056ae0,IN_PadStopAllRumble,host,"G_InitGame/FUN_001fa100 (40 tested, all inconclusive): XInputSetState reaches our input back end (host code)"
+000cca70,MovieVid_PredictFieldMotion,not reached,"only MovieVid_DecodeMacroblocks (19620 calls, 101 tested): MPEG-2 field prediction; the movies played in level runs are frame pictures that never take it; offline leaf test not eligible (indirect call)"
+000ccef0,MovieVid_PredictDualPrime,not reached,"only MovieVid_DecodeMacroblocks (19620 calls, 101 tested): MPEG-2 dual-prime prediction never taken by the movies played; offline leaf test: all 4000 random inputs skipped (original crashes without a decoder context)"
+000cf840,MovieBase_DeletingDtor,not reached,slot 0 of MovieBase vtable 0x007cf600 (written only by the base constructor 0x000cf315/0x000cf362 and this destructor); derived movies replace it; 0 calls
+00292ee0,Key_TranslateButtonName,matched,"forced 18/18 matched (""DPad_Left"" table hit, ""t:ab"" sprintf path, ""zzzz"" no match; missions 1,4); offline leaf test 3835/3835 matched (65%); only RE_ParseButtonToken"
+00293720,SCR_RedrawFrontBuffer,host,"only Com_Frame's resume from the system pause (0x008d50dd/0x008d50dc, controller removed), never in level runs; forced 6/6 inconclusive (missions 1,4): nglBeginFrame/nglEndFrame present through our GfxDevice (host code game::gfx record_method)"
+002ab710,CL_CGameCall8,matched,"forced 6/6 matched (CL_CGameCall8(0), missions 1,4); cgame import slot 0x1e only (CL_InitRef table), the cgame never calls it in level runs"
+002ab7c0,CL_Setenv_f,matched,"--exec ""setenv foo bar baz"" 2/2 matched (missions 1,4); offline leaf test 3601/3601 matched (55%); console command only"
+002ac200,CL_CgameSystemCalls,not reached,VM_Create's syscall for the cgame VM (CL_InitCGame passes it; reached through cg_syscall 0x008da6d0 -> VM_DllSyscall); the linked cgame calls the client through its import table; the only read of cg_syscall is at 0x00275871; 0 calls in all level runs
+002ac450,CL_ClearConfigstrings,host,"only SV_MapRestart (3 tested, all inconclusive): VM_Call into the cgame reaches SndHw_Update (host sound code game::SndHw_Update)"
+002b2880,CL_CubemapShot_f,matched,"--exec 6/6 matched (""cubemapShot 5 foo"" bad size, ""... fresnel 0.5 2"" bad fresnel, ""... water 1 2 3 4 5 6"" bad keyword; missions 1,4); console command only; the capture path itself not run (writes files through the renderer)"
+002b31f0,CL_ShellExecute_URL_f,matched offline,offline leaf test 3861/3861 matched (60%); console command shellExecute only (not run in game: it would open a URL)
+002b32b0,CL_ForwardToServer_f,matched,"--exec ""cmd say hi"" 2/2 matched (missions 1,4); offline leaf test 3979/3979 matched (39%); console command only"
+002b3370,Key_Bindlist_f,matched,"--exec ""bindlist"" 2/2 matched (missions 1,4); offline leaf test 3843/3843 matched (76%); console command only"
+002bdf10,IN_Frame,host,"Sys_Main (15960 tested, all inconclusive): IN_PadUpdate -> IN_PadCheckDeviceChanges -> XGetDeviceChanges reaches our input back end (host code); also Sys_Milliseconds"
+002c1e00,Field_AdjustScroll,matched offline,offline leaf test 1138/1138 matched (56%); in game only CL_CharEvent (no keyboard on the Xbox) and CL_MapLoading+0x2e2 (0 calls)
+002c77d0,CL_CharEvent,not reached,"only Com_EventLoop char events (no keyboard on the Xbox) and dead CL_CharEventFiltered; forced on the console field 0x0092e830 (18 calls, missions 1,4): the original itself crashes in nglGetTextExtent (null font, address 0x13c8) - the field is never set up on the Xbox"
+002cd090,CL_CharEventFiltered,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept"
+002cd640,IN_DownDown,matched,"--exec ""+movedown"" 2/2 matched (missions 1,4); console command only (offline: original crashes in Cvar_Set2/IN_KeyDown on random state)"
+002f06b0,CL_LoadFrontEndZone,host,"CL_StartHunkUsers (10 tested, all inconclusive): Stream_StartRequest -> XAPILIB::CreateFileA (host file call)"
+002f08e0,CL_Shutdown,exit,"only Com_Quit_f (the title reboots instead of quitting); forced 6/6 inconclusive (missions 1,4): CL_ShutdownCGame/S_* reach SndHw_Update (host sound code)"
+002f2db0,CL_InitCGame,host,"only SV_SpawnServer (13 tested, all inconclusive): VM_Call CG_INIT reaches game::xb::load_vertex_program (host renderer code)"
+0030bf90,FE_BonusCESetText,front end,only FE_BonusCELoadImage (0 calls; bonus concept art menu)
+0030c010,FE_BonusCEFreeImage,front end,only FE_BonusCELoadImage (0 calls; bonus concept art menu); File_Close reaches CloseHandle like the other bonus FreeImage functions
+0030c070,FE_BonusArtCategoryLabel,front end,only SpecialConceptMenu_RestoreSelection (0 calls; bonus concept art menu)
+0030c130,FE_BonusMovieLabel,front end,only SpecialMaterialsMenu_OnUp (0 calls; bonus materials menu)
+0030c4d0,SaveSlot_Init,host,"AutosaveMenu_ShowSaveWarning/ProfileMenu_ShowSaveWarning/FE_CheckStartupStorage (2 tested, all inconclusive): Save_ClustersForSize -> XAPILIB::XGetDiskClusterSizeA (host save storage)"
+0030daa0,FE_BonusConceptFreeImage,host,"bonus concept gallery (BonusConceptsMenu_OnBack/OnLeave, FE_BonusConceptLoadImage); menu run: 49 tested, all inconclusive: File_Close -> XAPILIB::CloseHandle (host file call, no stand-in)"
+0030db00,FE_BonusVehicleFreeImage,host,"bonus vehicle gallery (BonusVehiclesMenu_OnBack/OnLeave/UpdateNewFlags, FE_BonusVehicleLoadImage); menu run: 48 tested, all inconclusive: File_Close -> XAPILIB::CloseHandle (host file call, no stand-in)"
+0030db60,FE_BonusWeaponFreeImage,host,"bonus weapon gallery (BonusWeaponsMenu_OnBack/OnLeave/UpdateNewFlags, FE_BonusWeaponLoadImage); menu run: 48 tested, all inconclusive: File_Close -> XAPILIB::CloseHandle (host file call, no stand-in)"
+0030dcc0,FE_BonusMainFreeImage,host,"bonus menu (BonusMaterialsMenu_OnLeave, FE_BonusMainLoadImage, CreateProfileMenu_Construct); menu run: 30 tested, all inconclusive: File_Close -> XAPILIB::CloseHandle (host file call, no stand-in)"
+0030df00,LoadingMenu_ClearElements,matched,"forced 6/6 matched (ebx=[[[0x0095f8fc]+4]+8] the loading menu, vtable guard 0x00829180; missions 1,4); only LoadingMenu_RestoreSelection (3 calls, sampled out)"
+0030dfd0,FE_AspectOptionLabel,front end,only its own label callback chain (FE_AspectOptionLabel+0xa4); 0 calls (options menu)
+0030eea0,UIScreenMgr_Update,matched,"forced 6/6 matched (ecx=[0x0095f8fc], dt 16; missions 1,4); UIScreenMgr vtable slot 0x0082a608 only (derived managers override it)"
+0030eed0,UIScreenMgr_LayoutAll,matched,"forced 6/6 matched (ecx=[0x0095f8fc]; missions 1,4); vtable slots 0x008286d0/0x00828820/0x00829060/0x0082a5fc only"
+0030ef90,UIMenu_SetItemsLayer,matched,"forced 6/6 matched (ecx=the pause menu, 1, 0; missions 1,4); vtable slot in ~40 menu vtables, 0 calls in level runs"
+0030f470,UIRoot_Dtor,matched,"forced 6/6 matched (ecx=0x0095f8d0 = g_uiRoot, missions 1,4); callers UIRoot_DeletingDtor and AtExit_UIRoot (the title never exits)"
+0030f730,UIText_ScrollBy,not reached,UIText vtable slot 0x0082a574 only; 0 calls in all level runs; menus may reach it in the steered run
+0030fb60,UITextBase_SetVertAlign,not reached,UITextBase vtable slot 0x00829908 only; 0 calls in all level runs; menus may reach it in the steered run
+0030fba0,UITextBase_SetHorzAlign,not reached,UITextBase vtable slot 0x00829904 only; 0 calls in all level runs; menus may reach it in the steered run
