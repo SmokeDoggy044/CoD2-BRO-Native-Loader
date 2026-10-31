@@ -936,4 +936,40 @@ void XB_CDECL Cmd_Give_f(uint8_t* ent);
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry_edi);
 extern "C" void Cmd_Activate_f_entry(void);
 
+// 0x002b1ca0: milliseconds since the first call: RDTSC ticks (the first call stores the base 0x0098b7f8 and
+// clears 0x008fef19) as an unsigned 64-bit x87 value times 1 / 733333.3 (0x0083ed64), _ftol.
+int32_t XB_CDECL Sys_Milliseconds();
+// 0x002a9be0: formats into a 32000-byte local (_vsprintf) and drops it (a disabled print).
+void XB_CDECL Com_PrintfStub(const char* format, ...);
+// 0x0028c490: the file system's memory (File_Configure {0x400, 0x20, 0x400, 3, 0}, Z_Malloc into
+// 0x0095f63c, File_InitSystem) and 0x008d9d44 = the largest of the boot device's three sizes. Boot only.
+void XB_CDECL FS_InitPackBuffers();
+// 0x00299af0: the small-block heap (SmallHeap_Init over five pools 0x14..0x100 bytes) stored in 15 heap
+// pointers, then Stream_InitSmallHeaps and ScrThread_InitDataHeap. Boot only (Com_Init).
+void XB_CDECL Com_InitSmallHeap();
+// 0x002c5260 (name in EDX): the localized entry's value (+0x60), 0 when not in the map 0x0095fee8.
+uint32_t XB_REGS2 XB_CDECL Loc_FindEntryValue(uint32_t unused, const char* name);
+// 0x002c5310 (name in EDX): the entry's text (+0x28), or its alternate text (+0x44) when `alternate` and
+// 0x0095fef4 are set; null when not found.
+const char* XB_REGS2 XB_CDECL Loc_FindStringEntry(uint32_t unused, const char* name, int32_t alternate);
+// 0x002c5700 (name in EDX; callee pops 4): the flag's bit (+0x28 of the set node) in the parser state's
+// flag set (+0x98, head +0x9c), 0 when not registered.
+uint32_t XB_REGS2 XB_STDCALL Loc_FindFlagBit(uint32_t unused, const char* name, uint8_t* state);
+// 0x002ca5e0: empties the localized-string map (0x0095fee8) and the two current-file strings.
+void XB_CDECL Loc_ClearStrings();
+// 0x002b86b0 (std::string in ESI; ECX kept): the text up to the first ';' (at most 127 chars, in 0x0098bb78),
+// erased from the string with the ';' (all of it when there is none); null for an empty string.
+extern "C" PLATFORM_HIDDEN char* XB_CDECL Loc_PopSemicolonToken(uint8_t* text);
+extern "C" void Loc_PopSemicolonToken_entry(void);
+// 0x002c5920 (text in EAX): a copy with every "\n" escape turned into a newline, in a function-static
+// std::string (0x0098bcdc, guard 0x0098bcf8, atexit 0x00379960). Returns its text.
+const char* XB_REGS1 XB_CDECL Loc_ReplaceNewlineEscapes(const char* text);
+// 0x002c5a00 (path in EAX, parser state in EDI; callee pops 4): state +0x3c = the file's base name in upper
+// case, +0x58 = its directory's name, +0x74 = that directory is 0x00833518 (case-insensitive), +0x84 = value.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Loc_BeginStringFile(const char* path, uint8_t* state, uint32_t value);
+extern "C" void Loc_BeginStringFile_entry(void);
+// 0x002ca430: appends "dir/file;" to `out` for every `extension` file under dir (subfolders first, recursively,
+// names starting with '.' skipped), counting them in 0x00929cd8.
+void XB_CDECL Loc_LoadStringDir_r(const char* extension, const char* dir, uint8_t* out);
+
 }  // namespace game

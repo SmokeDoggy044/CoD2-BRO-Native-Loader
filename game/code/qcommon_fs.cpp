@@ -5778,4 +5778,235 @@ int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry
     return 1;
 }
 
+
+// --- qcommon push 7 (high half), batch 3: clock, boot heaps, localized-string lookups ---
+
+int32_t XB_CDECL Sys_Milliseconds() {
+    // The RDTSC sites (0x002b1caf / 0x002b1ce9) are patched by the loader; C reads the same clock through XAPI
+    // QueryPerformanceCounter (0x001ed6ca).
+    const auto clock = [] {
+        uint32_t counter[2] = {0, 0};
+        title_function<uint32_t XB_STDCALL(uint32_t*)>(0x001ed6ca)(counter);
+        return (uint64_t{counter[1]} << 32) | counter[0];
+    };
+    uint32_t& base_low = title_global<uint32_t>(0x0098b7f8);
+    uint32_t& base_high = title_global<uint32_t>(0x0098b7fc);
+    if (title_global<uint8_t>(0x008fef19)) {
+        const uint64_t now = clock();
+        base_low = static_cast<uint32_t>(now);
+        base_high = static_cast<uint32_t>(now >> 32);
+        title_global<uint8_t>(0x008fef19) = 0;
+    }
+    const uint64_t ticks = clock() - ((uint64_t{base_high} << 32) | base_low);
+    // Unsigned 64-bit to x87: FILD of the low 63 bits plus 2^63 for the top bit, times 1 / 733333.3, _ftol.
+    const uint32_t low_part[2] = {static_cast<uint32_t>(ticks), static_cast<uint32_t>(ticks >> 32) & 0x7fffffffu};
+    const uint32_t sign_part[2] = {0, static_cast<uint32_t>(ticks >> 32) & 0x80000000u};
+    long double ms;
+    __asm__("fildll %1\n\tfildll %2\n\tfchs\n\tfaddp %%st, %%st(1)\n\tfmuls %3"
+            : "=t"(ms)
+            : "m"(low_part), "m"(sign_part), "m"(title_global<float>(0x0083ed64)));
+    return static_cast<int32_t>(static_cast<int64_t>(ms));
+}
+
+void XB_CDECL Com_PrintfStub(const char* format, ...) {
+    // Formats into a 32000-byte local (_vsprintf) and drops the text.
+    static_assert(sizeof(char) == 1);
+    char buffer[0x7d00];
+    va_list args;
+    va_start(args, format);
+    uint32_t list = u32(args);
+    va_end(args);
+    title_function<int32_t XB_CDECL(char*, const char*, uint32_t)>(0x001eea95)(buffer, format, list);  // _vsprintf
+}
+
+void XB_CDECL FS_InitPackBuffers() {
+    uint32_t config[5] = {0x400, 0x20, 0x400, 3, 0};
+    uint8_t* const memory = Z_Malloc(File_Configure(config));
+    title_global<uint32_t>(0x0095f63c) = u32(memory);
+    File_InitSystem(memory);
+    uint32_t info[3] = {0, 0, 0};
+    File_GetDeviceInfoForBit(title_global<uint32_t>(0x0095f6f4), info);
+    // The largest of the three device sizes (0x008d9d44).
+    const uint32_t larger = info[0] > info[1] ? info[0] : info[1];
+    title_global<uint32_t>(0x008d9d44) = larger <= info[2] ? info[2] : larger;
+}
+
+void XB_CDECL Com_InitSmallHeap() {
+    // {count, 16 x {size, align, count}}: five pools of 0x14 / 0x20 / 0x40 / 0x80 / 0x100 bytes.
+    uint32_t config[1 + 16 * 3];
+    config[0] = 0;
+    for (int32_t i = 0; i < 16; ++i) {
+        config[1 + i * 3] = 0;
+        config[2 + i * 3] = 4;
+        config[3 + i * 3] = 0;
+    }
+    static const uint32_t kPools[5][3] = {
+        {0x14, 4, 0x1000}, {0x20, 0x10, 0x800}, {0x40, 0x10, 0x800}, {0x80, 0x10, 0x400}, {0x100, 0x10, 0x1c2}};
+    for (const auto& pool : kPools) {
+        const uint32_t n = config[0];
+        if (static_cast<int32_t>(n) >= 16) continue;
+        config[1 + n * 3] = pool[0];
+        config[2 + n * 3] = pool[1];
+        config[3 + n * 3] = pool[2];
+        config[0] = n + 1;
+    }
+    uint8_t* heap = Z_Malloc(0x3c);
+    if (heap) heap = SmallHeap_Init(heap, config, 0, 0);
+    static const uint32_t kHeapPointers[] = {0x00947700, 0x0095f570, 0x0095f568, 0x0095f574, 0x0095f56c,
+                                             0x0095f5cc, 0x0095f494, 0x0095f488, 0x0095f48c, 0x0095f6d4,
+                                             0x0095f598, 0x0095f5bc, 0x0095f5c8, 0x0095f520, 0x0095f498};
+    for (uint32_t address : kHeapPointers) title_global<uint32_t>(address) = u32(heap);
+    Stream_InitSmallHeaps();
+    title_function<void XB_CDECL()>(0x002f67a0)();  // ScrThread_InitDataHeap
+}
+
+// --- Localized strings: map 0x0095fee8 (head 0x0095feec, size 0x0095fef0) of name -> {text +0x28, alternate
+// text +0x44 (used while 0x0095fef4), value +0x60} ---
+
+namespace {
+
+// A temporary std::string of `text` (the original's local), handed to a title tree search that takes the
+// tree in EDI, the key in ESI and the result slot in EBX; the string's heap buffer freed after.
+uint8_t* loc_tree_find(uint32_t find, uint8_t* tree, const char* text, uint8_t** out) {
+    alignas(4) uint8_t key[0x1c] = {};
+    pk<uint32_t>(key, 0x18) = 0xf;
+    pk<uint32_t>(key, 0x14) = 0;
+    key[4] = 0;
+    std_string_AssignN(key, text, static_cast<uint32_t>(std::strlen(text)));
+    TitleRegs regs{};
+    regs.edi = u32(tree);
+    regs.esi = u32(key);
+    regs.ebx = u32(out);
+    qc_call_regs(find, &regs, 0, nullptr);
+    if (pk<uint32_t>(key, 0x18) >= 0x10) Z_Free(pk_ptr(key, 4));
+    return *out;
+}
+
+constexpr uint32_t kLocMap = 0x0095fee8;
+constexpr uint32_t kMapStringFind = 0x0001f2e0;  // std_map_string_Find
+constexpr uint32_t kSetStringFind = 0x0001f500;  // std_set_string_Find
+
+const char* std_string_c_str(uint8_t* text) {
+    return pk<uint32_t>(text, 0x18) >= 0x10 ? reinterpret_cast<const char*>(pk_ptr(text, 4))
+                                            : reinterpret_cast<const char*>(text + 4);
+}
+
+}  // namespace
+
+uint32_t XB_REGS2 XB_CDECL Loc_FindEntryValue(uint32_t, const char* name) {
+    uint8_t* node = nullptr;
+    loc_tree_find(kMapStringFind, &title_global<uint8_t>(kLocMap), name, &node);
+    return node == title_global<uint8_t*>(kLocMap + 4) ? 0 : pk<uint32_t>(node, 0x60);
+}
+
+const char* XB_REGS2 XB_CDECL Loc_FindStringEntry(uint32_t, const char* name, int32_t alternate) {
+    uint8_t* node = nullptr;
+    loc_tree_find(kMapStringFind, &title_global<uint8_t>(kLocMap), name, &node);
+    if (node == title_global<uint8_t*>(kLocMap + 4)) return nullptr;
+    if (alternate && title_global<uint32_t>(0x0095fef4)) return std_string_c_str(node + 0x44);
+    return std_string_c_str(node + 0x28);
+}
+
+uint32_t XB_REGS2 XB_STDCALL Loc_FindFlagBit(uint32_t, const char* name, uint8_t* state) {
+    uint8_t* node = nullptr;  // the original uses its argument slot
+    loc_tree_find(kSetStringFind, state + 0x98, name, &node);
+    return node == pk_ptr(state, 0x9c) ? 0 : pk<uint32_t>(node, 0x28);
+}
+
+void XB_CDECL Loc_ClearStrings() {
+    std_map_string_EraseSubtree(&title_global<uint8_t>(kLocMap), pk_ptr(title_global<uint8_t*>(kLocMap + 4), 4));
+    pk<uint32_t>(title_global<uint8_t*>(kLocMap + 4), 4) = title_global<uint32_t>(kLocMap + 4);
+    uint8_t* const head = title_global<uint8_t*>(kLocMap + 4);
+    title_global<uint32_t>(0x0095fef0) = 0;
+    pk<uint32_t>(head, 0) = u32(head);
+    pk<uint32_t>(title_global<uint8_t*>(kLocMap + 4), 8) = title_global<uint32_t>(kLocMap + 4);
+    title_global<uint32_t>(0x0095fe70) = 0;
+    std_string_AssignN(&title_global<uint8_t>(0x0095fe74), tstr(0x0082dfeb), 0);
+    std_string_AssignN(&title_global<uint8_t>(0x0095fe90), tstr(0x0082dfeb), 0);
+}
+
+PLATFORM_ASM_ENTRY(Loc_PopSemicolonToken_entry,
+                   "pushl %ecx\n pushl %esi\n" PLATFORM_ASM_CALL(Loc_PopSemicolonToken) "addl $4, %esp\n"
+                   "popl %ecx\n ret")
+
+char* XB_CDECL Loc_PopSemicolonToken(uint8_t* text) {
+    if (!std::strlen(std_string_c_str(text))) return nullptr;
+    char* const token = &title_global<char>(0x0098bb78);
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(token, std_string_c_str(text), 0x7f);
+    title_global<char>(0x0098bbf7) = 0;
+    char* const semicolon = title_function<char* XB_CDECL(const char*, int32_t)>(0x001ef5e0)(token, ';');  // strchr
+    if (semicolon) {
+        *semicolon = 0;
+        std_string_Erase(text, 0, static_cast<uint32_t>(semicolon - token) + 1);
+    } else {
+        std_string_Erase(text, 0, 0xffffffff);
+    }
+    return token;
+}
+
+const char* XB_REGS1 XB_CDECL Loc_ReplaceNewlineEscapes(const char* text) {
+    uint8_t* const buffer = &title_global<uint8_t>(0x0098bcdc);  // function-static std::string
+    if (!(title_global<uint32_t>(0x0098bcf8) & 1)) {
+        title_global<uint32_t>(0x0098bcf8) |= 1;
+        title_global<uint32_t>(0x0098bcf4) = 0xf;
+        title_global<uint32_t>(0x0098bcf0) = 0;
+        title_global<uint8_t>(0x0098bce0) = 0;
+        title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(0x00379960);  // _atexit
+    }
+    std_string_AssignN(buffer, text, static_cast<uint32_t>(std::strlen(text)));
+    for (uint32_t pos = std_string_Find(0, buffer, tstr(0x0082d278), 2); pos != 0xffffffff;  // "\n" escape
+         pos = std_string_Find(0, buffer, tstr(0x0082d278), 2)) {
+        const_cast<char*>(std_string_c_str(buffer))[pos] = '\n';
+        std_string_Erase(buffer, pos + 1, 1);
+    }
+    return std_string_c_str(buffer);
+}
+
+// Loc_BeginStringFile (path in EAX, state in EDI).
+PLATFORM_ASM_ENTRY(Loc_BeginStringFile_entry,
+                   "pushl 4(%esp)\n pushl %edi\n pushl %eax\n" PLATFORM_ASM_CALL(Loc_BeginStringFile)
+                   "addl $12, %esp\n ret $4")
+
+void XB_CDECL Loc_BeginStringFile(const char* path, uint8_t* state, uint32_t value) {
+    char name[0x80];
+    const char* const base = COM_SkipPath(0, Loc_StripFileExtension(path));
+    std::strcpy(name, base);
+    title_function<char* XB_CDECL(char*)>(0x001fa3d5)(name);  // _strupr
+    std_string_AssignN(state + 0x3c, name, static_cast<uint32_t>(std::strlen(name)));
+    const char* const dir = COM_SkipPath(0, Com_DirName(path));
+    std_string_AssignN(state + 0x58, dir, static_cast<uint32_t>(std::strlen(dir)));
+    const int32_t differs = title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(  // _stricmp
+        std_string_c_str(state + 0x58), tstr(0x00833518));
+    pk<uint32_t>(state, 0x74) = differs ? 0 : 1;
+    pk<uint32_t>(state, 0x84) = value;
+}
+
+void XB_CDECL Loc_LoadStringDir_r(const char* extension, const char* dir, uint8_t* out) {
+    const auto free_list = [](char** list) {
+        if (!list) return;
+        for (char** name = list; *name; ++name) Z_Free(reinterpret_cast<uint8_t*>(*name));
+        Z_Free(reinterpret_cast<uint8_t*>(list));
+    };
+    const auto title_sprintf = title_function<int32_t XB_CDECL(char*, const char*, const char*, const char*)>(0x001ee901);
+    char path[0x80];
+    int32_t ndirs = 0;
+    char** const dirs = FS_ListFilteredFiles(dir, tstr(0x0082d70c), nullptr, &ndirs);  // "/"
+    for (int32_t i = 0; i < ndirs; ++i) {
+        const char* const name = dirs[i];
+        if (!name[0] || name[0] == '.') continue;
+        title_sprintf(path, tstr(0x00833208), dir, name);  // "%s/%s"
+        Loc_LoadStringDir_r(extension, path, out);
+    }
+    int32_t nfiles = 0;
+    char** const files = FS_ListFilteredFiles(dir, extension, nullptr, &nfiles);
+    for (int32_t i = 0; i < nfiles; ++i) {
+        title_sprintf(path, tstr(0x00833208), dir, files[i]);
+        std_string_AppendN(static_cast<uint32_t>(std::strlen(path)), out, path);
+        std_string_AppendNChar(out, 1, ';');
+        ++title_global<int32_t>(0x00929cd8);
+    }
+    free_list(files);
+    free_list(dirs);
+}
+
 }  // namespace game
