@@ -8145,6 +8145,7 @@
 0023b6d0 FX_ClearEffects
 0023b800 FX_InitEffectPool
 0023b970 FX_AllocEffect
+0023b9c0 FX_SurfacePlane
 0023ba80 RE_EndRegistration
 0023ba90 R_AddCellEntityLink
 0023bb70 R_ClipPolygonToPlane
@@ -9169,6 +9170,8 @@
 002a1fd0 FS_ReadFile
 002a22d0 FxShakeRumble_GetFalloff
 002a23b0 Cvar_Init
+002a2440 FS_TouchFile_f
+002a2480 FS_Dir_f
 002a2510 Com_RunAndTimeServerPacket
 002a2560 Vec3_RotateByAngles
 002a26a0 MatrixToAngles

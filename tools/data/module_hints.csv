@@ -476,3 +476,5 @@ address,module,source,evidence
 002ca5c0,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 high-half report)"
 002ca5d0,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 high-half report)"
 0029e380,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 high-half report)"
+002a2440,qcommon,manual,"FS_TouchFile_f gap (2026-10-31)"
+002a2480,qcommon,manual,"FS_Dir_f gap (2026-10-31)"

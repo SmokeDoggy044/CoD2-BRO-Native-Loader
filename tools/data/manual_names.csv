@@ -14334,3 +14334,6 @@ address,name,kind,confidence,evidence
 0028bb30,EmptyStub_0028bb30,function,medium,"from the body; qcommon push 9"
 0028bb40,EmptyStub_0028bb40,function,medium,"from the body; qcommon push 9"
 0028bc40,EmptyStub_0028bc40,function,medium,"from the body; qcommon push 9"
+0023b9c0,FX_SurfacePlane,function,medium,"plane of a surface's first triangle via PlaneFromPoints (ECX surface, EBX out); dead; qcommon push 9 report"
+002a2440,FS_TouchFile_f,function,high,"argc 2: FS_FOpenFileRead + FS_FCloseFile, like Q3's FS_TouchFile_f; dead"
+002a2480,FS_Dir_f,function,high,"argc 2-3: FS_ListFilteredFiles + free, like Q3's FS_Dir_f without prints; dead"

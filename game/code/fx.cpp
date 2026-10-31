@@ -10,6 +10,7 @@
 #include "ngl.h"
 #include "param_set.h"
 #include "qcommon.h"
+#include "qcommon_fs.h"
 #include "script_string.h"
 #include "snd.h"
 #include "stream.h"
@@ -5651,6 +5652,35 @@ uint32_t XB_THISCALL FxComponentB_IsOwnerGone(const uint8_t* component) {
     // Flag 2 of +0x2a: follows its owner entity.
     if (!(component[0x2a] & 2)) return 0;
     return (FxComponent_OwnerGone(component) & 0xff) ? 1u : 0u;
+}
+
+PLATFORM_ASM_ENTRY(FX_SurfacePlane_entry,
+                   "pushl %ebx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(FX_SurfacePlane) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL FX_SurfacePlane(const uint8_t* surface, float* plane) {
+    const float* a;
+    const float* b;
+    const float* origin;
+    const int32_t kind = surface ? *reinterpret_cast<const int32_t*>(surface) : 0;
+    if (surface && kind >= 0x14) {
+        const uint32_t first = *reinterpret_cast<const uint16_t*>(surface + 0x44);
+        origin = *reinterpret_cast<const float* const*>(surface + 0x3c);
+        a = origin + (*reinterpret_cast<const uint16_t*>(surface + 0x48) - first) * 3;
+        b = origin + (*reinterpret_cast<const uint16_t*>(surface + 0x46) - first) * 3;
+    } else if (surface && kind == 2) {
+        origin = *reinterpret_cast<const float* const*>(surface + 0xc);
+        a = origin + 0x10;
+        b = origin + 8;
+    } else {
+        for (int i = 0; i < 5; ++i) reinterpret_cast<uint32_t*>(plane)[i] = 0;
+        plane[0] = title_global<float>(0x0083eb20);
+        return;
+    }
+    float result[4];
+    PlaneFromPoints(a, b, origin, result);
+    for (int i = 0; i < 4; ++i) plane[i] = result[i];
 }
 
 }  // namespace game

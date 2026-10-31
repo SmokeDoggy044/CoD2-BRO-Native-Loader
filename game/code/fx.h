@@ -849,4 +849,11 @@ uint32_t XB_THISCALL FxComponent_OwnerGone(const uint8_t* component);
 // otherwise FxComponent_OwnerGone.
 uint32_t XB_THISCALL FxComponentB_IsOwnerGone(const uint8_t* component);
 
+// 0x0023b9c0 (surface in ECX, plane out in EBX): the plane of a surface's first triangle -
+// kind (+0) >= 0x14: vertices +0x3c (12 bytes each) indexed by the words +0x44 (origin), +0x48,
+// +0x46; kind 2: the three points of +0xc at +0, +0x40, +0x20 - through PlaneFromPoints;
+// no surface or another kind: five zero words with 1.0 in the first. No reference (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL FX_SurfacePlane(const uint8_t* surface, float* plane);
+extern "C" void FX_SurfacePlane_entry(void);
+
 }  // namespace game

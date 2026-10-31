@@ -1113,5 +1113,11 @@ extern "C" void Loc_ListStringFiles_entry(void);
 int32_t XB_CDECL Loc_ListLanguages();
 // 0x002fbff0: the name map (0x0095fe00) entry of `key` erased; 1 if found. Dead.
 uint8_t XB_CDECL IntHashMap_EraseByKey(int32_t key);
+// 0x002a2440: console command (exactly one argument) that sets 0x00940280 and opens and closes the named
+// file: Q3's FS_TouchFile_f. No reference (dead).
+void XB_CDECL FS_TouchFile_f();
+// 0x002a2480: console command "<path> [extension]": FS_ListFilteredFiles and frees the list unprinted
+// (Q3's FS_Dir_f with the prints stripped). No reference (dead).
+void XB_CDECL FS_Dir_f();
 
 }  // namespace game

@@ -7531,4 +7531,25 @@ uint8_t XB_CDECL IntHashMap_EraseByKey(int32_t key) {
     return 1;
 }
 
+void XB_CDECL FS_TouchFile_f() {
+    if (title_global<uint32_t>(0x00934248) != 2) return;  // cmd_argc
+    const char* const name = title_global<const char*>(0x0092df94);  // argv[1]
+    int32_t file = 0;
+    title_global<uint32_t>(0x00940280) = 1;
+    FS_FOpenFileRead(name, &file, 0, 0);
+    if (file) FS_FCloseFile(file);
+}
+
+void XB_CDECL FS_Dir_f() {
+    const uint32_t argc = title_global<uint32_t>(0x00934248);  // cmd_argc
+    if (static_cast<int32_t>(argc) < 2 || static_cast<int32_t>(argc) > 3) return;
+    const char* const path = title_global<const char*>(0x0092df94);  // argv[1]
+    const char* const extension = argc > 2 ? title_global<const char*>(0x0092df98) : tstr(0x0082dfeb);  // argv[2] or ""
+    int32_t count;
+    char** const list = FS_ListFilteredFiles(path, extension, nullptr, &count);
+    if (!list) return;
+    for (char** entry = list; *entry; ++entry) Z_Free(reinterpret_cast<uint8_t*>(*entry));
+    Z_Free(reinterpret_cast<uint8_t*>(list));
+}
+
 }  // namespace game
