@@ -30,7 +30,9 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <sys/mman.h>
+#include <asm/ldt.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -1109,7 +1111,28 @@ const game::Function* find_function(const char* name) {
 
 }  // namespace
 
+// The decompiled C reads the thread's Xbox block through FS (GAME_GAP_ESP: the frame limit at
+// FS:[0x14], 0 while no callee runs at the original's position). The loader gives every title
+// thread one; here a zeroed block stands in, else those entries crash. Kept by the forked cases.
+bool give_fs_block() {
+    alignas(4096) static uint32_t block[1024];
+    user_desc d{};
+    d.entry_number = 0;
+    d.base_addr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(block));
+    d.limit = sizeof(block) - 1;
+    d.seg_32bit = 1;
+    d.useable = 1;
+    if (syscall(SYS_modify_ldt, 1, &d, sizeof(d)) != 0) return false;
+    const uint16_t selector = 0 << 3 | 4 | 3;  // LDT entry 0, ring 3
+    asm volatile("movw %0, %%fs" : : "r"(selector));
+    return true;
+}
+
 int main() {
+    if (!give_fs_block()) {
+        std::printf("leaf_test: no FS block (modify_ldt failed)\n");
+        return 1;
+    }
     // A replayed case needs its arena at the same address: reserved before anything else maps.
     const char* replay = std::getenv("LEAF_REPLAY");
     FILE* replay_file = replay ? std::fopen(replay, "rb") : nullptr;
