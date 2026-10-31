@@ -280,9 +280,10 @@ void set_progress(uint8_t* menu, uint32_t ebx, uint32_t esi, uint32_t edi, uint3
         title_call_at_regs(top, function, &regs, 0, nullptr);
         *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = ret;
     };
-    // FUCOMIP against 0.0 on the x87 (an SSE compare would see a denormal as 0 under the title's DAZ); NaN steps.
-    const volatile long double extended = progress;  // volatile: GCC would narrow the compare back to UCOMISS
-    if (extended == 0.0L) {
+    // FUCOMIP against the double 2.0 at 0x0083ed38 (CG_SetInitialSnapshot's "done" value; the level load's own
+    // fractions step); NaN steps. On the x87 as the original (volatile: GCC would narrow it back to UCOMISS).
+    const volatile long double extended = progress;
+    if (extended == 2.0L) {
         const uint32_t color = static_color(p.bright_guard, 0xff, 0xff);
         const int32_t chapter = title_global<int32_t>(0x008dce48);
         for (int32_t k = 0; k < p.chapters; ++k) {

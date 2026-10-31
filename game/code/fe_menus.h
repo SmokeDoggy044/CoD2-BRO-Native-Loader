@@ -114,7 +114,7 @@ extern "C" void LoadAfricaMenu_ShowMissions_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL LoadSicilyMenu_ShowMissions(int32_t last, uint8_t* menu, uint32_t ebx);
 extern "C" void LoadSicilyMenu_ShowMissions_entry(void);
 // 0x00313790 / 0x003134e0 / 0x00313240 (menu in EAX, load progress 0..1 on the stack, ret 4; called from
-// SV_SpawnServer): 0 = the current chapter's text white and the missions shown up to +0x40 + +0x3c - 1 without the
+// SV_SpawnServer; CG_SetInitialSnapshot passes 2): 2 = the current chapter's text white and the missions shown up to +0x40 + +0x3c - 1 without the
 // dimming; else the missions up to (int)(+0x40 * progress) + +0x3c - 1 once past +0x44 (stored), and two screen
 // updates while the front end is in the screen's state (2 / 3 / 4). The C versions get EBX, ESI, EDI, the entry ESP.
 extern "C" PLATFORM_HIDDEN void XB_CDECL LoadingMenu_SetProgress(uint8_t* menu, uint32_t ebx, uint32_t esi,

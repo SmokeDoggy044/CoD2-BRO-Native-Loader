@@ -69,6 +69,15 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_UpdateHighlight(uint8
 extern "C" void CreateProfileMenu_UpdateHighlight_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_ToggleCase(uint8_t* menu, uint32_t entry_esp);
 extern "C" void CreateProfileMenu_ToggleCase_entry(void);
+// 0x0030d530 (menu in ESI; with a panel +0x38 only): the keyboard's layout. Highlight +0x44 alpha 1, the other 39
+// key highlights and +0x184..+0x190 alpha 0; the 40 keys set (vtable +0x04 (index, element +0xe4.., 0)), keys 0-35
+// labelled "0".."9", "a".."z" (+0x30, a two-byte stack string; capitals +0x1a8 off) and 36-39 "" (+0x34); vtable
+// +0x98 (0.8); the grid neighbours (+0x08 up, +0x0a down, +0x0c left, +0x0e right; rows 0-9, 10-18, 19-27,
+// 28-35, then backspace / caps / space / done 36-39, wrapping); backspace, space and done hidden while the name is
+// empty (+0x20); vtable +0x88 (10, 1). The C version gets ECX (its push ecx slot holds the string) and the entry ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_BuildKeyboard(uint8_t* menu, uint32_t ecx,
+                                                                         uint32_t entry_esp);
+extern "C" void CreateProfileMenu_BuildKeyboard_entry(void);
 // 0x003258c0 (menu in ESI): one character off the name ('_' cursor), the "profileName" text (+0x6c); below 15
 // characters every key shown (+0x20 (0)); an empty name hides backspace, space and done (+0x20 (1)).
 extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_Backspace(uint8_t* menu, uint32_t entry_esp);
