@@ -94,6 +94,7 @@ void XB_REGS3 XB_CDECL Mat34_Transpose3(float* out, uint32_t unused, const float
 // 0x002c7220 (vector in EAX, in place and returned; rows in ECX; unnamed in Ghidra): v = {row0.v, row1.v, row2.v} with
 // packed products (every lane, the input's w included).
 float* XB_REGS3 XB_CDECL Mat34_RotateVector(float* v, uint32_t unused, const float* rows);
+extern "C" void Mat34_RotateVector_entry(void);  // keeps ECX like the original
 
 // Trace work (ECX in the trace helpers): +0 start, +0x20 / +0x30 bounds (16-byte rows), +0x60 the eight box
 // corner offsets (by sign of x/y/z), +0x120 fraction, +0x128 contents, +0x13c startsolid, +0x13d allsolid,

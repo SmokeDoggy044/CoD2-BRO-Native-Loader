@@ -74,6 +74,7 @@ extern "C" void Com_sprintf_entry(void);
 int32_t XB_REGS2 XB_CDECL Com_BitCheck(uint32_t unused, int32_t bit, const uint32_t* array);
 // 0x002aaaa0: cmd_argv[arg], "" past cmd_argc (unsigned compare).
 const char* XB_CDECL Cmd_Argv(uint32_t arg);
+extern "C" void Cmd_Argv_entry(void);  // keeps ECX/EDX like the original
 // 0x002aaac0.
 int32_t XB_CDECL Cmd_Argc();
 // 0x002aaa10 (first in EAX): the arguments from `first` on, space separated, in 0x00927b30.

@@ -35,6 +35,7 @@ void XB_CDECL GLimp_Init();
 // the character after a code is skipped uncounted too (and a code at the very end
 // reads one byte past the terminator), as in the original.
 int32_t XB_REGS2 Q_PrintStrlen(uint32_t eax_unused, const char* string);
+extern "C" void Q_PrintStrlen_entry(void);  // keeps the XMM registers like the original
 // 0x00236230: points the world at the collision map's.
 void XB_CDECL RE_LoadWorldMap();
 // 0x002387e0: appends the view model's entity to the second frame list (when the

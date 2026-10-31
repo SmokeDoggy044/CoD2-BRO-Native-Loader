@@ -435,6 +435,12 @@ void XB_REGS3 XB_CDECL Mat34_Transpose3(float* out, uint32_t, const float* rows)
     }
 }
 
+// The original keeps ECX: the title rotates two vectors with the rows loaded once (0x002e7024).
+extern "C" PLATFORM_HIDDEN float* XB_REGS3 XB_CDECL cm_mat34_rotate_vector(float* v, uint32_t unused, const float* rows);
+PLATFORM_ASM_ENTRY(Mat34_RotateVector_entry,
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(cm_mat34_rotate_vector) "popl %ecx\n"
+                   "ret")
+
 float* XB_REGS3 XB_CDECL Mat34_RotateVector(float* v, uint32_t, const float* rows) {
     const Lanes in = lanes(v);
     for (int32_t i = 0; i < 3; ++i) {
@@ -5328,6 +5334,10 @@ uint8_t XB_CDECL CM_PushCapsuleOutOfListedObjects(float* origin, float radius, c
         origin[2] = origin[2] - offsets[s];
     }
     return hit;
+}
+
+float* XB_REGS3 XB_CDECL cm_mat34_rotate_vector(float* v, uint32_t unused, const float* rows) {
+    return Mat34_RotateVector(v, unused, rows);
 }
 
 }  // namespace game

@@ -218,8 +218,9 @@ uint32_t XB_CDECL MemContext_Push(uint8_t* context, uint32_t id) {
     return old;
 }
 
+// The original keeps EDX: a caller (0x00290005) loads the memory system once and pops twice.
 PLATFORM_ASM_ENTRY(MemContext_Pop_entry,
-                   "pushl %edx\n" PLATFORM_ASM_CALL(MemContext_Pop) "addl $4, %esp\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(MemContext_Pop) "popl %edx\n"
                    "ret")
 
 uint32_t XB_CDECL MemContext_Pop(uint8_t* context) {

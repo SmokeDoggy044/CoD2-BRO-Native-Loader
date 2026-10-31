@@ -104,6 +104,30 @@ void XB_CDECL GLimp_Init() {
     set(0x0095e7dc, 0);
 }
 
+// The original keeps the XMM registers: a caller (0x00241a9b) keeps XMM0/XMM2 across the call.
+extern "C" PLATFORM_HIDDEN int32_t XB_REGS2 tr_q_printstrlen(uint32_t unused, const char* string);
+PLATFORM_ASM_ENTRY(Q_PrintStrlen_entry,
+                   "subl $128, %esp\n"
+                   "movups %xmm0, 0(%esp)\n"
+                   "movups %xmm1, 16(%esp)\n"
+                   "movups %xmm2, 32(%esp)\n"
+                   "movups %xmm3, 48(%esp)\n"
+                   "movups %xmm4, 64(%esp)\n"
+                   "movups %xmm5, 80(%esp)\n"
+                   "movups %xmm6, 96(%esp)\n"
+                   "movups %xmm7, 112(%esp)\n" PLATFORM_ASM_CALL(tr_q_printstrlen)
+                   "movups 0(%esp), %xmm0\n"
+                   "movups 16(%esp), %xmm1\n"
+                   "movups 32(%esp), %xmm2\n"
+                   "movups 48(%esp), %xmm3\n"
+                   "movups 64(%esp), %xmm4\n"
+                   "movups 80(%esp), %xmm5\n"
+                   "movups 96(%esp), %xmm6\n"
+                   "movups 112(%esp), %xmm7\n"
+                   "addl $128, %esp\n"
+                   "ret")
+int32_t XB_REGS2 tr_q_printstrlen(uint32_t unused, const char* string) { return Q_PrintStrlen(unused, string); }
+
 int32_t XB_REGS2 Q_PrintStrlen(uint32_t, const char* string) {
     int32_t length = 0;
     if (!*string) return 0;

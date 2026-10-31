@@ -218,6 +218,7 @@ extern "C" void AngleDeltaQuantized_entry(void);
 void XB_REGS3 XB_CDECL AxisCopy(float* out, uint32_t unused_edx, const float* in);
 // 0x00295020: out = transpose(in) for a 3x3 matrix (out in EAX, in in ECX).
 void XB_REGS3 XB_CDECL MatrixTranspose(float* out, uint32_t unused_edx, const float* in);
+extern "C" void MatrixTranspose_entry(void);  // keeps ECX and the XMM registers like the original
 // 0x00295b40 (index in EAX, out in ECX; ECX kept): Q3's ByteToDir over bytedirs
 // (0x008d52d8, 162 entries); out of range gives the zero vector.
 extern "C" PLATFORM_HIDDEN void XB_CDECL ByteToDir(int32_t index, float* out);

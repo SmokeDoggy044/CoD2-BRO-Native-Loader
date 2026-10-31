@@ -767,6 +767,32 @@ void XB_REGS3 XB_CDECL AxisCopy(float* out, uint32_t, const float* in) {
     for (int i = 0; i < 9; ++i) copy_word(out + i, in + i);
 }
 
+// The original keeps ECX and every XMM register: a caller (0x00281399) keeps XMM1 across the call.
+extern "C" PLATFORM_HIDDEN void XB_REGS3 XB_CDECL qfs_matrix_transpose(float* out, uint32_t unused, const float* in);
+PLATFORM_ASM_ENTRY(MatrixTranspose_entry,
+                   "pushl %ecx\n"
+                   "subl $128, %esp\n"
+                   "movups %xmm0, 0(%esp)\n"
+                   "movups %xmm1, 16(%esp)\n"
+                   "movups %xmm2, 32(%esp)\n"
+                   "movups %xmm3, 48(%esp)\n"
+                   "movups %xmm4, 64(%esp)\n"
+                   "movups %xmm5, 80(%esp)\n"
+                   "movups %xmm6, 96(%esp)\n"
+                   "movups %xmm7, 112(%esp)\n" PLATFORM_ASM_CALL(qfs_matrix_transpose)
+                   "movups 0(%esp), %xmm0\n"
+                   "movups 16(%esp), %xmm1\n"
+                   "movups 32(%esp), %xmm2\n"
+                   "movups 48(%esp), %xmm3\n"
+                   "movups 64(%esp), %xmm4\n"
+                   "movups 80(%esp), %xmm5\n"
+                   "movups 96(%esp), %xmm6\n"
+                   "movups 112(%esp), %xmm7\n"
+                   "addl $128, %esp\n"
+                   "popl %ecx\n"
+                   "ret")
+void XB_REGS3 XB_CDECL qfs_matrix_transpose(float* out, uint32_t unused, const float* in) { MatrixTranspose(out, unused, in); }
+
 void XB_REGS3 XB_CDECL MatrixTranspose(float* out, uint32_t, const float* in) {
     static const int kSource[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
     for (int i = 0; i < 9; ++i) copy_word(out + i, in + kSource[i]);
@@ -6963,7 +6989,7 @@ void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index
                 pk<uint32_t>(pk_ptr(section, 0x10), pk<uint32_t>(record, 0xc) * 0x1c) + pk<uint32_t>(record, 0x10);
             const float one = title_global<float>(0x0083eb20);
             float block[4] = {one, one, one, 0.0f};
-            uint32_t bits[2] = {0, 0};
+            uint32_t bits[4] = {0, 0, 0, 0};  // two bit arrays of two words (StreamMem_Alloc / MoveSlots)
             StreamMem_Alloc(title_global<uint32_t*>(0x0095f62c), bits, block);
             uint32_t slot[2] = {0, 0};  // {address, size}
             StreamMem_GetBlock(bits, title_global<uint8_t*>(0x0095f62c), slot, 0);

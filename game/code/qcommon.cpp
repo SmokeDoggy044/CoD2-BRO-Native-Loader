@@ -302,6 +302,16 @@ int32_t XB_REGS2 XB_CDECL Com_BitCheck(uint32_t, int32_t bit, const uint32_t* ar
     return (array[bit >> 5] & (1u << (bit & 31))) ? 1 : 0;
 }
 
+// The original keeps ECX and EDX: a caller (0x002caef7) reads EDX after the call.
+extern "C" PLATFORM_HIDDEN const char* XB_CDECL qc_cmd_argv(uint32_t arg) { return Cmd_Argv(arg); }
+PLATFORM_ASM_ENTRY(Cmd_Argv_entry,
+                   "pushl %ecx\n"
+                   "pushl %edx\n"
+                   "pushl 12(%esp)\n" PLATFORM_ASM_CALL(qc_cmd_argv) "addl $4, %esp\n"
+                   "popl %edx\n"
+                   "popl %ecx\n"
+                   "ret")
+
 const char* XB_CDECL Cmd_Argv(uint32_t arg) {
     if (arg >= title_global<uint32_t>(0x00934248)) return title_pointer<const char>(0x0082dfeb);
     return title_global<const char*>(0x0092df90 + arg * 4);
