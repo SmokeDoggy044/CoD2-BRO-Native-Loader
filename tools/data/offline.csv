@@ -523,6 +523,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0017b650,std_CopyBackward4,1897,1897,0,0,100.0
 0017cbe0,std_vector_UfillN4,1015,1015,0,0,100.0
 0017cd50,std_vector_Erase4,1223,1223,0,0,100.0
+0017cea0,std_list_Erase,2475,2475,0,0,100.0
 001ef700,std_exception_Ctor,3801,3801,0,0,100.0
 001fa680,Actor_ForgetEnemyLastKnownTime,2698,2698,0,0,100.0
 001fb460,Actor_CriticalSection_Start,3814,3814,0,0,100.0
@@ -607,7 +608,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002800a0,CG_CenterPrint,3467,3467,0,0,29.0
 0028bea0,Stream_LoadSpace,4000,4000,0,0,100.0
 0028cb00,Pak_AssignZoneIdsByName,1836,1836,0,0,89.0
-0028d7d0,ResourceManager_Destruct,1078,1078,0,0,69.4
+0028d7d0,ResourceManager_Destruct,1024,1024,0,0,47.2
 0028d8b0,ZoneRecord_GetContext,3759,3759,0,0,100.0
 0028ef40,StreamMem_Free,1023,1023,0,0,100.0
 0028f5c0,Pak_FindZoneByName,1945,1945,0,0,100.0
@@ -616,7 +617,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00292ee0,Key_TranslateButtonName,3804,3804,0,0,65.0
 002939d0,Com_Prefetch,3973,3973,0,0,100.0
 00293ab0,Com_MemcpyPrefetch,1881,1881,0,0,100.0
-00293d20,Com_StringContains,3646,3646,0,0,87.8
+00293d20,Com_StringContains,3632,3632,0,0,87.8
 00293e10,Rand_StepSeed,4000,4000,0,0,94.4
 00294190,AxisCopy,3693,3693,0,0,100.0
 00295b40,ByteToDir,3826,3826,0,0,100.0
@@ -625,18 +626,20 @@ address,name,tested,matched,nan,mismatched,coverage
 00295eb0,FS_CreatePath,3802,3802,0,0,92.9
 00295f90,FS_HashFileName,3817,3817,0,0,100.0
 00296350,RE_ParseButtonToken,3378,3378,0,0,46.2
-00297280,Com_Filter,3774,3774,0,0,60.4
+00297280,Com_Filter,3735,3735,0,0,43.4
+00297470,AngleNormalize180Quantized,4000,4000,0,0,100.0
 002979f0,FS_FreeFileList,2729,2729,0,0,100.0
 00297a30,FS_FreeFile,3520,3520,0,0,100.0
 00297d10,FS_FilenameCompare,3668,3668,0,0,100.0
 00299150,FX_IsEffectActive,2183,2183,0,0,100.0
-00299310,ParamSet_TestCondition,1788,1788,0,0,11.4
+00299310,ParamSet_TestCondition,1911,1911,0,0,20.1
 00299670,Cvar_Shutdown,1506,1506,0,0,100.0
 00299800,Com_PushEvent,3848,3848,0,0,92.5
 002999e0,Com_SafeMode,3925,3925,0,0,90.2
 00299cc0,Com_FilterPath,3651,3651,0,0,100.0
+0029a020,AngleDeltaQuantized,4000,4000,0,0,100.0
 0029a810,FS_AddFileToList,1764,1764,0,0,95.4
-0029ab20,FS_IsCfgMenuOrDatFile,3808,3808,0,0,87.9
+0029ab20,FS_IsCfgMenuOrDatFile,3824,3824,0,0,90.9
 0029ae90,FxShakeRumbleComponent_Stop,1015,1015,0,0,100.0
 0029b0b0,FxComponent_OwnerGone,3849,3849,0,0,100.0
 0029c8c0,Mat44_GetAxis,1810,1810,0,0,100.0
@@ -669,8 +672,9 @@ address,name,tested,matched,nan,mismatched,coverage
 002a9780,LongSwap,4000,4000,0,0,100.0
 002a97b0,ShortNoSwap,4000,4000,0,0,100.0
 002a97c0,ShortSwap,4000,4000,0,0,100.0
-002a9a60,Com_ParseCommaToken,3505,3505,0,0,89.5
+002a9a60,Com_ParseCommaToken,3436,3436,0,0,88.2
 002a9b30,SkipWhitespace,3826,3826,0,0,100.0
+002a9c10,Com_ParseError,3629,3629,0,0,100.0
 002a9cf0,Com_BeginParseSession,1947,1947,0,0,100.0
 002aa2f0,NET_AdrToString,4000,4000,0,0,100.0
 002aa480,MSG_ReadStringLine,1983,1983,0,0,100.0
@@ -695,7 +699,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002afa40,Loc_IsGb2312Char,4000,4000,0,0,100.0
 002b00a0,Q_strcat,1264,1264,0,0,100.0
 002b00f0,Q_stricmp,3679,3679,0,0,100.0
-002b0250,COM_ParseExt,3478,3478,0,0,26.8
+002b0250,COM_ParseExt,3497,3497,0,0,46.1
 002b1e50,Cmd_ArgsBuffer,1347,1347,0,0,100.0
 002b2200,CM_FloodAreaConnections,1830,1830,0,0,96.8
 002b2c60,SCR_DrawSmallChar,3169,3169,0,0,100.0
@@ -736,7 +740,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002bdc80,Quat_ToMat44,3528,3528,0,0,100.0
 002bfc10,Mat43_UntransformPoint,1831,1826,5,0,100.0
 002bffb0,SV_AdjustAreaPortalState,3057,3057,0,0,100.0
-002c0120,Loc_CountChars,3772,3772,0,0,37.1
+002c0120,Loc_CountChars,3742,3742,0,0,31.8
 002c0d30,Cmd_Vstr_f,3991,3991,0,0,71.4
 002c1d60,Key_Unbindall_f,3192,3192,0,0,100.0
 002c1db0,Key_Unbind_f,3996,3996,0,0,50.0
@@ -756,7 +760,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
 002f6840,AnimTree_FreeNotetracks,1745,1745,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
-0030c240,Save_CheckVersion,3813,3813,0,0,30.6
+0030c240,Save_CheckVersion,3835,3835,0,0,30.6
 0030cd70,FE_FormatPlayTime,2094,2094,0,0,87.2
 0030cdf0,FE_SplitPlayTime2,3316,3316,0,0,100.0
 0030d0b0,FE_FormatPlayTime2,1999,1999,0,0,87.2
