@@ -8,7 +8,7 @@ The CPU is not emulated and nothing is recompiled. It needs your own copy of the
 game; no game code or data is included.
 
 This is a prototype and the proof of concept for a full native build: the
-single-player campaign is playable, missions 1 to 5 have been tested through.
+whole single-player campaign is playable.
 Multiplayer works over System Link (your local network); Xbox Live is not
 available.
 
