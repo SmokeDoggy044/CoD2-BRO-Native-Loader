@@ -10646,7 +10646,7 @@ address,name,section,module,state,tested,matched
 0030d140,FE_SplitPlayTime,.text,client,matched,2,2
 0030d3e0,CreateProfileMenu_UpdateHighlight,.text,client,untested,0,0
 0030d4c0,CreateProfileMenu_ToggleCase,.text,client,matched,1,1
-0030d530,FUN_0030d530,.text,client,unnamed,0,0
+0030d530,CreateProfileMenu_BuildKeyboard,.text,client,untested,0,0
 0030daa0,FE_BonusConceptFreeImage,.text,client,set-aside,49,0
 0030db00,FE_BonusVehicleFreeImage,.text,client,set-aside,48,0
 0030db60,FE_BonusWeaponFreeImage,.text,client,set-aside,48,0
@@ -10743,9 +10743,9 @@ address,name,section,module,state,tested,matched
 00312e30,Profile_SumMissionStats,.text,qcommon,replaced,0,0
 00312f60,UIRoot_InitChapterTable,.text,client,matched,64,64
 00313120,LoadSicilyMenu_ShowMissions,.text,client,matched,6,6
-00313240,LoadSicilyMenu_SetProgress,.text,client,mismatched,72,58
+00313240,LoadSicilyMenu_SetProgress,.text,client,matched,34,31
 00313360,LoadAfricaMenu_ShowMissions,.text,client,matched,30,30
-003134e0,LoadAfricaMenu_SetProgress,.text,client,mismatched,369,194
+003134e0,LoadAfricaMenu_SetProgress,.text,client,settled,131,118
 00313610,LoadingMenu_ShowMissions,.text,client,untested,0,0
 00313790,LoadingMenu_SetProgress,.text,client,untested,0,0
 00313900,ScreenMenu_ToggleAspect,.text,client,untested,0,0
@@ -11145,6 +11145,7 @@ address,name,section,module,state,tested,matched
 00338960,ProfileMenu_CheckStorage,.text,client,inconclusive,8,0
 00338b70,CreateProfileMenu_Finish,.text,client,inconclusive,2,0
 00338c40,CreateProfileMenu_HandleSelect,.text,client,matched,22,21
+00338ca0,FUN_00338ca0,.text,client,unnamed,0,0
 00338d70,FE_DifficultyMenu_Init,.text,client,inconclusive,2,0
 00338e40,SoundMenu_RestoreSelection,.text,sound,replaced,6,6
 00338f50,ControllerConfigMenu_RestoreSelection,.text,client,inconclusive,4,0

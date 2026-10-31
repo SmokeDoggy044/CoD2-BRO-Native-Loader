@@ -14388,3 +14388,4 @@ address,name,kind,confidence,evidence
 00313e40,DialogOverlay_LayoutTexts,function,high,"client push 1: from the body (C in game/code)"
 00312870,Live_CheckGameInvite,function,high,"client push 1: Xbox Live invite check, set aside"
 0030cf90,MissionSuccessFailMenu_DialogReturnTrue,function,medium,"mov al,1; ret: dialog callback stored by MissionSuccessFailMenu_ShowRetryDialog/HandleSelect (boundary fix client push 1)"
+0030d530,CreateProfileMenu_BuildKeyboard,function,high,"client push 2: key labels 0-9 a-z, grid neighbours (C in fe_profile.cpp)"

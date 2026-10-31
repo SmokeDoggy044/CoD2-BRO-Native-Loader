@@ -480,3 +480,4 @@ address,module,source,evidence
 002a2480,qcommon,manual,"FS_Dir_f gap (2026-10-31)"
 00012280,client,auto,"TitleMenu vtable thunk to TitleMenu_Accept (client push 1)"
 003154a0,client,auto,"stub split from UIRoot_DrawFrontEnd, calls SCR_UpdateLoadingIcon(0), no refs (client push 1)"
+00338ca0,client,auto,"CreateProfileMenu vtable 0x0082a0a8 slot: resets the name, BuildKeyboard, 0x00314b20 (created client push 2)"
