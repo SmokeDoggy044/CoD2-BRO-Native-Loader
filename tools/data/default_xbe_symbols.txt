@@ -39,7 +39,7 @@
 000121b0 UIRootMenu_DeletingDtor
 000121d0 Panel_DeletingDtor
 00012220 TitleMenu_Dtor
-00012280 FUN_00012280
+00012280 TitleMenu_OnAccept
 00012290 TitleMenu_DeletingDtor
 000122b0 InGameScreens_DeletingDtor
 000122e0 UIDialog_DeletingDtor
@@ -10777,7 +10777,7 @@
 00315360 UI_SetFontByName
 003153d0 UIRoot_DrawInGameScreens
 00315440 UIRoot_DrawFrontEnd
-003154a0 FUN_003154a0
+003154a0 UI_UpdateLoadingIcon
 003154b0 UIRoot_DrawHud
 00315520 UIRoot_UpdateInGameScreens
 00315560 UIRoot_UpdateFrontEnd

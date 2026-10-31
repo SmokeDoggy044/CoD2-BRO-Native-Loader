@@ -14361,3 +14361,5 @@ address,name,kind,confidence,evidence
 00334b10,ProfileMenu_StartLoad,function,high,"client push 1: from the body (C in game/code)"
 003352d0,ProfileMenu_ShowNoSaveDataDialog,function,high,"client push 1: from the body (C in game/code)"
 00338610,ProfileMenu_ConfirmLoad,function,high,"client push 1: from the body (C in game/code)"
+00012280,TitleMenu_OnAccept,function,high,"client push 2: from the body"
+003154a0,UI_UpdateLoadingIcon,function,high,"client push 2: from the body"
