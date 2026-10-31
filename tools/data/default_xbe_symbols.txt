@@ -11145,7 +11145,7 @@
 00338960 ProfileMenu_CheckStorage
 00338b70 CreateProfileMenu_Finish
 00338c40 CreateProfileMenu_HandleSelect
-00338ca0 FUN_00338ca0
+00338ca0 CreateProfileMenu_Activate
 00338d70 FE_DifficultyMenu_Init
 00338e40 SoundMenu_RestoreSelection
 00338f50 ControllerConfigMenu_RestoreSelection

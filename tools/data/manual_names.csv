@@ -14389,3 +14389,4 @@ address,name,kind,confidence,evidence
 00312870,Live_CheckGameInvite,function,high,"client push 1: Xbox Live invite check, set aside"
 0030cf90,MissionSuccessFailMenu_DialogReturnTrue,function,medium,"mov al,1; ret: dialog callback stored by MissionSuccessFailMenu_ShowRetryDialog/HandleSelect (boundary fix client push 1)"
 0030d530,CreateProfileMenu_BuildKeyboard,function,high,"client push 2: key labels 0-9 a-z, grid neighbours (C in fe_profile.cpp)"
+00338ca0,CreateProfileMenu_Activate,function,high,"client push 2: CreateProfileMenu vtable slot, resets the name and builds the keyboard"
