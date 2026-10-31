@@ -51,7 +51,7 @@ are kept in your user data folder (`~/.local/share/cod_bro` or `%APPDATA%\cod_br
 
 Some antivirus programs flag `cod_bro_launcher.exe` and `cod_bro_loader.exe` as
 `Gen:Variant.Babar.740485`. On VirusTotal, for 0.2.0, 8 of 71 engines report this for the
-launcher and 7 of 71 for the loader.
+launcher and 7 of 71 for the loader. The Linux files show no detections.
 We believe these are false positives, and we would rather tell you why than have you
 find out by surprise:
 
