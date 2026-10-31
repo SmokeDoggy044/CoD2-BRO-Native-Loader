@@ -698,4 +698,53 @@ int32_t XB_CDECL Com_EventLoop();
 // 0xe), the frame timing (com_maxfps), Scr_RunThreads, SV_Frame, CL_Frame and frame advance.
 void XB_CDECL Com_Frame();
 
+// 0x0029fe70: Q3's Com_InitJournaling (journal 1 writes, 2 reads journal.dat / journaldata.dat; com_journal
+// reset to 0 when either is missing).
+void XB_CDECL Com_InitJournaling();
+// 0x002a6dc0: Q3's Com_Quit_f without Sys_Quit (unless 0x00947b08): CL/SV/Com/FS shutdown.
+void XB_CDECL Com_Quit_f();
+// 0x002cae20: Q3's Cmd_Exec_f; "style_*" files also set the control style 0x008dce7c (h 0, e 1, f 2, g 3,
+// others 4).
+void XB_CDECL Cmd_Exec_f();
+// 0x0029e3d0: Q3's Cvar_Set_f (the arguments from 2 joined with spaces, length counted as strlen(arg + 1)).
+void XB_CDECL Cvar_Set_f();
+// 0x0029ea80: Q3's FS_ListFilteredFiles for folders only (packs skipped; fs_restrict lists "svg" only);
+// keeps the stripped path and "" extension in its argument slots.
+char** XB_CDECL FS_ListFilteredFiles(const char* path, const char* extension, const char* filter, int32_t* numfiles);
+
+// 0x0017bd20: resize of a DynArray of 24-byte elements; new ones (and a grown block from
+// DynArray_Alloc24_FillUndefined) hold the undefined float 0x00922eb8.
+void XB_THISCALL DynArray_Resize24(DynArray* array, uint32_t size, uint32_t capacity);
+// 0x0017be40: element `index` (24 bytes), the array grown to index + 1 (capacity index + 4) first.
+uint32_t* XB_THISCALL DynArray_At24(DynArray* array, uint32_t index);
+// 0x0017bfb0: resize of a DynArray of 8-byte elements {0, g_scrUndefinedBool}.
+void XB_THISCALL DynArray_Resize8(DynArray* array, uint32_t size, uint32_t capacity);
+// 0x0017c050: element `index` (8 bytes), grown like DynArray_At24.
+uint32_t* XB_THISCALL DynArray_At(DynArray* array, uint32_t index);
+// 0x0017cea0: std::list::erase of a node (the value's script block and the node freed) unless it is the head;
+// *out = the next node.
+uint8_t** XB_THISCALL std_list_Erase(uint8_t* list, uint8_t** out, uint8_t* node);
+// 0x0017cef0 and six more instances (0x0017d140, 0x0017d390, 0x0017d680, 0x0017d970, 0x0017de40,
+// 0x001e6510): MSVC 7.1 vector<dword>::_Insert_n (growth by half, std_vector_Xlen past 0x3fffffff).
+void XB_THISCALL std_vector_InsertN4(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value);
+// 0x0017dbc0 and six more instances (0x0017dc30, 0x0017dca0, 0x0017dd10, 0x0017ddd0, 0x0017e370, 0x001e6760):
+// vector<dword>::resize(size, value).
+void XB_THISCALL std_vector_Resize4(Vector4* vector, uint32_t size, uint32_t value);
+// 0x0017dd80: vector<dword>::_Buy - an empty vector, then room for count (0 for none).
+uint8_t XB_THISCALL std_vector_Buy4(Vector4* vector, uint32_t count);
+
+// The other std_vector_InsertN4 / std_vector_Resize4 instances (addresses at those two).
+void XB_THISCALL std_vector_InsertN4_2(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value);
+void XB_THISCALL std_vector_Resize4_2(Vector4* vector, uint32_t size, uint32_t value);
+void XB_THISCALL std_vector_InsertN4_3(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value);
+void XB_THISCALL std_vector_Resize4_3(Vector4* vector, uint32_t size, uint32_t value);
+void XB_THISCALL std_vector_InsertN4_4(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value);
+void XB_THISCALL std_vector_Resize4_4(Vector4* vector, uint32_t size, uint32_t value);
+void XB_THISCALL std_vector_InsertN4_5(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value);
+void XB_THISCALL std_vector_Resize4_5(Vector4* vector, uint32_t size, uint32_t value);
+void XB_THISCALL std_vector_InsertN4_6(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value);
+void XB_THISCALL std_vector_Resize4_6(Vector4* vector, uint32_t size, uint32_t value);
+void XB_THISCALL std_vector_InsertN4_7(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value);
+void XB_THISCALL std_vector_Resize4_7(Vector4* vector, uint32_t size, uint32_t value);
+
 }  // namespace game

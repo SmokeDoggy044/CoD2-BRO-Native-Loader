@@ -4216,4 +4216,327 @@ void XB_CDECL Com_Frame() {
     }
 }
 
+
+void XB_CDECL Com_InitJournaling() {
+    Com_StartupVariable(tstr(0x00837d68));  // "journal"
+    uint8_t* const journal = Cvar_Get(tstr(0x00837d68), tstr(0x0082e098), 0x10);
+    title_global<uint8_t*>(0x00940a00) = journal;  // com_journal
+    const int32_t mode = pk<int32_t>(journal, 0x20);
+    if (!mode) return;
+    int32_t& journal_file = title_global<int32_t>(0x0093fce0);
+    int32_t& data_file = title_global<int32_t>(0x0093fcd4);
+    if (mode == 1) {
+        journal_file = FS_FOpenFileWrite(tstr(0x00838094));  // "journal.dat"
+        data_file = FS_FOpenFileWrite(tstr(0x00838084));     // "journaldata.dat"
+    } else if (mode == 2) {
+        title_global<int32_t>(0x00940280) = 1;
+        FS_FOpenFileRead(tstr(0x00838094), &journal_file, 1, 0);
+        title_global<int32_t>(0x00940280) = 1;
+        FS_FOpenFileRead(tstr(0x00838084), &data_file, 1, 0);
+    }
+    if (journal_file && data_file) return;
+    Cvar_Set2(tstr(0x00837d5c), const_cast<char*>(tstr(0x0082e098)), 1);  // com_journal "0"
+    journal_file = 0;
+    data_file = 0;
+}
+
+void XB_CDECL Com_Quit_f() {
+    if (title_global<uint32_t>(0x00947b08)) return;
+    if (++title_global<int32_t>(0x0093fc28) == 0) title_global<int32_t>(0x0093fc28) = 1;
+    title_global<uint32_t>(0x0095f510) = 0;
+    title_global<uint32_t>(0x0095f4ec) = 0;
+    CL_Shutdown();
+    SV_ShutdownServer();
+    Com_Shutdown();
+    FS_Shutdown(1);
+}
+
+void XB_CDECL Cmd_Exec_f() {
+    const uint32_t& argc = title_global<uint32_t>(0x00934248);  // cmd_argc
+    if (argc != 2) return;
+    if (crt_strstr(title_global<const char*>(0x0092df94), 0x00833cec)) {  // "style_": the control style
+        const char* const arg = argc > 1 ? title_global<const char*>(0x0092df94) : tstr(0x0082dfeb);
+        int32_t& style = title_global<int32_t>(0x008dce7c);
+        if (!std::strcmp(arg, tstr(0x00833ce0)))         // "style_h.cfg"
+            style = 0;
+        else if (!std::strcmp(arg, tstr(0x00833cd4)))    // "style_e.cfg"
+            style = 1;
+        else if (!std::strcmp(arg, tstr(0x00833cc8)))    // "style_f.cfg"
+            style = 2;
+        else
+            style = std::strcmp(Cmd_Argv(1), tstr(0x00833cbc)) ? 4 : 3;  // "style_g.cfg"
+    }
+    char filename[0x80];
+    crt_strncpy(filename, argc > 1 ? title_global<const char*>(0x0092df94) : tstr(0x0082dfeb), 0x7f);
+    filename[0x7f] = 0;
+    COM_DefaultExtension(filename, 0x80, tstr(0x00833cb4));  // ".cfg"
+    void* buffer = nullptr;
+    FS_ReadFile(filename, &buffer);
+    if (!buffer) return;
+    Cbuf_InsertText(static_cast<const char*>(buffer));
+    --title_global<int32_t>(0x00940a0c);  // fs_loadStack
+    Z_Free(static_cast<uint8_t*>(buffer));
+}
+
+void XB_CDECL Cvar_Set_f() {
+    const uint32_t& argc = title_global<uint32_t>(0x00934248);  // cmd_argc
+    const auto argv = [&argc](uint32_t i) { return i < argc ? title_global<const char*>(0x0092df90 + i * 4) : tstr(0x0082dfeb); };
+    if (static_cast<int32_t>(argc) < 3) return;
+    char combined[0x1000];
+    combined[0] = 0;
+    int32_t length = 0;
+    for (uint32_t i = 2; static_cast<int32_t>(i) < static_cast<int32_t>(argc); ++i) {
+        const int32_t len = static_cast<int32_t>(std::strlen(argv(i) + 1));  // Q3's strlen(Cmd_Argv(i) + 1)
+        if (len + length >= 0xffe) break;
+        std::strcat(combined, argv(i));
+        if (i != argc - 1) std::strcat(combined, tstr(0x0082d6e4));  // " "
+        length += len;
+    }
+    Cvar_Set2(argv(1), combined, 0);
+}
+
+char** XB_CDECL FS_ListFilteredFiles(const char* path, const char* extension, const char* filter, int32_t* numfiles) {
+    if (!path) {
+        *numfiles = 0;
+        return nullptr;
+    }
+    if (!extension) extension = tstr(0x0082dfeb);
+    if (*path == '/' || *path == '\\') ++path;
+    const int32_t is_dir_filter = extension && !Q_stricmpn(extension, tstr(0x0082d70c), 99999) ? 1 : 0;  // "/"
+    char netpath[0x100];
+    int32_t depth;
+    FS_ReturnPath(0, 0, path, netpath, &depth);
+    int32_t nfiles = 0;
+    char* list[0x1000];
+    for (uint8_t* sp = title_global<uint8_t*>(kSearchPaths); sp; sp = pk_ptr(sp, 0)) {
+        if (search_path_skipped(sp)) continue;
+        if (pk_ptr(sp, 4)) continue;  // packs are not listed
+        if (!pk_ptr(sp, 8)) continue;
+        if (cvar_int(0x0093fcc4) || title_global<uint32_t>(0x0093fcc8)) {  // fs_restrict: "svg" only
+            if (!extension || Q_stricmpn(extension, tstr(0x00832f64), 99999)) continue;
+        }
+        uint8_t* const dir = pk_ptr(sp, 8);
+        FS_BuildOSPath(reinterpret_cast<const char*>(dir + 0x80), 0, reinterpret_cast<const char*>(dir), path, netpath, 0);
+        int32_t count = 0;
+        using SysListFiles = char** XB_REGS3 XB_CDECL(uint32_t, const char*, const char*, const char*, int32_t*, int32_t);
+        char** const files = title_function<SysListFiles>(0x00223bf0)(0, filter, extension, netpath, &count, is_dir_filter);
+        for (int32_t i = 0; i < count; ++i) nfiles = FS_AddFileToList(files[i], list, nfiles);
+        if (files) {
+            for (char** f = files; *f; ++f) Z_Free(reinterpret_cast<uint8_t*>(*f));
+            Z_Free(reinterpret_cast<uint8_t*>(files));
+        }
+    }
+    *numfiles = nfiles;
+    if (!nfiles) return nullptr;
+    const uint32_t bytes = static_cast<uint32_t>(nfiles * 4 + 4);
+    char** const result = title_function<char** XB_CDECL(uint32_t)>(0x00042c10)(bytes);  // Z_Malloc
+    Com_Memset(reinterpret_cast<uint8_t*>(result), 0, bytes);
+    for (int32_t i = 0; i < nfiles; ++i) result[i] = list[i];
+    result[nfiles] = nullptr;
+    return result;
+}
+
+
+// --- qcommon push 5 (high half): script containers ---
+
+namespace {
+
+uint32_t ptr_count4(const uint32_t* first, const uint32_t* last) {
+    return static_cast<uint32_t>(static_cast<int32_t>(u32(last) - u32(first)) >> 2);
+}
+
+// 0x0045a330 (a copy in the PROLOGUE section): count 8-byte elements {0, g_scrUndefinedBool}.
+uint32_t* alloc8_fill_undefined(uint32_t count) {
+    const uint32_t bytes = count << 3;
+    uint32_t* const data = Scr_Alloc(bytes, 4);
+    uint8_t* const end = reinterpret_cast<uint8_t*>(data) + bytes;
+    for (uint8_t* element = reinterpret_cast<uint8_t*>(data); element != end; element += 8) {
+        if (!element) continue;
+        *reinterpret_cast<uint32_t*>(element) = 0;
+        element[4] = title_global<uint8_t>(kScrUndefinedBool);
+    }
+    return data;
+}
+
+}  // namespace
+
+void XB_THISCALL DynArray_Resize24(DynArray* array, uint32_t size, uint32_t capacity) {
+    if (size <= array->capacity) {
+        const uint32_t old_size = array->size;
+        if (size > old_size) {
+            uint8_t* element = reinterpret_cast<uint8_t*>(array->data) + old_size * 24;
+            uint8_t* const end = reinterpret_cast<uint8_t*>(array->data) + size * 24;
+            for (; element != end; element += 24) {
+                if (!element) continue;
+                uint32_t* const words = reinterpret_cast<uint32_t*>(element);
+                for (int32_t i = 0; i < 6; ++i) words[i] = title_global<uint32_t>(kScrUndefinedFloat);
+            }
+        }
+        array->size = size;
+        return;
+    }
+    // 0x0045a2a0 (a PROLOGUE-section copy of DynArray_Alloc24_FillUndefined).
+    uint32_t* const data = DynArray_Alloc24_FillUndefined(capacity, 0);
+    for (uint32_t i = 0; i < (array->size >= size ? size : array->size); ++i)
+        for (int32_t w = 0; w < 6; ++w) data[i * 6 + w] = array->data[i * 6 + w];
+    if (array->data) Scr_Free(array->data);
+    array->data = data;
+    array->capacity = capacity;
+    array->size = size;
+}
+
+uint32_t* XB_THISCALL DynArray_At24(DynArray* array, uint32_t index) {
+    if (index >= array->size) DynArray_Resize24(array, index + 1, index + 4);
+    return array->data + index * 6;
+}
+
+void XB_THISCALL DynArray_Resize8(DynArray* array, uint32_t size, uint32_t capacity) {
+    if (size <= array->capacity) {
+        const uint32_t old_size = array->size;
+        if (size > old_size) {
+            uint8_t* element = reinterpret_cast<uint8_t*>(array->data) + old_size * 8;
+            uint8_t* const end = reinterpret_cast<uint8_t*>(array->data) + size * 8;
+            for (; element != end; element += 8) {
+                if (!element) continue;
+                *reinterpret_cast<uint32_t*>(element) = 0;
+                element[4] = title_global<uint8_t>(kScrUndefinedBool);
+            }
+        }
+        array->size = size;
+        return;
+    }
+    uint32_t* const data = alloc8_fill_undefined(capacity);
+    for (uint32_t i = 0; i < (array->size >= size ? size : array->size); ++i) {
+        data[i * 2] = array->data[i * 2];
+        data[i * 2 + 1] = array->data[i * 2 + 1];
+    }
+    if (array->data) Scr_Free(array->data);
+    array->data = data;
+    array->capacity = capacity;
+    array->size = size;
+}
+
+uint32_t* XB_THISCALL DynArray_At(DynArray* array, uint32_t index) {
+    if (index >= array->size) DynArray_Resize8(array, index + 1, index + 4);
+    return array->data + index * 2;
+}
+
+uint8_t** XB_THISCALL std_list_Erase(uint8_t* list, uint8_t** out, uint8_t* node) {
+    // Nodes: +0 next, +4 prev, +0xc the value's script block; list +4 head, +8 size.
+    uint8_t* const next = pk_ptr(node, 0);
+    if (node != pk_ptr(list, 4)) {
+        pk<uint32_t>(pk_ptr(node, 4), 0) = pk<uint32_t>(node, 0);
+        pk<uint32_t>(pk_ptr(node, 0), 4) = pk<uint32_t>(node, 4);
+        if (pk_ptr(node, 0xc)) Scr_Free(pk_ptr(node, 0xc));  // 0x0045e770, the value's destructor
+        Scr_Free(node);
+        --pk<int32_t>(list, 8);
+    }
+    *out = next;
+    return out;
+}
+
+void XB_THISCALL std_vector_InsertN4(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value_ptr) {
+    // MSVC vector<dword>::_Insert_n; the value is copied first (into its argument slot in the original). The
+    // seven instances differ only in which copies of the helpers they call. No exception handler in C: the
+    // original's catch (free the new block, rethrow) needs an allocation failure Scr_Alloc never reports.
+    const uint32_t value = *value_ptr;
+    uint32_t* const first = vector->first;
+    const uint32_t capacity = first ? ptr_count4(first, vector->end) : 0;
+    if (!count) return;
+    const auto size = [vector, first] { return first ? ptr_count4(first, vector->last) : 0; };
+    if (0x3fffffff - size() < count) title_function<void XB_THISCALL(Vector4*)>(0x0017ce30)(vector);  // std_vector_Xlen
+    if (capacity < size() + count) {
+        uint32_t new_capacity = 0x3fffffff - capacity / 2 < capacity ? 0 : capacity + capacity / 2;
+        if (new_capacity < size() + count) new_capacity = size() + count;
+        const uint32_t bytes = new_capacity << 2;
+        uint32_t* const data = Scr_Alloc(bytes, 4);
+        uint32_t* const middle = std_UninitializedCopy4(vector->first, where, data);
+        std_UninitializedFillN4(middle, count, &value);
+        std_UninitializedCopy4(where, vector->last, middle + count);
+        uint32_t* const old = vector->first;
+        const uint32_t total = count + (old ? ptr_count4(old, vector->last) : 0);
+        if (old) Scr_Free(old);
+        vector->end = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(data) + bytes);
+        vector->last = data + total;
+        vector->first = data;
+        return;
+    }
+    uint32_t* const last = vector->last;
+    if (ptr_count4(where, last) < count) {
+        std_UninitializedCopy4(where, last, where + count);
+        std_UninitializedFillN4(vector->last, count - ptr_count4(where, vector->last), &value);
+        vector->last = vector->last + count;
+        std_Fill4(where, vector->last - count, &value);
+        return;
+    }
+    uint32_t* const source = last - count;
+    vector->last = std_UninitializedCopy4(source, last, last);
+    std_CopyBackward4(where, source, last);
+    std_Fill4(where, where + count, &value);
+}
+
+void XB_THISCALL std_vector_Resize4(Vector4* vector, uint32_t size, uint32_t value) {
+    const uint32_t old_size = vector->first ? ptr_count4(vector->first, vector->last) : 0;
+    if (old_size < size) {
+        std_vector_InsertN4(vector, vector->last, size - old_size, &value);
+        return;
+    }
+    if (vector->first && size < ptr_count4(vector->first, vector->last)) {
+        uint32_t* out;
+        std_vector_Erase4(vector, &out, vector->first + size, vector->last);
+    }
+}
+
+uint8_t XB_THISCALL std_vector_Buy4(Vector4* vector, uint32_t count) {
+    vector->first = nullptr;
+    vector->last = nullptr;
+    vector->end = nullptr;
+    if (!count) return 0;
+    if (count > 0x3fffffff) title_function<void XB_THISCALL(Vector4*)>(0x0017ce30)(vector);  // std_vector_Xlen
+    uint32_t* const data = Scr_Alloc(count << 2, 4);
+    vector->end = data + count;
+    vector->first = data;
+    vector->last = data;
+    return 1;
+}
+
+
+// The other instances (same bodies, other copies of the helpers).
+void XB_THISCALL std_vector_InsertN4_2(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value) {
+    std_vector_InsertN4(vector, where, count, value);
+}
+void XB_THISCALL std_vector_Resize4_2(Vector4* vector, uint32_t size, uint32_t value) {
+    std_vector_Resize4(vector, size, value);
+}
+void XB_THISCALL std_vector_InsertN4_3(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value) {
+    std_vector_InsertN4(vector, where, count, value);
+}
+void XB_THISCALL std_vector_Resize4_3(Vector4* vector, uint32_t size, uint32_t value) {
+    std_vector_Resize4(vector, size, value);
+}
+void XB_THISCALL std_vector_InsertN4_4(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value) {
+    std_vector_InsertN4(vector, where, count, value);
+}
+void XB_THISCALL std_vector_Resize4_4(Vector4* vector, uint32_t size, uint32_t value) {
+    std_vector_Resize4(vector, size, value);
+}
+void XB_THISCALL std_vector_InsertN4_5(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value) {
+    std_vector_InsertN4(vector, where, count, value);
+}
+void XB_THISCALL std_vector_Resize4_5(Vector4* vector, uint32_t size, uint32_t value) {
+    std_vector_Resize4(vector, size, value);
+}
+void XB_THISCALL std_vector_InsertN4_6(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value) {
+    std_vector_InsertN4(vector, where, count, value);
+}
+void XB_THISCALL std_vector_Resize4_6(Vector4* vector, uint32_t size, uint32_t value) {
+    std_vector_Resize4(vector, size, value);
+}
+void XB_THISCALL std_vector_InsertN4_7(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value) {
+    std_vector_InsertN4(vector, where, count, value);
+}
+void XB_THISCALL std_vector_Resize4_7(Vector4* vector, uint32_t size, uint32_t value) {
+    std_vector_Resize4(vector, size, value);
+}
+
 }  // namespace game
