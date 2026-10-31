@@ -30,6 +30,14 @@
 
 // PAGEMAP_SCAN (Linux 6.7) from older headers (the Steam Runtime's, for the player release): the
 // kernel's ABI as linux/fs.h has it. A kernel without it fails the ioctl and the pagemap path runs.
+// Newer system calls the sandbox denies, by their i386 numbers where the headers lack them.
+#ifndef SYS_clone3
+#define SYS_clone3 435
+#endif
+#ifndef SYS_openat2
+#define SYS_openat2 437
+#endif
+
 #ifndef PAGEMAP_SCAN
 struct page_region {
     __u64 start;
