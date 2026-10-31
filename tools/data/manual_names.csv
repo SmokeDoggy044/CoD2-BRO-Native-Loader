@@ -14289,3 +14289,6 @@ address,name,kind,confidence,evidence
 0031ac60,Save_HasEnoughFreeSpace,function,high,"room for a 0x400-byte save on the device; qcommon push 5"
 001ee881,std_string_Xran,function,high,"throws ""invalid string position""; qcommon push 5"
 001ee8c1,std_string_Xlen,function,high,"throws ""string too long""; qcommon push 5"
+00376750,StaticInit_LocStrings,function,high,"static init: LocStrings_Ctor on 0x0095fe70, _atexit(AtExit_LocStrings); qcommon push 6"
+0001d930,LocStrings_Ctor,function,medium,"constructs the Loc strings object (ESI): two maps, a string vector, a set; qcommon push 6"
+0001d9d0,LocStrings_Dtor,function,medium,"destroys the Loc strings object (stdcall this); qcommon push 6"

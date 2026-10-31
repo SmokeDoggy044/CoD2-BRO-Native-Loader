@@ -464,8 +464,8 @@
 0001d880 SceneFX_DeletingDtor
 0001d8b0 CM_WorldTreeManager_DeletingDtor
 0001d8f0 FUN_0001d8f0
-0001d930 FUN_0001d930
-0001d9d0 FUN_0001d9d0
+0001d930 LocStrings_Ctor
+0001d9d0 LocStrings_Dtor
 0001daf0 LocEntry_Dtor
 0001db80 Anim_CreateClipState
 0001dc10 AnimScript_Construct
@@ -11149,7 +11149,7 @@
 00376690 StaticInit_DownVec4_95ff20
 003766d0 StaticInit_Vec4_960060
 00376710 StaticInit_Vec4_95fe60
-00376750 FUN_00376750
+00376750 StaticInit_LocStrings
 003767b0 StaticInit_Vec4_960110
 003767f0 StaticInit_Vec4_95ff70
 003769e0 StaticInit_DownVec4_9717e0
