@@ -495,6 +495,22 @@ uint32_t XB_CDECL File_PumpRequests();
 // alias stride (each out optional); 0 when there is none.
 uint32_t XB_CDECL File_GetNativeHandle(int32_t handle, uint32_t* out_info, uint32_t* out_offset, uint32_t* out_size,
                                        uint32_t* out_stride);
+// 0x000caa00: the devices' combined status (0 idle, 1 busy, 2 error, -1 no devices). Dead.
+int32_t XB_CDECL FileDevice_GetOverallStatus();
+// 0x000caa70: that status as text. Dead (Ghidra: function missing, case blocks 0x000caa81..99).
+const char* XB_CDECL FileDevice_StatusName(int32_t status);
+// 0x000caab0: aborting devices go idle and their requests are queued again. Dead.
+void XB_CDECL FileDevice_ResetAborted();
+// 0x000cab60: a device record with priority desc[0]. Dead.
+int32_t XB_CDECL File_CreateDevice(const uint32_t* desc);
+// 0x000cab90: aborts every request of a device record.
+void XB_CDECL File_AbortRequestsForDevice(uint32_t device);
+// 0x000cac00: aborts a device record's requests and frees it. Dead.
+void XB_CDECL File_DestroyDevice(uint32_t device);
+// 0x000cbbe0: XAPI device op cancel: CancelIo(*handle); 0 when cancelled.
+uint32_t XB_CDECL FileDeviceXapi_Cancel(const uint32_t* handle);
+// 0x000cbc00: XAPI device op poll: alertable SleepEx(0); 0.
+uint32_t XB_CDECL FileDeviceXapi_Poll();
 // 0x000cad40: File_LayoutMemory(memory), the request/device/file pools, the default device; threaded: mutex,
 // event, request thread.
 void XB_CDECL File_InitSystem(uint8_t* memory);
@@ -598,6 +614,79 @@ uint32_t* XB_REGS2 XB_CDECL std_UninitializedCopy4_2(uint32_t, const uint32_t* l
 // 0x00015540 / 0x000215e0: a list head (Z_Malloc 0x2c / 0x10 bytes) linked to itself.
 uint8_t* XB_CDECL std_list_BuyHeadNameMap();
 uint8_t* XB_CDECL std_list_BuyHeadZ();
+// 0x0001d830 (text in EAX): HashStr_Init's hash alone.
+uint32_t XB_REGS1 XB_CDECL HashStr_Hash(const char* text);
+// 0x0001ee70 (table in EAX, out in EBX): takes the first free slot of a 512-slot handle table; out =
+// generation << 12 | slot.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL HandleTable512_Alloc(uint32_t* table, uint32_t* out);
+extern "C" void HandleTable512_Alloc_entry(void);
+// 0x00015a90: {data, capacity, count} resize to count (zeroed), reallocating to `capacity` past the capacity.
+void XB_THISCALL DynArray_Resize(uint8_t* array, uint32_t count, uint32_t capacity);
+// 0x0001ef30 (array in EDI; item): push_back of a 12-byte item.
+extern "C" PLATFORM_HIDDEN void XB_CDECL DynArray_PushBack12(uint8_t* array, const uint32_t* item);
+extern "C" void DynArray_PushBack12_entry(void);
+// 0x0001b620 (first EDX, dst ECX; unused word, last): std_UninitializedCopy4_2 with the arguments reordered.
+uint32_t* XB_REGS3 XB_STDCALL std_UninitializedCopy4_3(uint32_t, const uint32_t* first, uint32_t* dst, uint32_t,
+                                                        const uint32_t* last);
+// 0x0001b960 (slot in EAX, size in ESI): 16-aligned memory from the pak's memory context, else the heap.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL MemContext_AllocOrHeap16(int32_t slot, uint32_t size);
+extern "C" void MemContext_AllocOrHeap16_entry(void);
+// 0x0001f2e0 / 0x0001f500 (key in ESI, tree in EDI, out in EBX): map/set<string>::find.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_map_string_Find(const uint8_t* key, const uint8_t* tree, uint32_t* out);
+extern "C" void std_map_string_Find_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_set_string_Find(const uint8_t* key, const uint8_t* tree, uint32_t* out);
+extern "C" void std_set_string_Find_entry(void);
+// 0x00020c00 / 0x00021050 / 0x000206e0 (where in EAX, tree in ECX; out, addleft, value): _Insert of a red
+// node under `where`, then the rebalancing walk; out = the node (throws past the max size).
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_map_string_Insert(uint8_t* where, uint8_t* tree, uint32_t* out,
+                                                                    uint8_t addleft, const uint8_t* value);
+extern "C" void std_map_string_Insert_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_set_string_Insert(uint8_t* where, uint8_t* tree, uint32_t* out,
+                                                                    uint8_t addleft, const uint8_t* value);
+extern "C" void std_set_string_Insert_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_tree_Insert29(uint8_t* where, uint8_t* tree, uint32_t* out,
+                                                                uint8_t addleft, const uint8_t* value);
+extern "C" void std_tree_Insert29_entry(void);
+// 0x00020a10 / 0x00020e60 / 0x0001f560: insert(value) of a unique key; out = {node, inserted byte}.
+uint32_t* XB_STDCALL std_map_string_InsertUnique(uint8_t* tree, uint32_t* out, const uint8_t* value);
+uint32_t* XB_STDCALL std_set_string_InsertUnique(uint8_t* tree, uint32_t* out, const uint8_t* value);
+uint32_t* XB_STDCALL std_tree_InsertUnique29(uint8_t* tree, uint32_t* out, const uint8_t* value);
+// 0x00020120 (a in EAX, b in ECX): b < a for 28-byte strings.
+uint8_t XB_REGS3 XB_CDECL std_string_KeyLess(const uint8_t* a, uint32_t unused_edx, const uint8_t* b);
+// 0x0001ff50 / 0x00020490 (tree EBX, out ESI, value EDI; hint): insert(hint, value); out = the node.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_map_string_InsertHint(uint8_t* tree, uint32_t* out,
+                                                                        const uint8_t* value, uint8_t* where);
+extern "C" void std_map_string_InsertHint_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_set_string_InsertHint(uint8_t* tree, uint32_t* out,
+                                                                        const uint8_t* value, uint8_t* where);
+extern "C" void std_set_string_InsertHint_entry(void);
+// 0x00020670 (pair in EDI, key in EAX; value): the name map's {key, {string, string, int}} pair.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_map_string_MakePair(uint8_t* pair, const uint8_t* key,
+                                                                     const uint8_t* value);
+extern "C" void std_map_string_MakePair_entry(void);
+// 0x0001f1f0 / 0x0001f460 (key in EAX; tree): operator[] of the name map / the string -> int map; returns
+// the value (node +0x28), inserted empty when missing.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_map_string_Subscript(const uint8_t* key, uint8_t* tree);
+extern "C" void std_map_string_Subscript_entry(void);
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_set_string_Subscript(const uint8_t* key, uint8_t* tree);
+extern "C" void std_set_string_Subscript_entry(void);
+// 0x00011060: {hash, name[0x1c]}: rol-5 xor hash of the name (letters lowered), the lowered name.
+uint32_t* XB_THISCALL HashStr_Init(uint32_t* hashed, const char* name);
+// 0x00014af0 (map in EDI, out in EBX, stdcall node): hash_map erase(iterator); out = the next node.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL IntHashMap_Erase(uint8_t* map, uint32_t* out, uint8_t* node);
+extern "C" void IntHashMap_Erase_entry(void);
+// 0x000148b0 / 0x00014ed0 / 0x00028780 (map in ESI, stdcall out, pair): hash_map insert (name map; int
+// keys; unsigned keys); out = {node, inserted byte}.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL HashMap_Insert(uint8_t* map, uint32_t* out, const uint32_t* pair);
+extern "C" void HashMap_Insert_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL IntHashMap_Insert(uint8_t* map, uint32_t* out, const uint32_t* pair);
+extern "C" void IntHashMap_Insert_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL HashMap_Insert_10(uint8_t* map, uint32_t* out, const uint32_t* pair);
+extern "C" void HashMap_Insert_10_entry(void);
+// 0x000151f0: std_list_IncSize_4 for 0x2c-byte nodes.
+uint32_t XB_REGS3 XB_CDECL std_list_IncSize_5(uint32_t eax, uint8_t* list, uint32_t count);
+// 0x000155d0: a name-map list node (Z_Malloc 0x2c, NameMap_NodeCtor).
+uint8_t* XB_STDCALL std_list_BuyNodeNameMap(uint32_t next, uint32_t prev, const uint8_t* value);
 // 0x00015850 (value in ECX): a 16-byte list node {next, prev, value[0], value[1]} (Z_Malloc).
 uint8_t* XB_THISCALL std_list_BuyNode8(const uint32_t* value, uint32_t next, uint32_t prev);
 // 0x00013c60 (angles EDI, forward ESI): (cos pitch cos yaw, cos pitch sin yaw, -sin pitch) (FastSinCos).

@@ -434,11 +434,6 @@ address,module,source,evidence
 00379e50,script,manual,AtExit_ScrFree_922e90: Scr_Free of 0x00922e90 (level-script globals)
 00379e70,script,manual,AtExit_ScriptKeyTable: ScriptKeyTable_Clear ecx=0x00922e94 (g_scrEmptyKeyTable)
 000caa00,qcommon,manual,file device code next to File_GetNativeHandle (gap function created 2026-10-31)
-000caa81,qcommon,manual,constant getter in pointer table 0x000caaa0 (gap function created 2026-10-31)
-000caa87,qcommon,manual,constant getter in pointer table 0x000caaa0 (gap function created 2026-10-31)
-000caa8d,qcommon,manual,constant getter in pointer table 0x000caaa0 (gap function created 2026-10-31)
-000caa93,qcommon,manual,constant getter in pointer table 0x000caaa0 (gap function created 2026-10-31)
-000caa99,qcommon,manual,constant getter next to table 0x000caaa0 (gap function created 2026-10-31)
 000caab0,qcommon,manual,file device loop over 0x008bfe80 (gap function created 2026-10-31)
 000cab60,qcommon,manual,HandlePool_Alloc + File_SetDevicePriority (gap function created 2026-10-31)
 000cab90,qcommon,manual,file device code before File_AbortRequestsForFile (gap function created 2026-10-31)
@@ -446,3 +441,4 @@ address,module,source,evidence
 000cbbe0,qcommon,manual,"file ops slot +4 (CancelIo), pointer 0x008bfeb0 (gap function created 2026-10-31)"
 000cbc00,qcommon,manual,"file ops slot +8 (SleepEx poll), pointer 0x008bfeb4 (gap function created 2026-10-31)"
 00376750,qcommon,manual,static init: constructs Loc strings 0x0095fe70 (gap function created 2026-10-31)
+000caa70,qcommon,manual,"FileDevice_StatusName: jump table 0x000caaa0 (created 2026-10-31, replaces 5 case-block gap functions)"
