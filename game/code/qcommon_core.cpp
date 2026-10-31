@@ -2784,7 +2784,7 @@ struct Tree29 {
     static uint8_t* max(uint8_t* node) { return std_tree_Max29(node); }
     static void inc(uint8_t** it) { std_tree_Inc29(0, it); }
     static void destroy(uint8_t* node) { string_tidy(node + 0xc); }
-    static void erase_subtree(uint8_t* tree, uint8_t* node) { std_map_string_EraseSubtree_2(tree, node); }
+    static void erase_subtree(uint8_t* tree, uint8_t* node) { std_tree_EraseSubtree29(tree, node); }
     static void erase(uint8_t* tree, uint8_t* where) {
         uint8_t* next;
         std_tree_Erase29(tree, &next, where);
@@ -3022,9 +3022,9 @@ void XB_THISCALL std_set_string_EraseSubtree(uint8_t* tree, uint8_t* node) {
     }
 }
 
-void XB_THISCALL std_map_string_EraseSubtree_2(uint8_t* tree, uint8_t* node) {
+void XB_THISCALL std_tree_EraseSubtree29(uint8_t* tree, uint8_t* node) {
     while (!node[0x29]) {
-        std_map_string_EraseSubtree_2(tree, node_link(node, 8));
+        std_tree_EraseSubtree29(tree, node_link(node, 8));
         uint8_t* const left = node_link(node, 0);
         string_tidy(node + 0xc);
         Z_Free(node);
@@ -3831,7 +3831,7 @@ uint8_t* XB_REGS2 XB_STDCALL std_string_AssignCStr(uint32_t, const char* text, u
 }
 
 uint8_t* XB_REGS3 XB_STDCALL std_string_AppendCStr(uint32_t, uint32_t, const char* text, uint8_t* self) {
-    return std_string_AppendSubstr(c_string_length(text), self, text);
+    return std_string_AppendN(c_string_length(text), self, text);
 }
 
 PLATFORM_ASM_ENTRY(std_string_AppendNChar_entry,
@@ -3877,11 +3877,11 @@ uint32_t XB_REGS1 XB_STDCALL std_string_Find(uint32_t pos, const uint8_t* self, 
     return 0xffffffffu;
 }
 
-uint8_t* XB_REGS3 XB_CDECL std_string_AppendSubstr(uint32_t count, uint8_t* self, const char* text) {
-    // append(text, count); text inside the string goes through std_string_AppendRange.
+uint8_t* XB_REGS3 XB_CDECL std_string_AppendN(uint32_t count, uint8_t* self, const char* text) {
+    // append(text, count); text inside the string goes through std_string_AppendSubstr.
     const uint8_t* const source = reinterpret_cast<const uint8_t*>(text);
     if (!(source < string_buffer(self)) && string_buffer(self) + word_at(self, 0x14) > source) {
-        return std_string_AppendRange(self, self, count, static_cast<uint32_t>(source - string_buffer(self)));
+        return std_string_AppendSubstr(self, self, count, static_cast<uint32_t>(source - string_buffer(self)));
     }
     if (!(0xffffffffu - word_at(self, 0x14) > count)) string_throw_length(self);
     if (!count) return self;
@@ -3897,10 +3897,10 @@ PLATFORM_ASM_ENTRY(std_string_AppendRange_entry,
                    "pushl 4(%esp)\n"
                    "pushl %eax\n"
                    "pushl %ecx\n"
-                   "pushl %ebx\n" PLATFORM_ASM_CALL(std_string_AppendRange) "addl $16, %esp\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(std_string_AppendSubstr) "addl $16, %esp\n"
                    "ret $4")
 
-uint8_t* XB_CDECL std_string_AppendRange(uint8_t* self, const uint8_t* source, uint32_t count, uint32_t pos) {
+uint8_t* XB_CDECL std_string_AppendSubstr(uint8_t* self, const uint8_t* source, uint32_t count, uint32_t pos) {
     // append(source, pos, count).
     if (word_at(source, 0x14) < pos) string_throw_range();
     const uint32_t tail = word_at(source, 0x14) - pos;

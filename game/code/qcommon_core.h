@@ -102,7 +102,7 @@ uint8_t** XB_STDCALL std_tree_Erase29(uint8_t* tree, uint8_t** result, uint8_t* 
 // 0x000200d0 / 0x00020610 / 0x000227e0 (tree in ECX): _Erase(node): frees a subtree (right side recursively).
 void XB_THISCALL std_map_string_EraseSubtree(uint8_t* tree, uint8_t* node);
 void XB_THISCALL std_set_string_EraseSubtree(uint8_t* tree, uint8_t* node);
-void XB_THISCALL std_map_string_EraseSubtree_2(uint8_t* tree, uint8_t* node);
+void XB_THISCALL std_tree_EraseSubtree29(uint8_t* tree, uint8_t* node);
 // 0x00020b80 / 0x00020fd0 / 0x000212b0 (tree in ESI): erase(first, last); begin..end clears the tree
 // (EraseSubtree of the root, head reset). *result = last.
 extern "C" PLATFORM_HIDDEN uint8_t** XB_CDECL std_map_string_EraseRange(uint8_t* tree, uint8_t** result, uint8_t* first,
@@ -165,9 +165,9 @@ extern "C" void std_string_AppendNChar_entry(void);
 // 0x0001f950 (pos in EAX; self, text, count): find(text, pos, count); -1 when absent.
 uint32_t XB_REGS1 XB_STDCALL std_string_Find(uint32_t pos, const uint8_t* self, const char* text, uint32_t count);
 // 0x00020890 (count EAX, self EDX, text ECX): append(text, count) (an append(const char*, n)).
-uint8_t* XB_REGS3 XB_CDECL std_string_AppendSubstr(uint32_t count, uint8_t* self, const char* text);
+uint8_t* XB_REGS3 XB_CDECL std_string_AppendN(uint32_t count, uint8_t* self, const char* text);
 // 0x00021500 (self EBX, source ECX, count EAX; pos): append(source, pos, count).
-extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_string_AppendRange(uint8_t* self, const uint8_t* source, uint32_t count,
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_string_AppendSubstr(uint8_t* self, const uint8_t* source, uint32_t count,
                                                                    uint32_t pos);
 extern "C" void std_string_AppendRange_entry(void);
 // 0x00023320 (count EAX, self ECX; pos, text, text_count): compare(pos, count, text, text_count): -1/0/1.

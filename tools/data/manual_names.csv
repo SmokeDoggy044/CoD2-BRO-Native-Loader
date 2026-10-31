@@ -11877,7 +11877,7 @@ address,name,kind,confidence,evidence
 000bc510,PhysContact_GetSeparation,function,medium,"(ECX contact): (bodyA pos + offset +0x20) - (bodyB pos + offset +0x30, or the offset alone without body B) dotted with the normal +0x10; bodies at +0x94/+0x98 (pos at body +0x34 -> +0x30)"
 00024820,Stream_ForEachAssetWithPrefix,function,medium,"(table, out, prefix, prefixLen, callback, ?): Stream_ListSearchZones, then for each zone's entries (+0x10 count, +0x14 array) whose name strncmp-matches the prefix calls callback(name + prefixLen + 1, entry); G_InitGame, BG_InitDefaultWeapon"
 000153f0,std_string_Copy,function,medium,"MSVC basic_string::_Copy(newSize, keepLen): grows the capacity (|0xf, 1.5x), Z_Malloc, copies keepLen bytes, frees the old heap buffer (SSO under 0x10); std_string_AssignSubstr, std_string_AssignN"
-00020890,std_string_AppendSubstr,function,medium,"(EAX count, ECX src ptr, string): basic_string::append; source inside the string goes through 0x00021500; _Xlen (0x001ee8c1) on overflow; Loc_AddStringEntry, Loc_LoadStringDir_r"
+00020890,std_string_AppendN,function,medium,"(EAX count, ECX src ptr, string): basic_string::append; source inside the string goes through 0x00021500; _Xlen (0x001ee8c1) on overflow; Loc_AddStringEntry, Loc_LoadStringDir_r"
 00020db0,std_map_string_LowerBound,function,medium,"red-black tree walk (isnil at node +0x65) comparing std::string keys at node +0x10; std_map_string_Find, 0x0001f1f0"
 0001f2e0,std_map_string_Find,function,medium,"(EDI map, EBX out iterator): std_map_string_LowerBound, then returns the node if the key is not less than it, else end (head +4); Loc_AddStringEntry and the localization tables"
 000147e0,ScrThread_AllocHandle,function,medium,"(EAX handle table 0x008dd208, EBX out): first free bit of the 256-bit mask (BitSet256_NextSet), clears it, handle = generation (+0x24 + i*8) << 8 | index; ScrThread_HandlesExhausted when none; Scr_CreateThread, Scr_BeginThread, Scr_GetCurrentThreadHandle"
@@ -12419,7 +12419,7 @@ address,name,kind,confidence,evidence
 00028fb0,G_GatherEntsByShortField,function,medium,"(offset; BX value, ESI out {count, ents[0x1000]}): entities of the list 0x0097d370 (count 0x0097d36c) whose short at offset == value; sibling of G_FindEntsByField"
 00028f60,G_GatherEntsByIntField,function,medium,int-field version of G_GatherEntsByShortField over the entity list 0x0097d370; SelectRandomDeathmatchSpawnPoint
 000c9320,File_GetRecord,function,medium,"(handle): HandlePool_Resolve in the open-file pool 0x009207e8, follows +8 when record type +0x20 is 1, returns 0x00920820 + idx*0x24 (0 when stale); like File_GetDriverData; NAL_StreamedAnim_Update path"
-000227e0,std_map_string_EraseSubtree_2,function,medium,"recursive red-black subtree erase (isnil +0x29): right subtree first, frees the std::string key (+0x10, cap +0x24) and the node with Z_Free; same shape as std_map_string_EraseSubtree"
+000227e0,std_tree_EraseSubtree29,function,medium,"recursive red-black subtree erase (isnil +0x29): right subtree first, frees the std::string key (+0x10, cap +0x24) and the node with Z_Free; same shape as std_map_string_EraseSubtree"
 00021200,std_map_string_LowerBound_2,function,medium,"lower_bound on a map<std::string,...> tree (isnil +0x2d, key string +0x10/size +0x20/cap +0x24) with memcmp-style compare; same role as std_map_string_LowerBound"
 00021480,BitIter_Next,function,medium,"(iter {words, curWord, wordIdx, result}): advances over up to 16 words, clears the lowest set bit and stores wordIdx*32 + bit in +0xc (-1 at end); sound channel handle alloc path (S_AllocChannelHandle)"
 0001f370,std_vector_string_PushBack,function,medium,"(EAX vector of 0x1c-byte std::string): construct in place when capacity allows, else the insert path 0x0001f3f0; Loc_ParseStringFile path"
@@ -12511,14 +12511,14 @@ address,name,kind,confidence,evidence
 0001b960,MemContext_AllocOrHeap16,function,medium,"MemContext_Alloc_r(0x10) when a context is active (EAX != -1), else/on failure Heap_AllocAligned(0x10); same shape as MemContext_AllocOrHeap; Stream_CollectSearchZones_r"
 0001ec70,IN_JoyApplyThreshold,function,high,"|axis| below joy_threshold -> 0, else (|axis|-thr)/(128-thr)*128 with the sign kept; IN_Frame"
 0001edd0,std_string_AssignCStr,function,high,"strlen then std_string_AssignN(s, len); Loc_AddStringEntry"
-0001edf0,std_string_AppendCStr,function,high,strlen then std_string_AppendSubstr; Loc_AddStringEntry
+0001edf0,std_string_AppendCStr,function,high,strlen then std_string_AppendN; Loc_AddStringEntry
 0001ef30,DynArray_PushBack12,function,medium,"{data, cap, count} of 12-byte items: grows (cap+4, or +1 under 4) via DynArray_Alloc12, copies, frees old, appends 3 dwords; Persistent_SetValue"
 0001efd0,DynArray_Erase12,function,medium,"erases [it, ...) by shifting the following 12-byte items down and decrementing count; Persistent_SetValue"
 0001ff10,DynArray_Alloc12,function,medium,"Mem_AlignedAlloc(n*12, 4) and zeroes each 12-byte item; DynArray_PushBack12"
 0001f880,std_string_AppendNChar,function,medium,"append(count EAX, ch): length checks (Xlen 0x001ee8c1), grows via std_string_Copy, fills count chars, terminates; Loc_LoadStringDir_r"
 00020150,std_vector_string_InsertN,function,medium,"vector<std::string> (0x1c elements, max 0x9249249) insert n copies of a value: reallocates (Z_Malloc, uninitialized copy, destroy range, Z_Free) or shifts in place; std_vector_string_InsertOne"
 000209c0,std_vector_ClearAndPush4,function,medium,end = begin then std_vector_InsertN4_8 one dword at begin (vector = {value}); G_ClearCheckpoint
-00021500,std_string_AppendRange,function,medium,"append(str, pos, n): pos > size throws (0x001ee881), clamps n, grows via std_string_Copy, copies; std_string_AppendSubstr"
+00021500,std_string_AppendSubstr,function,medium,"append(str, pos, n): pos > size throws (0x001ee881), clamps n, grows via std_string_Copy, copies; std_string_AppendN"
 00021aa0,std_map_string_BuyNode,function,medium,Z_Malloc(0x68) tree node + node ctor 0x00022880 (EH frame); std_map_string_Insert
 00021f80,std_set_string_BuyNode,function,medium,Z_Malloc(0x30) tree node + node ctor 0x000228b0 (EH frame); std_set_string_Insert
 00023900,ResourceManager_CreateModels,function,medium,"Com_Init: Heap_AllocAligned(400), ResourceManager base vtable 0x00838220, adds itself to the manager list 0x009719fc, zeroes 99 dwords, vtable 0x0083be98; stored in 0x0095f6ac (renderer model context, RE_RegisterModel)"
@@ -12813,7 +12813,7 @@ address,name,kind,confidence,evidence
 000213f0,std_tree_BuyNode29,function,medium,Z_Malloc(0x2c) node + std_tree_NodeCtor29 (EH frame); std_tree_Insert29
 00022500,std_tree_Dec29,function,medium,(&iterator): tree predecessor for nodes with isnil at +0x29 (head -> rightmost); pairs with std_tree_Inc29
 00022560,std_tree_NodeCtor29,function,medium,"node {left, parent, right, std::string +0xc, colour +0x28, isnil +0x29 = 0}"
-000212b0,std_tree_EraseRange29,function,medium,"erase(first, last) for the isnil +0x29 tree: whole tree -> std_map_string_EraseSubtree_2 and reset head, else std_tree_Erase29 per node"
+000212b0,std_tree_EraseRange29,function,medium,"erase(first, last) for the isnil +0x29 tree: whole tree -> std_tree_EraseSubtree29 and reset head, else std_tree_Erase29 per node"
 00022010,std_tree_Erase29,function,medium,"erase(iterator): throws ""invalid map/set<T> iterator"" on the head, unlinks with red-black fixup (Lrotate29/Rrotate29), frees the string and node"
 00022840,std_tree_Max29,function,medium,rightmost node (follow +8 until isnil +0x29)
 00022860,std_tree_Min29,function,medium,leftmost node (follow +0 until isnil +0x29); std_tree_Erase29
@@ -14269,3 +14269,23 @@ address,name,kind,confidence,evidence
 00023a20,ResourceManager_CreateLevel,function,medium,"level manager 0x0095f534 (+4 player entity, +8 level entity), vtable 0x00832614 (2026-10-29)"
 0001f810,std_map_string_DestroyValue,function,medium,"value {string, string, string, int} (2026-10-29)"
 00015540,std_list_BuyHeadNameMap,function,medium,"0x2c-byte list head (2026-10-29)"
+00020b80,std_map_string_EraseRange,function,high,"erase(first, last) of the string map; qcommon push 5"
+00020fd0,std_set_string_EraseRange,function,high,"erase(first, last) of the string set; qcommon push 5"
+00021670,std_map_string_Erase,function,high,"erase(iterator) of the string map, rebalances; qcommon push 5"
+00021a00,std_map_string_BuyHead,function,high,"allocates the map head node; qcommon push 5"
+00021b30,std_set_string_Erase,function,high,"erase(iterator) of the string set; qcommon push 5"
+00021ee0,std_set_string_BuyHead,function,high,"allocates the set head node; qcommon push 5"
+00022460,std_tree_BuyHead29,function,high,"head node of the tree29 instantiation; qcommon push 5"
+00028bd0,std_vector_ConstructN4Z_2,function,high,"second copy of vector<int>(n) zero fill; qcommon push 5"
+00028ed0,std_vector_Ufill4,function,high,"uninitialized fill of 4-byte elements; qcommon push 5"
+000c9530,File_LayoutMemory,function,medium,"carves file records, devices and requests from the pack buffers; qcommon push 5"
+000c9880,File_Configure,function,medium,"reads file config globals 0x008bfd70..80; qcommon push 5"
+000ca150,FileDevice_Poll,function,high,"polls a file device's transfer, completes the request; qcommon push 5"
+000ca250,File_PickNextRequest,function,high,"picks the next queued request by priority; qcommon push 5"
+000d19e0,Save_EnumSaveGames,function,high,"XFindFirstSaveGame/XFindNextSaveGame loop; qcommon push 5"
+002a9c10,Com_ParseError,function,high,"__break 1 ""File %s, line %i: %s""; qcommon push 5"
+002c5780,Loc_TrimQuotedValue,function,high,"trims blanks and quotes into static std::string 0x0098bcbc; qcommon push 5"
+002c5ac0,Loc_ResetStringFileState,function,medium,"clears the string file state (EBX) maps, keep_lists arg; qcommon push 5"
+0031ac60,Save_HasEnoughFreeSpace,function,high,"room for a 0x400-byte save on the device; qcommon push 5"
+001ee881,std_string_Xran,function,high,"throws ""invalid string position""; qcommon push 5"
+001ee8c1,std_string_Xlen,function,high,"throws ""string too long""; qcommon push 5"
