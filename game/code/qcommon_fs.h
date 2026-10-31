@@ -35,12 +35,18 @@ struct HashNode {
 // Hash map: a std::list of nodes (head at +8) plus a bucket vector of list iterators
 // (begin at +0x14); bucket index = (key ^ 0xdeadbeef) & mask, folded down by mask/2+1 when
 // it reaches the bucket count (linear hashing).
+// Layout (0x28 B): +0 traits byte, list {allocator, head, size} at +4, bucket vector {allocator, first, last,
+// end} at +0x10, then the mask and the highest bucket index in use.
 struct HashMap {
-    uint32_t unknown0[2];
+    uint8_t traits;
+    uint8_t pad01[3];
+    uint32_t list_allocator;
     HashNode* head;          // +0x08
-    uint32_t unknown0c[2];
+    uint32_t size;           // +0x0c
+    uint32_t vector_allocator;
     HashNode** buckets;      // +0x14
-    uint32_t unknown18[2];
+    HashNode** buckets_last; // +0x18
+    HashNode** buckets_end;  // +0x1c
     uint32_t mask;           // +0x20
     uint32_t max_index;      // +0x24
 };
@@ -57,6 +63,7 @@ struct Vector4 {
 static_assert(sizeof(DynArray) == 12);
 static_assert(offsetof(HashMap, buckets) == 0x14);
 static_assert(offsetof(HashMap, max_index) == 0x24);
+static_assert(sizeof(HashMap) == 0x28);
 static_assert(offsetof(Vector4, last) == 8);
 #endif
 
@@ -746,5 +753,89 @@ void XB_THISCALL std_vector_InsertN4_6(Vector4* vector, uint32_t* where, uint32_
 void XB_THISCALL std_vector_Resize4_6(Vector4* vector, uint32_t size, uint32_t value);
 void XB_THISCALL std_vector_InsertN4_7(Vector4* vector, uint32_t* where, uint32_t count, const uint32_t* value);
 void XB_THISCALL std_vector_Resize4_7(Vector4* vector, uint32_t size, uint32_t value);
+
+// --- Script-heap hash map instances (MSVC 7.1 stdext::hash_map) ---
+// Each template instance below has the same body; they differ only in their callees (node size: the head
+// node and node copy helpers, some in the PROLOGUE/BUCHHOLZ sections).
+
+// 0x0017e090/0x0017e110/0x0017e190 (callee pops 8): vector(count, value): Buy4, then the fill.
+void XB_THISCALL std_vector_ConstructN4(Vector4* vector, uint32_t count, const uint32_t* value);
+void XB_THISCALL std_vector_ConstructN4_2(Vector4* vector, uint32_t count, const uint32_t* value);
+void XB_THISCALL std_vector_ConstructN4_3(Vector4* vector, uint32_t count, const uint32_t* value);
+// 0x0017e3e0/0x0017f590/0x0017fed0 (callee pops 8): empty map: traits byte copied, a new list head,
+// 9 buckets all pointing at the head, mask 1, max index 1.
+HashMap* XB_THISCALL HashMap_Ctor(HashMap* map, const uint8_t* traits, uint32_t allocator);
+HashMap* XB_THISCALL HashMap_Ctor_2(HashMap* map, const uint8_t* traits, uint32_t allocator);
+HashMap* XB_THISCALL HashMap_Ctor_3(HashMap* map, const uint8_t* traits, uint32_t allocator);
+// 0x0017e460/0x0017e570/0x0017f750/0x001800f0/0x00180200 (callee pops 4): operator=: buckets resized
+// to the source's count (filled with the head), mask copied, list cleared and the source's nodes
+// inserted, then each bucket set to the copy's node at the source bucket's position.
+void XB_THISCALL HashMap_CopyFrom(HashMap* map, const HashMap* source);
+void XB_THISCALL HashMap_CopyFrom_2(HashMap* map, const HashMap* source);
+void XB_THISCALL HashMap_CopyFrom_3(HashMap* map, const HashMap* source);
+void XB_THISCALL HashMap_CopyFrom_4(HashMap* map, const HashMap* source);
+void XB_THISCALL HashMap_CopyFrom_5(HashMap* map, const HashMap* source);
+// 0x0017eb20/0x0017eb90/0x0017f9c0/0x00180310/0x00180820 (callee pops 4): copy constructor.
+HashMap* XB_THISCALL HashMap_CopyCtor(HashMap* map, const HashMap* source);
+HashMap* XB_THISCALL HashMap_CopyCtor_2(HashMap* map, const HashMap* source);
+HashMap* XB_THISCALL HashMap_CopyCtor_3(HashMap* map, const HashMap* source);
+HashMap* XB_THISCALL HashMap_CopyCtor_4(HashMap* map, const HashMap* source);
+HashMap* XB_THISCALL HashMap_CopyCtor_5(HashMap* map, const HashMap* source);
+// 0x0017ce30: vector _Xlen: throws length_error("vector<T> too long") (never returns).
+void XB_CDECL std_vector_Xlen();
+// 0x0017d5e0/0x0017d8d0 (callee pops 4): list size += count, length_error past 0x05d1745d/0x0fffffff.
+uint32_t XB_THISCALL std_list_IncSize(uint8_t* list, uint32_t count);
+uint32_t XB_THISCALL std_list_IncSize_2(uint8_t* list, uint32_t count);
+// 0x0017e210/0x0017e2c0/0x0017f4e0/0x0017f860/0x0017f910 (callee pops 0x10): list insert(where, first,
+// last); the fourth word (the source container) is unused.
+void XB_THISCALL std_list_InsertRange(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t unused);
+void XB_THISCALL std_list_InsertRange_2(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t unused);
+void XB_THISCALL std_list_InsertRange_3(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t unused);
+void XB_THISCALL std_list_InsertRange_4(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t unused);
+void XB_THISCALL std_list_InsertRange_5(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t unused);
+// 0x0017ec00/0x0017f440/0x0017f490 (callee pops 8): std_list_Erase with the value destructor at
+// 0x0045f600/0x004610d0/0x004614d0.
+uint8_t** XB_THISCALL std_list_Erase_2(uint8_t* list, uint8_t** out, uint8_t* node);
+uint8_t** XB_THISCALL std_list_Erase_3(uint8_t* list, uint8_t** out, uint8_t* node);
+uint8_t** XB_THISCALL std_list_Erase_4(uint8_t* list, uint8_t** out, uint8_t* node);
+// 0x0017f320/0x0017f3b0/0x00180a10/0x00180aa0 (callee pops 0xc): 0x34-byte node {next, prev, key, HashMap
+// copy of value + 4}.
+uint8_t* XB_STDCALL std_list_BuyNodeHashMap(uint8_t* next, uint8_t* prev, const uint32_t* value);
+uint8_t* XB_STDCALL std_list_BuyNodeHashMap_2(uint8_t* next, uint8_t* prev, const uint32_t* value);
+uint8_t* XB_STDCALL std_list_BuyNodeHashMap_3(uint8_t* next, uint8_t* prev, const uint32_t* value);
+uint8_t* XB_STDCALL std_list_BuyNodeHashMap_4(uint8_t* next, uint8_t* prev, const uint32_t* value);
+// 0x0017f610/0x0017f6b0 (callee pops 0xc): 0x18-byte node {next, prev, key, DynArray of hash maps assigned
+// from value + 4}.
+uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_2(uint8_t* next, uint8_t* prev, const uint32_t* value);
+uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_3(uint8_t* next, uint8_t* prev, const uint32_t* value);
+// 0x0017e680/0x0017e8d0/0x0017fa30/0x0017fc80/0x00180380/0x001805d0/0x00180b30/0x00180d80/0x001e6a00 (callee
+// pops 8): hash_map::insert(value) with one linear-hashing split step first; out = {node, inserted byte}.
+// _11 compares signed keys.
+uint8_t* XB_THISCALL HashMap_Insert_2(HashMap* map, uint8_t* out, const uint32_t* value);
+uint8_t* XB_THISCALL HashMap_Insert_3(HashMap* map, uint8_t* out, const uint32_t* value);
+uint8_t* XB_THISCALL HashMap_Insert_4(HashMap* map, uint8_t* out, const uint32_t* value);
+uint8_t* XB_THISCALL HashMap_Insert_5(HashMap* map, uint8_t* out, const uint32_t* value);
+uint8_t* XB_THISCALL HashMap_Insert_6(HashMap* map, uint8_t* out, const uint32_t* value);
+uint8_t* XB_THISCALL HashMap_Insert_7(HashMap* map, uint8_t* out, const uint32_t* value);
+uint8_t* XB_THISCALL HashMap_Insert_8(HashMap* map, uint8_t* out, const uint32_t* value);
+uint8_t* XB_THISCALL HashMap_Insert_9(HashMap* map, uint8_t* out, const uint32_t* value);
+uint8_t* XB_THISCALL HashMap_Insert_11(HashMap* map, uint8_t* out, const uint32_t* value);
+// 0x0017ed70/0x0017edf0/0x001e6c50/0x0017ff50/0x00180020/0x00180fd0/0x001810a0/0x00180890/0x00180950 (callee
+// pops 4): operator[](key): the value's address (node + 0xc), a default value inserted when missing
+// (Index: three undefined floats; _2/_3: an int array; _4.._7: a hash map; _8/_9: an array of hash maps).
+uint8_t* XB_THISCALL HashMap_Index(HashMap* map, const uint32_t* key);
+uint8_t* XB_THISCALL HashMap_Index_2(HashMap* map, const uint32_t* key);
+uint8_t* XB_THISCALL HashMap_Index_3(HashMap* map, const uint32_t* key);
+uint8_t* XB_THISCALL HashMap_Index_4(HashMap* map, const uint32_t* key);
+uint8_t* XB_THISCALL HashMap_Index_5(HashMap* map, const uint32_t* key);
+uint8_t* XB_THISCALL HashMap_Index_6(HashMap* map, const uint32_t* key);
+uint8_t* XB_THISCALL HashMap_Index_7(HashMap* map, const uint32_t* key);
+uint8_t* XB_THISCALL HashMap_Index_8(HashMap* map, const uint32_t* key);
+uint8_t* XB_THISCALL HashMap_Index_9(HashMap* map, const uint32_t* key);
+// 0x00376750: static init: constructs the localized-string tables at 0x0095fe70 (0x0001d930, object in
+// ESI) and registers AtExit_LocStrings.
+void XB_CDECL StaticInit_LocStrings();
+// 0x00379950: atexit: destroys the localized-string tables (0x0001d9d0).
+void XB_CDECL AtExit_LocStrings();
 
 }  // namespace game

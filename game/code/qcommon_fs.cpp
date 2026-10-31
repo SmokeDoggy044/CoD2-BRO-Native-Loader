@@ -4539,4 +4539,498 @@ void XB_THISCALL std_vector_Resize4_7(Vector4* vector, uint32_t size, uint32_t v
     std_vector_Resize4(vector, size, value);
 }
 
+// --- Script-heap hash map instances ---
+
+namespace {
+
+// Callee addresses per template instance (the instances share one body).
+struct HashMapInstance {
+    uint32_t buy_head;      // head node allocator (cdecl, no arguments)
+    uint32_t clear;         // list clear (thiscall)
+    uint32_t insert_range;  // list insert(where, first, last) (thiscall, callee pops 0x10)
+    uint32_t resize;        // bucket vector resize(count, value) (thiscall, callee pops 8)
+    uint32_t construct_n;   // bucket vector(count, &value) (thiscall, callee pops 8)
+    uint32_t copy_from;     // this instance's HashMap_CopyFrom
+};
+
+HashMap* hash_map_ctor(HashMap* map, const uint8_t* traits, const HashMapInstance& inst) {
+    map->traits = *traits;
+    map->head = title_function<HashNode* XB_CDECL()>(inst.buy_head)();
+    map->size = 0;
+    const uint32_t head = u32(map->head);  // the original keeps it in its own argument slot
+    title_function<void XB_THISCALL(uint32_t*, uint32_t, const uint32_t*)>(inst.construct_n)(
+        &map->vector_allocator, 9, &head);
+    map->mask = 1;
+    map->max_index = 1;
+    return map;
+}
+
+void hash_map_copy_from(HashMap* map, const HashMap* source, const HashMapInstance& inst) {
+    const uint32_t count = source->buckets ? static_cast<uint32_t>(source->buckets_last - source->buckets) : 0;
+    title_function<void XB_THISCALL(uint32_t*, uint32_t, uint32_t)>(inst.resize)(&map->vector_allocator, count,
+                                                                                 u32(map->head));
+    map->mask = source->mask;
+    map->max_index = source->max_index;
+    title_function<void XB_THISCALL(uint32_t*)>(inst.clear)(&map->list_allocator);
+    title_function<void XB_THISCALL(uint32_t*, HashNode*, HashNode*, HashNode*, const HashMap*)>(inst.insert_range)(
+        &map->list_allocator, map->head, source->head->next, source->head, source);
+    map->traits = source->traits;
+    HashNode* copy = map->head->next;
+    HashNode* node = source->head->next;
+    for (uint32_t i = 0; map->buckets && i < static_cast<uint32_t>(map->buckets_last - map->buckets);) {
+        if (node == source->buckets[i]) {
+            map->buckets[i] = copy;
+            ++i;
+        } else {
+            copy = copy->next;
+            node = node->next;
+        }
+    }
+}
+
+HashMap* hash_map_copy_ctor(HashMap* map, const HashMap* source, const HashMapInstance& inst) {
+    map->traits = source->traits;
+    map->head = title_function<HashNode* XB_CDECL()>(inst.buy_head)();
+    map->size = 0;
+    map->buckets = nullptr;
+    map->buckets_last = nullptr;
+    map->buckets_end = nullptr;
+    title_function<void XB_THISCALL(HashMap*, const HashMap*)>(inst.copy_from)(map, source);
+    return map;
+}
+
+// buy_head, clear, insert_range, resize, construct_n, copy_from
+constexpr HashMapInstance kHashMap1{0x0017bc80, 0x0045f3a0, 0x0017e210, 0x0017ddd0, 0x0017e190, 0x0017e460};
+constexpr HashMapInstance kHashMap2{0x0078ae80, 0x0045ca00, 0x0017e2c0, 0x0078c630, 0, 0x0017e570};
+constexpr HashMapInstance kHashMap3{0x0045ca80, 0x00461490, 0x0017f4e0, 0x0017e370, 0, 0x0017f750};
+constexpr HashMapInstance kHashMap4{0x0017bc80, 0x00462260, 0x0017f860, 0x0017ddd0, 0, 0x001800f0};
+constexpr HashMapInstance kHashMap5{0x0017bc80, 0x004622e0, 0x0017f910, 0x0017ddd0, 0, 0x00180200};
+// HashMap_Ctor/_2/_3 only: the head allocator and the bucket vector constructor.
+constexpr HashMapInstance kHashMapCtor1{0x0017bc80, 0, 0, 0, 0x0017e190, 0};
+constexpr HashMapInstance kHashMapCtor2{0x0017bc80, 0, 0, 0, 0x0017e090, 0};
+constexpr HashMapInstance kHashMapCtor3{0x0017bc80, 0, 0, 0, 0x0017e110, 0};
+
+void vector_construct_n4(Vector4* vector, uint32_t count, const uint32_t* value) {
+    if (!std_vector_Buy4(vector, count)) return;
+    uint32_t* const first = vector->first;
+    std_UninitializedFillN4(first, count, value);
+    vector->last = first + count;
+}
+
+}  // namespace
+
+void XB_THISCALL std_vector_ConstructN4(Vector4* vector, uint32_t count, const uint32_t* value) {
+    vector_construct_n4(vector, count, value);
+}
+void XB_THISCALL std_vector_ConstructN4_2(Vector4* vector, uint32_t count, const uint32_t* value) {
+    vector_construct_n4(vector, count, value);
+}
+void XB_THISCALL std_vector_ConstructN4_3(Vector4* vector, uint32_t count, const uint32_t* value) {
+    vector_construct_n4(vector, count, value);
+}
+
+HashMap* XB_THISCALL HashMap_Ctor(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, kHashMapCtor1);
+}
+HashMap* XB_THISCALL HashMap_Ctor_2(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, kHashMapCtor2);
+}
+HashMap* XB_THISCALL HashMap_Ctor_3(HashMap* map, const uint8_t* traits, uint32_t) {
+    return hash_map_ctor(map, traits, kHashMapCtor3);
+}
+
+void XB_THISCALL HashMap_CopyFrom(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, kHashMap1); }
+void XB_THISCALL HashMap_CopyFrom_2(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, kHashMap2); }
+void XB_THISCALL HashMap_CopyFrom_3(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, kHashMap3); }
+void XB_THISCALL HashMap_CopyFrom_4(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, kHashMap4); }
+void XB_THISCALL HashMap_CopyFrom_5(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, kHashMap5); }
+
+HashMap* XB_THISCALL HashMap_CopyCtor(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, kHashMap1);
+}
+HashMap* XB_THISCALL HashMap_CopyCtor_2(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, kHashMap2);
+}
+HashMap* XB_THISCALL HashMap_CopyCtor_3(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, kHashMap3);
+}
+HashMap* XB_THISCALL HashMap_CopyCtor_4(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, kHashMap4);
+}
+HashMap* XB_THISCALL HashMap_CopyCtor_5(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, kHashMap5);
+}
+
+// --- Script-heap list instances (the hash maps' node lists) ---
+
+namespace {
+
+// MSVC's _Xlen/length_error throw: the message in a local std::string, a length_error built from it and
+// _CxxThrowException (never returns; no caller in the title reaches it with valid sizes).
+[[noreturn]] void std_throw_length_error(uint32_t message, uint32_t length) {
+    alignas(4) uint8_t text[0x1c] = {};
+    alignas(4) uint8_t error[0x28] = {};
+    pk<uint32_t>(text, 0x18) = 0xf;
+    pk<uint32_t>(text, 0x14) = 0;
+    text[4] = 0;
+    std_string_AssignN(text, tstr(message), length);
+    std_exception_CtorString(error, text);
+    pk<uint32_t>(error, 0) = 0x007f7784;  // std::length_error vtable
+    title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x001f2302)(error, 0x00895af4);  // _CxxThrowException
+    for (;;) {
+    }
+}
+
+uint32_t list_inc_size(uint8_t* list, uint32_t count, uint32_t max_size) {
+    const uint32_t size = pk<uint32_t>(list, 8);
+    if (max_size - size < count) std_throw_length_error(0x00831848, 0x10);  // "list<T> too long"
+    pk<uint32_t>(list, 8) = size + count;
+    return size + count;
+}
+
+// list::erase(node): unlinks and frees any node but the head; `destroy` is the value's destructor (thiscall
+// on the node).
+uint8_t** list_erase(uint8_t* list, uint8_t** out, uint8_t* node, uint32_t destroy) {
+    uint8_t* const next = pk_ptr(node, 0);
+    if (node != pk_ptr(list, 4)) {
+        pk<uint32_t>(pk_ptr(node, 4), 0) = pk<uint32_t>(node, 0);
+        pk<uint32_t>(pk_ptr(node, 0), 4) = pk<uint32_t>(node, 4);
+        title_function<void XB_THISCALL(uint8_t*)>(destroy)(node);
+        Scr_Free(node);
+        --pk<int32_t>(list, 8);
+    }
+    *out = next;
+    return out;
+}
+
+// list::insert(where, first, last): one node per source node (copy of its key + value at +8) linked in
+// before `where`; `buy_node` is stdcall (next, prev, &value), `inc_size` thiscall (count).
+void list_insert_range(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t buy_node,
+                       uint32_t inc_size) {
+    for (uint8_t* node = first; node != last; node = pk_ptr(node, 0)) {
+        uint8_t* const copy = title_function<uint8_t* XB_STDCALL(uint8_t*, uint8_t*, uint8_t*)>(buy_node)(
+            where, pk_ptr(where, 4), node + 8);
+        title_function<uint32_t XB_THISCALL(uint8_t*, uint32_t)>(inc_size)(list, 1);
+        pk<uint32_t>(where, 4) = u32(copy);
+        pk<uint32_t>(pk_ptr(copy, 4), 0) = u32(copy);
+    }
+}
+
+// list node {next, prev, key, value at +0xc}: the value copy-constructed (HashMap, 0x34-byte node) or
+// zeroed and assigned (DynArray of hash maps, 0x18-byte node).
+uint8_t* list_buy_node_hash_map(uint8_t* next, uint8_t* prev, const uint32_t* value, uint32_t copy_ctor) {
+    uint8_t* const node = reinterpret_cast<uint8_t*>(Scr_Alloc(0x34, 4));
+    if (node) {
+        pk<uint32_t>(node, 0) = u32(next);
+        pk<uint32_t>(node, 4) = u32(prev);
+        pk<uint32_t>(node, 8) = value[0];
+        title_function<void XB_THISCALL(uint8_t*, const uint32_t*)>(copy_ctor)(node + 0xc, value + 1);
+    }
+    return node;
+}
+
+uint8_t* list_buy_node_key_array(uint8_t* next, uint8_t* prev, const uint32_t* value, uint32_t assign) {
+    uint8_t* const node = reinterpret_cast<uint8_t*>(Scr_Alloc(0x18, 4));
+    if (node) {
+        pk<uint32_t>(node, 0) = u32(next);
+        pk<uint32_t>(node, 4) = u32(prev);
+        pk<uint32_t>(node, 8) = value[0];
+        pk<uint32_t>(node, 0xc) = 0;
+        pk<uint32_t>(node, 0x10) = 0;
+        pk<uint32_t>(node, 0x14) = 0;
+        title_function<void XB_THISCALL(uint8_t*, const uint32_t*)>(assign)(node + 0xc, value + 1);
+    }
+    return node;
+}
+
+}  // namespace
+
+void XB_CDECL std_vector_Xlen() { std_throw_length_error(0x00831834, 0x12); }  // "vector<T> too long"
+
+uint32_t XB_THISCALL std_list_IncSize(uint8_t* list, uint32_t count) { return list_inc_size(list, count, 0x05d1745d); }
+uint32_t XB_THISCALL std_list_IncSize_2(uint8_t* list, uint32_t count) { return list_inc_size(list, count, 0x0fffffff); }
+
+void XB_THISCALL std_list_InsertRange(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0017cd90, 0x0017d8d0);  // BuyNodeKeyArray, IncSize_2
+}
+void XB_THISCALL std_list_InsertRange_2(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0078aec0, 0x0078bd30);  // BUCHHOLZ copies
+}
+void XB_THISCALL std_list_InsertRange_3(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0017f320, 0x0017d5e0);  // BuyNodeHashMap, IncSize
+}
+void XB_THISCALL std_list_InsertRange_4(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0017f610, 0x0017d8d0);  // BuyNodeKeyArray_2, IncSize_2
+}
+void XB_THISCALL std_list_InsertRange_5(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0017f6b0, 0x0017d8d0);  // BuyNodeKeyArray_3, IncSize_2
+}
+
+uint8_t** XB_THISCALL std_list_Erase_2(uint8_t* list, uint8_t** out, uint8_t* node) {
+    return list_erase(list, out, node, 0x0045f600);
+}
+uint8_t** XB_THISCALL std_list_Erase_3(uint8_t* list, uint8_t** out, uint8_t* node) {
+    return list_erase(list, out, node, 0x004610d0);
+}
+uint8_t** XB_THISCALL std_list_Erase_4(uint8_t* list, uint8_t** out, uint8_t* node) {
+    return list_erase(list, out, node, 0x004614d0);
+}
+
+uint8_t* XB_STDCALL std_list_BuyNodeHashMap(uint8_t* next, uint8_t* prev, const uint32_t* value) {
+    return list_buy_node_hash_map(next, prev, value, 0x0017eb90);  // HashMap_CopyCtor_2
+}
+uint8_t* XB_STDCALL std_list_BuyNodeHashMap_2(uint8_t* next, uint8_t* prev, const uint32_t* value) {
+    return list_buy_node_hash_map(next, prev, value, 0x0017eb20);  // HashMap_CopyCtor
+}
+uint8_t* XB_STDCALL std_list_BuyNodeHashMap_3(uint8_t* next, uint8_t* prev, const uint32_t* value) {
+    return list_buy_node_hash_map(next, prev, value, 0x00180310);  // HashMap_CopyCtor_4
+}
+uint8_t* XB_STDCALL std_list_BuyNodeHashMap_4(uint8_t* next, uint8_t* prev, const uint32_t* value) {
+    return list_buy_node_hash_map(next, prev, value, 0x00180820);  // HashMap_CopyCtor_5
+}
+uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_2(uint8_t* next, uint8_t* prev, const uint32_t* value) {
+    return list_buy_node_key_array(next, prev, value, 0x0017f020);  // DynArray_AssignHashMap
+}
+uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_3(uint8_t* next, uint8_t* prev, const uint32_t* value) {
+    return list_buy_node_key_array(next, prev, value, 0x0017f230);  // DynArray_AssignHashMap_2
+}
+
+// --- Script-heap hash map insert / operator[] ---
+
+namespace {
+
+// hash_map::insert(value) (linear hashing): when the list holds 4+ nodes per bucket in use, first one split
+// step - the bucket vector doubles when full (mask = 2 * count - 3), else the mask doubles once max_index
+// passes it; the nodes of bucket max_index - mask/2 - 1 that hash elsewhere move to the list's end (the new
+// bucket max_index + 1), and max_index grows. Then the value's bucket is searched from its end for the key
+// (buckets are sorted); a new node goes before the first larger key. `out` = {node, inserted byte}.
+// resize: thiscall (count, value); inc_size: thiscall (count); buy_node: stdcall (next, prev, &value).
+template <typename Key>
+uint8_t* hash_map_insert(HashMap* map, uint8_t* out, const uint32_t* value, uint32_t resize, uint32_t inc_size,
+                         uint32_t buy_node) {
+    const auto bucket_count = [map] {
+        return map->buckets ? static_cast<uint32_t>(map->buckets_last - map->buckets) : 0;
+    };
+    const uint32_t max_index = map->max_index;
+    if (max_index <= map->size >> 2) {
+        if (bucket_count() - 1 <= max_index) {
+            const uint32_t mask = bucket_count() * 2 - 3;
+            map->mask = mask;
+            title_function<void XB_THISCALL(uint32_t*, uint32_t, uint32_t)>(resize)(&map->vector_allocator, mask + 2,
+                                                                                    u32(map->head));
+        } else if (map->mask < max_index) {
+            map->mask = map->mask * 2 + 1;
+        }
+        const uint32_t bucket = map->max_index - (map->mask >> 1) - 1;
+        HashNode* node = map->buckets[bucket];
+        if (node != map->buckets[bucket + 1]) {
+            for (;;) {
+                if (((node->key ^ 0xdeadbeef) & map->mask) == bucket) {
+                    node = node->next;
+                } else {
+                    HashNode* const next = node->next;
+                    HashNode* last = node;
+                    if (next != map->head) {
+                        if (node == map->buckets[bucket]) {
+                            for (uint32_t i = bucket;;) {
+                                map->buckets[i] = next;
+                                if (!i) break;
+                                --i;
+                                if (node != map->buckets[i]) break;
+                            }
+                        }
+                        // splice(end(), node): the original's same-list check (IncSize(0)) never runs.
+                        HashNode* const head = map->head;
+                        node->prev->next = next;
+                        next->prev->next = head;
+                        head->prev->next = node;
+                        HashNode* const old_last = head->prev;
+                        head->prev = next->prev;
+                        next->prev = node->prev;
+                        node->prev = old_last;
+                        last = map->head->prev;
+                        map->buckets[map->max_index + 1] = map->head;
+                    }
+                    for (uint32_t i = map->max_index; bucket < i; --i) {
+                        if (map->buckets[i] != map->head) break;
+                        map->buckets[i] = last;
+                    }
+                    if (next == map->head) break;
+                    node = next;
+                }
+                if (node == map->buckets[bucket + 1]) break;
+            }
+        }
+        ++map->max_index;
+    }
+
+    const uint32_t key = value[0];
+    uint32_t index = (key ^ 0xdeadbeef) & map->mask;
+    if (map->max_index <= index) index += 0xffffffffu - (map->mask >> 1);
+    HashNode* node = map->buckets[index + 1];
+    if (node != map->buckets[index]) {
+        for (;;) {
+            node = node->prev;
+            const Key node_key = static_cast<Key>(node->key);
+            if (node_key <= static_cast<Key>(key)) {
+                if (node_key < static_cast<Key>(key)) {
+                    node = node->next;
+                    break;
+                }
+                pk<uint32_t>(out, 0) = u32(node);
+                out[4] = 0;
+                return out;
+            }
+            if (node == map->buckets[index]) break;
+        }
+    }
+    HashNode* const fresh = title_function<HashNode* XB_STDCALL(HashNode*, HashNode*, const uint32_t*)>(buy_node)(
+        node, node->prev, value);
+    title_function<uint32_t XB_THISCALL(uint32_t*, uint32_t)>(inc_size)(&map->list_allocator, 1);
+    node->prev = fresh;
+    fresh->prev->next = fresh;
+    HashNode* const prev = node->prev;
+    if (node == map->buckets[index]) {
+        for (;;) {
+            map->buckets[index] = prev;
+            if (!index) break;
+            --index;
+            if (node != map->buckets[index]) break;
+        }
+    }
+    pk<uint32_t>(out, 0) = u32(prev);
+    out[4] = 1;
+    return out;
+}
+
+HashNode* hash_map_find_node(HashMap* map, const uint32_t* key) {
+    HashNode* node = nullptr;
+    HashMap_Find(map, &node, key);
+    return node;
+}
+
+// operator[] with a DynArray value: {key, empty array} copy-assigned from an empty array, inserted, the
+// pair destroyed (Scr_Free of its data when `destroy` is 0, else that thiscall destructor on the pair).
+uint8_t* hash_map_index_array(HashMap* map, const uint32_t* key, HashNode* (*find)(HashMap*, const uint32_t*),
+                              uint32_t assign, uint32_t insert, uint32_t destroy) {
+    HashNode* const found = find(map, key);
+    if (found != map->head) return reinterpret_cast<uint8_t*>(found) + 0xc;
+    uint32_t empty[3] = {0, 0, 0};
+    uint32_t pair[4] = {*key, 0, 0, 0};
+    title_function<void XB_THISCALL(uint32_t*, const uint32_t*)>(assign)(pair + 1, empty);
+    uint8_t out[8] = {};
+    title_function<uint8_t* XB_THISCALL(HashMap*, uint8_t*, const uint32_t*)>(insert)(map, out, pair);
+    uint8_t* const node = pk_ptr(out, 0);
+    if (!destroy) {
+        if (pair[1]) Scr_Free(reinterpret_cast<void*>(uintptr_t{pair[1]}));
+    } else {
+        title_function<void XB_THISCALL(uint32_t*)>(destroy)(pair);
+    }
+    return node + 0xc;
+}
+
+// operator[] with a HashMap value: a temporary map built with traits = the found iterator word (the
+// original passes its own argument slot, which now holds the head), copied into {key, map}, inserted, then
+// both maps destroyed.
+uint8_t* hash_map_index_map(HashMap* map, const uint32_t* key, uint32_t ctor, uint32_t copy_ctor, uint32_t insert,
+                            uint32_t dtor) {
+    HashNode* found = hash_map_find_node(map, key);
+    if (found != map->head) return reinterpret_cast<uint8_t*>(found) + 0xc;
+    alignas(4) uint8_t temp[0x28] = {};
+    title_function<void XB_THISCALL(uint8_t*, HashNode**, HashNode**)>(ctor)(temp, &found, &found);
+    alignas(4) uint8_t pair[0x2c] = {};
+    pk<uint32_t>(pair, 0) = *key;
+    title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(copy_ctor)(pair + 4, temp);
+    uint8_t out[8] = {};
+    title_function<uint8_t* XB_THISCALL(HashMap*, uint8_t*, const uint8_t*)>(insert)(map, out, pair);
+    uint8_t* const node = pk_ptr(out, 0);
+    title_function<void XB_THISCALL(uint8_t*)>(dtor)(pair + 4);
+    title_function<void XB_THISCALL(uint8_t*)>(dtor)(temp);
+    return node + 0xc;
+}
+
+HashNode* hash_map_find_node_signed(HashMap* map, const uint32_t* key) {
+    HashNode* node = nullptr;
+    HashMap_Find_2(map, &node, reinterpret_cast<const int32_t*>(key));
+    return node;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL HashMap_Insert_2(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<uint32_t>(map, out, value, 0x0017dc30, 0x0017d8d0, 0x0017bc40);
+}
+uint8_t* XB_THISCALL HashMap_Insert_3(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<uint32_t>(map, out, value, 0x0017ddd0, 0x0017d8d0, 0x0017cd90);
+}
+uint8_t* XB_THISCALL HashMap_Insert_4(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<uint32_t>(map, out, value, 0x0017e370, 0x0017d5e0, 0x0017f320);
+}
+uint8_t* XB_THISCALL HashMap_Insert_5(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<uint32_t>(map, out, value, 0x0017dca0, 0x0017d5e0, 0x0017f3b0);
+}
+uint8_t* XB_THISCALL HashMap_Insert_6(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<uint32_t>(map, out, value, 0x0017ddd0, 0x0017d8d0, 0x0017f610);
+}
+uint8_t* XB_THISCALL HashMap_Insert_7(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<uint32_t>(map, out, value, 0x0017ddd0, 0x0017d8d0, 0x0017f6b0);
+}
+uint8_t* XB_THISCALL HashMap_Insert_8(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<uint32_t>(map, out, value, 0x0017dbc0, 0x0017d5e0, 0x00180a10);
+}
+uint8_t* XB_THISCALL HashMap_Insert_9(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<uint32_t>(map, out, value, 0x0017dd10, 0x0017d5e0, 0x00180aa0);
+}
+uint8_t* XB_THISCALL HashMap_Insert_11(HashMap* map, uint8_t* out, const uint32_t* value) {
+    return hash_map_insert<int32_t>(map, out, value, 0x001e6760, 0x001e6470, 0x001e63d0);
+}
+
+uint8_t* XB_THISCALL HashMap_Index(HashMap* map, const uint32_t* key) {
+    HashNode* const found = hash_map_find_node(map, key);
+    if (found != map->head) return reinterpret_cast<uint8_t*>(found) + 0xc;
+    // {key, three script "undefined" floats} (bits copied).
+    const uint32_t undefined = title_global<uint32_t>(kScrUndefinedFloat);
+    const uint32_t pair[4] = {*key, undefined, undefined, undefined};
+    uint8_t out[8] = {};
+    HashMap_Insert_2(map, out, pair);
+    return pk_ptr(out, 0) + 0xc;
+}
+uint8_t* XB_THISCALL HashMap_Index_2(HashMap* map, const uint32_t* key) {
+    return hash_map_index_array(map, key, hash_map_find_node, 0x0017ba30, 0x0017e8d0, 0);
+}
+uint8_t* XB_THISCALL HashMap_Index_3(HashMap* map, const uint32_t* key) {
+    return hash_map_index_array(map, key, hash_map_find_node_signed, 0x0045c270, 0x001e6a00, 0);
+}
+uint8_t* XB_THISCALL HashMap_Index_4(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x0078c930, 0x0017eb90, 0x0017fa30, 0x0045f1a0);
+}
+uint8_t* XB_THISCALL HashMap_Index_5(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x0017e3e0, 0x0017eb20, 0x0017fc80, 0x00460f10);
+}
+uint8_t* XB_THISCALL HashMap_Index_6(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x0017f590, 0x00180310, 0x00180b30, 0x00463c70);
+}
+uint8_t* XB_THISCALL HashMap_Index_7(HashMap* map, const uint32_t* key) {
+    return hash_map_index_map(map, key, 0x0017fed0, 0x00180820, 0x00180d80, 0x00464a20);
+}
+uint8_t* XB_THISCALL HashMap_Index_8(HashMap* map, const uint32_t* key) {
+    return hash_map_index_array(map, key, hash_map_find_node, 0x0017f020, 0x00180380, 0x00460370);
+}
+uint8_t* XB_THISCALL HashMap_Index_9(HashMap* map, const uint32_t* key) {
+    return hash_map_index_array(map, key, hash_map_find_node, 0x0017f230, 0x001805d0, 0x004610e0);
+}
+
+// --- Localized-string tables (0x0095fe70) ---
+
+void XB_CDECL StaticInit_LocStrings() {
+    TitleRegs regs{};
+    regs.esi = 0x0095fe70;
+    qc_call_regs(0x0001d930, &regs, 0, nullptr);  // constructor (object in ESI)
+    title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(0x00379950);  // _atexit(AtExit_LocStrings)
+}
+
+void XB_CDECL AtExit_LocStrings() {
+    title_function<uint32_t XB_STDCALL(uint32_t)>(0x0001d9d0)(0x0095fe70);  // destructor
+}
+
 }  // namespace game
