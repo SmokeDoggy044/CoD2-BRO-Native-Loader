@@ -66,7 +66,7 @@ find out by surprise:
 - **The files are not code-signed.** A signing certificate costs money every year, and
   this is a free hobby project.
 
-To check for yourself: every release's notes link to the VirusTotal results of its
+To check for yourself: release 0.2.0 notes link to the VirusTotal results of its
 files; all source code is in this repository and you can build it yourself
 ([docs/development.md](docs/development.md)); the checksums are in SHA256SUMS.txt. The
 launcher is optional: `cod_bro_loader.exe` runs the game on its own (with
