@@ -713,4 +713,96 @@ uint32_t XB_REGS3 XB_CDECL std_list_IncSize_4(uint32_t eax, uint8_t* list, uint3
 // 0x00015760 (value in ECX; list, where): a new node before where.
 uint32_t XB_THISCALL std_list_Insert8(const uint32_t* value, uint8_t* list, uint8_t* where);
 
+// --- qcommon push 7 (low) ---
+struct Vector4;  // qcommon_fs.h
+struct HashMap;
+// 0x000156f0: vector _Xlen (another copy of std_vector_Xlen's length_error throw).
+void XB_CDECL std_vector_Xlen_2();
+// 0x00023480 (value in ECX; dest, count): uninitialized_fill_n of strings (std_string_ConstructCopy).
+void XB_REGS3 XB_CDECL std_string_UninitializedFillN(uint32_t, uint32_t, const uint8_t* value, uint8_t* dest,
+                                                     uint32_t count);
+// 0x000235b0 (last in ECX; first, dest): uninitialized_copy of strings; returns the destination end.
+uint8_t* XB_REGS3 XB_CDECL std_string_UninitializedCopy(uint32_t, uint32_t, const uint8_t* last, const uint8_t* first,
+                                                        uint8_t* dest);
+// 0x000232b0 (dest EDX, vector ECX; first, last): vector<string>::_Ucopy.
+uint8_t* XB_REGS3 XB_STDCALL std_vector_string_Ucopy(uint32_t, uint8_t* dest, uint8_t* vector, const uint8_t* first,
+                                                     const uint8_t* last);
+// 0x00020470 (dest EDI, count ESI, vector ECX; value): vector<string>::_Ufill; returns dest + count.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_vector_string_Ufill(uint8_t* dest, uint32_t count, const uint8_t* value);
+extern "C" void std_vector_string_Ufill_entry(void);
+// 0x000232d0 (first EAX, last EDI, value EBX): fill of strings (assign).
+extern "C" PLATFORM_HIDDEN void XB_CDECL std_string_FillRange(uint8_t* first, uint8_t* last, const uint8_t* value);
+extern "C" void std_string_FillRange_entry(void);
+// 0x000232f0 (last EAX, dest end ECX, first EBX): copy_backward of strings; returns the destination start.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_string_CopyBackward(const uint8_t* last, uint8_t* dest,
+                                                                     const uint8_t* first);
+extern "C" void std_string_CopyBackward_entry(void);
+// 0x00020150 (callee pops 0x10): vector<string>::_Insert_n(where, count, value).
+void XB_STDCALL std_vector_string_InsertN(uint8_t* vector, uint8_t* where, uint32_t count, const uint8_t* value);
+// 0x0001f3f0 (vector in EDI; out, where, value; callee pops 0xc): insert of one string; *out = the element.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_vector_string_InsertOne(uint8_t* vector, uint32_t* out, uint8_t* where,
+                                                                           const uint8_t* value);
+extern "C" void std_vector_string_InsertOne_entry(void);
+// 0x0001f370 (vector EAX, value ECX): vector<string>::push_back.
+void XB_REGS3 XB_CDECL std_vector_string_PushBack(uint8_t* vector, uint32_t, const uint8_t* value);
+// 0x000233f0 / 0x00023260 (callee pops 0x14 / 0x10): list insert(where, first, last) of 8-byte values
+// (std_list_Insert8 per node); the first takes last twice.
+void XB_STDCALL std_list_InsertRange8_EH(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t);
+void XB_STDCALL std_list_InsertRange8(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last);
+// 0x00028c70 (vector EDX, count ECX; where, value; callee pops 8): vector<dword>::_Insert_n, Z_Malloc instance.
+void XB_REGS3 XB_STDCALL std_vector_InsertN4_8(uint32_t, Vector4* vector, uint32_t count, uint32_t* where,
+                                               const uint32_t* value_ptr);
+// 0x00028a50 (vector EDX, size ECX; value; callee pops 4): vector<dword>::resize(size, value).
+void XB_REGS3 XB_STDCALL std_vector_Resize4_8(uint32_t, Vector4* vector, uint32_t size, uint32_t value);
+// 0x000209c0 (value EAX, vector EDX; count; callee pops 4): vector<dword>::assign(count, value).
+void XB_REGS2 XB_STDCALL std_vector_Assign4(const uint32_t* value_ptr, Vector4* vector, uint32_t count);
+// 0x0001fdf0 (source in ECX; destination; callee pops 4): hash_map operator= of the Z_Malloc'd instance.
+void XB_THISCALL HashMap_CopyFrom_7(const HashMap* source, HashMap* map);
+
+// 0x00024440 (text in EAX): HashStr_Hash on unsigned bytes (the localization key hash).
+uint32_t XB_REGS1 XB_CDECL Loc_HashKey(const char* text);
+// 0x000249a0 (map in EBX; &name; callee pops 4): {count, {name, value}} implicit-tree lookup; &value or null.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL StringMap_Find(const uint32_t* map, const char* const* name);
+extern "C" void StringMap_Find_entry(void);
+// 0x00027f30 (table EAX, out EBX): HandleTable512_Alloc on the entity bits (generation +0xac).
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL EntHandleTable_Alloc(uint32_t* table, uint32_t* out);
+extern "C" void EntHandleTable_Alloc_entry(void);
+// 0x000280a0 (array ESI, capacity EBX) / 0x000280f0 (array ESI; item) / 0x00028470 (array EDI; size): aligned
+// DynArray {data, capacity, count} reserve / push_back / resize (Mem_AlignedAlloc'd blocks).
+extern "C" PLATFORM_HIDDEN void XB_CDECL DynArray_ReserveAligned(uint8_t* array, int32_t capacity);
+extern "C" void DynArray_ReserveAligned_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL DynArray_PushBackAligned(uint8_t* array, const uint32_t* item);
+extern "C" void DynArray_PushBackAligned_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL DynArray_ResizeAligned(uint8_t* array, int32_t size);
+extern "C" void DynArray_ResizeAligned_entry(void);
+// 0x00029380 (bounds EAX, point ECX): mins/maxs (16-aligned vectors) widened to the point.
+void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* bounds, uint32_t, const float* point);
+// 0x00093f10 / 0x00093dc0 / 0x00094010: skip list keyed by 32-byte hashed names {nil, header, .., level +0x10}:
+// find (node or 0), release one reference (unlinked and freed at 0), clear.
+uint32_t XB_THISCALL HashStrMap_Find(const uint32_t* map, const uint32_t* key);
+int32_t XB_THISCALL HashStrMap_Remove(uint32_t* map, const uint32_t* key);
+void XB_THISCALL HashStrMap_Clear(uint32_t* map);
+// 0x0011f6a0 / 0x0011f6f0 (callee pops 4): {data, capacity, count} reserve (Scr_AllocPtrArray / the
+// PROLOGUE copy 0x0045a410; old block Scr_Free'd).
+void XB_THISCALL PtrArray_Reserve(uint32_t* array, uint32_t capacity);
+void XB_THISCALL PtrArray_Reserve2(uint32_t* array, uint32_t capacity);
+
+// Saves (0x000d0f10..0x000d27b0): memory unit enumeration, free space, async file operations.
+int32_t XB_CDECL Save_EnumMemoryUnits(int32_t* ports);   // 0x000d1440
+int32_t XB_CDECL Save_GetNextMemoryUnit();               // 0x000d0f10 (no callers)
+long double XB_CDECL Save_GetProgressFraction();         // 0x000d1570 (no callers; x87 result)
+int32_t XB_CDECL Save_CreateSaveGame(const char* name);  // 0x000d17b0
+int32_t XB_CDECL Save_OpenFile(const char* name, uint32_t access);  // 0x000d18e0
+uint32_t XB_CDECL Save_GetFreeSpace(uint32_t* out);      // 0x000d1b40
+uint32_t XB_CDECL Save_ClustersForSize(uint32_t size);   // 0x000d1e10
+uint32_t XB_CDECL Save_GetClusterSize();                 // 0x000d1ec0
+int32_t XB_CDECL Save_StartAsyncWrite();                 // 0x000d2090
+int32_t XB_CDECL Save_StartAsyncRead();                  // 0x000d2140
+uint32_t XB_CDECL Save_WriteFile(const char* name, uint8_t* buffer, uint32_t size);  // 0x000d21c0
+uint32_t XB_CDECL Save_ReadFile(const char* name, uint8_t* buffer, uint32_t size);   // 0x000d22e0
+uint8_t XB_CDECL Save_StartFileOp();                     // 0x000d23d0
+uint8_t XB_CDECL Save_Update();                          // 0x000d24a0
+uint32_t XB_CDECL Save_BeginWrite(const uint32_t* request);  // 0x000d2620
+uint32_t XB_CDECL Save_BeginRead(const uint32_t* request);   // 0x000d26f0
+
 }  // namespace game

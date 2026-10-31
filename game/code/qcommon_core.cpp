@@ -2,7 +2,10 @@
 
 #include <cstring>
 
+#include "actor.h"
+#include "g_scr_runtime.h"
 #include "lanes.h"
+#include "ngl.h"
 #include "qcommon.h"
 #include "qcommon_fs.h"
 #include "r_init.h"
@@ -4774,5 +4777,881 @@ uint8_t* XB_THISCALL std_exception_CtorString(uint8_t* self, const uint8_t* mess
     std_string_AssignSubstr(self + 0xc, message, 0, 0xffffffffu);
     return self;
 }
+
+// --- qcommon push 7 (low): vector<string>, the 8-byte list and dword vector instances ---
+
+namespace {
+
+// Element counts as MSVC computes them: the byte difference divided (signed, truncating) by the size.
+uint32_t string_count(const uint8_t* first, const uint8_t* last) {
+    return static_cast<uint32_t>(static_cast<int32_t>(addr32(last) - addr32(first)) / 28);
+}
+
+uint32_t dword_count(const void* first, const void* last) {
+    return static_cast<uint32_t>(static_cast<int32_t>(addr32(last) - addr32(first)) >> 2);
+}
+
+uint32_t* dword_ptr(uint32_t address) { return reinterpret_cast<uint32_t*>(uintptr_t{address}); }
+
+}  // namespace
+
+void XB_CDECL std_vector_Xlen_2() { std_vector_Xlen(); }  // the same length_error throw as 0x0017ce30
+
+void XB_REGS3 XB_CDECL std_string_UninitializedFillN(uint32_t, uint32_t, const uint8_t* value, uint8_t* dest,
+                                                     uint32_t count) {
+    // count copies of *value constructed at dest. The title's catch (destroy what was built, rethrow) needs a
+    // failing Z_Malloc, which never happens.
+    uint8_t* to = dest;
+    for (uint32_t left = count; left; --left, to += 0x1c) std_string_ConstructCopy(to, value);
+}
+
+uint8_t* XB_REGS3 XB_CDECL std_string_UninitializedCopy(uint32_t, uint32_t, const uint8_t* last, const uint8_t* first,
+                                                        uint8_t* dest) {
+    const uint8_t* from = first;
+    uint8_t* to = dest;
+    for (; from != last; from += 0x1c, to += 0x1c) std_string_ConstructCopy(to, from);
+    return to;
+}
+
+uint8_t* XB_REGS3 XB_STDCALL std_vector_string_Ucopy(uint32_t, uint8_t* dest, uint8_t*, const uint8_t* first,
+                                                     const uint8_t* last) {
+    return std_string_UninitializedCopy(0, 0, last, first, dest);
+}
+
+PLATFORM_ASM_ENTRY(std_vector_string_Ufill_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(std_vector_string_Ufill) "addl $12, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL std_vector_string_Ufill(uint8_t* dest, uint32_t count, const uint8_t* value) {
+    std_string_UninitializedFillN(0, 0, value, dest, count);
+    return dest + count * 0x1c;
+}
+
+PLATFORM_ASM_ENTRY(std_string_FillRange_entry,
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(std_string_FillRange) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL std_string_FillRange(uint8_t* first, uint8_t* last, const uint8_t* value) {
+    for (uint8_t* s = first; s != last; s += 0x1c) std_string_AssignSubstr(s, value, 0, 0xffffffffu);
+}
+
+PLATFORM_ASM_ENTRY(std_string_CopyBackward_entry,
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(std_string_CopyBackward) "addl $12, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL std_string_CopyBackward(const uint8_t* last, uint8_t* dest, const uint8_t* first) {
+    const uint8_t* from = last;
+    uint8_t* to = dest;
+    while (from != first) {
+        from -= 0x1c;
+        to -= 0x1c;
+        std_string_AssignSubstr(to, from, 0, 0xffffffffu);
+    }
+    return to;
+}
+
+void XB_STDCALL std_vector_string_InsertN(uint8_t* vector, uint8_t* where, uint32_t count, const uint8_t* value) {
+    // MSVC 7.1 vector<string>::_Insert_n: the value copied first, growth by half (max 0x09249249). No catch
+    // blocks in C (Z_Malloc never throws).
+    alignas(4) uint8_t copy[0x1c];
+    string_init_empty(copy);
+    std_string_AssignSubstr(copy, value, 0, 0xffffffffu);
+    uint8_t* const first = pointer_at<uint8_t>(vector, 4);
+    uint32_t capacity = first ? string_count(first, pointer_at<uint8_t>(vector, 0xc)) : 0;
+    const auto size = [vector, first] { return first ? string_count(first, pointer_at<uint8_t>(vector, 8)) : 0; };
+    if (count) {
+        if (0x09249249u - size() < count) std_vector_Xlen_2();
+        if (capacity < size() + count) {
+            const uint32_t half = capacity >> 1;
+            capacity = 0x09249249u - half < capacity ? 0 : capacity + half;
+            if (capacity < size() + count) {
+                capacity = static_cast<uint32_t>(std_vector_string_Size(0, 0, reinterpret_cast<const uint32_t*>(vector))) +
+                           count;
+            }
+            const uint32_t bytes = capacity * 0x1c;
+            uint8_t* const data = Z_Malloc(bytes);
+            uint8_t* end = std_vector_string_Ucopy(0, data, vector, pointer_at<uint8_t>(vector, 4), where);
+            end = std_vector_string_Ufill(end, count, copy);
+            std_vector_string_Ucopy(0, end, vector, where, pointer_at<uint8_t>(vector, 8));
+            uint8_t* const old = pointer_at<uint8_t>(vector, 4);
+            const uint32_t total = count + (old ? string_count(old, pointer_at<uint8_t>(vector, 8)) : 0);
+            if (old) {
+                std_string_DestroyRange(old, pointer_at<uint8_t>(vector, 8));
+                Z_Free(pointer_at<uint8_t>(vector, 4));
+            }
+            word_at(vector, 0xc) = addr32(data) + bytes;
+            word_at(vector, 8) = addr32(data) + total * 0x1c;
+            word_at(vector, 4) = addr32(data);
+        } else {
+            uint8_t* const last = pointer_at<uint8_t>(vector, 8);
+            const uint32_t bytes = count * 0x1c;
+            if (string_count(where, last) < count) {
+                std_string_UninitializedCopy(0, 0, last, where, where + bytes);
+                std_vector_string_Ufill(pointer_at<uint8_t>(vector, 8),
+                                        count - string_count(where, pointer_at<uint8_t>(vector, 8)), copy);
+                word_at(vector, 8) = word_at(vector, 8) + bytes;
+                std_string_FillRange(where, pointer_at<uint8_t>(vector, 8) - bytes, copy);
+            } else {
+                uint8_t* const source = last - bytes;
+                word_at(vector, 8) = addr32(std_string_UninitializedCopy(0, 0, last, source, last));
+                std_string_CopyBackward(source, last, where);
+                std_string_FillRange(where, where + bytes, copy);
+            }
+        }
+    }
+    if (word_at(copy, 0x18) >= 0x10) Z_Free(pointer_at<uint8_t>(copy, 4));
+}
+
+PLATFORM_ASM_ENTRY(std_vector_string_InsertOne_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(std_vector_string_InsertOne) "addl $16, %esp\n"
+                   "ret $12")
+
+uint32_t* XB_CDECL std_vector_string_InsertOne(uint8_t* vector, uint32_t* out, uint8_t* where, const uint8_t* value) {
+    // insert(where, value): *out = the inserted element (by index: the buffer may move).
+    uint8_t* const first = pointer_at<uint8_t>(vector, 4);
+    uint32_t index = 0;
+    if (first && string_count(first, pointer_at<uint8_t>(vector, 8))) index = string_count(first, where);
+    std_vector_string_InsertN(vector, where, 1, value);
+    *out = word_at(vector, 4) + index * 0x1c;
+    return out;
+}
+
+void XB_REGS3 XB_CDECL std_vector_string_PushBack(uint8_t* vector, uint32_t, const uint8_t* value) {
+    uint8_t* const first = pointer_at<uint8_t>(vector, 4);
+    const uint32_t size = first ? string_count(first, pointer_at<uint8_t>(vector, 8)) : 0;
+    if (first && size < string_count(first, pointer_at<uint8_t>(vector, 0xc))) {
+        uint8_t* const last = pointer_at<uint8_t>(vector, 8);
+        std_string_UninitializedFillN(0, 0, value, last, 1);
+        word_at(vector, 8) = addr32(last + 0x1c);
+        return;
+    }
+    uint32_t out = addr32(value);  // the original's out slot is its pushed ECX
+    std_vector_string_InsertOne(vector, &out, pointer_at<uint8_t>(vector, 8), value);
+}
+
+void XB_STDCALL std_list_InsertRange8_EH(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    // insert(where, first, last) of 8-byte values; the title's catch erases the inserted nodes and rethrows.
+    for (uint8_t* node = first; node != last; node = pointer_at<uint8_t>(node, 0)) {
+        std_list_Insert8(reinterpret_cast<const uint32_t*>(node + 8), list, where);
+    }
+}
+
+void XB_STDCALL std_list_InsertRange8(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last) {
+    std_list_InsertRange8_EH(list, where, first, last, addr32(last));
+}
+
+void XB_REGS3 XB_STDCALL std_vector_InsertN4_8(uint32_t, Vector4* vector, uint32_t count, uint32_t* where,
+                                               const uint32_t* value_ptr) {
+    // std_vector_InsertN4 for the Z_Malloc'd instance (no allocator argument; the fill loops inline).
+    const uint32_t value = *value_ptr;
+    uint32_t* const first = vector->first;
+    const uint32_t capacity = first ? dword_count(first, vector->end) : 0;
+    if (!count) return;
+    const auto size = [vector, first] { return first ? dword_count(first, vector->last) : 0; };
+    if (0x3fffffffu - size() < count) std_vector_Xlen_2();
+    if (capacity < size() + count) {
+        const uint32_t half = capacity >> 1;
+        uint32_t new_capacity = 0x3fffffffu - half < capacity ? 0 : capacity + half;
+        if (new_capacity < size() + count) new_capacity = size() + count;
+        const uint32_t bytes = new_capacity << 2;
+        uint32_t* const data = reinterpret_cast<uint32_t*>(Z_Malloc(bytes));
+        uint32_t* middle = std_UninitializedCopy4_3(0, vector->first, data, addr32(vector), where);
+        std_UninitializedFillN4_2(0, &value, middle, count);
+        middle = dword_ptr(addr32(middle) + count * 4);
+        std_UninitializedCopy4_3(0, where, middle, addr32(vector), vector->last);
+        uint32_t* const old = vector->first;
+        const uint32_t total = count + (old ? dword_count(old, vector->last) : 0);
+        if (old) Z_Free(reinterpret_cast<uint8_t*>(old));
+        vector->end = dword_ptr(addr32(data) + bytes);
+        vector->last = dword_ptr(addr32(data) + total * 4);
+        vector->first = data;
+        return;
+    }
+    uint32_t* const last = vector->last;
+    const uint32_t bytes = count * 4;
+    if (dword_count(where, last) < count) {
+        std_UninitializedCopy4_2(0, last, where, dword_ptr(addr32(where) + bytes));
+        std_UninitializedFillN4_2(0, &value, vector->last, count - dword_count(where, vector->last));
+        vector->last = dword_ptr(addr32(vector->last) + bytes);
+        uint32_t* const stop = dword_ptr(addr32(vector->last) - bytes);
+        for (uint32_t* p = where; p != stop; ++p) *p = value;
+        return;
+    }
+    uint32_t* const source = dword_ptr(addr32(last) - bytes);
+    vector->last = std_UninitializedCopy4_2(0, last, source, last);
+    std_CopyBackward4_2(last, where, source);
+    uint32_t* const stop = dword_ptr(addr32(where) + bytes);
+    for (uint32_t* p = where; p != stop; ++p) *p = value;
+}
+
+void XB_REGS3 XB_STDCALL std_vector_Resize4_8(uint32_t, Vector4* vector, uint32_t size, uint32_t value) {
+    uint32_t* const first = vector->first;
+    const uint32_t old_size = first ? dword_count(first, vector->last) : 0;
+    if (old_size < size) {
+        std_vector_InsertN4_8(0, vector, size - old_size, vector->last, &value);
+        return;
+    }
+    if (first && size < dword_count(first, vector->last)) {
+        uint32_t out = 0;  // the original's out is its value argument slot
+        std_vector_Erase4_2(&out, reinterpret_cast<uint8_t*>(vector), first + size, vector->last);
+    }
+}
+
+void XB_REGS2 XB_STDCALL std_vector_Assign4(const uint32_t* value_ptr, Vector4* vector, uint32_t count) {
+    // assign(count, value): the elements erased (inline), then count copies inserted at the start.
+    uint32_t value = *value_ptr;
+    if (vector->first != vector->last) vector->last = vector->first;
+    std_vector_InsertN4_8(0, vector, count, vector->first, &value);
+}
+
+void XB_THISCALL HashMap_CopyFrom_7(const HashMap* source, HashMap* map) {
+    // The Z_Malloc'd hash_map instance's operator= with the operands the other way round (source in ECX):
+    // hash_map_copy_from's steps on the 8-byte list and dword vector instances above.
+    const uint32_t count = source->buckets ? dword_count(source->buckets, source->buckets_last) : 0;
+    std_vector_Resize4_8(0, reinterpret_cast<Vector4*>(&map->vector_allocator), count, addr32(map->head));
+    map->mask = source->mask;
+    map->max_index = source->max_index;
+    std_list_Clear(reinterpret_cast<uint8_t*>(&map->list_allocator));
+    std_list_InsertRange8(reinterpret_cast<uint8_t*>(&map->list_allocator), reinterpret_cast<uint8_t*>(map->head),
+                          reinterpret_cast<uint8_t*>(source->head->next), reinterpret_cast<uint8_t*>(source->head));
+    map->traits = source->traits;
+    HashNode* copy = map->head->next;
+    HashNode* node = source->head->next;
+    for (uint32_t i = 0; map->buckets && i < dword_count(map->buckets, map->buckets_last);) {
+        if (node == source->buckets[i]) {
+            map->buckets[i] = copy;
+            ++i;
+        } else {
+            copy = copy->next;
+            node = node->next;
+        }
+    }
+}
+
+uint32_t XB_REGS1 XB_CDECL Loc_HashKey(const char* text) {
+    // HashStr_Hash on unsigned bytes: rol(hash, 5) ^ c, letters lowered.
+    uint32_t hash = 0;
+    using CharFn = int32_t XB_CDECL(int32_t);
+    for (const uint8_t* p = reinterpret_cast<const uint8_t*>(text); *p; ++p) {
+        uint8_t c = *p;
+        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<uint8_t>(title_function<CharFn>(0x001eed48)(*p));  // _isalpha, tolower
+        hash = ((hash >> 27) | (hash << 5)) ^ c;
+    }
+    return hash;
+}
+
+PLATFORM_ASM_ENTRY(StringMap_Find_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(StringMap_Find) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t* XB_CDECL StringMap_Find(const uint32_t* map, const char* const* name) {
+    // {count, entries {name, value}} kept as an implicit binary tree (children 2i+1 / 2i+2, ordered by
+    // _stricmp); an empty key (Map_EmptyKey) ends the walk. Returns &value or null.
+    using StrICmp = int32_t XB_CDECL(const char*, const char*);
+    uint32_t index = 0;
+    if (!map[0]) return nullptr;
+    do {
+        const char* const key = reinterpret_cast<const char*>(uintptr_t{dword_ptr(map[1])[index * 2]});
+        if (!title_function<StrICmp>(0x001f1443)(key, *name)) return dword_ptr(map[1]) + index * 2 + 1;  // _stricmp
+        const char* const again = reinterpret_cast<const char*>(uintptr_t{dword_ptr(map[1])[index * 2]});
+        index = title_function<StrICmp>(0x001f1443)(again, *name) >= 0 ? index * 2 + 1 : index * 2 + 2;
+        if (index >= map[0]) break;
+        const uint32_t* const entry = dword_ptr(map[1]) + index * 2;
+        const uint32_t* const empty = reinterpret_cast<const uint32_t*>(Map_EmptyKey(8));
+        if (entry[0] == empty[0] && entry[1] == empty[1]) break;
+    } while (index < map[0]);
+    return nullptr;
+}
+
+PLATFORM_ASM_ENTRY(EntHandleTable_Alloc_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(EntHandleTable_Alloc) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL EntHandleTable_Alloc(uint32_t* table, uint32_t* out) {
+    // HandleTable512_Alloc on the entity bit array (EntBits_IterNext; generation at +0xac + slot * 8;
+    // a full table reports through EntHandleTable_ReportFull, table in ESI).
+    uint32_t iterator[4] = {addr32(table), table[0], 0, 0xffffffffu};
+    EntBits_IterNext(iterator);
+    const int32_t slot = static_cast<int32_t>(iterator[3]);
+    table[slot >> 5] &= ~(1u << (slot & 0x1f));
+    if (slot == -1) qcore_call_esi(addr32(table), 0x000299c0);  // EntHandleTable_ReportFull
+    *out = (word_at(reinterpret_cast<const uint8_t*>(table), 0xac + static_cast<uint32_t>(slot) * 8) << 12) |
+           static_cast<uint32_t>(slot);
+    return out;
+}
+
+namespace {
+
+// Aligned DynArray {data, capacity, count}: a new block of `capacity` ints from DynArray_AllocAlignedZeroed
+// (the first `zeroed` cleared) takes the elements, the old one is freed.
+void aligned_regrow(uint8_t* array, int32_t capacity, uint32_t zeroed) {
+    uint32_t* const data = DynArray_AllocAlignedZeroed(static_cast<uint32_t>(capacity), zeroed);
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(array, 8)); ++i) data[i] = pointer_at<uint32_t>(array, 0)[i];
+    void* const old = pointer_at<void>(array, 0);
+    if (old) {
+        Mem_AlignedFree(old);
+        word_at(array, 0) = 0;
+    }
+    word_at(array, 0) = addr32(data);
+    word_at(array, 4) = static_cast<uint32_t>(capacity);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(DynArray_ReserveAligned_entry,
+                   "pushl %ebx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(DynArray_ReserveAligned) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL DynArray_ReserveAligned(uint8_t* array, int32_t capacity) {
+    if (capacity > static_cast<int32_t>(word_at(array, 4))) aligned_regrow(array, capacity, word_at(array, 8));
+}
+
+PLATFORM_ASM_ENTRY(DynArray_PushBackAligned_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(DynArray_PushBackAligned) "addl $8, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL DynArray_PushBackAligned(uint8_t* array, const uint32_t* item) {
+    // push_back: full arrays grow by 1 up to 4 elements, then by 4. Returns the new element's index.
+    const int32_t count = static_cast<int32_t>(word_at(array, 8));
+    if (!(count < static_cast<int32_t>(word_at(array, 4)))) {
+        aligned_regrow(array, count > 3 ? count + 4 : count + 1, static_cast<uint32_t>(count + 1));
+    }
+    const uint32_t index = word_at(array, 8);
+    pointer_at<uint32_t>(array, 0)[index] = *item;
+    word_at(array, 8) = word_at(array, 8) + 1;
+    return index;
+}
+
+PLATFORM_ASM_ENTRY(DynArray_ResizeAligned_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(DynArray_ResizeAligned) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL DynArray_ResizeAligned(uint8_t* array, int32_t size) {
+    // resize: new slots zeroed (null slots skipped); past the capacity an exact-size block
+    // (Mem_AlignedAlloc, 4-aligned) takes the elements.
+    if (!(size > static_cast<int32_t>(word_at(array, 4)))) {
+        if (size > static_cast<int32_t>(word_at(array, 8))) {
+            const uint32_t data = word_at(array, 0);
+            const uint32_t end = data + static_cast<uint32_t>(size) * 4;
+            for (uint32_t p = data + word_at(array, 8) * 4; p != end; p += 4) {
+                if (p) *dword_ptr(p) = 0;
+            }
+        }
+        word_at(array, 8) = static_cast<uint32_t>(size);
+        return;
+    }
+    const uint32_t bytes = static_cast<uint32_t>(size) * 4;
+    const uint32_t data = addr32(Mem_AlignedAlloc(bytes, 4, 0));
+    for (uint32_t p = data; p != data + bytes; p += 4) {
+        if (p) *dword_ptr(p) = 0;
+    }
+    for (int32_t i = 0; i < static_cast<int32_t>(word_at(array, 8)); ++i) dword_ptr(data)[i] = pointer_at<uint32_t>(array, 0)[i];
+    void* const old = pointer_at<void>(array, 0);
+    if (old) {
+        Mem_AlignedFree(old);
+        word_at(array, 0) = 0;
+    }
+    word_at(array, 0) = data;
+    word_at(array, 4) = static_cast<uint32_t>(size);
+    word_at(array, 8) = static_cast<uint32_t>(size);
+}
+
+void XB_REGS3 XB_CDECL Bounds_AddPointSimd(float* bounds, uint32_t, const float* point) {
+    // mins (+0) / maxs (+0x10) widened to the point lane by lane (x, y, z; NaN x replaces). The original
+    // compares all four lanes (CMPLTPS) for y and z: the C compares them too for the same MXCSR flags.
+    uint32_t* const bits = reinterpret_cast<uint32_t*>(bounds);
+    const uint32_t* const point_bits = reinterpret_cast<const uint32_t*>(point);
+    if (!(bounds[0] <= point[0])) bits[0] = point_bits[0];
+    for (int32_t lane = 1; lane < 3; ++lane) {
+        bool less[4];
+        for (int32_t i = 0; i < 4; ++i) less[i] = point[i] < bounds[i];
+        platform_keep(less);
+        if (less[lane]) bits[lane] = point_bits[lane];
+    }
+    if (!(point[0] <= bounds[4])) bits[4] = point_bits[0];
+    for (int32_t lane = 1; lane < 3; ++lane) {
+        bool less[4];
+        for (int32_t i = 0; i < 4; ++i) less[i] = bounds[4 + i] < point[i];
+        platform_keep(less);
+        if (less[lane]) bits[4 + lane] = point_bits[lane];
+    }
+}
+
+namespace {
+
+// A skip-list node key: 8 dwords compared from the first, unsigned. 0 = equal, 1 = key below the node's,
+// -1 = above.
+int32_t skip_compare(const uint32_t* key, const uint32_t* node) {
+    for (int32_t i = 0; i < 8; ++i) {
+        if (node[i] != key[i]) return key[i] < node[i] ? 1 : -1;
+    }
+    return 0;
+}
+
+uint32_t* skip_forward(uint32_t node, int32_t level) { return dword_ptr(node + 0x28 + static_cast<uint32_t>(level) * 4); }
+
+}  // namespace
+
+uint32_t XB_THISCALL HashStrMap_Find(const uint32_t* map, const uint32_t* key) {
+    // Skip list {nil +0, header +4, level +0x10}; nodes: key (8 dwords), refs +0x24, forward[] +0x28.
+    int32_t level = static_cast<int32_t>(map[4]);
+    uint32_t node = map[1];
+    uint32_t next = *skip_forward(node, level);
+    for (;;) {
+        const int32_t order = skip_compare(key, dword_ptr(next));
+        if (!order) return next;
+        if (order <= 0) {
+            node = next;
+        } else {
+            --level;
+            if (level < 0) break;
+        }
+        next = *skip_forward(node, level);
+    }
+    return skip_compare(key, dword_ptr(next)) ? 0 : next;
+}
+
+int32_t XB_THISCALL HashStrMap_Remove(uint32_t* map, const uint32_t* key) {
+    // One reference of the key's node dropped (-1 when absent); at 0 it is unlinked at every level, freed
+    // (Mem_AlignedFree) and empty top levels dropped. Returns the references left.
+    const int32_t top = static_cast<int32_t>(map[4]);
+    uint32_t update[16] = {};
+    uint32_t node = map[1];
+    uint32_t next = 0;
+    for (int32_t level = top; level >= 0;) {
+        next = *skip_forward(node, level);
+        if (skip_compare(key, dword_ptr(next)) < 0) {
+            node = next;
+            continue;
+        }
+        update[level] = node;
+        --level;
+    }
+    if (skip_compare(key, dword_ptr(next))) return -1;
+    const int32_t refs = static_cast<int32_t>(dword_ptr(next)[9]) - 1;
+    dword_ptr(next)[9] = static_cast<uint32_t>(refs);
+    if (refs > 0) return refs;
+    for (int32_t i = 0; i <= top; ++i) {
+        if (*skip_forward(update[i], i) != next) break;
+        *skip_forward(update[i], i) = *skip_forward(next, i);
+    }
+    Mem_AlignedFree(dword_ptr(next));
+    int32_t level = top;
+    while (*skip_forward(map[1], level) == map[0] && level > 0) --level;
+    map[4] = static_cast<uint32_t>(level);
+    return refs;
+}
+
+void XB_THISCALL HashStrMap_Clear(uint32_t* map) {
+    // Every node released until gone (the node's own key passed), then the nil and header nodes freed.
+    if (map[1]) {
+        while (*skip_forward(map[1], 0) != map[0]) HashStrMap_Remove(map, dword_ptr(*skip_forward(map[1], 0)));
+    }
+    if (map[0]) Mem_AlignedFree(dword_ptr(map[0]));
+    if (map[1]) Mem_AlignedFree(dword_ptr(map[1]));
+    map[0] = 0;
+    map[1] = 0;
+}
+
+namespace {
+
+// {data, capacity, count} reserve: a block of `capacity` from `alloc` (stdcall capacity, count) takes the
+// elements and the old block goes back to Scr_Free.
+void ptr_array_reserve(uint32_t* array, uint32_t capacity, uint32_t alloc) {
+    if (!(capacity > array[1])) return;
+    uint32_t* const data = title_function<uint32_t* XB_STDCALL(uint32_t, uint32_t)>(alloc)(capacity, array[2]);
+    for (uint32_t i = 0; i < array[2]; ++i) data[i] = dword_ptr(array[0])[i];
+    if (array[0]) Scr_Free(dword_ptr(array[0]));
+    array[0] = addr32(data);
+    array[1] = capacity;
+}
+
+}  // namespace
+
+void XB_THISCALL PtrArray_Reserve(uint32_t* array, uint32_t capacity) {
+    ptr_array_reserve(array, capacity, 0x0011f660);  // Scr_AllocPtrArray
+}
+
+void XB_THISCALL PtrArray_Reserve2(uint32_t* array, uint32_t capacity) {
+    ptr_array_reserve(array, capacity, 0x0045a410);  // the PROLOGUE overlay's copy of Scr_AllocPtrArray
+}
+
+// --- Saves (memory units / hard disk): the async file operations ---
+
+namespace {
+
+constexpr uint32_t kSaveRequest = 0x00920b00;
+constexpr uint32_t kSaveOpState = 0x00920af4;
+constexpr uint32_t kSaveDrive = 0x008c02d8;  // "X:\" root; the drive letter comes from 0x008c02d4
+
+uint8_t* save_request() { return reinterpret_cast<uint8_t*>(uintptr_t{kSaveRequest}); }
+const char* save_empty_name() { return reinterpret_cast<const char*>(uintptr_t{0x0082dfeb}); }  // ""
+
+// The drive root with the current drive letter (each XAPI disk call is preceded by this copy).
+const char* save_drive_root() {
+    title_global<uint8_t>(kSaveDrive) = title_global<uint8_t>(0x008c02d4);
+    return reinterpret_cast<const char*>(uintptr_t{kSaveDrive});
+}
+
+uint32_t save_sector_size() {
+    return title_function<uint32_t XB_STDCALL(const char*)>(0x001e9d67)(save_drive_root());  // XGetDiskSectorSizeA
+}
+
+uint32_t save_cluster_size() {
+    return title_function<uint32_t XB_STDCALL(const char*)>(0x001e9cc8)(save_drive_root());  // XGetDiskClusterSizeA
+}
+
+// listener->vtable[0](state) (thiscall, callee pops).
+void save_notify(uint32_t listener, uint32_t state) {
+    if (!listener) return;
+    using Notify = void XB_THISCALL(uint32_t, uint32_t);
+    title_function<Notify>(*dword_ptr(*dword_ptr(listener)))(listener, state);
+}
+
+// The operation's end on an error: device unmounted and closed, the request's file name cleared, the
+// listener told the old state (opState 0).
+void save_abort_unmount_first() {
+    Save_UnmountDevice();
+    Save_CloseDevice();
+    SaveRequest_SetFileName(save_request(), save_empty_name());
+    const uint32_t listener = title_global<uint32_t>(0x00920af0);
+    const uint32_t state = title_global<uint32_t>(kSaveOpState);
+    title_global<uint32_t>(kSaveOpState) = 0;
+    save_notify(listener, state);
+}
+
+// Save_BeginWrite / Save_BeginRead: the request copied in (0xa2 dwords), state 2 / 1, device mounted,
+// the save game created (or opened), then the first file operation.
+uint32_t save_begin(const uint32_t* request, uint32_t state) {
+    if (title_global<uint32_t>(kSaveOpState)) {
+        Save_SetLastResult(0xffffffefu);
+        return Save_GetLastResult();
+    }
+    for (uint32_t i = 0; i < 0xa2; ++i) dword_ptr(kSaveRequest)[i] = request[i];
+    title_global<uint32_t>(kSaveOpState) = state;
+    Save_SetLastResult(static_cast<uint32_t>(Save_MountDevice()));
+    if (!Save_GetLastResult()) {
+        Save_SetLastResult(static_cast<uint32_t>(Save_CreateSaveGame(SaveRequest_GetFileName(save_request()))));
+        if (!Save_GetLastResult()) {
+            Save_StartFileOp();
+            return Save_GetLastResult();
+        }
+    }
+    Save_UnmountDevice();
+    Save_CloseDevice();
+    SaveRequest_SetFileName(save_request(), save_empty_name());
+    title_global<uint32_t>(kSaveOpState) = 0;
+    return Save_GetLastResult();
+}
+
+}  // namespace
+
+int32_t XB_CDECL Save_EnumMemoryUnits(int32_t* ports) {
+    // The ports with a memory unit (XGetDevices, per-port masks 0x008c02e0), then 8 (the hard disk);
+    // returns the count with it.
+    const uint32_t devices = title_function<uint32_t XB_STDCALL(uint32_t)>(0x007ac250)(0x007aa028);  // XGetDevices
+    int32_t count = 0;
+    int32_t* out = ports;
+    if (devices) {
+        for (int32_t port = 0; port < 8; ++port) {
+            if (title_global<uint32_t[8]>(0x008c02e0)[port] & devices) {
+                *out++ = port;
+                ++count;
+            }
+        }
+    }
+    *out = 8;
+    return count + 1;
+}
+
+int32_t XB_CDECL Save_GetNextMemoryUnit() {
+    // The unit after the selected port (Save_EnumMemoryUnits' order, wrapping to the first); -1 for none.
+    int32_t ports[9];
+    const int32_t count = Save_EnumMemoryUnits(ports);
+    if (count <= 0) return -1;
+    const int32_t port = title_global<int32_t>(0x008c02d0);
+    if (port == ports[count - 1]) return ports[0];
+    for (int32_t i = 0; i < count; ++i) {
+        if (port < ports[i]) return ports[i];
+    }
+    return -1;
+}
+
+long double XB_CDECL Save_GetProgressFraction() {
+    // (sectors done - 1) / sectors + (1 / sectors) * (bytes done / buffer size), on the x87 (unsigned
+    // FILD + 2^32 corrections); 0 when idle or no port.
+    if (!Save_GetOpState() || title_global<int32_t>(0x008c02d0) == -1) return title_global<float>(0x0083eafc);
+    const auto unsigned_value = [](uint32_t value) {
+        long double v = static_cast<long double>(static_cast<int32_t>(value));
+        if (static_cast<int32_t>(value) < 0) v += title_global<float>(0x0083eb2c);  // 2^32
+        return v;
+    };
+    const long double sectors = unsigned_value(title_global<uint32_t>(0x00920d44));
+    const long double done = unsigned_value(title_global<uint32_t>(0x00920d40) - 1);
+    const float whole = static_cast<float>(done / sectors);
+    const long double step = title_global<float>(0x0083eb20) / sectors;
+    const float part = static_cast<float>(step * unsigned_value(title_global<uint32_t>(0x00920d98)));
+    const long double size = unsigned_value(Save_GetBufferSize());
+    return part / size + whole;
+}
+
+int32_t XB_CDECL Save_CreateSaveGame(const char* name) {
+    // XCreateSaveGame(drive, wide name, OPEN_ALWAYS, 0, path out 0x00920da8, 0x103), error translated.
+    uint16_t wide[0x40];
+    wide[0] = 0;
+    title_function<int32_t XB_STDCALL(uint32_t, uint32_t, const char*, int32_t, uint16_t*, int32_t)>(0x001e96a4)(
+        0, 0, name, -1, wide, 0x3f);  // MultiByteToWideChar
+    const int32_t error = title_function<int32_t XB_STDCALL(const char*, const uint16_t*, uint32_t, uint32_t, char*,
+                                                            uint32_t)>(0x001e8fbc)(
+        save_drive_root(), wide, 4, 0, &title_global<char>(0x00920da8), 0x103);  // XCreateSaveGame
+    return Save_TranslateError(error);
+}
+
+int32_t XB_CDECL Save_OpenFile(const char* name, uint32_t access) {
+    // CreateFileA(save path + "\\" + name, access, 0, 0, OPEN_ALWAYS, overlapped | no buffering);
+    // 0 or -1.
+    char path[0x104];
+    copy_string(path, &title_global<char>(0x00920da8));
+    std::strcat(path, &title_global<char>(0x00832f60));  // "\\"
+    std::strcat(path, name);
+    const uint32_t file = title_function<uint32_t XB_STDCALL(const char*, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                             uint32_t, uint32_t)>(0x001e7d56)(
+        path, access, 0, 0, 4, 0x60000080, 0);  // CreateFileA
+    title_global<uint32_t>(0x00920eac) = file;
+    return file != 0xffffffffu ? 0 : -1;
+}
+
+uint32_t XB_CDECL Save_GetFreeSpace(uint32_t* out) {
+    // GetDiskFreeSpaceExA of the device: out = {free bytes, total bytes, free blocks, total blocks
+    // (16 KB, at most 50001), 1}.
+    if (title_global<uint32_t>(kSaveOpState)) {
+        Save_SetLastResult(0xffffffefu);
+        return Save_GetLastResult();
+    }
+    Save_SetLastResult(static_cast<uint32_t>(Save_MountDevice()));
+    if (Save_GetLastResult()) {
+        Save_UnmountDevice();
+        return Save_GetLastResult();
+    }
+    uint32_t space[6];
+    const char* const root = save_drive_root();
+    if (!title_function<int32_t XB_STDCALL(const char*, uint32_t*, uint32_t*, uint32_t*)>(0x001e9827)(
+            root, space, space + 2, space + 4)) {  // GetDiskFreeSpaceExA
+        Save_SetLastResult(0xffffffffu);
+        Save_UnmountDevice();
+        return Save_GetLastResult();
+    }
+    for (uint32_t i = 0; i < 2; ++i) {
+        out[i * 2] = space[i * 2];
+        out[i * 2 + 1] = space[i * 2 + 1];
+        const uint32_t blocks = BytesToBlocks(space[i * 2], space[i * 2 + 1]);
+        out[4 + i] = blocks > 0xc351 ? 0xc351 : blocks;
+    }
+    out[6] = 1;
+    Save_SetLastResult(static_cast<uint32_t>(Save_UnmountDevice()));
+    Save_GetLastResult();
+    return Save_GetLastResult();
+}
+
+uint32_t XB_CDECL Save_ClustersForSize(uint32_t size) {
+    // size + 0x20 (the signature) rounded up to the cluster size; 0 when the device fails.
+    Save_SetLastResult(static_cast<uint32_t>(Save_MountDevice()));
+    if (Save_GetLastResult()) {
+        Save_UnmountDevice();
+        return 0;
+    }
+    uint32_t bytes = size + 0x20;
+    const uint32_t rest = bytes % save_cluster_size();
+    if (rest) bytes += save_cluster_size() - rest;
+    Save_SetLastResult(static_cast<uint32_t>(Save_UnmountDevice()));
+    return Save_GetLastResult() ? 0 : bytes;
+}
+
+uint32_t XB_CDECL Save_GetClusterSize() {
+    Save_MountDevice();
+    const uint32_t size = save_cluster_size();
+    Save_UnmountDevice();
+    return size;
+}
+
+int32_t XB_CDECL Save_StartAsyncWrite() {
+    // The file set to the buffer size, then the first sector written overlapped (callback 0x000d1ef0
+    // continues); a failure other than ERROR_IO_PENDING closes the device.
+    title_global<uint32_t>(0x00920eb0) = 0x000d1ef0;
+    title_global<uint32_t>(0x00920da0) = 0;
+    for (uint32_t i = 0; i < 4; ++i) title_global<uint32_t>(0x00920d90 + i * 4) = 0;
+    title_global<uint32_t>(0x00920da0) =
+        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e851c)(0, 1, 0, 0);  // CreateEventA
+    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e8171)(
+        title_global<uint32_t>(0x00920eac), Save_GetBufferSize(), 0, 0);  // SetFilePointer
+    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e80ed)(title_global<uint32_t>(0x00920eac));  // SetEndOfFile
+    const uint32_t sector = save_sector_size();
+    const uint32_t buffer = Save_GetBuffer();
+    if (!title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e8017)(
+            title_global<uint32_t>(0x00920eac), buffer, sector, 0, 0x00920d90) &&  // WriteFile
+        title_function<uint32_t XB_STDCALL()>(0x001e7c84)() != 0x3e5) {           // GetLastError
+        Save_CloseDevice();
+        return -1;
+    }
+    return 0;
+}
+
+int32_t XB_CDECL Save_StartAsyncRead() {
+    // The first sector read overlapped (callback 0x000d1f90); ERROR_HANDLE_EOF closes the file handles.
+    title_global<uint32_t>(0x00920eb0) = 0x000d1f90;
+    title_global<uint32_t>(0x00920da0) = 0;
+    for (uint32_t i = 0; i < 4; ++i) title_global<uint32_t>(0x00920d90 + i * 4) = 0;
+    title_global<uint32_t>(0x00920da0) =
+        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e851c)(0, 1, 0, 0);  // CreateEventA
+    const uint32_t sector = save_sector_size();
+    const uint32_t buffer = Save_GetBuffer();
+    if (!title_function<int32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e7f2a)(
+            title_global<uint32_t>(0x00920eac), buffer, sector, 0, 0x00920d90) &&  // ReadFile
+        title_function<uint32_t XB_STDCALL()>(0x001e7c84)() == 0x26) {            // GetLastError
+        Save_CloseFileHandles();
+    }
+    return 0;
+}
+
+uint32_t XB_CDECL Save_WriteFile(const char* name, uint8_t* buffer, uint32_t size) {
+    // The buffer's last 0x20 bytes get its XCalculateSignature (of the rest), then the file is opened
+    // and the write started (the size must be whole sectors: -9).
+    title_global<uint32_t>(0x00920ae8) = addr32(buffer);
+    title_global<uint32_t>(0x00920aec) = size;
+    if (size > 0x20) {
+        uint32_t* const signature = reinterpret_cast<uint32_t*>(buffer + size - 0x20);
+        if (signature) {
+            uint32_t digest[5];
+            const uint32_t context = title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e8ac7)(0);  // XCalculateSignatureBegin
+            title_function<uint32_t XB_STDCALL(uint32_t, const uint8_t*, uint32_t)>(0x001e8adb)(context, buffer,
+                                                                                               size - 0x20);
+            title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*)>(0x001e8b29)(context, digest);
+            for (uint32_t i = 0; i < 5; ++i) signature[i] = digest[i];
+        }
+    }
+    Save_SetLastResult(static_cast<uint32_t>(Save_OpenFile(name, 0x40000000)));
+    if (!Save_GetLastResult()) {
+        if (title_global<uint32_t>(0x00920aec) % save_sector_size()) {
+            Save_SetLastResult(0xfffffff7u);
+        } else {
+            Save_SetLastResult(static_cast<uint32_t>(Save_StartAsyncWrite()));
+            if (!Save_GetLastResult()) return Save_GetLastResult();
+        }
+    }
+    save_abort_unmount_first();
+    return Save_GetLastResult();
+}
+
+uint32_t XB_CDECL Save_ReadFile(const char* name, uint8_t* buffer, uint32_t size) {
+    title_global<uint32_t>(0x00920ae8) = addr32(buffer);
+    title_global<uint32_t>(0x00920aec) = size;
+    Save_SetLastResult(static_cast<uint32_t>(Save_OpenFile(name, 0x80000000u)));
+    if (!Save_GetLastResult()) {
+        if (title_global<uint32_t>(0x00920aec) % save_sector_size()) {
+            Save_SetLastResult(0xfffffff7u);
+        } else {
+            Save_SetLastResult(static_cast<uint32_t>(Save_StartAsyncRead()));
+            if (!Save_GetLastResult()) return Save_GetLastResult();
+        }
+    }
+    save_abort_unmount_first();
+    return Save_GetLastResult();
+}
+
+uint8_t XB_CDECL Save_StartFileOp() {
+    // The request's next file read (state 1) or written (state 2); none left ends the operation
+    // (listener told) and returns 0.
+    char name[0x40] = {};
+    uint32_t buffer = 0;
+    uint32_t size = 0;
+    if (SaveRequest_NextFile(save_request(), name, &buffer, &size)) {
+        const uint32_t state = title_global<uint32_t>(kSaveOpState);
+        if (state == 2) {
+            Save_WriteFile(name, reinterpret_cast<uint8_t*>(uintptr_t{buffer}), size);
+        } else if (state == 1) {
+            Save_ReadFile(name, reinterpret_cast<uint8_t*>(uintptr_t{buffer}), size);
+        }
+        return 1;
+    }
+    const uint32_t state = title_global<uint32_t>(kSaveOpState);
+    title_global<uint32_t>(kSaveOpState) = 0;
+    SaveRequest_SetFileName(save_request(), save_empty_name());
+    Save_CloseDevice();
+    Save_SetLastResult(static_cast<uint32_t>(Save_UnmountDevice()));
+    save_notify(title_global<uint32_t>(0x00920af0), state);
+    return 0;
+}
+
+uint8_t XB_CDECL Save_Update() {
+    // Per frame: idle - report a removed memory unit at the selected port; busy - run the pending callback
+    // (-17 = still going), then check a read file's signature and start the next file. Returns 1 while
+    // an operation is in flight.
+    const uint32_t callback = title_global<uint32_t>(0x00920eb0);
+    if (!callback) {
+        if (!title_global<uint32_t>(kSaveOpState)) {
+            uint32_t changes[2];  // removals, insertions
+            if (title_function<int32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*)>(0x007ac272)(
+                    0x007aa028, changes + 1, changes) &&  // XGetDeviceChanges
+                title_global<int32_t>(0x008c02d0) != 8 &&
+                (title_global<uint32_t[8]>(0x008c02e0)[Save_GetPort()] & changes[0])) {
+                const uint32_t listener = title_global<uint32_t>(0x00920af8);
+                if (listener) {
+                    using Removed = void XB_THISCALL(uint32_t, uint32_t, int32_t);
+                    title_function<Removed>(*dword_ptr(*dword_ptr(listener)))(listener, 1,
+                                                                              title_global<int32_t>(0x008c02d0));
+                }
+            }
+            return 0;
+        }
+    } else {
+        const int32_t result = title_function<int32_t XB_CDECL()>(callback)();
+        if (result == -17) return 1;
+        if (result) {
+            Save_SetLastResult(static_cast<uint32_t>(result));
+            const uint32_t state = title_global<uint32_t>(kSaveOpState);
+            title_global<uint32_t>(kSaveOpState) = 0;
+            Save_UnmountDevice();
+            Save_CloseDevice();
+            SaveRequest_SetFileName(save_request(), save_empty_name());
+            save_notify(title_global<uint32_t>(0x00920af0), state);
+            return 0;
+        }
+    }
+    Save_SetLastResult(0);
+    if (title_global<uint32_t>(kSaveOpState) == 1) {
+        uint32_t length = 0;
+        uint8_t signature[0x20];
+        title_function<void XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t*)>(0x000d1500)(
+            title_global<uint32_t>(0x00920ae8), title_global<uint32_t>(0x00920aec) - 0x20, signature,
+            &length);  // Save_CalculateSignature
+        const char* const stored = reinterpret_cast<const char*>(
+            uintptr_t{title_global<uint32_t>(0x00920ae8) + title_global<uint32_t>(0x00920aec) - 0x20});
+        if (title_function<int32_t XB_CDECL(const char*, const uint8_t*, uint32_t)>(0x001eeaf0)(stored, signature,
+                                                                                               length)) {  // _strncmp
+            Save_SetLastResult(0xfffffff4u);
+            save_abort_unmount_first();
+            return 0;
+        }
+    }
+    return Save_StartFileOp();
+}
+
+uint32_t XB_CDECL Save_BeginWrite(const uint32_t* request) { return save_begin(request, 2); }
+
+uint32_t XB_CDECL Save_BeginRead(const uint32_t* request) { return save_begin(request, 1); }
 
 }  // namespace game

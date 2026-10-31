@@ -334,3 +334,5 @@ address,name,kind,reason
 001a96d0,DynArray_Shuffle_2,dead,"no references and no stored pointer bytes in the XBE (qcommon push 7)"
 001a98e0,DynArray_ShuffleInt,dead,"no references and no stored pointer bytes in the XBE (qcommon push 7)"
 002a9be0,Com_PrintfStub,dead,"no references and no stored pointer bytes in the XBE (qcommon push 7)"
+000d0f10,Save_GetNextMemoryUnit,dead,"no CALL/JMP and no pointer in data (qcommon push 7); C kept, forced tests matched"
+000d1570,Save_GetProgressFraction,dead,"no CALL/JMP and no pointer in data (qcommon push 7); C kept, forced tests matched"

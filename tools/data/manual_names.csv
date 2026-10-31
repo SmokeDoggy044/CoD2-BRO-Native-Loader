@@ -12517,7 +12517,7 @@ address,name,kind,confidence,evidence
 0001ff10,DynArray_Alloc12,function,medium,"Mem_AlignedAlloc(n*12, 4) and zeroes each 12-byte item; DynArray_PushBack12"
 0001f880,std_string_AppendNChar,function,medium,"append(count EAX, ch): length checks (Xlen 0x001ee8c1), grows via std_string_Copy, fills count chars, terminates; Loc_LoadStringDir_r"
 00020150,std_vector_string_InsertN,function,medium,"vector<std::string> (0x1c elements, max 0x9249249) insert n copies of a value: reallocates (Z_Malloc, uninitialized copy, destroy range, Z_Free) or shifts in place; std_vector_string_InsertOne"
-000209c0,std_vector_ClearAndPush4,function,medium,end = begin then std_vector_InsertN4_8 one dword at begin (vector = {value}); G_ClearCheckpoint
+000209c0,std_vector_Assign4,function,medium,end = begin then std_vector_InsertN4_8 one dword at begin (vector = {value}); G_ClearCheckpoint
 00021500,std_string_AppendSubstr,function,medium,"append(str, pos, n): pos > size throws (0x001ee881), clamps n, grows via std_string_Copy, copies; std_string_AppendN"
 00021aa0,std_map_string_BuyNode,function,medium,Z_Malloc(0x68) tree node + node ctor 0x00022880 (EH frame); std_map_string_Insert
 00021f80,std_set_string_BuyNode,function,medium,Z_Malloc(0x30) tree node + node ctor 0x000228b0 (EH frame); std_set_string_Insert

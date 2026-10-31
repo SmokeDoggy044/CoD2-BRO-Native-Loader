@@ -518,7 +518,7 @@ address,name,section,module,state,tested,matched
 000206e0,std_tree_Insert29,.text,qcommon,untested,0,0
 00020890,std_string_AppendN,.text,qcommon,matched,36,36
 00020990,HandleBits512_Invert,.text,qcommon,offline,0,0
-000209c0,std_vector_ClearAndPush4,.text,qcommon,named,0,0
+000209c0,std_vector_Assign4,.text,qcommon,named,0,0
 00020a10,std_map_string_InsertUnique,.text,qcommon,untested,0,0
 00020b80,std_map_string_EraseRange,.text,qcommon,untested,0,0
 00020c00,std_map_string_Insert,.text,qcommon,untested,0,0
