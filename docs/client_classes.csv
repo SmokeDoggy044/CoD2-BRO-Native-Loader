@@ -207,3 +207,5 @@
 0030f730,UIText_ScrollBy,not reached,UIText vtable slot 0x0082a574 only; 0 calls in all level runs; menus may reach it in the steered run
 0030fb60,UITextBase_SetVertAlign,not reached,UITextBase vtable slot 0x00829908 only; 0 calls in all level runs; menus may reach it in the steered run
 0030fba0,UITextBase_SetHorzAlign,not reached,UITextBase vtable slot 0x00829904 only; 0 calls in all level runs; menus may reach it in the steered run
+00338ca0,CreateProfileMenu_Activate,front end,"CreateProfileMenu vtable slot .rdata 0082a0a8 only; the menu exists only in the front end (no --force target in level runs); indirect calls, not leaf-eligible; gap function, C added client push"
+0030d530,CreateProfileMenu_BuildKeyboard,front end,"only caller CreateProfileMenu_Activate (front end); 0 calls in level runs; vtable calls, not leaf-eligible"

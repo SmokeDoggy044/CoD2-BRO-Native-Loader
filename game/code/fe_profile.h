@@ -78,6 +78,12 @@ extern "C" void CreateProfileMenu_ToggleCase_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_BuildKeyboard(uint8_t* menu, uint32_t ecx,
                                                                          uint32_t entry_esp);
 extern "C" void CreateProfileMenu_BuildKeyboard_entry(void);
+// 0x00338ca0 (thiscall, CreateProfileMenu vtable slot 0x0082a0a8): name length +0x1ac / +0x1b0 / +0x198 cleared,
+// BuildKeyboard, UIMenu_RestoreSelection, "profileName" set to "_" (+0x6c), vtable +0x88 (10, 1), capitals off, the
+// text's colour {0x19, 0x21, 0x28, 0xff} (+0x90, packed in the push ecx slot); once (0x0095f91a) the "Propgnda"
+// movie opened on a full-screen quad. The C version gets the entry ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_Activate(uint8_t* menu, uint32_t entry_esp);
+extern "C" void CreateProfileMenu_Activate_entry(void);
 // 0x003258c0 (menu in ESI): one character off the name ('_' cursor), the "profileName" text (+0x6c); below 15
 // characters every key shown (+0x20 (0)); an empty name hides backspace, space and done (+0x20 (1)).
 extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_Backspace(uint8_t* menu, uint32_t entry_esp);

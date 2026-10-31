@@ -4269,6 +4269,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00338960,ProfileMenu_CheckStorage,compare,13,8,0,0,0,8,"original called host code at 08116ff0 from 001e9cdb XAPILIB::XGetDiskClusterSizeA+0x13 [.text]"
 00338b70,CreateProfileMenu_Finish,compare,2,2,0,0,0,2,"original called host code at 0811aad0 from 001e7b15 XAPILIB::CloseHandle+0xa [.text]"
 00338c40,CreateProfileMenu_HandleSelect,compare,23,22,21,0,0,1,"original called host code at 0811aad0 from 001e7b15 XAPILIB::CloseHandle+0xa [.text]"
+00338ca0,CreateProfileMenu_Activate,compare,0,0,0,0,0,0,""
 00338d70,FE_DifficultyMenu_Init,compare,3,2,0,0,0,2,"original called host code at 081182b0 from 001e7dc1 XAPILIB::CreateFileA+0x6b [.text]"
 00338e40,SoundMenu_RestoreSelection,replaced,6,6,6,0,0,0,""
 00338f50,ControllerConfigMenu_RestoreSelection,compare,4,4,0,0,0,4,"original called host code at 08116ff0 from 001e7dc1 XAPILIB::CreateFileA+0x6b [.text]"

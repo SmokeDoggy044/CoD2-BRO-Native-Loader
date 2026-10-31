@@ -4366,6 +4366,7 @@ const Function kFunctions[] = {
     {"ProfileMenu_ShowFormatSuccessDialog", 0x003388f0, 0, code(&ProfileMenu_ShowFormatSuccessDialog_entry), 0, Result::None, Status::Compare},
     {"ProfileMenu_CheckStorage", 0x00338960, 0, code(&ProfileMenu_CheckStorage_entry), 0, Result::None, Status::Compare},
     {"CreateProfileMenu_Finish", 0x00338b70, 0, code(&CreateProfileMenu_Finish_entry), 0, Result::None, Status::Compare},
+    {"CreateProfileMenu_Activate", 0x00338ca0, 0, code(&CreateProfileMenu_Activate_entry), 0, Result::None, Status::Compare},
     {"CreateProfileMenu_HandleSelect", 0x00338c40, 0, code(&CreateProfileMenu_HandleSelect_entry), 4, Result::None, Status::Compare},
     {"FE_DifficultyMenu_Init", 0x00338d70, 0, code(&FE_DifficultyMenu_Init_entry), 0, Result::None, Status::Compare},
     {"SoundMenu_RestoreSelection", 0x00338e40, 0, code(&SoundMenu_RestoreSelection), 0, Result::None, Status::Replaced},

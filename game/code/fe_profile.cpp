@@ -485,6 +485,7 @@ void XB_CDECL CreateProfileMenu_UpdateHighlight(uint8_t* menu) {
 PROFILE_GAP_ENTRY(CreateProfileMenu_ToggleCase_entry, "pushl %esi\n", CreateProfileMenu_ToggleCase, "8", "ret")
 PROFILE_GAP_ENTRY(CreateProfileMenu_BuildKeyboard_entry, "pushl %ecx\n pushl %esi\n", CreateProfileMenu_BuildKeyboard,
                   "12", "ret")
+PROFILE_GAP_ENTRY(CreateProfileMenu_Activate_entry, "pushl %ecx\n", CreateProfileMenu_Activate, "8", "ret")
 PROFILE_GAP_ENTRY(CreateProfileMenu_Backspace_entry, "pushl %esi\n", CreateProfileMenu_Backspace, "8", "ret")
 PROFILE_GAP_ENTRY(CreateProfileMenu_AddChar_entry, "pushl %esi\n pushl %eax\n", CreateProfileMenu_AddChar, "12",
                   "ret")
@@ -724,6 +725,41 @@ void XB_CDECL CreateProfileMenu_BuildKeyboard(uint8_t* menu, uint32_t ecx, uint3
     const uint32_t select[2] = {10, 1};
     regs.edx = slot(menu, 0);
     keyboard_call(top, 0x0030da56, menu, 0x88, regs, 2, select);
+}
+
+void XB_CDECL CreateProfileMenu_Activate(uint8_t* menu, uint32_t entry_esp) {
+    // push ecx (the colour's slot), ebx, esi
+    stack_word(entry_esp - 4) = address_of(menu);
+    field<uint32_t>(menu, 0x1ac) = 0;
+    menu[0x1b0] = 0;
+    {
+        AtTop at(entry_esp - 12);
+        TitleRegs regs = esi_regs(menu);
+        regs.ecx = address_of(menu);
+        title_call(0x0030d530, regs);  // CreateProfileMenu_BuildKeyboard
+        regs = TitleRegs{};
+        regs.ecx = address_of(menu);
+        regs.esi = address_of(menu);
+        title_call(0x00314b20, regs);  // UIMenu_RestoreSelection
+        menu[0x198] = 0;
+        call(find_text(field<uint8_t*>(menu, 0x38), kProfileName), 0x6c, 0x0082b1b8);  // "_"
+        call(menu, 0x88, 10, 1);
+        menu[0x1a8] = 0;
+        uint8_t* const text = find_text(field<uint8_t*>(menu, 0x38), kProfileName);
+        uint8_t* const colour = stack_bytes(entry_esp - 4);
+        colour[0] = 0x19;
+        colour[1] = 0x21;
+        colour[2] = 0x28;
+        colour[3] = 0xff;
+        call(text, 0x90, stack_word(entry_esp - 4));
+    }
+    if (title_global<uint8_t>(0x0095f91a)) return;
+    AtTop at(entry_esp - 4);  // pop esi, pop ebx
+    const uint32_t name[1] = {0x0082cacc};  // "Propgnda"
+    if (!(title_call(0x00332030, TitleRegs{}, 1, name) & 0xff)) return;  // Movie_Open
+    const uint32_t rect[5] = {address_of(title_global<uint8_t*>(0x0095f458)), 0, 0, 0x44200000, 0x43f00000};
+    title_call(0x0005ded0, TitleRegs{}, 5, rect);  // nglSetQuadRect (0, 0) - (640, 480)
+    title_global<uint8_t>(0x0095f91a) = 1;
 }
 
 void XB_CDECL CreateProfileMenu_Backspace(uint8_t* menu, uint32_t entry_esp) {
