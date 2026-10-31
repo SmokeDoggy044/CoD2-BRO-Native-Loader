@@ -3178,6 +3178,7 @@ const Function kFunctions[] = {
     {"Com_Quit_f", 0x002a6dc0, 0, code(&Com_Quit_f), 0, Result::None, Status::Compare},
     {"SV_Shutdown", 0x002a6e00, 0, code(&SV_Shutdown), 0, Result::None, Status::Compare},
     {"Com_Frame", 0x002a70c0, 0, code(&Com_Frame), 0, Result::None, Status::Compare},
+    {"Com_Init", 0x002a7490, 0, code(&Com_Init), 4, Result::None, Status::Compare},
     {"Noise_Init", 0x002a7da0, 0, code(&Noise_Init), 0, Result::None, Status::Compare},
     {"CameraShake_AllocSlot", 0x002a7f70, 0, code(&CameraShake_AllocSlot), 0, Result::Eax, Status::Compare},
     {"G_AddEvent", 0x002a80b0, 0, code(&G_AddEvent), 8, Result::Eax, Status::Compare},

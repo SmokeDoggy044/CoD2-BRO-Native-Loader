@@ -1061,5 +1061,14 @@ extern "C" void RotatePointAroundVector_entry(void);
 // slot), relocated (+0x18) and stored in tables[index + 1].
 void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index);
 
+// 0x00224b60: the XAPI main (called by mainXapiStartup): allocator hooks, LiveMgr_Construct, Sys_ReadLaunchInfo,
+// sound/renderer/effects/heap setup, Com_Init(launch data), the Live UI, then IN_Frame / Live_Frame / Com_Frame
+// forever. Not in kFunctions: it never returns (a test could not finish). Boot only.
+void XB_CDECL Sys_Main();
+// 0x002a7490: Q3's Com_Init, BRO form: events, cvars, command line, command buffers, file system, localization,
+// the managers (profiles, paks, stream banks, resources, sound, zones, effects, scenes, path nodes, checkpoints,
+// physics, world trees), menus and HUD, the global zone (sp\global.cod) loaded at once, the "Animation" zone
+// started, language/bro/autoexec configs, the com_ cvars and commands, SV_Init, CL_Init. Boot only.
+void XB_CDECL Com_Init(uint8_t* launch);
 
 }  // namespace game

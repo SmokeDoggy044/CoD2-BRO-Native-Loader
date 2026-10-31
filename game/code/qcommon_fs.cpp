@@ -6981,5 +6981,348 @@ void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index
     tables[index + 1] = table;
 }
 
+// ---- Push 8, batch 3: boot.
+
+void XB_CDECL Sys_Main() {
+    // The XAPI main (mainXapiStartup): allocator hooks, launch data, devices, renderer, effects, heaps, Com_Init,
+    // the Live UI (UIXLayout.uix), then the frame loop forever. Its frame (0x4618 bytes) holds the hooks (+0x14),
+    // the launch data (+0x2c, handed to Com_Init) and the Live manager (+0x12c, 0x44d4 bytes).
+    static uint8_t frame[0x4624];  // never returns: the frame lives as long as the program
+    uint8_t* const live = frame + 0x12c;
+    uint32_t* const hooks = reinterpret_cast<uint32_t*>(frame + 0x14);
+    static const uint32_t kHooks[6] = {0x00293080, 0x002968e0, 0x00296760, 0x00296770, 0x00296820, 0x00296780};
+    for (int32_t i = 0; i < 6; ++i) hooks[i] = kHooks[i];
+    Mem_SetAllocatorHooks(hooks);
+    TitleRegs regs{};
+    regs.eax = u32(live);
+    qc_call_regs(0x00224920, &regs, 0, nullptr);  // LiveMgr_Construct (EAX)
+    title_function<void XB_CDECL(uint8_t*)>(0x002221b0)(frame + 0x2c);  // Sys_ReadLaunchInfo
+    title_function<void XB_CDECL(int32_t)>(0x00042ac0)(0);               // Heap_SelectByIndex
+    FS_InitPackBuffers();
+    title_function<void XB_CDECL()>(0x000ce070)();  // SndSys_InitDevice
+    Sys_Milliseconds();
+    title_function<void XB_CDECL()>(0x00094160)();  // FxShaderClass_Create
+    title_function<void XB_CDECL()>(0x00045790)();  // nglInitShaders
+    const auto frame_memory = title_function<void XB_CDECL(int32_t, uint32_t, int32_t)>(0x000778b0);  // nglSetFrameMemorySize
+    frame_memory(0, 0xc0000, 1);
+    frame_memory(1, 0x8000, 1);
+    frame_memory(3, 0x20000, 1);
+    frame_memory(2, 0x10000, 1);
+    frame_memory(4, 0x80000, 1);
+    const auto vblank = title_function<void XB_CDECL(int32_t)>(0x000645c0);  // nglSetVBlankMode
+    vblank(2);
+    uint32_t* const mode = reinterpret_cast<uint32_t*>(frame + 0x10);
+    mode[0] = 2;
+    mode[1] = 0;
+    title_function<void XB_CDECL(uint32_t*, int32_t)>(0x000649e0)(mode, 2);  // nglSelectVideoMode
+    Cvar_Set2(tstr(0x00839874), const_cast<char*>(tstr(title_global<uint8_t>(0x00902899) ? 0x0082e058 : 0x0082e098)),
+              1);  // cg_widescreen "1" / "0"
+    title_function<void XB_CDECL()>(0x00064bc0)();  // nglInit
+    title_function<void XB_CDECL()>(0x002982d0)();  // SCR_InitLoadingSpinner
+    regs = TitleRegs{};
+    regs.ebx = 1;
+    qc_call_regs(0x00298170, &regs, 0, nullptr);  // SCR_UpdateLoadingIcon_2 (BL = 1)
+    title_function<void XB_CDECL(int32_t, uint32_t, uint32_t)>(0x00094610)(0, 0x2000000, 0xfa0);  // FX_InitSystem
+    regs = TitleRegs{};
+    regs.eax = 0x80000;
+    regs.ebx = 0;
+    qc_call_regs(0x00236c80, &regs, 0, nullptr);  // Mem_InitSmallBlockPools (BL = 0, EAX)
+    vblank(2);
+    uint8_t* allocator = Z_Malloc(0x49c);
+    if (allocator) {
+        pk<uint32_t>(allocator, 0) = 0x008376c4;  // HeapAllocator vtable
+        uint8_t* const memory = Z_Malloc(0x100000);
+        pk<uint32_t>(allocator, 4) = u32(memory);
+        title_function<void XB_CDECL(uint8_t*, uint8_t*, uint8_t*, int32_t)>(0x00042470)(  // Heap_Init
+            allocator + 8, memory, memory + 0x100000, 0);
+    }
+    title_function<void XB_CDECL(uint8_t*)>(0x0007bac0)(allocator);  // Anim_InitManagers
+    Sys_InitHeaps();
+    title_function<void XB_CDECL(uint8_t*)>(0x002a7490)(frame + 0x2c);  // Com_Init(launch data)
+    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7767)(0x00223130);  // SetUnhandledExceptionFilter
+    const uint32_t device = title_global<uint32_t>(0x00902874);
+    uint8_t* stream = Z_Malloc(8);
+    if (stream) {
+        pk<uint32_t>(stream, 0) = 0x0083c720;
+        pk<uint32_t>(stream, 4) = 0;
+    }
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x0002c442)(0x0083cc30, 0x10000, u32(stream) + 4);
+    regs = TitleRegs{};
+    regs.esi = u32(live);
+    const uint32_t init_args[3] = {device, 0x0083cc18, u32(stream)};  // "d:\media\UIXLayout.uix"
+    qc_call_regs(0x00224a50, &regs, 3, init_args);  // Live_Init (manager in ESI)
+    uint32_t ebx = regs.ebx;
+    const int32_t launch_mode = title_global<int32_t>(0x008dd128);
+    pk<uint32_t>(frame, 0x459c) = title_global<uint32_t>(0x008dd124);
+    if (launch_mode == 2) {
+        regs = TitleRegs{};
+        regs.eax = 0x40140;
+        regs.ecx = u32(live);
+        regs.esi = u32(live);
+        const uint32_t arg = 0x008dcf1c;
+        qc_call_regs(0x00222d20, &regs, 1, &arg);
+        regs.ecx = title_global<uint32_t>(0x008dcf18);
+        regs.ebx = 1;
+        const uint32_t voice = title_global<uint8_t>(0x008dd1cd);
+        qc_call_regs(0x00221920, &regs, 1, &voice);  // Voice_InitNotifications
+        ebx = 1;
+    } else if (launch_mode == 1) {
+        regs = TitleRegs{};
+        regs.eax = 0x40140;
+        regs.esi = u32(live);
+        if (title_global<uint8_t>(0x008dd120)) {
+            regs.ecx = u32(live);
+            const uint32_t arg = 0x008dcf1c;
+            qc_call_regs(0x00222d20, &regs, 1, &arg);
+        } else {
+            regs.ebx = 0x40140;
+            qc_call_regs(0x00221fc0, &regs, 0, nullptr);
+            ebx = 0x40140;
+        }
+    } else {
+        pk<uint32_t>(title_global<uint8_t*>(0x0095f6fc), 0x446c) = title_global<uint32_t>(0x008dd12c);  // g_liveMgr
+    }
+    (void)ebx;
+    const auto set_input = title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x000d35a9);  // CLiveEngine_SetInput
+    const auto clear_input = title_function<void XB_STDCALL(uint32_t)>(0x000d35c2);               // LiveEngine_ClearInput
+    for (;;) {
+        IN_Frame();
+        const uint32_t input = pk<uint32_t>(frame, 0x45fc);
+        if (title_global<uint8_t>(0x0095f538)) {
+            set_input(pk<uint32_t>(live, 0x14), input, 0);
+            clear_input(pk<uint32_t>(live, 0x14));
+        }
+        regs = TitleRegs{};
+        regs.ecx = u32(live);
+        qc_call_regs(0x00223730, &regs, 0, nullptr);  // Live_Frame
+        if (title_global<uint8_t>(0x0095f538)) {
+            set_input(pk<uint32_t>(live, 0x14), input, 0);
+            clear_input(pk<uint32_t>(live, 0x14));
+        }
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x0005e650)(0x00224970, 0);  // nglSetPreSwapCallback(Live_Render)
+        Com_Frame();
+    }
+}
+
+namespace {
+
+// A boot callee by title address with the given registers (EBX, ESI, EDI, ECX, EDX, EAX).
+uint32_t boot_call(uint32_t function, uint32_t eax = 0, uint32_t ebx = 0, uint32_t ecx = 0, uint32_t edx = 0,
+                   uint32_t esi = 0, uint32_t edi = 0, uint32_t count = 0, const uint32_t* args = nullptr) {
+    TitleRegs regs{};
+    regs.eax = eax;
+    regs.ebx = ebx;
+    regs.ecx = ecx;
+    regs.edx = edx;
+    regs.esi = esi;
+    regs.edi = edi;
+    return qc_call_regs(function, &regs, count, args);
+}
+
+// Heap_AllocAligned (0x00042c60: alignment, size).
+uint8_t* boot_alloc(uint32_t alignment, uint32_t size) {
+    return reinterpret_cast<uint8_t*>(
+        static_cast<uintptr_t>(title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c60)(alignment, size)));
+}
+
+// A manager constructed in a Heap_AllocAligned block (object in `reg`: 'a' EAX, 'b' EBX, 'd' EDX, 'D' EDI, else
+// ESI); the global gets its result, 0 when the allocation failed.
+void boot_construct(uint32_t global, uint32_t alignment, uint32_t size, uint32_t ctor, char reg = 'S') {
+    uint8_t* const block = boot_alloc(alignment, size);
+    if (!block) {
+        title_global<uint32_t>(global) = 0;
+        return;
+    }
+    const uint32_t b = u32(block);
+    title_global<uint32_t>(global) = boot_call(ctor, reg == 'a' ? b : 0, reg == 'b' ? b : 0, 0, reg == 'd' ? b : 0,
+                                               reg == 'S' ? b : 0, reg == 'D' ? b : 0);
+}
+
+// Cbuf_AddText inlined: appended only when it fits (no message), without the terminator.
+void boot_cbuf_append(uint32_t text, uint32_t length) {
+    const int32_t size = title_global<int32_t>(0x00935330);
+    if (size + static_cast<int32_t>(length) >= title_global<int32_t>(0x0093532c)) return;
+    std::memcpy(title_global<uint8_t*>(0x00935328) + size, tstr(text), length);
+    title_global<int32_t>(0x00935330) = size + static_cast<int32_t>(length);
+}
+
+}  // namespace
+
+void XB_CDECL Com_Init(uint8_t* launch) {
+    title_global<uint8_t>(0x0093fcd0) = 0;
+    Com_InitSmallHeap();
+    boot_call(0x000280a0, 0, 0x40, 0, 0, 0x00984cec);  // DynArray_ReserveAligned (count EBX, array ESI)
+    boot_call(0x000280a0, 0, 0x20, 0, 0, 0x00987a78);  // g_entityRemoveQueue
+    boot_call(0x000280a0, 0, 0x20, 0, 0, 0x0097a640);
+    std::memset(&title_global<uint8_t>(0x00940400), 0, 0x600);  // com_pushedEvents
+    title_global<uint32_t>(0x0095f588) = 0;
+    title_global<uint32_t>(0x0095f58c) = 0;
+    title_global<uint8_t*>(0x00940358) = Cvar_Get(tstr(0x008340d0), tstr(0x0082e098), 0x48);  // sv_cheats "0"
+    title_function<void XB_CDECL()>(0x002a23b0)();  // Cvar_Init
+    boot_call(0x002938a0, u32(launch));            // Com_ParseCommandLine (EAX)
+    title_function<void XB_CDECL()>(0x002b0140)();  // Swap_Init
+    title_global<uint32_t>(0x00935328) = 0x0092bf90;  // cmd_text {data, 0x2000, 0}
+    title_global<uint32_t>(0x0093532c) = 0x2000;
+    title_global<uint32_t>(0x00935330) = 0;
+    title_global<uint32_t>(0x00929c10) = 0x00929ce0;
+    title_global<uint32_t>(0x00929c14) = 0x2000;
+    title_global<uint32_t>(0x00929c18) = 0;
+    title_function<void XB_CDECL()>(0x002d1460)();  // Cmd_Init
+    Com_StartupVariable(nullptr);
+    Com_StartupVariable(tstr(0x00837ce4));  // "developer"
+    const auto add_command = title_function<void XB_CDECL(const char*, uint32_t)>(0x002ba5c0);  // Cmd_AddCommand
+    add_command(tstr(0x0083453c), 0x002c1c20);  // bind
+    add_command(tstr(0x00834534), 0x002c1db0);  // unbind
+    add_command(tstr(0x00834528), 0x002c1d60);  // unbindall
+    add_command(tstr(0x0083451c), 0x002b3370);  // bindlist
+    FS_InitFilesystem();
+    const uint32_t keep = 0;
+    boot_call(0x002c5ac0, 0, 0x0095fe70, 0, 0, 0, 0, 1, &keep);  // Loc_ResetStringFileState (state EBX)
+    Loc_Init();
+    title_function<uint32_t XB_CDECL()>(0x00055e40)();  // IN_PadCreate
+    boot_construct(0x0095f480, 4, 0x11f0, 0x00330640, 'D');  // ProfileSave_Construct
+    boot_construct(0x0095f638, 4, 0x57c, 0x00290020);        // Pak_Init
+    boot_construct(0x0095f62c, 4, 0x2c, 0x002909d0);         // Stream_InitBanks
+    boot_construct(0x0095f630, 4, 0x1e8, 0x0028ec30);        // ResourceManager_Construct
+    title_function<void XB_CDECL()>(0x000239c0)();           // ResourceManager_CreateLgrid
+    title_function<void XB_CDECL()>(0x00023900)();           // ResourceManager_CreateModels
+    title_function<void XB_CDECL()>(0x00023960)();           // ResourceManager_CreateXmpb
+    title_function<void XB_CDECL()>(0x00023f90)();           // ResourceManager_CreateAitb
+    boot_construct(0x0095f4c4, 4, 0x601c, 0x002bda60);       // SoundManager_Ctor
+    title_function<void XB_CDECL()>(0x00023ed0)();           // ResourceManager_CreateSoundBanks
+    title_global<uint8_t*>(0x0095f4c8) = boot_alloc(4, 4);
+    uint8_t* const fade = boot_alloc(4, 0x20);
+    if (fade) {
+        const float one = title_global<float>(0x0083eb20);
+        pk<uint32_t>(fade, 0) = 0;
+        pk<uint32_t>(fade, 4) = 0;
+        pk<float>(fade, 8) = one;
+        pk<float>(fade, 0x10) = one;
+        pk<float>(fade, 0xc) = one;
+        pk<float>(fade, 0x14) = one;
+        pk<float>(fade, 0x18) = 0.0f;
+        pk<uint32_t>(fade, 0x1c) = 0;
+    }
+    title_global<uint8_t*>(0x0095f4cc) = fade;
+    boot_construct(0x0095f640, 0x10, 0x1e0, 0x0028f620);  // ZoneGraph_Init
+    title_function<void XB_CDECL()>(0x00023ff0)();        // ResourceManager_CreateDb
+    boot_construct(0x0095f5b4, 0x10, 0x8e30, 0x0029fbd0); // FXCmdQueue_Ctor
+    title_function<void XB_CDECL()>(0x00023f30)();        // ResourceManager_CreateDlg
+    title_function<void XB_CDECL()>(0x00023a20)();        // ResourceManager_CreateLevel
+    boot_construct(0x0095f4f8, 4, 0x1a8, 0x002c03e0);     // SceneFX_Init -> scn_zoneScenes
+    title_function<void XB_CDECL()>(0x00024050)();        // ResourceManager_CreateCfgstr
+    boot_construct(0x0095f4f4, 4, 0x198, 0x002b1190, 'd'); // g_pathNodeBlocks (EDX)
+    title_function<void XB_CDECL()>(0x00023e70)();        // ResourceManager_CreateLocStrings
+    title_global<uint8_t*>(0x0095f5e0) = boot_alloc(1, 0x800);
+    boot_construct(0x0095f4e0, 4, 0x598, 0x002cdca0);     // Checkpoint_Init
+    boot_construct(0x0095f564, 4, 0x184, 0x002b6fc0, 'a'); // SpgManager_Construct (EAX) -> rm_spg
+    title_function<void XB_CDECL()>(0x00234450)();        // Phys_Init
+    boot_construct(0x0095f4fc, 4, 0x328, 0x002d8a10);     // CM_WorldTrees_Construct
+    boot_construct(0x0095f500, 0x10, 0x1e0, 0x002d0d60, 'b');  // CM_WorldTreeManager_Construct (EBX)
+    title_function<void XB_CDECL()>(0x00023d80)();        // ResourceManager_CreateAnimTrees
+    title_function<void XB_CDECL()>(0x00024260)();        // ShakeRumble_CreateManager
+    title_global<uint8_t>(0x00940178) = 0;
+    title_global<uint8_t*>(0x0095f674) = Cvar_Get(tstr(0x0083be30), tstr(0x0082e098), 0x100);  // statusbar
+    boot_call(0x00337050, 0, 0, 0, 0, 0x0095f8d0);  // FE_CreateMenus (g_uiRoot in ESI)
+    uint8_t* const screens = Z_Malloc(0x1c);
+    if (screens) {
+        const uint32_t arg = u32(screens);
+        title_global<uint32_t>(0x0095f8fc) = boot_call(0x00331680, 0, 0, 0, 0, 0, 0, 1, &arg);  // InGameScreens_Construct
+    } else {
+        title_global<uint32_t>(0x0095f8fc) = 0;
+    }
+    uint8_t* const hud = Z_Malloc(0x64);
+    title_global<uint32_t>(0x0095f8f0) = hud ? boot_call(0x0031a020, 0, 0, 0, 0, u32(hud)) : 0;  // HudManager_Create
+    boot_call(0x002ddea0, 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f534));
+    // The global zone loaded at once, with 0x00299780 as the pak's callback (+0x35c) meanwhile.
+    pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0x00299780;
+    const uint32_t load_args[6] = {0, 0x00837cd4, 0, 0, 0, 0};  // "sp\global.cod", a zero float block
+    boot_call(0x00292d10, title_global<uint32_t>(0x0095f638), 0, 0, 0, 0, 0, 6, load_args);  // Stream_LoadSync
+    const uint32_t pad = title_function<uint32_t XB_CDECL()>(0x00055e40)();  // IN_PadCreate
+    boot_call(0x00055e70, pad, 0, pad);                                      // IN_PadUpdate (ECX)
+    // The "Animation" zone of the pak's zone map (+0x18: map at +8, count +0x10, zones +0x14).
+    uint8_t* const zones = pk_ptr(title_global<uint8_t*>(0x0095f638), 0x18);
+    uint8_t* zone = nullptr;
+    if (zones) {
+        uint32_t key = 0x00837cc8;  // "Animation"
+        const uint32_t key_arg = u32(&key);
+        const auto found = reinterpret_cast<const uint32_t*>(
+            static_cast<uintptr_t>(boot_call(0x000249a0, 0, u32(zones + 8), 0, 0, 0, 0, 1, &key_arg)));  // StringMap_Find
+        if (found) {
+            uint32_t index = *found;
+            if (index >= pk<uint32_t>(zones, 0x10)) index = 0;
+            zone = pk_ptr(pk_ptr(zones, 0x14), index * 4);
+        }
+    }
+    if (!zone) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (zone) {
+        const uint32_t frame = title_global<uint32_t>(0x008d9d38) + 1;
+        pk<float>(zone, 0x34) = 0.0f;
+        title_global<uint32_t>(0x008d9d38) = frame;
+    }
+    const uint32_t zone_arg = u32(zone);
+    boot_call(0x00292d70, 0, 0, title_global<uint32_t>(0x0095f638), 0, 0, 0, 1, &zone_arg);  // Stream_StartRequest
+    boot_call(0x0023b360, 0, 0, 0, 0, 0x00988770);  // R_InitDebugMeshes (ESI)
+    pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0;
+    boot_call(0x002ce9c0, 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f4c0));  // S_WaitForWaveBanks (rm_soundBanks)
+    title_function<void XB_CDECL()>(0x0029fe70)();  // Com_InitJournaling
+    boot_cbuf_append(0x00837cb4, 0x12);  // "exec language.cfg\n"
+    boot_cbuf_append(0x00837ca4, 0xd);   // "exec bro.cfg\n"
+    boot_cbuf_append(0x00837c90, 0x12);  // "exec autoexec.cfg\n"
+    if (title_function<int32_t XB_CDECL()>(0x002999e0)())  // Com_SafeMode
+        boot_call(0x002aabb0, 0x00837c7c);                // Cbuf_AddText("exec safemode.cfg\n")
+    title_function<void XB_CDECL()>(0x002c62b0)();         // Cbuf_Execute
+    boot_call(0x00332e20, 0, 0, 0, 0, 0, 0x008dce30);      // CL_ApplyProfileSettings (profile in EDI)
+    Com_StartupVariable(nullptr);
+    if (title_global<uint32_t>(0x0095f580) != title_global<uint32_t>(0x0095f578)) {
+        boot_call(0x00297990, title_global<uint32_t>(0x0095f580));  // FS_FreeSearchPaths (EAX)
+        title_global<uint32_t>(0x0095f580) = title_global<uint32_t>(0x0095f578);
+    }
+    if (title_global<uint32_t>(0x0095f584) != title_global<uint32_t>(0x0095f57c)) {
+        boot_call(0x00297950, title_global<uint32_t>(0x0095f584));  // FS_FreePackList (EAX)
+        title_global<uint32_t>(0x0095f584) = title_global<uint32_t>(0x0095f57c);
+    }
+    title_global<uint8_t>(0x0095f918) = title_global<uint8_t>(0x0095ee01) == 0 ? 1 : 0;
+    title_global<uint32_t>(0x009403ec) &= 0xfffffffeu;  // cvar_modifiedFlags
+    struct BootCvar {
+        uint32_t global, name, value, flags;
+    };
+    static const BootCvar kCvars[] = {
+        {0x0094770c, 0x00837c70, 0x0082e098, 1},      {0x0093fc18, 0x00837ce4, 0x0082e098, 0x100},
+        {0x009472f0, 0x00837c5c, 0x0082e098, 0x100},  {0x0093fccc, 0x00837c54, 0x0082e098, 0},
+        {0x0093fc20, 0x00837c48, 0x0082e098, 0},      {0x0093fce4, 0x00837c3c, 0x0082e058, 0x208},
+        {0x0093fcc0, 0x00837c30, 0x0082e098, 0x200},  {0x0093fcb4, 0x00837c28, 0x0082e098, 0x200},
+        {0x009403e8, 0x00837c1c, 0x0082e098, 0},      {0x0093fcd8, 0x0082ca00, 0x0082e098, 0},
+        {0x0093fcbc, 0x00837c0c, 0x0082e098, 0},      {0x0093fcf0, 0x00832cb8, 0x0082e098, 0x40},
+        {0x00947704, 0x00834184, 0x0082e098, 0x40},   {0x009472e8, 0x00837bfc, 0x0082e098, 0},
+    };
+    for (const BootCvar& c : kCvars) title_global<uint8_t*>(c.global) = Cvar_Get(tstr(c.name), tstr(c.value), c.flags);
+    uint8_t* const developer = title_global<uint8_t*>(0x0093fc18);
+    if (developer && pk<uint32_t>(developer, 0x20)) {
+        add_command(tstr(0x00837bf4), 0x00297090);  // error
+        add_command(tstr(0x00837bec), 0x00293850);  // crash
+        add_command(tstr(0x00837be4), 0x0029e8d0);  // freeze (Com_Freeze_f)
+    }
+    add_command(tstr(0x0082ac38), 0x002a6dc0);  // quit (Com_Quit_f)
+    add_command(tstr(0x00837bd8), 0x00293820);  // writeconfig
+    add_command(tstr(0x00837bc8), 0x00293810);  // writedefaults
+    const uint32_t set = u32(Cvar_Set2(tstr(0x0083caa8), const_cast<char*>(tstr(0x0083cab0)), 1));  // arch "ps2"
+    const uint32_t value_args[2] = {0x0083ca9c, 0x3f800000};  // sys_cpuid 1.0
+    boot_call(0x0029fdd0, set, 0, 0, 0, 0, 0, 2, value_args);   // Cvar_SetValue
+    title_function<void XB_CDECL()>(0x002be180)();  // IN_InitCvars
+    title_function<void XB_CDECL()>(0x002c0ce0)();  // Netchan_Init
+    title_function<void XB_CDECL()>(0x002a8410)();  // Com_InitNodeRing
+    Com_Memset(&title_global<uint8_t>(0x00927c38), 0, 0x1a4);  // vmTable
+    title_function<void XB_CDECL()>(0x002f48e0)();  // SV_Init
+    title_function<void XB_CDECL()>(0x002f20a0)();  // CL_Init
+    boot_call(0x0032cf50, 0, 0, 0, 0, 0x008dce30);  // Profile_SetDefaults (ESI)
+    boot_call(0x00332e20, 0, 0, 0, 0, 0x008dce30, 0x008dce30);  // CL_ApplyProfileSettings (EDI)
+    title_global<int32_t>(0x00947710) = title_function<int32_t XB_CDECL()>(0x0029c6b0)();  // com_frameTime
+    title_function<void XB_CDECL()>(0x002970c0)();  // Com_AddStartupCommands
+    Cvar_Set2(tstr(0x00835238), const_cast<char*>(tstr(0x0082e058)), 1);  // r_uiFullScreen "1"
+    title_function<void XB_CDECL()>(0x002f0a50)();  // CL_StartHunkUsers
+    Cvar_Set2(tstr(0x00837c48), const_cast<char*>(tstr(0x0082e098)), 1);  // com_statmon "0"
+    title_global<uint32_t>(0x00947b04) = 1;
+}
 
 }  // namespace game
