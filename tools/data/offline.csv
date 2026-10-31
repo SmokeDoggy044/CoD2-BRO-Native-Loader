@@ -1,6 +1,7 @@
 address,name,tested,matched,nan,mismatched,coverage
 00011020,Scr_Sin,4000,4000,0,0,100.0
 00011030,Scr_Tan,2988,2988,0,0,100.0
+00011300,UIElement_GetDepth,3828,3828,0,0,100.0
 00011430,UITextBase_SetScale,3810,3810,0,0,100.0
 000115f0,UITextBase_GetText,3513,3513,0,0,100.0
 00011ac0,UIPicture_GetHeight,1875,1875,0,0,100.0
@@ -492,9 +493,11 @@ address,name,tested,matched,nan,mismatched,coverage
 000cb0f0,Snd_Printf,4000,4000,0,0,100.0
 000cb390,HandlePool_Init,2555,2555,0,0,100.0
 000cbf60,MovieVid_ReadIntraCoeffs,2414,2414,0,0,100.0
+000cf100,Movie_GetFrameTexture,3821,3821,0,0,100.0
 000cf130,Movie_SetAudioTrack,3808,3808,0,0,100.0
 000cf950,MovieVid_AddBlock,1838,1838,0,0,100.0
 000d0700,MovieVid_McAvg8XY,1782,1782,0,0,100.0
+000d09c0,MovieVid_ConvertMacroblockRow565,1108,1108,0,0,100.0
 000d0c40,Save_GetLastResult,2240,2240,0,0,100.0
 000d0c50,Save_SetLastResult,2173,2173,0,0,100.0
 000d0c60,Save_SetPathPrefix,1943,1943,0,0,100.0
@@ -684,6 +687,7 @@ address,name,tested,matched,nan,mismatched,coverage
 002aac90,CL_RefCM_GetEntry,3846,3846,0,0,100.0
 002aaf00,CM_FloodArea_r,1719,1719,0,0,100.0
 002ab470,SCR_AdjustFrom640,3436,3436,0,0,100.0
+002ab7b0,CL_Disconnect_f,4000,4000,0,0,100.0
 002ab7c0,CL_Setenv_f,3806,3806,0,0,55.4
 002ab8d0,CL_AddReliableCommand,3810,3810,0,0,100.0
 002abe80,IN_CenterView,3843,3843,0,0,100.0
@@ -760,6 +764,9 @@ address,name,tested,matched,nan,mismatched,coverage
 002f62c0,Scr_Sqrt,4000,4000,0,0,100.0
 002f6840,AnimTree_FreeNotetracks,1745,1745,0,0,100.0
 002fd650,Vehicle_CountActive,1937,1937,0,0,100.0
+0030bd30,FE_BonusCEItemIndex,2901,2901,0,0,59.8
+0030be60,FE_BonusCEItemGroup,2929,2929,0,0,97.9
+0030c1a0,Profile_StoreToSaveSlot,2018,2018,0,0,100.0
 0030c240,Save_CheckVersion,3835,3835,0,0,30.6
 0030cd70,FE_FormatPlayTime,2094,2094,0,0,87.2
 0030cdf0,FE_SplitPlayTime2,3316,3316,0,0,100.0
@@ -767,6 +774,7 @@ address,name,tested,matched,nan,mismatched,coverage
 0030d140,FE_SplitPlayTime,3334,3334,0,0,100.0
 0030e0f0,FE_CommandDisplayName,2132,2132,0,0,68.9
 0030f380,UIFontTable_SetByName,3757,3757,0,0,100.0
+0030fdc0,Movie_SetQuadRect,3806,3806,0,0,100.0
 00310400,UIQuad_Translate,3797,3797,0,0,100.0
 00310450,UIQuad_ResetPositions,3806,3806,0,0,100.0
 00310480,UIQuad_SetCornerPositions,3613,3613,0,0,100.0
@@ -774,8 +782,11 @@ address,name,tested,matched,nan,mismatched,coverage
 00310520,UIQuad_SetVertexUVs,3479,3479,0,0,100.0
 00310560,UIQuad_PlaceScaled,3822,3822,0,0,100.0
 00310820,UIQuad_SetWipe,3824,3824,0,0,94.3
+00311f90,Profile_CopySettings,3642,3642,0,0,100.0
 00312130,Profile_Copy,3645,3645,0,0,100.0
 003124f0,ProfileSave_Dtor,2786,2786,0,0,100.0
+003129e0,BonusConceptsMenu_ChangeItem,2913,2913,0,0,81.9
+00312d60,Profile_CopyBonusBests,3843,3843,0,0,100.0
 00312e30,Profile_SumMissionStats,3758,3758,0,0,100.0
 00315360,UI_SetFontByName,3826,3826,0,0,100.0
 003158a0,UITextLine_Dtor,3013,3013,0,0,100.0

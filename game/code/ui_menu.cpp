@@ -1225,6 +1225,36 @@ void XB_CDECL Dialog_LayoutButtons(uint8_t vertical, uint8_t* dialog) {
     dialog[0x5a] = 0;
 }
 
+PLATFORM_ASM_ENTRY(DialogOverlay_LayoutTexts_entry, "pushl 4(%esp)\n"
+                                                    "pushl %esi\n"
+                                                    "pushl %eax\n" PLATFORM_ASM_CALL(DialogOverlay_LayoutTexts)
+                                                    "addl $12, %esp\n"
+                                                    "ret $4")
+
+void XB_CDECL DialogOverlay_LayoutTexts(uint32_t eax, uint8_t* overlay, int32_t rows) {
+    uint8_t flags = overlay[0x44];
+    flags = (eax & 0xff) ? flags | 0x10 : flags & 0xef;
+    overlay[0x44] = flags;
+    if (overlay[0x44] & 4) return;
+    auto lines = [](uint8_t* text) { return int32_t(method<uint32_t XB_THISCALL(uint8_t*)>(text, 0xc4)(text)); };
+    uint8_t* const heading = field<uint8_t*>(overlay, 0x28);
+    uint8_t* const message = field<uint8_t*>(overlay, 0x2c);
+    int32_t heading_rows = 0;  // the heading's lines plus a gap line, when it has any
+    if (lines(heading) > 0) heading_rows = lines(heading) + 1;
+    const int32_t message_lines = lines(message);
+    int32_t gap = 0;
+    if (lines(heading) > 0) gap = lines(heading) + 1;
+    // Centred on 240 at 10 per line: x87 (the half-height kept as a double for the heading).
+    const long double half = (static_cast<long double>(message_lines + gap + rows) + title_global<double>(0x0083ecb0)) *
+                             title_global<double>(0x0083edc0);
+    const double half_stored = static_cast<double>(half);
+    using Place = void XB_THISCALL(uint8_t*, float, float);
+    const float message_y = static_cast<float>(static_cast<long double>((heading_rows * 5 + 0x3c) * 4) - half);
+    method<Place>(message, 0x7c)(message, 320.0f, message_y);
+    const float heading_y = static_cast<float>(title_global<double>(0x0083edb8) - static_cast<long double>(half_stored));
+    method<Place>(heading, 0x7c)(heading, 320.0f, heading_y);
+}
+
 namespace {
 
 // A thiscall method (or any title function) run where the original's call puts it: ESP = top minus the arguments.

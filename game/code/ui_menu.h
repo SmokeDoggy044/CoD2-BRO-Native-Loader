@@ -215,6 +215,11 @@ extern "C" void UIDialog_SetText_entry(void);
 struct ScriptString;
 extern "C" PLATFORM_HIDDEN void XB_CDECL UIDialog_Init(uint8_t* dialog, ScriptString* strings);
 extern "C" void UIDialog_Init_entry(void);
+// 0x00313e40 (flag in AL, overlay in ESI, rows on the stack, ret 4): overlay flag 0x10 = AL; unless flag 4, the
+// heading (+0x28) and message (+0x2c) placed at x 320 around y 240, 10 per line (heading lines + 1, message lines,
+// rows): heading at 240 - half, message 20 per heading row below 240 - half (vtable +0x7c, +0xc4 = line count).
+extern "C" PLATFORM_HIDDEN void XB_CDECL DialogOverlay_LayoutTexts(uint32_t eax, uint8_t* overlay, int32_t rows);
+extern "C" void DialogOverlay_LayoutTexts_entry(void);
 // 0x0030ea00: whether the active pad's left stick, or the d-pad over it, points in the UI direction bit (4 up, 8 down,
 // 0x10 left, 0x20 right; past 64); 0 for other bits.
 uint8_t XB_CDECL UI_StickDirectionHeld(int32_t bit);

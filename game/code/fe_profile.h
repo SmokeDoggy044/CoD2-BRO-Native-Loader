@@ -63,6 +63,10 @@ void XB_THISCALL CreateProfileMenu_MoveUp(uint8_t* menu);
 void XB_THISCALL CreateProfileMenu_Draw(uint8_t* menu);
 // 0x0030d4c0 (menu in ESI): capitals +0x1a8 toggled; the letter keys 10-35 get "a".."z" / "A".."Z" (+0x30, a
 // two-byte stack string).
+// 0x0030d3e0 (menu in ESI): the 40 key highlights (+0x44..) at alpha 1 for the selected key, else 0; the command
+// keys' highlights +0x184 / +0x188 / +0x18c / +0x190 by items 37 / 36 / 38 / 39's vtable +0x24.
+extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_UpdateHighlight(uint8_t* menu);
+extern "C" void CreateProfileMenu_UpdateHighlight_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CreateProfileMenu_ToggleCase(uint8_t* menu, uint32_t entry_esp);
 extern "C" void CreateProfileMenu_ToggleCase_entry(void);
 // 0x003258c0 (menu in ESI): one character off the name ('_' cursor), the "profileName" text (+0x6c); below 15
@@ -185,5 +189,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL AutosaveMenu_ShowDeleteSuccessDialog(ui
 extern "C" void AutosaveMenu_ShowDeleteSuccessDialog_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileMenu_ShowDeleteSuccessDialog(uint32_t entry_esp);
 extern "C" void ProfileMenu_ShowDeleteSuccessDialog_entry(void);
+
+// 0x00311f90 (dst in EAX, src in ECX): the profile's settings fields (+0x10..+0xe4 except the gaps, +0x39c, +0x39f)
+// copied from src to dst (FE_ProfileSelect). Returns dst.
+uint8_t* XB_REGS3 XB_CDECL Profile_CopySettings(uint8_t* dst, uint32_t unused_edx, const uint8_t* src);
 
 }  // namespace game

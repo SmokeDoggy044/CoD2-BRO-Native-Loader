@@ -280,7 +280,9 @@ void set_progress(uint8_t* menu, uint32_t ebx, uint32_t esi, uint32_t edi, uint3
         title_call_at_regs(top, function, &regs, 0, nullptr);
         *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = ret;
     };
-    if (progress == 0.0f) {  // FUCOMIP against 0.0: NaN takes the step path
+    // FUCOMIP against 0.0 on the x87 (an SSE compare would see a denormal as 0 under the title's DAZ); NaN steps.
+    const volatile long double extended = progress;  // volatile: GCC would narrow the compare back to UCOMISS
+    if (extended == 0.0L) {
         const uint32_t color = static_color(p.bright_guard, 0xff, 0xff);
         const int32_t chapter = title_global<int32_t>(0x008dce48);
         for (int32_t k = 0; k < p.chapters; ++k) {
