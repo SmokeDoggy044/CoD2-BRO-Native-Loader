@@ -114,6 +114,212 @@ void XB_CDECL UintHashMap_Find(uint32_t* out, const uint32_t* key, const uint8_t
     hash_map_find<uint32_t>(out, *key, map);
 }
 
+uint32_t* XB_THISCALL HashStr_Init(uint32_t* hashed, const char* name) {
+    // {hash, name[0x1c]}: hash = rol(hash, 5) ^ c over the name, letters lowered; the name copied (at most
+    // 0x1b characters, the rest of the zeroed block keeps its terminator) and lowered.
+    for (int32_t i = 0; i < 8; ++i) hashed[i] = 0;
+    hashed[0] = 0;
+    using CharFn = int32_t XB_CDECL(int32_t);
+    for (const char* p = name; *p; ++p) {
+        int32_t c = *p;
+        if (title_function<CharFn>(0x001eef49)(c)) c = title_function<CharFn>(0x001eed48)(*p);  // _isalpha, tolower
+        const uint32_t h = hashed[0];
+        hashed[0] = ((h >> 27) | (h << 5)) ^ static_cast<uint32_t>(c);
+    }
+    char* const text = reinterpret_cast<char*>(hashed + 1);
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(text, name, 0x1b);  // _strncpy
+    title_function<char* XB_CDECL(char*)>(0x001fa3b2)(text);  // _strlwr
+    return hashed;
+}
+
+PLATFORM_ASM_ENTRY(IntHashMap_Erase_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(IntHashMap_Erase) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t* XB_CDECL IntHashMap_Erase(uint8_t* map, uint32_t* out, uint8_t* node) {
+    // hash_map erase(iterator): bucket starts that point at the node move to its successor, then the node is
+    // unlinked and freed (not the list head); out = the successor.
+    const uint32_t mask = word_at(map, 0x20);
+    uint32_t bucket = (word_at(node, 8) ^ 0xdeadbeef) & mask;
+    if (!(word_at(map, 0x24) > bucket)) bucket += 0xffffffffu - (mask >> 1);
+    if (pointer_at<uint32_t>(map, 0x14)[bucket] == static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node))) {
+        for (;;) {
+            uint32_t* const slot = pointer_at<uint32_t>(map, 0x14) + bucket;
+            *slot = word_at(reinterpret_cast<const uint8_t*>(uintptr_t{*slot}), 0);
+            if (!bucket) break;
+            --bucket;
+            if (pointer_at<uint32_t>(map, 0x14)[bucket] != static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node))) break;
+        }
+    }
+    const uint32_t next = word_at(node, 0);
+    if (static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)) != word_at(map, 8)) {
+        word_at(pointer_at<uint8_t>(node, 4), 0) = next;
+        word_at(pointer_at<uint8_t>(node, 0), 4) = word_at(node, 4);
+        Z_Free(node);
+        word_at(map, 0xc) = word_at(map, 0xc) - 1;
+    }
+    *out = next;
+    return out;
+}
+
+namespace {
+
+// The title's hash_map insert (Dinkumware _Hash::insert, 4 entries per bucket, linear growth): map +4 list
+// (+8 head, +0xc size), +0x10 bucket vector (+0x14 first, +0x18 last), +0x20 mask, +0x24 buckets in use.
+// Grows by one bucket when size / 4 reaches the count (splitting that bucket's nodes to the list end), then
+// inserts the pair before the first node of its bucket (searched from the back) whose key is greater;
+// out = {node, inserted}. Key = the signedness of the key compares; Buy/Inc = the node buyer and list size.
+template <typename Key, typename Buy, typename Inc>
+uint32_t* hash_map_insert(uint8_t* map, uint32_t* out, const uint32_t* pair, Buy buy, Inc inc) {
+    auto node_word = [](uint32_t node, uint32_t offset) -> uint32_t& {
+        return word_at(reinterpret_cast<const uint8_t*>(uintptr_t{node}), offset);
+    };
+    auto buckets = [map]() { return pointer_at<uint32_t>(map, 0x14); };
+    auto vector_size = [map]() -> uint32_t {
+        const uint32_t first = word_at(map, 0x14);
+        return first ? static_cast<uint32_t>(static_cast<int32_t>(word_at(map, 0x18) - first) >> 2) : 0;
+    };
+    uint32_t maxidx = word_at(map, 0x24);
+    if (!(maxidx > word_at(map, 0xc) >> 2)) {
+        if (!(vector_size() - 1 > maxidx)) {
+            const uint32_t mask = vector_size() * 2 - 3;
+            word_at(map, 0x20) = mask;
+            title_function<void XB_REGS3 XB_STDCALL(uint32_t, uint8_t*, uint32_t, uint32_t)>(0x00028a50)(  // std_vector_Resize4_8
+                0, map + 0x10, mask + 2, word_at(map, 8));
+        } else if (word_at(map, 0x20) < maxidx) {
+            word_at(map, 0x20) = word_at(map, 0x20) * 2 + 1;
+        }
+        const uint32_t bucket = word_at(map, 0x24) - (word_at(map, 0x20) >> 1) - 1;
+        uint32_t node = buckets()[bucket];
+        if (node != buckets()[bucket + 1]) {
+            for (;;) {
+                if (((node_word(node, 8) ^ 0xdeadbeef) & word_at(map, 0x20)) == bucket) {
+                    node = node_word(node, 0);
+                } else {
+                    const uint32_t next = node_word(node, 0);
+                    uint32_t last = node;
+                    if (next != word_at(map, 8)) {
+                        if (node == buckets()[bucket]) {
+                            uint32_t b = bucket;
+                            for (;;) {
+                                buckets()[b] = next;
+                                if (!b) break;
+                                --b;
+                                if (node != buckets()[b]) break;
+                            }
+                        }
+                        const uint32_t head = word_at(map, 8);
+                        // list splice of [node, next) before the head (the size step is for other lists only)
+                        node_word(node_word(node, 4), 0) = next;
+                        node_word(node_word(next, 4), 0) = head;
+                        node_word(node_word(head, 4), 0) = node;
+                        const uint32_t before_head = node_word(head, 4);
+                        node_word(head, 4) = node_word(next, 4);
+                        node_word(next, 4) = node_word(node, 4);
+                        node_word(node, 4) = before_head;
+                        const uint32_t head_now = word_at(map, 8);
+                        last = node_word(head_now, 4);
+                        buckets()[word_at(map, 0x24) + 1] = head_now;
+                    }
+                    for (uint32_t b = word_at(map, 0x24); bucket < b;) {
+                        uint32_t* const slot = buckets() + b;
+                        if (*slot != word_at(map, 8)) break;
+                        --b;
+                        *slot = last;
+                    }
+                    if (next == word_at(map, 8)) break;
+                    node = next;
+                }
+                if (node == buckets()[bucket + 1]) break;
+            }
+        }
+        word_at(map, 0x24) = word_at(map, 0x24) + 1;
+    }
+    const Key key = static_cast<Key>(pair[0]);
+    const uint32_t mask = word_at(map, 0x20);
+    uint32_t bucket = (static_cast<uint32_t>(key) ^ 0xdeadbeef) & mask;
+    if (!(word_at(map, 0x24) > bucket)) bucket += 0xffffffffu - (mask >> 1);
+    uint32_t where = buckets()[bucket + 1];
+    if (where != buckets()[bucket]) {
+        do {
+            where = node_word(where, 4);
+            const Key node_key = static_cast<Key>(node_word(where, 8));
+            if (node_key <= key) {
+                if (node_key >= key) {
+                    out[0] = where;
+                    reinterpret_cast<uint8_t*>(out)[4] = 0;
+                    return out;
+                }
+                where = node_word(where, 0);
+                break;
+            }
+        } while (where != buckets()[bucket]);
+    }
+    const uint32_t node = buy(where, node_word(where, 4), pair);
+    inc(map + 4);
+    node_word(where, 4) = node;
+    node_word(node_word(node, 4), 0) = node;
+    const uint32_t inserted = node_word(where, 4);
+    if (where == buckets()[bucket]) {
+        for (;;) {
+            buckets()[bucket] = inserted;
+            if (!bucket) break;
+            --bucket;
+            if (where != buckets()[bucket]) break;
+        }
+    }
+    out[0] = inserted;
+    reinterpret_cast<uint8_t*>(out)[4] = 1;
+    return out;
+}
+
+uint32_t buy_node8(uint32_t next, uint32_t prev, const uint32_t* pair) {
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(std_list_BuyNode8(pair, next, prev)));
+}
+
+void inc_size4(uint8_t* list) { std_list_IncSize_4(0, list, 1); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(HashMap_Insert_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(HashMap_Insert) "addl $12, %esp\n"
+                   "ret $8")
+
+uint32_t* XB_CDECL HashMap_Insert(uint8_t* map, uint32_t* out, const uint32_t* pair) {
+    // The name map's insert: pair {hash, name[0x20]} (nodes 0x2c B).
+    return hash_map_insert<int32_t>(
+        map, out, pair,
+        [](uint32_t next, uint32_t prev, const uint32_t* value) {
+            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(std_list_BuyNodeNameMap(next, prev, reinterpret_cast<const uint8_t*>(value))));
+        },
+        [](uint8_t* list) { std_list_IncSize_5(0, list, 1); });
+}
+
+PLATFORM_ASM_ENTRY(IntHashMap_Insert_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(IntHashMap_Insert) "addl $12, %esp\n"
+                   "ret $8")
+
+uint32_t* XB_CDECL IntHashMap_Insert(uint8_t* map, uint32_t* out, const uint32_t* pair) {
+    return hash_map_insert<int32_t>(map, out, pair, buy_node8, inc_size4);
+}
+
+PLATFORM_ASM_ENTRY(HashMap_Insert_10_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(HashMap_Insert_10) "addl $12, %esp\n"
+                   "ret $8")
+
+uint32_t* XB_CDECL HashMap_Insert_10(uint8_t* map, uint32_t* out, const uint32_t* pair) {
+    // IntHashMap_Insert with unsigned keys.
+    return hash_map_insert<uint32_t>(map, out, pair, buy_node8, inc_size4);
+}
+
 uint32_t* XB_REGS3 XB_CDECL BitSet256_Complement(uint32_t* dst, uint32_t, const uint32_t* src) {
     uint32_t inverted[8];
     for (int32_t i = 7; i >= 0; --i) inverted[i] = ~src[i];
@@ -2691,6 +2897,169 @@ uint32_t XB_THISCALL DynArray_PushBack(uint8_t* array, const uint32_t* item) {
     return index;
 }
 
+uint32_t XB_REGS1 XB_CDECL HashStr_Hash(const char* text) {
+    // HashStr_Init's hash alone: rol(hash, 5) ^ c over the text, letters lowered (as a signed byte).
+    uint32_t hash = 0;
+    using CharFn = int32_t XB_CDECL(int32_t);
+    for (const char* p = text; *p; ++p) {
+        int8_t c = *p;
+        if (title_function<CharFn>(0x001eef49)(*p)) c = static_cast<int8_t>(title_function<CharFn>(0x001eed48)(*p));  // _isalpha, tolower
+        hash = ((hash >> 27) | (hash << 5)) ^ static_cast<uint32_t>(static_cast<int32_t>(c));
+    }
+    return hash;
+}
+
+namespace {
+
+// Calls a title function taking its only argument in ESI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL qcore_call_esi(uint32_t esi, uint32_t function);
+PLATFORM_ASM_ENTRY(qcore_call_esi, "pushl %esi\n movl 8(%esp), %esi\n call *12(%esp)\n popl %esi\n ret")
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(HandleTable512_Alloc_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(HandleTable512_Alloc) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL HandleTable512_Alloc(uint32_t* table, uint32_t* out) {
+    // The first free slot of the bitmap (bit set = free) is taken; handle = generation (+0x44 + slot * 8)
+    // << 12 | slot. A full table reports (HandleTable512_ReportFull) and goes on with slot -1.
+    uint32_t iterator[4] = {addr32(table), table[0], 0, 0xffffffffu};
+    BitIter_Next(0, iterator);
+    const int32_t slot = static_cast<int32_t>(iterator[3]);
+    table[slot >> 5] &= ~(1u << (slot & 0x1f));
+    if (slot == -1) qcore_call_esi(addr32(table), 0x0001fa20);  // HandleTable512_ReportFull (table in ESI)
+    *out = (word_at(reinterpret_cast<const uint8_t*>(table), 0x44 + static_cast<uint32_t>(slot) * 8) << 12) |
+           static_cast<uint32_t>(slot);
+    return out;
+}
+
+void XB_THISCALL DynArray_Resize(uint8_t* array, uint32_t count, uint32_t capacity) {
+    // {data, capacity, count}: within the capacity, new slots are zeroed (null slots skipped); past it, a
+    // new zeroed block of `capacity` ints takes the first min(count, old count) values and the old block
+    // goes back to its SmallHeap or heap.
+    if (!(count > word_at(array, 4))) {
+        const uint32_t old = word_at(array, 8);
+        if (count > old) {
+            uint32_t* const data = pointer_at<uint32_t>(array, 0);
+            for (uint32_t* p = data + old; p != data + count; ++p) {
+                if (p) *p = 0;
+            }
+        }
+        word_at(array, 8) = count;
+        return;
+    }
+    uint32_t* const data = DynArray_AllocIntsZeroed_2(capacity);
+    for (uint32_t i = 0; i < (word_at(array, 8) < count ? word_at(array, 8) : count); ++i)
+        data[i] = pointer_at<uint32_t>(array, 0)[i];
+    uint8_t* const old = pointer_at<uint8_t>(array, 0);
+    if (old) {
+        if (SmallHeap_Owns(title_global<const uint32_t*>(0x0095f4a4), addr32(old))) {
+            SmallHeap_Free(title_global<uint8_t*>(0x0095f4a4), old);
+        } else {
+            Heap_FreeIn2(title_global<uint32_t>(0x0095f4a0), old);
+        }
+    }
+    word_at(array, 0) = addr32(data);
+    word_at(array, 8) = count;
+    word_at(array, 4) = capacity;
+}
+
+PLATFORM_ASM_ENTRY(DynArray_PushBack12_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(DynArray_PushBack12) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL DynArray_PushBack12(uint8_t* array, const uint32_t* item) {
+    // {data, capacity, count} of 12-byte items: full, it grows to count + 1 up to 3, else count + 4
+    // (DynArray_Alloc12 / Mem_AlignedFree).
+    const int32_t count = static_cast<int32_t>(word_at(array, 8));
+    if (!(count < static_cast<int32_t>(word_at(array, 4)))) {
+        const uint32_t capacity = count > 3 ? count + 4 : count + 1;
+        uint32_t* const data = DynArray_Alloc12(capacity, static_cast<uint32_t>(count + 1));
+        for (int32_t i = 0; i < static_cast<int32_t>(word_at(array, 8)); ++i) {
+            const uint32_t* const from = pointer_at<uint32_t>(array, 0) + i * 3;
+            data[i * 3] = from[0];
+            data[i * 3 + 1] = from[1];
+            data[i * 3 + 2] = from[2];
+        }
+        if (word_at(array, 0)) {
+            Mem_AlignedFree(pointer_at<void>(array, 0));
+            word_at(array, 0) = 0;
+        }
+        word_at(array, 0) = addr32(data);
+        word_at(array, 4) = capacity;
+    }
+    uint32_t* const slot = pointer_at<uint32_t>(array, 0) + word_at(array, 8) * 3;
+    slot[0] = item[0];
+    slot[1] = item[1];
+    slot[2] = item[2];
+    word_at(array, 8) = word_at(array, 8) + 1;
+}
+
+uint32_t* XB_REGS3 XB_STDCALL std_UninitializedCopy4_3(uint32_t, const uint32_t* first, uint32_t* dst, uint32_t,
+                                                        const uint32_t* last) {
+    return std_UninitializedCopy4_2(0, last, first, dst);
+}
+
+PLATFORM_ASM_ENTRY(MemContext_AllocOrHeap16_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(MemContext_AllocOrHeap16) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL MemContext_AllocOrHeap16(int32_t slot, uint32_t size) {
+    // 16-aligned `size` bytes from the pak's memory context `slot` (+0x38, 0..0x62; else none), the heap
+    // when that fails or the slot is -1.
+    if (slot != -1) {
+        uint8_t* context = nullptr;
+        if (slot >= 0 && slot < 0x63) context = pointer_at<uint8_t>(title_global<const uint8_t*>(0x0095f638), 0x38 + slot * 4);
+        uint8_t* const memory = MemContext_Alloc_r(context, 0x10, size);
+        if (memory) return memory;
+    }
+    return Heap_AllocAligned(0x10, size);
+}
+
+namespace {
+
+using LowerBoundFn = uint8_t* XB_REGS3 XB_CDECL(const uint8_t*, uint32_t, const uint8_t*);
+
+// map/set<string>::find: the lower bound, unless it is the head or the key sorts before its key.
+uint32_t* string_tree_find(const uint8_t* key, const uint8_t* tree, uint32_t* out, LowerBoundFn* lower_bound) {
+    uint8_t* const node = lower_bound(tree, 0, key);
+    if (addr32(node) != word_at(tree, 4)) {
+        const uint8_t* const text = word_at(node, 0x24) >= 0x10 ? pointer_at<const uint8_t>(node, 0x10) : node + 0x10;
+        if (std_string_CompareSubstr(word_at(key, 0x14), 0, key, 0, text, word_at(node, 0x20)) >= 0) {
+            *out = addr32(node);
+            return out;
+        }
+    }
+    *out = word_at(tree, 4);
+    return out;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(std_map_string_Find_entry,
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_map_string_Find) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL std_map_string_Find(const uint8_t* key, const uint8_t* tree, uint32_t* out) {
+    return string_tree_find(key, tree, out, std_map_string_LowerBound);
+}
+
+PLATFORM_ASM_ENTRY(std_set_string_Find_entry,
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_set_string_Find) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL std_set_string_Find(const uint8_t* key, const uint8_t* tree, uint32_t* out) {
+    return string_tree_find(key, tree, out, std_map_string_LowerBound_2);
+}
+
 uint32_t XB_REGS3 XB_CDECL std_list_IncSize_4(uint32_t eax, uint8_t* list, uint32_t count) {
     const uint32_t size = word_at(list, 8);
     if (!(0x1fffffffu - size >= count)) {
@@ -2699,6 +3068,23 @@ uint32_t XB_REGS3 XB_CDECL std_list_IncSize_4(uint32_t eax, uint8_t* list, uint3
     }
     word_at(list, 8) = size + count;
     return size + count;
+}
+
+uint32_t XB_REGS3 XB_CDECL std_list_IncSize_5(uint32_t eax, uint8_t* list, uint32_t count) {
+    // std_list_IncSize_4 for the name map's 0x2c-byte nodes (max 0x071c71c7).
+    const uint32_t size = word_at(list, 8);
+    if (!(0x071c71c7u - size >= count)) {
+        // "list<T> too long": the title's length_error throw (never returns).
+        return title_function<uint32_t XB_REGS3 XB_CDECL(uint32_t, uint8_t*, uint32_t)>(0x000151f0)(eax, list, count);
+    }
+    word_at(list, 8) = size + count;
+    return size + count;
+}
+
+uint8_t* XB_STDCALL std_list_BuyNodeNameMap(uint32_t next, uint32_t prev, const uint8_t* value) {
+    uint8_t* const node = Z_Malloc(0x2c);
+    if (node) NameMap_NodeCtor(node, next, prev, value);
+    return node;
 }
 
 uint32_t XB_THISCALL std_list_Insert8(const uint32_t* value, uint8_t* list, uint8_t* where) {
@@ -3175,6 +3561,355 @@ uint8_t* XB_STDCALL std_tree_BuyNode29(uint32_t left, uint32_t parent, uint32_t 
 
 namespace {
 
+using TreeBuyNode = uint8_t* XB_STDCALL(uint32_t, uint32_t, uint32_t, const uint8_t*, uint32_t);
+using TreeRotate = void XB_THISCALL(uint8_t*, uint8_t*);
+using TreeStep = void XB_REGS2 XB_CDECL(uint32_t, uint8_t**);
+
+uint8_t*& tree_link(uint8_t* node, uint32_t offset) {
+    return *reinterpret_cast<uint8_t**>(node + offset);
+}
+
+// _Insert(addleft, where, value) of the string-keyed red-black trees (color byte at Color, red 0, black 1):
+// a red node under `where` (the root when `where` is the head), the head's leftmost/rightmost kept, then
+// the usual recolor/rotate walk up; out = the new node. Above Max nodes it throws ("map/set<T> too long").
+template <uint32_t Color, uint32_t Max>
+uint32_t* tree_insert(uint8_t* where, uint8_t* tree, uint32_t* out, uint8_t addleft, const uint8_t* value,
+                      TreeBuyNode* buy, TreeRotate* lrotate, TreeRotate* rrotate, uint32_t self) {
+    if (!(word_at(tree, 8) < Max)) {
+        return title_function<uint32_t* XB_REGS3 XB_STDCALL(uint8_t*, uint32_t, uint8_t*, uint32_t*, uint32_t,
+                                                           const uint8_t*)>(self)(where, 0, tree, out, addleft, value);
+    }
+    uint8_t* const head = tree_link(tree, 4);
+    uint8_t* const node = buy(addr32(head), addr32(where), addr32(head), value, 0);
+    word_at(tree, 8) = word_at(tree, 8) + 1;
+    if (where == tree_link(tree, 4)) {
+        tree_link(tree_link(tree, 4), 4) = node;
+        tree_link(tree_link(tree, 4), 0) = node;
+        tree_link(tree_link(tree, 4), 8) = node;
+    } else if (addleft) {
+        tree_link(where, 0) = node;
+        if (where == tree_link(tree_link(tree, 4), 0)) tree_link(tree_link(tree, 4), 0) = node;
+    } else {
+        tree_link(where, 8) = node;
+        if (where == tree_link(tree_link(tree, 4), 8)) tree_link(tree_link(tree, 4), 8) = node;
+    }
+    uint8_t* p = node;
+    while (!tree_link(p, 4)[Color]) {
+        uint8_t* const parent = tree_link(p, 4);
+        uint8_t* const grand = tree_link(parent, 4);
+        if (parent == tree_link(grand, 0)) {
+            uint8_t* const uncle = tree_link(grand, 8);
+            if (!uncle[Color]) {
+                tree_link(p, 4)[Color] = 1;
+                uncle[Color] = 1;
+                tree_link(tree_link(p, 4), 4)[Color] = 0;
+                p = tree_link(tree_link(p, 4), 4);
+                continue;
+            }
+            if (p == tree_link(parent, 8)) {
+                p = parent;
+                lrotate(parent, tree);
+            }
+            tree_link(p, 4)[Color] = 1;
+            tree_link(tree_link(p, 4), 4)[Color] = 0;
+            rrotate(tree_link(tree_link(p, 4), 4), tree);
+        } else {
+            uint8_t* const uncle = tree_link(grand, 0);
+            if (!uncle[Color]) {
+                tree_link(p, 4)[Color] = 1;
+                uncle[Color] = 1;
+                tree_link(tree_link(p, 4), 4)[Color] = 0;
+                p = tree_link(tree_link(p, 4), 4);
+                continue;
+            }
+            if (p == tree_link(parent, 0)) {
+                p = parent;
+                rrotate(parent, tree);
+            }
+            tree_link(p, 4)[Color] = 1;
+            tree_link(tree_link(p, 4), 4)[Color] = 0;
+            lrotate(tree_link(tree_link(p, 4), 4), tree);
+        }
+    }
+    tree_link(tree_link(tree, 4), 4)[Color] = 1;
+    *out = addr32(node);
+    return out;
+}
+
+using TreeInsert = uint32_t* XB_CDECL(uint8_t*, uint8_t*, uint32_t*, uint8_t, const uint8_t*);
+
+const uint8_t* string_text(const uint8_t* s) {
+    return word_at(s, 0x18) >= 0x10 ? pointer_at<const uint8_t>(s, 4) : s + 4;
+}
+
+// a.compare(b) < 0 as the title's inline REPZ CMPSB compare: bytes (unsigned) over the shorter length, then
+// the lengths.
+bool string_less_inline(const uint8_t* a, const uint8_t* b) {
+    const uint32_t a_size = word_at(a, 0x14);
+    const uint32_t b_size = word_at(b, 0x14);
+    const uint32_t n = a_size < b_size ? a_size : b_size;
+    if (a_size) {
+        const int32_t r = std::memcmp(string_text(a), string_text(b), n);
+        if (r) return r < 0;
+    }
+    return a_size < b_size;
+}
+
+// node key (+0xc) compare(0, size, value) < 0
+bool node_key_less(const uint8_t* node, const uint8_t* value) {
+    return std_string_CompareSubstr(word_at(node + 0xc, 0x14), 0, node + 0xc, 0, string_text(value),
+                                    word_at(value, 0x14)) < 0;
+}
+
+// insert(value) of a unique-key tree (isnil byte at Nil): the leaf the key goes under, then the usual
+// neighbour check; out = {node, inserted}.
+template <uint32_t Nil>
+uint32_t* tree_insert_unique(uint8_t* tree, uint32_t* out, const uint8_t* value, TreeInsert* insert, TreeStep* dec) {
+    uint8_t* const head = tree_link(tree, 4);
+    uint8_t* where = head;
+    uint8_t* node = tree_link(head, 4);
+    bool addleft = true;
+    while (!node[Nil]) {
+        where = node;
+        addleft = string_less_inline(value, node + 0xc);
+        node = addleft ? tree_link(node, 0) : tree_link(node, 8);
+    }
+    uint8_t* it = where;
+    if (addleft) {
+        if (where == tree_link(tree_link(tree, 4), 0)) {
+            uint32_t made = 0;
+            out[0] = *insert(where, tree, &made, 1, value);
+            reinterpret_cast<uint8_t*>(out)[4] = 1;
+            return out;
+        }
+        dec(0, &it);
+    }
+    if (node_key_less(it, value)) {
+        uint32_t made = 0;
+        out[0] = *insert(where, tree, &made, addleft, value);
+        reinterpret_cast<uint8_t*>(out)[4] = 1;
+        return out;
+    }
+    out[0] = addr32(it);
+    reinterpret_cast<uint8_t*>(out)[4] = 0;
+    return out;
+}
+
+using TreeInsertUnique = uint32_t* XB_CDECL(uint8_t*, uint32_t*, const uint8_t*);
+
+// insert(hint, value) (isnil byte at Nil): next to the hint when the order allows, else InsertUnique.
+template <uint32_t Nil>
+uint32_t* tree_insert_hint(uint8_t* tree, uint32_t* out, const uint8_t* value, uint8_t* where, TreeInsert* insert,
+                           TreeInsertUnique* insert_unique, TreeStep* dec, TreeStep* inc) {
+    if (!word_at(tree, 8)) {
+        insert(tree_link(tree, 4), tree, out, 1, value);
+        return out;
+    }
+    uint8_t* const head = tree_link(tree, 4);
+    if (where == tree_link(head, 0)) {
+        if (std_string_CompareSubstr(word_at(value, 0x14), 0, value, 0, string_text(where + 0xc),
+                                     word_at(where + 0xc, 0x14)) < 0) {
+            insert(where, tree, out, 1, value);
+            return out;
+        }
+    } else if (where == head) {
+        if (std_string_KeyLess(value, 0, tree_link(head, 8) + 0xc)) {
+            insert(tree_link(tree_link(tree, 4), 8), tree, out, 0, value);
+            return out;
+        }
+    } else if (std_string_KeyLess(where + 0xc, 0, value)) {
+        uint8_t* it = where;
+        dec(0, &it);
+        if (std_string_KeyLess(value, 0, it + 0xc)) {
+            if (tree_link(it, 8)[Nil]) {
+                insert(it, tree, out, 0, value);
+            } else {
+                insert(where, tree, out, 1, value);
+            }
+            return out;
+        }
+    } else if (std_string_KeyLess(value, 0, where + 0xc)) {
+        uint8_t* it = where;
+        inc(0, &it);
+        if (it == tree_link(tree, 4) || std_string_KeyLess(it + 0xc, 0, value)) {
+            if (tree_link(where, 8)[Nil]) {
+                insert(where, tree, out, 0, value);
+            } else {
+                insert(it, tree, out, 1, value);
+            }
+            return out;
+        }
+    }
+    uint32_t pair[2] = {0, 0};
+    insert_unique(tree, pair, value);
+    *out = pair[0];
+    return out;
+}
+
+void string_init_empty_at(uint8_t* s) {
+    word_at(s, 0x18) = 0xf;
+    word_at(s, 0x14) = 0;
+    s[4] = 0;
+}
+
+}  // namespace
+
+#define TREE_INSERT_ENTRY(name)                                                                      \
+    PLATFORM_ASM_ENTRY(name##_entry, "pushl 12(%esp)\n"                                               \
+                                     "pushl 12(%esp)\n"                                               \
+                                     "pushl 12(%esp)\n"                                               \
+                                     "pushl %ecx\n"                                                   \
+                                     "pushl %eax\n" PLATFORM_ASM_CALL(name) "addl $20, %esp\n"        \
+                                     "ret $12")
+
+TREE_INSERT_ENTRY(std_map_string_Insert)
+uint32_t* XB_CDECL std_map_string_Insert(uint8_t* where, uint8_t* tree, uint32_t* out, uint8_t addleft,
+                                         const uint8_t* value) {
+    return tree_insert<0x64, 0x02e8ba2d>(where, tree, out, addleft, value, std_map_string_BuyNode,
+                                         std_map_string_Lrotate, std_map_string_Rrotate, 0x00020c00);
+}
+
+TREE_INSERT_ENTRY(std_set_string_Insert)
+uint32_t* XB_CDECL std_set_string_Insert(uint8_t* where, uint8_t* tree, uint32_t* out, uint8_t addleft,
+                                         const uint8_t* value) {
+    return tree_insert<0x2c, 0x07fffffe>(where, tree, out, addleft, value, std_set_string_BuyNode,
+                                         std_set_string_Lrotate, std_set_string_Rrotate, 0x00021050);
+}
+
+TREE_INSERT_ENTRY(std_tree_Insert29)
+uint32_t* XB_CDECL std_tree_Insert29(uint8_t* where, uint8_t* tree, uint32_t* out, uint8_t addleft,
+                                     const uint8_t* value) {
+    return tree_insert<0x28, 0x09249248>(where, tree, out, addleft, value, std_tree_BuyNode29, std_tree_Lrotate29,
+                                         std_tree_Rrotate29, 0x000206e0);
+}
+
+#undef TREE_INSERT_ENTRY
+
+uint32_t* XB_STDCALL std_map_string_InsertUnique(uint8_t* tree, uint32_t* out, const uint8_t* value) {
+    return tree_insert_unique<0x65>(tree, out, value, std_map_string_Insert, std_map_string_Dec);
+}
+
+uint32_t* XB_STDCALL std_set_string_InsertUnique(uint8_t* tree, uint32_t* out, const uint8_t* value) {
+    return tree_insert_unique<0x2d>(tree, out, value, std_set_string_Insert, std_set_string_Dec);
+}
+
+uint32_t* XB_STDCALL std_tree_InsertUnique29(uint8_t* tree, uint32_t* out, const uint8_t* value) {
+    return tree_insert_unique<0x29>(tree, out, value, std_tree_Insert29, std_tree_Dec29);
+}
+
+uint8_t XB_REGS3 XB_CDECL std_string_KeyLess(const uint8_t* a, uint32_t, const uint8_t* b) {
+    // b < a (b.compare(0, size, a) < 0).
+    return std_string_CompareSubstr(word_at(b, 0x14), 0, b, 0, string_text(a), word_at(a, 0x14)) < 0;
+}
+
+#define TREE_HINT_ENTRY(name)                                                                        \
+    PLATFORM_ASM_ENTRY(name##_entry, "pushl 4(%esp)\n"                                                \
+                                     "pushl %edi\n"                                                   \
+                                     "pushl %esi\n"                                                   \
+                                     "pushl %ebx\n" PLATFORM_ASM_CALL(name) "addl $16, %esp\n"        \
+                                     "ret $4")
+
+namespace {
+
+uint32_t* XB_CDECL map_insert_unique(uint8_t* tree, uint32_t* out, const uint8_t* value) {
+    return std_map_string_InsertUnique(tree, out, value);
+}
+uint32_t* XB_CDECL set_insert_unique(uint8_t* tree, uint32_t* out, const uint8_t* value) {
+    return std_set_string_InsertUnique(tree, out, value);
+}
+
+}  // namespace
+
+TREE_HINT_ENTRY(std_map_string_InsertHint)
+uint32_t* XB_CDECL std_map_string_InsertHint(uint8_t* tree, uint32_t* out, const uint8_t* value, uint8_t* where) {
+    return tree_insert_hint<0x65>(tree, out, value, where, std_map_string_Insert, map_insert_unique,
+                                  std_map_string_Dec, std_map_string_Inc);
+}
+
+TREE_HINT_ENTRY(std_set_string_InsertHint)
+uint32_t* XB_CDECL std_set_string_InsertHint(uint8_t* tree, uint32_t* out, const uint8_t* value, uint8_t* where) {
+    return tree_insert_hint<0x2d>(tree, out, value, where, std_set_string_Insert, set_insert_unique,
+                                  std_set_string_Dec, std_set_string_Inc);
+}
+
+#undef TREE_HINT_ENTRY
+
+PLATFORM_ASM_ENTRY(std_map_string_MakePair_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(std_map_string_MakePair) "addl $12, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL std_map_string_MakePair(uint8_t* pair, const uint8_t* key, const uint8_t* value) {
+    // {key, {string, string, int}} copied into fresh strings.
+    string_init_empty_at(pair);
+    std_string_AssignSubstr(pair, key, 0, 0xffffffffu);
+    uint8_t* const first = pair + 0x1c;
+    string_init_empty_at(first);
+    std_string_AssignSubstr(first, value, 0, 0xffffffffu);
+    uint8_t* const second = first + 0x1c;
+    string_init_empty_at(second);
+    std_string_AssignSubstr(second, value + 0x1c, 0, 0xffffffffu);
+    word_at(first, 0x38) = word_at(value, 0x38);
+    return pair;
+}
+
+PLATFORM_ASM_ENTRY(std_map_string_Subscript_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(std_map_string_Subscript) "addl $8, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL std_map_string_Subscript(const uint8_t* key, uint8_t* tree) {
+    // map[key]: the node's value (+0x28), inserted as {"", "", 0} when missing.
+    uint8_t* node = std_map_string_LowerBound(tree, 0, key);
+    if (addr32(node) == word_at(tree, 4) ||
+        std_string_CompareSubstr(word_at(key, 0x14), 0, key, 0, string_text(node + 0xc), word_at(node + 0xc, 0x14)) < 0) {
+        alignas(4) uint8_t value[0x3c];
+        alignas(4) uint8_t pair[0x58];
+        word_at(value, 0x18) = 0xf;
+        word_at(value, 0x34) = 0xf;
+        word_at(value, 0x14) = 0;
+        value[4] = 0;
+        word_at(value, 0x30) = 0;
+        value[0x20] = 0;
+        word_at(value, 0x38) = 0;
+        std_map_string_MakePair(pair, key, value);
+        uint32_t inserted = 0;
+        std_map_string_InsertHint(tree, &inserted, pair, node);
+        node = reinterpret_cast<uint8_t*>(uintptr_t{inserted});
+        std_map_string_DestroyValue(pair);
+        if (word_at(value, 0x34) >= 0x10) Z_Free(pointer_at<uint8_t>(value, 0x20));
+        if (word_at(value, 0x18) >= 0x10) Z_Free(pointer_at<uint8_t>(value, 4));
+    }
+    return node + 0x28;
+}
+
+PLATFORM_ASM_ENTRY(std_set_string_Subscript_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(std_set_string_Subscript) "addl $8, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL std_set_string_Subscript(const uint8_t* key, uint8_t* tree) {
+    // map<string, int>[key]: the node's value (+0x28), inserted as 0 when missing.
+    uint8_t* node = std_map_string_LowerBound_2(tree, 0, key);
+    if (addr32(node) == word_at(tree, 4) ||
+        std_string_CompareSubstr(word_at(key, 0x14), 0, key, 0, string_text(node + 0xc), word_at(node + 0xc, 0x14)) < 0) {
+        alignas(4) uint8_t pair[0x20];
+        word_at(pair, 0x18) = 0xf;
+        word_at(pair, 0x14) = 0;
+        pair[4] = 0;
+        std_string_AssignSubstr(pair, key, 0, 0xffffffffu);
+        word_at(pair, 0x1c) = 0;
+        uint32_t inserted = 0;
+        std_set_string_InsertHint(tree, &inserted, pair, node);
+        node = reinterpret_cast<uint8_t*>(uintptr_t{inserted});
+        if (word_at(pair, 0x18) >= 0x10) Z_Free(pointer_at<uint8_t>(pair, 4));
+    }
+    return node + 0x28;
+}
+
+namespace {
+
 // vector<T*>(count, value) (VC7.1): {allocator, first, last, end}; Z_Malloc(count * 4), filled with *value.
 // "vector<T> too long" (std_vector_Xlen_2) above 0x3fffffff elements.
 void vector_construct_n4(uint32_t count, uint8_t* vector, const uint32_t* value) {
@@ -3615,6 +4350,98 @@ uint32_t XB_CDECL File_GetNativeHandle(int32_t handle, uint32_t* out_info, uint3
     if (out_size) *out_size = size;
     if (out_stride) *out_stride = stride;
     return native;
+}
+
+int32_t XB_CDECL FileDevice_GetOverallStatus() {
+    // Over the devices' phases (+0x40): 5 (aborting) -> 2, 1/3 (cancelling, cancelled) -> 1 unless already 2,
+    // 0/2/4 -> 0 if still unset; -1 without devices. Dead (no call, pointer or immediate).
+    const int32_t count = title_global<int32_t>(0x008bfe7c);
+    int32_t status = -1;
+    for (int32_t i = 0; i < count; ++i) {
+        switch (word_at(title_global<uint8_t* const*>(0x008bfe80)[i], 0x40)) {
+        case 0:
+        case 2:
+        case 4:
+            if (status == -1) status = 0;
+            break;
+        case 1:
+        case 3:
+            if (status == -1 || status == 0) status = 1;
+            break;
+        case 5:
+            status = 2;
+            break;
+        default:
+            break;
+        }
+    }
+    return status;
+}
+
+const char* XB_CDECL FileDevice_StatusName(int32_t status) {
+    // FileDevice_GetOverallStatus's value as text. Dead; Ghidra splits its case blocks into 0x000caa81..99.
+    switch (status) {
+    case -1: return &title_global<const char>(0x00417fe4);  // "INVALID"
+    case 0: return &title_global<const char>(0x007ce6e8);   // "IDLE"
+    case 1: return &title_global<const char>(0x007ce6e0);   // "BUSY"
+    case 2: return &title_global<const char>(0x007ce6d8);   // "ERROR"
+    default: return &title_global<const char>(0x004172dc);  // "???"
+    }
+}
+
+void XB_CDECL FileDevice_ResetAborted() {
+    // Under the file mutex: each aborting device (phase 5) goes idle; its request, if aborting/aborted (6/7),
+    // is queued again (0); the request event is set after each. Dead (no call, pointer or immediate).
+    if (file_threaded()) file_lock();
+    for (int32_t i = 0; i < title_global<int32_t>(0x008bfe7c); ++i) {
+        uint8_t* const device = title_global<uint8_t* const*>(0x008bfe80)[i];
+        if (word_at(device, 0x40) != 5) continue;
+        uint8_t* const request = file_request(static_cast<int32_t>(word_at(device, 0x30)));
+        if (request) {
+            const uint32_t state = word_at(request, 0x2c);
+            if (state == 6 || state == 7) word_at(request, 0x2c) = 0;
+        }
+        word_at(device, 0x40) = 0;
+        if (file_threaded())
+            title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e857d)(title_global<uint32_t>(0x00920788));  // SetEvent
+    }
+    if (file_threaded()) file_release();
+}
+
+int32_t XB_CDECL File_CreateDevice(const uint32_t* desc) {
+    // A device record from the device pool with the priority desc[0]. Dead (no call, pointer or immediate).
+    const int32_t handle = HandlePool_Alloc(&title_global<uint8_t>(kDevicePool));
+    File_SetDevicePriority(static_cast<uint32_t>(handle), desc[0]);
+    return handle;
+}
+
+void XB_CDECL File_AbortRequestsForDevice(uint32_t device) {
+    // Aborts every request of the device (+8). Only File_DestroyDevice calls it.
+    int32_t next = HandlePool_First(pool_at(kRequestPool));
+    if (next == -1) return;
+    do {
+        const int32_t handle = next;
+        const uint8_t* const request = file_request(handle);
+        next = HandlePool_Next(pool_at(kRequestPool), handle);
+        if (word_at(request, 8) == device) File_AbortRequest(handle);
+    } while (next != -1);
+}
+
+void XB_CDECL File_DestroyDevice(uint32_t device) {
+    // Dead (no call, pointer or immediate).
+    File_AbortRequestsForDevice(device);
+    HandlePool_Free(&title_global<uint8_t>(kDevicePool), static_cast<int32_t>(device));
+}
+
+uint32_t XB_CDECL FileDeviceXapi_Cancel(const uint32_t* handle) {
+    // XAPI file device ops 0x008bfeac slot 1: CancelIo on the native handle; 0 once cancelled.
+    return title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e86f2)(*handle) ? 0 : 1;  // CancelIo
+}
+
+uint32_t XB_CDECL FileDeviceXapi_Poll() {
+    // XAPI file device ops slot 2: an alertable SleepEx(0) runs the read completion routines; never busy.
+    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t)>(0x001e8659)(0, 1);  // SleepEx
+    return 0;
 }
 
 void XB_CDECL File_InitSystem(uint8_t* memory) {
