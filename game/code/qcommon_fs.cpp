@@ -10,9 +10,13 @@
 #include "movie.h"
 #include "nal_math.h"
 #include "fx_load.h"
+#include "actor.h"
 #include "g_scr_runtime.h"
+#include "g_utils.h"
+#include "g_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
+#include "script_string.h"
 #include "snd.h"
 #include "sv.h"
 #include "tr_main.h"
@@ -5305,6 +5309,473 @@ void XB_THISCALL DynArray_Resize52(DynArray* array, uint32_t size, uint32_t capa
     array->data = reinterpret_cast<uint32_t*>(fresh);
     array->capacity = capacity;
     array->size = size;
+}
+
+
+// --- qcommon push 7 (high half), batch 2: list/map instances, string throws, Sys_ListFiles, game commands ---
+
+namespace {
+
+// _Xran/_Xlen: a std::string from the message, a logic_error-derived exception from it, _CxxThrowException.
+[[noreturn]] void std_throw_string_error(uint32_t message, uint32_t vtable, uint32_t throw_info) {
+    alignas(4) uint8_t text[0x1c] = {};
+    alignas(4) uint8_t error[0x28] = {};
+    std_string_CtorCStr(text, tstr(message));
+    std_exception_CtorString(error, text);
+    pk<uint32_t>(error, 0) = vtable;
+    title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x001f2302)(error, throw_info);  // _CxxThrowException
+    for (;;) {
+    }
+}
+
+// buy_head, clear, insert_range, resize, construct_n, copy_from
+constexpr HashMapInstance kHashMap6{0x0045ca60, 0x0045ca00, 0x001e67d0, 0x0045f250, 0, 0x001e6880};
+
+}  // namespace
+
+uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_4(uint8_t* next, uint8_t* prev, const uint32_t* value) {
+    return list_buy_node_key_array(next, prev, value, 0x0045c270);  // DynArray_Assign4 (PROLOGUE copy)
+}
+uint32_t XB_THISCALL std_list_IncSize_3(uint8_t* list, uint32_t count) { return list_inc_size(list, count, 0x0fffffff); }
+void XB_THISCALL std_list_InsertRange_6(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    list_insert_range(list, where, first, last, 0x0045caa0, 0x0045ead0);  // PROLOGUE BuyNode, IncSize
+}
+void XB_THISCALL HashMap_CopyFrom_6(HashMap* map, const HashMap* source) { hash_map_copy_from(map, source, kHashMap6); }
+HashMap* XB_THISCALL HashMap_CopyCtor_6(HashMap* map, const HashMap* source) {
+    return hash_map_copy_ctor(map, source, kHashMap6);
+}
+
+void XB_CDECL std_string_Xran() { std_throw_string_error(0x008278d0, 0x00832778, 0x00895b68); }  // out_of_range
+void XB_CDECL std_string_Xlen() { std_throw_string_error(0x008278e8, 0x007f7784, 0x00895af4); }  // length_error
+
+// --- Sys_ file listing (FindFirstFile/FindNextFile) ---
+
+namespace {
+
+using FindFirst = uint32_t XB_STDCALL(const char*, uint8_t*);
+using FindNext = int32_t XB_STDCALL(uint32_t, uint8_t*);
+using CloseHandleFn = int32_t XB_STDCALL(uint32_t);
+constexpr uint32_t kFindFirstFile = 0x001e79ad;
+constexpr uint32_t kFindNextFile = 0x001e7aba;
+constexpr uint32_t kCloseHandle = 0x001e7b0b;
+
+bool is_dot_or_cvs(const char* name) {
+    return !Q_stricmpn(name, tstr(0x0082d700), 99999) ||  // "."
+           !Q_stricmpn(name, tstr(0x008380a4), 99999) ||  // ".."
+           !Q_stricmpn(name, tstr(0x0083cac4), 99999);    // "CVS"
+}
+
+// The shared tail: a zeroed Z_Malloc copy of the first `count` names plus a null terminator.
+char** copy_file_list(char* const* list, int32_t count) {
+    const uint32_t bytes = static_cast<uint32_t>(count) * 4 + 4;
+    char** const copy = reinterpret_cast<char**>(Z_Malloc(bytes));
+    Com_Memset(reinterpret_cast<uint8_t*>(copy), 0, bytes);
+    int32_t i = 0;
+    if (count > 0) {
+        for (; i < count; ++i) copy[i] = list[i];
+    }
+    copy[i] = nullptr;
+    return copy;
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL Sys_ListFilteredFiles(const char* basedir, const char* subdirs, const char* filter,
+                                            char** list, int32_t* numfiles) {
+    if (*numfiles >= 0xfff) return;
+    char search[0x80];
+    if (std::strlen(subdirs)) {
+        const uint32_t args[3] = {0x0083cad0, u32(basedir), u32(subdirs)};  // "%s\%s\*"
+        Com_sprintf(search, 0x80, args);
+    } else {
+        const uint32_t args[2] = {0x0083cac8, u32(basedir)};  // "%s\*"
+        Com_sprintf(search, 0x80, args);
+    }
+    uint8_t data[0x140] = {};  // WIN32_FIND_DATAA: attributes +0, cFileName +0x2c
+    const uint32_t handle = title_function<FindFirst>(kFindFirstFile)(search, data);
+    if (handle == 0xffffffff) return;
+    const char* const name = reinterpret_cast<const char*>(data + 0x2c);
+    do {
+        if ((data[0] & 0x10) && is_dot_or_cvs(name)) continue;
+        if (*numfiles >= 0xfff) break;
+        char filename[0x80];
+        if (subdirs) {
+            const uint32_t args[3] = {0x0083cabc, u32(subdirs), u32(name)};  // "%s\%s"
+            Com_sprintf(filename, 0x80, args);
+        } else {
+            const uint32_t args[2] = {0x0082ddd4, u32(name)};  // "%s"
+            Com_sprintf(filename, 0x80, args);
+        }
+        if (!Com_FilterPath(filename, filter, 0)) continue;
+        list[*numfiles] = CopyString(filename);
+        ++*numfiles;
+    } while (title_function<FindNext>(kFindNextFile)(handle, data));
+    title_function<CloseHandleFn>(kCloseHandle)(handle);
+}
+
+char** XB_REGS3 XB_CDECL Sys_ListFiles(uint32_t, const char* filter, const char* extension, const char* directory,
+                                       int32_t* numfiles, int32_t wantsubs) {
+    char* list[0x1000];
+    if (filter) {
+        int32_t nfiles = 0;
+        Sys_ListFilteredFiles(directory, tstr(0x0082dfeb), filter, list, &nfiles);
+        list[nfiles] = nullptr;
+        *numfiles = nfiles;
+        if (!nfiles) return nullptr;
+        return copy_file_list(list, nfiles);
+    }
+    uint32_t flag = 0x10;
+    if (!extension) {
+        extension = tstr(0x0082dfeb);
+    } else if (extension[0] == '/' && !extension[1]) {
+        extension = tstr(0x0082dfeb);
+        flag = 0;
+    }
+    char search[0x80];
+    const uint32_t args[3] = {0x0083cab4, u32(directory), u32(extension)};  // "%s\*%s"
+    Com_sprintf(search, 0x80, args);
+    uint8_t data[0x140] = {};
+    int32_t nfiles = 0;
+    const uint32_t handle = title_function<FindFirst>(kFindFirstFile)(search, data);
+    if (handle == 0xffffffff) {
+        *numfiles = 0;
+        return nullptr;
+    }
+    const char* const name = reinterpret_cast<const char*>(data + 0x2c);
+    do {
+        const uint32_t subdir = data[0] & 0x10u;
+        if (!wantsubs ? !(subdir ^ flag) : !subdir) continue;
+        if (subdir && is_dot_or_cvs(name)) continue;
+        list[nfiles] = CopyString(name);
+        if (++nfiles == 0xfff) break;
+    } while (title_function<FindNext>(kFindNextFile)(handle, data));
+    list[nfiles] = nullptr;
+    title_function<CloseHandleFn>(kCloseHandle)(handle);
+    *numfiles = nfiles;
+    if (!nfiles) return nullptr;
+    return copy_file_list(list, nfiles);
+}
+
+// --- Boot: small-block pools ---
+
+PLATFORM_ASM_ENTRY(Mem_InitSmallBlockPools_entry,
+                   "pushl %ebx\n pushl %eax\n" PLATFORM_ASM_CALL(Mem_InitSmallBlockPools) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL Mem_InitSmallBlockPools(uint32_t effect_pool_size, uint32_t large) {
+    const uint8_t large_pools = static_cast<uint8_t>(large);
+    title_global<uint8_t>(0x0095f6dc) = large_pools;
+    if (large_pools) effect_pool_size = 0x400000;
+    FxSet_8bb860(effect_pool_size);
+    FxSet_8bb864(500);
+    FxSet_8bb866(250);
+    FxSet_8bb868(200);
+    FX_InitParticleLibrary();
+    if (large_pools) {
+        Mem_InitLargeBlockPools();
+    } else {
+        apsAddPool(400, 0x10);
+        apsAddPool(400, 0x20);
+        apsAddPool(400, 0x40);
+        apsAddPool(400, 0x80);
+    }
+    uint8_t* const heap = Z_Malloc(0x494);
+    if (!heap) {
+        title_global<uint32_t>(0x0095f6d8) = 0;
+        return heap;
+    }
+    uint8_t* const created = Heap_CreateFromZone(heap, 0x40000);
+    title_global<uint32_t>(0x0095f6d8) = u32(created);
+    return created;
+}
+
+// --- Game console commands (ent = the client's gentity) ---
+
+namespace {
+
+constexpr uint32_t kCmdArgc = 0x00934248;
+constexpr uint32_t kCmdArgv = 0x0092df90;  // char* [], argv[0] first
+constexpr uint32_t kStrncpy = 0x001eed80;
+constexpr uint32_t kAtol = 0x001eeb81;
+constexpr uint32_t kAtof = 0x001ef056;  // returns a double in ST0; stored as a float
+
+void title_strncpy(char* dest, const char* source, uint32_t count) {
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(kStrncpy)(dest, source, count);
+}
+int32_t title_atol(const char* text) { return title_function<int32_t XB_CDECL(const char*)>(kAtol)(text); }
+float title_atof(const char* text) { return title_function<float XB_CDECL(const char*)>(kAtof)(text); }
+
+const char* cmd_argv(uint32_t index) { return title_global<const char*>(kCmdArgv + index * 4); }
+
+void send_to_client(uint8_t* ent, uint32_t text) {
+    SV_GameSendServerCommand(tstr(text), pk<uint32_t>(ent, 0x224));
+}
+
+void send_va_to_client(uint8_t* ent, uint32_t format) {
+    const uint32_t handle = pk<uint32_t>(ent, 0x224);
+    const uint32_t args[1] = {format};
+    SV_GameSendServerCommand(va(args), handle);
+}
+
+// TeleportPlayer (ent in EAX, origin in ECX), SetClientViewAngle (angles in EAX, ent in EDX), SV_LinkEntity.
+void teleport_with_angles(uint8_t* ent, const float* origin, const float* angles) {
+    TitleRegs regs{};
+    regs.eax = u32(ent);
+    regs.ecx = u32(origin);
+    qc_call_regs(0x0024eec0, &regs, 0, nullptr);
+    regs = TitleRegs{};
+    regs.eax = u32(angles);
+    regs.edx = u32(ent);
+    qc_call_regs(0x0024ebf0, &regs, 0, nullptr);
+    SV_LinkEntity(ent);
+}
+
+}  // namespace
+
+void XB_CDECL Cmd_MenuResponse_f(uint8_t* ent) {
+    char id[0x80];
+    char response[0x80];
+    if (title_global<int32_t>(kCmdArgc) != 3) {
+        id[0] = 0;
+        std::memcpy(response, "bad", 4);
+    } else {
+        title_strncpy(id, cmd_argv(1), 0x7f);
+        id[0x7f] = 0;
+        const int32_t menu = title_atol(id);
+        if (menu >= 0 && menu < 1) SV_GetConfigstring(menu + 0x272, 0x80, id);
+        const char* const text = title_global<uint32_t>(kCmdArgc) > 2 ? cmd_argv(2) : tstr(0x0082dfeb);
+        title_strncpy(response, text, 0x7f);
+        response[0x7f] = 0;
+    }
+    ScriptString name{};
+    ScriptString value{};
+    using FromCString = ScriptString* XB_THISCALL(ScriptString*, const char*);
+    ScriptString* const name_ref = title_function<FromCString>(0x0011eb50)(&name, id);
+    ScriptString* const value_ref = title_function<FromCString>(0x0011eb50)(&value, response);
+    TitleRegs regs{};
+    regs.ebx = u32(ent);
+    const uint32_t args[3] = {title_global<uint32_t>(0x0097a71c), u32(value_ref), u32(name_ref)};  // "menuresponse"
+    qc_call_regs(0x00029000, &regs, 3, args);  // G_NotifyWithTwoStrings (ent in EBX)
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&value);  // ScriptString_Release
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&name);
+}
+
+void XB_CDECL Cmd_JumpToNode_f(uint8_t* ent) {
+    if (!title_global<int32_t>(kCheatsEnabled)) {
+        send_to_client(ent, 0x0083bd78);  // "print \"GAME_CHEATSNOTENABLED\""
+        return;
+    }
+    if (title_global<int32_t>(kCmdArgc) != 2) {
+        send_to_client(ent, 0x0083bc64);  // usage
+        return;
+    }
+    char text[0x80];
+    title_strncpy(text, cmd_argv(1), 0x7f);
+    text[0x7f] = 0;
+    const int32_t node_index = title_atol(text);
+    uint8_t* const blocks = title_global<uint8_t*>(0x0095f4f4);  // g_pathNodeBlocks
+    if (node_index < 0 || node_index >= pk<int32_t>(pk_ptr(blocks, 0x194), 4)) {
+        const uint32_t handle = pk<uint32_t>(ent, 0x224);
+        const uint32_t args[2] = {0x0083bc3c, pk<uint32_t>(pk_ptr(blocks, 0x194), 4)};  // node count message
+        SV_GameSendServerCommand(va(args), handle);
+        return;
+    }
+    const uint16_t handle = static_cast<uint16_t>(node_index);
+    uint8_t* const node = PathNode_FromHandleInTable(&handle, blocks);
+    float angles[3];
+    angles[0] = 0.0f;
+    std::memcpy(&angles[1], node + 0x50, 4);  // yaw
+    angles[2] = 0.0f;
+    teleport_with_angles(ent, reinterpret_cast<const float*>(node + 0x44), angles);
+}
+
+void XB_CDECL Cmd_SetViewpos_f(uint8_t* ent) {
+    if (!title_global<int32_t>(kCheatsEnabled)) {
+        send_to_client(ent, 0x0083bd78);
+        return;
+    }
+    if (title_global<int32_t>(kCmdArgc) != 5) {
+        send_to_client(ent, 0x0083bc90);  // usage
+        return;
+    }
+    float angles[3];
+    angles[2] = 0.0f;
+    angles[0] = 0.0f;
+    float origin[3];
+    char text[0x80];
+    for (uint32_t i = 1; i <= 3; ++i) {
+        const char* const arg = i < title_global<uint32_t>(kCmdArgc) ? cmd_argv(i) : tstr(0x0082dfeb);
+        title_strncpy(text, arg, 0x7f);
+        text[0x7f] = 0;
+        origin[i - 1] = title_atof(text);
+    }
+    const char* const yaw = title_global<uint32_t>(kCmdArgc) > 4 ? cmd_argv(4) : tstr(0x0082dfeb);
+    title_strncpy(text, yaw, 0x7f);
+    text[0x7f] = 0;
+    angles[1] = title_atof(text);
+    teleport_with_angles(ent, origin, angles);
+}
+
+void XB_CDECL Cmd_DropWeapon_f(uint8_t* ent) {
+    if (!title_global<int32_t>(0x00955184)) return;
+    if (!title_global<int32_t>(kCheatsEnabled)) return;
+    TitleRegs regs{};
+    regs.edi = u32(ent);
+    const uint32_t args[2] = {ent[3], 0};
+    if (qc_call_regs(0x00268350, &regs, 2, args)) G_AddEvent(ent, 0x97, 0);  // Drop_Weapon (ent in EDI)
+}
+
+void XB_CDECL Cmd_Kill_f(uint8_t* ent) {
+    if (title_global<int32_t>(0x0095bf9c)) return;
+    pk<uint32_t>(ent, 0x2a4) &= ~1u;
+    uint8_t* const client = pk_ptr(ent, 0x23c);
+    pk<int32_t>(ent, 0x350) = 0;
+    pk<int32_t>(client, 0x100) = 0;
+    using PlayerDie = void XB_CDECL(uint8_t*, uint8_t*, uint8_t*, int32_t, int32_t, uint32_t, uint32_t, uint32_t,
+                                    uint32_t);
+    title_function<PlayerDie>(0x00269450)(ent, ent, ent, 100000, 0x15, 0, 0, 0, 0);  // player_die
+}
+
+void XB_CDECL Cmd_Give_f(uint8_t* ent) {
+    if (!title_global<int32_t>(kCheatsEnabled)) {
+        send_va_to_client(ent, 0x0083bd78);
+        return;
+    }
+    if (pk<int32_t>(ent, 0x350) <= 0) {
+        send_va_to_client(ent, 0x0083bd58);  // "print \"GAME_MUSTBEALIVECOMMAND\""
+        return;
+    }
+    using ConcatArgs = const char* XB_REGS3 XB_CDECL(uint32_t, uint32_t, int32_t);
+    const int32_t amount = title_atol(title_function<ConcatArgs>(0x0024d250)(0, 0, 2));
+    const char* const name = title_function<ConcatArgs>(0x0024d250)(0, 0, 1);
+    if (!name || !std::strlen(name)) return;
+    Q_stricmpn(name, tstr(0x0083bd34), 99999);  // "all" (the result is not used)
+    int32_t health;
+    if (amount) {
+        health = pk<int32_t>(ent, 0x350) + amount;
+    } else {
+        pk<uint32_t>(pk_ptr(ent, 0x23c), 0x108) = title_global<uint32_t>(0x00950cec);
+        health = title_global<int32_t>(0x00950cec);
+    }
+    const int32_t last_weapon = title_global<int32_t>(0x0095f4d4);  // bg_lastWeaponIndex
+    pk<int32_t>(ent, 0x350) = health;
+    title_global<uint32_t>(0x00986018) = 1;
+    for (int32_t weapon = 1; weapon <= last_weapon; ++weapon)
+        BG_GivePlayerWeapon(static_cast<uint32_t>(weapon), pk_ptr(ent, 0x23c));
+    title_global<uint32_t>(0x00986018) = 0;
+    using AddAmmo = void XB_REGS1 XB_CDECL(uint8_t*, int32_t, int32_t, int32_t);
+    const auto has_weapon = [ent](int32_t weapon) {
+        return (pk<uint32_t>(pk_ptr(ent, 0x23c), 0x3f0 + (weapon >> 5) * 4) & (1u << (weapon & 0x1f))) != 0;
+    };
+    if (amount) {
+        const int32_t current = pk<int32_t>(pk_ptr(ent, 0x23c), 0x80);
+        if (current) title_function<AddAmmo>(0x0024e7a0)(ent, current, amount, 1);
+    } else {
+        for (int32_t weapon = 1; weapon <= last_weapon; ++weapon)
+            if (has_weapon(weapon)) title_function<AddAmmo>(0x0024e7a0)(ent, weapon, 998, 1);
+    }
+    if (Q_stricmpn(name, tstr(0x0083bd24), 7) || !amount) return;  // "allammo"
+    const int32_t last = title_global<int32_t>(0x0095f4d4);
+    for (int32_t weapon = 1; weapon <= last; ++weapon)
+        if (has_weapon(weapon)) title_function<AddAmmo>(0x0024e7a0)(ent, weapon, amount, 1);
+}
+
+// Cmd_Activate_f (ent in ESI): every title callee gets the original's registers (use/touch callbacks and the
+// notify helpers read ESI/EDI/EBX).
+PLATFORM_ASM_ENTRY(Cmd_Activate_f_entry,
+                   "pushl %edi\n pushl %ebx\n pushl %esi\n" PLATFORM_ASM_CALL(Cmd_Activate_f) "addl $12, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry_edi) {
+    TitleRegs regs{};
+    regs.esi = u32(ent);
+    regs.ebx = entry_ebx;
+    regs.edi = entry_edi;
+    const auto call_func = [&regs](uint32_t table, uint8_t* self, uint8_t* other, uint8_t* third) {
+        const uint32_t index = pk<uint32_t>(self, table == 0x008da814 ? 0x338 : 0x33c);
+        regs.eax = index;
+        regs.ecx = index;
+        const uint32_t args[3] = {u32(self), u32(other), u32(third)};
+        qc_call_regs(title_global<uint32_t>(table + index * 4), &regs, 3, args);
+    };
+    constexpr uint32_t kUseFuncs = 0x008da840;    // entityUseFuncs
+    constexpr uint32_t kTouchFuncs = 0x008da814;  // entityTouchFuncs
+    const auto notify = [&regs, ent](uint8_t* target, uint32_t name) {
+        regs.eax = u32(ent);
+        regs.edi = u32(target);
+        const uint32_t args[1] = {name};
+        qc_call_regs(0x0024f570, &regs, 1, args);  // G_NotifyWithOwnHandle (ent in EAX, notified in EDI)
+    };
+    if (pk<uint32_t>(ent, 0x2a4) & 0x100000) return 0;
+    pk<uint32_t>(pk_ptr(ent, 0x23c), 0x628) = 0;
+    regs.ecx = u32(ent);
+    uint8_t* const turret = reinterpret_cast<uint8_t*>(qc_call_regs(0x0024bb30, &regs, 0, nullptr));  // G_GetPlayerTurret
+    if (turret) {
+        call_func(kUseFuncs, turret, ent, ent);
+        return 1;
+    }
+    if (ent[0x297]) {
+        ent[0x297] = (pk<uint32_t>(pk_ptr(ent, 0x23c), 0xc0) & 0x6000) ? 2 : 0;
+        return 1;
+    }
+    {
+        const uint32_t args[1] = {u32(ent)};
+        qc_call_regs(0x00267e10, &regs, 1, args);  // Player_UpdateCursorHints
+    }
+    uint8_t* const ps = pk_ptr(ent, 0x23c);
+    regs.ebx = u32(ps);
+    if (!pk<uint32_t>(ps, 0x4c0)) return 0;
+    uint8_t* const target = G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(ps + 0x4c0));
+    regs.edi = u32(target);
+    if (pk<uint32_t>(target, 0x240)) {
+        notify(target, title_global<uint32_t>(0x0097a818));  // "trigger"
+        return 1;
+    }
+    if (!pk<uint32_t>(target, 0x25c)) return 1;
+    if (title_function<uint8_t XB_THISCALL(uint8_t*)>(0x00011200)(target + 0x25c)) return 1;  // ScriptString_IsEmpty
+    const uint32_t classname = pk<uint32_t>(target, 0x260);
+    if (classname == title_global<uint32_t>(0x0097a6dc) || classname == title_global<uint32_t>(0x0097a6e0)) {
+        regs.eax = u32(target);
+        const uint32_t args[1] = {u32(ent)};
+        qc_call_regs(0x002710e0, &regs, 1, args);  // TryDoor (door in EAX)
+        return 1;
+    }
+    if (classname == title_global<uint32_t>(0x0097a81c)) {  // "trigger_use"
+        notify(target, title_global<uint32_t>(0x0097a818));
+        call_func(kUseFuncs, target, ent, ent);
+        return 1;
+    }
+    switch (target[0]) {
+    case 0xe:
+        regs.ecx = u32(ent);
+        regs.edx = u32(target);
+        if (!qc_call_regs(0x0024dc10, &regs, 0, nullptr)) return 0;
+        call_func(kUseFuncs, target, ent, ent);
+        return 1;
+    case 0x2:
+        regs.eax = u32(target);
+        if (qc_call_regs(0x00248e10, &regs, 0, nullptr)) {
+            pk<uint32_t>(ps, 0x628) = pk<uint32_t>(target, 0x224);
+            pk<uint32_t>(pk_ptr(ent, 0x23c), 0x62c) = title_global<uint32_t>(0x0098540c);  // level.time
+            return 0;
+        }
+        notify(target, title_global<uint32_t>(0x0097a814));  // "touch"
+        if (!pk<uint32_t>(target, 0x338)) return 0;
+        target[0x297] = 1;
+        call_func(kTouchFuncs, target, ent, nullptr);
+        return 1;
+    case 0xa:
+        if (!Turret_IsUsableBy(ent, 0, target)) return 0;
+        call_func(kUseFuncs, target, ent, ent);
+        return 1;
+    default:
+        break;
+    }
+    if (classname != title_global<uint32_t>(0x0097a784)) return 1;  // "script_brushmodel"
+    notify(target, title_global<uint32_t>(0x0097a818));
+    if (!pk<uint32_t>(target, 0x33c)) return 0;
+    call_func(kUseFuncs, target, ent, ent);
+    return 1;
 }
 
 }  // namespace game

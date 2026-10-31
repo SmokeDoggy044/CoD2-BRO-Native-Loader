@@ -883,4 +883,57 @@ void XB_THISCALL DynArray_PushBack28(DynArray* array, const uint8_t* value);
 // capacity a new block (0x0045c1a0, capacity elements) gets the old elements copied, the old block freed.
 void XB_THISCALL DynArray_Resize52(DynArray* array, uint32_t size, uint32_t capacity);
 
+// 0x001e63d0 (callee pops 12): list node {next, prev, key, DynArray assigned (0x0045c270) from value + 4}.
+uint8_t* XB_STDCALL std_list_BuyNodeKeyArray_4(uint8_t* next, uint8_t* prev, const uint32_t* value);
+// 0x001e6470: list size += count; past 0x0fffffff MSVC's "list<T> too long" length_error. Returns the size.
+uint32_t XB_THISCALL std_list_IncSize_3(uint8_t* list, uint32_t count);
+// 0x001e67d0: list::insert(where, first, last) for HashMap_CopyFrom_6 (PROLOGUE BuyNode 0x0045caa0,
+// IncSize 0x0045ead0).
+void XB_THISCALL std_list_InsertRange_6(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t);
+// 0x001e6880 / 0x001e6990: HashMap_CopyFrom / HashMap_CopyCtor, sixth instance (PROLOGUE helpers).
+void XB_THISCALL HashMap_CopyFrom_6(HashMap* map, const HashMap* source);
+HashMap* XB_THISCALL HashMap_CopyCtor_6(HashMap* map, const HashMap* source);
+// 0x001ee881 / 0x001ee8c1: MSVC std::_String_base::_Xran / _Xlen: throw out_of_range("invalid string
+// position") / length_error("string too long") (never return).
+void XB_CDECL std_string_Xran();
+void XB_CDECL std_string_Xlen();
+// 0x00223800 (basedir in EAX): Q3's Sys_ListFilteredFiles without the recursion: FindFirstFile over
+// "basedir\subdirs\*" (or "basedir\*" for an empty subdirs), every entry but the "." / ".." / "CVS"
+// directories named "subdirs\name" (or "name" for a null subdirs) and kept when Com_FilterPath matches
+// (CopyString into list[*numfiles]); stops at 0xfff names.
+void XB_REGS1 XB_CDECL Sys_ListFilteredFiles(const char* basedir, const char* subdirs, const char* filter,
+                                            char** list, int32_t* numfiles);
+// 0x00223bf0 (filter in EDX, extension in ECX): Q3's Sys_ListFiles: with a filter, Sys_ListFilteredFiles
+// from `directory`; else "directory\*extension" (extension "/" = directories), files or (wantsubs)
+// directories, skipping "." / ".." / "CVS", at most 0xfff. Returns a null-terminated Z_Malloc copy of the
+// list, null when empty.
+char** XB_REGS3 XB_CDECL Sys_ListFiles(uint32_t, const char* filter, const char* extension, const char* directory,
+                                       int32_t* numfiles, int32_t wantsubs);
+// 0x00236c80 (large pools flag in BL, effect pool size in EAX): stores the flag (0x0095f6dc), the effect
+// pool sizes (0x400000 with large pools, else EAX), FX_InitParticleLibrary, the large-block pools or four
+// 400-entry small pools (16..128 bytes), then the 0x40000-byte zone heap 0x0095f6d8. Boot only (Sys_Main).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL Mem_InitSmallBlockPools(uint32_t effect_pool_size, uint32_t large);
+extern "C" void Mem_InitSmallBlockPools_entry(void);
+// Game console commands (cdecl, ent = the issuing client's gentity; 0x00954f34 = cheats enabled).
+// 0x0024ea60: "menuresponse <menu> <response>": notify "menuresponse" on ent with (menu name, response); a
+// menu index 0 becomes config string 0x272; wrong argument counts send ("", "bad").
+void XB_CDECL Cmd_MenuResponse_f(uint8_t* ent);
+// 0x00258d90: "jumptonode <n>" (cheats): teleports to path node n (origin +0x44, yaw +0x50).
+void XB_CDECL Cmd_JumpToNode_f(uint8_t* ent);
+// 0x00258eb0: "setviewpos x y z yaw" (cheats): TeleportPlayer, SetClientViewAngle, SV_LinkEntity.
+void XB_CDECL Cmd_SetViewpos_f(uint8_t* ent);
+// 0x002694e0: drop the current weapon (Drop_Weapon, event 0x97) when 0x00955184 and cheats are set.
+void XB_CDECL Cmd_DropWeapon_f(uint8_t* ent);
+// 0x00269520: "kill": unless 0x0095bf9c, health 0, flag bit 0 cleared, player_die (mod 0x15, damage 100000).
+void XB_CDECL Cmd_Kill_f(uint8_t* ent);
+// 0x0026d480: Q3's Cmd_Give_f, BRO form (cheats, alive): every weapon (BG_GivePlayerWeapon with 0x00986018
+// set), health + amount (or max health 0x00950cec), ammo for the current weapon (amount) or 998 for every
+// owned weapon; "allammo <n>" adds n to every owned weapon.
+void XB_CDECL Cmd_Give_f(uint8_t* ent);
+// 0x00271300 (ent in ESI): the use button: a mounted turret's use, the cursor-hint target's use/touch
+// (doors via TryDoor, trigger_use, type 0xe/0x2/0xa entities, script brushmodels) with "trigger"/"touch"
+// notifies. Returns 1 when something was used.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Cmd_Activate_f(uint8_t* ent, uint32_t entry_ebx, uint32_t entry_edi);
+extern "C" void Cmd_Activate_f_entry(void);
+
 }  // namespace game
