@@ -787,4 +787,22 @@ void XB_THISCALL HashStrMap_Clear(uint32_t* map);
 void XB_THISCALL PtrArray_Reserve(uint32_t* array, uint32_t capacity);
 void XB_THISCALL PtrArray_Reserve2(uint32_t* array, uint32_t capacity);
 
+// Saves (0x000d0f10..0x000d27b0): memory unit enumeration, free space, async file operations.
+int32_t XB_CDECL Save_EnumMemoryUnits(int32_t* ports);   // 0x000d1440
+int32_t XB_CDECL Save_GetNextMemoryUnit();               // 0x000d0f10 (no callers)
+long double XB_CDECL Save_GetProgressFraction();         // 0x000d1570 (no callers; x87 result)
+int32_t XB_CDECL Save_CreateSaveGame(const char* name);  // 0x000d17b0
+int32_t XB_CDECL Save_OpenFile(const char* name, uint32_t access);  // 0x000d18e0
+uint32_t XB_CDECL Save_GetFreeSpace(uint32_t* out);      // 0x000d1b40
+uint32_t XB_CDECL Save_ClustersForSize(uint32_t size);   // 0x000d1e10
+uint32_t XB_CDECL Save_GetClusterSize();                 // 0x000d1ec0
+int32_t XB_CDECL Save_StartAsyncWrite();                 // 0x000d2090
+int32_t XB_CDECL Save_StartAsyncRead();                  // 0x000d2140
+uint32_t XB_CDECL Save_WriteFile(const char* name, uint8_t* buffer, uint32_t size);  // 0x000d21c0
+uint32_t XB_CDECL Save_ReadFile(const char* name, uint8_t* buffer, uint32_t size);   // 0x000d22e0
+uint8_t XB_CDECL Save_StartFileOp();                     // 0x000d23d0
+uint8_t XB_CDECL Save_Update();                          // 0x000d24a0
+uint32_t XB_CDECL Save_BeginWrite(const uint32_t* request);  // 0x000d2620
+uint32_t XB_CDECL Save_BeginRead(const uint32_t* request);   // 0x000d26f0
+
 }  // namespace game
