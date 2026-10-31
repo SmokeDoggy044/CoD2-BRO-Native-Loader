@@ -1,5 +1,7 @@
 #include "fe_special.h"
 
+#include <cstring>
+
 #include "cl.h"
 #include "fe.h"
 #include "ngl.h"
@@ -349,6 +351,62 @@ void XB_THISCALL SinglePlayerMenu_Update(uint8_t* menu, float dt) {
 }
 
 // --- Chapters ---
+
+PLATFORM_ASM_ENTRY(ChapterMenu_SlideStep_entry, "pushl 4(%esp)\n"
+                                                "pushl %edi\n" PLATFORM_ASM_CALL(ChapterMenu_SlideStep) "addl $8, %esp\n"
+                                                "ret $4")
+
+void XB_CDECL ChapterMenu_SlideStep(uint8_t* menu, float dt) {
+    auto chapter_element = [menu](uint32_t base, uint32_t index) {
+        return field<uint8_t*>(menu, base + uint32_t(field<int32_t>(menu, index)) * 4);
+    };
+    auto bits = [](float value) {
+        uint32_t word;
+        std::memcpy(&word, &value, 4);
+        return word;
+    };
+    const float x = float(get(chapter_element(0x74, 0x190), 0x9c));
+    // SSE: the slide's progress and this step's shift (span = 320 - the start x +0x198, duration +0x19c).
+    const float span = title_global<float>(0x0083ec64) - field<float>(menu, 0x198);
+    const float moved = x - field<float>(menu, 0x198);
+    const float step = dt / field<float>(menu, 0x19c);
+    float progress = moved / span + step;
+    float shift = span * step;
+    const float next = float(get(chapter_element(0x74, 0x190), 0x9c) + (long double)shift);
+    bool arrived = false;
+    if (platform_x87_greater(next, title_global<float>(0x0083ec64)) && next > field<float>(menu, 0x198))
+        arrived = true;
+    else if (title_global<float>(0x0083ec64) > next && field<float>(menu, 0x198) > next)
+        arrived = true;
+    if (arrived) {  // past 320: the rest of the way, progress 1
+        const long double now = get(chapter_element(0x74, 0x190), 0x9c);
+        progress = title_global<float>(0x0083eb20);
+        shift = float((long double)title_global<float>(0x0083ec64) - now);
+        menu[0x1a8] = 0;
+    }
+    for (uint32_t i = 0; i < 0xe; ++i) {
+        static const uint32_t kPlaced[3] = {0x3c, 0x74, 0xac};  // x += shift (+0xa0 y first, +0x9c x, +0x8c set)
+        for (uint32_t offset : kPlaced) {
+            uint8_t* const element = field<uint8_t*>(menu, offset + i * 4);
+            const float y = float(get(element, 0xa0));
+            const float new_x = float(get(element, 0x9c) + (long double)shift);
+            method<PositionMethod>(element, 0x8c)(element, new_x, y);
+        }
+        static const uint32_t kMoved[3] = {0xe4, 0x11c, 0x154};  // vtable +0x70 (shift, 0)
+        for (uint32_t offset : kMoved) call(field<uint8_t*>(menu, offset + i * 4), 0x70, bits(shift), 0);
+    }
+    // The selected chapter (+0x190) fades in and grows towards +0x1a4, the previous one (+0x194) the other way (x87,
+    // 1.0 as a double).
+    const double one = title_global<double>(0x0083eb10);
+    call(chapter_element(0xac, 0x190), 0x7c, bits(progress));
+    call(chapter_element(0xac, 0x190), 0x64, bits(float(((long double)field<float>(menu, 0x1a4) - one) * progress + one)));
+    call(chapter_element(0x74, 0x190), 0x64, bits(float(((long double)field<float>(menu, 0x1a4) - one) * progress + one)));
+    const long double rest = (long double)one - progress;
+    const double rest_stored = double(rest);
+    call(chapter_element(0xac, 0x194), 0x7c, bits(float(rest)));
+    call(chapter_element(0xac, 0x194), 0x64, bits(float(((long double)field<float>(menu, 0x1a4) - one) * rest_stored + one)));
+    call(chapter_element(0x74, 0x194), 0x64, bits(float(((long double)field<float>(menu, 0x1a4) - one) * rest_stored + one)));
+}
 
 PLATFORM_ASM_ENTRY(ChapterMenu_UpdateList_entry,
                    "pushl %edi\n" PLATFORM_ASM_CALL(ChapterMenu_UpdateList) "addl $4, %esp\n"

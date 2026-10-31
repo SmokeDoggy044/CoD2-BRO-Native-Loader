@@ -124,6 +124,8 @@ int32_t XB_THISCALL Movie_GetState(Movie* movie);
 int32_t XB_THISCALL Movie_GetFrameCount(Movie* movie);
 int32_t XB_THISCALL Movie_GetFrameIndex(Movie* movie);
 int32_t XB_THISCALL MovieBase_DecodeFrame(Movie* movie);
+// 0x000cf100: the drawn frame's texture (+0x30); unhookable (ret in the first 5 bytes).
+NglTexture* XB_THISCALL Movie_GetFrameTexture(Movie* movie);
 // 0x000cf120: 0x00920859, lets Movie_DecodeFrame drop B pictures while over a frame behind
 // (SndSys_InitDevice).
 void XB_CDECL Movie_SetDropLateFrames(uint8_t drop);
@@ -138,6 +140,8 @@ int32_t XB_THISCALL MovieBase_Start(Movie* movie);
 // (still busy) is ignored, else Movie_OnReadComplete.
 void XB_CDECL Movie_ReadCallback(int32_t status, int32_t request, Movie* movie);
 
+// 0x0030fdc0: the movie quad's (0x0095f458) rectangle.
+void XB_CDECL Movie_SetQuadRect(float x0, float y0, float x1, float y1);
 // 0x0030fe00: decodes a frame (vtable[2]), draws subtitles and the frame quad; returns the
 // decoder's result, 4 while 0x0095f916 is set, -1 without a movie.
 int32_t XB_CDECL Movie_DrawFrame();

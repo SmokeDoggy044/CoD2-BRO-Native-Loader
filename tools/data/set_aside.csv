@@ -477,3 +477,6 @@ address,name,kind,reason
 0032eac0,SCR_DrawLoadingScreen,host,"only SV_Map_f (65 calls, 52 tested, all inconclusive): nglBeginFrame/nglEndFrame present through our GfxDevice (host code game::gfx); conclusive only with a renderer stand-in in test processes (client push 2)"
 00330e80,LoadMaubeugeMenu_Construct,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept (the menu is built inline at 0x0033183b) (client push 2)"
 00331d80,TitleMenu_Construct,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept (the menu is built inline at 0x00336b1c) (client push 2)"
+00312870,Live_CheckGameInvite,live,"Xbox Live game invite (XOnlineFriendsGetAcceptedGameInvite + load_mp_exe): the service is defunct, not decompiled (client push 1)"
+000d09c0,MovieVid_ConvertMacroblockRow565,dead,"no CALL/JMP, pointer or immediate; C kept, leaf test 1108 matched (client push 1)"
+0030cf90,MissionSuccessFailMenu_DialogReturnTrue,unhookable,"3-byte mov al,1; ret dialog callback (split from AutosaveMenu_MarkSlotsEmpty, client push 1)"

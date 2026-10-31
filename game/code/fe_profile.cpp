@@ -467,6 +467,21 @@ void XB_THISCALL CreateProfileMenu_Draw(uint8_t* menu) {
     call(field<uint8_t*>(menu, 0x190), 0x44);
 }
 
+PLATFORM_ASM_ENTRY(CreateProfileMenu_UpdateHighlight_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(CreateProfileMenu_UpdateHighlight) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL CreateProfileMenu_UpdateHighlight(uint8_t* menu) {
+    for (int32_t i = 0; i < 0x28; ++i)  // the key highlights: alpha 1 on the selected key
+        call(field<uint8_t*>(menu, 0x44 + uint32_t(i) * 4), 0x7c, i == field<int16_t>(menu, 0x22) ? 0x3f800000u : 0u);
+    // The four command keys (items 37, 36, 38, 39): their highlight +0x184.. shown while the item is (vtable +0x24).
+    static constexpr uint32_t kItems[4] = {37, 36, 38, 39};
+    for (uint32_t k = 0; k < 4; ++k) {
+        const bool on = uint8_t(call(item(menu, int32_t(kItems[k])), 0x24)) != 0;
+        call(field<uint8_t*>(menu, 0x184 + k * 4), 0x7c, on ? 0x3f800000u : 0u);
+    }
+}
+
 PROFILE_GAP_ENTRY(CreateProfileMenu_ToggleCase_entry, "pushl %esi\n", CreateProfileMenu_ToggleCase, "8", "ret")
 PROFILE_GAP_ENTRY(CreateProfileMenu_Backspace_entry, "pushl %esi\n", CreateProfileMenu_Backspace, "8", "ret")
 PROFILE_GAP_ENTRY(CreateProfileMenu_AddChar_entry, "pushl %esi\n pushl %eax\n", CreateProfileMenu_AddChar, "12",
@@ -1186,6 +1201,32 @@ void XB_CDECL ProfileMenu_ShowDeleteSuccessDialog(uint32_t entry_esp) {
     front_end_screen(0x3c)[0x39] = 1;
     AtTop at(entry_esp - 8);
     one_button_dialog(0x0082afac, kDialogOk, 0x00339f20);  // MEM_DELETE_SUCCESSFUL_XBOX
+}
+
+uint8_t* XB_REGS3 XB_CDECL Profile_CopySettings(uint8_t* dst, uint32_t, const uint8_t* src) {
+    // Word / byte fields in the original's order (not the slot words between them, nor the stats past +0xe8).
+    static constexpr struct {
+        uint16_t offset;
+        uint8_t size;
+    } kFields[] = {
+        {0x10, 4}, {0x14, 4}, {0x18, 4}, {0x1c, 4}, {0x20, 4}, {0x24, 1}, {0x25, 1}, {0x28, 4}, {0x2c, 4}, {0x30, 4},
+        {0x34, 4}, {0x38, 1}, {0x39, 1}, {0x3a, 1}, {0x3c, 4}, {0x40, 1}, {0x41, 1}, {0x42, 1}, {0x44, 4}, {0x48, 4},
+        {0x4c, 4}, {0x50, 1}, {0x54, 4}, {0x58, 4}, {0x5c, 1}, {0x5d, 1}, {0x60, 4}, {0x64, 4}, {0x68, 4}, {0x6c, 4},
+        {0x70, 4}, {0x74, 4}, {0x78, 4}, {0x7c, 4}, {0x80, 4}, {0x84, 4}, {0x88, 4}, {0x8c, 4}, {0x90, 4}, {0x94, 4},
+        {0x98, 4}, {0x9c, 4}, {0xa0, 4}, {0xdc, 4},
+    };
+    for (const auto& f : kFields) {
+        if (f.size == 1)
+            dst[f.offset] = src[f.offset];
+        else
+            field<uint32_t>(dst, f.offset) = field<uint32_t>(const_cast<uint8_t*>(src), f.offset);
+    }
+    for (uint32_t i = 0; i < 14; ++i) field<uint32_t>(dst, 0xa4 + i * 4) = field<uint32_t>(const_cast<uint8_t*>(src), 0xa4 + i * 4);
+    dst[0xe0] = src[0xe0];
+    field<uint32_t>(dst, 0xe4) = field<uint32_t>(const_cast<uint8_t*>(src), 0xe4);
+    dst[0x39c] = src[0x39c];
+    dst[0x39f] = src[0x39f];
+    return dst;
 }
 
 }  // namespace game

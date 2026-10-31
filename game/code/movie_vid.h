@@ -41,6 +41,9 @@ const int16_t* XB_REGS3 XB_CDECL MovieVid_PutBlock(const int16_t* block, int32_t
 void XB_REGS3 XB_CDECL MovieVid_AddBlock(uint8_t* dst, int32_t stride, const int16_t* block);
 // 0x000cfa70: adds a DC-only residual, (block[0] + 64) >> 7, to the 8x8 pixels at dst.
 void XB_REGS3 XB_CDECL MovieVid_AddBlockDCOnly(uint8_t* dst, const int16_t* block, int32_t stride);
+// 0x000cfb20: the MMX IDCT of an 8x8 block of words, in place (rows with the four coefficient tables 0x008c0100..,
+// then two column passes); MM0..MM7 left as the original leaves them. Returns block.
+const int16_t* XB_CDECL MovieVid_Idct(int16_t* block);
 // 0x000d02c0: IDCT (0x000cfb20) of an intra block, stored at dst; clears the block.
 int16_t* XB_CDECL MovieVid_IdctPutBlock(int16_t* block, uint8_t* dst, int32_t stride);
 // 0x000d0330: IDCT of a residual block added to dst (a DC-only shortcut when last == 0x81
@@ -61,6 +64,8 @@ int32_t XB_THISCALL MovieVid_ReadNonIntraCoeffs(uint8_t* dec, const uint16_t* qu
 void XB_THISCALL MovieVid_BuildQuantTables(uint8_t* dec, int32_t index);
 // 0x000ce850: macroblock_type for the picture type, plus motion/DCT type bits.
 uint32_t XB_FASTCALL MovieVid_ReadMacroblockType(uint8_t* dec);
+// 0x000cea00 (ret 4): a motion vector delta: motion_code, f_code residual bits, sign. 0 for a leading 1 bit.
+int32_t XB_THISCALL MovieVid_ReadMotionDelta(uint8_t* dec, int32_t f_code);
 // 0x000ceb80: coded_block_pattern.
 uint32_t XB_FASTCALL MovieVid_ReadCodedBlockPattern(uint8_t* dec);
 // 0x000cec20 / 0x000ced80: the intra DC differential, luma / chroma.
@@ -89,5 +94,10 @@ uint32_t XB_FASTCALL MovieVid_DecodeMacroblocks(uint8_t* dec);
 // 0x000d0af0: converts 16 rows of a decoded macroblock row (planes: Y, U, V) to 32-bit
 // pixels at dst, width pixels per row.
 void XB_CDECL MovieVid_ConvertMacroblockRow(uint8_t* const* planes, uint8_t* dst, int32_t width);
+// 0x000d0860: 8 pixels of YUV (8 luma bytes, 4 Cb, 4 Cr) to 8-bit B, G, R lanes, returned in MM0..MM2 (MM3..MM7 as
+// the original leaves them); returns y.
+const uint8_t* XB_CDECL MovieVid_ConvertYuv8(const uint8_t* y, const uint8_t* u, const uint8_t* v);
+// 0x000d09c0: MovieVid_ConvertMacroblockRow to 16-bit 5:6:5 pixels. Dead: no call, jump or stored pointer.
+void XB_CDECL MovieVid_ConvertMacroblockRow565(uint8_t* const* planes, uint8_t* dst, int32_t width);
 
 }  // namespace game

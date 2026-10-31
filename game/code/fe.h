@@ -16,6 +16,11 @@ namespace game {
 // the index +0x22) and its count (38, 15, 15, 3, 9, 11 for indexes 0-5, else 0) into the label +0x3c.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusCESetText(uint8_t* menu);
 extern "C" void FE_BonusCESetText_entry(void);
+// 0x0030be60 / 0x0030bd30 (menu in EDX): the concept-art menu's selected item (+0x130 + row * 4) as its group (a
+// 1-based picture set: per row 0 / 1 / other its own ranges) and its index within that group; rows 3-5: the item
+// itself / 0.
+int32_t XB_REGS2 XB_CDECL FE_BonusCEItemGroup(uint32_t unused_eax, uint8_t* menu);
+int32_t XB_REGS2 XB_CDECL FE_BonusCEItemIndex(uint32_t unused_eax, uint8_t* menu);
 
 // 0x0030c010 / 0x0030daa0 / 0x0030db00 / 0x0030db60 / 0x0030dcc0 (menu in ESI): the image of the collector's edition art
 // / concepts / vehicles / weapons / bonus materials menu freed: nglResetDeviceBindings, the texture (+0x4c / +0xcc /
@@ -57,6 +62,27 @@ extern "C" void FE_CommandDisplayName_entry(void);
 // FEMENU_OP_HELPBAR when +0x4c is set or the selected slot is empty, else FEMENU_LOAD_HELPBAR_XBOX.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SaveSlotsUpdateText(uint32_t entry, uint8_t* menu, uint32_t edi);
 extern "C" void FE_SaveSlotsUpdateText_entry(void);
+// 0x003129e0 (mode in EAX, menu on the stack, ret 4): the concepts menu's selected chapter item (+0x8c + chapter * 4):
+// mode 1 one up (to the chapter's unlocked count), 2 one down (to 1), else at least 1; modes 1 and other raise the
+// stored bests (0x008dced8, 13 words) to the items.
+uint32_t XB_REGS1 XB_STDCALL BonusConceptsMenu_ChangeItem(int32_t mode, uint8_t* menu);
+// 0x00312b40: per chapter the "new" mark +0x7c + chapter: the unlocked count above the stored best, unless the item
+// is locked (vtable +0x24 = 1).
+uint32_t XB_STDCALL BonusConceptsMenu_UpdateNewMarks(uint8_t* menu);
+// 0x00312d60 (out in EAX): 18 words: the profile's bonus bests (0x008dce90.., words 12-14 from 0x008dcec8 down), 0.
+uint32_t* XB_REGS1 XB_CDECL Profile_CopyBonusBests(uint32_t* out);
+// 0x0030cf70 / 0x00312850 (menu in EAX): every save slot marked empty (+0x5c / +0x6c + slot * 12), then the slot texts
+// (AutosaveMenu_UpdateSlotTexts / FE_SaveSlotsUpdateText, menu in ESI). The C versions get the entry ESP, ESI, EDI.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AutosaveMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi,
+                                                                     uint32_t edi);
+extern "C" void AutosaveMenu_MarkSlotsEmpty_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi,
+                                                                    uint32_t edi);
+extern "C" void ProfileMenu_MarkSlotsEmpty_entry(void);
+// 0x0030ccb0 (menu in ESI): the autosave menu's slot texts: FEMENU_OP_CORRUPT on all four with the card corrupt
+// (+0x35), else per slot FEMENU_OP_NEW (empty, +0x5c + slot * 12) or its name (+0x54 + slot * 12), all vtable +0x30.
+extern "C" PLATFORM_HIDDEN void XB_CDECL AutosaveMenu_UpdateSlotTexts(uint32_t entry, uint8_t* menu, uint32_t edi);
+extern "C" void AutosaveMenu_UpdateSlotTexts_entry(void);
 // 0x00312ad0 (menu in ESI): "%i / %i" of the concept category's current item (+0x8c + index * 4) and its count
 // (the 0x48-byte level records at 0x0095f968, entry index + 1; 0 while that level is locked: 0x008dce54 clear and
 // 0x008dce44 not above it) into the label +0x3c.
@@ -129,6 +155,8 @@ uint8_t XB_CDECL MissionSuccessFailMenu_ReloadCheckpoint();
 // bit 5 fading out, bits 6-7 alignment).
 // 0x000112f0 (vtable slot): the depth +0x08.
 void XB_THISCALL UIElement_SetDepth(uint8_t* element, float depth);
+// 0x00011300: the depth +8 (x87); unhookable (ret in the first 5 bytes).
+long double XB_THISCALL UIElement_GetDepth(uint8_t* element);
 // 0x0030fc20 (vtable slot): alignment bits 6-7 of the flags +0x10: 0 -> 0x40, 2 -> 0x80, else none.
 void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align);
 // 0x00315e70: advances a fade by dt / the fade time +0x0c when vtable slot +0x30 says the element is shown; a fade in
@@ -306,6 +334,13 @@ extern "C" void UIText_Dtor_entry(void);
 uint8_t* XB_THISCALL UIText_DeletingDtor(uint8_t* text, uint32_t flags);
 // 0x0030f900: when shown, draw lines (vtable +0x100) of the range +0x88/+0x8c when scrolled, else (0, +0x78).
 void XB_THISCALL UIText_Draw(uint8_t* text);
+// 0x00012480 (lines in EAX, flags on the stack, ret 4): the text lines' vector deleting destructor (0x20-byte lines:
+// buffer +0x18 freed, script string +0x14 released; flag 2 = an array with its count at -4, last line first; flag 1 =
+// free the block). Returns the block.
+uint8_t* XB_REGS1 XB_STDCALL UITextLine_VectorDeletingDtor(uint8_t* lines, uint32_t flags);
+// 0x0030f950 (kind in EAX, text in EDX): the text's width in the kind's font (ui_fonts; none for kind 7) at (scale,
+// scale) as an unsigned value on the x87; 0 (0x0083eafc) for no text or kind 8.
+long double XB_REGS2 XB_CDECL UI_GetTextWidth(int32_t kind, const char* text, float scale);
 // 0x0030f880: line height and spacing +0x68/+0x6c = spacing, or for -1 the height of "!" at the text's scale.
 void XB_THISCALL UIText_SetLineSpacing(uint8_t* text, int32_t spacing);
 // 0x00321030: the height of the text at its scale (x87, unsigned).

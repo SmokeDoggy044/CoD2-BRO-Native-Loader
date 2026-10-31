@@ -333,6 +333,10 @@ Movie* XB_THISCALL MovieBase_DeletingDtor(Movie* movie, uint32_t flags) {
     return movie;
 }
 
+void XB_CDECL Movie_SetQuadRect(float x0, float y0, float x1, float y1) {
+    nglSetQuadRect(title_global<NglQuad*>(0x0095f458), x0, y0, x1, y1);
+}
+
 int32_t XB_CDECL Movie_DrawFrame() {
     if (movie_blocked()) return 4;
     Movie* movie = the_movie();
@@ -823,6 +827,8 @@ int32_t XB_THISCALL Movie_GetFrameCount(Movie* movie) { return movie->frame_coun
 int32_t XB_THISCALL Movie_GetFrameIndex(Movie* movie) { return movie->frame_index; }
 
 int32_t XB_THISCALL MovieBase_DecodeFrame(Movie*) { return -1; }
+
+NglTexture* XB_THISCALL Movie_GetFrameTexture(Movie* movie) { return movie->texture; }
 
 void XB_CDECL Movie_SetDropLateFrames(uint8_t drop) { title_global<uint8_t>(0x00920859) = drop; }
 

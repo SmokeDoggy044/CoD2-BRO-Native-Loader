@@ -73,6 +73,9 @@ extern "C" void InGameLiveOptionsMenu_ShowDashboardDialog_entry(void);
 // +0x40, the text into +0x44 (vtable +0x6c).
 extern "C" PLATFORM_HIDDEN void XB_CDECL MissionSuccessFailMenu_SetFailedText(uint8_t* menu, uint32_t text);
 extern "C" void MissionSuccessFailMenu_SetFailedText_entry(void);
+// 0x0030cfb0 (menu in ESI): the texts +0x40 and +0x44 set to "" (vtable +0x78).
+extern "C" PLATFORM_HIDDEN void XB_CDECL MissionSuccessFailMenu_ClearTexts(uint8_t* menu);
+extern "C" void MissionSuccessFailMenu_ClearTexts_entry(void);
 // 0x0032d340: the retry button: 0x0095ee08 = 1, g_reloading 1, "reboot". Returns 0 (AL).
 uint8_t XB_CDECL MissionSuccessFailMenu_OnRetryYes();
 // 0x00334070 (stdcall, ret 4): with a checkpoint (0x008dd1cf == 1) or the state +0x58 set: MEM_QUIT_WARNING, YES
@@ -101,6 +104,28 @@ extern "C" void LoadSicilyMenu_ClearElements_entry(void);
 void XB_REGS1 XB_CDECL LoadingMenu_SetMissionRange(uint8_t* menu);
 void XB_REGS1 XB_CDECL LoadAfricaMenu_SetMissionRange(uint8_t* menu);
 void XB_REGS1 XB_CDECL LoadSicilyMenu_SetMissionRange(uint8_t* menu);
+// 0x00313610 / 0x00313360 / 0x00313120 (last mission index in EAX, menu in EDI, bright flag in BL): mission texts
+// 0..last at alpha 1 (dim grey {0x40, 0x40, 0x40} with BL), the chapter texts up to the current chapter likewise
+// (dimmed only up to the one before it).
+extern "C" PLATFORM_HIDDEN void XB_CDECL LoadingMenu_ShowMissions(int32_t last, uint8_t* menu, uint32_t ebx);
+extern "C" void LoadingMenu_ShowMissions_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL LoadAfricaMenu_ShowMissions(int32_t last, uint8_t* menu, uint32_t ebx);
+extern "C" void LoadAfricaMenu_ShowMissions_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL LoadSicilyMenu_ShowMissions(int32_t last, uint8_t* menu, uint32_t ebx);
+extern "C" void LoadSicilyMenu_ShowMissions_entry(void);
+// 0x00313790 / 0x003134e0 / 0x00313240 (menu in EAX, load progress 0..1 on the stack, ret 4; called from
+// SV_SpawnServer): 0 = the current chapter's text white and the missions shown up to +0x40 + +0x3c - 1 without the
+// dimming; else the missions up to (int)(+0x40 * progress) + +0x3c - 1 once past +0x44 (stored), and two screen
+// updates while the front end is in the screen's state (2 / 3 / 4). The C versions get EBX, ESI, EDI, the entry ESP.
+extern "C" PLATFORM_HIDDEN void XB_CDECL LoadingMenu_SetProgress(uint8_t* menu, uint32_t ebx, uint32_t esi,
+                                                                 uint32_t edi, uint32_t entry);
+extern "C" void LoadingMenu_SetProgress_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL LoadAfricaMenu_SetProgress(uint8_t* menu, uint32_t ebx, uint32_t esi,
+                                                                    uint32_t edi, uint32_t entry);
+extern "C" void LoadAfricaMenu_SetProgress_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL LoadSicilyMenu_SetProgress(uint8_t* menu, uint32_t ebx, uint32_t esi,
+                                                                    uint32_t edi, uint32_t entry);
+extern "C" void LoadSicilyMenu_SetProgress_entry(void);
 // 0x0031e380 / 0x0031e270 / 0x0031e160: UIMenu_RestoreSelection, +0x38 / +0x40 / +0x3c cleared, ClearElements, the
 // title's label FEMENU_LOADING, then SetMissionRange (tail call). 0x0031e050: the same without the mission list
 // (+0x38, +0x3c cleared, label +0x58, alphas +0x44 1.0, +0x48 / +0x4c 0).

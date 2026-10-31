@@ -281,10 +281,12 @@ void XB_CDECL CL_ClearState();
 // first), then servername "localhost", CA_CONNECTING, one SCR_UpdateScreen and the sounds stopped.
 void XB_CDECL CL_MapLoading();
 
-// 0x002f1d90 (CALL in its first 5 bytes: a C helper, not registered): re.BeginFrame(0), then by cls.state the
+// 0x002f1d90 (indirect CALL in its first 5 bytes: unhookable; registered through SCR_DrawScreenField_entry): re.BeginFrame(0), then by cls.state the
 // front end (0), the mission overlays (1) or CG_DrawActiveFrame (2), and the mission overlays at 0x0095f8d0 again.
 // `entry` = the ESP the original would have at its entry.
 void SCR_DrawScreenField(uint32_t entry);
+extern "C" PLATFORM_HIDDEN void XB_CDECL SCR_DrawScreenFieldAt(uint32_t entry);
+extern "C" void SCR_DrawScreenField_entry(void);
 // 0x002f1e60: the client frame's screen update once the UI is up: SCR_DrawScreenField + re.EndFrame (unless
 // 0x009403f4), the frame time since the last call, a queued level start ("spmap <map>" from the 14-entry mission
 // table) and the HUD update (mission HUD at 0x0095f8d0 or g_hudManager's vtable +0xc) with that time.
@@ -389,6 +391,11 @@ void XB_CDECL IN_PadStopAllRumble();
 // 0x00298d30 (rumble state in EAX): both motors off on the last rumbled pad (0x008dcf18) and frees the two
 // queued-rumble lists (+8, +0x18) with 0x000248f0.
 void XB_REGS1 XB_CDECL IN_StopAllRumble(uint8_t* rumble);
+// 0x000248f0: frees a range of queued-rumble nodes, iterators (cur, next) to (end_cur, end_next): each step frees
+// cur (script string +0x28 released, SmallHeap_Free on 0x0095f5c8) and moves on, until next is end_next.
+void XB_CDECL RumbleQueue_FreeRange(uint32_t cur, uint32_t next, uint32_t end_cur, uint32_t end_next);
+// 0x002ab7b0: the disconnect server command: empty (bare ret, unhookable).
+void XB_CDECL CL_Disconnect_f();
 // 0x002abeb0 / 0x002abec0: empty (bare ret, unhookable).
 void XB_CDECL IN_SprintUp();
 void XB_CDECL IN_SprintDown();
@@ -479,7 +486,11 @@ uint32_t XB_CDECL CL_InitCGame();
 void XB_CDECL CL_Shutdown();
 // 0x002f0750: KEYCATCH_UI off; with 0x0095ee01 the profile settings (0x008dce30), skill and the front end opened
 // for the chapter (theatre background); with the mission overlay (0x0095f918) it is destroyed and the front end
-// opened likewise, the front-end zone waited for (priority FLT_MAX).
+// opened likewise, the front-end zone waited for (priority FLT_MAX). Every callee runs at the original's ESP (the entry
+// hands over the entry ESP and EBX/ESI/EDI); C callers call CL_ApplyFrontEndReturnState (its title address).
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_ApplyFrontEndReturnStateAt(uint32_t entry, uint32_t ebx, uint32_t esi,
+                                                                       uint32_t edi);
+extern "C" void CL_ApplyFrontEndReturnState_entry(void);
 void XB_CDECL CL_ApplyFrontEndReturnState();
 // 0x0032df90 (menu in ESI, dt on the stack, ret 4): the pause overlay's update: resume (flag 8: 0x0095f900 vtable
 // +0xc (-1), sounds and cl_paused 0 unless its flag 1), children shown, slide timer +0x40 and the slide-in/out

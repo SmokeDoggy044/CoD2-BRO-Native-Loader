@@ -95,6 +95,68 @@ void free_image(uint8_t* menu, uint32_t file_offset, uint32_t buffer_offset, uin
 
 }  // namespace
 
+int32_t XB_REGS2 XB_CDECL FE_BonusCEItemGroup(uint32_t, uint8_t* menu) {
+    const int16_t row = field<int16_t>(menu, 0x22);
+    const int32_t item = field<int32_t>(menu, 0x130 + uint32_t(int32_t(row)) * 4);
+    if (row == 3 || row == 4 || row == 5) return item;
+    auto in = [item](int32_t lo, int32_t hi) { return item >= lo && item <= hi; };
+    if (row == 0) {
+        if (in(1, 3)) return 1;
+        if (in(4, 11)) return 2;
+        if (in(12, 18)) return 3;
+        if (in(19, 26)) return 4;
+        if (in(27, 33)) return 5;
+        return 6;
+    }
+    if (row == 1) {
+        if (in(1, 2)) return 1;
+        if (in(3, 4)) return 2;
+        if (in(5, 7)) return 3;
+        if (in(8, 9)) return 4;
+        if (in(10, 11)) return 5;
+        if (in(12, 13)) return 6;
+        return item != 14 ? 8 : 7;
+    }
+    if (in(1, 2)) return 1;
+    if (item == 3) return 2;
+    if (item == 4) return 3;
+    if (in(5, 8)) return 4;
+    if (in(9, 11)) return 5;
+    if (in(12, 13)) return 6;
+    return 7;
+}
+
+int32_t XB_REGS2 XB_CDECL FE_BonusCEItemIndex(uint32_t, uint8_t* menu) {
+    const int16_t row = field<int16_t>(menu, 0x22);
+    const int32_t item = field<int32_t>(menu, 0x130 + uint32_t(int32_t(row)) * 4);
+    if (row == 3 || row == 4 || row == 5) return 0;
+    auto in = [item](int32_t lo, int32_t hi) { return item >= lo && item <= hi; };
+    if (row == 0) {
+        if (in(1, 3)) return item;
+        if (in(4, 11)) return item - 3;
+        if (in(12, 18)) return item - 11;
+        if (in(19, 26)) return item - 18;
+        if (in(27, 33)) return item - 26;
+        return item - 33;
+    }
+    if (row == 1) {
+        if (in(1, 2)) return item;
+        if (in(3, 4)) return item - 2;
+        if (in(5, 7)) return item - 4;
+        if (in(8, 9)) return item - 7;
+        if (in(10, 11)) return item - 9;
+        if (in(12, 13)) return item - 11;
+        if (item == 14) return 1;
+        return item - 14;
+    }
+    if (in(1, 2)) return item;
+    if (item == 3 || item == 4) return 1;
+    if (in(5, 8)) return item - 4;
+    if (in(9, 11)) return item - 8;
+    if (in(12, 13)) return item - 11;
+    return item - 13;
+}
+
 PLATFORM_ASM_ENTRY(FE_BonusCESetText_entry, "pushl %esi\n" PLATFORM_ASM_CALL(FE_BonusCESetText) "addl $4, %esp\n"
                                             "ret")
 
@@ -235,6 +297,80 @@ void XB_CDECL FE_SaveSlotsUpdateText(uint32_t entry, uint8_t* menu, uint32_t edi
         set_text_at(entry, 0x0031278c, menu, field<uint8_t*>(menu, 0x40), 0x6c, 0x0082b10c, edi);
 }
 
+// The two "mark every slot empty" helpers (menu in EAX) push ESI and call the slot-text update with the menu in ESI;
+// the update runs at the original's ESP (its set-text calls store stack addresses). The entry hands over the entry
+// ESP, the menu, ESI and EDI.
+#define MARK_SLOTS_EMPTY_ENTRY(name)                                                                                \
+    PLATFORM_ASM_ENTRY(name##_entry, "movl %eax, %ecx\n"                                                           \
+                                     "movl %esp, %eax\n" GAME_GAP_ESP("0x10000") "pushl %eax\n"                     \
+                                     "pushl %ebp\n"                                                                 \
+                                     "pushl %edi\n"                                                                 \
+                                     "pushl %esi\n"                                                                 \
+                                     "pushl %ecx\n"                                                                 \
+                                     "pushl %eax\n" PLATFORM_ASM_CALL(name) "addl $16, %esp\n"                      \
+                                     "popl %ebp\n"                                                                  \
+                                     "popl %esp\n"                                                                  \
+                                     "ret")
+
+namespace {
+
+void mark_slots_empty(uint32_t entry, uint8_t* menu, uint32_t esi, uint32_t edi, uint32_t flags, uint32_t update,
+                      uint32_t ret) {
+    for (uint32_t i = 0; i < 4; ++i) menu[flags + i * 12] = 1;
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry - 4}) = esi;  // push esi
+    const TitleRegs regs{address_of(menu) + flags + 48, 0, 0, 0, address_of(menu), edi};
+    title_call_at_regs(entry - 4, update, &regs, 0, nullptr);
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry - 8}) = ret;
+}
+
+}  // namespace
+
+MARK_SLOTS_EMPTY_ENTRY(AutosaveMenu_MarkSlotsEmpty)
+
+void XB_CDECL AutosaveMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi, uint32_t edi) {
+    mark_slots_empty(entry, menu, esi, edi, 0x5c, 0x0030ccb0, 0x0030cf8e);  // AutosaveMenu_UpdateSlotTexts
+}
+
+MARK_SLOTS_EMPTY_ENTRY(ProfileMenu_MarkSlotsEmpty)
+
+void XB_CDECL ProfileMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi, uint32_t edi) {
+    mark_slots_empty(entry, menu, esi, edi, 0x6c, 0x00312690, 0x0031286e);  // FE_SaveSlotsUpdateText
+}
+
+#undef MARK_SLOTS_EMPTY_ENTRY
+
+// The autosave menu's twin of FE_SaveSlotsUpdateText (the same entry): slots {name +0x54, empty +0x5c}, no help bar.
+PLATFORM_ASM_ENTRY(AutosaveMenu_UpdateSlotTexts_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %eax\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(AutosaveMenu_UpdateSlotTexts) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL AutosaveMenu_UpdateSlotTexts(uint32_t entry, uint8_t* menu, uint32_t edi) {
+    if (menu[0x35]) {  // card corrupt; push edi
+        *reinterpret_cast<uint32_t*>(uintptr_t{entry - 4}) = edi;
+        for (uint32_t i = 0; i < 4; ++i)
+            set_text_at(entry - 4, 0x0030ccd0, menu, menu_item(menu, i), 0x30, 0x0082ada0, i * 4);  // FEMENU_OP_CORRUPT
+        return;
+    }
+    // return addresses {new, name}: one call site per slot, but two for the last
+    static constexpr uint32_t kReturns[4][2] = {
+        {0x0030ccf6, 0x0030ccf6}, {0x0030cd19, 0x0030cd19}, {0x0030cd3c, 0x0030cd3c}, {0x0030cd56, 0x0030cd66}};
+    for (uint32_t i = 0; i < 4; ++i) {
+        uint8_t* const item = menu_item(menu, i);
+        if (menu[0x5c + i * 12])
+            set_text_at(entry, kReturns[i][0], menu, item, 0x30, 0x0082ad90, edi);  // FEMENU_OP_NEW
+        else
+            set_text_at(entry, kReturns[i][1], menu, item, 0x30, field<uint32_t>(menu, 0x54 + i * 12), edi);
+    }
+}
+
 PLATFORM_ASM_ENTRY(FE_BonusConceptSetText_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(FE_BonusConceptSetText) "addl $4, %esp\n"
                    "ret")
@@ -245,6 +381,51 @@ void XB_CDECL FE_BonusConceptSetText(uint8_t* menu) {
     char text[0x20];
     title_sprintf(text, 0x0082bb5c, field<int32_t>(menu, 0x8c + uint32_t(index) * 4), int32_t(count));  // "%i / %i"
     set_text(field<uint8_t*>(menu, 0x3c), 0x6c, text);
+}
+
+uint32_t XB_REGS1 XB_STDCALL BonusConceptsMenu_ChangeItem(int32_t mode, uint8_t* menu) {
+    auto item = [menu](int32_t i) -> int32_t& { return field<int32_t>(menu, 0x8c + uint32_t(i) * 4); };
+    auto best = [](int32_t i) -> int32_t& { return title_global<int32_t>(0x008dced8 + uint32_t(i) * 4); };
+    if (mode == 1) {  // next: up to the chapter's unlocked count; the stored bests raised
+        for (int32_t i = 0; i < 13; ++i) {
+            if (i == field<int16_t>(menu, 0x22) && int32_t(unlocked_level_word(i + 1)) > item(i)) item(i) = item(i) + 1;
+            if (best(i) < item(i)) best(i) = item(i);
+        }
+        return 0;
+    }
+    if (mode == 2) {  // previous: down to 1
+        for (int32_t i = 0; i < 13; ++i)
+            if (i == field<int16_t>(menu, 0x22) && item(i) > 1) item(i) = item(i) - 1;
+        return 0;
+    }
+    int32_t& current = item(field<int16_t>(menu, 0x22));
+    if (current == 0) current = 1;
+    for (int32_t i = 0; i < 13; ++i)
+        if (best(i) < item(i)) best(i) = item(i);
+    return 0;
+}
+
+uint32_t XB_STDCALL BonusConceptsMenu_UpdateNewMarks(uint8_t* menu) {
+    for (uint32_t i = 0; i < 13; ++i) {
+        menu[0x7c + i] = 0;
+        if (int32_t(unlocked_level_word(int32_t(i) + 1)) > title_global<int32_t>(0x008dced8 + i * 4)) menu[0x7c + i] = 1;
+        uint8_t* const entry = menu_item(menu, i);
+        if (method<uint8_t XB_THISCALL(uint8_t*)>(entry, 0x24)(entry) == 1) menu[0x7c + i] = 0;  // locked
+    }
+    return 0;
+}
+
+uint32_t* XB_REGS1 XB_CDECL Profile_CopyBonusBests(uint32_t* out) {
+    // 17 profile words (0x008dce90..0x008dced0; words 12-14 read from 0x008dcec8 down) and a zero, built on the stack
+    // and copied out.
+    static constexpr uint32_t kWords[17] = {0x008dce90, 0x008dce94, 0x008dce98, 0x008dce9c, 0x008dcea0, 0x008dcea4,
+                                            0x008dcea8, 0x008dceac, 0x008dceb0, 0x008dceb4, 0x008dceb8, 0x008dcebc,
+                                            0x008dcec8, 0x008dcec4, 0x008dcec0, 0x008dcecc, 0x008dced0};
+    uint32_t bests[18];
+    for (uint32_t i = 0; i < 17; ++i) bests[i] = title_global<uint32_t>(kWords[i]);
+    bests[17] = 0;
+    platform_rep_movs(out, bests, sizeof bests);
+    return out;
 }
 
 PLATFORM_ASM_ENTRY(FE_BonusLevelLabel_entry, "pushl %edi\n" PLATFORM_ASM_CALL(FE_BonusLevelLabel) "addl $4, %esp\n"
@@ -265,7 +446,7 @@ void XB_CDECL FE_BonusLevelLabel(uint8_t* menu) {
         if (method<uint8_t XB_THISCALL(uint8_t*)>(item, 0x24)(item) == 1)
             set_text(menu_item(menu, i), 0x30, text_at(0x0082bb8c));  // BONUS_LOCKED
     }
-    title_function<void XB_STDCALL(uint8_t*)>(0x00312b40)(menu);
+    BonusConceptsMenu_UpdateNewMarks(menu);
     field<uint32_t>(menu, 0x40) = 0x3f800000;  // 1.0
     menu[0x44] = 0;
 }
@@ -573,6 +754,8 @@ uint8_t XB_CDECL MissionSuccessFailMenu_ReloadCheckpoint() {
 
 
 void XB_THISCALL UIElement_SetDepth(uint8_t* element, float depth) { field<float>(element, 8) = depth; }
+
+long double XB_THISCALL UIElement_GetDepth(uint8_t* element) { return field<float>(element, 8); }
 
 void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align) {
     const uint8_t flags = element[0x10] & 0x3f;
@@ -1610,6 +1793,41 @@ uint8_t* XB_THISCALL UIText_DeletingDtor(uint8_t* text, uint32_t flags) {
     UIText_Dtor(text);
     if (flags & 1) z_free(text);
     return text;
+}
+
+namespace {
+
+// A text line (0x20 bytes): its buffer +0x18 freed, its script string +0x14 released.
+void text_line_dtor(uint8_t* line) {
+    if (void* const buffer = field<void*>(line, 0x18)) {
+        z_free(buffer);
+        field<uint32_t>(line, 0x18) = 0;
+    }
+    script_string_release(line + 0x14);
+}
+
+}  // namespace
+
+uint8_t* XB_REGS1 XB_STDCALL UITextLine_VectorDeletingDtor(uint8_t* lines, uint32_t flags) {
+    if (!(flags & 2)) {
+        text_line_dtor(lines);
+        if (flags & 1) z_free(lines);
+        return lines;
+    }
+    uint8_t* const block = lines - 4;  // the count, then the lines
+    for (int32_t i = field<int32_t>(block, 0) - 1; i >= 0; --i) text_line_dtor(lines + uint32_t(i) * 0x20);
+    if (flags & 1) z_free(block);
+    return block;
+}
+
+long double XB_REGS2 XB_CDECL UI_GetTextWidth(int32_t kind, const char* text, float scale) {
+    if (!text || kind == 8) return title_global<float>(0x0083eafc);  // 0
+    const uint8_t* const font = kind == 7 ? nullptr : title_global<const uint8_t*>(0x0095f8d4 + uint32_t(kind) * 4);
+    int32_t width = 0, height = 0;
+    nglGetTextExtent(font, text, &width, &height, scale, scale);
+    long double result = width;  // FILD, + 2^32 when negative (unsigned)
+    if (width < 0) result += title_global<float>(0x0083eb2c);
+    return result;
 }
 
 void XB_THISCALL UIText_Draw(uint8_t* text) {

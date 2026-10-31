@@ -72,6 +72,9 @@ void XB_REGS1 XB_STDCALL UI_DialogLayoutButtons(uint8_t* mgr, uint8_t flag);
 // 0x00013690 / 0x0032eab0: UIMenu_FreeItems (frees the menu with flags bit 0).
 uint8_t* XB_THISCALL UIMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
 void XB_THISCALL UIMenu_Dtor(uint8_t* menu);
+// 0x00013720: the startup storage check screen (vtable 0x00829e10, built by 0x003308a0 in FrontEndMenu_Construct; its
+// update runs FE_CheckStartupStorage): listener +0x34 (Save_SetDeviceRemovedListener) reset, the UIMenu part.
+uint8_t* XB_THISCALL StartupStorageMenu_DeletingDtor(uint8_t* menu, uint32_t flags);
 // 0x0030ef20 (ret 4, the argument unused): accept (vtable +0x38) the selection when it is a shown item.
 void XB_THISCALL UIMenu_OnAccept(uint8_t* menu, uint32_t unused);
 // 0x0030ef50: selects (+0x88 (index, 0)) the first shown item.
@@ -207,6 +210,23 @@ extern "C" void Dialog_LayoutButtons_entry(void);
 // The entry hands the C version its entry ESP (the original's frame is rebuilt there).
 extern "C" PLATFORM_HIDDEN void XB_CDECL UIDialog_SetText(uint32_t entry, uint8_t* overlay);
 extern "C" void UIDialog_SetText_entry(void);
+// 0x0030e6f0 (dialog in EDI; two script strings by value, ret 8): the strings into +0x50 (second) and +0x4c (first),
+// button count +0x34 and +0x44/+0x48 cleared, +0x54 = -1, +0x59 = 0, the three buttons' vtable +0x20 (1); the
+// arguments released.
+struct ScriptString;
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIDialog_Init(uint8_t* dialog, ScriptString* strings);
+extern "C" void UIDialog_Init_entry(void);
+// 0x00313e40 (flag in AL, overlay in ESI, rows on the stack, ret 4): overlay flag 0x10 = AL; unless flag 4, the
+// heading (+0x28) and message (+0x2c) placed at x 320 around y 240, 10 per line (heading lines + 1, message lines,
+// rows): heading at 240 - half, message 20 per heading row below 240 - half (vtable +0x7c, +0xc4 = line count).
+extern "C" PLATFORM_HIDDEN void XB_CDECL DialogOverlay_LayoutTexts(uint32_t eax, uint8_t* overlay, int32_t rows);
+extern "C" void DialogOverlay_LayoutTexts_entry(void);
+// 0x0030ea00: whether the active pad's left stick, or the d-pad over it, points in the UI direction bit (4 up, 8 down,
+// 0x10 left, 0x20 right; past 64); 0 for other bits.
+uint8_t XB_CDECL UI_StickDirectionHeld(int32_t bit);
+// 0x0030c1a0 (saves in ECX): the play-time sum mod 50 into the profile (0x008dcf14, flag 0x008dcf10), then the profile
+// (0x008dce30, 0x3a4 bytes) copied into the current slot's record (+0x2a8 + slot * 0x3cc, slot +0x11ec).
+void XB_THISCALL Profile_StoreToSaveSlot(uint8_t* saves);
 // 0x0031f690: every button's +0x58 (3 with 0x0095f8f8, else 4), then UIMenu_Draw while the overlay's fade is >= 0.
 void XB_THISCALL UIDialog_Draw(uint8_t* dialog);
 // 0x000122e0: releases the heading and text, UIMenu_FreeItems, frees the dialog with flags bit 0.

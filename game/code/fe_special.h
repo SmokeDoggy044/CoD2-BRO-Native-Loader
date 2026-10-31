@@ -65,6 +65,11 @@ void XB_THISCALL XboxLiveMenu_Draw(uint8_t* menu);
 // 0x00336460 (ret 4): SCR_LoadingPump; unless 0x0095f91e, UIMenu_Update (dt) and +0x44 cleared.
 void XB_THISCALL SinglePlayerMenu_Update(uint8_t* menu, float dt);
 
+// 0x0030c6f0 (menu in EDI, dt on the stack, ret 4): one step of the chapter list's slide: the selected chapter's x
+// moves by (320 - start x +0x198) * dt / duration +0x19c, or the rest of the way once past 320 (+0x1a8 = 0); every
+// chapter's elements shifted; the selected chapter's picture fades in / grows towards +0x1a4, the previous one's back.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ChapterMenu_SlideStep(uint8_t* menu, float dt);
+extern "C" void ChapterMenu_SlideStep_entry(void);
 // 0x0030c9a0 (menu in EDI): with a panel: the unlocked / current chapter, the selection +0x22 and +0x1ac clamped to
 // 13; per chapter the +0x3c element's alpha (+0x7c) and the item's +0x20 (1 for chapters past the unlocked count
 // but the first, else 0); the selected chapter +0x190 = +0x1ac (0..13), its x (+0x74 element's +0x9c) into +0x198;
