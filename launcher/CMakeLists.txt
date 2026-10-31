@@ -12,6 +12,7 @@ target_compile_definitions(launcher_update PRIVATE COD_BRO_VERSION="${PROJECT_VE
 add_executable(cod_bro_launcher WIN32
     main.cpp
 )
+cod_bro_windows_resources(cod_bro_launcher "Call of Duty 2: Big Red One native loader - launcher" PROGRAM)
 target_link_libraries(cod_bro_launcher PRIVATE imgui_sdlrenderer launcher_update platform input_bindings audio_devices)
 # Only declarations from render/ (enhanced_graphics.h: the settings).
 target_include_directories(cod_bro_launcher PRIVATE ${PROJECT_SOURCE_DIR}/render)

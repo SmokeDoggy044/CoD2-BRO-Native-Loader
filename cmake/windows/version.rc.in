@@ -1,0 +1,34 @@
+// Version information (and for programs, a manifest) of a Windows file of the port:
+// cmake/windows_resources.cmake configures it per target.
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+PRODUCTVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE @RES_FILE_TYPE@
+FILESUBTYPE 0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "CoD2 BRO Native Loader project"
+            VALUE "FileDescription", "@RES_DESCRIPTION@"
+            VALUE "FileVersion", "@PROJECT_VERSION@"
+            VALUE "InternalName", "@RES_NAME@"
+            VALUE "LegalCopyright", "Open source; see LICENSES"
+            VALUE "OriginalFilename", "@RES_FILE@"
+            VALUE "ProductName", "Call of Duty 2: Big Red One native loader (unofficial)"
+            VALUE "ProductVersion", "@PROJECT_VERSION@"
+            VALUE "Comments", "https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+@RES_MANIFEST@

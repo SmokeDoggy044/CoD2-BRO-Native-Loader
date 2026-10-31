@@ -19,7 +19,7 @@ T& title_global(uint32_t address) {
 // the calling convention (XB_CDECL etc.).
 template <typename F>
 F* title_function(uint32_t address) {
-    return reinterpret_cast<F*>(static_cast<uintptr_t>(address));
+    return reinterpret_cast<F*>(platform_opaque_address(address));  // a call stays a call
 }
 
 // Register inputs for title_call_at_regs.

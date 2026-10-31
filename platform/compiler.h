@@ -102,6 +102,21 @@ template <typename T>
 inline void platform_keep(const T&) {}
 #endif
 
+// An address the optimizer must not see as a constant. A constant code address in a function
+// pointer that an inlined callee calls (SndVoice_ForEach(title_function<...>(0x000c5270)))
+// makes GCC's inliner turn the call into __builtin_unreachable: no function of its own lives
+// there. The Windows build inlined it (the Linux game library is PIC: no such inlining), and
+// Snd_SetVoiceVolumeScale fell off its end without restoring EBX (0.2.0 test, crash in the
+// original CG_SetNextSnap).
+#if defined(__GNUC__) || defined(__clang__)
+inline uintptr_t platform_opaque_address(uintptr_t address) {
+    __asm__("" : "+r"(address));
+    return address;
+}
+#else
+inline uintptr_t platform_opaque_address(uintptr_t address) { return address; }
+#endif
+
 // FS:[0x14], NT_TIB.ArbitraryUserPointer, on title threads (FS is our KPCR on Linux, the
 // TEB on Windows, whose loader restores the word after its own brief use; the title never
 // reads it): the lowest address of this thread's live host frames below a title-position
