@@ -198,6 +198,82 @@ void XB_CDECL Panel_ReadString(uint32_t* offset, const uint8_t* data, ScriptStri
     }
 }
 
+PLATFORM_ASM_ENTRY(Panel_ReadVec3_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Panel_ReadVec3) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Panel_ReadVec3(uint32_t* offset, const uint8_t* data, float* out) {
+    for (int32_t i = 0; i < 3; ++i) {
+        const uint32_t o = *offset;
+        const uint32_t bits = uint32_t(data[o]) | (uint32_t(data[o + 1]) << 8) | (uint32_t(data[o + 2]) << 16) |
+                              (uint32_t(data[o + 3]) << 24);
+        *offset = o + 4;
+        std::memcpy(&out[i], &bits, 4);
+    }
+}
+
+char* XB_REGS3 XB_CDECL Panel_ReadCString(uint32_t* offset, uint32_t, uint8_t* data) {
+    const uint32_t o = *offset;
+    const int32_t length = int16_t(uint16_t(data[o] | (data[o + 1] << 8)));
+    *offset = o + 2;
+    for (int32_t n = length; n > 0; --n) {
+        data[*offset - 2] = data[*offset];
+        *offset += 1;
+    }
+    data[*offset - 2] = 0;
+    data[*offset - 1] = 0;
+    return reinterpret_cast<char*>(data + o);
+}
+
+PLATFORM_ASM_ENTRY(Panel_ReadTransform_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Panel_ReadTransform) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Panel_ReadTransform(uint32_t* offset, float* out, const uint8_t* data) {
+    float v[3];
+    const uint32_t zero = title_global<uint32_t>(0x00922eb8);
+    std::memcpy(&v[0], &zero, 4);
+    std::memcpy(&v[1], &zero, 4);
+    std::memcpy(&v[2], &zero, 4);
+    for (int32_t r = 0; r < 4; ++r) {
+        Panel_ReadVec3(offset, data, v);
+        uint32_t row[4];
+        std::memcpy(&row[0], &v[0], 4);
+        std::memcpy(&row[1], &v[1], 4);
+        std::memcpy(&row[2], &v[2], 4);
+        row[3] = row[0];
+        std::memcpy(out + r * 4, row, 16);
+    }
+}
+
+PLATFORM_ASM_ENTRY(Panel_ReadMaterial_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Panel_ReadMaterial) "addl $12, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Panel_ReadMaterial(uint8_t* data, uint32_t* offset, uint8_t* record) {
+    const uint32_t o = *offset;
+    const uint32_t colour = uint32_t(data[o + 2]) | (uint32_t(data[o + 1]) << 8) | (uint32_t(data[o]) << 16) |
+                            (uint32_t(data[o + 3]) << 24);
+    *offset = o + 4;
+    field<uint32_t>(record, 8) = colour;
+    const auto read_flag = [&] { return uint8_t(data[(*offset)++] != 0); };
+    const uint8_t textured = read_flag();
+    record[0xc] = textured;
+    if (!textured) return;
+    char* const name = Panel_ReadCString(offset, 0, data);
+    field<char*>(record, 4) = name;
+    field<void*>(record, 0) = UI_FindLocalizedTexture(name);
+    record[0xd] = read_flag();
+    record[0xe] = read_flag();
+    record[0xf] = read_flag();
+}
+
 void XB_REGS1 XB_CDECL Panel_FreeElements(uint8_t* panel) {
     for (int32_t i = 0; i < field<int32_t>(panel, 8); ++i) {
         uint8_t* const picture = field<uint8_t**>(panel, 0)[i];

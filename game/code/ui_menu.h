@@ -129,7 +129,8 @@ void XB_THISCALL UIScreenMgr_Update(uint8_t* mgr, uint32_t dt);
 void XB_THISCALL UIScreenMgr_LayoutAll(uint8_t* mgr);
 // 0x0032e6a0: the old screen's +0x44 (the new one), the new one's +0x3c (the old index) and the "UI_Highlight"
 // sound, then +0x18; active = index.
-void XB_THISCALL UIScreenMgr_SetActiveScreen(uint8_t* mgr, int32_t index);
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIScreenMgr_SetActiveScreen(uint32_t entry, uint8_t* mgr, int32_t index);
+extern "C" void UIScreenMgr_SetActiveScreen_entry(void);
 // 0x0030eb40: the pad button number of a UI button bit (1 -> 15, 4 -> 3, 8 -> 1, 0x10 -> 0, 0x20 -> 2, 0x40 -> 5,
 // 0x80 -> 6, 0x100 -> 4, 0x200 -> 7, 0x400 -> 9, 0x800 -> 8, 0x1000 -> 11, 0x2000 -> 10, else 14).
 int32_t XB_REGS1 XB_CDECL UIScreenMgr_PadBitToButton(int32_t bit);
@@ -285,6 +286,32 @@ void XB_REGS1 XB_CDECL UIRoot_InitChapterTable(uint8_t* table);
 // 0x00331e90 (root in ESI): the UI root's fields, chapter table and an empty root menu. Returns the root.
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL UIRoot_Construct(uint8_t* root);
 extern "C" void UIRoot_Construct_entry(void);
+// UI root draw/update (root in ESI: g_uiRoot; +0x20 the HUD manager, +0x28 the front end, +0x2c the in-game screens,
+// +0x30 the dialog manager, each with its active screen at +0x0c; +0x3c drawing on, +0x48 front end / +0x49
+// in-game screens shown, +0x4e a dialog is up, +0x4f HUD hidden).
+// 0x003153d0: with a scene, +0x49 and +0x3c: unless a dialog is active, the in-game screens (+0x1c) in a pushed scene
+// without clears or depth (+0x4e = 0); then the active dialog (+0x1c, +0x4e = 1).
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_DrawInGameScreens(uint8_t* root);
+extern "C" void UIRoot_DrawInGameScreens_entry(void);
+// 0x00315440: with a scene, +0x48 and +0x3c: the front end (+0x1c) in a pushed scene; then the active dialog (+0x1c,
+// +0x4e = 1) or +0x4e = 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_DrawFrontEnd(uint8_t* root);
+extern "C" void UIRoot_DrawFrontEnd_entry(void);
+// 0x003154b0: the HUD's +0x18 unless +0x49; unless +0x4f, in a pushed scene its +0x14 (no active dialog, no +0x49);
+// then the active dialog's +0x1c.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_DrawHud(uint8_t* root);
+extern "C" void UIRoot_DrawHud_entry(void);
+// 0x00315520 (ret 4): the active dialog's update (+0x10 (dt), +0x4e = 1; the in-game screens' too when screen 7 is
+// active), else the in-game screens' (+0x4e = 0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_UpdateInGameScreens(uint8_t* root, uint32_t dt);
+extern "C" void UIRoot_UpdateInGameScreens_entry(void);
+// 0x00315560 (ret 4): the active dialog's update (+0x10 (dt)) with the front end's active screen told +0x18 (1),
+// +0x4e = 1; else that screen told +0x18 (0), +0x4e = 0; then the front end's update (+0x10 (dt)).
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_UpdateFrontEnd(uint8_t* root, uint32_t dt);
+extern "C" void UIRoot_UpdateFrontEnd_entry(void);
+// 0x00314550 (menu in EAX; the TitleMenu's accept, called from 0x00012280): unless +0x3c, the front end goes to
+// screen 14 (0x008dd1cf == 1, 0x008dce30 clear) or 1 (0x008dd1cf == 1), else to screen 15 (its +0x94 = 0, +0x4c = 1).
+void XB_REGS1 XB_CDECL TitleMenu_Accept(uint8_t* menu);
 // 0x0032d130 (stdcall, the first argument unused): "%s %d %s" of MEM_ERROR_NOT_ENOUGH_BLOCKS1, the blocks needed
 // (0x0031ac10) and MEM_ERROR_NOT_ENOUGH_BLOCKS2 (localized) into out.
 void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t unused, char* out);

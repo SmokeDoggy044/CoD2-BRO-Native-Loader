@@ -619,19 +619,60 @@ void XB_THISCALL UIScreenMgr_LayoutAll(uint8_t* mgr) {
     for (int32_t i = 0; i < field<int32_t>(mgr, 0x14); ++i) call(screen(mgr, i), 0x1c);
 }
 
-void XB_THISCALL UIScreenMgr_SetActiveScreen(uint8_t* mgr, int32_t index) {
+// Every call runs where the original's puts it, with the sound's origin / axis / handle locals at the original's
+// frame addresses: S_PlaySoundAlias keeps their addresses (host sound state differed in the stack address byte).
+PLATFORM_ASM_ENTRY(UIScreenMgr_SetActiveScreen_entry,
+                   "movl %esp, %eax\n"
+                   "subl $0x20000, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl 4(%ebp)\n"
+                   "pushl %ecx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(UIScreenMgr_SetActiveScreen) "leal -0x20004(%ebp), %esp\n"
+                   "popl %ebp\n"
+                   "addl $0x20000, %esp\n"
+                   "ret $4")
+
+void XB_CDECL UIScreenMgr_SetActiveScreen(uint32_t entry, uint8_t* mgr, int32_t index) {
+    const uint32_t top = ((entry - 4) & ~0xfu) - 0x30;  // push ebp; and esp,-16; sub esp,0x24; three pushes
+    TitleRegs regs{};
+    regs.esi = address_of(mgr);
+    regs.edi = uint32_t(index);
+    const auto method_at = [&](uint8_t* object, uint32_t offset, uint32_t count, const uint32_t* args) {
+        regs.ecx = address_of(object);
+        title_call_at_regs(top, field<uint32_t>(field<uint8_t*>(object, 0), offset), &regs, count, args);
+    };
     if (field<int32_t>(mgr, 0xc) != -1) {
-        uint8_t* const next = index >= 0 ? screen(mgr, index) : nullptr;
-        call(screen(mgr, field<int32_t>(mgr, 0xc)), 0x44, address_of(next));
+        const uint32_t next[1] = {index >= 0 ? address_of(screen(mgr, index)) : 0};
+        method_at(screen(mgr, field<int32_t>(mgr, 0xc)), 0x44, 1, next);
     }
-    const int32_t old = field<int32_t>(mgr, 0xc);
+    const uint32_t old[1] = {uint32_t(field<int32_t>(mgr, 0xc))};
     field<int32_t>(mgr, 0xc) = index;
     if (index >= 0) {
-        call(screen(mgr, index), 0x3c, uint32_t(old));
-        uint32_t handle = title_global<uint32_t>(0x0095f4c4);
-        play_ui_sound(0x0082cbf0, handle, true);  // "UI_Highlight"
+        method_at(screen(mgr, index), 0x3c, 1, old);
+        uint32_t* const handle = reinterpret_cast<uint32_t*>(uintptr_t{top + 0xc});
+        uint32_t* const origin = reinterpret_cast<uint32_t*>(uintptr_t{top + 0x10});  // (0, 0, 0, 0)
+        uint32_t* const axis = reinterpret_cast<uint32_t*>(uintptr_t{top + 0x20});    // (0, 0, 0, 1)
+        for (uint32_t i = 0; i < 4; ++i) {
+            origin[i] = title_global<uint32_t>(0x0082e110 + i * 4);
+            axis[i] = title_global<uint32_t>(0x0082e290 + i * 4);
+        }
+        *handle = title_global<uint32_t>(0x0095f4c4);
+        const uint32_t name[1] = {0x0082cbf0};  // "UI_Highlight"
+        regs.ecx = 0;
+        regs.ebx = 0;
+        const uint32_t alias = title_call_at_regs(top, 0x000c5810, &regs, 1, name);  // S_FindSoundByHash
+        if (alias != 0xffffffffu) {
+            const uint32_t args[10] = {address_of(handle), 0, 1, 0, address_of(axis), address_of(origin),
+                                       0xbf800000, 0xbf800000, 0xbf800000, 0xbf800000};
+            regs.eax = alias;
+            regs.ecx = *handle;
+            regs.edx = address_of(axis);
+            title_call_at_regs(top, 0x002c30a0, &regs, 10, args);  // S_PlaySoundAlias
+        }
     }
-    call(mgr, 0x18);
+    method_at(mgr, 0x18, 0, nullptr);
     field<int32_t>(mgr, 0xc) = index;
 }
 
@@ -1841,6 +1882,132 @@ uint8_t* XB_CDECL UIRoot_Construct(uint8_t* root) {
     }
     field<uint8_t*>(root, 0x24) = menu;
     return root;
+}
+
+// --- UI root draw/update (root in ESI) ---
+
+namespace {
+
+// A screen manager with an active screen (+0x0c >= 0); null-safe.
+bool has_active(uint8_t* mgr) { return mgr && field<int32_t>(mgr, 0xc) >= 0; }
+
+// The scene the UI layers draw in: no clears, no depth test or writes.
+void push_ui_scene() {
+    nglPushScene(0);
+    nglSetClearFlags(0);
+    nglSetSceneDepthTest(0);
+    nglSetSceneDepthEnable(0);
+}
+
+// The front end's (+0x28) active screen, when in range, told +0x18 (flag).
+void tell_front_end_screen(uint8_t* root, uint32_t flag) {
+    uint8_t* const fe = field<uint8_t*>(root, 0x28);
+    if (!fe) return;
+    const int32_t active = field<int32_t>(fe, 0xc);
+    if (active < 0 || active >= field<int32_t>(fe, 0x10)) return;
+    call(screen(fe, active), 0x18, flag);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(UIRoot_DrawInGameScreens_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_DrawInGameScreens) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL UIRoot_DrawInGameScreens(uint8_t* root) {
+    if (!title_global<uint32_t>(0x0090259c) || !root[0x49] || !root[0x3c]) return;  // ngl_curScene
+    if (!has_active(field<uint8_t*>(root, 0x30))) {
+        push_ui_scene();
+        call(field<uint8_t*>(root, 0x2c), 0x1c);
+        nglPopScene();
+        root[0x4e] = 0;
+    }
+    uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
+    if (!has_active(dialogs)) return;
+    call(dialogs, 0x1c);
+    root[0x4e] = 1;
+}
+
+PLATFORM_ASM_ENTRY(UIRoot_DrawFrontEnd_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_DrawFrontEnd) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL UIRoot_DrawFrontEnd(uint8_t* root) {
+    if (!title_global<uint32_t>(0x0090259c) || !root[0x48] || !root[0x3c]) return;  // ngl_curScene
+    push_ui_scene();
+    call(field<uint8_t*>(root, 0x28), 0x1c);
+    nglPopScene();
+    uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
+    if (has_active(dialogs)) {
+        call(dialogs, 0x1c);
+        root[0x4e] = 1;
+        return;
+    }
+    root[0x4e] = 0;
+}
+
+PLATFORM_ASM_ENTRY(UIRoot_DrawHud_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_DrawHud) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL UIRoot_DrawHud(uint8_t* root) {
+    if (!root[0x49]) call(field<uint8_t*>(root, 0x20), 0x18);
+    if (root[0x4f]) return;
+    push_ui_scene();
+    uint8_t* const active_dialogs = field<uint8_t*>(root, 0x30);
+    if (!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) call(field<uint8_t*>(root, 0x20), 0x14);
+    nglPopScene();
+    uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
+    if (has_active(dialogs)) call(dialogs, 0x1c);
+}
+
+PLATFORM_ASM_ENTRY(UIRoot_UpdateInGameScreens_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_UpdateInGameScreens) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL UIRoot_UpdateInGameScreens(uint8_t* root, uint32_t dt) {
+    uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
+    if (has_active(dialogs)) {
+        call(dialogs, 0x10, dt);
+        uint8_t* const screens = field<uint8_t*>(root, 0x2c);
+        root[0x4e] = 1;
+        if (field<int32_t>(screens, 0xc) == 7) call(screens, 0x10, dt);
+        return;
+    }
+    uint8_t* const screens = field<uint8_t*>(root, 0x2c);
+    root[0x4e] = 0;
+    call(screens, 0x10, dt);
+}
+
+PLATFORM_ASM_ENTRY(UIRoot_UpdateFrontEnd_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_UpdateFrontEnd) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL UIRoot_UpdateFrontEnd(uint8_t* root, uint32_t dt) {
+    uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
+    if (has_active(dialogs)) {
+        call(dialogs, 0x10, dt);
+        root[0x4e] = 1;
+        tell_front_end_screen(root, 1);
+    } else {
+        tell_front_end_screen(root, 0);
+        root[0x4e] = 0;
+    }
+    if (uint8_t* const fe = field<uint8_t*>(root, 0x28)) call(fe, 0x10, dt);
+}
+
+void XB_REGS1 XB_CDECL TitleMenu_Accept(uint8_t* menu) {
+    if (menu[0x3c]) return;
+    uint8_t* const fe = title_global<uint8_t*>(0x0095f8f8);
+    if (title_global<uint8_t>(0x008dd1cf) == 1) {
+        call(fe, 0xc, title_global<uint8_t>(0x008dce30) ? 1 : 0xe);
+        return;
+    }
+    screen(title_global<uint8_t*>(0x0095f8f8), 15)[0x94] = 0;
+    field<uint32_t>(screen(title_global<uint8_t*>(0x0095f8f8), 15), 0x4c) = 1;
+    call(title_global<uint8_t*>(0x0095f8f8), 0xc, 0xf);
 }
 
 void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t, char* out) {

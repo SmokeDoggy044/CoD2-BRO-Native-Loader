@@ -303,6 +303,10 @@ extern "C" void CL_Frame_entry(void);
 // (byte +0x40 from 0x008dce69, vtable +0x88 (0, 1)) and the menu activated (vtable +0xc (0)).
 extern "C" void CL_TogglePause_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL CL_TogglePause(uint8_t* menu);
+// 0x0032de50 (screen manager in ESI, ret 4 through its tail-called method): the in-game screens shown (0x0095f919 =
+// 1), cl_paused 1, then the manager's +0x0c (screen).
+extern "C" void CL_PauseIntoFrontEnd_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL CL_PauseIntoFrontEnd(uint8_t* mgr);  // the part before the tail call
 // 0x0032dec0 (keep_running in DL, dialog in ECX): sets the dialog's flag bits from its mode (+0xc) and the cvar at
 // 0x0093fcd8, activates it (vtable +0xc) and pauses the game (cl_paused 1) unless that cvar is set or the mission
 // overlay is up.

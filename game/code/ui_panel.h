@@ -44,6 +44,21 @@ struct ScriptString;
 extern "C" PLATFORM_HIDDEN void XB_CDECL Panel_ReadString(uint32_t* offset, const uint8_t* data,
                                                          ScriptString* string);
 extern "C" void Panel_ReadString_entry(void);
+// 0x00316480 (offset in ECX, data in EAX, out in EDI): three little-endian floats at *offset (bits copied).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Panel_ReadVec3(uint32_t* offset, const uint8_t* data, float* out);
+extern "C" void Panel_ReadVec3_entry(void);
+// 0x00316530 (offset in EAX, data in ECX): the int16-length name at *offset moved two bytes down over its length
+// and terminated (two zero bytes) in place; returns it.
+char* XB_REGS3 XB_CDECL Panel_ReadCString(uint32_t* offset, uint32_t unused_edx, uint8_t* data);
+// 0x00321430 (offset in ESI; out, data on the stack): four rows of three floats (Panel_ReadVec3), each stored as
+// (x, y, z, x).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Panel_ReadTransform(uint32_t* offset, float* out, const uint8_t* data);
+extern "C" void Panel_ReadTransform_entry(void);
+// 0x0032c0b0 (data in EAX, offset in EDI; record on the stack, ret 4): a material record: +8 the colour (bytes 2, 1,
+// 0, 3), +0xc textured; if so +4 the name (Panel_ReadCString), +0 its texture (UI_FindLocalizedTexture) and three
+// flag bytes +0xd..+0xf.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Panel_ReadMaterial(uint8_t* data, uint32_t* offset, uint8_t* record);
+extern "C" void Panel_ReadMaterial_entry(void);
 // 0x00316620 (panel in EAX): deletes (vtable +0 (1)) every picture and text, both vectors resized to 0.
 void XB_REGS1 XB_CDECL Panel_FreeElements(uint8_t* panel);
 // The inline panel delete of the destructors (0x000121d0 without the flags): Panel_FreeElements, the vector

@@ -429,6 +429,21 @@ uint8_t* XB_REGS1 XB_STDCALL Panel_FindPicture(uint8_t* list, const char* name) 
         uintptr_t{title_call_regs(0x00320170, 0, 0, 0x0095f8d0)});  // Panel_GetDefaultPicture (EDI)
 }
 
+void XB_REGS3 XB_STDCALL Panel_SetPictureVisibleByName(const char* name, uint32_t, uint8_t* list, uint32_t visible) {
+    uint8_t* const picture = Panel_FindPicture(list, name);
+    uint8_t** const pictures = field<uint8_t**>(list, 0);
+    const uint32_t count = field<uint32_t>(list, 8);
+    int32_t index = -1;
+    for (uint32_t k = 0; k < count; ++k) {
+        if (pictures[k] == picture) {
+            index = int32_t(k);
+            break;
+        }
+    }
+    uint8_t* const shown = pictures[index];  // [-1] when not found, as in the original
+    method<FlagMethod>(shown, 0x34)(shown, visible);
+}
+
 PLATFORM_ASM_ENTRY(FE_SetDifficultyPicture_entry,
                    "pushl 4(%esp)\n"
                    "pushl %edi\n" PLATFORM_ASM_CALL(FE_SetDifficultyPicture) "addl $8, %esp\n"
@@ -566,6 +581,45 @@ void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align) {
         element[0x10] = flags | 0x40;
     else if (align == 2)
         element[0x10] = flags | 0x80;
+}
+
+namespace {
+
+// _ftol(delta * t + base) on the x87 (FILD, FMUL DWORD, FIADD, chopping FISTP through 64 bits).
+int32_t x87_int_mul_iadd_ftol(int32_t delta, float t, int32_t base) {
+    int64_t result;
+    uint16_t control, chop;
+    __asm__("fnstcw %0" : "=m"(control));
+    chop = static_cast<uint16_t>(control | 0x0c00);
+    __asm__("fildl %1\n\tfmuls %2\n\tfiaddl %3\n\tfldcw %4\n\tfistpll %0\n\tfldcw %5"
+            : "=m"(result)
+            : "m"(delta), "m"(t), "m"(base), "m"(chop), "m"(control)
+            : "st");
+    return static_cast<int32_t>(result);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(UIText_FadeColour_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIText_FadeColour) "addl $12, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL UIText_FadeColour(const uint8_t* block, uint8_t* out, uint32_t colour) {
+    const float t = field<float>(const_cast<uint8_t*>(block), 8) + g(0x0083eb24);
+    const int32_t c2 = int32_t((colour >> 16) & 0xff);
+    const int32_t b2 = int32_t(float(int32_t(block[2]) - c2) * t + float(c2));
+    const int32_t c1 = int32_t((colour >> 8) & 0xff);
+    const int32_t b1 = int32_t(float(int32_t(block[1]) - c1) * t + float(c1));
+    const int32_t c3 = int32_t(colour >> 24);
+    const int32_t b3 = int32_t(float(int32_t(block[3]) - c3) * t + float(c3));
+    const int32_t c0 = int32_t(colour & 0xff);
+    out[0] = uint8_t(x87_int_mul_iadd_ftol(int32_t(block[0]) - c0, t, c0));
+    out[1] = uint8_t(b1);
+    out[2] = uint8_t(b2);
+    out[3] = uint8_t(b3);
+    return out;
 }
 
 void XB_THISCALL UIElement_UpdateFade(uint8_t* element, float dt) {
@@ -769,6 +823,26 @@ void XB_CDECL UIQuad_SetVertexAlpha(uint8_t* quad, int32_t vertex, float alpha) 
 void XB_REGS3 XB_STDCALL UIQuad_SetVertexColor(int32_t vertex, uint32_t, uint8_t* quad, uint32_t color) {
     const uint32_t old = screen_quad(quad)->verts[vertex].color;
     nglSetQuadVertexColor(screen_quad(quad), vertex, (old & 0xff000000) | (color & 0x00ffffff));
+}
+
+void XB_REGS3 XB_STDCALL UIQuad_Fill(uint8_t* quad, uint32_t, const float* points, const float* uvs,
+                                     const uint32_t* colors, uint32_t depth) {
+    for (int32_t i = 0; i < 4; ++i) {
+        const uint8_t alpha = reinterpret_cast<const uint8_t*>(colors)[i * 4 + 3];
+        field<float>(quad, 0x30 + uint32_t(i) * 4) = float(int32_t(alpha)) * g(0x0083eb30);  // 1/255
+        const uint32_t* const src = reinterpret_cast<const uint32_t*>(points + i * 3);
+        uint32_t* const dst = reinterpret_cast<uint32_t*>(quad + i * 0xc);
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        nglSetQuadVertexPos(screen_quad(quad), i, points[i * 3], points[i * 3 + 1]);
+        nglSetQuadVertexUV(screen_quad(quad), i, uvs[i * 3], uvs[i * 3 + 1]);
+        nglSetQuadVertexColor(screen_quad(quad), i, colors[i]);
+    }
+    float z;
+    std::memcpy(&z, &depth, 4);
+    nglSetQuadZ(screen_quad(quad), z);
+    nglSetQuadFlags(screen_quad(quad), 0xc2);
 }
 
 namespace {
@@ -1076,6 +1150,25 @@ void XB_THISCALL UIPicture_SetAlpha(uint8_t* picture, float alpha) {
 void XB_THISCALL UIPicture_SetColorRGB(uint8_t* picture, uint32_t color) {
     for (uint32_t i = 0; i < quad_count(picture); ++i)
         for (int32_t v = 0; v < 4; ++v) UIQuad_SetVertexColor(v, 0, picture_quad(picture, i), color);
+}
+
+PLATFORM_ASM_ENTRY(UI_FindLocalizedTexture_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UI_FindLocalizedTexture) "addl $4, %esp\n"
+                   "ret")
+
+void* XB_CDECL UI_FindLocalizedTexture(const char* name) {
+    static constexpr uint32_t kPrefixes[4] = {0x0082d810, 0x0082d814, 0x0082d80c, 0x0082d808};  // de_ fr_ es_ it_
+    const uint32_t language = title_global<uint32_t>(0x0095f5dc) - 1;  // g_languageIndex
+    const uint32_t prefix = language <= 3 ? kPrefixes[language] : 0x0082dfeb;  // ""
+    char text[0x100];
+    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(text, text_at(0x0082d800), text_at(prefix),
+                                                                          name);  // _sprintf "%s%s"
+    using HashInit = uint8_t* XB_THISCALL(uint8_t*, const char*);
+    alignas(4) uint8_t hash[0x20];
+    title_function<HashInit>(0x00011060)(hash, text);  // HashStr_Init
+    if (void* const texture = nglFindTexture(reinterpret_cast<const char*>(hash))) return texture;
+    title_function<HashInit>(0x00011060)(hash, name);
+    return nglFindTexture(reinterpret_cast<const char*>(hash));
 }
 
 void XB_THISCALL UIWorldPicture_UpdateScreenPos(uint8_t* picture) {

@@ -1579,6 +1579,19 @@ void XB_CDECL CL_TogglePause(uint8_t* menu) {
     title_function<Activate>(field<uint32_t>(field<uint8_t*>(menu, 0), 0xc))(menu, 0);
 }
 
+// The manager's +0x0c is tail-called at the entry ESP (its sound keeps stack addresses), the screen word still on
+// the stack.
+PLATFORM_ASM_ENTRY(CL_PauseIntoFrontEnd_entry, "pushl %esi\n" PLATFORM_ASM_CALL(CL_PauseIntoFrontEnd) "addl $4, %esp\n"
+                                               "movl (%esi), %eax\n"
+                                               "movl %esi, %ecx\n"
+                                               "jmp *0xc(%eax)")
+
+void XB_CDECL CL_PauseIntoFrontEnd(uint8_t*) {
+    title_global<uint8_t>(0x0095f919) = 1;
+    Cvar_Set2(&title_global<const char>(0x0082ca00), const_cast<char*>(&title_global<const char>(0x0082e058)),
+              1);  // cl_paused 1
+}
+
 void XB_REGS3 XB_CDECL CL_PauseForDialog(uint32_t, uint8_t keep_running, uint8_t* dialog) {
     const int32_t mode = field<int32_t>(dialog, 0xc);
     const bool developer = cvar_integer(0x0093fcd8) != 0;

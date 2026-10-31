@@ -100,6 +100,10 @@ extern "C" void Panel_FindText_entry(void);
 // 0x00321650 (picture list in EAX: +0 array, +8 count; name on the stack, ret 4): the picture whose name (+0x3c
 // ScriptString) is `name`, else the shared default picture (0x00320170 with 0x0095f8d0).
 uint8_t* XB_REGS1 XB_STDCALL Panel_FindPicture(uint8_t* list, const char* name);
+// 0x003217b0 (name in EAX, list in ECX; dead: no callers): the found picture's index in the list, and that entry's
+// +0x34 (visible) tail-called ([-1] when not in the list).
+void XB_REGS3 XB_STDCALL Panel_SetPictureVisibleByName(const char* name, uint32_t unused_edx, uint8_t* list,
+                                                       uint32_t visible);
 // 0x00325d60 (menu in EDI; selection on the stack, ret 4): pictures difficulty0-2 of the list +0x34 shown (+0x34
 // (1)) for the selection, hidden for the others; then the alphas of +0x3c / +0x40 by the index +0x22 (0: 0 / 1.0,
 // 1: 1.0 / 1.0, else 1.0 / 0).
@@ -130,6 +134,10 @@ void XB_THISCALL UIElement_SetAlign(uint8_t* element, int16_t align);
 // 0x00315e70: advances a fade by dt / the fade time +0x0c when vtable slot +0x30 says the element is shown; a fade in
 // stops at 1.0 (clears flags 0x30), a fade out at 0 (clears flags 0x34).
 void XB_THISCALL UIElement_UpdateFade(uint8_t* element, float dt);
+// 0x00315cd0 (block in EAX, out in ESI, ret 4): each byte of the colour moved towards the block's (+0..+3) by the
+// block's +8 plus a constant (byte 0 on the x87); returns out.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL UIText_FadeColour(const uint8_t* block, uint8_t* out, uint32_t colour);
+extern "C" void UIText_FadeColour_entry(void);
 
 // UI quads: four base corner points (x, y, z; 12 bytes apart) at +0x00, four vertex alpha scales at +0x30 and the
 // screen quad (NglQuad: x, y, u, v, colour per vertex) at +0x40.
@@ -168,6 +176,10 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL UIQuad_SetVertexAlpha(uint8_t* quad, in
 extern "C" void UIQuad_SetVertexAlpha_entry(void);
 // 0x00317350: the vertex colour's RGB, keeping its alpha.
 void XB_REGS3 XB_STDCALL UIQuad_SetVertexColor(int32_t vertex, uint32_t unused_edx, uint8_t* quad, uint32_t color);
+// 0x003173e0 (quad in EAX, points in ECX, ret 0xc): per vertex the alpha (colour byte 3 / 255) into +0x30, the point
+// into +0x00, its position, UV (stride 3) and colour; then depth and flags 0xc2.
+void XB_REGS3 XB_STDCALL UIQuad_Fill(uint8_t* quad, uint32_t unused_edx, const float* points, const float* uvs,
+                                     const uint32_t* colors, uint32_t depth);
 // 0x00322bd0: out = (min x, min y, the word at 0x00922eb8) over the four vertices.
 void XB_REGS3 XB_CDECL UIQuad_GetVertexMin(float* out, uint32_t unused_edx, const uint8_t* quad);
 // 0x00322c70: out = (max x, max y, the word at 0x00922eb8) over the four vertices.
@@ -221,6 +233,10 @@ uint8_t* XB_REGS3 XB_CDECL UIWorldPicture_Construct(const char* name, uint32_t u
 void XB_THISCALL UIPicture_SetAlpha(uint8_t* picture, float alpha);
 // 0x00321940: every vertex's RGB, keeping its alpha.
 void XB_THISCALL UIPicture_SetColorRGB(uint8_t* picture, uint32_t color);
+// 0x00322b30 (name in ESI): the texture named with the language prefix (de_, fr_, es_, it_ for languages 1-4), else
+// the plain name's (nglFindTexture of a HashStr).
+extern "C" PLATFORM_HIDDEN void* XB_CDECL UI_FindLocalizedTexture(const char* name);
+extern "C" void UI_FindLocalizedTexture_entry(void);
 // 0x0032c190: the world position projected (nglProjectPointCopy) and handed to vtable +0x8c.
 void XB_THISCALL UIWorldPicture_UpdateScreenPos(uint8_t* picture);
 // 0x0032c200 / 0x0032c430 (picture in EAX; out on the stack, ret 4; keep XMM6/XMM7, SetQuadCorners relies on
