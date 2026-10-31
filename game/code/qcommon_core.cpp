@@ -4775,4 +4775,263 @@ uint8_t* XB_THISCALL std_exception_CtorString(uint8_t* self, const uint8_t* mess
     return self;
 }
 
+// --- qcommon push 7 (low): vector<string>, the 8-byte list and dword vector instances ---
+
+namespace {
+
+// Element counts as MSVC computes them: the byte difference divided (signed, truncating) by the size.
+uint32_t string_count(const uint8_t* first, const uint8_t* last) {
+    return static_cast<uint32_t>(static_cast<int32_t>(addr32(last) - addr32(first)) / 28);
+}
+
+uint32_t dword_count(const void* first, const void* last) {
+    return static_cast<uint32_t>(static_cast<int32_t>(addr32(last) - addr32(first)) >> 2);
+}
+
+uint32_t* dword_ptr(uint32_t address) { return reinterpret_cast<uint32_t*>(uintptr_t{address}); }
+
+}  // namespace
+
+void XB_CDECL std_vector_Xlen_2() { std_vector_Xlen(); }  // the same length_error throw as 0x0017ce30
+
+void XB_REGS3 XB_CDECL std_string_UninitializedFillN(uint32_t, uint32_t, const uint8_t* value, uint8_t* dest,
+                                                     uint32_t count) {
+    // count copies of *value constructed at dest. The title's catch (destroy what was built, rethrow) needs a
+    // failing Z_Malloc, which never happens.
+    uint8_t* to = dest;
+    for (uint32_t left = count; left; --left, to += 0x1c) std_string_ConstructCopy(to, value);
+}
+
+uint8_t* XB_REGS3 XB_CDECL std_string_UninitializedCopy(uint32_t, uint32_t, const uint8_t* last, const uint8_t* first,
+                                                        uint8_t* dest) {
+    const uint8_t* from = first;
+    uint8_t* to = dest;
+    for (; from != last; from += 0x1c, to += 0x1c) std_string_ConstructCopy(to, from);
+    return to;
+}
+
+uint8_t* XB_REGS3 XB_STDCALL std_vector_string_Ucopy(uint32_t, uint8_t* dest, uint8_t*, const uint8_t* first,
+                                                     const uint8_t* last) {
+    return std_string_UninitializedCopy(0, 0, last, first, dest);
+}
+
+PLATFORM_ASM_ENTRY(std_vector_string_Ufill_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(std_vector_string_Ufill) "addl $12, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL std_vector_string_Ufill(uint8_t* dest, uint32_t count, const uint8_t* value) {
+    std_string_UninitializedFillN(0, 0, value, dest, count);
+    return dest + count * 0x1c;
+}
+
+PLATFORM_ASM_ENTRY(std_string_FillRange_entry,
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(std_string_FillRange) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL std_string_FillRange(uint8_t* first, uint8_t* last, const uint8_t* value) {
+    for (uint8_t* s = first; s != last; s += 0x1c) std_string_AssignSubstr(s, value, 0, 0xffffffffu);
+}
+
+PLATFORM_ASM_ENTRY(std_string_CopyBackward_entry,
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(std_string_CopyBackward) "addl $12, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL std_string_CopyBackward(const uint8_t* last, uint8_t* dest, const uint8_t* first) {
+    const uint8_t* from = last;
+    uint8_t* to = dest;
+    while (from != first) {
+        from -= 0x1c;
+        to -= 0x1c;
+        std_string_AssignSubstr(to, from, 0, 0xffffffffu);
+    }
+    return to;
+}
+
+void XB_STDCALL std_vector_string_InsertN(uint8_t* vector, uint8_t* where, uint32_t count, const uint8_t* value) {
+    // MSVC 7.1 vector<string>::_Insert_n: the value copied first, growth by half (max 0x09249249). No catch
+    // blocks in C (Z_Malloc never throws).
+    alignas(4) uint8_t copy[0x1c];
+    string_init_empty(copy);
+    std_string_AssignSubstr(copy, value, 0, 0xffffffffu);
+    uint8_t* const first = pointer_at<uint8_t>(vector, 4);
+    uint32_t capacity = first ? string_count(first, pointer_at<uint8_t>(vector, 0xc)) : 0;
+    const auto size = [vector, first] { return first ? string_count(first, pointer_at<uint8_t>(vector, 8)) : 0; };
+    if (count) {
+        if (0x09249249u - size() < count) std_vector_Xlen_2();
+        if (capacity < size() + count) {
+            const uint32_t half = capacity >> 1;
+            capacity = 0x09249249u - half < capacity ? 0 : capacity + half;
+            if (capacity < size() + count) {
+                capacity = static_cast<uint32_t>(std_vector_string_Size(0, 0, reinterpret_cast<const uint32_t*>(vector))) +
+                           count;
+            }
+            const uint32_t bytes = capacity * 0x1c;
+            uint8_t* const data = Z_Malloc(bytes);
+            uint8_t* end = std_vector_string_Ucopy(0, data, vector, pointer_at<uint8_t>(vector, 4), where);
+            end = std_vector_string_Ufill(end, count, copy);
+            std_vector_string_Ucopy(0, end, vector, where, pointer_at<uint8_t>(vector, 8));
+            uint8_t* const old = pointer_at<uint8_t>(vector, 4);
+            const uint32_t total = count + (old ? string_count(old, pointer_at<uint8_t>(vector, 8)) : 0);
+            if (old) {
+                std_string_DestroyRange(old, pointer_at<uint8_t>(vector, 8));
+                Z_Free(pointer_at<uint8_t>(vector, 4));
+            }
+            word_at(vector, 0xc) = addr32(data) + bytes;
+            word_at(vector, 8) = addr32(data) + total * 0x1c;
+            word_at(vector, 4) = addr32(data);
+        } else {
+            uint8_t* const last = pointer_at<uint8_t>(vector, 8);
+            const uint32_t bytes = count * 0x1c;
+            if (string_count(where, last) < count) {
+                std_string_UninitializedCopy(0, 0, last, where, where + bytes);
+                std_vector_string_Ufill(pointer_at<uint8_t>(vector, 8),
+                                        count - string_count(where, pointer_at<uint8_t>(vector, 8)), copy);
+                word_at(vector, 8) = word_at(vector, 8) + bytes;
+                std_string_FillRange(where, pointer_at<uint8_t>(vector, 8) - bytes, copy);
+            } else {
+                uint8_t* const source = last - bytes;
+                word_at(vector, 8) = addr32(std_string_UninitializedCopy(0, 0, last, source, last));
+                std_string_CopyBackward(source, last, where);
+                std_string_FillRange(where, where + bytes, copy);
+            }
+        }
+    }
+    if (word_at(copy, 0x18) >= 0x10) Z_Free(pointer_at<uint8_t>(copy, 4));
+}
+
+PLATFORM_ASM_ENTRY(std_vector_string_InsertOne_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(std_vector_string_InsertOne) "addl $16, %esp\n"
+                   "ret $12")
+
+uint32_t* XB_CDECL std_vector_string_InsertOne(uint8_t* vector, uint32_t* out, uint8_t* where, const uint8_t* value) {
+    // insert(where, value): *out = the inserted element (by index: the buffer may move).
+    uint8_t* const first = pointer_at<uint8_t>(vector, 4);
+    uint32_t index = 0;
+    if (first && string_count(first, pointer_at<uint8_t>(vector, 8))) index = string_count(first, where);
+    std_vector_string_InsertN(vector, where, 1, value);
+    *out = word_at(vector, 4) + index * 0x1c;
+    return out;
+}
+
+void XB_REGS3 XB_CDECL std_vector_string_PushBack(uint8_t* vector, uint32_t, const uint8_t* value) {
+    uint8_t* const first = pointer_at<uint8_t>(vector, 4);
+    const uint32_t size = first ? string_count(first, pointer_at<uint8_t>(vector, 8)) : 0;
+    if (first && size < string_count(first, pointer_at<uint8_t>(vector, 0xc))) {
+        uint8_t* const last = pointer_at<uint8_t>(vector, 8);
+        std_string_UninitializedFillN(0, 0, value, last, 1);
+        word_at(vector, 8) = addr32(last + 0x1c);
+        return;
+    }
+    uint32_t out = addr32(value);  // the original's out slot is its pushed ECX
+    std_vector_string_InsertOne(vector, &out, pointer_at<uint8_t>(vector, 8), value);
+}
+
+void XB_STDCALL std_list_InsertRange8_EH(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last, uint32_t) {
+    // insert(where, first, last) of 8-byte values; the title's catch erases the inserted nodes and rethrows.
+    for (uint8_t* node = first; node != last; node = pointer_at<uint8_t>(node, 0)) {
+        std_list_Insert8(reinterpret_cast<const uint32_t*>(node + 8), list, where);
+    }
+}
+
+void XB_STDCALL std_list_InsertRange8(uint8_t* list, uint8_t* where, uint8_t* first, uint8_t* last) {
+    std_list_InsertRange8_EH(list, where, first, last, addr32(last));
+}
+
+void XB_REGS3 XB_STDCALL std_vector_InsertN4_8(uint32_t, Vector4* vector, uint32_t count, uint32_t* where,
+                                               const uint32_t* value_ptr) {
+    // std_vector_InsertN4 for the Z_Malloc'd instance (no allocator argument; the fill loops inline).
+    const uint32_t value = *value_ptr;
+    uint32_t* const first = vector->first;
+    const uint32_t capacity = first ? dword_count(first, vector->end) : 0;
+    if (!count) return;
+    const auto size = [vector, first] { return first ? dword_count(first, vector->last) : 0; };
+    if (0x3fffffffu - size() < count) std_vector_Xlen_2();
+    if (capacity < size() + count) {
+        const uint32_t half = capacity >> 1;
+        uint32_t new_capacity = 0x3fffffffu - half < capacity ? 0 : capacity + half;
+        if (new_capacity < size() + count) new_capacity = size() + count;
+        const uint32_t bytes = new_capacity << 2;
+        uint32_t* const data = reinterpret_cast<uint32_t*>(Z_Malloc(bytes));
+        uint32_t* middle = std_UninitializedCopy4_3(0, vector->first, data, addr32(vector), where);
+        std_UninitializedFillN4_2(0, &value, middle, count);
+        middle = dword_ptr(addr32(middle) + count * 4);
+        std_UninitializedCopy4_3(0, where, middle, addr32(vector), vector->last);
+        uint32_t* const old = vector->first;
+        const uint32_t total = count + (old ? dword_count(old, vector->last) : 0);
+        if (old) Z_Free(reinterpret_cast<uint8_t*>(old));
+        vector->end = dword_ptr(addr32(data) + bytes);
+        vector->last = dword_ptr(addr32(data) + total * 4);
+        vector->first = data;
+        return;
+    }
+    uint32_t* const last = vector->last;
+    const uint32_t bytes = count * 4;
+    if (dword_count(where, last) < count) {
+        std_UninitializedCopy4_2(0, last, where, dword_ptr(addr32(where) + bytes));
+        std_UninitializedFillN4_2(0, &value, vector->last, count - dword_count(where, vector->last));
+        vector->last = dword_ptr(addr32(vector->last) + bytes);
+        uint32_t* const stop = dword_ptr(addr32(vector->last) - bytes);
+        for (uint32_t* p = where; p != stop; ++p) *p = value;
+        return;
+    }
+    uint32_t* const source = dword_ptr(addr32(last) - bytes);
+    vector->last = std_UninitializedCopy4_2(0, last, source, last);
+    std_CopyBackward4_2(last, where, source);
+    uint32_t* const stop = dword_ptr(addr32(where) + bytes);
+    for (uint32_t* p = where; p != stop; ++p) *p = value;
+}
+
+void XB_REGS3 XB_STDCALL std_vector_Resize4_8(uint32_t, Vector4* vector, uint32_t size, uint32_t value) {
+    uint32_t* const first = vector->first;
+    const uint32_t old_size = first ? dword_count(first, vector->last) : 0;
+    if (old_size < size) {
+        std_vector_InsertN4_8(0, vector, size - old_size, vector->last, &value);
+        return;
+    }
+    if (first && size < dword_count(first, vector->last)) {
+        uint32_t out = 0;  // the original's out is its value argument slot
+        std_vector_Erase4_2(&out, reinterpret_cast<uint8_t*>(vector), first + size, vector->last);
+    }
+}
+
+void XB_REGS2 XB_STDCALL std_vector_ClearAndPush4(const uint32_t* value_ptr, Vector4* vector, uint32_t count) {
+    // assign(count, value): the elements erased (inline), then count copies inserted at the start.
+    uint32_t value = *value_ptr;
+    if (vector->first != vector->last) vector->last = vector->first;
+    std_vector_InsertN4_8(0, vector, count, vector->first, &value);
+}
+
+void XB_THISCALL HashMap_CopyFrom_7(const HashMap* source, HashMap* map) {
+    // The Z_Malloc'd hash_map instance's operator= with the operands the other way round (source in ECX):
+    // hash_map_copy_from's steps on the 8-byte list and dword vector instances above.
+    const uint32_t count = source->buckets ? dword_count(source->buckets, source->buckets_last) : 0;
+    std_vector_Resize4_8(0, reinterpret_cast<Vector4*>(&map->vector_allocator), count, addr32(map->head));
+    map->mask = source->mask;
+    map->max_index = source->max_index;
+    std_list_Clear(reinterpret_cast<uint8_t*>(&map->list_allocator));
+    std_list_InsertRange8(reinterpret_cast<uint8_t*>(&map->list_allocator), reinterpret_cast<uint8_t*>(map->head),
+                          reinterpret_cast<uint8_t*>(source->head->next), reinterpret_cast<uint8_t*>(source->head));
+    map->traits = source->traits;
+    HashNode* copy = map->head->next;
+    HashNode* node = source->head->next;
+    for (uint32_t i = 0; map->buckets && i < dword_count(map->buckets, map->buckets_last);) {
+        if (node == source->buckets[i]) {
+            map->buckets[i] = copy;
+            ++i;
+        } else {
+            copy = copy->next;
+            node = node->next;
+        }
+    }
+}
+
 }  // namespace game
