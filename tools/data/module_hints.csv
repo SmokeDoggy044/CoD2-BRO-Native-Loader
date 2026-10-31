@@ -472,3 +472,7 @@ address,module,source,evidence
 002cfc70,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 low-half report)"
 002cfcb0,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 low-half report)"
 002fbff0,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 low-half report)"
+002ca590,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 high-half report)"
+002ca5c0,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 high-half report)"
+002ca5d0,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 high-half report)"
+0029e380,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 high-half report)"

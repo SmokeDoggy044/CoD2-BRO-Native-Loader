@@ -9133,6 +9133,7 @@
 0029df60 FxSoundComponent_Create
 0029e1c0 FX_CollectTriggers
 0029e2d0 RcString_Reserve
+0029e380 Cvar_SetFromCvar_f
 0029e3d0 Cvar_Set_f
 0029e4d0 Cvar_Toggle_f
 0029e6e0 Cvar_Set
@@ -9738,6 +9739,9 @@
 002ca1a0 SV_EntityVisibleFromPoint
 002ca360 SV_CheckAutosave
 002ca430 Loc_LoadStringDir_r
+002ca590 FUN_002ca590
+002ca5c0 FUN_002ca5c0
+002ca5d0 FUN_002ca5d0
 002ca5e0 Loc_ClearStrings
 002ca650 FUN_002ca650
 002ca660 Loc_RegisterFlag

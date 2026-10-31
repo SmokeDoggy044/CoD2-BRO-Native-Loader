@@ -972,4 +972,103 @@ extern "C" void Loc_BeginStringFile_entry(void);
 // names starting with '.' skipped), counting them in 0x00929cd8.
 void XB_CDECL Loc_LoadStringDir_r(const char* extension, const char* dir, uint8_t* out);
 
+// Localized string file loaders (dead: Loc_LoadStrings and Loc_ParseStringBuffer have no references). Parser
+// state (0x0095fe70): +0 end marker seen, +4 current reference, +0x20 last English text, +0x3c file base name,
+// +0x58 language folder, +0x74 folder is "english", +0x78 map<string, entry>, +0x84 mark alternates,
+// +0x88 vector<string> of flags, +0x98 set<string> flag -> bit.
+// 0x002c5400 (key in ECX; callee pops 12): the entry "<file>_<key>" gets `text` (+0x28) and, when +0x84, "[text]"
+// as its alternate (+0x44); "#same" in a foreign file copies the last English text. Own-language (or English
+// folder) texts also become the last English text.
+void XB_THISCALL Loc_AddStringEntry(const char* key, uint8_t* state, const char* text, int32_t own_language);
+// 0x002c5590 (callee pops 8): "REFERENCE name": an empty entry "<file>_<name>" when missing; current reference
+// = name.
+void XB_STDCALL Loc_BeginReference(uint8_t* state, const char* name);
+// 0x002ca660 (flag in EAX; callee pops 8): the flag's bit (a new one per flag name, 1 << (count - 1)) or'ed into
+// entry "<file>_<name>" +0x60. Returns that node (the map head when missing).
+uint8_t* XB_REGS1 XB_STDCALL Loc_RegisterFlag(const char* flag, uint8_t* state, const char* name);
+// 0x002d0080 (state in EBX; callee pops 4): one line of a .str file (VERSION, CONFIG, FILENOTES, NOTES,
+// REFERENCE, FLAGS, ENDMARKER, LANG_<language>); an error text or null.
+extern "C" PLATFORM_HIDDEN const char* XB_CDECL Loc_ParseStringFile(uint8_t* state, char* line);
+extern "C" void Loc_ParseStringFile_entry(void);
+// 0x002d8850 (path in ECX): reads and parses a string file; an error text or null (null when missing and quiet).
+const char* XB_REGS3 XB_CDECL Loc_LoadStringFile(uint32_t unused_eax, uint32_t unused_edx, const char* path,
+                                                 uint32_t value, int32_t quiet);
+// 0x002d8960: parses `text` as the file `path`; the error text, the end marker flag (1) or the truncation text.
+const char* XB_CDECL Loc_ParseStringBuffer(const char* path, const char* text);
+// 0x002e0440 (path in EAX, value in EBX): Loc_LoadStringFile, then quietly the ".ste" twin on success.
+extern "C" PLATFORM_HIDDEN const char* XB_CDECL Loc_LoadStringFileOrSte(const char* path, uint32_t value);
+extern "C" void Loc_LoadStringFileOrSte_entry(void);
+// 0x002e4800: every localizedstrings/<language>/*.str file loaded (after Loc_ClearStrings); the first error.
+const char* XB_CDECL Loc_LoadStrings(const char* language, uint32_t value);
+
+// 0x0029bdd0 (holder in EDI): a shared RcString {length, extra references, text, capacity} copied into a new one
+// of its own (the old one's reference dropped, freed below zero). Dead with RcString_Reserve (they only call
+// each other).
+extern "C" PLATFORM_HIDDEN void XB_CDECL RcString_MakeUnique(uint8_t** holder);
+extern "C" void RcString_MakeUnique_entry(void);
+// 0x0029e2d0: capacity for `size` bytes (1, else a multiple of 20) in a new Heap_Alloc16 buffer, the text kept
+// when `keep`. (0x0029e380 after it is a separate function: the "setfromcvar" command.)
+void XB_THISCALL RcString_Reserve(uint8_t** holder, int32_t size, uint8_t keep);
+// 0x002c9fe0: com_expectedhunkusage = the value after map_name in hunkusage.dat, else "-1".
+void XB_CDECL Com_ReadHunkUsage(const char* map_name);
+// 0x002b8dc0 (fields in EDX): every field {name, offset, type} found in the info map (StringMap_Find at +8)
+// parsed into out: 0 callback, 1 char[256], 2-3 char[128], 4 int, 5 bool, 6 float, 7 seconds to msec;
+// types 8..custom_types-1 through parse_custom (0 stops: returns 0), others __break. 1 when all were walked.
+uint32_t XB_REGS2 XB_CDECL Info_ParseFieldsToStruct(uint32_t unused_eax, const uint8_t* fields, uint8_t* out,
+                                                    int32_t count, uint8_t* map, int32_t custom_types,
+                                                    uint32_t parse_custom, uint32_t parse_callback);
+// 0x00253500: "take <what> [amount]" (cheats, alive): health (down to 1), weapons (all removed, ammo and clips
+// zeroed), ammo (current weapon's, or all), allammo; "all" = health, weapons and ammo.
+void XB_CDECL Cmd_Take_f(uint8_t* ent);
+
+// 0x0030c300: 1 when the save device has a "Profiles" entry (Save_EnumSaveGames into 100 entries of 0x4c bytes).
+// (Its body runs on at 0x0030c323, which Ghidra splits off as FUN_0030c323.)
+uint8_t XB_CDECL Save_ProfilesDirExists();
+// 0x0031ac10: the blocks a profile save still needs (at least 1): clusters for 0x400 bytes * 4 + 7 cluster sizes
+// minus the free space.
+int32_t XB_CDECL Save_GetBlocksNeeded();
+// 0x0031acf0 (self in EAX): the save request (+4) for "Profiles": four zeroed profile buffers (+0x11c0,
+// Heap_AllocAligned once) named <save path>Profiles, <save path>Profiles1..3; read flags (+0x11e7) cleared.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileSave_PrepareRequest(uint8_t* self);
+extern "C" void ProfileSave_PrepareRequest_entry(void);
+// 0x00330640 (self in EDI): vtable 0x008287dc, save request, four default profiles (+0x2a8, 0x3cc each), Save_Init,
+// empty path prefix, the save listener, name "Alex" (+0x11d0). Returns self. Boot only (Com_Init).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ProfileSave_Construct(uint8_t* self);
+extern "C" void ProfileSave_Construct_entry(void);
+// 0x0033a490 (callee pops 4): the four profile buffers copied to the profiles (+0x28c) and version-checked
+// (+0x11e7), then the profile menu's (0x0095f8f8, state 0xf) or autosave menu's (0x0095f8fc) OnProfilesRead.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileSave_OnProfilesRead(uint8_t* self, uint32_t entry_ebx,
+                                                                    uint32_t entry_edi);
+extern "C" void ProfileSave_OnProfilesRead_entry(void);
+// 0x0033a530 (vtable 0x008287dc slot; self in ECX, operation on the stack): the save operation's result to the
+// profile or autosave menu: failure dialogs, or read (ProfileSave_OnProfilesRead), save, delete, format success.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation,
+                                                                      uint32_t entry_ebx, uint32_t entry_edi);
+extern "C" void ProfileSave_OnSaveOpComplete_entry(void);
+// 0x002d03c0: msg split at the markers 0x14/0x15/0x16, each segment translated (Loc_TranslateString) and
+// substituted into the previous "%s"; one of two rotating 256-byte buffers (0x0098bf58), null when a lookup fails.
+char* XB_CDECL SEH_LocalizeTextMessage(const char* msg, const char* context, int32_t mode);
+// 0x002ff3e0: small-block heap 0x0095f4a4 (pools 0x20 x 30000, 0x40 x 2000, 0x80 x 100) and the zone heap
+// 0x0095f4a0 (Heap_CreateFromZone); shutdown callback 0x002fd6e0 registered. Boot only (Sys_Main).
+void XB_CDECL Sys_InitHeaps();
+// 0x002cede0 (m in ECX, 16-aligned rows of four): Gram-Schmidt by cross products (packed SSE, every lane).
+void XB_THISCALL Matrix_Orthonormalize(float* m);
+// 0x002a2c80 (dir in EAX, point in EBX): Q3's RotatePointAroundVector (degrees).
+extern "C" PLATFORM_HIDDEN void XB_CDECL RotatePointAroundVector(const float* dir, const float* point, float* dst,
+                                                                 float degrees);
+extern "C" void RotatePointAroundVector_entry(void);
+// 0x002963f0 (stdcall): the zone's string table for the current language read into `table` (one stream memory
+// slot), relocated (+0x18) and stored in tables[index + 1].
+void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index);
+
+// 0x00224b60: the XAPI main (called by mainXapiStartup): allocator hooks, LiveMgr_Construct, Sys_ReadLaunchInfo,
+// sound/renderer/effects/heap setup, Com_Init(launch data), the Live UI, then IN_Frame / Live_Frame / Com_Frame
+// forever. Not in kFunctions: it never returns (a test could not finish). Boot only.
+void XB_CDECL Sys_Main();
+// 0x002a7490: Q3's Com_Init, BRO form: events, cvars, command line, command buffers, file system, localization,
+// the managers (profiles, paks, stream banks, resources, sound, zones, effects, scenes, path nodes, checkpoints,
+// physics, world trees), menus and HUD, the global zone (sp\global.cod) loaded at once, the "Animation" zone
+// started, language/bro/autoexec configs, the com_ cvars and commands, SV_Init, CL_Init. Boot only.
+void XB_CDECL Com_Init(uint8_t* launch);
+
 }  // namespace game

@@ -14313,3 +14313,4 @@ address,name,kind,confidence,evidence
 000d1c40,Save_BeginDelete,function,high,"op state 3: mount, XCreateSaveGame, XDeleteSaveGame; qcommon push 8"
 000d1ef0,Save_AsyncWriteCallback,function,high,"async write completion callback (0x00920eb0); qcommon push 8"
 000d1f90,Save_AsyncReadCallback,function,high,"async read completion callback; qcommon push 8"
+0029e380,Cvar_SetFromCvar_f,function,high,"setfromcvar command (registered 0x002a23ec): Cvar_Set2(argv1, value of cvar argv2, 0); qcommon push 8"

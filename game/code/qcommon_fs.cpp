@@ -4,7 +4,9 @@
 #include <cstring>
 
 #include "cl.h"
+#include "cg_view.h"
 #include "cm.h"
+#include "fe.h"
 #include "fx.h"
 #include "lanes.h"
 #include "movie.h"
@@ -6007,6 +6009,1320 @@ void XB_CDECL Loc_LoadStringDir_r(const char* extension, const char* dir, uint8_
     }
     free_list(files);
     free_list(dirs);
+}
+
+// ---- Localized string file loaders (push 8). The whole chain hangs off Loc_LoadStrings and
+// Loc_ParseStringBuffer, which have no callers, no stored pointer and no immediate in the XBE: dead code (the
+// title reads its localized strings from the zones instead). Kept as C, untested.
+
+namespace {
+
+constexpr uint32_t kLocFileState = 0x0095fe70;  // the string file parser's state (Loc_ResetStringFileState)
+
+// A std::string local in its empty state (capacity 15, size 0).
+struct LocTempString {
+    alignas(4) uint8_t s[0x1c] = {};
+    LocTempString() {
+        pk<uint32_t>(s, 0x18) = 0xf;
+        pk<uint32_t>(s, 0x14) = 0;
+        s[4] = 0;
+    }
+    void assign(const char* text) { std_string_AssignN(s, text, static_cast<uint32_t>(std::strlen(text))); }
+    void tidy() {
+        if (pk<uint32_t>(s, 0x18) >= 0x10) Z_Free(pk_ptr(s, 4));
+    }
+};
+
+// va("%s_%s", the file's base name (state +0x3c), name).
+char* loc_scoped_name(uint8_t* state, const char* name) {
+    const uint32_t args[3] = {0x0082d7d0, u32(std_string_c_str(state + 0x3c)), u32(name)};
+    return va(args);
+}
+
+int32_t crt_stricmp(const char* a, const char* b) {
+    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(a, b);
+}
+
+}  // namespace
+
+void XB_THISCALL Loc_AddStringEntry(const char* key, uint8_t* state, const char* text, int32_t own_language) {
+    uint8_t* node = nullptr;  // the original uses the state argument's slot
+    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, key), &node);
+    if (node == pk_ptr(state, 0x7c)) return;
+    uint8_t* const value = node + 0x28;
+    if (!own_language && !pk<uint32_t>(state, 0x74)) {
+        if (crt_stricmp(text, tstr(0x00833278))) {  // "#same"
+            std_string_AssignCStr(0, text, value);
+            return;
+        }
+        // "#same": the text of the previous (English) entry, marked "[#same]" in the alternate text.
+        std_string_AssignSubstr(value, state + 0x20, 0, 0xffffffff);
+        if (!pk<uint32_t>(state, 0x84)) return;
+        std_string_AssignCStr(0, tstr(0x00833284), value + 0x1c);  // "["
+        std_string_AppendCStr(0, 0, tstr(0x00833278), value + 0x1c);
+        std_string_AppendCStr(0, 0, tstr(0x00833280), value + 0x1c);  // "]"
+        return;
+    }
+    std_string_AssignN(value, text, static_cast<uint32_t>(std::strlen(text)));
+    if (pk<uint32_t>(state, 0x84)) {
+        std_string_AssignN(value + 0x1c, tstr(0x00833284), 1);  // "[" text "]"
+        std_string_AppendN(static_cast<uint32_t>(std::strlen(text)), value + 0x1c, text);
+        std_string_AppendN(1, value + 0x1c, tstr(0x00833280));
+    }
+    std_string_AssignN(state + 0x20, text, static_cast<uint32_t>(std::strlen(text)));
+}
+
+void XB_STDCALL Loc_BeginReference(uint8_t* state, const char* name) {
+    uint8_t* node = nullptr;  // the original uses the state argument's slot
+    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, name), &node);
+    if (node == pk_ptr(state, 0x7c)) {
+        // A new entry: {string, string, int 0} copied in through operator[].
+        LocTempString entry_text;
+        LocTempString entry_alt;
+        alignas(4) uint8_t entry[0x3c] = {};
+        std::memcpy(entry, entry_text.s, 0x1c);
+        std::memcpy(entry + 0x1c, entry_alt.s, 0x1c);
+        pk<uint32_t>(entry, 0x38) = 0;
+        LocTempString key;
+        key.assign(loc_scoped_name(state, name));
+        uint8_t* const value = std_map_string_Subscript(key.s, state + 0x78);
+        std_string_AssignSubstr(value, entry, 0, 0xffffffff);
+        std_string_AssignSubstr(value + 0x1c, entry + 0x1c, 0, 0xffffffff);
+        pk<uint32_t>(value, 0x38) = pk<uint32_t>(entry, 0x38);
+        key.tidy();
+        LocEntry_Dtor(entry);
+    }
+    std_string_AssignN(state + 4, name, static_cast<uint32_t>(std::strlen(name)));
+}
+
+uint8_t* XB_REGS1 XB_STDCALL Loc_RegisterFlag(const char* flag, uint8_t* state, const char* name) {
+    uint32_t bit = Loc_FindFlagBit(0, flag, state);
+    if (!bit) {
+        LocTempString text;
+        text.assign(flag);
+        TitleRegs regs{};
+        regs.eax = u32(state + 0x88);
+        regs.ecx = u32(text.s);
+        qc_call_regs(0x0001f370, &regs, 0, nullptr);  // std_vector_string_PushBack (vector EAX, value ECX)
+        text.tidy();
+        int32_t count = 0;
+        if (pk_ptr(state, 0x8c))
+            count = static_cast<int32_t>(pk<uint32_t>(state, 0x90) - pk<uint32_t>(state, 0x8c)) / 0x1c;
+        bit = 1u << ((count - 1) & 31);
+        LocTempString key;
+        key.assign(flag);
+        pk<uint32_t>(std_set_string_Subscript(key.s, state + 0x98), 0) = bit;
+        key.tidy();
+    }
+    uint8_t* node = nullptr;  // the original uses the name argument's slot
+    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, name), &node);
+    if (node != pk_ptr(state, 0x7c)) pk<uint32_t>(node, 0x60) |= bit;
+    return node;
+}
+
+// Loc_ParseStringFile (state in EBX; line on the stack, callee pops it).
+PLATFORM_ASM_ENTRY(Loc_ParseStringFile_entry,
+                   "pushl 4(%esp)\n pushl %ebx\n" PLATFORM_ASM_CALL(Loc_ParseStringFile) "addl $8, %esp\n"
+                   "ret $4")
+
+const char* XB_CDECL Loc_ParseStringFile(uint8_t* state, char* line) {
+    if (!line) return nullptr;
+    char* cursor = line;  // the original advances its argument slot
+    if (Loc_MatchKeyword(tstr(0x008333a0), &cursor)) {  // "VERSION"
+        const int32_t version = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(  // _atol
+            Loc_TrimQuotedValue(cursor));
+        if (version == 1) return nullptr;
+        const uint32_t args[3] = {0x00833370, static_cast<uint32_t>(version), 1};  // "Unexpected version number"
+        return va(args);
+    }
+    if (Loc_MatchKeyword(tstr(0x00833368), &cursor)) return nullptr;  // "CONFIG"
+    if (Loc_MatchKeyword(tstr(0x0083335c), &cursor)) return nullptr;  // "FILENOTES"
+    if (Loc_MatchKeyword(tstr(0x00833354), &cursor)) return nullptr;  // "NOTES"
+    if (Loc_MatchKeyword(tstr(0x00833348), &cursor)) {               // "REFERENCE"
+        Loc_BeginReference(state, Loc_TrimQuotedValue(cursor));
+        return nullptr;
+    }
+    const auto strtok = title_function<char* XB_CDECL(char*, const char*)>(0x001eeea4);
+    if (Loc_MatchKeyword(tstr(0x00833340), &cursor)) {  // "FLAGS"
+        const char* const reference = std_string_c_str(state + 4);
+        if (!*reference) return tstr(0x00833314);  // "Error parsing file: Unexpected "FLAGS""
+        char buf[0x400];
+        std::memset(buf, 0, sizeof(buf));
+        crt_strncpy(buf, cursor, 0x3ff);
+        for (char* flag = strtok(buf, tstr(0x0083333c)); flag; flag = strtok(nullptr, tstr(0x0083333c))) {  // " \t"
+            title_function<char* XB_CDECL(char*)>(0x001fa3d5)(flag);  // _strupr
+            Loc_RegisterFlag(flag, state, reference);
+        }
+        return nullptr;
+    }
+    if (Loc_MatchKeyword(tstr(0x00833308), &cursor)) {  // "ENDMARKER"
+        pk<uint32_t>(state, 0) = 1;
+        return nullptr;
+    }
+    const char* text = cursor;
+    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(tstr(0x00833300), text, 5)) {
+        const uint32_t args[2] = {0x00833288, u32(text)};  // "Unknown keyword at linestart"
+        return va(args);
+    }
+    const char* const reference = std_string_c_str(state + 4);
+    if (!*reference) return tstr(0x008332ac);  // "Error parsing file: Unexpected "LANG_""
+    text += 5;
+    const char* end = text;
+    while (*end && *end != ' ' && *end != '\t') ++end;
+    char language[0x400];
+    std::memset(language, 0, sizeof(language));
+    uint32_t length = static_cast<uint32_t>(end - text);
+    if (length > 0x3ff) length = 0x3ff;
+    crt_strncpy(language, text, length);
+    text += std::strlen(language);
+    const char* const value = Loc_ReplaceNewlineEscapes(Loc_TrimQuotedValue(text));
+    if (pk<uint32_t>(state, 0x74)) {
+        Loc_AddStringEntry(reference, state, value, 0);
+        return nullptr;
+    }
+    const int32_t english = crt_stricmp(language, tstr(0x00833518)) == 0 ? 1 : 0;  // "english"
+    if (!english && crt_stricmp(std_string_c_str(state + 0x58), language)) {
+        const uint32_t args[3] = {0x008332d4, u32(language), u32(std_string_c_str(state + 0x58))};
+        const char* const error = va(args);  // "Language "%s" found when expecting "%s"!"
+        if (error) return error;
+    }
+    Loc_AddStringEntry(reference, state, value, english);
+    return nullptr;
+}
+
+// The parse loop over `cursor` with the state at 0x0095fe70: the first error, else null.
+namespace {
+const char* loc_parse_lines(const char** cursor) {
+    uint8_t* const state = &title_global<uint8_t>(kLocFileState);
+    char line[0x4000];
+    const char* error = nullptr;
+    while (!error) {
+        if (!Loc_ReadLine(cursor, line)) return nullptr;
+        if (std::strlen(line)) error = Loc_ParseStringFile(state, line);
+    }
+    return error;
+}
+}  // namespace
+
+const char* XB_REGS3 XB_CDECL Loc_LoadStringFile(uint32_t, uint32_t, const char* path, uint32_t value, int32_t quiet) {
+    void* buffer = nullptr;
+    if (FS_ReadFile(path, &buffer) <= 0 || !buffer) {
+        if (quiet) return nullptr;
+        const uint32_t args[2] = {0x0083322c, u32(path)};  // "Unable to load "%s"!"
+        return va(args);
+    }
+    Loc_BeginStringFile(path, &title_global<uint8_t>(kLocFileState), value);
+    const char* cursor = static_cast<const char*>(buffer);
+    const char* const error = loc_parse_lines(&cursor);
+    --title_global<int32_t>(0x00940a0c);  // fs_loadStack (FS_FreeFile inlined)
+    Z_Free(static_cast<uint8_t*>(buffer));
+    if (error) return error;
+    if (title_global<uint32_t>(kLocFileState)) return nullptr;
+    const uint32_t args[2] = {0x00833244, 0x00833308};  // "Truncated file, failed to find "ENDMARKER" at file end!"
+    return va(args);
+}
+
+const char* XB_CDECL Loc_ParseStringBuffer(const char* path, const char* text) {
+    Loc_BeginStringFile(path, &title_global<uint8_t>(kLocFileState), 0);
+    const char* cursor = text;
+    const char* const error = loc_parse_lines(&cursor);
+    if (error) return error;
+    // Without an error: the end marker flag itself (EAX keeps it), or the truncation message.
+    const uint32_t ended = title_global<uint32_t>(kLocFileState);
+    if (ended) return reinterpret_cast<const char*>(static_cast<uintptr_t>(ended));
+    const uint32_t args[2] = {0x00833244, 0x00833308};
+    return va(args);
+}
+
+// Loc_LoadStringFileOrSte (path in EAX, value in EBX).
+PLATFORM_ASM_ENTRY(Loc_LoadStringFileOrSte_entry,
+                   "pushl %ebx\n pushl %eax\n" PLATFORM_ASM_CALL(Loc_LoadStringFileOrSte) "addl $8, %esp\n ret")
+
+const char* XB_CDECL Loc_LoadStringFileOrSte(const char* path, uint32_t value) {
+    const char* const error = Loc_LoadStringFile(0, 0, path, value, 0);
+    if (error) return error;
+    // Loaded: the matching ".ste" file as well, when the extension has three letters (quietly).
+    char name[0x80];
+    crt_strncpy(name, path, 0x7f);
+    name[0x7f] = 0;
+    char* const dot = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40)(name, '.');  // strrchr
+    if (!dot || std::strlen(dot) != 4) return nullptr;
+    std::memcpy(dot, tstr(0x00833224), 5);  // ".ste"
+    return Loc_LoadStringFile(0, 0, name, value, 1);
+}
+
+const char* XB_CDECL Loc_LoadStrings(const char* language, uint32_t value) {
+    const char* result = nullptr;
+    if (!language || !*language) return nullptr;
+    Loc_ClearStrings();
+    LocTempString list;
+    title_global<int32_t>(0x00929cd8) = 0;
+    std_string_AssignN(list.s, tstr(0x0082dfeb), 0);
+    Loc_LoadStringDir_r(tstr(0x00833200), tstr(0x00833210), list.s);  // ".str", "localizedstrings"
+    const auto strrchr = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40);
+    char* const dir = &title_global<char>(0x0098b2a0);
+    char* const base = &title_global<char>(0x0098b1a0);
+    for (char* path = Loc_PopSemicolonToken(list.s); path && !result; path = Loc_PopSemicolonToken(list.s)) {
+        // The file's folder name (Com_DirName and COM_SkipPath inlined).
+        std::strcpy(dir, path);
+        char* const back = strrchr(dir, '\\');
+        char* const slash = strrchr(dir, '/');
+        char* const cut = u32(back) > u32(slash) ? back : slash;
+        if (cut) *cut = 0;
+        const char* start = dir;
+        for (const char* c = dir; *c; ++c)
+            if (*c == '/' || *c == '\\') start = c + 1;
+        std::strcpy(base, start);
+        if (!crt_stricmp(language, base)) result = Loc_LoadStringFileOrSte(path, value);
+    }
+    list.tidy();
+    return result;
+}
+
+// ---- Push 8, batch 1: ref-counted strings, hunk usage, info fields, "take".
+
+namespace {
+
+// RcString: {length, references beyond the first, text (Heap_Alloc16), capacity}, 0x10 bytes from Z_Malloc.
+uint8_t* rc_string_new() {
+    uint8_t* const rc = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x10);  // Z_Malloc
+    if (!rc) return nullptr;
+    pk<uint32_t>(rc, 0) = 0;
+    pk<uint32_t>(rc, 4) = 0;
+    pk<uint32_t>(rc, 8) = 0;
+    pk<uint32_t>(rc, 0xc) = 0;
+    return rc;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(RcString_MakeUnique_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(RcString_MakeUnique) "addl $4, %esp\n ret")
+
+void XB_CDECL RcString_MakeUnique(uint8_t** holder) {
+    uint8_t* const old = *holder;
+    if (!pk<uint32_t>(old, 4)) return;
+    const uint32_t length = old ? pk<uint32_t>(old, 0) : 0;
+    *holder = rc_string_new();
+    RcString_Reserve(holder, length + 1, 0);
+    crt_strncpy(reinterpret_cast<char*>(pk_ptr(*holder, 8)), reinterpret_cast<const char*>(pk_ptr(old, 8)), length + 1);
+    pk<uint32_t>(*holder, 0) = length;
+    const int32_t refs = pk<int32_t>(old, 4) - 1;
+    pk<int32_t>(old, 4) = refs;
+    if (refs >= 0) return;
+    if (pk_ptr(old, 8)) Z_Free(pk_ptr(old, 8));
+    Z_Free(old);
+}
+
+void XB_THISCALL RcString_Reserve(uint8_t** holder, int32_t size, uint8_t keep) {
+    if (!*holder) *holder = rc_string_new();
+    RcString_MakeUnique(holder);
+    uint8_t* const rc = *holder;
+    const bool had_buffer = pk<int32_t>(rc, 0xc) != 0;
+    if (size < pk<int32_t>(rc, 0xc)) return;
+    if (size == 1) {
+        pk<int32_t>(rc, 0xc) = size;
+    } else {
+        const int32_t rem = size % 20;  // whole multiples of 20 bytes
+        pk<int32_t>(rc, 0xc) = rem ? size - rem + 20 : size;
+    }
+    char* const text = reinterpret_cast<char*>(
+        title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c30)(pk<uint32_t>(*holder, 0xc)));  // Heap_Alloc16
+    if (had_buffer && keep) std::strcpy(text, reinterpret_cast<const char*>(pk_ptr(*holder, 8)));
+    if (pk_ptr(*holder, 8)) Z_Free(pk_ptr(*holder, 8));
+    pk<uint32_t>(*holder, 8) = u32(text);
+}
+
+void XB_CDECL Com_ReadHunkUsage(const char* map_name) {
+    int32_t f = 0;
+    const int32_t length = FS_FOpenFileByMode(tstr(0x00832ca8), &f, 0);  // "hunkusage.dat"
+    if (length >= 0) {
+        uint8_t* const buffer = title_function<uint8_t* XB_CDECL(int32_t)>(0x00042c10)(length + 1);  // Z_Malloc
+        Com_Memset(buffer, 0, static_cast<uint32_t>(length + 1));
+        std::memset(buffer, 0, static_cast<uint32_t>(length + 1));
+        FS_Read(buffer, length, f);
+        FS_FCloseFile(f);
+        uint8_t* const info = title_global<uint8_t*>(0x008d4ca0);  // the parse info (an ungot token restored)
+        const char* cursor = reinterpret_cast<const char*>(buffer);
+        const auto next_token = [&]() {
+            if (pk<uint32_t>(info, 0x84)) {
+                pk<uint32_t>(info, 0x84) = 0;
+                cursor = reinterpret_cast<const char*>(pk_ptr(info, 0x98));
+                pk<uint32_t>(info, 0x80) = pk<uint32_t>(info, 0x94);
+            }
+            return COM_ParseExt(&cursor, 1);
+        };
+        for (;;) {
+            const char* const name = next_token();
+            if (!name || !*name) break;
+            if (Q_stricmpn(name, map_name, 99999)) continue;  // inlined
+            const char* const value = next_token();
+            if (!value || !*value) continue;
+            Cvar_Set2(tstr(0x00832c90), const_cast<char*>(value), 1);  // "com_expectedhunkusage"
+            Z_Free(buffer);
+            return;
+        }
+        Z_Free(buffer);
+    }
+    Cvar_Set2(tstr(0x00832c90), const_cast<char*>(tstr(0x00832c8c)), 1);  // "-1"
+}
+
+uint32_t XB_REGS2 XB_CDECL Info_ParseFieldsToStruct(uint32_t, const uint8_t* fields, uint8_t* out, int32_t count,
+                                                    uint8_t* map, int32_t custom_types, uint32_t parse_custom,
+                                                    uint32_t parse_callback) {
+    int32_t i = 0;
+    for (; i < count; ++i) {
+        const uint8_t* const field = fields + i * 0xc;  // {name, offset, type}
+        uint32_t key = pk<uint32_t>(const_cast<uint8_t*>(field), 0);
+        TitleRegs regs{};
+        regs.ebx = u32(map + 8);
+        const uint32_t key_arg = u32(&key);
+        const auto found = reinterpret_cast<const char**>(
+            static_cast<uintptr_t>(qc_call_regs(0x000249a0, &regs, 1, &key_arg)));  // StringMap_Find
+        if (!found || !*found || !**found) continue;
+        const char* const value = *found;
+        const int32_t type = pk<int32_t>(const_cast<uint8_t*>(field), 8);
+        uint8_t* const dest = out + pk<uint32_t>(const_cast<uint8_t*>(field), 4);
+        if (type >= 8) {
+            if (custom_types > 0 && type < custom_types) {
+                if (!title_function<int32_t XB_CDECL(uint8_t*, const char*, int32_t)>(parse_custom)(out, value, type))
+                    return 0;
+            } else {
+                title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(1, tstr(0x00833688), type);
+            }
+            continue;
+        }
+        switch (type) {
+        case 0:
+            title_function<void XB_CDECL(uint8_t*, const char*)>(parse_callback)(dest, value);
+            break;
+        case 1:  // char[256]
+            crt_strncpy(reinterpret_cast<char*>(dest), value, 0xff);
+            dest[0xff] = 0;
+            break;
+        case 2:
+        case 3:  // char[128]
+            crt_strncpy(reinterpret_cast<char*>(dest), value, 0x7f);
+            dest[0x7f] = 0;
+            break;
+        case 4:
+            pk<int32_t>(dest, 0) = title_atol(value);
+            break;
+        case 5:
+            pk<int32_t>(dest, 0) = title_atol(value) ? 1 : 0;
+            break;
+        case 6:  // atof's double stored as float
+            pk<float>(dest, 0) = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);
+            break;
+        case 7: {  // seconds -> milliseconds: FMUL by 1000.0f on the x87, _ftol
+            const long double seconds = title_function<long double XB_CDECL(const char*)>(0x001ef056)(value);
+            pk<int32_t>(dest, 0) = static_cast<int32_t>(static_cast<int64_t>(seconds * title_global<float>(0x0083eb9c)));
+            break;
+        }
+        }
+    }
+    return i == count ? 1 : 0;
+}
+
+void XB_CDECL Cmd_Take_f(uint8_t* ent) {
+    if (!title_global<int32_t>(kCheatsEnabled)) {
+        send_va_to_client(ent, 0x0083bd78);  // "print \"GAME_CHEATSNOTENABLED\""
+        return;
+    }
+    if (pk<int32_t>(ent, 0x350) <= 0) {
+        send_va_to_client(ent, 0x0083bd58);  // "print \"GAME_MUSTBEALIVECOMMAND\""
+        return;
+    }
+    using ConcatArgs = const char* XB_REGS3 XB_CDECL(uint32_t, uint32_t, int32_t);
+    const int32_t amount = title_atol(title_function<ConcatArgs>(0x0024d250)(0, 0, 2));
+    const char* const name = title_function<ConcatArgs>(0x0024d250)(0, 0, 1);
+    if (!name || !std::strlen(name)) return;
+    // ps +0x80 current weapon, +0x110 ammo per ammo index, +0x280 clip per clip index; weapon def +0x598 ammo
+    // index, +0x5a0 clip index.
+    const auto ps = [ent]() { return pk_ptr(ent, 0x23c); };
+    const auto def = [](int32_t weapon) { return title_global<uint8_t**>(0x0095f4d8)[weapon]; };  // bg_weaponDefs
+    const auto ammo = [&](int32_t weapon) -> int32_t& { return pk<int32_t>(ps(), 0x110 + pk<int32_t>(def(weapon), 0x598) * 4); };
+    const auto clip = [&](int32_t weapon) -> int32_t& { return pk<int32_t>(ps(), 0x280 + pk<int32_t>(def(weapon), 0x5a0) * 4); };
+    const auto take_ammo = [&](int32_t weapon) {
+        ammo(weapon) -= amount;
+        if (ammo(weapon) >= 0) return;
+        clip(weapon) += ammo(weapon);  // the shortfall comes out of the clip
+        ammo(weapon) = 0;
+        if (clip(weapon) < 0) clip(weapon) = 0;
+    };
+    const bool all = Q_stricmpn(name, tstr(0x0083bd34), 99999) == 0;  // "all"
+    bool weapons = false;
+    bool ammo_block = false;
+    if (all || !Q_stricmpn(name, tstr(0x008367c8), 6)) {  // "health"
+        if (amount) {
+            const int32_t health = pk<int32_t>(ent, 0x350) - amount;
+            pk<int32_t>(ent, 0x350) = health;
+            if (health < 1) pk<int32_t>(ent, 0x350) = 1;
+        } else {
+            pk<int32_t>(ent, 0x350) = 1;
+        }
+        if (!all) return;
+        weapons = true;
+    } else if (!Q_stricmp(tstr(0x0083bd2c), 0, name)) {  // "weapons"
+        weapons = true;
+    } else if (!Q_stricmpn(name, tstr(0x008367c0), 4)) {  // "ammo"
+        ammo_block = true;
+    }
+    if (weapons) {
+        const int32_t last = title_global<int32_t>(0x0095f4d4);  // bg_lastWeaponIndex
+        for (int32_t weapon = 1; weapon <= last; ++weapon) {
+            TitleRegs regs{};
+            regs.eax = static_cast<uint32_t>(weapon);
+            regs.ecx = u32(ps());
+            qc_call_regs(0x002b5530, &regs, 0, nullptr);  // BG_RemoveWeaponFromSlot
+            ammo(weapon) = 0;
+            clip(weapon) = 0;
+        }
+        if (pk<int32_t>(ps(), 0x80)) {
+            pk<int32_t>(ps(), 0x80) = 0;
+            TitleRegs regs{};
+            regs.esi = 0;
+            qc_call_regs(0x002cde20, &regs, 0, nullptr);  // CG_SelectWeapon(0)
+        }
+        if (!all) return;
+        ammo_block = true;
+    }
+    if (ammo_block) {
+        if (amount) {
+            const int32_t current = pk<int32_t>(ps(), 0x80);
+            if (current) take_ammo(current);
+        } else {
+            const int32_t last = title_global<int32_t>(0x0095f4d4);
+            for (int32_t weapon = 1; weapon <= last; ++weapon) {
+                ammo(weapon) = 0;
+                clip(weapon) = 0;
+            }
+        }
+        if (!all) return;
+    }
+    if (Q_stricmpn(name, tstr(0x0083bd24), 7) || !amount) return;  // "allammo"
+    const int32_t last = title_global<int32_t>(0x0095f4d4);
+    for (int32_t weapon = 1; weapon <= last; ++weapon) take_ammo(weapon);
+}
+
+// ---- Push 8, batch 2: profile saves.
+
+namespace {
+
+constexpr uint32_t kScriptString_FromCString = 0x0011eb50;  // thiscall (string slot, text)
+constexpr uint32_t kScriptString_ConcatCString = 0x0011eec0;  // cdecl (out slot, a slot, text)
+constexpr uint32_t kScriptString_Release = 0x0011d640;      // thiscall (string slot)
+
+void script_string_from(uint32_t* slot, const char* text) {
+    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(kScriptString_FromCString)(slot, text);
+}
+void script_string_release(uint32_t* slot) {
+    title_function<void XB_THISCALL(uint32_t*)>(kScriptString_Release)(slot);
+}
+// A ScriptString's characters start 6 bytes into its record; null for none.
+const char* script_string_text(uint32_t slot) {
+    return slot ? reinterpret_cast<const char*>(static_cast<uintptr_t>(slot + 6)) : nullptr;
+}
+
+// A title callee with the given registers (EAX, ECX, EDX, ESI; EBX/EDI as handed in).
+uint32_t profile_call(uint32_t function, uint32_t eax, uint32_t ecx, uint32_t edx, uint32_t esi, uint32_t ebx,
+                      uint32_t edi, uint32_t count = 0, const uint32_t* args = nullptr) {
+    TitleRegs regs{};
+    regs.eax = eax;
+    regs.ecx = ecx;
+    regs.edx = edx;
+    regs.esi = esi;
+    regs.ebx = ebx;
+    regs.edi = edi;
+    return qc_call_regs(function, &regs, count, args);
+}
+
+}  // namespace
+
+uint8_t XB_CDECL Save_ProfilesDirExists() {
+    static_assert(0x1db0 / 0x4c == 100);
+    uint8_t entries[0x1db0];  // 100 save entries of 0x4c bytes, the name first
+    const int32_t count = static_cast<int32_t>(Save_EnumSaveGames(entries));
+    if (count < 0) return 0;
+    for (int32_t i = 0; i < count; ++i)
+        if (!std::memcmp(entries + i * 0x4c, tstr(0x0082aaec), 9)) return 1;  // "Profiles"
+    return 0;
+}
+
+int32_t XB_CDECL Save_GetBlocksNeeded() {
+    const int32_t clusters = title_function<int32_t XB_CDECL(int32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    const auto cluster_size = title_function<int32_t XB_CDECL()>(0x000d1ec0);               // Save_GetClusterSize
+    int32_t needed = clusters * 4 + cluster_size() * 2;
+    const int32_t size = cluster_size();
+    needed = needed + size * 4 + size;
+    uint32_t free_bytes[2] = {0, 0};
+    title_function<int32_t XB_CDECL(uint32_t*)>(0x000d1b40)(free_bytes);  // Save_GetFreeSpace
+    const int32_t bytes = needed - static_cast<int32_t>(free_bytes[0]);
+    const int32_t blocks = static_cast<int32_t>(
+        BytesToBlocks(static_cast<uint32_t>(bytes), static_cast<uint32_t>(bytes >> 31)));
+    return blocks > 0 ? blocks : 1;
+}
+
+PLATFORM_ASM_ENTRY(ProfileSave_PrepareRequest_entry,
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ProfileSave_PrepareRequest) "addl $4, %esp\n ret")
+
+void XB_CDECL ProfileSave_PrepareRequest(uint8_t* self) {
+    // self +4 the save request, +0x11c0 four profile buffers (Heap_AllocAligned), +0x11e7 four "read" flags.
+    uint8_t* const request = self + 4;
+    SaveRequest_SetFileName(request, tstr(0x0082aaec));  // "Profiles"
+    const uint32_t clusters = static_cast<uint32_t>(
+        title_function<int32_t XB_CDECL(int32_t)>(0x000d1e10)(0x400));  // Save_ClustersForSize
+    uint32_t prefix = 0;
+    uint32_t dir = 0;
+    script_string_from(&prefix, reinterpret_cast<const char*>(static_cast<uintptr_t>(Save_GetData())));
+    title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t*, const char*)>(kScriptString_ConcatCString)(
+        &dir, &prefix, tstr(0x0082aaec));  // the save path + "Profiles"
+    script_string_release(&prefix);
+    pk<uint32_t>(self, 0x11e7) = 0;
+    char numbered[0x80];
+    char first[0x80];
+    for (int32_t i = 0; i < 4; ++i) {
+        uint8_t*& buffer = pk<uint8_t*>(self, 0x11c0 + i * 4);
+        if (!buffer)
+            buffer = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
+                title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x20, clusters)));  // Heap_AllocAligned
+        std::memset(buffer, 0, clusters);
+        const uint32_t args[2] = {u32(script_string_text(dir)), static_cast<uint32_t>(i)};
+        const char* const name = i > 0 ? ShortString_Printf(numbered, tstr(0x0082aae4), const_cast<uint32_t*>(args))  // "%s%d"
+                                       : ShortString_Printf(first, tstr(0x0082ddd4), const_cast<uint32_t*>(args));  // "%s"
+        SaveRequest_AddFile(request, name, u32(buffer), clusters);
+    }
+    script_string_release(&dir);
+}
+
+PLATFORM_ASM_ENTRY(ProfileSave_Construct_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(ProfileSave_Construct) "addl $4, %esp\n ret")
+
+uint8_t* XB_CDECL ProfileSave_Construct(uint8_t* self) {
+    pk<uint32_t>(self, 0) = 0x008287dc;  // vtable
+    SaveRequest_Init(self + 4, tstr(0x0082dfeb));
+    for (int32_t i = 0; i < 4; ++i) {  // four profiles of 0x3cc bytes from +0x2a8
+        uint8_t* const profile = self + 0x2a8 + i * 0x3cc;
+        profile[0] = 0;
+        pk<int32_t>(profile, 0xe8) = -1;
+        Profile_SetDefaults(profile);
+        Profile_SetDefaults(profile);
+        pk<uint32_t>(profile, 0x3a4) = 0;
+        pk<uint32_t>(profile, 0x3a8) = 0;
+        pk<uint32_t>(profile, 0x3ac) = 0;
+    }
+    self[0x11e5] = 0;
+    pk<uint32_t>(self, 0x11bc) = 0;
+    for (int32_t i = 0; i < 4; ++i) {
+        self[0x11e7 + i] = 0;
+        pk<uint32_t>(self, 0x11c0 + i * 4) = 0;
+    }
+    Save_Init(0);
+    uint32_t prefix = 0;
+    script_string_from(&prefix, tstr(0x0082dfeb));
+    Save_SetPathPrefix(script_string_text(prefix));
+    Save_SetListener(u32(self));
+    crt_strncpy(reinterpret_cast<char*>(self + 0x11d0), tstr(0x0082ab0c), 0xc);  // "Alex"
+    self[0x11db] = 0;
+    self[0x11e4] = 0;
+    pk<uint32_t>(self, 0x11e0) = 0;
+    pk<uint32_t>(self, 0x11ec) = 0;
+    script_string_release(&prefix);
+    return self;
+}
+
+PLATFORM_ASM_ENTRY(ProfileSave_OnProfilesRead_entry,
+                   "pushl %edi\n pushl %ebx\n pushl 12(%esp)\n" PLATFORM_ASM_CALL(ProfileSave_OnProfilesRead)
+                   "addl $12, %esp\n ret $4")
+
+void XB_CDECL ProfileSave_OnProfilesRead(uint8_t* self, uint32_t entry_ebx, uint32_t entry_edi) {
+    for (int32_t i = 0; i < 4; ++i) {
+        uint8_t* const profile = self + 0x28c + i * 0x3cc;
+        std::memcpy(profile, pk_ptr(self, 0x11c0 + i * 4), 0xf3 * 4);
+        self[0x11e7 + i] = Save_CheckVersion(reinterpret_cast<const char*>(profile));
+    }
+    self[0x11e5] = 0;
+    uint8_t* const profile_menu = title_global<uint8_t*>(0x0095f8f8);
+    if (profile_menu) {
+        if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
+        uint8_t* const page = pk_ptr(profile_menu, 4);
+        const uint32_t menu = pk<uint32_t>(page, 0x3c);
+        profile_call(0x0033a2a0, u32(page), menu, u32(self), static_cast<uint32_t>(0), entry_ebx, entry_edi, 1,
+                     &menu);  // ProfileMenu_OnProfilesRead (tail jump, menu in the argument slot)
+        return;
+    }
+    uint8_t* const page = pk_ptr(title_global<uint8_t*>(0x0095f8fc), 4);
+    profile_call(0x003381c0, u32(page), u32(self), u32(title_global<uint8_t*>(0x0095f8fc)), 0,
+                 pk<uint32_t>(page, 0x1c), entry_edi);  // AutosaveMenu_OnProfilesRead (menu in EBX)
+}
+
+PLATFORM_ASM_ENTRY(ProfileSave_OnSaveOpComplete_entry,
+                   "pushl %edi\n pushl %ebx\n pushl 12(%esp)\n pushl %ecx\n" PLATFORM_ASM_CALL(ProfileSave_OnSaveOpComplete)
+                   "addl $16, %esp\n ret $4")
+
+void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation, uint32_t entry_ebx, uint32_t entry_edi) {
+    // operation: 1 read profiles, 2 save, 3 delete, 4 format. 0x0095f8f8 = the profile menu (page +4, state +0xc,
+    // menu +0x3c), 0x0095f8fc = the autosave menu (page +4, menu +0x1c).
+    title_global<uint8_t>(0x008d50dd) = 1;
+    const uint32_t result = Save_GetLastResult();
+    uint8_t* const profile_menu = title_global<uint8_t*>(0x0095f8f8);
+    const auto autosave_page = []() { return pk_ptr(title_global<uint8_t*>(0x0095f8fc), 4); };
+    const uint32_t op = static_cast<uint32_t>(operation);
+    if (result && !(result == 0xfffffff3 && operation == 2)) {
+        if (operation == 1) self[0x11e5] = 0;
+        if (profile_menu) {
+            if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
+            uint8_t* const page = pk_ptr(profile_menu, 4);
+            profile_call(0x0033a130, result, op, u32(page), pk<uint32_t>(page, 0x3c), entry_ebx,
+                         entry_edi);  // ProfileMenu_OnSaveOpFailed
+            return;
+        }
+        uint8_t* const page = autosave_page();
+        profile_call(0x00333860, result, op, u32(page), pk<uint32_t>(page, 0x1c), entry_ebx,
+                     entry_edi);  // AutosaveMenu_OnSaveOpFailed
+        return;
+    }
+    switch (operation) {
+    case 1: {
+        const uint32_t arg = u32(self);
+        profile_call(0x0033a490, op - 1, op, 0, u32(self), entry_ebx, entry_edi, 1, &arg);  // ProfileSave_OnProfilesRead
+        return;
+    }
+    case 2:
+        if (profile_menu) {
+            if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
+            uint8_t* const menu = pk_ptr(pk_ptr(profile_menu, 4), 0x3c);
+            const uint32_t ecx = (op & ~0xffu) | menu[0x34];
+            if (menu[0x34])
+                profile_call(0x00339fa0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
+            else
+                profile_call(0x00334fe0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowSaveSuccessDialog
+            return;
+        } else {
+            uint8_t* const page = autosave_page();
+            uint8_t* const menu = pk_ptr(page, 0x1c);
+            const uint32_t ecx = (u32(title_global<uint8_t*>(0x0095f8fc)) & ~0xffu) | menu[0x39];
+            if (menu[0x39])
+                profile_call(0x00339c70, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowDeleteSuccessDialog
+            else
+                profile_call(0x003339f0, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_OnSaveSucceeded
+            return;
+        }
+    case 3:
+        profile_call(0x00339fa0, op - 1, op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
+        return;
+    case 4:
+        if (profile_menu) {
+            if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
+            profile_call(0x003388f0, u32(profile_menu), op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowFormatSuccessDialog
+        } else {
+            profile_call(0x00338100, 0, op, 0, u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowFormatSuccessDialog
+        }
+        return;
+    default:
+        return;
+    }
+}
+
+char* XB_CDECL SEH_LocalizeTextMessage(const char* msg, const char* context, int32_t mode) {
+    // Segments between the markers 0x14 (translate on), 0x15 (translate off) and 0x16 (the next segment's "%s"
+    // is not a substitution) are translated and appended; a segment's first "%s" stays for the next segment
+    // to fill in. Two rotating 256-byte results (0x0098bf58).
+    int32_t& index = title_global<int32_t>(0x0098ad24);
+    index = (index + 1) % 2;
+    char* const out = &title_global<char>(0x0098bf58 + static_cast<uint32_t>(index) * 0x100);
+    std::memset(out, 0, 0x100);
+    int32_t length = 0;
+    int32_t pending = 0;    // "%s" waiting in out
+    int32_t translate = 1;
+    int32_t escaped = 0;    // some "%s" turned into 0x16
+    int32_t allow = 1;
+    int32_t inserted = 0;   // this segment left a "%s" in out
+    char segment[0x100];
+    char rest[0x100] = {};
+    const char* start = msg;
+    const char* p = msg;
+    if (!*msg) return out;
+    do {
+        const char c = *p;
+        if (c && c != 0x14 && c != 0x15 && c != 0x16) {
+            ++p;
+            continue;
+        }
+        if (p > start) {
+            int32_t n = static_cast<int32_t>(p - start);
+            crt_strncpy(segment, start, static_cast<uint32_t>(n));
+            segment[n] = 0;
+            if (translate) {
+                if (!Loc_TranslateString(segment, segment, context, mode)) return nullptr;
+                n = static_cast<int32_t>(std::strlen(segment));
+            }
+            if (static_cast<uint32_t>(n + length) >= 0x100) {
+                uint8_t* const a = title_global<uint8_t*>(0x0093f804);
+                uint8_t* const b = title_global<uint8_t*>(0x00927b2c);
+                if (a && pk<uint32_t>(a, 0x20) && b && pk<uint32_t>(b, 0x20) && mode != 1)
+                    title_function<void XB_CDECL(int32_t, const char*, const char*, const char*)>(0x002938f0)(
+                        1, tstr(0x008333b0), context, msg);  // "%s too long when translated"
+            }
+            for (int32_t i = 0; i < n - 1; ++i) {
+                if (segment[i] != '%' || segment[i + 1] != 's') continue;
+                if (allow && !inserted) {
+                    ++pending;
+                    inserted = 1;
+                } else {
+                    segment[i] = 0x16;
+                    escaped = 1;
+                }
+            }
+            if (pending - inserted) {
+                // Fill the first "%s" of out with this segment.
+                int32_t i = 0;
+                bool found = false;
+                for (; i < length - 1; ++i) {
+                    if (out[i] == '%' && out[i + 1] == 's') {
+                        std::strcpy(rest, out + i + 2);
+                        out[i] = 0;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found && length - 1 <= 0) i = 0;
+                std::strcpy(out + i, segment);
+                std::strcpy(out + i + n, rest);
+                length -= 2;
+                --pending;
+            } else {
+                std::strcpy(out + length, segment);
+            }
+            length += n;
+            inserted = 0;
+        }
+        allow = 1;
+        if (*p == 0x14) {
+            translate = 1;
+            ++p;
+        } else if (*p == 0x15) {
+            translate = 0;
+            ++p;
+        }
+        if (*p == 0x16) {
+            allow = 0;
+            ++p;
+        }
+        start = p;
+    } while (*start);
+    if (escaped)
+        for (int32_t i = 0; i < length; ++i)
+            if (out[i] == 0x16) out[i] = '%';
+    return out;
+}
+
+void XB_CDECL Sys_InitHeaps() {
+    // {count, 16 x {size, align, count}}: pools of 0x20 / 0x40 / 0x80 bytes.
+    uint32_t config[1 + 16 * 3];
+    config[0] = 0;
+    for (int32_t i = 0; i < 16; ++i) {
+        config[1 + i * 3] = 0;
+        config[2 + i * 3] = 4;
+        config[3 + i * 3] = 0;
+    }
+    static const uint32_t kPools[3][2] = {{0x20, 30000}, {0x40, 2000}, {0x80, 100}};
+    for (const auto& pool : kPools) {
+        const uint32_t n = config[0];
+        if (static_cast<int32_t>(n) >= 16) continue;
+        config[1 + n * 3] = pool[0];
+        config[2 + n * 3] = 4;
+        config[3 + n * 3] = pool[1];
+        config[0] = n + 1;
+    }
+    uint8_t* small = Z_Malloc(0x3c);
+    title_global<uint8_t*>(0x0095f4a4) = small ? SmallHeap_Init(small, config, 0, 1) : nullptr;
+    uint8_t* heap = Z_Malloc(0x494);
+    title_global<uint8_t*>(0x0095f4a0) = heap ? Heap_CreateFromZone(heap, 0x0004b000) : nullptr;
+    // One of 32 shutdown callbacks (0x00988784, count 0x00988780).
+    const int32_t n = title_global<int32_t>(0x00988780);
+    if (n < 32) {
+        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(n) * 4) = 0x002fd6e0;
+        ++title_global<int32_t>(0x00988780);
+    }
+}
+
+namespace {
+
+// The packed normalize used by Matrix_Orthonormalize (as Vec3A_Normalize): every lane times the Newton step of
+// the rsqrt estimate of |x^2 + y^2 + z^2|, or times 0 for a zero sum (a NaN sum takes the Newton path).
+Lanes ortho_normalize(const Lanes& in) {
+    const Lanes squares = mul(in, in);
+    platform_keep(squares);
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float scale;
+    if (sum == 0.0f) {
+        scale = title_global<float>(0x0082e6a0);
+    } else {
+        const float a = abs_bits(sum);
+        const float r = platform_rsqrt_estimate(a);
+        scale = ((title_global<float>(0x0082e660) - (r * r) * a) * r) * title_global<float>(0x0082e670);  // 3, 0.5
+    }
+    return mul(in, scale);
+}
+
+// SHUFPS 0xc9: lanes (1, 2, 0, 3).
+Lanes yzx(const Lanes& a) { return {{a.v[1], a.v[2], a.v[0], a.v[3]}}; }
+
+// a x b as the title computes it: yzx(a * yzx(b) - yzx(a) * b), all four lanes.
+Lanes cross_lanes(const Lanes& a, const Lanes& b) {
+    const Lanes t = mul(yzx(a), b);
+    const Lanes u = mul(a, yzx(b));
+    return yzx(sub(u, t));
+}
+
+}  // namespace
+
+void XB_THISCALL Matrix_Orthonormalize(float* m) {
+    // Rows of four floats: row 0 normalized, row 2 = normalize(row 0 x row 1), row 1 = normalize(row 2 x row 0).
+    const Lanes x = ortho_normalize(lanes(m));
+    for (int32_t i = 0; i < 4; ++i) m[i] = x.v[i];
+    const Lanes z = ortho_normalize(cross_lanes(x, lanes(m + 4)));
+    for (int32_t i = 0; i < 4; ++i) m[8 + i] = z.v[i];
+    const Lanes y = ortho_normalize(cross_lanes(lanes(m + 8), x));
+    for (int32_t i = 0; i < 4; ++i) m[4 + i] = y.v[i];
+}
+
+// RotatePointAroundVector (dir in EAX, point in EBX; dst, degrees on the stack, cdecl).
+PLATFORM_ASM_ENTRY(RotatePointAroundVector_entry,
+                   "pushl 8(%esp)\n pushl 8(%esp)\n pushl %ebx\n pushl %eax\n" PLATFORM_ASM_CALL(RotatePointAroundVector)
+                   "addl $16, %esp\n ret")
+
+void XB_CDECL RotatePointAroundVector(const float* dir, const float* point, float* dst, float degrees) {
+    // Q3's RotatePointAroundVector, inlined matrix products in the title's sum order: m = {vr, vup, dir} as
+    // columns, zrot about z, rot = (m * zrot) * transpose(m); the zero and one entries are multiplied too.
+    const float f0 = dir[0];
+    const float f1 = dir[1];
+    const float f2 = dir[2];
+    float vr[3];
+    PerpendicularVector(dir, vr);
+    const float r0 = vr[0];
+    const float r1 = vr[1];
+    const float r2 = vr[2];
+    const float rad = static_cast<float>(static_cast<long double>(degrees) * title_global<float>(0x0083ed00) /
+                                         title_global<float>(0x0083eb60));  // * pi / 180 on the x87
+    const float u0 = (r1 * f2) - (r2 * f1);
+    const float u1 = (r2 * f0) - (r0 * f2);
+    const float u2 = (r0 * f1) - (r1 * f0);
+    float C = 0.0f;
+    float Sn = 0.0f;
+    FastSinCos(&Sn, 0, &C, rad);
+    const float Z = 0.0f;
+    const float One = title_global<float>(0x0083eb20);
+    const float nS = Z - Sn;
+    const float T00 = ((nS * u0) + (Z * f0)) + (C * r0);
+    const float T01 = ((Z * f0) + (C * u0)) + (Sn * r0);
+    const float T02 = ((Z * u0) + (Z * r0)) + (One * f0);
+    const float T10 = ((nS * u1) + (Z * f1)) + (C * r1);
+    const float T11 = ((Z * f1) + (C * u1)) + (Sn * r1);
+    const float T12 = ((Z * u1) + (Z * r1)) + (One * f1);
+    const float T20 = ((nS * u2) + (Z * f2)) + (C * r2);
+    const float T21 = ((C * u2) + (Z * f2)) + (Sn * r2);
+    const float T22 = ((Z * u2) + (Z * r2)) + (One * f2);
+    const float R02 = ((f2 * T02) + (T01 * u2)) + (T00 * r2);
+    const float R00 = ((r0 * T00) + (T02 * f0)) + (T01 * u0);
+    const float R01 = ((u1 * T01) + (T02 * f1)) + (T00 * r1);
+    const float R12 = ((f2 * T12) + (T11 * u2)) + (T10 * r2);
+    const float R10 = ((T10 * r0) + (T11 * u0)) + (T12 * f0);
+    const float R11 = ((u1 * T11) + (T10 * r1)) + (T12 * f1);
+    const float R22 = ((f2 * T22) + (T21 * u2)) + (T20 * r2);
+    const float R20 = ((T20 * r0) + (T21 * u0)) + (T22 * f0);
+    const float R21 = ((u1 * T21) + (T20 * r1)) + (T22 * f1);
+    dst[0] = ((point[2] * R02) + (point[0] * R00)) + (R01 * point[1]);
+    dst[1] = ((point[2] * R12) + (point[0] * R10)) + (R11 * point[1]);
+    dst[2] = ((point[2] * R22) + (point[0] * R20)) + (R21 * point[1]);
+}
+
+void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index) {
+    // Zone `index` (of 99, 0x0095f638 +0x38): its pak header (+0x7c) lists sections {name, .., +0xe count, +0x10
+    // files, +0x14 records} of 0x18 bytes; the "STRING" section's record for the current language (".en." ..
+    // in its name) is read through one stream memory slot over `table`. Then the table is relocated in place.
+    uint8_t* const zone = index >= 0 && index < 99 ? pk_ptr(title_global<uint8_t*>(0x0095f638), 0x38 + index * 4) : nullptr;
+    uint8_t* const header = pk_ptr(zone, 0x7c);
+    for (uint32_t i = 0; i < pk<uint32_t>(header, 0xc); ++i) {
+        uint8_t* const section = pk_ptr(header, 8) + i * 0x18;
+        if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(  // _strncmp
+                reinterpret_cast<const char*>(section), tstr(0x008379ac), 6))  // "STRING"
+            continue;
+        const auto has = [](uint8_t* record, uint32_t suffix) {
+            return crt_strstr(pk<const char*>(record, 0), suffix) != nullptr;
+        };
+        for (uint32_t r = 0; r < pk<uint16_t>(section, 0xe); ++r) {
+            uint8_t* const record = pk_ptr(section, 0x14) + r * 0x14;  // {name, .., +8 size, +0xc file, +0x10 offset}
+            const int32_t& language = title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+            if (!((language == 0 && has(record, 0x008379a4)) || (language == 2 && has(record, 0x0083799c)) ||
+                  (language == 1 && has(record, 0x00837994)) || (language == 3 && has(record, 0x0083798c)) ||
+                  (language == 4 && has(record, 0x00837984))))
+                continue;
+            const uint32_t offset =
+                pk<uint32_t>(pk_ptr(section, 0x10), pk<uint32_t>(record, 0xc) * 0x1c) + pk<uint32_t>(record, 0x10);
+            const float one = title_global<float>(0x0083eb20);
+            float block[4] = {one, one, one, 0.0f};
+            uint32_t bits[2] = {0, 0};
+            StreamMem_Alloc(title_global<uint32_t*>(0x0095f62c), bits, block);
+            uint32_t slot[2] = {0, 0};  // {address, size}
+            StreamMem_GetBlock(bits, title_global<uint8_t*>(0x0095f62c), slot, 0);
+            // Positional as the original pushes them: (file, pak offset, memory, size) - File_ReadAt's declared
+            // parameter names have buffer and offset the other way round.
+            File_ReadAt(pk<uint32_t>(zone, 0x50), offset, slot[0], (pk<uint32_t>(record, 8) + 0x7fff) & 0xffff8000u);
+            platform_rep_movs(table, reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(slot[0])), pk<uint32_t>(record, 8));
+            StreamMem_MoveSlots(0, bits, title_global<uint32_t*>(0x0095f62c), -1);
+            break;
+        }
+        break;
+    }
+    pk<uint32_t>(table, 0x18) += u32(table);
+    Pack_RelocateTable(reinterpret_cast<PackRelocTable*>(pk_ptr(table, 0x18)), u32(table));
+    tables[index + 1] = table;
+}
+
+// ---- Push 8, batch 3: boot.
+
+void XB_CDECL Sys_Main() {
+    // The XAPI main (mainXapiStartup): allocator hooks, launch data, devices, renderer, effects, heaps, Com_Init,
+    // the Live UI (UIXLayout.uix), then the frame loop forever. Its frame (0x4618 bytes) holds the hooks (+0x14),
+    // the launch data (+0x2c, handed to Com_Init) and the Live manager (+0x12c, 0x44d4 bytes).
+    static uint8_t frame[0x4624];  // never returns: the frame lives as long as the program
+    uint8_t* const live = frame + 0x12c;
+    uint32_t* const hooks = reinterpret_cast<uint32_t*>(frame + 0x14);
+    static const uint32_t kHooks[6] = {0x00293080, 0x002968e0, 0x00296760, 0x00296770, 0x00296820, 0x00296780};
+    for (int32_t i = 0; i < 6; ++i) hooks[i] = kHooks[i];
+    Mem_SetAllocatorHooks(hooks);
+    TitleRegs regs{};
+    regs.eax = u32(live);
+    qc_call_regs(0x00224920, &regs, 0, nullptr);  // LiveMgr_Construct (EAX)
+    title_function<void XB_CDECL(uint8_t*)>(0x002221b0)(frame + 0x2c);  // Sys_ReadLaunchInfo
+    title_function<void XB_CDECL(int32_t)>(0x00042ac0)(0);               // Heap_SelectByIndex
+    FS_InitPackBuffers();
+    title_function<void XB_CDECL()>(0x000ce070)();  // SndSys_InitDevice
+    Sys_Milliseconds();
+    title_function<void XB_CDECL()>(0x00094160)();  // FxShaderClass_Create
+    title_function<void XB_CDECL()>(0x00045790)();  // nglInitShaders
+    const auto frame_memory = title_function<void XB_CDECL(int32_t, uint32_t, int32_t)>(0x000778b0);  // nglSetFrameMemorySize
+    frame_memory(0, 0xc0000, 1);
+    frame_memory(1, 0x8000, 1);
+    frame_memory(3, 0x20000, 1);
+    frame_memory(2, 0x10000, 1);
+    frame_memory(4, 0x80000, 1);
+    const auto vblank = title_function<void XB_CDECL(int32_t)>(0x000645c0);  // nglSetVBlankMode
+    vblank(2);
+    uint32_t* const mode = reinterpret_cast<uint32_t*>(frame + 0x10);
+    mode[0] = 2;
+    mode[1] = 0;
+    title_function<void XB_CDECL(uint32_t*, int32_t)>(0x000649e0)(mode, 2);  // nglSelectVideoMode
+    Cvar_Set2(tstr(0x00839874), const_cast<char*>(tstr(title_global<uint8_t>(0x00902899) ? 0x0082e058 : 0x0082e098)),
+              1);  // cg_widescreen "1" / "0"
+    title_function<void XB_CDECL()>(0x00064bc0)();  // nglInit
+    title_function<void XB_CDECL()>(0x002982d0)();  // SCR_InitLoadingSpinner
+    regs = TitleRegs{};
+    regs.ebx = 1;
+    qc_call_regs(0x00298170, &regs, 0, nullptr);  // SCR_UpdateLoadingIcon_2 (BL = 1)
+    title_function<void XB_CDECL(int32_t, uint32_t, uint32_t)>(0x00094610)(0, 0x2000000, 0xfa0);  // FX_InitSystem
+    regs = TitleRegs{};
+    regs.eax = 0x80000;
+    regs.ebx = 0;
+    qc_call_regs(0x00236c80, &regs, 0, nullptr);  // Mem_InitSmallBlockPools (BL = 0, EAX)
+    vblank(2);
+    uint8_t* allocator = Z_Malloc(0x49c);
+    if (allocator) {
+        pk<uint32_t>(allocator, 0) = 0x008376c4;  // HeapAllocator vtable
+        uint8_t* const memory = Z_Malloc(0x100000);
+        pk<uint32_t>(allocator, 4) = u32(memory);
+        title_function<void XB_CDECL(uint8_t*, uint8_t*, uint8_t*, int32_t)>(0x00042470)(  // Heap_Init
+            allocator + 8, memory, memory + 0x100000, 0);
+    }
+    title_function<void XB_CDECL(uint8_t*)>(0x0007bac0)(allocator);  // Anim_InitManagers
+    Sys_InitHeaps();
+    title_function<void XB_CDECL(uint8_t*)>(0x002a7490)(frame + 0x2c);  // Com_Init(launch data)
+    title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e7767)(0x00223130);  // SetUnhandledExceptionFilter
+    const uint32_t device = title_global<uint32_t>(0x00902874);
+    uint8_t* stream = Z_Malloc(8);
+    if (stream) {
+        pk<uint32_t>(stream, 0) = 0x0083c720;
+        pk<uint32_t>(stream, 4) = 0;
+    }
+    title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x0002c442)(0x0083cc30, 0x10000, u32(stream) + 4);
+    regs = TitleRegs{};
+    regs.esi = u32(live);
+    const uint32_t init_args[3] = {device, 0x0083cc18, u32(stream)};  // "d:\media\UIXLayout.uix"
+    qc_call_regs(0x00224a50, &regs, 3, init_args);  // Live_Init (manager in ESI)
+    uint32_t ebx = regs.ebx;
+    const int32_t launch_mode = title_global<int32_t>(0x008dd128);
+    pk<uint32_t>(frame, 0x459c) = title_global<uint32_t>(0x008dd124);
+    if (launch_mode == 2) {
+        regs = TitleRegs{};
+        regs.eax = 0x40140;
+        regs.ecx = u32(live);
+        regs.esi = u32(live);
+        const uint32_t arg = 0x008dcf1c;
+        qc_call_regs(0x00222d20, &regs, 1, &arg);
+        regs.ecx = title_global<uint32_t>(0x008dcf18);
+        regs.ebx = 1;
+        const uint32_t voice = title_global<uint8_t>(0x008dd1cd);
+        qc_call_regs(0x00221920, &regs, 1, &voice);  // Voice_InitNotifications
+        ebx = 1;
+    } else if (launch_mode == 1) {
+        regs = TitleRegs{};
+        regs.eax = 0x40140;
+        regs.esi = u32(live);
+        if (title_global<uint8_t>(0x008dd120)) {
+            regs.ecx = u32(live);
+            const uint32_t arg = 0x008dcf1c;
+            qc_call_regs(0x00222d20, &regs, 1, &arg);
+        } else {
+            regs.ebx = 0x40140;
+            qc_call_regs(0x00221fc0, &regs, 0, nullptr);
+            ebx = 0x40140;
+        }
+    } else {
+        pk<uint32_t>(title_global<uint8_t*>(0x0095f6fc), 0x446c) = title_global<uint32_t>(0x008dd12c);  // g_liveMgr
+    }
+    (void)ebx;
+    const auto set_input = title_function<void XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x000d35a9);  // CLiveEngine_SetInput
+    const auto clear_input = title_function<void XB_STDCALL(uint32_t)>(0x000d35c2);               // LiveEngine_ClearInput
+    for (;;) {
+        IN_Frame();
+        const uint32_t input = pk<uint32_t>(frame, 0x45fc);
+        if (title_global<uint8_t>(0x0095f538)) {
+            set_input(pk<uint32_t>(live, 0x14), input, 0);
+            clear_input(pk<uint32_t>(live, 0x14));
+        }
+        regs = TitleRegs{};
+        regs.ecx = u32(live);
+        qc_call_regs(0x00223730, &regs, 0, nullptr);  // Live_Frame
+        if (title_global<uint8_t>(0x0095f538)) {
+            set_input(pk<uint32_t>(live, 0x14), input, 0);
+            clear_input(pk<uint32_t>(live, 0x14));
+        }
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x0005e650)(0x00224970, 0);  // nglSetPreSwapCallback(Live_Render)
+        Com_Frame();
+    }
+}
+
+namespace {
+
+// A boot callee by title address with the given registers (EBX, ESI, EDI, ECX, EDX, EAX).
+uint32_t boot_call(uint32_t function, uint32_t eax = 0, uint32_t ebx = 0, uint32_t ecx = 0, uint32_t edx = 0,
+                   uint32_t esi = 0, uint32_t edi = 0, uint32_t count = 0, const uint32_t* args = nullptr) {
+    TitleRegs regs{};
+    regs.eax = eax;
+    regs.ebx = ebx;
+    regs.ecx = ecx;
+    regs.edx = edx;
+    regs.esi = esi;
+    regs.edi = edi;
+    return qc_call_regs(function, &regs, count, args);
+}
+
+// Heap_AllocAligned (0x00042c60: alignment, size).
+uint8_t* boot_alloc(uint32_t alignment, uint32_t size) {
+    return reinterpret_cast<uint8_t*>(
+        static_cast<uintptr_t>(title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c60)(alignment, size)));
+}
+
+// A manager constructed in a Heap_AllocAligned block (object in `reg`: 'a' EAX, 'b' EBX, 'd' EDX, 'D' EDI, else
+// ESI); the global gets its result, 0 when the allocation failed.
+void boot_construct(uint32_t global, uint32_t alignment, uint32_t size, uint32_t ctor, char reg = 'S') {
+    uint8_t* const block = boot_alloc(alignment, size);
+    if (!block) {
+        title_global<uint32_t>(global) = 0;
+        return;
+    }
+    const uint32_t b = u32(block);
+    title_global<uint32_t>(global) = boot_call(ctor, reg == 'a' ? b : 0, reg == 'b' ? b : 0, 0, reg == 'd' ? b : 0,
+                                               reg == 'S' ? b : 0, reg == 'D' ? b : 0);
+}
+
+// Cbuf_AddText inlined: appended only when it fits (no message), without the terminator.
+void boot_cbuf_append(uint32_t text, uint32_t length) {
+    const int32_t size = title_global<int32_t>(0x00935330);
+    if (size + static_cast<int32_t>(length) >= title_global<int32_t>(0x0093532c)) return;
+    std::memcpy(title_global<uint8_t*>(0x00935328) + size, tstr(text), length);
+    title_global<int32_t>(0x00935330) = size + static_cast<int32_t>(length);
+}
+
+}  // namespace
+
+void XB_CDECL Com_Init(uint8_t* launch) {
+    title_global<uint8_t>(0x0093fcd0) = 0;
+    Com_InitSmallHeap();
+    boot_call(0x000280a0, 0, 0x40, 0, 0, 0x00984cec);  // DynArray_ReserveAligned (count EBX, array ESI)
+    boot_call(0x000280a0, 0, 0x20, 0, 0, 0x00987a78);  // g_entityRemoveQueue
+    boot_call(0x000280a0, 0, 0x20, 0, 0, 0x0097a640);
+    std::memset(&title_global<uint8_t>(0x00940400), 0, 0x600);  // com_pushedEvents
+    title_global<uint32_t>(0x0095f588) = 0;
+    title_global<uint32_t>(0x0095f58c) = 0;
+    title_global<uint8_t*>(0x00940358) = Cvar_Get(tstr(0x008340d0), tstr(0x0082e098), 0x48);  // sv_cheats "0"
+    title_function<void XB_CDECL()>(0x002a23b0)();  // Cvar_Init
+    boot_call(0x002938a0, u32(launch));            // Com_ParseCommandLine (EAX)
+    title_function<void XB_CDECL()>(0x002b0140)();  // Swap_Init
+    title_global<uint32_t>(0x00935328) = 0x0092bf90;  // cmd_text {data, 0x2000, 0}
+    title_global<uint32_t>(0x0093532c) = 0x2000;
+    title_global<uint32_t>(0x00935330) = 0;
+    title_global<uint32_t>(0x00929c10) = 0x00929ce0;
+    title_global<uint32_t>(0x00929c14) = 0x2000;
+    title_global<uint32_t>(0x00929c18) = 0;
+    title_function<void XB_CDECL()>(0x002d1460)();  // Cmd_Init
+    Com_StartupVariable(nullptr);
+    Com_StartupVariable(tstr(0x00837ce4));  // "developer"
+    const auto add_command = title_function<void XB_CDECL(const char*, uint32_t)>(0x002ba5c0);  // Cmd_AddCommand
+    add_command(tstr(0x0083453c), 0x002c1c20);  // bind
+    add_command(tstr(0x00834534), 0x002c1db0);  // unbind
+    add_command(tstr(0x00834528), 0x002c1d60);  // unbindall
+    add_command(tstr(0x0083451c), 0x002b3370);  // bindlist
+    FS_InitFilesystem();
+    const uint32_t keep = 0;
+    boot_call(0x002c5ac0, 0, 0x0095fe70, 0, 0, 0, 0, 1, &keep);  // Loc_ResetStringFileState (state EBX)
+    Loc_Init();
+    title_function<uint32_t XB_CDECL()>(0x00055e40)();  // IN_PadCreate
+    boot_construct(0x0095f480, 4, 0x11f0, 0x00330640, 'D');  // ProfileSave_Construct
+    boot_construct(0x0095f638, 4, 0x57c, 0x00290020);        // Pak_Init
+    boot_construct(0x0095f62c, 4, 0x2c, 0x002909d0);         // Stream_InitBanks
+    boot_construct(0x0095f630, 4, 0x1e8, 0x0028ec30);        // ResourceManager_Construct
+    title_function<void XB_CDECL()>(0x000239c0)();           // ResourceManager_CreateLgrid
+    title_function<void XB_CDECL()>(0x00023900)();           // ResourceManager_CreateModels
+    title_function<void XB_CDECL()>(0x00023960)();           // ResourceManager_CreateXmpb
+    title_function<void XB_CDECL()>(0x00023f90)();           // ResourceManager_CreateAitb
+    boot_construct(0x0095f4c4, 4, 0x601c, 0x002bda60);       // SoundManager_Ctor
+    title_function<void XB_CDECL()>(0x00023ed0)();           // ResourceManager_CreateSoundBanks
+    title_global<uint8_t*>(0x0095f4c8) = boot_alloc(4, 4);
+    uint8_t* const fade = boot_alloc(4, 0x20);
+    if (fade) {
+        const float one = title_global<float>(0x0083eb20);
+        pk<uint32_t>(fade, 0) = 0;
+        pk<uint32_t>(fade, 4) = 0;
+        pk<float>(fade, 8) = one;
+        pk<float>(fade, 0x10) = one;
+        pk<float>(fade, 0xc) = one;
+        pk<float>(fade, 0x14) = one;
+        pk<float>(fade, 0x18) = 0.0f;
+        pk<uint32_t>(fade, 0x1c) = 0;
+    }
+    title_global<uint8_t*>(0x0095f4cc) = fade;
+    boot_construct(0x0095f640, 0x10, 0x1e0, 0x0028f620);  // ZoneGraph_Init
+    title_function<void XB_CDECL()>(0x00023ff0)();        // ResourceManager_CreateDb
+    boot_construct(0x0095f5b4, 0x10, 0x8e30, 0x0029fbd0); // FXCmdQueue_Ctor
+    title_function<void XB_CDECL()>(0x00023f30)();        // ResourceManager_CreateDlg
+    title_function<void XB_CDECL()>(0x00023a20)();        // ResourceManager_CreateLevel
+    boot_construct(0x0095f4f8, 4, 0x1a8, 0x002c03e0);     // SceneFX_Init -> scn_zoneScenes
+    title_function<void XB_CDECL()>(0x00024050)();        // ResourceManager_CreateCfgstr
+    boot_construct(0x0095f4f4, 4, 0x198, 0x002b1190, 'd'); // g_pathNodeBlocks (EDX)
+    title_function<void XB_CDECL()>(0x00023e70)();        // ResourceManager_CreateLocStrings
+    title_global<uint8_t*>(0x0095f5e0) = boot_alloc(1, 0x800);
+    boot_construct(0x0095f4e0, 4, 0x598, 0x002cdca0);     // Checkpoint_Init
+    boot_construct(0x0095f564, 4, 0x184, 0x002b6fc0, 'a'); // SpgManager_Construct (EAX) -> rm_spg
+    title_function<void XB_CDECL()>(0x00234450)();        // Phys_Init
+    boot_construct(0x0095f4fc, 4, 0x328, 0x002d8a10);     // CM_WorldTrees_Construct
+    boot_construct(0x0095f500, 0x10, 0x1e0, 0x002d0d60, 'b');  // CM_WorldTreeManager_Construct (EBX)
+    title_function<void XB_CDECL()>(0x00023d80)();        // ResourceManager_CreateAnimTrees
+    title_function<void XB_CDECL()>(0x00024260)();        // ShakeRumble_CreateManager
+    title_global<uint8_t>(0x00940178) = 0;
+    title_global<uint8_t*>(0x0095f674) = Cvar_Get(tstr(0x0083be30), tstr(0x0082e098), 0x100);  // statusbar
+    boot_call(0x00337050, 0, 0, 0, 0, 0x0095f8d0);  // FE_CreateMenus (g_uiRoot in ESI)
+    uint8_t* const screens = Z_Malloc(0x1c);
+    if (screens) {
+        const uint32_t arg = u32(screens);
+        title_global<uint32_t>(0x0095f8fc) = boot_call(0x00331680, 0, 0, 0, 0, 0, 0, 1, &arg);  // InGameScreens_Construct
+    } else {
+        title_global<uint32_t>(0x0095f8fc) = 0;
+    }
+    uint8_t* const hud = Z_Malloc(0x64);
+    title_global<uint32_t>(0x0095f8f0) = hud ? boot_call(0x0031a020, 0, 0, 0, 0, u32(hud)) : 0;  // HudManager_Create
+    boot_call(0x002ddea0, 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f534));
+    // The global zone loaded at once, with 0x00299780 as the pak's callback (+0x35c) meanwhile.
+    pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0x00299780;
+    const uint32_t load_args[6] = {0, 0x00837cd4, 0, 0, 0, 0};  // "sp\global.cod", a zero float block
+    boot_call(0x00292d10, title_global<uint32_t>(0x0095f638), 0, 0, 0, 0, 0, 6, load_args);  // Stream_LoadSync
+    const uint32_t pad = title_function<uint32_t XB_CDECL()>(0x00055e40)();  // IN_PadCreate
+    boot_call(0x00055e70, pad, 0, pad);                                      // IN_PadUpdate (ECX)
+    // The "Animation" zone of the pak's zone map (+0x18: map at +8, count +0x10, zones +0x14).
+    uint8_t* const zones = pk_ptr(title_global<uint8_t*>(0x0095f638), 0x18);
+    uint8_t* zone = nullptr;
+    if (zones) {
+        uint32_t key = 0x00837cc8;  // "Animation"
+        const uint32_t key_arg = u32(&key);
+        const auto found = reinterpret_cast<const uint32_t*>(
+            static_cast<uintptr_t>(boot_call(0x000249a0, 0, u32(zones + 8), 0, 0, 0, 0, 1, &key_arg)));  // StringMap_Find
+        if (found) {
+            uint32_t index = *found;
+            if (index >= pk<uint32_t>(zones, 0x10)) index = 0;
+            zone = pk_ptr(pk_ptr(zones, 0x14), index * 4);
+        }
+    }
+    if (!zone) title_function<void XB_CDECL()>(0x00042460)();  // Sys_DebugBreak
+    if (zone) {
+        const uint32_t frame = title_global<uint32_t>(0x008d9d38) + 1;
+        pk<float>(zone, 0x34) = 0.0f;
+        title_global<uint32_t>(0x008d9d38) = frame;
+    }
+    const uint32_t zone_arg = u32(zone);
+    boot_call(0x00292d70, 0, 0, title_global<uint32_t>(0x0095f638), 0, 0, 0, 1, &zone_arg);  // Stream_StartRequest
+    boot_call(0x0023b360, 0, 0, 0, 0, 0x00988770);  // R_InitDebugMeshes (ESI)
+    pk<uint32_t>(title_global<uint8_t*>(0x0095f638), 0x35c) = 0;
+    boot_call(0x002ce9c0, 0, 0, 0, 0, 0, title_global<uint32_t>(0x0095f4c0));  // S_WaitForWaveBanks (rm_soundBanks)
+    title_function<void XB_CDECL()>(0x0029fe70)();  // Com_InitJournaling
+    boot_cbuf_append(0x00837cb4, 0x12);  // "exec language.cfg\n"
+    boot_cbuf_append(0x00837ca4, 0xd);   // "exec bro.cfg\n"
+    boot_cbuf_append(0x00837c90, 0x12);  // "exec autoexec.cfg\n"
+    if (title_function<int32_t XB_CDECL()>(0x002999e0)())  // Com_SafeMode
+        boot_call(0x002aabb0, 0x00837c7c);                // Cbuf_AddText("exec safemode.cfg\n")
+    title_function<void XB_CDECL()>(0x002c62b0)();         // Cbuf_Execute
+    boot_call(0x00332e20, 0, 0, 0, 0, 0, 0x008dce30);      // CL_ApplyProfileSettings (profile in EDI)
+    Com_StartupVariable(nullptr);
+    if (title_global<uint32_t>(0x0095f580) != title_global<uint32_t>(0x0095f578)) {
+        boot_call(0x00297990, title_global<uint32_t>(0x0095f580));  // FS_FreeSearchPaths (EAX)
+        title_global<uint32_t>(0x0095f580) = title_global<uint32_t>(0x0095f578);
+    }
+    if (title_global<uint32_t>(0x0095f584) != title_global<uint32_t>(0x0095f57c)) {
+        boot_call(0x00297950, title_global<uint32_t>(0x0095f584));  // FS_FreePackList (EAX)
+        title_global<uint32_t>(0x0095f584) = title_global<uint32_t>(0x0095f57c);
+    }
+    title_global<uint8_t>(0x0095f918) = title_global<uint8_t>(0x0095ee01) == 0 ? 1 : 0;
+    title_global<uint32_t>(0x009403ec) &= 0xfffffffeu;  // cvar_modifiedFlags
+    struct BootCvar {
+        uint32_t global, name, value, flags;
+    };
+    static const BootCvar kCvars[] = {
+        {0x0094770c, 0x00837c70, 0x0082e098, 1},      {0x0093fc18, 0x00837ce4, 0x0082e098, 0x100},
+        {0x009472f0, 0x00837c5c, 0x0082e098, 0x100},  {0x0093fccc, 0x00837c54, 0x0082e098, 0},
+        {0x0093fc20, 0x00837c48, 0x0082e098, 0},      {0x0093fce4, 0x00837c3c, 0x0082e058, 0x208},
+        {0x0093fcc0, 0x00837c30, 0x0082e098, 0x200},  {0x0093fcb4, 0x00837c28, 0x0082e098, 0x200},
+        {0x009403e8, 0x00837c1c, 0x0082e098, 0},      {0x0093fcd8, 0x0082ca00, 0x0082e098, 0},
+        {0x0093fcbc, 0x00837c0c, 0x0082e098, 0},      {0x0093fcf0, 0x00832cb8, 0x0082e098, 0x40},
+        {0x00947704, 0x00834184, 0x0082e098, 0x40},   {0x009472e8, 0x00837bfc, 0x0082e098, 0},
+    };
+    for (const BootCvar& c : kCvars) title_global<uint8_t*>(c.global) = Cvar_Get(tstr(c.name), tstr(c.value), c.flags);
+    uint8_t* const developer = title_global<uint8_t*>(0x0093fc18);
+    if (developer && pk<uint32_t>(developer, 0x20)) {
+        add_command(tstr(0x00837bf4), 0x00297090);  // error
+        add_command(tstr(0x00837bec), 0x00293850);  // crash
+        add_command(tstr(0x00837be4), 0x0029e8d0);  // freeze (Com_Freeze_f)
+    }
+    add_command(tstr(0x0082ac38), 0x002a6dc0);  // quit (Com_Quit_f)
+    add_command(tstr(0x00837bd8), 0x00293820);  // writeconfig
+    add_command(tstr(0x00837bc8), 0x00293810);  // writedefaults
+    const uint32_t set = u32(Cvar_Set2(tstr(0x0083caa8), const_cast<char*>(tstr(0x0083cab0)), 1));  // arch "ps2"
+    const uint32_t value_args[2] = {0x0083ca9c, 0x3f800000};  // sys_cpuid 1.0
+    boot_call(0x0029fdd0, set, 0, 0, 0, 0, 0, 2, value_args);   // Cvar_SetValue
+    title_function<void XB_CDECL()>(0x002be180)();  // IN_InitCvars
+    title_function<void XB_CDECL()>(0x002c0ce0)();  // Netchan_Init
+    title_function<void XB_CDECL()>(0x002a8410)();  // Com_InitNodeRing
+    Com_Memset(&title_global<uint8_t>(0x00927c38), 0, 0x1a4);  // vmTable
+    title_function<void XB_CDECL()>(0x002f48e0)();  // SV_Init
+    title_function<void XB_CDECL()>(0x002f20a0)();  // CL_Init
+    boot_call(0x0032cf50, 0, 0, 0, 0, 0x008dce30);  // Profile_SetDefaults (ESI)
+    boot_call(0x00332e20, 0, 0, 0, 0, 0x008dce30, 0x008dce30);  // CL_ApplyProfileSettings (EDI)
+    title_global<int32_t>(0x00947710) = title_function<int32_t XB_CDECL()>(0x0029c6b0)();  // com_frameTime
+    title_function<void XB_CDECL()>(0x002970c0)();  // Com_AddStartupCommands
+    Cvar_Set2(tstr(0x00835238), const_cast<char*>(tstr(0x0082e058)), 1);  // r_uiFullScreen "1"
+    title_function<void XB_CDECL()>(0x002f0a50)();  // CL_StartHunkUsers
+    Cvar_Set2(tstr(0x00837c48), const_cast<char*>(tstr(0x0082e098)), 1);  // com_statmon "0"
+    title_global<uint32_t>(0x00947b04) = 1;
 }
 
 }  // namespace game
