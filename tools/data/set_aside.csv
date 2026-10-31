@@ -331,3 +331,6 @@ address,name,kind,reason
 000cac00,File_DestroyDevice,dead,"no CALL/JMP, pointer or immediate (qcommon push 6)"
 000cab90,File_AbortRequestsForDevice,dead,"only caller File_DestroyDevice, which is dead (qcommon push 6)"
 00042c40,Heap_Alloc16_2,dead,"no calls or pointer; the immediate hit at 0x000ca133 is inside an instruction (qcommon push 6)"
+001a96d0,DynArray_Shuffle_2,dead,"no references and no stored pointer bytes in the XBE (qcommon push 7)"
+001a98e0,DynArray_ShuffleInt,dead,"no references and no stored pointer bytes in the XBE (qcommon push 7)"
+002a9be0,Com_PrintfStub,dead,"no references and no stored pointer bytes in the XBE (qcommon push 7)"
