@@ -16,9 +16,15 @@ namespace game {
 
 namespace {
 render::GfxDevice* (*g_gfx_device)() = nullptr;
+GfxDeviceOpener g_gfx_open = nullptr;
 }
 
-void set_gfx_device(render::GfxDevice* (*device)()) { g_gfx_device = device; }
+void set_gfx_device(render::GfxDevice* (*device)(), GfxDeviceOpener open) {
+    g_gfx_device = device;
+    g_gfx_open = open;
+}
+
+GfxDeviceOpener gfx_device_opener() { return g_gfx_open; }
 
 render::GfxDevice* gfx() { return g_gfx_device ? g_gfx_device() : nullptr; }
 
@@ -5730,7 +5736,7 @@ void XB_CDECL nglDrawQuad(NglQuad* quad) {
     xb::set_vertex_input(0, 0, 0);  // SetVertexShaderInputDirect
     // Vertices 0, 1, 3, 2: x, y, z, colour, u, v.
     static const int kOrder[4] = {0, 1, 3, 2};
-    if (!yuv && ngl_gfx_own_draws()) {  // YUV textures (movie frames) stay on the Xbox path for now
+    if (ngl_gfx_own_draws()) {  // YUV textures: converted to RGB as ours are made (YuvEnable's job)
         uint32_t vertices[4][6];
         for (int n = 0; n < 4; ++n) {
             const NglQuadVertex& q = v[kOrder[n]];
@@ -6292,7 +6298,7 @@ void XB_CDECL nglEndFrame() {
     else
         while (*static_cast<volatile uint8_t*>(&title_global<uint8_t>(0x0090288c))) {
         }
-    title_function<void XB_STDCALL(uint32_t)>(0x003eabe0)(0);  // D3DDevice_Swap
+    xb::swap();  // D3DDevice_Swap
     ngl_gfx_end_frame();
     if (title_global<uint32_t>(0x008a3518) != 0x11) nglRestoreRenderStates(&title_global<uint8_t>(0x00902f08));
     ++title_global<uint32_t>(0x009028e0);

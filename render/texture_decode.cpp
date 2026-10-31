@@ -15,6 +15,7 @@ namespace {
 enum class Texel {
     Argb8888, Xrgb8888, Abgr8888, Bgra8888, Rgba8888, Rgb565, Argb1555, Xrgb1555, Argb4444,
     L8, A8, AL8, A8L8, P8, Dxt1, Dxt3, Dxt5,
+    Yuy2, Uyvy,  // two texels in 4 bytes (Y0 U Y1 V / U Y0 V Y1), shown as RGB (YuvEnable)
 };
 
 struct FormatInfo {
@@ -36,6 +37,7 @@ constexpr FormatInfo kFormats[] = {
     {0x1E, Texel::Xrgb8888, 4, true},  {0x1F, Texel::A8, 1, true},        {0x20, Texel::A8L8, 2, true},
     {0x3A, Texel::Abgr8888, 4, false}, {0x3B, Texel::Bgra8888, 4, false}, {0x3C, Texel::Rgba8888, 4, false},
     {0x3F, Texel::Abgr8888, 4, true},  {0x40, Texel::Bgra8888, 4, true},  {0x41, Texel::Rgba8888, 4, true},
+    {0x24, Texel::Yuy2, 2, true},      {0x25, Texel::Uyvy, 2, true},
 };
 
 const FormatInfo* find_format(uint32_t format) {
@@ -49,6 +51,20 @@ uint32_t expand(uint32_t value, uint32_t bits) {
 }
 
 uint32_t argb(uint32_t a, uint32_t r, uint32_t g, uint32_t b) { return a << 24 | r << 16 | g << 8 | b; }
+
+// ITU-R BT.601, video range (Y 16-235), as the NV2A's YUV texture conversion.
+uint32_t yuv_to_argb(int y, int u, int v) {
+    const int c = 298 * (y - 16), d = u - 128, e = v - 128;
+    auto clamp8 = [](int x) { return static_cast<uint32_t>(std::clamp((x + 128) >> 8, 0, 255)); };
+    return argb(0xFF, clamp8(c + 409 * e), clamp8(c - 100 * d - 208 * e), clamp8(c + 516 * d));
+}
+
+// Texel x of a YUY2 / UYVY row: its pair shares U and V.
+uint32_t yuv_texel(Texel texel, const uint8_t* row, uint32_t x) {
+    const uint8_t* pair = row + static_cast<size_t>(x & ~1u) * 2;
+    if (texel == Texel::Yuy2) return yuv_to_argb(pair[(x & 1) * 2], pair[1], pair[3]);
+    return yuv_to_argb(pair[1 + (x & 1) * 2], pair[0], pair[2]);
+}
 
 uint32_t to_argb(Texel texel, const uint8_t* p, const uint32_t* palette) {
     uint32_t v = 0;
@@ -178,6 +194,10 @@ void decode_level(const TextureLayout& layout, uint32_t level, const uint8_t* te
         for (uint32_t y = 0; y < h; ++y) {
             auto* line = reinterpret_cast<uint32_t*>(out + static_cast<size_t>(y) * out_pitch);
             const uint8_t* row = src + static_cast<size_t>(y) * layout.pitch;
+            if (info->texel == Texel::Yuy2 || info->texel == Texel::Uyvy) {
+                for (uint32_t x = 0; x < w; ++x) line[x] = yuv_texel(info->texel, row, x);
+                continue;
+            }
             for (uint32_t x = 0; x < w; ++x) line[x] = to_argb(info->texel, row + static_cast<size_t>(x) * bpp, palette);
         }
     }

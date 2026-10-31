@@ -46,10 +46,9 @@ public:
     bool depth_is_d16() const { return depth_d16_; }
     // The anisotropic filtering level in effect (1 unless enhanced graphics has it on).
     uint32_t anisotropy() const;
-    // A title texture by its Xbox header (and P8 palette header, else 0) as a D3D9 texture,
-    // decoded and kept current like a bound stage's; `scale` gets the texel -> normalized
-    // factors (linear formats). Null if it cannot be decoded.
-    IDirect3DBaseTexture9* xbox_texture(uint32_t texture_header, uint32_t palette_header, float (&scale)[2]);
+    // BackendConfig::replace_texture's picture for texture contents `content` as a D3D9 texture
+    // (kept while its replacement version stays), or null for none.
+    IDirect3DTexture9* replacement_texture(uint64_t content, bool mipmaps);
     // The render target at `data` to sample (a copy while it is the one drawn into).
     IDirect3DTexture9* sample_target(uint32_t data);
     // A draw wrote depth (the frame is not flat) / needed something untranslated.

@@ -78,6 +78,12 @@ target_include_directories(graphics_features_test PRIVATE ${PROJECT_SOURCE_DIR}/
 target_link_libraries(graphics_features_test PRIVATE xbox)
 add_test(NAME graphics_features_test COMMAND graphics_features_test)
 
+# Xbox texture layouts as PC formats (YUV, swizzled).
+add_executable(texture_decode_test texture_decode_test.cpp)
+target_include_directories(texture_decode_test PRIVATE ${PROJECT_SOURCE_DIR}/render)
+target_link_libraries(texture_decode_test PRIVATE texture_formats xbox)
+add_test(NAME texture_decode_test COMMAND texture_decode_test)
+
 # The translated title shaders against the Xbox path's translation (XB_SHADER_DUMP=a --dump-shaders
 # directory; skipped without one).
 add_executable(title_shader_test title_shader_test.cpp)

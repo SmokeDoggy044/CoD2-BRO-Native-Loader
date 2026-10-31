@@ -43,6 +43,13 @@ void ngl_gfx_shader_key(uint32_t program, uint32_t key);
 
 namespace xb {
 
+// Direct3D_CreateDevice's job (nglInit): the display opened for the D3DPRESENT_PARAMETERS at
+// `present_parameters` (title memory) through our graphics interface, the Xbox device it gives
+// stored at `device_out`. Without an opener (--compare test processes) the Xbox call.
+void create_device(uint32_t present_parameters, uint32_t device_out);
+// D3DDevice_Swap's: the frame shown through our graphics interface (or the Xbox call without it).
+void swap();
+
 // D3DDevice_SetRenderState_Simple (0x003e89f0): an NV2A method with its value.
 void set_render_state_simple(uint32_t method, uint32_t value);
 // A word of D3D's render-state table (0x003f8328 + state * 4) or texture-stage table

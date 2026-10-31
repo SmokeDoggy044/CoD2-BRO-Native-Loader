@@ -228,6 +228,8 @@ public:
 
     bool open() override { return true; }
 
+    void present() override { show_frame(); }
+
     void end_frame() override {
         // Kept vertices unused for a while go.
         if (draw_.frame() % 60) return;
@@ -327,7 +329,7 @@ public:
         if (it == textures_.end()) return;
         unbind_texture(id);
         release(it->second.texture);
-        if (it->second.xbox_header) xbox_textures_.erase(xbox_key(it->second.xbox_header, it->second.xbox_palette));
+        if (it->second.replacement) replacements_.erase(replacement_key(it->second.replacement, it->second.mipmaps));
         textures_.erase(it);
     }
 
@@ -495,23 +497,25 @@ public:
     void destroy_target(TargetId id) override {
         auto it = targets_.find(id);
         if (it == targets_.end() || id == back_buffer_ || id == depth_buffer_) return;
-        if (it->second.texture) destroy_texture(it->second.texture);
+        for (TextureId texture : it->second.texture)
+            if (texture) destroy_texture(texture);
         if (color_target_ == id || depth_target_ == id) set_target(back_buffer_, depth_buffer_);
         if (!it->second.depth) draw_.forget_render_target(it->second.desc.data);
         targets_.erase(it);
     }
 
-    TextureId target_texture(TargetId id) override {
+    TextureId target_texture(TargetId id, bool texel_coordinates) override {
         auto it = targets_.find(id);
         if (it == targets_.end() || it->second.depth) return 0;
-        Target& t = it->second;
-        if (!t.texture) {
-            t.texture = next_id_++;
+        TextureId& texture_id = it->second.texture[texel_coordinates ? 1 : 0];
+        if (!texture_id) {
+            texture_id = next_id_++;
             Texture texture;
             texture.target = id;
-            textures_[t.texture] = texture;
+            texture.desc.texel_coordinates = texel_coordinates;
+            textures_[texture_id] = texture;
         }
-        return t.texture;
+        return texture_id;
     }
 
     TargetId back_buffer() override { return back_buffer_; }
@@ -716,16 +720,16 @@ public:
         return wide;
     }
 
-    // --- Transition ---
+    // --- Replacements ---
 
-    TextureId xbox_texture(uint32_t texture_header, uint32_t palette_header) override {
-        if (!texture_header) return 0;
-        TextureId& id = xbox_textures_[xbox_key(texture_header, palette_header)];
+    TextureId replacement_texture(uint64_t content, bool mipmaps) override {
+        if (!draw_.replacement_texture(content, mipmaps)) return 0;
+        TextureId& id = replacements_[replacement_key(content, mipmaps)];
         if (!id) {
             id = next_id_++;
             Texture t;
-            t.xbox_header = texture_header;
-            t.xbox_palette = palette_header;
+            t.replacement = content;
+            t.mipmaps = mipmaps;
             textures_[id] = t;
         }
         return id;
@@ -736,8 +740,8 @@ private:
         IDirect3DBaseTexture9* texture = nullptr;  // ours
         TextureDesc desc;
         TargetId target = 0;        // a target's texture
-        uint32_t xbox_header = 0;   // a title texture (D3D9Draw's cache)
-        uint32_t xbox_palette = 0;
+        uint64_t replacement = 0;   // a replacement picture (D3D9Draw's), by content
+        bool mipmaps = false;
     };
     struct Buffer {
         IUnknown* buffer = nullptr;  // IDirect3DVertexBuffer9 / IDirect3DIndexBuffer9
@@ -751,14 +755,14 @@ private:
     struct Target {
         SurfaceDesc desc;  // D3D9Draw's key: memory address, title size, Xbox format
         bool depth = false;
-        TextureId texture = 0;  // target_texture
+        TextureId texture[2] = {};  // target_texture: normalized, texel coordinates
     };
     struct Stream {
         BufferId buffer = 0;
         uint32_t offset = 0, stride = 0;
     };
 
-    static uint64_t xbox_key(uint32_t header, uint32_t palette) { return uint64_t{palette} << 32 | header; }
+    static uint64_t replacement_key(uint64_t content, bool mipmaps) { return content << 1 | (mipmaps ? 1 : 0); }
 
     TargetId add_target(const Target& t) {
         const TargetId id = next_id_++;
@@ -872,11 +876,22 @@ private:
         auto it = textures_.find(id);
         if (it == textures_.end()) return nullptr;
         const Texture& t = it->second;
-        if (t.texture) return t.texture;
-        if (t.xbox_header) return draw_.xbox_texture(t.xbox_header, t.xbox_palette, scale);
+        if (t.texture) {
+            if (t.desc.texel_coordinates) {
+                scale[0] = 1.0f / static_cast<float>(t.desc.width);
+                scale[1] = 1.0f / static_cast<float>(t.desc.height);
+            }
+            return t.texture;
+        }
+        if (t.replacement) return draw_.replacement_texture(t.replacement, t.mipmaps);
         if (t.target) {
             auto target = targets_.find(t.target);
-            return target == targets_.end() ? nullptr : draw_.sample_target(target->second.desc.data);
+            if (target == targets_.end()) return nullptr;
+            if (t.desc.texel_coordinates) {
+                scale[0] = 1.0f / static_cast<float>(target->second.desc.width);
+                scale[1] = 1.0f / static_cast<float>(target->second.desc.height);
+            }
+            return draw_.sample_target(target->second.desc.data);
         }
         return nullptr;
     }
@@ -1082,7 +1097,7 @@ private:
     D3D9Draw& draw_;
     uint32_t next_id_ = 1;  // one sequence for every kind of id
     std::unordered_map<TextureId, Texture> textures_;
-    std::unordered_map<uint64_t, TextureId> xbox_textures_;  // by xbox_key
+    std::unordered_map<uint64_t, TextureId> replacements_;  // by replacement_key
     std::unordered_map<BufferId, Buffer> buffers_;
     std::unordered_map<ShaderId, Shader> shaders_;
     std::vector<IDirect3DVertexDeclaration9*> layouts_;  // LayoutId - 1

@@ -226,21 +226,6 @@ D3DPRIMITIVETYPE primitive_type(DrawInput::Primitive primitive) {
     }
 }
 
-// Hashing every texture's whole memory every frame took up to 13% of the main thread
-// on a slow PC (issue #8), though nearly all of them stay as loaded. Each frame hashes
-// kSampleBlocks spread blocks of a large texture (memory loaded with another picture
-// differs nearly everywhere) and the whole of it only every kFullCheckFrames frames
-// (staggered) or while it changed in the last kHotFrames.
-constexpr uint32_t kSampleBlocks = 16, kSampleBlockSize = 64, kFullCheckFrames = 8, kHotFrames = 60;
-
-uint64_t sample_texture(const uint8_t* memory, uint32_t size) {
-    if (size <= kSampleBlocks * kSampleBlockSize * 2) return hash_bytes(memory, size);
-    uint64_t h = hash_bytes(memory, kSampleBlockSize);
-    for (uint32_t i = 1; i < kSampleBlocks; ++i)
-        h = hash_bytes(memory + uint64_t{size - kSampleBlockSize} * i / (kSampleBlocks - 1), kSampleBlockSize, h);
-    return h;
-}
-
 }  // namespace
 
 struct D3D9Draw::CachedTexture {
@@ -248,6 +233,7 @@ struct D3D9Draw::CachedTexture {
     uint64_t content = 0;
     uint32_t replacement_version = 0;  // BackendConfig::replacement_version when made
     uint32_t checked_frame = 0;
+    uint32_t checks = 0;         // frames it was checked (all of it every kFullCheckFrames)
     uint64_t sample = 0;         // sample_texture when last checked
     uint32_t changed_frame = 0;  // when its contents last changed
     float scale[2] = {1.0f, 1.0f};  // texel -> normalized coordinates for linear formats
@@ -274,6 +260,7 @@ struct D3D9Draw::Caches {
     std::unordered_map<uint64_t, IDirect3DVertexShader9*> vertex_shaders;
     std::unordered_map<uint64_t, IDirect3DPixelShader9*> pixel_shaders;
     std::unordered_map<uint64_t, D3D9Draw::CachedTexture> textures;
+    std::unordered_map<uint64_t, D3D9Draw::CachedTexture> replacements;  // by content, mipmaps
     std::set<uint32_t> unsupported_formats;  // warned about once each
     std::set<uint64_t> failed_shaders;       // vertex/pixel shader keys the device refused (logged once)
     std::unordered_map<uint32_t, Target> targets;      // by Xbox address
@@ -292,6 +279,7 @@ struct D3D9Draw::Caches {
         for (auto& [k, v] : vertex_shaders) release(v);
         for (auto& [k, v] : pixel_shaders) release(v);
         for (auto& [k, v] : textures) release(v.texture);
+        for (auto& [k, v] : replacements) release(v.texture);
     }
 };
 
@@ -653,16 +641,17 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
     return texture_for(data, format, size_field, bound.palette, stage);
 }
 
-IDirect3DBaseTexture9* D3D9Draw::xbox_texture(uint32_t texture_header, uint32_t palette_header,
-                                              float (&scale)[2]) {
-    if (!texture_header) return nullptr;
-    const auto* pixels = from_xbox_ptr<XbPixelContainer>(texture_header);
-    if (!pixels->format) return nullptr;
-    CachedTexture* entry = texture_for(pixels->resource.data, pixels->format, pixels->size, palette_header, 0);
-    if (!entry) return nullptr;
-    scale[0] = entry->scale[0];
-    scale[1] = entry->scale[1];
-    return entry->texture;
+IDirect3DTexture9* D3D9Draw::replacement_texture(uint64_t content, bool mipmaps) {
+    if (!replace_texture_) return nullptr;
+    const uint32_t version = replacement_version_ ? replacement_version_(content) : 0;
+    CachedTexture& entry = caches_->replacements[content << 1 | (mipmaps ? 1 : 0)];
+    if (entry.replaced && entry.replacement_version == version) return entry.texture;
+    entry.replaced = true;  // asked (the texture stays null when there is no replacement)
+    entry.replacement_version = version;
+    release(entry.texture);
+    const std::shared_ptr<const TextureReplacement> replacement = replace_texture_(content, render_scale_y_);
+    if (!replacement || !upload_replacement(entry, *replacement, mipmaps)) entry.texture = nullptr;
+    return entry.texture;
 }
 
 IDirect3DTexture9* D3D9Draw::sample_target(uint32_t data) {
@@ -717,7 +706,7 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for(uint32_t data, uint32_t format, u
     uint64_t sample = sample_texture(memory, layout.total_size);
     if (palette) sample = hash_bytes(palette, 256 * 4, sample);
     const bool full_check = !entry.texture || sample != entry.sample || frame_ - entry.changed_frame < kHotFrames ||
-                            (frame_ + static_cast<uint32_t>(key)) % kFullCheckFrames == 0;
+                            ++entry.checks % kFullCheckFrames == 0;
     entry.sample = sample;
     if (!full_check) return &entry;
     uint64_t content = hash_bytes(memory, layout.total_size);

@@ -80,6 +80,9 @@ XbPtr current_depth_stencil();
 
 class Backend;
 Backend* backend();
+// The frame's end (D3DDevice_Swap, GfxDevice::present): the picture shown, the window's events
+// handled; the frames shown so far.
+uint32_t show_frame();
 
 // Before each draw: puts CPU writes to the back buffer on screen first. False without
 // a device.

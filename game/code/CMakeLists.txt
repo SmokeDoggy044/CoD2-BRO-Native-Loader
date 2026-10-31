@@ -74,9 +74,10 @@ target_include_directories(game_code PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(game_code PRIVATE ${PROJECT_SOURCE_DIR}/platform)
 # Only declarations from audio/ (sound_device.h, format.h, packet.h): the loader hands over the device.
 target_include_directories(game_code PRIVATE ${PROJECT_SOURCE_DIR}/audio)
-# Only declarations from render/ (gfx_device.h): the loader says where the device comes from.
+# From render/: declarations (gfx_device.h; the loader says where the device comes from) and the
+# texture formats library (texture_decode.h).
 target_include_directories(game_code PRIVATE ${PROJECT_SOURCE_DIR}/render)
-target_link_libraries(game_code PRIVATE cod_bro_options)
+target_link_libraries(game_code PRIVATE cod_bro_options texture_formats)
 # The title does its float math in SSE (single precision); x87 code would round and
 # quiet NaNs differently. Pentium III level: SSE only, no SSE2. -frounding-math: the
 # title's MXCSR does not round to nearest, so constant expressions (1.0f / 320.0f in
