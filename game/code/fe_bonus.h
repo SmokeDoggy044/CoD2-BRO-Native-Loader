@@ -150,4 +150,27 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL BonusMaterialsMenu_HandleSelect(uint8_t
                                                                          uint32_t entry_esp);
 extern "C" void BonusMaterialsMenu_HandleSelect_entry(void);
 
+// Item steps and "new" flags. 0x0031bc50 / 0x0031c870 (menu in EAX, direction in EDI): the unlock counts
+// (Profile_SumMissionStats); the selected vehicle (+0x70, 6 categories, counts 10..15) / weapon (+0x84, 10, counts
+// 0..9) item one up while below its count (1), one down to 1 (2, then done), else at least 1; then the stored bests
+// (0x008dceb8.. in the order 0, 1, 4, 3, 2, 5 / 0x008dce90..) raised to the items.
+extern "C" PLATFORM_HIDDEN void XB_CDECL BonusVehiclesMenu_Step(uint8_t* menu, int32_t direction);
+extern "C" void BonusVehiclesMenu_Step_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL BonusWeaponsMenu_Step(uint8_t* menu, int32_t direction);
+extern "C" void BonusWeaponsMenu_Step_entry(void);
+// 0x0031c0e0 (stdcall) / 0x0031ceb0 (menu in EDI): the vehicle (+0x68, 6) / weapon (+0x78, 10) categories' "new"
+// flags: unlock count above the stored best (0x00312d60), cleared for locked rows (vtable +0x24 == 1).
+void XB_STDCALL BonusVehiclesMenu_UpdateNewFlags(uint8_t* menu);
+extern "C" PLATFORM_HIDDEN void XB_CDECL BonusWeaponsMenu_UpdateNewFlags(uint8_t* menu);
+extern "C" void BonusWeaponsMenu_UpdateNewFlags_entry(void);
+// 0x0031d6b0 (menu in EDI): character i "new" (+0x60 + i) when the stored best 16 is at most i and row i is not
+// locked (vtable +0x24).
+extern "C" PLATFORM_HIDDEN void XB_CDECL BonusCharactersMenu_UpdateNewFlags(uint8_t* menu);
+extern "C" void BonusCharactersMenu_UpdateNewFlags_entry(void);
+// 0x0031db10 (menu in EDI): the bonus menu's "new" flags: +0x60 0x008dce8d clear, +0x61 0x008dcf0c < +0x78, +0x62
+// characters, +0x63 weapons, +0x64 vehicles (counts differ from the stored bests), +0x65 an unlocked chapter's
+// record word above its stored best (0x008dced4).
+extern "C" PLATFORM_HIDDEN void XB_CDECL BonusMaterialsMenu_UpdateNewFlags(uint8_t* menu);
+extern "C" void BonusMaterialsMenu_UpdateNewFlags_entry(void);
+
 }  // namespace game

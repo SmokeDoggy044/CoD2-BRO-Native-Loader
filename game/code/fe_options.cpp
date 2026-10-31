@@ -1,10 +1,13 @@
 #include "fe_options.h"
 
+#include <cstring>
+
 #include "cl.h"
 #include "fe.h"
 #include "movie.h"
 #include "ngl.h"
 #include "qcommon.h"
+#include "snd.h"
 #include "title_data.h"
 #include "ui_menu.h"
 #include "ui_panel.h"
@@ -379,6 +382,78 @@ void XB_THISCALL ControllerConfigMenu_RestoreSelection(uint8_t* menu) {
     controls_update_text(menu);
 }
 
+// --- Slider bars ---
+
+namespace {
+
+// A slider bar's quads (the bar's +0x20 first quad, its NglQuad at +0x40) set to value * 0.02 of the bar's width
+// (+0x34), as SoundMenu_UpdateSliders: x from the left edge, u from u0 (vertex order by whether vertices 0 and 1
+// share u). `u_fraction_first`: the end u as fraction + u0 (else u0 + fraction). Returns the unclamped level.
+float set_bar(uint8_t* bar, int32_t value, bool u_fraction_first) {
+    const float one = title_global<float>(0x0083eb20);
+    const float level = float(value) * title_global<float>(0x00830670);  // 0.02
+    float clamped;
+    if (0.0f > level) {
+        clamped = 0.0f;
+    } else if (level > one) {
+        clamped = one;
+    } else {
+        clamped = level;
+    }
+    const float width = field<float>(bar, 0x34);
+    uint8_t* const quads = *field<uint8_t**>(bar, 0x20);
+    float fraction = clamped;
+    if (clamped > one) fraction = title_global<float>(0x0083eba8) - clamped;  // 2
+    NglQuad* const quad = reinterpret_cast<NglQuad*>(quads + 0x40);
+    const float right =
+        (field<float>(quads, 0x24) - field<float>(quads, 0)) * width * fraction + field<float>(quads, 0x40);
+    const float x0 = field<float>(quads, 0x40);
+    const float y0 = field<float>(quads, 0x44);
+    const float y3 = field<float>(quads, 0x80);
+    const float u0 = field<float>(quads, 0x48);
+    const float u1 = field<float>(quads, 0x5c);
+    const float epsilon = title_global<float>(0x0083eb4c);  // 0.001
+    const bool rotated = u0 >= u1 ? epsilon > u0 - u1 : epsilon > u1 - u0;
+    const float x[4] = {x0, rotated ? x0 : right, rotated ? right : x0, right};
+    const float y[4] = {y0, rotated ? y3 : y0, rotated ? y0 : y3, y3};
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexPos(quad, i, x[i], y[i]);
+    const float u_start = field<float>(quads, 0x48);
+    const float u_end = u_fraction_first ? fraction + u_start : u_start + fraction;
+    const float v_start = field<float>(quads, 0x4c);
+    const float v_end = field<float>(quads, 0x88);
+    const float u[4] = {u_start, rotated ? u_start : u_end, rotated ? u_end : u_start, u_end};
+    const float v[4] = {v_start, rotated ? v_end : v_start, rotated ? v_start : v_end, v_end};
+    for (int32_t i = 0; i < 4; ++i) nglSetQuadVertexUV(quad, i, u[i], v[i]);
+    return level;
+}
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL ControllerConfigMenu_UpdateSliderA(uint8_t* menu) {
+    set_bar(field<uint8_t*>(menu, 0x60), field<int32_t>(menu, 0xb8), true);
+}
+
+void XB_REGS1 XB_CDECL ControllerConfigMenu_UpdateSliderB(uint8_t* menu) {
+    set_bar(field<uint8_t*>(menu, 0x64), field<int32_t>(menu, 0xbc), true);
+}
+
+void XB_REGS1 XB_STDCALL AdvancedOptionsMenu_SetSliderBar(uint8_t* bar, uint8_t* menu, int32_t value) {
+    const float level = set_bar(bar, value, false);
+    if (field<int16_t>(menu, 0x22) != 6) return;
+    uint32_t bits;
+    std::memcpy(&bits, &level, 4);
+    S_SetHandleVolume(title_global<uint8_t*>(0x0095f4cc), bits);
+    const float one = title_global<float>(0x0083eb20);
+    float& volume = field<float>(title_global<uint8_t*>(0x0095f4c4), 0x6018);
+    volume = level;
+    if (!(0.0f < level)) volume = 0.0f;
+    if (!(volume < one)) volume = one;
+    const float quiet = one - volume;
+    const float master = one - quiet * quiet;
+    std::memcpy(&bits, &master, 4);
+    S_SetMasterVolume(bits);
+}
+
 // --- In-game options ---
 
 PLATFORM_ASM_ENTRY(AdvancedOptionsMenu_ToggleSelected_entry,
@@ -556,6 +631,32 @@ void XB_THISCALL AdvancedOptionsMenu_Draw(uint8_t* menu) {
     if (uint8_t* const text = field<uint8_t*>(menu, 0xa0)) call(text, 0x3c);
     if (uint8_t* const panel = field<uint8_t*>(menu, 0x34)) Panel_Draw(panel);
     UIMenu_Draw(menu);
+}
+
+PLATFORM_ASM_ENTRY(OptionsMenu_SetCheckmarks_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(OptionsMenu_SetCheckmarks) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL OptionsMenu_SetCheckmarks(uint8_t* menu, int32_t selected) {
+    const int32_t count = (title_global<uint8_t>(0x0095e7f8) ? 1 : 0) + 4;
+    for (int32_t i = 0; i < count; ++i) {
+        char name[0xc];
+        title_function<int32_t XB_CDECL(char*, const char*, int32_t)>(0x001ee901)(
+            name, reinterpret_cast<const char*>(uintptr_t{0x0082c42c}), i + 1);  // _sprintf "check0%i"
+        uint8_t* const list = field<uint8_t*>(menu, 0x38);
+        uint8_t* const picture = Panel_FindPicture(list, name);
+        uint8_t** const pictures = field<uint8_t**>(list, 0);
+        const uint32_t pictures_count = field<uint32_t>(list, 8);
+        int32_t index = -1;
+        for (uint32_t k = 0; k < pictures_count; ++k) {
+            if (pictures[k] == picture) {
+                index = int32_t(k);
+                break;
+            }
+        }
+        call(pictures[index], 0x34, i == selected ? 1 : 0);  // [-1] when not found, as in the original
+    }
 }
 
 // --- Restoring the selection ---

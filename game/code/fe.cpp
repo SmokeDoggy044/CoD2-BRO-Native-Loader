@@ -2227,6 +2227,27 @@ void XB_THISCALL UIText_DrawLines(uint8_t* text, int32_t first, int32_t end) {
     }
 }
 
+void XB_REGS1 XB_CDECL UI_RotationZ(float* out, float angle) {
+    const float s = platform_x87_sin(angle);
+    const float c = platform_x87_cos(angle);
+    const uint32_t zero = title_global<uint32_t>(0x0083eafc);
+    float r[16];
+    r[0] = c;
+    r[1] = s;
+    std::memcpy(&r[2], &zero, 4);
+    r[3] = c;
+    r[4] = 0.0f - s;
+    r[5] = c;
+    r[6] = 0.0f;
+    r[7] = r[4];
+    r[8] = 0.0f;
+    r[9] = 0.0f;
+    r[10] = g(0x0083eb20);  // 1.0
+    r[11] = 0.0f;
+    for (int32_t i = 12; i < 16; ++i) r[i] = 0.0f;
+    std::memcpy(out, r, sizeof r);
+}
+
 void XB_THISCALL UITextBase_Draw(uint8_t* text) {
     if (!method<uint8_t XB_THISCALL(uint8_t*)>(text, 0x30)(text)) return;
     Str* const string = reinterpret_cast<Str*>(text + 0x1c);

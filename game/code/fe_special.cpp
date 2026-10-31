@@ -485,6 +485,54 @@ void XB_CDECL SpecialConceptMenu_OnA(uint8_t* menu, uint32_t ebx, uint32_t edi, 
     c.run_eax(kConceptLoadImage, address_of(menu));
 }
 
+// The image reload (vtable +0x10, FE_BonusCELoadImage: stack buffers handed to title code) is tail-called at the
+// entry ESP: the C version returns its address (0: none) and the entry jumps with ECX = the menu.
+PLATFORM_ASM_ENTRY(SpecialConceptMenu_NextItem_entry,
+                   "pushl %ecx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(SpecialConceptMenu_NextItem) "movl 8(%esp), %ecx\n"
+                   "addl $12, %esp\n"
+                   "testl %eax, %eax\n"
+                   "jz 1f\n"
+                   "jmp *%eax\n"
+                   "1:\n"
+                   "ret")
+
+uint32_t XB_CDECL SpecialConceptMenu_NextItem(int32_t direction, uint32_t, uint8_t* menu) {
+    static constexpr int32_t kCounts[6] = {0x26, 0xf, 0xf, 3, 9, 0xb};
+    const int32_t row = selection(menu);
+    const uint32_t reload = field<uint32_t>(field<uint8_t*>(menu, 0), 0x10);
+    if (direction == 1) {
+        if (uint32_t(row) > 5) return 0;
+        int32_t& item = field<int32_t>(menu, 0x130 + uint32_t(row) * 4);
+        if (item >= kCounts[row]) return 0;
+        ++item;
+        return reload;
+    }
+    int32_t& item = *reinterpret_cast<int32_t*>(menu + 0x130 + row * 4);
+    if (direction == 2) {
+        if (item <= 1) return 0;
+        --item;
+        return reload;
+    }
+    if (item == 0) item = 1;
+    return 0;
+}
+
+// Leaving the full-screen image: the help bar text, +0x40 = 0, the image released (file +0x44, buffer +0x48,
+// texture +0x4c), then FE_BonusCELoadImage (EAX = the menu) tail-called at the entry ESP.
+PLATFORM_ASM_ENTRY(SpecialConceptMenu_LeaveFullScreen_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(SpecialConceptMenu_LeaveFullScreen) "addl $4, %esp\n"
+                   "movl %esi, %eax\n"
+                   "pushl $0x0031a490\n"
+                   "ret")
+
+void XB_CDECL SpecialConceptMenu_LeaveFullScreen(uint8_t* menu) {
+    call(field<uint8_t*>(menu, 0x38), 0x6c, 0x0082b618);  // "BONUS_HELPBAR_FULLSCREEN"
+    menu[0x40] = 0;
+    release_image(menu, 0x44, 0x48, 0x4c, true);
+}
+
 void XB_CDECL SpecialConceptMenu_OnRight(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t, uint32_t entry_esp) {
     if (menu[0x40]) return;
     const Calls c = after_push_esi(menu, ebx, edi, entry_esp);

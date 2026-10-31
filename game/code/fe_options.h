@@ -128,5 +128,16 @@ void XB_THISCALL AdvancedOptionsMenu_Draw(uint8_t* menu);
 void XB_THISCALL OptionsMenu_RestoreSelection(uint8_t* menu);
 void XB_THISCALL GameplayMenu_RestoreSelection(uint8_t* menu);
 void XB_THISCALL ControllerConfigMenu_RestoreSelection(uint8_t* menu);
+// 0x0031e9d0 / 0x0031e810 (menu in EAX): the controller sliders' bars (+0x60 / +0x64) at +0xb8 / +0xbc * 0.02 of
+// their width (x from the left edge, u from u0; vertex order by whether vertices 0 and 1 share u).
+void XB_REGS1 XB_CDECL ControllerConfigMenu_UpdateSliderA(uint8_t* menu);
+void XB_REGS1 XB_CDECL ControllerConfigMenu_UpdateSliderB(uint8_t* menu);
+// 0x0031ee10 (bar in EAX; menu, value on the stack, ret 8): the bar likewise; on row 6 the crossfade 0x0095f4cc
+// volume v (S_SetHandleVolume), the sound system's +0x6018 = v clamped to 0..1, master volume 1 - (1 - it)^2.
+void XB_REGS1 XB_STDCALL AdvancedOptionsMenu_SetSliderBar(uint8_t* bar, uint8_t* menu, int32_t value);
+// 0x00328e90 (menu in EDI, ret 4): the pictures "check01".."check04" (and "check05" with 0x0095e7f8) of the
+// panel +0x38: +0x34 (shown) for the selected one only.
+extern "C" PLATFORM_HIDDEN void XB_CDECL OptionsMenu_SetCheckmarks(uint8_t* menu, int32_t selected);
+extern "C" void OptionsMenu_SetCheckmarks_entry(void);
 
 }  // namespace game

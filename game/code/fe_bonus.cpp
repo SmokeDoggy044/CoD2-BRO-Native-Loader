@@ -1,6 +1,7 @@
 #include "fe_bonus.h"
 
 #include "fe.h"
+#include "qcommon_fs.h"
 #include "ngl.h"
 #include "title_data.h"
 #include "ui_menu.h"
@@ -503,6 +504,153 @@ void XB_THISCALL BonusCharactersMenu_Draw(uint8_t* menu) {
     draw(field<uint8_t*>(menu, 0x70));
     nglListAddQuad(reinterpret_cast<const NglQuad*>(menu + 0x80));
     UIMenu_Draw(menu);
+}
+
+// --- Item steps and "new" flags ---
+
+namespace {
+
+int32_t* chapter_stats() { return &title_global<int32_t>(0x0095f924); }
+// 0x00312d60 (out in EAX): the 18 stored bests from 0x008dce90.
+void read_bests(int32_t* out) { title_function<void XB_REGS1 XB_CDECL(int32_t*)>(0x00312d60)(out); }
+// A row's lock query (vtable +0x24).
+uint8_t row_locked(uint8_t* menu, int32_t row) {
+    uint8_t* const item = field<uint8_t**>(menu, 4)[row];
+    return title_function<uint8_t XB_THISCALL(uint8_t*)>(field<uint32_t>(field<uint8_t*>(item, 0), 0x24))(item);
+}
+
+// The selected category's item (`items` + row * 4): direction 1 one up while below the category's unlock count,
+// 2 one down to 1 (no bests update after), else at least 1. Returns whether the bests are updated.
+bool step_item(uint8_t* menu, int32_t direction, uint32_t items, uint32_t categories, const int32_t* unlocked) {
+    const int32_t row = selection(menu);
+    if (direction == 1) {
+        if (uint32_t(row) < categories) {
+            int32_t& item = field<int32_t>(menu, items + uint32_t(row) * 4);
+            if (unlocked[row] > item) ++item;
+        }
+        return true;
+    }
+    if (direction == 2) {
+        if (uint32_t(row) < categories) {
+            int32_t& item = field<int32_t>(menu, items + uint32_t(row) * 4);
+            if (item > 1) --item;
+        }
+        return false;
+    }
+    int32_t& item = *reinterpret_cast<int32_t*>(menu + items + row * 4);
+    if (item == 0) item = 1;
+    return true;
+}
+
+// The weapons' ten stored bests (0x008dce90..) against their category items (+0x84..).
+void weapons_raise_bests(uint8_t* menu) {
+    for (uint32_t i = 0; i < 10; ++i) {
+        int32_t& best = title_global<int32_t>(0x008dce90 + i * 4);
+        const int32_t item = field<int32_t>(menu, 0x84 + i * 4);
+        if (best < item) best = item;
+    }
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(BonusVehiclesMenu_Step_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(BonusVehiclesMenu_Step) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL BonusVehiclesMenu_Step(uint8_t* menu, int32_t direction) {
+    int32_t counts[18];
+    Profile_SumMissionStats(chapter_stats(), counts);
+    if (step_item(menu, direction, 0x70, 6, counts + 10)) vehicles_raise_bests(menu);
+}
+
+void XB_STDCALL BonusVehiclesMenu_UpdateNewFlags(uint8_t* menu) {
+    int32_t counts[18];
+    int32_t best[18];
+    Profile_SumMissionStats(chapter_stats(), counts);
+    read_bests(best);
+    field<uint32_t>(menu, 0x68) = 0;
+    field<uint16_t>(menu, 0x6c) = 0;
+    static constexpr uint32_t kOrder[6] = {0, 1, 4, 3, 2, 5};
+    for (const uint32_t k : kOrder) {
+        if (counts[10 + k] > best[10 + k]) menu[0x68 + k] = 1;
+    }
+    for (int32_t i = 0; i < 6; ++i) {
+        if (row_locked(menu, i) == 1) menu[0x68 + i] = 0;
+    }
+}
+
+PLATFORM_ASM_ENTRY(BonusWeaponsMenu_Step_entry,
+                   "pushl %edi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(BonusWeaponsMenu_Step) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL BonusWeaponsMenu_Step(uint8_t* menu, int32_t direction) {
+    int32_t counts[18];
+    Profile_SumMissionStats(chapter_stats(), counts);
+    if (step_item(menu, direction, 0x84, 10, counts)) weapons_raise_bests(menu);
+}
+
+PLATFORM_ASM_ENTRY(BonusWeaponsMenu_UpdateNewFlags_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(BonusWeaponsMenu_UpdateNewFlags) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL BonusWeaponsMenu_UpdateNewFlags(uint8_t* menu) {
+    int32_t counts[18];
+    int32_t best[18];
+    Profile_SumMissionStats(chapter_stats(), counts);
+    read_bests(best);
+    field<uint32_t>(menu, 0x78) = 0;
+    field<uint32_t>(menu, 0x7c) = 0;
+    field<uint16_t>(menu, 0x80) = 0;
+    for (uint32_t k = 0; k < 10; ++k) {
+        if (counts[k] > best[k]) menu[0x78 + k] = 1;
+    }
+    for (int32_t i = 0; i < 10; ++i) {
+        if (row_locked(menu, i) == 1) menu[0x78 + i] = 0;
+    }
+}
+
+PLATFORM_ASM_ENTRY(BonusCharactersMenu_UpdateNewFlags_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(BonusCharactersMenu_UpdateNewFlags) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL BonusCharactersMenu_UpdateNewFlags(uint8_t* menu) {
+    int32_t best[18];
+    read_bests(best);
+    const int32_t seen = best[16];
+    for (int32_t i = 0; i < 7; ++i) menu[0x60 + i] = seen <= i && !row_locked(menu, i) ? 1 : 0;
+}
+
+PLATFORM_ASM_ENTRY(BonusMaterialsMenu_UpdateNewFlags_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(BonusMaterialsMenu_UpdateNewFlags) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL BonusMaterialsMenu_UpdateNewFlags(uint8_t* menu) {
+    menu[0x60] = title_global<uint8_t>(0x008dce8d) == 0 ? 1 : 0;
+    menu[0x61] = title_global<int32_t>(0x008dcf0c) < field<int32_t>(menu, 0x78) ? 1 : 0;
+    int32_t counts[18];
+    int32_t best[18];
+    Profile_SumMissionStats(chapter_stats(), counts);
+    read_bests(best);
+    menu[0x62] = best[16] != counts[16] ? 1 : 0;
+    bool changed = false;
+    for (uint32_t k = 0; k < 10 && !changed; ++k) changed = best[k] != counts[k];
+    menu[0x63] = changed ? 1 : 0;
+    static constexpr uint32_t kVehicles[6] = {10, 11, 14, 13, 12, 15};
+    changed = false;
+    for (uint32_t i = 0; i < 6 && !changed; ++i) changed = best[kVehicles[i]] != counts[kVehicles[i]];
+    menu[0x64] = changed ? 1 : 0;
+    // Any unlocked chapter whose record word +0x44 (0x0095f968 + c * 0x48) is above its stored best (0x008dced4).
+    menu[0x65] = 0;
+    for (int32_t c = 0; c < 14; ++c) {
+        const int32_t unlocked = title_global<int32_t>(0x008dce44);  // g_chaptersUnlocked
+        if (c > unlocked - 1) continue;
+        const int32_t value = title_global<uint8_t>(0x008dce54) || unlocked > c
+                                  ? title_global<int32_t>(0x0095f968 + uint32_t(c) * 0x48)
+                                  : 0;
+        if (value > title_global<int32_t>(0x008dced4 + uint32_t(c) * 4)) menu[0x65] = 1;
+    }
 }
 
 // --- Full screen (A / B) ---

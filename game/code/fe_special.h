@@ -115,5 +115,15 @@ SPECIAL_GAP_FUNCTION(SpecialMaterialsMenu_OnLeft)
 // 0x0031aa80 / 0x0031aab0 (ret 4): the next / previous row; the image when it changed.
 SPECIAL_GAP_FUNCTION(SpecialMaterialsMenu_OnDown)
 SPECIAL_GAP_FUNCTION(SpecialMaterialsMenu_OnUp)
+// 0x0031a390 (direction in EAX, menu in ECX): the selected category's item (+0x130 + row * 4) one up below its
+// count (38, 15, 15, 3, 9, 11) (1) or one down to 1 (2), then the image reload (vtable +0x10, tail call); else at
+// least 1.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SpecialConceptMenu_NextItem(int32_t direction, uint32_t edx,
+                                                                         uint8_t* menu);
+extern "C" void SpecialConceptMenu_NextItem_entry(void);
+// 0x0031a6b0 (menu in ESI): help bar BONUS_HELPBAR_FULLSCREEN (+0x38's +0x6c), +0x40 = 0, the image released,
+// then FE_BonusCELoadImage (tail jump, EAX = the menu).
+extern "C" PLATFORM_HIDDEN void XB_CDECL SpecialConceptMenu_LeaveFullScreen(uint8_t* menu);
+extern "C" void SpecialConceptMenu_LeaveFullScreen_entry(void);
 
 }  // namespace game

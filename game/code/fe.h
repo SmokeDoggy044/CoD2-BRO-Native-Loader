@@ -374,6 +374,9 @@ void XB_THISCALL UIText_DrawLines(uint8_t* text, int32_t first, int32_t end);
 // 0x00321160 (vtable +0x3c): when shown and not "", the text at its position moved by the alignment (vtable +0xfc)
 // in its colour at the fade alpha.
 void XB_THISCALL UITextBase_Draw(uint8_t* text);
+// 0x003212f0 (out in EAX; dead: no callers): a rotation about z (x87 FSIN / FCOS): rows (c, s, 0, c), (-s, c, 0,
+// -s), (0, 0, 1, 0), 0 (the fourth word of the first two rows repeats the first).
+void XB_REGS1 XB_CDECL UI_RotationZ(float* out, float angle);
 // 0x0032b0d0: word-wraps `string` at `width` (separators " -\n\r"; "\f[" words change the kind); with `store` the
 // lines go to the line array (up to its capacity +0x7c). Returns the line count.
 uint32_t XB_STDCALL UIText_WrapLines(uint8_t* text, const char* string, int32_t width, uint8_t store);
