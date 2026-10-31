@@ -55,7 +55,13 @@ int main() {
     CHECK(b[Action::Jump][0] == SDL_SCANCODE_C && b[Action::Jump][1] == 0);
 
     CHECK(input::is_reserved(SDL_SCANCODE_ESCAPE) && input::is_reserved(SDL_SCANCODE_F10));
-    CHECK(!input::is_reserved(SDL_SCANCODE_F));
+    CHECK(!input::is_reserved(SDL_SCANCODE_F) && !input::is_reserved(SDL_SCANCODE_UP));
+    CHECK(!input::is_reserved(SDL_SCANCODE_RETURN) && !input::is_reserved(SDL_SCANCODE_BACKSPACE));
+    // Arrow keys bound to moving: bound, and shown as arrows in the prompts.
+    b = defaults;
+    input::bind(b, Action::MoveForward, 1, SDL_SCANCODE_UP);
+    CHECK(input::is_bound(b, SDL_SCANCODE_UP) && !input::is_bound(b, SDL_SCANCODE_DOWN) && !input::is_bound(b, 0));
+    CHECK(input::prompt_label(SDL_SCANCODE_UP) == "@up" && input::prompt_label(SDL_SCANCODE_RIGHT) == "@right");
     CHECK(input::input_name(input::kMouseButton + 5) == "Mouse 5" && input::input_name(SDL_SCANCODE_LSHIFT) == "Left Shift");
     CHECK(input::prompt_label(input::kMouseButton + 1) == "@lmb" && input::prompt_label(SDL_SCANCODE_LSHIFT) == "Shift");
     CHECK(input::prompt_label(SDL_SCANCODE_KP_5) == "Num 5");

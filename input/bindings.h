@@ -3,8 +3,9 @@
 // The player's keyboard and mouse bindings (issue #14): which keys and mouse buttons
 // give each action. The actions are the pad controls of CoD BRO's default controller
 // layout (config/default.cfg; devices.h maps them onto the active layout), plus the
-// sticks as move and look keys. The menu keys (arrows, Return, Backspace, Escape, Tab)
-// and the loader's own keys (F10-F12) are fixed and cannot be bound.
+// sticks as move and look keys. Escape (pause), Tab (objectives) and the loader's own
+// keys (F10-F12) are fixed and cannot be bound. The other menu keys (arrows, Return,
+// Backspace) can: in menus they still give their buttons, in play only while unbound.
 //
 // Saved in settings.ini as `keys = <action>=<input> ...`, only the actions that differ
 // from the defaults (all of their inputs; `<action>=none` for an action without any).
@@ -54,13 +55,16 @@ std::string format_bindings(const Bindings& bindings);
 const char* action_label(Action action);
 // An input as shown ("Left Shift", "Mouse 4", "Wheel up"); "" for none.
 std::string input_name(InputCode input);
-// The menu keys and the loader's own keys.
+// The keys that cannot be bound: Escape, Tab and the loader's own keys.
 bool is_reserved(InputCode input);
+// Some action has `input`.
+bool is_bound(const Bindings& bindings, InputCode input);
 // Sets `input` as the action's slot-th input; another action that had it loses it.
 void bind(Bindings& bindings, Action action, size_t slot, InputCode input);
 
 // A short label for the game's key prompts (text/key_prompts.h): "@lmb"/"@rmb"/"@mmb"
-// for those mouse buttons, else a short key name; "" for none.
+// for those mouse buttons, "@up"/"@down"/"@left"/"@right" for the arrow keys, else a
+// short key name; "" for none.
 std::string prompt_label(InputCode input);
 
 // The bindings the game reads its keyboard and mouse with (devices.h). Set once at

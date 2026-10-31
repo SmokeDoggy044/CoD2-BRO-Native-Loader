@@ -21,6 +21,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <SDL3/SDL_scancode.h>
+
 #include "compiler.h"
 #include "crash.h"
 #include "bindings.h"
@@ -416,13 +418,19 @@ void update_button_prompts() {
         const PromptIcon icon = prompt_icon(*to);
         if (icon != PromptIcon::Count && label(icon).empty()) label(icon) = key;
     }
-    // The fixed keys (menu keys, Escape, Tab) give their buttons in every layout.
+    // The menu keys give their buttons in menus, and in play while they are unbound;
+    // Escape and Tab in every layout.
     const bool menu = input::in_menu();
-    if (menu || label(PromptIcon::DpadUp).empty()) label(PromptIcon::DpadUp) = "@up";
-    if (menu || label(PromptIcon::DpadDown).empty()) label(PromptIcon::DpadDown) = "@down";
-    if (menu || label(PromptIcon::DpadLeft).empty()) label(PromptIcon::DpadLeft) = "@left";
-    if (menu || label(PromptIcon::DpadRight).empty()) label(PromptIcon::DpadRight) = "@right";
-    label(PromptIcon::DpadLeftRight) = menu || label(PromptIcon::DpadLeft) == "@left" ? "@leftright"
+    const auto arrow = [&](PromptIcon icon, SDL_Scancode code, const char* picture) {
+        if (menu || (label(icon).empty() && !input::is_bound(input::bindings(), static_cast<input::InputCode>(code))))
+            label(icon) = picture;
+    };
+    arrow(PromptIcon::DpadUp, SDL_SCANCODE_UP, "@up");
+    arrow(PromptIcon::DpadDown, SDL_SCANCODE_DOWN, "@down");
+    arrow(PromptIcon::DpadLeft, SDL_SCANCODE_LEFT, "@left");
+    arrow(PromptIcon::DpadRight, SDL_SCANCODE_RIGHT, "@right");
+    const bool both_arrows = label(PromptIcon::DpadLeft) == "@left" && label(PromptIcon::DpadRight) == "@right";
+    label(PromptIcon::DpadLeftRight) = menu || both_arrows ? "@leftright"
                                        : label(PromptIcon::DpadLeft) + "/" + label(PromptIcon::DpadRight);
     label(PromptIcon::DpadUpDown) = "@updown";
     label(PromptIcon::Dpad) = "@arrows";

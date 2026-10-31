@@ -539,8 +539,8 @@ private:
         ImGui::TextWrapped("Click a key, then press the new key or mouse button (Esc cancels, right-click "
                            "clears it).");
         help_marker("The actions of the game's Default controller style. With another style chosen in the "
-                    "game's options, each key keeps its action. Fixed: the arrow keys, Enter and Backspace "
-                    "(menus), Esc (pause), Tab (objectives), F10 (frees the mouse).");
+                    "game's options, each key keeps its action. The arrow keys, Enter and Backspace always "
+                    "work in the menus. Fixed: Esc (pause), Tab (objectives), F10 (frees the mouse).");
         if (!key_notice_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "%s", key_notice_.c_str());
         if (!ImGui::BeginTable("keys", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
         ImGui::TableSetupColumn("Action");

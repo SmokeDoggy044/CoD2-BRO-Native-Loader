@@ -263,16 +263,20 @@ void read_keyboard_mouse(PadState& state) {
     add_axis(state.thumb_rx, stick(Action::LookLeft, Action::LookRight));
     add_axis(state.thumb_ry, stick(Action::LookDown, Action::LookUp));
 
-    // Menu keys: fixed buttons in every layout.
+    // Menu keys: fixed buttons in every layout. The arrows, Return and Backspace can be
+    // bound (issue #14); a bound one gives its button in menus only.
+    const auto menu_key = [&](SDL_Scancode code) {
+        return key(code) && (menus || !is_bound(bound, static_cast<InputCode>(code)));
+    };
     const std::pair<bool, uint16_t> menu_digital[] = {
-        {key(SDL_SCANCODE_UP), kDpadUp},       {key(SDL_SCANCODE_DOWN), kDpadDown},
-        {key(SDL_SCANCODE_LEFT), kDpadLeft},   {key(SDL_SCANCODE_RIGHT), kDpadRight},
-        {key(SDL_SCANCODE_ESCAPE), kStart},    {key(SDL_SCANCODE_TAB), kBack},
+        {menu_key(SDL_SCANCODE_UP), kDpadUp},     {menu_key(SDL_SCANCODE_DOWN), kDpadDown},
+        {menu_key(SDL_SCANCODE_LEFT), kDpadLeft}, {menu_key(SDL_SCANCODE_RIGHT), kDpadRight},
+        {key(SDL_SCANCODE_ESCAPE), kStart},       {key(SDL_SCANCODE_TAB), kBack},
     };
     for (auto [pressed, bit] : menu_digital)
         if (pressed) state.buttons |= bit;
-    state.analog_buttons[kA] = std::max(state.analog_buttons[kA], analog(key(SDL_SCANCODE_RETURN)));
-    state.analog_buttons[kB] = std::max(state.analog_buttons[kB], analog(key(SDL_SCANCODE_BACKSPACE)));
+    state.analog_buttons[kA] = std::max(state.analog_buttons[kA], analog(menu_key(SDL_SCANCODE_RETURN)));
+    state.analog_buttons[kB] = std::max(state.analog_buttons[kB], analog(menu_key(SDL_SCANCODE_BACKSPACE)));
 
     PadState actions;
     const std::pair<Action, uint16_t> digital[] = {

@@ -176,10 +176,16 @@ std::string input_name(InputCode input) {
 }
 
 bool is_reserved(InputCode input) {
-    for (SDL_Scancode code : {SDL_SCANCODE_ESCAPE, SDL_SCANCODE_TAB, SDL_SCANCODE_RETURN, SDL_SCANCODE_BACKSPACE,
-                              SDL_SCANCODE_UP, SDL_SCANCODE_DOWN, SDL_SCANCODE_LEFT, SDL_SCANCODE_RIGHT,
-                              SDL_SCANCODE_F10, SDL_SCANCODE_F11, SDL_SCANCODE_F12})
+    for (SDL_Scancode code : {SDL_SCANCODE_ESCAPE, SDL_SCANCODE_TAB, SDL_SCANCODE_F10, SDL_SCANCODE_F11,
+                              SDL_SCANCODE_F12})
         if (input == key(code)) return true;
+    return false;
+}
+
+bool is_bound(const Bindings& bindings, InputCode input) {
+    if (!input) return false;
+    for (const auto& inputs : bindings.inputs)
+        if (std::find(inputs.begin(), inputs.end(), input) != inputs.end()) return true;
     return false;
 }
 
@@ -199,6 +205,10 @@ std::string prompt_label(InputCode input) {
     if (input == mouse(2)) return "@mmb";
     if (input > kMouseButton && input <= kMouseButton + 5) return "M" + std::to_string(input - kMouseButton);
     if (input == kWheelUp || input == kWheelDown || input == kWheel) return "Wheel";
+    if (input == key(SDL_SCANCODE_UP)) return "@up";
+    if (input == key(SDL_SCANCODE_DOWN)) return "@down";
+    if (input == key(SDL_SCANCODE_LEFT)) return "@left";
+    if (input == key(SDL_SCANCODE_RIGHT)) return "@right";
     struct Short { SDL_Scancode code; const char* label; };
     static constexpr Short kShort[] = {
         {SDL_SCANCODE_LSHIFT, "Shift"}, {SDL_SCANCODE_RSHIFT, "Shift"}, {SDL_SCANCODE_LCTRL, "Ctrl"},
