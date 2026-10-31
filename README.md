@@ -31,8 +31,7 @@ are kept in your user data folder (`~/.local/share/cod_bro` or `%APPDATA%\cod_br
 
 ## Features
 
-- The single-player campaign, from the menus through the missions (1 to 6 tested
-  through so far).
+- The whole single-player campaign.
 - 60 fps (or the game's 30), higher render resolutions, the game's widescreen mode
   (wider ultrawide experimental), borderless fullscreen, a field of view setting.
 - Controllers, and keyboard and mouse with your own key bindings.
