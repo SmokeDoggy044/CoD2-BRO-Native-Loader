@@ -1,3 +1,9 @@
+# The Xbox's texture layouts as PC formats (texture_decode.h): the back end's Xbox path and the
+# renderer C's textures on our graphics interface (game/code/ngl_gfx.cpp).
+add_library(texture_formats STATIC texture_decode.cpp)
+set_target_properties(texture_formats PROPERTIES POSITION_INDEPENDENT_CODE ON)  # in the game library too
+target_include_directories(texture_formats PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${PROJECT_SOURCE_DIR}/xbox)
+
 # Xbox Direct3D 8 on a D3D9 back end (portable).
 add_library(render STATIC
     backend_d3d9.cpp
@@ -13,7 +19,6 @@ add_library(render STATIC
     shader.cpp
     state.cpp
     texture.cpp
-    texture_decode.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/post_shaders.cpp
     d3d9_post.cpp
@@ -50,7 +55,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp
                            "-DINPUTS=${title_shader_binaries}" -P ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
                    DEPENDS ${title_shader_binaries} ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
                    VERBATIM)
-target_link_libraries(render PUBLIC xbox platform imgui_dx9)
+target_link_libraries(render PUBLIC xbox platform imgui_dx9 texture_formats)
 
 # D3D9 from DXVK (dxvk-native) on Linux. Fedora: dxvk-native-devel, plus its .i686
 # package for the loader. On Windows nothing is linked: the back end loads DXVK's

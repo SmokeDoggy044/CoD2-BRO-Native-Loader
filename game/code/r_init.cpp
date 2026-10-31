@@ -412,8 +412,7 @@ void XB_CDECL nglInit() {
     present[10] = (title_global<uint8_t>(0x0090289a) ? 0x100 : 0) | (title_global<uint8_t>(0x00902898) ? 0x40 : 0x20) |
                   (title_global<uint8_t>(0x00902899) ? 0x10 : 0);  // flags (ngl_widescreen: 0x10)
     present[12] = 0x80000002;                                       // presentation interval
-    title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t)>(0x003e9cc0)(
-        0, 1, 0, 0x40, present, 0x00902874);                                                  // Direct3D_CreateDevice
+    xb::create_device(0x00902750, 0x00902874);                                                // Direct3D_CreateDevice
     title_function<void XB_STDCALL(uint32_t, uint32_t)>(0x003e5770)(0, 0x008a29b0);           // D3DDevice_SetGammaRamp
     title_function<void XB_STDCALL(uint32_t)>(0x003e5090)(0x00902798);                        // D3DDevice_GetDeviceCaps
     nglAllocFrameMemory();
@@ -445,7 +444,7 @@ void XB_CDECL nglInit() {
     for (uint32_t i = 0; i < title_global<uint32_t>(0x0090275c) + 1; ++i) {
         nglSetRenderTargetCached(nglGetBackBufferTexture(), 0, nullptr, 6);
         xb::clear(0, 0, 0xf3, 0, 1.0f, 0);                                  // D3DDevice_Clear
-        title_function<void XB_STDCALL(uint32_t)>(0x003eabe0)(0);  // D3DDevice_Swap
+        xb::swap();                                                         // D3DDevice_Swap
     }
     title_function<void XB_STDCALL(uint32_t)>(0x003e6260)(0x000643e0);  // D3DDevice_SetVerticalBlankCallback
     nglInitMultisample(0x11);

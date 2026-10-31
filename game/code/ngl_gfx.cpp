@@ -11,6 +11,8 @@
 
 #include "gfx_state.h"
 #include "ngl.h"
+#include "texture_decode.h"
+#include "texture_hash.h"
 #include "title_data.h"
 
 namespace game {
@@ -186,18 +188,39 @@ Fn* d3d(uint32_t address) {
 
 // --- Draws of ours -------------------------------------------------------------------------
 
+uint32_t g_frame = 0;  // frames shown (ngl_gfx_end_frame)
+
+// A title texture as ours: decoded from the title memory its header names and kept current with
+// that memory (what the title writes there later: movie frames, ...), or a replacement picture
+// of the PC's for its contents (render/texture_hash.h). Change checks as the Xbox path's
+// (render/d3d9_draw.cpp): sampled every frame it is drawn, all of it now and then.
+struct TitleTexture {
+    render::TextureId own = 0;    // decoded from title memory
+    render::TextureId shown = 0;  // own or a replacement
+    uint64_t content = 0, sample = 0;
+    uint32_t checked_frame = 0, changed_frame = 0, used_frame = 0;
+    uint32_t checks = 0;  // frames it was checked (all of it every kFullCheckFrames)
+};
+constexpr uint32_t kUnusedTextureFrames = 600;  // then ours goes (made again if drawn again)
+
 // What the device holds for the recorded state, made once (cleared when the device changes).
 struct DeviceObjects {
     render::GfxDevice* device = nullptr;
     std::unordered_map<uint64_t, render::ShaderId> vertex_shaders, pixel_shaders;  // by variant, key
     std::unordered_map<uint32_t, std::pair<render::LayoutId, uint32_t>> layouts;  // declaration -> layout, stride
     std::unordered_map<uint64_t, render::TargetId> targets;                         // by surface data, size, format
-    std::unordered_map<uint64_t, render::TextureId> textures;                       // by header, palette
+    std::unordered_map<uint32_t, render::TargetId> colour_targets;                  // by surface data
+    std::unordered_map<uint64_t, TitleTexture> textures;  // by data, format, size and palette data
+    std::set<uint32_t> unsupported_formats;               // warned about once each
+    std::vector<uint8_t> decoded;                         // a level for update_texture
 };
 
 DeviceObjects& objects(render::GfxDevice* device) {
     static DeviceObjects o;
-    if (o.device != device) o = DeviceObjects{device};
+    if (o.device != device) {
+        o = DeviceObjects();
+        o.device = device;
+    }
     return o;
 }
 
@@ -285,8 +308,97 @@ render::TargetId target_for(DeviceObjects& o, uint32_t surface) {
     }
     const uint64_t key = uint64_t{data} << 32 ^ uint64_t{width} << 20 ^ uint64_t{height} << 8 ^ d3d_format;
     render::TargetId& id = o.targets[key];
-    if (!id) id = o.device->create_target({format, width, height, data});
+    if (!id) {
+        id = o.device->create_target({format, width, height, data});
+        if (id && format != render::Format::D24S8 && format != render::Format::D16) o.colour_targets[data] = id;
+    }
     return id;
+}
+
+// The texture standing for a title texture header (D3DTexture) and its palette header (P8, else
+// 0) now; 0 if there is none. Memory a render target uses samples the target.
+render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palette_header) {
+    const auto* words = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(header));
+    const uint32_t data = words[1], format = words[3], size_field = words[4];
+    if (!format) return 0;
+    render::TextureLayout layout;
+    const bool described = render::describe_texture(format, size_field, layout);
+    if (auto it = o.colour_targets.find(data); it != o.colour_targets.end())
+        return o.device->target_texture(it->second, described ? layout.linear : true);
+    if (!described) {
+        if (o.unsupported_formats.insert(format).second)
+            std::fprintf(stderr, "[ngl_gfx] texture format register %08x not supported yet\n", format);
+        return 0;
+    }
+    const uint32_t* palette = nullptr;
+    uint32_t palette_data = 0;
+    if (layout.color_format == 0x0B && palette_header) {  // P8
+        palette_data = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(palette_header))[1];
+        palette = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(palette_data | 0x80000000u));
+    }
+    const uint32_t key_words[4] = {data, format, size_field, palette_data};
+    const uint64_t key = render::hash_bytes(key_words, sizeof(key_words));
+    TitleTexture& t = o.textures[key];
+    t.used_frame = g_frame;
+    if (t.shown && t.checked_frame == g_frame) return t.shown;
+    t.checked_frame = g_frame;
+
+    const auto* memory = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(data | 0x80000000u));
+    const uint32_t size = static_cast<uint32_t>(layout.total_size);
+    uint64_t sample = render::sample_texture(memory, size);
+    if (palette) sample = render::hash_bytes(palette, 256 * 4, sample);
+    const bool full_check = !t.shown || sample != t.sample || g_frame - t.changed_frame < render::kHotFrames ||
+                            ++t.checks % render::kFullCheckFrames == 0;
+    t.sample = sample;
+    if (!full_check) return t.shown;
+    uint64_t content = render::hash_bytes(memory, size);
+    if (palette) content = render::hash_bytes(palette, 256 * 4, content);
+    // Replacements are for swizzled pictures without a palette (fonts, button prompts).
+    const render::TextureId replacement =
+        layout.linear || palette ? 0 : o.device->replacement_texture(content, layout.levels > 1);
+    if (t.shown && content == t.content && t.shown == (replacement ? replacement : t.own)) return t.shown;
+    if (t.shown) t.changed_frame = g_frame;
+    t.content = content;
+    if (replacement) return t.shown = replacement;
+
+    if (!t.own) {
+        render::TextureDesc desc;
+        switch (layout.kind) {
+            case render::TextureLayout::Kind::Dxt1: desc.format = render::Format::DXT1; break;
+            case render::TextureLayout::Kind::Dxt3: desc.format = render::Format::DXT3; break;
+            case render::TextureLayout::Kind::Dxt5: desc.format = render::Format::DXT5; break;
+            default: desc.format = render::Format::BGRA8; break;
+        }
+        desc.width = layout.width;
+        desc.height = layout.height;
+        desc.levels = layout.levels;
+        desc.texel_coordinates = layout.linear;
+        t.own = o.device->create_texture(desc);
+        if (!t.own) return t.shown = 0;
+    }
+    const bool blocks = layout.kind != render::TextureLayout::Kind::Argb;
+    const uint32_t block_bytes = layout.kind == render::TextureLayout::Kind::Dxt1 ? 8 : 16;
+    for (uint32_t level = 0; level < layout.levels; ++level) {
+        const uint32_t w = render::level_width(layout, level), h = render::level_height(layout, level);
+        const uint32_t pitch = blocks ? (w + 3) / 4 * block_bytes : w * 4;
+        const uint32_t rows = blocks ? (h + 3) / 4 : h;
+        o.decoded.resize(size_t{pitch} * rows);
+        render::decode_level(layout, level, memory, palette, o.decoded.data(), pitch);
+        o.device->update_texture(t.own, level, 0, o.decoded.data(), pitch, 0);
+    }
+    return t.shown = t.own;
+}
+
+// Ours of the title textures not drawn for a while.
+void drop_unused_textures(DeviceObjects& o) {
+    for (auto it = o.textures.begin(); it != o.textures.end();) {
+        if (g_frame - it->second.used_frame > kUnusedTextureFrames) {
+            if (it->second.own) o.device->destroy_texture(it->second.own);
+            it = o.textures.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 // Whether a vertex declaration has packed normals (NORMPACKED3): its vertex programs then take the
@@ -337,13 +449,7 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     device.set_raster(s.raster);
     device.set_fog(s.fog);
     for (uint32_t stage = 0; stage < render::kGfxStages; ++stage) {
-        render::TextureId texture = 0;
-        if (s.textures[stage]) {
-            render::TextureId& id = o.textures[uint64_t{s.palettes[stage]} << 32 | s.textures[stage]];
-            if (!id) id = device.xbox_texture(s.textures[stage], s.palettes[stage]);
-            texture = id;
-        }
-        device.set_texture(stage, texture);
+        device.set_texture(stage, s.textures[stage] ? texture_for(o, s.textures[stage], s.palettes[stage]) : 0);
         device.set_sampler(stage, s.samplers[stage]);
     }
     device.set_shaders(vs, ps);
@@ -360,7 +466,6 @@ bool env_set(const char* name) {
     const char* env = std::getenv(name);
     return env && *env && *env != '0';
 }
-uint32_t g_frame = 0;
 }  // namespace
 
 bool ngl_gfx_own_draws() {
@@ -369,7 +474,11 @@ bool ngl_gfx_own_draws() {
     return !xbox_draws && (!alternate || (g_frame & 1)) && gfx() != nullptr;
 }
 
-void ngl_gfx_end_frame() { ++g_frame; }
+void ngl_gfx_end_frame() {
+    ++g_frame;
+    if (g_frame % 60 == 0)
+        if (render::GfxDevice* device = gfx()) drop_unused_textures(objects(device));
+}
 
 bool ngl_gfx_draw_user(render::Primitive primitive, const void* vertices, uint32_t count, uint32_t stride,
                        const uint16_t* indices, uint32_t index_count, uint64_t cache_key) {
@@ -394,6 +503,34 @@ const render::GfxState* ngl_gfx_state() {
 void ngl_gfx_shader_key(uint32_t program, uint32_t key) { recorded().keys[program] = key; }
 
 namespace xb {
+
+void create_device(uint32_t present_parameters, uint32_t device_out) {
+    const GfxDeviceOpener open = gfx_device_opener();
+    if (!open) {
+        d3d<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x003e9cc0)(
+            0, 1, 0, 0x40, present_parameters, device_out);
+        return;
+    }
+    // D3DPRESENT_PARAMETERS: width, height, back buffer format and count, multisample type, swap
+    // effect, window, auto depth stencil, its format, flags (+40), ...
+    const auto* p = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(present_parameters));
+    render::DisplayDesc desc;
+    desc.width = p[0];
+    desc.height = p[1];
+    desc.depth = !p[8] ? render::Format::Unknown : p[9] == 0x2c || p[9] == 0x30 ? render::Format::D16 : render::Format::D24S8;
+    desc.widescreen = (p[10] & 0x10) != 0;
+    desc.tall_pixels = (p[10] & 0x100) != 0;
+    uint32_t device = 0;
+    open(desc, &device);
+    title_global<uint32_t>(device_out) = device;
+}
+
+void swap() {
+    if (render::GfxDevice* device = gfx())
+        device->present();
+    else
+        d3d<uint32_t XB_STDCALL(uint32_t)>(0x003eabe0)(0);
+}
 
 void set_render_state_simple(uint32_t method, uint32_t value) {
     d3d<void XB_FASTCALL(uint32_t, uint32_t)>(0x003e89f0)(method, value);

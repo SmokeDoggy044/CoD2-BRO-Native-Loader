@@ -28,6 +28,7 @@
 #include "draw.h"
 #include "float_env.h"
 #include "frame_pacing.h"
+#include "gfx_device.h"
 #include "kernel_memory.h"
 #include "log.h"
 #include "nv2a.h"
@@ -159,39 +160,36 @@ void vblank_thread(double hz) {
 
 // --- Device ---------------------------------------------------------------------------
 
-uint32_t XB_STDCALL Direct3D_CreateDevice(uint32_t /*adapter*/, uint32_t /*device_type*/, XbPtr /*window*/,
-                                          uint32_t /*behavior_flags*/, XbPtr parameters, XbPtr out_device) {
-    const auto* pp = from_xbox_ptr<XbPresentParameters>(parameters);
-    LOG_INFO("render", "CreateDevice %ux%u format %02x x%u, multisample %x, depth %u/%02x, flags %x, interval %x",
-             pp->back_buffer_width, pp->back_buffer_height, pp->back_buffer_format, pp->back_buffer_count,
-             pp->multisample_type, pp->enable_auto_depth_stencil, pp->auto_depth_stencil_format, pp->flags,
-             pp->presentation_interval);
+// The device and its frame buffers (Direct3D_CreateDevice, open_gfx_device): `depth_format` 0
+// for none, `flags` the title's D3DPRESENT flags.
+bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format, uint32_t depth_format,
+                   uint32_t flags, XbPtr* out_device) {
     if (g.device) {
         LOG_ERROR("render", "CreateDevice called twice");
-        return kD3DErrInvalidCall;
+        return false;
     }
 
     BackendConfig backend_config = g.config.backend;
-    backend_config.width = pp->back_buffer_width ? pp->back_buffer_width : 640;
-    backend_config.height = pp->back_buffer_height ? pp->back_buffer_height : 480;
+    backend_config.width = width ? width : 640;
+    backend_config.height = height ? height : 480;
     g.back_buffer = create_surface(kFmtLinX8R8G8B8, backend_config.width, backend_config.height, 4);
-    if (pp->enable_auto_depth_stencil)
-        g.depth_stencil = create_surface(pp->auto_depth_stencil_format, backend_config.width, backend_config.height,
-                                         pp->auto_depth_stencil_format == kFmtD16 ? 2 : 4);
+    if (depth_format)
+        g.depth_stencil =
+            create_surface(depth_format, backend_config.width, backend_config.height, depth_format == kFmtD16 ? 2 : 4);
     backend_config.back_buffer = surface_desc(g.back_buffer);
     backend_config.depth_stencil = surface_desc(g.depth_stencil);
     platform::HostFloatEnv float_env;
     g.backend = create_d3d9_backend(backend_config);
     if (!g.backend) {
         if (g.config.device_failed) g.config.device_failed();
-        return kD3DErrInvalidCall;
+        return false;
     }
 
     g.device = new uint8_t[kDeviceSize]{};
     // Always progressive here: no interlaced or field modes.
     g.display_mode = {backend_config.width, backend_config.height, 60,
-                      (pp->flags & (kPresentFlagWidescreen | kPresentFlag10x11PixelAspect)) | kPresentFlagProgressive,
-                      pp->back_buffer_format};
+                      (flags & (kPresentFlagWidescreen | kPresentFlag10x11PixelAspect)) | kPresentFlagProgressive,
+                      back_buffer_format};
     device_field<XbPtr>(kDeviceBackBuffer) = to_xbox_ptr(g.back_buffer);
     device_field<XbPtr>(kDeviceRenderTarget) = to_xbox_ptr(g.back_buffer);
     device_field<XbPtr>(kDeviceDepthStencil) = to_xbox_ptr(g.depth_stencil);
@@ -199,12 +197,26 @@ uint32_t XB_STDCALL Direct3D_CreateDevice(uint32_t /*adapter*/, uint32_t /*devic
     reset_draw_state(g.depth_stencil != nullptr);
 
     if (g.config.device_pointer) *from_xbox_ptr<XbPtr>(g.config.device_pointer) = to_xbox_ptr(g.device);
-    *from_xbox_ptr<XbPtr>(out_device) = to_xbox_ptr(g.device);
+    *out_device = to_xbox_ptr(g.device);
     const double display_hz = g.backend->refresh_rate();
     const double vblank_hz = display_hz >= 59 && display_hz <= 61 ? display_hz : kVBlankHz;
     LOG_INFO("render", "vertical blank at %.3f Hz (display %.3f Hz)", vblank_hz, display_hz);
     std::thread(vblank_thread, vblank_hz).detach();
-    return kD3DOk;
+    return true;
+}
+
+uint32_t XB_STDCALL Direct3D_CreateDevice(uint32_t /*adapter*/, uint32_t /*device_type*/, XbPtr /*window*/,
+                                          uint32_t /*behavior_flags*/, XbPtr parameters, XbPtr out_device) {
+    const auto* pp = from_xbox_ptr<XbPresentParameters>(parameters);
+    LOG_INFO("render", "CreateDevice %ux%u format %02x x%u, multisample %x, depth %u/%02x, flags %x, interval %x",
+             pp->back_buffer_width, pp->back_buffer_height, pp->back_buffer_format, pp->back_buffer_count,
+             pp->multisample_type, pp->enable_auto_depth_stencil, pp->auto_depth_stencil_format, pp->flags,
+             pp->presentation_interval);
+    return create_device(pp->back_buffer_width, pp->back_buffer_height, pp->back_buffer_format,
+                         pp->enable_auto_depth_stencil ? pp->auto_depth_stencil_format : 0, pp->flags,
+                         from_xbox_ptr<XbPtr>(out_device))
+               ? kD3DOk
+               : kD3DErrInvalidCall;
 }
 
 // Keeps the current frame on screen across a title launch; nothing to keep here.
@@ -521,7 +533,7 @@ void count_frame() {
     g_frames_shown_count.fetch_add(1, std::memory_order_relaxed);
 }
 
-uint32_t XB_STDCALL D3DDevice_Swap(uint32_t /*flags*/) {
+uint32_t present_frame() {
     platform::HostFloatEnv float_env;
     count_frame();
     upload_back_buffer_writes();
@@ -545,6 +557,8 @@ uint32_t XB_STDCALL D3DDevice_Swap(uint32_t /*flags*/) {
     device_field<uint32_t>(kDeviceSwapCount) = ++g.swap_count;
     return g.swap_count;
 }
+
+uint32_t XB_STDCALL D3DDevice_Swap(uint32_t /*flags*/) { return present_frame(); }
 
 void XB_STDCALL D3DDevice_SetVerticalBlankCallback(XbPtr callback) { g.vblank_callback = callback; }
 
@@ -631,6 +645,22 @@ const size_t kDeviceFunctionCount = std::size(kDeviceFunctions);
 void resource_destroyed(XbPtr /*resource*/) {}
 
 Backend* backend() { return g.backend.get(); }
+
+uint32_t show_frame() { return present_frame(); }
+
+GfxDevice* open_gfx_device(const DisplayDesc& desc, uint32_t* xbox_device) {
+    uint32_t depth = 0;
+    if (desc.depth == Format::D24S8) depth = kFmtD24S8;
+    if (desc.depth == Format::D16) depth = kFmtD16;
+    const uint32_t flags = (desc.widescreen ? kPresentFlagWidescreen : 0) |
+                           (desc.tall_pixels ? kPresentFlag10x11PixelAspect : 0) | kPresentFlagProgressive;
+    LOG_INFO("render", "opening the display: %ux%u, depth %s%s", desc.width, desc.height,
+             depth == kFmtD16 ? "16 bit" : depth ? "24 bit + stencil" : "none", desc.widescreen ? ", widescreen" : "");
+    XbPtr device = 0;
+    if (!create_device(desc.width, desc.height, kFmtLinA8R8G8B8, depth, flags, &device)) return nullptr;
+    if (xbox_device) *xbox_device = device;
+    return gfx_device();
+}
 
 XbPtr current_render_target() { return device_field<XbPtr>(kDeviceRenderTarget); }
 XbPtr current_depth_stencil() { return device_field<XbPtr>(kDeviceDepthStencil); }

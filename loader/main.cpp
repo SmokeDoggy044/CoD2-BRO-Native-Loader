@@ -894,7 +894,7 @@ int loader_main(int argc, char** argv) {
         LOG_INFO("audio", "volumes: %s", volumes.c_str());
     game::set_sound_device(&audio::sound_device());  // the decompiled sound code's device
     if (options->shader_dump_dir) loader::start_shader_dump(*options->shader_dump_dir);
-    game::set_gfx_device(&render::gfx_device);
+    game::set_gfx_device(&render::gfx_device, &render::open_gfx_device);
     render::set_gfx_state_probe(&game::ngl_gfx_state);  // XB_GFX_VERIFY        // and the renderer C's (once the title made its device)
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options->scale;

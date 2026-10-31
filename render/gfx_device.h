@@ -76,6 +76,9 @@ struct TextureDesc {
     Format format = Format::BGRA8;
     uint32_t width = 1, height = 1, depth = 1;
     uint32_t levels = 1;  // mip levels; 0: the full chain
+    // Sampled with texel coordinates (0..width, 0..height: the Xbox's linear textures) instead of
+    // normalized ones; the back end scales them (pixel constants c18-c25).
+    bool texel_coordinates = false;
 };
 
 enum class BufferKind : uint8_t { Vertex, Index16, Index32 };
@@ -222,10 +225,22 @@ enum class Primitive : uint8_t { Points, Lines, LineStrip, Triangles, TriangleSt
 
 enum GfxClear : uint32_t { kGfxClearColor = 1, kGfxClearDepth = 2, kGfxClearStencil = 4 };
 
+// What the title asks of the display when it opens the device (open_gfx_device).
+struct DisplayDesc {
+    uint32_t width = 640, height = 480;  // the title's picture (its back buffer)
+    Format depth = Format::D24S8;        // the device's depth buffer; Unknown: none
+    bool widescreen = false;             // drawn for a 16:9 screen
+    bool tall_pixels = false;            // 10:11 pixel aspect (the Xbox's 720x480 modes)
+};
+
 class GfxDevice {
 public:
-    // Whether a device is there to draw with (the Xbox D3D path creates it for now).
+    // Whether a device is there to draw with.
     virtual bool open() = 0;
+
+    // Shows the back buffer: the frame's end (the PC's post passes, overlays, screenshots and
+    // window events too). The back buffer is drawn into from scratch or over again after it.
+    virtual void present() = 0;
 
     // --- Textures ---
     virtual TextureId create_texture(const TextureDesc& desc) = 0;
@@ -255,8 +270,9 @@ public:
     // --- Render targets ---
     virtual TargetId create_target(const TargetDesc& desc) = 0;
     virtual void destroy_target(TargetId target) = 0;
-    // The target as a texture to sample (the same id while the target lives).
-    virtual TextureId target_texture(TargetId target) = 0;
+    // The target as a texture to sample (the same id while the target lives), with texel
+    // coordinates as TextureDesc's; 0 for depth targets.
+    virtual TextureId target_texture(TargetId target, bool texel_coordinates = false) = 0;
     // The back buffer (what present shows) and the device's own depth buffer.
     virtual TargetId back_buffer() = 0;
     virtual TargetId depth_buffer() = 0;
@@ -295,19 +311,23 @@ public:
     // The target's pixels at the title's size (A8R8G8B8, width * height); false on failure.
     virtual bool read_target(TargetId target, uint32_t* pixels, uint32_t width, uint32_t height) = 0;
 
-    // --- Transition (until step R4 is done): the title's own Xbox resources ---
-    // A texture standing for the title's Xbox texture header (D3DTexture in title memory) and its
-    // palette header (P8, else 0), decoded and kept current with the memory each frame like the
-    // Xbox path does (texture replacements and PC filtering included). Valid until the title's
-    // header changes; asking again for the same header gives the same id.
-    virtual TextureId xbox_texture(uint32_t texture_header, uint32_t palette_header) = 0;
+    // --- Replacements ---
+    // A picture of the PC's own standing for a texture whose contents hash to `content`
+    // (render::hash_bytes over the title's texture memory, texture_hash.h: sharper fonts, key
+    // prompts), or 0 for none. The same id while the replacement stays the same; a new one when
+    // it changes (asked again every frame the texture is drawn).
+    virtual TextureId replacement_texture(uint64_t content, bool mipmaps) = 0;
 
 protected:
     ~GfxDevice() = default;
 };
 
-// The current back end's device, null before the title created its Direct3D device. In the
-// render library (the loader's); the game library asks game::gfx() (ngl.h).
+// The current back end's device, null before it is opened. In the render library (the loader's);
+// the game library asks game::gfx() (ngl.h).
 GfxDevice* gfx_device();
+// Opens the window and the device for the title's picture; null on failure (logged). Once only.
+// `xbox_device` gets the Xbox D3D device that the title's remaining Xbox graphics calls use (the
+// state the comparison path keeps, docs/own-renderer.md) until they go.
+GfxDevice* open_gfx_device(const DisplayDesc& desc, uint32_t* xbox_device);
 
 }  // namespace render

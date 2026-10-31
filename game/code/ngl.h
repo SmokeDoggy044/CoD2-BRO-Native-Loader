@@ -11,14 +11,18 @@
 
 namespace render {
 class GfxDevice;
+struct DisplayDesc;
 }
 
 namespace game {
 
-// Our graphics interface (render/gfx_device.h), which the renderer C moves onto one draw path
-// at a time (docs/own-renderer.md, R4). The loader sets where it comes from before the title
-// runs: the device exists once the title has created its Direct3D device (nglInit).
-void set_gfx_device(render::GfxDevice* (*device)());
+// Our graphics interface (render/gfx_device.h), which the renderer C draws, presents and makes
+// its textures with (docs/own-renderer.md). The loader sets where it comes from before the title
+// runs: `device` gives it once opened, `open` opens it (render::open_gfx_device; nglInit through
+// xb::create_device).
+using GfxDeviceOpener = render::GfxDevice* (*)(const render::DisplayDesc& desc, uint32_t* xbox_device);
+void set_gfx_device(render::GfxDevice* (*device)(), GfxDeviceOpener open);
+GfxDeviceOpener gfx_device_opener();
 // Null before that, and with nothing set (--compare test processes).
 render::GfxDevice* gfx();
 
