@@ -1,0 +1,127 @@
+00012280,TitleMenu_OnAccept,front end,"TitleMenu vtable slots 0x00829838/0x0082983c/0x00829850 only (thunk to TitleMenu_Accept, also front end); gap function, C added client push 2"
+00310e10,UI_DrawPillarboxBars,front end,callers FE_SetupLiberatorMenu+0x505; 0 calls in level runs (front-end menus only)
+003122e0,SpecialConceptMenu_OnLeave,front end,vtable slot .rdata 00829f1c; 0 calls in level runs (front-end menus only)
+00312340,SpecialMaterialsMenu_OnLeave,front end,vtable slot .rdata 00828b04; 0 calls in level runs (front-end menus only)
+00312cf0,BonusCharactersMenu_OnLeave,front end,"vtable slot .rdata 0082976c; steered menu run 2026-10-26: 3 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00312d50,BonusMaterialsMenu_OnLeave,front end,"vtable slot .rdata 0082a74c; steered menu run 2026-10-26: 16 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00314550,TitleMenu_Accept,front end,callers FUN_00012280+0x2; 0 calls in level runs (front-end menus only)
+00314ce0,UIMenu_Layout,front end,"vtable slot .rdata 00829d64, .rdata 0082a644; 0 calls in level runs (front-end menus only)"
+00314e70,UIMenu_ScrollTo,front end,"vtable slot .rdata 008287a4, .rdata 008288f4, .rdata 008289bc, .rdata 00828a84, .rdata 00828b4c, .rdata 00828c14; 0 calls in level runs (front-end menus only)"
+003154a0,UI_UpdateLoadingIcon,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); split from the end of UIRoot_DrawFrontEnd; C kept"
+00315560,UIRoot_UpdateFrontEnd,front end,callers SCR_UpdateScreen+0x1b1; steered menu run 2026-10-26: 8 inconclusive at our C in libcod_bro_game.so (host code; replaced callee of the front-end screen update)
+003158d0,UITextLine_Construct,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept"
+00316010,Movie_CheckSkipInput,host,"only CL_PlayMovie (13960 calls, 2046 tested, all inconclusive): IN_PadCreate/IN_PadUpdate -> IN_PadCheckDeviceChanges -> XInputOpen/XGetDevices reach our input back end (host code); conclusive only with an input stand-in"
+0031a390,SpecialConceptMenu_NextItem,front end,callers SpecialConceptMenu_OnRight+0xf; 0 calls in level runs (front-end menus only)
+0031a490,FE_BonusCELoadImage,front end,"callers SpecialConceptMenu_OnA+0x16, SpecialConceptMenu_OnRight+0x16, SpecialConceptMenu_OnLeft+0x2e, SpecialConceptMenu_OnDown+0x38, SpecialConceptMenu_OnUp+0x38 +3; 0 calls in level runs (front-end menus only)"
+0031a6b0,SpecialConceptMenu_LeaveFullScreen,front end,"callers SpecialConceptMenu_Dtor+0x8a, SpecialConceptMenu_LeaveFullScreen+0x8a; 0 calls in level runs (front-end menus only)"
+0031a750,SpecialConceptMenu_OnRight,front end,vtable slot .rdata 00829f34; 0 calls in level runs (front-end menus only)
+0031a770,SpecialConceptMenu_OnLeft,front end,vtable slot .rdata 00829f30; 0 calls in level runs (front-end menus only)
+0031a7b0,SpecialConceptMenu_OnDown,front end,vtable slot .rdata 00829f2c; 0 calls in level runs (front-end menus only)
+0031a800,SpecialConceptMenu_OnUp,front end,vtable slot .rdata 00829f28; 0 calls in level runs (front-end menus only)
+0031a8c0,SpecialConceptMenu_RestoreSelection,front end,vtable slot .rdata 00829f18; 0 calls in level runs (front-end menus only)
+0031a900,FE_BonusCEMainLoadImage,front end,"callers SpecialMaterialsMenu_OnRight+0x18, SpecialMaterialsMenu_OnLeft+0x17, SpecialMaterialsMenu_OnDown+0x1a, SpecialMaterialsMenu_OnUp+0x1a, SpecialMaterialsMenu_OnUp+0x100 +1; 0 calls in level runs (front-end menus only)"
+0031aa20,SpecialMaterialsMenu_OnRight,front end,vtable slot .rdata 00828b1c; 0 calls in level runs (front-end menus only)
+0031aa50,SpecialMaterialsMenu_OnLeft,front end,vtable slot .rdata 00828b18; 0 calls in level runs (front-end menus only)
+0031aa80,SpecialMaterialsMenu_OnDown,front end,vtable slot .rdata 00828b14; 0 calls in level runs (front-end menus only)
+0031aab0,SpecialMaterialsMenu_OnUp,front end,vtable slot .rdata 00828b10; 0 calls in level runs (front-end menus only)
+0031b730,FE_BonusConceptLoadImage,front end,"callers BonusConceptsMenu_OnBack+0x34, BonusConceptsMenu_OnA+0x28, BonusConceptsMenu_OnRight+0x20, BonusConceptsMenu_OnLeft+0x38, BonusConceptsMenu_OnDown+0x60 +3; steered menu run 2026-10-26: 48 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031ba20,BonusConceptsMenu_OnUp,front end,"vtable slot .rdata 00828fe8; steered menu run 2026-10-26: 12 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031bbc0,BonusConceptsMenu_OnLeave,front end,"vtable slot .rdata 00828fdc; steered menu run 2026-10-26: 3 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031bc50,BonusVehiclesMenu_Step,matched offline,offline leaf test 2930/2930 matched (45.2%); in game only BonusVehiclesMenu_OnRight/OnLeft (bonus gallery menu)
+0031bf70,FE_BonusVehicleLoadImage,front end,"callers BonusVehiclesMenu_OnBack+0x34, BonusVehiclesMenu_OnA+0x28, BonusVehiclesMenu_OnRight+0x22, BonusVehiclesMenu_OnLeft+0x22, BonusVehiclesMenu_OnDown+0xa9 +3; steered menu run 2026-10-26: 46 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031c0e0,BonusVehiclesMenu_UpdateNewFlags,front end,"callers BonusVehiclesMenu_OnRight+0x1b, BonusVehiclesMenu_OnLeft+0x1b, BonusVehiclesMenu_OnDown+0xa2, BonusVehiclesMenu_OnUp+0xa2, FE_BonusVehicleCategoryLabel+0x1b8; 0 calls in level runs (front-end menus only)"
+0031c260,BonusVehiclesMenu_OnRight,front end,"vtable slot .rdata 00829b14; steered menu run 2026-10-26: 48 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031c290,BonusVehiclesMenu_OnLeft,front end,"vtable slot .rdata 00829b10; steered menu run 2026-10-26: 2 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031c380,BonusVehiclesMenu_OnUp,front end,vtable slot .rdata 00829b08; 0 calls in level runs (front-end menus only)
+0031c7b0,BonusVehiclesMenu_OnLeave,front end,"vtable slot .rdata 00829afc; steered menu run 2026-10-26: 3 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031c830,BonusVehiclesMenu_RestoreSelection,front end,"vtable slot .rdata 00829af8; steered menu run 2026-10-26: 2 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031c870,BonusWeaponsMenu_Step,matched offline,offline leaf test 2995/2995 matched (36.3%); in game only BonusWeaponsMenu_OnRight/OnLeft/OnDown/OnUp (bonus gallery menu)
+0031cd50,FE_BonusWeaponLoadImage,front end,"callers BonusWeaponsMenu_OnBack+0x28, BonusWeaponsMenu_OnA+0x19, BonusWeaponsMenu_OnRight+0x23, BonusWeaponsMenu_OnLeft+0x23, BonusWeaponsMenu_OnDown+0x34 +3; steered menu run 2026-10-26: 45 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031ceb0,BonusWeaponsMenu_UpdateNewFlags,front end,"callers BonusWeaponsMenu_OnRight+0x1c, BonusWeaponsMenu_OnLeft+0x1c, BonusWeaponsMenu_OnDown+0x2d, BonusWeaponsMenu_OnUp+0x2d, FE_BonusWeaponCategoryLabel+0x2a7; 0 calls in level runs (front-end menus only)"
+0031d030,BonusWeaponsMenu_OnRight,front end,"vtable slot .rdata 008288c4; steered menu run 2026-10-26: 48 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031d060,BonusWeaponsMenu_OnLeft,front end,"vtable slot .rdata 008288c0; steered menu run 2026-10-26: 11 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031d520,BonusWeaponsMenu_OnLeave,front end,"vtable slot .rdata 008288ac; steered menu run 2026-10-26: 5 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031d570,BonusWeaponsMenu_RestoreSelection,front end,"vtable slot .rdata 008288a8; steered menu run 2026-10-26: 4 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031d5b0,FE_BonusCharacterLoadImage,front end,"callers BonusCharactersMenu_OnDown+0x2f, BonusCharactersMenu_OnUp+0x1a, BonusCharactersMenu_RestoreSelection+0x3d; steered menu run 2026-10-26: 20 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031d6b0,BonusCharactersMenu_UpdateNewFlags,front end,"callers BonusCharactersMenu_OnDown+0x28, FE_BonusCharacterLabel+0xd9; 0 calls in level runs (front-end menus only)"
+0031d730,BonusCharactersMenu_OnUp,front end,"vtable slot .rdata 00829778; steered menu run 2026-10-26: 1 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031d980,BonusCharactersMenu_RestoreSelection,front end,"vtable slot .rdata 00829768; steered menu run 2026-10-26: 2 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031d9d0,FE_BonusMainLoadImage,front end,"callers BonusMaterialsMenu_OnDown+0x1a, BonusMaterialsMenu_OnUp+0x1a, BonusMaterialsMenu_OnRight+0x21, BonusMaterialsMenu_OnLeft+0x1c, FE_BonusMenuLabel+0x1cb +1; steered menu run 2026-10-26: 41 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031db10,BonusMaterialsMenu_UpdateNewFlags,matched offline,offline leaf test 3808/3808 matched (75.2%); in game only FE_BonusMenuLabel (bonus menu)
+0031dce0,BonusMaterialsMenu_OnUp,front end,"vtable slot .rdata 0082a758; steered menu run 2026-10-26: 16 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+0031dd60,BonusMaterialsMenu_OnLeft,front end,vtable slot .rdata 0082a760; 0 calls in level runs (front-end menus only)
+0031e000,LoadMaubeugeMenu_Draw,front end,vtable slot .rdata 008295c8; 0 calls in level runs (front-end menus only)
+0031e050,LoadMaubeugeMenu_RestoreSelection,front end,vtable slot .rdata 008295e0; 0 calls in level runs (front-end menus only)
+0031e380,LoadingMenu_RestoreSelection,front end,vtable slot .rdata 008291c0; 0 calls in level runs (front-end menus only)
+0031e790,ScreenMenu_Draw,front end,vtable slot .rdata 00828bb0; 0 calls in level runs (front-end menus only)
+0031ee10,AdvancedOptionsMenu_SetSliderBar,matched offline,offline leaf test 3383/3384 matched + 1 NaN input (80.7%); in game only AdvancedOptionsMenu_ToggleSelected/LoadSettings (options menu)
+0031f920,UITextTable_Draw,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept"
+0031ff30,FE_LoadTheatreBackground,front end,"callers CL_ApplyFrontEndReturnState+0xc9, CL_ApplyFrontEndReturnState+0x15b; steered menu run 2026-10-26: 4 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00320120,UIFontTable_AcquireFont,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept"
+00321830,UIWorldPicture_Construct,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept; the only code writing UIWorldPicture_vtable 0x00828df8"
+00324740,FE_SetupSpecialConceptMenu,front end,callers FE_SetupPanel+0x2a2; 0 calls in level runs (front-end menus only)
+00324ab0,FE_SetupSpecialMaterialsMenu,front end,callers FE_SetupPanel+0x2cc; 0 calls in level runs (front-end menus only)
+00328e90,OptionsMenu_SetCheckmarks,front end,"callers OptionsMenu_RestoreSelection+0x21b, OptionsMenu_RestoreSelection+0x275; 0 calls in level runs (front-end menus only)"
+0032a5c0,DialogMgr_DestroyContents,matched,"forced 6/6 matched (edi=[[0x0095f900]+0x1c], guarded non-null overlay, missions 1,4); only caller DialogMgr_Dtor"
+0032af10,UIText_SetTransform,not reached,UIText vtable slot 0x0082a464 only; 0 calls in all level runs (HUD text is never re-transformed); menus may reach it in the steered run
+0032ba80,UIText_GetTextHeight,not reached,UIText vtable slot 0x0082a524 only; 0 calls in all level runs; menus may reach it in the steered run
+0032bc00,UITextBase_SetTransform,not reached,UITextBase vtable slot 0x008298cc only; 0 calls in all level runs; menus may reach it in the steered run
+0032c190,UIWorldPicture_UpdateScreenPos,dead,"only slot 0x00828ec4 of UIWorldPicture_vtable 0x00828df8, whose only reference is dead UIWorldPicture_Construct (xbefind imm: one hit, 0x00321846); C kept"
+0032d130,MemDlg_FormatNotEnoughBlocks,front end,"callers MemDlg_CheckFreeSpace3+0x5d, MemDlg_CheckFreeSpace+0x6d, MemDlg_CheckFreeSpace2+0x5c, AutosaveMenu_OnProfilesRead+0x1d2; 0 calls in level runs (front-end menus only)"
+0032d200,SaveSlot_InitAll,front end,"callers AutosaveMenu_ShowSaveWarning+0x17f, FE_CheckStartupStorage+0x26f; 0 calls in level runs (front-end menus only)"
+0032d340,MissionSuccessFailMenu_OnRetryYes,front end,callers MissionSuccessFailMenu_HandleSelect+0xa2; 0 calls in level runs (front-end menus only)
+0032d800,DifficultyMenu_StartGame,front end,callers DifficultyMenu_Dtor+0x77; 0 calls in level runs (front-end menus only)
+0032df40,DialogMgr_Dtor,matched,"forced 6/6 matched (DialogMgr_Dtor(ecx=[0x0095f900]) = the UI root's dialog manager, missions 1,4); in game only DialogMgr_DeletingDtor (vtable), the UI root is never destroyed"
+0032e180,UITextTable_SelectNext,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept"
+0032e250,UITextTable_SelectPrev,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept"
+0032e310,UIOptionItem_PlaySelectSound,front end,"callers UIOptionItem_Next+0x17, UIOptionItem_Next+0x67; 0 calls in level runs (front-end menus only)"
+0032e540,UIOptionItem_Next,front end,vtable slot .rdata 00829720; 0 calls in level runs (front-end menus only)
+0032e5e0,UIOptionItem_Dtor,front end,callers UIOptionItem_DeletingDtor+0x4; 0 calls in level runs (front-end menus only)
+0032eab0,UIMenu_Dtor,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept (derived destructors inline it)"
+0032eac0,SCR_DrawLoadingScreen,host,"only SV_Map_f (65 calls, 52 tested, all inconclusive): nglBeginFrame/nglEndFrame present through our GfxDevice (host code game::gfx); conclusive only with a renderer stand-in in test processes"
+003307a0,MissionSuccessFailMenu_ReloadCheckpoint,front end,callers MissionSuccessFailMenu_HandleSelect+0xac; 0 calls in level runs (front-end menus only)
+00330e80,LoadMaubeugeMenu_Construct,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept (the menu is built inline at 0x0033183b)"
+00331030,CL_ExecControllerConfig,front end,"callers CL_ExecControllerConfig+0x74, CL_ExecControllerConfig+0x87, FE_ControlsUpdateText+0x58, ControllerConfigMenu_ChangeValue+0x2bd; steered menu run 2026-10-26: 19 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00331340,FE_ApplyControlSettings,front end,"callers FE_ApplyControlSettings+0x21f, AdvancedOptionsMenu_ResumeGame+0x3; steered menu run 2026-10-26: 2 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00331590,AdvancedOptionsMenu_ResumeGame,front end,"vtable slot .rdata 0082a3d4; steered menu run 2026-10-26: 3 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00331d80,TitleMenu_Construct,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call, 2026-10-31); C kept (the menu is built inline at 0x00336b1c)"
+00333060,SpecialMaterialsMenu_PlayMovie,front end,"callers SpecialMaterialsMenu_HandleSelect+0x22, SpecialMaterialsMenu_HandleSelect+0x2e, SpecialMaterialsMenu_HandleSelect+0x41, SpecialMaterialsMenu_HandleSelect+0x52, SpecialMaterialsMenu_HandleSelect+0x5e +1; 0 calls in level runs (front-end menus only)"
+003330f0,SpecialMaterialsMenu_HandleSelect,front end,callers SpecialMaterialsMenu_Dtor+0x74; 0 calls in level runs (front-end menus only)
+003334b0,AutosaveMenu_ShowSaveWarning,front end,"callers AutosaveMenu_ShowSaveWarning+0x10b, AutosaveMenu_SelectSlot+0x33; steered menu run 2026-10-26: 1 inconclusive at XGetDiskClusterSizeA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00333640,AutosaveMenu_ShowNoSaveDialog,front end,callers AutosaveMenu_Update+0x1b; 0 calls in level runs (front-end menus only)
+003337c0,AutosaveMenu_ShowCorruptDialog,front end,callers AutosaveMenu_OnSaveOpFailed+0x33 (jmp); 0 calls in level runs (front-end menus only)
+00333860,AutosaveMenu_OnSaveOpFailed,front end,callers ProfileSave_OnSaveOpComplete+0x5c; 0 calls in level runs (front-end menus only)
+003339f0,AutosaveMenu_OnSaveSucceeded,front end,"callers ProfileSave_OnSaveOpComplete+0xcc; steered menu run 2026-10-26: 1 inconclusive: Cmd_RelaunchTitle_f relaunches the title (XLaunchNewImage, host code)"
+00333bb0,AutosaveMenu_StartProfileLoad,front end,"callers AutosaveMenu_CheckStorage+0x9b; steered menu run 2026-10-26: 1 inconclusive at XGetDiskClusterSizeA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00333c10,AutosaveMenu_ShowUnformattedDialog,front end,callers AutosaveMenu_CheckStorage+0x56; 0 calls in level runs (front-end menus only)
+00333d00,AutosaveMenu_ShowNoSaveDataDialog,front end,callers AutosaveMenu_CheckStorage+0x7e; 0 calls in level runs (front-end menus only)
+00333e20,MemDlg_CheckFreeSpace3,front end,"callers AutosaveMenu_SelectSlot+0x6; steered menu run 2026-10-26: 1 inconclusive at FindFirstFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00333ee0,AutosaveMenu_CheckStorage,front end,"callers AutosaveMenu_CheckStorage+0xd9, AutosaveMenu_SelectSlot+0x117, AutosaveMenu_Update+0x45, AutosaveMenu_OnProfilesRead+0x15e; steered menu run 2026-10-26: 1 inconclusive at XGetDiskClusterSizeA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+003344e0,MemDlg_CheckFreeSpace,front end,callers FE_CheckStartupStorage+0x94; 0 calls in level runs (front-end menus only)
+003345d0,MemDlg_CheckSaveDevice,front end,callers FE_CheckStartupStorage+0x65; 0 calls in level runs (front-end menus only)
+003346e0,FE_CheckStartupStorage,front end,"callers FE_CheckStartupStorage+0x1f5, AutosaveMenu_OnProfilesRead+0x328; 0 calls in level runs (front-end menus only)"
+00334b10,ProfileMenu_StartLoad,front end,"callers ProfileMenu_Dtor+0x70, ProfileMenu_ConfirmLoad+0x6 (jmp); 0 calls in level runs (front-end menus only)"
+00334b70,ProfileMenu_ShowSaveWarning,front end,"callers ProfileMenu_ShowSaveWarning+0x11b, FE_ProfileSelect+0x73; steered menu run 2026-10-26: 3 inconclusive at XGetDiskClusterSizeA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00334ca0,ProfileMenu_ShowSaveErrorDialog,front end,callers ProfileMenu_Update+0xa1; 0 calls in level runs (front-end menus only)
+00334f40,ProfileMenu_ShowCorruptDialog,front end,callers ProfileMenu_OnSaveOpFailed+0x34 (jmp); 0 calls in level runs (front-end menus only)
+00335180,ProfileMenu_StartProfileLoad,front end,"callers ProfileMenu_CheckStorage+0xd6; steered menu run 2026-10-26: 7 inconclusive at XGetDiskClusterSizeA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+003351e0,ProfileMenu_ShowUnformattedDialog,front end,callers ProfileMenu_CheckStorage+0x72; 0 calls in level runs (front-end menus only)
+003352d0,ProfileMenu_ShowNoSaveDataDialog,front end,"callers ProfileMenu_CheckStorage+0xcc, ProfileMenu_OnProfilesRead+0x136; 0 calls in level runs (front-end menus only)"
+00335460,MemDlg_CheckFreeSpace2,front end,"callers PauseMenu_ShowQuitDialog+0x1e4, FE_ProfileSelect+0x15, ProfileMenu_CheckStorage+0x84; steered menu run 2026-10-26: 6 inconclusive at FindFirstFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00335730,BonusMaterialsMenu_HandleSelect,front end,"callers BonusMaterialsMenu_Dtor+0x74; steered menu run 2026-10-26: 27 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00335d60,FE_ControlsUpdateText,front end,"callers ControllerConfigMenu_ChangeValue+0x144, ControllerConfigMenu_ChangeValue+0x34a, ControllerConfigMenu_RestoreSelection+0xec (jmp); steered menu run 2026-10-26: 12 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00337460,UIPicture_SetTransform,not reached,UIPicture vtable slots 0x00828e0c/0x0082a2d4 only; 0 calls in all level runs; menus may reach it in the steered run
+00337f00,AutosaveMenu_SelectSlot,front end,"callers AutosaveMenu_SelectSlot+0xee, AutosaveMenu_Update+0xb0, AutosaveMenu_ShowFormatSuccessDialog+0xb2, AutosaveMenu_OnProfilesRead+0x10 (jmp), AutosaveMenu_OnProfilesRead+0x132 (jmp); steered menu run 2026-10-26: 1 inconclusive at FindFirstFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00338040,AutosaveMenu_Update,front end,"vtable slot .rdata 0082a160; steered menu run 2026-10-26: 19 inconclusive at XGetDiskSectorSizeA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00338100,AutosaveMenu_ShowFormatSuccessDialog,front end,callers ProfileSave_OnSaveOpComplete+0xed; 0 calls in level runs (front-end menus only)
+003381c0,AutosaveMenu_OnProfilesRead,front end,"callers ProfileSave_OnProfilesRead+0x92; steered menu run 2026-10-26: 1 inconclusive at FindFirstFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00338610,ProfileMenu_ConfirmLoad,front end,callers FE_ProfileSelect+0x146; 0 calls in level runs (front-end menus only)
+00338710,FE_ProfileSelect,front end,"callers FE_ProfileSelect+0x1d1, ProfileMenu_CheckStorage+0xac, AutosaveMenu_ShowDeleteSuccessDialog+0x2e5, ProfileMenu_OnProfilesRead+0x1e1, FE_ProfileSelect+0x135 (jmp); steered menu run 2026-10-26: 5 inconclusive at FindFirstFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+003388f0,ProfileMenu_ShowFormatSuccessDialog,front end,callers ProfileSave_OnSaveOpComplete+0xe4; 0 calls in level runs (front-end menus only)
+00338960,ProfileMenu_CheckStorage,front end,"callers ProfileMenu_CheckStorage+0x123, ProfileMenu_CheckStorage+0x1c1, AutosaveMenu_ShowDeleteSuccessDialog+0x287, ProfileMenu_ShowDeleteSuccessDialog+0xda, ProfileMenu_ShowDeleteSuccessDialog+0x118 +2; steered menu run 2026-10-26: 8 inconclusive at XGetDiskClusterSizeA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00338b70,CreateProfileMenu_Finish,front end,"callers CreateProfileMenu_HandleSelect+0x3b; steered menu run 2026-10-26: 2 inconclusive at CloseHandle (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00338d70,FE_DifficultyMenu_Init,front end,"vtable slot .rdata 00828c90; steered menu run 2026-10-26: 2 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00338f50,ControllerConfigMenu_RestoreSelection,front end,"vtable slot .rdata 00829c88; steered menu run 2026-10-26: 4 inconclusive at CreateFileA (XAPI file call; recorded before the file pass-through of 2026-10-28, expected conclusive in the next steered run)"
+00339c70,AutosaveMenu_ShowDeleteSuccessDialog,front end,callers ProfileSave_OnSaveOpComplete+0xc3; 0 calls in level runs (front-end menus only)
+0033a130,ProfileMenu_OnSaveOpFailed,front end,callers ProfileSave_OnSaveOpComplete+0x47; 0 calls in level runs (front-end menus only)
+0033a640,ProfileMenu_Update,front end,vtable slot .rdata 00828f00; steered menu run 2026-10-26: 149 inconclusive at Save_Update host code (memory-unit save operation)

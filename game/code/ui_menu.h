@@ -323,6 +323,8 @@ extern "C" void UIRoot_UpdateFrontEnd_entry(void);
 // 0x00314550 (menu in EAX; the TitleMenu's accept, called from 0x00012280): unless +0x3c, the front end goes to
 // screen 14 (0x008dd1cf == 1, 0x008dce30 clear) or 1 (0x008dd1cf == 1), else to screen 15 (its +0x94 = 0, +0x4c = 1).
 void XB_REGS1 XB_CDECL TitleMenu_Accept(uint8_t* menu);
+void XB_THISCALL TitleMenu_OnAccept(uint8_t* menu, uint32_t);
+void XB_CDECL UI_UpdateLoadingIcon();
 // 0x0032d130 (stdcall, the first argument unused): "%s %d %s" of MEM_ERROR_NOT_ENOUGH_BLOCKS1, the blocks needed
 // (0x0031ac10) and MEM_ERROR_NOT_ENOUGH_BLOCKS2 (localized) into out.
 void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t unused, char* out);

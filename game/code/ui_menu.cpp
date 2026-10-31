@@ -2011,6 +2011,9 @@ void XB_CDECL UIRoot_DrawFrontEnd(uint8_t* root) {
     root[0x4e] = 0;
 }
 
+// Dead: no caller, no stored pointer (split off the end of UIRoot_DrawFrontEnd).
+void XB_CDECL UI_UpdateLoadingIcon() { SCR_UpdateLoadingIcon(0); }
+
 PLATFORM_ASM_ENTRY(UIRoot_DrawHud_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_DrawHud) "addl $4, %esp\n"
                    "ret")
@@ -2074,6 +2077,9 @@ void XB_REGS1 XB_CDECL TitleMenu_Accept(uint8_t* menu) {
     field<uint32_t>(screen(title_global<uint8_t*>(0x0095f8f8), 15), 0x4c) = 1;
     call(title_global<uint8_t*>(0x0095f8f8), 0xc, 0xf);
 }
+
+// Three TitleMenu vtable slots (0x00829838/3c/50); the stack argument is ignored.
+void XB_THISCALL TitleMenu_OnAccept(uint8_t* menu, uint32_t) { TitleMenu_Accept(menu); }
 
 void XB_STDCALL MemDlg_FormatNotEnoughBlocks(uint32_t, char* out) {
     title_function<uint32_t XB_CDECL(uint32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
