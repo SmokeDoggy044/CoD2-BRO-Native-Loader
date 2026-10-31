@@ -3871,6 +3871,7 @@ const Function kFunctions[] = {
     {"FE_SplitPlayTime", 0x0030d140, 0, code(&FE_SplitPlayTime), 16, Result::None, Status::Compare},
     {"CreateProfileMenu_UpdateHighlight", 0x0030d3e0, 0, code(&CreateProfileMenu_UpdateHighlight_entry), 0, Result::None, Status::Compare},
     {"CreateProfileMenu_ToggleCase", 0x0030d4c0, 0, code(&CreateProfileMenu_ToggleCase_entry), 0, Result::None, Status::Compare},
+    {"CreateProfileMenu_BuildKeyboard", 0x0030d530, 0, code(&CreateProfileMenu_BuildKeyboard_entry), 0, Result::None, Status::Compare},
     {"FE_BonusConceptFreeImage", 0x0030daa0, 0, code(&FE_BonusConceptFreeImage_entry), 0, Result::None, Status::Compare},
     {"FE_BonusVehicleFreeImage", 0x0030db00, 0, code(&FE_BonusVehicleFreeImage_entry), 0, Result::None, Status::Compare},
     {"FE_BonusWeaponFreeImage", 0x0030db60, 0, code(&FE_BonusWeaponFreeImage_entry), 0, Result::None, Status::Compare},

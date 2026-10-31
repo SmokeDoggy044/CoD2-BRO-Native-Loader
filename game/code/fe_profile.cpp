@@ -483,6 +483,8 @@ void XB_CDECL CreateProfileMenu_UpdateHighlight(uint8_t* menu) {
 }
 
 PROFILE_GAP_ENTRY(CreateProfileMenu_ToggleCase_entry, "pushl %esi\n", CreateProfileMenu_ToggleCase, "8", "ret")
+PROFILE_GAP_ENTRY(CreateProfileMenu_BuildKeyboard_entry, "pushl %ecx\n pushl %esi\n", CreateProfileMenu_BuildKeyboard,
+                  "12", "ret")
 PROFILE_GAP_ENTRY(CreateProfileMenu_Backspace_entry, "pushl %esi\n", CreateProfileMenu_Backspace, "8", "ret")
 PROFILE_GAP_ENTRY(CreateProfileMenu_AddChar_entry, "pushl %esi\n pushl %eax\n", CreateProfileMenu_AddChar, "12",
                   "ret")
@@ -501,6 +503,227 @@ void XB_CDECL CreateProfileMenu_ToggleCase(uint8_t* menu, uint32_t entry_esp) {
         text[0] = static_cast<uint8_t>(i + (capitals ? 0x57 : 0x37));
         call(item(menu, i), 0x30, address_of(text));
     }
+}
+
+namespace {
+
+// A title method call with ESP at `top` (before its pushes); the original's return address `ret` is left below the
+// arguments afterwards, as the original's call leaves it.
+uint32_t keyboard_call(uint32_t top, uint32_t ret, uint8_t* object, uint32_t offset, TitleRegs regs, uint32_t count,
+                       const uint32_t* args) {
+    regs.ecx = address_of(object);
+    const uint32_t result = title_call_at_regs(top, slot(object, offset), &regs, count, args);
+    stack_word(top - 4 * (count + 1)) = ret;
+    return result;
+}
+
+}  // namespace
+
+void XB_CDECL CreateProfileMenu_BuildKeyboard(uint8_t* menu, uint32_t ecx, uint32_t entry_esp) {
+    stack_word(entry_esp - 4) = ecx;  // push ecx: the key label is its top two bytes (entry - 2)
+    if (!field<uint32_t>(menu, 0x38)) return;
+    const uint32_t top = entry_esp - 16;  // push ebx, ebp, edi
+    const uint32_t label = entry_esp - 2;
+    uint8_t* const text = stack_bytes(label);
+    text[1] = 0;
+    const uint32_t one[1] = {0x3f800000};
+    const uint32_t zero[1] = {0};
+    TitleRegs regs{};
+    regs.esi = address_of(menu);
+
+    uint8_t* object = field<uint8_t*>(menu, 0x44);
+    regs.eax = slot(object, 0);
+    keyboard_call(top, 0x0030d551, object, 0x7c, regs, 1, one);  // the selection highlight
+    for (uint32_t i = 0; i < 0x27; ++i) {
+        object = field<uint8_t*>(menu, 0x48 + i * 4);
+        regs.ebx = 0x27 - i;
+        regs.edi = address_of(menu) + 0x48 + i * 4;
+        regs.edx = slot(object, 0);
+        keyboard_call(top, 0x0030d569, object, 0x7c, regs, 1, zero);
+    }
+    static constexpr uint32_t kCommandReturns[4] = {0x0030d57c, 0x0030d589, 0x0030d596, 0x0030d5a3};
+    for (uint32_t k = 0; k < 4; ++k) {
+        object = field<uint8_t*>(menu, 0x184 + k * 4);
+        regs.ebx = 0;
+        if (k & 1) regs.edx = slot(object, 0); else regs.eax = slot(object, 0);
+        keyboard_call(top, kCommandReturns[k], object, 0x7c, regs, 1, zero);
+    }
+
+    // The character keys: set, then labelled "0".."9" / "a".."z".
+    for (uint32_t i = 0; i <= 0x23; ++i) {
+        const bool digit = i <= 9;
+        text[0] = static_cast<uint8_t>(i + (digit ? 0x30 : 0x57));
+        const uint32_t element = field<uint32_t>(menu, 0xe4 + i * 4);
+        const uint32_t set[3] = {i, element, 0};
+        regs.eax = element;
+        regs.ebx = i;
+        regs.edx = slot(menu, 0);
+        regs.edi = address_of(menu) + 0xe4 + i * 4;
+        keyboard_call(top, digit ? 0x0030d5c5 : 0x0030d606, menu, 0x04, regs, 3, set);
+        object = item(menu, int32_t(i));
+        regs.eax = label;
+        regs.edx = slot(object, 0);
+        keyboard_call(top, digit ? 0x0030d5d5 : 0x0030d616, object, 0x30, regs, 1, &label);
+    }
+    // The command keys 36-39: set (capitals off before), labels empty.
+    static constexpr uint32_t kSetReturns[4] = {0x0030d638, 0x0030d64e, 0x0030d660, 0x0030d672};
+    regs.ebx = 0x24;
+    regs.edi = address_of(menu) + 0x174;
+    for (uint32_t i = 0x24; i <= 0x27; ++i) {
+        const uint32_t element = field<uint32_t>(menu, 0xe4 + i * 4);
+        const uint32_t set[3] = {i, element, 0};
+        if (i == 0x24) menu[0x1a8] = 0;
+        if (i == 0x25) regs.edi = 0x25;
+        regs.eax = element;
+        regs.edx = slot(menu, 0);
+        keyboard_call(top, kSetReturns[i - 0x24], menu, 0x04, regs, 3, set);
+    }
+    static constexpr uint32_t kLabelReturns[4] = {0x0030d685, 0x0030d698, 0x0030d6ab, 0x0030d6be};
+    const uint32_t empty[1] = {kEmptyString};
+    for (uint32_t i = 0x24; i <= 0x27; ++i) {
+        object = item(menu, int32_t(i));
+        if (i != 0x24) regs.eax = address_of(field<uint8_t**>(menu, 4));
+        regs.edx = slot(object, 0);
+        keyboard_call(top, kLabelReturns[i - 0x24], object, 0x34, regs, 1, empty);
+    }
+    const uint32_t scale[1] = {0x3f4ccccd};  // 0.8
+    regs.eax = slot(menu, 0);
+    keyboard_call(top, 0x0030d6cd, menu, 0x98, regs, 1, scale);
+
+    // The grid neighbours, in the original's order of tests and stores.
+    auto nb = [menu](int32_t index, uint32_t offset) -> int16_t& { return neighbour(menu, index, offset); };
+    for (int32_t i = 0; i < 0x28; ++i) {
+        int32_t up;
+        if ((i >= 1 && i <= 9) || (i >= 11 && i <= 0x12) || (i >= 0x14 && i <= 0x1b) || (i >= 0x1d && i <= 0x23)) {
+            nb(i, 0xc) = int16_t(i - 1);
+            goto right_range;
+        }
+        if (i == 0x13) {
+            nb(0x13, 0xc) = 0x24;
+            goto right;
+        }
+        if (i == 0x1c) {
+            nb(0x1c, 0xc) = 0x25;
+            goto right;
+        }
+        if (i == 0x26) {
+            nb(0x26, 0xc) = 0x25;
+            nb(0x26, 0xe) = 0x27;
+            nb(0x26, 0x8) = 0x1f;
+            continue;
+        }
+        if (i == 0x27) {
+            nb(0x27, 0xc) = 0x23;
+            nb(0x27, 0x8) = 0x1b;
+            continue;
+        }
+    right_range:
+        if (!((i >= 0 && i <= 8) || (i >= 10 && i <= 0x11) || (i >= 0x13 && i <= 0x1a) || (i >= 0x1c && i <= 0x22)))
+            goto right_special;
+    right:
+        nb(i, 0xe) = int16_t(i + 1);
+    up_range:
+        if (i >= 10 && i <= 0x12) {
+            up = i - 10;
+            goto set_up;
+        }
+        if (i >= 0x13 && i <= 0x23) {
+            up = i - 9;
+            goto set_up;
+        }
+        if (i == 0x24) {
+            nb(0x24, 0x8) = 0xa;
+            goto backspace_down;
+        }
+        if (i == 0x25) {
+            nb(0x25, 0x8) = 0x24;
+            continue;
+        }
+        if (i == 0x26) {
+            nb(0x26, 0x8) = 0x1f;
+            continue;
+        }
+        if (i == 0x27) {
+            nb(0x27, 0x8) = 0x1b;
+            continue;
+        }
+        goto down;
+    set_up:
+        nb(i, 0x8) = int16_t(up);
+    down:
+        if (i >= 0 && i <= 8) {
+            nb(i, 0xa) = int16_t(i + 10);
+        } else if (i == 9) {
+            nb(9, 0xa) = 0x12;
+        } else if (i >= 10 && i <= 0x1a) {
+            nb(i, 0xa) = int16_t(i + 9);
+        } else if (i == 0x1b) {
+            nb(0x1b, 0xa) = 0x27;
+        } else if (i >= 0x1c && i <= 0x23) {
+            nb(i, 0xa) = 0x26;
+        } else if (i == 0x24) {
+            goto backspace_down;
+        }
+        continue;
+    right_special:
+        if (i == 0x23) {
+            nb(0x23, 0xe) = 0x27;
+            up = i - 9;
+            goto set_up;
+        }
+        if (i == 0x24) {
+            nb(0x24, 0xe) = 0x13;
+            nb(0x24, 0x8) = 0xa;
+            goto backspace_down;
+        }
+        if (i == 0x25) {
+            nb(0x25, 0xe) = 0x1c;
+            nb(0x25, 0x8) = 0x24;
+            continue;
+        }
+        if (i == 0x26) {
+            nb(0x26, 0xe) = 0x27;
+            nb(0x26, 0x8) = 0x1f;
+            continue;
+        }
+        goto up_range;
+    backspace_down:
+        nb(0x24, 0xa) = 0x25;
+    }
+    // The row ends wrap.
+    nb(0, 0xc) = 9;
+    nb(9, 0xe) = 0;
+    nb(10, 0xc) = 0x12;
+    nb(0x12, 0xe) = 10;
+    nb(0x24, 0xc) = 0x1b;
+    nb(0x1b, 0xe) = 0x24;
+    nb(0x25, 0xc) = 0x27;
+    nb(0x27, 0xe) = 0x25;
+
+    // Space, backspace and done (items 38, 36, 39) hidden while the name is empty; the vtable +0x20 argument keeps
+    // the upper bytes EAX had (item 39's address, the length, the previous call's result).
+    regs.ebx = field<uint32_t>(menu, 0x1ac);
+    regs.edi = 0x25;
+    object = item(menu, 0x26);
+    uint32_t hide[1] = {(address_of(item(menu, 0x27)) & ~0xffu) | (field<uint32_t>(menu, 0x1ac) == 0 ? 1u : 0u)};
+    regs.eax = hide[0];
+    regs.edx = slot(object, 0);
+    keyboard_call(top, 0x0030da14, object, 0x20, regs, 1, hide);
+    const uint32_t length = field<uint32_t>(menu, 0x1ac);
+    object = item(menu, 0x24);
+    hide[0] = (length & ~0xffu) | (length == 0 ? 1u : 0u);
+    regs.eax = hide[0];
+    regs.edx = slot(object, 0);
+    const uint32_t result = keyboard_call(top, 0x0030da2e, object, 0x20, regs, 1, hide);
+    regs.ebx = field<uint32_t>(menu, 0x1ac);
+    object = item(menu, 0x27);
+    hide[0] = (result & ~0xffu) | (regs.ebx == 0 ? 1u : 0u);
+    regs.eax = hide[0];
+    regs.edx = slot(object, 0);
+    keyboard_call(top, 0x0030da48, object, 0x20, regs, 1, hide);
+    const uint32_t select[2] = {10, 1};
+    regs.edx = slot(menu, 0);
+    keyboard_call(top, 0x0030da56, menu, 0x88, regs, 2, select);
 }
 
 void XB_CDECL CreateProfileMenu_Backspace(uint8_t* menu, uint32_t entry_esp) {
