@@ -615,4 +615,87 @@ void XB_CDECL Com_Freeze_f();
 // axis = v / angle; {axis sin(angle/2), cos(angle/2)} normalized on the x87; identity for a zero vector.
 void XB_REGS3 XB_CDECL Quat_FromRotationVector(uint32_t unused_eax, const float* v, float* out);
 
+
+// --- qcommon push 5 (high half) ---
+
+// 0x0029aac0: Q3's FS_Printf - _vsprintf into 4 KB, FS_Write of its length.
+void XB_CDECL FS_Printf(int32_t f, const char* format, ...);
+// 0x0029a8b0 (offset in ECX; f, origin on the stack): Q3's FS_Seek. Zip handles: forward by reading in
+// 64 KB steps, backward by reopening the entry (+0x14 info position) first; origin 0 cur, 1 end, 2 set,
+// others -1. FILE handles: fseek (other origins 0).
+int32_t XB_REGS3 XB_CDECL FS_Seek(uint32_t unused_eax, uint32_t unused_edx, int32_t offset, int32_t f, int32_t origin);
+// 0x00297df0 (to in EAX, from in ECX): Q3's FS_CopyFile (journal files skipped; Z_Malloc'd copy, FS_CreatePath).
+void XB_REGS3 XB_CDECL FS_CopyFile(char* to, uint32_t unused_edx, const char* from);
+// 0x0029cb60 (dir in ECX; path, localized, language on the stack): Q3's FS_AddGameDirectory. Localized
+// ones are "dir_<language name>" (table 0x008d4ca8, 8 B each), added only when the folder has files and
+// linked after the last unlocalized node; others set fs_gamedir and go first. Skips a path+dir already on
+// the list.
+void XB_REGS3 XB_CDECL FS_AddGameDirectory(uint32_t unused_eax, uint32_t unused_edx, const char* dir,
+                                           const char* path, int32_t localized, int32_t language);
+// 0x0029cde0: Q3's FS_FOpenFileRead. No file: 1 when a pack holds it or the folder file opens. Else a
+// handle (FS_HandleForFile(quiet)), folder files only (a pack hit skips the search path; ".bsp" names
+// remember the source in 0x00940200); fs_restrict/0x0093fcc8 limit unlocalized paths to cfg/menu/dat;
+// fs_copyfiles copies cd-path files to the base path. Returns the length, -1 (*file = 0) when not found.
+int32_t XB_CDECL FS_FOpenFileRead(const char* filename, int32_t* file, int32_t unique, int32_t quiet);
+// 0x0029d1f0 (filename in EBX): Q3's FS_FOpenFileAppend ("ab" under fs_homepath/fs_gamedir); 0 on failure.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL FS_FOpenFileAppend(const char* filename);
+extern "C" void FS_FOpenFileAppend_entry(void);
+// 0x0029d3c0 (filename in EBX): Q3's FS_FOpenFileWrite ("wb"); 0 on failure.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL FS_FOpenFileWrite(const char* filename);
+extern "C" void FS_FOpenFileWrite_entry(void);
+// 0x002a1b30: Q3's FS_FOpenFileByMode (0 read, 1 write, 2 append, 3 append + sync; else __break and
+// 0x1b39); records the position, size and sync in the handle (handle 0's sync too).
+int32_t XB_CDECL FS_FOpenFileByMode(const char* qpath, int32_t* f, int32_t mode);
+// 0x002a1fd0: Q3's FS_ReadFile; ".cfg" names come from "config\" and go through the journal
+// (com_journal 1 records, 2 plays back from com_journalDataFile).
+int32_t XB_CDECL FS_ReadFile(const char* qpath, void** buffer);
+// 0x002c6140 (text in EBX): Q3's Cmd_ExecuteString - command list (found commands moved to the front),
+// Cvar_Command, cgame (when 0x00947704 is set) and game VM, else forwarded to the server.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Cmd_ExecuteString(const char* text);
+extern "C" void Cmd_ExecuteString_entry(void);
+// 0x002ba750: the second command buffer (0x00929c10, size 0x00929c18) through
+// Cmd_ExecuteRegisteredCommand, unless a server runs with 0x0092f548 set.
+void XB_CDECL Cbuf_ExecuteBuffer();
+// 0x002c62b0: Q3's Cbuf_Execute (cmd_wait), then Cbuf_ExecuteBuffer.
+// Takes the entry ESP (the original's line buffer address stays in 0x00927f50).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Cbuf_Execute(uint32_t entry_esp);
+extern "C" void Cbuf_Execute_entry(void);
+// 0x002c63a0: Q3's Cbuf_ExecuteText (0 now, 1 insert, 2 append); keeps the text's length in its
+// exec_when argument slot.
+// Takes the entry ESP (exec_when, text above it); returns the tail-jump target (Cbuf_Execute) or 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Cbuf_ExecuteText(uint32_t entry_esp);
+extern "C" void Cbuf_ExecuteText_entry(void);
+// 0x002a9c10 (was FUN_002a9c10): __break 1 "File %s, line %i: %s" with the parse info at 0x008d4ca0.
+void XB_CDECL Com_ParseError(const char* format, ...);
+// 0x002c5780 (was FUN_002c5780; text in EAX): text without leading blanks and one leading quote, trailing
+// blanks and one trailing quote, in a function-static std::string (0x0098bcbc); its c_str().
+const char* XB_REGS1 XB_CDECL Loc_TrimQuotedValue(const char* text);
+// 0x002c5ac0 (was FUN_002c5ac0; state in EBX, keep_lists on the stack): clears the string file state's map
+// (+0x78), unless keep_lists its string vector (+0x8c) and set (+0x98), its count and both strings.
+extern "C" PLATFORM_HIDDEN void* XB_CDECL Loc_ResetStringFileState(uint8_t* state, uint32_t keep_lists);
+extern "C" void Loc_ResetStringFileState_entry(void);
+// 0x0031ac60 (was FUN_0031ac60): 1 when the save device has the blocks for a 0x400-byte save (or
+// Save_GetFreeSpace says -10).
+uint8_t XB_CDECL Save_HasEnoughFreeSpace();
+
+// 0x002a1c50: Q3's FS_Startup - the fs_ cvars ("fs_ignoreLozalized" sic), then the cd path's and the base
+// path's game folders (14 localized + 1 each), the home path's (FS_AddGameDirectories), fs_basegame's and
+// fs_game's folders for the empty game name; fs_game's modified flag cleared.
+void XB_CDECL FS_Startup(const char* game_name);
+// 0x0029a5c0: Q3's FS_Shutdown - handles 1-2 with a size closed, search paths and packs freed (only those
+// not kept at 0x0095f580 / 0x0095f584 unless close_files), the five file commands removed (the last one a
+// tail jump through its argument slot).
+void XB_CDECL FS_Shutdown(int32_t close_files);
+// 0x002a3370: Q3's FS_Restart - default.cfg must load (else the last valid paths and a recursive restart, or
+// __break); "exec bro.cfg" unless the game is unchanged or safe mode; the paths remembered.
+void XB_CDECL FS_Restart(int32_t checksum_feed);
+// 0x002a3490: Q3's FS_InitFilesystem (startup variables, Loc_InitCvars, FS_Startup, default.cfg check).
+void XB_CDECL FS_InitFilesystem();
+// 0x002a40f0: Q3's Com_EventLoop - key/char/mouse/axis/console/packet events, then the loopback packets
+// (client, then server while it runs); returns the time of the empty event.
+int32_t XB_CDECL Com_EventLoop();
+// 0x002a70c0: Q3's Com_Frame with the pause screen (0x008d50dd/0x008d50dc: sounds paused, resume on button
+// 0xe), the frame timing (com_maxfps), Scr_RunThreads, SV_Frame, CL_Frame and frame advance.
+void XB_CDECL Com_Frame();
+
 }  // namespace game

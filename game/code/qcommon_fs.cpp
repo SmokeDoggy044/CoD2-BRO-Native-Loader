@@ -1,15 +1,19 @@
 #include "qcommon_fs.h"
 
+#include <cstdarg>
 #include <cstring>
 
+#include "cl.h"
 #include "cm.h"
 #include "fx.h"
 #include "lanes.h"
+#include "movie.h"
 #include "nal_math.h"
 #include "fx_load.h"
 #include "g_scr_runtime.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
+#include "snd.h"
 #include "sv.h"
 #include "tr_main.h"
 #include "stream.h"
@@ -1247,9 +1251,12 @@ struct FileHandle {
     void* file;           // FILE* or unzFile
     int32_t unique;       // zip handle owns its unzFile
     int32_t handle_sync;
-    uint8_t name[0x0c];
-    int32_t zip_file;
-    uint8_t rest[0x104];
+    int32_t zip_file_pos;   // +0xc, unztell/ftell when opened by mode
+    int32_t file_size;      // +0x10
+    int32_t zip_info_pos;   // +0x14, unzSetCurrentFileInfoPosition's argument (rewind)
+    int32_t zip_file;       // +0x18
+    int32_t streamed;       // +0x1c
+    char name[0x100];       // +0x20
 };
 static_assert(sizeof(FileHandle) == 0x120);
 
@@ -3245,6 +3252,968 @@ void XB_REGS3 XB_CDECL Quat_FromRotationVector(uint32_t, const float* v, float* 
     out[1] = k * a1;
     out[2] = k * a2;
     out[3] = k * c;
+}
+
+
+// --- qcommon push 5 (high half): file system, command buffer ---
+
+namespace {
+
+constexpr uint32_t kSearchPaths = 0x0095f578;  // fs_searchpaths
+constexpr uint32_t kFsGamedir = 0x0093fc30;    // fs_gamedir (char[0x80])
+
+using BreakV = void XB_CDECL(int32_t, const char*, ...);
+using CrtFopen = void* XB_CDECL(const char*, const char*);
+using CrtStrncpy = char* XB_CDECL(char*, const char*, uint32_t);
+using CrtStrstr = const char* XB_CDECL(const char*, const char*);
+
+void fs_break(int32_t level, uint32_t message) { title_function<BreakV>(kBreak)(level, tstr(message)); }
+void* crt_fopen(const char* path, uint32_t mode) { return title_function<CrtFopen>(0x001effb3)(path, tstr(mode)); }
+void crt_strncpy(char* dst, const char* src, uint32_t n) { title_function<CrtStrncpy>(0x001eed80)(dst, src, n); }
+const char* crt_strstr(const char* s, uint32_t sub) { return title_function<CrtStrstr>(0x001efb10)(s, tstr(sub)); }
+uint8_t* cvar_ptr(uint32_t global) { return title_global<uint8_t*>(global); }
+int32_t cvar_int(uint32_t global) { return pk<int32_t>(cvar_ptr(global), 0x20); }
+const char* cvar_str(uint32_t global) { return reinterpret_cast<const char*>(pk_ptr(cvar_ptr(global), 4)); }
+
+// fs_searchpaths node: +0 next, +4 pack, +8 directory, +0xc localized, +0x10 language.
+// directory: +0 path, +0x80 gamedir. pack: +0x100 base name, +0x194 hash size, +0x198 hash table;
+// pack file entries: +0x10 name, +0x14 next.
+bool search_path_skipped(uint8_t* sp) {
+    if (!pk<uint32_t>(sp, 0xc)) return false;
+    if (cvar_int(0x00940a04)) return true;                     // fs_ignoreLocalized
+    return pk<int32_t>(sp, 0x10) != cvar_int(0x0093f7fc);      // loc_language
+}
+
+}  // namespace
+
+void XB_CDECL FS_Printf(int32_t f, const char* format, ...) {
+    char text[0x1000];
+    va_list args;
+    va_start(args, format);
+    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    va_end(args);
+    FS_Write(text, static_cast<int32_t>(std::strlen(text)), f);
+}
+
+int32_t XB_REGS3 XB_CDECL FS_Seek(uint32_t, uint32_t, int32_t offset, int32_t f, int32_t origin) {
+    FileHandle& handle = file_handle(f);
+    if (!handle.zip_file) {
+        void* const file = handle.file;
+        switch (origin) {
+        case 0: return crt_fseek(file, offset, 1);  // FS_SEEK_CUR
+        case 1: return crt_fseek(file, offset, 2);  // FS_SEEK_END
+        case 2: return crt_fseek(file, offset, 0);  // FS_SEEK_SET
+        default: return 0;
+        }
+    }
+    auto rewind = [&] {
+        unzSetCurrentFileInfoPosition(static_cast<UnzState*>(handle.file), static_cast<uint32_t>(handle.zip_info_pos));
+        return unzOpenCurrentFile(static_cast<UnzState*>(handle.file));
+    };
+    if (!offset) {
+        if (origin == 2) return rewind();
+        if (origin == 0) return 0;
+    }
+    const int32_t pos = unztell(static_cast<UnzState*>(handle.file));
+    int32_t remaining;
+    if (origin == 0) {
+        if (offset < 0) {
+            rewind();
+            remaining = pos + offset;
+        } else {
+            remaining = offset;
+        }
+    } else if (origin == 1) {
+        if (FS_filelength(f) + offset < pos) {
+            rewind();
+            remaining = FS_filelength(f) + offset;
+        } else {
+            remaining = FS_filelength(f) + (offset - pos);
+        }
+    } else if (origin == 2) {
+        if (offset < pos) {
+            rewind();
+            remaining = offset;
+        } else {
+            remaining = offset - pos;
+        }
+    } else {
+        return -1;
+    }
+    char buffer[0x10000];
+    while (remaining) {
+        int32_t read;
+        if (remaining < 0x10000) {
+            read = FS_Read(buffer, remaining, f);
+            remaining = 0;
+        } else {
+            read = FS_Read(buffer, 0x10000, f);
+            remaining -= 0x10000;
+        }
+        if (!read) return -1;
+    }
+    return 0;
+}
+
+void XB_REGS3 XB_CDECL FS_CopyFile(char* to, uint32_t, const char* from) {
+    if (crt_strstr(from, 0x00838094)) return;  // "journal.dat"
+    if (crt_strstr(from, 0x00838084)) return;  // "journaldata.dat"
+    void* f = crt_fopen(from, 0x00838080);     // "rb"
+    if (!f) return;
+    crt_fseek(f, 0, 2);
+    const int32_t len = crt_ftell(f);
+    crt_fseek(f, 0, 0);
+    uint8_t* buf = title_function<uint8_t* XB_CDECL(int32_t)>(0x00042c10)(len);  // Z_Malloc
+    if (crt_fread(buf, 1, static_cast<uint32_t>(len), f) != len) fs_break(0, 0x00838060);
+    crt_fclose(f);
+    if (!FS_CreatePath(to)) {
+        f = crt_fopen(to, 0x0083805c);  // "wb"
+        if (f) {
+            if (crt_fwrite(buf, 1, static_cast<uint32_t>(len), f) != len) fs_break(0, 0x0083803c);
+            crt_fclose(f);
+        }
+    }
+    Z_Free(buf);
+}
+
+void XB_REGS3 XB_CDECL FS_AddGameDirectory(uint32_t, uint32_t, const char* dir, const char* path, int32_t localized,
+                                           int32_t language) {
+    char gamedir[0x80];
+    if (localized) {
+        const uint32_t index = language >= 0 && language < 0xe ? static_cast<uint32_t>(language) : 0;
+        const uint32_t args[3] = {0x0082d7d0, u32(dir), title_global<uint32_t>(0x008d4ca8 + index * 8)};  // "%s_%s"
+        Com_sprintf(gamedir, 0x80, args);
+    } else {
+        crt_strncpy(gamedir, dir, 0x7f);
+        gamedir[0x7f] = 0;
+    }
+    for (uint8_t* sp = title_global<uint8_t*>(kSearchPaths); sp; sp = pk_ptr(sp, 0)) {
+        uint8_t* const d = pk_ptr(sp, 8);
+        if (!d || !path) continue;
+        if (Q_stricmpn(reinterpret_cast<const char*>(d), path, 99999)) continue;
+        const char* const game = reinterpret_cast<const char*>(pk_ptr(sp, 8) + 0x80);
+        if (!game) continue;
+        if (!Q_stricmpn(game, gamedir, 99999)) return;
+    }
+    if (localized) {
+        char ospath[0x80];
+        FS_BuildOSPath(gamedir, 0, path, tstr(0x0082dfeb), ospath, 0);  // ""
+        ospath[std::strlen(ospath) - 1] = 0;
+        if (!FS_DirectoryHasFiles(ospath)) return;
+    } else {
+        crt_strncpy(&title_global<char>(kFsGamedir), gamedir, 0x7f);
+        title_global<char>(kFsGamedir + 0x7f) = 0;
+    }
+    const auto z_malloc = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10);
+    uint8_t* const sp = z_malloc(0x14);
+    Com_Memset(sp, 0, 0x14);
+    char* const d = reinterpret_cast<char*>(z_malloc(0x100));
+    Com_Memset(reinterpret_cast<uint8_t*>(d), 0, 0x100);
+    pk<uint32_t>(sp, 8) = u32(d);
+    crt_strncpy(d, path, 0x7f);
+    d[0x7f] = 0;
+    char* const game = reinterpret_cast<char*>(pk_ptr(sp, 8)) + 0x80;
+    crt_strncpy(game, gamedir, 0x7f);
+    game[0x7f] = 0;
+    pk<int32_t>(sp, 0xc) = localized;
+    pk<int32_t>(sp, 0x10) = language;
+    uint8_t* list = title_global<uint8_t*>(kSearchPaths);
+    if (localized && list) {
+        while (pk_ptr(list, 0) && !pk<uint32_t>(pk_ptr(list, 0), 0xc)) list = pk_ptr(list, 0);
+        pk<uint32_t>(sp, 0) = pk<uint32_t>(list, 0);
+        pk<uint32_t>(list, 0) = u32(sp);
+        return;
+    }
+    pk<uint32_t>(sp, 0) = u32(list);
+    title_global<uint8_t*>(kSearchPaths) = sp;
+}
+
+int32_t XB_CDECL FS_FOpenFileRead(const char* filename, int32_t* file, int32_t unique, int32_t quiet) {
+    uint32_t hash = 0;
+    char netpath[0x80];
+    if (!file) {
+        for (uint8_t* sp = title_global<uint8_t*>(kSearchPaths); sp; sp = pk_ptr(sp, 0)) {
+            if (search_path_skipped(sp)) continue;
+            uint8_t* const pack = pk_ptr(sp, 4);
+            if (pack) hash = FS_HashFileName(filename, pk<int32_t>(pack, 0x194));
+            if (pk_ptr(sp, 4)) {
+                uint8_t* entry = pk_ptr(pk_ptr(pk_ptr(sp, 4), 0x198), hash * 4);
+                if (entry) {
+                    for (; entry; entry = pk_ptr(entry, 0x14))
+                        if (!FS_FilenameCompare(filename, reinterpret_cast<const char*>(pk_ptr(entry, 0x10)))) return 1;
+                    continue;
+                }
+            }
+            uint8_t* const dir = pk_ptr(sp, 8);
+            if (!dir) continue;
+            FS_BuildOSPath(reinterpret_cast<const char*>(dir + 0x80), 0, reinterpret_cast<const char*>(dir), filename,
+                           netpath, static_cast<uint32_t>(quiet));
+            void* f = crt_fopen(netpath, 0x00838080);  // "rb"
+            if (!f) {
+                char copy[0x80];
+                std::strcpy(copy, netpath);
+                for (uint32_t i = 0; i < std::strlen(copy); ++i)
+                    if (copy[i] == '@') copy[i] = '$';
+                f = crt_fopen(netpath, 0x00838080);  // the unaltered path again
+                if (!f) continue;
+            }
+            crt_fclose(f);
+            return 1;
+        }
+        return 0;
+    }
+    if (crt_strstr(filename, 0x008380a4) || crt_strstr(filename, 0x008380a0)) {  // ".." "::"
+        *file = 0;
+        return -1;
+    }
+    *file = FS_HandleForFile(static_cast<uint32_t>(quiet));
+    file_handle(*file).unique = unique;
+    for (uint8_t* sp = title_global<uint8_t*>(kSearchPaths); sp; sp = pk_ptr(sp, 0)) {
+        if (search_path_skipped(sp)) continue;
+        uint8_t* const pack = pk_ptr(sp, 4);
+        if (pack) hash = FS_HashFileName(filename, pk<int32_t>(pack, 0x194));
+        if (crt_strstr(filename, 0x00837fac)) {  // ".bsp": remember where the map comes from
+            const char* source = nullptr;
+            if (pack && pk<uint32_t>(pk_ptr(pack, 0x198), hash * 4))
+                source = reinterpret_cast<const char*>(pack + 0x100);
+            else if (pk_ptr(sp, 8))
+                source = reinterpret_cast<const char*>(pk_ptr(sp, 8) + 0x80);
+            if (source) {
+                crt_strncpy(&title_global<char>(0x00940200), source, 0x7f);
+                title_global<char>(0x0094027f) = 0;
+            }
+        }
+        if (pack && pk<uint32_t>(pk_ptr(pack, 0x198), hash * 4)) continue;  // pack files are not opened here
+        if (!pk_ptr(sp, 8)) continue;
+        const char* const ext = COM_GetExtension(0, filename);
+        if ((cvar_int(0x0093fcc4) || title_global<uint32_t>(0x0093fcc8)) && !pk<uint32_t>(sp, 0xc) &&  // fs_restrict
+            !FS_IsCfgMenuOrDatFile(ext))
+            continue;
+        uint8_t* const dir = pk_ptr(sp, 8);
+        FS_BuildOSPath(reinterpret_cast<const char*>(dir + 0x80), 0, reinterpret_cast<const char*>(dir), filename,
+                       netpath, static_cast<uint32_t>(quiet));
+        file_handle(*file).file = crt_fopen(netpath, 0x00838080);  // "rb"
+        if (!file_handle(*file).file) continue;
+        char* const name = file_handle(*file).name;
+        crt_strncpy(name, filename, 0xff);
+        name[0xff] = 0;
+        file_handle(*file).zip_file = 0;
+        if (cvar_int(0x0093f80c) && !Q_stricmp(cvar_str(0x0093f810), 0, reinterpret_cast<const char*>(dir))) {
+            char copypath[0x80];  // fs_copyfiles: copy from the cd path to the base path
+            FS_BuildOSPath(reinterpret_cast<const char*>(dir + 0x80), 0, cvar_str(0x009403e4), filename, copypath,
+                           static_cast<uint32_t>(quiet));
+            FS_CopyFile(copypath, 0, netpath);
+        }
+        return FS_filelength(*file);
+    }
+    *file = 0;
+    return -1;
+}
+
+PLATFORM_ASM_ENTRY(FS_FOpenFileAppend_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(FS_FOpenFileAppend) "addl $4, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL FS_FOpenFileAppend(const char* filename) {
+    const int32_t f = FS_HandleForFile(0);
+    FileHandle& handle = file_handle(f);
+    handle.zip_file = 0;
+    crt_strncpy(handle.name, filename, 0xff);
+    handle.name[0xff] = 0;
+    char ospath[0x80];
+    FS_BuildOSPath(&title_global<char>(kFsGamedir), 0, cvar_str(0x00947798), filename, ospath, 0);  // fs_homepath
+    if (FS_CreatePath(ospath)) return 0;
+    handle.file = crt_fopen(ospath, 0x0083800c);  // "ab"
+    handle.handle_sync = 0;
+    return handle.file ? f : 0;
+}
+
+PLATFORM_ASM_ENTRY(FS_FOpenFileWrite_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(FS_FOpenFileWrite) "addl $4, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL FS_FOpenFileWrite(const char* filename) {
+    const int32_t f = FS_HandleForFile(0);
+    FileHandle& handle = file_handle(f);
+    handle.zip_file = 0;
+    char ospath[0x80];
+    FS_BuildOSPath(&title_global<char>(kFsGamedir), 0, cvar_str(0x00947798), filename, ospath, 0);  // fs_homepath
+    if (FS_CreatePath(ospath)) return 0;
+    handle.file = crt_fopen(ospath, 0x0083805c);  // "wb"
+    crt_strncpy(handle.name, filename, 0xff);
+    handle.name[0xff] = 0;
+    handle.handle_sync = 0;
+    return handle.file ? f : 0;
+}
+
+int32_t XB_CDECL FS_FOpenFileByMode(const char* qpath, int32_t* f, int32_t mode) {
+    int32_t r = 0x1b39;  // the original's value for a bad mode
+    int32_t sync = 0;
+    switch (mode) {
+    case 0:  // FS_READ
+        title_global<int32_t>(0x00940280) = 1;
+        r = FS_FOpenFileRead(qpath, f, 1, 0);
+        break;
+    case 1:  // FS_WRITE
+        *f = FS_FOpenFileWrite(qpath);
+        r = *f ? 0 : -1;
+        break;
+    case 3:  // FS_APPEND_SYNC
+        sync = 1;
+        [[fallthrough]];
+    case 2:  // FS_APPEND
+        *f = FS_FOpenFileAppend(qpath);
+        r = *f ? 0 : -1;
+        break;
+    default:
+        fs_break(0, 0x00837db8);
+        break;
+    }
+    if (!f) return r;
+    if (*f) {
+        FileHandle& handle = file_handle(*f);
+        if (handle.zip_file)
+            file_handle(*f).zip_file_pos = unztell(static_cast<UnzState*>(handle.file));
+        else
+            file_handle(*f).zip_file_pos = crt_ftell(handle.file);
+        file_handle(*f).file_size = r;
+        file_handle(*f).streamed = 0;
+    }
+    file_handle(*f).handle_sync = sync;
+    return r;
+}
+
+int32_t XB_CDECL FS_ReadFile(const char* qpath, void** buffer) {
+    if (!qpath || !*qpath) fs_break(0, 0x00837f74);  // "FS_ReadFile with empty name"
+    const auto journal_mode = [] {
+        uint8_t* const journal = cvar_ptr(0x00940a00);  // com_journal
+        return journal ? pk<int32_t>(journal, 0x20) : 0;
+    };
+    int32_t& load_stack = title_global<int32_t>(0x00940a0c);  // fs_loadStack
+    int32_t len;
+    char path[0x100];
+    const char* name = qpath;
+    bool is_config = false;
+    if (crt_strstr(qpath, 0x00833cb4)) {  // ".cfg"
+        is_config = true;
+        if (cvar_ptr(0x00940a00) && journal_mode() == 2) {
+            if (FS_Read(&len, 4, title_global<int32_t>(0x0093fcd4)) != 4) {  // com_journalDataFile
+                if (buffer) *buffer = nullptr;
+                return -1;
+            }
+            if (!len) {
+                if (!buffer) return 1;
+                *buffer = nullptr;
+                return -1;
+            }
+            if (!buffer) return len;
+            uint8_t* const buf = static_cast<uint8_t*>(Z_MallocDebug(static_cast<uint32_t>(len + 1)));
+            *buffer = buf;
+            if (FS_Read(buf, len, title_global<int32_t>(0x0093fcd4)) != len)
+                fs_break(0, 0x00837f34);  // "EXE_ERR_JOURNAL_FILE_READ"
+            ++load_stack;
+            buf[len] = 0;
+            return len;
+        }
+        title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(path, tstr(0x00837f28), qpath);  // "config\\%s"
+        name = path;
+    }
+    int32_t h;
+    title_global<int32_t>(0x00940280) = 1;
+    len = FS_FOpenFileRead(name, &h, 0, 0);
+    if (!h) {
+        if (buffer) *buffer = nullptr;
+        if (is_config && cvar_ptr(0x00940a00) && journal_mode() == 1) {
+            len = 0;
+            FS_Write(&len, 4, title_global<int32_t>(0x0093fcd4));
+            crt_fflush(file_handle(title_global<int32_t>(0x0093fcd4)).file);
+        }
+        return -1;
+    }
+    if (!buffer) {
+        if (is_config && cvar_ptr(0x00940a00) && journal_mode() == 1) {
+            FS_Write(&len, 4, title_global<int32_t>(0x0093fcd4));
+            FS_Flush(title_global<int32_t>(0x0093fcd4));
+        }
+        FS_FCloseFile(h);
+        return len;
+    }
+    ++load_stack;
+    uint8_t* const buf = static_cast<uint8_t*>(Z_MallocDebug(static_cast<uint32_t>(len + 1)));
+    *buffer = buf;
+    FS_Read(buf, len, h);
+    buf[len] = 0;
+    FS_FCloseFile(h);
+    if (is_config && cvar_ptr(0x00940a00) && journal_mode() == 1) {
+        FS_Write(&len, 4, title_global<int32_t>(0x0093fcd4));
+        FS_Write(buf, len, title_global<int32_t>(0x0093fcd4));
+        FS_Flush(title_global<int32_t>(0x0093fcd4));
+    }
+    return len;
+}
+
+PLATFORM_ASM_ENTRY(Cmd_ExecuteString_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Cmd_ExecuteString) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Cmd_ExecuteString(const char* text) {
+    const uint32_t& argc = title_global<uint32_t>(0x00934248);  // cmd_argc
+    const auto argv = [](uint32_t i) { return title_global<const char*>(0x0092df90 + i * 4); };
+    title_global<const char*>(0x00927f50) = text;
+    Cmd_TokenizeString(text, 0);
+    if (!argc) return;
+    // The command list (cmd_functions 0x00929b04; +0 next, +4 name, +8 function), found ones moved to the front.
+    uint8_t* prev = &title_global<uint8_t>(0x00929b04);
+    for (uint8_t* cmd = pk_ptr(prev, 0); cmd; prev = cmd, cmd = pk_ptr(cmd, 0)) {
+        const char* const name = reinterpret_cast<const char*>(pk_ptr(cmd, 4));
+        if (!argv(0) || !name || Q_stricmpn(argv(0), name, 99999)) continue;
+        pk<uint32_t>(prev, 0) = pk<uint32_t>(cmd, 0);
+        pk<uint32_t>(cmd, 0) = title_global<uint32_t>(0x00929b04);
+        title_global<uint8_t*>(0x00929b04) = cmd;
+        const uint32_t function = pk<uint32_t>(cmd, 8);
+        if (function) {
+            title_function<void XB_CDECL()>(function)();
+            return;
+        }
+        break;
+    }
+    // Cvar_Command
+    uint8_t* const var = Cvar_FindVar(argc ? argv(0) : tstr(0x0082dfeb));
+    if (var) {
+        if (argc == 1) return;
+        Cvar_Set2(reinterpret_cast<const char*>(pk_ptr(var, 0)),
+                  const_cast<char*>(argc > 1 ? argv(1) : tstr(0x0082dfeb)), 0);
+        return;
+    }
+    using VmCall = uint32_t XB_REGS2 XB_CDECL(uint32_t, uint8_t*, uint32_t);
+    uint8_t* const cg_cvar = cvar_ptr(0x00947704);
+    if (cg_cvar && pk<int32_t>(cg_cvar, 0x20) && title_global<uint8_t*>(0x0093f7f8)) {
+        if (title_function<VmCall>(0x002a84e0)(0, title_global<uint8_t*>(0x0093f7f8), 2)) return;  // VM_Call(cgvm, 2)
+    }
+    uint8_t* const sv_running = cvar_ptr(0x0093fcf0);  // com_sv_running
+    if (sv_running && pk<int32_t>(sv_running, 0x20) && title_global<int32_t>(0x00964cd4) == 2) {
+        if (title_function<VmCall>(0x002a84e0)(0, title_global<uint8_t*>(0x0095f50c), 0xc)) return;  // VM_Call(gvm, 12)
+    }
+    const char* first = tstr(0x0082dfeb);
+    if (argc) {
+        first = argv(0);
+        if (*first == '-') return;
+    }
+    if (!title_global<int32_t>(0x0092bdf0)) return;  // cls.state
+    if (*first == '+') return;
+    CL_AddReliableCommand(static_cast<int32_t>(argc) > 1 ? text : first);
+}
+
+namespace {
+
+// Cbuf_Execute's and Cbuf_ExecuteBuffer's line splitter: the next line or ';'-separated command (';' inside
+// quotes kept) copied out, at most 0xfff characters; the rest moved to the front.
+void cbuf_take_line(char* line, uint32_t data_global, uint32_t size_global) {
+    char* const data = title_global<char*>(data_global);
+    int32_t size = title_global<int32_t>(size_global);
+    int32_t quotes = 0;
+    int32_t i = 0;
+    for (; i < size; ++i) {
+        const char c = data[i];
+        if (c == '"') ++quotes;
+        if (!(quotes & 1) && c == ';') break;
+        if (c == '\n' || c == '\r') break;
+    }
+    if (i >= 0xfff) i = 0xfff;
+    std::memcpy(line, data, static_cast<uint32_t>(i));
+    line[i] = 0;
+    if (i == size) {
+        title_global<int32_t>(size_global) = 0;
+    } else {
+        ++i;
+        size -= i;
+        title_global<int32_t>(size_global) = size;
+        title_function<void* XB_CDECL(void*, const void*, uint32_t)>(0x001ef0c0)(data, data + i,
+                                                                               static_cast<uint32_t>(size));  // _memmove
+    }
+}
+
+}  // namespace
+
+void XB_CDECL Cbuf_ExecuteBuffer() {
+    uint8_t* const sv_running = cvar_ptr(0x0093fcf0);  // com_sv_running
+    if (sv_running && pk<int32_t>(sv_running, 0x20) && title_global<uint32_t>(0x0092f548)) return;
+    char line[0x1000];
+    while (title_global<int32_t>(0x00929c18)) {
+        cbuf_take_line(line, 0x00929c10, 0x00929c18);
+        Cmd_ExecuteRegisteredCommand(line);
+    }
+}
+
+PLATFORM_ASM_ENTRY(Cbuf_Execute_entry,
+                   "movl %esp, %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Cbuf_Execute) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Cbuf_Execute(uint32_t entry_esp) {
+    // Cmd_ExecuteString leaves the line's address in 0x00927f50 (the current command text): the original's
+    // line buffer is at ((entry - 4) & ~7) - 0x1000, so that address is what stays there afterwards.
+    const uint32_t original_line = ((entry_esp - 4) & ~7u) - 0x1000;
+    char line[0x1000];
+    while (title_global<int32_t>(0x00935330)) {  // cmd_text.cursize
+        int32_t& wait = title_global<int32_t>(0x00929bfc);  // cmd_wait
+        if (wait) {
+            --wait;
+            break;
+        }
+        cbuf_take_line(line, 0x00935328, 0x00935330);
+        Cmd_ExecuteString(line);
+        if (title_global<uint32_t>(0x00927f50) == u32(line)) title_global<uint32_t>(0x00927f50) = original_line;
+    }
+    Cbuf_ExecuteBuffer();
+}
+
+PLATFORM_ASM_ENTRY(Cbuf_ExecuteText_entry,
+                   "movl %esp, %eax\n subl $0x20000, %esp\n pushl %eax\n pushl %eax\n"
+                   PLATFORM_ASM_CALL(Cbuf_ExecuteText) "addl $4, %esp\n popl %esp\n"
+                   "testl %eax, %eax\n jz 1f\n jmp *%eax\n 1:\n ret")
+
+uint32_t XB_CDECL Cbuf_ExecuteText(uint32_t entry_esp) {
+    // Its Cbuf_Execute is a tail jump (at the entry ESP, where the line buffer address comes from): returned
+    // as the target for the entry to jump to.
+    int32_t* const args = reinterpret_cast<int32_t*>(uintptr_t{entry_esp + 4});
+    const int32_t exec_when = args[0];
+    const char* const text = reinterpret_cast<const char*>(uintptr_t{static_cast<uint32_t>(args[1])});
+    switch (exec_when) {
+    case 0:  // EXEC_NOW
+        if (text) {
+            const uint32_t length = static_cast<uint32_t>(std::strlen(text));
+            args[0] = static_cast<int32_t>(length);  // the original keeps the length in this slot
+            if (length) {
+                Cmd_ExecuteString(text);
+                return 0;
+            }
+        }
+        return 0x002c62b0;  // Cbuf_Execute
+    case 1:  // EXEC_INSERT
+        Cbuf_InsertText(text);
+        return 0;
+    case 2:  // EXEC_APPEND
+        Cbuf_AddText(text);
+        return 0;
+    default:
+        args[0] = 0;
+        args[1] = 0x00833cf4;
+        fs_break(0, 0x00833cf4);  // "Cbuf_ExecuteText: bad exec_when"
+        return 0;
+    }
+}
+
+void XB_CDECL Com_ParseError(const char* format, ...) {
+    char text[0x7d00];
+    va_list args;
+    va_start(args, format);
+    title_function<int32_t XB_CDECL(char*, const char*, va_list)>(0x001eea95)(text, format, args);  // _vsprintf
+    va_end(args);
+    uint8_t* const parse = title_global<uint8_t*>(0x008d4ca0);  // current parse info: +0x80 line, +0x9c file name
+    title_function<BreakV>(kBreak)(1, tstr(0x008338b0), parse + 0x9c, pk<int32_t>(parse, 0x80), text);
+}
+
+const char* XB_REGS1 XB_CDECL Loc_TrimQuotedValue(const char* text) {
+    // A function-static std::string at 0x0098bcbc (+4 buffer or pointer, +0x14 size, +0x18 capacity).
+    constexpr uint32_t kStr = 0x0098bcbc;
+    using AssignN = void* XB_THISCALL(uint32_t, const char*, uint32_t);
+    using Erase = void* XB_THISCALL(uint32_t, uint32_t, uint32_t);
+    const auto c_str = [] {
+        return title_global<uint32_t>(0x0098bcd4) >= 0x10 ? title_global<char*>(0x0098bcc0) : &title_global<char>(0x0098bcc0);
+    };
+    uint32_t& guard = title_global<uint32_t>(0x0098bcd8);
+    if (!(guard & 1)) {
+        guard |= 1;
+        title_global<uint32_t>(0x0098bcd4) = 0xf;
+        title_global<uint32_t>(0x0098bcd0) = 0;
+        title_global<char>(0x0098bcc0) = 0;
+        title_function<int32_t XB_CDECL(uint32_t)>(0x001eed36)(0x00379990);  // _atexit
+    }
+    title_function<AssignN>(0x00015920)(kStr, tstr(0x0082dfeb), 0);
+    while (*text == ' ' || *text == '\t') ++text;
+    if (*text == '"') ++text;
+    title_function<AssignN>(0x00015920)(kStr, text, static_cast<uint32_t>(std::strlen(text)));
+    if (*text) {
+        for (;;) {
+            const char* const s = c_str();
+            const uint32_t n = static_cast<uint32_t>(std::strlen(s));
+            const char last = s[n - 1];
+            if (last == ' ' || last == '\t') {
+                title_function<Erase>(0x00015110)(kStr, n - 1, 1);  // std_string_Erase
+                continue;
+            }
+            if (last == '"') title_function<Erase>(0x00015110)(kStr, n - 1, 1);
+            break;
+        }
+    }
+    return c_str();
+}
+
+PLATFORM_ASM_ENTRY(Loc_ResetStringFileState_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Loc_ResetStringFileState) "addl $8, %esp\n"
+                   "ret $4")
+
+void* XB_CDECL Loc_ResetStringFileState(uint8_t* state, uint32_t keep_lists) {
+    // +0 count, +4 / +0x20 std::string, +0x78 map<string>, +0x8c vector<string>, +0x98 set<string>.
+    using EraseSubtree = void XB_THISCALL(uint8_t*, uint8_t*);
+    using AssignN = void* XB_THISCALL(uint8_t*, const char*, uint32_t);
+    const auto clear_tree = [](uint8_t* tree, uint32_t erase) {
+        title_function<EraseSubtree>(erase)(tree, pk_ptr(pk_ptr(tree, 4), 4));
+        uint8_t* head = pk_ptr(tree, 4);
+        pk<uint32_t>(head, 4) = u32(head);
+        head = pk_ptr(tree, 4);
+        pk<uint32_t>(tree, 8) = 0;
+        pk<uint32_t>(head, 0) = u32(head);
+        head = pk_ptr(tree, 4);
+        pk<uint32_t>(head, 8) = u32(head);
+    };
+    clear_tree(state + 0x78, 0x000200d0);  // std_map_string_EraseSubtree
+    if (!keep_lists) {
+        if (pk_ptr(state, 0x8c)) {
+            std_string_DestroyRange(pk_ptr(state, 0x8c), pk_ptr(state, 0x90));
+            Z_Free(pk_ptr(state, 0x8c));
+        }
+        pk<uint32_t>(state, 0x8c) = 0;
+        pk<uint32_t>(state, 0x90) = 0;
+        pk<uint32_t>(state, 0x94) = 0;
+        clear_tree(state + 0x98, 0x00020610);  // std_set_string_EraseSubtree
+    }
+    pk<uint32_t>(state, 0) = 0;
+    title_function<AssignN>(0x00015920)(state + 4, tstr(0x0082dfeb), 0);
+    return title_function<AssignN>(0x00015920)(state + 0x20, tstr(0x0082dfeb), 0);
+}
+
+uint8_t XB_CDECL Save_HasEnoughFreeSpace() {
+    uint32_t free_bytes[2] = {0, 0};
+    const int32_t status = title_function<int32_t XB_CDECL(uint32_t*)>(0x000d1b40)(free_bytes);  // Save_GetFreeSpace
+    const int32_t clusters = title_function<int32_t XB_CDECL(int32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    const auto cluster_size = title_function<int32_t XB_CDECL()>(0x000d1ec0);               // Save_GetClusterSize
+    const int32_t partial = clusters * 4 + cluster_size() * 2;
+    const int32_t size = cluster_size();
+    const int32_t bytes = size + partial + size * 4;
+    const int32_t needed = static_cast<int32_t>(BytesToBlocks(static_cast<uint32_t>(bytes), static_cast<uint32_t>(bytes >> 31)));
+    const int32_t free_blocks = static_cast<int32_t>(BytesToBlocks(free_bytes[0], free_bytes[1]));
+    if (status == 0) return needed <= free_blocks ? 1 : 0;
+    return status == -10 ? 1 : 0;
+}
+
+
+void XB_CDECL FS_Startup(const char* game_name) {
+    title_global<uint8_t*>(0x00940284) = Cvar_Get(tstr(0x00832c80), tstr(0x0082e098), 0);       // fs_debug "0"
+    title_global<uint8_t*>(0x0093f80c) = Cvar_Get(tstr(0x00837ecc), tstr(0x0082e098), 0x10);    // fs_copyfiles "0"
+    title_global<uint8_t*>(0x0093f810) = Cvar_Get(tstr(0x00837ec0), tstr(0x0083cad8), 0x10);    // fs_cdpath
+    title_global<uint8_t*>(0x009403e4) = Cvar_Get(tstr(0x00837eb4), tstr(0x0082dfeb), 0x10);    // fs_basepath ""
+    title_global<uint8_t*>(0x0093fc24) = Cvar_Get(tstr(0x00837ea8), tstr(0x0082dfeb), 0x10);    // fs_basegame ""
+    title_global<uint8_t*>(0x00947798) = Cvar_Get(tstr(0x00837e9c), cvar_str(0x009403e4), 0x10);  // fs_homepath
+    title_global<uint8_t*>(0x00940a08) = Cvar_Get(tstr(0x00837e94), tstr(0x0082dfeb), 0x18);    // fs_game ""
+    title_global<uint8_t*>(0x0093fcc4) = Cvar_Get(tstr(0x00837e88), tstr(0x0082dfeb), 0x10);    // fs_restrict ""
+    title_global<uint8_t*>(0x00940a04) = Cvar_Get(tstr(0x00837e74), tstr(0x0082e098), 0x220);   // "fs_ignoreLozalized" (sic)
+    const auto add_all = [game_name](const char* path) {
+        for (int32_t i = 0xd; i >= 0; --i) FS_AddGameDirectory(0, 0, game_name, path, 1, i);
+        FS_AddGameDirectory(0, 0, game_name, path, 0, 0);
+    };
+    // FS_AddGameDirectories' C parameters are (EDI = the game folder, EBX = the base path).
+    const auto add_dirs = [](const char* game, const char* path) { FS_AddGameDirectories(u32(game), u32(path)); };
+    if (*cvar_str(0x0093f810)) add_all(cvar_str(0x0093f810));  // fs_cdpath
+    if (*cvar_str(0x009403e4)) add_all(cvar_str(0x009403e4));  // fs_basepath
+    if (*cvar_str(0x009403e4)) {
+        const char* const home = cvar_str(0x00947798);
+        const char* const base = cvar_str(0x009403e4);
+        if (!home || !base || Q_stricmpn(home, base, 99999)) add_dirs(game_name, cvar_str(0x00947798));
+    }
+    const auto add_other = [&](uint32_t game_cvar) {
+        if (*cvar_str(0x0093f810)) add_dirs(cvar_str(game_cvar), cvar_str(0x0093f810));
+        if (*cvar_str(0x009403e4)) add_dirs(cvar_str(game_cvar), cvar_str(0x009403e4));
+        if (!*cvar_str(0x00947798)) return;
+        if (!Q_stricmp(cvar_str(0x009403e4), 0, cvar_str(0x00947798))) return;
+        add_dirs(cvar_str(game_cvar), cvar_str(0x00947798));
+    };
+    if (*cvar_str(0x0093fc24) && game_name && !Q_stricmpn(game_name, tstr(0x0082dfeb), 99999)) {  // fs_basegame
+        const char* const basegame = cvar_str(0x0093fc24);
+        if (!basegame || Q_stricmpn(basegame, game_name, 99999)) add_other(0x0093fc24);
+    }
+    if (*cvar_str(0x00940a08) && game_name && !Q_stricmpn(game_name, tstr(0x0082dfeb), 99999)) {  // fs_game
+        const char* const gamedir = cvar_str(0x00940a08);
+        if (!gamedir || Q_stricmpn(gamedir, game_name, 99999)) add_other(0x00940a08);
+    }
+    pk<uint32_t>(cvar_ptr(0x00940a08), 0x14) = 0;  // fs_gamedirvar->modified
+}
+
+void XB_CDECL FS_Shutdown(int32_t close_files) {
+    for (int32_t i = 1; i < 3; ++i)
+        if (file_handle(i).file_size) FS_FCloseFile(i);
+    uint32_t& search_paths = title_global<uint32_t>(kSearchPaths);
+    uint32_t& packs = title_global<uint32_t>(0x0095f57c);
+    if (close_files) {
+        FS_FreeSearchPaths(reinterpret_cast<uint8_t*>(uintptr_t{search_paths}));
+        FS_FreePackList(reinterpret_cast<uint8_t*>(uintptr_t{packs}));
+        title_global<uint32_t>(0x0095f580) = 0;
+        title_global<uint32_t>(0x0095f584) = 0;
+    } else {
+        if (title_global<uint32_t>(0x0095f580) != search_paths)
+            FS_FreeSearchPaths(reinterpret_cast<uint8_t*>(uintptr_t{search_paths}));
+        if (title_global<uint32_t>(0x0095f584) != packs) FS_FreePackList(reinterpret_cast<uint8_t*>(uintptr_t{packs}));
+    }
+    search_paths = 0;
+    packs = 0;
+    Cmd_RemoveCommand(tstr(0x00837f00));  // "path"
+    Cmd_RemoveCommand(tstr(0x00837ef4));  // "fullpath"
+    Cmd_RemoveCommand(tstr(0x00837ef0));  // "dir"
+    Cmd_RemoveCommand(tstr(0x00837ee8));  // "fdir"
+    Cmd_RemoveCommand(tstr(0x00837edc));  // "touchFile"
+}
+
+namespace {
+
+// FS_Restart's and FS_InitFilesystem's last valid base path (0x00940360) and game (0x00947718), 0x80 each.
+void fs_remember_valid_paths() {
+    crt_strncpy(&title_global<char>(0x00940360), cvar_str(0x009403e4), 0x7f);
+    title_global<char>(0x009403df) = 0;
+    crt_strncpy(&title_global<char>(0x00947718), cvar_str(0x00940a08), 0x7f);
+    title_global<char>(0x00947797) = 0;
+}
+
+}  // namespace
+
+void XB_CDECL FS_Restart(int32_t checksum_feed) {
+    FS_Shutdown(0);
+    title_global<int32_t>(0x0093fcdc) = checksum_feed;
+    FS_Startup(tstr(0x0082dfeb));
+    if (FS_ReadFile(tstr(0x00837e5c), nullptr) <= 0) {  // "default.cfg"
+        if (title_global<char>(0x00940360)) {
+            Cvar_Set2(tstr(0x00837eb4), &title_global<char>(0x00940360), 1);  // fs_basepath
+            Cvar_Set2(tstr(0x00837e00), &title_global<char>(0x00947718), 1);  // "fs_gamedirvar"
+            title_global<char>(0x00940360) = 0;
+            title_global<char>(0x00947718) = 0;
+            Cvar_Set2(tstr(0x00837e88), const_cast<char*>(tstr(0x0082e098)), 1);  // fs_restrict "0"
+            FS_Restart(checksum_feed);
+            fs_break(1, 0x00837de8);  // "Invalid game folder\n"
+        }
+        title_function<BreakV>(kBreak)(0, tstr(0x00837e10), tstr(0x00837e5c));  // "Couldn't load %s. ..."
+    }
+    const char* const game = cvar_str(0x00940a08);
+    if (!game || Q_stricmpn(game, &title_global<char>(0x00947718), 99999)) {
+        if (!Com_SafeMode()) {
+            const uint32_t args[2] = {0x00837dd4, 0x00837de0};  // "exec %s\n" "bro.cfg"
+            Cbuf_AddText(va(args));
+        }
+    }
+    fs_remember_valid_paths();
+}
+
+void XB_CDECL FS_InitFilesystem() {
+    Com_StartupVariable(tstr(0x00837ec0));  // fs_cdpath
+    Com_StartupVariable(tstr(0x00837eb4));  // fs_basepath
+    Com_StartupVariable(tstr(0x00837e9c));  // fs_homepath
+    Com_StartupVariable(tstr(0x00837e94));  // fs_game
+    Com_StartupVariable(tstr(0x00837ecc));  // fs_copyfiles
+    Com_StartupVariable(tstr(0x00837e88));  // fs_restrict
+    Com_StartupVariable(tstr(0x00837e68));  // fs_usewolf
+    Com_StartupVariable(tstr(0x0083349c));  // cl_language
+    Loc_InitCvars();
+    FS_Startup(tstr(0x0082dfeb));
+    if (FS_ReadFile(tstr(0x00837e5c), nullptr) <= 0)  // "default.cfg"
+        title_function<BreakV>(kBreak)(0, tstr(0x00837e10), tstr(0x00837e5c));
+    fs_remember_valid_paths();
+    std::memset(&title_global<uint8_t>(0x00940200), 0, 0x80);
+}
+
+
+// Calls a title function with EAX/EBX/ECX/EDX/ESI/EDI from regs and `count` stack words (args[0] pushed last);
+// returns its EAX. ESP is restored from EBP, so stdcall callees work too.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL qc_call_regs(uint32_t function, const TitleRegs* regs, uint32_t count,
+                                                          const uint32_t* args);
+PLATFORM_ASM_ENTRY(qc_call_regs,
+                   "pushl %ebp\n movl %esp, %ebp\n pushl %ebx\n pushl %esi\n pushl %edi\n pushl 8(%ebp)\n"
+                   "movl 16(%ebp), %ecx\n movl 20(%ebp), %edx\n"
+                   "1:\n testl %ecx, %ecx\n jz 2f\n decl %ecx\n pushl (%edx,%ecx,4)\n jmp 1b\n"
+                   "2:\n movl 12(%ebp), %eax\n movl 4(%eax), %ebx\n movl 8(%eax), %ecx\n movl 12(%eax), %edx\n"
+                   "movl 16(%eax), %esi\n movl 20(%eax), %edi\n movl (%eax), %eax\n"
+                   "call *-16(%ebp)\n"
+                   "leal -12(%ebp), %esp\n popl %edi\n popl %esi\n popl %ebx\n popl %ebp\n ret")
+
+int32_t XB_CDECL Com_EventLoop() {
+    // msg_t: +0 overflow flag, +4 data, +8 maxsize, +0xc cursize, +0x10 readcount.
+    uint8_t data[0x800];
+    std::memset(data, 0, sizeof(data));
+    uint32_t buf[5] = {0, u32(data), 0x800, 0, 0};
+    uint32_t from[5] = {0, 0, 0, 0, 0};  // netadr_t
+    uint8_t* const msg = reinterpret_cast<uint8_t*>(buf);
+    SysEvent ev;
+    for (;;) {
+        Com_GetEvent(&ev);
+        if (!ev.type) break;
+        switch (ev.type) {
+        case 1:  // SE_KEY
+            CL_KeyEvent(ev.value2, 0, ev.value, ev.time);
+            break;
+        case 2:  // SE_CHAR
+            if (ev.value == '`' || ev.value == '~') break;
+            if ((title_global<uint8_t>(0x0092bdf4) & 1) || !title_global<int32_t>(0x0092bdf0))  // keyCatchers, state
+                CL_CharEvent(&title_global<uint8_t>(0x0092e830), ev.value);
+            break;
+        case 3:  // SE_MOUSE
+            title_global<int32_t>(0x0096173c + title_global<uint32_t>(0x0096174c) * 4) += ev.value;
+            title_global<int32_t>(0x00961744 + title_global<uint32_t>(0x0096174c) * 4) += ev.value2;
+            break;
+        case 4:  // SE_JOYSTICK_AXIS
+            if (ev.value < 0 || ev.value >= 6) title_function<BreakV>(kBreak)(1, tstr(0x00835170), ev.value);
+            title_global<int32_t>(0x00961750 + static_cast<uint32_t>(ev.value) * 4) = ev.value2;
+            break;
+        case 5: {  // SE_CONSOLE
+            Cbuf_AddText(static_cast<const char*>(ev.ptr));
+            Z_Free(static_cast<uint8_t*>(ev.ptr));
+            const int32_t size = title_global<int32_t>(0x00935330);
+            if (size + 1 < title_global<int32_t>(0x0093532c)) {
+                title_global<char*>(0x00935328)[size] = title_global<char>(0x0082d288);  // '\n'
+                title_global<int32_t>(0x00935330) = size + 1;
+            }
+            break;
+        }
+        case 6: {  // SE_PACKET: netadr_t, then the bytes
+            const uint32_t* const packet = static_cast<const uint32_t*>(ev.ptr);
+            for (int32_t i = 0; i < 5; ++i) from[i] = packet[i];
+            const uint32_t len = static_cast<uint32_t>(ev.ptr_length - 0x14);
+            buf[3] = len;
+            if (len > buf[2]) {
+                Z_Free(static_cast<uint8_t*>(ev.ptr));
+                break;
+            }
+            uint8_t* const dst = reinterpret_cast<uint8_t*>(uintptr_t{buf[1]});
+            std::memcpy(dst, packet + 5, len);
+            Z_Free(static_cast<uint8_t*>(ev.ptr));
+            if (cvar_int(0x0093fcf0)) {  // com_sv_running: Com_RunAndTimeServerPacket (from in ESI)
+                const TitleRegs regs{0, from[0], 0, 0, u32(from), u32(dst + len)};
+                const uint32_t args[1] = {u32(msg)};
+                qc_call_regs(0x002a2510, &regs, 1, args);
+            } else {
+                CL_PacketEvent(from[0], from[1], from[2], from[3], from[4], msg);
+            }
+            break;
+        }
+        default:
+            title_function<BreakV>(kBreak)(0, tstr(0x00837d1c), ev.type);  // "Com_EventLoop: bad event type %i"
+            break;
+        }
+    }
+    while (NET_GetLoopPacket(0, msg, from)) CL_PacketEvent(from[0], from[1], from[2], from[3], from[4], msg);
+    while (NET_GetLoopPacket(1, msg, from)) {
+        if (!cvar_int(0x0093fcf0)) continue;  // com_sv_running
+        uint8_t* speeds = cvar_ptr(0x009403e8);  // com_speeds
+        if (pk<int32_t>(speeds, 0x20)) title_function<int32_t XB_CDECL()>(kSysMilliseconds)();
+        const TitleRegs regs{u32(msg), u32(msg), 0, 0, 0, static_cast<uint32_t>(ev.time)};
+        qc_call_regs(0x002c9de0, &regs, 5, from);  // SV_PacketEvent (msg in EAX, from by value)
+        speeds = cvar_ptr(0x009403e8);
+        if (pk<int32_t>(speeds, 0x20)) title_function<int32_t XB_CDECL()>(kSysMilliseconds)();
+    }
+    return ev.time;
+}
+
+void XB_CDECL Com_Frame() {
+    title_function<void XB_STDCALL(uint32_t)>(0x0021bae0)(0x0098aa90);  // Actor_UpdateBlockingPairs
+    if (title_global<uint8_t>(0x008d50dd)) {
+        // The pause screen: 0x008d50dc set = waiting to resume.
+        if (!title_global<uint8_t>(0x008d50dc)) {
+            if (title_global<uint32_t>(0x0095f8f4)) {
+                if (!title_global<uint8_t>(0x0095f538)) {
+                    S_PauseAllChannels(title_global<uint8_t*>(0x0095f4c4));
+                    const int32_t was_paused = cvar_int(0x0093fcd8);
+                    title_global<uint8_t>(0x0095f539) = was_paused ? 1 : 0;
+                    Cvar_Set2(tstr(0x0082ca00), const_cast<char*>(tstr(0x0082e058)), 1);  // cl_paused "1"
+                    title_global<uint8_t>(0x0095f538) = 1;
+                    const TitleRegs regs{0, 0, 0, 0, 0x0095f8d0, static_cast<uint32_t>(was_paused)};
+                    qc_call_regs(0x0030f190, &regs, 0, nullptr);  // FUN_0030f190 (g_uiRoot in ESI)
+                }
+                S_UpdateChannels(title_global<uint8_t*>(0x0095f4c4));
+                S_CheckWaveBankNotifies(title_global<uint8_t*>(0x0095f4c0));  // rm_soundBanks
+                title_function<void XB_CDECL()>(0x000ca690)();                // File_PumpRequests
+                return;
+            }
+        } else if (title_global<uint8_t>(0x0095f538)) {
+            IN_PadCreate();
+            if (!IN_PadButtonPressed(title_global<int32_t>(0x008d50d8), 0xe)) return;
+            S_ResumeAllChannels(title_global<uint8_t*>(0x0095f4c4));
+            SCR_RedrawFrontBuffer();
+            Cvar_Set2(tstr(0x0082ca00), const_cast<char*>(tstr(title_global<uint8_t>(0x0095f539) ? 0x0082e058 : 0x0082e098)),
+                      1);  // cl_paused back
+            uint8_t* const live = title_global<uint8_t*>(0x0095f6fc);  // g_liveMgr
+            title_function<void XB_THISCALL(uint8_t*)>(pk<uint32_t>(pk_ptr(live, 0), 0x1c))(live);
+            title_global<uint8_t>(0x0095f538) = 0;
+            if (!title_global<uint8_t>(0x0095f919)) return;
+            const int32_t state = pk<int32_t>(title_global<uint8_t*>(0x0095f8fc), 0xc);
+            if (state == 2 || state == 3 || state == 4 || state == 5) title_global<uint8_t>(0x009403f4) = 1;
+            return;
+        }
+    }
+    if (cvar_int(0x0093fc20) && title_global<uint32_t>(0x00940280)) title_global<uint32_t>(0x00940280) = 0;
+    if (pk<uint32_t>(cvar_ptr(0x0093fcb4), 0x14)) pk<uint32_t>(cvar_ptr(0x0093fcb4), 0x14) = 0;
+    title_global<int32_t>(0x0095f4b8) = cvar_int(0x009472e8);
+    const auto sys_milliseconds = title_function<int32_t XB_CDECL()>(kSysMilliseconds);
+    if (cvar_int(0x009403e8)) sys_milliseconds();  // com_speeds
+    int32_t min_msec = 1;
+    if (cvar_int(0x0094770c) > 0) min_msec = 1000 / cvar_int(0x0094770c);  // com_maxfps
+    int32_t& last_time = title_global<int32_t>(0x0098f2d4);
+    int32_t time;
+    int32_t raw_msec;
+    do {
+        time = Com_EventLoop();
+        title_global<int32_t>(0x00947710) = time;  // com_frameTime
+        int32_t last = last_time;
+        if (last > time) {
+            last = time;
+            last_time = time;
+        }
+        raw_msec = time - last;
+    } while (raw_msec < min_msec);
+    last_time = time;
+    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute (its entry needs the real ESP)
+    if (cvar_int(0x0093fcbc)) Cvar_Set2(tstr(0x0082ca00), const_cast<char*>(tstr(0x0082e098)), 1);  // cl_paused "0"
+    int32_t msec = Com_ModifyMsec(0, 0, raw_msec);
+    if (cvar_int(0x009403e8)) sys_milliseconds();
+    if (title_global<uint32_t>(0x0095f6c0)) msec = 0;
+    ++title_global<int32_t>(0x008dda98);
+    title_global<int32_t>(0x008dda9c) = msec > 1 ? msec : 1;
+    const float frame_msec = static_cast<float>(msec);
+    const float thousand = title_global<float>(0x0083eb9c);
+    const float seconds = frame_msec / thousand;
+    title_global<float>(0x008ddaa4) = thousand / frame_msec;
+    title_global<float>(0x008ddaa0) = seconds;
+    title_global<float>(0x008ddaa8) = title_global<float>(0x008ddaa8) + seconds;
+    title_function<void XB_CDECL()>(0x0029ed00)();  // Scr_PruneEntityWaitLists
+    title_function<void XB_CDECL()>(0x00251f90)();  // G_ProcessCheckpointTriggers
+    title_global<float>(0x0092708c) =
+        static_cast<float>(static_cast<double>(msec) * title_global<double>(0x0083ef88) + title_global<float>(0x0092708c));
+    if (title_global<uint32_t>(0x0095f474) && title_global<float>(0x0092708c) > title_global<float>(0x00926e24))
+        Subtitle_Start(nullptr, tstr(0x00926e30));
+    {
+        const float step = pk<int32_t>(Cvar_Get(tstr(0x0082ca00), tstr(0x0082e098), 0), 0x20) ? 0.0f
+                                                                                  : frame_msec * title_global<float>(0x0083eb4c);
+        uint32_t step_bits;
+        std::memcpy(&step_bits, &step, 4);
+        const TitleRegs regs{0, static_cast<uint32_t>(raw_msec), 0, 0, 0x008dd1d8, static_cast<uint32_t>(msec)};
+        qc_call_regs(0x0030b9e0, &regs, 1, &step_bits);  // Scr_RunThreads (ESI = 0x008dd1d8)
+    }
+    {
+        const TitleRegs regs{0, static_cast<uint32_t>(raw_msec), 0, 0, static_cast<uint32_t>(msec), static_cast<uint32_t>(msec)};
+        qc_call_regs(0x002f4400, &regs, 0, nullptr);  // SV_Frame (msec in ESI)
+    }
+    if (cvar_int(0x009403e8)) sys_milliseconds();
+    Com_EventLoop();
+    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute
+    if (cvar_int(0x009403e8)) sys_milliseconds();
+    {
+        const TitleRegs regs{static_cast<uint32_t>(raw_msec), static_cast<uint32_t>(raw_msec), 0, 0,
+                             static_cast<uint32_t>(msec), static_cast<uint32_t>(msec)};
+        qc_call_regs(0x002f2630, &regs, 0, nullptr);  // CL_Frame (msec in EAX)
+    }
+    if (cvar_int(0x0093fc20) || cvar_int(0x009403e8)) title_global<int32_t>(0x0098f2d0) = sys_milliseconds();
+    ++title_global<int32_t>(0x00947b0c);  // com_frameNumber
+    if (cvar_int(0x0093fcbc)) {  // frame advance: pause again
+        Cvar_Set2(tstr(0x0082ca00), const_cast<char*>(tstr(0x0082e058)), 1);  // cl_paused "1"
+        Cvar_Set2(tstr(0x00837c0c), const_cast<char*>(tstr(0x0082e098)), 1);  // cl_frameadvance "0"
+    }
 }
 
 }  // namespace game
