@@ -5033,4 +5033,278 @@ void XB_CDECL AtExit_LocStrings() {
     title_function<uint32_t XB_STDCALL(uint32_t)>(0x0001d9d0)(0x0095fe70);  // destructor
 }
 
+// --- qcommon push 7 (high half): arrays of hash maps, shuffles, 28/52-byte records ---
+
+namespace {
+
+// Arrays of hash maps: ctor thiscall (traits, unused), dtor and copy_from (operator=) thiscall; `dtor_assign` is
+// the destructor address the assign instance calls (a jump thunk in one instance).
+struct HashMapArrayInstance {
+    uint32_t ctor, dtor, dtor_assign, copy_from;
+    uint8_t* (XB_STDCALL* alloc)(uint32_t);
+};
+
+void hash_map_construct(uint8_t* element, uint32_t ctor) {
+    // The original passes its own argument slot twice, holding the element's address at that point.
+    uint32_t slot = u32(element);
+    title_function<void XB_THISCALL(uint8_t*, uint32_t*, uint32_t*)>(ctor)(element, &slot, &slot);
+}
+
+uint8_t* dynarray_alloc_hash_map(uint32_t count, uint32_t ctor) {
+    const uint32_t bytes = count * 0x28;
+    uint8_t* const data = reinterpret_cast<uint8_t*>(Scr_Alloc(bytes, 4));
+    for (uint8_t* element = data; element != data + bytes; element += 0x28)
+        if (element) hash_map_construct(element, ctor);
+    return data;
+}
+
+void dynarray_resize_hash_map(DynArray* array, uint32_t size, uint32_t capacity, const HashMapArrayInstance& inst) {
+    uint8_t* const data = reinterpret_cast<uint8_t*>(array->data);
+    if (size <= array->capacity) {
+        const uint32_t old_size = array->size;
+        if (size > old_size) {
+            for (uint8_t* element = data + old_size * 0x28; element != data + size * 0x28; element += 0x28)
+                if (element) hash_map_construct(element, inst.ctor);
+        } else if (size < old_size) {
+            for (uint8_t* element = data + size * 0x28; element != data + old_size * 0x28; element += 0x28)
+                title_function<void XB_THISCALL(uint8_t*)>(inst.dtor)(element);
+        }
+        array->size = size;
+        return;
+    }
+    uint8_t* const fresh = inst.alloc(capacity);
+    uint8_t* copy = fresh;
+    for (uint32_t i = 0, offset = 0;; ++i, offset += 0x28, copy += 0x28) {
+        const uint32_t old_size = array->size;
+        if (i >= (old_size >= size ? size : old_size)) break;
+        uint8_t* const source = reinterpret_cast<uint8_t*>(array->data) + offset;
+        if (copy != source) title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(inst.copy_from)(copy, source);
+    }
+    uint8_t* const old = reinterpret_cast<uint8_t*>(array->data);
+    if (old) {
+        for (uint8_t* element = old; element != old + array->size * 0x28; element += 0x28)
+            title_function<void XB_THISCALL(uint8_t*)>(inst.dtor)(element);
+        Scr_Free(array->data);
+    }
+    array->data = reinterpret_cast<uint32_t*>(fresh);
+    array->capacity = capacity;
+    array->size = size;
+}
+
+void dynarray_assign_hash_map(DynArray* array, const DynArray* source, const HashMapArrayInstance& inst) {
+    uint8_t* const old = reinterpret_cast<uint8_t*>(array->data);
+    if (old) {
+        for (uint8_t* element = old; element != old + array->size * 0x28; element += 0x28)
+            title_function<void XB_THISCALL(uint8_t*)>(inst.dtor_assign)(element);
+        Scr_Free(array->data);
+    }
+    if (!source->size) {
+        array->data = nullptr;
+        array->size = 0;
+        array->capacity = 0;
+        return;
+    }
+    uint8_t* const fresh = inst.alloc(source->capacity);
+    uint8_t* copy = fresh;
+    for (int32_t i = 0, offset = 0; i < static_cast<int32_t>(source->size); ++i, offset += 0x28, copy += 0x28) {
+        uint8_t* const from = reinterpret_cast<uint8_t*>(source->data) + offset;
+        if (copy != from) title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(inst.copy_from)(copy, from);
+    }
+    array->data = reinterpret_cast<uint32_t*>(fresh);
+    array->size = source->size;
+    array->capacity = source->capacity;
+}
+
+const HashMapArrayInstance kHashMapArray1{0x0045f8b0, 0x0045ebe0, 0x0011aa90, 0x0045f650, &DynArray_AllocHashMap};
+const HashMapArrayInstance kHashMapArray2{0x0045fc30, 0x0045ec50, 0x0045f220, 0x0045f760, &DynArray_AllocHashMap_2};
+
+// Shuffle: element i swaps with element Scr_RandomInt(size), each access through At (resize thiscall
+// (index + 1, index + 4) when index >= size).
+template <uint32_t kSize>
+void dynarray_shuffle(DynArray* array, uint32_t resize) {
+    const auto at = [array, resize](uint32_t index) {
+        if (index >= array->size)
+            title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(resize)(array, index + 1, index + 4);
+        return reinterpret_cast<uint8_t*>(array->data) + index * kSize;
+    };
+    if (static_cast<int32_t>(array->size) <= 0) return;
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) {
+        const uint32_t j = static_cast<uint32_t>(title_function<int32_t XB_CDECL(int32_t)>(
+            title_global<uint32_t>(0x0092222c))(static_cast<int32_t>(array->size)));  // Scr_RandomInt
+        uint32_t temp[kSize / 4];
+        std::memcpy(temp, at(i), kSize);
+        const uint32_t* const other = reinterpret_cast<const uint32_t*>(at(j));
+        uint32_t* const dest = reinterpret_cast<uint32_t*>(at(i));
+        for (uint32_t w = 0; w < kSize / 4; ++w) dest[w] = other[w];
+        std::memcpy(at(j), temp, kSize);
+    }
+}
+
+// 28-byte record assignment: words copied, the two script strings assigned.
+void record28_assign(uint8_t* dest, uint8_t* source) {
+    pk<uint32_t>(dest, 0) = pk<uint32_t>(source, 0);
+    title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(dest + 4, source + 4);  // ScriptString_Assign
+    pk<uint32_t>(dest, 8) = pk<uint32_t>(source, 8);
+    title_function<void XB_THISCALL(uint8_t*, const uint8_t*)>(0x0011d600)(dest + 0xc, source + 0xc);
+    pk<uint32_t>(dest, 0x10) = pk<uint32_t>(source, 0x10);
+    pk<uint32_t>(dest, 0x14) = pk<uint32_t>(source, 0x14);
+    pk<uint32_t>(dest, 0x18) = pk<uint32_t>(source, 0x18);
+}
+
+void record28_release(uint8_t* record) {
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(record + 0xc);  // ScriptString_Release
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(record + 4);
+}
+
+constexpr uint32_t kRecord28Ctor = 0x0045bcd0;
+constexpr uint32_t kRecord28Dtor = 0x00458fd0;
+
+}  // namespace
+
+uint8_t* XB_STDCALL DynArray_AllocHashMap(uint32_t count) { return dynarray_alloc_hash_map(count, 0x0045f8b0); }
+uint8_t* XB_STDCALL DynArray_AllocHashMap_2(uint32_t count) { return dynarray_alloc_hash_map(count, 0x0045fc30); }
+
+void XB_THISCALL DynArray_ResizeHashMap(DynArray* array, uint32_t size, uint32_t capacity) {
+    dynarray_resize_hash_map(array, size, capacity, kHashMapArray1);
+}
+void XB_THISCALL DynArray_ResizeHashMap_2(DynArray* array, uint32_t size, uint32_t capacity) {
+    dynarray_resize_hash_map(array, size, capacity, kHashMapArray2);
+}
+void XB_THISCALL DynArray_AssignHashMap(DynArray* array, const DynArray* source) {
+    dynarray_assign_hash_map(array, source, kHashMapArray1);
+}
+void XB_THISCALL DynArray_AssignHashMap_2(DynArray* array, const DynArray* source) {
+    dynarray_assign_hash_map(array, source, kHashMapArray2);
+}
+
+uint8_t* XB_THISCALL DynArray_AtHashMap(DynArray* array, uint32_t index) {
+    if (index >= array->size) DynArray_ResizeHashMap(array, index + 1, index + 4);
+    return reinterpret_cast<uint8_t*>(array->data) + index * 0x28;
+}
+
+void XB_CDECL DynArray_Shuffle(DynArray* array) { dynarray_shuffle<4>(array, 0x00015a90); }
+void XB_CDECL DynArray_Shuffle_2(DynArray* array) { dynarray_shuffle<4>(array, 0x0045cad0); }
+void XB_CDECL DynArray_Shuffle12(DynArray* array) { dynarray_shuffle<12>(array, 0x0045cde0); }
+void XB_CDECL DynArray_ShuffleInt(DynArray* array) { dynarray_shuffle<4>(array, 0x0045cad0); }
+void XB_CDECL DynArray_Shuffle_3(DynArray* array) { dynarray_shuffle<4>(array, 0x0045c4a0); }
+
+void XB_CDECL DynArray_ShuffleString(DynArray* array) {
+    constexpr uint32_t kResize = 0x0045c2e0;
+    const auto at = [array](uint32_t index) {
+        if (index >= array->size)
+            title_function<void XB_THISCALL(DynArray*, uint32_t, uint32_t)>(kResize)(array, index + 1, index + 4);
+        return reinterpret_cast<uint8_t*>(array->data) + index * 4;
+    };
+    if (static_cast<int32_t>(array->size) <= 0) return;
+    for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array->size); ++i) {
+        const uint32_t j = static_cast<uint32_t>(title_function<int32_t XB_CDECL(int32_t)>(
+            title_global<uint32_t>(0x0092222c))(static_cast<int32_t>(array->size)));  // Scr_RandomInt
+        uint32_t temp = 0;
+        title_function<void XB_THISCALL(uint32_t*, uint8_t*)>(0x0011d5e0)(&temp, at(i));  // ScriptString_Copy
+        uint8_t* const other = at(j);
+        title_function<void XB_THISCALL(uint8_t*, uint8_t*)>(0x0011d600)(at(i), other);  // ScriptString_Assign
+        title_function<void XB_THISCALL(uint8_t*, uint32_t*)>(0x0011d600)(at(j), &temp);
+        title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&temp);  // ScriptString_Release
+    }
+}
+
+void XB_THISCALL DynArray_Erase28(DynArray* array, uint8_t* where) {
+    uint8_t* const end = reinterpret_cast<uint8_t*>(array->data) + array->size * 0x1c;
+    if (where == end) return;
+    uint8_t* const last = end - 0x1c;
+    for (uint8_t* record = where; record != last; record += 0x1c) record28_assign(record, record + 0x1c);
+    title_function<void XB_THISCALL(uint8_t*)>(kRecord28Dtor)(last);
+    --array->size;
+}
+
+uint8_t* XB_STDCALL DynArray_Alloc28(uint32_t count, uint32_t) {
+    const uint32_t bytes = count * 0x1c;
+    uint8_t* const data = reinterpret_cast<uint8_t*>(Scr_Alloc(bytes, 4));
+    for (uint8_t* record = data; record != data + bytes; record += 0x1c)
+        if (record) title_function<void XB_THISCALL(uint8_t*)>(kRecord28Ctor)(record);
+    return data;
+}
+
+void XB_THISCALL DynArray_Reserve28(DynArray* array, uint32_t size, uint32_t capacity) {
+    uint8_t* const data = reinterpret_cast<uint8_t*>(array->data);
+    if (size <= array->capacity) {
+        const uint32_t old_size = array->size;
+        if (size > old_size) {
+            for (uint8_t* record = data + old_size * 0x1c; record != data + size * 0x1c; record += 0x1c)
+                if (record) title_function<void XB_THISCALL(uint8_t*)>(kRecord28Ctor)(record);
+        } else if (size < old_size) {
+            for (uint8_t* record = data + size * 0x1c; record != data + old_size * 0x1c; record += 0x1c)
+                record28_release(record);
+        }
+        array->size = size;
+        return;
+    }
+    uint8_t* const fresh = title_function<uint8_t* XB_STDCALL(uint32_t)>(0x0045c120)(capacity);
+    for (uint32_t i = 0;; ++i) {
+        const uint32_t old_size = array->size;
+        if (i >= (old_size >= size ? size : old_size)) break;
+        record28_assign(fresh + i * 0x1c, reinterpret_cast<uint8_t*>(array->data) + i * 0x1c);
+    }
+    uint8_t* const old = reinterpret_cast<uint8_t*>(array->data);
+    if (old) {
+        for (uint8_t* record = old; record != old + array->size * 0x1c; record += 0x1c) record28_release(record);
+        Scr_Free(array->data);
+    }
+    array->data = reinterpret_cast<uint32_t*>(fresh);
+    array->capacity = capacity;
+    array->size = size;
+}
+
+void XB_THISCALL DynArray_PushBack28(DynArray* array, const uint8_t* value) {
+    if (array->size >= array->capacity) {
+        const uint32_t capacity = array->size + 4;
+        uint8_t* const fresh = DynArray_Alloc28(capacity, array->size + 1);
+        for (uint32_t i = 0; i < array->size; ++i)
+            record28_assign(fresh + i * 0x1c, reinterpret_cast<uint8_t*>(array->data) + i * 0x1c);
+        uint8_t* const old = reinterpret_cast<uint8_t*>(array->data);
+        if (old) {
+            for (uint8_t* record = old; record != old + array->size * 0x1c; record += 0x1c)
+                title_function<void XB_THISCALL(uint8_t*)>(kRecord28Dtor)(record);
+            Scr_Free(array->data);
+        }
+        array->data = reinterpret_cast<uint32_t*>(fresh);
+        array->capacity = capacity;
+    }
+    const uint32_t size = array->size;
+    uint8_t* const record = reinterpret_cast<uint8_t*>(array->data) + size * 0x1c;
+    array->size = size + 1;
+    record28_assign(record, const_cast<uint8_t*>(value));
+}
+
+void XB_THISCALL DynArray_Resize52(DynArray* array, uint32_t size, uint32_t capacity) {
+    if (size <= array->capacity) {
+        const uint32_t old_size = array->size;
+        if (size > old_size) {
+            uint8_t* const data = reinterpret_cast<uint8_t*>(array->data);
+            for (uint8_t* element = data + old_size * 0x34; element != data + size * 0x34; element += 0x34) {
+                if (!element) continue;
+                uint32_t* const words = reinterpret_cast<uint32_t*>(element);
+                words[0] = title_global<uint32_t>(kScrUndefinedInt);
+                words[1] = 0;
+                words[2] = 0;
+                words[3] = title_global<uint32_t>(0x00922eb4);
+                for (int i = 4; i < 7; ++i) words[i] = title_global<uint32_t>(kScrUndefinedVecFloat);
+                for (int i = 7; i < 13; ++i) words[i] = title_global<uint32_t>(kScrUndefinedFloat);
+            }
+        }
+        array->size = size;
+        return;
+    }
+    uint8_t* const fresh = title_function<uint8_t* XB_STDCALL(uint32_t)>(0x0045c1a0)(capacity);
+    for (uint32_t i = 0;; ++i) {
+        const uint32_t old_size = array->size;
+        if (i >= (old_size >= size ? size : old_size)) break;
+        std::memcpy(fresh + i * 0x34, reinterpret_cast<uint8_t*>(array->data) + i * 0x34, 0x34);
+    }
+    if (array->data) Scr_Free(array->data);
+    array->data = reinterpret_cast<uint32_t*>(fresh);
+    array->capacity = capacity;
+    array->size = size;
+}
+
 }  // namespace game

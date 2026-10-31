@@ -838,4 +838,49 @@ void XB_CDECL StaticInit_LocStrings();
 // 0x00379950: atexit: destroys the localized-string tables (0x0001d9d0).
 void XB_CDECL AtExit_LocStrings();
 
+// --- qcommon push 7 (high half) ---
+
+// 0x0017ec50 (callee pops 4): count hash maps (0x28 B) from Scr_Alloc, each constructed by the
+// PROLOGUE-section HashMap_Ctor 0x0045f8b0 with traits = the original's argument slot, which then holds the
+// element's own address (the traits byte is the address's low byte). _2 (0x0017ece0): ctor 0x0045fc30.
+uint8_t* XB_STDCALL DynArray_AllocHashMap(uint32_t count);
+uint8_t* XB_STDCALL DynArray_AllocHashMap_2(uint32_t count);
+// 0x0017eec0: resize an array of hash maps; new slots constructed (traits as in DynArray_AllocHashMap),
+// dropped ones destroyed; past the capacity a new block of `capacity` maps gets min(size, old size) maps
+// assigned (HashMap_CopyFrom) and the old maps are destroyed and freed. _2 (0x0017f0d0): other instances.
+void XB_THISCALL DynArray_ResizeHashMap(DynArray* array, uint32_t size, uint32_t capacity);
+void XB_THISCALL DynArray_ResizeHashMap_2(DynArray* array, uint32_t size, uint32_t capacity);
+// 0x0017f020: copy-assign an array of hash maps (old maps destroyed and freed first). _2: 0x0017f230.
+void XB_THISCALL DynArray_AssignHashMap(DynArray* array, const DynArray* source);
+void XB_THISCALL DynArray_AssignHashMap_2(DynArray* array, const DynArray* source);
+// 0x0017f2e0: element `index` of an array of hash maps, growing it to index + 1 (capacity index + 4).
+uint8_t* XB_THISCALL DynArray_AtHashMap(DynArray* array, uint32_t index);
+// 0x001a95e0: shuffles a 4-byte array: each element i swaps with element Scr_RandomInt(size) (every access
+// through the array's At, which grows it: DynArray_Resize 0x00015a90). The original keeps the byte offset
+// of i in its own argument slot. _2 (0x001a96d0) / ShuffleInt (0x001a98e0): resize 0x0045cad0 (ShuffleInt
+// copies through XMM0); _3 (0x001a99d0): resize 0x0045c4a0. Shuffle12 (0x001a97c0): 12-byte elements
+// (resize 0x0045cde0). ShuffleString (0x001a9ac0): script strings (copy/assign/release; resize 0x0045c2e0).
+void XB_CDECL DynArray_Shuffle(DynArray* array);
+void XB_CDECL DynArray_Shuffle_2(DynArray* array);
+void XB_CDECL DynArray_Shuffle12(DynArray* array);
+void XB_CDECL DynArray_ShuffleInt(DynArray* array);
+void XB_CDECL DynArray_Shuffle_3(DynArray* array);
+void XB_CDECL DynArray_ShuffleString(DynArray* array);
+
+// 28-byte script record: {word, script string, word, script string, three words}; constructor 0x0045bcd0,
+// destructor 0x00458fd0 (releases both strings).
+// 0x001e4880: erase(where): later records assigned down one, the last one destroyed, size - 1.
+void XB_THISCALL DynArray_Erase28(DynArray* array, uint8_t* where);
+// 0x001e58a0 (callee pops 8): count constructed records from Scr_Alloc.
+uint8_t* XB_STDCALL DynArray_Alloc28(uint32_t count, uint32_t unused);
+// 0x001e59f0: resize; new records constructed, dropped ones' strings released; past the capacity a new
+// block (0x0045c120, capacity records) gets the first min(size, old size) assigned, the old block's strings
+// are released and it is freed.
+void XB_THISCALL DynArray_Reserve28(DynArray* array, uint32_t size, uint32_t capacity);
+// 0x001e5bc0: push_back(value): a full array moves to a new block of size + 4 records first.
+void XB_THISCALL DynArray_PushBack28(DynArray* array, const uint8_t* value);
+// 0x001e5ce0: resize a 52-byte array: new slots get DynArray_Alloc52_FillUndefined's values; past the
+// capacity a new block (0x0045c1a0, capacity elements) gets the old elements copied, the old block freed.
+void XB_THISCALL DynArray_Resize52(DynArray* array, uint32_t size, uint32_t capacity);
+
 }  // namespace game
