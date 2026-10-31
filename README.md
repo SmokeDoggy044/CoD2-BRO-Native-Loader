@@ -72,6 +72,11 @@ files; all source code is in this repository and you can build it yourself
 launcher is optional: `cod_bro_loader.exe` runs the game on its own (with
 `settings.ini`), and you can update by downloading releases yourself.
 
+The project is developed on Linux, so Windows antivirus warnings like these can slip past
+us; please report them as an issue when you see one. Thanks to the reporter of
+[issue #15](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/15) and to
+Reddit user GroundbreakingMap719 for bringing this to our attention.
+
 ## Status
 
 Version 0.2.0 is the last feature release of the native loader: from here it gets bug
