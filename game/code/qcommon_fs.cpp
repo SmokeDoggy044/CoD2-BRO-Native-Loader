@@ -6009,4 +6009,498 @@ void XB_CDECL Loc_LoadStringDir_r(const char* extension, const char* dir, uint8_
     free_list(dirs);
 }
 
+// ---- Localized string file loaders (push 8). The whole chain hangs off Loc_LoadStrings and
+// Loc_ParseStringBuffer, which have no callers, no stored pointer and no immediate in the XBE: dead code (the
+// title reads its localized strings from the zones instead). Kept as C, untested.
+
+namespace {
+
+constexpr uint32_t kLocFileState = 0x0095fe70;  // the string file parser's state (Loc_ResetStringFileState)
+
+// A std::string local in its empty state (capacity 15, size 0).
+struct LocTempString {
+    alignas(4) uint8_t s[0x1c] = {};
+    LocTempString() {
+        pk<uint32_t>(s, 0x18) = 0xf;
+        pk<uint32_t>(s, 0x14) = 0;
+        s[4] = 0;
+    }
+    void assign(const char* text) { std_string_AssignN(s, text, static_cast<uint32_t>(std::strlen(text))); }
+    void tidy() {
+        if (pk<uint32_t>(s, 0x18) >= 0x10) Z_Free(pk_ptr(s, 4));
+    }
+};
+
+// va("%s_%s", the file's base name (state +0x3c), name).
+char* loc_scoped_name(uint8_t* state, const char* name) {
+    const uint32_t args[3] = {0x0082d7d0, u32(std_string_c_str(state + 0x3c)), u32(name)};
+    return va(args);
+}
+
+int32_t crt_stricmp(const char* a, const char* b) {
+    return title_function<int32_t XB_CDECL(const char*, const char*)>(0x001f1443)(a, b);
+}
+
+}  // namespace
+
+void XB_THISCALL Loc_AddStringEntry(const char* key, uint8_t* state, const char* text, int32_t own_language) {
+    uint8_t* node = nullptr;  // the original uses the state argument's slot
+    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, key), &node);
+    if (node == pk_ptr(state, 0x7c)) return;
+    uint8_t* const value = node + 0x28;
+    if (!own_language && !pk<uint32_t>(state, 0x74)) {
+        if (crt_stricmp(text, tstr(0x00833278))) {  // "#same"
+            std_string_AssignCStr(0, text, value);
+            return;
+        }
+        // "#same": the text of the previous (English) entry, marked "[#same]" in the alternate text.
+        std_string_AssignSubstr(value, state + 0x20, 0, 0xffffffff);
+        if (!pk<uint32_t>(state, 0x84)) return;
+        std_string_AssignCStr(0, tstr(0x00833284), value + 0x1c);  // "["
+        std_string_AppendCStr(0, 0, tstr(0x00833278), value + 0x1c);
+        std_string_AppendCStr(0, 0, tstr(0x00833280), value + 0x1c);  // "]"
+        return;
+    }
+    std_string_AssignN(value, text, static_cast<uint32_t>(std::strlen(text)));
+    if (pk<uint32_t>(state, 0x84)) {
+        std_string_AssignN(value + 0x1c, tstr(0x00833284), 1);  // "[" text "]"
+        std_string_AppendN(static_cast<uint32_t>(std::strlen(text)), value + 0x1c, text);
+        std_string_AppendN(1, value + 0x1c, tstr(0x00833280));
+    }
+    std_string_AssignN(state + 0x20, text, static_cast<uint32_t>(std::strlen(text)));
+}
+
+void XB_STDCALL Loc_BeginReference(uint8_t* state, const char* name) {
+    uint8_t* node = nullptr;  // the original uses the state argument's slot
+    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, name), &node);
+    if (node == pk_ptr(state, 0x7c)) {
+        // A new entry: {string, string, int 0} copied in through operator[].
+        LocTempString entry_text;
+        LocTempString entry_alt;
+        alignas(4) uint8_t entry[0x3c] = {};
+        std::memcpy(entry, entry_text.s, 0x1c);
+        std::memcpy(entry + 0x1c, entry_alt.s, 0x1c);
+        pk<uint32_t>(entry, 0x38) = 0;
+        LocTempString key;
+        key.assign(loc_scoped_name(state, name));
+        uint8_t* const value = std_map_string_Subscript(key.s, state + 0x78);
+        std_string_AssignSubstr(value, entry, 0, 0xffffffff);
+        std_string_AssignSubstr(value + 0x1c, entry + 0x1c, 0, 0xffffffff);
+        pk<uint32_t>(value, 0x38) = pk<uint32_t>(entry, 0x38);
+        key.tidy();
+        LocEntry_Dtor(entry);
+    }
+    std_string_AssignN(state + 4, name, static_cast<uint32_t>(std::strlen(name)));
+}
+
+uint8_t* XB_REGS1 XB_STDCALL Loc_RegisterFlag(const char* flag, uint8_t* state, const char* name) {
+    uint32_t bit = Loc_FindFlagBit(0, flag, state);
+    if (!bit) {
+        LocTempString text;
+        text.assign(flag);
+        TitleRegs regs{};
+        regs.eax = u32(state + 0x88);
+        regs.ecx = u32(text.s);
+        qc_call_regs(0x0001f370, &regs, 0, nullptr);  // std_vector_string_PushBack (vector EAX, value ECX)
+        text.tidy();
+        int32_t count = 0;
+        if (pk_ptr(state, 0x8c))
+            count = static_cast<int32_t>(pk<uint32_t>(state, 0x90) - pk<uint32_t>(state, 0x8c)) / 0x1c;
+        bit = 1u << ((count - 1) & 31);
+        LocTempString key;
+        key.assign(flag);
+        pk<uint32_t>(std_set_string_Subscript(key.s, state + 0x98), 0) = bit;
+        key.tidy();
+    }
+    uint8_t* node = nullptr;  // the original uses the name argument's slot
+    loc_tree_find(kMapStringFind, state + 0x78, loc_scoped_name(state, name), &node);
+    if (node != pk_ptr(state, 0x7c)) pk<uint32_t>(node, 0x60) |= bit;
+    return node;
+}
+
+// Loc_ParseStringFile (state in EBX; line on the stack, callee pops it).
+PLATFORM_ASM_ENTRY(Loc_ParseStringFile_entry,
+                   "pushl 4(%esp)\n pushl %ebx\n" PLATFORM_ASM_CALL(Loc_ParseStringFile) "addl $8, %esp\n"
+                   "ret $4")
+
+const char* XB_CDECL Loc_ParseStringFile(uint8_t* state, char* line) {
+    if (!line) return nullptr;
+    char* cursor = line;  // the original advances its argument slot
+    if (Loc_MatchKeyword(tstr(0x008333a0), &cursor)) {  // "VERSION"
+        const int32_t version = title_function<int32_t XB_CDECL(const char*)>(0x001eeb81)(  // _atol
+            Loc_TrimQuotedValue(cursor));
+        if (version == 1) return nullptr;
+        const uint32_t args[3] = {0x00833370, static_cast<uint32_t>(version), 1};  // "Unexpected version number"
+        return va(args);
+    }
+    if (Loc_MatchKeyword(tstr(0x00833368), &cursor)) return nullptr;  // "CONFIG"
+    if (Loc_MatchKeyword(tstr(0x0083335c), &cursor)) return nullptr;  // "FILENOTES"
+    if (Loc_MatchKeyword(tstr(0x00833354), &cursor)) return nullptr;  // "NOTES"
+    if (Loc_MatchKeyword(tstr(0x00833348), &cursor)) {               // "REFERENCE"
+        Loc_BeginReference(state, Loc_TrimQuotedValue(cursor));
+        return nullptr;
+    }
+    const auto strtok = title_function<char* XB_CDECL(char*, const char*)>(0x001eeea4);
+    if (Loc_MatchKeyword(tstr(0x00833340), &cursor)) {  // "FLAGS"
+        const char* const reference = std_string_c_str(state + 4);
+        if (!*reference) return tstr(0x00833314);  // "Error parsing file: Unexpected "FLAGS""
+        char buf[0x400];
+        std::memset(buf, 0, sizeof(buf));
+        crt_strncpy(buf, cursor, 0x3ff);
+        for (char* flag = strtok(buf, tstr(0x0083333c)); flag; flag = strtok(nullptr, tstr(0x0083333c))) {  // " \t"
+            title_function<char* XB_CDECL(char*)>(0x001fa3d5)(flag);  // _strupr
+            Loc_RegisterFlag(flag, state, reference);
+        }
+        return nullptr;
+    }
+    if (Loc_MatchKeyword(tstr(0x00833308), &cursor)) {  // "ENDMARKER"
+        pk<uint32_t>(state, 0) = 1;
+        return nullptr;
+    }
+    const char* text = cursor;
+    if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001f1486)(tstr(0x00833300), text, 5)) {
+        const uint32_t args[2] = {0x00833288, u32(text)};  // "Unknown keyword at linestart"
+        return va(args);
+    }
+    const char* const reference = std_string_c_str(state + 4);
+    if (!*reference) return tstr(0x008332ac);  // "Error parsing file: Unexpected "LANG_""
+    text += 5;
+    const char* end = text;
+    while (*end && *end != ' ' && *end != '\t') ++end;
+    char language[0x400];
+    std::memset(language, 0, sizeof(language));
+    uint32_t length = static_cast<uint32_t>(end - text);
+    if (length > 0x3ff) length = 0x3ff;
+    crt_strncpy(language, text, length);
+    text += std::strlen(language);
+    const char* const value = Loc_ReplaceNewlineEscapes(Loc_TrimQuotedValue(text));
+    if (pk<uint32_t>(state, 0x74)) {
+        Loc_AddStringEntry(reference, state, value, 0);
+        return nullptr;
+    }
+    const int32_t english = crt_stricmp(language, tstr(0x00833518)) == 0 ? 1 : 0;  // "english"
+    if (!english && crt_stricmp(std_string_c_str(state + 0x58), language)) {
+        const uint32_t args[3] = {0x008332d4, u32(language), u32(std_string_c_str(state + 0x58))};
+        const char* const error = va(args);  // "Language "%s" found when expecting "%s"!"
+        if (error) return error;
+    }
+    Loc_AddStringEntry(reference, state, value, english);
+    return nullptr;
+}
+
+// The parse loop over `cursor` with the state at 0x0095fe70: the first error, else null.
+namespace {
+const char* loc_parse_lines(const char** cursor) {
+    uint8_t* const state = &title_global<uint8_t>(kLocFileState);
+    char line[0x4000];
+    const char* error = nullptr;
+    while (!error) {
+        if (!Loc_ReadLine(cursor, line)) return nullptr;
+        if (std::strlen(line)) error = Loc_ParseStringFile(state, line);
+    }
+    return error;
+}
+}  // namespace
+
+const char* XB_REGS3 XB_CDECL Loc_LoadStringFile(uint32_t, uint32_t, const char* path, uint32_t value, int32_t quiet) {
+    void* buffer = nullptr;
+    if (FS_ReadFile(path, &buffer) <= 0 || !buffer) {
+        if (quiet) return nullptr;
+        const uint32_t args[2] = {0x0083322c, u32(path)};  // "Unable to load "%s"!"
+        return va(args);
+    }
+    Loc_BeginStringFile(path, &title_global<uint8_t>(kLocFileState), value);
+    const char* cursor = static_cast<const char*>(buffer);
+    const char* const error = loc_parse_lines(&cursor);
+    --title_global<int32_t>(0x00940a0c);  // fs_loadStack (FS_FreeFile inlined)
+    Z_Free(static_cast<uint8_t*>(buffer));
+    if (error) return error;
+    if (title_global<uint32_t>(kLocFileState)) return nullptr;
+    const uint32_t args[2] = {0x00833244, 0x00833308};  // "Truncated file, failed to find "ENDMARKER" at file end!"
+    return va(args);
+}
+
+const char* XB_CDECL Loc_ParseStringBuffer(const char* path, const char* text) {
+    Loc_BeginStringFile(path, &title_global<uint8_t>(kLocFileState), 0);
+    const char* cursor = text;
+    const char* const error = loc_parse_lines(&cursor);
+    if (error) return error;
+    // Without an error: the end marker flag itself (EAX keeps it), or the truncation message.
+    const uint32_t ended = title_global<uint32_t>(kLocFileState);
+    if (ended) return reinterpret_cast<const char*>(static_cast<uintptr_t>(ended));
+    const uint32_t args[2] = {0x00833244, 0x00833308};
+    return va(args);
+}
+
+// Loc_LoadStringFileOrSte (path in EAX, value in EBX).
+PLATFORM_ASM_ENTRY(Loc_LoadStringFileOrSte_entry,
+                   "pushl %ebx\n pushl %eax\n" PLATFORM_ASM_CALL(Loc_LoadStringFileOrSte) "addl $8, %esp\n ret")
+
+const char* XB_CDECL Loc_LoadStringFileOrSte(const char* path, uint32_t value) {
+    const char* const error = Loc_LoadStringFile(0, 0, path, value, 0);
+    if (error) return error;
+    // Loaded: the matching ".ste" file as well, when the extension has three letters (quietly).
+    char name[0x80];
+    crt_strncpy(name, path, 0x7f);
+    name[0x7f] = 0;
+    char* const dot = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40)(name, '.');  // strrchr
+    if (!dot || std::strlen(dot) != 4) return nullptr;
+    std::memcpy(dot, tstr(0x00833224), 5);  // ".ste"
+    return Loc_LoadStringFile(0, 0, name, value, 1);
+}
+
+const char* XB_CDECL Loc_LoadStrings(const char* language, uint32_t value) {
+    const char* result = nullptr;
+    if (!language || !*language) return nullptr;
+    Loc_ClearStrings();
+    LocTempString list;
+    title_global<int32_t>(0x00929cd8) = 0;
+    std_string_AssignN(list.s, tstr(0x0082dfeb), 0);
+    Loc_LoadStringDir_r(tstr(0x00833200), tstr(0x00833210), list.s);  // ".str", "localizedstrings"
+    const auto strrchr = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40);
+    char* const dir = &title_global<char>(0x0098b2a0);
+    char* const base = &title_global<char>(0x0098b1a0);
+    for (char* path = Loc_PopSemicolonToken(list.s); path && !result; path = Loc_PopSemicolonToken(list.s)) {
+        // The file's folder name (Com_DirName and COM_SkipPath inlined).
+        std::strcpy(dir, path);
+        char* const back = strrchr(dir, '\\');
+        char* const slash = strrchr(dir, '/');
+        char* const cut = u32(back) > u32(slash) ? back : slash;
+        if (cut) *cut = 0;
+        const char* start = dir;
+        for (const char* c = dir; *c; ++c)
+            if (*c == '/' || *c == '\\') start = c + 1;
+        std::strcpy(base, start);
+        if (!crt_stricmp(language, base)) result = Loc_LoadStringFileOrSte(path, value);
+    }
+    list.tidy();
+    return result;
+}
+
+// ---- Push 8, batch 1: ref-counted strings, hunk usage, info fields, "take".
+
+namespace {
+
+// RcString: {length, references beyond the first, text (Heap_Alloc16), capacity}, 0x10 bytes from Z_Malloc.
+uint8_t* rc_string_new() {
+    uint8_t* const rc = title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c10)(0x10);  // Z_Malloc
+    if (!rc) return nullptr;
+    pk<uint32_t>(rc, 0) = 0;
+    pk<uint32_t>(rc, 4) = 0;
+    pk<uint32_t>(rc, 8) = 0;
+    pk<uint32_t>(rc, 0xc) = 0;
+    return rc;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(RcString_MakeUnique_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(RcString_MakeUnique) "addl $4, %esp\n ret")
+
+void XB_CDECL RcString_MakeUnique(uint8_t** holder) {
+    uint8_t* const old = *holder;
+    if (!pk<uint32_t>(old, 4)) return;
+    const uint32_t length = old ? pk<uint32_t>(old, 0) : 0;
+    *holder = rc_string_new();
+    RcString_Reserve(holder, length + 1, 0);
+    crt_strncpy(reinterpret_cast<char*>(pk_ptr(*holder, 8)), reinterpret_cast<const char*>(pk_ptr(old, 8)), length + 1);
+    pk<uint32_t>(*holder, 0) = length;
+    const int32_t refs = pk<int32_t>(old, 4) - 1;
+    pk<int32_t>(old, 4) = refs;
+    if (refs >= 0) return;
+    if (pk_ptr(old, 8)) Z_Free(pk_ptr(old, 8));
+    Z_Free(old);
+}
+
+void XB_THISCALL RcString_Reserve(uint8_t** holder, int32_t size, uint8_t keep) {
+    if (!*holder) *holder = rc_string_new();
+    RcString_MakeUnique(holder);
+    uint8_t* const rc = *holder;
+    const bool had_buffer = pk<int32_t>(rc, 0xc) != 0;
+    if (size < pk<int32_t>(rc, 0xc)) return;
+    if (size == 1) {
+        pk<int32_t>(rc, 0xc) = size;
+    } else {
+        const int32_t rem = size % 20;  // whole multiples of 20 bytes
+        pk<int32_t>(rc, 0xc) = rem ? size - rem + 20 : size;
+    }
+    char* const text = reinterpret_cast<char*>(
+        title_function<uint8_t* XB_CDECL(uint32_t)>(0x00042c30)(pk<uint32_t>(*holder, 0xc)));  // Heap_Alloc16
+    if (had_buffer && keep) std::strcpy(text, reinterpret_cast<const char*>(pk_ptr(*holder, 8)));
+    if (pk_ptr(*holder, 8)) Z_Free(pk_ptr(*holder, 8));
+    pk<uint32_t>(*holder, 8) = u32(text);
+}
+
+void XB_CDECL Com_ReadHunkUsage(const char* map_name) {
+    int32_t f = 0;
+    const int32_t length = FS_FOpenFileByMode(tstr(0x00832ca8), &f, 0);  // "hunkusage.dat"
+    if (length >= 0) {
+        uint8_t* const buffer = title_function<uint8_t* XB_CDECL(int32_t)>(0x00042c10)(length + 1);  // Z_Malloc
+        Com_Memset(buffer, 0, static_cast<uint32_t>(length + 1));
+        std::memset(buffer, 0, static_cast<uint32_t>(length + 1));
+        FS_Read(buffer, length, f);
+        FS_FCloseFile(f);
+        uint8_t* const info = title_global<uint8_t*>(0x008d4ca0);  // the parse info (an ungot token restored)
+        const char* cursor = reinterpret_cast<const char*>(buffer);
+        const auto next_token = [&]() {
+            if (pk<uint32_t>(info, 0x84)) {
+                pk<uint32_t>(info, 0x84) = 0;
+                cursor = reinterpret_cast<const char*>(pk_ptr(info, 0x98));
+                pk<uint32_t>(info, 0x80) = pk<uint32_t>(info, 0x94);
+            }
+            return COM_ParseExt(&cursor, 1);
+        };
+        for (;;) {
+            const char* const name = next_token();
+            if (!name || !*name) break;
+            if (Q_stricmpn(name, map_name, 99999)) continue;  // inlined
+            const char* const value = next_token();
+            if (!value || !*value) continue;
+            Cvar_Set2(tstr(0x00832c90), const_cast<char*>(value), 1);  // "com_expectedhunkusage"
+            Z_Free(buffer);
+            return;
+        }
+        Z_Free(buffer);
+    }
+    Cvar_Set2(tstr(0x00832c90), const_cast<char*>(tstr(0x00832c8c)), 1);  // "-1"
+}
+
+uint32_t XB_REGS2 XB_CDECL Info_ParseFieldsToStruct(uint32_t, const uint8_t* fields, uint8_t* out, int32_t count,
+                                                    uint8_t* map, int32_t custom_types, uint32_t parse_custom,
+                                                    uint32_t parse_callback) {
+    int32_t i = 0;
+    for (; i < count; ++i) {
+        const uint8_t* const field = fields + i * 0xc;  // {name, offset, type}
+        uint32_t key = pk<uint32_t>(const_cast<uint8_t*>(field), 0);
+        TitleRegs regs{};
+        regs.ebx = u32(map + 8);
+        const uint32_t key_arg = u32(&key);
+        const auto found = reinterpret_cast<const char**>(
+            static_cast<uintptr_t>(qc_call_regs(0x000249a0, &regs, 1, &key_arg)));  // StringMap_Find
+        if (!found || !*found || !**found) continue;
+        const char* const value = *found;
+        const int32_t type = pk<int32_t>(const_cast<uint8_t*>(field), 8);
+        uint8_t* const dest = out + pk<uint32_t>(const_cast<uint8_t*>(field), 4);
+        if (type >= 8) {
+            if (custom_types > 0 && type < custom_types) {
+                if (!title_function<int32_t XB_CDECL(uint8_t*, const char*, int32_t)>(parse_custom)(out, value, type))
+                    return 0;
+            } else {
+                title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(1, tstr(0x00833688), type);
+            }
+            continue;
+        }
+        switch (type) {
+        case 0:
+            title_function<void XB_CDECL(uint8_t*, const char*)>(parse_callback)(dest, value);
+            break;
+        case 1:  // char[256]
+            crt_strncpy(reinterpret_cast<char*>(dest), value, 0xff);
+            dest[0xff] = 0;
+            break;
+        case 2:
+        case 3:  // char[128]
+            crt_strncpy(reinterpret_cast<char*>(dest), value, 0x7f);
+            dest[0x7f] = 0;
+            break;
+        case 4:
+            pk<int32_t>(dest, 0) = title_atol(value);
+            break;
+        case 5:
+            pk<int32_t>(dest, 0) = title_atol(value) ? 1 : 0;
+            break;
+        case 6:  // atof's double stored as float
+            pk<float>(dest, 0) = title_function<float XB_CDECL(const char*)>(0x001ef056)(value);
+            break;
+        case 7: {  // seconds -> milliseconds: FMUL by 1000.0f on the x87, _ftol
+            const long double seconds = title_function<long double XB_CDECL(const char*)>(0x001ef056)(value);
+            pk<int32_t>(dest, 0) = static_cast<int32_t>(static_cast<int64_t>(seconds * title_global<float>(0x0083eb9c)));
+            break;
+        }
+        }
+    }
+    return i == count ? 1 : 0;
+}
+
+void XB_CDECL Cmd_Take_f(uint8_t* ent) {
+    if (!title_global<int32_t>(kCheatsEnabled)) {
+        send_va_to_client(ent, 0x0083bd78);  // "print \"GAME_CHEATSNOTENABLED\""
+        return;
+    }
+    if (pk<int32_t>(ent, 0x350) <= 0) {
+        send_va_to_client(ent, 0x0083bd58);  // "print \"GAME_MUSTBEALIVECOMMAND\""
+        return;
+    }
+    using ConcatArgs = const char* XB_REGS3 XB_CDECL(uint32_t, uint32_t, int32_t);
+    const int32_t amount = title_atol(title_function<ConcatArgs>(0x0024d250)(0, 0, 2));
+    const char* const name = title_function<ConcatArgs>(0x0024d250)(0, 0, 1);
+    if (!name || !std::strlen(name)) return;
+    // ps +0x80 current weapon, +0x110 ammo per ammo index, +0x280 clip per clip index; weapon def +0x598 ammo
+    // index, +0x5a0 clip index.
+    const auto ps = [ent]() { return pk_ptr(ent, 0x23c); };
+    const auto def = [](int32_t weapon) { return title_global<uint8_t**>(0x0095f4d8)[weapon]; };  // bg_weaponDefs
+    const auto ammo = [&](int32_t weapon) -> int32_t& { return pk<int32_t>(ps(), 0x110 + pk<int32_t>(def(weapon), 0x598) * 4); };
+    const auto clip = [&](int32_t weapon) -> int32_t& { return pk<int32_t>(ps(), 0x280 + pk<int32_t>(def(weapon), 0x5a0) * 4); };
+    const auto take_ammo = [&](int32_t weapon) {
+        ammo(weapon) -= amount;
+        if (ammo(weapon) >= 0) return;
+        clip(weapon) += ammo(weapon);  // the shortfall comes out of the clip
+        ammo(weapon) = 0;
+        if (clip(weapon) < 0) clip(weapon) = 0;
+    };
+    const bool all = Q_stricmpn(name, tstr(0x0083bd34), 99999) == 0;  // "all"
+    bool weapons = false;
+    bool ammo_block = false;
+    if (all || !Q_stricmpn(name, tstr(0x008367c8), 6)) {  // "health"
+        if (amount) {
+            const int32_t health = pk<int32_t>(ent, 0x350) - amount;
+            pk<int32_t>(ent, 0x350) = health;
+            if (health < 1) pk<int32_t>(ent, 0x350) = 1;
+        } else {
+            pk<int32_t>(ent, 0x350) = 1;
+        }
+        if (!all) return;
+        weapons = true;
+    } else if (!Q_stricmp(tstr(0x0083bd2c), 0, name)) {  // "weapons"
+        weapons = true;
+    } else if (!Q_stricmpn(name, tstr(0x008367c0), 4)) {  // "ammo"
+        ammo_block = true;
+    }
+    if (weapons) {
+        const int32_t last = title_global<int32_t>(0x0095f4d4);  // bg_lastWeaponIndex
+        for (int32_t weapon = 1; weapon <= last; ++weapon) {
+            TitleRegs regs{};
+            regs.eax = static_cast<uint32_t>(weapon);
+            regs.ecx = u32(ps());
+            qc_call_regs(0x002b5530, &regs, 0, nullptr);  // BG_RemoveWeaponFromSlot
+            ammo(weapon) = 0;
+            clip(weapon) = 0;
+        }
+        if (pk<int32_t>(ps(), 0x80)) {
+            pk<int32_t>(ps(), 0x80) = 0;
+            TitleRegs regs{};
+            regs.esi = 0;
+            qc_call_regs(0x002cde20, &regs, 0, nullptr);  // CG_SelectWeapon(0)
+        }
+        if (!all) return;
+        ammo_block = true;
+    }
+    if (ammo_block) {
+        if (amount) {
+            const int32_t current = pk<int32_t>(ps(), 0x80);
+            if (current) take_ammo(current);
+        } else {
+            const int32_t last = title_global<int32_t>(0x0095f4d4);
+            for (int32_t weapon = 1; weapon <= last; ++weapon) {
+                ammo(weapon) = 0;
+                clip(weapon) = 0;
+            }
+        }
+        if (!all) return;
+    }
+    if (Q_stricmpn(name, tstr(0x0083bd24), 7) || !amount) return;  // "allammo"
+    const int32_t last = title_global<int32_t>(0x0095f4d4);
+    for (int32_t weapon = 1; weapon <= last; ++weapon) take_ammo(weapon);
+}
+
 }  // namespace game
