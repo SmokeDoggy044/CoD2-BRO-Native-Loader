@@ -478,3 +478,5 @@ address,module,source,evidence
 0029e380,qcommon,manual,"gap function created 2026-10-31 (qcommon push 8 high-half report)"
 002a2440,qcommon,manual,"FS_TouchFile_f gap (2026-10-31)"
 002a2480,qcommon,manual,"FS_Dir_f gap (2026-10-31)"
+00012280,client,auto,"TitleMenu vtable thunk to TitleMenu_Accept (client push 1)"
+003154a0,client,auto,"stub split from UIRoot_DrawFrontEnd, calls SCR_UpdateLoadingIcon(0), no refs (client push 1)"
