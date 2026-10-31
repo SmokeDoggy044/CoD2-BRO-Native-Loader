@@ -131,6 +131,84 @@ Mm punpckldq(const Mm& a, const Mm& b) {
 
 const Mm& title_mm(uint32_t address) { return title_global<const Mm>(address); }
 
+// The IDCT's MMX operations (word / dword lanes).
+int32_t dword(const Mm& v, int i) {
+    return static_cast<int32_t>(static_cast<uint32_t>(v.b[4 * i]) | static_cast<uint32_t>(v.b[4 * i + 1]) << 8 |
+                                static_cast<uint32_t>(v.b[4 * i + 2]) << 16 | static_cast<uint32_t>(v.b[4 * i + 3]) << 24);
+}
+void set_dword(Mm& v, int i, uint32_t d) {
+    for (int k = 0; k < 4; ++k) v.b[4 * i + k] = static_cast<uint8_t>(d >> (8 * k));
+}
+Mm pshufw(const Mm& a, uint32_t order) {
+    Mm v;
+    for (int i = 0; i < 4; ++i) set_word(v, i, word(a, (order >> (2 * i)) & 3));
+    return v;
+}
+Mm pmaddwd(const Mm& a, const Mm& b) {
+    Mm v;
+    for (int i = 0; i < 2; ++i)
+        set_dword(v, i, static_cast<uint32_t>(word(a, 2 * i) * word(b, 2 * i)) +
+                            static_cast<uint32_t>(word(a, 2 * i + 1) * word(b, 2 * i + 1)));  // wraps like PMADDWD
+    return v;
+}
+Mm paddd(const Mm& a, const Mm& b) {
+    Mm v;
+    for (int i = 0; i < 2; ++i) set_dword(v, i, static_cast<uint32_t>(dword(a, i)) + static_cast<uint32_t>(dword(b, i)));
+    return v;
+}
+Mm psubd(const Mm& a, const Mm& b) {
+    Mm v;
+    for (int i = 0; i < 2; ++i) set_dword(v, i, static_cast<uint32_t>(dword(a, i)) - static_cast<uint32_t>(dword(b, i)));
+    return v;
+}
+Mm psrad(const Mm& a, uint32_t n) {
+    Mm v;
+    for (int i = 0; i < 2; ++i) set_dword(v, i, static_cast<uint32_t>(dword(a, i) >> (n > 31 ? 31 : n)));
+    return v;
+}
+Mm psraw(const Mm& a, uint32_t n) {
+    Mm v;
+    for (int i = 0; i < 4; ++i) set_word(v, i, word(a, i) >> (n > 15 ? 15 : n));
+    return v;
+}
+Mm psllw(const Mm& a, uint32_t n) {
+    Mm v;
+    for (int i = 0; i < 4; ++i) set_word(v, i, n > 15 ? 0 : static_cast<uint16_t>(word(a, i)) << n);
+    return v;
+}
+Mm psrlw(const Mm& a, uint32_t n) {
+    Mm v;
+    for (int i = 0; i < 4; ++i) set_word(v, i, n > 15 ? 0 : static_cast<uint16_t>(word(a, i)) >> n);
+    return v;
+}
+// PACKSSDW a, b: a's two dwords then b's, each saturated to a signed word.
+Mm packssdw(const Mm& a, const Mm& b) {
+    Mm v;
+    for (int i = 0; i < 2; ++i) {
+        set_word(v, i, sat_s16(dword(a, i)));
+        set_word(v, 2 + i, sat_s16(dword(b, i)));
+    }
+    return v;
+}
+Mm pmulhw(const Mm& a, const Mm& b) {
+    Mm v;
+    for (int i = 0; i < 4; ++i) set_word(v, i, (word(a, i) * word(b, i)) >> 16);
+    return v;
+}
+// PSRLQ / PSLLQ: the whole register as one 64-bit value.
+uint64_t qword(const Mm& v) {
+    uint64_t q = 0;
+    for (int i = 7; i >= 0; --i) q = q << 8 | v.b[i];
+    return q;
+}
+Mm from_qword(uint64_t q) {
+    Mm v;
+    for (int i = 0; i < 8; ++i) v.b[i] = static_cast<uint8_t>(q >> (8 * i));
+    return v;
+}
+Mm psrlq(const Mm& a, uint32_t n) { return from_qword(n > 63 ? 0 : qword(a) >> n); }
+Mm psllq(const Mm& a, uint32_t n) { return from_qword(n > 63 ? 0 : qword(a) << n); }
+
 }  // namespace
 
 // Loads MM0..MM(count-1) from regs (cdecl): the C versions end with the MMX registers
@@ -354,8 +432,166 @@ void XB_REGS3 XB_CDECL MovieVid_AddBlockDCOnly(uint8_t* dst, const int16_t* bloc
 
 namespace {
 
-// 0x000cfb20: the MMX IDCT, in place (not decompiled yet).
-using IdctFn = void XB_CDECL(int16_t* block);
+// One row of the IDCT's first pass (input words in MM0/MM1, the row's coefficient table at `tab`; result in MM3 and
+// MM7), as generated from the disassembly.
+void idct_row(Mm* r, uint32_t tab) {
+    auto mm_load_tab = [](uint32_t address) -> const Mm& { return title_mm(address); };
+    r[2] = r[0];
+    r[3] = mm_load_tab(tab);
+    r[0] = pshufw(r[0], 0x88);
+    r[4] = mm_load_tab(tab + 0x8);
+    r[5] = r[1];
+    r[3] = pmaddwd(r[3], r[0]);
+    r[6] = mm_load_tab(tab + 0x20);
+    r[1] = pshufw(r[1], 0x88);
+    r[4] = pmaddwd(r[4], r[1]);
+    r[7] = mm_load_tab(tab + 0x28);
+    r[2] = pshufw(r[2], 0xdd);
+    r[6] = pmaddwd(r[6], r[2]);
+    r[5] = pshufw(r[5], 0xdd);
+    r[7] = pmaddwd(r[7], r[5]);
+    r[3] = paddd(r[3], title_mm(0x8c0090));
+    r[0] = pmaddwd(r[0], mm_load_tab(tab + 0x10));
+    r[3] = paddd(r[3], r[4]);
+    r[1] = pmaddwd(r[1], mm_load_tab(tab + 0x18));
+    r[4] = r[3];
+    r[2] = pmaddwd(r[2], mm_load_tab(tab + 0x30));
+    r[6] = paddd(r[6], r[7]);
+    r[5] = pmaddwd(r[5], mm_load_tab(tab + 0x38));
+    r[3] = paddd(r[3], r[6]);
+    r[0] = paddd(r[0], title_mm(0x8c0090));
+    r[3] = psrad(r[3], 0xf);
+    r[0] = paddd(r[0], r[1]);
+    r[4] = psubd(r[4], r[6]);
+    r[7] = r[0];
+    r[2] = paddd(r[2], r[5]);
+    r[0] = paddd(r[0], r[2]);
+    r[4] = psrad(r[4], 0xf);
+    r[7] = psubd(r[7], r[2]);
+    r[0] = psrad(r[0], 0xf);
+    r[7] = psrad(r[7], 0xf);
+    r[3] = packssdw(r[3], r[0]);
+    r[7] = packssdw(r[7], r[4]);
+    r[7] = pshufw(r[7], 0xb1);
+}
+
+// The column pass over four columns (words) at p, in place, as generated from the disassembly.
+void idct_columns(Mm* r, uint8_t* p) {
+    r[0] = mm_load(p + 0x50);
+    r[1] = title_mm(0x8c00e0);
+    r[2] = r[0];
+    r[3] = mm_load(p + 0x30);
+    r[0] = pmulhw(r[0], r[1]);
+    r[4] = mm_load(p + 0x70);
+    r[1] = pmulhw(r[1], r[3]);
+    r[5] = title_mm(0x8c00c0);
+    r[6] = r[4];
+    r[4] = pmulhw(r[4], r[5]);
+    r[0] = paddsw(r[0], r[2]);
+    r[5] = pmulhw(r[5], mm_load(p + 0x10));
+    r[1] = paddsw(r[1], r[3]);
+    r[7] = mm_load(p + 0x60);
+    r[0] = paddsw(r[0], r[3]);
+    r[3] = title_mm(0x8c00d0);
+    r[2] = psubsw(r[2], r[1]);
+    r[7] = pmulhw(r[7], r[3]);
+    r[1] = r[0];
+    r[3] = pmulhw(r[3], mm_load(p + 0x20));
+    r[5] = psubsw(r[5], r[6]);
+    r[4] = paddsw(r[4], mm_load(p + 0x10));
+    r[0] = paddsw(r[0], r[4]);
+    r[0] = paddsw(r[0], title_mm(0x8c0080));
+    r[4] = psubsw(r[4], r[1]);
+    r[7] = paddsw(r[7], mm_load(p + 0x20));
+    r[6] = r[5];
+    r[3] = psubsw(r[3], mm_load(p + 0x60));
+    r[5] = psubsw(r[5], r[2]);
+    r[5] = paddsw(r[5], title_mm(0x8c0080));
+    r[6] = paddsw(r[6], r[2]);
+    mm_store(p + 0x70, r[0]);
+    r[1] = r[4];
+    r[2] = title_mm(0x8c00f0);
+    r[4] = paddsw(r[4], r[5]);
+    r[0] = title_mm(0x8c00f0);
+    r[2] = pmulhw(r[2], r[4]);
+    mm_store(p + 0x30, r[6]);
+    r[1] = psubsw(r[1], r[5]);
+    r[6] = mm_load(p);
+    r[0] = pmulhw(r[0], r[1]);
+    r[5] = mm_load(p + 0x40);
+    r[4] = paddsw(r[4], r[2]);
+    r[4] = por(r[4], title_mm(0x8c0080));
+    r[5] = paddsw(r[5], r[6]);
+    r[6] = psubsw(r[6], mm_load(p + 0x40));
+    r[0] = paddsw(r[0], r[1]);
+    r[0] = por(r[0], title_mm(0x8c0080));
+    r[2] = r[5];
+    r[5] = paddsw(r[5], r[7]);
+    r[1] = r[6];
+    r[5] = paddsw(r[5], title_mm(0x8c00a0));
+    r[2] = psubsw(r[2], r[7]);
+    r[7] = mm_load(p + 0x70);
+    r[6] = paddsw(r[6], r[3]);
+    r[6] = paddsw(r[6], title_mm(0x8c00a0));
+    r[7] = paddsw(r[7], r[5]);
+    r[7] = psraw(r[7], 0x6);
+    r[1] = psubsw(r[1], r[3]);
+    r[2] = paddsw(r[2], title_mm(0x8c00b0));
+    r[3] = r[6];
+    r[1] = paddsw(r[1], title_mm(0x8c00b0));
+    r[6] = paddsw(r[6], r[4]);
+    mm_store(p, r[7]);
+    r[6] = psraw(r[6], 0x6);
+    r[7] = r[1];
+    r[1] = paddsw(r[1], r[0]);
+    mm_store(p + 0x10, r[6]);
+    r[1] = psraw(r[1], 0x6);
+    r[6] = mm_load(p + 0x30);
+    r[7] = psubsw(r[7], r[0]);
+    r[6] = paddsw(r[6], r[2]);
+    r[2] = psubsw(r[2], mm_load(p + 0x30));
+    r[7] = psraw(r[7], 0x6);
+    mm_store(p + 0x20, r[1]);
+    r[6] = psraw(r[6], 0x6);
+    r[5] = psubsw(r[5], mm_load(p + 0x70));
+    r[2] = psraw(r[2], 0x6);
+    mm_store(p + 0x30, r[6]);
+    r[3] = psubsw(r[3], r[4]);
+    mm_store(p + 0x40, r[2]);
+    r[3] = psraw(r[3], 0x6);
+    mm_store(p + 0x50, r[7]);
+    r[5] = psraw(r[5], 0x6);
+    mm_store(p + 0x60, r[3]);
+    mm_store(p + 0x70, r[5]);
+}
+
+}  // namespace
+
+const int16_t* XB_CDECL MovieVid_Idct(int16_t* block) {
+    // Rows: each pass loads the next row's words before storing this row's result (in place, distinct rows).
+    static constexpr uint32_t kTables[8] = {0x008c0100, 0x008c0140, 0x008c0180, 0x008c01c0,
+                                            0x008c0100, 0x008c01c0, 0x008c0180, 0x008c0140};
+    uint8_t* const p = reinterpret_cast<uint8_t*>(block);
+    MmxRegs m;
+    Mm* const r = m.r;
+    r[0] = mm_load(p);
+    r[1] = mm_load(p + 8);
+    for (uint32_t k = 0; k < 8; ++k) {
+        idct_row(r, kTables[k]);
+        if (k < 7) {
+            r[0] = mm_load(p + 16 * (k + 1));
+            r[1] = mm_load(p + 16 * (k + 1) + 8);
+        }
+        mm_store(p + 16 * k, r[3]);
+        mm_store(p + 16 * k + 8, r[7]);
+    }
+    idct_columns(r, p);
+    idct_columns(r, p + 8);
+    movie_vid_set_mmx(&m, 8);
+    return block;
+}
+
+namespace {
 
 // The tail both Idct wrappers share: PXOR MM0 and 16 MOVQ stores clearing the block.
 void clear_block(int16_t* block) {
@@ -369,7 +605,7 @@ void clear_block(int16_t* block) {
 }  // namespace
 
 int16_t* XB_CDECL MovieVid_IdctPutBlock(int16_t* block, uint8_t* dst, int32_t stride) {
-    title_function<IdctFn>(0x000cfb20)(block);
+    MovieVid_Idct(block);
     MovieVid_PutBlock(block, stride, dst);
     clear_block(block);
     return block;
@@ -379,7 +615,7 @@ void XB_CDECL MovieVid_IdctAddBlock(int32_t last, int16_t* block, uint8_t* dst, 
     if (last == 0x81 && (*reinterpret_cast<const uint8_t*>(block) & 0x70) != 0x40) {
         MovieVid_AddBlockDCOnly(dst, block, stride);
     } else {
-        title_function<IdctFn>(0x000cfb20)(block);
+        MovieVid_Idct(block);
         MovieVid_AddBlock(dst, stride, block);
     }
     clear_block(block);
@@ -664,6 +900,53 @@ uint32_t XB_FASTCALL MovieVid_ReadMacroblockType(uint8_t* dec) {
     }
 }
 
+int32_t XB_THISCALL MovieVid_ReadMotionDelta(uint8_t* dec, int32_t f_code) {
+    // motion_code (a leading 1 = 0), then f_code residual bits; the sign is the bit after the code.
+    const uint32_t w = field<uint32_t>(dec, kBitWindow);
+    if (static_cast<int32_t>(w) < 0) {
+        field<uint32_t>(dec, kBitWindow) = w + w;
+        field<int32_t>(dec, kBitCount) += 1;
+        return 0;
+    }
+    const uint32_t f = static_cast<uint32_t>(f_code) & 31;
+    if (w >= 0x0c000000) {  // short codes: 0x007cea28 by the top 4 bits, residual read without a refill
+        const uint8_t* e = table_entry(0x007cea28, w >> 28, 2);
+        uint32_t value = static_cast<uint32_t>(e[0]) << f;
+        field<int32_t>(dec, kBitCount) += e[1] + f_code + 1;
+        const uint32_t code = field<uint32_t>(dec, kBitWindow) << (e[1] & 31);
+        value += 1;
+        const uint32_t sign = static_cast<uint32_t>(static_cast<int32_t>(code) >> 31);
+        uint32_t rest = code + code;
+        field<uint32_t>(dec, kBitWindow) = rest;
+        if (f_code) value += rest >> ((32 - f_code) & 31);
+        rest <<= f;
+        field<uint32_t>(dec, kBitWindow) = rest;
+        return static_cast<int32_t>((sign ^ value) - sign);
+    }
+    // long codes: 0x007cea38 by the top 10 bits; a refill before the residual
+    const uint8_t* e = table_entry(0x007cea38, w >> 22, 2);
+    uint32_t value = (static_cast<uint32_t>(e[0]) << f) + 1;
+    field<int32_t>(dec, kBitCount) += e[1] + 1;
+    const uint32_t code = field<uint32_t>(dec, kBitWindow) << (e[1] & 31);
+    const uint32_t sign = static_cast<uint32_t>(static_cast<int32_t>(code) >> 31);
+    const uint32_t rest = code + code;
+    field<uint32_t>(dec, kBitWindow) = rest;
+    if (f_code) {
+        if (field<int32_t>(dec, kBitCount) > 0) {
+            const uint8_t* p = field<const uint8_t*>(dec, kBitPtr);
+            const uint32_t word = stream_word(p) << (field<int32_t>(dec, kBitCount) & 31);
+            field<const uint8_t*>(dec, kBitPtr) = p + 2;
+            field<uint32_t>(dec, kBitWindow) = word | rest;
+            field<int32_t>(dec, kBitCount) -= 16;
+        }
+        const uint32_t window = field<uint32_t>(dec, kBitWindow);
+        value += window >> ((32 - f_code) & 31);
+        field<uint32_t>(dec, kBitWindow) = window << f;
+        field<int32_t>(dec, kBitCount) += f_code;
+    }
+    return static_cast<int32_t>((sign ^ value) - sign);
+}
+
 uint32_t XB_FASTCALL MovieVid_ReadCodedBlockPattern(uint8_t* dec) {
     need_bits(dec);
     const uint32_t w = field<uint32_t>(dec, kBitWindow);
@@ -759,10 +1042,7 @@ void XB_THISCALL MovieVid_DecodeIntraBlock(uint8_t* dec, int32_t cc, uint8_t* ds
 namespace {
 
 using McFn = MovieVidMcFn;
-// 0x000cea00: get_motion_delta(f_code).
-using MotionDeltaFn = int32_t XB_THISCALL(uint8_t* dec, int32_t f_code);
-
-int32_t motion_delta(uint8_t* dec, int32_t f_code) { return title_function<MotionDeltaFn>(0x000cea00)(dec, f_code); }
+int32_t motion_delta(uint8_t* dec, int32_t f_code) { return MovieVid_ReadMotionDelta(dec, f_code); }
 
 // bound_motion_vector: wraps into the f_code's range (shift left, arithmetic right).
 int32_t bound(int32_t v, int32_t f_code) {
@@ -1214,6 +1494,90 @@ void XB_CDECL MovieVid_ConvertMacroblockRow(uint8_t* const* planes, uint8_t* dst
             mm_store(out + 16, punpcklwd(punpckhbw(m.r[2], m.r[1]), hi));
             mm_store(out + 24, punpckhwd(punpckhbw(m.r[2], m.r[1]), hi));
             out += 32;
+            y += 8;
+            u += 4;
+            v += 4;
+        }
+    };
+    for (int row = 0; row < 8; ++row) {
+        convert_row();
+        u -= half;
+        v -= half;
+        convert_row();
+    }
+    movie_vid_emms();
+}
+
+const uint8_t* XB_CDECL MovieVid_ConvertYuv8(const uint8_t* y, const uint8_t* u, const uint8_t* v) {
+    MmxRegs m;
+    Mm* const r = m.r;
+    r[2] = mm_load(u);
+    r[0] = mm_load(v);
+    r[6] = mm_load(y);
+    r[3] = mm_zero();
+    r[2] = punpcklbw(r[2], r[3]);
+    r[0] = punpcklbw(r[0], r[3]);
+    r[2] = psubsw(r[2], title_mm(0x8c0288));
+    r[0] = psubsw(r[0], title_mm(0x8c0288));
+    r[2] = psllw(r[2], 0x3);
+    r[0] = psllw(r[0], 0x3);
+    r[1] = r[2];
+    r[5] = r[0];
+    r[1] = pmulhw(r[1], title_mm(0x8c02b0));
+    r[5] = pmulhw(r[5], title_mm(0x8c02a8));
+    r[0] = pmulhw(r[0], title_mm(0x8c02a0));
+    r[1] = paddsw(r[1], r[5]);
+    r[2] = pmulhw(r[2], title_mm(0x8c02b8));
+    r[6] = psubusb(r[6], title_mm(0x8c0290));
+    r[7] = r[6];
+    r[6] = pand(r[6], title_mm(0x8c0280));
+    r[7] = psrlw(r[7], 0x8);
+    r[6] = psllw(r[6], 0x3);
+    r[7] = psllw(r[7], 0x3);
+    r[6] = pmulhw(r[6], title_mm(0x8c0298));
+    r[7] = pmulhw(r[7], title_mm(0x8c0298));
+    r[3] = r[0];
+    r[4] = r[1];
+    r[5] = r[2];
+    r[0] = paddsw(r[0], r[6]);
+    r[3] = paddsw(r[3], r[7]);
+    r[1] = paddsw(r[1], r[6]);
+    r[4] = paddsw(r[4], r[7]);
+    r[2] = paddsw(r[2], r[6]);
+    r[5] = paddsw(r[5], r[7]);
+    r[0] = packuswb(r[0], r[0]);
+    r[1] = packuswb(r[1], r[1]);
+    r[2] = packuswb(r[2], r[2]);
+    r[3] = packuswb(r[3], r[3]);
+    r[4] = packuswb(r[4], r[4]);
+    r[5] = packuswb(r[5], r[5]);
+    r[0] = punpcklbw(r[0], r[3]);
+    r[1] = punpcklbw(r[1], r[4]);
+    r[2] = punpcklbw(r[2], r[5]);
+    movie_vid_set_mmx(&m, 8);
+    return y;
+}
+
+void XB_CDECL MovieVid_ConvertMacroblockRow565(uint8_t* const* planes, uint8_t* dst, int32_t width) {
+    // MovieVid_ConvertMacroblockRow's 16-bit twin: the converted pixels masked (0x008c02c8 / 0x008c02c0) and packed
+    // into 5:6:5 words, 8 pixels (16 bytes) per group.
+    const uint8_t* y = planes[0];
+    const uint8_t* u = planes[1];
+    const uint8_t* v = planes[2];
+    uint8_t* out = dst;
+    const int32_t half = width >> 1;
+    const int32_t groups = width >> 3;
+    MmxRegs m;
+    auto convert_row = [&] {
+        for (int32_t n = groups; n != 0; --n) {
+            movie_vid_call_mmx3(0x000d0860, y, u, v, &m);
+            const Mm r0 = pand(m.r[0], title_mm(0x008c02c8));
+            const Mm r1 = pand(m.r[1], title_mm(0x008c02c0));
+            const Mm r2 = psrlq(pand(m.r[2], title_mm(0x008c02c8)), 3);
+            const Mm zero = mm_zero();
+            mm_store(out, por(punpcklbw(r2, r0), psllq(punpcklbw(r1, zero), 3)));
+            mm_store(out + 8, por(punpckhbw(r2, r0), psllq(punpckhbw(r1, zero), 3)));
+            out += 16;
             y += 8;
             u += 4;
             v += 4;

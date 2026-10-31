@@ -16,6 +16,11 @@ namespace game {
 // the index +0x22) and its count (38, 15, 15, 3, 9, 11 for indexes 0-5, else 0) into the label +0x3c.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_BonusCESetText(uint8_t* menu);
 extern "C" void FE_BonusCESetText_entry(void);
+// 0x0030be60 / 0x0030bd30 (menu in EDX): the concept-art menu's selected item (+0x130 + row * 4) as its group (a
+// 1-based picture set: per row 0 / 1 / other its own ranges) and its index within that group; rows 3-5: the item
+// itself / 0.
+int32_t XB_REGS2 XB_CDECL FE_BonusCEItemGroup(uint32_t unused_eax, uint8_t* menu);
+int32_t XB_REGS2 XB_CDECL FE_BonusCEItemIndex(uint32_t unused_eax, uint8_t* menu);
 
 // 0x0030c010 / 0x0030daa0 / 0x0030db00 / 0x0030db60 / 0x0030dcc0 (menu in ESI): the image of the collector's edition art
 // / concepts / vehicles / weapons / bonus materials menu freed: nglResetDeviceBindings, the texture (+0x4c / +0xcc /
@@ -57,6 +62,15 @@ extern "C" void FE_CommandDisplayName_entry(void);
 // FEMENU_OP_HELPBAR when +0x4c is set or the selected slot is empty, else FEMENU_LOAD_HELPBAR_XBOX.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_SaveSlotsUpdateText(uint32_t entry, uint8_t* menu, uint32_t edi);
 extern "C" void FE_SaveSlotsUpdateText_entry(void);
+// 0x003129e0 (mode in EAX, menu on the stack, ret 4): the concepts menu's selected chapter item (+0x8c + chapter * 4):
+// mode 1 one up (to the chapter's unlocked count), 2 one down (to 1), else at least 1; modes 1 and other raise the
+// stored bests (0x008dced8, 13 words) to the items.
+uint32_t XB_REGS1 XB_STDCALL BonusConceptsMenu_ChangeItem(int32_t mode, uint8_t* menu);
+// 0x00312b40: per chapter the "new" mark +0x7c + chapter: the unlocked count above the stored best, unless the item
+// is locked (vtable +0x24 = 1).
+uint32_t XB_STDCALL BonusConceptsMenu_UpdateNewMarks(uint8_t* menu);
+// 0x00312d60 (out in EAX): 18 words: the profile's bonus bests (0x008dce90.., words 12-14 from 0x008dcec8 down), 0.
+uint32_t* XB_REGS1 XB_CDECL Profile_CopyBonusBests(uint32_t* out);
 // 0x0030cf70 / 0x00312850 (menu in EAX): every save slot marked empty (+0x5c / +0x6c + slot * 12), then the slot texts
 // (AutosaveMenu_UpdateSlotTexts / FE_SaveSlotsUpdateText, menu in ESI). The C versions get the entry ESP, ESI, EDI.
 extern "C" PLATFORM_HIDDEN void XB_CDECL AutosaveMenu_MarkSlotsEmpty(uint32_t entry, uint8_t* menu, uint32_t esi,

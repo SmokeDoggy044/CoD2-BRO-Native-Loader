@@ -309,6 +309,45 @@ void XB_CDECL GameplayMenu_UpdateLabelColors(uint8_t* menu) {
     for (uint32_t i = 0; i < 5; ++i) copy_color(menu_item(menu, i), field<uint8_t*>(menu, 0x3c + i * 4));
 }
 
+PLATFORM_ASM_ENTRY(ScreenMenu_ToggleAspect_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(ScreenMenu_ToggleAspect) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL ScreenMenu_ToggleAspect(uint8_t* menu, uint32_t right) {
+    if (field<int16_t>(menu, 0x22) != 0) return;
+    const uint8_t four_three = menu[0x50] == 0;
+    menu[0x50] = four_three;
+    call(field<uint8_t*>(menu, 0x3c), 0x6c, four_three ? 0x0082bd44u : 0x0082bd34u);  // FEMENU_COP_4X3 / _16X9
+    copy_color(menu_item(menu, 0), field<uint8_t*>(menu, 0x3c));
+    call(menu, 0x10);
+    const int32_t row = selection(menu);
+    field<int32_t>(menu, 0x58) = row;  // the arrow flash: row, time 0.1
+    field<uint32_t>(menu, 0x54) = title_global<uint32_t>(0x0083ebf8);
+    uint8_t* const arrow = field<uint8_t*>(menu, 0x44 + uint32_t(((right & 0xff) != 0) + row * 2) * 4);
+    if (arrow) call(arrow, 0x70, 0xffffffff);
+}
+
+PLATFORM_ASM_ENTRY(GameplayMenu_ToggleOption_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(GameplayMenu_ToggleOption) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL GameplayMenu_ToggleOption(uint8_t* menu, uint32_t right) {
+    const int16_t selected = field<int16_t>(menu, 0x22);
+    if (selected < 0 || selected >= 5) return;
+    menu[0x7c + selected] = menu[0x7c + selected] == 0;
+    const int32_t row = selection(menu);
+    if (!title_global<int32_t>(0x0095f5dc) || row != 0)  // g_languageIndex: row 0 keeps its text
+        show_on_off(field<uint8_t*>(menu, 0x3c + uint32_t(row) * 4), menu[0x7c + row]);
+    const int32_t flash = selection(menu);
+    field<int32_t>(menu, 0x88) = flash;  // the arrow flash: row, time 0.1
+    field<uint32_t>(menu, 0x84) = title_global<uint32_t>(0x0083ebf8);
+    uint8_t* const arrow = field<uint8_t*>(menu, uint32_t(((right & 0xff) != 0) + flash * 2 + 0x14) * 4);
+    if (arrow) call(arrow, 0x70, 0xffffffff);
+    call(menu, 0x10);
+}
+
 PLATFORM_ASM_ENTRY(AdvancedOptionsMenu_UpdateLabelColors_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(AdvancedOptionsMenu_UpdateLabelColors) "addl $4, %esp\n"
                    "ret")

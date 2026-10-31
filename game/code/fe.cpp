@@ -95,6 +95,68 @@ void free_image(uint8_t* menu, uint32_t file_offset, uint32_t buffer_offset, uin
 
 }  // namespace
 
+int32_t XB_REGS2 XB_CDECL FE_BonusCEItemGroup(uint32_t, uint8_t* menu) {
+    const int16_t row = field<int16_t>(menu, 0x22);
+    const int32_t item = field<int32_t>(menu, 0x130 + uint32_t(int32_t(row)) * 4);
+    if (row == 3 || row == 4 || row == 5) return item;
+    auto in = [item](int32_t lo, int32_t hi) { return item >= lo && item <= hi; };
+    if (row == 0) {
+        if (in(1, 3)) return 1;
+        if (in(4, 11)) return 2;
+        if (in(12, 18)) return 3;
+        if (in(19, 26)) return 4;
+        if (in(27, 33)) return 5;
+        return 6;
+    }
+    if (row == 1) {
+        if (in(1, 2)) return 1;
+        if (in(3, 4)) return 2;
+        if (in(5, 7)) return 3;
+        if (in(8, 9)) return 4;
+        if (in(10, 11)) return 5;
+        if (in(12, 13)) return 6;
+        return item != 14 ? 8 : 7;
+    }
+    if (in(1, 2)) return 1;
+    if (item == 3) return 2;
+    if (item == 4) return 3;
+    if (in(5, 8)) return 4;
+    if (in(9, 11)) return 5;
+    if (in(12, 13)) return 6;
+    return 7;
+}
+
+int32_t XB_REGS2 XB_CDECL FE_BonusCEItemIndex(uint32_t, uint8_t* menu) {
+    const int16_t row = field<int16_t>(menu, 0x22);
+    const int32_t item = field<int32_t>(menu, 0x130 + uint32_t(int32_t(row)) * 4);
+    if (row == 3 || row == 4 || row == 5) return 0;
+    auto in = [item](int32_t lo, int32_t hi) { return item >= lo && item <= hi; };
+    if (row == 0) {
+        if (in(1, 3)) return item;
+        if (in(4, 11)) return item - 3;
+        if (in(12, 18)) return item - 11;
+        if (in(19, 26)) return item - 18;
+        if (in(27, 33)) return item - 26;
+        return item - 33;
+    }
+    if (row == 1) {
+        if (in(1, 2)) return item;
+        if (in(3, 4)) return item - 2;
+        if (in(5, 7)) return item - 4;
+        if (in(8, 9)) return item - 7;
+        if (in(10, 11)) return item - 9;
+        if (in(12, 13)) return item - 11;
+        if (item == 14) return 1;
+        return item - 14;
+    }
+    if (in(1, 2)) return item;
+    if (item == 3 || item == 4) return 1;
+    if (in(5, 8)) return item - 4;
+    if (in(9, 11)) return item - 8;
+    if (in(12, 13)) return item - 11;
+    return item - 13;
+}
+
 PLATFORM_ASM_ENTRY(FE_BonusCESetText_entry, "pushl %esi\n" PLATFORM_ASM_CALL(FE_BonusCESetText) "addl $4, %esp\n"
                                             "ret")
 
@@ -321,6 +383,51 @@ void XB_CDECL FE_BonusConceptSetText(uint8_t* menu) {
     set_text(field<uint8_t*>(menu, 0x3c), 0x6c, text);
 }
 
+uint32_t XB_REGS1 XB_STDCALL BonusConceptsMenu_ChangeItem(int32_t mode, uint8_t* menu) {
+    auto item = [menu](int32_t i) -> int32_t& { return field<int32_t>(menu, 0x8c + uint32_t(i) * 4); };
+    auto best = [](int32_t i) -> int32_t& { return title_global<int32_t>(0x008dced8 + uint32_t(i) * 4); };
+    if (mode == 1) {  // next: up to the chapter's unlocked count; the stored bests raised
+        for (int32_t i = 0; i < 13; ++i) {
+            if (i == field<int16_t>(menu, 0x22) && int32_t(unlocked_level_word(i + 1)) > item(i)) item(i) = item(i) + 1;
+            if (best(i) < item(i)) best(i) = item(i);
+        }
+        return 0;
+    }
+    if (mode == 2) {  // previous: down to 1
+        for (int32_t i = 0; i < 13; ++i)
+            if (i == field<int16_t>(menu, 0x22) && item(i) > 1) item(i) = item(i) - 1;
+        return 0;
+    }
+    int32_t& current = item(field<int16_t>(menu, 0x22));
+    if (current == 0) current = 1;
+    for (int32_t i = 0; i < 13; ++i)
+        if (best(i) < item(i)) best(i) = item(i);
+    return 0;
+}
+
+uint32_t XB_STDCALL BonusConceptsMenu_UpdateNewMarks(uint8_t* menu) {
+    for (uint32_t i = 0; i < 13; ++i) {
+        menu[0x7c + i] = 0;
+        if (int32_t(unlocked_level_word(int32_t(i) + 1)) > title_global<int32_t>(0x008dced8 + i * 4)) menu[0x7c + i] = 1;
+        uint8_t* const entry = menu_item(menu, i);
+        if (method<uint8_t XB_THISCALL(uint8_t*)>(entry, 0x24)(entry) == 1) menu[0x7c + i] = 0;  // locked
+    }
+    return 0;
+}
+
+uint32_t* XB_REGS1 XB_CDECL Profile_CopyBonusBests(uint32_t* out) {
+    // 17 profile words (0x008dce90..0x008dced0; words 12-14 read from 0x008dcec8 down) and a zero, built on the stack
+    // and copied out.
+    static constexpr uint32_t kWords[17] = {0x008dce90, 0x008dce94, 0x008dce98, 0x008dce9c, 0x008dcea0, 0x008dcea4,
+                                            0x008dcea8, 0x008dceac, 0x008dceb0, 0x008dceb4, 0x008dceb8, 0x008dcebc,
+                                            0x008dcec8, 0x008dcec4, 0x008dcec0, 0x008dcecc, 0x008dced0};
+    uint32_t bests[18];
+    for (uint32_t i = 0; i < 17; ++i) bests[i] = title_global<uint32_t>(kWords[i]);
+    bests[17] = 0;
+    platform_rep_movs(out, bests, sizeof bests);
+    return out;
+}
+
 PLATFORM_ASM_ENTRY(FE_BonusLevelLabel_entry, "pushl %edi\n" PLATFORM_ASM_CALL(FE_BonusLevelLabel) "addl $4, %esp\n"
                                              "ret")
 
@@ -339,7 +446,7 @@ void XB_CDECL FE_BonusLevelLabel(uint8_t* menu) {
         if (method<uint8_t XB_THISCALL(uint8_t*)>(item, 0x24)(item) == 1)
             set_text(menu_item(menu, i), 0x30, text_at(0x0082bb8c));  // BONUS_LOCKED
     }
-    title_function<void XB_STDCALL(uint8_t*)>(0x00312b40)(menu);
+    BonusConceptsMenu_UpdateNewMarks(menu);
     field<uint32_t>(menu, 0x40) = 0x3f800000;  // 1.0
     menu[0x44] = 0;
 }

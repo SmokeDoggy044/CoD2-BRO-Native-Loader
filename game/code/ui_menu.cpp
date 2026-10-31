@@ -688,10 +688,34 @@ void XB_THISCALL UIScreenMgr_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad
     call(s, slot, uint32_t(pad));
 }
 
+uint8_t XB_CDECL UI_StickDirectionHeld(int32_t bit) {
+    int32_t y = 0, x = 0;
+    const int32_t stick_pad = title_global<int32_t>(0x008d50d8);
+    IN_PadCreate();
+    IN_PadGetStick(stick_pad, 0, &x, &y);
+    // The d-pad overrides the stick (buttons 3 / 1: up / down, 0 / 2: left / right); the pad is re-read each time.
+    auto down = [](uint32_t button) {
+        const int32_t pad = title_global<int32_t>(0x008d50d8);
+        IN_PadCreate();
+        return IN_PadButtonDown(pad, button) != 0;
+    };
+    if (down(3)) y = -128;
+    if (down(1)) y = 128;
+    if (down(0)) x = -128;
+    const int32_t horizontal = down(2) ? 128 : x;
+    switch (bit) {
+        case 4: return y < -64;
+        case 8: return y > 64;
+        case 0x10: return horizontal < -64;
+        case 0x20: return horizontal > 64;
+        default: return 0;  // XOR AL,AL: the upper EAX bytes are bit - 4 (Result::Al)
+    }
+}
+
 namespace {
 
 // 0x0030ea00: whether the active pad's stick (or d-pad) points in the UI direction bit (4-32).
-bool stick_direction_held(int32_t bit) { return title_function<uint8_t XB_CDECL(int32_t)>(0x0030ea00)(bit) != 0; }
+bool stick_direction_held(int32_t bit) { return UI_StickDirectionHeld(bit) != 0; }
 
 using PadCreate = uint8_t* XB_CDECL();
 void pad_create() { title_function<PadCreate>(0x00055e40)(); }
@@ -1029,6 +1053,26 @@ struct DialogFrame {
 };
 
 }  // namespace
+
+PLATFORM_ASM_ENTRY(UIDialog_Init_entry, "leal 4(%esp), %eax\n"
+                                        "pushl %eax\n"
+                                        "pushl %edi\n" PLATFORM_ASM_CALL(UIDialog_Init) "addl $8, %esp\n"
+                                        "ret $8")
+
+void XB_CDECL UIDialog_Init(uint8_t* dialog, ScriptString* strings) {
+    using Assign = void XB_THISCALL(uint8_t*, ScriptString*);
+    using Release = void XB_THISCALL(ScriptString*);
+    title_function<Assign>(0x0011d600)(dialog + 0x50, &strings[1]);  // ScriptString_Assign
+    title_function<Assign>(0x0011d600)(dialog + 0x4c, &strings[0]);
+    field<uint32_t>(dialog, 0x34) = 0;
+    field<uint32_t>(dialog, 0x44) = 0;
+    field<uint32_t>(dialog, 0x48) = 0;
+    field<uint32_t>(dialog, 0x54) = title_global<uint32_t>(0x0083eb34);  // -1.0
+    dialog[0x59] = 0;
+    for (int32_t i = 0; i < 3; ++i) call(menu_item(dialog, i), 0x20, 1);
+    title_function<Release>(0x0011d640)(&strings[0]);  // the by-value arguments (ScriptString_Release)
+    title_function<Release>(0x0011d640)(&strings[1]);
+}
 
 void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, uint32_t ebp, uint32_t esi,
                               uint32_t edi) {
@@ -1940,6 +1984,15 @@ uint8_t XB_REGS1 XB_STDCALL MemDlg_CheckSaveDevice(int32_t device, uint8_t prese
     return 0;
 }
 
+void XB_THISCALL Profile_StoreToSaveSlot(uint8_t* saves) {
+    const int32_t total = title_global<int32_t>(0x008dce64) + title_global<int32_t>(0x008dce60) +
+                          title_global<int32_t>(0x008dce5c) + title_global<int32_t>(0x008dce58);  // days..seconds
+    title_global<uint8_t>(0x008dcf10) = 1;
+    title_global<int32_t>(0x008dcf14) = total % 50;
+    uint8_t* const record = saves + field<int32_t>(saves, 0x11ec) * 0x3cc + 0x2a8;
+    platform_rep_movs(record, &title_global<uint8_t>(0x008dce30), 0xe9 * 4);  // the profile
+}
+
 PLATFORM_ASM_ENTRY(SaveSlot_Init_entry,
                    "pushl 8(%esp)\n"
                    "pushl 8(%esp)\n"
@@ -1955,7 +2008,7 @@ uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep) {
     const char* const data = title_function<const char* XB_CDECL()>(0x000d0c80)();  // Save_GetData
     title_function<StrNCpy>(0x001eed80)(reinterpret_cast<char*>(record + 0x64c), data, 0xc);
     saves[slot + 0x11e7] = 1;
-    if (!keep) title_function<void XB_THISCALL(uint8_t*)>(0x0030c1a0)(saves);
+    if (!keep) Profile_StoreToSaveSlot(saves);
     fill_write_buffer(saves, slot, record + 0x28c);
     const uint32_t result = title_function<uint32_t XB_CDECL(uint8_t*)>(0x000d2620)(saves + 4);  // Save_BeginWrite
     field<int32_t>(saves, 0x11e0) = slot;

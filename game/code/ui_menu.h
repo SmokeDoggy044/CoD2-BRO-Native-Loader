@@ -209,6 +209,18 @@ extern "C" void Dialog_LayoutButtons_entry(void);
 // The entry hands the C version its entry ESP (the original's frame is rebuilt there).
 extern "C" PLATFORM_HIDDEN void XB_CDECL UIDialog_SetText(uint32_t entry, uint8_t* overlay);
 extern "C" void UIDialog_SetText_entry(void);
+// 0x0030e6f0 (dialog in EDI; two script strings by value, ret 8): the strings into +0x50 (second) and +0x4c (first),
+// button count +0x34 and +0x44/+0x48 cleared, +0x54 = -1, +0x59 = 0, the three buttons' vtable +0x20 (1); the
+// arguments released.
+struct ScriptString;
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIDialog_Init(uint8_t* dialog, ScriptString* strings);
+extern "C" void UIDialog_Init_entry(void);
+// 0x0030ea00: whether the active pad's left stick, or the d-pad over it, points in the UI direction bit (4 up, 8 down,
+// 0x10 left, 0x20 right; past 64); 0 for other bits.
+uint8_t XB_CDECL UI_StickDirectionHeld(int32_t bit);
+// 0x0030c1a0 (saves in ECX): the play-time sum mod 50 into the profile (0x008dcf14, flag 0x008dcf10), then the profile
+// (0x008dce30, 0x3a4 bytes) copied into the current slot's record (+0x2a8 + slot * 0x3cc, slot +0x11ec).
+void XB_THISCALL Profile_StoreToSaveSlot(uint8_t* saves);
 // 0x0031f690: every button's +0x58 (3 with 0x0095f8f8, else 4), then UIMenu_Draw while the overlay's fade is >= 0.
 void XB_THISCALL UIDialog_Draw(uint8_t* dialog);
 // 0x000122e0: releases the heading and text, UIMenu_FreeItems, frees the dialog with flags bit 0.

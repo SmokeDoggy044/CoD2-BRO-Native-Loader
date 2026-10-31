@@ -1,5 +1,7 @@
 #include "fe_menus.h"
 
+#include <cstring>
+
 #include "cl.h"
 #include "fe.h"
 #include "ngl.h"
@@ -219,6 +221,144 @@ struct LoadingLayout {
 constexpr LoadingLayout kLoading9 = {0x2a, 5, 0xf4, 0x10c, 0xf0, 0x00313610};
 constexpr LoadingLayout kLoadingAfrica = {0x30, 5, 0x10c, 0x124, 0x108, 0x00313360};
 constexpr LoadingLayout kLoadingSicily = {0x13, 3, 0x98, 0xa8, 0x94, 0x00313120};
+
+// The loading screens' mission progress (0x00313120.. / 0x00313240..): static colours (guard bit, then the colour
+// word 4 bytes below), the chapter texts' range and the front-end state that redraws the screen.
+struct LoadingProgress {
+    uint32_t dim_guard;       // ShowMissions' colour {0x40, 0x40, 0x40, 0xff}, word at guard - 4
+    uint32_t bright_guard;    // SetProgress's colour {0xff, 0xff, 0xff, 0xff}
+    int32_t first_chapter;    // the chapter of the first chapter text
+    uint32_t chapter_offset;  // first chapter text
+    int32_t chapters;         // chapter texts
+    bool last_from;           // SetProgress: the last chapter text for that chapter and later (else only it)
+    uint32_t show_missions;   // ShowMissions
+    int32_t redraw_state;     // the front end's state (+0xc) that redraws twice after a step
+    uint32_t returns[4];      // SetProgress's call sites: ShowMissions (reset, step), SCR_UpdateScreen x2
+};
+constexpr LoadingProgress kProgress9 = {0x0098b830, 0x0098b838, 9, 0xf4, 5, true, 0x00313610, 2,
+                                        {0x00313840, 0x0031386c, 0x0031387d, 0x00313882}};
+constexpr LoadingProgress kProgressAfrica = {0x0098b820, 0x0098b828, 1, 0x10c, 5, true, 0x00313360, 3,
+                                             {0x00313586, 0x003135b2, 0x003135c3, 0x003135c8}};
+constexpr LoadingProgress kProgressSicily = {0x0098b810, 0x0098b818, 6, 0x98, 3, false, 0x00313120, 4,
+                                             {0x003132d2, 0x003132fe, 0x0031330f, 0x00313314}};
+
+// A function-local static colour: set once (guard bit 1), the word below the guard.
+uint32_t static_color(uint32_t guard, uint8_t rgb, uint8_t alpha) {
+    if (!(title_global<uint8_t>(guard) & 1)) {
+        title_global<uint32_t>(guard) |= 1;
+        for (uint32_t i = 0; i < 3; ++i) title_global<uint8_t>(guard - 4 + i) = rgb;
+        title_global<uint8_t>(guard - 1) = alpha;
+    }
+    return guard - 4;
+}
+
+void show_missions(uint8_t* menu, int32_t last, uint8_t bright, const LoadingProgress& p) {
+    const uint32_t color = static_color(p.dim_guard, 0x40, 0xff);
+    for (int32_t i = 0; i <= last; ++i) {
+        uint8_t* const text = field<uint8_t*>(menu, 0x48 + uint32_t(i) * 4);
+        call(text, 0x7c, 0x3f800000);  // alpha 1
+        if (bright) call(text, 0x70, title_global<uint32_t>(color));
+    }
+    // g_currentChapter, re-read for every test as the original does
+    for (int32_t k = 0; k < p.chapters; ++k)
+        if (title_global<int32_t>(0x008dce48) >= p.first_chapter + k)
+            call(field<uint8_t*>(menu, p.chapter_offset + uint32_t(k) * 4), 0x7c, 0x3f800000);
+    if (!bright) return;
+    for (int32_t k = 0; k < p.chapters; ++k)
+        if (title_global<int32_t>(0x008dce48) > p.first_chapter + k + 1)
+            call(field<uint8_t*>(menu, p.chapter_offset + uint32_t(k) * 4), 0x70, title_global<uint32_t>(color));
+}
+
+void set_progress(uint8_t* menu, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t entry, const LoadingProgress& p) {
+    float progress;
+    std::memcpy(&progress, reinterpret_cast<const void*>(uintptr_t{entry + 4}), 4);
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry - 4}) = ebx;  // push ebx; push edi
+    *reinterpret_cast<uint32_t*>(uintptr_t{entry - 8}) = edi;
+    const uint32_t top = entry - 8;
+    auto run = [&](uint32_t function, uint32_t eax, uint32_t ret) {
+        const TitleRegs regs{eax, ebx & ~0xffu, 0, 0, esi, address_of(menu)};  // XOR BL,BL
+        title_call_at_regs(top, function, &regs, 0, nullptr);
+        *reinterpret_cast<uint32_t*>(uintptr_t{top - 4}) = ret;
+    };
+    if (progress == 0.0f) {  // FUCOMIP against 0.0: NaN takes the step path
+        const uint32_t color = static_color(p.bright_guard, 0xff, 0xff);
+        const int32_t chapter = title_global<int32_t>(0x008dce48);
+        for (int32_t k = 0; k < p.chapters; ++k) {
+            const bool last = k == p.chapters - 1;
+            const int32_t c = p.first_chapter + k;
+            if (chapter == c || (last && p.last_from && chapter > c)) {
+                call(field<uint8_t*>(menu, p.chapter_offset + uint32_t(k) * 4), 0x70, title_global<uint32_t>(color));
+                break;
+            }
+        }
+        run(p.show_missions, uint32_t(field<int32_t>(menu, 0x40) + field<int32_t>(menu, 0x3c) - 1), p.returns[0]);
+        return;
+    }
+    const int32_t shown = static_cast<int32_t>(static_cast<float>(field<int32_t>(menu, 0x40)) * progress);
+    const int32_t last = shown + field<int32_t>(menu, 0x3c) - 1;
+    if (last <= field<int32_t>(menu, 0x44)) return;
+    field<int32_t>(menu, 0x44) = last;
+    run(p.show_missions, uint32_t(last), p.returns[1]);
+    if (field<int32_t>(title_global<uint8_t*>(0x0095f8fc), 0xc) != p.redraw_state) return;
+    run(0x002f1e60, 0, p.returns[2]);  // SCR_UpdateScreen
+    run(0x002f1e60, 0, p.returns[3]);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(LoadingMenu_ShowMissions_entry, "pushl %ebx\n"
+                                                   "pushl %edi\n"
+                                                   "pushl %eax\n" PLATFORM_ASM_CALL(LoadingMenu_ShowMissions)
+                                                   "addl $12, %esp\n"
+                                                   "ret")
+PLATFORM_ASM_ENTRY(LoadAfricaMenu_ShowMissions_entry, "pushl %ebx\n"
+                                                      "pushl %edi\n"
+                                                      "pushl %eax\n" PLATFORM_ASM_CALL(LoadAfricaMenu_ShowMissions)
+                                                      "addl $12, %esp\n"
+                                                      "ret")
+PLATFORM_ASM_ENTRY(LoadSicilyMenu_ShowMissions_entry, "pushl %ebx\n"
+                                                      "pushl %edi\n"
+                                                      "pushl %eax\n" PLATFORM_ASM_CALL(LoadSicilyMenu_ShowMissions)
+                                                      "addl $12, %esp\n"
+                                                      "ret")
+
+void XB_CDECL LoadingMenu_ShowMissions(int32_t last, uint8_t* menu, uint32_t ebx) {
+    show_missions(menu, last, uint8_t(ebx), kProgress9);
+}
+void XB_CDECL LoadAfricaMenu_ShowMissions(int32_t last, uint8_t* menu, uint32_t ebx) {
+    show_missions(menu, last, uint8_t(ebx), kProgressAfrica);
+}
+void XB_CDECL LoadSicilyMenu_ShowMissions(int32_t last, uint8_t* menu, uint32_t ebx) {
+    show_missions(menu, last, uint8_t(ebx), kProgressSicily);
+}
+
+// SetProgress runs ShowMissions and SCR_UpdateScreen at the original's ESP (the screen update keeps stack addresses
+// in globals); the gap is big enough for its file reads.
+#define LOADING_PROGRESS_ENTRY(name)                                                                               \
+    PLATFORM_ASM_ENTRY(name##_entry, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"                    \
+                                     "pushl %edx\n"                                                                \
+                                     "pushl %edi\n"                                                                \
+                                     "pushl %esi\n"                                                                \
+                                     "pushl %ebx\n"                                                                \
+                                     "pushl %eax\n" PLATFORM_ASM_CALL(name) "addl $20, %esp\n"                     \
+                                     "popl %esp\n"                                                                 \
+                                     "ret $4")
+LOADING_PROGRESS_ENTRY(LoadingMenu_SetProgress)
+LOADING_PROGRESS_ENTRY(LoadAfricaMenu_SetProgress)
+LOADING_PROGRESS_ENTRY(LoadSicilyMenu_SetProgress)
+#undef LOADING_PROGRESS_ENTRY
+
+void XB_CDECL LoadingMenu_SetProgress(uint8_t* menu, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t entry) {
+    set_progress(menu, ebx, esi, edi, entry, kProgress9);
+}
+void XB_CDECL LoadAfricaMenu_SetProgress(uint8_t* menu, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t entry) {
+    set_progress(menu, ebx, esi, edi, entry, kProgressAfrica);
+}
+void XB_CDECL LoadSicilyMenu_SetProgress(uint8_t* menu, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t entry) {
+    set_progress(menu, ebx, esi, edi, entry, kProgressSicily);
+}
+
+namespace {
 
 // ClearElements with its entry ESP (two pushes before the calls).
 void clear_elements(uint8_t* menu, const LoadingLayout& layout, uint32_t entry_esp) {
