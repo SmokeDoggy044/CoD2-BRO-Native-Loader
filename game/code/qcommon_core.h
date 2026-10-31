@@ -144,6 +144,39 @@ extern "C" void std_map_string_PairCopy_entry(void);
 // 0x00014ce0: std::string::assign(source, pos, count) (out_of_range past the size; self-assignment erases
 // around the substring). Returns this.
 uint8_t* XB_THISCALL std_string_AssignSubstr(uint8_t* self, const uint8_t* source, uint32_t pos, uint32_t count);
+// MSVC std::string (0x1c bytes; buffer +4 (pointer from capacity 16 on), size +0x14, capacity +0x18).
+// Overflows call the CRT throws 0x001ee881 ("invalid string position") / 0x001ee8c1 ("string too long").
+// 0x000153f0: _Copy(size, keep): a new buffer of size | 15 or 1.5 times the capacity, keep bytes kept.
+void XB_THISCALL std_string_Copy(uint8_t* self, uint32_t size, uint32_t keep);
+// 0x00015110: erase(pos, count) (_memmove). Returns this.
+uint8_t* XB_THISCALL std_string_Erase(uint8_t* self, uint32_t pos, uint32_t count);
+// 0x00015920: assign(text, count); text inside the string: AssignSubstr. Returns this.
+uint8_t* XB_THISCALL std_string_AssignN(uint8_t* self, const char* text, uint32_t count);
+// 0x000153b0: string(text).
+uint8_t* XB_THISCALL std_string_CtorCStr(uint8_t* self, const char* text);
+// 0x0001edd0 (text in EDX; self): assign(text).
+uint8_t* XB_REGS2 XB_STDCALL std_string_AssignCStr(uint32_t unused_eax, const char* text, uint8_t* self);
+// 0x0001edf0 (text in ECX; self): append(text).
+uint8_t* XB_REGS3 XB_STDCALL std_string_AppendCStr(uint32_t unused_eax, uint32_t unused_edx, const char* text,
+                                                   uint8_t* self);
+// 0x0001f880 (self ESI, count EAX; ch): append(count, ch).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_string_AppendNChar(uint8_t* self, uint32_t count, uint32_t ch);
+extern "C" void std_string_AppendNChar_entry(void);
+// 0x0001f950 (pos in EAX; self, text, count): find(text, pos, count); -1 when absent.
+uint32_t XB_REGS1 XB_STDCALL std_string_Find(uint32_t pos, const uint8_t* self, const char* text, uint32_t count);
+// 0x00020890 (count EAX, self EDX, text ECX): append(text, count) (an append(const char*, n)).
+uint8_t* XB_REGS3 XB_CDECL std_string_AppendSubstr(uint32_t count, uint8_t* self, const char* text);
+// 0x00021500 (self EBX, source ECX, count EAX; pos): append(source, pos, count).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_string_AppendRange(uint8_t* self, const uint8_t* source, uint32_t count,
+                                                                   uint32_t pos);
+extern "C" void std_string_AppendRange_entry(void);
+// 0x00023320 (count EAX, self ECX; pos, text, text_count): compare(pos, count, text, text_count): -1/0/1.
+int32_t XB_REGS3 XB_STDCALL std_string_CompareSubstr(uint32_t count, uint32_t unused_edx, const uint8_t* self,
+                                                     uint32_t pos, const uint8_t* text, uint32_t text_count);
+// 0x00023550 (self in ECX, may be null): copy constructor (placement). Returns self.
+uint8_t* XB_THISCALL std_string_ConstructCopy(uint8_t* self, const uint8_t* source);
+// 0x00013d90: logic_error(message) (vtable 0x007f6748, message at +0xc). Returns self.
+uint8_t* XB_THISCALL std_exception_CtorString(uint8_t* self, const uint8_t* message);
 
 // 0x000289c0 (out in EAX, key in ECX, map in ESI): IntHashMap_Find with unsigned keys.
 extern "C" PLATFORM_HIDDEN void XB_CDECL UintHashMap_Find(uint32_t* out, const uint32_t* key, const uint8_t* map);

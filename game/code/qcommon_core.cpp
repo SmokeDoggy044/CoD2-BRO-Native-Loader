@@ -2727,25 +2727,13 @@ void string_init_empty(uint8_t* s) {
 void string_throw_range() { title_function<void XB_CDECL()>(0x001ee881)(); }
 void string_throw_length(uint8_t* s) { title_function<void XB_THISCALL(uint8_t*)>(0x001ee8c1)(s); }
 
-uint8_t* string_erase(uint8_t* s, uint32_t pos, uint32_t count) {
-    return title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(0x00015110)(s, pos, count);  // std_string_Erase
-}
-
-void string_copy(uint8_t* s, uint32_t size, uint32_t old_size) {
-    title_function<void XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(0x000153f0)(s, size, old_size);  // std_string_Copy
-}
-
-uint8_t* string_assign_n(uint8_t* s, const char* text, uint32_t count) {
-    return title_function<uint8_t* XB_THISCALL(uint8_t*, const char*, uint32_t)>(0x00015920)(s, text, count);  // std_string_AssignN
-}
-
 // The trees' erase(iterator) on the end node: an out_of_range ("invalid map/set<T> iterator",
 // 0x008327b0; logic_error vtable 0x007f6748, then 0x00832778) thrown with type info 0x00895b68.
 // Never returns.
 void tree_throw_invalid_iterator() {
     uint8_t message[0x1c];
     string_init_empty(message);
-    string_assign_n(message, reinterpret_cast<const char*>(uintptr_t{0x008327b0}), 0x1b);
+    std_string_AssignN(message, reinterpret_cast<const char*>(uintptr_t{0x008327b0}), 0x1b);
     uint8_t error[0x28];
     std_exception_Ctor(reinterpret_cast<uint32_t*>(error));
     word_at(error, 0) = 0x007f6748;
@@ -2978,13 +2966,13 @@ uint8_t* XB_THISCALL std_string_AssignSubstr(uint8_t* self, const uint8_t* sourc
     uint32_t length = word_at(source, 0x14) - pos;
     if (count < length) length = count;
     if (self == source) {
-        string_erase(self, pos + length, 0xffffffffu);
-        string_erase(self, 0, pos);
+        std_string_Erase(self, pos + length, 0xffffffffu);
+        std_string_Erase(self, 0, pos);
         return self;
     }
     if (length > 0xfffffffeu) string_throw_length(self);
     if (word_at(self, 0x18) < length) {
-        string_copy(self, length, word_at(self, 0x14));
+        std_string_Copy(self, length, word_at(self, 0x14));
     } else if (length == 0) {
         word_at(self, 0x14) = 0;
         string_buffer(self)[0] = 0;
@@ -3744,5 +3732,220 @@ uint32_t XB_CDECL Save_EnumSaveGames(uint8_t* entries) {
     return count;
 }
 
+namespace {
+
+uint32_t c_string_length(const char* text) {
+    const char* end = text;
+    while (*end) ++end;
+    return static_cast<uint32_t>(end - text);
+}
+
+// The tail of the append family: `count` more bytes (count > 0), the buffer grown (std_string_Copy)
+// when the capacity is short; returns the buffer the new bytes go to (null for an empty result, which
+// the title cannot reach once count > 0).
+uint8_t* string_grow_for_append(uint8_t* self, uint32_t count, uint32_t& new_size) {
+    new_size = word_at(self, 0x14) + count;
+    if (new_size > 0xfffffffeu) string_throw_length(self);
+    if (word_at(self, 0x18) < new_size) {
+        std_string_Copy(self, new_size, word_at(self, 0x14));
+    } else if (!new_size) {
+        word_at(self, 0x14) = 0;
+        string_buffer(self)[0] = 0;
+        return nullptr;
+    }
+    return new_size ? string_buffer(self) : nullptr;
+}
+
+void string_finish_append(uint8_t* self, uint32_t new_size) {
+    word_at(self, 0x14) = new_size;
+    string_buffer(self)[new_size] = 0;
+}
+
+}  // namespace
+
+void XB_THISCALL std_string_Copy(uint8_t* self, uint32_t size, uint32_t keep) {
+    // _Copy: a new buffer of size | 15 (or 1.5 times the capacity when that is larger and fits), the
+    // first `keep` bytes moved over, the old heap buffer freed; size = keep. (Allocation failure retries
+    // with the exact size in the title's catch block; Z_Malloc never throws.)
+    uint32_t capacity = size | 0xf;
+    if (capacity > 0xfffffffeu) {
+        capacity = size;
+    } else {
+        const uint32_t old = word_at(self, 0x18);
+        const uint32_t half = old >> 1;
+        if (capacity / 3 < half && !(old > 0xfffffffeu - half)) capacity = half + old;
+    }
+    uint8_t* const data = Z_Malloc(capacity + 1);
+    if (keep) platform_rep_movs(data, string_buffer(self), keep);
+    if (word_at(self, 0x18) >= 0x10) Z_Free(pointer_at<uint8_t>(self, 4));
+    self[4] = 0;
+    word_at(self, 4) = addr32(data);
+    word_at(self, 0x18) = capacity;
+    word_at(self, 0x14) = keep;
+    (capacity < 0x10 ? self + 4 : data)[keep] = 0;
+}
+
+uint8_t* XB_THISCALL std_string_Erase(uint8_t* self, uint32_t pos, uint32_t count) {
+    if (word_at(self, 0x14) < pos) string_throw_range();
+    const uint32_t tail = word_at(self, 0x14) - pos;
+    if (tail < count) count = tail;
+    if (count) {
+        uint8_t* const data = string_buffer(self);
+        title_function<void* XB_CDECL(void*, const void*, uint32_t)>(0x001ef0c0)(data + pos, data + pos + count,
+                                                                                tail - count);  // _memmove
+        word_at(self, 0x14) = word_at(self, 0x14) - count;
+        string_buffer(self)[word_at(self, 0x14)] = 0;
+    }
+    return self;
+}
+
+uint8_t* XB_THISCALL std_string_AssignN(uint8_t* self, const char* text, uint32_t count) {
+    const uint8_t* const source = reinterpret_cast<const uint8_t*>(text);
+    if (!(source < string_buffer(self)) && string_buffer(self) + word_at(self, 0x14) > source) {
+        return std_string_AssignSubstr(self, self, static_cast<uint32_t>(source - string_buffer(self)), count);
+    }
+    if (count > 0xfffffffeu) string_throw_length(self);
+    if (word_at(self, 0x18) < count) {
+        std_string_Copy(self, count, word_at(self, 0x14));
+    } else if (!count) {
+        word_at(self, 0x14) = 0;
+        string_buffer(self)[0] = 0;
+        return self;
+    }
+    if (count) {
+        platform_rep_movs(string_buffer(self), source, count);
+        word_at(self, 0x14) = count;
+        string_buffer(self)[count] = 0;
+    }
+    return self;
+}
+
+uint8_t* XB_THISCALL std_string_CtorCStr(uint8_t* self, const char* text) {
+    string_init_empty(self);
+    std_string_AssignN(self, text, c_string_length(text));
+    return self;
+}
+
+uint8_t* XB_REGS2 XB_STDCALL std_string_AssignCStr(uint32_t, const char* text, uint8_t* self) {
+    return std_string_AssignN(self, text, c_string_length(text));
+}
+
+uint8_t* XB_REGS3 XB_STDCALL std_string_AppendCStr(uint32_t, uint32_t, const char* text, uint8_t* self) {
+    return std_string_AppendSubstr(c_string_length(text), self, text);
+}
+
+PLATFORM_ASM_ENTRY(std_string_AppendNChar_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_string_AppendNChar) "addl $12, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL std_string_AppendNChar(uint8_t* self, uint32_t count, uint32_t ch) {
+    if (!(0xffffffffu - word_at(self, 0x14) > count)) string_throw_length(self);
+    if (!count) return self;
+    uint32_t new_size;
+    uint8_t* const data = string_grow_for_append(self, count, new_size);
+    if (!data) return self;
+    uint8_t* const fill = data + word_at(self, 0x14);
+    for (uint32_t i = 0; i < count; ++i) fill[i] = static_cast<uint8_t>(ch);
+    string_finish_append(self, new_size);
+    return self;
+}
+
+uint32_t XB_REGS1 XB_STDCALL std_string_Find(uint32_t pos, const uint8_t* self, const char* text, uint32_t count) {
+    // find(text, pos, count): memchr for the first character, then a compare; the index or -1.
+    if (!count && !(pos > word_at(self, 0x14))) return pos;
+    const uint32_t size = word_at(self, 0x14);
+    if (!(pos < size)) return 0xffffffffu;
+    uint32_t left = size - pos;
+    if (count > left) return 0xffffffffu;
+    left += 1 - count;
+    const uint8_t* const data = word_at(self, 0x18) >= 0x10 ? pointer_at<const uint8_t>(self, 4) : self + 4;
+    const uint8_t* at = data + pos;
+    using Memchr = const uint8_t* XB_CDECL(const uint8_t*, int32_t, uint32_t);
+    const uint8_t* found;
+    while ((found = title_function<Memchr>(0x001efba0)(at, static_cast<signed char>(text[0]), left)) != nullptr) {  // _memchr
+        uint32_t same = 0;
+        while (same < count && found[same] == static_cast<uint8_t>(text[same])) ++same;
+        if (same == count) {
+            const uint8_t* const base = word_at(self, 0x18) >= 0x10 ? pointer_at<const uint8_t>(self, 4) : self + 4;
+            return static_cast<uint32_t>(found - base);
+        }
+        left = left + static_cast<uint32_t>(at - found) - 1;
+        at = found + 1;
+    }
+    return 0xffffffffu;
+}
+
+uint8_t* XB_REGS3 XB_CDECL std_string_AppendSubstr(uint32_t count, uint8_t* self, const char* text) {
+    // append(text, count); text inside the string goes through std_string_AppendRange.
+    const uint8_t* const source = reinterpret_cast<const uint8_t*>(text);
+    if (!(source < string_buffer(self)) && string_buffer(self) + word_at(self, 0x14) > source) {
+        return std_string_AppendRange(self, self, count, static_cast<uint32_t>(source - string_buffer(self)));
+    }
+    if (!(0xffffffffu - word_at(self, 0x14) > count)) string_throw_length(self);
+    if (!count) return self;
+    uint32_t new_size;
+    uint8_t* const data = string_grow_for_append(self, count, new_size);
+    if (!data) return self;
+    platform_rep_movs(data + word_at(self, 0x14), source, count);
+    string_finish_append(self, new_size);
+    return self;
+}
+
+PLATFORM_ASM_ENTRY(std_string_AppendRange_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(std_string_AppendRange) "addl $16, %esp\n"
+                   "ret $4")
+
+uint8_t* XB_CDECL std_string_AppendRange(uint8_t* self, const uint8_t* source, uint32_t count, uint32_t pos) {
+    // append(source, pos, count).
+    if (word_at(source, 0x14) < pos) string_throw_range();
+    const uint32_t tail = word_at(source, 0x14) - pos;
+    if (tail < count) count = tail;
+    if (!(0xffffffffu - word_at(self, 0x14) > count)) string_throw_length(self);
+    if (!count) return self;
+    uint32_t new_size;
+    uint8_t* const data = string_grow_for_append(self, count, new_size);
+    if (!data) return self;
+    const uint8_t* const from = word_at(source, 0x18) >= 0x10 ? pointer_at<const uint8_t>(source, 4) : source + 4;
+    platform_rep_movs(data + word_at(self, 0x14), from + pos, count);
+    string_finish_append(self, new_size);
+    return self;
+}
+
+int32_t XB_REGS3 XB_STDCALL std_string_CompareSubstr(uint32_t count, uint32_t, const uint8_t* self, uint32_t pos,
+                                                     const uint8_t* text, uint32_t text_count) {
+    // compare(pos, count, text, text_count): bytes unsigned, then the lengths; -1, 0 or 1.
+    if (word_at(self, 0x14) < pos) string_throw_range();
+    const uint32_t tail = word_at(self, 0x14) - pos;
+    if (tail < count) count = tail;
+    if (count) {
+        const uint32_t n = count >= text_count ? text_count : count;
+        const uint8_t* const data = (word_at(self, 0x18) >= 0x10 ? pointer_at<const uint8_t>(self, 4) : self + 4) + pos;
+        for (uint32_t i = 0; i < n; ++i) {
+            if (data[i] != text[i]) return data[i] < text[i] ? -1 : 1;
+        }
+    }
+    if (count < text_count) return -1;
+    return count != text_count;
+}
+
+uint8_t* XB_THISCALL std_string_ConstructCopy(uint8_t* self, const uint8_t* source) {
+    if (!self) return nullptr;
+    string_init_empty(self);
+    return std_string_AssignSubstr(self, source, 0, 0xffffffffu);
+}
+
+uint8_t* XB_THISCALL std_exception_CtorString(uint8_t* self, const uint8_t* message) {
+    // logic_error(message): the exception base, vtable 0x007f6748, the message copied to +0xc.
+    std_exception_Ctor(reinterpret_cast<uint32_t*>(self));
+    word_at(self, 0) = 0x007f6748;
+    string_init_empty(self + 0xc);
+    std_string_AssignSubstr(self + 0xc, message, 0, 0xffffffffu);
+    return self;
+}
 
 }  // namespace game
