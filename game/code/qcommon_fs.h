@@ -1021,4 +1021,45 @@ uint32_t XB_REGS2 XB_CDECL Info_ParseFieldsToStruct(uint32_t unused_eax, const u
 // zeroed), ammo (current weapon's, or all), allammo; "all" = health, weapons and ammo.
 void XB_CDECL Cmd_Take_f(uint8_t* ent);
 
+// 0x0030c300: 1 when the save device has a "Profiles" entry (Save_EnumSaveGames into 100 entries of 0x4c bytes).
+// (Its body runs on at 0x0030c323, which Ghidra splits off as FUN_0030c323.)
+uint8_t XB_CDECL Save_ProfilesDirExists();
+// 0x0031ac10: the blocks a profile save still needs (at least 1): clusters for 0x400 bytes * 4 + 7 cluster sizes
+// minus the free space.
+int32_t XB_CDECL Save_GetBlocksNeeded();
+// 0x0031acf0 (self in EAX): the save request (+4) for "Profiles": four zeroed profile buffers (+0x11c0,
+// Heap_AllocAligned once) named <save path>Profiles, <save path>Profiles1..3; read flags (+0x11e7) cleared.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileSave_PrepareRequest(uint8_t* self);
+extern "C" void ProfileSave_PrepareRequest_entry(void);
+// 0x00330640 (self in EDI): vtable 0x008287dc, save request, four default profiles (+0x2a8, 0x3cc each), Save_Init,
+// empty path prefix, the save listener, name "Alex" (+0x11d0). Returns self. Boot only (Com_Init).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL ProfileSave_Construct(uint8_t* self);
+extern "C" void ProfileSave_Construct_entry(void);
+// 0x0033a490 (callee pops 4): the four profile buffers copied to the profiles (+0x28c) and version-checked
+// (+0x11e7), then the profile menu's (0x0095f8f8, state 0xf) or autosave menu's (0x0095f8fc) OnProfilesRead.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileSave_OnProfilesRead(uint8_t* self, uint32_t entry_ebx,
+                                                                    uint32_t entry_edi);
+extern "C" void ProfileSave_OnProfilesRead_entry(void);
+// 0x0033a530 (vtable 0x008287dc slot; self in ECX, operation on the stack): the save operation's result to the
+// profile or autosave menu: failure dialogs, or read (ProfileSave_OnProfilesRead), save, delete, format success.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation,
+                                                                      uint32_t entry_ebx, uint32_t entry_edi);
+extern "C" void ProfileSave_OnSaveOpComplete_entry(void);
+// 0x002d03c0: msg split at the markers 0x14/0x15/0x16, each segment translated (Loc_TranslateString) and
+// substituted into the previous "%s"; one of two rotating 256-byte buffers (0x0098bf58), null when a lookup fails.
+char* XB_CDECL SEH_LocalizeTextMessage(const char* msg, const char* context, int32_t mode);
+// 0x002ff3e0: small-block heap 0x0095f4a4 (pools 0x20 x 30000, 0x40 x 2000, 0x80 x 100) and the zone heap
+// 0x0095f4a0 (Heap_CreateFromZone); shutdown callback 0x002fd6e0 registered. Boot only (Sys_Main).
+void XB_CDECL Sys_InitHeaps();
+// 0x002cede0 (m in ECX, 16-aligned rows of four): Gram-Schmidt by cross products (packed SSE, every lane).
+void XB_THISCALL Matrix_Orthonormalize(float* m);
+// 0x002a2c80 (dir in EAX, point in EBX): Q3's RotatePointAroundVector (degrees).
+extern "C" PLATFORM_HIDDEN void XB_CDECL RotatePointAroundVector(const float* dir, const float* point, float* dst,
+                                                                 float degrees);
+extern "C" void RotatePointAroundVector_entry(void);
+// 0x002963f0 (stdcall): the zone's string table for the current language read into `table` (one stream memory
+// slot), relocated (+0x18) and stored in tables[index + 1].
+void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index);
+
+
 }  // namespace game

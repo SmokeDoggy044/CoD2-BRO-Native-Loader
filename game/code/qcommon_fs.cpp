@@ -4,7 +4,9 @@
 #include <cstring>
 
 #include "cl.h"
+#include "cg_view.h"
 #include "cm.h"
+#include "fe.h"
 #include "fx.h"
 #include "lanes.h"
 #include "movie.h"
@@ -6502,5 +6504,482 @@ void XB_CDECL Cmd_Take_f(uint8_t* ent) {
     const int32_t last = title_global<int32_t>(0x0095f4d4);
     for (int32_t weapon = 1; weapon <= last; ++weapon) take_ammo(weapon);
 }
+
+// ---- Push 8, batch 2: profile saves.
+
+namespace {
+
+constexpr uint32_t kScriptString_FromCString = 0x0011eb50;  // thiscall (string slot, text)
+constexpr uint32_t kScriptString_ConcatCString = 0x0011eec0;  // cdecl (out slot, a slot, text)
+constexpr uint32_t kScriptString_Release = 0x0011d640;      // thiscall (string slot)
+
+void script_string_from(uint32_t* slot, const char* text) {
+    title_function<uint32_t* XB_THISCALL(uint32_t*, const char*)>(kScriptString_FromCString)(slot, text);
+}
+void script_string_release(uint32_t* slot) {
+    title_function<void XB_THISCALL(uint32_t*)>(kScriptString_Release)(slot);
+}
+// A ScriptString's characters start 6 bytes into its record; null for none.
+const char* script_string_text(uint32_t slot) {
+    return slot ? reinterpret_cast<const char*>(static_cast<uintptr_t>(slot + 6)) : nullptr;
+}
+
+// A title callee with the given registers (EAX, ECX, EDX, ESI; EBX/EDI as handed in).
+uint32_t profile_call(uint32_t function, uint32_t eax, uint32_t ecx, uint32_t edx, uint32_t esi, uint32_t ebx,
+                      uint32_t edi, uint32_t count = 0, const uint32_t* args = nullptr) {
+    TitleRegs regs{};
+    regs.eax = eax;
+    regs.ecx = ecx;
+    regs.edx = edx;
+    regs.esi = esi;
+    regs.ebx = ebx;
+    regs.edi = edi;
+    return qc_call_regs(function, &regs, count, args);
+}
+
+}  // namespace
+
+uint8_t XB_CDECL Save_ProfilesDirExists() {
+    static_assert(0x1db0 / 0x4c == 100);
+    uint8_t entries[0x1db0];  // 100 save entries of 0x4c bytes, the name first
+    const int32_t count = static_cast<int32_t>(Save_EnumSaveGames(entries));
+    if (count < 0) return 0;
+    for (int32_t i = 0; i < count; ++i)
+        if (!std::memcmp(entries + i * 0x4c, tstr(0x0082aaec), 9)) return 1;  // "Profiles"
+    return 0;
+}
+
+int32_t XB_CDECL Save_GetBlocksNeeded() {
+    const int32_t clusters = title_function<int32_t XB_CDECL(int32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    const auto cluster_size = title_function<int32_t XB_CDECL()>(0x000d1ec0);               // Save_GetClusterSize
+    int32_t needed = clusters * 4 + cluster_size() * 2;
+    const int32_t size = cluster_size();
+    needed = needed + size * 4 + size;
+    uint32_t free_bytes[2] = {0, 0};
+    title_function<int32_t XB_CDECL(uint32_t*)>(0x000d1b40)(free_bytes);  // Save_GetFreeSpace
+    const int32_t bytes = needed - static_cast<int32_t>(free_bytes[0]);
+    const int32_t blocks = static_cast<int32_t>(
+        BytesToBlocks(static_cast<uint32_t>(bytes), static_cast<uint32_t>(bytes >> 31)));
+    return blocks > 0 ? blocks : 1;
+}
+
+PLATFORM_ASM_ENTRY(ProfileSave_PrepareRequest_entry,
+                   "pushl %eax\n" PLATFORM_ASM_CALL(ProfileSave_PrepareRequest) "addl $4, %esp\n ret")
+
+void XB_CDECL ProfileSave_PrepareRequest(uint8_t* self) {
+    // self +4 the save request, +0x11c0 four profile buffers (Heap_AllocAligned), +0x11e7 four "read" flags.
+    uint8_t* const request = self + 4;
+    SaveRequest_SetFileName(request, tstr(0x0082aaec));  // "Profiles"
+    const uint32_t clusters = static_cast<uint32_t>(
+        title_function<int32_t XB_CDECL(int32_t)>(0x000d1e10)(0x400));  // Save_ClustersForSize
+    uint32_t prefix = 0;
+    uint32_t dir = 0;
+    script_string_from(&prefix, reinterpret_cast<const char*>(static_cast<uintptr_t>(Save_GetData())));
+    title_function<uint32_t* XB_CDECL(uint32_t*, uint32_t*, const char*)>(kScriptString_ConcatCString)(
+        &dir, &prefix, tstr(0x0082aaec));  // the save path + "Profiles"
+    script_string_release(&prefix);
+    pk<uint32_t>(self, 0x11e7) = 0;
+    char numbered[0x80];
+    char first[0x80];
+    for (int32_t i = 0; i < 4; ++i) {
+        uint8_t*& buffer = pk<uint8_t*>(self, 0x11c0 + i * 4);
+        if (!buffer)
+            buffer = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(
+                title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00042c50)(0x20, clusters)));  // Heap_AllocAligned
+        std::memset(buffer, 0, clusters);
+        const uint32_t args[2] = {u32(script_string_text(dir)), static_cast<uint32_t>(i)};
+        const char* const name = i > 0 ? ShortString_Printf(numbered, tstr(0x0082aae4), const_cast<uint32_t*>(args))  // "%s%d"
+                                       : ShortString_Printf(first, tstr(0x0082ddd4), const_cast<uint32_t*>(args));  // "%s"
+        SaveRequest_AddFile(request, name, u32(buffer), clusters);
+    }
+    script_string_release(&dir);
+}
+
+PLATFORM_ASM_ENTRY(ProfileSave_Construct_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(ProfileSave_Construct) "addl $4, %esp\n ret")
+
+uint8_t* XB_CDECL ProfileSave_Construct(uint8_t* self) {
+    pk<uint32_t>(self, 0) = 0x008287dc;  // vtable
+    SaveRequest_Init(self + 4, tstr(0x0082dfeb));
+    for (int32_t i = 0; i < 4; ++i) {  // four profiles of 0x3cc bytes from +0x2a8
+        uint8_t* const profile = self + 0x2a8 + i * 0x3cc;
+        profile[0] = 0;
+        pk<int32_t>(profile, 0xe8) = -1;
+        Profile_SetDefaults(profile);
+        Profile_SetDefaults(profile);
+        pk<uint32_t>(profile, 0x3a4) = 0;
+        pk<uint32_t>(profile, 0x3a8) = 0;
+        pk<uint32_t>(profile, 0x3ac) = 0;
+    }
+    self[0x11e5] = 0;
+    pk<uint32_t>(self, 0x11bc) = 0;
+    for (int32_t i = 0; i < 4; ++i) {
+        self[0x11e7 + i] = 0;
+        pk<uint32_t>(self, 0x11c0 + i * 4) = 0;
+    }
+    Save_Init(0);
+    uint32_t prefix = 0;
+    script_string_from(&prefix, tstr(0x0082dfeb));
+    Save_SetPathPrefix(script_string_text(prefix));
+    Save_SetListener(u32(self));
+    crt_strncpy(reinterpret_cast<char*>(self + 0x11d0), tstr(0x0082ab0c), 0xc);  // "Alex"
+    self[0x11db] = 0;
+    self[0x11e4] = 0;
+    pk<uint32_t>(self, 0x11e0) = 0;
+    pk<uint32_t>(self, 0x11ec) = 0;
+    script_string_release(&prefix);
+    return self;
+}
+
+PLATFORM_ASM_ENTRY(ProfileSave_OnProfilesRead_entry,
+                   "pushl %edi\n pushl %ebx\n pushl 12(%esp)\n" PLATFORM_ASM_CALL(ProfileSave_OnProfilesRead)
+                   "addl $12, %esp\n ret $4")
+
+void XB_CDECL ProfileSave_OnProfilesRead(uint8_t* self, uint32_t entry_ebx, uint32_t entry_edi) {
+    for (int32_t i = 0; i < 4; ++i) {
+        uint8_t* const profile = self + 0x28c + i * 0x3cc;
+        std::memcpy(profile, pk_ptr(self, 0x11c0 + i * 4), 0xf3 * 4);
+        self[0x11e7 + i] = Save_CheckVersion(reinterpret_cast<const char*>(profile));
+    }
+    self[0x11e5] = 0;
+    uint8_t* const profile_menu = title_global<uint8_t*>(0x0095f8f8);
+    if (profile_menu) {
+        if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
+        uint8_t* const page = pk_ptr(profile_menu, 4);
+        const uint32_t menu = pk<uint32_t>(page, 0x3c);
+        profile_call(0x0033a2a0, u32(page), menu, u32(self), static_cast<uint32_t>(0), entry_ebx, entry_edi, 1,
+                     &menu);  // ProfileMenu_OnProfilesRead (tail jump, menu in the argument slot)
+        return;
+    }
+    uint8_t* const page = pk_ptr(title_global<uint8_t*>(0x0095f8fc), 4);
+    profile_call(0x003381c0, u32(page), u32(self), u32(title_global<uint8_t*>(0x0095f8fc)), 0,
+                 pk<uint32_t>(page, 0x1c), entry_edi);  // AutosaveMenu_OnProfilesRead (menu in EBX)
+}
+
+PLATFORM_ASM_ENTRY(ProfileSave_OnSaveOpComplete_entry,
+                   "pushl %edi\n pushl %ebx\n pushl 12(%esp)\n pushl %ecx\n" PLATFORM_ASM_CALL(ProfileSave_OnSaveOpComplete)
+                   "addl $16, %esp\n ret $4")
+
+void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation, uint32_t entry_ebx, uint32_t entry_edi) {
+    // operation: 1 read profiles, 2 save, 3 delete, 4 format. 0x0095f8f8 = the profile menu (page +4, state +0xc,
+    // menu +0x3c), 0x0095f8fc = the autosave menu (page +4, menu +0x1c).
+    title_global<uint8_t>(0x008d50dd) = 1;
+    const uint32_t result = Save_GetLastResult();
+    uint8_t* const profile_menu = title_global<uint8_t*>(0x0095f8f8);
+    const auto autosave_page = []() { return pk_ptr(title_global<uint8_t*>(0x0095f8fc), 4); };
+    const uint32_t op = static_cast<uint32_t>(operation);
+    if (result && !(result == 0xfffffff3 && operation == 2)) {
+        if (operation == 1) self[0x11e5] = 0;
+        if (profile_menu) {
+            if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
+            uint8_t* const page = pk_ptr(profile_menu, 4);
+            profile_call(0x0033a130, result, op, u32(page), pk<uint32_t>(page, 0x3c), entry_ebx,
+                         entry_edi);  // ProfileMenu_OnSaveOpFailed
+            return;
+        }
+        uint8_t* const page = autosave_page();
+        profile_call(0x00333860, result, op, u32(page), pk<uint32_t>(page, 0x1c), entry_ebx,
+                     entry_edi);  // AutosaveMenu_OnSaveOpFailed
+        return;
+    }
+    switch (operation) {
+    case 1: {
+        const uint32_t arg = u32(self);
+        profile_call(0x0033a490, op - 1, op, 0, u32(self), entry_ebx, entry_edi, 1, &arg);  // ProfileSave_OnProfilesRead
+        return;
+    }
+    case 2:
+        if (profile_menu) {
+            if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
+            uint8_t* const menu = pk_ptr(pk_ptr(profile_menu, 4), 0x3c);
+            const uint32_t ecx = (op & ~0xffu) | menu[0x34];
+            if (menu[0x34])
+                profile_call(0x00339fa0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
+            else
+                profile_call(0x00334fe0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowSaveSuccessDialog
+            return;
+        } else {
+            uint8_t* const page = autosave_page();
+            uint8_t* const menu = pk_ptr(page, 0x1c);
+            const uint32_t ecx = (u32(title_global<uint8_t*>(0x0095f8fc)) & ~0xffu) | menu[0x39];
+            if (menu[0x39])
+                profile_call(0x00339c70, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowDeleteSuccessDialog
+            else
+                profile_call(0x003339f0, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_OnSaveSucceeded
+            return;
+        }
+    case 3:
+        profile_call(0x00339fa0, op - 1, op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
+        return;
+    case 4:
+        if (profile_menu) {
+            if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
+            profile_call(0x003388f0, u32(profile_menu), op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowFormatSuccessDialog
+        } else {
+            profile_call(0x00338100, 0, op, 0, u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowFormatSuccessDialog
+        }
+        return;
+    default:
+        return;
+    }
+}
+
+char* XB_CDECL SEH_LocalizeTextMessage(const char* msg, const char* context, int32_t mode) {
+    // Segments between the markers 0x14 (translate on), 0x15 (translate off) and 0x16 (the next segment's "%s"
+    // is not a substitution) are translated and appended; a segment's first "%s" stays for the next segment
+    // to fill in. Two rotating 256-byte results (0x0098bf58).
+    int32_t& index = title_global<int32_t>(0x0098ad24);
+    index = (index + 1) % 2;
+    char* const out = &title_global<char>(0x0098bf58 + static_cast<uint32_t>(index) * 0x100);
+    std::memset(out, 0, 0x100);
+    int32_t length = 0;
+    int32_t pending = 0;    // "%s" waiting in out
+    int32_t translate = 1;
+    int32_t escaped = 0;    // some "%s" turned into 0x16
+    int32_t allow = 1;
+    int32_t inserted = 0;   // this segment left a "%s" in out
+    char segment[0x100];
+    char rest[0x100] = {};
+    const char* start = msg;
+    const char* p = msg;
+    if (!*msg) return out;
+    do {
+        const char c = *p;
+        if (c && c != 0x14 && c != 0x15 && c != 0x16) {
+            ++p;
+            continue;
+        }
+        if (p > start) {
+            int32_t n = static_cast<int32_t>(p - start);
+            crt_strncpy(segment, start, static_cast<uint32_t>(n));
+            segment[n] = 0;
+            if (translate) {
+                if (!Loc_TranslateString(segment, segment, context, mode)) return nullptr;
+                n = static_cast<int32_t>(std::strlen(segment));
+            }
+            if (static_cast<uint32_t>(n + length) >= 0x100) {
+                uint8_t* const a = title_global<uint8_t*>(0x0093f804);
+                uint8_t* const b = title_global<uint8_t*>(0x00927b2c);
+                if (a && pk<uint32_t>(a, 0x20) && b && pk<uint32_t>(b, 0x20) && mode != 1)
+                    title_function<void XB_CDECL(int32_t, const char*, const char*, const char*)>(0x002938f0)(
+                        1, tstr(0x008333b0), context, msg);  // "%s too long when translated"
+            }
+            for (int32_t i = 0; i < n - 1; ++i) {
+                if (segment[i] != '%' || segment[i + 1] != 's') continue;
+                if (allow && !inserted) {
+                    ++pending;
+                    inserted = 1;
+                } else {
+                    segment[i] = 0x16;
+                    escaped = 1;
+                }
+            }
+            if (pending - inserted) {
+                // Fill the first "%s" of out with this segment.
+                int32_t i = 0;
+                bool found = false;
+                for (; i < length - 1; ++i) {
+                    if (out[i] == '%' && out[i + 1] == 's') {
+                        std::strcpy(rest, out + i + 2);
+                        out[i] = 0;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found && length - 1 <= 0) i = 0;
+                std::strcpy(out + i, segment);
+                std::strcpy(out + i + n, rest);
+                length -= 2;
+                --pending;
+            } else {
+                std::strcpy(out + length, segment);
+            }
+            length += n;
+            inserted = 0;
+        }
+        allow = 1;
+        if (*p == 0x14) {
+            translate = 1;
+            ++p;
+        } else if (*p == 0x15) {
+            translate = 0;
+            ++p;
+        }
+        if (*p == 0x16) {
+            allow = 0;
+            ++p;
+        }
+        start = p;
+    } while (*start);
+    if (escaped)
+        for (int32_t i = 0; i < length; ++i)
+            if (out[i] == 0x16) out[i] = '%';
+    return out;
+}
+
+void XB_CDECL Sys_InitHeaps() {
+    // {count, 16 x {size, align, count}}: pools of 0x20 / 0x40 / 0x80 bytes.
+    uint32_t config[1 + 16 * 3];
+    config[0] = 0;
+    for (int32_t i = 0; i < 16; ++i) {
+        config[1 + i * 3] = 0;
+        config[2 + i * 3] = 4;
+        config[3 + i * 3] = 0;
+    }
+    static const uint32_t kPools[3][2] = {{0x20, 30000}, {0x40, 2000}, {0x80, 100}};
+    for (const auto& pool : kPools) {
+        const uint32_t n = config[0];
+        if (static_cast<int32_t>(n) >= 16) continue;
+        config[1 + n * 3] = pool[0];
+        config[2 + n * 3] = 4;
+        config[3 + n * 3] = pool[1];
+        config[0] = n + 1;
+    }
+    uint8_t* small = Z_Malloc(0x3c);
+    title_global<uint8_t*>(0x0095f4a4) = small ? SmallHeap_Init(small, config, 0, 1) : nullptr;
+    uint8_t* heap = Z_Malloc(0x494);
+    title_global<uint8_t*>(0x0095f4a0) = heap ? Heap_CreateFromZone(heap, 0x0004b000) : nullptr;
+    // One of 32 shutdown callbacks (0x00988784, count 0x00988780).
+    const int32_t n = title_global<int32_t>(0x00988780);
+    if (n < 32) {
+        title_global<uint32_t>(0x00988784 + static_cast<uint32_t>(n) * 4) = 0x002fd6e0;
+        ++title_global<int32_t>(0x00988780);
+    }
+}
+
+namespace {
+
+// The packed normalize used by Matrix_Orthonormalize (as Vec3A_Normalize): every lane times the Newton step of
+// the rsqrt estimate of |x^2 + y^2 + z^2|, or times 0 for a zero sum (a NaN sum takes the Newton path).
+Lanes ortho_normalize(const Lanes& in) {
+    const Lanes squares = mul(in, in);
+    platform_keep(squares);
+    const float sum = (squares.v[0] + squares.v[1]) + squares.v[2];
+    float scale;
+    if (sum == 0.0f) {
+        scale = title_global<float>(0x0082e6a0);
+    } else {
+        const float a = abs_bits(sum);
+        const float r = platform_rsqrt_estimate(a);
+        scale = ((title_global<float>(0x0082e660) - (r * r) * a) * r) * title_global<float>(0x0082e670);  // 3, 0.5
+    }
+    return mul(in, scale);
+}
+
+// SHUFPS 0xc9: lanes (1, 2, 0, 3).
+Lanes yzx(const Lanes& a) { return {{a.v[1], a.v[2], a.v[0], a.v[3]}}; }
+
+// a x b as the title computes it: yzx(a * yzx(b) - yzx(a) * b), all four lanes.
+Lanes cross_lanes(const Lanes& a, const Lanes& b) {
+    const Lanes t = mul(yzx(a), b);
+    const Lanes u = mul(a, yzx(b));
+    return yzx(sub(u, t));
+}
+
+}  // namespace
+
+void XB_THISCALL Matrix_Orthonormalize(float* m) {
+    // Rows of four floats: row 0 normalized, row 2 = normalize(row 0 x row 1), row 1 = normalize(row 2 x row 0).
+    const Lanes x = ortho_normalize(lanes(m));
+    for (int32_t i = 0; i < 4; ++i) m[i] = x.v[i];
+    const Lanes z = ortho_normalize(cross_lanes(x, lanes(m + 4)));
+    for (int32_t i = 0; i < 4; ++i) m[8 + i] = z.v[i];
+    const Lanes y = ortho_normalize(cross_lanes(lanes(m + 8), x));
+    for (int32_t i = 0; i < 4; ++i) m[4 + i] = y.v[i];
+}
+
+// RotatePointAroundVector (dir in EAX, point in EBX; dst, degrees on the stack, cdecl).
+PLATFORM_ASM_ENTRY(RotatePointAroundVector_entry,
+                   "pushl 8(%esp)\n pushl 8(%esp)\n pushl %ebx\n pushl %eax\n" PLATFORM_ASM_CALL(RotatePointAroundVector)
+                   "addl $16, %esp\n ret")
+
+void XB_CDECL RotatePointAroundVector(const float* dir, const float* point, float* dst, float degrees) {
+    // Q3's RotatePointAroundVector, inlined matrix products in the title's sum order: m = {vr, vup, dir} as
+    // columns, zrot about z, rot = (m * zrot) * transpose(m); the zero and one entries are multiplied too.
+    const float f0 = dir[0];
+    const float f1 = dir[1];
+    const float f2 = dir[2];
+    float vr[3];
+    PerpendicularVector(dir, vr);
+    const float r0 = vr[0];
+    const float r1 = vr[1];
+    const float r2 = vr[2];
+    const float rad = static_cast<float>(static_cast<long double>(degrees) * title_global<float>(0x0083ed00) /
+                                         title_global<float>(0x0083eb60));  // * pi / 180 on the x87
+    const float u0 = (r1 * f2) - (r2 * f1);
+    const float u1 = (r2 * f0) - (r0 * f2);
+    const float u2 = (r0 * f1) - (r1 * f0);
+    float C = 0.0f;
+    float Sn = 0.0f;
+    FastSinCos(&Sn, 0, &C, rad);
+    const float Z = 0.0f;
+    const float One = title_global<float>(0x0083eb20);
+    const float nS = Z - Sn;
+    const float T00 = ((nS * u0) + (Z * f0)) + (C * r0);
+    const float T01 = ((Z * f0) + (C * u0)) + (Sn * r0);
+    const float T02 = ((Z * u0) + (Z * r0)) + (One * f0);
+    const float T10 = ((nS * u1) + (Z * f1)) + (C * r1);
+    const float T11 = ((Z * f1) + (C * u1)) + (Sn * r1);
+    const float T12 = ((Z * u1) + (Z * r1)) + (One * f1);
+    const float T20 = ((nS * u2) + (Z * f2)) + (C * r2);
+    const float T21 = ((C * u2) + (Z * f2)) + (Sn * r2);
+    const float T22 = ((Z * u2) + (Z * r2)) + (One * f2);
+    const float R02 = ((f2 * T02) + (T01 * u2)) + (T00 * r2);
+    const float R00 = ((r0 * T00) + (T02 * f0)) + (T01 * u0);
+    const float R01 = ((u1 * T01) + (T02 * f1)) + (T00 * r1);
+    const float R12 = ((f2 * T12) + (T11 * u2)) + (T10 * r2);
+    const float R10 = ((T10 * r0) + (T11 * u0)) + (T12 * f0);
+    const float R11 = ((u1 * T11) + (T10 * r1)) + (T12 * f1);
+    const float R22 = ((f2 * T22) + (T21 * u2)) + (T20 * r2);
+    const float R20 = ((T20 * r0) + (T21 * u0)) + (T22 * f0);
+    const float R21 = ((u1 * T21) + (T20 * r1)) + (T22 * f1);
+    dst[0] = ((point[2] * R02) + (point[0] * R00)) + (R01 * point[1]);
+    dst[1] = ((point[2] * R12) + (point[0] * R10)) + (R11 * point[1]);
+    dst[2] = ((point[2] * R22) + (point[0] * R20)) + (R21 * point[1]);
+}
+
+void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index) {
+    // Zone `index` (of 99, 0x0095f638 +0x38): its pak header (+0x7c) lists sections {name, .., +0xe count, +0x10
+    // files, +0x14 records} of 0x18 bytes; the "STRING" section's record for the current language (".en." ..
+    // in its name) is read through one stream memory slot over `table`. Then the table is relocated in place.
+    uint8_t* const zone = index >= 0 && index < 99 ? pk_ptr(title_global<uint8_t*>(0x0095f638), 0x38 + index * 4) : nullptr;
+    uint8_t* const header = pk_ptr(zone, 0x7c);
+    for (uint32_t i = 0; i < pk<uint32_t>(header, 0xc); ++i) {
+        uint8_t* const section = pk_ptr(header, 8) + i * 0x18;
+        if (title_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(0x001eeaf0)(  // _strncmp
+                reinterpret_cast<const char*>(section), tstr(0x008379ac), 6))  // "STRING"
+            continue;
+        const auto has = [](uint8_t* record, uint32_t suffix) {
+            return crt_strstr(pk<const char*>(record, 0), suffix) != nullptr;
+        };
+        for (uint32_t r = 0; r < pk<uint16_t>(section, 0xe); ++r) {
+            uint8_t* const record = pk_ptr(section, 0x14) + r * 0x14;  // {name, .., +8 size, +0xc file, +0x10 offset}
+            const int32_t& language = title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+            if (!((language == 0 && has(record, 0x008379a4)) || (language == 2 && has(record, 0x0083799c)) ||
+                  (language == 1 && has(record, 0x00837994)) || (language == 3 && has(record, 0x0083798c)) ||
+                  (language == 4 && has(record, 0x00837984))))
+                continue;
+            const uint32_t offset =
+                pk<uint32_t>(pk_ptr(section, 0x10), pk<uint32_t>(record, 0xc) * 0x1c) + pk<uint32_t>(record, 0x10);
+            const float one = title_global<float>(0x0083eb20);
+            float block[4] = {one, one, one, 0.0f};
+            uint32_t bits[2] = {0, 0};
+            StreamMem_Alloc(title_global<uint32_t*>(0x0095f62c), bits, block);
+            uint32_t slot[2] = {0, 0};  // {address, size}
+            StreamMem_GetBlock(bits, title_global<uint8_t*>(0x0095f62c), slot, 0);
+            // Positional as the original pushes them: (file, pak offset, memory, size) - File_ReadAt's declared
+            // parameter names have buffer and offset the other way round.
+            File_ReadAt(pk<uint32_t>(zone, 0x50), offset, slot[0], (pk<uint32_t>(record, 8) + 0x7fff) & 0xffff8000u);
+            platform_rep_movs(table, reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(slot[0])), pk<uint32_t>(record, 8));
+            StreamMem_MoveSlots(0, bits, title_global<uint32_t*>(0x0095f62c), -1);
+            break;
+        }
+        break;
+    }
+    pk<uint32_t>(table, 0x18) += u32(table);
+    Pack_RelocateTable(reinterpret_cast<PackRelocTable*>(pk_ptr(table, 0x18)), u32(table));
+    tables[index + 1] = table;
+}
+
 
 }  // namespace game
