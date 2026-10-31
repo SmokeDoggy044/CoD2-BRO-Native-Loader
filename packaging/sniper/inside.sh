@@ -126,5 +126,7 @@ EOF
 # --- The release -----------------------------------------------------------------------
 cmake --preset sniper-release
 cmake --build --preset sniper-release
-ctest --preset sniper-release
+# compare_test needs the host's process sandbox (seccomp filters, soft-dirty page tracking) that
+# the container does not give; it runs on the development machine (a tool there, not for players).
+ctest --preset sniper-release -E '^compare_test$'
 cpack --preset sniper-release
