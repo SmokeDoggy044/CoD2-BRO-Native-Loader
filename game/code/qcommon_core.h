@@ -93,6 +93,57 @@ uint8_t* XB_REGS1 XB_CDECL std_map_string_Max(uint8_t* node);
 uint8_t* XB_REGS1 XB_CDECL std_map_string_Min(uint8_t* node);
 uint8_t* XB_REGS1 XB_CDECL std_set_string_Max(uint8_t* node);
 uint8_t* XB_REGS1 XB_CDECL std_set_string_Min(uint8_t* node);
+// 0x00021670 / 0x00021b30 / 0x00022010: erase(where) (VC7.1 _Tree::erase: unlink, red-black fixup with the
+// rotations, the value destroyed, the node Z_Free'd, size counted down); *result = the successor. The end
+// node throws out_of_range "invalid map/set<T> iterator".
+uint8_t** XB_STDCALL std_map_string_Erase(uint8_t* tree, uint8_t** result, uint8_t* where);
+uint8_t** XB_STDCALL std_set_string_Erase(uint8_t* tree, uint8_t** result, uint8_t* where);
+uint8_t** XB_STDCALL std_tree_Erase29(uint8_t* tree, uint8_t** result, uint8_t* where);
+// 0x000200d0 / 0x00020610 / 0x000227e0 (tree in ECX): _Erase(node): frees a subtree (right side recursively).
+void XB_THISCALL std_map_string_EraseSubtree(uint8_t* tree, uint8_t* node);
+void XB_THISCALL std_set_string_EraseSubtree(uint8_t* tree, uint8_t* node);
+void XB_THISCALL std_map_string_EraseSubtree_2(uint8_t* tree, uint8_t* node);
+// 0x00020b80 / 0x00020fd0 / 0x000212b0 (tree in ESI): erase(first, last); begin..end clears the tree
+// (EraseSubtree of the root, head reset). *result = last.
+extern "C" PLATFORM_HIDDEN uint8_t** XB_CDECL std_map_string_EraseRange(uint8_t* tree, uint8_t** result, uint8_t* first,
+                                                                     uint8_t* last);
+extern "C" void std_map_string_EraseRange_entry(void);
+extern "C" PLATFORM_HIDDEN uint8_t** XB_CDECL std_set_string_EraseRange(uint8_t* tree, uint8_t** result, uint8_t* first,
+                                                                     uint8_t* last);
+extern "C" void std_set_string_EraseRange_entry(void);
+extern "C" PLATFORM_HIDDEN uint8_t** XB_CDECL std_tree_EraseRange29(uint8_t* tree, uint8_t** result, uint8_t* first,
+                                                                 uint8_t* last);
+extern "C" void std_tree_EraseRange29_entry(void);
+// 0x00021a00 / 0x00021ee0 / 0x00022460: the head node (Z_Malloc 0x68 / 0x30 / 0x2c): links null, black,
+// isnil 0 (the caller sets it).
+uint8_t* XB_CDECL std_map_string_BuyHead();
+uint8_t* XB_CDECL std_set_string_BuyHead();
+uint8_t* XB_CDECL std_tree_BuyHead29();
+// 0x00021aa0 / 0x00021f80 / 0x000213f0: _Buynode(left, parent, right, value, color): Z_Malloc 0x68 / 0x30 /
+// 0x2c, then the node constructor.
+uint8_t* XB_STDCALL std_map_string_BuyNode(uint32_t left, uint32_t parent, uint32_t right, const uint8_t* value,
+                                           uint32_t color);
+uint8_t* XB_STDCALL std_set_string_BuyNode(uint32_t left, uint32_t parent, uint32_t right, const uint8_t* value,
+                                           uint32_t color);
+uint8_t* XB_STDCALL std_tree_BuyNode29(uint32_t left, uint32_t parent, uint32_t right, const uint8_t* value,
+                                       uint32_t color);
+// 0x00022560 / 0x00022880 / 0x000228b0 (node ESI, left EAX, parent ECX, right EDX; value, color): links,
+// the value copied (string / {string, string, string, int} / {string, int}), colour, isnil 0. Returns node.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_tree_NodeCtor29(uint8_t* node, uint32_t left, uint32_t parent,
+                                                              uint32_t right, const uint8_t* value, uint32_t color);
+extern "C" void std_tree_NodeCtor29_entry(void);
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_map_string_NodeCtor(uint8_t* node, uint32_t left, uint32_t parent,
+                                                                  uint32_t right, const uint8_t* value, uint32_t color);
+extern "C" void std_map_string_NodeCtor_entry(void);
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_set_string_NodeCtor(uint8_t* node, uint32_t left, uint32_t parent,
+                                                                  uint32_t right, const uint8_t* value, uint32_t color);
+extern "C" void std_set_string_NodeCtor_entry(void);
+// 0x00022900 (dst EDI, src EAX): copy-constructs the map value {string, string, string, int}; returns dst.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL std_map_string_PairCopy(uint8_t* dst, const uint8_t* src);
+extern "C" void std_map_string_PairCopy_entry(void);
+// 0x00014ce0: std::string::assign(source, pos, count) (out_of_range past the size; self-assignment erases
+// around the substring). Returns this.
+uint8_t* XB_THISCALL std_string_AssignSubstr(uint8_t* self, const uint8_t* source, uint32_t pos, uint32_t count);
 
 // 0x000289c0 (out in EAX, key in ECX, map in ESI): IntHashMap_Find with unsigned keys.
 extern "C" PLATFORM_HIDDEN void XB_CDECL UintHashMap_Find(uint32_t* out, const uint32_t* key, const uint8_t* map);
@@ -384,6 +435,50 @@ void XB_CDECL File_AbortRequestsForFile(uint32_t file);
 // 0x000cac90: aborts the file's requests; a file without references is closed (driver close op) and its
 // handle freed; an alias drops a reference of its file (+8) and closes that one in turn.
 void XB_CDECL File_Close(int32_t handle);
+// 0x000c9530 (base in ESI): lays out the file system's blocks (device buffers, requests 0x44 B, request
+// list nodes 20 B, devices 16 B, files 36 B, driver data) from base, cursor 0x00920790 / room 0x00920794
+// (the previous call's total); with a base and everything placed, stores the block addresses
+// (0x00920810..0x00920828, device buffers +0x14 +0x10). Returns the bytes needed.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL File_LayoutMemory(uint8_t* base);
+extern "C" void File_LayoutMemory_entry(void);
+// 0x000c9880: config {files, devices, requests, device kind (-1 = keep), threaded} (null keeps them);
+// each device's kind set and its setup callback (+4 +4) run; returns File_LayoutMemory(null).
+uint32_t XB_CDECL File_Configure(const uint32_t* config);
+// 0x000ca150 (device in ESI): 1 when the device is idle; else polls it and settles its request's state.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL FileDevice_Poll(uint8_t* device);
+extern "C" void FileDevice_Poll_entry(void);
+// 0x000ca250: the next queued request for the device (null = any), highest priority, then oldest; -1.
+int32_t XB_CDECL File_PickNextRequest(const uint8_t* device);
+// 0x000ca380 (request in EAX; device): starts the request on the idle device (FileDevice_IssueIo); 5 when
+// the device is busy, else IssueIo's result (nonzero: the request failed, state 6).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL File_StartDeviceRequest(int32_t handle, uint8_t* device);
+extern "C" void File_StartDeviceRequest_entry(void);
+// 0x000ca500: polls every device and starts the next request on each idle one; 1 while one is busy.
+uint32_t XB_CDECL File_PumpDevices();
+// 0x000ca690: completion callbacks of finished requests (+0x10 (status, handle, +0x14)), frees them;
+// unthreaded, then File_PumpDevices.
+uint32_t XB_CDECL File_PumpRequests();
+// 0x000ca910: the driver's native handle of an open file (file ops +0x14) with its info, offset, size and
+// alias stride (each out optional); 0 when there is none.
+uint32_t XB_CDECL File_GetNativeHandle(int32_t handle, uint32_t* out_info, uint32_t* out_offset, uint32_t* out_size,
+                                       uint32_t* out_stride);
+// 0x000cad40: File_LayoutMemory(memory), the request/device/file pools, the default device; threaded: mutex,
+// event, request thread.
+void XB_CDECL File_InitSystem(uint8_t* memory);
+// 0x00015650 / 0x00028bd0 (count in ECX; vector, value): vector<T*>(count, value) (Z_Malloc).
+void XB_THISCALL std_vector_ConstructN4Z(uint32_t count, uint8_t* vector, const uint32_t* value);
+void XB_THISCALL std_vector_ConstructN4Z_2(uint32_t count, uint8_t* vector, const uint32_t* value);
+// 0x00028ed0 (dst EDI, count ESI, value EDX; allocator): uninitialized_fill_n of dwords; returns dst + count.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL std_vector_Ufill4(uint32_t* dst, uint32_t count, const uint32_t* value,
+                                                             uint32_t allocator);
+extern "C" void std_vector_Ufill4_entry(void);
+// 0x000d16a0 / 0x000d1730: mounts / unmounts the selected memory unit (XMountMU / XUnmountMU; the hard disk
+// is drive 'U'); 0 or a save error.
+int32_t XB_CDECL Save_MountDevice();
+int32_t XB_CDECL Save_UnmountDevice();
+// 0x000d19e0: the save games on the mounted device as 0x4c-byte entries (name, blocks, local write time);
+// returns the count (0 none, -1 error, -17 busy).
+uint32_t XB_CDECL Save_EnumSaveGames(uint8_t* entries);
 
 // Manager deleting destructors (vtable slot 0): the class vtable (none for the base), ResourceManager_Destruct,
 // Z_Free with flags bit 0; return the manager. 0x00024eb0 ResourceManager, 0x0001ebd0 AnimTree, 0x0001ed20 Spg,

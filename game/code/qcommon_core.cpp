@@ -4,6 +4,7 @@
 
 #include "lanes.h"
 #include "qcommon.h"
+#include "qcommon_fs.h"
 #include "r_init.h"
 #include "snd.h"
 #include "title_data.h"
@@ -2707,5 +2708,1041 @@ uint32_t XB_THISCALL std_list_Insert8(const uint32_t* value, uint8_t* list, uint
     word_at(pointer_at<uint8_t>(node, 4), 0) = addr32(node);
     return size;
 }
+
+namespace {
+
+// MSVC std::string pieces: the buffer (heap pointer from capacity 16 on), size +0x14, capacity +0x18.
+uint8_t* string_buffer(uint8_t* s) {
+    return word_at(s, 0x18) >= 0x10 ? pointer_at<uint8_t>(s, 4) : s + 4;
+}
+
+void string_init_empty(uint8_t* s) {
+    word_at(s, 0x18) = 0xf;
+    word_at(s, 0x14) = 0;
+    s[4] = 0;
+}
+
+// 0x001ee881 / 0x001ee8c1: the CRT's "invalid string position" (out_of_range) / "string too long"
+// (length_error) throws.
+void string_throw_range() { title_function<void XB_CDECL()>(0x001ee881)(); }
+void string_throw_length(uint8_t* s) { title_function<void XB_THISCALL(uint8_t*)>(0x001ee8c1)(s); }
+
+uint8_t* string_erase(uint8_t* s, uint32_t pos, uint32_t count) {
+    return title_function<uint8_t* XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(0x00015110)(s, pos, count);  // std_string_Erase
+}
+
+void string_copy(uint8_t* s, uint32_t size, uint32_t old_size) {
+    title_function<void XB_THISCALL(uint8_t*, uint32_t, uint32_t)>(0x000153f0)(s, size, old_size);  // std_string_Copy
+}
+
+uint8_t* string_assign_n(uint8_t* s, const char* text, uint32_t count) {
+    return title_function<uint8_t* XB_THISCALL(uint8_t*, const char*, uint32_t)>(0x00015920)(s, text, count);  // std_string_AssignN
+}
+
+// The trees' erase(iterator) on the end node: an out_of_range ("invalid map/set<T> iterator",
+// 0x008327b0; logic_error vtable 0x007f6748, then 0x00832778) thrown with type info 0x00895b68.
+// Never returns.
+void tree_throw_invalid_iterator() {
+    uint8_t message[0x1c];
+    string_init_empty(message);
+    string_assign_n(message, reinterpret_cast<const char*>(uintptr_t{0x008327b0}), 0x1b);
+    uint8_t error[0x28];
+    std_exception_Ctor(reinterpret_cast<uint32_t*>(error));
+    word_at(error, 0) = 0x007f6748;
+    string_init_empty(error + 0xc);
+    std_string_AssignSubstr(error + 0xc, message, 0, 0xffffffffu);
+    word_at(error, 0) = 0x00832778;
+    title_function<void XB_STDCALL(uint8_t*, uint32_t)>(0x001f2302)(error, 0x00895b68);  // _CxxThrowException
+}
+
+// Red-black tree erase(where) (VC7.1 _Tree::erase): unlinks the node, rebalances, destroys the value
+// (T::destroy), frees the node and counts the size down; returns the successor. T::Nil = the isnil
+// byte's offset (the colour byte before it, 1 = black).
+struct MapStringTree {
+    static constexpr uint32_t Nil = 0x65;
+    static void lrotate(uint8_t* node, uint8_t* tree) { std_map_string_Lrotate(node, tree); }
+    static void rrotate(uint8_t* node, uint8_t* tree) { std_map_string_Rrotate(node, tree); }
+    static uint8_t* min(uint8_t* node) { return std_map_string_Min(node); }
+    static uint8_t* max(uint8_t* node) { return std_map_string_Max(node); }
+    static void inc(uint8_t** it) { std_map_string_Inc(0, it); }
+    static void destroy(uint8_t* node) { std_map_string_DestroyValue(node + 0xc); }
+    static void erase_subtree(uint8_t* tree, uint8_t* node) { std_map_string_EraseSubtree(tree, node); }
+    static void erase(uint8_t* tree, uint8_t* where) {
+        uint8_t* next;
+        std_map_string_Erase(tree, &next, where);
+    }
+};
+
+struct SetStringTree {
+    static constexpr uint32_t Nil = 0x2d;
+    static void lrotate(uint8_t* node, uint8_t* tree) { std_set_string_Lrotate(node, tree); }
+    static void rrotate(uint8_t* node, uint8_t* tree) { std_set_string_Rrotate(node, tree); }
+    static uint8_t* min(uint8_t* node) { return std_set_string_Min(node); }
+    static uint8_t* max(uint8_t* node) { return std_set_string_Max(node); }
+    static void inc(uint8_t** it) { std_set_string_Inc(0, it); }
+    static void destroy(uint8_t* node) { string_tidy(node + 0xc); }
+    static void erase_subtree(uint8_t* tree, uint8_t* node) { std_set_string_EraseSubtree(tree, node); }
+    static void erase(uint8_t* tree, uint8_t* where) {
+        uint8_t* next;
+        std_set_string_Erase(tree, &next, where);
+    }
+};
+
+struct Tree29 {
+    static constexpr uint32_t Nil = 0x29;
+    static void lrotate(uint8_t* node, uint8_t* tree) { std_tree_Lrotate29(node, tree); }
+    static void rrotate(uint8_t* node, uint8_t* tree) { std_tree_Rrotate29(node, tree); }
+    static uint8_t* min(uint8_t* node) { return std_tree_Min29(node); }
+    static uint8_t* max(uint8_t* node) { return std_tree_Max29(node); }
+    static void inc(uint8_t** it) { std_tree_Inc29(0, it); }
+    static void destroy(uint8_t* node) { string_tidy(node + 0xc); }
+    static void erase_subtree(uint8_t* tree, uint8_t* node) { std_map_string_EraseSubtree_2(tree, node); }
+    static void erase(uint8_t* tree, uint8_t* where) {
+        uint8_t* next;
+        std_tree_Erase29(tree, &next, where);
+    }
+};
+
+template <typename T>
+uint8_t* tree_erase(uint8_t* tree, uint8_t* where) {
+    constexpr uint32_t Nil = T::Nil;
+    constexpr uint32_t Color = Nil - 1;
+    constexpr uint8_t Black = 1;
+    constexpr uint8_t Red = 0;
+    if (where[Nil]) tree_throw_invalid_iterator();
+    uint8_t* const erased = where;
+    uint8_t* next = where;
+    T::inc(&next);
+    uint8_t* fix;
+    uint8_t* fix_parent;
+    uint8_t* node = erased;
+    if (node_link(erased, 0)[Nil]) {
+        fix = node_link(erased, 8);
+    } else if (node_link(erased, 8)[Nil]) {
+        fix = node_link(erased, 0);
+    } else {
+        node = next;
+        fix = node_link(node, 8);
+    }
+    uint8_t* const head = node_link(tree, 4);
+    if (node == erased) {
+        fix_parent = node_link(erased, 4);
+        if (!fix[Nil]) word_at(fix, 4) = addr32(fix_parent);
+        if (node_link(head, 4) == erased) {
+            word_at(head, 4) = addr32(fix);
+        } else if (node_link(fix_parent, 0) == erased) {
+            word_at(fix_parent, 0) = addr32(fix);
+        } else {
+            word_at(fix_parent, 8) = addr32(fix);
+        }
+        uint8_t* const head2 = node_link(tree, 4);
+        if (node_link(head2, 0) == erased) word_at(head2, 0) = addr32(fix[Nil] ? fix_parent : T::min(fix));
+        uint8_t* const head3 = node_link(tree, 4);
+        if (node_link(head3, 8) == erased) word_at(head3, 8) = addr32(fix[Nil] ? fix_parent : T::max(fix));
+    } else {
+        word_at(node_link(erased, 0), 4) = addr32(node);
+        word_at(node, 0) = word_at(erased, 0);
+        if (node == node_link(erased, 8)) {
+            fix_parent = node;
+        } else {
+            fix_parent = node_link(node, 4);
+            if (!fix[Nil]) word_at(fix, 4) = addr32(fix_parent);
+            word_at(fix_parent, 0) = addr32(fix);
+            word_at(node, 8) = word_at(erased, 8);
+            word_at(node_link(erased, 8), 4) = addr32(node);
+        }
+        uint8_t* const head2 = node_link(tree, 4);
+        if (node_link(head2, 4) == erased) {
+            word_at(head2, 4) = addr32(node);
+        } else {
+            uint8_t* const parent = node_link(erased, 4);
+            if (node_link(parent, 0) == erased) {
+                word_at(parent, 0) = addr32(node);
+            } else {
+                word_at(parent, 8) = addr32(node);
+            }
+        }
+        word_at(node, 4) = word_at(erased, 4);
+        const uint8_t color = node[Color];
+        node[Color] = erased[Color];
+        erased[Color] = color;
+    }
+    if (erased[Color] == Black) {
+        for (; fix != node_link(node_link(tree, 4), 4) && fix[Color] == Black;
+             fix = fix_parent, fix_parent = node_link(fix, 4)) {
+            if (fix == node_link(fix_parent, 0)) {
+                uint8_t* sibling = node_link(fix_parent, 8);
+                if (sibling[Color] == Red) {
+                    sibling[Color] = Black;
+                    fix_parent[Color] = Red;
+                    T::lrotate(fix_parent, tree);
+                    sibling = node_link(fix_parent, 8);
+                }
+                if (sibling[Nil]) {
+                    fix = fix_parent;
+                } else if (node_link(sibling, 0)[Color] == Black && node_link(sibling, 8)[Color] == Black) {
+                    sibling[Color] = Red;
+                    fix = fix_parent;
+                } else {
+                    if (node_link(sibling, 8)[Color] == Black) {
+                        node_link(sibling, 0)[Color] = Black;
+                        sibling[Color] = Red;
+                        T::rrotate(sibling, tree);
+                        sibling = node_link(fix_parent, 8);
+                    }
+                    sibling[Color] = fix_parent[Color];
+                    fix_parent[Color] = Black;
+                    node_link(sibling, 8)[Color] = Black;
+                    T::lrotate(fix_parent, tree);
+                    break;
+                }
+            } else {
+                uint8_t* sibling = node_link(fix_parent, 0);
+                if (sibling[Color] == Red) {
+                    sibling[Color] = Black;
+                    fix_parent[Color] = Red;
+                    T::rrotate(fix_parent, tree);
+                    sibling = node_link(fix_parent, 0);
+                }
+                if (sibling[Nil]) {
+                    fix = fix_parent;
+                } else if (node_link(sibling, 8)[Color] == Black && node_link(sibling, 0)[Color] == Black) {
+                    sibling[Color] = Red;
+                    fix = fix_parent;
+                } else {
+                    if (node_link(sibling, 0)[Color] == Black) {
+                        node_link(sibling, 8)[Color] = Black;
+                        sibling[Color] = Red;
+                        T::lrotate(sibling, tree);
+                        sibling = node_link(fix_parent, 0);
+                    }
+                    sibling[Color] = fix_parent[Color];
+                    fix_parent[Color] = Black;
+                    node_link(sibling, 0)[Color] = Black;
+                    T::rrotate(fix_parent, tree);
+                    break;
+                }
+            }
+        }
+        fix[Color] = Black;
+    }
+    T::destroy(erased);
+    Z_Free(erased);
+    if (word_at(tree, 8) > 0) --word_at(tree, 8);
+    return next;
+}
+
+
+// erase(first, last): everything (first = begin, last = end) drops the whole tree under the root and
+// resets the head; else one erase per node. Returns the end of the erased range.
+template <typename T>
+uint8_t** tree_erase_range(uint8_t* tree, uint8_t** result, uint8_t* first, uint8_t* last) {
+    uint8_t* const head = node_link(tree, 4);
+    if (first == node_link(head, 0) && last == head) {
+        T::erase_subtree(tree, node_link(head, 4));
+        word_at(node_link(tree, 4), 4) = word_at(tree, 4);
+        word_at(tree, 8) = 0;
+        word_at(node_link(tree, 4), 0) = word_at(tree, 4);
+        word_at(node_link(tree, 4), 8) = word_at(tree, 4);
+        *result = node_link(node_link(tree, 4), 0);
+        return result;
+    }
+    while (first != last) {
+        uint8_t* const where = first;
+        T::inc(&first);
+        T::erase(tree, where);
+    }
+    *result = first;
+    return result;
+}
+
+// The head node of a tree: Z_Malloc(size), links null, black, not nil (the allocator's exception
+// frame has no effect).
+template <uint32_t Size, uint32_t Color>
+uint8_t* tree_buy_head() {
+    uint8_t* const node = Z_Malloc(Size);
+    if (node) word_at(node, 0) = 0;
+    uint8_t* const parent = node + 4;
+    if (parent) word_at(parent, 0) = 0;
+    uint8_t* const right = node + 8;
+    if (right) word_at(right, 0) = 0;
+    node[Color] = 1;
+    node[Color + 1] = 0;
+    return node;
+}
+
+}  // namespace
+
+uint8_t* XB_THISCALL std_string_AssignSubstr(uint8_t* self, const uint8_t* source, uint32_t pos, uint32_t count) {
+    if (word_at(source, 0x14) < pos) string_throw_range();
+    uint32_t length = word_at(source, 0x14) - pos;
+    if (count < length) length = count;
+    if (self == source) {
+        string_erase(self, pos + length, 0xffffffffu);
+        string_erase(self, 0, pos);
+        return self;
+    }
+    if (length > 0xfffffffeu) string_throw_length(self);
+    if (word_at(self, 0x18) < length) {
+        string_copy(self, length, word_at(self, 0x14));
+    } else if (length == 0) {
+        word_at(self, 0x14) = 0;
+        string_buffer(self)[0] = 0;
+        return self;
+    }
+    if (length) {
+        const uint8_t* const from = word_at(source, 0x18) >= 0x10 ? pointer_at<const uint8_t>(source, 4) : source + 4;
+        platform_rep_movs(string_buffer(self), from + pos, length);
+        word_at(self, 0x14) = length;
+        string_buffer(self)[length] = 0;
+    }
+    return self;
+}
+
+uint8_t** XB_STDCALL std_map_string_Erase(uint8_t* tree, uint8_t** result, uint8_t* where) {
+    *result = tree_erase<MapStringTree>(tree, where);
+    return result;
+}
+
+uint8_t** XB_STDCALL std_set_string_Erase(uint8_t* tree, uint8_t** result, uint8_t* where) {
+    *result = tree_erase<SetStringTree>(tree, where);
+    return result;
+}
+
+uint8_t** XB_STDCALL std_tree_Erase29(uint8_t* tree, uint8_t** result, uint8_t* where) {
+    *result = tree_erase<Tree29>(tree, where);
+    return result;
+}
+
+void XB_THISCALL std_map_string_EraseSubtree(uint8_t* tree, uint8_t* node) {
+    while (!node[0x65]) {
+        std_map_string_EraseSubtree(tree, node_link(node, 8));
+        uint8_t* const left = node_link(node, 0);
+        std_map_string_DestroyValue(node + 0xc);
+        Z_Free(node);
+        node = left;
+    }
+}
+
+void XB_THISCALL std_set_string_EraseSubtree(uint8_t* tree, uint8_t* node) {
+    while (!node[0x2d]) {
+        std_set_string_EraseSubtree(tree, node_link(node, 8));
+        uint8_t* const left = node_link(node, 0);
+        string_tidy(node + 0xc);
+        Z_Free(node);
+        node = left;
+    }
+}
+
+void XB_THISCALL std_map_string_EraseSubtree_2(uint8_t* tree, uint8_t* node) {
+    while (!node[0x29]) {
+        std_map_string_EraseSubtree_2(tree, node_link(node, 8));
+        uint8_t* const left = node_link(node, 0);
+        string_tidy(node + 0xc);
+        Z_Free(node);
+        node = left;
+    }
+}
+
+
+PLATFORM_ASM_ENTRY(std_map_string_EraseRange_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_map_string_EraseRange) "addl $16, %esp\n"
+                   "ret $12")
+
+uint8_t** XB_CDECL std_map_string_EraseRange(uint8_t* tree, uint8_t** result, uint8_t* first, uint8_t* last) {
+    return tree_erase_range<MapStringTree>(tree, result, first, last);
+}
+
+PLATFORM_ASM_ENTRY(std_set_string_EraseRange_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_set_string_EraseRange) "addl $16, %esp\n"
+                   "ret $12")
+
+uint8_t** XB_CDECL std_set_string_EraseRange(uint8_t* tree, uint8_t** result, uint8_t* first, uint8_t* last) {
+    return tree_erase_range<SetStringTree>(tree, result, first, last);
+}
+
+PLATFORM_ASM_ENTRY(std_tree_EraseRange29_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_tree_EraseRange29) "addl $16, %esp\n"
+                   "ret $12")
+
+uint8_t** XB_CDECL std_tree_EraseRange29(uint8_t* tree, uint8_t** result, uint8_t* first, uint8_t* last) {
+    return tree_erase_range<Tree29>(tree, result, first, last);
+}
+
+uint8_t* XB_CDECL std_map_string_BuyHead() { return tree_buy_head<0x68, 0x64>(); }
+uint8_t* XB_CDECL std_set_string_BuyHead() { return tree_buy_head<0x30, 0x2c>(); }
+uint8_t* XB_CDECL std_tree_BuyHead29() { return tree_buy_head<0x2c, 0x28>(); }
+
+PLATFORM_ASM_ENTRY(std_map_string_PairCopy_entry,
+                   "pushl %eax\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(std_map_string_PairCopy) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL std_map_string_PairCopy(uint8_t* dst, const uint8_t* src) {
+    for (uint32_t offset = 0; offset < 0x54; offset += 0x1c) {
+        string_init_empty(dst + offset);
+        std_string_AssignSubstr(dst + offset, src + offset, 0, 0xffffffffu);
+    }
+    word_at(dst, 0x54) = word_at(src, 0x54);
+    return dst;
+}
+
+namespace {
+
+uint8_t* tree_node_links(uint8_t* node, uint32_t left, uint32_t parent, uint32_t right) {
+    word_at(node, 0) = left;
+    word_at(node, 4) = parent;
+    word_at(node, 8) = right;
+    return node;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(std_tree_NodeCtor29_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_tree_NodeCtor29) "addl $24, %esp\n"
+                   "ret $8")
+
+uint8_t* XB_CDECL std_tree_NodeCtor29(uint8_t* node, uint32_t left, uint32_t parent, uint32_t right,
+                                      const uint8_t* value, uint32_t color) {
+    tree_node_links(node, left, parent, right);
+    string_init_empty(node + 0xc);
+    std_string_AssignSubstr(node + 0xc, value, 0, 0xffffffffu);
+    node[0x28] = static_cast<uint8_t>(color);
+    node[0x29] = 0;
+    return node;
+}
+
+PLATFORM_ASM_ENTRY(std_map_string_NodeCtor_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_map_string_NodeCtor) "addl $24, %esp\n"
+                   "ret $8")
+
+uint8_t* XB_CDECL std_map_string_NodeCtor(uint8_t* node, uint32_t left, uint32_t parent, uint32_t right,
+                                          const uint8_t* value, uint32_t color) {
+    tree_node_links(node, left, parent, right);
+    std_map_string_PairCopy(node + 0xc, value);
+    node[0x64] = static_cast<uint8_t>(color);
+    node[0x65] = 0;
+    return node;
+}
+
+PLATFORM_ASM_ENTRY(std_set_string_NodeCtor_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(std_set_string_NodeCtor) "addl $24, %esp\n"
+                   "ret $8")
+
+uint8_t* XB_CDECL std_set_string_NodeCtor(uint8_t* node, uint32_t left, uint32_t parent, uint32_t right,
+                                          const uint8_t* value, uint32_t color) {
+    tree_node_links(node, left, parent, right);
+    string_init_empty(node + 0xc);
+    std_string_AssignSubstr(node + 0xc, value, 0, 0xffffffffu);
+    word_at(node, 0x28) = word_at(value, 0x1c);
+    node[0x2c] = static_cast<uint8_t>(color);
+    node[0x2d] = 0;
+    return node;
+}
+
+uint8_t* XB_STDCALL std_map_string_BuyNode(uint32_t left, uint32_t parent, uint32_t right, const uint8_t* value,
+                                           uint32_t color) {
+    uint8_t* const node = Z_Malloc(0x68);
+    if (node) std_map_string_NodeCtor(node, left, parent, right, value, color);
+    return node;
+}
+
+uint8_t* XB_STDCALL std_set_string_BuyNode(uint32_t left, uint32_t parent, uint32_t right, const uint8_t* value,
+                                           uint32_t color) {
+    uint8_t* const node = Z_Malloc(0x30);
+    if (node) std_set_string_NodeCtor(node, left, parent, right, value, color);
+    return node;
+}
+
+uint8_t* XB_STDCALL std_tree_BuyNode29(uint32_t left, uint32_t parent, uint32_t right, const uint8_t* value,
+                                       uint32_t color) {
+    uint8_t* const node = Z_Malloc(0x2c);
+    if (node) std_tree_NodeCtor29(node, left, parent, right, value, color);
+    return node;
+}
+
+namespace {
+
+// vector<T*>(count, value) (VC7.1): {allocator, first, last, end}; Z_Malloc(count * 4), filled with *value.
+// "vector<T> too long" (std_vector_Xlen_2) above 0x3fffffff elements.
+void vector_construct_n4(uint32_t count, uint8_t* vector, const uint32_t* value) {
+    word_at(vector, 4) = 0;
+    word_at(vector, 8) = 0;
+    word_at(vector, 0xc) = 0;
+    if (!count) return;
+    if (count > 0x3fffffffu) title_function<void XB_CDECL()>(0x000156f0)();  // std_vector_Xlen_2 (throws)
+    const uint32_t bytes = count * 4;
+    uint8_t* const data = Z_Malloc(bytes);
+    word_at(vector, 4) = addr32(data);
+    word_at(vector, 8) = addr32(data);
+    word_at(vector, 0xc) = addr32(data + bytes);
+    word_at(vector, 8) = addr32(std_vector_Ufill4(pointer_at<uint32_t>(vector, 4), count, value, addr32(vector)));
+}
+
+}  // namespace
+
+void XB_THISCALL std_vector_ConstructN4Z(uint32_t count, uint8_t* vector, const uint32_t* value) {
+    vector_construct_n4(count, vector, value);
+}
+
+void XB_THISCALL std_vector_ConstructN4Z_2(uint32_t count, uint8_t* vector, const uint32_t* value) {
+    vector_construct_n4(count, vector, value);
+}
+
+PLATFORM_ASM_ENTRY(std_vector_Ufill4_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(std_vector_Ufill4) "addl $16, %esp\n"
+                   "ret $4")
+
+uint32_t* XB_CDECL std_vector_Ufill4(uint32_t* dst, uint32_t count, const uint32_t* value, uint32_t) {
+    std_UninitializedFillN4_2(0, value, dst, count);
+    return dst + count;
+}
+
+PLATFORM_ASM_ENTRY(File_LayoutMemory_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(File_LayoutMemory) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL File_LayoutMemory(uint8_t* base) {
+    // Cursor 0x00920790 (bytes laid out so far), room left 0x00920794, base 0x0092078c. Each block is
+    // padded by its alignment - 1 and placed at the aligned address base + cursor; without a base (or
+    // when a block no longer fits) its address is 0. The room is the previous call's total.
+    uint32_t& cursor = title_global<uint32_t>(0x00920790);
+    uint32_t& room = title_global<uint32_t>(0x00920794);
+    const uint32_t start = addr32(base);
+    uint32_t left = base ? cursor : 0;
+    title_global<uint32_t>(0x0092078c) = start;
+    room = left;
+    cursor = 0;
+    uint32_t failed = 0;
+    uint32_t align = 1;
+    uint32_t data_size = 1;
+    uint32_t buffers[29];
+    int32_t index = 0;
+    if (title_global<int32_t>(0x008bfe7c) > 0) {
+        uint8_t* const* const devices = title_global<uint8_t* const*>(0x008bfe80);
+        do {
+            uint8_t* const device = devices[index];
+            const uint32_t* const config = pointer_at<const uint32_t>(device, 0xc);
+            if (data_size < config[0]) data_size = config[0];
+            if (align < config[1]) align = config[1];
+            const uint32_t kind = *pointer_at<const uint32_t>(device, 4);
+            if (kind == 2 || kind == 3 || kind == 4) {
+                const uint32_t* const buffer = pointer_at<const uint32_t>(device, 0x14);
+                if (!buffer[4]) {
+                    uint32_t buffer_align = buffer[0];
+                    if (buffer_align < buffer[1]) buffer_align = buffer[1];
+                    const uint32_t size = buffer[3] + buffer_align - 1;
+                    uint32_t address;
+                    if (base && size > left) {
+                        address = 0;
+                    } else {
+                        if (base) left -= size;
+                        const uint32_t at = cursor;
+                        const uint32_t aligned = (buffer_align + at + start - 1) / buffer_align * buffer_align;
+                        cursor = at + size;
+                        address = base ? aligned : 0;
+                    }
+                    buffers[index] = address;
+                    failed |= static_cast<uint32_t>(address == 0) << (index & 0x1f);
+                }
+            }
+            ++index;
+        } while (index < title_global<int32_t>(0x008bfe7c));
+        room = left;
+    }
+    data_size = (data_size + align - 1) / align * align;
+    const uint32_t requests = title_global<uint32_t>(0x008bfd78);
+    uint32_t size = requests * 0x44 + 0x3f;
+    uint32_t request_records;
+    if (base && size > left) {
+        request_records = 0;
+    } else {
+        if (base) {
+            left -= size;
+            room = left;
+        }
+        const uint32_t at = cursor;
+        cursor = at + size;
+        request_records = base ? (at + start + 0x3f) >> 6 << 6 : 0;
+    }
+    size = requests * 20 + 3;
+    uint32_t request_nodes;
+    if (base && size > left) {
+        request_nodes = 0;
+    } else {
+        if (base) {
+            left -= size;
+            room = left;
+        }
+        const uint32_t at = cursor;
+        cursor = at + size;
+        request_nodes = base ? (at + start + 3) >> 2 << 2 : 0;
+    }
+    size = (title_global<uint32_t>(0x008bfd74) << 4) + 0x3f;
+    uint32_t device_records;
+    if (base && size > left) {
+        device_records = 0;
+    } else {
+        if (base) {
+            left -= size;
+            room = left;
+        }
+        const uint32_t at = cursor;
+        cursor = at + size;
+        device_records = base ? (at + start + 0x3f) >> 6 << 6 : 0;
+    }
+    const uint32_t files = title_global<uint32_t>(0x008bfd70);
+    size = files * 36 + 0x3f;
+    uint32_t file_records;
+    if (base && size > left) {
+        file_records = 0;
+    } else {
+        if (base) {
+            left -= size;
+            room = left;
+        }
+        const uint32_t at = cursor;
+        cursor = at + size;
+        file_records = base ? (at + start + 0x3f) >> 6 << 6 : 0;
+    }
+    size = files * data_size + align - 1;
+    uint32_t driver_data;
+    uint32_t total;
+    if (base && size > left) {
+        total = cursor;
+        driver_data = 0;
+    } else {
+        if (base) {
+            left -= size;
+            room = left;
+        }
+        const uint32_t at = cursor;
+        const uint32_t aligned = (at + align + start - 1) / align * align;
+        total = at + size;
+        cursor = total;
+        driver_data = base ? aligned : 0;
+    }
+    if (base && request_records && device_records && file_records && driver_data && !failed) {
+        title_global<uint32_t>(0x00920824) = driver_data;
+        title_global<uint32_t>(0x00920810) = request_records;
+        title_global<uint32_t>(0x00920818) = request_nodes;
+        title_global<uint32_t>(0x00920828) = data_size;
+        title_global<uint32_t>(0x0092081c) = device_records;
+        title_global<uint32_t>(0x00920820) = file_records;
+        for (int32_t i = 0; i < title_global<int32_t>(0x008bfe7c); ++i) {
+            uint8_t* const device = title_global<uint8_t* const*>(0x008bfe80)[i];
+            const uint32_t kind = *pointer_at<const uint32_t>(device, 4);
+            if (kind != 2 && kind != 3 && kind != 4) continue;
+            uint32_t* const buffer = pointer_at<uint32_t>(device, 0x14);
+            if (!buffer[4]) buffer[4] = buffers[i];
+        }
+    }
+    return total;
+}
+
+uint32_t XB_CDECL File_Configure(const uint32_t* config) {
+    if (config) {
+        title_global<uint32_t>(0x008bfd70) = config[0];
+        title_global<uint32_t>(0x008bfd74) = config[1];
+        title_global<uint32_t>(0x008bfd78) = config[2];
+        title_global<uint32_t>(0x008bfd7c) = config[3];
+        title_global<uint32_t>(0x008bfd80) = config[4];
+    }
+    using Setup = void XB_CDECL(uint8_t*);
+    for (int32_t i = 0; i < title_global<int32_t>(0x008bfe7c); ++i) {
+        const uint32_t kind = title_global<uint32_t>(0x008bfd7c);
+        if (kind != 0xffffffffu) *pointer_at<uint32_t>(title_global<uint8_t* const*>(0x008bfe80)[i], 4) = kind;
+        uint8_t* const device = title_global<uint8_t* const*>(0x008bfe80)[i];
+        const uint32_t setup = pointer_at<const uint32_t>(device, 4)[1];
+        if (setup) title_function<Setup>(setup)(title_global<uint8_t* const*>(0x008bfe80)[i]);
+    }
+    return File_LayoutMemory(nullptr);
+}
+
+PLATFORM_ASM_ENTRY(FileDevice_Poll_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FileDevice_Poll) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL FileDevice_Poll(uint8_t* device) {
+    // Device: ops +0x10 {+4 cancel(arg +0x2c), +8 poll}, transfer done +0x1c, cancel argument +0x2c,
+    // request +0x30, phase +0x40 (0 idle, 1 cancelling, 2 reading, 3 cancelled, 4 failed, 5 aborting).
+    if (!word_at(device, 0x40)) return 1;
+    const uint32_t poll = pointer_at<const uint32_t>(device, 0x10)[2];
+    if (poll && title_function<uint32_t XB_CDECL()>(poll)()) return 0;
+    uint8_t* const request = file_request(static_cast<int32_t>(word_at(device, 0x30)));
+    if (request) {
+        switch (word_at(device, 0x40)) {
+        case 1:
+            if (word_at(request, 0x2c) == 3) {
+                const uint32_t cancel = pointer_at<const uint32_t>(device, 0x10)[1];
+                if (cancel && title_function<uint32_t XB_CDECL(uint32_t)>(cancel)(word_at(device, 0x2c))) return 0;
+                word_at(device, 0x40) = 3;
+            }
+            return 0;
+        case 2:
+            if (word_at(request, 0x2c) == 3) {
+                word_at(request, 0x2c) = 4;
+            } else if (word_at(device, 0x1c)) {
+                word_at(request, 0x34) += word_at(device, 0x1c);
+                word_at(request, 0x2c) = word_at(request, 0x34) < word_at(request, 0x28) ? 0 : 2;
+            } else {
+                word_at(request, 0x2c) = 2;
+            }
+            break;
+        case 4:
+            word_at(request, 0x2c) = 4;
+            break;
+        case 5:
+            if (word_at(request, 0x2c) != 7) word_at(request, 0x2c) = 6;
+            return 0;
+        default:
+            return 0;
+        }
+    }
+    word_at(device, 0x40) = 0;
+    word_at(device, 0x34) = 0;
+    word_at(device, 0x38) = 0;
+    word_at(device, 0x2c) = 0;
+    word_at(device, 0x28) = 0;
+    word_at(device, 0x30) = 0xffffffffu;
+    word_at(device, 0x3c) = 0xffffffffu;
+    return 1;
+}
+
+int32_t XB_CDECL File_PickNextRequest(const uint8_t* device) {
+    // The queued request (state 0) with the highest priority (+0x20), the oldest (+0x30) among equals;
+    // with a device, only requests whose file (through an alias) uses that driver (+8). -1 when none.
+    int32_t best = -1;
+    uint32_t best_priority = 0;
+    uint32_t best_sequence = 0xffffffffu;
+    const uint8_t* const pool = pool_at(kRequestPool);
+    int32_t handle = HandlePool_First(pool);
+    if (handle == -1) return -1;
+    do {
+        const int32_t current = handle;
+        const uint8_t* const request = file_request(handle);
+        handle = HandlePool_Next(pool, handle);
+        if (word_at(request, 0x2c)) continue;
+        if (device) {
+            const int32_t file = static_cast<int32_t>(word_at(request, 0xc));
+            const uint8_t* record = file_record(file);
+            int32_t target = -1;
+            if (record) target = word_at(record, 0x20) == 1 ? static_cast<int32_t>(word_at(record, 8)) : file;
+            record = file_record(target);
+            const uint32_t driver = record ? word_at(record, 8) : 0;
+            if (driver != addr32(device)) continue;
+        }
+        const uint32_t priority = word_at(request, 0x20);
+        if (priority > best_priority) {
+            best_priority = priority;
+            best_sequence = word_at(request, 0x30);
+        } else if (priority != best_priority || !(word_at(request, 0x30) < best_sequence)) {
+            continue;
+        } else {
+            best_sequence = word_at(request, 0x30);
+        }
+        best = current;
+    } while (handle != -1);
+    return best;
+}
+
+PLATFORM_ASM_ENTRY(File_StartDeviceRequest_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(File_StartDeviceRequest) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL File_StartDeviceRequest(int32_t handle, uint8_t* device) {
+    // Builds the I/O block {file size, position (+0), driver data, request, +0x24, bytes left (+0x28), +4},
+    // each past the bytes done (+0x34), for the rest of the request (an alias maps the offset into its file: base +4, chunk +0xc, stride +0x10)
+    // and hands it to FileDevice_IssueIo; the request is busy (1), or failed to start (6).
+    if (word_at(device, 0x40)) return 5;
+    uint8_t* const request = file_request(handle);
+    const uint8_t* const record = file_record(static_cast<int32_t>(word_at(request, 0xc)));
+    const uint32_t done = word_at(request, 0x34);
+    uint32_t io[7];
+    io[6] = word_at(request, 4);
+    io[4] = word_at(request, 0x24) + done;
+    io[5] = word_at(request, 0x28) - done;
+    io[1] = word_at(request, 0) + done;
+    io[3] = static_cast<uint32_t>(handle);
+    io[2] = addr32(File_GetDriverData(static_cast<int32_t>(word_at(request, 0xc))));
+    io[0] = word_at(record, 0);
+    if (word_at(record, 0x20) == 1) {
+        HandlePool_Resolve(pool_at(kFilePool), static_cast<int32_t>(word_at(record, 8)));
+        uint32_t chunk = word_at(record, 0xc);
+        uint32_t stride = word_at(record, 0x10);
+        if (!chunk && !stride) {
+            stride = 0x40000000;
+            chunk = stride;
+        }
+        const uint32_t chunk_index = done / chunk;
+        const uint32_t within = done % chunk;
+        if (io[5] > chunk - within) io[5] = chunk - within;
+        io[1] = chunk_index * stride + word_at(record, 4) + within;
+        io[2] = addr32(File_GetDriverData(static_cast<int32_t>(word_at(record, 8))));
+    }
+    word_at(request, 0x2c) = 1;
+    const uint32_t result = title_function<uint32_t XB_CDECL(uint8_t*, uint32_t*)>(0x000cb8d0)(device, io);  // FileDevice_IssueIo
+    if (result) word_at(request, 0x2c) = 6;
+    return result;
+}
+
+uint32_t XB_CDECL File_PumpDevices() {
+    // Polls every device, picks the next request for each idle one (any device's request when there is
+    // only one), starts them; 1 while any device is still busy.
+    const int32_t count = title_global<int32_t>(0x008bfe7c);
+    uint8_t* const* const devices = title_global<uint8_t* const*>(0x008bfe80);
+    uint32_t busy = 0;
+    uint32_t idle[32];
+    int32_t next[32];
+    for (int32_t i = 0; i < count; ++i) idle[i] = FileDevice_Poll(devices[i]);
+    for (int32_t i = 0; i < count; ++i) {
+        if (idle[i]) {
+            next[i] = File_PickNextRequest(count == 1 ? nullptr : devices[i]);
+        } else {
+            next[i] = -1;
+        }
+    }
+    for (int32_t i = 0; i < count; ++i) {
+        if (next[i] != -1) File_StartDeviceRequest(next[i], devices[i]);
+    }
+    for (int32_t i = 0; i < count; ++i) {
+        if (word_at(devices[i], 0x40)) busy = 1;
+    }
+    return busy;
+}
+
+uint32_t XB_CDECL File_PumpRequests() {
+    // Under the file mutex (threaded): requests done (2) or failed (4) get a completion record
+    // {status, callback +0x10, handle +0x40, argument +0x14, free = 1} in the list 0x00920818 (count
+    // 0x00920814); aborting ones (6) become aborted (7) and report status 3 if they have a callback, but
+    // stay allocated. The callbacks run with the mutex released, then the finished requests are freed.
+    // Unthreaded, the devices are pumped here (tail call).
+    title_global<int32_t>(0x00920814) = 0;
+    if (file_threaded()) file_lock();
+    uint8_t* const pool = &title_global<uint8_t>(kRequestPool);
+    int32_t handle = HandlePool_First(pool);
+    while (handle != -1) {
+        uint8_t* const request = file_request(handle);
+        handle = HandlePool_Next(pool, handle);
+        const uint32_t state = word_at(request, 0x2c);
+        if (state == 0) {
+            Snd_UpdateTime();
+        } else if (state == 2 || state == 4) {
+            const int32_t slot = title_global<int32_t>(0x00920814);
+            uint32_t* const entry = title_global<uint32_t*>(0x00920818) + slot * 5;
+            title_global<int32_t>(0x00920814) = slot + 1;
+            entry[0] = static_cast<uint32_t>(File_RequestStateToStatus(state));
+            entry[2] = word_at(request, 0x40);
+            entry[1] = word_at(request, 0x10);
+            entry[3] = word_at(request, 0x14);
+            entry[4] = 1;
+        } else if (state == 6) {
+            word_at(request, 0x2c) = 7;
+            if (word_at(request, 0x10)) {
+                const int32_t slot = title_global<int32_t>(0x00920814);
+                uint32_t* const entry = title_global<uint32_t*>(0x00920818) + slot * 5;
+                title_global<int32_t>(0x00920814) = slot + 1;
+                entry[0] = static_cast<uint32_t>(File_RequestStateToStatus(7));
+                entry[2] = word_at(request, 0x40);
+                entry[1] = word_at(request, 0x10);
+                entry[3] = word_at(request, 0x14);
+                entry[4] = 0;
+            }
+        }
+    }
+    using Callback = void XB_CDECL(uint32_t, uint32_t, uint32_t);
+    if (title_global<int32_t>(0x00920814)) {
+        if (file_threaded()) file_release();
+        for (int32_t i = 0; i < title_global<int32_t>(0x00920814); ++i) {
+            const uint32_t* const entry = title_global<uint32_t*>(0x00920818) + i * 5;
+            if (entry[1]) title_function<Callback>(entry[1])(entry[0], entry[2], entry[3]);
+        }
+        if (file_threaded()) file_lock();
+    }
+    for (int32_t i = 0; i < title_global<int32_t>(0x00920814); ++i) {
+        const uint32_t* const entry = title_global<uint32_t*>(0x00920818) + i * 5;
+        if (entry[4]) HandlePool_Free(pool, static_cast<int32_t>(entry[2]));
+    }
+    title_global<int32_t>(0x00920814) = 0;
+    if (file_threaded()) file_release();
+    if (title_global<int32_t>(0x008bfd80) == 0) return File_PumpDevices();
+    return 0;
+}
+
+uint32_t XB_CDECL File_GetNativeHandle(int32_t handle, uint32_t* out_info, uint32_t* out_offset, uint32_t* out_size,
+                                       uint32_t* out_stride) {
+    // The driver's native handle (file ops +0x14: (data, &handle, &info) == 0) and the file's offset
+    // into it (an alias: base +4, stride +0x10), its size; 0 when anything is missing.
+    const uint8_t* record = file_record(handle);
+    if (!record) return 0;
+    const uint32_t size = word_at(record, 0);
+    uint32_t offset = 0;
+    uint32_t stride = 0;
+    if (word_at(record, 0x20) == 1) {
+        handle = static_cast<int32_t>(word_at(record, 8));
+        offset = word_at(record, 4);
+        stride = word_at(record, 0x10);
+        record = file_record(handle);
+        if (!record) return 0;
+    }
+    uint8_t* const data = File_GetDriverData(handle);
+    if (!data) return 0;
+    const uint8_t* const driver = pointer_at<const uint8_t>(record, 8);
+    if (!driver) return 0;
+    const uint32_t* const ops = pointer_at<const uint32_t>(driver, 0xc);
+    if (!ops || !ops[5]) return 0;
+    uint32_t native = 0;
+    uint32_t info = 0;
+    if (title_function<uint32_t XB_CDECL(uint8_t*, uint32_t*, uint32_t*)>(ops[5])(data, &native, &info)) return 0;
+    if (out_info) *out_info = info;
+    if (out_offset) *out_offset = offset;
+    if (out_size) *out_size = size;
+    if (out_stride) *out_stride = stride;
+    return native;
+}
+
+void XB_CDECL File_InitSystem(uint8_t* memory) {
+    // Lays out the file system in `memory` (File_LayoutMemory), sets up the request, device and file pools,
+    // the default device (priority 2) and, threaded, the mutex, event and request thread (0x000ca620).
+    if (!memory) return;
+    File_LayoutMemory(memory);
+    HandlePool_Init(&title_global<uint8_t>(kRequestPool), title_global<uint8_t*>(0x00920810) + 0x38,
+                    title_global<int32_t>(0x008bfd78), 0x44);
+    HandlePool_Init(&title_global<uint8_t>(kDevicePool), title_global<uint8_t*>(0x0092081c),
+                    title_global<int32_t>(0x008bfd74), 0x10);
+    HandlePool_Init(&title_global<uint8_t>(kFilePool), title_global<uint8_t*>(0x00920820) + 0x14,
+                    title_global<int32_t>(0x008bfd70), 0x24);
+    const int32_t device = HandlePool_Alloc(&title_global<uint8_t>(kDevicePool));
+    File_SetDevicePriority(static_cast<uint32_t>(device), 2);
+    title_global<int32_t>(0x008bfd6c) = device;
+    if (!file_threaded()) return;
+    title_global<uint32_t>(0x00920784) =
+        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t)>(0x001e859d)(0, 0, 0);  // CreateMutexA
+    title_global<uint32_t>(0x00920788) =
+        title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x001e851c)(0, 0, 0, 0);  // CreateEventA
+    title_global<uint32_t>(0x00920780) = title_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                                                          uint32_t)>(0x001e7896)(0, 0x2000, 0x000ca620, 0, 0,
+                                                                                                 0);  // CreateThread
+}
+
+int32_t XB_CDECL Save_MountDevice() {
+    // The selected memory unit (Save_GetPort; 8 = the hard disk, drive 'U') mounted with XMountMU; its
+    // drive letter in 0x008c02d4 ('?' until then). -10 when the port has no memory unit (0x008c02e0 masks).
+    title_global<char>(0x008c02d4) = '?';
+    if (Save_GetPort() == 8) {
+        title_global<char>(0x008c02d4) = 'U';
+        return 0;
+    }
+    uint32_t slot;
+    uint32_t controller;
+    const int32_t result = Save_PortToDevice(Save_GetPort(), &controller, &slot);
+    if (result) return result;
+    if (Save_GetPort() < 0) return -10;
+    const uint32_t devices = title_function<uint32_t XB_STDCALL(uint32_t)>(0x007ac250)(0x007aa028);  // XGetDevices
+    if (!(title_global<uint32_t[8]>(0x008c02e0)[Save_GetPort()] & devices)) return -10;
+    return Save_TranslateError(title_function<int32_t XB_STDCALL(uint32_t, uint32_t, char*)>(0x007ac7b1)(
+        controller, slot, &title_global<char>(0x008c02d4)));  // XMountMUA
+}
+
+int32_t XB_CDECL Save_UnmountDevice() {
+    // XUnmountMU of the selected memory unit: 0x55 -> -17, 0x70 -> -3, 0x48f -> -10, other errors -1.
+    title_global<char>(0x008c02d4) = '?';
+    if (Save_GetPort() == 8) return 0;
+    uint32_t slot;
+    uint32_t controller;
+    const int32_t result = Save_PortToDevice(Save_GetPort(), &controller, &slot);
+    if (result) return result;
+    const int32_t error = title_function<int32_t XB_STDCALL(uint32_t, uint32_t)>(0x007ac8e3)(controller, slot);  // XUnmountMU
+    if (error == 0) return 0;
+    if (error == 0x55) return -17;
+    if (error == 0x70) return -3;
+    if (error == 0x48f) return -10;
+    return -1;
+}
+
+uint32_t XB_CDECL Save_EnumSaveGames(uint8_t* entries) {
+    // Lists the save games of the mounted device (root 0x008c02d8, its drive letter from 0x008c02d4) into
+    // 0x4c-byte entries {name (ANSI, 0x40), blocks +0x40, last write in local time: second +0x44, minute,
+    // hour, day, month +0x48, year (16 bits) +0x4a}. Returns the count, 0 when there are none, -1 on an
+    // error; -17 (busy) during a save operation.
+    if (title_global<uint32_t>(0x00920af4)) {
+        Save_SetLastResult(0xffffffefu);
+        return Save_GetLastResult();
+    }
+    uint32_t count = 0;
+    Save_SetLastResult(static_cast<uint32_t>(Save_MountDevice()));
+    if (Save_GetLastResult()) {
+        static_cast<uint32_t>(Save_UnmountDevice());
+        return 0xffffffffu;
+    }
+    char* const root = &title_global<char>(0x008c02d8);
+    root[0] = title_global<char>(0x008c02d4);
+    uint8_t find[0x344];  // XGAME_FIND_DATA: last write +0x14, directory +0x140, name (wide) +0x244
+    const uint32_t search =
+        title_function<uint32_t XB_STDCALL(const char*, uint8_t*)>(0x001e92ef)(root, find);  // XFindFirstSaveGame
+    if (search == 0xffffffffu) {
+        static_cast<uint32_t>(Save_UnmountDevice());
+        return 0;
+    }
+    uint8_t* entry = entries;
+    do {
+        const uint16_t* const name = reinterpret_cast<const uint16_t*>(find + 0x244);
+        const uint32_t length = title_function<uint32_t XB_CDECL(const uint16_t*)>(0x001f1343)(name);  // _wcslen
+        title_function<int32_t XB_STDCALL(uint32_t, uint32_t, const uint16_t*, uint32_t, uint8_t*, uint32_t, uint32_t,
+                                          uint32_t)>(0x001e975f)(0, 0, name, length + 1, entry, 0x40, 0,
+                                                                 0);  // WideCharToMultiByte
+        word_at(entry, 0x40) =
+            title_function<uint32_t XB_STDCALL(const uint8_t*)>(0x001ea047)(find + 0x140);  // XGetDisplayBlocks
+        uint32_t local_time[2];
+        uint16_t date[8];  // SYSTEMTIME
+        title_function<uint32_t XB_STDCALL(const uint8_t*, uint32_t*)>(0x001e75b4)(find + 0x14, local_time);  // FileTimeToLocalFileTime
+        title_function<uint32_t XB_STDCALL(const uint32_t*, uint16_t*)>(0x001e7062)(local_time, date);  // FileTimeToSystemTime
+        entry[0x44] = static_cast<uint8_t>(date[6]);
+        entry[0x47] = static_cast<uint8_t>(date[3]);
+        entry[0x45] = static_cast<uint8_t>(date[5]);
+        entry[0x46] = static_cast<uint8_t>(date[4]);
+        entry[0x48] = static_cast<uint8_t>(date[1]);
+        *reinterpret_cast<uint16_t*>(entry + 0x4a) = date[0];
+        ++count;
+        entry += 0x4c;
+    } while (title_function<uint32_t XB_STDCALL(uint32_t, uint8_t*)>(0x001e93f9)(search, find));  // XFindNextSaveGame
+    if (!title_function<uint32_t XB_STDCALL(uint32_t)>(0x001e9440)(search)) {  // XFindClose
+        Save_SetLastResult(0xffffffffu);
+        static_cast<uint32_t>(Save_UnmountDevice());
+        return 0xffffffffu;
+    }
+    Save_SetLastResult(static_cast<uint32_t>(Save_UnmountDevice()));
+    if (Save_GetLastResult()) return 0xffffffffu;
+    return count;
+}
+
 
 }  // namespace game
