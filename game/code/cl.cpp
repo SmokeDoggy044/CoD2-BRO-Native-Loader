@@ -1846,8 +1846,11 @@ void XB_CDECL Key_Unbind_f() {
     clear_binding(uint32_t(key));
 }
 
+// The original ends in a tail jump to Cbuf_Execute, which then runs at the entry ESP: the command buffer's current
+// text (0x00927f50) points at its stack copy, so the entry jumps there too (as CL_ApplyProfileSettings).
 PLATFORM_ASM_ENTRY(CL_ExecControllerConfig_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(CL_ExecControllerConfig) "addl $4, %esp\n"
+                   "pushl $0x002c62b0\n"  // Cbuf_Execute
                    "ret")
 
 void XB_CDECL CL_ExecControllerConfig(int32_t style) {
@@ -1859,8 +1862,7 @@ void XB_CDECL CL_ExecControllerConfig(int32_t style) {
         text = 0x0082e01c;  // style_f
     else if (style == 3)
         text = 0x0082e008;  // style_g
-    Cbuf_AddText(&title_global<const char>(text));
-    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute (a tail jump)
+    Cbuf_AddText(&title_global<const char>(text));  // the entry tail-jumps to Cbuf_Execute
 }
 // ---- Pads (XInput) ----
 //

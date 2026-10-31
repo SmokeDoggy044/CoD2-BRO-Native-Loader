@@ -2046,15 +2046,6 @@ void push_ui_scene() {
     nglSetSceneDepthEnable(0);
 }
 
-// The front end's (+0x28) active screen, when in range, told +0x18 (flag).
-void tell_front_end_screen(uint8_t* root, uint32_t flag) {
-    uint8_t* const fe = field<uint8_t*>(root, 0x28);
-    if (!fe) return;
-    const int32_t active = field<int32_t>(fe, 0xc);
-    if (active < 0 || active >= field<int32_t>(fe, 0x10)) return;
-    call(screen(fe, active), 0x18, flag);
-}
-
 }  // namespace
 
 PLATFORM_ASM_ENTRY(UIRoot_DrawInGameScreens_entry,
@@ -2130,22 +2121,47 @@ void XB_CDECL UIRoot_UpdateInGameScreens(uint8_t* root, uint32_t dt) {
     call(screens, 0x10, dt);
 }
 
+// The callees run at the original's stack positions (a front-end screen's update reaches title code that keeps a
+// stack address in the heap at 0x100006a8): the C frame sits below a gap, as InGameScreens_Update.
 PLATFORM_ASM_ENTRY(UIRoot_UpdateFrontEnd_entry,
-                   "pushl 4(%esp)\n"
-                   "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_UpdateFrontEnd) "addl $8, %esp\n"
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl 8(%ebp)\n"
+                   "pushl %esi\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(UIRoot_UpdateFrontEnd) "movl %ebp, %esp\n"
+                   "popl %ebp\n"
                    "ret $4")
 
-void XB_CDECL UIRoot_UpdateFrontEnd(uint8_t* root, uint32_t dt) {
+void XB_CDECL UIRoot_UpdateFrontEnd(uint32_t entry, uint8_t* root, uint32_t dt) {
+    const uint32_t top = entry - 4;  // after push edi
+    TitleRegs regs{};
+    regs.esi = address_of(root);
+    regs.edi = dt;
+    const auto method_at = [&](uint8_t* object, uint32_t offset, uint32_t arg) {
+        regs.ecx = address_of(object);
+        const uint32_t args[1] = {arg};
+        title_call_at_regs(top, field<uint32_t>(field<uint8_t*>(object, 0), offset), &regs, 1, args);
+    };
+    // The front end's (+0x28) active screen, when in range, told +0x18 (flag).
+    const auto tell_screen = [&](uint32_t flag) {
+        uint8_t* const fe = field<uint8_t*>(root, 0x28);
+        if (!fe) return;
+        const int32_t active = field<int32_t>(fe, 0xc);
+        if (active < 0 || active >= field<int32_t>(fe, 0x10)) return;
+        method_at(screen(fe, active), 0x18, flag);
+    };
     uint8_t* const dialogs = field<uint8_t*>(root, 0x30);
     if (has_active(dialogs)) {
-        call(dialogs, 0x10, dt);
+        method_at(dialogs, 0x10, dt);
         root[0x4e] = 1;
-        tell_front_end_screen(root, 1);
+        tell_screen(1);
     } else {
-        tell_front_end_screen(root, 0);
+        tell_screen(0);
         root[0x4e] = 0;
     }
-    if (uint8_t* const fe = field<uint8_t*>(root, 0x28)) call(fe, 0x10, dt);
+    if (uint8_t* const fe = field<uint8_t*>(root, 0x28)) method_at(fe, 0x10, dt);
 }
 
 void XB_REGS1 XB_CDECL TitleMenu_Accept(uint8_t* menu) {

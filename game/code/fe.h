@@ -518,6 +518,7 @@ FE_FRAME_FUNCTION(FE_CreateMenus)
 FE_FRAME_FUNCTION(FE_DifficultyMenu_Init)
 // 0x00331340 (menu in ESI): the control and sound settings to the cvars / globals, the controller style config.
 extern "C" PLATFORM_HIDDEN void XB_CDECL FE_ApplyControlSettings(uint8_t* menu);
+extern "C" PLATFORM_HIDDEN void XB_CDECL FE_ApplyControlSettings_Finish(uint8_t* menu);  // after Cbuf_Execute
 extern "C" void FE_ApplyControlSettings_entry(void);
 // 0x0030d140 / 0x0030cdf0 (seconds in EAX, at most 359999; ret 0x10): days, hours, minutes and seconds into the
 // four out words. Two identical copies.

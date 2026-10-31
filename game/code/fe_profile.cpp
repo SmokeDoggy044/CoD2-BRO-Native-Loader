@@ -9,9 +9,10 @@
 #include "ui_panel.h"
 
 // As fe_menus.cpp: the entries move the C frame below a gap and hand the C version the entry ESP; every title call
-// then runs where the original's would (the text setters keep a stack buffer's address in a heap record).
+// then runs where the original's would (the text setters keep a stack buffer's address in a heap record). 192 KB
+// gap: the save code's pass-through file calls zero 128 KB below their ESP (64 KB lost the C frame: a return to 0).
 #define PROFILE_GAP_ENTRY(name, pushes, c_name, c_arg_bytes, ret)                                                \
-    PLATFORM_ASM_ENTRY(name, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"                          \
+    PLATFORM_ASM_ENTRY(name, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"                          \
                              "pushl %edx\n" pushes PLATFORM_ASM_CALL(c_name) "addl $" c_arg_bytes ", %esp\n"     \
                              "popl %esp\n" ret)
 

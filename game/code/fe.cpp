@@ -2660,9 +2660,10 @@ void XB_THISCALL UITextTable_Draw(uint8_t* table) {
 // title callees: these functions run every title call where the original makes it. The entry (FE_FRAME_ENTRY) moves
 // the C frame below a gap and hands the C version the entry registers and the entry ESP; each call runs at the
 // original's ESP (`depth` bytes below the entry, before the call's pushes) and leaves the original's return address
-// and saved registers in the dead stack.
+// and saved registers in the dead stack. The gap is 192 KB: the callees' pass-through file calls zero 128 KB below
+// their ESP (with 64 KB they zeroed the C frame: tests ended in a return to 0, "called host code at 00000000").
 #define FE_FRAME_ENTRY(name, ret)                                                                                 \
-    PLATFORM_ASM_ENTRY(name##_entry, GAME_GAP_ESP("0x10000") "pushl %ebp\n pushl %edi\n pushl %esi\n"            \
+    PLATFORM_ASM_ENTRY(name##_entry, GAME_GAP_ESP("0x30000") "pushl %ebp\n pushl %edi\n pushl %esi\n"            \
                                      "pushl %edx\n pushl %ecx\n pushl %ebx\n pushl %eax\n movl %esp, %eax\n"      \
                                      "pushl 28(%eax)\n pushl %eax\n" PLATFORM_ASM_CALL(name)                      \
                                      "addl $36, %esp\n popl %esp\n" ret)
@@ -3425,8 +3426,13 @@ void set_handle_volume(uint32_t handle, float volume) {
 
 }  // namespace
 
+// Cbuf_Execute runs where the original's call puts it (entry - 4): the command buffer's current text (0x00927f50)
+// points at its stack copy. The entry calls it between the two halves.
 PLATFORM_ASM_ENTRY(FE_ApplyControlSettings_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(FE_ApplyControlSettings) "addl $4, %esp\n"
+                   "movl $0x002c62b0, %eax\n"
+                   "call *%eax\n"  // Cbuf_Execute
+                   "pushl %esi\n" PLATFORM_ASM_CALL(FE_ApplyControlSettings_Finish) "addl $4, %esp\n"
                    "ret")
 
 void XB_CDECL FE_ApplyControlSettings(uint8_t* menu) {
@@ -3476,7 +3482,10 @@ void XB_CDECL FE_ApplyControlSettings(uint8_t* menu) {
             Cbuf_AddText(text_at(0x0082dff4));  // exec style_h.cfg
             break;
     }
-    title_function<void XB_CDECL()>(0x002c62b0)();  // Cbuf_Execute
+    // Cbuf_Execute: the entry
+}
+
+void XB_CDECL FE_ApplyControlSettings_Finish(uint8_t* menu) {
     Cvar_Set2(text_at(0x0082c538), const_cast<char*>(text_at(0x0082e058)), 1);  // cl_run 1
     uint8_t* const item = *field<uint8_t**>(title_global<uint8_t*>(0x0095f8fc), 4);
     item[0x40] = menu[0xbc];

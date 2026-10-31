@@ -338,7 +338,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_UpdateInGameScreens(uint8_t* roo
 extern "C" void UIRoot_UpdateInGameScreens_entry(void);
 // 0x00315560 (ret 4): the active dialog's update (+0x10 (dt)) with the front end's active screen told +0x18 (1),
 // +0x4e = 1; else that screen told +0x18 (0), +0x4e = 0; then the front end's update (+0x10 (dt)).
-extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_UpdateFrontEnd(uint8_t* root, uint32_t dt);
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_UpdateFrontEnd(uint32_t entry, uint8_t* root, uint32_t dt);
 extern "C" void UIRoot_UpdateFrontEnd_entry(void);
 // 0x00314550 (menu in EAX; the TitleMenu's accept, called from 0x00012280): unless +0x3c, the front end goes to
 // screen 14 (0x008dd1cf == 1, 0x008dce30 clear) or 1 (0x008dd1cf == 1), else to screen 15 (its +0x94 = 0, +0x4c = 1).

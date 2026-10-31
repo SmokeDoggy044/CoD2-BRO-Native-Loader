@@ -8,9 +8,10 @@
 #include "ui_panel.h"
 
 // The gap entries (see fe_menus.cpp): the C frame moves below a gap; the C version gets the menu, `extra` (pushed
-// before ECX: the next parameters), the entry EBX / EDI / ESI and the entry ESP.
+// before ECX: the next parameters), the entry EBX / EDI / ESI and the entry ESP. 192 KB gap: the image loaders'
+// pass-through file calls zero 128 KB below their ESP (64 KB lost the C frame: a return to 0).
 #define BONUS_GAP_ENTRY(name, c_name, extra, c_arg_bytes, ret)                                                 \
-    PLATFORM_ASM_ENTRY(name, "movl %esp, %edx\n" GAME_GAP_ESP("0x10000") "pushl %edx\n"                        \
+    PLATFORM_ASM_ENTRY(name, "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"                        \
                              "pushl %edx\n pushl %esi\n pushl %edi\n pushl %ebx\n" extra                      \
                              "pushl %ecx\n" PLATFORM_ASM_CALL(c_name) "addl $" c_arg_bytes ", %esp\n"         \
                              "popl %esp\n" ret)
