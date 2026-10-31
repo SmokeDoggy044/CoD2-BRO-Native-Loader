@@ -1071,4 +1071,47 @@ void XB_CDECL Sys_Main();
 // started, language/bro/autoexec configs, the com_ cvars and commands, SV_Init, CL_Init. Boot only.
 void XB_CDECL Com_Init(uint8_t* launch);
 
+// ---- Push 9: the last qcommon functions (most of them gap functions found on 2026-10-31).
+
+// 0x0029e380: "setfromcvar <name> <cvar>" (exactly two arguments): Cvar_Set2(name, the other cvar's value or "", 0).
+void XB_CDECL Cvar_SetFromCvar_f();
+// 0x0028bb50 (zone graph vtable 0x00838214 slot 1, thiscall, zone, ret 4): unlinks the zone (+4 slots, next index
+// +0x3c of each, head +0x1cc, count +0x1d0) and hands its data to vtable slot 2 (a no-op) before clearing the slot.
+void XB_THISCALL ZoneGraph_RemoveZone(uint8_t* self, int32_t zone);
+// 0x0028bbd0 (position in EAX, graph in ECX): the 16 bytes at +0x1a0 (Stream_ParseZbb's copy, not inlined). Dead.
+uint32_t XB_REGS3 XB_CDECL ZoneGraph_SetViewPosition(const uint32_t* position, uint32_t unused_edx, uint8_t* self);
+// 0x0028bbf0 (graph in EAX, value in ECX): +0x1c0 (the .zbb header's +0x24 word in Stream_ParseZbb). Dead.
+uint8_t* XB_REGS3 XB_CDECL ZoneGraph_SetZbbValue(uint8_t* self, uint32_t unused_edx, uint32_t value);
+// 0x0028bc10: File_ShutdownDevices, then the file system memory pointer (0x0095f63c) cleared. Dead.
+void XB_CDECL FS_ShutdownPackBuffers();
+// 0x0028bc20 / 0x0028bc30 (text in EAX): printf "NFL WARNING: %s\n" / "NFL ERROR: %s\n". Dead.
+int32_t XB_REGS1 XB_CDECL Nfl_PrintWarning(const char* text);
+int32_t XB_REGS1 XB_CDECL Nfl_PrintError(const char* text);
+// 0x002c52e0 (name in EAX, prefix in ECX): Loc_FindEntryValue of "prefix_name". Dead.
+uint32_t XB_REGS3 XB_CDECL Loc_FindScopedEntryValue(const char* name, uint32_t unused_edx, const char* prefix);
+// 0x002c53d0 (name in EAX, prefix in ECX): Loc_FindStringEntry of "prefix_name". Dead.
+const char* XB_REGS3 XB_CDECL Loc_FindScopedStringEntry(const char* name, uint32_t unused_edx, const char* prefix,
+                                                        int32_t alternate);
+// 0x002ca590 (path in ECX, optional length out in ESI): FS_ReadFile's buffer, null when the file is empty or
+// missing (*length = 0 then). Dead.
+extern "C" PLATFORM_HIDDEN void* XB_CDECL FS_LoadFile(const char* path, int32_t* length);
+extern "C" void FS_LoadFile_entry(void);
+// 0x002ca5c0 / 0x002ca5d0 (two identical copies): Loc_ResetStringFileState(0x0095fe70, 0). Dead.
+void* XB_CDECL Loc_ResetGlobalStringFile();
+void* XB_CDECL Loc_ResetGlobalStringFile_2();
+// 0x002ca650 (name in EDX): Loc_FindFlagBit in the string file state 0x0095fe70. Dead.
+uint32_t XB_REGS2 XB_CDECL Loc_FindGlobalFlagBit(uint32_t unused_eax, const char* name);
+// 0x002cfc20: "map_restart_internal": checkpoint "0" (forced), 0x0095f678/0x0095f679 cleared, the game's checkpoint
+// (0x0095f4e0) cleared (G_ClearCheckpoint), 0x002fc2a0(0x008dd1d8), restart flag 0x0095f508 = 1.
+void XB_CDECL SV_MapRestartInternal_f();
+// 0x002cfc70 (list std::string in ESI): the ".str" files under `dir` ("dir/file;" each, Loc_LoadStringDir_r);
+// their count (0x00929cd8). Dead.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Loc_ListStringFiles(const char* dir, uint8_t* list);
+extern "C" void Loc_ListStringFiles_entry(void);
+// 0x002cfcb0: the language vector (0x009600f8) rebuilt from the folder names of every localizedstrings .str file,
+// each name once (a temporary set), "english" first; returns the language count. Dead.
+int32_t XB_CDECL Loc_ListLanguages();
+// 0x002fbff0: the name map (0x0095fe00) entry of `key` erased; 1 if found. Dead.
+uint8_t XB_CDECL IntHashMap_EraseByKey(int32_t key);
+
 }  // namespace game

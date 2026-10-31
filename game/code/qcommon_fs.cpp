@@ -7325,4 +7325,210 @@ void XB_CDECL Com_Init(uint8_t* launch) {
     title_global<uint32_t>(0x00947b04) = 1;
 }
 
+
+// ---- Push 9: the last qcommon functions.
+
+void XB_CDECL Cvar_SetFromCvar_f() {
+    if (title_global<uint32_t>(0x00934248) != 3) return;  // cmd_argc
+    uint8_t* const from = Cvar_FindVar(title_global<const char*>(0x0092df98));  // argv[2]
+    const char* const value = from ? reinterpret_cast<const char*>(pk_ptr(from, 4)) : tstr(0x0082dfeb);
+    const char* const name = title_global<uint32_t>(0x00934248) > 1 ? title_global<const char*>(0x0092df94)  // argv[1]
+                                                                   : tstr(0x0082dfeb);
+    Cvar_Set2(name, const_cast<char*>(value), 0);
+}
+
+void XB_THISCALL ZoneGraph_RemoveZone(uint8_t* self, int32_t zone) {
+    const auto slot = [self](int32_t index) -> uint32_t& { return pk<uint32_t>(self, 4 + static_cast<uint32_t>(index) * 4); };
+    const auto next = [&slot](int32_t index) -> int32_t& {
+        return pk<int32_t>(reinterpret_cast<uint8_t*>(uintptr_t{slot(index)}), 0x3c);
+    };
+    if (!slot(zone)) return;
+    int32_t at = pk<int32_t>(self, 0x1cc);
+    int32_t previous = -1;
+    if (at != zone) {
+        do {
+            previous = at;
+            at = next(previous);
+        } while (at != zone);
+    }
+    if (previous == -1)
+        pk<int32_t>(self, 0x1cc) = next(at);
+    else
+        next(previous) = next(at);
+    --pk<uint32_t>(self, 0x1d0);
+    const uint32_t data = slot(zone);
+    if (!data) return;
+    const uint32_t release = pk<uint32_t>(pk_ptr(self, 0), 8);  // vtable slot 2
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(release)(self, data);
+    slot(zone) = 0;
+}
+
+uint32_t XB_REGS3 XB_CDECL ZoneGraph_SetViewPosition(const uint32_t* position, uint32_t, uint8_t* self) {
+    uint32_t* const view = &pk<uint32_t>(self, 0x1a0);
+    view[0] = position[0];
+    view[1] = position[1];
+    view[2] = position[2];
+    view[3] = position[3];
+    return position[3];
+}
+
+uint8_t* XB_REGS3 XB_CDECL ZoneGraph_SetZbbValue(uint8_t* self, uint32_t, uint32_t value) {
+    pk<uint32_t>(self, 0x1c0) = value;
+    return self;
+}
+
+void XB_CDECL FS_ShutdownPackBuffers() {
+    File_ShutdownDevices();
+    title_global<uint32_t>(0x0095f63c) = 0;
+}
+
+int32_t XB_REGS1 XB_CDECL Nfl_PrintWarning(const char* text) {
+    return title_function<int32_t XB_CDECL(const char*, ...)>(0x001efc4d)(tstr(0x0083832c), text);  // printf
+}
+
+int32_t XB_REGS1 XB_CDECL Nfl_PrintError(const char* text) {
+    return title_function<int32_t XB_CDECL(const char*, ...)>(0x001efc4d)(tstr(0x00838340), text);  // printf
+}
+
+uint32_t XB_REGS3 XB_CDECL Loc_FindScopedEntryValue(const char* name, uint32_t, const char* prefix) {
+    char scoped[0x100];
+    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(scoped, tstr(0x0082d7d0), prefix, name);
+    return Loc_FindEntryValue(0, scoped);  // "%s_%s"
+}
+
+const char* XB_REGS3 XB_CDECL Loc_FindScopedStringEntry(const char* name, uint32_t, const char* prefix,
+                                                        int32_t alternate) {
+    char scoped[0x100];
+    title_function<int32_t XB_CDECL(char*, const char*, ...)>(0x001ee901)(scoped, tstr(0x0082d7d0), prefix, name);
+    return Loc_FindStringEntry(0, scoped, alternate);  // "%s_%s"
+}
+
+// FS_LoadFile (path in ECX, length out in ESI).
+PLATFORM_ASM_ENTRY(FS_LoadFile_entry,
+                   "pushl %esi\n pushl %ecx\n" PLATFORM_ASM_CALL(FS_LoadFile) "addl $8, %esp\n ret")
+
+void* XB_CDECL FS_LoadFile(const char* path, int32_t* length) {
+    if (length) *length = 0;
+    void* buffer = const_cast<char*>(path);  // the original's `push ecx` slot
+    const int32_t size = FS_ReadFile(path, &buffer);
+    if (size <= 0) return nullptr;
+    if (length) *length = size;
+    return buffer;
+}
+
+void* XB_CDECL Loc_ResetGlobalStringFile() { return Loc_ResetStringFileState(&title_global<uint8_t>(0x0095fe70), 0); }
+
+void* XB_CDECL Loc_ResetGlobalStringFile_2() { return Loc_ResetStringFileState(&title_global<uint8_t>(0x0095fe70), 0); }
+
+uint32_t XB_REGS2 XB_CDECL Loc_FindGlobalFlagBit(uint32_t, const char* name) {
+    return Loc_FindFlagBit(0, name, &title_global<uint8_t>(0x0095fe70));
+}
+
+void XB_CDECL SV_MapRestartInternal_f() {
+    title_global<uint8_t>(0x0095f678) = 0;
+    title_global<uint8_t>(0x0095f679) = 0;
+    Cvar_Set2(tstr(0x008353b8), const_cast<char*>(tstr(0x0082e098)), 1);  // checkpoint "0"
+    uint8_t* const game = title_global<uint8_t*>(0x0095f4e0);
+    game[0] = 0;
+    TitleRegs regs{};
+    regs.edi = u32(game);
+    qc_call_regs(0x002cdbc0, &regs, 0, nullptr);  // G_ClearCheckpoint (EDI)
+    title_function<void XB_STDCALL(uint32_t)>(0x002fc2a0)(0x008dd1d8);
+    title_global<uint8_t>(0x0095f508) = 1;
+}
+
+// Loc_ListStringFiles (list in ESI; dir on the stack).
+PLATFORM_ASM_ENTRY(Loc_ListStringFiles_entry,
+                   "pushl %esi\n pushl 8(%esp)\n" PLATFORM_ASM_CALL(Loc_ListStringFiles) "addl $8, %esp\n ret")
+
+int32_t XB_CDECL Loc_ListStringFiles(const char* dir, uint8_t* list) {
+    title_global<int32_t>(0x00929cd8) = 0;
+    std_string_AssignN(list, tstr(0x0082dfeb), 0);
+    Loc_LoadStringDir_r(tstr(0x00833200), dir, list);  // ".str"
+    return title_global<int32_t>(0x00929cd8);
+}
+
+int32_t XB_CDECL Loc_ListLanguages() {
+    // The language vector: begin 0x009600fc, end 0x00960100, capacity end 0x00960104 (28-byte strings).
+    uint32_t& begin = title_global<uint32_t>(0x009600fc);
+    uint32_t& end = title_global<uint32_t>(0x00960100);
+    if (begin) {
+        std_string_DestroyRange(reinterpret_cast<uint8_t*>(uintptr_t{begin}), reinterpret_cast<uint8_t*>(uintptr_t{end}));
+        Z_Free(reinterpret_cast<uint8_t*>(uintptr_t{begin}));
+    }
+    begin = 0;
+    end = 0;
+    title_global<uint32_t>(0x00960104) = 0;
+    LocTempString list;
+    title_global<int32_t>(0x00929cd8) = 0;
+    std_string_AssignN(list.s, tstr(0x0082dfeb), 0);
+    Loc_LoadStringDir_r(tstr(0x00833200), tstr(0x00833210), list.s);  // ".str", "localizedstrings"
+    // The set of names seen: {allocator, head, size}.
+    alignas(4) uint8_t tree[12] = {};
+    uint8_t* const head = std_tree_BuyHead29();
+    pk<uint32_t>(tree, 4) = u32(head);
+    head[0x29] = 1;
+    pk<uint32_t>(head, 4) = u32(head);
+    pk<uint32_t>(head, 0) = u32(head);
+    pk<uint32_t>(head, 8) = u32(head);
+    pk<uint32_t>(tree, 8) = 0;
+    uint32_t out[2] = {};  // iterator / insert result
+    const auto strrchr = title_function<char* XB_CDECL(const char*, int32_t)>(0x001efd40);
+    char* const dir = &title_global<char>(0x0098b2a0);
+    char* const base = &title_global<char>(0x0098b1a0);
+    for (char* path = Loc_PopSemicolonToken(list.s); path; path = Loc_PopSemicolonToken(list.s)) {
+        // The file's folder name (Com_DirName and COM_SkipPath inlined).
+        std::strcpy(dir, path);
+        char* const back = strrchr(dir, '\\');
+        char* const slash = strrchr(dir, '/');
+        char* const cut = u32(back) > u32(slash) ? back : slash;
+        if (cut) *cut = 0;
+        const char* start = dir;
+        for (const char* c = dir; *c; ++c)
+            if (*c == '/' || *c == '\\') start = c + 1;
+        std::strcpy(base, start);
+        // count(name) == 0: the distance from lower_bound to upper_bound.
+        LocTempString key;
+        key.assign(base);
+        uint8_t* const upper = std_tree_UpperBound29(tree, key.s);
+        out[0] = u32(std_tree_LowerBound29(tree, 0, key.s));
+        int32_t count = 0;
+        while (out[0] != u32(upper)) {
+            ++count;
+            std_tree_Inc29(0, reinterpret_cast<uint8_t**>(out));
+        }
+        key.tidy();
+        if (count) continue;
+        LocTempString inserted;
+        inserted.assign(base);
+        std_tree_InsertUnique29(tree, out, inserted.s);
+        inserted.tidy();
+        LocTempString name;
+        if (!crt_stricmp(base, tstr(0x00833518))) {  // "english" goes first
+            name.assign(base);
+            std_vector_string_InsertOne(&title_global<uint8_t>(0x009600f8), out,
+                                        reinterpret_cast<uint8_t*>(uintptr_t{begin}), name.s);
+        } else {
+            name.assign(base);
+            std_vector_string_PushBack(&title_global<uint8_t>(0x009600f8), 0, name.s);
+        }
+        name.tidy();
+    }
+    const int32_t languages = begin ? static_cast<int32_t>(end - begin) / 0x1c : 0;
+    std_tree_EraseRange29(tree, reinterpret_cast<uint8_t**>(out), pk_ptr(head, 0), head);
+    Z_Free(head);
+    pk<uint32_t>(tree, 4) = 0;
+    pk<uint32_t>(tree, 8) = 0;
+    list.tidy();
+    return languages;
+}
+
+uint8_t XB_CDECL IntHashMap_EraseByKey(int32_t key) {
+    uint32_t node = 0;  // the original's `push ecx` slot
+    IntHashMap_Find(&node, &key, &title_global<uint8_t>(0x0095fe00));
+    if (node == title_global<uint32_t>(0x0095fe08)) return 0;
+    qfs_IntHashMap_Erase(&title_global<uint8_t>(0x0095fe00), &node, node);
+    return 1;
+}
+
 }  // namespace game
