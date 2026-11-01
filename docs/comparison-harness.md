@@ -262,7 +262,8 @@ IoQueryVolumeInformation, NtClose, ObReferenceObjectByHandle/ObfDereferenceObjec
 NtWaitForSingleObjectEx, KeDelayExecutionThread, RtlInitAnsiString and RtlNtStatusToDosError;
 since 2026-11-01 also the save/profile helpers: RtlAnsiStringToUnicodeString /
 RtlUnicodeStringToAnsiString (XAPI MultiByteToWideChar / WideCharToMultiByte, never allocating) and
-XcSHAInit/Update/Final, XcHMAC (XShaHmac*, XCalculateSignature*). The pad / memory-unit poll
+XcSHAInit/Update/Final, XcHMAC (XShaHmac*, XCalculateSignature*). ExQueryNonVolatileSetting (XQueryValue: a copy
+out of our EEPROM image) too. The pad / memory-unit poll
 XGetDeviceChanges is a stand-in (`SdkStandIn::NoDeviceChanges`: nothing plugged in or out during a
 test; ours asks SDL, which a test process cannot). The sound device's own additions (set_category,
 set_environment, enhanced, set_occlusion, has) are pass-through like its other methods.

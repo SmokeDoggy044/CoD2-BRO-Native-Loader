@@ -6562,6 +6562,18 @@ uint32_t profile_call(uint32_t function, uint32_t eax, uint32_t ecx, uint32_t ed
     regs.edi = edi;
     return qc_call_regs(function, &regs, count, args);
 }
+// The same at the original's ESP `top` (callees that store stack addresses: UIText's set-text word 0x100006a8).
+uint32_t profile_call_at(uint32_t top, uint32_t function, uint32_t eax, uint32_t ecx, uint32_t edx, uint32_t esi,
+                         uint32_t ebx, uint32_t edi, uint32_t count = 0, const uint32_t* args = nullptr) {
+    TitleRegs regs{};
+    regs.eax = eax;
+    regs.ecx = ecx;
+    regs.edx = edx;
+    regs.esi = esi;
+    regs.ebx = ebx;
+    regs.edi = edi;
+    return title_call_at_regs(top, function, &regs, count, args);
+}
 
 }  // namespace
 
@@ -6682,11 +6694,15 @@ void XB_CDECL ProfileSave_OnProfilesRead(uint8_t* self, uint32_t entry_ebx, uint
                  pk<uint32_t>(page, 0x1c), entry_edi);  // AutosaveMenu_OnProfilesRead (menu in EBX)
 }
 
+// Below a gap: the callees (dialogs that set texts) run at the original's ESP, entry - 4 (after its push esi).
 PLATFORM_ASM_ENTRY(ProfileSave_OnSaveOpComplete_entry,
-                   "pushl %edi\n pushl %ebx\n pushl 12(%esp)\n pushl %ecx\n" PLATFORM_ASM_CALL(ProfileSave_OnSaveOpComplete)
-                   "addl $16, %esp\n ret $4")
+                   "movl %esp, %edx\n" GAME_GAP_ESP("0x30000") "pushl %edx\n"
+                   "pushl %edx\n pushl %edi\n pushl %ebx\n pushl 4(%edx)\n pushl %ecx\n" PLATFORM_ASM_CALL(ProfileSave_OnSaveOpComplete)
+                   "addl $20, %esp\n popl %esp\n ret $4")
 
-void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation, uint32_t entry_ebx, uint32_t entry_edi) {
+void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation, uint32_t entry_ebx, uint32_t entry_edi,
+                                           uint32_t entry_esp) {
+    const uint32_t top = entry_esp - 4;  // push esi
     // operation: 1 read profiles, 2 save, 3 delete, 4 format. 0x0095f8f8 = the profile menu (page +4, state +0xc,
     // menu +0x3c), 0x0095f8fc = the autosave menu (page +4, menu +0x1c).
     title_global<uint8_t>(0x008d50dd) = 1;
@@ -6699,19 +6715,19 @@ void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation, uin
         if (profile_menu) {
             if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
             uint8_t* const page = pk_ptr(profile_menu, 4);
-            profile_call(0x0033a130, result, op, u32(page), pk<uint32_t>(page, 0x3c), entry_ebx,
+            profile_call_at(top, 0x0033a130, result, op, u32(page), pk<uint32_t>(page, 0x3c), entry_ebx,
                          entry_edi);  // ProfileMenu_OnSaveOpFailed
             return;
         }
         uint8_t* const page = autosave_page();
-        profile_call(0x00333860, result, op, u32(page), pk<uint32_t>(page, 0x1c), entry_ebx,
+        profile_call_at(top, 0x00333860, result, op, u32(page), pk<uint32_t>(page, 0x1c), entry_ebx,
                      entry_edi);  // AutosaveMenu_OnSaveOpFailed
         return;
     }
     switch (operation) {
     case 1: {
         const uint32_t arg = u32(self);
-        profile_call(0x0033a490, op - 1, op, 0, u32(self), entry_ebx, entry_edi, 1, &arg);  // ProfileSave_OnProfilesRead
+        profile_call_at(top, 0x0033a490, op - 1, op, 0, u32(self), entry_ebx, entry_edi, 1, &arg);  // ProfileSave_OnProfilesRead
         return;
     }
     case 2:
@@ -6720,29 +6736,29 @@ void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation, uin
             uint8_t* const menu = pk_ptr(pk_ptr(profile_menu, 4), 0x3c);
             const uint32_t ecx = (op & ~0xffu) | menu[0x34];
             if (menu[0x34])
-                profile_call(0x00339fa0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
+                profile_call_at(top, 0x00339fa0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
             else
-                profile_call(0x00334fe0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowSaveSuccessDialog
+                profile_call_at(top, 0x00334fe0, u32(menu), ecx, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowSaveSuccessDialog
             return;
         } else {
             uint8_t* const page = autosave_page();
             uint8_t* const menu = pk_ptr(page, 0x1c);
             const uint32_t ecx = (u32(title_global<uint8_t*>(0x0095f8fc)) & ~0xffu) | menu[0x39];
             if (menu[0x39])
-                profile_call(0x00339c70, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowDeleteSuccessDialog
+                profile_call_at(top, 0x00339c70, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowDeleteSuccessDialog
             else
-                profile_call(0x003339f0, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_OnSaveSucceeded
+                profile_call_at(top, 0x003339f0, u32(menu), ecx, u32(page), u32(self), entry_ebx, entry_edi);  // AutosaveMenu_OnSaveSucceeded
             return;
         }
     case 3:
-        profile_call(0x00339fa0, op - 1, op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
+        profile_call_at(top, 0x00339fa0, op - 1, op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowDeleteSuccessDialog
         return;
     case 4:
         if (profile_menu) {
             if (pk<uint32_t>(profile_menu, 0xc) != 0xf) return;
-            profile_call(0x003388f0, u32(profile_menu), op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowFormatSuccessDialog
+            profile_call_at(top, 0x003388f0, u32(profile_menu), op, 0, u32(self), entry_ebx, entry_edi);  // ProfileMenu_ShowFormatSuccessDialog
         } else {
-            profile_call(0x00338100, 0, op, 0, u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowFormatSuccessDialog
+            profile_call_at(top, 0x00338100, 0, op, 0, u32(self), entry_ebx, entry_edi);  // AutosaveMenu_ShowFormatSuccessDialog
         }
         return;
     default:

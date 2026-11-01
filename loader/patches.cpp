@@ -2015,6 +2015,8 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         {"XcSHAUpdate", "x x s", compare::SdkStandIn::Pass},
         {"XcSHAFinal", "x x", compare::SdkStandIn::Pass},
         {"XcHMAC", "x s x s x s x", compare::SdkStandIn::Pass},
+        // XAPI's XQueryValue (the profile and storage checks): a copy out of our EEPROM image.
+        {"ExQueryNonVolatileSetting", "s x x s x", compare::SdkStandIn::Pass},
     };
     for (const RecordedCall& call : kRecordedKernelCalls) {
         uint32_t host = 0;

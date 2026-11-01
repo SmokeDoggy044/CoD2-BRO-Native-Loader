@@ -1044,7 +1044,8 @@ extern "C" void ProfileSave_OnProfilesRead_entry(void);
 // 0x0033a530 (vtable 0x008287dc slot; self in ECX, operation on the stack): the save operation's result to the
 // profile or autosave menu: failure dialogs, or read (ProfileSave_OnProfilesRead), save, delete, format success.
 extern "C" PLATFORM_HIDDEN void XB_CDECL ProfileSave_OnSaveOpComplete(uint8_t* self, int32_t operation,
-                                                                      uint32_t entry_ebx, uint32_t entry_edi);
+                                                                      uint32_t entry_ebx, uint32_t entry_edi,
+                                                                      uint32_t entry_esp);
 extern "C" void ProfileSave_OnSaveOpComplete_entry(void);
 // 0x002d03c0: msg split at the markers 0x14/0x15/0x16, each segment translated (Loc_TranslateString) and
 // substituted into the previous "%s"; one of two rotating 256-byte buffers (0x0098bf58), null when a lookup fails.
