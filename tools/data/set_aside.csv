@@ -543,3 +543,5 @@ address,name,kind,reason
 001fb380,Actor_DefaultFinish,unhookable,"bare ret (1 byte; Finish slot of 4 states), too short to hook; has C (game ai push 3)"
 001fbec0,Actor_Callback348Stub,unhookable,"bare ret (1 byte; callback 0x008da8a8), too short to hook; has C (game ai push 3)"
 001fd2a0,Actor_DefaultSlot5,unhookable,"bare ret (1 byte; slot 5 of 11 states), too short to hook; has C (game ai push 3)"
+00248a30,Ent_Callback348Stub2,unhookable,"bare ret (1 byte; callback table 0x008da8ac), too short to hook; has C (game ent push 1)"
+0024add0,G_ActorClampLethalDamage,unhookable,"RET at +4 inside the first 5 bytes (test eax,eax; jne; ret); has C (game ent push 1)"

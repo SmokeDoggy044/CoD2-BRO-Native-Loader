@@ -9,6 +9,8 @@
 
 namespace game {
 
+struct ScriptString;
+
 // Calls vectoangles (0x002a0850; vector in ESI, angles out in EDI) at its title address.
 extern "C" PLATFORM_HIDDEN void XB_CDECL vectoangles_call(const float* v, float* angles);
 
@@ -202,5 +204,85 @@ float XB_CDECL Water_GetHeight(int32_t index, float x, float y);
 // 0x000b05a0 (no references: dead): the smallest squared distance of p from the lines through
 // the triangle's edges ab, bc, ca, at least 0.0001. 16-byte aligned vectors (MOVAPS).
 float XB_CDECL Tri_MinEdgeLineDistSq(const float* a, const float* b, const float* c, const float* p);
+
+// 0x00248ee0 (entity in ECX): the content flag an entity touches triggers with: 0x8 vehicle
+// (+0x248), 0x400000 no ragdoll (+0x244), 0x40000000 with +0x23c, else by the ragdoll's kind
+// (1/2/3 -> 0x40000/0x80000/0x100000, other 0).
+uint32_t XB_THISCALL G_GetTouchTypeFlag(const uint8_t* ent);
+// 0x00249a40 (activator in EAX, trigger in ESI): fires a multiple trigger: stores the activator
+// (+0x378); unless waiting or blocked (+0x32c 0x1c, +0x328 set) schedules the next think: after
+// wait (+0x384) + random spread (+0x388) seconds, or next frame with think 0xc when wait <= 0.
+extern "C" PLATFORM_HIDDEN void XB_CDECL multi_trigger(uint32_t activator, uint8_t* ent);
+extern "C" void multi_trigger_entry(void);
+// 0x00248a30: empty entity callback (a bare RET; unhookable).
+void XB_CDECL Ent_Callback348Stub2();
+// 0x0024afe0 (actor in EDI, duration in EAX): starts leaving prone (+0x198 {state, start,
+// blend}): an expired blend is cleared; a new duration starts at level.time, or earlier by the
+// current blend fraction (Actor_GetProneBlend) when one with another duration runs.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ExitProne(uint8_t* actor, int32_t duration);
+extern "C" void Actor_ExitProne_entry(void);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL actor_get_prone_blend_call(uint8_t* prone, int32_t time);
+
+// 0x0024b610: use callback of trigger_multiple: multi_trigger with the activator (third argument).
+void XB_CDECL Use_Multi(uint8_t* ent, uint32_t other, uint32_t activator);
+// 0x0024ba60 (entity in ECX): 1 when the entity's client rides a vehicle (client +0xc0 flag
+// 0x100000 without 0x400000; vehicle entity by the handle at +0x1a0) whose def has +0x3c set.
+uint32_t XB_THISCALL G_ClientInOpenVehicle(const uint8_t* ent);
+// 0x0024bad0 (entity in ECX): 1 when the entity's client rides a vehicle whose def is not
+// type 5 (+0x20) and has +0x3c clear.
+uint32_t XB_THISCALL G_ClientInVehicle(const uint8_t* ent);
+// 0x0024bb30 (entity in ECX): the turret the client uses (client +0xc0 flag 0x100000, handle
+// +0x1a0, the entity's +0x134 flag 0x200000), else 0.
+uint8_t* XB_THISCALL G_GetPlayerTurret(const uint8_t* ent);
+// 0x0024bce0 (entity in EAX, entering on the stack): unless the rider (handle +0x1a0) is the
+// player, counts the vehicle's (+0x248) riders (+0x2fc) up or down. Called from CG_EntityEvent.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_VehicleCountRider(uint8_t* ent, uint32_t entering);
+extern "C" void G_VehicleCountRider_entry(void);
+// 0x0024ce90 (weapon in EAX, clips in ECX, entity on the stack): gives clips of a weapon's
+// ammo (clip-only weapons: into the ammo, capped at the room and at 4 for type 4; else the clip
+// is filled and the rest goes to the reserve +0x110), BG_AmmoRoomForWeapon as the cap.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Add_AmmoClips(uint32_t weapon, int32_t clips, uint8_t* ent);
+extern "C" void Add_AmmoClips_entry(void);
+
+// 0x0024cf70 (weapon in ECX, player state in ESI): refills a weapon's clip (+0x280, up to the
+// ammo type's size at 0x00935338) from its reserve (+0x110).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Fill_Clip(int32_t weapon, uint8_t* ps);
+extern "C" void Fill_Clip_entry(void);
+// 0x0024d320 (entity in EDX): frees the entity the client holds (+0x5f0; cleared, think 0xc).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_ClientFreeHeldEntity(uint8_t* ent);
+extern "C" void G_ClientFreeHeldEntity_entry(void);
+// 0x0024d3c0 (other in EDX, player in EDI): pushes the player's velocity away from a touching
+// entity with flag 0x4000/0x8000 within 30 units; 1 when handled.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Player_PushAwayFromEntity(const uint8_t* other, uint8_t* player);
+extern "C" void Player_PushAwayFromEntity_entry(void);
+// 0x0024d4d0: think of a dead body: sinks 1 unit per frame, unlinked after 6.5 s (+0x2f0).
+void XB_CDECL BodySink(uint8_t* ent);
+// 0x0024d630 (field offset in EBX; args {result, key by value, begin, end}, callee pops 16):
+// the first entity pointer in [begin, end) whose script-string field equals key; returns the
+// result pointer.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_EntityArray_FindByStringField(uint32_t field, uint32_t* args);
+extern "C" void G_EntityArray_FindByStringField_entry(void);
+// 0x0024d6b0 (list in ESI, key ScriptString* in EDX, field offset on the stack, callee pops 4):
+// the first entity of the list (+0x2aac count, +0x2ab0 pointers) whose field equals key, or 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindEntityByStringField(const uint8_t* list, const ScriptString* key,
+                                                                       uint32_t* args);
+extern "C" void G_FindEntityByStringField_entry(void);
+// 0x0024dad0 (slot in EAX, out in ESI): the entity number of a live type-2 vehicle's entity, else 0.
+extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL Vehicle_GetTankEntityNum(uint32_t index, uint32_t* out);
+extern "C" void Vehicle_GetTankEntityNum_entry(void);
+// 0x0024db50 (slot out in ESI, flag out in EDI, entity handle on the stack): for compass markers:
+// 1 (AL) with the vehicle slot and +0x194 flag of a live type 1/2 vehicle entity.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Veh_GetEntTankInfo(int32_t* slot, uint8_t* flag, uint32_t handle);
+extern "C" void Veh_GetEntTankInfo_entry(void);
+// 0x0024dc10 (turret entity in EDX, player in ECX): 1 when the player may use the turret.
+uint32_t XB_REGS3 XB_CDECL G_PlayerCanUseTurret(uint32_t unused_eax, const uint8_t* vehicle, const uint8_t* player);
+// 0x0024e1d0: think that lifts the player within 512 units until +0x38c.
+void XB_CDECL Think_BoostNearbyPlayer(uint8_t* ent);
+// 0x0024e690 (entity in ESI): puts the entity on the water surface, stationary.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_FloatOnWater(uint8_t* ent);
+extern "C" void G_FloatOnWater_entry(void);
+// 0x0024e740 (entity in ESI): two clips for each of the client's four weapon slots; returns -1.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Pickup_ClipsForAllWeapons(uint8_t* ent);
+extern "C" void Pickup_ClipsForAllWeapons_entry(void);
 
 }  // namespace game

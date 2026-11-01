@@ -3,12 +3,15 @@
 #include <cstring>
 
 #include "actor.h"
+#include "bg_misc.h"
 #include "dobj.h"
 #include "fx.h"
 #include "lanes.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "script_string.h"
+#include "sv.h"
 #include "title_data.h"
 
 namespace game {
@@ -966,5 +969,497 @@ float XB_CDECL Tri_MinEdgeLineDistSq(const float* a, const float* b, const float
     if (minimum > best) best = minimum;
     return best;
 }
+
+uint32_t XB_THISCALL G_GetTouchTypeFlag(const uint8_t* ent) {
+    if (*reinterpret_cast<const uint32_t*>(ent + 0x248)) return 0x8;
+    const uint32_t ragdoll = *reinterpret_cast<const uint32_t*>(ent + 0x244);
+    if (!ragdoll) return 0x400000;
+    if (*reinterpret_cast<const uint32_t*>(ent + 0x23c)) return 0x40000000;
+    const uint32_t kind = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ragdoll + 4));
+    if (kind == 1) return 0x40000;
+    if (kind == 2) return 0x80000;
+    if (kind == 3) return 0x100000;
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(multi_trigger_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(multi_trigger) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL multi_trigger(uint32_t activator, uint8_t* ent) {
+    word_at(ent, 0x378) = activator;
+    if (word_at(ent, 0x32c) == 0x1c || word_at(ent, 0x328)) return;
+    const float wait = *reinterpret_cast<const float*>(ent + 0x384);
+    if (wait > title_global<float>(0x0083eafc)) {
+        // Wait again: next think in (wait + random * spread) seconds.
+        word_at(ent, 0x32c) = 0x12;
+        const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+        const int32_t now = title_global<int32_t>(0x0098540c);                 // level.time
+        float f = static_cast<float>(r) * title_global<float>(0x0083ecf8);
+        f = f - title_global<float>(0x0083eb20);
+        f = f * *reinterpret_cast<const float*>(ent + 0x388);
+        f = f + *reinterpret_cast<const float*>(ent + 0x384);
+        f = f * title_global<float>(0x0083ec74);
+        word_at(ent, 0x328) = static_cast<uint32_t>(now - static_cast<int32_t>(f));
+        return;
+    }
+    word_at(ent, 0x338) = 0;
+    word_at(ent, 0x328) = title_global<uint32_t>(0x0098540c) + 1;
+    word_at(ent, 0x32c) = 0xc;
+}
+
+void XB_CDECL Ent_Callback348Stub2() {}
+
+// Actor_GetProneBlend (0x002ad770): prone state in ESI, time in ECX; the XMM0 result's bits.
+PLATFORM_ASM_ENTRY(actor_get_prone_blend_call,
+                   "pushl %esi\n"
+                   "movl 8(%esp), %esi\n"
+                   "movl 12(%esp), %ecx\n"
+                   "movl $0x002ad770, %eax\n"
+                   "call *%eax\n"
+                   "movd %xmm0, %eax\n"
+                   "popl %esi\n"
+                   "ret")
+
+PLATFORM_ASM_ENTRY(Actor_ExitProne_entry,
+                   "pushl %eax\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_ExitProne) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_ExitProne(uint8_t* actor, int32_t duration) {
+    uint8_t* const prone = actor + 0x198;
+    const int32_t start = static_cast<int32_t>(word_at(prone, 4));
+    if (!start || word_at(prone, 0)) return;
+    const int32_t blend = static_cast<int32_t>(word_at(prone, 8));
+    if (blend) {
+        const int32_t now = title_global<int32_t>(0x0098540c);  // level.time
+        if (blend < 0) {
+            if (start - blend < now) {
+                word_at(prone, 4) = 0;
+                return;
+            }
+        } else if (blend + start < now) {
+            word_at(prone, 8) = 0;
+        }
+    }
+    const int32_t current = static_cast<int32_t>(word_at(actor, 0x1a0));
+    if (current && duration != current) {
+        const uint32_t bits = actor_get_prone_blend_call(prone, title_global<int32_t>(0x0098540c));
+        const int32_t now = title_global<int32_t>(0x0098540c);
+        float fraction;
+        std::memcpy(&fraction, &bits, sizeof fraction);
+        const float elapsed = static_cast<float>(duration) * fraction;
+        word_at(actor, 0x1a0) = static_cast<uint32_t>(-duration);
+        word_at(actor, 0x19c) = static_cast<uint32_t>(now - static_cast<int32_t>(elapsed));
+        return;
+    }
+    word_at(actor, 0x19c) = title_global<uint32_t>(0x0098540c);
+    word_at(actor, 0x1a0) = static_cast<uint32_t>(-duration);
+}
+
+void XB_CDECL Use_Multi(uint8_t* ent, uint32_t, uint32_t activator) { multi_trigger(activator, ent); }
+
+namespace {
+
+// The client's (+0x23c) vehicle: flags 0x100000 set and 0x400000 clear in the client's +0xc0,
+// the entity of the handle at +0x1a0.
+bool client_on_vehicle(const uint8_t* ent) {
+    const uint32_t client = *reinterpret_cast<const uint32_t*>(ent + 0x23c);
+    if (!client) return false;
+    const uint32_t flags = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(client + 0xc0));
+    return (flags & 0x100000) && !(flags & 0x400000);
+}
+
+const uint8_t* vehicle_def_of(const uint8_t* vehicle) {
+    const int16_t def = *reinterpret_cast<const int16_t*>(vehicle + 0x178);
+    return title_global<const uint8_t*>(0x00950a28 + def * 4);  // g_vehicleDefs
+}
+
+}  // namespace
+
+uint32_t XB_THISCALL G_ClientInOpenVehicle(const uint8_t* ent) {
+    if (!client_on_vehicle(ent)) return 0;
+    const uint32_t* const handle = reinterpret_cast<const uint32_t*>(ent + 0x1a0);
+    if (!G_EntHandleToEnt(handle)) return 0;
+    const uint32_t vehicle = *reinterpret_cast<const uint32_t*>(G_EntHandleToEnt(handle) + 0x248);
+    if (!vehicle) return 0;
+    const uint8_t* const def = vehicle_def_of(reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(vehicle)));
+    return *reinterpret_cast<const uint32_t*>(def + 0x3c) != 0;
+}
+
+uint32_t XB_THISCALL G_ClientInVehicle(const uint8_t* ent) {
+    if (!client_on_vehicle(ent)) return 0;
+    const uint32_t* const handle = reinterpret_cast<const uint32_t*>(ent + 0x1a0);
+    if (!*handle) return 0;
+    const uint32_t vehicle = *reinterpret_cast<const uint32_t*>(G_EntHandleToEnt(handle) + 0x248);
+    if (!vehicle) return 0;
+    const uint8_t* const def = vehicle_def_of(reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(vehicle)));
+    if (*reinterpret_cast<const int16_t*>(def + 0x20) == 5) return 0;
+    if (*reinterpret_cast<const uint32_t*>(def + 0x3c)) return 0;
+    return 1;
+}
+
+uint8_t* XB_THISCALL G_GetPlayerTurret(const uint8_t* ent) {
+    const uint32_t client = *reinterpret_cast<const uint32_t*>(ent + 0x23c);
+    if (!client) return nullptr;
+    if (!(*reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(client + 0xc0)) & 0x100000)) return nullptr;
+    const uint32_t* const handle = reinterpret_cast<const uint32_t*>(ent + 0x1a0);
+    if (!*handle) return nullptr;
+    uint8_t* const turret = G_EntHandleToEnt(handle);
+    return (word_at(turret, 0x134) & 0x200000) ? turret : nullptr;
+}
+
+PLATFORM_ASM_ENTRY(G_VehicleCountRider_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_VehicleCountRider) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_VehicleCountRider(uint8_t* ent, uint32_t entering) {
+    // The rider (handle +0x1a0, inlined G_EntHandleToEnt) unless it is the player
+    // (0x0095f534 +4): the vehicle's (+0x248) count at +0x2fc goes up or down.
+    const uint32_t value = word_at(ent, 0x1a0);
+    uint8_t* const vehicle = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x248)));
+    const uint32_t index = value & 0xfff;
+    uint32_t rider = 0;
+    if (index < 0x540 && (value >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        rider = title_global<uint32_t>(0x0097a968 + index * 8);
+    const uint32_t level = title_global<uint32_t>(0x0095f534);
+    if (rider == title_global<uint32_t>(level + 4)) return level;
+    uint32_t count = word_at(vehicle, 0x2fc);
+    if (entering)
+        ++count;
+    else
+        --count;
+    word_at(vehicle, 0x2fc) = count;
+    return count;
+}
+
+PLATFORM_ASM_ENTRY(Add_AmmoClips_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Add_AmmoClips) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Add_AmmoClips(uint32_t weapon, int32_t clips, uint8_t* ent) {
+    if (!weapon || clips <= 0) return;
+    const uint8_t* const def = title_global<const uint8_t**>(0x0095f4d8)[weapon];  // bg_weaponDefs
+    if (!def) return;
+    uint8_t* const ps = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x23c)));
+    const int32_t clip_size = *reinterpret_cast<const int32_t*>(def + 0x5a8);
+    int32_t amount = clip_size * clips;
+    if (*reinterpret_cast<const int32_t*>(def + 0x9c) == 4) amount = clips;
+    const uint32_t clip_index = *reinterpret_cast<const uint32_t*>(def + 0x598);
+    const uint32_t ammo_index = *reinterpret_cast<const uint32_t*>(def + 0x5a0);
+    const int32_t room = BG_AmmoRoomForWeapon(weapon, ps);
+    int32_t& ammo = *reinterpret_cast<int32_t*>(ps + 0x280 + ammo_index * 4);
+    if (*reinterpret_cast<const uint32_t*>(def + 0x6ec)) {
+        const int32_t total = ammo + amount;
+        ammo = total;
+        if (total > room) ammo = room;
+        if (*reinterpret_cast<const int32_t*>(def + 0x9c) == 4 && ammo > 4) ammo = 4;
+        return;
+    }
+    const int32_t size = *reinterpret_cast<const int32_t*>(def + 0x5a8);
+    int32_t added = amount + (ammo - size);
+    if (added >= room) added = room;
+    ammo = size;
+    *reinterpret_cast<int32_t*>(ps + 0x110 + clip_index * 4) += added;
+}
+
+namespace {
+
+uint32_t word_of(const uint8_t* base, uint32_t offset) { return *reinterpret_cast<const uint32_t*>(base + offset); }
+
+uint32_t ent_address(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Fill_Clip_entry,
+                   "pushl %esi\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Fill_Clip) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Fill_Clip(int32_t weapon, uint8_t* ps) {
+    // The def is read before the weapon is checked, as the original does.
+    const uint8_t* const def = title_global<const uint8_t**>(0x0095f4d8)[weapon];  // bg_weaponDefs
+    const uint32_t ammo_index = *reinterpret_cast<const uint32_t*>(def + 0x5a0);
+    const uint32_t clip_index = *reinterpret_cast<const uint32_t*>(def + 0x598);
+    if (weapon <= 0 || weapon > title_global<int32_t>(0x0095f4d4)) return;  // bg_lastWeaponIndex
+    int32_t& ammo = *reinterpret_cast<int32_t*>(ps + 0x280 + ammo_index * 4);
+    int32_t& reserve = *reinterpret_cast<int32_t*>(ps + 0x110 + clip_index * 4);
+    int32_t moved = title_global<int32_t>(0x00935338 + ammo_index * 4) - ammo;
+    const int32_t available = reserve;
+    if (moved > available) moved = available;
+    if (!moved) return;
+    reserve = available - moved;
+    ammo += moved;
+}
+
+PLATFORM_ASM_ENTRY(Pickup_ClipsForAllWeapons_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Pickup_ClipsForAllWeapons) "addl $4, %esp\n"
+                   "ret")
+
+int32_t XB_CDECL Pickup_ClipsForAllWeapons(uint8_t* ent) {
+    // Two clips for each of the four weapons in the client's slots +0x3f9..+0x3fc.
+    const uint8_t* const client = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x23c)));
+    for (uint32_t slot = 0x3f9; slot <= 0x3fc; ++slot)
+        Add_AmmoClips(static_cast<uint32_t>(static_cast<int32_t>(static_cast<int8_t>(client[slot]))), 2, ent);
+    return -1;
+}
+
+PLATFORM_ASM_ENTRY(G_ClientFreeHeldEntity_entry,
+                   "pushl %edx\n" PLATFORM_ASM_CALL(G_ClientFreeHeldEntity) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL G_ClientFreeHeldEntity(uint8_t* ent) {
+    // The entity at the client's +0x5f0 is cleared and freed next frame (think 0xc).
+    uint8_t* const held =
+        reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x23c))), 0x5f0)));
+    if (!held) return;
+    word_at(held, 0x29c) = 0;
+    word_at(held, 0x134) = 0;
+    word_at(held, 0x1a0) = 0;
+    word_at(held, 0x328) = title_global<uint32_t>(0x0098540c) + 1;
+    word_at(held, 0x32c) = 0xc;
+    word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(ent, 0x23c))), 0x5f0) = 0;
+}
+
+PLATFORM_ASM_ENTRY(Player_PushAwayFromEntity_entry,
+                   "pushl %edi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Player_PushAwayFromEntity) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Player_PushAwayFromEntity(const uint8_t* other, uint8_t* player) {
+    // Entities with flag 0x4000/0x8000 (+0x134) push the player's velocity (client +0x10/+0x14)
+    // away within 30 units (horizontal), unless the client's +0xc0 has 0x6000, +0x3cc is set,
+    // or the client's timers (+0x620 + 1000, +0x624 + 500) say it was pushed recently: then 1.
+    if (!(other[0x135] & 0xc0)) return 0;
+    uint8_t* const client = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(player, 0x23c)));
+    if (client[0xc1] & 0x60) return 0;
+    if (*reinterpret_cast<const uint32_t*>(player + 0x3cc)) return 0;
+    const int32_t now = title_global<int32_t>(0x0098540c);
+    if (now < *reinterpret_cast<const int32_t*>(client + 0x624) + 500 &&
+        now >= *reinterpret_cast<const int32_t*>(client + 0x620) + 1000)
+        return 1;
+    float dir[2];
+    dir[0] = *reinterpret_cast<const float*>(player + 0x140) - *reinterpret_cast<const float*>(other + 0x140);
+    dir[1] = *reinterpret_cast<const float*>(player + 0x144) - *reinterpret_cast<const float*>(other + 0x144);
+    const float dx2 = dir[0] * dir[0];
+    const float dy2 = dir[1] * dir[1];
+    const float dist2 = dy2 + dx2;
+    if (dist2 >= title_global<float>(0x0083ee3c)) return 0;
+    // (30 - sqrt(dist2)) * 0x008ddaa0 on the x87.
+    long double push = platform_x87_sqrt_ext(static_cast<long double>(dist2));
+    push = static_cast<long double>(title_global<float>(0x0083ee38)) - push;
+    push = push * static_cast<long double>(title_global<float>(0x008ddaa0));
+    const float speed = static_cast<float>(push);
+    Vec2Normalize(dir);
+    *reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(player, 0x23c))) + 0x10) =
+        platform_x87_mul(speed, dir[0]);
+    *reinterpret_cast<float*>(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_at(player, 0x23c))) + 0x14) =
+        platform_x87_mul(speed, dir[1]);
+    return 1;
+}
+
+void XB_CDECL BodySink(uint8_t* ent) {
+    const int32_t now = title_global<int32_t>(0x0098540c);
+    if (now - static_cast<int32_t>(word_at(ent, 0x2f0)) > 6500) {
+        word_at(ent, 0xd0) = 0;
+        SV_UnlinkEntity(ent + 0xd0);
+        ent[0x294] = 0;
+        return;
+    }
+    const float z = *reinterpret_cast<const float*>(ent + 0x28) - title_global<float>(0x0083eb20);
+    word_at(ent, 0x328) = static_cast<uint32_t>(now + 1);
+    *reinterpret_cast<float*>(ent + 0x28) = z;
+}
+
+PLATFORM_ASM_ENTRY(G_FindEntityByStringField_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_FindEntityByStringField) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL G_FindEntityByStringField(const uint8_t* list, const ScriptString* key, uint32_t* args) {
+    // args[0] = the field offset; the original passes that slot as the search's result slot.
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(list + 0x2aac);
+    const uint32_t first = ent_address(list + 0x2ab0);
+    uint32_t block[4] = {ent_address(args), 0, first, ent_address(list + 0x2ab0 + count * 4)};
+    ScriptString_Copy(reinterpret_cast<ScriptString*>(&block[1]), key);
+    G_EntityArray_FindByStringField(args[0], block);
+    const uint32_t found = args[0];
+    if (found == ent_address(list + 0x2ab0 + *reinterpret_cast<const uint32_t*>(list + 0x2aac) * 4)) return 0;
+    return *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(found));
+}
+
+PLATFORM_ASM_ENTRY(G_EntityArray_FindByStringField_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_EntityArray_FindByStringField) "addl $8, %esp\n"
+                   "ret $16")
+
+uint32_t XB_CDECL G_EntityArray_FindByStringField(uint32_t field, uint32_t* args) {
+    // args: {result slot, key (a by-value ScriptString the callee releases), begin, end}. The
+    // result slot doubles as the temporary string, as in the original.
+    uint32_t* const result = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(args[0]));
+    ScriptString* const temp = reinterpret_cast<ScriptString*>(&args[0]);
+    ScriptString* const key = reinterpret_cast<ScriptString*>(&args[1]);
+    using StringOp = void XB_THISCALL(ScriptString*);
+    ScriptString_FromRep(temp, nullptr);
+    uint32_t at = args[2];
+    const uint32_t end = args[3];
+    for (; at != end; at += 4) {
+        const uint32_t ent = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(at));
+        if (!ent) continue;
+        title_function<void XB_THISCALL(ScriptString*, uint32_t)>(0x0011d600)(temp, ent + field);  // ScriptString_Assign
+        const uint32_t rep = args[0];
+        if (!rep || !(rep + 6) || !*reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(rep + 6))) continue;
+        if (ScriptString_EqualsString(temp, key)) break;
+    }
+    *result = at;
+    title_function<StringOp>(0x0011d640)(temp);  // ScriptString_Release
+    title_function<StringOp>(0x0011d640)(key);   // ScriptString_Release
+    return ent_address(result);
+}
+
+namespace {
+
+const uint8_t* vehicle_def(const uint8_t* vehicle) {
+    const int16_t def = *reinterpret_cast<const int16_t*>(vehicle + 0x178);
+    return title_global<const uint8_t*>(0x00950a28 + def * 4);  // g_vehicleDefs
+}
+
+// A tank's entity counts while it has a vehicle (+0x248), health (+0x350 > 0) and no rider
+// handle (+0x1a0).
+bool tank_entity_alive(const uint8_t* ent) {
+    return *reinterpret_cast<const uint32_t*>(ent + 0x248) && *reinterpret_cast<const int32_t*>(ent + 0x350) > 0 &&
+           !*reinterpret_cast<const uint32_t*>(ent + 0x1a0);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Vehicle_GetTankEntityNum_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_GetTankEntityNum) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t* XB_CDECL Vehicle_GetTankEntityNum(uint32_t index, uint32_t* out) {
+    // Vehicle slot index (0x0098537c, 0x340 bytes each): a type-2 vehicle with an entity
+    // (+0x170) and +0x190 set whose entity is alive and unridden hands out the entity number (+0x224).
+    const uint8_t* const vehicle = title_global<const uint8_t*>(0x0098537c) + index * 0x340;
+    const uint32_t* const handle = reinterpret_cast<const uint32_t*>(vehicle + 0x170);
+    if (*handle && *reinterpret_cast<const int16_t*>(vehicle_def(vehicle) + 0x20) == 2 &&
+        *reinterpret_cast<const uint32_t*>(vehicle + 0x190)) {
+        const uint8_t* const ent = G_EntHandleToEnt(handle);
+        if (tank_entity_alive(ent)) {
+            *out = *reinterpret_cast<const uint32_t*>(ent + 0x224);
+            return out;
+        }
+    }
+    *out = 0;
+    return out;
+}
+
+PLATFORM_ASM_ENTRY(Veh_GetEntTankInfo_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Veh_GetEntTankInfo) "addl $12, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Veh_GetEntTankInfo(int32_t* slot, uint8_t* flag, uint32_t handle) {
+    if (!title_global<uint32_t>(0x00986008)) return 0;  // g_compassMarkersEnabled (AL)
+    // Inlined G_EntHandleToEnt; an invalid handle reads entity 0's fields (null + offset).
+    const uint32_t index = handle & 0xfff;
+    uint32_t ent = 0;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint32_t>(0x0097a968 + index * 8);
+    const uint8_t* const e = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(ent));
+    if (!tank_entity_alive(e)) return 0;
+    const uint8_t* const vehicle = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(word_of(e, 0x248)));
+    if (!word_of(vehicle, 0x170)) return 0;
+    const int16_t type = *reinterpret_cast<const int16_t*>(vehicle_def(vehicle) + 0x20);
+    if (type != 2 && type != 1) return 0;
+    if (!word_of(vehicle, 0x190)) return 0;
+    if (slot) *slot = static_cast<int32_t>(vehicle - title_global<const uint8_t*>(0x0098537c)) / 0x340;
+    if (flag) *flag = word_of(vehicle, 0x194) != 0;
+    return 1;
+}
+
+uint32_t XB_REGS3 XB_CDECL G_PlayerCanUseTurret(uint32_t, const uint8_t* vehicle, const uint8_t* player) {
+    // The player (ECX) has a client not on a turret/vehicle (+0xc0 flag 0x100000) and no rider handle;
+    // the vehicle entity (EDX) has none either, +0x2fc <= 1, health, and flag 0x200000 (+0x134).
+    const uint32_t client = word_of(player, 0x23c);
+    if (!client) return 0;
+    if (*reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(client + 0xc0)) & 0x100000) return 0;
+    if (word_of(player, 0x1a0)) return 0;
+    if (word_of(vehicle, 0x1a0)) return 0;
+    if (*reinterpret_cast<const float*>(vehicle + 0x2fc) > title_global<float>(0x0083eb20)) return 0;
+    if (*reinterpret_cast<const int32_t*>(vehicle + 0x350) <= 0) return 0;
+    return (word_of(vehicle, 0x134) >> 0x15) & 1;
+}
+
+void XB_CDECL Think_BoostNearbyPlayer(uint8_t* ent) {
+    // Until level.time passes +0x38c (then think 0xc frees it) it thinks every 100 ms and lifts
+    // the player within 512 units: +24 upward velocity, and once (+0x30 = 50) flag 0x200.
+    const float now = static_cast<float>(title_global<int32_t>(0x0098540c));
+    if (now > *reinterpret_cast<const float*>(ent + 0x38c)) word_at(ent, 0x32c) = 0xc;
+    word_at(ent, 0x328) = title_global<uint32_t>(0x0098540c) + 100;
+    const uint8_t* const player = G_FindEntityByIntField(reinterpret_cast<const uint8_t*>(uintptr_t{0x0097a8c0}), 0x260,
+                                                         title_global<int32_t>(0x0097a75c));  // scr_const_player
+    if (!player) return;
+    // The distance on the x87, compared unrounded.
+    const float* const a = reinterpret_cast<const float*>(player + 0x140);
+    const float* const b = reinterpret_cast<const float*>(ent + 0x140);
+    const long double dx = static_cast<long double>(a[0]) - static_cast<long double>(b[0]);
+    const long double dy = static_cast<long double>(a[1]) - static_cast<long double>(b[1]);
+    const long double dz = static_cast<long double>(a[2]) - static_cast<long double>(b[2]);
+    long double sum = dz * dz;
+    sum = sum + dy * dy;
+    sum = sum + dx * dx;
+    const long double distance = platform_x87_sqrt_ext(sum);
+    if (distance > static_cast<long double>(title_global<float>(0x0083ebf4))) return;
+    uint8_t* client = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_of(player, 0x23c)));
+    word_at(client, 0x10) = word_at(client, 0x10);
+    word_at(client, 0x14) = word_at(client, 0x14);
+    *reinterpret_cast<float*>(client + 0x18) = *reinterpret_cast<const float*>(client + 0x18) + title_global<float>(0x0083ef04);
+    client = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_of(player, 0x23c)));
+    if (word_at(client, 0x30)) return;
+    word_at(client, 0x30) = 0x32;
+    word_at(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(word_of(player, 0x23c))), 0x2c) |= 0x200;
+}
+
+PLATFORM_ASM_ENTRY(G_FloatOnWater_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_FloatOnWater) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL G_FloatOnWater(uint8_t* ent) {
+    // Puts the entity on the water surface (Water_GetHeight at its x/y plus the model's
+    // height offset, +0x250 -> +0xf8) with a stationary trajectory.
+    const float x = *reinterpret_cast<const float*>(ent + 0x140);
+    const float y = *reinterpret_cast<const float*>(ent + 0x144);
+    float offset = 0.0f;
+    const uint32_t model = word_at(ent, 0x250);
+    if (model) offset = static_cast<float>(*reinterpret_cast<const int16_t*>(static_cast<uintptr_t>(model + 0xf8)));
+    const long double height = static_cast<long double>(Water_GetHeight(0, x, y)) + static_cast<long double>(offset);
+    const float z = static_cast<float>(height);
+    float* const base = reinterpret_cast<float*>(ent + 0x20);
+    base[2] = z;
+    base[0] = x;
+    base[1] = y;
+    word_at(ent, 0x14) = 0;
+    word_at(ent, 0x18) = 0;
+    word_at(ent, 0x1c) = 0;
+    float* const delta = reinterpret_cast<float*>(ent + 0x2c);
+    delta[2] = 0.0f;
+    delta[1] = 0.0f;
+    delta[0] = 0.0f;
+    float* const current = reinterpret_cast<float*>(ent + 0x140);
+    current[0] = x;
+    current[1] = y;
+    current[2] = z;
+}
+
 
 }  // namespace game
