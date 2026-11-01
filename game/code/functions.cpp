@@ -2027,6 +2027,7 @@ const Function kFunctions[] = {
     {"PhysContact140_GetRelativeVelocity", 0x000bcb70, 0, code(&PhysContact140_GetRelativeVelocity), 4, Result::Eax, Status::Compare},
     {"PhysContact_GetAnchorCrossTerm", 0x000bcc60, 0, code(&PhysContact_GetAnchorCrossTerm), 0, Result::St0, Status::Compare},
     {"PhysIsland_SolveIterations", 0x000bccc0, 0, code(&PhysIsland_SolveIterations_entry), 12, Result::None, Status::Compare},
+    {"PhysWorld_BuildIslands", 0x000bd380, 0, code(&PhysWorld_BuildIslands), 4, Result::None, Status::Compare},
     {"PhysContact_Init", 0x000bddd0, 0, code(&PhysContact_Init), 28, Result::None, Status::Compare},
     {"PhysContact140_Init", 0x000bdfa0, 0, code(&PhysContact140_Init), 20, Result::None, Status::Compare},
     {"PhysAngularContact_Init", 0x000be080, 0, code(&PhysAngularContact_Init), 24, Result::None, Status::Compare},

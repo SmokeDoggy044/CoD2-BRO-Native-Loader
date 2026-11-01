@@ -4931,4 +4931,137 @@ void XB_CDECL PhysIsland_SolveIterations(uint8_t* island, uint32_t entry_esp, in
     title_global<int32_t>(0x0090a860) = pass;
 }
 
+
+namespace {
+
+// Island nodes (0x3c, world +0x1c8 array): +0..+0x1c constraint lists by kind, +0x20 body, +0x24 next node,
+// +0x28 last node, +0x2c body count (the first node of an island holds the totals). The larger island
+// takes the smaller one's nodes (ties: the first body's), and their bodies point at it (+0x154).
+void island_merge(uint8_t* into, uint8_t* from) {
+    at<uint8_t*>(at<uint8_t*>(into, 0x28), 0x24) = from;
+    uint8_t* const last = at<uint8_t*>(from, 0x28);
+    const int32_t count = at<int32_t>(into, 0x2c);
+    at<uint8_t*>(into, 0x28) = last;
+    at<int32_t>(into, 0x2c) = count + at<int32_t>(from, 0x2c);
+    for (uint8_t* n = from; n; n = at<uint8_t*>(n, 0x24)) at<uint8_t*>(at<uint8_t*>(n, 0x20), 0x154) = into;
+    at<uint32_t>(from, 0x28) = 0;
+    at<uint32_t>(from, 0x2c) = 0;
+}
+
+// The islands of a constraint's two bodies (+0 / +4) joined when both have one and they differ.
+void island_join(const uint8_t* constraint) {
+    uint8_t* const a = at<uint8_t*>(constraint, 0);
+    if (!a) return;
+    uint8_t* const b = at<uint8_t*>(constraint, 4);
+    if (!b) return;
+    uint8_t* const na = at<uint8_t*>(a, 0x154);
+    if (!na) return;
+    uint8_t* const nb = at<uint8_t*>(b, 0x154);
+    if (!nb || na == nb) return;
+    if (at<int32_t>(na, 0x2c) >= at<int32_t>(nb, 0x2c))
+        island_merge(na, nb);
+    else
+        island_merge(nb, na);
+}
+
+void count_add(uint8_t* body, uint32_t offset, int32_t n) {
+    if (body) at<int32_t>(body, offset) += n;
+}
+
+// The world's constraint pools by island list slot (+0 is the pair records at +0x200).
+constexpr uint32_t kIslandPools[7] = {0x22c, 0x240, 0x254, 0x268, 0x27c, 0x290, 0x2a4};
+
+}  // namespace
+
+// Islands: every body (+0x1ec) gets a node; contact pairs (+0x200: +0x15c += the larger of their two lists'
+// counts) and each constraint pool (+0x158 per body; the 0x290 pool with flag 1 of +0xa4 also +0x15c) join
+// their bodies' islands. The islands with bodies go to *out (linked by +0x38, lists cleared), then each
+// constraint is linked (+8) into its island's list for its kind (the first body's island, else the second's).
+void XB_THISCALL PhysWorld_BuildIslands(uint8_t* world, uint8_t** out) {
+    at<uint32_t>(world, 0x1d0) = 0;
+    at<uint32_t>(world, 0x198) = 0;
+    at<uint32_t>(world, 0x19c) = 0;
+    at<uint32_t>(world, 0x194) = 0;
+    {
+        uint8_t** it = at<uint8_t**>(world, 0x1d8);
+        uint8_t** const end = it + at<int32_t>(world, 0x1e4);
+        for (; it != end; ++it) {
+            at<uint32_t>(*it, 0x158) = 0;
+            at<uint32_t>(*it, 0x15c) = 0;
+            at<uint32_t>(*it, 0x154) = 0;
+        }
+    }
+    {
+        uint8_t** it = at<uint8_t**>(world, 0x1ec);
+        uint8_t** const end = it + at<int32_t>(world, 0x1f8);
+        for (; it != end; ++it) {
+            uint8_t* const body = *it;
+            at<uint32_t>(body, 0x158) = 0;
+            at<uint32_t>(body, 0x15c) = 0;
+            uint8_t* node = nullptr;
+            const int32_t used = at<int32_t>(world, 0x1d0);
+            if (used < at<int32_t>(world, 0x1cc)) {
+                node = at<uint8_t*>(world, 0x1c8) + used * 0x3c;
+                at<int32_t>(world, 0x1d0) = used + 1;
+            }
+            at<uint8_t*>(node, 0x20) = body;
+            at<uint8_t*>(body, 0x154) = node;
+            at<uint8_t*>(node, 0x28) = node;
+            at<uint32_t>(node, 0x24) = 0;
+            at<uint32_t>(node, 0x2c) = 1;
+        }
+    }
+    {
+        uint8_t** it = at<uint8_t**>(world, 0x200);
+        uint8_t** const end = it + at<int32_t>(world, 0x20c);
+        for (; it != end; ++it) {
+            const uint8_t* const pair = *it;
+            int32_t n = at<int32_t>(at<uint8_t*>(pair, 0x24), 8);
+            const int32_t other = at<int32_t>(at<uint8_t*>(pair, 0x28), 8);
+            if (n <= other) n = other;
+            count_add(at<uint8_t*>(pair, 0), 0x15c, n);
+            count_add(at<uint8_t*>(pair, 4), 0x15c, n);
+            island_join(*it);
+        }
+    }
+    for (const uint32_t pool : kIslandPools) {
+        uint8_t** it = at<uint8_t**>(world, pool);
+        uint8_t** const end = it + at<int32_t>(world, pool + 0xc);
+        for (; it != end; ++it) {
+            const uint8_t* const c = *it;
+            count_add(at<uint8_t*>(c, 0), 0x158, 1);
+            count_add(at<uint8_t*>(c, 4), 0x158, 1);
+            if (pool == 0x290 && (c[0xa4] & 1)) {
+                count_add(at<uint8_t*>(c, 0), 0x15c, 1);
+                count_add(at<uint8_t*>(c, 4), 0x15c, 1);
+            }
+            island_join(*it);
+        }
+    }
+    *out = nullptr;
+    {
+        uint8_t* node = at<uint8_t*>(world, 0x1c8);
+        uint8_t* const end = node + at<int32_t>(world, 0x1d0) * 0x3c;
+        for (; node != end; node += 0x3c) {
+            if (at<int32_t>(node, 0x2c) <= 0) continue;
+            at<uint8_t*>(node, 0x38) = *out;
+            *out = node;
+            for (uint32_t i = 0; i < 0x20; i += 4) at<uint32_t>(node, i) = 0;
+        }
+    }
+    for (uint32_t slot = 0; slot < 8; ++slot) {
+        const uint32_t pool = slot == 0 ? 0x200 : kIslandPools[slot - 1];
+        uint8_t** it = at<uint8_t**>(world, pool);
+        uint8_t** const end = it + at<int32_t>(world, pool + 0xc);
+        for (; it != end; ++it) {
+            uint8_t* const c = *it;
+            uint8_t* const a = at<uint8_t*>(c, 0);
+            uint8_t* node = a ? at<uint8_t*>(a, 0x154) : nullptr;
+            if (!node) node = at<uint8_t*>(at<uint8_t*>(c, 4), 0x154);
+            at<uint32_t>(c, 8) = at<uint32_t>(node, slot * 4);
+            at<uint8_t*>(node, slot * 4) = c;
+        }
+    }
+}
+
 }  // namespace game

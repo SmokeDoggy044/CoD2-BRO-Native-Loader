@@ -430,4 +430,7 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL PhysIsland_SolveIterations(uint8_t* isl
                                                                    int32_t quiet_passes, float tolerance);
 extern "C" void PhysIsland_SolveIterations_entry(void);
 
+// 0x000bd380: the substep's islands (bodies joined through their constraints) to *out, constraints sorted in.
+void XB_THISCALL PhysWorld_BuildIslands(uint8_t* world, uint8_t** out);
+
 }  // namespace game
