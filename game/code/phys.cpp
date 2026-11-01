@@ -5838,4 +5838,173 @@ void XB_CDECL Phys_RemoveEntity(uint8_t* entity) {
     }
 }
 
+namespace {
+
+// The world body (+8) of the entity's first physics object (0x008fccf0, count 0x008fcde4), or 0.
+uint32_t entity_body(const void* entity) {
+    const uint32_t end = 0x008fccf0 + title_global<uint32_t>(0x008fcde4) * 4;
+    for (uint32_t it = 0x008fccf0; it != end; it += 4) {
+        const uint8_t* const object = *reinterpret_cast<uint8_t* const*>(uintptr_t{it});
+        if (at<const void*>(object, 4) == entity) return at<uint32_t>(object, 8);
+    }
+    return 0;
+}
+
+float bits_float(uint32_t bits) {
+    float f;
+    std::memcpy(&f, &bits, 4);
+    return f;
+}
+
+// Point copies as the original passes them: `a` keeps its stack slot's never-written w (zero in tests).
+void copy_points(float* a, const float* from_a, float* b, const float* from_b) {
+    copy_words(a, from_a);
+    a[3] = 0.0f;
+    copy_words(b, from_b);
+}
+
+}  // namespace
+
+// ESI point a, EDX entity a, stack (point b, entity b, two values): a 0x60 joint between the entities'
+// bodies (both needed) at the points. No callers or stored pointers (dead).
+PLATFORM_ASM_ENTRY(Phys_JointEntitiesAtPoints_entry,
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl 16(%esp)\n"
+                   "pushl %edx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Phys_JointEntitiesAtPoints) "addl $24, %esp\n"
+                   "ret")
+
+void XB_CDECL Phys_JointEntitiesAtPoints(const float* point_a, const void* entity_a, const float* point_b,
+                                         const void* entity_b, uint32_t value, uint32_t target) {
+    const uint32_t body_a = entity_body(entity_a);
+    const uint32_t body_b = entity_body(entity_b);
+    if (!body_a || !body_b) return;
+    alignas(16) float a[4];
+    alignas(16) float b[4];
+    copy_points(a, point_a, b, point_b);
+    uint8_t* const c = reinterpret_cast<uint8_t*>(PhysWorld_AllocConstraint(body_a, body_b));
+    PhysConstraint60_Init(c, b, a, bits_float(value), bits_float(target));
+}
+
+// EAX entity, EDX point a, EDI point b, stack (two values): a 0x60 joint between the entity's body and the
+// static world body. No callers or stored pointers (dead).
+PLATFORM_ASM_ENTRY(Phys_JointEntityToWorld_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Phys_JointEntityToWorld) "addl $20, %esp\n"
+                   "ret")
+
+void XB_CDECL Phys_JointEntityToWorld(const void* entity, const float* point_a, const float* point_b, uint32_t value,
+                                      uint32_t target) {
+    const uint32_t body = entity_body(entity);
+    if (!body) return;
+    alignas(16) float a[4];
+    alignas(16) float b[4];
+    copy_points(a, point_a, b, point_b);
+    const uint32_t world = word_addr(PhysWorld_GetStaticBody());
+    uint8_t* const c = reinterpret_cast<uint8_t*>(PhysWorld_AllocConstraint(body, world));
+    PhysConstraint60_Init(c, b, a, bits_float(value), bits_float(target));
+}
+
+// EAX entity, EDX point a, EDI point b: a 0x50 attachment of the entity's body to the static world body.
+// No callers or stored pointers (dead).
+PLATFORM_ASM_ENTRY(Phys_AttachEntityToWorld_entry,
+                   "pushl %edi\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Phys_AttachEntityToWorld) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Phys_AttachEntityToWorld(const void* entity, const float* point_a, const float* point_b) {
+    const uint32_t body = entity_body(entity);
+    if (!body) return;
+    alignas(16) float a[4];
+    alignas(16) float b[4];
+    copy_points(a, point_a, b, point_b);
+    const uint32_t world = word_addr(PhysWorld_GetStaticBody());
+    uint8_t* const c = reinterpret_cast<uint8_t*>(uintptr_t{PhysWorld_AllocConstraint50(body, world)});
+    PhysAttach_SetAnchors(c, b, a);
+}
+
+// EAX force; stack (entity, point, scale, value): force * scale applied at the point to every world body
+// of the entity's physics objects. The point and force copies keep never-written w lanes (zero in tests).
+void XB_REGS1 XB_CDECL Phys_AddForceToEntityBodies(const float* force, const void* entity, const float* point, float scale,
+                                                   uint32_t value) {
+    const Lanes scaled = mul(splat(scale), lanes(force));
+    platform_keep(scaled);
+    const uint32_t end = 0x008fccf0 + title_global<uint32_t>(0x008fcde4) * 4;
+    for (uint32_t it = 0x008fccf0; it != end; it += 4) {
+        uint8_t* const object = *reinterpret_cast<uint8_t**>(uintptr_t{it});
+        if (at<const void*>(object, 4) != entity) continue;
+        alignas(16) float p[4];
+        alignas(16) float f[4];
+        copy_words(p, point);
+        p[3] = 0.0f;
+        store4(f, scaled);
+        f[3] = 0.0f;
+        PhysBody_AddForceAtPoint(at<uint8_t*>(object, 8), f, p, bits_float(value));
+    }
+}
+
+// ESI owner, ECX part index, EAX out: the part (owner +0x4a0) frame: x = its axis (+0x50; parts 4 and 5
+// the unit x), z = (-x.z, 0, x.x) per lane, y/z rotated by the angle +0x94 (x87 sin/cos) about x, origin
+// +0x30 - +0x98 * +0x40; w column 0, 0, 0, 1.
+PLATFORM_ASM_ENTRY(PhysPart_BuildFrame_entry,
+                   "pushl %eax\n"
+                   "pushl %ecx\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PhysPart_BuildFrame) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL PhysPart_BuildFrame(const uint8_t* owner, int32_t index, float* out) {
+    const uint8_t* const part = at<uint8_t*>(owner, 0x4a0 + static_cast<uint32_t>(index) * 4);
+    const float angle = at<float>(part, 0x94);
+    const float c = platform_x87_cos(angle);
+    const float s = platform_x87_sin(angle);
+    Lanes x = mul(lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e160})), splat(title_global<float>(0x0082e140)));
+    if (index != 5 && index != 4) x = lanes(fp(part, 0x50));
+    const Lanes swapped = {{x.v[2], x.v[1], x.v[0], x.v[3]}};
+    const Lanes z = mul(swapped, lanes(reinterpret_cast<const float*>(uintptr_t{0x008305c0})));
+    store4(out, x);
+    const Lanes y0 = lanes(reinterpret_cast<const float*>(uintptr_t{0x0082e170}));
+    store4(out + 4, add(mul(y0, splat(c)), mul(splat(s), z)));
+    store4(out + 8, sub(mul(splat(c), z), mul(y0, splat(s))));
+    const uint8_t* const p = at<uint8_t*>(owner, 0x4a0 + static_cast<uint32_t>(index) * 4);
+    store4(out + 12, sub(lanes(fp(p, 0x30)), mul(splat(at<float>(p, 0x98)), lanes(fp(p, 0x40)))));
+    out[3] = 0.0f;
+    out[7] = 0.0f;
+    out[11] = 0.0f;
+    out[15] = title_global<float>(0x0083eb20);
+}
+
+// Vehicle physics vtable slot (0x0083c5f4; three unused arguments): each wheel's (flag byte +0x130 + i)
+// suspension value +0x134 + 4i. With the contact normal (+0xe0) against the frame-rotated travel direction
+// (+0x90, frame +0x34; normal . dir < -0.001): rest (+0x120) - ((contact +0xa0 - wheel +0x50 in world) . normal)
+// / (normal . dir), clamped to [0, +0x124] (lanes 1-3 carry the rest value); else 0.
+void XB_THISCALL VehiclePhys_ComputeWheelDistances(uint8_t* phys, uint32_t, uint32_t, uint32_t) {
+    const Lanes dir = rotate_out(at<float*>(phys, 0x34), fp(phys, 0x90));
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (!phys[0x130 + i]) {
+            at<float>(phys, 0x134 + i * 4) = 0.0f;
+            continue;
+        }
+        const Lanes n = lanes(fp(phys, 0xe0 + i * 0x10));
+        const float dn = dot3(n, dir);
+        if (!(title_global<float>(0x0083ec6c) > dn)) {
+            at<float>(phys, 0x134 + i * 4) = 0.0f;
+            continue;
+        }
+        const Lanes wheel = transform_out(at<float*>(phys, 0x34), fp(phys, 0x50 + i * 0x10));
+        const float s = dot3(sub(lanes(fp(phys, 0xa0 + i * 0x10)), wheel), n);
+        const float rest = at<float>(phys, 0x120);
+        alignas(16) float v[4] = {rest - s / dn, rest, rest, rest};
+        alignas(16) float clamped[4];
+        const float lo = 0.0f;
+        const float* const r = Vec4_ClampToScalarRange(clamped, 0, v, &lo, fp(phys, 0x124));
+        at<uint32_t>(phys, 0x134 + i * 4) = *reinterpret_cast<const uint32_t*>(r);
+    }
+}
+
 }  // namespace game

@@ -492,5 +492,24 @@ extern "C" void Phys_MapLaunchType_entry(void);
 // 0x00225ae0: EDI entity: its physics objects removed.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_RemoveEntity(uint8_t* entity);
 extern "C" void Phys_RemoveEntity_entry(void);
+// 0x00225db0: ESI point a, EDX entity a, stack (point b, entity b, value, target): a 0x60 joint (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_JointEntitiesAtPoints(const float* point_a, const void* entity_a, const float* point_b,
+                                                                   const void* entity_b, uint32_t value, uint32_t target);
+extern "C" void Phys_JointEntitiesAtPoints_entry(void);
+// 0x00225ec0: EAX entity, EDX/EDI points, stack (value, target): a 0x60 joint to the world (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_JointEntityToWorld(const void* entity, const float* point_a, const float* point_b,
+                                                                uint32_t value, uint32_t target);
+extern "C" void Phys_JointEntityToWorld_entry(void);
+// 0x00225fa0: EAX entity, EDX/EDI points: a 0x50 attachment to the world (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Phys_AttachEntityToWorld(const void* entity, const float* point_a, const float* point_b);
+extern "C" void Phys_AttachEntityToWorld_entry(void);
+// 0x00226550: ESI owner, ECX part, EAX out: the part's frame.
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysPart_BuildFrame(const uint8_t* owner, int32_t index, float* out);
+extern "C" void PhysPart_BuildFrame_entry(void);
+// 0x00226ea0: vehicle physics vtable slot: the wheels' suspension values.
+void XB_THISCALL VehiclePhys_ComputeWheelDistances(uint8_t* phys, uint32_t, uint32_t, uint32_t);
+// 0x00226890: EAX force, stack (entity, point, scale, value): force applied to the entity's bodies.
+void XB_REGS1 XB_CDECL Phys_AddForceToEntityBodies(const float* force, const void* entity, const float* point, float scale,
+                                                   uint32_t value);
 
 }  // namespace game

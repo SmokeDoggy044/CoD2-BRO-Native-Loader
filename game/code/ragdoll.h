@@ -141,5 +141,25 @@ extern "C" void Ragdoll_GetBodyScale_entry(void);
 // 0x00225c80: EDI ragdoll physics, stack dt.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Ragdoll_UpdateSettle(uint8_t* phys, float* arg);
 extern "C" void Ragdoll_UpdateSettle_entry(void);
+// 0x00226120: EDX id, stack capsule set: the capsule and its pairs released (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysRagdoll_RemoveCapsule(int32_t id, uint8_t* set);
+extern "C" void PhysRagdoll_RemoveCapsule_entry(void);
+// 0x00226200: EAX id, ESI ragdoll: a body removed (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Ragdoll_RemoveBody(int32_t id, uint8_t* ragdoll);
+extern "C" void Ragdoll_RemoveBody_entry(void);
+// 0x00226220: EAX entity: the Bip01 bone indices cached.
+void XB_REGS1 XB_CDECL Ragdoll_CacheBip01Bones(const uint8_t* entity);
+// 0x002263c0: EDX ragdoll, EDI id: the next free capsule.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PhysRagdoll_TakeBody(uint8_t* ragdoll, int32_t id);
+extern "C" void PhysRagdoll_TakeBody_entry(void);
+// 0x00226420: EAX point, ECX bone, stack (ragdoll, linear out, angular out).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Ragdoll_GetBoneVelocity(const float* point, int32_t bone, const uint8_t* ragdoll,
+                                                                float* linear, float* angular);
+extern "C" void Ragdoll_GetBoneVelocity_entry(void);
+// 0x002264f0: EBX object: its frame vectors constructed.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL RagdollFrames_Construct(uint8_t* object);
+extern "C" void RagdollFrames_Construct_entry(void);
+// 0x002279c0: EAX frame, stack capsule: its segment into the frame.
+uint8_t* XB_REGS1 XB_STDCALL RagdollCapsule_TransformSegment(const float* m, uint8_t* capsule);
 
 }  // namespace game

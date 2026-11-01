@@ -696,9 +696,15 @@ address,name,tested,matched,nan,mismatched,coverage
 00204f80,Actor_Grenade_CoverAttack,3531,3531,0,0,100.0
 00205010,Actor_Grenade_Combat,3226,3226,0,0,70.8
 00225250,RagdollDef_RemoveBody,3844,3844,0,0,100.0
-002253b0,Phys_FindBodyForEntity,1900,1900,0,0,57.9
+002253b0,Phys_FindBodyForEntity,1941,1941,0,0,57.9
 00225a40,PhysRagdoll_RestoreBoneMatrices,2384,2384,0,0,100.0
+00225db0,Phys_JointEntitiesAtPoints,2005,2005,0,0,29.9
+00225ec0,Phys_JointEntityToWorld,1926,1926,0,0,26.0
+00225fa0,Phys_AttachEntityToWorld,1893,1893,0,0,27.5
+00226120,PhysRagdoll_RemoveCapsule,1930,1930,0,0,23.9
 00226720,Vehicle_InitWheelTags,1965,1965,0,0,50.0
+00226890,Phys_AddForceToEntityBodies,1901,1901,0,0,50.0
+00226ea0,VehiclePhys_ComputeWheelDistances,3630,3630,0,0,100.0
 00231710,VehiclePhys_RebuildPendingBody,2432,2432,0,0,65.5
 00235890,R_CullPointAndRadius,3810,3810,0,0,100.0
 00235910,R_CullLocalPointAndRadius,3712,3712,0,0,100.0
