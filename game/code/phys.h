@@ -290,4 +290,19 @@ float* XB_CDECL PhysBody_WorldToRelative(float* out, const uint8_t* body, const 
 void XB_THISCALL PhysContact_ComputeBiasWithOffset(uint8_t* contact, float dt, float offset, float limit);
 float XB_THISCALL PhysContact_GetSeparation(const uint8_t* contact);
 
+// 0x000ba020: hinge setup (anchors, axes, limit axes, friction). Dead.
+void XB_THISCALL PhysHinge_Setup(uint8_t* hinge, const float* anchor_a, const float* anchor_b, const float* axis_a,
+                                 const float* axis_b, const float* reference, const float* v, float angle_lo,
+                                 float angle_hi, float friction);
+// 0x000ba2c0: angular motor contacts (island list +0x1c).
+void XB_THISCALL PhysAngularMotor_AddContacts(uint8_t* motor, uint8_t* world, float dt);
+// 0x000ba860: rows +0x10..+0x30 turned by the +0x90 rotation vector times dt (world list +0x2a4).
+void XB_THISCALL PhysFrame_RotateByVelocity(uint8_t* object, float dt);
+void XB_CDECL Phys_SphereMassProperties(float radius, float* inertia, float* mass);
+void XB_CDECL PhysBodies_GetCenterOfMass(uint8_t* const* bodies, int32_t count, float* com, float* momentum,
+                                         float* total);
+void XB_CDECL Phys_PointsBoundingSphere(const float* points, int32_t count, float* radius, float* centre);
+void XB_CDECL Phys_BoxMassProperties(const float* size, float* inertia, float* mass);
+void XB_CDECL Phys_PointsBoxCenterSize(const float* points, int32_t count, float* size, float* centre);
+
 }  // namespace game

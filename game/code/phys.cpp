@@ -3123,4 +3123,202 @@ float XB_THISCALL PhysContact_GetSeparation(const uint8_t* contact) {
     return dot3(sub(pa, pb), lanes(reinterpret_cast<const float*>(contact + 0x10)));
 }
 
+
+// Hinge setup: +0xc flags cleared, anchors +0x10 / +0x20, unit axes +0x30 (body 0), +0x40 (body
+// 1), +0x70 (reference), +0x50 = 0x000b8990(+0x30) and +0x60 = +0x30 x +0x50, the limit axes
+// +0x80 / +0x90 = normalize(rotation(+0x40, angle) * v) for both angles, +0xa0 = friction.
+// No callers, no stored pointer, no immediate: dead.
+void XB_THISCALL PhysHinge_Setup(uint8_t* hinge, const float* anchor_a, const float* anchor_b, const float* axis_a,
+                                 const float* axis_b, const float* reference, const float* v, float angle_lo,
+                                 float angle_hi, float friction) {
+    at<uint32_t>(hinge, 0xc) = 0;
+    alignas(16) float t[4];
+    std::memcpy(t, anchor_a, 16);
+    copy_words(reinterpret_cast<float*>(hinge + 0x10), t);
+    std::memcpy(t, anchor_b, 16);
+    copy_words(reinterpret_cast<float*>(hinge + 0x20), t);
+    alignas(16) float n[4];
+    copy_words(reinterpret_cast<float*>(hinge + 0x30), Vec3A_NormalizeDup(n, axis_a));
+    copy_words(reinterpret_cast<float*>(hinge + 0x40), Vec3A_NormalizeDup(n, axis_b));
+    copy_words(reinterpret_cast<float*>(hinge + 0x70), Vec3A_NormalizeDup(n, reference));
+    alignas(16) float perp[4];
+    copy_words(reinterpret_cast<float*>(hinge + 0x50),
+               title_function<float* XB_CDECL(float*, const float*)>(0x000b8990)(perp, reinterpret_cast<float*>(hinge + 0x30)));
+    store4(reinterpret_cast<float*>(hinge + 0x60), cross_lanes(lanes(reinterpret_cast<float*>(hinge + 0x30)),
+                                                               lanes(reinterpret_cast<float*>(hinge + 0x50))));
+    const float angles[2] = {angle_lo, angle_hi};
+    for (int32_t i = 0; i < 2; ++i) {
+        alignas(16) float axis[4], m[16], rotated[4], unit[4];
+        copy_words(axis, reinterpret_cast<float*>(hinge + 0x40));
+        Mat34_FromRotationVector(m, axis, angles[i]);
+        alignas(16) float vv[4];
+        std::memcpy(vv, v, 16);
+        store4(rotated, mat_rotate(m, lanes(vv)));
+        copy_words(reinterpret_cast<float*>(hinge + 0x80 + i * 0x10), Vec3A_Normalize(unit, rotated));
+    }
+    at<float>(hinge, 0xa0) = friction;
+}
+
+// Angular motor contacts (enabled byte +0xa8): the impulse words +0xb0 / +0xb8 / +0xc0 decay by
+// 0.9 first; then one contact per axis of the frame +0x10 turned by body 0's rotation (points:
+// that axis and body 1's matching row, normal: the next axis; +0xac + 8 i), range
+// +-(+0xa4 * +0xa0) dt, target -(0x000bcc60 term / dt) - (body 0's rotation * +0x90) . normal.
+void XB_THISCALL PhysAngularMotor_AddContacts(uint8_t* motor, uint8_t* world, float dt) {
+    const float decay = title_global<float>(0x0083ec18);  // 0.9
+    at<float>(motor, 0xb0) = at<float>(motor, 0xb0) * decay;
+    at<float>(motor, 0xb8) = at<float>(motor, 0xb8) * decay;
+    at<float>(motor, 0xc0) = at<float>(motor, 0xc0) * decay;
+    if (!at<uint8_t>(motor, 0xa8)) return;
+    const uint8_t* const body_a = at<uint8_t*>(motor, 0);
+    const float range = (at<float>(motor, 0xa4) * at<float>(motor, 0xa0)) * dt;
+    alignas(16) float rotation[12], frame[12], axes[12];
+    for (int32_t i = 0; i < 3; ++i) {
+        copy_words(rotation + i * 4, reinterpret_cast<const float*>(body_a) + i * 4);
+        copy_words(frame + i * 4, reinterpret_cast<const float*>(motor + 0x10) + i * 4);
+    }
+    for (int32_t i = 0; i < 3; ++i) store4(axes + i * 4, mat_rotate(rotation, lanes(frame + i * 4)));
+    alignas(16) float v[4], spin[4];
+    copy_words(v, reinterpret_cast<const float*>(motor + 0x90));
+    store4(spin, mat_rotate(reinterpret_cast<const float*>(body_a), lanes(v)));
+    const float low = 0.0f - range;
+    const float inv_dt = static_cast<float>(static_cast<long double>(title_global<float>(0x0083eb20)) / dt);
+    for (int32_t i = 0; i < 3; ++i) {
+        const uint8_t* const body_b = at<uint8_t*>(motor, 4);
+        alignas(16) float pa[4], pb[4];
+        copy_words(pa, axes + i * 4);
+        copy_words(pb, reinterpret_cast<const float*>(body_b) + i * 4);
+        const float* const n = axes + ((i + 1) % 3) * 4;
+        uint8_t* const contact = PhysContacts_Add(world, at<uint32_t>(motor, 0), word_of(pa), word_of(body_b), word_of(pb),
+                                                  word_of(n), word_of(motor + 0xac + static_cast<uint32_t>(i) * 8));
+        at<float>(contact, 0x60) = low;
+        at<float>(contact, 0x64) = range;
+        const long double term = title_function<long double XB_THISCALL(uint8_t*)>(0x000bcc60)(contact);
+        const long double t = (term * inv_dt) * title_global<float>(0x0083eb34);  // -1
+        at<float>(contact, 0x7c) = 0.0f;
+        at<float>(contact, 0x80) = 0.0f;
+        at<float>(contact, 0x78) = static_cast<float>(t);
+        const float d = dot3(lanes(spin), lanes(n));
+        uint32_t bits;
+        std::memcpy(&bits, &d, 4);
+        bits ^= 0x80000000u;
+        float neg;
+        std::memcpy(&neg, &bits, 4);
+        at<float>(contact, 0x78) = static_cast<float>(t + neg);
+    }
+}
+
+// Rows +0x10 / +0x20 / +0x30 turned by rotation(+0x90 rotation vector, dt): row = M * row.
+void XB_THISCALL PhysFrame_RotateByVelocity(uint8_t* object, float dt) {
+    alignas(16) float m[12], rows[12];
+    {
+        alignas(16) float built[16];
+        Mat34_FromRotationVector(built, reinterpret_cast<float*>(object + 0x90), dt);
+        std::memcpy(m, built, sizeof(m));
+    }
+    std::memcpy(rows, object + 0x10, sizeof(rows));
+    alignas(16) float out[12];
+    for (int32_t i = 0; i < 3; ++i) store4(out + i * 4, mat_rotate(m, lanes(rows + i * 4)));
+    for (int32_t i = 0; i < 3; ++i) copy_words(reinterpret_cast<float*>(object + 0x10 + i * 0x10), out + i * 4);
+}
+
+// Solid sphere: mass = r^3 * 4/3 pi, inertia (3 words) = mass r^2 * 0.4.
+void XB_CDECL Phys_SphereMassProperties(float radius, float* inertia, float* mass) {
+    const float m = ((radius * radius) * radius) * title_global<float>(0x007cddb0);
+    *mass = m;
+    const float i = ((m * radius) * radius) * title_global<float>(0x0083ec44);
+    inertia[0] = i;
+    inertia[1] = i;
+    inertia[2] = i;
+}
+
+// Mass-weighted centre (+0x30, weights 1 / +0x130) into com (lane 3 starts at 1 and is divided
+// too), the weighted +0xd0 sum into momentum and the total weight into total.
+void XB_CDECL PhysBodies_GetCenterOfMass(uint8_t* const* bodies, int32_t count, float* com, float* momentum,
+                                         float* total) {
+    for (uint32_t i = 0; i < 4; ++i) reinterpret_cast<uint32_t*>(com)[i] = title_global<uint32_t>(0x007cdd10 + i * 4);
+    for (uint32_t i = 0; i < 4; ++i) reinterpret_cast<uint32_t*>(momentum)[i] = title_global<uint32_t>(0x007cdb90 + i * 4);
+    *total = 0.0f;
+    const float one = title_global<float>(0x0083eb20);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint8_t* const body = bodies[i];
+        if (!body) continue;
+        const Lanes position = lanes(reinterpret_cast<const float*>(body + 0x30));
+        alignas(16) float sum[4];
+        copy_words(sum, com);
+        const float w = one / at<float>(body, 0x130);
+        const Lanes weight = splat(w);
+        store4(com, add(lanes(sum), mul(weight, position)));
+        const Lanes velocity = lanes(reinterpret_cast<const float*>(body + 0xd0));
+        copy_words(sum, momentum);
+        store4(momentum, add(lanes(sum), mul(weight, velocity)));
+        *total = *total + w;
+    }
+    store4(com, div(lanes(com), splat(*total)));
+}
+
+// Bounding sphere of `count` 12-byte points: centre = the mean (4-lane loads), radius = the
+// largest distance (x87 square root). No callers, no stored pointer, no immediate: dead.
+void XB_CDECL Phys_PointsBoundingSphere(const float* points, int32_t count, float* radius, float* centre) {
+    Lanes sum;
+    for (uint32_t i = 0; i < 4; ++i) sum.v[i] = title_global<float>(0x007cdb90 + i * 4);
+    for (int32_t i = 0; i < count; ++i) sum = add(sum, lanes(points + i * 3));
+    const Lanes mean = div(sum, splat(static_cast<float>(count)));
+    *radius = 0.0f;
+    for (int32_t i = 0; i < count; ++i) {
+        const float sq = self_dot(sub(lanes(points + i * 3), mean));
+        if (sq > *radius) *radius = sq;
+    }
+    *radius = platform_x87_sqrt(*radius);
+    alignas(16) float c[4];
+    store4(c, mean);
+    centre[0] = c[0];
+    centre[1] = c[1];
+    centre[2] = c[2];
+}
+
+// Solid box of full extents size: mass = x y z, inertia = mass / 12 * (y^2 + z^2, x^2 + z^2,
+// x^2 + y^2), summed from the 4-lane products as the title does.
+void XB_CDECL Phys_BoxMassProperties(const float* size, float* inertia, float* mass) {
+    *mass = (size[0] * size[1]) * size[2];
+    const float z = size[2];
+    const float y = size[1];
+    const float x = size[0];
+    const Lanes squares = {{x * x, y * y, z * z, x * x}};
+    const float k = ((size[0] * y) * size[2]) * title_global<float>(0x007cddb8);  // 1/12
+    const Lanes b = mul(splat(k), squares);
+    const Lanes plus_y = add(b, splat(b.v[1]));
+    const Lanes plus_z = add(b, splat(b.v[2]));
+    platform_keep(plus_y);
+    platform_keep(plus_z);
+    inertia[0] = plus_z.v[1];
+    inertia[1] = plus_z.v[0];
+    inertia[2] = plus_y.v[0];
+}
+
+// Box around `count` 12-byte points (4-lane loads): size = max - min, centre = (min + max) / 2
+// (three words each). No callers, no stored pointer, no immediate: dead.
+void XB_CDECL Phys_PointsBoxCenterSize(const float* points, int32_t count, float* size, float* centre) {
+    const Lanes big = splat(title_global<float>(0x0083eb70));    // 1e7
+    const Lanes small = splat(title_global<float>(0x0083eb74));  // -1e7
+    Lanes lo = big, hi = small;
+    for (int32_t i = 0; i < count; ++i) {
+        const Lanes p = lanes(points + i * 3);
+        if (!(lo.v[0] <= p.v[0])) lo.v[0] = p.v[0];
+        if (!(p.v[0] <= hi.v[0])) hi.v[0] = p.v[0];
+        if (less_mask(p, lo) & 2) lo.v[1] = p.v[1];
+        if (less_mask(hi, p) & 2) hi.v[1] = p.v[1];
+        if (less_mask(p, lo) & 4) lo.v[2] = p.v[2];
+        if (less_mask(hi, p) & 4) hi.v[2] = p.v[2];
+    }
+    alignas(16) float c[4], s[4];
+    store4(c, mul(splat(title_global<float>(0x0083eb24)), add(lo, hi)));
+    centre[0] = c[0];
+    centre[1] = c[1];
+    centre[2] = c[2];
+    store4(s, sub(hi, lo));
+    size[0] = s[0];
+    size[1] = s[1];
+    size[2] = s[2];
+}
+
 }  // namespace game
