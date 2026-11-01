@@ -7755,12 +7755,13 @@
 002061b0 Actor_RefreshEyeOrigin
 00206300 Actor_ThinkLinked
 00206360 Actor_Free
+00206550 Actor_CopyEyeDirection
 00206580 Actor_GetEyePosition
 002065b0 Actor_ApplySpawnTemplate
 002066e0 Sentient_EyeOrigin
 002067b0 Actor_UpdateLookAt
-00206dc0 FUN_00206dc0
-002072d0 FUN_002072d0
+00206dc0 Actor_ShotDirMissTarget
+002072d0 Actor_ShotDirToTarget
 002076e0 Actor_GetWeaponFireOrigin
 00207780 G_TouchTriggers
 00207900 Actor_Die
@@ -7770,7 +7771,7 @@
 00207d70 Actor_Turret_UpdatePose
 00209070 Actor_Grenade_AttachToTag
 002091e0 Actor_Grenade_Grab
-002092a0 FUN_002092a0
+002092a0 Actor_TargetCrossingSpeed
 002094e0 Sentient_FindNearestNode
 002095c0 Sentient_CachedNearestNode
 00209700 Actor_FindNearestNode

@@ -14475,3 +14475,7 @@ address,name,kind,confidence,evidence
 0024b1a0,Vehicle_SetSwitchNodes,function,high,"phys push 5 (2026-11-01): script-only vehicle path switch-node setup on g_vehNodes"
 00248080,VehNode_CopyToPathNode,function,high,"phys push 5 (2026-11-01): ESI path node, EDI vehicle node; variant of VehiclePathNode_Copy"
 0022d650,VehiclePhys_CreateBody,function,high,"phys push 5 (2026-11-01): stdcall, creates the vehicle physics body"
+00206dc0,Actor_ShotDirMissTarget,function,high,"ai push 5 (2026-11-01)"
+002072d0,Actor_ShotDirToTarget,function,high,"ai push 5 (2026-11-01)"
+002092a0,Actor_TargetCrossingSpeed,function,high,"ai push 5 (2026-11-01): result in XMM0"
+00206550,Actor_CopyEyeDirection,function,high,"created 2026-11-01 (gap after Actor_Free): EAX actor, ESI out; copies the refreshed eye direction +0x1c0; no references"

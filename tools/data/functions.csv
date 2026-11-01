@@ -2657,8 +2657,8 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00209070,Actor_Grenade_AttachToTag,compare,0,0,0,0,0,0,""
 002091e0,Actor_Grenade_Grab,compare,0,0,0,0,0,0,""
 002092a0,Actor_TargetCrossingSpeed,compare,341,295,295,0,0,0,""
-002094e0,Sentient_FindNearestNode,compare,395,164,130,0,34,0,"00929b40 XAPILIB::OHCD_fQueueTransferRequest+0x176c44 [.data] [1] 98 vs 5c"
-002095c0,Sentient_CachedNearestNode,compare,47486,37984,22556,0,15428,0,"00929b40 XAPILIB::OHCD_fQueueTransferRequest+0x176c44 [.data] [1] 64 vs 10"
+002094e0,Sentient_FindNearestNode,compare,395,97,97,0,0,0,
+002095c0,Sentient_CachedNearestNode,compare,47486,19410,19410,0,0,0,
 00209700,Actor_FindNearestNode,compare,0,0,0,0,0,0,""
 002226e0,InGameLiveOptionsMenu_Draw,compare,0,0,0,0,0,0,""
 00222750,XboxLiveMenu_Draw,compare,0,0,0,0,0,0,""
