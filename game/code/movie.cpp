@@ -4,6 +4,8 @@
 #include "movie_vid.h"
 #include "ngl.h"
 #include "qcommon.h"
+#include "snd.h"
+#include "sound_device.h"
 #include "stream.h"
 #include "title_data.h"
 
@@ -35,6 +37,14 @@ void free_aligned(void* p) { Mem_AlignedFree(p); }
 void operator_delete(void* p) { title_function<void XB_CDECL(void*)>(0x00011050)(p); }  // Z_Free (0x00011050)
 void z_free(void* p) { title_function<void XB_CDECL(void*)>(0x000428d0)(p); }            // Z_Free
 void* z_malloc(uint32_t size) { return title_function<void* XB_CDECL(uint32_t)>(0x00042c10)(size); }
+
+// The movie sound runs on our device (SndSys_InitDevice made the buffer there); Movie_DecodeFrame's C stays on the
+// DirectSound calls while it is Compare (the voice id is the same either way).
+audio::VoiceId movie_voice() { return static_cast<audio::VoiceId>(reinterpret_cast<uintptr_t>(audio_buffer())); }
+bool movie_voice_playing() {
+    const audio::VoiceStatus s = sound_device().status(movie_voice());
+    return s.playing && !s.paused;  // DSBSTATUS_PLAYING
+}
 
 uint32_t dsound_get_status(void* buffer) {
     uint32_t status = 0;
@@ -122,18 +132,17 @@ void XB_THISCALL Movie_StartAudio(Movie* movie) {
         const float one = title_global<float>(0x0083eb20);
         if (volume > one) volume = one;
     }
-    const int32_t level = platform_x87_log10_mul_ftol(volume, title_global<float>(0x0083ecc8));  // * 2000
-    title_function<int32_t XB_STDCALL(void*, int32_t)>(0x003c76db)(audio_buffer(), level);  // IDirectSoundBuffer_SetVolume
-    if (dsound_get_status(audio_buffer()) & 1) return;
-    title_function<int32_t XB_STDCALL(void*, uint32_t)>(0x003c780b)(audio_buffer(), title_global<uint32_t>(0x0092084c));  // SetCurrentPosition
-    title_function<int32_t XB_STDCALL(void*, uint32_t, uint32_t, uint32_t)>(0x003c7753)(audio_buffer(), 0, 0, 1);  // PlayEx, looping
+    // The original handed DirectSound log10(volume) * 2000 hundredths of a dB: the same level.
+    sound_device().set_volume(movie_voice(), volume);
+    if (movie_voice_playing()) return;
+    sound_device().set_position(movie_voice(), title_global<uint32_t>(0x0092084c));
+    sound_device().play(movie_voice(), true, false, audio::Start::Now);  // PlayEx(DSBPLAY_LOOPING)
 }
 
 int32_t XB_THISCALL Movie_Dtor(Movie* movie) {
     movie->vtable = pointer<void*>(0x007cf390);
     free_aligned(movie->block);
-    if (movie->has_audio && (dsound_get_status(audio_buffer()) & 1))
-        title_function<int32_t XB_STDCALL(void*)>(0x003c7777)(audio_buffer());  // IDirectSoundBuffer_Stop
+    if (movie->has_audio && movie_voice_playing()) sound_device().stop(movie_voice());
     return MovieBase_Dtor(movie);
 }
 

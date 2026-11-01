@@ -2045,6 +2045,7 @@ uint32_t voice_id(uint8_t* slot, uint32_t offset) { return snd_at<uint32_t>(slot
 }  // namespace
 
 void set_sound_device(audio::SoundDevice* device) { g_sound = device; }
+audio::SoundDevice& sound_device() { return *g_sound; }
 
 int32_t XB_THISCALL SndStream_ReadPacket(uint8_t* slot, uint32_t index) {
     // XMEDIAPACKET {buffer, size, completed size, status, context, timestamp}.
