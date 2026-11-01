@@ -2707,7 +2707,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00207900,Actor_Die,compare,167,42,42,0,0,0,""
 00207c00,Sentient_GetLaggedEyeOrigin,compare,669,127,127,0,0,0,""
 00207d40,Sentient_EyeOrigin_2,compare,0,0,0,0,0,0,""
-00207d70,Actor_Turret_UpdatePose,compare,7980,6556,3019,0,3537,0,"8228387c [host] [1] f8 vs 28"
+00207d70,Actor_Turret_UpdatePose,compare,7980,3019,3019,0,0,0,
 00209070,Actor_Grenade_AttachToTag,compare,0,0,0,0,0,0,""
 002091e0,Actor_Grenade_Grab,compare,0,0,0,0,0,0,""
 002092a0,Actor_TargetCrossingSpeed,compare,341,295,295,0,0,0,""

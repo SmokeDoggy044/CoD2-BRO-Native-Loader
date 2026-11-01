@@ -7783,7 +7783,7 @@
 0020a730 ActorMove_FoliageSounds
 0020a8c0 ActorMove_CheckGround
 0020ae40 ActorMove_SlideMove
-0020be80 FUN_0020be80
+0020be80 Path_ScoreEnemyExposure
 0020c040 Path_TraceAhead
 0020c6d0 Path_TrimToVisiblePoint
 0020c820 Path_Route
@@ -7801,8 +7801,8 @@
 0020e9a0 G_DropActorsToFloorAtInit
 0020eaf0 Actor_CanShootEnemy
 0020eb50 Actor_CanSeePoint
-0020ec50 FUN_0020ec50
-0020ec80 FUN_0020ec80
+0020ec50 Actor_CanSeePointIgnoringEnt
+0020ec80 Actor_CanSeePointDefault
 0020ecb0 ActorMove_Fly
 0020ed10 ActorMove_StepSlideMove
 0020f4f0 Path_StoreLookahead
