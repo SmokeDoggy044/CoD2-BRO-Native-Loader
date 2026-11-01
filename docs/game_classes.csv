@@ -185,3 +185,4 @@
 00209070,Actor_Grenade_AttachToTag,not reached,"callers Path_RouteBetween, Actor_Grenade_Finish/Suspend, Actor_Death_Cleanup, GScr_ActorThrowGrenade; 0 calls in missions 1,4,5,6 (--only --every 1, two runs)"
 002091e0,Actor_Grenade_Grab,script-only,"caller GScr_ActorGrabGrenade; 0 calls in missions 1,4,5,6 (--only --every 1, two runs)"
 00209700,Actor_FindNearestNode,script-only,"caller GScr_ActorGetNearestNode; 0 calls in missions 1,4,5,6 (--only --every 1, two runs); frame rebuilt like Sentient_FindNearestNode"
+00206550,Actor_CopyEyeDirection,dead,"no CALL/JMP callers, no stored pointer or immediate (created in Ghidra from push 5); not leaf-eligible (Actor_RefreshEyeOrigin reaches RaiseException); 0 calls in missions 1,4,5,6 (--only --every 1)"

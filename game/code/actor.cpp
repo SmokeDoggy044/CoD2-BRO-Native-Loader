@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "bg_misc.h"
+#include "cg_ents.h"
 #include "cm.h"
 #include "dobj.h"
 #include "g_main.h"
@@ -6697,6 +6698,367 @@ uint32_t XB_STDCALL Actor_Turret_UpdatePose(uint8_t* actor) {
     uint8_t* const moved = field<uint8_t*>(actor, 0);
     G_TouchTriggers(&field<float>(moved, 0x140), moved);
     return 0;
+}
+
+PLATFORM_ASM_ENTRY(Actor_CopyEyeDirection_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_CopyEyeDirection) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_CopyEyeDirection(uint8_t* actor, uint8_t* out) {
+    // EAX actor, ESI out: the refreshed eye direction (+0x1c0) copied out; EAX = its x bits.
+    Actor_RefreshEyeOrigin(actor);
+    copy3(out, actor + 0x1c0);
+    return field<uint32_t>(actor, 0x1c0);
+}
+
+namespace {
+
+// The sight/trace callers below run their traces where the original's call puts them: the
+// traces lower the thread's stack-limit words (host 0x804fff2c-style watermarks), so a C
+// frame at another depth leaves other values. Each body gets the entry ESP (a gap entry
+// moves the C frame away) and builds the trace inputs at the original's frame offsets.
+uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(uintptr_t(address)); }
+float* stack_vec(uint32_t address) { return reinterpret_cast<float*>(uintptr_t(address)); }
+uint32_t addr_of(const void* p) { return uint32_t(uintptr_t(p)); }
+
+// Calls `function` with ESP at `top` minus its `count` stack words and writes the original
+// call's return address back below them.
+uint32_t call_at(uint32_t top, uint32_t ret, uint32_t function, const TitleRegs& regs, uint32_t count,
+                 const uint32_t* args) {
+    const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+    stack_word(top - count * 4 - 4) = ret;
+    return result;
+}
+
+// The (0, 0, 0, 1) vector at 0x0082e290 written to a stack block.
+void zero_vec4_at(uint32_t to) {
+    for (uint32_t i = 0; i < 16; i += 4) stack_word(to + i) = title_global<uint32_t>(0x0082e290 + i);
+}
+
+// A point as the 4-lane block the sight code builds: (x, y, z, x).
+void point_vec4_at(uint32_t to, const float* p) {
+    const uint32_t* const w = reinterpret_cast<const uint32_t*>(p);
+    stack_word(to) = w[0];
+    stack_word(to + 4) = w[1];
+    stack_word(to + 8) = w[2];
+    stack_word(to + 12) = w[0];
+}
+
+// The aligned base of a `push ebp; mov ebp,esp; and esp,-16` frame.
+uint32_t aligned_base(uint32_t entry) { return (entry - 4) & ~15u; }
+
+}  // namespace
+
+// Gap entries: EDX (or EAX) keeps the entry ESP across GAME_GAP_ESP; the C body gets it first
+// and the caller's EBP last.
+PLATFORM_ASM_ENTRY(Actor_CanSeePointFromBounds_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_CanSeePointFromBounds) "addl $24, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_CanSeePointFromBounds(uint32_t entry, const float* eye, const float* origin, uint32_t pass1,
+                                              uint32_t pass2, uint32_t ebp) {
+    // EAX eye, stack (origin, two pass entities): within the sight range (0x00985fd0, the
+    // squared distance scaled by 0.6856) and with a clear sight trace from the eye to one of
+    // eleven points of the actor box (0x0098a560 mins, 0x0098a550 maxs) placed at the origin
+    // by the fraction table 0x00830f80. Frame: aligned base - 0x40.
+    stack_word(entry - 4) = ebp;
+    const uint32_t frame = aligned_base(entry) - 0x40;
+    const float dx = eye[0] - origin[0], dy = eye[1] - origin[1], dz = eye[2] - origin[2];
+    const float d2 = (dx * dx + dy * dy + dz * dz) * title_global<float>(0x0083f1c4);
+    if (d2 > title_global<float>(0x00985fd0)) return 0;
+    for (uint32_t i = 0; i < 0x84; i += 0xc) {
+        float* const target = stack_vec(frame + 0x30);
+        for (uint32_t k = 0; k < 3; ++k) {
+            const float lo = title_global<float>(0x0098a560 + k * 4);
+            target[k] =
+                (title_global<float>(0x0098a550 + k * 4) - lo) * title_global<float>(0x00830f80 + i + k * 4) + origin[k] +
+                lo;
+        }
+        zero_vec4_at(frame + 0x20);
+        zero_vec4_at(frame + 0x10);
+        const TitleRegs regs = {frame + 0x30, frame + 0x20, pass1, frame + 0x10, i, addr_of(eye)};
+        const uint32_t args[6] = {frame + 0xc, frame + 0x10, pass1, pass2, 1, 0};
+        call_at(frame, 0x0020a10a, 0x002e9840, regs, 6, args);  // G_SightTrace
+        if (!stack_word(frame + 0xc)) return 1;
+    }
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(Actor_IsShotClear_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_IsShotClear) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Actor_IsShotClear(uint32_t entry, const float* start, const float* end, const uint8_t* actor,
+                                    uint32_t ebp) {
+    // EAX start, ECX end, stack actor: within the sight range (0x00985fd0) and a point trace
+    // (mask 0x200c061, passing the actor's entity) that reaches the end or stops at an entity
+    // whose sentient is on another team (not in solid). Frame: aligned base - 0x90.
+    stack_word(entry - 4) = ebp;
+    const uint32_t frame = aligned_base(entry) - 0x90;
+    const float dx = start[0] - end[0], dy = start[1] - end[1], dz = start[2] - end[2];
+    if (dz * dz + dy * dy + dx * dx > title_global<float>(0x00985fd0)) return 0;
+    stack_word(frame + 0x80) = 0;
+    stack_word(frame + 0x84) = 0;
+    point_vec4_at(frame + 0x40, end);
+    zero_vec4_at(frame + 0x20);
+    zero_vec4_at(frame + 0x30);
+    point_vec4_at(frame + 0x10, start);
+    const uint32_t results = frame + 0x50;
+    const uint32_t pass = field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224);
+    const TitleRegs regs = {results, frame + 0x10, frame + 0x20, frame + 0x30, addr_of(actor),
+                            title_global<uint32_t>(0x0082e29c)};
+    const uint32_t args[11] = {results, frame + 0x30, frame + 0x20, frame + 0x40, pass, 0x200c061, 0, 0, 0, 0, 0};
+    call_at(frame, 0x0020a275, 0x002e9af0, regs, 11, args);  // SV_Trace
+    if (*stack_vec(results + 0x20) == title_global<float>(0x0083eb20)) return 1;
+    if (title_global<uint8_t>(results + 0x3d)) return 0;
+    const uint8_t* const hit = G_EntHandleToEnt(&stack_word(results + 0x30));
+    const uint8_t* const sentient = field<const uint8_t*>(hit, 0x244);
+    if (!sentient) return 0;
+    return field<uint32_t>(sentient, 4) == field<uint32_t>(field<const uint8_t*>(actor, 4), 4) ? 0 : 1;
+}
+
+PLATFORM_ASM_ENTRY(Actor_CanSeePointEx_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_CanSeePointEx) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $36, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $20")
+
+float XB_CDECL Actor_CanSeePointEx(uint32_t entry, const float* point, uint8_t* actor, uint32_t* blocker, float fov_cos,
+                                   float max_dist2, uint32_t pass, const float* eye, uint32_t ebp) {
+    // EAX point, ECX actor, stack (blocker cache in/out, cos of the view cone, max squared
+    // distance, pass entity, eye): 1 when visible. With a cone or a range: the point within
+    // the range (and the sight range 0x00985fd0) and the cone around the eye direction. Then
+    // (sight trace count +0xfc): the cached blocker (contents 0x280d003) whose box the
+    // segment's box overlaps is tested first (type 9 through CM_ClipSegmentToBrush, others
+    // through their vtable +0x14); else a sight trace stores its blocker. Frame: base - 0x60.
+    stack_word(entry - 4) = ebp;
+    const uint32_t frame = aligned_base(entry) - 0x60;
+    const float zero = 0.0f;
+    if (fov_cos != zero || max_dist2 != zero) {
+        Actor_RefreshEyeOrigin(actor);
+        const float look_y = field<float>(actor, 0x1c4);
+        const float dy = point[1] - eye[1];
+        const float dz = point[2] - eye[2];
+        const float dx = point[0] - eye[0];
+        const float look_x = field<float>(actor, 0x1c0);
+        const float look_z = field<float>(actor, 0x1c8);
+        const float d2 = dz * dz + dy * dy + dx * dx;
+        if (max_dist2 != zero) {
+            if (d2 > max_dist2) return 0.0f;
+            if (d2 > title_global<float>(0x00985fd0)) return 0.0f;
+        }
+        if (fov_cos != zero) {
+            const float dot = look_z * dz + look_y * dy + look_x * dx;
+            if (zero > dot) return 0.0f;
+            const float scaled = d2 * fov_cos * fov_cos;
+            if (scaled > dot * dot) return 0.0f;
+        }
+    }
+    ++field<int32_t>(actor, 0xfc);
+    const uint32_t from = frame + 0x50, to = frame + 0x40;
+    point_vec4_at(from, eye);
+    point_vec4_at(to, point);
+    const uint32_t cached = *blocker;
+    if (int32_t(cached) > 0) {
+        uint8_t* const obj = reinterpret_cast<uint8_t*>(uintptr_t(cached));
+        if (field<uint32_t>(obj, 8) & 0x280d003) {
+            const uint32_t center = frame + 0x20, extents = frame + 0x10;
+            for (uint32_t i = 0; i < 16; i += 4) {
+                stack_word(center + i) = field<uint32_t>(obj, 0x10 + i);
+                stack_word(extents + i) = field<uint32_t>(obj, 0x20 + i);
+            }
+            const float* const f = stack_vec(from);
+            const float* const t = stack_vec(to);
+            uint32_t inside = 0;
+            for (uint32_t k = 0; k < 4; ++k) {
+                const float lo = f[k] < t[k] ? f[k] : t[k];
+                const float hi = f[k] > t[k] ? f[k] : t[k];
+                const float a = lo - stack_vec(center)[k];
+                const float b = stack_vec(center)[k] - hi;
+                const float m = b > a ? b : a;
+                if (m < stack_vec(extents)[k]) inside |= 1u << k;
+            }
+            if ((inside & 7) == 7) {
+                const uint32_t* const vtable = field<const uint32_t*>(obj, 0);
+                float* const fraction = stack_vec(frame + 0xc);
+                bool clipped;
+                if (title_function<uint32_t XB_THISCALL(uint8_t*)>(vtable[8])(obj) == 9) {
+                    *fraction = title_global<float>(0x0083eb20);
+                    clipped = CM_ClipSegmentToBrush(stack_vec(from), stack_vec(to), obj, fraction) != 0;
+                } else {
+                    *fraction = 0.0f;
+                    using Clip = uint8_t XB_THISCALL(uint8_t*, float*, float*, float*, float*, uint32_t);
+                    clipped = title_function<Clip>(vtable[5])(obj, stack_vec(from), stack_vec(to), stack_vec(center),
+                                                             fraction, 0) != 0;
+                }
+                if (clipped) return *blocker ? 0.0f : title_global<float>(0x0083eb20);
+            }
+        }
+    }
+    zero_vec4_at(frame + 0x10);
+    zero_vec4_at(frame + 0x20);
+    title_global<uint32_t>(0x0094cba0) = 0;
+    const TitleRegs regs = {to, frame + 0x10, pass, frame + 0x20, addr_of(blocker), from};
+    const uint32_t args[6] = {addr_of(blocker), frame + 0x20, field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224),
+                              pass, 0x280d003, 0};
+    call_at(frame, 0x0020a59f, 0x002e9840, regs, 6, args);  // G_SightTrace
+    if (title_global<uint32_t>(0x0094cba0)) *blocker = title_global<uint32_t>(0x0094cba0);
+    return *blocker ? 0.0f : title_global<float>(0x0083eb20);
+}
+
+// XMM4 is parked in the word below the entry ESP (the original's saved EBP slot, rewritten).
+PLATFORM_ASM_ENTRY(Actor_SightTrace_entry,
+                   "subl $4, %esp\n"
+                   "movss %xmm4, (%esp)\n"
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %eax, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl (%ebp)\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %esi\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_SightTrace) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $28, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "addl $4, %esp\n"
+                   "ret $4")
+
+float XB_CDECL Actor_SightTrace(uint32_t entry, uint8_t* actor, const float* end, const float* start, float max_dist2,
+                                uint32_t pass, uint32_t ebp) {
+    // ESI actor, ECX end, EDX start, XMM4 max squared distance (0 = any), stack pass entity:
+    // 1 when the sight trace (contents 0x280d003, passing the actor's entity) is clear.
+    // Frame: aligned base - 0x50.
+    stack_word(entry - 4) = ebp;
+    const uint32_t frame = aligned_base(entry) - 0x50;
+    if (max_dist2 != 0.0f) {
+        const float dy = end[1] - start[1];
+        const float dx = end[0] - start[0];
+        const float dz = end[2] - start[2];
+        const float d2 = dz * dz + dy * dy + dx * dx;
+        if (d2 > max_dist2) return 0.0f;
+        if (d2 > title_global<float>(0x00985fd0)) return 0.0f;
+    }
+    ++field<int32_t>(actor, 0xfc);
+    zero_vec4_at(frame + 0x30);
+    zero_vec4_at(frame + 0x20);
+    point_vec4_at(frame + 0x40, end);
+    point_vec4_at(frame + 0x10, start);
+    title_global<uint32_t>(0x0094cba0) = 0;
+    const TitleRegs regs = {frame + 0x40, frame + 0x30, pass, frame + 0x20, addr_of(actor), frame + 0x10};
+    const uint32_t args[6] = {frame + 0xc, frame + 0x20, field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224), pass,
+                              0x280d003, 0};
+    call_at(frame, 0x0020a70e, 0x002e9840, regs, 6, args);  // G_SightTrace
+    return stack_word(frame + 0xc) ? 0.0f : title_global<float>(0x0083eb20);
+}
+
+PLATFORM_ASM_ENTRY(Actor_CanShootPoint_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_CanShootPoint) "addl $12, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_CanShootPoint(uint32_t entry, uint8_t* actor, uint32_t ebp) {
+    // EAX actor: a clear shot (Actor_IsShotClear) from the muzzle to 16 below the eye of the
+    // sentient's enemy (+0x3c); 0 without a muzzle. Frame: entry - 0x1c (eye +4, muzzle +0x10).
+    const uint32_t frame = entry - 0x1c;
+    float* const target = stack_vec(frame + 4);
+    Sentient_EyeOrigin(field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c), 0,
+                       reinterpret_cast<uint8_t*>(target));
+    target[2] = target[2] - title_global<float>(0x0083ebb8);
+    float* const muzzle = stack_vec(frame + 0x10);
+    if (!Actor_GetMuzzleInfo(actor, reinterpret_cast<uint8_t*>(muzzle), nullptr)) return 0;
+    return Actor_IsShotClear(frame - 8, muzzle, target, actor, ebp);
+}
+
+PLATFORM_ASM_ENTRY(Actor_CanSeePoint_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_CanSeePoint) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $28, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $16")
+
+float XB_CDECL Actor_CanSeePoint(uint32_t entry, uint8_t* actor, const float* point, float fov_cos, float max_dist2,
+                                 uint32_t pass, uint32_t ebp) {
+    // EAX actor, stack (point, cone cos, max squared distance, pass entity): Actor_CanSeePointEx
+    // from the turret's view origin (Turret_CanTargetPoint) when this actor uses a turret that
+    // can target the point, else from the eye. Frame: aligned base - 0x40 (eye +0x20).
+    stack_word(entry - 4) = ebp;
+    const uint32_t frame = aligned_base(entry) - 0x40;
+    float* const eye = stack_vec(frame + 0x20);
+    uint8_t* const turret = field<uint8_t*>(actor, 0x136c);
+    bool from_turret = false;
+    if (turret && entity_from_handle(field<uint32_t>(turret, 0x1a0)) == field<uint32_t>(actor, 0)) {
+        point_vec4_at(frame + 0x20, point);
+        for (uint32_t i = 0; i < 16; i += 4) stack_word(frame + 0x30 + i) = stack_word(frame + 0x20 + i);
+        from_turret = title_function<uint32_t XB_CDECL(uint8_t*, float*, float*, uint32_t*)>(0x0025ccd0)(
+                          turret, stack_vec(frame + 0x30), eye, &stack_word(frame + 0x18)) != 0;  // Turret_CanTargetPoint
+    }
+    if (!from_turret) {
+        Actor_RefreshEyeOrigin(actor);
+        copy3(reinterpret_cast<uint8_t*>(eye), actor + 0x1b4);
+    }
+    stack_word(frame + 0x18) = 0;
+    return Actor_CanSeePointEx(frame - 0x18, point, actor, &stack_word(frame + 0x18), fov_cos, max_dist2, pass, eye,
+                               entry - 4);
 }
 
 }  // namespace game
