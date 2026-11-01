@@ -480,4 +480,99 @@ void XB_CDECL G_FreeDroppedItems() {
     }
 }
 
+namespace {
+
+using StrncpyFn = char* XB_CDECL(char*, const char*, uint32_t);
+
+const char* command_arg(uint32_t index) {
+    if (index < title_global<uint32_t>(0x00934248))  // cmd_argc
+        return title_global<const char*>(0x0092df90 + index * 4);  // cmd_argv
+    return reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});  // ""
+}
+
+}  // namespace
+
+char* XB_THISCALL ConcatArgs(int32_t start) {
+    // The arguments from start on, joined by spaces into 0x0098b858 (256 bytes; an argument
+    // that would not fit ends it).
+    char* const out = reinterpret_cast<char*>(uintptr_t{0x0098b858});
+    const int32_t count = title_global<int32_t>(0x00934248);
+    int32_t length = 0;
+    for (int32_t i = start; i < count; ++i) {
+        char arg[0x100];
+        title_function<StrncpyFn>(0x001eed80)(arg, command_arg(static_cast<uint32_t>(i)), 0xff);  // _strncpy
+        arg[0xff] = 0;
+        const int32_t size = static_cast<int32_t>(std::strlen(arg));
+        if (size + length >= 0xff) break;
+        std::memcpy(out + length, arg, static_cast<size_t>(size));
+        length += size;
+        if (i != count - 1) out[length++] = ' ';
+    }
+    out[length] = 0;
+    return out;
+}
+
+uint32_t XB_CDECL ConsoleCommand() {
+    // The game's console commands ("entitylist", "listvehicles") are accepted and do nothing.
+    char cmd[0x80];
+    title_function<StrncpyFn>(0x001eed80)(cmd, command_arg(0), 0x7f);  // _strncpy
+    cmd[0x7f] = 0;
+    if (!Q_stricmpn(cmd, reinterpret_cast<const char*>(uintptr_t{0x00839d08}), 99999)) return 1;
+    return Q_stricmpn(cmd, reinterpret_cast<const char*>(uintptr_t{0x00839cf8}), 99999) == 0;
+}
+
+void XB_CDECL G_SetupVehiclePool(uint32_t slots) {
+    // (Re)allocates the vehicle slots (g_vehicles 0x0095f694, 0x340 bytes each, count
+    // g_vehicleSlotCount 0x00986000) and 0x0095f690 (0xe0 each), keeping the used old slots
+    // (+0x170 set) packed at the front.
+    uint8_t* const old = title_global<uint8_t*>(0x0095f694);
+    uint8_t* saved = nullptr;
+    int32_t saved_count = 0;
+    if (old) {
+        const int32_t count = title_global<uint16_t>(0x00986000);
+        if (count > 0) {
+            int32_t used = 0;
+            for (int32_t i = 0; i < count; ++i)
+                if (*reinterpret_cast<const uint32_t*>(old + 0x170 + i * 0x340)) ++used;
+            if (used) {
+                saved_count = count;
+                saved = Heap_AllocAligned(0x10, static_cast<uint32_t>(count) * 0x340);
+                platform_rep_movs(saved, title_global<uint8_t*>(0x0095f694),
+                                  static_cast<uint32_t>(title_global<uint16_t>(0x00986000)) * 0x340);
+            }
+        }
+        // The pointer freed is the one read last (reloaded after the copy).
+        uint8_t* const current = saved ? title_global<uint8_t*>(0x0095f694) : old;
+        if (current) {
+            Z_Free(current);
+            title_global<uint32_t>(0x0095f694) = 0;
+            title_global<uint16_t>(0x00986000) = 0;
+        }
+    }
+    if (title_global<uint32_t>(0x0095f690)) {
+        Z_Free(title_global<uint8_t*>(0x0095f690));
+        title_global<uint32_t>(0x0095f690) = 0;
+    }
+    title_global<uint16_t>(0x00986000) = static_cast<uint16_t>(slots);
+    if (static_cast<uint16_t>(slots)) {
+        uint8_t* const vehicles =
+            Heap_AllocAligned(0x10, static_cast<uint32_t>(title_global<uint16_t>(0x00986000)) * 0x340);
+        title_global<uint8_t*>(0x0095f694) = vehicles;
+        std::memset(vehicles, 0, static_cast<uint32_t>(title_global<uint16_t>(0x00986000)) * 0x340);
+        uint8_t* const extra = Heap_AllocAligned(0x10, static_cast<uint32_t>(title_global<uint16_t>(0x00986000)) * 0xe0);
+        title_global<uint8_t*>(0x0095f690) = extra;
+        std::memset(extra, 0, static_cast<uint32_t>(title_global<uint16_t>(0x00986000)) * 0xe0);
+    }
+    Vehicle_ResetPool();
+    if (!saved) return;
+    uint8_t* to = title_global<uint8_t*>(0x0095f694);
+    for (int32_t i = 0; i < saved_count; ++i) {
+        const uint8_t* const from = saved + i * 0x340;
+        if (!*reinterpret_cast<const uint32_t*>(from + 0x170)) continue;
+        platform_rep_movs(to, from, 0x340);
+        to += 0x340;
+    }
+    Z_Free(saved);
+}
+
 }  // namespace game

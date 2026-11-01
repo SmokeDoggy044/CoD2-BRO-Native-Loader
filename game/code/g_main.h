@@ -60,6 +60,15 @@ void XB_CDECL G_FindTeams();
 // No references (dead).
 void XB_CDECL G_FreeDroppedItems();
 
+// 0x0024d250 (first argument in ECX): the command arguments from there on, joined by spaces
+// into 0x0098b858.
+char* XB_THISCALL ConcatArgs(int32_t start);
+// 0x0024d8b0: the game's console commands: "entitylist" and "listvehicles" are accepted (1),
+// with no effect.
+uint32_t XB_CDECL ConsoleCommand();
+// 0x0024d940: resizes the vehicle pool to `slots`, keeping the used slots.
+void XB_CDECL G_SetupVehiclePool(uint32_t slots);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);
