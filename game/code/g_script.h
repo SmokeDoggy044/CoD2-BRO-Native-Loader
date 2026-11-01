@@ -35,6 +35,124 @@ extern "C" void Scr_StartThread_ent_ent_f_i_i_i_f_entry(void);
 // 0x0017b0c0: hash, i, i, f, f, f, f, hash.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_hash_i_i_f_f_f_f_hash_2(const uint32_t* args);
 extern "C" void Scr_StartThread_ent_hash_i_i_f_f_f_f_hash_2_entry(void);
+// Wrappers whose functor class has a constructor (thiscall (a5, &a6, a7, ...)); the hookable ones
+// (SEH prologue) are registered, the others are unhookable like the ones above.
+// 0x0017ae80: constructor 0x0017a3c0 (5 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_str_vec(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_ent_str_vec_entry(void);
+// 0x0017af10: constructor 0x0017a490 (6 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_i_str_b_2(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_ent_i_str_b_2_entry(void);
+// 0x0017afa0: constructor 0x00459b70 (4 words), Scr_BeginThread + Scr_WaitFrames(0) in a script
+// thread (switches the thread away: not registered).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_ent_str(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_ent_str_entry(void);
+// 0x0017b050 (unhookable): constructor 0x0017a550 (8 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_hash_vec_hash_f_hash_f(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_hash_vec_hash_f_hash_f_entry(void);
+// 0x0017b150: constructor 0x0017a650 (ent, str, vec: 4 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThreadFunctorN(const uint32_t* args);
+extern "C" void Scr_StartThreadFunctorN_entry(void);
+// 0x0017b1e0: constructor 0x0017a740 (6 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_vec_str_vec_f_3(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_vec_str_vec_f_3_entry(void);
+// "call" = the Scr_CallThread_* kind: Scr_BeginThread, then Scr_WaitFrames(0) in a script thread
+// (switches the thread away: not registered).
+// 0x0017b370: constructor 0x0017a870 (6 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_RespawnerAttributes_i_str(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_ent_RespawnerAttributes_i_str_entry(void);
+// 0x0017b410: constructor 0x0017a9a0 (3 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_RespawnerAttributes(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_RespawnerAttributes_entry(void);
+// 0x0017b4a0: constructor 0x0017aa40 (5 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_str_i_str_2(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_str_i_str_2_entry(void);
+// 0x0017b530: constructor 0x004591e0 (a6, &a7, a8), then Scr_BeginThreadEndOn(a1, a2, a3, a7, a4, a5, functor).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_BeginThread_ent_str(const uint32_t* args);
+extern "C" void Scr_BeginThread_ent_str_entry(void);
+// 0x0017cc10: constructor 0x0017c770 (10 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr_entry(void);
+// 0x0017ccc0: constructor 0x0017c830 (ent, ent, ent, arrent: 5 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThreadFunctor_20_3(const uint32_t* args);
+extern "C" void Scr_StartThreadFunctor_20_3_entry(void);
+// 0x001e4ae0: constructor 0x001e3df0 (6 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_ent_str_ent_ent_4(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_ent_str_ent_ent_4_entry(void);
+// 0x001e4b70: constructor 0x001e3ec0 (5 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_StartThread_ent_i_pathnode_str_3(const uint32_t* args);
+extern "C" void Scr_StartThread_ent_i_pathnode_str_3_entry(void);
+// 0x001e4c00: call; fields 4, 4 (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_vt00825be4_2(const uint32_t* args);
+extern "C" void Scr_CallThread_vt00825be4_2_entry(void);
+// 0x001e4c80: call; fields 4, 4 (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_f_ent_3(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_f_ent_3_entry(void);
+// 0x001e4d00: call; constructor 0x001e3fb0 (7 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_hash_i_str_i_ent(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_hash_i_str_i_ent_entry(void);
+// 0x001e4dc0: call; fields 4, 4 (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_hash_f_4(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_hash_f_4_entry(void);
+// 0x001e4e40: call; constructor 0x00564fa0 (8 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_vec_f_str_i_ent_i(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_vec_f_str_i_ent_i_entry(void);
+// 0x001e4f00: call; vec field (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_vec(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_vec_entry(void);
+// 0x001e4f80: call; fields 4, 4 (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_f_f_5(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_f_f_5_entry(void);
+// 0x001e5000: call; constructor 0x001e4080 (6 words; unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2_entry(void);
+// 0x001e5080: call; fields 4, 4, 4 (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_hash_i_f_2(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_hash_i_f_2_entry(void);
+// 0x001e5100: call; constructor 0x001e4150 (9 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_anim_str_f_hash_str_f_b(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_anim_str_f_hash_str_f_b_entry(void);
+// 0x001e51c0: call; constructor 0x001e4280 (5 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_str_hash_hash_3(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_str_hash_hash_3_entry(void);
+// 0x001e5270: call; fields 4, 4, 4 (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_f_hash_hash_4(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_f_hash_hash_4_entry(void);
+// 0x001e52f0: call; constructor 0x001e4330 (6 words; unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_vec_vec_vec_i(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_vec_vec_vec_i_entry(void);
+// 0x001e5370: call; field 4 (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_f(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_f_entry(void);
+// 0x001e53e0: call; six 4-byte fields (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_anim_anim_anim_anim_anim_anim(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_anim_anim_anim_anim_anim_anim_entry(void);
+// 0x001e5480: call; constructor 0x001e4430 (6 words).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_vt00825c50(const uint32_t* args);
+extern "C" void Scr_CallThread_vt00825c50_entry(void);
+// 0x001e5530: call; five 4-byte fields (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_f_hash_hash_hash_i_2(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_f_hash_hash_hash_i_2_entry(void);
+// 0x001e55c0: call; fields 4, 4, 4 (unhookable).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_CallThread_ent_hash_hash_f_5(const uint32_t* args);
+extern "C" void Scr_CallThread_ent_hash_hash_f_5_entry(void);
+// 0x001fa400 (functor in ECX; Scr_ResumeThread on the thread's own stack): runs vtable slot 1 inside a
+// try/catch. Not registered (the script thread body switches away).
+uint32_t XB_THISCALL Scr_ThreadEntry(uint32_t* functor);
+// 0x0011f5d0: empties the dynamic array (a3) and appends GScr_GetEntArray(a1, a2, buffer, 0x400, a4).
+void XB_CDECL Scr_GetEntArray(uint32_t a1, uint32_t a2, uint8_t* array, uint32_t a4);
+// 0x0011fac0 (thread start pointer, immediates at 0x00177e45/0x00177f75): Scr_EndOn(object, name),
+// waits for "death" on the thread (switches away: not registered), then Scr_QueueNotify(object, name).
+void XB_CDECL Scr_NotifyAfterDeath(uint32_t object, uint32_t thread, uint32_t name);
+// 0x00135fb0: releases a2's a4 script strings and frees the block (when a2 is set), then releases
+// the by-value string in the a5 slot. a1 and a3 are not read.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_ReleaseStringArrayAndString(uint32_t* args);
+extern "C" void Scr_ReleaseStringArrayAndString_entry(void);
+// 0x00151270 (level script code): the entity's health by difficulty, then the vehicle health
+// thread 0x0014d0a0 on it.
+void XB_CDECL Scr_StartThread_ent(uint32_t ent);
+// 0x00168220 (dead: no call, pointer or immediate): the "panzerIV" anim tree, then thread 0x001679b0.
+uint32_t XB_CDECL Scr_StartThread_ent_2(uint32_t ent);
 // 0x0011a960: a functor {0x007f5ba0, a6, a7}; the argument slots become (a1, a2, a3, a7,
 // a4, a5, functor) and it tail-jumps to Scr_BeginThreadEndOn.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_BeginThreadEndOnFunctor1(uint32_t* args);

@@ -18,3 +18,6 @@
 0011f240,Scr_GetNodeArrayNoKey,script-only,"callers BroScr_InitFriendlyChainNodes, BroScr_GetClosestNodeToEnt, BroScr_FallbackThink; 0 calls in missions 0-6 (--only --every 1)"
 000264d0,G_NotifyWithEntity_2,not reached,"only Pickup_Ammo; 0 calls in missions 0-6 (--only --every 1); leaf test not eligible (SmallHeap_Alloc -> GlobalMemoryStatus)"
 00029000,G_NotifyWithTwoStrings,not reached,"only Cmd_MenuResponse_f (in-game menu responses); 0 calls in missions 0-6 (--only --every 1); leaf test not eligible (SmallHeap_Alloc -> GlobalMemoryStatus)"
+0011fac0,Scr_NotifyAfterDeath,thread switch,"C, not registered: Scr_WaitTillString -> Scr_SuspendWaitTill suspends the script thread; thread start pointer (immediates at 0x00177e45/0x00177f75)"
+0017afa0,Scr_CallThread_ent_ent_str,thread switch,"C, not registered: Scr_WaitFrames(0) after Scr_BeginThread whenever called from a script thread (all callers are level script code)"
+00168220,Scr_StartThread_ent_2,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call 2026-11-01); C kept"

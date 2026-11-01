@@ -4,7 +4,10 @@
 
 #include "dobj.h"
 #include "g_utils.h"
+#include "g_scr_runtime.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
+#include "script_string.h"
 #include "title_data.h"
 
 namespace game {
@@ -66,7 +69,7 @@ struct FunctorField {
 
 // The generated Scr_StartThread_* wrappers: a functor object {vtable, a5, a6, *a7, ...}
 // (0 when the allocation fails), then Scr_CreateThread(a2, a3, a4, a6, functor, a1).
-uint32_t start_thread(const uint32_t* args, uint32_t size, uint32_t vtable, const FunctorField* fields, int count) {
+uint32_t* make_functor(const uint32_t* args, uint32_t size, uint32_t vtable, const FunctorField* fields, int count) {
     uint32_t* functor = static_cast<uint32_t*>(scr_alloc(size));
     if (functor) {
         functor[1] = args[4];
@@ -75,9 +78,40 @@ uint32_t start_thread(const uint32_t* args, uint32_t size, uint32_t vtable, cons
         for (int i = 0; i < count; ++i)
             std::memcpy(reinterpret_cast<uint8_t*>(functor) + fields[i].offset, pointer<const void>(args[6 + i]), fields[i].size);
     }
+    return functor;
+}
+
+// Wrappers whose functor class has a constructor (thiscall, callee-cleaned): (a[first], &a[first+1],
+// a[first+2], ...) with `count` words in all; the constructor returns the object.
+uint32_t* construct_functor(const uint32_t* args, uint32_t size, uint32_t ctor, uint32_t first, uint32_t count) {
+    uint32_t* functor = static_cast<uint32_t*>(scr_alloc(size));
+    if (!functor) return nullptr;
+    uint32_t words[12];
+    words[0] = args[first];
+    words[1] = address_of(&args[first + 1]);
+    for (uint32_t i = 2; i < count; ++i) words[i] = args[first + i];
+    const uint32_t regs[6] = {0, address_of(functor), 0, 0, 0, 0};
+    return pointer<uint32_t>(script_call(ctor, regs, count, words));
+}
+
+// Scr_CreateThread (0x0092216c) or Scr_BeginThread (0x00922168) through its pointer:
+// (a2, a3, a4, a6, functor, a1).
+uint32_t create_thread(const uint32_t* args, uint32_t* functor, uint32_t create = 0x0092216c) {
     using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
-    return title_function<CreateThread>(title_global<uint32_t>(0x0092216c))(args[1], args[2], args[3], args[5], functor,
-                                                                           args[0]);
+    return title_function<CreateThread>(title_global<uint32_t>(create))(args[1], args[2], args[3], args[5], functor, args[0]);
+}
+
+// The Scr_CallThread_* wrappers: Scr_BeginThread, then Scr_WaitFrames(0) when called from a
+// script thread (Scr_InThread); returns the thread.
+uint32_t call_thread(const uint32_t* args, uint32_t* functor) {
+    const uint32_t thread = create_thread(args, functor, 0x00922168);
+    if (static_cast<uint8_t>(title_function<uint32_t XB_CDECL()>(title_global<uint32_t>(0x0092218c))()))  // Scr_InThread
+        title_function<void XB_CDECL(uint32_t)>(0x0011e540)(0);  // Scr_WaitFrames
+    return thread;
+}
+
+uint32_t start_thread(const uint32_t* args, uint32_t size, uint32_t vtable, const FunctorField* fields, int count) {
+    return create_thread(args, make_functor(args, size, vtable, fields, count));
 }
 
 }  // namespace
@@ -126,6 +160,264 @@ uint32_t XB_CDECL Scr_StartThread_ent_hash_i_i_f_f_f_f_hash_2(const uint32_t* ar
     static const FunctorField fields[] = {{0xc, 4},  {0x10, 4}, {0x14, 4}, {0x18, 4},
                                           {0x1c, 4}, {0x20, 4}, {0x24, 4}, {0x28, 4}};
     return start_thread(args, 0x2c, 0x00824470, fields, 8);
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_str_vec)
+uint32_t XB_CDECL Scr_StartThread_ent_ent_str_vec(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x20, 0x0017a3c0, 4, 5));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_i_str_b_2)
+uint32_t XB_CDECL Scr_StartThread_ent_ent_i_str_b_2(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x1c, 0x0017a490, 4, 6));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_ent_str)
+uint32_t XB_CDECL Scr_CallThread_ent_ent_str(const uint32_t* args) {
+    return call_thread(args, construct_functor(args, 0x14, 0x00459b70, 4, 4));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_hash_vec_hash_f_hash_f)
+uint32_t XB_CDECL Scr_StartThread_ent_hash_vec_hash_f_hash_f(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x2c, 0x0017a550, 4, 8));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThreadFunctorN)
+uint32_t XB_CDECL Scr_StartThreadFunctorN(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x1c, 0x0017a650, 4, 4));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_vec_str_vec_f_3)
+uint32_t XB_CDECL Scr_StartThread_ent_vec_str_vec_f_3(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x2c, 0x0017a740, 4, 6));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_RespawnerAttributes_i_str)
+uint32_t XB_CDECL Scr_StartThread_ent_ent_RespawnerAttributes_i_str(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0xf8, 0x0017a870, 4, 6));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_RespawnerAttributes)
+uint32_t XB_CDECL Scr_StartThread_ent_RespawnerAttributes(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0xec, 0x0017a9a0, 4, 3));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_str_i_str_2)
+uint32_t XB_CDECL Scr_StartThread_ent_str_i_str_2(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x18, 0x0017aa40, 4, 5));
+}
+
+// Constructor (a6, &a7, a8), then Scr_BeginThreadEndOn(a1, a2, a3, a7, a4, a5, functor).
+SCRIPT_ARGS_ENTRY(Scr_BeginThread_ent_str)
+uint32_t XB_CDECL Scr_BeginThread_ent_str(const uint32_t* args) {
+    uint32_t* functor = construct_functor(args, 0x10, 0x004591e0, 5, 3);
+    using BeginThreadEndOn = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*);
+    return title_function<BeginThreadEndOn>(title_global<uint32_t>(0x00922170))(args[0], args[1], args[2], args[6], args[3],
+                                                                               args[4], functor);
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr)
+uint32_t XB_CDECL Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x3c, 0x0017c770, 4, 10));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThreadFunctor_20_3)
+uint32_t XB_CDECL Scr_StartThreadFunctor_20_3(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x20, 0x0017c830, 4, 5));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_ent_str_ent_ent_4)
+uint32_t XB_CDECL Scr_StartThread_ent_ent_str_ent_ent_4(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x1c, 0x001e3df0, 4, 6));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_StartThread_ent_i_pathnode_str_3)
+uint32_t XB_CDECL Scr_StartThread_ent_i_pathnode_str_3(const uint32_t* args) {
+    return create_thread(args, construct_functor(args, 0x18, 0x001e3ec0, 4, 5));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_vt00825be4_2)
+uint32_t XB_CDECL Scr_CallThread_vt00825be4_2(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}};
+    return call_thread(args, make_functor(args, 0x14, 0x00825be4, fields, 2));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_f_ent_3)
+uint32_t XB_CDECL Scr_CallThread_ent_f_ent_3(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}};
+    return call_thread(args, make_functor(args, 0x14, 0x007f4bfc, fields, 2));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_i_str_i_ent)
+uint32_t XB_CDECL Scr_CallThread_ent_hash_i_str_i_ent(const uint32_t* args) {
+    return call_thread(args, construct_functor(args, 0x20, 0x001e3fb0, 4, 7));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_f_4)
+uint32_t XB_CDECL Scr_CallThread_ent_hash_f_4(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}};
+    return call_thread(args, make_functor(args, 0x14, 0x007f4a58, fields, 2));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_vec_f_str_i_ent_i)
+uint32_t XB_CDECL Scr_CallThread_ent_vec_f_str_i_ent_i(const uint32_t* args) {
+    return call_thread(args, construct_functor(args, 0x2c, 0x00564fa0, 4, 8));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_vec)
+uint32_t XB_CDECL Scr_CallThread_ent_vec(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 12}};
+    return call_thread(args, make_functor(args, 0x18, 0x007f49e0, fields, 1));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_f_f_5)
+uint32_t XB_CDECL Scr_CallThread_ent_f_f_5(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}};
+    return call_thread(args, make_functor(args, 0x14, 0x007f4a64, fields, 2));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2)
+uint32_t XB_CDECL Scr_CallThread_ent_hash_AnimDirections_AnimAngles_f_2(const uint32_t* args) {
+    return call_thread(args, construct_functor(args, 0x2c, 0x001e4080, 4, 6));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_i_f_2)
+uint32_t XB_CDECL Scr_CallThread_ent_hash_i_f_2(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}, {0x14, 4}};
+    return call_thread(args, make_functor(args, 0x18, 0x00825c08, fields, 3));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_anim_str_f_hash_str_f_b)
+uint32_t XB_CDECL Scr_CallThread_ent_anim_str_f_hash_str_f_b(const uint32_t* args) {
+    return call_thread(args, construct_functor(args, 0x28, 0x001e4150, 4, 9));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_str_hash_hash_3)
+uint32_t XB_CDECL Scr_CallThread_ent_str_hash_hash_3(const uint32_t* args) {
+    return call_thread(args, construct_functor(args, 0x18, 0x001e4280, 4, 5));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_f_hash_hash_4)
+uint32_t XB_CDECL Scr_CallThread_ent_f_hash_hash_4(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}, {0x14, 4}};
+    return call_thread(args, make_functor(args, 0x18, 0x00825c2c, fields, 3));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_vec_vec_vec_i)
+uint32_t XB_CDECL Scr_CallThread_ent_vec_vec_vec_i(const uint32_t* args) {
+    return call_thread(args, construct_functor(args, 0x34, 0x001e4330, 4, 6));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_f)
+uint32_t XB_CDECL Scr_CallThread_ent_f(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}};
+    return call_thread(args, make_functor(args, 0x10, 0x007f4a70, fields, 1));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_anim_anim_anim_anim_anim_anim)
+uint32_t XB_CDECL Scr_CallThread_ent_anim_anim_anim_anim_anim_anim(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}, {0x14, 4}, {0x18, 4}, {0x1c, 4}, {0x20, 4}};
+    return call_thread(args, make_functor(args, 0x24, 0x00825c44, fields, 6));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_vt00825c50)
+uint32_t XB_CDECL Scr_CallThread_vt00825c50(const uint32_t* args) {
+    return call_thread(args, construct_functor(args, 0x1c, 0x001e4430, 4, 6));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_f_hash_hash_hash_i_2)
+uint32_t XB_CDECL Scr_CallThread_ent_f_hash_hash_hash_i_2(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}, {0x14, 4}, {0x18, 4}, {0x1c, 4}};
+    return call_thread(args, make_functor(args, 0x20, 0x00825c5c, fields, 5));
+}
+
+SCRIPT_ARGS_ENTRY(Scr_CallThread_ent_hash_hash_f_5)
+uint32_t XB_CDECL Scr_CallThread_ent_hash_hash_f_5(const uint32_t* args) {
+    static const FunctorField fields[] = {{0xc, 4}, {0x10, 4}, {0x14, 4}};
+    return call_thread(args, make_functor(args, 0x18, 0x00825c68, fields, 3));
+}
+
+// Runs a script thread's functor (vtable slot 1, thiscall) inside the original's try/catch; a
+// caught exception ends the thread (the catch block resumes after the call). EAX = the slot's result.
+uint32_t XB_THISCALL Scr_ThreadEntry(uint32_t* functor) {
+    return title_function<uint32_t XB_THISCALL(uint32_t*)>(pointer<uint32_t>(functor[0])[1])(functor);
+}
+
+void XB_CDECL Scr_GetEntArray(uint32_t a1, uint32_t a2, uint8_t* array, uint32_t a4) {
+    // GScr_GetEntArray fills up to 0x400 entities; the array is emptied and gets them appended.
+    uint32_t ents[0x400];
+    DynArray_Resize(array, 0, 0);
+    using GetEntArray = int32_t XB_CDECL(uint32_t, uint32_t, uint32_t*, uint32_t, uint32_t);
+    const int32_t count = title_function<GetEntArray>(title_global<uint32_t>(0x009221c4))(a1, a2, ents, 0x400, a4);
+    DynArray_Reserve(array, at<uint32_t>(array, 8) + count);
+    for (int32_t i = 0; i < count; ++i) {
+        uint32_t ent = ents[i];
+        DynArray_PushBack(array, &ent);
+    }
+}
+
+void XB_CDECL Scr_NotifyAfterDeath(uint32_t object, uint32_t thread, uint32_t name) {
+    title_function<void XB_CDECL(uint32_t, uint32_t)>(title_global<uint32_t>(0x00922188))(object, name);  // Scr_EndOn
+    Scr_WaitTillString(thread, pointer<const char>(0x00831f60));  // "death"
+    Scr_QueueNotify(object, name);
+}
+
+SCRIPT_ARGS_ENTRY(Scr_ReleaseStringArrayAndString)
+void XB_CDECL Scr_ReleaseStringArrayAndString(uint32_t* args) {
+    // a2 = the strings, a4 = their count, a5 = a string passed by value (released in its slot).
+    uint32_t* const strings = pointer<uint32_t>(args[1]);
+    if (strings) {
+        const uint32_t end = args[1] + args[3] * 4;
+        for (uint32_t p = args[1]; p != end; p += 4) title_function<void XB_THISCALL(uint32_t)>(0x0011d640)(p);  // ScriptString_Release
+        Scr_Free(strings);
+    }
+    title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&args[4]);
+}
+
+void XB_CDECL Scr_StartThread_ent(uint32_t ent) {
+    // Health by difficulty (default 5000), then the vehicle health thread (0x0014d0a0) on the entity.
+    ScriptString difficulty;
+    ScriptString_FromRep(&difficulty, nullptr);
+    title_function<void XB_CDECL(ScriptString*)>(title_global<uint32_t>(0x009223cc))(&difficulty);  // GScr_GetDifficulty
+    uint32_t hash;
+    Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&difficulty));
+    uint32_t health = 0x1388;
+    if (hash == 0x00330a19)
+        health = 0x1964;
+    else if (hash == 0xdc63aacd)
+        health = 0x157c;
+    else if (hash == 0x00358a24)
+        health = 0x1388;
+    else if (hash == 0x00000cb5)
+        health = 0xdac;
+    else if (hash == 0x003229d0)
+        health = 0x1d4c;
+    title_function<void XB_CDECL(uint32_t, uint32_t)>(title_global<uint32_t>(0x00922b94))(ent, health);  // ScrEnt_SetHealth
+    uint32_t* functor = static_cast<uint32_t*>(scr_alloc(0xc));
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = 0x0014d0a0;
+        functor[2] = ent;
+    }
+    using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
+    title_function<CreateThread>(title_global<uint32_t>(0x0092216c))(0, 0, 0, ent, functor, 0);
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&difficulty);  // ScriptString_Release
+}
+
+uint32_t XB_CDECL Scr_StartThread_ent_2(uint32_t ent) {
+    // The "panzerIV" anim tree, then the thread 0x001679b0 on the entity.
+    ScriptString tree;
+    title_function<void XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(&tree, pointer<const char>(0x007f499c));
+    title_function<void XB_CDECL(uint32_t, ScriptString*)>(title_global<uint32_t>(0x009225f0))(ent, &tree);  // GScr_UseAnimTree
+    title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&tree);
+    uint32_t* functor = static_cast<uint32_t*>(scr_alloc(0xc));
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = 0x001679b0;
+        functor[2] = ent;
+    }
+    using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
+    return title_function<CreateThread>(title_global<uint32_t>(0x0092216c))(0, 0, 0, ent, functor, 0);
 }
 
 // The functor goes into the a7 slot and the slots shift (a4 <- a7, a5 <- a4, a6 <- a5),
