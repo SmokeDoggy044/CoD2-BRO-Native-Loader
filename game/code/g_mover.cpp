@@ -2148,4 +2148,201 @@ uint32_t XB_CDECL G_FindUnstuckPosition(uint32_t entry, uint8_t* ent, uint32_t e
     return 0;
 }
 
+namespace {
+
+// G_Damage(target, inflictor = attacker = mover, no direction, damage, mod 0x10, no
+// location), EAX = no point.
+void mover_crush(uint8_t* target, uint8_t* mover, uint32_t damage) {
+    const TitleRegs regs{0, 0, 0, 0, 0, 0};
+    const uint32_t args[9] = {address_of(target), address_of(mover), address_of(mover), 0, damage, 0, 0x10, 0,
+                              0xffffffffu};
+    g_ent_call(0x00250340, &regs, 9, args);  // G_Damage
+}
+
+void free_blocker(uint8_t* other) {
+    title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(other, 0);  // G_FreeEntity
+}
+
+}  // namespace
+
+void XB_CDECL Blocked_DoorRotate(uint8_t* ent, uint8_t* other) {
+    // A rotating door's blocked callback: a blocker without a client (+0x244) is freed; a dead
+    // one (health +0x350 <= 0) is killed (99999), then the door's damage (+0x358) applies.
+    // Then every team member reverses its rotation (state 9 <-> 10, from the mirrored time:
+    // 2 * now - duration - start) by SetMoverState (inlined there) and is linked again.
+    if (other) {
+        if (!word_at(other, 0x244)) {
+            free_blocker(other);
+            return;
+        }
+        if (field<int32_t>(other, 0x350) <= 0) mover_crush(other, ent, 99999);
+        if (word_at(ent, 0x358)) mover_crush(other, ent, word_at(ent, 0x358));
+    }
+    for (uint8_t* member = ent; member; member = pointer_at(member, 0x37c)) {
+        const int32_t time = static_cast<int32_t>(title_global<uint32_t>(0x0098540c) * 2 - word_at(member, 0x40) -
+                                                 word_at(member, 0x3c));
+        SetMoverState(time, member[0x298] == 9 ? 10 : 9, member);
+        SV_LinkEntity(member);
+    }
+}
+
+void XB_CDECL Blocked_Door(uint8_t* ent, uint8_t* other) {
+    // Q3's Blocked_Door: a blocker without a client (+0x244) is freed - a "chair" item (type 4)
+    // is destroyed by damage (99999) instead; others take the door's damage (+0x358). Unless
+    // crusher (spawn flag 4), every team member reverses (1to2 <-> 2to1 from the mirrored time)
+    // by SetMoverState (inlined there) and is linked again.
+    if (other) {
+        if (!word_at(other, 0x244)) {
+            if (other[0] == 4) {
+                const uint32_t name = word_at(other, 0x25c);
+                const char* const text = name ? reinterpret_cast<const char*>(uintptr_t{name + 6}) : nullptr;
+                if (title_function<const char* XB_CDECL(const char*, const char*)>(0x001efb10)(
+                        text, reinterpret_cast<const char*>(uintptr_t{0x0083b06c}))) {  // _strstr "chair"
+                    mover_crush(other, ent, 99999);
+                    return;
+                }
+            }
+            free_blocker(other);
+            return;
+        }
+        if (word_at(ent, 0x358)) mover_crush(other, ent, word_at(ent, 0x358));
+    }
+    if (ent[0x2a0] & 4) return;
+    for (uint8_t* member = ent; member; member = pointer_at(member, 0x37c)) {
+        const int32_t time = static_cast<int32_t>(title_global<uint32_t>(0x0098540c) * 2 - word_at(member, 0x1c) -
+                                                 word_at(member, 0x18));
+        SetMoverState(time, member[0x298] == 3 ? 4 : 3, member);
+        SV_LinkEntity(member);
+    }
+}
+
+void XB_CDECL Reached_BinaryMover(uint8_t* ent) {
+    // Q3's Reached_BinaryMover (reached callback): 1to2 -> pos2 (state 1), 2to1 -> pos1 (0), the
+    // rotations 9 -> 8 and 10 -> 7, each by the inlined SetMoverState. At pos2 / rotated open:
+    // the activator (+0x378) defaults to the mover; spawn flag 0x80 returns at once (think
+    // 0x14 / 0x15 now), else after the wait (+0x384 ms; -1000: stays). Back at pos1 the team
+    // master closes its area portal; back unrotated it drops +0x2a4 bit 0x100 and closes it.
+    const uint8_t state = ent[0x298];
+    ent[1] = 0;
+    const int32_t now = title_global<int32_t>(0x0098540c);
+    auto wait_return = [&](uint32_t think) {
+        if (!word_at(ent, 0x378)) word_at(ent, 0x378) = address_of(ent);
+        if (static_cast<int8_t>(ent[0x2a4]) < 0) {
+            ent[0x297] = 0;
+            word_at(ent, 0x32c) = think;
+            word_at(ent, 0x328) = 0;
+            return;
+        }
+        if (field<float>(ent, 0x384) == title_global<float>(0x0083ec74)) return;  // -1000: never
+        word_at(ent, 0x32c) = think;
+        field<int32_t>(ent, 0x328) = static_cast<int32_t>(field<float>(ent, 0x384)) + title_global<int32_t>(0x0098540c);
+    };
+    auto team_master = [&]() {
+        const uint32_t master = word_at(ent, 0x380);
+        return master == address_of(ent) || !master;
+    };
+    switch (state) {
+    case 3:
+        SetMoverState(now, 1, ent);
+        wait_return(0x14);
+        return;
+    case 4:
+        SetMoverState(now, 0, ent);
+        if (team_master() && field<int32_t>(ent, 0x200) != -1)
+            CM_AdjustAreaPortalState(field<int32_t>(ent, 0x1fc), field<int32_t>(ent, 0x200), 0);
+        return;
+    case 9:
+        SetMoverState(now, 8, ent);
+        wait_return(0x15);
+        return;
+    case 10:
+        SetMoverState(now, 7, ent);
+        word_at(ent, 0x2a4) &= ~0x100u;
+        if (team_master()) SV_AdjustAreaPortalState(ent, 0, 0);
+        return;
+    default:
+        title_function<void XB_CDECL(uint32_t)>(0x00248af0)(0x0083b084);  // G_Error "bad moverState"
+        return;
+    }
+}
+
+PLATFORM_ASM_ENTRY(Mover_ReverseTeam_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Mover_ReverseTeam) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Mover_ReverseTeam(uint8_t* leader, int32_t time, uint32_t state) {
+    // EDI team leader, EBX time, cdecl state: every team member (+0x37c chain) turns its
+    // rotation (+0x2f4) around, takes the leader's +0x2a4 bit 0x100 and goes to `state`.
+    for (uint8_t* member = leader; member; member = pointer_at(member, 0x37c)) {
+        field<float>(member, 0x2f4) = field<float>(member, 0x2f4) * title_global<float>(0x0083eb34);
+        if (word_at(leader, 0x2a4) & 0x100) word_at(member, 0x2a4) |= 0x100;
+        SetMoverState(time, state, member);
+    }
+}
+
+PLATFORM_ASM_ENTRY(MatchTeam_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(MatchTeam) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL MatchTeam(uint8_t* leader, uint32_t state, int32_t time) {
+    // Q3's MatchTeam: EDI team leader, cdecl (state, time); each member (+0x37c chain) takes the
+    // leader's +0x2a4 bit 0x100 and goes to `state`.
+    for (uint8_t* member = leader; member; member = pointer_at(member, 0x37c)) {
+        if (word_at(leader, 0x2a4) & 0x100) word_at(member, 0x2a4) |= 0x100;
+        SetMoverState(time, state, member);
+    }
+}
+
+void XB_CDECL SP_turret(uint8_t* ent) {
+    // The "weaponinfo" spawn key (cached under 0x0098f128 bit 1) names the turret's weapon; a
+    // missing key is an error (then the empty name 0x0082dfeb). Turret_ParseInfo does the rest.
+    const uint32_t key = cached_key(0x0098f128, 1, 0x0098f124, 0x0083b278);
+    const int32_t count = title_global<int32_t>(0x00985420);
+    for (int32_t i = 0; i < count; ++i) {
+        if (key != title_global<uint32_t>(0x00985424 + static_cast<uint32_t>(i) * 8)) continue;
+        Turret_ParseInfo(ent, reinterpret_cast<const char*>(
+                                  uintptr_t{title_global<uint32_t>(0x00985428 + static_cast<uint32_t>(i) * 8)}));
+        return;
+    }
+    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002938f0)(1, 0x0083b164);  // __break
+    Turret_ParseInfo(ent, reinterpret_cast<const char*>(uintptr_t{0x0082dfeb}));
+}
+
+void XB_CDECL Think_MatchTeam(uint8_t* ent) {
+    // The team follows the entity's own state (MatchTeam now).
+    MatchTeam(ent, ent[0x298], title_global<int32_t>(0x0098540c));
+}
+
+void XB_CDECL ReturnToPos1Rotate(uint8_t* ent) {
+    // The team rotates back (state 10, MatchTeam now).
+    MatchTeam(ent, 10, title_global<int32_t>(0x0098540c));
+}
+
+void XB_CDECL Think_MatchTeam2To3(uint8_t* ent) {
+    // The team moves pos2 -> pos3 (state 5, MatchTeam now).
+    MatchTeam(ent, 5, title_global<int32_t>(0x0098540c));
+}
+
+void XB_CDECL Think_MatchTeam3To2(uint8_t* ent) {
+    // The team moves pos3 -> pos2 (state 6, MatchTeam now).
+    MatchTeam(ent, 6, title_global<int32_t>(0x0098540c));
+}
+
+void XB_CDECL ReturnToPos1(uint8_t* ent) {
+    // Q3's ReturnToPos1: the team moves back (state 4, MatchTeam now).
+    MatchTeam(ent, 4, title_global<int32_t>(0x0098540c));
+}
+
+uint32_t XB_CDECL Artillery_Incoming(uint8_t* ent) {
+    // The incoming whistle (0x0083b140 alias on the entity, FXCmd_PlaySoundAlias) and think 9 in 1100 ms.
+    word_at(ent, 0x328) = title_global<uint32_t>(0x0098540c) + 0x44c;
+    word_at(ent, 0x32c) = 9;
+    const TitleRegs regs{word_at(ent, 0x328), 0, address_of(ent), 0, 0, 0};
+    const uint32_t args[4] = {0x0083b140, 0, 0xffffffffu, 0};
+    return g_ent_call(0x002a6990, &regs, 4, args);  // FXCmd_PlaySoundAlias (ECX entity)
+}
 }  // namespace game

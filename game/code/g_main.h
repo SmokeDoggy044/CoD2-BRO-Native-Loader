@@ -123,6 +123,11 @@ void XB_CDECL G_InitSkillCvars(uint32_t restore);
 // 0x0025f650: at a level reload, every listed entity freed and its model object, ragdoll and entity number released.
 void XB_CDECL G_FreeLevelEntities();
 
+// 0x00263b80 (EBX passed on, cdecl full): a level reload ("g_reloading" set around it); returns
+// the last Cvar_Set2 result.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL G_ReloadLevel(uint32_t ebx, uint32_t full);
+extern "C" void G_ReloadLevel_entry(void);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

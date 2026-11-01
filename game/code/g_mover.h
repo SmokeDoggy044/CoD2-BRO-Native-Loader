@@ -157,4 +157,31 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_FindUnstuckPosition(uint32_t entr
                                                                 uint32_t ebp);
 extern "C" void G_FindUnstuckPosition_entry(void);
 
+// 0x00262130: a rotating door's blocked callback (blocker freed or damaged, the team reverses).
+void XB_CDECL Blocked_DoorRotate(uint8_t* ent, uint8_t* other);
+// 0x00262430: Q3's Blocked_Door.
+void XB_CDECL Blocked_Door(uint8_t* ent, uint8_t* other);
+// 0x00262740: Q3's Reached_BinaryMover (with the rotation states 9/10).
+void XB_CDECL Reached_BinaryMover(uint8_t* ent);
+// 0x00262b40 (leader in EDI, time in EBX, cdecl state): the team's rotations reversed, then MatchTeam.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Mover_ReverseTeam(uint8_t* leader, int32_t time, uint32_t state);
+extern "C" void Mover_ReverseTeam_entry(void);
+// 0x00262ba0 (leader in EDI, cdecl state, time): Q3's MatchTeam.
+extern "C" PLATFORM_HIDDEN void XB_CDECL MatchTeam(uint8_t* leader, uint32_t state, int32_t time);
+extern "C" void MatchTeam_entry(void);
+// 0x00262d70: a turret spawn from its "weaponinfo" key.
+void XB_CDECL SP_turret(uint8_t* ent);
+// 0x00266d50: MatchTeam with the entity's own state.
+void XB_CDECL Think_MatchTeam(uint8_t* ent);
+// 0x00266fa0: MatchTeam state 10.
+void XB_CDECL ReturnToPos1Rotate(uint8_t* ent);
+// 0x00266fc0: MatchTeam state 5.
+void XB_CDECL Think_MatchTeam2To3(uint8_t* ent);
+// 0x00266fe0: MatchTeam state 6.
+void XB_CDECL Think_MatchTeam3To2(uint8_t* ent);
+// 0x00267000: Q3's ReturnToPos1 (MatchTeam state 4).
+void XB_CDECL ReturnToPos1(uint8_t* ent);
+// 0x00267980: the incoming-shell sound, think 9 in 1.1 s; returns the sound call's EAX.
+uint32_t XB_CDECL Artillery_Incoming(uint8_t* ent);
+
 }  // namespace game

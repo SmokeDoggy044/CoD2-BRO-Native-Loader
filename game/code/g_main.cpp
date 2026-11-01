@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "actor.h"
+#include "cgame.h"
 #include "dobj.h"
 #include "g_script.h"
 #include "g_utils.h"
@@ -1195,4 +1196,28 @@ void XB_CDECL G_FreeLevelEntities() {
     AnimTree_FlushClearLists();
 }
 
+PLATFORM_ASM_ENTRY(G_ReloadLevel_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_ReloadLevel) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL G_ReloadLevel(uint32_t ebx, uint32_t full) {
+    // "g_reloading" 1 while the level restarts; a full reload frees the level's entities, hud
+    // elements, bad places, DObjs (G_FreeAllDObjs with BL = 1; the pushed EBX keeps the
+    // caller's upper bytes) and queued anim trees; then the sound and screen fade-in commands
+    // to every client and "g_reloading" 0 (its Cvar_Set2 result).
+    Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x0082c89c}), reinterpret_cast<char*>(uintptr_t{0x0082e058}), 1);
+    if (full) {
+        G_FreeLevelEntities();
+        HudElem_ClearAll();
+        BadPlace_ClearAll();
+        const TitleRegs regs{0, (ebx & ~0xffu) | 1, 0, 0, 0, 0};
+        g_ent_call(0x002e8bb0, &regs, 0, nullptr);  // G_FreeAllDObjs
+        AnimTree_FlushClearLists();
+    }
+    SV_GameSendServerCommand(reinterpret_cast<const char*>(uintptr_t{0x0083b2f0}), 0);  // "snd_fade 1 0"
+    SV_GameSendServerCommand(reinterpret_cast<const char*>(uintptr_t{0x0083b2e0}), 0);  // "scr_fade 0 0 0"
+    return Cvar_Set2(reinterpret_cast<const char*>(uintptr_t{0x0082c89c}), reinterpret_cast<char*>(uintptr_t{0x0082e098}),
+                     1);
+}
 }  // namespace game
