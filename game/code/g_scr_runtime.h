@@ -93,4 +93,48 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL G_NotifyWithIntEntity(uint32_t entry, u
                                                                const int32_t* value, const uint32_t* other);
 extern "C" void G_NotifyWithIntEntity_entry(void);
 
+// 0x00029000 (entity in EBX, callee pops 12): a notify carrying two script strings (value kind
+// 0x00839c2c, 0x14 bytes); the handler gets no parameter block.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_NotifyWithTwoStrings(uint8_t* ent, uint32_t notify,
+                                                                const ScriptString* first,
+                                                                const ScriptString* second);
+extern "C" void G_NotifyWithTwoStrings_entry(void);
+// The script wait family: not in kFunctions (they suspend the script thread; no test process can
+// run them). Scr_SuspendWaitTime/Frames/Till (0x0011d950/0x0011d990/0x0011d9d0) have no C: they
+// push all registers, save the thread's stack (Scr_SaveThreadLocals) and switch away; the
+// scheduler resumes them with POPA/POPF.
+// 0x0011db10 (3 bytes, too short to hook): returns false (AL).
+uint8_t XB_CDECL Scr_ReturnFalse();
+// 0x0011e4b0: waits exactly `seconds` (g_scrWaitTime 0x00922124, Scr_SuspendWaitTime).
+void XB_CDECL Scr_WaitExact(float seconds);
+// 0x0011e4f0: waits a random time from seconds to 1.05 x seconds (Scr_RandomFloatRange).
+void XB_CDECL Scr_Wait(float seconds);
+// 0x0011e540: waits `frames` frames (0x00922128, Scr_SuspendWaitFrames).
+void XB_CDECL Scr_WaitFrames(uint32_t frames);
+// 0x0011e570 / 0x0011e5e0: waits for `notify` on object (nothing for a null object); the second
+// with a timeout (0x00922138).
+void XB_CDECL Scr_WaitTill(uint32_t object, uint32_t notify);
+void XB_CDECL Scr_WaitTillTimeout(uint32_t object, uint32_t notify, float timeout);
+// 0x0011e650 / 0x0011e6d0: waits for `notify` with three argument words (0x00922120, 0x0092212c,
+// 0x00922e60); flag 0x00922e5c 1 / 0.
+void XB_CDECL Scr_WaitTillArgs(uint32_t object, uint32_t notify, uint32_t a, uint32_t b, uint32_t c);
+void XB_CDECL Scr_WaitTillArgsNoFlag(uint32_t object, uint32_t notify, uint32_t a, uint32_t b, uint32_t c);
+// 0x0011e750: Scr_WaitTill(object, HashKeyNoCase(name)).
+void XB_CDECL Scr_WaitTillString(uint32_t object, const char* name);
+// 0x0011e780 / 0x0011e7c0: waits on an object (0x00922e6c), notify word 0x00922130 = 1 / 0.
+void XB_CDECL Scr_WaitOnObject(uint32_t object);
+void XB_CDECL Scr_WaitOnObjectNoFlag(uint32_t object);
+// 0x0011b830: Scr_WaitTillString(object, the string's text or null).
+void XB_CDECL Scr_WaitTillScriptString(uint32_t object, const ScriptString* name);
+
+// 0x0011f1b0: appends the path nodes matching (key, value) (GScr_GetNode, at most 0x400; -1 handles
+// as 0) to a script pointer array after DynArray_ReserveInt0 (0x0045d480) and PtrArray_Reserve.
+void XB_CDECL Scr_GetNodeArray(uint32_t key, uint32_t value, uint32_t* array);
+// 0x0011f240: the same with an empty script string as key and value (all nodes); reserves only
+// when there are any.
+void XB_CDECL Scr_GetNodeArrayNoKey(uint32_t* array);
+// 0x0011f320: vehicle nodes (GScr_GetVehicleNode) into a vehicle node array (0x0045c4a0 reset,
+// PtrArray_Reserve2, append 0x0045c550).
+void XB_CDECL Scr_GetVehicleNodeArray(uint32_t key, uint32_t value, uint32_t* array);
+
 }  // namespace game

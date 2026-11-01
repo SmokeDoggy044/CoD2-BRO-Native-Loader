@@ -39,6 +39,11 @@ extern "C" void Scr_StartThread_ent_hash_i_i_f_f_f_f_hash_2_entry(void);
 // a4, a5, functor) and it tail-jumps to Scr_BeginThreadEndOn.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_BeginThreadEndOnFunctor1(uint32_t* args);
 extern "C" void Scr_BeginThreadEndOnFunctor1_entry(void);
+// 0x0011b4d0: Scr_BeginThread(a2, a3, a4, a6, functor {0x007f5ba0, a5, a6}, a1), then
+// Scr_WaitFrames(0) when called from a script thread; returns the thread. Not registered either
+// (same unhookable prologue).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Scr_BeginThreadFunctor1(const uint32_t* args);
+extern "C" void Scr_BeginThreadFunctor1_entry(void);
 // 0x0011c170 (entity in ECX): the entity's script object (0x0011db20 of its first word), or the
 // empty key table 0x00922e94 when it has none.
 uint32_t XB_THISCALL Scr_GetEntObjectOrEmpty(const uint32_t* entity);

@@ -182,4 +182,25 @@ uint32_t* XB_REGS2 XB_CDECL EntBits_Invert(uint32_t* out, const uint32_t* bits);
 extern "C" PLATFORM_HIDDEN void XB_CDECL G_FreeXModel(int32_t context_index, uint8_t* model);
 extern "C" void G_FreeXModel_entry(void);
 
+// 0x00028040 (list in EAX; StaticInit_G_EntityList): an entity handle list {bits[42], slots[0x540]
+// {entity, generation 1}, count}: bits cleared, then all 0x540 set (free slots). Returns the list.
+uint32_t* XB_REGS1 XB_CDECL G_EntityList_Init(uint32_t* list);
+// 0x00028f60 / 0x00028fb0 (out list {count, entities[0x1000]} in ESI; value in EBX for the short
+// one): appends every level entity (0x0097d370, count 0x0097d36c) whose int / short field at
+// `offset` equals value.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_GatherEntsByIntField(uint32_t* out, uint32_t offset, uint32_t value);
+extern "C" void G_GatherEntsByIntField_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_GatherEntsByShortField(uint32_t value, uint32_t* out, uint32_t offset);
+extern "C" void G_GatherEntsByShortField_entry(void);
+// 0x0002bf00 (saved block in EAX): for the 0x540 saved {entity handle, value} pairs at +4 (last
+// first), entity +0x134 = value; null handles skipped.
+void XB_REGS1 XB_CDECL G_RestoreSavedEntityField134(const uint8_t* saved);
+// 0x00044ee0: the water surface height at (x, y) of ocean wave set `index` (0x00901b30, 0xd0
+// bytes): base height (+0) plus four packed sine waves (angle +0x70, falloff +0x80, length +0x90,
+// amplitude +0xa0, offset +0xb0, phase speed +0xc0, origins +0x50; time 0x00901e90).
+float XB_CDECL Water_GetHeight(int32_t index, float x, float y);
+// 0x000b05a0 (no references: dead): the smallest squared distance of p from the lines through
+// the triangle's edges ab, bc, ca, at least 0.0001. 16-byte aligned vectors (MOVAPS).
+float XB_CDECL Tri_MinEdgeLineDistSq(const float* a, const float* b, const float* c, const float* p);
+
 }  // namespace game

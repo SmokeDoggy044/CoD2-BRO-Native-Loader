@@ -152,6 +152,24 @@ void XB_CDECL Scr_BeginThreadEndOnFunctor1(uint32_t* args) {
     args[3] = a7;
 }
 
+// 0x0011b4d0: like the Scr_StartThread_* wrappers but through Scr_BeginThread (0x00922168); when
+// called from a script thread, that thread then waits a frame (Scr_WaitFrames(0)).
+SCRIPT_ARGS_ENTRY(Scr_BeginThreadFunctor1)
+uint32_t XB_CDECL Scr_BeginThreadFunctor1(const uint32_t* args) {
+    uint32_t* functor = static_cast<uint32_t*>(scr_alloc(0xc));
+    if (functor) {
+        functor[0] = 0x007f5ba0;
+        functor[1] = args[4];
+        functor[2] = args[5];
+    }
+    using BeginThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
+    const uint32_t thread = title_function<BeginThread>(title_global<uint32_t>(0x00922168))(args[1], args[2], args[3],
+                                                                                           args[5], functor, args[0]);
+    if (static_cast<uint8_t>(title_function<uint32_t XB_CDECL()>(title_global<uint32_t>(0x0092218c))()))  // Scr_InThread
+        title_function<void XB_CDECL(uint32_t)>(0x0011e540)(0);  // Scr_WaitFrames
+    return thread;
+}
+
 PLATFORM_ASM_ENTRY(G_Error_entry,
                    "leal 4(%esp), %eax\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(G_Error) "addl $4, %esp\n"

@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "lanes.h"
 #include "qcommon_core.h"
 #include "script_string.h"
 #include "title_data.h"
@@ -470,6 +471,203 @@ void XB_CDECL G_NotifyWithIntEntity(uint32_t entry, uint8_t* ent, uint32_t notif
     const TitleRegs regs = {notify, self, handler, block, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(node)), 0};
     const uint32_t args[3] = {self, notify, block};
     title_call_at_regs(block, 0x002b6de0, &regs, 3, args);
+}
+
+PLATFORM_ASM_ENTRY(G_NotifyWithTwoStrings_entry,
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl 12(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_NotifyWithTwoStrings) "addl $16, %esp\n"
+                   "ret $12")
+
+void XB_CDECL G_NotifyWithTwoStrings(uint8_t* ent, uint32_t notify, const ScriptString* first,
+                                     const ScriptString* second) {
+    uint32_t* node = small_heap_alloc(0x0095f56c, 0x14);
+    if (node) {
+        uint32_t* argument = small_heap_alloc(0x0095f574, 0x14);
+        if (argument) {
+            argument[1] = 0;
+            argument[2] = 0;
+            argument[0] = 0x00839c2c;
+            ScriptString_Copy(reinterpret_cast<ScriptString*>(argument + 3), first);
+            ScriptString_Copy(reinterpret_cast<ScriptString*>(argument + 4), second);
+        }
+        node[4] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(argument));
+        node[0] = 0;
+        node[1] = 0;
+        node[2] = notify;
+        node[3] = entity_number(ent);
+    }
+    queue_notify(node);
+    // The original tail-jumps to the handler with its own argument slots rewritten.
+    if (const uint32_t handlers = *reinterpret_cast<const uint32_t*>(ent + 0x234))
+        title_function<NotifyHandler>(0x002b6de0)(handlers, ent, notify, nullptr);
+}
+
+// The script wait family (not registered: the waits suspend the script thread - Scr_Suspend*
+// save the thread's stack and registers and switch away - so a test process cannot run them).
+
+namespace {
+
+// After a wait: a thread being torn down (g_scrThreadAborting) throws a one-byte object (the low
+// byte of the wait's first argument; type info 0x0088ac80) to unwind the script function.
+void wait_done(uint32_t first_argument) {
+    if (!title_global<uint8_t>(0x00922164)) return;
+    uint8_t object = static_cast<uint8_t>(first_argument);
+    title_function<void XB_STDCALL(void*, uint32_t)>(0x001f2302)(&object, 0x0088ac80);  // _CxxThrowException
+}
+
+void suspend(uint32_t function) { title_function<void XB_CDECL()>(function)(); }
+
+// The wait-till record (0x00922130 notify, 0x00922134 object, 0x00922e6c, 0x00922120 /
+// 0x0092212c / 0x00922e60 arguments, 0x00922e5c flag, 0x00922138 timeout), then
+// Scr_SuspendWaitTill.
+void wait_till(uint32_t object, uint32_t notify, uint32_t a, uint32_t b, uint32_t c, uint8_t flag, float timeout) {
+    title_global<uint32_t>(0x00922134) = object;
+    title_global<uint32_t>(0x00922e6c) = 0;
+    title_global<uint32_t>(0x00922130) = notify;
+    title_global<uint32_t>(0x00922120) = a;
+    title_global<uint32_t>(0x0092212c) = b;
+    title_global<uint32_t>(0x00922e60) = c;
+    title_global<uint8_t>(0x00922e5c) = flag;
+    title_global<float>(0x00922138) = timeout;
+    suspend(0x0011d9d0);  // Scr_SuspendWaitTill
+}
+
+}  // namespace
+
+uint8_t XB_CDECL Scr_ReturnFalse() { return 0; }
+
+void XB_CDECL Scr_WaitExact(float seconds) {
+    uint32_t bits;
+    std::memcpy(&bits, &seconds, 4);
+    title_global<uint32_t>(0x00922124) = bits;  // g_scrWaitTime
+    suspend(0x0011d950);                        // Scr_SuspendWaitTime
+    wait_done(bits);
+}
+
+void XB_CDECL Scr_Wait(float seconds) {
+    // A random time between seconds and 5% more (Scr_RandomFloatRange returns on the x87).
+    const float longest = seconds * from_bits(0x3f866666);
+    title_global<float>(0x00922124) =
+        title_function<float XB_CDECL(float, float)>(title_global<uint32_t>(0x00922238))(seconds, longest);
+    suspend(0x0011d950);  // Scr_SuspendWaitTime
+    uint32_t bits;
+    std::memcpy(&bits, &seconds, 4);
+    wait_done(bits);
+}
+
+void XB_CDECL Scr_WaitFrames(uint32_t frames) {
+    title_global<uint32_t>(0x00922128) = frames;
+    suspend(0x0011d990);  // Scr_SuspendWaitFrames
+    wait_done(frames);
+}
+
+void XB_CDECL Scr_WaitTill(uint32_t object, uint32_t notify) {
+    if (!object) return;
+    wait_till(object, notify, 0, 0, 0, 0, 0.0f);
+    wait_done(object);
+}
+
+void XB_CDECL Scr_WaitTillTimeout(uint32_t object, uint32_t notify, float timeout) {
+    if (!object) return;
+    wait_till(object, notify, 0, 0, 0, 0, timeout);
+    wait_done(object);
+}
+
+void XB_CDECL Scr_WaitTillArgs(uint32_t object, uint32_t notify, uint32_t a, uint32_t b, uint32_t c) {
+    wait_till(object, notify, a, b, c, 1, 0.0f);
+    wait_done(object);
+}
+
+void XB_CDECL Scr_WaitTillArgsNoFlag(uint32_t object, uint32_t notify, uint32_t a, uint32_t b, uint32_t c) {
+    wait_till(object, notify, a, b, c, 0, 0.0f);
+    wait_done(object);
+}
+
+void XB_CDECL Scr_WaitTillString(uint32_t object, const char* name) {
+    Scr_WaitTill(object, hash_key(name));
+}
+
+void XB_CDECL Scr_WaitOnObject(uint32_t object) {
+    title_global<uint32_t>(0x00922e6c) = object;
+    title_global<uint32_t>(0x00922130) = 1;
+    suspend(0x0011d9d0);  // Scr_SuspendWaitTill
+    wait_done(object);
+}
+
+void XB_CDECL Scr_WaitOnObjectNoFlag(uint32_t object) {
+    title_global<uint32_t>(0x00922e6c) = object;
+    title_global<uint32_t>(0x00922130) = 0;
+    suspend(0x0011d9d0);  // Scr_SuspendWaitTill
+    wait_done(object);
+}
+
+// 0x0011b830: Scr_WaitTillString with the script string's text (null for the empty string).
+void XB_CDECL Scr_WaitTillScriptString(uint32_t object, const ScriptString* name) {
+    const char* const text = name->rep ? name->rep->text : nullptr;
+    Scr_WaitTillString(object, text);
+}
+
+namespace {
+
+// GScr_GetNode / GScr_GetVehicleNode (interface slots 0x009221cc / 0x009221d0): up to `max` node
+// handles matching (key, value) into `out`; returns the count.
+using NodeQuery = int32_t XB_CDECL(uint32_t, uint32_t, uint32_t*, uint32_t);
+using ArrayCall = void XB_THISCALL(uint32_t*, uint32_t*);
+
+// Shared copies in every level section at fixed addresses: DynArray_ReserveInt0 (0x0045d480) and
+// DynArray_ReserveIntNeg1 (0x0045c4a0) (thiscall, two zero arguments).
+void reserve_none(uint32_t function, uint32_t* array) {
+    title_function<void XB_THISCALL(uint32_t*, uint32_t, uint32_t)>(function)(array, 0, 0);
+}
+
+// Appends the nodes; a -1 handle goes in as 0 (ScrPtrArray_Append, 0x001e5ec0).
+void append_nodes(uint32_t* array, const uint32_t* nodes, int32_t count) {
+    for (int32_t i = 0; i < count; ++i) {
+        uint32_t node = nodes[i];
+        if (node == 0xffffffff) node = 0;
+        title_function<ArrayCall>(0x001e5ec0)(array, &node);
+    }
+}
+
+}  // namespace
+
+void XB_CDECL Scr_GetNodeArray(uint32_t key, uint32_t value, uint32_t* array) {
+    reserve_none(0x0045d480, array);
+    uint32_t nodes[0x400];
+    const int32_t count = title_function<NodeQuery>(title_global<uint32_t>(0x009221cc))(key, value, nodes, 0x400);
+    PtrArray_Reserve(array, array[2] + count);
+    append_nodes(array, nodes, count);
+}
+
+void XB_CDECL Scr_GetNodeArrayNoKey(uint32_t* array) {
+    reserve_none(0x0045d480, array);
+    ScriptString empty = {nullptr};
+    uint32_t nodes[0x400];
+    const uint32_t key = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&empty));
+    const int32_t count = title_function<NodeQuery>(title_global<uint32_t>(0x009221cc))(key, key, nodes, 0x400);
+    if (count > 0) {
+        PtrArray_Reserve(array, array[2] + count);
+        append_nodes(array, nodes, count);
+    }
+    // The local string's destructor (inlined): one reference less, freed at zero.
+    if (ScriptStringRep* const rep = empty.rep) {
+        --rep->refs;
+        if (static_cast<int16_t>(rep->refs) <= 0) Scr_Free(rep);
+    }
+}
+
+void XB_CDECL Scr_GetVehicleNodeArray(uint32_t key, uint32_t value, uint32_t* array) {
+    reserve_none(0x0045c4a0, array);
+    uint32_t nodes[0x400];
+    const int32_t count = title_function<NodeQuery>(title_global<uint32_t>(0x009221d0))(key, value, nodes, 0x400);
+    if (count <= 0) return;
+    PtrArray_Reserve2(array, array[2] + count);
+    for (int32_t i = 0; i < count; ++i) {
+        uint32_t node = nodes[i];
+        title_function<ArrayCall>(0x0045c550)(array, &node);  // vehicle node array append
+    }
 }
 
 }  // namespace game

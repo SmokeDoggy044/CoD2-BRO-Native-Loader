@@ -5,6 +5,7 @@
 #include "actor.h"
 #include "dobj.h"
 #include "fx.h"
+#include "lanes.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -762,6 +763,192 @@ void XB_CDECL G_FreeXModel(int32_t context_index, uint8_t* model) {
         if (MemContext_Free_r(context, model)) return;
     }
     Z_Free(model);
+}
+
+uint32_t* XB_REGS1 XB_CDECL G_EntityList_Init(uint32_t* list) {
+    for (int32_t i = 0x28; i >= -1; --i) list[i + 1] = 0;
+    for (uint32_t i = 0; i < 0x540; ++i) {
+        list[0x2a + i * 2] = 0;
+        list[0x2a + i * 2 + 1] = 1;
+    }
+    list[0xaaa] = 0;
+    for (int32_t i = 0; i < 0x540; ++i) list[i >> 5] |= 1u << (i & 0x1f);
+    return list;
+}
+
+namespace {
+
+// The level's entity pointer list (0x0097d370, count 0x0097d36c), walked up to base + count * 4
+// (the pointer wraps like the original's).
+template <typename Match>
+void gather_entities(uint32_t* out, Match match) {
+    const uint32_t base = 0x0097d370;
+    const uint32_t end = base + title_global<uint32_t>(0x0097d36c) * 4;
+    for (uint32_t slot = base; slot != end; slot += 4) {
+        uint8_t* const ent = title_global<uint8_t*>(slot);
+        if (!ent || !match(ent)) continue;
+        const int32_t count = static_cast<int32_t>(out[0]);
+        if (count >= 0x1000) continue;
+        out[1 + count] = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ent));
+        ++out[0];
+    }
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(G_GatherEntsByIntField_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_GatherEntsByIntField) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL G_GatherEntsByIntField(uint32_t* out, uint32_t offset, uint32_t value) {
+    gather_entities(out, [&](uint8_t* ent) { return word_at(ent, offset) == value; });
+}
+
+PLATFORM_ASM_ENTRY(G_GatherEntsByShortField_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(G_GatherEntsByShortField) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL G_GatherEntsByShortField(uint32_t value, uint32_t* out, uint32_t offset) {
+    gather_entities(out, [&](uint8_t* ent) { return *reinterpret_cast<const uint16_t*>(ent + offset) == uint16_t(value); });
+}
+
+void XB_REGS1 XB_CDECL G_RestoreSavedEntityField134(const uint8_t* saved) {
+    for (int32_t i = 0x53f; i >= 0; --i) {
+        const uint32_t* const pair = reinterpret_cast<const uint32_t*>(saved + 4 + i * 8);
+        const uint32_t handle = pair[0];
+        if (!handle) continue;
+        // A stale handle gives entity 0: the original then writes to address 0x134 too.
+        uintptr_t ent = 0;
+        const uint32_t index = handle & 0xfff;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            ent = title_global<uint32_t>(0x0097a968 + index * 8);
+        *reinterpret_cast<uint32_t*>(ent + 0x134) = pair[1];
+    }
+}
+
+namespace {
+
+Lanes splat(float f) { return {{f, f, f, f}}; }
+
+Lanes title_lanes(uint32_t address) {
+    const float* const p = &title_global<const float>(address);
+    return {{p[0], p[1], p[2], p[3]}};
+}
+
+Lanes div_lanes(const Lanes& a, const Lanes& b) {
+    return {{a.v[0] / b.v[0], a.v[1] / b.v[1], a.v[2] / b.v[2], a.v[3] / b.v[3]}};
+}
+
+// MAXPS(a, b) / MINPS(a, b): b when the comparison fails (also on NaN).
+Lanes max_ps(const Lanes& a, const Lanes& b) {
+    Lanes r;
+    for (int i = 0; i < 4; ++i) r.v[i] = a.v[i] > b.v[i] ? a.v[i] : b.v[i];
+    return r;
+}
+
+Lanes min_ps(const Lanes& a, const Lanes& b) {
+    Lanes r;
+    for (int i = 0; i < 4; ++i) r.v[i] = a.v[i] < b.v[i] ? a.v[i] : b.v[i];
+    return r;
+}
+
+Lanes abs_ps(const Lanes& a) { return {{abs_bits(a.v[0]), abs_bits(a.v[1]), abs_bits(a.v[2]), abs_bits(a.v[3])}}; }
+
+Lanes rcp_ps(const Lanes& a) {
+    return {{platform_rcp_estimate(a.v[0]), platform_rcp_estimate(a.v[1]), platform_rcp_estimate(a.v[2]),
+             platform_rcp_estimate(a.v[3])}};
+}
+
+Lanes sine_ps(const Lanes& a) {
+    return {{scene_sine_poly(a.v[0]), scene_sine_poly(a.v[1]), scene_sine_poly(a.v[2]), scene_sine_poly(a.v[3])}};
+}
+
+// One Newton step on a reciprocal estimate: (2 - r * x) * r.
+Lanes refine_rcp(const Lanes& r, const Lanes& x) { return mul(sub(splat(2.0f), mul(r, x)), r); }
+
+}  // namespace
+
+float XB_CDECL Water_GetHeight(int32_t index, float x, float y) {
+    const uint32_t set = 0x00901b30 + static_cast<uint32_t>(index) * 0xd0;
+    const Lanes pi = splat(from_bits(0x40490fdb));
+    const Lanes one = splat(1.0f);
+    const Lanes zero = splat(0.0f);
+    const Lanes magic = splat(from_bits(0x4b400000));  // 1.5 * 2^23: (v + magic) - magic rounds
+    // Each wave's direction from its angle in degrees: sin(a + 3 pi / 2) and sin(a) per wave.
+    const Lanes angle = div_lanes(mul(title_lanes(set + 0x70), pi), splat(180.0f));
+    const float q = from_bits(0x4096cbe2);
+    const Lanes quarter = {{q, 0.0f, q, 0.0f}};
+    const Lanes dir01 = sine_ps(add({{angle.v[0], angle.v[0], angle.v[1], angle.v[1]}}, quarter));
+    const Lanes dir23 = sine_ps(add({{angle.v[2], angle.v[2], angle.v[3], angle.v[3]}}, quarter));
+    const Lanes falloff = max_ps(one, title_lanes(set + 0x80));
+    const Lanes falloff_rcp = rcp_ps(falloff);
+    const Lanes length = max_ps(one, title_lanes(set + 0x90));
+    const Lanes length_rcp = rcp_ps(length);
+    // The amplitude counts only when it rounds to at least 1 (clamped to 0..1).
+    const Lanes amplitude = title_lanes(set + 0xa0);
+    const Lanes amplitude_on = min_ps(one, max_ps(zero, sub(add(amplitude, magic), magic)));
+    const Lanes scaled_amplitude = mul(amplitude, amplitude_on);
+    // Distance along each wave's direction from its origin (+0x50, two waves per vector).
+    const Lanes point = {{x, y, x, y}};
+    const Lanes d01 = mul(sub(point, title_lanes(set + 0x50)), dir01);
+    const Lanes d23 = mul(sub(point, title_lanes(set + 0x60)), dir23);
+    const Lanes e23 = add(d23, splat(d23.v[3]));
+    const Lanes f23 = add(d23, splat(d23.v[1]));
+    const Lanes e01 = add(d01, splat(d01.v[3]));
+    const Lanes f01 = add(d01, splat(d01.v[1]));
+    platform_keep(e23);
+    platform_keep(f23);
+    platform_keep(e01);
+    platform_keep(f01);
+    const Lanes distance = abs_ps({{f01.v[0], e01.v[2], f23.v[0], e23.v[2]}});
+    const Lanes phase = title_lanes(set + 0xc0);
+    const Lanes phase_whole = sub(add(phase, magic), magic);
+    const Lanes time = splat(title_global<float>(0x00901e90));
+    const Lanes offset = sub(mul(phase, time), phase_whole);
+    const Lanes cycles = add(sub(title_lanes(set + 0xb0), offset), mul(distance, refine_rcp(length_rcp, length)));
+    const Lanes wave = sine_ps(mul(mul(cycles, splat(2.0f)), pi));
+    const Lanes fade = sub(one, max_ps(zero, min_ps(one, mul(distance, refine_rcp(falloff_rcp, falloff)))));
+    const Lanes height = mul(wave, mul(fade, scaled_amplitude));
+    const Lanes pairs = add(height, {{height.v[2], height.v[3], height.v[0], height.v[0]}});
+    platform_keep(pairs);
+    return (pairs.v[0] + pairs.v[1]) + title_global<float>(set);
+}
+
+namespace {
+
+float sum_xyz(const Lanes& a) { return (a.v[0] + a.v[1]) + a.v[2]; }
+
+// Squared distance of p from the line through a and b: |ap|^2 - (ab . ap)^2 / |ab|^2 (packed,
+// every lane computed).
+float line_dist_sq(const Lanes& a, const Lanes& b, const Lanes& p) {
+    const Lanes ab = sub(b, a);
+    const Lanes ap = sub(p, a);
+    const Lanes ab_ab = mul(ab, ab);
+    const Lanes ap_ap = mul(ap, ap);
+    const Lanes ab_ap = mul(ab, ap);
+    platform_keep(ab_ab);
+    platform_keep(ap_ap);
+    platform_keep(ab_ap);
+    const float along = sum_xyz(ab_ap);
+    return sum_xyz(ap_ap) - along * along / sum_xyz(ab_ab);
+}
+
+}  // namespace
+
+float XB_CDECL Tri_MinEdgeLineDistSq(const float* a, const float* b, const float* c, const float* p) {
+    const Lanes la = lanes(a), lb = lanes(b), lc = lanes(c), lp = lanes(p);
+    float best = line_dist_sq(la, lb, lp);
+    const float bc = line_dist_sq(lb, lc, lp);
+    if (best > bc) best = bc;
+    const float ca = line_dist_sq(la, lc, lp);
+    if (best > ca) best = ca;
+    const float minimum = from_bits(0x38d1b717);  // 0.0001
+    if (minimum > best) best = minimum;
+    return best;
 }
 
 }  // namespace game
