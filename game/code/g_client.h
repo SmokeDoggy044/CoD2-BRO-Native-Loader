@@ -24,4 +24,12 @@ void XB_REGS3 XB_CDECL TeleportPlayer(uint8_t* ent, uint32_t unused_edx, const f
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SelectNearestDeathmatchSpawnPoint(const float* from);
 extern "C" void SelectNearestDeathmatchSpawnPoint_entry(void);
 
+// 0x002500a0 (player in EAX, item entity in ECX): Q3's Pickup_Ammo - 0 when nothing was
+// taken, else the respawn time (40 with spawn flag 8, else -1).
+int32_t XB_REGS3 XB_CDECL Pickup_Ammo(uint8_t* other, uint32_t unused_edx, uint8_t* ent);
+// 0x002507d0: Q3's ClientCommand over the dev (0x008ddae0) and cheat (0x008ddb70) tables.
+void XB_CDECL ClientCommand(uint32_t handle);
+// 0x00250bf0: Q3's ClientImpacts - "touch" notifies and touch callbacks per distinct handle.
+void XB_CDECL ClientImpacts(uint8_t* ent, int32_t count, const uint32_t* touch);
+
 }  // namespace game

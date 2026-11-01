@@ -3,8 +3,11 @@
 #include <cstring>
 
 #include "bg_misc.h"
+#include "g_main.h"
+#include "g_scr_runtime.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
+#include "sv.h"
 #include "title_data.h"
 
 namespace game {
@@ -36,6 +39,15 @@ float short_angle(float scaled) {
 float normalize180(float a) {
     if (a > title_global<float>(0x0083eb60)) a = a - title_global<float>(0x0083ebcc);
     return a;
+}
+
+uint32_t address_of(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
+uint8_t* entity_from_handle(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0097a968 + index * 8)));
+    return nullptr;
 }
 
 }  // namespace
@@ -189,6 +201,97 @@ uint32_t XB_CDECL SelectNearestDeathmatchSpawnPoint(const float* from) {
         }
     }
     return best;
+}
+
+int32_t XB_REGS3 XB_CDECL Pickup_Ammo(uint8_t* other, uint32_t, uint8_t* ent) {
+    // The item's ammo (the entity's count +0x370, else the item's quantity +0x20) for its
+    // weapon (+0x28); nothing taken: 0. Else the pickup message to the player, "trigger" on the
+    // item and "pickup" on a client; respawn time 40 with spawn flag 8, else -1.
+    uint8_t* const item = pointer_at(ent, 0x3b0);
+    uint32_t count = field<uint32_t>(ent, 0x370);
+    if (!count) count = field<uint32_t>(item, 0x20);
+    if (!Add_Ammo(other, field<uint32_t>(item, 0x28), static_cast<int32_t>(count), 0)) return 0;
+    const uint8_t* const def = weapon_def(field<uint32_t>(pointer_at(ent, 0x3b0), 0x28));
+    const uint32_t handle = field<uint32_t>(other, 0x224);
+    using Va = char* XB_CDECL(const char*, ...);
+    const uint32_t format = field<uint32_t>(const_cast<uint8_t*>(def), 0x6ec) ? 0x0083b77c : 0x0083b760;
+    SV_GameSendServerCommand(title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{format}),
+                                                            field<uint32_t>(const_cast<uint8_t*>(def), 0xc)),
+                             handle);
+    uint32_t number = field<uint32_t>(other, 0x224);
+    const TitleRegs regs{0, handle, 0, 0, address_of(other), address_of(ent)};
+    const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), address_of(&number)};
+    g_ent_call(0x000264d0, &regs, 2, args);  // G_NotifyWithEntity_2 "trigger"
+    if (field<uint32_t>(other, 0x23c)) Scr_Notify(other, title_global<uint32_t>(0x0097a758));  // "pickup"
+    return (field<uint8_t>(ent, 0x2a0) & 8) ? 0x28 : -1;
+}
+
+void XB_CDECL ClientCommand(uint32_t handle) {
+    // Q3's ClientCommand: for a client entity, argv[0] (0x3fd characters) against the 18 dev
+    // commands (0x008ddae0, no arguments) and the 16 cheat commands (0x008ddb70, given the
+    // entity); else "unrecognized command" to it (to everyone for entity number 0).
+    char command[0x400];
+    command[0] = 0;
+    const uint32_t index = handle & 0xfff;
+    if (index >= 0x540) return;
+    if ((handle >> 12) != title_global<uint32_t>(0x0097a96c + index * 8)) return;
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0097a968 + index * 8)));
+    if (!ent || !field<uint32_t>(ent, 0x23c)) return;
+    const char* const arg0 = title_global<uint32_t>(0x00934248) ? reinterpret_cast<const char*>(static_cast<uintptr_t>(
+                                                                      title_global<uint32_t>(0x0092df90)))
+                                                                : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
+    title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(command, arg0, 0x3fd);  // _strncpy
+    command[0x3fd] = 0;
+    using Stricmpn = int32_t XB_CDECL(const char*, const char*, int32_t);
+    for (uint32_t i = 0; i < 0x12; ++i) {
+        const char* const name = reinterpret_cast<const char*>(static_cast<uintptr_t>(title_global<uint32_t>(0x008ddae0 + i * 8)));
+        if (!title_function<Stricmpn>(0x000441c0)(command, name, 0xfffffff)) {  // Q_stricmpn
+            title_function<void XB_CDECL()>(title_global<uint32_t>(0x008ddae4 + i * 8))();
+            return;
+        }
+    }
+    for (uint32_t i = 0; i < 0x10; ++i) {
+        const char* const name = reinterpret_cast<const char*>(static_cast<uintptr_t>(title_global<uint32_t>(0x008ddb70 + i * 8)));
+        if (!title_function<Stricmpn>(0x000441c0)(command, name, 0xfffffff)) {
+            title_function<void XB_CDECL(uint8_t*)>(title_global<uint32_t>(0x008ddb74 + i * 8))(ent);
+            return;
+        }
+    }
+    const uint8_t* const self = entity_from_handle(handle);
+    uint32_t client = 0;
+    const uint32_t number = field<uint32_t>(const_cast<uint8_t*>(self), 0x224);
+    if (number) {
+        const uint8_t* const target = entity_from_handle(number);
+        if (!field<uint32_t>(const_cast<uint8_t*>(target), 0x23c)) return;
+        client = title_global<uint32_t>(0x00927e8c);
+    }
+    const uint32_t args[2] = {0x0082ddd4, 0x0083bac4};  // "%s", "unrecognized command"
+    SV_SendServerCommand(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(client)), args);
+}
+
+void XB_CDECL ClientImpacts(uint8_t* ent, int32_t count, const uint32_t* touch) {
+    // Each distinct touched entity handle once: "touch" notifies both ways, then both touch
+    // callbacks (+0x338).
+    uint32_t number = 0;
+    for (int32_t i = 0; i < count; ++i) {
+        int32_t j = 0;
+        while (j < i && touch[j] != touch[i]) ++j;
+        if (j != i) continue;
+        uint8_t* const other = entity_from_handle(touch[i]);
+        number = field<uint32_t>(other, 0x224);
+        const TitleRegs a{0, static_cast<uint32_t>(i), 0, 0, address_of(other), address_of(ent)};
+        const uint32_t a_args[2] = {title_global<uint32_t>(0x0097a814), address_of(&number)};
+        g_ent_call(0x000265a0, &a, 2, a_args);  // G_NotifyWithEntity "touch"
+        number = field<uint32_t>(ent, 0x224);
+        const TitleRegs b{0, static_cast<uint32_t>(i), 0, 0, address_of(other), address_of(other)};
+        const uint32_t b_args[2] = {title_global<uint32_t>(0x0097a814), address_of(&number)};
+        g_ent_call(0x000265a0, &b, 2, b_args);
+        using Touch = void XB_CDECL(uint8_t*, uint8_t*, uint32_t);
+        if (field<uint32_t>(ent, 0x338))
+            title_function<Touch>(title_global<uint32_t>(0x008da814 + field<uint32_t>(ent, 0x338) * 4))(ent, other, 1);
+        if (field<uint32_t>(other, 0x338))
+            title_function<Touch>(title_global<uint32_t>(0x008da814 + field<uint32_t>(other, 0x338) * 4))(other, ent, 1);
+    }
 }
 
 }  // namespace game

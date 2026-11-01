@@ -84,6 +84,26 @@ void XB_CDECL G_TrimCorpseQueue();
 // (0x0095f59c) unless `keep` and clears the owner.
 void XB_CDECL G_FreeStringTable(uint32_t keep);
 
+// 0x00250010: the item-registered flags (0x00950230, 0x88) as hex into configstring 8.
+void XB_CDECL SaveRegisteredItems();
+// 0x00250e00: bit 0 of an anim's flags (+0x34 of the node, or of its clip for leaves) by anim
+// handle (tree << 16 | index).
+uint32_t XB_CDECL G_GetAnimFlag0(uint32_t anim);
+// 0x00251140: fills the spawn map (0x00983e1c) from g_spawns: name hash -> index (the body
+// builds the map; the name is the caller's).
+void XB_CDECL G_FindSpawnFunc();
+// 0x00251240: loads the anim trees, the anim scripts and the "generic_human" tree.
+void XB_CDECL G_InitAnimTrees(uint32_t arg);
+// 0x002512b0: 0x00985414 = level.time; SaveRegisteredItems when they changed.
+void XB_CDECL G_SyncRegisteredItems();
+// 0x002512d0: the mission-end fade (screen, sound, g_reloading) while the player lives.
+void XB_CDECL G_StartMissionEndFade();
+// 0x002513c0: Q3's G_ShutdownGame (entities, vehicles; corpses and anim trees unless restarting).
+void XB_CDECL G_ShutdownGame(uint32_t restart);
+// 0x00250a70 (text in ESI): "fog" command to the clients and the fog range globals.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_SetFog(const char* fog);
+extern "C" void G_SetFog_entry(void);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

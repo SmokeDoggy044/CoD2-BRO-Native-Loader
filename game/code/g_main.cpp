@@ -5,12 +5,14 @@
 #include "actor.h"
 #include "g_script.h"
 #include "g_utils.h"
+#include "g_vehicle.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "ragdoll.h"
 #include "script_string.h"
 #include "sv.h"
 #include "title_data.h"
+#include "xanim.h"
 
 // Calls a title function with all six registers (TitleRegs) and `count` stack words (args[0]
 // pushed last); ESP comes back from EBP, so stdcall callees work too. Returns EAX.
@@ -666,6 +668,154 @@ void XB_CDECL G_FreeStringTable(uint32_t keep) {
         title_global<uint32_t>(0x0095f59c) = 0;
     }
     title_global<uint32_t>(0x0095f5a0) = 0;
+}
+
+void XB_CDECL SaveRegisteredItems() {
+    // The 0x88 item-registered flags (0x00950230) as hex digits, four flags each (lowest
+    // first), into configstring 8; the dirty flag (0x00986004) cleared.
+    char text[0x104];
+    title_global<uint32_t>(0x00986004) = 0;
+    uint32_t length = 0;
+    uint32_t bits = 0;
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < 0x88; ++i) {
+        if (title_global<uint32_t>(0x00950230 + i * 4)) bits += 1u << count;
+        if (++count == 4) {
+            text[length++] = static_cast<char>(bits >= 10 ? 'a' + bits - 10 : '0' + bits);
+            bits = 0;
+            count = 0;
+        }
+    }
+    if (count) text[length++] = static_cast<char>(bits >= 10 ? 'a' + bits - 10 : '0' + bits);
+    text[length] = 0;
+    SV_SetConfigstring(8, text);
+}
+
+uint32_t XB_CDECL G_GetAnimFlag0(uint32_t anim) {
+    // Anim handle = tree (high word) and anim (low word) of rm_animTrees (0x0095f524), each
+    // index past its count reading entry 0. Bit 0 of the anim's flags (+0x34) for parent nodes
+    // (+0x20 set), else of its loaded clip's (+0x34; 0 without a clip).
+    const uint32_t* const list = *reinterpret_cast<const uint32_t* const*>(title_global<const uint8_t*>(0x0095f524) + 4);
+    uint32_t tree = anim >> 16;
+    if (tree >= list[0]) tree = 0;
+    const uint32_t* const record = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(list[1] + tree * 12 + 4));
+    uint32_t index = anim & 0xffff;
+    if (index >= record[0]) index = 0;
+    uint8_t* const node = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(record[1] + index * 0x38));
+    if (*reinterpret_cast<const uint16_t*>(node + 0x20)) return node[0x34] & 1;
+    if (!word_at(node, 0x24)) AnimData_EnsureLoaded(node);
+    const uint8_t* const clip = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(word_at(node, 0x24)));
+    if (!clip) return 0;
+    return clip[0x34] & 1;
+}
+
+void XB_CDECL G_FindSpawnFunc() {
+    // Fills the spawn map (0x00983e1c): each g_spawns entry's name hash (8-byte entries, until
+    // a zero hash) mapped to its index (node +0xc).
+    uint32_t index = 0;
+    for (uint32_t entry = 0x009885e0; title_global<uint32_t>(entry); entry += 8, ++index) {
+        uint8_t* const map = &title_global<uint8_t>(0x00983e1c);
+        uint32_t node = 0;
+        UintHashMap_Find(&node, &title_global<uint32_t>(entry), map);
+        if (node == title_global<uint32_t>(0x00983e24)) {
+            const uint32_t pair[2] = {title_global<uint32_t>(entry), 0};
+            uint32_t result[2] = {0, 0};
+            node = *HashMap_Insert_10(map, result, pair);
+        }
+        *reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(node + 0xc)) = index;
+    }
+}
+
+void XB_CDECL G_InitAnimTrees(uint32_t arg) {
+    // The interface's anim-tree load (slot 0x868 of 0x0095f49c), the tree count, the anim
+    // scripts, the tree setup (callback 0x0024a050) and the "generic_human" tree (0x00987a90).
+    title_function<void XB_CDECL()>(*reinterpret_cast<const uint32_t*>(
+        static_cast<uintptr_t>(title_global<uint32_t>(0x0095f49c) + 0x868)))();
+    const uint32_t* const list = *reinterpret_cast<const uint32_t* const*>(title_global<const uint8_t*>(0x0095f524) + 4);
+    title_global<uint32_t>(0x00927098) = list[0];  // g_numAnimTrees
+    title_function<void XB_CDECL()>(0x0024a070)();  // G_InitAnimScripts
+    title_function<void XB_CDECL()>(0x0024abb0)();  // G_InitTurretAnimScripts
+    title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002fe200)(0x0024a050, arg);  // G_SetupAnimTrees
+    const char* const name = reinterpret_cast<const char*>(uintptr_t{0x0083a894});  // "generic_human"
+    uint8_t* const tree = G_FindAnimTreeByName(name);
+    if (!tree)
+        title_function<void XB_CDECL(const char*, ...)>(0x00248af0)(
+            reinterpret_cast<const char*>(uintptr_t{0x0083a8a4}), name);  // G_Error
+    title_global<uint32_t>(0x00987a90) = address(tree);
+}
+
+void XB_CDECL G_SyncRegisteredItems() {
+    // 0x00985414 = level.time; the registered items' configstring when they changed.
+    title_global<uint32_t>(0x00985414) = title_global<uint32_t>(0x0098540c);
+    if (title_global<uint32_t>(0x00986004)) SaveRegisteredItems();
+}
+
+void XB_CDECL G_StartMissionEndFade() {
+    // With the player alive (and 0x0095bf9c clear): screen and sound fade-out commands timed
+    // by 0x00985ec8, the end time in 0x00985e28, g_reloading 4 (16 more with 0x00985eb4).
+    using Va = char* XB_CDECL(const char*, ...);
+    const uint8_t* const player = G_FindEntityByIntField(&title_global<uint8_t>(0x0097a8c0), 0x260,
+                                                         title_global<uint32_t>(0x0097a75c));
+    if (*reinterpret_cast<const int32_t*>(player + 0x350) <= 0) return;
+    if (title_global<uint32_t>(0x0095bf9c)) return;
+    const char* text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083b37c}),
+                                                      title_global<int32_t>(0x0098540c) + 250,
+                                                      title_global<int32_t>(0x00985ec8) + 750);  // "scr_fade 1 %i %i"
+    SV_GameSendServerCommand(text, 0);
+    text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bdb4}),
+                                          title_global<int32_t>(0x00985ec8) + 1000);  // "snd_fade 0 %d"
+    SV_GameSendServerCommand(text, 0);
+    title_global<int32_t>(0x00985e28) = title_global<int32_t>(0x0098540c) + title_global<int32_t>(0x00985ec8) + 1000;
+    using CvarSet = uint32_t XB_CDECL(const char*, const char*, uint32_t);
+    const char* const name = reinterpret_cast<const char*>(uintptr_t{0x0082c89c});  // "g_reloading"
+    text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x008325b8}), 4);  // "%d"
+    title_function<CvarSet>(0x0029c030)(name, text, 1);  // Cvar_Set2
+    if (title_global<uint32_t>(0x00985eb4)) {
+        text = title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x008325b8}), 16);
+        title_function<CvarSet>(0x0029c030)(name, text, 1);
+    }
+}
+
+void XB_CDECL G_ShutdownGame(uint32_t restart) {
+    // Q3's G_ShutdownGame: every entity, the vehicle pool and the second vehicle block
+    // (0x0095f690), the vehicle defs; without a restart also the corpse queue and anim trees.
+    title_function<void XB_STDCALL(uint32_t)>(0x002c3870)(title_global<uint32_t>(0x0095f534));  // G_FreeAllEntities
+    if (title_global<uint32_t>(0x0095f694)) {
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f694));  // Z_Free
+        title_global<uint32_t>(0x0095f694) = 0;
+        title_global<uint16_t>(0x00986000) = 0;
+    }
+    if (title_global<uint32_t>(0x0095f690)) {
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f690));  // Z_Free
+        title_global<uint32_t>(0x0095f690) = 0;
+    }
+    Vehicle_FreeDefs();
+    if (restart) return;
+    for (uint32_t corpse = 0x009881c8; corpse < 0x00988388; corpse += 0x1c) title_global<uint32_t>(corpse) = 0;
+    G_FreeAnimTrees();
+}
+
+PLATFORM_ASM_ENTRY(G_SetFog_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_SetFog) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL G_SetFog(const char* fog) {
+    // "fog <text>" to every client; then the fog range (0x00985fcc, its square 0x00985fd0;
+    // FLT_MAX without) from seven floats: when the third is >= 1, start + (end - start) * 0.828.
+    using Va = char* XB_CDECL(const char*, ...);
+    SV_GameSendServerCommand(title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bd50}), fog), 0);
+    float v[7];  // as the original's frame: v[0] first, v[1] second, v[2] third
+    title_global<float>(0x00985fcc) = title_global<float>(0x0082eed0);
+    title_global<float>(0x00985fd0) = title_global<float>(0x0082eed0);
+    const int32_t n = title_function<int32_t XB_CDECL(const char*, const char*, ...)>(0x001f07e1)(
+        fog, reinterpret_cast<const char*>(uintptr_t{0x0083bd38}), &v[0], &v[1], &v[2], &v[3], &v[4], &v[5],
+        &v[6]);  // sscanf "%f %f %f %f %f %f %f"
+    if (n != 7) return;
+    if (!(v[2] >= title_global<float>(0x0083eb20))) return;
+    const float start = v[0];
+    const float range = (v[1] - start) * title_global<float>(0x0083ef80) + start;
+    title_global<float>(0x00985fcc) = range;
+    title_global<float>(0x00985fd0) = range * range;
 }
 
 }  // namespace game
