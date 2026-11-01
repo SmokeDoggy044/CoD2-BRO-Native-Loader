@@ -2,11 +2,13 @@
 
 #include <cstring>
 
+#include "actor.h"
 #include "bg_misc.h"
 #include "g_main.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
 #include "g_vehicle.h"
+#include "qcommon_fs.h"
 #include "sv.h"
 #include "title_data.h"
 
@@ -186,10 +188,11 @@ uint32_t XB_CDECL SelectNearestDeathmatchSpawnPoint(const float* from) {
     // (+0x260) is info_player_deathmatch; distances on the x87.
     float nearest = title_global<float>(0x0083ef20);  // 999999
     const uint32_t classname = title_global<uint32_t>(0x0097a700);
-    const uint32_t count = title_global<uint32_t>(0x0097d36c);
+    // The end pointer wraps like the original's (count * 4 + base).
+    const uint32_t end = 0x0097d370 + title_global<uint32_t>(0x0097d36c) * 4;
     uint32_t best = 0;
-    for (uint32_t i = 0; i < count; ++i) {
-        uint8_t* const spot = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0097d370 + i * 4)));
+    for (uint32_t at = 0x0097d370; at != end; at += 4) {
+        uint8_t* const spot = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(at)));
         if (!spot) continue;
         const uint32_t hash = field<uint32_t>(spot, 0x260);
         if (!hash || hash != classname) continue;
@@ -292,6 +295,131 @@ void XB_CDECL ClientImpacts(uint8_t* ent, int32_t count, const uint32_t* touch) 
         if (field<uint32_t>(other, 0x338))
             title_function<Touch>(title_global<uint32_t>(0x008da814 + field<uint32_t>(other, 0x338) * 4))(other, ent, 1);
     }
+}
+
+uint32_t XB_CDECL ClientConnect(uint32_t handle) {
+    // Q3's ClientConnect: the client cleared and connected (+0x520), its ping-like value from
+    // 0x00950ce8 + 0.5 (+0x580 and +0x108), entity number (+0x7c), touch 2, no pain, a
+    // sentient (team 2, +0x2c = 1; G_Error without one). Returns 0.
+    uint8_t* const ent = entity_from_handle(handle);
+    uint8_t* const client = pointer_at(ent, 0x23c);
+    G_ClearClient(client);
+    field<uint32_t>(client, 0x520) = 1;
+    const int32_t value = static_cast<int32_t>(title_global<float>(0x00950ce8) + title_global<float>(0x0083eb24));
+    field<int32_t>(client, 0x580) = value;
+    field<int32_t>(client, 0x108) = value;
+    field<uint32_t>(client, 0x7c) = field<uint32_t>(ent, 0x224);
+    field<uint32_t>(ent, 0x338) = 2;
+    field<uint32_t>(ent, 0x340) = 0;
+    field<uint32_t>(ent, 0x23c) = address_of(client);
+    uint8_t* const sentient = Sentient_Alloc();
+    if (!sentient)
+        title_function<void XB_CDECL(const char*, ...)>(0x00248af0)(
+            reinterpret_cast<const char*>(uintptr_t{0x0083bd98}));  // G_Error "No sentient for player."
+    field<uint32_t>(ent, 0x244) = address_of(sentient);
+    field<uint32_t>(sentient, 0x0) = address_of(ent);
+    field<uint32_t>(sentient, 0x4) = 2;
+    field<float>(sentient, 0x2c) = title_global<float>(0x0083eb20);
+    field<uint32_t>(client, 0xc0) = 0x10;
+    field<uint32_t>(ent, 0xd4) = 0x200;
+    return 0;
+}
+
+void XB_CDECL ClientDeathReload() {
+    // Unless 0x0095bf9c: fade the screen out, g_reloading 1, the reload time (0x00985e28) in
+    // 2 s and the sound fade.
+    if (title_global<uint32_t>(0x0095bf9c)) return;
+    using Va = char* XB_CDECL(const char*, ...);
+    SV_GameSendServerCommand(title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bdc4}),
+                                                            title_global<int32_t>(0x0098540c) + 1000),
+                             0);  // "scr_fade 1 %i 2000"
+    title_function<uint32_t XB_CDECL(const char*, const char*, uint32_t)>(0x0029c030)(
+        reinterpret_cast<const char*>(uintptr_t{0x0082c89c}), reinterpret_cast<const char*>(uintptr_t{0x0082e058}),
+        1);  // Cvar_Set2 g_reloading "1"
+    title_global<int32_t>(0x00985e28) = title_global<int32_t>(0x0098540c) + 2000;
+    SV_GameSendServerCommand(
+        title_function<Va>(0x002a93d0)(reinterpret_cast<const char*>(uintptr_t{0x0083bdb4}), 2000), 0);  // "snd_fade 0 %d"
+}
+
+PLATFORM_ASM_ENTRY(G_ClientActivateTargetActor_entry,
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_ClientActivateTargetActor) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL G_ClientActivateTargetActor(const uint8_t* ps) {
+    // The player's (entity by +0x7c) target actor (client +0x5f4: alive actor) within range
+    // (0x0095be70, x87 distance) once its delay (+0x5f8) passed: delay renewed (0x0094d614), the
+    // actor's sentient takes the player's node claim and gets "trigger".
+    const uint32_t handle = *reinterpret_cast<const uint32_t*>(ps + 0x7c);
+    if (!field<uint32_t>(entity_from_handle(handle), 0x23c)) return;
+    uint8_t* const player = entity_from_handle(handle);
+    uint8_t* const client = pointer_at(player, 0x23c);
+    uint8_t* const actor = pointer_at(client, 0x5f4);
+    if (!actor || !field<uint32_t>(actor, 0x240) || field<int32_t>(actor, 0x350) <= 0) return;
+    const int32_t now = title_global<int32_t>(0x0098540c);
+    if (field<int32_t>(client, 0x5f8) > now) return;
+    uint8_t* const target = pointer_at(client, 0x5f4);
+    const float dist = platform_x87_norm3(platform_x87_add(field<float>(target, 0x148), -field<float>(player, 0x148)),
+                                          platform_x87_add(field<float>(target, 0x144), -field<float>(player, 0x144)),
+                                          platform_x87_add(field<float>(target, 0x140), -field<float>(player, 0x140)));
+    if (platform_x87_greater(dist, title_global<float>(0x0095be70))) return;
+    field<int32_t>(client, 0x5f8) = title_global<int32_t>(0x0094d614) + now;
+    const TitleRegs regs{field<uint32_t>(pointer_at(pointer_at(player, 0x23c), 0x5f4), 0x244), field<uint32_t>(player, 0x244), 0, 0,
+                         0, 0};
+    g_ent_call(0x002048c0, &regs, 0, nullptr);  // Sentient_TakeNodeClaim (EAX, EBX)
+    Scr_Notify(pointer_at(pointer_at(player, 0x23c), 0x5f4), title_global<uint32_t>(0x0097a818));  // "trigger"
+}
+
+PLATFORM_ASM_ENTRY(LookAtKiller_entry,
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(LookAtKiller) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL LookAtKiller(const uint8_t* attacker, const uint8_t* inflictor, uint8_t* self) {
+    // Q3's LookAtKiller: the client's death yaw (+0x104) toward the attacker, else the
+    // inflictor, else its own yaw (+0x154).
+    const uint8_t* from = nullptr;
+    if (attacker && attacker != self)
+        from = attacker;
+    else if (inflictor && inflictor != self)
+        from = inflictor;
+    if (!from) {
+        field<int32_t>(pointer_at(self, 0x23c), 0x104) = static_cast<int32_t>(field<float>(self, 0x154));
+        return;
+    }
+    float dir[3];
+    dir[0] = *reinterpret_cast<const float*>(from + 0x140) - field<float>(self, 0x140);
+    dir[1] = *reinterpret_cast<const float*>(from + 0x144) - field<float>(self, 0x144);
+    dir[2] = *reinterpret_cast<const float*>(from + 0x148) - field<float>(self, 0x148);
+    const float yaw = vectoyaw(dir);
+    field<int32_t>(pointer_at(self, 0x23c), 0x104) = static_cast<int32_t>(yaw);
+}
+
+PLATFORM_ASM_ENTRY(SpotWouldTelefrag_entry,
+                   "pushl %edx\n" PLATFORM_ASM_CALL(SpotWouldTelefrag) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL SpotWouldTelefrag(const float* origin) {
+    // Q3's SpotWouldTelefrag: a live client (+0x24 < 4) or a live actor in the player box at
+    // the origin (0x0097a8a0 mins, 0x00984d00 maxs; contents 0x0200c000).
+    alignas(16) float mins[4];
+    alignas(16) float maxs[4];
+    int32_t touch[0x540];
+    std::memset(touch, 0, sizeof touch);
+    mins[0] = origin[0] + title_global<float>(0x0097a8a0);
+    mins[1] = title_global<float>(0x0097a8a4) + origin[1];
+    mins[2] = title_global<float>(0x0097a8a8) + origin[2];
+    maxs[0] = origin[0] + title_global<float>(0x00984d00);
+    maxs[1] = title_global<float>(0x00984d04) + origin[1];
+    maxs[2] = title_global<float>(0x00984d08) + origin[2];
+    const int32_t count = SV_AreaEntities(maxs, 0, mins, touch, 0x540, 0x0200c000);
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const hit = entity_from_handle(static_cast<uint32_t>(touch[i]));
+        const uint8_t* const client = pointer_at(hit, 0x23c);
+        if (client && *reinterpret_cast<const int32_t*>(client + 0x24) < 4) return 1;
+        if (field<uint32_t>(hit, 0x240) && field<int32_t>(hit, 0x350) > 0) return 1;
+    }
+    return 0;
 }
 
 }  // namespace game

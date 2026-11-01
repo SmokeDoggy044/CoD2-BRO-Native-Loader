@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "g_main.h"
+#include "g_script.h"
 #include "g_utils.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
@@ -319,6 +320,78 @@ void XB_CDECL Die_ForwardToOwner(uint8_t* self, uint8_t*, uint8_t* attacker, int
                                  const float*, const float* dir, int32_t hitloc) {
     // As a pain at the entity's origin (+0x140).
     Pain_ForwardToOwner(self, attacker, damage, reinterpret_cast<const float*>(self + 0x140), mod, dir, hitloc);
+}
+
+PLATFORM_ASM_ENTRY(Activate_trigger_damage_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Activate_trigger_damage) "addl $16, %esp\n"
+                   "ret")
+
+void XB_CDECL Activate_trigger_damage(uint8_t* self, int32_t damage, uint8_t* attacker, int32_t mod) {
+    // trigger_damage: unless waiting (think set and not 0x1c), under the threshold (+0x3b4) or
+    // filtered by means of death: health (+0x350) down; when the total (32000 - health) reaches
+    // +0x370 (or it is 0) it fires (activator +0x378, G_Trigger unless mod -1), then waits
+    // wait (+0x384) + random spread (+0x388) seconds (think 0x12) or turns off (think 0xc next
+    // frame, no touch) and resets the health.
+    if (field<uint32_t>(self, 0x328) && field<uint32_t>(self, 0x32c) != 0x1c) return;
+    const int32_t threshold = field<int32_t>(self, 0x3b4);
+    if (threshold > 0 && damage < threshold) return;
+    if (!TriggerDamage_AcceptsMeansOfDeath(mod, 0, self)) return;
+    const int32_t health = field<int32_t>(self, 0x350) - damage;
+    field<int32_t>(self, 0x350) = health;
+    const int32_t needed = field<int32_t>(self, 0x370);
+    if (needed && 32000 - health < needed) return;
+    field<uint32_t>(self, 0x378) = address_of(attacker);
+    if (mod != -1) G_Trigger(self, attacker);
+    if (field<uint32_t>(self, 0x32c) != 0x1c) {
+        if (field<float>(self, 0x384) > title_global<float>(0x0083eafc)) {
+            field<uint32_t>(self, 0x32c) = 0x12;
+            const int32_t r = title_function<int32_t XB_CDECL()>(0x001efcc0)();  // _rand
+            const int32_t now = title_global<int32_t>(0x0098540c);
+            float t = static_cast<float>(r) * title_global<float>(0x0083ecf8) - title_global<float>(0x0083eb20);
+            t = t * field<float>(self, 0x388) + field<float>(self, 0x384);
+            t = t * title_global<float>(0x0083ec74);  // -1000
+            field<int32_t>(self, 0x328) = now - static_cast<int32_t>(t);
+            field<int32_t>(self, 0x350) = 32000;
+            return;
+        }
+        field<uint32_t>(self, 0x338) = 0;
+        field<int32_t>(self, 0x328) = title_global<int32_t>(0x0098540c) + 1;
+        field<uint32_t>(self, 0x32c) = 0xc;
+    }
+    field<int32_t>(self, 0x350) = 32000;
+}
+
+void XB_CDECL Touch_TriggerNotify(uint8_t* self, uint8_t* other) { G_Trigger(self, other); }
+
+void XB_CDECL hurt_touch(uint8_t* self, uint8_t* other) {
+    // trigger_hurt: damage (+0x358, mod 0x16; dflags 0x20 with spawn flag 8) to entities that
+    // take it (not actors with flag 2) every 100 ms (1 s with flag 0x10); flag 0x20 hurts once.
+    if (!field<uint32_t>(other, 0x29c)) return;
+    if ((field<uint8_t>(self, 0x2a0) & 2) && field<uint32_t>(other, 0x240)) return;
+    if (field<int32_t>(self, 0x2f0) > title_global<int32_t>(0x0098540c)) return;
+    G_Trigger(self, other);
+    const uint8_t flags = field<uint8_t>(self, 0x2a0);
+    field<int32_t>(self, 0x2f0) = title_global<int32_t>(0x0098540c) + ((flags & 0x10) ? 1000 : 100);
+    uint32_t args[9] = {address_of(other), address_of(self), address_of(self), 0, field<uint32_t>(self, 0x358),
+                        static_cast<uint32_t>((flags & 8) << 2), 0x16, 0, 0xffffffffu};
+    G_Damage(nullptr, args);
+    if (field<uint8_t>(self, 0x2a0) & 0x20) field<uint32_t>(self, 0x338) = 0;
+}
+
+void XB_CDECL Touch_FriendlyChain(uint8_t* self, uint8_t* other) {
+    // The toucher's sentient (+0x244) gets the friendly chain node named by the trigger's
+    // target (+0x26c), then G_Trigger.
+    title_function<void XB_THISCALL(uint32_t, uint32_t, uint32_t)>(0x002c0480)(
+        field<uint32_t>(other, 0x244), title_global<uint32_t>(0x0095f4f4), address_of(self + 0x26c));  // G_FriendlyChainNode
+    G_Trigger(self, other);
+}
+
+void XB_CDECL Touch_Multi(uint8_t* self, uint8_t* other) {
+    G_Trigger(self, other);
+    multi_trigger(address_of(other), self);
 }
 
 }  // namespace game

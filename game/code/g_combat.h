@@ -45,4 +45,17 @@ void XB_CDECL Pain_ForwardToOwner(uint8_t* self, uint8_t* attacker, int32_t dama
 void XB_CDECL Die_ForwardToOwner(uint8_t* self, uint8_t* inflictor, uint8_t* attacker, int32_t damage, int32_t mod,
                                  int32_t weapon, const float* point, const float* dir, int32_t hitloc);
 
+// 0x002522a0 (self in ESI, damage in EDI; cdecl attacker, mod): trigger_damage's activation.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Activate_trigger_damage(uint8_t* self, int32_t damage, uint8_t* attacker,
+                                                                 int32_t mod);
+extern "C" void Activate_trigger_damage_entry(void);
+// 0x00252290: touch callback - G_Trigger.
+void XB_CDECL Touch_TriggerNotify(uint8_t* self, uint8_t* other);
+// 0x002523d0: trigger_hurt's touch (G_Damage every 100 ms / 1 s).
+void XB_CDECL hurt_touch(uint8_t* self, uint8_t* other);
+// 0x00252490: touch callback - friendly chain node for the toucher's sentient, G_Trigger.
+void XB_CDECL Touch_FriendlyChain(uint8_t* self, uint8_t* other);
+// 0x002524d0: trigger_multiple's touch - G_Trigger, multi_trigger.
+void XB_CDECL Touch_Multi(uint8_t* self, uint8_t* other);
+
 }  // namespace game

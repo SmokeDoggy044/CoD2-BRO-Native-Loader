@@ -32,4 +32,19 @@ void XB_CDECL ClientCommand(uint32_t handle);
 // 0x00250bf0: Q3's ClientImpacts - "touch" notifies and touch callbacks per distinct handle.
 void XB_CDECL ClientImpacts(uint8_t* ent, int32_t count, const uint32_t* touch);
 
+// 0x00251730: Q3's ClientConnect - client cleared and set up, a sentient (team 2). Returns 0.
+uint32_t XB_CDECL ClientConnect(uint32_t handle);
+// 0x002518a0: death reload - fade out, g_reloading 1, reload time in 2 s (unless 0x0095bf9c).
+void XB_CDECL ClientDeathReload();
+// 0x002531b0 (player state in EAX): the player's target actor (+0x5f4) within 0x0095be70
+// takes the player's node claim and gets "trigger" (delay +0x5f8). Proposed name (was FUN_002531b0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_ClientActivateTargetActor(const uint8_t* ps);
+extern "C" void G_ClientActivateTargetActor_entry(void);
+// 0x00253440 (attacker in EAX, inflictor in ECX, self in ESI): Q3's LookAtKiller (+0x104 of the client).
+extern "C" PLATFORM_HIDDEN void XB_CDECL LookAtKiller(const uint8_t* attacker, const uint8_t* inflictor, uint8_t* self);
+extern "C" void LookAtKiller_entry(void);
+// 0x00253a10 (origin in EDX): Q3's SpotWouldTelefrag (live clients and actors).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL SpotWouldTelefrag(const float* origin);
+extern "C" void SpotWouldTelefrag_entry(void);
+
 }  // namespace game

@@ -104,6 +104,15 @@ void XB_CDECL G_ShutdownGame(uint32_t restart);
 extern "C" PLATFORM_HIDDEN void XB_CDECL G_SetFog(const char* fog);
 extern "C" void G_SetFog_entry(void);
 
+// 0x00251f90: this frame's trigger pairs: "trigger" notifies (checkpoints save first); queue emptied.
+void XB_CDECL G_ProcessCheckpointTriggers();
+// 0x002530a0: Q3's G_RegisterCvars, then the dead/victory screen cvars set to "".
+void XB_CDECL G_RegisterCvars();
+// 0x002532f0 (index in EAX, slot in ECX): frees a dropped item of the slot (the given one, or
+// with index < 0 the farthest from the slot's player) next frame; returns its index. Proposed
+// name (was FUN_002532f0).
+uint32_t XB_REGS3 XB_CDECL G_FreeFarthestDroppedItem(int32_t index, uint32_t unused_edx, uint32_t slot);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

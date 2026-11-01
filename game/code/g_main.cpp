@@ -60,6 +60,18 @@ void copy_vector(uint8_t* base, uint32_t offset, uint32_t source) {
 
 uint32_t address(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
 
+template <typename T>
+T& field(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
+uint8_t* entity_from_handle(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0097a968 + index * 8)));
+    return nullptr;
+}
+
 }  // namespace
 
 void XB_CDECL ShakeRumble_CreateManager() {
@@ -816,6 +828,106 @@ void XB_CDECL G_SetFog(const char* fog) {
     const float range = (v[1] - start) * title_global<float>(0x0083ef80) + start;
     title_global<float>(0x00985fcc) = range;
     title_global<float>(0x00985fd0) = range * range;
+}
+
+void XB_CDECL G_ProcessCheckpointTriggers() {
+    // This frame's trigger pairs (0x0098606c, {self, other handle, self/other spawn ids +0xc4};
+    // count 0x0098706c), always the first, replaced by the last: still valid pairs notify
+    // "trigger" (other entity number), checkpoints (classname "checkpoint") save first
+    // (G_SaveCheckpoint with the target name, 0x0095f4e0). Count 0 after.
+    int32_t& count = title_global<int32_t>(0x0098706c);
+    uint32_t* const pair = &title_global<uint32_t>(0x0098606c);
+    for (int32_t i = 0; i < count;) {
+        uint8_t* const self = entity_from_handle(pair[0]);
+        if (self && field<uint32_t>(self, 0xc4) == pair[2]) {
+            uint8_t* const other = entity_from_handle(pair[1]);
+            if (other && field<uint32_t>(other, 0xc4) == pair[3]) {
+                if (ScriptString_Equals(reinterpret_cast<const ScriptString*>(self + 0x264),
+                                        reinterpret_cast<const char*>(uintptr_t{0x008353b8}))) {
+                    const uint32_t name = field<uint32_t>(self, 0x26c);
+                    const TitleRegs regs{name ? name + 6 : 0, title_global<uint32_t>(0x0095f4e0), 0, 0, 0, 0};
+                    const uint32_t args[1] = {0};
+                    g_ent_call(0x002cd750, &regs, 1, args);  // G_SaveCheckpoint (stdcall)
+                }
+                uint32_t number = field<uint32_t>(other, 0x224);
+                const TitleRegs regs{0, address(other), 0, static_cast<uint32_t>(i), address(pair), address(self)};
+                const uint32_t args[2] = {title_global<uint32_t>(0x0097a818), address(&number)};
+                g_ent_call(0x000265a0, &regs, 2, args);  // G_NotifyWithEntity "trigger"
+            }
+        }
+        --count;
+        const uint32_t* const last = pair + count * 4;
+        pair[0] = last[0];
+        pair[1] = last[1];
+        pair[2] = last[2];
+        pair[3] = last[3];
+    }
+    count = 0;
+}
+
+void XB_CDECL G_RegisterCvars() {
+    // Q3's G_RegisterCvars over gameCvarTable (0x008da8e8, 0x18 bytes: vmCvar, name, default,
+    // flags, modification count; count 0x008dae40), then the dead/victory screen cvars cleared.
+    for (int32_t i = 0; i < title_global<int32_t>(0x008dae40); ++i) {
+        const uint32_t entry = 0x008da8e8 + i * 0x18;
+        using CvarGet = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t);
+        const uint32_t cvar = title_function<CvarGet>(0x0029c2d0)(title_global<uint32_t>(entry + 4),
+                                                                  title_global<uint32_t>(entry + 8),
+                                                                  title_global<uint32_t>(entry + 12));  // Cvar_Get
+        const uint32_t vm = title_global<uint32_t>(entry);
+        if (vm) {
+            uint32_t* const v = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(vm));
+            v[0] = static_cast<uint32_t>(static_cast<int32_t>(cvar - 0x00940a10) / 0x2c);
+            v[1] = 0xffffffffu;
+            const TitleRegs regs{0, vm, 0, 0, 0, 0};
+            g_ent_call(0x00296ec0, &regs, 0, nullptr);  // Cvar_Update (EBX)
+        }
+        const uint32_t again = title_global<uint32_t>(entry);
+        if (again) title_global<uint32_t>(entry + 16) = *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(again + 4));
+    }
+    static const uint32_t kCleared[] = {0x00948898, 0x009482f8, 0x0094b780, 0x00948538};
+    for (uint32_t i = 0; i < 4; ++i) {
+        const uint32_t vm = kCleared[i];
+        title_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x0029c030)(
+            title_global<uint32_t>(0x00940a10 + title_global<uint32_t>(vm) * 0x2c), 0x0082dfeb, 1);  // Cvar_Set2 ""
+        const TitleRegs regs{0, vm, 0, 0, 0, 0};
+        g_ent_call(0x00296ec0, &regs, 0, nullptr);  // Cvar_Update
+    }
+}
+
+uint32_t XB_REGS3 XB_CDECL G_FreeFarthestDroppedItem(int32_t index, uint32_t, uint32_t slot) {
+    // Dropped item handles of a player slot (0x00985e30, 32 per slot): `index` < 0 picks the one
+    // farthest (squared, packed) from the slot's player entity (0x0095f534 + 4 + slot * 4); any
+    // stale handle returns early. The chosen item frees itself next frame (think 0xc).
+    uint32_t chosen = 0;
+    if (index < 0) {
+        float best = title_global<float>(0x0083eb34);  // -1
+        for (uint32_t i = 0; i < 0x20; ++i) {
+            const uint8_t* const item = entity_from_handle(title_global<uint32_t>(0x00985e30 + (slot * 0x20 + i) * 4));
+            if (!item) return i;
+            const uint8_t* const player = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(
+                *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x0095f534) + slot * 4 + 4))));
+            const float* const a = reinterpret_cast<const float*>(player + 0x140);
+            const float* const b = reinterpret_cast<const float*>(item + 0x140);
+            float d[4];
+            for (uint32_t k = 0; k < 4; ++k) d[k] = a[k] - b[k];
+            float m[4];
+            for (uint32_t k = 0; k < 4; ++k) m[k] = d[k] * d[k];
+            platform_keep(m[3]);
+            const float dist = m[0] + m[1] + m[2];
+            if (dist > best) {
+                best = dist;
+                chosen = i;
+            }
+        }
+    } else {
+        if (!entity_from_handle(title_global<uint32_t>(0x00985e30 + (slot * 0x20 + index) * 4))) return static_cast<uint32_t>(index);
+        chosen = static_cast<uint32_t>(index);
+    }
+    uint8_t* const item = entity_from_handle(title_global<uint32_t>(0x00985e30 + (slot * 0x20 + chosen) * 4));
+    field<uint32_t>(item, 0x32c) = 0xc;
+    field<int32_t>(item, 0x328) = title_global<int32_t>(0x0098540c) + 1;
+    return chosen;
 }
 
 }  // namespace game

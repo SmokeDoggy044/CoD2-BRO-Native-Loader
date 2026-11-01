@@ -599,11 +599,14 @@ address,name,tested,matched,nan,mismatched,coverage
 001fa680,Actor_ForgetEnemyLastKnownTime,2698,2698,0,0,100.0
 001fab10,Actor_Noncombat_Resume,4000,4000,0,0,100.0
 001fb460,Actor_CriticalSection_Start,3814,3814,0,0,100.0
+001fb470,BadPlace_ClearAll,4000,4000,0,0,100.0
 001fb4e0,BadPlace_FindByName,3666,3666,0,0,82.6
 001fc520,Actor_Negotiation_Start,3824,3824,0,0,100.0
 001fd1f0,Actor_Lmg_Start,3305,3305,0,0,100.0
 001fd2b0,Actor_NodeDistanceSquared,3494,3494,0,0,100.0
+001fdfd0,Sentient_GetVelocity,3365,3365,0,0,100.0
 001fe3c0,Path_GetNegotiationEndNode,1965,1965,0,0,68.2
+001fe4f0,Path_FailCache_Add,2229,2229,0,0,100.0
 001ff030,Actor_GrenadeTargetClear,1,1,0,0,28.6
 001ffac0,Actor_MainCharacterPriority,3311,3311,0,0,100.0
 00200e20,Path_CrossesBadPlace,2708,2708,0,0,87.0
@@ -647,6 +650,7 @@ address,name,tested,matched,nan,mismatched,coverage
 00249e70,Vehicle_FreeDefs,1737,1737,0,0,100.0
 0024acb0,G_EndGame,4000,4000,0,0,100.0
 0024ad30,HudElem_ClearAll,4000,4000,0,0,100.0
+0024b620,G_FreeStringTable,3455,3455,0,0,58.3
 0024b700,XAnim_HasNotetrack,1567,1567,0,0,100.0
 0024bb30,G_GetPlayerTurret,2666,2666,0,0,72.2
 0024bce0,G_VehicleCountRider,2732,2732,0,0,100.0
@@ -664,8 +668,11 @@ address,name,tested,matched,nan,mismatched,coverage
 0024e5b0,SP_info_notnull_big,3804,3804,0,0,100.0
 0024e620,SP_info_notnull,3818,3818,0,0,100.0
 0024e740,Pickup_ClipsForAllWeapons,1555,1555,0,0,100.0
+0024ef50,SelectNearestDeathmatchSpawnPoint,1538,1538,0,0,39.7
 0024f790,DebugDraw_AddTriangleIfEnabled,3834,3834,0,0,100.0
 0024f7d0,DebugDraw_AddLineIfEnabled,3857,3857,0,0,100.0
+0024fe10,G_FreeAnimTrees,3322,3322,0,0,100.0
+002532f0,G_FreeFarthestDroppedItem,1952,1952,0,0,78.0
 00275b60,HudElem_SubstituteLabel,3589,3589,0,0,87.1
 00275d00,HudElem_GetTimerValue,3851,3851,0,0,45.0
 00276060,CG_DrawTextScaled,4000,4000,0,0,100.0
@@ -914,6 +921,3 @@ address,name,tested,matched,nan,mismatched,coverage
 00379dc0,AtExit_NalClassMap_903fe0,4000,4000,0,0,100.0
 00379de0,StaticInit_NalConfig_8bb124,4000,4000,0,0,100.0
 00379df0,StaticInit_Vtable_8bb768,4000,4000,0,0,100.0
-001fb470,BadPlace_ClearAll,4000,4000,0,0,100.0
-001fdfd0,Sentient_GetVelocity,3365,3365,0,0,100.0
-001fe4f0,Path_FailCache_Add,2229,2229,0,0,100.0
