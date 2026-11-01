@@ -9231,4 +9231,718 @@ void XB_CDECL Actor_ForceFreeSlot(uint32_t entry, uint32_t ebx, uint32_t esi, ui
     free_entity(field<uint8_t*>(chosen, 0));
 }
 
+namespace {
+
+// The moving actor's clip of `v` against plane `p` (out may be v): a walkable plane (z >= 0.7)
+// under a mostly horizontal move keeps the horizontal speed scaled by the plane's z and gets the
+// z that keeps it on the plane; else v - d p with d = v.p pushed out by 1.001 (into) / 0.999.
+void actor_clip_move(const float* v, const float* p, float* out) {
+    const float x = v[0], y = v[1], z = v[2];
+    if (p[2] >= title_global<float>(0x0083ed28) && x * x + y * y >= z * z) {
+        out[2] = (0.0f - p[0] * x) - p[1] * y;
+        out[0] = p[2] * x;
+        out[1] = p[2] * y;
+        return;
+    }
+    float d = (x * p[0] + y * p[1]) + z * p[2];
+    d = 0.0f > d ? d * title_global<float>(0x0083f1bc) : d * title_global<float>(0x0083f1b8);
+    out[0] = x - d * p[0];
+    out[1] = y - d * p[1];
+    out[2] = z - d * p[2];
+}
+
+// x87 dot product of a clip vector and a plane, ((a0 p0 + a1 p1) + a2 p2) in the precision control.
+long double actor_dot_x87(const float* a, const float* p) {
+    using ext = long double;
+    return (ext(a[0]) * ext(p[0]) + ext(a[1]) * ext(p[1])) + ext(a[2]) * ext(p[2]);
+}
+
+// The packed dot product: all four lane products, (x + y) + z summed.
+float actor_dot4(const float* a, const float* b) {
+    const float p0 = a[0] * b[0], p1 = a[1] * b[1], p2 = a[2] * b[2], p3 = a[3] * b[3];
+    platform_keep(p3);
+    return (p0 + p1) + p2;
+}
+
+}  // namespace
+
+// The traces run where the original's calls put them; entry ESP in EDX.
+PLATFORM_ASM_ENTRY(ActorMove_SlideMove_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(ActorMove_SlideMove) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL ActorMove_SlideMove(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Stack (gravity): Q3's PM_SlideMove for the moving actor (g_actorMove, frame time
+    // 0x0098a4e0): with gravity the end velocity falls by +0x4c x time, the velocity takes the
+    // average and is clipped to the ground plane (0x0098a500, when 0x0098a4e8). Up to 4 bumps
+    // trace the box (capsule trace through the pass entity's cached candidate lists, refilled
+    // around the swept box plus 50, else SV_Trace) and clip velocity and end velocity against
+    // the planes hit (at most 5, near-duplicates (> 0.99) nudge the velocity by the normal;
+    // creases slide along the cross product; a third plane stops it). Hits are touched; the
+    // first steep hit's entity, origin x/y and normal x/y (or the velocity change) are kept at
+    // +0x10c..+0x120 (+0x121 set). The impact speed 0x0098a530 keeps the largest into-plane
+    // speed. Returns 1 when it bumped (or stopped), 0 for a clear first move; starting solid:
+    // z velocity 0 and 2 (on the first bump with 0x0098a52d) or 1 (+0x10c..: entity, origin,
+    // +0x120 = 1).
+    // Frame F = aligned base - 0x1a40: clip velocity +0x20, end velocity +0x40, end +0x90,
+    // result +0x110, swept box +0x170/+0x190, planes +0x1b0 (16 bytes each), first plane
+    // copy +0x200, brush list +0x220, triangle list +0xa30.
+    const uint32_t gravity = stack_word(entry + 4);
+    stack_word(entry - 4) = ebp;
+    const uint32_t F = aligned_base(entry) - 0x1a40;
+    stack_word(F + 8) = ebx;
+    stack_word(F + 4) = esi;
+    stack_word(F) = edi;
+    uint8_t* const m = title_global<uint8_t*>(0x0095f450);
+    float* const vel = &field<float>(m, 0x10);
+    float* const end_vel = stack_vec(F + 0x40);
+    float* const clip = stack_vec(F + 0x20);
+    float* const planes = stack_vec(F + 0x1b0);
+    const uint32_t results = F + 0x110;
+    const float* const hit = stack_vec(results);
+    const float* const ground = &title_global<float>(0x0098a500);
+    const float frame_time = title_global<float>(0x0098a4e0);
+    const float k07 = title_global<float>(0x0083ed28);
+    const double k01 = title_global<double>(0x0083f1b0);  // 0.1
+    stack_word(results + 0x30) = 0;
+    if (gravity) {
+        end_vel[0] = vel[0];
+        end_vel[1] = vel[1];
+        const float fall = field<float>(m, 0x4c) * frame_time;
+        end_vel[2] = vel[2] - fall;
+        vel[2] = (vel[2] + end_vel[2]) * title_global<float>(0x0083eb24);
+        if (title_global<uint32_t>(0x0098a4e8)) {
+            if (ground[2] >= k07 && vel[0] * vel[0] + vel[1] * vel[1] >= vel[2] * vel[2]) {
+                vel[2] = (0.0f - vel[0] * ground[0]) - vel[1] * ground[1];
+                vel[0] = vel[0] * ground[2];
+                vel[1] = vel[1] * ground[2];
+            } else {
+                float d = (vel[2] * ground[2] + vel[0] * ground[0]) + vel[1] * ground[1];
+                d = 0.0f > d ? d * title_global<float>(0x0083f1bc) : d * title_global<float>(0x0083f1b8);
+                vel[0] = vel[0] - d * ground[0];
+                vel[1] = vel[1] - d * ground[1];
+                vel[2] = vel[2] - d * ground[2];
+            }
+        }
+    }
+    float time_left = frame_time;
+    uint32_t count = 0;
+    if (title_global<uint32_t>(0x0098a4e8)) {
+        planes[0] = ground[0];
+        planes[1] = ground[1];
+        planes[2] = ground[2];
+        count = 1;
+    }
+    Vec4Normalize(vel, planes + count * 4);
+    ++count;
+    uint8_t* const ent = entity_of_handle(field<uint32_t>(m, 0x44));
+    const auto stop = [vel]() {
+        vel[2] = 0.0f;
+        vel[1] = 0.0f;
+        vel[0] = 0.0f;
+        return 1u;
+    };
+    uint32_t bump = 0;
+    for (; bump < 4; ++bump) {
+        float* const end = stack_vec(F + 0x90);
+        end[0] = vel[0] * time_left + field<float>(m, 0);
+        end[1] = vel[1] * time_left + field<float>(m, 4);
+        end[2] = vel[2] * time_left + field<float>(m, 8);
+        if (ent && field<uint32_t>(ent, 0x450) && field<uint32_t>(ent, 0x454)) {
+            // The swept box widened by the smaller half extent x/z (z up by twice that); all
+            // four lanes computed (packed).
+            const float* const start = &field<float>(m, 0);
+            float lo[4], hi[4];
+            for (int i = 0; i < 4; ++i) {
+                const float s = start[i], e = end[i];
+                hi[i] = s > e ? s : e;
+                lo[i] = s < e ? s : e;
+            }
+            float half[4];
+            for (int i = 0; i < 4; ++i) {
+                const float center =
+                    (field<float>(m, 0x60 + i * 4) + field<float>(m, 0x70 + i * 4)) * title_global<float>(0x0083eb24);
+                half[i] = field<float>(m, 0x70 + i * 4) - center;
+            }
+            const float radius = half[0] > half[2] ? half[2] : half[0];
+            const float pad_lo[4] = {radius, radius, 0.0f, radius};
+            const float pad_hi[4] = {radius, radius, radius * title_global<float>(0x0083eba8), radius};
+            for (int i = 0; i < 4; ++i) lo[i] = lo[i] - pad_lo[i];
+            for (int i = 0; i < 4; ++i) hi[i] = hi[i] + pad_hi[i];
+            float* const cached_min = &field<float>(ent, 0x430);
+            float* const cached_max = &field<float>(ent, 0x440);
+            bool inside[4];
+            for (int i = 0; i < 4; ++i) {
+                const float above = hi[i] - cached_max[i];
+                const float below = cached_min[i] - lo[i];
+                const float most = below > above ? below : above;
+                inside[i] = most < title_global<float>(0x0082e3c0 + i * 4);
+            }
+            float* const box_lo = stack_vec(F + 0x170);
+            float* const box_hi = stack_vec(F + 0x190);
+            for (int i = 0; i < 4; ++i) {
+                box_lo[i] = lo[i];
+                box_hi[i] = hi[i];
+            }
+            if (!(inside[0] && inside[1] && inside[2])) {
+                if (!(title_global<uint32_t>(0x0098f1b0) & 1)) {
+                    title_global<uint32_t>(0x0098f1b0) |= 1;
+                    for (int i = 0; i < 4; ++i) title_global<float>(0x0098f1a0 + i * 4) = title_global<float>(0x0083ec30);
+                }
+                float grown_min[4], grown_max[4];
+                for (int i = 0; i < 4; ++i) grown_min[i] = lo[i] - title_global<float>(0x0098f1a0 + i * 4);
+                for (int i = 0; i < 4; ++i) cached_min[i] = grown_min[i];
+                for (int i = 0; i < 4; ++i) grown_max[i] = hi[i] + title_global<float>(0x0098f1a0 + i * 4);
+                for (int i = 0; i < 4; ++i) cached_max[i] = grown_max[i];
+                const uint32_t args[3] = {addr_of(cached_min), field<uint32_t>(ent, 0x450), field<uint32_t>(ent, 0x454)};
+                call_at(F, 0x0020b2ef, 0x002cb0f0,
+                        TitleRegs{addr_of(cached_max), addr_of(m), field<uint32_t>(ent, 0x450), field<uint32_t>(ent, 0x454),
+                                  addr_of(ent), addr_of(cached_max)},
+                        3, args);  // CM_GatherBoxCandidates (EDI maxs)
+            }
+            stack_word(F + 0x1a30) = F + 0xa30;
+            stack_word(F + 0x1a34) = 0;
+            stack_word(F + 0xa24) = 0;
+            stack_word(F + 0xa20) = F + 0x220;
+            const uint32_t filter_args[5] = {F + 0x170, F + 0x190, title_global<uint32_t>(0x0098a54c), field<uint32_t>(ent, 0x450),
+                                             F + 0xa30};
+            call_at(F, 0x0020b360, 0x002c6630,
+                    TitleRegs{F + 0x220, addr_of(m), field<uint32_t>(ent, 0x454), F + 0x190, addr_of(ent), count}, 5,
+                    filter_args);  // CM_FilterBoxCandidates (EAX out brushes, ECX in brushes)
+            const uint32_t trace_args[9] = {F + 0xa30, F + 0x220, results, addr_of(m), addr_of(m) + 0x60, addr_of(m) + 0x70,
+                                            F + 0x90, field<uint32_t>(m, 0x44), title_global<uint32_t>(0x0098a54c)};
+            call_at(F - 0x14, 0x0020b399, 0x002e95b0,
+                    TitleRegs{F + 0xa30, addr_of(m), F + 0x220, F + 0xa30, addr_of(ent), count}, 9,
+                    trace_args);  // SV_CapsuleTrace
+        } else {
+            const uint32_t args[11] = {results, addr_of(m) + 0x60, addr_of(m) + 0x70, F + 0x90, field<uint32_t>(m, 0x44),
+                                       title_global<uint32_t>(0x0098a54c), 1, 0, 0, 0, 0};
+            call_at(F, 0x0020b3d0, 0x002e9af0,
+                    TitleRegs{results, addr_of(m), addr_of(m) + 0x60, F + 0x90, addr_of(ent), count}, 11,
+                    args);  // SV_Trace (EBX start = the origin)
+        }
+        const float fraction = *stack_vec(results + 0x20);
+        if (fraction > 0.0f) {
+            field<float>(m, 0) = hit[0];
+            field<float>(m, 4) = hit[1];
+            field<float>(m, 8) = hit[2];
+            if (fraction == title_global<float>(0x0083eb20)) break;
+        } else if (title_global<uint8_t>(results + 0x3d)) {
+            // Starting solid.
+            vel[2] = 0.0f;
+            if (!bump && title_global<uint8_t>(0x0098a52d)) return 2;
+            if (!field<uint32_t>(m, 0x10c)) {
+                field<uint32_t>(m, 0x10c) = stack_word(results + 0x30);
+                field<uint32_t>(m, 0x110) = field<uint32_t>(m, 0);
+                field<uint32_t>(m, 0x114) = field<uint32_t>(m, 4);
+                m[0x120] = 1;
+            }
+            return 1;
+        }
+        const float nx = *stack_vec(results + 0x10), ny = *stack_vec(results + 0x14), nz = *stack_vec(results + 0x18);
+        const uint32_t hit_ent = stack_word(results + 0x30);
+        m[0x121] = 1;
+        if (k07 > nz && !field<uint32_t>(m, 0x10c) && (nx != 0.0f || ny != 0.0f)) {
+            field<uint32_t>(m, 0x10c) = hit_ent;
+            field<uint32_t>(m, 0x110) = field<uint32_t>(m, 0);
+            field<uint32_t>(m, 0x114) = field<uint32_t>(m, 4);
+            field<float>(m, 0x118) = nx;
+            field<float>(m, 0x11c) = ny;
+            m[0x120] = 0;
+        }
+        ActorMove_AddTouchEnt(hit_ent);
+        time_left = time_left - fraction * time_left;
+        if (count >= 5) return stop();
+        // A plane hit before: nudge the velocity out along it.
+        const float normal[3] = {nx, ny, nz};
+        uint32_t i = 0;
+        for (; i < count; ++i)
+            if (actor_dot_x87(normal, planes + i * 4) > title_global<double>(0x0083f1c8)) break;  // 0.99
+        if (i < count) {
+            vel[0] = nx + vel[0];
+            vel[1] = vel[1] + ny;
+            vel[2] = vel[2] + nz;
+            continue;
+        }
+        planes[count * 4 + 0] = nx;
+        planes[count * 4 + 1] = ny;
+        planes[count * 4 + 2] = nz;
+        ++count;
+        // The first plane the velocity enters.
+        float into = 0.0f;
+        for (i = 0; i < count; ++i) {
+            into = actor_dot4(vel, planes + i * 4);
+            if (!(static_cast<long double>(into) >= k01)) break;
+        }
+        if (i == count) continue;
+        const float speed = 0.0f - into;
+        if (speed > title_global<float>(0x0098a530)) title_global<float>(0x0098a530) = speed;
+        const float* const first = planes + i * 4;
+        float end_clip[3];
+        actor_clip_move(vel, first, clip);
+        actor_clip_move(end_vel, first, end_clip);
+        for (uint32_t k = 0; k < 16; k += 4) stack_word(F + 0x200 + k) = stack_word(addr_of(first) + k);
+        for (uint32_t j = 0; j < count; ++j) {
+            if (j == i) continue;
+            const float* const second = planes + j * 4;
+            if (actor_dot_x87(clip, second) >= k01) continue;
+            actor_clip_move(clip, second, clip);
+            actor_clip_move(end_clip, second, end_clip);
+            if (actor_dot4(clip, stack_vec(F + 0x200)) >= 0.0f) continue;
+            // The crease: along first x second (all four lanes), normalized (rsqrt-Newton).
+            float dir[4] = {first[1] * second[2] - first[2] * second[1], first[2] * second[0] - first[0] * second[2],
+                            first[0] * second[1] - first[1] * second[0], first[3] * second[3] - first[3] * second[3]};
+            const float length_sq = actor_dot4(dir, dir);
+            float length = length_sq;
+            if (length_sq == length_sq && length_sq != 0.0f) {
+                const float r = platform_rsqrt_estimate(length_sq);
+                const float a = length_sq * r;
+                const float b = a * r;
+                length = ((title_global<float>(0x0082e660) - b) * a) * title_global<float>(0x0082e670);
+            }
+            if (!(length == 0.0f))
+                for (int k = 0; k < 4; ++k) dir[k] = dir[k] / length;
+            const float along = actor_dot4(dir, vel);
+            clip[0] = along * dir[0];
+            clip[1] = along * dir[1];
+            clip[2] = along * dir[2];
+            const float end_along = actor_dot4(dir, end_vel);
+            end_clip[0] = dir[0] * end_along;
+            end_clip[1] = dir[1] * end_along;
+            end_clip[2] = dir[2] * end_along;
+            // A third plane the new move enters: stop.
+            for (uint32_t k = 0; k < count; ++k) {
+                if (k == i || k == j) continue;
+                const float* const third = planes + k * 4;
+                const long double d = (static_cast<long double>(clip[1]) * third[1] + static_cast<long double>(clip[0]) * third[0]) +
+                                      static_cast<long double>(clip[2]) * third[2];
+                if (!(d >= k01)) return stop();
+            }
+        }
+        if (!field<uint32_t>(m, 0x10c)) {
+            const float dy = clip[1] - vel[1];
+            const float dx = clip[0] - vel[0];
+            if (dx != 0.0f || dy != 0.0f) {
+                field<uint32_t>(m, 0x10c) = stack_word(results + 0x30);
+                field<uint32_t>(m, 0x110) = field<uint32_t>(m, 0);
+                field<uint32_t>(m, 0x114) = field<uint32_t>(m, 4);
+                field<float>(m, 0x118) = dx;
+                field<float>(m, 0x11c) = dy;
+                m[0x120] = 0;
+            }
+        }
+        vel[0] = clip[0];
+        vel[1] = clip[1];
+        vel[2] = clip[2];
+        end_vel[0] = end_clip[0];
+        end_vel[1] = end_clip[1];
+        end_vel[2] = end_clip[2];
+    }
+    if (gravity) {
+        vel[0] = end_vel[0];
+        vel[1] = end_vel[1];
+        vel[2] = end_vel[2];
+    }
+    return bump != 0 ? 1u : 0u;
+}
+
+// ActorMove_SlideMove runs where the original's call puts it (its traces); entry ESP in EDX.
+PLATFORM_ASM_ENTRY(ActorMove_Fly_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(ActorMove_Fly) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL ActorMove_Fly(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t) {
+    // The moving actor flies: velocity = its move delta (+0x34..+0x3c) over the frame time, then
+    // ActorMove_SlideMove without gravity (its result).
+    uint8_t* const m = title_global<uint8_t*>(0x0095f450);
+    const float one = title_global<float>(0x0083eb20);
+    field<float>(m, 0x10) = (one / title_global<float>(0x0098a4e0)) * field<float>(m, 0x34);
+    field<float>(m, 0x14) = (one / title_global<float>(0x0098a4e0)) * field<float>(m, 0x38);
+    field<float>(m, 0x18) = (one / title_global<float>(0x0098a4e0)) * field<float>(m, 0x3c);
+    const uint32_t args[1] = {0};
+    return call_at(entry, 0x0020ed00, 0x0020ae40, TitleRegs{addr_of(m), ebx, 0, 0, esi, edi}, 1,
+                   args);  // ActorMove_SlideMove
+}
+
+// Path_TraceAhead runs where the original's call puts it; entry ESP in EDX, path in ESI.
+PLATFORM_ASM_ENTRY(Path_StoreLookahead_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Path_StoreLookahead) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret $20")
+
+void XB_CDECL Path_StoreLookahead(uint32_t entry, uint32_t ebx, uint8_t* path, uint32_t edi, uint32_t ebp) {
+    // ESI path; stack (origin, lookahead point, already checked, distance, point index; ret
+    // 0x14): the lookahead index (+0x388, kept below count +0x380 - 1). Checked: the lookahead
+    // scale +0x3b4 shrinks ((x - 6.4) * 0.75 when it was valid (+0x3bc bit 1), else (x - 12.8)
+    // * 0.5625; at least 0.001) and both flag bits clear. Else Path_TraceAhead from the point
+    // back to the origin (mask 0x820011, 0x2820011 for a non-actor path entity +0x38c with
+    // +0x384): reached = the scale grows (x * 1.17647 + 6.4, at most 65536) and bit 1 set;
+    // blocked = Path_ShrinkLookaheadBy, which returns at once when the path was valid, the
+    // index below the count and the point's distance (+0x14 of it; +0x3c8 for the last but
+    // one) at least the stored one (+0x3b8). The direction to the point: x/y normalized by
+    // the 2D length +0x3b0, z over it (0 for no length); +0x3b8 = distance, +0x388 = index.
+    // Frame F = E - 0x18 (pass slot F - 0xc, out point F + 0xc).
+    const float* const origin = reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 4)});
+    const float* const point = reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 8)});
+    const uint32_t checked = stack_word(entry + 12);
+    const uint32_t F = entry - 0x18;
+    stack_word(F + 8) = ebx;
+    stack_word(F + 4) = ebp;
+    stack_word(F) = edi;
+    const int16_t count = field<int16_t>(path, 0x380);
+    if (field<int16_t>(path, 0x388) >= count - 1) {
+        field<float>(path, 0x3b8) = 0.0f;
+        field<uint16_t>(path, 0x388) = uint16_t(count - 1);
+    }
+    float& scale = field<float>(path, 0x3b4);
+    if (checked) {
+        const uint32_t flags = field<uint32_t>(path, 0x3bc);
+        if (flags & 2)
+            scale = (scale - title_global<float>(0x0083eb44)) * title_global<float>(0x0083eb58);
+        else
+            scale = (scale - title_global<float>(0x0083eb54)) * title_global<float>(0x0083eb50);
+        if (title_global<float>(0x0083eb4c) > scale) scale = title_global<float>(0x0083eb4c);
+        field<uint32_t>(path, 0x3bc) = flags & 0xfffffffcu;
+    } else {
+        uint32_t handle = 0;
+        uint32_t mask = 0x00820011;
+        if (field<uint16_t>(path, 0x384) && field<uint32_t>(path, 0x38c)) {
+            if (field<uint32_t>(G_EntHandleToEnt(&field<uint32_t>(path, 0x38c)), 0x240))
+                handle = field<uint32_t>(path, 0x38c);
+            else
+                mask = 0x02820011;
+        }
+        const uint32_t args[5] = {addr_of(point), handle, 0, mask, F + 0xc};
+        const uint32_t reached = call_at(F, 0x0020f5e6, 0x0020c040,
+                                         TitleRegs{F - 0xc, addr_of(origin), addr_of(origin), 0, addr_of(path), addr_of(point)},
+                                         5, args);  // Path_TraceAhead (ECX goal)
+        if (reached) {
+            uint32_t flags = field<uint32_t>(path, 0x3bc);
+            if (flags & 2) {
+                scale = scale * title_global<float>(0x0083eb48) + title_global<float>(0x0083eb44);
+                if (scale > title_global<float>(0x0083eb40)) scale = title_global<float>(0x0083eb40);
+            }
+            field<uint32_t>(path, 0x3bc) = flags | 2;
+        } else {
+            const int16_t now_count = field<int16_t>(path, 0x380);
+            const int16_t index = field<int16_t>(path, 0x388);
+            const float distance =
+                index == now_count - 2 ? field<float>(path, 0x3c8) : field<float>(path, index * 0x1c + 0x14);
+            const bool keep = (field<uint8_t>(path, 0x3bc) & 2) && index < now_count && distance >= field<float>(path, 0x3b8);
+            Path_ShrinkLookaheadBy(path);
+            if (keep) return;
+        }
+    }
+    float* const dir = &field<float>(path, 0x39c);
+    dir[0] = point[0] - origin[0];
+    dir[1] = point[1] - origin[1];
+    dir[2] = point[2] - origin[2];
+    const float length = title_ci_sqrt_ext(dir[0] * dir[0] + dir[1] * dir[1]);
+    if (!(static_cast<long double>(length) == static_cast<long double>(title_global<float>(0x0083eafc)))) {
+        const float inverse = title_global<float>(0x0083eb20) / length;
+        dir[0] = dir[0] * inverse;
+        dir[1] = inverse * dir[1];
+    }
+    field<float>(path, 0x3b0) = length;
+    float z = 0.0f;
+    if (!(length == 0.0f)) z = dir[2] / length;
+    dir[2] = z;
+    field<uint32_t>(path, 0x3b8) = stack_word(entry + 16);
+    field<uint16_t>(path, 0x388) = uint16_t(stack_word(entry + 20));
+}
+
+namespace {
+
+// The actor's grenade (+0x1310) held by it (+0x378 = the actor's entity): attached to the hand
+// tag and relinked when it is linked (+0xd4 bit 0), then released.
+void grenade_release(uint8_t* actor) {
+    uint8_t* const grenade = field<uint8_t*>(actor, 0x1310);
+    if (!grenade || field<uint32_t>(grenade, 0x378) != field<uint32_t>(actor, 0)) return;
+    if (grenade[0xd4] & 1) {
+        Actor_Grenade_AttachToTag(actor);
+        SV_LinkEntity(field<uint8_t*>(actor, 0x1310));
+    }
+    field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0x378) = 0;
+}
+
+}  // namespace
+
+void XB_REGS3 XB_CDECL Actor_Grenade_Finish(uint32_t, uint32_t next, uint8_t* actor) {
+    // Grenade state finish (EDX next state, ECX actor): the claimed node released unless the
+    // next state is 1, then the held grenade released.
+    if (next != 1) Sentient_SetClaimedNode(field<uint8_t*>(actor, 4), 0);
+    grenade_release(actor);
+}
+
+void XB_REGS3 XB_CDECL Actor_Grenade_Suspend(uint32_t, uint32_t, uint8_t* actor) {
+    // Grenade state suspend (ECX actor): the held grenade released.
+    grenade_release(actor);
+}
+
+namespace {
+
+long double x87_sqrt(long double x) {
+    __asm__("fsqrt" : "+t"(x));
+    return x;
+}
+
+}  // namespace
+
+// Actor_GrenadeThrow_TestArc runs where the original's call puts it: gap entry (EBX parked in the
+// gap while it carries the entry ESP; start EAX, target EDX, out ECX).
+PLATFORM_ASM_ENTRY(Actor_GrenadeThrow_MinEnergy_entry,
+                   "movl %ebx, -0x28000(%esp)\n"
+                   "movl %esp, %ebx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl -0x28000(%ebx)\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n"
+                   "pushl %eax\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Actor_GrenadeThrow_MinEnergy) "addl $28, %esp\n"
+                   "popl %ebx\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Actor_GrenadeThrow_MinEnergy(uint32_t entry, const float* start, const float* target, float* velocity,
+                                               uint32_t esi, uint32_t edi, uint32_t, uint32_t ebx) {
+    // EAX start, EDX target, ECX out velocity; stack (actor; ret 4): the least-energy throw -
+    // flight time sqrt(2 |d| / g) (x87), 0 when (|d| + dz) g is beyond 360000; else the
+    // velocity and Actor_GrenadeThrow_TestArc's verdict.
+    const uint32_t F = entry - 0x10;
+    using ext = long double;
+    const float dx = float(ext(target[0]) - ext(start[0]));
+    const float dz = target[2] - start[2];
+    const float dy = float(ext(target[1]) - ext(start[1]));
+    const float length = float(x87_sqrt((ext(dz) * ext(dz) + ext(dy) * ext(dy)) + ext(dx) * ext(dx)));
+    const float g = title_global<float>(0x0094d450);
+    if ((length + dz) * g > title_global<float>(0x00830f64)) return 0;
+    ext doubled = ext(length) / ext(g);
+    doubled = doubled + doubled;
+    const float time = float(x87_sqrt(doubled));
+    const float inverse = title_global<float>(0x0083eb20) / time;
+    velocity[0] = inverse * dx;
+    velocity[1] = inverse * dy;
+    velocity[2] = inverse * dz + (g * time) * title_global<float>(0x0083eb24);
+    const uint32_t args[3] = {stack_word(entry + 4), addr_of(velocity), addr_of(target)};
+    return call_at(F, 0x0020fc13, 0x0020cb50, TitleRegs{addr_of(start), ebx, addr_of(velocity), addr_of(target), esi, edi},
+                   3, args);  // Actor_GrenadeThrow_TestArc (EAX start)
+}
+
+// Same entry shape; ESI picks the high arc.
+PLATFORM_ASM_ENTRY(Actor_GrenadeThrow_ByTime_entry,
+                   "movl %ebx, -0x28000(%esp)\n"
+                   "movl %esp, %ebx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl -0x28000(%ebx)\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Actor_GrenadeThrow_ByTime) "addl $28, %esp\n"
+                   "popl %ebx\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Actor_GrenadeThrow_ByTime(uint32_t entry, const float* start, const float* target, float* velocity,
+                                            uint32_t high, uint32_t edi, uint32_t, uint32_t ebx) {
+    // EAX start, ECX target, EDX out velocity, ESI high arc; stack (actor; ret 4): the throw at
+    // speed sqrt(360000): with a = 360000 - g dz, flight time sqrt(2 (a +- sqrt(a^2 - g^2
+    // |d|^2))) / g (x87); 0 when out of reach; else the velocity and
+    // Actor_GrenadeThrow_TestArc's verdict.
+    const uint32_t F = entry - 8;
+    const float g = title_global<float>(0x0094d450);
+    const float dz = target[2] - start[2];
+    const float dy = target[1] - start[1];
+    const float dx = target[0] - start[0];
+    const float a = title_global<float>(0x00830f64) - g * dz;
+    const float reach = (((dz * dz + dy * dy) + dx * dx) * g) * g;
+    const float disc = a * a - reach;
+    if (0.0f > disc) return 0;
+    using ext = long double;
+    ext r = x87_sqrt(ext(disc));
+    r = high ? r + ext(a) : ext(a) - r;
+    r = r + r;
+    const float time = float(x87_sqrt(r) / ext(g));
+    const float inverse = title_global<float>(0x0083eb20) / time;
+    velocity[0] = inverse * dx;
+    velocity[1] = inverse * dy;
+    velocity[2] = inverse * dz + (g * time) * title_global<float>(0x0083eb24);
+    const uint32_t args[3] = {stack_word(entry + 4), addr_of(velocity), addr_of(target)};
+    return call_at(F, 0x0020fd19, 0x0020cb50,
+                   TitleRegs{addr_of(start), ebx, stack_word(entry + 4), addr_of(velocity), high, edi}, 3,
+                   args);  // Actor_GrenadeThrow_TestArc (EAX start)
+}
+
+// Actor_GrenadeThrow_TestArc runs where the original's call puts it; entry ESP in EDX.
+PLATFORM_ASM_ENTRY(Actor_GrenadeThrow_Fallback_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_GrenadeThrow_Fallback) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL Actor_GrenadeThrow_Fallback(uint32_t entry, const float* start, const float* target, uint32_t ebx,
+                                              uint32_t ebp) {
+    // ESI start, EDI target; stack (actor, out velocity; ret 8): a bank shot over a grenade
+    // hint (0x0095ee20, 12 bytes each, count 0x00985fd4) ahead of the target and nearer in
+    // 2D: the point at the target's 2D distance along the hint direction (at the target's
+    // height, within 192 units of the target in 2D) is aimed through the hint - horizontal
+    // speed and vertical speed solved for the hint under gravity, |v|^2 at most 360000 - and
+    // the first arc Actor_GrenadeThrow_TestArc accepts gives 1 with the velocity. 0 for none.
+    // Frame F = E - 0x44: the aim point +0x38.
+    const uint32_t F = entry - 0x44;
+    stack_word(F + 0x40) = ebp;
+    stack_word(F) = ebx;
+    int32_t count = title_global<int32_t>(0x00985fd4);
+    if (!count) return 0;
+    using ext = long double;
+    const float dz = target[2] - start[2];
+    const float dx = float(ext(target[0]) - ext(start[0]));
+    const float dy = float(ext(target[1]) - ext(start[1]));
+    const float distance = title_ci_sqrt_ext(ext(dy) * ext(dy) + ext(dx) * ext(dx));
+    float* const aim = stack_vec(F + 0x38);
+    const float g = title_global<float>(0x0094d450);
+    for (int32_t i = 0; i < count; ++i) {
+        const float* const hint = &title_global<float>(0x0095ee20 + uint32_t(i) * 12);
+        const float hy = hint[1] - start[1];
+        const float hz = hint[2] - start[2];
+        float hx = hint[0] - start[0];
+        float ny = hy;
+        if (0.0f > (hz * dz + hy * dy) + hx * dx) continue;
+        const float hint_distance = title_ci_sqrt_ext(float(ext(hy) * ext(hy) + ext(hx) * ext(hx)));
+        if (!(static_cast<long double>(hint_distance) == static_cast<long double>(title_global<float>(0x0083eafc)))) {
+            const float inverse = title_global<float>(0x0083eb20) / hint_distance;
+            hx = inverse * hx;
+            ny = inverse * hy;
+        }
+        if (hint_distance >= distance) continue;
+        if (hint_distance == title_global<float>(0x0083eafc)) continue;
+        const float px = hx * distance + start[0];
+        const float py = ny * distance + start[1];
+        aim[0] = px;
+        aim[1] = py;
+        aim[2] = target[2];
+        const float ex = target[0] - px;
+        const float ey = target[1] - py;
+        if (ey * ey + ex * ex > title_global<float>(0x00830f6c)) continue;  // 192^2
+        const float hz_d = hz * distance;
+        const float slope = hint_distance * dz - hz_d;
+        if (slope >= title_global<float>(0x0083eafc)) continue;
+        const float k = (g * title_global<float>(0x0083eb28)) / slope;  // -0.5
+        const float speed =
+            title_ci_sqrt_ext(((ext(distance) - ext(hint_distance)) * ext(hint_distance) * ext(k)) * ext(distance));
+        const float vz = ((hz_d * distance) - (hint_distance * hint_distance) * dz) * k / speed;
+        if (vz * vz + speed * speed > title_global<float>(0x00830f64)) continue;  // 600^2
+        float* const out = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 8)});
+        out[0] = speed * hx;
+        out[1] = speed * ny;
+        out[2] = vz;
+        const uint32_t args[3] = {stack_word(entry + 4), addr_of(out), F + 0x38};
+        if (call_at(F, 0x0020fafd, 0x0020cb50,
+                    TitleRegs{addr_of(start), addr_of(hint) + 4, F + 0x38, stack_word(entry + 4), addr_of(start), addr_of(target)},
+                    3, args))  // Actor_GrenadeThrow_TestArc (EAX start)
+            return 1;
+        count = title_global<int32_t>(0x00985fd4);
+    }
+    return 0;
+}
+
+// The shot record is built where the original's frame has it (Weapon_MeleeTrace reads fields
+// only the title callees write); every callee runs at the original's ESP. Entry ESP in EDX.
+PLATFORM_ASM_ENTRY(Actor_MeleeAttack_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_MeleeAttack) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_MeleeAttack(uint32_t entry, uint8_t* actor, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX actor: once per level time (+0xe8), a melee trace (Weapon_MeleeTrace) with the
+    // actor's weapon (+0xf0 matched against the weapon defs' +4; index 0 when none, stored in
+    // the entity's byte +3) along the aim from Actor_GetWeaponFireOrigin, or, with a target
+    // sentient (+0x3c of the actor's sentient), along the normalized eye-to-eye direction.
+    // Frame F = E - 0x5c: target eye +0x10, shot record +0x1c, eye copy +0x40.
+    const int32_t now = level_time();
+    if (field<int32_t>(actor, 0xe8) == now) return;
+    const uint32_t F = entry - 0x5c;
+    stack_word(F + 0xc) = ebp;
+    stack_word(F + 8) = edi;
+    stack_word(F + 4) = ebx;
+    stack_word(F) = esi;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    const uint32_t defs = title_global<uint32_t>(0x0095f4d8);
+    const int32_t last = title_global<int32_t>(0x0095f4d4);
+    field<int32_t>(actor, 0xe8) = now;
+    uint32_t found = 0;
+    if (last >= 0) {
+        int32_t i = 0;
+        for (; i <= last; ++i)
+            if (field<uint32_t>(actor, 0xf0) == field<uint32_t>(title_global<const uint8_t*>(defs + uint32_t(i) * 4), 4)) break;
+        found = i <= last ? uint32_t(i) & 0xff : 0;
+    }
+    stack_word(F + 0x58) = title_global<uint32_t>(defs + found * 4);
+    const uint32_t record = F + 0x1c;
+    call_at(F, 0x0020fd84, 0x002076e0, TitleRegs{addr_of(actor), found, defs, 0, record, addr_of(actor)}, 0,
+            nullptr);  // Actor_GetWeaponFireOrigin (EAX actor, ESI record)
+    call_at(F, 0x0020fd89, 0x002061b0, TitleRegs{addr_of(actor), found, defs, 0, record, addr_of(actor)}, 0,
+            nullptr);  // Actor_RefreshEyeOrigin (EDI)
+    float* const eye = stack_vec(F + 0x40);
+    eye[0] = field<float>(actor, 0x1b4);
+    eye[1] = field<float>(actor, 0x1b8);
+    eye[2] = field<float>(actor, 0x1bc);
+    const uint32_t target = field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c);
+    if (target) {
+        call_at(F, 0x0020fdc6, 0x002066e0, TitleRegs{target, found, F + 0x10, 0, record, addr_of(actor)}, 0,
+                nullptr);  // Sentient_EyeOrigin (EAX sentient, ECX out)
+        const float* const other = stack_vec(F + 0x10);
+        float* const dir = stack_vec(record);
+        dir[0] = other[0] - eye[0];
+        dir[1] = other[1] - eye[1];
+        dir[2] = other[2] - eye[2];
+        call_at(F, 0x0020fe01, 0x00297770, TitleRegs{target, found, F + 0x10, 0, record, addr_of(actor)}, 0,
+                nullptr);  // VectorNormalize (ESI)
+    }
+    ent[3] = uint8_t(found);
+    const uint32_t args[1] = {addr_of(field<uint8_t*>(actor, 0))};
+    call_at(F, 0x0020fe10, 0x00265c10, TitleRegs{record, found, 0, args[0], record, addr_of(actor)}, 1,
+            args);  // Weapon_MeleeTrace (EAX record)
+}
+
 }  // namespace game

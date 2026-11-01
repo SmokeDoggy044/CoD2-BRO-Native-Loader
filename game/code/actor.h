@@ -959,4 +959,41 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ForceFreeSlot(uint32_t entry, uin
                                                             uint32_t ebp);
 extern "C" void Actor_ForceFreeSlot_entry(void);
 
+// 0x0020ae40 (stack gravity): PM_SlideMove for the moving actor (g_actorMove); 1 bumped, 0 clear, 2 stuck at once.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ActorMove_SlideMove(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                uint32_t ebp);
+extern "C" void ActorMove_SlideMove_entry(void);
+// 0x0020ecb0: the moving actor flies by its move delta (ActorMove_SlideMove without gravity).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ActorMove_Fly(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                          uint32_t ebp);
+extern "C" void ActorMove_Fly_entry(void);
+// 0x0020f4f0 (ESI path; stack origin, point, checked, distance, index; ret 0x14): stores the lookahead point's
+// direction and adapts the lookahead scale (Path_TraceAhead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_StoreLookahead(uint32_t entry, uint32_t ebx, uint8_t* path, uint32_t edi,
+                                                            uint32_t ebp);
+extern "C" void Path_StoreLookahead_entry(void);
+// 0x0020f7a0 / 0x0020f810 (EDX next state, ECX actor): grenade state finish / suspend - the held grenade released.
+void XB_REGS3 XB_CDECL Actor_Grenade_Finish(uint32_t, uint32_t next, uint8_t* actor);
+void XB_REGS3 XB_CDECL Actor_Grenade_Suspend(uint32_t, uint32_t, uint8_t* actor);
+
+// 0x0020fb40 (EAX start, EDX target, ECX out velocity; stack actor; ret 4): the least-energy grenade throw.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_GrenadeThrow_MinEnergy(uint32_t entry, const float* start,
+                                                                         const float* target, float* velocity,
+                                                                         uint32_t esi, uint32_t edi, uint32_t ebp,
+                                                                         uint32_t ebx);
+extern "C" void Actor_GrenadeThrow_MinEnergy_entry(void);
+// 0x0020fc20 (EAX start, ECX target, EDX out velocity, ESI high arc; stack actor; ret 4): the throw at full speed.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_GrenadeThrow_ByTime(uint32_t entry, const float* start,
+                                                                      const float* target, float* velocity, uint32_t high,
+                                                                      uint32_t edi, uint32_t ebp, uint32_t ebx);
+extern "C" void Actor_GrenadeThrow_ByTime_entry(void);
+// 0x0020f860 (ESI start, EDI target; stack actor, out velocity; ret 8): a bank throw through a grenade hint.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_GrenadeThrow_Fallback(uint32_t entry, const float* start,
+                                                                        const float* target, uint32_t ebx, uint32_t ebp);
+extern "C" void Actor_GrenadeThrow_Fallback_entry(void);
+// 0x0020fd20 (EAX actor): a melee trace once per level time, aimed at the target sentient's eye.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_MeleeAttack(uint32_t entry, uint8_t* actor, uint32_t ebx, uint32_t esi,
+                                                          uint32_t edi, uint32_t ebp);
+extern "C" void Actor_MeleeAttack_entry(void);
+
 }  // namespace game
