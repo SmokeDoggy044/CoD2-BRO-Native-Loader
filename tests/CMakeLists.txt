@@ -46,7 +46,7 @@ endif()
 
 find_package(Threads REQUIRED)
 
-foreach(test audio_test critical_section_test dispatcher_test filesystem_test memory_test time_test crypto_test)
+foreach(test audio_test critical_section_test dispatcher_test filesystem_test memory_test memory_relocation_test time_test crypto_test)
     add_executable(${test} ${test}.cpp)
     target_link_libraries(${test} PRIVATE xbox Threads::Threads)
     add_test(NAME ${test} COMMAND ${test})

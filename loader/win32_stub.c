@@ -4,8 +4,8 @@
    kernel's fixed memory ranges, then loads the loader proper from
    cod_bro_loader_core.dll, which maps the XBE over this image and never returns.
 
-   Built without the C runtime (only kernel32/user32 calls), as the process's first
-   code after Windows' own. */
+   Built without the C runtime and importing only kernel32 (already loaded with
+   ntdll), as the process's first code after Windows' own. */
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -18,7 +18,12 @@ static void fail(const char* message) {
     DWORD written;
     WriteFile(GetStdHandle(STD_ERROR_HANDLE), message, lstrlenA(message), &written, NULL);
     WriteFile(GetStdHandle(STD_ERROR_HANDLE), "\r\n", 2, &written, NULL);
-    MessageBoxA(NULL, message, "cod_bro_loader", MB_OK | MB_ICONERROR);
+    /* user32 only now: importing it would load it (and the DLLs it pulls in, such as
+       AppInit_DLLs) before the ranges are reserved, where one could take their place. */
+    HMODULE user32 = LoadLibraryA("user32.dll");
+    int(WINAPI * box)(HWND, LPCSTR, LPCSTR, UINT) =
+        user32 ? (int(WINAPI*)(HWND, LPCSTR, LPCSTR, UINT))(void*)GetProcAddress(user32, "MessageBoxA") : NULL;
+    if (box) box(NULL, message, "cod_bro_loader", MB_OK | MB_ICONERROR);
     ExitProcess(1);
 }
 
