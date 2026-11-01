@@ -629,4 +629,112 @@ void XB_REGS1 XB_CDECL Actor_DropClaimedNode(uint8_t* actor);
 extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_Free(uint8_t* sentient);
 extern "C" void Sentient_Free_entry(void);
 
+// 0x001fda90 (cdecl, 8 words): A* from start (word 3) to *word 7 over the node links, skipping
+// links blocked for team (word 1); the path built into word 0 (Path_BuildFromNodes) when given.
+// EAX: 0 none found, else 1 or the build's result. The open list's head lives in the frame.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_AStarSearch(uint32_t entry, uint8_t* path, uint32_t team,
+                                                              uint32_t arg2, uint8_t* start, const float* goal,
+                                                              uint32_t arg5, uint32_t arg6, uint8_t* const* goal_node);
+extern "C" void Path_AStarSearch_entry(void);
+// 0x001ff250: EDI name: index of an AI event name (19, 0x008fedb0), else 0. No references (dead).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL AI_EventTypeFromName(const char* name);
+extern "C" void AI_EventTypeFromName_entry(void);
+// 0x001ff3a0: EBX target, ESI turret, EDI out: unit aim direction for a missing shot.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_AimDirMiss(const float* target, const uint8_t* turret, float* out);
+extern "C" void Turret_AimDirMiss_entry(void);
+// 0x001ff730: EBX target, ESI turret, EDI out: unit aim direction for a hit, jittered by 8.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_AimDirHit(const float* target, const uint8_t* turret, float* out);
+extern "C" void Turret_AimDirHit_entry(void);
+// 0x00200e90: EAX path, EDX goal, XMM4 radius, stack height (ret 4): the path cut where it
+// enters the goal cylinder; 0 when the goal is outside the cylinder around the path's end.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TrimAtGoal(uint8_t* path, const float* goal, float radius,
+                                                             float height);
+extern "C" void Path_TrimAtGoal_entry(void);
+
+// 0x00202a70: spawn - the entity's origin becomes a grenade hint (0x0095ee20, at most 128); entity freed.
+void XB_CDECL SP_info_grenade_hint(uint8_t* ent);
+// 0x00203050 (actor in ECX, exact in EAX): 1 when the entity is at the sentient's goal (height 80,
+// goal radius; a path ending there no longer than twice the goal radius).
+uint32_t XB_REGS3 XB_CDECL Actor_IsAtGoal(uint32_t exact, uint32_t unused, uint8_t* actor);
+// 0x002031e0: frees every corpse entity (g_actorCorpses).
+void XB_CDECL Actor_FreeAllCorpses();
+// 0x00203550: ECX position, stack sentient (ret 4): sets the goal position (goal entity and node
+// dropped, an actor's path trimmed and the at-goal flag +0x7df updated).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_SetGoalPos(const float* position, uint8_t* sentient);
+extern "C" void Sentient_SetGoalPos_entry(void);
+// 0x00203780: ECX actor, EAX end, EDI attacker entity, stack start and a flag (ret 8): a bullet
+// line passed the actor (attacked-by, position, suppression).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_EventBullet(uint32_t entry, uint8_t* actor, uint32_t end,
+                                                           const uint8_t* attacker, uint32_t start,
+                                                           uint32_t no_suppression);
+extern "C" void Actor_EventBullet_entry(void);
+// 0x00204320 / 0x00204340 (actor in EAX): grenade recover / cower anim, stationary.
+void XB_REGS1 XB_CDECL Actor_Grenade_Recover(uint8_t* actor);
+void XB_REGS1 XB_CDECL Actor_Grenade_Cower(uint8_t* actor);
+// 0x002048c0: EAX other sentient, EBX sentient: claims the other's node (+0x48).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_TakeNodeClaim(const uint8_t* other, uint8_t* sentient);
+extern "C" void Sentient_TakeNodeClaim_entry(void);
+// 0x00204930: actor entity pain callback (cdecl, 7 words): pain data recorded, the state's pain
+// callback run and state 8 pushed.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_Pain(uint32_t entry, uint8_t* self, uint8_t* attacker, uint32_t damage,
+                                                    uint32_t arg4, uint32_t arg5, const float* dir, uint32_t mod);
+extern "C" void Actor_Pain_entry(void);
+// 0x00204c70: frees the corpse farthest from the player; returns its index.
+uint32_t XB_CDECL Actor_FreeFarthestCorpse();
+// 0x00204e10 (path in EAX, stack info and out; ret 8): the negotiation node's data and name hash.
+uint32_t XB_REGS1 XB_STDCALL Path_GetNegotiationNodeInfo(const uint8_t* path, uint8_t* info, uint32_t* out);
+// 0x00204f80 (actor in EAX): grenade state: cower without an enemy, else the cover attack anim.
+void XB_REGS1 XB_CDECL Actor_Grenade_CoverAttack(uint8_t* actor);
+// 0x00205010 (actor in ECX): grenade state: cower without an enemy, else the combat anim.
+void XB_THISCALL Actor_Grenade_Combat(uint8_t* actor);
+// 0x00205760 (index in EAX): frees a bad place slot.
+void XB_REGS1 XB_CDECL BadPlace_FreeIndex(int32_t index);
+// 0x00205ad0: EBX name: frees the bad place of that name.
+extern "C" PLATFORM_HIDDEN void XB_CDECL BadPlace_Delete(const ScriptString* name);
+extern "C" void BadPlace_Delete_entry(void);
+// 0x00205b20 (duration in EAX, name in ECX): a new bad place slot (0x0098a570, 0x28 each), or 0.
+uint8_t* XB_REGS3 XB_CDECL BadPlace_Alloc(int32_t duration, uint32_t unused, const ScriptString* name);
+
+// 0x002040a0: EBX anim notify list: done nodes unlinked, the others dispatched (Scr_DispatchAnimNotetrack).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_ProcessAnimNotifies(uint8_t* list);
+extern "C" void Scr_ProcessAnimNotifies_entry(void);
+// 0x00204a60: EDI actor: the per-think status notifies (goal, enemy, combat, death, occupied...).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_UpdateStatusNotifies(uint8_t* actor);
+extern "C" void Actor_UpdateStatusNotifies_entry(void);
+// 0x00202ce0 (cdecl): moves the entity onto a free node next to `node` (up to 8 steps, depth 0x0095f70c). AL.
+uint8_t XB_CDECL PathNode_FindFreeNeighbor_r(uint8_t* ent, const uint8_t* node);
+// 0x00203e60: EAX, ECX blocking entities, stack radius: the lower priority one steps aside. AL.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindStepAsideNode(uint32_t entry, uint8_t* a, uint8_t* b,
+                                                                     float radius);
+extern "C" void Actor_FindStepAsideNode_entry(void);
+// 0x00204390 (stdcall, 6 words): an event along a line (bullet 0x10, attacked 0x11) to the actors near it.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_SendLineEvent(uint32_t entry, const uint8_t* attacker, int32_t event,
+                                                             uint32_t mask, const float* start, const float* end,
+                                                             float range);
+extern "C" void Actor_SendLineEvent_entry(void);
+// 0x00205160: ESI shot (+0 direction, +0x30 forward): the direction kept within 15 degrees of the forward.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ClampShotDirToCone(float* shot);
+extern "C" void Actor_ClampShotDirToCone_entry(void);
+// 0x002052c0 (orientation in EAX, actor in ECX): faces along the move history in move modes 1 and 7.
+void XB_REGS3 XB_CDECL Actor_OrientToMoveHistory(uint8_t* orient, uint32_t unused, const uint8_t* actor);
+// 0x002057b0 (was FUN_002057b0): ESI actor, stack max turn (ret 4): the desired angles turned toward the
+// target angles at a limited rate; tail jump to Actor_SetDesiredAngles.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_TurnTowardAngles(uint8_t* actor, int32_t max_turn);
+extern "C" void Actor_TurnTowardAngles_entry(void);
+// 0x00204100 (was FUN_00204100): ESI trace cache, EAX/ECX mover bounds, stack start, end, output triangle and
+// brush lists, contents: collision candidates for a short swept move from a cached padded box. AL.
+extern "C" PLATFORM_HIDDEN uint8_t XB_CDECL Path_TraceGatherCandidates(uint8_t* cache, const float* box_a,
+                                                                       const float* box_b, const float* start,
+                                                                       const float* end, uint8_t* out_triangles,
+                                                                       uint8_t* out_brushes, uint32_t contents);
+extern "C" void Path_TraceGatherCandidates_entry(void);
+// 0x00205450 (stdcall): arrival at the path's negotiation point (state 12) or easing into it.
+void XB_STDCALL Actor_HandlePathArrival(uint8_t* actor);
+
+// 0x002028a0 (was FUN_002028a0): EDI node, ECX name, stack entity handle (ret 4): a pending anim notify
+// set up and its first variant played (0x00200450). EAX = node.
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL AnimNotify_Init(uint32_t entry, uint8_t* node, uint32_t name,
+                                                             uint32_t handle);
+extern "C" void AnimNotify_Init_entry(void);
+
 }  // namespace game
