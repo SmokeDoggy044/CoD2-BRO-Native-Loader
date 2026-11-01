@@ -704,4 +704,29 @@ void XB_THISCALL PhysRagdoll_AddAttachedObject(uint8_t* phys, uint32_t object) {
     *ragdoll_list_append(phys, 0xb8) = object;
 }
 
+// Five 0x30-byte blocks from +0 each get an empty self-linked list (+0x28 head, +0x2c count), the
+// bone pool at +0xf0 its storage pointer (+0x460 = +0xf0, +0x464 = 0) and reset; +0x4a4 = 0.
+PLATFORM_ASM_ENTRY(PhysRagdoll_InitLinks_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(PhysRagdoll_InitLinks) "addl $4, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL PhysRagdoll_InitLinks(uint8_t* ragdoll) {
+    at<uint8_t*>(ragdoll, 0x28) = ragdoll;
+    at<uint32_t>(ragdoll, 0x2c) = 0;
+    at<uint32_t>(ragdoll, 0x5c) = 0;
+    at<uint8_t*>(ragdoll, 0x58) = ragdoll + 0x30;
+    at<uint32_t>(ragdoll, 0x8c) = 0;
+    at<uint8_t*>(ragdoll, 0x88) = ragdoll + 0x60;
+    at<uint32_t>(ragdoll, 0xbc) = 0;
+    at<uint8_t*>(ragdoll, 0xb8) = ragdoll + 0x90;
+    at<uint8_t*>(ragdoll, 0xe8) = ragdoll + 0xc0;
+    at<uint32_t>(ragdoll, 0xec) = 0;
+    uint8_t* const bones = ragdoll + 0xf0;
+    at<uint8_t*>(bones, 0x370) = bones;
+    at<uint32_t>(bones, 0x374) = 0;
+    RagdollBonePool_Reset(0, 0, bones);
+    at<uint32_t>(ragdoll, 0x4a4) = 0;
+    return ragdoll;
+}
+
 }  // namespace game

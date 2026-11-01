@@ -150,4 +150,87 @@ uint8_t XB_THISCALL PhysOrientedBox_SweepSphere(uint8_t* shape, const float* a, 
 // 0x000b16b0: GJK sub-determinants for the simplex with the new point (globals gjk_*).
 void XB_CDECL Gjk_ComputeDeterminants();
 
+// 0x000b5ae0..0x000b5f10, 0x000b6250: world pool frees (ECX = pool, element on the stack): the last
+// used element takes the freed one's list slot; freeing the only one resets the pool. The 0x30 pool
+// first clears the word the constraint's back-pointer (+0x2c) names.
+void XB_THISCALL PhysPool1c0_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysBodyPool_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPool30_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPool50_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPoolF0_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPool60_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPoolE0_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPoolD0_Free(uint8_t* pool, uint32_t element);
+void XB_THISCALL PhysConstraintPool1B0_Free(uint8_t* pool, uint32_t element);
+// 0x000b61b0: world pool reset for 0x1b0 constraints.
+int32_t XB_THISCALL PhysConstraintPool1B0_Reset(uint8_t* pool);
+// 0x000b5f90: next 0x18-byte node of the pair tree (storage +0, capacity +4, used +8): children
+// and balance 0, the key pair at +0xc, payload +0x14 = 0. A full tree writes through null.
+uint8_t* XB_THISCALL PhysPairTree_AllocNode(uint8_t* tree, const uint32_t* key);
+// 0x000b5fe0 / 0x000b6040: next entry of a world pool (cdecl, second argument unused) with the
+// two bodies at +0 and +4; the 0x50 constraint gets -1 at +0x30/+0x38/+0x40 and 0 at +0x48, the
+// 0x28c one -1 at +0xa8/+0xb0/+0xb8/+0xc0. A full pool writes through null.
+uint32_t* XB_CDECL PhysConstraintPool_Alloc(uint8_t* pool, uint32_t unused, uint32_t a, uint32_t b);
+uint32_t* XB_CDECL PhysConstraintPool28c_Alloc(uint8_t* pool, uint32_t unused, uint32_t a, uint32_t b);
+// 0x000b60b0: AVL insert of the tree's key (tree +0x10 points at the pair) below *slot; the
+// node found or made goes to tree +0x14. EAX: nonzero when the subtree grew.
+int32_t XB_THISCALL PhysPairTree_Insert(uint8_t* tree, uint8_t** slot);
+// 0x000b62d0: the pair record (0x30 pool) of two bodies, made on first use (cdecl; arguments 3
+// and 4 are read). The sorted key pair is a local whose address stays in world +0x1c0 (gap entry).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PhysWorld_GetBodyPair(uint32_t a, uint32_t b, uint32_t entry_ebx,
+                                                                  uint32_t entry_ebp, uint32_t entry_esi,
+                                                                  uint32_t entry_edi, uint32_t entry_esp);
+extern "C" void PhysWorld_GetBodyPair_entry(void);
+// 0x000b63f0: sets up a 0x28c constraint: three vectors to +0x30/+0x40/+0x50, seven floats to
+// +0x60..+0x78, +0x7c = 1, +0x88..+0x98 = 0, +0xa0 = 1, +0xa4 = 0.
+void XB_THISCALL PhysConstraint28c_Setup(uint8_t* constraint, const float* v0, const float* v1, const float* v2,
+                                         uint32_t f0, uint32_t f1, uint32_t f2, uint32_t f3, uint32_t f4,
+                                         uint32_t f5, uint32_t f6);
+
+// 0x000b6510: a constraint's second body (+4), its anchor (+0x10) and axis (+0x20); flag 1 of
+// +0xa4. Unreferenced.
+void XB_THISCALL PhysConstraint_AttachSecondBody(uint8_t* constraint, uint32_t body, const float* anchor,
+                                                 const float* axis);
+// 0x000b6590: the constraint's segment (centre +0x30, axis +0x40, half length +0x60) moved out of
+// the frame: lo = centre - axis * len, hi = centre + axis * len (xyz). Unreferenced.
+void XB_THISCALL PhysConstraint_GetSegmentEnds(const uint8_t* constraint, const float* frame, float* lo, float* hi);
+// 0x000b6780: flag 2 of +0xa4 while the bodies' separation along the axis reaches the limit
+// +0x74 (constraints with flag 1). The stack word is unused.
+void XB_THISCALL PhysConstraint_UpdateLimitFlag(uint8_t* constraint, uint32_t unused);
+// 0x000b7020: the clamped separation (+0x98), +0x9c, the contact impulse into the speed +0x8c and
+// the position +0x94 += speed * dt.
+void XB_THISCALL PhysConstraint_UpdateDrive(uint8_t* constraint, float dt);
+// 0x000b71d0 / 0x000b7260: out = v + the body's +0x30 / +0x70 vector (v alone when flag 0x10 of
+// +0x144 is set). Returns out.
+float* XB_CDECL PhysBody_OffsetByPosition(float* out, const uint8_t* body, const float* v);
+float* XB_CDECL PhysBody_OffsetByField70(float* out, const uint8_t* body, const float* v);
+// 0x000b72f0 / 0x000b7330: a 0xa0-byte block of the world's frame buffer into +0xb0 / +0xb4.
+void XB_THISCALL PhysContact_AllocBufferB0(uint8_t* contact, uint8_t* world);
+void XB_THISCALL PhysContact_AllocBufferB4(uint8_t* contact, uint8_t* world);
+// 0x000b61f0: next 0xd0 constraint (-1 at +0xac/+0xb4/+0xbc), bodies a and b at +0 and +4.
+uint32_t* XB_CDECL PhysConstraintPoolD0_Alloc(uint8_t* pool, uint32_t unused, uint32_t a, uint32_t b);
+// 0x000b4b90: the world's 0xd0 constraint pool (+0x2a0) alloc.
+uint32_t* XB_CDECL PhysWorld_AllocConstraintD0(uint32_t a, uint32_t b);
+// 0x000b3d00: flag 1 of +0x144 on each body of the list at +0x28 (count +0x2c). Unreferenced.
+uint32_t XB_THISCALL PhysRagdoll_SetBodiesFlag1(uint8_t* ragdoll);
+
+// 0x000ad140: box (centre +0x10, half extents +0x20) against a sphere of the radius swept from a
+// along dir to b: the first face hit (b = the hit pushed out by radius + 0.002, normal +-axis at
+// b + 4), else the first touch of a clamped edge/corner point (b = a + t (a - b), normal -dir).
+// AL = hit.
+uint8_t XB_THISCALL PhysBox_SweepSphere(uint8_t* box, const float* a, float* b, float radius, const float* dir);
+// 0x000ae970: box against a sphere: out = the contact point, out + 4 the normal (-+axis when
+// separated, the face/edge/corner normal on contact, the nearest face's when the centre is inside).
+// AL = contact.
+uint8_t XB_THISCALL PhysBox_SphereContact(uint8_t* box, const float* p, float radius, float* out, uint32_t unused);
+// 0x000b1b40: GJK closest points of shape A (in `frame`, rows +0..+0x20, origin +0x30) and shape B:
+// out = point on A, out + 4 on B, out + 8 = separation (also the start direction). 0 = separated
+// beyond `limit` (squared), 1 = closest points found, 2 = touching/degenerate. Unreferenced chain.
+int32_t XB_CDECL Gjk_ClosestPoints(void* shape_a, const float* frame, void* shape_b, float* out, float limit,
+                                   uint8_t keep_going);
+// 0x000b0a00: do two shapes (bounding sphere centre +0x10, radius +0x1c) in their frames overlap
+// within limit: sphere test, then GJK in B's frame. Unreferenced.
+uint8_t XB_CDECL Phys_ShapesOverlapGjk(void* shape_a, const float* frame_a, void* shape_b, const float* frame_b,
+                                       float limit);
+
 }  // namespace game
