@@ -14525,3 +14525,4 @@ address,name,kind,confidence,evidence
 000c0080,PhysJoint_SolveStep,function,high,"phys push 8 (2026-11-01)"
 000c01e0,PhysJoint_ApplyBlendedImpulses,function,high,"phys push 8 (2026-11-01)"
 000c02c0,PhysJoint_WarmStart,function,high,"phys push 8 (2026-11-01)"
+0020da90,G_SampleGroundTilt,function,high,"ai push 8 (2026-11-01): traces ground ahead/behind along a direction; pitch to *out, mean height in XMM0"

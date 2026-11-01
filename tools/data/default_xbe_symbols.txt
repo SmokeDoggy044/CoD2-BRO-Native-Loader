@@ -7794,7 +7794,7 @@
 0020d110 Actor_TrimPathFromEye
 0020d160 Sentient_RouteToGoalNodeCached
 0020d430 Actor_UpdateAimBlend
-0020da90 FUN_0020da90
+0020da90 G_SampleGroundTilt
 0020e0e0 Actor_ForceFreeSlot
 0020e5a0 Actor_DropToFloor
 0020e770 Sentient_FindGoalNodeNearEntity
