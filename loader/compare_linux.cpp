@@ -721,6 +721,16 @@ XBCMP_CODE bool sdk_stand_in(ChildArea& c, const SdkSpec& spec, const uint32_t* 
         result = 0;
         return true;
     }
+    case SdkStandIn::NoDeviceChanges: {  // (type, insertions, removals)
+        if (spec.arg_count != 3) return false;
+        for (uint32_t i = 1; i < 3; ++i) {
+            if (!values[i]) continue;
+            if (!readable(c, values[i], 4)) return false;
+            *reinterpret_cast<uint32_t*>(uintptr_t{values[i]}) = 0;
+        }
+        result = 0;
+        return true;
+    }
     case SdkStandIn::PushBegin:
     case SdkStandIn::PushEnd:
     case SdkStandIn::LevelCount:

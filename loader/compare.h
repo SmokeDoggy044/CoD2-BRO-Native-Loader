@@ -58,6 +58,9 @@ enum class SdkStandIn : uint8_t {
     // KeQuerySystemTime(time): *time = 0 on both sides (GetSystemTimeAsFileTime -> CRT _clock: the file
     // request and sound bank timers, CL_Frame).
     SystemTime,
+    // XGetDeviceChanges(type, insertions, removals): 0 into both (when given), returns 0 - no device
+    // plugged in or out during a test.
+    NoDeviceChanges,
     // Kernel file exports that test processes run for real (pass-through, docs/comparison-harness.md
     // "File calls"): each side runs the loader's own export on its own copy of the process, so its
     // handles, file positions, events and APCs stay consistent with its title memory. Both sides'

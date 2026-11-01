@@ -259,7 +259,15 @@ XGetFilePhysicalSortKey, GetOverlappedResult, SleepEx...) end in kernel exports.
 access only), NtReadFile, NtQueryInformationFile, NtSetInformationFile (the file position
 only), NtQueryFullAttributesFile, NtQueryDirectoryFile, NtQueryVolumeInformationFile,
 IoQueryVolumeInformation, NtClose, ObReferenceObjectByHandle/ObfDereferenceObject,
-NtWaitForSingleObjectEx, KeDelayExecutionThread, RtlInitAnsiString and RtlNtStatusToDosError.
+NtWaitForSingleObjectEx, KeDelayExecutionThread, RtlInitAnsiString and RtlNtStatusToDosError;
+since 2026-11-01 also the save/profile helpers: RtlAnsiStringToUnicodeString /
+RtlUnicodeStringToAnsiString (XAPI MultiByteToWideChar / WideCharToMultiByte, never allocating) and
+XcSHAInit/Update/Final, XcHMAC (XShaHmac*, XCalculateSignature*). The pad / memory-unit poll
+XGetDeviceChanges is a stand-in (`SdkStandIn::NoDeviceChanges`: nothing plugged in or out during a
+test; ours asks SDL, which a test process cannot). The sound device's own additions (set_category,
+set_environment, enhanced, set_occlusion, has) are pass-through like its other methods.
+libcod_bro_game.so links with -Bsymbolic-functions: at -O0 its template helpers (std::atomic's
+memory_order operators) are weak copies that otherwise bind to the loader's (host code).
 Each side runs the loader's own export in its own process (a copy of the game), so its
 handles, file positions, events and queued APCs stay consistent with its own title memory;
 nothing is replayed between the sides. Both sides' calls go into the recorded-call log -

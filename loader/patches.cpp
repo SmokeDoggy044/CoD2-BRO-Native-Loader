@@ -2005,6 +2005,16 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         // String and status helpers the XAPI file functions call (no state).
         {"RtlInitAnsiString", "x x", compare::SdkStandIn::Pass},
         {"RtlNtStatusToDosError", "s", compare::SdkStandIn::Pass},
+        // XAPI's MultiByteToWideChar / WideCharToMultiByte (profile and save names): conversions
+        // between the caller's buffers, never allocating (the title passes allocate = 0).
+        {"RtlAnsiStringToUnicodeString", "x x s", compare::SdkStandIn::Pass},
+        {"RtlUnicodeStringToAnsiString", "x x s", compare::SdkStandIn::Pass},
+        // XAPI's save signatures (XShaHmacInitialize..., XCalculateSignature*): SHA-1 / HMAC on
+        // the caller's context and buffers.
+        {"XcSHAInit", "x", compare::SdkStandIn::Pass},
+        {"XcSHAUpdate", "x x s", compare::SdkStandIn::Pass},
+        {"XcSHAFinal", "x x", compare::SdkStandIn::Pass},
+        {"XcHMAC", "x s x s x s x", compare::SdkStandIn::Pass},
     };
     for (const RecordedCall& call : kRecordedKernelCalls) {
         uint32_t host = 0;
@@ -2134,6 +2144,11 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         {"SoundDevice::start_synched", "s ret:void"},
         {"SoundDevice::set_headphones", "s s ret:void"},
         {"SoundDevice::do_work", "s ret:void"},
+        {"SoundDevice::set_category", "s s s ret:void"},
+        {"SoundDevice::set_environment", "s s:72 ret:void"},
+        {"SoundDevice::enhanced", "s ret:al"},
+        {"SoundDevice::set_occlusion", "s s s ret:void"},
+        {"SoundDevice::has", "s s ret:al"},
     };
     for (const RecordedCall& call : kRecordedDeviceCalls) {
         uint32_t host = 0;
@@ -2146,6 +2161,12 @@ std::vector<compare::SdkCall> recorded_sdk_calls() {
         }
         calls.push_back({call.name, host, call.args, compare::SdkStandIn::PassSound, nullptr});
     }
+    // The pad / memory unit polls (IN_PadCheckDeviceChanges, Save_Update): our XGetDeviceChanges asks
+    // SDL, which a test process cannot; nothing is plugged in or out during a test.
+    for (const xbox::KernelImpl& function : input::xpp_functions())
+        if (std::strcmp(function.name, "XGetDeviceChanges") == 0)
+            calls.push_back({"XGetDeviceChanges", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(function.address)),
+                             "s x x", compare::SdkStandIn::NoDeviceChanges, nullptr});
     // The RDTSC trampolines' clock (Sys_Milliseconds and the frame timers): 0 on both sides
     // (the trampolines themselves stay executable: rdtsc_trampolines).
     calls.push_back({"title_rdtsc", static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&title_rdtsc)), "",
