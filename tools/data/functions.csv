@@ -2964,7 +2964,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 00252490,Touch_FriendlyChain,compare,0,0,0,0,0,0,""
 002524d0,Touch_Multi,compare,276,210,210,0,0,0,""
 00252bd0,G_GetEntAnimTree,compare,8975,120,120,0,0,0,""
-00252c10,G_CheckMissionEnd,compare,56204,35721,35718,0,2,1,"original called host code at 080e0f47 from f7ba629f [host] libcod_bro_game.so +0x6129f"
+00252c10,G_CheckMissionEnd,compare,56204,35719,35718,0,0,1,"original called host code at 080e0f47 from f7ba629f [host] libcod_bro_game.so +0x6129f"
 002530a0,G_RegisterCvars,compare,13,9,9,0,0,0,""
 002531b0,G_ClientActivateTargetActor,compare,10,8,8,0,0,0,""
 002532f0,G_FreeFarthestDroppedItem,compare,2,1,1,0,0,0,""
