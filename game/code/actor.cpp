@@ -7581,6 +7581,171 @@ uint32_t XB_CDECL Path_ScoreEnemyExposure(uint32_t entry, uint32_t ebx0, uint32_
     return 0;
 }
 
+// The nearest-node searches run where the original's calls put them (Sentient_CachedNearestNode
+// keeps a stack address in 0x00929b40 through PathNode_FindNearest); entry ESP in EDX.
+PLATFORM_ASM_ENTRY(Actor_ScoreEnemy_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_ScoreEnemy) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+int32_t XB_CDECL Actor_ScoreEnemy(uint32_t entry, uint32_t ebx0, uint32_t esi0, uint32_t edi0, uint32_t ebp0) {
+    // Stack (actor, enemy sentient; ret 8): the enemy's score for target selection, or
+    // INT_MIN for an ignored actor entity (flag 0x10000000 of +0x2a4) or, with the actor's
+    // memory limit (+0x7e8 on, +0x7ec ms), an enemy not seen within it. The base is the
+    // enemy's +0x28 plus 2000 when visible now (enemy info +0 of the actor's 0x50-byte
+    // infos at +0x850), 1000 when it can be seen (team 2 actors targeting it from within 64
+    // units of where it was seen: both cached nearest nodes the same or in sight; others:
+    // seen within 5 s), 500 when seen within 10 s; plus the distance score, the range
+    // accuracy advantage (-100 x the scale difference, clamped to -500..1000), -100 per
+    // +0x44 count (current target counts one less; at most -400, not for team 2), the
+    // current-target bonus (team 2: 1000/500/100, others 100), 300 for the actor's +0x12a4,
+    // and -1000 when the actor holds cover (+0x1364) and the enemy is not covered by its
+    // node (Actor_IsCoverValidAgainst's test).
+    // Frame F = ((E - 4) & ~15) - 0x50 after the pushes.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    uint8_t* const enemy = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 8)});
+    const uint32_t F = ((entry - 4) & ~15u) - 0x50;
+    stack_word(entry - 4) = ebp0;
+    stack_word(F + 8) = ebx0;
+    stack_word(F + 4) = esi0;
+    stack_word(F) = edi0;
+    const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+    if (ent && (field<uint32_t>(ent, 0x2a4) & 0x10000000)) return int32_t(0x80000000u);
+    const uint8_t* const info = actor + 0x850 + sentient_index(enemy) * 0x50;
+    const int32_t now = level_time();
+    if (field<uint32_t>(actor, 0x7e8)) {
+        const int32_t seen_at = field<int32_t>(info, 0x14);
+        if (!seen_at || !(now - seen_at < field<int32_t>(actor, 0x7ec))) return int32_t(0x80000000u);
+    }
+    // Packed: all four lanes of the difference are squared.
+    const float d0 = field<float>(ent, 0x140) - field<float>(info, 0x20);
+    const float d1 = field<float>(ent, 0x144) - field<float>(info, 0x24);
+    const float d2 = field<float>(ent, 0x148) - field<float>(info, 0x28);
+    const float d3 = field<float>(ent, 0x14c) - field<float>(info, 0x2c);
+    const float s0 = d0 * d0, s1 = d1 * d1, s2 = d2 * d2, s3 = d3 * d3;
+    platform_keep(s3);
+    const float sum = (s0 + s1) + s2;
+    float distance = sum;
+    if (sum != 0.0f) {
+        const float r = platform_rsqrt_estimate(sum);
+        const float a = sum * r;
+        const float b = a * r;
+        distance = ((title_global<float>(0x0082e660) - b) * a) * title_global<float>(0x0082e670);
+    }
+    const uint32_t visible = info[0];
+    uint32_t can_see = visible;
+    uint32_t recent = 0;
+    bool scale = true;
+    if (!visible) {
+        const uint8_t* const own = field<const uint8_t*>(actor, 4);
+        if (field<uint32_t>(own, 4) == 2 && enemy == field<const uint8_t*>(own, 0x3c)) {
+            const uint8_t* const enemy_ent = field<const uint8_t*>(enemy, 0);
+            const float x = field<float>(info, 0x20) - field<float>(enemy_ent, 0x140);
+            const float y = field<float>(info, 0x24) - field<float>(enemy_ent, 0x144);
+            const float z = field<float>(info, 0x28) - field<float>(enemy_ent, 0x148);
+            bool nodes_see = false;
+            if (title_global<float>(0x0083ed4c) > (z * z + y * y) + x * x) {
+                const uint32_t args[6] = {0, 0, 0, 1, 0x43400000, 0};
+                const uint32_t first = call_at(F, 0x0020996c, 0x002095c0,
+                                               TitleRegs{uint32_t(now), addr_of(actor), addr_of(enemy_ent), 0,
+                                                         addr_of(info), addr_of(own)},
+                                               6, args);  // Sentient_CachedNearestNode (EDI; stdcall)
+                const uint32_t second = call_at(F, 0x00209985, 0x002095c0,
+                                                TitleRegs{first, first, addr_of(enemy_ent), 0, addr_of(info), addr_of(enemy)},
+                                                6, args);
+                if (first && second &&
+                    (first == second ||
+                     (PathNode_CanSee(title_global<const uint8_t*>(0x0095f4f4), reinterpret_cast<const uint16_t*>(uintptr_t{first}),
+                                      reinterpret_cast<const uint16_t*>(uintptr_t{second})) &
+                      0xff)))
+                    nodes_see = true;
+            }
+            if (nodes_see) {
+                can_see = 1;
+            } else {
+                recent = now - field<int32_t>(info, 0x18) < 10000 ? 1 : 0;
+                scale = recent != 0;
+            }
+        } else {
+            can_see = now - field<int32_t>(info, 0x18) < 5000 ? 1 : 0;
+            scale = can_see != 0;
+        }
+    }
+    float advantage = 0.0f;
+    if (scale) {
+        const float mine = Sentient_GetRangeAccuracyScale(field<const uint8_t*>(actor, 4), distance);
+        advantage = mine - Sentient_GetRangeAccuracyScale(enemy, distance);
+    }
+    int32_t base = field<int32_t>(enemy, 0x28);
+    if (visible)
+        base += 2000;
+    else if (can_see)
+        base += 1000;
+    else if (recent)
+        base += 500;
+    int32_t range = int32_t(advantage * title_global<float>(0x0083eb38));  // -100
+    if (range < -500)
+        range = -500;
+    else if (range > 1000)
+        range = 1000;
+    int32_t score = base + (Actor_ScoreEnemyByDistance(enemy, actor, distance) + range);
+    const uint8_t* const own = field<const uint8_t*>(actor, 4);
+    const uint8_t* const target = field<const uint8_t*>(own, 0x3c);
+    int32_t count = field<int16_t>(enemy, 0x44);
+    if (enemy == target) --count;
+    const uint32_t team = field<uint32_t>(own, 4);
+    if (team != 2) {
+        int32_t penalty = count * -100;
+        if (penalty <= -400) penalty = -400;
+        score += penalty;
+    }
+    if (enemy == target) {
+        if (team == 2 && can_see)
+            score += 1000;
+        else if (team == 2 && recent)
+            score += 500;
+        else
+            score += 100;
+    }
+    if (enemy == field<const uint8_t*>(actor, 0x12a4)) score += 300;
+    if (!actor[0x1364]) return score;
+    const uint8_t* const node = path_node(field<uint16_t>(own, 0x48));
+    if (!node || field<uint32_t>(node, 0x28) - 2 > 9) return score - 1000;
+    const CoverKind& kind = kCoverKinds[field<uint32_t>(node, 0x28) - 2];
+    const float min_yaw = title_global<float>(kind.min_yaw), max_yaw = title_global<float>(kind.max_yaw);
+    const uint8_t* const enemy_ent = field<const uint8_t*>(enemy, 0);
+    const float dx = field<float>(enemy_ent, 0x140) - field<float>(node, 0x44);
+    const float dz = field<float>(enemy_ent, 0x148) - field<float>(node, 0x4c);
+    const float dy = field<float>(enemy_ent, 0x144) - field<float>(node, 0x48);
+    const float dx2 = dx * dx, dz2 = dz * dz, dy2 = dy * dy;
+    if (title_global<float>(kind.min_distance_sq) > (dz2 + dx2) + dy2) return score - 1000;
+    // The enemy's direction from the node: atan2 through the asin series (x87 inverse).
+    const float ax = abs_bits(dx), ay = abs_bits(dy);
+    float angle = 0.0f;
+    if (static_cast<long double>(ay) + static_cast<long double>(ax) != static_cast<long double>(title_global<double>(0x0083ed20))) {
+        const float length = title_ci_sqrt_ext(static_cast<long double>(dx2) + static_cast<long double>(dy2));
+        const float inverse = float(static_cast<long double>(title_global<float>(0x0083eb20)) / static_cast<long double>(length));
+        angle = ay > ax ? cover_asin(inverse * ax, true) : cover_asin(inverse * ay, false);
+        if (0.0f > dx) angle = title_global<float>(0x0083ed00) - angle;
+        if (0.0f > dy) angle = 0.0f - angle;
+    }
+    const float degrees = angle * title_global<float>(0x0083efa4) - field<float>(node, 0x50);
+    const float yaw = static_cast<float>(static_cast<int32_t>(degrees * title_global<float>(0x0083ebd8)) & 0xffff) *
+                      title_global<float>(0x0083ebd4);
+    if (min_yaw > max_yaw) {
+        if (min_yaw > yaw && yaw > max_yaw) return score - 1000;
+    } else if (min_yaw > yaw || yaw > max_yaw) {
+        return score - 1000;
+    }
+    return score;
+}
+
 // The route is built into a copy of the actor's path in the original's frame (Path_Route ->
 // Path_AStarSearch keep frame addresses): gap entry, every title callee at the original's ESP
 // (frame F = aligned base - 0x440: goal block +0x20, start origin +0x40, path copy +0x60).
@@ -8279,6 +8444,791 @@ void XB_CDECL ActorMove_FoliageSounds(uint32_t entry, uint32_t esi, uint32_t edi
     uint8_t* const mover = title_global<uint8_t*>(0x0095f450);
     G_AddEvent(G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(mover + 0x44)), 0x8b, 0);
     field<int32_t>(mover, 0x84) = level_time();
+}
+
+// The traces and candidate filters run where the original's calls put them; entry ESP in EDX.
+PLATFORM_ASM_ENTRY(ActorMove_CheckGround_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(ActorMove_CheckGround) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL ActorMove_CheckGround(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // The moving actor (g_actorMove): a trace of its box (+0x60/+0x70, pass entity +0x44, mask
+    // 0x0098a54c) from its origin 0.25 up to 0.25 down (18 when not rising (+0x18 <= 0) and on
+    // the ground (+0x20)); through the entity's cached candidate lists (+0x450/+0x454, refilled
+    // around the swept box plus 50 when it leaves the cached box +0x430/+0x440) as a capsule
+    // trace, else SV_Trace. The result goes to 0x0098a4f0. Starting solid: a contents
+    // 0x2000000 hit is touched and dropped from the mask and the trace redone, then once more
+    // from the origin; still solid = ground entity +0x20 = the hit, 0x0098a4e8 0, 0x0098a4e4 1.
+    // No hit, or rising into the plane (velocity . normal > 10): no ground (all 0). A plane
+    // steeper than 0.7: no ground, 0x0098a4e8 1, and the first such hit's entity, origin x/y and
+    // normal x/y kept (+0x10c.., +0x120 cleared). Else ground: origin z down to the hit's, both
+    // flags 1, +0x20 = the hit entity, touched.
+    // Frame F = aligned base - 0x18b0: end +0x20, start +0x40, result +0x50, brush list +0x90,
+    // triangle list +0x8a0.
+    stack_word(entry - 4) = ebp;
+    const uint32_t F = aligned_base(entry) - 0x18b0;
+    stack_word(F + 8) = ebx;
+    stack_word(F + 4) = esi;
+    stack_word(F) = edi;
+    const auto move = []() { return title_global<uint8_t*>(0x0095f450); };
+    uint8_t* m = move();
+    float* const end = stack_vec(F + 0x20);
+    float* const start = stack_vec(F + 0x40);
+    start[0] = field<float>(m, 0);
+    start[1] = field<float>(m, 4);
+    end[0] = field<float>(m, 0);
+    end[1] = field<float>(m, 4);
+    stack_word(F + 0x80) = 0;
+    stack_word(F + 0x84) = 0;
+    float drop = title_global<float>(0x0083ec24);  // 0.25
+    start[2] = field<float>(m, 8) + drop;
+    if (0.0f >= field<float>(m, 0x18) && field<uint32_t>(m, 0x20)) drop = title_global<float>(0x0083eb00);  // 18
+    end[2] = field<float>(m, 8) - drop;
+    const uint32_t results = F + 0x50;
+    const auto copy_result = [results]() {
+        for (uint32_t i = 0; i < 0x40; i += 4) title_global<uint32_t>(0x0098a4f0 + i) = stack_word(results + i);
+    };
+    const uint32_t handle = field<uint32_t>(m, 0x44);
+    const uint32_t index = handle & 0xfff;
+    uint8_t* ent = nullptr;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint8_t*>(0x0097a968 + index * 8);
+    if (ent && field<uint32_t>(ent, 0x450) && field<uint32_t>(ent, 0x454)) {
+        // The swept box: min/max of start and end, widened by the smaller of the half
+        // extents x/z (z up by twice that); all four lanes computed (packed).
+        float* const box_max = stack_vec(F + 0x10);  // the box's mins copy first
+        float* const box_min = stack_vec(F + 0x30);  // its maxs copy first
+        float lo[4], hi[4], center[4], half[4];
+        for (int i = 0; i < 4; ++i) {
+            const float s = start[i], e = end[i];
+            hi[i] = s > e ? s : e;
+            lo[i] = s < e ? s : e;
+        }
+        for (int i = 0; i < 4; ++i) {
+            box_min[i] = field<float>(m, 0x70 + i * 4);
+            box_max[i] = field<float>(m, 0x60 + i * 4);
+        }
+        const float k_half = title_global<float>(0x0083eb24);
+        for (int i = 0; i < 4; ++i) center[i] = (box_max[i] + box_min[i]) * k_half;
+        for (int i = 0; i < 4; ++i) half[i] = field<float>(m, 0x70 + i * 4) - center[i];
+        float radius = half[0];
+        if (half[0] > half[2]) radius = half[2];
+        const float pad_lo[4] = {radius, radius, 0.0f, radius};
+        for (int i = 0; i < 4; ++i) lo[i] = lo[i] - pad_lo[i];
+        const float pad_hi[4] = {radius, radius, radius * title_global<float>(0x0083eba8), radius};
+        for (int i = 0; i < 4; ++i) hi[i] = hi[i] + pad_hi[i];
+        float* const cached_min = &field<float>(ent, 0x430);
+        float* const cached_max = &field<float>(ent, 0x440);
+        bool inside[4];
+        for (int i = 0; i < 4; ++i) {
+            const float above = hi[i] - cached_max[i];
+            const float below = cached_min[i] - lo[i];
+            const float most = below > above ? below : above;
+            inside[i] = most < title_global<float>(0x0082e3c0 + i * 4);
+        }
+        for (int i = 0; i < 4; ++i) {
+            box_min[i] = lo[i];
+            box_max[i] = hi[i];
+        }
+        if (!(inside[0] && inside[1] && inside[2])) {
+            if (!(title_global<uint32_t>(0x0098f190) & 1)) {
+                title_global<uint32_t>(0x0098f190) |= 1;
+                for (int i = 0; i < 4; ++i) title_global<float>(0x0098f180 + i * 4) = title_global<float>(0x0083ec30);  // 50
+            }
+            float grown_min[4], grown_max[4];
+            for (int i = 0; i < 4; ++i) grown_min[i] = lo[i] - title_global<float>(0x0098f180 + i * 4);
+            for (int i = 0; i < 4; ++i) cached_min[i] = grown_min[i];
+            for (int i = 0; i < 4; ++i) grown_max[i] = hi[i] + title_global<float>(0x0098f180 + i * 4);
+            for (int i = 0; i < 4; ++i) cached_max[i] = grown_max[i];
+            const uint32_t args[3] = {addr_of(cached_min), field<uint32_t>(ent, 0x450), field<uint32_t>(ent, 0x454)};
+            call_at(F, 0x0020ab0f, 0x002cb0f0,
+                    TitleRegs{addr_of(cached_min), addr_of(ent), field<uint32_t>(ent, 0x450), field<uint32_t>(ent, 0x454),
+                              addr_of(m), addr_of(cached_max)},
+                    3, args);  // CM_GatherBoxCandidates (EDI maxs)
+            m = move();
+        }
+        stack_word(F + 0x18a4) = 0;
+        stack_word(F + 0x894) = 0;
+        stack_word(F + 0x18a0) = F + 0x8a0;
+        stack_word(F + 0x890) = F + 0x90;
+        const uint32_t filter_args[5] = {F + 0x30, F + 0x10, title_global<uint32_t>(0x0098a54c), field<uint32_t>(ent, 0x450),
+                                         F + 0x8a0};
+        call_at(F, 0x0020ab76, 0x002c6630,
+                TitleRegs{F + 0x90, addr_of(ent), field<uint32_t>(ent, 0x454), F + 0x10, addr_of(m), addr_of(ent) + 0x440}, 5,
+                filter_args);  // CM_FilterBoxCandidates (EAX out brushes, ECX in brushes)
+        const uint32_t trace_args[9] = {F + 0x8a0, F + 0x90, results, F + 0x40, addr_of(m) + 0x60, addr_of(m) + 0x70,
+                                        F + 0x20, field<uint32_t>(m, 0x44), title_global<uint32_t>(0x0098a54c)};
+        call_at(F - 0x14, 0x0020abad, 0x002e95b0,
+                TitleRegs{results, addr_of(ent), F + 0x90, F + 0x8a0, addr_of(m) + 0x60, addr_of(ent) + 0x440}, 9,
+                trace_args);  // SV_CapsuleTrace
+    } else {
+        const uint32_t args[11] = {results, addr_of(m) + 0x60, addr_of(m) + 0x70, F + 0x20, handle,
+                                   title_global<uint32_t>(0x0098a54c), 1, 0, 0, 0, 0};
+        call_at(F, 0x0020abda, 0x002e9af0, TitleRegs{results, F + 0x40, F + 0x20, addr_of(m) + 0x70, addr_of(m) + 0x60, edi},
+                11, args);  // SV_Trace (EBX start)
+    }
+    copy_result();
+    if (title_global<uint8_t>(results + 0x3d)) {
+        if (stack_word(results + 0x28) & 0x2000000) {
+            ActorMove_AddTouchEnt(stack_word(results + 0x30));
+            const uint32_t mask = title_global<uint32_t>(0x0098a54c) & 0xfdffffffu;
+            title_global<uint32_t>(0x0098a54c) = mask;
+            m = move();
+            const uint32_t args[11] = {results, addr_of(m) + 0x60, addr_of(m) + 0x70, F + 0x20, field<uint32_t>(m, 0x44),
+                                       mask, 1, 0, 0, 0, 0};
+            call_at(F - 4, 0x0020ac54, 0x002e9af0,
+                    TitleRegs{addr_of(m) + 0x60, F + 0x40, addr_of(m) + 0x70, results, esi, edi}, 11,
+                    args);  // SV_Trace (EBX start)
+            copy_result();
+        }
+        if (title_global<uint8_t>(results + 0x3d)) {
+            m = move();
+            const uint32_t args[11] = {results, addr_of(m) + 0x60, addr_of(m) + 0x70, F + 0x20, field<uint32_t>(m, 0x44),
+                                       title_global<uint32_t>(0x0098a54c), 1, 0, 0, 0, 0};
+            call_at(F, 0x0020aca7, 0x002e9af0,
+                    TitleRegs{addr_of(m) + 0x70, addr_of(m), addr_of(m) + 0x60, results, esi, edi}, 11,
+                    args);  // SV_Trace from the origin (EBX)
+            const bool solid = title_global<uint8_t>(results + 0x3d) != 0;
+            copy_result();
+            if (solid) {
+                field<uint32_t>(move(), 0x20) = stack_word(results + 0x30);
+                title_global<uint32_t>(0x0098a4e8) = 0;
+                title_global<uint32_t>(0x0098a4e4) = 1;
+                return;
+            }
+        }
+    }
+    m = move();
+    const auto no_ground = [m](uint32_t steep) {
+        field<uint32_t>(m, 0x20) = 0;
+        title_global<uint32_t>(0x0098a4e8) = steep;
+        title_global<uint32_t>(0x0098a4e4) = 0;
+    };
+    if (static_cast<long double>(*stack_vec(results + 0x20)) == static_cast<long double>(title_global<double>(0x0083eb10))) {
+        no_ground(0);
+        return;
+    }
+    const float nx = *stack_vec(results + 0x10), ny = *stack_vec(results + 0x14), nz = *stack_vec(results + 0x18);
+    if (field<float>(m, 0x18) > 0.0f) {
+        const float into = (field<float>(m, 0x10) * nx + field<float>(m, 0x14) * ny) + nz * field<float>(m, 0x18);
+        if (into > title_global<float>(0x0083eb98)) {  // 10
+            no_ground(0);
+            return;
+        }
+    }
+    if (title_global<float>(0x0083ed28) > nz) {  // 0.7
+        no_ground(1);
+        if (field<uint32_t>(m, 0x10c)) return;
+        if (nx != 0.0f || ny != 0.0f) {
+            field<uint32_t>(m, 0x10c) = stack_word(results + 0x30);
+            field<uint32_t>(m, 0x110) = field<uint32_t>(m, 0);
+            field<uint32_t>(m, 0x114) = field<uint32_t>(m, 4);
+            field<float>(m, 0x118) = nx;
+            field<float>(m, 0x11c) = ny;
+            m[0x120] = 0;
+        }
+        return;
+    }
+    if (field<float>(m, 8) > *stack_vec(results + 8)) field<float>(m, 8) = *stack_vec(results + 8);
+    title_global<uint32_t>(0x0098a4e8) = 1;
+    title_global<uint32_t>(0x0098a4e4) = 1;
+    const uint32_t hit = stack_word(results + 0x30);
+    field<uint32_t>(m, 0x20) = hit;
+    ActorMove_AddTouchEnt(hit);
+}
+
+// The traces run where the original's calls put them: gap entry (entry ESP in EAX, origin ECX,
+// mask EDX); the XMM0 result comes back on the x87.
+PLATFORM_ASM_ENTRY(G_SampleGroundTilt_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(G_SampleGroundTilt) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $28, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+float XB_CDECL G_SampleGroundTilt(uint32_t entry, const float* origin, uint32_t mask, uint32_t ebx, uint32_t esi,
+                                  uint32_t edi, uint32_t ebp) {
+    // ECX origin, EDX content mask; stack (pass entity handle, fallback point, direction, out
+    // pitch; cdecl). A (-4,-4,0)-(4,4,8) box is traced from 30 above the origin to 10.9 along
+    // the direction, then down to 30 below the origin, once forwards and once backwards
+    // (capsule traces through the entity's cached candidate lists when they cover the
+    // segment, else SV_Trace); a trace that starts solid or hits nothing gives the fallback
+    // point. *out = the pitch (Vec3_PitchDegrees, as a short angle in -180..180) of front minus
+    // back (0 when equal); XMM0 = the mean height of the fallback point and both ground points.
+    // Frame F = aligned base - 0x18d0: end +0x10, start +0x20, mins +0x40, maxs +0x50,
+    // result +0x70, brush list +0xb0, triangle list +0x8c0.
+    const uint32_t handle = stack_word(entry + 4);
+    const float* const fallback = reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 8)});
+    const float* const dir = reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 12)});
+    float* const out = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 16)});
+    stack_word(entry - 4) = ebp;
+    const uint32_t F = aligned_base(entry) - 0x18d0;
+    stack_word(F + 8) = ebx;
+    stack_word(F + 4) = esi;
+    stack_word(F) = edi;
+    float* const mins = stack_vec(F + 0x40);
+    float* const maxs = stack_vec(F + 0x50);
+    const float m4 = title_global<float>(0x0083f184);  // -4
+    const float p4 = title_global<float>(0x0083100c);  // 4
+    mins[0] = m4;
+    mins[1] = m4;
+    mins[2] = 0.0f;
+    mins[3] = m4;
+    maxs[0] = p4;
+    maxs[1] = p4;
+    maxs[2] = title_global<float>(0x0083ed78);  // 8
+    maxs[3] = p4;
+    uint32_t ent = 0;
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        ent = title_global<uint32_t>(0x0097a968 + index * 8);
+    // The capsule radius: the smaller of the box's x and z half extents (packed, all lanes).
+    float extent[4];
+    for (int i = 0; i < 4; ++i) {
+        const float center = (mins[i] + maxs[i]) * title_global<float>(0x0083eb24);
+        const float above = maxs[i] - center;
+        const float below = center - mins[i];
+        extent[i] = above > below ? above : below;
+    }
+    const float radius = extent[0] > extent[2] ? extent[2] : extent[0];
+    stack_word(F + 0x18c0) = F + 0x8c0;
+    stack_word(F + 0x18c4) = 0;
+    stack_word(F + 0x8b0) = F + 0xb0;
+    stack_word(F + 0x8b4) = 0;
+    float* const end = stack_vec(F + 0x10);
+    float* const start = stack_vec(F + 0x20);
+    const uint32_t results = F + 0x70;
+    const float* const hit = stack_vec(results);
+    const auto trace = [&](uint32_t ret_capsule, uint32_t ret_trace) {
+        if (G_FilterCachedCandidates(reinterpret_cast<const uint8_t*>(uintptr_t{ent}), start, end, radius, mask,
+                                     reinterpret_cast<uint8_t*>(uintptr_t{F + 0x8c0}),
+                                     reinterpret_cast<uint8_t*>(uintptr_t{F + 0xb0}))) {
+            const uint32_t args[9] = {F + 0x8c0, F + 0xb0, results, F + 0x20, F + 0x40, F + 0x50, F + 0x10, handle, mask};
+            call_at(F, ret_capsule, 0x002e95b0, TitleRegs{F + 0x8c0, handle, F + 0xb0, results, mask, addr_of(origin)}, 9,
+                    args);  // SV_CapsuleTrace
+        } else {
+            const uint32_t args[11] = {results, F + 0x40, F + 0x50, F + 0x10, handle, mask, 1, 0, 0, 0, 0};
+            call_at(F, ret_trace, 0x002e9af0, TitleRegs{results, F + 0x20, F + 0x10, F + 0x50, mask, addr_of(origin)}, 11,
+                    args);  // SV_Trace (EBX start)
+        }
+    };
+    // From 30 above the origin to `sign` x 10.9 along the direction, then straight down to 30
+    // below the origin: the ground point, or the fallback.
+    const float k = title_global<float>(0x0083f1d4);   // 10.9
+    const float up = title_global<float>(0x0083ee38);  // 30
+    float ground[2][3];
+    for (int side = 0; side < 2; ++side) {
+        const float top = origin[2] + up;
+        start[0] = origin[0];
+        start[1] = origin[1];
+        start[2] = top;
+        if (side == 0) {
+            end[0] = dir[0] * k + origin[0];
+            end[1] = dir[1] * k + origin[1];
+            end[2] = dir[2] * k + top;
+        } else {
+            end[0] = origin[0] - dir[0] * k;
+            end[1] = origin[1] - dir[1] * k;
+            end[2] = top - dir[2] * k;
+        }
+        trace(side ? 0x0020deb3 : 0x0020dc71, side ? 0x0020dee4 : 0x0020dca2);
+        const float x = hit[0], y = hit[1], z = hit[2];
+        start[0] = x;
+        end[0] = x;
+        start[1] = y;
+        end[1] = y;
+        start[2] = z;
+        end[2] = origin[2] - up;
+        trace(side ? 0x0020df90 : 0x0020dd4e, side ? 0x0020dfc1 : 0x0020dd7f);
+        const float* const point =
+            !title_global<uint8_t>(results + 0x3d) && title_global<float>(0x0083eb20) > *stack_vec(results + 0x20) ? hit
+                                                                                                                  : fallback;
+        ground[side][0] = point[0];
+        ground[side][1] = point[1];
+        ground[side][2] = point[2];
+    }
+    const float* const a = ground[0];
+    const float* const b = ground[1];
+    if (a[0] == b[0] && a[1] == b[1] && a[2] == b[2]) {
+        *out = 0.0f;
+    } else {
+        float* const v = stack_vec(F + 0x40);
+        v[1] = a[1] - b[1];
+        v[0] = a[0] - b[0];
+        v[2] = a[2] - b[2];
+        float pitch = Vec3_PitchDegrees(v);
+        pitch = static_cast<float>(static_cast<int32_t>(pitch * title_global<float>(0x0083ebd8)) & 0xffff) *
+                title_global<float>(0x0083ebd4);
+        if (pitch > title_global<float>(0x0083eb60)) pitch = pitch - title_global<float>(0x0083ebcc);  // 180, 360
+        *out = pitch;
+    }
+    return ((fallback[2] + b[2]) + a[2]) / title_global<float>(0x0083ec9c);
+}
+
+// The traces run where the original's calls put them: gap entry (entry ESP in EAX, goal in ECX).
+PLATFORM_ASM_ENTRY(Path_TraceAhead_entry,
+                   "movl %esp, %eax\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Path_TraceAhead) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret $20")
+
+uint32_t XB_CDECL Path_TraceAhead(uint32_t entry, const float* goal, uint32_t ebx0, uint32_t esi0, uint32_t edi0,
+                                  uint32_t ebp0) {
+    // ECX goal; stack (start, entity handle, pass entity, content mask, out point; ret 0x14):
+    // whether an actor box (-15,-15,18)-(15,15,72) can walk from the goal back to the start's
+    // x/y. Without collision (0x0095bf0c 0 and the trace record 0x0095f704 outside a valid
+    // cell): out = start, 1. A handle entity the goal-height box sight trace from the start
+    // reaches: out = goal, 0. Else from the goal towards the start at goal height (capsule
+    // trace through the record's cached candidates when Path_TraceGatherCandidates finds
+    // them, else SV_Trace): a blocker that is a sentient but not an actor fails, an actor is
+    // passed unless it is not the player-type (+0x278 != 1) and its +0x7c8 target is not the
+    // pass entity (then mask bit 0x4000 is dropped); a non-sentient blocker within 15 units
+    // fails; else a 72-unit trace down from the hit and, on solid ground (normal z >= 0.7 or
+    // a flat result), 18 above it the next try. Clear: down 72 from the end; out = the ground
+    // + 18, 1 when within 72 units of the start's height. Fails leave out = the hit point, 0.
+    // Frame F = aligned base - 0x18d0: from +0x20, down end +0x30, mins +0x40, maxs +0x50,
+    // to +0x60, result +0x70, brush list +0xb0, triangle list +0x8c0.
+    const float* const start = reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 4)});
+    const uint32_t handle = stack_word(entry + 8);
+    const uint32_t pass = stack_word(entry + 12);
+    float* const out = reinterpret_cast<float*>(uintptr_t{stack_word(entry + 20)});
+    stack_word(entry - 4) = ebp0;
+    const uint32_t F = aligned_base(entry) - 0x18d0;
+    stack_word(F + 8) = ebx0;
+    stack_word(F + 4) = esi0;
+    stack_word(F) = edi0;
+    const float m15 = title_global<float>(0x0083ef14);  // -15
+    const float p15 = title_global<float>(0x0083ef10);  // 15
+    float* const from = stack_vec(F + 0x20);
+    float* const down = stack_vec(F + 0x30);
+    float* const mins = stack_vec(F + 0x40);
+    float* const maxs = stack_vec(F + 0x50);
+    float* const to = stack_vec(F + 0x60);
+    const uint32_t results = F + 0x70;
+    const float* const hit = stack_vec(results);
+    mins[0] = m15;
+    mins[1] = m15;
+    mins[2] = title_global<float>(0x0083eb00);  // 18
+    maxs[0] = p15;
+    maxs[1] = p15;
+    maxs[2] = title_global<float>(0x0083ecdc);  // 72
+    to[0] = start[0];
+    to[1] = start[1];
+    const uint32_t record = title_global<uint32_t>(0x0095f704);
+    stack_word(F + 0x1c) = record;
+    stack_word(results + 0x30) = 0;
+    to[2] = goal[2];
+    const auto copy3 = [](float* to_point, const float* from_point) {
+        const uint32_t* const w = reinterpret_cast<const uint32_t*>(from_point);
+        uint32_t* const o = reinterpret_cast<uint32_t*>(to_point);
+        o[0] = w[0];
+        o[1] = w[1];
+        o[2] = w[2];
+    };
+    if (!title_global<uint32_t>(0x0095bf0c) &&
+        (!record || !(title_function<uint8_t XB_STDCALL(uint32_t)>(0x002ae8f0)(record) & 0xff))) {  // G_EntityInValidCell
+        copy3(out, start);
+        return 1;
+    }
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8) &&
+        title_global<uint32_t>(0x0097a968 + index * 8)) {
+        const uint32_t* const g = reinterpret_cast<const uint32_t*>(goal);
+        stack_word(F + 0x30) = g[0];
+        stack_word(F + 0x34) = g[1];
+        stack_word(F + 0x38) = g[2];
+        stack_word(F + 0x3c) = g[0];
+        const uint32_t args[5] = {F + 0x30, F + 0x40, handle, 0xffffffffu, 1};
+        if (call_at(F, 0x0020c181, 0x002e75d0, TitleRegs{F + 0x40, F + 0x50, F + 0x30, 0, addr_of(goal), F + 0x60}, 5,
+                    args)) {  // SV_EntitySightTrace (EDI end, EBX maxs)
+            copy3(out, goal);
+            return 0;
+        }
+    }
+    const auto gather = [&](uint32_t ret, uint32_t end, uint32_t mask) {
+        const uint32_t args[5] = {F + 0x20, end, F + 0x8c0, F + 0xb0, mask};
+        return uint8_t(call_at(F, ret, 0x00204100, TitleRegs{F + 0x40, 0, F + 0x50, 0, record, mask}, 5,
+                               args));  // Path_TraceGatherCandidates (EAX mins, ECX maxs, ESI record)
+    };
+    const auto capsule = [&](uint32_t ret, uint32_t end, uint32_t mask) {
+        const uint32_t args[9] = {F + 0x8c0, F + 0xb0, results, F + 0x20, F + 0x40, F + 0x50, end, pass, mask};
+        call_at(F, ret, 0x002e95b0, TitleRegs{F + 0x8c0, pass, F + 0xb0, results, record, mask}, 9, args);  // SV_CapsuleTrace
+    };
+    const auto box_trace = [&](uint32_t ret, uint32_t end, uint32_t mask) {
+        const uint32_t args[11] = {results, F + 0x40, F + 0x50, end, pass, mask, 1, 0, 0, 0, 0};
+        call_at(F, ret, 0x002e9af0, TitleRegs{results, F + 0x20, F + 0x40, F + 0x50, record, mask}, 11,
+                args);  // SV_Trace (EBX start)
+    };
+    const auto steep_above = [&](float end_z) {
+        // A hit at or above the from height on a plane steeper than 0.7.
+        return end_z >= from[2] && !(*stack_vec(results + 0x20) == title_global<float>(0x0083eb20)) &&
+               title_global<float>(0x0083ed28) > *stack_vec(results + 0x18);
+    };
+    const auto fail_at = [&](float z) {
+        out[0] = hit[0];
+        out[1] = hit[1];
+        out[2] = z;
+        return 0u;
+    };
+    from[0] = goal[0];
+    from[1] = goal[1];
+    float from_z = goal[2];
+    for (;;) {
+        const uint32_t mask = stack_word(entry + 16);
+        stack_word(F + 0x18c4) = 0;
+        stack_word(F + 0x8b4) = 0;
+        stack_word(F + 0x18c0) = F + 0x8c0;
+        stack_word(F + 0x8b0) = F + 0xb0;
+        from[2] = from_z;
+        const uint8_t gathered = gather(0x0020c221, F + 0x60, mask);
+        if (gathered)
+            capsule(0x0020c262, F + 0x60, mask);
+        else
+            box_trace(0x0020c296, F + 0x60, mask);
+        if (!title_global<uint8_t>(results + 0x3c) && *stack_vec(results + 0x20) == title_global<float>(0x0083eb20)) {
+            // Clear: down to 72 below from the end.
+            const float x = hit[0], y = hit[1];
+            from[0] = x;
+            down[0] = x;
+            down[2] = from[2] - title_global<float>(0x0083ecdc);
+            from[1] = y;
+            down[1] = y;
+            if (!gathered || !gather(0x0020c594, F + 0x30, mask)) {
+                const uint32_t args[7] = {results, F + 0x20, F + 0x40, F + 0x50, F + 0x30, pass, mask};
+                call_at(F, 0x0020c5f6, 0x002601a0, TitleRegs{F + 0x20, pass, F + 0x30, F + 0x50, record, mask}, 7,
+                        args);  // G_TraceCapsule
+            } else {
+                capsule(0x0020c5ce, F + 0x30, mask);
+            }
+            const float end_z = hit[2];
+            if (steep_above(end_z)) return fail_at(end_z);
+            const float ground = end_z + title_global<float>(0x0083eb00);
+            out[0] = hit[0];
+            out[1] = hit[1];
+            out[2] = ground;
+            const float rise = abs_bits(ground - start[2]);
+            return static_cast<long double>(title_global<float>(0x0083ecdc)) > static_cast<long double>(rise) ? 1u : 0u;
+        }
+        // Blocked: who by.
+        const uint32_t blocker = stack_word(results + 0x30);
+        const uint8_t* const ent = entity_of_handle(blocker);
+        const float hx = hit[0], hy = hit[1];
+        if (field<uint32_t>(ent, 0x244)) {
+            const uint8_t* const actor = field<const uint8_t*>(entity_of_handle(blocker), 0x240);
+            if (!actor) return fail_at(hit[2]);
+            if (field<uint32_t>(actor, 0x278) != 1) {
+                const uint8_t* const target = field<const uint8_t*>(actor, 0x7c8);
+                if (!target || field<uint32_t>(field<const uint8_t*>(target, 0), 0x224) != pass) return fail_at(hit[2]);
+            }
+            stack_word(entry + 16) = mask & 0xffffbfffu;
+        } else {
+            const float dy = from[1] - hy;
+            const float dx = from[0] - hx;
+            if (title_global<float>(0x0083f1d0) > dy * dy + dx * dx) return fail_at(hit[2]);  // 225
+        }
+        // Down 72 from the hit at the from height.
+        const uint32_t step_mask = stack_word(entry + 16);
+        down[2] = from[2] - title_global<float>(0x0083ecdc);
+        from[0] = hx;
+        from[1] = hy;
+        down[0] = hx;
+        down[1] = hy;
+        if (gathered && gather(0x0020c46c, F + 0x30, step_mask))
+            capsule(0x0020c4a6, F + 0x30, step_mask);
+        else
+            box_trace(0x0020c4d7, F + 0x30, step_mask);
+        const float end_z = hit[2];
+        if (steep_above(end_z)) return fail_at(end_z);
+        from_z = end_z + title_global<float>(0x0083eb00);
+        to[2] = from_z;
+    }
+}
+
+// The sight traces run where the original's calls put them: gap entry (entry ESP in EDX, start in EAX).
+PLATFORM_ASM_ENTRY(Actor_GrenadeThrow_TestArc_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_GrenadeThrow_TestArc) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret $12")
+
+uint32_t XB_CDECL Actor_GrenadeThrow_TestArc(uint32_t entry, const float* start, uint32_t ebx0, uint32_t esi0,
+                                             uint32_t edi0, uint32_t ebp0) {
+    // EAX start; stack (actor, velocity, target; ret 0xc): 1 when a grenade thrown from the
+    // start with the velocity under gravity 0x0094d450 lands within 0.1 of the target in x/y
+    // and its arc is clear: sight traces (box (-1,-1,-1)-(1,1,1+), z grown by g t^2 / 8 per
+    // leg) start -> half the rise -> apex when rising, then -> the landing point, and a final
+    // trace landing point -> target that reaches it or hits the 0x0095f534 entity with a
+    // sentient of the actor's enemy team. 0 otherwise (no real fall time either).
+    // Frame F = aligned base - 0xc0: hit flag +0x14, apex +0x20, mid point +0x30, maxs +0x40,
+    // landing point +0x60, mins +0x70, result +0x80.
+    const uint8_t* const actor = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    const float* const vel = reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 8)});
+    const float* const target = reinterpret_cast<const float*>(uintptr_t{stack_word(entry + 12)});
+    stack_word(entry - 4) = ebp0;
+    const uint32_t F = aligned_base(entry) - 0xc0;
+    stack_word(F + 8) = ebx0;
+    stack_word(F + 4) = esi0;
+    stack_word(F) = edi0;
+    float* const apex = stack_vec(F + 0x20);
+    float* const mid = stack_vec(F + 0x30);
+    float* const maxs = stack_vec(F + 0x40);
+    float* const land = stack_vec(F + 0x60);
+    float* const mins = stack_vec(F + 0x70);
+    const uint32_t results = F + 0x80;
+    const float m1 = title_global<float>(0x0083eb34);  // -1
+    const float one = title_global<float>(0x0083eb20);
+    mins[0] = m1;
+    mins[1] = m1;
+    mins[2] = m1;
+    const float g = title_global<float>(0x0094d450);
+    const bool rising = vel[2] > 0.0f;
+    const float dz = start[2] - target[2];
+    stack_word(results + 0x30) = 0;
+    stack_word(results + 0x34) = 0;
+    maxs[0] = one;
+    maxs[1] = one;
+    maxs[2] = one;
+    const float k2 = title_global<float>(0x0083eba8);    // 2
+    const float half = title_global<float>(0x0083eb24);  // 0.5
+    float t_up, half_up, t_fall;
+    if (rising) {
+        const float inverse = one / g;
+        t_up = inverse * vel[2];
+        const float disc = (dz * inverse) * k2 + t_up * t_up;
+        half_up = t_up * half;
+        if (0.0f >= disc) return 0;
+        long double root = disc;
+        __asm__("fsqrt" : "+t"(root));
+        t_fall = float(root * static_cast<long double>(half));
+    } else {
+        const float disc = (dz * g) * k2 + vel[2] * vel[2];
+        t_up = 0.0f;
+        half_up = 0.0f;
+        if (0.0f >= disc) return 0;
+        long double root = disc;
+        __asm__("fsqrt" : "+t"(root));
+        t_fall = float(((root + static_cast<long double>(vel[2])) / static_cast<long double>(g)) *
+                       static_cast<long double>(half));
+    }
+    const float t_land = t_fall + t_up;
+    const float total = t_land + t_fall;
+    const float limit = title_global<float>(0x0083ebf8);  // 0.1
+    if (abs_bits((total * vel[0] + start[0]) - target[0]) > limit) return 0;
+    if (abs_bits((total * vel[1] + start[1]) - target[1]) > limit) return 0;
+    stack_word(F + 0x14) = 0;
+    const auto sight = [&](uint32_t ret, uint32_t end, uint32_t from, uint32_t esi) {
+        const uint32_t number = field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224);
+        const uint32_t args[6] = {F + 0x14, F + 0x70, number, 0, 0x0280e091, 0};
+        call_at(F, ret, 0x002e9840, TitleRegs{end, F + 0x40, number, F + 0x70, esi, from}, 6,
+                args);  // G_SightTrace (EAX end, EBX maxs, EDI start)
+        return stack_word(F + 0x14) != 0;
+    };
+    const float k8 = title_global<float>(0x0083ec68);  // 0.125
+    const uint32_t* const s = reinterpret_cast<const uint32_t*>(start);
+    if (t_up > 0.0f) {
+        const float lift = (g * half_up) * half_up;
+        maxs[2] = lift * k8 + one;
+        const float mid_z = lift * title_global<float>(0x0083eaf4) + start[2];  // 1.5
+        mid[0] = vel[0] * half_up + start[0];
+        mid[1] = vel[1] * half_up + start[1];
+        mid[2] = mid_z;
+        stack_word(F + 0x20) = s[0];
+        stack_word(F + 0x24) = s[1];
+        stack_word(F + 0x28) = s[2];
+        stack_word(F + 0x2c) = s[0];
+        for (uint32_t i = 0; i < 0x10; i += 4) stack_word(F + 0x60 + i) = stack_word(F + 0x20 + i);
+        if (sight(0x0020cdb8, F + 0x30, F + 0x60, addr_of(start))) return 0;
+        apex[0] = vel[0] * t_up + start[0];
+        apex[1] = vel[1] * t_up + start[1];
+        apex[2] = ((g * t_up) * t_up) * half + start[2];
+        if (sight(0x0020ce48, F + 0x20, F + 0x30, addr_of(start))) return 0;
+    } else {
+        stack_word(F + 0x20) = s[0];
+        stack_word(F + 0x24) = s[1];
+        stack_word(F + 0x28) = s[2];
+    }
+    maxs[2] = ((g * t_fall) * t_fall) * k8 + one;
+    land[0] = vel[0] * t_land + start[0];
+    land[1] = vel[1] * t_land + start[1];
+    land[2] = (vel[2] - (g * t_land) * half) * t_land + start[2];
+    if (sight(0x0020cf3a, F + 0x60, F + 0x20, addr_of(actor))) return 0;
+    const uint32_t* const t = reinterpret_cast<const uint32_t*>(target);
+    stack_word(F + 0x30) = t[0];
+    stack_word(F + 0x34) = t[1];
+    stack_word(F + 0x38) = t[2];
+    stack_word(F + 0x3c) = t[0];
+    const uint32_t number = field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224);
+    const uint32_t args[7] = {results, F + 0x60, F + 0x70, F + 0x40, F + 0x30, number, 0x0280e091};
+    call_at(F, 0x0020cfac, 0x002601e0, TitleRegs{F + 0x40, F + 0x40, F + 0x70, F + 0x60, addr_of(actor), F + 0x20}, 7,
+            args);  // G_Trace
+    if (*stack_vec(results + 0x20) == one) return 1;
+    if (stack_word(results + 0x30) !=
+        field<uint32_t>(field<const uint8_t*>(title_global<const uint8_t*>(0x0095f534), 8), 0x224))
+        return 0;
+    const uint8_t* const sentient =
+        field<const uint8_t*>(G_EntHandleToEnt(reinterpret_cast<const uint32_t*>(uintptr_t{results + 0x30})), 0x244);
+    if (!sentient) return 0;
+    return field<int32_t>(sentient, 4) == Sentient_EnemyTeam(field<int32_t>(field<const uint8_t*>(actor, 4), 4)) ? 1 : 0;
+}
+
+// The sight checks run where the original's calls put them; entry ESP in EDX.
+PLATFORM_ASM_ENTRY(Actor_ForceFreeSlot_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_ForceFreeSlot) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_ForceFreeSlot(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // All actor slots used: an actor (entity flag 4 of +0x2a0 = undeletable, skipped) is
+    // notified "death" and freed - the farthest from the player's eye the player cannot see
+    // (Actor_CanSeePointFromBounds), else the farthest behind the player's view (client +0x9c
+    // pitch, +0xa0 yaw), else the farthest outside a 45-degree cone of it, else the farthest
+    // (G_Error when none). __break 1 while spawning the level.
+    // Frame F = aligned base - 0x50: eye +0x24, sight point (x, y, z, x) +0x40.
+    stack_word(entry - 4) = ebp;
+    const uint32_t F = aligned_base(entry) - 0x50;
+    stack_word(F + 8) = ebx;
+    stack_word(F + 4) = esi;
+    stack_word(F) = edi;
+    if (title_global<uint32_t>(0x00985fe0))
+        title_function<void XB_CDECL(int32_t, const char*)>(0x002938f0)(1, &title_global<const char>(0x0083d4d0));  // __break
+    uint8_t* const player = G_FindEntityByIntField(&title_global<const uint8_t>(0x0097a8c0), 0x260,
+                                                   title_global<int32_t>(0x0097a75c));  // scr_const_player
+    float* const eye = stack_vec(F + 0x24);
+    Sentient_EyeOrigin(field<const uint8_t*>(player, 0x244), 0, reinterpret_cast<uint8_t*>(eye));
+    float best = 0.0f;
+    uint8_t* chosen = nullptr;
+    const auto offset = [eye](const uint8_t* ent, float& dx, float& dy, float& dz) {
+        dy = field<float>(ent, 0x144) - eye[1];
+        dz = field<float>(ent, 0x148) - eye[2];
+        dx = field<float>(ent, 0x140) - eye[0];
+    };
+    for (uint8_t* actor = Actor_FirstOfTeams(0xffffffffu); actor; actor = Actor_NextOfTeams(actor, 0xffffffffu)) {
+        const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+        if (ent[0x2a0] & 4) continue;
+        float dx, dy, dz;
+        offset(ent, dx, dy, dz);
+        const float distance = (dz * dz + dy * dy) + dx * dx;
+        if (!(distance > best)) continue;
+        for (uint32_t i = 0; i < 0x10; i += 4) {
+            const uint32_t word = stack_word(F + 0x24 + (i == 12 ? 0 : i));
+            stack_word(F + 0x30 + i) = word;
+            stack_word(F + 0x40 + i) = word;
+        }
+        const uint32_t args[3] = {addr_of(ent) + 0x140, field<uint32_t>(player, 0x224), field<uint32_t>(ent, 0x224)};
+        const uint32_t seen = call_at(F, 0x0020e1fc, 0x00209fc0,
+                                      TitleRegs{F + 0x40, addr_of(player), field<uint32_t>(player, 0x224), addr_of(ent) + 0x140,
+                                                0xffffffffu, addr_of(actor)},
+                                      3, args);  // Actor_CanSeePointFromBounds (EAX point)
+        if (!seen) {
+            best = distance;
+            chosen = actor;
+        }
+    }
+    if (!chosen) {
+        const uint8_t* const client = field<const uint8_t*>(player, 0x23c);
+        const float to_radians = title_global<float>(0x0083edd8);
+        float sin_yaw, cos_yaw, sin_pitch, cos_pitch;
+        FastSinCos(&sin_yaw, 0, &cos_yaw, field<float>(client, 0xa0) * to_radians);
+        FastSinCos(&sin_pitch, 0, &cos_pitch, field<float>(client, 0x9c) * to_radians);
+        const float fz = 0.0f - sin_pitch;
+        const float fx = cos_pitch * cos_yaw;
+        const float fy = sin_yaw * cos_pitch;
+        for (uint8_t* actor = Actor_FirstOfTeams(0xffffffffu); actor; actor = Actor_NextOfTeams(actor, 0xffffffffu)) {
+            const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+            if (ent[0x2a0] & 4) continue;
+            float dx, dy, dz;
+            offset(ent, dx, dy, dz);
+            if ((fz * dz + fy * dy) + fx * dx >= title_global<float>(0x0083eafc)) continue;
+            const float distance = (dz * dz + dy * dy) + dx * dx;
+            if (distance > best) {
+                best = distance;
+                chosen = actor;
+            }
+        }
+        // Every actor slot in use (g_actors, 32; +0x1360 >= 0), from slot `from` on.
+        const auto actor_from = [](int32_t from) -> uint8_t* {
+            for (uint32_t at = 0x00985384u + uint32_t(from) * 4; int32_t(at) < 0x00985404; at += 4) {
+                uint8_t* const actor = title_global<uint8_t*>(at);
+                if (!actor || field<int32_t>(actor, 0x1360) < 0) continue;
+                if (1u << (field<uint32_t>(field<const uint8_t*>(actor, 4), 4) & 31)) return actor;
+            }
+            return nullptr;
+        };
+        const auto next_actor = [&actor_from](const uint8_t* actor) -> uint8_t* {
+            const int32_t from = field<int16_t>(actor, 0x1382) + 1;
+            return from < 0x20 ? actor_from(from) : nullptr;
+        };
+        if (!chosen) {
+            for (uint8_t* actor = actor_from(0); actor; actor = next_actor(actor)) {
+                const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+                if (ent[0x2a0] & 4) continue;
+                float dx, dy, dz;
+                offset(ent, dx, dy, dz);
+                const float distance = (dz * dz + dy * dy) + dx * dx;
+                if (!(distance > best)) continue;
+                const float dot = (fz * dz + fy * dy) + fx * dx;
+                if (!(dot * dot >= distance * title_global<float>(0x0083eb24))) {
+                    best = distance;
+                    chosen = actor;
+                }
+            }
+        }
+        if (!chosen) {
+            for (uint8_t* actor = actor_from(0); actor; actor = next_actor(actor)) {
+                const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+                if (ent[0x2a0] & 4) continue;
+                float dx, dy, dz;
+                offset(ent, dx, dy, dz);
+                const float distance = (dz * dz + dy * dy) + dx * dx;
+                if (distance >= best) {
+                    best = distance;
+                    chosen = actor;
+                }
+            }
+            if (!chosen) title_function<void XB_CDECL(const char*)>(0x00248af0)(&title_global<const char>(0x0083d480));
+        }
+    }
+    Scr_Notify(field<uint8_t*>(chosen, 0), title_global<uint32_t>(0x0097a684));  // scr_const_death
+    free_entity(field<uint8_t*>(chosen, 0));
 }
 
 }  // namespace game

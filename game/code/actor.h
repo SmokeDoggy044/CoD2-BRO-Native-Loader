@@ -931,4 +931,32 @@ extern "C" void G_DropActorsToFloorAtInit_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL ActorMove_FoliageSounds(uint32_t entry, uint32_t esi, uint32_t edi, uint32_t ebp);
 extern "C" void ActorMove_FoliageSounds_entry(void);
 
+// 0x002097b0 (stack actor, enemy sentient; ret 8): the enemy's target-selection score (INT_MIN: ignored).
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Actor_ScoreEnemy(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                            uint32_t ebp);
+extern "C" void Actor_ScoreEnemy_entry(void);
+// 0x0020a8c0: the moving actor's ground check (g_actorMove): trace down from 0.25 above, ground entity, flags.
+extern "C" PLATFORM_HIDDEN void XB_CDECL ActorMove_CheckGround(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                              uint32_t ebp);
+extern "C" void ActorMove_CheckGround_entry(void);
+// 0x0020da90 (ECX origin, EDX mask; stack pass entity, fallback point, direction, out pitch; XMM0): ground points
+// 10.9 ahead and behind along the direction; *out = their pitch, XMM0 = the mean ground height.
+extern "C" PLATFORM_HIDDEN float XB_CDECL G_SampleGroundTilt(uint32_t entry, const float* origin, uint32_t mask, uint32_t ebx,
+                                                            uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void G_SampleGroundTilt_entry(void);
+
+// 0x0020c040 (ECX goal; stack start, entity handle, pass entity, content mask, out point; ret 0x14): whether an actor
+// box can walk from the goal back to the start's x/y (stepping up 18 over low blockers); out = the ground point.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TraceAhead(uint32_t entry, const float* goal, uint32_t ebx, uint32_t esi,
+                                                            uint32_t edi, uint32_t ebp);
+extern "C" void Path_TraceAhead_entry(void);
+// 0x0020cb50 (EAX start; stack actor, velocity, target; ret 0xc): 1 when the grenade arc lands on the target clear.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_GrenadeThrow_TestArc(uint32_t entry, const float* start, uint32_t ebx,
+                                                                       uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_GrenadeThrow_TestArc_entry(void);
+// 0x0020e0e0: all actor slots used - an actor (preferably unseen, behind the player, far) is killed and freed.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ForceFreeSlot(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                            uint32_t ebp);
+extern "C" void Actor_ForceFreeSlot_entry(void);
+
 }  // namespace game
