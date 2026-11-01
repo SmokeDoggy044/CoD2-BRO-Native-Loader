@@ -21,3 +21,5 @@
 0011fac0,Scr_NotifyAfterDeath,thread switch,"C, not registered: Scr_WaitTillString -> Scr_SuspendWaitTill suspends the script thread; thread start pointer (immediates at 0x00177e45/0x00177f75)"
 0017afa0,Scr_CallThread_ent_ent_str,thread switch,"C, not registered: Scr_WaitFrames(0) after Scr_BeginThread whenever called from a script thread (all callers are level script code)"
 00168220,Scr_StartThread_ent_2,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call 2026-11-01); C kept"
+001e4d00,Scr_CallThread_ent_hash_i_str_i_ent,thread switch,"C, not registered: Scr_WaitFrames(0) after Scr_BeginThread whenever called from a script thread (callers BroScr_ForceShootThread, BroScr_CoverShootBehavior)"
+001e4e40,Scr_CallThread_ent_vec_f_str_i_ent_i,thread switch,"C, not registered: as Scr_CallThread_ent_hash_i_str_i_ent (caller BroScr_ForceShoot)"
