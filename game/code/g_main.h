@@ -113,6 +113,13 @@ void XB_CDECL G_RegisterCvars();
 // name (was FUN_002532f0).
 uint32_t XB_REGS3 XB_CDECL G_FreeFarthestDroppedItem(int32_t index, uint32_t unused_edx, uint32_t slot);
 
+// 0x00252c10: per frame (G_RunFrame): the mission end once its time has passed - success screen (a
+// frame loop that never returns), failed menu, "reboot", G_EndGame or "opendeadscreen".
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp);
+extern "C" void G_CheckMissionEnd_entry(void);
+// 0x00254e70: G_RegisterCvars, the skill level and max health kept with `restore`, four vmCvars reset.
+void XB_CDECL G_InitSkillCvars(uint32_t restore);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

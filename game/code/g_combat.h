@@ -58,4 +58,13 @@ void XB_CDECL Touch_FriendlyChain(uint8_t* self, uint8_t* other);
 // 0x002524d0: trigger_multiple's touch - G_Trigger, multi_trigger.
 void XB_CDECL Touch_Multi(uint8_t* self, uint8_t* other);
 
+// 0x00253e30: trigger_damage's die callback: Activate_trigger_damage, health reset to 32000 without a total.
+void XB_CDECL Die_trigger_damage(uint8_t* self, uint8_t* inflictor, uint8_t* attacker, int32_t damage, int32_t mod,
+                                 int32_t weapon, const float* point, const float* dir, int32_t hitloc);
+// 0x00253e70: trigger_damage's pain callback, as Die_trigger_damage.
+void XB_CDECL Pain_trigger_damage(uint8_t* self, uint8_t* attacker, int32_t damage, const float* point, int32_t mod,
+                                  const float* dir, int32_t hitloc);
+// 0x00253eb0: trigger_damage's use callback: activates with the full damage total.
+void XB_CDECL Use_trigger_damage(uint8_t* self, uint8_t* other, uint8_t* activator);
+
 }  // namespace game

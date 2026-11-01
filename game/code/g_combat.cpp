@@ -394,4 +394,22 @@ void XB_CDECL Touch_Multi(uint8_t* self, uint8_t* other) {
     multi_trigger(address_of(other), self);
 }
 
+void XB_CDECL Die_trigger_damage(uint8_t* self, uint8_t*, uint8_t* attacker, int32_t damage, int32_t mod, int32_t,
+                                 const float*, const float*, int32_t) {
+    // The activation; without a damage total (+0x370) the health goes back to 32000.
+    Activate_trigger_damage(self, damage, attacker, mod);
+    if (!field<int32_t>(self, 0x370)) field<int32_t>(self, 0x350) = 32000;
+}
+
+void XB_CDECL Pain_trigger_damage(uint8_t* self, uint8_t* attacker, int32_t damage, const float*, int32_t mod,
+                                  const float*, int32_t) {
+    Activate_trigger_damage(self, damage, attacker, mod);
+    if (!field<int32_t>(self, 0x370)) field<int32_t>(self, 0x350) = 32000;
+}
+
+void XB_CDECL Use_trigger_damage(uint8_t* self, uint8_t* other, uint8_t*) {
+    // Fires at once: the damage total plus one, means of death -1 (no G_Trigger).
+    Activate_trigger_damage(self, field<int32_t>(self, 0x370) + 1, other, -1);
+}
+
 }  // namespace game

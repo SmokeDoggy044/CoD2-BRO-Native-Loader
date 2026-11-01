@@ -1,5 +1,6 @@
 #include "g_spawn.h"
 
+#include "g_main.h"
 #include "g_script.h"
 #include "g_utils.h"
 #include "qcommon.h"
@@ -13,10 +14,37 @@ namespace {
 
 uint32_t& word_at(uint8_t* base, uint32_t offset) { return *reinterpret_cast<uint32_t*>(base + offset); }
 
+template <typename T>
+T& field(uint8_t* base, uint32_t offset) {
+    return *reinterpret_cast<T*>(base + offset);
+}
+
 // level.numSpawnVars (0x00985420) and level.spawnVars {key, value} (0x00985424).
 uint32_t& num_spawn_vars() { return title_global<uint32_t>(0x00985420); }
 uint32_t& spawn_var_key(uint32_t i) { return title_global<uint32_t>(0x00985424 + i * 8); }
 uint32_t& spawn_var_value(uint32_t i) { return title_global<uint32_t>(0x00985428 + i * 8); }
+
+// A spawn key's hash, made once under `bit` of the guard word.
+uint32_t cached_key(uint32_t guard, uint32_t bit, uint32_t slot, uint32_t text) {
+    uint32_t value = title_global<uint32_t>(guard);
+    if (!(value & bit)) {
+        value |= bit;
+        title_global<uint32_t>(guard) = value;
+        title_global<uint32_t>(slot) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(static_cast<uintptr_t>(text)));
+    }
+    return title_global<uint32_t>(slot);
+}
+
+// Q3's trigger wait/random: "wait" (default 0.5) into +0x384, "random" into +0x388; a random
+// spread not below the wait (with wait >= 0) becomes wait - 100.
+void spawn_wait_random(uint8_t* ent, uint32_t wait_key, uint32_t random_key) {
+    float* const wait = &field<float>(ent, 0x384);
+    float* const random = &field<float>(ent, 0x388);
+    G_SpawnFloat(wait_key, 0.5f, wait);
+    G_SpawnFloat(random_key, 0.0f, random);
+    if (*random >= *wait && *wait >= title_global<float>(0x0083eafc))
+        *random = *wait - title_global<float>(0x0083eb90);
+}
 
 }  // namespace
 
@@ -156,6 +184,141 @@ void XB_CDECL SP_skyportal(uint8_t* ent) {
         static_cast<double>(color[0]), static_cast<double>(color[1]), static_cast<double>(color[2]), fog_near,
         fog_far);  // va "%.2f %.2f %.2f %.1f %i %.2f %.2f %.2f %i %i"
     SV_SetConfigstring(10, text);
+}
+
+PLATFORM_ASM_ENTRY(InitTrigger_entry,
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(InitTrigger) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL InitTrigger(uint8_t* ent) {
+    // Q3's InitTrigger: movedir (+0x310) from non-zero angles (+0x150), the brush model,
+    // SVF_NOCLIENT-like flag 2 (+0x10), contents 0x405c0008 (+0x134), +0xd4 = 1.
+    const float* const angles = reinterpret_cast<const float*>(ent + 0x150);
+    if (angles[0] != 0.0f || angles[1] != 0.0f || angles[2] != 0.0f)
+        G_SetMovedir(reinterpret_cast<float*>(ent + 0x150), reinterpret_cast<float*>(ent + 0x310));
+    SV_SetBrushModel(ent);
+    const uint32_t flags = word_at(ent, 0x10) | 2;
+    word_at(ent, 0x134) = 0x405c0008;
+    word_at(ent, 0xd4) = 1;
+    word_at(ent, 0x10) = flags;
+}
+
+void XB_CDECL SP_trigger_mount(uint8_t* ent) {
+    // Touch callback 0xa; contents gain 0x400000 with spawn flag 1, else 0x1000000; linked.
+    word_at(ent, 0x338) = 0xa;
+    InitTrigger(ent);
+    if (ent[0x2a0] & 1)
+        word_at(ent, 0x134) |= 0x400000;
+    else
+        word_at(ent, 0x134) |= 0x1000000;
+    SV_LinkEntity(ent);
+}
+
+void XB_CDECL SP_trigger_lookat(uint8_t* ent) {
+    // The brush model, flag 2 (+0x10), contents 0x20000000, +0xd4 = 1, linked.
+    SV_SetBrushModel(ent);
+    const uint32_t flags = word_at(ent, 0x10) | 2;
+    word_at(ent, 0x134) = 0x20000000;
+    word_at(ent, 0xd4) = 1;
+    word_at(ent, 0x10) = flags;
+    SV_LinkEntity(ent);
+}
+
+void XB_CDECL SP_trigger_damage(uint8_t* ent) {
+    // wait/random (keys cached under 0x0098e8e4), "accumulate" (+0x370) and "threshold"
+    // (+0x3b4); health 32000, takedamage, pain 0xa, die 5 / 5, InitTrigger, linked.
+    uint32_t guard = title_global<uint32_t>(0x0098e8e4);
+    if (!(guard & 1)) {
+        guard |= 1;
+        title_global<uint32_t>(0x0098e8e4) = guard;
+        title_global<uint32_t>(0x0098e8e0) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x00833c88}));  // "wait"
+    }
+    if (!(guard & 2)) {
+        guard |= 2;
+        title_global<uint32_t>(0x0098e8e4) = guard;
+        title_global<uint32_t>(0x0098e8dc) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x0083b648}));  // "random"
+    }
+    spawn_wait_random(ent, title_global<uint32_t>(0x0098e8e0), title_global<uint32_t>(0x0098e8dc));
+    cached_key(0x0098e8e4, 4, 0x0098e8d8, 0x00839c9c);  // "accumulate"
+    cached_key(0x0098e8e4, 8, 0x0098e8d4, 0x00839c90);  // "threshold"
+    G_SpawnInt(title_global<uint32_t>(0x0098e8d8), &field<int32_t>(ent, 0x370), 0);
+    G_SpawnInt(title_global<uint32_t>(0x0098e8d4), &field<int32_t>(ent, 0x3b4), 0);
+    word_at(ent, 0x350) = 32000;
+    word_at(ent, 0x29c) = 1;
+    word_at(ent, 0x33c) = 0xa;
+    word_at(ent, 0x340) = 5;
+    word_at(ent, 0x344) = 5;
+    InitTrigger(ent);
+    SV_LinkEntity(ent);
+}
+
+void XB_CDECL SP_trigger_once(uint8_t* ent) {
+    // wait -1 (+0x384), touch and use callbacks 9, InitTrigger, contents from the spawn flags,
+    // linked.
+    field<float>(ent, 0x384) = title_global<float>(0x0083eb34);
+    word_at(ent, 0x338) = 9;
+    word_at(ent, 0x33c) = 9;
+    InitTrigger(ent);
+    G_TriggerContentsFromSpawnflags(ent);
+    SV_LinkEntity(ent);
+}
+
+void XB_CDECL SP_trigger_hurt(uint8_t* ent) {
+    // InitTrigger (not linked here); the "world_hurt_me" sound index (+0x295), "dmg"
+    // (+0x358, 0 -> 50), contents 0x405c0008, use callback 1, touch 3 unless spawn flag 1,
+    // "life" (+0x38c). Keys cached under 0x0098e8f0.
+    InitTrigger(ent);
+    {
+        const TitleRegs regs{0, 0x40, 0, 0, 0, 0};
+        const uint32_t args[4] = {0x00839cb0, 0xa0, 1, 0};
+        ent[0x295] = static_cast<uint8_t>(g_ent_call(0x002c39a0, &regs, 4, args));  // G_FindConfigstringIndex
+    }
+    const uint32_t dmg = cached_key(0x0098e8f0, 1, 0x0098e8ec, 0x0083b060);  // "dmg"
+    G_SpawnInt(dmg, &field<int32_t>(ent, 0x358), 0x32);
+    if (!word_at(ent, 0x358)) word_at(ent, 0x358) = 0x32;
+    const bool start_off = (ent[0x2a0] & 1) != 0;
+    word_at(ent, 0x134) = 0x405c0008;
+    word_at(ent, 0x33c) = 1;
+    if (!start_off) word_at(ent, 0x338) = 3;
+    const uint32_t life_key = cached_key(0x0098e8f0, 2, 0x0098e8e8, 0x00839ca8);  // "life"
+    float life;
+    G_SpawnFloat(life_key, 0.0f, &life);
+    field<float>(ent, 0x38c) = life;
+}
+
+void XB_CDECL SP_trigger_friendlychain(uint8_t* ent) {
+    // Touch callback 5; G_Error without a target (+0x26c string); InitTrigger, contents from
+    // the spawn flags, linked.
+    word_at(ent, 0x338) = 5;
+    const uint32_t target = word_at(ent, 0x26c);
+    if (!target || !(target + 6) || !*reinterpret_cast<const char*>(static_cast<uintptr_t>(target + 6)))
+        title_function<int32_t XB_CDECL(const char*)>(0x00248af0)(reinterpret_cast<const char*>(
+            uintptr_t{0x00839cc0}));  // G_Error "trigger_friendlychain must target a friendly chain node"
+    InitTrigger(ent);
+    G_TriggerContentsFromSpawnflags(ent);
+    SV_LinkEntity(ent);
+}
+
+void XB_CDECL SP_trigger_multiple(uint8_t* ent) {
+    // Q3's SP_trigger_multiple: wait/random (keys cached under 0x0098e8fc), touch and use
+    // callbacks 9, InitTrigger, contents from the spawn flags, linked.
+    uint32_t guard = title_global<uint32_t>(0x0098e8fc);
+    if (!(guard & 1)) {
+        guard |= 1;
+        title_global<uint32_t>(0x0098e8fc) = guard;
+        title_global<uint32_t>(0x0098e8f8) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x00833c88}));  // "wait"
+    }
+    if (!(guard & 2)) {
+        guard |= 2;
+        title_global<uint32_t>(0x0098e8fc) = guard;
+        title_global<uint32_t>(0x0098e8f4) = Com_HashKeyNoCase(0, reinterpret_cast<const char*>(uintptr_t{0x0083b648}));  // "random"
+    }
+    spawn_wait_random(ent, title_global<uint32_t>(0x0098e8f8), title_global<uint32_t>(0x0098e8f4));
+    word_at(ent, 0x338) = 9;
+    word_at(ent, 0x33c) = 9;
+    InitTrigger(ent);
+    G_TriggerContentsFromSpawnflags(ent);
+    SV_LinkEntity(ent);
 }
 
 }  // namespace game
