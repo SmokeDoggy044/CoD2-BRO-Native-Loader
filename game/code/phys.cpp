@@ -4,6 +4,7 @@
 
 #include "lanes.h"
 #include "phys_pool.h"
+#include "qcommon.h"
 #include "qcommon_core.h"
 #include "title_data.h"
 
@@ -3898,6 +3899,210 @@ float* XB_CDECL PhysBody_GetPointVelocity(float* out, const uint8_t* body, const
     store4(v, body_point_velocity(body, 0xd0, r));
     std::memcpy(out, v, 16);
     return out;
+}
+
+namespace {
+
+// Impulse +0x68 inside [+0x60, +0x64] by more than 0.2 / (+0x84 - +0x80).
+bool constraint_inside_limits(const uint8_t* c) {
+    const float margin = title_global<float>(0x0083eca0) / (at<float>(c, 0x84) - at<float>(c, 0x80));
+    if (!(at<float>(c, 0x68) > at<float>(c, 0x60) + margin)) return false;
+    return at<float>(c, 0x64) - margin > at<float>(c, 0x68);
+}
+
+// Flag 8 set; *weighted += +0x74 (+0x70 - +0x74); *squares += (+0x70 - +0x74)^2.
+void constraint_add_error(uint8_t* c, float* squares, float* weighted) {
+    at<uint32_t>(c, 0x8c) |= 8;
+    const float d = at<float>(c, 0x70) - at<float>(c, 0x74);
+    *weighted = at<float>(c, 0x74) * d + *weighted;
+    *squares = d * d + *squares;
+}
+
+}  // namespace
+
+float* XB_THISCALL PhysConstraint_AccumulateUnclamped(uint8_t* constraint, float* squares, float* weighted) {
+    if (constraint_inside_limits(constraint)) {
+        constraint_add_error(constraint, squares, weighted);
+        return squares;
+    }
+    at<uint32_t>(constraint, 0x8c) &= ~8u;
+    return squares;
+}
+
+bool XB_THISCALL PhysConstraintPair_CanShare(const uint8_t* pair) {
+    const uint8_t* const a = at<uint8_t*>(pair, 0xb0);
+    const uint8_t* const b = at<uint8_t*>(pair, 0xb4);
+    if (!constraint_inside_limits(a)) return false;
+    if (!constraint_inside_limits(b)) return false;
+    const float bias = title_global<float>(0x0083eca0);
+    const float s = (at<float>(pair, 0x94) - at<float>(pair, 0x90)) * at<float>(pair, 0x78);
+    const float xa = (0.0f - at<float>(a, 0x88) * s) - bias;
+    if (0.0f >= xa) return false;
+    const float xb = (0.0f - at<float>(b, 0x88) * s) - bias;
+    if (0.0f >= xb) return false;
+    const float ka = (at<float>(a, 0x84) - at<float>(a, 0x80)) * at<float>(a, 0x68);
+    const float kb = (at<float>(b, 0x84) - at<float>(b, 0x80)) * at<float>(b, 0x68);
+    const float xa2 = xa * xa;
+    const float xb2 = xb * xb;
+    const float lhs = xb2 * xa2;
+    return lhs > ((xa2 * kb) * kb + (xb2 * ka) * ka);
+}
+
+bool XB_THISCALL PhysConstraintPair_ScaleImpulses(const uint8_t* pair, float* out_a, float* out_b) {
+    const uint8_t* const a = at<uint8_t*>(pair, 0xb0);
+    uint8_t* const b = at<uint8_t*>(pair, 0xb4);
+    const float ta = at<float>(a, 0x88) * at<float>(pair, 0x78);
+    const float tb = at<float>(b, 0x88) * at<float>(pair, 0x78);
+    const float ia = at<float>(a, 0x68);
+    const float ib = at<float>(b, 0x68);
+    const float na = 0.0f - ta;
+    const float nb = 0.0f - tb;
+    const float na2 = na * na;
+    const float nb2 = nb * nb;
+    const float num = (ia * ia) * nb2 + (ib * ib) * na2;
+    const float den = nb2 * na2;
+    const float eps = title_global<float>(0x0083effc);  // 1e-5
+    if (!(num >= den) && !(eps > den)) {
+        at<uint32_t>(b, 0x8c) &= ~4u;
+        at<uint32_t>(out_a, 0) = at<uint32_t>(a, 0x68);
+        at<uint32_t>(out_b, 0) = at<uint32_t>(b, 0x68);
+        return false;
+    }
+    at<uint32_t>(b, 0x8c) |= 4;
+    float f = 0.0f;
+    if (num > eps) f = static_cast<float>(platform_x87_sqrt_ext(static_cast<long double>(den) / num));
+    *out_a = f * ia;
+    *out_b = f * ib;
+    return true;
+}
+
+void XB_THISCALL PhysJoint_AccumulateErrors(uint8_t* joint, float* squares, float* weighted) {
+    const float margin = title_global<float>(0x0083eca0) / (at<float>(joint, 0x94) - at<float>(joint, 0x90));
+    if (at<float>(joint, 0x78) > at<float>(joint, 0x70) + margin && at<float>(joint, 0x74) - margin > at<float>(joint, 0x78)) {
+        at<uint32_t>(joint, 0x9c) |= 8;
+        const float d = at<float>(joint, 0x80) - at<float>(joint, 0x84);
+        *weighted = at<float>(joint, 0x84) * d + *weighted;
+        *squares = d * d + *squares;
+    } else {
+        at<uint32_t>(joint, 0x9c) &= ~8u;
+    }
+    uint8_t* const a = at<uint8_t*>(joint, 0xb0);
+    if (!a) return;
+    if (!at<uint8_t*>(joint, 0xb4)) {
+        PhysConstraint_AccumulateUnclamped(a, squares, weighted);
+        return;
+    }
+    if (PhysConstraintPair_CanShare(joint)) {
+        constraint_add_error(at<uint8_t*>(joint, 0xb0), squares, weighted);
+        uint8_t* const b = at<uint8_t*>(joint, 0xb4);
+        at<uint32_t>(b, 0x8c) |= 8;
+        const float d = at<float>(b, 0x70) - at<float>(b, 0x74);
+        *weighted = d * at<float>(b, 0x74) + *weighted;
+        *squares = d * d + *squares;
+    } else {
+        at<uint32_t>(a, 0x8c) &= ~8u;
+        at<uint32_t>(at<uint8_t*>(joint, 0xb4), 0x8c) &= ~8u;
+    }
+}
+
+uint8_t* XB_CDECL PhysBody_UpdateSleep(uint8_t* body, float threshold, float dt) {
+    const float e = self_dot(lanes(reinterpret_cast<const float*>(body + 0xd0))) +
+                    self_dot(lanes(reinterpret_cast<const float*>(body + 0xe0)));
+    at<float>(body, 0x168) = e;
+    if (e > threshold) {
+        const uint32_t flags = at<uint32_t>(body, 0x144);
+        at<float>(body, 0x164) = 0.0f;
+        at<uint32_t>(body, 0x144) = flags & ~4u;
+        return body;
+    }
+    const uint32_t flags = at<uint32_t>(body, 0x144);
+    if (flags & 4) return body;
+    const float t = at<float>(body, 0x164) + dt;
+    at<float>(body, 0x164) = t;
+    if (t >= title_global<float>(0x0083eb24) && at<int32_t>(body, 0x15c) >= at<int32_t>(body, 0x160))
+        at<uint32_t>(body, 0x144) = flags | 4;
+    return body;
+}
+
+float* XB_THISCALL PhysJoint_AddOffsetTerms(const uint8_t* joint, float* squares, float* weighted) {
+    const Lanes target = lanes(reinterpret_cast<const float*>(joint + 0xc0));
+    const Lanes d = sub(lanes(reinterpret_cast<const float*>(joint + 0xb0)), target);
+    const float w = dot3(d, target);
+    *weighted = *weighted + w;
+    const float sq = self_dot(d);
+    *squares = *squares + sq;
+    return squares;
+}
+
+void XB_THISCALL PhysConstraintPool30_Destroy(uint8_t* pool) {
+    for (int32_t i = 0; i < at<int32_t>(pool, 0x10); ++i) {
+        uint32_t* const owner = at<uint32_t*>(at<uint8_t**>(pool, 4)[i], 0x2c);
+        if (owner) *owner = 0;
+    }
+    at<uint32_t>(pool, 8) = 0;
+    at<uint32_t>(pool, 0) = 0;
+    at<uint32_t>(pool, 0xc) = 0;
+    at<uint32_t>(pool, 4) = 0;
+    at<uint32_t>(pool, 0x10) = 0;
+}
+
+namespace {
+
+// |v| from the squared length lane 0: 0 / NaN as they are, else one Newton step on RSQRTSS.
+float frame_length(float length2) {
+    if (length2 == 0.0f || length2 != length2) return length2;
+    const float e = platform_rsqrt_estimate(length2);
+    const float le = length2 * e;
+    return ((title_global<float>(0x007ce0a0) - le * e) * le) * title_global<float>(0x007ce0b0);
+}
+
+}  // namespace
+
+// Rows 0 and 1 made orthonormal (Gram-Schmidt, 4-lane divides), row 2 = row 0 x row 1.
+void XB_CDECL PhysFrame_Orthonormalize(float* frame) {
+    const Lanes r0 = lanes(frame);
+    const Lanes r1 = lanes(frame + 4);
+    const Lanes sq0 = mul(r0, r0);
+    platform_keep(sq0);
+    const Lanes x = div(r0, splat(frame_length((sq0.v[0] + sq0.v[1]) + sq0.v[2])));
+    const Lanes px = mul(r1, x);
+    platform_keep(px);
+    const Lanes y0 = sub(r1, mul(x, splat((px.v[0] + px.v[1]) + px.v[2])));
+    const Lanes sq1 = mul(y0, y0);
+    platform_keep(sq1);
+    const Lanes y = div(y0, splat(frame_length((sq1.v[0] + sq1.v[1]) + sq1.v[2])));
+    store4(frame, x);
+    store4(frame + 4, y);
+    store4(frame + 8, cross_lanes(x, y));
+}
+
+float* XB_CDECL PhysBody_AddVelocity(uint8_t* body, const float* linear, const float* angular) {
+    const Lanes dv = lanes(linear);
+    store4(reinterpret_cast<float*>(body + 0xd0), add(lanes(reinterpret_cast<const float*>(body + 0xd0)), dv));
+    const Lanes dw = lanes(angular);
+    store4(reinterpret_cast<float*>(body + 0xe0), add(lanes(reinterpret_cast<const float*>(body + 0xe0)), dw));
+    return reinterpret_cast<float*>(body + 0xe0);
+}
+
+// The world for `params`: an arena of PhysWorld_GetMemorySize bytes (16-aligned) handed to PhysWorld_Create.
+uint8_t* XB_CDECL Phys_CreateWorld(uint32_t params) {
+    const uint32_t size = title_function<uint32_t XB_CDECL(uint32_t)>(0x000be2a0)(params);  // PhysWorld_GetMemorySize
+    title_global<uint32_t>(0x0090a880) = size;
+    title_global<uint32_t>(0x0090a884) = 0x10;
+    uint8_t* const memory = static_cast<uint8_t*>(Mem_AlignedAlloc(size, 0x10, 0));
+    uint8_t* arena[3] = {memory, memory + title_global<uint32_t>(0x0090a880), memory};
+    uint8_t* const world = title_function<uint8_t* XB_CDECL(uint32_t, uint8_t**)>(0x000beb00)(params, arena);  // PhysWorld_Create
+    title_global<uint8_t*>(0x0090a87c) = world;
+    return world;
+}
+
+uint32_t XB_CDECL Phys_DestroyWorld() {
+    title_function<void XB_THISCALL(uint8_t*)>(0x000c2a40)(title_global<uint8_t*>(0x0090a87c));  // PhysWorld_Destroy
+    Mem_AlignedFree(title_global<uint8_t*>(0x0090a87c));
+    title_global<uint32_t>(0x0090a87c) = 0;
+    title_global<uint32_t>(0x0090a880) = 0;
+    title_global<uint32_t>(0x0090a884) = 0;
+    return 0;
 }
 
 }  // namespace game

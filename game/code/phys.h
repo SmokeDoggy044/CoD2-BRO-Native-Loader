@@ -355,4 +355,29 @@ float XB_THISCALL PhysConstraint_ClampImpulse(uint8_t* constraint, float impulse
 // 0x000bf7e0: body velocity at the relative point: +0xd0 + +0xe0 x r (zero for flag 0x10).
 float* XB_CDECL PhysBody_GetPointVelocity(float* out, const uint8_t* body, const float* r);
 
+// 0x000bee70: with impulse +0x68 inside its limits by 0.2 / (+0x84 - +0x80): flag 8 and
+// *weighted += +0x74 d, *squares += d^2 (d = +0x70 - +0x74); else flag 8 cleared.
+float* XB_THISCALL PhysConstraint_AccumulateUnclamped(uint8_t* constraint, float* squares, float* weighted);
+// 0x000bef70: both constraints of the pair (+0xb0, +0xb4) inside their limits and the shared test passes.
+bool XB_THISCALL PhysConstraintPair_CanShare(const uint8_t* pair);
+// 0x000bf0b0: the pair's impulses (+0x68) scaled by sqrt(den / num) (flag 4 on the second), or as they are.
+bool XB_THISCALL PhysConstraintPair_ScaleImpulses(const uint8_t* pair, float* out_a, float* out_b);
+// 0x000bf1b0: the joint's own limit term (+0x70..+0x9c) and those of its constraints +0xb0 / +0xb4.
+void XB_THISCALL PhysJoint_AccumulateErrors(uint8_t* joint, float* squares, float* weighted);
+// 0x000bf330: +0x168 = |v|^2 + |w|^2; above threshold the rest timer +0x164 restarts, else it runs
+// and sets flag 4 (asleep) after 0.5 s once +0x15c >= +0x160.
+uint8_t* XB_CDECL PhysBody_UpdateSleep(uint8_t* body, float threshold, float dt);
+// 0x000bf400: d = +0xb0 - +0xc0; *weighted += d . +0xc0, *squares += d . d.
+float* XB_THISCALL PhysJoint_AddOffsetTerms(const uint8_t* joint, float* squares, float* weighted);
+// 0x000bf4b0: clears each element's owner word (+0x2c) and the pool's five words.
+void XB_THISCALL PhysConstraintPool30_Destroy(uint8_t* pool);
+// 0x000bf4f0: rows 0 and 1 made orthonormal, row 2 = row 0 x row 1.
+void XB_CDECL PhysFrame_Orthonormalize(float* frame);
+// 0x000bf720: body +0xd0 += linear, +0xe0 += angular.
+float* XB_CDECL PhysBody_AddVelocity(uint8_t* body, const float* linear, const float* angular);
+// 0x000bedd0: allocates the arena and creates phys_world.
+uint8_t* XB_CDECL Phys_CreateWorld(uint32_t params);
+// 0x000bee40: destroys phys_world and frees its arena.
+uint32_t XB_CDECL Phys_DestroyWorld();
+
 }  // namespace game

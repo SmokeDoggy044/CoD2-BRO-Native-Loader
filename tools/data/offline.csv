@@ -602,7 +602,14 @@ address,name,tested,matched,nan,mismatched,coverage
 000bc710,PhysAngularContact_GetNormalVelocity,3087,3069,18,0,100.0
 000bc990,PhysContact_GetResponseVector,3381,3169,212,0,100.0
 000bcb40,PhysContact_SolveNormalImpulse,3278,3278,0,0,100.0
+000bee70,PhysConstraint_AccumulateUnclamped,3313,3313,0,0,100.0
 000bef00,PhysConstraint_ClampImpulse,3754,3754,0,0,100.0
+000bef70,PhysConstraintPair_CanShare,3225,3225,0,0,97.1
+000bf0b0,PhysConstraintPair_ScaleImpulses,2777,2777,0,0,100.0
+000bf1b0,PhysJoint_AccumulateErrors,2304,2304,0,0,66.3
+000bf400,PhysJoint_AddOffsetTerms,2884,2880,4,0,100.0
+000bf4b0,PhysConstraintPool30_Destroy,3367,3367,0,0,100.0
+000bf4f0,PhysFrame_Orthonormalize,3725,3565,160,0,100.0
 000c36e0,SndArena_Reset,3776,3776,0,0,100.0
 000c41b0,SndVoice_Pause,2816,2816,0,0,29.6
 000c4220,SndVoice_Resume,2816,2816,0,0,21.1
