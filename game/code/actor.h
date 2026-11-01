@@ -828,4 +828,67 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindNearestNode(uint32_t entr
                                                                   uint32_t edi, uint32_t esi, uint32_t ebp);
 extern "C" void Actor_FindNearestNode_entry(void);
 
+// 0x00207d70: the actor's pose on its turret (aim row/yaw blends, position and angles from the tags);
+// 1 when it left the turret.
+uint32_t XB_STDCALL Actor_Turret_UpdatePose(uint8_t* actor);
+
+// 0x00206550 (EAX actor, ESI out): the refreshed eye direction (+0x1c0) copied out.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CopyEyeDirection(uint8_t* actor, uint8_t* out);
+extern "C" void Actor_CopyEyeDirection_entry(void);
+// Sight/trace callers (gap entries: the C bodies take the entry ESP first, the caller's EBP last, and
+// run their traces at the original's ESP).
+// 0x00209fc0 (EAX eye, stack origin and two pass entities): a clear sight line to a point of the actor box there.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CanSeePointFromBounds(uint32_t entry, const float* eye,
+                                                                         const float* origin, uint32_t pass1,
+                                                                         uint32_t pass2, uint32_t ebp);
+extern "C" void Actor_CanSeePointFromBounds_entry(void);
+// 0x0020a140 (EAX start, ECX end, stack actor; ret 4): a point trace reaching the end or an enemy sentient.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_IsShotClear(uint32_t entry, const float* start, const float* end,
+                                                               const uint8_t* actor, uint32_t ebp);
+extern "C" void Actor_IsShotClear_entry(void);
+// 0x0020a2e0 (EAX point, ECX actor, five stack words; XMM0 result): cone/range checks, cached blocker, sight trace.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_CanSeePointEx(uint32_t entry, const float* point, uint8_t* actor,
+                                                              uint32_t* blocker, float fov_cos, float max_dist2,
+                                                              uint32_t pass, const float* eye, uint32_t ebp);
+extern "C" void Actor_CanSeePointEx_entry(void);
+// 0x0020a5d0 (ESI actor, ECX end, EDX start, XMM4 max squared distance, stack pass entity; XMM0 result).
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_SightTrace(uint32_t entry, uint8_t* actor, const float* end,
+                                                           const float* start, float max_dist2, uint32_t pass,
+                                                           uint32_t ebp);
+extern "C" void Actor_SightTrace_entry(void);
+// 0x0020eaf0 (EAX actor): a clear shot from the muzzle at the sentient's enemy.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CanShootPoint(uint32_t entry, uint8_t* actor, uint32_t ebp);
+extern "C" void Actor_CanShootPoint_entry(void);
+// 0x0020eb50 (EAX actor, stack point, cone cos, max squared distance, pass entity; XMM0 result).
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_CanSeePoint(uint32_t entry, uint8_t* actor, const float* point,
+                                                            float fov_cos, float max_dist2, uint32_t pass,
+                                                            uint32_t ebp);
+extern "C" void Actor_CanSeePoint_entry(void);
+
+// 0x0020c6d0 (EAX actor, ECX path, XMM4 range, stack state, pass entity, end; ret 0xc): path trim by sight.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_TrimToVisiblePoint(uint32_t entry, uint8_t* actor, uint8_t* path,
+                                                                     float max_dist2, int32_t* state, uint32_t pass,
+                                                                     const float* end, uint32_t ebp);
+extern "C" void Path_TrimToVisiblePoint_entry(void);
+// 0x0020d110 (ESI actor): Path_TrimToVisiblePoint from the enemy's eye.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_TrimPathFromEye(uint32_t entry, uint8_t* actor, uint32_t ebp);
+extern "C" void Actor_TrimPathFromEye_entry(void);
+// 0x0020d030 (ECX actor, EDX node): cover node safe from the grenade.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_IsCoverNodeSafe(uint32_t entry, uint8_t* actor,
+                                                                           const uint8_t* node, uint32_t ebp);
+extern "C" void Actor_Grenade_IsCoverNodeSafe_entry(void);
+// 0x0020c9c0 (ECX point, EDX actor): out of the grenade's range or sight.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_IsSafeFromGrenade(uint32_t entry, const float* point, uint8_t* actor,
+                                                                     uint32_t ebp);
+extern "C" void Actor_IsSafeFromGrenade_entry(void);
+// 0x0020e5a0 (ESI entity): dropped to the floor; 1 in solid.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_DropToFloor(uint32_t entry, uint8_t* ent, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_DropToFloor_entry(void);
+// 0x0020e9a0: level-start floor drop of the actors.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_DropActorsToFloorAtInit(uint32_t entry);
+extern "C" void G_DropActorsToFloorAtInit_entry(void);
+// 0x0020a730: foliage sound event of the moving actor (g_actorMove).
+extern "C" PLATFORM_HIDDEN void XB_CDECL ActorMove_FoliageSounds(uint32_t entry, uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void ActorMove_FoliageSounds_entry(void);
+
 }  // namespace game
