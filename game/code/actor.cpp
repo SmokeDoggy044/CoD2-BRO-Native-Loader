@@ -4,6 +4,8 @@
 
 #include "bg_misc.h"
 #include "cm.h"
+#include "dobj.h"
+#include "g_main.h"
 #include "g_script.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
@@ -11,7 +13,9 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "script_string.h"
+#include "sv.h"
 #include "title_data.h"
+#include "xanim.h"
 
 namespace game {
 
@@ -4878,6 +4882,1564 @@ uint8_t* XB_CDECL AnimNotify_Init(uint32_t entry, uint8_t* node, uint32_t name, 
         title_global<uint32_t>(entry - 0x110) = 0x0020297c;
     }
     return node;
+}
+
+namespace {
+
+// The entity a handle names (index 12 bits, generation above), or 0.
+uint32_t entity_from_handle(uint32_t handle) {
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+        return title_global<uint32_t>(0x0097a968 + index * 8);
+    return 0;
+}
+
+// A one-time hash of a constant name (init bit `bit` of the word at `flags`).
+uint32_t cached_hash(uint32_t flags, uint32_t bit, uint32_t hash, uint32_t name) {
+    if (!(title_global<uint32_t>(flags) & bit)) {
+        title_global<uint32_t>(flags) |= bit;
+        title_global<uint32_t>(hash) = Com_HashKeyNoCase(0, &title_global<const char>(name));
+    }
+    return title_global<uint32_t>(hash);
+}
+
+void copy3(uint8_t* to, const uint8_t* from) {
+    for (uint32_t i = 0; i < 12; i += 4) field<uint32_t>(to, i) = field<uint32_t>(from, i);
+}
+
+// Releases the script-string fields (type 0x10) of a field table (offset, type; ends at type 0).
+void release_string_fields(uint8_t* base, uint32_t table) {
+    uint32_t entry = table;
+    do {
+        if (title_global<int32_t>(entry + 4) == 0x10) {
+            uint32_t& slot = field<uint32_t>(base, title_global<uint32_t>(entry));
+            if (slot) {
+                title_function<void XB_THISCALL(uint32_t)>(0x0011d5b0)(slot);  // ScriptStringRep_Release
+                slot = 0;
+            }
+        }
+        entry += 8;
+    } while (title_global<uint32_t>(entry + 4));
+}
+
+// The anim script's start callback: EAX = the stack word (entity handle), EDX script, ECX handle.
+uint32_t call_anim_script_start(uint32_t function, uint32_t script, uint32_t handle) {
+    uint32_t eax, edx = script, ecx = handle;
+    __asm__ volatile("pushl %%ecx\n"
+                     "movl %%esp, %%eax\n"
+                     "call *%3\n"
+                     "addl $4, %%esp\n"
+                     : "=&a"(eax), "+d"(edx), "+c"(ecx)
+                     : "r"(function)
+                     : "memory", "cc", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7");
+    return eax;
+}
+
+const uint8_t* dobj_of(const uint8_t* ent) { return field<const uint8_t*>(ent, 0x22c); }
+
+}  // namespace
+
+void XB_CDECL Actor_ReleaseTurret(uint8_t* actor) {
+    // The actor gives up its turret (+0x136c): the turret's in-use flag (+0x297) and user
+    // handle (+0x1a0) cleared, "turretownerchange" on both; an actor linked to the turret
+    // goes back to the turret's own link parent (tag from +0x3cc +8) or is unlinked; the
+    // turret info's flag 0x200 (+0x24c +2) cleared.
+    uint8_t* const turret = field<uint8_t*>(actor, 0x136c);
+    field<uint8_t>(turret, 0x297) = 0;
+    field<uint32_t>(turret, 0x1a0) = 0;
+    Scr_Notify(turret, title_global<uint32_t>(0x0097a864));
+    Scr_Notify(field<uint8_t*>(actor, 0), title_global<uint32_t>(0x0097a864));
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    const uint8_t* const link = field<const uint8_t*>(ent, 0x3cc);
+    if (link && field<uint8_t*>(link, 0) == turret) {
+        const uint8_t* const parent_link = field<const uint8_t*>(turret, 0x3cc);
+        if (!parent_link) {
+            title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002b7900)(ent);  // G_EntUnlink
+        } else {
+            const int32_t tag = field<int32_t>(parent_link, 8);
+            const uint32_t name = tag ? uint32_t(uintptr_t(IntHashMap_FindValue(tag))) : 0x0082dfeb;  // ""
+            using LinkTo = uint32_t XB_REGS1 XB_CDECL(uint32_t, uint8_t*, uint32_t, uint32_t);
+            if (title_function<LinkTo>(0x002df740)(field<uint32_t>(parent_link, 0), ent, name, 0))  // G_EntLinkTo
+                title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002e3f10)(ent, 0);       // G_CalcTagLinkOffset
+        }
+    }
+    field<uint8_t>(field<uint8_t*>(turret, 0x24c), 3) &= 0xfd;
+}
+
+uint32_t XB_REGS3 XB_CDECL Actor_Turret_Start(uint32_t, uint32_t previous, uint8_t* actor) {
+    // Turret state start (ECX actor, EDX previous state): links the actor to its free turret
+    // (tag ""), marks it used (+0x297, user handle +0x1a0), "turretownerchange", idles it and
+    // sets the info flags (+0x24c +2: 0x100 on, 0xe8 off; 0x10 and the target +0x4c kept
+    // only when coming from state 8); clears threat times and the path. 0, or 2 / 5 (no
+    // turret: 2 when the sentient has +0x3c set).
+    uint8_t* const turret = field<uint8_t*>(actor, 0x136c);
+    if (turret && !field<uint8_t>(turret, 0x297)) {
+        uint8_t* const ent = field<uint8_t*>(actor, 0);
+        using LinkTo = uint32_t XB_REGS1 XB_CDECL(uint8_t*, uint8_t*, uint32_t, uint32_t);
+        if (title_function<LinkTo>(0x002df740)(turret, ent, 0x0082dfeb, 0)) {  // G_EntLinkTo
+            title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002e3f10)(ent, 0);  // G_CalcTagLinkOffset
+            field<uint8_t>(turret, 0x297) = 1;
+            field<uint32_t>(turret, 0x1a0) = field<uint32_t>(field<uint8_t*>(actor, 0), 0x224);
+            Scr_Notify(turret, title_global<uint32_t>(0x0097a864));
+            title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x0024fd90)(turret);  // Turret_SetIdle
+            uint8_t* const info = field<uint8_t*>(turret, 0x24c);
+            field<uint16_t>(info, 2) = uint16_t((field<uint16_t>(info, 2) & 0xff17) | 0x100);
+            Actor_ClearSentientThreatTimes(actor);
+            if (previous != 8) {
+                field<uint8_t>(info, 2) &= 0xef;
+                field<uint32_t>(info, 0x4c) = 0;
+            }
+            Actor_ClearPath(actor);
+            return 0;
+        }
+    }
+    return field<uint32_t>(field<const uint8_t*>(actor, 4), 0x3c) ? 2 : 5;
+}
+
+PLATFORM_ASM_ENTRY(Actor_UpdateAnimScript_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Actor_UpdateAnimScript) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_UpdateAnimScript(uint8_t* actor) {
+    // ESI actor: takes over the requested move mode (+0x27c -> +0x278; mode 1 clears the move
+    // history and entity flags 0xc) and +0x285 -> +0x284. On a restart (+0x26c) or a new anim
+    // script (+0x254 vs +0x250): clears the script state, pops a state-9 entry (pushing a
+    // transition 3), stops the old script, starts the new one (its +8 callback with the
+    // entity handle -> +0x24c) and advances the anims. Then the request moves to +0x270/+0x274
+    // and is cleared. EAX = the request's script.
+    const int32_t mode = field<int32_t>(actor, 0x27c);
+    if (field<int32_t>(actor, 0x278) != mode) {
+        field<int32_t>(actor, 0x278) = mode;
+        if (mode == 1) {
+            Actor_ClearMoveHistory(actor);
+            field<uint32_t>(field<uint8_t*>(actor, 0), 0x2a4) &= 0xfffffff3;
+        }
+    }
+    field<uint8_t>(actor, 0x284) = field<uint8_t>(actor, 0x285);
+    if (field<uint8_t>(actor, 0x26c) || field<uint32_t>(actor, 0x250) != field<uint32_t>(actor, 0x254)) {
+        uint8_t* const ent = field<uint8_t*>(actor, 0);
+        field<uint8_t>(actor, 0x26c) = 0;
+        field<uint32_t>(actor, 0x140) = 0;
+        field<uint32_t>(actor, 0x1324) = 0;
+        field<uint32_t>(actor, 0x280) = 0;
+        field<uint32_t>(ent, 0x2a4) &= 0xfffeffff;
+        const int32_t top = field<int32_t>(actor, 0xbc);
+        if (field<int32_t>(actor, 0xa4 + top * 4) == 9) {
+            field<uint32_t>(actor, 0x38 + field<int32_t>(actor, 0xa0) * 8) = 3;
+            field<uint32_t>(actor, 0x3c + field<int32_t>(actor, 0xa0) * 8) = 0;
+            field<int32_t>(actor, 0xa0) = field<int32_t>(actor, 0xa0) + 1;
+            Actor_MergeStateTransitions(actor);
+            --field<int32_t>(actor, 0xbc);
+        }
+        Actor_StopAnimScript(actor);
+        const uint8_t* const script = field<const uint8_t*>(actor, 0x254);
+        field<uint32_t>(actor, 0x250) = uint32_t(uintptr_t(script));
+        if (field<uint32_t>(script, 8)) {
+            const uint32_t handle = field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224);
+            const uint32_t start = field<uint32_t>(field<const uint8_t*>(actor, 0x254), 8);
+            field<uint32_t>(actor, 0x24c) =
+                call_anim_script_start(start, field<uint32_t>(actor, 0x254), handle);
+        }
+        uint32_t edi = field<uint32_t>(actor, 0);
+        __asm__ volatile("call *%1"
+                         : "+D"(edi)
+                         : "r"(uintptr_t{0x0025b4d0})  // G_DObjAdvanceAnimsUntilDone
+                         : "eax", "ecx", "edx", "memory", "cc", "xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5",
+                           "xmm6", "xmm7");
+    }
+    const uint32_t script = field<uint32_t>(actor, 0x254);
+    const uint32_t requested = field<uint32_t>(actor, 0x27c);
+    field<uint32_t>(actor, 0x254) = 0;
+    field<uint32_t>(actor, 0x27c) = 0;
+    field<uint32_t>(actor, 0x270) = script;
+    field<uint32_t>(actor, 0x274) = requested;
+    return script;
+}
+
+PLATFORM_ASM_ENTRY(Actor_LeaveTurret_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Actor_LeaveTurret) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_LeaveTurret(uint8_t* actor) {
+    // ESI actor: releases the turret when this actor is its user; the turret pointer cleared.
+    const uint8_t* const turret = field<const uint8_t*>(actor, 0x136c);
+    if (turret && entity_from_handle(field<uint32_t>(turret, 0x1a0)) == field<uint32_t>(actor, 0))
+        Actor_ReleaseTurret(actor);
+    field<uint32_t>(actor, 0x136c) = 0;
+}
+
+void XB_REGS3 XB_STDCALL Actor_Turret_Pain(uint32_t, const uint8_t* attacker, uint8_t* actor, uint32_t, uint32_t,
+                                           uint32_t, uint32_t, uint32_t) {
+    // Turret state pain (ECX actor, EDX attacker entity): hit by a sentient of the enemy team
+    // while using the turret - the first hit sets the info's flag 0x10 and target (+0x4c =
+    // attacker's sentient), the next one makes the actor leave the turret.
+    if (!field<const uint8_t*>(attacker, 0x244)) return;
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    if (field<int32_t>(sentient, 0x30) == 1) return;
+    if (!Actor_IsUsingTurret(actor)) return;
+    if (field<int32_t>(field<const uint8_t*>(attacker, 0x244), 4) != Sentient_EnemyTeam(field<int32_t>(sentient, 4)))
+        return;
+    uint8_t* const info = field<uint8_t*>(field<uint8_t*>(actor, 0x136c), 0x24c);
+    const uint16_t flags = field<uint16_t>(info, 2);
+    if (flags & 0x10) {
+        Actor_LeaveTurret(actor);
+        return;
+    }
+    field<uint16_t>(info, 2) = uint16_t(flags | 0x10);
+    field<uint32_t>(info, 0x4c) = field<uint32_t>(attacker, 0x244);
+}
+
+void XB_THISCALL Actor_Turret_Finish(uint8_t* actor) {
+    // Turret state finish (ECX actor): releases the turret when this actor is its user.
+    const uint8_t* const turret = field<const uint8_t*>(actor, 0x136c);
+    if (turret && entity_from_handle(field<uint32_t>(turret, 0x1a0)) == field<uint32_t>(actor, 0))
+        Actor_ReleaseTurret(actor);
+}
+
+void XB_REGS2 XB_CDECL BadPlace_Create(int32_t duration, const uint32_t* arc, const ScriptString* name, uint32_t team) {
+    // EAX duration, EDX the 7-word arc: a kind-1 bad place for `team` (BadPlace_Alloc), its arc
+    // applied to the path nodes, then crossing paths cleared.
+    uint32_t copy[7];
+    for (uint32_t i = 0; i < 7; ++i) copy[i] = arc[i];
+    uint8_t* const place = BadPlace_Alloc(duration, 0, name);
+    if (!place) return;
+    const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);
+    field<uint8_t>(place, 9) = uint8_t(team);
+    field<uint8_t>(place, 8) = 1;
+    for (uint32_t i = 0; i < 7; ++i) field<uint32_t>(place, 0xc + i * 4) = copy[i];
+    using AdjustArc = void XB_STDCALL(uint32_t, uint32_t, uint32_t, int32_t);
+    title_function<AdjustArc>(0x002d0db0)(blocks, uint32_t(uintptr_t(place)) + 0xc, uint8_t(team), 1);
+    BadPlace_ClearCrossingPaths();
+}
+
+PLATFORM_ASM_ENTRY(Actor_GetMuzzleInfo_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_GetMuzzleInfo) "addl $12, %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL Actor_GetMuzzleInfo(uint8_t* actor, uint8_t* origin, uint8_t* direction) {
+    // EDI actor: the "tag_flash" origin (+0x1d0) and forward axis (+0x1dc), refreshed once per
+    // level time (+0x1cc), copied out (direction optional). 0 without a model or tag.
+    if (field<int32_t>(actor, 0x1cc) != level_time()) {
+        const uint32_t hash = cached_hash(0x0098ebac, 1, 0x0098eba8, 0x008389c0);  // "tag_flash"
+        uint8_t* const ent = field<uint8_t*>(actor, 0);
+        if (!dobj_of(ent)) return 0;
+        const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(dobj_of(ent)), hash);
+        if (tag < 0) return 0;
+        alignas(16) uint8_t m[0x40];
+        title_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+        copy3(actor + 0x1d0, m + 0x30);
+        copy3(actor + 0x1dc, m);
+        field<int32_t>(actor, 0x1cc) = level_time();
+    }
+    copy3(origin, actor + 0x1d0);
+    if (direction) copy3(direction, actor + 0x1dc);
+    return 1;
+}
+
+PLATFORM_ASM_ENTRY(Actor_RefreshEyeOrigin_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_RefreshEyeOrigin) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_RefreshEyeOrigin(uint8_t* actor) {
+    // EDI actor, once per level time (+0x1b0): eye origin (+0x1b4) and flat look direction
+    // (+0x1c0) from the "BIP01 HEAD" tag of a shown model; else the entity origin + 64 and the
+    // actor's +0x108 direction.
+    if (field<int32_t>(actor, 0x1b0) == level_time()) return;
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    field<int32_t>(actor, 0x1b0) = level_time();
+    const bool shown = dobj_of(ent) && !(field<uint8_t>(dobj_of(ent), 0x9c) & 1);
+    const uint32_t hash = cached_hash(0x0098ebb4, 1, 0x0098ebb0, 0x0083d3e8);  // "BIP01 HEAD"
+    if (shown && dobj_of(ent)) {
+        const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(dobj_of(ent)), hash);
+        if (tag >= 0) {
+            alignas(16) uint8_t m[0x40];
+            title_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+            copy3(actor + 0x1b4, m + 0x30);
+            field<uint32_t>(actor, 0x1c0) = field<uint32_t>(m, 0x10);
+            field<uint32_t>(actor, 0x1c4) = field<uint32_t>(m, 0x14);
+            Vec2Normalize(&field<float>(actor, 0x1c0));
+            field<float>(actor, 0x1c8) = 0.0f;
+            return;
+        }
+    }
+    field<uint32_t>(actor, 0x1b4) = field<uint32_t>(ent, 0x140);
+    field<uint32_t>(actor, 0x1b8) = field<uint32_t>(ent, 0x144);
+    field<float>(actor, 0x1bc) = field<float>(ent, 0x148) + title_global<float>(0x00830c1c);  // 64
+    copy3(actor + 0x1c0, actor + 0x108);
+}
+
+void XB_CDECL Actor_ThinkLinked(uint8_t* ent) {
+    // Think of a linked actor entity: next think next frame; follows its link (G_GeneralLink).
+    field<int32_t>(ent, 0x328) = level_time() + 1;
+    if (field<uint32_t>(ent, 0x3cc)) title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002e6490)(ent);  // G_GeneralLink
+}
+
+void XB_REGS1 XB_CDECL Actor_Free(uint8_t* actor) {
+    // EAX actor: leaves the turret, stops the anim script, frees a held grenade it owns, clears
+    // other actors' references to it (+0x74c/+0x39c handles, +0x1390 entity, +0x7c8 actor),
+    // dissociates and frees its sentient (string fields 0x0082fdc0, count 0x0095f420), releases
+    // its own string fields (0x0082fb70) and script strings, unregisters it (count 0x0095f44c,
+    // g_actors slot +0x1382) and frees the memory (its client's memory context, else Z_Free).
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    Actor_LeaveTurret(actor);
+    Actor_StopAnimScript(actor);
+    uint8_t* const grenade = field<uint8_t*>(actor, 0x1310);
+    if (grenade && field<uint8_t*>(grenade, 0x378) == ent && (field<uint8_t>(grenade, 0xd4) & 1)) {
+        title_function<void XB_CDECL(uint8_t*, uint32_t)>(0x002be420)(grenade, 0);  // G_FreeEntity
+        field<uint32_t>(actor, 0x1310) = 0;
+    }
+    const uint32_t handle = field<uint32_t>(ent, 0x224);
+    for (uint32_t slot = 0x00985384; slot < 0x00985404; slot += 4) {
+        uint8_t* const other = title_global<uint8_t*>(slot);
+        if (!other || field<int32_t>(other, 0x1360) < 0) continue;
+        if (field<uint32_t>(other, 0x74c) == handle) field<uint32_t>(other, 0x74c) = 0;
+        if (field<uint32_t>(other, 0x39c) == handle) field<uint32_t>(other, 0x39c) = 0;
+        if (field<uint8_t*>(other, 0x1390) == ent) field<uint32_t>(other, 0x1390) = 0;
+        if (field<uint8_t*>(other, 0x7c8) == actor) {
+            field<uint32_t>(other, 0x7c8) = 0;
+            field<uint32_t>(other, 0x7cc) = 0;
+        }
+    }
+    Sentient_Dissociate(field<uint8_t*>(actor, 4));
+    field<uint32_t>(ent, 0x240) = 0;
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    G_ClearEntityReferences(0, field<uint8_t*>(sentient, 0));
+    Sentient_Dissociate(sentient);
+    field<uint32_t>(field<uint8_t*>(sentient, 0), 0x244) = 0;
+    release_string_fields(sentient, 0x0082fdc0);
+    const int32_t sentients_left = title_global<int32_t>(0x0095f420) - 1;
+    field<int32_t>(sentient, 0x5c) = sentients_left;
+    title_global<int32_t>(0x0095f420) = sentients_left;
+    field<uint32_t>(actor, 4) = 0;
+    release_string_fields(actor, 0x0082fb70);
+    static const uint32_t kStrings[7] = {0x138c, 0x1388, 0x1384, 0x1320, 0xf8, 0xec, 0xc8};
+    for (uint32_t i = 0; i < 7; ++i)
+        title_function<void XB_THISCALL(uint8_t*)>(0x0011d640)(actor + kStrings[i]);  // ScriptString_Release
+    const int32_t actors_left = title_global<int32_t>(0x0095f44c) - 1;
+    const uint8_t* const clients = title_global<const uint8_t*>(0x0095f638);
+    field<int32_t>(actor, 0x1360) = actors_left;
+    title_global<int32_t>(0x0095f44c) = actors_left;
+    title_global<uint32_t>(0x00985384 + field<int16_t>(actor, 0x1382) * 4) = 0;
+    int32_t context = field<int32_t>(field<const uint8_t*>(actor, 0), 0x220);
+    if (context == -1) context = field<int32_t>(clients, 0x34);
+    if (context != -1) {
+        const uint32_t owner = context >= 0 && context < 0x63 ? field<uint32_t>(clients, 0x38 + context * 4) : 0;
+        if (MemContext_Free_r(reinterpret_cast<uint8_t*>(uintptr_t(owner)), actor)) return;
+    }
+    title_function<void XB_CDECL(uint8_t*)>(0x000428d0)(actor);  // Z_Free
+}
+
+PLATFORM_ASM_ENTRY(Actor_GetEyePosition_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_GetEyePosition) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_GetEyePosition(uint8_t* actor, uint8_t* out) {
+    // EAX actor, ESI out: the refreshed eye origin.
+    Actor_RefreshEyeOrigin(actor);
+    copy3(out, actor + 0x1b4);
+}
+
+PLATFORM_ASM_ENTRY(Actor_ApplySpawnTemplate_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Actor_ApplySpawnTemplate) "addl $8, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Actor_ApplySpawnTemplate(const uint8_t* spawn, uint8_t* actor) {
+    // EBX spawn template, stack actor (ret 4): team (+4: 0/1/2 -> 1/2/3), +8 -> actor +0xd4,
+    // +0xc -> entity +0x350, +0x1c -> sentient +0x2c, +0x20/+0x24 -> actor +0x7e4/+0x1328,
+    // two names (+0x10/+0x14, hashed and registered -> +0xf0/+0xf4), weapon (+0x18 -> +0x131c),
+    // then a random model of the list (+0x28 count, +0x2c {model, name}): G_SetModel, the name
+    // into +0xf8, G_DObjUpdate, SV_LinkEntity.
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    switch (field<int32_t>(spawn, 4)) {
+    case 0: field<uint32_t>(sentient, 4) = 1; break;
+    case 1: field<uint32_t>(sentient, 4) = 2; break;
+    case 2: field<uint32_t>(sentient, 4) = 3; break;
+    default: break;
+    }
+    field<uint32_t>(actor, 0xd4) = field<uint32_t>(spawn, 8);
+    field<uint32_t>(ent, 0x350) = field<uint32_t>(spawn, 0xc);
+    field<uint32_t>(sentient, 0x2c) = field<uint32_t>(spawn, 0x1c);
+    field<uint32_t>(actor, 0x7e4) = field<uint32_t>(spawn, 0x20);
+    field<uint32_t>(actor, 0x1328) = field<uint32_t>(spawn, 0x24);
+    for (uint32_t i = 0; i < 2; ++i) {
+        const char* const name = field<const char*>(spawn, 0x10 + i * 4);
+        if (!name) continue;
+        const uint32_t hash = title_function<uint32_t XB_CDECL(const char*)>(0x002f5470)(name);  // ScrIface_HashStringNoCase
+        NameMap_Insert(hash, name);
+        field<uint32_t>(actor, 0xf0 + i * 4) = hash;
+    }
+    const char* const weapon = field<const char*>(spawn, 0x18);
+    if (weapon) {
+        uint8_t index = 0;
+        if (*weapon) index = uint8_t(BG_FindWeaponIndexForHash(Com_HashKeyNoCase(0, weapon)));
+        field<uint32_t>(actor, 0x131c) = index;
+    }
+    const uint32_t pick = uint32_t(title_function<int32_t XB_CDECL()>(0x001efcc0)()) % field<uint32_t>(spawn, 0x28);  // _rand
+    const uint32_t model = pick < field<uint32_t>(spawn, 0x28) ? pick : 0;
+    using SetModel = void XB_REGS3 XB_CDECL(int32_t, uint8_t*, uint32_t);
+    title_function<SetModel>(0x002d7c60)(-1, ent, field<uint32_t>(field<const uint8_t*>(spawn, 0x2c), model * 8));  // G_SetModel
+    const uint32_t name_index = pick < field<uint32_t>(spawn, 0x28) ? pick : 0;
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(0x0011dd20)(  // ScriptString_AssignCString
+        actor + 0xf8, field<uint32_t>(field<const uint8_t*>(spawn, 0x2c), name_index * 8 + 4));
+    title_function<void XB_CDECL(uint8_t*)>(0x002e8be0)(ent);  // G_DObjUpdate
+    SV_LinkEntity(ent);
+}
+
+void XB_REGS3 XB_CDECL Sentient_EyeOrigin(const uint8_t* sentient, uint32_t, uint8_t* out) {
+    // EAX sentient, ECX out: an actor with a shown model gives its refreshed eye origin; else
+    // the entity origin raised by the client's view height (+0x23c +0xac) and lean
+    // (AddLeanToPosition, 16 / 20), or by 64.
+    const uint8_t* const ent = field<const uint8_t*>(sentient, 0);
+    const bool shown = dobj_of(ent) && !(field<uint8_t>(dobj_of(ent), 0x9c) & 1);
+    uint8_t* const actor = field<uint8_t*>(ent, 0x240);
+    if (actor && shown) {
+        Actor_RefreshEyeOrigin(actor);
+        copy3(out, actor + 0x1b4);
+        return;
+    }
+    field<uint32_t>(out, 0) = field<uint32_t>(ent, 0x140);
+    field<uint32_t>(out, 4) = field<uint32_t>(field<const uint8_t*>(sentient, 0), 0x144);
+    const float z = field<float>(field<const uint8_t*>(sentient, 0), 0x148);
+    field<float>(out, 8) = z;
+    const uint8_t* const client = field<const uint8_t*>(field<const uint8_t*>(sentient, 0), 0x23c);
+    if (client) {
+        field<float>(out, 8) = field<float>(client, 0xac) + z;
+        const uint8_t* const ps = field<const uint8_t*>(field<const uint8_t*>(sentient, 0), 0x23c);
+        AddLeanToPosition(reinterpret_cast<float*>(out), field<float>(ps, 0x4c), field<float>(ps, 0xa0), 16.0f, 20.0f);
+        return;
+    }
+    field<float>(out, 8) = z + title_global<float>(0x00830c1c);  // 64
+}
+
+
+namespace {
+
+uint32_t& frame_word(uint32_t address) { return title_global<uint32_t>(address); }
+
+// Runs a title callee where the original's call puts it (`top` = the original's ESP before
+// the call's pushes, args[0] pushed last) and writes the original's return address back.
+uint32_t frame_call(uint32_t top, uint32_t function, uint32_t ret, const TitleRegs& regs, uint32_t count,
+                    const uint32_t* args) {
+    const uint32_t result = title_call_at_regs(top, function, &regs, count, args);
+    frame_word(top - count * 4 - 4) = ret;
+    return result;
+}
+
+}  // namespace
+
+// Frame rebuilt: the parameter set (+0x2b8 of the original's frame: vtable, trigger table,
+// list), the name buffer (+0x2c), the trigger query result (+0xac count, +0x1b4 choices) and
+// the entity/script-string slots (+8, +0xc) sit at the original's addresses; every callee runs
+// at the original's ESP with its EBX/ESI/EDI. The C frame is below a gap.
+PLATFORM_ASM_ENTRY(AnimNotify_PlayNext_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(AnimNotify_PlayNext) "addl $24, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL AnimNotify_PlayNext(uint32_t entry, uint8_t* node, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                  uint32_t ebp) {
+    // Stack node (ret 4): queries the node's "ANIM" trigger table (+0x14) with the entity's
+    // anim name (+0x264 +6), the notify name (+0x18) and its variant (+0xc) and plays the next
+    // matching choice (+0x1c, else the node is marked failed +0x10): choice values 2 (variant,
+    // kept), 3 (anim set, default "generic_human") / 4 (anim) -> the entity plays it as
+    // "single_anim"; 5 a face sound ("animscript facesound"); 6 a face anim (generic_human only,
+    // "animscript_faceanim", 1 / 0.1 / 1); 7 / 8 a script object and its two callbacks fed the
+    // entity's origin / angles.
+    const uint32_t f = entry - 0x718, g = f - 8;
+    const uint32_t self = uint32_t(uintptr_t(node));
+    frame_word(entry - 0x714) = ebx;
+    frame_word(f) = esi;
+    frame_word(f + 0x2bc) = field<uint32_t>(node, 0x14);
+    field<uint8_t>(node, 0x10) = 0;
+    frame_word(f + 0xac) = 0;
+    frame_word(f + 0x1b0) = 0;
+    frame_word(f + 0x2b4) = 0;
+    frame_word(f + 0x2b8) = 0x008376b8;
+    frame_call(f, 0x00023690, 0x0020049a, {f + 0x2c0, 0, 0, 0, self, edi}, 0, nullptr);  // ParamList_Init
+    title_global<uint8_t>(f + 0x510) = 0;
+    frame_word(f + 0x714) = 0;
+    frame_word(f + 8) = 0;
+    frame_word(f + 8) = entity_from_handle(field<uint32_t>(node, 8));
+    auto add_string = [&](uint32_t text, uint32_t id, uint32_t ret_copy, uint32_t ret_add) {
+        const uint32_t copy_args[3] = {f + 0x2c, text, 0x7f};
+        const uint32_t copied =
+            frame_call(f, 0x001eed80, ret_copy, {f + 0x2c, 0, 0, 0, self, edi}, 3, copy_args);  // _strncpy
+        title_global<uint8_t>(f + 0xab) = 0;
+        const uint32_t add_args[3] = {id, f + 0x2c, 1};
+        frame_call(f, 0x00024630, ret_add, {copied, 0, f + 0x2c, f + 0x2b8, self, edi}, 3, add_args);  // ParamSet_AddString
+    };
+    const uint32_t anim_name = field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t(frame_word(f + 8))), 0x264);
+    add_string(anim_name ? anim_name + 6 : 0, 0, 0x002004f8, 0x00200516);
+    add_string(field<uint32_t>(node, 0x18), 1, 0x00200526, 0x00200545);
+    if (field<uint32_t>(node, 0xc)) add_string(field<uint32_t>(node, 0xc), 2, 0x00200559, 0x00200578);
+    {
+        const uint32_t vtable = frame_word(f + 0x2b8);
+        const uint32_t args[1] = {f + 0xac};
+        frame_call(f, frame_word(vtable + 4), 0x00200591, {0, 0, f + 0x2b8, vtable, self, edi}, 1, args);
+    }
+    const uint32_t count = frame_word(f + 0xac);
+    if (!count) {
+        field<uint8_t>(node, 0x10) = 1;
+        return;
+    }
+    frame_word(f - 4) = ebp;
+    const uint32_t index = field<uint32_t>(node, 0x1c) + 1;
+    field<uint32_t>(node, 0x1c) = index;
+    if (count < index + 1) {
+        field<uint8_t>(node, 0x10) = 1;
+        return;
+    }
+    frame_word(g) = edi;
+    const uint32_t choice = frame_word(f + 0x1b4 + index * 4);
+    uint32_t esi_now = self;
+    auto value = [&](uint32_t id, uint32_t ret) -> const uint32_t* {  // ParamChoice_GetValue
+        return reinterpret_cast<const uint32_t*>(
+            uintptr_t(frame_call(g, 0x00024940, ret, {0, id, 0, 0, esi_now, choice}, 0, nullptr)));
+    };
+    auto hash = [&](uint32_t text, uint32_t ret, uint32_t ebx_now, uint32_t count_now, const uint32_t* args) {
+        return frame_call(g, 0x00292fe0, ret, {0, ebx_now, 0, text, esi_now, choice}, count_now, args);  // Com_HashKeyNoCase
+    };
+    const uint32_t gi = title_global<uint32_t>(0x0095f49c);
+    auto slot_fn = [&](uint32_t slot) { return frame_word(gi + slot); };
+    if (!field<uint32_t>(node, 0xc)) {
+        const uint32_t* const variant = value(2, 0x002005e3);
+        field<uint32_t>(node, 0xc) = variant ? *variant : 0;
+    }
+    const uint32_t* v = value(4, 0x002005fa);
+    const uint32_t anim = hash(v ? *v : 0, 0x00200609, 4, 0, nullptr);
+    v = value(3, 0x00200615);
+    {
+        const uint32_t pushed[1] = {anim};
+        const uint32_t set = hash(v ? *v : 0x0083a894, 0x0020062a, 3, 1, pushed);  // "generic_human"
+        const uint32_t args[2] = {set, anim};
+        frame_call(g, slot_fn(0x854), 0x00200636, {gi, 3, 0, 0, esi_now, choice}, 2, args);
+    }
+    v = value(5, 0x00200643);
+    frame_word(f + 0xc) = v ? *v : 0;
+    v = value(6, 0x00200661);
+    frame_word(f + 0x10) = hash(v ? *v : 0, 0x00200670, 6, 0, nullptr);
+    v = value(7, 0x0020067e);
+    const uint32_t object_name = v ? *v : 0;
+    esi_now = object_name;
+    v = value(8, 0x00200692);
+    const uint32_t callback_name = v ? *v : 0;
+    const uint8_t* const ent = reinterpret_cast<const uint8_t*>(uintptr_t(frame_word(f + 8)));
+    {
+        const uint32_t z = field<uint32_t>(ent, 0x148), y = field<uint32_t>(ent, 0x144), x = field<uint32_t>(ent, 0x140);
+        frame_word(f + 0x20) = x;
+        frame_word(f + 0x24) = y;
+        frame_word(f + 0x28) = z;
+        const uint32_t c = field<uint32_t>(ent, 0x158), b = field<uint32_t>(ent, 0x154), a = field<uint32_t>(ent, 0x150);
+        frame_word(f + 0x14) = a;
+        frame_word(f + 0x18) = b;
+        frame_word(f + 0x1c) = c;
+    }
+    auto from_cstring = [&](uint32_t slot, uint32_t text, uint32_t ret, uint32_t ebx_now) {
+        const uint32_t args[1] = {text};
+        frame_call(g, 0x0011eb50, ret, {0, ebx_now, slot, 0, esi_now, choice}, 1, args);  // ScriptString_FromCString
+    };
+    auto release = [&](uint32_t slot, uint32_t ret, uint32_t ebx_now) {
+        frame_call(g, 0x0011d640, ret, {0, ebx_now, slot, 0, esi_now, choice}, 0, nullptr);  // ScriptString_Release
+    };
+    if (object_name) {
+        from_cstring(f + 8, object_name, 0x00200706, callback_name);
+        const uint32_t kind = title_global<uint32_t>(0x0098a4d4);
+        const uint32_t args[5] = {f + 8, kind, 0, 0, 0};
+        const uint32_t object = frame_call(g, slot_fn(0x84), 0x00200724, {f + 8, callback_name, gi, kind, esi_now, choice}, 5, args);
+        esi_now = object;
+        release(f + 8, 0x00200732, callback_name);
+        if (object && callback_name) {
+            from_cstring(f + 8, callback_name, 0x00200744, callback_name);
+            const uint32_t first[3] = {object, f + 0x20, f + 8};
+            frame_call(g, slot_fn(0x4dc), 0x0020075b, {f + 0x20, callback_name, gi, f + 8, esi_now, choice}, 3, first);
+            release(f + 8, 0x00200767, callback_name);
+            from_cstring(f + 8, callback_name, 0x00200771, callback_name);
+            const uint32_t second[3] = {object, f + 0x14, f + 8};
+            frame_call(g, slot_fn(0x4e0), 0x00200788, {f + 0x14, callback_name, gi, f + 8, esi_now, choice}, 3, second);
+            release(f + 8, 0x00200794, callback_name);
+        }
+    }
+    uint32_t ebx_now = callback_name;
+    if (anim) {
+        v = value(3, 0x002007a6);
+        ebx_now = 3;
+        const uint32_t set = hash(v ? *v : 0x0083a894, 0x002007b8, 3, 0, nullptr);
+        const uint32_t args[2] = {set, anim};
+        const uint32_t played = frame_call(g, slot_fn(0x854), 0x002007c6, {set, 3, 0, gi, esi_now, choice}, 2, args);
+        esi_now = played;
+        if (!(title_global<uint32_t>(0x0098bc0c) & 1)) {
+            title_global<uint32_t>(0x0098bc0c) |= 1;
+            title_global<uint32_t>(0x0098bc08) = hash(0x0083ce88, 0x002007f2, 3, 0, nullptr);  // "single_anim"
+        }
+        const uint32_t single = title_global<uint32_t>(0x0098bc08);
+        const uint32_t handle = field<uint32_t>(node, 8);
+        const uint32_t play[5] = {handle, single, f + 0x20, f + 0x14, played};
+        frame_call(g, slot_fn(0x380), 0x00200820, {handle, 3, gi, single, played, choice}, 5, play);
+    }
+    const uint32_t sound = frame_word(f + 0xc);
+    esi_now = sound;
+    if (sound) {
+        if (!(title_global<uint32_t>(0x0098bc0c) & 2)) {
+            title_global<uint32_t>(0x0098bc0c) |= 2;
+            title_global<uint32_t>(0x0098bc04) = hash(0x0083ce70, 0x0020085b, ebx_now, 0, nullptr);  // "animscript facesound"
+        }
+        from_cstring(f + 0xc, sound, 0x0020086a, ebx_now);
+        const uint32_t facesound = title_global<uint32_t>(0x0098bc04);
+        const uint32_t handle = field<uint32_t>(node, 8);
+        const uint32_t args[4] = {handle, f + 0xc, facesound, 0};
+        frame_call(g, slot_fn(0xcc), 0x00200888, {f + 0xc, ebx_now, handle, gi, esi_now, choice}, 4, args);
+        release(f + 0xc, 0x00200894, ebx_now);
+    }
+    const uint32_t face = frame_word(f + 0x10);
+    if (!face) return;
+    v = value(3, 0x002008aa);
+    const uint32_t set = hash(v ? *v : 0x0083a894, 0x002008be, 3, 0, nullptr);
+    esi_now = set;
+    uint32_t flags = title_global<uint32_t>(0x0098bc0c);
+    if (!(flags & 4)) {
+        flags |= 4;
+        title_global<uint32_t>(0x0098bc0c) = flags;
+        title_global<uint32_t>(0x0098bc00) = hash(0x0083a894, 0x002008de, flags, 0, nullptr);  // "generic_human"
+    }
+    if (!(flags & 8)) {
+        flags |= 8;
+        title_global<uint32_t>(0x0098bc0c) = flags;
+        title_global<uint32_t>(0x0098bbfc) = hash(0x0083ce5c, 0x002008fb, flags, 0, nullptr);  // "animscript_faceanim"
+    }
+    if (set != title_global<uint32_t>(0x0098bc00)) return;
+    const uint32_t lookup[2] = {set, face};
+    const uint32_t anim_face = frame_call(g, slot_fn(0x854), 0x0020091a, {face, flags, gi, 0, set, choice}, 2, lookup);
+    const uint32_t faceanim = title_global<uint32_t>(0x0098bbfc);
+    const uint32_t handle = field<uint32_t>(node, 8);
+    const uint32_t args[7] = {handle, faceanim, anim_face, 0x3f800000, 0x3dcccccd, 0x3f800000, 1};
+    frame_call(g - 8, slot_fn(0x4a0), 0x00200943, {handle, flags, gi, faceanim, set, choice}, 7, args);
+}
+
+// Frame rebuilt like AnimNotify_PlayNext's: the trigger query (+0xa8 count, +0x1b0 choices
+// of the original's frame after its pushes), the key / loop words and the script-string slot
+// at the original's addresses, every callee at the original's ESP.
+PLATFORM_ASM_ENTRY(Scr_DispatchAnimNotetrack_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Scr_DispatchAnimNotetrack) "addl $24, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Scr_DispatchAnimNotetrack(uint32_t entry, uint8_t* node, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                        uint32_t ebp) {
+    // EAX pending notify node: without its entity it ends (Scr_QueueAnimEndNotify). An entity
+    // whose notetrack key list (+0x230) has "single_anim" and "end" or "finish" ends it and plays
+    // the next variant (AnimNotify_PlayNext). Then the node's trigger table is queried with
+    // the variant name (+0xc): each choice whose value 1 names a key of that list starts a new
+    // notify (value 0 = a script object, AnimNotify_Init) appended to the list 0x008feba0.
+    const uint32_t f = entry - 0x704, g = f - 8;
+    const uint32_t self = uint32_t(uintptr_t(node));
+    frame_word(entry - 0x700) = esi;
+    frame_word(f) = edi;
+    const uint32_t ent = entity_from_handle(field<uint32_t>(node, 8));
+    if (!ent) {
+        frame_call(f, 0x001fdda0, 0x002032bb, {ent, ebx, 0, 0, esi, self}, 0, nullptr);  // Scr_QueueAnimEndNotify
+        return;
+    }
+    frame_word(f - 4) = ebx;
+    frame_word(g) = ebp;
+    const uint32_t list = field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t(ent)), 0x230);
+    frame_word(g + 0x1c) = list;
+    uint32_t flags = title_global<uint32_t>(0x0098bd08);
+    auto hash_once = [&](uint32_t bit, uint32_t out, uint32_t text, uint32_t ret) {
+        if (flags & bit) return;
+        flags |= bit;
+        title_global<uint32_t>(0x0098bd08) = flags;
+        title_global<uint32_t>(out) = frame_call(g, 0x00292fe0, ret, {ent, flags, 0, text, 0, self}, 0, nullptr);
+    };
+    hash_once(1, 0x0098bd04, 0x00832b28, 0x002032ee);  // "end"
+    hash_once(2, 0x0098bd00, 0x0083ce54, 0x0020330b);  // "finish"
+    hash_once(4, 0x0098bcfc, 0x0083ce88, 0x00203328);  // "single_anim"
+    if (!list) return;
+    auto contains = [&](uint32_t key, uint32_t ret) {
+        frame_word(g + 0x10) = key;
+        const uint32_t args[1] = {g + 0x10};
+        return uint8_t(frame_call(g, 0x00013df0, ret, {0, flags, g + 0x10, list, 0, self}, 1, args));  // KeyList_Contains
+    };
+    if (!contains(title_global<uint32_t>(0x0098bcfc), 0x0020334a)) return;
+    if (contains(title_global<uint32_t>(0x0098bd04), 0x00203368) || contains(title_global<uint32_t>(0x0098bd00), 0x00203382)) {
+        frame_call(g, 0x001fdda0, 0x0020338b, {0, flags, 0, list, 0, self}, 0, nullptr);  // Scr_QueueAnimEndNotify
+        const uint32_t args[1] = {self};
+        frame_call(g, 0x00200450, 0x00203391, {0, flags, 0, list, 0, self}, 1, args);  // AnimNotify_PlayNext
+    }
+    frame_word(g + 0x2b0) = field<uint32_t>(node, 0x14);
+    frame_word(g + 0xa0) = 0;
+    frame_word(g + 0x1a4) = 0;
+    frame_word(g + 0x2a8) = 0;
+    frame_word(g + 0x2ac) = 0x008376b8;
+    frame_call(g, 0x00023690, 0x002033c7, {g + 0x2b4, flags, 0, 0, 0, self}, 0, nullptr);  // ParamList_Init
+    {
+        title_global<uint8_t>(g + 0x504) = 0;
+        frame_word(g + 0x708) = 0;
+        const uint32_t args[3] = {g + 0x20, field<uint32_t>(node, 0xc), 0x7f};
+        const uint32_t copied = frame_call(g, 0x001eed80, 0x002033e6, {0, flags, args[1], g + 0x20, 0, self}, 3, args);  // _strncpy
+        title_global<uint8_t>(g + 0x9f) = 0;
+        const uint32_t add[3] = {2, g + 0x20, 1};
+        frame_call(g, 0x00024630, 0x00203406, {copied, flags, 0, g + 0x2ac, 0, self}, 3, add);  // ParamSet_AddString
+        const uint32_t vtable = frame_word(g + 0x2ac);
+        const uint32_t query[1] = {g + 0xa0};
+        frame_call(g, frame_word(vtable + 4), 0x0020341f, {0, flags, g + 0x2ac, vtable, 0, self}, 1, query);
+    }
+    frame_word(g + 0x10) = 0;
+    if (int32_t(frame_word(g + 0xa0)) <= 0) return;
+    frame_word(g + 0x14) = g + 0x1a8;
+    uint32_t esi_now = 0;
+    do {
+        const uint32_t choice = frame_word(frame_word(g + 0x14));
+        const uint32_t* v = reinterpret_cast<const uint32_t*>(
+            uintptr_t(frame_call(g, 0x00024940, 0x00203450, {0, 1, 0, 0, esi_now, choice}, 0, nullptr)));  // ParamChoice_GetValue
+        const uint32_t name = v ? *v : 0;
+        const uint32_t key = frame_call(g, 0x00292fe0, 0x00203461, {0, 1, 0, name, esi_now, choice}, 0, nullptr);  // Com_HashKeyNoCase
+        const uint32_t keys = frame_word(g + 0x1c);
+        esi_now = keys + 0x14;
+        uint32_t item = frame_word(keys + 0x10);
+        uint32_t next = item ? frame_word(item) : 0;
+        bool found = false;
+        if (item != keys + 0x14 && next) {
+            do {
+                if (frame_word(item + 8) == key) {
+                    found = true;
+                    break;
+                }
+                item = next;
+                next = frame_word(next);
+            } while (next);
+        }
+        if (found) {
+            v = reinterpret_cast<const uint32_t*>(
+                uintptr_t(frame_call(g, 0x00024940, 0x0020349e, {0, 0, 0, 0, keys + 0x14, choice}, 0, nullptr)));
+            const uint32_t text = v ? *v : 0;
+            const uint32_t from[1] = {text};
+            frame_call(g, 0x0011eb50, 0x002034b2, {text, 0, g + 0x18, 0, keys + 0x14, choice}, 1, from);  // ScriptString_FromCString
+            const uint32_t kind = title_global<uint32_t>(0x0098a4d4);
+            const uint32_t gi = title_global<uint32_t>(0x0095f49c);
+            const uint32_t args[5] = {g + 0x18, kind, 0, 0, 0};
+            const uint32_t object = frame_call(g, frame_word(gi + 0x84), 0x002034d0, {g + 0x18, 0, gi, kind, keys + 0x14, choice}, 5, args);
+            esi_now = object;
+            frame_call(g, 0x0011d640, 0x002034de, {0, 0, g + 0x18, 0, object, choice}, 0, nullptr);  // ScriptString_Release
+            const uint32_t size[1] = {0x20};
+            const uint32_t block = frame_call(g, 0x00042c10, 0x002034e5, {0, 0, 0, 0, object, choice}, 1, size);  // Z_Malloc
+            uint32_t added = 0;
+            if (block) {
+                const uint32_t init[1] = {object};
+                added = frame_call(g, 0x002028a0, 0x002034f6, {block, 0, name, 0, object, block}, 1, init);  // AnimNotify_Init
+            }
+            frame_word(added) = 0x008feba8;
+            const uint32_t tail = title_global<uint32_t>(0x008febac);
+            frame_word(added + 4) = tail;
+            frame_word(tail) = added;
+            title_global<uint32_t>(0x008febac) = added;
+            ++title_global<int32_t>(0x008feba0);
+        }
+        frame_word(g + 0x10) = frame_word(g + 0x10) + 1;
+        frame_word(g + 0x14) = frame_word(g + 0x14) + 4;
+    } while (int32_t(frame_word(g + 0x10)) < int32_t(frame_word(g + 0xa0)));
+}
+
+namespace {
+
+float x87_int_to_float(int32_t value) {
+    float result;
+    __asm__("fildl %1\n\tfstps %0" : "=m"(result) : "m"(value) : "st");
+    return result;
+}
+double x87_float_mul_double(float a, double b) {
+    double result;
+    __asm__("flds %1\n\tfmull %2\n\tfstpl %0" : "=m"(result) : "m"(a), "m"(b) : "st");
+    return result;
+}
+float x87_double_to_float(double value) {
+    float result;
+    __asm__("fldl %1\n\tfstps %0" : "=m"(result) : "m"(value) : "st");
+    return result;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Actor_GetWeaponFireOrigin_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_GetWeaponFireOrigin) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_GetWeaponFireOrigin(uint8_t* actor, uint8_t* out) {
+    // EAX actor, ESI out: the actor's 9-word aim record (+0x108) at +0, the muzzle origin /
+    // direction at +0x24 / +0x30; without a muzzle tag the eye origin and the record's first
+    // vector.
+    for (uint32_t i = 0; i < 0x24; i += 4) field<uint32_t>(out, i) = field<uint32_t>(actor, 0x108 + i);
+    if (Actor_GetMuzzleInfo(actor, out + 0x24, out + 0x30)) return;
+    Actor_RefreshEyeOrigin(actor);
+    copy3(out + 0x24, actor + 0x1b4);
+    const uint32_t x = field<uint32_t>(out, 0), y = field<uint32_t>(out, 4), z = field<uint32_t>(out, 8);
+    field<uint32_t>(out, 0x30) = x;
+    field<uint32_t>(out, 0x34) = y;
+    field<uint32_t>(out, 0x38) = z;
+}
+
+PLATFORM_ASM_ENTRY(G_TouchTriggers_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_TouchTriggers) "addl $8, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL G_TouchTriggers(const float* origin, uint8_t* ent) {
+    // ESI origin, stack entity: the box of half size 0x008ff04c around the origin collects
+    // the trigger entities (touch type flag | 0x800000) into 0x0098ec20 (count 0x0098ebf0, the
+    // list zeroed once); with any, the entity's bounds at the origin touch them
+    // (G_TouchEntitiesInBox, then 0x0025d520).
+    if (!(title_global<uint8_t>(0x0098ee20) & 1)) {
+        title_global<uint32_t>(0x0098ee20) |= 1;
+        for (uint32_t i = 0; i < 0x200; i += 4) title_global<uint32_t>(0x0098ec20 + i) = 0;
+    }
+    float* const mins = &title_global<float>(0x0098ec00);
+    float* const maxs = &title_global<float>(0x0098ec10);
+    const float* const half = &title_global<float>(0x008ff04c);
+    for (int i = 0; i < 3; ++i) mins[i] = origin[i] - half[i];
+    for (int i = 0; i < 3; ++i) maxs[i] = origin[i] + half[i];
+    const uint32_t mask = G_GetTouchTypeFlag(ent) | 0x800000;
+    const int32_t count =
+        SV_AreaEntities(maxs, 0, mins, &title_global<int32_t>(0x0098ec20), 0x80, mask);
+    title_global<int32_t>(0x0098ebf0) = count;
+    if (!count) return 0;
+    for (int i = 0; i < 3; ++i) mins[i] = field<float>(ent, 0xe0 + i * 4) + origin[i];
+    for (int i = 0; i < 3; ++i) maxs[i] = field<float>(ent, 0xf0 + i * 4) + origin[i];
+    const uint32_t from = uint32_t(uintptr_t(origin)), self = uint32_t(uintptr_t(ent));
+    const TitleRegs regs = {0x0098ec10, self, from, 0, from, 0};
+    const uint32_t args[2] = {self, 0x0098ebf0};
+    g_ent_call(0x0025d230, &regs, 2, args);  // G_TouchEntitiesInBox
+    const TitleRegs touch = {0, self, from, 0x0098ebf0, from, 0};
+    return g_ent_call(0x0025d520, &touch, 0, nullptr);  // 0x0025d520
+}
+
+void XB_CDECL Actor_Die(uint8_t* self, uint32_t, uint32_t attacker, int32_t damage, int32_t mod, uint32_t,
+                        const float* point, const float* dir, int32_t hit_location) {
+    // Die callback: explosive damage (mod 3..7) launches the body along the hit direction
+    // (z * 1.2 up / 0.8 down; speed damage * 2.2 clamped to 130..180 for mod 7, else * 1.4
+    // to 100..300; location 4); other kinds only with 0x0095f700 (from the hit point, z * 1.2,
+    // speed 40..100). Unless already dying (state 7): records damage / mod / direction, the
+    // hit yaw relative to the entity (+0x230), the hit location's anim (+0x240 from
+    // 0x0095c0b0), forces state 7, attacker -> entity +0x374, clears the entity's +0x264.
+    uint8_t* const actor = field<uint8_t*>(self, 0x240);
+    if (mod) {
+        alignas(16) float base[4];
+        alignas(16) float push[4];
+        if (mod > 2 && mod <= 7) {
+            const float z = dir[2];
+            const float up = z > title_global<float>(0x0083eafc) ? z * title_global<float>(0x00830f60)   // 1.2
+                                                                  : z * title_global<float>(0x0083ebc0);  // 0.8
+            push[0] = dir[0];
+            push[1] = dir[1];
+            push[2] = up;
+            push[3] = dir[0];
+            for (int i = 0; i < 4; ++i) base[i] = title_global<float>(0x0082e290 + i * 4);  // 0 0 0 1
+            float speed;
+            if (mod == 7) {
+                const double scaled = x87_float_mul_double(x87_int_to_float(damage), title_global<double>(0x0083eb08));
+                if (title_global<double>(0x0083f170) > scaled)  // 130
+                    speed = x87_double_to_float(title_global<double>(0x0083f170));
+                else if (scaled > title_global<double>(0x0083f168))  // 180
+                    speed = x87_double_to_float(title_global<double>(0x0083f168));
+                else
+                    speed = x87_double_to_float(scaled);
+            } else {
+                const float s = float(damage) * title_global<float>(0x0083ee1c);  // 1.4
+                const float low = title_global<float>(0x0083eb90), high = title_global<float>(0x0083ed04);  // 100, 300
+                speed = low > s ? low : (s > high ? high : s);
+            }
+            G_PhysicsLaunch(self, base, push, speed, 0, 4);
+        } else if (title_global<uint32_t>(0x0095f700)) {
+            push[0] = dir[0];
+            push[1] = dir[1];
+            push[2] = dir[2] * title_global<float>(0x00830f60);
+            push[3] = dir[0];
+            base[0] = point[0];
+            base[1] = point[1];
+            base[2] = point[2];
+            base[3] = point[0];
+            const float s = float(damage);
+            const float low = title_global<float>(0x0083ec84), high = title_global<float>(0x0083eb90);  // 40, 100
+            const float speed = low > s ? low : (s > high ? high : s);
+            G_PhysicsLaunch(self, base, push, speed, 0, uint32_t(hit_location));
+        }
+    }
+    if (field<int32_t>(actor, 8 + field<int32_t>(actor, 0x20) * 4) == 7) return;
+    field<int32_t>(actor, 0x22c) = damage;
+    field<int32_t>(actor, 0x228) = mod;
+    copy3(actor + 0x234, reinterpret_cast<const uint8_t*>(dir));
+    const float yaw = vectoyaw(dir);
+    const float delta = (yaw - field<float>(self, 0x154)) * title_global<float>(0x0083ebd8);  // 65536 / 360
+    float angle = float(int32_t(delta) & 0xffff) * title_global<float>(0x0083ebd4);  // 360 / 65536
+    if (angle > title_global<float>(0x0083eb60)) angle = angle - title_global<float>(0x0083ebcc);  // 180, 360
+    const int32_t relative = int32_t(angle);
+    field<int32_t>(actor, 0x230) = relative;
+    const uint32_t anim = title_global<uint32_t>(0x0095c0b0 + hit_location * 4);
+    field<uint32_t>(actor, 0x240) = anim;
+    const TitleRegs regs = {anim, uint32_t(uintptr_t(self)), uint32_t(relative), uint32_t(hit_location),
+                            uint32_t(uintptr_t(actor)), 7};
+    g_ent_call(0x002026f0, &regs, 0, nullptr);  // Actor_ForceState (ESI actor, EDI state)
+    field<uint32_t>(actor, 0x2d0) = 0;
+    field<uint32_t>(self, 0x374) = attacker;
+    title_function<void XB_THISCALL(uint8_t*)>(0x0011d660)(self + 0x264);  // ScriptString_Clear
+}
+
+PLATFORM_ASM_ENTRY(Sentient_GetLaggedEyeOrigin_entry,
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Sentient_GetLaggedEyeOrigin) "addl $12, %esp\n"
+                   "ret")
+
+void XB_CDECL Sentient_GetLaggedEyeOrigin(const uint8_t* sentient, uint8_t* out, int32_t* time) {
+    // EAX sentient, ECX out, ESI out time: a client's eye one frame back from the eye history
+    // (0x0095f428 index, origins 0x0095f42c, times 0x0095f444; slot 1 when the index is 0);
+    // else the current eye origin at the level time.
+    if (field<uint32_t>(field<const uint8_t*>(sentient, 0), 0x23c)) {
+        int32_t index = title_global<int32_t>(0x0095f428) - 1;
+        if (index < 0) index = 1;
+        copy3(out, &title_global<uint8_t>(0x0095f42c + index * 12));
+        *time = title_global<int32_t>(0x0095f444 + index * 4);
+        return;
+    }
+    Sentient_EyeOrigin(sentient, 0, out);
+    *time = level_time();
+}
+
+PLATFORM_ASM_ENTRY(Sentient_EyeOrigin_2_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Sentient_EyeOrigin_2) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Sentient_EyeOrigin_2(const uint8_t* sentient, uint8_t* out) {
+    // EAX sentient, ESI out: Sentient_EyeOrigin through a stack copy.
+    uint8_t eye[12];
+    Sentient_EyeOrigin(sentient, 0, eye);
+    copy3(out, eye);
+}
+
+namespace {
+
+long double x87_abs(long double v) {
+    __asm__("fabs" : "+t"(v));
+    return v;
+}
+
+// An anim's current goal weight (0x00965d14 records of 0x30 bytes) through the tree's index
+// map (+0x18), 0 for an unmapped one.
+float anim_weight(uint32_t tree, uint32_t index) {
+    const uint16_t anim = title_global<uint16_t>(tree + 0x18 + index * 2);
+    return anim ? title_global<float>(0x00965d14 + anim * 0x30) : 0.0f;
+}
+
+void set_goal_weight(uint32_t index, uint32_t tree, float goal, float blend) {
+    uint32_t goal_bits, blend_bits;
+    std::memcpy(&goal_bits, &goal, 4);
+    std::memcpy(&blend_bits, &blend, 4);
+    AnimTree_SetGoalWeight(index, reinterpret_cast<uint8_t*>(uintptr_t(tree)), goal_bits, blend_bits, 0x3f800000, 0,
+                           0, 0);
+}
+
+// Blends an anim towards `goal` over `time` scaled by the distance from its weight (x87).
+void blend_to(uint32_t index, uint32_t tree, float goal, float time) {
+    const float current = anim_weight(tree, index);
+    if (goal == current) return;
+    const float blend = float(static_cast<long double>(time) /
+                              x87_abs(static_cast<long double>(goal) - static_cast<long double>(current)));
+    set_goal_weight(index, tree, goal, blend);
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Actor_UpdateLookAt_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %ebx\n" PLATFORM_ASM_CALL(Actor_UpdateLookAt) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_UpdateLookAt(uint8_t* actor, float dt) {
+    // EBX actor, stack frame time: with look-at on (+0x204) and active (+0x1e8 with yaw limits
+    // +0x208/+0x20c both set, or a yaw still turned +0x1f8): the yaw to the target (+0x1ec,
+    // from the eye, relative to the entity, clamped to the limit +0x20c shrunk by +0x224 per
+    // ms until +0x21c) is approached by the turn yaw +0x1f8 with speed +0x1fc (acceleration
+    // +0x200, capped at 0.22 * +0x200, braking near the goal; snaps within 1 degree). The
+    // turn yaw over the limit +0x208 (shrunk by +0x220) gives a weight in -1..1: the left /
+    // right look anims (+0x218 / +0x214) blend to it (the other to 0) and the straight one
+    // (+0x210) to 1 - |weight|, over 1.5 * dt.
+    if (!field<uint32_t>(actor, 0x204)) return;
+    const float zero = 0.0f;
+    const bool limited =
+        field<uint32_t>(actor, 0x1e8) && field<float>(actor, 0x208) != zero && field<float>(actor, 0x20c) != zero;
+    if (!limited && field<float>(actor, 0x1f8) == zero) return;
+    const float k180 = title_global<float>(0x0083eb60), minus_one = title_global<float>(0x0083eb34);
+    int32_t left = field<int32_t>(actor, 0x21c) - level_time();
+    if (left < 0) left = 0;
+    const float shrunk = field<float>(actor, 0x20c) - float(left) * field<float>(actor, 0x224);
+    float limit = shrunk;
+    if (zero > shrunk)
+        limit = zero;
+    else if (shrunk > k180)
+        limit = k180;
+    float eye[3];
+    Sentient_EyeOrigin(field<const uint8_t*>(actor, 4), 0, reinterpret_cast<uint8_t*>(eye));
+    float delta[3];
+    for (int i = 0; i < 3; ++i) delta[i] = field<float>(actor, 0x1ec + i * 4) - eye[i];
+    vectoangles_call(delta, eye);
+    float goal = zero;
+    if (limited) {
+        goal = Q_fmod(field<float>(field<const uint8_t*>(actor, 0), 0x154), eye[1]);
+        const float low = zero - limit;
+        if (low > goal)
+            goal = low;
+        else if (goal > limit)
+            goal = limit;
+    }
+    const long double offset = static_cast<long double>(goal) - static_cast<long double>(field<float>(actor, 0x1f8));
+    const float diff_stored = float(offset);
+    bool snap = static_cast<long double>(title_global<float>(0x0083eb20)) > x87_abs(offset);
+    if (!snap) {
+        float speed = field<float>(actor, 0x1fc), d = goal, diff = diff_stored;
+        bool flipped = false;
+        if (zero > d || (!(d != zero) && zero > diff)) {
+            speed = speed * minus_one;
+            d = d * minus_one;
+            diff = diff * minus_one;
+            flipped = true;
+        }
+        const float k10 = title_global<float>(0x0083eb98), k01 = title_global<float>(0x0083ebf8);
+        const float twice = dt * title_global<float>(0x0083eba8);  // 2
+        float next;
+        if (zero > diff) {
+            const float reach = twice * speed * minus_one;
+            if (!(diff >= reach)) {
+                next = speed - field<float>(actor, 0x200) * dt;
+            } else {
+                next = (dt * k10 + title_global<float>(0x0083eb20)) * speed;
+                if (next > title_global<float>(0x0083ed10)) {  // -10
+                    next = title_global<float>(0x0083ed10);
+                } else if (twice * next * minus_one > diff) {
+                    next = diff / twice * minus_one - k01;
+                }
+            }
+        } else {
+            if (!(twice * speed >= diff)) {
+                next = field<float>(actor, 0x200) * dt + speed;
+            } else {
+                next = speed - dt * k10 * speed;
+                if (k10 > next)
+                    next = k10;
+                else if (diff > twice * next)
+                    next = diff / twice + k01;
+            }
+        }
+        const float cap = field<float>(actor, 0x200) * title_global<float>(0x0083f15c);  // 0.22
+        if (next > cap) next = cap;
+        if (flipped) {
+            next = next * minus_one;
+            d = d * minus_one;
+        }
+        const float old = field<float>(actor, 0x1f8);
+        field<float>(actor, 0x1fc) = next;
+        const float turned = next * dt + field<float>(actor, 0x1f8);
+        field<float>(actor, 0x1f8) = turned;
+        snap = d > old ? turned >= d : d >= turned;
+        goal = d;
+    }
+    if (snap) {
+        field<float>(actor, 0x1f8) = goal;
+        field<float>(actor, 0x1fc) = zero;
+    }
+    const uint32_t tree = G_GetEntityAnimTree(field<const uint8_t*>(actor, 0));
+    left = field<int32_t>(actor, 0x21c) - level_time();
+    if (left < 0) left = 0;
+    float range = field<float>(actor, 0x208) - float(left) * field<float>(actor, 0x220);
+    if (zero > range)
+        range = zero;
+    else if (range > k180)
+        range = k180;
+    float weight = field<float>(actor, 0x1f8) / range * title_global<float>(0x0083eb24);  // 0.5
+    const float one = title_global<float>(0x0083eb20);
+    if (weight > one)
+        weight = one;
+    else if (minus_one > weight)
+        weight = minus_one;
+    const float time = dt * title_global<float>(0x0083eaf4);  // 1.5
+    float straight;
+    if (weight > zero) {
+        blend_to(field<uint16_t>(actor, 0x218), tree, weight, time);
+        const uint32_t other = field<uint16_t>(actor, 0x214);
+        const float current = anim_weight(tree, other);
+        if (title_global<uint16_t>(tree + 0x18 + other * 2) && current != zero)
+            set_goal_weight(other, tree, 0.0f, time / current);
+        straight = weight;
+    } else {
+        const float turned = weight * minus_one;
+        blend_to(field<uint16_t>(actor, 0x214), tree, turned, time);
+        const uint32_t other = field<uint16_t>(actor, 0x218);
+        const float current = anim_weight(tree, other);
+        if (title_global<uint16_t>(tree + 0x18 + other * 2) && current != zero)
+            set_goal_weight(other, tree, 0.0f, time / current);
+        straight = turned;
+    }
+    blend_to(field<uint16_t>(actor, 0x210), tree, one - straight, time);
+}
+
+namespace {
+
+// The title CRT's __CIsqrt of a float, stored as float.
+float ci_sqrt(float x) {
+    float result;
+    __asm__ volatile("flds %1\n\tcall *%2\n\tfstps %0"
+                     : "=m"(result)
+                     : "m"(x), "r"(uintptr_t{0x0033acf4})
+                     : "eax", "ecx", "edx", "st", "memory");
+    return result;
+}
+
+int32_t shot_rand() { return title_function<int32_t XB_CDECL()>(0x001efcc0)(); }  // _rand
+
+// The shot's sideways axis: the unit direction from the muzzle (+0x24) to `eye` crossed with
+// the aim (+0x18), normalized (vectors of length 0 kept as they are). `dir` gets the first.
+void shot_side_axis(const uint8_t* shot, const float* eye, float* dir, float* side) {
+    const float z = eye[2] - field<float>(shot, 0x2c);
+    const float y = eye[1] - field<float>(shot, 0x28);
+    const float x = eye[0] - field<float>(shot, 0x24);
+    const float len = ci_sqrt(z * z + y * y + x * x);
+    float nx = x, ny = y, nz = z;
+    if (len != 0.0f) {
+        const float inv = title_global<float>(0x0083eb20) / len;
+        nx = inv * x;
+        ny = inv * y;
+        nz = inv * z;
+    }
+    dir[0] = nx;
+    dir[1] = ny;
+    dir[2] = nz;
+    const float rx = field<float>(shot, 0x18), ry = field<float>(shot, 0x1c), rz = field<float>(shot, 0x20);
+    const float cx = ny * rz - nz * ry;
+    const float cy = rx * nz - nx * rz;
+    const float cz = nx * ry - rx * ny;
+    const float side_len = ci_sqrt(cz * cz + cy * cy + cx * cx);
+    side[0] = cx;
+    side[1] = cy;
+    side[2] = cz;
+    if (side_len != 0.0f) {
+        const float inv = title_global<float>(0x0083eb20) / side_len;
+        side[0] = inv * cx;
+        side[1] = inv * cy;
+        side[2] = inv * cz;
+    }
+}
+
+// The engagement distance: an actor's 0x0098a558 - 64, a player's 0x00984d08 - client +0x428.
+float shot_range(const uint8_t* ent) {
+    if (field<uint32_t>(ent, 0x240)) return title_global<float>(0x0098a558) - title_global<float>(0x00830c1c);
+    return title_global<float>(0x00984d08) - float(field<int32_t>(field<const uint8_t*>(ent, 0x23c), 0x428));
+}
+
+// The shot direction: from the muzzle to `point` + aim * distance, normalized.
+void shot_finish(uint8_t* shot, const float* point, float distance) {
+    const float z = field<float>(shot, 0x20) * distance + point[2] - field<float>(shot, 0x2c);
+    const float y = field<float>(shot, 0x1c) * distance + point[1] - field<float>(shot, 0x28);
+    const float x = field<float>(shot, 0x18) * distance + point[0] - field<float>(shot, 0x24);
+    field<float>(shot, 8) = z;
+    field<float>(shot, 4) = y;
+    field<float>(shot, 0) = x;
+    const float len = ci_sqrt(z * z + y * y + x * x);
+    if (len == 0.0f) return;
+    const float inv = title_global<float>(0x0083eb20) / len;
+    field<float>(shot, 0) = x * inv;
+    field<float>(shot, 4) = y * inv;
+    field<float>(shot, 8) = z * inv;
+}
+
+// A signed unit from the LCG 0x008db488 (x * 0x10dcd + 1, low 16 bits / 65536 > 0.5).
+int32_t lcg_sign(uint32_t value) {
+    return static_cast<long double>(x87_int_to_float(int32_t(value & 0xffff))) / 65536.0L >
+                   static_cast<long double>(title_global<double>(0x0083ecb0))
+               ? 1
+               : -1;
+}
+
+}  // namespace
+
+PLATFORM_ASM_ENTRY(Actor_ShotDirMissTarget_entry,
+                   "pushl %esi\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_ShotDirMissTarget) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_ShotDirMissTarget(const uint8_t* target, uint8_t* shot) {
+    // EDI target sentient, ESI shot record (aim +0x18, muzzle +0x24; direction out at +0): a
+    // shot that misses - aimed past the target's eye (0x00984d00 + 1 back towards the muzzle)
+    // and to one side: a player by 8..16 units, others by the cached spread 0x008ff048
+    // (sqrt(6) * 0x0098a554), signs from the LCG 0x008db488; then along the aim by the
+    // engagement distance minus 0..44 (player) or by -12..12.
+    if (!(title_global<float>(0x008ff048) != title_global<float>(0x0083ee24))) {  // 6969 = not computed
+        long double spread = static_cast<long double>(title_global<float>(0x0098a554)) * title_global<float>(0x0098a554);
+        spread = spread + spread;
+        spread = spread * static_cast<long double>(title_global<float>(0x0083ec9c));  // 3
+        title_global<float>(0x008ff048) = ci_sqrt(float(spread));
+    }
+    const uint8_t* const ent = field<const uint8_t*>(target, 0);
+    float eye[3];
+    Sentient_EyeOrigin(target, 0, reinterpret_cast<uint8_t*>(eye));
+    float dir[3], side[3];
+    shot_side_axis(shot, eye, dir, side);
+    const float one = title_global<float>(0x0083eb20);
+    float point[3];
+    float distance;
+    uint32_t seed = title_global<uint32_t>(0x008db488);
+    if (field<uint32_t>(ent, 0x23c)) {
+        seed = seed * 0x10dcd + 1;
+        const float sign = float(lcg_sign(seed));
+        seed = seed * 0x10dcd + 1;
+        title_global<uint32_t>(0x008db488) = seed;
+        const float u = float(int32_t(seed & 0xffff)) / title_global<float>(0x0083eb40);
+        const float offset = (u + one) * title_global<float>(0x0083ed78) * sign;  // 8
+        const float back = 0.0f - (title_global<float>(0x00984d00) + one);
+        const float px = back * dir[0] + eye[0];
+        const float py = back * dir[1] + eye[1];
+        const float pz = back * dir[2] + eye[2];
+        point[0] = side[0] * offset + px;
+        point[1] = side[1] * offset + py;
+        point[2] = side[2] * offset + pz;
+        const float range = shot_range(field<const uint8_t*>(target, 0));
+        distance = range - float(shot_rand()) / title_global<float>(0x0083ebc8) * title_global<float>(0x0083f160);
+    } else {
+        seed = seed * 0x10dcd + 1;
+        title_global<uint32_t>(0x008db488) = seed;
+        const int32_t sign = lcg_sign(seed);
+        const float back = 0.0f - (title_global<float>(0x00984d00) + one);
+        const float px = back * dir[0] + eye[0];
+        const float py = back * dir[1] + eye[1];
+        const float pz = back * dir[2] + eye[2];
+        const float offset = float(sign) * title_global<float>(0x008ff048);
+        point[0] = offset * side[0] + px;
+        point[1] = offset * side[1] + py;
+        point[2] = offset * side[2] + pz;
+        distance = (float(shot_rand()) / title_global<float>(0x0083ebc8) * title_global<float>(0x0083eba8) - one) *
+                   title_global<float>(0x0083eccc);  // 12
+    }
+    shot_finish(shot, point, distance);
+}
+
+PLATFORM_ASM_ENTRY(Actor_ShotDirToTarget_entry,
+                   "pushl %esi\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_ShotDirToTarget) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_ShotDirToTarget(const uint8_t* target, uint8_t* shot) {
+    // EAX target sentient, ESI shot record: a shot at the target's eye scattered sideways (a
+    // player by -8..8 units, others per axis by -1..1 * 0x0098a554), then along the aim by
+    // the engagement distance minus 0..44.
+    float eye[3];
+    Sentient_EyeOrigin(target, 0, reinterpret_cast<uint8_t*>(eye));
+    const uint8_t* const ent = field<const uint8_t*>(target, 0);
+    const float range = shot_range(ent);
+    float dir[3], side[3];
+    shot_side_axis(shot, eye, dir, side);
+    const float scale = title_global<float>(0x0083ebc8), two = title_global<float>(0x0083eba8);
+    const float one = title_global<float>(0x0083eb20);
+    if (field<uint32_t>(ent, 0x23c)) {
+        const float f = (float(shot_rand()) / scale * two - one) * title_global<float>(0x0083ed78);  // 8
+        eye[0] = side[0] * f + eye[0];
+        eye[1] = side[1] * f + eye[1];
+        eye[2] = side[2] * f + eye[2];
+    } else {
+        for (int i = 0; i < 3; ++i)
+            eye[i] = (float(shot_rand()) / scale * two - one) * title_global<float>(0x0098a554) * side[i] + eye[i];
+    }
+    const float distance = range - float(shot_rand()) / scale * title_global<float>(0x0083f160);  // 44
+    shot_finish(shot, eye, distance);
+}
+
+PLATFORM_ASM_ENTRY(Actor_Grenade_AttachToTag_entry,
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_Grenade_AttachToTag) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_Grenade_AttachToTag(uint8_t* actor) {
+    // EDI actor: the held grenade's model goes on "tag_weapon_right" (G_EntAttach); the
+    // grenade entity (+0x1310) is placed at that tag's origin (zeros without a model or tag)
+    // and reset: trajectory base = origin, delta 0, time now, type 5, flag 1 of +0xd4 off,
+    // owner +0x378 and velocity +0x2c0 cleared.
+    const uint8_t* const weapon =
+        title_global<const uint8_t* const*>(0x0095f4d8)[field<uint8_t>(field<const uint8_t*>(actor, 0x1310), 3)];
+    title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t)>(0x002e9230)(  // G_EntAttach
+        field<uint8_t*>(actor, 0), field<uint32_t>(weapon, 0x57c), 0x00831e14);  // "tag_weapon_right"
+    const uint32_t hash = cached_hash(0x0098eee4, 1, 0x0098eee0, 0x00831e14);
+    uint8_t* const ent = field<uint8_t*>(actor, 0);
+    alignas(16) uint8_t m[0x40] = {};
+    if (dobj_of(ent)) {
+        const int32_t tag = DObj_GetTagIndex(reinterpret_cast<const DObj*>(dobj_of(ent)), hash);
+        if (tag >= 0)
+            title_function<void XB_CDECL(uint8_t*, int32_t, uint8_t*)>(0x002e3780)(ent, tag, m);  // G_DObjGetWorldTagMatrix
+    }
+    auto grenade = [actor]() { return field<uint8_t*>(actor, 0x1310); };
+    const uint32_t x = field<uint32_t>(m, 0x30), y = field<uint32_t>(m, 0x34), z = field<uint32_t>(m, 0x38);
+    field<uint32_t>(grenade(), 0x140) = x;
+    field<uint32_t>(grenade(), 0x144) = y;
+    field<uint32_t>(grenade(), 0x148) = z;
+    field<uint32_t>(grenade(), 0x20) = x;
+    field<uint32_t>(grenade(), 0x24) = y;
+    field<uint32_t>(grenade(), 0x28) = z;
+    field<float>(grenade(), 0x34) = 0.0f;
+    field<float>(grenade(), 0x30) = 0.0f;
+    field<float>(grenade(), 0x2c) = 0.0f;
+    field<int32_t>(grenade(), 0x18) = level_time();
+    field<uint32_t>(grenade(), 0x14) = 5;
+    field<uint32_t>(grenade(), 0xd4) &= 0xfffffffe;
+    field<uint32_t>(grenade(), 0x378) = 0;
+    field<float>(grenade(), 0x2c8) = 0.0f;
+    field<float>(grenade(), 0x2c4) = 0.0f;
+    field<float>(grenade(), 0x2c0) = 0.0f;
+}
+
+PLATFORM_ASM_ENTRY(Actor_Grenade_Grab_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Actor_Grenade_Grab) "addl $4, %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_Grenade_Grab(uint8_t* actor) {
+    // ESI actor: the grenade model is attached to "tag_weapon_right" and detached again
+    // (G_EntDetach, ECX -1), the actor's grenade state +0x12c = 3, the grenade entity stops
+    // (type 0, flag 1 of +0xd4) and is owned by the actor (+0x2b0 = its handle). EAX = handle.
+    const uint8_t* const weapon =
+        title_global<const uint8_t* const*>(0x0095f4d8)[field<uint8_t>(field<const uint8_t*>(actor, 0x1310), 3)];
+    const uint32_t model = field<uint32_t>(weapon, 0x57c);
+    title_function<void XB_CDECL(uint8_t*, uint32_t, uint32_t)>(0x002e9230)(field<uint8_t*>(actor, 0), model,
+                                                                           0x00831e14);  // G_EntAttach
+    const TitleRegs regs = {0, 0, 0xffffffff, 0, uint32_t(uintptr_t(actor)), field<uint32_t>(actor, 0)};
+    const uint32_t args[3] = {model, 0x00831e14, 0};
+    g_ent_call(0x002e9370, &regs, 3, args);  // G_EntDetach (EDI entity)
+    field<uint32_t>(actor, 0x12c) = 3;
+    field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0x14) = 0;
+    field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0xd4) |= 1;
+    const uint32_t handle = field<uint32_t>(field<const uint8_t*>(actor, 0), 0x224);
+    field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0x2b0) = handle;
+    return handle;
+}
+
+PLATFORM_ASM_ENTRY(Actor_TargetCrossingSpeed_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_TargetCrossingSpeed) "addl $8, %esp\n"
+                   "subl $4, %esp\n"
+                   "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $4, %esp\n"
+                   "ret")
+
+float XB_CDECL Actor_TargetCrossingSpeed(const uint8_t* target, const uint8_t* actor) {
+    // EDI target sentient, stack actor; result in XMM0: how fast the target crosses the
+    // actor's line of sight - its eye movement since the lagged eye (0 under 0.01 units),
+    // over its client speed (+0x23c +0x50) per second, times 1 - |cos| between the movement
+    // and the line from the actor's entity to the eye.
+    float lagged[3];
+    int32_t then = 0;
+    Sentient_GetLaggedEyeOrigin(target, reinterpret_cast<uint8_t*>(lagged), &then);
+    const int32_t elapsed = level_time() - then;
+    float eye[3];
+    Sentient_EyeOrigin(target, 0, reinterpret_cast<uint8_t*>(eye));
+    float mz = lagged[2] - eye[2], my = lagged[1] - eye[1], mx = lagged[0] - eye[0];
+    const float moved = ci_sqrt(mz * mz + my * my + mx * mx);
+    const float one = title_global<float>(0x0083eb20);
+    if (moved != 0.0f) {
+        const float inv = one / moved;
+        mx = inv * mx;
+        my = inv * my;
+        mz = inv * mz;
+    }
+    if (static_cast<long double>(title_global<double>(0x0083f188)) > static_cast<long double>(moved)) return 0.0f;
+    const uint8_t* const ent = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0);
+    float tx = eye[0] - field<float>(ent, 0x140);
+    float ty = eye[1] - field<float>(ent, 0x144);
+    float tz = eye[2] - field<float>(ent, 0x148);
+    const float len = ci_sqrt(tz * tz + ty * ty + tx * tx);
+    if (len != 0.0f) {
+        const float inv = one / len;
+        tx = inv * tx;
+        ty = inv * ty;
+        tz = inv * tz;
+    }
+    using ext = long double;
+    ext dot = ext(tz) * ext(mz);
+    dot = dot + ext(ty) * ext(my);
+    dot = dot + ext(tx) * ext(mx);
+    const int32_t speed = field<int32_t>(field<const uint8_t*>(field<const uint8_t*>(target, 0), 0x23c), 0x50) * elapsed;
+    const float rate = moved / (float(speed) / title_global<float>(0x0083eb9c));  // 1000
+    const float across = float(x87_abs(ext(float(dot))));
+    const float factor = float(ext(one) - ext(across));
+    return rate * factor;
+}
+
+namespace {
+
+// PathNode_FindNearest stores the address of its stack work in 0x00929b40: it runs where the
+// original's call puts it, its inputs at the original's frame offsets (`frame` = the
+// original's ESP after its prologue: candidates +0x18, room 0x40) and the return address
+// written back. EAX type mask, ESI origin, stack (candidates, range, three filters, &count);
+// 0x008db4a0 = the callback context around the call.
+uint32_t find_nearest_at(uint32_t frame, uint32_t ret, const TitleRegs& regs, uint32_t range, uint32_t a, uint32_t b,
+                         uint32_t c, uint32_t count, uint32_t context) {
+    title_global<uint32_t>(0x008db4a0) = context;
+    const uint32_t args[6] = {frame + 0x18, range, a, b, c, count};
+    const uint32_t node = title_call_at_regs(frame, 0x002ea820, &regs, 6, args);
+    title_global<uint32_t>(frame - 0x1c) = ret;
+    title_global<uint32_t>(0x008db4a0) = context;
+    return node;
+}
+
+void entity_origin_at(const uint8_t* ent, uint32_t to) {
+    for (uint32_t i = 0; i < 3; ++i) title_global<uint32_t>(to + i * 4) = field<uint32_t>(ent, 0x140 + i * 4);
+}
+
+}  // namespace
+
+// Frame rebuilt (see find_nearest_at); the entry hands over the entry ESP and registers.
+PLATFORM_ASM_ENTRY(Sentient_FindNearestNode_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Sentient_FindNearestNode) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $12")
+
+uint32_t XB_CDECL Sentient_FindNearestNode(uint32_t entry, uint8_t* sentient, uint32_t ebx, uint32_t esi,
+                                           uint32_t context) {
+    // EAX sentient, EDI callback context, stack three filters (ret 12): the claimed node
+    // (+0x58, when valid and its +0x24 set), else the nearest node within 192 (any type but 1)
+    // or the first candidate.
+    const uint32_t frame = entry - 0x218;
+    title_global<uint32_t>(entry - 0x214) = ebx;
+    title_global<uint32_t>(frame) = esi;
+    uint16_t* const handle = reinterpret_cast<uint16_t*>(sentient + 0x58);
+    if (field<uint8_t>(sentient, 0x5a)) {
+        ebx = uint32_t(uintptr_t(handle));
+        if ((PathNode_HandleIsValid(handle) & 0xff) && field<uint16_t>(PathNode_FromHandle(handle), 0x24))
+            return uint32_t(uintptr_t(PathNode_FromHandle2(handle)));
+    }
+    entity_origin_at(field<const uint8_t*>(sentient, 0), frame + 0xc);
+    const uint32_t a = title_global<uint32_t>(entry + 4), b = title_global<uint32_t>(entry + 8),
+                   c = title_global<uint32_t>(entry + 0xc);
+    const TitleRegs regs = {0xfffffffe, ebx, 0x40, b, frame + 0xc, context};
+    const uint32_t node = find_nearest_at(frame, 0x0020958b, regs, 0x43400000, a, b, c, frame + 8, context);
+    if (node) return node;
+    return title_global<uint32_t>(frame + 8) ? title_global<uint32_t>(frame + 0x18) : 0;
+}
+
+PLATFORM_ASM_ENTRY(Sentient_CachedNearestNode_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Sentient_CachedNearestNode) "addl $16, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $24")
+
+uint32_t XB_CDECL Sentient_CachedNearestNode(uint32_t entry, uint8_t* sentient, uint32_t ebx, uint32_t esi) {
+    // EDI sentient, stack (three filters, callback context, range, any type; ret 0x18): the
+    // cached nearest node (+0x58, cached flag +0x5a, from a candidate +0x5b) unless valid with
+    // +0x24 set: refreshed by PathNode_FindNearest (types but 1, also 16 unless any_type).
+    // The node, or 0.
+    const uint32_t frame = entry - 0x218;
+    const uint32_t context = title_global<uint32_t>(entry + 0x10);
+    title_global<uint32_t>(entry - 0x214) = ebx;
+    title_global<uint32_t>(frame) = esi;
+    uint16_t* const handle = reinterpret_cast<uint16_t*>(sentient + 0x58);
+    if (!(field<uint8_t>(sentient, 0x5a) && (PathNode_HandleIsValid(handle) & 0xff) &&
+          field<uint16_t>(PathNode_FromHandle(handle), 0x24))) {
+        entity_origin_at(field<const uint8_t*>(sentient, 0), frame + 0xc);
+        const uint32_t mask = title_global<uint32_t>(entry + 0x18) ? 0xfffefffe : 0xfffffffe;
+        const TitleRegs regs = {mask, context, 0x40, frame + 0x18, frame + 0xc, uint32_t(uintptr_t(sentient))};
+        const uint32_t node = find_nearest_at(frame, 0x00209675, regs, title_global<uint32_t>(entry + 0x14),
+                                              title_global<uint32_t>(entry + 4), title_global<uint32_t>(entry + 8),
+                                              title_global<uint32_t>(entry + 0xc), frame + 8, context);
+        if (node) {
+            *handle = title_global<uint16_t>(node);
+            field<uint8_t>(sentient, 0x5b) = 0;
+        } else {
+            if (title_global<uint32_t>(frame + 8)) *handle = title_global<uint16_t>(title_global<uint32_t>(frame + 0x18));
+            field<uint8_t>(sentient, 0x5b) = 1;
+        }
+        field<uint8_t>(sentient, 0x5a) = 1;
+    }
+    const uint16_t h = *handle;
+    if (h == 0 || h == 0xffff) return 0;
+    const uint32_t block =
+        field<uint32_t>(title_global<const uint8_t*>(0x0095f4f4), 8 + uint16_t((h >> 9) - 1) * 4);
+    if (!block) return 0;
+    return title_global<uint32_t>(block + 0x10) + (h & 0x1ff) * 0x80;
+}
+
+// EDX is an input: it is parked deep in the gap before the gap entry moves ESP.
+PLATFORM_ASM_ENTRY(Actor_FindNearestNode_entry,
+                   "movl %edx, -0x28000(%esp)\n"
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl -0x28000(%ebp)\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_FindNearestNode) "addl $24, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $20")
+
+uint32_t XB_CDECL Actor_FindNearestNode(uint32_t entry, uint32_t context, uint32_t c, uint32_t edi, uint32_t esi,
+                                        uint32_t ebp) {
+    // EBX callback context, EDX a filter, stack (sentient, two filters, range, free only; ret
+    // 0x14): the nearest node of the types 0x1ffc around the entity; with free_only the first
+    // candidate whose +4 is clear (scan of 64, ending on its last read). EAX = that node.
+    // Frame: push ebp, ESP aligned to 8, 0x210 locals, ESI / EDI pushed.
+    const uint32_t frame = ((entry - 4) & ~7u) - 0x218;
+    title_global<uint32_t>(entry - 4) = ebp;
+    title_global<uint32_t>(frame + 4) = esi;
+    title_global<uint32_t>(frame) = edi;
+    for (uint32_t i = 0; i < 0x200; i += 4) title_global<uint32_t>(frame + 0x18 + i) = 0;
+    entity_origin_at(*reinterpret_cast<const uint8_t* const*>(uintptr_t(title_global<uint32_t>(entry + 4))), frame + 8);
+    const uint32_t range = title_global<uint32_t>(entry + 0x10);
+    const TitleRegs regs = {0x1ffc, context, 0x40, range, frame + 8, frame + 0x218};
+    uint32_t result = find_nearest_at(frame, 0x0020977a, regs, range, title_global<uint32_t>(entry + 8),
+                                      title_global<uint32_t>(entry + 0xc), c, frame + 0x14, context);
+    if (!title_global<uint8_t>(entry + 0x14)) return result;
+    for (uint32_t i = 0; i < 0x40; ++i) {
+        result = title_global<uint32_t>(frame + 0x18 + i * 8);
+        if (result && !title_global<uint32_t>(result + 4)) break;
+    }
+    return result;
 }
 
 }  // namespace game

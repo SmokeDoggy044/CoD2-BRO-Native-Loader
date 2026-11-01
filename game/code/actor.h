@@ -737,4 +737,95 @@ extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL AnimNotify_Init(uint32_t entry, uin
                                                              uint32_t handle);
 extern "C" void AnimNotify_Init_entry(void);
 
+// 0x00200450: stack node (ret 4): plays the next variant of a pending anim notify (frame rebuilt).
+extern "C" PLATFORM_HIDDEN void XB_CDECL AnimNotify_PlayNext(uint32_t entry, uint8_t* node, uint32_t ebx, uint32_t esi,
+                                                         uint32_t edi, uint32_t ebp);
+extern "C" void AnimNotify_PlayNext_entry(void);
+// 0x00203280: EAX pending notify node: ends / replays it on "end"/"finish" notetracks, starts new ones.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_DispatchAnimNotetrack(uint32_t entry, uint8_t* node, uint32_t ebx,
+                                                               uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Scr_DispatchAnimNotetrack_entry(void);
+// 0x00205c00: the actor releases its turret (owner change notifies, relink / unlink).
+void XB_CDECL Actor_ReleaseTurret(uint8_t* actor);
+// 0x00205cb0: turret state start (ECX actor, EDX previous state).
+uint32_t XB_REGS3 XB_CDECL Actor_Turret_Start(uint32_t, uint32_t previous, uint8_t* actor);
+// 0x00205dd0: ESI actor: applies the requested move mode and anim script.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateAnimScript(uint8_t* actor);
+extern "C" void Actor_UpdateAnimScript_entry(void);
+// 0x00205ef0: ESI actor: releases the turret if it is the user; turret pointer cleared.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_LeaveTurret(uint8_t* actor);
+extern "C" void Actor_LeaveTurret_entry(void);
+// 0x00205f40: turret state pain (ECX actor, EDX attacker, ret 0x14).
+void XB_REGS3 XB_STDCALL Actor_Turret_Pain(uint32_t, const uint8_t* attacker, uint8_t* actor, uint32_t, uint32_t,
+                                           uint32_t, uint32_t, uint32_t);
+// 0x00205fd0: turret state finish (ECX actor).
+void XB_THISCALL Actor_Turret_Finish(uint8_t* actor);
+// 0x00206020: EAX duration, EDX arc: creates an arc bad place for a team.
+void XB_REGS2 XB_CDECL BadPlace_Create(int32_t duration, const uint32_t* arc, const ScriptString* name, uint32_t team);
+// 0x00206080: EDI actor, stdcall (origin, direction): "tag_flash" muzzle, cached per frame.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_GetMuzzleInfo(uint8_t* actor, uint8_t* origin, uint8_t* direction);
+extern "C" void Actor_GetMuzzleInfo_entry(void);
+// 0x002061b0: EDI actor: eye origin / look direction, cached per frame.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_RefreshEyeOrigin(uint8_t* actor);
+extern "C" void Actor_RefreshEyeOrigin_entry(void);
+// 0x00206300: think of a linked actor entity.
+void XB_CDECL Actor_ThinkLinked(uint8_t* ent);
+// 0x00206360: EAX actor: frees the actor and its sentient.
+void XB_REGS1 XB_CDECL Actor_Free(uint8_t* actor);
+// 0x00206580: EAX actor, ESI out: eye origin.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_GetEyePosition(uint8_t* actor, uint8_t* out);
+extern "C" void Actor_GetEyePosition_entry(void);
+// 0x002065b0: EBX spawn template, stack actor: team, names, weapon, random model.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ApplySpawnTemplate(const uint8_t* spawn, uint8_t* actor);
+extern "C" void Actor_ApplySpawnTemplate_entry(void);
+// 0x002066e0: EAX sentient, ECX out: eye origin (actor eye, client view height + lean, or +64).
+void XB_REGS3 XB_CDECL Sentient_EyeOrigin(const uint8_t* sentient, uint32_t, uint8_t* out);
+
+// 0x002067b0: EBX actor, stack frame time: turns the head towards the look-at target (yaw spring) and blends the look anims.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_UpdateLookAt(uint8_t* actor, float dt);
+extern "C" void Actor_UpdateLookAt_entry(void);
+// 0x00206dc0: EDI target sentient, ESI shot record: a direction that misses the target to one side.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ShotDirMissTarget(const uint8_t* target, uint8_t* shot);
+extern "C" void Actor_ShotDirMissTarget_entry(void);
+// 0x002072d0: EAX target sentient, ESI shot record: a direction at the target's eye with spread.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ShotDirToTarget(const uint8_t* target, uint8_t* shot);
+extern "C" void Actor_ShotDirToTarget_entry(void);
+// 0x002076e0: EAX actor, ESI shot record: aim record, muzzle origin and direction.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_GetWeaponFireOrigin(uint8_t* actor, uint8_t* out);
+extern "C" void Actor_GetWeaponFireOrigin_entry(void);
+// 0x00207780: ESI origin, stack entity: touches the triggers around the origin.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_TouchTriggers(const float* origin, uint8_t* ent);
+extern "C" void G_TouchTriggers_entry(void);
+// 0x00207900: actor die callback: body launch for explosive damage, death state 7.
+void XB_CDECL Actor_Die(uint8_t* self, uint32_t, uint32_t attacker, int32_t damage, int32_t mod, uint32_t,
+                        const float* point, const float* dir, int32_t hit_location);
+// 0x00207c00: EAX sentient, ECX out, ESI out time: a player's eye one frame back, else the eye now.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_GetLaggedEyeOrigin(const uint8_t* sentient, uint8_t* out, int32_t* time);
+extern "C" void Sentient_GetLaggedEyeOrigin_entry(void);
+// 0x00207d40: EAX sentient, ESI out: Sentient_EyeOrigin through a stack copy.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_EyeOrigin_2(const uint8_t* sentient, uint8_t* out);
+extern "C" void Sentient_EyeOrigin_2_entry(void);
+
+// 0x00209070: EDI actor: the held grenade goes on the right-hand tag and is reset there.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_Grenade_AttachToTag(uint8_t* actor);
+extern "C" void Actor_Grenade_AttachToTag_entry(void);
+// 0x002091e0: ESI actor: grabs a grenade (attach / detach the model, the grenade stops, owner set).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_Grab(uint8_t* actor);
+extern "C" void Actor_Grenade_Grab_entry(void);
+// 0x002092a0: EDI target sentient, stack actor; XMM0: the target's speed across the actor's line of sight.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_TargetCrossingSpeed(const uint8_t* target, const uint8_t* actor);
+extern "C" void Actor_TargetCrossingSpeed_entry(void);
+// 0x002094e0: EAX sentient, EDI callback context, three stack filters: claimed or nearest node (frame rebuilt).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Sentient_FindNearestNode(uint32_t entry, uint8_t* sentient, uint32_t ebx,
+                                                                     uint32_t esi, uint32_t context);
+extern "C" void Sentient_FindNearestNode_entry(void);
+// 0x002095c0: EDI sentient, six stack words: the cached nearest node, refreshed when stale (frame rebuilt).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Sentient_CachedNearestNode(uint32_t entry, uint8_t* sentient, uint32_t ebx,
+                                                                       uint32_t esi);
+extern "C" void Sentient_CachedNearestNode_entry(void);
+// 0x00209700: EBX context, EDX filter, five stack words: nearest node, optionally the first free one (frame rebuilt).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_FindNearestNode(uint32_t entry, uint32_t context, uint32_t c,
+                                                                  uint32_t edi, uint32_t esi, uint32_t ebp);
+extern "C" void Actor_FindNearestNode_entry(void);
+
 }  // namespace game
