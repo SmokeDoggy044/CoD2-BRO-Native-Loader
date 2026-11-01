@@ -575,4 +575,97 @@ void XB_CDECL G_SetupVehiclePool(uint32_t slots) {
     Z_Free(saved);
 }
 
+PLATFORM_ASM_ENTRY(G_EntityList_Add_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(G_EntityList_Add) "addl $8, %esp\n"
+                   "ret")
+
+void XB_CDECL G_EntityList_Add(uint8_t* ent, uint8_t* list) {
+    // An entity without a handle (+0x224) gets one from 0x0097a8c0 (the handle table's object
+    // slot set when its index is below 0x540); then it is appended to the list (count +0x2aac,
+    // at most 0x1000 entries from +0x2ab0) and remembers its index there (+0x228).
+    if (word_at(ent, 0x224)) return;
+    uint32_t handle = 0;
+    const uint32_t value = *EntHandleTable_Alloc(&title_global<uint32_t>(0x0097a8c0), &handle);
+    word_at(ent, 0x224) = value;
+    const uint32_t index = value & 0xfff;
+    if (index < 0x540) title_global<uint32_t>(0x0097a968 + index * 8) = address(ent);
+    const int32_t count = static_cast<int32_t>(word_at(list, 0x2aac));
+    if (count < 0x1000) {
+        word_at(list, 0x2ab0 + count * 4) = address(ent);
+        ++word_at(list, 0x2aac);
+    }
+    word_at(ent, 0x228) = word_at(list, 0x2aac) - 1;
+}
+
+uint32_t XB_CDECL G_FindHintStringIndex(int32_t* out, const char* text) {
+    // The 32 hint-string configstrings (0x273..): the first equal one, else the first empty
+    // one gets the text. *out = its index (-1 and 0 when all are taken by others).
+    char buffer[0x100];
+    for (int32_t i = 0; i < 0x20; ++i) {
+        if (i < -0x273 || i >= 0x18d)
+            title_function<void XB_CDECL(int32_t, const char*, int32_t)>(0x002938f0)(
+                1, reinterpret_cast<const char*>(uintptr_t{0x00832d34}), i + 0x273);  // __break
+        const uint32_t cs = title_global<uint32_t>(0x009656ac + i * 4);
+        title_function<char* XB_CDECL(char*, const char*, uint32_t)>(0x001eed80)(
+            buffer, cs ? reinterpret_cast<const char*>(static_cast<uintptr_t>(cs + 6)) : nullptr, 0xff);  // _strncpy
+        buffer[0xff] = 0;
+        if (!buffer[0]) {
+            SV_SetConfigstring(i + 0x273, text);
+            *out = i;
+            return 1;
+        }
+        if (!std::strcmp(text, buffer)) {
+            *out = i;
+            return 1;
+        }
+    }
+    *out = -1;
+    return 0;
+}
+
+void XB_CDECL G_FreeAnimTrees() {
+    // Each anim tree's notetracks (from 1), then the string table when the game loaded it.
+    for (int32_t i = 1; i < title_global<int32_t>(0x00927098); ++i)
+        title_function<void XB_REGS1 XB_CDECL(uint32_t)>(0x002f6840)(static_cast<uint32_t>(i));  // AnimTree_FreeNotetracks
+    if (title_global<int32_t>(0x0095f5a0) == 1) {
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f59c));  // Z_Free
+        title_global<uint32_t>(0x0095f59c) = 0;
+        title_global<uint32_t>(0x0095f5a0) = 0;
+    }
+}
+
+void XB_CDECL G_TrimCorpseQueue() {
+    // The corpse limit (0x00950c5c, clamped to 1..16) shrank below the count (0x00985418):
+    // the corpses past it (g_actorCorpses, 0x1c each, handle first) are freed.
+    int32_t limit = title_global<int32_t>(0x00950c5c);
+    if (limit < 1)
+        limit = 1;
+    else if (limit > 0x10)
+        limit = 0x10;
+    if (limit == title_global<int32_t>(0x00985418)) return;
+    for (int32_t i = limit; i < title_global<int32_t>(0x00985418); ++i) {
+        uint32_t& handle = title_global<uint32_t>(0x009881c8 + i * 0x1c);
+        if (!handle) continue;
+        const uint32_t index = handle & 0xfff;
+        uint32_t ent = 0;
+        if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8))
+            ent = title_global<uint32_t>(0x0097a968 + index * 8);
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002be420)(ent, 0);  // G_FreeEntity
+        handle = 0;
+    }
+    title_global<int32_t>(0x00985418) = limit;
+}
+
+void XB_CDECL G_FreeStringTable(uint32_t keep) {
+    // The string table (0x0095f59c) when the game loaded it (0x0095f5a0 == 1): freed unless
+    // `keep`; the owner is cleared either way.
+    if (title_global<int32_t>(0x0095f5a0) != 1) return;
+    if (!keep) {
+        title_function<void XB_CDECL(uint32_t)>(0x000428d0)(title_global<uint32_t>(0x0095f59c));  // Z_Free
+        title_global<uint32_t>(0x0095f59c) = 0;
+    }
+    title_global<uint32_t>(0x0095f5a0) = 0;
+}
+
 }  // namespace game

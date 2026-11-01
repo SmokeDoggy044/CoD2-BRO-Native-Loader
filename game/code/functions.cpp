@@ -22,6 +22,7 @@
 #include "fx.h"
 #include "fx_cmd.h"
 #include "fx_load.h"
+#include "g_client.h"
 #include "g_combat.h"
 #include "g_main.h"
 #include "g_mover.h"
@@ -2679,6 +2680,7 @@ const Function kFunctions[] = {
     {"Actor_ExitProne", 0x0024afe0, 0, code(&Actor_ExitProne_entry), 0, Result::None, Status::Compare},
     {"G_EntityList_Compact", 0x0024b140, 0, code(&G_EntityList_Compact), 0, Result::Eax, Status::Compare},
     {"Use_Multi", 0x0024b610, 0, code(&Use_Multi), 12, Result::None, Status::Compare},
+    {"G_FreeStringTable", 0x0024b620, 0, code(&G_FreeStringTable), 4, Result::None, Status::Compare},
     {"XAnim_HasNotetrack", 0x0024b700, 0, code(&XAnim_HasNotetrack), 8, Result::Al, Status::Compare},
     {"G_ClientInOpenVehicle", 0x0024ba60, 0, code(&G_ClientInOpenVehicle), 0, Result::Eax, Status::Compare},
     {"G_ClientInVehicle", 0x0024bad0, 0, code(&G_ClientInVehicle), 0, Result::Eax, Status::Compare},
@@ -2713,13 +2715,27 @@ const Function kFunctions[] = {
     {"Think_BoostNearbyPlayer", 0x0024e1d0, 0, code(&Think_BoostNearbyPlayer), 4, Result::None, Status::Compare},
     {"G_FloatOnWater", 0x0024e690, 0, code(&G_FloatOnWater_entry), 0, Result::None, Status::Compare},
     {"Pickup_ClipsForAllWeapons", 0x0024e740, 0, code(&Pickup_ClipsForAllWeapons_entry), 0, Result::None, Status::Compare},
+    {"Add_Ammo", 0x0024e7a0, 0, code(&Add_Ammo), 12, Result::Eax, Status::Compare},
     {"Cmd_MenuResponse_f", 0x0024ea60, 0, code(&Cmd_MenuResponse_f), 4, Result::None, Status::Replaced},
+    {"SetClientViewAngle", 0x0024ebf0, 0, code(&SetClientViewAngle), 0, Result::None, Status::Compare},
+    {"TeleportPlayer", 0x0024eec0, 0, code(&TeleportPlayer), 0, Result::None, Status::Compare},
+    {"SelectNearestDeathmatchSpawnPoint", 0x0024ef50, 0, code(&SelectNearestDeathmatchSpawnPoint_entry), 0, Result::Eax, Status::Compare},
+    {"SP_info_player_start", 0x0024f000, 0, code(&SP_info_player_start), 4, Result::None, Status::Compare},
+    {"G_EntityList_Add", 0x0024f060, 0, code(&G_EntityList_Add_entry), 0, Result::None, Status::Compare},
+    {"hurt_think", 0x0024f520, 0, code(&hurt_think_entry), 4, Result::None, Status::Compare},
     {"DebugDraw_AddTriangleIfEnabled", 0x0024f790, 0, code(&DebugDraw_AddTriangleIfEnabled), 8, Result::None, Status::Replaced},
     {"DebugDraw_AddLineIfEnabled", 0x0024f7d0, 0, code(&DebugDraw_AddLineIfEnabled_entry), 0, Result::None, Status::Replaced},
+    {"G_FindHintStringIndex", 0x0024f860, 0, code(&G_FindHintStringIndex), 8, Result::Eax, Status::Compare},
+    {"SP_skyportal", 0x0024f9a0, 0, code(&SP_skyportal), 4, Result::None, Status::Compare},
+    {"Turret_UpdateAimState", 0x0024fb10, 0, code(&Turret_UpdateAimState), 8, Result::None, Status::Compare},
+    {"Turret_UpdateAimWithJitter", 0x0024fcc0, 0, code(&Turret_UpdateAimWithJitter_entry), 0, Result::None, Status::Compare},
+    {"Turret_SetIdle", 0x0024fd90, 0, code(&Turret_SetIdle), 0, Result::None, Status::Compare},
     {"SP_corona", 0x0024fdd0, 0, code(&SP_corona), 4, Result::None, Status::Compare},
     {"SP_misc_model", 0x0024fde0, 0, code(&SP_misc_model), 4, Result::None, Status::Compare},
     {"SP_light", 0x0024fdf0, 0, code(&SP_light), 4, Result::None, Status::Compare},
     {"SP_info_null", 0x0024fe00, 0, code(&SP_info_null), 4, Result::None, Status::Compare},
+    {"G_FreeAnimTrees", 0x0024fe10, 0, code(&G_FreeAnimTrees), 0, Result::None, Status::Compare},
+    {"G_TrimCorpseQueue", 0x0024fe60, 0, code(&G_TrimCorpseQueue), 0, Result::None, Status::Compare},
     {"Cmd_Where_f", 0x00250a10, 0, code(&Cmd_Where_f), 4, Result::None, Status::Replaced},
     {"G_Trigger", 0x00250cf0, 0, code(&G_Trigger_entry), 4, Result::None, Status::Compare},
     {"AnimTree_EnsureAnimLoaded", 0x00250e70, 0, code(&AnimTree_EnsureAnimLoaded_entry), 4, Result::Xmm0, Status::Compare},

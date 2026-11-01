@@ -63,4 +63,18 @@ void XB_CDECL Pain_Func4(uint32_t* args) {
     }
 }
 
+// A tail jump to G_FreeEntity: its second argument is the caller's word above ours.
+PLATFORM_ASM_ENTRY(hurt_think_entry,
+                   "leal 4(%esp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(hurt_think) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL hurt_think(const uint32_t* args) {
+    uint8_t* const ent = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(args[0]));
+    const int32_t now = title_global<int32_t>(0x0098540c);  // level.time
+    *reinterpret_cast<int32_t*>(ent + 0x328) = now + 1;    // nextthink
+    if (static_cast<float>(title_global<int32_t>(0x0098540c)) > *reinterpret_cast<const float*>(ent + 0x384))
+        title_function<void XB_CDECL(uint32_t, uint32_t)>(0x002be420)(args[0], args[1]);  // G_FreeEntity
+}
+
 }  // namespace game

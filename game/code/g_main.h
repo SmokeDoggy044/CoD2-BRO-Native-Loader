@@ -69,6 +69,21 @@ uint32_t XB_CDECL ConsoleCommand();
 // 0x0024d940: resizes the vehicle pool to `slots`, keeping the used slots.
 void XB_CDECL G_SetupVehiclePool(uint32_t slots);
 
+// 0x0024f060 (entity in ESI, list in EDI): gives the entity a handle (+0x224) if it has none
+// and appends it to the list (count +0x2aac, entries +0x2ab0, max 0x1000; index in +0x228).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_EntityList_Add(uint8_t* ent, uint8_t* list);
+extern "C" void G_EntityList_Add_entry(void);
+// 0x0024f860: the hint-string configstring (0x273 + 0..31) holding `text`, set into the first
+// empty one if none does; 1 and *out = the index, else 0 and -1.
+uint32_t XB_CDECL G_FindHintStringIndex(int32_t* out, const char* text);
+// 0x0024fe10: frees the anim trees' notetracks (1..g_numAnimTrees) and the game's string table.
+void XB_CDECL G_FreeAnimTrees();
+// 0x0024fe60: frees the actor corpses past the corpse limit (0x00950c5c, 1..16).
+void XB_CDECL G_TrimCorpseQueue();
+// 0x0024b620 (no references): when the game owns the string table (0x0095f5a0 == 1), frees it
+// (0x0095f59c) unless `keep` and clears the owner.
+void XB_CDECL G_FreeStringTable(uint32_t keep);
+
 }  // namespace game
 
 // Calls a title function with all six registers and `count` stack words (args[0] pushed last);

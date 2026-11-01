@@ -22,4 +22,9 @@ uint32_t XB_REGS3 XB_CDECL G_ActorClampLethalDamage(uint32_t damage, uint32_t un
 extern "C" PLATFORM_HIDDEN void XB_CDECL Pain_Func4(uint32_t* args);
 extern "C" void Pain_Func4_entry(void);
 
+// 0x0024f520: think every frame (nextthink = level.time + 1) until level.time passes the free
+// time (+0x384, float), then G_FreeEntity (tail jump: the caller's second word passes on).
+extern "C" PLATFORM_HIDDEN void XB_CDECL hurt_think(const uint32_t* args);
+extern "C" void hurt_think_entry(void);
+
 }  // namespace game
