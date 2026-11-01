@@ -276,4 +276,18 @@ void XB_THISCALL PhysConstraint_AddContacts(uint8_t* constraint, uint8_t* world,
 
 uint8_t XB_CDECL PhysBox_IntersectSegmentInFrame(const uint8_t* box, const float* frame, const float* a, const float* b);
 
+
+// Push 6.
+// 0x000b2a90: contact points of two convex shapes via GJK, pushing touching shapes apart. Dead.
+uint8_t XB_CDECL Phys_ShapeContact(void* shape_a, const float* frame, void* shape_b, float* out, uint32_t a4, uint32_t a5,
+                                   uint32_t a6, uint32_t a7);
+// 0x000b9620 / 0x000b9750: hinge limit flags and contacts (island list +0x8).
+void XB_THISCALL PhysHinge_UpdateLimitFlags(uint8_t* hinge, uint32_t unused);
+void XB_THISCALL PhysHinge_AddContacts(uint8_t* hinge, uint8_t* world, float dt);
+// 0x000b9a40: distance joint contacts (island list +0xc).
+void XB_THISCALL PhysDistanceJoint_AddContacts(uint8_t* joint, uint8_t* world, float dt);
+float* XB_CDECL PhysBody_WorldToRelative(float* out, const uint8_t* body, const float* p);
+void XB_THISCALL PhysContact_ComputeBiasWithOffset(uint8_t* contact, float dt, float offset, float limit);
+float XB_THISCALL PhysContact_GetSeparation(const uint8_t* contact);
+
 }  // namespace game

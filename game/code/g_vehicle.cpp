@@ -4,10 +4,13 @@
 
 #include "bg_misc.h"
 #include "dobj.h"
+#include "g_script.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "phys.h"
 #include "script_string.h"
 #include "title_data.h"
 
@@ -887,6 +890,56 @@ void XB_REGS1 XB_CDECL Vehicle_SetSwitchNodes(uint32_t node_a, uint8_t* state, u
     at<float>(state, 0x5c) = at<float>(to, 0x18) - at<float>(from, 0x18);
     at<float>(state, 0x60) = at<float>(to, 0x1c) - at<float>(from, 0x1c);
     at<float>(state, 0x70) = VectorNormalize(reinterpret_cast<float*>(state + 0x58));
+}
+
+}  // namespace game
+
+namespace game {
+
+// A vehicle's physics body record: flags +0x450 bit 0 cleared, bit 2 set; 0x002257f0 (EAX =
+// vehicle); a record from the pool at 0x008fccf0 (30, count 0x008fcde4; null when used up) in
+// +0x444 with a world body (+8), the entity +0x440 at +0/+4, its +0x160 at +0xc, the model bounds'
+// centre ((maxs + mins) * 0.5 of entity +0x22c -> +0x38) at +0x20 and an identity frame moved by
+// -centre at +0x70 (the entity matrix fetched first is overwritten); then 0x0022a590 builds the
+// parts (vehicle, +0x420, 1).
+void XB_STDCALL VehiclePhys_CreateBody(uint8_t* vehicle) {
+    alignas(16) float frame[16];
+    G_GetEntityMatrix(at<uint8_t*>(vehicle, 0x440), frame);
+    const uint32_t flags = at<uint32_t>(vehicle, 0x450) & ~1u;
+    at<uint32_t>(vehicle, 0x450) = flags;
+    at<uint32_t>(vehicle, 0x450) = flags | 4;
+    title_function<void XB_REGS1 XB_CDECL(uint8_t*)>(0x002257f0)(vehicle);
+    const float* const bounds = at<float*>(at<uint8_t*>(at<uint8_t*>(vehicle, 0x440), 0x22c), 0x38);
+    const float half = title_global<float>(0x0083eb24);
+    float centre[4];
+    for (int32_t i = 0; i < 4; ++i) centre[i] = (bounds[4 + i] + bounds[i]) * half;
+    Matrix_Identity(frame);
+    for (int32_t i = 0; i < 4; ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &centre[i], 4);
+        bits ^= 0x80000000u;
+        std::memcpy(&frame[12 + i], &bits, 4);
+    }
+    int32_t& used = title_global<int32_t>(0x008fcde4);
+    uint8_t* body = nullptr;
+    if (used < 30) {
+        body = title_global<uint8_t*>(0x008fccf0 + static_cast<uint32_t>(used) * 4);
+        used = used + 1;
+    }
+    at<uint8_t*>(vehicle, 0x444) = body;
+    uint8_t* const world_body = PhysWorld_AllocBody();
+    uint8_t* const ent = at<uint8_t*>(vehicle, 0x440);
+    at<uint8_t*>(body, 8) = world_body;
+    at<uint8_t*>(body, 0xc) = ent + 0x160;
+    std::memcpy(body + 0x20, centre, 16);
+    at<uint8_t*>(body, 0) = ent;
+    at<uint8_t*>(body, 4) = ent;
+    at<float>(body, 0x10) = 0.0f;
+    at<uint32_t>(body, 0x40) = 0;
+    at<uint32_t>(body, 0x48) = 0;
+    std::memcpy(body + 0x70, frame, sizeof(frame));
+    at<uint8_t*>(at<uint8_t*>(vehicle, 0x444), 0x48) = vehicle;
+    title_function<void XB_STDCALL(uint8_t*, uint32_t, uint32_t)>(0x0022a590)(vehicle, at<uint32_t>(vehicle, 0x420), 1);
 }
 
 }  // namespace game
