@@ -920,7 +920,19 @@ float XB_CDECL Water_GetHeight(int32_t index, float x, float y) {
 
 namespace {
 
-float sum_xyz(const Lanes& a) { return (a.v[0] + a.v[1]) + a.v[2]; }
+// Sums and products with the title's destination operand first (it decides which NaN wins).
+float sum_xyz(const Lanes& a) {
+    float s = a.v[0];
+    s += a.v[1];
+    s += a.v[2];
+    return s;
+}
+
+Lanes mul_ordered(const Lanes& a, const Lanes& b) {
+    Lanes r = a;
+    for (int i = 0; i < 4; ++i) r.v[i] *= b.v[i];
+    return r;
+}
 
 // Squared distance of p from the line through a and b: |ap|^2 - (ab . ap)^2 / |ab|^2 (packed,
 // every lane computed).
@@ -929,12 +941,16 @@ float line_dist_sq(const Lanes& a, const Lanes& b, const Lanes& p) {
     const Lanes ap = sub(p, a);
     const Lanes ab_ab = mul(ab, ab);
     const Lanes ap_ap = mul(ap, ap);
-    const Lanes ab_ap = mul(ab, ap);
+    const Lanes ab_ap = mul_ordered(ab, ap);
     platform_keep(ab_ab);
     platform_keep(ap_ap);
     platform_keep(ab_ap);
-    const float along = sum_xyz(ab_ap);
-    return sum_xyz(ap_ap) - along * along / sum_xyz(ab_ab);
+    float along = sum_xyz(ab_ap);
+    along *= along;
+    along /= sum_xyz(ab_ab);
+    float result = sum_xyz(ap_ap);
+    result -= along;
+    return result;
 }
 
 }  // namespace
