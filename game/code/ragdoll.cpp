@@ -35,6 +35,8 @@ Lanes rotate_into(const float* m, const Lanes& v) {
     return add(add(mul(c[0], v.v[0]), mul(c[1], v.v[1])), mul(c[2], v.v[2]));
 }
 
+uint32_t addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+
 // Title helpers taking their object in ESI / EDI.
 void call_with_esi(uint32_t address, void* esi) {
     __asm__ volatile("call *%0" : : "r"(address), "S"(esi) : "eax", "ecx", "edx", "memory", "cc");
@@ -127,20 +129,44 @@ void XB_STDCALL RagdollCapsule_UpdateWorldPoints(uint8_t* capsule) {
 }
 
 // Pushes each sphere out of the world; a sphere that moved more than 1e-4 adds a contact between
-// the capsule's body and the static world body.
-void XB_STDCALL RagdollCapsule_CollideWorld(uint8_t* capsule) {
+// the capsule's body and the static world body. The title callees run at the original's ESP with
+// its registers, and the three vec3 arguments sit at the original's frame addresses: their w words
+// are never written (a title callee reads them), and the callees' stack leftovers must match.
+PLATFORM_ASM_ENTRY(RagdollCapsule_CollideWorld_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%edx)\n" PLATFORM_ASM_CALL(RagdollCapsule_CollideWorld) "addl $12, %esp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL RagdollCapsule_CollideWorld(uint8_t* capsule, uint32_t entry_ebx, uint32_t entry_esp) {
+    const uint32_t frame = ((entry_esp - 4) & ~15u) - 0xf0;  // ESP after the prologue's pushes
+    float* const outside = reinterpret_cast<float*>(static_cast<uintptr_t>(frame + 0x70));
+    float* const normal = reinterpret_cast<float*>(static_cast<uintptr_t>(frame + 0x80));
+    float* const local = reinterpret_cast<float*>(static_cast<uintptr_t>(frame + 0x90));
     uint8_t* const body = at<uint8_t*>(capsule, 0x124);
-    uint8_t* const world_body = title_function<uint8_t* XB_CDECL()>(0x000b4030)();  // PhysWorld_GetStaticBody
+    TitleRegs regs{};
+    regs.eax = addr(body);
+    regs.ebx = entry_ebx;
+    regs.edi = addr(capsule);
+    uint8_t* const world_body = reinterpret_cast<uint8_t*>(
+        static_cast<uintptr_t>(title_call_at_regs(frame, 0x000b4030, &regs, 0, nullptr)));  // PhysWorld_GetStaticBody
     uint8_t* pair = nullptr;
-    // The w lanes of the three vec3 arguments are stack words the original never sets (zero in tests).
-    alignas(16) float normal[4] = {};
-    alignas(16) float outside[4] = {};
-    alignas(16) float local[4] = {};
     for (int32_t i = 0; i < at<int32_t>(capsule, 0x84); ++i) {
         uint8_t* const sphere = at<uint8_t*>(capsule, 0x80) + i * 0x40;
         float* const pos = reinterpret_cast<float*>(sphere);
         float* const pushed = reinterpret_cast<float*>(sphere + 0x10);
-        if (!CM_PushSphereOutOfListedObjects(pos, pushed, at<float>(sphere, 0x30))) continue;
+        regs.eax = addr(sphere);
+        regs.ebx = addr(pushed);
+        regs.ecx = at<uint32_t>(sphere, 0x30);
+        regs.esi = addr(sphere);
+        regs.edi = addr(capsule);
+        const uint32_t radius_arg[1] = {at<uint32_t>(sphere, 0x30)};
+        if (!static_cast<uint8_t>(title_call_at_regs(frame, 0x002299a0, &regs, 1, radius_arg)))  // CM_PushSphereOutOfListedObjects
+            continue;
         const Lanes d = sub(lanes(pos), lanes(pushed));
         const Lanes squared = mul(d, d);
         platform_keep(squared);
@@ -153,8 +179,13 @@ void XB_STDCALL RagdollCapsule_CollideWorld(uint8_t* capsule) {
         }
         if (!(length > title_global<float>(0x0083ed50))) continue;  // 1e-4
         const Lanes n = div(d, splat(length));
-        if (!pair)
-            pair = title_function<uint8_t* XB_CDECL(uint8_t*, uint8_t*)>(0x000b4bc0)(body, world_body);  // PhysWorld_GetBodyPair_Wrapper
+        if (!pair) {
+            regs.eax = addr(world_body);
+            regs.ecx = addr(body);
+            const uint32_t args[2] = {addr(body), addr(world_body)};
+            pair = reinterpret_cast<uint8_t*>(
+                static_cast<uintptr_t>(title_call_at_regs(frame, 0x000b4bc0, &regs, 2, args)));  // PhysWorld_GetBodyPair_Wrapper
+        }
         std::memcpy(normal, n.v, 12);
         const float radius = at<float>(sphere, 0x30);
         const Lanes out = add(lanes(pushed), mul(splat(radius + title_global<float>(0x0083f0c8)), n));  // 0.34
@@ -165,10 +196,15 @@ void XB_STDCALL RagdollCapsule_CollideWorld(uint8_t* capsule) {
         const Lanes rotated = rotate_into(rows, offset);
         const Lanes point = add(lanes(reinterpret_cast<const float*>(sphere + 0x20)), rotated);
         std::memcpy(local, point.v, 12);
-        using AddContactPoint = void XB_THISCALL(uint8_t*, uint8_t*, uint8_t*, const float*, const float*, const float*,
-                                                 uint32_t, float, float);
-        title_function<AddContactPoint>(0x000c2de0)(pair, body, world_body, local, outside, normal,  // PhysBodyPair_AddContactPoint
-                                                    at<uint32_t>(body, 0x148), 0.5f, 3600.0f);
+        regs.eax = addr(body);
+        regs.ecx = addr(pair);
+        regs.edx = addr(local);
+        regs.ebx = addr(pushed);
+        regs.esi = addr(body + 0x70);
+        regs.edi = frame + 0xf0;
+        const uint32_t args[8] = {addr(body), addr(world_body), addr(local), addr(outside), addr(normal),
+                                  at<uint32_t>(body, 0x148), 0x3f000000u, 0x45610000u};  // 0.5, 3600
+        title_call_at_regs(frame, 0x000c2de0, &regs, 8, args);  // PhysBodyPair_AddContactPoint
     }
 }
 

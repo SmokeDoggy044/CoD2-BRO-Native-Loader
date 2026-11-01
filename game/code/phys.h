@@ -36,4 +36,21 @@ uint8_t* XB_REGS1 XB_CDECL VehiclePhysPool_Reset(uint8_t* pool);
 float* XB_REGS3 XB_CDECL Vec4_ClampToScalarRange(float* out, uint32_t unused_edx, const float* v, const float* lo,
                                                  const float* hi);
 
+// 0x000acc70, 0x000acd00, 0x000acd80, 0x000acdf0, 0x000aefa0: support points (vtable +8) of a
+// segment, sphere, box, capsule and oriented box; return out.
+float* XB_THISCALL PhysSegment_Support(uint8_t* shape, float* out, const float* dir);
+float* XB_THISCALL PhysSphere_Support(uint8_t* shape, float* out, const float* dir);
+float* XB_THISCALL PhysBox_Support(uint8_t* shape, float* out, const float* dir);
+float* XB_THISCALL PhysCapsule_Support(uint8_t* shape, float* out, const float* dir);
+float* XB_THISCALL PhysOrientedBox_Support(uint8_t* shape, float* out, const float* dir);
+
+// 0x000acf70, 0x000ad040, 0x000adc90: sphere contact tests (vtable) of a point, sphere and capsule;
+// AL = contact, out = surface point and normal.
+uint8_t XB_THISCALL PhysPoint_SphereContact(uint8_t* shape, const float* p, float r, float* out, uint32_t unused);
+uint8_t XB_THISCALL PhysSphere_SphereContact(uint8_t* shape, const float* p, float r, float* out, uint32_t unused);
+uint8_t XB_THISCALL PhysCapsule_SphereContact(uint8_t* shape, const float* p, float r, float* out, uint32_t unused);
+
+// 0x000ada90: does the segment a-b (direction dir) hit the box (vtable slot)? AL.
+uint8_t XB_THISCALL PhysBox_IntersectSegment(uint8_t* shape, const float* a, const float* b, const float* dir, uint32_t unused);
+
 }  // namespace game

@@ -22,7 +22,8 @@ void XB_REGS3 XB_STDCALL Ragdoll_AddForceAtPoint(const float* force, uint32_t un
 // 0x0002a5d0: moves a capsule's segment and spheres to world space.
 void XB_STDCALL RagdollCapsule_UpdateWorldPoints(uint8_t* capsule);
 // 0x0002a620: pushes a capsule's spheres out of the world and adds contacts with the static body.
-void XB_STDCALL RagdollCapsule_CollideWorld(uint8_t* capsule);
+extern "C" PLATFORM_HIDDEN void XB_CDECL RagdollCapsule_CollideWorld(uint8_t* capsule, uint32_t entry_ebx, uint32_t entry_esp);
+extern "C" void RagdollCapsule_CollideWorld_entry(void);
 // 0x0002a910: bounding sphere of a capsule (capsule in ECX).
 void XB_REGS3 XB_CDECL RagdollCapsule_GetBoundingSphere(uint32_t unused_eax, uint32_t unused_edx, const uint8_t* capsule,
                                                         float* center, float* radius);

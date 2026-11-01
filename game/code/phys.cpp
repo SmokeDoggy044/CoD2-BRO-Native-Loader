@@ -40,6 +40,29 @@ Lanes rotate_out(const float* frame, const float* v) {
     return add(add(mul(lanes(frame), x), mul(lanes(frame + 4), y)), mul(lanes(frame + 8), z));
 }
 
+Lanes div(const Lanes& a, const Lanes& b) {
+    return {{a.v[0] / b.v[0], a.v[1] / b.v[1], a.v[2] / b.v[2], a.v[3] / b.v[3]}};
+}
+
+// dot(a, b) as the title sums a MULPS product: (x + y) + z.
+float dot3(const Lanes& a, const Lanes& b) {
+    const Lanes product = mul(a, b);
+    platform_keep(product);
+    return (product.v[0] + product.v[1]) + product.v[2];
+}
+
+// CMPLEPS(0, d) select: +extent where 0 <= d (ordered), -extent (sign bit flipped) elsewhere.
+Lanes select_extent(const Lanes& d, const Lanes& extent) {
+    Lanes out;
+    for (int32_t i = 0; i < 4; ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &extent.v[i], 4);
+        if (!(0.0f <= d.v[i])) bits ^= 0x80000000u;
+        std::memcpy(&out.v[i], &bits, 4);
+    }
+    return out;
+}
+
 using ShapeSupport = const float* XB_THISCALL(void* shape, float* out, const float* dir);
 using ShapeIntersect = uint8_t XB_THISCALL(void* shape, const float* point, uint32_t arg2, float* hit, uint32_t arg4);
 
@@ -210,6 +233,211 @@ float* XB_REGS3 XB_CDECL Vec4_ClampToScalarRange(float* out, uint32_t, const flo
     }
     std::memcpy(out, value, 16);
     return out;
+}
+
+// Shape support functions (vtable slot +8): the shape's farthest point along dir.
+
+// Segment (ends at +0x30, +0x40): the end with the larger dot product (the first on ties and NaN).
+float* XB_THISCALL PhysSegment_Support(uint8_t* shape, float* out, const float* dir) {
+    const Lanes d = lanes(dir);
+    const float* a = reinterpret_cast<const float*>(shape + 0x30);
+    const float* b = reinterpret_cast<const float*>(shape + 0x40);
+    const float da = dot3(d, lanes(a));
+    const float db = dot3(d, lanes(b));
+    const float* end = db > da ? b : a;
+    std::memcpy(out, end, 16);
+    return out;
+}
+
+// Sphere (centre +0x10, radius +0x1c): centre + dir * radius / |dir| (the scale on the x87).
+float* XB_THISCALL PhysSphere_Support(uint8_t* shape, float* out, const float* dir) {
+    const Lanes d = lanes(dir);
+    const float length_squared = dot3(d, d);
+    const float scale = static_cast<float>(at<float>(shape, 0x1c) / platform_x87_sqrt_ext(length_squared));
+    const Lanes center = lanes(reinterpret_cast<const float*>(shape + 0x10));
+    std::memcpy(out, add(center, mul(d, scale)).v, 16);
+    return out;
+}
+
+// Box (centre +0x10, half extents +0x20, axis aligned): centre +- extent per lane.
+float* XB_THISCALL PhysBox_Support(uint8_t* shape, float* out, const float* dir) {
+    const Lanes d = lanes(dir);
+    const Lanes extent = select_extent(d, lanes(reinterpret_cast<const float*>(shape + 0x20)));
+    const Lanes center = lanes(reinterpret_cast<const float*>(shape + 0x10));
+    std::memcpy(out, add(center, extent).v, 16);
+    return out;
+}
+
+// Capsule (ends +0x30, +0x40, radius +0x50): the end along dir (b when (b - a).dir > 0) plus
+// dir * radius / |dir|.
+float* XB_THISCALL PhysCapsule_Support(uint8_t* shape, float* out, const float* dir) {
+    const Lanes d = lanes(dir);
+    const long double length = platform_x87_sqrt_ext(dot3(d, d));
+    const float* a = reinterpret_cast<const float*>(shape + 0x30);
+    const float* b = reinterpret_cast<const float*>(shape + 0x40);
+    const float along = dot3(sub(lanes(b), lanes(a)), d);
+    const float* end = along > title_global<float>(0x0083eafc) ? b : a;  // 0
+    alignas(16) float point[4];
+    std::memcpy(point, end, 16);
+    const float scale = static_cast<float>(at<float>(shape, 0x50) / length);
+    std::memcpy(out, add(lanes(point), mul(d, scale)).v, 16);
+    return out;
+}
+
+// Oriented box (frame rows +0x30..+0x60, half extents +0x70): the corner along dir in box space,
+// moved back out.
+float* XB_THISCALL PhysOrientedBox_Support(uint8_t* shape, float* out, const float* dir) {
+    alignas(16) float d[4];
+    std::memcpy(d, dir, 16);
+    float rows[12];
+    std::memcpy(rows, shape + 0x30, sizeof(rows));
+    Lanes columns[3];
+    frame_columns(rows, columns);
+    const Lanes local = rotate_into(columns, lanes(d));
+    alignas(16) float corner[4];
+    std::memcpy(corner, select_extent(local, lanes(reinterpret_cast<const float*>(shape + 0x70))).v, 16);
+    std::memcpy(out, transform_out(reinterpret_cast<const float*>(shape + 0x30), corner).v, 16);
+    return out;
+}
+
+// Sphere contact tests (vtable slot): a sphere (centre p, radius r) against the shape; on contact
+// out+0 = the shape's surface point, out+0x10 = the normal (left unnormalized below 1e-4).
+
+namespace {
+
+// out+0x10 = d, divided by |d| (x87 FSQRT, stored as float) when |d|^2 > 1e-4.
+void store_normal(float* out, const Lanes& d, float length_squared) {
+    std::memcpy(out + 4, d.v, 16);
+    if (length_squared > title_global<float>(0x0083ed50)) {  // 1e-4
+        const float length = static_cast<float>(platform_x87_sqrt_ext(length_squared));
+        std::memcpy(out + 4, div(lanes(out + 4), splat(length)).v, 16);
+    }
+}
+
+}  // namespace
+
+// Point shape (+0x10): contact when |p - point|^2 <= r^2; out = the point.
+uint8_t XB_THISCALL PhysPoint_SphereContact(uint8_t* shape, const float* p, float r, float* out, uint32_t) {
+    const float* point = reinterpret_cast<const float*>(shape + 0x10);
+    const Lanes d = sub(lanes(p), lanes(point));
+    const float length_squared = dot3(d, d);
+    if (length_squared > r * r) return 0;
+    const bool normalize = length_squared > title_global<float>(0x0083ed50);  // COMISS before the copies
+    platform_keep(normalize);
+    std::memcpy(out, point, 16);
+    store_normal(out, d, length_squared);
+    return 1;
+}
+
+// Sphere shape (centre +0x10, radius +0x1c): contact when |p - c|^2 <= (R + r)^2; out = c + n R.
+uint8_t XB_THISCALL PhysSphere_SphereContact(uint8_t* shape, const float* p, float r, float* out, uint32_t) {
+    const Lanes d = sub(lanes(p), lanes(reinterpret_cast<const float*>(shape + 0x10)));
+    const float length_squared = dot3(d, d);
+    const float reach = at<float>(shape, 0x1c) + r;
+    if (length_squared > reach * reach) return 0;
+    store_normal(out, d, length_squared);
+    const Lanes n = lanes(out + 4);
+    alignas(16) float center[4];
+    std::memcpy(center, shape + 0x10, 16);
+    std::memcpy(out, add(lanes(center), mul(n, at<float>(shape, 0x1c))).v, 16);
+    return 1;
+}
+
+// Capsule shape (ends a +0x30, b +0x40, radius +0x50). The title compares squared distances with
+// R + r unsquared, and moves along the axis by its full length, not by the projection.
+uint8_t XB_THISCALL PhysCapsule_SphereContact(uint8_t* shape, const float* p, float r, float* out, uint32_t) {
+    const float* a = reinterpret_cast<const float*>(shape + 0x30);
+    const Lanes la = lanes(a);
+    const Lanes axis = sub(lanes(reinterpret_cast<const float*>(shape + 0x40)), la);
+    const float epsilon = title_global<float>(0x0083ed50);  // 1e-4
+    const float reach = r + at<float>(shape, 0x50);
+    const float axis_squared = dot3(axis, axis);
+    alignas(16) float closest[4];
+    if (epsilon > axis_squared) {
+        const Lanes d = sub(lanes(p), la);
+        const float length_squared = dot3(d, d);
+        if (length_squared > reach) return 0;
+        store_normal(out, d, length_squared);
+        const Lanes n = lanes(out + 4);
+        std::memcpy(closest, a, 16);
+        std::memcpy(out, add(lanes(closest), mul(n, at<float>(shape, 0x50))).v, 16);
+        return 1;
+    }
+    const Lanes q = lanes(p);
+    const float axis_length = static_cast<float>(platform_x87_sqrt_ext(axis_squared));
+    const Lanes unit = div(axis, splat(axis_length));
+    const float t = dot3(sub(q, la), unit);
+    Lanes base;
+    if (t > title_global<float>(0x0083eafc)) {  // 0
+        if (t > axis_length) {
+            base = lanes(reinterpret_cast<const float*>(shape + 0x40));
+        } else {
+            std::memcpy(closest, a, 16);
+            base = add(lanes(closest), mul(unit, axis_length));
+        }
+    } else {
+        base = lanes(a);
+    }
+    const Lanes d = sub(q, base);
+    const float length_squared = dot3(d, d);
+    if (length_squared > reach) return 0;
+    store_normal(out, d, length_squared);
+    const Lanes n = lanes(out + 4);
+    std::memcpy(out, add(base, mul(n, at<float>(shape, 0x50))).v, 16);
+    return 1;
+}
+
+// Box (centre +0x10, half extents +0x20) against the segment a-b: the bounds must overlap on all
+// three axes, then a slab test along dir from a. Only AL leaves the function (the hit point is a
+// local). The entering-face test is >= on the positive side, > on the negative one, as in the title.
+uint8_t XB_THISCALL PhysBox_IntersectSegment(uint8_t* shape, const float* a, const float* b, const float* dir, uint32_t) {
+    const Lanes extent = lanes(reinterpret_cast<const float*>(shape + 0x20));
+    const Lanes center = lanes(reinterpret_cast<const float*>(shape + 0x10));
+    const Lanes lo = sub(center, extent);
+    const Lanes hi = add(center, extent);
+    const Lanes pa = lanes(a), pb = lanes(b);
+    Lanes low, high, gap;
+    for (int32_t i = 0; i < 4; ++i) {
+        low.v[i] = pa.v[i] < pb.v[i] ? pa.v[i] : pb.v[i];   // MINPS
+        high.v[i] = pa.v[i] > pb.v[i] ? pa.v[i] : pb.v[i];  // MAXPS
+    }
+    const Lanes below = sub(lo, high), above = sub(low, hi);
+    int32_t mask = 0;
+    for (int32_t i = 0; i < 4; ++i) {
+        gap.v[i] = below.v[i] > above.v[i] ? below.v[i] : above.v[i];  // MAXPS
+        if (gap.v[i] < 0.0f) mask |= 1 << i;                             // CMPLTPS
+    }
+    if ((mask & 7) != 7) return 0;
+    float hit[4];
+    for (int32_t i = 0; i < 3; ++i) {
+        const int32_t j = (i + 1) % 3, k = (i + 2) % 3;
+        const float d = dir[i];
+        if (d > 0.0f) {
+            if (!(lo.v[i] >= a[i])) continue;  // JB: NaN continues too
+            const float t = (lo.v[i] - a[i]) / d;
+            const float y = dir[j] * t + a[j];
+            hit[j] = y;
+            if (!(y >= lo.v[j]) || !(hi.v[j] >= y)) continue;
+            const float z = dir[k] * t + a[k];
+            hit[k] = z;
+            if (!(z >= lo.v[k])) continue;
+            if (hi.v[k] >= z) return 1;
+        } else {
+            if (!(0.0f > d)) continue;
+            if (!(a[i] >= hi.v[i])) continue;
+            const float t = (hi.v[i] - a[i]) / d;
+            const float y = dir[j] * t + a[j];
+            hit[j] = y;
+            if (!(y > lo.v[j]) || !(hi.v[j] > y)) continue;
+            const float z = dir[k] * t + a[k];
+            hit[k] = z;
+            if (!(z >= lo.v[k]) || !(hi.v[k] >= z)) continue;
+            hit[i] = hi.v[i];
+            platform_keep(hit);
+            return 1;
+        }
+    }
+    return 0;
 }
 
 }  // namespace game
