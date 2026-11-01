@@ -205,8 +205,8 @@ void XB_THISCALL PhysConstraint_UpdateDrive(uint8_t* constraint, float dt);
 float* XB_CDECL PhysBody_OffsetByPosition(float* out, const uint8_t* body, const float* v);
 float* XB_CDECL PhysBody_OffsetByField70(float* out, const uint8_t* body, const float* v);
 // 0x000b72f0 / 0x000b7330: a 0xa0-byte block of the world's frame buffer into +0xb0 / +0xb4.
-void XB_THISCALL PhysContact_AllocBufferB0(uint8_t* contact, uint8_t* world);
-void XB_THISCALL PhysContact_AllocBufferB4(uint8_t* contact, uint8_t* world);
+uint32_t XB_THISCALL PhysContact_AllocBufferB0(uint8_t* contact, uint8_t* world);
+uint32_t XB_THISCALL PhysContact_AllocBufferB4(uint8_t* contact, uint8_t* world);
 // 0x000b61f0: next 0xd0 constraint (-1 at +0xac/+0xb4/+0xbc), bodies a and b at +0 and +4.
 uint32_t* XB_CDECL PhysConstraintPoolD0_Alloc(uint8_t* pool, uint32_t unused, uint32_t a, uint32_t b);
 // 0x000b4b90: the world's 0xd0 constraint pool (+0x2a0) alloc.
@@ -232,5 +232,46 @@ int32_t XB_CDECL Gjk_ClosestPoints(void* shape_a, const float* frame, void* shap
 // within limit: sphere test, then GJK in B's frame. Unreferenced.
 uint8_t XB_CDECL Phys_ShapesOverlapGjk(void* shape_a, const float* frame_a, void* shape_b, const float* frame_b,
                                        float limit);
+
+
+// Push 5: joints, contact records, constraint setters.
+uint8_t* XB_THISCALL PhysWorld_AllocContactC0(uint8_t* world);
+float* XB_CDECL PhysBody_RotateVector2(float* out, const uint8_t* body, const float* v);
+void XB_THISCALL PhysJoint_SetAnchors(uint8_t* joint, const float* a, const float* b);
+void XB_THISCALL PhysJoint_SetValue1A0(uint8_t* joint, float value);
+void XB_THISCALL PhysAngleLimit_Set(uint8_t* limit, const float* axis, float angle);
+void XB_THISCALL PhysVec_SetNormalized(float* out, const float* v);
+void XB_THISCALL PhysJoint_SetAxes(uint8_t* joint, const float* a, const float* b);
+void XB_THISCALL PhysJoint_AddAngleLimit(uint8_t* joint, const float* axis, float angle);
+float XB_THISCALL PhysJoint_SnapBodyToAnchor(uint8_t* joint);
+void XB_THISCALL PhysContact_ComputeBias(uint8_t* contact, float dt, float limit);
+void XB_CDECL PhysBody_Translate(uint8_t* body, const float* delta);
+void XB_THISCALL PhysContact140_SetBias(uint8_t* contact, float dt);
+void XB_THISCALL PhysWorld_AddContact140(uint8_t* world, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4,
+                                         uint32_t a5, float dt);
+void XB_THISCALL PhysAttach_SetAnchors(uint8_t* attach, const float* a, const float* b);
+void XB_THISCALL PhysConstraint_UpdateSumSquares48(uint8_t* c, uint32_t);
+void XB_THISCALL PhysConstraint60_Init(uint8_t* c, const float* a, const float* b, float value30, float target);
+void XB_THISCALL PhysConstraint60_ComputeTargetRate(uint8_t* c, const float* dt);
+void XB_THISCALL PhysConstraint60_AdvanceTarget(uint8_t* c, float dt);
+void XB_THISCALL PhysConstraint60_SnapToTarget(uint8_t* c, uint32_t);
+void XB_THISCALL PhysConstraintFrame_Restore(uint8_t* c, uint32_t);
+uint8_t* XB_THISCALL PhysConstraintFrame_Init(uint8_t* c, float value, const float* frame);
+void XB_THISCALL PhysConstraintFrame_Update(uint8_t* c, const float* dt);
+void XB_THISCALL PhysAttach_AddWorldContact(uint8_t* attach, uint8_t* world, float dt);
+
+void XB_THISCALL PhysJoint_AddAxisContacts(uint8_t* joint, uint8_t* world, const float* p, const float* n, float dt);
+void XB_THISCALL PhysJoint_SetLimitAxes(uint8_t* joint, const float* v, float angle_a, float angle_b);
+void XB_THISCALL PhysJoint_SetupAxes10(uint8_t* joint, const float* a, const float* b, const float* c, const float* v,
+                                       float angle_a, float angle_b);
+void XB_THISCALL PhysJoint_SetupAxes20(uint8_t* joint, const float* a, const float* b, const float* c, const float* v,
+                                       float angle_a, float angle_b);
+void XB_THISCALL PhysJoint_UpdateLimitFlags(uint8_t* joint, uint32_t);
+void XB_THISCALL PhysContacts_AddPair(uint8_t* world, uint32_t a0, const float* v1, uint32_t a2, const float* v3,
+                                      uint32_t a4, uint32_t a5, uint32_t a6, float dt);
+
+void XB_THISCALL PhysJoint_AddContacts(uint8_t* joint, uint8_t* world, float dt);
+
+void XB_THISCALL PhysConstraint_AddContacts(uint8_t* constraint, uint8_t* world, float dt);
 
 }  // namespace game

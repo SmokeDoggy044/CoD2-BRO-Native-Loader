@@ -115,4 +115,13 @@ extern "C" void VehiclePathNode_Copy_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL VehiclePathState_Dtor(uint8_t* state);
 extern "C" void VehiclePathState_Dtor_entry(void);
 
+// 0x00231710: rebuilds the vehicle's physics body when flag 2 of +0x450 is set (flags 1 and 2
+// cleared, 0x0022d650); with flag 4 the matrix at +0x460 is then copied to (+0x444)->+8.
+void XB_THISCALL VehiclePhys_RebuildPendingBody(uint8_t* vehicle);
+
+// 0x0024b1a0: resets both path nodes of a vehicle path state (+0x38, +0x78) and, when both node
+// indices are valid, fills them from g_vehNodes[EAX] and points the state at node_b. Writes its
+// own `state` argument slot (the node index).
+void XB_REGS1 XB_CDECL Vehicle_SetSwitchNodes(uint32_t node_a, uint8_t* state, uint32_t node_b);
+
 }  // namespace game

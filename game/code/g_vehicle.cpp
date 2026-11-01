@@ -7,6 +7,7 @@
 #include "g_scr_runtime.h"
 #include "g_utils.h"
 #include "qcommon.h"
+#include "qcommon_fs.h"
 #include "script_string.h"
 #include "title_data.h"
 
@@ -827,6 +828,65 @@ void XB_CDECL VehiclePathState_Dtor(uint8_t* state) {
         title_function<Release>(0x0011d640)(entry + 4);
         title_function<Release>(0x0011d640)(entry);
     }
+}
+
+}  // namespace game
+
+namespace game {
+
+void XB_THISCALL VehiclePhys_RebuildPendingBody(uint8_t* vehicle) {
+    if (!((at<uint32_t>(vehicle, 0x450) >> 1) & 1)) return;
+    const uint32_t flags = at<uint32_t>(vehicle, 0x450) & ~2u;
+    const uint32_t cleared = flags & ~1u;
+    at<uint32_t>(vehicle, 0x450) = flags;
+    at<uint32_t>(vehicle, 0x450) = cleared;
+    const bool copy_matrix = (cleared >> 2) & 1;
+    title_function<void XB_STDCALL(uint8_t*)>(0x0022d650)(vehicle);
+    if (!copy_matrix) return;
+    uint32_t* const to = at<uint32_t*>(at<uint8_t*>(vehicle, 0x444), 8);
+    for (uint32_t i = 0; i < 16; ++i) to[i] = at<uint32_t>(vehicle, 0x460 + i * 4);
+}
+
+namespace {
+
+// A path node's reset: both script strings cleared, +8/+0xc = -1, the vectors +0x14/+0x20 zero,
+// +0x2c = the vector at 0x008db094, +0x38 = 0; bit fields +0x3c: bits 28-29 cleared, the low 28 set.
+void path_node_reset(uint8_t* node) {
+    using Clear = void XB_THISCALL(uint8_t*);
+    title_function<Clear>(0x0011d660)(node);  // ScriptString_Clear
+    title_function<Clear>(0x0011d660)(node + 4);
+    const uint32_t bits = at<uint32_t>(node, 0x3c) & 0xcfffffffu;
+    at<float>(node, 8) = title_global<float>(0x0083eb34);
+    at<float>(node, 0xc) = title_global<float>(0x0083eb34);
+    at<uint32_t>(node, 0x3c) = bits;
+    for (uint32_t offset = 0x14; offset < 0x2c; offset += 4) at<float>(node, offset) = 0.0f;
+    for (uint32_t i = 0; i < 3; ++i) at<float>(node, 0x2c + i * 4) = title_global<float>(0x008db094 + i * 4);
+    at<float>(node, 0x38) = 0.0f;
+    at<uint32_t>(node, 0x3c) = bits | 0x0fffffffu;
+}
+
+uint8_t* veh_node(int32_t index) { return title_global<uint8_t*>(0x0095c228 + static_cast<uint32_t>(index) * 4); }  // g_vehNodes
+
+}  // namespace
+
+void XB_REGS1 XB_CDECL Vehicle_SetSwitchNodes(uint32_t node_a, uint8_t* state, uint32_t node_b) {
+    path_node_reset(state + 0x38);
+    path_node_reset(state + 0x78);
+    const int16_t a = static_cast<int16_t>(node_a);
+    if (a < 0) return;
+    const int16_t b = static_cast<int16_t>(node_b);
+    if (b < 0) return;
+    const uint8_t* const to = veh_node(b);
+    const uint8_t* const from = veh_node(a);
+    // 0x00248080 (ESI = path node, EDI = vehicle node): copies the node into the path state.
+    vehicle_call(0x00248080, 0, 0, 0, address_of(state + 0x38), address_of(from), 0);
+    vehicle_call(0x00248080, 0, 0, 0, address_of(state + 0x78), address_of(from), 0);
+    const uint32_t index = static_cast<uint32_t>(static_cast<int32_t>(b));
+    at<uint32_t>(state, 0x74) = (at<uint32_t>(state, 0x74) & ~0x3fffu) | (index & 0x3fffu);
+    at<float>(state, 0x58) = at<float>(to, 0x14) - at<float>(from, 0x14);
+    at<float>(state, 0x5c) = at<float>(to, 0x18) - at<float>(from, 0x18);
+    at<float>(state, 0x60) = at<float>(to, 0x1c) - at<float>(from, 0x1c);
+    at<float>(state, 0x70) = VectorNormalize(reinterpret_cast<float*>(state + 0x58));
 }
 
 }  // namespace game
