@@ -1143,7 +1143,6 @@ void XB_CDECL Gjk_ComputeDeterminants() {
     gjk_det(15)[3] = d3;
 }
 
-
 namespace {
 
 // Frees a world pool element (element index by the signed division the title does).
@@ -1376,6 +1375,165 @@ void XB_THISCALL PhysConstraint28c_Setup(uint8_t* constraint, const float* v0, c
     at<uint32_t>(constraint, 0x94) = 0;
     at<uint32_t>(constraint, 0x90) = 0;
     at<uint32_t>(constraint, 0x98) = 0;
+}
+
+// The second body (+4), its anchor (+0x10) and axis (+0x20) of a constraint; flag 1 of +0xa4.
+// Unreferenced.
+void XB_THISCALL PhysConstraint_AttachSecondBody(uint8_t* constraint, uint32_t body, const float* anchor,
+                                                 const float* axis) {
+    at<uint32_t>(constraint, 0xa4) |= 1;
+    at<uint32_t>(constraint, 4) = body;
+    uint32_t t[4];
+    std::memcpy(t, anchor, 16);
+    std::memcpy(constraint + 0x10, t, 16);
+    std::memcpy(t, axis, 16);
+    std::memcpy(constraint + 0x20, t, 16);
+}
+
+// The ends of the constraint's segment (centre +0x30, axis +0x40, half length +0x60) moved out
+// of the frame: centre - axis * len and centre + axis * len (xyz only). Unreferenced.
+void XB_THISCALL PhysConstraint_GetSegmentEnds(const uint8_t* constraint, const float* frame, float* lo, float* hi) {
+    const Lanes centre = transform_out(frame, reinterpret_cast<const float*>(constraint + 0x30));
+    const Lanes axis = rotate_out(frame, reinterpret_cast<const float*>(constraint + 0x40));
+    const Lanes offset = mul(splat(at<float>(constraint, 0x60)), axis);
+    const Lanes a = sub(centre, offset);
+    std::memcpy(lo, a.v, 12);
+    const Lanes b = add(centre, offset);
+    std::memcpy(hi, b.v, 12);
+}
+
+namespace {
+
+using RotateVector = float* XB_CDECL(float*, const uint8_t*, const float*);
+
+// Both bodies' anchor points (A: rotated +0x30 plus +0x60 times the rotated axis +0x40; B: the
+// rotated +0x10), each offset by its body's position; returns the separation along the rotated
+// axis, (x + y) + z of the product.
+float constraint_separation(uint8_t* c, uint32_t rotate, uint32_t offset) {
+    const auto rot = title_function<RotateVector>(rotate);
+    const auto off = title_function<RotateVector>(offset);
+    const uint8_t* const body_a = at<uint8_t*>(c, 0);
+    const uint8_t* const body_b = at<uint8_t*>(c, 4);
+    alignas(16) float axis[4], anchor[4], anchor_b[4], point_a[4], point_b[4];
+    rot(axis, body_a, reinterpret_cast<const float*>(c + 0x40));
+    const Lanes scaled = mul(splat(at<float>(c, 0x60)), lanes(axis));
+    rot(anchor, body_a, reinterpret_cast<const float*>(c + 0x30));
+    alignas(16) float a[4];
+    std::memcpy(a, add(lanes(anchor), scaled).v, 16);
+    rot(anchor_b, body_b, reinterpret_cast<const float*>(c + 0x10));
+    const float* const pb = off(point_b, body_b, anchor_b);
+    const float* const pa = off(point_a, body_a, a);
+    const Lanes d = mul(sub(lanes(pa), lanes(pb)), lanes(axis));
+    platform_keep(d);
+    return (d.v[0] + d.v[1]) + d.v[2];
+}
+
+}  // namespace
+
+// Flag 2 of +0xa4: set while the separation reaches the limit +0x74 (ordered), else cleared;
+// only for constraints with a second body (flag 1).
+void XB_THISCALL PhysConstraint_UpdateLimitFlag(uint8_t* c, uint32_t) {
+    if (!(at<uint8_t>(c, 0xa4) & 1)) return;
+    const float separation = constraint_separation(c, 0x000b73d0, 0x000b7260);  // PhysBody_RotateVector, PhysBody_OffsetByField70
+    const uint32_t flags = at<uint32_t>(c, 0xa4);
+    at<uint32_t>(c, 0xa4) = separation >= at<float>(c, 0x74) ? flags | 2 : flags & ~2u;
+}
+
+// The separation clamped to the limit +0x74 (0 without a second body) into +0x98; +0x9c = +0xb4
+// when +0xc8 is set, else 0. With a contact at +0xd0 its normal impulse times +0x90 / +0x60 is
+// added to the speed +0x8c (x87); flag 4 when the contact's +0x8c has bit 4 (or, without one,
+// +0xcc's has bit 2). Then the position +0x94 += speed * dt.
+void XB_THISCALL PhysConstraint_UpdateDrive(uint8_t* c, float dt) {
+    const uint32_t flags = at<uint32_t>(c, 0xa4);
+    float separation = 0.0f;
+    if (flags & 1) {
+        separation = constraint_separation(c, 0x0002ac30, 0x000b71d0);  // PhysBody_RotateVector, PhysBody_OffsetByPosition
+        if (separation > at<float>(c, 0x74)) separation = at<float>(c, 0x74);
+    }
+    at<float>(c, 0x98) = separation;
+    if (at<uint32_t>(c, 0xc8))
+        at<uint32_t>(c, 0x9c) = at<uint32_t>(c, 0xb4);
+    else
+        at<uint32_t>(c, 0x9c) = 0;
+    const uint8_t* const other = at<uint8_t*>(c, 0xcc);
+    if (other) {
+        uint8_t* const contact = at<uint8_t*>(c, 0xd0);
+        if (contact) {
+            if (at<uint8_t>(contact, 0x8c) & 4) at<uint32_t>(c, 0xa4) = flags | 4;
+            const long double impulse =
+                title_function<long double XB_THISCALL(uint8_t*)>(0x000bcb40)(contact);  // PhysContact_SolveNormalImpulse
+            const long double ratio = static_cast<long double>(at<float>(c, 0x90)) / at<float>(c, 0x60);
+            at<float>(c, 0x8c) = static_cast<float>(impulse * ratio + at<float>(c, 0x8c));
+        } else if (at<uint8_t>(other, 0x8c) & 2) {
+            at<uint32_t>(c, 0xa4) = flags | 4;
+        }
+    }
+    at<float>(c, 0x94) = at<float>(c, 0x8c) * dt + at<float>(c, 0x94);
+}
+
+namespace {
+
+// out = v when flag 0x10 of the body's +0x144 is set (dword copy), else the body's vector at
+// `field` + v (4 lanes).
+float* body_offset(float* out, const uint8_t* body, const float* v, uint32_t field) {
+    if (at<uint8_t>(body, 0x144) & 0x10) {
+        for (int32_t i = 0; i < 4; ++i) reinterpret_cast<uint32_t*>(out)[i] = reinterpret_cast<const uint32_t*>(v)[i];
+        return out;
+    }
+    const Lanes value = lanes(v);
+    const Lanes sum = add(lanes(reinterpret_cast<const float*>(body + field)), value);
+    std::memcpy(out, sum.v, 16);
+    return out;
+}
+
+// A 16-byte aligned 0xa0-byte block from the world's frame buffer (cursor +0x2bc, end +0x2b8),
+// or 0 when it does not fit.
+uint32_t contact_buffer(uint8_t* world) {
+    const uint32_t start = (at<uint32_t>(world, 0x2bc) + 15) & ~15u;
+    const uint32_t next = start + 0xa0;
+    if (next > at<uint32_t>(world, 0x2b8)) return 0;
+    at<uint32_t>(world, 0x2bc) = next;
+    return start;
+}
+
+}  // namespace
+
+float* XB_CDECL PhysBody_OffsetByPosition(float* out, const uint8_t* body, const float* v) {
+    return body_offset(out, body, v, 0x30);
+}
+
+float* XB_CDECL PhysBody_OffsetByField70(float* out, const uint8_t* body, const float* v) {
+    return body_offset(out, body, v, 0x70);
+}
+
+void XB_THISCALL PhysContact_AllocBufferB0(uint8_t* contact, uint8_t* world) {
+    at<uint32_t>(contact, 0xb0) = contact_buffer(world);
+}
+
+void XB_THISCALL PhysContact_AllocBufferB4(uint8_t* contact, uint8_t* world) {
+    at<uint32_t>(contact, 0xb4) = contact_buffer(world);
+}
+
+uint32_t* XB_CDECL PhysConstraintPoolD0_Alloc(uint8_t* pool, uint32_t, uint32_t a, uint32_t b) {
+    uint32_t* const entry = pool_alloc(pool);
+    if (entry)
+        for (uint32_t offset = 0xac; offset <= 0xbc; offset += 8) at<int32_t>(entry, offset) = -1;
+    entry[0] = a;
+    entry[1] = b;
+    return entry;
+}
+
+uint32_t* XB_CDECL PhysWorld_AllocConstraintD0(uint32_t a, uint32_t b) {
+    return PhysConstraintPoolD0_Alloc(phys_world() + 0x2a0, 0, a, b);
+}
+
+// Flag 1 (+0x144) on each non-null body of the list at +0x28 (count +0x2c). Unreferenced.
+uint32_t XB_THISCALL PhysRagdoll_SetBodiesFlag1(uint8_t* ragdoll) {
+    uint8_t** it = at<uint8_t**>(ragdoll, 0x28);
+    uint8_t** const end = it + at<int32_t>(ragdoll, 0x2c);
+    for (; it != end; ++it)
+        if (*it) at<uint32_t>(*it, 0x144) |= 1;
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(it));
 }
 
 }  // namespace game

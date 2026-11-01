@@ -390,7 +390,6 @@ uint32_t XB_CDECL Vehicle_CacheTags(uint8_t* ent) {
     return value;
 }
 
-
 namespace {
 
 // Calls a title function with EAX, ECX, EDX, ESI and EDI set and one stack word pushed (ESP
@@ -539,7 +538,6 @@ uint32_t XB_CDECL Vehicle_Use(uint8_t* self, uint8_t* other) {
     return vehicle_call(0x0025bb60, address_of(self), 0, 0, 0, address_of(other), 0);  // Vehicle_EnterPlayer
 }
 
-
 void XB_CDECL Vehicle_Controller(uint8_t* ent) {
     using SetBoneAngles = uint32_t XB_CDECL(uint8_t*, uint32_t, float*, uint32_t, uint32_t);
     const uint8_t* vehicle = at<uint8_t*>(ent, 0x248);
@@ -613,8 +611,6 @@ uint8_t* XB_CDECL G_ReleaseTurretUser(uint8_t* turret) {
     at<uint32_t>(turret, 0x24c) = 0;
     return info;
 }
-
-
 
 namespace {
 
@@ -816,6 +812,21 @@ uint8_t* XB_CDECL VehiclePathNode_Copy(uint8_t* dst, const uint8_t* src) {
     bits = (bits & ~0x30000000u) | (from & 0x30000000u);
     bits = (bits & 0x3fffffffu) | (from & ~0x3fffffffu);
     return dst;
+}
+
+// Releases the script strings (+0x10, +4, +0) of the two 0x40-byte entries at +0x78 and +0x38,
+// in that order.
+PLATFORM_ASM_ENTRY(VehiclePathState_Dtor_entry,
+                   "pushl %eax\n" PLATFORM_ASM_CALL(VehiclePathState_Dtor) "addl $4, %esp\n"
+                   "ret")
+
+void XB_CDECL VehiclePathState_Dtor(uint8_t* state) {
+    using Release = void XB_THISCALL(uint8_t*);
+    for (uint8_t* entry = state + 0x78; entry != state - 8; entry -= 0x40) {
+        title_function<Release>(0x0011d640)(entry + 0x10);  // ScriptString_Release
+        title_function<Release>(0x0011d640)(entry + 4);
+        title_function<Release>(0x0011d640)(entry);
+    }
 }
 
 }  // namespace game

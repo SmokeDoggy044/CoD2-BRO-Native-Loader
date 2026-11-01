@@ -187,4 +187,31 @@ void XB_THISCALL PhysConstraint28c_Setup(uint8_t* constraint, const float* v0, c
                                          uint32_t f0, uint32_t f1, uint32_t f2, uint32_t f3, uint32_t f4,
                                          uint32_t f5, uint32_t f6);
 
+// 0x000b6510: a constraint's second body (+4), its anchor (+0x10) and axis (+0x20); flag 1 of
+// +0xa4. Unreferenced.
+void XB_THISCALL PhysConstraint_AttachSecondBody(uint8_t* constraint, uint32_t body, const float* anchor,
+                                                 const float* axis);
+// 0x000b6590: the constraint's segment (centre +0x30, axis +0x40, half length +0x60) moved out of
+// the frame: lo = centre - axis * len, hi = centre + axis * len (xyz). Unreferenced.
+void XB_THISCALL PhysConstraint_GetSegmentEnds(const uint8_t* constraint, const float* frame, float* lo, float* hi);
+// 0x000b6780: flag 2 of +0xa4 while the bodies' separation along the axis reaches the limit
+// +0x74 (constraints with flag 1). The stack word is unused.
+void XB_THISCALL PhysConstraint_UpdateLimitFlag(uint8_t* constraint, uint32_t unused);
+// 0x000b7020: the clamped separation (+0x98), +0x9c, the contact impulse into the speed +0x8c and
+// the position +0x94 += speed * dt.
+void XB_THISCALL PhysConstraint_UpdateDrive(uint8_t* constraint, float dt);
+// 0x000b71d0 / 0x000b7260: out = v + the body's +0x30 / +0x70 vector (v alone when flag 0x10 of
+// +0x144 is set). Returns out.
+float* XB_CDECL PhysBody_OffsetByPosition(float* out, const uint8_t* body, const float* v);
+float* XB_CDECL PhysBody_OffsetByField70(float* out, const uint8_t* body, const float* v);
+// 0x000b72f0 / 0x000b7330: a 0xa0-byte block of the world's frame buffer into +0xb0 / +0xb4.
+void XB_THISCALL PhysContact_AllocBufferB0(uint8_t* contact, uint8_t* world);
+void XB_THISCALL PhysContact_AllocBufferB4(uint8_t* contact, uint8_t* world);
+// 0x000b61f0: next 0xd0 constraint (-1 at +0xac/+0xb4/+0xbc), bodies a and b at +0 and +4.
+uint32_t* XB_CDECL PhysConstraintPoolD0_Alloc(uint8_t* pool, uint32_t unused, uint32_t a, uint32_t b);
+// 0x000b4b90: the world's 0xd0 constraint pool (+0x2a0) alloc.
+uint32_t* XB_CDECL PhysWorld_AllocConstraintD0(uint32_t a, uint32_t b);
+// 0x000b3d00: flag 1 of +0x144 on each body of the list at +0x28 (count +0x2c). Unreferenced.
+uint32_t XB_THISCALL PhysRagdoll_SetBodiesFlag1(uint8_t* ragdoll);
+
 }  // namespace game

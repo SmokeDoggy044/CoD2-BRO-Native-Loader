@@ -111,4 +111,8 @@ extern "C" void Vehicle_CopyPathState_entry(void);
 extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL VehiclePathNode_Copy(uint8_t* dst, const uint8_t* src);
 extern "C" void VehiclePathNode_Copy_entry(void);
 
+// 0x00027d30: releases the script strings of the path state's two 0x40 entries (EAX = state).
+extern "C" PLATFORM_HIDDEN void XB_CDECL VehiclePathState_Dtor(uint8_t* state);
+extern "C" void VehiclePathState_Dtor_entry(void);
+
 }  // namespace game

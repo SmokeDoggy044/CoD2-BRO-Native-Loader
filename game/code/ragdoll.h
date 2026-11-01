@@ -111,4 +111,9 @@ void XB_THISCALL PhysRagdoll_FreeBone(uint8_t* pool, uint8_t* bone);
 // 0x000b3f90: adds the 0x1c0 object to the attached-object list unless it is there.
 void XB_THISCALL PhysRagdoll_AddAttachedObject(uint8_t* phys, uint32_t object);
 
+// 0x00029b70: empty link lists in the ragdoll's five 0x30 blocks, the bone pool at +0xf0 reset,
+// +0x4a4 = 0 (ESI = ragdoll; returns it).
+extern "C" PLATFORM_HIDDEN uint8_t* XB_CDECL PhysRagdoll_InitLinks(uint8_t* ragdoll);
+extern "C" void PhysRagdoll_InitLinks_entry(void);
+
 }  // namespace game
