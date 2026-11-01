@@ -7,6 +7,7 @@
 #include "g_scr_runtime.h"
 #include "g_utils.h"
 #include "qcommon.h"
+#include "script_string.h"
 #include "title_data.h"
 
 namespace game {
@@ -777,6 +778,44 @@ void XB_CDECL Player_UpdateTurretUse(uint8_t* player) {
         return;
     }
     vehicle_call(0x0025b3f0, address_of(player), 0, 0, 0, 0, 0);  // G_ClientStopUsingTurret
+}
+
+// A path state: two int16 at +0, four words, three vec3 (+0x14, +0x20, +0x2c), then two path nodes
+// of 0x40 bytes at +0x38.
+PLATFORM_ASM_ENTRY(Vehicle_CopyPathState_entry,
+                   "pushl %ebx\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Vehicle_CopyPathState) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL Vehicle_CopyPathState(const uint8_t* src, uint8_t* dst) {
+    at<uint16_t>(dst, 0) = at<uint16_t>(src, 0);
+    at<uint16_t>(dst, 2) = at<uint16_t>(src, 2);
+    for (uint32_t offset = 4; offset < 0x38; offset += 4) at<uint32_t>(dst, offset) = at<uint32_t>(src, offset);
+    for (int32_t i = 0; i < 2; ++i) VehiclePathNode_Copy(dst + 0x38 + i * 0x40, src + 0x38 + i * 0x40);
+    return dst;
+}
+
+// A path node: three script strings (+0, +4, +0x10), two words, three vec3 (+0x14, +0x20, +0x2c),
+// a word at +0x38 and bit fields at +0x3c (14, 14, 2 and 2 bits, copied one field at a time).
+PLATFORM_ASM_ENTRY(VehiclePathNode_Copy_entry,
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(VehiclePathNode_Copy) "addl $8, %esp\n"
+                   "ret")
+
+uint8_t* XB_CDECL VehiclePathNode_Copy(uint8_t* dst, const uint8_t* src) {
+    ScriptString_Copy(&at<ScriptString>(dst, 0), &at<ScriptString>(src, 0));
+    ScriptString_Copy(&at<ScriptString>(dst, 4), &at<ScriptString>(src, 4));
+    at<uint32_t>(dst, 8) = at<uint32_t>(src, 8);
+    at<uint32_t>(dst, 0xc) = at<uint32_t>(src, 0xc);
+    ScriptString_Copy(&at<ScriptString>(dst, 0x10), &at<ScriptString>(src, 0x10));
+    for (uint32_t offset = 0x14; offset < 0x3c; offset += 4) at<uint32_t>(dst, offset) = at<uint32_t>(src, offset);
+    uint32_t& bits = at<uint32_t>(dst, 0x3c);
+    const uint32_t& from = at<uint32_t>(src, 0x3c);  // re-read for each field, as the original does
+    bits = (bits & ~0x00003fffu) | (from & 0x00003fffu);
+    bits = (bits & ~0x0fffc000u) | (from & 0x0fffc000u);
+    bits = (bits & ~0x30000000u) | (from & 0x30000000u);
+    bits = (bits & 0x3fffffffu) | (from & ~0x3fffffffu);
+    return dst;
 }
 
 }  // namespace game

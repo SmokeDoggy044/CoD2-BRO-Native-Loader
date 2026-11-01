@@ -18,3 +18,4 @@
 0011f240,Scr_GetNodeArrayNoKey,script-only,"callers BroScr_InitFriendlyChainNodes, BroScr_GetClosestNodeToEnt, BroScr_FallbackThink; 0 calls in missions 0-6 (--only --every 1)"
 000264d0,G_NotifyWithEntity_2,not reached,"only Pickup_Ammo; 0 calls in missions 0-6 (--only --every 1); leaf test not eligible (SmallHeap_Alloc -> GlobalMemoryStatus)"
 00029000,G_NotifyWithTwoStrings,not reached,"only Cmd_MenuResponse_f (in-game menu responses); 0 calls in missions 0-6 (--only --every 1); leaf test not eligible (SmallHeap_Alloc -> GlobalMemoryStatus)"
+000139e0,Scr_Acos,not reached,"script math builtin (no CALL/JMP callers, reached through the script function table like its twin Scr_Asin, which matched 100); 0 calls in missions 1,4,5,6 with --only --every 1 (g_phys push 1); offline leaf test not eligible (__CIacos error path raises an exception)"

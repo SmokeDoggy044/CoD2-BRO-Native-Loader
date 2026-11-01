@@ -38,11 +38,13 @@
 #include "ngl.h"
 #include "ngl_debug.h"
 #include "param_set.h"
+#include "phys.h"
 #include "qcommon.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "r_init.h"
 #include "r_static_init.h"
+#include "ragdoll.h"
 #include "script_string.h"
 #include "shaders.h"
 #include "snd.h"
@@ -257,6 +259,8 @@ const Function kFunctions[] = {
     {"HashStr_Equals", 0x0001b8f0, 0, code(&HashStr_Equals), 4, Result::Al, Status::Replaced},
     {"nglAllocSceneMemory", 0x0001b930, 0, code(&nglAllocSceneMemory), 8, Result::Eax, Status::Replaced},
     {"MemContext_AllocOrHeap16", 0x0001b960, 0, code(&MemContext_AllocOrHeap16_entry), 0, Result::Eax, Status::Replaced},
+    {"PhysShape_SupportInFrame", 0x0001b9e0, 0, code(&PhysShape_SupportInFrame), 12, Result::Eax, Status::Compare},
+    {"PhysShape_IntersectInFrame", 0x0001bb60, 0, code(&PhysShape_IntersectInFrame), 20, Result::Al, Status::Compare},
     {"CM_TriMesh_Dtor", 0x0001bdc0, 0, code(&CM_TriMesh_Dtor), 0, Result::None, Status::Compare},
     {"CM_WorldMesh_Fixup", 0x0001be40, 0, code(&CM_WorldMesh_Fixup), 0, Result::None, Status::Compare},
     {"CM_TriMesh_DeletingDtor", 0x0001bec0, 0, code(&CM_TriMesh_DeletingDtor), 4, Result::Eax, Status::Compare},
@@ -510,6 +514,8 @@ const Function kFunctions[] = {
     {"G_ClearClient", 0x00026b60, 0, code(&G_ClearClient_entry), 0, Result::Eax, Status::Compare},
     {"G_ClearLevelLocals", 0x00026cc0, 0, code(&G_ClearLevelLocals_entry), 0, Result::None, Status::Compare},
     {"DebugDraw_MakeTriangle", 0x00027d60, 0, code(&DebugDraw_MakeTriangle), 8, Result::Eax, Status::Replaced},
+    {"Vehicle_CopyPathState", 0x00027dc0, 0, code(&Vehicle_CopyPathState_entry), 0, Result::Eax, Status::Compare},
+    {"VehiclePathNode_Copy", 0x00027e60, 0, code(&VehiclePathNode_Copy_entry), 0, Result::Eax, Status::Compare},
     {"EntHandleTable_Alloc", 0x00027f30, 0, code(&EntHandleTable_Alloc_entry), 0, Result::Eax, Status::Replaced},
     {"G_EntityList_Init", 0x00028040, 0, code(&G_EntityList_Init), 0, Result::Eax, Status::Compare},
     {"DynArray_ReserveAligned", 0x000280a0, 0, code(&DynArray_ReserveAligned_entry), 0, Result::None, Status::Replaced},
@@ -547,13 +553,40 @@ const Function kFunctions[] = {
     {"XmpbManager_DeletingDtor", 0x00029990, 0, code(&XmpbManager_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"FxArray16_New", 0x00029a40, 0, code(&FxArray16_New), 8, Result::Eax, Status::Replaced},
     {"Vec3A_Normalize", 0x00029aa0, 0, code(&Vec3A_Normalize), 8, Result::Eax, Status::Replaced},
+    {"RagdollSphere_TransformToWorld", 0x00029bd0, 0, code(&RagdollSphere_TransformToWorld), 0, Result::Eax, Status::Compare},
+    {"PhysRagdoll_InitState", 0x00029ce0, 0, code(&PhysRagdoll_InitState_entry), 4, Result::Eax, Status::Compare},
+    {"Ragdoll_AddForce", 0x00029d50, 0, code(&Ragdoll_AddForce), 8, Result::None, Status::Compare},
+    {"Ragdoll_AddForceAtPoint", 0x00029da0, 0, code(&Ragdoll_AddForceAtPoint), 12, Result::None, Status::Compare},
     {"Mat44_InverseRigid_2", 0x00029e30, 0, code(&Mat44_InverseRigid_2), 8, Result::None, Status::Replaced},
     {"Quat_RotationBetween", 0x00029ff0, 0, code(&Quat_RotationBetween), 4, Result::None, Status::Replaced},
     {"Sphere_Merge", 0x0002a230, 0, code(&Sphere_Merge), 4, Result::None, Status::Replaced},
     {"Phys_MoveAttachedPoint", 0x0002a340, 0, code(&Phys_MoveAttachedPoint), 0, Result::None, Status::Compare},
+    {"RagdollCapsule_UpdateWorldPoints", 0x0002a5d0, 0, code(&RagdollCapsule_UpdateWorldPoints), 4, Result::None, Status::Compare},
+    {"RagdollCapsule_CollideWorld", 0x0002a620, 0, code(&RagdollCapsule_CollideWorld_entry), 4, Result::None, Status::Compare},
+    {"RagdollCapsule_GetBoundingSphere", 0x0002a910, 0, code(&RagdollCapsule_GetBoundingSphere), 8, Result::None, Status::Compare},
     {"Phys_UndoAttachedPushes", 0x0002ab10, 0, code(&Phys_UndoAttachedPushes), 0, Result::None, Status::Compare},
     {"PhysBody_RotateVector", 0x0002ac30, 0, code(&PhysBody_RotateVector), 12, Result::Eax, Status::Compare},
+    {"PhysContact_ComputeBias_2", 0x0002ad30, 0, code(&PhysContact_ComputeBias_2), 8, Result::None, Status::Compare},
+    {"PhysWorld_AllocContact", 0x0002ade0, 0, code(&PhysWorld_AllocContact), 0, Result::Eax, Status::Compare},
+    {"PhysContacts_Add", 0x0002ae40, 0, code(&PhysContacts_Add), 24, Result::Eax, Status::Compare},
+    {"RagdollCapsule_AddSphere", 0x0002aec0, 0, code(&RagdollCapsule_AddSphere), 4, Result::Eax, Status::Compare},
+    {"RagdollCapsulePool_Free", 0x0002af10, 0, code(&RagdollCapsulePool_Free), 0, Result::None, Status::Compare},
+    {"RagdollPool_Free", 0x0002afb0, 0, code(&RagdollPool_Free), 0, Result::None, Status::Compare},
+    {"RagdollPhysPool_Free", 0x0002b0a0, 0, code(&RagdollPhysPool_Free), 0, Result::None, Status::Compare},
+    {"PhysObjPool_Free", 0x0002b150, 0, code(&PhysObjPool_Free), 0, Result::None, Status::Compare},
+    {"VehiclePhys_AllocFromPool", 0x0002b2c0, 0, code(&VehiclePhys_AllocFromPool), 0, Result::Eax, Status::Compare},
+    {"VehiclePhysPool_Free", 0x0002b300, 0, code(&VehiclePhysPool_Free), 0, Result::None, Status::Compare},
+    {"RagdollBonePool_Reset", 0x0002b3a0, 0, code(&RagdollBonePool_Reset), 0, Result::None, Status::Compare},
+    {"RagdollCapsulePool_Reset", 0x0002b4c0, 0, code(&RagdollCapsulePool_Reset_entry), 0, Result::None, Status::Compare},
+    {"RagdollCapsulePairPool_Reset", 0x0002b500, 0, code(&RagdollCapsulePairPool_Reset), 0, Result::Eax, Status::Compare},
+    {"RagdollPool_ReleaseAllPhysics", 0x0002b570, 0, code(&RagdollPool_ReleaseAllPhysics), 4, Result::None, Status::Compare},
+    {"RagdollPool_Clear", 0x0002b5f0, 0, code(&RagdollPool_Clear_entry), 0, Result::None, Status::Compare},
+    {"RagdollPhysPool_DestroyAll", 0x0002b6d0, 0, code(&RagdollPhysPool_DestroyAll), 4, Result::None, Status::Compare},
+    {"RagdollPhysPool_Clear", 0x0002b740, 0, code(&RagdollPhysPool_Clear_entry), 0, Result::None, Status::Compare},
+    {"PhysObjPool_Reset", 0x0002b7f0, 0, code(&PhysObjPool_Reset), 0, Result::None, Status::Compare},
+    {"VehiclePhysPool_Reset", 0x0002b8c0, 0, code(&VehiclePhysPool_Reset), 0, Result::Eax, Status::Compare},
     {"Vec3A_CopyXYZ", 0x0002b950, 0, code(&Vec3A_CopyXYZ), 4, Result::None, Status::Replaced},
+    {"Vec4_ClampToScalarRange", 0x0002b990, 0, code(&Vec4_ClampToScalarRange), 8, Result::Eax, Status::Compare},
     {"InGameLiveOptionsMenu_DeletingDtor", 0x0002bd30, 0, code(&InGameLiveOptionsMenu_DeletingDtor), 4, Result::Eax, Status::Compare},
     {"PathNode_Construct", 0x0002bd50, 0, code(&PathNode_Construct_entry), 0, Result::Eax, Status::Compare},
     {"G_RestoreSavedEntityField134", 0x0002bf00, 0, code(&G_RestoreSavedEntityField134), 0, Result::None, Status::Compare},
@@ -1798,9 +1831,18 @@ const Function kFunctions[] = {
     {"FxOp15b_DrawQuads", 0x000ab8f0, 0, code(&FxOp15b_DrawQuads), 0, Result::None, Status::Replaced},
     {"FxOp5b_Draw", 0x000ac3a0, 0, code(&FxOp5b_Draw), 0, Result::None, Status::Compare},
     {"FxOp5b_DrawQuads", 0x000ac3b0, 0, code(&FxOp5b_DrawQuads), 0, Result::None, Status::Replaced},
+    {"PhysSegment_Support", 0x000acc70, 0, code(&PhysSegment_Support), 8, Result::Eax, Status::Compare},
+    {"PhysSphere_Support", 0x000acd00, 0, code(&PhysSphere_Support), 8, Result::Eax, Status::Compare},
+    {"PhysBox_Support", 0x000acd80, 0, code(&PhysBox_Support), 8, Result::Eax, Status::Compare},
+    {"PhysCapsule_Support", 0x000acdf0, 0, code(&PhysCapsule_Support), 8, Result::Eax, Status::Compare},
     {"CM_TriMesh_Support", 0x000aceb0, 0, code(&CM_TriMesh_Support), 8, Result::Eax, Status::Compare},
+    {"PhysPoint_SphereContact", 0x000acf70, 0, code(&PhysPoint_SphereContact), 16, Result::Al, Status::Compare},
+    {"PhysSphere_SphereContact", 0x000ad040, 0, code(&PhysSphere_SphereContact), 16, Result::Al, Status::Compare},
+    {"PhysBox_IntersectSegment", 0x000ada90, 0, code(&PhysBox_IntersectSegment), 16, Result::Al, Status::Compare},
+    {"PhysCapsule_SphereContact", 0x000adc90, 0, code(&PhysCapsule_SphereContact), 16, Result::Al, Status::Compare},
     {"CM_Mesh_IntersectRay", 0x000adf20, 0, code(&CM_Mesh_IntersectRay), 20, Result::Al, Status::Compare},
     {"CM_TriMesh_TraceSegment", 0x000ae500, 0, code(&CM_TriMesh_TraceSegment), 28, Result::Al, Status::Compare},
+    {"PhysOrientedBox_Support", 0x000aefa0, 0, code(&PhysOrientedBox_Support), 8, Result::Eax, Status::Compare},
     {"RayPlaneIntersectFrac", 0x000aff30, 0, code(&RayPlaneIntersectFrac), 16, Result::St0, Status::Replaced},
     {"ClosestPointOnTriangle", 0x000b0190, 0, code(&ClosestPointOnTriangle), 20, Result::Eax, Status::Replaced},
     {"Tri_MinEdgeLineDistSq", 0x000b05a0, 0, code(&Tri_MinEdgeLineDistSq), 16, Result::St0, Status::Compare},
