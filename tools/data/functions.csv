@@ -2172,7 +2172,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 0011f6f0,PtrArray_Reserve2,replaced,3,2,2,0,0,0,""
 0011fd80,Vec3_Scale,replaced,0,0,0,0,0,0,""
 00135fb0,Scr_ReleaseStringArrayAndString,compare,0,0,0,0,0,0,""
-00151270,Scr_StartThread_ent,compare,0,0,0,0,0,0,""
+00151270,BroScr_PanzerIVSetDifficultyHealth,compare,0,0,0,0,0,0,""
 0017ab70,DynArray_Alloc24_FillUndefined,compare,0,0,0,0,0,0,""
 0017ac00,DynArray_AllocInt_FillUndefined,replaced,195,1,1,0,0,0,""
 0017ac40,DynArray_AllocBool_FillUndefined,replaced,0,0,0,0,0,0,""

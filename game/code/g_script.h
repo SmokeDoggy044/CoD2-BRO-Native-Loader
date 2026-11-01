@@ -150,9 +150,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_ReleaseStringArrayAndString(uint32_
 extern "C" void Scr_ReleaseStringArrayAndString_entry(void);
 // 0x00151270 (level script code): the entity's health by difficulty, then the vehicle health
 // thread 0x0014d0a0 on it.
-void XB_CDECL Scr_StartThread_ent(uint32_t ent);
+void XB_CDECL BroScr_PanzerIVSetDifficultyHealth(uint32_t ent);
 // 0x00168220 (dead: no call, pointer or immediate): the "panzerIV" anim tree, then thread 0x001679b0.
-uint32_t XB_CDECL Scr_StartThread_ent_2(uint32_t ent);
+uint32_t XB_CDECL BroScr_PanzerIVUseAnimTree(uint32_t ent);
 // 0x0011a960: a functor {0x007f5ba0, a6, a7}; the argument slots become (a1, a2, a3, a7,
 // a4, a5, functor) and it tail-jumps to Scr_BeginThreadEndOn.
 extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_BeginThreadEndOnFunctor1(uint32_t* args);

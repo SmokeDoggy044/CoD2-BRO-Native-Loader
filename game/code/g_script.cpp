@@ -374,7 +374,7 @@ void XB_CDECL Scr_ReleaseStringArrayAndString(uint32_t* args) {
     title_function<void XB_THISCALL(uint32_t*)>(0x0011d640)(&args[4]);
 }
 
-void XB_CDECL Scr_StartThread_ent(uint32_t ent) {
+void XB_CDECL BroScr_PanzerIVSetDifficultyHealth(uint32_t ent) {
     // Health by difficulty (default 5000), then the vehicle health thread (0x0014d0a0) on the entity.
     ScriptString difficulty;
     ScriptString_FromRep(&difficulty, nullptr);
@@ -404,7 +404,7 @@ void XB_CDECL Scr_StartThread_ent(uint32_t ent) {
     title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&difficulty);  // ScriptString_Release
 }
 
-uint32_t XB_CDECL Scr_StartThread_ent_2(uint32_t ent) {
+uint32_t XB_CDECL BroScr_PanzerIVUseAnimTree(uint32_t ent) {
     // The "panzerIV" anim tree, then the thread 0x001679b0 on the entity.
     ScriptString tree;
     title_function<void XB_THISCALL(ScriptString*, const char*)>(0x0011eb50)(&tree, pointer<const char>(0x007f499c));

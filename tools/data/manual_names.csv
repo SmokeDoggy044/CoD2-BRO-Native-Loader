@@ -14401,3 +14401,5 @@ address,name,kind,confidence,evidence
 0002b4c0,RagdollCapsulePool_Reset,function,high,"capsule pool reset (game push 1) (2026-11-01)"
 0002b3a0,RagdollBonePool_Reset,function,high,"bone pool reset (game push 1) (2026-11-01)"
 0002b990,Vec4_ClampToScalarRange,function,high,"clamps a vec4 to a scalar range (game push 1) (2026-11-01)"
+00151270,BroScr_PanzerIVSetDifficultyHealth,function,high,"was Scr_StartThread_ent: sets health by difficulty hash (default 5000), starts BroScr_VehicleHealthThink (2026-11-01)"
+00168220,BroScr_PanzerIVUseAnimTree,function,high,"was Scr_StartThread_ent_2: UseAnimTree panzerIV, starts thread 0x001679b0; dead (no refs) (2026-11-01)"

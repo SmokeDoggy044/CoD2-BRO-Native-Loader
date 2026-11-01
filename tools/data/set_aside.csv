@@ -514,7 +514,7 @@ address,name,kind,reason
 0017b270,Scr_StartThread_ent_hash_f_i_f_f_2,unhookable,"as Scr_StartThreadFunctor1; C kept (game ai push 2)"
 0011fac0,Scr_NotifyAfterDeath,thread switch,"Scr_WaitTillString(thread, ""death"") suspends the script thread; C kept, not registered (game ai push 2)"
 0017afa0,Scr_CallThread_ent_ent_str,thread switch,"Scr_BeginThread then Scr_WaitFrames(0) when in a script thread (callers BroScr_VehicleRiderWait, BroScr_BipodGunner: always); C kept, not registered (game ai push 2)"
-00168220,Scr_StartThread_ent_2,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call 2026-11-01); C kept (game ai push 2)"
+00168220,BroScr_PanzerIVUseAnimTree,dead,"no CALL/JMP, pointer or immediate (xbefind imm+call 2026-11-01); C kept (game ai push 2)"
 0017b2f0,Scr_StartThread_ent_ent_f_i_i_i_f,unhookable,"as Scr_StartThreadFunctor1; C kept (game ai push 2)"
 0017b5c0,Scr_StartThread_ent_vec_b_3,unhookable,"as Scr_StartThreadFunctor1; C kept (game ai push 2)"
 001e4c00,Scr_CallThread_vt00825be4_2,unhookable,"push 0x14; call [ScrIface_Alloc]; also a thread switch (Scr_WaitFrames(0) in a script thread); C kept (game ai push 2)"

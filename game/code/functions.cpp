@@ -2135,7 +2135,7 @@ const Function kFunctions[] = {
     {"PtrArray_Reserve2", 0x0011f6f0, 0, code(&PtrArray_Reserve2), 4, Result::None, Status::Replaced},
     {"Vec3_Scale", 0x0011fd80, 0, code(&Vec3_Scale), 20, Result::Eax, Status::Replaced},
     {"Scr_ReleaseStringArrayAndString", 0x00135fb0, 0, code(&Scr_ReleaseStringArrayAndString_entry), 20, Result::None, Status::Compare},
-    {"Scr_StartThread_ent", 0x00151270, 0, code(&Scr_StartThread_ent), 4, Result::None, Status::Compare},
+    {"BroScr_PanzerIVSetDifficultyHealth", 0x00151270, 0, code(&BroScr_PanzerIVSetDifficultyHealth), 4, Result::None, Status::Compare},
     {"DynArray_Alloc24_FillUndefined", 0x0017ab70, 0, code(&DynArray_Alloc24_FillUndefined), 8, Result::Eax, Status::Compare},
     {"DynArray_AllocInt_FillUndefined", 0x0017ac00, 0, code(&DynArray_AllocInt_FillUndefined), 4, Result::Eax, Status::Replaced},
     {"DynArray_AllocBool_FillUndefined", 0x0017ac40, 0, code(&DynArray_AllocBool_FillUndefined), 4, Result::Eax, Status::Replaced},

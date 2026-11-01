@@ -5062,7 +5062,7 @@
 00150f50 BroScr_VehicleFollowPathToEnd_2
 00151200 BroScr_VehicleHealth2500Init
 00151230 BroScr_VehicleRandomHealthInit_3
-00151270 Scr_StartThread_ent
+00151270 BroScr_PanzerIVSetDifficultyHealth
 00151370 FUN_00151370
 00151bb0 BroScr_RemoveAllFollowers
 00151c90 BroScr_WaitForFollowersCall
@@ -5215,7 +5215,7 @@
 00167bd0 BroScr_TankInit_8
 00167dc0 BroScr_TankInit_4
 00168050 BroScr_PanzerIVSetup
-00168220 Scr_StartThread_ent_2
+00168220 BroScr_PanzerIVUseAnimTree
 001682c0 BroScr_TreeBurstInit
 00168350 BroScr_TankGunHull_5
 001683e0 BroScr_PanzerIVGunHullStart
