@@ -467,5 +467,17 @@ void XB_CDECL PhysObject1c0_PredictTransform(uint8_t* object, const float* dt);
 void XB_CDECL PhysBody_Integrate(uint8_t* body, float h);
 // 0x000c1b30: as PhysBody_Integrate keeping the angular momentum, re-orthonormalized every 6th call.
 void XB_CDECL PhysBody_IntegrateKeepMomentum(uint8_t* body, float h);
+// 0x000c2a40: the world's pool headers cleared.
+void XB_THISCALL PhysWorld_Destroy(uint8_t* world);
+// 0x000c2bb0: a contact's penetration bias (+0x7c / +0x78) and bounce velocity; +0x80 = 0.
+void XB_THISCALL PhysContact_ComputeBiasAndBounce(uint8_t* contact, float bounce, float limit, float dt);
+// 0x000c2d10: squared distance of two contact matches over their three points.
+float XB_THISCALL PhysContactMatch_DistanceSq(const uint8_t* match, const uint8_t* other);
+// 0x000c2da0: the pair's last contact point +0x40 = v, +0x5c = 1 (unreferenced).
+void XB_THISCALL PhysBodyPair_SetLastPointVector(uint8_t* pair, const float* v);
+// 0x000c2de0: a new contact point appended to the pair's list (null when the world's array is full).
+uint8_t* XB_THISCALL PhysBodyPair_AddContactPoint(uint8_t* pair, uint32_t body, uint32_t, const float* point_a,
+                                                  const float* point_b, const float* normal, uint32_t v0, uint32_t v1,
+                                                  uint32_t v2);
 
 }  // namespace game

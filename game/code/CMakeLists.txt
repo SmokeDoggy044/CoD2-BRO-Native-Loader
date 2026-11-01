@@ -47,6 +47,7 @@ set(game_code_sources
     ngl_gfx.cpp
     param_set.cpp
     phys.cpp
+    pmove.cpp
     qcommon.cpp
     qcommon_core.cpp
     qcommon_fs.cpp

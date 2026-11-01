@@ -5382,4 +5382,139 @@ void XB_CDECL PhysBody_IntegrateKeepMomentum(uint8_t* body, float h) {
     at<uint32_t>(body, 0x3c) = title_global<uint32_t>(0x0083eb20);
 }
 
+// Clears the world's pool headers (the 0x30 constraint pool through PhysConstraintPool30_Destroy, which
+// clears its constraints' back-pointers).
+void XB_THISCALL PhysWorld_Destroy(uint8_t* world) {
+    static const uint16_t kBefore[] = {0x2a8, 0x2a0, 0x2ac, 0x2a4, 0x2b0, 0x294, 0x28c, 0x298, 0x290, 0x29c, 0x280, 0x278,
+                                       0x284, 0x27c, 0x288, 0x26c, 0x264, 0x270, 0x268, 0x274, 0x258, 0x250, 0x25c, 0x254,
+                                       0x260, 0x244, 0x23c, 0x248, 0x240, 0x24c, 0x230, 0x228, 0x234, 0x22c, 0x238, 0x21c,
+                                       0x220, 0x224, 0x210, 0x214, 0x218};
+    static const uint16_t kAfter[] = {0x1f0, 0x1e8, 0x1f4, 0x1ec, 0x1f8, 0x1dc, 0x1d4, 0x1e0,
+                                      0x1d8, 0x1e4, 0x1c8, 0x1cc, 0x1d0, 0x1b0, 0x1b4, 0x1b8};
+    for (const uint16_t offset : kBefore) at<uint32_t>(world, offset) = 0;
+    PhysConstraintPool30_Destroy(world + 0x1fc);
+    for (const uint16_t offset : kAfter) at<uint32_t>(world, offset) = 0;
+}
+
+// Restitution/penetration terms of a contact: +0x7c = bias pushing out of penetration (separation
+// - 0.02 over max(dt, 1/240), x0.3 when negative, at least -5); a positive one moves to +0x78. With
+// bounce factor and limit set (> 1e-5) and no penetration, the larger normal velocity (body or state, x87
+// compare) above the body's +0x134 threshold gives a bounce velocity (factor * v, at most the limit)
+// taken off +0x78, or clearing a small bias. +0x80 = 0.
+void XB_THISCALL PhysContact_ComputeBiasAndBounce(uint8_t* contact, float bounce, float limit, float dt) {
+    const float separation = PhysContact_GetSeparation(contact);
+    const float min_dt = title_global<float>(0x007ce5a0);
+    const float t = dt > min_dt ? dt : min_dt;
+    const float zero = 0.0f;
+    const float bias = zero - (separation - title_global<float>(0x007ce598)) / t;
+    at<float>(contact, 0x7c) = bias;
+    if (zero > bias) at<float>(contact, 0x7c) = bias * title_global<float>(0x007ce594);
+    const float floor = title_global<float>(0x0083f094);
+    if (floor > at<float>(contact, 0x7c)) at<float>(contact, 0x7c) = floor;
+    if (at<float>(contact, 0x7c) >= zero) {
+        at<uint32_t>(contact, 0x78) = at<uint32_t>(contact, 0x7c);
+        at<float>(contact, 0x7c) = zero;
+    } else {
+        at<float>(contact, 0x78) = zero;
+    }
+    const float tiny = title_global<float>(0x0083effc);
+    if (bounce > tiny && limit > tiny && separation >= zero) {
+        const float state = PhysContact_GetStateNormalVelocity(contact);
+        const float body = PhysContact_GetBodyNormalVelocity(contact);
+        float v = platform_x87_greater(body, state) ? body : state;
+        if (v > at<float>(at<uint8_t*>(at<uint8_t*>(contact, 0x94), 0x34), 0x134)) {
+            v = v * bounce;
+            if (v > limit) v = limit;
+            if (title_global<float>(0x007ce5a4) >= at<float>(contact, 0x7c)) {
+                const float back = zero - v;
+                if (at<float>(contact, 0x7c) > back) {
+                    at<float>(contact, 0x7c) = zero;
+                    at<float>(contact, 0x78) = back;
+                }
+            } else {
+                at<float>(contact, 0x78) = at<float>(contact, 0x78) - v;
+            }
+        }
+    }
+    at<float>(contact, 0x80) = zero;
+}
+
+namespace {
+
+// |a - b|^2 of two lanes vectors, (x + y) + z.
+float distance_sq(const uint8_t* a, const uint8_t* b, uint32_t offset) {
+    const Lanes d = sub(lanes(reinterpret_cast<const float*>(a + offset)), lanes(reinterpret_cast<const float*>(b + offset)));
+    return dot3(d, d);
+}
+
+}  // namespace
+
+// Squared distance of two contact matches over their three points (+0x10, +0x20, +0x30): (d20 + d30) + d10.
+float XB_THISCALL PhysContactMatch_DistanceSq(const uint8_t* match, const uint8_t* other) {
+    const float d10 = distance_sq(match, other, 0x10);
+    const float d30 = distance_sq(match, other, 0x30);
+    const float d20 = distance_sq(match, other, 0x20);
+    return (d20 + d30) + d10;
+}
+
+// The pair's last contact point (list +0x28, tail +4): +0x40 = v, flag +0x5c = 1. Unreferenced.
+void XB_THISCALL PhysBodyPair_SetLastPointVector(uint8_t* pair, const float* v) {
+    uint8_t* const point = at<uint8_t*>(at<uint8_t*>(pair, 0x28), 4);
+    uint32_t words[4];
+    std::memcpy(words, v, 16);
+    std::memcpy(point + 0x40, words, 16);
+    point[0x5c] = 1;
+}
+
+// A 0x80 contact point from the world's point array (+0x34: storage, capacity, count; null when full; its
+// +0x60 / +0x68 / +0x70 = -1) appended to the pair's list (+0x28: head, tail, count). Points and normal in
+// the pair's order: for the pair's first body the points as given, else swapped and the normal negated;
+// +0x50..+0x58 = the three values.
+uint8_t* XB_THISCALL PhysBodyPair_AddContactPoint(uint8_t* pair, uint32_t body, uint32_t, const float* point_a,
+                                                  const float* point_b, const float* normal, uint32_t v0, uint32_t v1,
+                                                  uint32_t v2) {
+    uint8_t* const array = at<uint8_t*>(title_global<uint8_t*>(0x0090a87c), 0x34);
+    uint8_t* point = nullptr;
+    const int32_t count = at<int32_t>(array, 8);
+    if (count < at<int32_t>(array, 4)) {
+        point = reinterpret_cast<uint8_t*>(at<uintptr_t>(array, 0) + static_cast<uint32_t>(count << 7));
+        at<int32_t>(array, 8) = count + 1;
+        if (point) {
+            at<uint32_t>(point, 0x60) = 0xffffffffu;
+            at<uint32_t>(point, 0x68) = 0xffffffffu;
+            at<uint32_t>(point, 0x70) = 0xffffffffu;
+        }
+    }
+    uint8_t* const list = at<uint8_t*>(pair, 0x28);
+    ++at<int32_t>(list, 8);
+    uint8_t* const tail = at<uint8_t*>(list, 4);
+    if (tail)
+        at<uint8_t*>(tail, 0) = point;
+    else
+        at<uint8_t*>(list, 0) = point;
+    at<uint8_t*>(list, 4) = point;
+    at<uint32_t>(point, 0) = 0;
+    point[0x5c] = 0;
+    uint32_t a[4], b[4], n[4];
+    if (at<uint32_t>(pair, 0) == body) {
+        std::memcpy(b, point_b, 16);
+        std::memcpy(a, point_a, 16);
+        std::memcpy(n, normal, 16);
+        std::memcpy(point + 0x20, a, 16);
+        std::memcpy(point + 0x30, b, 16);
+    } else {
+        std::memcpy(a, point_a, 16);
+        std::memcpy(b, point_b, 16);
+        std::memcpy(n, normal, 16);
+        std::memcpy(point + 0x20, b, 16);
+        std::memcpy(point + 0x30, a, 16);
+        for (int32_t i = 0; i < 4; ++i) n[i] ^= title_global<uint32_t>(0x007ce310 + i * 4);
+    }
+    std::memcpy(point + 0x10, n, 16);
+    at<uint32_t>(point, 0x50) = v0;
+    at<uint32_t>(point, 0x54) = v1;
+    at<uint32_t>(point, 0x58) = v2;
+    return point;
+}
+
 }  // namespace game

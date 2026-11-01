@@ -729,4 +729,23 @@ uint8_t* XB_CDECL PhysRagdoll_InitLinks(uint8_t* ragdoll) {
     return ragdoll;
 }
 
+// ECX ragdoll, EDX id; callers keep using EDX (the original never writes it).
+PLATFORM_ASM_ENTRY(PhysRagdoll_FindCapsuleById_entry,
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(PhysRagdoll_FindCapsuleById) "addl $8, %esp\n"
+                   "popl %edx\n"
+                   "ret")
+
+// The capsule with id +0x128 == id among the ragdoll's capsules (+0xbf0, count +0xc44), or null.
+uint8_t* XB_CDECL PhysRagdoll_FindCapsuleById(uint8_t* ragdoll, int32_t id) {
+    const uint32_t base = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ragdoll)) + 0xbf0;
+    const uint32_t end = base + static_cast<uint32_t>(at<int32_t>(ragdoll, 0xc44)) * 4;
+    for (uint32_t it = base; it != end; it += 4) {
+        uint8_t* const capsule = *reinterpret_cast<uint8_t**>(uintptr_t{it});
+        if (at<int32_t>(capsule, 0x128) == id) return capsule;
+    }
+    return nullptr;
+}
+
 }  // namespace game
