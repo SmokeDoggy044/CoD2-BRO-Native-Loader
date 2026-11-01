@@ -857,7 +857,7 @@ extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_SightTrace(uint32_t entry, uint8
                                                            uint32_t ebp);
 extern "C" void Actor_SightTrace_entry(void);
 // 0x0020eaf0 (EAX actor): a clear shot from the muzzle at the sentient's enemy.
-extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CanShootPoint(uint32_t entry, uint8_t* actor, uint32_t ebp);
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CanShootEnemy(uint32_t entry, uint8_t* actor, uint32_t ebp);
 extern "C" void Actor_CanShootPoint_entry(void);
 // 0x0020eb50 (EAX actor, stack point, cone cos, max squared distance, pass entity; XMM0 result).
 extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_CanSeePoint(uint32_t entry, uint8_t* actor, const float* point,

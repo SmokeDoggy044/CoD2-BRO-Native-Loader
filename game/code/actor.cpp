@@ -7001,12 +7001,12 @@ PLATFORM_ASM_ENTRY(Actor_CanShootPoint_entry,
                    "movl %edx, %ebp\n"
                    "pushl (%esp)\n"
                    "pushl %eax\n"
-                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_CanShootPoint) "addl $12, %esp\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_CanShootEnemy) "addl $12, %esp\n"
                    "popl %ebp\n"
                    "popl %esp\n"
                    "ret")
 
-uint32_t XB_CDECL Actor_CanShootPoint(uint32_t entry, uint8_t* actor, uint32_t ebp) {
+uint32_t XB_CDECL Actor_CanShootEnemy(uint32_t entry, uint8_t* actor, uint32_t ebp) {
     // EAX actor: a clear shot (Actor_IsShotClear) from the muzzle to 16 below the eye of the
     // sentient's enemy (+0x3c); 0 without a muzzle. Frame: entry - 0x1c (eye +4, muzzle +0x10).
     const uint32_t frame = entry - 0x1c;

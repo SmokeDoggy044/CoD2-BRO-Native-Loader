@@ -2674,7 +2674,7 @@ const Function kFunctions[] = {
     {"Actor_TrimPathFromEye", 0x0020d110, 0, code(&Actor_TrimPathFromEye_entry), 0, Result::Eax, Status::Compare},
     {"Actor_DropToFloor", 0x0020e5a0, 0, code(&Actor_DropToFloor_entry), 0, Result::Eax, Status::Compare},
     {"G_DropActorsToFloorAtInit", 0x0020e9a0, 0, code(&G_DropActorsToFloorAtInit_entry), 0, Result::None, Status::Compare},
-    {"Actor_CanShootPoint", 0x0020eaf0, 0, code(&Actor_CanShootPoint_entry), 0, Result::Eax, Status::Compare},
+    {"Actor_CanShootEnemy", 0x0020eaf0, 0, code(&Actor_CanShootPoint_entry), 0, Result::Eax, Status::Compare},
     {"Actor_CanSeePoint", 0x0020eb50, 0, code(&Actor_CanSeePoint_entry), 16, Result::Xmm0, Status::Compare},
     {"InGameLiveOptionsMenu_Draw", 0x002226e0, 0, code(&InGameLiveOptionsMenu_Draw), 0, Result::None, Status::Compare},
     {"XboxLiveMenu_Draw", 0x00222750, 0, code(&XboxLiveMenu_Draw), 0, Result::None, Status::Compare},

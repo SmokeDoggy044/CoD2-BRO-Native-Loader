@@ -7799,7 +7799,7 @@
 0020e5a0 Actor_DropToFloor
 0020e770 Sentient_FindGoalNodeNearEntity
 0020e9a0 G_DropActorsToFloorAtInit
-0020eaf0 Actor_CanShootPoint
+0020eaf0 Actor_CanShootEnemy
 0020eb50 Actor_CanSeePoint
 0020ec50 FUN_0020ec50
 0020ec80 FUN_0020ec80

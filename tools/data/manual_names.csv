@@ -14489,3 +14489,4 @@ address,name,kind,confidence,evidence
 000bc0e0,PhysBody_InitFixed,function,high,"phys push 6 (2026-11-01)"
 000bc620,PhysContact140_GetSeparationVector,function,high,"phys push 6 (2026-11-01)"
 000bb4f0,Phys_AngularVelocityBetweenFrames,function,high,"phys push 6 (2026-11-01): frame difference -> quaternion -> acos polynomial / dt"
+0020eaf0,Actor_CanShootEnemy,function,high,"was Actor_CanShootPoint: takes only the actor, shoots at the sentient enemy (+0x3c) (2026-11-01)"
