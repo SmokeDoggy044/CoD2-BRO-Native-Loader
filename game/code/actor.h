@@ -532,4 +532,101 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_RegisterSuppression(uint32_t entr
                                                                    const float* end, uint8_t* sentient);
 extern "C" void Actor_RegisterSuppression_entry(void);
 
+// 0x001fab20: bare ret (Noncombat state callback); too short to hook.
+void XB_CDECL Actor_Noncombat_Suspend();
+// 0x001fab40: the path length still ahead (XMM0): lookahead pieces, last segment, point lengths.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Path_GetRemainingLength(const uint8_t* path);
+extern "C" void Path_GetRemainingLength_entry(void);
+// 0x001fb270: bare ret (Lmg state Finish); too short to hook.
+void XB_CDECL Actor_Lmg_Finish();
+// 0x001fb330: ret 0x14 (default Pain callback).
+void XB_STDCALL Actor_DefaultPain(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+// 0x001fb340: tail jump to the current state's Start (ECX = actor); returns the table index.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_DefaultResume(const uint8_t* actor);
+extern "C" void Actor_DefaultResume_entry(void);
+// 0x001fb360: tail jump to the current state's Finish (ECX = actor); returns the table index.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_DefaultSuspend(const uint8_t* actor);
+extern "C" void Actor_DefaultSuspend_entry(void);
+// 0x001fb380: bare ret (default Finish); too short to hook.
+void XB_CDECL Actor_DefaultFinish();
+// 0x001fb470: empties all 32 bad places (names released, table zeroed); EAX = 0.
+uint32_t XB_CDECL BadPlace_ClearAll();
+// 0x001fbec0: bare ret (callback at 0x008da8a8); too short to hook.
+void XB_CDECL Actor_Callback348Stub();
+// 0x001fbed0: entity Touch: tail jump to the actor state's Touch (slot 6). Returns EDX:EAX = actor:index.
+extern "C" PLATFORM_HIDDEN uint64_t XB_CDECL Actor_Touch(const uint8_t* ent);
+extern "C" void Actor_Touch_entry(void);
+// 0x001fc540: ESI path, EDI origin, stack dir (ret 4): whether the actor may face dir along the path.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_PathAllowsFacingEnemy(const uint8_t* path, const float* origin,
+                                                                         const float* dir);
+extern "C" void Actor_PathAllowsFacingEnemy_entry(void);
+// 0x001fcb40: whether the path's end node point needs refreshing (count or end position changed).
+uint32_t XB_THISCALL Path_NeedsEndRefresh(const uint8_t* path);
+// 0x001fd2a0: bare ret (state slot 5 default); too short to hook.
+void XB_CDECL Actor_DefaultSlot5();
+// 0x001fd3d0: EDI sentient, stack distance: range factor in XMM0 (weapon near/far ranges for actors).
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_IsInWeaponRange(const uint8_t* sentient, float distance);
+extern "C" void Actor_IsInWeaponRange_entry(void);
+// 0x001fd6f0: keeps or clears the avoid leader (+0x7c8/+0x7cc) found through the +0x7c8 links.
+void XB_THISCALL Actor_UpdateAvoidLeader(uint8_t* actor);
+
+// 0x001fd7f0: EDI actor, EAX damage: the excess + 1 of lethal damage the actor must survive, else 0.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Actor_ClampLethalDamage(uint8_t* actor, int32_t damage);
+extern "C" void Actor_ClampLethalDamage_entry(void);
+// 0x001fd920: ESI actor, EDI sentient: forgets the sentient (record, enemy, +0x12a0/+0x12a4).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ForgetSentient(uint8_t* actor, uint8_t* sentient);
+extern "C" void Actor_ForgetSentient_entry(void);
+// 0x001fdda0: EDI record: queues an anim-end notify node (hash of record +0x18) and marks the record.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Scr_QueueAnimEndNotify(uint8_t* record);
+extern "C" void Scr_QueueAnimEndNotify_entry(void);
+// 0x001fdfd0: EAX out, ECX sentient: the actor's (+0x2a0) or client's (+0x10) velocity.
+float* XB_REGS3 XB_CDECL Sentient_GetVelocity(float* out, uint32_t, const uint8_t* sentient);
+// 0x001fe1a0: EAX delay, ECX actor: forgets the current enemy until level time + delay. No references (dead).
+void XB_REGS3 XB_CDECL Actor_ForgetEnemyFor(uint32_t delay, uint32_t, uint8_t* actor);
+// 0x001fe4f0: ESI cache, EDI goal, stack start (ret 4): records a failed route (oldest entry reused when full).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Path_FailCache_Add(uint8_t* cache, const float* goal, const float* start);
+extern "C" void Path_FailCache_Add_entry(void);
+// 0x001fe670: EDI cache, EDX goal, stack start (ret 4): 1 when a failed route to goal from near start is cached.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_FailCache_Find(uint8_t* cache, const float* goal, const float* start);
+extern "C" void Path_FailCache_Find_entry(void);
+// 0x001fe710: EDX path: stance mask allowed at the path's last node.
+uint32_t XB_REGS2 XB_CDECL Path_GetAllowedStances(uint32_t, const uint8_t* path);
+// 0x001ff110: EDI from, EBX offset, ESI release out, stack target, aim out (ret 8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_GrenadeThrowPoints(const float* from, const float* offset, float* release,
+                                                             const float* target, float* aim);
+extern "C" void G_GrenadeThrowPoints_entry(void);
+// 0x001ff2e0: EAX target, ESI shot: shot direction = normalized target - shot start (+0x24).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_ComputeShotDir(const float* target, float* shot);
+extern "C" void Actor_ComputeShotDir_entry(void);
+// 0x001ffd50: EAX angles, XMM1 pitch, stack yaw (ret 4): 16-bit quantized pitch (+4) and yaw (+8, +0xc).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_SetQuantizedPitchYaw(uint8_t* angles, float pitch, float yaw);
+extern "C" void Actor_SetQuantizedPitchYaw_entry(void);
+
+// 0x001ffe10: EBX actor, EAX + 5 stack words (ret 0x14): cover candidates (+0x7f0, count +0x818) from
+// PathNode_ListInCylinder, filtered (stack 4), scored (stack 5) and sorted.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_GatherCoverCandidates(uint32_t entry, uint8_t* actor, uint32_t esi,
+                                                                     uint32_t eax, uint32_t arg1, uint32_t arg2,
+                                                                     uint32_t arg3, uint32_t filter, uint32_t score);
+extern "C" void Actor_GatherCoverCandidates_entry(void);
+// 0x00200ad0: once per level time, the node nearest to the sentient's entity (+0x4a).
+void XB_THISCALL Sentient_UpdateNearestNode(uint8_t* sentient);
+// 0x00200b50: the sentient leaves: enemy, claims and every other sentient's references dropped.
+void XB_CDECL Sentient_Dissociate(uint8_t* sentient);
+// 0x00201af0: ESI actor: stop callback, anim thread ended without notify, tail jump to 0x0029aba0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_AbortAnimScript(uint8_t* actor);
+extern "C" void Actor_AbortAnimScript_entry(void);
+// 0x00201cf0: EDI actor: the path trimmed at the goal, or dropped. Returns the trim result or 0.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_TrimPathAtGoal(uint8_t* actor);
+extern "C" void Actor_TrimPathAtGoal_entry(void);
+// 0x00201e00: drops every actor path that crosses a bad place for its team. Returns 0.
+uint32_t XB_CDECL BadPlace_ClearCrossingPaths();
+// 0x00201e90: EDI actor, stack exact (ret 4): the goal radius in XMM0.
+extern "C" PLATFORM_HIDDEN float XB_CDECL Actor_GetGoalRadius(const uint8_t* actor, uint32_t exact);
+extern "C" void Actor_GetGoalRadius_entry(void);
+// 0x002027d0: EAX actor: NodeClaimRevoked callbacks for a claimed node, the goal node dropped.
+void XB_REGS1 XB_CDECL Actor_DropClaimedNode(uint8_t* actor);
+// 0x002029d0: EAX sentient: frees the sentient. No references (dead).
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_Free(uint8_t* sentient);
+extern "C" void Sentient_Free_entry(void);
+
 }  // namespace game

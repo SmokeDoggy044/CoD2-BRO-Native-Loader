@@ -901,3 +901,6 @@ address,name,tested,matched,nan,mismatched,coverage
 00379dc0,AtExit_NalClassMap_903fe0,4000,4000,0,0,100.0
 00379de0,StaticInit_NalConfig_8bb124,4000,4000,0,0,100.0
 00379df0,StaticInit_Vtable_8bb768,4000,4000,0,0,100.0
+001fb470,BadPlace_ClearAll,4000,4000,0,0,100.0
+001fdfd0,Sentient_GetVelocity,3365,3365,0,0,100.0
+001fe4f0,Path_FailCache_Add,2229,2229,0,0,100.0

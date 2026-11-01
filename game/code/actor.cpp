@@ -3,9 +3,11 @@
 #include <cstring>
 
 #include "bg_misc.h"
+#include "g_script.h"
 #include "g_scr_runtime.h"
 #include "g_utils.h"
 #include "qcommon.h"
+#include "qcommon_core.h"
 #include "script_string.h"
 #include "title_data.h"
 
@@ -2596,6 +2598,838 @@ void XB_CDECL Actor_RegisterSuppression(uint32_t entry, uint8_t* actor, const fl
     regs.edi = uint32_t(uintptr_t(field<uint8_t*>(actor, 0)));
     const uint32_t args[2] = {title_global<uint32_t>(0x0097a7f4), number_slot};
     title_call_at_regs(entry - 0x20, 0x000265a0, &regs, 2, args);  // G_NotifyWithEntity
+}
+
+// Bare `ret` state callbacks (1 byte: too short to hook; the C is kept).
+void XB_CDECL Actor_Noncombat_Suspend() {}
+
+PLATFORM_ASM_ENTRY(Path_GetRemainingLength_entry, "pushl %ecx\n" PLATFORM_ASM_CALL(Path_GetRemainingLength) "fstps (%esp)\n"
+                                                  "movss (%esp), %xmm0\n"
+                                                  "addl $4, %esp\n"
+                                                  "ret")
+
+float XB_CDECL Path_GetRemainingLength(const uint8_t* path) {
+    // The lookahead pieces (+0x3b8, +0x3b0), the last segment (+0x3c8) when the lookahead
+    // ends on the next-to-last point, then the point lengths (+0x14) down to the start index.
+    const int16_t count = field<int16_t>(path, 0x380);
+    if (!count) return 0.0f;
+    const int16_t end = field<int16_t>(path, 0x388);
+    const int16_t start = field<int16_t>(path, 0x386);
+    float length = field<float>(path, 0x3b8) + field<float>(path, 0x3b0);
+    if (end == start) return length;
+    int32_t i = end - 1;
+    if (i == count - 2) {
+        length = field<float>(path, 0x3c8) + length;
+        --i;
+    }
+    for (; i >= start; --i) length = field<float>(path, 0x14 + uint32_t(i) * 0x1c) + length;
+    return length;
+}
+
+void XB_CDECL Actor_Lmg_Finish() {}
+
+// `ret 0x14`: the default Pain callback ignores its five arguments.
+void XB_STDCALL Actor_DefaultPain(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t) {}
+
+// The default Resume (slot 3) and Suspend (slot 2) tail-jump to the current state's Start
+// (slot 0) / Finish (slot 1) with ECX = actor, EDX as given and EAX = state * 9. The C
+// version returns the table index; the entry jumps through the table at the entry ESP.
+PLATFORM_ASM_ENTRY(Actor_DefaultResume_entry,
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Actor_DefaultResume) "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "popl %edx\n"
+                   "popl %esp\n"
+                   "jmp *0x00830c28(,%eax,4)")
+
+uint32_t XB_CDECL Actor_DefaultResume(const uint8_t* actor) {
+    return field<uint32_t>(actor, 8 + field<uint32_t>(actor, 0x20) * 4) * 9;
+}
+
+PLATFORM_ASM_ENTRY(Actor_DefaultSuspend_entry,
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(Actor_DefaultSuspend) "addl $4, %esp\n"
+                   "popl %ecx\n"
+                   "popl %edx\n"
+                   "popl %esp\n"
+                   "jmp *0x00830c2c(,%eax,4)")
+
+uint32_t XB_CDECL Actor_DefaultSuspend(const uint8_t* actor) {
+    return field<uint32_t>(actor, 8 + field<uint32_t>(actor, 0x20) * 4) * 9;
+}
+
+void XB_CDECL Actor_DefaultFinish() {}
+
+uint32_t XB_CDECL BadPlace_ClearAll() {
+    // The 32 bad places (0x28 bytes from 0x0098a570): each name (+4) set to the empty
+    // string through a temporary, then the whole table zeroed (REP STOSD, EAX = 0).
+    using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
+    for (uint32_t i = 0; i < 32; ++i) {
+        ScriptString empty;
+        ScriptString_FromRep(&empty, nullptr);
+        title_function<Assign>(0x0011d600)(&title_global<ScriptString>(0x0098a574 + i * 0x28), &empty);  // ScriptString_Assign
+        title_function<void XB_THISCALL(ScriptString*)>(0x0011d640)(&empty);                           // ScriptString_Release
+    }
+    for (uint32_t offset = 0; offset < 0x500; offset += 4) title_global<uint32_t>(0x0098a570 + offset) = 0;
+    return 0;
+}
+
+void XB_CDECL Actor_Callback348Stub() {}
+
+// The entity's Touch: tail jump to slot 6 of the actor's current state with ECX = actor,
+// EDX = other (the second argument), EAX = state * 9; the stack arguments stay in place.
+PLATFORM_ASM_ENTRY(Actor_Touch_entry,
+                   GAME_GAP_ESP("0x10000")
+                   "movl (%esp), %eax\n"
+                   "pushl 4(%eax)\n" PLATFORM_ASM_CALL(Actor_Touch) "addl $4, %esp\n"
+                   "popl %esp\n"
+                   "movl %edx, %ecx\n"
+                   "movl 8(%esp), %edx\n"
+                   "jmp *0x00830c40(,%eax,4)")
+
+uint64_t XB_CDECL Actor_Touch(const uint8_t* ent) {
+    const uint8_t* actor = field<const uint8_t*>(ent, 0x240);
+    const uint32_t index = field<uint32_t>(actor, 8 + field<uint32_t>(actor, 0x20) * 4) * 9;
+    return (uint64_t{uint32_t(uintptr_t(actor))} << 32) | index;  // EDX:EAX
+}
+
+PLATFORM_ASM_ENTRY(Actor_PathAllowsFacingEnemy_entry,
+                   "pushl 4(%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n" PLATFORM_ASM_CALL(Actor_PathAllowsFacingEnemy) "addl $12, %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Actor_PathAllowsFacingEnemy(const uint8_t* path, const float* origin, const float* dir) {
+    // 1 = the actor may turn to its enemy (dir) while following the path (ESI) from origin (EDI):
+    // a fresh (< 300 ms) or short (<= 128) path always allows it; else the path must not turn
+    // toward dir within a reach that shrinks as dir lines up with the path's direction
+    // (+0x39c/+0x3a0), nor climb or drop more than 12 - 6 * alignment on the way.
+    const int32_t age = level_time() - field<int32_t>(path, 0x3c0);
+    if (age < 300) return 1;
+    if (!Path_IsLongerThan(path, title_global<float>(0x0083ebe8))) return 1;  // 128
+    float align = dir[1] * field<float>(path, 0x3a0);
+    align = align + field<float>(path, 0x39c) * dir[0];
+    align = (align + title_global<float>(0x0083eb20)) * title_global<float>(0x0083eb24);  // (+1) * 0.5
+    const float reach = title_global<float>(0x0083ecdc) - align * title_global<float>(0x0083ecd8);  // 72 - 48a
+    if (reach > field<float>(path, 0x3b0)) return 0;
+    const float time_limit = align * title_global<float>(0x0083ecd4) + title_global<float>(0x0083ebec);  // 4500a + 500
+    if (float(age) >= time_limit) return 0;
+    const int32_t last = field<int16_t>(path, 0x380) - 1;
+    const int32_t stop = field<int16_t>(path, 0x388);
+    const float height = title_global<float>(0x0083eccc) - align * title_global<float>(0x0083ecd0);  // 12 - 6a
+    float dz = field<float>(path, 0x3d4) - origin[2];
+    const float height_sq = height * height;
+    if (stop == last) {
+        dz = ((dz / field<float>(path, 0x3b0)) * reach + origin[2]) - origin[2];
+        return dz * dz > height_sq ? 0 : 1;
+    }
+    if (dz * dz > height_sq) return 0;
+    const float zero = 0.0f;
+    float previous;
+    {
+        const uint8_t* point = path + uint32_t(last) * 0x1c;
+        const float dy = field<float>(point, 4) - origin[1];
+        const float dx = field<float>(point, 0) - origin[0];
+        previous = field<float>(path, 0x3a0) * dy;
+        previous = previous + field<float>(path, 0x39c) * dx;
+        previous = previous - reach;
+        if (previous > zero) return 1;
+    }
+    for (int32_t i = last - 1; i >= stop; --i) {
+        const uint8_t* point = path + uint32_t(i) * 0x1c;
+        const float dy = field<float>(point, 4) - origin[1];
+        const float dx = field<float>(point, 0) - origin[0];
+        float along = field<float>(path, 0x3a0) * dy;
+        along = along + field<float>(path, 0x39c) * dx;
+        along = along - reach;
+        if (along > zero) {
+            // The reach crosses between points i and i + 1: the height there.
+            float z = field<float>(point, 8) - field<float>(point, 0x24);
+            z = z * previous;
+            z = z / (previous - along);
+            z = z + field<float>(point, 0x24);
+            z = z - origin[2];
+            return z * z > height_sq ? 0 : 1;
+        }
+        const float dzi = field<float>(point, 8) - origin[2];
+        if (dzi * dzi > height_sq) return 0;
+        previous = along;
+    }
+    return 1;
+}
+
+uint32_t XB_THISCALL Path_NeedsEndRefresh(const uint8_t* path) {
+    // 1 when the path ends on a node point (+0x18 not 0/-1) after a plain point, flag 0x20 is
+    // clear, the length (+0x3b4) is above 0.001 and the point count (+0x382 = the count it was
+    // built with) or the end position (+0x3cc) no longer match.
+    const int16_t count = field<int16_t>(path, 0x380);
+    const int32_t last = count - 1;
+    if (last <= field<int16_t>(path, 0x386)) return 0;
+    const uint8_t* const end = path + uint32_t(last) * 0x1c;
+    const int16_t node = field<int16_t>(end, 0x18);
+    if (node == 0 || node == -1) return 0;
+    const int16_t previous = field<int16_t>(end - 0x1c, 0x18);
+    if (previous != 0 && previous != -1) return 0;
+    if (path[0x3bc] & 0x20) return 0;
+    if (title_global<float>(0x0083eb4c) >= field<float>(path, 0x3b4)) return 0;  // 0.001
+    if (count != field<int16_t>(path, 0x382)) return 1;
+    if (field<float>(path, 0x3cc) != field<float>(end, 0)) return 1;
+    if (field<float>(path, 0x3d0) != field<float>(end, 4)) return 1;
+    if (field<float>(path, 0x3d4) != field<float>(end, 8)) return 1;
+    return 0;
+}
+
+void XB_CDECL Actor_DefaultSlot5() {}
+
+// Callers keep XMM3 across the call.
+PLATFORM_ASM_ENTRY(Actor_IsInWeaponRange_entry,
+                   "subl $16, %esp\n"
+                   "movups %xmm3, (%esp)\n"
+                   "pushl 20(%esp)\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(Actor_IsInWeaponRange) "fstps (%esp)\n"
+                   "movss (%esp), %xmm0\n"
+                   "addl $8, %esp\n"
+                   "movups (%esp), %xmm3\n"
+                   "addl $16, %esp\n"
+                   "ret")
+
+float XB_CDECL Actor_IsInWeaponRange(const uint8_t* sentient, float distance) {
+    // A range factor for `distance` (XMM0): actors use their weapon's near/far ranges
+    // (+0x800/+0x804; full inside near, 0 beyond far, linear between) times the sentient's
+    // +0x2c; others blend two global values (0x0094d6a8 at 0x0094cb10, 0x0095c108 at
+    // 0x0095c1a0), times 5.
+    const uint8_t* const actor = field<const uint8_t*>(field<const uint8_t*>(sentient, 0), 0x240);
+    if (!actor) {
+        const float near = title_global<float>(0x0094cb10);
+        if (near > distance) return title_global<float>(0x0094d6a8) * title_global<float>(0x0083ece8);
+        const float far = title_global<float>(0x0095c1a0);
+        if (distance > far) return title_global<float>(0x0095c108) * title_global<float>(0x0083ece8);
+        float t = distance - near;
+        t = t / (far - near);
+        const float near_value = title_global<float>(0x0094d6a8);
+        t = t * (title_global<float>(0x0095c108) - near_value);
+        return (t + near_value) * title_global<float>(0x0083ece8);
+    }
+    // The weapon index is kept in AL: the def of (index & 0xff), 0 when not found.
+    const int32_t last = title_global<int32_t>(0x0095f4d4);                         // bg_lastWeaponIndex
+    const uint8_t* const* const defs = title_global<const uint8_t* const*>(0x0095f4d8);  // bg_weaponDefs
+    uint32_t index = 0;
+    for (int32_t i = 0; i <= last; ++i) {
+        if (field<uint32_t>(actor, 0xf0) == field<uint32_t>(defs[i], 4)) {
+            index = uint32_t(i) & 0xff;
+            break;
+        }
+    }
+    const uint8_t* const def = defs[index];
+    if (field<float>(def, 0x800) > distance) return field<float>(sentient, 0x2c) * title_global<float>(0x0083eb20);
+    if (distance > field<float>(def, 0x804)) {
+        const float zero = 0.0f;
+        return field<float>(sentient, 0x2c) * zero;
+    }
+    float t = distance - field<float>(def, 0x800);
+    t = t / (field<float>(def, 0x804) - field<float>(def, 0x800));
+    return field<float>(sentient, 0x2c) * (title_global<float>(0x0083eb20) - t);
+}
+
+void XB_THISCALL Actor_UpdateAvoidLeader(uint8_t* actor) {
+    // Only in modes 1 and 7 (+0x278): follows the +0x7c8 links to the actor that links to
+    // itself (the leader) and keeps it (+0x7c8, its entity +0x7cc) while the leader's
+    // +0x7c0 time (+ 0x008dda9c once the leader entity's +0x328 time has passed) lies ahead
+    // and the leader's entity is not our own; else both are cleared.
+    const uint32_t mode = field<uint32_t>(actor, 0x278);
+    if (mode == 1 || mode == 7) {
+        if (field<uint8_t*>(actor, 0x7c8) == actor) return;
+        uint8_t* leader = actor;
+        for (;;) {
+            leader = field<uint8_t*>(leader, 0x7c8);
+            if (!leader) break;
+            if (field<uint8_t*>(leader, 0x7c8) != leader) continue;
+            int32_t until = field<int32_t>(leader, 0x7c0);
+            const int32_t now = level_time();
+            if (now >= field<int32_t>(field<const uint8_t*>(leader, 0), 0x328)) until += title_global<int32_t>(0x008dda9c);
+            if (now < until && field<uint32_t>(actor, 0) != field<uint32_t>(leader, 0x7cc)) {
+                field<uint8_t*>(actor, 0x7c8) = leader;
+                field<uint32_t>(actor, 0x7cc) = field<uint32_t>(leader, 0x7cc);
+                return;
+            }
+            break;
+        }
+    }
+    field<uint32_t>(actor, 0x7c8) = 0;
+    field<uint32_t>(actor, 0x7cc) = 0;
+}
+
+PLATFORM_ASM_ENTRY(Actor_ClampLethalDamage_entry, "pushl %eax\n"
+                                                  "pushl %edi\n" PLATFORM_ASM_CALL(Actor_ClampLethalDamage) "addl $8, %esp\n"
+                                                  "ret")
+
+int32_t XB_CDECL Actor_ClampLethalDamage(uint8_t* actor, int32_t damage) {
+    // Damage that would kill (>= the entity's health +0x350) while no flag +0xcc is set and a
+    // pending transition (+0xa4[0..+0xbc]) is state 10, or the actor is in state 12: the
+    // excess + 1 (marks +0xd0); else 0.
+    const int32_t health = field<int32_t>(field<const uint8_t*>(actor, 0), 0x350);
+    if (damage < health) return 0;
+    if (field<uint32_t>(actor, 0xcc)) return 0;
+    bool lethal = false;
+    if (field<int32_t>(actor, 0xbc) >= 0) {
+        int32_t i = 0;
+        do {
+            if (field<uint32_t>(actor, 0xa4 + uint32_t(i) * 4) == 10) {
+                lethal = true;
+                break;
+            }
+        } while (++i <= field<int32_t>(actor, 0xbc));
+    }
+    if (!lethal && !Actor_IsInState(actor, 12)) return 0;
+    field<uint32_t>(actor, 0xd0) = 1;
+    return damage - health + 1;
+}
+
+PLATFORM_ASM_ENTRY(Actor_ForgetSentient_entry, "pushl %edi\n"
+                                               "pushl %esi\n" PLATFORM_ASM_CALL(Actor_ForgetSentient) "addl $8, %esp\n"
+                                               "ret")
+
+void XB_CDECL Actor_ForgetSentient(uint8_t* actor, uint8_t* sentient) {
+    // Clears what the actor knows of the sentient (its 0x50-byte record at +0x850 + index * 0x50),
+    // its enemy (Sentient_SetEnemy(null)) and the two references at +0x12a0/+0x12a4.
+    const int32_t index = int32_t(uintptr_t(sentient) - uintptr_t(sentients())) / 0x60;
+    field<uint32_t>(actor, 0x850 + uint32_t(index) * 0x50) = 0;
+    Actor_ClearSentientSlots(actor, uint32_t(uintptr_t(sentient)));
+    uint8_t* const own = field<uint8_t*>(actor, 4);
+    if (field<uint8_t*>(own, 0x3c) == sentient) {
+        using SetEnemy = void XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint8_t*, uint32_t);
+        title_function<SetEnemy>(0x002184f0)(0, 0, own, 0);  // Sentient_SetEnemy
+    }
+    if (field<uint8_t*>(actor, 0x12a0) == sentient) field<uint32_t>(actor, 0x12a0) = 0;
+    if (field<uint8_t*>(actor, 0x12a4) == sentient) field<uint32_t>(actor, 0x12a4) = 0;
+}
+
+PLATFORM_ASM_ENTRY(Scr_QueueAnimEndNotify_entry, "pushl %edi\n" PLATFORM_ASM_CALL(Scr_QueueAnimEndNotify) "addl $4, %esp\n"
+                                                 "ret")
+
+void XB_CDECL Scr_QueueAnimEndNotify(uint8_t* record) {
+    // A 0x14-byte node from the small heap (0x0095f56c): +0xc = record +8, +8 = hash of the
+    // name at record +0x18, appended to the list at 0x008dd200 (tail 0x008dd204, count
+    // 0x008dd1f8); the record is marked (+0x10). A failed allocation links a null node.
+    uint8_t* node = SmallHeap_Alloc(title_global<uint8_t*>(0x0095f56c), 0x14, 0);
+    if (node) {
+        const char* const name = field<const char*>(record, 0x18);
+        const uint32_t value = field<uint32_t>(record, 8);
+        const uint32_t hash = Com_HashKeyNoCase(0, name);
+        field<uint32_t>(node, 0xc) = value;
+        field<uint32_t>(node, 0) = 0;
+        field<uint32_t>(node, 4) = 0;
+        field<uint32_t>(node, 8) = hash;
+        field<uint32_t>(node, 0x10) = 0;
+    } else {
+        node = nullptr;
+    }
+    field<uint32_t>(node, 0) = 0x008dd200;
+    uint8_t* const tail = title_global<uint8_t*>(0x008dd204);
+    field<uint8_t*>(node, 4) = tail;
+    field<uint8_t*>(tail, 0) = node;
+    const int32_t count = title_global<int32_t>(0x008dd1f8) + 1;
+    title_global<uint8_t*>(0x008dd204) = node;
+    title_global<int32_t>(0x008dd1f8) = count;
+    record[0x10] = 1;
+}
+
+float* XB_REGS3 XB_CDECL Sentient_GetVelocity(float* out, uint32_t, const uint8_t* sentient) {
+    // Actors: the actor's +0x2a0 vector; others: the entity's client (+0x23c) +0x10 vector.
+    // Every word is read again through the sentient, as in the original.
+    uint32_t* const words = reinterpret_cast<uint32_t*>(out);
+    if (field<const uint8_t*>(field<const uint8_t*>(sentient, 0), 0x240)) {
+        for (uint32_t i = 0; i < 3; ++i)
+            words[i] = field<uint32_t>(field<const uint8_t*>(field<const uint8_t*>(sentient, 0), 0x240), 0x2a0 + i * 4);
+    } else {
+        for (uint32_t i = 0; i < 3; ++i)
+            words[i] = field<uint32_t>(field<const uint8_t*>(field<const uint8_t*>(sentient, 0), 0x23c), 0x10 + i * 4);
+    }
+    return out;  // EAX is never written
+}
+
+void XB_REGS3 XB_CDECL Actor_ForgetEnemyFor(uint32_t delay, uint32_t, uint8_t* actor) {
+    // Marks the current enemy's record (+0x86c) with level time + delay, then forgets it.
+    const uint32_t until = uint32_t(level_time()) + delay;
+    const int32_t index = int32_t(uintptr_t(field<uint8_t*>(field<uint8_t*>(actor, 4), 0x3c)) - uintptr_t(sentients())) / 0x60;
+    field<uint32_t>(actor, 0x86c + uint32_t(index) * 0x50) = until;
+    Actor_ForgetSentient(actor, field<uint8_t*>(field<uint8_t*>(actor, 4), 0x3c));
+}
+
+PLATFORM_ASM_ENTRY(Path_FailCache_Add_entry, "pushl 4(%esp)\n"
+                                             "pushl %edi\n"
+                                             "pushl %esi\n" PLATFORM_ASM_CALL(Path_FailCache_Add) "addl $12, %esp\n"
+                                             "ret $4")
+
+void XB_CDECL Path_FailCache_Add(uint8_t* cache, const float* goal, const float* start) {
+    // Cache: +0 adds, +4 entries used (int16, at most 15), +8 entries of 0x1c bytes
+    // (start, goal, time as float). When full, the entry whose time is farthest from now
+    // (x87 |now - time| stored as float; the first on ties, entry 0 if all are 0) is reused.
+    uint8_t* slot;
+    const int16_t used = field<int16_t>(cache, 4);
+    if (used < 15) {
+        slot = cache + 8 + uint32_t(used) * 0x1c;
+        field<int16_t>(cache, 4) = int16_t(used + 1);
+    } else {
+        float best = 0.0f;
+        const float now = float(level_time());
+        uint32_t index = 0;
+        for (uint32_t i = 0; i < 15; ++i) {
+            const float age = float(platform_x87_abs_ext(static_cast<long double>(now) -
+                                                         static_cast<long double>(field<float>(cache, 0x20 + i * 0x1c))));
+            if (platform_x87_greater(age, best)) {
+                best = age;
+                index = i;
+            }
+        }
+        slot = cache + 8 + index * 0x1c;
+    }
+    for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(slot, i * 4) = reinterpret_cast<const uint32_t*>(start)[i];
+    for (uint32_t i = 0; i < 3; ++i) field<uint32_t>(slot, 0xc + i * 4) = reinterpret_cast<const uint32_t*>(goal)[i];
+    field<float>(slot, 0x18) = float(level_time());
+    ++field<int32_t>(cache, 0);
+}
+
+PLATFORM_ASM_ENTRY(Path_FailCache_Find_entry, "pushl 4(%esp)\n"
+                                              "pushl %edx\n"
+                                              "pushl %edi\n" PLATFORM_ASM_CALL(Path_FailCache_Find) "addl $12, %esp\n"
+                                              "ret $4")
+
+uint32_t XB_CDECL Path_FailCache_Find(uint8_t* cache, const float* goal, const float* start) {
+    // 1 (and +6 counted) for an entry with exactly this goal and a start within 2 units on
+    // each axis (x87 |a - b| < 2).
+    const float limit = title_global<float>(0x0083eba8);  // 2
+    for (int32_t i = 0; i < field<int16_t>(cache, 4); ++i) {
+        const uint8_t* const entry = cache + 8 + uint32_t(i) * 0x1c;
+        if (goal[0] != field<float>(entry, 0xc) || goal[1] != field<float>(entry, 0x10) ||
+            goal[2] != field<float>(entry, 0x14))
+            continue;
+        bool near = true;
+        for (uint32_t axis = 0; axis < 3 && near; ++axis) {
+            const long double d = platform_x87_abs_ext(static_cast<long double>(start[axis]) -
+                                                       static_cast<long double>(field<float>(entry, axis * 4)));
+            near = static_cast<long double>(limit) > d;
+        }
+        if (near) {
+            ++field<int16_t>(cache, 6);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+uint32_t XB_REGS2 XB_CDECL Path_GetAllowedStances(uint32_t, const uint8_t* path) {
+    // Stance mask (1 stand, 2 crouch, 4 prone) of the last node point on the path at or
+    // after the start (+0x386), skipping the end point when the path's end (+0x3cc) is not
+    // on it; the end point's node when none; 7 when that is no node either, 0 for a bad handle.
+    const int32_t last = field<int16_t>(path, 0x380) - 1;
+    int32_t i = last;
+    const uint8_t* end = path + uint32_t(last) * 0x1c;
+    if (field<float>(path, 0x3cc) != field<float>(end, 0) || field<float>(path, 0x3d0) != field<float>(end, 4) ||
+        field<float>(path, 0x3d4) != field<float>(end, 8))
+        --i;
+    const int32_t start = field<int16_t>(path, 0x386);
+    for (; i >= start; --i) {
+        const int16_t node = field<int16_t>(path, uint32_t(i) * 0x1c + 0x18);
+        if (node != 0 && node != -1) break;
+    }
+    if (i < start) {
+        const int16_t node = field<int16_t>(path, uint32_t(last) * 0x1c + 0x18);
+        if (node == 0 || node == -1) return 7;
+        i = last;
+    }
+    const uint16_t handle = field<uint16_t>(path, uint32_t(i) * 0x1c + 0x18);
+    if (handle == 0 || handle == 0xffff) return 0;
+    const uint8_t* const blocks = title_global<const uint8_t*>(0x0095f4f4);  // g_pathNodeBlocks
+    const uint8_t* const block = field<const uint8_t*>(blocks, 8 + uint32_t(uint16_t((handle >> 9) - 1)) * 4);
+    if (!block) return 0;
+    const uint8_t* const node = field<const uint8_t*>(block, 0x10) + (handle & 0x1ffu) * 0x80;
+    if (!node) return 0;
+    const uint16_t flags = field<uint16_t>(node, 0x2c);
+    uint32_t mask = (flags & 4) ? 6 : 7;
+    if (flags & 8) mask &= ~2u;
+    if (flags & 0x10) mask &= ~4u;
+    return mask;
+}
+
+PLATFORM_ASM_ENTRY(G_GrenadeThrowPoints_entry,
+                   "pushl 8(%esp)\n"
+                   "pushl 8(%esp)\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n" PLATFORM_ASM_CALL(G_GrenadeThrowPoints) "addl $20, %esp\n"
+                   "ret $8")
+
+void XB_CDECL G_GrenadeThrowPoints(const float* from, const float* offset, float* release, const float* target,
+                                   float* aim) {
+    // release = target + offset turned into the (from -> target) heading in 2D (unit length
+    // unless 0), z added; aim = release + 0.75 * (from - release).
+    const float dy = target[1] - from[1];
+    const float dx = target[0] - from[0];
+    const float length = title_ci_sqrt_ext(static_cast<float>(dy * dy + dx * dx));
+    float fx = dx, fy = dy;
+    if (length != title_global<float>(0x0083eafc)) {
+        const float inverse = title_global<float>(0x0083eb20) / length;
+        fx = inverse * dx;
+        fy = inverse * dy;
+    }
+    release[0] = (offset[0] * fx + target[0]) - offset[1] * fy;
+    const float y = (offset[1] * fx + offset[0] * fy) + target[1];
+    release[1] = y;
+    const float z = target[2] + offset[2];
+    release[2] = z;
+    const float scale = title_global<float>(0x0083eb58);  // 0.75
+    const float ax = (from[0] - release[0]) * scale;
+    const float ay = (from[1] - y) * scale;
+    const float az = (from[2] - z) * scale;
+    aim[0] = release[0] + ax;
+    aim[1] = release[1] + ay;
+    aim[2] = release[2] + az;
+}
+
+PLATFORM_ASM_ENTRY(Actor_ComputeShotDir_entry, "pushl %esi\n"
+                                               "pushl %eax\n" PLATFORM_ASM_CALL(Actor_ComputeShotDir) "addl $8, %esp\n"
+                                               "ret")
+
+void XB_CDECL Actor_ComputeShotDir(const float* target, float* shot) {
+    // shot[0..2] = target - shot start (+0x24), normalized unless its length is 0.
+    shot[0] = target[0] - shot[9];
+    shot[1] = target[1] - shot[10];
+    const float x = shot[0], y = shot[1];
+    const float z = target[2] - shot[11];
+    const float length_sq = (x * x + y * y) + z * z;
+    shot[2] = z;
+    const float length = title_ci_sqrt_ext(length_sq);
+    if (length == title_global<float>(0x0083eafc)) return;
+    const float inverse = title_global<float>(0x0083eb20) / length;
+    shot[0] = shot[0] * inverse;
+    shot[1] = shot[1] * inverse;
+    shot[2] = shot[2] * inverse;
+}
+
+PLATFORM_ASM_ENTRY(Actor_SetQuantizedPitchYaw_entry,
+                   "pushl %eax\n"  // EAX is handed back unchanged
+                   "pushl 8(%esp)\n"
+                   "subl $4, %esp\n"
+                   "movss %xmm1, (%esp)\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_SetQuantizedPitchYaw) "addl $12, %esp\n"
+                   "popl %eax\n"
+                   "ret $4")
+
+void XB_CDECL Actor_SetQuantizedPitchYaw(uint8_t* angles, float pitch, float yaw) {
+    // +4 = pitch, +8 and +0xc = yaw, each through a 16-bit angle.
+    const float to_short = title_global<float>(0x0083ebd8), to_angle = title_global<float>(0x0083ebd4);
+    field<float>(angles, 4) = static_cast<float>(static_cast<int32_t>(pitch * to_short) & 0xffff) * to_angle;
+    const float y = static_cast<float>(static_cast<int32_t>(yaw * to_short) & 0xffff) * to_angle;
+    field<float>(angles, 8) = y;
+    field<float>(angles, 0xc) = y;
+}
+
+namespace {
+
+// Title callees with EBX/EDI inputs (the C frame's EBX is saved around them).
+// Path_FindNearestNodeInList (0x002b0820): ECX position, EDX start node, EBX node blocks.
+uint8_t* find_nearest_node_in_list(const float* position, uint8_t* node, uint32_t blocks) {
+    uint32_t value = blocks;
+    __asm__ volatile("pushl %%ebx\n\tmovl %%eax, %%ebx\n\tcall *%%esi\n\tpopl %%ebx"
+                     : "+a"(value), "+c"(position), "+d"(node)
+                     : "S"(uintptr_t{0x002b0820})
+                     : "memory", "cc");
+    return reinterpret_cast<uint8_t*>(uintptr_t{value});
+}
+
+// PathNode_ReleaseClaimsBy (0x002b0600): EBX sentient, one stack word (ret 4).
+void release_claims_by(uint8_t* sentient, uint32_t blocks) {
+    uint32_t value = uint32_t(uintptr_t(sentient)), word = blocks, scratch = 0;
+    __asm__ volatile("pushl %%ebx\n\tmovl %%eax, %%ebx\n\tpushl %%edx\n\tcall *%%esi\n\tpopl %%ebx"
+                     : "+a"(value), "+d"(word), "+c"(scratch)
+                     : "S"(uintptr_t{0x002b0600})
+                     : "memory", "cc");
+}
+
+// Path_TrimAtGoal (0x00200e90): EAX path, EDX goal, XMM4 radius, one stack float (ret 4).
+uint32_t trim_at_goal(uint8_t* path, const float* goal, const float* radius, uint32_t limit) {
+    uint32_t value = uint32_t(uintptr_t(path)), word = uint32_t(uintptr_t(goal)), scratch = limit;
+    __asm__ volatile("movss (%%esi), %%xmm4\n\tpushl %%ecx\n\tmovl $0x00200e90, %%ecx\n\tcall *%%ecx"
+                     : "+a"(value), "+d"(word), "+c"(scratch)
+                     : "S"(radius)
+                     : "memory", "cc", "xmm4");
+    return value;
+}
+
+// The node a handle names (low 9 bits index, the rest block + 1 in g_pathNodeBlocks), or null.
+const uint8_t* node_of(uint16_t handle) {
+    if (handle == 0 || handle == 0xffff) return nullptr;
+    const uint8_t* const blocks = title_global<const uint8_t*>(0x0095f4f4);  // g_pathNodeBlocks
+    const uint8_t* const block = field<const uint8_t*>(blocks, 8 + uint32_t(uint16_t((handle >> 9) - 1)) * 4);
+    if (!block) return nullptr;
+    return field<const uint8_t*>(block, 0x10) + (handle & 0x1ffu) * 0x80;
+}
+
+}  // namespace
+
+// The callbacks store stack addresses in a global (0x00929b40): the list sits at the
+// original's frame address (entry - 0x800) and every title callee runs where the original's
+// call puts it (frame E - 0x810 after `sub esp,0x804` and three pushes), with its registers
+// and its return address written back. The C frame is below a gap; EBP is saved there too.
+PLATFORM_ASM_ENTRY(Actor_GatherCoverCandidates_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl 20(%ebp)\n"
+                   "pushl 16(%ebp)\n"
+                   "pushl 12(%ebp)\n"
+                   "pushl 8(%ebp)\n"
+                   "pushl 4(%ebp)\n"
+                   "pushl %eax\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_GatherCoverCandidates) "addl $36, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $0x14")
+
+void XB_CDECL Actor_GatherCoverCandidates(uint32_t entry, uint8_t* actor, uint32_t esi, uint32_t eax, uint32_t arg1,
+                                          uint32_t arg2, uint32_t arg3, uint32_t filter, uint32_t score) {
+    // Up to 256 nodes from PathNode_ListInCylinder, kept when the filter (if any) accepts them
+    // and they are ours (+4 = our sentient) or free for our team and everyone (+8 + team * 4,
+    // +8 times before now), else replaced by the last one; each kept node is scored
+    // (float in ST0), the list sorted (qsort, 0x001fbe60) and the first ten stored at +0x7f0
+    // in reverse order (count +0x818).
+    const uint32_t frame = entry - 0x810;
+    uint32_t* const list = reinterpret_cast<uint32_t*>(uintptr_t{entry - 0x800});
+    const uint32_t list_address = entry - 0x800;
+    const uint32_t self = uint32_t(uintptr_t(actor));
+    const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);
+    using CallFloat = float XB_CDECL(uint32_t, uint32_t, const TitleRegs*, uint32_t, const uint32_t*);
+    CallFloat* const call_float = reinterpret_cast<CallFloat*>(reinterpret_cast<uintptr_t>(&title_call_at_regs));
+    auto returned_to = [](uint32_t slot, uint32_t address) { title_global<uint32_t>(slot) = address; };
+    int32_t count;
+    {
+        const uint32_t args[5] = {arg2, arg3, list_address, 0x100, eax};
+        const TitleRegs regs = {arg2, self, arg1, arg3, esi, blocks};
+        count = int32_t(title_call_at_regs(frame, 0x002b1060, &regs, 5, args));  // PathNode_ListInCylinder
+        returned_to(frame - 0x18, 0x001ffe46);
+    }
+    int32_t kept = 0;
+    uint32_t* entry_word = list;
+    while (kept < count) {
+        const uint32_t node_value = entry_word[0];
+        const uint8_t* const node = reinterpret_cast<const uint8_t*>(uintptr_t{node_value});
+        const TitleRegs regs = {0, self, self, node_value, uint32_t(uintptr_t(entry_word)), uint32_t(count)};
+        bool keep = true;
+        if (filter) {
+            keep = title_call_at_regs(frame, filter, &regs, 0, nullptr) != 0;
+            returned_to(frame - 4, 0x001ffe7b);
+        }
+        if (keep && field<const uint8_t*>(node, 4) != field<const uint8_t*>(actor, 4)) {
+            const int32_t now = level_time();
+            const uint32_t team = field<uint32_t>(field<const uint8_t*>(actor, 4), 4);
+            keep = now > field<int32_t>(node, 8 + team * 4) && now > field<int32_t>(node, 8);
+        }
+        if (keep) {
+            reinterpret_cast<float*>(entry_word)[1] = call_float(frame, score, &regs, 0, nullptr);
+            returned_to(frame - 4, filter ? 0x001ffea5 : 0x001fff12);
+            ++kept;
+            entry_word += 2;
+        } else {
+            --count;
+            entry_word[0] = list[count * 2];
+            entry_word[1] = list[count * 2 + 1];
+        }
+    }
+    {
+        const uint32_t args[4] = {list_address, uint32_t(count), 8, 0x001fbe60};
+        const TitleRegs regs = {0, self, list_address, 0, uint32_t(uintptr_t(entry_word)), uint32_t(count)};
+        title_call_at_regs(frame, 0x001ef880, &regs, 4, args);  // qsort
+        returned_to(frame - 0x14, 0x001fff3a);
+    }
+    if (uint32_t(count) > 10) count = 10;
+    for (int32_t j = 0; j < count; ++j) field<uint32_t>(actor, 0x7f0 + uint32_t(j) * 4) = list[(count - 1 - j) * 2];
+    field<int32_t>(actor, 0x818) = count;
+}
+
+void XB_THISCALL Sentient_UpdateNearestNode(uint8_t* sentient) {
+    // Once per level time: the node nearest to the entity's origin, searched from the current
+    // one (+0x4a); cleared while 0x00986014 is set.
+    if (title_global<uint8_t>(0x00986014)) {
+        field<uint16_t>(sentient, 0x4a) = 0;
+        return;
+    }
+    const int32_t now = level_time();
+    if (field<int32_t>(sentient, 0x4c) == now) return;
+    field<int32_t>(sentient, 0x4c) = now;
+    const uint8_t* const ent = field<const uint8_t*>(sentient, 0);
+    uint32_t position[3];
+    for (uint32_t i = 0; i < 3; ++i) position[i] = field<uint32_t>(ent, 0x140 + i * 4);
+    uint16_t* const nearest = reinterpret_cast<uint16_t*>(sentient + 0x4a);
+    uint8_t* const start = PathNode_FromHandle2(nearest);
+    const uint8_t* const found = find_nearest_node_in_list(reinterpret_cast<const float*>(position), start,
+                                                           title_global<uint32_t>(0x0095f4f4));
+    if (found) *nearest = field<uint16_t>(found, 0);
+}
+
+void XB_CDECL Sentient_Dissociate(uint8_t* sentient) {
+    // Before a sentient goes away: no enemy, its claimed node (+0x48) released, its claims,
+    // team 4, and every other sentient forgets it (actors; +8 goal entity handed over to the
+    // old team's sentients, else cleared; +0x3c enemy).
+    using SetEnemy = void XB_REGS3 XB_STDCALL(uint32_t, uint32_t, uint8_t*, uint32_t);
+    title_function<SetEnemy>(0x002184f0)(0, 0, sentient, 0);  // Sentient_SetEnemy
+    const uint32_t blocks = title_global<uint32_t>(0x0095f4f4);
+    if (node_of(field<uint16_t>(sentient, 0x48))) {
+        // The handle is looked up again for the call.
+        const uint8_t* const node = node_of(field<uint16_t>(sentient, 0x48));
+        Sentient_ClearNodeClaim(uint32_t(uintptr_t(node)), const_cast<uint8_t*>(node));
+        field<uint16_t>(sentient, 0x48) = 0;
+    }
+    release_claims_by(sentient, blocks);
+    const uint32_t team = field<uint32_t>(sentient, 4);
+    field<uint32_t>(sentient, 4) = 4;
+    for (uint8_t* other = Sentient_FirstOfTeams(0xffffffff); other; other = Sentient_NextOfTeams(other, 0xffffffff)) {
+        if (other == sentient) continue;
+        if (uint8_t* const actor = field<uint8_t*>(field<uint8_t*>(other, 0), 0x240)) Actor_ForgetSentient(actor, sentient);
+        const uint8_t* const goal = field<const uint8_t*>(other, 8);
+        if (goal && field<const uint8_t*>(goal, 0x244) == sentient) {
+            if (field<uint32_t>(other, 4) == team)
+                field<uint32_t>(other, 8) = field<uint32_t>(sentient, 8);
+            else
+                field<uint32_t>(other, 8) = 0;
+        }
+        if (field<uint8_t*>(other, 0x3c) == sentient) field<uint32_t>(other, 0x3c) = 0;
+    }
+}
+
+// The script's stop callback, the anim thread (+0x24c) marked to end (flags 8, 0x40, 4; no
+// notify, unlike Actor_StopAnimScript), then a tail jump to 0x0029aba0 with the entity's
+// +0x230 in ECX, when set (the C version returns that ECX).
+PLATFORM_ASM_ENTRY(Actor_AbortAnimScript_entry, "pushl %esi\n" PLATFORM_ASM_CALL(Actor_AbortAnimScript) "addl $4, %esp\n"
+                                                "testl %eax, %eax\n"
+                                                "jz 1f\n"
+                                                "movl %eax, %ecx\n"
+                                                "movl $0x0029aba0, %eax\n"
+                                                "jmp *%eax\n"
+                                                "1: ret")
+
+uint32_t XB_CDECL Actor_AbortAnimScript(uint8_t* actor) {
+    const uint8_t* script = field<const uint8_t*>(actor, 0x250);
+    if (script && field<uint32_t>(script, 0xc)) {
+        const uint8_t* ent = field<const uint8_t*>(actor, 0);
+        const uint32_t number = field<uint32_t>(ent, 0x224);
+        title_function<void XB_REGS3 XB_CDECL(const uint8_t*, uint32_t, const uint8_t*, uint32_t)>(
+            field<uint32_t>(script, 0xc))(field<const uint8_t*>(actor, 0x250), number, ent, number);
+    }
+    const uint32_t handle = field<uint32_t>(actor, 0x24c);
+    if (handle) {
+        const uint32_t index = handle & 0xff;
+        if ((handle >> 8) == title_global<uint32_t>(0x008dd22c + index * 8)) {
+            if (uint8_t* thread = title_global<uint8_t*>(0x008dd228 + index * 8)) {
+                const uint32_t flags = field<uint32_t>(thread, 0x10);
+                field<uint32_t>(thread, 0x10) = flags | 8;
+                field<uint32_t>(thread, 0x10) = flags | 0x48;
+                field<uint32_t>(thread, 0x10) = flags | 0x4c;
+            }
+        }
+        field<uint32_t>(actor, 0x24c) = 0;
+    }
+    return field<uint32_t>(field<const uint8_t*>(actor, 0), 0x230);
+}
+
+PLATFORM_ASM_ENTRY(Actor_TrimPathAtGoal_entry, "pushl %edi\n" PLATFORM_ASM_CALL(Actor_TrimPathAtGoal) "addl $4, %esp\n"
+                                               "ret")
+
+uint32_t XB_CDECL Actor_TrimPathAtGoal(uint8_t* actor) {
+    // Path_TrimAtGoal(goal +0xc, radius +0x18 of the sentient, 80); when it fails the path
+    // is dropped (trim at the entity's origin, no points, +0x7c4 cleared). EAX = its result or 0.
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    uint8_t* const path = actor + 0x3c0;
+    const uint32_t trimmed = trim_at_goal(path, reinterpret_cast<const float*>(sentient + 0xc),
+                                          reinterpret_cast<const float*>(sentient + 0x18), 0x42a00000);  // 80.0f
+    if (trimmed) return trimmed;
+    Path_AccumulateTrim(path, reinterpret_cast<const float*>(field<uint8_t*>(actor, 0) + 0x140));
+    field<uint16_t>(path, 0x380) = 0;
+    field<uint16_t>(path, 0x382) = 0;
+    field<uint32_t>(actor, 0x7c4) = 0;
+    return 0;
+}
+
+uint32_t XB_CDECL BadPlace_ClearCrossingPaths() {
+    // Every actor whose path (+0x3c0, points +0x740 > 0) crosses a bad place for its team drops
+    // it (as Actor_TrimPathAtGoal's failure). EAX = 0 (tail-called from state Start functions).
+    for (uint8_t* actor = Actor_FirstOfTeams(0xffffffff); actor; actor = Actor_NextOfTeams(actor, 0xffffffff)) {
+        if (field<int16_t>(actor, 0x740) <= 0) continue;
+        uint8_t* const path = actor + 0x3c0;
+        if (!Path_CrossesBadPlace(path, field<uint32_t>(field<const uint8_t*>(actor, 4), 4))) continue;
+        Path_AccumulateTrim(path, reinterpret_cast<const float*>(field<uint8_t*>(actor, 0) + 0x140));
+        field<uint16_t>(path, 0x380) = 0;
+        field<uint16_t>(path, 0x382) = 0;
+        field<uint32_t>(actor, 0x7c4) = 0;
+    }
+    return 0;
+}
+
+PLATFORM_ASM_ENTRY(Actor_GetGoalRadius_entry, "pushl 4(%esp)\n"
+                                              "pushl %edi\n" PLATFORM_ASM_CALL(Actor_GetGoalRadius) "fstps (%esp)\n"
+                                              "movss (%esp), %xmm0\n"
+                                              "addl $8, %esp\n"
+                                              "ret $4")
+
+float XB_CDECL Actor_GetGoalRadius(const uint8_t* actor, uint32_t exact) {
+    // The radius the actor's goal counts as reached in (XMM0): the sentient's +0x18, at least 30
+    // while making way (+0x1390) with an enemy; 0.5 when following an entity's sentient that is not
+    // of the enemy team with a valid goal node (+0x50) and +0x7de clear; else +0x18 for exact == 1,
+    // otherwise the actor's +0x79c.
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    if (field<uint32_t>(sentient, 0x3c) && field<uint32_t>(actor, 0xa4) != 5) {
+        if (!field<uint32_t>(actor, 0x1390)) return field<float>(sentient, 0x18);
+        const float minimum = title_global<float>(0x0083ee38);  // 30
+        if (field<float>(sentient, 0x18) > minimum) return field<float>(sentient, 0x18);
+        return minimum;
+    }
+    const uint8_t* const goal = field<const uint8_t*>(sentient, 8);
+    if (goal && field<const uint8_t*>(goal, 0x244)) {
+        const uint32_t enemy_team[5] = {0, 2, 1, 0, 0};
+        if (field<uint32_t>(field<const uint8_t*>(goal, 0x244), 4) != enemy_team[field<uint32_t>(sentient, 4)] &&
+            (PathNode_HandleIsValid(reinterpret_cast<const uint16_t*>(sentient + 0x50)) & 0xff) && !actor[0x7de])
+            return title_global<float>(0x0083eb24);  // 0.5
+    }
+    if (exact == 1) return field<float>(sentient, 0x18);
+    return field<float>(actor, 0x79c);
+}
+
+void XB_REGS1 XB_CDECL Actor_DropClaimedNode(uint8_t* actor) {
+    // With a claimed node (+0x48 of the sentient): the NodeClaimRevoked callbacks (slot 8) of the
+    // state stack from the top until one returns nonzero; then a valid goal node (+0x50) is
+    // dropped: Sentient_SetGoalNode with the node pointer's low word cleared (handle 0).
+    if (node_of(field<uint16_t>(field<const uint8_t*>(actor, 4), 0x48))) {
+        for (int32_t i = field<int32_t>(actor, 0x20); i >= 0; --i) {
+            const uint32_t state = field<uint32_t>(actor, 8 + uint32_t(i) * 4);
+            const uint32_t revoked = title_global<uint32_t>(0x00830c48 + state * 9 * 4);
+            if (revoked && title_function<uint32_t XB_THISCALL(uint8_t*)>(revoked)(actor)) break;
+        }
+    }
+    uint8_t* const sentient = field<uint8_t*>(actor, 4);
+    if (const uint8_t* goal = node_of(field<uint16_t>(sentient, 0x50)))
+        Sentient_SetGoalNode(sentient, uint32_t(uintptr_t(goal)) & 0xffff0000u);
+}
+
+PLATFORM_ASM_ENTRY(Sentient_Free_entry, "pushl %eax\n" PLATFORM_ASM_CALL(Sentient_Free) "addl $4, %esp\n"
+                                        "ret")
+
+void XB_CDECL Sentient_Free(uint8_t* sentient) {
+    // References to the entity cleared, dissociated, the entity's sentient link (+0x244) and the
+    // sentient's script fields (0x0082fdc0) released; +0x5c = the count at 0x0095f420 minus one.
+    G_ClearEntityReferences(uint32_t(uintptr_t(sentient)), field<uint8_t*>(sentient, 0));
+    Sentient_Dissociate(sentient);
+    field<uint32_t>(field<uint8_t*>(sentient, 0), 0x244) = 0;
+    G_FreeFieldStrings(&title_global<const uint32_t>(0x0082fdc0), sentient);
+    const int32_t count = title_global<int32_t>(0x0095f420) - 1;
+    field<int32_t>(sentient, 0x5c) = count;
+    title_global<int32_t>(0x0095f420) = count;
 }
 
 }  // namespace game
