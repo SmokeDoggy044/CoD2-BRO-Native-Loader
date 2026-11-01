@@ -425,10 +425,14 @@ void XB_THISCALL PhysJoint_SolveStep(uint8_t* joint, float* max_error);
 void XB_THISCALL PhysJoint_ApplyBlendedImpulses(uint8_t* joint, float scale);
 // 0x000c02c0: a joint's warm start.
 void XB_THISCALL PhysJoint_WarmStart(uint8_t* joint, uint32_t key, float scale);
-// 0x000bccc0: the island's solver iterations (thiscall: max passes, quiet passes, tolerance; entry asm).
-extern "C" PLATFORM_HIDDEN void XB_CDECL PhysIsland_SolveIterations(uint8_t* island, uint32_t entry_esp, int32_t max_iterations,
-                                                                   int32_t quiet_passes, float tolerance);
-extern "C" void PhysIsland_SolveIterations_entry(void);
+// 0x000bccc0: the island's solver iterations (max passes, quiet passes, tolerance).
+void XB_THISCALL PhysIsland_SolveIterations(uint8_t* island, int32_t max_iterations, int32_t quiet_passes, float tolerance);
+// 0x000c1d60: one substep of an island's solver records (args: keys, pass counts, dt).
+int32_t XB_THISCALL PhysIsland_Step(uint8_t* world, const uint32_t* args);
+// 0x000c2220: an island solved in its substeps.
+void XB_THISCALL PhysIsland_Solve(uint8_t* world, uint8_t* node, uint32_t first_key, uint32_t last_key);
+// 0x000c2f80: a body pair's new contact points to contact (and friction) records.
+void XB_THISCALL PhysContactPair_UpdateContacts(uint8_t* pair, uint8_t* world, float dt);
 
 // 0x000bd380: the substep's islands (bodies joined through their constraints) to *out, constraints sorted in.
 void XB_THISCALL PhysWorld_BuildIslands(uint8_t* world, uint8_t** out);
