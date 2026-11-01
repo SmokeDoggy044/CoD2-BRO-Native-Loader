@@ -143,3 +143,4 @@
 000b7990,PhysJoint_SetLimitAxes,dead,"no CALL/JMP and no immediate (xbefind imm + call); offline leaf test 1668/1682 matched + 14 NaN-payload-only, 100% coverage"
 000b9460,PhysConstraintFrame_Init,dead,"no CALL/JMP and no immediate (xbefind imm + call); offline leaf test 2123/2123 matched, 100% coverage"
 0024b1a0,Vehicle_SetSwitchNodes,not reached,"only caller GScr_Vehicle_SetSwitchNode (levelreach: PROLOGUE, ORAN, TUNISIA, KASSPASS, MONS1, OMAHEACH, PIANLUPO); 0 calls in --only --every 1 runs of missions 1,4,5,6 and 0,2,3,8 (200 s); leaf test not eligible (ScriptString calls reach an indirect call)"
+000b0f70,PhysBox_IntersectSegmentInFrame,dead,"no CALL/JMP and no immediate (xbefind imm + call); offline leaf test 2092/2092 matched, 95% coverage"

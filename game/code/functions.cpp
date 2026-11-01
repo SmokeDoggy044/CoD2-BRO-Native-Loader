@@ -1863,6 +1863,7 @@ const Function kFunctions[] = {
     {"PhysBox_ContainsPointInFrame", 0x000b07a0, 0, code(&PhysBox_ContainsPointInFrame), 12, Result::Al, Status::Compare},
     {"PhysBox_OverlapsSphereInFrame", 0x000b08c0, 0, code(&PhysBox_OverlapsSphereInFrame), 12, Result::Al, Status::Compare},
     {"Phys_ShapesOverlapGjk", 0x000b0a00, 0, code(&Phys_ShapesOverlapGjk), 20, Result::Al, Status::Compare},
+    {"PhysBox_IntersectSegmentInFrame", 0x000b0f70, 0, code(&PhysBox_IntersectSegmentInFrame), 0, Result::Al, Status::Compare},
     {"PhysBox_PointDistanceSqInFrame", 0x000b1500, 0, code(&PhysBox_PointDistanceSqInFrame), 12, Result::St0, Status::Compare},
     {"CM_QuadTreeFindLeaf", 0x000b15c0, 0, code(&CM_QuadTreeFindLeaf), 12, Result::Eax, Status::Compare},
     {"Gjk_ComputeDeterminants", 0x000b16b0, 0, code(&Gjk_ComputeDeterminants), 0, Result::None, Status::Compare},

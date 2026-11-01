@@ -2760,4 +2760,57 @@ void XB_THISCALL PhysConstraint_AddContacts(uint8_t* c, uint8_t* world, float dt
     at<float>(c, 0x90) = (prod2.v[0] + prod2.v[1]) + prod2.v[2];
 }
 
+// Segment a-b against the box (centre +0x10, extents +0x20) in the frame: both ends moved into
+// it, rejected when their bounds miss the box; a near-zero segment tests a alone; else the six
+// face planes (normals 0x007cc7d0, 0x007cc7c0, 0x007cc7b0, each through the low then the high
+// corner) are crossed and the crossing point checked against the face's other two axes (the
+// original's test needs both of them outside on one side to reject). Unreferenced.
+uint8_t XB_CDECL PhysBox_IntersectSegmentInFrame(const uint8_t* box, const float* frame, const float* a, const float* b) {
+    float rows[12];
+    alignas(16) float a_copy[4];
+    std::memcpy(a_copy, a, 16);
+    std::memcpy(rows, frame, sizeof(rows));
+    Lanes columns[3];
+    frame_columns(rows, columns);
+    const Lanes origin = lanes(frame + 12);
+    const Lanes la = rotate_into(columns, sub(lanes(a_copy), origin));
+    alignas(16) float b_copy[4];
+    std::memcpy(b_copy, b, 16);
+    std::memcpy(rows, frame, sizeof(rows));
+    frame_columns(rows, columns);
+    const Lanes lb = rotate_into(columns, sub(lanes(b_copy), origin));
+    const Lanes centre = lanes(reinterpret_cast<const float*>(box + 0x10));
+    const Lanes extent = lanes(reinterpret_cast<const float*>(box + 0x20));
+    alignas(16) float lo[4], hi[4], start[4];
+    std::memcpy(lo, sub(centre, extent).v, 16);
+    if ((less_mask(lanes(lo), max_lanes(la, lb)) & 7) != 7) return 0;
+    std::memcpy(hi, add(centre, extent).v, 16);
+    if ((less_mask(min_lanes(la, lb), lanes(hi)) & 7) != 7) return 0;
+    const Lanes dir = sub(lb, la);
+    const float length2 = dot3(dir, dir);
+    if (title_global<float>(0x0083ed50) > length2) return PhysBox_ContainsPointInFrame(box, frame, a);  // 1e-4
+    const float length = platform_x87_sqrt(length2);
+    const Lanes unit = div(dir, splat(length));
+    platform_keep(unit);
+    alignas(16) float unit_v[4];
+    std::memcpy(unit_v, unit.v, 16);
+    std::memcpy(start, la.v, 16);
+    const Lanes one = splat(title_global<float>(0x007cc790));
+    static const uint32_t kNormals[3] = {0x007cc7d0, 0x007cc7c0, 0x007cc7b0};
+    static const uint32_t kAxes[3] = {3, 5, 6};
+    for (int32_t face = 0; face < 6; ++face) {
+        alignas(16) float normal[4];
+        std::memcpy(normal, mul(lanes(&title_global<float>(kNormals[face / 2])), one).v, 16);
+        const float* const corner = (face & 1) ? hi : lo;
+        const float t = RayPlaneIntersectFrac(corner, normal, start, unit_v);
+        if (!platform_x87_greater_equal(t, title_global<float>(0x0083eafc))) continue;
+        if (!(length >= t)) continue;
+        const Lanes p = add(la, mul(splat(t), unit));
+        const uint32_t axes = kAxes[face / 2];
+        if ((less_mask(lanes(hi), p) & axes) == axes) continue;
+        if ((less_mask(p, lanes(lo)) & axes) != axes) return 1;
+    }
+    return 0;
+}
+
 }  // namespace game

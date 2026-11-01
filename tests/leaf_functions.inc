@@ -244,6 +244,7 @@
 {"Tri_MinEdgeLineDistSq", 0x000b05a0, 507, 135, {}, {}},
 {"PhysBox_ContainsPointInFrame", 0x000b07a0, 287, 95, {}, {0x7}},
 {"PhysBox_OverlapsSphereInFrame", 0x000b08c0, 316, 102, {}, {0x7}},
+{"PhysBox_IntersectSegmentInFrame", 0x000b0f70, 1424, 416, {}, {0x7, 0x3, 0x5, 0x6}},
 {"PhysBox_PointDistanceSqInFrame", 0x000b1500, 177, 57, {}, {}},
 {"Gjk_ComputeDeterminants", 0x000b16b0, 1154, 247, {0x0090a630, 0x0090a640, 0x0090a740, 0x0090a744, 0x0090a748, 0x0090a790, 0x0090a810, 0x0090a814, 0x0090a818, 0x0090a81c, 0x0090a820}, {0x90a7d0, 0x90a810, 0x90a860, 0xf}},
 {"PhysRagdoll_ResetRestState", 0x000b3050, 56, 10, {}, {}},

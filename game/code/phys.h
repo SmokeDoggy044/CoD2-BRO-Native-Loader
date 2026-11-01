@@ -274,4 +274,6 @@ void XB_THISCALL PhysJoint_AddContacts(uint8_t* joint, uint8_t* world, float dt)
 
 void XB_THISCALL PhysConstraint_AddContacts(uint8_t* constraint, uint8_t* world, float dt);
 
+uint8_t XB_CDECL PhysBox_IntersectSegmentInFrame(const uint8_t* box, const float* frame, const float* a, const float* b);
+
 }  // namespace game
