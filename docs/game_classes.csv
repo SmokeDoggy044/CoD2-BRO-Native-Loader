@@ -276,3 +276,5 @@
 00267a10,Think_DropNamedItem,not reached,"think (pointer at 0x008da7cc) dropping a named item; 0 calls in missions 0-7 (--only --every 1, two runs)"
 00267a50,Actor_TurretCheckNearEnemy,not reached,"only caller Actor_CanUseTurret (turrets without info flag 2); 0 calls in missions 0-7 (--only --every 1, two runs)"
 00268770,Pickup_Health,not reached,"only caller Touch_Item (health items); unattended runs pick up no health; 0 calls in missions 0-7 (--only --every 1, two runs)"
+0026a130,Mover_UnstickPlayer,dead,"no CALL/JMP, stored pointer or immediate (xbefind imm+call 2026-11-01); C kept"
+0026d0d0,Touch_Item,not reached,"touch callback (pointer at 0x008da82c) and tail jump from Touch_Item_Auto; unattended runs touch no items; 0 calls in missions 0-7 (--only --every 1, two runs)"

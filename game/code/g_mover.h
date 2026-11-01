@@ -271,4 +271,24 @@ extern "C" void G_CallSpawnByClassname_entry(void);
 // 0x00269d80: spawn function of script_vehicle ("vehicletype" key).
 void XB_CDECL SP_script_vehicle(uint8_t* ent);
 
+// 0x00268e60: Q3's G_RadiusDamage (origin, inflictor, attacker, max, min, radius, ignore, means of
+// death); 1 when another client with health was hit.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL G_RadiusDamage(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                            uint32_t ebp);
+extern "C" void G_RadiusDamage_entry(void);
+// 0x0026a130 (mover in EAX): the player stuck in the mover is pushed, moved free or killed.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Mover_UnstickPlayer(uint32_t entry, uint8_t* mover, uint32_t ebx, uint32_t esi,
+                                                             uint32_t edi, uint32_t ebp);
+extern "C" void Mover_UnstickPlayer_entry(void);
+// 0x0026c4d0 (actor in ECX, turret in EDI): whether the actor can use the turret.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CanUseTurret(uint32_t entry, uint8_t* actor, uint32_t ebx, uint32_t esi,
+                                                                uint32_t edi, uint32_t ebp);
+extern "C" void Actor_CanUseTurret_entry(void);
+// 0x0026cd70 (turret in EAX): the auto-targeting turret's think step.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Turret_ThinkAutoTarget(uint32_t entry, uint8_t* turret, uint32_t ebx, uint32_t esi,
+                                                                uint32_t edi, uint32_t ebp, uint32_t edx);
+extern "C" void Turret_ThinkAutoTarget_entry(void);
+// 0x0026d0d0: Q3's Touch_Item (item, player, touched flag).
+void XB_CDECL Touch_Item(uint8_t* ent, uint8_t* other, uint32_t touched);
+
 }  // namespace game
