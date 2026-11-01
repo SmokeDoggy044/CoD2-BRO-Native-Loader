@@ -996,4 +996,38 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_MeleeAttack(uint32_t entry, uint8
                                                           uint32_t edi, uint32_t ebp);
 extern "C" void Actor_MeleeAttack_entry(void);
 
+// 0x0020ed10 (stack gravity): PM_StepSlideMove for the moving actor (step height 18).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ActorMove_StepSlideMove(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                    uint32_t ebp);
+extern "C" void ActorMove_StepSlideMove_entry(void);
+// 0x002111a0: the moving actor walks (velocity from the move delta, clipped to the ground, step slide).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ActorMove_Walk(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                           uint32_t ebp);
+extern "C" void ActorMove_Walk_entry(void);
+// 0x00211460: the moving actor in the air (velocity clipped to the ground plane, step slide with gravity).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ActorMove_Air(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                          uint32_t ebp);
+extern "C" void ActorMove_Air_entry(void);
+// 0x002115b0 (EAX path, EBX origin; stack checked; ret 4): the lookahead point the lookahead scale back along the path.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Path_ComputeLookahead(uint32_t entry, uint8_t* path, const float* origin,
+                                                                  uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Path_ComputeLookahead_entry(void);
+// 0x00210ac0 (EAX sentient): goal point and node from the goal entity.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_UpdateGoalEntity(uint32_t entry, uint8_t* sentient, uint32_t ebx,
+                                                                  uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Sentient_UpdateGoalEntity_entry(void);
+// 0x00210c00 (stack sentient, goal entity; ret 8): sets the goal entity.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_SetGoalEntity(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                               uint32_t ebp);
+extern "C" void Sentient_SetGoalEntity_entry(void);
+// 0x00211970 (ESI start, EDI out velocity; stack actor; ret 4): a throwback arc through the nearest grenade hint.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Grenade_FindThrowbackVelocity(uint32_t entry, const float* start,
+                                                                                float* velocity, uint32_t ebx, uint32_t ebp);
+extern "C" void Actor_Grenade_FindThrowbackVelocity_entry(void);
+// 0x002117c0 (stack actor, target offset base, hand offset, method string by value, release point, velocity, allow
+// while holding; ret 0x1c): a grenade throw at the target sentient by the named method, else the bank throw.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_CheckGrenadeThrow(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                    uint32_t ebp);
+extern "C" void Actor_CheckGrenadeThrow_entry(void);
+
 }  // namespace game
