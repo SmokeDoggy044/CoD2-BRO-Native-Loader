@@ -3759,7 +3759,7 @@ float* XB_THISCALL PhysContact_GetRelativeVelocity(const uint8_t* contact, float
 
 // (+0x78 - normal velocity - +0x80 * +0x68) / +0x84 + +0x68 on the x87.
 float XB_THISCALL PhysContact_SolveNormalImpulse(uint8_t* contact) {
-    const long double v = title_function<long double XB_THISCALL(uint8_t*)>(0x000bf880)(contact);  // PhysContact_GetNormalVelocity
+    const long double v = PhysContact_GetNormalVelocity(contact);
     const long double t = static_cast<long double>(at<float>(contact, 0x78)) - v;
     const long double u = static_cast<long double>(at<float>(contact, 0x80)) * at<float>(contact, 0x68);
     const float impulse = static_cast<float>((t - u) / at<float>(contact, 0x84) + at<float>(contact, 0x68));
@@ -4086,12 +4086,14 @@ float* XB_CDECL PhysBody_AddVelocity(uint8_t* body, const float* linear, const f
 
 // The world for `params`: an arena of PhysWorld_GetMemorySize bytes (16-aligned) handed to PhysWorld_Create.
 uint8_t* XB_CDECL Phys_CreateWorld(uint32_t params) {
-    const uint32_t size = title_function<uint32_t XB_CDECL(uint32_t)>(0x000be2a0)(params);  // PhysWorld_GetMemorySize
+    const int32_t* const counts = reinterpret_cast<const int32_t*>(static_cast<uintptr_t>(params));
+    const uint32_t size = PhysWorld_GetMemorySize(counts);
     title_global<uint32_t>(0x0090a880) = size;
     title_global<uint32_t>(0x0090a884) = 0x10;
     uint8_t* const memory = static_cast<uint8_t*>(Mem_AlignedAlloc(size, 0x10, 0));
-    uint8_t* arena[3] = {memory, memory + title_global<uint32_t>(0x0090a880), memory};
-    uint8_t* const world = title_function<uint8_t* XB_CDECL(uint32_t, uint8_t**)>(0x000beb00)(params, arena);  // PhysWorld_Create
+    const uint32_t base = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(memory));
+    uint32_t arena[3] = {base, base + title_global<uint32_t>(0x0090a880), base};
+    uint8_t* const world = PhysWorld_Create(counts, arena);
     title_global<uint8_t*>(0x0090a87c) = world;
     return world;
 }
@@ -4103,6 +4105,963 @@ uint32_t XB_CDECL Phys_DestroyWorld() {
     title_global<uint32_t>(0x0090a880) = 0;
     title_global<uint32_t>(0x0090a884) = 0;
     return 0;
+}
+
+namespace {
+
+uint32_t align_up(uint32_t value, uint32_t mask) { return (value + mask) & ~mask; }
+
+// The world arena: {base, end, cursor}. 0 (cursor kept) when the aligned block does not fit.
+uint32_t arena_alloc(uint32_t* arena, uint32_t bytes, uint32_t mask) {
+    const uint32_t block = align_up(arena[2], mask);
+    const uint32_t end = block + bytes;
+    if (end > arena[1]) return 0;
+    arena[2] = end;
+    return block;
+}
+
+// A world pool from the arena: capacity +0xc, then storage (+0), the pointer list (+4) and the
+// position list (+8) in one block of count * (size + 8) bytes. The caller resets it.
+void world_pool_create(uint8_t* pool, int32_t count, uint32_t* arena, uint32_t size, uint32_t mask) {
+    at<int32_t>(pool, 0xc) = count;
+    const uint32_t storage = arena_alloc(arena, static_cast<uint32_t>(count) * (size + 8), mask);
+    const uint32_t pointers = storage + static_cast<uint32_t>(count) * size;
+    at<uint32_t>(pool, 8) = pointers + static_cast<uint32_t>(count) * 4;
+    at<uint32_t>(pool, 0) = storage;
+    at<uint32_t>(pool, 4) = pointers;
+}
+
+// A plain array from the arena: capacity at +4, storage at +0, used count +8 = 0.
+void world_array_create(uint8_t* array, int32_t count, uint32_t* arena, uint32_t size, uint32_t mask) {
+    at<int32_t>(array, 4) = count;
+    at<uint32_t>(array, 0) = arena_alloc(arena, static_cast<uint32_t>(count) * size, mask);
+    at<uint32_t>(array, 8) = 0;
+}
+
+}  // namespace
+
+// Bytes PhysWorld_Create takes from its arena for `params` (counts: +0 bodies, +4 0x1c0 objects,
+// +8 0x80 records (two arrays), +0xc 0x30 constraints, +0x10..+0x2c the other pools), each block
+// aligned as Create aligns it, plus the final 16-byte round.
+uint32_t XB_CDECL PhysWorld_GetMemorySize(const int32_t* params) {
+    const uint32_t* const p = reinterpret_cast<const uint32_t*>(params);
+    uint32_t s = align_up(p[3] * 24 + 0x300, 3) + p[0] * 0x3c;
+    s = align_up(s, 0xf) + p[1] * 0x1c8;
+    s = align_up(s, 0xf) + p[0] * 0x178;
+    s = align_up(s, 3) + p[3] * 0x38;
+    s = align_up(s, 0xf) + (p[2] << 7);
+    s = align_up(s, 0xf) + (p[2] << 7);
+    s = align_up(s, 0xf) + p[4] * 0x58;
+    s = align_up(s, 0xf) + p[5] * 0xf8;
+    s = align_up(s, 0xf) + p[6] * 0x68;
+    s = align_up(s, 3) + p[7] * 24;
+    s = align_up(s, 0xf) + p[8] * 0x1b8;
+    s = align_up(s, 0xf) + p[9] * 0xe8;
+    s = align_up(s, 0xf) + p[10] * 0xd8;
+    s = align_up(s, 0xf) + (p[11] * 5 + 5) * 0x20 + (p[0] << 6);
+    return align_up(s, 0xf);
+}
+
+// The world header (0x300 bytes): pools and arrays at +0x1b0..+0x2f8 empty, the static body at
+// +0x40 fixed, step settings +0x8..+0x2c, the two 0x80-record arrays' heads at +0x30 / +0x34.
+uint8_t* XB_THISCALL PhysWorld_Init(uint8_t* world) {
+    at<uint32_t>(world, 0x1b0) = 0;
+    at<uint32_t>(world, 0x1b4) = 0;
+    at<uint32_t>(world, 0x1bc) = 0;
+    at<uint32_t>(world, 0x1b8) = 0;
+    for (uint32_t offset = 0x1c8; offset <= 0x2f8; offset += 4) at<uint32_t>(world, offset) = 0;
+    PhysBody_InitFixed(world + 0x40);
+    at<uint32_t>(world, 0x10) = title_global<uint32_t>(0x007ce304);  // 0.0512821
+    at<uint32_t>(world, 0x1c) = title_global<uint32_t>(0x0083edd0);  // 0.01
+    at<uint32_t>(world, 0x8) = 0;
+    at<uint32_t>(world, 0xc) = 0;
+    at<uint32_t>(world, 0x28) = title_global<uint32_t>(0x0083ec24);  // 0.25
+    at<uint32_t>(world, 0x14) = 4;
+    at<uint32_t>(world, 0x18) = 4;
+    at<uint32_t>(world, 0x20) = 4;
+    at<uint8_t*>(world, 0x30) = world + 0x210;
+    at<uint8_t*>(world, 0x34) = world + 0x21c;
+    at<uint32_t>(world, 0x24) = 8;
+    at<uint32_t>(world, 0x2c) = title_global<uint32_t>(0x007ce300);  // 0.1225
+    return world;
+}
+
+// The world and all its pools carved from `arena` ({base, end, cursor}) in PhysWorld_GetMemorySize's order.
+uint8_t* XB_CDECL PhysWorld_Create(const int32_t* params, uint32_t* arena) {
+    uint8_t* world = nullptr;
+    {
+        const uint32_t block = align_up(arena[2], 0xf);
+        if (block + 0x300 <= arena[1]) {
+            arena[2] = block + 0x300;
+            if (block) world = PhysWorld_Init(reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(block)));
+        }
+    }
+    if (params[3] > 0) world_array_create(world + 0x1b0, params[3], arena, 24, 3);
+    if (params[0] > 0) world_array_create(world + 0x1c8, params[0], arena, 0x3c, 3);
+    PhysPool1c0_Init(world + 0x1d4, params[1], arena);
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c03c0)(world + 0x1e8, params[0], arena);  // PhysBodyPool_Init
+    if (params[3] > 0) {
+        world_pool_create(world + 0x1fc, params[3], arena, 0x30, 0xf);
+        PhysConstraintPool30_Reset(world + 0x1fc);
+    }
+    if (params[2] > 0) world_array_create(world + 0x210, params[2], arena, 0x80, 0xf);
+    if (params[2] > 0) world_array_create(world + 0x21c, params[2], arena, 0x80, 0xf);
+    if (params[4] > 0) {
+        world_pool_create(world + 0x228, params[4], arena, 0x50, 0xf);
+        PhysConstraintPool50_Reset(world + 0x228);
+    }
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c0420)(world + 0x23c, params[5], arena);  // PhysConstraintPoolF0_Init
+    if (params[6] > 0) {
+        world_pool_create(world + 0x250, params[6], arena, 0x60, 0xf);
+        PhysConstraintPool60_Reset(world + 0x250);
+    }
+    if (params[7] > 0) {
+        world_pool_create(world + 0x264, params[7], arena, 0x10, 3);
+        PhysPool10_Reset(world + 0x264);
+    }
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c29e0)(world + 0x278, params[8], arena);  // PhysConstraintPool1B0_Init
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c0480)(world + 0x28c, params[9], arena);  // PhysConstraintPoolE0_Init
+    title_function<void XB_THISCALL(uint8_t*, int32_t, uint32_t*)>(0x000c04e0)(world + 0x2a0, params[10], arena);  // PhysConstraintPoolD0_Init
+    const uint32_t size = (static_cast<uint32_t>(params[11]) * 5 + 5) * 0x20 + (static_cast<uint32_t>(params[0]) << 6);
+    const uint32_t block = arena_alloc(arena, size, 0xf);
+    at<uint32_t>(world, 0x2b4) = block;
+    at<uint32_t>(world, 0x2bc) = block;
+    at<uint32_t>(world, 0x2b8) = block + size;
+    return world;
+}
+
+void XB_THISCALL PhysPool1c0_Init(uint8_t* pool, int32_t count, uint32_t* arena) {
+    if (count <= 0) return;
+    world_pool_create(pool, count, arena, 0x1c0, 0xf);
+    PhysPool1c0_Reset(pool);
+}
+
+
+namespace {
+
+uint32_t& stack_word(uint32_t address) { return *reinterpret_cast<uint32_t*>(uintptr_t{address}); }
+uint32_t word_addr(const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); }
+uint32_t float_bits(float f) {
+    uint32_t bits;
+    std::memcpy(&bits, &f, 4);
+    return bits;
+}
+
+// Calls at the original's ESP (`top`) with its registers; the original's return address goes back
+// into the dead-stack word the call's return address took. EDX after the call is kept.
+struct OriginalCalls {
+    uint32_t top;
+    TitleRegs regs{};
+    uint32_t edx_out = 0;
+    uint32_t call(uint32_t function, uint32_t return_address, uint32_t count = 0, const uint32_t* args = nullptr) {
+        using Call64 = uint64_t XB_CDECL(uint32_t, uint32_t, const TitleRegs*, uint32_t, const uint32_t*);
+        const uint64_t r = reinterpret_cast<Call64*>(reinterpret_cast<uintptr_t>(&title_call_at_regs))(top, function, &regs,
+                                                                                                          count, args);
+        stack_word(top - 4 * count - 4) = return_address;
+        edx_out = static_cast<uint32_t>(r >> 32);
+        return static_cast<uint32_t>(r);
+    }
+};
+
+}  // namespace
+
+// One substep of dt: predicted transforms, the world callback (+0xc), islands (PhysWorld_BuildIslands)
+// each solved in as many iterations as its first body's +0x13c * dt / +0x140 needs (the most of any island
+// plus +8 for all), frames copied back (from +0x1b0's frame when `last`, else from +0x40), then each pair
+// record (0x30 pool) whose new contact list is empty is freed and the others swap lists and re-enter the pair
+// tree. The original's frame: an 8-byte local at entry - 8 (dt for the predictions, the island list, the
+// sorted pair whose address stays in world +0x1c0), EBX/EBP/ESI/EDI saved below it; every callee runs at its ESP.
+PLATFORM_ASM_ENTRY(PhysWorld_Substep_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n"
+                   "pushl %ebx\n"
+                   "pushl 8(%edx)\n"
+                   "pushl 4(%edx)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(PhysWorld_Substep) "addl $32, %esp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last, uint32_t entry_ebx, uint32_t entry_ebp,
+                                uint32_t entry_esi, uint32_t entry_edi, uint32_t entry_esp) {
+    float dt;
+    std::memcpy(&dt, &dt_bits, 4);
+    const uint32_t local = entry_esp - 8;
+    const uint32_t w = word_addr(world);
+    at<uint32_t>(world, 4) = dt_bits;
+    stack_word(entry_esp - 0xc) = entry_ebx;
+    stack_word(entry_esp - 0x10) = entry_ebp;
+    stack_word(entry_esp - 0x14) = entry_esi;
+    stack_word(entry_esp - 0x18) = entry_edi;
+    OriginalCalls f{entry_esp - 0x18};
+    f.regs.ecx = w;
+    f.regs.esi = entry_esi;
+    f.regs.edi = entry_edi;
+    const uint32_t zero[1] = {0}, one[1] = {1};
+    const auto profile = [&](uint32_t address, const uint32_t* which, uint32_t return_address) {
+        const uint32_t function = title_global<uint32_t>(address);
+        if (!function) return;
+        f.regs.eax = function;
+        f.call(function, return_address, 1, which);
+    };
+    profile(0x0090a888, zero, 0x000be3b2);
+    at<uint32_t>(world, 0) |= 1;
+    {
+        const uint32_t list = at<uint32_t>(world, 0x1ec);
+        const uint32_t end = list + at<uint32_t>(world, 0x1f8) * 4;
+        f.regs.ecx = list;
+        f.regs.edi = end;
+        if (end != list) {
+            stack_word(local) = dt_bits;
+            for (uint32_t it = list; it != end; it += 4) {
+                const uint32_t args[2] = {stack_word(it), local};
+                f.regs.eax = args[0];
+                f.regs.edx = local;
+                f.regs.esi = it;
+                f.call(0x000bc170, 0x000be3ed, 2, args);  // PhysBody_PredictTransform
+            }
+        }
+    }
+    {
+        const uint32_t list = at<uint32_t>(world, 0x1d8);
+        const uint32_t end = list + at<uint32_t>(world, 0x1e4) * 4;
+        f.regs.edx = list;
+        f.regs.ecx = at<uint32_t>(world, 0x1e4);
+        f.regs.esi = list;
+        f.regs.edi = end;
+        if (end != list) {
+            stack_word(local) = dt_bits;
+            for (uint32_t it = list; it != end; it += 4) {
+                const uint32_t args[2] = {stack_word(it), local};
+                f.regs.ecx = args[0];
+                f.regs.eax = local;
+                f.regs.esi = it;
+                f.call(0x000c17a0, 0x000be425, 2, args);  // PhysObject1c0_PredictTransform
+            }
+        }
+    }
+    const uint32_t callback = at<uint32_t>(world, 0xc);
+    f.regs.eax = callback;
+    if (callback) f.call(callback, 0x000be438);
+    at<uint32_t>(world, 0) &= ~1u;
+    profile(0x0090a88c, zero, 0x000be448);
+    profile(0x0090a888, one, 0x000be458);
+    {
+        const uint32_t args[1] = {local};
+        f.regs.edx = local;
+        f.regs.ecx = w;
+        f.call(0x000bd380, 0x000be467, 1, args);  // PhysWorld_BuildIslands
+    }
+    profile(0x0090a88c, one, 0x000be474);
+    uint8_t* const head = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(local)});
+    title_global<uint8_t>(0x009098cc) = 1;
+    int32_t iterations = 0;
+    for (uint8_t* island = head; island; island = at<uint8_t*>(island, 0x38)) {
+        const uint8_t* const body = at<uint8_t*>(island, 0x20);
+        const float span = at<float>(body, 0x13c) * dt;
+        at<float>(island, 0x34) = span;
+        const float step = at<float>(body, 0x140);
+        at<int32_t>(island, 0x30) = static_cast<int32_t>(span / step);
+        if (at<int32_t>(island, 0x30) == 0) at<int32_t>(island, 0x30) = 1;
+        const int32_t n = at<int32_t>(island, 0x30);
+        if (at<float>(island, 0x34) / static_cast<float>(n) > step) at<int32_t>(island, 0x30) = n + 1;
+        if (iterations <= at<int32_t>(island, 0x30)) iterations = at<int32_t>(island, 0x30);
+    }
+    const int32_t total = iterations + at<int32_t>(world, 8);
+    f.regs.ebx = 0;
+    f.regs.ecx = w;
+    f.regs.edi = static_cast<uint32_t>(total);
+    for (uint8_t* island = head; island; island = at<uint8_t*>(island, 0x38)) {
+        const uint32_t args[3] = {word_addr(island), at<uint32_t>(world, 8), static_cast<uint32_t>(total)};
+        f.regs.eax = args[1];
+        f.regs.esi = args[0];
+        f.call(0x000c2220, 0x000be4fe, 3, args);  // PhysIsland_Solve
+    }
+    at<int32_t>(world, 8) = total;
+    title_global<uint8_t>(0x009098cc) = 0;
+    {
+        uint32_t* it = at<uint32_t*>(world, 0x1d8);
+        uint32_t* const end = it + at<int32_t>(world, 0x1e4);
+        for (; it != end; ++it) {
+            uint32_t* const object = reinterpret_cast<uint32_t*>(uintptr_t{*it});
+            const uint32_t* const from = static_cast<uint8_t>(last) ? at<const uint32_t*>(object, 0x1b0) : object + 0x10;
+            for (int32_t i = 0; i < 16; ++i) object[i] = from[i];
+        }
+    }
+    profile(0x0090a888, one, 0x000be570);
+    {
+        const uint32_t old_list = at<uint32_t>(world, 0x30);
+        at<uint32_t>(world, 0x30) = at<uint32_t>(world, 0x34);
+        at<uint32_t>(world, 0x34) = old_list;
+        stack_word(old_list + 8) = 0;
+    }
+    uint8_t* const tree = world + 0x1b0;
+    at<uint32_t>(tree, 0xc) = 0;
+    at<uint32_t>(tree, 8) = 0;
+    f.regs.edi = word_addr(tree);
+    int32_t i = 0;
+    while (i < at<int32_t>(world, 0x20c)) {
+        uint8_t* const record = at<uint8_t**>(world, 0x200)[i];
+        f.regs.esi = word_addr(record);
+        uint32_t* const next = at<uint32_t*>(record, 0x28);
+        if (next[2] == 0) {
+            at<uint32_t>(record, 0x2c) = 0;
+            const uint32_t args[1] = {word_addr(record)};
+            f.regs.eax = word_addr(next);
+            f.regs.ecx = w + 0x1fc;
+            f.regs.edx = at<uint32_t>(world, 0x200);
+            f.regs.ebx = static_cast<uint32_t>(i);
+            f.call(0x000b5c00, 0x000be5c0, 1, args);  // PhysConstraintPool30_Free
+            continue;
+        }
+        uint32_t* const current = at<uint32_t*>(record, 0x24);
+        at<uint32_t*>(record, 0x28) = current;
+        at<uint32_t*>(record, 0x24) = next;
+        current[0] = 0;
+        current[1] = 0;
+        current[2] = 0;
+        ++i;
+        const uint32_t a = at<uint32_t>(record, 0), b = at<uint32_t>(record, 4);
+        stack_word(local) = a < b ? a : b;
+        stack_word(local + 4) = a < b ? b : a;
+        at<uint32_t>(tree, 0x10) = local;
+        const uint32_t args[1] = {word_addr(tree) + 0xc};
+        f.regs.eax = local;
+        f.regs.ecx = word_addr(tree);
+        f.regs.edx = word_addr(next);
+        f.regs.ebx = static_cast<uint32_t>(i);
+        f.call(0x000b60b0, 0x000be604, 1, args);  // PhysPairTree_Insert
+        uint8_t* const slot = at<uint8_t*>(tree, 0x14) + 0x14;
+        *reinterpret_cast<uint8_t**>(slot) = record;
+        at<uint8_t*>(record, 0x2c) = slot;
+    }
+    profile(0x0090a88c, one, 0x000be62c);
+}
+
+// One frame of dt: limits at 0x008bd5d0 / 0x008bd5d4 (-10000 / 10000), n = dt / +0x10 substeps (at least
+// 1, one more when dt / n still exceeds +0x10), the bodies' pre-step, the 0x1c0 objects' velocities from
+// their two frames, the constraint targets, n PhysWorld_Substep calls (the last one copies frames from
+// +0x1b0), forces cleared, constraints snapped back. The original's frame: locals at entry - 8 (dt for the
+// callees) and entry - 4 (dt / n, later dt), EBX/ESI/EDI/EBP saved below; every callee runs at its ESP.
+PLATFORM_ASM_ENTRY(PhysWorld_Step_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x10000")
+                   "pushl %edx\n"
+                   "pushl %edx\n"
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl 4(%edx)\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(PhysWorld_Step) "addl $28, %esp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_ebx, uint32_t entry_esi, uint32_t entry_edi,
+                             uint32_t entry_ebp, uint32_t entry_esp) {
+    float dt;
+    std::memcpy(&dt, &dt_bits, 4);
+    const uint32_t w = word_addr(world);
+    const uint32_t local = entry_esp - 8, local_sub = entry_esp - 4;
+    title_global<uint32_t>(0x008bd5d0) = title_global<uint32_t>(0x007ce2fc);  // -10000
+    title_global<uint32_t>(0x008bd5d4) = title_global<uint32_t>(0x0083f010);  // 10000
+    int32_t n = static_cast<int32_t>(dt / at<float>(world, 0x10));
+    if (n < 1) n = 1;
+    if (dt / static_cast<float>(n) > at<float>(world, 0x10)) ++n;
+    const float sub = dt / static_cast<float>(n);
+    stack_word(entry_esp - 0xc) = entry_ebx;
+    stack_word(entry_esp - 0x10) = entry_esi;
+    stack_word(entry_esp - 0x14) = entry_edi;
+    stack_word(entry_esp - 0x18) = entry_ebp;
+    stack_word(local_sub) = float_bits(sub);
+    OriginalCalls f{entry_esp - 0x18};
+    f.regs.ebx = static_cast<uint32_t>(n);
+    f.regs.esi = w;
+    {
+        const uint32_t list = at<uint32_t>(world, 0x1ec);
+        const uint32_t end = list + at<uint32_t>(world, 0x1f8) * 4;
+        f.regs.ecx = list;
+        if (end != list) {
+            stack_word(local) = dt_bits;
+            for (uint32_t it = list; it != end; it += 4) {
+                const uint32_t args[2] = {stack_word(it), local};
+                f.regs.eax = args[0];
+                f.regs.edx = local;
+                f.regs.edi = it;
+                f.call(0x000c0a00, 0x000be6d0, 2, args);  // PhysBody_PreStep
+            }
+        }
+    }
+    {
+        const uint32_t list = at<uint32_t>(world, 0x1d8);
+        const uint32_t end = list + at<uint32_t>(world, 0x1e4) * 4;
+        for (uint32_t it = list; it != end; it += 4) {
+            uint8_t* const object = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(it)});
+            const uint32_t o = word_addr(object);
+            const float h = at<float>(object, 0x13c) * dt;
+            const uint32_t args[5] = {o, at<uint32_t>(object, 0x1b0), float_bits(h), o + 0xd0, o + 0xe0};
+            f.regs.eax = o;
+            f.regs.ecx = args[1];
+            f.regs.edx = o + 0xd0;
+            f.regs.edi = it;
+            f.call(0x000bb4f0, 0x000be721, 5, args);  // Phys_AngularVelocityBetweenFrames
+        }
+    }
+    const auto each = [&](uint32_t list_offset, uint32_t count_offset, uint32_t function, uint32_t return_address,
+                          uint32_t slot) {
+        const uint32_t list = at<uint32_t>(world, list_offset);
+        const uint32_t end = list + at<uint32_t>(world, count_offset) * 4;
+        f.regs.eax = list;
+        f.regs.edx = at<uint32_t>(world, count_offset);
+        f.edx_out = f.regs.edx;
+        for (uint32_t it = list; it != end; it += 4) {
+            stack_word(slot) = dt_bits;
+            const uint32_t args[1] = {slot};
+            f.regs.ecx = stack_word(it);
+            f.regs.edi = it;
+            f.call(function, return_address, 1, args);
+            f.regs.edx = f.edx_out;
+        }
+    };
+    each(0x254, 0x260, 0x000b93d0, 0x000be758, local);  // PhysConstraint60_ComputeTargetRate
+    each(0x2a4, 0x2b0, 0x000b9500, 0x000be78c, local);  // PhysConstraintFrame_Update
+    uint32_t edx = f.edx_out;
+    for (int32_t i = 0; i < n; ++i) {
+        edx = (edx & ~0xffu) | (i + 1 == n ? 1u : 0u);
+        const uint32_t args[2] = {float_bits(sub), edx};
+        f.regs.eax = static_cast<uint32_t>(i);
+        f.regs.ecx = w;
+        f.regs.edx = edx;
+        f.regs.edi = static_cast<uint32_t>(i + 1);
+        f.call(0x000be390, 0x000be7b1, 2, args);  // PhysWorld_Substep
+        edx = f.edx_out;
+    }
+    {
+        uint32_t* it = at<uint32_t*>(world, 0x1ec);
+        uint32_t* const end = it + at<int32_t>(world, 0x1f8);
+        for (; it != end; ++it) {
+            uint8_t* const body = reinterpret_cast<uint8_t*>(uintptr_t{*it});
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(body, 0x110 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(body, 0x120 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+        }
+    }
+    f.top = entry_esp - 0x14;  // EBP popped
+    f.regs.ebx = 0;
+    each(0x254, 0x260, 0x000b9430, 0x000be858, local_sub);  // PhysConstraint60_SnapToTarget
+    each(0x2a4, 0x2b0, 0x000b9440, 0x000be88c, local_sub);  // PhysConstraintFrame_Restore
+}
+
+
+namespace {
+
+const float* fp(const uint8_t* p, uint32_t offset) { return reinterpret_cast<const float*>(p + offset); }
+float* fp(uint8_t* p, uint32_t offset) { return reinterpret_cast<float*>(p + offset); }
+
+// A solver record's (+0x10 v, +0x20 w) velocity at arm r: v + w x r.
+Lanes record_point_velocity(const uint8_t* record, const float* r) {
+    return add(lanes(fp(record, 0x10)), cross_lanes(lanes(fp(record, 0x20)), lanes(r)));
+}
+
+// The warm-start cache entry {key, impulse}: kept for the same key while 0x0090a85c is 0, else zeroed.
+float* cached_impulse(uint32_t* entry, uint32_t key) {
+    if (entry[0] != key || title_global<uint32_t>(0x0090a85c) != 0) reinterpret_cast<float*>(entry)[1] = 0.0f;
+    return reinterpret_cast<float*>(entry) + 1;
+}
+
+// One iteration on a contact (x87): error = normal velocity + +0x80 * impulse - target (+0x78) to +0x70,
+// impulse - error / +0x84 clamped to +0x68 (old impulse to +0x6c, old error to +0x74), the change applied.
+void contact_solve_step(uint8_t* c) {
+    at<uint32_t>(c, 0x74) = at<uint32_t>(c, 0x70);
+    const long double v = PhysContact_GetNormalVelocity(c);
+    const long double s = static_cast<long double>(at<float>(c, 0x80)) * at<float>(c, 0x68);
+    at<uint32_t>(c, 0x6c) = at<uint32_t>(c, 0x68);
+    const long double e = (v + s) - at<float>(c, 0x78);
+    at<float>(c, 0x70) = static_cast<float>(e);
+    const float impulse = static_cast<float>(at<float>(c, 0x68) - e / at<float>(c, 0x84));
+    const float clamped = PhysConstraint_ClampImpulse(c, impulse);
+    at<float>(c, 0x68) = clamped;
+    float delta = static_cast<float>(static_cast<long double>(clamped) - at<float>(c, 0x6c));
+    PhysConstraint_ApplyImpulse(c, &delta);
+}
+
+// ((+0x68 - +0x6c) * +0x84)^2 into *max_error when larger.
+void track_error(const uint8_t* c, float* max_error) {
+    float x = (at<float>(c, 0x68) - at<float>(c, 0x6c)) * at<float>(c, 0x84);
+    x = x * x;
+    if (x > *max_error) *max_error = x;
+}
+
+// Warm start: target +0x78 -= the bodies' normal velocity, the cached impulse (+0x9c entry) * scale
+// clamped into +0x68 and applied.
+void contact_warm_start(uint8_t* c, uint32_t key, float scale) {
+    const long double v = PhysContact_GetBodyNormalVelocity(c);
+    at<float>(c, 0x78) = static_cast<float>(at<float>(c, 0x78) - v);
+    const float impulse = *cached_impulse(at<uint32_t*>(c, 0x9c), key) * scale;
+    at<float>(c, 0x68) = impulse;
+    at<float>(c, 0x68) = PhysConstraint_ClampImpulse(c, impulse);
+    PhysConstraint_ApplyImpulse(c, fp(c, 0x68));
+}
+
+// With flag 8 the impulse moves from +0x6c toward +0x68 by `scale`; then clamped and applied.
+void contact_blend_apply(uint8_t* c, float scale) {
+    if (c[0x8c] & 8) at<float>(c, 0x68) = (at<float>(c, 0x68) - at<float>(c, 0x6c)) * scale + at<float>(c, 0x6c);
+    at<float>(c, 0x68) = PhysConstraint_ClampImpulse(c, at<float>(c, 0x68));
+    PhysConstraint_ApplyImpulse(c, fp(c, 0x68));
+}
+
+}  // namespace
+
+// (A's v + w x +0x20 - B's v + w x +0x30) . normal (+0x10) from the solver records at +0x94 / +0x98.
+float XB_THISCALL PhysContact_GetNormalVelocity(const uint8_t* contact) {
+    Lanes rel = record_point_velocity(at<uint8_t*>(contact, 0x94), fp(contact, 0x20));
+    const uint8_t* const b = at<uint8_t*>(contact, 0x98);
+    if (b) rel = sub(rel, record_point_velocity(b, fp(contact, 0x30)));
+    return dot3(rel, lanes(fp(contact, 0x10)));
+}
+
+// A's record: v += +0x30 (inverse mass) * impulse * normal, w += impulse * +0x40; B's the opposite with +0x50.
+uint8_t* XB_THISCALL PhysConstraint_ApplyImpulse(uint8_t* c, const float* impulse) {
+    uint8_t* a = at<uint8_t*>(c, 0x94);
+    store4(fp(a, 0x10), add(lanes(fp(a, 0x10)), mul(splat(at<float>(a, 0x30) * *impulse), lanes(fp(c, 0x10)))));
+    a = at<uint8_t*>(c, 0x94);
+    store4(fp(a, 0x20), add(lanes(fp(a, 0x20)), mul(splat(*impulse), lanes(fp(c, 0x40)))));
+    uint8_t* const b = at<uint8_t*>(c, 0x98);
+    if (!b) return b;
+    store4(fp(b, 0x10), sub(lanes(fp(b, 0x10)), mul(splat(at<float>(b, 0x30) * *impulse), lanes(fp(c, 0x10)))));
+    const Lanes t = mul(splat(*impulse), lanes(fp(c, 0x50)));
+    uint8_t* const b2 = at<uint8_t*>(c, 0x98);
+    store4(fp(b2, 0x20), sub(lanes(fp(b2, 0x20)), t));
+    return b;
+}
+
+void XB_THISCALL PhysContact_SolveStep(uint8_t* contact, float* max_error, uint32_t track) {
+    contact_solve_step(contact);
+    if (static_cast<uint8_t>(track)) track_error(contact, max_error);
+}
+
+void XB_THISCALL PhysContact_WarmStart(uint8_t* contact, uint32_t key, float scale) { contact_warm_start(contact, key, scale); }
+
+// A's record v + w x +0x10 (minus B's v + w x +0x20 when there is a B) of a 0x140 contact (records +0x130 / +0x134).
+float* XB_THISCALL PhysContact140_GetSolverRelativeVelocity(const uint8_t* contact, float* out) {
+    Lanes rel = record_point_velocity(at<uint8_t*>(contact, 0x130), fp(contact, 0x10));
+    const uint8_t* const b = at<uint8_t*>(contact, 0x134);
+    if (b) rel = sub(rel, record_point_velocity(b, fp(contact, 0x20)));
+    std::memcpy(out, rel.v, 16);
+    return out;
+}
+
+namespace {
+
+// rows[0] x + rows[1] y + rows[2] z for the impulse vector's lanes (the rows 0x20 apart).
+Lanes impulse_rows(const uint8_t* c, uint32_t row0, const float* j) {
+    const Lanes v = lanes(j);
+    const Lanes z = mul(lanes(fp(c, row0 + 0x40)), splat(v.v[2]));
+    const Lanes y = mul(lanes(fp(c, row0 + 0x20)), splat(v.v[1]));
+    const Lanes x = mul(lanes(fp(c, row0)), splat(v.v[0]));
+    return add(add(x, y), z);
+}
+
+}  // namespace
+
+// A's record: v += inverse mass * J, w += +0x30 Jx + +0x50 Jy + +0x70 Jz; B's the opposite (+0x40/+0x60/+0x80).
+uint8_t* XB_THISCALL PhysContact140_ApplyImpulse(uint8_t* c, const float* j) {
+    uint8_t* a = at<uint8_t*>(c, 0x130);
+    store4(fp(a, 0x10), add(lanes(fp(a, 0x10)), mul(splat(at<float>(a, 0x30)), lanes(j))));
+    a = at<uint8_t*>(c, 0x130);
+    store4(fp(a, 0x20), add(lanes(fp(a, 0x20)), impulse_rows(c, 0x30, j)));
+    uint8_t* const b = at<uint8_t*>(c, 0x134);
+    if (!b) return b;
+    store4(fp(b, 0x10), sub(lanes(fp(b, 0x10)), mul(splat(at<float>(b, 0x30)), lanes(j))));
+    const Lanes t = impulse_rows(c, 0x40, j);
+    uint8_t* const b2 = at<uint8_t*>(c, 0x134);
+    store4(fp(b2, 0x20), sub(lanes(fp(b2, 0x20)), t));
+    return b;
+}
+
+// +0xd0 -= the bodies' relative velocity; the three cached impulses (+0x138 entries) * scale into +0x90..+0x98, applied.
+void XB_THISCALL PhysContact140_WarmStart(uint8_t* c, uint32_t key, float scale) {
+    alignas(16) float rel[4];
+    PhysContact140_GetRelativeVelocity(c, rel);
+    store4(fp(c, 0xd0), sub(lanes(fp(c, 0xd0)), lanes(rel)));
+    for (uint32_t i = 0; i < 3; ++i)
+        at<float>(c, 0x90 + i * 4) = *cached_impulse(at<uint32_t*>(c, 0x138) + i * 2, key) * scale;
+    PhysContact140_ApplyImpulse(c, fp(c, 0x90));
+}
+
+// One iteration: +0xc0 = old error, +0xb0 = solver relative velocity - +0xd0, +0xa0 = old impulse,
+// +0x90 -= the 3x3 at +0xf0 * error, the change applied; each lane of (change * +0x120)^2 into *max_error.
+void XB_THISCALL PhysContact140_SolveStep(uint8_t* c, float* max_error) {
+    copy_words(fp(c, 0xc0), fp(c, 0xb0));
+    alignas(16) float t[4];
+    PhysContact140_GetSolverRelativeVelocity(c, t);
+    const Lanes error = sub(lanes(t), lanes(fp(c, 0xd0)));
+    std::memcpy(fp(c, 0xb0), error.v, 16);
+    copy_words(fp(c, 0xa0), fp(c, 0x90));
+    const Lanes e = lanes(fp(c, 0xb0));
+    const Lanes z = mul(lanes(fp(c, 0x110)), splat(e.v[2]));
+    const Lanes y = mul(lanes(fp(c, 0x100)), splat(e.v[1]));
+    const Lanes x = mul(lanes(fp(c, 0xf0)), splat(e.v[0]));
+    store4(fp(c, 0x90), sub(lanes(fp(c, 0x90)), add(add(x, y), z)));
+    store4(t, sub(lanes(fp(c, 0x90)), lanes(fp(c, 0xa0))));
+    PhysContact140_ApplyImpulse(c, t);
+    const Lanes scaled = mul(lanes(t), lanes(fp(c, 0x120)));
+    const Lanes squared = mul(scaled, scaled);
+    platform_keep(squared);
+    const float s = (t[0] * at<float>(c, 0x120)) * (t[0] * at<float>(c, 0x120));
+    const float error2[3] = {s, squared.v[1], squared.v[2]};
+    for (int32_t i = 0; i < 3; ++i)
+        if (error2[i] > *max_error) *max_error = error2[i];
+}
+
+// Angular contact: A's record w += impulse * +0x40, B's w -= impulse * +0x50 (records +0x8c / +0x90).
+uint8_t* XB_THISCALL PhysAngularContact_ApplyImpulse(uint8_t* c, const float* impulse) {
+    uint8_t* const a = at<uint8_t*>(c, 0x8c);
+    store4(fp(a, 0x20), add(lanes(fp(a, 0x20)), mul(splat(*impulse), lanes(fp(c, 0x40)))));
+    uint8_t* const b = at<uint8_t*>(c, 0x90);
+    if (!b) return b;
+    store4(fp(b, 0x20), sub(lanes(fp(b, 0x20)), mul(splat(*impulse), lanes(fp(c, 0x50)))));
+    return b;
+}
+
+// When PhysConstraintPair_ScaleImpulses scales the pair (+0xb0 / +0xb4), each gets the change applied and the new impulse.
+void XB_THISCALL PhysConstraintPair_ApplyScaledImpulses(uint8_t* pair) {
+    uint8_t* const a = at<uint8_t*>(pair, 0xb0);
+    uint8_t* const b = at<uint8_t*>(pair, 0xb4);
+    float scaled_a, scaled_b;
+    if (!PhysConstraintPair_ScaleImpulses(pair, &scaled_a, &scaled_b)) return;
+    float delta = scaled_a - at<float>(a, 0x68);
+    PhysConstraint_ApplyImpulse(a, &delta);
+    at<float>(a, 0x68) = scaled_a;
+    delta = scaled_b - at<float>(b, 0x68);
+    PhysConstraint_ApplyImpulse(b, &delta);
+    at<float>(b, 0x68) = scaled_b;
+}
+
+// The joint's contact (+0x10), then its pair (+0xb0 tracked only without +0xb4, +0xb4, the shared scaling).
+void XB_THISCALL PhysJoint_SolveStep(uint8_t* joint, float* max_error) {
+    contact_solve_step(joint + 0x10);
+    track_error(joint + 0x10, max_error);
+    uint8_t* const a = at<uint8_t*>(joint, 0xb0);
+    if (!a) return;
+    const uint32_t b_word = at<uint32_t>(joint, 0xb4);
+    PhysContact_SolveStep(a, max_error, (b_word & ~0xffu) | (b_word == 0 ? 1u : 0u));  // sete al on the loaded word
+    uint8_t* const b = at<uint8_t*>(joint, 0xb4);
+    if (!b) return;
+    contact_solve_step(b);
+    PhysConstraintPair_ApplyScaledImpulses(joint);
+    track_error(at<uint8_t*>(joint, 0xb0), max_error);
+    track_error(at<uint8_t*>(joint, 0xb4), max_error);
+}
+
+void XB_THISCALL PhysJoint_ApplyBlendedImpulses(uint8_t* joint, float scale) {
+    contact_blend_apply(joint + 0x10, scale);
+    uint8_t* const a = at<uint8_t*>(joint, 0xb0);
+    if (!a) return;
+    contact_blend_apply(a, scale);
+    uint8_t* const b = at<uint8_t*>(joint, 0xb4);
+    if (!b) return;
+    contact_blend_apply(b, scale);
+    PhysConstraintPair_ApplyScaledImpulses(joint);
+}
+
+void XB_THISCALL PhysJoint_WarmStart(uint8_t* joint, uint32_t key, float scale) {
+    contact_warm_start(joint + 0x10, key, scale);
+    if (!at<uint8_t*>(joint, 0xb0)) return;
+    PhysContact_WarmStart(at<uint8_t*>(joint, 0xb0), key, scale);
+    if (!at<uint8_t*>(joint, 0xb4)) return;
+    PhysContact_WarmStart(at<uint8_t*>(joint, 0xb4), key, scale);
+    PhysConstraintPair_ApplyScaledImpulses(joint);
+}
+
+namespace {
+
+// ECX after the original PhysConstraint_ApplyImpulse: B's record + 0x20 when there is a B.
+uint32_t apply_impulse_ecx(const uint8_t* c) {
+    const uint32_t b = at<uint32_t>(c, 0x98);
+    return b ? b + 0x20 : word_addr(c);
+}
+
+// ECX the original PhysJoint_ApplyBlendedImpulses returns with; `entry` is its entry ESP. When the pair
+// scaling declines (B's flag 4 clear afterwards), PhysConstraintPair_ScaleImpulses leaves its out_b pointer:
+// a local of PhysConstraintPair_ApplyScaledImpulses at entry - 0x18.
+uint32_t blended_impulses_ecx(const uint8_t* joint, uint32_t entry) {
+    const uint8_t* const a = at<uint8_t*>(joint, 0xb0);
+    if (!a) return apply_impulse_ecx(joint + 0x10);
+    const uint8_t* const b = at<uint8_t*>(joint, 0xb4);
+    if (!b) return apply_impulse_ecx(a);
+    if (!(at<uint32_t>(b, 0x8c) & 4)) return entry - 0x18;
+    return apply_impulse_ecx(b);
+}
+
+// Angular contact (0xa0) error inside its limits: flag 1 of +0x88 and the error terms, else flag 1 cleared.
+void angular_accumulate(uint8_t* c, float* squares, float* weighted) {
+    const float margin = title_global<float>(0x0083eca0) / (at<float>(c, 0x84) - at<float>(c, 0x80));
+    const float impulse = at<float>(c, 0x68);
+    if (impulse > at<float>(c, 0x60) + margin && at<float>(c, 0x64) - margin > impulse) {
+        const float d = at<float>(c, 0x70) - at<float>(c, 0x74);
+        *weighted = at<float>(c, 0x74) * d + *weighted;
+        *squares = d * d + *squares;
+        at<uint32_t>(c, 0x88) |= 1;
+    } else {
+        at<uint32_t>(c, 0x88) &= ~1u;
+    }
+}
+
+float clamp_limits(const uint8_t* c, float impulse) {
+    if (at<float>(c, 0x60) > impulse) return at<float>(c, 0x60);
+    if (impulse > at<float>(c, 0x64)) return at<float>(c, 0x64);
+    return impulse;
+}
+
+}  // namespace
+
+// The island's iterations: until max_iterations passes are done or the largest squared impulse change is
+// within `tolerance` (at least one pass): contacts (+0x2cc), 0x140 contacts (+0x2d8), angular contacts
+// (+0x2e4) and joints (+0x2f0) each solved once; after `quiet_passes` passes the error terms of the
+// in-limit constraints also give an over-relaxation factor s = -weighted / squares - 1 (range kept in
+// 0x008bd5d0 / 0x008bd5d4); with s >= 1 (and 0x008bd610 set) the records restart from zero velocity and every
+// impulse is re-applied blended by s. Then the pass counter takes the original's ECX: the island, or what the
+// last joint's PhysJoint_ApplyBlendedImpulses left (entry asm: the entry ESP for its stack-address case).
+// Results: 0x0090a858 = the last pass's largest change, 0x0090a860 = the counter.
+PLATFORM_ASM_ENTRY(PhysIsland_SolveIterations_entry,
+                   "movl %esp, %eax\n"
+                   "pushl 12(%eax)\n"
+                   "pushl 8(%eax)\n"
+                   "pushl 4(%eax)\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n" PLATFORM_ASM_CALL(PhysIsland_SolveIterations) "addl $20, %esp\n"
+                   "ret $12")
+
+void XB_CDECL PhysIsland_SolveIterations(uint8_t* island, uint32_t entry_esp, int32_t max_iterations, int32_t quiet_passes,
+                                         float tolerance) {
+    // The callees' entry ESP in the original: below its 16-aligned frame of 0x74 bytes + 3 pushes, the argument and the call.
+    const uint32_t callee_entry = (((entry_esp - 4) & ~15u) - 0x80) - 8;
+    float max_change = title_global<float>(0x0083eb90);  // 100
+    float squares = 0.0f, weighted = 0.0f;
+    int32_t pass = 0, run = 0;
+    for (;;) {
+        if (!((pass <= max_iterations && max_change > tolerance) || run < 1)) break;
+        ++pass;
+        ++run;
+        const bool accumulate = run > quiet_passes;
+        if (accumulate) {
+            squares = 0.0f;
+            weighted = 0.0f;
+        }
+        max_change = 0.0f;
+        for (uint8_t* c = at<uint8_t*>(island, 0x2cc); c; c = at<uint8_t*>(c, 0)) {
+            at<uint32_t>(c, 0x74) = at<uint32_t>(c, 0x70);
+            const long double v = PhysContact_GetNormalVelocity(c);
+            const long double s = static_cast<long double>(at<float>(c, 0x80)) * at<float>(c, 0x68);
+            at<uint32_t>(c, 0x6c) = at<uint32_t>(c, 0x68);
+            const long double e = (v + s) - at<float>(c, 0x78);
+            at<float>(c, 0x70) = static_cast<float>(e);
+            const float impulse = static_cast<float>(at<float>(c, 0x68) - e / at<float>(c, 0x84));
+            const float clamped = PhysConstraint_ClampImpulse(c, impulse);
+            at<float>(c, 0x68) = clamped;
+            float delta = clamped - at<float>(c, 0x6c);
+            PhysConstraint_ApplyImpulse(c, &delta);
+            track_error(c, &max_change);
+            if (accumulate) PhysConstraint_AccumulateUnclamped(c, &squares, &weighted);
+        }
+        for (uint8_t* c = at<uint8_t*>(island, 0x2d8); c; c = at<uint8_t*>(c, 0)) {
+            PhysContact140_SolveStep(c, &max_change);
+            if (accumulate) PhysJoint_AddOffsetTerms(c, &squares, &weighted);
+        }
+        for (uint8_t* c = at<uint8_t*>(island, 0x2e4); c; c = at<uint8_t*>(c, 0)) {
+            at<uint32_t>(c, 0x74) = at<uint32_t>(c, 0x70);
+            Lanes w = lanes(fp(at<uint8_t*>(c, 0x8c), 0x20));
+            const uint8_t* const b = at<uint8_t*>(c, 0x90);
+            if (b) w = sub(w, lanes(fp(b, 0x20)));
+            const float v = dot3(w, lanes(fp(c, 0x10)));
+            const float old = at<float>(c, 0x68);
+            const uint32_t old_bits = at<uint32_t>(c, 0x68);
+            const float e = (at<float>(c, 0x80) * at<float>(c, 0x68) + v) - at<float>(c, 0x78);
+            at<float>(c, 0x70) = e;
+            const float impulse = old - e / at<float>(c, 0x84);
+            at<uint32_t>(c, 0x6c) = old_bits;
+            const float clamped = clamp_limits(c, impulse);
+            at<float>(c, 0x68) = clamped;
+            float delta = clamped - at<float>(c, 0x6c);
+            PhysAngularContact_ApplyImpulse(c, &delta);
+            track_error(c, &max_change);
+            if (accumulate) angular_accumulate(c, &squares, &weighted);
+        }
+        for (uint8_t* j = at<uint8_t*>(island, 0x2f0); j; j = at<uint8_t*>(j, 0)) {
+            PhysJoint_SolveStep(j, &max_change);
+            if (accumulate) PhysJoint_AccumulateErrors(j, &squares, &weighted);
+        }
+        if (!accumulate) continue;
+        if (!(squares >= title_global<float>(0x007ce2f4))) continue;  // 1e-7; JB: NaN loops too
+        const float one = title_global<float>(0x0083eb20);
+        const float s = (0.0f - weighted / squares) - one;
+        if (s > title_global<float>(0x008bd5d0)) title_global<float>(0x008bd5d0) = s;
+        if (title_global<float>(0x008bd5d4) > s) title_global<float>(0x008bd5d4) = s;
+        if (!(s >= one)) continue;
+        if (!title_global<uint32_t>(0x008bd610)) continue;
+        for (uint8_t* r = at<uint8_t*>(island, 0x2c0); r; r = at<uint8_t*>(r, 0)) {
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(r, 0x10 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+            for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(r, 0x20 + i * 4) = title_global<uint32_t>(0x007ce0c0 + i * 4);
+        }
+        for (uint8_t* c = at<uint8_t*>(island, 0x2cc); c; c = at<uint8_t*>(c, 0)) contact_blend_apply(c, s);
+        for (uint8_t* c = at<uint8_t*>(island, 0x2d8); c; c = at<uint8_t*>(c, 0)) {
+            const Lanes old = lanes(fp(c, 0xa0));
+            const Lanes blended = add(old, mul(splat(s), sub(lanes(fp(c, 0x90)), lanes(fp(c, 0xa0)))));
+            std::memcpy(fp(c, 0x90), blended.v, 16);
+            PhysContact140_ApplyImpulse(c, fp(c, 0x90));
+        }
+        for (uint8_t* c = at<uint8_t*>(island, 0x2e4); c; c = at<uint8_t*>(c, 0)) {
+            if (c[0x88] & 1) at<float>(c, 0x68) = (at<float>(c, 0x68) - at<float>(c, 0x6c)) * s + at<float>(c, 0x6c);
+            at<float>(c, 0x68) = clamp_limits(c, at<float>(c, 0x68));
+            PhysAngularContact_ApplyImpulse(c, fp(c, 0x68));
+        }
+        uint32_t ecx = word_addr(island);
+        for (uint8_t* j = at<uint8_t*>(island, 0x2f0); j; j = at<uint8_t*>(j, 0)) {
+            PhysJoint_ApplyBlendedImpulses(j, s);
+            ecx = blended_impulses_ecx(j, callee_entry);
+        }
+        pass = static_cast<int32_t>(ecx);  // the original reuses ECX as the counter here
+        run = 0;
+    }
+    title_global<float>(0x0090a858) = max_change;
+    title_global<int32_t>(0x0090a860) = pass;
+}
+
+
+namespace {
+
+// Island nodes (0x3c, world +0x1c8 array): +0..+0x1c constraint lists by kind, +0x20 body, +0x24 next node,
+// +0x28 last node, +0x2c body count (the first node of an island holds the totals). The larger island
+// takes the smaller one's nodes (ties: the first body's), and their bodies point at it (+0x154).
+void island_merge(uint8_t* into, uint8_t* from) {
+    at<uint8_t*>(at<uint8_t*>(into, 0x28), 0x24) = from;
+    uint8_t* const last = at<uint8_t*>(from, 0x28);
+    const int32_t count = at<int32_t>(into, 0x2c);
+    at<uint8_t*>(into, 0x28) = last;
+    at<int32_t>(into, 0x2c) = count + at<int32_t>(from, 0x2c);
+    for (uint8_t* n = from; n; n = at<uint8_t*>(n, 0x24)) at<uint8_t*>(at<uint8_t*>(n, 0x20), 0x154) = into;
+    at<uint32_t>(from, 0x28) = 0;
+    at<uint32_t>(from, 0x2c) = 0;
+}
+
+// The islands of a constraint's two bodies (+0 / +4) joined when both have one and they differ.
+void island_join(const uint8_t* constraint) {
+    uint8_t* const a = at<uint8_t*>(constraint, 0);
+    if (!a) return;
+    uint8_t* const b = at<uint8_t*>(constraint, 4);
+    if (!b) return;
+    uint8_t* const na = at<uint8_t*>(a, 0x154);
+    if (!na) return;
+    uint8_t* const nb = at<uint8_t*>(b, 0x154);
+    if (!nb || na == nb) return;
+    if (at<int32_t>(na, 0x2c) >= at<int32_t>(nb, 0x2c))
+        island_merge(na, nb);
+    else
+        island_merge(nb, na);
+}
+
+void count_add(uint8_t* body, uint32_t offset, int32_t n) {
+    if (body) at<int32_t>(body, offset) += n;
+}
+
+// The world's constraint pools by island list slot (+0 is the pair records at +0x200).
+constexpr uint32_t kIslandPools[7] = {0x22c, 0x240, 0x254, 0x268, 0x27c, 0x290, 0x2a4};
+
+}  // namespace
+
+// Islands: every body (+0x1ec) gets a node; contact pairs (+0x200: +0x15c += the larger of their two lists'
+// counts) and each constraint pool (+0x158 per body; the 0x290 pool with flag 1 of +0xa4 also +0x15c) join
+// their bodies' islands. The islands with bodies go to *out (linked by +0x38, lists cleared), then each
+// constraint is linked (+8) into its island's list for its kind (the first body's island, else the second's).
+void XB_THISCALL PhysWorld_BuildIslands(uint8_t* world, uint8_t** out) {
+    at<uint32_t>(world, 0x1d0) = 0;
+    at<uint32_t>(world, 0x198) = 0;
+    at<uint32_t>(world, 0x19c) = 0;
+    at<uint32_t>(world, 0x194) = 0;
+    {
+        uint8_t** it = at<uint8_t**>(world, 0x1d8);
+        uint8_t** const end = it + at<int32_t>(world, 0x1e4);
+        for (; it != end; ++it) {
+            at<uint32_t>(*it, 0x158) = 0;
+            at<uint32_t>(*it, 0x15c) = 0;
+            at<uint32_t>(*it, 0x154) = 0;
+        }
+    }
+    {
+        uint8_t** it = at<uint8_t**>(world, 0x1ec);
+        uint8_t** const end = it + at<int32_t>(world, 0x1f8);
+        for (; it != end; ++it) {
+            uint8_t* const body = *it;
+            at<uint32_t>(body, 0x158) = 0;
+            at<uint32_t>(body, 0x15c) = 0;
+            uint8_t* node = nullptr;
+            const int32_t used = at<int32_t>(world, 0x1d0);
+            if (used < at<int32_t>(world, 0x1cc)) {
+                node = at<uint8_t*>(world, 0x1c8) + used * 0x3c;
+                at<int32_t>(world, 0x1d0) = used + 1;
+            }
+            at<uint8_t*>(node, 0x20) = body;
+            at<uint8_t*>(body, 0x154) = node;
+            at<uint8_t*>(node, 0x28) = node;
+            at<uint32_t>(node, 0x24) = 0;
+            at<uint32_t>(node, 0x2c) = 1;
+        }
+    }
+    {
+        uint8_t** it = at<uint8_t**>(world, 0x200);
+        uint8_t** const end = it + at<int32_t>(world, 0x20c);
+        for (; it != end; ++it) {
+            const uint8_t* const pair = *it;
+            int32_t n = at<int32_t>(at<uint8_t*>(pair, 0x24), 8);
+            const int32_t other = at<int32_t>(at<uint8_t*>(pair, 0x28), 8);
+            if (n <= other) n = other;
+            count_add(at<uint8_t*>(pair, 0), 0x15c, n);
+            count_add(at<uint8_t*>(pair, 4), 0x15c, n);
+            island_join(*it);
+        }
+    }
+    for (const uint32_t pool : kIslandPools) {
+        uint8_t** it = at<uint8_t**>(world, pool);
+        uint8_t** const end = it + at<int32_t>(world, pool + 0xc);
+        for (; it != end; ++it) {
+            const uint8_t* const c = *it;
+            count_add(at<uint8_t*>(c, 0), 0x158, 1);
+            count_add(at<uint8_t*>(c, 4), 0x158, 1);
+            if (pool == 0x290 && (c[0xa4] & 1)) {
+                count_add(at<uint8_t*>(c, 0), 0x15c, 1);
+                count_add(at<uint8_t*>(c, 4), 0x15c, 1);
+            }
+            island_join(*it);
+        }
+    }
+    *out = nullptr;
+    {
+        uint8_t* node = at<uint8_t*>(world, 0x1c8);
+        uint8_t* const end = node + at<int32_t>(world, 0x1d0) * 0x3c;
+        for (; node != end; node += 0x3c) {
+            if (at<int32_t>(node, 0x2c) <= 0) continue;
+            at<uint8_t*>(node, 0x38) = *out;
+            *out = node;
+            for (uint32_t i = 0; i < 0x20; i += 4) at<uint32_t>(node, i) = 0;
+        }
+    }
+    for (uint32_t slot = 0; slot < 8; ++slot) {
+        const uint32_t pool = slot == 0 ? 0x200 : kIslandPools[slot - 1];
+        uint8_t** it = at<uint8_t**>(world, pool);
+        uint8_t** const end = it + at<int32_t>(world, pool + 0xc);
+        for (; it != end; ++it) {
+            uint8_t* const c = *it;
+            uint8_t* const a = at<uint8_t*>(c, 0);
+            uint8_t* node = a ? at<uint8_t*>(a, 0x154) : nullptr;
+            if (!node) node = at<uint8_t*>(at<uint8_t*>(c, 4), 0x154);
+            at<uint32_t>(c, 8) = at<uint32_t>(node, slot * 4);
+            at<uint8_t*>(node, slot * 4) = c;
+        }
+    }
 }
 
 }  // namespace game

@@ -601,7 +601,7 @@ address,name,tested,matched,nan,mismatched,coverage
 000bbde0,PhysObject1c0_Init,1874,1874,0,0,100.0
 000bc710,PhysAngularContact_GetNormalVelocity,3087,3069,18,0,100.0
 000bc990,PhysContact_GetResponseVector,3381,3169,212,0,100.0
-000bcb40,PhysContact_SolveNormalImpulse,3278,3278,0,0,100.0
+000bcb40,PhysContact_SolveNormalImpulse,3281,2864,417,0,100.0
 000bee70,PhysConstraint_AccumulateUnclamped,3313,3313,0,0,100.0
 000bef00,PhysConstraint_ClampImpulse,3754,3754,0,0,100.0
 000bef70,PhysConstraintPair_CanShare,3225,3225,0,0,97.1
@@ -610,6 +610,12 @@ address,name,tested,matched,nan,mismatched,coverage
 000bf400,PhysJoint_AddOffsetTerms,2884,2880,4,0,100.0
 000bf4b0,PhysConstraintPool30_Destroy,3367,3367,0,0,100.0
 000bf4f0,PhysFrame_Orthonormalize,3725,3565,160,0,100.0
+000bfa50,PhysContact_SolveStep,3346,2801,545,0,100.0
+000bfad0,PhysContact_WarmStart,2934,2777,157,0,100.0
+000c0000,PhysConstraintPair_ApplyScaledImpulses,3108,2650,458,0,100.0
+000c0080,PhysJoint_SolveStep,2454,1753,701,0,100.0
+000c01e0,PhysJoint_ApplyBlendedImpulses,2687,2484,203,0,100.0
+000c02c0,PhysJoint_WarmStart,2315,1688,627,0,100.0
 000c36e0,SndArena_Reset,3776,3776,0,0,100.0
 000c41b0,SndVoice_Pause,2816,2816,0,0,29.6
 000c4220,SndVoice_Resume,2816,2816,0,0,21.1

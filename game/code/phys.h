@@ -380,4 +380,57 @@ uint8_t* XB_CDECL Phys_CreateWorld(uint32_t params);
 // 0x000bee40: destroys phys_world and frees its arena.
 uint32_t XB_CDECL Phys_DestroyWorld();
 
+// 0x000be2a0: bytes PhysWorld_Create takes from its arena for the counts in `params`.
+uint32_t XB_CDECL PhysWorld_GetMemorySize(const int32_t* params);
+// 0x000be8a0: empties a new world header and sets its step defaults.
+uint8_t* XB_THISCALL PhysWorld_Init(uint8_t* world);
+// 0x000beb00: the world and its pools from `arena` ({base, end, cursor}).
+uint8_t* XB_CDECL PhysWorld_Create(const int32_t* params, uint32_t* arena);
+// 0x000c0360: the 0x1c0-object pool (capacity `count`) from the arena, reset.
+void XB_THISCALL PhysPool1c0_Init(uint8_t* pool, int32_t count, uint32_t* arena);
+
+// 0x000be390: one substep (thiscall: dt, last; gap entry - the sorted pair's address stays in world +0x1c0).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysWorld_Substep(uint8_t* world, uint32_t dt_bits, uint32_t last, uint32_t entry_ebx,
+                                                          uint32_t entry_ebp, uint32_t entry_esi, uint32_t entry_edi,
+                                                          uint32_t entry_esp);
+extern "C" void PhysWorld_Substep_entry(void);
+// 0x000be640: one frame of dt in substeps (thiscall; gap entry, callees at the original's ESP).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysWorld_Step(uint8_t* world, uint32_t dt_bits, uint32_t entry_ebx, uint32_t entry_esi,
+                                                       uint32_t entry_edi, uint32_t entry_ebp, uint32_t entry_esp);
+extern "C" void PhysWorld_Step_entry(void);
+
+// 0x000bf880: (A's v + w x +0x20 - B's) . normal from the solver records (+0x94 / +0x98; +0x10 v, +0x20 w).
+float XB_THISCALL PhysContact_GetNormalVelocity(const uint8_t* contact);
+// 0x000bf960: the impulse along the normal into both solver records (EAX: B's record).
+uint8_t* XB_THISCALL PhysConstraint_ApplyImpulse(uint8_t* c, const float* impulse);
+// 0x000bfa50: one solver iteration on a contact; `track` (low byte) adds its squared change to *max_error.
+void XB_THISCALL PhysContact_SolveStep(uint8_t* contact, float* max_error, uint32_t track);
+// 0x000bfad0: target -= normal velocity, the cached impulse (+0x9c entry, same key) * scale applied.
+void XB_THISCALL PhysContact_WarmStart(uint8_t* contact, uint32_t key, float scale);
+// 0x000bfb40: a 0x140 contact's relative velocity from its solver records (+0x130 / +0x134).
+float* XB_THISCALL PhysContact140_GetSolverRelativeVelocity(const uint8_t* contact, float* out);
+// 0x000bfc20: a 0x140 contact's impulse vector into its solver records (EAX: B's record).
+uint8_t* XB_THISCALL PhysContact140_ApplyImpulse(uint8_t* contact, const float* impulse);
+// 0x000bfd60: a 0x140 contact's warm start from its three cached impulses (+0x138).
+void XB_THISCALL PhysContact140_WarmStart(uint8_t* contact, uint32_t key, float scale);
+// 0x000bfe30: one solver iteration on a 0x140 contact.
+void XB_THISCALL PhysContact140_SolveStep(uint8_t* contact, float* max_error);
+// 0x000bff80: an angular contact's impulse into the records' w (+0x8c / +0x90; EAX: B's record).
+uint8_t* XB_THISCALL PhysAngularContact_ApplyImpulse(uint8_t* contact, const float* impulse);
+// 0x000c0000: the pair's (+0xb0 / +0xb4) impulses rescaled together when PhysConstraintPair_ScaleImpulses says so.
+void XB_THISCALL PhysConstraintPair_ApplyScaledImpulses(uint8_t* pair);
+// 0x000c0080: one solver iteration on a joint (contact +0x10, pair +0xb0 / +0xb4).
+void XB_THISCALL PhysJoint_SolveStep(uint8_t* joint, float* max_error);
+// 0x000c01e0: a joint's impulses blended by `scale` (over-relaxation), clamped and re-applied.
+void XB_THISCALL PhysJoint_ApplyBlendedImpulses(uint8_t* joint, float scale);
+// 0x000c02c0: a joint's warm start.
+void XB_THISCALL PhysJoint_WarmStart(uint8_t* joint, uint32_t key, float scale);
+// 0x000bccc0: the island's solver iterations (thiscall: max passes, quiet passes, tolerance; entry asm).
+extern "C" PLATFORM_HIDDEN void XB_CDECL PhysIsland_SolveIterations(uint8_t* island, uint32_t entry_esp, int32_t max_iterations,
+                                                                   int32_t quiet_passes, float tolerance);
+extern "C" void PhysIsland_SolveIterations_entry(void);
+
+// 0x000bd380: the substep's islands (bodies joined through their constraints) to *out, constraints sorted in.
+void XB_THISCALL PhysWorld_BuildIslands(uint8_t* world, uint8_t** out);
+
 }  // namespace game
