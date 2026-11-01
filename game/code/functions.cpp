@@ -2242,6 +2242,7 @@ const Function kFunctions[] = {
     {"Actor_ClearSentientSlots", 0x001fa7f0, 0, code(&Actor_ClearSentientSlots), 0, Result::Eax, Status::Compare},
     {"Actor_ExpirePathPlanes", 0x001fa860, 0, code(&Actor_ExpirePathPlanes), 0, Result::Eax, Status::Compare},
     {"Actor_FindSentientSlot", 0x001fa950, 0, code(&Actor_FindSentientSlot_entry), 4, Result::Eax, Status::Compare},
+    {"Actor_Noncombat_Resume", 0x001fab10, 0, code(&Actor_Noncombat_Resume), 0, Result::Eax, Status::Compare},
     {"Path_GetLookaheadPoint", 0x001fabd0, 0, code(&Path_GetLookaheadPoint_entry), 0, Result::Eax, Status::Compare},
     {"Path_AdvanceAlong", 0x001fac60, 0, code(&Path_AdvanceAlong_entry), 0, Result::Eax, Status::Compare},
     {"Path_LookaheadAtMinimum", 0x001faec0, 0, code(&Path_LookaheadAtMinimum), 0, Result::Eax, Status::Compare},

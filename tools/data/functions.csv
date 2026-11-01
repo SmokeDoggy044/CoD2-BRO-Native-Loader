@@ -2281,6 +2281,7 @@ address,name,status,calls,tested,matched,drift,mismatched,inconclusive,last_issu
 001fa7f0,Actor_ClearSentientSlots,compare,4559,170,170,0,0,0,""
 001fa860,Actor_ExpirePathPlanes,compare,44179,167,167,0,0,0,""
 001fa950,Actor_FindSentientSlot,compare,2740,100,100,0,0,0,""
+001fab10,Actor_Noncombat_Resume,compare,0,0,0,0,0,0,""
 001fabd0,Path_GetLookaheadPoint,compare,1010,105,105,0,0,0,""
 001fac60,Path_AdvanceAlong,compare,8904,157,157,0,0,0,""
 001faec0,Path_LookaheadAtMinimum,compare,226,107,107,0,0,0,""
