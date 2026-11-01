@@ -11179,4 +11179,970 @@ void XB_CDECL G_UpdateGroundTilt(uint32_t entry, uint8_t* ent, uint32_t esi, uin
     }
 }
 
+namespace {
+
+// The record an actor keeps of a sentient (+0x850 + index * 0x50).
+uint8_t* sentient_record(uint8_t* actor, const uint8_t* sentient) {
+    const int32_t index = static_cast<int32_t>(addr_of(sentient) - addr_of(sentients())) / 0x60;
+    return actor + 0x850 + index * 0x50;
+}
+
+// Actor_UpdateVisibility's body at entry ESP `entry` (stack cone cos, max squared distance;
+// ret 8). Frame F = aligned base - 0x50: EDI +0, ESI +4, record +0xc, value / aim block
+// +0x10, target sentient +0x20, target eye +0x24, eye +0x30, point +0x40.
+float update_visibility(uint32_t entry, uint8_t* actor, uint8_t* ent, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    const float cone = *stack_vec(entry + 4);
+    const float range = *stack_vec(entry + 8);
+    const uint32_t cone_word = stack_word(entry + 4);
+    const uint32_t range_word = stack_word(entry + 8);
+    stack_word(entry - 4) = ebp;
+    const uint32_t E4 = entry - 4;
+    const uint32_t F = aligned_base(entry) - 0x50;
+    stack_word(F + 4) = esi;
+    stack_word(F) = edi;
+    uint8_t* const sentient = field<uint8_t*>(ent, 0x244);
+    stack_word(F + 0x20) = addr_of(sentient);
+    float* const target_eye = stack_vec(F + 0x24);
+    float* const eye = stack_vec(F + 0x30);
+    const uint32_t me = addr_of(actor);
+    float value;
+    if (sentient) {
+        uint8_t* const rec = sentient_record(actor, sentient);
+        stack_word(F + 0xc) = addr_of(rec);
+        call_at(F, 0x00210d66, 0x002066e0, TitleRegs{addr_of(sentient), addr_of(ent), F + 0x24, 0, addr_of(sentient), me},
+                0, nullptr);  // Sentient_EyeOrigin (EAX sentient, ECX out)
+        const uint32_t turret = call_at(F, 0x00210d6d, 0x001fe0c0, TitleRegs{addr_of(sentient), addr_of(ent), F + 0x24, 0, me, me},
+                                        0, nullptr);  // Actor_IsUsingTurret (ESI)
+        if (!turret) {
+            call_at(F, 0x00210d76, 0x002061b0, TitleRegs{0, addr_of(ent), F + 0x24, 0, me, me}, 0,
+                    nullptr);  // Actor_RefreshEyeOrigin (EDI)
+            copy3(reinterpret_cast<uint8_t*>(eye), actor + 0x1b4);
+        } else {
+            // The turret's view of the target eye ((x, y, z, x) at +0x40), else its aim point.
+            point_vec4_at(F + 0x30, target_eye);
+            point_vec4_at(F + 0x40, target_eye);
+            const uint32_t gun = field<uint32_t>(actor, 0x136c);
+            const uint32_t args[4] = {gun, F + 0x40, F + 0x30, F + 0x10};
+            const uint32_t can = call_at(F, 0x00210df4, 0x0025ccd0, TitleRegs{F + 0x30, addr_of(ent), F + 0x40, gun, me, me},
+                                         4, args);  // Turret_CanTargetPoint
+            if (!can) {
+                const uint32_t aim_args[5] = {gun, addr_of(sentient), F + 0x24, F + 0x30, F + 0x10};
+                const uint32_t aimed = call_at(F, 0x00210e1f, 0x0025f310,
+                                               TitleRegs{addr_of(sentient), addr_of(ent), gun, F + 0x24, me, me}, 5,
+                                               aim_args);  // Turret_GetTargetAimPoint
+                if (!aimed) {
+                    const uint8_t* const r = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(F + 0xc)});
+                    if (level_time() - field<int32_t>(r, 0x18) >= 1000) {
+                        point_vec4_at(F + 0x10, target_eye);
+                        const uint8_t* const own = field<const uint8_t*>(actor, 0);
+                        const float dy = field<float>(own, 0x144) - *stack_vec(F + 0x14);
+                        const float dx = field<float>(own, 0x140) - *stack_vec(F + 0x10);
+                        const float d2 = dy * dy + dx * dx;
+                        if (d2 >= title_global<float>(0x00830f50)) return 0.0f;  // 512 squared
+                    }
+                    call_at(F, 0x00210ec3, 0x00206580, TitleRegs{me, addr_of(ent), 0, 0, F + 0x30, me}, 0,
+                            nullptr);  // Actor_GetEyePosition (EAX actor, ESI out)
+                }
+            }
+        }
+        // No cone towards the actor's enemy, its +0x12a0 sentient or the player's sentient.
+        stack_word(F + 0x10) = cone_word;
+        if (field<uint8_t*>(field<uint8_t*>(actor, 4), 0x3c) == sentient || field<uint8_t*>(actor, 0x12a0) == sentient ||
+            field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f534), 4), 0x244) == sentient)
+            *stack_vec(F + 0x10) = 0.0f;
+        const uint32_t rec_now = stack_word(F + 0xc);
+        const uint32_t args[5] = {rec_now + 0x10, stack_word(F + 0x10), range_word, field<uint32_t>(ent, 0x224), F + 0x30};
+        value = call_at_xmm0(F, 0x00210f24, 0x0020a2e0, TitleRegs{F + 0x24, addr_of(ent), me, rec_now + 0x10, F + 0x30, me},
+                             5, args);  // Actor_CanSeePointEx (EAX point, ECX actor; stdcall)
+        stack_word(F - 0x1c) = E4;      // its saved EBP: ours
+    } else {
+        // No sentient: the middle of the entity's absolute bounds with the given cone and range.
+        const float half = title_global<float>(0x0083eb24);
+        const float mx = (field<float>(ent, 0xf0) + field<float>(ent, 0xe0)) * half;
+        const float my = (field<float>(ent, 0xf4) + field<float>(ent, 0xe4)) * half;
+        const float mz = (field<float>(ent, 0xf8) + field<float>(ent, 0xe8)) * half;
+        target_eye[0] = mx;
+        target_eye[1] = my;
+        target_eye[2] = mz;
+        stack_word(F + 0xc) = 0;
+        const uint32_t args[4] = {F + 0x24, cone_word, range_word, field<uint32_t>(ent, 0x224)};
+        value = call_at_xmm0(F, 0x00210faf, 0x0020eb50, TitleRegs{me, addr_of(ent), cone_word, F + 0x24, 0, me}, 4,
+                             args);  // Actor_CanSeePoint (stdcall)
+        stack_word(F - 0x18) = E4;
+    }
+    *stack_vec(F + 0x10) = value;
+    // Only a check at the actor's own cone and range (or a wider one that saw, a narrower one
+    // that did not) updates its records.
+    if (value > 0.0f) {
+        if (!(cone >= field<float>(actor, 0x828))) return value;
+        if (!(field<float>(actor, 0x82c) >= range)) return value;
+    } else {
+        if (!(field<float>(actor, 0x828) >= cone)) return value;
+        if (!(range >= field<float>(actor, 0x82c))) return value;
+    }
+    if (addr_of(ent) == field<uint32_t>(field<const uint8_t*>(actor, 4), 8)) {
+        const bool seen = value >= field<float>(actor, 0x824);
+        actor[0x834] = seen ? 1 : 0;
+        field<float>(actor, 0x838) = value;
+        field<int32_t>(actor, 0x83c) = level_time();
+        if (seen) field<int32_t>(actor, 0x840) = level_time();
+    }
+    if (!sentient) return value;
+    {
+        const bool seen = value >= field<float>(actor, 0x824);
+        uint8_t* const rec = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(F + 0xc)});
+        rec[0] = seen ? 1 : 0;
+        field<float>(rec, 4) = value;
+        field<int32_t>(rec, 8) = level_time();
+        if (seen) {
+            field<int32_t>(rec, 0xc) = level_time();
+            const uint32_t turret = call_at(F, 0x00211094, 0x001fe0c0, TitleRegs{0, addr_of(ent), addr_of(rec), 0, me, me}, 0,
+                                            nullptr);  // Actor_IsUsingTurret
+            if (!turret) field<uint32_t>(reinterpret_cast<uint8_t*>(uintptr_t{stack_word(F + 0xc)}), 0x1c) = 0;
+            call_at(F, 0x002110aa, 0x00200050, TitleRegs{turret, addr_of(ent), addr_of(sentient), 0, me, me}, 0,
+                    nullptr);  // Actor_RecordSentientPosition (ESI actor, ECX sentient)
+        }
+    }
+    // A seen actor target that holds no turret (neither does this actor) learns of this actor too.
+    if (!field<uint32_t>(ent, 0x240) || !(value > 0.0f)) return value;
+    if (call_at(F, 0x002110c8, 0x001fe0c0, TitleRegs{0, addr_of(ent), 0, 0, me, me}, 0, nullptr)) return value;
+    if (call_at(F, 0x002110dd, 0x001fe0c0, TitleRegs{0, addr_of(ent), 0, 0, field<uint32_t>(ent, 0x240), me}, 0, nullptr))
+        return value;
+    call_at(F, 0x002110ea, 0x00206580, TitleRegs{me, addr_of(ent), 0, 0, F + 0x30, me}, 0,
+            nullptr);  // Actor_GetEyePosition (EAX actor, ESI out)
+    uint8_t* const other = field<uint8_t*>(ent, 0x240);
+    const float stored = *stack_vec(F + 0x10);
+    const bool seen = stored >= field<float>(other, 0x824);
+    uint8_t* const rec = sentient_record(other, field<const uint8_t*>(actor, 4));
+    Actor_SetSentientVisibility(rec, seen ? 1 : 0, stored);
+    stack_word(F - 4) = 0x00211138;
+    if (seen) {
+        field<uint32_t>(rec, 0x1c) = 0;
+        call_at(F, 0x00211151, 0x00200050, TitleRegs{addr_of(rec), addr_of(ent), field<uint32_t>(actor, 4), 0,
+                                                      field<uint32_t>(ent, 0x240), me},
+                0, nullptr);  // Actor_RecordSentientPosition
+    }
+    return *stack_vec(F + 0x10);
+}
+
+// Actor_UpdateVisibility(EAX actor, EBX entity; cone, range) called by the original with its
+// arguments at `top` - 8 and return address `ret` at top - 12.
+float update_visibility_at(uint32_t top, uint32_t ret, uint8_t* actor, uint8_t* ent, uint32_t cone, uint32_t range,
+                           uint32_t esi, uint32_t edi, uint32_t ebp) {
+    stack_word(top - 4) = range;
+    stack_word(top - 8) = cone;
+    stack_word(top - 12) = ret;
+    return update_visibility(top - 12, actor, ent, esi, edi, ebp);
+}
+
+// Actor_UpdateVisibilityIfStale's body (EAX sentient, ESI actor; stack maximum age; ret 4).
+float visibility_if_stale(uint32_t entry, const uint8_t* sentient, uint8_t* actor, uint32_t edi, uint32_t ebx,
+                          uint32_t ebp) {
+    const int32_t age = static_cast<int32_t>(stack_word(entry + 4));
+    stack_word(entry - 4) = edi;
+    const uint8_t* const rec = sentient_record(actor, sentient);
+    const int32_t time = field<int32_t>(rec, 8);
+    if (time && !(time + age < level_time())) return field<float>(rec, 4);
+    uint8_t* const ent = field<uint8_t*>(sentient, 0);
+    stack_word(entry - 8) = ebx;
+    return update_visibility_at(entry - 8, 0x002121f3, actor, ent, field<uint32_t>(actor, 0x828),
+                                field<uint32_t>(actor, 0x82c), addr_of(actor), addr_of(ent), ebp);
+}
+
+}  // namespace
+
+// The sight checks run where the original's calls put them: gap entry, EDX the entry ESP.
+PLATFORM_ASM_ENTRY(Actor_UpdateVisibility_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_UpdateVisibility) "addl $24, %esp\n"
+                   "movd %eax, %xmm0\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $8")
+
+uint32_t XB_CDECL Actor_UpdateVisibility(uint32_t entry, uint8_t* actor, uint8_t* ent, uint32_t esi, uint32_t edi,
+                                         uint32_t ebp) {
+    // EAX actor, EBX entity; stack (cone cos, max squared distance; ret 8); XMM0 = how well the
+    // actor sees the entity. A sentient is looked at from the actor's eye (a turret user: the
+    // turret's view or aim point; beyond 512 units with a record older than 1 s that has
+    // neither: 0) at its eye (Actor_CanSeePointEx, no cone for the enemy, +0x12a0 or the
+    // player); else the middle of its bounds (Actor_CanSeePoint). Checks at the actor's own
+    // cone/range update the target record (+0x834..), the sentient record (+0x850 + i*0x50,
+    // with Actor_RecordSentientPosition when seen) and a seen actor's record of this actor.
+    return float_bits(update_visibility(entry, actor, ent, esi, edi, ebp));
+}
+
+PLATFORM_ASM_ENTRY(Actor_UpdateVisibilityIfNeeded_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_UpdateVisibilityIfNeeded) "addl $20, %esp\n"
+                   "movd %eax, %xmm0\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $12")
+
+uint32_t XB_CDECL Actor_UpdateVisibilityIfNeeded(uint32_t entry, uint8_t* actor, const uint8_t* sentient, uint32_t ebx,
+                                                 uint32_t ebp) {
+    // ESI actor, EDI sentient; stack (cone cos, max squared distance, maximum age; ret 12);
+    // XMM0: the record's value when it is younger than the age, positive and was taken with
+    // at least this cone and range, else Actor_UpdateVisibility.
+    const uint8_t* const rec = sentient_record(actor, sentient);
+    const int32_t time = field<int32_t>(rec, 8);
+    const int32_t age = static_cast<int32_t>(stack_word(entry + 12));
+    if (time && !(time + age < level_time()) && field<float>(rec, 4) > title_global<float>(0x0083eafc) &&
+        field<float>(actor, 0x828) >= *stack_vec(entry + 4) && field<float>(actor, 0x82c) >= *stack_vec(entry + 8))
+        return float_bits(field<float>(rec, 4));
+    stack_word(entry - 4) = ebx;
+    return float_bits(update_visibility_at(entry - 4, 0x002120e5, actor, field<uint8_t*>(sentient, 0), stack_word(entry + 4),
+                                           stack_word(entry + 8), addr_of(actor), addr_of(sentient), ebp));
+}
+
+PLATFORM_ASM_ENTRY(Actor_UpdateVisibilityIfStale_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_UpdateVisibilityIfStale) "addl $24, %esp\n"
+                   "movd %eax, %xmm0\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+uint32_t XB_CDECL Actor_UpdateVisibilityIfStale(uint32_t entry, const uint8_t* sentient, uint8_t* actor, uint32_t edi,
+                                                uint32_t ebx, uint32_t ebp) {
+    // EAX sentient, ESI actor; stack maximum age (ret 4); XMM0: the record's value while
+    // younger than the age, else Actor_UpdateVisibility with the actor's own cone and range.
+    return float_bits(visibility_if_stale(entry, sentient, actor, edi, ebx, ebp));
+}
+
+PLATFORM_ASM_ENTRY(Actor_UpdateVisibilityIfStaleCall_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %eax\n"
+                   "pushl %ecx\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_UpdateVisibilityIfStaleCall) "addl $28, %esp\n"
+                   "movd %eax, %xmm0\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_UpdateVisibilityIfStaleCall(uint32_t entry, uint8_t* actor, uint32_t age, uint32_t esi,
+                                                    uint32_t edi, uint32_t ebx, uint32_t ebp) {
+    // ECX actor, EAX maximum age: Actor_UpdateVisibilityIfStale on the actor's enemy (+4 ->
+    // +0x3c). No callers by CALL.
+    stack_word(entry - 4) = esi;
+    stack_word(entry - 8) = age;
+    stack_word(entry - 12) = 0x0021383f;
+    const uint8_t* const enemy = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0x3c);
+    return float_bits(visibility_if_stale(entry - 12, enemy, actor, edi, ebx, ebp));
+}
+
+PLATFORM_ASM_ENTRY(Actor_UpdateSight_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_UpdateSight) "addl $20, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL Actor_UpdateSight(uint32_t entry, uint32_t esi, uint32_t edi, uint32_t ebx, uint32_t ebp) {
+    // Stack actor (ret 4): every sentient of the enemy team (none for team 0/3/4) is scored by
+    // 1/distance (the 0x5f3759df estimate) x the age of the actor's record of it past 0.1 s,
+    // sorted (qsort, 0x001fa990), and the ones whose record is older than 2 s or missing get
+    // Actor_UpdateVisibility, until the actor's +0xfc changes.
+    // Frame B = entry - 0x130: EDI +0, ESI +4, EBP +8, estimate / +0xfc +0xc, squared distance
+    // +0x10, enemy team table +0x14, list {sentient, score} +0x28.
+    const uint32_t B = entry - 0x130;
+    stack_word(B + 8) = ebp;
+    stack_word(B + 4) = esi;
+    stack_word(B) = edi;
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    const uint32_t me = addr_of(actor);
+    stack_word(B + 0x14) = 0;
+    stack_word(B + 0x18) = 2;
+    stack_word(B + 0x1c) = 1;
+    stack_word(B + 0x20) = 0;
+    stack_word(B + 0x24) = 0;
+    const uint32_t team = field<uint32_t>(field<const uint8_t*>(actor, 4), 4);
+    const uint32_t enemy = stack_word(B + 0x14 + team * 4);
+    if (!enemy) return;
+    const uint32_t mask = 1u << (enemy & 31);
+    stack_word(B - 4) = ebx;
+    uint32_t s = call_at(B - 4, 0x00213619, 0x001fa570, TitleRegs{field<uint32_t>(actor, 4), ebx, enemy, 0, mask, me}, 0,
+                         nullptr);  // Sentient_FirstOfTeams (ESI mask)
+    int32_t n = 0;
+    if (s) {
+        const uint8_t* const own = field<const uint8_t*>(actor, 0);
+        const float half = title_global<float>(0x0083eb24);
+        const float three_halves = title_global<float>(0x0083eaf4);
+        do {
+            const uint8_t* const other = field<const uint8_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{s}), 0);
+            const float dx = field<float>(other, 0x140) - field<float>(own, 0x140);
+            const float dz = field<float>(other, 0x148) - field<float>(own, 0x148);
+            const float dy = field<float>(other, 0x144) - field<float>(own, 0x144);
+            const uint8_t* const rec = sentient_record(actor, reinterpret_cast<const uint8_t*>(uintptr_t{s}));
+            const float d2 = (dz * dz + dy * dy) + dx * dx;
+            const int32_t since = level_time() - field<int32_t>(rec, 8) - 100;
+            *stack_vec(B + 0x10) = d2;
+            const uint32_t guess = 0x5f3759dfu - uint32_t(int32_t(stack_word(B + 0x10)) >> 1);
+            stack_word(B + 0xc) = guess;
+            const float y = *stack_vec(B + 0xc);
+            float t = d2 * half;
+            t = t * y;
+            t = t * y;
+            float score = (three_halves - t) * y;
+            score = score * static_cast<float>(since < 0 ? 0 : since);
+            *stack_vec(B + 0x2c + n * 8) = score;
+            stack_word(B + 0x28 + n * 8) = s;
+            ++n;
+            s = call_at(B - 4, 0x0021371a, 0x001fa510, TitleRegs{s, addr_of(own), s, 0, mask, mask}, 0,
+                        nullptr);  // Sentient_NextOfTeams (EAX previous, EDI mask)
+        } while (s);
+        if (n > 1) {
+            const uint32_t args[4] = {B + 0x28, uint32_t(n), 8, 0x001fa990};
+            call_at(B - 4, 0x0021373b, 0x001ef880, TitleRegs{B + 0x28, addr_of(own), 0, 0, mask, mask}, 4, args);  // _qsort
+        }
+    }
+    const uint32_t mark = field<uint32_t>(actor, 0xfc);
+    stack_word(B + 0xc) = mark;
+    for (int32_t i = 0; i < n; ++i) {
+        const uint8_t* const sentient = reinterpret_cast<const uint8_t*>(uintptr_t{stack_word(B + 0x28 + i * 8)});
+        const int32_t time = field<int32_t>(sentient_record(actor, sentient), 8);
+        if (!time || time + 2000 < level_time())
+            update_visibility_at(B - 4, 0x002137b9, actor, field<uint8_t*>(sentient, 0), field<uint32_t>(actor, 0x828),
+                                 field<uint32_t>(actor, 0x82c), uint32_t(i), me, ebp);
+        if (field<uint32_t>(actor, 0xfc) != stack_word(B + 0xc)) break;
+    }
+}
+
+// Every callee runs where the original's call puts it: gap entry, EDX the entry ESP.
+PLATFORM_ASM_ENTRY(Actor_Spawn_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "movl %edx, %ebp\n"
+                   "pushl (%esp)\n"
+                   "pushl %ebx\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "pushl %ebp\n" PLATFORM_ASM_CALL(Actor_Spawn) "addl $28, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_Spawn(uint32_t entry, uint8_t* ent, uint32_t ecx, uint32_t esi, uint32_t edi, uint32_t ebx,
+                              uint32_t ebp) {
+    // EAX entity: a spawner (+0x2a0 & 1) becomes one (Actor_InitSpawner's result); else the
+    // entity drops to the floor and gets an actor (Actor_Alloc in its context +0x220, -1 = the
+    // level's; when full and +0x2a0 & 2 after Actor_ForceFreeSlot) and a sentient - without
+    // them it is freed (a missing sentient also takes the actor's spawn number back) and 0.
+    // Then the entity becomes an actor (type 11, actor bounds, clip mask 0x2820011), the actor
+    // record its defaults and angles (16-bit), the sentient team 3; linked; 1.
+    // Frame: ECX slot (|180 cap| temp) entry - 4, ESI -8, EDI -0xc, EBP -0x10, EBX -0x14.
+    stack_word(entry - 4) = ecx;
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 12) = edi;
+    const uint32_t e = addr_of(ent);
+    field<uint32_t>(ent, 0x258) = 0;
+    const uint32_t flags_eax = (e & 0xffffff00u) | ent[0x2a0];
+    if (ent[0x2a0] & 1)
+        return call_at(entry - 12, 0x0021070c, 0x001fc480, TitleRegs{flags_eax, ebx, ecx, 0, e, 0}, 0,
+                       nullptr);  // Actor_InitSpawner (ESI)
+    call_at(entry - 12, 0x00210715, 0x0020e5a0, TitleRegs{flags_eax, ebx, ecx, 0, e, 0}, 0,
+            nullptr);  // Actor_DropToFloor (ESI)
+    stack_word(entry - 20) = ebp;  // its saved EBP
+    const auto context = [ent]() {
+        const int32_t own = field<int32_t>(ent, 0x220);
+        return own == -1 ? field<uint32_t>(title_global<const uint8_t*>(0x0095f638), 0x34) : uint32_t(own);
+    };
+    stack_word(entry - 16) = ebp;
+    const uint32_t top = entry - 16;
+    uint32_t actor_word = call_at(top, 0x0021072e, 0x00200360, TitleRegs{context(), ebx, 0, 0, e, 0}, 0,
+                                  nullptr);  // Actor_Alloc (EAX context)
+    if (!actor_word) {
+        if (ent[0x2a0] & 2) {
+            call_at(top, 0x00210742, 0x0020e0e0, TitleRegs{0, ebx, 0, 0, e, 0}, 0, nullptr);  // Actor_ForceFreeSlot
+            stack_word(top - 8) = 0;  // its saved EBP (the actor, none)
+            actor_word = call_at(top, 0x0021075b, 0x00200360, TitleRegs{context(), ebx, 0, 0, e, 0}, 0, nullptr);
+        }
+        if (!actor_word) {
+            const uint32_t args[2] = {e, 0};
+            call_at(top, 0x00210768, 0x002be420, TitleRegs{0, ebx, 0, 0, e, 0}, 2, args);  // G_FreeEntity
+            return 0;
+        }
+    }
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{actor_word});
+    stack_word(entry - 20) = ebx;
+    const uint32_t top2 = entry - 20;
+    const uint32_t sentient_word = call_at(top2, 0x00210778, 0x001fc2f0, TitleRegs{actor_word, ebx, 0, 0, e, 0}, 0,
+                                           nullptr);  // Sentient_Alloc
+    if (!sentient_word) {
+        const int32_t spawned = title_global<int32_t>(0x0095f44c) - 1;
+        title_global<int32_t>(0x0095f44c) = spawned;
+        field<int32_t>(actor, 0x1360) = spawned;
+        const uint32_t args[2] = {e, 0};
+        call_at(top2, 0x00210796, 0x002be420, TitleRegs{uint32_t(spawned), 0, 0, 0, e, 0}, 2, args);  // G_FreeEntity
+        return 0;
+    }
+    uint8_t* const sentient = reinterpret_cast<uint8_t*>(uintptr_t{sentient_word});
+    const uint32_t svflags = field<uint32_t>(ent, 0xd4);
+    const uint32_t eflags = field<uint32_t>(ent, 0x2a4);
+    field<uint32_t>(ent, 0x240) = actor_word;
+    field<uint32_t>(ent, 0x244) = sentient_word;
+    field<uint32_t>(ent, 0x328) = 0;
+    field<uint32_t>(ent, 0x32c) = 0;
+    field<uint32_t>(ent, 0x34c) = 3;
+    field<uint32_t>(ent, 0x10) = 0x10;
+    field<uint32_t>(ent, 0x338) = 1;
+    field<uint32_t>(ent, 0x340) = 1;
+    field<uint32_t>(ent, 0x344) = 1;
+    field<uint32_t>(ent, 0x348) = 1;
+    field<uint32_t>(ent, 0x29c) = 1;
+    field<uint32_t>(ent, 0x354) = 100;
+    field<uint32_t>(ent, 0x350) = 100;
+    field<uint32_t>(ent, 0x2a4) = eflags | 0x28000;
+    field<uint32_t>(ent, 0xd4) = svflags | 8;
+    for (uint32_t i = 0; i < 12; i += 4) field<uint32_t>(ent, 0xe0 + i) = title_global<uint32_t>(0x0098a560 + i);  // g_actorMins
+    for (uint32_t i = 0; i < 12; i += 4) field<uint32_t>(ent, 0xf0 + i) = title_global<uint32_t>(0x0098a550 + i);  // g_actorMaxs
+    field<uint32_t>(ent, 0x2a8) = 0x2820011;
+    field<uint32_t>(ent, 0x134) = 0x4000;
+    ent[0] = 0xb;
+    field<uint32_t>(ent, 0x374) = 0;
+    const uint32_t origin_result = call_at(top2, 0x002108a9, 0x002b76e0,
+                                           TitleRegs{e, sentient_word, e + 0x140, svflags | 8, e, 0}, 0,
+                                           nullptr);  // G_SetOrigin (EAX entity, ECX origin)
+    field<uint32_t>(actor, 0) = e;
+    field<uint32_t>(actor, 4) = sentient_word;
+    call_at(top2, 0x002108b6, 0x001fff80, TitleRegs{origin_result, sentient_word, 0, actor_word, e, 0}, 0,
+            nullptr);  // Actor_InitPhysics (EDX actor)
+    for (uint32_t i = 0; i < 0xf7 * 4; i += 4) field<uint32_t>(actor, 0x3c0 + i) = 0;
+    field<float>(actor, 0x774) = title_global<float>(0x0083ebc8);  // 32768
+    field<uint32_t>(actor, 0x74c) = 0;
+    field<float>(actor, 0xd4) = title_global<float>(0x0083eca0);  // 0.2
+    field<float>(actor, 0xd8) = title_global<float>(0x0083eb20);  // 1
+    field<uint32_t>(actor, 0x7c4) = 0;
+    field<float>(actor, 0xe4) = title_global<float>(0x0083f230);  // -6969
+    field<uint32_t>(actor, 0x13ec) = 0;
+    field<uint32_t>(actor, 0x244) = 7;
+    field<uint32_t>(actor, 0xdc) = 5;
+    field<uint32_t>(actor, 0x1378) = 1;
+    field<uint32_t>(actor, 0x137c) = 1;
+    field<uint16_t>(actor, 0x1380) = 0xffff;
+    const float to_short = title_global<float>(0x0083ebd8);    // 65536 / 360
+    const float from_short = title_global<float>(0x0083ebd4);  // 360 / 65536
+    const int32_t pitch = static_cast<int32_t>(field<float>(ent, 0x150) * to_short) & 0xffff;
+    const int32_t yaw = static_cast<int32_t>(field<float>(ent, 0x154) * to_short) & 0xffff;
+    field<float>(actor, 0x130) = static_cast<float>(pitch) * from_short;
+    const float yaw_angle = static_cast<float>(yaw) * from_short;
+    field<float>(actor, 0x134) = yaw_angle;
+    field<float>(actor, 0x138) = yaw_angle;
+    call_at(top2, 0x002109b9, 0x002b7640,
+            TitleRegs{e, sentient_word, e + 0x150, uint32_t(pitch), e, e + 0x150}, 0, nullptr);  // G_SetAngle
+    stack_word(top2 - 4) = field<uint32_t>(ent, 0x154);
+    stack_word(top2 - 8) = 0x002109cb;
+    Actor_SetDesiredAngles(actor, field<float>(ent, 0x150), field<float>(ent, 0x154));
+    field<float>(actor, 0x79c) = title_global<float>(0x0083ec9c);  // 3
+    field<float>(actor, 0x7a0) = title_global<float>(0x0083eef8);  // 9
+    call_at(top2, 0x002109f2, 0x001fbc50, TitleRegs{actor_word, sentient_word, 0, 0, e, e + 0x150}, 0,
+            nullptr);  // Actor_ClearMoveHistory (EAX)
+    // |0.0| (a double) capped at 180, through the x87.
+    uint64_t bits;
+    const double zero = title_global<double>(0x0083f228);
+    std::memcpy(&bits, &zero, 8);
+    bits &= 0x7fffffffffffffffull;
+    double magnitude;
+    std::memcpy(&magnitude, &bits, 8);
+    *stack_vec(entry - 4) = static_cast<float>(static_cast<long double>(magnitude));
+    field<float>(sentient, 0x18) = title_global<float>(0x00830be0);  // 384
+    field<float>(sentient, 0x1c) = title_global<float>(0x0083f224);  // 147456
+    field<float>(sentient, 0x20) = title_global<float>(0x0083eb34);  // -1
+    field<uint32_t>(sentient, 0) = e;
+    const float cap = title_global<float>(0x0083eb60);  // 180
+    field<float>(sentient, 0x24) = platform_x87_greater(*stack_vec(entry - 4), cap) ? cap : *stack_vec(entry - 4);
+    field<float>(sentient, 0x2c) = title_global<float>(0x0083eb20);
+    field<uint32_t>(sentient, 4) = 3;
+    field<uint32_t>(sentient, 0x28) = 0;
+    for (uint32_t i = 0; i < 0x18; i += 4) field<uint32_t>(actor, 0x198 + i) = 0;
+    field<float>(actor, 0x188) = 0.0f;
+    field<float>(actor, 0x18c) = 0.0f;
+    field<float>(actor, 0x190) = 0.0f;
+    call_at(top2, 0x00210aa0, 0x001fb1f0, TitleRegs{actor_word, sentient_word, 0, 0, e, e + 0x150}, 0,
+            nullptr);  // Actor_ClearLookAt (EAX)
+    call_at(top2, 0x00210aa7, 0x002d7fe0, TitleRegs{actor_word, sentient_word, 0, 0, e, e}, 0,
+            nullptr);  // SV_LinkEntity (EDI)
+    stack_word(top2 - 8) = actor_word;  // its saved EBP (the actor)
+    return 1;
+}
+
+namespace {
+
+// G_UpdateGrenadeLandPos's body at entry ESP `entry` (ESI grenade). Frame B = entry - 0x14:
+// EDI +0, landing time +4, landing point +8.
+void grenade_land_pos(uint32_t entry, uint8_t* grenade, uint32_t edi, uint32_t ebp) {
+    const float zero = 0.0f;
+    if (!(field<float>(grenade, 0x2c0) == zero) || !(field<float>(grenade, 0x2c4) == zero) ||
+        !(field<float>(grenade, 0x2c8) == zero))
+        return;
+    const uint32_t B = entry - 0x14;
+    stack_word(B) = edi;
+    const uint32_t mask = field<uint32_t>(grenade, 0x2a8);
+    field<uint32_t>(grenade, 0x2a8) = mask & 0xfdff3fffu;
+    const uint32_t time = field<uint32_t>(grenade, 0x328) - uint32_t(level_time());
+    const uint32_t args[4] = {time, B + 8, 1, B + 4};
+    const uint32_t g = addr_of(grenade);
+    const uint32_t hit = call_at(B, 0x00212919, 0x0026e810, TitleRegs{g, 0, B + 4, B + 8, g, mask}, 4,
+                                 args);  // G_SimulateGrenadePath (EAX grenade)
+    stack_word(B - 0x18) = ebp;  // its saved EBP
+    field<uint32_t>(grenade, 0x3c0) = hit;
+    const uint32_t from = hit ? B + 8 : g + 0x140;
+    field<uint32_t>(grenade, 0x2c0) = stack_word(from);
+    field<uint32_t>(grenade, 0x2c4) = stack_word(from + 4);
+    field<uint32_t>(grenade, 0x2c8) = stack_word(from + 8);
+    field<uint32_t>(grenade, 0x2a8) = mask;
+}
+
+// Actor_NoticeGrenade's body at entry ESP `entry` (EAX grenade, EBX actor). Frame B =
+// entry - 0x10: ESI +0, the actor's origin +4.
+void notice_grenade(uint32_t entry, uint8_t* grenade, uint8_t* actor, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    const uint32_t B = entry - 0x10;
+    stack_word(B) = esi;
+    if (field<uint32_t>(actor, 0x1310)) return;
+    const uint32_t g = addr_of(grenade);
+    const uint32_t me = addr_of(actor);
+    const int32_t r = static_cast<int32_t>(call_at(B, 0x00213e19, 0x001efcc0, TitleRegs{g, me, 0, 0, g, edi}, 0,
+                                                   nullptr));  // _rand
+    const float chance = field<float>(actor, 0x130c) * title_global<float>(0x0083f258);  // 32767
+    if (static_cast<float>(r) > chance) return;
+    field<uint32_t>(actor, 0x1310) = g;
+    const uint32_t handle = field<uint32_t>(grenade, 0x2b0);
+    const uint32_t index = handle & 0xfff;
+    if (index < 0x540 && (handle >> 12) == title_global<uint32_t>(0x0097a96c + index * 8)) {
+        const uint8_t* const thrower = title_global<const uint8_t*>(0x0097a968 + index * 8);
+        if (thrower) {
+            stack_word(B - 4) = edi;
+            const uint8_t* const sentient = field<const uint8_t*>(thrower, 0x244);
+            if (sentient) {
+                // A grenade thrown by an enemy: "grenade danger" on the actor's entity.
+                const uint32_t team = field<uint32_t>(field<const uint8_t*>(actor, 4), 4);
+                const uint32_t team_args[1] = {team};
+                const uint32_t enemy = call_at(B - 4, 0x00213e80, 0x000123d0,
+                                               TitleRegs{field<uint32_t>(actor, 4), me, team, 0, g, addr_of(sentient)}, 1,
+                                               team_args);  // Sentient_EnemyTeam
+                if (field<uint32_t>(sentient, 4) == enemy) {
+                    const uint32_t note[1] = {title_global<uint32_t>(0x0097a6f8)};  // scr_const_grenade_danger
+                    call_at(B - 4, 0x00213e9a, 0x0024f570,
+                            TitleRegs{g, me, field<uint32_t>(sentient, 4), note[0], g, field<uint32_t>(actor, 0)}, 1,
+                            note);  // G_NotifyWithOwnHandle (EAX entity, EDI notified)
+                }
+            }
+        }
+    }
+    stack_word(B - 4) = 0x00213ea3;
+    grenade_land_pos(B - 4, grenade, edi, ebp);
+    const uint8_t* const ent = field<const uint8_t*>(field<const uint8_t*>(actor, 4), 0);
+    stack_word(B + 4) = field<uint32_t>(ent, 0x140);
+    stack_word(B + 8) = field<uint32_t>(ent, 0x144);
+    stack_word(B + 0xc) = field<uint32_t>(ent, 0x148);
+    const uint32_t safe = call_at(B, 0x00213edd, 0x0020c9c0, TitleRegs{addr_of(ent), me, B + 4, me, g, edi}, 0,
+                                  nullptr);  // Actor_IsSafeFromGrenade (ECX point, EDX actor)
+    stack_word(B - 8) = ebp;  // its saved EBP
+    if (safe) field<uint32_t>(actor, 0x1310) = 0;
+}
+
+// Actor_EventGrenade's body (EAX actor; stack grenade; cdecl).
+void event_grenade(uint32_t entry, uint8_t* actor, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    stack_word(entry - 4) = ebx;
+    const uint8_t* const ent = field<const uint8_t*>(actor, 0);
+    if (ent && (field<uint32_t>(ent, 0x2a4) & 0x8000000)) return;  // ignores events
+    stack_word(entry - 8) = 0x0021404e;
+    notice_grenade(entry - 8, reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)}), actor, esi, edi, ebp);
+}
+
+// Actor_HandlePointEvent's body (EAX event type, ECX source entity, EDX actor; stack point,
+// unread; ret 4).
+void handle_point_event(uint32_t entry, uint32_t type, uint8_t* src, uint8_t* actor, uint32_t ebx, uint32_t esi,
+                        uint32_t edi, uint32_t ebp) {
+    stack_word(entry - 4) = addr_of(src);
+    stack_word(entry - 8) = esi;
+    stack_word(entry - 12) = edi;
+    if (type - 2 > 11) return;
+    stack_word(entry - 16) = ebx;
+    const uint32_t top = entry - 16;
+    const uint32_t s = addr_of(src);
+    const uint32_t me = addr_of(actor);
+    const uint32_t self[1] = {me};
+    switch (type) {
+        case 2:
+        case 3: {  // a sound or sighting: noticed unless a turret user's recent record says otherwise
+            if (!call_at(top, 0x00214933, 0x001fe110, TitleRegs{s, ebx, s, me, me, s}, 1, self))  // Actor_IsEventWorthNoticing
+                return;
+            const uint32_t turret = call_at(top, 0x00214940, 0x001fe0c0, TitleRegs{0, ebx, s, me, me, s}, 0,
+                                            nullptr);  // Actor_IsUsingTurret (ESI)
+            if (turret && field<const uint8_t*>(field<const uint8_t*>(actor, 0x136c), 0x24c)[1] &&
+                field<const uint8_t*>(src, 0x244)) {
+                const uint8_t* const rec = sentient_record(actor, field<const uint8_t*>(src, 0x244));
+                if (level_time() - field<int32_t>(rec, 0x18) >= 3000) return;
+            }
+            call_at(top, 0x002149a2, 0x00200050, TitleRegs{turret, ebx, field<uint32_t>(src, 0x244), 0, me, s}, 0,
+                    nullptr);  // Actor_RecordSentientPosition (ESI actor, ECX sentient)
+            return;
+        }
+        case 4:
+            call_at(top, 0x002149b6, 0x00202bd0, TitleRegs{field<uint32_t>(src, 0x244), ebx, me, me, me, s}, 0,
+                    nullptr);  // Actor_EventLearnFromActor (EAX sentient, ECX actor)
+            return;
+        case 5: {  // attacked: the owner (+0x374) of the source
+            const uint8_t* const owner = field<const uint8_t*>(src, 0x374);
+            const uint32_t attacker = field<uint32_t>(owner, 0x244);
+            if (!attacker) return;
+            stack_word(entry - 4) = field<uint32_t>(owner, 0x224);
+            if (!call_at(top, 0x002149e4, 0x00013860,
+                         TitleRegs{entry - 4, attacker, field<uint32_t>(owner, 0x224), me, me, addr_of(owner)}, 0,
+                         nullptr))  // G_EntHandleToEnt (EAX handle)
+                return;
+            if (!call_at(top, 0x002149f0, 0x001fe110, TitleRegs{addr_of(owner), attacker, 0, 0, me, addr_of(owner)}, 1,
+                         self))
+                return;
+            call_at(top, 0x002149fd, 0x00202ba0, TitleRegs{me, attacker, 0, 0, me, attacker}, 0,
+                    nullptr);  // Actor_EventAttacked (EAX actor, EDI attacker)
+            return;
+        }
+        case 6: {
+            const uint32_t owner = field<uint32_t>(src, 0x374);
+            const uint32_t sentient = field<uint32_t>(reinterpret_cast<const uint8_t*>(uintptr_t{owner}), 0x244);
+            if (!sentient) return;
+            if (!call_at(top, 0x00214a1a, 0x001fe110, TitleRegs{owner, ebx, s, me, me, sentient}, 1, self)) return;
+            call_at(top, 0x00214a25, 0x00200050, TitleRegs{0, ebx, sentient, 0, me, sentient}, 0,
+                    nullptr);  // Actor_RecordSentientPosition
+            return;
+        }
+        case 8:
+        case 9:  // grenades
+            stack_word(top - 4) = s;
+            stack_word(top - 8) = 0x00214a34;
+            event_grenade(top - 8, actor, ebx, me, s, ebp);
+            return;
+        case 10: {
+            if (!call_at(top, 0x00214a46, 0x001fe110, TitleRegs{s, ebx, s, me, me, s}, 1, self)) return;
+            const uint32_t args[1] = {field<uint32_t>(src, 0x244)};
+            call_at(top, 0x00214a58, 0x00202b60, TitleRegs{me, ebx, 0, args[0], me, s}, 1,
+                    args);  // Actor_EventNoticeSentient (EAX actor; stdcall)
+            return;
+        }
+        default:
+            return;
+    }
+}
+
+// Actor_SendPointEvent's body (EAX team mask, 0 = the enemies of the source's sentient; stack
+// source entity, event type, point, squared range (0: the type's default); ret 0x10).
+// Frame: ESI entry - 0x20, EBP -0x1c, EBX -0x18, enemy team table -0x14, EDI -0x24.
+void send_point_event(uint32_t entry, uint32_t mask, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    uint8_t* const src = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    const uint32_t type = stack_word(entry + 8);
+    const float* const point = stack_vec(stack_word(entry + 12));
+    stack_word(entry - 0x18) = ebx;
+    stack_word(entry - 0x1c) = ebp;
+    stack_word(entry - 0x20) = esi;
+    if (!mask) {
+        const uint8_t* const sentient = field<const uint8_t*>(src, 0x244);
+        if (!sentient) return;
+        const uint32_t team = field<uint32_t>(sentient, 4);
+        stack_word(entry - 0x14) = 0;
+        stack_word(entry - 0x10) = 2;
+        stack_word(entry - 0x0c) = 1;
+        stack_word(entry - 0x08) = 0;
+        stack_word(entry - 0x04) = 0;
+        const uint32_t enemy = stack_word(entry - 0x14 + team * 4);
+        if (!enemy) return;
+        mask = 1u << (enemy & 31);
+    }
+    if (*stack_vec(entry + 16) == title_global<float>(0x0083eafc))
+        stack_word(entry + 16) = title_global<uint32_t>(0x008fedb4 + type * 8);
+    stack_word(entry - 0x24) = edi;
+    const uint32_t top = entry - 0x24;
+    const uint32_t p = stack_word(entry + 12);
+    uint32_t a = call_at(top, 0x00214b0e, 0x001fc0c0, TitleRegs{0, p, 0, 0, mask, edi}, 0,
+                         nullptr);  // Actor_FirstOfTeams (ESI mask)
+    while (a) {
+        const uint8_t* const ent = field<const uint8_t*>(reinterpret_cast<const uint8_t*>(uintptr_t{a}), 0);
+        const float dy = field<float>(ent, 0x144) - point[1];
+        const float dx = field<float>(ent, 0x140) - point[0];
+        const float dz = field<float>(ent, 0x148) - point[2];
+        const float d2 = (dz * dz + dy * dy) + dx * dx;
+        if (*stack_vec(entry + 16) >= d2) {
+            stack_word(top - 4) = p;
+            stack_word(top - 8) = 0x00214b7b;
+            handle_point_event(top - 8, type, src, reinterpret_cast<uint8_t*>(uintptr_t{a}), p, mask, a,
+                               addr_of(src));
+        }
+        a = call_at(top, 0x00214b82, 0x001fc060, TitleRegs{a, p, 0, 0, mask, a}, 0,
+                    nullptr);  // Actor_NextOfTeams (EAX previous, ESI mask)
+    }
+}
+
+}  // namespace
+
+// The callees run where the original's calls put them: gap entries, EDX the entry ESP.
+PLATFORM_ASM_ENTRY(G_UpdateGrenadeLandPos_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(G_UpdateGrenadeLandPos) "addl $16, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL G_UpdateGrenadeLandPos(uint32_t entry, uint8_t* grenade, uint32_t edi, uint32_t ebp) {
+    // ESI grenade: while its landing point (+0x2c0) is unset (all 0) it becomes the end of
+    // G_SimulateGrenadePath over the fuse left (+0x328 - now; clip mask without 0x2000000 /
+    // 0xc000 meanwhile), or the origin when that finds nothing (result kept in +0x3c0).
+    grenade_land_pos(entry, grenade, edi, ebp);
+}
+
+PLATFORM_ASM_ENTRY(Actor_NoticeGrenade_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_NoticeGrenade) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_NoticeGrenade(uint32_t entry, uint8_t* grenade, uint8_t* actor, uint32_t esi, uint32_t edi,
+                                  uint32_t ebp) {
+    // EAX grenade, EBX actor: an actor without a grenade to react to takes this one with its
+    // chance (+0x130c of _rand's range); one thrown by an enemy team's sentient also notifies
+    // "grenade danger" on the actor. The landing point is updated; out of its reach the actor
+    // forgets it again.
+    notice_grenade(entry, grenade, actor, esi, edi, ebp);
+}
+
+PLATFORM_ASM_ENTRY(Actor_EventGrenade_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_EventGrenade) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+void XB_CDECL Actor_EventGrenade(uint32_t entry, uint8_t* actor, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                 uint32_t ebp) {
+    // EAX actor; stack grenade (cdecl): Actor_NoticeGrenade unless the entity ignores events.
+    event_grenade(entry, actor, ebx, esi, edi, ebp);
+}
+
+// EAX/ECX/EDX are all inputs: the caller's EBP is parked in the word below the entry ESP (the
+// original's ECX slot, rewritten) and EBP carries that address across GAME_GAP_ESP.
+PLATFORM_ASM_ENTRY(Actor_HandlePointEvent_entry,
+                   "pushl %ebp\n"
+                   "movl %esp, %ebp\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl (%ebp)\n"
+                   "pushl (%esp)\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n"
+                   "pushl %ecx\n"
+                   "pushl %eax\n"
+                   "leal 4(%ebp), %eax\n"
+                   "pushl %eax\n" PLATFORM_ASM_CALL(Actor_HandlePointEvent) "addl $32, %esp\n"
+                   "popl %ebp\n"
+                   "popl %esp\n"
+                   "addl $4, %esp\n"
+                   "ret $4")
+
+void XB_CDECL Actor_HandlePointEvent(uint32_t entry, uint32_t type, uint8_t* src, uint8_t* actor, uint32_t ebx,
+                                     uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // EAX event type, ECX source entity, EDX actor; stack point (unread; ret 4): types 2/3
+    // notice the source's sentient (a turret user only with a record under 3 s old), 4 learn
+    // from the source actor, 5 attacked by / 6 notice the source's owner (+0x374), 8/9 a
+    // grenade, 10 notice; others nothing.
+    handle_point_event(entry, type, src, actor, ebx, esi, edi, ebp);
+}
+
+PLATFORM_ASM_ENTRY(Actor_SendPointEvent_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %eax\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_SendPointEvent) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret $16")
+
+void XB_CDECL Actor_SendPointEvent(uint32_t entry, uint32_t mask, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                   uint32_t ebp) {
+    // EAX team mask (0: the enemies of the source's sentient); stack (source entity, event
+    // type, point, squared range - 0 takes the type's from 0x008fedb4; ret 0x10): every actor
+    // of those teams within range of the point gets Actor_HandlePointEvent.
+    send_point_event(entry, mask, ebx, esi, edi, ebp);
+}
+
+PLATFORM_ASM_ENTRY(Sentient_SendPointEventAtSelf_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Sentient_SendPointEventAtSelf) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL Sentient_SendPointEventAtSelf(uint32_t entry, const uint8_t* sentient, uint32_t ebx, uint32_t esi,
+                                            uint32_t edi, uint32_t ebp) {
+    // ECX sentient; stack event type (ret 4): Actor_SendPointEvent to the sentient's own team
+    // at its origin with the type's range.
+    const uint32_t ent = field<uint32_t>(sentient, 0);
+    const uint32_t team = field<uint32_t>(sentient, 4);
+    stack_word(entry - 4) = 0;
+    stack_word(entry - 8) = ent + 0x140;
+    stack_word(entry - 12) = stack_word(entry + 4);
+    stack_word(entry - 16) = ent;
+    stack_word(entry - 20) = 0x00214bc0;
+    send_point_event(entry - 20, 1u << (team & 31), ebx, esi, edi, ebp);
+}
+
+PLATFORM_ASM_ENTRY(Actor_Death_Cleanup_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %edi\n"
+                   "pushl %esi\n"
+                   "pushl %ebx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_Death_Cleanup) "addl $20, %esp\n"
+                   "popl %esp\n"
+                   "ret $4")
+
+void XB_CDECL Actor_Death_Cleanup(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi, uint32_t ebp) {
+    // Stack actor (ret 4): the actor's team hears event 6 at its origin; a grenade it holds
+    // (+0x1310 owned by its entity via +0x378) goes back on the hand tag when +0xd4 & 1 and is
+    // released; the sentient dissociates; the path trims at the origin (Path_AccumulateTrim)
+    // and +0x740/+0x742/+0x7c4 clear.
+    uint8_t* const actor = reinterpret_cast<uint8_t*>(uintptr_t{stack_word(entry + 4)});
+    const uint32_t me = addr_of(actor);
+    stack_word(entry - 4) = ebx;
+    stack_word(entry - 8) = ebp;
+    stack_word(entry - 12) = esi;
+    stack_word(entry - 16) = edi;
+    const uint8_t* const sentient = field<const uint8_t*>(actor, 4);
+    const uint32_t ent = field<uint32_t>(sentient, 0);
+    stack_word(entry - 0x14) = 0;
+    stack_word(entry - 0x18) = ent + 0x140;
+    stack_word(entry - 0x1c) = 6;
+    stack_word(entry - 0x20) = ent;
+    stack_word(entry - 0x24) = 0x00214bf9;
+    send_point_event(entry - 0x24, 1u << (field<uint32_t>(sentient, 4) & 31), ebx, esi, 0, me);
+    const uint32_t top = entry - 16;
+    uint8_t* const grenade = field<uint8_t*>(actor, 0x1310);
+    if (grenade && field<uint32_t>(grenade, 0x378) == field<uint32_t>(actor, 0)) {
+        if (field<uint8_t>(grenade, 0xd4) & 1) {
+            call_at(top, 0x00214c1e, 0x00209070, TitleRegs{addr_of(grenade), ebx, 0, 0, esi, me}, 0,
+                    nullptr);  // Actor_Grenade_AttachToTag (EDI actor)
+            call_at(top, 0x00214c29, 0x002d7fe0, TitleRegs{0, ebx, 0, 0, esi, field<uint32_t>(actor, 0x1310)}, 0,
+                    nullptr);  // SV_LinkEntity (EDI)
+            stack_word(top - 8) = me;  // its saved EBP
+        }
+        field<uint32_t>(field<uint8_t*>(actor, 0x1310), 0x378) = 0;
+    }
+    const uint32_t args[1] = {addr_of(sentient)};
+    call_at(top, 0x00214c40, 0x00200b50, TitleRegs{addr_of(sentient), ebx, 0, 0, esi, 0}, 1,
+            args);  // Sentient_Dissociate
+    stack_word(top - 4 - 4 - 8) = me;  // its saved EBP (after EBX)
+    const uint32_t origin = field<uint32_t>(actor, 0) + 0x140;
+    call_at(top, 0x00214c57, 0x001fee70, TitleRegs{0, origin, 0, 0, me + 0x3c0, 0}, 0,
+            nullptr);  // Path_AccumulateTrim (ESI path, EBX point)
+    stack_word(top - 4 - 0x24 - 4) = me;  // its saved EBP
+    field<uint16_t>(actor, 0x740) = 0;
+    field<uint16_t>(actor, 0x742) = 0;
+    field<uint32_t>(actor, 0x7c4) = 0;
+}
+
+PLATFORM_ASM_ENTRY(Actor_Death_Start_entry,
+                   "movl %esp, %edx\n"
+                   GAME_GAP_ESP("0x20000")
+                   "pushl %ebp\n"
+                   "pushl %ebx\n"
+                   "pushl %esi\n"
+                   "pushl %edi\n"
+                   "pushl %ecx\n"
+                   "pushl %edx\n" PLATFORM_ASM_CALL(Actor_Death_Start) "addl $24, %esp\n"
+                   "popl %esp\n"
+                   "ret")
+
+uint32_t XB_CDECL Actor_Death_Start(uint32_t entry, uint8_t* actor, uint32_t edi, uint32_t esi, uint32_t ebx,
+                                    uint32_t ebp) {
+    // ECX actor (death state Start): unless the state is 8 or the entity has +0x3cc, an actor
+    // not caught by 0x002ad810 starts its ground tilt (record +0x198: on, time, 500, flat) with
+    // an unsmoothed G_UpdateGroundTilt. Timers +0x28 = 400, +0x2c = now + 1, +0x34 = now + 501. 0.
+    stack_word(entry - 4) = edi;
+    const uint32_t me = addr_of(actor);
+    if (field<uint32_t>(actor, 0x278) != 8 && !field<uint32_t>(field<const uint8_t*>(actor, 0), 0x3cc)) {
+        stack_word(entry - 8) = esi;
+        const uint32_t caught = call_at(entry - 8, 0x002129ba, 0x002ad810,
+                                        TitleRegs{field<uint32_t>(actor, 0), ebx, 0, me + 0x198, uint32_t(level_time()), me},
+                                        0, nullptr);  // (EDX record, ESI time)
+        if (!caught) {
+            field<int32_t>(actor, 0x19c) = level_time();
+            field<uint32_t>(actor, 0x198) = 1;
+            field<uint32_t>(actor, 0x1a0) = 500;
+            field<float>(actor, 0x1a8) = 0.0f;
+            field<float>(actor, 0x1ac) = 0.0f;
+            stack_word(entry - 8) = 0;
+            stack_word(entry - 12) = 0x002129f6;
+            G_UpdateGroundTilt(entry - 12, field<uint8_t*>(actor, 0), esi, me, ebx, ebp);
+        }
+    }
+    field<uint32_t>(actor, 0x28) = 400;
+    field<int32_t>(actor, 0x2c) = level_time() + 1;
+    field<int32_t>(actor, 0x34) = level_time() + 501;
+    return 0;
+}
+
 }  // namespace game

@@ -1054,4 +1054,68 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL G_UpdateGroundTilt(uint32_t entry, uint
                                                            uint32_t ebx, uint32_t ebp);
 extern "C" void G_UpdateGroundTilt_entry(void);
 
+// 0x00210d10 (EAX actor, EBX entity; stack cone cos, max squared distance; ret 8; XMM0, bits in EAX for the entry): how
+// well the actor sees the entity; updates its sight records.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateVisibility(uint32_t entry, uint8_t* actor, uint8_t* ent,
+                                                                   uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_UpdateVisibility_entry(void);
+// 0x00212060 (ESI actor, EDI sentient; stack cone cos, max squared distance, maximum age; ret 12; XMM0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateVisibilityIfNeeded(uint32_t entry, uint8_t* actor,
+                                                                           const uint8_t* sentient, uint32_t ebx,
+                                                                           uint32_t ebp);
+extern "C" void Actor_UpdateVisibilityIfNeeded_entry(void);
+// 0x00212190 (EAX sentient, ESI actor; stack maximum age; ret 4; XMM0).
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateVisibilityIfStale(uint32_t entry, const uint8_t* sentient,
+                                                                          uint8_t* actor, uint32_t edi, uint32_t ebx,
+                                                                          uint32_t ebp);
+extern "C" void Actor_UpdateVisibilityIfStale_entry(void);
+// 0x00213830 (ECX actor, EAX maximum age; XMM0): Actor_UpdateVisibilityIfStale on the enemy.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_UpdateVisibilityIfStaleCall(uint32_t entry, uint8_t* actor,
+                                                                              uint32_t age, uint32_t esi, uint32_t edi,
+                                                                              uint32_t ebx, uint32_t ebp);
+extern "C" void Actor_UpdateVisibilityIfStaleCall_entry(void);
+// 0x002135d0 (stack actor; ret 4): refreshes the actor's sight of the enemy team, most urgent first.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_UpdateSight(uint32_t entry, uint32_t esi, uint32_t edi, uint32_t ebx,
+                                                          uint32_t ebp);
+extern "C" void Actor_UpdateSight_entry(void);
+
+// 0x002106f0 (EAX entity): spawns an actor from the entity (or a spawner); 0 when no actor/sentient is free.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Spawn(uint32_t entry, uint8_t* ent, uint32_t ecx, uint32_t esi,
+                                                        uint32_t edi, uint32_t ebx, uint32_t ebp);
+extern "C" void Actor_Spawn_entry(void);
+// 0x002128a0 (ESI grenade): its landing point when unset.
+extern "C" PLATFORM_HIDDEN void XB_CDECL G_UpdateGrenadeLandPos(uint32_t entry, uint8_t* grenade, uint32_t edi,
+                                                               uint32_t ebp);
+extern "C" void G_UpdateGrenadeLandPos_entry(void);
+// 0x00213e00 (EAX grenade, EBX actor): the actor may take the grenade as the one to react to.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_NoticeGrenade(uint32_t entry, uint8_t* grenade, uint8_t* actor,
+                                                            uint32_t esi, uint32_t edi, uint32_t ebp);
+extern "C" void Actor_NoticeGrenade_entry(void);
+// 0x00214030 (EAX actor; stack grenade; cdecl): grenade event.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_EventGrenade(uint32_t entry, uint8_t* actor, uint32_t ebx, uint32_t esi,
+                                                           uint32_t edi, uint32_t ebp);
+extern "C" void Actor_EventGrenade_entry(void);
+// 0x00214910 (EAX event type, ECX source entity, EDX actor; stack point; ret 4): one actor's reaction to a point event.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_HandlePointEvent(uint32_t entry, uint32_t type, uint8_t* src,
+                                                               uint8_t* actor, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                               uint32_t ebp);
+extern "C" void Actor_HandlePointEvent_entry(void);
+// 0x00214a90 (EAX team mask; stack source entity, type, point, squared range; ret 0x10): a point event to actors in range.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_SendPointEvent(uint32_t entry, uint32_t mask, uint32_t ebx, uint32_t esi,
+                                                             uint32_t edi, uint32_t ebp);
+extern "C" void Actor_SendPointEvent_entry(void);
+// 0x00214ba0 (ECX sentient; stack type; ret 4): a point event to the sentient's own team at its origin.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Sentient_SendPointEventAtSelf(uint32_t entry, const uint8_t* sentient,
+                                                                      uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                                      uint32_t ebp);
+extern "C" void Sentient_SendPointEventAtSelf_entry(void);
+// 0x00214bd0 (stack actor; ret 4): a dead actor's cleanup.
+extern "C" PLATFORM_HIDDEN void XB_CDECL Actor_Death_Cleanup(uint32_t entry, uint32_t ebx, uint32_t esi, uint32_t edi,
+                                                            uint32_t ebp);
+extern "C" void Actor_Death_Cleanup_entry(void);
+// 0x00212990 (ECX actor): death state Start.
+extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL Actor_Death_Start(uint32_t entry, uint8_t* actor, uint32_t edi,
+                                                              uint32_t esi, uint32_t ebx, uint32_t ebp);
+extern "C" void Actor_Death_Start_entry(void);
+
 }  // namespace game
