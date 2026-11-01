@@ -440,4 +440,126 @@ uint8_t XB_THISCALL PhysBox_IntersectSegment(uint8_t* shape, const float* a, con
     return 0;
 }
 
+// Axis-aligned box shape (0x30 bytes): vtable, three -1 words (+4..+0xc), centre +0x10 with the
+// bounding radius in its w (+0x1c), half extents +0x20.
+uint8_t* XB_THISCALL PhysBox_Construct(uint8_t* box, const float* center, const float* extent) {
+    at<uint32_t>(box, 0) = 0x0083263c;  // PhysShape vtable
+    at<uint32_t>(box, 0x10) = title_global<uint32_t>(0x007cc650);
+    at<uint32_t>(box, 0x14) = title_global<uint32_t>(0x007cc654);
+    at<uint32_t>(box, 0x18) = title_global<uint32_t>(0x007cc658);
+    at<float>(box, 0x1c) = 0.0f;
+    at<int32_t>(box, 4) = -1;
+    at<int32_t>(box, 8) = -1;
+    at<int32_t>(box, 0xc) = -1;
+    at<uint32_t>(box, 0) = 0x007cc6c0;  // PhysBox vtable
+    std::memcpy(box + 0x10, center, 12);
+    const Lanes e = lanes(extent);
+    const Lanes sq = mul(e, e);
+    const float length_squared = (sq.v[0] + sq.v[1]) + sq.v[2];
+    float radius = length_squared;
+    // UCOMISS + JNE: NaN takes the zero path too.
+    if (!(length_squared == 0.0f || length_squared != length_squared)) {
+        // Newton step on the RSQRTSS estimate: ((3 - x r) x) 0.5, x = l r.
+        const float r = platform_rsqrt_estimate(length_squared);
+        const float x = length_squared * r;
+        radius = ((title_global<float>(0x007cc4b0) - x * r) * x) * title_global<float>(0x007cc4c0);  // 3, 0.5
+    }
+    at<float>(box, 0x1c) = radius;
+    std::memcpy(box + 0x20, extent, 16);
+    return box;
+}
+
+// Squared distance from p to the box (p clamped: MAXPS against the low corner, then MINPS).
+float XB_CDECL PhysBox_PointDistanceSq(const float* p, const uint8_t* box) {
+    const Lanes e = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const Lanes c = lanes(reinterpret_cast<const float*>(box + 0x10));
+    const Lanes lo = sub(c, e);
+    const Lanes hi = add(c, e);
+    const Lanes q = lanes(p);
+    Lanes clamped;
+    for (int32_t i = 0; i < 4; ++i) {
+        const float m = lo.v[i] > q.v[i] ? lo.v[i] : q.v[i];  // MAXPS lo, p
+        clamped.v[i] = hi.v[i] < m ? hi.v[i] : m;              // MINPS hi, m
+    }
+    const Lanes d = sub(clamped, q);
+    const Lanes sq = mul(d, d);
+    return (sq.v[0] + sq.v[1]) + sq.v[2];
+}
+
+namespace {
+
+// p moved into the frame (rows +0, +0x10, +0x20, origin +0x30).
+Lanes point_into(const float* frame, const float* p) {
+    Lanes columns[3];
+    frame_columns(frame, columns);
+    return rotate_into(columns, sub(lanes(p), lanes(frame + 12)));
+}
+
+// CMPLTPS mask of lanes 0-2 all set.
+bool all_less3(const Lanes& a, const Lanes& b) { return a.v[0] < b.v[0] && a.v[1] < b.v[1] && a.v[2] < b.v[2]; }
+
+}  // namespace
+
+// Is p (moved into the frame) strictly inside the box?
+uint8_t XB_CDECL PhysBox_ContainsPointInFrame(const uint8_t* box, const float* frame, const float* p) {
+    const Lanes local = point_into(frame, p);
+    const Lanes c = lanes(reinterpret_cast<const float*>(box + 0x10));
+    const Lanes e = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const Lanes hi = add(c, e);
+    platform_keep(hi);
+    if (!all_less3(local, hi)) return 0;
+    const Lanes lo = sub(c, e);
+    platform_keep(lo);
+    return all_less3(lo, local) ? 1 : 0;
+}
+
+// Does the sphere (centre +0x10, radius +0x1c) moved into the frame overlap the box? The title
+// widens the box by the squared radius.
+uint8_t XB_CDECL PhysBox_OverlapsSphereInFrame(const uint8_t* box, const float* frame, const uint8_t* sphere) {
+    const Lanes local = point_into(frame, reinterpret_cast<const float*>(sphere + 0x10));
+    const float radius = at<float>(sphere, 0x1c);
+    const float r2 = radius * radius;
+    const Lanes c = lanes(reinterpret_cast<const float*>(box + 0x10));
+    const Lanes e = lanes(reinterpret_cast<const float*>(box + 0x20));
+    const Lanes far = add(local, splat(r2));
+    const Lanes lo = sub(c, e);
+    platform_keep(far);
+    platform_keep(lo);
+    if (!all_less3(lo, far)) return 0;
+    const Lanes hi = add(c, e);
+    const Lanes near = sub(local, splat(r2));
+    platform_keep(hi);
+    platform_keep(near);
+    return all_less3(near, hi) ? 1 : 0;
+}
+
+float XB_CDECL PhysBox_PointDistanceSqInFrame(const float* p, const uint8_t* box, const float* frame) {
+    alignas(16) float local[4];
+    std::memcpy(local, point_into(frame, p).v, 16);
+    return PhysBox_PointDistanceSq(local, box);
+}
+
+// GJK closest points of two shapes (out: point a +0, point b +0x10, separation +0x20); on a hit
+// with a separation longer than the threshold (0x008bd434) the separation is normalized and the
+// points are pulled 0.03 inward along it. Returns the GJK result (1), 2 for a too-short
+// separation, or GJK's other results as they are.
+int32_t XB_CDECL Phys_GjkContact(uint32_t a, uint32_t b, uint32_t c, float* out) {
+    using Closest = int32_t XB_CDECL(uint32_t, uint32_t, uint32_t, float*, uint32_t, uint32_t, uint32_t, uint32_t,
+                                     uint32_t, uint32_t);
+    const int32_t result = title_function<Closest>(0x000b1b40)(a, b, c, out, title_global<uint32_t>(0x008bd430), 0, 0,
+                                                                  0, 0, 0);  // Gjk_ClosestPoints
+    if (result != 1) return result;
+    const Lanes sq = mul(lanes(out + 8), lanes(out + 8));
+    const float length_squared = (sq.v[0] + sq.v[1]) + sq.v[2];
+    if (!(length_squared > title_global<float>(0x008bd434))) return 2;
+    const float length = static_cast<float>(platform_x87_sqrt_ext(length_squared));
+    std::memcpy(out + 8, div(lanes(out + 8), splat(length)).v, 16);
+    const Lanes s = mul(lanes(out + 8), title_global<float>(0x007cce08));  // 0.03
+    std::memcpy(out, sub(lanes(out), s).v, 16);
+    alignas(16) float point[4];
+    std::memcpy(point, out + 4, 16);
+    std::memcpy(out + 4, add(lanes(point), s).v, 16);
+    return 1;
+}
+
 }  // namespace game

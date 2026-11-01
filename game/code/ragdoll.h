@@ -89,4 +89,19 @@ void XB_THISCALL PhysRagdoll_DestroyObjects(uint8_t* phys);
 void XB_THISCALL PhysRagdoll_WriteBodiesToPose(uint8_t* phys);
 void XB_THISCALL PhysRagdoll_PoseToBodies(uint8_t* phys);
 
+// 0x000b3730: rest detection (dt on the stack).
+void XB_THISCALL PhysRagdoll_UpdateRestState(uint8_t* phys, float dt);
+// 0x000b38a0: body+0x134 of every body.
+void XB_THISCALL PhysRagdoll_SetBodiesField134(uint8_t* phys, float value);
+// 0x000b38d0: wakes the ragdoll and adds a force to one body.
+void XB_THISCALL PhysRagdoll_AddBodyForce(uint8_t* phys, int32_t index, const float* force);
+// 0x000b3960, 0x000b3a80: per-axis damping of one body's linear / angular velocity.
+void XB_THISCALL PhysRagdoll_DampBodyLinear(uint8_t* phys, int32_t index, const float* factors);
+void XB_THISCALL PhysRagdoll_DampBodyAngular(uint8_t* phys, int32_t index, const float* factors);
+// 0x000b3ba0, 0x000b3bd0: the same for every body.
+void XB_THISCALL PhysRagdoll_DampLinear(uint8_t* phys, const float* factors);
+void XB_THISCALL PhysRagdoll_DampAngular(uint8_t* phys, const float* factors);
+// 0x000b3c00: pushes every body toward a velocity.
+void XB_THISCALL PhysRagdoll_AddVelocityForce(uint8_t* phys, const float* velocity);
+
 }  // namespace game

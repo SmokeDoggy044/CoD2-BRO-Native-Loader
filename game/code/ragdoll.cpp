@@ -541,4 +541,129 @@ void XB_THISCALL PhysRagdoll_WriteBodiesToPose(uint8_t* phys) { ragdoll_bones_ca
 
 void XB_THISCALL PhysRagdoll_PoseToBodies(uint8_t* phys) { ragdoll_bones_call(phys, 0x0090a854); }
 
+// Rest detection over the used bodies: +0x480 = mean of body+0x168, +0x484 = share of bodies
+// with body+0x15c > 0, +0x47c = bodies flagged 4 (+0x144), +0x488 = their share, +0x478 = all
+// flagged. Below 80% flagged the rest timer (+0x474) restarts; otherwise it runs, and the ragdoll
+// is at rest (+0x470) after 0.25 s or when every body is flagged.
+void XB_THISCALL PhysRagdoll_UpdateRestState(uint8_t* phys, float dt) {
+    uint32_t* const begin = at<uint32_t*>(phys, 0x28);
+    uint32_t* const end = begin + at<int32_t>(phys, 0x2c);
+    int32_t used = 0;
+    for (uint32_t* it = begin; it != end; ++it)
+        if (*it) ++used;
+    const float one = title_global<float>(0x0083eb20);  // 1
+    at<float>(phys, 0x480) = 0.0f;
+    at<float>(phys, 0x484) = 0.0f;
+    for (uint32_t* it = begin; it != end; ++it) {
+        if (!*it) continue;
+        const void* body = reinterpret_cast<const void*>(*it);
+        at<float>(phys, 0x480) = at<float>(body, 0x168) + at<float>(phys, 0x480);
+        const float moving = at<int32_t>(body, 0x15c) > 0 ? one : 0.0f;
+        at<float>(phys, 0x484) = at<float>(phys, 0x484) + moving;
+    }
+    const float count = static_cast<float>(used);
+    const float scale = one / count;
+    at<float>(phys, 0x480) = at<float>(phys, 0x480) * scale;
+    at<float>(phys, 0x484) = scale * at<float>(phys, 0x484);
+    at<int32_t>(phys, 0x47c) = 0;
+    for (uint32_t* it = begin; it != end; ++it)
+        if (*it && (at<uint8_t>(reinterpret_cast<const void*>(*it), 0x144) & 4)) ++at<int32_t>(phys, 0x47c);
+    const int32_t flagged = at<int32_t>(phys, 0x47c);
+    const float flagged_f = static_cast<float>(flagged);
+    at<float>(phys, 0x488) = flagged_f / count;
+    at<uint8_t>(phys, 0x478) = flagged == used ? 1 : 0;
+    if (count * title_global<float>(0x0083ebc0) > flagged_f) {  // 0.8
+        at<float>(phys, 0x474) = 0.0f;
+        at<uint8_t>(phys, 0x470) = 0;
+        return;
+    }
+    if (at<uint8_t>(phys, 0x470)) return;
+    const float timer = at<float>(phys, 0x474) + dt;
+    at<float>(phys, 0x474) = timer;
+    if (timer >= title_global<float>(0x007cd0a0) || at<uint8_t>(phys, 0x478)) at<uint8_t>(phys, 0x470) = 1;  // 0.25
+}
+
+// body+0x134 of every used body.
+void XB_THISCALL PhysRagdoll_SetBodiesField134(uint8_t* phys, float value) {
+    uint32_t* it = at<uint32_t*>(phys, 0x28);
+    uint32_t* const end = it + at<int32_t>(phys, 0x2c);
+    for (; it != end; ++it)
+        if (*it) at<float>(reinterpret_cast<void*>(*it), 0x134) = value;
+}
+
+namespace {
+
+// body+offset (aligned vec4) += delta: old + delta.
+void body_accumulate(uint32_t body, uint32_t offset, const Lanes& delta) {
+    float* const sum = reinterpret_cast<float*>(body + offset);
+    alignas(16) float old[4];
+    std::memcpy(old, sum, 16);
+    std::memcpy(sum, add(lanes(old), delta).v, 16);
+}
+
+// Wakes the ragdoll and adds -(v * (1 - f[axis])) per axis of the body's velocity (+vel) to +acc;
+// lane 3 comes from the x product.
+void ragdoll_damp_body(uint8_t* phys, int32_t index, const float* factors, uint32_t vel, uint32_t acc) {
+    const uint32_t body = at<uint32_t*>(phys, 0x28)[index];
+    if (!body) return;
+    ragdoll_reset_rest(phys);
+    const float one = title_global<float>(0x0083eb20);  // 1
+    const Lanes v = lanes(reinterpret_cast<const float*>(body + vel));
+    const Lanes dz = neg(mul(v, one - factors[2]));
+    const float ky = one - factors[1];
+    const float kx = one - factors[0];
+    const Lanes dx = neg(mul(v, kx));
+    const Lanes dy = neg(mul(v, ky));
+    const Lanes delta = {{dx.v[0], dy.v[1], dz.v[2], dx.v[3]}};
+    body_accumulate(body, acc, delta);
+}
+
+}  // namespace
+
+void XB_THISCALL PhysRagdoll_AddBodyForce(uint8_t* phys, int32_t index, const float* force) {
+    const uint32_t body = at<uint32_t*>(phys, 0x28)[index];
+    if (!body) return;
+    ragdoll_reset_rest(phys);
+    body_accumulate(body, 0x110, lanes(force));
+}
+
+void XB_THISCALL PhysRagdoll_DampBodyLinear(uint8_t* phys, int32_t index, const float* factors) {
+    ragdoll_damp_body(phys, index, factors, 0xd0, 0x110);
+}
+
+void XB_THISCALL PhysRagdoll_DampBodyAngular(uint8_t* phys, int32_t index, const float* factors) {
+    ragdoll_damp_body(phys, index, factors, 0xe0, 0x120);
+}
+
+void XB_THISCALL PhysRagdoll_DampLinear(uint8_t* phys, const float* factors) {
+    for (int32_t i = 0; i < at<int32_t>(phys, 0x2c); ++i) PhysRagdoll_DampBodyLinear(phys, i, factors);
+}
+
+void XB_THISCALL PhysRagdoll_DampAngular(uint8_t* phys, const float* factors) {
+    for (int32_t i = 0; i < at<int32_t>(phys, 0x2c); ++i) PhysRagdoll_DampBodyAngular(phys, i, factors);
+}
+
+// For each body whose velocity (+0xd0) falls short of v along v ((v - vel).v >= 0): the
+// shortfall (v - vel).v / |v|^2 times v added to +0x110. The added w is v.w^2 (a stack lane the
+// title copies along).
+void XB_THISCALL PhysRagdoll_AddVelocityForce(uint8_t* phys, const float* velocity) {
+    const Lanes v = lanes(velocity);
+    const Lanes sq = mul(v, v);
+    const float length_squared = (sq.v[0] + sq.v[1]) + sq.v[2];
+    if (!(length_squared > title_global<float>(0x0083ed50))) return;  // 1e-4
+    uint32_t* it = at<uint32_t*>(phys, 0x28);
+    uint32_t* const end = it + at<int32_t>(phys, 0x2c);
+    for (; it != end; ++it) {
+        const uint32_t body = *it;
+        if (!body) continue;
+        const Lanes d = mul(sub(v, lanes(reinterpret_cast<const float*>(body + 0xd0))), v);
+        const float along = (d.v[0] + d.v[1]) + d.v[2];
+        if (!(along >= 0.0f)) continue;
+        const Lanes scaled = mul(splat(along / length_squared), v);
+        platform_keep(scaled);
+        const Lanes delta = {{scaled.v[0], scaled.v[1], scaled.v[2], sq.v[3]}};
+        body_accumulate(body, 0x110, delta);
+    }
+}
+
 }  // namespace game
