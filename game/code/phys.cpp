@@ -3321,4 +3321,267 @@ void XB_CDECL Phys_PointsBoxCenterSize(const float* points, int32_t count, float
     size[2] = s[2];
 }
 
+
+namespace {
+
+// The zero vector at 0x007cde20, copied as words.
+void zero_vector_e20(uint8_t* out) {
+    for (uint32_t i = 0; i < 4; ++i) at<uint32_t>(out, i * 4) = title_global<uint32_t>(0x007cde20 + i * 4);
+}
+
+// 4-lane reciprocal with one Newton step, (2 - r v) r, r = the RCPPS estimate.
+Lanes refined_reciprocal(const Lanes& v) {
+    Lanes r;
+    for (int32_t i = 0; i < 4; ++i) r.v[i] = platform_rcp_estimate(v.v[i]);
+    return mul(sub(lanes(&title_global<float>(0x007cddf0)), mul(r, v)), r);  // 2
+}
+
+}  // namespace
+
+// Velocity of a point given in a frame's rotation (rows +0, +0x10, +0x20): 0x000bb4f0 fills the
+// linear (out) and angular velocity, then out += angular x (rows * local).
+float* XB_CDECL Phys_GetVelocityAtLocalPoint(uint32_t a0, const float* frame, const float* local, uint32_t a3,
+                                             float* out, float* angular) {
+    title_function<void XB_CDECL(uint32_t, const float*, uint32_t, float*, float*)>(0x000bb4f0)(a0, frame, a3, out,
+                                                                                               angular);
+    alignas(16) float p[4], rows[12];
+    copy_words(p, local);
+    for (int32_t i = 0; i < 3; ++i) copy_words(rows + i * 4, frame + i * 4);
+    const Lanes r = mat_rotate(rows, lanes(p));
+    const Lanes w = lanes(angular);
+    alignas(16) float v[4];
+    copy_words(v, out);
+    store4(out, add(lanes(v), cross_lanes(w, r)));
+    return out;
+}
+
+// +0x130 = 1 / mass.
+void XB_THISCALL PhysBody_SetMass(uint8_t* body, float mass) { at<float>(body, 0x130) = title_global<float>(0x0083eb20) / mass; }
+
+// +0xb0 = 1 / inertia (4 lanes, refined estimate).
+void XB_THISCALL PhysBody_SetInertia(uint8_t* body, const float* inertia) {
+    alignas(16) float in[4];
+    std::memcpy(in, inertia, 16);
+    store4(reinterpret_cast<float*>(body + 0xb0), refined_reciprocal(lanes(in)));
+}
+
+// +0x110 += force; +0x120 += scale * ((point - +0x30) x force).
+void XB_THISCALL PhysBody_AddForceAtPoint(uint8_t* body, const float* force, const float* point, float scale) {
+    {
+        alignas(16) float f[4], sum[4];
+        std::memcpy(f, force, 16);
+        copy_words(sum, reinterpret_cast<float*>(body + 0x110));
+        store4(reinterpret_cast<float*>(body + 0x110), add(lanes(sum), lanes(f)));
+    }
+    const Lanes position = lanes(reinterpret_cast<float*>(body + 0x30));
+    alignas(16) float f[4], p[4], sum[4];
+    std::memcpy(f, force, 16);
+    std::memcpy(p, point, 16);
+    const Lanes torque = cross_lanes(sub(lanes(p), position), lanes(f));
+    copy_words(sum, reinterpret_cast<float*>(body + 0x120));
+    store4(reinterpret_cast<float*>(body + 0x120), add(lanes(sum), mul(splat(scale), torque)));
+}
+
+// A 0x1c0 object: flags +0x144 = 0x20, frame (16 words) copied to +0, velocities +0xd0 / +0xe0
+// zero, +0x1b0 = the frame pointer, +0x150 / +0x154 = 0, +0x13c / +0x140 = 1.
+uint8_t* XB_THISCALL PhysObject1c0_Init(uint8_t* object, const float* frame) {
+    at<uint32_t>(object, 0x144) = 0;
+    for (uint32_t i = 0; i < 16; ++i) at<uint32_t>(object, i * 4) = reinterpret_cast<const uint32_t*>(frame)[i];
+    zero_vector_e20(object + 0xd0);
+    zero_vector_e20(object + 0xe0);
+    const uint32_t flags = at<uint32_t>(object, 0x144) | 0x20;
+    at<const float*>(object, 0x1b0) = frame;
+    at<uint32_t>(object, 0x150) = 0;
+    at<uint32_t>(object, 0x154) = 0;
+    at<float>(object, 0x13c) = title_global<float>(0x0083eb20);
+    at<float>(object, 0x140) = title_global<float>(0x0083eb20);
+    at<uint32_t>(object, 0x144) = flags;
+    return object;
+}
+
+// Body setup: +0x130 = 1 / mass, +0xb0 = 1 / inertia, frame (16 words) at +0, velocities
+// +0xd0 / +0xe0 (and their copies +0xf0 / +0x100), +0x148, +0x160, forces +0x110 / +0x120 zero,
+// +0x134 / +0x13c / +0x140 = 1, +0x144 / +0x14c = 0, +0xc0 = (0, -1, 0, 0), +0x138 / +0x168 =
+// 1000, +0x164 = 0; with flag 1 of the world (0x0090a87c) the predicted transform for its step.
+uint8_t* XB_THISCALL PhysBody_Init(uint8_t* body, float mass, const float* inertia, const float* frame,
+                                   const float* velocity, const float* angular, float value148, uint32_t value160) {
+    const float one = title_global<float>(0x0083eb20);
+    at<float>(body, 0x130) = one / mass;
+    {
+        alignas(16) float in[4];
+        std::memcpy(in, inertia, 16);
+        store4(reinterpret_cast<float*>(body + 0xb0), refined_reciprocal(lanes(in)));
+    }
+    for (uint32_t i = 0; i < 16; ++i) at<uint32_t>(body, i * 4) = reinterpret_cast<const uint32_t*>(frame)[i];
+    alignas(16) float t[4];
+    std::memcpy(t, velocity, 16);
+    copy_words(reinterpret_cast<float*>(body + 0xd0), t);
+    std::memcpy(t, angular, 16);
+    at<float>(body, 0x148) = value148;
+    copy_words(reinterpret_cast<float*>(body + 0xe0), t);
+    at<uint32_t>(body, 0x160) = value160;
+    zero_vector_e20(body + 0x110);
+    zero_vector_e20(body + 0x120);
+    copy_words(reinterpret_cast<float*>(body + 0xf0), reinterpret_cast<float*>(body + 0xd0));
+    copy_words(reinterpret_cast<float*>(body + 0x100), reinterpret_cast<float*>(body + 0xe0));
+    at<float>(body, 0x134) = one;
+    at<float>(body, 0x13c) = one;
+    at<float>(body, 0x140) = one;
+    at<uint32_t>(body, 0x144) = 0;
+    at<uint32_t>(body, 0x14c) = 0;
+    at<float>(body, 0xc0) = 0.0f;
+    at<float>(body, 0xc4) = title_global<float>(0x0083eb34);  // -1
+    at<float>(body, 0xc8) = 0.0f;
+    at<float>(body, 0xcc) = 0.0f;
+    const float limit = title_global<float>(0x0083eb9c);  // 1000
+    at<float>(body, 0x138) = limit;
+    at<float>(body, 0x164) = 0.0f;
+    at<float>(body, 0x168) = limit;
+    if (title_global<uint8_t*>(0x0090a87c)[0] & 1) {
+        float dt = at<float>(title_global<uint8_t*>(0x0090a87c), 4);
+        PhysBody_PredictTransform(body, &dt);
+    }
+    return body;
+}
+
+// A fixed body (flag 0x10 of +0x144): identity frame, zero velocities, +0x150 / +0x154 = 0.
+uint32_t XB_THISCALL PhysBody_InitFixed(uint8_t* body) {
+    at<uint32_t>(body, 0x144) = 0;
+    Matrix_Identity(reinterpret_cast<float*>(body));
+    zero_vector_e20(body + 0xd0);
+    zero_vector_e20(body + 0xe0);
+    const uint32_t flags = at<uint32_t>(body, 0x144) | 0x10;
+    at<uint32_t>(body, 0x150) = 0;
+    at<uint32_t>(body, 0x154) = 0;
+    at<uint32_t>(body, 0x144) = flags;
+    return flags;
+}
+
+// The transform after one step (h = +0x13c * dt): +0x70 = position + h (velocity + +0x130 h
+// force), rows +0x40..+0x60 = rotation(+0xe0 angular velocity, h) * rows.
+void XB_CDECL PhysBody_PredictTransform(uint8_t* body, const float* dt) {
+    const float h = at<float>(body, 0x13c) * *dt;
+    const float k = at<float>(body, 0x130) * h;
+    const Lanes force = lanes(reinterpret_cast<float*>(body + 0x110));
+    alignas(16) float velocity[4], position[4];
+    copy_words(velocity, reinterpret_cast<float*>(body + 0xd0));
+    copy_words(position, reinterpret_cast<float*>(body + 0x30));
+    const Lanes v = add(lanes(velocity), mul(splat(k), force));
+    alignas(16) float p[4];
+    store4(p, add(lanes(position), mul(splat(h), v)));
+    copy_words(reinterpret_cast<float*>(body + 0x70), p);
+    alignas(16) float m[16], rows[12];
+    Mat34_FromRotationVector(m, reinterpret_cast<float*>(body + 0xe0), h);
+    alignas(16) float mc[12];
+    std::memcpy(mc, m, sizeof(mc));
+    std::memcpy(rows, body, sizeof(rows));
+    for (int32_t i = 0; i < 3; ++i) {
+        alignas(16) float r[4];
+        store4(r, mat_rotate(mc, lanes(rows + i * 4)));
+        copy_words(reinterpret_cast<float*>(body + 0x40 + i * 0x10), r);
+    }
+}
+
+// out = (+0x10 + (+0x130 -> +0x34) position) - (+0x20 + (+0x134 -> +0x34) position when set).
+float* XB_THISCALL PhysContact140_GetSeparationVector(const uint8_t* contact, float* out) {
+    const uint8_t* const other = at<uint8_t*>(contact, 0x134);
+    Lanes pb;
+    if (other)
+        pb = add(lanes(reinterpret_cast<const float*>(at<uint8_t*>(other, 0x34) + 0x30)),
+                 lanes(reinterpret_cast<const float*>(contact + 0x20)));
+    else
+        pb = lanes(reinterpret_cast<const float*>(contact + 0x20));
+    const uint8_t* const body_a = at<uint8_t*>(at<uint8_t*>(contact, 0x130), 0x34);
+    const Lanes pa = add(lanes(reinterpret_cast<const float*>(body_a + 0x30)), lanes(reinterpret_cast<const float*>(contact + 0x10)));
+    alignas(16) float d[4];
+    store4(d, sub(pa, pb));
+    std::memcpy(out, d, 16);
+    return out;
+}
+
+
+// Launches bodies at a target: from their mass centre (PhysBodies_GetCenterOfMass) the horizontal
+// distance h (x87) and slope dz / h; a Newton search (at most 101 steps, from s = 100) for the
+// horizontal speed s whose ballistic velocity (s, 0, s slope - g / s) along the horizontal unit
+// direction (g = ((body 0's +0x134 * -9.8) h) * 0.5) is nearest the current mean velocity;
+// |s| in (0.001, 1) becomes +-1. Each body's +0x110 gets total / sum(w^2 inverses) times the
+// velocity change, over its w^2 (w = +0x130), with lane 3 = the current horizontal speed.
+// *dist_sq = |target - centre|^2; nothing else when h < 0.01.
+void XB_CDECL PhysBodies_LaunchTowardTarget(uint8_t* const* bodies, int32_t count, const float* target,
+                                            float* dist_sq) {
+    alignas(16) float com[4], momentum[4];
+    float total;
+    PhysBodies_GetCenterOfMass(bodies, count, com, momentum, &total);
+    const Lanes v0 = div(lanes(momentum), splat(total));
+    const Lanes d = sub(lanes(target), lanes(com));
+    const Lanes sq = mul(d, d);
+    platform_keep(sq);
+    *dist_sq = (sq.v[0] + sq.v[1]) + sq.v[2];
+    Lanes flat_sq = d;
+    flat_sq.v[0] = d.v[0] * d.v[0];
+    flat_sq = add(flat_sq, splat(sq.v[1]));
+    platform_keep(flat_sq);
+    const float h = platform_x87_sqrt(flat_sq.v[0]);
+    if (platform_x87_greater(title_global<float>(0x0083eb94), h)) return;  // 0.01
+    const float g = ((at<float>(bodies[0], 0x134) * title_global<float>(0x007cddb4)) * h) *  // -9.8
+                    title_global<float>(0x0083eb24);                                         // 0.5
+    const float slope = d.v[2] / h;
+    const Lanes flat = {{d.v[0], d.v[1], 0.0f, d.v[0]}};
+    const Lanes u = div(flat, splat(h));
+    const float vh = dot3(v0, u);
+    const Lanes current = {{vh, 0.0f, v0.v[2], vh}};
+    const float g2 = g * title_global<float>(0x0083ec5c);  // -2
+    const float one = title_global<float>(0x0083eb20);
+    float s = title_global<float>(0x0083eb90);  // 100
+    bool converged = false;
+    int32_t steps = 0;
+    do {
+        const Lanes v = {{s, 0.0f, s * slope - g / s, s}};
+        const float s2 = s * s;
+        const Lanes dv = {{one, 0.0f, g / s2 + slope, one}};
+        const Lanes delta = sub(v, current);
+        const float s3 = s2 * s;
+        const Lanes ddv = {{0.0f, 0.0f, g2 / s3, 0.0f}};
+        const float num = dot3(dv, delta);
+        const float denom = dot3(ddv, delta) + dot3(dv, dv);
+        const long double next = static_cast<long double>(s) - static_cast<long double>(num) / denom;
+        const float next_s = static_cast<float>(next);
+        long double change = next - s;
+        if (change < 0) change = -change;
+        if (static_cast<long double>(title_global<float>(0x0083eb94)) > change) converged = true;
+        s = next_s;
+        ++steps;
+    } while (!(steps > 100) && !converged);
+    float a;
+    {
+        uint32_t bits;
+        std::memcpy(&bits, &s, 4);
+        bits &= 0x7fffffffu;
+        std::memcpy(&a, &bits, 4);
+    }
+    if (platform_x87_greater(one, a) && a > title_global<float>(0x0083eb4c))  // 0.001
+        s = s >= 0.0f ? one : title_global<float>(0x0083eb34);
+    const float vz = s * slope - g / s;
+    const Lanes launch = add(mul(splat(s), u), Lanes{{0.0f, 0.0f, vz, 0.0f}});
+    float sum = 0.0f;
+    for (int32_t i = 0; i < count; ++i) {
+        const uint8_t* const body = bodies[i];
+        if (!body) continue;
+        const float w = at<float>(body, 0x130);
+        sum = one / (w * w) + sum;
+    }
+    const Lanes impulse = mul(splat(total / sum), sub(launch, v0));
+    for (int32_t i = 0; i < count; ++i) {
+        uint8_t* const body = bodies[i];
+        if (!body) continue;
+        const float w = at<float>(body, 0x130);
+        Lanes share = div(impulse, splat(w * w));
+        platform_keep(share);
+        share.v[3] = vh;
+        alignas(16) float acc[4];
+        copy_words(acc, reinterpret_cast<float*>(body + 0x110));
+        store4(reinterpret_cast<float*>(body + 0x110), add(lanes(acc), share));
+    }
+}
+
 }  // namespace game

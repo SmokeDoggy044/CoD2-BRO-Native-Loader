@@ -305,4 +305,20 @@ void XB_CDECL Phys_PointsBoundingSphere(const float* points, int32_t count, floa
 void XB_CDECL Phys_BoxMassProperties(const float* size, float* inertia, float* mass);
 void XB_CDECL Phys_PointsBoxCenterSize(const float* points, int32_t count, float* size, float* centre);
 
+void XB_CDECL PhysBodies_LaunchTowardTarget(uint8_t* const* bodies, int32_t count, const float* target,
+                                            float* dist_sq);
+float* XB_CDECL Phys_GetVelocityAtLocalPoint(uint32_t a0, const float* frame, const float* local, uint32_t a3,
+                                             float* out, float* angular);
+void XB_THISCALL PhysBody_SetMass(uint8_t* body, float mass);
+void XB_THISCALL PhysBody_SetInertia(uint8_t* body, const float* inertia);
+void XB_THISCALL PhysBody_AddForceAtPoint(uint8_t* body, const float* force, const float* point, float scale);
+uint8_t* XB_THISCALL PhysObject1c0_Init(uint8_t* object, const float* frame);
+uint8_t* XB_THISCALL PhysBody_Init(uint8_t* body, float mass, const float* inertia, const float* frame,
+                                   const float* velocity, const float* angular, float value148, uint32_t value160);
+// 0x000bc0e0: a fixed body (flag 0x10), identity frame.
+uint32_t XB_THISCALL PhysBody_InitFixed(uint8_t* body);
+void XB_CDECL PhysBody_PredictTransform(uint8_t* body, const float* dt);
+// 0x000bc620: a 0x140 contact's separation vector.
+float* XB_THISCALL PhysContact140_GetSeparationVector(const uint8_t* contact, float* out);
+
 }  // namespace game
